@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 资金流向动态追踪</title>
+<link rel="stylesheet" href="common.css">
+<style>
+.flow-canvas{background:linear-gradient(135deg,#0d1117 0%,#161b22 100%);border-radius:var(--radius-lg);min-height:480px;position:relative;overflow:hidden;padding:var(--space-6)}
+.flow-sector{position:absolute;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:var(--radius-lg);padding:var(--space-3) var(--space-4);text-align:center;transition:all .3s ease;cursor:pointer;backdrop-filter:blur(4px)}
+.flow-sector:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);transform:scale(1.02)}
+.flow-sector-name{font-size:var(--text-sm);font-weight:600;color:#e2e8f0}
+.flow-sector-flow{font-size:var(--text-xs);margin-top:2px;font-weight:500}
+.flow-sector-flow.in{color:#4ade80}
+.flow-sector-flow.out{color:#f87171}
+.flow-sector-size{font-size:10px;color:rgba(255,255,255,.35);margin-top:2px}
+
+.flow-arrow{position:absolute;height:2px;transform-origin:left center;opacity:.5;transition:opacity .2s}
+.flow-arrow:hover{opacity:.8}
+
+.timeline-scrubber{display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-6);padding:var(--space-4);background:var(--surface-primary);border:1px solid var(--border-light);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm)}
+.scrubber-bar{flex:1;height:6px;background:var(--gray-100);border-radius:3px;position:relative;cursor:pointer}
+.scrubber-fill{height:100%;background:linear-gradient(90deg,var(--brand-500),var(--blue-500));border-radius:3px;width:60%}
+.scrubber-dot{position:absolute;top:-5px;width:16px;height:16px;background:var(--brand-500);border-radius:50%;border:3px solid #fff;box-shadow:var(--shadow-md);cursor:pointer;left:60%}
+
+.flow-rank-card{display:flex;align-items:center;justify-content:space-between;padding:var(--space-3);background:var(--surface-secondary);border-radius:var(--radius-md);margin-bottom:var(--space-2);transition:background var(--transition-fast)}
+.flow-rank-card:hover{background:var(--gray-100)}
+.flow-rank-left{display:flex;align-items:center;gap:var(--space-3)}
+.flow-rank-num{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:var(--text-xs);font-weight:700;color:#fff}
+.flow-rank-num.r1{background:var(--red-500)}
+.flow-rank-num.r2{background:var(--amber-500)}
+.flow-rank-num.r3{background:var(--amber-400)}
+.flow-rank-num.rn{background:var(--gray-400)}
+
+.heat-calendar{display:grid;grid-template-columns:repeat(10,1fr);gap:3px}
+.heat-day{aspect-ratio:1;border-radius:3px;cursor:pointer;transition:transform var(--transition-fast)}
+.heat-day:hover{transform:scale(1.15)}
+.heat-legend{display:flex;align-items:center;gap:var(--space-2);justify-content:flex-end;font-size:var(--text-xs);color:var(--gray-500);margin-top:var(--space-2)}
+
+.anim-indicator{display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-xs);color:var(--gray-500)}
+.anim-dot{width:6px;height:6px;border-radius:50%;background:var(--green-500);animation:pulse 1.5s ease infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+</style>
+</head>
+<body>
+<div class="app-layout">
+<aside class="app-sidebar">
+<div class="sidebar-brand"><div class="sidebar-brand-icon">AI</div><div class="sidebar-brand-text">Invest</div></div>
+<nav class="sidebar-nav">
+<div class="sidebar-section-title">复盘</div>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
+<a class="sidebar-item active" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<div class="sidebar-section-title">分析</div>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
+<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
+<a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
+<div class="sidebar-section-title">设置</div>
+<a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+<a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
+</nav>
+<div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
+</aside>
+<div class="app-main">
+<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
+<div class="app-content">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6)">
+<h1 class="page-title" style="margin-bottom:0">资金流向动态追踪</h1>
+<div style="display:flex;gap:var(--space-2);align-items:center">
+<div class="anim-indicator"><span class="anim-dot"></span>动态播放中</div>
+<span style="font-size:var(--text-xs);color:var(--gray-500)">近 5 日</span>
+<button class="btn btn-secondary btn-sm">暂停</button>
+</div>
+</div>
+
+<!-- Timeline Scrubber -->
+<div class="timeline-scrubber">
+<span style="font-size:var(--text-xs);color:var(--gray-500);min-width:50px">06-30</span>
+<div class="scrubber-bar">
+<div class="scrubber-fill"></div>
+<div class="scrubber-dot"></div>
+</div>
+<span style="font-size:var(--text-xs);color:var(--gray-500);min-width:50px">07-04</span>
+<button class="btn btn-ghost btn-sm" style="font-size:var(--text-sm)">▶</button>
+<button class="btn btn-ghost btn-sm">⏸</button>
+<button class="btn btn-ghost btn-sm">⏩</button>
+</div>
+
+<!-- Dynamic Flow Canvas -->
+<div class="flow-canvas mb-6" style="position:relative">
+<div style="position:absolute;top:var(--space-3);left:var(--space-3);font-size:var(--text-xs);color:rgba(255,255,255,.3)">板块资金流向 · 07-04 14:30</div>
+
+<!-- Sector Nodes -->
+<div class="flow-sector" style="top:20px;left:30px;min-width:120px">
+<div class="flow-sector-name">🔥 AI芯片</div>
+<div class="flow-sector-flow in">+48.2亿</div>
+<div class="flow-sector-size">主力净流入</div>
+</div>
+<div class="flow-sector" style="top:160px;left:50px;min-width:120px">
+<div class="flow-sector-name">🔧 半导体设备</div>
+<div class="flow-sector-flow in">+22.6亿</div>
+<div class="flow-sector-size">主力净流入</div>
+</div>
+<div class="flow-sector" style="top:300px;left:20px;min-width:120px">
+<div class="flow-sector-name">🔋 固态电池</div>
+<div class="flow-sector-flow in">+18.4亿</div>
+<div class="flow-sector-size">主力净流入</div>
+</div>
+
+<div class="flow-sector" style="top:80px;right:60px;min-width:110px">
+<div class="flow-sector-name">🤖 机器人</div>
+<div class="flow-sector-flow in">+12.8亿</div>
+<div class="flow-sector-size">主力净流入</div>
+</div>
+<div class="flow-sector" style="top:200px;right:30px;min-width:110px">
+<div class="flow-sector-name">🛫 低空经济</div>
+<div class="flow-sector-flow in">+9.5亿</div>
+<div class="flow-sector-size">主力净流入</div>
+</div>
+
+<div class="flow-sector" style="top:340px;right:50px;min-width:100px">
+<div class="flow-sector-name">🍶 白酒</div>
+<div class="flow-sector-flow out">-15.8亿</div>
+<div class="flow-sector-size">主力净流出</div>
+</div>
+<div class="flow-sector" style="bottom:20px;left:200px;min-width:90px">
+<div class="flow-sector-name">⛏ 煤炭</div>
+<div class="flow-sector-flow out">-8.4亿</div>
+<div class="flow-sector-size">主力净流出</div>
+</div>
+<div class="flow-sector" style="top:50px;left:44%;min-width:100px">
+<div class="flow-sector-name">🏗 建材</div>
+<div class="flow-sector-flow out">-5.2亿</div>
+<div class="flow-sector-size">主力净流出</div>
+</div>
+
+<!-- Flow arrows (CSS) -->
+<div style="position:absolute;top:55px;left:155px;width:160px;border-top:2px dashed rgba(74,222,128,.3);transform:rotate(-12deg)"></div>
+<div style="position:absolute;top:10px;left:160px;width:260px;border-bottom:2px dashed rgba(74,222,128,.25);transform:rotate(18deg)"></div>
+<div style="position:absolute;top:195px;left:180px;width:200px;border-top:2px dashed rgba(248,113,113,.25);transform:rotate(-20deg)"></div>
+<div style="position:absolute;top:200px;left:175px;width:190px;border-top:2px dashed rgba(74,222,128,.3)"></div>
+<div style="position:absolute;bottom:80px;left:160px;width:130px;border-top:2px dashed rgba(74,222,128,.25);transform:rotate(-15deg)"></div>
+<div style="position:absolute;top:120px;right:175px;width:100px;border-top:2px dashed rgba(74,222,128,.2);transform:rotate(-25deg)"></div>
+
+<!-- Connection labels -->
+<div style="position:absolute;top:28px;left:260px;font-size:9px;color:rgba(74,222,128,.5)">算力需求拉动</div>
+<div style="position:absolute;top:228px;left:380px;font-size:9px;color:rgba(248,113,113,.4)">资金撤离</div>
+<div style="position:absolute;top:185px;left:260px;font-size:9px;color:rgba(74,222,128,.4)">设备采购预期</div>
+</div>
+
+<!-- Flow Rankings -->
+<div class="grid-2 mb-6">
+<div class="card">
+<div class="card-header"><span class="card-title">板块资金净流入 Top 10</span><span style="font-size:var(--text-xs);color:var(--gray-500)">主力资金 · 近5日累计</span></div>
+<div class="card-body-sm">
+<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num r1">1</span><span style="font-size:var(--text-sm);font-weight:500">AI芯片</span></div><span style="font-weight:600;color:var(--green-600)">+48.2亿</span><span style="font-size:var(--text-xs);color:var(--gray-500)">连续5日流入</span></div>
+<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num r2">2</span><span style="font-size:var(--text-sm);font-weight:500">半导体设备</span></div><span style="font-weight:600;color:var(--green-600)">+22.6亿</span><span style="font-size:var(--text-xs);color:var(--gray-500)">连续3日流入</span></div>
+<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num r3">3</span><span style="font-size:var(--text-sm);font-weight:500">固态电池</span></div><span style="font-weight:600;color:var(--green-600)">+18.4亿</span><span style="font-size:var(--text-xs);color:var(--gray-500)">今日转流入</span></div>
+<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num rn">4</span><span style="font-size:var(--text-sm);font-weight:500">机器人</span></div><span style="font-weight:600;color:var(--green-600)">+12.8亿</span><span style="font-size:var(--text-xs);color:var(--gray-500)">连续4日流入</span></div>
+<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num rn">5</span><span style="font-size:var(--text-sm);font-weight:500">低空经济</span></div><span style="font-weight:600;color:var(--green-600)">+9.5亿</span><span style="font-size:var(--text-xs);color:var(--gray-500)">政策驱动</span></div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header"><span class="card-title">板块资金净流出 Top 10</span><span style="font-size:var(--text-xs);color:var(--gray-500)">主力资金 · 近5日累计</span></div>
+<div class="card-body-sm">
+<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num r1" style="background:var(--green-600)">1</span><span style="font-size:var(--text-sm);font-weight:500">白酒</span></div><span style="font-weight:600;color:var(--red-600)">-15.8亿</span><span style="font-size:var(--text-xs);color:var(--gray-500)">连续5日流出</span></div>
+<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num r2" style="background:var(--green-500)">2</span><span style="font-size:var(--text-sm);font-weight:500">煤炭</span></div><span style="font-weight:600;color:var(--red-600)">-8.4亿</span><span style="font-size:var(--text-xs);color:var(--gray-500)">连续4日流出</span></div>
+<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num r3" style="background:var(--green-400)">3</span><span style="font-size:var(--text-sm);font-weight:500">建材</span></div><span style="font-weight:600;color:var(--red-600)">-5.2亿</span><span style="font-size:var(--text-xs);color:var(--gray-500)">房地产拖累</span></div>
+<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num rn">4</span><span style="font-size:var(--text-sm);font-weight:500">银行</span></div><span style="font-weight:600;color:var(--red-400)">-4.8亿</span><span style="font-size:var(--text-xs);color:var(--gray-500)">连续3日流出</span></div>
+<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num rn">5</span><span style="font-size:var(--text-sm);font-weight:500">农牧</span></div><span style="font-weight:600;color:var(--red-400)">-3.6亿</span><span style="font-size:var(--text-xs);color:var(--gray-500)">周期下行</span></div>
+</div>
+</div>
+</div>
+
+<!-- Heat Calendar + Rotation Signal -->
+<div class="grid-2">
+<div class="card">
+<div class="card-header"><span class="card-title">资金轮动热力日历</span><span style="font-size:var(--text-xs);color:var(--gray-500)">近 30 日板块净流入</span></div>
+<div class="card-body">
+<div style="font-size:var(--text-xs);color:var(--gray-500);margin-bottom:var(--space-2)">AI芯片板块 日均资金流向</div>
+<div class="heat-calendar">
+<div class="heat-day" style="background:#c6f6d5"></div><div class="heat-day" style="background:#9ae6b4"></div><div class="heat-day" style="background:#68d391"></div>
+<div class="heat-day" style="background:#c6f6d5"></div><div class="heat-day" style="background:#9ae6b4"></div><div class="heat-day" style="background:#feb2b2"></div>
+<div class="heat-day" style="background:#feb2b2"></div><div class="heat-day" style="background:#c6f6d5"></div><div class="heat-day" style="background:#68d391"></div>
+<div class="heat-day" style="background:#48bb78"></div><div class="heat-day" style="background:#9ae6b4"></div><div class="heat-day" style="background:#c6f6d5"></div>
+<div class="heat-day" style="background:#68d391"></div><div class="heat-day" style="background:#feb2b2"></div><div class="heat-day" style="background:#c6f6d5"></div>
+<div class="heat-day" style="background:#9ae6b4"></div><div class="heat-day" style="background:#48bb78"></div><div class="heat-day" style="background:#38a169"></div>
+<div class="heat-day" style="background:#c6f6d5"></div><div class="heat-day" style="background:#68d391"></div>
+</div>
+<div class="heat-legend"><span style="display:inline-block;width:12px;height:12px;background:#c6f6d5;border-radius:2px"></span>弱流入<span style="display:inline-block;width:12px;height:12px;background:#48bb78;border-radius:2px;margin-left:4px"></span>中流入<span style="display:inline-block;width:12px;height:12px;background:#38a169;border-radius:2px;margin-left:4px"></span>强流入<span style="display:inline-block;width:12px;height:12px;background:#feb2b2;border-radius:2px;margin-left:4px"></span>流出</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header"><span class="card-title">板块轮动信号</span><span class="tag tag-amber">3 个信号</span></div>
+<div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3)">
+<div style="padding:var(--space-3);background:var(--amber-50);border-radius:var(--radius-md);border-left:3px solid var(--amber-500)">
+<div style="font-size:var(--text-sm);font-weight:600;color:var(--gray-800);margin-bottom:2px">🔀 白酒→AI芯片 资金转移</div>
+<div style="font-size:var(--text-xs);color:var(--gray-600)">近5日白酒净流出15.8亿，AI芯片净流入48.2亿，消费板块资金向科技板块迁移明显</div>
+</div>
+<div style="padding:var(--space-3);background:var(--amber-50);border-radius:var(--radius-md);border-left:3px solid var(--amber-500)">
+<div style="font-size:var(--text-sm);font-weight:600;color:var(--gray-800);margin-bottom:2px">🔀 银行→半导体设备 轮动加速</div>
+<div style="font-size:var(--text-xs);color:var(--gray-600)">防御性板块持续失血，半导体设备连续3日净流入，资金风险偏好明显提升</div>
+</div>
+<div style="padding:var(--space-3);background:var(--green-50);border-radius:var(--radius-md);border-left:3px solid var(--green-500)">
+<div style="font-size:var(--text-sm);font-weight:600;color:var(--gray-800);margin-bottom:2px">📈 固态电池 资金首次转正</div>
+<div style="font-size:var(--text-xs);color:var(--gray-600)">此前连续流出12日后首次转为净流入，宁德时代固态电池量产消息为催化剂</div>
+</div>
+</div>
+</div>
+</div>
+</div></div></div>
+</body>
+</html>

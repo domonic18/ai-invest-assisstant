@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 仪表盘</title>
+<link rel="stylesheet" href="common.css">
+<style>
+/* dashboard specific */
+.index-ticker {
+  display: flex; gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+.index-card {
+  flex: 1;
+  background: var(--surface-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  box-shadow: var(--shadow-sm);
+  display: flex; justify-content: space-between; align-items: flex-start;
+}
+.index-info h3 {
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+  font-weight: 500;
+  margin-bottom: var(--space-1);
+}
+.index-price {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--gray-900);
+  letter-spacing: -.02em;
+}
+.index-change {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  margin-top: 2px;
+}
+.index-change.up { color: var(--red-600); }
+.index-change.down { color: var(--green-600); }
+.index-mini-chart {
+  width: 80px; height: 48px;
+  border-radius: var(--radius-sm);
+}
+.index-mini-chart.up { background: linear-gradient(135deg, #fecaca, #fca5a5); }
+.index-mini-chart.down { background: linear-gradient(135deg, #a7f3d0, #6ee7b7); }
+
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 3px;
+}
+.heatmap-cell {
+  aspect-ratio: 1.4;
+  border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: #fff;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+.heatmap-cell:hover { opacity: .85; }
+
+.hot-news-item {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-light);
+  display: flex; gap: var(--space-3);
+}
+.hot-news-item:last-child { border-bottom: none; }
+.hot-news-rank {
+  width: 20px; height: 20px;
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.hot-news-rank.r1 { background: var(--red-500); }
+.hot-news-rank.r2 { background: var(--amber-500); }
+.hot-news-rank.r3 { background: var(--gray-400); }
+.hot-news-content { flex: 1; min-width: 0; }
+.hot-news-title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--gray-800);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.hot-news-meta { font-size: var(--text-xs); color: var(--gray-500); }
+
+.auction-line { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
+.auction-line-bar {
+  height: 4px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--red-500), var(--green-500));
+  flex: 1;
+}
+
+.watchlist-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-light);
+  font-size: var(--text-sm);
+}
+.watchlist-item:last-child { border-bottom: none; }
+.watchlist-code { color: var(--gray-500); font-family: var(--font-mono); font-size: var(--text-xs); }
+</style>
+</head>
+<body>
+
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <aside class="app-sidebar">
+<div class="sidebar-brand"><div class="sidebar-brand-icon">AI</div><div class="sidebar-brand-text">Invest</div></div>
+<nav class="sidebar-nav">
+<div class="sidebar-section-title">复盘</div>
+<a class="sidebar-item active" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<div class="sidebar-section-title">分析</div>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
+<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
+<a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
+<div class="sidebar-section-title">设置</div>
+<a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+<a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
+</nav>
+<div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
+</aside>
+
+  <!-- Main -->
+  <div class="app-main">
+    <header class="app-header">
+      <div class="header-left">
+        <input class="header-search" type="text" placeholder="搜索股票代码或名称…" value="600519 贵州茅台">
+        <button class="btn btn-primary btn-sm">搜索</button>
+      </div>
+      <div class="header-right">
+        <div class="header-badge" title="消息通知">
+          ⧂<div class="header-badge-dot"></div>
+        </div>
+        <div class="header-badge" title="设置">⚙</div>
+      </div>
+    </header>
+
+    <div class="app-content">
+
+      <!-- Index Ticker -->
+      <div class="index-ticker">
+        <div class="index-card">
+          <div class="index-info">
+            <h3>上证指数</h3>
+            <div class="index-price">3,354.28</div>
+            <div class="index-change up">+1.82%</div>
+          </div>
+          <div class="index-mini-chart up"></div>
+        </div>
+        <div class="index-card">
+          <div class="index-info">
+            <h3>深证成指</h3>
+            <div class="index-price">10,892.67</div>
+            <div class="index-change up">+2.14%</div>
+          </div>
+          <div class="index-mini-chart up"></div>
+        </div>
+        <div class="index-card">
+          <div class="index-info">
+            <h3>创业板指</h3>
+            <div class="index-price">2,187.43</div>
+            <div class="index-change down">-0.37%</div>
+          </div>
+          <div class="index-mini-chart down"></div>
+        </div>
+        <div class="index-card">
+          <div class="index-info">
+            <h3>北向资金</h3>
+            <div class="index-price">+48.2亿</div>
+            <div class="index-change up">净流入</div>
+          </div>
+          <div class="index-mini-chart up"></div>
+        </div>
+      </div>
+
+      <!-- Stats Row -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-label">上涨 / 下跌</span>
+          <span class="stat-value">2,847 / 1,632</span>
+          <span class="stat-change up">涨多跌少</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">涨停 / 跌停</span>
+          <span class="stat-value">78 / 12</span>
+          <span class="stat-change up">情绪高涨</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">两市成交额</span>
+          <span class="stat-value">12,486亿</span>
+          <span class="stat-change up">+8.3% 较前日</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">AI 分析报告</span>
+          <span class="stat-value">12 篇</span>
+          <span class="stat-change">今日已生成</span>
+        </div>
+      </div>
+
+      <!-- Main Content Grid -->
+      <div class="grid-2-1 mb-6">
+
+        <!-- Left: Sector Heatmap -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">行业板块热力图</span>
+            <button class="btn btn-secondary btn-sm">查看全部 →</button>
+          </div>
+          <div class="card-body">
+            <div class="heatmap-grid">
+              <div class="heatmap-cell" style="background:#dc2626">半导体<br>+5.2%</div>
+              <div class="heatmap-cell" style="background:#ef4444">AI算力<br>+4.8%</div>
+              <div class="heatmap-cell" style="background:#f97316">机器人<br>+3.9%</div>
+              <div class="heatmap-cell" style="background:#f59e0b">低空<br>+3.2%</div>
+              <div class="heatmap-cell" style="background:#84cc16">光伏<br>+2.8%</div>
+              <div class="heatmap-cell" style="background:#22c55e">新能源车<br>+2.5%</div>
+              <div class="heatmap-cell" style="background:#10b981">军工<br>+2.1%</div>
+              <div class="heatmap-cell" style="background:#a3a3a3">白酒<br>+0.3%</div>
+              <div class="heatmap-cell" style="background:#f87171">消费电子<br>+1.8%</div>
+              <div class="heatmap-cell" style="background:#fbbf24">创新药<br>+1.5%</div>
+              <div class="heatmap-cell" style="background:#a3e635">电力<br>+1.2%</div>
+              <div class="heatmap-cell" style="background:#4ade80">银行<br>+0.8%</div>
+              <div class="heatmap-cell" style="background:#6ee7b7">煤炭<br>-0.2%</div>
+              <div class="heatmap-cell" style="background:#a3a3a3">地产<br>-0.8%</div>
+              <div class="heatmap-cell" style="background:#d4d4d4">建材<br>-1.2%</div>
+              <div class="heatmap-cell" style="background:#fca5a5">农牧<br>-1.5%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Hot News + Auction -->
+        <div class="flex flex-col gap-4">
+          <div class="card" style="flex:1">
+            <div class="card-header">
+              <span class="card-title">🔥 今日热点</span>
+              <button class="btn btn-secondary btn-sm">更多</button>
+            </div>
+            <div class="card-body-sm">
+              <div class="hot-news-item">
+                <div class="hot-news-rank r1">1</div>
+                <div class="hot-news-content">
+                  <div class="hot-news-title">英伟达发布新一代GPU，国产AI芯片产业链集体爆发</div>
+                  <div class="hot-news-meta">14:32  ·  阅读 12.8k  ·  AI芯片</div>
+                </div>
+              </div>
+              <div class="hot-news-item">
+                <div class="hot-news-rank r2">2</div>
+                <div class="hot-news-content">
+                  <div class="hot-news-title">宁德时代固态电池通过车规认证，能量密度突破500Wh/kg</div>
+                  <div class="hot-news-meta">13:15  ·  阅读 9.6k  ·  固态电池</div>
+                </div>
+              </div>
+              <div class="hot-news-item">
+                <div class="hot-news-rank r3">3</div>
+                <div class="hot-news-content">
+                  <div class="hot-news-title">华为昇腾910C宣布量产，性能对标H100打开算力新格局</div>
+                  <div class="hot-news-meta">11:48  ·  阅读 8.2k  ·  算力</div>
+                </div>
+              </div>
+              <div class="hot-news-item">
+                <div class="hot-news-rank r3" style="background:var(--gray-400)">4</div>
+                <div class="hot-news-content">
+                  <div class="hot-news-title">低空经济政策密集出台，多地加码通用航空基础设施建设</div>
+                  <div class="hot-news-meta">10:20  ·  阅读 6.7k  ·  低空经济</div>
+                </div>
+              </div>
+              <div class="hot-news-item">
+                <div class="hot-news-rank" style="background:var(--gray-400)">5</div>
+                <div class="hot-news-content">
+                  <div class="hot-news-title">半导体设备国产替代加速，5nm刻蚀机通过验证</div>
+                  <div class="hot-news-meta">09:52  ·  阅读 5.4k  ·  半导体设备</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">今日集合竞价信号</span>
+              <span class="tag tag-green">9:25 已收盘</span>
+            </div>
+            <div class="card-body-sm">
+              <div class="auction-line">
+                <span style="font-size:var(--text-xs);color:var(--gray-500);width:28px">9:15</span>
+                <div class="auction-line-bar"></div>
+                <span style="font-size:var(--text-xs);color:var(--gray-500);width:28px">9:25</span>
+              </div>
+              <div style="font-size:var(--text-sm);margin-top:var(--space-2)">
+                <div style="display:flex;justify-content:space-between">
+                  <span>竞价量能异动</span>
+                  <span class="tag tag-red">4 只预警</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:4px">
+                  <span class="text-muted" style="font-size:var(--text-xs)">600519 贵州茅台</span>
+                  <span style="font-size:var(--text-xs);color:var(--red-600)">+218% 量比</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bottom: Watchlist + Market Movers -->
+      <div class="grid-2">
+
+        <!-- Watchlist -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">⭐ 我的自选</span>
+            <div style="display:flex;gap:var(--space-2)">
+              <button class="btn btn-secondary btn-sm">+ 添加</button>
+              <button class="btn btn-ghost btn-sm" style="font-size:var(--text-lg)">⋯</button>
+            </div>
+          </div>
+          <div class="card-body-sm">
+            <table>
+              <thead>
+                <tr><th>代码</th><th>名称</th><th class="text-right">最新价</th><th class="text-right">涨跌幅</th><th class="text-right">成交额</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="watchlist-code">600519</td><td>贵州茅台</td>
+                  <td class="text-right text-mono">1,668.50</td>
+                  <td class="text-right" style="color:var(--red-600)">+2.15%</td>
+                  <td class="text-right">68.5亿</td>
+                </tr>
+                <tr>
+                  <td class="watchlist-code">300750</td><td>宁德时代</td>
+                  <td class="text-right text-mono">236.80</td>
+                  <td class="text-right" style="color:var(--red-600)">+4.62%</td>
+                  <td class="text-right">52.3亿</td>
+                </tr>
+                <tr>
+                  <td class="watchlist-code">002371</td><td>北方华创</td>
+                  <td class="text-right text-mono">358.20</td>
+                  <td class="text-right" style="color:var(--red-600)">+6.18%</td>
+                  <td class="text-right">28.7亿</td>
+                </tr>
+                <tr>
+                  <td class="watchlist-code">688981</td><td>中芯国际</td>
+                  <td class="text-right text-mono">62.15</td>
+                  <td class="text-right" style="color:var(--green-600)">-1.32%</td>
+                  <td class="text-right">15.2亿</td>
+                </tr>
+                <tr>
+                  <td class="watchlist-code">300124</td><td>汇川技术</td>
+                  <td class="text-right text-mono">68.42</td>
+                  <td class="text-right" style="color:var(--red-600)">+1.85%</td>
+                  <td class="text-right">9.8亿</td>
+                </tr>
+                <tr>
+                  <td class="watchlist-code">603986</td><td>兆易创新</td>
+                  <td class="text-right text-mono">128.60</td>
+                  <td class="text-right" style="color:var(--red-600)">+3.44%</td>
+                  <td class="text-right">12.1亿</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Chain Breakthrough -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🚀 产业链突破点</span>
+            <button class="btn btn-secondary btn-sm">查看全部</button>
+          </div>
+          <div class="card-body-sm" style="display:flex;flex-direction:column;gap:var(--space-3)">
+            <div style="padding:var(--space-3);background:var(--brand-50);border-radius:var(--radius-md);border-left:3px solid var(--brand-500)">
+              <div style="font-size:var(--text-sm);font-weight:600;color:var(--gray-800);margin-bottom:2px">半导体设备：国产5nm刻蚀机交付</div>
+              <div style="font-size:var(--text-xs);color:var(--gray-500)">北方华创发布5nm等离子刻蚀机，通过中芯国际产线验证，打破海外垄断</div>
+              <div style="margin-top:var(--space-1)"><span class="tag tag-purple">半导体</span><span class="tag tag-green" style="margin-left:4px">高影响</span></div>
+            </div>
+            <div style="padding:var(--space-3);background:var(--brand-50);border-radius:var(--radius-md);border-left:3px solid var(--amber-500)">
+              <div style="font-size:var(--text-sm);font-weight:600;color:var(--gray-800);margin-bottom:2px">固态电池：宁德时代量产时间表提前</div>
+              <div style="font-size:var(--text-xs);color:var(--gray-500)">全固态电池样品通过车企验证，预计2026年H1启动装车量产</div>
+              <div style="margin-top:var(--space-1)"><span class="tag tag-purple">新能源车</span><span class="tag tag-amber" style="margin-left:4px">跟踪中</span></div>
+            </div>
+            <div style="padding:var(--space-3);background:var(--brand-50);border-radius:var(--radius-md);border-left:3px solid var(--brand-500)">
+              <div style="font-size:var(--text-sm);font-weight:600;color:var(--gray-800);margin-bottom:2px">AI大模型：多模态能力突破商用临界点</div>
+              <div style="font-size:var(--text-xs);color:var(--gray-500)">多家国产大模型达到GPT-4级别，带动推理芯片需求激增</div>
+              <div style="margin-top:var(--space-1)"><span class="tag tag-purple">AI算力</span><span class="tag tag-green" style="margin-left:4px">高影响</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

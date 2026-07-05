@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 个人设置</title>
+<link rel="stylesheet" href="common.css">
+<style>
+.settings-layout { display: grid; grid-template-columns: 200px 1fr; gap: var(--space-6); }
+.settings-nav {
+  background: var(--surface-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2);
+  height: fit-content;
+  box-shadow: var(--shadow-sm);
+}
+.settings-nav-item {
+  display: block; width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--gray-600);
+  text-align: left;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  transition: all var(--transition-fast);
+}
+.settings-nav-item:hover { background: var(--gray-50); color: var(--gray-800); }
+.settings-nav-item.active { background: var(--brand-50); color: var(--brand-600); font-weight: 500; }
+
+.settings-panel {
+  background: var(--surface-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.settings-panel-header {
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-light);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.settings-panel-title { font-size: var(--text-lg); font-weight: 600; color: var(--gray-900); }
+.settings-panel-desc { font-size: var(--text-sm); color: var(--gray-500); margin-top: 2px; }
+.settings-panel-body { padding: var(--space-6); }
+
+.settings-section { margin-bottom: var(--space-8); }
+.settings-section:last-child { margin-bottom: 0; }
+.settings-section-title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--gray-800);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.api-key-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-4);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
+}
+.api-key-name { font-weight: 500; font-size: var(--text-sm); color: var(--gray-800); }
+.api-key-masked { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--gray-500); }
+.api-key-meta { font-size: var(--text-xs); color: var(--gray-500); }
+
+.model-card {
+  padding: var(--space-4);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
+}
+.model-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-3); }
+.model-card-title { font-weight: 600; font-size: var(--text-sm); color: var(--gray-800); }
+.model-card-scene { font-size: var(--text-xs); color: var(--gray-500); display: flex; gap: var(--space-4); }
+
+.divider { border: none; border-top: 1px solid var(--border-light); margin: var(--space-6) 0; }
+
+.status-indicator {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: var(--space-1);
+}
+.status-indicator.online { background: var(--green-500); }
+.status-indicator.offline { background: var(--gray-400); }
+.status-indicator.warning { background: var(--amber-500); }
+
+.alert-success {
+  padding: var(--space-3) var(--space-4);
+  background: var(--green-100);
+  border: 1px solid #a7f3d0;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--green-600);
+  margin-bottom: var(--space-4);
+}
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="app-sidebar">
+<div class="sidebar-brand"><div class="sidebar-brand-icon">AI</div><div class="sidebar-brand-text">Invest</div></div>
+<nav class="sidebar-nav">
+<div class="sidebar-section-title">复盘</div>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<div class="sidebar-section-title">分析</div>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
+<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
+<a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
+<div class="sidebar-section-title">设置</div>
+<a class="sidebar-item active" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+<a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
+</nav>
+<div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
+</aside>
+
+  <div class="app-main">
+    <header class="app-header">
+      <div class="header-left">
+        <input class="header-search" type="text" placeholder="搜索股票代码或名称…">
+        <button class="btn btn-primary btn-sm">搜索</button>
+      </div>
+      <div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div>
+    </header>
+
+    <div class="app-content">
+      <h1 class="page-title">个人设置</h1>
+
+      <div class="settings-layout">
+        <!-- Nav -->
+        <nav class="settings-nav">
+          <button class="settings-nav-item active">模型配置</button>
+          <button class="settings-nav-item">API-KEY 管理</button>
+          <button class="settings-nav-item">账户信息</button>
+          <button class="settings-nav-item">通知偏好</button>
+        </nav>
+
+        <!-- Panels -->
+        <div>
+          <!-- ========== Model Config Panel ========== -->
+          <div class="settings-panel mb-6" id="model-config">
+            <div class="settings-panel-header">
+              <div>
+                <div class="settings-panel-title">模型配置</div>
+                <div class="settings-panel-desc">自定义 AI 分析所用的模型服务，支持 OpenAI、DeepSeek、通义千问等兼容接口</div>
+              </div>
+              <button class="btn btn-primary btn-sm">+ 添加模型</button>
+            </div>
+            <div class="settings-panel-body">
+
+              <div class="settings-section">
+                <div class="alert-success">✅ 系统默认模型已就绪，未配置时将自动使用默认模型进行分析</div>
+
+                <!-- Model Card 1: 已配置 -->
+                <div class="model-card">
+                  <div class="model-card-header">
+                    <div>
+                      <div class="model-card-title">
+                        <span class="status-indicator online"></span>DeepSeek V3 · 研报分析
+                      </div>
+                    </div>
+                    <div style="display:flex;gap:var(--space-2)">
+                      <button class="btn btn-ghost btn-sm">测试连接</button>
+                      <button class="btn btn-ghost btn-sm">编辑</button>
+                      <button class="btn btn-ghost btn-sm" style="color:var(--red-500)">删除</button>
+                    </div>
+                  </div>
+                  <div class="model-card-scene">
+                    <span>Base URL: api.deepseek.com/v1</span>
+                    <span>Model: deepseek-chat</span>
+                    <span>API Key: sk-****-a1b2</span>
+                    <span style="color:var(--green-600)">● 已连接 · 128ms</span>
+                  </div>
+                </div>
+
+                <!-- Model Card 2: 离线 -->
+                <div class="model-card">
+                  <div class="model-card-header">
+                    <div>
+                      <div class="model-card-title">
+                        <span class="status-indicator offline"></span>GPT-4o · 热点追踪
+                      </div>
+                    </div>
+                    <div style="display:flex;gap:var(--space-2)">
+                      <button class="btn btn-ghost btn-sm">测试连接</button>
+                      <button class="btn btn-ghost btn-sm">编辑</button>
+                      <button class="btn btn-ghost btn-sm" style="color:var(--red-500)">删除</button>
+                    </div>
+                  </div>
+                  <div class="model-card-scene">
+                    <span>Base URL: api.openai.com/v1</span>
+                    <span>Model: gpt-4o</span>
+                    <span>API Key: sk-****-c3d4</span>
+                    <span style="color:var(--red-500)">● 连接失败 · 已回退到默认模型</span>
+                  </div>
+                </div>
+
+                <!-- Add Model Form (collapsed view) -->
+                <div style="margin-top:var(--space-4);padding:var(--space-4);border:1px dashed var(--border-medium);border-radius:var(--radius-md)">
+                  <div style="font-size:var(--text-sm);font-weight:600;color:var(--gray-700);margin-bottom:var(--space-4)">添加新模型配置</div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
+                    <div class="form-group" style="margin-bottom:0">
+                      <label class="form-label">Base URL</label>
+                      <input class="form-input" type="text" placeholder="https://api.openai.com/v1">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                      <label class="form-label">API Key</label>
+                      <input class="form-input" type="password" placeholder="sk-...">
+                      <div class="form-hint">密钥将使用 AES-256-GCM 加密存储</div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                      <label class="form-label">Model</label>
+                      <input class="form-input" type="text" placeholder="gpt-4o">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                      <label class="form-label">应用场景</label>
+                      <select class="form-select">
+                        <option>研报分析</option><option>热点追踪</option>
+                        <option>产业链分析</option><option>财务体检</option><option>通用</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:var(--space-2);margin-top:var(--space-4)">
+                    <button class="btn btn-primary btn-sm">保存并测试连接</button>
+                    <button class="btn btn-ghost btn-sm">取消</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ========== API KEY Panel ========== -->
+          <div class="settings-panel" id="apikey-panel">
+            <div class="settings-panel-header">
+              <div>
+                <div class="settings-panel-title">API-KEY 管理</div>
+                <div class="settings-panel-desc">创建和管理 API 密钥，用于通过 MCP 接口调用平台 AI 分析能力</div>
+              </div>
+              <button class="btn btn-primary btn-sm">+ 创建 API-KEY</button>
+            </div>
+            <div class="settings-panel-body">
+
+              <div class="settings-section">
+                <div style="font-size:var(--text-sm);color:var(--gray-600);margin-bottom:var(--space-4)">
+                  您最多可创建 5 个 API-KEY。密钥创建时<strong>仅显示一次</strong>，请妥善保存。丢失后无法找回，只能重新创建。
+                </div>
+
+                <div class="api-key-row">
+                  <div>
+                    <div class="api-key-name">研报分析 · 主力密钥</div>
+                    <div class="api-key-masked">aik-****-xY7k</div>
+                    <div class="api-key-meta">创建于 2026-06-15 · 读写权限 · 永不过期 · 今日调用 28 次</div>
+                  </div>
+                  <div style="display:flex;gap:var(--space-2)">
+                    <button class="btn btn-ghost btn-sm">复制</button>
+                    <button class="btn btn-ghost btn-sm">重命名</button>
+                    <button class="btn btn-ghost btn-sm" style="color:var(--red-500)">撤销</button>
+                  </div>
+                </div>
+
+                <div class="api-key-row">
+                  <div>
+                    <div class="api-key-name">MCP 调试密钥</div>
+                    <div class="api-key-masked">aik-****-pQ3m</div>
+                    <div class="api-key-meta">创建于 2026-07-01 · 只读权限 · 2026-09-01 过期</div>
+                  </div>
+                  <div style="display:flex;gap:var(--space-2)">
+                    <button class="btn btn-ghost btn-sm">复制</button>
+                    <button class="btn btn-ghost btn-sm">重命名</button>
+                    <button class="btn btn-ghost btn-sm" style="color:var(--red-500)">撤销</button>
+                  </div>
+                </div>
+
+                <div class="api-key-row">
+                  <div>
+                    <div class="api-key-name">团队共享密钥</div>
+                    <div class="api-key-masked">aik-****-nR8t</div>
+                    <div class="api-key-meta">创建于 2026-05-20 · 读写权限 · 永不过期 · 今日调用 142 次</div>
+                  </div>
+                  <div style="display:flex;gap:var(--space-2)">
+                    <button class="btn btn-ghost btn-sm">复制</button>
+                    <button class="btn btn-ghost btn-sm">重命名</button>
+                    <button class="btn btn-ghost btn-sm" style="color:var(--red-500)">撤销</button>
+                  </div>
+                </div>
+              </div>
+
+              <hr class="divider">
+
+              <div class="settings-section">
+                <div class="settings-section-title">MCP 接入配置</div>
+                <div style="font-size:var(--text-sm);color:var(--gray-600);margin-bottom:var(--space-4)">
+                  将以下配置添加到 MCP 客户端（Claude Desktop / Codex CLI 等），即可使用平台 AI 分析能力。
+                </div>
+                <div style="background:var(--surface-dark);border-radius:var(--radius-md);padding:var(--space-4);font-family:var(--font-mono);font-size:var(--text-xs);color:#a5d6ff;line-height:1.7;overflow-x:auto">
+                  {<br>
+                  &nbsp;&nbsp;"mcpServers": {<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;"ai-invest-assistant": {<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"url": "https://api.your-domain.com/mcp",<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"headers": {<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"X-API-Key": "aik-****-xY7k"<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+                  &nbsp;&nbsp;}<br>
+                  }
+                </div>
+                <div style="margin-top:var(--space-3)">
+                  <button class="btn btn-secondary btn-sm">复制配置</button>
+                  <button class="btn btn-ghost btn-sm" style="margin-left:var(--space-2)">查看 MCP 接口文档 →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

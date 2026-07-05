@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 集合竞价复盘</title>
+<link rel="stylesheet" href="common.css">
+<style>
+.date-range-bar{display:flex;gap:var(--space-3);align-items:center;margin-bottom:var(--space-6);padding:var(--space-4);background:var(--surface-primary);border:1px solid var(--border-light);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);flex-wrap:wrap}
+.date-preset{display:flex;gap:var(--space-1)}
+.date-preset-btn{padding:var(--space-1) var(--space-3);border-radius:var(--radius-sm);font-size:var(--text-xs);border:1px solid var(--border-medium);background:var(--surface-primary);color:var(--gray-600);cursor:pointer;transition:all var(--transition-fast)}
+.date-preset-btn:hover{border-color:var(--brand-300)}
+.date-preset-btn.active{background:var(--brand-50);color:var(--brand-600);border-color:var(--brand-500);font-weight:500}
+
+.auction-summary-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--space-4);margin-bottom:var(--space-6)}
+.auction-summary-card{background:var(--surface-primary);border:1px solid var(--border-light);border-radius:var(--radius-lg);padding:var(--space-4);text-align:center;box-shadow:var(--shadow-sm)}
+.auc-sum-label{font-size:var(--text-xs);color:var(--gray-500);text-transform:uppercase;letter-spacing:.04em;margin-bottom:var(--space-1)}
+.auc-sum-value{font-size:var(--text-xl);font-weight:700;color:var(--gray-900)}
+.auc-sum-sub{font-size:var(--text-xs);color:var(--gray-500);margin-top:2px}
+
+.auc-chart-area{background:linear-gradient(135deg,#f8f9fa 0%,#f1f3f5 100%);border-radius:var(--radius-md);height:280px;position:relative;overflow:hidden;margin-bottom:var(--space-3)}
+.auc-chart-line{position:absolute;height:2px;background:var(--brand-500);opacity:.7}
+.auc-chart-legend{display:flex;gap:var(--space-4);justify-content:center;font-size:var(--text-xs);color:var(--gray-500);margin-top:var(--space-2)}
+.auc-chart-legend-item{display:flex;align-items:center;gap:4px}
+.auc-chart-legend-dot{width:8px;height:8px;border-radius:2px}
+
+.compact-table{font-size:var(--text-xs)}
+.compact-table td,.compact-table th{padding:var(--space-2) var(--space-3)}
+.tag-outline{display:inline-flex;padding:1px 6px;border-radius:3px;font-size:10px;border:1px solid;font-weight:500}
+.tag-outline.high-vol{border-color:var(--red-500);color:var(--red-600)}
+.tag-outline.low-vol{border-color:var(--gray-400);color:var(--gray-500)}
+.tag-outline.tail-move{border-color:var(--amber-500);color:var(--amber-600)}
+.tag-outline.steady{border-color:var(--green-500);color:var(--green-600)}
+
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.calendar-header{text-align:center;font-size:var(--text-xs);color:var(--gray-500);padding:var(--space-1)}
+.calendar-day{aspect-ratio:1;border-radius:var(--radius-sm);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:var(--text-xs);font-weight:500;cursor:pointer;transition:all var(--transition-fast)}
+.calendar-day:hover{transform:scale(1.05)}
+.calendar-day.empty{background:transparent}
+.calendar-day.today{border:2px solid var(--brand-500)}
+.calendar-day.selected{box-shadow:0 0 0 2px var(--brand-500)}
+</style>
+</head>
+<body>
+<div class="app-layout">
+<aside class="app-sidebar">
+<div class="sidebar-brand"><div class="sidebar-brand-icon">AI</div><div class="sidebar-brand-text">Invest</div></div>
+<nav class="sidebar-nav">
+<div class="sidebar-section-title">复盘</div>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item active" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<div class="sidebar-section-title">分析</div>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
+<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
+<a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
+<div class="sidebar-section-title">设置</div>
+<a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+<a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
+</nav>
+<div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
+</aside>
+<div class="app-main">
+<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
+<div class="app-content">
+<h1 class="page-title">集合竞价复盘</h1>
+
+<!-- Date Range Selector -->
+<div class="date-range-bar">
+<span style="font-size:var(--text-sm);color:var(--gray-700);font-weight:500">时间范围:</span>
+<div class="date-preset">
+<button class="date-preset-btn active">近 5 日</button>
+<button class="date-preset-btn">近 10 日</button>
+<button class="date-preset-btn">近 20 日</button>
+<button class="date-preset-btn">近 60 日</button>
+</div>
+<input type="date" class="form-input" style="width:130px;font-size:var(--text-xs)" value="2026-06-25">
+<span style="color:var(--gray-400)">至</span>
+<input type="date" class="form-input" style="width:130px;font-size:var(--text-xs)" value="2026-07-05">
+<button class="btn btn-primary btn-sm">查询</button>
+<button class="btn btn-outline btn-sm">导出 CSV</button>
+</div>
+
+<!-- Summary Stats -->
+<div class="auction-summary-grid">
+<div class="auction-summary-card"><div class="auc-sum-label">统计交易日数</div><div class="auc-sum-value">5</div><div class="auc-sum-sub">2026-06-28 — 07-04</div></div>
+<div class="auction-summary-card"><div class="auc-sum-label">放量竞价日</div><div class="auc-sum-value" style="color:var(--red-600)">2</div><div class="auc-sum-sub">量比 > 1.5</div></div>
+<div class="auction-summary-card"><div class="auc-sum-label">缩量竞价日</div><div class="auc-sum-value" style="color:var(--green-600)">2</div><div class="auc-sum-sub">量比 < 0.8</div></div>
+<div class="auction-summary-card"><div class="auc-sum-label">尾段异动日</div><div class="auc-sum-value" style="color:var(--amber-600)">1</div><div class="auc-sum-sub">9:20后价格大幅波动</div></div>
+<div class="auction-summary-card"><div class="auc-sum-label">竞价量能异动个股</div><div class="auc-sum-value">12</div><div class="auc-sum-sub">5日累计</div></div>
+</div>
+
+<!-- Multi-day Auction Chart -->
+<div class="card mb-6">
+<div class="card-header"><span class="card-title">多日竞价走势叠加</span><span style="font-size:var(--text-xs);color:var(--gray-500)">上证指数 · 9:15-9:25 价格走势</span></div>
+<div class="card-body">
+<div class="auc-chart-area">
+<!-- Simulated multi-line chart with CSS overlays -->
+<svg width="100%" height="280" style="position:absolute;top:0;left:0">
+<line x1="50" y1="260" x2="50" y2="20" stroke="#dee2e6" stroke-width="1"/>
+<line x1="50" y1="260" x2="680" y2="260" stroke="#dee2e6" stroke-width="1"/>
+<polyline points="50,200 130,210 210,195 290,220 370,180 450,170 530,160 610,155 680,150" fill="none" stroke="#ef4444" stroke-width="2" opacity="0.8"/>
+<polyline points="50,210 130,220 210,215 290,230 370,200 450,185 530,175 610,170 680,165" fill="none" stroke="#6366f1" stroke-width="2" opacity="0.8"/>
+<polyline points="50,220 130,225 210,205 290,240 370,190 450,182 530,178 610,172 680,160" fill="none" stroke="#10b981" stroke-width="2" opacity="0.8"/>
+<polyline points="50,190 130,195 210,185 290,210 370,165 450,160 530,155 610,148 680,140" fill="none" stroke="#f59e0b" stroke-width="2" opacity="0.8"/>
+<polyline points="50,230 130,235 210,225 290,250 370,210 450,195 530,185 610,178 680,170" fill="none" stroke="#8b5cf6" stroke-width="2" opacity="0.8"/>
+<text x="50" y="15" font-size="12" fill="#6c757d">价格</text>
+<text x="620" y="275" font-size="11" fill="#6c757d">9:25</text>
+<text x="50" y="275" font-size="11" fill="#6c757d">9:15</text>
+</svg>
+</div>
+<div class="auc-chart-legend">
+<div class="auc-chart-legend-item"><span class="auc-chart-legend-dot" style="background:#ef4444"></span>07-04 周五</div>
+<div class="auc-chart-legend-item"><span class="auc-chart-legend-dot" style="background:#6366f1"></span>07-03 周四</div>
+<div class="auc-chart-legend-item"><span class="auc-chart-legend-dot" style="background:#10b981"></span>07-02 周三</div>
+<div class="auc-chart-legend-item"><span class="auc-chart-legend-dot" style="background:#f59e0b"></span>07-01 周二</div>
+<div class="auc-chart-legend-item"><span class="auc-chart-legend-dot" style="background:#8b5cf6"></span>06-30 周一</div>
+</div>
+</div>
+</div>
+
+<!-- Auction Stats Table -->
+<div class="grid-2 mb-6">
+<div class="card">
+<div class="card-header"><span class="card-title">各交易日竞价统计</span></div>
+<div class="card-body-sm">
+<div class="table-wrap">
+<table class="compact-table">
+<thead><tr><th>日期</th><th>竞价开盘价</th><th>前收价</th><th>竞价量(万手)</th><th>量比</th><th>特征</th></tr></thead>
+<tbody>
+<tr><td>07-04 (五)</td><td class="text-mono">3,354.28</td><td class="text-mono">3,335.12</td><td>1,248</td><td style="color:var(--red-600);font-weight:500">1.82</td><td><span class="tag-outline high-vol">放量竞价</span></td></tr>
+<tr><td>07-03 (四)</td><td class="text-mono">3,330.80</td><td class="text-mono">3,325.46</td><td>892</td><td>1.05</td><td><span class="tag-outline steady">平稳竞价</span></td></tr>
+<tr><td>07-02 (三)</td><td class="text-mono">3,318.45</td><td class="text-mono">3,340.12</td><td>752</td><td style="color:var(--green-600)">0.72</td><td><span class="tag-outline low-vol">缩量竞价</span></td></tr>
+<tr><td>07-01 (二)</td><td class="text-mono">3,345.60</td><td class="text-mono">3,328.90</td><td>1,156</td><td style="color:var(--red-600);font-weight:500">1.65</td><td><span class="tag-outline high-vol">放量竞价</span></td></tr>
+<tr><td>06-30 (一)</td><td class="text-mono">3,342.15</td><td class="text-mono">3,346.28</td><td>986</td><td>0.95</td><td><span class="tag-outline tail-move">尾段异动</span></td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header"><span class="card-title">竞价异动个股汇总</span><span style="font-size:var(--text-xs);color:var(--gray-500)">5日累计</span></div>
+<div class="card-body-sm">
+<div class="table-wrap">
+<table class="compact-table">
+<thead><tr><th>代码</th><th>名称</th><th>异动天数</th><th>最大量比</th><th>日期</th><th>方向</th></tr></thead>
+<tbody>
+<tr><td class="text-mono">600519</td><td>贵州茅台</td><td>3</td><td style="color:var(--red-600);font-weight:500">2.18</td><td>07-04</td><td><span class="tag tag-green">高开</span></td></tr>
+<tr><td class="text-mono">002371</td><td>北方华创</td><td>2</td><td style="color:var(--red-600);font-weight:500">1.95</td><td>07-04</td><td><span class="tag tag-green">高开</span></td></tr>
+<tr><td class="text-mono">300750</td><td>宁德时代</td><td>2</td><td style="color:var(--red-600);font-weight:500">1.72</td><td>07-01</td><td><span class="tag tag-green">高开</span></td></tr>
+<tr><td class="text-mono">688981</td><td>中芯国际</td><td>1</td><td>0.68</td><td>07-02</td><td><span class="tag tag-red">低开</span></td></tr>
+<tr><td class="text-mono">300124</td><td>汇川技术</td><td>2</td><td style="color:var(--red-600);font-weight:500">1.58</td><td>07-03</td><td><span class="tag tag-green">高开</span></td></tr>
+<tr><td class="text-mono">688256</td><td>寒武纪</td><td>4</td><td style="color:var(--red-600);font-weight:700">2.85</td><td>07-04</td><td><span class="tag tag-green">高开</span></td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Calendar View -->
+<div class="card">
+<div class="card-header"><span class="card-title">竞价特征日历</span><span style="font-size:var(--text-xs);color:var(--gray-500)">2026年7月</span></div>
+<div class="card-body">
+<div class="calendar-grid">
+<div class="calendar-header">日</div><div class="calendar-header">一</div><div class="calendar-header">二</div><div class="calendar-header">三</div><div class="calendar-header">四</div><div class="calendar-header">五</div><div class="calendar-header">六</div>
+<div class="calendar-day empty"></div><div class="calendar-day empty"></div><div class="calendar-day empty"></div>
+<div class="calendar-day" style="background:var(--amber-50)"><span>1</span><span class="tag-outline tail-move" style="font-size:9px">异动</span></div>
+<div class="calendar-day" style="background:var(--green-50)"><span>2</span><span class="tag-outline low-vol" style="font-size:9px">缩量</span></div>
+<div class="calendar-day" style="background:var(--gray-50)"><span>3</span><span class="tag-outline steady" style="font-size:9px">平稳</span></div>
+<div class="calendar-day" style="background:var(--gray-50)"><span>4</span><span style="font-size:9px;color:var(--gray-400)">休市</span></div>
+<div class="calendar-day" style="background:var(--gray-50)"><span>5</span><span style="font-size:9px;color:var(--gray-400)">休市</span></div>
+<div class="calendar-day" style="background:var(--red-50)"><span>6</span><span class="tag-outline high-vol" style="font-size:9px">放量</span></div>
+<div class="calendar-day" style="background:var(--gray-50)"><span>7</span><span class="tag-outline steady" style="font-size:9px">平稳</span></div>
+<div class="calendar-day" style="background:var(--red-50) selected today"><span>5</span><span class="tag-outline high-vol" style="font-size:9px">放量</span></div>
+</div>
+<div style="display:flex;gap:var(--space-4);justify-content:center;margin-top:var(--space-3);font-size:var(--text-xs);color:var(--gray-500)">
+<span><span style="display:inline-block;width:12px;height:12px;background:var(--red-50);border-radius:2px;margin-right:4px"></span>放量竞价</span>
+<span><span style="display:inline-block;width:12px;height:12px;background:var(--green-50);border-radius:2px;margin-right:4px"></span>缩量竞价</span>
+<span><span style="display:inline-block;width:12px;height:12px;background:var(--amber-50);border-radius:2px;margin-right:4px"></span>尾段异动</span>
+<span><span style="display:inline-block;width:12px;height:12px;background:var(--gray-50);border-radius:2px;margin-right:4px"></span>平稳竞价</span>
+</div>
+</div>
+</div>
+</div></div></div>
+</body>
+</html>

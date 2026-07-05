@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 研报中心</title>
+<link rel="stylesheet" href="common.css">
+<style>
+.research-card {
+  background: var(--surface-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+  display: flex; gap: var(--space-5);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  margin-bottom: var(--space-4);
+}
+.research-card:hover { border-color: var(--brand-200); box-shadow: var(--shadow-md); }
+.research-card-cover {
+  width: 72px; height: 96px;
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
+  border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  text-align: center;
+  flex-shrink: 0;
+}
+.research-card-body { flex: 1; display: flex; flex-direction: column; gap: var(--space-2); }
+.research-card-title { font-size: var(--text-base); font-weight: 600; color: var(--gray-900); }
+.research-card-abstract { font-size: var(--text-sm); color: var(--gray-600); line-height: 1.6; }
+.research-card-meta { font-size: var(--text-xs); color: var(--gray-500); display: flex; gap: var(--space-4); flex-wrap: wrap; }
+
+.filter-bar {
+  display: flex; gap: var(--space-3); align-items: center;
+  margin-bottom: var(--space-6);
+  padding: var(--space-4);
+  background: var(--surface-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  flex-wrap: wrap;
+}
+.filter-group { display: flex; align-items: center; gap: var(--space-2); }
+.filter-label { font-size: var(--text-xs); color: var(--gray-500); font-weight: 500; white-space: nowrap; }
+
+.broker-list { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.broker-badge {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  background: var(--surface-tertiary);
+  color: var(--gray-600);
+  cursor: pointer;
+  border: 1px solid var(--border-light);
+  transition: all var(--transition-fast);
+}
+.broker-badge:hover { border-color: var(--brand-300); color: var(--brand-600); }
+.broker-badge.active { background: var(--brand-50); border-color: var(--brand-500); color: var(--brand-600); }
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="app-sidebar">
+<div class="sidebar-brand"><div class="sidebar-brand-icon">AI</div><div class="sidebar-brand-text">Invest</div></div>
+<nav class="sidebar-nav">
+<div class="sidebar-section-title">复盘</div>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<div class="sidebar-section-title">分析</div>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
+<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
+<a class="sidebar-item active" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
+<div class="sidebar-section-title">设置</div>
+<a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+<a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
+</nav>
+<div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
+</aside>
+
+  <div class="app-main">
+    <header class="app-header">
+      <div class="header-left">
+        <input class="header-search" type="text" placeholder="搜索股票代码或名称…">
+        <button class="btn btn-primary btn-sm">搜索</button>
+      </div>
+      <div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div>
+    </header>
+
+    <div class="app-content">
+      <h1 class="page-title">研报中心</h1>
+
+      <!-- Filter Bar -->
+      <div class="filter-bar">
+        <div class="filter-group">
+          <span class="filter-label">关键词</span>
+          <input class="form-input" type="text" placeholder="搜索研报标题、公司、行业…" style="width:240px">
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">行业</span>
+          <select class="form-select" style="width:140px">
+            <option>全部行业</option><option>半导体</option><option>新能源</option><option>AI</option><option>消费电子</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">日期</span>
+          <select class="form-select" style="width:120px">
+            <option>近7天</option><option>近30天</option><option>近90天</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-sm">筛选</button>
+        <span style="font-size:var(--text-xs);color:var(--gray-500)">共 1,248 篇研报</span>
+      </div>
+
+      <!-- Broker Quick Filter -->
+      <div style="margin-bottom:var(--space-4)">
+        <span class="filter-label" style="margin-bottom:var(--space-2);display:block">券商</span>
+        <div class="broker-list">
+          <span class="broker-badge active">全部</span>
+          <span class="broker-badge">中信证券</span>
+          <span class="broker-badge">华泰证券</span>
+          <span class="broker-badge">国泰君安</span>
+          <span class="broker-badge">申万宏源</span>
+          <span class="broker-badge">招商证券</span>
+          <span class="broker-badge">海通证券</span>
+          <span class="broker-badge">广发证券</span>
+          <span class="broker-badge">中金公司</span>
+        </div>
+      </div>
+
+      <!-- Research List -->
+      <div class="research-card">
+        <div class="research-card-cover">半导体<br>行业深度</div>
+        <div class="research-card-body">
+          <div class="research-card-title">半导体设备国产替代深度报告：刻蚀与薄膜沉积双轮驱动</div>
+          <div class="research-card-abstract">本报告梳理了国内半导体设备行业的竞争格局与技术突破进展。刻蚀设备和薄膜沉积设备是国产替代进展最快的两大品类，在28nm以上制程已实现规模化替代。重点推荐北方华创、中微公司。</div>
+          <div class="research-card-meta">
+            <span>中信证券</span><span>·</span><span>2026-07-02</span><span>·</span><span>42页 PDF</span>
+            <span class="tag tag-green">AI 摘要已生成</span>
+          </div>
+          <div style="display:flex;gap:var(--space-2);margin-top:var(--space-1)">
+            <button class="btn btn-sm" style="background:var(--brand-50);color:var(--brand-600)">查看 AI 摘要</button>
+            <button class="btn btn-sm btn-ghost">在线阅读</button>
+            <button class="btn btn-sm btn-ghost">下载 PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="research-card">
+        <div class="research-card-cover">新能源<br>策略专题</div>
+        <div class="research-card-body">
+          <div class="research-card-title">固态电池产业化进程加速：2026年产业链投资图谱</div>
+          <div class="research-card-abstract">固态电池作为下一代电池技术的核心方向，2026年迎来产业化拐点。宁德时代、比亚迪等龙头车企已锁定首批产能，上游材料（固态电解质、高镍正极）和设备环节率先受益。</div>
+          <div class="research-card-meta">
+            <span>华泰证券</span><span>·</span><span>2026-06-28</span><span>·</span><span>56页 PDF</span>
+            <span class="tag tag-green">AI 摘要已生成</span>
+          </div>
+          <div style="display:flex;gap:var(--space-2);margin-top:var(--space-1)">
+            <button class="btn btn-sm" style="background:var(--brand-50);color:var(--brand-600)">查看 AI 摘要</button>
+            <button class="btn btn-sm btn-ghost">在线阅读</button>
+            <button class="btn btn-sm btn-ghost">下载 PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="research-card">
+        <div class="research-card-cover">AI算力<br>个股研报</div>
+        <div class="research-card-body">
+          <div class="research-card-title">寒武纪（688256）：AI芯片国产替代旗舰，推理芯片放量在即</div>
+          <div class="research-card-abstract">寒武纪思元590芯片在推理场景性能比肩A100，已获得国内主流云厂商批量订单。随着国产大模型推理需求爆发，公司2026年有望实现扭亏为盈。给予"买入"评级，目标价¥285。</div>
+          <div class="research-card-meta">
+            <span>招商证券</span><span>·</span><span>2026-06-25</span><span>·</span><span>28页 PDF</span>
+            <span class="tag tag-green">AI 摘要已生成</span>
+          </div>
+          <div style="display:flex;gap:var(--space-2);margin-top:var(--space-1)">
+            <button class="btn btn-sm" style="background:var(--brand-50);color:var(--brand-600)">查看 AI 摘要</button>
+            <button class="btn btn-sm btn-ghost">在线阅读</button>
+            <button class="btn btn-sm btn-ghost">下载 PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pagination -->
+      <div style="display:flex;justify-content:center;align-items:center;gap:var(--space-2);margin-top:var(--space-6)">
+        <button class="btn btn-sm btn-ghost">‹ 上一页</button>
+        <button class="btn btn-sm" style="background:var(--brand-50);color:var(--brand-600)">1</button>
+        <button class="btn btn-sm btn-ghost">2</button>
+        <button class="btn btn-sm btn-ghost">3</button>
+        <button class="btn btn-sm btn-ghost">…</button>
+        <button class="btn btn-sm btn-ghost">42</button>
+        <button class="btn btn-sm btn-ghost">下一页 ›</button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

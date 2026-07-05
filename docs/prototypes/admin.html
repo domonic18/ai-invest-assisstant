@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 后台管理</title>
+<link rel="stylesheet" href="common.css">
+<style>
+.admin-layout { display: grid; grid-template-columns: 200px 1fr; gap: var(--space-6); }
+.admin-nav {
+  background: var(--surface-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2);
+  height: fit-content;
+  box-shadow: var(--shadow-sm);
+}
+.admin-nav-section {
+  font-size: var(--text-xs);
+  color: var(--gray-400);
+  text-transform: uppercase;
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  font-weight: 600;
+  letter-spacing: .04em;
+}
+.admin-nav-item {
+  display: block; width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--gray-600);
+  text-align: left;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  transition: all var(--transition-fast);
+}
+.admin-nav-item:hover { background: var(--gray-50); color: var(--gray-800); }
+.admin-nav-item.active { background: var(--brand-50); color: var(--brand-600); font-weight: 500; }
+
+.admin-panel {
+  background: var(--surface-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.admin-panel-header {
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--border-light);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.admin-panel-title { font-size: var(--text-base); font-weight: 600; color: var(--gray-900); }
+.admin-panel-body { padding: var(--space-5); }
+
+.admin-toolbar {
+  display: flex; gap: var(--space-3); align-items: center;
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.pagination-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-top: var(--space-4);
+  font-size: var(--text-xs); color: var(--gray-500);
+}
+
+.health-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.health-dot.ok { background: var(--green-500); }
+.health-dot.warn { background: var(--amber-500); }
+.health-dot.err { background: var(--red-500); }
+
+.stat-mini {
+  text-align: center;
+  padding: var(--space-3);
+  background: var(--surface-secondary);
+  border-radius: var(--radius-md);
+}
+.stat-mini-value { font-size: var(--text-2xl); font-weight: 700; color: var(--gray-900); }
+.stat-mini-label { font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px; }
+
+.audit-log-entry {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border-light);
+  display: flex; gap: var(--space-4);
+  font-size: var(--text-sm);
+}
+.audit-log-entry:last-child { border-bottom: none; }
+.audit-log-time { color: var(--gray-500); font-family: var(--font-mono); font-size: var(--text-xs); white-space: nowrap; min-width: 140px; }
+.audit-log-user { color: var(--gray-600); min-width: 80px; }
+.audit-log-action { color: var(--gray-800); flex: 1; }
+.audit-log-target { color: var(--gray-500); font-size: var(--text-xs); }
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="app-sidebar">
+<div class="sidebar-brand"><div class="sidebar-brand-icon">AI</div><div class="sidebar-brand-text">Invest</div></div>
+<nav class="sidebar-nav">
+<div class="sidebar-section-title">复盘</div>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<div class="sidebar-section-title">分析</div>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
+<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
+<a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
+<div class="sidebar-section-title">设置</div>
+<a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+<a class="sidebar-item active" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
+</nav>
+<div class="sidebar-footer"><div class="sidebar-avatar">A</div><div class="sidebar-user-info"><div class="sidebar-user-name">管理员</div><div>超级管理员</div></div></div>
+</aside>
+
+  <div class="app-main">
+    <header class="app-header">
+      <div style="display:flex;align-items:center;gap:var(--space-3)">
+        <span style="font-size:var(--text-sm);color:var(--gray-500);font-weight:500">后台管理 /</span>
+        <span style="font-size:var(--text-sm);color:var(--gray-800);font-weight:500">系统概览</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:var(--space-3)">
+        <span style="font-size:var(--text-xs);color:var(--gray-500)">超级管理员</span>
+        <div class="header-badge">⚙</div>
+      </div>
+    </header>
+
+    <div class="app-content">
+      <h1 class="page-title">后台管理</h1>
+
+      <div class="admin-layout">
+        <!-- Nav -->
+        <nav class="admin-nav">
+          <div class="admin-nav-section">概览</div>
+          <button class="admin-nav-item active">系统概览</button>
+          <div class="admin-nav-section">数据管理</div>
+          <button class="admin-nav-item">用户管理</button>
+          <button class="admin-nav-item">股票数据</button>
+          <button class="admin-nav-item">研报管理</button>
+          <button class="admin-nav-item">新闻公告</button>
+          <div class="admin-nav-section">运维</div>
+          <button class="admin-nav-item">采集任务</button>
+          <button class="admin-nav-item">系统监控</button>
+          <button class="admin-nav-item">审计日志</button>
+        </nav>
+
+        <!-- Panel -->
+        <div>
+          <!-- System Overview -->
+          <div class="admin-panel mb-6">
+            <div class="admin-panel-header">
+              <span class="admin-panel-title">系统概览</span>
+              <span style="font-size:var(--text-xs);color:var(--gray-500)">最后更新: 14:32:15</span>
+            </div>
+            <div class="admin-panel-body">
+              <div class="stats-grid" style="margin-bottom:var(--space-6)">
+                <div class="stat-mini">
+                  <div class="stat-mini-value">1,247</div>
+                  <div class="stat-mini-label">注册用户</div>
+                </div>
+                <div class="stat-mini">
+                  <div class="stat-mini-value">186</div>
+                  <div class="stat-mini-label">今日活跃</div>
+                </div>
+                <div class="stat-mini">
+                  <div class="stat-mini-value">12,486</div>
+                  <div class="stat-mini-label">今日 API 调用</div>
+                </div>
+                <div class="stat-mini">
+                  <div class="stat-mini-value">98.2%</div>
+                  <div class="stat-mini-label">采集成功率</div>
+                </div>
+                <div class="stat-mini">
+                  <div class="stat-mini-value">48.2GB</div>
+                  <div class="stat-mini-label">存储使用(MinIO)</div>
+                </div>
+                <div class="stat-mini">
+                  <div class="stat-mini-value">1,248</div>
+                  <div class="stat-mini-label">研报总数</div>
+                </div>
+                <div class="stat-mini">
+                  <div class="stat-mini-value">68.5万</div>
+                  <div class="stat-mini-label">新闻/公告</div>
+                </div>
+                <div class="stat-mini">
+                  <div class="stat-mini-value">12</div>
+                  <div class="stat-mini-label">活跃 API-KEY</div>
+                </div>
+              </div>
+
+              <div style="font-size:var(--text-sm);font-weight:600;color:var(--gray-800);margin-bottom:var(--space-3)">
+                中间件健康状态
+              </div>
+              <div style="display:flex;gap:var(--space-6);flex-wrap:wrap">
+                <span><span class="health-dot ok"></span>PostgreSQL: 正常</span>
+                <span><span class="health-dot ok"></span>Redis: 正常</span>
+                <span><span class="health-dot ok"></span>Elasticsearch: 正常</span>
+                <span><span class="health-dot ok"></span>Milvus: 正常</span>
+                <span><span class="health-dot warn"></span>MinIO: 磁盘使用率 78%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stock Data Management -->
+          <div class="admin-panel mb-6">
+            <div class="admin-panel-header">
+              <span class="admin-panel-title">股票数据管理</span>
+              <button class="btn btn-primary btn-sm">+ 新增股票</button>
+            </div>
+            <div class="admin-panel-body">
+              <div class="admin-toolbar">
+                <input class="form-input" type="text" placeholder="搜索代码或名称…" style="width:200px">
+                <select class="form-select" style="width:140px">
+                  <option>全部行业</option><option>半导体</option><option>新能源</option><option>AI</option>
+                </select>
+                <button class="btn btn-secondary btn-sm">搜索</button>
+                <button class="btn btn-outline btn-sm">导出 CSV</button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>代码</th><th>名称</th><th>行业</th><th>上市日期</th><th>总市值</th><th>状态</th><th>操作</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="text-mono">002371</td><td>北方华创</td><td>半导体设备</td><td>2010-03-16</td><td>1,892亿</td>
+                      <td><span class="tag tag-green">正常</span></td>
+                      <td>
+                        <button class="btn btn-ghost btn-sm">编辑</button>
+                        <button class="btn btn-ghost btn-sm" style="color:var(--red-500)">删除</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="text-mono">688981</td><td>中芯国际</td><td>晶圆制造</td><td>2020-07-16</td><td>4,932亿</td>
+                      <td><span class="tag tag-green">正常</span></td>
+                      <td>
+                        <button class="btn btn-ghost btn-sm">编辑</button>
+                        <button class="btn btn-ghost btn-sm" style="color:var(--red-500)">删除</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="text-mono">688256</td><td>寒武纪</td><td>AI芯片</td><td>2020-07-20</td><td>856亿</td>
+                      <td><span class="tag tag-green">正常</span></td>
+                      <td>
+                        <button class="btn btn-ghost btn-sm">编辑</button>
+                        <button class="btn btn-ghost btn-sm" style="color:var(--red-500)">删除</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="text-mono">600519</td><td>贵州茅台</td><td>白酒</td><td>2001-08-27</td><td>20,936亿</td>
+                      <td><span class="tag tag-green">正常</span></td>
+                      <td>
+                        <button class="btn btn-ghost btn-sm">编辑</button>
+                        <button class="btn btn-ghost btn-sm" style="color:var(--red-500)">删除</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td class="text-mono">300750</td><td>宁德时代</td><td>新能源电池</td><td>2018-06-11</td><td>10,412亿</td>
+                      <td><span class="tag tag-green">正常</span></td>
+                      <td>
+                        <button class="btn btn-ghost btn-sm">编辑</button>
+                        <button class="btn btn-ghost btn-sm" style="color:var(--red-500)">删除</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="pagination-bar">
+                <span>显示 1-5 条，共 5,247 条</span>
+                <div style="display:flex;gap:var(--space-2)">
+                  <button class="btn btn-sm btn-ghost">‹</button>
+                  <button class="btn btn-sm" style="background:var(--brand-50);color:var(--brand-600)">1</button>
+                  <button class="btn btn-sm btn-ghost">2</button>
+                  <button class="btn btn-sm btn-ghost">…</button>
+                  <button class="btn btn-sm btn-ghost">1050</button>
+                  <button class="btn btn-sm btn-ghost">›</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Collection Tasks -->
+          <div class="admin-panel mb-6">
+            <div class="admin-panel-header">
+              <span class="admin-panel-title">数据采集任务</span>
+              <button class="btn btn-secondary btn-sm">全部触发</button>
+            </div>
+            <div class="admin-panel-body">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>任务名称</th><th>类型</th><th>频率</th><th>上次执行</th><th>状态</th><th>操作</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>日K线采集</td><td>定时</td><td>交易日 15:30</td><td>15:32:18</td>
+                      <td><span class="tag tag-green">成功</span></td>
+                      <td>
+                        <button class="btn btn-ghost btn-sm">手动触发</button>
+                        <button class="btn btn-ghost btn-sm">日志</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>分钟行情采集</td><td>定时</td><td>盘中 每5分钟</td><td>14:30:05</td>
+                      <td><span class="tag tag-green">成功</span></td>
+                      <td>
+                        <button class="btn btn-ghost btn-sm">手动触发</button>
+                        <button class="btn btn-ghost btn-sm">日志</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>财报采集</td><td>定时</td><td>每日 08:00</td><td>08:15:42</td>
+                      <td><span class="tag tag-green">成功</span></td>
+                      <td>
+                        <button class="btn btn-ghost btn-sm">手动触发</button>
+                        <button class="btn btn-ghost btn-sm">日志</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>研报采集</td><td>定时</td><td>每日 08:00</td><td>08:22:18</td>
+                      <td><span class="tag tag-amber">部分失败</span></td>
+                      <td>
+                        <button class="btn btn-ghost btn-sm">手动触发</button>
+                        <button class="btn btn-ghost btn-sm">日志</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>新闻公告采集</td><td>定时</td><td>盘中 每15分钟</td><td>14:30:10</td>
+                      <td><span class="tag tag-green">成功</span></td>
+                      <td>
+                        <button class="btn btn-ghost btn-sm">手动触发</button>
+                        <button class="btn btn-ghost btn-sm">日志</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Audit Log -->
+          <div class="admin-panel">
+            <div class="admin-panel-header">
+              <span class="admin-panel-title">审计日志（最近操作）</span>
+              <button class="btn btn-ghost btn-sm">查看全部 →</button>
+            </div>
+            <div class="admin-panel-body" style="padding:0">
+              <div class="audit-log-entry">
+                <span class="audit-log-time">2026-07-05 14:28</span>
+                <span class="audit-log-user">admin</span>
+                <span class="audit-log-action">编辑股票数据：北方华创 (002371) — 更新总市值</span>
+                <span class="audit-log-target">stock:002371</span>
+              </div>
+              <div class="audit-log-entry">
+                <span class="audit-log-time">2026-07-05 13:15</span>
+                <span class="audit-log-user">admin</span>
+                <span class="audit-log-action">手动触发采集任务：研报采集 (job:research_collect)</span>
+                <span class="audit-log-target">job:research</span>
+              </div>
+              <div class="audit-log-entry">
+                <span class="audit-log-time">2026-07-05 11:42</span>
+                <span class="audit-log-user">content_mgr</span>
+                <span class="audit-log-action">新增新闻：英伟达发布新一代GPU</span>
+                <span class="audit-log-target">news:28471</span>
+              </div>
+              <div class="audit-log-entry">
+                <span class="audit-log-time">2026-07-05 10:05</span>
+                <span class="audit-log-user">admin</span>
+                <span class="audit-log-action">禁用用户账户：user_572 (违规操作)</span>
+                <span class="audit-log-target">user:572</span>
+              </div>
+              <div class="audit-log-entry">
+                <span class="audit-log-time">2026-07-05 09:30</span>
+                <span class="audit-log-user">admin</span>
+                <span class="audit-log-action">登录后台管理系统</span>
+                <span class="audit-log-target">system:auth</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

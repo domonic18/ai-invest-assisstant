@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 产业链全景分析</title>
+<link rel="stylesheet" href="common.css">
+<style>
+.chain-wrapper{background:var(--surface-primary);border:1px solid var(--border-light);border-radius:var(--radius-lg);overflow-x:auto;box-shadow:var(--shadow-sm)}
+.chain-legend{display:flex;gap:var(--space-6);padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--border-light);font-size:var(--text-xs);color:var(--gray-600)}
+.chain-legend-item{display:flex;align-items:center;gap:6px}
+.chain-legend-shape{width:10px;height:10px;border-radius:2px}
+.chain-legend-shape.up{background:var(--blue-500)}
+.chain-legend-shape.mid{background:var(--brand-500)}
+.chain-legend-shape.down{background:var(--green-500)}
+.dynamic-timeline{padding:var(--space-3);background:var(--surface-secondary);border-radius:var(--radius-md);font-size:var(--text-xs)}
+.dynamic-item{display:flex;gap:var(--space-3);padding:var(--space-2) 0;border-bottom:1px solid var(--border-light);align-items:flex-start}
+.dynamic-item:last-child{border-bottom:none}
+.dynamic-date{color:var(--gray-500);font-family:var(--font-mono);white-space:nowrap;min-width:72px}
+.dynamic-company{color:var(--gray-700);font-weight:500;min-width:80px}
+.dynamic-desc{color:var(--gray-600);flex:1}
+.analysis-meter{height:6px;border-radius:3px;background:var(--gray-100);overflow:hidden}
+.analysis-meter-fill{height:100%;border-radius:3px}
+.matrix-grid{display:grid;grid-template-columns:60px repeat(4,1fr);gap:1px;background:var(--border-light);border-radius:var(--radius-md);overflow:hidden}
+.matrix-cell{padding:var(--space-2);text-align:center;font-size:var(--text-xs);background:var(--surface-primary)}
+.matrix-header{background:var(--surface-tertiary);font-weight:600;color:var(--gray-700)}
+.matrix-cell.highlight{background:var(--red-50)}
+.bottleneck-card{padding:var(--space-3);border-radius:var(--radius-md);border-left:3px solid;font-size:var(--text-sm);margin-bottom:var(--space-2)}
+.bottleneck-card.danger{background:var(--red-50);border-color:var(--red-500)}
+.bottleneck-card.warning{background:var(--amber-50);border-color:var(--amber-500)}
+.bottleneck-card.info{background:var(--blue-50);border-color:var(--blue-500)}
+.bottleneck-card.success{background:var(--green-50);border-color:var(--green-500)}
+.bottleneck-title{font-weight:600;color:var(--gray-800);margin-bottom:2px}
+.bottleneck-desc{font-size:var(--text-xs);color:var(--gray-600)}
+</style>
+</head>
+<body>
+<div class="app-layout">
+<aside class="app-sidebar">
+<div class="sidebar-brand"><div class="sidebar-brand-icon">AI</div><div class="sidebar-brand-text">Invest</div></div>
+<nav class="sidebar-nav">
+<div class="sidebar-section-title">复盘</div>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<div class="sidebar-section-title">分析</div>
+<a class="sidebar-item active" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
+<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
+<a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
+<div class="sidebar-section-title">设置</div>
+<a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+<a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
+</nav>
+<div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
+</aside>
+<div class="app-main">
+<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
+<div class="app-content">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6)">
+<div><div style="display:flex;align-items:baseline;gap:var(--space-3)"><h1 class="page-title" style="margin-bottom:0">半导体产业链全景分析</h1><span class="tag tag-green">AI 生成 · v12 (07-05 更新)</span></div><div class="text-muted" style="font-size:var(--text-sm);margin-top:4px">覆盖 22 个产业链环节 · 86 家核心标的 · 18 篇研报参考 · 34 条近期动态 · 3 条新提醒</div></div>
+<div style="display:flex;gap:var(--space-2)"><button class="btn btn-secondary">导出报告</button><button class="btn btn-primary">刷新分析</button></div>
+</div>
+
+<!-- Version Bar -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4);padding:var(--space-3) var(--space-4);background:var(--surface-primary);border:1px solid var(--border-light);border-radius:var(--radius-lg);flex-wrap:wrap;gap:var(--space-3)">
+<div style="display:flex;align-items:center;gap:var(--space-3)">
+<span style="font-size:var(--text-sm);color:var(--gray-700);font-weight:500">图谱版本:</span>
+<select class="form-select" style="width:180px;font-size:var(--text-xs)">
+<option selected>2026-07-05 · v12 (最新)</option>
+<option>2026-06-28 · v11</option>
+<option>2026-06-21 · v10</option>
+<option>2026-06-07 · v9</option>
+</select>
+<button class="btn btn-outline btn-sm">版本对比</button>
+<span style="font-size:var(--text-xs);color:var(--gray-500)">自动更新: 每周一 08:00 · 下次更新 07-07</span>
+</div>
+<div style="display:flex;align-items:center;gap:var(--space-2)">
+<span class="tag tag-green" style="font-size:10px">● 数据最新: 07-05 财报已更新</span>
+<button class="btn btn-secondary btn-sm">手动刷新</button>
+</div>
+</div>
+
+<!-- AI Alert Panel -->
+<div class="card mb-6" style="border-left:3px solid var(--red-500)">
+<div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+<div style="display:flex;align-items:center;gap:var(--space-2)">
+<span class="card-title">🔔 AI 核心标的提醒</span>
+<span class="tag tag-red">3 条新提醒</span>
+</div>
+<div style="display:flex;align-items:center;gap:var(--space-3)">
+<span style="font-size:var(--text-xs);color:var(--gray-500)">生成时间: 2026-07-05 08:30</span>
+<button class="btn btn-ghost btn-sm">全部标为已读</button>
+<button class="btn btn-ghost btn-sm" style="font-size:var(--text-sm)">⚙ 提醒设置</button>
+</div>
+</div>
+<div class="card-body-sm" style="display:flex;flex-direction:column;gap:var(--space-2">
+<!-- Alert 1: Earnings anomaly -->
+<div style="display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3);background:var(--red-50);border-radius:var(--radius-md);border-left:3px solid var(--red-500)">
+<div style="min-width:60px"><span class="tag tag-red" style="font-size:10px">📊 财报异动</span></div>
+<div style="flex:1">
+<div style="font-size:var(--text-sm);font-weight:600;color:var(--gray-800);margin-bottom:2px">中芯国际 Q2 毛利率骤降至 18.2%，环比下降 4.6pct</div>
+<div style="font-size:var(--text-xs);color:var(--gray-600)">原因: 14nm以下产能利用率不足 + 设备折旧加速。影响环节: 晶圆制造。建议关注: 华虹半导体、晶合集成毛利率是否同步承压</div>
+<div style="margin-top:var(--space-1);font-size:10px;color:var(--gray-500)">检测来源: Q2季报 · 2026-07-04 发布</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:var(--space-1);align-items:flex-end">
+<button class="btn btn-ghost btn-sm" style="font-size:10px">查看详情</button>
+<button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--gray-400)">✕</button>
+</div>
+</div>
+
+<!-- Alert 2: Rating changes -->
+<div style="display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3);background:var(--amber-50);border-radius:var(--radius-md);border-left:3px solid var(--amber-500)">
+<div style="min-width:60px"><span class="tag tag-amber" style="font-size:10px">📈 评级集中调整</span></div>
+<div style="flex:1">
+<div style="font-size:var(--text-sm);font-weight:600;color:var(--gray-800);margin-bottom:2px">北方华创一周内获 4 家券商上调目标价，平均上调幅度 15%</div>
+<div style="font-size:var(--text-xs);color:var(--gray-600)">中信/华泰/招商/国泰君安集体上调，核心逻辑: 5nm刻蚀机验证通过+薄膜沉积设备获存储厂大单。共识目标价区间: ¥420-¥450</div>
+<div style="margin-top:var(--space-1);font-size:10px;color:var(--gray-500)">检测来源: 4篇研报 · 07-01 ~ 07-04</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:var(--space-1);align-items:flex-end">
+<button class="btn btn-ghost btn-sm" style="font-size:10px">查看详情</button>
+<button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--gray-400)">✕</button>
+</div>
+</div>
+
+<!-- Alert 3: Policy catalyst -->
+<div style="display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3);background:var(--blue-50);border-radius:var(--radius-md);border-left:3px solid var(--blue-500)">
+<div style="min-width:60px"><span class="tag tag-blue" style="font-size:10px">📋 政策催化</span></div>
+<div style="flex:1">
+<div style="font-size:var(--text-sm);font-weight:600;color:var(--gray-800);margin-bottom:2px">工信部发布《半导体设备国产化三年行动计划》，明确刻蚀/薄膜/检测设备国产化率 2028 年目标 >50%</div>
+<div style="font-size:var(--text-xs);color:var(--gray-600)">影响环节: 半导体设备 + 检测设备。利好标的: 北方华创、中微公司、精测电子、中科飞测。补贴细则预计Q3出台</div>
+<div style="margin-top:var(--space-1);font-size:10px;color:var(--gray-500)">检测来源: 工信部公告 · 2026-07-02</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:var(--space-1);align-items:flex-end">
+<button class="btn btn-ghost btn-sm" style="font-size:10px">查看详情</button>
+<button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--gray-400)">✕</button>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Chain Graph Card -->
+<!-- Chain Graph Card -->
+<div class="chain-wrapper mb-6">
+<div class="chain-legend">
+<div class="chain-legend-item"><span class="chain-legend-shape up"></span>上游 — 原材料与耗材</div>
+<div class="chain-legend-item"><span class="chain-legend-shape mid"></span>中游 — 制造、设备与工具</div>
+<div class="chain-legend-item"><span class="chain-legend-shape down"></span>下游 — 应用场景</div>
+</div>
+<div style="overflow-x:auto;padding:var(--space-4)">
+<svg viewBox="0 0 1400 1100" width="1400" height="1100" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<filter id="shadow"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.08"/></filter>
+<marker id="arrowGreen" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#10b981"/></marker>
+<marker id="arrowGray" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#9ca3af"/></marker>
+</defs>
+
+<!-- Background -->
+<rect width="1400" height="1100" fill="#fafbfc" rx="8"/>
+
+<!-- ====== SECTION LABELS ====== -->
+<rect x="20" y="20" width="1360" height="30" rx="6" fill="#dbeafe" opacity="0.7"/>
+<text x="700" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">◆ 上游 — 原材料与耗材</text>
+
+<rect x="20" y="420" width="1360" height="30" rx="6" fill="#eef2ff" opacity="0.7"/>
+<text x="700" y="440" text-anchor="middle" font-size="13" font-weight="700" fill="#4f46e5">◆ 中游 — 制造、设备与工具</text>
+
+<rect x="20" y="760" width="1360" height="30" rx="6" fill="#d1fae5" opacity="0.7"/>
+<text x="700" y="780" text-anchor="middle" font-size="13" font-weight="700" fill="#059669">◆ 下游 — 应用场景</text>
+
+<!-- ====== UPSTREAM ROW 1 ====== -->
+<!-- 节点模板: x,y,w=150,h=100 -->
+
+<!-- 硅材料 -->
+<rect x="60" y="65" width="145" height="100" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
+<text x="132" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">硅材料</text>
+<text x="132" y="107" text-anchor="middle" font-size="10" fill="#64748b">高纯度单晶硅/多晶硅</text>
+<line x1="75" y1="115" x2="190" y2="115" stroke="#e2e8f0" stroke-width="1"/>
+<text x="75" y="130" font-size="9" fill="#64748b">毛利率 25.3%</text>
+<text x="75" y="143" font-size="9" fill="#64748b">国产化率 35%</text>
+<text x="75" y="156" font-size="9" fill="#3b82f6">壁垒 高</text>
+<!-- 信号 -->
+<rect x="62" y="155" width="141" height="12" rx="3" fill="#fef2f2"/>
+<text x="132" y="164" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 300mm大硅片量产</text>
+
+<!-- 电子特气 -->
+<rect x="240" y="65" width="145" height="100" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
+<text x="312" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">电子特气</text>
+<text x="312" y="107" text-anchor="middle" font-size="10" fill="#64748b">高纯气体/蚀刻气体</text>
+<line x1="255" y1="115" x2="370" y2="115" stroke="#e2e8f0" stroke-width="1"/>
+<text x="255" y="130" font-size="9" fill="#64748b">毛利率 38.7%</text>
+<text x="255" y="143" font-size="9" fill="#64748b">国产化率 48%</text>
+<text x="255" y="156" font-size="9" fill="#3b82f6">壁垒 高</text>
+<rect x="242" y="155" width="141" height="12" rx="3" fill="#fef2f2"/>
+<text x="312" y="164" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 通过ASML认证</text>
+
+<!-- 光刻胶 -->
+<rect x="420" y="65" width="145" height="118" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
+<text x="492" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">光刻胶</text>
+<text x="492" y="107" text-anchor="middle" font-size="10" fill="#64748b">ArF/KrF/g-line/i-line</text>
+<line x1="435" y1="115" x2="550" y2="115" stroke="#e2e8f0" stroke-width="1"/>
+<text x="435" y="130" font-size="9" fill="#64748b">毛利率 42.1%</text>
+<text x="435" y="143" font-size="9" fill="#64748b">国产化率 15%</text>
+<text x="435" y="156" font-size="9" fill="#ef4444">壁垒 极高</text>
+<rect x="422" y="155" width="141" height="12" rx="3" fill="#fef2f2"/>
+<text x="492" y="164" text-anchor="middle" font-size="8" fill="#ef4444">⚡ ArF验证中</text>
+<rect x="422" y="168" width="141" height="12" rx="3" fill="#eff6ff"/>
+<text x="492" y="177" text-anchor="middle" font-size="8" fill="#3b82f6">📋 大基金二期注资</text>
+
+<!-- 靶材 -->
+<rect x="600" y="65" width="145" height="100" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
+<text x="672" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">靶材</text>
+<text x="672" y="107" text-anchor="middle" font-size="10" fill="#64748b">高纯金属/合金靶材</text>
+<line x1="615" y1="115" x2="730" y2="115" stroke="#e2e8f0" stroke-width="1"/>
+<text x="615" y="130" font-size="9" fill="#64748b">毛利率 31.5%</text>
+<text x="615" y="143" font-size="9" fill="#64748b">国产化率 40%</text>
+<text x="615" y="156" font-size="9" fill="#3b82f6">壁垒 中高</text>
+<rect x="602" y="155" width="141" height="12" rx="3" fill="#fef2f2"/>
+<text x="672" y="164" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 5nm制程靶材供货</text>
+
+<!-- CMP抛光 -->
+<rect x="780" y="65" width="145" height="100" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
+<text x="852" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">CMP抛光材料</text>
+<text x="852" y="107" text-anchor="middle" font-size="10" fill="#64748b">抛光液/抛光垫</text>
+<line x1="795" y1="115" x2="910" y2="115" stroke="#e2e8f0" stroke-width="1"/>
+<text x="795" y="130" font-size="9" fill="#64748b">毛利率 52.8%</text>
+<text x="795" y="143" font-size="9" fill="#64748b">国产化率 25%</text>
+<text x="795" y="156" font-size="9" fill="#3b82f6">壁垒 高</text>
+
+<!-- 湿电子化学品 -->
+<rect x="960" y="65" width="145" height="100" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
+<text x="1032" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">湿电子化学品</text>
+<text x="1032" y="107" text-anchor="middle" font-size="10" fill="#64748b">超纯试剂/蚀刻液</text>
+<line x1="975" y1="115" x2="1090" y2="115" stroke="#e2e8f0" stroke-width="1"/>
+<text x="975" y="130" font-size="9" fill="#64748b">毛利率 28.4%</text>
+<text x="975" y="143" font-size="9" fill="#64748b">国产化率 55%</text>
+<text x="975" y="156" font-size="9" fill="#64748b">壁垒 中</text>
+
+<!-- ====== UPSTREAM ROW 2 ====== -->
+<!-- 石英材料 -->
+<rect x="60" y="230" width="145" height="100" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
+<text x="132" y="253" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">石英材料</text>
+<text x="132" y="272" text-anchor="middle" font-size="10" fill="#64748b">半导体级石英玻璃</text>
+<line x1="75" y1="280" x2="190" y2="280" stroke="#e2e8f0" stroke-width="1"/>
+<text x="75" y="295" font-size="9" fill="#64748b">毛利率 45.2%</text>
+<text x="75" y="308" font-size="9" fill="#64748b">国产化率 30%</text>
+<text x="75" y="321" font-size="9" fill="#3b82f6">壁垒 高</text>
+<rect x="62" y="320" width="141" height="12" rx="3" fill="#ecfdf5"/>
+<text x="132" y="329" text-anchor="middle" font-size="8" fill="#10b981">🏭 2026Q3新增产能</text>
+
+<!-- 封装基板 -->
+<rect x="240" y="230" width="145" height="118" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
+<text x="312" y="253" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">封装基板</text>
+<text x="312" y="272" text-anchor="middle" font-size="10" fill="#64748b">IC载板/ABF/BT基板</text>
+<line x1="255" y1="280" x2="370" y2="280" stroke="#e2e8f0" stroke-width="1"/>
+<text x="255" y="295" font-size="9" fill="#64748b">毛利率 32.6%</text>
+<text x="255" y="308" font-size="9" fill="#64748b">国产化率 12%</text>
+<text x="255" y="321" font-size="9" fill="#ef4444">壁垒 极高</text>
+<rect x="242" y="320" width="141" height="12" rx="3" fill="#fef2f2"/>
+<text x="312" y="329" text-anchor="middle" font-size="8" fill="#ef4444">⚡ ABF载板验证通过</text>
+<rect x="242" y="333" width="141" height="12" rx="3" fill="#eff6ff"/>
+<text x="312" y="342" text-anchor="middle" font-size="8" fill="#3b82f6">📋 列入重点攻关清单</text>
+
+<!-- ====== UPSTREAM FLOW ARROWS (to midstream) ====== -->
+<line x1="132" y1="175" x2="132" y2="460" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
+<line x1="312" y1="175" x2="312" y2="460" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
+<line x1="492" y1="183" x2="492" y2="460" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
+<line x1="672" y1="175" x2="672" y2="460" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
+<line x1="852" y1="175" x2="852" y2="460" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
+<line x1="1032" y1="175" x2="1032" y2="460" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
+<line x1="132" y1="340" x2="132" y2="460" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
+<line x1="312" y1="348" x2="312" y2="460" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
+
+<text x="700" y="400" text-anchor="middle" font-size="11" fill="#9ca3af">↓ 原材料供应 · 耗材配套 · 设备零部件 ↓</text>
+
+
+<!-- ====== MIDSTREAM ROW 1 ====== -->
+
+<!-- 半导体设备 -->
+<rect x="60" y="465" width="200" height="115" rx="8" fill="#fff" stroke="#6366f1" stroke-width="2.5" filter="url(#shadow)"/>
+<text x="160" y="488" text-anchor="middle" font-size="14" font-weight="700" fill="#1e293b">半导体设备</text>
+<text x="160" y="507" text-anchor="middle" font-size="10" fill="#64748b">刻蚀/薄膜沉积/光刻/清洗/检测</text>
+<line x1="75" y1="515" x2="245" y2="515" stroke="#e2e8f0" stroke-width="1"/>
+<text x="75" y="530" font-size="9" fill="#64748b">毛利率 46.2% | 国产化率 25%</text>
+<text x="75" y="543" font-size="9" fill="#ef4444">壁垒 极高</text>
+<text x="75" y="556" font-size="9" fill="#64748b">核心: 北方华创 中微公司 盛美上海</text>
+<rect x="62" y="558" width="196" height="12" rx="3" fill="#fef2f2"/>
+<text x="160" y="567" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 5nm刻蚀机通过验证 · 🏭 2026H2产能翻倍</text>
+
+<!-- 晶圆制造 -->
+<rect x="300" y="465" width="200" height="115" rx="8" fill="#fff" stroke="#6366f1" stroke-width="2.5" filter="url(#shadow)"/>
+<text x="400" y="488" text-anchor="middle" font-size="14" font-weight="700" fill="#1e293b">晶圆制造</text>
+<text x="400" y="507" text-anchor="middle" font-size="10" fill="#64748b">代工/IDM/特色工艺</text>
+<line x1="315" y1="515" x2="485" y2="515" stroke="#e2e8f0" stroke-width="1"/>
+<text x="315" y="530" font-size="9" fill="#64748b">毛利率 22.8% | 国产化率 18%</text>
+<text x="315" y="543" font-size="9" fill="#ef4444">壁垒 极高</text>
+<text x="315" y="556" font-size="9" fill="#64748b">核心: 中芯国际 华虹半导体 晶合集成</text>
+<rect x="302" y="558" width="196" height="12" rx="3" fill="#fef2f2"/>
+<text x="400" y="567" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 14nm良率突破92% · 🏭 北京新厂Q4投产</text>
+
+<!-- 封装测试 -->
+<rect x="540" y="465" width="200" height="115" rx="8" fill="#fff" stroke="#6366f1" stroke-width="2.5" filter="url(#shadow)"/>
+<text x="640" y="488" text-anchor="middle" font-size="14" font-weight="700" fill="#1e293b">封装测试</text>
+<text x="640" y="507" text-anchor="middle" font-size="10" fill="#64748b">传统封装/先进封装</text>
+<line x1="555" y1="515" x2="725" y2="515" stroke="#e2e8f0" stroke-width="1"/>
+<text x="555" y="530" font-size="9" fill="#64748b">毛利率 18.4% | 国产化率 42%</text>
+<text x="555" y="543" font-size="9" fill="#64748b">壁垒 中</text>
+<text x="555" y="556" font-size="9" fill="#64748b">核心: 长电科技 通富微电 华天科技</text>
+<rect x="542" y="558" width="196" height="12" rx="3" fill="#fef2f2"/>
+<text x="640" y="567" text-anchor="middle" font-size="8" fill="#ef4444">⚡ Chiplet封装量产 · 🏭 CoWoS产能扩建</text>
+
+<!-- EDA -->
+<rect x="780" y="465" width="200" height="128" rx="8" fill="#fff" stroke="#6366f1" stroke-width="2.5" filter="url(#shadow)"/>
+<text x="880" y="488" text-anchor="middle" font-size="14" font-weight="700" fill="#1e293b">EDA工具</text>
+<text x="880" y="507" text-anchor="middle" font-size="10" fill="#64748b">全流程/点工具/IP核</text>
+<line x1="795" y1="515" x2="965" y2="515" stroke="#e2e8f0" stroke-width="1"/>
+<text x="795" y="530" font-size="9" fill="#64748b">毛利率 89.6% | 国产化率 8%</text>
+<text x="795" y="543" font-size="9" fill="#ef4444">壁垒 极高</text>
+<text x="795" y="556" font-size="9" fill="#64748b">核心: 华大九天 概伦电子 广立微</text>
+<rect x="782" y="558" width="196" height="12" rx="3" fill="#fef2f2"/>
+<text x="880" y="567" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 全流程工具链v5.0打通</text>
+<rect x="782" y="571" width="196" height="12" rx="3" fill="#eff6ff"/>
+<text x="880" y="580" text-anchor="middle" font-size="8" fill="#3b82f6">📋 工信部专项支持</text>
+
+<!-- 光刻设备 -->
+<rect x="1020" y="465" width="200" height="102" rx="8" fill="#fff" stroke="#6366f1" stroke-width="2" filter="url(#shadow)"/>
+<text x="1120" y="488" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">光刻设备</text>
+<text x="1120" y="507" text-anchor="middle" font-size="10" fill="#64748b">光刻机/光源/光学系统</text>
+<line x1="1035" y1="515" x2="1205" y2="515" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1035" y="530" font-size="9" fill="#64748b">毛利率 35.8% | 国产化率 3%</text>
+<text x="1035" y="543" font-size="9" fill="#ef4444">壁垒 极高</text>
+<text x="1035" y="556" font-size="9" fill="#64748b">核心: 上海微电子 国望光学</text>
+<rect x="1022" y="558" width="196" height="12" rx="3" fill="#fef2f2"/>
+<text x="1120" y="567" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 28nm浸没式原型机测试中</text>
+
+<!-- MIDSTREAM ROW 2 - 检测设备 -->
+<rect x="60" y="620" width="200" height="90" rx="8" fill="#fff" stroke="#6366f1" stroke-width="2" filter="url(#shadow)"/>
+<text x="160" y="640" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">检测设备</text>
+<text x="160" y="657" text-anchor="middle" font-size="10" fill="#64748b">晶圆检测/量测/缺陷分析</text>
+<line x1="75" y1="665" x2="245" y2="665" stroke="#e2e8f0" stroke-width="1"/>
+<text x="75" y="678" font-size="9" fill="#64748b">毛利率 52.3% | 国产化率 15% | 壁垒 高</text>
+<text x="75" y="691" font-size="9" fill="#64748b">核心: 精测电子 中科飞测 天准科技</text>
+
+<!-- 横线连接中游内部 -->
+<line x1="260" y1="522" x2="300" y2="522" stroke="#6366f1" stroke-width="1" marker-end="url(#arrowGray)"/>
+<line x1="500" y1="522" x2="540" y2="522" stroke="#6366f1" stroke-width="1" marker-end="url(#arrowGray)"/>
+<line x1="740" y1="522" x2="780" y2="522" stroke="#6366f1" stroke-width="1" marker-end="url(#arrowGray)"/>
+<line x1="980" y1="522" x2="1020" y2="522" stroke="#6366f1" stroke-width="1" marker-end="url(#arrowGray)"/>
+
+<!-- ====== MIDSTREAM FLOW ARROWS (to downstream) ====== -->
+<line x1="160" y1="720" x2="160" y2="800" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
+<line x1="400" y1="590" x2="400" y2="800" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
+<line x1="640" y1="590" x2="640" y2="800" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
+<line x1="880" y1="593" x2="880" y2="800" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
+<line x1="1120" y1="577" x2="1120" y2="800" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
+
+<text x="700" y="745" text-anchor="middle" font-size="11" fill="#9ca3af">↓ 芯片产品交付 · 模组集成 · 系统应用 ↓</text>
+
+
+<!-- ====== DOWNSTREAM ====== -->
+
+<!-- AI服务器 -->
+<rect x="60" y="815" width="185" height="100" rx="8" fill="#fff" stroke="#10b981" stroke-width="2" filter="url(#shadow)"/>
+<text x="152" y="838" text-anchor="middle" font-size="14" font-weight="700" fill="#1e293b">AI服务器</text>
+<text x="152" y="857" text-anchor="middle" font-size="10" fill="#64748b">算力基础设施</text>
+<line x1="75" y1="865" x2="230" y2="865" stroke="#e2e8f0" stroke-width="1"/>
+<text x="75" y="880" font-size="9" fill="#64748b">毛利率 8.2% | 增速 +85.6%</text>
+<text x="75" y="893" font-size="9" fill="#64748b">市场 2,860亿 核心: 工业富联</text>
+<rect x="62" y="905" width="181" height="12" rx="3" fill="#ecfdf5"/>
+<text x="152" y="914" text-anchor="middle" font-size="8" fill="#10b981">🏭 AI服务器出货同比+240%</text>
+
+<!-- 消费电子 -->
+<rect x="280" y="815" width="185" height="100" rx="8" fill="#fff" stroke="#10b981" stroke-width="2" filter="url(#shadow)"/>
+<text x="372" y="838" text-anchor="middle" font-size="14" font-weight="700" fill="#1e293b">消费电子</text>
+<text x="372" y="857" text-anchor="middle" font-size="10" fill="#64748b">手机/PC/可穿戴</text>
+<line x1="295" y1="865" x2="450" y2="865" stroke="#e2e8f0" stroke-width="1"/>
+<text x="295" y="880" font-size="9" fill="#64748b">毛利率 12.5% | 增速 +8.3%</text>
+<text x="295" y="893" font-size="9" fill="#64748b">市场 12,400亿 核心: 立讯精密</text>
+
+<!-- 汽车电子 -->
+<rect x="500" y="815" width="185" height="100" rx="8" fill="#fff" stroke="#10b981" stroke-width="2" filter="url(#shadow)"/>
+<text x="592" y="838" text-anchor="middle" font-size="14" font-weight="700" fill="#1e293b">汽车电子</text>
+<text x="592" y="857" text-anchor="middle" font-size="10" fill="#64748b">智能座舱/自动驾驶</text>
+<line x1="515" y1="865" x2="670" y2="865" stroke="#e2e8f0" stroke-width="1"/>
+<text x="515" y="880" font-size="9" fill="#64748b">毛利率 24.1% | 增速 +32.5%</text>
+<text x="515" y="893" font-size="9" fill="#64748b">市场 4,520亿 核心: 德赛西威</text>
+<rect x="502" y="905" width="181" height="12" rx="3" fill="#fef2f2"/>
+<text x="592" y="914" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 高通8295平台量产装车</text>
+
+<!-- 工业控制 -->
+<rect x="720" y="815" width="185" height="100" rx="8" fill="#fff" stroke="#10b981" stroke-width="2" filter="url(#shadow)"/>
+<text x="812" y="838" text-anchor="middle" font-size="14" font-weight="700" fill="#1e293b">工业控制</text>
+<text x="812" y="857" text-anchor="middle" font-size="10" fill="#64748b">PLC/变频器/机器人</text>
+<line x1="735" y1="865" x2="890" y2="865" stroke="#e2e8f0" stroke-width="1"/>
+<text x="735" y="880" font-size="9" fill="#64748b">毛利率 35.8% | 增速 +18.2%</text>
+<text x="735" y="893" font-size="9" fill="#64748b">市场 3,180亿 核心: 汇川技术</text>
+
+<!-- 通信基站 -->
+<rect x="940" y="815" width="185" height="100" rx="8" fill="#fff" stroke="#10b981" stroke-width="2" filter="url(#shadow)"/>
+<text x="1032" y="838" text-anchor="middle" font-size="14" font-weight="700" fill="#1e293b">通信基站</text>
+<text x="1032" y="857" text-anchor="middle" font-size="10" fill="#64748b">5G-A/6G通信芯片</text>
+<line x1="955" y1="865" x2="1110" y2="865" stroke="#e2e8f0" stroke-width="1"/>
+<text x="955" y="880" font-size="9" fill="#64748b">毛利率 28.5% | 增速 +12.6%</text>
+<text x="955" y="893" font-size="9" fill="#64748b">市场 1,850亿 核心: 中兴通讯</text>
+
+<!-- ====== BOTTLENECK MARKERS ====== -->
+<!-- 光刻机 -->
+<circle cx="1155" cy="492" r="18" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+<text x="1155" y="496" text-anchor="middle" font-size="10" fill="#ef4444">⚠</text>
+<text x="1155" y="520" text-anchor="middle" font-size="8" fill="#ef4444">3%国产化</text>
+
+<!-- EDA -->
+<circle cx="940" cy="492" r="18" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+<text x="940" y="496" text-anchor="middle" font-size="10" fill="#ef4444">⚠</text>
+<text x="940" y="520" text-anchor="middle" font-size="8" fill="#ef4444">8%国产化</text>
+
+<!-- 光刻胶 -->
+<circle cx="565" cy="80" r="18" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+<text x="565" y="84" text-anchor="middle" font-size="10" fill="#ef4444">⚠</text>
+<text x="565" y="106" text-anchor="middle" font-size="8" fill="#ef4444">15%国产化</text>
+
+<!-- 封装基板 -->
+<circle cx="385" cy="245" r="18" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+<text x="385" y="249" text-anchor="middle" font-size="10" fill="#ef4444">⚠</text>
+<text x="385" y="271" text-anchor="middle" font-size="8" fill="#ef4444">12%国产化</text>
+
+<!-- ====== VALUE HIGHLIGHT ====== -->
+<!-- EDA最高毛利标记 -->
+<rect x="775" y="440" width="80" height="18" rx="4" fill="#fef2f2"/>
+<text x="815" y="453" text-anchor="middle" font-size="9" font-weight="700" fill="#ef4444">★ 89.6%毛利</text>
+
+<!-- CMP材料标记 -->
+<rect x="775" y="40" width="72" height="18" rx="4" fill="#fef2f2"/>
+<text x="811" y="53" text-anchor="middle" font-size="9" font-weight="700" fill="#ef4444">★ 52.8%毛利</text>
+
+<!-- AI服务器增速标记 -->
+<rect x="55" y="795" width="80" height="18" rx="4" fill="#ecfdf5"/>
+<text x="95" y="808" text-anchor="middle" font-size="9" font-weight="700" fill="#10b981">★ +85.6%增速</text>
+
+</svg>
+</div>
+
+<!-- Value Distribution + Matrix -->
+<div class="grid-2 mb-6" style="margin-top:var(--space-6)">
+<div class="card">
+<div class="card-header"><span class="card-title">价值分布分析（毛利率排序）</span></div>
+<div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-4)">
+<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>EDA工具</span><span style="color:var(--brand-600);font-weight:600">89.6%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:89.6%;background:var(--brand-500)"></div></div></div>
+<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>CMP抛光材料</span><span style="color:var(--brand-600);font-weight:600">52.8%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:52.8%;background:var(--brand-500)"></div></div></div>
+<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>检测设备</span><span style="color:var(--brand-600);font-weight:600">52.3%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:52.3%;background:var(--brand-500)"></div></div></div>
+<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>半导体设备</span><span style="color:var(--brand-600);font-weight:600">46.2%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:46.2%;background:var(--brand-500)"></div></div></div>
+<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>石英材料</span><span style="color:var(--brand-600);font-weight:600">45.2%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:45.2%;background:var(--brand-500)"></div></div></div>
+<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>光刻胶</span><span style="color:var(--brand-600);font-weight:600">42.1%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:42.1%;background:var(--brand-500)"></div></div></div>
+<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>电子特气</span><span style="color:var(--gray-700);font-weight:600">38.7%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:38.7%;background:var(--gray-400)"></div></div></div>
+<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>晶圆制造</span><span style="color:var(--gray-600);font-weight:600">22.8%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:22.8%;background:var(--gray-400)"></div></div></div>
+<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>封装测试</span><span style="color:var(--gray-500);font-weight:600">18.4%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:18.4%;background:var(--gray-400)"></div></div></div>
+<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>AI服务器</span><span style="color:var(--gray-500);font-weight:600">8.2%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:8.2%;background:var(--gray-400)"></div></div></div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header"><span class="card-title">毛利率 × 国产化率 矩阵</span><span style="font-size:var(--text-xs);color:var(--gray-500)">投资机会象限</span></div>
+<div class="card-body">
+<div class="matrix-grid">
+<div class="matrix-cell matrix-header"></div><div class="matrix-cell matrix-header">国产化率低<br>&lt;30%</div><div class="matrix-cell matrix-header">国产化率中<br>30-50%</div><div class="matrix-cell matrix-header">国产化率高<br>>50%</div><div class="matrix-cell matrix-header">国产化率极高<br>>70%</div>
+<div class="matrix-cell matrix-header">高毛利<br>>40%</div>
+<div class="matrix-cell highlight" style="font-size:10px"><strong>★★★★★</strong><br>EDA工具<br>光刻胶<br>CMP材料<br>光刻设备<br>检测设备</div>
+<div class="matrix-cell" style="font-size:10px;background:var(--amber-50)"><strong>★★★★</strong><br>电子特气<br>石英材料</div>
+<div class="matrix-cell" style="font-size:10px"><strong>★★★</strong><br>湿电子化学品</div>
+<div class="matrix-cell" style="font-size:10px">—</div>
+<div class="matrix-cell matrix-header">中毛利<br>20-40%</div>
+<div class="matrix-cell" style="font-size:10px;background:var(--amber-50)"><strong>★★★★</strong><br>半导体设备</div>
+<div class="matrix-cell" style="font-size:10px"><strong>★★★</strong><br>硅材料<br>靶材</div>
+<div class="matrix-cell" style="font-size:10px">—</div><div class="matrix-cell" style="font-size:10px">—</div>
+<div class="matrix-cell matrix-header">低毛利<br>&lt;20%</div>
+<div class="matrix-cell" style="font-size:10px"><strong>★★★</strong><br>封装基板</div>
+<div class="matrix-cell" style="font-size:10px"><strong>★★</strong><br>封装测试</div>
+<div class="matrix-cell" style="font-size:10px">—</div><div class="matrix-cell" style="font-size:10px">—</div>
+</div>
+<div style="font-size:var(--text-xs);color:var(--gray-500);margin-top:var(--space-2)">★ 越多代表替代机会越大。高毛利+低国产化率=最大投资机会</div>
+</div>
+</div>
+</div>
+
+<!-- Bottleneck + Dynamic -->
+<div class="grid-2 mb-6">
+<div class="card">
+<div class="card-header"><span class="card-title">瓶颈与卡脖子风险</span><span class="tag tag-red">4 个关注点</span></div>
+<div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3)">
+<div class="bottleneck-card danger"><div class="bottleneck-title">⚠ 光刻机 — 国产化率 3%</div><div class="bottleneck-desc">ASML垄断高端EUV光刻机。上海微电子28nm原型机测试中，量产时间表不确定。</div></div>
+<div class="bottleneck-card danger"><div class="bottleneck-title">⚠ EDA生态 — 国产化率 8%</div><div class="bottleneck-desc">国产EDA覆盖率约30%，先进制程全流程仍依赖Synopsys/Cadence/Mentor。</div></div>
+<div class="bottleneck-card warning"><div class="bottleneck-title">⚡ 先进制程良率 — 国产化率 18%</div><div class="bottleneck-desc">14nm良率92%，但7nm以下与台积电存在2-3代差距。</div></div>
+<div class="bottleneck-card warning"><div class="bottleneck-title">⚡ ABF载板 — 国产化率 12%</div><div class="bottleneck-desc">全球产能集中在日本味之素，深南电路验证通过但产能爬坡慢。</div></div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:var(--space-3)">
+<div class="card" style="flex:1">
+<div class="card-header"><span class="card-title">📅 版本对比预览</span><span style="font-size:var(--text-xs);color:var(--gray-500)">v11 → v12</span></div>
+<div class="card-body-sm" style="display:flex;flex-direction:column;gap:var(--space-2)">
+<div style="display:flex;align-items:center;justify-content:space-between;font-size:var(--text-xs)">
+<span style="color:var(--gray-600)">新增标的</span><span style="font-weight:600;color:var(--green-600)">+4</span>
+</div>
+<div style="padding:var(--space-1) var(--space-2);background:var(--green-50);border-radius:3px;font-size:10px;color:var(--green-600)">封装基板新增: 兴森科技、崇达技术</div>
+<div style="padding:var(--space-1) var(--space-2);background:var(--green-50);border-radius:3px;font-size:10px;color:var(--green-600)">检测设备新增: 中科飞测</div>
+<div style="display:flex;align-items:center;justify-content:space-between;font-size:var(--text-xs);margin-top:var(--space-1)">
+<span style="color:var(--gray-600)">国产化率调整</span><span style="font-weight:600;color:var(--amber-600)">3 个环节</span>
+</div>
+<div style="padding:var(--space-1) var(--space-2);background:var(--amber-50);border-radius:3px;font-size:10px;color:var(--amber-600)">半导体设备: 20% → 25% (+5pct)</div>
+<div style="padding:var(--space-1) var(--space-2);background:var(--amber-50);border-radius:3px;font-size:10px;color:var(--amber-600)">电子特气: 42% → 48% (+6pct)</div>
+<div style="display:flex;align-items:center;justify-content:space-between;font-size:var(--text-xs);margin-top:var(--space-1)">
+<span style="color:var(--gray-600)">财务指标更新</span><span style="font-weight:600;color:var(--brand-600)">12 家公司</span>
+</div>
+<button class="btn btn-ghost btn-sm" style="font-size:10px;margin-top:var(--space-2)">查看完整版本对比 →</button>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header"><span class="card-title">核心标的近期动态</span><span class="tag tag-purple">近 30 天</span></div>
+<div class="card-body" style="padding:0">
+<div class="dynamic-timeline">
+<div class="dynamic-item"><span class="dynamic-date">07-03</span><span class="dynamic-company">北方华创</span><span class="dynamic-desc">5nm等离子刻蚀机通过中芯国际产线验证，2026H2有望批量交付。 <span class="tag tag-red" style="font-size:10px">⚡技术突破</span></span></div>
+<div class="dynamic-item"><span class="dynamic-date">07-01</span><span class="dynamic-company">华大九天</span><span class="dynamic-desc">发布全流程EDA工具链v5.0，覆盖模拟/数字/射频全流程。 <span class="tag tag-red" style="font-size:10px">⚡技术突破</span> <span class="tag tag-blue" style="font-size:10px">📋政策支持</span></span></div>
+<div class="dynamic-item"><span class="dynamic-date">06-28</span><span class="dynamic-company">沪硅产业</span><span class="dynamic-desc">300mm大硅片月产能突破20万片，良率达98%。 <span class="tag tag-green" style="font-size:10px">🏭产能扩容</span></span></div>
+<div class="dynamic-item"><span class="dynamic-date">06-25</span><span class="dynamic-company">南大光电</span><span class="dynamic-desc">ArF光刻胶进入中芯国际验证最后阶段，获大基金二期5亿注资。 <span class="tag tag-red" style="font-size:10px">⚡验证推进</span></span></div>
+<div class="dynamic-item"><span class="dynamic-date">06-22</span><span class="dynamic-company">中芯国际</span><span class="dynamic-desc">北京12英寸新厂完成封顶，2026Q4投产，月产能规划5万片。 <span class="tag tag-green" style="font-size:10px">🏭产能扩建</span></span></div>
+<div class="dynamic-item"><span class="dynamic-date">06-20</span><span class="dynamic-company">长电科技</span><span class="dynamic-desc">Chiplet先进封装技术实现量产，获AMD/英伟达订单。 <span class="tag tag-red" style="font-size:10px">⚡技术突破</span></span></div>
+<div class="dynamic-item"><span class="dynamic-date">06-18</span><span class="dynamic-company">江丰电子</span><span class="dynamic-desc">5nm制程高纯钽靶材进入台积电供应链，打开海外市场。 <span class="tag tag-red" style="font-size:10px">⚡出海突破</span></span></div>
+<div class="dynamic-item"><span class="dynamic-date">06-15</span><span class="dynamic-company">精测电子</span><span class="dynamic-desc">中标中芯国际晶圆检测设备采购，金额超8亿元。 <span class="tag tag-green" style="font-size:10px">🏭大单落地</span></span></div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- AI Summary -->
+<div class="card">
+<div class="card-header"><span class="card-title">AI 分析摘要</span><span class="tag tag-purple">Codex Skill 驱动</span></div>
+<div class="card-body">
+<p style="font-size:var(--text-base);color:var(--gray-700);line-height:1.8">
+半导体产业链呈现<strong>上游高壁垒、高毛利；中游重资产、国产替代加速；下游应用分化、AI需求爆发</strong>的三层结构。
+EDA工具（89.6%）和CMP抛光材料（52.8%）是毛利率最高的环节，同时也是国产化率最低的环节（分别仅8%和25%），构成产业链的"价值-风险"双高区域。
+在投资机会矩阵中，<strong style="color:var(--red-600)">高毛利 × 低国产化率</strong>象限（EDA、光刻胶、CMP材料、检测设备、光刻设备）是替代机会最大的方向。
+</p>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-4);margin-top:var(--space-4)">
+<div style="padding:var(--space-3);background:var(--red-50);border-radius:var(--radius-md);border-left:3px solid var(--red-500)">
+<div style="font-size:var(--text-xs);color:var(--gray-500);margin-bottom:4px">最大投资机会</div>
+<div style="font-size:var(--text-sm);color:var(--gray-800);font-weight:500">半导体设备国产替代</div>
+<div style="font-size:var(--text-xs);color:var(--gray-600)">刻蚀/薄膜/检测设备在28nm以上已规模化替代，14nm以下增量空间巨大</div>
+</div>
+<div style="padding:var(--space-3);background:var(--blue-50);border-radius:var(--radius-md);border-left:3px solid var(--blue-500)">
+<div style="font-size:var(--text-xs);color:var(--gray-500);margin-bottom:4px">最大催化剂</div>
+<div style="font-size:var(--text-sm);color:var(--gray-800);font-weight:500">AI算力需求×国产替代加速</div>
+<div style="font-size:var(--text-xs);color:var(--gray-600)">英伟达/华为需求拉动的叠加效应，先进封装和AI芯片设计工具需求井喷</div>
+</div>
+<div style="padding:var(--space-3);background:var(--amber-50);border-radius:var(--radius-md);border-left:3px solid var(--amber-500)">
+<div style="font-size:var(--text-xs);color:var(--gray-500);margin-bottom:4px">最大风险</div>
+<div style="font-size:var(--text-sm);color:var(--gray-800);font-weight:500">地缘政治供应链扰动</div>
+<div style="font-size:var(--text-xs);color:var(--gray-600)">出口管制升级可能影响高端设备、EDA软件和先进材料的供应稳定性</div>
+</div>
+</div>
+</div>
+</div>
+
+</div></div></div>
+</body>
+</html>

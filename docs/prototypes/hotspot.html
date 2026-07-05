@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 热点追踪</title>
+<link rel="stylesheet" href="common.css">
+<style>
+.cloud-tag {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  border-radius: 12px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  margin: 2px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.cloud-tag:hover { transform: translateY(-1px); }
+
+.timeline { position: relative; padding-left: var(--space-6); }
+.timeline::before {
+  content: '';
+  position: absolute; left: 8px; top: 4px; bottom: 4px;
+  width: 2px;
+  background: var(--border-light);
+}
+.timeline-item { position: relative; margin-bottom: var(--space-4); }
+.timeline-item::before {
+  content: '';
+  position: absolute; left: calc(-1 * var(--space-6) + 3px); top: 6px;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--brand-500);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px var(--brand-200);
+}
+.timeline-time { font-size: var(--text-xs); color: var(--gray-500); margin-bottom: 2px; }
+.timeline-title { font-size: var(--text-sm); font-weight: 500; color: var(--gray-800); }
+.timeline-summary { font-size: var(--text-xs); color: var(--gray-600); margin-top: 2px; }
+
+.flow-arrow {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--surface-tertiary);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+.flow-node {
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.flow-arrow-icon { color: var(--brand-500); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="app-sidebar">
+<div class="sidebar-brand"><div class="sidebar-brand-icon">AI</div><div class="sidebar-brand-text">Invest</div></div>
+<nav class="sidebar-nav">
+<div class="sidebar-section-title">复盘</div>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<div class="sidebar-section-title">分析</div>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
+<a class="sidebar-item active" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
+<a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
+<div class="sidebar-section-title">设置</div>
+<a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+<a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
+</nav>
+<div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
+</aside>
+
+  <div class="app-main">
+    <header class="app-header">
+      <div class="header-left">
+        <input class="header-search" type="text" placeholder="搜索股票代码或名称…">
+        <button class="btn btn-primary btn-sm">搜索</button>
+      </div>
+      <div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div>
+    </header>
+
+    <div class="app-content">
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6)">
+        <h1 class="page-title" style="margin-bottom:0">热点追踪</h1>
+        <div style="display:flex;gap:var(--space-2)">
+          <span style="font-size:var(--text-xs);color:var(--gray-500);display:flex;align-items:center">自动刷新: 5分钟</span>
+          <button class="btn btn-secondary btn-sm">手动刷新</button>
+        </div>
+      </div>
+
+      <!-- Hot Topic Cloud -->
+      <div class="card mb-6">
+        <div class="card-header"><span class="card-title">热点话题云</span><span class="tag tag-green">实时更新</span></div>
+        <div class="card-body" style="text-align:center">
+          <span class="cloud-tag" style="font-size:1.4rem;background:var(--red-100);color:var(--red-600);font-weight:700">AI芯片</span>
+          <span class="cloud-tag" style="font-size:1.3rem;background:var(--red-100);color:var(--red-600);font-weight:700">固态电池</span>
+          <span class="cloud-tag" style="font-size:1.2rem;background:var(--amber-100);color:var(--amber-600);font-weight:600">机器人</span>
+          <span class="cloud-tag" style="font-size:1.1rem;background:var(--amber-100);color:var(--amber-600)">低空经济</span>
+          <span class="cloud-tag" style="font-size:1.05rem;background:var(--blue-100);color:var(--blue-600)">算力</span>
+          <span class="cloud-tag" style="font-size:1rem;background:var(--blue-100);color:var(--blue-600)">半导体设备</span>
+          <span class="cloud-tag" style="font-size:0.95rem;background:var(--brand-100);color:var(--brand-600)">新能源车</span>
+          <span class="cloud-tag" style="font-size:0.9rem;background:var(--brand-100);color:var(--brand-600)">光伏</span>
+          <span class="cloud-tag" style="font-size:0.85rem;background:var(--gray-100);color:var(--gray-600)">军工</span>
+          <span class="cloud-tag" style="font-size:0.85rem;background:var(--gray-100);color:var(--gray-600)">创新药</span>
+          <span class="cloud-tag" style="font-size:0.8rem;background:var(--gray-100);color:var(--gray-600)">电力</span>
+          <span class="cloud-tag" style="font-size:0.8rem;background:var(--gray-100);color:var(--gray-600)">消费电子</span>
+          <span class="cloud-tag" style="font-size:0.9rem;background:var(--brand-100);color:var(--brand-600)">国产替代</span>
+          <span class="cloud-tag" style="font-size:0.85rem;background:var(--amber-100);color:var(--amber-600)">人形机器人</span>
+          <span class="cloud-tag" style="font-size:0.8rem;background:var(--gray-100);color:var(--gray-600)">数据要素</span>
+          <span class="cloud-tag" style="font-size:0.75rem;background:var(--gray-100);color:var(--gray-600)">自动驾驶</span>
+        </div>
+      </div>
+
+      <div class="grid-2-1 mb-6">
+
+        <!-- News Timeline -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">实时热点时间线</span>
+            <div style="display:flex;gap:var(--space-1)">
+              <button class="btn btn-sm" style="background:var(--brand-50);color:var(--brand-600)">全部</button>
+              <button class="btn btn-sm btn-ghost">AI芯片</button>
+              <button class="btn btn-sm btn-ghost">固态电池</button>
+              <button class="btn btn-sm btn-ghost">低空经济</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="timeline">
+              <div class="timeline-item">
+                <div class="timeline-time">14:32 · AI芯片</div>
+                <div class="timeline-title">英伟达发布新一代GPU，国产AI芯片产业链集体爆发</div>
+                <div class="timeline-summary">英伟达GB300发布，算力提升300%。寒武纪、海光信息、景嘉微午后直线拉升，板块涨幅超5%</div>
+                <div style="margin-top:var(--space-1)"><span class="tag tag-red">热门</span></div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-time">13:15 · 固态电池</div>
+                <div class="timeline-title">宁德时代固态电池通过车规认证，能量密度突破500Wh/kg</div>
+                <div class="timeline-summary">全固态电池样品通过比亚迪、蔚来等车企验证，量产时间表提前至2026年H1</div>
+                <div style="margin-top:var(--space-1)"><span class="tag tag-red">热门</span></div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-time">11:48 · 算力</div>
+                <div class="timeline-title">华为昇腾910C宣布量产，性能对标H100打开算力新格局</div>
+                <div class="timeline-summary">采用7nm工艺，算力达800 TFLOPS（FP16），多家云厂商已下单预购</div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-time">10:20 · 低空经济</div>
+                <div class="timeline-title">低空经济政策密集出台，多地加码通用航空基础设施建设</div>
+                <div class="timeline-summary">深圳、成都、合肥三地同时发布低空经济三年行动方案，2026年计划建成起降点超500个</div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-time">09:52 · 半导体设备</div>
+                <div class="timeline-title">北方华创5nm刻蚀机通过中芯国际产线验证</div>
+                <div class="timeline-summary">标志着国产半导体设备在先进制程领域取得关键突破，北方华创股价高开5%</div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-time">09:35 · 机器人</div>
+                <div class="timeline-title">特斯拉Optimus二代量产节奏公布，减速器企业集体涨停</div>
+                <div class="timeline-summary">绿的谐波、双环传动等精密减速器供应商受消息刺激集体走强</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Side -->
+        <div class="flex flex-col gap-4">
+
+          <!-- Capital Flow Signals -->
+          <div class="card">
+            <div class="card-header"><span class="card-title">资金异动信号</span></div>
+            <div class="card-body-sm" style="display:flex;flex-direction:column;gap:var(--space-3)">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div>
+                  <div style="font-size:var(--text-sm);font-weight:500">AI芯片板块</div>
+                  <div style="font-size:var(--text-xs);color:var(--gray-500)">主力净流入 48.2亿</div>
+                </div>
+                <span class="tag tag-red">大幅流入</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div>
+                  <div style="font-size:var(--text-sm);font-weight:500">半导体设备</div>
+                  <div style="font-size:var(--text-xs);color:var(--gray-500)">主力净流入 22.6亿</div>
+                </div>
+                <span class="tag tag-amber">持续流入</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div>
+                  <div style="font-size:var(--text-sm);font-weight:500">白酒板块</div>
+                  <div style="font-size:var(--text-xs);color:var(--gray-500)">主力净流出 15.8亿</div>
+                </div>
+                <span class="tag tag-green">资金流出</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div>
+                  <div style="font-size:var(--text-sm);font-weight:500">煤炭板块</div>
+                  <div style="font-size:var(--text-xs);color:var(--gray-500)">主力净流出 8.4亿</div>
+                </div>
+                <span class="tag tag-green">资金流出</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hot Chain Flow -->
+          <div class="card">
+            <div class="card-header"><span class="card-title">热点传导链</span></div>
+            <div class="card-body-sm" style="display:flex;flex-direction:column;gap:var(--space-3)">
+              <div class="flow-arrow">
+                <span class="flow-node">英伟达GB300发布</span>
+                <span class="flow-arrow-icon">→</span>
+                <span class="flow-node" style="border-color:var(--red-500)">AI芯片需求↑</span>
+                <span class="flow-arrow-icon">→</span>
+                <span class="flow-node">先进封装↑</span>
+                <span class="flow-arrow-icon">→</span>
+                <span class="flow-node">半导体设备↑</span>
+              </div>
+              <div class="flow-arrow">
+                <span class="flow-node">固态电池量产</span>
+                <span class="flow-arrow-icon">→</span>
+                <span class="flow-node" style="border-color:var(--amber-500)">锂电材料↑</span>
+                <span class="flow-arrow-icon">→</span>
+                <span class="flow-node">设备厂商↑</span>
+              </div>
+              <div class="flow-arrow">
+                <span class="flow-node">低空经济政策</span>
+                <span class="flow-arrow-icon">→</span>
+                <span class="flow-node">eVTOL↑</span>
+                <span class="flow-arrow-icon">→</span>
+                <span class="flow-node">航空材料↑</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sentiment -->
+          <div class="card">
+            <div class="card-header"><span class="card-title">市场情绪指数</span></div>
+            <div class="card-body-sm">
+              <div style="display:flex;align-items:center;gap:var(--space-4)">
+                <div style="font-size:2rem;font-weight:700;color:var(--red-500)">72</div>
+                <div>
+                  <div style="font-size:var(--text-sm);font-weight:500;color:var(--red-600)">偏乐观</div>
+                  <div style="font-size:var(--text-xs);color:var(--gray-500)">较前日 +8 点</div>
+                </div>
+              </div>
+              <div class="analysis-meter" style="margin-top:var(--space-3)">
+                <div class="analysis-meter-fill" style="width:72%;background:linear-gradient(90deg,var(--green-500),var(--amber-500),var(--red-500))"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--gray-500);margin-top:4px">
+                <span>恐惧</span><span>中性</span><span>贪婪</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
