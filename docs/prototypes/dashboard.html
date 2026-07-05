@@ -191,9 +191,9 @@ a:hover { color: var(--accent-hover); }
 .tag-purple { background: var(--accent-soft); color: var(--accent); }
 
 /* Layout */
-.dash-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; height: 100%; }
-.dash-left { display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
-.dash-right { overflow-y: auto; }
+.dash-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.dash-left { display: flex; flex-direction: column; gap: 16px; }
+.dash-right { display: flex; flex-direction: column; gap: 16px; }
 
 /* Section headers */
 .section-label {
@@ -308,6 +308,31 @@ tr:hover td { background: rgba(255,255,255,.02); }
 .mb-4 { margin-bottom: 16px; }
 .mb-6 { margin-bottom: 24px; }
 .gap-6 { gap: 6px; }
+
+/* Editable sections */
+.editable-section {
+  font-size: var(--text-base); color: var(--text-secondary); line-height: 1.7;
+  outline: none; padding: 4px; border-radius: var(--radius-sm);
+  border: 1px solid transparent; transition: border-color var(--transition-fast);
+  min-height: 60px;
+}
+.editable-section:focus {
+  border-color: var(--border-focus);
+  background: rgba(94,106,210,.04);
+}
+.editable-section:hover:not(:focus) {
+  border-color: var(--border-hover);
+}
+.editable-section h4 { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+.editable-section ul { margin-top: 8px; }
+.editable-section li { padding: 2px 0; }
+.editable-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0 0; margin-top: 12px; border-top: 1px solid var(--border);
+}
+.editable-footer .btn { opacity: .6; }
+.editable-footer .btn:hover { opacity: 1; }
+
 </style>
 </head>
 <body>
@@ -587,142 +612,173 @@ tr:hover td { background: rgba(255,255,255,.02); }
 <!-- ========== RIGHT COLUMN: 大盘分析解读 ========== -->
 <div class="dash-right">
 
-<!-- Market Pulse -->
-<div class="market-pulse">
-<div class="pulse-item"><div class="pulse-val" style="color:var(--green)">+1.24%</div><div class="pulse-label">上证指数</div></div>
-<div class="pulse-divider"></div>
-<div class="pulse-item"><div class="pulse-val" style="color:var(--green)">+1.58%</div><div class="pulse-label">深证成指</div></div>
-<div class="pulse-divider"></div>
-<div class="pulse-item"><div class="pulse-val" style="color:var(--green)">2,847</div><div class="pulse-label">上涨家数</div></div>
-<div class="pulse-divider"></div>
-<div class="pulse-item"><div class="pulse-val" style="color:var(--accent)">1.28万亿</div><div class="pulse-label">成交额</div></div>
-<div class="pulse-divider"></div>
-<div class="pulse-item"><div class="pulse-val" style="color:var(--green)">+2.05%</div><div class="pulse-label">创业板指</div></div>
-<div class="pulse-divider"></div>
-<div class="pulse-item"><div class="pulse-val" style="color:var(--amber)">68°</div><div class="pulse-label">情绪温度</div></div>
-</div>
-
-<!-- AI 大盘综述 -->
-<div class="card mb-4">
-<div class="card-header"><span class="card-title">🤖 AI 大盘综述</span><span class="tag tag-purple">Codex Skill</span></div>
-<div class="card-body">
-<div class="commentary-block" style="background:transparent;border:none;padding:0;margin-bottom:0">
-<p>
-<strong style="color:var(--text-primary)">今日市场呈现"科技领涨、消费承压"的结构性行情。</strong>
-三大指数全线收涨，科创50以<strong style="color:var(--green)">+3.12%</strong>领跑，创业板指紧随其后<strong style="color:var(--green)">+2.05%</strong>。
-两市成交额<strong>1.28万亿</strong>，较前一交易日放量约 14%，为近 5 个交易日最高。
-</p>
-<p style="margin-top:12px">
-<strong>情绪面:</strong> 情绪温度升至 <strong style="color:var(--amber)">68°（偏热）</strong>，涨停比 2.8%、连板率 36%，均处于年内较高分位。
-北向资金全天净流入 <strong style="color:var(--green)">+86.5亿</strong>，为连续第 3 日净流入，外资风险偏好明显回暖。
-</p>
-<p style="margin-top:12px">
-<strong>资金面:</strong> AI芯片板块以 <strong style="color:var(--green)">+48.2亿</strong>主力净流入位居榜首，半导体设备和固态电池分别以 +22.6亿、+18.4亿紧随其后。
-白酒板块则遭遇 <strong style="color:var(--red)">-15.8亿</strong>主力净流出，消费板块整体承压。资金从防御性消费向科技成长切换的信号愈发明确。
-</p>
-<p style="margin-top:12px">
-<strong>板块面:</strong> 连板天梯最高达到 <strong style="color:var(--red)">6板（奥普光电）</strong>，AI算力主线持续发酵。涨停板以 AI芯片/半导体/固态电池为主要分布，符合当前资金偏好。
-跌停家数仅 12 只，市场风险情绪可控。建议关注 <strong>AI算力→半导体设备→固态电池</strong>这一轮动脉络的延续性。
-</p>
-<div class="src">AI 模型: GPT-5.5 Codex · 分析时间: 2026-07-04 15:35 · 数据源: 同花顺/Wind/东方财富</div>
-</div>
-</div>
-</div>
-
-<!-- 大盘技术分析 -->
-<div class="card mb-4">
-<div class="card-header"><span class="card-title">📊 技术面分析</span></div>
-<div class="card-body">
-<div class="commentary-block">
-<h4>上证指数 — 关键位分析</h4>
-<p>今日收盘 <strong style="color:var(--green)">3,352.88</strong>，放量突破 20 日均线（3,318），确认短期上升趋势。</p>
-<p style="margin-top:6px;font-size:12px;color:var(--text-secondary)">
-• <strong>压力位:</strong> 3,380（箱体上沿）→ 3,420（年线）<br>
-• <strong>支撑位:</strong> 3,318（20日线）→ 3,280（60日线）<br>
-• <strong>MACD:</strong> DIF 上穿 DEA，红柱放大，短期偏多<br>
-• <strong>RSI(14):</strong> 62.4，接近超买但尚未进入极端区域
-</p>
-</div>
-<div class="commentary-block">
-<h4>科创50 — 强势突破</h4>
-<p>科创50收于 <strong style="color:var(--green)">1,024.35（+3.12%）</strong>，一举突破 1,000 整数关口。半导体与 AI 芯片板块贡献主要涨幅。成交量显著放大，MACD 金叉信号明确。</p>
-<p style="margin-top:6px;font-size:12px;color:var(--text-secondary)">
-• <strong>关键位:</strong> 980支撑 / 1,050压力（前高）<br>
-• <strong>量能:</strong> 日成交 842亿，为近 2 个月新高<br>
-• <strong>结论:</strong> 突破有效，短期偏多，关注 1,050 压力测试
-</p>
-</div>
-</div>
-</div>
-
-<!-- 北向资金 -->
-<div class="card mb-4">
-<div class="card-header"><span class="card-title">🌏 北向资金</span><span style="font-size:11px;color:var(--text-tertiary)">近 5 日累计</span></div>
-<div class="card-body">
-<div style="display:flex;align-items:center;justify-content:center;gap:var(--space-6);flex-wrap:wrap">
-<div style="text-align:center">
-<div style="font-size:var(--text-3xl);font-weight:700;color:var(--green)">+86.5<span style="font-size:var(--text-base);font-weight:400">亿</span></div>
-<div style="font-size:var(--text-xs);color:var(--text-tertiary)">今日净流入</div>
-</div>
-<div style="text-align:center">
-<div style="font-size:var(--text-xl);font-weight:700;color:var(--green)">+248.2<span style="font-size:var(--text-sm);font-weight:400">亿</span></div>
-<div style="font-size:var(--text-xs);color:var(--text-tertiary)">本周累计</div>
-</div>
-<div style="text-align:center">
-<div style="font-size:var(--text-lg);font-weight:700;color:var(--green)">连续 3 日净流入</div>
-<div style="font-size:var(--text-xs);color:var(--text-tertiary)">趋势确认</div>
-</div>
-</div>
-<div style="margin-top:16px;font-size:12px;color:var(--text-secondary)">
-<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">
-<span>沪股通买入前三:</span><span>贵州茅台 +12.4亿 · 北方华创 +8.6亿 · 中芯国际 +5.2亿</span>
-</div>
-<div style="display:flex;justify-content:space-between;padding:4px 0">
-<span>深股通买入前三:</span><span>宁德时代 +15.8亿 · 寒武纪 +9.2亿 · 汇川技术 +4.8亿</span>
-</div>
-</div>
-</div>
-</div>
-
-<!-- 机构观点 -->
-<div class="card mb-4">
-<div class="card-header"><span class="card-title">🏦 机构观点速览</span><span style="font-size:11px;color:var(--text-tertiary)">今日 12 家机构更新</span></div>
-<div class="card-body">
-<div class="commentary-block">
-<h4>中信证券 <span style="font-size:11px;color:var(--text-tertiary);font-weight:400">· 策略周报</span></h4>
-<p>维持"市场处于修复窗口"判断。科创50突破 1000 点确认科技成长主线，建议超配半导体设备和 AI 算力。消费板块等待通胀和社零数据验证。</p>
-<div class="src">评级: 增持 · 07-04</div>
-</div>
-<div class="commentary-block">
-<h4>华泰证券 <span style="font-size:11px;color:var(--text-tertiary);font-weight:400">· 每日复盘</span></h4>
-<p>情绪温度 68° 处于年内 70 分位，短期不宜过度追高。但资金流入方向（AI→半导体→固态电池）逻辑清晰，回调即是布局机会。关注连板天梯高标股的情绪指引作用。</p>
-<div class="src">评级: 谨慎看多 · 07-04</div>
-</div>
-<div class="commentary-block">
-<h4>中金公司 <span style="font-size:11px;color:var(--text-tertiary);font-weight:400">· 市场快评</span></h4>
-<p>北向资金连续 3 日净流入，外资对 A 股科技板块配置意愿增强。固态电池板块受宁德时代量产消息催化，短期有望延续。关注二季报窗口期的业绩兑现情况。</p>
-<div class="src">评级: 中性偏多 · 07-04</div>
-</div>
-</div>
-</div>
-
-<!-- 风险提示 -->
+<!-- ========== AI 大盘综述（可编辑） ========== -->
 <div class="card">
-<div class="card-header"><span class="card-title">⚠️ 风险提示</span></div>
-<div class="card-body-sm">
-<div style="display:flex;flex-direction:column;gap:8px">
-<div style="padding:8px 10px;background:rgba(210,153,34,.06);border-radius:6px;font-size:12px;color:var(--amber);display:flex;align-items:flex-start;gap:8px">
-<span style="flex-shrink:0">⚠️</span>
-<span>情绪温度偏热（68°），短期追高风险加大。涨停家数 128 只处于相对高位，注意次日分化。</span>
+<div class="card-header">
+<span class="card-title">🤖 AI 大盘综述</span>
+<div style="display:flex;gap:6px;align-items:center">
+<span class="tag tag-purple">AI 生成</span>
+<button class="btn btn-ghost btn-sm" onclick="resetSection('overview')" title="重置为 AI 生成内容">↺ 重置</button>
+<button class="btn btn-ghost btn-sm" onclick="regenerateSection('overview')" title="重新 AI 生成">🔄 重新生成</button>
 </div>
-<div style="padding:8px 10px;background:rgba(210,153,34,.06);border-radius:6px;font-size:12px;color:var(--amber);display:flex;align-items:flex-start;gap:8px">
-<span style="flex-shrink:0">📉</span>
-<span>白酒板块连续 3 日净流出，贵州茅台 -15.8亿。消费板块整体承压，需关注下周通胀数据对消费信心的影响。</span>
 </div>
-<div style="padding:8px 10px;background:rgba(210,153,34,.06);border-radius:6px;font-size:12px;color:var(--amber);display:flex;align-items:flex-start;gap:8px">
-<span style="flex-shrink:0">📊</span>
-<span>二季报窗口开启（7月15日起），谨防业绩不及预期个股的闪崩风险。建议组合中保持 30% 以上的现金或防御仓位。</span>
+<div class="card-body">
+<div class="editable-section" contenteditable="true" id="editable-overview">
+<p><strong style="color:var(--text-primary)">今日市场呈现"科技领涨、消费承压"的结构性行情。</strong>
+三大指数全线收涨，科创50以<strong style="color:var(--green)">+3.12%</strong>领跑，创业板指紧随其后<strong style="color:var(--green)">+2.05%</strong>。
+两市成交额<strong>1.28万亿</strong>，较前一交易日放量约 14%，为近 5 个交易日最高。</p>
+
+<p style="margin-top:12px"><strong>情绪面：</strong>情绪温度升至 <strong style="color:var(--amber)">68°（偏热）</strong>，涨停比 2.8%、连板率 36%，均处于年内较高分位。
+北向资金全天净流入 <strong style="color:var(--green)">+86.5亿</strong>，为连续第 3 日净流入，显示外资对科技成长方向的风险偏好回暖。</p>
+
+<p style="margin-top:12px"><strong>资金面：</strong>AI芯片板块以 <strong style="color:var(--green)">+48.2亿</strong>主力净流入位居榜首，半导体设备和固态电池分别以 +22.6亿、+18.4亿紧随其后。
+白酒板块遭遇 <strong style="color:var(--red)">-15.8亿</strong>主力净流出，消费板块整体承压。资金从防御性消费向科技成长切换的信号明确。</p>
+
+<p style="margin-top:12px"><strong>板块面：</strong>连板天梯最高达到 <strong style="color:var(--red)">6板（奥普光电）</strong>，AI算力主线持续发酵。涨停板以 AI芯片/半导体/固态电池为主要分布。
+跌停家数仅 12 只，市场风险情绪可控。建议关注 <strong>AI算力→半导体设备→固态电池</strong>轮动脉络的延续性。</p>
 </div>
+<div class="editable-footer">
+<span style="font-size:11px;color:var(--text-tertiary)">AI 模型: Codex Skill · 生成时间: 2026-07-04 15:35 · 数据源: 同花顺/Wind/东方财富 · </span>
+<button class="btn btn-ghost btn-sm" onclick="saveSection('overview')">💾 保存修改</button>
+</div>
+</div>
+</div>
+
+<!-- ========== 技术面分析（可编辑） ========== -->
+<div class="card">
+<div class="card-header">
+<span class="card-title">📊 技术面分析</span>
+<div style="display:flex;gap:6px;align-items:center">
+<span class="tag tag-purple">AI 生成</span>
+<button class="btn btn-ghost btn-sm" onclick="resetSection('tech')">↺ 重置</button>
+<button class="btn btn-ghost btn-sm" onclick="regenerateSection('tech')">🔄 重新生成</button>
+</div>
+</div>
+<div class="card-body">
+<div class="editable-section" contenteditable="true" id="editable-tech">
+<h4 style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px">上证指数 — 关键位分析</h4>
+<p style="font-size:13px;color:var(--text-secondary);line-height:1.7">今日收盘 <strong style="color:var(--green);font-weight:600">3,352.88</strong>，放量突破 20 日均线（3,318），确认短期上升趋势。成交量放大至 1.28 万亿，显示增量资金入场意愿增强。</p>
+<ul style="margin-top:8px;font-size:12px;color:var(--text-secondary);list-style:none;padding:0">
+<li style="padding:2px 0">• <strong>压力位：</strong>3,380（箱体上沿）→ 3,420（年线）</li>
+<li style="padding:2px 0">• <strong>支撑位：</strong>3,318（20日线）→ 3,280（60日线）</li>
+<li style="padding:2px 0">• <strong>MACD：</strong>DIF 上穿 DEA，红柱放大，短期偏多</li>
+<li style="padding:2px 0">• <strong>RSI(14)：</strong>62.4，接近超买但尚未进入极端区域</li>
+</ul>
+
+<h4 style="font-size:13px;font-weight:600;color:var(--text-primary);margin:16px 0 8px">科创50 — 强势突破</h4>
+<p style="font-size:13px;color:var(--text-secondary);line-height:1.7">科创50收于 <strong style="color:var(--green);font-weight:600">1,024.35（+3.12%）</strong>，一举突破 1,000 整数关口。半导体与 AI 芯片板块贡献主要涨幅。成交量 842 亿达近 2 个月新高，MACD 金叉信号明确。</p>
+<ul style="margin-top:8px;font-size:12px;color:var(--text-secondary);list-style:none;padding:0">
+<li style="padding:2px 0">• <strong>关键位：</strong>980支撑 / 1,050压力（前高）</li>
+<li style="padding:2px 0">• <strong>量能：</strong>日成交 842亿，为近 2 个月新高</li>
+<li style="padding:2px 0">• <strong>结论：</strong>突破有效，短期偏多，关注 1,050 压力测试</li>
+</ul>
+</div>
+<div class="editable-footer">
+<span style="font-size:11px;color:var(--text-tertiary)">AI 模型: Codex Skill · 生成时间: 2026-07-04 15:35</span>
+<button class="btn btn-ghost btn-sm" onclick="saveSection('tech')" style="margin-left:8px">💾 保存修改</button>
+</div>
+</div>
+</div>
+
+<!-- ========== 资金面分析（可编辑） ========== -->
+<div class="card">
+<div class="card-header">
+<span class="card-title">💰 资金面分析</span>
+<div style="display:flex;gap:6px;align-items:center">
+<span class="tag tag-purple">AI 生成</span>
+<button class="btn btn-ghost btn-sm" onclick="resetSection('capital')">↺ 重置</button>
+<button class="btn btn-ghost btn-sm" onclick="regenerateSection('capital')">🔄 重新生成</button>
+</div>
+</div>
+<div class="card-body">
+<div class="editable-section" contenteditable="true" id="editable-capital">
+<p style="font-size:13px;color:var(--text-secondary);line-height:1.7"><strong style="color:var(--text-primary)">今日资金面呈现显著的结构性分化。</strong>北向资金全天净流入 <strong style="color:var(--green);font-weight:600">+86.5亿</strong>，本周累计净流入 +248.2亿，已连续 3 日净流入，显示外资对 A 股科技板块的配置意愿持续增强。</p>
+
+<p style="font-size:13px;color:var(--text-secondary);line-height:1.7;margin-top:12px"><strong style="color:var(--text-primary)">板块轮动方面：</strong></p>
+<ul style="font-size:12px;color:var(--text-secondary);list-style:none;padding:0;margin-top:4px">
+<li style="padding:2px 0">• <strong style="color:var(--green)">AI芯片（+48.2亿）：</strong>英伟达新 GPU 发布 + 国产替代预期双重催化，寒武纪获北向资金净买入 9.2亿</li>
+<li style="padding:2px 0">• <strong style="color:var(--green)">半导体设备（+22.6亿）：</strong>工信部三年行动计划落地，北方华创获沪股通净买入 8.6亿</li>
+<li style="padding:2px 0">• <strong style="color:var(--green)">固态电池（+18.4亿）：</strong>宁德时代量产消息催化，获深股通净买入 15.8亿，板块整体转正</li>
+<li style="padding:2px 0">• <strong style="color:var(--red)">白酒（-15.8亿）：</strong>连续 3 日主力净流出，贵州茅台遭获利了结，消费板块资金持续撤离</li>
+<li style="padding:2px 0">• <strong style="color:var(--red)">煤炭（-8.4亿）：</strong>连续 4 日净流出，周期板块弱势延续，防御性配置降温</li>
+</ul>
+
+<p style="font-size:13px;color:var(--text-secondary);line-height:1.7;margin-top:12px"><strong style="color:var(--amber)">资金轮动信号：</strong>白酒→AI芯片的资金迁移已持续 5 个交易日，银行→半导体设备的切换也在加速。沪股通买入集中在半导体和高端制造，深股通集中在新能源和 AI，方向上高度一致。市场风险偏好已从防御转向进攻。</p>
+</div>
+<div class="editable-footer">
+<span style="font-size:11px;color:var(--text-tertiary)">AI 模型: Codex Skill · 生成时间: 2026-07-04 15:35</span>
+<button class="btn btn-ghost btn-sm" onclick="saveSection('capital')" style="margin-left:8px">💾 保存修改</button>
+</div>
+</div>
+</div>
+
+<!-- ========== 情绪与连板分析（可编辑） ========== -->
+<div class="card">
+<div class="card-header">
+<span class="card-title">🎯 情绪与连板分析</span>
+<div style="display:flex;gap:6px;align-items:center">
+<span class="tag tag-purple">AI 生成</span>
+<button class="btn btn-ghost btn-sm" onclick="resetSection('emotion')">↺ 重置</button>
+<button class="btn btn-ghost btn-sm" onclick="regenerateSection('emotion')">🔄 重新生成</button>
+</div>
+</div>
+<div class="card-body">
+<div class="editable-section" contenteditable="true" id="editable-emotion">
+<p style="font-size:13px;color:var(--text-secondary);line-height:1.7"><strong style="color:var(--text-primary)">今日市场情绪处于偏热区间（68°），</strong>为年内 70 分位水平。涨停家数 128 只，连板率 36%，炸板率 18%，三项指标均显示短线资金活跃但尚未进入极端亢奋状态。</p>
+
+<p style="font-size:13px;color:var(--text-secondary);line-height:1.7;margin-top:12px"><strong style="color:var(--text-primary)">连板天梯分析：</strong></p>
+<ul style="font-size:12px;color:var(--text-secondary);list-style:none;padding:0;margin-top:4px">
+<li style="padding:2px 0">• <strong style="color:var(--red)">奥普光电（6板）：</strong>AI算力方向最高标，晋级率 100%，封板资金 4.2亿，为当前情绪龙头。若明日继续晋级将打开市场高度空间</li>
+<li style="padding:2px 0">• <strong style="color:var(--amber)">精测电子（5板）：</strong>半导体设备方向连板龙头，受益于国产替代政策催化，5日涨幅 61%，需关注高标分化风险</li>
+<li style="padding:2px 0">• <strong style="color:var(--amber)">星源材质（5板）：</strong>固态电池方向核心标的，受宁德时代催化连板，封板强度下降，注意分歧</li>
+<li style="padding:2px 0">• <strong>2-4板梯队：</strong>深南电路、中科曙光、鼎龙股份、华大九天、拓荆科技——分布集中在半导体/AI方向，板块效应明显</li>
+</ul>
+
+<p style="font-size:13px;color:var(--text-secondary);line-height:1.7;margin-top:12px"><strong style="color:var(--amber)">策略建议：</strong>情绪温度 68° 不宜过度追高。但涨停方向高度集中在科技主线（AI芯片 + 半导体 + 固态电池占比 78%），主线清晰。若明日高标股（奥普光电）继续晋级，预计情绪将进一步扩散至更多半导体细分方向（EDA、材料、封测）。建议关注低位首板和 2 板补涨机会。</p>
+</div>
+<div class="editable-footer">
+<span style="font-size:11px;color:var(--text-tertiary)">AI 模型: Codex Skill · 生成时间: 2026-07-04 15:35</span>
+<button class="btn btn-ghost btn-sm" onclick="saveSection('emotion')" style="margin-left:8px">💾 保存修改</button>
+</div>
+</div>
+</div>
+
+<!-- ========== 风险提示（可编辑） ========== -->
+<div class="card">
+<div class="card-header">
+<span class="card-title">⚠️ 风险提示与策略建议</span>
+<div style="display:flex;gap:6px;align-items:center">
+<span class="tag tag-purple">AI 生成</span>
+<button class="btn btn-ghost btn-sm" onclick="resetSection('risk')">↺ 重置</button>
+<button class="btn btn-ghost btn-sm" onclick="regenerateSection('risk')">🔄 重新生成</button>
+</div>
+</div>
+<div class="card-body">
+<div class="editable-section" contenteditable="true" id="editable-risk">
+<h4 style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:6px">短期风险</h4>
+<ul style="font-size:12px;color:var(--text-secondary);list-style:none;padding:0">
+<li style="padding:2px 0">• 情绪温度偏热（68°），追高风险加大。涨停 128 只处于阶段高位，次日分化概率较高</li>
+<li style="padding:2px 0">• 白酒板块连续 3 日净流出 -15.8亿，若扩散至其他消费板块可能拖累指数</li>
+<li style="padding:2px 0">• 连板高标股（奥普光电 6板）若断板可能引发短线情绪降温，注意高低切换</li>
+</ul>
+
+<h4 style="font-size:13px;font-weight:600;color:var(--text-primary);margin:14px 0 6px">中期关注</h4>
+<ul style="font-size:12px;color:var(--text-secondary);list-style:none;padding:0">
+<li style="padding:2px 0">• <strong>二季报窗口（7月15日起）：</strong>谨防业绩不及预期个股的闪崩风险，尤其是估值偏高的 AI 概念股</li>
+<li style="padding:2px 0">• <strong>政策兑现节奏：</strong>半导体设备三年行动计划补贴细则预计 Q3 出台，关注落地进度与力度</li>
+<li style="padding:2px 0">• <strong>海外风险传导：</strong>美对华半导体出口管制存在升级可能，可能影响高端设备和 EDA 工具的供应</li>
+</ul>
+
+<h4 style="font-size:13px;font-weight:600;color:var(--text-primary);margin:14px 0 6px">策略建议</h4>
+<ul style="font-size:12px;color:var(--text-secondary);list-style:none;padding:0">
+<li style="padding:2px 0">• <strong style="color:var(--green)">进攻方向：</strong>半导体设备（5nm刻蚀机突破）→ AI算力（国产 GPU 替代）→ 固态电池（量产催化）</li>
+<li style="padding:2px 0">• <strong style="color:var(--amber)">仓位建议：</strong>维持 60-70% 仓位，保留 30% 现金等待二季报业绩验证后的加仓机会</li>
+<li style="padding:2px 0">• <strong style="color:var(--accent)">防御配置：</strong>适当配置银行（高股息）对冲科技板块波动，等待消费板块企稳信号</li>
+</ul>
+</div>
+<div class="editable-footer">
+<span style="font-size:11px;color:var(--text-tertiary)">AI 模型: Codex Skill · 生成时间: 2026-07-04 15:35</span>
+<button class="btn btn-ghost btn-sm" onclick="saveSection('risk')" style="margin-left:8px">💾 保存修改</button>
 </div>
 </div>
 </div>
@@ -731,5 +787,69 @@ tr:hover td { background: rgba(255,255,255,.02); }
 </div><!-- END dash-layout -->
 
 </div></div></div>
+
+<script>
+// Store default content for each section
+var defaultContent = {};
+document.addEventListener('DOMContentLoaded', function() {
+  var sections = document.querySelectorAll('.editable-section');
+  sections.forEach(function(el) {
+    defaultContent[el.id] = el.innerHTML;
+  });
+});
+
+function saveSection(name) {
+  var el = document.getElementById('editable-' + name);
+  if (el) {
+    defaultContent['editable-' + name] = el.innerHTML;
+    showToast('已保存「' + getSectionLabel(name) + '」的修改');
+  }
+}
+
+function resetSection(name) {
+  var el = document.getElementById('editable-' + name);
+  var key = 'editable-' + name;
+  if (el && defaultContent[key]) {
+    el.innerHTML = defaultContent[key];
+    showToast('已重置为 AI 生成内容');
+  }
+}
+
+function regenerateSection(name) {
+  var el = document.getElementById('editable-' + name);
+  if (el) {
+    el.style.opacity = '0.4';
+    setTimeout(function() {
+      el.style.opacity = '1';
+      showToast('「' + getSectionLabel(name) + '」已重新生成（模拟）');
+    }, 800);
+  }
+}
+
+function getSectionLabel(name) {
+  var map = {
+    'overview': 'AI 大盘综述',
+    'tech': '技术面分析',
+    'capital': '资金面分析',
+    'emotion': '情绪与连板分析',
+    'risk': '风险提示与策略建议'
+  };
+  return map[name] || name;
+}
+
+function showToast(msg) {
+  var existing = document.getElementById('edit-toast');
+  if (existing) existing.remove();
+  var toast = document.createElement('div');
+  toast.id = 'edit-toast';
+  toast.textContent = msg;
+  toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:var(--accent);color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none';
+  document.body.appendChild(toast);
+  requestAnimationFrame(function() { toast.style.opacity = '1'; });
+  setTimeout(function() { toast.style.opacity = '0'; setTimeout(function() { toast.remove(); }, 300); }, 2500);
+}
+</script>
+
+</div>
 </body>
 </html>
