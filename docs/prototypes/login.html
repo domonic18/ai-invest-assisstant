@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 登录</title>
+<style>
+:root {
+  --bg: #0c0e12; --bg-elevated: #111318; --bg-surface: #181a21;
+  --border: #23262d; --border-hover: #2e323c; --border-focus: #5e6ad2;
+  --text-primary: #f0f1f5; --text-secondary: #8a8f98; --text-tertiary: #5c616e;
+  --accent: #5e6ad2; --accent-hover: #6872e3; --accent-soft: rgba(94,106,210,0.12);
+  --red: #f85149; --green: #2ea043; --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --transition: 200ms ease;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-primary);min-height:100vh;display:flex;align-items:center;justify-content:center;-webkit-font-smoothing:antialiased}
+.login-bg{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.login-bg::before{content:'';position:absolute;top:50%;left:50%;width:700px;height:700px;transform:translate(-50%,-50%);background:radial-gradient(circle,rgba(94,106,210,.1) 0%,transparent 70%)}
+.login-bg::after{content:'';position:absolute;top:20%;right:10%;width:300px;height:300px;background:radial-gradient(circle,rgba(88,166,255,.06) 0%,transparent 70%)}
+.login-card{position:relative;z-index:1;width:100%;max-width:400px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);padding:40px}
+.login-logo{text-align:center;margin-bottom:32px}
+.login-logo-icon{width:36px;height:36px;background:var(--accent);border-radius:var(--radius-md);display:inline-flex;align-items:center;justify-content:center}
+.login-logo-icon svg{width:20px;height:20px}
+.login-logo-text{display:flex;align-items:baseline;justify-content:center;gap:6px;margin-top:12px}
+.login-logo-text span:first-child{font-size:18px;font-weight:700;color:var(--text-primary);letter-spacing:-.01em}
+.login-logo-text span:last-child{font-size:11px;color:var(--text-tertiary);font-weight:500}
+.login-title{font-size:14px;color:var(--text-secondary);text-align:center;margin-bottom:4px}
+.login-subtitle{font-size:12px;color:var(--text-tertiary);text-align:center;margin-bottom:28px}
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
+.form-input{width:100%;padding:9px 12px;font-size:13px;color:var(--text-primary);background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);outline:none;transition:border var(--transition)}
+.form-input:focus{border-color:var(--border-focus)}
+.form-input::placeholder{color:var(--text-tertiary)}
+.form-check{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--text-secondary)}
+.form-check a{color:var(--accent);text-decoration:none}
+.form-check a:hover{color:var(--accent-hover)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:10px 16px;border-radius:var(--radius-sm);font-size:14px;font-weight:500;border:1px solid transparent;cursor:pointer;transition:all var(--transition)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-ghost{background:transparent;color:var(--text-secondary);border-color:var(--border)}
+.btn-ghost:hover{background:var(--bg-surface);color:var(--text-primary)}
+.login-footer{text-align:center;margin-top:24px;font-size:12px;color:var(--text-tertiary)}
+.login-footer a{color:var(--accent);text-decoration:none;margin-left:4px}
+.login-footer a:hover{color:var(--accent-hover)}
+.error-msg{padding:10px 12px;background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.2);border-radius:var(--radius-sm);font-size:12px;color:var(--red);margin-bottom:16px;display:none}
+.separator{display:flex;align-items:center;gap:12px;margin:20px 0;font-size:11px;color:var(--text-tertiary);text-transform:uppercase}
+.separator::before,.separator::after{content:'';flex:1;height:1px;background:var(--border)}
+</style>
+</head>
+<body>
+<div class="login-bg"></div>
+<div class="login-card">
+  <div class="login-logo">
+    <div class="login-logo-icon">
+      <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#fff" stroke-width="2.5"/><polyline points="8,20 12,16 16,18 20,12 24,14" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="14" r="2.5" fill="#fff"/></svg>
+    </div>
+    <div class="login-logo-text">
+      <span>AI Invest Assistant</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="login-title">登录到智能投研数据平台</div>
+  <div class="login-subtitle">使用您的账户访问产业链分析与交易复盘工具</div>
+
+  <div class="error-msg" id="error">用户名或密码错误</div>
+
+  <form onsubmit="event.preventDefault()">
+    <div class="form-group">
+      <label class="form-label">邮箱 / 用户名</label>
+      <input class="form-input" type="text" placeholder="请输入邮箱或用户名" value="analyst@example.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">密码</label>
+      <input class="form-input" type="password" placeholder="请输入密码" value="••••••••">
+    </div>
+    <div class="form-check" style="margin-bottom:20px">
+      <label><input type="checkbox" checked style="accent-color:var(--accent);margin-right:6px">记住我</label>
+      <a href="#">忘记密码？</a>
+    </div>
+    <button class="btn btn-primary" onclick="location.href='dashboard.html'">登 录</button>
+  </form>
+
+  <div class="separator">或通过以下方式登录</div>
+  <button class="btn btn-ghost" style="margin-bottom:8px">微信扫码登录</button>
+  <button class="btn btn-ghost">SSO 单点登录</button>
+
+  <div class="login-footer">
+    还没有账户？<a href="register.html">立即注册</a>
+  </div>
+</div>
+</body>
+</html>

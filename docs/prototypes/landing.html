@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 智能投研数据平台</title>
+<style>
+:root{--bg:#0c0e12;--bg-elevated:#111318;--bg-surface:#181a21;--border:#23262d;--text-primary:#f0f1f5;--text-secondary:#8a8f98;--text-tertiary:#5c616e;--accent:#5e6ad2;--accent-hover:#6872e3;--accent-soft:rgba(94,106,210,.12);--green:#2ea043;--blue:#58a6ff;--amber:#d29922;--font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;--radius-sm:6px;--radius-md:8px;--radius-lg:12px;--radius-xl:16px;--transition:200ms ease}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-primary);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.container{max-width:1100px;margin:0 auto;padding:0 32px}
+.ambient{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.ambient::before{content:'';position:absolute;top:-30%;left:50%;width:800px;height:600px;transform:translateX(-50%);background:radial-gradient(ellipse,rgba(94,106,210,.08) 0%,transparent 70%)}
+.ambient::after{content:'';position:absolute;bottom:-20%;right:0;width:500px;height:400px;background:radial-gradient(ellipse,rgba(88,166,255,.05) 0%,transparent 70%)}
+nav{position:sticky;top:0;z-index:10;height:64px;display:flex;align-items:center;background:rgba(12,14,18,.7);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;width:100%}
+.nav-brand{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;color:var(--text-primary);text-decoration:none}
+.nav-logo{width:28px;height:28px;background:var(--accent);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center}
+.nav-logo svg{width:15px;height:15px}
+.nav-version{font-size:10px;color:var(--text-tertiary);font-weight:500;margin-left:4px}
+.nav-links{display:flex;gap:8px;align-items:center}
+.nav-link{padding:6px 14px;border-radius:var(--radius-sm);font-size:13px;color:var(--text-secondary);text-decoration:none;transition:all var(--transition)}
+.nav-link:hover{color:var(--text-primary);background:var(--bg-surface)}
+.nav-link.primary{background:var(--accent);color:#fff}
+.nav-link.primary:hover{background:var(--accent-hover)}
+.hero{padding:100px 0 80px;text-align:center;position:relative;z-index:1}
+.hero h1{font-size:48px;font-weight:800;letter-spacing:-.03em;line-height:1.15;margin-bottom:20px}
+.hero h1 span{background:linear-gradient(135deg,#818cf8,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero p{font-size:17px;color:var(--text-secondary);max-width:600px;margin:0 auto 36px;line-height:1.7}
+.hero-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 24px;border-radius:var(--radius-sm);font-size:14px;font-weight:500;border:1px solid transparent;cursor:pointer;text-decoration:none;transition:all var(--transition)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-hover);transform:translateY(-1px)}
+.btn-secondary{background:transparent;color:var(--text-secondary);border-color:var(--border)}
+.btn-secondary:hover{background:var(--bg-surface);color:var(--text-primary)}
+.features{padding:60px 0 100px;position:relative;z-index:1}
+.section-title{font-size:13px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;text-align:center;margin-bottom:12px}
+.section-heading{font-size:28px;font-weight:700;text-align:center;margin-bottom:48px;letter-spacing:-.01em}
+.feature-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.feature-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;transition:border-color var(--transition),transform var(--transition)}
+.feature-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.feature-icon{width:40px;height:40px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:14px}
+.feature-title{font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:6px}
+.feature-desc{font-size:13px;color:var(--text-secondary);line-height:1.6}
+.cta{padding:60px 0 100px;text-align:center;position:relative;z-index:1}
+.cta-card{background:linear-gradient(135deg,rgba(94,106,210,.08),rgba(88,166,255,.06));border:1px solid rgba(94,106,210,.2);border-radius:var(--radius-xl);padding:48px}
+.cta-card h2{font-size:24px;font-weight:700;margin-bottom:12px;letter-spacing:-.01em}
+.cta-card p{font-size:14px;color:var(--text-secondary);margin-bottom:28px}
+.cta-actions{display:flex;gap:12px;justify-content:center}
+.footer{padding:32px 0;border-top:1px solid var(--border);text-align:center;font-size:12px;color:var(--text-tertiary);position:relative;z-index:1}
+</style>
+</head>
+<body>
+<div class="ambient"></div>
+
+<nav>
+  <div class="container nav-inner">
+    <a href="landing.html" class="nav-brand">
+      <div class="nav-logo">
+        <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#fff" stroke-width="2.5"/><polyline points="8,20 12,16 16,18 20,12 24,14" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="14" r="2.5" fill="#fff"/></svg>
+      </div>
+      AI Invest Assistant
+      <span class="nav-version">v1.0.0</span>
+    </a>
+    <div class="nav-links">
+      <a href="#features" class="nav-link">功能</a>
+      <a href="#" class="nav-link">文档</a>
+      <a href="login.html" class="nav-link">登录</a>
+      <a href="register.html" class="nav-link primary">免费注册</a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="container">
+    <h1>AI 驱动的<br><span>智能投研平台</span></h1>
+    <p>从产业链深度洞察到交易数据复盘，全链路 AI 赋能 A 股投资分析。聚合公开数据，让专业投研不再依赖昂贵的终端</p>
+    <div class="hero-actions">
+      <a href="register.html" class="btn btn-primary">免费开始使用 →</a>
+      <a href="login.html" class="btn btn-secondary">查看演示</a>
+    </div>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <div class="container">
+    <div class="section-title">Core Features</div>
+    <div class="section-heading">两大核心竞争力</div>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon" style="background:var(--accent-soft)">📊</div>
+        <div class="feature-title">交易复盘能力</div>
+        <div class="feature-desc">支持任意时间范围的集合竞价数据回看与多日叠加对比。动态动效展示板块间资金流向与轮动节奏，让市场资金的"迁徙路径"一目了然。超越传统炒股软件的静态数据呈现。</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(88,166,255,.1)">🔗</div>
+        <div class="feature-title">深度产业链洞察</div>
+        <div class="feature-desc">AI 定期分析研报与财报，自动生成全景产业链图谱。覆盖上中下游 20+ 环节，识别核心标的、价值分布、瓶颈与替代机会。核心标的发生重大事件时主动推送提醒。</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(46,160,67,.1)">📋</div>
+        <div class="feature-title">AI 研报摘要</div>
+        <div class="feature-desc">批量解析券商研报 PDF，自动提取评级、目标价、核心逻辑与盈利预测。多券商观点对比，评级历史趋势一目了然，节省 90% 的研报阅读时间。</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(210,153,34,.1)">⚡</div>
+        <div class="feature-title">热点追踪与突破点识别</div>
+        <div class="feature-desc">实时监测市场热点话题与资金异动信号，自动识别产业链中的技术突破、产能扩张与政策催化。热点传导链追踪，第一时间感知市场风向变化。</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(88,166,255,.1)">🔌</div>
+        <div class="feature-title">MCP 开放接口</div>
+        <div class="feature-desc">支持 API-KEY 管理，通过 MCP（Model Context Protocol）标准接口将平台 AI 分析能力暴露给外部工具。无缝接入 Claude Desktop、Codex CLI 等 AI 助手生态。</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:var(--accent-soft)">📱</div>
+        <div class="feature-title">双端覆盖</div>
+        <div class="feature-desc">Web 端提供完整的交互式图表与分析工具，微信小程序端精选核心功能——集合竞价、热点速览、AI 摘要——随时随地掌握市场动态。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="container">
+    <div class="cta-card">
+      <h2>准备好开始智能投研了吗？</h2>
+      <p>免费注册，即刻体验 AI 驱动的产业链分析与交易复盘工具</p>
+      <div class="cta-actions">
+        <a href="register.html" class="btn btn-primary">免费注册 →</a>
+        <a href="login.html" class="btn btn-secondary">已有账户？登录</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <p>AI Invest Assistant v1.0.0 · 基于腾讯云 SCF + 轻量服务器部署 · MIT License</p>
+    <p style="margin-top:4px">本平台不提供投资建议，仅提供数据与分析工具</p>
+  </div>
+</footer>
+</body>
+</html>

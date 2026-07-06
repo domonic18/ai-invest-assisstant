@@ -5,92 +5,70 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Invest Assistant — 原型图索引</title>
 <style>
-:root{--gray-50:#f8f9fa;--gray-100:#e9ecef;--gray-200:#dee2e6;--gray-600:#495057;--gray-800:#212529;--gray-900:#0d1117;--brand-500:#6366f1;--brand-600:#4f46e5;--red-500:#ef4444;--radius-lg:12px;--shadow-sm:0 1px 2px rgba(0,0,0,.04);--shadow-lg:0 4px 6px -1px rgba(0,0,0,.06),0 2px 4px -2px rgba(0,0,0,.04);--font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
+:root{--bg:#0c0e12;--bg-elevated:#111318;--border:#23262d;--text-primary:#f0f1f5;--text-secondary:#8a8f98;--text-tertiary:#5c616e;--accent:#5e6ad2;--accent-hover:#6872e3;--red:#f85149;--green:#2ea043;--font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;--radius-md:8px;--radius-lg:12px;--transition:200ms ease}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--font-sans);background:var(--gray-50);color:var(--gray-800);-webkit-font-smoothing:antialiased;min-height:100vh}
+body{font-family:var(--font);background:var(--bg);color:var(--text-primary);min-height:100vh;-webkit-font-smoothing:antialiased}
 .container{max-width:1024px;margin:0 auto;padding:60px 24px}
-.header{text-align:center;margin-bottom:56px}
-.header h1{font-size:2rem;font-weight:700;color:var(--gray-900);letter-spacing:-.02em;margin-bottom:8px}
-.header p{font-size:.9375rem;color:var(--gray-600)}
-.header .subtitle{font-size:.8125rem;color:var(--gray-600);margin-top:4px}
-.section-title{font-size:.9375rem;font-weight:600;color:var(--gray-800);margin:40px 0 16px;padding-bottom:8px;border-bottom:2px solid var(--gray-200);letter-spacing:-.01em}
-.prototype-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
-.prototype-card{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius-lg);padding:28px 24px;box-shadow:var(--shadow-sm);text-decoration:none;color:inherit;transition:border-color .2s,box-shadow .2s,transform .2s;display:flex;align-items:flex-start;gap:16px}
-.prototype-card:hover{border-color:var(--brand-500);box-shadow:var(--shadow-lg);transform:translateY(-1px)}
-.prototype-card.core{border-left:3px solid var(--red-500)}
-.prototype-card-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;flex-shrink:0}
-.prototype-card-body h3{font-size:.9375rem;font-weight:600;margin-bottom:4px;letter-spacing:-.01em}
-.prototype-card-body p{font-size:.8125rem;color:var(--gray-600);line-height:1.5}
-.prototype-card-body .tag{display:inline-block;margin-top:8px;font-size:.75rem;padding:2px 8px;border-radius:4px;background:#eef2ff;color:var(--brand-600);font-weight:500}
-.prototype-card-body .core-tag{display:inline-block;margin-top:8px;font-size:.75rem;padding:2px 8px;border-radius:4px;background:#fef2f2;color:var(--red-500);font-weight:600}
-.footer{text-align:center;margin-top:48px;font-size:.8125rem;color:var(--gray-600)}
+.ambient{position:fixed;inset:0;pointer-events:none;z-index:0}
+.ambient::before{content:'';position:absolute;top:-20%;left:50%;width:700px;height:500px;transform:translateX(-50%);background:radial-gradient(ellipse,rgba(94,106,210,.06) 0%,transparent 70%)}
+.header{text-align:center;margin-bottom:48px;position:relative;z-index:1}
+.header h1{font-size:28px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px}
+.header p{font-size:14px;color:var(--text-secondary)}
+.header .logo{width:40px;height:40px;background:var(--accent);border-radius:var(--radius-md);display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px}
+.header .logo svg{width:22px;height:22px}
+.header .version{font-size:10px;color:var(--text-tertiary);margin-left:6px;font-weight:500}
+.section-title{font-size:12px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;margin:40px 0 16px;position:relative;z-index:1}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;position:relative;z-index:1}
+.card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;text-decoration:none;color:inherit;transition:border-color var(--transition),transform var(--transition);display:flex;align-items:flex-start;gap:14px}
+.card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.card.core{border-left:3px solid var(--accent)}
+.card-icon{width:40px;height:40px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.card-body h3{font-size:14px;font-weight:600;margin-bottom:4px;letter-spacing:-.01em}
+.card-body p{font-size:12px;color:var(--text-secondary);line-height:1.5}
+.card-body .tag{display:inline-block;margin-top:8px;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:500}
+.tag-accent{background:rgba(94,106,210,.12);color:var(--accent)}
+.tag-core{background:rgba(94,106,210,.15);color:var(--accent);font-weight:600}
+.footer{text-align:center;margin-top:48px;font-size:11px;color:var(--text-tertiary);position:relative;z-index:1}
 </style>
 </head>
 <body>
+<div class="ambient"></div>
 <div class="container">
 <div class="header">
-<h1>AI Invest Assistant</h1>
+<div class="logo">
+<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#fff" stroke-width="2.5"/><polyline points="8,20 12,16 16,18 20,12 24,14" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="14" r="2.5" fill="#fff"/></svg>
+</div>
+<div style="display:flex;align-items:baseline;justify-content:center;gap:8px">
+<h1 style="margin-bottom:0">AI Invest Assistant</h1>
+<span class="version">v1.0.0</span>
+</div>
 <p>智能投研数据平台 — 原型图预览</p>
-<p class="subtitle">核心竞争力：交易复盘（竞价回顾 + 资金流向动态追踪）+ 深度产业链洞察</p>
 </div>
 
-<div class="section-title">★ 核心竞争力功能</div>
-<div class="prototype-grid">
-<a class="prototype-card core" href="chain-analysis.html" target="_blank">
-<div class="prototype-card-icon" style="background:#dbeafe">◈</div>
-<div class="prototype-card-body">
-<h3>产业链全景分析</h3>
-<p>22个环节 · 86家标的 · 多维度对比 · 动态变化感知 · 毛利率×国产化率矩阵 · 瓶颈识别</p>
-<span class="core-tag">核心竞争力</span>
-</div>
-</a>
-<a class="prototype-card core" href="capital-flow.html" target="_blank">
-<div class="prototype-card-icon" style="background:#fef3c7">◈</div>
-<div class="prototype-card-body">
-<h3>资金流向动态追踪</h3>
-<p>动态板块流向图 · 时间轴播放 · 排名对比 · 热力日历 · 板块轮动信号 · 资金迁徙动画</p>
-<span class="core-tag">核心竞争力</span>
-</div>
-</a>
-<a class="prototype-card core" href="auction-review.html" target="_blank">
-<div class="prototype-card-icon" style="background:#d1fae5">◈</div>
-<div class="prototype-card-body">
-<h3>集合竞价复盘</h3>
-<p>时间范围查询 · 多日叠加对比 · 竞价特征标签 · 异动个股汇总 · 特征日历视图</p>
-<span class="core-tag">核心竞争力</span>
-</div>
-</a>
+<div class="section-title">入口页面</div>
+<div class="grid">
+<a class="card" href="landing.html" target="_blank"><div class="card-icon" style="background:rgba(94,106,210,.12)">🌐</div><div class="card-body"><h3>落地页</h3><p>产品官网，包含 Hero、核心竞争力、功能展示、CTA 注册引导</p><span class="tag tag-accent">入口</span></div></a>
+<a class="card" href="login.html" target="_blank"><div class="card-icon" style="background:rgba(88,166,255,.1)">🔑</div><div class="card-body"><h3>登录页</h3><p>邮箱/密码登录，微信扫码登录，SSO 单点登录支持</p><span class="tag tag-accent">入口</span></div></a>
+<a class="card" href="register.html" target="_blank"><div class="card-icon" style="background:rgba(46,160,67,.1)">📝</div><div class="card-body"><h3>注册页</h3><p>账户创建，密码强度检测，投资角色选择</p><span class="tag tag-accent">入口</span></div></a>
 </div>
 
-<div class="section-title">常规功能</div>
-<div class="prototype-grid">
-<a class="prototype-card" href="dashboard.html" target="_blank">
-<div class="prototype-card-icon" style="background:#eef2ff">◈</div>
-<div class="prototype-card-body"><h3>仪表盘</h3><p>大盘概览、行业热力图、热点新闻、集合竞价信号</p><span class="tag">首页</span></div>
-</a>
-<a class="prototype-card" href="hotspot.html" target="_blank">
-<div class="prototype-card-icon" style="background:#fce7f3">◈</div>
-<div class="prototype-card-body"><h3>热点追踪</h3><p>话题云、实时时间线、资金异动、热点传导链、市场情绪指数</p><span class="tag">实时</span></div>
-</a>
-<a class="prototype-card" href="research.html" target="_blank">
-<div class="prototype-card-icon" style="background:#e0e7ff">◈</div>
-<div class="prototype-card-body"><h3>研报中心</h3><p>研报检索与筛选、AI摘要、在线阅读、PDF下载、券商/行业筛选</p><span class="tag">研究</span></div>
-</a>
-<a class="prototype-card" href="stock-detail.html" target="_blank">
-<div class="prototype-card-icon" style="background:#e9ecef">◈</div>
-<div class="prototype-card-body"><h3>个股详情</h3><p>行情数据、K线图表（辅助功能，非核心）、财务指标、券商研报观点</p><span class="tag">P3 辅助</span></div>
-</a>
-<a class="prototype-card" href="settings.html" target="_blank">
-<div class="prototype-card-icon" style="background:#e9ecef">◈</div>
-<div class="prototype-card-body"><h3>个人设置</h3><p>模型配置（Base URL / API Key）、API-KEY 管理、MCP 接入配置</p><span class="tag">设置</span></div>
-</a>
-<a class="prototype-card" href="admin.html" target="_blank">
-<div class="prototype-card-icon" style="background:#fef2f2">◈</div>
-<div class="prototype-card-body"><h3>后台管理</h3><p>系统概览、用户/股票/研报 CRUD、采集任务管理、监控、审计日志</p><span class="tag">管理员</span></div>
-</a>
+<div class="section-title">★ 核心功能</div>
+<div class="grid">
+<a class="card core" href="dashboard.html" target="_blank"><div class="card-icon" style="background:rgba(94,106,210,.12)">📊</div><div class="card-body"><h3>每日复盘</h3><p>大盘概览、行业热力图、热点新闻、集合竞价信号、自选股、产业链突破点</p><span class="tag tag-core">核心</span></div></a>
+<a class="card core" href="chain-analysis.html" target="_blank"><div class="card-icon" style="background:rgba(88,166,255,.1)">🔗</div><div class="card-body"><h3>产业链全景分析</h3><p>SVG 图谱 · 22环节 · 版本切换 · AI提醒面板 · 毛利率×国产化率矩阵</p><span class="tag tag-core">核心</span></div></a>
+<a class="card core" href="capital-flow.html" target="_blank"><div class="card-icon" style="background:rgba(210,153,34,.1)">💸</div><div class="card-body"><h3>资金流向动态追踪</h3><p>动态板块流向图 · 时间轴播放 · 排名对比 · 热力日历 · 板块轮动信号</p><span class="tag tag-core">核心</span></div></a>
+<a class="card core" href="auction-review.html" target="_blank"><div class="card-icon" style="background:rgba(46,160,67,.1)">📈</div><div class="card-body"><h3>集合竞价复盘</h3><p>时间范围查询 · 多日叠加对比 · 特征日历 · 异动个股汇总</p><span class="tag tag-core">核心</span></div></a>
 </div>
 
-<div class="footer">设计系统 · Indigo & Neutral · 10 个原型页面 · 3 个核心竞争力页面</div>
+<div class="section-title">辅助功能</div>
+<div class="grid">
+<a class="card" href="hotspot.html" target="_blank"><div class="card-icon" style="background:rgba(248,81,73,.1)">🔥</div><div class="card-body"><h3>热点追踪</h3><p>话题云、实时时间线、资金异动、热点传导链、市场情绪指数</p><span class="tag tag-accent">辅助</span></div></a>
+<a class="card" href="research.html" target="_blank"><div class="card-icon" style="background:rgba(94,106,210,.08)">📄</div><div class="card-body"><h3>研报中心</h3><p>研报检索与筛选、AI摘要、在线阅读、PDF下载、券商/行业筛选</p><span class="tag tag-accent">辅助</span></div></a>
+<a class="card" href="settings.html" target="_blank"><div class="card-icon" style="background:rgba(88,166,255,.06)">⚙</div><div class="card-body"><h3>个人设置</h3><p>模型配置（Base URL / API Key）、API-KEY 管理、MCP 接入配置</p><span class="tag tag-accent">设置</span></div></a>
+<a class="card" href="admin.html" target="_blank"><div class="card-icon" style="background:rgba(248,81,73,.08)">🛡</div><div class="card-body"><h3>后台管理</h3><p>系统概览、用户/股票/研报 CRUD、采集任务、监控、审计日志</p><span class="tag tag-accent">管理</span></div></a>
+</div>
+
+<div class="footer">Design System: SquadSight-inspired · Dark Theme · Indigo Accent · v1.0.0</div>
 </div>
 </body>
 </html>

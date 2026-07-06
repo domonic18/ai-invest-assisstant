@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 注册</title>
+<style>
+:root{--bg:#0c0e12;--bg-elevated:#111318;--bg-surface:#181a21;--border:#23262d;--border-focus:#5e6ad2;--text-primary:#f0f1f5;--text-secondary:#8a8f98;--text-tertiary:#5c616e;--accent:#5e6ad2;--accent-hover:#6872e3;--green:#2ea043;--font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;--radius-sm:6px;--radius-md:8px;--transition:200ms ease}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-primary);min-height:100vh;display:flex;align-items:center;justify-content:center;-webkit-font-smoothing:antialiased}
+.bg{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.bg::before{content:'';position:absolute;top:50%;left:50%;width:700px;height:700px;transform:translate(-50%,-50%);background:radial-gradient(circle,rgba(94,106,210,.1) 0%,transparent 70%)}
+.card{position:relative;z-index:1;width:100%;max-width:420px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);padding:40px}
+.logo{text-align:center;margin-bottom:28px}
+.logo-icon{width:36px;height:36px;background:var(--accent);border-radius:var(--radius-md);display:inline-flex;align-items:center;justify-content:center}
+.logo-icon svg{width:20px;height:20px}
+.logo-text{display:flex;align-items:baseline;justify-content:center;gap:6px;margin-top:12px}
+.logo-text span:first-child{font-size:18px;font-weight:700;color:var(--text-primary)}
+.logo-text span:last-child{font-size:11px;color:var(--text-tertiary)}
+.title{font-size:14px;color:var(--text-secondary);text-align:center;margin-bottom:28px}
+.fg{margin-bottom:14px}
+.fl{display:block;font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px}
+.fi{width:100%;padding:9px 12px;font-size:13px;color:var(--text-primary);background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);outline:none;transition:border var(--transition)}
+.fi:focus{border-color:var(--border-focus)}
+.fi::placeholder{color:var(--text-tertiary)}
+.row{display:flex;gap:12px}
+.row .fg{flex:1}
+.btn{display:inline-flex;align-items:center;justify-content:center;width:100%;padding:10px 16px;border-radius:var(--radius-sm);font-size:14px;font-weight:500;border:1px solid transparent;cursor:pointer;transition:all var(--transition)}
+.btn-primary{background:var(--accent);color:#fff;margin-top:4px}
+.btn-primary:hover{background:var(--accent-hover)}
+.agree{font-size:12px;color:var(--text-tertiary);text-align:center;margin:20px 0 16px;line-height:1.6}
+.agree a{color:var(--accent);text-decoration:none}
+.agree a:hover{color:var(--accent-hover)}
+.footer{text-align:center;margin-top:20px;font-size:12px;color:var(--text-tertiary)}
+.footer a{color:var(--accent);text-decoration:none;margin-left:4px}
+.footer a:hover{color:var(--accent-hover)}
+.strength{display:flex;gap:4px;margin-top:6px}
+.strength-bar{flex:1;height:3px;border-radius:2px;background:var(--border)}
+.strength-bar.active{background:var(--green)}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#fff" stroke-width="2.5"/><polyline points="8,20 12,16 16,18 20,12 24,14" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="14" r="2.5" fill="#fff"/></svg>
+    </div>
+    <div class="logo-text"><span>AI Invest Assistant</span><span>v1.0.0</span></div>
+  </div>
+  <div class="title">创建您的智能投研账户</div>
+  <form onsubmit="event.preventDefault()">
+    <div class="row">
+      <div class="fg"><label class="fl">用户名</label><input class="fi" placeholder="请输入用户名" value="zhangsan"></div>
+      <div class="fg"><label class="fl">手机号</label><input class="fi" placeholder="选填"></div>
+    </div>
+    <div class="fg"><label class="fl">邮箱</label><input class="fi" type="email" placeholder="请输入邮箱地址" value="zhangsan@example.com"></div>
+    <div class="fg">
+      <label class="fl">密码</label>
+      <input class="fi" type="password" placeholder="至少8位，包含字母和数字" value="••••••••••">
+      <div class="strength"><div class="strength-bar active"></div><div class="strength-bar active"></div><div class="strength-bar active"></div><div class="strength-bar"></div></div>
+    </div>
+    <div class="fg"><label class="fl">确认密码</label><input class="fi" type="password" placeholder="再次输入密码" value="••••••••••"></div>
+    <div class="fg"><label class="fl">投资角色</label><select class="fi" style="appearance:none"><option>个人投资者</option><option>投资分析师</option><option>投资决策者</option></select></div>
+    <div class="agree">注册即表示您同意 <a href="#">服务条款</a> 和 <a href="#">隐私政策</a><br>我们不会将您的数据用于任何未授权的用途</div>
+    <button class="btn btn-primary" onclick="location.href='dashboard.html'">创建账户</button>
+  </form>
+  <div class="footer">已有账户？<a href="login.html">立即登录</a></div>
+</div>
+</body>
+</html>
