@@ -16,15 +16,18 @@
 当前仓库仅有文档与原型，以下工程目录需要逐步创建：
 
 ```
-backend/               # FastAPI + 采集模块
-web/                   # React + Vite + TypeScript
-miniapp/               # Taro 4 + React 微信小程序
-shared/                # Web + 小程序共享类型/工具/API 封装
-docker/                # Nginx/Supervisor/Job 入口配置
-db/init/               # PostgreSQL 初始化 SQL
-Dockerfile             # Web 函数前后端合一镜像
-Dockerfile.collector   # SCF Job 采集镜像
-docker-compose.infra.yml
+backend/                          # FastAPI + 采集模块
+web/                              # React + Vite + TypeScript
+miniapp/                          # Taro 4 + React 微信小程序
+shared/                           # Web + 小程序共享类型/工具/API 封装
+docker/                           # Docker 镜像与数据库初始化
+├── web/                          # Web 函数 Dockerfile + Nginx/Supervisor 配置
+├── collector/                    # SCF Job 采集 Dockerfile + 入口脚本
+└── database/                     # 数据库初始化 SQL
+    └── init-scripts/
+├── docker-compose.yml            # 全栈本地/生产编排
+docker-compose-dev.yml            # 开发环境编排
+docker-compose.infra.yml          # 轻量服务器基础设施编排
 .env.example
 Makefile
 ```
@@ -55,7 +58,7 @@ Makefile
 
 **目标**：搭建可运行的多模块工程骨架，建立共享契约、本地开发流程与 CI 基础。
 
-**交付物**：后端 / Web / 小程序 / shared / docker / db 工程目录、顶层配置、CI 与 lint 脚本。
+**交付物**：后端 / Web / 小程序 / shared / docker 工程目录、顶层配置、CI 与 lint 脚本。
 
 **验收标准**：`make dev` 能同时启动后端与 Web 前端；`make dev-miniapp` 能编译小程序；`make lint` 有效。
 
@@ -143,7 +146,7 @@ Makefile
 | Web 前端工程骨架 | P0 | 2d |
 | 小程序工程骨架 | P0 | 2d |
 | shared 共享层 | P0 | 2d |
-| Docker / 数据库配置占位 | P0 | 2d |
+| Docker 镜像与数据库初始化配置占位 | P0 | 2d | docker/web/、docker/collector/、docker/database/init-scripts/ |
 | CI / lint / 开发脚本 | P0 | 1d |
 | 更新 README 开发指南 | P1 | 1d |
 
@@ -151,7 +154,7 @@ Makefile
 
 | 任务 | 优先级 | 建议工时 |
 |------|--------|----------|
-| PostgreSQL schema 初始化 | P0 | 3d |
+| PostgreSQL schema 初始化 | P0 | 3d | docker/database/init-scripts/01-schema.sql、02-indexes.sql |
 | Redis / ES / MinIO / Milvus 初始化 | P1 | 3d |
 | 采集器基类与清洗管道 | P0 | 3d |
 | 行情采集器（日 K / 分钟 K） | P0 | 3d |
