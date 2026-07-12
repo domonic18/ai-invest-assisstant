@@ -42,7 +42,7 @@ dependencies = [
 
     # Auth
     "python-jose[cryptography]>=3.3.0",
-    "passlib[bcrypt]>=1.7.4",
+    "bcrypt>=4.1.0",
 
     # AI Agent
     "pydantic-ai>=0.0.10",
@@ -101,7 +101,6 @@ dev = [
     # Type stubs
     "types-pyyaml",
     "types-python-jose",
-    "types-passlib",
 
     # Development
     "ipython>=8.24.0",
