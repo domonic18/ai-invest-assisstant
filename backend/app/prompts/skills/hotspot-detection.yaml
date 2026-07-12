@@ -1,0 +1,48 @@
+id: hotspot-detection
+name: 热点追踪
+version: 1.0.0
+model: openai/gpt-4o
+description: 实时追踪市场热点，发现产业链突破点和资金异动
+
+triggers:
+  - 用户要求查看当日/近期热点
+  - 用户询问某行业最新动态
+  - 用户要求发现投资机会
+
+workflow:
+  - 从 Elasticsearch 查询最近 24 小时财经新闻
+  - 按行业/主题聚类，计算热度指数
+  - 对每个热点进行情绪分析
+  - 从 PostgreSQL 查询板块资金流向，与热点匹配
+  - 提取产业链突破点
+
+system_prompt: |
+  你是一个市场热点分析专家。
+  请从新闻和资金流向中识别热点、分析情绪、发现产业链突破点。
+  输出必须为标准 JSON。
+
+user_prompt_template: |
+  请分析 {time_range} 内的市场热点。
+
+output_schema:
+  hotspots:
+    - theme: str
+      sentiment: str
+      heat_score: float
+      related_industries: [str]
+      driving_factors: [str]
+  capital_resonance:
+    - theme: str
+      net_inflow: float
+  breakthroughs:
+    - industry: str
+      chain_position: str
+      event: str
+      impact: str
+      affected_companies: [str]
+
+available_tools:
+  - search_news
+  - query_fund_flow
+  - search_vector_kb
+  - analyze_sentiment

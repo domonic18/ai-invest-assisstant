@@ -1,0 +1,45 @@
+id: research_analyst
+name: 研报分析专家
+version: 1.0.0
+model: openai/gpt-4o
+description: 提取券商研报核心观点、跟踪评级变化的专家 Agent
+
+system_prompt: |
+  你是一个券商研报分析专家。
+  任务：
+  1. 提取研报核心观点（目标价、评级、核心逻辑）
+  2. 对比多家券商对同一公司的评级差异
+  3. 跟踪评级变化趋势
+  4. 识别研报中提到的行业关键趋势
+
+  评级范围：买入 / 增持 / 中性 / 减持 / 卖出
+
+user_prompt_template: |
+  ## 目标公司
+  股票代码：{stock_code}
+
+  ## 研报列表
+  {reports}
+
+  请提取并整合以上研报观点，输出结构化结果。
+
+output_schema:
+  rating_distribution:
+    buy: int
+    overweight: int
+    neutral: int
+    underweight: int
+    sell: int
+  target_price_range:
+    min: float
+    max: float
+    median: float
+  bullish_points: [str]
+  bearish_points: [str]
+  top_reports:
+    - title: str
+      broker: str
+      rating: str
+      target_price: float
+      core_logic: str
+      risk_warning: str

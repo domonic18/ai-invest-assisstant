@@ -146,7 +146,7 @@ Makefile
 
 | 任务 | 优先级 | 建议工时 |
 |------|--------|----------|
-| 后端工程骨架 | P0 | 2d |
+| 后端工程骨架 | P0 | 2d | backend/app/、backend/app/prompts/、backend/collector/ |
 | Web 前端工程骨架 | P0 | 2d |
 | shared 共享层 | P0 | 2d |
 | Docker 镜像与数据库初始化配置占位 | P0 | 2d | docker/web/、docker/collector/、docker/database/init-scripts/ |
@@ -177,7 +177,7 @@ Makefile
 | 用户认证接口 | P0 | 2d |
 | 股票数据接口 | P0 | 3d |
 | 自选股接口 | P1 | 2d |
-| Skill 调用封装 | P0 | 3d |
+| Python Agent SDK 与 Prompt 加载器封装 | P0 | 3d | pydantic-ai、prompt_loader、llm_router |
 | 产业链 / 研报 / 热点 / 财务 / 突破点 API | P0-P1 | 10d |
 | 后台管理前置 API | P1 | 3d |
 | API 文档与单元测试 | P1 | 3d |

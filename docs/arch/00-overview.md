@@ -148,6 +148,28 @@ ai-invest-assisstant/
 │   │   │   │   └── system.py
 │   │   │   └── mcp/                    # MCP Server 接口
 │   │   │       └── server.py
+│   │   ├── agent/                      # AI Agent 运行时
+│   │   │   ├── core/                   # 核心引擎
+│   │   │   │   ├── prompt_loader.py    # YAML 提示词加载
+│   │   │   │   ├── skill_loader.py     # SKILL.md 加载
+│   │   │   │   ├── llm_router.py       # 多模型路由
+│   │   │   │   └── mcp_client.py       # MCP 工具客户端
+│   │   │   ├── skills/                 # Skill 与 Agent 绑定
+│   │   │   ├── tools/                  # 内部工具实现
+│   │   │   └── router.py               # Supervisor 路由
+│   │   ├── prompts/                    # 提示词配置（YAML）
+│   │   │   ├── agents/                 # Agent 角色提示词
+│   │   │   │   ├── supervisor.yaml
+│   │   │   │   ├── chain_analyst.yaml
+│   │   │   │   ├── research_analyst.yaml
+│   │   │   │   ├── hotspot_analyst.yaml
+│   │   │   │   └── financial_analyst.yaml
+│   │   │   └── skills/                 # Skill 执行提示词
+│   │   │       ├── industry-chain-analysis.yaml
+│   │   │       ├── research-summary.yaml
+│   │   │       ├── hotspot-detection.yaml
+│   │   │       ├── financial-health-check.yaml
+│   │   │       └── chain-breakthrough.yaml
 │   │   ├── core/                       # 配置、安全、连接、异常
 │   │   │   ├── config.py
 │   │   │   ├── security.py
@@ -315,7 +337,8 @@ ai-invest-assisstant/
 3. **前端按页面组织**：`web/src/pages/` 与 `miniapp/src/pages/` 按业务模块划分，组件、Hooks、状态管理各自独立。
 4. **测试分层独立**：白盒测试贴近代码（`backend/tests/`、`web/src/test/`），黑盒 QA 测试独立成册（`qa/`），便于不同环境执行。
 5. **文档与代码分离**：`docs/` 仅存放设计文档与原型，不混入工程代码。
-6. **Skill 热更新**：`skills/` 以 Markdown 形式维护，无需修改代码即可调整 AI 分析逻辑。
+6. **Skill 与提示词热更新**：`skills/` 以 Markdown 形式维护业务逻辑，`backend/app/prompts/` 以 YAML 形式维护 LLM 提示词，无需修改代码即可调整 AI 分析行为。
+7. **Agent 运行时与业务解耦**：`backend/app/agent/` 只负责 Agent 执行引擎，具体能力由 `prompts/` 和 `skills/` 驱动。
 
 ## 6. 核心数据流
 
@@ -398,8 +421,7 @@ ai-invest-assisstant/
 - [01-data-source.md](./01-data-source.md) — 数据源详细分析与采集策略
 - [02-data-collection.md](./02-data-collection.md) — 采集引擎架构与云函数 Job 定时调度
 - [03-data-storage.md](./03-data-storage.md) — 数据库设计与存储方案
-- [04-ai-agent.md](./04-ai-agent.md) — AI Agent 体系设计（LangGraph 代码方案）
-- [04-ai-agent-skill-based.md](./04-ai-agent-skill-based.md) — AI Agent 体系设计（Skill 驱动方案，推荐）
+- [04-ai-agent.md](./04-ai-agent.md) — AI Agent 体系设计（Python Agent SDK + YAML 提示词）
 - [05-web-frontend.md](./05-web-frontend.md) — Web 前端 + 小程序架构设计
 - [06-deployment.md](./06-deployment.md) — 腾讯云部署方案（SCF + 轻量服务器）
 - [07-testing.md](./07-testing.md) — 测试体系设计（单元/集成/E2E/QA）

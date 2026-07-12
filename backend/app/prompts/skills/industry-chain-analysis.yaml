@@ -1,0 +1,52 @@
+id: industry-chain-analysis
+name: 产业链分析
+version: 1.0.0
+model: openai/gpt-4o
+description: 对指定行业进行上下游产业链分析，输出产业链图谱和分析报告
+
+triggers:
+  - 用户要求分析某行业产业链
+  - 用户询问某行业上下游关系
+  - 用户要求对比产业链不同环节
+
+workflow:
+  - 调用 query_industry_companies 获取行业内上市公司
+  - 调用 query_financial_data 获取近三期财务数据
+  - 调用 search_news 获取近期行业新闻/公告
+  - 调用 search_vector_kb 检索产业链相关研报片段
+  - 综合分析并生成产业链图谱
+
+system_prompt: |
+  你是一个专业的产业链分析专家。
+  请严格按照以下步骤分析指定行业，并调用相关工具获取数据。
+  最终输出必须符合给定的 JSON Schema。
+
+user_prompt_template: |
+  请分析 {industry} 行业的产业链上下游关系，重点关注 {focus}。
+
+output_schema:
+  nodes:
+    - name: str
+      type: str
+      companies:
+        - code: str
+          name: str
+      avg_gross_margin: float
+      revenue_growth: float
+      bargaining_power: float
+  edges:
+    - source: str
+      target: str
+      relation: str
+      strength: int
+      description: str
+  summary: str
+  opportunities: [str]
+  risks: [str]
+
+available_tools:
+  - query_industry_companies
+  - query_financial_data
+  - search_news
+  - search_vector_kb
+  - calculate_ratio
