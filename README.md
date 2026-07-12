@@ -64,8 +64,10 @@ crawler/
 ├── miniapp/                    # Taro 微信小程序（规划中）
 ├── shared/                     # Web + 小程序共享代码（规划中）
 ├── skills/                     # Codex Skill ×5
-├── docker/                     # Nginx/Supervisor/Job 配置（规划中）
-├── db/init/                    # 数据库初始化 SQL（规划中）
+├── docker/                     # Docker 镜像与数据库初始化
+│   ├── web/                    # Web 函数 Dockerfile + Nginx/Supervisor 配置
+│   ├── collector/              # SCF Job 采集 Dockerfile + 入口脚本
+│   └── database/               # 数据库初始化 SQL
 └── docker-compose.infra.yml    # 轻量服务器基础设施编排（规划中）
 ```
 
@@ -83,8 +85,8 @@ docker compose -f docker-compose.infra.yml up -d
 ### 构建镜像
 
 ```bash
-docker build -t web-api:latest -f Dockerfile .
-docker build -t collector:latest -f Dockerfile.collector .
+docker build -t web-api:latest -f docker/web/Dockerfile .
+docker build -t collector:latest -f docker/collector/Dockerfile .
 ```
 
 ### 本地开发

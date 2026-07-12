@@ -108,118 +108,12 @@ socket 合法域名: wss://api.your-domain.com
 
 > 域名必须为已备案的 HTTPS 域名。腾讯云 API 网关自带 HTTPS 证书，配置自定义域名映射即可。
 
-## 3. 项目目录结构
-
-```
-crawler/
-├── docs/                              # 架构设计文档
-│   └── arch/
-│       ├── 00-overview.md             # 总体架构
-│       ├── 01-data-source.md          # 数据源设计
-│       ├── 02-data-collection.md      # 采集引擎
-│       ├── 03-data-storage.md         # 存储方案
-│       ├── 04-ai-agent.md             # AI Agent (LangGraph)
-│       ├── 04-ai-agent-skill-based.md # AI Agent (Skill 驱动)
-│       ├── 05-web-frontend.md         # Web + 小程序架构
-│       └── 06-deployment.md           # 部署方案（本文件）
-│
-├── backend/                           # 后端 FastAPI + 采集
-│   ├── app/                           # FastAPI 应用
-│   │   ├── api/v1/                    # API 路由
-│   │   │   ├── auth.py                # Web 登录 + 微信登录
-│   │   │   ├── stocks.py              # 股票数据
-│   │   │   ├── chain.py               # 产业链
-│   │   │   ├── research.py            # 研报
-│   │   │   ├── hotspot.py             # 热点
-│   │   │   └── auction.py             # 集合竞价数据
-│   │   ├── core/                      # 配置/安全/数据库
-│   │   ├── models/                    # SQLAlchemy 模型
-│   │   ├── schemas/                   # Pydantic
-│   │   └── services/                  # 业务逻辑
-│   ├── collector/                     # 采集模块 → 独立 Job 镜像
-│   │   ├── base.py
-│   │   ├── spiders/                   # cninfo/ths/eastmoney/sina
-│   │   ├── pipelines.py
-│   │   ├── middleware.py
-│   │   └── tasks.py
-│   ├── requirements.txt
-│   └── Dockerfile.collector
-│
-├── web/                               # Web 端 React 项目
-│   ├── src/
-│   │   ├── api/                       # API 客户端
-│   │   ├── components/                # 通用组件 (charts/common/auth)
-│   │   ├── hooks/                     # useAuth/useRealtimeQuote/...
-│   │   ├── pages/                     # Dashboard/Chain/Stock/Hotspot/...
-│   │   ├── stores/                    # Zustand 状态
-│   │   ├── types/                     # 类型定义
-│   │   └── utils/                     # 工具函数
-│   ├── vite.config.ts
-│   └── package.json
-│
-├── miniapp/                           # 微信小程序 (Taro + React)
-│   ├── config/
-│   │   └── index.ts                   # Taro 构建配置
-│   ├── src/
-│   │   ├── pages/
-│   │   │   ├── index/                 # 首页（大盘概览）
-│   │   │   ├── market/                # 行情（自选股列表）
-│   │   │   ├── auction/               # 集合竞价可视化（核心）
-│   │   │   ├── ai/                    # AI 分析速览
-│   │   │   └── profile/               # 个人中心
-│   │   ├── components/
-│   │   │   ├── ec-canvas/             # ECharts 小程序封装
-│   │   │   ├── AuctionChart.tsx       # 竞价曲线
-│   │   │   ├── StockCard.tsx          # 股票卡片
-│   │   │   └── HotNewsCard.tsx        # 热点新闻
-│   │   ├── hooks/
-│   │   └── utils/
-│   ├── project.config.json            # 微信小程序项目配置
-│   └── package.json
-│
-├── shared/                            # Web + 小程序共享代码
-│   ├── api/
-│   │   ├── types.ts                   # API 响应类型
-│   │   └── endpoints.ts               # 端点常量
-│   ├── types/
-│   │   ├── stock.ts                   # 股票数据结构
-│   │   ├── chain.ts                   # 产业链结构
-│   │   └── auction.ts                 # 集合竞价结构
-│   └── utils/
-│       ├── formatters.ts              # 金额/百分比格式化
-│       └── constants.ts               # 行业/市场枚举
-│
-├── docker/
-│   ├── nginx.conf                     # Nginx 配置（单镜像内）
-│   ├── supervisord.conf               # Supervisor 管理 Nginx + FastAPI
-│   └── entrypoint-collector.sh        # 采集 Job 入口
-│
-├── db/
-│   └── init/                          # 数据库初始化 SQL
-│       ├── 01-schema.sql
-│       ├── 02-indexes.sql
-│       └── 03-seed.sql
-│
-├── skills/                            # Codex Skill 文件
-│   ├── industry-chain-analysis/
-│   ├── research-summary/
-│   ├── hotspot-detection/
-│   ├── financial-health-check/
-│   └── chain-breakthrough/
-│
-├── Dockerfile                         # Web 函数镜像（前后端合一）
-├── Dockerfile.collector               # 采集 Job 镜像
-├── docker-compose.infra.yml           # 轻量服务器基础设施编排
-├── .env.example
-├── .gitignore
-├── LICENSE
-├── Makefile
-└── README.md
-```
-
 ## 4. 前后端合一 Dockerfile（Web 函数镜像）
 
+> 完整项目目录结构参见 [docs/arch/00-overview.md](./00-overview.md)。
+
 ```dockerfile
+# docker/web/Dockerfile
 FROM python:3.11-slim AS backend-builder
 WORKDIR /app
 COPY backend/requirements.txt .
@@ -247,8 +141,8 @@ COPY --from=backend-builder /app /app
 # 复制前端
 COPY --from=frontend-builder /web/dist /usr/share/nginx/html
 # 配置
-COPY docker/nginx.conf /etc/nginx/nginx.conf
-COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/web/nginx.conf /etc/nginx/nginx.conf
+COPY docker/web/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 EXPOSE 9000
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
@@ -269,9 +163,9 @@ echo "/dev/vdb /data ext4 defaults 0 0" >> /etc/fstab
 # 3. 安装 Docker
 curl -fsSL https://get.docker.com | sh
 
-# 4. 上传 docker-compose.infra.yml / .env / db/init/
+# 4. 上传 docker-compose.infra.yml / .env / docker/database/init-scripts/
 scp docker-compose.infra.yml .env root@<IP>:/opt/investment/
-scp -r db/init/ root@<IP>:/opt/investment/db/
+scp -r docker/database/init-scripts/ root@<IP>:/opt/investment/docker/database/
 
 # 5. 启动
 cd /opt/investment
@@ -283,11 +177,11 @@ docker compose -f docker-compose.infra.yml ps
 
 ```bash
 # Web 函数
-docker build -t ccr.ccs.tencentyun.com/investment/web-api:latest -f Dockerfile .
+docker build -t ccr.ccs.tencentyun.com/investment/web-api:latest -f docker/web/Dockerfile .
 docker push ccr.ccs.tencentyun.com/investment/web-api:latest
 
 # 采集 Job
-docker build -t ccr.ccs.tencentyun.com/investment/collector:latest -f Dockerfile.collector .
+docker build -t ccr.ccs.tencentyun.com/investment/collector:latest -f docker/collector/Dockerfile .
 docker push ccr.ccs.tencentyun.com/investment/collector:latest
 ```
 

@@ -117,7 +117,193 @@
 | **容器化** | Docker + Docker Compose | SCF + 轻量服务器 | 环境统一，一键部署 |
 | **CI/CD** | GitHub Actions → TCR | GitHub | 自动构建推送，云函数更新 |
 
-## 5. 核心数据流
+## 5. 项目目录结构
+
+```
+ai-invest-assisstant/
+├── .github/
+│   └── workflows/                      # GitHub Actions CI/CD
+│       ├── ci.yml
+│       └── build-and-push.yml
+│
+├── backend/                            # FastAPI 后端 + 采集模块
+│   ├── app/                            # Web API 应用
+│   │   ├── api/v1/                     # API 路由
+│   │   │   ├── auth.py                 # 注册/登录/微信登录
+│   │   │   ├── users.py                # 用户资料/自选股
+│   │   │   ├── stocks.py               # 股票搜索与基础数据
+│   │   │   ├── kline.py                # K 线数据
+│   │   │   ├── auction.py              # 集合竞价数据
+│   │   │   ├── fund_flow.py            # 资金流向
+│   │   │   ├── chain.py                # 产业链分析
+│   │   │   ├── research.py             # 研报摘要
+│   │   │   ├── hotspot.py              # 热点追踪
+│   │   │   ├── financial.py            # 财务体检
+│   │   │   ├── admin/                  # 后台管理接口
+│   │   │   │   ├── users.py
+│   │   │   │   ├── stocks.py
+│   │   │   │   ├── reports.py
+│   │   │   │   ├── news.py
+│   │   │   │   ├── tasks.py
+│   │   │   │   └── system.py
+│   │   │   └── mcp/                    # MCP Server 接口
+│   │   │       └── server.py
+│   │   ├── core/                       # 配置、安全、连接、异常
+│   │   │   ├── config.py
+│   │   │   ├── security.py
+│   │   │   ├── database.py
+│   │   │   ├── redis.py
+│   │   │   ├── logging.py
+│   │   │   └── exceptions.py
+│   │   ├── models/                     # SQLAlchemy ORM 模型
+│   │   ├── schemas/                    # Pydantic 数据模型
+│   │   ├── services/                   # 业务逻辑层
+│   │   ├── dependencies/               # FastAPI 依赖注入
+│   │   └── main.py                     # 应用入口
+│   ├── collector/                      # SCF Job 采集模块
+│   │   ├── base.py                     # BaseCollector 抽象
+│   │   ├── tasks.py                    # 采集任务路由
+│   │   ├── spiders/                    # 各数据源采集器
+│   │   │   ├── cninfo.py
+│   │   │   ├── ths.py
+│   │   │   ├── eastmoney.py
+│   │   │   └── sina.py
+│   │   ├── pipelines.py                # 数据清洗管道
+│   │   ├── middleware.py               # 代理/Cookie/限速
+│   │   ├── exporters.py                # PG/ES/MinIO 写入
+│   │   └── settings.py                 # 采集全局配置
+│   ├── tests/                          # 测试
+│   │   ├── unit/
+│   │   └── integration/
+│   ├── requirements.txt
+│   ├── requirements-dev.txt
+│   └── pytest.ini
+│
+├── web/                                # React Web 前端
+│   ├── public/
+│   ├── src/
+│   │   ├── api/                        # API 客户端
+│   │   ├── components/                 # 组件
+│   │   │   ├── layout/                 # Header/Sidebar/Layout
+│   │   │   ├── charts/                 # KlineChart/ChainGraph/SankeyChart
+│   │   │   ├── common/                 # StockSelector/DateRangePicker
+│   │   │   └── auth/                   # LoginForm/RegisterForm
+│   │   ├── hooks/                      # 自定义 Hooks
+│   │   ├── pages/                      # 页面
+│   │   │   ├── Dashboard/
+│   │   │   ├── ChainAnalysis/
+│   │   │   ├── StockDetail/
+│   │   │   ├── Hotspot/
+│   │   │   ├── CapitalFlow/
+│   │   │   ├── AuctionReview/
+│   │   │   ├── Research/
+│   │   │   ├── Settings/
+│   │   │   ├── Login/
+│   │   │   ├── Register/
+│   │   │   └── Admin/
+│   │   ├── stores/                     # Zustand 状态
+│   │   ├── types/                      # 本地类型扩展
+│   │   ├── utils/                      # 工具函数
+│   │   ├── App.tsx
+│   │   ├── main.tsx
+│   │   └── router.tsx
+│   ├── index.html
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   └── .env.example
+│
+├── miniapp/                            # Taro 微信小程序
+│   ├── config/
+│   │   └── index.ts
+│   ├── src/
+│   │   ├── pages/                      # 小程序页面
+│   │   │   ├── index/                  # 首页
+│   │   │   ├── market/                 # 行情/自选股
+│   │   │   ├── auction/                # 集合竞价可视化
+│   │   │   ├── ai/                     # AI 分析速览
+│   │   │   └── profile/                # 个人中心
+│   │   ├── components/                 # 小程序组件
+│   │   │   ├── ec-canvas/              # ECharts 小程序封装
+│   │   │   ├── AuctionChart/
+│   │   │   ├── StockCard/
+│   │   │   └── HotNewsCard/
+│   │   ├── hooks/
+│   │   ├── utils/
+│   │   ├── app.config.ts
+│   │   ├── app.tsx
+│   │   └── app.scss
+│   ├── project.config.json
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── shared/                             # Web + 小程序共享代码
+│   ├── api/
+│   │   ├── types.ts                    # API 响应类型
+│   │   └── endpoints.ts                # API 端点常量
+│   ├── types/
+│   │   ├── stock.ts
+│   │   ├── chain.ts
+│   │   ├── auction.ts
+│   │   ├── research.ts
+│   │   └── user.ts
+│   └── utils/
+│       ├── formatters.ts
+│       └── constants.ts
+│
+├── docker/                             # 容器与编排配置
+│   ├── web/                            # Web 函数镜像（前后端合一）
+│   │   ├── Dockerfile
+│   │   ├── nginx.conf                  # 单镜像内 Nginx 配置
+│   │   └── supervisord.conf            # 守护 Nginx + FastAPI
+│   ├── collector/                      # SCF Job 采集镜像
+│   │   ├── Dockerfile
+│   │   └── entrypoint-collector.sh     # SCF Job 入口脚本
+│   └── database/                       # 数据库初始化
+│       └── init-scripts/
+│           ├── 01-schema.sql
+│           ├── 02-indexes.sql
+│           ├── 03-seed.sql
+│           └── 04-milvus-collections.py
+│
+├── docs/                               # 项目文档
+│   ├── arch/                           # 架构设计
+│   ├── plan/                           # 开发计划
+│   ├── prototypes/                     # HTML 原型
+│   └── requirement/                    # 需求文档
+│
+├── skills/                             # Codex Skill 文件
+│   ├── industry-chain-analysis/
+│   ├── research-summary/
+│   ├── hotspot-detection/
+│   ├── financial-health-check/
+│   └── chain-breakthrough/
+│
+├── scripts/                            # 本地与部署脚本
+│   ├── setup-local.sh
+│   ├── build-images.sh
+│   └── deploy-scf.sh
+│
+├── .dockerignore                       # Docker 构建忽略规则
+├── .env.example                        # 环境变量模板
+├── .gitignore
+├── docker-compose.yml                  # 全栈本地/生产编排
+├── docker-compose-dev.yml              # 开发环境编排
+├── docker-compose.infra.yml            # 轻量服务器基础设施编排
+├── Makefile                            # 常用命令
+├── LICENSE
+└── README.md
+```
+
+### 目录设计原则
+
+1. **后端与采集解耦**：`backend/app/` 负责 Web API，`backend/collector/` 负责 SCF Job 采集，两者可独立打包镜像。
+2. **共享契约中心化**：`shared/` 存放 API 类型与端点常量，被 Web、小程序、后端共同引用，避免接口契约漂移。
+3. **前端按页面组织**：`web/src/pages/` 与 `miniapp/src/pages/` 按业务模块划分，组件、Hooks、状态管理各自独立。
+4. **文档与代码分离**：`docs/` 仅存放设计文档与原型，不混入工程代码。
+5. **Skill 热更新**：`skills/` 以 Markdown 形式维护，无需修改代码即可调整 AI 分析逻辑。
+
+## 6. 核心数据流
 
 ```
                     ┌──────────────────┐
@@ -176,7 +362,7 @@
    └─────────────┘               └─────────────────┘
 ```
 
-## 6. 双端功能矩阵
+## 7. 双端功能矩阵
 
 | 功能模块 | Web 端 | 小程序端 | 说明 |
 |----------|--------|----------|------|
@@ -193,7 +379,7 @@
 | 产业链突破点 | ✅ 完整页面 | ✅ 速报卡片 | |
 | 用户设置 | ✅ 完整 | ✅ 基础 | |
 
-## 7. 后续文档索引
+## 8. 后续文档索引
 
 - [01-data-source.md](./01-data-source.md) — 数据源详细分析与采集策略
 - [02-data-collection.md](./02-data-collection.md) — 采集引擎架构与云函数 Job 定时调度
