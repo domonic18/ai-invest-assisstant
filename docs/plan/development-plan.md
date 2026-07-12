@@ -9,7 +9,7 @@
 | 需求文档 | 已完成 | `docs/requirement/01-requirement.md` 定义 P0-P3 功能矩阵、版本边界、非功能需求 |
 | 架构设计 | 已完成 | `docs/arch/00-overview.md ~ 06-deployment.md` 覆盖总体架构、数据源、采集、存储、AI Agent、前端、部署 |
 | Web 原型 | 已完成 | `docs/prototypes/*.html` 共 13 个页面，覆盖 Dashboard、产业链、热点、资金流向、集合竞价、个股、研报、后台、设置等 |
-| Codex Skill | 已完成 | `skills/*/` 下 5 个 SKILL.md |
+| AI Skill | 已完成 | `skills/*/` 下 5 个 SKILL.md |
 
 ### 1.2 尚未启动的工程目录
 
@@ -36,7 +36,7 @@ Makefile
 
 - **数据先行**：先完成 schema、采集器、清洗管道与种子数据，再启动前后端。
 - **接口契约先行**：`shared/` 目录下的类型与端点常量作为后端、Web、小程序三方的法律依据。
-- **Skill 与代码解耦**：AI 分析优先通过 Codex Skill 实现，复杂场景再补充 Python 代码。
+- **Skill 与代码解耦**：AI 分析优先通过 Skill + Python Agent SDK（PydanticAI / OpenAI Agents SDK）实现，复杂场景再补充 Python 代码。
 - **串并混合**：数据层 → 后端 API → Web 端 → 后台/MCP → 部署优化 → 小程序，前后端可部分重叠推进；小程序待主产品稳定后再启动。
 
 ## 2. 开发目标
@@ -77,7 +77,7 @@ Makefile
 
 > 与阶段 1 后半段重叠 2 周。
 
-**目标**：构建支撑双端的后端 API，并接入 Codex Skill。
+**目标**：构建支撑双端的后端 API，并接入 Python Agent SDK。
 
 **交付物**：
 - FastAPI 核心模块、JWT / 微信登录、股票数据接口、自选股接口

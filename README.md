@@ -51,7 +51,7 @@
 | 微信小程序 | Taro 4, React, ec-canvas |
 | 可视化 | ECharts, AntV/G6, D3.js |
 | 存储 | PostgreSQL(TimescaleDB), Elasticsearch, MinIO, Milvus |
-| AI Agent | Codex Skill 体系 |
+| AI Agent | PydanticAI / OpenAI Agents SDK + MCP + Skills |
 | 部署 | 腾讯云 SCF + 轻量应用服务器 |
 
 ## 项目结构
@@ -66,7 +66,7 @@ crawler/
 │   └── e2e/                    # Playwright E2E 测试
 ├── miniapp/                    # Taro 微信小程序（规划中）
 ├── shared/                     # Web + 小程序共享代码（规划中）
-├── skills/                     # Codex Skill ×5
+├── skills/                     # Skill 定义（Markdown + Schema）×5
 ├── docker/                     # Docker 镜像与数据库初始化
 │   ├── web/                    # Web 函数 Dockerfile + Nginx/Supervisor 配置
 │   ├── collector/              # SCF Job 采集 Dockerfile + 入口脚本

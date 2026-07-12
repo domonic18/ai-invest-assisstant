@@ -112,7 +112,7 @@
 | **文件存储** | MinIO (S3 兼容) | 轻量服务器 Docker | PDF 财报/研报对象存储 |
 | **向量知识库** | Milvus Standalone | 轻量服务器 Docker | PDF 文档向量化，Agent RAG 检索 |
 | **缓存/队列** | Redis | 轻量服务器 Docker | 热数据缓存、Session 管理 |
-| **AI Agent** | Codex Skill 体系 | SCF Web 函数（通过 API 触发） | 自然语言驱动，无需写代码 |
+| **AI Agent** | PydanticAI / OpenAI Agents SDK + MCP + Skills | SCF Web 函数（通过 API 触发） | Python 原生 Agent SDK，类型安全，支持多 LLM |
 | **认证** | JWT + 微信登录 | FastAPI 模块 | Web 端账号登录 + 小程序 wx.login |
 | **容器化** | Docker + Docker Compose | SCF + 轻量服务器 | 环境统一，一键部署 |
 | **CI/CD** | GitHub Actions → TCR | GitHub | 自动构建推送，云函数更新 |
@@ -276,7 +276,7 @@ ai-invest-assisstant/
 │   ├── prototypes/                     # HTML 原型
 │   └── requirement/                    # 需求文档
 │
-├── skills/                             # Codex Skill 文件
+├── skills/                             # Skill 定义文件（Markdown + Schema）
 │   ├── industry-chain-analysis/
 │   ├── research-summary/
 │   ├── hotspot-detection/
@@ -353,7 +353,7 @@ ai-invest-assisstant/
                           │
               ┌───────────┴───────────┐
               │    AI Agent 分析引擎   │
-              │    (Codex Skill 体系)  │
+              │ (PydanticAI + MCP + Skills) │
               │                       │
               │  ┌─────────────────┐  │
               │  │ 财报分析 Skill   │  │
