@@ -1,0 +1,1 @@
+# Scrapy / collector global settings

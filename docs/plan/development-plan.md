@@ -17,6 +17,8 @@
 
 ```
 backend/                          # FastAPI + 采集模块
+├── pyproject.toml                # uv 依赖与工具配置
+├── uv.lock                       # 锁定文件
 web/                              # React + Vite + TypeScript
 miniapp/                          # Taro 4 + React 微信小程序（V1.1 阶段启动）
 shared/                           # Web + 小程序共享类型/工具/API 封装
@@ -30,6 +32,9 @@ docker-compose-dev.yml            # 开发环境编排
 docker-compose.infra.yml          # 轻量服务器基础设施编排
 .env.example
 Makefile
+CLAUDE.md                         # 项目级 AI 上下文
+backend/CLAUDE.md                 # 后端 AI 上下文
+web/CLAUDE.md                     # 前端 AI 上下文
 ```
 
 ### 1.3 开发策略
@@ -60,7 +65,18 @@ Makefile
 
 **交付物**：后端 / Web / shared / docker / qa 工程目录、小程序骨架（可选）、顶层配置、CI 与 lint 脚本。
 
-**验收标准**：`make dev` 能同时启动后端与 Web 前端；`make lint` 有效；小程序工程目录可编译（可选）。
+**验收标准**：`make backend` 与 `make web` 能分别启动后端与 Web 前端；`make lint` 通过；`uv run pytest -m unit` 与 `npm run test:unit` 可执行（测试用例可逐步补充）；小程序工程目录可编译（可选）。
+
+### 开发环境说明
+
+- **Python 后端统一使用 `uv` 管理依赖**，不再使用 `pip` + `requirements.txt`。
+  - 进入 `backend/` 后执行 `uv sync` 同步环境（含 dev 依赖）。
+  - 运行服务：`uv run uvicorn app.main:app --reload --port 8000`
+  - 运行测试：`uv run pytest -m unit`
+  - 类型检查：`uv run mypy app/`
+  - 代码 lint：`uv run ruff check .`
+- **前端使用 npm**，进入 `web/` 后执行 `npm install`。
+- **AI 上下文文件**：修改代码前请先阅读 `CLAUDE.md`、`backend/CLAUDE.md`、`web/CLAUDE.md`。
 
 ### 阶段 1：数据层与采集管道（第 3-6 周）
 
@@ -146,12 +162,13 @@ Makefile
 
 | 任务 | 优先级 | 建议工时 |
 |------|--------|----------|
-| 后端工程骨架 | P0 | 2d | backend/app/、backend/app/prompts/、backend/collector/ |
+| 后端工程骨架 | P0 | 2d | backend/app/、backend/app/prompts/、backend/collector/、backend/pyproject.toml |
 | Web 前端工程骨架 | P0 | 2d |
 | shared 共享层 | P0 | 2d |
 | Docker 镜像与数据库初始化配置占位 | P0 | 2d | docker/web/、docker/collector/、docker/database/init-scripts/ |
 | 测试工程目录占位 | P0 | 1d | backend/tests/、web/src/test/、qa/integration/ |
-| CI / lint / 开发脚本 | P0 | 1d |
+| CI / lint / 开发脚本 | P0 | 1d | 使用 uv 管理 Python 依赖 |
+| CLAUDE.md 上下文文件 | P0 | 0.5d | 根目录、backend/、web/ |
 | 小程序工程骨架（可选） | P2 | 1d | 仅创建目录与编译脚本 |
 | 更新 README 开发指南 | P1 | 1d |
 

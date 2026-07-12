@@ -59,14 +59,15 @@ backend/
 │       └── mcp/
 │           └── test_mcp_server.py
 ├── pytest.ini
-├── requirements.txt
-└── requirements-dev.txt
+├── pyproject.toml                      # uv 依赖与工具配置
+└── uv.lock                             # 依赖锁定文件
 ```
 
 ### 3.2 技术栈
 
 | 类型 | 工具 | 用途 |
 |------|------|------|
+| 包管理 | uv | Python 依赖与虚拟环境 |
 | 测试框架 | pytest + pytest-asyncio | 单元/集成测试 |
 | HTTP 客户端 | httpx / TestClient | API 接口测试 |
 | 数据库 | SQLite + aiosqlite（内存模式） | 集成测试隔离数据库 |
@@ -323,7 +324,7 @@ export default defineConfig({
 ```
 qa/
 ├── conftest.py                       # 环境变量、fixtures、资源清理
-├── requirements.txt                  # pytest、httpx
+├── pyproject.toml                    # uv 依赖配置
 └── integration/                      # 黑盒集成测试
     ├── test_auth.py
     ├── test_stocks.py
@@ -453,8 +454,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r backend/requirements.txt -r backend/requirements-dev.txt
-      - run: cd backend && pytest -m "unit" --cov=app --cov-report=xml
+      - name: Sync dependencies
+        run: cd backend && uv sync
+      - name: Run unit tests
+        run: cd backend && uv run pytest -m unit --cov=app --cov-report=xml
 
   web-test:
     runs-on: ubuntu-latest
@@ -463,8 +466,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: cd web && pnpm install
-      - run: cd web && pnpm test:unit --coverage
+      - run: cd web && npm install
+      - run: cd web && npm run lint
+      - run: cd web && npm run typecheck
+      - run: cd web && npm run test:unit -- --coverage
 ```
 
 ### 9.2 测试阶段

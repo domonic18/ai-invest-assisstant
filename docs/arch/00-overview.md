@@ -103,7 +103,7 @@
 |------|------|----------|----------|
 | **Web 前端** | React 18 + Vite + TypeScript | SCF Web 函数（Docker 镜像内 Nginx 静态资源） | 现代前端框架，生态完善 |
 | **微信小程序** | Taro 4 + React + ec-canvas | 微信平台 | 复用 Web 端代码，ECharts 绑图 |
-| **后端 API** | FastAPI (Python 3.11+) | SCF Web 函数（Docker 镜像内 Supervisor 守护） | 异步高性能、原生 WebSocket |
+| **后端 API** | FastAPI (Python 3.10+) | SCF Web 函数（Docker 镜像内 Supervisor 守护） | 异步高性能、原生 WebSocket |
 | **数据采集** | Scrapy + akshare + Playwright | SCF Job 函数（Timer 触发） | 异步执行，按需伸缩，无需常驻 |
 | **可视化 (Web)** | ECharts + AntV/G6 + D3.js | 前端打包至镜像 | 产业链图谱(G6)、K线(ECharts)、资金流向(D3) |
 | **可视化 (小程序)** | ECharts ec-canvas | 小程序组件 | 集合竞价曲线、K线缩略图 |
@@ -197,8 +197,8 @@ ai-invest-assisstant/
 │   ├── tests/                          # 测试
 │   │   ├── unit/
 │   │   └── integration/
-│   ├── requirements.txt
-│   ├── requirements-dev.txt
+│   ├── pyproject.toml                  # uv 依赖与工具配置
+│   ├── uv.lock                         # 依赖锁定文件
 │   └── pytest.ini
 │
 ├── web/                                # React Web 前端
@@ -307,7 +307,7 @@ ai-invest-assisstant/
 │
 ├── qa/                                 # 黑盒集成/QA 测试
 │   ├── conftest.py                     # fixtures、环境变量、资源清理
-│   ├── requirements.txt
+│   ├── pyproject.toml                  # uv 依赖配置
 │   └── integration/
 │       ├── test_auth.py
 │       ├── test_stocks.py

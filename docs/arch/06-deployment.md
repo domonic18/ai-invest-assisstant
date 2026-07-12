@@ -116,16 +116,16 @@ socket 合法域名: wss://api.your-domain.com
 # docker/web/Dockerfile
 FROM python:3.11-slim AS backend-builder
 WORKDIR /app
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/pyproject.toml .
+RUN pip install --no-cache-dir -e .
 COPY backend/ .
 
 FROM node:20-alpine AS frontend-builder
 WORKDIR /web
-COPY web/package.json web/pnpm-lock.yaml ./
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
+COPY web/package.json web/package-lock.json ./
+RUN npm install
 COPY web/ .
-RUN pnpm build
+RUN npm run build
 # 产物: /web/dist/
 
 FROM python:3.11-slim

@@ -46,33 +46,45 @@
 | 层 | 技术 |
 |---|------|
 | 数据采集 | Scrapy, akshare, Playwright |
-| 后端 | FastAPI, Python 3.11+ |
+| 后端 | FastAPI, Python 3.10+ |
 | Web 前端 | React 18, TypeScript, Vite |
 | 微信小程序 | Taro 4, React, ec-canvas |
 | 可视化 | ECharts, AntV/G6, D3.js |
 | 存储 | PostgreSQL(TimescaleDB), Elasticsearch, MinIO, Milvus |
 | AI Agent | PydanticAI / OpenAI Agents SDK + MCP + Skills |
 | 部署 | 腾讯云 SCF + 轻量应用服务器 |
+| Python 包管理 | uv |
 
 ## 项目结构
 
 ```
 crawler/
 ├── docs/arch/                  # 架构设计文档
-├── backend/                    # FastAPI + 采集模块（规划中）
+├── docs/plan/                  # 开发计划
+├── backend/                    # FastAPI + 采集模块
+│   ├── app/                    # FastAPI 应用代码
+│   ├── collector/              # 数据采集模块
+│   ├── pyproject.toml          # uv 依赖配置
+│   ├── uv.lock                 # 依赖锁定文件
 │   └── tests/                  # pytest 单元/集成测试
-├── web/                        # React Web 端（规划中）
-│   ├── src/test/               # Vitest 单元测试
+├── web/                        # React Web 端
+│   ├── src/                    # 前端源码
 │   └── e2e/                    # Playwright E2E 测试
-├── miniapp/                    # Taro 微信小程序（规划中）
-├── shared/                     # Web + 小程序共享代码（规划中）
+├── miniapp/                    # Taro 微信小程序（V1.1 阶段启动）
+├── shared/                     # Web + 小程序共享代码
 ├── skills/                     # Skill 定义（Markdown + Schema）×5
 ├── docker/                     # Docker 镜像与数据库初始化
 │   ├── web/                    # Web 函数 Dockerfile + Nginx/Supervisor 配置
 │   ├── collector/              # SCF Job 采集 Dockerfile + 入口脚本
 │   └── database/               # 数据库初始化 SQL
 ├── qa/                         # 黑盒集成/QA 测试
-└── docker-compose.infra.yml    # 轻量服务器基础设施编排（规划中）
+├── CLAUDE.md                   # 项目级 AI 上下文
+├── backend/CLAUDE.md           # 后端 AI 上下文
+├── web/CLAUDE.md               # 前端 AI 上下文
+├── docker-compose.infra.yml    # 轻量服务器基础设施编排
+├── docker-compose.yml          # 全栈本地/生产编排
+├── docker-compose-dev.yml      # 开发环境编排
+└── Makefile                    # 常用开发命令
 ```
 
 ## 快速开始
@@ -95,17 +107,45 @@ docker build -t collector:latest -f docker/collector/Dockerfile .
 
 ### 本地开发
 
-```bash
-# 后端
-cd backend && pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+项目使用 `uv` 管理 Python 依赖，`npm` 管理前端依赖。开始之前，请确保已安装 [uv](https://docs.astral.sh/uv/getting-started/installation/)。
 
-# Web 前端
-cd web && pnpm install && pnpm dev  # → localhost:5173
+```bash
+# 一键安装依赖（后端 uv sync + 前端 npm install + 创建 .env）
+make setup
+
+# 启动基础设施（PostgreSQL、Redis、Elasticsearch、MinIO、Milvus）
+make infra
+
+# 后端（新终端）
+cd backend
+uv run uvicorn app.main:app --reload --port 8000
+
+# Web 前端（新终端）
+cd web
+npm install
+npm run dev  # → localhost:5173
 
 # 小程序
-cd miniapp && npm install && npm run dev:weapp
+# cd miniapp && npm install && npm run dev:weapp
 # 打开微信开发者工具导入 miniapp/dist/
+```
+
+### 常用命令
+
+```bash
+# 同步后端依赖
+cd backend && uv sync
+
+# 后端类型检查 / lint / 测试
+uv run mypy app/
+uv run ruff check .
+uv run pytest -m unit
+
+# 前端类型检查 / lint / 测试
+cd web
+npm run typecheck
+npm run lint
+npm run test:unit
 ```
 
 ## 文档

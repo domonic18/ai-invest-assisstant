@@ -1,0 +1,2 @@
+-- PostgreSQL schema placeholder
+-- See docs/arch/03-data-storage.md for full design
