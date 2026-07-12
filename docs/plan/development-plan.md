@@ -58,7 +58,7 @@ Makefile
 
 **目标**：搭建可运行的多模块工程骨架，建立共享契约、本地开发流程与 CI 基础。
 
-**交付物**：后端 / Web / 小程序 / shared / docker 工程目录、顶层配置、CI 与 lint 脚本。
+**交付物**：后端 / Web / 小程序 / shared / docker / qa 工程目录、顶层配置、CI 与 lint 脚本。
 
 **验收标准**：`make dev` 能同时启动后端与 Web 前端；`make dev-miniapp` 能编译小程序；`make lint` 有效。
 
@@ -147,6 +147,7 @@ Makefile
 | 小程序工程骨架 | P0 | 2d |
 | shared 共享层 | P0 | 2d |
 | Docker 镜像与数据库初始化配置占位 | P0 | 2d | docker/web/、docker/collector/、docker/database/init-scripts/ |
+| 测试工程目录占位 | P0 | 1d | backend/tests/、web/src/test/、qa/integration/ |
 | CI / lint / 开发脚本 | P0 | 1d |
 | 更新 README 开发指南 | P1 | 1d |
 
@@ -176,6 +177,8 @@ Makefile
 | 产业链 / 研报 / 热点 / 财务 / 突破点 API | P0-P1 | 10d |
 | 后台管理前置 API | P1 | 3d |
 | API 文档与单元测试 | P1 | 3d |
+| 后端集成测试 | P1 | 3d | 数据库/API/MCP 集成 |
+| Skill 输出解析与回归测试 | P1 | 2d | JSON Schema、输出样例库 |
 
 ### 阶段 3
 
@@ -189,7 +192,8 @@ Makefile
 | 热点追踪 / 资金流向 / 集合竞价复盘 | P0 | 9d |
 | 研报中心 / 用户设置 | P1 | 6d |
 | 图表组件封装 | P0 | 4d |
-| 前端测试 | P1 | 3d |
+| 前端单元测试 | P1 | 3d | Vitest + jsdom |
+| Playwright E2E 测试 | P1 | 3d | 登录 → 仪表盘 → 产业链 → 个股 |
 
 ### 阶段 4
 
@@ -221,7 +225,9 @@ Makefile
 | 日志与监控 | P1 | 2d |
 | 性能优化 | P1 | 3d |
 | 安全加固 | P0 | 3d |
-| 集成与压力测试 | P0 | 3d |
+| 后端集成测试补全 | P0 | 2d |
+| qa/ 黑盒集成测试 | P0 | 2d | 部署后环境接口测试 |
+| 压力测试 | P0 | 2d | 100 并发 |
 | 上线检查清单 | P1 | 1d |
 
 ## 5. 里程碑
@@ -246,7 +252,11 @@ Makefile
 | Web 首屏加载 | < 3 秒 |
 | 小程序包体积 | < 2 MB |
 | AI Skill 可调用率 | 5 个核心 Skill 全部可通过 API 返回有效结构化结果 |
-| 后端核心逻辑测试覆盖率 | ≥ 60% |
+| 后端 Service 层测试覆盖率 | ≥ 70% |
+| 后端 API 层测试覆盖率 | ≥ 60% |
+| 前端 Utils/Hooks 测试覆盖率 | ≥ 60% |
+| E2E 核心链路覆盖 | 登录 → 仪表盘 → 产业链 → 个股 100% |
+| qa/ 黑盒集成测试通过率 | ≥ 95% |
 
 ## 7. 主要风险与应对
 

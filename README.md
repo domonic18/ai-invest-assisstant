@@ -58,9 +58,12 @@
 
 ```
 crawler/
-├── docs/arch/                  # 架构设计文档 ×8
+├── docs/arch/                  # 架构设计文档
 ├── backend/                    # FastAPI + 采集模块（规划中）
+│   └── tests/                  # pytest 单元/集成测试
 ├── web/                        # React Web 端（规划中）
+│   ├── src/test/               # Vitest 单元测试
+│   └── e2e/                    # Playwright E2E 测试
 ├── miniapp/                    # Taro 微信小程序（规划中）
 ├── shared/                     # Web + 小程序共享代码（规划中）
 ├── skills/                     # Codex Skill ×5
@@ -68,6 +71,7 @@ crawler/
 │   ├── web/                    # Web 函数 Dockerfile + Nginx/Supervisor 配置
 │   ├── collector/              # SCF Job 采集 Dockerfile + 入口脚本
 │   └── database/               # 数据库初始化 SQL
+├── qa/                         # 黑盒集成/QA 测试
 └── docker-compose.infra.yml    # 轻量服务器基础设施编排（规划中）
 ```
 

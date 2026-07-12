@@ -202,15 +202,19 @@ ai-invest-assisstant/
 │   │   │   ├── Register/
 │   │   │   └── Admin/
 │   │   ├── stores/                     # Zustand 状态
+│   │   ├── test/                       # 测试环境初始化与 mocks
 │   │   ├── types/                      # 本地类型扩展
 │   │   ├── utils/                      # 工具函数
 │   │   ├── App.tsx
 │   │   ├── main.tsx
 │   │   └── router.tsx
+│   ├── e2e/                            # Playwright E2E 测试
 │   ├── index.html
 │   ├── package.json
+│   ├── playwright.config.ts
 │   ├── tsconfig.json
 │   ├── vite.config.ts
+│   ├── vitest.config.ts
 │   └── .env.example
 │
 ├── miniapp/                            # Taro 微信小程序
@@ -279,6 +283,15 @@ ai-invest-assisstant/
 │   ├── financial-health-check/
 │   └── chain-breakthrough/
 │
+├── qa/                                 # 黑盒集成/QA 测试
+│   ├── conftest.py                     # fixtures、环境变量、资源清理
+│   ├── requirements.txt
+│   └── integration/
+│       ├── test_auth.py
+│       ├── test_stocks.py
+│       ├── test_chain.py
+│       └── test_mcp.py
+│
 ├── scripts/                            # 本地与部署脚本
 │   ├── setup-local.sh
 │   ├── build-images.sh
@@ -300,8 +313,9 @@ ai-invest-assisstant/
 1. **后端与采集解耦**：`backend/app/` 负责 Web API，`backend/collector/` 负责 SCF Job 采集，两者可独立打包镜像。
 2. **共享契约中心化**：`shared/` 存放 API 类型与端点常量，被 Web、小程序、后端共同引用，避免接口契约漂移。
 3. **前端按页面组织**：`web/src/pages/` 与 `miniapp/src/pages/` 按业务模块划分，组件、Hooks、状态管理各自独立。
-4. **文档与代码分离**：`docs/` 仅存放设计文档与原型，不混入工程代码。
-5. **Skill 热更新**：`skills/` 以 Markdown 形式维护，无需修改代码即可调整 AI 分析逻辑。
+4. **测试分层独立**：白盒测试贴近代码（`backend/tests/`、`web/src/test/`），黑盒 QA 测试独立成册（`qa/`），便于不同环境执行。
+5. **文档与代码分离**：`docs/` 仅存放设计文档与原型，不混入工程代码。
+6. **Skill 热更新**：`skills/` 以 Markdown 形式维护，无需修改代码即可调整 AI 分析逻辑。
 
 ## 6. 核心数据流
 
@@ -388,3 +402,4 @@ ai-invest-assisstant/
 - [04-ai-agent-skill-based.md](./04-ai-agent-skill-based.md) — AI Agent 体系设计（Skill 驱动方案，推荐）
 - [05-web-frontend.md](./05-web-frontend.md) — Web 前端 + 小程序架构设计
 - [06-deployment.md](./06-deployment.md) — 腾讯云部署方案（SCF + 轻量服务器）
+- [07-testing.md](./07-testing.md) — 测试体系设计（单元/集成/E2E/QA）
