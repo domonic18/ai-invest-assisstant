@@ -105,6 +105,7 @@ dev = [
 
     # Development
     "ipython>=8.24.0",
+    "apscheduler>=3.10.0",
 ]
 
 [tool.ruff]
@@ -125,7 +126,9 @@ disallow_any_generics = false
 [[tool.mypy.overrides]]
 module = [
     "app.agent.*",
+    "apscheduler.*",
 ]
+ignore_missing_imports = true
 disallow_untyped_defs = false
 warn_return_any = false
 

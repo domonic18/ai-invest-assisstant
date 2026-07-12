@@ -1,4 +1,4 @@
-.PHONY: dev infra backend web lint test build setup sync
+.PHONY: dev infra backend web lint test build setup sync collector
 
 # Start infrastructure services
 infra:
@@ -11,6 +11,14 @@ backend:
 # Start web development server
 web:
 	cd web && pnpm dev || npm run dev
+
+# Run a collector task locally (usage: make collector TASK=kline)
+collector:
+	bash scripts/run-collector.sh $(TASK)
+
+# Run local collector scheduler
+scheduler:
+	bash scripts/run-scheduler.sh
 
 # Sync Python dependencies
 sync:

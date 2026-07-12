@@ -1,0 +1,189 @@
+import datetime
+from unittest.mock import AsyncMock, patch
+
+import pandas as pd
+import pytest
+
+from collector.spiders.eastmoney_fund_flow import EastMoneyFundFlowCollector
+from collector.spiders.sina_news import SinaNewsCollector
+from collector.spiders.ths_auction import ThsAuctionCollector
+from collector.spiders.ths_kline import ThsKlineCollector
+
+
+@pytest.mark.unit
+class TestThsKlineCollector:
+    @pytest.mark.asyncio
+    async def test_transform_and_validate(self) -> None:
+        collector = ThsKlineCollector({"source": "ths", "data_type": "kline_daily"})
+        raw = {
+            "stock_code": "000001",
+            "trade_date": "2024-01-02",
+            "open": 10.5,
+            "high": 11.0,
+            "low": 10.2,
+            "close": 10.8,
+            "volume": 100000,
+            "amount": 1080000.0,
+            "amplitude": 7.62,
+            "pct_change": 2.86,
+            "turnover_rate": 0.52,
+        }
+        item = await collector.transform(raw)
+        assert item["close"] == 10.8
+        assert item["volume"] == 100000
+        assert await collector.validate(item) is True
+
+    @pytest.mark.asyncio
+    async def test_validate_rejects_missing_close(self) -> None:
+        collector = ThsKlineCollector({"source": "ths", "data_type": "kline_daily"})
+        item = {"stock_code": "000001", "trade_date": "2024-01-02", "close": None}
+        assert await collector.validate(item) is False
+
+
+@pytest.mark.unit
+class TestThsAuctionCollector:
+    @pytest.mark.asyncio
+    async def test_transform_and_validate(self) -> None:
+        collector = ThsAuctionCollector({"source": "ths", "data_type": "auction"})
+        raw = {
+            "stock_code": "000001",
+            "trade_date": "2024-01-02",
+            "match_time": "09:25:00",
+            "最新": 10.8,
+            "总手": 50000,
+            "buy_1": 10.7,
+            "buy_1_vol": 1000,
+            "buy_2": 10.6,
+            "buy_2_vol": 2000,
+            "buy_3": None,
+            "buy_3_vol": None,
+            "buy_4": 10.5,
+            "buy_4_vol": 4000,
+            "buy_5": 10.4,
+            "buy_5_vol": 5000,
+            "sell_1": 10.9,
+            "sell_1_vol": 1500,
+            "sell_2": 11.0,
+            "sell_2_vol": 2500,
+            "sell_3": 11.1,
+            "sell_3_vol": 3500,
+            "sell_4": 11.2,
+            "sell_4_vol": 4500,
+            "sell_5": 11.3,
+            "sell_5_vol": 5500,
+        }
+        item = await collector.transform(raw)
+        assert item["stock_code"] == "000001"
+        assert item["price"] == 10.8
+        assert item["volume"] == 50000
+        assert item["bid_prices"][0] == 10.7
+        assert item["bid_prices"][2] is None
+        assert await collector.validate(item) is True
+
+
+@pytest.mark.unit
+class TestEastMoneyFundFlowCollector:
+    @pytest.mark.asyncio
+    async def test_transform_and_validate(self) -> None:
+        collector = EastMoneyFundFlowCollector({"source": "eastmoney", "data_type": "fund_flow"})
+        raw = {
+            "stock_code": "000001",
+            "trade_date": datetime.date(2024, 1, 2),
+            "main_net_inflow": 1_000_000.0,
+            "super_large_net": 500_000.0,
+            "large_net": 500_000.0,
+            "medium_net": -300_000.0,
+            "small_net": -700_000.0,
+        }
+        item = await collector.transform(raw)
+        assert item["main_net_inflow"] == 1_000_000.0
+        assert item["small_net"] == -700_000.0
+        assert await collector.validate(item) is True
+
+
+@pytest.mark.unit
+class TestSinaNewsCollector:
+    @pytest.mark.asyncio
+    async def test_transform_and_validate(self) -> None:
+        collector = SinaNewsCollector({"source": "sina", "data_type": "news"})
+        raw = {
+            "stock_code": "000001",
+            "doc_type": "news",
+            "title": "Test title",
+            "summary": "Test summary",
+            "content": "Test content",
+            "source": "EastMoney",
+            "source_url": "http://example.com/news/1",
+            "publish_date": "2024-01-02 10:00:00",
+        }
+        item = await collector.transform(raw)
+        assert item["title"] == "Test title"
+        assert item["publish_date"] == datetime.datetime(2024, 1, 2, 10, 0, 0)
+        assert await collector.validate(item) is True
+
+    @pytest.mark.asyncio
+    async def test_validate_rejects_empty_title(self) -> None:
+        collector = SinaNewsCollector({"source": "sina", "data_type": "news"})
+        item = {
+            "stock_code": "000001",
+            "title": "",
+            "source_url": "http://example.com/news/1",
+            "publish_date": datetime.datetime(2024, 1, 2, 10, 0, 0),
+        }
+        assert await collector.validate(item) is False
+
+
+@pytest.mark.unit
+class TestCollectorRun:
+    @pytest.mark.asyncio
+    async def test_kline_run_with_mocked_collect(self) -> None:
+        collector = ThsKlineCollector({"source": "ths", "data_type": "kline_daily"})
+        collector.store = AsyncMock(return_value=1)  # type: ignore[method-assign]
+        collector.collect = AsyncMock(  # type: ignore[method-assign]
+            return_value=[
+                {
+                    "stock_code": "000001",
+                    "trade_date": "2024-01-02",
+                    "open": 10.5,
+                    "high": 11.0,
+                    "low": 10.2,
+                    "close": 10.8,
+                    "volume": 100000,
+                    "amount": 1080000.0,
+                    "amplitude": 7.62,
+                    "pct_change": 2.86,
+                    "turnover_rate": 0.52,
+                }
+            ]
+        )
+
+        result = await collector.run()
+
+        assert result.status.value == "success"
+        assert result.items_collected == 1
+        assert result.items_stored == 1
+        collector.store.assert_awaited_once()  # type: ignore[attr-defined]
+
+    @pytest.mark.asyncio
+    async def test_fund_flow_run_with_mocked_akshare(self) -> None:
+        collector = EastMoneyFundFlowCollector({"source": "eastmoney", "data_type": "fund_flow"})
+        mock_df = pd.DataFrame(
+            [
+                {
+                    "日期": datetime.date(2024, 1, 2),
+                    "主力净流入-净额": 1_000_000.0,
+                    "超大单净流入-净额": 500_000.0,
+                    "大单净流入-净额": 500_000.0,
+                    "中单净流入-净额": -300_000.0,
+                    "小单净流入-净额": -700_000.0,
+                }
+            ]
+        )
+
+        with patch("akshare.stock_individual_fund_flow", return_value=mock_df):
+            collector.store = AsyncMock(return_value=1)  # type: ignore[method-assign]
+            result = await collector.run(symbols=["000001"])
+
+        assert result.status.value == "success"
+        assert result.items_collected == 1
+        assert result.items_stored == 1
