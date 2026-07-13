@@ -17,6 +17,7 @@ class PostgresExporter:
         table: str,
         items: list[dict[str, Any]],
         conflict_key: str | None = None,
+        update_columns: list[str] | None = None,
     ) -> int:
         if not items:
             return 0
@@ -27,7 +28,11 @@ class PostgresExporter:
 
         sql = f"INSERT INTO {table} ({column_list}) VALUES ({placeholders})"
         if conflict_key:
-            sql += f" ON CONFLICT ({conflict_key}) DO NOTHING"
+            if update_columns:
+                updates = ", ".join(f"{col}=EXCLUDED.{col}" for col in update_columns)
+                sql += f" ON CONFLICT ({conflict_key}) DO UPDATE SET {updates}"
+            else:
+                sql += f" ON CONFLICT ({conflict_key}) DO NOTHING"
 
         count = 0
         for item in items:

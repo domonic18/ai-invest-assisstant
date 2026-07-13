@@ -12,6 +12,9 @@ from app.api.v1 import (
     stocks,
     users,
 )
+from app.api.v1.admin import collector as admin_collector
+from app.api.v1.admin import collector_channels as admin_collector_channels
+from app.api.v1.admin import llm_configs as admin_llm_configs
 from app.api.v1.admin import news as admin_news
 from app.api.v1.admin import reports as admin_reports
 from app.api.v1.admin import stocks as admin_stocks
@@ -40,6 +43,9 @@ admin_router.include_router(admin_reports.router, prefix="/reports")
 admin_router.include_router(admin_news.router, prefix="/news")
 admin_router.include_router(admin_tasks.router, prefix="/tasks")
 admin_router.include_router(admin_system.router, prefix="/system")
+admin_router.include_router(admin_collector.router)
+admin_router.include_router(admin_collector_channels.router)
+admin_router.include_router(admin_llm_configs.router)
 api_router.include_router(admin_router)
 
 api_router.include_router(mcp_server.router, prefix="/mcp", tags=["mcp"])

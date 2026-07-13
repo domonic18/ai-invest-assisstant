@@ -11,8 +11,7 @@ from app.agent.core.prompt_renderer import PromptRenderer
 from app.agent.tools import db_tools
 from app.core.config import get_settings
 from app.schemas.chain import ChainAnalysisResult
-
-settings = get_settings()
+from app.services.llm_config_service import resolve_default_llm
 
 
 async def analyze_industry_chain(
@@ -21,7 +20,7 @@ async def analyze_industry_chain(
     focus: str | None = None,
 ) -> ChainAnalysisResult:
     """执行产业链分析 Skill。"""
-    prompt_loader = PromptLoader(settings.prompts_dir)
+    prompt_loader = PromptLoader(get_settings().prompts_dir)
     prompt_config = prompt_loader.load("skills", "industry-chain-analysis")
 
     companies = await db_tools.query_industry_companies(session, industry, limit=20)
@@ -50,7 +49,13 @@ async def analyze_industry_chain(
         context=context,
     )
 
-    model_config = settings.default_model_config
+    resolved = await resolve_default_llm(session)
+    model_config = {
+        "provider": resolved.provider,
+        "model": resolved.model_name,
+        "api_key": resolved.api_key,
+        "base_url": resolved.base_url,
+    }
     agent: Agent = build_agent(
         prompt_config=prompt_config,
         model_config=model_config,

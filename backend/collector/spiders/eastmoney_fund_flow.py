@@ -1,5 +1,7 @@
 """EastMoney individual stock fund flow collector via akshare."""
 
+import re
+from datetime import date
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -11,10 +13,12 @@ from collector.settings import settings
 
 
 class EastMoneyFundFlowCollector(BaseCollector):
-    """东方财富个股资金流向数据采集器。"""
+    """东方财富个股资金流向数据采集器（最新交易日全市场快照）。"""
 
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
+        self.base_url = config.get("base_url")
+        self.api_key = config.get("api_key")
         self.pipeline = DataPipeline(
             steps=[
                 DeduplicateStep(key_fields=["stock_code", "trade_date"]),
@@ -28,46 +32,43 @@ class EastMoneyFundFlowCollector(BaseCollector):
     ) -> list[dict[str, Any]]:
         import akshare as ak  # type: ignore[import-untyped]
 
-        symbols = symbols or [{"stock": "000001", "market": "sz"}]
+        df = ak.stock_fund_flow_individual()
+        trade_date = date.today()
         raw: list[dict[str, Any]] = []
 
-        for symbol in symbols:
-            if isinstance(symbol, str):
-                stock = symbol
-                market = "sh" if stock.startswith("6") else "sz"
-            else:
-                stock = symbol["stock"]
-                market = symbol.get("market", "sh" if stock.startswith("6") else "sz")
+        # Normalize requested symbols to plain 6-digit codes.
+        requested: set[str] | None = None
+        if symbols:
+            requested = set()
+            for symbol in symbols:
+                if isinstance(symbol, str):
+                    requested.add(symbol.lstrip("sh").lstrip("sz").lstrip("bj"))
+                else:
+                    requested.add(symbol["stock"].lstrip("sh").lstrip("sz").lstrip("bj"))
 
-            df = ak.stock_individual_fund_flow(stock=stock, market=market)
-            for _, row in df.iterrows():
-                raw.append(
-                    {
-                        "stock_code": stock,
-                        "trade_date": row["日期"],
-                        "main_net_inflow": row["主力净流入-净额"],
-                        "super_large_net": row["超大单净流入-净额"],
-                        "large_net": row["大单净流入-净额"],
-                        "medium_net": row["中单净流入-净额"],
-                        "small_net": row["小单净流入-净额"],
-                    }
-                )
+        for _, row in df.iterrows():
+            stock_code = str(row["股票代码"]).zfill(6)
+            if requested and stock_code not in requested:
+                continue
+            raw.append(
+                {
+                    "stock_code": stock_code,
+                    "trade_date": trade_date,
+                    "main_net_inflow": row["净额"],
+                    "super_large_net": None,
+                    "large_net": None,
+                    "medium_net": None,
+                    "small_net": None,
+                }
+            )
 
         return raw
 
     async def transform(self, raw: dict[str, Any]) -> dict[str, Any]:
-        def _to_float(value: Any) -> float | None:
-            if value is None:
-                return None
-            try:
-                return float(value)
-            except (TypeError, ValueError):
-                return None
-
         return {
             "stock_code": str(raw["stock_code"]),
             "trade_date": raw["trade_date"],
-            "main_net_inflow": _to_float(raw.get("main_net_inflow")),
+            "main_net_inflow": _parse_chinese_amount(raw.get("main_net_inflow")),
             "super_large_net": _to_float(raw.get("super_large_net")),
             "large_net": _to_float(raw.get("large_net")),
             "medium_net": _to_float(raw.get("medium_net")),
@@ -97,3 +98,28 @@ class EastMoneyFundFlowCollector(BaseCollector):
             )
         await self._engine.dispose()
         return count
+
+
+def _to_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_chinese_amount(value: Any) -> float | None:
+    """Parse strings like ``1.23亿``, ``-456.78万`` into yuan."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip().replace(",", "")
+    match = re.match(r"^([+-]?\d+(?:\.\d+)?)\s*([万亿])?$", text)
+    if not match:
+        return _to_float(value)
+    number = float(match.group(1))
+    unit = match.group(2)
+    multiplier = {"万": 10_000, "亿": 100_000_000}.get(unit, 1)
+    return number * multiplier

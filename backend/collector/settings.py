@@ -7,6 +7,9 @@ class CollectorSettings:
     """采集模块配置。"""
 
     def __init__(self) -> None:
+        # Prefer the same DATABASE_URL used by the FastAPI app.
+        self._database_url = os.getenv("DATABASE_URL")
+
         self.db_host = os.getenv("DB_HOST", "localhost")
         self.db_port = int(os.getenv("DB_PORT", "5432"))
         self.db_user = os.getenv("DB_USER", "user")
@@ -24,6 +27,8 @@ class CollectorSettings:
 
     @property
     def database_url(self) -> str:
+        if self._database_url:
+            return self._database_url
         return (
             f"postgresql+asyncpg://{self.db_user}:{self.db_password}"
             f"@{self.db_host}:{self.db_port}/{self.db_name}"

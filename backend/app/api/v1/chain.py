@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.skills.industry_chain_analysis import run_skill
 from app.dependencies import get_db
 from app.schemas.chain import ChainAnalysisRequest, ChainAnalysisResult
+from app.services.llm_config_service import LLMConfigNotConfiguredError
 
 router = APIRouter()
 
@@ -23,6 +24,11 @@ async def analyze_chain(
             session,
             {"industry": request.industry, "focus": request.focus},
         )
+    except LLMConfigNotConfiguredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

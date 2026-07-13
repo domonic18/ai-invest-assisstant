@@ -1,12 +1,23 @@
 """Pydantic schemas."""
 
-from app.schemas.auth import AuthResponse, LoginRequest, RegisterRequest, TokenPayload
+from app.schemas.auth import AuthResponse, RegisterRequest, TokenPayload
 from app.schemas.chain import (
     ChainAnalysisRequest,
     ChainAnalysisResult,
     ChainCompany,
     ChainEdge,
     ChainNode,
+)
+from app.schemas.collector_channel_config import (
+    CollectorChannelConfigCreate,
+    CollectorChannelConfigResponse,
+    CollectorChannelConfigUpdate,
+)
+from app.schemas.llm_config import (
+    LLMConfigCreate,
+    LLMConfigResponse,
+    LLMConfigTestResponse,
+    LLMConfigUpdate,
 )
 from app.schemas.stock import (
     AuctionDataResponse,
@@ -21,7 +32,6 @@ from app.schemas.user import UserResponse, WatchlistItemCreate, WatchlistItemRes
 
 __all__ = [
     "AuthResponse",
-    "LoginRequest",
     "RegisterRequest",
     "TokenPayload",
     "UserResponse",
@@ -39,4 +49,11 @@ __all__ = [
     "ChainCompany",
     "ChainEdge",
     "ChainNode",
+    "CollectorChannelConfigCreate",
+    "CollectorChannelConfigUpdate",
+    "CollectorChannelConfigResponse",
+    "LLMConfigCreate",
+    "LLMConfigUpdate",
+    "LLMConfigResponse",
+    "LLMConfigTestResponse",
 ]

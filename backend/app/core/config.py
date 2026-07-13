@@ -1,7 +1,6 @@
 import secrets
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
 
 from pydantic import Field, PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -44,26 +43,13 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
 
-    # AI Model defaults
-    default_model_provider: Literal["openai", "anthropic"] = "openai"
-    default_model: str = "gpt-4o"
-    openai_api_key: str = ""
-    openai_base_url: str | None = None
-    anthropic_api_key: str = ""
+    # Encryption for stored credentials (API keys, tokens)
+    credential_encryption_key: str = ""
 
     # Paths
     base_dir: Path = Path(__file__).resolve().parent.parent
-    prompts_dir: Path = base_dir / "app" / "prompts"
+    prompts_dir: Path = base_dir / "prompts"
     skills_dir: Path = Path(__file__).resolve().parent.parent.parent.parent / "skills"
-
-    @property
-    def default_model_config(self) -> dict:
-        return {
-            "provider": self.default_model_provider,
-            "model": self.default_model,
-            "api_key": self.openai_api_key if self.default_model_provider == "openai" else self.anthropic_api_key,
-            "base_url": self.openai_base_url,
-        }
 
 
 @lru_cache
