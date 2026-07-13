@@ -15,9 +15,33 @@ export interface KlineData {
   amount: number
 }
 
-export interface WatchlistItem {
-  code: string
-  name: string
+export interface AuctionData {
+  date: string
+  time: string
   price: number
-  changePercent: number
+  volume: number
+  bidPrices: number[]
+  bidVolumes: number[]
+  askPrices: number[]
+  askVolumes: number[]
+}
+
+export interface FundFlowData {
+  code: string
+  date: string
+  mainNetInflow: number
+  superLargeNet: number
+  largeNet: number
+  mediumNet: number
+  smallNet: number
+}
+
+export interface WatchlistItem {
+  id: string
+  code: string
+  name?: string
+  tags: string[]
+  price?: number
+  changePercent?: number
+  createdAt: string
 }

@@ -37,4 +37,15 @@ export const ENDPOINTS = {
   fundFlow: {
     list: `${API_BASE}/fund-flow`,
   },
+  admin: {
+    llmConfigs: `${API_BASE}/admin/llm-configs`,
+    llmConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}`,
+    testLLMConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}/test`,
+    setDefaultLLMConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}/set-default`,
+    collectorChannels: `${API_BASE}/admin/collector/channels`,
+    collectorChannel: (id: number | string) => `${API_BASE}/admin/collector/channels/${id}`,
+    collectorTaskChannels: (task: string) => `${API_BASE}/admin/collector/tasks/${task}/channels`,
+    collectorLogs: `${API_BASE}/admin/collector/logs`,
+    runCollectorTask: (task: string) => `${API_BASE}/admin/collector/tasks/${task}/run`,
+  },
 } as const
