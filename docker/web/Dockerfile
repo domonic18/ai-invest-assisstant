@@ -7,9 +7,21 @@ COPY backend/ .
 
 # frontend-builder
 FROM node:20-alpine AS frontend-builder
+
+ARG NPM_REGISTRY=https://registry.npmjs.org
+RUN npm config set registry ${NPM_REGISTRY}
+
+# Build the shared package first (web depends on it via file:../shared)
+WORKDIR /shared
+COPY shared/package.json ./
+RUN npm install
+COPY shared/ ./
+RUN npm run build
+
 WORKDIR /web
 COPY web/package.json web/pnpm-lock.yaml* ./
-RUN npm install -g pnpm && pnpm install --frozen-lockfile || npm install
+RUN npm install -g pnpm && pnpm config set registry ${NPM_REGISTRY} && \
+    pnpm install --frozen-lockfile || npm install
 COPY web/ .
 RUN pnpm build || npm run build
 
