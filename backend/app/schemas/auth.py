@@ -20,13 +20,6 @@ class RegisterRequest(BaseModel):
     password: str = Field(..., min_length=6, max_length=128)
 
 
-class LoginRequest(BaseModel):
-    """用户登录请求。"""
-
-    username: str
-    password: str
-
-
 class AuthResponse(BaseModel):
     """认证响应。"""
 

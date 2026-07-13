@@ -47,3 +47,15 @@ async def get_current_user(
         raise credentials_exception
 
     return user
+
+
+async def get_current_admin_user(
+    user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """通过 JWT 获取当前管理员用户。"""
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return user

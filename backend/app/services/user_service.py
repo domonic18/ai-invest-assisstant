@@ -2,12 +2,18 @@
 
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import get_password_hash, verify_password
 from app.models.user import User
 from app.schemas.auth import RegisterRequest
+
+
+async def has_users(session: AsyncSession) -> bool:
+    """Check whether at least one user already exists."""
+    result = await session.execute(select(func.count(User.id)))
+    return result.scalar_one() > 0
 
 
 async def get_user_by_username(session: AsyncSession, username: str) -> User | None:
@@ -23,11 +29,17 @@ async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
 
 
 async def create_user(session: AsyncSession, data: RegisterRequest) -> User:
-    """创建新用户。"""
+    """创建新用户。
+
+    The very first registered account is granted the ``admin`` role so that
+    there is always an administrator who can access the management console.
+    """
+    is_first_user = not await has_users(session)
     user = User(
         username=data.username,
         email=data.email,
         password_hash=get_password_hash(data.password),
+        role="admin" if is_first_user else "user",
     )
     session.add(user)
     await session.commit()

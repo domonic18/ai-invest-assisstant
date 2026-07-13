@@ -4,12 +4,13 @@ from datetime import timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.security import create_access_token
 from app.dependencies import get_db
-from app.schemas.auth import AuthResponse, LoginRequest, RegisterRequest
+from app.schemas.auth import AuthResponse, RegisterRequest
 from app.schemas.user import UserResponse
 from app.services import user_service
 
@@ -40,9 +41,12 @@ async def register(data: RegisterRequest, session: AsyncSession = Depends(get_db
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(data: LoginRequest, session: AsyncSession = Depends(get_db)) -> AuthResponse:
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    session: AsyncSession = Depends(get_db),
+) -> AuthResponse:
     """用户登录。"""
-    user = await user_service.authenticate_user(session, data.username, data.password)
+    user = await user_service.authenticate_user(session, form_data.username, form_data.password)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

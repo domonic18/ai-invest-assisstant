@@ -41,7 +41,7 @@ class TestAuthEndpoints:
         with patch("app.api.v1.auth.user_service.authenticate_user", return_value=None):
             response = client.post(
                 "/api/v1/auth/login",
-                json={"username": "tester", "password": "wrong"},
+                data={"username": "tester", "password": "wrong"},
             )
 
         assert response.status_code == 401
