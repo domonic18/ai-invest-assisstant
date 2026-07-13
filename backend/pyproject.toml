@@ -44,6 +44,9 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "bcrypt>=4.1.0",
 
+    # Encryption
+    "cryptography>=42.0.0",
+
     # AI Agent
     "pydantic-ai>=0.0.10",
     "openai>=1.35.0",
