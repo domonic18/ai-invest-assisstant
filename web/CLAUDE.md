@@ -10,7 +10,8 @@
 - **路由**: React Router 6.23+
 - **状态管理**: Zustand
 - **数据获取**: TanStack Query (React Query)
-- **样式**: Tailwind CSS
+- **UI 组件库**: Ant Design 5
+- **样式**: Tailwind CSS（用于自定义布局与 Ant Design 未覆盖的微调）
 - **图表**: ECharts + echarts-for-react, AntV/G6, D3
 - **HTTP 客户端**: axios
 - **测试**: Vitest + React Testing Library + Playwright (E2E)
@@ -72,9 +73,10 @@ src/
 
 ### 样式
 
-- 优先使用 Tailwind CSS 工具类
-- 复杂样式可提取为独立 CSS 文件
-- 主题颜色通过 Tailwind 配置统一管理
+- 优先使用 **Ant Design 5** 组件与 Design Token，保持界面一致性。
+- Tailwind CSS 用于页面级布局、间距、响应式微调以及 Ant Design 未覆盖的自定义样式。
+- 复杂样式可提取为独立 CSS 文件。
+- 主题颜色通过 Ant Design ConfigProvider + Tailwind 配置统一管理。
 
 ## 5. 任务完成后检查清单
 
