@@ -352,7 +352,8 @@ CREATE TABLE collector_log (
     id          BIGSERIAL PRIMARY KEY,
     task_id     BIGINT REFERENCES collector_task(id) ON DELETE SET NULL,
     task_name   VARCHAR(100),
-    status      VARCHAR(20) NOT NULL CHECK (status IN ('running', 'success', 'failed')),
+    source      VARCHAR(50),
+    status      VARCHAR(20) NOT NULL CHECK (status IN ('running', 'success', 'partial', 'failed', 'skipped')),
     started_at  TIMESTAMPTZ DEFAULT NOW(),
     finished_at TIMESTAMPTZ,
     records_count INT DEFAULT 0,
@@ -362,3 +363,113 @@ CREATE TABLE collector_log (
 
 CREATE INDEX idx_collector_log_task ON collector_log(task_id, started_at DESC);
 CREATE INDEX idx_collector_log_started ON collector_log(started_at DESC);
+
+-- ============================================================
+-- 10. LLM 配置域（后台管理）
+-- ============================================================
+
+CREATE TABLE llm_configs (
+    id                  BIGSERIAL PRIMARY KEY,
+    name                VARCHAR(100) NOT NULL,
+    provider            VARCHAR(20)  NOT NULL,
+    base_url            VARCHAR(500) NOT NULL,
+    api_key_encrypted   TEXT         NOT NULL,
+    model_name          VARCHAR(100) NOT NULL,
+    is_default          BOOLEAN      NOT NULL DEFAULT FALSE,
+    is_active           BOOLEAN      NOT NULL DEFAULT TRUE,
+    extra               JSONB        NOT NULL DEFAULT '{}'::jsonb,
+    last_tested_at      TIMESTAMPTZ,
+    last_test_status    VARCHAR(20),
+    last_test_error     TEXT,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_llm_configs_active ON llm_configs(provider) WHERE is_active = TRUE;
+
+CREATE UNIQUE INDEX ux_llm_configs_default
+    ON llm_configs(is_default) WHERE is_default = TRUE;
+
+-- ============================================================
+-- 11. 采集渠道配置域（后台管理）
+-- ============================================================
+
+CREATE TABLE collector_channel_configs (
+    id                  BIGSERIAL PRIMARY KEY,
+    source              VARCHAR(50)  NOT NULL UNIQUE,
+    name                VARCHAR(100) NOT NULL,
+    base_url            VARCHAR(500),
+    api_key_encrypted   TEXT,
+    is_enabled          BOOLEAN      NOT NULL DEFAULT TRUE,
+    supported_data_types JSONB       NOT NULL DEFAULT '[]'::jsonb,
+    extra               JSONB        NOT NULL DEFAULT '{}'::jsonb,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_collector_channel_enabled ON collector_channel_configs(is_enabled);
+CREATE INDEX idx_collector_channel_supported_types ON collector_channel_configs USING GIN(supported_data_types);
+
+-- ============================================================
+-- 12. 扩展：公司概况、公告/研报扩展字段、板块资金、龙虎榜、宏观经济
+-- ============================================================
+
+ALTER TABLE stock_basic
+    ADD COLUMN IF NOT EXISTS full_name VARCHAR(200),
+    ADD COLUMN IF NOT EXISTS legal_person VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS website VARCHAR(200),
+    ADD COLUMN IF NOT EXISTS registered_capital DECIMAL(20,2),
+    ADD COLUMN IF NOT EXISTS business_scope TEXT,
+    ADD COLUMN IF NOT EXISTS province VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS city VARCHAR(50);
+
+ALTER TABLE news_announcement
+    ADD COLUMN IF NOT EXISTS extra JSONB DEFAULT '{}'::jsonb;
+
+CREATE TABLE IF NOT EXISTS sector_fund_flow (
+    sector_code      VARCHAR(20)  NOT NULL,
+    sector_name      VARCHAR(100) NOT NULL,
+    sector_type      VARCHAR(20)  NOT NULL CHECK (sector_type IN ('industry','concept','region')),
+    trade_date       DATE         NOT NULL,
+    main_net_inflow  DECIMAL(20,2),
+    super_large_net  DECIMAL(20,2),
+    large_net        DECIMAL(20,2),
+    medium_net       DECIMAL(20,2),
+    small_net        DECIMAL(20,2),
+    top_stock_code   VARCHAR(10),
+    top_stock_name   VARCHAR(100),
+    created_at       TIMESTAMPTZ DEFAULT NOW(),
+
+    UNIQUE (sector_code, sector_type, trade_date)
+);
+CREATE INDEX IF NOT EXISTS idx_sector_fund_flow_date ON sector_fund_flow(trade_date DESC);
+
+CREATE TABLE IF NOT EXISTS dragon_list (
+    id          BIGSERIAL PRIMARY KEY,
+    trade_date  DATE         NOT NULL,
+    stock_code  VARCHAR(10)  NOT NULL,
+    stock_name  VARCHAR(100),
+    rank_reason VARCHAR(500),
+    close_price DECIMAL(12,3),
+    change_pct  DECIMAL(8,2),
+    net_buy_amount DECIMAL(20,2),
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+
+    UNIQUE (trade_date, stock_code, rank_reason)
+);
+CREATE INDEX IF NOT EXISTS idx_dragon_list_date ON dragon_list(trade_date DESC);
+
+CREATE TABLE IF NOT EXISTS macro_indicator (
+    id           BIGSERIAL PRIMARY KEY,
+    indicator_name VARCHAR(20) NOT NULL,
+    period_type  VARCHAR(20) NOT NULL,
+    publish_date DATE        NOT NULL,
+    value        DECIMAL(12,4),
+    value_yoy    DECIMAL(8,4),
+    value_mom    DECIMAL(8,4),
+    source       VARCHAR(50),
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+
+    UNIQUE (indicator_name, period_type, publish_date)
+);
+CREATE INDEX IF NOT EXISTS idx_macro_indicator_name_date ON macro_indicator(indicator_name, publish_date DESC);
