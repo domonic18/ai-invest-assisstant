@@ -22,8 +22,8 @@ export const ENDPOINTS = {
   },
   research: {
     list: `${API_BASE}/research`,
-    detail: (id: string) => `${API_BASE}/research/${id}`,
-    summarize: (id: string) => `${API_BASE}/research/${id}/summarize`,
+    detail: (id: number | string) => `${API_BASE}/research/${id}`,
+    summarize: (id: number | string) => `${API_BASE}/research/${id}/summarize`,
   },
   hotspot: {
     list: `${API_BASE}/hotspot`,
@@ -38,10 +38,26 @@ export const ENDPOINTS = {
     list: `${API_BASE}/fund-flow`,
   },
   admin: {
+    users: `${API_BASE}/admin/users`,
+    user: (id: number | string) => `${API_BASE}/admin/users/${id}`,
+    userResetPassword: (id: number | string) =>
+      `${API_BASE}/admin/users/${id}/reset-password`,
+    stocks: `${API_BASE}/admin/stocks`,
+    stock: (id: number | string) => `${API_BASE}/admin/stocks/${id}`,
+    reports: `${API_BASE}/admin/reports`,
+    report: (id: number | string) => `${API_BASE}/admin/reports/${id}`,
+    news: `${API_BASE}/admin/news`,
+    newsItem: (id: number | string) => `${API_BASE}/admin/news/${id}`,
+    tasks: `${API_BASE}/admin/tasks`,
+    task: (id: number | string) => `${API_BASE}/admin/tasks/${id}`,
+    taskTrigger: (id: number | string) => `${API_BASE}/admin/tasks/${id}/trigger`,
+    taskPause: (id: number | string) => `${API_BASE}/admin/tasks/${id}/pause`,
+    taskResume: (id: number | string) => `${API_BASE}/admin/tasks/${id}/resume`,
     llmConfigs: `${API_BASE}/admin/llm-configs`,
     llmConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}`,
     testLLMConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}/test`,
-    setDefaultLLMConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}/set-default`,
+    setDefaultLLMConfig: (id: number | string) =>
+      `${API_BASE}/admin/llm-configs/${id}/set-default`,
     collectorChannels: `${API_BASE}/admin/collector/channels`,
     collectorChannel: (id: number | string) => `${API_BASE}/admin/collector/channels/${id}`,
     collectorTaskChannels: (task: string) => `${API_BASE}/admin/collector/tasks/${task}/channels`,

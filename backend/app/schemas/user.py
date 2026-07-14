@@ -19,6 +19,31 @@ class UserResponse(BaseModel):
     created_at: datetime
 
 
+class AdminUserCreate(BaseModel):
+    """后台创建用户请求。"""
+
+    username: str = Field(..., min_length=3, max_length=50)
+    email: str = Field(..., max_length=100)
+    password: str = Field(..., min_length=6, max_length=100)
+    role: str = Field(default="user", pattern="^(user|admin|analyst)$")
+    is_active: bool = True
+
+
+class AdminUserUpdate(BaseModel):
+    """后台更新用户请求。"""
+
+    username: str | None = Field(None, min_length=3, max_length=50)
+    email: str | None = Field(None, max_length=100)
+    role: str | None = Field(None, pattern="^(user|admin|analyst)$")
+    is_active: bool | None = None
+
+
+class AdminUserResetPassword(BaseModel):
+    """后台重置密码请求。"""
+
+    password: str = Field(..., min_length=6, max_length=100)
+
+
 class WatchlistItemCreate(BaseModel):
     """自选股创建请求。"""
 

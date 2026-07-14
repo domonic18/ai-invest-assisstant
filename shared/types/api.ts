@@ -236,3 +236,287 @@ export interface ApiCollectorLogResponse {
   error_msg: string | null
   metadata: Record<string, unknown> | null
 }
+
+export interface ApiResearchReportResponse {
+  id: number
+  stock_code: string | null
+  title: string
+  summary: string | null
+  content: string | null
+  source: string | null
+  source_url: string | null
+  publish_date: string | null
+  sentiment: number | null
+  keywords: string[] | null
+  industry_tags: string[] | null
+  extra: Record<string, unknown>
+  created_at: string
+}
+
+export interface ApiResearchReportListRequest {
+  stock_code?: string | null
+  q?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  page?: number
+  page_size?: number
+}
+
+export interface ApiSectorFundFlowResponse {
+  sector_code: string
+  sector_name: string
+  sector_type: string
+  trade_date: string
+  main_net_inflow: number | null
+  super_large_net: number | null
+  large_net: number | null
+  medium_net: number | null
+  small_net: number | null
+  top_stock_code: string | null
+  top_stock_name: string | null
+  created_at: string
+}
+
+export interface ApiHotspotListRequest {
+  sector_type?: string | null
+  trade_date?: string | null
+  page?: number
+  page_size?: number
+}
+
+export interface ApiBalanceSheetResponse {
+  stock_code: string
+  report_date: string
+  report_type: string
+  total_assets: number | null
+  current_assets: number | null
+  cash_equivalents: number | null
+  accounts_receivable: number | null
+  inventory: number | null
+  fixed_assets: number | null
+  intangible_assets: number | null
+  goodwill: number | null
+  total_liabilities: number | null
+  current_liabilities: number | null
+  long_term_debt: number | null
+  total_equity: number | null
+  paid_in_capital: number | null
+  retained_earnings: number | null
+  created_at: string
+}
+
+export interface ApiIncomeStatementResponse {
+  stock_code: string
+  report_date: string
+  report_type: string
+  total_revenue: number | null
+  operating_cost: number | null
+  selling_expense: number | null
+  admin_expense: number | null
+  rd_expense: number | null
+  finance_expense: number | null
+  operating_profit: number | null
+  net_profit: number | null
+  net_profit_deducted: number | null
+  eps: number | null
+  created_at: string
+}
+
+export interface ApiCashFlowStatementResponse {
+  stock_code: string
+  report_date: string
+  report_type: string
+  cf_operations: number | null
+  cf_investing: number | null
+  cf_financing: number | null
+  net_cash_flow: number | null
+  free_cash_flow: number | null
+  created_at: string
+}
+
+export interface ApiFinancialHealthResponse {
+  stock_code: string
+  report_date: string | null
+  report_type: string | null
+  balance_sheet: ApiBalanceSheetResponse | null
+  income_statement: ApiIncomeStatementResponse | null
+  cash_flow_statement: ApiCashFlowStatementResponse | null
+  metrics: Record<string, number | null>
+}
+
+export interface ApiAdminUserResponse {
+  id: number
+  username: string
+  email: string
+  role: string
+  is_active: boolean
+  last_login_at: string | null
+  created_at: string
+}
+
+export interface ApiAdminUserCreateRequest {
+  username: string
+  email: string
+  password: string
+  role?: string
+  is_active?: boolean
+}
+
+export interface ApiAdminUserUpdateRequest {
+  username?: string
+  email?: string
+  role?: string
+  is_active?: boolean
+}
+
+export interface ApiAdminUserResetPasswordRequest {
+  password: string
+}
+
+export interface ApiAdminStockResponse {
+  id: number
+  stock_code: string
+  stock_name: string
+  market: string
+  industry_l1: string | null
+  industry_l2: string | null
+  industry_l3: string | null
+  listing_date: string | null
+  created_at: string
+}
+
+export interface ApiAdminStockCreateRequest {
+  stock_code: string
+  stock_name: string
+  market: string
+  industry_l1?: string
+  industry_l2?: string
+  industry_l3?: string
+  listing_date?: string
+}
+
+export interface ApiAdminStockUpdateRequest {
+  stock_name?: string
+  market?: string
+  industry_l1?: string
+  industry_l2?: string
+  industry_l3?: string
+  listing_date?: string
+}
+
+export interface ApiAdminReportResponse {
+  id: number
+  file_path: string
+  original_name: string | null
+  file_type: string
+  stock_code: string | null
+  report_date: string | null
+  report_type: string | null
+  broker: string | null
+  file_size: number | null
+  md5_hash: string | null
+  download_url: string | null
+  download_count: number
+  uploaded_at: string
+}
+
+export interface ApiAdminReportCreateRequest {
+  file_path: string
+  original_name?: string
+  file_type: string
+  stock_code?: string
+  report_date?: string
+  report_type?: string
+  broker?: string
+  file_size?: number
+  md5_hash?: string
+  download_url?: string
+}
+
+export interface ApiAdminReportUpdateRequest {
+  original_name?: string
+  file_type?: string
+  stock_code?: string
+  report_date?: string
+  report_type?: string
+  broker?: string
+  file_size?: number
+  md5_hash?: string
+  download_url?: string
+}
+
+export interface ApiAdminNewsResponse {
+  id: number
+  stock_code: string | null
+  doc_type: string
+  title: string
+  summary: string | null
+  content: string | null
+  source: string | null
+  source_url: string | null
+  publish_date: string | null
+  sentiment: number | null
+  keywords: string[] | null
+  industry_tags: string[] | null
+  extra: Record<string, unknown>
+  created_at: string
+}
+
+export interface ApiAdminNewsCreateRequest {
+  stock_code?: string
+  doc_type: string
+  title: string
+  summary?: string
+  content?: string
+  source?: string
+  source_url?: string
+  publish_date?: string
+  sentiment?: number
+  keywords?: string[]
+  industry_tags?: string[]
+  extra?: Record<string, unknown>
+}
+
+export interface ApiAdminNewsUpdateRequest {
+  stock_code?: string
+  doc_type?: string
+  title?: string
+  summary?: string
+  content?: string
+  source?: string
+  source_url?: string
+  publish_date?: string
+  sentiment?: number
+  keywords?: string[]
+  industry_tags?: string[]
+  extra?: Record<string, unknown>
+}
+
+export interface ApiAdminTaskResponse {
+  id: number
+  task_name: string
+  task_type: string
+  source: string
+  schedule: string | null
+  is_active: boolean
+  last_run_at: string | null
+  last_status: string
+  last_error: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ApiAdminTaskCreateRequest {
+  task_name: string
+  task_type: string
+  source: string
+  schedule?: string
+  is_active?: boolean
+}
+
+export interface ApiAdminTaskUpdateRequest {
+  task_type?: string
+  source?: string
+  schedule?: string
+  is_active?: boolean
+}

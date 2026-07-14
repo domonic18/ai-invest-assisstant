@@ -11,6 +11,7 @@ class StockBasicResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    id: int
     stock_code: str
     stock_name: str
     market: str
@@ -18,6 +19,13 @@ class StockBasicResponse(BaseModel):
     industry_l2: str | None = None
     industry_l3: str | None = None
     listing_date: date | None = None
+    full_name: str | None = None
+    legal_person: str | None = None
+    website: str | None = None
+    registered_capital: Decimal | None = None
+    business_scope: str | None = None
+    province: str | None = None
+    city: str | None = None
 
 
 class StockSearchRequest(BaseModel):
@@ -25,6 +33,29 @@ class StockSearchRequest(BaseModel):
 
     q: str = Field(..., min_length=1, max_length=50)
     limit: int = Field(default=20, ge=1, le=100)
+
+
+class AdminStockCreate(BaseModel):
+    """后台创建股票请求。"""
+
+    stock_code: str = Field(..., min_length=6, max_length=10)
+    stock_name: str = Field(..., max_length=50)
+    market: str = Field(..., pattern="^(sh|sz|bj)$")
+    industry_l1: str | None = Field(None, max_length=50)
+    industry_l2: str | None = Field(None, max_length=50)
+    industry_l3: str | None = Field(None, max_length=50)
+    listing_date: date | None = None
+
+
+class AdminStockUpdate(BaseModel):
+    """后台更新股票请求。"""
+
+    stock_name: str | None = Field(None, max_length=50)
+    market: str | None = Field(None, pattern="^(sh|sz|bj)$")
+    industry_l1: str | None = Field(None, max_length=50)
+    industry_l2: str | None = Field(None, max_length=50)
+    industry_l3: str | None = Field(None, max_length=50)
+    listing_date: date | None = None
 
 
 class KlineDataResponse(BaseModel):

@@ -11,6 +11,7 @@ class TestStocksEndpoints:
                 "StockBasic",
                 (object,),
                 {
+                    "id": 1,
                     "stock_code": "000001",
                     "stock_name": "平安银行",
                     "market": "sz",
@@ -18,6 +19,13 @@ class TestStocksEndpoints:
                     "industry_l2": "股份制银行",
                     "industry_l3": "银行III",
                     "listing_date": None,
+                    "full_name": None,
+                    "legal_person": None,
+                    "website": None,
+                    "registered_capital": None,
+                    "business_scope": None,
+                    "province": None,
+                    "city": None,
                 },
             )()
         ]
