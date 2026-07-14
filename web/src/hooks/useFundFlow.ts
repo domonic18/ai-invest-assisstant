@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { fetchFundFlow } from '@/api/fundFlow'
+import { fetchFundFlow, type FundFlowParams } from '@/api/fundFlow'
 
-export function useFundFlow(stockCode?: string, limit = 10) {
+export function useFundFlow(params: FundFlowParams = {}) {
   return useQuery({
-    queryKey: ['fund-flow', stockCode, limit],
-    queryFn: () => fetchFundFlow({ stockCode, pageSize: limit }),
+    queryKey: ['fund-flow', params],
+    queryFn: () => fetchFundFlow(params),
   })
 }

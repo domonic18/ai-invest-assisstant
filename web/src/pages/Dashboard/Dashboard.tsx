@@ -10,7 +10,7 @@ import { formatNumber, formatPercent } from '@/utils/formatters'
 
 export function Dashboard() {
   const { data: watchlist, isLoading: watchlistLoading } = useWatchlist()
-  const { data: fundFlow, isLoading: fundFlowLoading } = useFundFlow(undefined, 5)
+  const { data: fundFlow, isLoading: fundFlowLoading } = useFundFlow({ pageSize: 5 })
 
   const fundFlowColumns = [
     { title: '股票代码', dataIndex: 'code', key: 'code' },

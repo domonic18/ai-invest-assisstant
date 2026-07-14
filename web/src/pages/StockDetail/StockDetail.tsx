@@ -1,10 +1,100 @@
-import { HeartOutlined, HeartTwoTone } from '@ant-design/icons'
-import { Button, Card, Space, Spin, Tabs, Tag, Typography } from 'antd'
+import { FileTextOutlined, HeartOutlined, HeartTwoTone, WalletOutlined } from '@ant-design/icons'
+import { Button, Card, Empty, List, Space, Spin, Statistic, Tabs, Tag, Typography } from 'antd'
 import { useParams } from 'react-router-dom'
 
 import { KlineChart } from '@/components/charts/KlineChart'
+import { useResearch } from '@/hooks/useResearch'
 import { useKline, useStockDetail } from '@/hooks/useStocks'
+import { useFinancial } from '@/hooks/useFinancial'
 import { useAddWatchlistItem, useWatchlist } from '@/hooks/useWatchlist'
+import type { ResearchReport } from '@ai-invest/shared'
+
+const METRIC_LABELS: Record<string, string> = {
+  debt_ratio: '资产负债率',
+  current_ratio: '流动比率',
+  roe: '净资产收益率 (ROE)',
+  gross_margin: '毛利率',
+  net_margin: '净利率',
+  operating_cf_ratio: '经营现金流/营收',
+}
+
+function StockFinancial({ code }: { code: string }) {
+  const { data, isLoading } = useFinancial(code)
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-20">
+        <Spin size="large" />
+      </div>
+    )
+  }
+
+  if (!data) {
+    return <Empty description="暂无财务数据" />
+  }
+
+  const renderPercent = (value: number | null) =>
+    value === null ? '-' : `${(value * 100).toFixed(2)}%`
+
+  return (
+    <div className="space-y-4">
+      <Space>
+        <Tag>报告期：{data.reportDate || '-'}</Tag>
+        <Tag>类型：{data.reportType || '-'}</Tag>
+      </Space>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Object.entries(data.metrics).map(([key, value]) => (
+          <Card key={key} variant="borderless">
+            <Statistic title={METRIC_LABELS[key] || key} value={renderPercent(value)} />
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function StockResearch({ code }: { code: string }) {
+  const { data, isLoading } = useResearch({ stockCode: code, pageSize: 5 })
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-20">
+        <Spin size="large" />
+      </div>
+    )
+  }
+
+  if (!data?.items.length) {
+    return <Empty description="暂无相关研报" />
+  }
+
+  return (
+    <List
+      dataSource={data.items}
+      renderItem={(item: ResearchReport) => (
+        <List.Item>
+          <List.Item.Meta
+            title={
+              <Space>
+                <FileTextOutlined />
+                <span>{item.title}</span>
+              </Space>
+            }
+            description={
+              <Space direction="vertical" size={0}>
+                <Typography.Text type="secondary">
+                  {item.source || '未知来源'} · {item.publishDate || '-'}
+                </Typography.Text>
+                {item.summary && <Typography.Paragraph>{item.summary}</Typography.Paragraph>}
+              </Space>
+            }
+          />
+        </List.Item>
+      )}
+    />
+  )
+}
 
 export function StockDetail() {
   const { code } = useParams<{ code?: string }>()
@@ -53,19 +143,29 @@ export function StockDetail() {
     },
     {
       key: 'financial',
-      label: '财务体检',
+      label: (
+        <Space>
+          <WalletOutlined />
+          财务体检
+        </Space>
+      ),
       children: (
         <Card variant="borderless">
-          <Typography.Text type="secondary">财务体检功能开发中，敬请期待。</Typography.Text>
+          <StockFinancial code={stockCode} />
         </Card>
       ),
     },
     {
       key: 'research',
-      label: '研报观点',
+      label: (
+        <Space>
+          <FileTextOutlined />
+          研报观点
+        </Space>
+      ),
       children: (
         <Card variant="borderless">
-          <Typography.Text type="secondary">研报观点功能开发中，敬请期待。</Typography.Text>
+          <StockResearch code={stockCode} />
         </Card>
       ),
     },

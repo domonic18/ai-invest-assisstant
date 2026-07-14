@@ -4,6 +4,7 @@ import type {
   ApiAdminStockResponse,
   ApiAdminTaskResponse,
   ApiAdminUserResponse,
+  ApiAuctionDataResponse,
   ApiAuthResponse,
   ApiBalanceSheetResponse,
   ApiCashFlowStatementResponse,
@@ -30,6 +31,7 @@ import type {
   AdminStock,
   AdminTask,
   AdminUser,
+  AuctionData,
   AuthResponse,
   BalanceSheet,
   CashFlowStatement,
@@ -92,6 +94,19 @@ export function mapKlineData(dto: ApiKlineDataResponse): KlineData {
     close: Number(dto.close),
     volume: Number(dto.volume),
     amount: Number(dto.amount),
+  }
+}
+
+export function mapAuctionData(dto: ApiAuctionDataResponse): AuctionData {
+  return {
+    date: dto.trade_date,
+    time: dto.match_time,
+    price: Number(dto.price),
+    volume: Number(dto.volume),
+    bidPrices: dto.bid_prices,
+    bidVolumes: dto.bid_volumes,
+    askPrices: dto.ask_prices,
+    askVolumes: dto.ask_volumes,
   }
 }
 
