@@ -69,23 +69,33 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
 
 
 async def seed_default_channels(session: AsyncSession) -> None:
-    """Insert default channel rows for any missing sources.
+    """Insert default channel rows for any missing sources and merge default
+    supported data types into existing default channels.
 
-    This is idempotent: existing rows are left untouched.
+    This is idempotent: existing rows are updated to include any new default
+    data types, but admin-added types and other customizations are preserved.
     """
     from sqlalchemy import select
 
     from app.models.collector_channel_config import CollectorChannelConfig
 
     existing = {
-        row[0]
+        row.source: row
         for row in (
-            await session.execute(select(CollectorChannelConfig.source))
-        ).all()
+            await session.execute(select(CollectorChannelConfig))
+        ).scalars().all()
     }
     inserted = 0
+    updated = 0
     for data in DEFAULT_CHANNELS:
         if data["source"] in existing:
+            config = existing[data["source"]]
+            default_types = set(data.get("supported_data_types", []))
+            current_types = set(config.supported_data_types or [])
+            merged_types = sorted(current_types | default_types)
+            if merged_types != sorted(current_types):
+                config.supported_data_types = merged_types
+                updated += 1
             continue
         session.add(
             CollectorChannelConfig(
@@ -98,9 +108,11 @@ async def seed_default_channels(session: AsyncSession) -> None:
             )
         )
         inserted += 1
-    if inserted:
+    if inserted or updated:
         await session.commit()
-    logger.info("collector_default_channels_seeded", inserted=inserted)
+    logger.info(
+        "collector_default_channels_seeded", inserted=inserted, updated=updated
+    )
 
 
 async def get_channel_config(
