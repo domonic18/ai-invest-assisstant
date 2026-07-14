@@ -1,11 +1,12 @@
-FROM python:3.11-slim AS backend-builder
+FROM python:3.11-slim-bookworm AS backend-builder
 
 WORKDIR /app
 COPY backend/pyproject.toml .
-RUN pip install --no-cache-dir -e .
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple \
+    && pip install --no-cache-dir -e .
 COPY backend/ .
 
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
