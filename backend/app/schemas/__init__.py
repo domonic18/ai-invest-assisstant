@@ -13,13 +13,39 @@ from app.schemas.collector_channel_config import (
     CollectorChannelConfigResponse,
     CollectorChannelConfigUpdate,
 )
+from app.schemas.collector_task import (
+    CollectorTaskCreate,
+    CollectorTaskResponse,
+    CollectorTaskUpdate,
+)
+from app.schemas.file_metadata import (
+    FileMetadataCreate,
+    FileMetadataResponse,
+    FileMetadataUpdate,
+)
+from app.schemas.financial import (
+    FinancialHealthRequest,
+    FinancialHealthResponse,
+)
 from app.schemas.llm_config import (
     LLMConfigCreate,
     LLMConfigResponse,
     LLMConfigTestResponse,
     LLMConfigUpdate,
 )
+from app.schemas.news_announcement import (
+    NewsAnnouncementResponse,
+    ResearchReportDetailResponse,
+    ResearchReportListRequest,
+    ResearchReportResponse,
+)
+from app.schemas.sector_fund_flow import (
+    HotspotListRequest,
+    SectorFundFlowResponse,
+)
 from app.schemas.stock import (
+    AdminStockCreate,
+    AdminStockUpdate,
     AuctionDataResponse,
     FundFlowResponse,
     KlineDataResponse,
@@ -28,7 +54,14 @@ from app.schemas.stock import (
     StockBasicResponse,
     StockSearchRequest,
 )
-from app.schemas.user import UserResponse, WatchlistItemCreate, WatchlistItemResponse
+from app.schemas.user import (
+    AdminUserCreate,
+    AdminUserResetPassword,
+    AdminUserUpdate,
+    UserResponse,
+    WatchlistItemCreate,
+    WatchlistItemResponse,
+)
 
 __all__ = [
     "AuthResponse",
@@ -37,8 +70,13 @@ __all__ = [
     "UserResponse",
     "WatchlistItemCreate",
     "WatchlistItemResponse",
+    "AdminUserCreate",
+    "AdminUserUpdate",
+    "AdminUserResetPassword",
     "StockBasicResponse",
     "StockSearchRequest",
+    "AdminStockCreate",
+    "AdminStockUpdate",
     "KlineDataResponse",
     "AuctionDataResponse",
     "FundFlowResponse",
@@ -56,4 +94,18 @@ __all__ = [
     "LLMConfigUpdate",
     "LLMConfigResponse",
     "LLMConfigTestResponse",
+    "NewsAnnouncementResponse",
+    "ResearchReportResponse",
+    "ResearchReportDetailResponse",
+    "ResearchReportListRequest",
+    "SectorFundFlowResponse",
+    "HotspotListRequest",
+    "FinancialHealthResponse",
+    "FinancialHealthRequest",
+    "FileMetadataCreate",
+    "FileMetadataUpdate",
+    "FileMetadataResponse",
+    "CollectorTaskCreate",
+    "CollectorTaskUpdate",
+    "CollectorTaskResponse",
 ]

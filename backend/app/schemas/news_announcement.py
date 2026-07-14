@@ -65,3 +65,28 @@ class ResearchReportListRequest(BaseModel):
     end_date: date | None = None
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
+
+
+class ResearchReportResponse(BaseModel):
+    """Response schema for a research report in list view."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    stock_code: str | None = None
+    title: str
+    summary: str | None = None
+    source: str | None = None
+    source_url: str | None = None
+    publish_date: datetime | None = None
+    sentiment: Decimal | None = None
+    keywords: list[str] | None = None
+    industry_tags: list[str] | None = None
+    extra: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class ResearchReportDetailResponse(ResearchReportResponse):
+    """Response schema for research report detail, including full content."""
+
+    content: str | None = None
