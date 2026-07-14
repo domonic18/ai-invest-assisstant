@@ -185,7 +185,7 @@ CREATE INDEX idx_cash_flow_code_date ON cash_flow_statement(stock_code, report_d
 CREATE TABLE news_announcement (
     id            BIGSERIAL PRIMARY KEY,
     stock_code    VARCHAR(10),
-    doc_type      VARCHAR(20) NOT NULL CHECK (doc_type IN ('news', 'announcement', 'research')),
+    doc_type      VARCHAR(20) NOT NULL CHECK (doc_type IN ('news', 'announcement', 'research', 'financial_report')),
     title         VARCHAR(500) NOT NULL,
     summary       TEXT,
     content       TEXT,
@@ -426,6 +426,23 @@ ALTER TABLE stock_basic
 ALTER TABLE news_announcement
     ADD COLUMN IF NOT EXISTS extra JSONB DEFAULT '{}'::jsonb;
 
+-- 扩展 doc_type 枚举以支持财报采集
+DO $$
+BEGIN
+    ALTER TABLE news_announcement
+        DROP CONSTRAINT IF EXISTS news_announcement_doc_type_check;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'news_announcement_doc_type_check'
+          AND conrelid = 'news_announcement'::regclass
+    ) THEN
+        ALTER TABLE news_announcement
+            ADD CONSTRAINT news_announcement_doc_type_check
+            CHECK (doc_type IN ('news', 'announcement', 'research', 'financial_report'));
+    END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS sector_fund_flow (
     sector_code      VARCHAR(20)  NOT NULL,
     sector_name      VARCHAR(100) NOT NULL,
@@ -473,3 +490,49 @@ CREATE TABLE IF NOT EXISTS macro_indicator (
     UNIQUE (indicator_name, period_type, publish_date)
 );
 CREATE INDEX IF NOT EXISTS idx_macro_indicator_name_date ON macro_indicator(indicator_name, publish_date DESC);
+
+-- ============================================================
+-- 13. 扩展：IPO 信息、基金持仓
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS ipo_info (
+    id                       BIGSERIAL PRIMARY KEY,
+    stock_code               VARCHAR(10)  NOT NULL,
+    stock_name               VARCHAR(100),
+    listing_date             DATE,
+    subscription_date        DATE,
+    issue_price              DECIMAL(12,3),
+    total_issue_quantity     DECIMAL(20,2),
+    issue_pe_ratio           DECIMAL(12,2),
+    online_winning_rate      DECIMAL(12,4),
+    lottery_result_date      DATE,
+    winning_announcement_date DATE,
+    payment_date             DATE,
+    online_subscription_limit DECIMAL(20,2),
+    online_issue_quantity    DECIMAL(20,2),
+    source                   VARCHAR(50),
+    created_at               TIMESTAMPTZ DEFAULT NOW(),
+
+    UNIQUE (stock_code, subscription_date)
+);
+CREATE INDEX IF NOT EXISTS idx_ipo_info_listing_date ON ipo_info(listing_date DESC);
+CREATE INDEX IF NOT EXISTS idx_ipo_info_subscription_date ON ipo_info(subscription_date DESC);
+
+CREATE TABLE IF NOT EXISTS fund_holdings (
+    id                    BIGSERIAL PRIMARY KEY,
+    stock_code            VARCHAR(10)  NOT NULL,
+    stock_name            VARCHAR(100),
+    report_date           DATE         NOT NULL,
+    holding_fund_count    INT,
+    total_holding_quantity BIGINT,
+    holding_market_value  DECIMAL(20,2),
+    holding_change        VARCHAR(20),
+    holding_change_quantity BIGINT,
+    holding_change_ratio  DECIMAL(8,2),
+    source                VARCHAR(50),
+    created_at            TIMESTAMPTZ DEFAULT NOW(),
+
+    UNIQUE (stock_code, report_date)
+);
+CREATE INDEX IF NOT EXISTS idx_fund_holdings_report_date ON fund_holdings(report_date DESC);
+CREATE INDEX IF NOT EXISTS idx_fund_holdings_stock_code ON fund_holdings(stock_code);

@@ -18,6 +18,9 @@ class CollectorTaskName(str, Enum):
     SECTOR_FUND_FLOW = "sector-fund-flow"
     DRAGON_LIST = "dragon-list"
     RESEARCH_REPORT = "research-report"
+    FINANCIAL_REPORT = "financial-report"
+    IPO_INFO = "ipo-info"
+    FUND_HOLDINGS = "fund-holdings"
     MACRO = "macro"
 
 
@@ -31,6 +34,8 @@ class CollectorTaskRunRequest(BaseModel):
     end_date: str | None = Field(None, max_length=20)
     sector_type: str | None = Field(None, max_length=20)
     indicators: list[str] | None = Field(None, max_length=20)
+    report_types: list[str] | None = Field(None, max_length=20)
+    report_date: str | None = Field(None, max_length=20)
 
 
 class CollectorTaskChannelItem(BaseModel):

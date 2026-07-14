@@ -4,12 +4,54 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pandas as pd
 import pytest
 
+from collector.spiders.cninfo_financial_report import CninfoFinancialReportCollector
+from collector.spiders.cninfo_ipo import CninfoIpoCollector
 from collector.spiders.eastmoney_fund_flow import EastMoneyFundFlowCollector
+from collector.spiders.eastmoney_fund_holdings import EastMoneyFundHoldingsCollector
 from collector.spiders.sina_auction import SinaAuctionCollector
 from collector.spiders.sina_kline import SinaKlineCollector
 from collector.spiders.sina_news import SinaNewsCollector
 from collector.spiders.ths_auction import ThsAuctionCollector
 from collector.spiders.ths_kline import ThsKlineCollector
+
+
+@pytest.mark.unit
+class TestCninfoFinancialReportCollector:
+    @pytest.mark.asyncio
+    async def test_transform_and_validate(self) -> None:
+        collector = CninfoFinancialReportCollector(
+            {"source": "cninfo", "data_type": "financial_report"}
+        )
+        raw = {
+            "stock_code": "000001",
+            "doc_type": "financial_report",
+            "title": "2023年年度报告",
+            "summary": None,
+            "content": None,
+            "source": "cninfo",
+            "source_url": "http://www.cninfo.com.cn/new/disclosure/detail?stockCode=000001",
+            "publish_date": datetime.datetime(2024, 3, 15, 0, 0, 0),
+            "sentiment": None,
+            "keywords": None,
+            "industry_tags": None,
+            "es_id": None,
+            "extra": '{"category": "年报", "pdf_url": "http://www.cninfo.com.cn/new/disclosure/detail?stockCode=000001"}',
+        }
+        item = await collector.transform(raw)
+        assert item["stock_code"] == "000001"
+        assert item["doc_type"] == "financial_report"
+        assert await collector.validate(item) is True
+
+    @pytest.mark.asyncio
+    async def test_validate_rejects_missing_title(self) -> None:
+        collector = CninfoFinancialReportCollector(
+            {"source": "cninfo", "data_type": "financial_report"}
+        )
+        item = {
+            "stock_code": "000001",
+            "publish_date": datetime.datetime(2024, 3, 15, 0, 0, 0),
+        }
+        assert await collector.validate(item) is False
 
 
 @pytest.mark.unit
@@ -167,6 +209,72 @@ class TestSinaAuctionCollector:
         assert snapshot["current"] == "0.000"
         assert snapshot["buy_5_price"] == "0.000"
         mock_get.assert_awaited_once()
+
+
+@pytest.mark.unit
+class TestCninfoIpoCollector:
+    @pytest.mark.asyncio
+    async def test_transform_and_validate(self) -> None:
+        collector = CninfoIpoCollector({"source": "cninfo", "data_type": "ipo_info"})
+        raw = {
+            "stock_code": "001387",
+            "stock_name": "Test IPO",
+            "listing_date": datetime.date(2024, 1, 15),
+            "subscription_date": datetime.date(2024, 1, 5),
+            "issue_price": 10.0,
+            "total_issue_quantity": 5000000.0,
+            "issue_pe_ratio": 22.5,
+            "online_winning_rate": 0.03,
+            "lottery_result_date": datetime.date(2024, 1, 8),
+            "winning_announcement_date": datetime.date(2024, 1, 9),
+            "payment_date": datetime.date(2024, 1, 10),
+            "online_subscription_limit": 10000.0,
+            "online_issue_quantity": 4500000.0,
+        }
+        item = await collector.transform(raw)
+        assert item["stock_code"] == "001387"
+        assert item["subscription_date"] == datetime.date(2024, 1, 5)
+        assert item["source"] == "cninfo"
+        assert await collector.validate(item) is True
+
+    @pytest.mark.asyncio
+    async def test_validate_rejects_missing_subscription_date(self) -> None:
+        collector = CninfoIpoCollector({"source": "cninfo", "data_type": "ipo_info"})
+        item = {"stock_code": "001387"}
+        assert await collector.validate(item) is False
+
+
+@pytest.mark.unit
+class TestEastMoneyFundHoldingsCollector:
+    @pytest.mark.asyncio
+    async def test_transform_and_validate(self) -> None:
+        collector = EastMoneyFundHoldingsCollector(
+            {"source": "eastmoney", "data_type": "fund_holdings"}
+        )
+        raw = {
+            "stock_code": "000001",
+            "stock_name": "平安银行",
+            "report_date": datetime.date(2025, 3, 31),
+            "holding_fund_count": 100,
+            "total_holding_quantity": 5000000,
+            "holding_market_value": 50000000.0,
+            "holding_change": "增持",
+            "holding_change_quantity": 100000,
+            "holding_change_ratio": 0.02,
+        }
+        item = await collector.transform(raw)
+        assert item["stock_code"] == "000001"
+        assert item["report_date"] == datetime.date(2025, 3, 31)
+        assert item["source"] == "eastmoney"
+        assert await collector.validate(item) is True
+
+    @pytest.mark.asyncio
+    async def test_validate_rejects_missing_report_date(self) -> None:
+        collector = EastMoneyFundHoldingsCollector(
+            {"source": "eastmoney", "data_type": "fund_holdings"}
+        )
+        item = {"stock_code": "000001"}
+        assert await collector.validate(item) is False
 
 
 @pytest.mark.unit

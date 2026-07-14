@@ -32,7 +32,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "name": "新浪财经",
         "base_url": "https://hq.sinajs.cn",
         "is_enabled": True,
-        "supported_data_types": ["kline", "auction", "macro"],
+        "supported_data_types": ["kline", "auction", "macro", "news"],
         "extra": {},
     },
     {
@@ -42,10 +42,10 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "is_enabled": True,
         "supported_data_types": [
             "fund-flow",
-            "news",
             "sector-fund-flow",
             "dragon-list",
             "research-report",
+            "fund-holdings",
         ],
         "extra": {},
     },
@@ -62,7 +62,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "name": "巨潮资讯",
         "base_url": "http://webapi.cninfo.com.cn",
         "is_enabled": True,
-        "supported_data_types": ["company-profile", "disclosure"],
+        "supported_data_types": ["company-profile", "disclosure", "financial-report", "ipo-info"],
         "extra": {},
     },
 ]

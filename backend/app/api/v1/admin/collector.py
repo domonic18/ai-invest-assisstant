@@ -36,6 +36,9 @@ _TASK_DATA_TYPE: dict[str, str] = {
     "sector-fund-flow": "sector_fund_flow",
     "dragon-list": "dragon_list",
     "research-report": "research_report",
+    "financial-report": "financial_report",
+    "ipo-info": "ipo_info",
+    "fund-holdings": "fund_holdings",
     "macro": "macro_indicator",
 }
 
@@ -49,6 +52,8 @@ async def _run_collector_task(
     end_date: str | None,
     sector_type: str | None,
     indicators: list[str] | None,
+    report_types: list[str] | None,
+    report_date: str | None,
 ) -> None:
     """Run a collector task in the background and persist a log entry."""
     started_at = datetime.now(timezone.utc)
@@ -89,6 +94,15 @@ async def _run_collector_task(
             kwargs["sector_type"] = sector_type
         if task_name == "macro" and indicators:
             kwargs["indicators"] = indicators
+        if task_name == "financial-report":
+            if start_date:
+                kwargs["start_date"] = start_date
+            if end_date:
+                kwargs["end_date"] = end_date
+            if report_types:
+                kwargs["report_types"] = report_types
+        if task_name == "fund-holdings" and report_date:
+            kwargs["report_date"] = report_date
 
         result: CollectResult = await coro(**kwargs)
     except Exception as exc:  # noqa: BLE001
@@ -148,6 +162,8 @@ async def run_collector_task(
     end_date = body.end_date if body else None
     sector_type = body.sector_type if body else None
     indicators = body.indicators if body else None
+    report_types = body.report_types if body else None
+    report_date = body.report_date if body else None
     asyncio.create_task(
         _run_collector_task(
             task_name.value,
@@ -158,6 +174,8 @@ async def run_collector_task(
             end_date=end_date,
             sector_type=sector_type,
             indicators=indicators,
+            report_types=report_types,
+            report_date=report_date,
         )
     )
     return CollectorRunResponse(task_name=task_name.value)
