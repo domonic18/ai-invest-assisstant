@@ -146,10 +146,63 @@ export interface HotspotFilters {
   tradeDate?: string
 }
 
+export interface BalanceSheet {
+  stockCode: string
+  reportDate: string
+  reportType: string
+  totalAssets: number | null
+  currentAssets: number | null
+  cashEquivalents: number | null
+  accountsReceivable: number | null
+  inventory: number | null
+  fixedAssets: number | null
+  intangibleAssets: number | null
+  goodwill: number | null
+  totalLiabilities: number | null
+  currentLiabilities: number | null
+  longTermDebt: number | null
+  totalEquity: number | null
+  paidInCapital: number | null
+  retainedEarnings: number | null
+  createdAt: string
+}
+
+export interface IncomeStatement {
+  stockCode: string
+  reportDate: string
+  reportType: string
+  totalRevenue: number | null
+  operatingCost: number | null
+  sellingExpense: number | null
+  adminExpense: number | null
+  rdExpense: number | null
+  financeExpense: number | null
+  operatingProfit: number | null
+  netProfit: number | null
+  netProfitDeducted: number | null
+  eps: number | null
+  createdAt: string
+}
+
+export interface CashFlowStatement {
+  stockCode: string
+  reportDate: string
+  reportType: string
+  cfOperations: number | null
+  cfInvesting: number | null
+  cfFinancing: number | null
+  netCashFlow: number | null
+  freeCashFlow: number | null
+  createdAt: string
+}
+
 export interface FinancialHealth {
   stockCode: string
   reportDate: string | null
   reportType: string | null
+  balanceSheet: BalanceSheet | null
+  incomeStatement: IncomeStatement | null
+  cashFlowStatement: CashFlowStatement | null
   metrics: Record<string, number | null>
 }
 

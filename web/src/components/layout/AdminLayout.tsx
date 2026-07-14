@@ -1,8 +1,13 @@
 import {
+  BarChartOutlined,
+  ContainerOutlined,
   DashboardOutlined,
+  FileTextOutlined,
   PlayCircleOutlined,
+  ReadOutlined,
   RobotOutlined,
   SettingOutlined,
+  TeamOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { Layout, Menu } from 'antd'
@@ -17,6 +22,31 @@ const ADMIN_MENU_ITEMS: MenuItem[] = [
     key: '/admin',
     icon: <DashboardOutlined />,
     label: '管理总览',
+  },
+  {
+    key: '/admin/users',
+    icon: <TeamOutlined />,
+    label: '用户管理',
+  },
+  {
+    key: '/admin/stocks',
+    icon: <BarChartOutlined />,
+    label: '股票管理',
+  },
+  {
+    key: '/admin/reports',
+    icon: <FileTextOutlined />,
+    label: '研报管理',
+  },
+  {
+    key: '/admin/news',
+    icon: <ReadOutlined />,
+    label: '资讯管理',
+  },
+  {
+    key: '/admin/tasks',
+    icon: <ContainerOutlined />,
+    label: '任务管理',
   },
   {
     key: '/admin/llm-configs',
@@ -41,7 +71,9 @@ export function AdminLayout() {
 
   const selectedKey =
     ADMIN_MENU_ITEMS.find((item) =>
-      item?.key ? location.pathname.startsWith(String(item.key)) : false,
+      item?.key && item.key !== '/admin'
+        ? location.pathname.startsWith(String(item.key))
+        : false,
     )?.key ?? '/admin'
 
   return (

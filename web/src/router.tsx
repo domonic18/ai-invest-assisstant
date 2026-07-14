@@ -4,12 +4,18 @@ import { ProtectedAdmin } from './components/auth/ProtectedAdmin'
 import { ProtectedLayout } from './components/auth/ProtectedLayout'
 import { RedirectIfAuthenticated } from './components/auth/RedirectIfAuthenticated'
 import { Admin } from './pages/Admin/Admin'
+import { AdminNews } from './pages/Admin/News/News'
+import { AdminReports } from './pages/Admin/Reports/Reports'
+import { AdminStocks } from './pages/Admin/Stocks/Stocks'
+import { AdminTasks } from './pages/Admin/Tasks/Tasks'
+import { AdminUsers } from './pages/Admin/Users/Users'
 import { AuctionReview } from './pages/AuctionReview/AuctionReview'
 import { CapitalFlow } from './pages/CapitalFlow/CapitalFlow'
 import { ChainAnalysis } from './pages/ChainAnalysis/ChainAnalysis'
 import { Collector } from './pages/Admin/Collector'
 import { CollectorChannelConfig } from './pages/Admin/CollectorChannelConfig/CollectorChannelConfig'
 import { Dashboard } from './pages/Dashboard/Dashboard'
+import { Financial } from './pages/Financial/Financial'
 import { Hotspot } from './pages/Hotspot/Hotspot'
 import { LLMConfig } from './pages/Admin/LLMConfig/LLMConfig'
 import { Login } from './pages/Login/Login'
@@ -30,12 +36,18 @@ export const router = createBrowserRouter([
       { path: 'capital-flow', element: <CapitalFlow /> },
       { path: 'auction', element: <AuctionReview /> },
       { path: 'research', element: <Research /> },
+      { path: 'financial/:code', element: <Financial /> },
       { path: 'settings', element: <Settings /> },
       {
         path: 'admin',
         element: <ProtectedAdmin />,
         children: [
           { index: true, element: <Admin /> },
+          { path: 'users', element: <AdminUsers /> },
+          { path: 'stocks', element: <AdminStocks /> },
+          { path: 'reports', element: <AdminReports /> },
+          { path: 'news', element: <AdminNews /> },
+          { path: 'tasks', element: <AdminTasks /> },
           { path: 'llm-configs', element: <LLMConfig /> },
           { path: 'collector-channels', element: <CollectorChannelConfig /> },
           { path: 'collector', element: <Collector /> },
