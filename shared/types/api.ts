@@ -216,6 +216,8 @@ export interface ApiCollectorTaskRunRequest {
   end_date?: string | null
   sector_type?: string | null
   indicators?: string[] | null
+  report_types?: string[] | null
+  report_date?: string | null
 }
 
 export interface ApiCollectorRunResponse {

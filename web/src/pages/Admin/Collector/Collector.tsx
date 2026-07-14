@@ -21,6 +21,9 @@ const TASK_OPTIONS: CollectorTaskOption[] = [
   { key: 'sector-fund-flow', label: '板块资金流向采集' },
   { key: 'dragon-list', label: '龙虎榜采集' },
   { key: 'research-report', label: '个股研报采集' },
+  { key: 'financial-report', label: '财报采集' },
+  { key: 'ipo-info', label: 'IPO 信息采集' },
+  { key: 'fund-holdings', label: '基金持仓采集' },
   { key: 'macro', label: '宏观经济采集' },
 ]
 
@@ -54,6 +57,8 @@ export function Collector() {
         end_date: options.endDate || undefined,
         sector_type: options.sectorType || undefined,
         indicators: options.indicators,
+        report_types: options.reportTypes,
+        report_date: options.reportDate || undefined,
       }
       await runMutation.mutateAsync({ taskName, body })
       message.success(`已触发 ${TASK_OPTIONS.find((t) => t.key === taskName)?.label ?? taskName}`)

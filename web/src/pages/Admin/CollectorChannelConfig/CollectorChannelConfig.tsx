@@ -44,6 +44,9 @@ const DATA_TYPE_LABEL: Record<CollectorTaskName, string> = {
   'sector-fund-flow': '板块资金流向',
   'dragon-list': '龙虎榜',
   'research-report': '个股研报',
+  'financial-report': '财报',
+  'ipo-info': 'IPO 信息',
+  'fund-holdings': '基金持仓',
   macro: '宏观经济',
 }
 

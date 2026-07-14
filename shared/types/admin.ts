@@ -63,6 +63,9 @@ export type CollectorTaskName =
   | 'sector-fund-flow'
   | 'dragon-list'
   | 'research-report'
+  | 'financial-report'
+  | 'ipo-info'
+  | 'fund-holdings'
   | 'macro'
 
 export interface CollectorTaskChannel {
@@ -79,6 +82,8 @@ export interface CollectorTaskRunOptions {
   endDate?: string | null
   sectorType?: string | null
   indicators?: string[] | null
+  reportTypes?: string[] | null
+  reportDate?: string | null
 }
 
 export interface CollectorLog {

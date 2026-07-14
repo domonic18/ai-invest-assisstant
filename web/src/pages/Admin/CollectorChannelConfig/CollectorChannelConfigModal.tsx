@@ -32,6 +32,9 @@ const DATA_TYPE_OPTIONS: { value: CollectorTaskName; label: string }[] = [
   { value: 'sector-fund-flow', label: '板块资金流向' },
   { value: 'dragon-list', label: '龙虎榜' },
   { value: 'research-report', label: '个股研报' },
+  { value: 'financial-report', label: '财报' },
+  { value: 'ipo-info', label: 'IPO 信息' },
+  { value: 'fund-holdings', label: '基金持仓' },
   { value: 'macro', label: '宏观经济' },
 ]
 

@@ -25,6 +25,8 @@ import type {
   CollectorTaskRunOptions,
 } from '@ai-invest/shared'
 
+const AUTO_RESOLVE_LABEL = '系统自动选择'
+
 interface CollectorTaskModalProps {
   open: boolean
   task: CollectorTaskOption | null
@@ -41,6 +43,8 @@ interface TaskFormValues {
   endDate?: string
   sectorType?: string
   indicators?: string[]
+  reportTypes?: string[]
+  reportDate?: string
 }
 
 const PERIOD_OPTIONS = [
@@ -60,6 +64,13 @@ const MACRO_INDICATOR_OPTIONS = [
   { value: 'gdp', label: 'GDP' },
 ]
 
+const FINANCIAL_REPORT_TYPE_OPTIONS = [
+  { value: '年报', label: '年报' },
+  { value: '半年报', label: '半年报' },
+  { value: '一季报', label: '一季报' },
+  { value: '三季报', label: '三季报' },
+]
+
 function parseSymbols(input: string | undefined): string[] | undefined {
   if (!input) return undefined
   const symbols = input
@@ -77,6 +88,7 @@ export function CollectorTaskModal({
   loading,
 }: CollectorTaskModalProps) {
   const [form] = Form.useForm<TaskFormValues>()
+  const preferredSource = Form.useWatch('preferredSource', form)
   const { data, isLoading, error } = useCollectorTaskChannels(task?.key ?? null)
 
   const channelOptions = useMemo(
@@ -88,6 +100,12 @@ export function CollectorTaskModal({
     [data],
   )
 
+  const selectedChannelName = useMemo(() => {
+    if (!data) return undefined
+    const source = preferredSource ?? data.resolved_source
+    return data.channels.find((c) => c.source === source)?.name ?? source
+  }, [data, preferredSource])
+
   useEffect(() => {
     if (open && data) {
       form.setFieldsValue({
@@ -98,6 +116,8 @@ export function CollectorTaskModal({
         endDate: undefined,
         sectorType: 'industry',
         indicators: ['cpi', 'pmi', 'gdp'],
+        reportTypes: ['年报', '半年报', '一季报', '三季报'],
+        reportDate: undefined,
       })
     }
   }, [open, data, form])
@@ -113,6 +133,8 @@ export function CollectorTaskModal({
         endDate: values.endDate,
         sectorType: values.sectorType,
         indicators: values.indicators,
+        reportTypes: values.reportTypes,
+        reportDate: values.reportDate,
       })
     }
   }
@@ -159,13 +181,15 @@ export function CollectorTaskModal({
               <Space>
                 <ExclamationCircleOutlined />
                 <span>
-                  将使用渠道：
-                  <Tag color="blue">
-                    {data.resolved_source
-                      ? data.channels.find((c) => c.source === data.resolved_source)?.name ??
-                        data.resolved_source
-                      : '无可用渠道'}
+                  {preferredSource ? '已指定渠道：' : '将使用渠道：'}
+                  <Tag color={preferredSource ? 'green' : 'blue'}>
+                    {selectedChannelName || '无可用渠道'}
                   </Tag>
+                  {!preferredSource && data.resolved_source && (
+                    <Typography.Text type="secondary" className="ml-2">
+                      （{AUTO_RESOLVE_LABEL}）
+                    </Typography.Text>
+                  )}
                 </span>
               </Space>
             }
@@ -205,6 +229,28 @@ export function CollectorTaskModal({
                           <Input placeholder="YYYY-MM-DD" />
                         </Form.Item>
                       </>
+                    )}
+                    {task?.key === 'financial-report' && (
+                      <>
+                        <Form.Item label="财报类型" name="reportTypes">
+                          <Checkbox.Group options={FINANCIAL_REPORT_TYPE_OPTIONS} />
+                        </Form.Item>
+                        <Form.Item label="开始日期" name="startDate">
+                          <Input placeholder="YYYY-MM-DD" />
+                        </Form.Item>
+                        <Form.Item label="结束日期" name="endDate">
+                          <Input placeholder="YYYY-MM-DD" />
+                        </Form.Item>
+                      </>
+                    )}
+                    {task?.key === 'fund-holdings' && (
+                      <Form.Item
+                        label="财报日期"
+                        name="reportDate"
+                        help="如 20250331，留空使用默认值"
+                      >
+                        <Input placeholder="YYYYMMDD" />
+                      </Form.Item>
                     )}
                     {task?.key === 'sector-fund-flow' && (
                       <Form.Item label="板块类型" name="sectorType">
