@@ -31,7 +31,8 @@ const STATUS_TAG: Record<string, { color: string; label: string }> = {
   success: { color: 'green', label: '成功' },
   partial: { color: 'orange', label: '部分成功' },
   failed: { color: 'red', label: '失败' },
-  running: { color: 'blue', label: '运行中' },
+  pending: { color: 'gold', label: '排队中' },
+  running: { color: 'processing', label: '运行中' },
   skipped: { color: 'default', label: '跳过' },
 }
 
@@ -61,7 +62,8 @@ export function Collector() {
         report_date: options.reportDate || undefined,
       }
       await runMutation.mutateAsync({ taskName, body })
-      message.success(`已触发 ${TASK_OPTIONS.find((t) => t.key === taskName)?.label ?? taskName}`)
+      const label = TASK_OPTIONS.find((t) => t.key === taskName)?.label ?? taskName
+      message.info(`「${label}」已派发到采集队列，执行状态见下方日志`)
       setModalOpen(false)
     } catch (err) {
       message.error(err instanceof Error ? err.message : '触发失败')

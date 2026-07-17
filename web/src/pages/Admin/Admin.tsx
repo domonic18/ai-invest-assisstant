@@ -27,6 +27,7 @@ const ADMIN_LINKS = [
 const STATUS_COLORS: Record<string, string> = {
   success: 'green',
   failed: 'red',
+  pending: 'gold',
   running: 'blue',
   partial: 'orange',
   skipped: 'default',

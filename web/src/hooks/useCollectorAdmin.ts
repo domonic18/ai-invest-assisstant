@@ -13,6 +13,8 @@ import type {
 
 const COLLECTOR_LOGS_KEY = ['collector-logs'] as const
 
+const IN_FLIGHT_STATUSES = new Set(['pending', 'running'])
+
 export function useCollectorLogs(limit = 50) {
   return useQuery({
     queryKey: [...COLLECTOR_LOGS_KEY, limit],
@@ -20,6 +22,8 @@ export function useCollectorLogs(limit = 50) {
       const data = await fetchCollectorLogs(limit)
       return data.map(mapCollectorLog)
     },
+    refetchInterval: (query) =>
+      query.state.data?.some((log) => IN_FLIGHT_STATUSES.has(log.status)) ? 3000 : false,
   })
 }
 

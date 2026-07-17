@@ -17,6 +17,7 @@ import {
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
 import { useState } from 'react'
+import type { ColumnsType } from 'antd/es/table'
 
 import {
   useAdminReports,
@@ -45,10 +46,10 @@ interface FilterForm {
 }
 
 const FILE_TYPE_OPTIONS = [
-  { label: 'PDF', value: 'pdf' },
-  { label: 'Word', value: 'doc' },
-  { label: 'Excel', value: 'xls' },
-  { label: '其他', value: 'other' },
+  { label: '财报', value: 'financial_report' },
+  { label: '研报', value: 'research_report' },
+  { label: '公告', value: 'announcement' },
+  { label: '图片', value: 'image' },
 ]
 
 function formatFileSize(bytes: number | null): string {
@@ -138,7 +139,7 @@ export function AdminReports() {
     })
   }
 
-  const columns = [
+  const columns: ColumnsType<AdminReport> = [
     { title: '文件路径', dataIndex: 'filePath', key: 'filePath', ellipsis: true },
     { title: '原文件名', dataIndex: 'originalName', key: 'originalName', render: (v: string | null) => v || '-' },
     { title: '类型', dataIndex: 'fileType', key: 'fileType' },
@@ -151,6 +152,8 @@ export function AdminReports() {
     {
       title: '操作',
       key: 'actions',
+      width: 190,
+      fixed: 'right',
       render: (_: unknown, record: AdminReport) => (
         <Space>
           {record.downloadUrl && (
@@ -205,6 +208,7 @@ export function AdminReports() {
         columns={columns}
         rowKey="id"
         loading={isLoading}
+        scroll={{ x: 'max-content' }}
         pagination={{
           current: data?.page,
           pageSize: data?.pageSize,
