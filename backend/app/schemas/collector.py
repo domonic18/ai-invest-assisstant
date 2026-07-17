@@ -60,6 +60,7 @@ class CollectorRunResponse(BaseModel):
 
     task_name: str
     status: str = "accepted"
+    log_id: int | None = None
 
 
 class CollectorLogResponse(BaseModel):

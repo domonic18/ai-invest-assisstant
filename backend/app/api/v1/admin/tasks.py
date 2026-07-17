@@ -1,6 +1,6 @@
 """Admin collector task management API endpoints."""
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +14,7 @@ from app.schemas.collector_task import (
 )
 from app.schemas.stock import PaginatedResponse
 from app.services.admin_task_service import AdminTaskService
+from collector.dispatcher import dispatch_collector_task
 
 router = APIRouter(dependencies=[Depends(get_current_admin_user)])
 
@@ -129,11 +130,19 @@ async def trigger_task(
     task_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> CollectorTaskResponse:
-    """触发采集任务。"""
+    """触发采集任务并将其派发到采集器队列。"""
     task = await AdminTaskService(session).trigger_task(task_id)
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found",
         )
+
+    params: dict[str, Any] = {"preferred_source": task.source}
+    await dispatch_collector_task(
+        session=session,
+        task_name=task.task_type,
+        params=params,
+    )
+    await session.commit()
     return CollectorTaskResponse.model_validate(task)

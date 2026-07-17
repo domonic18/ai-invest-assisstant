@@ -373,11 +373,13 @@ class TestAdminTaskEndpoints:
         response = client.delete("/api/v1/admin/tasks/1")
         assert response.status_code == 204
 
+    @patch("app.api.v1.admin.tasks.dispatch_collector_task")
     @patch("app.api.v1.admin.tasks.AdminTaskService")
-    def test_pause_resume_trigger_task(self, mock_service, admin_client) -> None:
+    def test_pause_resume_trigger_task(self, mock_service, mock_dispatch, admin_client) -> None:
         mock_service.return_value.pause_task = AsyncMock(return_value=_task_mock())
         mock_service.return_value.resume_task = AsyncMock(return_value=_task_mock())
         mock_service.return_value.trigger_task = AsyncMock(return_value=_task_mock())
+        mock_dispatch.return_value = AsyncMock()
         client, _ = admin_client
 
         assert client.post("/api/v1/admin/tasks/1/pause").status_code == 200
