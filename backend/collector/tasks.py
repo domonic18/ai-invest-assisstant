@@ -377,6 +377,22 @@ async def collect_macro(
     )
 
 
+async def collect_quote(
+    symbols: list[str] | None = None,
+    preferred_source: str | None = None,
+) -> CollectResult:
+    """A 股实时行情采集任务入口。"""
+    from collector.spiders.sina_quote import SinaQuoteCollector
+
+    return await _run_collector_for_task(
+        "quote",
+        "quote",
+        {"sina": SinaQuoteCollector},
+        preferred_source,
+        symbols=symbols,
+    )
+
+
 TASK_MAP = {
     "kline": collect_kline,
     "auction": collect_auction,
@@ -391,6 +407,7 @@ TASK_MAP = {
     "ipo-info": collect_ipo_info,
     "fund-holdings": collect_fund_holdings,
     "macro": collect_macro,
+    "quote": collect_quote,
 }
 
 
@@ -467,6 +484,8 @@ def main() -> None:
                 report_date=args.report_date,
                 preferred_source=args.preferred_source,
             )
+        if args.task == "quote":
+            return await collect_quote(preferred_source=args.preferred_source)
         indicators = args.indicators.split(",") if args.indicators else None
         return await collect_macro(
             indicators=indicators,

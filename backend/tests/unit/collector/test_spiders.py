@@ -15,6 +15,7 @@ from collector.spiders.eastmoney_fund_holdings import EastMoneyFundHoldingsColle
 from collector.spiders.sina_auction import SinaAuctionCollector
 from collector.spiders.sina_kline import SinaKlineCollector
 from collector.spiders.sina_news import SinaNewsCollector
+from collector.spiders.sina_quote import SinaQuoteCollector
 from collector.spiders.ths_auction import ThsAuctionCollector
 from collector.spiders.ths_kline import ThsKlineCollector
 
@@ -491,6 +492,123 @@ class TestSinaNewsCollector:
             "publish_date": datetime.datetime(2024, 1, 2, 10, 0, 0),
         }
         assert await collector.validate(item) is False
+
+
+@pytest.mark.unit
+class TestSinaQuoteCollector:
+    @pytest.mark.asyncio
+    async def test_transform_and_validate(self) -> None:
+        collector = SinaQuoteCollector({"source": "sina", "data_type": "quote"})
+        raw = {
+            "stock_code": "000001",
+            "stock_name": "平安银行",
+            "price": 10.5,
+            "change": 0.2,
+            "pct_change": 1.94,
+            "bid": 10.49,
+            "ask": 10.5,
+            "prev_close": 10.3,
+            "open": 10.3,
+            "high": 10.6,
+            "low": 10.2,
+            "volume": 100000.0,
+            "amount": 1050000.0,
+            "timestamp": "15:20:34",
+            "updated_at": "2024-01-02T15:20:34",
+        }
+        item = await collector.transform(raw)
+        assert item["stock_code"] == "000001"
+        assert item["price"] == 10.5
+        assert await collector.validate(item) is True
+
+    @pytest.mark.asyncio
+    async def test_validate_rejects_zero_price(self) -> None:
+        collector = SinaQuoteCollector({"source": "sina", "data_type": "quote"})
+        item = {"stock_code": "000001", "price": 0.0}
+        assert await collector.validate(item) is False
+
+    @pytest.mark.asyncio
+    async def test_collect_filters_symbols(self) -> None:
+        collector = SinaQuoteCollector({"source": "sina", "data_type": "quote"})
+        mock_df = pd.DataFrame(
+            [
+                {
+                    "代码": "sh000001",
+                    "名称": "平安银行",
+                    "最新价": 10.5,
+                    "涨跌额": 0.2,
+                    "涨跌幅": 1.94,
+                    "买入": 10.49,
+                    "卖出": 10.5,
+                    "昨收": 10.3,
+                    "今开": 10.3,
+                    "最高": 10.6,
+                    "最低": 10.2,
+                    "成交量": 100000.0,
+                    "成交额": 1050000.0,
+                    "时间戳": "15:20:34",
+                },
+                {
+                    "代码": "sz000002",
+                    "名称": "万科A",
+                    "最新价": 15.0,
+                    "涨跌额": -0.1,
+                    "涨跌幅": -0.66,
+                    "买入": 14.99,
+                    "卖出": 15.0,
+                    "昨收": 15.1,
+                    "今开": 15.1,
+                    "最高": 15.2,
+                    "最低": 14.9,
+                    "成交量": 200000.0,
+                    "成交额": 3000000.0,
+                    "时间戳": "15:20:34",
+                },
+            ]
+        )
+
+        with patch("akshare.stock_zh_a_spot", return_value=mock_df):
+            raw = await collector.collect(symbols=["000001"])
+
+        assert len(raw) == 1
+        assert raw[0]["stock_code"] == "000001"
+
+    @pytest.mark.asyncio
+    async def test_store_writes_to_redis(self) -> None:
+        collector = SinaQuoteCollector(
+            {"source": "sina", "data_type": "quote", "ttl_seconds": 60}
+        )
+        items = [
+            {
+                "stock_code": "000001",
+                "stock_name": "平安银行",
+                "price": 10.5,
+                "change": 0.2,
+                "pct_change": 1.94,
+                "bid": 10.49,
+                "ask": 10.5,
+                "prev_close": 10.3,
+                "open": 10.3,
+                "high": 10.6,
+                "low": 10.2,
+                "volume": 100000.0,
+                "amount": 1050000.0,
+                "timestamp": "15:20:34",
+                "updated_at": "2024-01-02T15:20:34",
+            }
+        ]
+
+        mock_redis = AsyncMock()
+        mock_redis.close = AsyncMock()
+        with patch("redis.asyncio.from_url", return_value=mock_redis):
+            count = await collector.store(items)
+
+        assert count == 1
+        mock_redis.setex.assert_awaited_once()
+        key, ttl, value = mock_redis.setex.await_args.args
+        assert key == "quote:000001"
+        assert ttl == 60
+        assert "000001" in value
 
 
 @pytest.mark.unit
