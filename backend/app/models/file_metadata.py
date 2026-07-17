@@ -1,6 +1,6 @@
 """SQLAlchemy ORM model for file metadata."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import BIGINT, Date, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -18,7 +18,7 @@ class FileMetadata(Base):
     original_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
     file_type: Mapped[str] = mapped_column(String(20), nullable=False)
     stock_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    report_date: Mapped[datetime | None] = mapped_column(Date, nullable=True)
+    report_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     report_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     broker: Mapped[str | None] = mapped_column(String(100), nullable=True)
     file_size: Mapped[int | None] = mapped_column(BIGINT, nullable=True)

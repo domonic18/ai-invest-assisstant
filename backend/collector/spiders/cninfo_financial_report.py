@@ -1,35 +1,56 @@
-"""CNINFO periodic financial report collector via akshare."""
+"""CNINFO periodic financial report file collector.
 
-import json
-from datetime import date, datetime, timedelta
+Crawls 巨潮资讯 (cninfo.com.cn) for financial report announcements and downloads
+the original PDF files.  The resulting items are passed to storage layers that
+persist the files to MinIO, record metadata, and index them for the knowledge
+base.
+"""
+
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+import structlog
 
-from collector.base import BaseCollector
-from collector.exporters import PostgresExporter
-from collector.pipelines import DataPipeline, DeduplicateStep, NormalizeStep, ValidateStep
-from collector.settings import settings
+from collector.base import BaseCollector, CollectResult, CollectStatus
+
+logger = structlog.get_logger()
 
 DEFAULT_REPORT_TYPES = ["年报", "半年报", "一季报", "三季报"]
 
+_REPORT_CATEGORY_MAP: dict[str, str] = {
+    "年报": "category_ndbg_szsh",
+    "半年报": "category_bndbg_szsh",
+    "一季报": "category_yjdbg_szsh",
+    "三季报": "category_sjdbg_szsh",
+}
+
+_REPORT_TYPE_KEY: dict[str, str] = {
+    "年报": "annual",
+    "半年报": "semi_annual",
+    "一季报": "q1",
+    "三季报": "q3",
+}
+
+_CNINFO_QUERY_URL = "http://www.cninfo.com.cn/new/hisAnnouncement/query"
+_CNINFO_TOPSEARCH_URL = "http://www.cninfo.com.cn/new/information/topSearch/query"
+_CNINFO_DOWNLOAD_BASE = "http://static.cninfo.com.cn/"
+
 
 class CninfoFinancialReportCollector(BaseCollector):
-    """巨潮资讯个股定期财报采集器，写入 news_announcement(doc_type='financial_report')。"""
+    """巨潮资讯个股财报文件采集器。
+
+    通过巨潮资讯公开 API 查询定期报告列表，下载原始 PDF 文件，输出包含
+    ``file_bytes`` 的标准化条目。后续 ``store`` 步骤负责写入 MinIO、
+    ``file_metadata`` 表和知识库。
+    """
 
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         self.report_types = config.get("report_types") or DEFAULT_REPORT_TYPES
-        self.base_url = config.get("base_url")
+        self.base_url = config.get("base_url") or _CNINFO_QUERY_URL
         self.api_key = config.get("api_key")
-        self.pipeline = DataPipeline(
-            steps=[
-                NormalizeStep(),
-                DeduplicateStep(key_fields=["source_url"]),
-                ValidateStep(required_fields=["stock_code", "title", "publish_date"]),
-            ]
-        )
-        self._engine = create_async_engine(settings.database_url)
+        self.timeout = float(config.get("timeout", 60))
+        self.max_pages = int(config.get("max_pages", 10))
 
     async def collect(
         self,
@@ -38,7 +59,8 @@ class CninfoFinancialReportCollector(BaseCollector):
         end_date: str | None = None,
         **kwargs: Any,
     ) -> list[dict[str, Any]]:
-        import akshare as ak  # type: ignore[import-untyped]
+        """Query CNINFO and download financial report PDFs."""
+        import httpx
 
         if end_date is None:
             end = date.today()
@@ -49,63 +71,108 @@ class CninfoFinancialReportCollector(BaseCollector):
         else:
             start = _parse_date(start_date) or (end - timedelta(days=365))
 
-        start_str = start.strftime("%Y%m%d")
-        end_str = end.strftime("%Y%m%d")
-
+        se_date = f"{start.strftime('%Y-%m-%d')}~{end.strftime('%Y-%m-%d')}"
         symbols = symbols or ["000001"]
-        report_types = self.report_types or DEFAULT_REPORT_TYPES
-        raw: list[dict[str, Any]] = []
 
-        for symbol in symbols:
-            code = _clean_code(symbol)
-            for category in report_types:
-                try:
-                    df = ak.stock_zh_a_disclosure_report_cninfo(
-                        symbol=code,
-                        category=category,
-                        start_date=start_str,
-                        end_date=end_str,
-                    )
-                except Exception:  # noqa: BLE001
+        raw: list[dict[str, Any]] = []
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+        }
+        logger.info(
+            "cninfo_financial_report_collect_start",
+            symbols=symbols,
+            start_date=start.isoformat(),
+            end_date=end.isoformat(),
+            report_types=self.report_types,
+        )
+        async with httpx.AsyncClient(
+            timeout=self.timeout, follow_redirects=True, headers=headers
+        ) as client:
+            for symbol in symbols:
+                code = _clean_code(symbol)
+                plate = _plate_for_code(code)
+                if not plate:
                     continue
-                if df.empty:
+
+                org_id = await _resolve_org_id(client, code)
+                if not org_id:
                     continue
-                for _, row in df.iterrows():
-                    url = _str(row.get("公告链接"))
-                    raw.append(
-                        {
-                            "stock_code": _str(row.get("代码")) or code,
-                            "doc_type": "financial_report",
-                            "title": _str(row.get("公告标题")),
-                            "summary": None,
-                            "content": None,
-                            "source": "cninfo",
-                            "source_url": url,
-                            "publish_date": _parse_datetime(_str(row.get("公告时间"))),
-                            "sentiment": None,
-                            "keywords": None,
-                            "industry_tags": None,
-                            "es_id": None,
-                            "extra": json.dumps(_build_extra(url, category)),
-                        }
+                stock_param = f"{code},{org_id}"
+
+                for category_name in self.report_types:
+                    category_code = _REPORT_CATEGORY_MAP.get(category_name)
+                    if not category_code:
+                        continue
+
+                    announcements = await _query_announcements(
+                        client=client,
+                        base_url=self.base_url,
+                        stock_param=stock_param,
+                        plate=plate,
+                        category=category_code,
+                        se_date=se_date,
+                        max_pages=self.max_pages,
                     )
+
+                    for announcement in announcements:
+                        pdf_url = _pdf_url(announcement)
+                        if not pdf_url:
+                            continue
+
+                        try:
+                            file_bytes = await _download(client, pdf_url)
+                        except Exception:  # noqa: BLE001
+                            continue
+
+                        if not file_bytes:
+                            continue
+
+                        report_type = _REPORT_TYPE_KEY.get(category_name)
+                        if report_type is None:
+                            continue
+
+                        raw.append(
+                            {
+                                "stock_code": code,
+                                "title": _str(announcement.get("announcementTitle")),
+                                "publish_date": _parse_date(_str(announcement.get("announcementTime"))),
+                                "report_type": report_type,
+                                "report_category": category_name,
+                                "source_url": pdf_url,
+                                "announcement_id": _str(announcement.get("announcementId")),
+                                "org_id": _str(announcement.get("orgId")),
+                                "file_bytes": file_bytes,
+                                "file_size": len(file_bytes),
+                                "file_type": "pdf",
+                                "source": "cninfo",
+                            }
+                        )
+
+        logger.info(
+            "cninfo_financial_report_collect_finished",
+            symbols=symbols,
+            total_collected=len(raw),
+        )
         return raw
 
     async def transform(self, raw: dict[str, Any]) -> dict[str, Any]:
         return {
             "stock_code": str(raw["stock_code"]),
-            "doc_type": "financial_report",
             "title": raw.get("title"),
-            "summary": raw.get("summary"),
-            "content": raw.get("content"),
-            "source": raw.get("source"),
-            "source_url": raw.get("source_url"),
             "publish_date": raw.get("publish_date"),
-            "sentiment": raw.get("sentiment"),
-            "keywords": raw.get("keywords"),
-            "industry_tags": raw.get("industry_tags"),
-            "es_id": raw.get("es_id"),
-            "extra": raw.get("extra"),
+            "report_type": raw.get("report_type"),
+            "report_category": raw.get("report_category"),
+            "source_url": raw.get("source_url"),
+            "announcement_id": raw.get("announcement_id"),
+            "org_id": raw.get("org_id"),
+            "file_bytes": raw.get("file_bytes"),
+            "file_size": raw.get("file_size"),
+            "file_type": raw.get("file_type"),
+            "source": raw.get("source"),
         }
 
     async def validate(self, item: dict[str, Any]) -> bool:
@@ -113,29 +180,181 @@ class CninfoFinancialReportCollector(BaseCollector):
             item.get("stock_code")
             and item.get("title")
             and item.get("publish_date")
+            and item.get("source_url")
+            and item.get("file_bytes")
+            and len(item.get("file_bytes", b"")) > 0
         )
 
     async def store(self, items: list[dict[str, Any]]) -> int:
-        cleaned = await self.pipeline.process(items)
-        if not cleaned:
+        """Persist downloaded PDFs to MinIO, metadata to DB, and index to KB.
+
+        This is a thin orchestration layer; concrete exporters are imported lazily
+        to keep the collector usable in unit tests without a running MinIO cluster.
+        """
+        if not items:
             return 0
 
-        session_maker = async_sessionmaker(
-            self._engine, class_=AsyncSession, expire_on_commit=False
-        )
-        async with session_maker() as session:
-            exporter = PostgresExporter(session)
-            count = await exporter.insert_many(
-                "news_announcement",
-                cleaned,
-                conflict_key="source_url",
-            )
-        await self._engine.dispose()
+        count, _ = await self._save_items(items)
         return count
+
+    async def _save_items(
+        self, items: list[dict[str, Any]]
+    ) -> tuple[int, list[str]]:
+        from app.services.knowledge_base_service import get_knowledge_base_service
+        from app.services.minio_service import get_minio_service
+        from collector.stores.financial_report_store import FinancialReportStore
+
+        minio = get_minio_service()
+        kb = get_knowledge_base_service()
+        store = FinancialReportStore(minio=minio, kb=kb)
+        return await store.save_many(items)
+
+    async def run(self, **kwargs: Any) -> CollectResult:
+        """Run the full collect/transform/validate/store cycle.
+
+        Overrides the base template so that storage-level warnings (e.g. MinIO or
+        KB unavailable) are surfaced in the result errors instead of being silent.
+        """
+        started_at = datetime.utcnow()
+        try:
+            raw_data = await self.collect(**kwargs)
+            transformed: list[dict[str, Any]] = []
+            errors: list[str] = []
+
+            for idx, item in enumerate(raw_data):
+                try:
+                    standardized = await self.transform(item)
+                    if await self.validate(standardized):
+                        transformed.append(standardized)
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(f"item {idx}: {exc}")
+
+            stored_count, store_errors = await self._save_items(transformed)
+            errors.extend(store_errors)
+
+            status = CollectStatus.SUCCESS if not errors else CollectStatus.PARTIAL
+            return CollectResult(
+                source=self.source,
+                data_type=self.data_type,
+                status=status,
+                items_collected=len(raw_data),
+                items_stored=stored_count,
+                errors=errors,
+                started_at=started_at,
+                finished_at=datetime.utcnow(),
+            )
+        except Exception as exc:  # noqa: BLE001
+            return CollectResult(
+                source=self.source,
+                data_type=self.data_type,
+                status=CollectStatus.FAILED,
+                items_collected=0,
+                items_stored=0,
+                errors=[str(exc)],
+                started_at=started_at,
+                finished_at=datetime.utcnow(),
+            )
+
+
+async def _resolve_org_id(client: Any, code: str) -> str | None:
+    """Resolve the CNINFO ``orgId`` for a stock code via ``topSearch/query``."""
+    try:
+        response = await client.post(
+            _CNINFO_TOPSEARCH_URL, data={"keyWord": code, "maxNum": 10}
+        )
+        response.raise_for_status()
+        items = response.json()
+    except Exception:  # noqa: BLE001
+        return None
+
+    for item in items if isinstance(items, list) else []:
+        if str(item.get("code", "")).lstrip("0") == code.lstrip("0"):
+            org_id = _str(item.get("orgId"))
+            if org_id:
+                return org_id
+    return None
+
+
+async def _query_announcements(
+    client: Any,
+    base_url: str,
+    stock_param: str,
+    plate: str,
+    category: str,
+    se_date: str,
+    max_pages: int,
+) -> list[dict[str, Any]]:
+    """Query CNINFO ``hisAnnouncement/query`` and return all announcements."""
+    results: list[dict[str, Any]] = []
+    page_num = 1
+
+    while page_num <= max_pages:
+        payload = {
+            "pageNum": page_num,
+            "pageSize": 30,
+            "tabName": "fulltext",
+            "column": f"{plate}se",
+            "stock": stock_param,
+            "searchkey": "",
+            "secid": "",
+            "plate": plate,
+            "category": category,
+            "trade": "",
+            "seDate": se_date,
+            "sortName": "",
+            "sortType": "",
+            "limit": "",
+            "showTitle": "",
+            "isHLtitle": "true",
+        }
+
+        try:
+            response = await client.post(base_url, data=payload)
+            response.raise_for_status()
+            data = response.json()
+        except Exception:  # noqa: BLE001
+            break
+
+        announcements = data.get("announcements") or []
+        if not announcements:
+            break
+
+        results.extend(announcements)
+
+        total_pages = int(data.get("totalPages") or 1)
+        if page_num >= total_pages:
+            break
+        page_num += 1
+
+    return results
+
+
+def _pdf_url(announcement: dict[str, Any]) -> str | None:
+    adjunct_url = _str(announcement.get("adjunctUrl"))
+    if not adjunct_url:
+        return None
+    return f"{_CNINFO_DOWNLOAD_BASE}{adjunct_url.lstrip('/')}"
+
+
+async def _download(client: Any, url: str) -> bytes:
+    response = await client.get(url)
+    response.raise_for_status()
+    return bytes(response.content)
 
 
 def _clean_code(symbol: str) -> str:
-    return symbol.lstrip("sh").lstrip("sz").lstrip("bj").strip()
+    code = symbol.strip().lower()
+    return code.lstrip("sh").lstrip("sz").lstrip("bj").strip()
+
+
+def _plate_for_code(code: str) -> str | None:
+    if code.startswith("6"):
+        return "sh"
+    if code.startswith(("0", "2", "3")):
+        return "sz"
+    if code.startswith(("4", "8", "9")):
+        return "bj"
+    return None
 
 
 def _str(value: Any) -> str | None:
@@ -145,28 +364,18 @@ def _str(value: Any) -> str | None:
     return text if text else None
 
 
-def _parse_date(value: str) -> date | None:
-    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"):
-        try:
-            return datetime.strptime(value, fmt).date()
-        except ValueError:
-            continue
-    return None
-
-
-def _parse_datetime(value: str | None) -> datetime | None:
+def _parse_date(value: str | None) -> date | None:
     if not value:
         return None
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%Y/%m/%d %H:%M:%S"):
+    text = value.strip()
+    if text.isdigit():
+        ts = int(text)
+        if ts > 10_000_000_000:  # CNINFO returns epoch milliseconds
+            ts //= 1000
+        return datetime.fromtimestamp(ts, tz=timezone.utc).date()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%Y/%m/%d"):
         try:
-            return datetime.strptime(value, fmt)
+            return datetime.strptime(text, fmt).date()
         except ValueError:
             continue
     return None
-
-
-def _build_extra(url: str | None, category: str) -> dict[str, Any]:
-    extra: dict[str, Any] = {"category": category}
-    if url:
-        extra["pdf_url"] = url
-    return extra

@@ -1,6 +1,6 @@
 """Unit tests for collector task entry functions."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -17,15 +17,38 @@ from collector.tasks import (
 class TestCollectorTaskEntries:
     @pytest.mark.asyncio
     async def test_collect_financial_report_end_to_end(self) -> None:
-        mock_df = pd.DataFrame(
+        balance_df = pd.DataFrame(
             [
                 {
-                    "股票代码": "000001",
-                    "股票简称": "平安银行",
-                    "公告标题": "2023年年度报告",
-                    "公告时间": "2024-03-15 00:00:00",
-                    "公告类型": "年报",
-                    "公告链接": "http://example.com/report/1",
+                    "REPORT_DATE": "2024-03-31 00:00:00",
+                    "REPORT_TYPE": "一季报",
+                    "TOTAL_ASSETS": 1000000.0,
+                    "TOTAL_LIABILITIES": 400000.0,
+                    "TOTAL_EQUITY": 600000.0,
+                }
+            ]
+        )
+        income_df = pd.DataFrame(
+            [
+                {
+                    "REPORT_DATE": "2024-03-31 00:00:00",
+                    "REPORT_TYPE": "一季报",
+                    "TOTAL_OPERATE_INCOME": 200000.0,
+                    "TOTAL_OPERATE_COST": 120000.0,
+                    "NETPROFIT": 50000.0,
+                    "BASIC_EPS": 0.5,
+                }
+            ]
+        )
+        cash_df = pd.DataFrame(
+            [
+                {
+                    "REPORT_DATE": "2024-03-31 00:00:00",
+                    "REPORT_TYPE": "一季报",
+                    "NETCASH_OPERATE": 30000.0,
+                    "NETCASH_INVEST": -10000.0,
+                    "NETCASH_FINANCE": -5000.0,
+                    "CCE_ADD": 15000.0,
                 }
             ]
         )
@@ -33,22 +56,30 @@ class TestCollectorTaskEntries:
         with (
             patch(
                 "collector.tasks._resolve_task_channel",
-                AsyncMock(return_value=("cninfo", {"base_url": None, "api_key": None})),
+                AsyncMock(return_value=("eastmoney", {"base_url": None, "api_key": None})),
             ),
             patch(
-                "akshare.stock_zh_a_disclosure_report_cninfo",
-                return_value=mock_df,
+                "akshare.stock_balance_sheet_by_report_em",
+                return_value=balance_df,
             ),
             patch(
-                "collector.spiders.cninfo_financial_report.CninfoFinancialReportCollector.store",
-                AsyncMock(return_value=1),
+                "akshare.stock_profit_sheet_by_report_em",
+                return_value=income_df,
+            ),
+            patch(
+                "akshare.stock_cash_flow_sheet_by_report_em",
+                return_value=cash_df,
+            ),
+            patch(
+                "collector.spiders.eastmoney_financial_statement.EastmoneyFinancialStatementCollector.store",
+                AsyncMock(return_value=3),
             ),
         ):
             result = await collect_financial_report()
 
         assert result.status == CollectStatus.SUCCESS
         assert result.items_collected >= 1
-        assert result.items_stored == 1
+        assert result.items_stored == 3
 
     @pytest.mark.asyncio
     async def test_collect_ipo_info_end_to_end(self) -> None:
@@ -124,6 +155,62 @@ class TestCollectorTaskEntries:
             ),
         ):
             result = await collect_fund_holdings(report_date="20250331")
+
+        assert result.status == CollectStatus.SUCCESS
+        assert result.items_collected == 1
+        assert result.items_stored == 1
+
+    @pytest.mark.asyncio
+    async def test_collect_financial_report_via_cninfo(self) -> None:
+        query_response = {
+            "announcements": [
+                {
+                    "secCode": "000001",
+                    "announcementTitle": "2023年年度报告",
+                    "announcementTime": "2024-03-15",
+                    "announcementId": "12345",
+                    "orgId": "org123",
+                    "adjunctUrl": "finalpage/2024-03-15/test.PDF",
+                }
+            ],
+            "totalPages": 1,
+        }
+        pdf_bytes = b"%PDF-1.4 fake pdf"
+
+        def _post(url: str, **kwargs: object) -> MagicMock:
+            resp = MagicMock()
+            if "topSearch" in url:
+                resp.json.return_value = [{"code": "000001", "orgId": "org123"}]
+            else:
+                resp.json.return_value = query_response
+            return resp
+
+        pdf_response_mock = MagicMock()
+        pdf_response_mock.content = pdf_bytes
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.post = AsyncMock(side_effect=_post)
+        mock_client.get = AsyncMock(return_value=pdf_response_mock)
+
+        with (
+            patch(
+                "collector.tasks._resolve_task_channel",
+                AsyncMock(return_value=("cninfo", {"base_url": None, "api_key": None})),
+            ),
+            patch(
+                "collector.stores.financial_report_store.FinancialReportStore.save_many",
+                AsyncMock(return_value=(1, [])),
+            ),
+            patch("httpx.AsyncClient", return_value=mock_client),
+        ):
+            result = await collect_financial_report(
+                symbols=["000001"],
+                start_date="2024-01-01",
+                end_date="2024-12-31",
+                report_types=["年报"],
+            )
 
         assert result.status == CollectStatus.SUCCESS
         assert result.items_collected == 1

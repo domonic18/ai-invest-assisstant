@@ -46,6 +46,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
             "dragon-list",
             "research-report",
             "fund-holdings",
+            "financial-report",
         ],
         "extra": {},
     },
@@ -60,7 +61,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
     {
         "source": "cninfo",
         "name": "巨潮资讯",
-        "base_url": "http://webapi.cninfo.com.cn",
+        "base_url": None,
         "is_enabled": True,
         "supported_data_types": ["company-profile", "disclosure", "financial-report", "ipo-info"],
         "extra": {},
