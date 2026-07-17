@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     # Redis
     redis_url: RedisDsn = RedisDsn("redis://localhost:6379/0")
+    collector_queue_key: str = "collector:queue"
 
     # Elasticsearch
     elasticsearch_url: str = "http://localhost:9200"
@@ -34,10 +35,12 @@ class Settings(BaseSettings):
 
     # MinIO
     minio_endpoint: str = "localhost:9000"
+    minio_public_endpoint: str | None = None
     minio_access_key: str = "minioadmin"
     minio_secret_key: str = "minioadmin"
     minio_bucket: str = "invest-files"
     minio_secure: bool = False
+    minio_region: str = "us-east-1"
 
     # JWT
     jwt_algorithm: str = "HS256"

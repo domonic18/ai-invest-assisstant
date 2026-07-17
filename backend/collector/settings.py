@@ -17,6 +17,9 @@ class CollectorSettings:
         self.db_name = os.getenv("DB_NAME", "invest")
 
         self.redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        self.collector_queue_key = os.getenv(
+            "COLLECTOR_QUEUE_KEY", "collector:queue"
+        )
         self.es_url = os.getenv("ES_URL", "http://localhost:9200")
         self.minio_endpoint = os.getenv("MINIO_ENDPOINT", "localhost:9000")
         self.milvus_host = os.getenv("MILVUS_HOST", "localhost")

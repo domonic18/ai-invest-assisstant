@@ -304,20 +304,28 @@ async def collect_financial_report(
     report_types: list[str] | None = None,
     preferred_source: str | None = None,
 ) -> CollectResult:
-    """巨潮资讯个股财报采集任务入口。"""
+    """个股财报采集任务入口（结构化数据或 PDF 文件）。"""
     from collector.spiders.cninfo_financial_report import (
         CninfoFinancialReportCollector,
+    )
+    from collector.spiders.eastmoney_financial_statement import (
+        EastmoneyFinancialStatementCollector,
     )
 
     return await _run_collector_for_task(
         "financial-report",
-        "financial_report",
-        {"cninfo": CninfoFinancialReportCollector},
+        "financial_statement",
+        {
+            "eastmoney": EastmoneyFinancialStatementCollector,
+            "cninfo": CninfoFinancialReportCollector,
+        },
         preferred_source,
         symbols=symbols,
-        start_date=start_date,
-        end_date=end_date,
-        extra_config={"report_types": report_types},
+        extra_config={
+            "report_types": report_types,
+            "start_date": start_date,
+            "end_date": end_date,
+        },
     )
 
 

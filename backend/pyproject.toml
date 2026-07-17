@@ -47,6 +47,9 @@ dependencies = [
     # Encryption
     "cryptography>=42.0.0",
 
+    # Scheduler
+    "apscheduler>=3.10.0",
+
     # AI Agent
     "pydantic-ai>=0.0.10",
     "openai>=1.35.0",
@@ -56,7 +59,7 @@ dependencies = [
     "mcp>=1.0.0",
 
     # Search & Vector
-    "elasticsearch[async]>=8.13.0",
+    "elasticsearch[async]>=8.13.0,<9",
     "pymilvus>=2.4.0",
 
     # Storage
@@ -107,7 +110,6 @@ dev = [
 
     # Development
     "ipython>=8.24.0",
-    "apscheduler>=3.10.0",
 ]
 
 [tool.ruff]

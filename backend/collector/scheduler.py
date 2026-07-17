@@ -1,7 +1,8 @@
 """Local collector scheduler based on APScheduler.
 
-Reads active schedules from `collector_task` table and runs collectors locally.
-Useful for development environments without SCF.
+Reads active schedules from `collector_task` table and runs collectors through
+the same ``collector.scf_handler._run_task`` entry point used by the SCF handler
+and the Redis queue worker, ensuring scheduled and ad-hoc execution share logic.
 """
 
 import asyncio
@@ -13,19 +14,12 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from collector.scf_handler import _run_task
 from collector.settings import settings
-from collector.tasks import collect_auction, collect_fund_flow, collect_kline, collect_news
+from collector.tasks import TASK_MAP
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-TASK_MAP = {
-    "kline": lambda: collect_kline(),
-    "auction": collect_auction,
-    "fund_flow": collect_fund_flow,
-    "fund-flow": collect_fund_flow,
-    "news": collect_news,
-}
 
 
 async def _load_schedules() -> list[dict[str, Any]]:
@@ -35,7 +29,7 @@ async def _load_schedules() -> list[dict[str, Any]]:
         result = await conn.execute(
             text(
                 """
-                SELECT task_name, task_type, schedule
+                SELECT task_name, task_type, source, schedule
                 FROM collector_task
                 WHERE is_active = TRUE
                 """
@@ -46,17 +40,19 @@ async def _load_schedules() -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
-async def _run_task(task_name: str) -> None:
-    """运行单个采集任务。"""
+async def _run_scheduled_task(task_name: str, source: str | None = None) -> None:
+    """Run a single scheduled task through the unified runner."""
     logger.info("Running scheduled task: %s", task_name)
-    task_type = task_name.rsplit("_", 1)[-1]
-    coro = TASK_MAP.get(task_type)
-    if coro is None:
-        logger.warning("No handler for task type: %s", task_type)
+    if task_name not in TASK_MAP:
+        logger.warning("Unknown scheduled task type: %s", task_name)
         return
 
+    params: dict[str, Any] = {"task": task_name}
+    if source:
+        params["preferred_source"] = source
+
     try:
-        result = await coro()
+        result = await _run_task(params)
         logger.info(
             "Task %s finished: status=%s collected=%d stored=%d errors=%d",
             task_name,
@@ -83,17 +79,17 @@ def _parse_cron(schedule: str) -> dict[str, str]:
     }
 
 
-async def start_scheduler() -> None:
+async def start_scheduler() -> AsyncIOScheduler:
     """启动本地调度器。"""
     schedules = await _load_schedules()
-    if not schedules:
-        logger.warning("No active collector schedules found")
-        return
-
     scheduler = AsyncIOScheduler()
     for row in schedules:
-        task_name = row["task_name"]
+        task_name = row["task_type"]
+        source = row.get("source")
         schedule_expr = row["schedule"]
+        if not schedule_expr:
+            logger.warning("No schedule for %s, skipping", task_name)
+            continue
         try:
             trigger = CronTrigger(**_parse_cron(schedule_expr))
         except ValueError as exc:
@@ -101,16 +97,17 @@ async def start_scheduler() -> None:
             continue
 
         scheduler.add_job(
-            _run_task,
+            _run_scheduled_task,
             trigger=trigger,
-            args=[task_name],
-            id=task_name,
+            args=[task_name, source],
+            id=row["task_name"],
             replace_existing=True,
         )
         logger.info("Scheduled %s with cron: %s", task_name, schedule_expr)
 
     scheduler.start()
     logger.info("Collector scheduler started")
+    return scheduler
 
 
 def main() -> None:
