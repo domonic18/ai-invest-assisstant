@@ -353,7 +353,7 @@ CREATE TABLE collector_log (
     task_id     BIGINT REFERENCES collector_task(id) ON DELETE SET NULL,
     task_name   VARCHAR(100),
     source      VARCHAR(50),
-    status      VARCHAR(20) NOT NULL CHECK (status IN ('running', 'success', 'partial', 'failed', 'skipped')),
+    status      VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'running', 'success', 'partial', 'failed', 'skipped')),
     started_at  TIMESTAMPTZ DEFAULT NOW(),
     finished_at TIMESTAMPTZ,
     records_count INT DEFAULT 0,
