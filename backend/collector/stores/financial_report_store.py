@@ -52,6 +52,7 @@ class FinancialReportStore:
                     errors.append(msg)
             await session.commit()
         await self._engine.dispose()
+        await self.kb.close()
         return stored, errors
 
     async def _save_one(

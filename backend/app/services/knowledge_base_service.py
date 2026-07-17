@@ -37,6 +37,7 @@ class KnowledgeBaseService:
 
     def __init__(self, client: AsyncElasticsearch | None = None) -> None:
         self.client = client
+        self._owns_client = client is None
         self.index_name = DEFAULT_INDEX
 
     async def _get_client(self) -> AsyncElasticsearch:
@@ -44,6 +45,12 @@ class KnowledgeBaseService:
             settings = get_settings()
             self.client = AsyncElasticsearch(settings.elasticsearch_url)
         return self.client
+
+    async def close(self) -> None:
+        """Close the underlying Elasticsearch client if this service owns it."""
+        if self._owns_client and self.client is not None:
+            await self.client.close()
+            self.client = None
 
     async def index_document(
         self,

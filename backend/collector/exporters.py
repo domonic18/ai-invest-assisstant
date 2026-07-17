@@ -22,7 +22,7 @@ class PostgresExporter:
         if not items:
             return 0
 
-        columns = list(items[0].keys())
+        columns = sorted({key for item in items for key in item.keys()})
         placeholders = ", ".join(f":{col}" for col in columns)
         column_list = ", ".join(columns)
 
@@ -36,7 +36,8 @@ class PostgresExporter:
 
         count = 0
         for item in items:
-            await self.session.execute(text(sql), item)
+            normalized = {col: item.get(col) for col in columns}
+            await self.session.execute(text(sql), normalized)
             count += 1
         await self.session.commit()
         return count

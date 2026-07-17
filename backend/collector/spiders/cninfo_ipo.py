@@ -119,12 +119,15 @@ def _to_float(value: Any) -> float | None:
 def _to_date(value: Any) -> date | None:
     if value is None:
         return None
+    # Handle pandas NaT / numpy NaT explicitly before isinstance checks.
+    if _is_na(value):
+        return None
     if isinstance(value, date) and not isinstance(value, datetime):
         return value
     if isinstance(value, datetime):
         return value.date()
     text = str(value).strip()
-    if not text:
+    if not text or text.lower() == "nat":
         return None
     for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"):
         try:
@@ -132,3 +135,22 @@ def _to_date(value: Any) -> date | None:
         except ValueError:
             continue
     return None
+
+
+def _is_na(value: Any) -> bool:
+    """Return True for pandas/numpy missing-value sentinels."""
+    try:
+        import pandas as pd
+
+        if value is pd.NaT or (isinstance(value, float) and pd.isna(value)):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        import numpy as np
+
+        if value is np.nan or (isinstance(value, float) and np.isnan(value)):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    return False
