@@ -47,6 +47,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
             "research-report",
             "fund-holdings",
             "financial-report",
+            "limit-up-pool",
         ],
         "extra": {},
     },

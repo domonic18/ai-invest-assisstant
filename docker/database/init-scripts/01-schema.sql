@@ -448,6 +448,7 @@ CREATE TABLE IF NOT EXISTS sector_fund_flow (
     sector_name      VARCHAR(100) NOT NULL,
     sector_type      VARCHAR(20)  NOT NULL CHECK (sector_type IN ('industry','concept','region')),
     trade_date       DATE         NOT NULL,
+    change_pct       DECIMAL(8,2),
     main_net_inflow  DECIMAL(20,2),
     super_large_net  DECIMAL(20,2),
     large_net        DECIMAL(20,2),
@@ -536,3 +537,29 @@ CREATE TABLE IF NOT EXISTS fund_holdings (
 );
 CREATE INDEX IF NOT EXISTS idx_fund_holdings_report_date ON fund_holdings(report_date DESC);
 CREATE INDEX IF NOT EXISTS idx_fund_holdings_stock_code ON fund_holdings(stock_code);
+
+-- ============================================================
+-- 14. 涨停股池（每日复盘：涨停板 / 连板天梯）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS limit_up_pool (
+    id                 BIGSERIAL PRIMARY KEY,
+    trade_date         DATE         NOT NULL,
+    stock_code         VARCHAR(10)  NOT NULL,
+    stock_name         VARCHAR(100),
+    change_pct         DECIMAL(8,2),
+    latest_price       DECIMAL(12,3),
+    turnover_rate      DECIMAL(8,2),
+    sealed_amount      DECIMAL(20,2),
+    first_seal_time    VARCHAR(10),
+    last_seal_time     VARCHAR(10),
+    break_count        INT,
+    limit_stat         VARCHAR(20),
+    consecutive_boards INT,
+    industry           VARCHAR(100),
+    source             VARCHAR(50),
+    created_at         TIMESTAMPTZ DEFAULT NOW(),
+
+    UNIQUE (trade_date, stock_code)
+);
+CREATE INDEX IF NOT EXISTS idx_limit_up_pool_date ON limit_up_pool(trade_date DESC);

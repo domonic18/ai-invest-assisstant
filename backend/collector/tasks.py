@@ -4,7 +4,7 @@ import argparse
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -409,6 +409,25 @@ async def collect_stock_list(
     )
 
 
+async def collect_limit_up_pool(
+    trade_date: str | None = None,
+    preferred_source: str | None = None,
+) -> CollectResult:
+    """涨停股池采集任务入口，写入 limit_up_pool。"""
+    from collector.spiders.eastmoney_limit_up_pool import (
+        EastMoneyLimitUpPoolCollector,
+    )
+
+    parsed_date = date.fromisoformat(trade_date) if trade_date else None
+    return await _run_collector_for_task(
+        "limit-up-pool",
+        "limit_up_pool",
+        {"eastmoney": EastMoneyLimitUpPoolCollector},
+        preferred_source,
+        trade_date=parsed_date,
+    )
+
+
 TASK_MAP = {
     "kline": collect_kline,
     "auction": collect_auction,
@@ -425,6 +444,7 @@ TASK_MAP = {
     "macro": collect_macro,
     "quote": collect_quote,
     "stock-list": collect_stock_list,
+    "limit-up-pool": collect_limit_up_pool,
 }
 
 
@@ -445,6 +465,11 @@ def main() -> None:
         "--report-types",
         default=None,
         help="财报类型，逗号分隔，如 年报,半年报,一季报,三季报",
+    )
+    parser.add_argument(
+        "--trade-date",
+        default=None,
+        help="交易日期 (YYYY-MM-DD)，用于涨停股池任务",
     )
     parser.add_argument(
         "--indicators",
@@ -505,6 +530,11 @@ def main() -> None:
             return await collect_quote(preferred_source=args.preferred_source)
         if args.task == "stock-list":
             return await collect_stock_list(preferred_source=args.preferred_source)
+        if args.task == "limit-up-pool":
+            return await collect_limit_up_pool(
+                trade_date=args.trade_date,
+                preferred_source=args.preferred_source,
+            )
         indicators = args.indicators.split(",") if args.indicators else None
         return await collect_macro(
             indicators=indicators,

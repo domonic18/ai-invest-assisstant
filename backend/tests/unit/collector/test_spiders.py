@@ -12,6 +12,10 @@ from collector.spiders.eastmoney_financial_statement import (
 )
 from collector.spiders.eastmoney_fund_flow import EastMoneyFundFlowCollector
 from collector.spiders.eastmoney_fund_holdings import EastMoneyFundHoldingsCollector
+from collector.spiders.eastmoney_limit_up_pool import EastMoneyLimitUpPoolCollector
+from collector.spiders.eastmoney_sector_fund_flow import (
+    EastMoneySectorFundFlowCollector,
+)
 from collector.spiders.sina_auction import SinaAuctionCollector
 from collector.spiders.sina_kline import SinaKlineCollector
 from collector.spiders.sina_news import SinaNewsCollector
@@ -848,3 +852,128 @@ class TestSinaStockListCollector:
         assert len(raw) == 1
         assert raw[0]["stock_code"] == "600000"
         assert raw[0]["industry_l1"] == "银行"
+
+
+@pytest.mark.unit
+class TestEastMoneyLimitUpPoolCollector:
+    @pytest.mark.asyncio
+    async def test_collect_maps_akshare_columns(self) -> None:
+        df = pd.DataFrame(
+            [
+                {
+                    "序号": 1,
+                    "代码": "002338",
+                    "名称": "奥普光电",
+                    "涨跌幅": 10.01,
+                    "最新价": 25.6,
+                    "成交额": 3.5e8,
+                    "流通市值": 1.2e10,
+                    "总市值": 1.3e10,
+                    "换手率": 9.8,
+                    "封板资金": 4.2e8,
+                    "首次封板时间": "092500",
+                    "最后封板时间": "135900",
+                    "炸板次数": 2,
+                    "涨停统计": "6/6",
+                    "连板数": 6,
+                    "所属行业": "光学光电子",
+                }
+            ]
+        )
+        collector = EastMoneyLimitUpPoolCollector(
+            {"source": "eastmoney", "data_type": "limit_up_pool"}
+        )
+        with patch("akshare.stock_zt_pool_em", return_value=df):
+            raw = await collector.collect(trade_date=datetime.date(2026, 7, 17))
+
+        assert len(raw) == 1
+        assert raw[0]["stock_code"] == "002338"
+        assert raw[0]["consecutive_boards"] == 6
+        assert raw[0]["sealed_amount"] == 4.2e8
+        assert raw[0]["industry"] == "光学光电子"
+
+    @pytest.mark.asyncio
+    async def test_collect_empty_pool(self) -> None:
+        collector = EastMoneyLimitUpPoolCollector(
+            {"source": "eastmoney", "data_type": "limit_up_pool"}
+        )
+        with patch("akshare.stock_zt_pool_em", return_value=pd.DataFrame()):
+            raw = await collector.collect(trade_date=datetime.date(2026, 7, 17))
+
+        assert raw == []
+
+    @pytest.mark.asyncio
+    async def test_transform_and_validate(self) -> None:
+        collector = EastMoneyLimitUpPoolCollector(
+            {"source": "eastmoney", "data_type": "limit_up_pool"}
+        )
+        raw = {
+            "trade_date": datetime.date(2026, 7, 17),
+            "stock_code": "002338",
+            "stock_name": "奥普光电",
+            "change_pct": 10.01,
+            "latest_price": 25.6,
+            "turnover_rate": 9.8,
+            "sealed_amount": 4.2e8,
+            "first_seal_time": "092500",
+            "last_seal_time": "135900",
+            "break_count": 2,
+            "limit_stat": "6/6",
+            "consecutive_boards": 6,
+            "industry": "光学光电子",
+        }
+        item = await collector.transform(raw)
+        assert item["source"] == "eastmoney"
+        assert item["consecutive_boards"] == 6
+        assert await collector.validate(item) is True
+
+    @pytest.mark.asyncio
+    async def test_validate_rejects_missing_code(self) -> None:
+        collector = EastMoneyLimitUpPoolCollector(
+            {"source": "eastmoney", "data_type": "limit_up_pool"}
+        )
+        assert await collector.validate(
+            {"trade_date": datetime.date(2026, 7, 17), "stock_code": None}
+        ) is False
+
+
+@pytest.mark.unit
+class TestEastMoneySectorFundFlowCollector:
+    @pytest.mark.asyncio
+    async def test_collect_maps_real_akshare_columns(self) -> None:
+        df = pd.DataFrame(
+            [
+                {
+                    "序号": 1,
+                    "名称": "半导体",
+                    "今日涨跌幅": 4.2,
+                    "今日主力净流入-净额": 2.26e9,
+                    "今日主力净流入-净占比": 3.1,
+                    "今日超大单净流入-净额": 1.5e9,
+                    "今日超大单净流入-净占比": 2.0,
+                    "今日大单净流入-净额": 7.6e8,
+                    "今日大单净流入-净占比": 1.1,
+                    "今日中单净流入-净额": -3e8,
+                    "今日中单净流入-净占比": -0.4,
+                    "今日小单净流入-净额": -1.9e9,
+                    "今日小单净流入-净占比": -2.6,
+                    "今日主力净流入最大股": "北方华创",
+                }
+            ]
+        )
+        collector = EastMoneySectorFundFlowCollector(
+            {"source": "eastmoney", "data_type": "sector_fund_flow"}
+        )
+        with patch("akshare.stock_sector_fund_flow_rank", return_value=df):
+            raw = await collector.collect(sector_type="industry")
+
+        assert len(raw) == 1
+        assert raw[0]["sector_name"] == "半导体"
+        assert raw[0]["sector_code"] == "半导体"
+        assert raw[0]["change_pct"] == 4.2
+        assert raw[0]["main_net_inflow"] == 2.26e9
+        assert raw[0]["top_stock_name"] == "北方华创"
+
+        item = await collector.transform(raw[0])
+        assert item["change_pct"] == 4.2
+        assert await collector.validate(item) is True

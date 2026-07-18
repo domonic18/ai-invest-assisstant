@@ -68,6 +68,7 @@ export type CollectorTaskName =
   | 'fund-holdings'
   | 'macro'
   | 'stock-list'
+  | 'limit-up-pool'
 
 export interface CollectorTaskChannel {
   source: string
@@ -132,6 +133,7 @@ export interface SectorFundFlow {
   sectorName: string
   sectorType: string
   tradeDate: string
+  changePct: number | null
   mainNetInflow: number | null
   superLargeNet: number | null
   largeNet: number | null

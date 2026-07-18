@@ -23,6 +23,7 @@ class CollectorTaskName(str, Enum):
     FUND_HOLDINGS = "fund-holdings"
     MACRO = "macro"
     STOCK_LIST = "stock-list"
+    LIMIT_UP_POOL = "limit-up-pool"
 
 
 class CollectorTaskRunRequest(BaseModel):
@@ -37,6 +38,7 @@ class CollectorTaskRunRequest(BaseModel):
     indicators: list[str] | None = Field(None, max_length=20)
     report_types: list[str] | None = Field(None, max_length=20)
     report_date: str | None = Field(None, max_length=20)
+    trade_date: str | None = Field(None, max_length=20)
 
 
 class CollectorTaskChannelItem(BaseModel):

@@ -22,5 +22,8 @@ VALUES
     ('ths_auction', 'auction', 'ths', '15,25 9 * * 1-5', true),
     ('eastmoney_fund_flow', 'fund-flow', 'eastmoney', '0 17 * * 1-5', true),
     ('sina_news', 'news', 'sina', '0/30 * * * *', true),
-    ('sina_stock_list', 'stock-list', 'sina', '0 2 * * 6', true)
+    ('sina_stock_list', 'stock-list', 'sina', '0 2 * * 6', true),
+    ('sina_quote', 'quote', 'sina', '*/5 9-15 * * 1-5', true),
+    ('eastmoney_sector_fund_flow', 'sector-fund-flow', 'eastmoney', '30 17 * * 1-5', true),
+    ('eastmoney_limit_up_pool', 'limit-up-pool', 'eastmoney', '35 15 * * 1-5', true)
 ON CONFLICT (task_name) DO NOTHING;

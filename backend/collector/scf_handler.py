@@ -45,6 +45,7 @@ _TASK_PARAM_BUILDERS: dict[
     "fund-holdings": {"report_date": ["report_date"]},
     "macro": {"indicators": ["indicators"]},
     "stock-list": {},
+    "limit-up-pool": {"trade_date": ["trade_date"]},
 }
 
 

@@ -26,6 +26,7 @@ const TASK_OPTIONS: CollectorTaskOption[] = [
   { key: 'fund-holdings', label: '基金持仓采集' },
   { key: 'macro', label: '宏观经济采集' },
   { key: 'stock-list', label: '股票列表同步' },
+  { key: 'limit-up-pool', label: '涨停股池采集' },
 ]
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
