@@ -44,6 +44,7 @@ _TASK_PARAM_BUILDERS: dict[
     "ipo-info": {},
     "fund-holdings": {"report_date": ["report_date"]},
     "macro": {"indicators": ["indicators"]},
+    "stock-list": {},
 }
 
 

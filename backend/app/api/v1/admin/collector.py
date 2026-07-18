@@ -3,11 +3,9 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_db
-from app.models.collector_log import CollectorLog
 from app.schemas.collector import (
     CollectorLogResponse,
     CollectorRunResponse,
@@ -16,6 +14,7 @@ from app.schemas.collector import (
     CollectorTaskName,
     CollectorTaskRunRequest,
 )
+from app.services.collector_log_service import CollectorLogService
 from collector.dispatcher import dispatch_collector_task
 from collector.resolver import list_channels_for_task, resolve_channel_for_task
 
@@ -36,6 +35,7 @@ _TASK_DATA_TYPE: dict[str, str] = {
     "ipo-info": "ipo_info",
     "fund-holdings": "fund_holdings",
     "macro": "macro_indicator",
+    "stock-list": "stock_list",
 }
 
 
@@ -88,11 +88,11 @@ async def list_collector_logs(
     limit: int = 50,
 ) -> list[CollectorLogResponse]:
     """List recent collector execution logs, newest first."""
-    if limit <= 0 or limit > 200:
+    try:
+        rows = await CollectorLogService(session).list_recent(limit)
+    except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="limit must be between 1 and 200",
-        )
-    stmt = select(CollectorLog).order_by(desc(CollectorLog.started_at)).limit(limit)
-    rows = (await session.execute(stmt)).scalars().all()
+            detail=str(exc),
+        ) from exc
     return [CollectorLogResponse.model_validate(row) for row in rows]

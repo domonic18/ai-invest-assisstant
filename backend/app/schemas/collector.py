@@ -22,6 +22,7 @@ class CollectorTaskName(str, Enum):
     IPO_INFO = "ipo-info"
     FUND_HOLDINGS = "fund-holdings"
     MACRO = "macro"
+    STOCK_LIST = "stock-list"
 
 
 class CollectorTaskRunRequest(BaseModel):

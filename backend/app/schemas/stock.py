@@ -19,6 +19,8 @@ class StockBasicResponse(BaseModel):
     industry_l2: str | None = None
     industry_l3: str | None = None
     listing_date: date | None = None
+    total_shares: int | None = None
+    circulating_shares: int | None = None
     full_name: str | None = None
     legal_person: str | None = None
     website: str | None = None

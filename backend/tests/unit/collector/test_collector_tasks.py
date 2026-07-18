@@ -10,6 +10,7 @@ from collector.tasks import (
     collect_financial_report,
     collect_fund_holdings,
     collect_ipo_info,
+    collect_stock_list,
 )
 
 
@@ -159,6 +160,54 @@ class TestCollectorTaskEntries:
         assert result.status == CollectStatus.SUCCESS
         assert result.items_collected == 1
         assert result.items_stored == 1
+
+    @pytest.mark.asyncio
+    async def test_collect_stock_list_end_to_end(self) -> None:
+        mock_df = pd.DataFrame(
+            [
+                {"code": "000001", "name": "平安银行"},
+                {"code": "600000", "name": "浦发银行"},
+            ]
+        )
+        details = {
+            "000001": {"total_shares": 19405918198},
+            "600000": {"full_name": "上海浦东发展银行股份有限公司"},
+        }
+        industries = {
+            "000001": {
+                "industry_l1": "银行",
+                "industry_l2": "全国性银行",
+                "industry_l3": "股份制银行",
+            }
+        }
+
+        with (
+            patch(
+                "collector.tasks._resolve_task_channel",
+                AsyncMock(return_value=("sina", {"base_url": None, "api_key": None})),
+            ),
+            patch(
+                "akshare.stock_info_a_code_name",
+                return_value=mock_df,
+            ),
+            patch(
+                "collector.spiders.sina_stock_list._fetch_exchange_details",
+                return_value=details,
+            ),
+            patch(
+                "collector.spiders.sina_stock_list._fetch_sw_industry_map",
+                return_value=industries,
+            ),
+            patch(
+                "collector.spiders.sina_stock_list.SinaStockListCollector.store",
+                AsyncMock(return_value=2),
+            ),
+        ):
+            result = await collect_stock_list()
+
+        assert result.status == CollectStatus.SUCCESS
+        assert result.items_collected == 2
+        assert result.items_stored == 2
 
     @pytest.mark.asyncio
     async def test_collect_financial_report_via_cninfo(self) -> None:

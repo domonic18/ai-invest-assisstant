@@ -20,6 +20,7 @@ INSERT INTO collector_task (task_name, task_type, source, schedule, is_active)
 VALUES
     ('ths_kline_daily', 'kline', 'ths', '0 16 * * 1-5', true),
     ('ths_auction', 'auction', 'ths', '15,25 9 * * 1-5', true),
-    ('eastmoney_fund_flow', 'fund_flow', 'eastmoney', '0 17 * * 1-5', true),
-    ('sina_news', 'news', 'sina', '0/30 * * * *', true)
+    ('eastmoney_fund_flow', 'fund-flow', 'eastmoney', '0 17 * * 1-5', true),
+    ('sina_news', 'news', 'sina', '0/30 * * * *', true),
+    ('sina_stock_list', 'stock-list', 'sina', '0 2 * * 6', true)
 ON CONFLICT (task_name) DO NOTHING;

@@ -393,6 +393,22 @@ async def collect_quote(
     )
 
 
+async def collect_stock_list(
+    symbols: list[str] | None = None,
+    preferred_source: str | None = None,
+) -> CollectResult:
+    """全市场股票列表同步任务入口，回写 stock_basic。"""
+    from collector.spiders.sina_stock_list import SinaStockListCollector
+
+    return await _run_collector_for_task(
+        "stock-list",
+        "stock_list",
+        {"sina": SinaStockListCollector},
+        preferred_source,
+        symbols=symbols,
+    )
+
+
 TASK_MAP = {
     "kline": collect_kline,
     "auction": collect_auction,
@@ -408,6 +424,7 @@ TASK_MAP = {
     "fund-holdings": collect_fund_holdings,
     "macro": collect_macro,
     "quote": collect_quote,
+    "stock-list": collect_stock_list,
 }
 
 
@@ -486,6 +503,8 @@ def main() -> None:
             )
         if args.task == "quote":
             return await collect_quote(preferred_source=args.preferred_source)
+        if args.task == "stock-list":
+            return await collect_stock_list(preferred_source=args.preferred_source)
         indicators = args.indicators.split(",") if args.indicators else None
         return await collect_macro(
             indicators=indicators,
