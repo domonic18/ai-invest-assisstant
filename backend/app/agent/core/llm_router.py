@@ -1,7 +1,7 @@
 """LLM model routing and Agent building helpers."""
 
 from pydantic_ai import Agent
-from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.models.anthropic import AnthropicModel, AnthropicModelSettings
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.openai import OpenAIProvider
@@ -25,17 +25,16 @@ def build_model(
     api_key: str,
     base_url: str | None = None,
 ) -> OpenAIChatModel | AnthropicModel:
-    if provider == "openai":
-        return OpenAIChatModel(
-            model,
-            provider=OpenAIProvider(base_url=base_url, api_key=api_key),
-        )
     if provider == "anthropic":
         return AnthropicModel(
             model,
             provider=AnthropicProvider(api_key=api_key, base_url=base_url),
         )
-    raise ValueError(f"Unsupported provider: {provider}")
+    # deepseek / zhipu / custom 等均提供 OpenAI 兼容接口
+    return OpenAIChatModel(
+        model,
+        provider=OpenAIProvider(base_url=base_url, api_key=api_key),
+    )
 
 
 def build_agent(
@@ -53,9 +52,15 @@ def build_agent(
         api_key=model_config["api_key"],
         base_url=model_config.get("base_url"),
     )
+    model_settings = None
+    if provider == "anthropic" and result_type is not None:
+        # 结构化输出使用强制 tool_choice，与 thinking 不兼容（Anthropic 与
+        # Kimi 等 Anthropic 协议端点均会拒绝），因此显式关闭 thinking
+        model_settings = AnthropicModelSettings(anthropic_thinking={"type": "disabled"})
     return Agent(
         model_instance,
         system_prompt=prompt_config.system_prompt,
         output_type=result_type,  # type: ignore[arg-type]
+        model_settings=model_settings,
         defer_model_check=True,
     )
