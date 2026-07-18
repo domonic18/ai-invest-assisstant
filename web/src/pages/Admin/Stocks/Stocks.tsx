@@ -109,6 +109,7 @@ export function AdminStocks() {
   const columns = [
     { title: '股票代码', dataIndex: 'stockCode', key: 'stockCode' },
     { title: '股票名称', dataIndex: 'stockName', key: 'stockName' },
+    { title: '公司全称', dataIndex: 'fullName', key: 'fullName', ellipsis: true, render: (v: string | null) => v || '-' },
     { title: '市场', dataIndex: 'market', key: 'market' },
     { title: '一级行业', dataIndex: 'industryL1', key: 'industryL1', render: (v: string | null) => v || '-' },
     { title: '二级行业', dataIndex: 'industryL2', key: 'industryL2', render: (v: string | null) => v || '-' },

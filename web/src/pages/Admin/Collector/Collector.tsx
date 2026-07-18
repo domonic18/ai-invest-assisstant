@@ -25,6 +25,7 @@ const TASK_OPTIONS: CollectorTaskOption[] = [
   { key: 'ipo-info', label: 'IPO 信息采集' },
   { key: 'fund-holdings', label: '基金持仓采集' },
   { key: 'macro', label: '宏观经济采集' },
+  { key: 'stock-list', label: '股票列表同步' },
 ]
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {

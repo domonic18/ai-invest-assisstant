@@ -351,6 +351,9 @@ export function mapAdminStock(dto: ApiAdminStockResponse): AdminStock {
     industryL2: dto.industry_l2,
     industryL3: dto.industry_l3,
     listingDate: dto.listing_date,
+    totalShares: dto.total_shares,
+    circulatingShares: dto.circulating_shares,
+    fullName: dto.full_name,
     createdAt: dto.created_at,
   }
 }
@@ -362,6 +365,7 @@ export function mapAdminReport(dto: ApiAdminReportResponse): AdminReport {
     originalName: dto.original_name,
     fileType: dto.file_type,
     stockCode: dto.stock_code,
+    stockName: dto.stock_name,
     reportDate: dto.report_date,
     reportType: dto.report_type,
     broker: dto.broker,

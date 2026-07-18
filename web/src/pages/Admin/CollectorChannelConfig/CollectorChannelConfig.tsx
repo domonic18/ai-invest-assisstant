@@ -48,6 +48,7 @@ const DATA_TYPE_LABEL: Record<CollectorTaskName, string> = {
   'ipo-info': 'IPO 信息',
   'fund-holdings': '基金持仓',
   macro: '宏观经济',
+  'stock-list': '股票列表',
 }
 
 export function CollectorChannelConfig() {

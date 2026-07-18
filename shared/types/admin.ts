@@ -67,6 +67,7 @@ export type CollectorTaskName =
   | 'ipo-info'
   | 'fund-holdings'
   | 'macro'
+  | 'stock-list'
 
 export interface CollectorTaskChannel {
   source: string
@@ -233,6 +234,9 @@ export interface AdminStock {
   industryL2: string | null
   industryL3: string | null
   listingDate: string | null
+  totalShares: number | null
+  circulatingShares: number | null
+  fullName: string | null
   createdAt: string
 }
 
@@ -252,6 +256,7 @@ export interface AdminReport {
   originalName: string | null
   fileType: string
   stockCode: string | null
+  stockName: string | null
   reportDate: string | null
   reportType: string | null
   broker: string | null

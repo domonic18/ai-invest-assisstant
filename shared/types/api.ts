@@ -382,6 +382,9 @@ export interface ApiAdminStockResponse {
   industry_l2: string | null
   industry_l3: string | null
   listing_date: string | null
+  total_shares: number | null
+  circulating_shares: number | null
+  full_name: string | null
   created_at: string
 }
 
@@ -410,6 +413,7 @@ export interface ApiAdminReportResponse {
   original_name: string | null
   file_type: string
   stock_code: string | null
+  stock_name: string | null
   report_date: string | null
   report_type: string | null
   broker: string | null
