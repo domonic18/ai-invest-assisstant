@@ -18,6 +18,7 @@ class SectorFundFlow(Base):
     sector_name: Mapped[str] = mapped_column(String(100), nullable=False)
     sector_type: Mapped[str] = mapped_column(String(20), primary_key=True)
     trade_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    change_pct: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
     main_net_inflow: Mapped[Decimal | None] = mapped_column(
         Numeric(20, 2), nullable=True
     )

@@ -15,6 +15,7 @@ class TestHotspotEndpoints:
         sector.sector_name = "银行"
         sector.sector_type = "industry"
         sector.trade_date = date(2024, 1, 1)
+        sector.change_pct = Decimal("1.5")
         sector.main_net_inflow = Decimal("1000000")
         sector.super_large_net = Decimal("500000")
         sector.large_net = Decimal("300000")

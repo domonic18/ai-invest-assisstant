@@ -246,6 +246,7 @@ export function mapSectorFundFlow(dto: ApiSectorFundFlowResponse): SectorFundFlo
     sectorName: dto.sector_name,
     sectorType: dto.sector_type,
     tradeDate: dto.trade_date,
+    changePct: dto.change_pct,
     mainNetInflow: dto.main_net_inflow,
     superLargeNet: dto.super_large_net,
     largeNet: dto.large_net,

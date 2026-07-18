@@ -15,6 +15,7 @@ class SectorFundFlowResponse(BaseModel):
     sector_name: str
     sector_type: str
     trade_date: date
+    change_pct: Decimal | None = None
     main_net_inflow: Decimal | None = None
     super_large_net: Decimal | None = None
     large_net: Decimal | None = None

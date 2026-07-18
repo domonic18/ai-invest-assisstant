@@ -48,19 +48,36 @@ class EastMoneySectorFundFlowCollector(BaseCollector):
         trade_date = date.today()
         raw: list[dict[str, Any]] = []
         for _, row in df.iterrows():
+            sector_name = _str(_find_col(row, ["名称", "板块名称"]))
             raw.append(
                 {
-                    "sector_code": _str(_find_col(row, ["板块代码"])),
-                    "sector_name": _str(_find_col(row, ["板块名称"])),
+                    # 东财板块资金流接口不返回板块代码，以板块名称作为稳定标识
+                    "sector_code": _str(_find_col(row, ["板块代码"])) or sector_name,
+                    "sector_name": sector_name,
                     "sector_type": sector_type,
                     "trade_date": trade_date,
-                    "main_net_inflow": _parse_amount(_find_col(row, ["主力净流入-净额"])),
-                    "super_large_net": _parse_amount(_find_col(row, ["超大单净流入-净额"])),
-                    "large_net": _parse_amount(_find_col(row, ["大单净流入-净额"])),
-                    "medium_net": _parse_amount(_find_col(row, ["中单净流入-净额"])),
-                    "small_net": _parse_amount(_find_col(row, ["小单净流入-净额"])),
+                    "change_pct": _parse_amount(
+                        _find_col(row, ["今日涨跌幅", "涨跌幅"])
+                    ),
+                    "main_net_inflow": _parse_amount(
+                        _find_col(row, ["今日主力净流入-净额", "主力净流入-净额"])
+                    ),
+                    "super_large_net": _parse_amount(
+                        _find_col(row, ["今日超大单净流入-净额", "超大单净流入-净额"])
+                    ),
+                    "large_net": _parse_amount(
+                        _find_col(row, ["今日大单净流入-净额", "大单净流入-净额"])
+                    ),
+                    "medium_net": _parse_amount(
+                        _find_col(row, ["今日中单净流入-净额", "中单净流入-净额"])
+                    ),
+                    "small_net": _parse_amount(
+                        _find_col(row, ["今日小单净流入-净额", "小单净流入-净额"])
+                    ),
                     "top_stock_code": _str(_find_col(row, ["主力净流入最大股代码"])),
-                    "top_stock_name": _str(_find_col(row, ["主力净流入最大股"])),
+                    "top_stock_name": _str(
+                        _find_col(row, ["今日主力净流入最大股", "主力净流入最大股"])
+                    ),
                 }
             )
         return raw
@@ -71,6 +88,7 @@ class EastMoneySectorFundFlowCollector(BaseCollector):
             "sector_name": raw.get("sector_name"),
             "sector_type": raw.get("sector_type"),
             "trade_date": raw["trade_date"],
+            "change_pct": raw.get("change_pct"),
             "main_net_inflow": raw.get("main_net_inflow"),
             "super_large_net": raw.get("super_large_net"),
             "large_net": raw.get("large_net"),
@@ -99,6 +117,18 @@ class EastMoneySectorFundFlowCollector(BaseCollector):
                 "sector_fund_flow",
                 cleaned,
                 conflict_key="sector_code, sector_type, trade_date",
+                update_columns=[
+                    "sector_name",
+                    "change_pct",
+                    "main_net_inflow",
+                    "super_large_net",
+                    "large_net",
+                    "medium_net",
+                    "small_net",
+                    "top_stock_code",
+                    "top_stock_name",
+                ],
+                update_skip_null=True,
             )
         await self._engine.dispose()
         return count

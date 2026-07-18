@@ -267,6 +267,7 @@ export interface ApiSectorFundFlowResponse {
   sector_name: string
   sector_type: string
   trade_date: string
+  change_pct: number | null
   main_net_inflow: number | null
   super_large_net: number | null
   large_net: number | null
