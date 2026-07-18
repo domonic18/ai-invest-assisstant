@@ -12,6 +12,7 @@ import {
   SettingOutlined,
   ShopOutlined,
   TeamOutlined,
+  UserOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { Menu } from 'antd'
@@ -22,12 +23,15 @@ import { useAuthStore } from '@/stores/auth'
 
 type MenuItem = Required<MenuProps>['items'][number]
 
-const MAIN_MENU_ITEMS: MenuItem[] = [
-  { key: '/', icon: <BarChartOutlined />, label: '仪表盘' },
+const REVIEW_MENU_ITEMS: MenuItem[] = [
+  { key: '/', icon: <BarChartOutlined />, label: '每日复盘' },
+  { key: '/auction', icon: <ShopOutlined />, label: '集合竞价' },
+  { key: '/capital-flow', icon: <FundOutlined />, label: '资金流向' },
+]
+
+const ANALYSIS_MENU_ITEMS: MenuItem[] = [
   { key: '/chain', icon: <HeatMapOutlined />, label: '产业链分析' },
   { key: '/hotspot', icon: <LineChartOutlined />, label: '热点追踪' },
-  { key: '/capital-flow', icon: <FundOutlined />, label: '资金流向' },
-  { key: '/auction', icon: <ShopOutlined />, label: '集合竞价' },
   { key: '/research', icon: <ReadOutlined />, label: '研报中心' },
 ]
 
@@ -46,15 +50,20 @@ const ADMIN_MENU_ITEMS: MenuItem[] = [
 const ADMIN_GROUP_KEY = 'admin-group'
 
 function leafKeys(items: MenuItem[]): string[] {
-  return items.flatMap((item) => (item && 'key' in item ? [String(item.key)] : []))
+  return items.flatMap((item) => {
+    if (!item || !('key' in item)) return []
+    const children =
+      'children' in item && Array.isArray(item.children)
+        ? leafKeys(item.children as MenuItem[])
+        : []
+    return [String(item.key), ...children]
+  })
 }
 
-const ALL_LEAF_KEYS = [...leafKeys(MAIN_MENU_ITEMS), ...leafKeys(ADMIN_MENU_ITEMS)]
-
-function resolveSelectedKey(pathname: string): string {
-  const matched = ALL_LEAF_KEYS.filter((key) =>
-    key === '/' ? pathname === '/' : pathname.startsWith(key),
-  )
+function resolveSelectedKey(pathname: string, keys: string[]): string {
+  const matched = keys
+    .filter((key) => key.startsWith('/'))
+    .filter((key) => (key === '/' ? pathname === '/' : pathname.startsWith(key)))
   return matched.sort((a, b) => b.length - a.length)[0] ?? '/'
 }
 
@@ -72,8 +81,8 @@ export function Sidebar() {
     }
   }, [isAdminPath])
 
-  const items: MenuItem[] = [
-    ...MAIN_MENU_ITEMS,
+  const settingsChildren: MenuItem[] = [
+    { key: '/settings', icon: <UserOutlined />, label: '个人设置' },
     ...(isAdmin
       ? [
           {
@@ -81,9 +90,15 @@ export function Sidebar() {
             icon: <SettingOutlined />,
             label: '后台管理',
             children: ADMIN_MENU_ITEMS,
-          },
+          } as MenuItem,
         ]
       : []),
+  ]
+
+  const items: MenuItem[] = [
+    { type: 'group', key: 'group-review', label: '复盘', children: REVIEW_MENU_ITEMS },
+    { type: 'group', key: 'group-analysis', label: '分析', children: ANALYSIS_MENU_ITEMS },
+    { type: 'group', key: 'group-settings', label: '设置', children: settingsChildren },
   ]
 
   return (
@@ -94,7 +109,7 @@ export function Sidebar() {
       <Menu
         theme="dark"
         mode="inline"
-        selectedKeys={[resolveSelectedKey(location.pathname)]}
+        selectedKeys={[resolveSelectedKey(location.pathname, leafKeys(items))]}
         openKeys={openKeys}
         onOpenChange={(keys) => setOpenKeys(keys as string[])}
         items={items}
