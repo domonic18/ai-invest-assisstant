@@ -16,6 +16,8 @@ import { useState } from 'react'
 
 import { useAuctionData } from '@/hooks/useAuction'
 import type { AuctionData } from '@ai-invest/shared'
+import { useColorScheme } from '@/stores/settings'
+import { fallHex, riseHex } from '@/utils/formatters'
 
 interface FilterForm {
   stockCode: string
@@ -23,11 +25,12 @@ interface FilterForm {
 }
 
 function PriceList({ prices, volumes, type }: { prices: number[]; volumes: number[]; type: 'bid' | 'ask' }) {
+  const color = type === 'bid' ? riseHex() : fallHex()
   return (
     <div className="space-y-1">
       {prices.slice(0, 5).map((price, idx) => (
         <div key={idx} className="flex justify-between gap-4">
-          <Tag color={type === 'bid' ? 'green' : 'red'}>{price.toFixed(2)}</Tag>
+          <Tag color={color}>{price.toFixed(2)}</Tag>
           <span className="text-gray-400">{volumes[idx] ?? '-'}</span>
         </div>
       ))}
@@ -36,6 +39,7 @@ function PriceList({ prices, volumes, type }: { prices: number[]; volumes: numbe
 }
 
 export function AuctionReview() {
+  useColorScheme()
   const [form] = Form.useForm<FilterForm>()
   const [params, setParams] = useState({
     stockCode: '',

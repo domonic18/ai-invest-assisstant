@@ -14,6 +14,8 @@ import { useState } from 'react'
 
 import { useFundFlow } from '@/hooks/useFundFlow'
 import type { FundFlowData } from '@ai-invest/shared'
+import { useColorScheme } from '@/stores/settings'
+import { changeHex } from '@/utils/formatters'
 
 interface FilterForm {
   stockCode?: string
@@ -21,6 +23,7 @@ interface FilterForm {
 }
 
 export function CapitalFlow() {
+  useColorScheme()
   const [form] = Form.useForm<FilterForm>()
   const [params, setParams] = useState({
     stockCode: '',
@@ -56,7 +59,7 @@ export function CapitalFlow() {
       dataIndex: 'mainNetInflow',
       key: 'mainNetInflow',
       render: (value: number | null) => (
-        <Typography.Text type={value && value >= 0 ? 'success' : 'danger'}>
+        <Typography.Text style={{ color: changeHex(value) }}>
           {formatAmount(value)}
         </Typography.Text>
       ),
@@ -102,7 +105,7 @@ export function CapitalFlow() {
             title="主力净流入合计"
             value={formatAmount(totalMain)}
             valueStyle={{
-              color: totalMain >= 0 ? '#2ea043' : '#f85149',
+              color: changeHex(totalMain),
             }}
           />
         </Card>

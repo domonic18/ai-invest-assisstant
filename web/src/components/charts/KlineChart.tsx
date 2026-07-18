@@ -2,6 +2,8 @@ import ReactECharts from 'echarts-for-react'
 import type { EChartsOption } from 'echarts'
 
 import type { KlineData } from '@ai-invest/shared'
+import { useColorScheme } from '@/stores/settings'
+import { fallHex, riseHex } from '@/utils/formatters'
 
 interface KlineChartProps {
   data: KlineData[]
@@ -9,10 +11,15 @@ interface KlineChartProps {
 }
 
 export function KlineChart({ data, height = 400 }: KlineChartProps) {
+  useColorScheme()
+
   const sorted = [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
   const dates = sorted.map((item) => item.date)
   const values = sorted.map((item) => [item.open, item.close, item.low, item.high])
   const volumes = sorted.map((item) => [item.date, item.volume])
+
+  const upColor = riseHex()
+  const downColor = fallHex()
 
   const option: EChartsOption = {
     backgroundColor: 'transparent',
@@ -42,10 +49,10 @@ export function KlineChart({ data, height = 400 }: KlineChartProps) {
         type: 'candlestick',
         data: values,
         itemStyle: {
-          color: '#2ea043',
-          color0: '#f85149',
-          borderColor: '#2ea043',
-          borderColor0: '#f85149',
+          color: upColor,
+          color0: downColor,
+          borderColor: upColor,
+          borderColor0: downColor,
         },
       },
       {
@@ -57,7 +64,7 @@ export function KlineChart({ data, height = 400 }: KlineChartProps) {
         itemStyle: {
           color: (params: { dataIndex: number }) => {
             const index = params.dataIndex
-            return sorted[index].close >= sorted[index].open ? '#2ea043' : '#f85149'
+            return sorted[index].close >= sorted[index].open ? upColor : downColor
           },
         },
       },

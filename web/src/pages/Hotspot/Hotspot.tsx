@@ -15,6 +15,8 @@ import { useState } from 'react'
 
 import { useHotspot } from '@/hooks/useHotspot'
 import type { SectorFundFlow } from '@ai-invest/shared'
+import { useColorScheme } from '@/stores/settings'
+import { changeHex } from '@/utils/formatters'
 
 interface FilterForm {
   sectorType?: string
@@ -22,6 +24,7 @@ interface FilterForm {
 }
 
 export function Hotspot() {
+  useColorScheme()
   const [form] = Form.useForm<FilterForm>()
   const [params, setParams] = useState({
     sectorType: '',
@@ -63,7 +66,7 @@ export function Hotspot() {
       dataIndex: 'mainNetInflow',
       key: 'mainNetInflow',
       render: (value: number | null) => (
-        <Typography.Text type={value && value >= 0 ? 'success' : 'danger'}>
+        <Typography.Text style={{ color: changeHex(value) }}>
           {formatAmount(value)}
         </Typography.Text>
       ),
