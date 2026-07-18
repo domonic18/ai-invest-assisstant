@@ -13,10 +13,10 @@ from typing import Any
 
 import httpx
 import structlog
-from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.llm_config import LLMConfig
+from app.repositories.llm_config_repository import LLMConfigRepository
 from app.schemas.llm_config import (
     LLMConfigCreate,
     LLMConfigResponse,
@@ -53,12 +53,19 @@ class LLMConfigService:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+        self.repo = LLMConfigRepository(session)
 
     async def list_configs(self) -> list[LLMConfigResponse]:
         """List all configurations with the default model first."""
-        stmt = select(LLMConfig).order_by(LLMConfig.is_default.desc(), LLMConfig.id)
-        rows = (await self.session.execute(stmt)).scalars().all()
+        rows = await self.repo.list_ordered()
         return [self._to_response(row) for row in rows]
+
+    async def get_config(self, config_id: int) -> LLMConfigResponse | None:
+        """按 ID 查询 LLM 配置。"""
+        config = await self.repo.get(config_id)
+        if not config:
+            return None
+        return self._to_response(config)
 
     async def create_config(self, data: LLMConfigCreate) -> LLMConfigResponse:
         """Create a new configuration."""
@@ -72,11 +79,11 @@ class LLMConfigService:
             extra=data.extra,
         )
         if data.is_default:
-            await self._clear_other_defaults(exclude_id=None)
+            await self.repo.clear_other_defaults(exclude_id=None)
             config.is_default = True
-        self.session.add(config)
-        await self.session.flush()
-        await self.session.refresh(config)
+        self.repo.add(config)
+        await self.session.commit()
+        await self.repo.refresh(config)
         logger.info(
             "llm_config_created",
             config_id=config.id,
@@ -89,7 +96,7 @@ class LLMConfigService:
         self, config_id: int, data: LLMConfigUpdate
     ) -> LLMConfigResponse | None:
         """Update an existing configuration."""
-        config = await self.session.get(LLMConfig, config_id)
+        config = await self.repo.get(config_id)
         if not config:
             return None
 
@@ -108,41 +115,43 @@ class LLMConfigService:
         if data.api_key:
             config.api_key_encrypted = encrypt_token(data.api_key)
         if data.is_default:
-            await self._clear_other_defaults(exclude_id=config_id)
+            await self.repo.clear_other_defaults(exclude_id=config_id)
             config.is_default = True
             config.is_active = True
 
-        await self.session.flush()
-        await self.session.refresh(config)
+        await self.session.commit()
+        await self.repo.refresh(config)
         return self._to_response(config)
 
     async def delete_config(self, config_id: int) -> None:
         """Delete a configuration, reassigning default if needed."""
-        config = await self.session.get(LLMConfig, config_id)
+        config = await self.repo.get(config_id)
         if not config:
             raise ValueError(f"LLM config {config_id} not found")
         was_default = config.is_default
-        await self.session.delete(config)
-        await self.session.flush()
+        await self.repo.delete(config)
         if was_default:
-            await self._reassign_default()
+            nxt = await self.repo.get_first_active()
+            if nxt:
+                nxt.is_default = True
+        await self.session.commit()
 
     async def set_default_config(self, config_id: int) -> LLMConfigResponse:
         """Set a configuration as the global default."""
-        config = await self.session.get(LLMConfig, config_id)
+        config = await self.repo.get(config_id)
         if not config:
             raise ValueError(f"LLM config {config_id} not found")
-        await self._clear_other_defaults(exclude_id=config_id)
+        await self.repo.clear_other_defaults(exclude_id=config_id)
         config.is_default = True
         config.is_active = True
-        await self.session.flush()
-        await self.session.refresh(config)
+        await self.session.commit()
+        await self.repo.refresh(config)
         logger.info("llm_config_set_default", config_id=config.id, name=config.name)
         return self._to_response(config)
 
     async def test_config_connection(self, config_id: int) -> LLMConfigTestResponse:
         """Test connectivity and persist the result."""
-        config = await self.session.get(LLMConfig, config_id)
+        config = await self.repo.get(config_id)
         if not config:
             raise ValueError(f"LLM config {config_id} not found")
 
@@ -152,41 +161,17 @@ class LLMConfigService:
         config.last_tested_at = now
         config.last_test_status = test_status
         config.last_test_error = None if test_status == "success" else detail
-        await self.session.flush()
+        await self.session.commit()
         return LLMConfigTestResponse(status=test_status, detail=detail, tested_at=now)
 
     async def get_default_config(self) -> LLMConfig:
         """Return the active default configuration."""
-        stmt = select(LLMConfig).where(
-            LLMConfig.is_default.is_(True),
-            LLMConfig.is_active.is_(True),
-        )
-        config = (await self.session.execute(stmt)).scalar_one_or_none()
+        config = await self.repo.get_default_active()
         if not config:
             raise LLMConfigNotConfiguredError(
                 "未配置默认 AI 模型，请在后台管理「LLM 配置」中添加"
             )
         return config
-
-    async def _clear_other_defaults(self, exclude_id: int | None) -> None:
-        """Clear the default flag from all other configurations."""
-        stmt = update(LLMConfig).values(is_default=False)
-        if exclude_id is not None:
-            stmt = stmt.where(LLMConfig.id != exclude_id)
-        await self.session.execute(stmt)
-
-    async def _reassign_default(self) -> None:
-        """After deleting the default, promote the first active config."""
-        stmt = (
-            select(LLMConfig)
-            .where(LLMConfig.is_active.is_(True))
-            .order_by(LLMConfig.id)
-            .limit(1)
-        )
-        nxt = (await self.session.execute(stmt)).scalar_one_or_none()
-        if nxt:
-            nxt.is_default = True
-            await self.session.flush()
 
     async def _call_model(
         self, config: LLMConfig, api_key: str

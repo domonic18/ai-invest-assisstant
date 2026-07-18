@@ -1,0 +1,27 @@
+"""Collector task repository."""
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.collector_task import CollectorTask
+from app.repositories.base import BaseRepository
+
+
+class CollectorTaskRepository(BaseRepository[CollectorTask]):
+    """Data access for collector tasks."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(session, CollectorTask)
+
+    async def list_paginated(
+        self,
+        *,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> tuple[list[CollectorTask], int]:
+        """Return paginated collector tasks ordered by id."""
+        stmt = select(CollectorTask).order_by(CollectorTask.id).offset(offset).limit(limit)
+        count_stmt = select(func.count()).select_from(CollectorTask)
+        result = await self.execute(stmt)
+        total = (await self.scalar(count_stmt)) or 0
+        return list(result.scalars().all()), total

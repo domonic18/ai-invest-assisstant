@@ -51,9 +51,9 @@ async def dispatch_collector_task(
         log.status = "failed"
         log.error_msg = f"Failed to push task to collector queue: {exc}"
         log.finished_at = datetime.now(timezone.utc)
-        await session.flush()
+        await session.commit()
         raise
     finally:
-        await session.flush()
+        await session.commit()
 
     return log

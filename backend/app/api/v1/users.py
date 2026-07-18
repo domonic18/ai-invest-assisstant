@@ -12,7 +12,7 @@ from app.schemas.user import (
     WatchlistItemCreate,
     WatchlistItemResponse,
 )
-from app.services import watchlist_service
+from app.services.watchlist_service import WatchlistService
 
 router = APIRouter()
 
@@ -40,7 +40,7 @@ async def get_watchlist(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[WatchlistItemResponse]:
     """获取当前用户自选股。"""
-    items = await watchlist_service.get_watchlist_by_user(session, current_user.id)
+    items = await WatchlistService(session).get_watchlist_by_user(current_user.id)
     return [WatchlistItemResponse.model_validate(item) for item in items]
 
 
@@ -52,7 +52,7 @@ async def add_watchlist(
 ) -> WatchlistItemResponse:
     """添加自选股。"""
     try:
-        item = await watchlist_service.add_watchlist_item(session, current_user, data)
+        item = await WatchlistService(session).add_watchlist_item(current_user, data)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

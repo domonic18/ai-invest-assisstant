@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_db
-from app.models.news_announcement import NewsAnnouncement
 from app.schemas.news_announcement import (
     NewsAnnouncementCreate,
     NewsAnnouncementResponse,
@@ -59,7 +58,7 @@ async def get_news(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> NewsAnnouncementResponse:
     """获取单条新闻公告。"""
-    news = await session.get(NewsAnnouncement, news_id)
+    news = await AdminNewsService(session).get_news(news_id)
     if not news:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

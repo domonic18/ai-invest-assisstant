@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_db
-from app.models.user import User
 from app.schemas.stock import PaginatedResponse
 from app.schemas.user import (
     AdminUserCreate,
@@ -57,7 +56,7 @@ async def get_user(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> UserResponse:
     """获取单个用户信息。"""
-    user = await session.get(User, user_id)
+    user = await AdminUserService(session).get_user(user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

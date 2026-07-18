@@ -3,10 +3,10 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.collector_task import CollectorTask
+from app.repositories.collector_task_repository import CollectorTaskRepository
 from app.schemas.collector_task import CollectorTaskCreate, CollectorTaskUpdate
 
 
@@ -15,21 +15,18 @@ class AdminTaskService:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+        self.repo = CollectorTaskRepository(session)
 
     async def list_tasks(
         self, page: int = 1, page_size: int = 20
     ) -> tuple[list[CollectorTask], int]:
         """分页查询采集任务列表。"""
-        stmt = (
-            select(CollectorTask)
-            .order_by(CollectorTask.id)
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-        )
-        count_stmt = select(func.count()).select_from(CollectorTask)
-        result = await self.session.execute(stmt)
-        total = await self.session.scalar(count_stmt) or 0
-        return list(result.scalars().all()), total
+        offset = (page - 1) * page_size
+        return await self.repo.list_paginated(offset=offset, limit=page_size)
+
+    async def get_task(self, task_id: int) -> CollectorTask | None:
+        """按 ID 查询采集任务。"""
+        return await self.repo.get(task_id)
 
     async def create_task(self, data: CollectorTaskCreate) -> CollectorTask:
         """创建采集任务。"""
@@ -40,16 +37,16 @@ class AdminTaskService:
             schedule=data.schedule,
             is_active=data.is_active,
         )
-        self.session.add(task)
-        await self.session.flush()
-        await self.session.refresh(task)
+        self.repo.add(task)
+        await self.session.commit()
+        await self.repo.refresh(task)
         return task
 
     async def update_task(
         self, task_id: int, data: CollectorTaskUpdate
     ) -> CollectorTask | None:
         """更新采集任务。"""
-        task = await self.session.get(CollectorTask, task_id)
+        task = await self.repo.get(task_id)
         if not task:
             return None
 
@@ -57,50 +54,47 @@ class AdminTaskService:
             setattr(task, field, value)
 
         task.updated_at = datetime.now(timezone.utc)
-        await self.session.flush()
-        await self.session.refresh(task)
+        await self.session.commit()
+        await self.repo.refresh(task)
         return task
 
     async def delete_task(self, task_id: int) -> None:
         """删除采集任务。"""
-        task = await self.session.get(CollectorTask, task_id)
+        task = await self.repo.get(task_id)
         if not task:
             raise ValueError(f"Task {task_id} not found")
-        await self.session.delete(task)
-        await self.session.flush()
+        await self.repo.delete(task)
+        await self.session.commit()
 
     async def pause_task(self, task_id: int) -> CollectorTask | None:
         """暂停采集任务。"""
-        task = await self.session.get(CollectorTask, task_id)
-        if not task:
-            return None
-        task.is_active = False
-        task.updated_at = datetime.now(timezone.utc)
-        await self.session.flush()
-        await self.session.refresh(task)
-        return task
+        return await self._set_active(task_id, False)
 
     async def resume_task(self, task_id: int) -> CollectorTask | None:
         """恢复采集任务。"""
-        task = await self.session.get(CollectorTask, task_id)
-        if not task:
-            return None
-        task.is_active = True
-        task.updated_at = datetime.now(timezone.utc)
-        await self.session.flush()
-        await self.session.refresh(task)
-        return task
+        return await self._set_active(task_id, True)
 
     async def trigger_task(self, task_id: int) -> CollectorTask | None:
         """触发采集任务，更新最后运行时间。"""
-        task = await self.session.get(CollectorTask, task_id)
+        task = await self.repo.get(task_id)
         if not task:
             return None
         task.last_run_at = datetime.now(timezone.utc)
         task.last_status = "running"
         task.updated_at = datetime.now(timezone.utc)
-        await self.session.flush()
-        await self.session.refresh(task)
+        await self.session.commit()
+        await self.repo.refresh(task)
+        return task
+
+    async def _set_active(self, task_id: int, active: bool) -> CollectorTask | None:
+        """Enable or disable a task."""
+        task = await self.repo.get(task_id)
+        if not task:
+            return None
+        task.is_active = active
+        task.updated_at = datetime.now(timezone.utc)
+        await self.session.commit()
+        await self.repo.refresh(task)
         return task
 
     def _to_response(self, task: CollectorTask) -> dict[str, Any]:

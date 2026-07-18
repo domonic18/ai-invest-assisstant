@@ -4,10 +4,12 @@ from datetime import datetime, timezone
 from typing import Any
 
 import structlog
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.collector_channel_config import CollectorChannelConfig
+from app.repositories.collector_channel_config_repository import (
+    CollectorChannelConfigRepository,
+)
 from app.schemas.collector_channel_config import (
     CollectorChannelConfigCreate,
     CollectorChannelConfigResponse,
@@ -23,12 +25,19 @@ class CollectorChannelConfigService:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+        self.repo = CollectorChannelConfigRepository(session)
 
     async def list_configs(self) -> list[CollectorChannelConfigResponse]:
         """List all channel configurations ordered by source."""
-        stmt = select(CollectorChannelConfig).order_by(CollectorChannelConfig.source)
-        rows = (await self.session.execute(stmt)).scalars().all()
+        rows = await self.repo.list_ordered()
         return [self._to_response(row) for row in rows]
+
+    async def get_config(self, config_id: int) -> CollectorChannelConfigResponse | None:
+        """按 ID 查询渠道配置。"""
+        config = await self.repo.get(config_id)
+        if not config:
+            return None
+        return self._to_response(config)
 
     async def create_config(
         self, data: CollectorChannelConfigCreate
@@ -45,9 +54,9 @@ class CollectorChannelConfigService:
             supported_data_types=data.supported_data_types,
             extra=data.extra,
         )
-        self.session.add(config)
-        await self.session.flush()
-        await self.session.refresh(config)
+        self.repo.add(config)
+        await self.session.commit()
+        await self.repo.refresh(config)
         logger.info(
             "collector_channel_config_created",
             config_id=config.id,
@@ -60,7 +69,7 @@ class CollectorChannelConfigService:
         self, config_id: int, data: CollectorChannelConfigUpdate
     ) -> CollectorChannelConfigResponse | None:
         """Update an existing channel configuration."""
-        config = await self.session.get(CollectorChannelConfig, config_id)
+        config = await self.repo.get(config_id)
         if not config:
             return None
 
@@ -78,25 +87,21 @@ class CollectorChannelConfigService:
             config.api_key_encrypted = encrypt_token(data.api_key)
 
         config.updated_at = datetime.now(timezone.utc)
-        await self.session.flush()
-        await self.session.refresh(config)
+        await self.session.commit()
+        await self.repo.refresh(config)
         return self._to_response(config)
 
     async def delete_config(self, config_id: int) -> None:
         """Delete a channel configuration."""
-        config = await self.session.get(CollectorChannelConfig, config_id)
+        config = await self.repo.get(config_id)
         if not config:
             raise ValueError(f"Collector channel config {config_id} not found")
-        await self.session.delete(config)
-        await self.session.flush()
+        await self.repo.delete(config)
+        await self.session.commit()
 
     async def get_enabled_config(self, source: str) -> CollectorChannelConfig | None:
         """Return the enabled configuration for a source, if any."""
-        stmt = select(CollectorChannelConfig).where(
-            CollectorChannelConfig.source == source,
-            CollectorChannelConfig.is_enabled.is_(True),
-        )
-        return (await self.session.execute(stmt)).scalar_one_or_none()
+        return await self.repo.get_enabled_by_source(source)
 
     def _to_response(self, config: CollectorChannelConfig) -> CollectorChannelConfigResponse:
         return CollectorChannelConfigResponse(

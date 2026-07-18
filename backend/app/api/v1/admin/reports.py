@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_db
-from app.models.file_metadata import FileMetadata
 from app.schemas.file_metadata import (
     FileMetadataCreate,
     FileMetadataResponse,
@@ -30,11 +29,16 @@ async def list_reports(
     items, total = await AdminReportService(session).list_reports(
         stock_code, file_type, page, page_size
     )
+    response_items = []
+    for report, stock_name in items:
+        response = FileMetadataResponse.model_validate(report)
+        response.stock_name = stock_name
+        response_items.append(response)
     return PaginatedResponse(
         total=total,
         page=page,
         page_size=page_size,
-        items=[FileMetadataResponse.model_validate(item) for item in items],
+        items=response_items,
     )
 
 
@@ -58,7 +62,7 @@ async def get_report(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> FileMetadataResponse:
     """获取单条研报文件元数据。"""
-    report = await session.get(FileMetadata, report_id)
+    report = await AdminReportService(session).get_report(report_id)
     if not report:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

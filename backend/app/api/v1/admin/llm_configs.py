@@ -46,11 +46,10 @@ async def get_llm_config(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> LLMConfigResponse:
     """Get a single LLM configuration."""
-    configs = await LLMConfigService(session).list_configs()
-    for config in configs:
-        if config.id == config_id:
-            return config
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="LLM config not found")
+    config = await LLMConfigService(session).get_config(config_id)
+    if not config:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="LLM config not found")
+    return config
 
 
 @router.put("/{config_id}", response_model=LLMConfigResponse)

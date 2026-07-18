@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_db
-from app.models.collector_task import CollectorTask
 from app.schemas.collector_task import (
     CollectorTaskCreate,
     CollectorTaskResponse,
@@ -55,7 +54,7 @@ async def get_task(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> CollectorTaskResponse:
     """获取单个采集任务。"""
-    task = await session.get(CollectorTask, task_id)
+    task = await AdminTaskService(session).get_task(task_id)
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -144,5 +143,4 @@ async def trigger_task(
         task_name=task.task_type,
         params=params,
     )
-    await session.commit()
     return CollectorTaskResponse.model_validate(task)

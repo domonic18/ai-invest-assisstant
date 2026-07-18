@@ -44,7 +44,8 @@ class FinancialReportStore:
         async with session_maker() as session:
             for item in items:
                 try:
-                    await self._save_one(session, item, errors)
+                    async with session.begin_nested():
+                        await self._save_one(session, item, errors)
                     stored += 1
                 except Exception as exc:  # noqa: BLE001
                     msg = f"{item.get('stock_code')} {item.get('title')}: {exc}"

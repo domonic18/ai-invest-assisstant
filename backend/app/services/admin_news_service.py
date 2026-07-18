@@ -1,10 +1,9 @@
 """Admin news announcement business services."""
 
-
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.news_announcement import NewsAnnouncement
+from app.repositories.news_announcement_repository import NewsAnnouncementRepository
 from app.schemas.news_announcement import (
     NewsAnnouncementCreate,
     NewsAnnouncementResponse,
@@ -17,6 +16,7 @@ class AdminNewsService:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+        self.repo = NewsAnnouncementRepository(session)
 
     async def list_news(
         self,
@@ -27,30 +27,18 @@ class AdminNewsService:
         page_size: int = 20,
     ) -> tuple[list[NewsAnnouncement], int]:
         """分页查询新闻公告列表。"""
-        stmt = select(NewsAnnouncement).order_by(NewsAnnouncement.created_at.desc())
-        count_stmt = select(func.count()).select_from(NewsAnnouncement)
+        offset = (page - 1) * page_size
+        return await self.repo.list_paginated(
+            stock_code=stock_code,
+            doc_type=doc_type,
+            q=q,
+            offset=offset,
+            limit=page_size,
+        )
 
-        if stock_code:
-            stmt = stmt.where(NewsAnnouncement.stock_code == stock_code)
-            count_stmt = count_stmt.where(NewsAnnouncement.stock_code == stock_code)
-        if doc_type:
-            stmt = stmt.where(NewsAnnouncement.doc_type == doc_type)
-            count_stmt = count_stmt.where(NewsAnnouncement.doc_type == doc_type)
-        if q:
-            pattern = f"%{q}%"
-            stmt = stmt.where(
-                NewsAnnouncement.title.ilike(pattern)
-                | NewsAnnouncement.content.ilike(pattern)
-            )
-            count_stmt = count_stmt.where(
-                NewsAnnouncement.title.ilike(pattern)
-                | NewsAnnouncement.content.ilike(pattern)
-            )
-
-        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
-        result = await self.session.execute(stmt)
-        total = await self.session.scalar(count_stmt) or 0
-        return list(result.scalars().all()), total
+    async def get_news(self, news_id: int) -> NewsAnnouncement | None:
+        """按 ID 查询新闻公告。"""
+        return await self.repo.get(news_id)
 
     async def create_news(self, data: NewsAnnouncementCreate) -> NewsAnnouncement:
         """创建新闻公告。"""
@@ -69,33 +57,33 @@ class AdminNewsService:
             es_id=data.es_id,
             extra=data.extra,
         )
-        self.session.add(news)
-        await self.session.flush()
-        await self.session.refresh(news)
+        self.repo.add(news)
+        await self.session.commit()
+        await self.repo.refresh(news)
         return news
 
     async def update_news(
         self, news_id: int, data: NewsAnnouncementUpdate
     ) -> NewsAnnouncement | None:
         """更新新闻公告。"""
-        news = await self.session.get(NewsAnnouncement, news_id)
+        news = await self.repo.get(news_id)
         if not news:
             return None
 
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(news, field, value)
 
-        await self.session.flush()
-        await self.session.refresh(news)
+        await self.session.commit()
+        await self.repo.refresh(news)
         return news
 
     async def delete_news(self, news_id: int) -> None:
         """删除新闻公告。"""
-        news = await self.session.get(NewsAnnouncement, news_id)
+        news = await self.repo.get(news_id)
         if not news:
             raise ValueError(f"News {news_id} not found")
-        await self.session.delete(news)
-        await self.session.flush()
+        await self.repo.delete(news)
+        await self.session.commit()
 
     def _to_response(self, news: NewsAnnouncement) -> NewsAnnouncementResponse:
         """序列化为新闻公告响应模型。"""

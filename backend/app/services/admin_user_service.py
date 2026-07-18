@@ -2,11 +2,11 @@
 
 from typing import Any
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import get_password_hash
 from app.models.user import User
+from app.repositories.user_repository import UserRepository
 from app.schemas.user import AdminUserCreate, AdminUserUpdate
 
 
@@ -15,22 +15,30 @@ class AdminUserService:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+        self.repo = UserRepository(session)
 
     async def list_users(
         self, page: int = 1, page_size: int = 20
     ) -> tuple[list[User], int]:
         """分页查询用户列表。"""
-        stmt = select(User).order_by(User.id).offset((page - 1) * page_size).limit(page_size)
-        count_stmt = select(func.count()).select_from(User)
-        result = await self.session.execute(stmt)
-        total = await self.session.scalar(count_stmt) or 0
-        return list(result.scalars().all()), total
+        offset = (page - 1) * page_size
+        items = await self.repo.get_all(
+            order_by=User.id,
+            offset=offset,
+            limit=page_size,
+        )
+        total = await self.repo.count()
+        return items, total
+
+    async def get_user(self, user_id: int) -> User | None:
+        """按 ID 查询用户。"""
+        return await self.repo.get(user_id)
 
     async def create_user(self, data: AdminUserCreate) -> User:
         """创建新用户。"""
-        if await self._get_user_by_username(data.username):
+        if await self.repo.exists_by_username(data.username):
             raise ValueError(f"Username {data.username} already exists")
-        if await self._get_user_by_email(data.email):
+        if await self.repo.exists_by_email(data.email):
             raise ValueError(f"Email {data.email} already exists")
 
         user = User(
@@ -40,23 +48,23 @@ class AdminUserService:
             role=data.role,
             is_active=data.is_active,
         )
-        self.session.add(user)
-        await self.session.flush()
-        await self.session.refresh(user)
+        self.repo.add(user)
+        await self.session.commit()
+        await self.repo.refresh(user)
         return user
 
     async def update_user(self, user_id: int, data: AdminUserUpdate) -> User | None:
         """更新用户信息。"""
-        user = await self.session.get(User, user_id)
+        user = await self.repo.get(user_id)
         if not user:
             return None
 
         if data.username is not None and data.username != user.username:
-            if await self._get_user_by_username(data.username):
+            if await self.repo.exists_by_username(data.username):
                 raise ValueError(f"Username {data.username} already exists")
             user.username = data.username
         if data.email is not None and data.email != user.email:
-            if await self._get_user_by_email(data.email):
+            if await self.repo.exists_by_email(data.email):
                 raise ValueError(f"Email {data.email} already exists")
             user.email = data.email
         if data.role is not None:
@@ -64,37 +72,27 @@ class AdminUserService:
         if data.is_active is not None:
             user.is_active = data.is_active
 
-        await self.session.flush()
-        await self.session.refresh(user)
+        await self.session.commit()
+        await self.repo.refresh(user)
         return user
 
     async def delete_user(self, user_id: int) -> None:
         """删除用户。"""
-        user = await self.session.get(User, user_id)
+        user = await self.repo.get(user_id)
         if not user:
             raise ValueError(f"User {user_id} not found")
-        await self.session.delete(user)
-        await self.session.flush()
+        await self.repo.delete(user)
+        await self.session.commit()
 
     async def reset_password(self, user_id: int, password: str) -> User | None:
         """重置用户密码。"""
-        user = await self.session.get(User, user_id)
+        user = await self.repo.get(user_id)
         if not user:
             return None
         user.password_hash = get_password_hash(password)
-        await self.session.flush()
-        await self.session.refresh(user)
+        await self.session.commit()
+        await self.repo.refresh(user)
         return user
-
-    async def _get_user_by_username(self, username: str) -> User | None:
-        result = await self.session.execute(
-            select(User).where(User.username == username)
-        )
-        return result.scalar_one_or_none()
-
-    async def _get_user_by_email(self, email: str) -> User | None:
-        result = await self.session.execute(select(User).where(User.email == email))
-        return result.scalar_one_or_none()
 
     def _to_response(self, user: User) -> dict[str, Any]:
         """序列化为用户响应字典。"""

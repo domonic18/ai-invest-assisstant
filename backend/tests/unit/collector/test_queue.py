@@ -78,6 +78,7 @@ class TestCollectorDispatcher:
         assert payload["task"] == "financial-report"
         assert payload["log_id"] == 5
         assert payload["preferred_source"] == "cninfo"
+        mock_session.commit.assert_awaited()
 
     @pytest.mark.asyncio
     async def test_dispatch_marks_log_failed_when_push_fails(self) -> None:
@@ -102,3 +103,4 @@ class TestCollectorDispatcher:
 
         assert mock_log.status == "failed"
         assert "redis down" in mock_log.error_msg
+        mock_session.commit.assert_awaited()

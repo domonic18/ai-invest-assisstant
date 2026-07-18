@@ -67,6 +67,7 @@ def _report_mock() -> MagicMock:
     report.original_name = "report.pdf"
     report.file_type = "pdf"
     report.stock_code = "000001"
+    report.stock_name = None
     report.report_date = date(2024, 1, 1)
     report.report_type = "年报"
     report.broker = "Broker"
@@ -230,12 +231,13 @@ class TestAdminReportEndpoints:
     @patch("app.api.v1.admin.reports.AdminReportService")
     def test_list_reports(self, mock_service, admin_client) -> None:
         mock_service.return_value.list_reports = AsyncMock(
-            return_value=([_report_mock()], 1)
+            return_value=([(_report_mock(), "平安银行")], 1)
         )
         client, _ = admin_client
         response = client.get("/api/v1/admin/reports/")
         assert response.status_code == 200
         assert response.json()["total"] == 1
+        assert response.json()["items"][0]["stock_name"] == "平安银行"
 
     @patch("app.api.v1.admin.reports.AdminReportService")
     def test_create_report(self, mock_service, admin_client) -> None:

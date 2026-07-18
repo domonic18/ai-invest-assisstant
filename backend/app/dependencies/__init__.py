@@ -15,12 +15,17 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """获取数据库会话。"""
+    """获取数据库会话。
+
+    事务边界由服务层/调用方控制：本依赖只负责提供会话并在异常时回滚，
+    不做自动提交。写操作必须由服务层显式 ``session.commit()``。
+    """
     async with AsyncSessionLocal() as session:
         try:
             yield session
-        finally:
-            await session.close()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 async def get_current_user(

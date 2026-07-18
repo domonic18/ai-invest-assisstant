@@ -88,6 +88,17 @@ async def fetch_kline(
 - 使用一致的 JSON 响应格式
 - 列表端点支持分页
 
+### 数据库分层与事务边界（必须遵守）
+
+分层：`路由 (api/) → 服务 (services/) → 仓储 (repositories/) → 模型 (models/)`
+
+- **路由层禁止直接操作数据库**：不允许在路由中调用 `session.execute` / `session.add` / `session.commit`，一律委托给服务层
+- **仓储层禁止管理事务**：`repositories/` 只做查询构造与执行，**绝不**调用 `commit()` / `rollback()`
+- **服务层拥有事务边界**：所有写操作（add/delete/update）成功后必须显式 `await session.commit()`；禁止只 `flush()` 不 `commit()`（`get_db` 不会自动提交，只 flush 的写入会在请求结束时被回滚）
+- **独立执行单元自行管理事务**：`collector/` 下的 worker、dispatcher、store 等不经过 `get_db` 的代码，必须在自己创建的 session 上显式 commit
+- **批量写入容错**：循环写入单条失败时，使用 `session.begin_nested()`（SAVEPOINT）隔离失败项，避免污染整个会话
+- **`get_db` 的唯一实现位于 `app/dependencies/__init__.py`**，异常时自动回滚；不要在其他模块重复定义
+
 ### AI Agent 与 Prompt 管理
 
 - 所有 Agent Prompt 必须放在 `app/prompts/agents/` 和 `app/prompts/skills/` 下的 YAML 文件中

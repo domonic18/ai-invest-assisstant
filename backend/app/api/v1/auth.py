@@ -12,7 +12,7 @@ from app.core.security import create_access_token
 from app.dependencies import get_db
 from app.schemas.auth import AuthResponse, RegisterRequest
 from app.schemas.user import UserResponse
-from app.services import user_service
+from app.services.user_service import UserService
 
 router = APIRouter()
 settings = get_settings()
@@ -21,18 +21,19 @@ settings = get_settings()
 @router.post("/register", response_model=AuthResponse)
 async def register(data: RegisterRequest, session: AsyncSession = Depends(get_db)) -> AuthResponse:
     """用户注册。"""
-    if await user_service.get_user_by_username(session, data.username):
+    user_service = UserService(session)
+    if await user_service.get_user_by_username(data.username):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered",
         )
-    if await user_service.get_user_by_email(session, data.email):
+    if await user_service.get_user_by_email(data.email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
 
-    user = await user_service.create_user(session, data)
+    user = await user_service.create_user(data)
     access_token = create_access_token(
         data={"sub": str(user.id), "role": user.role},
         expires_delta=timedelta(minutes=settings.jwt_access_token_expire_minutes),
@@ -46,7 +47,8 @@ async def login(
     session: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     """用户登录。"""
-    user = await user_service.authenticate_user(session, form_data.username, form_data.password)
+    user_service = UserService(session)
+    user = await user_service.authenticate_user(form_data.username, form_data.password)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -54,7 +56,7 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    await user_service.update_last_login(session, user)
+    await user_service.update_last_login(user)
     access_token = create_access_token(
         data={"sub": str(user.id), "role": user.role},
         expires_delta=timedelta(minutes=settings.jwt_access_token_expire_minutes),

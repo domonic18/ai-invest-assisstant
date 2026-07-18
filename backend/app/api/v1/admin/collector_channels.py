@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_db
-from app.models.collector_channel_config import CollectorChannelConfig
 from app.schemas.collector_channel_config import (
     CollectorChannelConfigCreate,
     CollectorChannelConfigResponse,
@@ -48,13 +47,13 @@ async def get_collector_channel_config(
 ) -> CollectorChannelConfigResponse:
     """Get a single collector channel configuration."""
     service = CollectorChannelConfigService(session)
-    config = await session.get(CollectorChannelConfig, config_id)
+    config = await service.get_config(config_id)
     if not config:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Collector channel config not found",
         )
-    return service._to_response(config)
+    return config
 
 
 @router.put("/{config_id}", response_model=CollectorChannelConfigResponse)

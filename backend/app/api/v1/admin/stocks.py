@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_db
-from app.models.stock import StockBasic
 from app.schemas.stock import (
     AdminStockCreate,
     AdminStockUpdate,
@@ -51,7 +50,7 @@ async def get_stock(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> StockBasicResponse:
     """获取单条股票基础信息。"""
-    stock = await session.get(StockBasic, stock_id)
+    stock = await AdminStockService(session).get_stock(stock_id)
     if not stock:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

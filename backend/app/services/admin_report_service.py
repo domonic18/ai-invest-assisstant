@@ -3,10 +3,11 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.file_metadata import FileMetadata
+from app.repositories.file_metadata_repository import FileMetadataRepository
+from app.repositories.stock_repository import StockRepository
 from app.schemas.file_metadata import FileMetadataCreate, FileMetadataUpdate
 
 
@@ -15,6 +16,8 @@ class AdminReportService:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+        self.repo = FileMetadataRepository(session)
+        self.stock_repo = StockRepository(session)
 
     async def list_reports(
         self,
@@ -22,22 +25,25 @@ class AdminReportService:
         file_type: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> tuple[list[FileMetadata], int]:
-        """分页查询研报文件列表。"""
-        stmt = select(FileMetadata).order_by(FileMetadata.uploaded_at.desc())
-        count_stmt = select(func.count()).select_from(FileMetadata)
+    ) -> tuple[list[tuple[FileMetadata, str | None]], int]:
+        """分页查询研报文件列表，每条附带股票名称（查不到为 None）。"""
+        offset = (page - 1) * page_size
+        items, total = await self.repo.list_paginated(
+            stock_code=stock_code,
+            file_type=file_type,
+            offset=offset,
+            limit=page_size,
+        )
+        codes = list({item.stock_code for item in items if item.stock_code})
+        names = await self.stock_repo.get_names_by_codes(codes)
+        return [
+            (item, names.get(item.stock_code) if item.stock_code else None)
+            for item in items
+        ], total
 
-        if stock_code:
-            stmt = stmt.where(FileMetadata.stock_code == stock_code)
-            count_stmt = count_stmt.where(FileMetadata.stock_code == stock_code)
-        if file_type:
-            stmt = stmt.where(FileMetadata.file_type == file_type)
-            count_stmt = count_stmt.where(FileMetadata.file_type == file_type)
-
-        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
-        result = await self.session.execute(stmt)
-        total = await self.session.scalar(count_stmt) or 0
-        return list(result.scalars().all()), total
+    async def get_report(self, report_id: int) -> FileMetadata | None:
+        """按 ID 查询研报文件元数据。"""
+        return await self.repo.get(report_id)
 
     async def create_report(self, data: FileMetadataCreate) -> FileMetadata:
         """创建研报文件元数据。"""
@@ -53,16 +59,16 @@ class AdminReportService:
             md5_hash=data.md5_hash,
             download_url=data.download_url,
         )
-        self.session.add(report)
-        await self.session.flush()
-        await self.session.refresh(report)
+        self.repo.add(report)
+        await self.session.commit()
+        await self.repo.refresh(report)
         return report
 
     async def update_report(
         self, report_id: int, data: FileMetadataUpdate
     ) -> FileMetadata | None:
         """更新研报文件元数据。"""
-        report = await self.session.get(FileMetadata, report_id)
+        report = await self.repo.get(report_id)
         if not report:
             return None
 
@@ -70,17 +76,17 @@ class AdminReportService:
             setattr(report, field, value)
 
         report.uploaded_at = datetime.now(timezone.utc)
-        await self.session.flush()
-        await self.session.refresh(report)
+        await self.session.commit()
+        await self.repo.refresh(report)
         return report
 
     async def delete_report(self, report_id: int) -> None:
         """删除研报文件元数据。"""
-        report = await self.session.get(FileMetadata, report_id)
+        report = await self.repo.get(report_id)
         if not report:
             raise ValueError(f"Report {report_id} not found")
-        await self.session.delete(report)
-        await self.session.flush()
+        await self.repo.delete(report)
+        await self.session.commit()
 
     def _to_response(self, report: FileMetadata) -> dict[str, Any]:
         """序列化为研报响应字典。"""

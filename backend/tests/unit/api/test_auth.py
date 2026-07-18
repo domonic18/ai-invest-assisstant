@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -20,17 +20,19 @@ class TestAuthEndpoints:
             },
         )()
 
-        with patch("app.api.v1.auth.user_service.get_user_by_username", return_value=None):
-            with patch("app.api.v1.auth.user_service.get_user_by_email", return_value=None):
-                with patch("app.api.v1.auth.user_service.create_user", return_value=mock_user):
-                    response = client.post(
-                        "/api/v1/auth/register",
-                        json={
-                            "username": "tester",
-                            "email": "test@example.com",
-                            "password": "secret123",
-                        },
-                    )
+        with patch("app.api.v1.auth.UserService") as mock_user_service:
+            instance = mock_user_service.return_value
+            instance.get_user_by_username = AsyncMock(return_value=None)
+            instance.get_user_by_email = AsyncMock(return_value=None)
+            instance.create_user = AsyncMock(return_value=mock_user)
+            response = client.post(
+                "/api/v1/auth/register",
+                json={
+                    "username": "tester",
+                    "email": "test@example.com",
+                    "password": "secret123",
+                },
+            )
 
         assert response.status_code == 200
         data = response.json()
@@ -38,7 +40,9 @@ class TestAuthEndpoints:
         assert "access_token" in data
 
     def test_login_invalid_credentials(self, client) -> None:
-        with patch("app.api.v1.auth.user_service.authenticate_user", return_value=None):
+        with patch("app.api.v1.auth.UserService") as mock_user_service:
+            instance = mock_user_service.return_value
+            instance.authenticate_user = AsyncMock(return_value=None)
             response = client.post(
                 "/api/v1/auth/login",
                 data={"username": "tester", "password": "wrong"},

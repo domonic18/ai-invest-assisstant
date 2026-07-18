@@ -48,7 +48,7 @@ class TestAdminUserService:
 
         assert result.username == "tester"
         service.session.add.assert_called_once()
-        service.session.flush.assert_awaited_once()
+        service.session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_create_user_duplicate_username(self, service: AdminUserService) -> None:
