@@ -12,6 +12,7 @@ from app.models.fund_holdings import FundHoldings
 from app.models.income_statement import IncomeStatement
 from app.models.ipo_info import IpoInfo
 from app.models.kline import KlineDaily
+from app.models.limit_up_pool import LimitUpPool
 from app.models.llm_config import LLMConfig
 from app.models.news_announcement import NewsAnnouncement
 from app.models.sector_fund_flow import SectorFundFlow
@@ -32,6 +33,7 @@ __all__ = [
     "IncomeStatement",
     "IpoInfo",
     "KlineDaily",
+    "LimitUpPool",
     "LLMConfig",
     "NewsAnnouncement",
     "SectorFundFlow",

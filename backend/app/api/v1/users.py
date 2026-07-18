@@ -7,11 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
+from app.schemas.market import WatchlistQuoteItem
 from app.schemas.user import (
     UserResponse,
     WatchlistItemCreate,
     WatchlistItemResponse,
 )
+from app.services import market_service
 from app.services.watchlist_service import WatchlistService
 
 router = APIRouter()
@@ -59,3 +61,12 @@ async def add_watchlist(
             detail=str(exc),
         ) from exc
     return WatchlistItemResponse.model_validate(item)
+
+
+@router.get("/watchlist/quotes", response_model=list[WatchlistQuoteItem])
+async def get_watchlist_quotes(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> list[WatchlistQuoteItem]:
+    """获取当前用户自选股实时行情（Redis 快照，缺失时回退最近收盘价）。"""
+    return await market_service.get_watchlist_quotes(session, current_user.id)

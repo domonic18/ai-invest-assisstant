@@ -8,6 +8,7 @@ from app.api.v1 import (
     fund_flow,
     hotspot,
     kline,
+    market,
     research,
     stocks,
     users,
@@ -35,6 +36,7 @@ api_router.include_router(hotspot.router, prefix="/hotspot", tags=["hotspot"])
 api_router.include_router(financial.router, prefix="/financial", tags=["financial"])
 api_router.include_router(auction.router, prefix="/auction", tags=["auction"])
 api_router.include_router(fund_flow.router, prefix="/fund-flow", tags=["fund-flow"])
+api_router.include_router(market.router, prefix="/market", tags=["market"])
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(admin_users.router, prefix="/users")

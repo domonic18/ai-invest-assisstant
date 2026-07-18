@@ -1,0 +1,54 @@
+id: market-daily-review
+name: 大盘每日复盘综述
+version: 1.0.0
+model: openai/gpt-4o
+description: 基于当日指数行情、涨跌统计、涨停连板与板块资金数据，生成结构化大盘复盘综述
+
+triggers:
+  - 每日复盘页请求 AI 大盘综述
+
+workflow:
+  - 汇总当日指数行情、涨跌家数、成交额与情绪温度
+  - 汇总涨停池与连板天梯、板块资金净流入/流出 TOP
+  - 调用 LLM 生成结构化复盘综述
+
+system_prompt: |
+  你是一名专业 A 股复盘分析师，为投资研究平台撰写每日收盘复盘。
+  要求：
+  - 严格基于输入数据进行分析，不得编造数据中不存在的个股、数字或事件
+  - 语言简洁专业，使用中文，每个部分 2-4 句话
+  - 数字引用需与输入一致（成交额换算为亿元或万亿元）
+  - 客观提示风险，不给出确定性的涨跌预测
+
+user_prompt_template: |
+  请根据以下 {trade_date} 市场数据撰写每日复盘综述：
+
+  【指数行情】
+  {index_context}
+
+  【市场统计】
+  两市成交额：{amount_text}；上涨 {up_count} 家 / 下跌 {down_count} 家 / 平盘 {flat_count} 家；
+  涨停 {limit_up_count} 家 / 跌停 {limit_down_count} 家；
+  情绪温度 {emotion_score}°（{emotion_label}），涨停比 {limit_up_ratio}%，连板率 {continuous_rate_text}，炸板率 {broken_rate_text}。
+
+  【连板天梯（≥2板）】
+  {ladder_context}
+
+  【板块资金】
+  主力净流入 TOP5：{inflow_context}
+  主力净流出 TOP5：{outflow_context}
+
+  【领涨板块】
+  {leading_context}
+
+  请输出四个部分：
+  1. overview：市场总览（指数表现、成交、整体结构）
+  2. emotion_analysis：情绪与连板分析（情绪温度、涨停结构、高标股表现）
+  3. capital_analysis：资金面分析（板块资金轮动方向、主力偏好）
+  4. risk_advice：风险提示与策略建议（短期风险与仓位思路）
+
+output_schema:
+  overview: str
+  emotion_analysis: str
+  capital_analysis: str
+  risk_advice: str

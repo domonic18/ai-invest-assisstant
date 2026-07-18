@@ -9,6 +9,7 @@ export const ENDPOINTS = {
   users: {
     me: `${API_BASE}/users/me`,
     watchlist: `${API_BASE}/users/watchlist`,
+    watchlistQuotes: `${API_BASE}/users/watchlist/quotes`,
   },
   stocks: {
     search: `${API_BASE}/stocks/search`,
@@ -36,6 +37,14 @@ export const ENDPOINTS = {
   },
   fundFlow: {
     list: `${API_BASE}/fund-flow`,
+  },
+  market: {
+    indices: `${API_BASE}/market/indices`,
+    indexIntraday: (code: string) => `${API_BASE}/market/indices/intraday?code=${code}`,
+    stats: `${API_BASE}/market/stats`,
+    limitUp: `${API_BASE}/market/limit-up`,
+    sectors: `${API_BASE}/market/sectors`,
+    aiReview: `${API_BASE}/market/ai-review`,
   },
   admin: {
     users: `${API_BASE}/admin/users`,
