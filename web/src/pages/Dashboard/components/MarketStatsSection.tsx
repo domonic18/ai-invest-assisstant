@@ -1,10 +1,11 @@
 import { Card, Skeleton, Tabs, Typography } from 'antd'
 
 import type { IndexQuote, MarketStats } from '@ai-invest/shared'
+import { SourceNote } from '@/components/common/SourceNote'
 import { useColorScheme } from '@/stores/settings'
 import { changeHex, fallColor, formatAmount, formatPercent, riseColor } from '@/utils/formatters'
 
-import { IndexIntradayPanel } from './IndexIntradayPanel'
+import { IndexChartPanel } from './IndexChartPanel'
 
 interface MarketStatsSectionProps {
   indices?: IndexQuote[]
@@ -62,9 +63,10 @@ export function MarketStatsSection({ indices, stats, loading, tradeDate }: Marke
           items={INTRADAY_TABS.map((tab) => ({
             key: tab.key,
             label: tab.label,
-            children: <IndexIntradayPanel code={tab.key} tradeDate={tradeDate} />,
+            children: <IndexChartPanel code={tab.key} tradeDate={tradeDate} />,
           }))}
         />
+        <SourceNote>新浪财经 · 指数实时行情与分钟级分时数据；多周期 K 线由本地指数日 K 聚合</SourceNote>
       </Card>
 
       <Card variant="borderless" title="成交量与涨跌统计">
@@ -133,6 +135,7 @@ export function MarketStatsSection({ indices, stats, loading, tradeDate }: Marke
             </div>
           </>
         )}
+        <SourceNote>成交额取自沪深交易所官方数据 · 涨跌家数与涨跌停统计来自新浪财经全市场快照、东方财富涨跌停池</SourceNote>
       </Card>
     </section>
   )

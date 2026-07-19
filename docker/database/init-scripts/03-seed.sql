@@ -19,11 +19,13 @@ ON CONFLICT (stock_code, market) DO NOTHING;
 INSERT INTO collector_task (task_name, task_type, source, schedule, is_active)
 VALUES
     ('ths_kline_daily', 'kline', 'ths', '0 16 * * 1-5', true),
+    ('sina_index_kline', 'index-kline', 'sina', '30 15 * * 1-5', true),
     ('ths_auction', 'auction', 'ths', '15,25 9 * * 1-5', true),
     ('eastmoney_fund_flow', 'fund-flow', 'eastmoney', '0 17 * * 1-5', true),
     ('sina_news', 'news', 'sina', '0/30 * * * *', true),
     ('sina_stock_list', 'stock-list', 'sina', '0 2 * * 6', true),
     ('sina_quote', 'quote', 'sina', '*/5 9-15 * * 1-5', true),
+    ('sina_market_breadth', 'market-breadth', 'sina', '2-57/5 9-15 * * 1-5', true),
     ('eastmoney_sector_fund_flow', 'sector-fund-flow', 'eastmoney', '30 17 * * 1-5', true),
     ('eastmoney_limit_up_pool', 'limit-up-pool', 'eastmoney', '35 15 * * 1-5', true)
 ON CONFLICT (task_name) DO NOTHING;

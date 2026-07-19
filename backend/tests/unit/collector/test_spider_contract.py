@@ -29,8 +29,10 @@ from collector.spiders.eastmoney_sector_fund_flow import (
     EastMoneySectorFundFlowCollector,
 )
 from collector.spiders.sina_auction import SinaAuctionCollector
+from collector.spiders.sina_index_kline import SinaIndexKlineCollector
 from collector.spiders.sina_kline import SinaKlineCollector
 from collector.spiders.sina_macro import SinaMacroCollector
+from collector.spiders.sina_market_breadth import SinaMarketBreadthCollector
 from collector.spiders.sina_news import SinaNewsCollector
 from collector.spiders.sina_stock_list import SinaStockListCollector
 from collector.spiders.ths_auction import ThsAuctionCollector
@@ -61,6 +63,16 @@ _LIMIT_UP_POOL_UPDATE_COLUMNS = [
     "limit_stat",
     "consecutive_boards",
     "industry",
+    "source",
+]
+
+_MARKET_BREADTH_UPDATE_COLUMNS = [
+    "up_count",
+    "down_count",
+    "flat_count",
+    "limit_up_count",
+    "limit_down_count",
+    "stat_time",
     "source",
 ]
 
@@ -117,6 +129,15 @@ CONTRACTS: list[SpiderContract] = [
         name="sina_kline_daily",
         cls=SinaKlineCollector,
         config={"source": "sina", "data_type": "kline"},
+        store=StoreContract(table="kline_daily", conflict_key="stock_code, trade_date"),
+        has_normalize=False,
+        dedup_keys=["stock_code", "trade_date"],
+        required_fields=["stock_code", "trade_date", "close"],
+    ),
+    SpiderContract(
+        name="sina_index_kline",
+        cls=SinaIndexKlineCollector,
+        config={"source": "sina", "data_type": "index_kline"},
         store=StoreContract(table="kline_daily", conflict_key="stock_code, trade_date"),
         has_normalize=False,
         dedup_keys=["stock_code", "trade_date"],
@@ -261,6 +282,19 @@ CONTRACTS: list[SpiderContract] = [
         has_normalize=True,
         dedup_keys=["trade_date", "stock_code"],
         required_fields=["trade_date", "stock_code"],
+    ),
+    SpiderContract(
+        name="sina_market_breadth",
+        cls=SinaMarketBreadthCollector,
+        config={"source": "sina", "data_type": "market-breadth"},
+        store=StoreContract(
+            table="market_breadth",
+            conflict_key="trade_date",
+            update_columns=_MARKET_BREADTH_UPDATE_COLUMNS,
+        ),
+        has_normalize=True,
+        dedup_keys=["trade_date"],
+        required_fields=["trade_date"],
     ),
     SpiderContract(
         name="eastmoney_research_report",

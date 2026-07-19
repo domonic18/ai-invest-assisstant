@@ -10,6 +10,7 @@ class CollectorTaskName(str, Enum):
     """Supported collector task names."""
 
     KLINE = "kline"
+    INDEX_KLINE = "index-kline"
     AUCTION = "auction"
     FUND_FLOW = "fund-flow"
     NEWS = "news"

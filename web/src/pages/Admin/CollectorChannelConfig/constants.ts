@@ -9,6 +9,7 @@ export const SOURCE_LABEL: Record<string, string> = {
 
 export const DATA_TYPE_LABEL: Record<CollectorTaskName, string> = {
   kline: 'K 线',
+  'index-kline': '指数 K 线',
   auction: '集合竞价',
   'fund-flow': '资金流向',
   news: '新闻',
@@ -23,4 +24,5 @@ export const DATA_TYPE_LABEL: Record<CollectorTaskName, string> = {
   macro: '宏观经济',
   'stock-list': '股票列表',
   'limit-up-pool': '涨停股池',
+  'market-breadth': '涨跌统计',
 }

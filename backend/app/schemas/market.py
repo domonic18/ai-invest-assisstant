@@ -36,6 +36,27 @@ class IndexIntradayResponse(BaseModel):
     points: list[IndexIntradayPoint]
 
 
+class IndexKlineBar(BaseModel):
+    """指数 K 线单根 bar（日线或聚合周期）。"""
+
+    date: date
+    open: float | None = None
+    high: float | None = None
+    low: float | None = None
+    close: float | None = None
+    volume: int | None = None
+    amount: float | None = None
+
+
+class IndexKlineResponse(BaseModel):
+    """指数多周期 K 线（日/周/月/季/年，由本地 kline_daily 聚合）。"""
+
+    code: str
+    name: str
+    period: str
+    bars: list[IndexKlineBar]
+
+
 class MarketStatsResponse(BaseModel):
     """市场涨跌与成交统计，含情绪温度。"""
 

@@ -60,6 +60,13 @@ TASK_SPECS: dict[str, TaskSpec] = {
             defaults={"period": "daily"},
         ),
         TaskSpec(
+            name="index-kline",
+            data_type="index_kline",
+            collectors={
+                "sina": "collector.spiders.sina_index_kline:SinaIndexKlineCollector",
+            },
+        ),
+        TaskSpec(
             name="auction",
             data_type="auction",
             collectors={
@@ -163,6 +170,15 @@ TASK_SPECS: dict[str, TaskSpec] = {
             data_type="limit_up_pool",
             collectors={
                 "eastmoney": "collector.spiders.eastmoney_limit_up_pool:EastMoneyLimitUpPoolCollector",
+            },
+            run_params=("trade_date",),
+            converters={"trade_date": date.fromisoformat},
+        ),
+        TaskSpec(
+            name="market-breadth",
+            data_type="market_breadth",
+            collectors={
+                "sina": "collector.spiders.sina_market_breadth:SinaMarketBreadthCollector",
             },
             run_params=("trade_date",),
             converters={"trade_date": date.fromisoformat},

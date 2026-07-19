@@ -32,7 +32,16 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "name": "新浪财经",
         "base_url": "https://hq.sinajs.cn",
         "is_enabled": True,
-        "supported_data_types": ["kline", "auction", "macro", "news", "quote", "stock-list"],
+        "supported_data_types": [
+            "kline",
+            "index-kline",
+            "auction",
+            "macro",
+            "news",
+            "quote",
+            "stock-list",
+            "market-breadth",
+        ],
         "extra": {},
     },
     {

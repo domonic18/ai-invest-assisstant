@@ -131,7 +131,7 @@ async def generate_market_review(
         if cached:
             return cached
 
-    indices = await market_service.get_index_quotes(resolved_date)
+    indices = await market_service.get_index_quotes(session, resolved_date)
     limit_up = await market_service.get_limit_up(session, resolved_date)
     sectors = await market_service.get_sector_overview(session, resolved_date)
 

@@ -2,6 +2,7 @@ import { Card, Skeleton, Table, Typography } from 'antd'
 import { Link } from 'react-router-dom'
 
 import type { SectorOverview } from '@ai-invest/shared'
+import { SourceNote } from '@/components/common/SourceNote'
 import { useColorScheme, useSettingsStore } from '@/stores/settings'
 import { changeColor, fallHex, formatAmount, formatPercent, riseHex } from '@/utils/formatters'
 
@@ -94,6 +95,7 @@ export function SectorSection({ data, loading }: SectorSectionProps) {
             </div>
           ))}
         </div>
+        <SourceNote>东方财富板块资金流（备用渠道： 同花顺）</SourceNote>
       </Card>
 
       <Card
@@ -145,6 +147,7 @@ export function SectorSection({ data, loading }: SectorSectionProps) {
           pagination={false}
           size="small"
         />
+        <SourceNote>东方财富板块资金流 · 涨停数来自东方财富涨停股池</SourceNote>
       </Card>
     </section>
   )

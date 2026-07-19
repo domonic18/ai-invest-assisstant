@@ -2,6 +2,7 @@ import { Card, Empty, List, Spin } from 'antd'
 import { Link } from 'react-router-dom'
 
 import { useWatchlistQuotes } from '@/hooks/useMarket'
+import { SourceNote } from '@/components/common/SourceNote'
 import { useColorScheme } from '@/stores/settings'
 import { changeColor, formatPercent } from '@/utils/formatters'
 
@@ -44,6 +45,7 @@ export function WatchlistQuotesCard() {
       ) : (
         <Empty description="暂无自选股" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       )}
+      <SourceNote>新浪财经实时行情快照</SourceNote>
     </Card>
   )
 }

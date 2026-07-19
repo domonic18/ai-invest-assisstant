@@ -53,7 +53,7 @@ CREATE TABLE kline_daily (
     PRIMARY KEY (stock_code, trade_date)
 );
 
-SELECT create_hypertable('kline_daily', 'trade_date', if_not_exists => TRUE);
+SELECT create_hypertable('kline_daily', 'trade_date', chunk_time_interval => INTERVAL '1 year', if_not_exists => TRUE);
 CREATE INDEX idx_kline_daily_code_date ON kline_daily(stock_code, trade_date DESC);
 
 CREATE TABLE kline_minute (
@@ -574,3 +574,22 @@ CREATE TABLE IF NOT EXISTS limit_up_pool (
     UNIQUE (trade_date, stock_code)
 );
 CREATE INDEX IF NOT EXISTS idx_limit_up_pool_date ON limit_up_pool(trade_date DESC);
+
+-- ============================================================
+-- 15. 市场涨跌统计（每日收盘快照：涨跌家数 / 涨跌停家数）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS market_breadth (
+    id              BIGSERIAL PRIMARY KEY,
+    trade_date      DATE         NOT NULL,
+    up_count        INT,
+    down_count      INT,
+    flat_count      INT,
+    limit_up_count  INT,
+    limit_down_count INT,
+    stat_time       VARCHAR(20),
+    source          VARCHAR(50),
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+
+    UNIQUE (trade_date)
+);

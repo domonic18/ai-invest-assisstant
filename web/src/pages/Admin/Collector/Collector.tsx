@@ -13,6 +13,7 @@ import { CollectorTaskModal } from './CollectorTaskModal'
 
 const TASK_OPTIONS: CollectorTaskOption[] = [
   { key: 'kline', label: 'K 线采集' },
+  { key: 'index-kline', label: '指数 K 线采集' },
   { key: 'auction', label: '集合竞价采集' },
   { key: 'fund-flow', label: '资金流向采集' },
   { key: 'news', label: '新闻采集' },

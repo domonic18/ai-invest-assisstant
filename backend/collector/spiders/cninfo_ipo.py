@@ -98,14 +98,14 @@ def _to_date(value: Any) -> date | None:
 def _is_na(value: Any) -> bool:
     """Return True for pandas/numpy missing-value sentinels."""
     try:
-        import pandas as pd
+        import pandas as pd  # type: ignore[import-untyped]
 
         if value is pd.NaT or (isinstance(value, float) and pd.isna(value)):
             return True
     except Exception:  # noqa: BLE001
         pass
     try:
-        import numpy as np
+        import numpy as np  # type: ignore[import-untyped]
 
         if value is np.nan or (isinstance(value, float) and np.isnan(value)):
             return True

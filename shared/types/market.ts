@@ -24,6 +24,30 @@ export interface ApiIndexIntradayResponse {
   points: ApiIndexIntradayPoint[]
 }
 
+export type IndexKlinePeriod =
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'quarterly'
+  | 'yearly'
+
+export interface ApiIndexKlineBar {
+  date: string
+  open: number | null
+  high: number | null
+  low: number | null
+  close: number | null
+  volume: number | null
+  amount: number | null
+}
+
+export interface ApiIndexKlineResponse {
+  code: string
+  name: string
+  period: string
+  bars: ApiIndexKlineBar[]
+}
+
 export interface ApiMarketStatsResponse {
   trade_date: string
   amount: number | null
@@ -139,6 +163,23 @@ export interface IndexIntraday {
   tradeDate: string
   prevClose: number
   points: IndexIntradayPoint[]
+}
+
+export interface IndexKlineBar {
+  date: string
+  open: number | null
+  high: number | null
+  low: number | null
+  close: number | null
+  volume: number | null
+  amount: number | null
+}
+
+export interface IndexKline {
+  code: string
+  name: string
+  period: IndexKlinePeriod
+  bars: IndexKlineBar[]
 }
 
 export interface MarketStats {

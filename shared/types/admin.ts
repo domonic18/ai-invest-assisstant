@@ -55,6 +55,7 @@ export interface CollectorChannelConfigFormValues {
 
 export type CollectorTaskName =
   | 'kline'
+  | 'index-kline'
   | 'auction'
   | 'fund-flow'
   | 'news'
@@ -69,6 +70,7 @@ export type CollectorTaskName =
   | 'macro'
   | 'stock-list'
   | 'limit-up-pool'
+  | 'market-breadth'
 
 export interface CollectorTaskChannel {
   source: string

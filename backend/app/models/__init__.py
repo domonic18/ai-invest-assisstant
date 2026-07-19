@@ -15,6 +15,7 @@ from app.models.ipo_info import IpoInfo
 from app.models.kline import KlineDaily
 from app.models.limit_up_pool import LimitUpPool
 from app.models.llm_config import LLMConfig
+from app.models.market_breadth import MarketBreadth
 from app.models.news_announcement import NewsAnnouncement
 from app.models.sector_fund_flow import SectorFundFlow
 from app.models.stock import StockBasic
@@ -37,6 +38,7 @@ __all__ = [
     "KlineDaily",
     "LimitUpPool",
     "LLMConfig",
+    "MarketBreadth",
     "NewsAnnouncement",
     "SectorFundFlow",
     "StockBasic",

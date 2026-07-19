@@ -1,5 +1,5 @@
 import { LogoutOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons'
-import { Avatar, Button, Dropdown, Space, Typography } from 'antd'
+import { Avatar, Button, Dropdown, Space } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { useAuthStore } from '@/stores/auth'
@@ -37,8 +37,7 @@ export function Header() {
   ]
 
   return (
-    <header className="h-14 border-b border-gray-800 flex items-center px-6 justify-between bg-[#111318]">
-      <Typography.Text className="text-lg font-semibold">AI Invest Assistant</Typography.Text>
+    <header className="h-14 border-b border-gray-800 flex items-center px-6 justify-end bg-[#111318]">
       <Space>
         {user ? (
           <Dropdown menu={{ items }} placement="bottomRight">

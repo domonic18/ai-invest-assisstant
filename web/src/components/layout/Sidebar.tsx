@@ -20,6 +20,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuthStore } from '@/stores/auth'
+import { Brand } from '@/components/common/Brand'
 
 type MenuItem = Required<MenuProps>['items'][number]
 
@@ -104,7 +105,7 @@ export function Sidebar() {
   return (
     <aside className="w-56 border-r border-gray-800 bg-[#111318] flex flex-col">
       <div className="h-14 flex items-center px-4 border-b border-gray-800">
-        <span className="text-lg font-bold text-white">AI Invest</span>
+        <Brand showVersion />
       </div>
       <Menu
         theme="dark"

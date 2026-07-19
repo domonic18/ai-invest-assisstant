@@ -2,6 +2,7 @@ import { Card, Skeleton, Tag, Typography } from 'antd'
 import { Link } from 'react-router-dom'
 
 import type { LimitUpData } from '@ai-invest/shared'
+import { SourceNote } from '@/components/common/SourceNote'
 import { useColorScheme } from '@/stores/settings'
 import { changeColor, formatAmount, formatPercent } from '@/utils/formatters'
 
@@ -68,9 +69,9 @@ export function LimitUpSection({ data, loading }: LimitUpSectionProps) {
             )
           })}
         </div>
-        <div className="mt-3 text-center text-xs text-gray-500">
-          数据来源: 东方财富 · 仅展示 ≥2 板个股 · 涨停 {data.total} 家 · 首板 {data.firstBoard} · 连板 {data.continuous}
-        </div>
+        <SourceNote>
+          东方财富 · 仅展示 ≥2 板个股 · 涨停 {data.total} 家 · 首板 {data.firstBoard} · 连板 {data.continuous}
+        </SourceNote>
       </Card>
 
       <Card
@@ -106,6 +107,7 @@ export function LimitUpSection({ data, loading }: LimitUpSectionProps) {
             )
           })}
         </div>
+        <SourceNote>东方财富涨停股池</SourceNote>
       </Card>
     </>
   )

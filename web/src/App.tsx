@@ -28,7 +28,18 @@ function AuthInitializer() {
 
 export default function App() {
   return (
-    <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }}>
+    <ConfigProvider
+      theme={{
+        algorithm: theme.darkAlgorithm,
+        components: {
+          Segmented: {
+            trackBg: '#0c0e12',
+            itemSelectedBg: '#2a2e38',
+            itemHoverBg: 'rgba(255,255,255,0.06)',
+          },
+        },
+      }}
+    >
       <QueryClientProvider client={queryClient}>
         <AuthInitializer />
         <RouterProvider router={router} />

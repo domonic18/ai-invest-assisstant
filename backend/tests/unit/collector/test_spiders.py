@@ -17,7 +17,12 @@ from collector.spiders.eastmoney_sector_fund_flow import (
     EastMoneySectorFundFlowCollector,
 )
 from collector.spiders.sina_auction import SinaAuctionCollector
+from collector.spiders.sina_index_kline import SinaIndexKlineCollector
 from collector.spiders.sina_kline import SinaKlineCollector
+from collector.spiders.sina_market_breadth import (
+    SinaMarketBreadthCollector,
+    count_breadth,
+)
 from collector.spiders.sina_news import SinaNewsCollector
 from collector.spiders.sina_quote import SinaQuoteCollector
 from collector.spiders.sina_stock_list import SinaStockListCollector
@@ -276,6 +281,49 @@ class TestSinaKlineCollector:
         assert item["close"] == 10.8
         assert item["volume"] == 100000
         assert await collector.validate(item) is True
+
+
+@pytest.mark.unit
+class TestSinaIndexKlineCollector:
+    @pytest.mark.asyncio
+    async def test_collect_defaults_to_index_codes(self) -> None:
+        from app.core.constants import INDEX_CODES
+
+        collector = SinaIndexKlineCollector(
+            {"source": "sina", "data_type": "index_kline"}
+        )
+        mock_df = pd.DataFrame(
+            [
+                {
+                    "date": "2024-01-02",
+                    "open": 2900.0,
+                    "high": 2950.0,
+                    "low": 2890.0,
+                    "close": 2940.0,
+                    "volume": 300000000,
+                }
+            ]
+        )
+        with patch(
+            "akshare.stock_zh_index_daily", return_value=mock_df
+        ) as mock_fetch:
+            raw = await collector.collect()
+
+        assert mock_fetch.call_count == len(INDEX_CODES)
+        assert {item["stock_code"] for item in raw} == set(INDEX_CODES)
+        item = await collector.transform(raw[0])
+        assert item["close"] == 2940.0
+        assert item["amount"] is None
+        assert item["turnover_rate"] is None
+        assert await collector.validate(item) is True
+
+    @pytest.mark.asyncio
+    async def test_collect_empty_returns_empty(self) -> None:
+        collector = SinaIndexKlineCollector(
+            {"source": "sina", "data_type": "index_kline"}
+        )
+        with patch("akshare.stock_zh_index_daily", return_value=pd.DataFrame()):
+            assert await collector.collect(symbols=["sh000001"]) == []
 
 
 @pytest.mark.unit
@@ -1093,3 +1141,114 @@ class TestThsSectorFundFlowCollector:
         }
         assert await collector.validate(item) is True
         assert await collector.validate({**item, "sector_name": None}) is False
+
+
+@pytest.mark.unit
+class TestCountBreadth:
+    def _row(
+        self,
+        code: str,
+        name: str,
+        pct: float,
+        price: float,
+        high: float,
+        low: float,
+    ) -> dict:
+        return {
+            "代码": code,
+            "名称": name,
+            "最新价": price,
+            "涨跌幅": pct,
+            "最高": high,
+            "最低": low,
+            "时间戳": "15:30:01",
+        }
+
+    def test_counts_up_down_flat(self) -> None:
+        df = pd.DataFrame(
+            [
+                self._row("sh600001", "甲", 1.0, 10.0, 10.5, 9.8),
+                self._row("sz000001", "乙", -2.0, 9.0, 9.5, 8.9),
+                self._row("bj920001", "丙", 0.0, 5.0, 5.1, 4.9),
+                self._row("sh600002", "丁", float("nan"), 0.0, 0.0, 0.0),
+            ]
+        )
+        result = count_breadth(df)
+
+        assert result["up_count"] == 1
+        assert result["down_count"] == 1
+        assert result["flat_count"] == 1
+
+    def test_sealed_limit_up_down_by_board(self) -> None:
+        df = pd.DataFrame(
+            [
+                # 主板封板涨停 / 触板未封（收盘未在最高价）
+                self._row("sh600001", "甲", 10.0, 11.0, 11.0, 10.0),
+                self._row("sh600002", "乙", 10.0, 10.9, 11.0, 10.0),
+                # 创业板 20% 封板
+                self._row("sz300001", "丙", 20.0, 12.0, 12.0, 10.5),
+                # 科创板 20% 封板
+                self._row("sh688001", "丁", 19.9, 11.98, 11.98, 10.0),
+                # 北交所 30% 封板
+                self._row("bj920001", "戊", 30.0, 13.0, 13.0, 9.5),
+                # ST 5% 封板
+                self._row("sh600003", "ST己", 5.0, 10.5, 10.5, 9.9),
+                # 主板封板跌停 / ST 封板跌停
+                self._row("sz000002", "庚", -10.0, 9.0, 9.5, 9.0),
+                self._row("sz000003", "*ST辛", -5.0, 9.5, 10.0, 9.5),
+            ]
+        )
+        result = count_breadth(df)
+
+        assert result["limit_up_count"] == 5
+        assert result["limit_down_count"] == 2
+
+
+@pytest.mark.unit
+class TestSinaMarketBreadthCollector:
+    @pytest.mark.asyncio
+    async def test_collect_returns_single_daily_row(self) -> None:
+        collector = SinaMarketBreadthCollector(
+            {"source": "sina", "data_type": "market-breadth"}
+        )
+        mock_df = pd.DataFrame(
+            [
+                {
+                    "代码": "sh600001",
+                    "名称": "甲",
+                    "最新价": 11.0,
+                    "涨跌幅": 10.0,
+                    "最高": 11.0,
+                    "最低": 10.0,
+                    "时间戳": "15:30:01",
+                },
+                {
+                    "代码": "sz000001",
+                    "名称": "乙",
+                    "最新价": 9.0,
+                    "涨跌幅": -2.0,
+                    "最高": 9.5,
+                    "最低": 8.9,
+                    "时间戳": "15:30:01",
+                },
+            ]
+        )
+        with patch("akshare.stock_zh_a_spot", return_value=mock_df):
+            raw = await collector.collect(trade_date=datetime.date(2026, 7, 17))
+
+        assert len(raw) == 1
+        item = raw[0]
+        assert item["trade_date"] == datetime.date(2026, 7, 17)
+        assert item["up_count"] == 1
+        assert item["down_count"] == 1
+        assert item["limit_up_count"] == 1
+        assert item["limit_down_count"] == 0
+        assert item["source"] == "sina"
+
+    @pytest.mark.asyncio
+    async def test_collect_empty_snapshot_returns_empty(self) -> None:
+        collector = SinaMarketBreadthCollector(
+            {"source": "sina", "data_type": "market-breadth"}
+        )
+        with patch("akshare.stock_zh_a_spot", return_value=pd.DataFrame()):
+            assert await collector.collect() == []

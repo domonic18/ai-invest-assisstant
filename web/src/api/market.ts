@@ -1,6 +1,7 @@
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
   ApiIndexIntradayResponse,
+  ApiIndexKlineResponse,
   ApiIndexQuoteResponse,
   ApiLimitUpItem,
   ApiLimitUpResponse,
@@ -9,6 +10,8 @@ import type {
   ApiSectorOverviewResponse,
   ApiWatchlistQuoteItem,
   IndexIntraday,
+  IndexKline,
+  IndexKlinePeriod,
   IndexQuote,
   LimitUpData,
   LimitUpStock,
@@ -39,6 +42,15 @@ function mapIndexIntraday(dto: ApiIndexIntradayResponse): IndexIntraday {
     tradeDate: dto.trade_date,
     prevClose: dto.prev_close,
     points: dto.points,
+  }
+}
+
+function mapIndexKline(dto: ApiIndexKlineResponse): IndexKline {
+  return {
+    code: dto.code,
+    name: dto.name,
+    period: dto.period as IndexKlinePeriod,
+    bars: dto.bars,
   }
 }
 
@@ -162,6 +174,18 @@ export async function fetchIndexIntraday(
     { params: { trade_date: tradeDate } },
   )
   return mapIndexIntraday(response.data)
+}
+
+export async function fetchIndexKline(
+  code: string,
+  period: IndexKlinePeriod,
+  limit = 250,
+): Promise<IndexKline> {
+  const response = await apiClient.get<ApiIndexKlineResponse>(
+    ENDPOINTS.market.indexKline(code),
+    { params: { period, limit } },
+  )
+  return mapIndexKline(response.data)
 }
 
 export async function fetchMarketStats(tradeDate?: string): Promise<MarketStats> {

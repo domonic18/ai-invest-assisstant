@@ -23,6 +23,7 @@ router = APIRouter(prefix="/collector", dependencies=[Depends(get_current_admin_
 
 _TASK_DATA_TYPE: dict[str, str] = {
     "kline": "kline_daily",
+    "index-kline": "index_kline",
     "auction": "auction",
     "fund-flow": "fund_flow",
     "news": "news",

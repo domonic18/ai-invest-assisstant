@@ -41,6 +41,7 @@ export const ENDPOINTS = {
   market: {
     indices: `${API_BASE}/market/indices`,
     indexIntraday: (code: string) => `${API_BASE}/market/indices/intraday?code=${code}`,
+    indexKline: (code: string) => `${API_BASE}/market/indices/kline?code=${code}`,
     stats: `${API_BASE}/market/stats`,
     limitUp: `${API_BASE}/market/limit-up`,
     sectors: `${API_BASE}/market/sectors`,

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { register } from '@/api/auth'
+import { Brand } from '@/components/common/Brand'
 import { useAuthStore } from '@/stores/auth'
 
 interface RegisterFormValues {
@@ -42,9 +43,9 @@ export function Register() {
     <div className="min-h-screen flex items-center justify-center bg-[#0c0e12] px-4">
       <Card className="w-full max-w-md shadow-2xl" variant="borderless">
         <div className="text-center mb-8">
-          <Typography.Title level={3} className="!mb-2">
-            AI Invest Assistant
-          </Typography.Title>
+          <div className="flex justify-center mb-4">
+            <Brand size="lg" />
+          </div>
           <Typography.Text type="secondary">创建新账户</Typography.Text>
         </div>
 
