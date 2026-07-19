@@ -335,3 +335,16 @@ export interface AdminTaskFormValues {
   schedule?: string
   isActive: boolean
 }
+
+export interface CollectorDataTypeChannel {
+  channelId: number
+  source: string
+  name: string
+  isEnabled: boolean
+  priority: number
+}
+
+export interface CollectorDataTypeChannels {
+  dataType: string
+  channels: CollectorDataTypeChannel[]
+}

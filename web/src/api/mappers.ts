@@ -12,6 +12,7 @@ import type {
   ApiChainEdge,
   ApiChainNode,
   ApiCollectorChannelConfigResponse,
+  ApiDataTypeChannelsResponse,
   ApiCollectorLogResponse,
   ApiFinancialHealthResponse,
   ApiFundFlowResponse,
@@ -39,6 +40,7 @@ import type {
   ChainEdge,
   ChainNode,
   CollectorChannelConfig,
+  CollectorDataTypeChannels,
   CollectorLog,
   FinancialHealth,
   FundFlowData,
@@ -410,5 +412,18 @@ export function mapAdminTask(dto: ApiAdminTaskResponse): AdminTask {
     lastError: dto.last_error,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
+  }
+}
+
+export function mapCollectorDataTypeChannels(dto: ApiDataTypeChannelsResponse): CollectorDataTypeChannels {
+  return {
+    dataType: dto.data_type,
+    channels: dto.channels.map((ch) => ({
+      channelId: ch.channel_id,
+      source: ch.source,
+      name: ch.name,
+      isEnabled: ch.is_enabled,
+      priority: ch.priority,
+    })),
   }
 }

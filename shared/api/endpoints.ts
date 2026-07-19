@@ -68,6 +68,9 @@ export const ENDPOINTS = {
     setDefaultLLMConfig: (id: number | string) =>
       `${API_BASE}/admin/llm-configs/${id}/set-default`,
     collectorChannels: `${API_BASE}/admin/collector/channels`,
+    collectorDataTypes: `${API_BASE}/admin/collector/data-types`,
+    collectorDataTypeChannels: (dataType: string) =>
+      `${API_BASE}/admin/collector/data-types/${dataType}/channels`,
     collectorChannel: (id: number | string) => `${API_BASE}/admin/collector/channels/${id}`,
     collectorTaskChannels: (task: string) => `${API_BASE}/admin/collector/tasks/${task}/channels`,
     collectorLogs: `${API_BASE}/admin/collector/logs`,

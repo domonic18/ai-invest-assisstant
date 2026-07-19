@@ -525,3 +525,21 @@ export interface ApiAdminTaskUpdateRequest {
   schedule?: string
   is_active?: boolean
 }
+
+export interface ApiDataTypeChannelItem {
+  channel_id: number
+  source: string
+  name: string
+  is_enabled: boolean
+  priority: number
+}
+
+export interface ApiDataTypeChannelsResponse {
+  data_type: string
+  channels: ApiDataTypeChannelItem[]
+}
+
+export interface ApiDataTypeChannelPriorityInput {
+  channel_id: number
+  priority: number
+}
