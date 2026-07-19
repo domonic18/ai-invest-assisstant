@@ -410,6 +410,17 @@ CREATE TABLE collector_channel_configs (
 CREATE INDEX idx_collector_channel_enabled ON collector_channel_configs(is_enabled);
 CREATE INDEX idx_collector_channel_supported_types ON collector_channel_configs USING GIN(supported_data_types);
 
+-- 渠道-数据类型关联及优先级（同 data_type 下 priority 越小越优先）
+CREATE TABLE collector_channel_data_types (
+    id          BIGSERIAL PRIMARY KEY,
+    channel_id  BIGINT      NOT NULL REFERENCES collector_channel_configs(id) ON DELETE CASCADE,
+    data_type   VARCHAR(50) NOT NULL,
+    priority    INTEGER     NOT NULL DEFAULT 100,
+    CONSTRAINT uq_ccdt_channel_type UNIQUE (channel_id, data_type)
+);
+
+CREATE INDEX idx_ccdt_data_type_priority ON collector_channel_data_types(data_type, priority);
+
 -- ============================================================
 -- 12. 扩展：公司概况、公告/研报扩展字段、板块资金、龙虎榜、宏观经济
 -- ============================================================

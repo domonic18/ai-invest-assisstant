@@ -4,6 +4,7 @@ from app.models.auction import AuctionData
 from app.models.balance_sheet import BalanceSheet
 from app.models.cash_flow_statement import CashFlowStatement
 from app.models.collector_channel_config import CollectorChannelConfig
+from app.models.collector_channel_data_type import CollectorChannelDataType
 from app.models.collector_log import CollectorLog
 from app.models.collector_task import CollectorTask
 from app.models.file_metadata import FileMetadata
@@ -25,6 +26,7 @@ __all__ = [
     "BalanceSheet",
     "CashFlowStatement",
     "CollectorChannelConfig",
+    "CollectorChannelDataType",
     "CollectorLog",
     "CollectorTask",
     "FileMetadata",

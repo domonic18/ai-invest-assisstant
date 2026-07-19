@@ -47,3 +47,27 @@ class CollectorChannelConfigResponse(BaseModel):
     extra: dict[str, Any]
     created_at: datetime
     updated_at: datetime
+
+
+class DataTypeChannelItem(BaseModel):
+    """某数据类型下一个渠道的优先级视图。"""
+
+    channel_id: int
+    source: str
+    name: str
+    is_enabled: bool
+    priority: int
+
+
+class DataTypeChannelsResponse(BaseModel):
+    """某数据类型的渠道优先级列表（按 priority 升序）。"""
+
+    data_type: str
+    channels: list[DataTypeChannelItem]
+
+
+class DataTypeChannelPriorityInput(BaseModel):
+    """整体替换某数据类型渠道关联的输入项。"""
+
+    channel_id: int
+    priority: int = Field(..., ge=1)

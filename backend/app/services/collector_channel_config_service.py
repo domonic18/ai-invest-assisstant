@@ -7,13 +7,20 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.collector_channel_config import CollectorChannelConfig
+from app.models.collector_channel_data_type import CollectorChannelDataType
 from app.repositories.collector_channel_config_repository import (
     CollectorChannelConfigRepository,
+)
+from app.repositories.collector_channel_data_type_repository import (
+    CollectorChannelDataTypeRepository,
 )
 from app.schemas.collector_channel_config import (
     CollectorChannelConfigCreate,
     CollectorChannelConfigResponse,
     CollectorChannelConfigUpdate,
+    DataTypeChannelItem,
+    DataTypeChannelPriorityInput,
+    DataTypeChannelsResponse,
 )
 from app.utils.crypto import decrypt_token, encrypt_token, mask_token
 
@@ -26,6 +33,7 @@ class CollectorChannelConfigService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.repo = CollectorChannelConfigRepository(session)
+        self.data_type_repo = CollectorChannelDataTypeRepository(session)
 
     async def list_configs(self) -> list[CollectorChannelConfigResponse]:
         """List all channel configurations ordered by source."""
@@ -55,6 +63,8 @@ class CollectorChannelConfigService:
             extra=data.extra,
         )
         self.repo.add(config)
+        await self.session.flush()
+        await self._sync_associations_from_jsonb(config)
         await self.session.commit()
         await self.repo.refresh(config)
         logger.info(
@@ -81,6 +91,7 @@ class CollectorChannelConfigService:
             config.is_enabled = data.is_enabled
         if data.supported_data_types is not None:
             config.supported_data_types = data.supported_data_types
+            await self._sync_associations_from_jsonb(config)
         if data.extra is not None:
             config.extra = data.extra
         if data.api_key:
@@ -102,6 +113,135 @@ class CollectorChannelConfigService:
     async def get_enabled_config(self, source: str) -> CollectorChannelConfig | None:
         """Return the enabled configuration for a source, if any."""
         return await self.repo.get_enabled_by_source(source)
+
+    async def list_data_type_channels(self) -> list[DataTypeChannelsResponse]:
+        """按数据类型列出渠道及优先级（priority 升序）。
+
+        数据类型全集 = 采集任务注册表 TASK_MAP 的键 ∪ 关联表已有类型。
+        """
+        from collector.tasks import TASK_MAP
+
+        known_types = set(TASK_MAP) | await self.data_type_repo.get_distinct_data_types()
+        associations = await self.data_type_repo.list_all()
+        grouped: dict[str, list[DataTypeChannelItem]] = {dt: [] for dt in known_types}
+        for assoc in associations:
+            channel = assoc.channel
+            grouped.setdefault(assoc.data_type, []).append(
+                DataTypeChannelItem(
+                    channel_id=assoc.channel_id,
+                    source=channel.source,
+                    name=channel.name,
+                    is_enabled=channel.is_enabled,
+                    priority=assoc.priority,
+                )
+            )
+        return [
+            DataTypeChannelsResponse(data_type=dt, channels=grouped[dt])
+            for dt in sorted(grouped)
+        ]
+
+    async def replace_data_type_channels(
+        self, data_type: str, items: list[DataTypeChannelPriorityInput]
+    ) -> DataTypeChannelsResponse:
+        """整体替换某数据类型的渠道关联（增删与排序一次完成）。
+
+        Raises:
+            ValueError: data_type 不是已知的采集任务类型。
+            LookupError: 存在不合法的 channel_id。
+        """
+        from collector.tasks import TASK_MAP
+
+        known_types = set(TASK_MAP) | await self.data_type_repo.get_distinct_data_types()
+        if data_type not in known_types:
+            raise ValueError(f"未知的数据类型: {data_type}")
+
+        channel_ids = {item.channel_id for item in items}
+        channels: dict[int, CollectorChannelConfig] = {}
+        for channel_id in channel_ids:
+            channel = await self.repo.get(channel_id)
+            if channel is None:
+                raise LookupError(f"渠道配置不存在: {channel_id}")
+            channels[channel_id] = channel
+
+        affected_channel_ids = {
+            assoc.channel_id
+            for assoc in await self.data_type_repo.list_for_data_type(data_type)
+        } | channel_ids
+
+        await self.data_type_repo.delete_for_data_type(data_type)
+        ordered = sorted(items, key=lambda item: item.priority)
+        for index, item in enumerate(ordered, start=1):
+            self.session.add(
+                CollectorChannelDataType(
+                    channel_id=item.channel_id,
+                    data_type=data_type,
+                    priority=index,
+                )
+            )
+        await self.session.flush()
+        await self._resync_jsonb_for_channels(affected_channel_ids)
+        await self.session.commit()
+        logger.info(
+            "collector_data_type_channels_replaced",
+            data_type=data_type,
+            channel_ids=[item.channel_id for item in ordered],
+        )
+        return await self._get_data_type_channels(data_type)
+
+    async def _get_data_type_channels(
+        self, data_type: str
+    ) -> DataTypeChannelsResponse:
+        associations = await self.data_type_repo.list_for_data_type(data_type)
+        return DataTypeChannelsResponse(
+            data_type=data_type,
+            channels=[
+                DataTypeChannelItem(
+                    channel_id=assoc.channel_id,
+                    source=assoc.channel.source,
+                    name=assoc.channel.name,
+                    is_enabled=assoc.channel.is_enabled,
+                    priority=assoc.priority,
+                )
+                for assoc in associations
+            ],
+        )
+
+    async def _sync_associations_from_jsonb(
+        self, channel: CollectorChannelConfig
+    ) -> None:
+        """渠道 CRUD 修改 supported_data_types 后同步关联表。
+
+        已有关联行的 priority 保持不变；新增类型追加到该类型优先级末尾；
+        被移除的类型删除关联行。
+        """
+        desired = set(channel.supported_data_types or [])
+        existing = await self.data_type_repo.list_for_channel(channel.id)
+        existing_types = {assoc.data_type for assoc in existing}
+        for assoc in existing:
+            if assoc.data_type not in desired:
+                await self.session.delete(assoc)
+        for data_type in sorted(desired - existing_types):
+            max_priority = await self.data_type_repo.max_priority(data_type)
+            self.session.add(
+                CollectorChannelDataType(
+                    channel_id=channel.id,
+                    data_type=data_type,
+                    priority=max_priority + 1,
+                )
+            )
+        await self.session.flush()
+
+    async def _resync_jsonb_for_channels(self, channel_ids: set[int]) -> None:
+        """用关联表重写每个渠道的 supported_data_types 冗余缓存。"""
+        for channel_id in channel_ids:
+            channel = await self.repo.get(channel_id)
+            if channel is None:
+                continue
+            associations = await self.data_type_repo.list_for_channel(channel_id)
+            channel.supported_data_types = sorted(
+                assoc.data_type for assoc in associations
+            )
+        await self.session.flush()
 
     def _to_response(self, config: CollectorChannelConfig) -> CollectorChannelConfigResponse:
         return CollectorChannelConfigResponse(
