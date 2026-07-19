@@ -42,8 +42,12 @@ class EastMoneyLimitUpPoolCollector(PostgresCollector):
         import akshare as ak  # type: ignore[import-untyped]
 
         target = trade_date or date.today()
-        df = ak.stock_zt_pool_em(date=target.strftime("%Y%m%d"))
-        if df.empty:
+        try:
+            df = ak.stock_zt_pool_em(date=target.strftime("%Y%m%d"))
+        except Exception:  # noqa: BLE001
+            # 非交易日或接口无数据时 akshare 可能直接抛错，视为空结果
+            return []
+        if df is None or df.empty:
             return []
 
         raw: list[dict[str, Any]] = []

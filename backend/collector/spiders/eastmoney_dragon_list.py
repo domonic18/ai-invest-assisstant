@@ -33,7 +33,13 @@ class EastMoneyDragonListCollector(PostgresCollector):
         start_str = start.strftime("%Y%m%d")
         end_str = end.strftime("%Y%m%d")
 
-        df = ak.stock_lhb_detail_em(start_date=start_str, end_date=end_str)
+        try:
+            df = ak.stock_lhb_detail_em(start_date=start_str, end_date=end_str)
+        except Exception:  # noqa: BLE001
+            # 非交易日或接口无数据时 akshare 可能直接抛错，视为空结果
+            return []
+        if df is None or df.empty:
+            return []
         raw: list[dict[str, Any]] = []
         for _, row in df.iterrows():
             reason = to_optional_str(_find_col(row, ["解读", "上榜原因", "异动原因"]))
