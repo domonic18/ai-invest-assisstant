@@ -8,16 +8,11 @@ akshare.stock_sector_fund_flow_rank（indicator="今日"）一致。
 import math
 import time
 from datetime import date
-from typing import Any
+from typing import Any, ClassVar
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-from collector.base import BaseCollector
-from collector.exporters import PostgresExporter
-from collector.http_client import eastmoney_get
-from collector.pipelines import DataPipeline, DeduplicateStep, NormalizeStep, ValidateStep
-from collector.settings import settings
-from collector.spiders.utils import parse_cn_amount, to_optional_str
+from collector.core.base import PostgresCollector
+from collector.core.http_client import eastmoney_get
+from collector.core.parsing import parse_cn_amount, to_optional_str
 
 _PUSH2_URL = "https://push2.eastmoney.com/api/qt/clist/get"
 _PAGE_SIZE = 100
@@ -25,8 +20,20 @@ _PAGE_SIZE = 100
 # f78 中单 f84 小单 f204 主力净流入最大股 f205 最大股代码
 _FIELDS = "f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124"
 
+_UPDATE_COLUMNS = [
+    "sector_name",
+    "change_pct",
+    "main_net_inflow",
+    "super_large_net",
+    "large_net",
+    "medium_net",
+    "small_net",
+    "top_stock_code",
+    "top_stock_name",
+]
 
-class EastMoneySectorFundFlowCollector(BaseCollector):
+
+class EastMoneySectorFundFlowCollector(PostgresCollector):
     """东方财富板块资金流向采集器，写入 sector_fund_flow。"""
 
     SECTOR_TYPE_MAP: dict[str, str] = {
@@ -35,17 +42,16 @@ class EastMoneySectorFundFlowCollector(BaseCollector):
         "region": "1",
     }
 
+    table = "sector_fund_flow"
+    conflict_key = "sector_code, sector_type, trade_date"
+    update_skip_null = True
+    update_columns: ClassVar[list[str]] = _UPDATE_COLUMNS
+    key_fields: ClassVar[list[str]] = ["sector_code", "sector_type", "trade_date"]
+    required_fields: ClassVar[list[str]] = ["sector_code", "sector_name", "trade_date"]
+
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         self.sector_type = config.get("sector_type", "industry")
-        self.pipeline = DataPipeline(
-            steps=[
-                NormalizeStep(),
-                DeduplicateStep(key_fields=["sector_code", "sector_type", "trade_date"]),
-                ValidateStep(required_fields=["sector_code", "sector_name", "trade_date"]),
-            ]
-        )
-        self._engine = create_async_engine(settings.database_url)
 
     def _request_page(self, params: dict[str, Any]) -> dict[str, Any]:
         response = eastmoney_get(_PUSH2_URL, params=params)
@@ -84,21 +90,21 @@ class EastMoneySectorFundFlowCollector(BaseCollector):
         trade_date = date.today()
         raw: list[dict[str, Any]] = []
         for row in rows:
-            sector_name = _str(row.get("f14"))
+            sector_name = to_optional_str(row.get("f14"))
             raw.append(
                 {
-                    "sector_code": _str(row.get("f12")) or sector_name,
+                    "sector_code": to_optional_str(row.get("f12")) or sector_name,
                     "sector_name": sector_name,
                     "sector_type": sector_type,
                     "trade_date": trade_date,
-                    "change_pct": _parse_amount(row.get("f3")),
-                    "main_net_inflow": _parse_amount(row.get("f62")),
-                    "super_large_net": _parse_amount(row.get("f66")),
-                    "large_net": _parse_amount(row.get("f72")),
-                    "medium_net": _parse_amount(row.get("f78")),
-                    "small_net": _parse_amount(row.get("f84")),
-                    "top_stock_code": _str(row.get("f205")),
-                    "top_stock_name": _str(row.get("f204")),
+                    "change_pct": parse_cn_amount(row.get("f3")),
+                    "main_net_inflow": parse_cn_amount(row.get("f62")),
+                    "super_large_net": parse_cn_amount(row.get("f66")),
+                    "large_net": parse_cn_amount(row.get("f72")),
+                    "medium_net": parse_cn_amount(row.get("f78")),
+                    "small_net": parse_cn_amount(row.get("f84")),
+                    "top_stock_code": to_optional_str(row.get("f205")),
+                    "top_stock_name": to_optional_str(row.get("f204")),
                 }
             )
         return raw
@@ -121,40 +127,12 @@ class EastMoneySectorFundFlowCollector(BaseCollector):
 
     async def validate(self, item: dict[str, Any]) -> bool:
         return bool(
-            item.get("sector_code") and item.get("sector_name") and item.get("trade_date")
+            item.get("sector_code")
+            and item.get("sector_name")
+            and item.get("trade_date")
         )
 
-    async def store(self, items: list[dict[str, Any]]) -> int:
-        cleaned = await self.pipeline.process(items)
-        if not cleaned:
-            return 0
 
-        session_maker = async_sessionmaker(
-            self._engine, class_=AsyncSession, expire_on_commit=False
-        )
-        async with session_maker() as session:
-            exporter = PostgresExporter(session)
-            count = await exporter.insert_many(
-                "sector_fund_flow",
-                cleaned,
-                conflict_key="sector_code, sector_type, trade_date",
-                update_columns=[
-                    "sector_name",
-                    "change_pct",
-                    "main_net_inflow",
-                    "super_large_net",
-                    "large_net",
-                    "medium_net",
-                    "small_net",
-                    "top_stock_code",
-                    "top_stock_name",
-                ],
-                update_skip_null=True,
-            )
-        await self._engine.dispose()
-        return count
-
-
-# 兼容别名：具体实现见 collector/spiders/utils.py
+# 兼容别名：具体实现见 collector/core/parsing.py
 _str = to_optional_str
 _parse_amount = parse_cn_amount

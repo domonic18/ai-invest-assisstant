@@ -2,29 +2,23 @@
 
 import re
 from datetime import date, datetime
-from typing import Any
+from typing import Any, ClassVar
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-from collector.base import BaseCollector
-from collector.exporters import PostgresExporter
-from collector.pipelines import DataPipeline, DeduplicateStep, NormalizeStep, ValidateStep
-from collector.settings import settings
+from collector.core.base import PostgresCollector
+from collector.core.parsing import to_float, to_optional_str
 
 
-class SinaMacroCollector(BaseCollector):
+class SinaMacroCollector(PostgresCollector):
     """新浪财经宏观经济指标采集器，写入 macro_indicator。"""
 
-    def __init__(self, config: dict[str, Any]):
-        super().__init__(config)
-        self.pipeline = DataPipeline(
-            steps=[
-                NormalizeStep(),
-                DeduplicateStep(key_fields=["indicator_name", "period_type", "publish_date"]),
-                ValidateStep(required_fields=["indicator_name", "period_type", "publish_date"]),
-            ]
-        )
-        self._engine = create_async_engine(settings.database_url)
+    table = "macro_indicator"
+    conflict_key = "indicator_name, period_type, publish_date"
+    key_fields: ClassVar[list[str]] = ["indicator_name", "period_type", "publish_date"]
+    required_fields: ClassVar[list[str]] = [
+        "indicator_name",
+        "period_type",
+        "publish_date",
+    ]
 
     async def collect(
         self, indicators: list[str] | None = None, **kwargs: Any
@@ -59,38 +53,15 @@ class SinaMacroCollector(BaseCollector):
             "source": raw.get("source"),
         }
 
-    async def validate(self, item: dict[str, Any]) -> bool:
-        return bool(
-            item.get("indicator_name") and item.get("period_type") and item.get("publish_date")
-        )
-
-    async def store(self, items: list[dict[str, Any]]) -> int:
-        cleaned = await self.pipeline.process(items)
-        if not cleaned:
-            return 0
-
-        session_maker = async_sessionmaker(
-            self._engine, class_=AsyncSession, expire_on_commit=False
-        )
-        async with session_maker() as session:
-            exporter = PostgresExporter(session)
-            count = await exporter.insert_many(
-                "macro_indicator",
-                cleaned,
-                conflict_key="indicator_name, period_type, publish_date",
-            )
-        await self._engine.dispose()
-        return count
-
 
 def _parse_cpi(df: Any) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for _, row in df.iterrows():
-        period = _str(_find_col(row, ["月份", "月"]))
+        period = to_optional_str(_find_col(row, ["月份", "月"]))
         publish_date = _parse_month_period(period)
-        value = _to_float(_find_col(row, ["全国-当月", "当月", "全国"]))
-        yoy = _to_float(_find_col(row, ["全国-同比增长", "同比增长"]))
-        mom = _to_float(_find_col(row, ["全国-环比增长", "环比增长"]))
+        value = to_float(_find_col(row, ["全国-当月", "当月", "全国"]))
+        yoy = to_float(_find_col(row, ["全国-同比增长", "同比增长"]))
+        mom = to_float(_find_col(row, ["全国-环比增长", "环比增长"]))
         rows.append(
             {
                 "indicator_name": "cpi",
@@ -108,9 +79,9 @@ def _parse_cpi(df: Any) -> list[dict[str, Any]]:
 def _parse_pmi(df: Any) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for _, row in df.iterrows():
-        period = _str(_find_col(row, ["月份", "月"]))
+        period = to_optional_str(_find_col(row, ["月份", "月"]))
         publish_date = _parse_month_period(period)
-        value = _to_float(_find_col(row, ["制造业-指数", "制造业采购经理指数", "指数"]))
+        value = to_float(_find_col(row, ["制造业-指数", "制造业采购经理指数", "指数"]))
         rows.append(
             {
                 "indicator_name": "pmi",
@@ -128,10 +99,12 @@ def _parse_pmi(df: Any) -> list[dict[str, Any]]:
 def _parse_gdp(df: Any) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for _, row in df.iterrows():
-        period = _str(_find_col(row, ["季度"]))
+        period = to_optional_str(_find_col(row, ["季度"]))
         publish_date = _parse_quarter_period(period)
-        value = _to_float(_find_col(row, ["国内生产总值-绝对值", "GDP-绝对值", "绝对值"]))
-        yoy = _to_float(_find_col(row, ["国内生产总值-同比增长", "GDP-同比增长", "同比增长"]))
+        value = to_float(_find_col(row, ["国内生产总值-绝对值", "GDP-绝对值", "绝对值"]))
+        yoy = to_float(
+            _find_col(row, ["国内生产总值-同比增长", "GDP-同比增长", "同比增长"])
+        )
         rows.append(
             {
                 "indicator_name": "gdp",
@@ -146,13 +119,6 @@ def _parse_gdp(df: Any) -> list[dict[str, Any]]:
     return rows
 
 
-def _str(value: Any) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text if text else None
-
-
 def _find_col(row: Any, candidates: list[str]) -> Any:
     for col in candidates:
         try:
@@ -160,15 +126,6 @@ def _find_col(row: Any, candidates: list[str]) -> Any:
         except KeyError:
             continue
     return None
-
-
-def _to_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _parse_month_period(value: str | None) -> date | None:

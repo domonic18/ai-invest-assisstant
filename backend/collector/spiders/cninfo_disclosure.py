@@ -2,30 +2,20 @@
 
 import json
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-from collector.base import BaseCollector
-from collector.exporters import PostgresExporter
-from collector.pipelines import DataPipeline, DeduplicateStep, NormalizeStep, ValidateStep
-from collector.settings import settings
+from collector.core.base import PostgresCollector
+from collector.core.parsing import clean_stock_code, parse_date, to_optional_str
 
 
-class CninfoDisclosureCollector(BaseCollector):
+class CninfoDisclosureCollector(PostgresCollector):
     """巨潮资讯公告采集器，写入 news_announcement(doc_type='announcement')。"""
 
-    def __init__(self, config: dict[str, Any]):
-        super().__init__(config)
-        self.pipeline = DataPipeline(
-            steps=[
-                NormalizeStep(),
-                DeduplicateStep(key_fields=["source_url"]),
-                ValidateStep(required_fields=["stock_code", "title", "publish_date"]),
-            ]
-        )
-        self._engine = create_async_engine(settings.database_url)
+    table = "news_announcement"
+    conflict_key = "source_url"
+    key_fields: ClassVar[list[str]] = ["source_url"]
+    required_fields: ClassVar[list[str]] = ["stock_code", "title", "publish_date"]
 
     async def collect(
         self,
@@ -36,14 +26,8 @@ class CninfoDisclosureCollector(BaseCollector):
     ) -> list[dict[str, Any]]:
         import akshare as ak  # type: ignore[import-untyped]
 
-        if end_date is None:
-            end = date.today()
-        else:
-            end = _parse_date(end_date) or date.today()
-        if start_date is None:
-            start = end - timedelta(days=7)
-        else:
-            start = _parse_date(start_date) or (end - timedelta(days=7))
+        end = parse_date(end_date) or date.today()
+        start = parse_date(start_date) or (end - timedelta(days=7))
 
         start_str = start.strftime("%Y%m%d")
         end_str = end.strftime("%Y%m%d")
@@ -51,7 +35,7 @@ class CninfoDisclosureCollector(BaseCollector):
         symbols = symbols or ["000001"]
         raw: list[dict[str, Any]] = []
         for symbol in symbols:
-            code = _clean_code(symbol)
+            code = clean_stock_code(symbol)
             try:
                 df = ak.stock_zh_a_disclosure_report_cninfo(
                     symbol=code,
@@ -63,17 +47,19 @@ class CninfoDisclosureCollector(BaseCollector):
             if df.empty:
                 continue
             for _, row in df.iterrows():
-                url = _str(row.get("公告链接"))
+                url = to_optional_str(row.get("公告链接"))
                 raw.append(
                     {
-                        "stock_code": _str(row.get("代码")) or code,
+                        "stock_code": to_optional_str(row.get("代码")) or code,
                         "doc_type": "announcement",
-                        "title": _str(row.get("公告标题")),
+                        "title": to_optional_str(row.get("公告标题")),
                         "summary": None,
                         "content": None,
                         "source": "cninfo",
                         "source_url": url,
-                        "publish_date": _parse_datetime(_str(row.get("公告时间"))),
+                        "publish_date": _parse_datetime(
+                            to_optional_str(row.get("公告时间"))
+                        ),
                         "sentiment": None,
                         "keywords": None,
                         "industry_tags": None,
@@ -106,44 +92,6 @@ class CninfoDisclosureCollector(BaseCollector):
             and item.get("title")
             and item.get("publish_date")
         )
-
-    async def store(self, items: list[dict[str, Any]]) -> int:
-        cleaned = await self.pipeline.process(items)
-        if not cleaned:
-            return 0
-
-        session_maker = async_sessionmaker(
-            self._engine, class_=AsyncSession, expire_on_commit=False
-        )
-        async with session_maker() as session:
-            exporter = PostgresExporter(session)
-            count = await exporter.insert_many(
-                "news_announcement",
-                cleaned,
-                conflict_key="source_url",
-            )
-        await self._engine.dispose()
-        return count
-
-
-def _clean_code(symbol: str) -> str:
-    return symbol.lstrip("sh").lstrip("sz").lstrip("bj").strip()
-
-
-def _str(value: Any) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text if text else None
-
-
-def _parse_date(value: str) -> date | None:
-    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"):
-        try:
-            return datetime.strptime(value, fmt).date()
-        except ValueError:
-            continue
-    return None
 
 
 def _parse_datetime(value: str | None) -> datetime | None:

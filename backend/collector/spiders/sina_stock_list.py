@@ -15,15 +15,10 @@ overwrites existing values with NULLs.
 
 import logging
 import time
-from datetime import date, datetime
-from typing import Any
+from typing import Any, ClassVar
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-from collector.base import BaseCollector
-from collector.exporters import PostgresExporter
-from collector.pipelines import DataPipeline, NormalizeStep, ValidateStep
-from collector.settings import settings
+from collector.core.base import PostgresCollector
+from collector.core.parsing import clean_stock_code, parse_date, to_optional_str
 
 logger = logging.getLogger(__name__)
 
@@ -40,18 +35,17 @@ _UPDATE_COLUMNS = [
 ]
 
 
-class SinaStockListCollector(BaseCollector):
+class SinaStockListCollector(PostgresCollector):
     """全市场 A 股股票列表同步采集器，回写 stock_basic。"""
+
+    table = "stock_basic"
+    conflict_key = "stock_code, market"
+    update_skip_null = True
+    update_columns: ClassVar[list[str]] = _UPDATE_COLUMNS
+    required_fields: ClassVar[list[str]] = ["stock_code", "stock_name", "market"]
 
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        self.pipeline = DataPipeline(
-            steps=[
-                NormalizeStep(),
-                ValidateStep(required_fields=["stock_code", "stock_name", "market"]),
-            ]
-        )
-        self._engine = create_async_engine(settings.database_url)
         self._sw_request_delay = float(config.get("sw_request_delay", 0.2))
 
     async def collect(
@@ -65,7 +59,7 @@ class SinaStockListCollector(BaseCollector):
 
         requested = None
         if symbols:
-            requested = {_clean_code(symbol) for symbol in symbols}
+            requested = {clean_stock_code(symbol) for symbol in symbols}
 
         codes: list[str] = []
         names: dict[str, str] = {}
@@ -77,9 +71,7 @@ class SinaStockListCollector(BaseCollector):
             names[code] = str(row["name"]).strip()
 
         details = _fetch_exchange_details(ak)
-        industries = _fetch_sw_industry_map(
-            ak, codes, delay=self._sw_request_delay
-        )
+        industries = _fetch_sw_industry_map(ak, codes, delay=self._sw_request_delay)
 
         raw: list[dict[str, Any]] = []
         for code in codes:
@@ -113,26 +105,6 @@ class SinaStockListCollector(BaseCollector):
             item.get("stock_code") and item.get("stock_name") and item.get("market")
         )
 
-    async def store(self, items: list[dict[str, Any]]) -> int:
-        cleaned = await self.pipeline.process(items)
-        if not cleaned:
-            return 0
-
-        session_maker = async_sessionmaker(
-            self._engine, class_=AsyncSession, expire_on_commit=False
-        )
-        async with session_maker() as session:
-            exporter = PostgresExporter(session)
-            count = await exporter.insert_many(
-                "stock_basic",
-                cleaned,
-                conflict_key="stock_code, market",
-                update_columns=_UPDATE_COLUMNS,
-                update_skip_null=True,
-            )
-        await self._engine.dispose()
-        return count
-
 
 def _fetch_exchange_details(ak: Any) -> dict[str, dict[str, Any]]:
     """Merge listing details from the SSE/SZSE/BSE official stock lists."""
@@ -143,8 +115,8 @@ def _fetch_exchange_details(ak: Any) -> dict[str, dict[str, Any]]:
         for _, row in sh_df.iterrows():
             code = str(row["证券代码"]).strip().zfill(6)
             details[code] = {
-                "full_name": _to_str(row.get("公司全称")),
-                "listing_date": _parse_date(row.get("上市日期")),
+                "full_name": to_optional_str(row.get("公司全称")),
+                "listing_date": parse_date(row.get("上市日期")),
             }
     except Exception as exc:  # noqa: BLE001
         logger.warning("fetch SSE stock list failed: %s", exc)
@@ -154,7 +126,7 @@ def _fetch_exchange_details(ak: Any) -> dict[str, dict[str, Any]]:
         for _, row in sz_df.iterrows():
             code = str(row["A股代码"]).strip().zfill(6)
             details[code] = {
-                "listing_date": _parse_date(row.get("A股上市日期")),
+                "listing_date": parse_date(row.get("A股上市日期")),
                 "total_shares": _parse_int(row.get("A股总股本")),
                 "circulating_shares": _parse_int(row.get("A股流通股本")),
             }
@@ -166,10 +138,10 @@ def _fetch_exchange_details(ak: Any) -> dict[str, dict[str, Any]]:
         for _, row in bj_df.iterrows():
             code = str(row["证券代码"]).strip().zfill(6)
             details[code] = {
-                "listing_date": _parse_date(row.get("上市日期")),
+                "listing_date": parse_date(row.get("上市日期")),
                 "total_shares": _parse_int(row.get("总股本")),
                 "circulating_shares": _parse_int(row.get("流通股本")),
-                "province": _to_str(row.get("地区")),
+                "province": to_optional_str(row.get("地区")),
             }
     except Exception as exc:  # noqa: BLE001
         logger.warning("fetch BSE stock list failed: %s", exc)
@@ -246,23 +218,12 @@ def _fetch_sw_components(ak: Any, index_code: str) -> Any | None:
         return None
 
 
-def _clean_code(symbol: str) -> str:
-    return symbol.lstrip("sh").lstrip("sz").lstrip("bj").strip()
-
-
 def _guess_market(code: str) -> str:
     if code.startswith("6"):
         return "sh"
     if code.startswith(("4", "8", "920")):
         return "bj"
     return "sz"
-
-
-def _to_str(value: Any) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text or None
 
 
 def _parse_int(value: Any) -> int | None:
@@ -272,15 +233,3 @@ def _parse_int(value: Any) -> int | None:
         return int(float(str(value).replace(",", "").strip()))
     except (TypeError, ValueError):
         return None
-
-
-def _parse_date(value: Any) -> date | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"):
-        try:
-            return datetime.strptime(text, fmt).date()
-        except ValueError:
-            continue
-    return None

@@ -5,14 +5,10 @@ Fetches the daily 涨停股池 (stock_zt_pool_em) and stores it into
 """
 
 from datetime import date
-from typing import Any
+from typing import Any, ClassVar
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-from collector.base import BaseCollector
-from collector.exporters import PostgresExporter
-from collector.pipelines import DataPipeline, DeduplicateStep, NormalizeStep, ValidateStep
-from collector.settings import settings
+from collector.core.base import PostgresCollector
+from collector.core.parsing import to_float, to_optional_str
 
 _UPDATE_COLUMNS = [
     "stock_name",
@@ -30,19 +26,15 @@ _UPDATE_COLUMNS = [
 ]
 
 
-class EastMoneyLimitUpPoolCollector(BaseCollector):
+class EastMoneyLimitUpPoolCollector(PostgresCollector):
     """东方财富涨停股池采集器，写入 limit_up_pool。"""
 
-    def __init__(self, config: dict[str, Any]):
-        super().__init__(config)
-        self.pipeline = DataPipeline(
-            steps=[
-                NormalizeStep(),
-                DeduplicateStep(key_fields=["trade_date", "stock_code"]),
-                ValidateStep(required_fields=["trade_date", "stock_code"]),
-            ]
-        )
-        self._engine = create_async_engine(settings.database_url)
+    table = "limit_up_pool"
+    conflict_key = "trade_date, stock_code"
+    update_skip_null = True
+    update_columns: ClassVar[list[str]] = _UPDATE_COLUMNS
+    key_fields: ClassVar[list[str]] = ["trade_date", "stock_code"]
+    required_fields: ClassVar[list[str]] = ["trade_date", "stock_code"]
 
     async def collect(
         self, trade_date: date | None = None, **kwargs: Any
@@ -59,18 +51,18 @@ class EastMoneyLimitUpPoolCollector(BaseCollector):
             raw.append(
                 {
                     "trade_date": target,
-                    "stock_code": _str(row.get("代码")),
-                    "stock_name": _str(row.get("名称")),
-                    "change_pct": _to_float(row.get("涨跌幅")),
-                    "latest_price": _to_float(row.get("最新价")),
-                    "turnover_rate": _to_float(row.get("换手率")),
-                    "sealed_amount": _to_float(row.get("封板资金")),
-                    "first_seal_time": _str(row.get("首次封板时间")),
-                    "last_seal_time": _str(row.get("最后封板时间")),
+                    "stock_code": to_optional_str(row.get("代码")),
+                    "stock_name": to_optional_str(row.get("名称")),
+                    "change_pct": to_float(row.get("涨跌幅")),
+                    "latest_price": to_float(row.get("最新价")),
+                    "turnover_rate": to_float(row.get("换手率")),
+                    "sealed_amount": to_float(row.get("封板资金")),
+                    "first_seal_time": to_optional_str(row.get("首次封板时间")),
+                    "last_seal_time": to_optional_str(row.get("最后封板时间")),
                     "break_count": _to_int(row.get("炸板次数")),
-                    "limit_stat": _str(row.get("涨停统计")),
+                    "limit_stat": to_optional_str(row.get("涨停统计")),
                     "consecutive_boards": _to_int(row.get("连板数")),
-                    "industry": _str(row.get("所属行业")),
+                    "industry": to_optional_str(row.get("所属行业")),
                 }
             )
         return raw
@@ -96,45 +88,9 @@ class EastMoneyLimitUpPoolCollector(BaseCollector):
     async def validate(self, item: dict[str, Any]) -> bool:
         return bool(item.get("trade_date") and item.get("stock_code"))
 
-    async def store(self, items: list[dict[str, Any]]) -> int:
-        cleaned = await self.pipeline.process(items)
-        if not cleaned:
-            return 0
-
-        session_maker = async_sessionmaker(
-            self._engine, class_=AsyncSession, expire_on_commit=False
-        )
-        async with session_maker() as session:
-            exporter = PostgresExporter(session)
-            count = await exporter.insert_many(
-                "limit_up_pool",
-                cleaned,
-                conflict_key="trade_date, stock_code",
-                update_columns=_UPDATE_COLUMNS,
-                update_skip_null=True,
-            )
-        await self._engine.dispose()
-        return count
-
-
-def _str(value: Any) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text if text else None
-
-
-def _to_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        result = float(value)
-        return None if result != result else result
-    except (TypeError, ValueError):
-        return None
-
 
 def _to_int(value: Any) -> int | None:
+    """容错转 int（兼容 float 形式），失败返回 None。"""
     if value is None:
         return None
     try:

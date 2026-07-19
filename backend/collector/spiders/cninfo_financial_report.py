@@ -11,7 +11,10 @@ from typing import Any
 
 import structlog
 
-from collector.base import BaseCollector, CollectResult, CollectStatus
+from collector.core.base import BaseCollector, CollectResult, CollectStatus
+from collector.core.parsing import clean_stock_code, to_optional_str
+
+_str = to_optional_str
 
 logger = structlog.get_logger()
 
@@ -93,7 +96,7 @@ class CninfoFinancialReportCollector(BaseCollector):
             timeout=self.timeout, follow_redirects=True, headers=headers
         ) as client:
             for symbol in symbols:
-                code = _clean_code(symbol)
+                code = clean_stock_code(symbol)
                 plate = _plate_for_code(code)
                 if not plate:
                     continue
@@ -342,11 +345,6 @@ async def _download(client: Any, url: str) -> bytes:
     return bytes(response.content)
 
 
-def _clean_code(symbol: str) -> str:
-    code = symbol.strip().lower()
-    return code.lstrip("sh").lstrip("sz").lstrip("bj").strip()
-
-
 def _plate_for_code(code: str) -> str | None:
     if code.startswith("6"):
         return "sh"
@@ -355,13 +353,6 @@ def _plate_for_code(code: str) -> str | None:
     if code.startswith(("4", "8", "9")):
         return "bj"
     return None
-
-
-def _str(value: Any) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text if text else None
 
 
 def _parse_date(value: str | None) -> date | None:

@@ -1,32 +1,21 @@
 """EastMoney research report collector via akshare."""
 
 import json
-import math
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, ClassVar
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-from collector.base import BaseCollector
-from collector.exporters import PostgresExporter
-from collector.pipelines import DataPipeline, DeduplicateStep, NormalizeStep, ValidateStep
-from collector.settings import settings
+from collector.core.base import PostgresCollector
+from collector.core.parsing import clean_stock_code, to_float, to_optional_str
 
 
-class EastMoneyResearchReportCollector(BaseCollector):
+class EastMoneyResearchReportCollector(PostgresCollector):
     """东方财富个股研报采集器，写入 news_announcement(doc_type='research')。"""
 
-    def __init__(self, config: dict[str, Any]):
-        super().__init__(config)
-        self.pipeline = DataPipeline(
-            steps=[
-                NormalizeStep(),
-                DeduplicateStep(key_fields=["source_url", "stock_code", "publish_date"]),
-                ValidateStep(required_fields=["stock_code", "title", "publish_date"]),
-            ]
-        )
-        self._engine = create_async_engine(settings.database_url)
+    table = "news_announcement"
+    conflict_key = "source_url"
+    key_fields: ClassVar[list[str]] = ["source_url", "stock_code", "publish_date"]
+    required_fields: ClassVar[list[str]] = ["stock_code", "title", "publish_date"]
 
     async def collect(
         self, symbols: list[str] | None = None, **kwargs: Any
@@ -36,7 +25,7 @@ class EastMoneyResearchReportCollector(BaseCollector):
         symbols = symbols or ["000001"]
         raw: list[dict[str, Any]] = []
         for symbol in symbols:
-            code = _clean_code(symbol)
+            code = clean_stock_code(symbol)
             try:
                 df = ak.stock_research_report_em(symbol=code)
             except Exception:  # noqa: BLE001
@@ -46,17 +35,17 @@ class EastMoneyResearchReportCollector(BaseCollector):
             for _, row in df.iterrows():
                 raw.append(
                     {
-                        "stock_code": _str(row.get("股票代码")) or code,
+                        "stock_code": to_optional_str(row.get("股票代码")) or code,
                         "doc_type": "research",
-                        "title": _str(row.get("报告名称")),
+                        "title": to_optional_str(row.get("报告名称")),
                         "summary": None,
                         "content": None,
                         "source": "eastmoney",
                         "source_url": None,
-                        "publish_date": _parse_date(_str(row.get("日期"))),
+                        "publish_date": _parse_date(to_optional_str(row.get("日期"))),
                         "sentiment": None,
                         "keywords": None,
-                        "industry_tags": _to_list(_str(row.get("行业"))),
+                        "industry_tags": _to_list(to_optional_str(row.get("行业"))),
                         "es_id": None,
                         "extra": json.dumps(_build_extra(row)),
                     }
@@ -85,35 +74,6 @@ class EastMoneyResearchReportCollector(BaseCollector):
             item.get("stock_code") and item.get("title") and item.get("publish_date")
         )
 
-    async def store(self, items: list[dict[str, Any]]) -> int:
-        cleaned = await self.pipeline.process(items)
-        if not cleaned:
-            return 0
-
-        session_maker = async_sessionmaker(
-            self._engine, class_=AsyncSession, expire_on_commit=False
-        )
-        async with session_maker() as session:
-            exporter = PostgresExporter(session)
-            count = await exporter.insert_many(
-                "news_announcement",
-                cleaned,
-                conflict_key="source_url",
-            )
-        await self._engine.dispose()
-        return count
-
-
-def _clean_code(symbol: str) -> str:
-    return symbol.lstrip("sh").lstrip("sz").lstrip("bj").strip()
-
-
-def _str(value: Any) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text if text else None
-
 
 def _to_list(value: str | None) -> list[str] | None:
     if not value:
@@ -135,15 +95,15 @@ def _parse_date(value: str | None) -> datetime | None:
 
 def _build_extra(row: Any) -> dict[str, Any]:
     extra: dict[str, Any] = {
-        "broker": _str(row.get("机构")),
-        "rating": _str(row.get("东财评级")),
+        "broker": to_optional_str(row.get("机构")),
+        "rating": to_optional_str(row.get("东财评级")),
     }
     eps_col = _find_forecast_col(row, "盈利预测-收益")
     pe_col = _find_forecast_col(row, "盈利预测-市盈率")
     if eps_col:
-        extra["eps_forecast"] = _to_float(row.get(eps_col))
+        extra["eps_forecast"] = to_float(row.get(eps_col))
     if pe_col:
-        extra["pe_forecast"] = _to_float(row.get(pe_col))
+        extra["pe_forecast"] = to_float(row.get(pe_col))
     return extra
 
 
@@ -154,18 +114,6 @@ def _find_forecast_col(row: Any, suffix: str) -> str | None:
         if suffix in col_str:
             return col_str
     return None
-
-
-def _to_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    if math.isnan(number):
-        return None
-    return number
 
 
 def _extract_year(col: str) -> str | None:

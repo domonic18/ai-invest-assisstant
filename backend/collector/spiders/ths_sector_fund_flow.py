@@ -8,31 +8,37 @@
 
 from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import Any, ClassVar
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from collector.core.base import PostgresCollector
+from collector.core.parsing import is_nan, parse_cn_amount, to_optional_str
 
-from collector.base import BaseCollector
-from collector.exporters import PostgresExporter
-from collector.pipelines import DataPipeline, DeduplicateStep, NormalizeStep, ValidateStep
-from collector.settings import settings
-from collector.spiders.utils import parse_cn_amount, to_optional_str
+_UPDATE_COLUMNS = [
+    "sector_name",
+    "change_pct",
+    "main_net_inflow",
+    "super_large_net",
+    "large_net",
+    "medium_net",
+    "small_net",
+    "top_stock_code",
+    "top_stock_name",
+]
 
 
-class ThsSectorFundFlowCollector(BaseCollector):
+class ThsSectorFundFlowCollector(PostgresCollector):
     """同花顺行业资金流向采集器（备用渠道），写入 sector_fund_flow。"""
+
+    table = "sector_fund_flow"
+    conflict_key = "sector_code, sector_type, trade_date"
+    update_skip_null = True
+    update_columns: ClassVar[list[str]] = _UPDATE_COLUMNS
+    key_fields: ClassVar[list[str]] = ["sector_code", "sector_type", "trade_date"]
+    required_fields: ClassVar[list[str]] = ["sector_code", "sector_name", "trade_date"]
 
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         self.sector_type = config.get("sector_type", "industry")
-        self.pipeline = DataPipeline(
-            steps=[
-                NormalizeStep(),
-                DeduplicateStep(key_fields=["sector_code", "sector_type", "trade_date"]),
-                ValidateStep(required_fields=["sector_code", "sector_name", "trade_date"]),
-            ]
-        )
-        self._engine = create_async_engine(settings.database_url)
 
     async def collect(
         self, sector_type: str | None = None, **kwargs: Any
@@ -84,47 +90,15 @@ class ThsSectorFundFlowCollector(BaseCollector):
 
     async def validate(self, item: dict[str, Any]) -> bool:
         return bool(
-            item.get("sector_code") and item.get("sector_name") and item.get("trade_date")
+            item.get("sector_code")
+            and item.get("sector_name")
+            and item.get("trade_date")
         )
-
-    async def store(self, items: list[dict[str, Any]]) -> int:
-        cleaned = await self.pipeline.process(items)
-        if not cleaned:
-            return 0
-
-        session_maker = async_sessionmaker(
-            self._engine, class_=AsyncSession, expire_on_commit=False
-        )
-        async with session_maker() as session:
-            exporter = PostgresExporter(session)
-            count = await exporter.insert_many(
-                "sector_fund_flow",
-                cleaned,
-                conflict_key="sector_code, sector_type, trade_date",
-                update_columns=[
-                    "sector_name",
-                    "change_pct",
-                    "main_net_inflow",
-                    "super_large_net",
-                    "large_net",
-                    "medium_net",
-                    "small_net",
-                    "top_stock_code",
-                    "top_stock_name",
-                ],
-                update_skip_null=True,
-            )
-        await self._engine.dispose()
-        return count
-
-
-def _is_nan(value: Any) -> bool:
-    return isinstance(value, float) and value != value  # noqa: PLR0124
 
 
 def _parse_pct(value: Any) -> float | None:
     """同花顺涨跌幅：数值或带 % 的字符串。"""
-    if value is None or _is_nan(value):
+    if value is None or is_nan(value):
         return None
     if isinstance(value, Decimal):
         return float(value)
@@ -135,7 +109,7 @@ def _parse_pct(value: Any) -> float | None:
 
 def _parse_net_amount(value: Any) -> float | None:
     """同花顺净额：数值单位为亿元（需换算为元），字符串可能带中文单位。"""
-    if value is None or _is_nan(value):
+    if value is None or is_nan(value):
         return None
     if isinstance(value, Decimal):
         return float(value) * 100_000_000

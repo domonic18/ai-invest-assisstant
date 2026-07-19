@@ -1,17 +1,17 @@
 """EastMoney financial statement collector via akshare."""
 
 from collections.abc import Mapping, Sequence
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from collector.base import BaseCollector
-from collector.exporters import PostgresExporter
-from collector.settings import settings
+from collector.core.base import BaseCollector, get_engine
+from collector.core.exporters import PostgresExporter
+from collector.core.parsing import clean_stock_code, parse_date, to_optional_str
 
 DEFAULT_REPORT_TYPES = ["年报", "半年报", "一季报", "三季报"]
 
@@ -69,7 +69,6 @@ class EastmoneyFinancialStatementCollector(BaseCollector):
         self.report_types = config.get("report_types") or DEFAULT_REPORT_TYPES
         self.base_url = config.get("base_url")
         self.api_key = config.get("api_key")
-        self._engine = create_async_engine(settings.database_url)
 
     async def collect(
         self,
@@ -186,7 +185,7 @@ class EastmoneyFinancialStatementCollector(BaseCollector):
             return 0
 
         session_maker = async_sessionmaker(
-            self._engine, class_=AsyncSession, expire_on_commit=False
+            get_engine(), class_=AsyncSession, expire_on_commit=False
         )
         total = 0
         async with session_maker() as session:
@@ -209,7 +208,6 @@ class EastmoneyFinancialStatementCollector(BaseCollector):
                     cash_items,
                     conflict_key="stock_code, report_date",
                 )
-        await self._engine.dispose()
         return total
 
 
@@ -226,16 +224,10 @@ def _to_em_symbol(symbol: str) -> str | None:
     return None
 
 
-def _clean_code(symbol: str) -> str:
-    code = symbol.strip().lower()
-    return code.lstrip("sh").lstrip("sz").lstrip("bj").strip()
+_clean_code = clean_stock_code
 
 
-def _str(value: Any) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text if text else None
+_str = to_optional_str
 
 
 def _to_decimal(value: Any) -> Decimal | None:
@@ -249,17 +241,9 @@ def _to_decimal(value: Any) -> Decimal | None:
 
 
 def _parse_date(value: Any) -> date | None:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return value.date()
-    text = str(value).strip().split(" ")[0]
-    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"):
-        try:
-            return datetime.strptime(text, fmt).date()
-        except ValueError:
-            continue
-    return None
+    if isinstance(value, str):
+        value = value.strip().split(" ")[0]
+    return parse_date(value)
 
 
 def _normalize_df(df: pd.DataFrame) -> pd.DataFrame:

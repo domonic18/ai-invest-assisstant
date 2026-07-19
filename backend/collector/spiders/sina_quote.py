@@ -9,8 +9,9 @@ import json
 from datetime import datetime
 from typing import Any
 
-from collector.base import BaseCollector
-from collector.settings import settings
+from collector.core.base import BaseCollector
+from collector.core.config import redis_url as default_redis_url
+from collector.core.parsing import clean_stock_code, to_float
 
 
 class SinaQuoteCollector(BaseCollector):
@@ -18,7 +19,7 @@ class SinaQuoteCollector(BaseCollector):
 
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        self._redis_url = config.get("redis_url") or settings.redis_url
+        self._redis_url = config.get("redis_url") or default_redis_url
         self.ttl_seconds = int(config.get("ttl_seconds", 300))
 
     async def collect(
@@ -32,15 +33,12 @@ class SinaQuoteCollector(BaseCollector):
 
         requested = None
         if symbols:
-            requested = {
-                code.lstrip("sh").lstrip("sz").lstrip("bj")
-                for code in symbols
-            }
+            requested = {clean_stock_code(code) for code in symbols}
 
         raw: list[dict[str, Any]] = []
         for _, row in df.iterrows():
             full_code = str(row["代码"])
-            code = full_code.lstrip("sh").lstrip("sz").lstrip("bj")
+            code = clean_stock_code(full_code)
             if requested and code not in requested:
                 continue
 
@@ -70,17 +68,17 @@ class SinaQuoteCollector(BaseCollector):
         return {
             "stock_code": str(raw["stock_code"]),
             "stock_name": str(raw.get("stock_name", "")),
-            "price": _to_float(raw.get("price")),
-            "change": _to_float(raw.get("change")),
-            "pct_change": _to_float(raw.get("pct_change")),
-            "bid": _to_float(raw.get("bid")),
-            "ask": _to_float(raw.get("ask")),
-            "prev_close": _to_float(raw.get("prev_close")),
-            "open": _to_float(raw.get("open")),
-            "high": _to_float(raw.get("high")),
-            "low": _to_float(raw.get("low")),
-            "volume": _to_float(raw.get("volume")),
-            "amount": _to_float(raw.get("amount")),
+            "price": to_float(raw.get("price")),
+            "change": to_float(raw.get("change")),
+            "pct_change": to_float(raw.get("pct_change")),
+            "bid": to_float(raw.get("bid")),
+            "ask": to_float(raw.get("ask")),
+            "prev_close": to_float(raw.get("prev_close")),
+            "open": to_float(raw.get("open")),
+            "high": to_float(raw.get("high")),
+            "low": to_float(raw.get("low")),
+            "volume": to_float(raw.get("volume")),
+            "amount": to_float(raw.get("amount")),
             "timestamp": str(raw.get("timestamp", "")),
             "updated_at": str(raw.get("updated_at", "")),
         }
@@ -110,13 +108,3 @@ class SinaQuoteCollector(BaseCollector):
             await redis.close()
 
         return len(items)
-
-
-def _to_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        result = float(value)
-        return None if result != result else result  # filter NaN
-    except (TypeError, ValueError):
-        return None

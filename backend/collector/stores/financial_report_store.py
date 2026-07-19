@@ -5,12 +5,12 @@ from datetime import date
 from typing import Any
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.file_metadata import FileMetadata
 from app.services.knowledge_base_service import KnowledgeBaseService
 from app.services.minio_service import MinIOService
-from collector.settings import settings
+from collector.core.base import get_engine
 
 logger = structlog.get_logger()
 
@@ -32,12 +32,11 @@ class FinancialReportStore:
     ):
         self.minio = minio
         self.kb = kb
-        self._engine = create_async_engine(settings.database_url)
 
     async def save_many(self, items: list[dict[str, Any]]) -> tuple[int, list[str]]:
         """Persist all items and return the number saved plus any error messages."""
         session_maker = async_sessionmaker(
-            self._engine, class_=AsyncSession, expire_on_commit=False
+            get_engine(), class_=AsyncSession, expire_on_commit=False
         )
         stored = 0
         errors: list[str] = []
@@ -52,7 +51,6 @@ class FinancialReportStore:
                     logger.warning("financial_report_store_item_failed", error=msg)
                     errors.append(msg)
             await session.commit()
-        await self._engine.dispose()
         await self.kb.close()
         return stored, errors
 
