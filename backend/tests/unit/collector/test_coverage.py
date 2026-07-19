@@ -49,8 +49,8 @@ class TestCollectorCoverage:
 
         with (
             patch(
-                "collector.tasks._resolve_task_channel",
-                AsyncMock(return_value=("mock", {"base_url": None, "api_key": None})),
+                "collector.tasks._resolve_task_channels",
+                AsyncMock(return_value=[("mock", {"base_url": None, "api_key": None})]),
             ),
             patch(
                 "collector.tasks._run_collector_for_task",

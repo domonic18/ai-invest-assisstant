@@ -56,8 +56,8 @@ class TestCollectorTaskEntries:
 
         with (
             patch(
-                "collector.tasks._resolve_task_channel",
-                AsyncMock(return_value=("eastmoney", {"base_url": None, "api_key": None})),
+                "collector.tasks._resolve_task_channels",
+                AsyncMock(return_value=[("eastmoney", {"base_url": None, "api_key": None})]),
             ),
             patch(
                 "akshare.stock_balance_sheet_by_report_em",
@@ -106,8 +106,8 @@ class TestCollectorTaskEntries:
 
         with (
             patch(
-                "collector.tasks._resolve_task_channel",
-                AsyncMock(return_value=("cninfo", {"base_url": None, "api_key": None})),
+                "collector.tasks._resolve_task_channels",
+                AsyncMock(return_value=[("cninfo", {"base_url": None, "api_key": None})]),
             ),
             patch(
                 "akshare.stock_new_ipo_cninfo",
@@ -143,8 +143,8 @@ class TestCollectorTaskEntries:
 
         with (
             patch(
-                "collector.tasks._resolve_task_channel",
-                AsyncMock(return_value=("eastmoney", {"base_url": None, "api_key": None})),
+                "collector.tasks._resolve_task_channels",
+                AsyncMock(return_value=[("eastmoney", {"base_url": None, "api_key": None})]),
             ),
             patch(
                 "akshare.stock_report_fund_hold",
@@ -183,8 +183,8 @@ class TestCollectorTaskEntries:
 
         with (
             patch(
-                "collector.tasks._resolve_task_channel",
-                AsyncMock(return_value=("sina", {"base_url": None, "api_key": None})),
+                "collector.tasks._resolve_task_channels",
+                AsyncMock(return_value=[("sina", {"base_url": None, "api_key": None})]),
             ),
             patch(
                 "akshare.stock_info_a_code_name",
@@ -245,8 +245,8 @@ class TestCollectorTaskEntries:
 
         with (
             patch(
-                "collector.tasks._resolve_task_channel",
-                AsyncMock(return_value=("cninfo", {"base_url": None, "api_key": None})),
+                "collector.tasks._resolve_task_channels",
+                AsyncMock(return_value=[("cninfo", {"base_url": None, "api_key": None})]),
             ),
             patch(
                 "collector.stores.financial_report_store.FinancialReportStore.save_many",
@@ -264,3 +264,154 @@ class TestCollectorTaskEntries:
         assert result.status == CollectStatus.SUCCESS
         assert result.items_collected == 1
         assert result.items_stored == 1
+
+
+def _result(source: str, status: CollectStatus, errors: list[str] | None = None):
+    from datetime import datetime, timezone
+
+    from collector.base import CollectResult
+
+    now = datetime.now(timezone.utc)
+    return CollectResult(
+        source=source,
+        data_type="sector_fund_flow",
+        status=status,
+        items_collected=0,
+        items_stored=0,
+        errors=errors or [],
+        started_at=now,
+        finished_at=now,
+    )
+
+
+@pytest.mark.unit
+class TestRunCollectorFallback:
+    @pytest.fixture
+    def collectors(self):
+        from collector.base import BaseCollector
+
+        class FakeCollector(BaseCollector):
+            result = None
+
+            def __init__(self, config):
+                super().__init__(config)
+
+            async def collect(self, **kwargs):
+                return []
+
+            async def transform(self, raw):
+                return raw
+
+            async def validate(self, item):
+                return True
+
+            async def run(self, **kwargs):
+                return type(self).result
+
+        return FakeCollector
+
+    @pytest.mark.asyncio
+    async def test_fallback_to_second_source_on_failure(self, collectors) -> None:
+        from collector import tasks
+
+        results = [
+            _result("eastmoney", CollectStatus.FAILED, ["连接被拒"]),
+            _result("ths", CollectStatus.SUCCESS),
+        ]
+        call_count = {"n": 0}
+
+        class SeqCollector(collectors):
+            async def run(self, **kwargs):
+                outcome = results[call_count["n"]]
+                call_count["n"] += 1
+                return outcome
+
+        with patch(
+            "collector.tasks._resolve_task_channels",
+            AsyncMock(
+                return_value=[
+                    ("eastmoney", {"base_url": None, "api_key": None}),
+                    ("ths", {"base_url": None, "api_key": None}),
+                ]
+            ),
+        ):
+            result = await tasks._run_collector_for_task(
+                "sector-fund-flow",
+                "sector_fund_flow",
+                {"eastmoney": SeqCollector, "ths": SeqCollector},
+                None,
+            )
+
+        assert result.status == CollectStatus.SUCCESS
+        assert result.source == "ths"
+        assert any("[eastmoney]" in error for error in result.errors)
+
+    @pytest.mark.asyncio
+    async def test_all_failed_returns_aggregated_errors(self, collectors) -> None:
+        from collector import tasks
+
+        class FailCollector(collectors):
+            async def run(self, **kwargs):
+                return _result(self.source, CollectStatus.FAILED, [f"{self.source} 失败"])
+
+        with patch(
+            "collector.tasks._resolve_task_channels",
+            AsyncMock(
+                return_value=[
+                    ("eastmoney", {"base_url": None, "api_key": None}),
+                    ("ths", {"base_url": None, "api_key": None}),
+                ]
+            ),
+        ):
+            result = await tasks._run_collector_for_task(
+                "sector-fund-flow",
+                "sector_fund_flow",
+                {"eastmoney": FailCollector, "ths": FailCollector},
+                None,
+            )
+
+        assert result.status == CollectStatus.FAILED
+        assert any("[eastmoney]" in error for error in result.errors)
+        assert any("[ths]" in error for error in result.errors)
+
+    @pytest.mark.asyncio
+    async def test_source_without_collector_is_skipped(self, collectors) -> None:
+        from collector import tasks
+
+        class OkCollector(collectors):
+            async def run(self, **kwargs):
+                return _result(self.source, CollectStatus.SUCCESS)
+
+        with patch(
+            "collector.tasks._resolve_task_channels",
+            AsyncMock(
+                return_value=[
+                    ("unknown-src", {"base_url": None, "api_key": None}),
+                    ("ths", {"base_url": None, "api_key": None}),
+                ]
+            ),
+        ):
+            result = await tasks._run_collector_for_task(
+                "sector-fund-flow",
+                "sector_fund_flow",
+                {"ths": OkCollector},
+                None,
+            )
+
+        assert result.status == CollectStatus.SUCCESS
+        assert result.source == "ths"
+        assert any("unknown-src" in error for error in result.errors)
+
+    @pytest.mark.asyncio
+    async def test_no_candidates_returns_skipped(self) -> None:
+        from collector import tasks
+
+        with patch(
+            "collector.tasks._resolve_task_channels",
+            AsyncMock(return_value=[]),
+        ):
+            result = await tasks._run_collector_for_task(
+                "sector-fund-flow", "sector_fund_flow", {}, None
+            )
+
+        assert result.status == CollectStatus.SKIPPED

@@ -940,40 +940,156 @@ class TestEastMoneyLimitUpPoolCollector:
 @pytest.mark.unit
 class TestEastMoneySectorFundFlowCollector:
     @pytest.mark.asyncio
-    async def test_collect_maps_real_akshare_columns(self) -> None:
-        df = pd.DataFrame(
-            [
-                {
-                    "序号": 1,
-                    "名称": "半导体",
-                    "今日涨跌幅": 4.2,
-                    "今日主力净流入-净额": 2.26e9,
-                    "今日主力净流入-净占比": 3.1,
-                    "今日超大单净流入-净额": 1.5e9,
-                    "今日超大单净流入-净占比": 2.0,
-                    "今日大单净流入-净额": 7.6e8,
-                    "今日大单净流入-净占比": 1.1,
-                    "今日中单净流入-净额": -3e8,
-                    "今日中单净流入-净占比": -0.4,
-                    "今日小单净流入-净额": -1.9e9,
-                    "今日小单净流入-净占比": -2.6,
-                    "今日主力净流入最大股": "北方华创",
-                }
-            ]
-        )
+    async def test_collect_maps_push2_fields(self) -> None:
+        rows = [
+            {
+                "f12": "BK1036",
+                "f14": "半导体",
+                "f3": 4.2,
+                "f62": 2.26e9,
+                "f66": 1.5e9,
+                "f72": 7.6e8,
+                "f78": -3e8,
+                "f84": -1.9e9,
+                "f204": "北方华创",
+                "f205": "002371",
+            }
+        ]
         collector = EastMoneySectorFundFlowCollector(
             {"source": "eastmoney", "data_type": "sector_fund_flow"}
         )
-        with patch("akshare.stock_sector_fund_flow_rank", return_value=df):
+        with patch.object(collector, "_fetch_rank", return_value=rows):
             raw = await collector.collect(sector_type="industry")
 
         assert len(raw) == 1
         assert raw[0]["sector_name"] == "半导体"
-        assert raw[0]["sector_code"] == "半导体"
+        assert raw[0]["sector_code"] == "BK1036"
         assert raw[0]["change_pct"] == 4.2
         assert raw[0]["main_net_inflow"] == 2.26e9
         assert raw[0]["top_stock_name"] == "北方华创"
+        assert raw[0]["top_stock_code"] == "002371"
 
         item = await collector.transform(raw[0])
         assert item["change_pct"] == 4.2
         assert await collector.validate(item) is True
+
+    def test_fetch_rank_paginates(self) -> None:
+        collector = EastMoneySectorFundFlowCollector(
+            {"source": "eastmoney", "data_type": "sector_fund_flow"}
+        )
+        pages = [
+            {"total": 3, "diff": [{"f14": "板块A"}, {"f14": "板块B"}]},
+            {"total": 3, "diff": [{"f14": "板块C"}]},
+        ]
+        with (
+            patch(
+                "collector.spiders.eastmoney_sector_fund_flow._PAGE_SIZE", 2
+            ),
+            patch.object(
+                collector, "_request_page", side_effect=pages
+            ) as request_page,
+        ):
+            rows = collector._fetch_rank("industry")
+
+        assert [row["f14"] for row in rows] == ["板块A", "板块B", "板块C"]
+        assert request_page.call_count == 2
+        assert request_page.call_args_list[1].args[0]["pn"] == 2
+
+    def test_request_page_uses_shared_eastmoney_client(self) -> None:
+        collector = EastMoneySectorFundFlowCollector(
+            {"source": "eastmoney", "data_type": "sector_fund_flow"}
+        )
+        response = MagicMock()
+        response.json.return_value = {"data": {"total": 0, "diff": []}}
+        with patch(
+            "collector.spiders.eastmoney_sector_fund_flow.eastmoney_get",
+            return_value=response,
+        ) as get:
+            data = collector._request_page({"pn": 1})
+
+        assert data == {"total": 0, "diff": []}
+        assert get.call_args.args[0] == "https://push2.eastmoney.com/api/qt/clist/get"
+        assert get.call_args.kwargs["params"] == {"pn": 1}
+
+
+@pytest.mark.unit
+class TestThsSectorFundFlowCollector:
+    def _make_df(self) -> pd.DataFrame:
+        return pd.DataFrame(
+            [
+                {
+                    "序号": 1,
+                    "行业": "酿酒行业",
+                    "行业指数": 3800.5,
+                    "行业-涨跌幅": 1.23,
+                    "流入资金": "10.5亿",
+                    "流出资金": "9.5亿",
+                    "净额": "1.23亿",
+                    "公司家数": 37,
+                    "领涨股": "贵州茅台",
+                    "领涨股-涨跌幅": 2.5,
+                    "当前价": 1680.0,
+                },
+                {
+                    "序号": 2,
+                    "行业": "银行",
+                    "行业指数": 3200.0,
+                    "行业-涨跌幅": -0.5,
+                    "流入资金": "5000万",
+                    "流出资金": "6000万",
+                    "净额": -3.15,
+                    "公司家数": 42,
+                    "领涨股": "招商银行",
+                    "领涨股-涨跌幅": 0.8,
+                    "当前价": 35.0,
+                },
+            ]
+        )
+
+    @pytest.mark.asyncio
+    async def test_collect_maps_ths_fields(self) -> None:
+        from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
+
+        collector = ThsSectorFundFlowCollector(
+            {"source": "ths", "data_type": "sector_fund_flow"}
+        )
+        with patch(
+            "akshare.stock_fund_flow_industry", return_value=self._make_df()
+        ):
+            raw = await collector.collect(sector_type="industry")
+
+        assert len(raw) == 2
+        first = raw[0]
+        assert first["sector_code"] == "酿酒行业"
+        assert first["sector_name"] == "酿酒行业"
+        assert first["sector_type"] == "industry"
+        assert first["change_pct"] == 1.23
+        assert first["main_net_inflow"] == 1.23 * 100_000_000
+        assert first["super_large_net"] is None
+        assert first["top_stock_name"] == "贵州茅台"
+        assert raw[1]["main_net_inflow"] == -3.15 * 100_000_000
+
+    @pytest.mark.asyncio
+    async def test_collect_rejects_non_industry(self) -> None:
+        from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
+
+        collector = ThsSectorFundFlowCollector(
+            {"source": "ths", "data_type": "sector_fund_flow"}
+        )
+        with pytest.raises(ValueError, match="仅支持行业板块"):
+            await collector.collect(sector_type="concept")
+
+    @pytest.mark.asyncio
+    async def test_validate(self) -> None:
+        from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
+
+        collector = ThsSectorFundFlowCollector(
+            {"source": "ths", "data_type": "sector_fund_flow"}
+        )
+        item = {
+            "sector_code": "酿酒行业",
+            "sector_name": "酿酒行业",
+            "trade_date": datetime.date.today(),
+        }
+        assert await collector.validate(item) is True
+        assert await collector.validate({**item, "sector_name": None}) is False

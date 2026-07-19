@@ -56,7 +56,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "name": "同花顺",
         "base_url": None,
         "is_enabled": True,
-        "supported_data_types": ["kline", "auction"],
+        "supported_data_types": ["kline", "auction", "sector-fund-flow"],
         "extra": {},
     },
     {
@@ -112,9 +112,54 @@ async def seed_default_channels(session: AsyncSession) -> None:
         inserted += 1
     if inserted or updated:
         await session.commit()
+
+    await _seed_data_type_associations(session)
+
     logger.info(
         "collector_default_channels_seeded", inserted=inserted, updated=updated
     )
+
+
+async def _seed_data_type_associations(session: AsyncSession) -> None:
+    """Seed channel data-type priority rows for default channels.
+
+    priority 取 DEFAULT_CHANNELS 声明序号；已存在的关联行跳过，不覆盖管理员
+    在后台自定义的优先级。
+    """
+    from sqlalchemy import select
+
+    from app.models.collector_channel_config import CollectorChannelConfig
+    from app.models.collector_channel_data_type import CollectorChannelDataType
+
+    channels = {
+        row.source: row
+        for row in (
+            await session.execute(select(CollectorChannelConfig))
+        ).scalars().all()
+    }
+    existing_keys = {
+        (row.channel_id, row.data_type)
+        for row in (
+            await session.execute(select(CollectorChannelDataType))
+        ).scalars().all()
+    }
+    added = 0
+    for idx, data in enumerate(DEFAULT_CHANNELS, start=1):
+        channel = channels.get(data["source"])
+        if channel is None:
+            continue
+        for data_type in data.get("supported_data_types", []):
+            if (channel.id, data_type) in existing_keys:
+                continue
+            session.add(
+                CollectorChannelDataType(
+                    channel_id=channel.id, data_type=data_type, priority=idx
+                )
+            )
+            added += 1
+    if added:
+        await session.commit()
+    logger.info("collector_channel_data_types_seeded", added=added)
 
 
 async def get_channel_config(

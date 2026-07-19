@@ -4,13 +4,13 @@ import argparse
 import asyncio
 import json
 import logging
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Any
 
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from collector.base import BaseCollector, CollectResult, CollectStatus
-from collector.resolver import resolve_channel_for_task
+from collector.resolver import resolve_channels_for_task
 from collector.settings import settings
 
 logging.basicConfig(level=logging.INFO)
@@ -61,46 +61,31 @@ def _skipped_result(task_name: str, source: str, data_type: str) -> CollectResul
     )
 
 
-def _unsupported_source_result(
-    task_name: str,
-    source: str,
-    data_type: str,
-) -> CollectResult:
-    """Return a skipped result when a resolved source has no matching collector."""
-    now = datetime.now(timezone.utc)
-    return CollectResult(
-        source=source,
-        data_type=data_type,
-        status=CollectStatus.SKIPPED,
-        items_collected=0,
-        items_stored=0,
-        errors=[f"渠道 {source} 没有任务 {task_name} 对应的采集器"],
-        started_at=now,
-        finished_at=now,
-    )
-
-
-async def _resolve_task_channel(
+async def _resolve_task_channels(
     task_name: str,
     preferred_source: str | None = None,
-) -> tuple[str, dict[str, Any]] | None:
-    """Resolve a channel configuration for ``task_name``.
+) -> list[tuple[str, dict[str, Any]]]:
+    """Resolve ordered channel candidates for ``task_name``.
 
-    Returns ``(source, channel_config)`` or ``None`` if no enabled channel supports
-    the task.
+    Returns ``[(source, channel_config), ...]`` ordered by admin-configured
+    priority (``preferred_source`` first when given). Empty list means no
+    enabled channel supports the task.
     """
     from app.core.database import AsyncSessionLocal
 
     async with AsyncSessionLocal() as session:
-        channel = await resolve_channel_for_task(session, task_name, preferred_source)
-        if channel is None:
-            return None
-        config: dict[str, Any] = {
-            "base_url": channel.base_url,
-            "api_key": channel.api_key,
-        }
-        config.update(channel.extra)
-        return channel.source, config
+        channels = await resolve_channels_for_task(
+            session, task_name, preferred_source
+        )
+        resolved: list[tuple[str, dict[str, Any]]] = []
+        for channel in channels:
+            config: dict[str, Any] = {
+                "base_url": channel.base_url,
+                "api_key": channel.api_key,
+            }
+            config.update(channel.extra)
+            resolved.append((channel.source, config))
+        return resolved
 
 
 async def _run_collector_for_task(
@@ -112,29 +97,55 @@ async def _run_collector_for_task(
     extra_config: dict[str, Any] | None = None,
     **run_kwargs: Any,
 ) -> CollectResult:
-    """Resolve a channel and run the matching collector for ``task_name``.
+    """Resolve channel candidates and run collectors with fallback.
 
-    The ``collector_map`` maps channel ``source`` values to collector classes. If
-    the resolved source is not in the map, a skipped result is returned so the
-    channel configuration stays in control of which collectors can be used.
+    Candidates are tried in priority order: a collector that finishes with
+    ``SUCCESS`` or ``PARTIAL`` wins; ``FAILED``/``SKIPPED`` or a source without
+    a matching collector falls through to the next candidate. When all
+    candidates fail, the last result is returned with the errors of every
+    attempt appended.
     """
-    resolved = await _resolve_task_channel(task_name, preferred_source)
-    if resolved is None:
+    candidates = await _resolve_task_channels(task_name, preferred_source)
+    if not candidates:
         return _skipped_result(task_name, "unknown", data_type)
 
-    source, channel_config = resolved
-    collector_class = collector_map.get(source)
-    if collector_class is None:
-        return _unsupported_source_result(task_name, source, data_type)
+    attempt_errors: list[str] = []
+    last_result: CollectResult | None = None
+    for source, channel_config in candidates:
+        collector_class = collector_map.get(source)
+        if collector_class is None:
+            attempt_errors.append(
+                f"[{source}] 渠道没有任务 {task_name} 对应的采集器"
+            )
+            continue
 
-    config: dict[str, Any] = {
-        "source": source,
-        "data_type": data_type,
-        **channel_config,
-        **(extra_config or {}),
-    }
-    collector = collector_class(config)
-    return await collector.run(symbols=symbols, **run_kwargs)
+        config: dict[str, Any] = {
+            "source": source,
+            "data_type": data_type,
+            **channel_config,
+            **(extra_config or {}),
+        }
+        collector = collector_class(config)
+        result = await collector.run(symbols=symbols, **run_kwargs)
+
+        if result.status in (CollectStatus.SUCCESS, CollectStatus.PARTIAL):
+            if last_result is not None or attempt_errors:
+                result.errors = attempt_errors + result.errors
+            return result
+
+        logger.info(
+            "collector_fallback task=%s from_source=%s status=%s",
+            task_name,
+            source,
+            result.status.value,
+        )
+        attempt_errors.extend(f"[{source}] {error}" for error in result.errors)
+        last_result = result
+
+    assert last_result is not None
+    last_result.status = CollectStatus.FAILED
+    last_result.errors = attempt_errors
+    return last_result
 
 
 async def collect_kline(
@@ -249,11 +260,15 @@ async def collect_sector_fund_flow(
     from collector.spiders.eastmoney_sector_fund_flow import (
         EastMoneySectorFundFlowCollector,
     )
+    from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
 
     return await _run_collector_for_task(
         "sector-fund-flow",
         "sector_fund_flow",
-        {"eastmoney": EastMoneySectorFundFlowCollector},
+        {
+            "eastmoney": EastMoneySectorFundFlowCollector,
+            "ths": ThsSectorFundFlowCollector,
+        },
         preferred_source,
         sector_type=sector_type,
     )
