@@ -22,6 +22,7 @@ class CollectorTaskName(str, Enum):
     IPO_INFO = "ipo-info"
     FUND_HOLDINGS = "fund-holdings"
     MACRO = "macro"
+    QUOTE = "quote"
     STOCK_LIST = "stock-list"
     LIMIT_UP_POOL = "limit-up-pool"
 

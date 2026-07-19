@@ -35,6 +35,7 @@ _TASK_DATA_TYPE: dict[str, str] = {
     "ipo-info": "ipo_info",
     "fund-holdings": "fund_holdings",
     "macro": "macro_indicator",
+    "quote": "quote",
     "stock-list": "stock_list",
     "limit-up-pool": "limit_up_pool",
 }
