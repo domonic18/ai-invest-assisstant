@@ -10,9 +10,9 @@ import time
 from datetime import date
 from typing import Any, ClassVar
 
-from collector.core.base import PostgresCollector
 from collector.core.http_client import eastmoney_get
 from collector.core.parsing import parse_cn_amount, to_optional_str
+from collector.spiders.sector_fund_flow_base import BaseSectorFundFlowCollector
 
 _PUSH2_URL = "https://push2.eastmoney.com/api/qt/clist/get"
 _PAGE_SIZE = 100
@@ -20,38 +20,15 @@ _PAGE_SIZE = 100
 # f78 中单 f84 小单 f204 主力净流入最大股 f205 最大股代码
 _FIELDS = "f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124"
 
-_UPDATE_COLUMNS = [
-    "sector_name",
-    "change_pct",
-    "main_net_inflow",
-    "super_large_net",
-    "large_net",
-    "medium_net",
-    "small_net",
-    "top_stock_code",
-    "top_stock_name",
-]
 
-
-class EastMoneySectorFundFlowCollector(PostgresCollector):
+class EastMoneySectorFundFlowCollector(BaseSectorFundFlowCollector):
     """东方财富板块资金流向采集器，写入 sector_fund_flow。"""
 
-    SECTOR_TYPE_MAP: dict[str, str] = {
+    SECTOR_TYPE_MAP: ClassVar[dict[str, str]] = {
         "industry": "2",
         "concept": "3",
         "region": "1",
     }
-
-    table = "sector_fund_flow"
-    conflict_key = "sector_code, sector_type, trade_date"
-    update_skip_null = True
-    update_columns: ClassVar[list[str]] = _UPDATE_COLUMNS
-    key_fields: ClassVar[list[str]] = ["sector_code", "sector_type", "trade_date"]
-    required_fields: ClassVar[list[str]] = ["sector_code", "sector_name", "trade_date"]
-
-    def __init__(self, config: dict[str, Any]):
-        super().__init__(config)
-        self.sector_type = config.get("sector_type", "industry")
 
     def _request_page(self, params: dict[str, Any]) -> dict[str, Any]:
         response = eastmoney_get(_PUSH2_URL, params=params)
@@ -108,31 +85,3 @@ class EastMoneySectorFundFlowCollector(PostgresCollector):
                 }
             )
         return raw
-
-    async def transform(self, raw: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "sector_code": str(raw["sector_code"]),
-            "sector_name": raw.get("sector_name"),
-            "sector_type": raw.get("sector_type"),
-            "trade_date": raw["trade_date"],
-            "change_pct": raw.get("change_pct"),
-            "main_net_inflow": raw.get("main_net_inflow"),
-            "super_large_net": raw.get("super_large_net"),
-            "large_net": raw.get("large_net"),
-            "medium_net": raw.get("medium_net"),
-            "small_net": raw.get("small_net"),
-            "top_stock_code": raw.get("top_stock_code"),
-            "top_stock_name": raw.get("top_stock_name"),
-        }
-
-    async def validate(self, item: dict[str, Any]) -> bool:
-        return bool(
-            item.get("sector_code")
-            and item.get("sector_name")
-            and item.get("trade_date")
-        )
-
-
-# 兼容别名：具体实现见 collector/core/parsing.py
-_str = to_optional_str
-_parse_amount = parse_cn_amount

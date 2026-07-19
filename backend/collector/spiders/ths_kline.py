@@ -1,23 +1,12 @@
 """TongHuaShun K-line collector via akshare."""
 
-from typing import Any, ClassVar
+from typing import Any
 
-from collector.core.base import PostgresCollector
-from collector.core.parsing import to_float, to_int
+from collector.spiders.kline_base import BaseKlineCollector
 
 
-class ThsKlineCollector(PostgresCollector):
+class ThsKlineCollector(BaseKlineCollector):
     """同花顺日 K / 分钟 K 数据采集器。"""
-
-    table = "kline_daily"
-    conflict_key = "stock_code, trade_date"
-    normalize = False
-    key_fields: ClassVar[list[str]] = ["stock_code", "trade_date"]
-    required_fields: ClassVar[list[str]] = ["stock_code", "trade_date", "close"]
-
-    def __init__(self, config: dict[str, Any]):
-        super().__init__(config)
-        self.period = config.get("period", "daily")
 
     async def collect(
         self, symbols: list[str] | None = None, **kwargs: Any
@@ -35,6 +24,8 @@ class ThsKlineCollector(PostgresCollector):
                 end_date="20251231",
                 adjust="qfq",
             )
+            if df is None or df.empty:
+                continue
             for _, row in df.iterrows():
                 raw.append(
                     {
@@ -53,27 +44,3 @@ class ThsKlineCollector(PostgresCollector):
                 )
 
         return raw
-
-    async def transform(self, raw: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "stock_code": str(raw["stock_code"]),
-            "trade_date": raw["trade_date"],
-            "open": to_float(raw.get("open")),
-            "high": to_float(raw.get("high")),
-            "low": to_float(raw.get("low")),
-            "close": to_float(raw.get("close")),
-            "volume": to_int(raw.get("volume")),
-            "amount": to_float(raw.get("amount")),
-            "amplitude": to_float(raw.get("amplitude")),
-            "pct_change": to_float(raw.get("pct_change")),
-            "turnover_rate": to_float(raw.get("turnover_rate")),
-        }
-
-    async def validate(self, item: dict[str, Any]) -> bool:
-        close = item.get("close")
-        return (
-            item.get("stock_code") is not None
-            and item.get("trade_date") is not None
-            and close is not None
-            and close > 0
-        )

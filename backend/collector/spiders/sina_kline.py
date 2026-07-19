@@ -1,23 +1,13 @@
 """Sina K-line collector via akshare."""
 
-from typing import Any, ClassVar
+from typing import Any
 
-from collector.core.base import PostgresCollector
-from collector.core.parsing import clean_stock_code, to_float, to_int
+from collector.core.parsing import clean_stock_code
+from collector.spiders.kline_base import BaseKlineCollector
 
 
-class SinaKlineCollector(PostgresCollector):
+class SinaKlineCollector(BaseKlineCollector):
     """新浪财经日 K / 分钟 K 数据采集器。"""
-
-    conflict_key = "stock_code, trade_date"
-    normalize = False
-    key_fields: ClassVar[list[str]] = ["stock_code", "trade_date"]
-    required_fields: ClassVar[list[str]] = ["stock_code", "trade_date", "close"]
-
-    def __init__(self, config: dict[str, Any]):
-        super().__init__(config)
-        self.period = config.get("period", "daily")
-        self.table = "kline_minute" if self.period == "minute" else "kline_daily"
 
     async def collect(
         self, symbols: list[str] | None = None, **kwargs: Any
@@ -36,6 +26,8 @@ class SinaKlineCollector(PostgresCollector):
                 df = ak.stock_zh_a_daily(symbol=sina_symbol)
                 date_col = "date"
 
+            if df is None or df.empty:
+                continue
             for _, row in df.iterrows():
                 raw.append(
                     {
@@ -54,30 +46,6 @@ class SinaKlineCollector(PostgresCollector):
                 )
 
         return raw
-
-    async def transform(self, raw: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "stock_code": str(raw["stock_code"]),
-            "trade_date": raw["trade_date"],
-            "open": to_float(raw.get("open")),
-            "high": to_float(raw.get("high")),
-            "low": to_float(raw.get("low")),
-            "close": to_float(raw.get("close")),
-            "volume": to_int(raw.get("volume")),
-            "amount": to_float(raw.get("amount")),
-            "amplitude": to_float(raw.get("amplitude")),
-            "pct_change": to_float(raw.get("pct_change")),
-            "turnover_rate": to_float(raw.get("turnover_rate")),
-        }
-
-    async def validate(self, item: dict[str, Any]) -> bool:
-        close = item.get("close")
-        return (
-            item.get("stock_code") is not None
-            and item.get("trade_date") is not None
-            and close is not None
-            and close > 0
-        )
 
     @staticmethod
     def _to_sina_symbol(symbol: str) -> str:

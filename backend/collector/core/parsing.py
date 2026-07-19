@@ -1,7 +1,7 @@
 """Spider 共享解析工具 — 各采集器私有 _str/_to_float/_clean_code 的唯一实现。"""
 
 import re
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Any
 
 _AMOUNT_UNITS = {
@@ -11,6 +11,7 @@ _AMOUNT_UNITS = {
 }
 
 _DATE_FORMATS = ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d")
+_TIME_FORMATS = ("%H:%M:%S", "%H:%M")
 
 _MARKET_PREFIXES = ("sh", "sz", "bj")
 
@@ -90,6 +91,25 @@ def parse_date(value: Any) -> date | None:
     for fmt in _DATE_FORMATS:
         try:
             return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def parse_time(value: Any) -> time | None:
+    """容错解析时间（支持 time/datetime/常见字符串格式），失败返回 None。"""
+    if value is None or is_nan(value):
+        return None
+    if isinstance(value, datetime):
+        return value.time()
+    if isinstance(value, time):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    for fmt in _TIME_FORMATS:
+        try:
+            return datetime.strptime(text, fmt).time()
         except ValueError:
             continue
     return None

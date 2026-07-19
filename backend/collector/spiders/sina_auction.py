@@ -1,28 +1,28 @@
 """Sina auction data collector via hq.sinajs.cn real-time depth."""
 
-from datetime import date, datetime, time
+from datetime import date
 from typing import Any, ClassVar
 
 import httpx
 
-from collector.core.base import PostgresCollector
-from collector.core.parsing import clean_stock_code, to_float, to_int
+from collector.core.parsing import clean_stock_code
+from collector.spiders.auction_base import BaseAuctionCollector
 
 
-class SinaAuctionCollector(PostgresCollector):
+class SinaAuctionCollector(BaseAuctionCollector):
     """新浪财经集合竞价数据采集器（基于实时买卖盘快照）。"""
 
     DEFAULT_BASE_URL = "https://hq.sinajs.cn"
 
-    table = "auction_data"
-    conflict_key = "stock_code, trade_date, match_time"
-    normalize = False
-    key_fields: ClassVar[list[str]] = ["stock_code", "trade_date", "match_time"]
-    required_fields: ClassVar[list[str]] = ["stock_code", "trade_date", "match_time"]
+    PRICE_KEY: ClassVar[str] = "current"
+    VOLUME_KEY: ClassVar[str] = "volume"
+    BID_PRICE_FMT: ClassVar[str] = "buy_{i}_price"
+    BID_VOLUME_FMT: ClassVar[str] = "buy_{i}_vol"
+    ASK_PRICE_FMT: ClassVar[str] = "sell_{i}_price"
+    ASK_VOLUME_FMT: ClassVar[str] = "sell_{i}_vol"
 
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        self.match_time = config.get("match_time", time(9, 25, 0))
         self.base_url = config.get("base_url") or self.DEFAULT_BASE_URL
         self.api_key = config.get("api_key")
 
@@ -41,27 +41,6 @@ class SinaAuctionCollector(PostgresCollector):
             raw.append(snapshot)
 
         return raw
-
-    async def transform(self, raw: dict[str, Any]) -> dict[str, Any]:
-        trade_date = raw["trade_date"]
-        if isinstance(trade_date, str):
-            trade_date = datetime.strptime(trade_date, "%Y-%m-%d").date()
-
-        match_time = raw["match_time"]
-        if isinstance(match_time, str):
-            match_time = datetime.strptime(match_time, "%H:%M:%S").time()
-
-        return {
-            "stock_code": str(raw["stock_code"]),
-            "trade_date": trade_date,
-            "match_time": match_time,
-            "price": to_float(raw.get("current")),
-            "volume": to_int(raw.get("volume")),
-            "bid_prices": [to_float(raw.get(f"buy_{i}_price")) for i in range(1, 6)],
-            "bid_volumes": [to_int(raw.get(f"buy_{i}_vol")) for i in range(1, 6)],
-            "ask_prices": [to_float(raw.get(f"sell_{i}_price")) for i in range(1, 6)],
-            "ask_volumes": [to_int(raw.get(f"sell_{i}_vol")) for i in range(1, 6)],
-        }
 
     async def _fetch_snapshot(self, symbol: str) -> dict[str, Any]:
         """Fetch a Sina real-time snapshot and parse the 5-level depth."""
