@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from collector.dispatcher import dispatch_collector_task
-from collector.queue import CollectorQueue
+from collector.runtime.dispatcher import dispatch_collector_task
+from collector.runtime.queue import CollectorQueue
 
 
 @pytest.mark.unit
@@ -59,7 +59,7 @@ class TestCollectorDispatcher:
         mock_log.id = 5
 
         with (
-            patch("collector.dispatcher.CollectorLog", return_value=mock_log),
+            patch("collector.runtime.dispatcher.CollectorLog", return_value=mock_log),
             patch.object(
                 CollectorQueue,
                 "push",
@@ -87,7 +87,7 @@ class TestCollectorDispatcher:
         mock_log = MagicMock()
 
         with (
-            patch("collector.dispatcher.CollectorLog", return_value=mock_log),
+            patch("collector.runtime.dispatcher.CollectorLog", return_value=mock_log),
             patch.object(
                 CollectorQueue,
                 "push",

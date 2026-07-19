@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1 import api_router
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
-from collector.channels import seed_default_channels
+from collector.runtime.channels import seed_default_channels
 
 settings = get_settings()
 logger = logging.getLogger(__name__)

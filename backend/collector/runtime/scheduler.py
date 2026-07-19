@@ -1,8 +1,9 @@
 """Local collector scheduler based on APScheduler.
 
 Reads active schedules from `collector_task` table and runs collectors through
-the same ``collector.scf_handler._run_task`` entry point used by the SCF handler
-and the Redis queue worker, ensuring scheduled and ad-hoc execution share logic.
+``collector.runtime.runner.run_task`` — the same entry point used by the SCF
+handler, the Redis queue worker, and the CLI, so scheduled and ad-hoc execution
+share logic and logging.
 """
 
 import asyncio
@@ -14,13 +15,11 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
 
-from collector.scf_handler import _run_task
-from collector.settings import settings
-from collector.tasks import TASK_MAP
+from collector.core.base import get_engine
+from collector.runtime.registry import TASK_MAP
+from collector.runtime.runner import run_task
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # 调度时间按北京时间解释（A 股交易时间），与容器时区无关
@@ -29,8 +28,7 @@ SCHEDULER_TZ = ZoneInfo(os.getenv("COLLECTOR_TIMEZONE", "Asia/Shanghai"))
 
 async def _load_schedules() -> list[dict[str, Any]]:
     """从 collector_task 表加载启用的调度配置。"""
-    engine = create_async_engine(settings.database_url)
-    async with engine.connect() as conn:
+    async with get_engine().connect() as conn:
         result = await conn.execute(
             text(
                 """
@@ -41,7 +39,6 @@ async def _load_schedules() -> list[dict[str, Any]]:
             )
         )
         rows = result.mappings().all()
-    await engine.dispose()
     return [dict(row) for row in rows]
 
 
@@ -57,7 +54,7 @@ async def _run_scheduled_task(task_name: str, source: str | None = None) -> None
         params["preferred_source"] = source
 
     try:
-        result = await _run_task(params)
+        result = await run_task(params)
         logger.info(
             "Task %s finished: status=%s collected=%d stored=%d errors=%d",
             task_name,
@@ -140,12 +137,19 @@ async def start_scheduler() -> AsyncIOScheduler:
         logger.info("Scheduled %s with cron: %s", task_name, schedule_expr)
 
     scheduler.start()
+    for job in scheduler.get_jobs():
+        logger.info(
+            "Scheduled job %s next run at %s", job.id, job.next_run_time
+        )
     logger.info("Collector scheduler started")
     return scheduler
 
 
 def main() -> None:
     """本地调度器入口。"""
+    from collector.core.logging import configure_logging
+
+    configure_logging()
     asyncio.run(start_scheduler())
 
 

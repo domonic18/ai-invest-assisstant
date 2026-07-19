@@ -1,96 +1,59 @@
-"""Unit tests for collector worker."""
+"""Unit tests for collector worker loop."""
 
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from collector.base import CollectResult, CollectStatus
-from collector.worker import _execute_payload, _update_log_result, _update_log_running
+from collector.runtime.worker import WorkerState, _worker_loop
+
+
+def _make_queue(payloads: list[dict | None], state: WorkerState) -> AsyncMock:
+    queue = AsyncMock()
+    queue.queue_key = "collector:queue"
+    remaining = list(payloads)
+
+    async def _pop(timeout: int = 5) -> dict | None:
+        if not remaining:
+            state.running = False
+            return None
+        payload = remaining.pop(0)
+        if not remaining:
+            state.running = False
+        return payload
+
+    queue.pop = AsyncMock(side_effect=_pop)
+    return queue
 
 
 @pytest.mark.unit
 class TestCollectorWorker:
     @pytest.mark.asyncio
-    async def test_update_log_running(self) -> None:
-        mock_log = MagicMock()
-        mock_session = AsyncMock()
-        mock_session.get.return_value = mock_log
-
-        with patch(
-            "collector.worker.AsyncSessionLocal",
-            return_value=AsyncMock(
-                __aenter__=AsyncMock(return_value=mock_session),
-                __aexit__=AsyncMock(return_value=None),
-            ),
-        ):
-            await _update_log_running(1)
-
-        assert mock_log.status == "running"
-        assert isinstance(mock_log.started_at, datetime)
-        mock_session.commit.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_update_log_result(self) -> None:
-        mock_log = MagicMock()
-        mock_session = AsyncMock()
-        mock_session.get.return_value = mock_log
-        result = CollectResult(
-            source="cninfo",
-            data_type="financial_report",
-            status=CollectStatus.SUCCESS,
-            items_collected=2,
-            items_stored=2,
-            errors=[],
-            started_at=datetime.now(timezone.utc),
-            finished_at=datetime.now(timezone.utc),
-        )
-
-        with patch(
-            "collector.worker.AsyncSessionLocal",
-            return_value=AsyncMock(
-                __aenter__=AsyncMock(return_value=mock_session),
-                __aexit__=AsyncMock(return_value=None),
-            ),
-        ):
-            await _update_log_result(1, result)
-
-        assert mock_log.status == "success"
-        assert mock_log.source == "cninfo"
-        assert mock_log.records_count == 2
-        mock_session.commit.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_execute_payload_updates_log(self) -> None:
-        result = CollectResult(
-            source="cninfo",
-            data_type="financial_report",
-            status=CollectStatus.SUCCESS,
-            items_collected=1,
-            items_stored=1,
-            errors=[],
-            started_at=datetime.now(timezone.utc),
-            finished_at=datetime.now(timezone.utc),
-        )
+    async def test_worker_executes_payload_and_stops(self) -> None:
+        state = WorkerState()
+        queue = _make_queue([{"task": "news", "log_id": 1}], state)
 
         with (
-            patch("collector.worker._update_log_running", AsyncMock()) as mock_running,
-            patch("collector.worker._update_log_result", AsyncMock()) as mock_result,
-            patch("collector.worker._run_task", AsyncMock(return_value=result)),
+            patch("collector.runtime.worker.CollectorQueue", return_value=queue),
+            patch("collector.runtime.worker.run_task", AsyncMock()) as mock_run,
         ):
-            await _execute_payload({"task": "financial-report", "log_id": 7})
+            await _worker_loop(state, pop_timeout=1)
 
-        mock_running.assert_awaited_once_with(7)
-        mock_result.assert_awaited_once()
+        mock_run.assert_awaited_once_with({"task": "news", "log_id": 1})
+        queue.close.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_execute_payload_handles_failure(self) -> None:
-        with (
-            patch("collector.worker._update_log_running", AsyncMock()) as mock_running,
-            patch("collector.worker._update_log_error", AsyncMock()) as mock_error,
-            patch("collector.worker._run_task", AsyncMock(side_effect=ValueError("boom"))),
-        ):
-            await _execute_payload({"task": "financial-report", "log_id": 8})
+    async def test_worker_survives_task_failure(self) -> None:
+        state = WorkerState()
+        queue = _make_queue([{"task": "news"}, {"task": "kline"}], state)
 
-        mock_running.assert_awaited_once_with(8)
-        mock_error.assert_awaited_once()
+        with (
+            patch("collector.runtime.worker.CollectorQueue", return_value=queue),
+            patch(
+                "collector.runtime.worker.run_task",
+                AsyncMock(side_effect=ValueError("boom")),
+            ) as mock_run,
+        ):
+            await _worker_loop(state, pop_timeout=1)
+
+        assert mock_run.await_count == 2
+        queue.close.assert_awaited_once()

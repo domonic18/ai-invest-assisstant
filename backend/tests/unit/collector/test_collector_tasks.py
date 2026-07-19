@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pandas as pd
 import pytest
 
-from collector.base import CollectStatus
-from collector.tasks import (
+from collector.core.base import CollectStatus
+from collector.runtime.registry import (
     collect_financial_report,
     collect_fund_holdings,
     collect_ipo_info,
@@ -56,7 +56,7 @@ class TestCollectorTaskEntries:
 
         with (
             patch(
-                "collector.tasks._resolve_task_channels",
+                "collector.runtime.registry._resolve_task_channels",
                 AsyncMock(return_value=[("eastmoney", {"base_url": None, "api_key": None})]),
             ),
             patch(
@@ -106,7 +106,7 @@ class TestCollectorTaskEntries:
 
         with (
             patch(
-                "collector.tasks._resolve_task_channels",
+                "collector.runtime.registry._resolve_task_channels",
                 AsyncMock(return_value=[("cninfo", {"base_url": None, "api_key": None})]),
             ),
             patch(
@@ -143,7 +143,7 @@ class TestCollectorTaskEntries:
 
         with (
             patch(
-                "collector.tasks._resolve_task_channels",
+                "collector.runtime.registry._resolve_task_channels",
                 AsyncMock(return_value=[("eastmoney", {"base_url": None, "api_key": None})]),
             ),
             patch(
@@ -183,7 +183,7 @@ class TestCollectorTaskEntries:
 
         with (
             patch(
-                "collector.tasks._resolve_task_channels",
+                "collector.runtime.registry._resolve_task_channels",
                 AsyncMock(return_value=[("sina", {"base_url": None, "api_key": None})]),
             ),
             patch(
@@ -245,7 +245,7 @@ class TestCollectorTaskEntries:
 
         with (
             patch(
-                "collector.tasks._resolve_task_channels",
+                "collector.runtime.registry._resolve_task_channels",
                 AsyncMock(return_value=[("cninfo", {"base_url": None, "api_key": None})]),
             ),
             patch(
@@ -269,7 +269,7 @@ class TestCollectorTaskEntries:
 def _result(source: str, status: CollectStatus, errors: list[str] | None = None):
     from datetime import datetime, timezone
 
-    from collector.base import CollectResult
+    from collector.core.base import CollectResult
 
     now = datetime.now(timezone.utc)
     return CollectResult(
@@ -288,7 +288,7 @@ def _result(source: str, status: CollectStatus, errors: list[str] | None = None)
 class TestRunCollectorFallback:
     @pytest.fixture
     def collectors(self):
-        from collector.base import BaseCollector
+        from collector.core.base import BaseCollector
 
         class FakeCollector(BaseCollector):
             result = None
@@ -312,7 +312,7 @@ class TestRunCollectorFallback:
 
     @pytest.mark.asyncio
     async def test_fallback_to_second_source_on_failure(self, collectors) -> None:
-        from collector import tasks
+        from collector.runtime import registry as tasks
 
         results = [
             _result("eastmoney", CollectStatus.FAILED, ["连接被拒"]),
@@ -327,7 +327,7 @@ class TestRunCollectorFallback:
                 return outcome
 
         with patch(
-            "collector.tasks._resolve_task_channels",
+            "collector.runtime.registry._resolve_task_channels",
             AsyncMock(
                 return_value=[
                     ("eastmoney", {"base_url": None, "api_key": None}),
@@ -348,14 +348,14 @@ class TestRunCollectorFallback:
 
     @pytest.mark.asyncio
     async def test_all_failed_returns_aggregated_errors(self, collectors) -> None:
-        from collector import tasks
+        from collector.runtime import registry as tasks
 
         class FailCollector(collectors):
             async def run(self, **kwargs):
                 return _result(self.source, CollectStatus.FAILED, [f"{self.source} 失败"])
 
         with patch(
-            "collector.tasks._resolve_task_channels",
+            "collector.runtime.registry._resolve_task_channels",
             AsyncMock(
                 return_value=[
                     ("eastmoney", {"base_url": None, "api_key": None}),
@@ -376,14 +376,14 @@ class TestRunCollectorFallback:
 
     @pytest.mark.asyncio
     async def test_source_without_collector_is_skipped(self, collectors) -> None:
-        from collector import tasks
+        from collector.runtime import registry as tasks
 
         class OkCollector(collectors):
             async def run(self, **kwargs):
                 return _result(self.source, CollectStatus.SUCCESS)
 
         with patch(
-            "collector.tasks._resolve_task_channels",
+            "collector.runtime.registry._resolve_task_channels",
             AsyncMock(
                 return_value=[
                     ("unknown-src", {"base_url": None, "api_key": None}),
@@ -404,10 +404,10 @@ class TestRunCollectorFallback:
 
     @pytest.mark.asyncio
     async def test_no_candidates_returns_skipped(self) -> None:
-        from collector import tasks
+        from collector.runtime import registry as tasks
 
         with patch(
-            "collector.tasks._resolve_task_channels",
+            "collector.runtime.registry._resolve_task_channels",
             AsyncMock(return_value=[]),
         ):
             result = await tasks._run_collector_for_task(

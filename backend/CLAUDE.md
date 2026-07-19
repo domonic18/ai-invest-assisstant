@@ -99,6 +99,25 @@ async def fetch_kline(
 - **批量写入容错**：循环写入单条失败时，使用 `session.begin_nested()`（SAVEPOINT）隔离失败项，避免污染整个会话
 - **`get_db` 的唯一实现位于 `app/dependencies/__init__.py`**，异常时自动回滚；不要在其他模块重复定义
 
+### Collector 分层结构
+
+```
+collector/
+├── core/       # 基础设施：base(BaseCollector/PostgresCollector/共享 engine)、
+│               #   pipelines、exporters、http_client、parsing、logging、config
+├── runtime/    # 执行层：runner(统一执行器/collector_log 唯一写入口)、
+│               #   registry(TASK_MAP + 多渠道 fallback)、resolver、channels、
+│               #   queue、dispatcher、scheduler、worker、cli、scf_handler
+├── spiders/    # 数据源采集器（声明表配置 + collect/transform）
+└── stores/     # 重存储编排（如 financial_report_store）
+```
+
+- **新增 DB 类采集器**：继承 `core.base.PostgresCollector`，声明 `table`/`conflict_key`/`update_columns`/`key_fields`/`required_fields` 类属性并实现 `collect`/`transform`，通常不超过 30 行；不要自建 engine/pipeline/store
+- **解析函数只用 `core.parsing`**（`to_optional_str`/`to_float`/`parse_cn_amount`/`clean_stock_code`/`parse_date`），禁止在 spider 里重复定义
+- **执行入口统一走 `runtime.runner.run_task`**（worker/scheduler/CLI/SCF 共享）：生成 `task_run_id` 绑定日志上下文、回写 `collector_log`、失败记录 traceback；`runtime/scf_handler.py` 只做 SCF 事件解析
+- **日志**：入口调用 `core.logging.configure_logging()`，禁止 `logging.basicConfig`；任务日志自动携带 `task_run_id`/`task`/`source`
+- **配置**：用 `core.config`（委托 `app.core.config`），禁止新增环境变量读取点
+
 ### AI Agent 与 Prompt 管理
 
 - 所有 Agent Prompt 必须放在 `app/prompts/agents/` 和 `app/prompts/skills/` 下的 YAML 文件中

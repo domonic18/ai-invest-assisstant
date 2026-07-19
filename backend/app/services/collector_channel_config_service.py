@@ -119,7 +119,7 @@ class CollectorChannelConfigService:
 
         数据类型全集 = 采集任务注册表 TASK_MAP 的键 ∪ 关联表已有类型。
         """
-        from collector.tasks import TASK_MAP
+        from collector.runtime.registry import TASK_MAP
 
         known_types = set(TASK_MAP) | await self.data_type_repo.get_distinct_data_types()
         associations = await self.data_type_repo.list_all()
@@ -149,7 +149,7 @@ class CollectorChannelConfigService:
             ValueError: data_type 不是已知的采集任务类型。
             LookupError: 存在不合法的 channel_id。
         """
-        from collector.tasks import TASK_MAP
+        from collector.runtime.registry import TASK_MAP
 
         known_types = set(TASK_MAP) | await self.data_type_repo.get_distinct_data_types()
         if data_type not in known_types:

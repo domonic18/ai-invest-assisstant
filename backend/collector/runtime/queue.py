@@ -10,11 +10,12 @@ from typing import Any
 
 import redis.asyncio as aioredis
 
-from collector.settings import settings
+from collector.core.config import collector_queue_key
+from collector.core.config import redis_url as default_redis_url
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_QUEUE_KEY = getattr(settings, "collector_queue_key", "collector:queue")
+DEFAULT_QUEUE_KEY = collector_queue_key
 
 
 class CollectorQueue:
@@ -25,7 +26,7 @@ class CollectorQueue:
         redis_url: str | None = None,
         queue_key: str | None = None,
     ) -> None:
-        self.redis_url = redis_url or settings.redis_url
+        self.redis_url = redis_url or default_redis_url
         self.queue_key = queue_key or DEFAULT_QUEUE_KEY
         self._client: aioredis.Redis | None = None
 

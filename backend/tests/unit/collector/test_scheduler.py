@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from apscheduler.triggers.cron import CronTrigger
 
-from collector.scheduler import SCHEDULER_TZ, _convert_day_of_week, _parse_cron
+from collector.runtime.scheduler import SCHEDULER_TZ, _convert_day_of_week, _parse_cron
 
 
 @pytest.mark.unit

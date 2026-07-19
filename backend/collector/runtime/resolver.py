@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from collector.channels import ChannelConfig
+from collector.runtime.channels import ChannelConfig
 
 
 async def list_ordered_channel_configs_for_task(

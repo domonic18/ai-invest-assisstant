@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.collector_log import CollectorLog
-from collector.queue import CollectorQueue
+from collector.runtime.queue import CollectorQueue
 
 
 async def dispatch_collector_task(

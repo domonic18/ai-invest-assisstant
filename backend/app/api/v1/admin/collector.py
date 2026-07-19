@@ -15,8 +15,8 @@ from app.schemas.collector import (
     CollectorTaskRunRequest,
 )
 from app.services.collector_log_service import CollectorLogService
-from collector.dispatcher import dispatch_collector_task
-from collector.resolver import list_channels_for_task, resolve_channel_for_task
+from collector.runtime.dispatcher import dispatch_collector_task
+from collector.runtime.resolver import list_channels_for_task, resolve_channel_for_task
 
 router = APIRouter(prefix="/collector", dependencies=[Depends(get_current_admin_user)])
 

@@ -12,9 +12,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from collector.base import CollectResult
-from collector.channels import DEFAULT_CHANNELS
-from collector.tasks import TASK_MAP
+from collector.core.base import CollectResult
+from collector.runtime.channels import DEFAULT_CHANNELS
+from collector.runtime.registry import TASK_MAP
 
 
 @pytest.mark.unit
@@ -49,11 +49,11 @@ class TestCollectorCoverage:
 
         with (
             patch(
-                "collector.tasks._resolve_task_channels",
+                "collector.runtime.registry._resolve_task_channels",
                 AsyncMock(return_value=[("mock", {"base_url": None, "api_key": None})]),
             ),
             patch(
-                "collector.tasks._run_collector_for_task",
+                "collector.runtime.registry._run_collector_for_task",
                 AsyncMock(
                     return_value=AsyncMock(
                         status=AsyncMock(value="success"),
