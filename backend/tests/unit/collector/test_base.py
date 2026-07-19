@@ -1,6 +1,6 @@
 import pytest
 
-from collector.base import BaseCollector, CollectResult, CollectStatus
+from collector.core.base import BaseCollector, CollectResult, CollectStatus
 
 
 class DummyCollector(BaseCollector):

@@ -1,4 +1,4 @@
-"""Data exporters to PostgreSQL, Elasticsearch, MinIO, and Milvus."""
+"""PostgreSQL 数据导出器。"""
 
 from typing import Any
 
@@ -48,42 +48,3 @@ class PostgresExporter:
             count += 1
         await self.session.commit()
         return count
-
-
-class ElasticsearchExporter:
-    """写入 Elasticsearch 的导出器（占位实现）。"""
-
-    def __init__(self, client: Any):
-        self.client = client
-
-    async def index_many(self, index: str, items: list[dict[str, Any]]) -> int:
-        if not items or self.client is None:
-            return 0
-        # TODO: implement bulk indexing
-        return len(items)
-
-
-class MinIOExporter:
-    """写入 MinIO 的导出器（占位实现）。"""
-
-    def __init__(self, client: Any):
-        self.client = client
-
-    async def put_many(self, bucket: str, items: list[dict[str, Any]]) -> int:
-        if not items or self.client is None:
-            return 0
-        # TODO: implement object upload
-        return len(items)
-
-
-class MilvusExporter:
-    """写入 Milvus 的导出器（占位实现）。"""
-
-    def __init__(self, client: Any):
-        self.client = client
-
-    async def insert_many(self, collection: str, items: list[dict[str, Any]]) -> int:
-        if not items or self.client is None:
-            return 0
-        # TODO: implement vector insertion
-        return len(items)

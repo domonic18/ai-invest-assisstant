@@ -1,6 +1,6 @@
 import pytest
 
-from collector.pipelines import DataPipeline, DeduplicateStep, NormalizeStep, ValidateStep
+from collector.core.pipelines import DataPipeline, DeduplicateStep, NormalizeStep, ValidateStep
 
 
 @pytest.mark.unit

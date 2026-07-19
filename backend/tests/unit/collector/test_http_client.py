@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from collector import http_client
-from collector.http_client import _RateLimiter, eastmoney_get
+from collector.core import http_client
+from collector.core.http_client import _RateLimiter, eastmoney_get
 
 
 @pytest.mark.unit
