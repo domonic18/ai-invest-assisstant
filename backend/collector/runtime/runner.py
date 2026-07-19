@@ -21,39 +21,18 @@ from app.core.database import AsyncSessionLocal
 from app.models.collector_log import CollectorLog
 from collector.core.base import CollectResult
 from collector.core.logging import bind_task_context, clear_task_context
-from collector.runtime.registry import TASK_MAP
+from collector.runtime.registry import TASK_MAP, TASK_SPECS
 
 logger = structlog.get_logger(__name__)
 
 _ERROR_MSG_MAX_LEN = 4000
 
-# Mapping from JSON parameter names to collector task function argument names.
-# Every task receives ``preferred_source``; other params are task-specific.
-_TASK_PARAM_BUILDERS: dict[str, dict[str, list[str]]] = {
-    "kline": {"period": ["period"]},
-    "auction": {},
-    "fund-flow": {},
-    "news": {},
-    "company-profile": {},
-    "disclosure": {"start_date": ["start_date"], "end_date": ["end_date"]},
-    "sector-fund-flow": {"sector_type": ["sector_type"]},
-    "dragon-list": {"start_date": ["start_date"], "end_date": ["end_date"]},
-    "research-report": {},
-    "financial-report": {
-        "start_date": ["start_date"],
-        "end_date": ["end_date"],
-        "report_types": ["report_types"],
-    },
-    "ipo-info": {},
-    "fund-holdings": {"report_date": ["report_date"]},
-    "macro": {"indicators": ["indicators"]},
-    "stock-list": {},
-    "limit-up-pool": {"trade_date": ["trade_date"]},
-}
-
 
 def _build_task_kwargs(task_name: str, params: dict[str, Any]) -> dict[str, Any]:
-    """Build kwargs for the collector task function from request params."""
+    """Build kwargs for the collector task function from request params.
+
+    任务级参数白名单由 TASK_SPECS 声明表派生，registry 之外不再重复维护。
+    """
     kwargs: dict[str, Any] = {}
 
     preferred_source = params.get("preferred_source")
@@ -64,12 +43,12 @@ def _build_task_kwargs(task_name: str, params: dict[str, Any]) -> dict[str, Any]
     if symbols is not None:
         kwargs["symbols"] = symbols
 
-    param_builders = _TASK_PARAM_BUILDERS.get(task_name, {})
-    for param_name, arg_names in param_builders.items():
-        value = params.get(param_name)
-        if value is not None:
-            for arg_name in arg_names:
-                kwargs[arg_name] = value
+    spec = TASK_SPECS.get(task_name)
+    if spec is not None:
+        for param_name in spec.param_keys:
+            value = params.get(param_name)
+            if value is not None:
+                kwargs[param_name] = value
 
     return kwargs
 

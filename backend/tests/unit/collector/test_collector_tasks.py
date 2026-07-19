@@ -6,12 +6,12 @@ import pandas as pd
 import pytest
 
 from collector.core.base import CollectStatus
-from collector.runtime.registry import (
-    collect_financial_report,
-    collect_fund_holdings,
-    collect_ipo_info,
-    collect_stock_list,
-)
+from collector.runtime.registry import TASK_MAP
+
+collect_financial_report = TASK_MAP["financial-report"]
+collect_fund_holdings = TASK_MAP["fund-holdings"]
+collect_ipo_info = TASK_MAP["ipo-info"]
+collect_stock_list = TASK_MAP["stock-list"]
 
 
 @pytest.mark.unit
