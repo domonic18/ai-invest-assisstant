@@ -106,14 +106,17 @@ collector/
 ├── core/       # 基础设施：base(BaseCollector/PostgresCollector/共享 engine)、
 │               #   pipelines、exporters、http_client、parsing、logging、config
 ├── runtime/    # 执行层：runner(统一执行器/collector_log 唯一写入口)、
-│               #   registry(TASK_MAP + 多渠道 fallback)、resolver、channels、
+│               #   registry(TaskSpec 声明表 + 多渠道 fallback)、resolver、channels、
 │               #   queue、dispatcher、scheduler、worker、cli、scf_handler
 ├── spiders/    # 数据源采集器（声明表配置 + collect/transform）
 └── stores/     # 重存储编排（如 financial_report_store）
 ```
 
-- **新增 DB 类采集器**：继承 `core.base.PostgresCollector`，声明 `table`/`conflict_key`/`update_columns`/`key_fields`/`required_fields` 类属性并实现 `collect`/`transform`，通常不超过 30 行；不要自建 engine/pipeline/store
-- **解析函数只用 `core.parsing`**（`to_optional_str`/`to_float`/`parse_cn_amount`/`clean_stock_code`/`parse_date`），禁止在 spider 里重复定义
+- **新增 DB 类采集器**：继承 `core.base.PostgresCollector`，声明 `table`/`conflict_key`/`update_columns`/`key_fields`/`required_fields` 类属性并实现 `collect`（`transform` 默认透传、`validate` 默认按 required_fields 校验，可按需覆写），通常不超过 30 行；不要自建 engine/pipeline/store
+- **同一数据类型的多渠道 spider**（如 sina/ths 的 kline、auction、eastmoney/ths 的 sector-fund-flow）：共用 `spiders/` 下的数据类型基类（`kline_base.py`/`auction_base.py`/`sector_fund_flow_base.py`），子类只写 collect 与数据源键名声明；新增同类渠道优先复用/扩展这些基类
+- **解析函数只用 `core.parsing`**（`to_optional_str`/`to_float`/`parse_cn_amount`/`clean_stock_code`/`parse_date`/`parse_time`），禁止在 spider 里重复定义
+- **akshare 容错约定**：空数据（`df is None or df.empty`）返回 `[]`；异常不要吞——多渠道任务的 fallback 依赖异常向上传播，仅已知"无数据即抛错"的接口（如涨停池/龙虎榜）可 try/except 返回 `[]`
+- **新增采集任务**：在 `runtime/registry.py` 的 TASK_SPECS 增加一条 TaskSpec 声明（data_type/采集器懒加载路径/config_params/run_params），任务参数只在此维护一处，runner 的参数白名单自动派生
 - **执行入口统一走 `runtime.runner.run_task`**（worker/scheduler/CLI/SCF 共享）：生成 `task_run_id` 绑定日志上下文、回写 `collector_log`、失败记录 traceback；`runtime/scf_handler.py` 只做 SCF 事件解析
 - **日志**：入口调用 `core.logging.configure_logging()`，禁止 `logging.basicConfig`；任务日志自动携带 `task_run_id`/`task`/`source`
 - **配置**：用 `core.config`（委托 `app.core.config`），禁止新增环境变量读取点
