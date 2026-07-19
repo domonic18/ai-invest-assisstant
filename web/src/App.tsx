@@ -6,6 +6,8 @@ import { RouterProvider } from 'react-router-dom'
 import { router } from './router'
 import { useAuthStore } from './stores/auth'
 
+import { useSettingsStore } from './stores/settings'
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -18,10 +20,18 @@ const queryClient = new QueryClient({
 
 function AuthInitializer() {
   const initialize = useAuthStore((state) => state.initialize)
+  const token = useAuthStore((state) => state.token)
+  const initSettings = useSettingsStore((state) => state.initialize)
 
   useEffect(() => {
     initialize()
   }, [initialize])
+
+  useEffect(() => {
+    if (token) {
+      initSettings()
+    }
+  }, [token, initSettings])
 
   return null
 }

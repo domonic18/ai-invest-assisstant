@@ -3,7 +3,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.schemas.auth import RegisterRequest
-from app.services.user_service import UserService
+from app.schemas.user import MovingAverageConfig, UserSettings, UserSettingsUpdate
+from app.services.user_service import DEFAULT_MA_CONFIGS, UserService
 
 
 @pytest.mark.unit
@@ -82,3 +83,40 @@ class TestUserService:
         result = await UserService(session).authenticate_user("tester", "wrong")
 
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_settings_returns_defaults_when_missing(self) -> None:
+        session = MagicMock()
+        user = MagicMock()
+        user.settings = None
+
+        settings = await UserService(session).get_settings(user)
+
+        assert settings == UserSettings(ma_configs=DEFAULT_MA_CONFIGS)
+
+    @pytest.mark.asyncio
+    async def test_get_settings_returns_defaults_for_invalid_json(self) -> None:
+        session = MagicMock()
+        user = MagicMock()
+        user.settings = {"ma_configs": [{"period": -1, "color": "red", "enabled": True}]}
+
+        settings = await UserService(session).get_settings(user)
+
+        assert settings == UserSettings(ma_configs=DEFAULT_MA_CONFIGS)
+
+    @pytest.mark.asyncio
+    async def test_update_settings_persists_and_returns_validated_config(self) -> None:
+        session = MagicMock()
+        session.commit = AsyncMock()
+        user = MagicMock()
+        user.settings = None
+        update = UserSettingsUpdate(
+            ma_configs=[MovingAverageConfig(period=5, color="#ff0000", enabled=True)]
+        )
+
+        result = await UserService(session).update_settings(user, update)
+
+        assert result.ma_configs[0].period == 5
+        assert result.ma_configs[0].color == "#ff0000"
+        assert user.settings == result.model_dump()
+        session.commit.assert_awaited_once()

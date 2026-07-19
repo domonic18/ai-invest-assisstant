@@ -1,10 +1,11 @@
-import { Checkbox, Segmented } from 'antd'
+import { Segmented } from 'antd'
 import { useState } from 'react'
 
 import type { IndexKlinePeriod } from '@ai-invest/shared'
 
 import { IndexIntradayPanel } from './IndexIntradayPanel'
 import { IndexKlinePanel } from './IndexKlinePanel'
+import { useMaConfigs } from '@/stores/settings'
 
 interface IndexChartPanelProps {
   code: string
@@ -22,14 +23,9 @@ const PERIOD_OPTIONS: { value: PeriodKey; label: string }[] = [
   { value: 'yearly', label: '年线' },
 ]
 
-const MA_OPTIONS = [5, 10, 30, 60, 120].map((window) => ({
-  value: window,
-  label: `MA${window}`,
-}))
-
 export function IndexChartPanel({ code, tradeDate }: IndexChartPanelProps) {
   const [period, setPeriod] = useState<PeriodKey>('intraday')
-  const [maWindows, setMaWindows] = useState<number[]>([5, 10, 30])
+  const maConfigs = useMaConfigs()
 
   return (
     <div>
@@ -40,22 +36,11 @@ export function IndexChartPanel({ code, tradeDate }: IndexChartPanelProps) {
           value={period}
           onChange={(value) => setPeriod(value as PeriodKey)}
         />
-        {period !== 'intraday' && (
-          <Checkbox.Group
-            options={MA_OPTIONS}
-            value={maWindows}
-            onChange={(values) => setMaWindows(values as number[])}
-          />
-        )}
       </div>
       {period === 'intraday' ? (
         <IndexIntradayPanel code={code} tradeDate={tradeDate} />
       ) : (
-        <IndexKlinePanel
-          code={code}
-          period={period}
-          maWindows={[...maWindows].sort((a, b) => a - b)}
-        />
+        <IndexKlinePanel code={code} period={period} maConfigs={maConfigs} />
       )}
     </div>
   )

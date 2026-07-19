@@ -1,20 +1,18 @@
 import ReactECharts from 'echarts-for-react'
 import type { EChartsOption, SeriesOption } from 'echarts'
 
-import type { IndexKlineBar } from '@ai-invest/shared'
+import type { IndexKlineBar, MovingAverageConfig } from '@ai-invest/shared'
 import { useColorScheme } from '@/stores/settings'
 import { fallHex, formatAmount, riseHex } from '@/utils/formatters'
 import { movingAverage } from '@/utils/movingAverage'
 
 interface IndexKlineChartProps {
   bars: IndexKlineBar[]
-  maWindows: number[]
+  maConfigs: MovingAverageConfig[]
   height?: number
 }
 
-const MA_COLORS = ['#f0b429', '#9d7ff5', '#3fb6e0', '#e8833a', '#c0c4d0']
-
-export function IndexKlineChart({ bars, maWindows, height = 360 }: IndexKlineChartProps) {
+export function IndexKlineChart({ bars, maConfigs, height = 360 }: IndexKlineChartProps) {
   useColorScheme()
 
   const up = riseHex()
@@ -31,13 +29,15 @@ export function IndexKlineChart({ bars, maWindows, height = 360 }: IndexKlineCha
     },
   }))
 
-  const maSeries: SeriesOption[] = maWindows.map((window, index) => ({
-    name: `MA${window}`,
+  const activeConfigs = maConfigs.filter((cfg) => cfg.enabled)
+
+  const maSeries: SeriesOption[] = activeConfigs.map((cfg) => ({
+    name: `MA${cfg.period}`,
     type: 'line',
-    data: movingAverage(closes, window),
+    data: movingAverage(closes, cfg.period),
     showSymbol: false,
     smooth: true,
-    lineStyle: { color: MA_COLORS[index % MA_COLORS.length], width: 1 },
+    lineStyle: { color: cfg.color, width: 1 },
     z: 3,
   }))
 

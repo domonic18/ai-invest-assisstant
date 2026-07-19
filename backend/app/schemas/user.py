@@ -5,6 +5,35 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class MovingAverageConfig(BaseModel):
+    """单条均线配置。"""
+
+    period: int = Field(..., ge=1, le=500, description="均线周期（日）")
+    color: str = Field(..., pattern=r"^#[0-9a-fA-F]{6}$", description="十六进制颜色")
+    enabled: bool = Field(default=True, description="是否显示")
+
+
+class UserSettings(BaseModel):
+    """用户个人配置。"""
+
+    ma_configs: list[MovingAverageConfig] = Field(
+        default_factory=list,
+        description="K 线均线配置列表",
+    )
+
+
+class UserSettingsResponse(UserSettings):
+    """用户配置响应模型。"""
+
+    pass
+
+
+class UserSettingsUpdate(UserSettings):
+    """更新用户配置请求。"""
+
+    pass
+
+
 class UserResponse(BaseModel):
     """用户响应模型。"""
 

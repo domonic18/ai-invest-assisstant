@@ -10,10 +10,13 @@ from app.models.user import User
 from app.schemas.market import WatchlistQuoteItem
 from app.schemas.user import (
     UserResponse,
+    UserSettingsResponse,
+    UserSettingsUpdate,
     WatchlistItemCreate,
     WatchlistItemResponse,
 )
 from app.services import market_service
+from app.services.user_service import UserService
 from app.services.watchlist_service import WatchlistService
 
 router = APIRouter()
@@ -34,6 +37,27 @@ async def update_me() -> dict[str, Any]:
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="User update is not implemented yet",
     )
+
+
+@router.get("/me/settings", response_model=UserSettingsResponse)
+async def get_me_settings(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> UserSettingsResponse:
+    """获取当前用户个人配置（K 线均线等），未设置时返回默认值。"""
+    settings = await UserService(session).get_settings(current_user)
+    return UserSettingsResponse.model_validate(settings)
+
+
+@router.put("/me/settings", response_model=UserSettingsResponse)
+async def update_me_settings(
+    data: UserSettingsUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> UserSettingsResponse:
+    """更新当前用户个人配置。"""
+    settings = await UserService(session).update_settings(current_user, data)
+    return UserSettingsResponse.model_validate(settings)
 
 
 @router.get("/watchlist", response_model=list[WatchlistItemResponse])

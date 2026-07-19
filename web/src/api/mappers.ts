@@ -24,6 +24,7 @@ import type {
   ApiSectorFundFlowResponse,
   ApiStockBasicResponse,
   ApiUserResponse,
+  ApiUserSettings,
   ApiWatchlistItemResponse,
 } from '@ai-invest/shared'
 import type {
@@ -47,10 +48,12 @@ import type {
   IncomeStatement,
   KlineData,
   LLMConfig,
+  MovingAverageConfig,
   ResearchReport,
   SectorFundFlow,
   Stock,
   User,
+  UserSettings,
   WatchlistItem,
 } from '@ai-invest/shared'
 
@@ -67,6 +70,18 @@ export function mapAuthResponse(dto: ApiAuthResponse): AuthResponse {
   return {
     accessToken: dto.access_token,
     user: mapUser(dto.user),
+  }
+}
+
+export function mapUserSettings(dto: ApiUserSettings): UserSettings {
+  return {
+    maConfigs: dto.ma_configs.map(
+      (item): MovingAverageConfig => ({
+        period: item.period,
+        color: item.color,
+        enabled: item.enabled,
+      })
+    ),
   }
 }
 

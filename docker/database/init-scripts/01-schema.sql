@@ -286,6 +286,7 @@ CREATE TABLE users (
     password_hash VARCHAR(255) NOT NULL,
     role          VARCHAR(20)  DEFAULT 'user' CHECK (role IN ('user', 'admin', 'analyst')),
     is_active     BOOLEAN      DEFAULT true,
+    settings      JSONB        DEFAULT '{}'::jsonb,
     last_login_at TIMESTAMPTZ,
     created_at    TIMESTAMPTZ  DEFAULT NOW()
 );
@@ -587,7 +588,22 @@ CREATE TABLE IF NOT EXISTS market_breadth (
     flat_count      INT,
     limit_up_count  INT,
     limit_down_count INT,
+    broken_count    INT,
     stat_time       VARCHAR(20),
+    source          VARCHAR(50),
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+
+    UNIQUE (trade_date)
+);
+
+-- ============================================================
+-- 16. 市场成交额（交易所官方每日成交额）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS market_amount (
+    id              BIGSERIAL PRIMARY KEY,
+    trade_date      DATE         NOT NULL,
+    amount          DECIMAL(20, 2),
     source          VARCHAR(50),
     created_at      TIMESTAMPTZ DEFAULT NOW(),
 

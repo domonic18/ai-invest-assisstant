@@ -4,6 +4,20 @@ export interface ApiRegisterRequest {
   password: string
 }
 
+export interface ApiMovingAverageConfig {
+  period: number
+  color: string
+  enabled: boolean
+}
+
+export interface ApiUserSettings {
+  ma_configs: ApiMovingAverageConfig[]
+}
+
+export interface ApiUserSettingsUpdateRequest {
+  ma_configs: ApiMovingAverageConfig[]
+}
+
 export interface ApiUserResponse {
   id: number
   username: string

@@ -1,7 +1,7 @@
 import { Spin } from 'antd'
 import axios from 'axios'
 
-import type { IndexKlinePeriod } from '@ai-invest/shared'
+import type { IndexKlinePeriod, MovingAverageConfig } from '@ai-invest/shared'
 import { IndexKlineChart } from '@/components/charts/IndexKlineChart'
 import { useIndexKline } from '@/hooks/useMarket'
 import { useColorScheme } from '@/stores/settings'
@@ -10,7 +10,7 @@ import { changeHex, formatPercent } from '@/utils/formatters'
 interface IndexKlinePanelProps {
   code: string
   period: IndexKlinePeriod
-  maWindows: number[]
+  maConfigs: MovingAverageConfig[]
 }
 
 const PERIOD_LABEL: Record<IndexKlinePeriod, string> = {
@@ -21,7 +21,7 @@ const PERIOD_LABEL: Record<IndexKlinePeriod, string> = {
   yearly: '年线',
 }
 
-export function IndexKlinePanel({ code, period, maWindows }: IndexKlinePanelProps) {
+export function IndexKlinePanel({ code, period, maConfigs }: IndexKlinePanelProps) {
   useColorScheme()
   const { data, isLoading, error } = useIndexKline(code, period)
 
@@ -65,7 +65,7 @@ export function IndexKlinePanel({ code, period, maWindows }: IndexKlinePanelProp
         </span>
       </div>
       {data.bars.length > 0 ? (
-        <IndexKlineChart bars={data.bars} maWindows={maWindows} height={340} />
+        <IndexKlineChart bars={data.bars} maConfigs={maConfigs} height={340} />
       ) : (
         <div className="text-gray-500 text-sm py-8 text-center">
           暂无 K 线数据（指数日 K 采集任务运行后可用）
