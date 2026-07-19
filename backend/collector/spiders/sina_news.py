@@ -25,6 +25,8 @@ class SinaNewsCollector(PostgresCollector):
 
         for symbol in symbols:
             df = ak.stock_news_em(symbol=symbol)
+            if df is None or df.empty:
+                continue
             for _, row in df.iterrows():
                 raw.append(
                     {

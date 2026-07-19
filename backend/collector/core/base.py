@@ -2,7 +2,8 @@
 
 BaseCollector 定义采集流程模板；PostgresCollector 在其上提供声明式的
 pipeline 组装与 PostgreSQL upsert 存储——子类只需声明表配置类属性并实现
-collect/transform，新增一个 DB 类采集器通常不超过 30 行。
+collect（transform/validate 有默认实现，可按需覆写），新增一个 DB 类
+采集器通常不超过 30 行。
 """
 
 import logging
@@ -189,6 +190,10 @@ class PostgresCollector(BaseCollector):
         if self.required_fields:
             steps.append(ValidateStep(required_fields=list(self.required_fields)))
         self.pipeline = DataPipeline(steps=steps)
+
+    async def transform(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """默认透传——collect 已产出标准化条目时子类无需覆写。"""
+        return dict(raw)
 
     async def validate(self, item: dict[str, Any]) -> bool:
         """默认按 required_fields 校验必填字段非空。"""

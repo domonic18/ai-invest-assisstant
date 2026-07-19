@@ -38,20 +38,11 @@ class SinaMacroCollector(PostgresCollector):
                 elif name == "gdp":
                     df = ak.macro_china_gdp()
                     raw.extend(_parse_gdp(df))
+                else:
+                    continue
             except Exception:  # noqa: BLE001
                 continue
         return raw
-
-    async def transform(self, raw: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "indicator_name": raw["indicator_name"],
-            "period_type": raw["period_type"],
-            "publish_date": raw["publish_date"],
-            "value": raw.get("value"),
-            "value_yoy": raw.get("value_yoy"),
-            "value_mom": raw.get("value_mom"),
-            "source": raw.get("source"),
-        }
 
 
 def _parse_cpi(df: Any) -> list[dict[str, Any]]:

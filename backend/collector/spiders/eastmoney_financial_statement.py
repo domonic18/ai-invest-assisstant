@@ -110,9 +110,9 @@ class EastmoneyFinancialStatementCollector(BaseCollector):
             for report_date in sorted(all_dates, reverse=True):
                 original_type = _first_not_none(
                     [
-                        _str(balance_rows.get(report_date, {}).get("REPORT_TYPE")),
-                        _str(income_rows.get(report_date, {}).get("REPORT_TYPE")),
-                        _str(cash_rows.get(report_date, {}).get("REPORT_TYPE")),
+                        to_optional_str(balance_rows.get(report_date, {}).get("REPORT_TYPE")),
+                        to_optional_str(income_rows.get(report_date, {}).get("REPORT_TYPE")),
+                        to_optional_str(cash_rows.get(report_date, {}).get("REPORT_TYPE")),
                     ]
                 )
                 if original_type is None:
@@ -126,7 +126,7 @@ class EastmoneyFinancialStatementCollector(BaseCollector):
 
                 raw.append(
                     {
-                        "stock_code": _clean_code(symbol),
+                        "stock_code": clean_stock_code(symbol),
                         "report_date": report_date,
                         "report_type": report_type,
                         "balance": _extract_section(balance_rows.get(report_date), _BALANCE_SHEET_MAP),
@@ -222,12 +222,6 @@ def _to_em_symbol(symbol: str) -> str | None:
     if code.startswith(("4", "8", "9")):
         return f"bj{code}"
     return None
-
-
-_clean_code = clean_stock_code
-
-
-_str = to_optional_str
 
 
 def _to_decimal(value: Any) -> Decimal | None:

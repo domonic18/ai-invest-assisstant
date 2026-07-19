@@ -28,7 +28,7 @@ class SinaQuoteCollector(BaseCollector):
         import akshare as ak  # type: ignore[import-untyped]
 
         df = ak.stock_zh_a_spot()
-        if df.empty:
+        if df is None or df.empty:
             return []
 
         requested = None

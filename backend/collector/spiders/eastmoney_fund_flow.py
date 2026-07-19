@@ -27,6 +27,8 @@ class EastMoneyFundFlowCollector(PostgresCollector):
         import akshare as ak  # type: ignore[import-untyped]
 
         df = ak.stock_fund_flow_individual()
+        if df is None or df.empty:
+            return []
         trade_date = date.today()
         raw: list[dict[str, Any]] = []
 
