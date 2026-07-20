@@ -1,9 +1,10 @@
-import { DatePicker, Typography } from 'antd'
+import { useQueryClient } from '@tanstack/react-query'
+import { Button, DatePicker, message, Typography } from 'antd'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
 import { useState } from 'react'
 
-import { StockSearch } from '@/components/common/StockSearch'
+import { collectMarketData } from '@/api/market'
 import {
   useLimitUp,
   useMarketIndices,
@@ -18,13 +19,33 @@ import { SectorSection } from './components/SectorSection'
 import { WatchlistQuotesCard } from './components/WatchlistQuotesCard'
 
 export function Dashboard() {
+  const queryClient = useQueryClient()
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null)
+  const [collecting, setCollecting] = useState(false)
   const tradeDate = selectedDate?.format('YYYY-MM-DD')
+  const isPastDate = Boolean(tradeDate && dayjs(tradeDate).isBefore(dayjs(), 'day'))
 
   const { data: indices, isLoading: indicesLoading } = useMarketIndices(tradeDate)
   const { data: stats, isLoading: statsLoading } = useMarketStats(tradeDate)
   const { data: limitUp, isLoading: limitUpLoading } = useLimitUp(tradeDate)
   const { data: sectors, isLoading: sectorsLoading } = useSectorOverview(tradeDate)
+
+  const handleCollect = async () => {
+    if (!tradeDate) return
+    setCollecting(true)
+    try {
+      await collectMarketData(tradeDate)
+      message.success(
+        '补采任务已提交后台执行：涨停/成交额约 1 分钟入库，板块资金约需 10 分钟，请稍后刷新查看',
+        8,
+      )
+      await queryClient.invalidateQueries({ queryKey: ['market'] })
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '补采失败')
+    } finally {
+      setCollecting(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -45,7 +66,11 @@ export function Dashboard() {
               d.isAfter(dayjs(), 'day') || d.day() === 0 || d.day() === 6
             }
           />
-          <StockSearch onSelect={(code) => window.location.assign(`/stock/${code}`)} />
+          {isPastDate && (
+            <Button loading={collecting} onClick={handleCollect}>
+              补采数据
+            </Button>
+          )}
         </div>
       </div>
 
@@ -57,8 +82,24 @@ export function Dashboard() {
             loading={indicesLoading || statsLoading}
             tradeDate={tradeDate}
           />
-          <SectorSection data={sectors} loading={sectorsLoading} />
-          <LimitUpSection data={limitUp} loading={limitUpLoading} />
+          <SectorSection
+            data={sectors}
+            loading={sectorsLoading}
+            pendingClose={
+              sectors?.tradeDate === dayjs().format('YYYY-MM-DD') &&
+              dayjs().hour() < 15
+            }
+            canBackfill={isPastDate}
+          />
+          <LimitUpSection
+            data={limitUp}
+            loading={limitUpLoading}
+            pendingClose={
+              limitUp?.tradeDate === dayjs().format('YYYY-MM-DD') &&
+              dayjs().hour() < 15
+            }
+            canBackfill={isPastDate}
+          />
         </div>
 
         <div className="space-y-6">

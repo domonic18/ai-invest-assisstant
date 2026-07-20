@@ -78,11 +78,10 @@ export function useWatchlistQuotes() {
   })
 }
 
-export function useMarketReview(enabled: boolean, tradeDate?: string) {
+export function useMarketReview(tradeDate?: string) {
   return useQuery({
     queryKey: [...MARKET_KEY, 'ai-review', tradeDate],
-    queryFn: () => fetchMarketReview(false, tradeDate),
-    enabled,
+    queryFn: () => fetchMarketReview(tradeDate),
     staleTime: Infinity,
   })
 }

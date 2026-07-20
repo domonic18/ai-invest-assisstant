@@ -9,6 +9,10 @@ import { changeColor, formatAmount, formatPercent } from '@/utils/formatters'
 interface LimitUpSectionProps {
   data?: LimitUpData
   loading: boolean
+  /** 查看的是当日且尚未收盘（涨停池收盘后才写入）。 */
+  pendingClose?: boolean
+  /** 查看的是历史日期，可通过右上角按钮补采。 */
+  canBackfill?: boolean
 }
 
 const BOARD_COLORS: Record<number, string> = {
@@ -21,16 +25,21 @@ function boardColor(boards: number): string {
   return BOARD_COLORS[boards] ?? '#5e6ad2'
 }
 
-export function LimitUpSection({ data, loading }: LimitUpSectionProps) {
+export function LimitUpSection({ data, loading, pendingClose, canBackfill }: LimitUpSectionProps) {
   useColorScheme()
 
   if (loading) {
     return <Skeleton active paragraph={{ rows: 6 }} />
   }
   if (!data || data.total === 0) {
+    const emptyText = pendingClose
+      ? '今日还未收盘，涨停与连板数据将在收盘后更新'
+      : canBackfill
+        ? '暂无涨停数据，可点击右上角「补采数据」获取该日历史数据'
+        : '暂无涨停数据，等待采集任务执行'
     return (
       <Card variant="borderless" title="连板天梯">
-        <div className="text-gray-500 text-sm">暂无涨停数据，等待采集任务执行</div>
+        <div className="text-gray-500 text-sm">{emptyText}</div>
       </Card>
     )
   }

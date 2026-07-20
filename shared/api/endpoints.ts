@@ -47,6 +47,7 @@ export const ENDPOINTS = {
     limitUp: `${API_BASE}/market/limit-up`,
     sectors: `${API_BASE}/market/sectors`,
     aiReview: `${API_BASE}/market/ai-review`,
+    collect: `${API_BASE}/market/collect`,
   },
   admin: {
     users: `${API_BASE}/admin/users`,

@@ -9,6 +9,10 @@ import { changeColor, fallHex, formatAmount, formatPercent, riseHex } from '@/ut
 interface SectorSectionProps {
   data?: SectorOverview
   loading: boolean
+  /** 查看的是当日且尚未收盘（板块资金收盘后才写入）。 */
+  pendingClose?: boolean
+  /** 查看的是历史日期，可通过右上角按钮补采。 */
+  canBackfill?: boolean
 }
 
 const RED_CELL = {
@@ -32,18 +36,23 @@ function heatCellStyle(changePct: number | null): string {
   return palette.faint
 }
 
-export function SectorSection({ data, loading }: SectorSectionProps) {
+export function SectorSection({ data, loading, pendingClose, canBackfill }: SectorSectionProps) {
   useColorScheme()
 
   if (loading) {
     return <Skeleton active paragraph={{ rows: 8 }} />
   }
   if (!data || (data.heatmap.length === 0 && data.topInflow.length === 0)) {
+    const emptyText = pendingClose
+      ? '今日还未收盘，板块资金数据将在收盘后更新'
+      : canBackfill
+        ? '暂无板块资金数据，可点击右上角「补采数据」获取该日历史数据'
+        : '暂无板块资金数据，等待采集任务执行'
     return (
       <section className="space-y-4">
         <Typography.Text className="text-gray-400 text-xs tracking-widest">资金面</Typography.Text>
         <Card variant="borderless" title="板块热力图">
-          <div className="text-gray-500 text-sm">暂无板块资金数据，等待采集任务执行</div>
+          <div className="text-gray-500 text-sm">{emptyText}</div>
         </Card>
       </section>
     )

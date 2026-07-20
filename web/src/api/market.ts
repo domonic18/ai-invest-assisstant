@@ -1,14 +1,19 @@
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
+  ApiCollectTaskResult,
   ApiIndexIntradayResponse,
   ApiIndexKlineResponse,
   ApiIndexQuoteResponse,
   ApiLimitUpItem,
   ApiLimitUpResponse,
+  ApiMarketCollectRequest,
+  ApiMarketReviewGenerateRequest,
   ApiMarketReviewResponse,
+  ApiMarketReviewUpdateRequest,
   ApiMarketStatsResponse,
   ApiSectorOverviewResponse,
   ApiWatchlistQuoteItem,
+  CollectTaskResult,
   IndexIntraday,
   IndexKline,
   IndexKlinePeriod,
@@ -20,6 +25,7 @@ import type {
   SectorOverview,
   WatchlistQuote,
 } from '@ai-invest/shared'
+import axios from 'axios'
 
 import { apiClient } from './client'
 
@@ -152,6 +158,7 @@ function mapMarketReview(dto: ApiMarketReviewResponse): MarketReview {
     model: dto.model,
     generatedAt: dto.generated_at,
     cached: dto.cached,
+    edited: dto.edited,
   }
 }
 
@@ -221,13 +228,74 @@ export async function fetchWatchlistQuotes(): Promise<WatchlistQuote[]> {
   return response.data.map(mapWatchlistQuote)
 }
 
+/** 指定日期不是交易日（每日复盘只对交易日有效）。 */
+export class NonTradingDayError extends Error {}
+
+/** 只读取已生成的 AI 复盘；不存在时返回 null（不会触发生成）。 */
 export async function fetchMarketReview(
+  tradeDate?: string,
+): Promise<MarketReview | null> {
+  try {
+    const response = await apiClient.get<ApiMarketReviewResponse>(
+      ENDPOINTS.market.aiReview,
+      { params: { trade_date: tradeDate } },
+    )
+    return mapMarketReview(response.data)
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 404) {
+        return null
+      }
+      if (error.response?.status === 400) {
+        const detail = (error.response.data as { detail?: string } | undefined)
+          ?.detail
+        throw new NonTradingDayError(detail ?? '该日不是交易日')
+      }
+    }
+    throw error
+  }
+}
+
+/** 触发 LLM 生成 AI 复盘（regenerate=true 强制重新生成）。 */
+export async function generateMarketReview(
   regenerate = false,
   tradeDate?: string,
 ): Promise<MarketReview> {
-  const response = await apiClient.get<ApiMarketReviewResponse>(
+  const body: ApiMarketReviewGenerateRequest = {
+    trade_date: tradeDate,
+    regenerate,
+  }
+  const response = await apiClient.post<ApiMarketReviewResponse>(
     ENDPOINTS.market.aiReview,
-    { params: { regenerate, trade_date: tradeDate } },
+    body,
   )
   return mapMarketReview(response.data)
+}
+
+/** 保存人工编辑后的复盘内容。 */
+export async function saveMarketReview(
+  input: ApiMarketReviewUpdateRequest,
+): Promise<MarketReview> {
+  const response = await apiClient.put<ApiMarketReviewResponse>(
+    ENDPOINTS.market.aiReview,
+    input,
+  )
+  return mapMarketReview(response.data)
+}
+
+/** 补采指定交易日的行情数据（涨停池/炸板池/成交额）。 */
+export async function collectMarketData(
+  tradeDate: string,
+): Promise<CollectTaskResult[]> {
+  const body: ApiMarketCollectRequest = { trade_date: tradeDate }
+  const response = await apiClient.post<ApiCollectTaskResult[]>(
+    ENDPOINTS.market.collect,
+    body,
+  )
+  return response.data.map((item) => ({
+    task: item.task,
+    status: item.status,
+    itemsCollected: item.items_collected,
+    errors: item.errors,
+  }))
 }

@@ -137,6 +137,31 @@ export interface ApiMarketReviewResponse {
   model: string | null
   generated_at: string
   cached: boolean
+  edited: boolean
+}
+
+export interface ApiMarketReviewGenerateRequest {
+  trade_date?: string
+  regenerate?: boolean
+}
+
+export interface ApiMarketCollectRequest {
+  trade_date: string
+}
+
+export interface ApiCollectTaskResult {
+  task: string
+  status: string
+  items_collected: number
+  errors: string[]
+}
+
+export interface ApiMarketReviewUpdateRequest {
+  trade_date: string
+  overview: string
+  emotion_analysis: string
+  capital_analysis: string
+  risk_advice: string
 }
 
 /** Domain types (camelCase) for frontend consumption. */
@@ -271,4 +296,12 @@ export interface MarketReview {
   model: string | null
   generatedAt: string
   cached: boolean
+  edited: boolean
+}
+
+export interface CollectTaskResult {
+  task: string
+  status: string
+  itemsCollected: number
+  errors: string[]
 }
