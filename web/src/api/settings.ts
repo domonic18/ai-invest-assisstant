@@ -7,6 +7,7 @@ import type {
 
 import { apiClient } from './client'
 import { mapUserSettings } from './mappers'
+import { normalizeHexColor } from '@/utils/color'
 
 export async function fetchUserSettings(): Promise<UserSettings> {
   const response = await apiClient.get<ApiUserSettings>(ENDPOINTS.users.meSettings)
@@ -16,8 +17,8 @@ export async function fetchUserSettings(): Promise<UserSettings> {
 export async function updateUserSettings(settings: UserSettings): Promise<UserSettings> {
   const body: ApiUserSettingsUpdateRequest = {
     ma_configs: settings.maConfigs.map((item) => ({
-      period: item.period,
-      color: item.color,
+      period: Math.round(item.period),
+      color: normalizeHexColor(item.color),
       enabled: item.enabled,
     })),
   }

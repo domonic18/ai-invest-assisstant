@@ -16,6 +16,7 @@ import type { MovingAverageConfig } from '@ai-invest/shared'
 
 import { useAuthStore } from '@/stores/auth'
 import { useColorScheme, useSettingsStore } from '@/stores/settings'
+import { normalizeHexColor } from '@/utils/color'
 
 const MAX_MA_COUNT = 6
 
@@ -165,7 +166,9 @@ export function Settings() {
                 value={cfg.color}
                 size="small"
                 showText
-                onChange={(_, hex) => updateConfig(index, { color: hex })}
+                onChange={(color) =>
+                  updateConfig(index, { color: normalizeHexColor(color.toHexString()) })
+                }
               />
               <div className="flex items-center gap-2">
                 <Typography.Text className="text-xs text-gray-400">MA</Typography.Text>

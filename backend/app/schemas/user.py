@@ -16,6 +16,9 @@ class MovingAverageConfig(BaseModel):
 class UserSettings(BaseModel):
     """用户个人配置。"""
 
+    # 服务层返回 UserSettings 实例，路由层需跨模型 model_validate
+    model_config = ConfigDict(from_attributes=True)
+
     ma_configs: list[MovingAverageConfig] = Field(
         default_factory=list,
         description="K 线均线配置列表",
