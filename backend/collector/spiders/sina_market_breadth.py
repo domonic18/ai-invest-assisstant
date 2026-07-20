@@ -9,11 +9,11 @@ stats 接口只读该表，不再在请求路径抓取数据源。
 
 import contextlib
 import io
-from datetime import date, datetime
+from datetime import date
 from typing import Any, ClassVar
-from zoneinfo import ZoneInfo
 
 from collector.core.base import PostgresCollector
+from collector.core.calendar import latest_trading_day
 
 _UPDATE_COLUMNS = [
     "up_count",
@@ -24,9 +24,6 @@ _UPDATE_COLUMNS = [
     "stat_time",
     "source",
 ]
-
-_CN_TZ = ZoneInfo("Asia/Shanghai")
-
 
 def limit_threshold(code: str, name: str) -> float:
     """各板块涨跌幅限制阈值（含 0.5pp 容差）。"""
@@ -93,6 +90,11 @@ class SinaMarketBreadthCollector(PostgresCollector):
     ) -> list[dict[str, Any]]:
         import akshare as ak  # type: ignore[import-untyped]
 
+        # 快照接口无历史：只能落最近交易日，其余日期拒绝以免张冠李戴
+        target = trade_date or latest_trading_day()
+        if target != latest_trading_day():
+            return []
+
         # tqdm 进度条写 stderr，与 stdout 一并抑制保持日志干净
         with (
             contextlib.redirect_stdout(io.StringIO()),
@@ -102,5 +104,4 @@ class SinaMarketBreadthCollector(PostgresCollector):
         if df is None or df.empty:
             return []
 
-        target = trade_date or datetime.now(_CN_TZ).date()
         return [{"trade_date": target, **count_breadth(df), "source": "sina"}]

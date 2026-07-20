@@ -20,6 +20,7 @@ class MarketBreadth(Base):
     flat_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     limit_up_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     limit_down_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    broken_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     stat_time: Mapped[str | None] = mapped_column(String(20), nullable=True)
     source: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

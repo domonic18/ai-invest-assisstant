@@ -1,9 +1,9 @@
 """EastMoney individual stock fund flow collector via akshare."""
 
-from datetime import date
 from typing import Any, ClassVar
 
 from collector.core.base import PostgresCollector
+from collector.core.calendar import latest_trading_day
 from collector.core.parsing import clean_stock_code, parse_cn_amount, to_float
 
 
@@ -29,7 +29,7 @@ class EastMoneyFundFlowCollector(PostgresCollector):
         df = ak.stock_fund_flow_individual()
         if df is None or df.empty:
             return []
-        trade_date = date.today()
+        trade_date = latest_trading_day()
         raw: list[dict[str, Any]] = []
 
         # Normalize requested symbols to plain 6-digit codes.

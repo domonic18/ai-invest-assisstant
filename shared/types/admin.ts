@@ -71,6 +71,10 @@ export type CollectorTaskName =
   | 'stock-list'
   | 'limit-up-pool'
   | 'market-breadth'
+  | 'index-spot'
+  | 'index-minute'
+  | 'market-amount'
+  | 'broken-pool'
 
 export interface CollectorTaskChannel {
   source: string

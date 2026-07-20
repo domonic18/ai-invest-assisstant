@@ -15,6 +15,7 @@ from collector.core.pipelines import DeduplicateStep, NormalizeStep, ValidateSte
 from collector.spiders.cninfo_disclosure import CninfoDisclosureCollector
 from collector.spiders.cninfo_ipo import CninfoIpoCollector
 from collector.spiders.cninfo_profile import CninfoProfileCollector
+from collector.spiders.eastmoney_broken_pool import EastmoneyBrokenPoolCollector
 from collector.spiders.eastmoney_dragon_list import EastMoneyDragonListCollector
 from collector.spiders.eastmoney_financial_statement import (
     EastmoneyFinancialStatementCollector,
@@ -28,8 +29,10 @@ from collector.spiders.eastmoney_research_report import (
 from collector.spiders.eastmoney_sector_fund_flow import (
     EastMoneySectorFundFlowCollector,
 )
+from collector.spiders.exchange_market_amount import ExchangeMarketAmountCollector
 from collector.spiders.sina_auction import SinaAuctionCollector
 from collector.spiders.sina_index_kline import SinaIndexKlineCollector
+from collector.spiders.sina_index_minute import SinaIndexMinuteCollector
 from collector.spiders.sina_kline import SinaKlineCollector
 from collector.spiders.sina_macro import SinaMacroCollector
 from collector.spiders.sina_market_breadth import SinaMarketBreadthCollector
@@ -348,6 +351,45 @@ CONTRACTS: list[SpiderContract] = [
         has_normalize=True,
         dedup_keys=["source_url"],
         required_fields=["stock_code", "title", "publish_date"],
+    ),
+    SpiderContract(
+        name="sina_index_minute",
+        cls=SinaIndexMinuteCollector,
+        config={"source": "sina", "data_type": "index-minute"},
+        store=StoreContract(
+            table="kline_minute", conflict_key="stock_code, trade_time"
+        ),
+        has_normalize=False,
+        dedup_keys=["stock_code", "trade_time"],
+        required_fields=["stock_code", "trade_time", "close"],
+    ),
+    SpiderContract(
+        name="exchange_market_amount",
+        cls=ExchangeMarketAmountCollector,
+        config={"source": "exchange", "data_type": "market-amount"},
+        store=StoreContract(
+            table="market_amount",
+            conflict_key="trade_date",
+            update_columns=["amount", "source"],
+            update_skip_null=True,
+        ),
+        has_normalize=True,
+        dedup_keys=["trade_date"],
+        required_fields=["trade_date", "amount"],
+    ),
+    SpiderContract(
+        name="eastmoney_broken_pool",
+        cls=EastmoneyBrokenPoolCollector,
+        config={"source": "eastmoney", "data_type": "broken-pool"},
+        store=StoreContract(
+            table="market_breadth",
+            conflict_key="trade_date",
+            update_columns=["broken_count"],
+            update_skip_null=True,
+        ),
+        has_normalize=True,
+        dedup_keys=["trade_date"],
+        required_fields=["trade_date", "broken_count"],
     ),
 ]
 

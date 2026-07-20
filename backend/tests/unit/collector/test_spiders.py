@@ -7,17 +7,24 @@ import pytest
 
 from collector.spiders.cninfo_financial_report import CninfoFinancialReportCollector
 from collector.spiders.cninfo_ipo import CninfoIpoCollector
+from collector.spiders.eastmoney_broken_pool import EastmoneyBrokenPoolCollector
 from collector.spiders.eastmoney_financial_statement import (
     EastmoneyFinancialStatementCollector,
 )
 from collector.spiders.eastmoney_fund_flow import EastMoneyFundFlowCollector
 from collector.spiders.eastmoney_fund_holdings import EastMoneyFundHoldingsCollector
+from collector.spiders.eastmoney_limit_down_pool import (
+    EastmoneyLimitDownPoolCollector,
+)
 from collector.spiders.eastmoney_limit_up_pool import EastMoneyLimitUpPoolCollector
 from collector.spiders.eastmoney_sector_fund_flow import (
     EastMoneySectorFundFlowCollector,
 )
+from collector.spiders.exchange_market_amount import ExchangeMarketAmountCollector
 from collector.spiders.sina_auction import SinaAuctionCollector
 from collector.spiders.sina_index_kline import SinaIndexKlineCollector
+from collector.spiders.sina_index_minute import SinaIndexMinuteCollector
+from collector.spiders.sina_index_spot import SinaIndexSpotCollector
 from collector.spiders.sina_kline import SinaKlineCollector
 from collector.spiders.sina_market_breadth import (
     SinaMarketBreadthCollector,
@@ -1043,6 +1050,57 @@ class TestEastMoneySectorFundFlowCollector:
         assert request_page.call_count == 2
         assert request_page.call_args_list[1].args[0]["pn"] == 2
 
+    @pytest.mark.asyncio
+    async def test_collect_history_picks_target_date_row(self) -> None:
+        collector = EastMoneySectorFundFlowCollector(
+            {"source": "eastmoney", "data_type": "sector_fund_flow"}
+        )
+        boards = [{"f12": "BK0420", "f14": "航空机场"}]
+        klines = [
+            "2026-07-16,100.0,10.0,20.0,30.0,40.0,1.5",
+            "2026-07-17,-162370288.0,292831632.0,-130461344.0,-133406864.0,-28963424.0,-0.88",
+        ]
+        with (
+            patch.object(collector, "_fetch_rank", return_value=boards),
+            patch.object(collector, "_fetch_daykline", return_value=klines),
+        ):
+            raw = await collector.collect(
+                sector_type="industry", trade_date=datetime.date(2026, 7, 17)
+            )
+
+        assert len(raw) == 1
+        item = raw[0]
+        assert item["sector_code"] == "BK0420"
+        assert item["trade_date"] == datetime.date(2026, 7, 17)
+        assert item["main_net_inflow"] == -162370288.0
+        assert item["small_net"] == 292831632.0
+        assert item["medium_net"] == -130461344.0
+        assert item["large_net"] == -133406864.0
+        assert item["super_large_net"] == -28963424.0
+        assert item["change_pct"] == -0.88
+        assert item["top_stock_name"] is None
+        assert await collector.validate(await collector.transform(item)) is True
+
+    @pytest.mark.asyncio
+    async def test_collect_history_skips_non_trading_day(self) -> None:
+        collector = EastMoneySectorFundFlowCollector(
+            {"source": "eastmoney", "data_type": "sector_fund_flow"}
+        )
+        with (
+            patch(
+                "collector.spiders.eastmoney_sector_fund_flow.is_trading_day",
+                return_value=False,
+            ),
+            patch.object(
+                collector, "_fetch_rank", side_effect=AssertionError("不应请求网络")
+            ),
+        ):
+            raw = await collector.collect(
+                sector_type="industry", trade_date=datetime.date(2026, 7, 19)
+            )
+
+        assert raw == []
+
     def test_request_page_uses_shared_eastmoney_client(self) -> None:
         collector = EastMoneySectorFundFlowCollector(
             {"source": "eastmoney", "data_type": "sector_fund_flow"}
@@ -1234,11 +1292,11 @@ class TestSinaMarketBreadthCollector:
             ]
         )
         with patch("akshare.stock_zh_a_spot", return_value=mock_df):
-            raw = await collector.collect(trade_date=datetime.date(2026, 7, 17))
+            raw = await collector.collect(trade_date=datetime.date.today())
 
         assert len(raw) == 1
         item = raw[0]
-        assert item["trade_date"] == datetime.date(2026, 7, 17)
+        assert item["trade_date"] == datetime.date.today()
         assert item["up_count"] == 1
         assert item["down_count"] == 1
         assert item["limit_up_count"] == 1
@@ -1252,3 +1310,178 @@ class TestSinaMarketBreadthCollector:
         )
         with patch("akshare.stock_zh_a_spot", return_value=pd.DataFrame()):
             assert await collector.collect() == []
+
+
+@pytest.mark.unit
+class TestSinaIndexSpotCollector:
+    @pytest.mark.asyncio
+    async def test_collect_filters_index_codes(self) -> None:
+        collector = SinaIndexSpotCollector({"source": "sina", "data_type": "index-spot"})
+        mock_df = pd.DataFrame(
+            [
+                {
+                    "代码": "sh000001",
+                    "名称": "上证指数",
+                    "最新价": 3801.5,
+                    "涨跌额": 20.5,
+                    "涨跌幅": 0.54,
+                    "成交量": 3e8,
+                    "成交额": 5e11,
+                    "时间": "15:00:00",
+                },
+                {"代码": "sh000300", "名称": "沪深300", "最新价": 1.0,
+                 "涨跌额": 0.0, "涨跌幅": 0.0, "成交量": 1.0, "成交额": 1.0,
+                 "时间": "15:00:00"},
+            ]
+        )
+        with patch("akshare.stock_zh_index_spot_sina", return_value=mock_df):
+            raw = await collector.collect()
+
+        # 只保留 INDEX_CODES 中的四个指数，沪深300 被过滤
+        assert {item["code"] for item in raw} == {"sh000001"}
+        assert raw[0]["amount"] == 5e11
+
+    @pytest.mark.asyncio
+    async def test_store_writes_redis_single_key(self) -> None:
+        collector = SinaIndexSpotCollector({"source": "sina", "data_type": "index-spot"})
+        redis = AsyncMock()
+        with patch("redis.asyncio.from_url", return_value=redis):
+            stored = await collector.store([{"code": "sh000001", "price": 1.0}])
+
+        assert stored == 1
+        assert redis.setex.await_args.args[0] == "market:index_spot"
+        redis.close.assert_awaited_once()
+
+
+@pytest.mark.unit
+class TestSinaIndexMinuteCollector:
+    @pytest.mark.asyncio
+    async def test_collect_keeps_only_target_day(self) -> None:
+        collector = SinaIndexMinuteCollector(
+            {"source": "sina", "data_type": "index-minute"}
+        )
+        mock_df = pd.DataFrame(
+            [
+                {"day": "2026-07-16 15:00:00", "open": 1.0, "high": 1.0,
+                 "low": 1.0, "close": 101.0, "volume": 1.0, "amount": 2.0},
+                {"day": "2026-07-17 09:31:00", "open": 1.0, "high": 1.0,
+                 "low": 1.0, "close": 102.0, "volume": 1.0, "amount": 2.0},
+            ]
+        )
+        with patch("akshare.stock_zh_a_minute", return_value=mock_df):
+            raw = await collector.collect(
+                symbols=["sh000001"], trade_date=datetime.date(2026, 7, 17)
+            )
+
+        assert len(raw) == 1
+        assert raw[0]["stock_code"] == "sh000001"
+        assert raw[0]["trade_time"].date() == datetime.date(2026, 7, 17)
+        assert raw[0]["trade_time"].tzinfo is not None
+
+
+@pytest.mark.unit
+class TestExchangeMarketAmountCollector:
+    @pytest.mark.asyncio
+    async def test_collect_sums_sse_and_szse(self) -> None:
+        collector = ExchangeMarketAmountCollector(
+            {"source": "exchange", "data_type": "market-amount"}
+        )
+        sse_df = pd.DataFrame(
+            {"单日情况": ["成交金额"], "股票": [5000.0]}  # 亿元
+        )
+        szse_df = pd.DataFrame(
+            {"证券类别": ["股票"], "成交金额": [6e11]}  # 元
+        )
+        with (
+            patch("akshare.stock_sse_deal_daily", return_value=sse_df),
+            patch("akshare.stock_szse_summary", return_value=szse_df),
+        ):
+            raw = await collector.collect(trade_date=datetime.date(2026, 7, 17))
+
+        assert len(raw) == 1
+        assert raw[0]["trade_date"] == datetime.date(2026, 7, 17)
+        assert raw[0]["amount"] == 5000.0 * 1e8 + 6e11
+        assert raw[0]["source"] == "exchange"
+
+    @pytest.mark.asyncio
+    async def test_collect_unpublished_returns_empty(self) -> None:
+        collector = ExchangeMarketAmountCollector(
+            {"source": "exchange", "data_type": "market-amount"}
+        )
+        with patch(
+            "akshare.stock_sse_deal_daily", side_effect=ValueError("no data")
+        ):
+            assert await collector.collect(
+                trade_date=datetime.date(2026, 7, 17)
+            ) == []
+
+
+@pytest.mark.unit
+class TestEastmoneyBrokenPoolCollector:
+    @pytest.mark.asyncio
+    async def test_collect_counts_broken_pool(self) -> None:
+        collector = EastmoneyBrokenPoolCollector(
+            {"source": "eastmoney", "data_type": "broken-pool"}
+        )
+        mock_df = pd.DataFrame({"代码": ["000001", "000002", "000003"]})
+        with patch("akshare.stock_zt_pool_zbgc_em", return_value=mock_df):
+            raw = await collector.collect(trade_date=datetime.date(2026, 7, 17))
+
+        assert raw == [
+            {"trade_date": datetime.date(2026, 7, 17), "broken_count": 3}
+        ]
+
+    @pytest.mark.asyncio
+    async def test_collect_error_returns_empty(self) -> None:
+        collector = EastmoneyBrokenPoolCollector(
+            {"source": "eastmoney", "data_type": "broken-pool"}
+        )
+        with patch("akshare.stock_zt_pool_zbgc_em", side_effect=ValueError("x")):
+            assert await collector.collect(
+                trade_date=datetime.date(2026, 7, 17)
+            ) == []
+
+
+@pytest.mark.unit
+class TestEastmoneyLimitDownPoolCollector:
+    @pytest.mark.asyncio
+    async def test_collect_counts_limit_down_pool(self) -> None:
+        collector = EastmoneyLimitDownPoolCollector(
+            {"source": "eastmoney", "data_type": "limit-down-pool"}
+        )
+        mock_df = pd.DataFrame({"代码": ["000001", "000002"]})
+        with patch("akshare.stock_zt_pool_dtgc_em", return_value=mock_df):
+            raw = await collector.collect(trade_date=datetime.date(2026, 7, 17))
+
+        assert raw == [
+            {"trade_date": datetime.date(2026, 7, 17), "limit_down_count": 2}
+        ]
+
+    @pytest.mark.asyncio
+    async def test_collect_error_returns_empty(self) -> None:
+        collector = EastmoneyLimitDownPoolCollector(
+            {"source": "eastmoney", "data_type": "limit-down-pool"}
+        )
+        with patch("akshare.stock_zt_pool_dtgc_em", side_effect=ValueError("x")):
+            assert await collector.collect(
+                trade_date=datetime.date(2026, 7, 17)
+            ) == []
+
+    @pytest.mark.asyncio
+    async def test_collect_skips_non_trading_day(self) -> None:
+        collector = EastmoneyLimitDownPoolCollector(
+            {"source": "eastmoney", "data_type": "limit-down-pool"}
+        )
+        with (
+            patch(
+                "collector.spiders.eastmoney_limit_down_pool.is_trading_day",
+                return_value=False,
+            ),
+            patch(
+                "akshare.stock_zt_pool_dtgc_em",
+                side_effect=AssertionError("不应请求接口"),
+            ),
+        ):
+            assert await collector.collect(
+                trade_date=datetime.date(2026, 7, 19)
+            ) == []

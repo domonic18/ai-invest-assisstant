@@ -5,6 +5,7 @@ export const SOURCE_LABEL: Record<string, string> = {
   eastmoney: '东方财富',
   ths: '同花顺',
   cninfo: '巨潮资讯',
+  exchange: '沪深交易所',
 }
 
 export const DATA_TYPE_LABEL: Record<CollectorTaskName, string> = {
@@ -25,4 +26,8 @@ export const DATA_TYPE_LABEL: Record<CollectorTaskName, string> = {
   'stock-list': '股票列表',
   'limit-up-pool': '涨停股池',
   'market-breadth': '涨跌统计',
+  'index-spot': '指数快照',
+  'index-minute': '指数分钟线',
+  'market-amount': '市场成交额',
+  'broken-pool': '炸板统计',
 }

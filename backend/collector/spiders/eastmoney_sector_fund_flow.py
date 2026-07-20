@@ -10,8 +10,9 @@ import time
 from datetime import date
 from typing import Any, ClassVar
 
+from collector.core.calendar import is_trading_day, latest_trading_day
 from collector.core.http_client import eastmoney_get
-from collector.core.parsing import parse_cn_amount, to_optional_str
+from collector.core.parsing import parse_cn_amount, to_float, to_optional_str
 from collector.spiders.sector_fund_flow_base import BaseSectorFundFlowCollector
 
 _PUSH2_URL = "https://push2.eastmoney.com/api/qt/clist/get"
@@ -19,6 +20,11 @@ _PAGE_SIZE = 100
 # f12 板块代码 f14 名称 f3 涨跌幅 f62 主力净额 f66 超大单 f72 大单
 # f78 中单 f84 小单 f204 主力净流入最大股 f205 最大股代码
 _FIELDS = "f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124"
+
+# 单板块资金流日 K（历史补采）：f51 日期 f52 主力净额 f53 小单 f54 中单
+# f55 大单 f56 超大单 f63 涨跌幅（字段顺序即 klines CSV 列顺序）
+_DAYKLINE_URL = "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get"
+_DAYKLINE_FIELDS = "f51,f52,f53,f54,f55,f56,f63"
 
 
 class EastMoneySectorFundFlowCollector(BaseSectorFundFlowCollector):
@@ -60,11 +66,16 @@ class EastMoneySectorFundFlowCollector(BaseSectorFundFlowCollector):
         return rows
 
     async def collect(
-        self, sector_type: str | None = None, **kwargs: Any
+        self,
+        sector_type: str | None = None,
+        trade_date: date | None = None,
+        **kwargs: Any,
     ) -> list[dict[str, Any]]:
         sector_type = sector_type or self.sector_type
+        if trade_date is not None:
+            return self._collect_history(sector_type, trade_date)
         rows = self._fetch_rank(sector_type)
-        trade_date = date.today()
+        trade_date = latest_trading_day()
         raw: list[dict[str, Any]] = []
         for row in rows:
             sector_name = to_optional_str(row.get("f14"))
@@ -84,4 +95,58 @@ class EastMoneySectorFundFlowCollector(BaseSectorFundFlowCollector):
                     "top_stock_name": to_optional_str(row.get("f204")),
                 }
             )
+        return raw
+
+    def _fetch_daykline(self, sector_code: str) -> list[str]:
+        """单板块资金流日 K（CSV 行，列序见 _DAYKLINE_FIELDS）。"""
+        response = eastmoney_get(
+            _DAYKLINE_URL,
+            params={
+                "secid": f"90.{sector_code}",
+                "fields1": "f1,f2,f3,f7",
+                "fields2": _DAYKLINE_FIELDS,
+                "lmt": 0,
+            },
+        )
+        data = response.json().get("data") or {}
+        return list(data.get("klines") or [])
+
+    def _collect_history(
+        self, sector_type: str, trade_date: date
+    ) -> list[dict[str, Any]]:
+        """补采历史交易日：逐板块取资金流日 K 中目标日期的一行。
+
+        领涨股（top_stock_*）无历史来源，置 None；upsert 的 update_skip_null
+        保证不会覆盖快照已写入的值。
+        """
+        if not is_trading_day(trade_date):
+            return []
+        target = trade_date.isoformat()
+        raw: list[dict[str, Any]] = []
+        for row in self._fetch_rank(sector_type):
+            sector_code = to_optional_str(row.get("f12"))
+            sector_name = to_optional_str(row.get("f14"))
+            if not sector_code or not sector_name:
+                continue
+            for kline in self._fetch_daykline(sector_code):
+                parts = kline.split(",")
+                if len(parts) < 7 or parts[0] != target:
+                    continue
+                raw.append(
+                    {
+                        "sector_code": sector_code,
+                        "sector_name": sector_name,
+                        "sector_type": sector_type,
+                        "trade_date": trade_date,
+                        "change_pct": to_float(parts[6]),
+                        "main_net_inflow": to_float(parts[1]),
+                        "super_large_net": to_float(parts[5]),
+                        "large_net": to_float(parts[4]),
+                        "medium_net": to_float(parts[3]),
+                        "small_net": to_float(parts[2]),
+                        "top_stock_code": None,
+                        "top_stock_name": None,
+                    }
+                )
+                break
         return raw

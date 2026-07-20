@@ -26,6 +26,10 @@ VALUES
     ('sina_stock_list', 'stock-list', 'sina', '0 2 * * 6', true),
     ('sina_quote', 'quote', 'sina', '*/5 9-15 * * 1-5', true),
     ('sina_market_breadth', 'market-breadth', 'sina', '2-57/5 9-15 * * 1-5', true),
+    ('sina_index_spot', 'index-spot', 'sina', '* 9-15 * * 1-5', true),
+    ('sina_index_minute', 'index-minute', 'sina', '* 9-15 * * 1-5', true),
+    ('exchange_market_amount', 'market-amount', 'exchange', '40 15,16,17 * * 1-5', true),
+    ('eastmoney_broken_pool', 'broken-pool', 'eastmoney', '40 15 * * 1-5', true),
     ('eastmoney_sector_fund_flow', 'sector-fund-flow', 'eastmoney', '30 17 * * 1-5', true),
     ('eastmoney_limit_up_pool', 'limit-up-pool', 'eastmoney', '35 15 * * 1-5', true)
 ON CONFLICT (task_name) DO NOTHING;

@@ -8,6 +8,7 @@ from datetime import date
 from typing import Any, ClassVar
 
 from collector.core.base import PostgresCollector
+from collector.core.calendar import is_trading_day, latest_trading_day
 from collector.core.parsing import to_float, to_optional_str
 
 _UPDATE_COLUMNS = [
@@ -41,7 +42,10 @@ class EastMoneyLimitUpPoolCollector(PostgresCollector):
     ) -> list[dict[str, Any]]:
         import akshare as ak  # type: ignore[import-untyped]
 
-        target = trade_date or date.today()
+        target = trade_date or latest_trading_day()
+        if not is_trading_day(target):
+            # 非交易日接口会返回最近交易日数据，直接落库会把日期张冠李戴
+            return []
         try:
             df = ak.stock_zt_pool_em(date=target.strftime("%Y%m%d"))
         except Exception:  # noqa: BLE001

@@ -108,7 +108,8 @@ TASK_SPECS: dict[str, TaskSpec] = {
                 "eastmoney": "collector.spiders.eastmoney_sector_fund_flow:EastMoneySectorFundFlowCollector",
                 "ths": "collector.spiders.ths_sector_fund_flow:ThsSectorFundFlowCollector",
             },
-            run_params=("sector_type",),
+            run_params=("sector_type", "trade_date"),
+            converters={"trade_date": date.fromisoformat},
         ),
         TaskSpec(
             name="dragon-list",
@@ -179,6 +180,49 @@ TASK_SPECS: dict[str, TaskSpec] = {
             data_type="market_breadth",
             collectors={
                 "sina": "collector.spiders.sina_market_breadth:SinaMarketBreadthCollector",
+            },
+            run_params=("trade_date",),
+            converters={"trade_date": date.fromisoformat},
+        ),
+        TaskSpec(
+            name="index-spot",
+            data_type="index_spot",
+            collectors={
+                "sina": "collector.spiders.sina_index_spot:SinaIndexSpotCollector",
+            },
+        ),
+        TaskSpec(
+            name="index-minute",
+            data_type="index_minute",
+            collectors={
+                "sina": "collector.spiders.sina_index_minute:SinaIndexMinuteCollector",
+            },
+            run_params=("trade_date",),
+            converters={"trade_date": date.fromisoformat},
+        ),
+        TaskSpec(
+            name="market-amount",
+            data_type="market_amount",
+            collectors={
+                "exchange": "collector.spiders.exchange_market_amount:ExchangeMarketAmountCollector",
+            },
+            run_params=("trade_date",),
+            converters={"trade_date": date.fromisoformat},
+        ),
+        TaskSpec(
+            name="broken-pool",
+            data_type="broken_pool",
+            collectors={
+                "eastmoney": "collector.spiders.eastmoney_broken_pool:EastmoneyBrokenPoolCollector",
+            },
+            run_params=("trade_date",),
+            converters={"trade_date": date.fromisoformat},
+        ),
+        TaskSpec(
+            name="limit-down-pool",
+            data_type="limit_down_pool",
+            collectors={
+                "eastmoney": "collector.spiders.eastmoney_limit_down_pool:EastmoneyLimitDownPoolCollector",
             },
             run_params=("trade_date",),
             converters={"trade_date": date.fromisoformat},

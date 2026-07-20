@@ -6,10 +6,10 @@
 内置处理）。写入与东财采集器相同的 sector_fund_flow 表。
 """
 
-from datetime import date
 from decimal import Decimal
 from typing import Any
 
+from collector.core.calendar import latest_trading_day
 from collector.core.parsing import is_nan, parse_cn_amount, to_optional_str
 from collector.spiders.sector_fund_flow_base import BaseSectorFundFlowCollector
 
@@ -29,7 +29,7 @@ class ThsSectorFundFlowCollector(BaseSectorFundFlowCollector):
         df = ak.stock_fund_flow_industry(symbol="即时")
         if df is None or df.empty:
             return []
-        trade_date = date.today()
+        trade_date = latest_trading_day()
         raw: list[dict[str, Any]] = []
         for row in df.to_dict(orient="records"):
             sector_name = to_optional_str(row.get("行业"))
