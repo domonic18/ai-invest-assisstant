@@ -2,8 +2,10 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.v1 import api_router
 from app.core.config import get_settings
@@ -42,6 +44,21 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api/v1")
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    body = await request.body()
+    logger.warning(
+        "request_validation_failed: %s %s errors=%s body=%s",
+        request.method,
+        request.url.path,
+        exc.errors(),
+        body[:500],
+    )
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 
 @app.get("/health")

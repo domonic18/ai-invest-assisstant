@@ -6,18 +6,24 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db
+from app.dependencies import get_current_user, get_db
+from app.models.user import User
 from app.schemas.market import (
+    CollectTaskResult,
     IndexIntradayResponse,
     IndexKlineResponse,
     IndexQuoteResponse,
     LimitUpResponse,
+    MarketCollectRequest,
+    MarketReviewGenerateRequest,
     MarketReviewResponse,
+    MarketReviewUpdateRequest,
     MarketStatsResponse,
     SectorOverviewResponse,
 )
 from app.services import market_review_service, market_service
 from app.services.llm_config_service import LLMConfigNotConfiguredError
+from app.services.market_review_service import NonTradingDayError, ReviewNotFoundError
 
 router = APIRouter()
 
@@ -59,11 +65,13 @@ async def get_index_kline(
 
 @router.get("/indices/intraday", response_model=IndexIntradayResponse)
 async def get_index_intraday(
-    code: str = "sh000001", trade_date: date | None = None
+    session: Annotated[AsyncSession, Depends(get_db)],
+    code: str = "sh000001",
+    trade_date: date | None = None,
 ) -> IndexIntradayResponse:
-    """指数分时图数据（指定交易日的分钟级价格与量能，仅覆盖最近约 8 个交易日）。"""
+    """指数分时图数据（指定交易日的分钟级价格与量能，读本地 kline_minute）。"""
     try:
-        return await market_service.get_index_intraday(code, trade_date)
+        return await market_service.get_index_intraday(session, code, trade_date)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -114,13 +122,38 @@ async def get_sector_overview(
 async def get_ai_review(
     session: Annotated[AsyncSession, Depends(get_db)],
     trade_date: date | None = None,
-    regenerate: bool = False,
 ) -> MarketReviewResponse:
-    """AI 大盘综述（LLM 生成，按交易日缓存）。"""
+    """读取已生成的 AI 大盘综述（只读，不存在时 404，绝不触发生成）。"""
+    try:
+        review = await market_review_service.get_cached_review(session, trade_date)
+    except NonTradingDayError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    if review is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="该交易日尚未生成 AI 复盘",
+        )
+    return review
+
+
+@router.post("/ai-review", response_model=MarketReviewResponse)
+async def generate_ai_review(
+    data: MarketReviewGenerateRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> MarketReviewResponse:
+    """触发 LLM 生成 AI 大盘综述（regenerate=true 强制重新生成）。"""
     try:
         return await market_review_service.generate_market_review(
-            session, trade_date, regenerate
+            session, data.trade_date, data.regenerate
         )
+    except NonTradingDayError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
     except LLMConfigNotConfiguredError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -130,4 +163,58 @@ async def get_ai_review(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"AI review generation failed: {exc}",
+        ) from exc
+
+
+@router.put("/ai-review", response_model=MarketReviewResponse)
+async def update_ai_review(
+    data: MarketReviewUpdateRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> MarketReviewResponse:
+    """保存人工编辑后的复盘内容。"""
+    try:
+        return await market_review_service.update_market_review(
+            session,
+            data.trade_date,
+            market_review_service.MarketReviewContent(
+                overview=data.overview,
+                emotion_analysis=data.emotion_analysis,
+                capital_analysis=data.capital_analysis,
+                risk_advice=data.risk_advice,
+            ),
+        )
+    except ReviewNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except NonTradingDayError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post("/collect", response_model=list[CollectTaskResult])
+async def collect_trade_date(
+    data: MarketCollectRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> list[CollectTaskResult]:
+    """补采指定交易日的行情数据（涨停池/炸板池/跌停池/成交额/板块资金流）。
+
+    任务经采集队列异步执行：涨停/成交额约 1 分钟入库，板块资金流
+    受数据源限流约束约需 10 分钟。涨跌家数为盘中快照，无法补采。
+    """
+    try:
+        return await market_service.backfill_trade_date(session, data.trade_date)
+    except market_service.NonTradingDayError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Market data collection failed: {exc}",
         ) from exc

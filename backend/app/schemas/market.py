@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class IndexQuoteResponse(BaseModel):
@@ -164,3 +164,36 @@ class MarketReviewResponse(BaseModel):
     model: str | None = None
     generated_at: datetime
     cached: bool = False
+    edited: bool = False
+
+
+class MarketReviewGenerateRequest(BaseModel):
+    """触发 AI 复盘生成请求。"""
+
+    trade_date: date | None = None
+    regenerate: bool = False
+
+
+class MarketReviewUpdateRequest(BaseModel):
+    """保存人工编辑后的复盘内容。"""
+
+    trade_date: date
+    overview: str = Field(min_length=1)
+    emotion_analysis: str = Field(min_length=1)
+    capital_analysis: str = Field(min_length=1)
+    risk_advice: str = Field(min_length=1)
+
+
+class MarketCollectRequest(BaseModel):
+    """补采指定交易日行情数据请求。"""
+
+    trade_date: date
+
+
+class CollectTaskResult(BaseModel):
+    """单个采集任务的补采结果。"""
+
+    task: str
+    status: str
+    items_collected: int
+    errors: list[str] = []

@@ -1,13 +1,17 @@
 """Market overview (每日复盘) business services.
 
-行情数据（指数快照、分时、成交额）经 akshare 抓取后以短 TTL 缓存于 Redis；
-历史与统计数据（涨停池 / 板块资金 / 涨跌统计）读 PostgreSQL，由采集任务写入。
+请求路径零直取数据源，全部由采集任务预先写入：
+- 实时态：指数快照由 sina_index_spot 任务每分钟写 Redis（market:index_spot）；
+- 日内时序：指数分钟线由 sina_index_minute 任务写 kline_minute 超表；
+- 日频事实：涨跌统计/炸板数写 market_breadth、官方成交额写 market_amount、
+  涨停池写 limit_up_pool、板块资金写 sector_fund_flow、日 K 写 kline_daily。
 """
 
 import asyncio
 import json
-from datetime import date, timedelta
-from typing import Any, cast
+from datetime import date
+from typing import Any
+from zoneinfo import ZoneInfo
 
 from redis.asyncio import from_url
 from sqlalchemy import func, select
@@ -17,6 +21,7 @@ from app.core.config import get_settings
 from app.core.constants import INDEX_CODES
 from app.models.kline import KlineDaily
 from app.models.limit_up_pool import LimitUpPool
+from app.models.market_amount import MarketAmount
 from app.models.market_breadth import MarketBreadth
 from app.models.sector_fund_flow import SectorFundFlow
 from app.models.watchlist import UserWatchlist
@@ -24,8 +29,14 @@ from app.repositories.kline_repository import (
     PERIOD_BUCKET,
     fetch_aggregated_bars,
     fetch_daily_bars,
+    fetch_max_daily_date,
+    fetch_minute_bars,
+    has_daily_bar,
+    latest_minute_day,
+    prev_minute_close,
 )
 from app.schemas.market import (
+    CollectTaskResult,
     IndexIntradayPoint,
     IndexIntradayResponse,
     IndexKlineBar,
@@ -41,22 +52,9 @@ from app.schemas.market import (
     WatchlistQuoteItem,
 )
 
-_INDEX_CACHE_KEY = "market:indices"
-_INDEX_CACHE_TTL = 60
-_TREND_CACHE_KEY = "market:index_trend:{code}"
-_TREND_CACHE_TTL = 6 * 3600
+_INDEX_SPOT_KEY = "market:index_spot"
 _TREND_DAYS = 30
-_HIST_BREADTH_CACHE_KEY = "market:breadth:{date}"
-_INDEX_DAILY_CACHE_KEY = "market:index_daily:{code}"
-_INDEX_DAILY_CACHE_TTL = 6 * 3600
-_BROKEN_CACHE_KEY = "market:broken_pool"
-_BROKEN_CACHE_TTL = 300
-_ZT_POOL_CACHE_KEY = "market:zt_pool:{date}"
-_INTRADAY_CACHE_KEY = "market:index_intraday:{code}"
-_INTRADAY_CACHE_TTL = 60
-_HIST_CACHE_TTL = 24 * 3600
-_AMOUNT_CACHE_KEY = "market:amount_pair:{date}"
-_AMOUNT_CACHE_TTL = 6 * 3600
+_CN_TZ = ZoneInfo("Asia/Shanghai")
 
 
 _redis_client: Any = None
@@ -70,228 +68,63 @@ def _redis() -> Any:
     return _redis_client
 
 
-async def _cache_get(key: str) -> Any:
-    raw = await _redis().get(key)
+async def _index_spot() -> list[dict[str, Any]] | None:
+    """采集器写入的指数实时快照；采集器尚未覆盖时为 None。"""
+    raw = await _redis().get(_INDEX_SPOT_KEY)
     return json.loads(raw) if raw else None
 
 
-async def _cache_set(key: str, value: Any, ttl: int) -> None:
-    await _redis().setex(key, ttl, json.dumps(value, ensure_ascii=False, default=str))
-
-
-def _fetch_index_spot() -> list[dict[str, Any]]:
-    import akshare as ak  # type: ignore[import-untyped]
-
-    df = ak.stock_zh_index_spot_sina()
-    rows: list[dict[str, Any]] = []
-    for code, name in INDEX_CODES.items():
-        matched = df[df["代码"] == code]
-        if matched.empty:
-            continue
-        row = matched.iloc[0]
-        rows.append(
-            {
-                "code": code,
-                "name": name,
-                "price": float(row["最新价"]),
-                "change": float(row["涨跌额"]),
-                "change_pct": float(row["涨跌幅"]),
-                "amount": float(row["成交额"]),
-            }
-        )
-    return rows
-
-
-def _fetch_index_trend(code: str) -> list[float]:
-    import akshare as ak  # type: ignore[import-untyped]
-
-    df = ak.stock_zh_index_daily(symbol=code)
-    closes = df["close"].tail(_TREND_DAYS).tolist()
-    return [float(value) for value in closes]
-
-
-def _fetch_broken_pool_count(trade_date: date) -> int:
-    import akshare as ak  # type: ignore[import-untyped]
-
-    df = ak.stock_zt_pool_zbgc_em(date=trade_date.strftime("%Y%m%d"))
-    return 0 if df is None else len(df)
-
-
-def _fetch_limit_down_count(trade_date: date) -> int:
-    """东财跌停池（支持历史日期），非交易日或无数据时返回 0。"""
-    import akshare as ak  # type: ignore[import-untyped]
-
-    try:
-        df = ak.stock_zt_pool_dtgc_em(date=trade_date.strftime("%Y%m%d"))
-    except Exception:  # noqa: BLE001
-        return 0
-    return 0 if df is None else len(df)
-
-
-def _fetch_zt_pool_items(trade_date: date) -> list[dict[str, Any]]:
-    """东财涨停池（支持历史日期），字段与 LimitUpItem 对齐。"""
-    import akshare as ak  # type: ignore[import-untyped]
-
-    try:
-        df = ak.stock_zt_pool_em(date=trade_date.strftime("%Y%m%d"))
-    except Exception:  # noqa: BLE001
-        return []
-    if df is None or df.empty:
-        return []
-    return [
-        {
-            "stock_code": str(row["代码"]),
-            "stock_name": str(row["名称"]),
-            "change_pct": float(row["涨跌幅"]),
-            "latest_price": float(row["最新价"]),
-            "sealed_amount": float(row["封板资金"]),
-            "first_seal_time": str(row["首次封板时间"]),
-            "last_seal_time": str(row["最后封板时间"]),
-            "break_count": int(row["炸板次数"]),
-            "limit_stat": str(row["涨停统计"]),
-            "consecutive_boards": int(row["连板数"]),
-            "industry": str(row["所属行业"]),
-        }
-        for _, row in df.iterrows()
-    ]
-
-
-async def _zt_pool_items(trade_date: date) -> list[dict[str, Any]]:
-    """东财涨停池（Redis 缓存：历史 24h，当日 300s）。"""
-    cache_key = _ZT_POOL_CACHE_KEY.format(date=trade_date.isoformat())
-    cached = await _cache_get(cache_key)
-    if cached is not None:
-        return cast(list[dict[str, Any]], cached)
-    items = await asyncio.to_thread(_fetch_zt_pool_items, trade_date)
-    ttl = _HIST_CACHE_TTL if trade_date < date.today() else _BROKEN_CACHE_TTL
-    await _cache_set(cache_key, items, ttl)
-    return items
-
-
-def _fetch_index_daily(code: str) -> list[dict[str, Any]]:
-    """新浪指数日线全历史（date/close），用于历史日期复盘。"""
-    import akshare as ak  # type: ignore[import-untyped]
-
-    df = ak.stock_zh_index_daily(symbol=code)
-    if df is None or df.empty:
-        return []
-    return [
-        {"date": str(row["date"])[:10], "close": float(row["close"])}
-        for _, row in df.iterrows()
-    ]
-
-
-def _fetch_index_intraday(code: str, trade_date: date | None) -> dict[str, Any]:
-    """新浪分钟级指数行情（约最近 8 个交易日），截取目标交易日。
-
-    返回目标日分钟点、目标日前一交易日收盘（取自分钟序列，可能为 None）。
-    """
-    import akshare as ak  # type: ignore[import-untyped]
-
-    df = ak.stock_zh_a_minute(symbol=code, period="1", adjust="")
-    if df is None or df.empty:
-        return {"trade_date": None, "points": [], "prev_close": None}
-    dates = df["day"].str.slice(0, 10)
-    target = trade_date.isoformat() if trade_date else str(dates.max())
-    day_df = df[dates == target]
-    points = [
-        {
-            "time": str(row["day"])[11:16],
-            "price": float(row["close"]),
-            "volume": float(row["volume"]),
-            "amount": float(row["amount"]),
-        }
-        for _, row in day_df.iterrows()
-    ]
-    prev_close: float | None = None
-    earlier = sorted(d for d in dates.unique() if d < target)
-    if earlier:
-        prev_close = float(df[dates == earlier[-1]].iloc[-1]["close"])
-    return {"trade_date": target, "points": points, "prev_close": prev_close}
-
-
-def _fetch_official_amount(day: date) -> float | None:
-    """交易所官方两市成交额（元）。非交易日或数据未发布时返回 None。"""
-    import akshare as ak  # type: ignore[import-untyped]
-
-    try:
-        sse = ak.stock_sse_deal_daily(date=day.strftime("%Y%m%d"))
-        szse = ak.stock_szse_summary(date=day.strftime("%Y%m%d"))
-        sse_amount = float(sse.loc[sse["单日情况"] == "成交金额", "股票"].iloc[0])
-        szse_amount = float(szse.loc[szse["证券类别"] == "股票", "成交金额"].iloc[0])
-    except Exception:  # noqa: BLE001
-        return None
-    return sse_amount * 1e8 + szse_amount
-
-
-def _fetch_amount_pair(trade_date: date) -> dict[str, float | None]:
-    """指定交易日与前一交易日的两市成交额（元）。"""
-    amount = _fetch_official_amount(trade_date)
-    prev_amount: float | None = None
-    day = trade_date - timedelta(days=1)
-    for _ in range(7):
-        prev_amount = _fetch_official_amount(day)
-        if prev_amount is not None:
-            break
-        day -= timedelta(days=1)
-    return {"amount": amount, "prev_amount": prev_amount}
-
-
 async def get_index_intraday(
-    code: str, trade_date: date | None = None
+    session: AsyncSession, code: str, trade_date: date | None = None
 ) -> IndexIntradayResponse:
-    """指数分时图数据（价格 + 量能）。
+    """指数分时图数据（价格 + 量能），只读 kline_minute（采集器每分钟写入）。
 
-    最新交易日缓存 60s；历史日期（数据不可变）缓存 24h。
-    新浪分钟序列仅覆盖约 8 个交易日，超出范围的历史日期抛出 ValueError。
+    默认取表内最近交易日；指定历史日期时取当日分钟序列，无数据抛
+    ValueError（分钟线自采集上线起累积，更早日期不存在）。
+    昨收优先取前一交易日分钟尾 bar，缺失时回退日 K 收盘。
     """
     if code not in INDEX_CODES:
         raise ValueError(f"不支持的指数代码: {code}")
 
-    cache_key = (
-        _INTRADAY_CACHE_KEY.format(code=code)
-        if trade_date is None
-        else f"market:index_intraday:{code}:{trade_date.isoformat()}"
-    )
-    cached = await _cache_get(cache_key)
-    if cached:
-        return IndexIntradayResponse(**cached)
-
-    intraday = await asyncio.to_thread(_fetch_index_intraday, code, trade_date)
-    points = [IndexIntradayPoint(**item) for item in intraday["points"]]
-    if trade_date is not None and not points:
-        raise ValueError(
-            f"{trade_date.isoformat()} 无分时数据（仅支持最近约 8 个交易日）"
+    target = trade_date or await latest_minute_day(session, code)
+    if target is None:
+        return IndexIntradayResponse(
+            code=code, name=INDEX_CODES[code], trade_date=date.today(),
+            prev_close=0.0, points=[],
         )
 
-    prev_close = intraday["prev_close"]
-    if trade_date is None:
-        # 最新交易日用实时快照计算昨收（更精确），分钟序列昨收作兜底
-        spot = await _cache_get(_INDEX_CACHE_KEY)
-        if spot is None:
-            spot = await asyncio.to_thread(_fetch_index_spot)
-            await _cache_set(_INDEX_CACHE_KEY, spot, _INDEX_CACHE_TTL)
-        matched = next((item for item in spot if item["code"] == code), None)
-        if matched:
-            prev_close = round(matched["price"] - matched["change"], 3)
-    if prev_close is None:
-        prev_close = points[0].price if points else 0.0
+    bars = await fetch_minute_bars(session, code, target)
+    if trade_date is not None and not bars:
+        raise ValueError(f"{target.isoformat()} 无分时数据")
 
-    resolved_date = (
-        date.fromisoformat(intraday["trade_date"])
-        if intraday["trade_date"]
-        else date.today()
-    )
-    response = IndexIntradayResponse(
+    prev_close = await prev_minute_close(session, code, target)
+    if prev_close is None:
+        daily = await fetch_daily_bars(session, code, end_date=target, limit=2)
+        earlier = [bar for bar in daily if bar.trade_date < target and bar.close]
+        prev_close = (
+            float(earlier[0].close)  # type: ignore[arg-type]
+            if earlier
+            else None
+        )
+    if prev_close is None:
+        prev_close = float(bars[0].close) if bars and bars[0].close else 0.0
+
+    points = [
+        IndexIntradayPoint(
+            time=bar.trade_time.astimezone(_CN_TZ).strftime("%H:%M"),
+            price=float(bar.close) if bar.close is not None else 0.0,
+            volume=float(bar.volume) if bar.volume is not None else 0.0,
+            amount=float(bar.amount) if bar.amount is not None else 0.0,
+        )
+        for bar in bars
+    ]
+    return IndexIntradayResponse(
         code=code,
         name=INDEX_CODES[code],
-        trade_date=resolved_date,
+        trade_date=target,
         prev_close=prev_close,
         points=points,
     )
-    ttl = _INTRADAY_CACHE_TTL if trade_date is None else _HIST_CACHE_TTL
-    await _cache_set(cache_key, response.model_dump(mode="json"), ttl)
-    return response
 
 
 async def _local_index_closes(
@@ -302,20 +135,34 @@ async def _local_index_closes(
     return [float(bar.close) for bar in reversed(bars) if bar.close is not None]
 
 
-async def _index_trend(session: AsyncSession, code: str) -> list[float]:
-    """单指数近 30 日收盘趋势（本地库优先，akshare 兜底；Redis 缓存 6h）。"""
-    trend_key = _TREND_CACHE_KEY.format(code=code)
-    trend = await _cache_get(trend_key)
-    if trend is None:
-        trend = await _local_index_closes(session, code, None, _TREND_DAYS)
-        if not trend:
-            try:
-                trend = await asyncio.to_thread(_fetch_index_trend, code)
-            except Exception:
-                trend = []
-        if trend:
-            await _cache_set(trend_key, trend, _TREND_CACHE_TTL)
-    return cast(list[float], trend)
+async def _db_index_spot(session: AsyncSession) -> list[dict[str, Any]]:
+    """实时快照缺失时的降级：由 kline_daily 最近两根日 K 合成行情快照。"""
+    quotes: list[dict[str, Any]] = []
+    for code, name in INDEX_CODES.items():
+        bars = await fetch_daily_bars(session, code, limit=2)
+        bars = [bar for bar in bars if bar.close is not None]
+        if not bars:
+            continue
+        latest = bars[0]
+        close = float(latest.close)  # type: ignore[arg-type]
+        prev = float(bars[1].close) if len(bars) > 1 and bars[1].close else None
+        change = round(close - prev, 3) if prev else None
+        quotes.append(
+            {
+                "code": code,
+                "name": name,
+                "price": close,
+                "change": change,
+                "change_pct": (
+                    round(change / prev * 100, 2) if change is not None and prev
+                    else None
+                ),
+                "amount": (
+                    float(latest.amount) if latest.amount is not None else None
+                ),
+            }
+        )
+    return quotes
 
 
 async def get_index_quotes(
@@ -324,21 +171,23 @@ async def get_index_quotes(
 ) -> list[IndexQuoteResponse]:
     """四大指数行情（含近 30 日收盘趋势）。
 
-    默认取实时快照（Redis 缓存 60s）；指定历史交易日时从本地
-    kline_daily 取当日收盘与涨跌（无本地数据回退新浪日线）。
+    默认取采集器写入 Redis 的实时快照（缺失时由日 K 合成）；
+    指定历史交易日时从本地 kline_daily 取当日收盘与涨跌。
+    趋势与日 K 均只读本地库，请求路径不触达数据源。
     """
     if trade_date is not None:
         quotes = await _historical_index_quotes(session, trade_date)
         if quotes or trade_date < date.today():
             return quotes
         # 当日盘中日线尚未更新，回退实时快照
-    spot = await _cache_get(_INDEX_CACHE_KEY)
+    spot = await _index_spot()
     if spot is None:
-        spot = await asyncio.to_thread(_fetch_index_spot)
-        await _cache_set(_INDEX_CACHE_KEY, spot, _INDEX_CACHE_TTL)
+        spot = await _db_index_spot(session)
 
-    # 各指数趋势读取互相独立，并行避免串行等待
-    trends = await asyncio.gather(*(_index_trend(session, item["code"]) for item in spot))
+    trends = [
+        await _local_index_closes(session, item["code"], None, _TREND_DAYS)
+        for item in spot
+    ]
     return [
         IndexQuoteResponse(**item, trend=trend)
         for item, trend in zip(spot, trends, strict=True)
@@ -348,22 +197,15 @@ async def get_index_quotes(
 async def _index_daily_series(
     session: AsyncSession, code: str, end_date: date
 ) -> list[dict[str, Any]]:
-    """单指数日线序列（本地库取 end_date 前最近一段；akshare 全历史兜底）。"""
+    """单指数日线序列（本地 kline_daily 取 end_date 前最近一段）。"""
     bars = await fetch_daily_bars(
         session, code, end_date=end_date, limit=_TREND_DAYS + 1
     )
-    if bars:
-        return [
-            {"date": bar.trade_date.isoformat(), "close": float(bar.close)}
-            for bar in reversed(bars)
-            if bar.close is not None
-        ]
-    daily_key = _INDEX_DAILY_CACHE_KEY.format(code=code)
-    series = await _cache_get(daily_key)
-    if series is None:
-        series = await asyncio.to_thread(_fetch_index_daily, code)
-        await _cache_set(daily_key, series, _INDEX_DAILY_CACHE_TTL)
-    return cast(list[dict[str, Any]], series)
+    return [
+        {"date": bar.trade_date.isoformat(), "close": float(bar.close)}
+        for bar in reversed(bars)
+        if bar.close is not None
+    ]
 
 
 async def _historical_index_quotes(
@@ -535,37 +377,51 @@ async def _historical_breadth(
 
     优先取 market_breadth 当日行（采集器收盘后写入，含涨跌家数）；
     该表未覆盖的更早日期回退旧口径：涨停数取数据库涨停池（与涨停梯队
-    口径一致），跌停数取东财跌停池，上涨/下跌/平盘家数返回 None。
-    回退结果按日期缓存 24h（历史数据不可变）。
+    口径一致），跌停/上涨/下跌/平盘家数返回 None/0。
     """
     row = await session.scalar(
         select(MarketBreadth).where(MarketBreadth.trade_date == trade_date)
     )
-    if row is not None:
+    if row is not None and row.limit_up_count is not None:
         return _breadth_dict(row)
-
-    cache_key = _HIST_BREADTH_CACHE_KEY.format(date=trade_date.isoformat())
-    cached = await _cache_get(cache_key)
-    if cached is not None:
-        return cast(dict[str, Any], cached)
 
     limit_up = await session.scalar(
         select(func.count())
         .select_from(LimitUpPool)
         .where(LimitUpPool.trade_date == trade_date)
     ) or 0
-    if not limit_up:
-        limit_up = len(await _zt_pool_items(trade_date))
-    limit_down = await asyncio.to_thread(_fetch_limit_down_count, trade_date)
-    breadth: dict[str, Any] = {
+    return {
         "up_count": None,
         "down_count": None,
         "flat_count": None,
-        "limit_up_count": limit_up or 0,
-        "limit_down_count": limit_down,
+        "limit_up_count": limit_up,
+        "limit_down_count": (
+            row.limit_down_count
+            if row is not None and row.limit_down_count is not None
+            else 0
+        ),
     }
-    await _cache_set(cache_key, breadth, _HIST_CACHE_TTL)
-    return breadth
+
+
+async def _amount_pair(
+    session: AsyncSession, resolved: date
+) -> tuple[float | None, float | None]:
+    """官方成交额（含前一有数据交易日），只读 market_amount 表。"""
+    rows = (
+        await session.execute(
+            select(MarketAmount)
+            .where(MarketAmount.trade_date <= resolved)
+            .order_by(MarketAmount.trade_date.desc())
+            .limit(2)
+        )
+    ).scalars().all()
+    amount = float(rows[0].amount) if rows and rows[0].amount is not None else None
+    prev = (
+        float(rows[1].amount)
+        if len(rows) > 1 and rows[1].amount is not None
+        else None
+    )
+    return amount, prev
 
 
 async def get_market_stats(
@@ -573,11 +429,10 @@ async def get_market_stats(
 ) -> MarketStatsResponse:
     """涨跌家数、成交额（含环比）与情绪温度。
 
-    涨跌统计统一读 market_breadth 表（采集器交易时段每 5 分钟写入）：
-    当日取不晚于 resolved 的最新一行，历史取当日精确行；该表未覆盖的
-    更早日期回退旧口径（涨跌停取数据库/东财历史池，涨跌家数 None）。
+    全部读库：涨跌统计取 market_breadth（采集器交易时段每 5 分钟写入），
+    成交额取 market_amount（交易所官方盘后发布，盘中用指数快照成交额估算）。
     """
-    latest_date = await _latest_limit_up_date(session) or date.today()
+    latest_date = await resolve_latest_trade_date(session)
     resolved = trade_date or latest_date
     is_live = resolved >= latest_date
 
@@ -586,21 +441,16 @@ async def get_market_stats(
     else:
         breadth = await _historical_breadth(session, resolved)
 
-    amount_key = _AMOUNT_CACHE_KEY.format(date=resolved.isoformat())
-    amount_pair = await _cache_get(amount_key)
-    if amount_pair is None:
-        amount_pair = await asyncio.to_thread(_fetch_amount_pair, resolved)
-        await _cache_set(amount_key, amount_pair, _AMOUNT_CACHE_TTL)
-
-    amount = amount_pair.get("amount")
-    prev_amount = amount_pair.get("prev_amount")
+    amount, prev_amount = await _amount_pair(session, resolved)
     if amount is None and is_live:
-        # 交易所官方数据尚未发布时（盘中）回退到实时行情估算
-        indices = await get_index_quotes(session)
+        # 交易所官方数据盘后发布，盘中回退到指数快照成交额估算
+        spot = await _index_spot()
+        if spot is None:
+            spot = await _db_index_spot(session)
         amount = sum(
-            (quote.amount or 0)
-            for quote in indices
-            if quote.code in ("sh000001", "sz399001")
+            (item.get("amount") or 0)
+            for item in spot
+            if item["code"] in ("sh000001", "sz399001")
         ) or None
 
     amount_change = None
@@ -644,8 +494,39 @@ async def get_market_stats(
     )
 
 
-async def _latest_limit_up_date(session: AsyncSession) -> date | None:
-    return await session.scalar(select(func.max(LimitUpPool.trade_date)))
+_INDEX_BENCHMARK = "sh000001"
+
+
+async def resolve_latest_trade_date(session: AsyncSession) -> date:
+    """最近交易日：以指数日 K 为权威。
+
+    盘中日 K 未出时，若当日已有涨跌统计（采集器盘中写入）则取当日；
+    否则回退到最近一根指数日 K 的日期。避免被涨停池等
+    可能被非交易日污染表的 max(trade_date) 带偏。
+    """
+    today = date.today()
+    kline_max = await fetch_max_daily_date(session, _INDEX_BENCHMARK)
+    if kline_max is None:
+        return today
+    if today > kline_max and today.weekday() < 5:
+        has_breadth = await session.scalar(
+            select(func.count())
+            .select_from(MarketBreadth)
+            .where(MarketBreadth.trade_date == today)
+        )
+        if has_breadth:
+            return today
+    return kline_max
+
+
+async def is_trading_day(session: AsyncSession, day: date) -> bool:
+    """以指数日 K 为准判断交易日；日 K 未覆盖的近期工作日按交易日放行。"""
+    if day.weekday() >= 5:
+        return False
+    kline_max = await fetch_max_daily_date(session, _INDEX_BENCHMARK)
+    if kline_max is None or day > kline_max:
+        return True
+    return await has_daily_bar(session, _INDEX_BENCHMARK, day)
 
 
 async def _limit_up_rates(
@@ -671,13 +552,6 @@ async def _limit_up_rates(
                 LimitUpPool.consecutive_boards >= 2,
             )
         )
-    else:
-        pool = await _zt_pool_items(trade_date)
-        if pool:
-            total = len(pool)
-            continuous = sum(
-                1 for item in pool if (item["consecutive_boards"] or 0) >= 2
-            )
 
     continuous_rate = (
         round(continuous / total, 4)
@@ -685,16 +559,12 @@ async def _limit_up_rates(
         else None
     )
 
-    cache_key = f"{_BROKEN_CACHE_KEY}:{trade_date.isoformat()}"
-    broken_count = await _cache_get(cache_key)
-    if broken_count is None:
-        try:
-            broken_count = await asyncio.to_thread(
-                _fetch_broken_pool_count, trade_date
-            )
-            await _cache_set(cache_key, broken_count, _BROKEN_CACHE_TTL)
-        except Exception:
-            broken_count = None
+    # 炸板家数由 eastmoney_broken_pool 任务盘后写入 market_breadth
+    broken_count = await session.scalar(
+        select(MarketBreadth.broken_count).where(
+            MarketBreadth.trade_date == trade_date
+        )
+    )
 
     broken_rate = (
         round(broken_count / (total + broken_count), 4)
@@ -720,13 +590,13 @@ def _limit_up_response(resolved: date, items: list[LimitUpItem]) -> LimitUpRespo
 async def get_limit_up(
     session: AsyncSession, trade_date: date | None = None
 ) -> LimitUpResponse:
-    """涨停板与连板天梯，默认取最近一个有数据的交易日。
+    """涨停板与连板天梯（只读 limit_up_pool）。
 
-    数据库无当日数据时（历史日期）回退到东财历史涨停池。
+    默认取最近交易日：盘中未收盘时当日涨停池尚未写入，返回空（前端
+    提示未收盘），不回退展示前一交易日的旧数据；周末/节假日解析到
+    最近一根指数日 K 的日期，展示该日收盘池。
     """
-    resolved = trade_date or await _latest_limit_up_date(session)
-    if resolved is None:
-        return LimitUpResponse(trade_date=date.today())
+    resolved = trade_date or await resolve_latest_trade_date(session)
 
     stmt = (
         select(LimitUpPool)
@@ -739,16 +609,7 @@ async def get_limit_up(
     rows = list((await session.execute(stmt)).scalars().all())
 
     if not rows:
-        pool_items = [
-            LimitUpItem(**item) for item in await _zt_pool_items(resolved)
-        ]
-        pool_items.sort(
-            key=lambda item: (
-                -(item.consecutive_boards or 0),
-                -(item.sealed_amount or 0),
-            )
-        )
-        return _limit_up_response(resolved, pool_items)
+        return _limit_up_response(resolved, [])
 
     items = [
         LimitUpItem(
@@ -778,14 +639,12 @@ async def get_sector_overview(
     trade_date: date | None = None,
     sector_type: str = "industry",
 ) -> SectorOverviewResponse:
-    """板块热力图 + 资金净流入/流出 TOP5 + 领涨板块。"""
-    resolved = trade_date or await session.scalar(
-        select(func.max(SectorFundFlow.trade_date)).where(
-            SectorFundFlow.sector_type == sector_type
-        )
-    )
-    if resolved is None:
-        return SectorOverviewResponse(trade_date=date.today())
+    """板块热力图 + 资金净流入/流出 TOP5 + 领涨板块。
+
+    默认取最近交易日（与涨停池同口径）：盘中未收盘时当日板块资金
+    尚未写入，返回空（前端提示未收盘），不回退展示前一交易日的旧数据。
+    """
+    resolved = trade_date or await resolve_latest_trade_date(session)
 
     stmt = select(SectorFundFlow).where(
         SectorFundFlow.sector_type == sector_type,
@@ -925,5 +784,45 @@ async def get_watchlist_quotes(
                 tags=list(item.tags or []),
                 updated_at=kline.trade_date.isoformat() if kline else None,
             )
+        )
+    return results
+
+
+_BACKFILL_TASKS = (
+    "limit-up-pool",
+    "broken-pool",
+    "limit-down-pool",
+    "market-amount",
+    "sector-fund-flow",
+)
+
+
+class NonTradingDayError(ValueError):
+    """指定日期不是交易日。"""
+
+
+async def backfill_trade_date(
+    session: AsyncSession, trade_date: date
+) -> list[CollectTaskResult]:
+    """补采指定交易日的行情数据（涨停池/炸板池/跌停池/成交额/板块资金流）。
+
+    任务经队列异步执行（板块资金流受东财限流约束约需 10 分钟），
+    返回各任务的派发结果；涨跌家数（market_breadth）为盘中快照，
+    数据源无历史，无法补采。
+    """
+    if not await is_trading_day(session, trade_date):
+        raise NonTradingDayError(
+            f"{trade_date.isoformat()} 不是交易日，无法补采数据"
+        )
+
+    from collector.runtime.dispatcher import dispatch_collector_task
+
+    results: list[CollectTaskResult] = []
+    for task in _BACKFILL_TASKS:
+        await dispatch_collector_task(
+            session, task, {"trade_date": trade_date.isoformat()}
+        )
+        results.append(
+            CollectTaskResult(task=task, status="dispatched", items_collected=0)
         )
     return results

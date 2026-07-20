@@ -1,8 +1,9 @@
 """Unit tests for market overview service."""
 
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -32,45 +33,38 @@ def _limit_up_row(**overrides):
 
 
 @pytest.mark.unit
-class TestFetchAmountPair:
-    def test_walks_back_over_non_trading_days(self) -> None:
-        amounts = {
-            date(2026, 7, 17): 2.66e12,
-            date(2026, 7, 16): 2.41e12,
-        }
+class TestAmountPair:
+    """官方成交额只读 market_amount：最新两行即当日与前一有数据交易日。"""
 
-        def fake_official(day: date) -> float | None:
-            return amounts.get(day)
+    @pytest.mark.asyncio
+    async def test_returns_latest_two_rows(self) -> None:
+        rows = [
+            MagicMock(amount=Decimal("2660000000000")),
+            MagicMock(amount=Decimal("2410000000000")),
+        ]
+        session = AsyncMock()
+        session.execute.return_value = _scalars_result(rows)
 
-        with patch.object(
-            market_service, "_fetch_official_amount", side_effect=fake_official
-        ):
-            pair = market_service._fetch_amount_pair(date(2026, 7, 17))
+        amount, prev = await market_service._amount_pair(session, date(2026, 7, 17))
 
-        assert pair["amount"] == 2.66e12
-        assert pair["prev_amount"] == 2.41e12
+        assert amount == 2.66e12
+        assert prev == 2.41e12
 
-    def test_skips_weekend_to_find_prev(self) -> None:
-        amounts = {
-            date(2026, 7, 20): 2.5e12,  # 周一
-            date(2026, 7, 17): 2.66e12,  # 上周五
-        }
+    @pytest.mark.asyncio
+    async def test_empty_returns_none_pair(self) -> None:
+        session = AsyncMock()
+        session.execute.return_value = _scalars_result([])
 
-        def fake_official(day: date) -> float | None:
-            return amounts.get(day)
-
-        with patch.object(
-            market_service, "_fetch_official_amount", side_effect=fake_official
-        ):
-            pair = market_service._fetch_amount_pair(date(2026, 7, 20))
-
-        assert pair["prev_amount"] == 2.66e12
+        assert await market_service._amount_pair(session, date(2026, 7, 17)) == (
+            None,
+            None,
+        )
 
 
 @pytest.mark.unit
 class TestGetIndexQuotes:
     @pytest.mark.asyncio
-    async def test_uses_cache_when_present(self) -> None:
+    async def test_uses_redis_spot_when_present(self) -> None:
         spot = [
             {
                 "code": "sh000001",
@@ -82,10 +76,12 @@ class TestGetIndexQuotes:
             }
         ]
         with (
+            patch.object(market_service, "_index_spot", AsyncMock(return_value=spot)),
             patch.object(
-                market_service, "_cache_get", AsyncMock(side_effect=[spot, [1.0, 2.0]])
+                market_service,
+                "_local_index_closes",
+                AsyncMock(return_value=[1.0, 2.0]),
             ),
-            patch.object(market_service, "_cache_set", AsyncMock()),
         ):
             quotes = await market_service.get_index_quotes(AsyncMock())
 
@@ -94,8 +90,8 @@ class TestGetIndexQuotes:
         assert quotes[0].trend == [1.0, 2.0]
 
     @pytest.mark.asyncio
-    async def test_fetches_and_caches_when_empty(self) -> None:
-        spot = [
+    async def test_db_spot_when_redis_empty(self) -> None:
+        db_spot = [
             {
                 "code": "sz399001",
                 "name": "深证成指",
@@ -106,118 +102,131 @@ class TestGetIndexQuotes:
             }
         ]
         with (
-            patch.object(market_service, "_cache_get", AsyncMock(return_value=None)),
-            patch.object(market_service, "_cache_set", AsyncMock()) as cache_set,
+            patch.object(market_service, "_index_spot", AsyncMock(return_value=None)),
             patch.object(
-                market_service, "_fetch_index_spot", MagicMock(return_value=spot)
+                market_service, "_db_index_spot", AsyncMock(return_value=db_spot)
             ),
             patch.object(
-                market_service, "fetch_daily_bars", AsyncMock(return_value=[])
-            ),
-            patch.object(
-                market_service, "_fetch_index_trend", MagicMock(return_value=[1.0])
+                market_service, "_local_index_closes", AsyncMock(return_value=[1.0])
             ),
         ):
             quotes = await market_service.get_index_quotes(AsyncMock())
 
         assert quotes[0].name == "深证成指"
-        assert cache_set.await_count >= 2
+        assert quotes[0].price == 10868.24
+
+    @pytest.mark.asyncio
+    async def test_db_index_spot_synthesizes_from_daily_bars(self) -> None:
+        def _bar(day: date, close: float) -> MagicMock:
+            bar = MagicMock()
+            bar.trade_date = day
+            bar.close = close
+            bar.amount = Decimal("5000")
+            return bar
+
+        bars = [_bar(date(2026, 7, 17), 101.0), _bar(date(2026, 7, 16), 100.0)]
+        with patch.object(
+            market_service, "fetch_daily_bars", AsyncMock(return_value=bars)
+        ):
+            spot = await market_service._db_index_spot(AsyncMock())
+
+        assert len(spot) == len(market_service.INDEX_CODES)
+        assert spot[0]["price"] == 101.0
+        assert spot[0]["change"] == 1.0
+        assert spot[0]["change_pct"] == 1.0
+        assert spot[0]["amount"] == 5000.0
 
 
 @pytest.mark.unit
 class TestGetIndexIntraday:
+    def _bar(self, ts: str, close: float) -> MagicMock:
+        bar = MagicMock()
+        bar.trade_time = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S").replace(
+            tzinfo=ZoneInfo("Asia/Shanghai")
+        )
+        bar.close = Decimal(str(close))
+        bar.volume = 100
+        bar.amount = Decimal("1000")
+        return bar
+
     @pytest.mark.asyncio
     async def test_rejects_unknown_code(self) -> None:
         with pytest.raises(ValueError, match="不支持的指数代码"):
-            await market_service.get_index_intraday("sh999999")
+            await market_service.get_index_intraday(AsyncMock(), "sh999999")
 
     @pytest.mark.asyncio
     async def test_builds_points_and_prev_close(self) -> None:
-        intraday = {
-            "trade_date": "2026-07-17",
-            "points": [
-                {"time": "09:31", "price": 3800.0, "volume": 1e8, "amount": 2e9},
-                {"time": "09:32", "price": 3801.5, "volume": 9e7, "amount": 1.8e9},
-            ],
-            "prev_close": 3781.0,
-        }
-        spot = [
-            {
-                "code": "sh000001",
-                "name": "上证指数",
-                "price": 3801.5,
-                "change": 20.5,
-                "change_pct": 0.54,
-                "amount": 5e11,
-            }
+        bars = [
+            self._bar("2026-07-17 09:31:00", 3800.0),
+            self._bar("2026-07-17 09:32:00", 3801.5),
         ]
         with (
-            patch.object(market_service, "_cache_get", AsyncMock(side_effect=[None, spot])),
-            patch.object(market_service, "_cache_set", AsyncMock()),
             patch.object(
-                market_service, "_fetch_index_intraday", MagicMock(return_value=intraday)
+                market_service,
+                "latest_minute_day",
+                AsyncMock(return_value=date(2026, 7, 17)),
+            ),
+            patch.object(
+                market_service, "fetch_minute_bars", AsyncMock(return_value=bars)
+            ),
+            patch.object(
+                market_service, "prev_minute_close", AsyncMock(return_value=3781.0)
             ),
         ):
-            result = await market_service.get_index_intraday("sh000001")
+            result = await market_service.get_index_intraday(AsyncMock(), "sh000001")
 
         assert result.trade_date == date(2026, 7, 17)
         assert result.prev_close == 3781.0
-        assert len(result.points) == 2
-        assert result.points[0].time == "09:31"
-        assert result.points[1].volume == 9e7
+        assert [p.time for p in result.points] == ["09:31", "09:32"]
+        assert result.points[1].price == 3801.5
+        assert result.points[0].volume == 100.0
 
     @pytest.mark.asyncio
-    async def test_historical_date_uses_series_prev_close(self) -> None:
-        intraday = {
-            "trade_date": "2026-07-16",
-            "points": [
-                {"time": "09:31", "price": 3780.0, "volume": 1e8, "amount": 2e9},
-            ],
-            "prev_close": 3775.0,
-        }
+    async def test_prev_close_falls_back_to_daily(self) -> None:
+        bars = [self._bar("2026-07-17 09:31:00", 3800.0)]
+        daily_bar = MagicMock()
+        daily_bar.trade_date = date(2026, 7, 16)
+        daily_bar.close = Decimal("3775")
         with (
-            patch.object(market_service, "_cache_get", AsyncMock(return_value=None)),
-            patch.object(market_service, "_cache_set", AsyncMock()) as cache_set,
             patch.object(
-                market_service, "_fetch_index_intraday", MagicMock(return_value=intraday)
-            ) as fetch,
+                market_service, "fetch_minute_bars", AsyncMock(return_value=bars)
+            ),
+            patch.object(
+                market_service, "prev_minute_close", AsyncMock(return_value=None)
+            ),
+            patch.object(
+                market_service,
+                "fetch_daily_bars",
+                AsyncMock(return_value=[daily_bar]),
+            ),
         ):
             result = await market_service.get_index_intraday(
-                "sh000001", date(2026, 7, 16)
+                AsyncMock(), "sh000001", date(2026, 7, 17)
             )
 
-        fetch.assert_called_once_with("sh000001", date(2026, 7, 16))
         assert result.prev_close == 3775.0
-        assert result.trade_date == date(2026, 7, 16)
-        # 历史数据缓存 24h
-        assert cache_set.await_args.args[2] == market_service._HIST_CACHE_TTL
 
     @pytest.mark.asyncio
-    async def test_historical_date_out_of_range_raises(self) -> None:
-        intraday = {"trade_date": "2026-06-01", "points": [], "prev_close": None}
+    async def test_historical_date_without_bars_raises(self) -> None:
         with (
-            patch.object(market_service, "_cache_get", AsyncMock(return_value=None)),
             patch.object(
-                market_service, "_fetch_index_intraday", MagicMock(return_value=intraday)
+                market_service, "fetch_minute_bars", AsyncMock(return_value=[])
             ),
             pytest.raises(ValueError, match="无分时数据"),
         ):
-            await market_service.get_index_intraday("sh000001", date(2026, 6, 1))
+            await market_service.get_index_intraday(
+                AsyncMock(), "sh000001", date(2026, 6, 1)
+            )
 
     @pytest.mark.asyncio
-    async def test_uses_cached_response(self) -> None:
-        cached = {
-            "code": "sz399006",
-            "name": "创业板指",
-            "trade_date": "2026-07-17",
-            "prev_close": 3400.0,
-            "points": [{"time": "09:31", "price": 3401.0, "volume": 1.0, "amount": 2.0}],
-        }
-        with patch.object(market_service, "_cache_get", AsyncMock(return_value=cached)):
-            result = await market_service.get_index_intraday("sz399006")
+    async def test_empty_when_no_minute_data(self) -> None:
+        with patch.object(
+            market_service, "latest_minute_day", AsyncMock(return_value=None)
+        ):
+            result = await market_service.get_index_intraday(AsyncMock(), "sh000001")
 
-        assert result.name == "创业板指"
-        assert result.prev_close == 3400.0
+        assert result.points == []
+        assert result.name == "上证指数"
 
 
 @pytest.mark.unit
@@ -235,12 +244,9 @@ class TestHistoricalBreadth:
         )
         session.scalar.return_value = row
 
-        with patch.object(
-            market_service, "_fetch_limit_down_count", MagicMock()
-        ) as fallback:
-            breadth = await market_service._historical_breadth(
-                session, date(2026, 7, 17)
-            )
+        breadth = await market_service._historical_breadth(
+            session, date(2026, 7, 17)
+        )
 
         assert breadth == {
             "up_count": 3000,
@@ -249,29 +255,62 @@ class TestHistoricalBreadth:
             "limit_up_count": 55,
             "limit_down_count": 12,
         }
-        fallback.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_uses_db_limit_up_and_em_limit_down(self) -> None:
+    async def test_falls_back_to_limit_up_pool_count(self) -> None:
+        """表内无当日行时：涨停数取 limit_up_pool 计数，其余为空口径。"""
         session = AsyncMock()
         # 第一次 scalar 查 market_breadth 行（无），第二次查涨停池家数
         session.scalar.side_effect = [None, 42]
 
-        with (
-            patch.object(market_service, "_cache_get", AsyncMock(return_value=None)),
-            patch.object(market_service, "_cache_set", AsyncMock()),
-            patch.object(
-                market_service, "_fetch_limit_down_count", MagicMock(return_value=33)
-            ),
-        ):
-            breadth = await market_service._historical_breadth(
-                session, date(2026, 7, 16)
-            )
+        breadth = await market_service._historical_breadth(
+            session, date(2026, 7, 16)
+        )
 
         assert breadth["limit_up_count"] == 42
-        assert breadth["limit_down_count"] == 33
+        assert breadth["limit_down_count"] == 0
         assert breadth["up_count"] is None
         assert breadth["down_count"] is None
+
+    @pytest.mark.asyncio
+    async def test_all_null_breadth_row_falls_back(self) -> None:
+        """非交易日运行残留的全空 breadth 行视为无数据，回退涨停池计数。"""
+        session = AsyncMock()
+        row = MagicMock(
+            up_count=None,
+            down_count=None,
+            flat_count=None,
+            limit_up_count=None,
+            limit_down_count=None,
+        )
+        session.scalar.side_effect = [row, 33]
+
+        breadth = await market_service._historical_breadth(
+            session, date(2026, 7, 17)
+        )
+
+        assert breadth["limit_up_count"] == 33
+        assert breadth["up_count"] is None
+
+    @pytest.mark.asyncio
+    async def test_fallback_preserves_row_limit_down_count(self) -> None:
+        """回退合并时保留行内跌停数（limit-down-pool 补采写入）。"""
+        session = AsyncMock()
+        row = MagicMock(
+            up_count=None,
+            down_count=None,
+            flat_count=None,
+            limit_up_count=None,
+            limit_down_count=9,
+        )
+        session.scalar.side_effect = [row, 33]
+
+        breadth = await market_service._historical_breadth(
+            session, date(2026, 7, 17)
+        )
+
+        assert breadth["limit_up_count"] == 33
+        assert breadth["limit_down_count"] == 9
 
     @pytest.mark.asyncio
     async def test_historical_stats_without_emotion(self) -> None:
@@ -279,7 +318,7 @@ class TestHistoricalBreadth:
         with (
             patch.object(
                 market_service,
-                "_latest_limit_up_date",
+                "resolve_latest_trade_date",
                 AsyncMock(return_value=date(2026, 7, 17)),
             ),
             patch.object(
@@ -297,16 +336,14 @@ class TestHistoricalBreadth:
             ),
             patch.object(
                 market_service,
-                "_fetch_amount_pair",
-                MagicMock(return_value={"amount": 2.4e12, "prev_amount": 2.2e12}),
+                "_amount_pair",
+                AsyncMock(return_value=(2.4e12, 2.2e12)),
             ),
             patch.object(
                 market_service,
                 "_limit_up_rates",
                 AsyncMock(return_value=(0.3, 0.2, 8)),
             ),
-            patch.object(market_service, "_cache_get", AsyncMock(return_value=None)),
-            patch.object(market_service, "_cache_set", AsyncMock()),
         ):
             stats = await market_service.get_market_stats(session, date(2026, 7, 16))
 
@@ -321,123 +358,57 @@ class TestHistoricalBreadth:
 
 
 @pytest.mark.unit
-class TestZtPoolFallback:
-    def _pool(self) -> list[dict]:
-        return [
-            {
-                "stock_code": "002632",
-                "stock_name": "道明光学",
-                "change_pct": 10.06,
-                "latest_price": 9.63,
-                "sealed_amount": 1.3e8,
-                "first_seal_time": "092500",
-                "last_seal_time": "092500",
-                "break_count": 0,
-                "limit_stat": "1/1",
-                "consecutive_boards": 1,
-                "industry": "塑料",
-            },
-            {
-                "stock_code": "603580",
-                "stock_name": "艾艾精工",
-                "change_pct": 9.99,
-                "latest_price": 40.84,
-                "sealed_amount": 2.7e8,
-                "first_seal_time": "092501",
-                "last_seal_time": "092501",
-                "break_count": 0,
-                "limit_stat": "6/5",
-                "consecutive_boards": 3,
-                "industry": "塑料",
-            },
-        ]
+class TestLimitUpRates:
+    """连板率读 limit_up_pool，炸板家数读 market_breadth.broken_count。"""
 
     @pytest.mark.asyncio
-    async def test_breadth_falls_back_to_em_pool(self) -> None:
+    async def test_rates_from_db(self) -> None:
         session = AsyncMock()
-        # 第一次 scalar 查 market_breadth 行（无），第二次查涨停池家数
-        session.scalar.side_effect = [None, 0]
+        # 依次：涨停总数、连板数、炸板家数
+        session.scalar.side_effect = [3, 1, 1]
 
-        with (
-            patch.object(market_service, "_cache_get", AsyncMock(return_value=None)),
-            patch.object(market_service, "_cache_set", AsyncMock()),
-            patch.object(
-                market_service,
-                "_fetch_zt_pool_items",
-                MagicMock(return_value=self._pool()),
-            ),
-            patch.object(
-                market_service, "_fetch_limit_down_count", MagicMock(return_value=33)
-            ),
-        ):
-            breadth = await market_service._historical_breadth(
-                session, date(2026, 7, 16)
-            )
+        continuous_rate, broken_rate, broken_count = (
+            await market_service._limit_up_rates(session, date(2026, 7, 16))
+        )
 
-        assert breadth["limit_up_count"] == 2
-        assert breadth["limit_down_count"] == 33
-
-    @pytest.mark.asyncio
-    async def test_rates_fall_back_to_em_pool(self) -> None:
-        session = AsyncMock()
-        session.scalar.return_value = 0
-
-        with (
-            patch.object(market_service, "_cache_get", AsyncMock(return_value=None)),
-            patch.object(market_service, "_cache_set", AsyncMock()),
-            patch.object(
-                market_service,
-                "_fetch_zt_pool_items",
-                MagicMock(return_value=self._pool()),
-            ),
-            patch.object(
-                market_service, "_fetch_broken_pool_count", MagicMock(return_value=1)
-            ),
-        ):
-            continuous_rate, broken_rate, broken_count = (
-                await market_service._limit_up_rates(session, date(2026, 7, 16))
-            )
-
-        assert continuous_rate == 0.5
+        assert continuous_rate == round(1 / 3, 4)
         assert broken_count == 1
-        assert broken_rate == round(1 / 3, 4)
+        assert broken_rate == 0.25
 
     @pytest.mark.asyncio
-    async def test_limit_up_falls_back_to_em_pool(self) -> None:
+    async def test_empty_pool_returns_none_rates(self) -> None:
         session = AsyncMock()
-        session.execute.return_value = _scalars_result([])
+        session.scalar.side_effect = [0, None]  # 无涨停池 → 跳过连板查询；无炸板行
 
-        with patch.object(
-            market_service,
-            "_zt_pool_items",
-            AsyncMock(return_value=self._pool()),
-        ):
-            result = await market_service.get_limit_up(session, date(2026, 7, 16))
+        continuous_rate, broken_rate, broken_count = (
+            await market_service._limit_up_rates(session, date(2026, 7, 16))
+        )
 
-        assert result.total == 2
-        assert result.continuous == 1
-        assert result.first_board == 1
-        assert result.max_boards == 3
-        assert result.items[0].stock_code == "603580"
-        assert result.ladder[0].stock_name == "艾艾精工"
+        assert continuous_rate is None
+        assert broken_rate is None
+        assert broken_count is None
 
 
 @pytest.mark.unit
 class TestHistoricalIndexQuotes:
+    """历史指数行情只读本地 kline_daily（服务层倒序反转为升序序列）。"""
+
+    def _bar(self, day: date, close: float) -> MagicMock:
+        bar = MagicMock()
+        bar.trade_date = day
+        bar.close = close
+        return bar
+
     @pytest.mark.asyncio
     async def test_picks_close_for_requested_date(self) -> None:
-        series = [
-            {"date": "2026-07-15", "close": 100.0},
-            {"date": "2026-07-16", "close": 102.0},
-            {"date": "2026-07-17", "close": 101.0},
+        # fetch_daily_bars 返回倒序（最新在前）
+        bars = [
+            self._bar(date(2026, 7, 17), 101.0),
+            self._bar(date(2026, 7, 16), 102.0),
+            self._bar(date(2026, 7, 15), 100.0),
         ]
-        with (
-            patch.object(
-                market_service, "fetch_daily_bars", AsyncMock(return_value=[])
-            ),
-            patch.object(
-                market_service, "_cache_get", AsyncMock(return_value=series)
-            ),
+        with patch.object(
+            market_service, "fetch_daily_bars", AsyncMock(return_value=bars)
         ):
             quotes = await market_service.get_index_quotes(
                 AsyncMock(), date(2026, 7, 16)
@@ -451,79 +422,15 @@ class TestHistoricalIndexQuotes:
 
     @pytest.mark.asyncio
     async def test_non_trading_day_returns_empty(self) -> None:
-        series = [{"date": "2026-07-17", "close": 100.0}]
-        with (
-            patch.object(
-                market_service, "fetch_daily_bars", AsyncMock(return_value=[])
-            ),
-            patch.object(
-                market_service, "_cache_get", AsyncMock(return_value=series)
-            ),
+        bars = [self._bar(date(2026, 7, 17), 100.0)]
+        with patch.object(
+            market_service, "fetch_daily_bars", AsyncMock(return_value=bars)
         ):
             quotes = await market_service.get_index_quotes(
                 AsyncMock(), date(2026, 7, 16)
             )
 
         assert quotes == []
-
-
-@pytest.mark.unit
-class TestFetchIndexIntradayHistory:
-    def _df(self):
-        import pandas as pd
-
-        rows = [
-            ("2026-07-16 09:31:00", 100.0),
-            ("2026-07-16 15:00:00", 101.0),
-            ("2026-07-17 09:31:00", 102.0),
-            ("2026-07-17 15:00:00", 103.0),
-        ]
-        return pd.DataFrame(
-            {
-                "day": [r[0] for r in rows],
-                "close": [r[1] for r in rows],
-                "volume": [1.0] * 4,
-                "amount": [2.0] * 4,
-            }
-        )
-
-    def test_filters_requested_day_and_prev_close(self) -> None:
-        import sys
-
-        fake_ak = MagicMock()
-        fake_ak.stock_zh_a_minute.return_value = self._df()
-        with patch.dict(sys.modules, {"akshare": fake_ak}):
-            result = market_service._fetch_index_intraday(
-                "sh000001", date(2026, 7, 16)
-            )
-
-        assert result["trade_date"] == "2026-07-16"
-        assert len(result["points"]) == 2
-        assert result["points"][0]["time"] == "09:31"
-        assert result["prev_close"] is None
-
-    def test_prev_close_from_previous_day(self) -> None:
-        import sys
-
-        fake_ak = MagicMock()
-        fake_ak.stock_zh_a_minute.return_value = self._df()
-        with patch.dict(sys.modules, {"akshare": fake_ak}):
-            result = market_service._fetch_index_intraday(
-                "sh000001", date(2026, 7, 17)
-            )
-
-        assert result["prev_close"] == 101.0
-
-    def test_latest_day_when_no_date(self) -> None:
-        import sys
-
-        fake_ak = MagicMock()
-        fake_ak.stock_zh_a_minute.return_value = self._df()
-        with patch.dict(sys.modules, {"akshare": fake_ak}):
-            result = market_service._fetch_index_intraday("sh000001", None)
-
-        assert result["trade_date"] == "2026-07-17"
-        assert result["prev_close"] == 101.0
 
 
 @pytest.mark.unit
@@ -550,12 +457,33 @@ class TestGetLimitUp:
     @pytest.mark.asyncio
     async def test_empty_when_no_data(self) -> None:
         session = AsyncMock()
-        session.scalar.return_value = None
-
-        result = await market_service.get_limit_up(session)
+        session.execute.return_value = _scalars_result([])
+        with patch.object(
+            market_service, "fetch_max_daily_date", AsyncMock(return_value=None)
+        ):
+            result = await market_service.get_limit_up(session)
 
         assert result.total == 0
         assert result.ladder == []
+        assert result.trade_date == date.today()
+
+    @pytest.mark.asyncio
+    async def test_intraday_today_does_not_fall_back_to_previous_pool(self) -> None:
+        """盘中（当日已有涨跌统计、涨停池未写入）返回当日空结果，而非旧池。"""
+        today = date.today()
+        session = AsyncMock()
+        session.scalar.return_value = 1  # 当日已有 market_breadth 行
+        session.execute.return_value = _scalars_result([])  # 当日涨停池为空
+        with patch.object(
+            market_service,
+            "fetch_max_daily_date",
+            AsyncMock(return_value=today - timedelta(days=3)),
+        ):
+            result = await market_service.get_limit_up(session)
+
+        expected = today if today.weekday() < 5 else today - timedelta(days=3)
+        assert result.trade_date == expected
+        assert result.total == 0
 
 
 @pytest.mark.unit
@@ -773,29 +701,6 @@ class TestHistoricalIndexQuotesLocal:
         assert quotes[0].change_pct == 1.0
         assert quotes[0].trend == [100.0, 101.0]
 
-    @pytest.mark.asyncio
-    async def test_falls_back_to_akshare_when_local_empty(self) -> None:
-        series = [
-            {"date": "2026-07-16", "close": 100.0},
-            {"date": "2026-07-17", "close": 102.0},
-        ]
-        with (
-            patch.object(
-                market_service, "fetch_daily_bars", AsyncMock(return_value=[])
-            ),
-            patch.object(
-                market_service, "_cache_get", AsyncMock(return_value=series)
-            ),
-        ):
-            quotes = await market_service._historical_index_quotes(
-                AsyncMock(), date(2026, 7, 17)
-            )
-
-        # 缓存序列对全部指数生效，每个指数都按同一序列出行情
-        assert len(quotes) == len(market_service.INDEX_CODES)
-        assert quotes[0].code == "sh000001"
-        assert quotes[0].change == 2.0
-
 
 @pytest.mark.unit
 class TestLiveBreadth:
@@ -833,3 +738,145 @@ class TestLiveBreadth:
         assert breadth["down_count"] is None
         assert breadth["limit_up_count"] == 0
         assert breadth["limit_down_count"] == 0
+
+
+@pytest.mark.unit
+class TestResolveLatestTradeDate:
+    @pytest.mark.asyncio
+    async def test_returns_today_when_no_kline(self) -> None:
+        session = AsyncMock()
+        with patch.object(
+            market_service, "fetch_max_daily_date", AsyncMock(return_value=None)
+        ):
+            assert await market_service.resolve_latest_trade_date(session) == (
+                date.today()
+            )
+
+    @pytest.mark.asyncio
+    async def test_intraday_returns_today_when_breadth_exists(self) -> None:
+        session = AsyncMock()
+        session.scalar.return_value = 1  # 当日已有涨跌统计
+        today = date.today()
+        kline_max = today - timedelta(days=3)
+        with patch.object(
+            market_service,
+            "fetch_max_daily_date",
+            AsyncMock(return_value=kline_max),
+        ):
+            result = await market_service.resolve_latest_trade_date(session)
+        expected = today if today.weekday() < 5 else kline_max
+        assert result == expected
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_kline_max_without_breadth(self) -> None:
+        session = AsyncMock()
+        session.scalar.return_value = 0
+        kline_max = date(2026, 7, 17)
+        with patch.object(
+            market_service,
+            "fetch_max_daily_date",
+            AsyncMock(return_value=kline_max),
+        ):
+            assert await market_service.resolve_latest_trade_date(session) == (
+                kline_max
+            )
+
+
+@pytest.mark.unit
+class TestIsTradingDay:
+    @pytest.mark.asyncio
+    async def test_weekend_is_not_trading_day(self) -> None:
+        session = AsyncMock()
+        assert await market_service.is_trading_day(
+            session, date(2026, 7, 19)
+        ) is False  # 周日
+
+    @pytest.mark.asyncio
+    async def test_past_day_with_kline_bar(self) -> None:
+        session = AsyncMock()
+        with (
+            patch.object(
+                market_service,
+                "fetch_max_daily_date",
+                AsyncMock(return_value=date(2026, 7, 17)),
+            ),
+            patch.object(
+                market_service, "has_daily_bar", AsyncMock(return_value=True)
+            ),
+        ):
+            assert await market_service.is_trading_day(
+                session, date(2026, 7, 17)
+            ) is True
+
+    @pytest.mark.asyncio
+    async def test_past_day_without_kline_bar_is_holiday(self) -> None:
+        session = AsyncMock()
+        with (
+            patch.object(
+                market_service,
+                "fetch_max_daily_date",
+                AsyncMock(return_value=date(2026, 7, 17)),
+            ),
+            patch.object(
+                market_service, "has_daily_bar", AsyncMock(return_value=False)
+            ),
+        ):
+            assert await market_service.is_trading_day(
+                session, date(2026, 7, 16)
+            ) is False
+
+    @pytest.mark.asyncio
+    async def test_future_weekday_after_kline_max_allowed(self) -> None:
+        session = AsyncMock()
+        with patch.object(
+            market_service,
+            "fetch_max_daily_date",
+            AsyncMock(return_value=date(2026, 7, 17)),
+        ):
+            assert await market_service.is_trading_day(
+                session, date(2026, 7, 20)
+            ) is True
+
+
+@pytest.mark.unit
+class TestBackfillTradeDate:
+    @pytest.mark.asyncio
+    async def test_rejects_non_trading_day(self) -> None:
+        session = AsyncMock()
+        with pytest.raises(market_service.NonTradingDayError):
+            await market_service.backfill_trade_date(session, date(2026, 7, 19))
+
+    @pytest.mark.asyncio
+    async def test_dispatches_backfill_tasks_in_order(self) -> None:
+        session = AsyncMock()
+        day = date(2026, 7, 17)
+        calls: list[tuple[str, dict]] = []
+
+        async def fake_dispatch(
+            session: object, task_name: str, params: dict, **kwargs: object
+        ) -> MagicMock:
+            calls.append((task_name, params))
+            return MagicMock(id=len(calls))
+
+        with (
+            patch.object(
+                market_service, "is_trading_day", AsyncMock(return_value=True)
+            ),
+            patch(
+                "collector.runtime.dispatcher.dispatch_collector_task",
+                side_effect=fake_dispatch,
+            ),
+        ):
+            results = await market_service.backfill_trade_date(session, day)
+
+        expected = [
+            "limit-up-pool",
+            "broken-pool",
+            "limit-down-pool",
+            "market-amount",
+            "sector-fund-flow",
+        ]
+        assert [name for name, _ in calls] == expected
+        assert all(p["trade_date"] == "2026-07-17" for _, p in calls)
+        assert [r.task for r in results] == expected
+        assert all(r.status == "dispatched" for r in results)

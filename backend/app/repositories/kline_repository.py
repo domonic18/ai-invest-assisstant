@@ -5,13 +5,17 @@ time_bucket 的默认 origin 使 1 week 对齐自然周（周一起）、
 3 months 对齐自然季（1/4/7/10 月起）、1 year 对齐自然年。
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.kline import KlineDaily
+from app.models.kline import KlineDaily, KlineMinute
+
+# kline_minute.trade_time 为 TIMESTAMPTZ，按交易时区（Asia/Shanghai）界定自然日
+_CN_TZ = ZoneInfo("Asia/Shanghai")
 
 # period -> time_bucket 间隔；daily 不走聚合
 PERIOD_BUCKET: dict[str, str] = {
@@ -94,3 +98,65 @@ async def fetch_aggregated_bars(
         {"code": code, "bucket": bucket, "since": since, "limit": limit},
     )
     return [dict(row) for row in result.mappings().all()]
+
+
+async def fetch_minute_bars(
+    session: AsyncSession, code: str, day: date
+) -> list[KlineMinute]:
+    """读取某交易日全部分钟 K（升序）。"""
+    stmt = (
+        select(KlineMinute)
+        .where(
+            KlineMinute.stock_code == code,
+            KlineMinute.trade_time >= datetime.combine(day, time.min, tzinfo=_CN_TZ),
+            KlineMinute.trade_time
+            < datetime.combine(day + timedelta(days=1), time.min, tzinfo=_CN_TZ),
+        )
+        .order_by(KlineMinute.trade_time)
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def latest_minute_day(session: AsyncSession, code: str) -> date | None:
+    """kline_minute 中该代码最近一根 bar 的交易日期（交易时区）。"""
+    latest = await session.scalar(
+        select(func.max(KlineMinute.trade_time)).where(
+            KlineMinute.stock_code == code
+        )
+    )
+    return latest.astimezone(_CN_TZ).date() if latest is not None else None
+
+
+async def prev_minute_close(
+    session: AsyncSession, code: str, day: date
+) -> float | None:
+    """目标日期之前最近一根分钟 bar 的收盘价（昨收口径）。"""
+    close = await session.scalar(
+        select(KlineMinute.close)
+        .where(
+            KlineMinute.stock_code == code,
+            KlineMinute.trade_time < datetime.combine(day, time.min, tzinfo=_CN_TZ),
+        )
+        .order_by(KlineMinute.trade_time.desc())
+        .limit(1)
+    )
+    return float(close) if close is not None else None
+
+
+async def fetch_max_daily_date(session: AsyncSession, code: str) -> date | None:
+    """kline_daily 中该代码最近一根日 K 的交易日期。"""
+    max_date = await session.scalar(
+        select(func.max(KlineDaily.trade_date)).where(KlineDaily.stock_code == code)
+    )
+    return max_date if isinstance(max_date, date) else None
+
+
+async def has_daily_bar(session: AsyncSession, code: str, day: date) -> bool:
+    """判断该代码在指定日期是否存在日 K。"""
+    count = await session.scalar(
+        select(func.count())
+        .select_from(KlineDaily)
+        .where(KlineDaily.stock_code == code, KlineDaily.trade_date == day)
+    )
+    return (count or 0) > 0

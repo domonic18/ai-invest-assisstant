@@ -24,6 +24,14 @@ from app.services.llm_config_service import resolve_default_llm
 SKILL_ID = "market-daily-review"
 
 
+class ReviewNotFoundError(Exception):
+    """指定交易日不存在已生成的 AI 复盘。"""
+
+
+class NonTradingDayError(Exception):
+    """指定日期不是交易日，每日复盘只对交易日有效。"""
+
+
 class MarketReviewContent(BaseModel):
     """LLM 结构化输出。"""
 
@@ -75,6 +83,93 @@ async def _load_cached(
         model=row["model"],
         generated_at=row["created_at"],
         cached=True,
+        edited=bool(output.get("edited", False)),
+    )
+
+
+async def _resolve_trade_date(
+    session: AsyncSession, trade_date: date | None
+) -> date:
+    stats = await market_service.get_market_stats(session, trade_date)
+    return stats.trade_date
+
+
+async def _assert_trading_day(session: AsyncSession, day: date) -> None:
+    if not await market_service.is_trading_day(session, day):
+        raise NonTradingDayError(f"{day.isoformat()} 不是交易日，每日复盘只对交易日有效")
+
+
+async def get_cached_review(
+    session: AsyncSession,
+    trade_date: date | None = None,
+) -> MarketReviewResponse | None:
+    """只读取已生成的 AI 复盘，不存在时返回 None（绝不触发 LLM 生成）。"""
+    if trade_date is not None:
+        await _assert_trading_day(session, trade_date)
+    resolved_date = await _resolve_trade_date(session, trade_date)
+    return await _load_cached(session, _input_hash(resolved_date))
+
+
+async def update_market_review(
+    session: AsyncSession,
+    trade_date: date,
+    content: MarketReviewContent,
+) -> MarketReviewResponse:
+    """保存人工编辑后的复盘内容（覆盖最近一次成功生成的记录）。"""
+    await _assert_trading_day(session, trade_date)
+    input_hash = _input_hash(trade_date)
+    row = (
+        await session.execute(
+            text(
+                """
+                SELECT id, model, created_at
+                FROM ai_analysis_result
+                WHERE skill_id = :skill_id AND input_hash = :input_hash
+                  AND status = 'success'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ),
+            {"skill_id": SKILL_ID, "input_hash": input_hash},
+        )
+    ).mappings().first()
+    if not row:
+        raise ReviewNotFoundError(f"{trade_date.isoformat()} 尚未生成 AI 复盘")
+
+    import json
+
+    structured: dict[str, Any] = {
+        "trade_date": trade_date.isoformat(),
+        **content.model_dump(),
+        "edited": True,
+    }
+    await session.execute(
+        text(
+            """
+            UPDATE ai_analysis_result
+            SET structured_output = CAST(:structured_output AS JSONB),
+                raw_output = :raw_output
+            WHERE id = :id
+            """
+        ),
+        {
+            "id": row["id"],
+            "structured_output": json.dumps(structured, ensure_ascii=False),
+            "raw_output": json.dumps(structured, ensure_ascii=False),
+        },
+    )
+    await session.commit()
+
+    return MarketReviewResponse(
+        trade_date=trade_date,
+        overview=content.overview,
+        emotion_analysis=content.emotion_analysis,
+        capital_analysis=content.capital_analysis,
+        risk_advice=content.risk_advice,
+        model=row["model"],
+        generated_at=row["created_at"],
+        cached=True,
+        edited=True,
     )
 
 
@@ -122,6 +217,8 @@ async def generate_market_review(
     regenerate: bool = False,
 ) -> MarketReviewResponse:
     """生成（或读取缓存的）AI 大盘综述。"""
+    if trade_date is not None:
+        await _assert_trading_day(session, trade_date)
     stats = await market_service.get_market_stats(session, trade_date)
     resolved_date = stats.trade_date
     input_hash = _input_hash(resolved_date)
