@@ -10,6 +10,8 @@ import { useMaConfigs } from '@/stores/settings'
 interface IndexChartPanelProps {
   code: string
   tradeDate?: string
+  /** 无分钟线数据的标的（沪深300ETF/富时A50），隐藏「分时」选项。 */
+  noIntraday?: boolean
 }
 
 type PeriodKey = 'intraday' | IndexKlinePeriod
@@ -23,16 +25,20 @@ const PERIOD_OPTIONS: { value: PeriodKey; label: string }[] = [
   { value: 'yearly', label: '年线' },
 ]
 
-export function IndexChartPanel({ code, tradeDate }: IndexChartPanelProps) {
-  const [period, setPeriod] = useState<PeriodKey>('intraday')
+export function IndexChartPanel({ code, tradeDate, noIntraday }: IndexChartPanelProps) {
+  const [period, setPeriod] = useState<PeriodKey>(noIntraday ? 'daily' : 'intraday')
   const maConfigs = useMaConfigs()
+
+  const options = noIntraday
+    ? PERIOD_OPTIONS.filter((item) => item.value !== 'intraday')
+    : PERIOD_OPTIONS
 
   return (
     <div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <Segmented
           size="small"
-          options={PERIOD_OPTIONS}
+          options={options}
           value={period}
           onChange={(value) => setPeriod(value as PeriodKey)}
         />

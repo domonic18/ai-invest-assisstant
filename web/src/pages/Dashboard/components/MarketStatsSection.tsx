@@ -20,6 +20,8 @@ const INTRADAY_TABS = [
   { key: 'sh000001', label: '上证指数' },
   { key: 'sz399006', label: '创业板指' },
   { key: 'sh000688', label: '科创50' },
+  { key: 'sh510300', label: '沪深300ETF', noIntraday: true },
+  { key: 'CN00Y', label: '富时A50', noIntraday: true },
 ]
 
 export function MarketStatsSection({ indices, stats, loading, tradeDate }: MarketStatsSectionProps) {
@@ -63,7 +65,13 @@ export function MarketStatsSection({ indices, stats, loading, tradeDate }: Marke
           items={INTRADAY_TABS.map((tab) => ({
             key: tab.key,
             label: tab.label,
-            children: <IndexChartPanel code={tab.key} tradeDate={tradeDate} />,
+            children: (
+              <IndexChartPanel
+                code={tab.key}
+                tradeDate={tradeDate}
+                noIntraday={tab.noIntraday}
+              />
+            ),
           }))}
         />
         <SourceNote>新浪财经 · 指数实时行情与分钟级分时数据；多周期 K 线由本地指数日 K 聚合</SourceNote>
@@ -135,7 +143,7 @@ export function MarketStatsSection({ indices, stats, loading, tradeDate }: Marke
             </div>
           </>
         )}
-        <SourceNote>成交额取自沪深交易所官方数据 · 涨跌家数与涨跌停统计来自新浪财经全市场快照、东方财富涨跌停池</SourceNote>
+        <SourceNote>成交额为沪深交易所官方口径（不含北交所）· 上涨/下跌家数来自新浪财经全市场快照 · 涨跌停家数收盘后取自东方财富涨跌停池（不含 ST 股）</SourceNote>
       </Card>
     </section>
   )

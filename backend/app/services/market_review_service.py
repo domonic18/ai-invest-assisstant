@@ -18,7 +18,7 @@ from app.agent.core.prompt_loader import PromptLoader
 from app.agent.core.prompt_renderer import PromptRenderer
 from app.core.config import get_settings
 from app.schemas.market import MarketReviewResponse
-from app.services import market_service
+from app.services import index_technical_service, market_service
 from app.services.llm_config_service import resolve_default_llm
 
 SKILL_ID = "market-daily-review"
@@ -231,6 +231,9 @@ async def generate_market_review(
     indices = await market_service.get_index_quotes(session, resolved_date)
     limit_up = await market_service.get_limit_up(session, resolved_date)
     sectors = await market_service.get_sector_overview(session, resolved_date)
+    technical_context = await index_technical_service.build_technical_context(
+        session, resolved_date
+    )
 
     index_context = "；".join(
         f"{item.name} {item.price:.2f}（{item.change_pct:+.2f}%）" for item in indices
@@ -263,6 +266,7 @@ async def generate_market_review(
         prompt_config.user_prompt_template,
         trade_date=resolved_date.isoformat(),
         index_context=index_context,
+        technical_context=technical_context,
         amount_text=_format_amount(stats.amount),
         up_count=stats.up_count if stats.up_count is not None else "未知",
         down_count=stats.down_count if stats.down_count is not None else "未知",
