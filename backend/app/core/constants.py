@@ -8,3 +8,10 @@ INDEX_CODES: dict[str, str] = {
     "sz399006": "创业板指",
     "sh000688": "科创50",
 }
+
+# 指数 K 线图扩展标的（仅 K 线展示与 AI 技术分析，不进指数快照/分钟线/顶部行情卡）。
+# sh510300 = 沪深300ETF（新浪 ETF 日 K）；CN00Y = 富时A50期指当月连续（东财日 K）
+KLINE_CHART_EXTRA_CODES: dict[str, str] = {
+    "sh510300": "沪深300ETF",
+    "CN00Y": "富时A50",
+}

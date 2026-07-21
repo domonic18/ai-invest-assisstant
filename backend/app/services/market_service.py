@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.constants import INDEX_CODES
+from app.core.constants import INDEX_CODES, KLINE_CHART_EXTRA_CODES
 from app.models.kline import KlineDaily
 from app.models.limit_up_pool import LimitUpPool
 from app.models.market_amount import MarketAmount
@@ -256,8 +256,11 @@ async def get_index_kline(
 
     daily 直读本地 kline_daily；weekly/monthly/quarterly/yearly 由
     TimescaleDB time_bucket 聚合，聚合周期的 date 取周期首根交易日。
+    标的范围：四大指数（INDEX_CODES）+ K 线图扩展标的（KLINE_CHART_EXTRA_CODES，
+    沪深300ETF/富时A50）。
     """
-    if code not in INDEX_CODES:
+    kline_codes = {**INDEX_CODES, **KLINE_CHART_EXTRA_CODES}
+    if code not in kline_codes:
         raise ValueError(f"不支持的指数代码: {code}")
 
     if period == "daily":
@@ -293,7 +296,7 @@ async def get_index_kline(
         ]
 
     return IndexKlineResponse(
-        code=code, name=INDEX_CODES[code], period=period, bars=bars
+        code=code, name=kline_codes[code], period=period, bars=bars
     )
 
 
@@ -355,11 +358,23 @@ _EMPTY_BREADTH: dict[str, Any] = {
 }
 
 
+async def _pool_limit_up_count(session: AsyncSession, trade_date: date) -> int | None:
+    """东财涨停池家数（官方池口径，不含 ST 股）；池未覆盖当日时返回 None。"""
+    count = await session.scalar(
+        select(func.count())
+        .select_from(LimitUpPool)
+        .where(LimitUpPool.trade_date == trade_date)
+    )
+    return count or None
+
+
 async def _live_breadth(session: AsyncSession, resolved: date) -> dict[str, Any]:
     """当日涨跌统计：取 market_breadth 不晚于 resolved 的最新一行（采集器写入）。
 
     盘前/周末时最新一行是上一交易日收盘快照，与实时快照口径一致；
     采集器尚未覆盖时返回空统计（前端展示 "-"），不在请求路径抓取数据源。
+    涨停数在东财涨停池入库后覆盖为池计数（盘中为快照估算）；跌停数同理，
+    由 limit-down-pool 盘后任务把官方池家数写回 market_breadth。
     """
     row = await session.scalar(
         select(MarketBreadth)
@@ -367,7 +382,13 @@ async def _live_breadth(session: AsyncSession, resolved: date) -> dict[str, Any]
         .order_by(MarketBreadth.trade_date.desc())
         .limit(1)
     )
-    return _breadth_dict(row) if row is not None else dict(_EMPTY_BREADTH)
+    if row is None:
+        return dict(_EMPTY_BREADTH)
+    breadth = _breadth_dict(row)
+    pool_count = await _pool_limit_up_count(session, row.trade_date)
+    if pool_count is not None:
+        breadth["limit_up_count"] = pool_count
+    return breadth
 
 
 async def _historical_breadth(
@@ -378,18 +399,20 @@ async def _historical_breadth(
     优先取 market_breadth 当日行（采集器收盘后写入，含涨跌家数）；
     该表未覆盖的更早日期回退旧口径：涨停数取数据库涨停池（与涨停梯队
     口径一致），跌停/上涨/下跌/平盘家数返回 None/0。
+    涨停数一律以东财涨停池计数为准（官方池口径，不含 ST）；跌停数取
+    行内 limit_down_count（limit-down-pool 盘后写入官方池家数）。
     """
     row = await session.scalar(
         select(MarketBreadth).where(MarketBreadth.trade_date == trade_date)
     )
     if row is not None and row.limit_up_count is not None:
-        return _breadth_dict(row)
+        breadth = _breadth_dict(row)
+        pool_count = await _pool_limit_up_count(session, trade_date)
+        if pool_count is not None:
+            breadth["limit_up_count"] = pool_count
+        return breadth
 
-    limit_up = await session.scalar(
-        select(func.count())
-        .select_from(LimitUpPool)
-        .where(LimitUpPool.trade_date == trade_date)
-    ) or 0
+    limit_up = await _pool_limit_up_count(session, trade_date) or 0
     return {
         "up_count": None,
         "down_count": None,

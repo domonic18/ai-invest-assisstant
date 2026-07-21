@@ -233,7 +233,7 @@ class TestGetIndexIntraday:
 class TestHistoricalBreadth:
     @pytest.mark.asyncio
     async def test_prefers_market_breadth_row(self) -> None:
-        """market_breadth 有当日行时直接返回全量统计，不走东财回退。"""
+        """market_breadth 有当日行且涨停池未覆盖时返回行内全量统计。"""
         session = AsyncMock()
         row = MagicMock(
             up_count=3000,
@@ -242,7 +242,8 @@ class TestHistoricalBreadth:
             limit_up_count=55,
             limit_down_count=12,
         )
-        session.scalar.return_value = row
+        # 第一次 scalar 查 market_breadth 行，第二次查涨停池家数（未覆盖）
+        session.scalar.side_effect = [row, None]
 
         breadth = await market_service._historical_breadth(
             session, date(2026, 7, 17)
@@ -255,6 +256,26 @@ class TestHistoricalBreadth:
             "limit_up_count": 55,
             "limit_down_count": 12,
         }
+
+    @pytest.mark.asyncio
+    async def test_pool_count_overrides_row_limit_up(self) -> None:
+        """涨停池已覆盖当日时，涨停数覆盖为池计数（官方池口径，不含 ST）。"""
+        session = AsyncMock()
+        row = MagicMock(
+            up_count=3000,
+            down_count=1800,
+            flat_count=200,
+            limit_up_count=55,
+            limit_down_count=12,
+        )
+        session.scalar.side_effect = [row, 53]
+
+        breadth = await market_service._historical_breadth(
+            session, date(2026, 7, 17)
+        )
+
+        assert breadth["limit_up_count"] == 53
+        assert breadth["limit_down_count"] == 12
 
     @pytest.mark.asyncio
     async def test_falls_back_to_limit_up_pool_count(self) -> None:
@@ -644,6 +665,31 @@ class TestGetIndexKline:
         assert resp.bars[-1].amount == 1000.5
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("code", "expected_name"),
+        [("sh510300", "沪深300ETF"), ("CN00Y", "富时A50")],
+    )
+    async def test_accepts_kline_chart_extra_codes(
+        self, code: str, expected_name: str
+    ) -> None:
+        bar = MagicMock()
+        bar.trade_date = date(2026, 7, 17)
+        bar.open = 100.0
+        bar.high = 101.0
+        bar.low = 99.0
+        bar.close = 100.5
+        bar.volume = 100
+        bar.amount = None
+        with patch.object(
+            market_service, "fetch_daily_bars", AsyncMock(return_value=[bar])
+        ):
+            resp = await market_service.get_index_kline(AsyncMock(), code)
+
+        assert resp.code == code
+        assert resp.name == expected_name
+        assert len(resp.bars) == 1
+
+    @pytest.mark.asyncio
     async def test_weekly_uses_time_bucket(self) -> None:
         rows = [
             {
@@ -709,13 +755,15 @@ class TestLiveBreadth:
     @pytest.mark.asyncio
     async def test_returns_latest_row(self) -> None:
         session = AsyncMock()
-        session.scalar.return_value = MagicMock(
+        row = MagicMock(
             up_count=2500,
             down_count=2100,
             flat_count=300,
             limit_up_count=60,
             limit_down_count=15,
         )
+        # 第一次 scalar 查 market_breadth 最新行，第二次查涨停池家数（未覆盖）
+        session.scalar.side_effect = [row, None]
 
         breadth = await market_service._live_breadth(session, date(2026, 7, 17))
 
@@ -726,6 +774,24 @@ class TestLiveBreadth:
             "limit_up_count": 60,
             "limit_down_count": 15,
         }
+
+    @pytest.mark.asyncio
+    async def test_pool_count_overrides_snapshot_limit_up(self) -> None:
+        """涨停池入库后，当日涨停数覆盖为池计数（快照估算仅盘中使用）。"""
+        session = AsyncMock()
+        row = MagicMock(
+            up_count=2500,
+            down_count=2100,
+            flat_count=300,
+            limit_up_count=60,
+            limit_down_count=15,
+        )
+        session.scalar.side_effect = [row, 53]
+
+        breadth = await market_service._live_breadth(session, date(2026, 7, 17))
+
+        assert breadth["limit_up_count"] == 53
+        assert breadth["limit_down_count"] == 15
 
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_row(self) -> None:
