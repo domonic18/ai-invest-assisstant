@@ -23,13 +23,23 @@ def _limit_up_row(**overrides):
     row.change_pct = Decimal("10.0")
     row.latest_price = Decimal("12.5")
     row.sealed_amount = Decimal("1000000")
-    row.first_seal_time = "092500"
+    row.first_seal_time = overrides.get("first_seal_time", "092500")
     row.last_seal_time = "092500"
-    row.break_count = 0
+    row.break_count = overrides.get("break_count", 0)
     row.limit_stat = "2/2"
     row.consecutive_boards = overrides.get("consecutive_boards", 2)
     row.industry = overrides.get("industry", "银行")
     return row
+
+
+def _sector_row(sector_name, change_pct=None, main_net_inflow=None):
+    return MagicMock(
+        sector_name=sector_name,
+        change_pct=Decimal(str(change_pct)) if change_pct is not None else None,
+        main_net_inflow=(
+            Decimal(str(main_net_inflow)) if main_net_inflow is not None else None
+        ),
+    )
 
 
 @pytest.mark.unit
@@ -464,7 +474,10 @@ class TestGetLimitUp:
             _limit_up_row(stock_code="000003", consecutive_boards=1),
         ]
         session = AsyncMock()
-        session.execute.return_value = _scalars_result(rows)
+        session.execute.side_effect = [
+            _scalars_result(rows),
+            _scalars_result([]),  # 板块资金流查询
+        ]
 
         result = await market_service.get_limit_up(session, date(2026, 7, 17))
 
@@ -474,6 +487,100 @@ class TestGetLimitUp:
         assert result.max_boards == 3
         assert len(result.ladder) == 2
         assert {item.stock_code for item in result.ladder} == {"000001", "000002"}
+
+    @pytest.mark.asyncio
+    async def test_seal_type_derivation(self) -> None:
+        rows = [
+            _limit_up_row(stock_code="000001", first_seal_time="092500", break_count=0),
+            _limit_up_row(stock_code="000002", first_seal_time="092500", break_count=3),
+            _limit_up_row(stock_code="000003", first_seal_time="101215", break_count=0),
+            _limit_up_row(stock_code="000004", first_seal_time=None, break_count=None),
+        ]
+        session = AsyncMock()
+        session.execute.side_effect = [
+            _scalars_result(rows),
+            _scalars_result([]),
+        ]
+
+        result = await market_service.get_limit_up(session, date(2026, 7, 17))
+
+        seal_types = {item.stock_code: item.seal_type for item in result.items}
+        assert seal_types == {
+            "000001": "一字板",
+            "000002": "T字板",
+            "000003": None,
+            "000004": None,
+        }
+
+    @pytest.mark.asyncio
+    async def test_groups_sorted_by_count_with_sector_stats(self) -> None:
+        rows = [
+            _limit_up_row(stock_code="000001", industry="电力", consecutive_boards=3),
+            _limit_up_row(
+                stock_code="000002",
+                industry="电力",
+                consecutive_boards=1,
+                first_seal_time="094500",
+            ),
+            _limit_up_row(stock_code="000003", industry="白酒Ⅱ", consecutive_boards=1),
+        ]
+        sectors = [
+            _sector_row("电力", change_pct=4.8, main_net_inflow=6390000000),
+            _sector_row("白酒", change_pct=3.79, main_net_inflow=3656000000),
+        ]
+        session = AsyncMock()
+        session.execute.side_effect = [
+            _scalars_result(rows),
+            _scalars_result(sectors),
+        ]
+
+        result = await market_service.get_limit_up(session, date(2026, 7, 17))
+
+        assert [group.industry for group in result.groups] == ["电力", "白酒Ⅱ"]
+        power = result.groups[0]
+        assert power.count == 2
+        assert power.change_pct == pytest.approx(4.8)
+        assert power.main_net_inflow == pytest.approx(6390000000)
+        # 组内按板数降序、同板按首次封板时间升序
+        assert [item.stock_code for item in power.items] == ["000001", "000002"]
+        # "白酒Ⅱ" 归一化后匹配板块资金流中的 "白酒"
+        liquor = result.groups[1]
+        assert liquor.change_pct == pytest.approx(3.79)
+
+    @pytest.mark.asyncio
+    async def test_groups_other_industry_sorted_last(self) -> None:
+        rows = [
+            _limit_up_row(stock_code="000001", industry=None, consecutive_boards=1),
+            _limit_up_row(stock_code="000002", industry="电力", consecutive_boards=1),
+            _limit_up_row(stock_code="000003", industry="电力", consecutive_boards=1),
+        ]
+        session = AsyncMock()
+        session.execute.side_effect = [
+            _scalars_result(rows),
+            _scalars_result([]),
+        ]
+
+        result = await market_service.get_limit_up(session, date(2026, 7, 17))
+
+        assert [group.industry for group in result.groups] == ["电力", "其他"]
+        assert result.groups[-1].change_pct is None
+
+    @pytest.mark.asyncio
+    async def test_group_sector_stats_fuzzy_containment(self) -> None:
+        """hybk "煤炭开采" 通过互相包含匹配板块名 "煤炭开采加工"。"""
+        rows = [_limit_up_row(stock_code="000001", industry="煤炭开采")]
+        sectors = [
+            _sector_row("煤炭开采加工", change_pct=5.3, main_net_inflow=1163000000)
+        ]
+        session = AsyncMock()
+        session.execute.side_effect = [
+            _scalars_result(rows),
+            _scalars_result(sectors),
+        ]
+
+        result = await market_service.get_limit_up(session, date(2026, 7, 17))
+
+        assert result.groups[0].change_pct == pytest.approx(5.3)
 
     @pytest.mark.asyncio
     async def test_empty_when_no_data(self) -> None:

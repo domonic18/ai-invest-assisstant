@@ -43,6 +43,7 @@ from app.schemas.market import (
     IndexKlineResponse,
     IndexQuoteResponse,
     LeadingSectorItem,
+    LimitUpGroup,
     LimitUpItem,
     LimitUpResponse,
     MarketStatsResponse,
@@ -597,7 +598,88 @@ async def _limit_up_rates(
     return continuous_rate, broken_rate, broken_count
 
 
-def _limit_up_response(resolved: date, items: list[LimitUpItem]) -> LimitUpResponse:
+_SEAL_OPEN_THRESHOLD = "093000"  # 开盘（含集合竞价）即封板的时间上界
+_INDUSTRY_SUFFIXES = ("Ⅲ", "Ⅱ")
+
+
+def _seal_type(first_seal_time: str | None, break_count: int | None) -> str | None:
+    """开盘涨停形态推导：一字板=开盘封板全天未开；T字板=开盘封板盘中打开后回封。
+
+    first_seal_time 为 "092500" 式 6 位零填充字符串，同长度数字串可直接按字典序比较。
+    """
+    if first_seal_time is None or first_seal_time > _SEAL_OPEN_THRESHOLD:
+        return None
+    return "一字板" if not break_count else "T字板"
+
+
+def _normalize_industry(name: str) -> str:
+    """东财二级行业名去级次后缀（"白酒Ⅱ"→"白酒"），用于匹配板块资金流行业名。"""
+    for suffix in _INDUSTRY_SUFFIXES:
+        if name.endswith(suffix):
+            return name[: -len(suffix)]
+    return name
+
+
+def _build_limit_up_groups(
+    items: list[LimitUpItem], sector_rows: list[SectorFundFlow]
+) -> list[LimitUpGroup]:
+    """按行业分组涨停个股，组行情匹配板块资金流（精确→归一化→互相包含）。"""
+    stats = {
+        _normalize_industry(row.sector_name): (
+            float(row.change_pct) if row.change_pct is not None else None,
+            float(row.main_net_inflow)
+            if row.main_net_inflow is not None
+            else None,
+        )
+        for row in sector_rows
+    }
+
+    def _sector_stats(industry: str) -> tuple[float | None, float | None]:
+        normalized = _normalize_industry(industry)
+        if normalized in stats:
+            return stats[normalized]
+        for name, value in stats.items():
+            if normalized in name or name in normalized:
+                return value
+        return None, None
+
+    by_industry: dict[str, list[LimitUpItem]] = {}
+    for item in items:
+        by_industry.setdefault(item.industry or "其他", []).append(item)
+
+    groups: list[LimitUpGroup] = []
+    for industry, group_items in by_industry.items():
+        group_items.sort(
+            key=lambda item: (
+                -(item.consecutive_boards or 0),
+                item.first_seal_time or "999999",
+            )
+        )
+        change_pct, inflow = _sector_stats(industry)
+        groups.append(
+            LimitUpGroup(
+                industry=industry,
+                count=len(group_items),
+                change_pct=change_pct,
+                main_net_inflow=inflow,
+                items=group_items,
+            )
+        )
+    groups.sort(
+        key=lambda group: (
+            group.industry == "其他",
+            -group.count,
+            -(group.change_pct if group.change_pct is not None else float("-inf")),
+        )
+    )
+    return groups
+
+
+def _limit_up_response(
+    resolved: date,
+    items: list[LimitUpItem],
+    groups: list[LimitUpGroup] | None = None,
+) -> LimitUpResponse:
     ladder = [item for item in items if (item.consecutive_boards or 0) >= 2]
     return LimitUpResponse(
         trade_date=resolved,
@@ -607,6 +689,7 @@ def _limit_up_response(resolved: date, items: list[LimitUpItem]) -> LimitUpRespo
         max_boards=max((item.consecutive_boards or 0) for item in items) if items else None,
         ladder=ladder,
         items=items,
+        groups=groups or [],
     )
 
 
@@ -651,10 +734,24 @@ async def get_limit_up(
             limit_stat=row.limit_stat,
             consecutive_boards=row.consecutive_boards,
             industry=row.industry,
+            seal_type=_seal_type(row.first_seal_time, row.break_count),
         )
         for row in rows
     ]
-    return _limit_up_response(resolved, items)
+    sector_rows = list(
+        (
+            await session.execute(
+                select(SectorFundFlow).where(
+                    SectorFundFlow.sector_type == "industry",
+                    SectorFundFlow.trade_date == resolved,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    groups = _build_limit_up_groups(items, sector_rows)
+    return _limit_up_response(resolved, items, groups)
 
 
 async def get_sector_overview(

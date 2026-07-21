@@ -92,6 +92,17 @@ class LimitUpItem(BaseModel):
     limit_stat: str | None = None
     consecutive_boards: int | None = None
     industry: str | None = None
+    seal_type: str | None = None  # 一字板 / T字板 / None（开盘涨停推导）
+
+
+class LimitUpGroup(BaseModel):
+    """按行业分组的涨停复盘（组行情来自板块资金流）。"""
+
+    industry: str
+    count: int
+    change_pct: float | None = None
+    main_net_inflow: float | None = None
+    items: list[LimitUpItem] = []
 
 
 class LimitUpResponse(BaseModel):
@@ -104,6 +115,7 @@ class LimitUpResponse(BaseModel):
     max_boards: int | None = None
     ladder: list[LimitUpItem] = []
     items: list[LimitUpItem] = []
+    groups: list[LimitUpGroup] = []
 
 
 class SectorHeatItem(BaseModel):
