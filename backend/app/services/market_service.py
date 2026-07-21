@@ -31,6 +31,7 @@ from app.repositories.kline_repository import (
     fetch_daily_bars,
     fetch_max_daily_date,
     fetch_minute_bars,
+    fetch_minute_bars_multi,
     has_daily_bar,
     latest_minute_day,
     prev_minute_close,
@@ -44,6 +45,7 @@ from app.schemas.market import (
     IndexQuoteResponse,
     LeadingSectorItem,
     LimitUpGroup,
+    LimitUpIntradayResponse,
     LimitUpItem,
     LimitUpResponse,
     MarketStatsResponse,
@@ -52,6 +54,8 @@ from app.schemas.market import (
     SectorOverviewResponse,
     WatchlistQuoteItem,
 )
+from app.services import limit_up_ai_service
+from app.services.limit_up_ai_service import LimitUpAttributionContent
 
 _INDEX_SPOT_KEY = "market:index_spot"
 _TREND_DAYS = 30
@@ -649,16 +653,11 @@ def _build_limit_up_groups(
 
     groups: list[LimitUpGroup] = []
     for industry, group_items in by_industry.items():
-        group_items.sort(
-            key=lambda item: (
-                -(item.consecutive_boards or 0),
-                item.first_seal_time or "999999",
-            )
-        )
+        group_items.sort(key=_group_item_sort_key)
         change_pct, inflow = _sector_stats(industry)
         groups.append(
             LimitUpGroup(
-                industry=industry,
+                name=industry,
                 count=len(group_items),
                 change_pct=change_pct,
                 main_net_inflow=inflow,
@@ -667,7 +666,7 @@ def _build_limit_up_groups(
         )
     groups.sort(
         key=lambda group: (
-            group.industry == "其他",
+            group.name == "其他",
             -group.count,
             -(group.change_pct if group.change_pct is not None else float("-inf")),
         )
@@ -675,10 +674,47 @@ def _build_limit_up_groups(
     return groups
 
 
+def _group_item_sort_key(item: LimitUpItem) -> tuple[int, str]:
+    return (-(item.consecutive_boards or 0), item.first_seal_time or "999999")
+
+
+def _build_ai_groups(
+    items: list[LimitUpItem], attribution: LimitUpAttributionContent
+) -> list[LimitUpGroup]:
+    """按 AI 归因的题材分组（未覆盖个股归入最后的「其他」组）。"""
+    by_code = {item.stock_code: item for item in items}
+    assigned: set[str] = set()
+    groups: list[LimitUpGroup] = []
+    for group in attribution.groups:
+        codes = [
+            code
+            for code in group.stock_codes
+            if code in by_code and code not in assigned
+        ]
+        if not codes:
+            continue
+        assigned.update(codes)
+        group_items = sorted((by_code[code] for code in codes), key=_group_item_sort_key)
+        groups.append(
+            LimitUpGroup(
+                name=group.theme,
+                count=len(group_items),
+                reason=group.reason,
+                items=group_items,
+            )
+        )
+    rest = [item for item in items if item.stock_code not in assigned]
+    if rest:
+        rest.sort(key=_group_item_sort_key)
+        groups.append(LimitUpGroup(name="其他", count=len(rest), items=rest))
+    return groups
+
+
 def _limit_up_response(
     resolved: date,
     items: list[LimitUpItem],
     groups: list[LimitUpGroup] | None = None,
+    ai_generated: bool = False,
 ) -> LimitUpResponse:
     ladder = [item for item in items if (item.consecutive_boards or 0) >= 2]
     return LimitUpResponse(
@@ -690,6 +726,7 @@ def _limit_up_response(
         ladder=ladder,
         items=items,
         groups=groups or [],
+        ai_generated=ai_generated,
     )
 
 
@@ -738,6 +775,13 @@ async def get_limit_up(
         )
         for row in rows
     ]
+    attribution = await limit_up_ai_service.get_cached_attribution(session, resolved)
+    if attribution:
+        for item in items:
+            item.themes = attribution.stock_themes.get(item.stock_code, [])
+        return _limit_up_response(
+            resolved, items, _build_ai_groups(items, attribution), ai_generated=True
+        )
     sector_rows = list(
         (
             await session.execute(
@@ -752,6 +796,51 @@ async def get_limit_up(
     )
     groups = _build_limit_up_groups(items, sector_rows)
     return _limit_up_response(resolved, items, groups)
+
+
+_INTRADAY_SAMPLE_POINTS = 60
+
+
+def _downsample(values: list[float], limit: int = _INTRADAY_SAMPLE_POINTS) -> list[float]:
+    """等距降采样（保留首尾点），供分时缩略图使用。"""
+    if len(values) <= limit:
+        return values
+    step = (len(values) - 1) / (limit - 1)
+    return [values[round(i * step)] for i in range(limit)]
+
+
+async def get_limit_up_intraday(
+    session: AsyncSession, trade_date: date | None = None
+) -> LimitUpIntradayResponse:
+    """涨停个股全天分时缩略图（每股 ≤60 个收盘价采样点，读 kline_minute）。
+
+    个股分钟线由 sina_stock_minute 任务收盘后写入；无分钟线的个股不出现在
+    series 中（前端缩略图显示占位）。
+    """
+    resolved = trade_date or await resolve_latest_trade_date(session)
+    codes = list(
+        (
+            await session.execute(
+                select(LimitUpPool.stock_code).where(
+                    LimitUpPool.trade_date == resolved
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    bars = await fetch_minute_bars_multi(session, codes, resolved)
+    closes_by_code: dict[str, list[float]] = {}
+    for bar in bars:
+        if bar.close is None:
+            continue
+        closes_by_code.setdefault(bar.stock_code, []).append(float(bar.close))
+    series = {
+        code: _downsample(closes)
+        for code, closes in closes_by_code.items()
+        if closes
+    }
+    return LimitUpIntradayResponse(trade_date=resolved, series=series)
 
 
 async def get_sector_overview(

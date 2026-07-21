@@ -16,6 +16,15 @@ def _scalars_result(items):
     return result
 
 
+def _cache_result(output):
+    """AI 归因缓存查询（.mappings().first()）mock。"""
+    result = MagicMock()
+    result.mappings.return_value.first.return_value = (
+        {"structured_output": output} if output is not None else None
+    )
+    return result
+
+
 def _limit_up_row(**overrides):
     row = MagicMock()
     row.stock_code = overrides.get("stock_code", "000001")
@@ -476,6 +485,7 @@ class TestGetLimitUp:
         session = AsyncMock()
         session.execute.side_effect = [
             _scalars_result(rows),
+            _cache_result(None),  # 无 AI 归因缓存
             _scalars_result([]),  # 板块资金流查询
         ]
 
@@ -487,6 +497,7 @@ class TestGetLimitUp:
         assert result.max_boards == 3
         assert len(result.ladder) == 2
         assert {item.stock_code for item in result.ladder} == {"000001", "000002"}
+        assert result.ai_generated is False
 
     @pytest.mark.asyncio
     async def test_seal_type_derivation(self) -> None:
@@ -499,6 +510,7 @@ class TestGetLimitUp:
         session = AsyncMock()
         session.execute.side_effect = [
             _scalars_result(rows),
+            _cache_result(None),
             _scalars_result([]),
         ]
 
@@ -531,12 +543,13 @@ class TestGetLimitUp:
         session = AsyncMock()
         session.execute.side_effect = [
             _scalars_result(rows),
+            _cache_result(None),
             _scalars_result(sectors),
         ]
 
         result = await market_service.get_limit_up(session, date(2026, 7, 17))
 
-        assert [group.industry for group in result.groups] == ["电力", "白酒Ⅱ"]
+        assert [group.name for group in result.groups] == ["电力", "白酒Ⅱ"]
         power = result.groups[0]
         assert power.count == 2
         assert power.change_pct == pytest.approx(4.8)
@@ -557,12 +570,13 @@ class TestGetLimitUp:
         session = AsyncMock()
         session.execute.side_effect = [
             _scalars_result(rows),
+            _cache_result(None),
             _scalars_result([]),
         ]
 
         result = await market_service.get_limit_up(session, date(2026, 7, 17))
 
-        assert [group.industry for group in result.groups] == ["电力", "其他"]
+        assert [group.name for group in result.groups] == ["电力", "其他"]
         assert result.groups[-1].change_pct is None
 
     @pytest.mark.asyncio
@@ -575,12 +589,84 @@ class TestGetLimitUp:
         session = AsyncMock()
         session.execute.side_effect = [
             _scalars_result(rows),
+            _cache_result(None),
             _scalars_result(sectors),
         ]
 
         result = await market_service.get_limit_up(session, date(2026, 7, 17))
 
         assert result.groups[0].change_pct == pytest.approx(5.3)
+
+    @pytest.mark.asyncio
+    async def test_ai_groups_when_attribution_cached(self) -> None:
+        """有 AI 归因缓存时按题材分组：组带原因、个股带题材、未覆盖股入「其他」。"""
+        rows = [
+            _limit_up_row(stock_code="000001", industry="电力", consecutive_boards=3),
+            _limit_up_row(stock_code="000002", industry="电力", consecutive_boards=1),
+            _limit_up_row(stock_code="000003", industry="白酒Ⅱ", consecutive_boards=1),
+        ]
+        attribution = {
+            "groups": [
+                {
+                    "theme": "电力改革",
+                    "reason": "容量电价政策催化，板块集体走强",
+                    "stock_codes": ["000001", "000002"],
+                }
+            ],
+            "stock_themes": {
+                "000001": ["电力改革", "绿电"],
+                "000002": ["电力改革"],
+            },
+        }
+        session = AsyncMock()
+        session.execute.side_effect = [
+            _scalars_result(rows),
+            _cache_result(attribution),
+        ]
+
+        result = await market_service.get_limit_up(session, date(2026, 7, 17))
+
+        assert result.ai_generated is True
+        assert [group.name for group in result.groups] == ["电力改革", "其他"]
+        ai_group = result.groups[0]
+        assert ai_group.reason == "容量电价政策催化，板块集体走强"
+        assert ai_group.change_pct is None
+        # 组内按板数降序
+        assert [item.stock_code for item in ai_group.items] == ["000001", "000002"]
+        other = result.groups[1]
+        assert [item.stock_code for item in other.items] == ["000003"]
+        assert other.reason is None
+
+        themes = {item.stock_code: item.themes for item in result.items}
+        assert themes["000001"] == ["电力改革", "绿电"]
+        assert themes["000003"] == []
+
+    @pytest.mark.asyncio
+    async def test_ai_groups_filter_hallucinated_codes(self) -> None:
+        """AI 缓存中的幻觉代码被过滤，不进入任何分组。"""
+        rows = [_limit_up_row(stock_code="000001", industry="电力")]
+        attribution = {
+            "groups": [
+                {
+                    "theme": "电力改革",
+                    "reason": "政策催化",
+                    "stock_codes": ["000001", "999999"],
+                }
+            ],
+            "stock_themes": {"999999": ["电力改革"]},
+        }
+        session = AsyncMock()
+        session.execute.side_effect = [
+            _scalars_result(rows),
+            _cache_result(attribution),
+        ]
+
+        result = await market_service.get_limit_up(session, date(2026, 7, 17))
+
+        assert result.ai_generated is True
+        assert len(result.groups) == 1
+        assert [item.stock_code for item in result.groups[0].items] == ["000001"]
+        assert result.items[0].themes == []
 
     @pytest.mark.asyncio
     async def test_empty_when_no_data(self) -> None:
@@ -612,6 +698,47 @@ class TestGetLimitUp:
         expected = today if today.weekday() < 5 else today - timedelta(days=3)
         assert result.trade_date == expected
         assert result.total == 0
+
+
+@pytest.mark.unit
+class TestGetLimitUpIntraday:
+    def _bars(self, code: str, closes: list[float]) -> list[MagicMock]:
+        return [
+            MagicMock(stock_code=code, close=Decimal(str(close))) for close in closes
+        ]
+
+    @pytest.mark.asyncio
+    async def test_downsamples_to_60_points(self) -> None:
+        session = AsyncMock()
+        session.execute.return_value = _scalars_result(["600001"])
+        bars = self._bars("600001", [float(i) for i in range(240)])
+        with patch.object(
+            market_service, "fetch_minute_bars_multi", AsyncMock(return_value=bars)
+        ):
+            result = await market_service.get_limit_up_intraday(
+                session, date(2026, 7, 21)
+            )
+
+        series = result.series["600001"]
+        assert len(series) == 60
+        assert series[0] == 0.0
+        assert series[-1] == 239.0
+
+    @pytest.mark.asyncio
+    async def test_stocks_without_minute_data_are_omitted(self) -> None:
+        session = AsyncMock()
+        session.execute.return_value = _scalars_result(["600001", "000001"])
+        bars = self._bars("600001", [10.0, 10.5, 11.0])
+        with patch.object(
+            market_service, "fetch_minute_bars_multi", AsyncMock(return_value=bars)
+        ):
+            result = await market_service.get_limit_up_intraday(
+                session, date(2026, 7, 21)
+            )
+
+        assert set(result.series) == {"600001"}
+        # 不足 60 点时原样返回
+        assert result.series["600001"] == [10.0, 10.5, 11.0]
 
 
 @pytest.mark.unit

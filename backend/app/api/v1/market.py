@@ -13,6 +13,7 @@ from app.schemas.market import (
     IndexIntradayResponse,
     IndexKlineResponse,
     IndexQuoteResponse,
+    LimitUpIntradayResponse,
     LimitUpResponse,
     MarketCollectRequest,
     MarketReviewGenerateRequest,
@@ -21,7 +22,7 @@ from app.schemas.market import (
     MarketStatsResponse,
     SectorOverviewResponse,
 )
-from app.services import market_review_service, market_service
+from app.services import limit_up_ai_service, market_review_service, market_service
 from app.services.llm_config_service import LLMConfigNotConfiguredError
 from app.services.market_review_service import NonTradingDayError, ReviewNotFoundError
 
@@ -106,6 +107,52 @@ async def get_limit_up(
 ) -> LimitUpResponse:
     """涨停板与连板天梯，默认取最近有数据的交易日。"""
     return await market_service.get_limit_up(session, trade_date)
+
+
+@router.get("/limit-up/intraday", response_model=LimitUpIntradayResponse)
+async def get_limit_up_intraday(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    trade_date: date | None = None,
+) -> LimitUpIntradayResponse:
+    """涨停个股全天分时缩略图（每股 ≤60 个收盘价采样点）。"""
+    return await market_service.get_limit_up_intraday(session, trade_date)
+
+
+@router.post("/limit-up/ai-review", response_model=LimitUpResponse)
+async def generate_limit_up_ai_review(
+    data: MarketReviewGenerateRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> LimitUpResponse:
+    """触发 LLM 生成 AI 涨停归因（regenerate=true 强制重新生成）。
+
+    生成成功后返回带题材分组与原因的完整涨停数据；无缓存时 GET /limit-up
+    回退为行业分组。
+    """
+    try:
+        await limit_up_ai_service.generate_attribution(
+            session, data.trade_date, data.regenerate
+        )
+        return await market_service.get_limit_up(session, data.trade_date)
+    except NonTradingDayError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except LLMConfigNotConfiguredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Limit-up AI review generation failed: {exc}",
+        ) from exc
 
 
 @router.get("/sectors", response_model=SectorOverviewResponse)

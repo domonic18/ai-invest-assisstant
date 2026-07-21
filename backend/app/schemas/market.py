@@ -93,15 +93,17 @@ class LimitUpItem(BaseModel):
     consecutive_boards: int | None = None
     industry: str | None = None
     seal_type: str | None = None  # 一字板 / T字板 / None（开盘涨停推导）
+    themes: list[str] = []  # AI 归因的题材标签（1-3 个短词）
 
 
 class LimitUpGroup(BaseModel):
-    """按行业分组的涨停复盘（组行情来自板块资金流）。"""
+    """涨停复盘分组（行业分组或 AI 题材分组）。"""
 
-    industry: str
+    name: str  # 行业名或 AI 题材名
     count: int
     change_pct: float | None = None
     main_net_inflow: float | None = None
+    reason: str | None = None  # AI 归因的涨停原因描述
     items: list[LimitUpItem] = []
 
 
@@ -116,6 +118,14 @@ class LimitUpResponse(BaseModel):
     ladder: list[LimitUpItem] = []
     items: list[LimitUpItem] = []
     groups: list[LimitUpGroup] = []
+    ai_generated: bool = False  # groups 是否为 AI 题材归因分组
+
+
+class LimitUpIntradayResponse(BaseModel):
+    """涨停个股全天分时缩略图数据（每股 ≤60 个收盘价等距采样点）。"""
+
+    trade_date: date
+    series: dict[str, list[float]] = {}
 
 
 class SectorHeatItem(BaseModel):

@@ -118,6 +118,26 @@ async def fetch_minute_bars(
     return list(result.scalars().all())
 
 
+async def fetch_minute_bars_multi(
+    session: AsyncSession, codes: list[str], day: date
+) -> list[KlineMinute]:
+    """读取多只标的某交易日全部分钟 K（按代码分组、组内升序）。"""
+    if not codes:
+        return []
+    stmt = (
+        select(KlineMinute)
+        .where(
+            KlineMinute.stock_code.in_(codes),
+            KlineMinute.trade_time >= datetime.combine(day, time.min, tzinfo=_CN_TZ),
+            KlineMinute.trade_time
+            < datetime.combine(day + timedelta(days=1), time.min, tzinfo=_CN_TZ),
+        )
+        .order_by(KlineMinute.stock_code, KlineMinute.trade_time)
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
 async def latest_minute_day(session: AsyncSession, code: str) -> date | None:
     """kline_minute 中该代码最近一根 bar 的交易日期（交易时区）。"""
     latest = await session.scalar(
