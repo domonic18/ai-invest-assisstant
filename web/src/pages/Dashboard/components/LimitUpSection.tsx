@@ -1,8 +1,14 @@
-import { Card, Skeleton, Tag, Typography } from 'antd'
+import { useQueryClient } from '@tanstack/react-query'
+import { Button, Card, message, Skeleton, Tag, Typography } from 'antd'
+import axios from 'axios'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { LimitUpData, LimitUpStock } from '@ai-invest/shared'
+import { generateLimitUpAttribution } from '@/api/market'
+import { IntradaySpark } from '@/components/charts/IntradaySpark'
 import { SourceNote } from '@/components/common/SourceNote'
+import { useLimitUpIntraday } from '@/hooks/useMarket'
 import { useColorScheme } from '@/stores/settings'
 import {
   changeColor,
@@ -19,6 +25,8 @@ interface LimitUpSectionProps {
   pendingClose?: boolean
   /** 查看的是历史日期，可通过右上角按钮补采。 */
   canBackfill?: boolean
+  /** 当前查看的交易日期（不传表示最近交易日），用于触发 AI 归因。 */
+  tradeDate?: string
 }
 
 const BOARD_COLORS: Record<number, string> = {
@@ -46,8 +54,57 @@ function SealBadge({ item }: { item: LimitUpStock }) {
   )
 }
 
-export function LimitUpSection({ data, loading, pendingClose, canBackfill }: LimitUpSectionProps) {
+function errorMessage(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const detail = (err.response?.data as { detail?: string } | undefined)?.detail
+    return detail ?? err.message
+  }
+  return err instanceof Error ? err.message : '操作失败'
+}
+
+function ThemeTags({ item }: { item: LimitUpStock }) {
+  if (item.themes.length === 0) {
+    return (
+      <Tag color="default" className="ml-auto">
+        {item.industry ?? '未分类'}
+      </Tag>
+    )
+  }
+  return (
+    <span className="ml-auto flex items-center gap-1">
+      {item.themes.slice(0, 2).map((theme) => (
+        <Tag key={theme} color="red">
+          {theme}
+        </Tag>
+      ))}
+    </span>
+  )
+}
+
+export function LimitUpSection({
+  data,
+  loading,
+  pendingClose,
+  canBackfill,
+  tradeDate,
+}: LimitUpSectionProps) {
   useColorScheme()
+  const queryClient = useQueryClient()
+  const [generating, setGenerating] = useState(false)
+  const { data: intraday } = useLimitUpIntraday(tradeDate, (data?.total ?? 0) > 0)
+
+  const handleGenerate = async (regenerate: boolean) => {
+    setGenerating(true)
+    try {
+      const result = await generateLimitUpAttribution(regenerate, tradeDate)
+      queryClient.setQueryData(['market', 'limit-up', tradeDate], result)
+      message.success(regenerate ? '已重新归因' : 'AI 归因完成')
+    } catch (err) {
+      message.error(errorMessage(err))
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   if (loading) {
     return <Skeleton active paragraph={{ rows: 6 }} />
@@ -108,27 +165,63 @@ export function LimitUpSection({ data, loading, pendingClose, canBackfill }: Lim
         variant="borderless"
         title="涨停复盘"
         extra={
-          <span className="text-xs text-gray-400">
-            共 {data.total} 只涨停 · 首板 {data.firstBoard} · 连板 {data.continuous}
+          <span className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">
+              共 {data.total} 只涨停 · 首板 {data.firstBoard} · 连板 {data.continuous}
+            </span>
+            {data.aiGenerated ? (
+              <>
+                <Tag color="purple" className="!mr-0">
+                  AI
+                </Tag>
+                <Button
+                  size="small"
+                  loading={generating}
+                  onClick={() => handleGenerate(true)}
+                >
+                  重新归因
+                </Button>
+              </>
+            ) : (
+              <Button
+                size="small"
+                type="primary"
+                ghost
+                loading={generating}
+                onClick={() => handleGenerate(false)}
+              >
+                {generating ? 'AI 归因中，通常需要 10-30 秒…' : 'AI 归因'}
+              </Button>
+            )}
           </span>
         }
       >
         <div className="space-y-4">
           {data.groups.map((group) => (
-            <div key={group.industry}>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded bg-red-500/10 px-2.5 py-1.5 mb-2">
-                <span className="text-sm font-semibold text-red-400">{group.industry}</span>
-                {group.changePct != null && (
-                  <span className="text-xs font-medium" style={{ color: changeHex(group.changePct) }}>
-                    {formatPercent(group.changePct)}
+            <div key={group.name}>
+              <div className="rounded bg-red-500/10 px-2.5 py-1.5 mb-2">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="text-sm font-semibold text-red-400">{group.name}</span>
+                  {group.changePct != null && (
+                    <span
+                      className="text-xs font-medium"
+                      style={{ color: changeHex(group.changePct) }}
+                    >
+                      {formatPercent(group.changePct)}
+                    </span>
+                  )}
+                  {group.mainNetInflow != null && (
+                    <span className="text-xs text-gray-400">
+                      主力净流入 {formatAmount(group.mainNetInflow)}
+                    </span>
+                  )}
+                  <span className="text-xs text-gray-500 ml-auto">
+                    {group.count} 家涨停
                   </span>
+                </div>
+                {group.reason && (
+                  <div className="text-xs text-gray-400 mt-1">{group.reason}</div>
                 )}
-                {group.mainNetInflow != null && (
-                  <span className="text-xs text-gray-400">
-                    主力净流入 {formatAmount(group.mainNetInflow)}
-                  </span>
-                )}
-                <span className="text-xs text-gray-500 ml-auto">{group.count} 家涨停</span>
               </div>
               <div className="space-y-1">
                 {group.items.map((item) => (
@@ -137,16 +230,23 @@ export function LimitUpSection({ data, loading, pendingClose, canBackfill }: Lim
                     className="flex items-center gap-2.5 rounded px-2 py-1.5 bg-[#1a1d24]"
                   >
                     <SealBadge item={item} />
-                    <Link to={`/stock/${item.stockCode}`} className="font-medium text-sm">
+                    <Link
+                      to={`/stock/${item.stockCode}`}
+                      className="w-24 truncate font-medium text-sm"
+                    >
                       {item.stockName}
                     </Link>
-                    <span className="font-mono text-xs text-gray-500">{item.stockCode}</span>
-                    <span className="font-mono text-xs text-gray-400">
+                    <span className="w-16 font-mono text-xs text-gray-500">
+                      {item.stockCode}
+                    </span>
+                    <span className="w-14 text-right font-mono text-xs text-gray-400">
                       {formatSealTime(item.firstSealTime)}
                     </span>
-                    <Tag color="default" className="ml-auto">
-                      {item.industry ?? '未分类'}
-                    </Tag>
+                    <IntradaySpark
+                      points={intraday?.series[item.stockCode]}
+                      changePct={item.changePct}
+                    />
+                    <ThemeTags item={item} />
                   </div>
                 ))}
               </div>
@@ -154,8 +254,9 @@ export function LimitUpSection({ data, loading, pendingClose, canBackfill }: Lim
           ))}
         </div>
         <SourceNote>
-          东方财富涨停股池 · 按所属行业分组 · 板块涨跌幅/主力净流入来自板块资金流 ·
-          一字=开盘涨停全天未开板，T=开盘涨停盘中打开后回封
+          {data.aiGenerated
+            ? '东方财富涨停股池 · 题材分组与涨停原因由 AI 基于当日行情、板块资金与新闻归纳，仅供参考 · 一字=开盘涨停全天未开板，T=开盘涨停盘中打开后回封'
+            : '东方财富涨停股池 · 按所属行业分组 · 板块涨跌幅/主力净流入来自板块资金流 · 一字=开盘涨停全天未开板，T=开盘涨停盘中打开后回封'}
         </SourceNote>
       </Card>
     </>

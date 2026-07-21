@@ -5,6 +5,7 @@ import {
   fetchIndexIntraday,
   fetchIndexKline,
   fetchLimitUp,
+  fetchLimitUpIntraday,
   fetchMarketIndices,
   fetchMarketReview,
   fetchMarketStats,
@@ -58,6 +59,15 @@ export function useLimitUp(tradeDate?: string) {
     queryKey: [...MARKET_KEY, 'limit-up', tradeDate],
     queryFn: () => fetchLimitUp(tradeDate),
     staleTime: LIVE_STALE_TIME,
+  })
+}
+
+export function useLimitUpIntraday(tradeDate?: string, enabled = true) {
+  return useQuery({
+    queryKey: [...MARKET_KEY, 'limit-up-intraday', tradeDate],
+    queryFn: () => fetchLimitUpIntraday(tradeDate),
+    staleTime: 5 * 60_000,
+    enabled,
   })
 }
 

@@ -80,13 +80,15 @@ export interface ApiLimitUpItem {
   consecutive_boards: number | null
   industry: string | null
   seal_type: string | null
+  themes: string[]
 }
 
 export interface ApiLimitUpGroup {
-  industry: string
+  name: string
   count: number
   change_pct: number | null
   main_net_inflow: number | null
+  reason: string | null
   items: ApiLimitUpItem[]
 }
 
@@ -99,6 +101,12 @@ export interface ApiLimitUpResponse {
   ladder: ApiLimitUpItem[]
   items: ApiLimitUpItem[]
   groups: ApiLimitUpGroup[]
+  ai_generated: boolean
+}
+
+export interface ApiLimitUpIntradayResponse {
+  trade_date: string
+  series: Record<string, number[]>
 }
 
 export interface ApiSectorHeatItem {
@@ -249,13 +257,15 @@ export interface LimitUpStock {
   consecutiveBoards: number | null
   industry: string | null
   sealType: string | null
+  themes: string[]
 }
 
 export interface LimitUpGroup {
-  industry: string
+  name: string
   count: number
   changePct: number | null
   mainNetInflow: number | null
+  reason: string | null
   items: LimitUpStock[]
 }
 
@@ -268,6 +278,12 @@ export interface LimitUpData {
   ladder: LimitUpStock[]
   items: LimitUpStock[]
   groups: LimitUpGroup[]
+  aiGenerated: boolean
+}
+
+export interface LimitUpIntraday {
+  tradeDate: string
+  series: Record<string, number[]>
 }
 
 export interface SectorHeatCell {

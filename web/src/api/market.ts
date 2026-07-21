@@ -5,6 +5,7 @@ import type {
   ApiIndexKlineResponse,
   ApiIndexQuoteResponse,
   ApiLimitUpItem,
+  ApiLimitUpIntradayResponse,
   ApiLimitUpResponse,
   ApiMarketCollectRequest,
   ApiMarketReviewGenerateRequest,
@@ -19,6 +20,7 @@ import type {
   IndexKlinePeriod,
   IndexQuote,
   LimitUpData,
+  LimitUpIntraday,
   LimitUpStock,
   MarketReview,
   MarketStats,
@@ -95,6 +97,7 @@ function mapLimitUpStock(dto: ApiLimitUpItem): LimitUpStock {
     consecutiveBoards: dto.consecutive_boards,
     industry: dto.industry,
     sealType: dto.seal_type,
+    themes: dto.themes,
   }
 }
 
@@ -108,12 +111,14 @@ function mapLimitUpData(dto: ApiLimitUpResponse): LimitUpData {
     ladder: dto.ladder.map(mapLimitUpStock),
     items: dto.items.map(mapLimitUpStock),
     groups: dto.groups.map((group) => ({
-      industry: group.industry,
+      name: group.name,
       count: group.count,
       changePct: group.change_pct,
       mainNetInflow: group.main_net_inflow,
+      reason: group.reason,
       items: group.items.map(mapLimitUpStock),
     })),
+    aiGenerated: dto.ai_generated,
   }
 }
 
@@ -219,6 +224,16 @@ export async function fetchLimitUp(tradeDate?: string): Promise<LimitUpData> {
   return mapLimitUpData(response.data)
 }
 
+export async function fetchLimitUpIntraday(
+  tradeDate?: string,
+): Promise<LimitUpIntraday> {
+  const response = await apiClient.get<ApiLimitUpIntradayResponse>(
+    ENDPOINTS.market.limitUpIntraday,
+    { params: { trade_date: tradeDate } },
+  )
+  return { tradeDate: response.data.trade_date, series: response.data.series }
+}
+
 export async function fetchSectorOverview(
   tradeDate?: string,
 ): Promise<SectorOverview> {
@@ -289,6 +304,22 @@ export async function saveMarketReview(
     input,
   )
   return mapMarketReview(response.data)
+}
+
+/** 触发 LLM 生成 AI 涨停归因（regenerate=true 强制重新生成），返回完整涨停数据。 */
+export async function generateLimitUpAttribution(
+  regenerate = false,
+  tradeDate?: string,
+): Promise<LimitUpData> {
+  const body: ApiMarketReviewGenerateRequest = {
+    trade_date: tradeDate,
+    regenerate,
+  }
+  const response = await apiClient.post<ApiLimitUpResponse>(
+    ENDPOINTS.market.limitUpAiReview,
+    body,
+  )
+  return mapLimitUpData(response.data)
 }
 
 /** 补采指定交易日的行情数据（涨停池/炸板池/成交额）。 */

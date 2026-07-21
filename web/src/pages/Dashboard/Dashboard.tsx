@@ -99,6 +99,7 @@ export function Dashboard() {
               dayjs().hour() < 15
             }
             canBackfill={isPastDate}
+            tradeDate={tradeDate}
           />
         </div>
 
