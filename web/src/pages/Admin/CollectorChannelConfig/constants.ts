@@ -30,4 +30,6 @@ export const DATA_TYPE_LABEL: Record<CollectorTaskName, string> = {
   'index-minute': '指数分钟线',
   'market-amount': '市场成交额',
   'broken-pool': '炸板统计',
+  'etf-kline': 'ETF日K',
+  'a50-kline': '富时A50日K',
 }

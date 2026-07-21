@@ -75,6 +75,8 @@ export type CollectorTaskName =
   | 'index-minute'
   | 'market-amount'
   | 'broken-pool'
+  | 'etf-kline'
+  | 'a50-kline'
 
 export interface CollectorTaskChannel {
   source: string

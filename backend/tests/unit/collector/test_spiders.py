@@ -7,6 +7,7 @@ import pytest
 
 from collector.spiders.cninfo_financial_report import CninfoFinancialReportCollector
 from collector.spiders.cninfo_ipo import CninfoIpoCollector
+from collector.spiders.eastmoney_a50_kline import EastmoneyA50KlineCollector
 from collector.spiders.eastmoney_broken_pool import EastmoneyBrokenPoolCollector
 from collector.spiders.eastmoney_financial_statement import (
     EastmoneyFinancialStatementCollector,
@@ -22,6 +23,7 @@ from collector.spiders.eastmoney_sector_fund_flow import (
 )
 from collector.spiders.exchange_market_amount import ExchangeMarketAmountCollector
 from collector.spiders.sina_auction import SinaAuctionCollector
+from collector.spiders.sina_etf_kline import SinaEtfKlineCollector
 from collector.spiders.sina_index_kline import SinaIndexKlineCollector
 from collector.spiders.sina_index_minute import SinaIndexMinuteCollector
 from collector.spiders.sina_index_spot import SinaIndexSpotCollector
@@ -331,6 +333,93 @@ class TestSinaIndexKlineCollector:
         )
         with patch("akshare.stock_zh_index_daily", return_value=pd.DataFrame()):
             assert await collector.collect(symbols=["sh000001"]) == []
+
+
+@pytest.mark.unit
+class TestSinaEtfKlineCollector:
+    @pytest.mark.asyncio
+    async def test_collect_maps_etf_daily_rows(self) -> None:
+        collector = SinaEtfKlineCollector({"source": "sina", "data_type": "etf-kline"})
+        mock_df = pd.DataFrame(
+            [
+                {
+                    "date": "2026-07-20",
+                    "open": 4.63,
+                    "high": 4.685,
+                    "low": 4.577,
+                    "close": 4.65,
+                    "volume": 4010453802,
+                    "amount": 18562451759.0,
+                }
+            ]
+        )
+        with patch("akshare.fund_etf_hist_sina", return_value=mock_df) as mock_fetch:
+            raw = await collector.collect()
+
+        mock_fetch.assert_called_once_with(symbol="sh510300")
+        assert raw[0]["stock_code"] == "sh510300"
+        assert raw[0]["trade_date"] == "2026-07-20"
+        item = await collector.transform(raw[0])
+        assert item["close"] == 4.65
+        assert item["amount"] == 18562451759.0
+        assert await collector.validate(item) is True
+
+    @pytest.mark.asyncio
+    async def test_collect_empty_returns_empty(self) -> None:
+        collector = SinaEtfKlineCollector({"source": "sina", "data_type": "etf-kline"})
+        with patch("akshare.fund_etf_hist_sina", return_value=pd.DataFrame()):
+            assert await collector.collect() == []
+
+
+@pytest.mark.unit
+class TestEastmoneyA50KlineCollector:
+    @pytest.mark.asyncio
+    async def test_collect_parses_kline_csv(self) -> None:
+        collector = EastmoneyA50KlineCollector(
+            {"source": "eastmoney", "data_type": "a50-kline"}
+        )
+        response = MagicMock()
+        response.json.return_value = {
+            "data": {
+                "klines": [
+                    "2026-07-20,14827.0,14846.0,14860.0,14795.0,43201",
+                    "bad,row",
+                ]
+            }
+        }
+        with patch(
+            "collector.spiders.eastmoney_a50_kline.eastmoney_get",
+            return_value=response,
+        ):
+            raw = await collector.collect()
+
+        assert len(raw) == 1
+        assert raw[0] == {
+            "stock_code": "CN00Y",
+            "trade_date": datetime.date(2026, 7, 20),
+            "open": "14827.0",
+            "close": "14846.0",
+            "high": "14860.0",
+            "low": "14795.0",
+            "volume": "43201",
+            "amount": None,
+        }
+        item = await collector.transform(raw[0])
+        assert item["close"] == 14846.0
+        assert await collector.validate(item) is True
+
+    @pytest.mark.asyncio
+    async def test_collect_empty_data_returns_empty(self) -> None:
+        collector = EastmoneyA50KlineCollector(
+            {"source": "eastmoney", "data_type": "a50-kline"}
+        )
+        response = MagicMock()
+        response.json.return_value = {"data": None}
+        with patch(
+            "collector.spiders.eastmoney_a50_kline.eastmoney_get",
+            return_value=response,
+        ):
+            assert await collector.collect() == []
 
 
 @pytest.mark.unit

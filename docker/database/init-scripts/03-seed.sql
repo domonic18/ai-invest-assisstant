@@ -19,7 +19,7 @@ ON CONFLICT (stock_code, market) DO NOTHING;
 INSERT INTO collector_task (task_name, task_type, source, schedule, is_active)
 VALUES
     ('ths_kline_daily', 'kline', 'ths', '0 16 * * 1-5', true),
-    ('sina_index_kline', 'index-kline', 'sina', '30 15 * * 1-5', true),
+    ('sina_index_kline', 'index-kline', 'sina', '30 15,18 * * 1-5', true),
     ('ths_auction', 'auction', 'ths', '15,25 9 * * 1-5', true),
     ('eastmoney_fund_flow', 'fund-flow', 'eastmoney', '0 17 * * 1-5', true),
     ('sina_news', 'news', 'sina', '0/30 * * * *', true),
@@ -31,5 +31,10 @@ VALUES
     ('exchange_market_amount', 'market-amount', 'exchange', '40 15,16,17 * * 1-5', true),
     ('eastmoney_broken_pool', 'broken-pool', 'eastmoney', '40 15 * * 1-5', true),
     ('eastmoney_sector_fund_flow', 'sector-fund-flow', 'eastmoney', '30 17 * * 1-5', true),
-    ('eastmoney_limit_up_pool', 'limit-up-pool', 'eastmoney', '35 15 * * 1-5', true)
+    ('eastmoney_limit_up_pool', 'limit-up-pool', 'eastmoney', '35 15 * * 1-5', true),
+    -- 须晚于 sina_market_breadth 最后一次写入（15:57），避免官方池家数被快照估算覆盖
+    ('eastmoney_limit_down_pool', 'limit-down-pool', 'eastmoney', '0 16 * * 1-5', true),
+    ('sina_etf_kline', 'etf-kline', 'sina', '5 16 * * 1-5', true),
+    -- A50 期指日盘 16:30 收盘，17:40 取当日日 K，21:40 夜盘修正
+    ('eastmoney_a50_kline', 'a50-kline', 'eastmoney', '40 17,21 * * 1-5', true)
 ON CONFLICT (task_name) DO NOTHING;

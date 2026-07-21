@@ -67,6 +67,20 @@ TASK_SPECS: dict[str, TaskSpec] = {
             },
         ),
         TaskSpec(
+            name="etf-kline",
+            data_type="etf_kline",
+            collectors={
+                "sina": "collector.spiders.sina_etf_kline:SinaEtfKlineCollector",
+            },
+        ),
+        TaskSpec(
+            name="a50-kline",
+            data_type="a50_kline",
+            collectors={
+                "eastmoney": "collector.spiders.eastmoney_a50_kline:EastmoneyA50KlineCollector",
+            },
+        ),
+        TaskSpec(
             name="auction",
             data_type="auction",
             collectors={
