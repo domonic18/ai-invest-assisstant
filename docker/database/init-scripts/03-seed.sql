@@ -35,6 +35,8 @@ VALUES
     -- 须晚于 sina_market_breadth 最后一次写入（15:57），避免官方池家数被快照估算覆盖
     ('eastmoney_limit_down_pool', 'limit-down-pool', 'eastmoney', '0 16 * * 1-5', true),
     ('sina_etf_kline', 'etf-kline', 'sina', '5 16 * * 1-5', true),
+    -- 须晚于 eastmoney_limit_up_pool（15:35），个股分钟线供涨停复盘分时缩略图
+    ('sina_stock_minute', 'stock-minute', 'sina', '20 16,18 * * 1-5', true),
     -- A50 期指日盘 16:30 收盘，17:40 取当日日 K，21:40 夜盘修正
     ('eastmoney_a50_kline', 'a50-kline', 'eastmoney', '40 17,21 * * 1-5', true)
 ON CONFLICT (task_name) DO NOTHING;

@@ -215,6 +215,15 @@ TASK_SPECS: dict[str, TaskSpec] = {
             converters={"trade_date": date.fromisoformat},
         ),
         TaskSpec(
+            name="stock-minute",
+            data_type="stock_minute",
+            collectors={
+                "sina": "collector.spiders.sina_stock_minute:SinaStockMinuteCollector",
+            },
+            run_params=("trade_date",),
+            converters={"trade_date": date.fromisoformat},
+        ),
+        TaskSpec(
             name="market-amount",
             data_type="market_amount",
             collectors={

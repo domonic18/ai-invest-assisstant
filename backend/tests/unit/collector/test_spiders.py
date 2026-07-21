@@ -35,6 +35,7 @@ from collector.spiders.sina_market_breadth import (
 from collector.spiders.sina_news import SinaNewsCollector
 from collector.spiders.sina_quote import SinaQuoteCollector
 from collector.spiders.sina_stock_list import SinaStockListCollector
+from collector.spiders.sina_stock_minute import SinaStockMinuteCollector
 from collector.spiders.ths_auction import ThsAuctionCollector
 from collector.spiders.ths_kline import ThsKlineCollector
 
@@ -1466,6 +1467,78 @@ class TestSinaIndexMinuteCollector:
         assert raw[0]["stock_code"] == "sh000001"
         assert raw[0]["trade_time"].date() == datetime.date(2026, 7, 17)
         assert raw[0]["trade_time"].tzinfo is not None
+
+
+@pytest.mark.unit
+class TestSinaStockMinuteCollector:
+    def _df(self) -> pd.DataFrame:
+        return pd.DataFrame(
+            [
+                {"day": "2026-07-20 15:00:00", "open": 1.0, "high": 1.0,
+                 "low": 1.0, "close": 10.0, "volume": 1.0, "amount": 2.0},
+                {"day": "2026-07-21 09:31:00", "open": 1.0, "high": 1.0,
+                 "low": 1.0, "close": 11.0, "volume": 1.0, "amount": 2.0},
+            ]
+        )
+
+    @pytest.mark.asyncio
+    async def test_collect_prefixes_codes_and_filters_target_day(self) -> None:
+        collector = SinaStockMinuteCollector(
+            {"source": "sina", "data_type": "stock-minute"}
+        )
+        with patch(
+            "akshare.stock_zh_a_minute", return_value=self._df()
+        ) as mock_minute:
+            raw = await collector.collect(
+                symbols=["600001", "000001"], trade_date=datetime.date(2026, 7, 21)
+            )
+
+        called_symbols = [call.kwargs["symbol"] for call in mock_minute.call_args_list]
+        assert called_symbols == ["sh600001", "sz000001"]
+        # 只保留目标日，两只各 1 条
+        assert len(raw) == 2
+        assert {item["stock_code"] for item in raw} == {"600001", "000001"}
+        assert all(
+            item["trade_time"].date() == datetime.date(2026, 7, 21) for item in raw
+        )
+
+    @pytest.mark.asyncio
+    async def test_collect_skips_bse_and_survives_single_failure(self) -> None:
+        collector = SinaStockMinuteCollector(
+            {"source": "sina", "data_type": "stock-minute"}
+        )
+
+        def _side_effect(symbol: str, **kwargs):
+            if symbol == "sz000001":
+                raise ConnectionError("rate limited")
+            return self._df()
+
+        with patch("akshare.stock_zh_a_minute", side_effect=_side_effect) as mock_minute:
+            raw = await collector.collect(
+                symbols=["430001", "000001", "600001"],
+                trade_date=datetime.date(2026, 7, 21),
+            )
+
+        # 北交所（4 开头）不请求；000001 失败不影响 600001
+        called_symbols = [call.kwargs["symbol"] for call in mock_minute.call_args_list]
+        assert called_symbols == ["sz000001", "sh600001"]
+        assert {item["stock_code"] for item in raw} == {"600001"}
+
+    @pytest.mark.asyncio
+    async def test_collect_defaults_to_limit_up_pool_codes(self) -> None:
+        collector = SinaStockMinuteCollector(
+            {"source": "sina", "data_type": "stock-minute"}
+        )
+        with (
+            patch(
+                "collector.spiders.sina_stock_minute._fetch_limit_up_codes",
+                AsyncMock(return_value=["600001"]),
+            ),
+            patch("akshare.stock_zh_a_minute", return_value=self._df()),
+        ):
+            raw = await collector.collect(trade_date=datetime.date(2026, 7, 21))
+
+        assert {item["stock_code"] for item in raw} == {"600001"}
 
 
 @pytest.mark.unit
