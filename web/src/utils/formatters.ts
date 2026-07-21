@@ -18,6 +18,13 @@ export function formatAmount(value: number | null | undefined): string {
   return `${sign}${abs.toFixed(0)}`
 }
 
+/** 封板时间："092500" → "09:25:00"（东财 6 位零填充格式）。 */
+export function formatSealTime(value: string | null | undefined): string {
+  if (!value) return '-'
+  const digits = value.padStart(6, '0')
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}:${digits.slice(4, 6)}`
+}
+
 const RISE_COLOR = { cn: 'text-red-500', us: 'text-green-500' } as const
 const FALL_COLOR = { cn: 'text-green-500', us: 'text-red-500' } as const
 const RISE_HEX = { cn: '#f85149', us: '#2ea043' } as const

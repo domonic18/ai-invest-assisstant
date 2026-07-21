@@ -94,6 +94,7 @@ function mapLimitUpStock(dto: ApiLimitUpItem): LimitUpStock {
     limitStat: dto.limit_stat,
     consecutiveBoards: dto.consecutive_boards,
     industry: dto.industry,
+    sealType: dto.seal_type,
   }
 }
 
@@ -106,6 +107,13 @@ function mapLimitUpData(dto: ApiLimitUpResponse): LimitUpData {
     maxBoards: dto.max_boards,
     ladder: dto.ladder.map(mapLimitUpStock),
     items: dto.items.map(mapLimitUpStock),
+    groups: dto.groups.map((group) => ({
+      industry: group.industry,
+      count: group.count,
+      changePct: group.change_pct,
+      mainNetInflow: group.main_net_inflow,
+      items: group.items.map(mapLimitUpStock),
+    })),
   }
 }
 

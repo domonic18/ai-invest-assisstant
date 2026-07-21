@@ -1,10 +1,16 @@
 import { Card, Skeleton, Tag, Typography } from 'antd'
 import { Link } from 'react-router-dom'
 
-import type { LimitUpData } from '@ai-invest/shared'
+import type { LimitUpData, LimitUpStock } from '@ai-invest/shared'
 import { SourceNote } from '@/components/common/SourceNote'
 import { useColorScheme } from '@/stores/settings'
-import { changeColor, formatAmount, formatPercent } from '@/utils/formatters'
+import {
+  changeColor,
+  changeHex,
+  formatAmount,
+  formatPercent,
+  formatSealTime,
+} from '@/utils/formatters'
 
 interface LimitUpSectionProps {
   data?: LimitUpData
@@ -23,6 +29,21 @@ const BOARD_COLORS: Record<number, string> = {
 
 function boardColor(boards: number): string {
   return BOARD_COLORS[boards] ?? '#5e6ad2'
+}
+
+function SealBadge({ item }: { item: LimitUpStock }) {
+  const boards = item.consecutiveBoards ?? 0
+  const boardText = boards >= 2 ? `${boards}板` : '首板'
+  const prefix = item.sealType === '一字板' ? '一字' : item.sealType === 'T字板' ? 'T' : null
+  const color = prefix ? '#f85149' : boardColor(boards)
+  return (
+    <span
+      className="rounded px-1.5 py-0.5 text-xs font-bold text-white whitespace-nowrap"
+      style={{ background: color }}
+    >
+      {prefix ? `${prefix}·${boardText}` : boardText}
+    </span>
+  )
 }
 
 export function LimitUpSection({ data, loading, pendingClose, canBackfill }: LimitUpSectionProps) {
@@ -85,38 +106,57 @@ export function LimitUpSection({ data, loading, pendingClose, canBackfill }: Lim
 
       <Card
         variant="borderless"
-        title="今日涨停板"
+        title="涨停复盘"
         extra={
           <span className="text-xs text-gray-400">
             共 {data.total} 只涨停 · 首板 {data.firstBoard} · 连板 {data.continuous}
           </span>
         }
       >
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {data.items.map((item) => {
-            const boards = item.consecutiveBoards ?? 0
-            return (
-              <Link
-                key={item.stockCode}
-                to={`/stock/${item.stockCode}`}
-                className="rounded p-2 bg-[#1a1d24] hover:bg-[#22262f] transition-colors"
-                style={boards >= 4 ? { borderLeft: `3px solid ${boardColor(boards)}` } : undefined}
-              >
-                <div className="text-sm font-medium text-gray-100">{item.stockName}</div>
-                <div className="text-xs text-gray-500 font-mono">
-                  {item.stockCode} · {boards >= 2 ? `${boards}板` : '首板'}
-                </div>
-                <div className="text-xs text-gray-400">
-                  {item.industry ?? '未分类'}
-                  {item.sealedAmount != null && (
-                    <span className="ml-2">封单 {formatAmount(item.sealedAmount)}</span>
-                  )}
-                </div>
-              </Link>
-            )
-          })}
+        <div className="space-y-4">
+          {data.groups.map((group) => (
+            <div key={group.industry}>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded bg-red-500/10 px-2.5 py-1.5 mb-2">
+                <span className="text-sm font-semibold text-red-400">{group.industry}</span>
+                {group.changePct != null && (
+                  <span className="text-xs font-medium" style={{ color: changeHex(group.changePct) }}>
+                    {formatPercent(group.changePct)}
+                  </span>
+                )}
+                {group.mainNetInflow != null && (
+                  <span className="text-xs text-gray-400">
+                    主力净流入 {formatAmount(group.mainNetInflow)}
+                  </span>
+                )}
+                <span className="text-xs text-gray-500 ml-auto">{group.count} 家涨停</span>
+              </div>
+              <div className="space-y-1">
+                {group.items.map((item) => (
+                  <div
+                    key={item.stockCode}
+                    className="flex items-center gap-2.5 rounded px-2 py-1.5 bg-[#1a1d24]"
+                  >
+                    <SealBadge item={item} />
+                    <Link to={`/stock/${item.stockCode}`} className="font-medium text-sm">
+                      {item.stockName}
+                    </Link>
+                    <span className="font-mono text-xs text-gray-500">{item.stockCode}</span>
+                    <span className="font-mono text-xs text-gray-400">
+                      {formatSealTime(item.firstSealTime)}
+                    </span>
+                    <Tag color="default" className="ml-auto">
+                      {item.industry ?? '未分类'}
+                    </Tag>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
-        <SourceNote>东方财富涨停股池</SourceNote>
+        <SourceNote>
+          东方财富涨停股池 · 按所属行业分组 · 板块涨跌幅/主力净流入来自板块资金流 ·
+          一字=开盘涨停全天未开板，T=开盘涨停盘中打开后回封
+        </SourceNote>
       </Card>
     </>
   )
