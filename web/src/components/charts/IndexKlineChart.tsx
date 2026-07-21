@@ -2,6 +2,7 @@ import ReactECharts from 'echarts-for-react'
 import type { EChartsOption, SeriesOption } from 'echarts'
 
 import type { IndexKlineBar, MovingAverageConfig } from '@ai-invest/shared'
+import { useKlineKeyboardNav } from '@/components/charts/useKlineKeyboardNav'
 import { useColorScheme } from '@/stores/settings'
 import { fallHex, formatAmount, riseHex } from '@/utils/formatters'
 import { movingAverage } from '@/utils/movingAverage'
@@ -14,6 +15,7 @@ interface IndexKlineChartProps {
 
 export function IndexKlineChart({ bars, maConfigs, height = 360 }: IndexKlineChartProps) {
   useColorScheme()
+  const { chartRef, wrapperProps, onEvents } = useKlineKeyboardNav(bars.length)
 
   const up = riseHex()
   const down = fallHex()
@@ -144,10 +146,14 @@ export function IndexKlineChart({ bars, maConfigs, height = 360 }: IndexKlineCha
   }
 
   return (
-    <ReactECharts
-      option={option}
-      style={{ height: `${height}px`, width: '100%' }}
-      notMerge
-    />
+    <div {...wrapperProps}>
+      <ReactECharts
+        ref={chartRef}
+        option={option}
+        style={{ height: `${height}px`, width: '100%' }}
+        onEvents={onEvents}
+        notMerge
+      />
+    </div>
   )
 }

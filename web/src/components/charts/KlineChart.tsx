@@ -2,6 +2,7 @@ import ReactECharts from 'echarts-for-react'
 import type { EChartsOption } from 'echarts'
 
 import type { KlineData } from '@ai-invest/shared'
+import { useKlineKeyboardNav } from '@/components/charts/useKlineKeyboardNav'
 import { useColorScheme } from '@/stores/settings'
 import { fallHex, riseHex } from '@/utils/formatters'
 
@@ -12,6 +13,7 @@ interface KlineChartProps {
 
 export function KlineChart({ data, height = 400 }: KlineChartProps) {
   useColorScheme()
+  const { chartRef, wrapperProps, onEvents } = useKlineKeyboardNav(data.length)
 
   const sorted = [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
   const dates = sorted.map((item) => item.date)
@@ -72,10 +74,14 @@ export function KlineChart({ data, height = 400 }: KlineChartProps) {
   }
 
   return (
-    <ReactECharts
-      option={option}
-      style={{ height: `${height}px`, width: '100%' }}
-      opts={{ renderer: 'canvas' }}
-    />
+    <div {...wrapperProps}>
+      <ReactECharts
+        ref={chartRef}
+        option={option}
+        style={{ height: `${height}px`, width: '100%' }}
+        onEvents={onEvents}
+        opts={{ renderer: 'canvas' }}
+      />
+    </div>
   )
 }
