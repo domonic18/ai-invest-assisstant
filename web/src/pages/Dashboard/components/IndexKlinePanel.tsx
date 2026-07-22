@@ -65,7 +65,12 @@ export function IndexKlinePanel({ code, period, maConfigs }: IndexKlinePanelProp
         </span>
       </div>
       {data.bars.length > 0 ? (
-        <IndexKlineChart bars={data.bars} maConfigs={maConfigs} height={340} />
+        <IndexKlineChart
+          bars={data.bars}
+          maConfigs={maConfigs}
+          height={340}
+          defaultVisibleBars={period === 'daily' ? 120 : undefined}
+        />
       ) : (
         <div className="text-gray-500 text-sm py-8 text-center">
           暂无 K 线数据（指数日 K 采集任务运行后可用）

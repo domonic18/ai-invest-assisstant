@@ -11,9 +11,15 @@ interface IndexKlineChartProps {
   bars: IndexKlineBar[]
   maConfigs: MovingAverageConfig[]
   height?: number
+  defaultVisibleBars?: number
 }
 
-export function IndexKlineChart({ bars, maConfigs, height = 360 }: IndexKlineChartProps) {
+export function IndexKlineChart({
+  bars,
+  maConfigs,
+  height = 360,
+  defaultVisibleBars,
+}: IndexKlineChartProps) {
   useColorScheme()
   const { chartRef, wrapperProps, onEvents } = useKlineKeyboardNav(bars.length)
 
@@ -82,7 +88,15 @@ export function IndexKlineChart({ bars, maConfigs, height = 360 }: IndexKlineCha
       { left: 60, right: 16, top: 28, height: '56%' },
       { left: 60, right: 16, top: '74%', height: '16%' },
     ],
-    dataZoom: [{ type: 'inside', xAxisIndex: [0, 1] }],
+    dataZoom: [
+      {
+        type: 'inside',
+        xAxisIndex: [0, 1],
+        ...(defaultVisibleBars != null && bars.length > defaultVisibleBars
+          ? { startValue: bars.length - defaultVisibleBars, endValue: bars.length - 1 }
+          : {}),
+      },
+    ],
     xAxis: [
       {
         type: 'category',
