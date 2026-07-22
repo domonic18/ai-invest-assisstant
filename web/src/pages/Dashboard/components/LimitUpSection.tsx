@@ -42,14 +42,24 @@ function boardColor(boards: number): string {
 function SealBadge({ item }: { item: LimitUpStock }) {
   const boards = item.consecutiveBoards ?? 0
   const boardText = boards >= 2 ? `${boards}板` : '首板'
-  const prefix = item.sealType === '一字板' ? '一字' : item.sealType === 'T字板' ? 'T' : null
-  const color = prefix ? '#f85149' : boardColor(boards)
+  const sealIcon = item.sealType === '一字板' ? '一' : item.sealType === 'T字板' ? 'T' : null
   return (
-    <span
-      className="rounded px-1.5 py-0.5 text-xs font-bold text-white whitespace-nowrap"
-      style={{ background: color }}
-    >
-      {prefix ? `${prefix}·${boardText}` : boardText}
+    <span className="flex items-center gap-1 shrink-0">
+      <span
+        className="rounded px-1.5 py-0.5 text-xs font-bold text-white whitespace-nowrap"
+        style={{ background: boardColor(boards) }}
+      >
+        {boardText}
+      </span>
+      {sealIcon && (
+        <span
+          className="w-5 h-5 rounded text-center leading-5 text-xs font-bold text-white"
+          style={{ background: item.sealType === '一字板' ? '#f85149' : '#d29922' }}
+          title={item.sealType ?? undefined}
+        >
+          {sealIcon}
+        </span>
+      )}
     </span>
   )
 }
@@ -240,7 +250,7 @@ export function LimitUpSection({
                       {item.stockCode}
                     </span>
                     <span className="w-14 text-right font-mono text-xs text-gray-400">
-                      {formatSealTime(item.firstSealTime)}
+                      {formatSealTime(item.lastSealTime ?? item.firstSealTime)}
                     </span>
                     <IntradaySpark
                       points={intraday?.series[item.stockCode]}
@@ -255,8 +265,8 @@ export function LimitUpSection({
         </div>
         <SourceNote>
           {data.aiGenerated
-            ? '东方财富涨停股池 · 题材分组与涨停原因由 AI 基于当日行情、板块资金与新闻归纳，仅供参考 · 一字=开盘涨停全天未开板，T=开盘涨停盘中打开后回封'
-            : '东方财富涨停股池 · 按所属行业分组 · 板块涨跌幅/主力净流入来自板块资金流 · 一字=开盘涨停全天未开板，T=开盘涨停盘中打开后回封'}
+            ? '东方财富涨停股池 · 时间为最终封板时间 · 题材分组与涨停原因由 AI 基于当日行情、板块资金与新闻归纳，仅供参考 · 图标 一=一字板（开盘涨停全天未开板），T=T字板（开盘涨停盘中打开后回封）'
+            : '东方财富涨停股池 · 时间为最终封板时间 · 按所属行业分组 · 板块涨跌幅/主力净流入来自板块资金流 · 图标 一=一字板（开盘涨停全天未开板），T=T字板（开盘涨停盘中打开后回封）'}
         </SourceNote>
       </Card>
     </>

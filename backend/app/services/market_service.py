@@ -675,7 +675,8 @@ def _build_limit_up_groups(
 
 
 def _group_item_sort_key(item: LimitUpItem) -> tuple[int, str]:
-    return (-(item.consecutive_boards or 0), item.first_seal_time or "999999")
+    seal = item.last_seal_time or item.first_seal_time or "999999"
+    return (-(item.consecutive_boards or 0), seal)
 
 
 def _build_ai_groups(
