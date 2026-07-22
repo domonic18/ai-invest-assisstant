@@ -1,156 +1,121 @@
-import { SearchOutlined } from '@ant-design/icons'
-import {
-  Button,
-  Card,
-  DatePicker,
-  Form,
-  Input,
-  Statistic,
-  Table,
-  Tag,
-  Typography,
-} from 'antd'
-import type { Dayjs } from 'dayjs'
+import { Card, DatePicker, Empty, Spin, Typography } from 'antd'
 import dayjs from 'dayjs'
+import type { Dayjs } from 'dayjs'
+import ReactECharts from 'echarts-for-react'
+import type { EChartsOption } from 'echarts'
 import { useState } from 'react'
 
-import { useAuctionData } from '@/hooks/useAuction'
-import type { AuctionData } from '@ai-invest/shared'
+import { useIndexAuctionTrend } from '@/hooks/useAuction'
 import { useColorScheme } from '@/stores/settings'
-import { fallHex, riseHex } from '@/utils/formatters'
 
-interface FilterForm {
-  stockCode: string
-  tradeDate?: Dayjs | null
-}
+const { RangePicker } = DatePicker
 
-function PriceList({ prices, volumes, type }: { prices: number[]; volumes: number[]; type: 'bid' | 'ask' }) {
-  const color = type === 'bid' ? riseHex() : fallHex()
-  return (
-    <div className="space-y-1">
-      {prices.slice(0, 5).map((price, idx) => (
-        <div key={idx} className="flex justify-between gap-4">
-          <Tag color={color}>{price.toFixed(2)}</Tag>
-          <span className="text-gray-400">{volumes[idx] ?? '-'}</span>
-        </div>
-      ))}
-    </div>
-  )
+// 交易日 ≈ 自然日 × 1.5（含周末与节假日冗余，图表只展示有数据的交易日）
+const TRADING_DAY_PRESETS: Array<{ label: string; value: [Dayjs, Dayjs] }> = [
+  { label: '近 30 个交易日', value: [dayjs().subtract(45, 'day'), dayjs()] },
+  { label: '近 60 个交易日', value: [dayjs().subtract(90, 'day'), dayjs()] },
+  { label: '近 120 个交易日', value: [dayjs().subtract(180, 'day'), dayjs()] },
+]
+
+// 与 Excel 图一致：上证=橙、科创50=蓝、创业板=绿（series 顺序由后端固定）
+const SERIES_COLORS = ['#ED7D31', '#4472C4', '#70AD47']
+
+function formatDateLabel(iso: string): string {
+  const [, month, day] = iso.split('-')
+  return `${Number(month)}月${Number(day)}日`
 }
 
 export function AuctionReview() {
   useColorScheme()
-  const [form] = Form.useForm<FilterForm>()
-  const [params, setParams] = useState({
-    stockCode: '',
-    tradeDate: dayjs().format('YYYY-MM-DD'),
-    page: 1,
-    pageSize: 20,
+  // null = 默认近 30 个交易日（由后端 days 参数决定）
+  const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null)
+  const { data, isLoading, error } = useIndexAuctionTrend({
+    startDate: range?.[0].format('YYYY-MM-DD'),
+    endDate: range?.[1].format('YYYY-MM-DD'),
   })
 
-  const { data, isLoading, error } = useAuctionData(params.stockCode, {
-    tradeDate: params.tradeDate,
-    page: params.page,
-    pageSize: params.pageSize,
-  })
-
-  const handleSearch = (values: FilterForm) => {
-    setParams({
-      stockCode: values.stockCode,
-      tradeDate: values.tradeDate ? values.tradeDate.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
-      page: 1,
-      pageSize: params.pageSize,
-    })
+  const option: EChartsOption = {
+    backgroundColor: 'transparent',
+    animation: false,
+    color: SERIES_COLORS,
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'cross' },
+      valueFormatter: (value) =>
+        typeof value === 'number' ? `${value.toFixed(2)} 亿` : '-',
+    },
+    legend: {
+      bottom: 0,
+      textStyle: { color: '#8c8c8c', fontSize: 10 },
+      itemWidth: 14,
+      itemHeight: 2,
+      icon: 'rect',
+    },
+    grid: { left: 60, right: 30, top: 30, bottom: 70 },
+    xAxis: {
+      type: 'category',
+      data: (data?.dates ?? []).map(formatDateLabel),
+      axisLabel: { color: '#8c8c8c', fontSize: 10, rotate: 45 },
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: '#3a3f4b' } },
+    },
+    yAxis: {
+      type: 'value',
+      scale: true,
+      name: '亿元',
+      nameTextStyle: { color: '#8c8c8c', fontSize: 10 },
+      axisLabel: { color: '#8c8c8c', fontSize: 10 },
+      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } },
+    },
+    series: (data?.series ?? []).map((s) => ({
+      name: s.name,
+      type: 'line',
+      smooth: false,
+      symbol: 'circle',
+      symbolSize: 5,
+      lineStyle: { width: 1.5 },
+      connectNulls: false,
+      data: s.values,
+      label: {
+        show: true,
+        position: 'top',
+        fontSize: 10,
+        color: 'inherit',
+        formatter: (params) =>
+          typeof params.value === 'number' ? params.value.toFixed(2) : '',
+      },
+    })),
   }
 
-  const columns = [
-    { title: '时间', dataIndex: 'time', key: 'time' },
-    {
-      title: '成交价',
-      dataIndex: 'price',
-      key: 'price',
-      render: (value: number) => value.toFixed(3),
-    },
-    { title: '成交量', dataIndex: 'volume', key: 'volume' },
-    {
-      title: '买档（价/量）',
-      key: 'bids',
-      render: (_: unknown, record: AuctionData) => (
-        <PriceList prices={record.bidPrices} volumes={record.bidVolumes} type="bid" />
-      ),
-    },
-    {
-      title: '卖档（价/量）',
-      key: 'asks',
-      render: (_: unknown, record: AuctionData) => (
-        <PriceList prices={record.askPrices} volumes={record.askVolumes} type="ask" />
-      ),
-    },
-  ]
-
-  const items = data?.items || []
-  const lastPrice = items[items.length - 1]?.price
-
   return (
-    <div className="space-y-6">
-      <Typography.Title level={4} className="!mb-0">集合竞价复盘</Typography.Title>
-
-      <Form form={form} layout="inline" onFinish={handleSearch} className="mb-4">
-        <Form.Item name="stockCode" label="股票代码" rules={[{ required: true }]}>
-          <Input placeholder="000001" allowClear />
-        </Form.Item>
-        <Form.Item name="tradeDate" label="交易日期">
-          <DatePicker />
-        </Form.Item>
-        <Form.Item>
-          <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
-            查询
-          </Button>
-        </Form.Item>
-      </Form>
-
-      {!params.stockCode && !isLoading && (
-        <Typography.Text type="secondary">请输入股票代码查询集合竞价数据。</Typography.Text>
-      )}
-
-      {error && (
-        <Typography.Text type="danger">
-          {error instanceof Error ? error.message : '加载失败'}
-        </Typography.Text>
-      )}
-
-      {params.stockCode && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card variant="borderless">
-              <Statistic title="记录数" value={data?.total || 0} />
-            </Card>
-            <Card variant="borderless">
-              <Statistic
-                title="最新成交价"
-                value={lastPrice ?? '-'}
-                precision={3}
-              />
-            </Card>
-            <Card variant="borderless">
-              <Statistic title="最新时间" value={items[items.length - 1]?.time ?? '-'} />
-            </Card>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <Typography.Title level={4} className="!mb-0">
+          集合竞价
+        </Typography.Title>
+        <RangePicker
+          value={range}
+          onChange={(dates) => setRange(dates as [Dayjs, Dayjs] | null)}
+          presets={TRADING_DAY_PRESETS}
+          placeholder={['开始日期', '结束日期']}
+          size="small"
+          allowClear
+        />
+      </div>
+      <Card variant="borderless">
+        {isLoading ? (
+          <div className="flex justify-center py-24">
+            <Spin />
           </div>
-
-          <Table
-            dataSource={items}
-            columns={columns}
-            rowKey={(record: AuctionData) => `${record.date}-${record.time}`}
-            loading={isLoading}
-            pagination={{
-              current: data?.page,
-              pageSize: data?.pageSize,
-              total: data?.total,
-              onChange: (page, pageSize) => setParams((prev) => ({ ...prev, page, pageSize })),
-            }}
+        ) : error || !data || data.dates.length === 0 ? (
+          <Empty
+            className="py-16"
+            description="暂无集合竞价数据（指数竞价采集任务交易日 9:26~9:29 运行后可用）"
           />
-        </>
-      )}
+        ) : (
+          <ReactECharts option={option} style={{ height: '480px', width: '100%' }} notMerge />
+        )}
+      </Card>
     </div>
   )
 }

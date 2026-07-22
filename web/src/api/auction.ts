@@ -1,28 +1,22 @@
 import { ENDPOINTS } from '@ai-invest/shared'
-import type {
-  ApiAuctionDataResponse,
-  ApiPaginatedResponse,
-} from '@ai-invest/shared'
+import type { ApiIndexAuctionTrendResponse } from '@ai-invest/shared'
 
 import { apiClient } from './client'
-import { mapAuctionData, mapPaginatedResponse } from './mappers'
 
-export interface AuctionParams {
-  tradeDate?: string
-  page?: number
-  pageSize?: number
+export type IndexAuctionTrend = ApiIndexAuctionTrendResponse
+
+export interface IndexAuctionTrendParams {
+  days?: number
+  startDate?: string
+  endDate?: string
 }
 
-export async function fetchAuctionData(code: string, params: AuctionParams = {}) {
-  const response = await apiClient.get<ApiPaginatedResponse<ApiAuctionDataResponse>>(
-    ENDPOINTS.auction.get(code),
-    {
-      params: {
-        trade_date: params.tradeDate,
-        page: params.page ?? 1,
-        page_size: params.pageSize ?? 20,
-      },
-    },
+export async function fetchIndexAuctionTrend(
+  params: IndexAuctionTrendParams = {},
+): Promise<IndexAuctionTrend> {
+  const { days = 30, startDate, endDate } = params
+  const response = await apiClient.get<ApiIndexAuctionTrendResponse>(
+    ENDPOINTS.auction.indexTrend(days, startDate, endDate),
   )
-  return mapPaginatedResponse(response.data, mapAuctionData)
+  return response.data
 }
