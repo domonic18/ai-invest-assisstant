@@ -84,6 +84,14 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "extra": {},
     },
     {
+        "source": "tushare",
+        "name": "Tushare Pro",
+        "base_url": "http://api.tushare.pro",
+        "is_enabled": True,
+        "supported_data_types": ["index-auction"],
+        "extra": {},
+    },
+    {
         "source": "exchange",
         "name": "沪深交易所",
         "base_url": None,

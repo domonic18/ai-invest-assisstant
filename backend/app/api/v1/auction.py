@@ -3,14 +3,39 @@
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db
-from app.schemas.stock import AuctionDataResponse, PaginatedResponse
-from app.services import stock_service
+from app.schemas.stock import (
+    AuctionDataResponse,
+    IndexAuctionTrendResponse,
+    PaginatedResponse,
+)
+from app.services import auction_service, stock_service
 
 router = APIRouter()
+
+
+@router.get("/index-trend", response_model=IndexAuctionTrendResponse)
+async def get_index_auction_trend(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    days: Annotated[int, Query(ge=1, le=250)] = 30,
+    start_date: Annotated[date | None, Query()] = None,
+    end_date: Annotated[date | None, Query()] = None,
+) -> IndexAuctionTrendResponse:
+    """指数集合竞价成交额趋势（上证/科创50/创业板，亿元，日期升序）。
+
+    指定 start_date/end_date 时按日期区间查询，否则取最近 days 个交易日。
+    """
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start_date must not be after end_date",
+        )
+    return await auction_service.get_index_auction_trend(
+        session, days, start_date, end_date
+    )
 
 
 @router.get("/{code}", response_model=PaginatedResponse)

@@ -92,6 +92,21 @@ class AuctionDataResponse(BaseModel):
     ask_volumes: list[int | None] | None = None
 
 
+class IndexAuctionSeries(BaseModel):
+    """单个指数的集合竞价成交额序列（亿元，与 dates 逐点对齐，缺数据为 None）。"""
+
+    code: str
+    name: str
+    values: list[float | None]
+
+
+class IndexAuctionTrendResponse(BaseModel):
+    """指数集合竞价成交额趋势（dates 升序）。"""
+
+    dates: list[date]
+    series: list[IndexAuctionSeries]
+
+
 class FundFlowResponse(BaseModel):
     """资金流向数据响应。"""
 

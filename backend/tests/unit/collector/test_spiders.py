@@ -38,6 +38,7 @@ from collector.spiders.sina_stock_list import SinaStockListCollector
 from collector.spiders.sina_stock_minute import SinaStockMinuteCollector
 from collector.spiders.ths_auction import ThsAuctionCollector
 from collector.spiders.ths_kline import ThsKlineCollector
+from collector.spiders.tushare_index_auction import TushareIndexAuctionCollector
 
 
 @pytest.mark.unit
@@ -1467,6 +1468,84 @@ class TestSinaIndexMinuteCollector:
         assert raw[0]["stock_code"] == "sh000001"
         assert raw[0]["trade_time"].date() == datetime.date(2026, 7, 17)
         assert raw[0]["trade_time"].tzinfo is not None
+
+
+@pytest.mark.unit
+class TestTushareIndexAuctionCollector:
+    def _auction_df(self) -> pd.DataFrame:
+        return pd.DataFrame(
+            [
+                {"ts_code": "600001.SH", "amount": 10e8},
+                {"ts_code": "688001.SH", "amount": 3e8},
+                {"ts_code": "688002.SH", "amount": 1e8},
+                {"ts_code": "300001.SZ", "amount": 5e8},
+                {"ts_code": "301001.SZ", "amount": 2e8},
+                {"ts_code": "000001.SZ", "amount": 7e8},
+            ]
+        )
+
+    def _cons_df(self) -> pd.DataFrame:
+        return pd.DataFrame({"成分券代码": ["688001", "688002"]})
+
+    def _collector(self) -> TushareIndexAuctionCollector:
+        return TushareIndexAuctionCollector(
+            {"source": "tushare", "data_type": "index-auction", "api_key": "token"}
+        )
+
+    @pytest.mark.asyncio
+    async def test_collect_aggregates_by_index_universe(self) -> None:
+        mock_pro = MagicMock()
+        mock_pro.stk_auction.return_value = self._auction_df()
+        with (
+            patch("tushare.pro_api", return_value=mock_pro),
+            patch(
+                "akshare.index_stock_cons_csindex", return_value=self._cons_df()
+            ),
+        ):
+            raw = await self._collector().collect(
+                trade_date=datetime.date(2026, 7, 21)
+            )
+
+        mock_pro.stk_auction.assert_called_once_with(trade_date="20260721")
+        by_code = {item["index_code"]: item for item in raw}
+        assert set(by_code) == {"sh000001", "sh000688", "sz399006"}
+        # 上证指数 = 全部沪市 A 股（60/68）
+        assert by_code["sh000001"]["auction_amount"] == pytest.approx(14e8)
+        # 科创50 = 成分股合计
+        assert by_code["sh000688"]["auction_amount"] == pytest.approx(4e8)
+        # 创业板指 = 全部创业板（300/301），不含深市主板 000001
+        assert by_code["sz399006"]["auction_amount"] == pytest.approx(7e8)
+        assert all(item["trade_date"] == datetime.date(2026, 7, 21) for item in raw)
+        assert all(item["source"] == "tushare" for item in raw)
+
+    @pytest.mark.asyncio
+    async def test_collect_respects_requested_symbols(self) -> None:
+        mock_pro = MagicMock()
+        mock_pro.stk_auction.return_value = self._auction_df()
+        with patch("tushare.pro_api", return_value=mock_pro):
+            raw = await self._collector().collect(
+                symbols=["sh000001"], trade_date=datetime.date(2026, 7, 21)
+            )
+
+        assert [item["index_code"] for item in raw] == ["sh000001"]
+
+    @pytest.mark.asyncio
+    async def test_collect_empty_returns_empty(self) -> None:
+        mock_pro = MagicMock()
+        mock_pro.stk_auction.return_value = pd.DataFrame()
+        with patch("tushare.pro_api", return_value=mock_pro):
+            raw = await self._collector().collect(
+                trade_date=datetime.date(2026, 7, 21)
+            )
+        assert raw == []
+
+    @pytest.mark.asyncio
+    async def test_collect_requires_api_key(self) -> None:
+        collector = TushareIndexAuctionCollector(
+            {"source": "tushare", "data_type": "index-auction"}
+        )
+        with pytest.raises(ValueError, match="api_key"):
+            await collector.collect(trade_date=datetime.date(2026, 7, 21))
 
 
 @pytest.mark.unit

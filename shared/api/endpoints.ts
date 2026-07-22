@@ -35,6 +35,12 @@ export const ENDPOINTS = {
   },
   auction: {
     get: (code: string) => `${API_BASE}/auction/${code}`,
+    indexTrend: (days = 30, startDate?: string, endDate?: string) => {
+      const params = new URLSearchParams({ days: String(days) })
+      if (startDate) params.set('start_date', startDate)
+      if (endDate) params.set('end_date', endDate)
+      return `${API_BASE}/auction/index-trend?${params.toString()}`
+    },
   },
   fundFlow: {
     list: `${API_BASE}/fund-flow`,

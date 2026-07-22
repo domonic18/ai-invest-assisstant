@@ -28,6 +28,9 @@ VALUES
     ('sina_market_breadth', 'market-breadth', 'sina', '2-57/5 9-15 * * 1-5', true),
     ('sina_index_spot', 'index-spot', 'sina', '* 9-15 * * 1-5', true),
     ('sina_index_minute', 'index-minute', 'sina', '* 9-15 * * 1-5', true),
+    -- 9:33 首根分钟 bar 落库后采集指数 9:25 竞价成交额，15:33 补采兜底
+    ('tushare_index_auction', 'index-auction', 'tushare', '26-29 9 * * 1-5', true),
+    ('tushare_index_auction_pm', 'index-auction', 'tushare', '35 16 * * 1-5', true),
     ('exchange_market_amount', 'market-amount', 'exchange', '40 15,16,17 * * 1-5', true),
     ('eastmoney_broken_pool', 'broken-pool', 'eastmoney', '40 15 * * 1-5', true),
     ('eastmoney_sector_fund_flow', 'sector-fund-flow', 'eastmoney', '30 17 * * 1-5', true),

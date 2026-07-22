@@ -30,60 +30,48 @@ dependencies = [
     "pydantic>=2.7.0",
     "pydantic-settings>=2.3.0",
     "python-multipart>=0.0.9",
-
     # Database
     "sqlalchemy[asyncio]>=2.0.30",
     "asyncpg>=0.29.0",
     "alembic>=1.13.0",
-
     # Cache & Queue
     "redis>=5.0.0",
     "celery>=5.4.0",
-
     # Auth
     "python-jose[cryptography]>=3.3.0",
     "bcrypt>=4.1.0",
-
     # Encryption
     "cryptography>=42.0.0",
-
     # Scheduler
     "apscheduler>=3.10.0",
-
     # AI Agent
     "pydantic-ai>=0.0.10",
     "openai>=1.35.0",
     "anthropic>=0.28.0",
-
     # MCP
     "mcp>=1.0.0",
-
     # Search & Vector
     "elasticsearch[async]>=8.13.0,<9",
     "pymilvus>=2.4.0",
-
     # Storage
     "minio>=7.2.0",
-
     # Data & Finance
     "pandas>=2.2.0",
     "numpy>=1.26.0,<2.0",
     "akshare>=1.14.0",
-
     # Web Scraping
     "scrapy>=2.11.0",
     "playwright>=1.44.0",
     "httpx>=0.27.0",
-
     # Utils
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.1",
     "python-dateutil>=2.9.0",
     "structlog>=24.1.0",
     "tenacity>=8.3.0",
-
     # WeChat Mini Program auth (optional)
     "itsdangerous>=2.2.0",
+    "tushare>=1.4.29",
 ]
 
 [tool.uv]

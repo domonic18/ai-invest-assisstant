@@ -215,6 +215,15 @@ TASK_SPECS: dict[str, TaskSpec] = {
             converters={"trade_date": date.fromisoformat},
         ),
         TaskSpec(
+            name="index-auction",
+            data_type="index_auction",
+            collectors={
+                "tushare": "collector.spiders.tushare_index_auction:TushareIndexAuctionCollector",
+            },
+            run_params=("trade_date",),
+            converters={"trade_date": date.fromisoformat},
+        ),
+        TaskSpec(
             name="stock-minute",
             data_type="stock_minute",
             collectors={

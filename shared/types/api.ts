@@ -80,6 +80,15 @@ export interface ApiAuctionDataResponse {
   ask_volumes: number[]
 }
 
+export interface ApiIndexAuctionTrendResponse {
+  dates: string[]
+  series: Array<{
+    code: string
+    name: string
+    values: Array<number | null>
+  }>
+}
+
 export interface ApiFundFlowResponse {
   stock_code: string
   trade_date: string

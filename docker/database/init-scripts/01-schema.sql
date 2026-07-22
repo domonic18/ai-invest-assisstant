@@ -609,3 +609,20 @@ CREATE TABLE IF NOT EXISTS market_amount (
 
     UNIQUE (trade_date)
 );
+
+-- ============================================================
+-- 17. 指数集合竞价成交额（9:25，单位：元）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS index_auction (
+    id              BIGSERIAL PRIMARY KEY,
+    trade_date      DATE         NOT NULL,
+    index_code      VARCHAR(10)  NOT NULL,
+    auction_amount  DECIMAL(20, 2) NOT NULL,
+    source          VARCHAR(50),
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+
+    UNIQUE (trade_date, index_code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_index_auction_date ON index_auction(trade_date DESC);

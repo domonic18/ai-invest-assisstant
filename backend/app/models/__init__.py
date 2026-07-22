@@ -11,6 +11,7 @@ from app.models.file_metadata import FileMetadata
 from app.models.fund_flow import FundFlow
 from app.models.fund_holdings import FundHoldings
 from app.models.income_statement import IncomeStatement
+from app.models.index_auction import IndexAuction
 from app.models.ipo_info import IpoInfo
 from app.models.kline import KlineDaily, KlineMinute
 from app.models.limit_up_pool import LimitUpPool
@@ -35,6 +36,7 @@ __all__ = [
     "FundFlow",
     "FundHoldings",
     "IncomeStatement",
+    "IndexAuction",
     "IpoInfo",
     "KlineDaily",
     "KlineMinute",
