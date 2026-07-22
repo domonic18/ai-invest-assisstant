@@ -1,131 +1,112 @@
-import { SearchOutlined } from '@ant-design/icons'
-import {
-  Button,
-  Card,
-  DatePicker,
-  Form,
-  Input,
-  Statistic,
-  Table,
-  Typography,
-} from 'antd'
-import type { Dayjs } from 'dayjs'
-import { useState } from 'react'
+import { Card, Empty, Radio, Segmented, Spin, Typography } from 'antd'
+import { useEffect, useState } from 'react'
 
-import { useFundFlow } from '@/hooks/useFundFlow'
-import type { FundFlowData } from '@ai-invest/shared'
+import type { SectorType } from '@/api/fundFlow'
+import { useSectorFundFlowTrend } from '@/hooks/useFundFlow'
 import { useColorScheme } from '@/stores/settings'
-import { changeHex } from '@/utils/formatters'
 
-interface FilterForm {
-  stockCode?: string
-  dateRange?: [Dayjs | null, Dayjs | null] | null
-}
+import { SectorFlowAreaChart } from './SectorFlowAreaChart'
+import { SectorRankBarChart } from './SectorRankBarChart'
+
+const RANGE_OPTIONS = [
+  { label: '近 30 个交易日', value: 30 },
+  { label: '近 60 个交易日', value: 60 },
+  { label: '近 120 个交易日', value: 120 },
+]
+
+const SECTOR_TYPE_OPTIONS = [
+  { label: '行业板块', value: 'industry' },
+  { label: '概念板块', value: 'concept' },
+]
 
 export function CapitalFlow() {
   useColorScheme()
-  const [form] = Form.useForm<FilterForm>()
-  const [params, setParams] = useState({
-    stockCode: '',
-    startDate: '',
-    endDate: '',
-    page: 1,
-    pageSize: 20,
-  })
+  const [sectorType, setSectorType] = useState<SectorType>('industry')
+  const [days, setDays] = useState(60)
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const { data, isLoading, error } = useSectorFundFlowTrend(sectorType, days)
 
-  const { data, isLoading } = useFundFlow(params)
+  // 切换板块类型/范围导致数据更新后，默认选中最后一天
+  useEffect(() => {
+    if (data && data.dates.length > 0) {
+      setSelectedDate((prev) =>
+        prev && data.dates.includes(prev)
+          ? prev
+          : data.dates[data.dates.length - 1],
+      )
+    } else {
+      setSelectedDate(null)
+    }
+  }, [data])
 
-  const handleSearch = (values: FilterForm) => {
-    const [start, end] = values.dateRange || []
-    setParams({
-      stockCode: values.stockCode || '',
-      startDate: start ? start.format('YYYY-MM-DD') : '',
-      endDate: end ? end.format('YYYY-MM-DD') : '',
-      page: 1,
-      pageSize: params.pageSize,
-    })
-  }
-
-  const formatAmount = (value: number | null) => {
-    if (value === null || value === undefined) return '-'
-    return `${(value / 10000).toFixed(2)} 万`
-  }
-
-  const columns = [
-    { title: '股票代码', dataIndex: 'code', key: 'code' },
-    { title: '交易日期', dataIndex: 'date', key: 'date' },
-    {
-      title: '主力净流入',
-      dataIndex: 'mainNetInflow',
-      key: 'mainNetInflow',
-      render: (value: number | null) => (
-        <Typography.Text style={{ color: changeHex(value) }}>
-          {formatAmount(value)}
-        </Typography.Text>
-      ),
-    },
-    {
-      title: '超大单',
-      dataIndex: 'superLargeNet',
-      key: 'superLargeNet',
-      render: formatAmount,
-    },
-    { title: '大单', dataIndex: 'largeNet', key: 'largeNet', render: formatAmount },
-    { title: '中单', dataIndex: 'mediumNet', key: 'mediumNet', render: formatAmount },
-    { title: '小单', dataIndex: 'smallNet', key: 'smallNet', render: formatAmount },
-  ]
-
-  const summary = data?.items || []
-  const totalMain = summary.reduce((sum, item) => sum + (item.mainNetInflow || 0), 0)
+  const isEmpty = error || !data || data.dates.length === 0
 
   return (
-    <div className="space-y-6">
-      <Typography.Title level={4} className="!mb-0">资金流向</Typography.Title>
-
-      <Form form={form} layout="inline" onFinish={handleSearch} className="mb-4">
-        <Form.Item name="stockCode" label="股票代码">
-          <Input placeholder="000001" allowClear />
-        </Form.Item>
-        <Form.Item name="dateRange" label="日期范围">
-          <DatePicker.RangePicker />
-        </Form.Item>
-        <Form.Item>
-          <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
-            查询
-          </Button>
-        </Form.Item>
-      </Form>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <Typography.Title level={4} className="!mb-0">
+          资金流向
+        </Typography.Title>
+        <div className="flex items-center gap-3">
+          <Segmented
+            options={SECTOR_TYPE_OPTIONS}
+            value={sectorType}
+            onChange={(value) => setSectorType(value as SectorType)}
+            size="small"
+          />
+          <Radio.Group
+            options={RANGE_OPTIONS}
+            value={days}
+            onChange={(e) => setDays(e.target.value as number)}
+            optionType="button"
+            size="small"
+          />
+        </div>
+      </div>
+      {isLoading ? (
         <Card variant="borderless">
-          <Statistic title="记录数" value={data?.total || 0} />
+          <div className="flex justify-center py-24">
+            <Spin />
+          </div>
         </Card>
+      ) : isEmpty ? (
         <Card variant="borderless">
-          <Statistic
-            title="主力净流入合计"
-            value={formatAmount(totalMain)}
-            valueStyle={{
-              color: changeHex(totalMain),
-            }}
+          <Empty
+            className="py-16"
+            description="暂无板块资金流向数据（采集任务交易日 17:30 运行后可用）"
           />
         </Card>
-        <Card variant="borderless">
-          <Statistic title="净流入天数" value={summary.filter((i) => (i.mainNetInflow || 0) >= 0).length} />
-        </Card>
-      </div>
-
-      <Table
-        dataSource={data?.items || []}
-        columns={columns}
-        rowKey={(record: FundFlowData) => `${record.code}-${record.date}`}
-        loading={isLoading}
-        pagination={{
-          current: data?.page,
-          pageSize: data?.pageSize,
-          total: data?.total,
-          onChange: (page, pageSize) => setParams((prev) => ({ ...prev, page, pageSize })),
-        }}
-      />
+      ) : (
+        <>
+          <Card
+            variant="borderless"
+            title="板块资金流向（上=净流入 / 下=净流出，单位：亿元）"
+          >
+            {data.dates.length < 2 ? (
+              <Empty
+                className="py-16"
+                description="趋势图需至少 2 个交易日数据，每日 17:30 采集积累后自动展示"
+              />
+            ) : (
+              <SectorFlowAreaChart
+                data={data}
+                selectedDate={selectedDate}
+                onSelectDate={setSelectedDate}
+              />
+            )}
+          </Card>
+          <Card
+            variant="borderless"
+            title={`当日板块排名${selectedDate ? `（${selectedDate}）` : ''}（单位：亿元）`}
+          >
+            <SectorRankBarChart
+              data={data}
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
+            />
+          </Card>
+        </>
+      )}
     </div>
   )
 }

@@ -4,7 +4,6 @@ import {
   mapAuthResponse,
   mapChainAnalysisResult,
   mapCollectorLog,
-  mapFundFlowData,
   mapKlineData,
   mapLLMConfig,
   mapStock,
@@ -16,7 +15,6 @@ import type {
   ApiAuthResponse,
   ApiChainAnalysisResult,
   ApiCollectorLogResponse,
-  ApiFundFlowResponse,
   ApiKlineDataResponse,
   ApiLLMConfigResponse,
   ApiStockBasicResponse,
@@ -91,21 +89,6 @@ describe('mappers', () => {
     const item = mapKlineData(dto)
     expect(item.date).toBe('2024-01-01')
     expect(item.close).toBe(10.5)
-  })
-
-  it('maps fund flow data', () => {
-    const dto: ApiFundFlowResponse = {
-      stock_code: '000001',
-      trade_date: '2024-01-01',
-      main_net_inflow: 1000,
-      super_large_net: 100,
-      large_net: 200,
-      medium_net: 300,
-      small_net: 400,
-    }
-    const item = mapFundFlowData(dto)
-    expect(item.code).toBe('000001')
-    expect(item.mainNetInflow).toBe(1000)
   })
 
   it('maps watchlist item', () => {

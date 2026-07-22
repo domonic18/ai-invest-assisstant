@@ -15,7 +15,6 @@ import type {
   ApiDataTypeChannelsResponse,
   ApiCollectorLogResponse,
   ApiFinancialHealthResponse,
-  ApiFundFlowResponse,
   ApiIncomeStatementResponse,
   ApiKlineDataResponse,
   ApiLLMConfigResponse,
@@ -44,7 +43,6 @@ import type {
   CollectorDataTypeChannels,
   CollectorLog,
   FinancialHealth,
-  FundFlowData,
   IncomeStatement,
   KlineData,
   LLMConfig,
@@ -124,18 +122,6 @@ export function mapAuctionData(dto: ApiAuctionDataResponse): AuctionData {
     bidVolumes: dto.bid_volumes,
     askPrices: dto.ask_prices,
     askVolumes: dto.ask_volumes,
-  }
-}
-
-export function mapFundFlowData(dto: ApiFundFlowResponse): FundFlowData {
-  return {
-    code: dto.stock_code,
-    date: dto.trade_date,
-    mainNetInflow: Number(dto.main_net_inflow),
-    superLargeNet: Number(dto.super_large_net),
-    largeNet: Number(dto.large_net),
-    mediumNet: Number(dto.medium_net),
-    smallNet: Number(dto.small_net),
   }
 }
 
