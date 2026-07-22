@@ -33,3 +33,18 @@ class HotspotListRequest(BaseModel):
     trade_date: date | None = None
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
+
+
+class SectorFlowSeries(BaseModel):
+    """单个板块的主力净流入时间序列（亿元，与 dates 对齐，缺口为 None）。"""
+
+    code: str
+    name: str
+    values: list[float | None]
+
+
+class SectorFlowTrendResponse(BaseModel):
+    """板块资金流向趋势响应：日期升序 + 各板块序列。"""
+
+    dates: list[date]
+    sectors: list[SectorFlowSeries]

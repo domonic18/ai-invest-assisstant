@@ -44,6 +44,8 @@ export const ENDPOINTS = {
   },
   fundFlow: {
     list: `${API_BASE}/fund-flow`,
+    sectorTrend: (sectorType = 'industry', days = 60) =>
+      `${API_BASE}/fund-flow/sector-trend?sector_type=${sectorType}&days=${days}`,
   },
   market: {
     indices: `${API_BASE}/market/indices`,

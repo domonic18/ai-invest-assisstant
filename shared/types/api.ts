@@ -308,6 +308,15 @@ export interface ApiHotspotListRequest {
   page_size?: number
 }
 
+export interface ApiSectorFlowTrendResponse {
+  dates: string[]
+  sectors: Array<{
+    code: string
+    name: string
+    values: Array<number | null>
+  }>
+}
+
 export interface ApiBalanceSheetResponse {
   stock_code: string
   report_date: string
