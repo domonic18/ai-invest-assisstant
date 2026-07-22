@@ -223,6 +223,7 @@ async def generate_attribution(
     user_prompt = PromptRenderer.render(
         prompt_config.user_prompt_template,
         trade_date=resolved_date.isoformat(),
+        pool_count=str(len(limit_up.items)),
         limit_up_context=limit_up_context,
         sector_context=sector_context,
         news_context=news_context,
