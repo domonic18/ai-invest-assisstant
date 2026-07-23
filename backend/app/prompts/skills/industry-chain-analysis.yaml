@@ -1,6 +1,6 @@
 id: industry-chain-analysis
 name: 产业链分析
-version: 1.0.0
+version: 2.0.0
 model: openai/gpt-4o
 description: 对指定行业进行上下游产业链分析，输出产业链图谱和分析报告
 
@@ -10,39 +10,87 @@ triggers:
   - 用户要求对比产业链不同环节
 
 workflow:
-  - 调用 query_industry_companies 获取行业内上市公司
-  - 调用 query_financial_data 获取近三期财务数据
-  - 调用 search_news 获取近期行业新闻/公告
-  - 调用 search_vector_kb 检索产业链相关研报片段
+  - 预取行业内上市公司清单（query_industry_companies）
+  - 预取近三期财务指标（query_financial_data）
+  - 预取近期行业新闻/公告（search_news）
+  - 预取产业链相关研报片段（search_vector_kb）
   - 综合分析并生成产业链图谱
 
 system_prompt: |
   你是一个专业的产业链分析专家。
-  请严格按照以下步骤分析指定行业，并调用相关工具获取数据。
+  基于用户提供的行业公司清单、财务指标、近期动态与研报摘录，
+  识别该行业的上游/中游/下游环节，评估各环节指标，发现瓶颈与机会。
   最终输出必须符合给定的 JSON Schema。
+
+  字段口径：
+  - avg_gross_margin / revenue_growth / rd_ratio：百分比数值（如 25.3 表示 25.3%），
+    基于提供的财务指标计算环节平均值；无数据时填 null，不得编造。
+  - bargaining_power：0-100 评分，结合应收周转等指标与环节竞争格局判断。
+  - localization_rate：0-100，该环节国产化率估计；无依据时填 null。
+  - tech_barrier：high/medium/low。
+  - bottleneck_indicators：该环节的瓶颈/卡脖子因素（字符串数组，可为空）。
+  - recent_breakthroughs：该环节近期技术突破/扩产信号（字符串数组，可为空）。
+  - edges.strength：0-100 整数；criticality：high/medium/low。
+  - opportunities.confidence / risks.severity：high/medium/low。
+  - 每个环节列 3-5 家核心标的，标的必须来自提供的公司清单（按 code 引用）。
+  - key_companies_summary：全链最值得关注的标的，score 为 0-100 综合评分。
+  - 所有描述使用简体中文。
 
 user_prompt_template: |
   请分析 {industry} 行业的产业链上下游关系，重点关注 {focus}。
 
+  以下是从数据库检索到的上下文：
+  {context}
+
+  输出要求（必须满足）：
+  - 为每个环节从上方公司清单中选择 3-5 家公司填入 companies（输出 code 与 name），companies 不得为空数组。
+  - key_companies_summary 至少输出 3 家全链最值得关注的标的。
+  - 各环节指标基于上方财务指标计算；清单中无财务数据的公司不影响将其纳入 companies。
+
 output_schema:
   nodes:
     - name: str
-      type: str
+      type: str  # upstream/midstream/downstream
+      description: str
       companies:
         - code: str
           name: str
-      avg_gross_margin: float
-      revenue_growth: float
-      bargaining_power: float
+      avg_gross_margin: float | null
+      revenue_growth: float | null
+      rd_ratio: float | null
+      bargaining_power: float | null
+      localization_rate: float | null
+      tech_barrier: str | null
+      bottleneck_indicators: [str]
+      recent_breakthroughs: [str]
   edges:
     - source: str
       target: str
       relation: str
       strength: int
       description: str
+      criticality: str | null
   summary: str
-  opportunities: [str]
-  risks: [str]
+  value_distribution:
+    highest_margin_segment: str | null
+    highest_margin_value: float | null
+    lowest_margin_segment: str | null
+    lowest_margin_value: float | null
+  opportunities:
+    - title: str
+      description: str
+      related_segment: str | null
+      confidence: str | null
+  risks:
+    - title: str
+      description: str
+      related_segment: str | null
+      severity: str | null
+  key_companies_summary:
+    - code: str
+      name: str
+      chain_position: str | null
+      score: float | null
 
 available_tools:
   - query_industry_companies
