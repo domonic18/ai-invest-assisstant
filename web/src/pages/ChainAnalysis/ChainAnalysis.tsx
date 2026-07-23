@@ -1,43 +1,94 @@
 import { ReloadOutlined, SearchOutlined } from '@ant-design/icons'
-import { Alert, Button, Card, Col, Empty, Input, List, Row, Space, Spin, Statistic, Typography } from 'antd'
+import { Alert, Button, Card, Col, Empty, Input, List, Row, Space, Spin, Tag, Typography } from 'antd'
+import { AxiosError } from 'axios'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { ChainGraph } from '@/components/charts/ChainGraph'
-import { useChainAnalysis } from '@/hooks/useChain'
+import {
+  useChainAnalysis,
+  useChainLatest,
+  useChainVersion,
+  useChainVersions,
+} from '@/hooks/useChain'
 import type { ChainNode } from '@ai-invest/shared'
+
+import { BottleneckPanel } from './components/BottleneckPanel'
+import { KeyCompaniesPanel } from './components/KeyCompaniesPanel'
+import { NodeDetailCard } from './components/NodeDetailCard'
+import { QuadrantMatrix } from './components/QuadrantMatrix'
+import { ValueDistributionCard } from './components/ValueDistributionCard'
+import { VersionCompareDrawer } from './components/VersionCompareDrawer'
+import { VersionSwitcher } from './components/VersionSwitcher'
 
 const EXAMPLE_INDUSTRIES = ['半导体', '新能源', '医药生物', '人工智能', '消费电子']
 
 export function ChainAnalysis() {
   const { industry } = useParams<{ industry?: string }>()
   const [inputIndustry, setInputIndustry] = useState(industry || '半导体')
+  const [activeIndustry, setActiveIndustry] = useState(industry || '半导体')
   const [selectedNode, setSelectedNode] = useState<ChainNode | null>(null)
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
+  const [compareOpen, setCompareOpen] = useState(false)
 
-  const { mutate, data: result, isPending, error } = useChainAnalysis()
+  const latestQuery = useChainLatest(activeIndustry)
+  const versionsQuery = useChainVersions(activeIndustry)
+  const analyzeMutation = useChainAnalysis(activeIndustry)
 
   useEffect(() => {
     if (industry) {
       setInputIndustry(industry)
-      mutate({ industry })
+      setActiveIndustry(industry)
+      setSelectedVersionId(null)
+      setSelectedNode(null)
     }
-  }, [industry, mutate])
+  }, [industry])
+
+  const latestVersionId = latestQuery.data?.version.id ?? null
+  const isLatestSelected =
+    selectedVersionId === null || selectedVersionId === latestVersionId
+  const selectedQuery = useChainVersion(
+    isLatestSelected ? null : selectedVersionId
+  )
+  const detail = isLatestSelected ? latestQuery.data : selectedQuery.data
+  const result = detail?.result ?? null
+  const versions = versionsQuery.data ?? []
+
+  const noVersionYet =
+    latestQuery.error instanceof AxiosError &&
+    latestQuery.error.response?.status === 404
 
   const handleAnalyze = () => {
-    if (!inputIndustry.trim()) return
-    mutate({ industry: inputIndustry.trim() })
+    const target = inputIndustry.trim()
+    if (!target) return
+    setActiveIndustry(target)
     setSelectedNode(null)
+    setSelectedVersionId(null)
+    analyzeMutation.mutate(
+      { industry: target },
+      {
+        onSuccess: (data) => {
+          setSelectedVersionId(null)
+          void data
+        },
+      }
+    )
   }
 
   const handleNodeClick = (nodeName: string) => {
-    const node = result?.nodes.find((n) => n.name === nodeName)
+    const node = result?.nodes.find((item) => item.name === nodeName)
     if (node) setSelectedNode(node)
   }
+
+  const isLoading =
+    latestQuery.isLoading || (!isLatestSelected && selectedQuery.isLoading)
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <Typography.Title level={4} className="!mb-0">产业链全景分析</Typography.Title>
+        <Typography.Title level={4} className="!mb-0">
+          产业链全景分析
+        </Typography.Title>
         <Space>
           <Input
             value={inputIndustry}
@@ -47,13 +98,18 @@ export function ChainAnalysis() {
             onPressEnter={handleAnalyze}
             style={{ width: 240 }}
           />
-          <Button type="primary" icon={<ReloadOutlined />} onClick={handleAnalyze} loading={isPending}>
+          <Button
+            type="primary"
+            icon={<ReloadOutlined />}
+            onClick={handleAnalyze}
+            loading={analyzeMutation.isPending}
+          >
             AI 分析
           </Button>
         </Space>
       </div>
 
-      <Space wrap className="mb-4">
+      <Space wrap>
         {EXAMPLE_INDUSTRIES.map((item) => (
           <Button key={item} size="small" onClick={() => setInputIndustry(item)}>
             {item}
@@ -61,80 +117,178 @@ export function ChainAnalysis() {
         ))}
       </Space>
 
-      {error && (
+      {versions.length > 0 && (
+        <VersionSwitcher
+          versions={versions}
+          currentVersionId={detail?.version.id ?? null}
+          onChange={(id) => {
+            setSelectedVersionId(id)
+            setSelectedNode(null)
+          }}
+          onCompare={() => setCompareOpen(true)}
+        />
+      )}
+
+      {analyzeMutation.isError && (
         <Alert
           message="分析失败"
-          description={error instanceof Error ? error.message : '未知错误'}
+          description={
+            analyzeMutation.error instanceof Error
+              ? analyzeMutation.error.message
+              : '未知错误'
+          }
           type="error"
           showIcon
         />
       )}
 
-      {isPending && (
+      {analyzeMutation.isPending && (
         <div className="flex justify-center py-20">
-          <Spin size="large" tip="AI 正在生成产业链分析..." />
+          <Spin size="large" tip="AI 正在生成产业链分析（约 1-2 分钟）..." />
         </div>
       )}
 
-      {!isPending && !result && !error && (
-        <Empty description="点击 AI 分析生成产业链图谱" />
+      {isLoading && !analyzeMutation.isPending && (
+        <div className="flex justify-center py-20">
+          <Spin size="large" />
+        </div>
+      )}
+
+      {!isLoading && !result && !analyzeMutation.isPending && (
+        <Empty
+          description={
+            noVersionYet
+              ? `「${activeIndustry}」暂无分析版本，点击 AI 分析生成`
+              : '点击 AI 分析生成产业链图谱'
+          }
+        />
       )}
 
       {result && (
-        <Row gutter={[24, 24]}>
-          <Col xs={24} lg={16}>
-            <Card title="产业链关系图谱" variant="borderless">
-              <ChainGraph nodes={result.nodes} edges={result.edges} onNodeClick={handleNodeClick} />
-            </Card>
-          </Col>
-
-          <Col xs={24} lg={8}>
-            <div className="space-y-4">
-              {selectedNode ? (
-                <Card title={`节点：${selectedNode.name}`} variant="borderless">
-                  <Space direction="vertical" className="w-full">
-                    <Statistic title="平均毛利率" value={selectedNode.avgGrossMargin} suffix="%" precision={2} />
-                    <Statistic title="营收增长" value={selectedNode.revenueGrowth} suffix="%" precision={2} />
-                    <Statistic title="议价能力" value={selectedNode.bargainingPower} precision={2} />
-                    <Typography.Text type="secondary">代表公司：</Typography.Text>
-                    <List
-                      size="small"
-                      dataSource={selectedNode.companies}
-                      renderItem={(company) => (
-                        <List.Item>{company.name} ({company.code})</List.Item>
-                      )}
-                    />
-                  </Space>
-                </Card>
-              ) : (
-                <Card title="节点详情" variant="borderless">
-                  <Typography.Text type="secondary">点击图谱中的节点查看详情</Typography.Text>
-                </Card>
-              )}
-
-              <Card title="AI 综述" variant="borderless">
-                <Typography.Paragraph>{result.summary}</Typography.Paragraph>
+        <>
+          <Row gutter={[24, 24]}>
+            <Col xs={24} lg={16}>
+              <Card title="产业链关系图谱" variant="borderless">
+                <ChainGraph
+                  nodes={result.nodes}
+                  edges={result.edges}
+                  onNodeClick={handleNodeClick}
+                />
               </Card>
+            </Col>
 
+            <Col xs={24} lg={8}>
+              <div className="space-y-4">
+                <Card title="节点详情" variant="borderless">
+                  <NodeDetailCard node={selectedNode} />
+                </Card>
+
+                <Card title="AI 综述" variant="borderless">
+                  <Typography.Paragraph>{result.summary}</Typography.Paragraph>
+                </Card>
+              </div>
+            </Col>
+          </Row>
+
+          <Row gutter={[24, 24]}>
+            <Col xs={24} lg={12}>
+              <Card title="毛利率 × 国产化率矩阵" variant="borderless">
+                <QuadrantMatrix nodes={result.nodes} />
+              </Card>
+            </Col>
+            <Col xs={24} lg={12}>
+              <Card title="价值分布" variant="borderless">
+                <ValueDistributionCard
+                  nodes={result.nodes}
+                  valueDistribution={result.valueDistribution}
+                />
+              </Card>
+            </Col>
+          </Row>
+
+          <Row gutter={[24, 24]}>
+            <Col xs={24} lg={12}>
+              <Card title="瓶颈与卡脖子风险" variant="borderless">
+                <BottleneckPanel nodes={result.nodes} />
+              </Card>
+            </Col>
+            <Col xs={24} lg={12}>
+              <Card title="核心标的" variant="borderless">
+                <KeyCompaniesPanel companies={result.keyCompaniesSummary} />
+              </Card>
+            </Col>
+          </Row>
+
+          <Row gutter={[24, 24]}>
+            <Col xs={24} lg={12}>
               <Card title="机会" variant="borderless">
                 <List
                   size="small"
                   dataSource={result.opportunities}
-                  renderItem={(item) => <List.Item><Typography.Text className="text-green-400">{item}</Typography.Text></List.Item>}
+                  renderItem={(item) => (
+                    <List.Item>
+                      <Space direction="vertical" size={2}>
+                        <Space>
+                          <Typography.Text className="text-green-400" strong>
+                            {item.title}
+                          </Typography.Text>
+                          {item.relatedSegment && <Tag>{item.relatedSegment}</Tag>}
+                          {item.confidence && (
+                            <Tag color="success">置信度 {item.confidence}</Tag>
+                          )}
+                        </Space>
+                        {item.description && (
+                          <Typography.Text type="secondary">
+                            {item.description}
+                          </Typography.Text>
+                        )}
+                      </Space>
+                    </List.Item>
+                  )}
                 />
               </Card>
-
+            </Col>
+            <Col xs={24} lg={12}>
               <Card title="风险" variant="borderless">
                 <List
                   size="small"
                   dataSource={result.risks}
-                  renderItem={(item) => <List.Item><Typography.Text className="text-red-400">{item}</Typography.Text></List.Item>}
+                  renderItem={(item) => (
+                    <List.Item>
+                      <Space direction="vertical" size={2}>
+                        <Space>
+                          <Typography.Text className="text-red-400" strong>
+                            {item.title}
+                          </Typography.Text>
+                          {item.relatedSegment && <Tag>{item.relatedSegment}</Tag>}
+                          {item.severity && (
+                            <Tag color="error">严重度 {item.severity}</Tag>
+                          )}
+                        </Space>
+                        {item.description && (
+                          <Typography.Text type="secondary">
+                            {item.description}
+                          </Typography.Text>
+                        )}
+                      </Space>
+                    </List.Item>
+                  )}
                 />
               </Card>
-            </div>
-          </Col>
-        </Row>
+            </Col>
+          </Row>
+        </>
       )}
+
+      <VersionCompareDrawer
+        open={compareOpen}
+        versions={versions}
+        defaultBaseId={
+          versions.filter((v) => v.status === 'success')[1]?.id ?? null
+        }
+        defaultTargetId={latestVersionId}
+        onClose={() => setCompareOpen(false)}
+      />
     </div>
   )
 }

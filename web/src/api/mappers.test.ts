@@ -109,22 +109,54 @@ describe('mappers', () => {
         {
           name: '硅材料',
           type: 'upstream',
+          description: '高纯度硅片',
           companies: [{ code: '123', name: 'Test' }],
           avg_gross_margin: 10,
           revenue_growth: 5,
+          rd_ratio: 8.5,
           bargaining_power: 7,
+          localization_rate: 40,
+          tech_barrier: 'high',
+          bottleneck_indicators: ['高端硅片依赖进口'],
+          recent_breakthroughs: ['良率突破'],
         },
       ],
       edges: [
-        { source: '硅材料', target: '晶圆制造', relation: '供应', strength: 0.8 },
+        {
+          source: '硅材料',
+          target: '晶圆制造',
+          relation: '供应',
+          strength: 0.8,
+          criticality: 'high',
+        },
       ],
       summary: 'summary',
-      opportunities: ['op1'],
-      risks: ['risk1'],
+      value_distribution: {
+        highest_margin_segment: '芯片设计',
+        highest_margin_value: 45.2,
+        lowest_margin_segment: '封装测试',
+        lowest_margin_value: 18.5,
+      },
+      opportunities: [
+        { title: 'op1', description: 'desc', related_segment: '设备', confidence: 'high' },
+      ],
+      risks: [
+        { title: 'risk1', description: 'desc', related_segment: null, severity: 'high' },
+      ],
+      key_companies_summary: [
+        { code: '688981', name: '中芯国际', chain_position: '晶圆制造', score: 85 },
+      ],
     }
     const result = mapChainAnalysisResult(dto)
     expect(result.nodes[0].avgGrossMargin).toBe(10)
+    expect(result.nodes[0].localizationRate).toBe(40)
+    expect(result.nodes[0].bottleneckIndicators).toEqual(['高端硅片依赖进口'])
     expect(result.edges[0].strength).toBe(0.8)
+    expect(result.edges[0].criticality).toBe('high')
+    expect(result.opportunities[0].title).toBe('op1')
+    expect(result.risks[0].severity).toBe('high')
+    expect(result.valueDistribution?.highestMarginSegment).toBe('芯片设计')
+    expect(result.keyCompaniesSummary[0].score).toBe(85)
   })
 
   it('maps LLM config', () => {

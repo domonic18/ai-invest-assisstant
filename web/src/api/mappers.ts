@@ -9,8 +9,11 @@ import type {
   ApiBalanceSheetResponse,
   ApiCashFlowStatementResponse,
   ApiChainAnalysisResult,
+  ApiChainCompareResult,
   ApiChainEdge,
   ApiChainNode,
+  ApiChainVersionDetail,
+  ApiChainVersionSummary,
   ApiCollectorChannelConfigResponse,
   ApiDataTypeChannelsResponse,
   ApiCollectorLogResponse,
@@ -37,8 +40,11 @@ import type {
   BalanceSheet,
   CashFlowStatement,
   ChainAnalysisResult,
+  ChainCompareResult,
   ChainEdge,
   ChainNode,
+  ChainVersionDetail,
+  ChainVersionSummary,
   CollectorChannelConfig,
   CollectorDataTypeChannels,
   CollectorLog,
@@ -150,10 +156,16 @@ export function mapChainNode(dto: ApiChainNode): ChainNode {
   return {
     name: dto.name,
     type: dto.type,
+    description: dto.description || '',
     companies: dto.companies,
-    avgGrossMargin: Number(dto.avg_gross_margin),
-    revenueGrowth: Number(dto.revenue_growth),
-    bargainingPower: Number(dto.bargaining_power),
+    avgGrossMargin: dto.avg_gross_margin,
+    revenueGrowth: dto.revenue_growth,
+    rdRatio: dto.rd_ratio,
+    bargainingPower: dto.bargaining_power,
+    localizationRate: dto.localization_rate,
+    techBarrier: dto.tech_barrier,
+    bottleneckIndicators: dto.bottleneck_indicators || [],
+    recentBreakthroughs: dto.recent_breakthroughs || [],
   }
 }
 
@@ -164,6 +176,7 @@ export function mapChainEdge(dto: ApiChainEdge): ChainEdge {
     relation: dto.relation,
     strength: Number(dto.strength),
     description: dto.description || '',
+    criticality: dto.criticality,
   }
 }
 
@@ -172,8 +185,80 @@ export function mapChainAnalysisResult(dto: ApiChainAnalysisResult): ChainAnalys
     nodes: dto.nodes.map(mapChainNode),
     edges: dto.edges.map(mapChainEdge),
     summary: dto.summary,
-    opportunities: dto.opportunities,
-    risks: dto.risks,
+    valueDistribution: dto.value_distribution
+      ? {
+          highestMarginSegment: dto.value_distribution.highest_margin_segment,
+          highestMarginValue: dto.value_distribution.highest_margin_value,
+          lowestMarginSegment: dto.value_distribution.lowest_margin_segment,
+          lowestMarginValue: dto.value_distribution.lowest_margin_value,
+        }
+      : null,
+    opportunities: dto.opportunities.map((item) => ({
+      title: item.title,
+      description: item.description || '',
+      relatedSegment: item.related_segment,
+      confidence: item.confidence,
+    })),
+    risks: dto.risks.map((item) => ({
+      title: item.title,
+      description: item.description || '',
+      relatedSegment: item.related_segment,
+      severity: item.severity,
+    })),
+    keyCompaniesSummary: (dto.key_companies_summary || []).map((item) => ({
+      code: item.code,
+      name: item.name,
+      chainPosition: item.chain_position,
+      score: item.score,
+    })),
+  }
+}
+
+export function mapChainVersionSummary(dto: ApiChainVersionSummary): ChainVersionSummary {
+  return {
+    id: dto.id,
+    industry: dto.industry_level_1,
+    versionNo: dto.version_no,
+    label: dto.label,
+    status: dto.status,
+    model: dto.model,
+    nodeCount: dto.node_count,
+    companyCount: dto.company_count,
+    createdBy: dto.created_by,
+    createdAt: dto.created_at,
+  }
+}
+
+export function mapChainVersionDetail(dto: ApiChainVersionDetail): ChainVersionDetail {
+  return {
+    version: mapChainVersionSummary(dto.version),
+    result: dto.result ? mapChainAnalysisResult(dto.result) : null,
+    errorMsg: dto.error_msg,
+  }
+}
+
+export function mapChainCompareResult(dto: ApiChainCompareResult): ChainCompareResult {
+  return {
+    baseVersion: mapChainVersionSummary(dto.base_version),
+    targetVersion: mapChainVersionSummary(dto.target_version),
+    addedNodes: dto.added_nodes,
+    removedNodes: dto.removed_nodes,
+    addedCompanies: dto.added_companies.map((item) => ({
+      code: item.code,
+      name: item.name,
+      nodeName: item.node_name,
+    })),
+    removedCompanies: dto.removed_companies.map((item) => ({
+      code: item.code,
+      name: item.name,
+      nodeName: item.node_name,
+    })),
+    metricChanges: dto.metric_changes.map((item) => ({
+      nodeName: item.node_name,
+      field: item.field,
+      baseValue: item.base_value,
+      targetValue: item.target_value,
+    })),
   }
 }
 
