@@ -18,6 +18,8 @@ const NODE_COLORS: Record<ChainNode['type'], string> = {
 export function ChainGraph({ nodes, edges, onNodeClick }: ChainGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const graphRef = useRef<InstanceType<typeof G6.Graph> | null>(null)
+  const onNodeClickRef = useRef(onNodeClick)
+  onNodeClickRef.current = onNodeClick
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -29,6 +31,10 @@ export function ChainGraph({ nodes, edges, onNodeClick }: ChainGraphProps) {
       container: containerRef.current,
       width,
       height,
+      // dagre 布局在 g6-pc 中是异步执行的，必须在布局完成后（success 回调内）fitView，
+      // 因此用构造配置而不是 render 后手动调用
+      fitView: true,
+      fitViewPadding: 20,
       layout: {
         type: 'dagre',
         rankdir: 'LR',
@@ -76,8 +82,8 @@ export function ChainGraph({ nodes, edges, onNodeClick }: ChainGraphProps) {
 
     graph.on('node:click', (evt) => {
       const model = evt.item?.getModel()
-      if (model?.id && onNodeClick) {
-        onNodeClick(String(model.id))
+      if (model?.id && onNodeClickRef.current) {
+        onNodeClickRef.current(String(model.id))
       }
     })
 
@@ -87,7 +93,7 @@ export function ChainGraph({ nodes, edges, onNodeClick }: ChainGraphProps) {
       graph.destroy()
       graphRef.current = null
     }
-  }, [onNodeClick])
+  }, [])
 
   useEffect(() => {
     const graph = graphRef.current
@@ -109,9 +115,16 @@ export function ChainGraph({ nodes, edges, onNodeClick }: ChainGraphProps) {
       edgeData: edge,
     }))
 
-    graph.data({ nodes: g6Nodes, edges: g6Edges })
-    graph.render()
-    graph.fitView(20)
+    if (graph.getNodes().length > 0) {
+      // changeData 的重新布局同样是异步的，布局结束后再复位视野
+      graph.once('afterlayout', () => {
+        if (!graph.get('destroyed')) graph.fitView(20)
+      })
+      graph.changeData({ nodes: g6Nodes, edges: g6Edges })
+    } else {
+      graph.data({ nodes: g6Nodes, edges: g6Edges })
+      graph.render()
+    }
   }, [nodes, edges])
 
   return <div ref={containerRef} className="w-full h-[500px] bg-[#111318] rounded-lg" />
