@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS market_amount (
     UNIQUE (trade_date)
 );
 
-ALTER TABLE market_breadth ADD COLUMN IF NOT EXISTS broken_count INT;
+ALTER TABLE market_breadth ADD COLUMN IF NOT EXISTS broken_limit_count INT;
 
 INSERT INTO collector_task (task_name, task_type, source, schedule, is_active)
 VALUES

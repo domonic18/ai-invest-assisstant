@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS market_breadth (
     flat_count      INT,
     limit_up_count  INT,
     limit_down_count INT,
-    stat_time       VARCHAR(20),
+    snapshot_time       VARCHAR(20),
     source          VARCHAR(50),
     created_at      TIMESTAMPTZ DEFAULT NOW(),
 

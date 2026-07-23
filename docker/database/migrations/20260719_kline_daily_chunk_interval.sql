@@ -1,4 +1,4 @@
--- 重建 kline_daily：chunk 间隔从默认 7 天调整为 1 年
+-- 重建 quote_kline_stock_daily：chunk 间隔从默认 7 天调整为 1 年
 -- 日 K 横跨数十年，7 天 chunk 会产生 1800+ 个 chunk；TimescaleDB 规划时
 -- 需逐 chunk 做约束排除，规划耗时高达数百毫秒（执行仅几毫秒）。
 -- 1 年 chunk 将数量降到每年 1 个，规划开销可忽略。
@@ -11,13 +11,13 @@ DECLARE
 BEGIN
     SELECT count(*) INTO chunk_count
     FROM timescaledb_information.chunks
-    WHERE hypertable_name = 'kline_daily';
+    WHERE hypertable_name = 'quote_kline_stock_daily';
 
     IF chunk_count > 100 THEN
-        ALTER TABLE kline_daily RENAME TO kline_daily_old;
+        ALTER TABLE quote_kline_stock_daily RENAME TO kline_daily_old;
         ALTER INDEX idx_kline_daily_code_date RENAME TO idx_kline_daily_code_date_old;
 
-        CREATE TABLE kline_daily (
+        CREATE TABLE quote_kline_stock_daily (
             stock_code    VARCHAR(10)   NOT NULL,
             trade_date    DATE          NOT NULL,
             open          DECIMAL(12,3),
@@ -27,21 +27,21 @@ BEGIN
             volume        BIGINT,
             amount        DECIMAL(20,2),
             amplitude     DECIMAL(8,2),
-            pct_change    DECIMAL(8,2),
+            change_pct    DECIMAL(8,2),
             turnover_rate DECIMAL(8,2),
             created_at    TIMESTAMPTZ DEFAULT NOW(),
             PRIMARY KEY (stock_code, trade_date)
         );
 
         PERFORM create_hypertable(
-            'kline_daily', 'trade_date',
+            'quote_kline_stock_daily', 'trade_date',
             chunk_time_interval => INTERVAL '1 year',
             if_not_exists => TRUE
         );
         CREATE INDEX idx_kline_daily_code_date
-            ON kline_daily(stock_code, trade_date DESC);
+            ON quote_kline_stock_daily(stock_code, trade_date DESC);
 
-        INSERT INTO kline_daily SELECT * FROM kline_daily_old;
+        INSERT INTO quote_kline_stock_daily SELECT * FROM kline_daily_old;
     END IF;
 END $$;
 
