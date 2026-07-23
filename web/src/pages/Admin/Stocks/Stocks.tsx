@@ -76,9 +76,9 @@ export function AdminStocks() {
       stock_code: values.stockCode,
       stock_name: values.stockName,
       market: values.market,
-      industry_l1: values.industryL1,
-      industry_l2: values.industryL2,
-      industry_l3: values.industryL3,
+      industry_level_1: values.industryL1,
+      industry_level_2: values.industryL2,
+      industry_level_3: values.industryL3,
       listing_date: values.listingDate
         ? values.listingDate.format('YYYY-MM-DD')
         : undefined,

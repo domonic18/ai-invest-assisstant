@@ -62,9 +62,9 @@ describe('mappers', () => {
       stock_code: '000001',
       stock_name: '平安银行',
       market: 'sz',
-      industry_l1: '金融',
-      industry_l2: '银行',
-      industry_l3: '股份制银行',
+      industry_level_1: '金融',
+      industry_level_2: '银行',
+      industry_level_3: '股份制银行',
       listing_date: '1991-04-03',
     }
     const stock = mapStock(dto)
@@ -83,7 +83,7 @@ describe('mappers', () => {
       volume: 1000,
       amount: 10000,
       amplitude: 5,
-      pct_change: 2,
+      change_pct: 2,
       turnover_rate: 1.5,
     }
     const item = mapKlineData(dto)

@@ -46,7 +46,7 @@ export function Financial() {
   ]
 
   const buildBalanceRows = () => {
-    const bs = data?.balanceSheet
+    const bs = data?.financialBalanceSheet
     if (!bs) return []
     return [
       { label: '总资产', value: bs.totalAssets },
@@ -65,14 +65,14 @@ export function Financial() {
   }
 
   const buildIncomeRows = () => {
-    const inc = data?.incomeStatement
+    const inc = data?.financialIncomeStatement
     if (!inc) return []
     return [
       { label: '营业收入', value: inc.totalRevenue },
       { label: '营业成本', value: inc.operatingCost },
       { label: '销售费用', value: inc.sellingExpense },
       { label: '管理费用', value: inc.adminExpense },
-      { label: '研发费用', value: inc.rdExpense },
+      { label: '研发费用', value: inc.researchDevelopmentExpense },
       { label: '财务费用', value: inc.financeExpense },
       { label: '营业利润', value: inc.operatingProfit },
       { label: '净利润', value: inc.netProfit },
@@ -82,12 +82,12 @@ export function Financial() {
   }
 
   const buildCashRows = () => {
-    const cf = data?.cashFlowStatement
+    const cf = data?.financialCashFlowStatement
     if (!cf) return []
     return [
-      { label: '经营活动现金流', value: cf.cfOperations },
-      { label: '投资活动现金流', value: cf.cfInvesting },
-      { label: '筹资活动现金流', value: cf.cfFinancing },
+      { label: '经营活动现金流', value: cf.cashFlowFromOperations },
+      { label: '投资活动现金流', value: cf.cashFlowFromInvesting },
+      { label: '筹资活动现金流', value: cf.cashFlowFromFinancing },
       { label: '净现金流', value: cf.netCashFlow },
       { label: '自由现金流', value: cf.freeCashFlow },
     ].filter((row) => row.value !== null)

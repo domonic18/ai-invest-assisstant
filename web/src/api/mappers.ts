@@ -87,7 +87,7 @@ export function mapStock(dto: ApiStockBasicResponse): Stock {
   return {
     code: dto.stock_code,
     name: dto.stock_name,
-    industry: dto.industry_l1 || dto.industry_l2 || dto.industry_l3 || '',
+    industry: dto.industry_level_1 || dto.industry_level_2 || dto.industry_level_3 || '',
     market: normalizeMarket(dto.market),
   }
 }
@@ -293,7 +293,7 @@ export function mapIncomeStatement(dto: ApiIncomeStatementResponse): IncomeState
     operatingCost: dto.operating_cost,
     sellingExpense: dto.selling_expense,
     adminExpense: dto.admin_expense,
-    rdExpense: dto.rd_expense,
+    researchDevelopmentExpense: dto.research_development_expense,
     financeExpense: dto.finance_expense,
     operatingProfit: dto.operating_profit,
     netProfit: dto.net_profit,
@@ -308,9 +308,9 @@ export function mapCashFlowStatement(dto: ApiCashFlowStatementResponse): CashFlo
     stockCode: dto.stock_code,
     reportDate: dto.report_date,
     reportType: dto.report_type,
-    cfOperations: dto.cf_operations,
-    cfInvesting: dto.cf_investing,
-    cfFinancing: dto.cf_financing,
+    cashFlowFromOperations: dto.cash_flow_from_operations,
+    cashFlowFromInvesting: dto.cash_flow_from_investing,
+    cashFlowFromFinancing: dto.cash_flow_from_financing,
     netCashFlow: dto.net_cash_flow,
     freeCashFlow: dto.free_cash_flow,
     createdAt: dto.created_at,
@@ -322,12 +322,14 @@ export function mapFinancialHealth(dto: ApiFinancialHealthResponse): FinancialHe
     stockCode: dto.stock_code,
     reportDate: dto.report_date,
     reportType: dto.report_type,
-    balanceSheet: dto.balance_sheet ? mapBalanceSheet(dto.balance_sheet) : null,
-    incomeStatement: dto.income_statement
-      ? mapIncomeStatement(dto.income_statement)
+    financialBalanceSheet: dto.financial_balance_sheet
+      ? mapBalanceSheet(dto.financial_balance_sheet)
       : null,
-    cashFlowStatement: dto.cash_flow_statement
-      ? mapCashFlowStatement(dto.cash_flow_statement)
+    financialIncomeStatement: dto.financial_income_statement
+      ? mapIncomeStatement(dto.financial_income_statement)
+      : null,
+    financialCashFlowStatement: dto.financial_cash_flow_statement
+      ? mapCashFlowStatement(dto.financial_cash_flow_statement)
       : null,
     metrics: dto.metrics,
   }
@@ -351,9 +353,9 @@ export function mapAdminStock(dto: ApiAdminStockResponse): AdminStock {
     stockCode: dto.stock_code,
     stockName: dto.stock_name,
     market: dto.market,
-    industryL1: dto.industry_l1,
-    industryL2: dto.industry_l2,
-    industryL3: dto.industry_l3,
+    industryL1: dto.industry_level_1,
+    industryL2: dto.industry_level_2,
+    industryL3: dto.industry_level_3,
     listingDate: dto.listing_date,
     totalShares: dto.total_shares,
     circulatingShares: dto.circulating_shares,
@@ -377,7 +379,7 @@ export function mapAdminReport(dto: ApiAdminReportResponse): AdminReport {
     md5Hash: dto.md5_hash,
     downloadUrl: dto.download_url,
     downloadCount: dto.download_count,
-    uploadedAt: dto.uploaded_at,
+    createdAt: dto.created_at,
   }
 }
 
