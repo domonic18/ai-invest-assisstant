@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.models.sector_fund_flow import SectorFundFlow
+from app.models.capital_fund_flow_sector import SectorFundFlow
 from app.services import sector_fund_flow_service
 
 

@@ -45,9 +45,9 @@ def _stock_mock() -> MagicMock:
     stock.stock_code = "000001"
     stock.stock_name = "平安银行"
     stock.market = "sz"
-    stock.industry_l1 = None
-    stock.industry_l2 = None
-    stock.industry_l3 = None
+    stock.industry_level_1 = None
+    stock.industry_level_2 = None
+    stock.industry_level_3 = None
     stock.listing_date = None
     stock.full_name = None
     stock.legal_person = None
@@ -75,7 +75,7 @@ def _report_mock() -> MagicMock:
     report.md5_hash = None
     report.download_url = None
     report.download_count = 0
-    report.uploaded_at = datetime(2024, 1, 1, 0, 0, 0)
+    report.created_at = datetime(2024, 1, 1, 0, 0, 0)
     return report
 
 
@@ -93,7 +93,7 @@ def _news_mock() -> MagicMock:
     news.sentiment = None
     news.keywords = None
     news.industry_tags = None
-    news.es_id = None
+    news.elasticsearch_doc_id = None
     news.extra = {}
     news.created_at = datetime(2024, 1, 1, 0, 0, 0)
     return news

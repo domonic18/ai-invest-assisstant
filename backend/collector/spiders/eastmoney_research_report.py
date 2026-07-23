@@ -46,7 +46,7 @@ class EastMoneyResearchReportCollector(PostgresCollector):
                         "sentiment": None,
                         "keywords": None,
                         "industry_tags": _to_list(to_optional_str(row.get("行业"))),
-                        "es_id": None,
+                        "elasticsearch_doc_id": None,
                         "extra": json.dumps(_build_extra(row)),
                     }
                 )
@@ -65,7 +65,7 @@ class EastMoneyResearchReportCollector(PostgresCollector):
             "sentiment": raw.get("sentiment"),
             "keywords": raw.get("keywords"),
             "industry_tags": raw.get("industry_tags"),
-            "es_id": raw.get("es_id"),
+            "elasticsearch_doc_id": raw.get("elasticsearch_doc_id"),
             "extra": raw.get("extra"),
         }
 

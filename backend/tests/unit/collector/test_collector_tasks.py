@@ -175,9 +175,9 @@ class TestCollectorTaskEntries:
         }
         industries = {
             "000001": {
-                "industry_l1": "银行",
-                "industry_l2": "全国性银行",
-                "industry_l3": "股份制银行",
+                "industry_level_1": "银行",
+                "industry_level_2": "全国性银行",
+                "industry_level_3": "股份制银行",
             }
         }
 
@@ -274,7 +274,7 @@ def _result(source: str, status: CollectStatus, errors: list[str] | None = None)
     now = datetime.now(timezone.utc)
     return CollectResult(
         source=source,
-        data_type="sector_fund_flow",
+        data_type="capital_fund_flow_sector",
         status=status,
         items_collected=0,
         items_stored=0,
@@ -337,7 +337,7 @@ class TestRunCollectorFallback:
         ):
             result = await tasks._run_collector_for_task(
                 "sector-fund-flow",
-                "sector_fund_flow",
+                "capital_fund_flow_sector",
                 {"eastmoney": SeqCollector, "ths": SeqCollector},
                 None,
             )
@@ -365,7 +365,7 @@ class TestRunCollectorFallback:
         ):
             result = await tasks._run_collector_for_task(
                 "sector-fund-flow",
-                "sector_fund_flow",
+                "capital_fund_flow_sector",
                 {"eastmoney": FailCollector, "ths": FailCollector},
                 None,
             )
@@ -393,7 +393,7 @@ class TestRunCollectorFallback:
         ):
             result = await tasks._run_collector_for_task(
                 "sector-fund-flow",
-                "sector_fund_flow",
+                "capital_fund_flow_sector",
                 {"ths": OkCollector},
                 None,
             )
@@ -411,7 +411,7 @@ class TestRunCollectorFallback:
             AsyncMock(return_value=[]),
         ):
             result = await tasks._run_collector_for_task(
-                "sector-fund-flow", "sector_fund_flow", {}, None
+                "sector-fund-flow", "capital_fund_flow_sector", {}, None
             )
 
         assert result.status == CollectStatus.SKIPPED

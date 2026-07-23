@@ -25,6 +25,6 @@ class FileMetadata(Base):
     md5_hash: Mapped[str | None] = mapped_column(String(32), nullable=True)
     download_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     download_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    uploaded_at: Mapped[datetime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, nullable=False
     )

@@ -12,7 +12,7 @@ from app.core.database import Base
 class FundHoldings(Base):
     """个股基金持仓表。"""
 
-    __tablename__ = "fund_holdings"
+    __tablename__ = "fund_holding"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     stock_code: Mapped[str] = mapped_column(String(10), nullable=False)

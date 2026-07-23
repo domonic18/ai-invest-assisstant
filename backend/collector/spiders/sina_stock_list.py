@@ -25,9 +25,9 @@ logger = logging.getLogger(__name__)
 _UPDATE_COLUMNS = [
     "stock_name",
     "full_name",
-    "industry_l1",
-    "industry_l2",
-    "industry_l3",
+    "industry_level_1",
+    "industry_level_2",
+    "industry_level_3",
     "listing_date",
     "total_shares",
     "circulating_shares",
@@ -91,9 +91,9 @@ class SinaStockListCollector(PostgresCollector):
             "stock_name": str(raw["stock_name"]),
             "market": str(raw["market"]),
             "full_name": raw.get("full_name"),
-            "industry_l1": raw.get("industry_l1"),
-            "industry_l2": raw.get("industry_l2"),
-            "industry_l3": raw.get("industry_l3"),
+            "industry_level_1": raw.get("industry_level_1"),
+            "industry_level_2": raw.get("industry_level_2"),
+            "industry_level_3": raw.get("industry_level_3"),
             "listing_date": raw.get("listing_date"),
             "total_shares": raw.get("total_shares"),
             "circulating_shares": raw.get("circulating_shares"),
@@ -178,9 +178,9 @@ def _fetch_sw_industry_map(
             code = str(value).strip().zfill(6)
             if code in pending and code not in mapping:
                 mapping[code] = {
-                    "industry_l1": l1,
-                    "industry_l2": l2,
-                    "industry_l3": l3,
+                    "industry_level_1": l1,
+                    "industry_level_2": l2,
+                    "industry_level_3": l3,
                 }
                 pending.discard(code)
 

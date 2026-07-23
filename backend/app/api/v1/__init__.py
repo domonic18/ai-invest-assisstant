@@ -16,7 +16,7 @@ from app.api.v1 import (
 from app.api.v1.admin import collector as admin_collector
 from app.api.v1.admin import collector_channels as admin_collector_channels
 from app.api.v1.admin import collector_data_types as admin_collector_data_types
-from app.api.v1.admin import llm_configs as admin_llm_configs
+from app.api.v1.admin import llm_config as admin_llm_configs
 from app.api.v1.admin import news as admin_news
 from app.api.v1.admin import reports as admin_reports
 from app.api.v1.admin import stocks as admin_stocks

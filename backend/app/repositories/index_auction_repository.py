@@ -5,7 +5,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.index_auction import IndexAuction
+from app.models.quote_auction_index import IndexAuction
 
 
 async def list_recent(session: AsyncSession, days: int) -> list[IndexAuction]:

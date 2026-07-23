@@ -40,7 +40,7 @@ class SinaKlineCollector(BaseKlineCollector):
                         "volume": row["volume"],
                         "amount": row.get("amount"),
                         "amplitude": None,
-                        "pct_change": None,
+                        "change_pct": None,
                         "turnover_rate": row.get("turnover"),
                     }
                 )

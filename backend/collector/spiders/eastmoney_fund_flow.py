@@ -10,7 +10,7 @@ from collector.core.parsing import clean_stock_code, parse_cn_amount, to_float
 class EastMoneyFundFlowCollector(PostgresCollector):
     """东方财富个股资金流向数据采集器（最新交易日全市场快照）。"""
 
-    table = "fund_flow"
+    table = "capital_fund_flow_stock"
     conflict_key = "stock_code, trade_date"
     normalize = False
     key_fields: ClassVar[list[str]] = ["stock_code", "trade_date"]

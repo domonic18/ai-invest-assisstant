@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.models.balance_sheet import BalanceSheet
-from app.models.cash_flow_statement import CashFlowStatement
-from app.models.income_statement import IncomeStatement
+from app.models.financial_balance_sheet import BalanceSheet
+from app.models.financial_cash_flow_statement import CashFlowStatement
+from app.models.financial_income_statement import IncomeStatement
 from app.services import financial_service
 
 
@@ -41,7 +41,7 @@ class TestFinancialService:
             stock_code="000001",
             report_date=date(2024, 3, 31),
             report_type="年报",
-            cf_operations=Decimal("120"),
+            cash_flow_from_operations=Decimal("120"),
             created_at=datetime(2024, 3, 31, 0, 0, 0),
         )
 

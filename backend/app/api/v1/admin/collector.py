@@ -22,23 +22,23 @@ router = APIRouter(prefix="/collector", dependencies=[Depends(get_current_admin_
 
 
 _TASK_DATA_TYPE: dict[str, str] = {
-    "kline": "kline_daily",
+    "kline": "quote_kline_stock_daily",
     "index-kline": "index_kline",
     "auction": "auction",
     "fund-flow": "fund_flow",
     "news": "news",
     "company-profile": "company_profile",
     "disclosure": "disclosure",
-    "sector-fund-flow": "sector_fund_flow",
-    "dragon-list": "dragon_list",
+    "sector-fund-flow": "capital_fund_flow_sector",
+    "dragon-list": "pool_dragon_tiger_stock",
     "research-report": "research_report",
     "financial-report": "financial_report",
     "ipo-info": "ipo_info",
-    "fund-holdings": "fund_holdings",
+    "fund-holdings": "fund_holding",
     "macro": "macro_indicator",
     "quote": "quote",
     "stock-list": "stock_list",
-    "limit-up-pool": "limit_up_pool",
+    "limit-up-pool": "pool_limit_up_stock",
 }
 
 

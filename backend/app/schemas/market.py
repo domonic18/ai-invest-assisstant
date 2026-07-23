@@ -49,7 +49,7 @@ class IndexKlineBar(BaseModel):
 
 
 class IndexKlineResponse(BaseModel):
-    """指数多周期 K 线（日/周/月/季/年，由本地 kline_daily 聚合）。"""
+    """指数多周期 K 线（日/周/月/季/年，由本地 quote_kline_stock_daily 聚合）。"""
 
     code: str
     name: str
@@ -70,7 +70,7 @@ class MarketStatsResponse(BaseModel):
     flat_count: int | None = None
     limit_up_count: int = 0
     limit_down_count: int = 0
-    broken_count: int | None = None
+    broken_limit_count: int | None = None
     emotion_score: float | None = None
     emotion_label: str | None = None
     limit_up_ratio: float | None = None
@@ -88,8 +88,8 @@ class LimitUpItem(BaseModel):
     sealed_amount: float | None = None
     first_seal_time: str | None = None
     last_seal_time: str | None = None
-    break_count: int | None = None
-    limit_stat: str | None = None
+    broken_limit_count: int | None = None
+    limit_status: str | None = None
     consecutive_boards: int | None = None
     industry: str | None = None
     seal_type: str | None = None  # 一字板 / T字板 / None（开盘涨停推导）

@@ -1,7 +1,7 @@
 """指数技术分析输入构建（AI 大盘综述）。
 
 为综述的五标的（沪指/创业板/科创50/沪深300ETF/富时A50）从本地
-kline_daily 预计算日线/周线技术指标，并从 kline_minute 预计算沪指
+quote_kline_stock_daily 预计算日线/周线技术指标，并从 quote_kline_stock_minute 预计算沪指
 分时量能结构，格式化为文本注入复盘 prompt。
 
 设计原则：Python 预计算指标、LLM 只负责叙述——大模型从原始 OHLCV

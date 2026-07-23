@@ -54,7 +54,7 @@ class AdminNewsService:
             sentiment=data.sentiment,
             keywords=data.keywords,
             industry_tags=data.industry_tags,
-            es_id=data.es_id,
+            elasticsearch_doc_id=data.elasticsearch_doc_id,
             extra=data.extra,
         )
         self.repo.add(news)

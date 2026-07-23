@@ -50,9 +50,9 @@ export interface ApiStockBasicResponse {
   stock_code: string
   stock_name: string
   market: string
-  industry_l1: string | null
-  industry_l2: string | null
-  industry_l3: string | null
+  industry_level_1: string | null
+  industry_level_2: string | null
+  industry_level_3: string | null
   listing_date: string | null
 }
 
@@ -65,7 +65,7 @@ export interface ApiKlineDataResponse {
   volume: number
   amount: number
   amplitude: number
-  pct_change: number
+  change_pct: number
   turnover_rate: number
 }
 
@@ -346,7 +346,7 @@ export interface ApiIncomeStatementResponse {
   operating_cost: number | null
   selling_expense: number | null
   admin_expense: number | null
-  rd_expense: number | null
+  research_development_expense: number | null
   finance_expense: number | null
   operating_profit: number | null
   net_profit: number | null
@@ -359,9 +359,9 @@ export interface ApiCashFlowStatementResponse {
   stock_code: string
   report_date: string
   report_type: string
-  cf_operations: number | null
-  cf_investing: number | null
-  cf_financing: number | null
+  cash_flow_from_operations: number | null
+  cash_flow_from_investing: number | null
+  cash_flow_from_financing: number | null
   net_cash_flow: number | null
   free_cash_flow: number | null
   created_at: string
@@ -371,9 +371,9 @@ export interface ApiFinancialHealthResponse {
   stock_code: string
   report_date: string | null
   report_type: string | null
-  balance_sheet: ApiBalanceSheetResponse | null
-  income_statement: ApiIncomeStatementResponse | null
-  cash_flow_statement: ApiCashFlowStatementResponse | null
+  financial_balance_sheet: ApiBalanceSheetResponse | null
+  financial_income_statement: ApiIncomeStatementResponse | null
+  financial_cash_flow_statement: ApiCashFlowStatementResponse | null
   metrics: Record<string, number | null>
 }
 
@@ -411,9 +411,9 @@ export interface ApiAdminStockResponse {
   stock_code: string
   stock_name: string
   market: string
-  industry_l1: string | null
-  industry_l2: string | null
-  industry_l3: string | null
+  industry_level_1: string | null
+  industry_level_2: string | null
+  industry_level_3: string | null
   listing_date: string | null
   total_shares: number | null
   circulating_shares: number | null
@@ -425,18 +425,18 @@ export interface ApiAdminStockCreateRequest {
   stock_code: string
   stock_name: string
   market: string
-  industry_l1?: string
-  industry_l2?: string
-  industry_l3?: string
+  industry_level_1?: string
+  industry_level_2?: string
+  industry_level_3?: string
   listing_date?: string
 }
 
 export interface ApiAdminStockUpdateRequest {
   stock_name?: string
   market?: string
-  industry_l1?: string
-  industry_l2?: string
-  industry_l3?: string
+  industry_level_1?: string
+  industry_level_2?: string
+  industry_level_3?: string
   listing_date?: string
 }
 
@@ -454,7 +454,7 @@ export interface ApiAdminReportResponse {
   md5_hash: string | null
   download_url: string | null
   download_count: number
-  uploaded_at: string
+  created_at: string
 }
 
 export interface ApiAdminReportCreateRequest {

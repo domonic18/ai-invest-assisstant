@@ -13,7 +13,7 @@ from app.core.database import Base
 class LLMConfig(Base):
     """System-wide LLM configuration managed by admins."""
 
-    __tablename__ = "llm_configs"
+    __tablename__ = "llm_config"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)

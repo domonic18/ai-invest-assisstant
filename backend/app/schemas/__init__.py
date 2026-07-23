@@ -1,6 +1,10 @@
 """Pydantic schemas."""
 
 from app.schemas.auth import AuthResponse, RegisterRequest, TokenPayload
+from app.schemas.capital_fund_flow_sector import (
+    HotspotListRequest,
+    SectorFundFlowResponse,
+)
 from app.schemas.chain import (
     ChainAnalysisRequest,
     ChainAnalysisResult,
@@ -38,10 +42,6 @@ from app.schemas.news_announcement import (
     ResearchReportDetailResponse,
     ResearchReportListRequest,
     ResearchReportResponse,
-)
-from app.schemas.sector_fund_flow import (
-    HotspotListRequest,
-    SectorFundFlowResponse,
 )
 from app.schemas.stock import (
     AdminStockCreate,

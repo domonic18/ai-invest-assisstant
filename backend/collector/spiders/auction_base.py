@@ -12,9 +12,9 @@ from collector.core.parsing import parse_date, parse_time, to_float, to_int
 
 
 class BaseAuctionCollector(PostgresCollector):
-    """集合竞价（五档盘口快照）采集器基类，写入 auction_data。"""
+    """集合竞价（五档盘口快照）采集器基类，写入 quote_auction_stock。"""
 
-    table = "auction_data"
+    table = "quote_auction_stock"
     conflict_key = "stock_code, trade_date, match_time"
     normalize = False
     key_fields: ClassVar[list[str]] = ["stock_code", "trade_date", "match_time"]

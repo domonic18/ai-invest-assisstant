@@ -12,7 +12,7 @@ from app.core.database import Base
 class BalanceSheet(Base):
     """资产负债表。"""
 
-    __tablename__ = "balance_sheet"
+    __tablename__ = "financial_balance_sheet"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     stock_code: Mapped[str] = mapped_column(String(10), nullable=False)

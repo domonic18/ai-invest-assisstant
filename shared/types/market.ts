@@ -59,7 +59,7 @@ export interface ApiMarketStatsResponse {
   flat_count: number | null
   limit_up_count: number
   limit_down_count: number
-  broken_count: number | null
+  broken_limit_count: number | null
   emotion_score: number | null
   emotion_label: string | null
   limit_up_ratio: number | null
@@ -75,8 +75,8 @@ export interface ApiLimitUpItem {
   sealed_amount: number | null
   first_seal_time: string | null
   last_seal_time: string | null
-  break_count: number | null
-  limit_stat: string | null
+  broken_limit_count: number | null
+  limit_status: string | null
   consecutive_boards: number | null
   industry: string | null
   seal_type: string | null
@@ -236,7 +236,7 @@ export interface MarketStats {
   flatCount: number | null
   limitUpCount: number
   limitDownCount: number
-  brokenCount: number | null
+  brokenLimitCount: number | null
   emotionScore: number | null
   emotionLabel: string | null
   limitUpRatio: number | null
@@ -252,8 +252,8 @@ export interface LimitUpStock {
   sealedAmount: number | null
   firstSealTime: string | null
   lastSealTime: string | null
-  breakCount: number | null
-  limitStat: string | null
+  brokenLimitCount: number | null
+  limitStatus: string | null
   consecutiveBoards: number | null
   industry: string | null
   sealType: string | null

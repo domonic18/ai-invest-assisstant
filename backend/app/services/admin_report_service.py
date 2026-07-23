@@ -75,7 +75,7 @@ class AdminReportService:
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(report, field, value)
 
-        report.uploaded_at = datetime.now(timezone.utc)
+        report.created_at = datetime.now(timezone.utc)
         await self.session.commit()
         await self.repo.refresh(report)
         return report
@@ -103,5 +103,5 @@ class AdminReportService:
             "md5_hash": report.md5_hash,
             "download_url": report.download_url,
             "download_count": report.download_count,
-            "uploaded_at": report.uploaded_at,
+            "created_at": report.created_at,
         }

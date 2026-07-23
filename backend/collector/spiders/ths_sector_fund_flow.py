@@ -3,7 +3,7 @@
 同花顺行业资金流（data.10jqka.com.cn/funds/hyzjl）与东财口径不同：
 无板块代码（以行业名代替）、无超/大/中/小单拆分（写 NULL）、仅支持行业
 板块。通过 akshare.stock_fund_flow_industry 获取（hexin-v 签名由 akshare
-内置处理）。写入与东财采集器相同的 sector_fund_flow 表。
+内置处理）。写入与东财采集器相同的 capital_fund_flow_sector 表。
 """
 
 from decimal import Decimal
@@ -15,7 +15,7 @@ from collector.spiders.sector_fund_flow_base import BaseSectorFundFlowCollector
 
 
 class ThsSectorFundFlowCollector(BaseSectorFundFlowCollector):
-    """同花顺行业资金流向采集器（备用渠道），写入 sector_fund_flow。"""
+    """同花顺行业资金流向采集器（备用渠道），写入 capital_fund_flow_sector。"""
 
     async def collect(
         self, sector_type: str | None = None, **kwargs: Any

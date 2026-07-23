@@ -2,9 +2,9 @@
 
 请求路径零直取数据源，全部由采集任务预先写入：
 - 实时态：指数快照由 sina_index_spot 任务每分钟写 Redis（market:index_spot）；
-- 日内时序：指数分钟线由 sina_index_minute 任务写 kline_minute 超表；
+- 日内时序：指数分钟线由 sina_index_minute 任务写 quote_kline_stock_minute 超表；
 - 日频事实：涨跌统计/炸板数写 market_breadth、官方成交额写 market_amount、
-  涨停池写 limit_up_pool、板块资金写 sector_fund_flow、日 K 写 kline_daily。
+  涨停池写 pool_limit_up_stock、板块资金写 capital_fund_flow_sector、日 K 写 quote_kline_stock_daily。
 """
 
 import asyncio
@@ -19,11 +19,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.constants import INDEX_CODES, KLINE_CHART_EXTRA_CODES
+from app.models.capital_fund_flow_sector import SectorFundFlow
 from app.models.kline import KlineDaily
-from app.models.limit_up_pool import LimitUpPool
 from app.models.market_amount import MarketAmount
 from app.models.market_breadth import MarketBreadth
-from app.models.sector_fund_flow import SectorFundFlow
+from app.models.pool_limit_up_stock import LimitUpPool
 from app.models.watchlist import UserWatchlist
 from app.repositories.kline_repository import (
     PERIOD_BUCKET,
@@ -82,7 +82,7 @@ async def _index_spot() -> list[dict[str, Any]] | None:
 async def get_index_intraday(
     session: AsyncSession, code: str, trade_date: date | None = None
 ) -> IndexIntradayResponse:
-    """指数分时图数据（价格 + 量能），只读 kline_minute（采集器每分钟写入）。
+    """指数分时图数据（价格 + 量能），只读 quote_kline_stock_minute（采集器每分钟写入）。
 
     默认取表内最近交易日；指定历史日期时取当日分钟序列，无数据抛
     ValueError（分钟线自采集上线起累积，更早日期不存在）。
@@ -135,13 +135,13 @@ async def get_index_intraday(
 async def _local_index_closes(
     session: AsyncSession, code: str, end_date: date | None, limit: int
 ) -> list[float]:
-    """本地 kline_daily 最近 limit 根收盘（升序）；无数据返回空。"""
+    """本地 quote_kline_stock_daily 最近 limit 根收盘（升序）；无数据返回空。"""
     bars = await fetch_daily_bars(session, code, end_date=end_date, limit=limit)
     return [float(bar.close) for bar in reversed(bars) if bar.close is not None]
 
 
 async def _db_index_spot(session: AsyncSession) -> list[dict[str, Any]]:
-    """实时快照缺失时的降级：由 kline_daily 最近两根日 K 合成行情快照。"""
+    """实时快照缺失时的降级：由 quote_kline_stock_daily 最近两根日 K 合成行情快照。"""
     quotes: list[dict[str, Any]] = []
     for code, name in INDEX_CODES.items():
         bars = await fetch_daily_bars(session, code, limit=2)
@@ -177,7 +177,7 @@ async def get_index_quotes(
     """四大指数行情（含近 30 日收盘趋势）。
 
     默认取采集器写入 Redis 的实时快照（缺失时由日 K 合成）；
-    指定历史交易日时从本地 kline_daily 取当日收盘与涨跌。
+    指定历史交易日时从本地 quote_kline_stock_daily 取当日收盘与涨跌。
     趋势与日 K 均只读本地库，请求路径不触达数据源。
     """
     if trade_date is not None:
@@ -202,7 +202,7 @@ async def get_index_quotes(
 async def _index_daily_series(
     session: AsyncSession, code: str, end_date: date
 ) -> list[dict[str, Any]]:
-    """单指数日线序列（本地 kline_daily 取 end_date 前最近一段）。"""
+    """单指数日线序列（本地 quote_kline_stock_daily 取 end_date 前最近一段）。"""
     bars = await fetch_daily_bars(
         session, code, end_date=end_date, limit=_TREND_DAYS + 1
     )
@@ -259,7 +259,7 @@ async def get_index_kline(
 ) -> IndexKlineResponse:
     """指数多周期 K 线（升序返回）。
 
-    daily 直读本地 kline_daily；weekly/monthly/quarterly/yearly 由
+    daily 直读本地 quote_kline_stock_daily；weekly/monthly/quarterly/yearly 由
     TimescaleDB time_bucket 聚合，聚合周期的 date 取周期首根交易日。
     标的范围：四大指数（INDEX_CODES）+ K 线图扩展标的（KLINE_CHART_EXTRA_CODES，
     沪深300ETF/富时A50）。
@@ -487,7 +487,7 @@ async def get_market_stats(
         amount_change = round(amount - prev_amount, 2)
         amount_change_pct = round((amount - prev_amount) / prev_amount * 100, 2)
 
-    continuous_rate, broken_rate, broken_count = await _limit_up_rates(
+    continuous_rate, broken_rate, broken_limit_count = await _limit_up_rates(
         session, resolved
     )
     score: float | None = None
@@ -513,7 +513,7 @@ async def get_market_stats(
         flat_count=breadth["flat_count"],
         limit_up_count=breadth["limit_up_count"],
         limit_down_count=breadth["limit_down_count"],
-        broken_count=broken_count,
+        broken_limit_count=broken_limit_count,
         emotion_score=score,
         emotion_label=_emotion_label(score) if score is not None else None,
         limit_up_ratio=limit_up_ratio,
@@ -588,32 +588,32 @@ async def _limit_up_rates(
     )
 
     # 炸板家数由 eastmoney_broken_pool 任务盘后写入 market_breadth
-    broken_count = await session.scalar(
-        select(MarketBreadth.broken_count).where(
+    broken_limit_count = await session.scalar(
+        select(MarketBreadth.broken_limit_count).where(
             MarketBreadth.trade_date == trade_date
         )
     )
 
     broken_rate = (
-        round(broken_count / (total + broken_count), 4)
-        if broken_count is not None and total + broken_count > 0
+        round(broken_limit_count / (total + broken_limit_count), 4)
+        if broken_limit_count is not None and total + broken_limit_count > 0
         else None
     )
-    return continuous_rate, broken_rate, broken_count
+    return continuous_rate, broken_rate, broken_limit_count
 
 
 _SEAL_OPEN_THRESHOLD = "093000"  # 开盘（含集合竞价）即封板的时间上界
 _INDUSTRY_SUFFIXES = ("Ⅲ", "Ⅱ")
 
 
-def _seal_type(first_seal_time: str | None, break_count: int | None) -> str | None:
+def _seal_type(first_seal_time: str | None, broken_limit_count: int | None) -> str | None:
     """开盘涨停形态推导：一字板=开盘封板全天未开；T字板=开盘封板盘中打开后回封。
 
     first_seal_time 为 "092500" 式 6 位零填充字符串，同长度数字串可直接按字典序比较。
     """
     if first_seal_time is None or first_seal_time > _SEAL_OPEN_THRESHOLD:
         return None
-    return "一字板" if not break_count else "T字板"
+    return "一字板" if not broken_limit_count else "T字板"
 
 
 def _normalize_industry(name: str) -> str:
@@ -734,7 +734,7 @@ def _limit_up_response(
 async def get_limit_up(
     session: AsyncSession, trade_date: date | None = None
 ) -> LimitUpResponse:
-    """涨停板与连板天梯（只读 limit_up_pool）。
+    """涨停板与连板天梯（只读 pool_limit_up_stock）。
 
     默认取最近交易日：盘中未收盘时当日涨停池尚未写入，返回空（前端
     提示未收盘），不回退展示前一交易日的旧数据；周末/节假日解析到
@@ -768,11 +768,11 @@ async def get_limit_up(
             ),
             first_seal_time=row.first_seal_time,
             last_seal_time=row.last_seal_time,
-            break_count=row.break_count,
-            limit_stat=row.limit_stat,
+            broken_limit_count=row.broken_limit_count,
+            limit_status=row.limit_status,
             consecutive_boards=row.consecutive_boards,
             industry=row.industry,
-            seal_type=_seal_type(row.first_seal_time, row.break_count),
+            seal_type=_seal_type(row.first_seal_time, row.broken_limit_count),
         )
         for row in rows
     ]
@@ -813,7 +813,7 @@ def _downsample(values: list[float], limit: int = _INTRADAY_SAMPLE_POINTS) -> li
 async def get_limit_up_intraday(
     session: AsyncSession, trade_date: date | None = None
 ) -> LimitUpIntradayResponse:
-    """涨停个股全天分时缩略图（每股 ≤60 个收盘价采样点，读 kline_minute）。
+    """涨停个股全天分时缩略图（每股 ≤60 个收盘价采样点，读 quote_kline_stock_minute）。
 
     个股分钟线由 sina_stock_minute 任务收盘后写入；无分钟线的个股不出现在
     series 中（前端缩略图显示占位）。
@@ -963,7 +963,7 @@ async def get_watchlist_quotes(
                     code=item.stock_code,
                     name=cached.get("stock_name"),
                     price=cached.get("price"),
-                    change_pct=cached.get("pct_change"),
+                    change_pct=cached.get("change_pct"),
                     amount=cached.get("amount"),
                     tags=list(item.tags or []),
                     updated_at=cached.get("updated_at"),
@@ -984,8 +984,8 @@ async def get_watchlist_quotes(
                 code=item.stock_code,
                 price=float(kline.close) if kline and kline.close is not None else None,
                 change_pct=(
-                    float(kline.pct_change)
-                    if kline and kline.pct_change is not None
+                    float(kline.change_pct)
+                    if kline and kline.change_pct is not None
                     else None
                 ),
                 amount=(

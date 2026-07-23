@@ -12,7 +12,7 @@ from app.core.database import Base
 class IncomeStatement(Base):
     """利润表。"""
 
-    __tablename__ = "income_statement"
+    __tablename__ = "financial_income_statement"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     stock_code: Mapped[str] = mapped_column(String(10), nullable=False)
@@ -28,7 +28,7 @@ class IncomeStatement(Base):
         Numeric(20, 2), nullable=True
     )
     admin_expense: Mapped[Decimal | None] = mapped_column(Numeric(20, 2), nullable=True)
-    rd_expense: Mapped[Decimal | None] = mapped_column(Numeric(20, 2), nullable=True)
+    research_development_expense: Mapped[Decimal | None] = mapped_column(Numeric(20, 2), nullable=True)
     finance_expense: Mapped[Decimal | None] = mapped_column(
         Numeric(20, 2), nullable=True
     )

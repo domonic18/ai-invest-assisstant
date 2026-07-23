@@ -13,9 +13,9 @@ from collector.core.parsing import (
 
 
 class EastMoneyDragonListCollector(PostgresCollector):
-    """东方财富龙虎榜采集器，写入 dragon_list。"""
+    """东方财富龙虎榜采集器，写入 pool_dragon_tiger_stock。"""
 
-    table = "dragon_list"
+    table = "pool_dragon_tiger_stock"
     conflict_key = "trade_date, stock_code, rank_reason"
     key_fields: ClassVar[list[str]] = ["trade_date", "stock_code", "rank_reason"]
     required_fields: ClassVar[list[str]] = ["trade_date", "stock_code"]

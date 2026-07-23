@@ -1,8 +1,8 @@
 """Sina stock minute K-line collector via akshare.
 
-抓取涨停池个股 1 分钟线写入 kline_minute 超表，涨停复盘行的全天分时
+抓取涨停池个股 1 分钟线写入 quote_kline_stock_minute 超表，涨停复盘行的全天分时
 缩略图只读该表。新浪接口返回最近约 8 个交易日，运行时只保留目标
-交易日（默认当日）。symbols 缺省时取目标日 limit_up_pool 全部个股。
+交易日（默认当日）。symbols 缺省时取目标日 pool_limit_up_stock 全部个股。
 """
 
 import contextlib
@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.limit_up_pool import LimitUpPool
+from app.models.pool_limit_up_stock import LimitUpPool
 from collector.core.base import PostgresCollector, get_engine
 from collector.core.parsing import to_float, to_int
 
@@ -44,9 +44,9 @@ async def _fetch_limit_up_codes(target: date) -> list[str]:
 
 
 class SinaStockMinuteCollector(PostgresCollector):
-    """新浪财经个股分钟线采集器，写入 kline_minute。"""
+    """新浪财经个股分钟线采集器，写入 quote_kline_stock_minute。"""
 
-    table = "kline_minute"
+    table = "quote_kline_stock_minute"
     conflict_key = "stock_code, trade_time"
     normalize = False
     key_fields: ClassVar[list[str]] = ["stock_code", "trade_time"]

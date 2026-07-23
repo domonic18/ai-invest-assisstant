@@ -27,7 +27,7 @@ class TestScfHandler:
     async def test_main_handler_success(self) -> None:
         mock_result = AsyncMock()
         mock_result.source = "ths"
-        mock_result.data_type = "kline_daily"
+        mock_result.data_type = "quote_kline_stock_daily"
         mock_result.status.value = "success"
         mock_result.items_collected = 2
         mock_result.items_stored = 2

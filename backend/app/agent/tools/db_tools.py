@@ -13,7 +13,7 @@ async def query_industry_companies(
     """查询指定一级行业的上市公司。"""
     result = await session.execute(
         select(StockBasic)
-        .where(StockBasic.industry_l1 == industry)
+        .where(StockBasic.industry_level_1 == industry)
         .limit(limit)
     )
     return [
@@ -21,8 +21,8 @@ async def query_industry_companies(
             "stock_code": item.stock_code,
             "stock_name": item.stock_name,
             "market": item.market,
-            "industry_l2": item.industry_l2,
-            "industry_l3": item.industry_l3,
+            "industry_level_2": item.industry_level_2,
+            "industry_level_3": item.industry_level_3,
         }
         for item in result.scalars().all()
     ]
@@ -49,7 +49,7 @@ async def query_stock_kline(
             "close": float(item.close) if item.close is not None else None,
             "volume": item.volume,
             "amount": float(item.amount) if item.amount is not None else None,
-            "pct_change": float(item.pct_change) if item.pct_change is not None else None,
+            "change_pct": float(item.change_pct) if item.change_pct is not None else None,
         }
         for item in result.scalars().all()
     ]

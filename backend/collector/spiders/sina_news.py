@@ -67,7 +67,7 @@ class SinaNewsCollector(PostgresCollector):
             "sentiment": None,
             "keywords": None,
             "industry_tags": None,
-            "es_id": None,
+            "elasticsearch_doc_id": None,
         }
 
     async def validate(self, item: dict[str, Any]) -> bool:

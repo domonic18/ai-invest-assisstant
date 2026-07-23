@@ -44,7 +44,7 @@ class IncomeStatementResponse(BaseModel):
     operating_cost: Decimal | None = None
     selling_expense: Decimal | None = None
     admin_expense: Decimal | None = None
-    rd_expense: Decimal | None = None
+    research_development_expense: Decimal | None = None
     finance_expense: Decimal | None = None
     operating_profit: Decimal | None = None
     net_profit: Decimal | None = None
@@ -61,9 +61,9 @@ class CashFlowStatementResponse(BaseModel):
     stock_code: str
     report_date: date
     report_type: str
-    cf_operations: Decimal | None = None
-    cf_investing: Decimal | None = None
-    cf_financing: Decimal | None = None
+    cash_flow_from_operations: Decimal | None = None
+    cash_flow_from_investing: Decimal | None = None
+    cash_flow_from_financing: Decimal | None = None
     net_cash_flow: Decimal | None = None
     free_cash_flow: Decimal | None = None
     created_at: datetime
@@ -77,9 +77,9 @@ class FinancialHealthResponse(BaseModel):
     stock_code: str
     report_date: date | None = None
     report_type: str | None = None
-    balance_sheet: BalanceSheetResponse | None = None
-    income_statement: IncomeStatementResponse | None = None
-    cash_flow_statement: CashFlowStatementResponse | None = None
+    financial_balance_sheet: BalanceSheetResponse | None = None
+    financial_income_statement: IncomeStatementResponse | None = None
+    financial_cash_flow_statement: CashFlowStatementResponse | None = None
     metrics: dict[str, Any] = Field(default_factory=dict)
 
 

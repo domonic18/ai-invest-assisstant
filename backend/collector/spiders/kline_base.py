@@ -1,7 +1,7 @@
 """K 线采集器共享基类 — sina/ths 等渠道共用表配置与清洗逻辑。
 
 子类只需实现 collect（产出 open/high/low/close/volume/amount/amplitude/
-pct_change/turnover_rate 键的原始字典）。
+change_pct/turnover_rate 键的原始字典）。
 """
 
 from typing import Any, ClassVar
@@ -11,7 +11,7 @@ from collector.core.parsing import to_float, to_int
 
 
 class BaseKlineCollector(PostgresCollector):
-    """日 K / 分钟 K 采集器基类，按 period 写入 kline_daily / kline_minute。"""
+    """日 K / 分钟 K 采集器基类，按 period 写入 quote_kline_stock_daily / quote_kline_stock_minute。"""
 
     conflict_key = "stock_code, trade_date"
     normalize = False
@@ -21,7 +21,7 @@ class BaseKlineCollector(PostgresCollector):
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         self.period = config.get("period", "daily")
-        self.table = "kline_minute" if self.period == "minute" else "kline_daily"
+        self.table = "quote_kline_stock_minute" if self.period == "minute" else "quote_kline_stock_daily"
 
     async def transform(self, raw: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -34,7 +34,7 @@ class BaseKlineCollector(PostgresCollector):
             "volume": to_int(raw.get("volume")),
             "amount": to_float(raw.get("amount")),
             "amplitude": to_float(raw.get("amplitude")),
-            "pct_change": to_float(raw.get("pct_change")),
+            "change_pct": to_float(raw.get("change_pct")),
             "turnover_rate": to_float(raw.get("turnover_rate")),
         }
 

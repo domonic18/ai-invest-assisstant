@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.models.index_auction import IndexAuction
+from app.models.quote_auction_index import IndexAuction
 from app.services import auction_service
 
 

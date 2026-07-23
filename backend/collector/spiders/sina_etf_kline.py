@@ -10,7 +10,7 @@ _ETF_CODES = ("sh510300",)
 class SinaEtfKlineCollector(BaseKlineCollector):
     """新浪财经 ETF 日 K 采集器（沪深300ETF sh510300）。
 
-    ETF 代码直接作为 stock_code 写入 kline_daily，与指数/个股日 K 同表；
+    ETF 代码直接作为 stock_code 写入 quote_kline_stock_daily，与指数/个股日 K 同表；
     新浪 ETF 日线接口返回全历史，天然支持一次性回填与幂等重跑。
     """
 

@@ -45,7 +45,7 @@ _INCOME_STATEMENT_MAP: dict[str, list[str]] = {
     "operating_cost": ["TOTAL_OPERATE_COST", "OPERATE_COST", "OPERATE_EXPENSE"],
     "selling_expense": ["SALE_EXPENSE"],
     "admin_expense": ["MANAGE_EXPENSE"],
-    "rd_expense": ["RESEARCH_EXPENSE"],
+    "research_development_expense": ["RESEARCH_EXPENSE"],
     "finance_expense": ["FINANCE_EXPENSE"],
     "operating_profit": ["OPERATE_PROFIT"],
     "net_profit": ["NETPROFIT"],
@@ -54,15 +54,15 @@ _INCOME_STATEMENT_MAP: dict[str, list[str]] = {
 }
 
 _CASH_FLOW_STATEMENT_MAP: dict[str, str] = {
-    "cf_operations": "NETCASH_OPERATE",
-    "cf_investing": "NETCASH_INVEST",
-    "cf_financing": "NETCASH_FINANCE",
+    "cash_flow_from_operations": "NETCASH_OPERATE",
+    "cash_flow_from_investing": "NETCASH_INVEST",
+    "cash_flow_from_financing": "NETCASH_FINANCE",
     "net_cash_flow": "CCE_ADD",
 }
 
 
 class EastmoneyFinancialStatementCollector(BaseCollector):
-    """东方财富个股三大报表采集器，写入 balance_sheet / income_statement / cash_flow_statement。"""
+    """东方财富个股三大报表采集器，写入 financial_balance_sheet / financial_income_statement / financial_cash_flow_statement。"""
 
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
@@ -192,19 +192,19 @@ class EastmoneyFinancialStatementCollector(BaseCollector):
             exporter = PostgresExporter(session)
             if balance_items:
                 total += await exporter.insert_many(
-                    "balance_sheet",
+                    "financial_balance_sheet",
                     balance_items,
                     conflict_key="stock_code, report_date",
                 )
             if income_items:
                 total += await exporter.insert_many(
-                    "income_statement",
+                    "financial_income_statement",
                     income_items,
                     conflict_key="stock_code, report_date",
                 )
             if cash_items:
                 total += await exporter.insert_many(
-                    "cash_flow_statement",
+                    "financial_cash_flow_statement",
                     cash_items,
                     conflict_key="stock_code, report_date",
                 )
@@ -298,8 +298,8 @@ def _add_free_cash_flow(cash: dict[str, Any] | None) -> dict[str, Any] | None:
         return None
     if cash.get("free_cash_flow") is not None:
         return cash
-    operations = cash.get("cf_operations")
-    invest_pay = cash.get("cf_investing")
+    operations = cash.get("cash_flow_from_operations")
+    invest_pay = cash.get("cash_flow_from_investing")
     if operations is not None and invest_pay is not None:
         cash["free_cash_flow"] = operations + invest_pay
     return cash

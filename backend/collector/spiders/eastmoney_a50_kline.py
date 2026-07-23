@@ -15,7 +15,7 @@ _FIELDS2 = "f51,f52,f53,f54,f55,f56"
 
 
 class EastmoneyA50KlineCollector(BaseKlineCollector):
-    """东方财富富时中国 A50 期指（当月连续）日 K 采集器，写入 kline_daily。
+    """东方财富富时中国 A50 期指（当月连续）日 K 采集器，写入 quote_kline_stock_daily。
 
     新浪 XIN9 日 K 已下线，东财 push2his 为唯一可用免费源；接口返回全历史，
     天然支持一次性回填与幂等重跑。期货无成交额字段，置 None。

@@ -3,7 +3,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories import sector_fund_flow_repository
-from app.schemas.sector_fund_flow import SectorFlowSeries, SectorFlowTrendResponse
+from app.schemas.capital_fund_flow_sector import SectorFlowSeries, SectorFlowTrendResponse
 
 
 async def get_sector_flow_trend(

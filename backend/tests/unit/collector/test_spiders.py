@@ -183,9 +183,9 @@ class TestEastmoneyFinancialStatementCollector:
                 "eps": Decimal("0.5"),
             },
             "cash": {
-                "cf_operations": Decimal("30000"),
-                "cf_investing": Decimal("-10000"),
-                "cf_financing": Decimal("-5000"),
+                "cash_flow_from_operations": Decimal("30000"),
+                "cash_flow_from_investing": Decimal("-10000"),
+                "cash_flow_from_financing": Decimal("-5000"),
                 "net_cash_flow": Decimal("15000"),
             },
         }
@@ -228,7 +228,7 @@ class TestEastmoneyFinancialStatementCollector:
                     "net_profit": Decimal("50000"),
                 },
                 "cash": {
-                    "cf_operations": Decimal("30000"),
+                    "cash_flow_from_operations": Decimal("30000"),
                 },
             }
         ]
@@ -244,7 +244,7 @@ class TestEastmoneyFinancialStatementCollector:
 class TestThsKlineCollector:
     @pytest.mark.asyncio
     async def test_transform_and_validate(self) -> None:
-        collector = ThsKlineCollector({"source": "ths", "data_type": "kline_daily"})
+        collector = ThsKlineCollector({"source": "ths", "data_type": "quote_kline_stock_daily"})
         raw = {
             "stock_code": "000001",
             "trade_date": "2024-01-02",
@@ -255,7 +255,7 @@ class TestThsKlineCollector:
             "volume": 100000,
             "amount": 1080000.0,
             "amplitude": 7.62,
-            "pct_change": 2.86,
+            "change_pct": 2.86,
             "turnover_rate": 0.52,
         }
         item = await collector.transform(raw)
@@ -265,7 +265,7 @@ class TestThsKlineCollector:
 
     @pytest.mark.asyncio
     async def test_validate_rejects_missing_close(self) -> None:
-        collector = ThsKlineCollector({"source": "ths", "data_type": "kline_daily"})
+        collector = ThsKlineCollector({"source": "ths", "data_type": "quote_kline_stock_daily"})
         item = {"stock_code": "000001", "trade_date": "2024-01-02", "close": None}
         assert await collector.validate(item) is False
 
@@ -274,7 +274,7 @@ class TestThsKlineCollector:
 class TestSinaKlineCollector:
     @pytest.mark.asyncio
     async def test_transform_and_validate(self) -> None:
-        collector = SinaKlineCollector({"source": "sina", "data_type": "kline_daily"})
+        collector = SinaKlineCollector({"source": "sina", "data_type": "quote_kline_stock_daily"})
         raw = {
             "stock_code": "000001",
             "trade_date": "2024-01-02",
@@ -285,7 +285,7 @@ class TestSinaKlineCollector:
             "volume": 100000,
             "amount": 1080000.0,
             "amplitude": None,
-            "pct_change": None,
+            "change_pct": None,
             "turnover_rate": 0.52,
         }
         item = await collector.transform(raw)
@@ -565,7 +565,7 @@ class TestEastMoneyFundHoldingsCollector:
     @pytest.mark.asyncio
     async def test_transform_and_validate(self) -> None:
         collector = EastMoneyFundHoldingsCollector(
-            {"source": "eastmoney", "data_type": "fund_holdings"}
+            {"source": "eastmoney", "data_type": "fund_holding"}
         )
         raw = {
             "stock_code": "000001",
@@ -587,7 +587,7 @@ class TestEastMoneyFundHoldingsCollector:
     @pytest.mark.asyncio
     async def test_validate_rejects_missing_report_date(self) -> None:
         collector = EastMoneyFundHoldingsCollector(
-            {"source": "eastmoney", "data_type": "fund_holdings"}
+            {"source": "eastmoney", "data_type": "fund_holding"}
         )
         item = {"stock_code": "000001"}
         assert await collector.validate(item) is False
@@ -655,7 +655,7 @@ class TestSinaQuoteCollector:
             "stock_name": "平安银行",
             "price": 10.5,
             "change": 0.2,
-            "pct_change": 1.94,
+            "change_pct": 1.94,
             "bid": 10.49,
             "ask": 10.5,
             "prev_close": 10.3,
@@ -735,7 +735,7 @@ class TestSinaQuoteCollector:
                 "stock_name": "平安银行",
                 "price": 10.5,
                 "change": 0.2,
-                "pct_change": 1.94,
+                "change_pct": 1.94,
                 "bid": 10.49,
                 "ask": 10.5,
                 "prev_close": 10.3,
@@ -766,7 +766,7 @@ class TestSinaQuoteCollector:
 class TestCollectorRun:
     @pytest.mark.asyncio
     async def test_kline_run_with_mocked_collect(self) -> None:
-        collector = SinaKlineCollector({"source": "sina", "data_type": "kline_daily"})
+        collector = SinaKlineCollector({"source": "sina", "data_type": "quote_kline_stock_daily"})
         collector.store = AsyncMock(return_value=1)  # type: ignore[method-assign]
         collector.collect = AsyncMock(  # type: ignore[method-assign]
             return_value=[
@@ -780,7 +780,7 @@ class TestCollectorRun:
                     "volume": 100000,
                     "amount": 1080000.0,
                     "amplitude": None,
-                    "pct_change": None,
+                    "change_pct": None,
                     "turnover_rate": 0.52,
                 }
             ]
@@ -839,9 +839,9 @@ class TestSinaStockListCollector:
             "stock_name": "浦发银行",
             "market": "sh",
             "full_name": "上海浦东发展银行股份有限公司",
-            "industry_l1": "银行",
-            "industry_l2": "全国性银行",
-            "industry_l3": "股份制银行",
+            "industry_level_1": "银行",
+            "industry_level_2": "全国性银行",
+            "industry_level_3": "股份制银行",
             "listing_date": datetime.date(1999, 11, 10),
             "total_shares": 29352080397,
             "circulating_shares": 29352080397,
@@ -849,7 +849,7 @@ class TestSinaStockListCollector:
         }
         item = await collector.transform(raw)
         assert item["stock_code"] == "600000"
-        assert item["industry_l1"] == "银行"
+        assert item["industry_level_1"] == "银行"
         assert item["total_shares"] == 29352080397
         assert await collector.validate(item) is True
 
@@ -948,22 +948,22 @@ class TestSinaStockListCollector:
         assert sz["listing_date"] == datetime.date(1991, 4, 3)
         assert sz["total_shares"] == 19405918198
         assert sz["circulating_shares"] == 19405684991
-        assert sz["industry_l1"] == "银行"
-        assert sz["industry_l2"] == "全国性银行"
-        assert sz["industry_l3"] == "股份制银行"
+        assert sz["industry_level_1"] == "银行"
+        assert sz["industry_level_2"] == "全国性银行"
+        assert sz["industry_level_3"] == "股份制银行"
 
         sh = by_code["600000"]
         assert sh["market"] == "sh"
         assert sh["full_name"] == "上海浦东发展银行股份有限公司"
-        assert sh["industry_l3"] == "股份制银行"
+        assert sh["industry_level_3"] == "股份制银行"
 
         bj = by_code["920001"]
         assert bj["market"] == "bj"
         assert bj["province"] == "江苏省"
         # 920001 只在 L1 指数中，回退到一级行业
-        assert bj["industry_l1"] == "银行"
-        assert bj["industry_l2"] is None
-        assert bj["industry_l3"] is None
+        assert bj["industry_level_1"] == "银行"
+        assert bj["industry_level_2"] is None
+        assert bj["industry_level_3"] is None
 
     @pytest.mark.asyncio
     async def test_collect_tolerates_source_failures(self) -> None:
@@ -997,7 +997,7 @@ class TestSinaStockListCollector:
 
         assert len(raw) == 1
         assert raw[0]["stock_code"] == "600000"
-        assert raw[0]["industry_l1"] == "银行"
+        assert raw[0]["industry_level_1"] == "银行"
 
 
 @pytest.mark.unit
@@ -1027,7 +1027,7 @@ class TestEastMoneyLimitUpPoolCollector:
             ]
         )
         collector = EastMoneyLimitUpPoolCollector(
-            {"source": "eastmoney", "data_type": "limit_up_pool"}
+            {"source": "eastmoney", "data_type": "pool_limit_up_stock"}
         )
         with patch("akshare.stock_zt_pool_em", return_value=df):
             raw = await collector.collect(trade_date=datetime.date(2026, 7, 17))
@@ -1041,7 +1041,7 @@ class TestEastMoneyLimitUpPoolCollector:
     @pytest.mark.asyncio
     async def test_collect_empty_pool(self) -> None:
         collector = EastMoneyLimitUpPoolCollector(
-            {"source": "eastmoney", "data_type": "limit_up_pool"}
+            {"source": "eastmoney", "data_type": "pool_limit_up_stock"}
         )
         with patch("akshare.stock_zt_pool_em", return_value=pd.DataFrame()):
             raw = await collector.collect(trade_date=datetime.date(2026, 7, 17))
@@ -1051,7 +1051,7 @@ class TestEastMoneyLimitUpPoolCollector:
     @pytest.mark.asyncio
     async def test_transform_and_validate(self) -> None:
         collector = EastMoneyLimitUpPoolCollector(
-            {"source": "eastmoney", "data_type": "limit_up_pool"}
+            {"source": "eastmoney", "data_type": "pool_limit_up_stock"}
         )
         raw = {
             "trade_date": datetime.date(2026, 7, 17),
@@ -1063,8 +1063,8 @@ class TestEastMoneyLimitUpPoolCollector:
             "sealed_amount": 4.2e8,
             "first_seal_time": "092500",
             "last_seal_time": "135900",
-            "break_count": 2,
-            "limit_stat": "6/6",
+            "broken_limit_count": 2,
+            "limit_status": "6/6",
             "consecutive_boards": 6,
             "industry": "光学光电子",
         }
@@ -1076,7 +1076,7 @@ class TestEastMoneyLimitUpPoolCollector:
     @pytest.mark.asyncio
     async def test_validate_rejects_missing_code(self) -> None:
         collector = EastMoneyLimitUpPoolCollector(
-            {"source": "eastmoney", "data_type": "limit_up_pool"}
+            {"source": "eastmoney", "data_type": "pool_limit_up_stock"}
         )
         assert await collector.validate(
             {"trade_date": datetime.date(2026, 7, 17), "stock_code": None}
@@ -1102,7 +1102,7 @@ class TestEastMoneySectorFundFlowCollector:
             }
         ]
         collector = EastMoneySectorFundFlowCollector(
-            {"source": "eastmoney", "data_type": "sector_fund_flow"}
+            {"source": "eastmoney", "data_type": "capital_fund_flow_sector"}
         )
         with patch.object(collector, "_fetch_rank", return_value=rows):
             raw = await collector.collect(sector_type="industry")
@@ -1121,7 +1121,7 @@ class TestEastMoneySectorFundFlowCollector:
 
     def test_fetch_rank_paginates(self) -> None:
         collector = EastMoneySectorFundFlowCollector(
-            {"source": "eastmoney", "data_type": "sector_fund_flow"}
+            {"source": "eastmoney", "data_type": "capital_fund_flow_sector"}
         )
         pages = [
             {"total": 3, "diff": [{"f14": "板块A"}, {"f14": "板块B"}]},
@@ -1144,7 +1144,7 @@ class TestEastMoneySectorFundFlowCollector:
     @pytest.mark.asyncio
     async def test_collect_history_picks_target_date_row(self) -> None:
         collector = EastMoneySectorFundFlowCollector(
-            {"source": "eastmoney", "data_type": "sector_fund_flow"}
+            {"source": "eastmoney", "data_type": "capital_fund_flow_sector"}
         )
         boards = [{"f12": "BK0420", "f14": "航空机场"}]
         klines = [
@@ -1175,7 +1175,7 @@ class TestEastMoneySectorFundFlowCollector:
     @pytest.mark.asyncio
     async def test_collect_history_skips_non_trading_day(self) -> None:
         collector = EastMoneySectorFundFlowCollector(
-            {"source": "eastmoney", "data_type": "sector_fund_flow"}
+            {"source": "eastmoney", "data_type": "capital_fund_flow_sector"}
         )
         with (
             patch(
@@ -1194,7 +1194,7 @@ class TestEastMoneySectorFundFlowCollector:
 
     def test_request_page_uses_shared_eastmoney_client(self) -> None:
         collector = EastMoneySectorFundFlowCollector(
-            {"source": "eastmoney", "data_type": "sector_fund_flow"}
+            {"source": "eastmoney", "data_type": "capital_fund_flow_sector"}
         )
         response = MagicMock()
         response.json.return_value = {"data": {"total": 0, "diff": []}}
@@ -1248,7 +1248,7 @@ class TestThsSectorFundFlowCollector:
         from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
 
         collector = ThsSectorFundFlowCollector(
-            {"source": "ths", "data_type": "sector_fund_flow"}
+            {"source": "ths", "data_type": "capital_fund_flow_sector"}
         )
         with patch(
             "akshare.stock_fund_flow_industry", return_value=self._make_df()
@@ -1271,7 +1271,7 @@ class TestThsSectorFundFlowCollector:
         from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
 
         collector = ThsSectorFundFlowCollector(
-            {"source": "ths", "data_type": "sector_fund_flow"}
+            {"source": "ths", "data_type": "capital_fund_flow_sector"}
         )
         with pytest.raises(ValueError, match="仅支持行业板块"):
             await collector.collect(sector_type="concept")
@@ -1281,7 +1281,7 @@ class TestThsSectorFundFlowCollector:
         from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
 
         collector = ThsSectorFundFlowCollector(
-            {"source": "ths", "data_type": "sector_fund_flow"}
+            {"source": "ths", "data_type": "capital_fund_flow_sector"}
         )
         item = {
             "sector_code": "酿酒行业",
@@ -1669,7 +1669,7 @@ class TestEastmoneyBrokenPoolCollector:
             raw = await collector.collect(trade_date=datetime.date(2026, 7, 17))
 
         assert raw == [
-            {"trade_date": datetime.date(2026, 7, 17), "broken_count": 3}
+            {"trade_date": datetime.date(2026, 7, 17), "broken_limit_count": 3}
         ]
 
     @pytest.mark.asyncio

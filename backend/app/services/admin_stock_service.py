@@ -33,9 +33,9 @@ class AdminStockService:
             stock_code=data.stock_code,
             stock_name=data.stock_name,
             market=data.market,
-            industry_l1=data.industry_l1,
-            industry_l2=data.industry_l2,
-            industry_l3=data.industry_l3,
+            industry_level_1=data.industry_level_1,
+            industry_level_2=data.industry_level_2,
+            industry_level_3=data.industry_level_3,
             listing_date=data.listing_date,
         )
         self.repo.add(stock)
@@ -55,12 +55,12 @@ class AdminStockService:
             stock.stock_name = data.stock_name
         if data.market is not None:
             stock.market = data.market
-        if data.industry_l1 is not None:
-            stock.industry_l1 = data.industry_l1
-        if data.industry_l2 is not None:
-            stock.industry_l2 = data.industry_l2
-        if data.industry_l3 is not None:
-            stock.industry_l3 = data.industry_l3
+        if data.industry_level_1 is not None:
+            stock.industry_level_1 = data.industry_level_1
+        if data.industry_level_2 is not None:
+            stock.industry_level_2 = data.industry_level_2
+        if data.industry_level_3 is not None:
+            stock.industry_level_3 = data.industry_level_3
         if data.listing_date is not None:
             stock.listing_date = data.listing_date
 
@@ -83,9 +83,9 @@ class AdminStockService:
             "stock_code": stock.stock_code,
             "stock_name": stock.stock_name,
             "market": stock.market,
-            "industry_l1": stock.industry_l1,
-            "industry_l2": stock.industry_l2,
-            "industry_l3": stock.industry_l3,
+            "industry_level_1": stock.industry_level_1,
+            "industry_level_2": stock.industry_level_2,
+            "industry_level_3": stock.industry_level_3,
             "listing_date": stock.listing_date,
             "created_at": stock.created_at,
         }

@@ -34,7 +34,7 @@ class TestLimitUpPoolTradingDayGuard:
     @pytest.mark.asyncio
     async def test_returns_empty_on_non_trading_day(self) -> None:
         collector = EastMoneyLimitUpPoolCollector(
-            {"source": "eastmoney", "data_type": "limit_up_pool"}
+            {"source": "eastmoney", "data_type": "pool_limit_up_stock"}
         )
         with (
             patch(
@@ -51,7 +51,7 @@ class TestLimitUpPoolTradingDayGuard:
     @pytest.mark.asyncio
     async def test_trading_day_still_collects(self) -> None:
         collector = EastMoneyLimitUpPoolCollector(
-            {"source": "eastmoney", "data_type": "limit_up_pool"}
+            {"source": "eastmoney", "data_type": "pool_limit_up_stock"}
         )
         df = pd.DataFrame(
             [{"代码": "002338", "名称": "奥普光电", "涨跌幅": 10.01, "连板数": 6}]

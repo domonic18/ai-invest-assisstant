@@ -25,9 +25,9 @@ _SSE_PREFIXES = ("60", "68")
 
 
 class TushareIndexAuctionCollector(PostgresCollector):
-    """Tushare 指数集合竞价成交额采集器（成分聚合口径），写入 index_auction。"""
+    """Tushare 指数集合竞价成交额采集器（成分聚合口径），写入 quote_auction_index。"""
 
-    table = "index_auction"
+    table = "quote_auction_index"
     conflict_key = "trade_date, index_code"
     normalize = False
     key_fields: ClassVar[list[str]] = ["trade_date", "index_code"]

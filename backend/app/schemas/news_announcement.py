@@ -21,7 +21,7 @@ class NewsAnnouncementBase(BaseModel):
     sentiment: Decimal | None = None
     keywords: list[str] | None = None
     industry_tags: list[str] | None = None
-    es_id: str | None = Field(None, max_length=50)
+    elasticsearch_doc_id: str | None = Field(None, max_length=50)
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -43,7 +43,7 @@ class NewsAnnouncementUpdate(BaseModel):
     sentiment: Decimal | None = None
     keywords: list[str] | None = None
     industry_tags: list[str] | None = None
-    es_id: str | None = Field(None, max_length=50)
+    elasticsearch_doc_id: str | None = Field(None, max_length=50)
     extra: dict[str, Any] | None = None
 
 

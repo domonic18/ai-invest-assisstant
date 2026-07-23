@@ -34,8 +34,8 @@ def _limit_up_row(**overrides):
     row.sealed_amount = Decimal("1000000")
     row.first_seal_time = overrides.get("first_seal_time", "092500")
     row.last_seal_time = "092500"
-    row.break_count = overrides.get("break_count", 0)
-    row.limit_stat = "2/2"
+    row.broken_limit_count = overrides.get("broken_limit_count", 0)
+    row.limit_status = "2/2"
     row.consecutive_boards = overrides.get("consecutive_boards", 2)
     row.industry = overrides.get("industry", "银行")
     return row
@@ -298,7 +298,7 @@ class TestHistoricalBreadth:
 
     @pytest.mark.asyncio
     async def test_falls_back_to_limit_up_pool_count(self) -> None:
-        """表内无当日行时：涨停数取 limit_up_pool 计数，其余为空口径。"""
+        """表内无当日行时：涨停数取 pool_limit_up_stock 计数，其余为空口径。"""
         session = AsyncMock()
         # 第一次 scalar 查 market_breadth 行（无），第二次查涨停池家数
         session.scalar.side_effect = [None, 42]
@@ -399,7 +399,7 @@ class TestHistoricalBreadth:
 
 @pytest.mark.unit
 class TestLimitUpRates:
-    """连板率读 limit_up_pool，炸板家数读 market_breadth.broken_count。"""
+    """连板率读 pool_limit_up_stock，炸板家数读 market_breadth.broken_limit_count。"""
 
     @pytest.mark.asyncio
     async def test_rates_from_db(self) -> None:
@@ -407,12 +407,12 @@ class TestLimitUpRates:
         # 依次：涨停总数、连板数、炸板家数
         session.scalar.side_effect = [3, 1, 1]
 
-        continuous_rate, broken_rate, broken_count = (
+        continuous_rate, broken_rate, broken_limit_count = (
             await market_service._limit_up_rates(session, date(2026, 7, 16))
         )
 
         assert continuous_rate == round(1 / 3, 4)
-        assert broken_count == 1
+        assert broken_limit_count == 1
         assert broken_rate == 0.25
 
     @pytest.mark.asyncio
@@ -420,18 +420,18 @@ class TestLimitUpRates:
         session = AsyncMock()
         session.scalar.side_effect = [0, None]  # 无涨停池 → 跳过连板查询；无炸板行
 
-        continuous_rate, broken_rate, broken_count = (
+        continuous_rate, broken_rate, broken_limit_count = (
             await market_service._limit_up_rates(session, date(2026, 7, 16))
         )
 
         assert continuous_rate is None
         assert broken_rate is None
-        assert broken_count is None
+        assert broken_limit_count is None
 
 
 @pytest.mark.unit
 class TestHistoricalIndexQuotes:
-    """历史指数行情只读本地 kline_daily（服务层倒序反转为升序序列）。"""
+    """历史指数行情只读本地 quote_kline_stock_daily（服务层倒序反转为升序序列）。"""
 
     def _bar(self, day: date, close: float) -> MagicMock:
         bar = MagicMock()
@@ -502,10 +502,10 @@ class TestGetLimitUp:
     @pytest.mark.asyncio
     async def test_seal_type_derivation(self) -> None:
         rows = [
-            _limit_up_row(stock_code="000001", first_seal_time="092500", break_count=0),
-            _limit_up_row(stock_code="000002", first_seal_time="092500", break_count=3),
-            _limit_up_row(stock_code="000003", first_seal_time="101215", break_count=0),
-            _limit_up_row(stock_code="000004", first_seal_time=None, break_count=None),
+            _limit_up_row(stock_code="000001", first_seal_time="092500", broken_limit_count=0),
+            _limit_up_row(stock_code="000002", first_seal_time="092500", broken_limit_count=3),
+            _limit_up_row(stock_code="000003", first_seal_time="101215", broken_limit_count=0),
+            _limit_up_row(stock_code="000004", first_seal_time=None, broken_limit_count=None),
         ]
         session = AsyncMock()
         session.execute.side_effect = [
@@ -818,7 +818,7 @@ class TestGetWatchlistQuotes:
         redis = AsyncMock()
         redis.get.return_value = (
             b'{"stock_name":"\\u5e73\\u5b89\\u94f6\\u884c","price":12.5,'
-            b'"pct_change":1.2,"amount":1e8,"updated_at":"2026-07-17"}'
+            b'"change_pct":1.2,"amount":1e8,"updated_at":"2026-07-17"}'
         )
 
         with patch.object(market_service, "_redis", MagicMock(return_value=redis)):
@@ -838,7 +838,7 @@ class TestGetWatchlistQuotes:
 
         kline = MagicMock()
         kline.close = Decimal("10.5")
-        kline.pct_change = Decimal("-0.5")
+        kline.change_pct = Decimal("-0.5")
         kline.amount = Decimal("5000000")
         kline.trade_date = date(2026, 7, 16)
 

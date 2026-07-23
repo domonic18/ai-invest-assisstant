@@ -1,6 +1,6 @@
 """Sina index minute K-line collector via akshare.
 
-抓取主要指数 1 分钟线写入 kline_minute 超表，/indices/intraday 分时图
+抓取主要指数 1 分钟线写入 quote_kline_stock_minute 超表，/indices/intraday 分时图
 只读该表。新浪接口返回最近约 8 个交易日，运行时只保留目标交易日
 （默认当日），每分钟调度幂等 upsert。
 """
@@ -19,9 +19,9 @@ _CN_TZ = ZoneInfo("Asia/Shanghai")
 
 
 class SinaIndexMinuteCollector(PostgresCollector):
-    """新浪财经指数分钟线采集器，写入 kline_minute。"""
+    """新浪财经指数分钟线采集器，写入 quote_kline_stock_minute。"""
 
-    table = "kline_minute"
+    table = "quote_kline_stock_minute"
     conflict_key = "stock_code, trade_time"
     normalize = False
     key_fields: ClassVar[list[str]] = ["stock_code", "trade_time"]

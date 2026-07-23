@@ -22,9 +22,9 @@ _UPDATE_COLUMNS = [
 
 
 class BaseSectorFundFlowCollector(PostgresCollector):
-    """板块资金流向采集器基类，写入 sector_fund_flow。"""
+    """板块资金流向采集器基类，写入 capital_fund_flow_sector。"""
 
-    table = "sector_fund_flow"
+    table = "capital_fund_flow_sector"
     conflict_key = "sector_code, sector_type, trade_date"
     update_skip_null = True
     update_columns: ClassVar[list[str]] = _UPDATE_COLUMNS

@@ -186,7 +186,7 @@ export interface IncomeStatement {
   operatingCost: number | null
   sellingExpense: number | null
   adminExpense: number | null
-  rdExpense: number | null
+  researchDevelopmentExpense: number | null
   financeExpense: number | null
   operatingProfit: number | null
   netProfit: number | null
@@ -199,9 +199,9 @@ export interface CashFlowStatement {
   stockCode: string
   reportDate: string
   reportType: string
-  cfOperations: number | null
-  cfInvesting: number | null
-  cfFinancing: number | null
+  cashFlowFromOperations: number | null
+  cashFlowFromInvesting: number | null
+  cashFlowFromFinancing: number | null
   netCashFlow: number | null
   freeCashFlow: number | null
   createdAt: string
@@ -211,9 +211,9 @@ export interface FinancialHealth {
   stockCode: string
   reportDate: string | null
   reportType: string | null
-  balanceSheet: BalanceSheet | null
-  incomeStatement: IncomeStatement | null
-  cashFlowStatement: CashFlowStatement | null
+  financialBalanceSheet: BalanceSheet | null
+  financialIncomeStatement: IncomeStatement | null
+  financialCashFlowStatement: CashFlowStatement | null
   metrics: Record<string, number | null>
 }
 
@@ -274,7 +274,7 @@ export interface AdminReport {
   md5Hash: string | null
   downloadUrl: string | null
   downloadCount: number
-  uploadedAt: string
+  createdAt: string
 }
 
 export interface AdminReportFormValues {

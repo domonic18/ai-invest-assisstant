@@ -18,7 +18,7 @@ class UserWatchlist(Base):
     __tablename__ = "user_watchlist"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     stock_code: Mapped[str] = mapped_column(String(10), nullable=False)
     tags: Mapped[list[str] | None] = mapped_column(ARRAY(String(50)), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

@@ -99,6 +99,23 @@ async def fetch_kline(
 - **批量写入容错**：循环写入单条失败时，使用 `session.begin_nested()`（SAVEPOINT）隔离失败项，避免污染整个会话
 - **`get_db` 的唯一实现位于 `app/dependencies/__init__.py`**，异常时自动回滚；不要在其他模块重复定义
 
+### 数据库命名规范
+
+新增或重命名表/字段时遵循以下约定（完整重构计划见 `docs/plan/database-refactoring-plan.md`）：
+
+- **表名**：小写蛇形、单数名词，同一业务分类使用统一前缀。
+  - 行情数据：`quote_`（如 `quote_kline_stock_daily`、`quote_auction_index`）
+  - 资金流向：`capital_`（如 `capital_fund_flow_stock`、`capital_fund_flow_sector`）
+  - 市场情绪：`market_`（如 `market_breadth`）
+  - 股池：`pool_`（如 `pool_limit_up_stock`）
+  - 财务报表：`financial_`（如 `financial_balance_sheet`）
+  - 产业链：`industry_chain_`（如 `industry_chain_company_mapping`）
+  - 成分/映射：`mapping_`（如 `mapping_index_stock`）
+- **表名结构**：`<分类前缀>_<数据类型>_<标的类型>[_<粒度/子类型>]`，无标的类型的市场级数据可省略 `<标的类型>`。
+- **字段名**：完整单词优先，禁用无上下文缩写；同一语义使用同一单词（如涨跌幅统一用 `change_pct`）。
+- **约束与索引命名**：`pk_<table>`、`uq_<table>_<columns>`、`fk_<table>_<ref_table>`、`idx_<table>_<columns>`、`chk_<table>_<column>`。
+- **审计字段**：业务表统一使用 `created_at`/`updated_at`。
+
 ### Collector 分层结构
 
 ```

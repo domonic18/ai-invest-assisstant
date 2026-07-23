@@ -12,7 +12,7 @@ from app.core.database import Base
 class LimitUpPool(Base):
     """涨停股池表，支撑每日复盘的涨停板与连板天梯。"""
 
-    __tablename__ = "limit_up_pool"
+    __tablename__ = "pool_limit_up_stock"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     trade_date: Mapped[date] = mapped_column(Date, nullable=False)
@@ -24,8 +24,8 @@ class LimitUpPool(Base):
     sealed_amount: Mapped[Decimal | None] = mapped_column(Numeric(20, 2), nullable=True)
     first_seal_time: Mapped[str | None] = mapped_column(String(10), nullable=True)
     last_seal_time: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    break_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    limit_stat: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    broken_limit_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    limit_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     consecutive_boards: Mapped[int | None] = mapped_column(Integer, nullable=True)
     industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
     source: Mapped[str | None] = mapped_column(String(50), nullable=True)

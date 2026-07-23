@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db
-from app.schemas.sector_fund_flow import SectorFlowTrendResponse
+from app.schemas.capital_fund_flow_sector import SectorFlowTrendResponse
 from app.schemas.stock import FundFlowResponse, PaginatedResponse
 from app.services import sector_fund_flow_service, stock_service
 

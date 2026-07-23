@@ -12,7 +12,7 @@ from app.core.database import Base
 class IndexAuction(Base):
     """指数集合竞价成交额表，9:25 竞价撮合成交额（单位：元）。"""
 
-    __tablename__ = "index_auction"
+    __tablename__ = "quote_auction_index"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     trade_date: Mapped[date] = mapped_column(Date, nullable=False)

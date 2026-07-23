@@ -1,6 +1,6 @@
 """Task-based collector channel resolution.
 
-Channels are resolved through the ``collector_channel_data_types`` association
+Channels are resolved through the ``collector_channel_data_type`` association
 table: a channel is eligible for a task only if it is enabled **and** has an
 association row for the task; ordering follows the admin-configured priority.
 """

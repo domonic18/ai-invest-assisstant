@@ -13,7 +13,7 @@ from app.core.database import Base
 class CollectorChannelConfig(Base):
     """Configurable data source channel managed by admins."""
 
-    __tablename__ = "collector_channel_configs"
+    __tablename__ = "collector_channel_config"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     source: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)

@@ -7,9 +7,9 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.balance_sheet import BalanceSheet
-from app.models.cash_flow_statement import CashFlowStatement
-from app.models.income_statement import IncomeStatement
+from app.models.financial_balance_sheet import BalanceSheet
+from app.models.financial_cash_flow_statement import CashFlowStatement
+from app.models.financial_income_statement import IncomeStatement
 from app.schemas.financial import (
     BalanceSheetResponse,
     CashFlowStatementResponse,
@@ -104,7 +104,7 @@ async def get_health(
         )
     if income and cash:
         metrics["operating_cf_ratio"] = _safe_divide(
-            cash.cf_operations,
+            cash.cash_flow_from_operations,
             income.total_revenue or Decimal("0"),
         )
 
@@ -112,8 +112,8 @@ async def get_health(
         stock_code=stock_code,
         report_date=latest_date,
         report_type=balance.report_type if balance else None,
-        balance_sheet=BalanceSheetResponse.model_validate(balance) if balance else None,
-        income_statement=IncomeStatementResponse.model_validate(income) if income else None,
-        cash_flow_statement=CashFlowStatementResponse.model_validate(cash) if cash else None,
+        financial_balance_sheet=BalanceSheetResponse.model_validate(balance) if balance else None,
+        financial_income_statement=IncomeStatementResponse.model_validate(income) if income else None,
+        financial_cash_flow_statement=CashFlowStatementResponse.model_validate(cash) if cash else None,
         metrics=metrics,
     )

@@ -1,6 +1,6 @@
 """Stock market data related Pydantic schemas."""
 
-from datetime import date, datetime
+from datetime import date, time
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -15,9 +15,9 @@ class StockBasicResponse(BaseModel):
     stock_code: str
     stock_name: str
     market: str
-    industry_l1: str | None = None
-    industry_l2: str | None = None
-    industry_l3: str | None = None
+    industry_level_1: str | None = None
+    industry_level_2: str | None = None
+    industry_level_3: str | None = None
     listing_date: date | None = None
     total_shares: int | None = None
     circulating_shares: int | None = None
@@ -43,9 +43,9 @@ class AdminStockCreate(BaseModel):
     stock_code: str = Field(..., min_length=6, max_length=10)
     stock_name: str = Field(..., max_length=50)
     market: str = Field(..., pattern="^(sh|sz|bj)$")
-    industry_l1: str | None = Field(None, max_length=50)
-    industry_l2: str | None = Field(None, max_length=50)
-    industry_l3: str | None = Field(None, max_length=50)
+    industry_level_1: str | None = Field(None, max_length=50)
+    industry_level_2: str | None = Field(None, max_length=50)
+    industry_level_3: str | None = Field(None, max_length=50)
     listing_date: date | None = None
 
 
@@ -54,9 +54,9 @@ class AdminStockUpdate(BaseModel):
 
     stock_name: str | None = Field(None, max_length=50)
     market: str | None = Field(None, pattern="^(sh|sz|bj)$")
-    industry_l1: str | None = Field(None, max_length=50)
-    industry_l2: str | None = Field(None, max_length=50)
-    industry_l3: str | None = Field(None, max_length=50)
+    industry_level_1: str | None = Field(None, max_length=50)
+    industry_level_2: str | None = Field(None, max_length=50)
+    industry_level_3: str | None = Field(None, max_length=50)
     listing_date: date | None = None
 
 
@@ -73,7 +73,7 @@ class KlineDataResponse(BaseModel):
     volume: int | None = None
     amount: Decimal | None = None
     amplitude: Decimal | None = None
-    pct_change: Decimal | None = None
+    change_pct: Decimal | None = None
     turnover_rate: Decimal | None = None
 
 
@@ -83,7 +83,7 @@ class AuctionDataResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     trade_date: date
-    match_time: datetime
+    match_time: time
     price: Decimal | None = None
     volume: int | None = None
     bid_prices: list[Decimal | None] | None = None

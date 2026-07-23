@@ -1,7 +1,7 @@
 """EastMoney limit-up pool collector via akshare.
 
 Fetches the daily 涨停股池 (stock_zt_pool_em) and stores it into
-``limit_up_pool`` for the daily-review dashboard (涨停板 / 连板天梯).
+``pool_limit_up_stock`` for the daily-review dashboard (涨停板 / 连板天梯).
 """
 
 from datetime import date
@@ -19,8 +19,8 @@ _UPDATE_COLUMNS = [
     "sealed_amount",
     "first_seal_time",
     "last_seal_time",
-    "break_count",
-    "limit_stat",
+    "broken_limit_count",
+    "limit_status",
     "consecutive_boards",
     "industry",
     "source",
@@ -28,9 +28,9 @@ _UPDATE_COLUMNS = [
 
 
 class EastMoneyLimitUpPoolCollector(PostgresCollector):
-    """东方财富涨停股池采集器，写入 limit_up_pool。"""
+    """东方财富涨停股池采集器，写入 pool_limit_up_stock。"""
 
-    table = "limit_up_pool"
+    table = "pool_limit_up_stock"
     conflict_key = "trade_date, stock_code"
     update_skip_null = True
     update_columns: ClassVar[list[str]] = _UPDATE_COLUMNS
@@ -67,8 +67,8 @@ class EastMoneyLimitUpPoolCollector(PostgresCollector):
                     "sealed_amount": to_float(row.get("封板资金")),
                     "first_seal_time": to_optional_str(row.get("首次封板时间")),
                     "last_seal_time": to_optional_str(row.get("最后封板时间")),
-                    "break_count": _to_int(row.get("炸板次数")),
-                    "limit_stat": to_optional_str(row.get("涨停统计")),
+                    "broken_limit_count": _to_int(row.get("炸板次数")),
+                    "limit_status": to_optional_str(row.get("涨停统计")),
                     "consecutive_boards": _to_int(row.get("连板数")),
                     "industry": to_optional_str(row.get("所属行业")),
                 }
@@ -86,8 +86,8 @@ class EastMoneyLimitUpPoolCollector(PostgresCollector):
             "sealed_amount": raw.get("sealed_amount"),
             "first_seal_time": raw.get("first_seal_time"),
             "last_seal_time": raw.get("last_seal_time"),
-            "break_count": raw.get("break_count"),
-            "limit_stat": raw.get("limit_stat"),
+            "broken_limit_count": raw.get("broken_limit_count"),
+            "limit_status": raw.get("limit_status"),
             "consecutive_boards": raw.get("consecutive_boards"),
             "industry": raw.get("industry"),
             "source": "eastmoney",

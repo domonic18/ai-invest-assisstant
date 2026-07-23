@@ -21,7 +21,7 @@ _UPDATE_COLUMNS = [
     "flat_count",
     "limit_up_count",
     "limit_down_count",
-    "stat_time",
+    "snapshot_time",
     "source",
 ]
 
@@ -62,9 +62,9 @@ def count_breadth(df: Any) -> dict[str, Any]:
         (df["最新价"] - df["最低"]).abs() < 1e-6
     )
 
-    stat_time = ""
+    snapshot_time = ""
     if "时间戳" in df.columns and len(df):
-        stat_time = str(df["时间戳"].iloc[0])
+        snapshot_time = str(df["时间戳"].iloc[0])
 
     return {
         "up_count": up,
@@ -72,7 +72,7 @@ def count_breadth(df: Any) -> dict[str, Any]:
         "flat_count": flat,
         "limit_up_count": int(sealed_up.sum()),
         "limit_down_count": int(sealed_down.sum()),
-        "stat_time": stat_time,
+        "snapshot_time": snapshot_time,
     }
 
 

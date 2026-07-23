@@ -1,6 +1,6 @@
 """K 线查询仓储：日线读取与多周期聚合（TimescaleDB time_bucket）。
 
-周/月/季/年线不做冗余存储，由 kline_daily 在查询时聚合：
+周/月/季/年线不做冗余存储，由 quote_kline_stock_daily 在查询时聚合：
 time_bucket 的默认 origin 使 1 week 对齐自然周（周一起）、
 3 months 对齐自然季（1/4/7/10 月起）、1 year 对齐自然年。
 """
@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.kline import KlineDaily, KlineMinute
 
-# kline_minute.trade_time 为 TIMESTAMPTZ，按交易时区（Asia/Shanghai）界定自然日
+# quote_kline_stock_minute.trade_time 为 TIMESTAMPTZ，按交易时区（Asia/Shanghai）界定自然日
 _CN_TZ = ZoneInfo("Asia/Shanghai")
 
 # period -> time_bucket 间隔；daily 不走聚合
@@ -43,7 +43,7 @@ _AGGREGATED_SQL = text(
         last(close, trade_date)  AS close,
         sum(volume)              AS volume,
         sum(amount)              AS amount
-    FROM kline_daily
+    FROM quote_kline_stock_daily
     WHERE stock_code = :code
       AND trade_date >= CAST(:since AS date)
     GROUP BY bucket_date
@@ -139,7 +139,7 @@ async def fetch_minute_bars_multi(
 
 
 async def latest_minute_day(session: AsyncSession, code: str) -> date | None:
-    """kline_minute 中该代码最近一根 bar 的交易日期（交易时区）。"""
+    """quote_kline_stock_minute 中该代码最近一根 bar 的交易日期（交易时区）。"""
     latest = await session.scalar(
         select(func.max(KlineMinute.trade_time)).where(
             KlineMinute.stock_code == code
@@ -165,7 +165,7 @@ async def prev_minute_close(
 
 
 async def fetch_max_daily_date(session: AsyncSession, code: str) -> date | None:
-    """kline_daily 中该代码最近一根日 K 的交易日期。"""
+    """quote_kline_stock_daily 中该代码最近一根日 K 的交易日期。"""
     max_date = await session.scalar(
         select(func.max(KlineDaily.trade_date)).where(KlineDaily.stock_code == code)
     )

@@ -62,8 +62,8 @@ _LIMIT_UP_POOL_UPDATE_COLUMNS = [
     "sealed_amount",
     "first_seal_time",
     "last_seal_time",
-    "break_count",
-    "limit_stat",
+    "broken_limit_count",
+    "limit_status",
     "consecutive_boards",
     "industry",
     "source",
@@ -75,16 +75,16 @@ _MARKET_BREADTH_UPDATE_COLUMNS = [
     "flat_count",
     "limit_up_count",
     "limit_down_count",
-    "stat_time",
+    "snapshot_time",
     "source",
 ]
 
 _STOCK_LIST_UPDATE_COLUMNS = [
     "stock_name",
     "full_name",
-    "industry_l1",
-    "industry_l2",
-    "industry_l3",
+    "industry_level_1",
+    "industry_level_2",
+    "industry_level_3",
     "listing_date",
     "total_shares",
     "circulating_shares",
@@ -94,7 +94,7 @@ _STOCK_LIST_UPDATE_COLUMNS = [
 _PROFILE_UPDATE_COLUMNS = [
     "stock_name",
     "full_name",
-    "industry_l1",
+    "industry_level_1",
     "legal_person",
     "website",
     "registered_capital",
@@ -132,7 +132,7 @@ CONTRACTS: list[SpiderContract] = [
         name="sina_kline_daily",
         cls=SinaKlineCollector,
         config={"source": "sina", "data_type": "kline"},
-        store=StoreContract(table="kline_daily", conflict_key="stock_code, trade_date"),
+        store=StoreContract(table="quote_kline_stock_daily", conflict_key="stock_code, trade_date"),
         has_normalize=False,
         dedup_keys=["stock_code", "trade_date"],
         required_fields=["stock_code", "trade_date", "close"],
@@ -141,7 +141,7 @@ CONTRACTS: list[SpiderContract] = [
         name="sina_index_kline",
         cls=SinaIndexKlineCollector,
         config={"source": "sina", "data_type": "index_kline"},
-        store=StoreContract(table="kline_daily", conflict_key="stock_code, trade_date"),
+        store=StoreContract(table="quote_kline_stock_daily", conflict_key="stock_code, trade_date"),
         has_normalize=False,
         dedup_keys=["stock_code", "trade_date"],
         required_fields=["stock_code", "trade_date", "close"],
@@ -150,7 +150,7 @@ CONTRACTS: list[SpiderContract] = [
         name="sina_kline_minute",
         cls=SinaKlineCollector,
         config={"source": "sina", "data_type": "kline", "period": "minute"},
-        store=StoreContract(table="kline_minute", conflict_key="stock_code, trade_date"),
+        store=StoreContract(table="quote_kline_stock_minute", conflict_key="stock_code, trade_date"),
         has_normalize=False,
         dedup_keys=["stock_code", "trade_date"],
         required_fields=["stock_code", "trade_date", "close"],
@@ -159,7 +159,7 @@ CONTRACTS: list[SpiderContract] = [
         name="ths_kline",
         cls=ThsKlineCollector,
         config={"source": "ths", "data_type": "kline"},
-        store=StoreContract(table="kline_daily", conflict_key="stock_code, trade_date"),
+        store=StoreContract(table="quote_kline_stock_daily", conflict_key="stock_code, trade_date"),
         has_normalize=False,
         dedup_keys=["stock_code", "trade_date"],
         required_fields=["stock_code", "trade_date", "close"],
@@ -169,7 +169,7 @@ CONTRACTS: list[SpiderContract] = [
         cls=SinaAuctionCollector,
         config={"source": "sina", "data_type": "auction"},
         store=StoreContract(
-            table="auction_data",
+            table="quote_auction_stock",
             conflict_key="stock_code, trade_date, match_time",
         ),
         has_normalize=False,
@@ -181,7 +181,7 @@ CONTRACTS: list[SpiderContract] = [
         cls=ThsAuctionCollector,
         config={"source": "ths", "data_type": "auction"},
         store=StoreContract(
-            table="auction_data",
+            table="quote_auction_stock",
             conflict_key="stock_code, trade_date, match_time",
         ),
         has_normalize=False,
@@ -228,7 +228,7 @@ CONTRACTS: list[SpiderContract] = [
         cls=EastMoneySectorFundFlowCollector,
         config={"source": "eastmoney", "data_type": "sector-fund-flow"},
         store=StoreContract(
-            table="sector_fund_flow",
+            table="capital_fund_flow_sector",
             conflict_key="sector_code, sector_type, trade_date",
             update_columns=_SECTOR_FUND_FLOW_UPDATE_COLUMNS,
             update_skip_null=True,
@@ -242,7 +242,7 @@ CONTRACTS: list[SpiderContract] = [
         cls=ThsSectorFundFlowCollector,
         config={"source": "ths", "data_type": "sector-fund-flow"},
         store=StoreContract(
-            table="sector_fund_flow",
+            table="capital_fund_flow_sector",
             conflict_key="sector_code, sector_type, trade_date",
             update_columns=_SECTOR_FUND_FLOW_UPDATE_COLUMNS,
             update_skip_null=True,
@@ -255,7 +255,7 @@ CONTRACTS: list[SpiderContract] = [
         name="eastmoney_fund_flow",
         cls=EastMoneyFundFlowCollector,
         config={"source": "eastmoney", "data_type": "fund-flow"},
-        store=StoreContract(table="fund_flow", conflict_key="stock_code, trade_date"),
+        store=StoreContract(table="capital_fund_flow_stock", conflict_key="stock_code, trade_date"),
         has_normalize=False,
         dedup_keys=["stock_code", "trade_date"],
         required_fields=["stock_code", "trade_date"],
@@ -265,7 +265,7 @@ CONTRACTS: list[SpiderContract] = [
         cls=EastMoneyDragonListCollector,
         config={"source": "eastmoney", "data_type": "dragon-list"},
         store=StoreContract(
-            table="dragon_list",
+            table="pool_dragon_tiger_stock",
             conflict_key="trade_date, stock_code, rank_reason",
         ),
         has_normalize=True,
@@ -277,7 +277,7 @@ CONTRACTS: list[SpiderContract] = [
         cls=EastMoneyLimitUpPoolCollector,
         config={"source": "eastmoney", "data_type": "limit-up-pool"},
         store=StoreContract(
-            table="limit_up_pool",
+            table="pool_limit_up_stock",
             conflict_key="trade_date, stock_code",
             update_columns=_LIMIT_UP_POOL_UPDATE_COLUMNS,
             update_skip_null=True,
@@ -313,7 +313,7 @@ CONTRACTS: list[SpiderContract] = [
         cls=EastMoneyFundHoldingsCollector,
         config={"source": "eastmoney", "data_type": "fund-holdings"},
         store=StoreContract(
-            table="fund_holdings", conflict_key="stock_code, report_date"
+            table="fund_holding", conflict_key="stock_code, report_date"
         ),
         has_normalize=True,
         dedup_keys=["stock_code", "report_date"],
@@ -357,7 +357,7 @@ CONTRACTS: list[SpiderContract] = [
         cls=SinaIndexMinuteCollector,
         config={"source": "sina", "data_type": "index-minute"},
         store=StoreContract(
-            table="kline_minute", conflict_key="stock_code, trade_time"
+            table="quote_kline_stock_minute", conflict_key="stock_code, trade_time"
         ),
         has_normalize=False,
         dedup_keys=["stock_code", "trade_time"],
@@ -384,12 +384,12 @@ CONTRACTS: list[SpiderContract] = [
         store=StoreContract(
             table="market_breadth",
             conflict_key="trade_date",
-            update_columns=["broken_count"],
+            update_columns=["broken_limit_count"],
             update_skip_null=True,
         ),
         has_normalize=True,
         dedup_keys=["trade_date"],
-        required_fields=["trade_date", "broken_count"],
+        required_fields=["trade_date", "broken_limit_count"],
     ),
 ]
 
@@ -464,7 +464,7 @@ class TestFinancialStatementStoreContract:
                 "report_type": "q1",
                 "balance": {"total_assets": 1},
                 "income": {"total_revenue": 2},
-                "cash": {"cf_operations": 3},
+                "cash": {"cash_flow_from_operations": 3},
             }
         ]
 
@@ -474,6 +474,6 @@ class TestFinancialStatementStoreContract:
 
         assert stored == 3
         tables = [call.args[0] for call in insert_many.await_args_list]
-        assert tables == ["balance_sheet", "income_statement", "cash_flow_statement"]
+        assert tables == ["financial_balance_sheet", "financial_income_statement", "financial_cash_flow_statement"]
         for call in insert_many.await_args_list:
             assert call.kwargs["conflict_key"] == "stock_code, report_date"

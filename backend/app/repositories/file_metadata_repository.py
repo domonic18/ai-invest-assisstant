@@ -22,7 +22,7 @@ class FileMetadataRepository(BaseRepository[FileMetadata]):
         limit: int = 20,
     ) -> tuple[list[FileMetadata], int]:
         """Return paginated file metadata with optional filters."""
-        stmt = select(FileMetadata).order_by(FileMetadata.uploaded_at.desc())
+        stmt = select(FileMetadata).order_by(FileMetadata.created_at.desc())
         count_stmt = select(func.count()).select_from(FileMetadata)
 
         filters = []

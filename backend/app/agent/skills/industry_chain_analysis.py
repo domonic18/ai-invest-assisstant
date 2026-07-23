@@ -28,7 +28,7 @@ async def analyze_industry_chain(
     for company in companies[:10]:
         context_lines.append(
             f"- {company['stock_code']} {company['stock_name']} "
-            f"({company['market']}) {company['industry_l2']} / {company['industry_l3']}"
+            f"({company['market']}) {company['industry_level_2']} / {company['industry_level_3']}"
         )
 
     kline_context = []
@@ -38,7 +38,7 @@ async def analyze_industry_chain(
             latest = kline[0]
             kline_context.append(
                 f"{company['stock_code']} {company['stock_name']}: "
-                f"最新收盘价 {latest['close']}, 涨跌幅 {latest['pct_change']}%"
+                f"最新收盘价 {latest['close']}, 涨跌幅 {latest['change_pct']}%"
             )
 
     context = "\n".join(context_lines + [""] + kline_context)

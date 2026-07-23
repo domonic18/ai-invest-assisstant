@@ -45,5 +45,5 @@ class FileMetadataResponse(FileMetadataBase):
 
     id: int
     download_count: int
-    uploaded_at: datetime
+    created_at: datetime
     stock_name: str | None = None

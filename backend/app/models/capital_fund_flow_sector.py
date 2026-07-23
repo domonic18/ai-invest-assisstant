@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Numeric, String, UniqueConstraint
+from sqlalchemy import Date, DateTime, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -12,7 +12,7 @@ from app.core.database import Base
 class SectorFundFlow(Base):
     """板块资金流向表，用于热点追踪。"""
 
-    __tablename__ = "sector_fund_flow"
+    __tablename__ = "capital_fund_flow_sector"
 
     sector_code: Mapped[str] = mapped_column(String(20), primary_key=True)
     sector_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -34,6 +34,4 @@ class SectorFundFlow(Base):
         DateTime(timezone=True), default=datetime.utcnow, nullable=False
     )
 
-    __table_args__ = (
-        UniqueConstraint("sector_code", "sector_type", "trade_date"),
-    )
+    __table_args__ = ()

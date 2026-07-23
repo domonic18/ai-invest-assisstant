@@ -28,7 +28,7 @@ _DAYKLINE_FIELDS = "f51,f52,f53,f54,f55,f56,f63"
 
 
 class EastMoneySectorFundFlowCollector(BaseSectorFundFlowCollector):
-    """东方财富板块资金流向采集器，写入 sector_fund_flow。"""
+    """东方财富板块资金流向采集器，写入 capital_fund_flow_sector。"""
 
     SECTOR_TYPE_MAP: ClassVar[dict[str, str]] = {
         "industry": "2",

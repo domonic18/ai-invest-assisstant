@@ -10,9 +10,9 @@ DEFAULT_REPORT_DATE = "20250331"
 
 
 class EastMoneyFundHoldingsCollector(PostgresCollector):
-    """东方财富个股基金持仓采集器，写入 fund_holdings。"""
+    """东方财富个股基金持仓采集器，写入 fund_holding。"""
 
-    table = "fund_holdings"
+    table = "fund_holding"
     conflict_key = "stock_code, report_date"
     key_fields: ClassVar[list[str]] = ["stock_code", "report_date"]
     required_fields: ClassVar[list[str]] = ["stock_code", "report_date"]

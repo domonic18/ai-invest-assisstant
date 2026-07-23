@@ -38,7 +38,7 @@ class ThsKlineCollector(BaseKlineCollector):
                         "volume": row["成交量"],
                         "amount": row["成交额"],
                         "amplitude": row["振幅"],
-                        "pct_change": row["涨跌幅"],
+                        "change_pct": row["涨跌幅"],
                         "turnover_rate": row.get("换手率"),
                     }
                 )
