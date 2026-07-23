@@ -14,7 +14,13 @@ import pytest
 
 from collector.core.base import CollectResult
 from collector.runtime.channels import DEFAULT_CHANNELS
-from collector.runtime.registry import TASK_MAP
+from collector.runtime.registry import TASK_MAP, TASK_SPECS
+
+
+def _is_internal_task(task_name: str) -> bool:
+    """内部任务不依赖外部采集渠道，不参与 channel 覆盖检查。"""
+    spec = TASK_SPECS.get(task_name)
+    return spec is not None and set(spec.collectors.keys()) == {"internal"}
 
 
 @pytest.mark.unit
@@ -30,13 +36,17 @@ class TestCollectorCoverage:
         assert not missing, f"Channel data types without tasks: {sorted(missing)}"
 
     def test_all_task_names_are_channel_data_types(self) -> None:
-        """Every TASK_MAP key should be declared by at least one channel."""
+        """Every TASK_MAP key should be declared by at least one channel.
+
+        内部任务（source=internal）不依赖外部采集渠道，允许不在 channel 中声明。
+        """
         channel_types = {
             data_type
             for channel in DEFAULT_CHANNELS
             for data_type in channel.get("supported_data_types", [])
         }
         extra = set(TASK_MAP.keys()) - channel_types
+        extra -= {name for name in extra if _is_internal_task(name)}
         assert not extra, f"TASK_MAP keys not declared in channels: {sorted(extra)}"
 
     @pytest.mark.parametrize("task_name", list(TASK_MAP.keys()))

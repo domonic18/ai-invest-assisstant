@@ -117,7 +117,7 @@ TASK_SPECS: dict[str, TaskSpec] = {
         ),
         TaskSpec(
             name="sector-fund-flow",
-            data_type="sector_fund_flow",
+            data_type="capital_fund_flow_sector",
             collectors={
                 "eastmoney": "collector.spiders.eastmoney_sector_fund_flow:EastMoneySectorFundFlowCollector",
                 "ths": "collector.spiders.ths_sector_fund_flow:ThsSectorFundFlowCollector",
@@ -127,7 +127,7 @@ TASK_SPECS: dict[str, TaskSpec] = {
         ),
         TaskSpec(
             name="dragon-list",
-            data_type="dragon_list",
+            data_type="pool_dragon_tiger_stock",
             collectors={
                 "eastmoney": "collector.spiders.eastmoney_dragon_list:EastMoneyDragonListCollector",
             },
@@ -156,7 +156,7 @@ TASK_SPECS: dict[str, TaskSpec] = {
         ),
         TaskSpec(
             name="fund-holdings",
-            data_type="fund_holdings",
+            data_type="fund_holding",
             collectors={
                 "eastmoney": "collector.spiders.eastmoney_fund_holdings:EastMoneyFundHoldingsCollector",
             },
@@ -182,7 +182,7 @@ TASK_SPECS: dict[str, TaskSpec] = {
         ),
         TaskSpec(
             name="limit-up-pool",
-            data_type="limit_up_pool",
+            data_type="pool_limit_up_stock",
             collectors={
                 "eastmoney": "collector.spiders.eastmoney_limit_up_pool:EastMoneyLimitUpPoolCollector",
             },
@@ -216,7 +216,7 @@ TASK_SPECS: dict[str, TaskSpec] = {
         ),
         TaskSpec(
             name="index-auction",
-            data_type="index_auction",
+            data_type="quote_auction_index",
             collectors={
                 "tushare": "collector.spiders.tushare_index_auction:TushareIndexAuctionCollector",
             },
@@ -255,6 +255,15 @@ TASK_SPECS: dict[str, TaskSpec] = {
             data_type="limit_down_pool",
             collectors={
                 "eastmoney": "collector.spiders.eastmoney_limit_down_pool:EastmoneyLimitDownPoolCollector",
+            },
+            run_params=("trade_date",),
+            converters={"trade_date": date.fromisoformat},
+        ),
+        TaskSpec(
+            name="market-daily-review",
+            data_type="ai_market_daily_review",
+            collectors={
+                "internal": "collector.spiders.market_daily_review:MarketDailyReviewCollector",
             },
             run_params=("trade_date",),
             converters={"trade_date": date.fromisoformat},

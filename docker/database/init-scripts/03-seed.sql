@@ -1,7 +1,7 @@
 -- Development seed data
 
 -- Sample stocks
-INSERT INTO stock_basic (stock_code, stock_name, market, industry_l1, industry_l2, industry_l3, listing_date)
+INSERT INTO stock_basic (stock_code, stock_name, market, industry_level_1, industry_level_2, industry_level_3, listing_date)
 VALUES
     ('000001', '平安银行', 'sz', '银行', '股份制银行', '银行III', '1991-04-03'),
     ('000002', '万科A', 'sz', '房地产', '房地产开发', '住宅开发', '1991-01-29'),
@@ -41,5 +41,7 @@ VALUES
     -- 须晚于 eastmoney_limit_up_pool（15:35），个股分钟线供涨停复盘分时缩略图
     ('sina_stock_minute', 'stock-minute', 'sina', '20 16,18 * * 1-5', true),
     -- A50 期指日盘 16:30 收盘，17:40 取当日日 K，21:40 夜盘修正
-    ('eastmoney_a50_kline', 'a50-kline', 'eastmoney', '40 17,21 * * 1-5', true)
+    ('eastmoney_a50_kline', 'a50-kline', 'eastmoney', '40 17,21 * * 1-5', true),
+    -- 16:00 收盘后自动生成大盘综述 AI base，避免多租户重复调用 LLM
+    ('market_daily_review_1600', 'market-daily-review', 'internal', '0 16 * * 1-5', true)
 ON CONFLICT (task_name) DO NOTHING;

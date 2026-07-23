@@ -6,7 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_admin_user, get_current_user, get_db
 from app.models.user import User
 from app.schemas.market import (
     CollectTaskResult,
@@ -24,7 +24,11 @@ from app.schemas.market import (
 )
 from app.services import limit_up_ai_service, market_review_service, market_service
 from app.services.llm_config_service import LLMConfigNotConfiguredError
-from app.services.market_review_service import NonTradingDayError, ReviewNotFoundError
+from app.services.market_review_service import (
+    NonTradingDayError,
+    ReviewGenerationLockedError,
+    ReviewNotFoundError,
+)
 
 router = APIRouter()
 
@@ -54,7 +58,7 @@ async def get_index_kline(
     period: str = "daily",
     limit: Annotated[int, Query(ge=1, le=2000)] = 250,
 ) -> IndexKlineResponse:
-    """指数多周期 K 线（daily/weekly/monthly/quarterly/yearly，由本地 kline_daily 聚合）。"""
+    """指数多周期 K 线（daily/weekly/monthly/quarterly/yearly，由本地 quote_kline_stock_daily 聚合）。"""
     try:
         return await market_service.get_index_kline(session, code, period, limit)
     except ValueError as exc:
@@ -70,7 +74,7 @@ async def get_index_intraday(
     code: str = "sh000001",
     trade_date: date | None = None,
 ) -> IndexIntradayResponse:
-    """指数分时图数据（指定交易日的分钟级价格与量能，读本地 kline_minute）。"""
+    """指数分时图数据（指定交易日的分钟级价格与量能，读本地 quote_kline_stock_minute）。"""
     try:
         return await market_service.get_index_intraday(session, code, trade_date)
     except ValueError as exc:
@@ -168,11 +172,14 @@ async def get_sector_overview(
 @router.get("/ai-review", response_model=MarketReviewResponse)
 async def get_ai_review(
     session: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
     trade_date: date | None = None,
 ) -> MarketReviewResponse:
-    """读取已生成的 AI 大盘综述（只读，不存在时 404，绝不触发生成）。"""
+    """读取当前用户的 AI 大盘综述（优先用户编辑版，否则回退共享 base）。"""
     try:
-        review = await market_review_service.get_cached_review(session, trade_date)
+        review = await market_review_service.get_market_review(
+            session, current_user.id, trade_date
+        )
     except NonTradingDayError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -190,15 +197,25 @@ async def get_ai_review(
 async def generate_ai_review(
     data: MarketReviewGenerateRequest,
     session: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_admin_user)],
 ) -> MarketReviewResponse:
-    """触发 LLM 生成 AI 大盘综述（regenerate=true 强制重新生成）。"""
+    """管理员触发 LLM 生成 AI 大盘综述共享 base（regenerate=true 强制重新生成）。"""
     try:
         return await market_review_service.generate_market_review(
-            session, data.trade_date, data.regenerate
+            session,
+            data.trade_date,
+            data.regenerate,
+            blocking=True,
+            blocking_timeout=30,
         )
     except NonTradingDayError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except ReviewGenerationLockedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
     except LLMConfigNotConfiguredError as exc:
@@ -217,11 +234,13 @@ async def generate_ai_review(
 async def update_ai_review(
     data: MarketReviewUpdateRequest,
     session: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> MarketReviewResponse:
-    """保存人工编辑后的复盘内容。"""
+    """保存当前用户编辑后的复盘内容（不影响其他用户/共享 base）。"""
     try:
         return await market_review_service.update_market_review(
             session,
+            current_user.id,
             data.trade_date,
             market_review_service.MarketReviewContent(
                 overview=data.overview,
