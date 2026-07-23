@@ -1,7 +1,20 @@
+import cronstrue from 'cronstrue'
+import 'cronstrue/locales/zh_CN'
+
 import { useSettingsStore } from '@/stores/settings'
 
 export function formatNumber(value: number, decimals = 2): string {
   return value.toFixed(decimals)
+}
+
+/** 将 Cron 表达式转换为中文自然语言描述；解析失败时原样返回。 */
+export function formatCronExpression(value: string | null | undefined): string {
+  if (!value) return '-'
+  try {
+    return cronstrue.toString(value, { locale: 'zh_CN' })
+  } catch {
+    return value
+  }
 }
 
 export function formatPercent(value: number, decimals = 2): string {

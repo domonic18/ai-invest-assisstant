@@ -18,6 +18,7 @@ import {
   Switch,
   Table,
   Tag,
+  Tooltip,
   message,
 } from 'antd'
 import { useState } from 'react'
@@ -32,6 +33,7 @@ import {
   useUpdateAdminTask,
 } from '@/hooks/useAdminTasks'
 import type { AdminTask } from '@ai-invest/shared'
+import { formatCronExpression } from '@/utils/formatters'
 
 interface TaskFormValues {
   taskName: string
@@ -149,7 +151,19 @@ export function AdminTasks() {
     { title: '任务名称', dataIndex: 'taskName', key: 'taskName' },
     { title: '任务类型', dataIndex: 'taskType', key: 'taskType' },
     { title: '来源', dataIndex: 'source', key: 'source' },
-    { title: '调度表达式', dataIndex: 'schedule', key: 'schedule', render: (v: string | null) => v || '-' },
+    {
+      title: '执行时间',
+      dataIndex: 'schedule',
+      key: 'schedule',
+      render: (v: string | null) =>
+        v ? (
+          <Tooltip title={`Cron: ${v}`}>
+            <span>{formatCronExpression(v)}</span>
+          </Tooltip>
+        ) : (
+          '-'
+        ),
+    },
     {
       title: '状态',
       dataIndex: 'isActive',
@@ -253,8 +267,8 @@ export function AdminTasks() {
           <Form.Item name="source" label="来源" rules={[{ required: true }]}>
             <Input placeholder="akshare / tushare / eastmoney" />
           </Form.Item>
-          <Form.Item name="schedule" label="调度表达式（Cron）">
-            <Input placeholder="*/30 * * * *" />
+          <Form.Item name="schedule" label="执行时间（Cron 表达式）">
+            <Input placeholder="例如：0 16 * * 1-5" />
           </Form.Item>
           <Form.Item name="isActive" label="启用" valuePropName="checked">
             <Switch />
