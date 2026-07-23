@@ -10,6 +10,8 @@ COPY backend/ .
 FROM node:20-alpine AS frontend-builder
 
 ARG NPM_REGISTRY=https://registry.npmmirror.com
+ARG VITE_APP_VERSION
+ENV VITE_APP_VERSION=${VITE_APP_VERSION}
 RUN npm config set registry ${NPM_REGISTRY}
 
 # Build the shared package first (web depends on it via file:../shared)

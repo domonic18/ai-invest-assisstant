@@ -1,14 +1,19 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
-import { readFileSync } from 'fs'
+import fs from 'fs'
 
-const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'))
+// 版本号来源：环境变量 > 根目录 VERSION 文件 > 默认值
+const versionFile = path.resolve(__dirname, '../VERSION')
+const appVersion = process.env.VITE_APP_VERSION
+  || (fs.existsSync(versionFile)
+    ? fs.readFileSync(versionFile, 'utf-8').trim()
+    : '0.1.0')
 
 export default defineConfig({
   plugins: [react()],
   define: {
-    __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_VERSION__: JSON.stringify(appVersion),
   },
   resolve: {
     alias: {
