@@ -332,6 +332,10 @@ async def _run_collector_for_task(
     candidates fail, the last result is returned with the errors of every
     attempt appended.
     """
+    # 概念板块资金流同花顺不支持，强制走东方财富渠道。
+    if task_name == "sector-fund-flow" and run_kwargs.get("sector_type") == "concept":
+        preferred_source = "eastmoney"
+
     candidates = await _resolve_task_channels(task_name, preferred_source)
     if not candidates:
         return _skipped_result("unknown", data_type)

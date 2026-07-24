@@ -97,7 +97,9 @@ export function CapitalFlow() {
                   onSelectDate={setSelectedDate}
                 />
                 <SourceNote>
-                  板块资金流向来自同花顺行业资金流（以行业名称作为板块代码），概念板块暂未覆盖
+                  {sectorType === 'industry'
+                    ? '行业板块资金流向来自同花顺（以行业名称作为板块代码）'
+                    : '概念板块资金流向来自东方财富'}
                 </SourceNote>
               </>
             )}
@@ -112,7 +114,9 @@ export function CapitalFlow() {
               onSelectDate={setSelectedDate}
             />
             <SourceNote>
-              当日排名与趋势数据均来自同花顺行业资金流，由每日盘后采集累积
+              {sectorType === 'industry'
+                ? '当日排名与趋势数据来自同花顺行业资金流，由每日盘后采集累积'
+                : '当日排名与趋势数据来自东方财富概念板块资金流，由每日盘后采集累积'}
             </SourceNote>
           </Card>
         </>
