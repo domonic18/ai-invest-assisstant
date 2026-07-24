@@ -1,4 +1,9 @@
-import { ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import {
+  CloseOutlined,
+  MenuUnfoldOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+} from '@ant-design/icons'
 import { Alert, Button, Card, Col, Empty, Input, List, Row, Space, Spin, Tag, Typography } from 'antd'
 import { AxiosError } from 'axios'
 import { useEffect, useState } from 'react'
@@ -28,6 +33,7 @@ export function ChainAnalysis() {
   const [inputIndustry, setInputIndustry] = useState(industry || '半导体')
   const [activeIndustry, setActiveIndustry] = useState(industry || '半导体')
   const [selectedNode, setSelectedNode] = useState<ChainNode | null>(null)
+  const [detailCollapsed, setDetailCollapsed] = useState(false)
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
   const [compareOpen, setCompareOpen] = useState(false)
 
@@ -77,7 +83,10 @@ export function ChainAnalysis() {
 
   const handleNodeClick = (nodeName: string) => {
     const node = result?.nodes.find((item) => item.name === nodeName)
-    if (node) setSelectedNode(node)
+    if (node) {
+      setSelectedNode(node)
+      setDetailCollapsed(false)
+    }
   }
 
   const isLoading =
@@ -166,29 +175,58 @@ export function ChainAnalysis() {
 
       {result && (
         <>
-          <Row gutter={[24, 24]}>
-            <Col xs={24} lg={16}>
-              <Card title="产业链关系图谱" variant="borderless">
-                <ChainGraph
-                  nodes={result.nodes}
-                  edges={result.edges}
-                  onNodeClick={handleNodeClick}
-                />
-              </Card>
-            </Col>
-
-            <Col xs={24} lg={8}>
-              <div className="space-y-4">
-                <Card title="节点详情" variant="borderless">
+          <Card title="产业链关系图谱" variant="borderless">
+            <div className="relative">
+              <ChainGraph
+                nodes={result.nodes}
+                edges={result.edges}
+                onNodeClick={handleNodeClick}
+              />
+              {selectedNode && detailCollapsed && (
+                <Button
+                  size="small"
+                  icon={<MenuUnfoldOutlined />}
+                  onClick={() => setDetailCollapsed(false)}
+                  className="!absolute right-12 top-3 z-10"
+                >
+                  节点详情
+                </Button>
+              )}
+              {selectedNode && !detailCollapsed && (
+                <Card
+                  size="small"
+                  title={selectedNode.name}
+                  className="!absolute right-12 top-3 bottom-3 w-80 z-10 shadow-xl flex flex-col [&_.ant-card-body]:flex-1 [&_.ant-card-body]:overflow-y-auto"
+                  extra={
+                    <Space size={4}>
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<MenuUnfoldOutlined rotate={180} />}
+                        title="收起"
+                        onClick={() => setDetailCollapsed(true)}
+                      />
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<CloseOutlined />}
+                        title="关闭"
+                        onClick={() => setSelectedNode(null)}
+                      />
+                    </Space>
+                  }
+                >
                   <NodeDetailCard node={selectedNode} />
                 </Card>
+              )}
+            </div>
+          </Card>
 
-                <Card title="AI 综述" variant="borderless">
-                  <Typography.Paragraph>{result.summary}</Typography.Paragraph>
-                </Card>
-              </div>
-            </Col>
-          </Row>
+          <Card title="AI 综述" variant="borderless">
+            <Typography.Paragraph className="!mb-0">
+              {result.summary}
+            </Typography.Paragraph>
+          </Card>
 
           <Row gutter={[24, 24]}>
             <Col xs={24} lg={12}>

@@ -1,27 +1,46 @@
 import type { ChainEdge, ChainNode } from '@ai-invest/shared'
 
+/** 节点类型描边/标题色（对齐原型图配色，用于浅色画布）。 */
 export const NODE_TYPE_COLORS: Record<ChainNode['type'], string> = {
-  upstream: '#58a6ff',
-  midstream: '#5e6ad2',
-  downstream: '#2ea043',
+  upstream: '#3b82f6',
+  midstream: '#6366f1',
+  downstream: '#10b981',
 }
 
 export const NODE_TYPE_LABELS: Record<ChainNode['type'], string> = {
-  upstream: '上游',
-  midstream: '中游',
-  downstream: '下游',
+  upstream: '上游 — 原材料与零部件',
+  midstream: '中游 — 制造与集成',
+  downstream: '下游 — 应用与终端',
 }
 
-const MARGIN_OPACITY_MIN = 0.12
-const MARGIN_OPACITY_MAX = 0.45
-const MARGIN_SCALE_CAP = 60
+/** 分栏标题条的底色与文字色。 */
+export const BAND_STYLES: Record<ChainNode['type'], { fill: string; text: string }> = {
+  upstream: { fill: '#dbeafe', text: '#2563eb' },
+  midstream: { fill: '#eef2ff', text: '#4f46e5' },
+  downstream: { fill: '#d1fae5', text: '#059669' },
+}
 
-/** 毛利率(0-60%)映射为节点填充透明度(0.12-0.45)；null 返回 0.08 灰显。 */
-export function marginToOpacity(margin: number | null): number {
-  if (margin === null || Number.isNaN(margin)) return 0.08
-  const clamped = Math.max(0, Math.min(MARGIN_SCALE_CAP, margin))
-  const ratio = clamped / MARGIN_SCALE_CAP
-  return MARGIN_OPACITY_MIN + ratio * (MARGIN_OPACITY_MAX - MARGIN_OPACITY_MIN)
+const BARRIER_LABELS: Record<string, string> = {
+  high: '高',
+  medium: '中',
+  low: '低',
+}
+
+/** 技术壁垒中文标签，null/未知返回 —。 */
+export function techBarrierLabel(barrier: string | null): string {
+  return (barrier && BARRIER_LABELS[barrier]) || '—'
+}
+
+/** 壁垒越高越醒目：high 红 / medium 琥珀 / low|null 灰。 */
+export function techBarrierColor(barrier: string | null): string {
+  switch (barrier) {
+    case 'high':
+      return '#ef4444'
+    case 'medium':
+      return '#d29922'
+    default:
+      return '#6b7280'
+  }
 }
 
 /** 关联强度(0-100)映射为边线宽(1-5px)。 */
@@ -36,16 +55,42 @@ export interface EdgeVisualStyle {
   lineDash?: [number, number]
 }
 
-/** criticality 映射边样式：high 实线主题色 / medium 灰蓝实线 / low|null 灰色虚线。 */
+/** criticality 映射边样式：high 主题色实线 / medium 灰实线 / low|null 浅灰虚线。 */
 export function edgeStyleByCriticality(
   criticality: ChainEdge['criticality'],
 ): EdgeVisualStyle {
   switch (criticality) {
     case 'high':
-      return { stroke: '#5e6ad2' }
+      return { stroke: '#6366f1' }
     case 'medium':
-      return { stroke: '#7c8bb5' }
+      return { stroke: '#9ca3af' }
     default:
-      return { stroke: '#6b7280', lineDash: [6, 4] }
+      return { stroke: '#cbd5e1', lineDash: [6, 4] }
   }
+}
+
+export interface SignalBadge {
+  icon: string
+  text: string
+  fill: string
+  textFill: string
+}
+
+/** 组装节点底部的信号徽章：⚡ 技术突破（红）优先，⚠ 瓶颈（琥珀）补充，最多 maxCount 个。 */
+export function buildSignalBadges(node: ChainNode, maxCount = 2): SignalBadge[] {
+  const badges: SignalBadge[] = node.recentBreakthroughs.map((text) => ({
+    icon: '⚡',
+    text,
+    fill: '#fef2f2',
+    textFill: '#ef4444',
+  }))
+  for (const text of node.bottleneckIndicators) {
+    if (badges.length >= maxCount) break
+    badges.push({ icon: '⚠', text, fill: '#fffbeb', textFill: '#d29922' })
+  }
+  return badges.slice(0, maxCount)
+}
+
+export function truncateLabel(text: string, maxChars: number): string {
+  return text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text
 }

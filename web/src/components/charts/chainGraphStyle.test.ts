@@ -1,36 +1,33 @@
 import { describe, expect, it } from 'vitest'
 
+import type { ChainNode } from '@ai-invest/shared'
+
 import {
+  buildSignalBadges,
   edgeStyleByCriticality,
-  marginToOpacity,
   strengthToLineWidth,
+  techBarrierColor,
+  techBarrierLabel,
+  truncateLabel,
 } from './chainGraphStyle'
 
-describe('marginToOpacity', () => {
-  it('null 返回灰显透明度', () => {
-    expect(marginToOpacity(null)).toBe(0.08)
-  })
-
-  it('0% 映射到下界 0.12', () => {
-    expect(marginToOpacity(0)).toBeCloseTo(0.12)
-  })
-
-  it('60% 映射到上界 0.45', () => {
-    expect(marginToOpacity(60)).toBeCloseTo(0.45)
-  })
-
-  it('30% 线性映射到中间值', () => {
-    expect(marginToOpacity(30)).toBeCloseTo(0.285)
-  })
-
-  it('超出 60% 截断到上界', () => {
-    expect(marginToOpacity(120)).toBeCloseTo(0.45)
-  })
-
-  it('负值截断到下界', () => {
-    expect(marginToOpacity(-5)).toBeCloseTo(0.12)
-  })
-})
+function makeNode(overrides: Partial<ChainNode>): ChainNode {
+  return {
+    name: '光刻胶',
+    type: 'upstream',
+    description: '',
+    companies: [],
+    avgGrossMargin: null,
+    revenueGrowth: null,
+    rdRatio: null,
+    bargainingPower: null,
+    localizationRate: null,
+    techBarrier: null,
+    bottleneckIndicators: [],
+    recentBreakthroughs: [],
+    ...overrides,
+  }
+}
 
 describe('strengthToLineWidth', () => {
   it('null/undefined 返回最细 1px', () => {
@@ -56,25 +53,79 @@ describe('strengthToLineWidth', () => {
 describe('edgeStyleByCriticality', () => {
   it('high 为主题色实线', () => {
     const style = edgeStyleByCriticality('high')
-    expect(style.stroke).toBe('#5e6ad2')
+    expect(style.stroke).toBe('#6366f1')
     expect(style.lineDash).toBeUndefined()
   })
 
-  it('medium 为灰蓝实线', () => {
+  it('medium 为灰实线', () => {
     const style = edgeStyleByCriticality('medium')
-    expect(style.stroke).toBe('#7c8bb5')
+    expect(style.stroke).toBe('#9ca3af')
     expect(style.lineDash).toBeUndefined()
   })
 
-  it('low 为灰色虚线', () => {
-    const style = edgeStyleByCriticality('low')
-    expect(style.stroke).toBe('#6b7280')
-    expect(style.lineDash).toEqual([6, 4])
+  it('low/null 为浅灰虚线', () => {
+    for (const criticality of ['low', null] as const) {
+      const style = edgeStyleByCriticality(criticality)
+      expect(style.stroke).toBe('#cbd5e1')
+      expect(style.lineDash).toEqual([6, 4])
+    }
+  })
+})
+
+describe('techBarrierLabel / techBarrierColor', () => {
+  it('high/medium/low 映射中文标签', () => {
+    expect(techBarrierLabel('high')).toBe('高')
+    expect(techBarrierLabel('medium')).toBe('中')
+    expect(techBarrierLabel('low')).toBe('低')
   })
 
-  it('null 为灰色虚线', () => {
-    const style = edgeStyleByCriticality(null)
-    expect(style.stroke).toBe('#6b7280')
-    expect(style.lineDash).toEqual([6, 4])
+  it('null 或未知值返回 —', () => {
+    expect(techBarrierLabel(null)).toBe('—')
+    expect(techBarrierLabel('extreme')).toBe('—')
+  })
+
+  it('high 红色、medium 琥珀、其他灰色', () => {
+    expect(techBarrierColor('high')).toBe('#ef4444')
+    expect(techBarrierColor('medium')).toBe('#d29922')
+    expect(techBarrierColor('low')).toBe('#6b7280')
+    expect(techBarrierColor(null)).toBe('#6b7280')
+  })
+})
+
+describe('buildSignalBadges', () => {
+  it('突破优先，瓶颈补充，默认最多 2 个', () => {
+    const node = makeNode({
+      recentBreakthroughs: ['ArF验证中', '大基金注资', '扩产'],
+      bottleneckIndicators: ['依赖进口'],
+    })
+    const badges = buildSignalBadges(node)
+    expect(badges).toHaveLength(2)
+    expect(badges[0]).toMatchObject({ icon: '⚡', text: 'ArF验证中' })
+    expect(badges[1]).toMatchObject({ icon: '⚡', text: '大基金注资' })
+  })
+
+  it('突破不足时由瓶颈补齐', () => {
+    const node = makeNode({
+      recentBreakthroughs: ['验证通过'],
+      bottleneckIndicators: ['国产化率低', '设备受限'],
+    })
+    const badges = buildSignalBadges(node)
+    expect(badges).toHaveLength(2)
+    expect(badges[0].icon).toBe('⚡')
+    expect(badges[1]).toMatchObject({ icon: '⚠', text: '国产化率低' })
+  })
+
+  it('无信号时返回空数组', () => {
+    expect(buildSignalBadges(makeNode({}))).toEqual([])
+  })
+})
+
+describe('truncateLabel', () => {
+  it('超长截断并加省略号', () => {
+    expect(truncateLabel('一二三四五六', 4)).toBe('一二三…')
+  })
+
+  it('未超长原样返回', () => {
+    expect(truncateLabel('短', 4)).toBe('短')
   })
 })
