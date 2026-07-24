@@ -26,8 +26,6 @@ import { ValueDistributionCard } from './components/ValueDistributionCard'
 import { VersionCompareDrawer } from './components/VersionCompareDrawer'
 import { VersionSwitcher } from './components/VersionSwitcher'
 
-const EXAMPLE_INDUSTRIES = ['半导体', '新能源', '医药生物', '人工智能', '消费电子']
-
 export function ChainAnalysis() {
   const { industry } = useParams<{ industry?: string }>()
   const [inputIndustry, setInputIndustry] = useState(industry || '半导体')
@@ -95,9 +93,31 @@ export function ChainAnalysis() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <Typography.Title level={4} className="!mb-0">
-          产业链全景分析
-        </Typography.Title>
+        <div>
+          <div className="flex items-center gap-3">
+            <Typography.Title level={4} className="!mb-0">
+              {activeIndustry}产业链全景分析
+            </Typography.Title>
+            {detail && detail.version.status === 'success' && (
+              <Tag color="success">
+                AI 生成 · v{detail.version.versionNo} (
+                {new Date(detail.version.createdAt).toLocaleDateString('zh-CN', {
+                  month: '2-digit',
+                  day: '2-digit',
+                })}{' '}
+                更新)
+              </Tag>
+            )}
+          </div>
+          {result && (
+            <Typography.Text type="secondary" className="text-sm">
+              覆盖 {result.nodes.length} 个产业链环节 ·{' '}
+              {detail?.version.companyCount ??
+                result.nodes.reduce((sum, node) => sum + node.companies.length, 0)}{' '}
+              家核心标的 · {result.edges.length} 条供应关系
+            </Typography.Text>
+          )}
+        </div>
         <Space>
           <Input
             value={inputIndustry}
@@ -113,18 +133,10 @@ export function ChainAnalysis() {
             onClick={handleAnalyze}
             loading={analyzeMutation.isPending}
           >
-            AI 分析
+            刷新分析
           </Button>
         </Space>
       </div>
-
-      <Space wrap>
-        {EXAMPLE_INDUSTRIES.map((item) => (
-          <Button key={item} size="small" onClick={() => setInputIndustry(item)}>
-            {item}
-          </Button>
-        ))}
-      </Space>
 
       {versions.length > 0 && (
         <VersionSwitcher
