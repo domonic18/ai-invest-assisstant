@@ -146,12 +146,15 @@ export interface ApiWatchlistQuoteItem {
   updated_at: string | null
 }
 
+export interface ApiMarketReviewSection {
+  key: string
+  title: string
+  content: string
+}
+
 export interface ApiMarketReviewResponse {
   trade_date: string
-  overview: string
-  emotion_analysis: string
-  capital_analysis: string
-  risk_advice: string
+  sections: ApiMarketReviewSection[]
   model: string | null
   generated_at: string
   cached: boolean
@@ -176,10 +179,8 @@ export interface ApiCollectTaskResult {
 
 export interface ApiMarketReviewUpdateRequest {
   trade_date: string
-  overview: string
-  emotion_analysis: string
-  capital_analysis: string
-  risk_advice: string
+  section_key: string
+  content: string
 }
 
 /** Domain types (camelCase) for frontend consumption. */
@@ -323,12 +324,15 @@ export interface WatchlistQuote {
   updatedAt: string | null
 }
 
+export interface MarketReviewSection {
+  key: string
+  title: string
+  content: string
+}
+
 export interface MarketReview {
   tradeDate: string
-  overview: string
-  emotionAnalysis: string
-  capitalAnalysis: string
-  riskAdvice: string
+  sections: MarketReviewSection[]
   model: string | null
   generatedAt: string
   cached: boolean

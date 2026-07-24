@@ -1,10 +1,15 @@
-import { LogoutOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons'
+import { LogoutOutlined, MenuOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons'
 import { Avatar, Button, Dropdown, Space } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { useAuthStore } from '@/stores/auth'
 
-export function Header() {
+interface HeaderProps {
+  /** 移动端打开导航抽屉。 */
+  onMenuClick?: () => void
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
   const navigate = useNavigate()
   const { user, isAdmin, logout } = useAuthStore()
 
@@ -37,7 +42,14 @@ export function Header() {
   ]
 
   return (
-    <header className="h-14 border-b border-gray-800 flex items-center px-6 justify-end bg-[#111318]">
+    <header className="h-14 border-b border-gray-800 flex items-center px-3 md:px-6 justify-between md:justify-end bg-[#111318]">
+      <Button
+        type="text"
+        icon={<MenuOutlined />}
+        onClick={onMenuClick}
+        className="md:!hidden text-gray-300"
+        aria-label="打开导航菜单"
+      />
       <Space>
         {user ? (
           <Dropdown menu={{ items }} placement="bottomRight">

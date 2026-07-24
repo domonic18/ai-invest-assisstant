@@ -1,13 +1,11 @@
 -- 每日大盘综述多租户隔离：用户编辑副本表
+-- sections JSONB：分区键由 prompt YAML 声明驱动，按分区存用户编辑内容
 
 CREATE TABLE IF NOT EXISTS user_market_review (
     id                BIGSERIAL PRIMARY KEY,
     user_id           BIGINT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     trade_date        DATE NOT NULL,
-    overview          TEXT NOT NULL,
-    emotion_analysis  TEXT NOT NULL,
-    capital_analysis  TEXT NOT NULL,
-    risk_advice       TEXT NOT NULL,
+    sections          JSONB NOT NULL DEFAULT '{}',
     model             VARCHAR(50),
     generated_at      TIMESTAMPTZ,
     base_review_id    BIGINT REFERENCES ai_analysis_result(id) ON DELETE SET NULL,

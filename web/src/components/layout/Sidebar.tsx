@@ -68,7 +68,12 @@ function resolveSelectedKey(pathname: string, keys: string[]): string {
   return matched.sort((a, b) => b.length - a.length)[0] ?? '/'
 }
 
-export function Sidebar() {
+interface SidebarMenuProps {
+  /** 导航后回调（移动端抽屉场景用于关闭抽屉）。 */
+  onNavigate?: () => void
+}
+
+export function SidebarMenu({ onNavigate }: SidebarMenuProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, isAdmin } = useAuthStore()
@@ -103,8 +108,8 @@ export function Sidebar() {
   ]
 
   return (
-    <aside className="w-56 border-r border-gray-800 bg-[#111318] flex flex-col">
-      <div className="h-14 flex items-center px-4 border-b border-gray-800">
+    <div className="h-full flex flex-col bg-[#111318]">
+      <div className="h-14 flex items-center px-4 border-b border-gray-800 shrink-0">
         <Brand showVersion />
       </div>
       <Menu
@@ -115,16 +120,27 @@ export function Sidebar() {
         onOpenChange={(keys) => setOpenKeys(keys as string[])}
         items={items}
         onClick={({ key }) => {
-          if (key.startsWith('/')) navigate(key)
+          if (key.startsWith('/')) {
+            navigate(key)
+            onNavigate?.()
+          }
         }}
-        className="!bg-transparent flex-1"
+        className="!bg-transparent flex-1 overflow-y-auto"
         style={{ borderRight: 0 }}
       />
       {user && (
-        <div className="p-4 border-t border-gray-800 text-sm text-gray-400">
+        <div className="p-4 border-t border-gray-800 text-sm text-gray-400 shrink-0">
           {user.email}
         </div>
       )}
+    </div>
+  )
+}
+
+export function Sidebar() {
+  return (
+    <aside className="hidden md:flex w-56 border-r border-gray-800 bg-[#111318] flex-col">
+      <SidebarMenu />
     </aside>
   )
 }

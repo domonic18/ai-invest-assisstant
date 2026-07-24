@@ -175,14 +175,19 @@ class WatchlistQuoteItem(BaseModel):
     updated_at: str | None = None
 
 
+class MarketReviewSection(BaseModel):
+    """AI 复盘的一个内容分区（key 与标题由 prompt YAML 的 sections 声明驱动）。"""
+
+    key: str
+    title: str
+    content: str
+
+
 class MarketReviewResponse(BaseModel):
-    """AI 大盘综述（LLM 结构化输出）。"""
+    """AI 大盘综述（LLM 结构化输出，按分区组织）。"""
 
     trade_date: date
-    overview: str
-    emotion_analysis: str
-    capital_analysis: str
-    risk_advice: str
+    sections: list[MarketReviewSection]
     model: str | None = None
     generated_at: datetime
     cached: bool = False
@@ -197,13 +202,11 @@ class MarketReviewGenerateRequest(BaseModel):
 
 
 class MarketReviewUpdateRequest(BaseModel):
-    """保存人工编辑后的复盘内容。"""
+    """按分区保存人工编辑后的复盘内容。"""
 
     trade_date: date
-    overview: str = Field(min_length=1)
-    emotion_analysis: str = Field(min_length=1)
-    capital_analysis: str = Field(min_length=1)
-    risk_advice: str = Field(min_length=1)
+    section_key: str = Field(min_length=1)
+    content: str = Field(min_length=1)
 
 
 class MarketCollectRequest(BaseModel):

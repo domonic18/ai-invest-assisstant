@@ -112,7 +112,7 @@ export function SectorSection({ data, loading, pendingClose, canBackfill }: Sect
         title="板块资金净流入/流出 TOP5"
         extra={<Link to="/capital-flow" className="text-xs">查看完整 →</Link>}
       >
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <div className="text-xs font-semibold mb-2" style={{ color: riseHex() }}>↑ 主力净流入</div>
             <div className="space-y-1">
@@ -155,6 +155,7 @@ export function SectorSection({ data, loading, pendingClose, canBackfill }: Sect
           rowKey="sectorName"
           pagination={false}
           size="small"
+          scroll={{ x: 560 }}
         />
         <SourceNote>东方财富板块资金流 · 涨停数来自东方财富涨停股池</SourceNote>
       </Card>

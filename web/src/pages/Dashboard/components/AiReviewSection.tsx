@@ -3,40 +3,42 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Button, Card, Empty, Input, message, Popconfirm, Tag, Typography } from 'antd'
 import { useState } from 'react'
 
-import { generateMarketReview, NonTradingDayError, saveMarketReview } from '@/api/market'
+import {
+  generateMarketReview,
+  NonTradingDayError,
+  saveMarketReviewSection,
+} from '@/api/market'
 import { MarkdownText } from '@/components/common/MarkdownText'
 import { useMarketReview } from '@/hooks/useMarket'
-import type { MarketReview } from '@ai-invest/shared'
-
-const SECTION_TITLES = {
-  overview: 'AI 大盘综述',
-  emotionAnalysis: '情绪与连板分析',
-  capitalAnalysis: '资金面分析',
-  riskAdvice: '风险提示与策略建议',
-} as const
-
-type SectionKey = keyof typeof SECTION_TITLES
-
-const SECTION_KEYS = Object.keys(SECTION_TITLES) as SectionKey[]
-
-type ReviewDraft = Record<SectionKey, string>
-
-function toDraft(review: MarketReview): ReviewDraft {
-  return {
-    overview: review.overview,
-    emotionAnalysis: review.emotionAnalysis,
-    capitalAnalysis: review.capitalAnalysis,
-    riskAdvice: review.riskAdvice,
-  }
-}
+import { useAuthStore } from '@/stores/auth'
+import type { MarketReview, MarketReviewSection } from '@ai-invest/shared'
 
 interface ReviewCardProps {
-  title: string
-  content: string
+  section: MarketReviewSection
   edited: boolean
+  editing: boolean
+  saving: boolean
+  onStartEdit: () => void
+  onCancelEdit: () => void
+  onSave: (content: string) => void
 }
 
-function ReviewCard({ title, content, edited }: ReviewCardProps) {
+function ReviewCard({
+  section,
+  edited,
+  editing,
+  saving,
+  onStartEdit,
+  onCancelEdit,
+  onSave,
+}: ReviewCardProps) {
+  const [draft, setDraft] = useState('')
+
+  const handleStart = () => {
+    setDraft(section.content)
+    onStartEdit()
+  }
+
   return (
     <Card
       variant="borderless"
@@ -44,16 +46,45 @@ function ReviewCard({ title, content, edited }: ReviewCardProps) {
       title={
         <span>
           <RobotOutlined className="mr-2" />
-          {title}
+          {section.title}
         </span>
       }
       extra={
-        edited ? <Tag color="orange">已编辑</Tag> : <Tag color="purple">AI 生成</Tag>
+        <span className="inline-flex items-center gap-2">
+          {edited ? <Tag color="orange">已编辑</Tag> : <Tag color="purple">AI 生成</Tag>}
+          {editing ? (
+            <>
+              <Button size="small" onClick={onCancelEdit} disabled={saving}>
+                取消
+              </Button>
+              <Button
+                size="small"
+                type="primary"
+                loading={saving}
+                onClick={() => onSave(draft)}
+              >
+                保存
+              </Button>
+            </>
+          ) : (
+            <Button size="small" type="text" onClick={handleStart}>
+              编辑
+            </Button>
+          )}
+        </span>
       }
     >
-      <div className="text-sm">
-        <MarkdownText content={content} />
-      </div>
+      {editing ? (
+        <Input.TextArea
+          value={draft}
+          autoSize={{ minRows: 4 }}
+          onChange={(e) => setDraft(e.target.value)}
+        />
+      ) : (
+        <div className="text-sm">
+          <MarkdownText content={section.content} />
+        </div>
+      )}
     </Card>
   )
 }
@@ -64,10 +95,10 @@ interface AiReviewSectionProps {
 
 export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
   const queryClient = useQueryClient()
+  const isAdmin = useAuthStore((state) => state.isAdmin)
   const [generating, setGenerating] = useState(false)
+  const [editingKey, setEditingKey] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState<ReviewDraft | null>(null)
   const { data, isLoading, isError, error, refetch } = useMarketReview(tradeDate)
 
   const setReviewCache = (review: MarketReview) => {
@@ -87,31 +118,17 @@ export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
     }
   }
 
-  const handleStartEdit = () => {
+  const handleSaveSection = async (sectionKey: string, content: string) => {
     if (!data) return
-    setDraft(toDraft(data))
-    setEditing(true)
-  }
-
-  const handleCancelEdit = () => {
-    setDraft(null)
-    setEditing(false)
-  }
-
-  const handleSave = async () => {
-    if (!data || !draft) return
+    if (!content.trim()) {
+      message.warning('内容不能为空')
+      return
+    }
     setSaving(true)
     try {
-      const review = await saveMarketReview({
-        trade_date: data.tradeDate,
-        overview: draft.overview,
-        emotion_analysis: draft.emotionAnalysis,
-        capital_analysis: draft.capitalAnalysis,
-        risk_advice: draft.riskAdvice,
-      })
+      const review = await saveMarketReviewSection(data.tradeDate, sectionKey, content)
       setReviewCache(review)
-      setEditing(false)
-      setDraft(null)
+      setEditingKey(null)
       message.success('复盘内容已保存')
     } catch (err) {
       message.error(err instanceof Error ? err.message : '保存失败')
@@ -166,28 +183,30 @@ export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
           description="基于当日行情、涨停与板块资金数据生成复盘综述"
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         >
-          <Button
-            type="primary"
-            loading={generating}
-            onClick={() => handleGenerate(false)}
-          >
-            {generating ? 'AI 生成中，通常需要 10-30 秒…' : '生成 AI 复盘'}
-          </Button>
+          {isAdmin && (
+            <Button
+              type="primary"
+              loading={generating}
+              onClick={() => handleGenerate(false)}
+            >
+              {generating ? 'AI 生成中，通常需要 10-30 秒…' : '生成 AI 复盘'}
+            </Button>
+          )}
         </Empty>
       </Card>
     )
   }
 
-  const regenerateButton = (
+  const regenerateButton = isAdmin ? (
     <Button
       size="small"
       loading={generating}
       onClick={() => handleGenerate(true)}
-      disabled={editing}
+      disabled={editingKey !== null}
     >
       重新生成
     </Button>
-  )
+  ) : null
 
   return (
     <div className="space-y-4">
@@ -195,70 +214,32 @@ export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
         <Typography.Text className="text-gray-400 text-xs tracking-widest">
           AI 复盘解读
         </Typography.Text>
-        <div className="flex items-center gap-2">
-          {editing ? (
-            <>
-              <Button size="small" onClick={handleCancelEdit} disabled={saving}>
-                取消
-              </Button>
-              <Button
-                size="small"
-                type="primary"
-                loading={saving}
-                onClick={handleSave}
-              >
-                保存
-              </Button>
-            </>
+        {isAdmin &&
+          (data.edited ? (
+            <Popconfirm
+              title="重新生成将覆盖人工编辑的内容"
+              okText="重新生成"
+              cancelText="取消"
+              onConfirm={() => handleGenerate(true)}
+            >
+              {regenerateButton}
+            </Popconfirm>
           ) : (
-            <>
-              <Button size="small" onClick={handleStartEdit} disabled={generating}>
-                编辑
-              </Button>
-              {data.edited ? (
-                <Popconfirm
-                  title="重新生成将覆盖人工编辑的内容"
-                  okText="重新生成"
-                  cancelText="取消"
-                  onConfirm={() => handleGenerate(true)}
-                >
-                  {regenerateButton}
-                </Popconfirm>
-              ) : (
-                regenerateButton
-              )}
-            </>
-          )}
-        </div>
+            regenerateButton
+          ))}
       </div>
-      {SECTION_KEYS.map((key) =>
-        editing && draft ? (
-          <Card
-            key={key}
-            variant="borderless"
-            size="small"
-            title={
-              <span>
-                <RobotOutlined className="mr-2" />
-                {SECTION_TITLES[key]}
-              </span>
-            }
-          >
-            <Input.TextArea
-              value={draft[key]}
-              autoSize={{ minRows: 4 }}
-              onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
-            />
-          </Card>
-        ) : (
-          <ReviewCard
-            key={key}
-            title={SECTION_TITLES[key]}
-            content={data[key]}
-            edited={data.edited}
-          />
-        )
-      )}
+      {data.sections.map((section) => (
+        <ReviewCard
+          key={section.key}
+          section={section}
+          edited={data.edited}
+          editing={editingKey === section.key}
+          saving={saving}
+          onStartEdit={() => setEditingKey(section.key)}
+          onCancelEdit={() => setEditingKey(null)}
+          onSave={(content) => handleSaveSection(section.key, content)}
+        />
+      ))}
       <div className="text-xs text-gray-500">
         模型: {data.model ?? '-'} · 生成时间:{' '}
         {new Date(data.generatedAt).toLocaleString('zh-CN')}

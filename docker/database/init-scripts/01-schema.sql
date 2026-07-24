@@ -209,17 +209,53 @@ CREATE INDEX idx_news_publish_date ON news_announcement(publish_date DESC);
 -- 5. 产业链关系域
 -- ============================================================
 
+CREATE TABLE industry_chain_analysis_version (
+    id               BIGSERIAL PRIMARY KEY,
+    industry_level_1 VARCHAR(50)  NOT NULL,
+    version_no       INT          NOT NULL,
+    label            VARCHAR(100),
+    status           VARCHAR(20)  NOT NULL DEFAULT 'success'
+                     CONSTRAINT chk_industry_chain_analysis_version_status
+                     CHECK (status IN ('success', 'failed')),
+    snapshot         JSONB        NOT NULL,
+    -- FK 至 ai_analysis_result 在该表创建后通过 ALTER TABLE 添加
+    ai_result_id     BIGINT,
+    model            VARCHAR(50),
+    node_count       INT,
+    company_count    INT,
+    error_msg        TEXT,
+    created_by       VARCHAR(20)  NOT NULL DEFAULT 'manual',
+    created_at       TIMESTAMPTZ  DEFAULT NOW(),
+
+    CONSTRAINT uq_industry_chain_analysis_version_industry_version
+        UNIQUE (industry_level_1, version_no)
+);
+
+CREATE INDEX idx_industry_chain_analysis_version_industry
+    ON industry_chain_analysis_version(industry_level_1, created_at DESC);
+
 CREATE TABLE industry_chain_node (
     id          BIGSERIAL PRIMARY KEY,
     node_name   VARCHAR(100) NOT NULL,
     industry_level_1 VARCHAR(50),
     node_type   VARCHAR(20) NOT NULL CHECK (node_type IN ('upstream', 'midstream', 'downstream')),
     description TEXT,
-    created_at  TIMESTAMPTZ DEFAULT NOW()
+    version_id  BIGINT REFERENCES industry_chain_analysis_version(id) ON DELETE CASCADE,
+    avg_gross_margin DECIMAL(8,2),
+    revenue_growth   DECIMAL(8,2),
+    rd_ratio         DECIMAL(8,2),
+    bargaining_power DECIMAL(5,2),
+    localization_rate DECIMAL(5,2),
+    tech_barrier     VARCHAR(10),
+    bottleneck_indicators TEXT[],
+    recent_breakthroughs  TEXT[],
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX idx_chain_node_industry ON industry_chain_node(industry_level_1);
 CREATE INDEX idx_chain_node_type ON industry_chain_node(node_type);
+CREATE INDEX idx_industry_chain_node_version ON industry_chain_node(version_id);
 
 CREATE TABLE industry_chain_edge (
     id              BIGSERIAL PRIMARY KEY,
@@ -228,7 +264,9 @@ CREATE TABLE industry_chain_edge (
     relation_type   VARCHAR(50),
     relation_desc   TEXT,
     strength        DECIMAL(5,2) CHECK (strength >= 0 AND strength <= 100),
+    criticality     VARCHAR(10),
     data_source   VARCHAR(50) DEFAULT 'manual',
+    version_id    BIGINT REFERENCES industry_chain_analysis_version(id) ON DELETE CASCADE,
     created_at      TIMESTAMPTZ DEFAULT NOW(),
 
     UNIQUE (source_node_id, target_node_id, relation_type)
@@ -236,6 +274,7 @@ CREATE TABLE industry_chain_edge (
 
 CREATE INDEX idx_chain_edge_source ON industry_chain_edge(source_node_id);
 CREATE INDEX idx_chain_edge_target ON industry_chain_edge(target_node_id);
+CREATE INDEX idx_industry_chain_edge_version ON industry_chain_edge(version_id);
 
 CREATE TABLE industry_chain_company_mapping (
     id            BIGSERIAL PRIMARY KEY,
@@ -244,6 +283,7 @@ CREATE TABLE industry_chain_company_mapping (
     chain_position      VARCHAR(100),
     revenue_ratio DECIMAL(8,4),
     confidence    DECIMAL(5,2) CHECK (confidence >= 0 AND confidence <= 100),
+    version_id    BIGINT REFERENCES industry_chain_analysis_version(id) ON DELETE CASCADE,
     updated_at    TIMESTAMPTZ DEFAULT NOW(),
 
     UNIQUE (stock_code, chain_node_id)
@@ -251,6 +291,8 @@ CREATE TABLE industry_chain_company_mapping (
 
 CREATE INDEX idx_company_chain_code ON industry_chain_company_mapping(stock_code);
 CREATE INDEX idx_company_chain_node ON industry_chain_company_mapping(chain_node_id);
+CREATE INDEX idx_industry_chain_company_mapping_version
+    ON industry_chain_company_mapping(version_id);
 
 -- ============================================================
 -- 6. 文件元数据域
@@ -329,6 +371,10 @@ CREATE TABLE ai_analysis_result (
 CREATE INDEX idx_ai_skill_code ON ai_analysis_result(skill_id, stock_code);
 CREATE INDEX idx_ai_skill_hash ON ai_analysis_result(skill_id, input_hash);
 CREATE INDEX idx_ai_created_at ON ai_analysis_result(created_at DESC);
+
+ALTER TABLE industry_chain_analysis_version
+    ADD CONSTRAINT fk_industry_chain_analysis_version_ai_result
+    FOREIGN KEY (ai_result_id) REFERENCES ai_analysis_result(id) ON DELETE SET NULL;
 
 CREATE TABLE user_market_review (
     id                BIGSERIAL PRIMARY KEY,

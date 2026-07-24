@@ -1,9 +1,57 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { analyzeChain } from '@/api/chain'
+import {
+  analyzeChain,
+  fetchChainCompare,
+  fetchChainLatest,
+  fetchChainVersion,
+  fetchChainVersions,
+} from '@/api/chain'
 
-export function useChainAnalysis() {
+export function useChainLatest(industry: string | undefined) {
+  return useQuery({
+    queryKey: ['chain', 'latest', industry],
+    queryFn: () => fetchChainLatest(industry!),
+    enabled: !!industry,
+    staleTime: 10 * 60 * 1000,
+    retry: false,
+  })
+}
+
+export function useChainVersions(industry: string | undefined) {
+  return useQuery({
+    queryKey: ['chain', 'versions', industry],
+    queryFn: () => fetchChainVersions(industry!),
+    enabled: !!industry,
+    staleTime: 10 * 60 * 1000,
+  })
+}
+
+export function useChainVersion(versionId: number | null) {
+  return useQuery({
+    queryKey: ['chain', 'version', versionId],
+    queryFn: () => fetchChainVersion(versionId!),
+    enabled: versionId !== null,
+    staleTime: Infinity,
+  })
+}
+
+export function useChainCompare(baseId: number | null, targetId: number | null) {
+  return useQuery({
+    queryKey: ['chain', 'compare', baseId, targetId],
+    queryFn: () => fetchChainCompare(baseId!, targetId!),
+    enabled: baseId !== null && targetId !== null,
+    staleTime: Infinity,
+  })
+}
+
+export function useChainAnalysis(industry: string | undefined) {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: analyzeChain,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chain', 'latest', industry] })
+      queryClient.invalidateQueries({ queryKey: ['chain', 'versions', industry] })
+    },
   })
 }

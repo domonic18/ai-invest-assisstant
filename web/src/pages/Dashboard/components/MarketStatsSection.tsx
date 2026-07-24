@@ -78,7 +78,7 @@ export function MarketStatsSection({ indices, stats, loading, tradeDate }: Marke
       </Card>
 
       <Card variant="borderless" title="成交量与涨跌统计">
-        <div className="grid grid-cols-5 gap-2 mb-5 text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-5 text-center">
           <div>
             <div className="text-xl font-semibold">{formatAmount(stats?.amount)}</div>
             <div className="text-xs text-gray-400">成交额</div>

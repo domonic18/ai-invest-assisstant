@@ -21,6 +21,13 @@ export const ENDPOINTS = {
   },
   chain: {
     analyze: `${API_BASE}/chain/analyze`,
+    latest: (industry: string) =>
+      `${API_BASE}/chain/${encodeURIComponent(industry)}/latest`,
+    versions: (industry: string) =>
+      `${API_BASE}/chain/${encodeURIComponent(industry)}/versions`,
+    version: (id: number | string) => `${API_BASE}/chain/versions/${id}`,
+    compare: (baseId: number, targetId: number) =>
+      `${API_BASE}/chain/versions/compare?base_id=${baseId}&target_id=${targetId}`,
   },
   research: {
     list: `${API_BASE}/research`,

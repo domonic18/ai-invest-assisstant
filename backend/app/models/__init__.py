@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models."""
 
+from app.models.ai_analysis_result import AiAnalysisResult
 from app.models.auction import AuctionData
 from app.models.capital_fund_flow_sector import SectorFundFlow
 from app.models.collector_channel_config import CollectorChannelConfig
@@ -12,6 +13,12 @@ from app.models.financial_cash_flow_statement import CashFlowStatement
 from app.models.financial_income_statement import IncomeStatement
 from app.models.fund_flow import FundFlow
 from app.models.fund_holding import FundHoldings
+from app.models.industry_chain import (
+    ChainAnalysisVersion,
+    ChainCompanyMapping,
+    ChainEdge,
+    ChainNode,
+)
 from app.models.ipo_info import IpoInfo
 from app.models.kline import KlineDaily, KlineMinute
 from app.models.llm_config import LLMConfig
@@ -25,9 +32,14 @@ from app.models.user import User
 from app.models.watchlist import UserWatchlist
 
 __all__ = [
+    "AiAnalysisResult",
     "AuctionData",
     "BalanceSheet",
     "CashFlowStatement",
+    "ChainAnalysisVersion",
+    "ChainCompanyMapping",
+    "ChainEdge",
+    "ChainNode",
     "CollectorChannelConfig",
     "CollectorChannelDataType",
     "CollectorLog",

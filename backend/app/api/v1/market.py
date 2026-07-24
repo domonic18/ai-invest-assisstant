@@ -3,7 +3,7 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_current_user, get_db
@@ -28,6 +28,7 @@ from app.services.market_review_service import (
     NonTradingDayError,
     ReviewGenerationLockedError,
     ReviewNotFoundError,
+    UnknownSectionError,
 )
 
 router = APIRouter()
@@ -169,12 +170,16 @@ async def get_sector_overview(
     return await market_service.get_sector_overview(session, trade_date, sector_type)
 
 
-@router.get("/ai-review", response_model=MarketReviewResponse)
+@router.get(
+    "/ai-review",
+    response_model=MarketReviewResponse,
+    responses={204: {"description": "该交易日尚未生成 AI 复盘"}},
+)
 async def get_ai_review(
     session: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
     trade_date: date | None = None,
-) -> MarketReviewResponse:
+) -> MarketReviewResponse | Response:
     """读取当前用户的 AI 大盘综述（优先用户编辑版，否则回退共享 base）。"""
     try:
         review = await market_review_service.get_market_review(
@@ -186,10 +191,7 @@ async def get_ai_review(
             detail=str(exc),
         ) from exc
     if review is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="该交易日尚未生成 AI 复盘",
-        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     return review
 
 
@@ -236,19 +238,20 @@ async def update_ai_review(
     session: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> MarketReviewResponse:
-    """保存当前用户编辑后的复盘内容（不影响其他用户/共享 base）。"""
+    """按分区保存当前用户编辑后的复盘内容（不影响其他用户/共享 base）。"""
     try:
         return await market_review_service.update_market_review(
             session,
             current_user.id,
             data.trade_date,
-            market_review_service.MarketReviewContent(
-                overview=data.overview,
-                emotion_analysis=data.emotion_analysis,
-                capital_analysis=data.capital_analysis,
-                risk_advice=data.risk_advice,
-            ),
+            data.section_key,
+            data.content,
         )
+    except UnknownSectionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
     except ReviewNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

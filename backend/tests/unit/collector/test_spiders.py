@@ -1267,14 +1267,35 @@ class TestThsSectorFundFlowCollector:
         assert raw[1]["main_net_inflow"] == -3.15 * 100_000_000
 
     @pytest.mark.asyncio
-    async def test_collect_rejects_non_industry(self) -> None:
+    async def test_collect_concept_maps_ths_fields(self) -> None:
         from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
 
         collector = ThsSectorFundFlowCollector(
             {"source": "ths", "data_type": "capital_fund_flow_sector"}
         )
-        with pytest.raises(ValueError, match="仅支持行业板块"):
-            await collector.collect(sector_type="concept")
+        with patch(
+            "akshare.stock_fund_flow_concept", return_value=self._make_df()
+        ):
+            raw = await collector.collect(sector_type="concept")
+
+        assert len(raw) == 2
+        first = raw[0]
+        assert first["sector_code"] == "酿酒行业"
+        assert first["sector_name"] == "酿酒行业"
+        assert first["sector_type"] == "concept"
+        assert first["change_pct"] == 1.23
+        assert first["main_net_inflow"] == 1.23 * 100_000_000
+        assert first["top_stock_name"] == "贵州茅台"
+
+    @pytest.mark.asyncio
+    async def test_collect_rejects_unsupported_sector_type(self) -> None:
+        from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
+
+        collector = ThsSectorFundFlowCollector(
+            {"source": "ths", "data_type": "capital_fund_flow_sector"}
+        )
+        with pytest.raises(ValueError, match="仅支持行业/概念板块"):
+            await collector.collect(sector_type="region")
 
     @pytest.mark.asyncio
     async def test_validate(self) -> None:
