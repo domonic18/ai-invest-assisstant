@@ -1,5 +1,6 @@
-"""Unit tests for market review service (AI 复盘读写分离、多租户隔离与编辑保存)。"""
+"""Unit tests for market review service (AI 复盘读写分离、多租户隔离与按分区编辑保存)。"""
 
+import json
 from contextlib import asynccontextmanager
 from datetime import date, datetime
 from types import SimpleNamespace
@@ -7,16 +8,44 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.agent.core.prompt_loader import PromptSection
 from app.services import market_review_service
 from app.services.market_review_service import (
-    MarketReviewContent,
     ReviewGenerationLockedError,
     ReviewNotFoundError,
+    UnknownSectionError,
 )
 
 _TRADE_DATE = date(2026, 7, 17)
 _CREATED_AT = datetime(2026, 7, 17, 16, 30, 0)
 _USER_ID = 7
+
+_SECTIONS = [
+    PromptSection(key="overview", title="AI 大盘综述"),
+    PromptSection(key="technical_analysis", title="技术面分析"),
+    PromptSection(key="capital_analysis", title="资金面分析"),
+    PromptSection(key="emotion_analysis", title="情绪与连板分析"),
+    PromptSection(key="risk_advice", title="风险提示与策略建议"),
+]
+
+
+def _base_contents(**overrides: str) -> dict[str, str]:
+    contents = {
+        "overview": "总览",
+        "technical_analysis": "技术",
+        "capital_analysis": "资金",
+        "emotion_analysis": "情绪",
+        "risk_advice": "风险",
+    }
+    contents.update(overrides)
+    return contents
+
+
+def _structured(**overrides: str) -> dict:
+    return {
+        "trade_date": _TRADE_DATE.isoformat(),
+        "sections": _base_contents(**overrides),
+    }
 
 
 def _base_row(structured: dict | None, row_id: int = 1) -> dict:
@@ -28,21 +57,21 @@ def _base_row(structured: dict | None, row_id: int = 1) -> dict:
     }
 
 
+def _user_row(sections: dict[str, str] | None) -> dict:
+    return {
+        "sections": sections,
+        "model": "openai/gpt-4o",
+        "generated_at": _CREATED_AT,
+        "created_at": _CREATED_AT,
+    }
+
+
 def _execute_returning(row: dict | None) -> MagicMock:
     return MagicMock(mappings=lambda: MagicMock(first=lambda: row))
 
 
-def _structured(edited: bool = False) -> dict:
-    data = {
-        "trade_date": _TRADE_DATE.isoformat(),
-        "overview": "总览",
-        "emotion_analysis": "情绪",
-        "capital_analysis": "资金",
-        "risk_advice": "风险",
-    }
-    if edited:
-        data["edited"] = True
-    return data
+def _contents_of(result: object) -> dict[str, str]:
+    return {item.key: item.content for item in result.sections}  # type: ignore[attr-defined]
 
 
 def _patch_stats() -> patch:
@@ -61,6 +90,14 @@ def _patch_trading_day(value: bool = True) -> patch:
     )
 
 
+def _patch_prompt_config() -> patch:
+    return patch.object(
+        market_review_service,
+        "_load_prompt_config",
+        lambda: SimpleNamespace(sections=_SECTIONS),
+    )
+
+
 def _patch_redis_lock(acquired: bool = True) -> patch:
     @asynccontextmanager
     async def _fake_lock(*args: object, **kwargs: object):
@@ -76,7 +113,7 @@ class TestGetMarketReview:
         session = AsyncMock()
         session.execute.return_value = _execute_returning(None)
 
-        with _patch_stats(), _patch_trading_day():
+        with _patch_stats(), _patch_trading_day(), _patch_prompt_config():
             result = await market_review_service.get_market_review(
                 session, _USER_ID
             )
@@ -84,28 +121,30 @@ class TestGetMarketReview:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_user_edit_when_overlay_exists(self) -> None:
+    async def test_merges_user_overlay_per_section(self) -> None:
         session = AsyncMock()
-        session.execute.return_value = _execute_returning(
-            {
-                "overview": "用户总览",
-                "emotion_analysis": "用户情绪",
-                "capital_analysis": "用户资金",
-                "risk_advice": "用户风险",
-                "model": "openai/gpt-4o",
-                "generated_at": _CREATED_AT,
-                "created_at": _CREATED_AT,
-            }
-        )
+        session.execute.side_effect = [
+            _execute_returning(_base_row(_structured())),  # base
+            _execute_returning(_user_row({"overview": "用户总览"})),  # user edit
+        ]
 
-        with _patch_stats(), _patch_trading_day():
+        with _patch_stats(), _patch_trading_day(), _patch_prompt_config():
             result = await market_review_service.get_market_review(
                 session, _USER_ID, _TRADE_DATE
             )
 
         assert result is not None
         assert result.trade_date == _TRADE_DATE
-        assert result.overview == "用户总览"
+        contents = _contents_of(result)
+        assert contents["overview"] == "用户总览"
+        assert contents["capital_analysis"] == "资金"
+        assert [item.title for item in result.sections] == [
+            "AI 大盘综述",
+            "技术面分析",
+            "资金面分析",
+            "情绪与连板分析",
+            "风险提示与策略建议",
+        ]
         assert result.cached is True
         assert result.edited is True
 
@@ -113,17 +152,17 @@ class TestGetMarketReview:
     async def test_falls_back_to_base_when_no_overlay(self) -> None:
         session = AsyncMock()
         session.execute.side_effect = [
-            _execute_returning(None),  # user edit
             _execute_returning(_base_row(_structured())),  # base
+            _execute_returning(None),  # user edit
         ]
 
-        with _patch_stats(), _patch_trading_day():
+        with _patch_stats(), _patch_trading_day(), _patch_prompt_config():
             result = await market_review_service.get_market_review(
                 session, _USER_ID
             )
 
         assert result is not None
-        assert result.overview == "总览"
+        assert _contents_of(result)["overview"] == "总览"
         assert result.cached is True
         assert result.edited is False
 
@@ -135,52 +174,80 @@ class TestUpdateMarketReview:
         session = AsyncMock()
         session.execute.return_value = _execute_returning(None)
 
-        with _patch_trading_day(), pytest.raises(ReviewNotFoundError):
+        with (
+            _patch_trading_day(),
+            _patch_prompt_config(),
+            pytest.raises(ReviewNotFoundError),
+        ):
             await market_review_service.update_market_review(
-                session,
-                _USER_ID,
-                _TRADE_DATE,
-                MarketReviewContent(
-                    overview="a",
-                    emotion_analysis="b",
-                    capital_analysis="c",
-                    risk_advice="d",
-                ),
+                session, _USER_ID, _TRADE_DATE, "overview", "改后总览"
             )
 
     @pytest.mark.asyncio
-    async def test_upserts_user_overlay(self) -> None:
+    async def test_raises_when_section_unknown(self) -> None:
         session = AsyncMock()
-        session.execute.side_effect = [
-            _execute_returning(_base_row(_structured(), row_id=42)),
-            MagicMock(),
-        ]
 
-        with _patch_trading_day():
-            result = await market_review_service.update_market_review(
-                session,
-                _USER_ID,
-                _TRADE_DATE,
-                MarketReviewContent(
-                    overview="改后总览",
-                    emotion_analysis="改后情绪",
-                    capital_analysis="改后资金",
-                    risk_advice="改后风险",
-                ),
+        with (
+            _patch_trading_day(),
+            _patch_prompt_config(),
+            pytest.raises(UnknownSectionError),
+        ):
+            await market_review_service.update_market_review(
+                session, _USER_ID, _TRADE_DATE, "foo", "内容"
             )
 
-        assert session.execute.await_count == 2
-        upsert_params = session.execute.await_args_list[1].args[1]
+        session.execute.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_upserts_single_section_overlay(self) -> None:
+        session = AsyncMock()
+        session.execute.side_effect = [
+            _execute_returning(_base_row(_structured(), row_id=42)),  # base
+            _execute_returning(None),  # existing user edit
+            MagicMock(),  # upsert
+        ]
+
+        with _patch_trading_day(), _patch_prompt_config():
+            result = await market_review_service.update_market_review(
+                session, _USER_ID, _TRADE_DATE, "overview", "改后总览"
+            )
+
+        assert session.execute.await_count == 3
+        upsert_params = session.execute.await_args_list[2].args[1]
         assert upsert_params["user_id"] == _USER_ID
         assert upsert_params["base_review_id"] == 42
-        assert upsert_params["overview"] == "改后总览"
+        stored = json.loads(upsert_params["sections"])
+        assert stored["overview"] == "改后总览"
+        assert stored["capital_analysis"] == "资金"
         session.commit.assert_awaited_once()
 
         assert result.trade_date == _TRADE_DATE
-        assert result.overview == "改后总览"
+        contents = _contents_of(result)
+        assert contents["overview"] == "改后总览"
+        assert contents["risk_advice"] == "风险"
         assert result.cached is True
         assert result.edited is True
         assert result.generated_at == _CREATED_AT
+
+    @pytest.mark.asyncio
+    async def test_preserves_existing_user_sections(self) -> None:
+        session = AsyncMock()
+        session.execute.side_effect = [
+            _execute_returning(_base_row(_structured(), row_id=42)),  # base
+            _execute_returning(_user_row({"risk_advice": "用户风险"})),  # user edit
+            MagicMock(),  # upsert
+        ]
+
+        with _patch_trading_day(), _patch_prompt_config():
+            result = await market_review_service.update_market_review(
+                session, _USER_ID, _TRADE_DATE, "overview", "改后总览"
+            )
+
+        upsert_params = session.execute.await_args_list[2].args[1]
+        stored = json.loads(upsert_params["sections"])
+        assert stored["overview"] == "改后总览"
+        assert stored["risk_advice"] == "用户风险"
+        assert _contents_of(result)["risk_advice"] == "用户风险"
 
 
 @pytest.mark.unit
@@ -192,14 +259,14 @@ class TestGenerateMarketReview:
             _base_row(_structured())
         )
 
-        with _patch_stats(), _patch_trading_day():
+        with _patch_stats(), _patch_trading_day(), _patch_prompt_config():
             result = await market_review_service.generate_market_review(
                 session, _TRADE_DATE
             )
 
         assert result.cached is True
         assert result.edited is False
-        assert result.overview == "总览"
+        assert _contents_of(result)["overview"] == "总览"
 
     @pytest.mark.asyncio
     async def test_raises_when_lock_held_and_no_cache(self) -> None:
@@ -209,6 +276,7 @@ class TestGenerateMarketReview:
         with (
             _patch_stats(),
             _patch_trading_day(),
+            _patch_prompt_config(),
             _patch_redis_lock(acquired=False),
             pytest.raises(ReviewGenerationLockedError),
         ):
@@ -247,13 +315,5 @@ class TestTradingDayGuard:
             pytest.raises(market_review_service.NonTradingDayError),
         ):
             await market_review_service.update_market_review(
-                session,
-                _USER_ID,
-                _TRADE_DATE,
-                MarketReviewContent(
-                    overview="a",
-                    emotion_analysis="b",
-                    capital_analysis="c",
-                    risk_advice="d",
-                ),
+                session, _USER_ID, _TRADE_DATE, "overview", "内容"
             )

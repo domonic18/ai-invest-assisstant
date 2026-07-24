@@ -1,6 +1,5 @@
 """Unit tests for collector task entry functions."""
 
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd

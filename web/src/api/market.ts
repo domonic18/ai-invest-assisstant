@@ -164,10 +164,11 @@ function mapWatchlistQuote(dto: ApiWatchlistQuoteItem): WatchlistQuote {
 function mapMarketReview(dto: ApiMarketReviewResponse): MarketReview {
   return {
     tradeDate: dto.trade_date,
-    overview: dto.overview,
-    emotionAnalysis: dto.emotion_analysis,
-    capitalAnalysis: dto.capital_analysis,
-    riskAdvice: dto.risk_advice,
+    sections: dto.sections.map((section) => ({
+      key: section.key,
+      title: section.title,
+      content: section.content,
+    })),
     model: dto.model,
     generatedAt: dto.generated_at,
     cached: dto.cached,
@@ -293,13 +294,20 @@ export async function generateMarketReview(
   return mapMarketReview(response.data)
 }
 
-/** 保存人工编辑后的复盘内容。 */
-export async function saveMarketReview(
-  input: ApiMarketReviewUpdateRequest,
+/** 按分区保存人工编辑后的复盘内容（sectionKey 为后端 prompt YAML 声明的分区键）。 */
+export async function saveMarketReviewSection(
+  tradeDate: string,
+  sectionKey: string,
+  content: string,
 ): Promise<MarketReview> {
+  const body: ApiMarketReviewUpdateRequest = {
+    trade_date: tradeDate,
+    section_key: sectionKey,
+    content,
+  }
   const response = await apiClient.put<ApiMarketReviewResponse>(
     ENDPOINTS.market.aiReview,
-    input,
+    body,
   )
   return mapMarketReview(response.data)
 }

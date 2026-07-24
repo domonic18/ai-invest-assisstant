@@ -28,6 +28,7 @@ from app.services.market_review_service import (
     NonTradingDayError,
     ReviewGenerationLockedError,
     ReviewNotFoundError,
+    UnknownSectionError,
 )
 
 router = APIRouter()
@@ -237,19 +238,20 @@ async def update_ai_review(
     session: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> MarketReviewResponse:
-    """保存当前用户编辑后的复盘内容（不影响其他用户/共享 base）。"""
+    """按分区保存当前用户编辑后的复盘内容（不影响其他用户/共享 base）。"""
     try:
         return await market_review_service.update_market_review(
             session,
             current_user.id,
             data.trade_date,
-            market_review_service.MarketReviewContent(
-                overview=data.overview,
-                emotion_analysis=data.emotion_analysis,
-                capital_analysis=data.capital_analysis,
-                risk_advice=data.risk_advice,
-            ),
+            data.section_key,
+            data.content,
         )
+    except UnknownSectionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
     except ReviewNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
