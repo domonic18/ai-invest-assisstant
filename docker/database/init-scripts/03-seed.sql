@@ -15,6 +15,17 @@ VALUES
     ('601318', '中国平安', 'sh', '非银金融', '保险', '保险III', '2007-03-01')
 ON CONFLICT (stock_code, market) DO NOTHING;
 
+-- market_daily_review_1600 任务的 internal 渠道（内部生成，非外部数据源）
+INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
+VALUES ('internal', '内部生成', true, '["market-daily-review"]'::jsonb)
+ON CONFLICT (source) DO NOTHING;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'market-daily-review', 1
+FROM collector_channel_config
+WHERE source = 'internal'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
 -- Default collector tasks
 INSERT INTO collector_task (task_name, task_type, source, schedule, is_active)
 VALUES
