@@ -1,6 +1,6 @@
 import type { Element, Root, RootContent } from 'hast'
 
-const RISE_FALL_PATTERN = /([+-]\d+(?:\.\d+)?%)/g
+const RISE_FALL_PATTERN = /([+-]\d+(?:\.\d+)?\s*(?:万亿|亿元|亿|万元|万|%))/g
 
 function splitTextNode(value: string): RootContent[] {
   const parts: RootContent[] = []
@@ -44,7 +44,7 @@ function visit(parent: Root | Element): void {
   parent.children = next
 }
 
-/** 把文本中的带符号百分比（如 +3.05% / -1.20%）包上 data-rf 标记的 span，供组件层按涨跌配色。 */
+/** 把文本中的带符号数字（百分比 +3.05% / 资金金额 +102 亿、-1.2 万亿）包上 data-rf 标记的 span，供组件层按涨跌/流入流出配色。 */
 export function rehypeRiseFall() {
   return (tree: Root) => {
     visit(tree)
