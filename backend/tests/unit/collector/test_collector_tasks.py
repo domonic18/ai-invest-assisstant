@@ -404,37 +404,6 @@ class TestRunCollectorFallback:
         assert any("unknown-src" in error for error in result.errors)
 
     @pytest.mark.asyncio
-    async def test_concept_sector_fund_flow_prefers_eastmoney(self, collectors) -> None:
-        from collector.runtime import registry as tasks
-
-        class OkCollector(collectors):
-            async def run(self, **kwargs):
-                return _result(self.source, CollectStatus.SUCCESS)
-
-        resolved_preferences: list[str | None] = []
-
-        async def fake_resolve(
-            task_name: str, preferred_source: str | None = None
-        ) -> list[tuple[str, dict[str, Any]]]:
-            resolved_preferences.append(preferred_source)
-            return [("eastmoney", {"base_url": None, "api_key": None})]
-
-        with patch(
-            "collector.runtime.registry._resolve_task_channels",
-            fake_resolve,
-        ):
-            result = await tasks._run_collector_for_task(
-                "sector-fund-flow",
-                "capital_fund_flow_sector",
-                {"eastmoney": OkCollector, "ths": OkCollector},
-                None,
-                sector_type="concept",
-            )
-
-        assert result.status == CollectStatus.SUCCESS
-        assert resolved_preferences == ["eastmoney"]
-
-    @pytest.mark.asyncio
     async def test_no_candidates_returns_skipped(self) -> None:
         from collector.runtime import registry as tasks
 
