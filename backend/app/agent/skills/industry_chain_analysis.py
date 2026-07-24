@@ -15,8 +15,11 @@ from app.models.stock import StockBasic
 from app.schemas.chain import ChainAnalysisResult
 from app.services.llm_config_service import resolve_default_llm
 
-_MAX_NODES = 25
+_MAX_NODES = 40
 _MAX_COMPANIES_PER_NODE = 5
+_COMPANY_PREFETCH_LIMIT = 150
+_FINANCIAL_PREFETCH_COUNT = 40
+_BUSINESS_SCOPE_MAX_CHARS = 120
 
 
 def _format_financial_context(financials: list[dict[str, Any]]) -> list[str]:
@@ -85,16 +88,25 @@ async def analyze_industry_chain(
     prompt_loader = PromptLoader(get_settings().prompts_dir)
     prompt_config = prompt_loader.load("skills", "industry-chain-analysis")
 
-    companies = await db_tools.query_industry_companies(session, industry, limit=30)
+    companies = await db_tools.query_industry_companies(
+        session, industry, limit=_COMPANY_PREFETCH_LIMIT
+    )
+    if not companies:
+        raise ValueError(f"行业 {industry} 未匹配到上市公司，无法进行产业链分析")
     context_lines = [f"行业：{industry}，共找到 {len(companies)} 家上市公司"]
     for company in companies:
+        scope = (company.get("business_scope") or "").replace("\n", " ").strip()
+        if len(scope) > _BUSINESS_SCOPE_MAX_CHARS:
+            scope = scope[:_BUSINESS_SCOPE_MAX_CHARS] + "…"
         context_lines.append(
-            f"- {company['stock_code']} {company['stock_name']} "
-            f"({company['market']}) {company['industry_level_2']} / {company['industry_level_3']}"
+            f"- {company['stock_code']} | {company['stock_name']} | "
+            f"{company['industry_level_2'] or ''}/{company['industry_level_3'] or ''} | "
+            f"{scope}"
         )
 
     financials = await db_tools.query_financial_data(
-        session, [company["stock_code"] for company in companies[:15]]
+        session,
+        [company["stock_code"] for company in companies[:_FINANCIAL_PREFETCH_COUNT]],
     )
     financial_lines = _format_financial_context(financials)
 
@@ -103,16 +115,18 @@ async def analyze_industry_chain(
         f"- [{item['doc_type']}] {item['title']}" for item in news
     ]
 
-    kb_docs = await db_tools.search_vector_kb(session, f"{industry} 产业链 上下游")
+    kb_docs = await db_tools.search_vector_kb(
+        session, f"{industry} 主营业务 经营范围 产业链"
+    )
     kb_lines = [
-        f"- {item['title']}: {item['content'][:150]}" for item in kb_docs if item.get("title")
+        f"- {item['title']}: {item['content'][:300]}" for item in kb_docs if item.get("title")
     ]
 
     sections = [
         "\n".join(context_lines),
         "财务指标（近一期）：\n" + "\n".join(financial_lines) if financial_lines else "",
         "近期行业动态：\n" + "\n".join(news_lines) if news_lines else "",
-        "研报摘录：\n" + "\n".join(kb_lines) if kb_lines else "",
+        "年报/研报摘录：\n" + "\n".join(kb_lines) if kb_lines else "",
     ]
     context = "\n\n".join(section for section in sections if section)
 

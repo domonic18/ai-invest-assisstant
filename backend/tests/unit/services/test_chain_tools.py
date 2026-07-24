@@ -1,5 +1,6 @@
 """Unit tests for AI agent database tools."""
 
+import inspect
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -9,6 +10,58 @@ import pytest
 from app.agent.tools import db_tools
 from app.models.financial_balance_sheet import BalanceSheet
 from app.models.financial_income_statement import IncomeStatement
+from app.models.stock import StockBasic
+
+
+@pytest.mark.unit
+class TestQueryIndustryCompanies:
+    @pytest.mark.asyncio
+    async def test_returns_business_scope_and_industry_tags(self) -> None:
+        items = [
+            StockBasic(
+                stock_code="600703",
+                stock_name="三安光电",
+                market="SH",
+                industry_level_1="半导体",
+                industry_level_2="半导体材料",
+                industry_level_3="化合物半导体",
+                business_scope="化合物半导体材料研发、生产与销售",
+            )
+        ]
+        result = MagicMock()
+        result.scalars.return_value.all.return_value = items
+        session = AsyncMock()
+        session.execute.return_value = result
+
+        rows = await db_tools.query_industry_companies(session, "半导体")
+
+        assert rows == [
+            {
+                "stock_code": "600703",
+                "stock_name": "三安光电",
+                "market": "SH",
+                "industry_level_2": "半导体材料",
+                "industry_level_3": "化合物半导体",
+                "business_scope": "化合物半导体材料研发、生产与销售",
+            }
+        ]
+
+    def test_default_limit_is_150(self) -> None:
+        signature = inspect.signature(db_tools.query_industry_companies)
+        assert signature.parameters["limit"].default == 150
+
+    @pytest.mark.asyncio
+    async def test_matches_all_industry_levels(self) -> None:
+        result = MagicMock()
+        result.scalars.return_value.all.return_value = []
+        session = AsyncMock()
+        session.execute.return_value = result
+
+        await db_tools.query_industry_companies(session, "半导体")
+
+        stmt = str(session.execute.await_args.args[0])
+        for column in ("industry_level_1", "industry_level_2", "industry_level_3"):
+            assert column in stmt
 
 
 @pytest.mark.unit

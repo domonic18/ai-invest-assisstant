@@ -15,12 +15,21 @@ from app.models.stock import StockBasic
 
 
 async def query_industry_companies(
-    session: AsyncSession, industry: str, limit: int = 30
+    session: AsyncSession, industry: str, limit: int = 150
 ) -> list[dict]:
-    """查询指定一级行业的上市公司。"""
+    """查询指定行业的上市公司（含经营范围，供产业链环节推导）。
+
+    行业名按一/二/三级行业标签匹配（如「半导体」为二级行业，归属一级「电子」）。
+    """
     result = await session.execute(
         select(StockBasic)
-        .where(StockBasic.industry_level_1 == industry)
+        .where(
+            or_(
+                StockBasic.industry_level_1 == industry,
+                StockBasic.industry_level_2 == industry,
+                StockBasic.industry_level_3 == industry,
+            )
+        )
         .limit(limit)
     )
     return [
@@ -30,6 +39,7 @@ async def query_industry_companies(
             "market": item.market,
             "industry_level_2": item.industry_level_2,
             "industry_level_3": item.industry_level_3,
+            "business_scope": item.business_scope,
         }
         for item in result.scalars().all()
     ]
