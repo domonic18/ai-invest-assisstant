@@ -254,7 +254,7 @@ export async function fetchWatchlistQuotes(): Promise<WatchlistQuote[]> {
 /** 指定日期不是交易日（每日复盘只对交易日有效）。 */
 export class NonTradingDayError extends Error {}
 
-/** 只读取已生成的 AI 复盘；不存在时返回 null（不会触发生成）。 */
+/** 只读取已生成的 AI 复盘；不存在时（204）返回 null（不会触发生成）。 */
 export async function fetchMarketReview(
   tradeDate?: string,
 ): Promise<MarketReview | null> {
@@ -263,17 +263,15 @@ export async function fetchMarketReview(
       ENDPOINTS.market.aiReview,
       { params: { trade_date: tradeDate } },
     )
+    if (response.status === 204) {
+      return null
+    }
     return mapMarketReview(response.data)
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 404) {
-        return null
-      }
-      if (error.response?.status === 400) {
-        const detail = (error.response.data as { detail?: string } | undefined)
-          ?.detail
-        throw new NonTradingDayError(detail ?? '该日不是交易日')
-      }
+    if (axios.isAxiosError(error) && error.response?.status === 400) {
+      const detail = (error.response.data as { detail?: string } | undefined)
+        ?.detail
+      throw new NonTradingDayError(detail ?? '该日不是交易日')
     }
     throw error
   }

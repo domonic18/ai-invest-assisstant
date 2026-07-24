@@ -70,14 +70,15 @@ class TestGetAiReview:
         assert response.status_code == 200
         assert response.json()["cached"] is True
 
-    def test_404_when_not_generated(self, auth_client) -> None:
+    def test_204_when_not_generated(self, auth_client) -> None:
         with patch(
             "app.api.v1.market.market_review_service.get_market_review",
             AsyncMock(return_value=None),
         ):
             response = auth_client.get("/api/v1/market/ai-review")
 
-        assert response.status_code == 404
+        assert response.status_code == 204
+        assert response.content == b""
 
 
 @pytest.mark.unit
