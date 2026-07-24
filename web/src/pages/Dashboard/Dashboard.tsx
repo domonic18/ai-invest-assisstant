@@ -49,7 +49,7 @@ export function Dashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Typography.Title level={4} className="!mb-0">每日复盘</Typography.Title>
           <Typography.Text className="text-xs text-gray-500">
@@ -74,7 +74,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-6">
         <div className="xl:col-span-2 space-y-6">
           <MarketStatsSection
             indices={indices}

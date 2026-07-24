@@ -154,11 +154,11 @@ export function LimitUpSection({
                 >
                   {boards}
                 </span>
-                <Link to={`/stock/${item.stockCode}`} className="flex-1 font-medium">
+                <Link to={`/stock/${item.stockCode}`} className="flex-1 font-medium truncate">
                   {item.stockName}
                 </Link>
-                <span className="font-mono text-xs text-gray-500">{item.stockCode}</span>
-                <Tag color="default">{item.industry ?? '未分类'}</Tag>
+                <span className="hidden sm:inline font-mono text-xs text-gray-500">{item.stockCode}</span>
+                <Tag color="default" className="hidden sm:inline-block">{item.industry ?? '未分类'}</Tag>
                 <span className={`text-sm font-medium ${changeColor(item.changePct)}`}>
                   {item.changePct != null ? formatPercent(item.changePct) : '-'}
                 </span>
@@ -175,7 +175,7 @@ export function LimitUpSection({
         variant="borderless"
         title="涨停复盘"
         extra={
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center justify-end gap-2">
             <span className="text-xs text-gray-400">
               共 {data.total} 只涨停 · 首板 {data.firstBoard} · 连板 {data.continuous}
             </span>
@@ -246,16 +246,18 @@ export function LimitUpSection({
                     >
                       {item.stockName}
                     </Link>
-                    <span className="w-16 font-mono text-xs text-gray-500">
+                    <span className="hidden sm:inline w-16 font-mono text-xs text-gray-500">
                       {item.stockCode}
                     </span>
-                    <span className="w-14 text-right font-mono text-xs text-gray-400">
+                    <span className="hidden sm:inline w-14 text-right font-mono text-xs text-gray-400">
                       {formatSealTime(item.lastSealTime ?? item.firstSealTime)}
                     </span>
-                    <IntradaySpark
-                      points={intraday?.series[item.stockCode]}
-                      changePct={item.changePct}
-                    />
+                    <span className="hidden sm:inline-flex">
+                      <IntradaySpark
+                        points={intraday?.series[item.stockCode]}
+                        changePct={item.changePct}
+                      />
+                    </span>
                     <ThemeTags item={item} />
                   </div>
                 ))}
