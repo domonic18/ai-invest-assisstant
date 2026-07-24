@@ -5,6 +5,8 @@ import type { SectorType } from '@/api/fundFlow'
 import { useSectorFundFlowTrend } from '@/hooks/useFundFlow'
 import { useColorScheme } from '@/stores/settings'
 
+import { SourceNote } from '@/components/common/SourceNote'
+
 import { SectorFlowAreaChart } from './SectorFlowAreaChart'
 import { SectorRankBarChart } from './SectorRankBarChart'
 
@@ -88,11 +90,16 @@ export function CapitalFlow() {
                 description="趋势图需至少 2 个交易日数据，每日 17:30 采集积累后自动展示"
               />
             ) : (
-              <SectorFlowAreaChart
-                data={data}
-                selectedDate={selectedDate}
-                onSelectDate={setSelectedDate}
-              />
+              <>
+                <SectorFlowAreaChart
+                  data={data}
+                  selectedDate={selectedDate}
+                  onSelectDate={setSelectedDate}
+                />
+                <SourceNote>
+                  板块资金流向来自同花顺行业资金流（以行业名称作为板块代码），概念板块暂未覆盖
+                </SourceNote>
+              </>
             )}
           </Card>
           <Card
@@ -104,6 +111,9 @@ export function CapitalFlow() {
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
             />
+            <SourceNote>
+              当日排名与趋势数据均来自同花顺行业资金流，由每日盘后采集累积
+            </SourceNote>
           </Card>
         </>
       )}

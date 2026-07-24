@@ -5,6 +5,7 @@ import ReactECharts from 'echarts-for-react'
 import type { EChartsOption } from 'echarts'
 import { useState } from 'react'
 
+import { SourceNote } from '@/components/common/SourceNote'
 import { useIndexAuctionTrend } from '@/hooks/useAuction'
 import { useColorScheme } from '@/stores/settings'
 
@@ -113,7 +114,12 @@ export function AuctionReview() {
             description="暂无集合竞价数据（指数竞价采集任务交易日 9:26~9:29 运行后可用）"
           />
         ) : (
-          <ReactECharts option={option} style={{ height: '480px', width: '100%' }} notMerge />
+          <>
+            <ReactECharts option={option} style={{ height: '480px', width: '100%' }} notMerge />
+            <SourceNote>
+              指数 9:25 集合竞价成交额由 tushare stk_auction 聚合成分股 9:25 撮合数据计算
+            </SourceNote>
+          </>
         )}
       </Card>
     </div>
