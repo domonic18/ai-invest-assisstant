@@ -1,187 +1,272 @@
-import {
-  EditOutlined,
-  EyeOutlined,
-  FileTextOutlined,
-  SearchOutlined,
-} from '@ant-design/icons'
+import { FileTextOutlined, SearchOutlined } from '@ant-design/icons'
 import {
   Button,
   Card,
   DatePicker,
-  Form,
+  Empty,
   Input,
   Modal,
-  Space,
-  Table,
+  Pagination,
+  Select,
+  Spin,
   Tag,
-  Typography,
   message,
 } from 'antd'
 import type { Dayjs } from 'dayjs'
+import dayjs from 'dayjs'
 import { useState } from 'react'
 
+import { MarkdownText } from '@/components/common/MarkdownText'
 import {
   useResearch,
-  useResearchReport,
+  useResearchFilters,
+  useResearchPdfUrl,
   useSummarizeResearchReport,
 } from '@/hooks/useResearch'
 import type { ResearchReport } from '@ai-invest/shared'
 
-interface FilterForm {
-  stockCode?: string
-  q?: string
-  dateRange?: [Dayjs | null, Dayjs | null] | null
+interface Params {
+  q: string
+  industry?: string
+  broker?: string
+  startDate?: string
+  endDate?: string
+  page: number
+  pageSize: number
+}
+
+interface SummaryModal {
+  title: string
+  content: string
+}
+
+function summarySnippet(summary: string): string {
+  return summary
+    .replace(/[#*`>-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+interface ResearchCardProps {
+  report: ResearchReport
+  summarizing: boolean
+  pdfLoading: boolean
+  onShowSummary: () => void
+  onOpenPdf: () => void
+}
+
+function ResearchCard({
+  report,
+  summarizing,
+  pdfLoading,
+  onShowSummary,
+  onOpenPdf,
+}: ResearchCardProps) {
+  return (
+    <Card variant="outlined" size="small" className="hover:shadow-md transition-shadow">
+      <div className="flex gap-4">
+        <div className="hidden sm:flex w-[72px] h-[96px] shrink-0 rounded-md bg-gradient-to-br from-indigo-500 to-indigo-700 text-white items-center justify-center text-center text-sm font-bold px-1">
+          {report.industry ? (
+            <span className="line-clamp-3">{report.industry}</span>
+          ) : (
+            <FileTextOutlined className="text-2xl" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0 flex flex-col gap-2">
+          <div className="text-base font-semibold line-clamp-2" title={report.title}>
+            {report.title}
+          </div>
+          <div className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
+            {report.hasSummary && report.summary
+              ? summarySnippet(report.summary)
+              : report.rating
+                ? `评级：${report.rating}${report.industry ? ` · ${report.industry}` : ''}`
+                : '尚未生成 AI 摘要'}
+          </div>
+          <div className="text-xs text-gray-400 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>{report.broker ?? '未知券商'}</span>
+            <span>·</span>
+            <span>
+              {report.publishDate ? dayjs(report.publishDate).format('YYYY-MM-DD') : '-'}
+            </span>
+            {report.pages != null && (
+              <>
+                <span>·</span>
+                <span>{report.pages} 页 PDF</span>
+              </>
+            )}
+            {report.rating && <Tag color="blue">{report.rating}</Tag>}
+            {report.hasSummary && <Tag color="green">AI 摘要已生成</Tag>}
+          </div>
+          <div className="flex flex-wrap gap-2 mt-1">
+            <Button size="small" type="primary" ghost loading={summarizing} onClick={onShowSummary}>
+              AI 摘要
+            </Button>
+            <Button size="small" loading={pdfLoading} onClick={onOpenPdf}>
+              在线阅读
+            </Button>
+            <Button size="small" loading={pdfLoading} onClick={onOpenPdf}>
+              下载 PDF
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
 }
 
 export function Research() {
-  const [form] = Form.useForm<FilterForm>()
-  const [params, setParams] = useState({
-    stockCode: '',
-    q: '',
-    startDate: '',
-    endDate: '',
-    page: 1,
-    pageSize: 20,
-  })
-  const [detailId, setDetailId] = useState<number | null>(null)
-  const [summaryId, setSummaryId] = useState<number | null>(null)
+  const [params, setParams] = useState<Params>({ q: '', page: 1, pageSize: 10 })
+  const [keyword, setKeyword] = useState('')
+  const [industry, setIndustry] = useState<string>()
+  const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
+  const [summaryModal, setSummaryModal] = useState<SummaryModal | null>(null)
+  const [summarizingId, setSummarizingId] = useState<number | null>(null)
+  const [pdfId, setPdfId] = useState<number | null>(null)
 
   const { data, isLoading } = useResearch(params)
-  const { data: detail } = useResearchReport(detailId)
+  const { data: filters } = useResearchFilters()
   const summarizeMutation = useSummarizeResearchReport()
+  const pdfUrlMutation = useResearchPdfUrl()
 
-  const handleSearch = (values: FilterForm) => {
-    const [start, end] = values.dateRange || []
-    setParams({
-      stockCode: values.stockCode || '',
-      q: values.q || '',
-      startDate: start ? start.format('YYYY-MM-DD') : '',
-      endDate: end ? end.format('YYYY-MM-DD') : '',
+  const handleSearch = () => {
+    const [start, end] = range ?? []
+    setParams((prev) => ({
+      ...prev,
+      q: keyword,
+      industry,
+      startDate: start ? start.format('YYYY-MM-DD') : undefined,
+      endDate: end ? end.format('YYYY-MM-DD') : undefined,
       page: 1,
-      pageSize: params.pageSize,
-    })
+    }))
   }
 
-  const handleSummarize = async (id: number) => {
-    setSummaryId(id)
+  const handleBrokerChange = (broker?: string) => {
+    setParams((prev) => ({ ...prev, broker, page: 1 }))
+  }
+
+  const handleShowSummary = async (report: ResearchReport) => {
+    if (report.hasSummary && report.summary) {
+      setSummaryModal({ title: report.title, content: report.summary })
+      return
+    }
+    setSummarizingId(report.id)
     try {
-      const summary = await summarizeMutation.mutateAsync(id)
-      message.success(`摘要：${summary}`)
+      const result = await summarizeMutation.mutateAsync(report.id)
+      setSummaryModal({ title: report.title, content: result.summary })
     } catch (err) {
-      message.error(err instanceof Error ? err.message : '生成摘要失败')
+      message.error(err instanceof Error ? err.message : 'AI 摘要生成失败')
     } finally {
-      setSummaryId(null)
+      setSummarizingId(null)
     }
   }
 
-  const columns = [
-    {
-      title: '标题',
-      dataIndex: 'title',
-      key: 'title',
-      render: (value: string, record: ResearchReport) => (
-        <Space>
-          <FileTextOutlined />
-          <span>{value}</span>
-          {record.stockCode && <Tag>{record.stockCode}</Tag>}
-        </Space>
-      ),
-    },
-    { title: '来源', dataIndex: 'source', key: 'source', render: (value: string | null) => value || '-' },
-    { title: '发布日期', dataIndex: 'publishDate', key: 'publishDate', render: (value: string | null) => value || '-' },
-    {
-      title: '情感',
-      dataIndex: 'sentiment',
-      key: 'sentiment',
-      render: (value: number | null) =>
-        value === null ? '-' : value > 0 ? <Tag color="green">{value}</Tag> : <Tag color="red">{value}</Tag>,
-    },
-    {
-      title: '操作',
-      key: 'actions',
-      render: (_: unknown, record: ResearchReport) => (
-        <Space>
-          <Button
-            size="small"
-            icon={<EyeOutlined />}
-            onClick={() => setDetailId(record.id)}
-          >
-            详情
-          </Button>
-          <Button
-            size="small"
-            icon={<EditOutlined />}
-            loading={summaryId === record.id}
-            onClick={() => handleSummarize(record.id)}
-          >
-            摘要
-          </Button>
-        </Space>
-      ),
-    },
-  ]
+  const handleOpenPdf = async (report: ResearchReport) => {
+    setPdfId(report.id)
+    try {
+      const url = await pdfUrlMutation.mutateAsync(report.id)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'PDF 暂不可用')
+    } finally {
+      setPdfId(null)
+    }
+  }
 
   return (
-    <Card title="研报中心" variant="borderless">
-      <Form
-        form={form}
-        layout="inline"
-        onFinish={handleSearch}
-        className="mb-4"
-      >
-        <Form.Item name="stockCode" label="股票代码">
-          <Input placeholder="000001" allowClear />
-        </Form.Item>
-        <Form.Item name="q" label="关键词">
-          <Input placeholder="标题/内容" allowClear />
-        </Form.Item>
-        <Form.Item name="dateRange" label="发布日期">
-          <DatePicker.RangePicker />
-        </Form.Item>
-        <Form.Item>
-          <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
+    <div className="space-y-4">
+      <Card variant="borderless" size="small">
+        <div className="flex flex-wrap items-center gap-3">
+          <Input
+            placeholder="搜索研报标题、公司、行业…"
+            allowClear
+            className="w-full sm:w-60"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            onPressEnter={handleSearch}
+          />
+          <Select
+            placeholder="全部行业"
+            allowClear
+            className="w-full sm:w-40"
+            value={industry}
+            onChange={(value) => setIndustry(value)}
+            options={(filters?.industries ?? []).map((item) => ({
+              label: item,
+              value: item,
+            }))}
+          />
+          <DatePicker.RangePicker
+            className="w-full sm:w-auto"
+            value={range}
+            onChange={(value) => setRange(value)}
+          />
+          <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
             查询
           </Button>
-        </Form.Item>
-      </Form>
+          <span className="text-xs text-gray-400">共 {data?.total ?? 0} 篇研报</span>
+        </div>
+      </Card>
 
-      <Table
-        dataSource={data?.items || []}
-        columns={columns}
-        rowKey="id"
-        loading={isLoading}
-        pagination={{
-          current: data?.page,
-          pageSize: data?.pageSize,
-          total: data?.total,
-          onChange: (page, pageSize) => setParams((prev) => ({ ...prev, page, pageSize })),
-        }}
-      />
+      <div>
+        <div className="text-xs text-gray-400 mb-2">券商</div>
+        <div className="flex flex-wrap gap-2">
+          <Tag.CheckableTag checked={!params.broker} onChange={() => handleBrokerChange(undefined)}>
+            全部
+          </Tag.CheckableTag>
+          {(filters?.brokers ?? []).map((broker) => (
+            <Tag.CheckableTag
+              key={broker}
+              checked={params.broker === broker}
+              onChange={() => handleBrokerChange(broker)}
+            >
+              {broker}
+            </Tag.CheckableTag>
+          ))}
+        </div>
+      </div>
+
+      <Spin spinning={isLoading}>
+        <div className="space-y-3">
+          {data?.items.map((report) => (
+            <ResearchCard
+              key={report.id}
+              report={report}
+              summarizing={summarizingId === report.id}
+              pdfLoading={pdfId === report.id}
+              onShowSummary={() => handleShowSummary(report)}
+              onOpenPdf={() => handleOpenPdf(report)}
+            />
+          ))}
+          {!isLoading && (data?.items.length ?? 0) === 0 && (
+            <Card variant="borderless">
+              <Empty description="暂无研报数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            </Card>
+          )}
+        </div>
+      </Spin>
+
+      <div className="flex justify-end">
+        <Pagination
+          current={data?.page ?? params.page}
+          pageSize={data?.pageSize ?? params.pageSize}
+          total={data?.total ?? 0}
+          showSizeChanger
+          onChange={(page, pageSize) =>
+            setParams((prev) => ({ ...prev, page, pageSize }))
+          }
+        />
+      </div>
 
       <Modal
-        title={detail?.title || '研报详情'}
-        open={!!detailId}
-        onCancel={() => setDetailId(null)}
+        title={summaryModal?.title}
+        open={!!summaryModal}
+        onCancel={() => setSummaryModal(null)}
         footer={null}
-        width={800}
+        width={720}
       >
-        {detail && (
-          <Space direction="vertical" className="w-full">
-            <Typography.Text type="secondary">
-              {detail.source} · {detail.publishDate}
-            </Typography.Text>
-            {detail.summary && (
-              <Typography.Paragraph>
-                <strong>摘要：</strong>
-                {detail.summary}
-              </Typography.Paragraph>
-            )}
-            <Typography.Paragraph>
-              {detail.content || '暂无正文'}
-            </Typography.Paragraph>
-          </Space>
-        )}
+        {summaryModal && <MarkdownText content={summaryModal.content} />}
       </Modal>
-    </Card>
+    </div>
   )
 }

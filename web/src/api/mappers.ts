@@ -325,6 +325,11 @@ export function mapResearchReport(dto: ApiResearchReportResponse): ResearchRepor
     industryTags: dto.industry_tags,
     extra: dto.extra,
     createdAt: dto.created_at,
+    broker: dto.broker,
+    rating: dto.rating,
+    pages: dto.pages,
+    industry: dto.industry,
+    hasSummary: dto.has_summary,
   }
 }
 
