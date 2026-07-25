@@ -127,13 +127,25 @@ export interface ResearchReport {
   industryTags: string[] | null
   extra: Record<string, unknown>
   createdAt: string
+  broker: string | null
+  rating: string | null
+  pages: number | null
+  industry: string | null
+  hasSummary: boolean
 }
 
 export interface ResearchReportFilters {
   stockCode?: string
   q?: string
+  broker?: string
+  industry?: string
   startDate?: string
   endDate?: string
+}
+
+export interface ResearchReportFilterOptions {
+  brokers: string[]
+  industries: string[]
 }
 
 export interface SectorFundFlow {

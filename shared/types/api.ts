@@ -360,6 +360,21 @@ export interface ApiResearchReportResponse {
   industry_tags: string[] | null
   extra: Record<string, unknown>
   created_at: string
+  broker: string | null
+  rating: string | null
+  pages: number | null
+  industry: string | null
+  has_summary: boolean
+}
+
+export interface ApiResearchReportFiltersResponse {
+  brokers: string[]
+  industries: string[]
+}
+
+export interface ApiResearchSummarizeResponse {
+  summary: string
+  cached: boolean
 }
 
 export interface ApiResearchReportListRequest {

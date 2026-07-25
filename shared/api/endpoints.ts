@@ -31,8 +31,10 @@ export const ENDPOINTS = {
   },
   research: {
     list: `${API_BASE}/research`,
+    filters: `${API_BASE}/research/filters`,
     detail: (id: number | string) => `${API_BASE}/research/${id}`,
     summarize: (id: number | string) => `${API_BASE}/research/${id}/summarize`,
+    pdfUrl: (id: number | string) => `${API_BASE}/research/${id}/pdf-url`,
   },
   hotspot: {
     list: `${API_BASE}/hotspot`,
