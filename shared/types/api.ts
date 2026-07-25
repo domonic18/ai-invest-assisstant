@@ -386,6 +386,44 @@ export interface ApiResearchReportListRequest {
   page_size?: number
 }
 
+export interface ApiFinancialReportResponse {
+  id: number
+  stock_code: string | null
+  stock_name: string | null
+  title: string | null
+  report_type: string | null
+  report_date: string | null
+  file_size: number | null
+  summary: string | null
+  has_summary: boolean
+  created_at: string
+}
+
+export interface ApiFinancialSummarizeResponse {
+  summary: string
+  cached: boolean
+}
+
+export interface ApiFinancialReportCollectRequest {
+  stock_code: string
+  report_types?: string[] | null
+  start_date?: string | null
+  end_date?: string | null
+}
+
+export interface ApiFinancialReportCollectResponse {
+  log_id: number
+  status: string
+}
+
+export interface ApiFinancialReportCollectLogResponse {
+  log_id: number
+  status: string
+  records_count: number
+  error_msg: string | null
+  finished_at: string | null
+}
+
 export interface ApiSectorFundFlowResponse {
   sector_code: string
   sector_name: string

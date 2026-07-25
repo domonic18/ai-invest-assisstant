@@ -36,6 +36,17 @@ export const ENDPOINTS = {
     summarize: (id: number | string) => `${API_BASE}/research/${id}/summarize`,
     pdfUrl: (id: number | string) => `${API_BASE}/research/${id}/pdf-url`,
   },
+  financialReports: {
+    list: `${API_BASE}/financial-reports`,
+    detail: (id: number | string) => `${API_BASE}/financial-reports/${id}`,
+    summarize: (id: number | string) =>
+      `${API_BASE}/financial-reports/${id}/summarize`,
+    pdfUrl: (id: number | string) =>
+      `${API_BASE}/financial-reports/${id}/pdf-url`,
+    collect: `${API_BASE}/financial-reports/collect`,
+    collectLog: (logId: number | string) =>
+      `${API_BASE}/financial-reports/collect-logs/${logId}`,
+  },
   hotspot: {
     list: `${API_BASE}/hotspot`,
   },

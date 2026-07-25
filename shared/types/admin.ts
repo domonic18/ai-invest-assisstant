@@ -148,6 +148,27 @@ export interface ResearchReportFilterOptions {
   industries: string[]
 }
 
+export interface FinancialReport {
+  id: number
+  stockCode: string | null
+  stockName: string | null
+  title: string | null
+  reportType: string | null
+  reportDate: string | null
+  fileSize: number | null
+  summary: string | null
+  hasSummary: boolean
+  createdAt: string
+}
+
+export interface FinancialReportFilters {
+  stockCode?: string
+  q?: string
+  reportType?: string
+  startDate?: string
+  endDate?: string
+}
+
 export interface SectorFundFlow {
   sectorCode: string
   sectorName: string
