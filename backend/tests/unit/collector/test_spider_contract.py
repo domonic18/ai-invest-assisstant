@@ -23,9 +23,6 @@ from collector.spiders.eastmoney_financial_statement import (
 from collector.spiders.eastmoney_fund_flow import EastMoneyFundFlowCollector
 from collector.spiders.eastmoney_fund_holdings import EastMoneyFundHoldingsCollector
 from collector.spiders.eastmoney_limit_up_pool import EastMoneyLimitUpPoolCollector
-from collector.spiders.eastmoney_research_report import (
-    EastMoneyResearchReportCollector,
-)
 from collector.spiders.eastmoney_sector_fund_flow import (
     EastMoneySectorFundFlowCollector,
 )
@@ -298,15 +295,6 @@ CONTRACTS: list[SpiderContract] = [
         has_normalize=True,
         dedup_keys=["trade_date"],
         required_fields=["trade_date"],
-    ),
-    SpiderContract(
-        name="eastmoney_research_report",
-        cls=EastMoneyResearchReportCollector,
-        config={"source": "eastmoney", "data_type": "research-report"},
-        store=StoreContract(table="news_announcement", conflict_key="source_url"),
-        has_normalize=True,
-        dedup_keys=["source_url", "stock_code", "publish_date"],
-        required_fields=["stock_code", "title", "publish_date"],
     ),
     SpiderContract(
         name="eastmoney_fund_holdings",

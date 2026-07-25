@@ -61,6 +61,8 @@ class ResearchReportListRequest(BaseModel):
 
     stock_code: str | None = Field(None, max_length=10)
     q: str | None = Field(None, max_length=100)
+    broker: str | None = Field(None, max_length=100)
+    industry: str | None = Field(None, max_length=50)
     start_date: date | None = None
     end_date: date | None = None
     page: int = Field(default=1, ge=1)
@@ -84,6 +86,18 @@ class ResearchReportResponse(BaseModel):
     industry_tags: list[str] | None = None
     extra: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
+    broker: str | None = None
+    rating: str | None = None
+    pages: int | None = None
+    industry: str | None = None
+    has_summary: bool = False
+
+
+class ResearchReportFiltersResponse(BaseModel):
+    """已采研报的券商/行业去重列表（快筛 badge 数据源）。"""
+
+    brokers: list[str] = Field(default_factory=list)
+    industries: list[str] = Field(default_factory=list)
 
 
 class ResearchReportDetailResponse(ResearchReportResponse):

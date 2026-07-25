@@ -72,6 +72,8 @@ dependencies = [
     # WeChat Mini Program auth (optional)
     "itsdangerous>=2.2.0",
     "tushare>=1.4.29",
+    "curl-cffi>=0.15.0",
+    "pypdf>=6.14.2",
 ]
 
 [tool.uv]

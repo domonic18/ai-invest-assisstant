@@ -139,6 +139,7 @@ TASK_SPECS: dict[str, TaskSpec] = {
             collectors={
                 "eastmoney": "collector.spiders.eastmoney_research_report:EastMoneyResearchReportCollector",
             },
+            run_params=("start_date", "end_date"),
         ),
         TaskSpec(
             name="financial-report",
