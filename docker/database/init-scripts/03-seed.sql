@@ -26,6 +26,18 @@ FROM collector_channel_config
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
+-- 防御性补齐 eastmoney 渠道的 research-report 数据类型（渠道已存在时）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["research-report"]'::jsonb
+WHERE source = 'eastmoney'
+  AND NOT supported_data_types @> '["research-report"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'research-report', 1
+FROM collector_channel_config
+WHERE source = 'eastmoney'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
 -- Default collector tasks
 INSERT INTO collector_task (task_name, task_type, source, schedule, is_active)
 VALUES
@@ -54,5 +66,7 @@ VALUES
     -- A50 期指日盘 16:30 收盘，17:40 取当日日 K，21:40 夜盘修正
     ('eastmoney_a50_kline', 'a50-kline', 'eastmoney', '40 17,21 * * 1-5', true),
     -- 16:00 收盘后自动生成大盘综述 AI base，避免多租户重复调用 LLM
-    ('market_daily_review_1600', 'market-daily-review', 'internal', '0 16 * * 1-5', true)
+    ('market_daily_review_1600', 'market-daily-review', 'internal', '0 16 * * 1-5', true),
+    -- 研报每日 8 点/18 点采集（东财 reportapi 列表 + PDF 落 MinIO）
+    ('eastmoney_research_report', 'research-report', 'eastmoney', '0 8,18 * * *', true)
 ON CONFLICT (task_name) DO NOTHING;
