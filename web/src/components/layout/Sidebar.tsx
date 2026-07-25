@@ -33,6 +33,7 @@ const REVIEW_MENU_ITEMS: MenuItem[] = [
 const ANALYSIS_MENU_ITEMS: MenuItem[] = [
   { key: '/chain', icon: <HeatMapOutlined />, label: '产业链分析' },
   { key: '/hotspot', icon: <LineChartOutlined />, label: '热点追踪' },
+  { key: '/financial-reports', icon: <FileTextOutlined />, label: '财报中心' },
   { key: '/research', icon: <ReadOutlined />, label: '研报中心' },
 ]
 

@@ -16,6 +16,7 @@ import { Collector } from './pages/Admin/Collector'
 import { CollectorChannelConfig } from './pages/Admin/CollectorChannelConfig/CollectorChannelConfig'
 import { Dashboard } from './pages/Dashboard/Dashboard'
 import { Financial } from './pages/Financial/Financial'
+import { FinancialReportPage } from './pages/FinancialReport/FinancialReport'
 import { Hotspot } from './pages/Hotspot/Hotspot'
 import { LLMConfig } from './pages/Admin/LLMConfig/LLMConfig'
 import { Login } from './pages/Login/Login'
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
       { path: 'capital-flow', element: <CapitalFlow /> },
       { path: 'auction', element: <AuctionReview /> },
       { path: 'research', element: <Research /> },
+      { path: 'financial-reports', element: <FinancialReportPage /> },
       { path: 'financial/:code', element: <Financial /> },
       { path: 'settings', element: <Settings /> },
       {
