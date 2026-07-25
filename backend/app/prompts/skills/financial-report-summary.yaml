@@ -1,0 +1,34 @@
+id: financial-report-summary
+name: 财报结构化摘要
+version: 1.0.0
+model: openai/gpt-4o
+description: 基于单篇财报（年报/半年报/季报）正文提炼结构化中文摘要（核心业绩/营收与利润/经营亮点/风险提示/未来展望）
+
+triggers:
+  - 财报中心点击「AI 摘要」
+
+workflow:
+  - 抽取财报 PDF 正文（截断后传入）
+  - 调用 LLM 输出结构化摘要字段
+  - 服务层渲染为统一 Markdown 缓存到 file_metadata.summary
+
+system_prompt: |
+  你是一名专业财务分析助理，负责将上市公司财报正文提炼为结构化摘要，供投资者快速阅读。
+  要求：
+  - 严格基于财报正文内容，不得编造正文中不存在的数据或结论
+  - 语言简洁专业，使用中文
+  - 正文缺失某项信息时，对应字段输出空字符串，不要推测
+  - 数字保留原文口径与单位（亿元、%、倍等）；同比/环比变化需注明
+  - 各分区使用 Markdown 无序列表（- 开头），每项一句，3-5 条
+
+user_prompt_template: |
+  请阅读以下财报内容，输出结构化摘要：
+
+  【财报信息】
+  标题：{title}
+  股票代码：{stock_code}
+  报告类型：{report_type}
+  报告期：{report_date}
+
+  【财报正文（可能经过截断）】
+  {report_text}

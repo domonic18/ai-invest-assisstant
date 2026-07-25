@@ -5,6 +5,7 @@ from app.api.v1 import (
     auth,
     chain,
     financial,
+    financial_report,
     fund_flow,
     hotspot,
     kline,
@@ -33,6 +34,9 @@ api_router.include_router(stocks.router, prefix="/stocks", tags=["stocks"])
 api_router.include_router(kline.router, prefix="/kline", tags=["kline"])
 api_router.include_router(chain.router, prefix="/chain", tags=["chain"])
 api_router.include_router(research.router, prefix="/research", tags=["research"])
+api_router.include_router(
+    financial_report.router, prefix="/financial-reports", tags=["financial-reports"]
+)
 api_router.include_router(hotspot.router, prefix="/hotspot", tags=["hotspot"])
 api_router.include_router(financial.router, prefix="/financial", tags=["financial"])
 api_router.include_router(auction.router, prefix="/auction", tags=["auction"])
