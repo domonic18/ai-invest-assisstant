@@ -250,6 +250,11 @@ export interface FinancialHealth {
   metrics: Record<string, number | null>
 }
 
+export interface FinancialHistory {
+  stockCode: string
+  history: FinancialHealth[]
+}
+
 export interface AdminUser {
   id: number
   username: string

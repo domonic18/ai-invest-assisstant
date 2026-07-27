@@ -56,6 +56,7 @@ export const ENDPOINTS = {
   },
   financial: {
     health: (code: string) => `${API_BASE}/financial/${code}`,
+    history: (code: string) => `${API_BASE}/financial/${code}/history`,
   },
   auction: {
     get: (code: string) => `${API_BASE}/auction/${code}`,

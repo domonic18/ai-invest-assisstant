@@ -580,6 +580,11 @@ export interface ApiFinancialHealthResponse {
   metrics: Record<string, number | null>
 }
 
+export interface ApiFinancialHistoryResponse {
+  stock_code: string
+  history: ApiFinancialHealthResponse[]
+}
+
 export interface ApiAdminUserResponse {
   id: number
   username: string
