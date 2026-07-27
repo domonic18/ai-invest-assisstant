@@ -9,25 +9,19 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { StockChartView, type StockChartViewIndicators } from '@/components/charts/StockChartView'
+import { FinancialTrendCharts } from '@/components/charts/FinancialTrendCharts'
 import { useResearch } from '@/hooks/useResearch'
 import { useStockDetail } from '@/hooks/useStocks'
 import { useFinancial } from '@/hooks/useFinancial'
+import { useFinancialHistory } from '@/hooks/useFinancialHistory'
 import { useAddWatchlistItem, useWatchlist } from '@/hooks/useWatchlist'
 import { StockQuoteHeader } from './StockQuoteHeader'
 import { StockSectors } from './StockSectors'
+import { FINANCIAL_METRIC_LABELS } from '@/constants/financial'
 import type { ResearchReport } from '@ai-invest/shared'
 
 const PANEL_BG = '#0c0e12'
 const BORDER_COLOR = '#23262e'
-
-const METRIC_LABELS: Record<string, string> = {
-  debt_ratio: '资产负债率',
-  current_ratio: '流动比率',
-  roe: '净资产收益率 (ROE)',
-  gross_margin: '毛利率',
-  net_margin: '净利率',
-  operating_cf_ratio: '经营现金流/营收',
-}
 
 const STORAGE_KEY = 'ai-invest.stock-detail.views'
 
@@ -98,6 +92,7 @@ function findPresetKey(views: ChartViewConfig[]): ViewPresetKey | 'custom' {
 
 function StockFinancial({ code }: { code: string }) {
   const { data, isLoading } = useFinancial(code)
+  const { data: historyData, isLoading: historyLoading } = useFinancialHistory(code, 8)
 
   if (isLoading) {
     return (
@@ -128,11 +123,21 @@ function StockFinancial({ code }: { code: string }) {
             className="flex flex-col p-2 rounded"
             style={{ backgroundColor: '#14161c' }}
           >
-            <span className="text-[10px] text-[#8c8c8c]">{METRIC_LABELS[key] || key}</span>
+            <span className="text-[10px] text-[#8c8c8c]">{FINANCIAL_METRIC_LABELS[key] || key}</span>
             <span className="text-sm text-[#d1d4dc] font-medium">{renderPercent(value)}</span>
           </div>
         ))}
       </div>
+
+      {historyLoading ? (
+        <div className="flex justify-center py-6">
+          <Spin size="small" />
+        </div>
+      ) : historyData?.history.length ? (
+        <FinancialTrendCharts history={historyData.history} />
+      ) : (
+        <Empty description="暂无历史财务趋势" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      )}
     </div>
   )
 }

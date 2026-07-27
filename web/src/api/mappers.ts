@@ -18,6 +18,7 @@ import type {
   ApiDataTypeChannelsResponse,
   ApiCollectorLogResponse,
   ApiFinancialHealthResponse,
+  ApiFinancialHistoryResponse,
   ApiIncomeStatementResponse,
   ApiKlineDataResponse,
   ApiLLMConfigResponse,
@@ -53,6 +54,7 @@ import type {
   CollectorDataTypeChannels,
   CollectorLog,
   FinancialHealth,
+  FinancialHistory,
   IncomeStatement,
   KlineData,
   LLMConfig,
@@ -502,6 +504,13 @@ export function mapFinancialHealth(dto: ApiFinancialHealthResponse): FinancialHe
       ? mapCashFlowStatement(dto.financial_cash_flow_statement)
       : null,
     metrics: dto.metrics,
+  }
+}
+
+export function mapFinancialHistory(dto: ApiFinancialHistoryResponse): FinancialHistory {
+  return {
+    stockCode: dto.stock_code,
+    history: dto.history.map(mapFinancialHealth),
   }
 }
 
