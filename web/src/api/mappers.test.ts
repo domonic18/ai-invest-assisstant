@@ -66,6 +66,8 @@ describe('mappers', () => {
       industry_level_2: '银行',
       industry_level_3: '股份制银行',
       listing_date: '1991-04-03',
+      total_shares: null,
+      circulating_shares: null,
     }
     const stock = mapStock(dto)
     expect(stock.code).toBe('000001')

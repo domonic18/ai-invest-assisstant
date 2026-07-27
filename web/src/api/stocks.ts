@@ -3,10 +3,22 @@ import type {
   ApiKlineDataResponse,
   ApiPaginatedResponse,
   ApiStockBasicResponse,
+  ApiStockIntradayResponse,
+  ApiStockKlineResponse,
+  ApiStockQuoteResponse,
+  ApiStockSectorsResponse,
 } from '@ai-invest/shared'
 
 import { apiClient } from './client'
-import { mapKlineData, mapPaginatedResponse, mapStock } from './mappers'
+import {
+  mapIntraday,
+  mapKlineData,
+  mapPaginatedResponse,
+  mapStock,
+  mapStockKline,
+  mapStockQuote,
+  mapStockSectors,
+} from './mappers'
 
 export interface SearchStocksParams {
   q: string
@@ -18,6 +30,11 @@ export interface KlineParams {
   endDate?: string
   page?: number
   pageSize?: number
+}
+
+export interface StockKlineParams {
+  period?: 'daily' | 'weekly' | 'monthly'
+  limit?: number
 }
 
 export async function searchStocks(params: SearchStocksParams) {
@@ -32,6 +49,36 @@ export async function fetchStockDetail(code: string, market?: string) {
     params: market ? { market } : undefined,
   })
   return mapStock(response.data)
+}
+
+export async function fetchStockQuote(code: string) {
+  const response = await apiClient.get<ApiStockQuoteResponse>(ENDPOINTS.stocks.quote(code))
+  return mapStockQuote(response.data)
+}
+
+export async function fetchStockKline(code: string, params: StockKlineParams = {}) {
+  const response = await apiClient.get<ApiStockKlineResponse>(ENDPOINTS.stocks.kline(code), {
+    params: {
+      period: params.period ?? 'daily',
+      limit: params.limit ?? 250,
+    },
+  })
+  return mapStockKline(response.data)
+}
+
+export async function fetchStockIntraday(code: string, tradeDate?: string) {
+  const response = await apiClient.get<ApiStockIntradayResponse>(
+    ENDPOINTS.stocks.intraday(code),
+    {
+      params: tradeDate ? { trade_date: tradeDate } : undefined,
+    },
+  )
+  return mapIntraday(response.data)
+}
+
+export async function fetchStockSectors(code: string) {
+  const response = await apiClient.get<ApiStockSectorsResponse>(ENDPOINTS.stocks.sectors(code))
+  return mapStockSectors(response.data)
 }
 
 export async function fetchKline(code: string, params: KlineParams = {}) {

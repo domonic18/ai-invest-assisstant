@@ -25,6 +25,10 @@ import type {
   ApiResearchReportResponse,
   ApiSectorFundFlowResponse,
   ApiStockBasicResponse,
+  ApiStockIntradayResponse,
+  ApiStockKlineResponse,
+  ApiStockQuoteResponse,
+  ApiStockSectorsResponse,
   ApiUserResponse,
   ApiUserSettings,
   ApiWatchlistItemResponse,
@@ -56,6 +60,10 @@ import type {
   ResearchReport,
   SectorFundFlow,
   Stock,
+  StockIntraday,
+  StockKline,
+  StockQuote,
+  StockSector,
   User,
   UserSettings,
   WatchlistItem,
@@ -115,6 +123,78 @@ export function mapKlineData(dto: ApiKlineDataResponse): KlineData {
     close: Number(dto.close),
     volume: Number(dto.volume),
     amount: Number(dto.amount),
+  }
+}
+
+export function mapStockQuote(dto: ApiStockQuoteResponse): StockQuote {
+  return {
+    code: dto.code,
+    name: dto.name,
+    price: dto.price,
+    prevClose: dto.prev_close,
+    change: dto.change,
+    changePct: dto.change_pct,
+    open: dto.open,
+    high: dto.high,
+    low: dto.low,
+    volume: dto.volume,
+    amount: dto.amount,
+    marketCap: dto.market_cap,
+    circulatingMarketCap: dto.circulating_market_cap,
+    updatedAt: dto.updated_at,
+  }
+}
+
+export function mapStockKline(dto: ApiStockKlineResponse): StockKline {
+  return {
+    code: dto.code,
+    name: dto.name,
+    period: dto.period,
+    bars: dto.bars.map((bar) => ({
+      date: bar.date,
+      open: bar.open,
+      high: bar.high,
+      low: bar.low,
+      close: bar.close,
+      volume: bar.volume,
+      amount: bar.amount,
+    })),
+  }
+}
+
+export function mapIntraday(dto: ApiStockIntradayResponse): StockIntraday {
+  return {
+    code: dto.code,
+    name: dto.name,
+    tradeDate: dto.trade_date,
+    prevClose: dto.prev_close,
+    points: dto.points.map((point) => ({
+      time: point.time,
+      price: point.price,
+      volume: point.volume,
+      amount: point.amount,
+    })),
+  }
+}
+
+export function mapStockSector(dto: ApiStockSectorsResponse['sectors'][number]): StockSector {
+  return {
+    name: dto.name,
+    type: dto.type,
+    changePct: dto.change_pct,
+    mainNetInflow: dto.main_net_inflow,
+  }
+}
+
+export function mapStockSectors(dto: ApiStockSectorsResponse): {
+  code: string
+  name: string
+  sectors: StockSector[]
+} {
+  return {
+    code: dto.code,
+    name: dto.name,
+    sectors: dto.sectors.map(mapStockSector),
   }
 }
 
