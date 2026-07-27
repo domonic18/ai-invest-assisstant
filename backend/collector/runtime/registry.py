@@ -142,6 +142,13 @@ TASK_SPECS: dict[str, TaskSpec] = {
             run_params=("start_date", "end_date"),
         ),
         TaskSpec(
+            name="concept-constituents",
+            data_type="mapping_stock_concept",
+            collectors={
+                "eastmoney": "collector.spiders.eastmoney_concept_constituents:EastmoneyConceptConstituentCollector",
+            },
+        ),
+        TaskSpec(
             name="financial-report",
             data_type="financial_statement",
             collectors={

@@ -14,6 +14,11 @@ def main() -> None:
     parser.add_argument("task", choices=TASK_MAP.keys(), help="采集任务名称")
     parser.add_argument("--period", default="daily", help="K 线周期")
     parser.add_argument("--preferred-source", default=None, help="优先使用的渠道 source")
+    parser.add_argument(
+        "--symbols",
+        default=None,
+        help="股票代码列表，逗号分隔，用于 K 线/分钟线等任务",
+    )
     parser.add_argument("--start-date", default=None, help="开始日期 (YYYY-MM-DD)")
     parser.add_argument("--end-date", default=None, help="结束日期 (YYYY-MM-DD)")
     parser.add_argument("--sector-type", default="industry", help="板块类型")
@@ -53,6 +58,8 @@ def main() -> None:
         params["report_types"] = args.report_types.split(",")
     if args.indicators:
         params["indicators"] = args.indicators.split(",")
+    if args.symbols:
+        params["symbols"] = args.symbols.split(",")
 
     result = asyncio.run(run_task(params))
     if result.status.value == "failed":
