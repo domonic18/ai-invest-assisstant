@@ -87,3 +87,12 @@ class FinancialHealthRequest(BaseModel):
     """财务健康度请求。"""
 
     report_date: date | None = None
+
+
+class FinancialHistoryResponse(BaseModel):
+    """财务历史趋势响应。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    stock_code: str
+    history: list[FinancialHealthResponse]

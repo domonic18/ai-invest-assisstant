@@ -3,11 +3,15 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db
-from app.schemas.financial import FinancialHealthRequest, FinancialHealthResponse
+from app.schemas.financial import (
+    FinancialHealthRequest,
+    FinancialHealthResponse,
+    FinancialHistoryResponse,
+)
 from app.services import financial_service
 
 router = APIRouter()
@@ -32,3 +36,18 @@ async def get_financial_health(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+
+
+@router.get("/{code}/history", response_model=FinancialHistoryResponse)
+async def get_financial_health_history(
+    code: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=20)] = 8,
+) -> FinancialHistoryResponse:
+    """获取指定股票最近多个报告期的财务健康度趋势。"""
+    history = await financial_service.get_health_history(
+        session,
+        stock_code=code,
+        limit=limit,
+    )
+    return FinancialHistoryResponse(stock_code=code, history=history)
