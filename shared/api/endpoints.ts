@@ -15,6 +15,10 @@ export const ENDPOINTS = {
   stocks: {
     search: `${API_BASE}/stocks/search`,
     detail: (code: string) => `${API_BASE}/stocks/${code}`,
+    quote: (code: string) => `${API_BASE}/stocks/${code}/quote`,
+    kline: (code: string) => `${API_BASE}/stocks/${code}/kline`,
+    intraday: (code: string) => `${API_BASE}/stocks/${code}/intraday`,
+    sectors: (code: string) => `${API_BASE}/stocks/${code}/sectors`,
   },
   kline: {
     get: (code: string) => `${API_BASE}/kline/${code}`,

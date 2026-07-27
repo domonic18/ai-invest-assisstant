@@ -54,6 +54,70 @@ export interface ApiStockBasicResponse {
   industry_level_2: string | null
   industry_level_3: string | null
   listing_date: string | null
+  total_shares: number | null
+  circulating_shares: number | null
+}
+
+export interface ApiStockQuoteResponse {
+  code: string
+  name: string
+  price: number | null
+  prev_close: number | null
+  change: number | null
+  change_pct: number | null
+  open: number | null
+  high: number | null
+  low: number | null
+  volume: number | null
+  amount: number | null
+  market_cap: number | null
+  circulating_market_cap: number | null
+  updated_at: string | null
+}
+
+export interface ApiStockKlineBar {
+  date: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+  amount: number
+}
+
+export interface ApiStockKlineResponse {
+  code: string
+  name: string
+  period: string
+  bars: ApiStockKlineBar[]
+}
+
+export interface ApiStockIntradayPoint {
+  time: string
+  price: number
+  volume: number
+  amount: number
+}
+
+export interface ApiStockIntradayResponse {
+  code: string
+  name: string
+  trade_date: string
+  prev_close: number
+  points: ApiStockIntradayPoint[]
+}
+
+export interface ApiStockSectorItem {
+  name: string
+  type: 'industry' | 'concept'
+  change_pct: number | null
+  main_net_inflow: number | null
+}
+
+export interface ApiStockSectorsResponse {
+  code: string
+  name: string
+  sectors: ApiStockSectorItem[]
 }
 
 export interface ApiKlineDataResponse {
