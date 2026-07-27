@@ -49,66 +49,31 @@
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## 2. 微信小程序部署说明
+## 2. 部署说明（响应式 Web）
 
-小程序端不部署在腾讯云上，而是通过微信开发者工具上传至微信平台。
+前端为响应式 Web 单端实现，桌面与移动端共用同一份构建产物；不再单独部署小程序。
 
-### 2.1 小程序发布流程
+### 2.1 前端发布流程
 
 ```
-开发完成 (Taro build)
+CI/CD（GitHub Actions）
     │
-    ▼
-上传至微信开发者工具
+    ├── Web 镜像构建（前端 npm run build → 后端 uv sync → 合一镜像）
     │
-    ▼
-提交审核 (微信平台)
+    ├── 推送 TCR（ccr.ccs.tencentyun.com/investment/web-api:latest）
     │
-    ▼
-审核通过 → 发布上线
+    └── SCF Web 函数拉取新镜像 → 流量切换
 ```
 
-### 2.2 小程序后端配置
+### 2.2 自定义域名
 
-小程序通过 HTTPS 调用 SCF Web 函数的 API：
+腾讯云 API 网关绑定已备案的 HTTPS 域名（如 `api.your-domain.com`），Nginx 反向代理到 FastAPI。
+Nginx 配置（`docker/web/nginx.conf`）已固化：
+- `/assets/` 长缓存（带内容哈希的产物）
+- `/index.html` 禁止启发式缓存（保证发版后立即生效）
+- `/api/` 代理超时 300s（LLM 调用可达 1-2 分钟）
 
-```typescript
-// miniapp/src/utils/request.ts
-const API_BASE = 'https://api.your-domain.com/api/v1';
-
-export async function request<T>(options: {
-  url: string;
-  method?: 'GET' | 'POST';
-  data?: any;
-}): Promise<T> {
-  const token = Taro.getStorageSync('access_token');
-  
-  const res = await Taro.request({
-    url: `${API_BASE}${options.url}`,
-    method: options.method || 'GET',
-    data: options.data,
-    header: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  
-  return res.data as T;
-}
-```
-
-### 2.3 小程序 AppID 与服务器域名配置
-
-在微信公众平台 → 开发管理 → 开发设置中配置：
-
-```
-request 合法域名: https://api.your-domain.com
-socket 合法域名: wss://api.your-domain.com
-```
-
-> 域名必须为已备案的 HTTPS 域名。腾讯云 API 网关自带 HTTPS 证书，配置自定义域名映射即可。
-
-## 4. 前后端合一 Dockerfile（Web 函数镜像）
+## 3. 前后端合一 Dockerfile（Web 函数镜像）
 
 > 完整项目目录结构参见 [docs/arch/00-overview.md](./00-overview.md)。
 
@@ -189,26 +154,13 @@ docker push ccr.ccs.tencentyun.com/investment/collector:latest
 
 **Web 函数**：
 - 镜像: `ccr.ccs.tencentyun.com/investment/web-api:latest`
-- 端口: 9000 / 内存: 2048MB / 超时: 60s
+- 端口: 9000 / 内存: 2048MB / 超时: 60s（LLM 接口走 Nginx 代理超时 300s）
 - 触发器: API 网关 → 绑定域名
 
-**Job 函数** × N：
+**采集 Job 函数** × N：
 - 镜像: `ccr.ccs.tencentyun.com/investment/collector:latest`
-- 环境变量: `COLLECT_TASK=kline` (按任务不同)
-- 触发器: Timer 定时触发
-
-### 5.4 微信小程序发布
-
-```bash
-# 1. 构建小程序代码
-cd miniapp
-npm run build:weapp
-
-# 2. 打开微信开发者工具
-#    导入 miniapp/dist/ 目录
-
-# 3. 预览 → 上传代码 → 提交审核
-```
+- 环境变量: `COLLECT_TASK=kline`（按任务不同），未设置时启动常驻 worker
+- 触发器: Timer 定时触发；或常驻 worker 从 Redis 队列拉取
 
 ## 6. 成本估算
 
@@ -219,5 +171,5 @@ Job 函数 (4个): ~¥33/月
 云硬盘 500GB: ~¥175/月
 ═══════════════════════════════
   合计: ~¥580-680/月
-  (+ 域名备案 ¥0，微信小程序认证 ¥300/年)
+  (+ 域名备案 ¥0)
 ```
