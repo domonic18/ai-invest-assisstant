@@ -2,6 +2,7 @@
 
 from datetime import date, time
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -75,6 +76,84 @@ class KlineDataResponse(BaseModel):
     amplitude: Decimal | None = None
     change_pct: Decimal | None = None
     turnover_rate: Decimal | None = None
+
+
+class StockQuoteResponse(BaseModel):
+    """个股实时行情快照响应。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    code: str
+    name: str
+    price: float | None = None
+    prev_close: float | None = None
+    change: float | None = None
+    change_pct: float | None = None
+    open: float | None = None
+    high: float | None = None
+    low: float | None = None
+    volume: int | None = None
+    amount: float | None = None
+    market_cap: float | None = None
+    circulating_market_cap: float | None = None
+    updated_at: str | None = None
+
+
+class StockKlineBar(BaseModel):
+    """个股 K 线单根 bar。"""
+
+    date: date
+    open: float | None = None
+    high: float | None = None
+    low: float | None = None
+    close: float | None = None
+    volume: int | None = None
+    amount: float | None = None
+
+
+class StockKlineResponse(BaseModel):
+    """个股多周期 K 线响应。"""
+
+    code: str
+    name: str
+    period: str
+    bars: list[StockKlineBar]
+
+
+class StockIntradayPoint(BaseModel):
+    """个股分时单点。"""
+
+    time: str
+    price: float
+    volume: int
+    amount: float
+
+
+class StockIntradayResponse(BaseModel):
+    """个股分时响应。"""
+
+    code: str
+    name: str
+    trade_date: date
+    prev_close: float
+    points: list[StockIntradayPoint]
+
+
+class StockSectorItem(BaseModel):
+    """个股所属板块/概念项。"""
+
+    name: str
+    type: Literal["industry", "concept"]
+    change_pct: float | None = None
+    main_net_inflow: float | None = None
+
+
+class StockSectorsResponse(BaseModel):
+    """个股所属板块与概念响应。"""
+
+    code: str
+    name: str
+    sectors: list[StockSectorItem]
 
 
 class AuctionDataResponse(BaseModel):

@@ -22,6 +22,7 @@ from app.models.industry_chain import (
 from app.models.ipo_info import IpoInfo
 from app.models.kline import KlineDaily, KlineMinute
 from app.models.llm_config import LLMConfig
+from app.models.mapping_stock_concept import MappingStockConcept
 from app.models.market_amount import MarketAmount
 from app.models.market_breadth import MarketBreadth
 from app.models.news_announcement import NewsAnnouncement
@@ -54,6 +55,7 @@ __all__ = [
     "KlineMinute",
     "LimitUpPool",
     "LLMConfig",
+    "MappingStockConcept",
     "MarketAmount",
     "MarketBreadth",
     "NewsAnnouncement",
