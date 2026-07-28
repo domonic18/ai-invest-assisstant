@@ -5,6 +5,11 @@ services:
       dockerfile: docker/web/Dockerfile
     ports:
       - "9000:9000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - DEBUG=true
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
@@ -29,8 +34,10 @@ services:
       context: .
       dockerfile: docker/collector/Dockerfile
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://user:password@postgres:5432/invest}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
