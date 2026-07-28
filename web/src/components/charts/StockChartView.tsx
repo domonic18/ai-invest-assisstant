@@ -3,14 +3,16 @@ import {
   CloseOutlined,
   FundOutlined,
   LineChartOutlined,
+  SyncOutlined,
 } from '@ant-design/icons'
-import { Button, Spin } from 'antd'
+import { Button, Spin, Typography } from 'antd'
 import type { EChartsOption } from 'echarts'
 import ReactECharts from 'echarts-for-react'
 import { useMemo, useState } from 'react'
 
 import { IntradayChart } from '@/components/charts/IntradayChart'
 import { useKlineKeyboardNav } from '@/components/charts/useKlineKeyboardNav'
+import { useCollectStockKline } from '@/hooks/useCollectStockKline'
 import { useStockIntraday, useStockKline } from '@/hooks/useStocks'
 import { useColorScheme } from '@/stores/settings'
 import { panelColors } from '@/theme/colors'
@@ -439,6 +441,7 @@ export function StockChartView({
 
   const { data: klineData, isLoading: klineLoading } = useStockKline(code, klineParams)
   const { data: intradayData, isLoading: intradayLoading } = useStockIntraday(code)
+  const collectKline = useCollectStockKline(code)
 
   const isIntraday = period === 'intraday'
 
@@ -506,15 +509,40 @@ export function StockChartView({
       {/* Chart area */}
       <div className="relative flex-1 min-h-0">
         {isLoading ? (
-          <div className="flex items-center justify-center text-[#8c8c8c]" style={{ height }}>
+          <div className="flex flex-col items-center justify-center gap-2 text-[#8c8c8c]" style={{ height }}>
             <Spin size="small" />
+            <span className="text-xs">正在拉取{isIntraday ? '分时' : 'K 线'}数据...</span>
           </div>
         ) : !hasData ? (
           <div
-            className="flex items-center justify-center text-[#8c8c8c] text-sm"
+            className="flex flex-col items-center justify-center gap-3 text-[#8c8c8c]"
             style={{ height }}
           >
-            {isIntraday ? '暂无分时数据' : '暂无 K 线数据'}
+            <Typography.Text type="secondary" className="text-sm">
+              {isIntraday ? '暂无分时数据' : '暂无 K 线数据'}
+            </Typography.Text>
+            {!isIntraday && (
+              <>
+                <Button
+                  size="small"
+                  icon={<SyncOutlined spin={collectKline.isPending} />}
+                  loading={collectKline.isPending}
+                  onClick={() => collectKline.mutate()}
+                >
+                  {collectKline.isPending ? '采集中，预计 10-30 秒...' : '补采 K 线数据'}
+                </Button>
+                {collectKline.isError && (
+                  <Typography.Text type="danger" className="text-xs">
+                    {(collectKline.error as Error).message}
+                  </Typography.Text>
+                )}
+                {collectKline.isSuccess && (
+                  <Typography.Text type="success" className="text-xs">
+                    采集完成
+                  </Typography.Text>
+                )}
+              </>
+            )}
           </div>
         ) : isIntraday ? (
           intradayData && (

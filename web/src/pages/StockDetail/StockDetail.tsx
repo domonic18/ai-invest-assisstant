@@ -2,24 +2,35 @@ import {
   FileTextOutlined,
   HeartOutlined,
   HeartTwoTone,
+  ReloadOutlined,
   WalletOutlined,
 } from '@ant-design/icons'
-import { Button, Empty, List, Select, Spin, Tabs, Tag, Typography } from 'antd'
+import { Button, Empty, List, Select, Skeleton, Spin, Tabs, Tag, Typography } from 'antd'
+import { useIsFetching } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { StockChartView, type StockChartViewIndicators } from '@/components/charts/StockChartView'
 import { FinancialTrendCharts } from '@/components/charts/FinancialTrendCharts'
-import { useResearch } from '@/hooks/useResearch'
-import { useStockDetail } from '@/hooks/useStocks'
 import { useFinancial } from '@/hooks/useFinancial'
 import { useFinancialHistory } from '@/hooks/useFinancialHistory'
+import { useResearch } from '@/hooks/useResearch'
 import { useAddWatchlistItem, useWatchlist } from '@/hooks/useWatchlist'
-import { StockQuoteHeader } from './StockQuoteHeader'
-import { StockSectors } from './StockSectors'
+import {
+  useStockDetail,
+  useStockQuote,
+  useStockSectors,
+} from '@/hooks/useStocks'
+import { queryKeys } from '@/hooks/queryKeys'
 import { FINANCIAL_METRIC_LABELS } from '@/constants/financial'
 import { panelColors } from '@/theme/colors'
-import type { ResearchReport } from '@ai-invest/shared'
+import type { ResearchReport, StockQuote, StockSector } from '@ai-invest/shared'
+
+type StockSectorsData = { code: string; name: string; sectors: StockSector[] }
+
+import { StockLoadingStatus, type LoadingTask } from './StockLoadingStatus'
+import { StockQuoteHeader } from './StockQuoteHeader'
+import { StockSectors } from './StockSectors'
 
 const PANEL_BG = panelColors.bg
 const BORDER_COLOR = panelColors.border
@@ -91,14 +102,42 @@ function findPresetKey(views: ChartViewConfig[]): ViewPresetKey | 'custom' {
   return 'custom'
 }
 
-function StockFinancial({ code }: { code: string }) {
-  const { data, isLoading } = useFinancial(code)
-  const { data: historyData, isLoading: historyLoading } = useFinancialHistory(code, 8)
+interface StockFinancialProps {
+  data: ReturnType<typeof useFinancial>['data']
+  history: ReturnType<typeof useFinancialHistory>['data']
+  isLoading: boolean
+  historyLoading: boolean
+  isError: boolean
+  historyError: boolean
+  onRetry: () => void
+}
 
+function StockFinancial({
+  data,
+  history,
+  isLoading,
+  historyLoading,
+  isError,
+  historyError,
+  onRetry,
+}: StockFinancialProps) {
   if (isLoading) {
     return (
-      <div className="flex justify-center py-10">
-        <Spin size="small" />
+      <div className="py-2">
+        <Skeleton active paragraph={{ rows: 4 }} />
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="py-4 flex flex-col items-start gap-2">
+        <Typography.Text type="danger" className="text-xs">
+          财务数据加载失败
+        </Typography.Text>
+        <Button size="small" icon={<ReloadOutlined />} onClick={onRetry}>
+          重试
+        </Button>
       </div>
     )
   }
@@ -130,12 +169,21 @@ function StockFinancial({ code }: { code: string }) {
         ))}
       </div>
 
-      {historyLoading ? (
+      {historyError ? (
+        <div className="flex items-center gap-2">
+          <Typography.Text type="danger" className="text-xs">
+            历史趋势加载失败
+          </Typography.Text>
+          <Button size="small" icon={<ReloadOutlined />} onClick={onRetry}>
+            重试
+          </Button>
+        </div>
+      ) : historyLoading ? (
         <div className="flex justify-center py-6">
           <Spin size="small" />
         </div>
-      ) : historyData?.history.length ? (
-        <FinancialTrendCharts history={historyData.history} />
+      ) : history?.history.length ? (
+        <FinancialTrendCharts history={history.history} />
       ) : (
         <Empty description="暂无历史财务趋势" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       )}
@@ -143,13 +191,31 @@ function StockFinancial({ code }: { code: string }) {
   )
 }
 
-function StockResearch({ code }: { code: string }) {
-  const { data, isLoading } = useResearch({ stockCode: code, pageSize: 5 })
+interface StockResearchProps {
+  data: ReturnType<typeof useResearch>['data']
+  isLoading: boolean
+  isError: boolean
+  onRetry: () => void
+}
 
+function StockResearch({ data, isLoading, isError, onRetry }: StockResearchProps) {
   if (isLoading) {
     return (
-      <div className="flex justify-center py-10">
-        <Spin size="small" />
+      <div className="py-2">
+        <Skeleton active paragraph={{ rows: 4 }} />
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="py-4 flex flex-col items-start gap-2">
+        <Typography.Text type="danger" className="text-xs">
+          研报加载失败
+        </Typography.Text>
+        <Button size="small" icon={<ReloadOutlined />} onClick={onRetry}>
+          重试
+        </Button>
       </div>
     )
   }
@@ -187,39 +253,67 @@ function StockResearch({ code }: { code: string }) {
 }
 
 interface StockHeaderProps {
-  stock: {
+  stock?: {
     name: string
     code: string
     market: string
     industry?: string | null
-  }
+  } | null
   stockCode: string
   isWatched?: boolean
   onToggleWatchlist: () => void
-  isLoading?: boolean
+  isWatchlistLoading?: boolean
 }
 
-function StockHeader({ stock, stockCode, isWatched, onToggleWatchlist, isLoading }: StockHeaderProps) {
+function StockHeader({
+  stock,
+  stockCode,
+  isWatched,
+  onToggleWatchlist,
+  isWatchlistLoading,
+}: StockHeaderProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-2">
-        <Typography.Title level={5} className="!mb-0 text-[#d1d4dc]">
-          {stock.name}
-        </Typography.Title>
-        <span className="text-sm text-[#8c8c8c]">{stockCode}</span>
-        <Tag color="blue" className="!text-xs">{stock.market}</Tag>
-        {stock.industry && <Tag className="!text-xs">{stock.industry}</Tag>}
+        {stock ? (
+          <>
+            <Typography.Title level={5} className="!mb-0 text-[#d1d4dc]">
+              {stock.name}
+            </Typography.Title>
+            <span className="text-sm text-[#8c8c8c]">{stockCode}</span>
+            <Tag color="blue" className="!text-xs">{stock.market}</Tag>
+            {stock.industry && <Tag className="!text-xs">{stock.industry}</Tag>}
+          </>
+        ) : (
+          <>
+            <Skeleton.Input active size="small" style={{ width: 120 }} />
+            <span className="text-sm text-[#8c8c8c]">{stockCode}</span>
+          </>
+        )}
       </div>
       <Button
         type={isWatched ? 'default' : 'primary'}
         size="small"
         icon={isWatched ? <HeartTwoTone twoToneColor="#eb2f96" /> : <HeartOutlined />}
         onClick={onToggleWatchlist}
-        loading={isLoading}
-        disabled={isWatched}
+        loading={isWatchlistLoading}
+        disabled={isWatched || !stock}
       >
         {isWatched ? '已加入自选' : '加入自选'}
       </Button>
+    </div>
+  )
+}
+
+function ErrorState({ message, onRetry, isRetrying }: { message: string; onRetry?: () => void; isRetrying?: boolean }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-3 py-20">
+      <Typography.Text type="danger">{message}</Typography.Text>
+      {onRetry && (
+        <Button icon={<ReloadOutlined />} onClick={onRetry} loading={isRetrying}>
+          重试
+        </Button>
+      )}
     </div>
   )
 }
@@ -228,9 +322,18 @@ export function StockDetail() {
   const { code } = useParams<{ code?: string }>()
   const stockCode = code || ''
 
-  const { data: stock, isLoading: stockLoading } = useStockDetail(stockCode)
+  const detailQ = useStockDetail(stockCode)
+  const quoteQ = useStockQuote(stockCode)
+  const sectorsQ = useStockSectors(stockCode)
+  const financialQ = useFinancial(stockCode)
+  const historyQ = useFinancialHistory(stockCode, 8)
+  const researchQ = useResearch({ stockCode, pageSize: 5 })
   const { data: watchlist } = useWatchlist()
   const addMutation = useAddWatchlistItem()
+
+  const klineFetching = useIsFetching({
+    queryKey: queryKeys.stocks.kline(stockCode),
+  })
 
   const [views, setViews] = useState<ChartViewConfig[]>(VIEW_PRESETS[0].views)
   const [presetKey, setPresetKey] = useState<ViewPresetKey | 'custom'>('daily-weekly')
@@ -326,17 +429,69 @@ export function StockDetail() {
     return Math.max(MIN_CHART_HEIGHT, Math.floor(containerHeight / views.length) - TOOLBAR_HEIGHT)
   }, [containerHeight, views.length])
 
-  if (stockLoading) {
+  const loadingTasks: LoadingTask[] = [
+    {
+      key: 'detail',
+      label: '股票详情',
+      status: detailQ.isLoading ? 'loading' : detailQ.isError ? 'error' : 'idle',
+      onRetry: () => detailQ.refetch(),
+    },
+    {
+      key: 'quote',
+      label: '实时行情',
+      status: quoteQ.isLoading ? 'loading' : quoteQ.isError ? 'error' : 'idle',
+      onRetry: () => quoteQ.refetch(),
+    },
+    {
+      key: 'kline',
+      label: 'K线数据',
+      status: klineFetching > 0 ? 'loading' : 'idle',
+    },
+    {
+      key: 'sectors',
+      label: '所属板块',
+      status: sectorsQ.isLoading ? 'loading' : sectorsQ.isError ? 'error' : 'idle',
+      onRetry: () => sectorsQ.refetch(),
+    },
+    {
+      key: 'financial',
+      label: '财务数据',
+      status:
+        financialQ.isLoading || historyQ.isLoading
+          ? 'loading'
+          : financialQ.isError || historyQ.isError
+            ? 'error'
+            : 'idle',
+      onRetry: () => {
+        financialQ.refetch()
+        historyQ.refetch()
+      },
+    },
+    {
+      key: 'research',
+      label: '相关研报',
+      status: researchQ.isLoading ? 'loading' : researchQ.isError ? 'error' : 'idle',
+      onRetry: () => researchQ.refetch(),
+    },
+  ]
+
+  if (!stockCode) {
+    return <ErrorState message="未指定股票代码" />
+  }
+
+  if (detailQ.isError) {
     return (
-      <div className="flex justify-center py-20">
-        <Spin size="large" />
-      </div>
+      <ErrorState
+        message={`股票详情加载失败：${detailQ.error instanceof Error ? detailQ.error.message : '请稍后重试'}`}
+        onRetry={() => detailQ.refetch()}
+        isRetrying={detailQ.isFetching}
+      />
     )
   }
 
-  if (!stock) {
-    return <Typography.Text type="danger">未找到股票 {stockCode}</Typography.Text>
-  }
+  const stock = detailQ.data
+  const quote: StockQuote | undefined = quoteQ.data
+  const sectors: StockSectorsData | undefined = sectorsQ.data
 
   const rightTabItems = [
     {
@@ -347,7 +502,20 @@ export function StockDetail() {
           财务
         </span>
       ),
-      children: <StockFinancial code={stockCode} />,
+      children: (
+        <StockFinancial
+          data={financialQ.data}
+          history={historyQ.data}
+          isLoading={financialQ.isLoading}
+          historyLoading={historyQ.isLoading}
+          isError={financialQ.isError}
+          historyError={historyQ.isError}
+          onRetry={() => {
+            financialQ.refetch()
+            historyQ.refetch()
+          }}
+        />
+      ),
     },
     {
       key: 'research',
@@ -357,7 +525,14 @@ export function StockDetail() {
           研报
         </span>
       ),
-      children: <StockResearch code={stockCode} />,
+      children: (
+        <StockResearch
+          data={researchQ.data}
+          isLoading={researchQ.isLoading}
+          isError={researchQ.isError}
+          onRetry={() => researchQ.refetch()}
+        />
+      ),
     },
     {
       key: 'news',
@@ -376,7 +551,7 @@ export function StockDetail() {
       stockCode={stockCode}
       isWatched={isWatched}
       onToggleWatchlist={handleToggleWatchlist}
-      isLoading={addMutation.isPending}
+      isWatchlistLoading={addMutation.isPending}
     />
   )
 
@@ -388,6 +563,11 @@ export function StockDetail() {
         style={{ borderBottom: `1px solid ${BORDER_COLOR}`, backgroundColor: PANEL_BG }}
       >
         {headerContent}
+      </div>
+
+      {/* Mobile loading status (mirrors right-panel status on small screens) */}
+      <div className="lg:hidden">
+        <StockLoadingStatus tasks={loadingTasks} />
       </div>
 
       {/* Main content */}
@@ -439,12 +619,24 @@ export function StockDetail() {
             {headerContent}
           </div>
 
+          <StockLoadingStatus tasks={loadingTasks} />
+
           <div style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
-            <StockQuoteHeader code={stockCode} />
+            <StockQuoteHeader
+              quote={quote}
+              isLoading={quoteQ.isLoading}
+              isError={quoteQ.isError}
+              onRetry={() => quoteQ.refetch()}
+            />
           </div>
 
           <div style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
-            <StockSectors code={stockCode} />
+            <StockSectors
+              sectors={sectors}
+              isLoading={sectorsQ.isLoading}
+              isError={sectorsQ.isError}
+              onRetry={() => sectorsQ.refetch()}
+            />
           </div>
 
           <div className="flex-1 p-3">

@@ -1,10 +1,14 @@
-import { Typography } from 'antd'
+import { ReloadOutlined } from '@ant-design/icons'
+import { Button, Skeleton, Typography } from 'antd'
 
-import { useStockQuote } from '@/hooks/useStocks'
 import { changeColor, formatAmount, formatNumber, formatPercent } from '@/utils/formatters'
+import type { StockQuote } from '@ai-invest/shared'
 
 interface StockQuoteHeaderProps {
-  code: string
+  quote?: StockQuote | null
+  isLoading?: boolean
+  isError?: boolean
+  onRetry?: () => void
 }
 
 function QuoteItem({
@@ -24,13 +28,26 @@ function QuoteItem({
   )
 }
 
-export function StockQuoteHeader({ code }: StockQuoteHeaderProps) {
-  const { data: quote, isLoading } = useStockQuote(code)
-
+export function StockQuoteHeader({ quote, isLoading, isError, onRetry }: StockQuoteHeaderProps) {
   if (isLoading) {
     return (
-      <div className="h-24 flex items-center justify-center">
-        <Typography.Text type="secondary">加载行情中...</Typography.Text>
+      <div className="p-3">
+        <Skeleton active paragraph={{ rows: 3 }} title={{ width: '40%' }} />
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="p-3 flex flex-col items-start gap-2">
+        <Typography.Text type="danger" className="text-xs">
+          行情加载失败
+        </Typography.Text>
+        {onRetry && (
+          <Button size="small" icon={<ReloadOutlined />} onClick={onRetry}>
+            重试
+          </Button>
+        )}
       </div>
     )
   }
@@ -38,7 +55,9 @@ export function StockQuoteHeader({ code }: StockQuoteHeaderProps) {
   if (!quote) {
     return (
       <div className="h-24 flex items-center justify-center">
-        <Typography.Text type="secondary">暂无行情数据</Typography.Text>
+        <Typography.Text type="secondary" className="text-xs">
+          暂无行情数据
+        </Typography.Text>
       </div>
     )
   }
