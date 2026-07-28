@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from app.api.v1 import api_router
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
+from app.core.exceptions import AppError
 from collector.runtime.channels import seed_default_channels
 
 settings = get_settings()
@@ -59,6 +60,19 @@ async def request_validation_handler(
         body[:500],
     )
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    """业务异常统一转 JSONResponse `{detail: message}`，格式与 HTTPException 一致。"""
+    logger.warning(
+        "app_error: %s %s status=%s msg=%s",
+        request.method,
+        request.url.path,
+        exc.status_code,
+        exc.message,
+    )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 
 
 @app.get("/health")

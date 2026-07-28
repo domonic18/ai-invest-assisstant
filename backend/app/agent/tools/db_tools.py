@@ -12,6 +12,7 @@ from app.models.financial_income_statement import IncomeStatement
 from app.models.kline import KlineDaily
 from app.models.news_announcement import NewsAnnouncement
 from app.models.stock import StockBasic
+from app.utils.numeric import safe_divide
 
 
 async def query_industry_companies(
@@ -70,15 +71,6 @@ async def query_stock_kline(
         }
         for item in result.scalars().all()
     ]
-
-
-def safe_divide(
-    numerator: Decimal | None, denominator: Decimal | None
-) -> float | None:
-    """安全除法，分母为空或为零时返回 None。"""
-    if numerator is None or denominator is None or denominator == 0:
-        return None
-    return float(numerator / denominator)
 
 
 def calculate_growth(

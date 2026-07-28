@@ -1,19 +1,17 @@
 """Industry chain analysis skill execution."""
 
-from typing import Any, cast
+from typing import Any
 
-from pydantic_ai import Agent
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.core.llm_router import build_agent
 from app.agent.core.prompt_loader import PromptLoader
 from app.agent.core.prompt_renderer import PromptRenderer
+from app.agent.runtime import run_structured_agent
 from app.agent.tools import db_tools
 from app.core.config import get_settings
 from app.models.stock import StockBasic
 from app.schemas.chain import ChainAnalysisResult
-from app.services.llm_config_service import resolve_default_llm
 
 _MAX_NODES = 40
 _MAX_COMPANIES_PER_NODE = 5
@@ -137,21 +135,12 @@ async def analyze_industry_chain(
         context=context,
     )
 
-    resolved = await resolve_default_llm(session)
-    model_config = {
-        "provider": resolved.provider,
-        "model": resolved.model_name,
-        "api_key": resolved.api_key,
-        "base_url": resolved.base_url,
-    }
-    agent: Agent = build_agent(
+    output = await run_structured_agent(
+        session,
         prompt_config=prompt_config,
-        model_config=model_config,
+        user_prompt=user_prompt,
         result_type=ChainAnalysisResult,
     )
-
-    result = await agent.run(user_prompt)
-    output = cast(ChainAnalysisResult, result.output)
     return await _validate(session, output)
 
 

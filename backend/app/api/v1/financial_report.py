@@ -16,10 +16,6 @@ from app.schemas.file_metadata import (
 )
 from app.schemas.stock import PaginatedResponse
 from app.services import financial_report_service
-from app.services.financial_report_service import (
-    SummaryInProgressError,
-    SummaryUnavailableError,
-)
 
 router = APIRouter()
 
@@ -158,21 +154,9 @@ async def summarize_financial_report(
     report_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
-    """生成或返回财报 AI 摘要（懒生成，结果全局共享）。"""
-    try:
-        return await financial_report_service.summarize_report(session, report_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
-    except SummaryUnavailableError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
-    except SummaryInProgressError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
-        ) from exc
+    """生成或返回财报 AI 摘要（懒生成，结果全局共享）。
+
+    业务异常（NotFoundError/SummaryUnavailableError/SummaryInProgressError）由全局
+    AppError handler 统一转换为 JSONResponse ``{detail: message}``。
+    """
+    return await financial_report_service.summarize_report(session, report_id)

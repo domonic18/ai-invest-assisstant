@@ -1,4 +1,8 @@
-"""Industry chain analysis API endpoints."""
+"""Industry chain analysis API endpoints.
+
+业务异常（ChainAnalysisFailedError / LLMConfigNotConfiguredError）由全局
+AppError handler 统一转换为 JSONResponse ``{detail: message}``。
+"""
 
 from typing import Annotated
 
@@ -14,8 +18,6 @@ from app.schemas.chain import (
     ChainVersionSummary,
 )
 from app.services import chain_service
-from app.services.chain_service import ChainAnalysisFailedError
-from app.services.llm_config_service import LLMConfigNotConfiguredError
 
 router = APIRouter()
 
@@ -26,20 +28,9 @@ async def analyze_chain(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> ChainAnalyzeResponse:
     """产业链分析：调用 AI Agent 生成图谱并持久化为新版本。"""
-    try:
-        return await chain_service.analyze_and_persist(
-            session, request.industry, request.focus
-        )
-    except LLMConfigNotConfiguredError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
-    except ChainAnalysisFailedError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"AI analysis failed: {exc}",
-        ) from exc
+    return await chain_service.analyze_and_persist(
+        session, request.industry, request.focus
+    )
 
 
 @router.get("/versions/compare", response_model=ChainCompareResult)
