@@ -18,10 +18,11 @@ import { useAddWatchlistItem, useWatchlist } from '@/hooks/useWatchlist'
 import { StockQuoteHeader } from './StockQuoteHeader'
 import { StockSectors } from './StockSectors'
 import { FINANCIAL_METRIC_LABELS } from '@/constants/financial'
+import { panelColors } from '@/theme/colors'
 import type { ResearchReport } from '@ai-invest/shared'
 
-const PANEL_BG = '#0c0e12'
-const BORDER_COLOR = '#23262e'
+const PANEL_BG = panelColors.bg
+const BORDER_COLOR = panelColors.border
 
 const STORAGE_KEY = 'ai-invest.stock-detail.views'
 

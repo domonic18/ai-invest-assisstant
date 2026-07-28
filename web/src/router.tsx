@@ -1,29 +1,46 @@
+import { lazy, Suspense, type ReactNode } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 
 import { ProtectedAdmin } from './components/auth/ProtectedAdmin'
 import { ProtectedLayout } from './components/auth/ProtectedLayout'
 import { RedirectIfAuthenticated } from './components/auth/RedirectIfAuthenticated'
-import { Admin } from './pages/Admin/Admin'
-import { AdminNews } from './pages/Admin/News/News'
-import { AdminReports } from './pages/Admin/Reports/Reports'
-import { AdminStocks } from './pages/Admin/Stocks/Stocks'
-import { AdminTasks } from './pages/Admin/Tasks/Tasks'
-import { AdminUsers } from './pages/Admin/Users/Users'
-import { AuctionReview } from './pages/AuctionReview/AuctionReview'
-import { CapitalFlow } from './pages/CapitalFlow/CapitalFlow'
-import { ChainAnalysis } from './pages/ChainAnalysis/ChainAnalysis'
-import { Collector } from './pages/Admin/Collector'
-import { CollectorChannelConfig } from './pages/Admin/CollectorChannelConfig/CollectorChannelConfig'
+import { PageSkeleton } from './components/common/PageSkeleton'
 import { Dashboard } from './pages/Dashboard/Dashboard'
-import { Financial } from './pages/Financial/Financial'
-import { FinancialReportPage } from './pages/FinancialReport/FinancialReport'
-import { Hotspot } from './pages/Hotspot/Hotspot'
-import { LLMConfig } from './pages/Admin/LLMConfig/LLMConfig'
-import { Login } from './pages/Login/Login'
-import { Register } from './pages/Register/Register'
-import { Research } from './pages/Research/Research'
-import { Settings } from './pages/Settings/Settings'
-import { StockDetail } from './pages/StockDetail/StockDetail'
+
+const Admin = lazy(() => import('./pages/Admin/Admin').then((m) => ({ default: m.Admin })))
+const AdminNews = lazy(() => import('./pages/Admin/News/News').then((m) => ({ default: m.AdminNews })))
+const AdminReports = lazy(() => import('./pages/Admin/Reports/Reports').then((m) => ({ default: m.AdminReports })))
+const AdminStocks = lazy(() => import('./pages/Admin/Stocks/Stocks').then((m) => ({ default: m.AdminStocks })))
+const AdminTasks = lazy(() => import('./pages/Admin/Tasks/Tasks').then((m) => ({ default: m.AdminTasks })))
+const AdminUsers = lazy(() => import('./pages/Admin/Users/Users').then((m) => ({ default: m.AdminUsers })))
+const Collector = lazy(() => import('./pages/Admin/Collector').then((m) => ({ default: m.Collector })))
+const CollectorChannelConfig = lazy(() =>
+  import('./pages/Admin/CollectorChannelConfig/CollectorChannelConfig').then((m) => ({
+    default: m.CollectorChannelConfig,
+  })),
+)
+const LLMConfig = lazy(() => import('./pages/Admin/LLMConfig/LLMConfig').then((m) => ({ default: m.LLMConfig })))
+const AuctionReview = lazy(() =>
+  import('./pages/AuctionReview/AuctionReview').then((m) => ({ default: m.AuctionReview })),
+)
+const CapitalFlow = lazy(() => import('./pages/CapitalFlow/CapitalFlow').then((m) => ({ default: m.CapitalFlow })))
+const ChainAnalysis = lazy(() =>
+  import('./pages/ChainAnalysis/ChainAnalysis').then((m) => ({ default: m.ChainAnalysis })),
+)
+const Financial = lazy(() => import('./pages/Financial/Financial').then((m) => ({ default: m.Financial })))
+const FinancialReportPage = lazy(() =>
+  import('./pages/FinancialReport/FinancialReport').then((m) => ({ default: m.FinancialReportPage })),
+)
+const Hotspot = lazy(() => import('./pages/Hotspot/Hotspot').then((m) => ({ default: m.Hotspot })))
+const Login = lazy(() => import('./pages/Login/Login').then((m) => ({ default: m.Login })))
+const Register = lazy(() => import('./pages/Register/Register').then((m) => ({ default: m.Register })))
+const Research = lazy(() => import('./pages/Research/Research').then((m) => ({ default: m.Research })))
+const Settings = lazy(() => import('./pages/Settings/Settings').then((m) => ({ default: m.Settings })))
+const StockDetail = lazy(() => import('./pages/StockDetail/StockDetail').then((m) => ({ default: m.StockDetail })))
+
+function lazyEl(node: ReactNode) {
+  return <Suspense fallback={<PageSkeleton />}>{node}</Suspense>
+}
 
 export const router = createBrowserRouter([
   {
@@ -31,28 +48,28 @@ export const router = createBrowserRouter([
     element: <ProtectedLayout />,
     children: [
       { index: true, element: <Dashboard /> },
-      { path: 'chain/:industry?', element: <ChainAnalysis /> },
-      { path: 'stock/:code', element: <StockDetail /> },
-      { path: 'hotspot', element: <Hotspot /> },
-      { path: 'capital-flow', element: <CapitalFlow /> },
-      { path: 'auction', element: <AuctionReview /> },
-      { path: 'research', element: <Research /> },
-      { path: 'financial-reports', element: <FinancialReportPage /> },
-      { path: 'financial/:code', element: <Financial /> },
-      { path: 'settings', element: <Settings /> },
+      { path: 'chain/:industry?', element: lazyEl(<ChainAnalysis />) },
+      { path: 'stock/:code', element: lazyEl(<StockDetail />) },
+      { path: 'hotspot', element: lazyEl(<Hotspot />) },
+      { path: 'capital-flow', element: lazyEl(<CapitalFlow />) },
+      { path: 'auction', element: lazyEl(<AuctionReview />) },
+      { path: 'research', element: lazyEl(<Research />) },
+      { path: 'financial-reports', element: lazyEl(<FinancialReportPage />) },
+      { path: 'financial/:code', element: lazyEl(<Financial />) },
+      { path: 'settings', element: lazyEl(<Settings />) },
       {
         path: 'admin',
         element: <ProtectedAdmin />,
         children: [
-          { index: true, element: <Admin /> },
-          { path: 'users', element: <AdminUsers /> },
-          { path: 'stocks', element: <AdminStocks /> },
-          { path: 'reports', element: <AdminReports /> },
-          { path: 'news', element: <AdminNews /> },
-          { path: 'tasks', element: <AdminTasks /> },
-          { path: 'llm-configs', element: <LLMConfig /> },
-          { path: 'collector-channels', element: <CollectorChannelConfig /> },
-          { path: 'collector', element: <Collector /> },
+          { index: true, element: lazyEl(<Admin />) },
+          { path: 'users', element: lazyEl(<AdminUsers />) },
+          { path: 'stocks', element: lazyEl(<AdminStocks />) },
+          { path: 'reports', element: lazyEl(<AdminReports />) },
+          { path: 'news', element: lazyEl(<AdminNews />) },
+          { path: 'tasks', element: lazyEl(<AdminTasks />) },
+          { path: 'llm-configs', element: lazyEl(<LLMConfig />) },
+          { path: 'collector-channels', element: lazyEl(<CollectorChannelConfig />) },
+          { path: 'collector', element: lazyEl(<Collector />) },
         ],
       },
     ],
@@ -60,17 +77,13 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: (
-      <RedirectIfAuthenticated>
-        <Login />
-      </RedirectIfAuthenticated>
+      <RedirectIfAuthenticated>{lazyEl(<Login />)}</RedirectIfAuthenticated>
     ),
   },
   {
     path: '/register',
     element: (
-      <RedirectIfAuthenticated>
-        <Register />
-      </RedirectIfAuthenticated>
+      <RedirectIfAuthenticated>{lazyEl(<Register />)}</RedirectIfAuthenticated>
     ),
   },
   { path: '*', element: <Navigate to="/" replace /> },

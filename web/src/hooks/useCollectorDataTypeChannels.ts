@@ -7,11 +7,11 @@ import {
 import { mapCollectorDataTypeChannels } from '@/api/mappers'
 import type { ApiDataTypeChannelPriorityInput } from '@ai-invest/shared'
 
-const COLLECTOR_DATA_TYPES_KEY = ['collector-data-type-channels'] as const
+import { queryKeys } from './queryKeys'
 
 export function useCollectorDataTypeChannels() {
   return useQuery({
-    queryKey: COLLECTOR_DATA_TYPES_KEY,
+    queryKey: queryKeys.collector.dataTypes,
     queryFn: async () => {
       const data = await fetchCollectorDataTypes()
       return data.map(mapCollectorDataTypeChannels)
@@ -30,9 +30,9 @@ export function useReplaceDataTypeChannels() {
       items: ApiDataTypeChannelPriorityInput[]
     }) => replaceDataTypeChannels(dataType, items),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: COLLECTOR_DATA_TYPES_KEY })
+      queryClient.invalidateQueries({ queryKey: queryKeys.collector.dataTypes })
       // supported_data_types 冗余缓存也被回写，渠道列表需同步刷新
-      queryClient.invalidateQueries({ queryKey: ['collector-channel-configs'] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.collector.channels })
     },
   })
 }

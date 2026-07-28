@@ -2,9 +2,7 @@ import ReactMarkdown, { type Components } from 'react-markdown'
 
 import { useColorScheme } from '@/stores/settings'
 import { rehypeRiseFall } from '@/utils/rehypeRiseFall'
-
-const RISE_CLASS = { cn: 'text-red-400', us: 'text-green-400' } as const
-const FALL_CLASS = { cn: 'text-green-400', us: 'text-red-400' } as const
+import { fallColorSoft, riseColorSoft } from '@/utils/formatters'
 
 interface MarkdownTextProps {
   content: string
@@ -13,16 +11,16 @@ interface MarkdownTextProps {
 
 /** 渲染 AI 复盘 Markdown：`` 高亮重点、带符号百分比按涨跌配色（跟随全站配色方案）。 */
 export function MarkdownText({ content, className }: MarkdownTextProps) {
-  const scheme = useColorScheme()
+  useColorScheme()
 
   const components: Components = {
     span({ node, children, ...props }) {
       const rf = node?.properties?.dataRf
       if (rf === 'up') {
-        return <span className={RISE_CLASS[scheme]}>{children}</span>
+        return <span className={riseColorSoft()}>{children}</span>
       }
       if (rf === 'down') {
-        return <span className={FALL_CLASS[scheme]}>{children}</span>
+        return <span className={fallColorSoft()}>{children}</span>
       }
       return <span {...props}>{children}</span>
     },

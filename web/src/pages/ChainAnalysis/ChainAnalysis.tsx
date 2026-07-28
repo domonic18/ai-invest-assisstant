@@ -16,6 +16,8 @@ import {
   useChainVersion,
   useChainVersions,
 } from '@/hooks/useChain'
+import { useColorScheme } from '@/stores/settings'
+import { fallColorSoft, riseColorSoft } from '@/utils/formatters'
 import type { ChainNode } from '@ai-invest/shared'
 
 import { BottleneckPanel } from './components/BottleneckPanel'
@@ -27,6 +29,7 @@ import { VersionCompareDrawer } from './components/VersionCompareDrawer'
 import { VersionSwitcher } from './components/VersionSwitcher'
 
 export function ChainAnalysis() {
+  useColorScheme()
   const { industry } = useParams<{ industry?: string }>()
   const [inputIndustry, setInputIndustry] = useState(industry || '半导体')
   const [activeIndustry, setActiveIndustry] = useState(industry || '半导体')
@@ -279,7 +282,7 @@ export function ChainAnalysis() {
                     <List.Item>
                       <Space direction="vertical" size={2}>
                         <Space>
-                          <Typography.Text className="text-green-400" strong>
+                          <Typography.Text className={riseColorSoft()} strong>
                             {item.title}
                           </Typography.Text>
                           {item.relatedSegment && <Tag>{item.relatedSegment}</Tag>}
@@ -307,7 +310,7 @@ export function ChainAnalysis() {
                     <List.Item>
                       <Space direction="vertical" size={2}>
                         <Space>
-                          <Typography.Text className="text-red-400" strong>
+                          <Typography.Text className={fallColorSoft()} strong>
                             {item.title}
                           </Typography.Text>
                           {item.relatedSegment && <Tag>{item.relatedSegment}</Tag>}

@@ -1,6 +1,8 @@
 import { Descriptions, List, Space, Statistic, Tag, Typography } from 'antd'
 
 import type { ChainNode } from '@ai-invest/shared'
+import { useColorScheme } from '@/stores/settings'
+import { riseColorSoft } from '@/utils/formatters'
 
 interface NodeDetailCardProps {
   node: ChainNode | null
@@ -21,6 +23,7 @@ function metricItem(label: string, value: number | null, suffix = '%') {
 }
 
 export function NodeDetailCard({ node }: NodeDetailCardProps) {
+  useColorScheme()
   if (!node) {
     return (
       <Typography.Text type="secondary">点击图谱中的节点查看详情</Typography.Text>
@@ -72,7 +75,7 @@ export function NodeDetailCard({ node }: NodeDetailCardProps) {
             dataSource={node.recentBreakthroughs}
             renderItem={(item) => (
               <List.Item className="!py-1">
-                <Typography.Text className="text-green-400">{item}</Typography.Text>
+                <Typography.Text className={riseColorSoft()}>{item}</Typography.Text>
               </List.Item>
             )}
           />

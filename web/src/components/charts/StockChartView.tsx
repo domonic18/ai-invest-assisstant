@@ -13,6 +13,7 @@ import { IntradayChart } from '@/components/charts/IntradayChart'
 import { useKlineKeyboardNav } from '@/components/charts/useKlineKeyboardNav'
 import { useStockIntraday, useStockKline } from '@/hooks/useStocks'
 import { useColorScheme } from '@/stores/settings'
+import { panelColors } from '@/theme/colors'
 import { fallHex, formatAmount, riseHex } from '@/utils/formatters'
 import { calculateMACD, calculateKDJ } from '@/utils/indicators'
 import { movingAverage } from '@/utils/movingAverage'
@@ -32,9 +33,9 @@ const MA_CONFIGS = [
   { period: 60, color: '#22c55e' },
 ]
 
-const PANEL_BG = '#0c0e12'
-const BORDER_COLOR = '#23262e'
-const TEXT_MUTED = '#8c8c8c'
+const PANEL_BG = panelColors.bg
+const BORDER_COLOR = panelColors.border
+const TEXT_MUTED = panelColors.textMuted
 const TEXT_MAIN = '#d1d4dc'
 const GRID_COLOR = '#1f2229'
 

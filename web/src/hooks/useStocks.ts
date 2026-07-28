@@ -10,10 +10,18 @@ import {
   searchStocks,
   type StockKlineParams,
 } from '@/api/stocks'
+import { queryKeys } from './queryKeys'
+
+// 当前交易日实时数据：30s 内视为新鲜，避免反复打详情接口
+const LIVE_STALE_TIME = 30_000
+// 当日 K 线/分时：盘中变化但短期无需高频刷新
+const INTRADAY_STALE_TIME = 5 * 60_000
+// 个股基础信息（名称/板块归属/描述）：盘后基本不变
+const DETAIL_STALE_TIME = 30 * 60_000
 
 export function useStockSearch(q: string, enabled = true) {
   return useQuery({
-    queryKey: ['stocks', 'search', q],
+    queryKey: queryKeys.stocks.search(q),
     queryFn: () => searchStocks({ q, limit: 20 }),
     enabled: enabled && q.length > 0,
   })
@@ -21,49 +29,56 @@ export function useStockSearch(q: string, enabled = true) {
 
 export function useStockDetail(code: string) {
   return useQuery({
-    queryKey: ['stocks', 'detail', code],
+    queryKey: queryKeys.stocks.detail(code),
     queryFn: () => fetchStockDetail(code),
     enabled: code.length > 0,
+    staleTime: DETAIL_STALE_TIME,
   })
 }
 
 export function useStockQuote(code: string) {
   return useQuery({
-    queryKey: ['stocks', 'quote', code],
+    queryKey: queryKeys.stocks.quote(code),
     queryFn: () => fetchStockQuote(code),
     enabled: code.length > 0,
+    staleTime: LIVE_STALE_TIME,
     refetchInterval: 30_000,
   })
 }
 
 export function useStockKline(code: string, params: StockKlineParams = {}) {
   return useQuery({
-    queryKey: ['stocks', 'kline', code, params.period, params.limit],
+    queryKey: queryKeys.stocks.kline(code, params.period, params.limit),
     queryFn: () => fetchStockKline(code, params),
     enabled: code.length > 0,
+    staleTime: INTRADAY_STALE_TIME,
   })
 }
 
 export function useStockIntraday(code: string, tradeDate?: string) {
   return useQuery({
-    queryKey: ['stocks', 'intraday', code, tradeDate],
+    queryKey: queryKeys.stocks.intraday(code, tradeDate),
     queryFn: () => fetchStockIntraday(code, tradeDate),
     enabled: code.length > 0,
+    // 历史日期分时不变；当日盘中 30s 视为新鲜
+    staleTime: tradeDate ? Infinity : LIVE_STALE_TIME,
   })
 }
 
 export function useStockSectors(code: string) {
   return useQuery({
-    queryKey: ['stocks', 'sectors', code],
+    queryKey: queryKeys.stocks.sectors(code),
     queryFn: () => fetchStockSectors(code),
     enabled: code.length > 0,
+    staleTime: DETAIL_STALE_TIME,
   })
 }
 
 export function useKline(code: string, pageSize = 100) {
   return useQuery({
-    queryKey: ['stocks', 'kline', code, pageSize],
+    queryKey: queryKeys.stocks.klinePaged(code, pageSize),
     queryFn: () => fetchKline(code, { pageSize }),
     enabled: code.length > 0,
+    staleTime: INTRADAY_STALE_TIME,
   })
 }

@@ -3,7 +3,7 @@ import { Card, Skeleton, Tabs, Typography } from 'antd'
 import type { IndexQuote, MarketStats } from '@ai-invest/shared'
 import { SourceNote } from '@/components/common/SourceNote'
 import { useColorScheme } from '@/stores/settings'
-import { changeHex, fallColor, formatAmount, formatPercent, riseColor } from '@/utils/formatters'
+import { changeHex, fallColor, fallHex, formatAmount, formatPercent, riseColor, riseHex } from '@/utils/formatters'
 
 import { IndexChartPanel } from './IndexChartPanel'
 
@@ -119,7 +119,12 @@ export function MarketStatsSection({ indices, stats, loading, tradeDate }: Marke
           </div>
         ) : (
           <>
-            <div className="relative h-2 rounded bg-gradient-to-r from-[#2ea043] via-[#d29922] to-[#f85149]">
+            <div
+              className="relative h-2 rounded"
+              style={{
+                background: `linear-gradient(to right, ${fallHex()}, #d29922, ${riseHex()})`,
+              }}
+            >
               <div
                 className="absolute w-3 h-3 rounded-full bg-white border-2 border-gray-900 -top-0.5"
                 style={{ left: `calc(${score}% - 6px)` }}

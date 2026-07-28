@@ -11,13 +11,13 @@ import type {
   CollectorTaskName,
 } from '@ai-invest/shared'
 
-const COLLECTOR_LOGS_KEY = ['collector-logs'] as const
+import { queryKeys } from './queryKeys'
 
 const IN_FLIGHT_STATUSES = new Set(['pending', 'running'])
 
 export function useCollectorLogs(limit = 50) {
   return useQuery({
-    queryKey: [...COLLECTOR_LOGS_KEY, limit],
+    queryKey: [...queryKeys.collector.logs, limit],
     queryFn: async () => {
       const data = await fetchCollectorLogs(limit)
       return data.map(mapCollectorLog)
@@ -29,7 +29,7 @@ export function useCollectorLogs(limit = 50) {
 
 export function useCollectorTaskChannels(taskName: CollectorTaskName | null) {
   return useQuery({
-    queryKey: ['collector-task-channels', taskName],
+    queryKey: queryKeys.collector.taskChannels(taskName ?? ''),
     queryFn: async () => fetchCollectorTaskChannels(taskName!),
     enabled: !!taskName,
   })
@@ -46,7 +46,7 @@ export function useRunCollectorTask() {
       body?: ApiCollectorTaskRunRequest
     }) => runCollectorTask(taskName, body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: COLLECTOR_LOGS_KEY })
+      queryClient.invalidateQueries({ queryKey: queryKeys.collector.logs })
     },
   })
 }

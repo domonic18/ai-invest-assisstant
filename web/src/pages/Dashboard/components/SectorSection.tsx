@@ -15,21 +15,35 @@ interface SectorSectionProps {
   canBackfill?: boolean
 }
 
-const RED_CELL = {
-  strong: 'bg-[#3a1a1a] text-red-400',
-  mid: 'bg-[#2e1a1a] text-red-300',
-  faint: 'bg-[#241818] text-red-200/70',
+const RISE_CELL = {
+  cn: {
+    strong: 'bg-[#3a1a1a] text-red-400',
+    mid: 'bg-[#2e1a1a] text-red-300',
+    faint: 'bg-[#241818] text-red-200/70',
+  },
+  us: {
+    strong: 'bg-[#1a3a2a] text-green-400',
+    mid: 'bg-[#1a2e20] text-green-300',
+    faint: 'bg-[#1a2418] text-green-200/70',
+  },
 }
-const GREEN_CELL = {
-  strong: 'bg-[#1a3a2a] text-green-400',
-  mid: 'bg-[#1a2e20] text-green-300',
-  faint: 'bg-[#1a2418] text-green-200/70',
+const FALL_CELL = {
+  cn: {
+    strong: 'bg-[#1a3a2a] text-green-400',
+    mid: 'bg-[#1a2e20] text-green-300',
+    faint: 'bg-[#1a2418] text-green-200/70',
+  },
+  us: {
+    strong: 'bg-[#3a1a1a] text-red-400',
+    mid: 'bg-[#2e1a1a] text-red-300',
+    faint: 'bg-[#241818] text-red-200/70',
+  },
 }
 
 function heatCellStyle(changePct: number | null): string {
   if (changePct === null) return 'bg-[#1a1d24] text-gray-400'
-  const isCn = useSettingsStore.getState().colorScheme === 'cn'
-  const palette = (changePct >= 0) === isCn ? RED_CELL : GREEN_CELL
+  const scheme = useSettingsStore.getState().colorScheme
+  const palette = changePct >= 0 ? RISE_CELL[scheme] : FALL_CELL[scheme]
   const abs = Math.abs(changePct)
   if (abs >= 3) return palette.strong
   if (abs >= 1) return palette.mid

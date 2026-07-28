@@ -16,6 +16,8 @@ import {
   formatAmount,
   formatPercent,
   formatSealTime,
+  riseColorSoft,
+  riseHex,
 } from '@/utils/formatters'
 
 interface LimitUpSectionProps {
@@ -29,14 +31,16 @@ interface LimitUpSectionProps {
   tradeDate?: string
 }
 
-const BOARD_COLORS: Record<number, string> = {
-  6: '#f85149',
-  5: '#d29922',
-  4: '#d29922',
-}
-
 function boardColor(boards: number): string {
-  return BOARD_COLORS[boards] ?? '#5e6ad2'
+  switch (boards) {
+    case 6:
+      return riseHex()
+    case 5:
+    case 4:
+      return '#d29922'
+    default:
+      return '#5e6ad2'
+  }
 }
 
 function SealBadge({ item }: { item: LimitUpStock }) {
@@ -54,7 +58,7 @@ function SealBadge({ item }: { item: LimitUpStock }) {
       {sealIcon && (
         <span
           className="w-5 h-5 rounded text-center leading-5 text-xs font-bold text-white"
-          style={{ background: item.sealType === '一字板' ? '#f85149' : '#d29922' }}
+          style={{ background: item.sealType === '一字板' ? riseHex() : '#d29922' }}
           title={item.sealType ?? undefined}
         >
           {sealIcon}
@@ -209,9 +213,12 @@ export function LimitUpSection({
         <div className="space-y-4">
           {data.groups.map((group) => (
             <div key={group.name}>
-              <div className="rounded bg-red-500/10 px-2.5 py-1.5 mb-2">
+              <div
+                className="rounded px-2.5 py-1.5 mb-2"
+                style={{ backgroundColor: `${riseHex()}1a` }}
+              >
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="text-sm font-semibold text-red-400">{group.name}</span>
+                  <span className={`text-sm font-semibold ${riseColorSoft()}`}>{group.name}</span>
                   {group.changePct != null && (
                     <span
                       className="text-xs font-medium"

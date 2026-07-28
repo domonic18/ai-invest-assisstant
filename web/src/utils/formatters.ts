@@ -1,6 +1,7 @@
 import cronstrue from 'cronstrue'
 import 'cronstrue/locales/zh_CN'
 
+import { semanticColors } from '@/theme/colors'
 import { useSettingsStore } from '@/stores/settings'
 
 export function formatNumber(value: number, decimals = 2): string {
@@ -40,8 +41,10 @@ export function formatSealTime(value: string | null | undefined): string {
 
 const RISE_COLOR = { cn: 'text-red-500', us: 'text-green-500' } as const
 const FALL_COLOR = { cn: 'text-green-500', us: 'text-red-500' } as const
-const RISE_HEX = { cn: '#f85149', us: '#2ea043' } as const
-const FALL_HEX = { cn: '#2ea043', us: '#f85149' } as const
+const RISE_COLOR_SOFT = { cn: 'text-red-400', us: 'text-green-400' } as const
+const FALL_COLOR_SOFT = { cn: 'text-green-400', us: 'text-red-400' } as const
+const RISE_HEX = semanticColors.rise
+const FALL_HEX = semanticColors.fall
 
 const scheme = () => useSettingsStore.getState().colorScheme
 
@@ -51,6 +54,14 @@ export function riseColor(): string {
 
 export function fallColor(): string {
   return FALL_COLOR[scheme()]
+}
+
+export function riseColorSoft(): string {
+  return RISE_COLOR_SOFT[scheme()]
+}
+
+export function fallColorSoft(): string {
+  return FALL_COLOR_SOFT[scheme()]
 }
 
 export function riseHex(): string {
