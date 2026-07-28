@@ -1,11 +1,14 @@
-"""Redis distributed lock for collector/AI tasks."""
+"""Redis 分布式锁：跨 service / agent / collector 共享。
+
+收编自 ``collector/core/locks.py``——该模块在 collector 内部零调用，仅给 app 用，
+违反 app → collector 单向依赖。迁到 ``app/core`` 后复用 ``app.core.cache.get_redis``
+共享连接池，避免每次加锁新建 client。
+"""
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-import redis.asyncio as aioredis
-
-from collector.core.config import redis_url
+from app.core.cache import get_redis
 
 
 @asynccontextmanager
@@ -26,7 +29,7 @@ async def redis_lock(
     Yields:
         是否成功获取到锁。
     """
-    client = aioredis.from_url(redis_url, decode_responses=True)
+    client = get_redis()
     lock = client.lock(f"lock:{key}", timeout=ttl, thread_local=False)
     acquired = await lock.acquire(blocking=blocking, blocking_timeout=blocking_timeout)
     try:
@@ -34,4 +37,3 @@ async def redis_lock(
     finally:
         if acquired:
             await lock.release()
-        await client.aclose()
