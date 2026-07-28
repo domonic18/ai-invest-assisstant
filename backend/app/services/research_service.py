@@ -1,24 +1,24 @@
 """Research report business services."""
 
 from datetime import date
-from typing import Any, cast
+from typing import Any
 
 import structlog
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.core.llm_router import build_agent
 from app.agent.core.prompt_loader import PromptLoader
 from app.agent.core.prompt_renderer import PromptRenderer
+from app.agent.runtime import run_structured_agent
 from app.core.config import get_settings
+from app.core.exceptions import ConflictError, NotFoundError, UnprocessableEntityError
+from app.core.locking import redis_lock
 from app.models.news_announcement import NewsAnnouncement
 from app.repositories.news_announcement_repository import NewsAnnouncementRepository
 from app.schemas.news_announcement import (
     ResearchReportDetailResponse,
     ResearchReportResponse,
 )
-from app.services.llm_config_service import resolve_default_llm
-from collector.core.locks import redis_lock
 
 logger = structlog.get_logger(__name__)
 
@@ -26,11 +26,11 @@ _SUMMARY_SKILL_ID = "research-report-summary"
 _SUMMARY_TEXT_LIMIT = 12000
 
 
-class SummaryUnavailableError(Exception):
+class SummaryUnavailableError(UnprocessableEntityError):
     """研报 PDF 不可用（无 MinIO 文件且无法从来源下载），无法生成摘要。"""
 
 
-class SummaryInProgressError(Exception):
+class SummaryInProgressError(ConflictError):
     """其他请求正在生成该研报的摘要。"""
 
 
@@ -90,7 +90,7 @@ class ResearchService:
         """返回研报 PDF 的预签名下载地址；无已存文件时返回 None。"""
         report = await self.get_report(report_id)
         if report is None:
-            raise ValueError(f"Research report {report_id} not found")
+            raise NotFoundError(f"Research report {report_id} not found")
         file_path = (report.extra or {}).get("file_path")
         if not file_path:
             return None
@@ -105,7 +105,7 @@ class ResearchService:
         """
         report = await self.get_report(report_id)
         if report is None:
-            raise ValueError(f"Research report {report_id} not found")
+            raise NotFoundError(f"Research report {report_id} not found")
 
         if report.summary:
             return {"summary": report.summary, "cached": True}
@@ -199,20 +199,13 @@ class ResearchService:
             report_text=text,
         )
 
-        resolved = await resolve_default_llm(self.session)
-        model_config = {
-            "provider": resolved.provider,
-            "model": resolved.model_name,
-            "api_key": resolved.api_key,
-            "base_url": resolved.base_url,
-        }
-        agent = build_agent(
+        output = await run_structured_agent(
+            self.session,
             prompt_config=prompt_config,
-            model_config=model_config,
+            user_prompt=user_prompt,
             result_type=ResearchReportSummaryResult,
         )
-        result = await agent.run(user_prompt)
-        return _render_summary_markdown(cast(ResearchReportSummaryResult, result.output))
+        return _render_summary_markdown(output)
 
 
 def _render_summary_markdown(output: ResearchReportSummaryResult) -> str:

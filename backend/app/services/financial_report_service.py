@@ -1,24 +1,24 @@
 """Financial report (earnings filings) business services."""
 
 from datetime import date
-from typing import Any, cast
+from typing import Any
 
 import structlog
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.core.llm_router import build_agent
 from app.agent.core.prompt_loader import PromptLoader
 from app.agent.core.prompt_renderer import PromptRenderer
+from app.agent.runtime import run_structured_agent
 from app.core.config import get_settings
+from app.core.exceptions import ConflictError, NotFoundError, UnprocessableEntityError
+from app.core.locking import redis_lock
 from app.models.collector_log import CollectorLog
 from app.models.file_metadata import FileMetadata
 from app.repositories.collector_log_repository import CollectorLogRepository
 from app.repositories.file_metadata_repository import FileMetadataRepository
 from app.repositories.stock_repository import StockRepository
 from app.schemas.file_metadata import FinancialReportResponse
-from app.services.llm_config_service import resolve_default_llm
-from collector.core.locks import redis_lock
 from collector.runtime.dispatcher import dispatch_collector_task
 
 logger = structlog.get_logger(__name__)
@@ -35,11 +35,11 @@ REPORT_TYPE_LABELS = {
 }
 
 
-class SummaryUnavailableError(Exception):
+class SummaryUnavailableError(UnprocessableEntityError):
     """财报 PDF 不可用，无法生成摘要。"""
 
 
-class SummaryInProgressError(Exception):
+class SummaryInProgressError(ConflictError):
     """其他请求正在生成该财报的摘要。"""
 
 
@@ -120,7 +120,7 @@ class FinancialReportService:
         """
         stocks, _ = await StockRepository(self.session).search(stock_code, limit=1)
         if not any(s.stock_code == stock_code for s in stocks):
-            raise ValueError(f"股票 {stock_code} 不存在")
+            raise NotFoundError(f"股票 {stock_code} 不存在")
 
         params: dict[str, Any] = {
             "symbols": [stock_code],
@@ -147,7 +147,7 @@ class FinancialReportService:
         """返回财报 PDF 的预签名下载地址；无已存文件时返回 None。"""
         report = await self.get_report(report_id)
         if report is None:
-            raise ValueError(f"Financial report {report_id} not found")
+            raise NotFoundError(f"Financial report {report_id} not found")
         if not report.file_path:
             return None
         from app.services.minio_service import get_minio_service
@@ -161,7 +161,7 @@ class FinancialReportService:
         """
         report = await self.get_report(report_id)
         if report is None:
-            raise ValueError(f"Financial report {report_id} not found")
+            raise NotFoundError(f"Financial report {report_id} not found")
 
         if report.summary:
             return {"summary": report.summary, "cached": True}
@@ -222,22 +222,13 @@ class FinancialReportService:
             report_text=text,
         )
 
-        resolved = await resolve_default_llm(self.session)
-        model_config = {
-            "provider": resolved.provider,
-            "model": resolved.model_name,
-            "api_key": resolved.api_key,
-            "base_url": resolved.base_url,
-        }
-        agent = build_agent(
+        output = await run_structured_agent(
+            self.session,
             prompt_config=prompt_config,
-            model_config=model_config,
+            user_prompt=user_prompt,
             result_type=FinancialReportSummaryResult,
         )
-        result = await agent.run(user_prompt)
-        return _render_summary_markdown(
-            cast(FinancialReportSummaryResult, result.output)
-        )
+        return _render_summary_markdown(output)
 
 
 def _render_summary_markdown(output: FinancialReportSummaryResult) -> str:

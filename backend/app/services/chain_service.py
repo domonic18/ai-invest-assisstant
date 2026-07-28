@@ -1,14 +1,14 @@
 """产业链分析业务服务：分析持久化、版本管理与版本对比。"""
 
-import json
 import time
 from typing import Any
 
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.skills import industry_chain_analysis
+from app.core.exceptions import InternalError
 from app.models.industry_chain import ChainAnalysisVersion, ChainNode
+from app.repositories import ai_analysis_repository
 from app.repositories import industry_chain_repository as repository
 from app.schemas.chain import (
     ChainAnalysisResult,
@@ -32,7 +32,7 @@ _COMPARE_METRIC_FIELDS = (
 )
 
 
-class ChainAnalysisFailedError(Exception):
+class ChainAnalysisFailedError(InternalError):
     """AI 产业链分析执行失败。"""
 
 
@@ -47,41 +47,24 @@ async def _insert_ai_result(
     error_msg: str | None = None,
 ) -> int:
     """写入 ai_analysis_result 原始记录并返回 id。"""
-    payload = json.dumps(structured, ensure_ascii=False)
-    row = (
-        await session.execute(
-            text(
-                """
-                INSERT INTO ai_analysis_result
-                    (skill_id, input_hash, prompt_id, model, raw_output,
-                     structured_output, latency_ms, status, error_msg)
-                VALUES
-                    (:skill_id, :input_hash, :prompt_id, :model, :raw_output,
-                     CAST(:structured_output AS JSONB), :latency_ms, :status, :error_msg)
-                RETURNING id
-                """
-            ),
-            {
-                "skill_id": SKILL_ID,
-                "input_hash": input_hash,
-                "prompt_id": SKILL_ID,
-                "model": model,
-                "raw_output": payload,
-                "structured_output": payload,
-                "latency_ms": latency_ms,
-                "status": status,
-                "error_msg": error_msg,
-            },
-        )
-    ).scalar_one()
-    return int(row)
+    return await ai_analysis_repository.insert_result(
+        session,
+        skill_id=SKILL_ID,
+        input_hash=input_hash,
+        prompt_id=SKILL_ID,
+        model=model,
+        structured=structured,
+        latency_ms=latency_ms,
+        status=status,
+        error_msg=error_msg,
+    )
 
 
 def _to_summary(version: ChainAnalysisVersion) -> ChainVersionSummary:
     """ORM 版本行转响应摘要。"""
     return ChainVersionSummary(
         id=version.id,
-        industry_level_1=version.industry_level_1,
+        industry=version.industry_level_1,
         version_no=version.version_no,
         label=version.label,
         status=version.status,

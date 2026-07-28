@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.exceptions import NotFoundError
 from app.services import financial_report_service
 from app.services.financial_report_service import (
     FinancialReportSummaryResult,
@@ -51,7 +52,7 @@ class TestFinancialReportService:
         session = AsyncMock()
         session.get.return_value = None
 
-        with pytest.raises(ValueError):
+        with pytest.raises(NotFoundError):
             await financial_report_service.summarize_report(session, 1)
 
     @pytest.mark.asyncio
@@ -214,7 +215,7 @@ class TestTriggerCollect:
         session.execute.return_value = search_result
         session.scalar.return_value = 0
 
-        with pytest.raises(ValueError):
+        with pytest.raises(NotFoundError):
             await financial_report_service.trigger_collect(
                 session, stock_code="999999"
             )

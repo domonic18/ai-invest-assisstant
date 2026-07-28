@@ -30,6 +30,7 @@ from app.models.pool_limit_up_stock import LimitUpPool
 from app.models.quote_auction_index import IndexAuction
 from app.models.stock import StockBasic
 from app.models.user import User
+from app.models.user_market_review import UserMarketReview
 from app.models.watchlist import UserWatchlist
 
 __all__ = [
@@ -62,5 +63,6 @@ __all__ = [
     "SectorFundFlow",
     "StockBasic",
     "User",
+    "UserMarketReview",
     "UserWatchlist",
 ]

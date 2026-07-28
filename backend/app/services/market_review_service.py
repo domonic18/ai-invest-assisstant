@@ -8,44 +8,58 @@ skills/market-daily-review.yaml 追加一条 section，无需改动本模块、A
 """
 
 import hashlib
-import json
-import time
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any, cast
+from typing import Any
 
 import structlog
 from pydantic import BaseModel
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.core.llm_router import build_agent
 from app.agent.core.prompt_loader import PromptConfig, PromptLoader, PromptSection
 from app.agent.core.prompt_renderer import PromptRenderer
+from app.agent.runtime import run_structured_agent_with_metrics
 from app.core.config import get_settings
+from app.core.exceptions import (
+    BadRequestError,
+    ConflictError,
+    NotFoundError,
+    UnprocessableEntityError,
+)
+from app.core.locking import redis_lock
+from app.models.user_market_review import UserMarketReview
+from app.repositories import (
+    ai_analysis_repository,
+    user_market_review_repository,
+)
 from app.schemas.market import MarketReviewResponse, MarketReviewSection
-from app.services import index_technical_service, market_service
-from app.services.llm_config_service import resolve_default_llm
-from collector.core.locks import redis_lock
+from app.services import (
+    index_quotation_service,
+    index_technical_service,
+    limit_pool_service,
+    market_stats_service,
+    sector_service,
+    trade_calendar_service,
+)
 
 logger = structlog.get_logger(__name__)
 
 SKILL_ID = "market-daily-review"
 
 
-class ReviewNotFoundError(Exception):
+class ReviewNotFoundError(NotFoundError):
     """指定交易日不存在已生成的 AI 复盘。"""
 
 
-class NonTradingDayError(Exception):
+class NonTradingDayError(BadRequestError):
     """指定日期不是交易日，每日复盘只对交易日有效。"""
 
 
-class ReviewGenerationLockedError(Exception):
+class ReviewGenerationLockedError(ConflictError):
     """其他实例正在生成同交易日的大盘综述。"""
 
 
-class UnknownSectionError(Exception):
+class UnknownSectionError(UnprocessableEntityError):
     """编辑的分区未在 prompt YAML 的 sections 中声明。"""
 
 
@@ -116,35 +130,22 @@ async def _load_base_review(
     session: AsyncSession, trade_date: date, sections: list[PromptSection]
 ) -> _BaseReview | None:
     """读取共享 base 记录。"""
-    row = (
-        await session.execute(
-            text(
-                """
-                SELECT id, structured_output, model, created_at
-                FROM ai_analysis_result
-                WHERE skill_id = :skill_id AND input_hash = :input_hash
-                  AND status = 'success'
-                ORDER BY created_at DESC
-                LIMIT 1
-                """
-            ),
-            {
-                "skill_id": SKILL_ID,
-                "input_hash": _input_hash(trade_date, sections),
-            },
-        )
-    ).mappings().first()
-    if not row or not row["structured_output"]:
+    row = await ai_analysis_repository.load_latest_success(
+        session,
+        skill_id=SKILL_ID,
+        input_hash=_input_hash(trade_date, sections),
+    )
+    if row is None or not row.structured_output:
         return None
-    output = row["structured_output"]
+    output = row.structured_output
     return _BaseReview(
-        id=row["id"],
+        id=row.id,
         response=_build_response(
             trade_date=date.fromisoformat(output["trade_date"]),
             contents=output.get("sections") or {},
             sections=sections,
-            model=row["model"],
-            generated_at=row["created_at"],
+            model=row.model,
+            generated_at=row.created_at,
             cached=True,
             edited=False,
         ),
@@ -153,33 +154,22 @@ async def _load_base_review(
 
 async def _load_user_edit_row(
     session: AsyncSession, user_id: int, trade_date: date
-) -> dict[str, Any] | None:
+) -> UserMarketReview | None:
     """读取用户编辑副本原始行（sections JSONB，未编辑的分区不在其中）。"""
-    row = (
-        await session.execute(
-            text(
-                """
-                SELECT sections, model, generated_at, created_at
-                FROM user_market_review
-                WHERE user_id = :user_id AND trade_date = :trade_date
-                LIMIT 1
-                """
-            ),
-            {"user_id": user_id, "trade_date": trade_date},
-        )
-    ).mappings().first()
-    return dict(row) if row else None
+    return await user_market_review_repository.find(
+        session, user_id=user_id, trade_date=trade_date
+    )
 
 
 async def _resolve_trade_date(
     session: AsyncSession, trade_date: date | None
 ) -> date:
-    stats = await market_service.get_market_stats(session, trade_date)
+    stats = await market_stats_service.get_market_stats(session, trade_date)
     return stats.trade_date
 
 
 async def _assert_trading_day(session: AsyncSession, day: date) -> None:
-    if not await market_service.is_trading_day(session, day):
+    if not await trade_calendar_service.is_trading_day(session, day):
         raise NonTradingDayError(f"{day.isoformat()} 不是交易日，每日复盘只对交易日有效")
 
 
@@ -207,7 +197,7 @@ async def get_market_review(
         if base is not None
         else {}
     )
-    user_sections: dict[str, str] = user_row["sections"] or {}
+    user_sections: dict[str, str] = user_row.sections or {}
     merged = {
         section.key: user_sections.get(section.key, base_contents.get(section.key, ""))
         for section in sections
@@ -217,8 +207,8 @@ async def get_market_review(
         trade_date=resolved_date,
         contents=merged,
         sections=sections,
-        model=user_row["model"] or base_model,
-        generated_at=user_row["generated_at"] or user_row["created_at"],
+        model=user_row.model or base_model,
+        generated_at=user_row.generated_at or user_row.created_at,
         cached=True,
         edited=True,
     )
@@ -248,33 +238,17 @@ async def update_market_review(
     merged = {item.key: item.content for item in base.response.sections}
     existing = await _load_user_edit_row(session, user_id, trade_date)
     if existing is not None:
-        merged.update(existing["sections"] or {})
+        merged.update(existing.sections or {})
     merged[section_key] = content
 
-    await session.execute(
-        text(
-            """
-            INSERT INTO user_market_review
-                (user_id, trade_date, sections, model, generated_at, base_review_id)
-            VALUES
-                (:user_id, :trade_date, CAST(:sections AS JSONB),
-                 :model, :generated_at, :base_review_id)
-            ON CONFLICT (user_id, trade_date) DO UPDATE
-            SET sections = EXCLUDED.sections,
-                model = EXCLUDED.model,
-                generated_at = EXCLUDED.generated_at,
-                base_review_id = EXCLUDED.base_review_id,
-                updated_at = NOW()
-            """
-        ),
-        {
-            "user_id": user_id,
-            "trade_date": trade_date,
-            "sections": json.dumps(merged, ensure_ascii=False),
-            "model": base.response.model,
-            "generated_at": base.response.generated_at,
-            "base_review_id": base.id,
-        },
+    await user_market_review_repository.upsert_sections(
+        session,
+        user_id=user_id,
+        trade_date=trade_date,
+        sections=merged,
+        model=base.response.model,
+        generated_at=base.response.generated_at,
+        base_review_id=base.id,
     )
     await session.commit()
 
@@ -301,26 +275,14 @@ async def _persist(
         "trade_date": trade_date.isoformat(),
         "sections": contents,
     }
-    await session.execute(
-        text(
-            """
-            INSERT INTO ai_analysis_result
-                (skill_id, input_hash, prompt_id, model, raw_output,
-                 structured_output, latency_ms, status)
-            VALUES
-                (:skill_id, :input_hash, :prompt_id, :model, :raw_output,
-                 CAST(:structured_output AS JSONB), :latency_ms, 'success')
-            """
-        ),
-        {
-            "skill_id": SKILL_ID,
-            "input_hash": input_hash,
-            "prompt_id": SKILL_ID,
-            "model": model,
-            "raw_output": json.dumps(structured, ensure_ascii=False),
-            "structured_output": json.dumps(structured, ensure_ascii=False),
-            "latency_ms": latency_ms,
-        },
+    await ai_analysis_repository.insert_result(
+        session,
+        skill_id=SKILL_ID,
+        input_hash=input_hash,
+        prompt_id=SKILL_ID,
+        model=model,
+        structured=structured,
+        latency_ms=latency_ms,
     )
     await session.commit()
 
@@ -358,7 +320,7 @@ async def generate_market_review(
     """
     if trade_date is not None:
         await _assert_trading_day(session, trade_date)
-    stats = await market_service.get_market_stats(session, trade_date)
+    stats = await market_stats_service.get_market_stats(session, trade_date)
     resolved_date = stats.trade_date
 
     prompt_config = _load_prompt_config()
@@ -389,9 +351,9 @@ async def generate_market_review(
             if cached is not None:
                 return cached.response
 
-        indices = await market_service.get_index_quotes(session, resolved_date)
-        limit_up = await market_service.get_limit_up(session, resolved_date)
-        sectors = await market_service.get_sector_overview(session, resolved_date)
+        indices = await index_quotation_service.get_index_quotes(session, resolved_date)
+        limit_up = await limit_pool_service.get_limit_up(session, resolved_date)
+        sectors = await sector_service.get_sector_overview(session, resolved_date)
         technical_context = await index_technical_service.build_technical_context(
             session, resolved_date
         )
@@ -456,23 +418,12 @@ async def generate_market_review(
             section_instructions=_render_section_instructions(sections),
         )
 
-        resolved = await resolve_default_llm(session)
-        model_config = {
-            "provider": resolved.provider,
-            "model": resolved.model_name,
-            "api_key": resolved.api_key,
-            "base_url": resolved.base_url,
-        }
-        agent = build_agent(
+        output, latency_ms, model_name = await run_structured_agent_with_metrics(
+            session,
             prompt_config=prompt_config,
-            model_config=model_config,
+            user_prompt=user_prompt,
             result_type=MarketReviewContent,
         )
-
-        started = time.perf_counter()
-        result = await agent.run(user_prompt)
-        latency_ms = int((time.perf_counter() - started) * 1000)
-        output = cast(MarketReviewContent, result.output)
 
         declared_keys = {section.key for section in sections}
         missing = declared_keys - output.sections.keys()
@@ -486,7 +437,6 @@ async def generate_market_review(
             section.key: output.sections.get(section.key, "") for section in sections
         }
 
-        model_name = f"{resolved.provider}/{resolved.model_name}"
         await _persist(
             session, input_hash, model_name, contents, resolved_date, latency_ms
         )

@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.exceptions import NotFoundError
 from app.services import research_service
 from app.services.research_service import (
     ResearchReportSummaryResult,
@@ -65,7 +66,7 @@ class TestResearchService:
         session = AsyncMock()
         session.get.return_value = None
 
-        with pytest.raises(ValueError):
+        with pytest.raises(NotFoundError):
             await research_service.summarize_report(session, 1)
 
     @pytest.mark.asyncio

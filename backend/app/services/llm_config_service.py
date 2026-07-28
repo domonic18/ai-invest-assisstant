@@ -15,6 +15,7 @@ import httpx
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import InternalError, NotFoundError
 from app.models.llm_config import LLMConfig
 from app.repositories.llm_config_repository import LLMConfigRepository
 from app.schemas.llm_config import (
@@ -28,12 +29,16 @@ from app.utils.crypto import decrypt_token, encrypt_token, mask_token
 logger = structlog.get_logger()
 
 
-class LLMConfigNotConfiguredError(Exception):
+class LLMConfigNotConfiguredError(InternalError):
     """Raised when no enabled default LLM configuration exists."""
 
+    default_message = "未配置默认 LLM 模型，请联系管理员在后台配置"
 
-class LLMConfigNotFoundError(Exception):
+
+class LLMConfigNotFoundError(NotFoundError):
     """Raised when a requested LLM configuration does not exist or is disabled."""
+
+    default_message = "LLM 配置不存在或已禁用"
 
 
 @dataclass(frozen=True)
