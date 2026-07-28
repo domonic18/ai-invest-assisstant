@@ -1,4 +1,8 @@
-"""Unit tests for market overview service."""
+"""Unit tests for market overview services.
+
+阶段 2.3 后 market_service 已拆为 7 个子服务；测试 patch 目标按函数实际定义
+模块定向（patch market_service 命名空间无法拦截子服务内部的查找）。
+"""
 
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -7,7 +11,14 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.services import market_service
+from app.services import (
+    index_quotation_service,
+    limit_pool_service,
+    market_service,
+    market_stats_service,
+    trade_calendar_service,
+    watchlist_quote_service,
+)
 
 
 def _scalars_result(items):
@@ -16,13 +27,22 @@ def _scalars_result(items):
     return result
 
 
-def _cache_result(output):
-    """AI 归因缓存查询（.mappings().first()）mock。"""
-    result = MagicMock()
-    result.mappings.return_value.first.return_value = (
-        {"structured_output": output} if output is not None else None
+def _patch_attribution_cache(output: dict | None):
+    """patch ai_analysis_repository.load_latest_success 返回归因缓存行。
+
+    output=None 等价于缓存未命中；否则 row.structured_output=output。
+    """
+    if output is None:
+        return patch(
+            "app.repositories.ai_analysis_repository.load_latest_success",
+            AsyncMock(return_value=None),
+        )
+    row = MagicMock()
+    row.structured_output = output
+    return patch(
+        "app.repositories.ai_analysis_repository.load_latest_success",
+        AsyncMock(return_value=row),
     )
-    return result
 
 
 def _limit_up_row(**overrides):
@@ -95,9 +115,9 @@ class TestGetIndexQuotes:
             }
         ]
         with (
-            patch.object(market_service, "_index_spot", AsyncMock(return_value=spot)),
+            patch.object(index_quotation_service, "_index_spot", AsyncMock(return_value=spot)),
             patch.object(
-                market_service,
+                index_quotation_service,
                 "_local_index_closes",
                 AsyncMock(return_value=[1.0, 2.0]),
             ),
@@ -121,12 +141,12 @@ class TestGetIndexQuotes:
             }
         ]
         with (
-            patch.object(market_service, "_index_spot", AsyncMock(return_value=None)),
+            patch.object(index_quotation_service, "_index_spot", AsyncMock(return_value=None)),
             patch.object(
-                market_service, "_db_index_spot", AsyncMock(return_value=db_spot)
+                index_quotation_service, "_db_index_spot", AsyncMock(return_value=db_spot)
             ),
             patch.object(
-                market_service, "_local_index_closes", AsyncMock(return_value=[1.0])
+                index_quotation_service, "_local_index_closes", AsyncMock(return_value=[1.0])
             ),
         ):
             quotes = await market_service.get_index_quotes(AsyncMock())
@@ -145,7 +165,7 @@ class TestGetIndexQuotes:
 
         bars = [_bar(date(2026, 7, 17), 101.0), _bar(date(2026, 7, 16), 100.0)]
         with patch.object(
-            market_service, "fetch_daily_bars", AsyncMock(return_value=bars)
+            index_quotation_service, "fetch_daily_bars", AsyncMock(return_value=bars)
         ):
             spot = await market_service._db_index_spot(AsyncMock())
 
@@ -181,15 +201,15 @@ class TestGetIndexIntraday:
         ]
         with (
             patch.object(
-                market_service,
+                index_quotation_service,
                 "latest_minute_day",
                 AsyncMock(return_value=date(2026, 7, 17)),
             ),
             patch.object(
-                market_service, "fetch_minute_bars", AsyncMock(return_value=bars)
+                index_quotation_service, "fetch_minute_bars", AsyncMock(return_value=bars)
             ),
             patch.object(
-                market_service, "prev_minute_close", AsyncMock(return_value=3781.0)
+                index_quotation_service, "prev_minute_close", AsyncMock(return_value=3781.0)
             ),
         ):
             result = await market_service.get_index_intraday(AsyncMock(), "sh000001")
@@ -208,13 +228,13 @@ class TestGetIndexIntraday:
         daily_bar.close = Decimal("3775")
         with (
             patch.object(
-                market_service, "fetch_minute_bars", AsyncMock(return_value=bars)
+                index_quotation_service, "fetch_minute_bars", AsyncMock(return_value=bars)
             ),
             patch.object(
-                market_service, "prev_minute_close", AsyncMock(return_value=None)
+                index_quotation_service, "prev_minute_close", AsyncMock(return_value=None)
             ),
             patch.object(
-                market_service,
+                index_quotation_service,
                 "fetch_daily_bars",
                 AsyncMock(return_value=[daily_bar]),
             ),
@@ -229,7 +249,7 @@ class TestGetIndexIntraday:
     async def test_historical_date_without_bars_raises(self) -> None:
         with (
             patch.object(
-                market_service, "fetch_minute_bars", AsyncMock(return_value=[])
+                index_quotation_service, "fetch_minute_bars", AsyncMock(return_value=[])
             ),
             pytest.raises(ValueError, match="无分时数据"),
         ):
@@ -240,7 +260,7 @@ class TestGetIndexIntraday:
     @pytest.mark.asyncio
     async def test_empty_when_no_minute_data(self) -> None:
         with patch.object(
-            market_service, "latest_minute_day", AsyncMock(return_value=None)
+            index_quotation_service, "latest_minute_day", AsyncMock(return_value=None)
         ):
             result = await market_service.get_index_intraday(AsyncMock(), "sh000001")
 
@@ -357,12 +377,12 @@ class TestHistoricalBreadth:
         session = AsyncMock()
         with (
             patch.object(
-                market_service,
+                trade_calendar_service,
                 "resolve_latest_trade_date",
                 AsyncMock(return_value=date(2026, 7, 17)),
             ),
             patch.object(
-                market_service,
+                market_stats_service,
                 "_historical_breadth",
                 AsyncMock(
                     return_value={
@@ -375,12 +395,12 @@ class TestHistoricalBreadth:
                 ),
             ),
             patch.object(
-                market_service,
+                market_stats_service,
                 "_amount_pair",
                 AsyncMock(return_value=(2.4e12, 2.2e12)),
             ),
             patch.object(
-                market_service,
+                market_stats_service,
                 "_limit_up_rates",
                 AsyncMock(return_value=(0.3, 0.2, 8)),
             ),
@@ -448,7 +468,7 @@ class TestHistoricalIndexQuotes:
             self._bar(date(2026, 7, 15), 100.0),
         ]
         with patch.object(
-            market_service, "fetch_daily_bars", AsyncMock(return_value=bars)
+            index_quotation_service, "fetch_daily_bars", AsyncMock(return_value=bars)
         ):
             quotes = await market_service.get_index_quotes(
                 AsyncMock(), date(2026, 7, 16)
@@ -464,7 +484,7 @@ class TestHistoricalIndexQuotes:
     async def test_non_trading_day_returns_empty(self) -> None:
         bars = [self._bar(date(2026, 7, 17), 100.0)]
         with patch.object(
-            market_service, "fetch_daily_bars", AsyncMock(return_value=bars)
+            index_quotation_service, "fetch_daily_bars", AsyncMock(return_value=bars)
         ):
             quotes = await market_service.get_index_quotes(
                 AsyncMock(), date(2026, 7, 16)
@@ -484,12 +504,12 @@ class TestGetLimitUp:
         ]
         session = AsyncMock()
         session.execute.side_effect = [
-            _scalars_result(rows),
-            _cache_result(None),  # 无 AI 归因缓存
+            _scalars_result(rows),  # 涨停池
             _scalars_result([]),  # 板块资金流查询
         ]
 
-        result = await market_service.get_limit_up(session, date(2026, 7, 17))
+        with _patch_attribution_cache(None):
+            result = await market_service.get_limit_up(session, date(2026, 7, 17))
 
         assert result.total == 3
         assert result.continuous == 2
@@ -510,11 +530,11 @@ class TestGetLimitUp:
         session = AsyncMock()
         session.execute.side_effect = [
             _scalars_result(rows),
-            _cache_result(None),
             _scalars_result([]),
         ]
 
-        result = await market_service.get_limit_up(session, date(2026, 7, 17))
+        with _patch_attribution_cache(None):
+            result = await market_service.get_limit_up(session, date(2026, 7, 17))
 
         seal_types = {item.stock_code: item.seal_type for item in result.items}
         assert seal_types == {
@@ -543,11 +563,11 @@ class TestGetLimitUp:
         session = AsyncMock()
         session.execute.side_effect = [
             _scalars_result(rows),
-            _cache_result(None),
             _scalars_result(sectors),
         ]
 
-        result = await market_service.get_limit_up(session, date(2026, 7, 17))
+        with _patch_attribution_cache(None):
+            result = await market_service.get_limit_up(session, date(2026, 7, 17))
 
         assert [group.name for group in result.groups] == ["电力", "白酒Ⅱ"]
         power = result.groups[0]
@@ -570,11 +590,11 @@ class TestGetLimitUp:
         session = AsyncMock()
         session.execute.side_effect = [
             _scalars_result(rows),
-            _cache_result(None),
             _scalars_result([]),
         ]
 
-        result = await market_service.get_limit_up(session, date(2026, 7, 17))
+        with _patch_attribution_cache(None):
+            result = await market_service.get_limit_up(session, date(2026, 7, 17))
 
         assert [group.name for group in result.groups] == ["电力", "其他"]
         assert result.groups[-1].change_pct is None
@@ -589,11 +609,11 @@ class TestGetLimitUp:
         session = AsyncMock()
         session.execute.side_effect = [
             _scalars_result(rows),
-            _cache_result(None),
             _scalars_result(sectors),
         ]
 
-        result = await market_service.get_limit_up(session, date(2026, 7, 17))
+        with _patch_attribution_cache(None):
+            result = await market_service.get_limit_up(session, date(2026, 7, 17))
 
         assert result.groups[0].change_pct == pytest.approx(5.3)
 
@@ -621,10 +641,10 @@ class TestGetLimitUp:
         session = AsyncMock()
         session.execute.side_effect = [
             _scalars_result(rows),
-            _cache_result(attribution),
         ]
 
-        result = await market_service.get_limit_up(session, date(2026, 7, 17))
+        with _patch_attribution_cache(attribution):
+            result = await market_service.get_limit_up(session, date(2026, 7, 17))
 
         assert result.ai_generated is True
         assert [group.name for group in result.groups] == ["电力改革", "其他"]
@@ -658,10 +678,10 @@ class TestGetLimitUp:
         session = AsyncMock()
         session.execute.side_effect = [
             _scalars_result(rows),
-            _cache_result(attribution),
         ]
 
-        result = await market_service.get_limit_up(session, date(2026, 7, 17))
+        with _patch_attribution_cache(attribution):
+            result = await market_service.get_limit_up(session, date(2026, 7, 17))
 
         assert result.ai_generated is True
         assert len(result.groups) == 1
@@ -673,7 +693,7 @@ class TestGetLimitUp:
         session = AsyncMock()
         session.execute.return_value = _scalars_result([])
         with patch.object(
-            market_service, "fetch_max_daily_date", AsyncMock(return_value=None)
+            trade_calendar_service, "fetch_max_daily_date", AsyncMock(return_value=None)
         ):
             result = await market_service.get_limit_up(session)
 
@@ -689,7 +709,7 @@ class TestGetLimitUp:
         session.scalar.return_value = 1  # 当日已有 market_breadth 行
         session.execute.return_value = _scalars_result([])  # 当日涨停池为空
         with patch.object(
-            market_service,
+            trade_calendar_service,
             "fetch_max_daily_date",
             AsyncMock(return_value=today - timedelta(days=3)),
         ):
@@ -713,7 +733,7 @@ class TestGetLimitUpIntraday:
         session.execute.return_value = _scalars_result(["600001"])
         bars = self._bars("600001", [float(i) for i in range(240)])
         with patch.object(
-            market_service, "fetch_minute_bars_multi", AsyncMock(return_value=bars)
+            limit_pool_service, "fetch_minute_bars_multi", AsyncMock(return_value=bars)
         ):
             result = await market_service.get_limit_up_intraday(
                 session, date(2026, 7, 21)
@@ -730,7 +750,7 @@ class TestGetLimitUpIntraday:
         session.execute.return_value = _scalars_result(["600001", "000001"])
         bars = self._bars("600001", [10.0, 10.5, 11.0])
         with patch.object(
-            market_service, "fetch_minute_bars_multi", AsyncMock(return_value=bars)
+            limit_pool_service, "fetch_minute_bars_multi", AsyncMock(return_value=bars)
         ):
             result = await market_service.get_limit_up_intraday(
                 session, date(2026, 7, 21)
@@ -790,7 +810,7 @@ class TestGetSectorOverview:
             MagicMock(industry="板块0", stock_name="涨停股B"),
         ]
         with patch.object(
-            market_service, "get_limit_up", AsyncMock(return_value=limit_up)
+            limit_pool_service, "get_limit_up", AsyncMock(return_value=limit_up)
         ):
             overview = await market_service.get_sector_overview(
                 session, date(2026, 7, 17)
@@ -821,7 +841,7 @@ class TestGetWatchlistQuotes:
             b'"change_pct":1.2,"amount":1e8,"updated_at":"2026-07-17"}'
         )
 
-        with patch.object(market_service, "_redis", MagicMock(return_value=redis)):
+        with patch.object(watchlist_quote_service, "get_redis", MagicMock(return_value=redis)):
             quotes = await market_service.get_watchlist_quotes(session, user_id=1)
 
         assert len(quotes) == 1
@@ -851,7 +871,7 @@ class TestGetWatchlistQuotes:
         redis = AsyncMock()
         redis.get.return_value = None
 
-        with patch.object(market_service, "_redis", MagicMock(return_value=redis)):
+        with patch.object(watchlist_quote_service, "get_redis", MagicMock(return_value=redis)):
             quotes = await market_service.get_watchlist_quotes(session, user_id=1)
 
         assert quotes[0].price == 10.5
@@ -888,7 +908,7 @@ class TestGetIndexKline:
         # fetch_daily_bars 返回倒序，服务层应反转为升序
         rows = [_bar(date(2026, 7, 17), 101.0), _bar(date(2026, 7, 16), 100.0)]
         with patch.object(
-            market_service, "fetch_daily_bars", AsyncMock(return_value=rows)
+            index_quotation_service, "fetch_daily_bars", AsyncMock(return_value=rows)
         ):
             resp = await market_service.get_index_kline(AsyncMock(), "sh000001")
 
@@ -915,7 +935,7 @@ class TestGetIndexKline:
         bar.volume = 100
         bar.amount = None
         with patch.object(
-            market_service, "fetch_daily_bars", AsyncMock(return_value=[bar])
+            index_quotation_service, "fetch_daily_bars", AsyncMock(return_value=[bar])
         ):
             resp = await market_service.get_index_kline(AsyncMock(), code)
 
@@ -937,7 +957,7 @@ class TestGetIndexKline:
             }
         ]
         with patch.object(
-            market_service, "fetch_aggregated_bars", AsyncMock(return_value=rows)
+            index_quotation_service, "fetch_aggregated_bars", AsyncMock(return_value=rows)
         ) as mock_fetch:
             resp = await market_service.get_index_kline(
                 AsyncMock(), "sh000001", period="weekly"
@@ -967,7 +987,7 @@ class TestHistoricalIndexQuotesLocal:
             return [newer, older]
 
         with patch.object(
-            market_service,
+            index_quotation_service,
             "fetch_daily_bars",
             AsyncMock(side_effect=[_bars() for _ in INDEX_CODES]),
         ):
@@ -1046,7 +1066,7 @@ class TestResolveLatestTradeDate:
     async def test_returns_today_when_no_kline(self) -> None:
         session = AsyncMock()
         with patch.object(
-            market_service, "fetch_max_daily_date", AsyncMock(return_value=None)
+            trade_calendar_service, "fetch_max_daily_date", AsyncMock(return_value=None)
         ):
             assert await market_service.resolve_latest_trade_date(session) == (
                 date.today()
@@ -1059,7 +1079,7 @@ class TestResolveLatestTradeDate:
         today = date.today()
         kline_max = today - timedelta(days=3)
         with patch.object(
-            market_service,
+            trade_calendar_service,
             "fetch_max_daily_date",
             AsyncMock(return_value=kline_max),
         ):
@@ -1073,7 +1093,7 @@ class TestResolveLatestTradeDate:
         session.scalar.return_value = 0
         kline_max = date(2026, 7, 17)
         with patch.object(
-            market_service,
+            trade_calendar_service,
             "fetch_max_daily_date",
             AsyncMock(return_value=kline_max),
         ):
@@ -1096,12 +1116,12 @@ class TestIsTradingDay:
         session = AsyncMock()
         with (
             patch.object(
-                market_service,
+                trade_calendar_service,
                 "fetch_max_daily_date",
                 AsyncMock(return_value=date(2026, 7, 17)),
             ),
             patch.object(
-                market_service, "has_daily_bar", AsyncMock(return_value=True)
+                trade_calendar_service, "has_daily_bar", AsyncMock(return_value=True)
             ),
         ):
             assert await market_service.is_trading_day(
@@ -1113,12 +1133,12 @@ class TestIsTradingDay:
         session = AsyncMock()
         with (
             patch.object(
-                market_service,
+                trade_calendar_service,
                 "fetch_max_daily_date",
                 AsyncMock(return_value=date(2026, 7, 17)),
             ),
             patch.object(
-                market_service, "has_daily_bar", AsyncMock(return_value=False)
+                trade_calendar_service, "has_daily_bar", AsyncMock(return_value=False)
             ),
         ):
             assert await market_service.is_trading_day(
@@ -1129,7 +1149,7 @@ class TestIsTradingDay:
     async def test_future_weekday_after_kline_max_allowed(self) -> None:
         session = AsyncMock()
         with patch.object(
-            market_service,
+            trade_calendar_service,
             "fetch_max_daily_date",
             AsyncMock(return_value=date(2026, 7, 17)),
         ):
@@ -1160,7 +1180,9 @@ class TestBackfillTradeDate:
 
         with (
             patch.object(
-                market_service, "is_trading_day", AsyncMock(return_value=True)
+                trade_calendar_service,
+                "is_trading_day",
+                AsyncMock(return_value=True),
             ),
             patch(
                 "collector.runtime.dispatcher.dispatch_collector_task",

@@ -16,15 +16,7 @@ from app.schemas.financial import (
     FinancialHealthResponse,
     IncomeStatementResponse,
 )
-
-
-def _safe_divide(numerator: Decimal | None, denominator: Decimal | None) -> float | None:
-    """安全除法，返回浮点数或 None。"""
-    if numerator is None or denominator is None:
-        return None
-    if denominator == 0:
-        return None
-    return float(numerator / denominator)
+from app.utils.numeric import safe_divide
 
 
 def _compute_metrics(
@@ -35,24 +27,24 @@ def _compute_metrics(
     """根据三张报表计算财务健康度指标。"""
     metrics: dict[str, Any] = {}
     if balance:
-        metrics["debt_ratio"] = _safe_divide(
+        metrics["debt_ratio"] = safe_divide(
             balance.total_liabilities, balance.total_assets
         )
-        metrics["current_ratio"] = _safe_divide(
+        metrics["current_ratio"] = safe_divide(
             balance.current_assets, balance.current_liabilities
         )
     if income:
         revenue = income.total_revenue or Decimal("0")
         operating_cost = income.operating_cost or Decimal("0")
         net_profit = income.net_profit or Decimal("0")
-        metrics["gross_margin"] = _safe_divide(revenue - operating_cost, revenue)
-        metrics["net_margin"] = _safe_divide(net_profit, revenue)
+        metrics["gross_margin"] = safe_divide(revenue - operating_cost, revenue)
+        metrics["net_margin"] = safe_divide(net_profit, revenue)
     if balance and income:
-        metrics["roe"] = _safe_divide(
+        metrics["roe"] = safe_divide(
             income.net_profit or Decimal("0"), balance.total_equity
         )
     if income and cash:
-        metrics["operating_cf_ratio"] = _safe_divide(
+        metrics["operating_cf_ratio"] = safe_divide(
             cash.cash_flow_from_operations,
             income.total_revenue or Decimal("0"),
         )

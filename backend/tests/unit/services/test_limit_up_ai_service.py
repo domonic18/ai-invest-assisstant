@@ -15,10 +15,13 @@ from app.services.market_review_service import NonTradingDayError
 _TRADE_DATE = date(2026, 7, 20)
 
 
-def _execute_returning(row):
-    result = MagicMock()
-    result.mappings.return_value.first.return_value = row
-    return result
+def _cached_row(structured: dict | None):
+    """构造 ai_analysis_repository.load_latest_success 的返回值。"""
+    if structured is None:
+        return None
+    row = MagicMock()
+    row.structured_output = structured
+    return row
 
 
 def _content_dict() -> dict:
@@ -68,24 +71,25 @@ class TestValidate:
 class TestGetCachedAttribution:
     @pytest.mark.asyncio
     async def test_returns_none_when_no_cached_row(self) -> None:
-        session = AsyncMock()
-        session.execute.return_value = _execute_returning(None)
+        with patch(
+            "app.repositories.ai_analysis_repository.load_latest_success",
+            AsyncMock(return_value=None),
+        ):
+            result = await limit_up_ai_service.get_cached_attribution(
+                AsyncMock(), _TRADE_DATE
+            )
 
-        assert (
-            await limit_up_ai_service.get_cached_attribution(session, _TRADE_DATE)
-            is None
-        )
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_returns_parsed_content(self) -> None:
-        session = AsyncMock()
-        session.execute.return_value = _execute_returning(
-            {"structured_output": _content_dict()}
-        )
-
-        result = await limit_up_ai_service.get_cached_attribution(
-            session, _TRADE_DATE
-        )
+        with patch(
+            "app.repositories.ai_analysis_repository.load_latest_success",
+            AsyncMock(return_value=_cached_row(_content_dict())),
+        ):
+            result = await limit_up_ai_service.get_cached_attribution(
+                AsyncMock(), _TRADE_DATE
+            )
 
         assert result is not None
         assert result.groups[0].theme == "电力改革"
@@ -98,7 +102,7 @@ class TestGenerateAttribution:
     async def test_rejects_non_trading_day(self) -> None:
         with (
             patch(
-                "app.services.market_service.is_trading_day",
+                "app.services.trade_calendar_service.is_trading_day",
                 AsyncMock(return_value=False),
             ),
             pytest.raises(NonTradingDayError),
@@ -107,34 +111,37 @@ class TestGenerateAttribution:
 
     @pytest.mark.asyncio
     async def test_returns_cached_without_llm(self) -> None:
-        session = AsyncMock()
-        session.execute.return_value = _execute_returning(
-            {"structured_output": _content_dict()}
-        )
-
-        with patch(
-            "app.services.market_service.is_trading_day", AsyncMock(return_value=True)
+        with (
+            patch(
+                "app.repositories.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=_cached_row(_content_dict())),
+            ),
+            patch(
+                "app.services.trade_calendar_service.is_trading_day",
+                AsyncMock(return_value=True),
+            ),
         ):
             result = await limit_up_ai_service.generate_attribution(
-                session, _TRADE_DATE
+                AsyncMock(), _TRADE_DATE
             )
 
         assert result.groups[0].theme == "电力改革"
 
     @pytest.mark.asyncio
     async def test_raises_when_pool_empty(self) -> None:
-        session = AsyncMock()
-        session.execute.return_value = _execute_returning(None)  # 无缓存
-
         with (
             patch(
-                "app.services.market_service.is_trading_day",
+                "app.repositories.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.trade_calendar_service.is_trading_day",
                 AsyncMock(return_value=True),
             ),
             patch(
-                "app.services.market_service.get_limit_up",
+                "app.services.limit_pool_service.get_limit_up",
                 AsyncMock(return_value=MagicMock(items=[])),
             ),
             pytest.raises(ValueError, match="无涨停数据"),
         ):
-            await limit_up_ai_service.generate_attribution(session, _TRADE_DATE)
+            await limit_up_ai_service.generate_attribution(AsyncMock(), _TRADE_DATE)

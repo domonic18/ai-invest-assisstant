@@ -5,11 +5,10 @@ from datetime import date
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from redis.asyncio import from_url
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
+from app.core.cache import get_redis
 from app.models.auction import AuctionData
 from app.models.capital_fund_flow_sector import SectorFundFlow
 from app.models.fund_flow import FundFlow
@@ -26,16 +25,6 @@ from app.repositories.kline_repository import (
 from app.repositories.stock_concept_repository import StockConceptRepository
 
 _CN_TZ = ZoneInfo("Asia/Shanghai")
-
-_redis_client: Any | None = None
-
-
-def _redis() -> Any:
-    """进程级共享 Redis 客户端。"""
-    global _redis_client
-    if _redis_client is None:
-        _redis_client = from_url(str(get_settings().redis_url))
-    return _redis_client
 
 
 def _to_float(value: Any) -> float | None:
@@ -167,7 +156,7 @@ async def get_stock_quote(session: AsyncSession, stock_code: str) -> dict[str, A
     amount: float | None = None
     updated_at: str | None = None
 
-    raw = await _redis().get(f"quote:{stock_code}")
+    raw = await get_redis().get(f"quote:{stock_code}")
     if raw:
         cached = json.loads(raw)
         price = _to_float(cached.get("price"))
