@@ -113,14 +113,14 @@ describe('mappers', () => {
           type: 'upstream',
           description: '高纯度硅片',
           companies: [{ code: '123', name: 'Test' }],
-          avg_gross_margin: 10,
-          revenue_growth: 5,
-          rd_ratio: 8.5,
-          bargaining_power: 7,
-          localization_rate: 40,
-          tech_barrier: 'high',
-          bottleneck_indicators: ['高端硅片依赖进口'],
-          recent_breakthroughs: ['良率突破'],
+          avgGrossMargin: 10,
+          revenueGrowth: 5,
+          rdRatio: 8.5,
+          bargainingPower: 7,
+          localizationRate: 40,
+          techBarrier: 'high',
+          bottleneckIndicators: ['高端硅片依赖进口'],
+          recentBreakthroughs: ['良率突破'],
         },
       ],
       edges: [
@@ -133,20 +133,20 @@ describe('mappers', () => {
         },
       ],
       summary: 'summary',
-      value_distribution: {
-        highest_margin_segment: '芯片设计',
-        highest_margin_value: 45.2,
-        lowest_margin_segment: '封装测试',
-        lowest_margin_value: 18.5,
+      valueDistribution: {
+        highestMarginSegment: '芯片设计',
+        highestMarginValue: 45.2,
+        lowestMarginSegment: '封装测试',
+        lowestMarginValue: 18.5,
       },
       opportunities: [
-        { title: 'op1', description: 'desc', related_segment: '设备', confidence: 'high' },
+        { title: 'op1', description: 'desc', relatedSegment: '设备', confidence: 'high' },
       ],
       risks: [
-        { title: 'risk1', description: 'desc', related_segment: null, severity: 'high' },
+        { title: 'risk1', description: 'desc', relatedSegment: null, severity: 'high' },
       ],
-      key_companies_summary: [
-        { code: '688981', name: '中芯国际', chain_position: '晶圆制造', score: 85 },
+      keyCompaniesSummary: [
+        { code: '688981', name: '中芯国际', chainPosition: '晶圆制造', score: 85 },
       ],
     }
     const result = mapChainAnalysisResult(dto)

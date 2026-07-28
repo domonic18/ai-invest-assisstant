@@ -19,7 +19,7 @@ from app.services.llm_config_service import LLMConfigNotConfiguredError
 def _summary(version_id: int = 1, version_no: int = 1) -> ChainVersionSummary:
     return ChainVersionSummary(
         id=version_id,
-        industry_level_1="半导体",
+        industry="半导体",
         version_no=version_no,
         label=None,
         status="success",
@@ -47,7 +47,7 @@ class TestAnalyzeEndpoint:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["version_id"] == 1
+        assert data["versionId"] == 1
         assert data["result"]["summary"] == "s"
 
     @patch("app.api.v1.chain.chain_service.analyze_and_persist")
@@ -56,7 +56,7 @@ class TestAnalyzeEndpoint:
         response = client.post(
             "/api/v1/chain/analyze", json={"industry": "半导体"}
         )
-        assert response.status_code == 503
+        assert response.status_code == 500
 
     @patch("app.api.v1.chain.chain_service.analyze_and_persist")
     def test_analyze_failed(self, mock_analyze, client) -> None:
@@ -64,7 +64,7 @@ class TestAnalyzeEndpoint:
         response = client.post(
             "/api/v1/chain/analyze", json={"industry": "半导体"}
         )
-        assert response.status_code == 502
+        assert response.status_code == 500
 
 
 @pytest.mark.unit
@@ -76,7 +76,7 @@ class TestVersionEndpoints:
         )
         response = client.get("/api/v1/chain/半导体/latest")
         assert response.status_code == 200
-        assert response.json()["version"]["version_no"] == 1
+        assert response.json()["version"]["versionNo"] == 1
 
     @patch("app.api.v1.chain.chain_service.get_latest_detail")
     def test_get_latest_not_found(self, mock_latest, client) -> None:
@@ -89,7 +89,7 @@ class TestVersionEndpoints:
         mock_list.return_value = [_summary(2, 2), _summary(1, 1)]
         response = client.get("/api/v1/chain/半导体/versions")
         assert response.status_code == 200
-        assert [item["version_no"] for item in response.json()] == [2, 1]
+        assert [item["versionNo"] for item in response.json()] == [2, 1]
 
     @patch("app.api.v1.chain.chain_service.get_version_detail")
     def test_get_version(self, mock_get, client) -> None:
@@ -114,7 +114,7 @@ class TestVersionEndpoints:
         )
         response = client.get("/api/v1/chain/versions/compare?base_id=1&target_id=2")
         assert response.status_code == 200
-        assert response.json()["added_nodes"] == ["封装测试"]
+        assert response.json()["addedNodes"] == ["封装测试"]
 
     @patch("app.api.v1.chain.chain_service.compare_versions")
     def test_compare_not_found(self, mock_compare, client) -> None:

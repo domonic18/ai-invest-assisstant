@@ -240,14 +240,14 @@ export function mapChainNode(dto: ApiChainNode): ChainNode {
     type: dto.type,
     description: dto.description || '',
     companies: dto.companies,
-    avgGrossMargin: dto.avg_gross_margin,
-    revenueGrowth: dto.revenue_growth,
-    rdRatio: dto.rd_ratio,
-    bargainingPower: dto.bargaining_power,
-    localizationRate: dto.localization_rate,
-    techBarrier: dto.tech_barrier,
-    bottleneckIndicators: dto.bottleneck_indicators || [],
-    recentBreakthroughs: dto.recent_breakthroughs || [],
+    avgGrossMargin: dto.avgGrossMargin,
+    revenueGrowth: dto.revenueGrowth,
+    rdRatio: dto.rdRatio,
+    bargainingPower: dto.bargainingPower,
+    localizationRate: dto.localizationRate,
+    techBarrier: dto.techBarrier,
+    bottleneckIndicators: dto.bottleneckIndicators || [],
+    recentBreakthroughs: dto.recentBreakthroughs || [],
   }
 }
 
@@ -267,30 +267,30 @@ export function mapChainAnalysisResult(dto: ApiChainAnalysisResult): ChainAnalys
     nodes: dto.nodes.map(mapChainNode),
     edges: dto.edges.map(mapChainEdge),
     summary: dto.summary,
-    valueDistribution: dto.value_distribution
+    valueDistribution: dto.valueDistribution
       ? {
-          highestMarginSegment: dto.value_distribution.highest_margin_segment,
-          highestMarginValue: dto.value_distribution.highest_margin_value,
-          lowestMarginSegment: dto.value_distribution.lowest_margin_segment,
-          lowestMarginValue: dto.value_distribution.lowest_margin_value,
+          highestMarginSegment: dto.valueDistribution.highestMarginSegment,
+          highestMarginValue: dto.valueDistribution.highestMarginValue,
+          lowestMarginSegment: dto.valueDistribution.lowestMarginSegment,
+          lowestMarginValue: dto.valueDistribution.lowestMarginValue,
         }
       : null,
     opportunities: dto.opportunities.map((item) => ({
       title: item.title,
       description: item.description || '',
-      relatedSegment: item.related_segment,
+      relatedSegment: item.relatedSegment,
       confidence: item.confidence,
     })),
     risks: dto.risks.map((item) => ({
       title: item.title,
       description: item.description || '',
-      relatedSegment: item.related_segment,
+      relatedSegment: item.relatedSegment,
       severity: item.severity,
     })),
-    keyCompaniesSummary: (dto.key_companies_summary || []).map((item) => ({
+    keyCompaniesSummary: (dto.keyCompaniesSummary || []).map((item) => ({
       code: item.code,
       name: item.name,
-      chainPosition: item.chain_position,
+      chainPosition: item.chainPosition,
       score: item.score,
     })),
   }
@@ -299,15 +299,15 @@ export function mapChainAnalysisResult(dto: ApiChainAnalysisResult): ChainAnalys
 export function mapChainVersionSummary(dto: ApiChainVersionSummary): ChainVersionSummary {
   return {
     id: dto.id,
-    industry: dto.industry_level_1,
-    versionNo: dto.version_no,
+    industry: dto.industry,
+    versionNo: dto.versionNo,
     label: dto.label,
     status: dto.status,
     model: dto.model,
-    nodeCount: dto.node_count,
-    companyCount: dto.company_count,
-    createdBy: dto.created_by,
-    createdAt: dto.created_at,
+    nodeCount: dto.nodeCount,
+    companyCount: dto.companyCount,
+    createdBy: dto.createdBy,
+    createdAt: dto.createdAt,
   }
 }
 
@@ -315,31 +315,31 @@ export function mapChainVersionDetail(dto: ApiChainVersionDetail): ChainVersionD
   return {
     version: mapChainVersionSummary(dto.version),
     result: dto.result ? mapChainAnalysisResult(dto.result) : null,
-    errorMsg: dto.error_msg,
+    errorMsg: dto.errorMsg,
   }
 }
 
 export function mapChainCompareResult(dto: ApiChainCompareResult): ChainCompareResult {
   return {
-    baseVersion: mapChainVersionSummary(dto.base_version),
-    targetVersion: mapChainVersionSummary(dto.target_version),
-    addedNodes: dto.added_nodes,
-    removedNodes: dto.removed_nodes,
-    addedCompanies: dto.added_companies.map((item) => ({
+    baseVersion: mapChainVersionSummary(dto.baseVersion),
+    targetVersion: mapChainVersionSummary(dto.targetVersion),
+    addedNodes: dto.addedNodes,
+    removedNodes: dto.removedNodes,
+    addedCompanies: dto.addedCompanies.map((item) => ({
       code: item.code,
       name: item.name,
-      nodeName: item.node_name,
+      nodeName: item.nodeName,
     })),
-    removedCompanies: dto.removed_companies.map((item) => ({
+    removedCompanies: dto.removedCompanies.map((item) => ({
       code: item.code,
       name: item.name,
-      nodeName: item.node_name,
+      nodeName: item.nodeName,
     })),
-    metricChanges: dto.metric_changes.map((item) => ({
-      nodeName: item.node_name,
+    metricChanges: dto.metricChanges.map((item) => ({
+      nodeName: item.nodeName,
       field: item.field,
-      baseValue: item.base_value,
-      targetValue: item.target_value,
+      baseValue: item.baseValue,
+      targetValue: item.targetValue,
     })),
   }
 }

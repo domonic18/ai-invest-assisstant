@@ -185,14 +185,14 @@ export interface ApiChainNode {
   type: 'upstream' | 'midstream' | 'downstream'
   description: string
   companies: ApiChainCompany[]
-  avg_gross_margin: number | null
-  revenue_growth: number | null
-  rd_ratio: number | null
-  bargaining_power: number | null
-  localization_rate: number | null
-  tech_barrier: string | null
-  bottleneck_indicators: string[]
-  recent_breakthroughs: string[]
+  avgGrossMargin: number | null
+  revenueGrowth: number | null
+  rdRatio: number | null
+  bargainingPower: number | null
+  localizationRate: number | null
+  techBarrier: string | null
+  bottleneckIndicators: string[]
+  recentBreakthroughs: string[]
 }
 
 export interface ApiChainEdge {
@@ -207,28 +207,28 @@ export interface ApiChainEdge {
 export interface ApiChainOpportunity {
   title: string
   description: string
-  related_segment: string | null
+  relatedSegment: string | null
   confidence: string | null
 }
 
 export interface ApiChainRisk {
   title: string
   description: string
-  related_segment: string | null
+  relatedSegment: string | null
   severity: string | null
 }
 
 export interface ApiChainValueDistribution {
-  highest_margin_segment: string | null
-  highest_margin_value: number | null
-  lowest_margin_segment: string | null
-  lowest_margin_value: number | null
+  highestMarginSegment: string | null
+  highestMarginValue: number | null
+  lowestMarginSegment: string | null
+  lowestMarginValue: number | null
 }
 
 export interface ApiKeyCompanySummary {
   code: string
   name: string
-  chain_position: string | null
+  chainPosition: string | null
   score: number | null
 }
 
@@ -236,59 +236,59 @@ export interface ApiChainAnalysisResult {
   nodes: ApiChainNode[]
   edges: ApiChainEdge[]
   summary: string
-  value_distribution: ApiChainValueDistribution | null
+  valueDistribution: ApiChainValueDistribution | null
   opportunities: ApiChainOpportunity[]
   risks: ApiChainRisk[]
-  key_companies_summary: ApiKeyCompanySummary[]
+  keyCompaniesSummary: ApiKeyCompanySummary[]
 }
 
 export interface ApiChainAnalyzeResponse {
-  version_id: number
-  version_no: number
+  versionId: number
+  versionNo: number
   status: string
   result: ApiChainAnalysisResult | null
 }
 
 export interface ApiChainVersionSummary {
   id: number
-  industry_level_1: string
-  version_no: number
+  industry: string
+  versionNo: number
   label: string | null
   status: string
   model: string | null
-  node_count: number | null
-  company_count: number | null
-  created_by: string
-  created_at: string
+  nodeCount: number | null
+  companyCount: number | null
+  createdBy: string
+  createdAt: string
 }
 
 export interface ApiChainVersionDetail {
   version: ApiChainVersionSummary
   result: ApiChainAnalysisResult | null
-  error_msg: string | null
+  errorMsg: string | null
 }
 
 export interface ApiChainCompareCompanyChange {
   code: string
   name: string
-  node_name: string
+  nodeName: string
 }
 
 export interface ApiChainCompareMetricChange {
-  node_name: string
+  nodeName: string
   field: string
-  base_value: number | null
-  target_value: number | null
+  baseValue: number | null
+  targetValue: number | null
 }
 
 export interface ApiChainCompareResult {
-  base_version: ApiChainVersionSummary
-  target_version: ApiChainVersionSummary
-  added_nodes: string[]
-  removed_nodes: string[]
-  added_companies: ApiChainCompareCompanyChange[]
-  removed_companies: ApiChainCompareCompanyChange[]
-  metric_changes: ApiChainCompareMetricChange[]
+  baseVersion: ApiChainVersionSummary
+  targetVersion: ApiChainVersionSummary
+  addedNodes: string[]
+  removedNodes: string[]
+  addedCompanies: ApiChainCompareCompanyChange[]
+  removedCompanies: ApiChainCompareCompanyChange[]
+  metricChanges: ApiChainCompareMetricChange[]
 }
 
 export interface ApiLLMConfigResponse {

@@ -42,8 +42,8 @@ export async function analyzeChain(
     }
   )
   return {
-    versionId: response.data.version_id,
-    versionNo: response.data.version_no,
+    versionId: response.data.versionId,
+    versionNo: response.data.versionNo,
     status: response.data.status,
     result: response.data.result
       ? mapChainAnalysisResult(response.data.result)
