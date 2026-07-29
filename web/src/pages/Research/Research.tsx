@@ -124,7 +124,7 @@ export function Research() {
   const [summarizingId, setSummarizingId] = useState<number | null>(null)
   const [pdfId, setPdfId] = useState<number | null>(null)
 
-  const { data, isLoading } = useResearch(params)
+  const { data, isLoading, isError, error } = useResearch(params)
   const { data: filters } = useResearchFilters()
   const summarizeMutation = useSummarizeResearchReport()
   const pdfUrlMutation = useResearchPdfUrl()
@@ -225,6 +225,17 @@ export function Research() {
           ))}
         </div>
       </div>
+
+      {isError && (
+        <Card variant="borderless">
+          <Empty
+            description={error instanceof Error ? error.message : '研报加载失败'}
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          >
+            <Button onClick={() => setParams((prev) => ({ ...prev }))}>重试</Button>
+          </Empty>
+        </Card>
+      )}
 
       <Spin spinning={isLoading}>
         <div className="space-y-3">

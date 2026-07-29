@@ -151,7 +151,7 @@ export function FinancialReportPage() {
   const [collectOpen, setCollectOpen] = useState(false)
 
   const queryClient = useQueryClient()
-  const { data, isLoading } = useFinancialReports(params)
+  const { data, isLoading, isError, error } = useFinancialReports(params)
   const summarizeMutation = useSummarizeFinancialReport()
   const pdfUrlMutation = useFinancialReportPdfUrl()
 
@@ -251,6 +251,17 @@ export function FinancialReportPage() {
           ))}
         </div>
       </div>
+
+      {isError && (
+        <Card variant="borderless">
+          <Empty
+            description={error instanceof Error ? error.message : '财报加载失败'}
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          >
+            <Button onClick={() => setParams((prev) => ({ ...prev }))}>重试</Button>
+          </Empty>
+        </Card>
+      )}
 
       <Spin spinning={isLoading}>
         <div className="space-y-3">
