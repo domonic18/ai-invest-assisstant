@@ -278,6 +278,8 @@ export async function fetchMarketReview(
   }
 }
 
+const LLM_GENERATION_TIMEOUT = 300_000
+
 /** 触发 LLM 生成 AI 复盘（regenerate=true 强制重新生成）。 */
 export async function generateMarketReview(
   regenerate = false,
@@ -290,6 +292,7 @@ export async function generateMarketReview(
   const response = await apiClient.post<ApiMarketReviewResponse>(
     ENDPOINTS.market.aiReview,
     body,
+    { timeout: LLM_GENERATION_TIMEOUT },
   )
   return mapMarketReview(response.data)
 }
@@ -324,6 +327,7 @@ export async function generateLimitUpAttribution(
   const response = await apiClient.post<ApiLimitUpResponse>(
     ENDPOINTS.market.limitUpAiReview,
     body,
+    { timeout: LLM_GENERATION_TIMEOUT },
   )
   return mapLimitUpData(response.data)
 }
