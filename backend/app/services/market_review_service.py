@@ -59,6 +59,12 @@ class ReviewGenerationLockedError(ConflictError):
     """其他实例正在生成同交易日的大盘综述。"""
 
 
+class ReviewInputDataNotReadyError(BadRequestError):
+    """生成所需输入数据（板块资金、涨停池等）尚未就绪。"""
+
+    default_message = "当日行情数据尚未采集完成，请稍后重试"
+
+
 class UnknownSectionError(UnprocessableEntityError):
     """编辑的分区未在 prompt YAML 的 sections 中声明。"""
 
@@ -382,6 +388,11 @@ async def generate_market_review(
             for item in sectors.leading
             if item.change_pct is not None
         ) or "无数据"
+
+        if inflow_context == "无数据" and outflow_context == "无数据" and leading_context == "无数据":
+            raise ReviewInputDataNotReadyError(
+                "板块资金与领涨板块数据尚未就绪，无法生成资金面分析"
+            )
 
         user_prompt = PromptRenderer.render(
             prompt_config.user_prompt_template,

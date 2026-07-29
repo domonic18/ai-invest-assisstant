@@ -92,6 +92,6 @@ export function useMarketReview(tradeDate?: string) {
   return useQuery({
     queryKey: [...MARKET_KEY, 'ai-review', tradeDate],
     queryFn: () => fetchMarketReview(tradeDate),
-    staleTime: Infinity,
+    staleTime: 5 * 60 * 1000,
   })
 }
