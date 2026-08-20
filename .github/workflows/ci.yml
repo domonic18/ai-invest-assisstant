@@ -1,53 +1,210 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [master, main]
+    branches: [develop, main]
   pull_request:
-    branches: [master, main]
+    branches: [develop, main]
+  workflow_dispatch:
+    inputs:
+      skip_lint:
+        description: '跳过代码检查阶段'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      skip_test:
+        description: '跳过单元测试阶段'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+env:
+  # 强制 GitHub Actions 使用 Node.js 24 runtime（actions/checkout, actions/setup-node 等）
+  # 解决 "Node.js 20 actions are deprecated" 弃用警告
+  # 参考: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  NODE_VERSION: '20'
+  REGISTRY: ccr.ccs.tencentyun.com
+  NAMESPACE: ${{ secrets.TCR_NAMESPACE }}
 
 jobs:
-  backend-test:
+  # ============================================================
+  # Stage 1: 后端代码检查与测试
+  # ============================================================
+  backend:
+    name: Backend / 后端
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
+      - name: Checkout / 检出代码
+        uses: actions/checkout@v6
+
+      - name: Install uv / 安装 uv
+        uses: astral-sh/setup-uv@v6
         with:
-          version: "0.5.x"
           enable-cache: true
-      - name: Set up Python
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Set up Python / 安装 Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Sync dependencies
-        run: cd backend && uv sync
-      - name: Run tests
-        run: cd backend && uv run pytest -m unit --cov=app --cov-report=xml
 
-  web-test:
+      - name: Sync Dependencies / 同步依赖
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Lint / 代码检查
+        if: github.event.inputs.skip_lint != 'true'
+        working-directory: backend
+        run: uv run ruff check .
+
+      - name: Type Check / 类型检查
+        working-directory: backend
+        run: uv run mypy app/
+
+      - name: Test / 运行测试
+        if: github.event.inputs.skip_test != 'true'
+        working-directory: backend
+        run: uv run pytest -m unit --cov=app --cov-report=xml
+
+  # ============================================================
+  # Stage 2: 前端代码检查与构建
+  # ============================================================
+  web:
+    name: Web / 前端
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout / 检出代码
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js / 安装 Node.js
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
-      - run: cd web && npm install
-      - run: cd web && npm run lint
-      - run: cd web && npm run typecheck
-      - run: cd web && npm run test:unit -- --coverage
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            shared/package-lock.json
+            web/package-lock.json
 
-  build-images:
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
-    needs: [backend-test, web-test]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - name: Build shared package / 构建共享包
+        working-directory: shared
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Dependencies / 安装依赖
+        working-directory: web
+        run: npm ci
+
       - name: Generate app version / 生成应用版本号
         id: version
         run: |
           APP_VERSION=$(cat VERSION)
           echo "app_version=${APP_VERSION}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
-      - run: docker build -t web-api:latest -f docker/web/Dockerfile --build-arg VITE_APP_VERSION=${{ steps.version.outputs.app_version }} .
-      - run: docker build -t collector:latest -f docker/collector/Dockerfile .
+
+      - name: Lint / 代码检查
+        if: github.event.inputs.skip_lint != 'true'
+        working-directory: web
+        run: npm run lint
+
+      - name: Type Check / 类型检查
+        working-directory: web
+        run: npm run typecheck
+
+      - name: Test / 运行测试
+        if: github.event.inputs.skip_test != 'true'
+        working-directory: web
+        run: npm run test:unit
+
+      - name: Build / 构建
+        working-directory: web
+        env:
+          VITE_APP_VERSION: ${{ steps.version.outputs.app_version }}
+        run: npm run build
+
+  # ============================================================
+  # Stage 3: Docker 镜像构建与推送
+  # ============================================================
+  docker:
+    name: Docker Build & Push / Docker 构建与推送
+    runs-on: ubuntu-latest
+    needs: [backend, web]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout / 检出代码
+        uses: actions/checkout@v6
+
+      - name: Dockerfile Lint / Dockerfile 检查
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/web/Dockerfile
+          failure-threshold: error
+
+      - name: Dockerfile Lint (collector) / 采集镜像检查
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/collector/Dockerfile
+          failure-threshold: error
+
+      - name: Set up Docker Buildx / 配置 Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to TCR / 登录腾讯云容器镜像服务
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
+
+      - name: Generate image tags / 生成镜像标签
+        id: vars
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          BRANCH=$(echo "${GITHUB_REF#refs/heads/}" | tr '/' '-')
+          APP_VERSION=$(cat VERSION)
+          {
+            echo "sha_short=${SHORT_SHA}"
+            echo "branch=${BRANCH}"
+            echo "app_version=${APP_VERSION}.${GITHUB_RUN_NUMBER}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and Push (web-api) / 构建并推送 Web 镜像
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/web/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web-api:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web-api:latest
+          build-args: |
+            VITE_APP_VERSION=${{ steps.vars.outputs.app_version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and Push (collector) / 构建并推送采集镜像
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/collector/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Output image info / 输出镜像信息
+        run: |
+          echo "web-api:   ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web-api:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}"
+          echo "collector: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}"
