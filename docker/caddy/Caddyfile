@@ -1,5 +1,7 @@
-# 生产入口：自动申请/续期 Let's Encrypt 证书，反代到 web 容器
-# （域名须已备案，否则大陆服务器 80/443 会被接入商拦截）
+# 生产入口：自动申请/续期 Let's Encrypt 证书，反代到 web 容器；
+# /invest-files/* 反代 MinIO 供 presigned URL 下载（MINIO_PUBLIC_ENDPOINT=同域名）
 invest.17aitech.com {
+	@minio path /invest-files/*
+	reverse_proxy @minio minio:9000
 	reverse_proxy web:9000
 }
