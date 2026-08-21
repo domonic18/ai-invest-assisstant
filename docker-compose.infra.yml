@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
       POSTGRES_DB: ${POSTGRES_DB:-invest}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./workspace/postgres:/var/lib/postgresql/data
       - ./docker/database/init-scripts:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
@@ -37,7 +37,7 @@ services:
     ports:
       - "9200:9200"
     volumes:
-      - es_data:/usr/share/elasticsearch/data
+      - ./workspace/elasticsearch:/usr/share/elasticsearch/data
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
       interval: 15s
@@ -55,7 +55,7 @@ services:
       - "9002:9000"
       - "9001:9001"
     volumes:
-      - minio_data:/data
+      - ./workspace/minio:/data
     healthcheck:
       test: ["CMD", "curl", "-fs", "http://localhost:9000/minio/health/live"]
       interval: 15s
@@ -69,6 +69,8 @@ services:
     environment:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio:9000
+      MINIO_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:-minioadmin}
     ports:
       - "19530:19530"
     depends_on:
@@ -89,15 +91,12 @@ services:
       - ETCD_AUTO_COMPACTION_MODE=revision
       - ETCD_AUTO_COMPACTION_RETENTION=1000
       - ETCD_QUOTA_BACKEND_BYTES=4294967296
-    command: etcd -advertise-client-urls http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379
+    command: etcd -data-dir /etcd-data -advertise-client-urls http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379
+    volumes:
+      - ./workspace/etcd:/etcd-data
     healthcheck:
       test: ["CMD", "/usr/local/bin/etcdctl", "endpoint", "health"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 5s
-
-volumes:
-  postgres_data:
-  es_data:
-  minio_data:

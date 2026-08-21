@@ -321,7 +321,7 @@ CREATE INDEX idx_file_stock_report ON file_metadata(stock_code, report_date);
 -- 7. 用户 / 系统域
 -- ============================================================
 
-CREATE TABLE user (
+CREATE TABLE "user" (
     id            BIGSERIAL PRIMARY KEY,
     username      VARCHAR(50)  UNIQUE NOT NULL,
     email         VARCHAR(100) UNIQUE NOT NULL,
@@ -333,11 +333,11 @@ CREATE TABLE user (
     created_at    TIMESTAMPTZ  DEFAULT NOW()
 );
 
-CREATE INDEX idx_user_email ON user(email);
+CREATE INDEX idx_user_email ON "user"(email);
 
 CREATE TABLE user_watchlist (
     id         BIGSERIAL PRIMARY KEY,
-    user_id    BIGINT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    user_id    BIGINT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     stock_code VARCHAR(10) NOT NULL,
     tags       VARCHAR(50)[],
     created_at TIMESTAMPTZ DEFAULT NOW(),
