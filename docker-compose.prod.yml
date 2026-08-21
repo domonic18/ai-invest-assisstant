@@ -1,8 +1,21 @@
-# 生产环境覆盖：web 发布到标准 80 端口，便于直接访问。
+# 生产环境覆盖：Caddy 占用 80/443 提供 HTTPS 入口，反代 web 容器；
+# web 不再发布宿主机端口，仅容器网络内可达。
 # 用法：docker compose -f docker-compose.infra.yml -f docker-compose.yml \
 #          -f docker-compose.prod.yml up -d
 # （或在 .env 中设置 COMPOSE_FILE 后直接 docker compose up -d）
 services:
   web:
-    ports: !override
-      - "80:9000"
+    ports: !override []
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./workspace/caddy/data:/data
+      - ./workspace/caddy/config:/config
+    depends_on:
+      - web
