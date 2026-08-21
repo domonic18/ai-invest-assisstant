@@ -1527,7 +1527,9 @@ class TestTushareIndexAuctionCollector:
                 trade_date=datetime.date(2026, 7, 21)
             )
 
-        mock_pro.stk_auction.assert_called_once_with(trade_date="20260721")
+        mock_pro.stk_auction.assert_called_once_with(
+            trade_date="20260721", offset=0, limit=8000
+        )
         by_code = {item["index_code"]: item for item in raw}
         assert set(by_code) == {"sh000001", "sh000688", "sz399006"}
         # 上证指数 = 全部沪市 A 股（60/68）
@@ -1538,6 +1540,42 @@ class TestTushareIndexAuctionCollector:
         assert by_code["sz399006"]["auction_amount"] == pytest.approx(7e8)
         assert all(item["trade_date"] == datetime.date(2026, 7, 21) for item in raw)
         assert all(item["source"] == "tushare" for item in raw)
+
+    @pytest.mark.asyncio
+    async def test_collect_paginates_when_full_page(self) -> None:
+        """盘后全量超 8000 行时翻页拼齐，创业板不被截断。"""
+        page_size = 8000
+        page1 = pd.concat(
+            [
+                pd.DataFrame({"ts_code": ["600001.SH"], "amount": [10e8]}),
+                pd.DataFrame(
+                    {"ts_code": ["000001.SH"] * (page_size - 1), "amount": [1.0] * (page_size - 1)}
+                ),
+            ],
+            ignore_index=True,
+        )
+        page2 = pd.DataFrame(
+            [
+                {"ts_code": "300001.SZ", "amount": 5e8},
+                {"ts_code": "301001.SZ", "amount": 2e8},
+            ]
+        )
+        mock_pro = MagicMock()
+        mock_pro.stk_auction.side_effect = [page1, page2]
+        with (
+            patch("tushare.pro_api", return_value=mock_pro),
+            patch("akshare.index_stock_cons_csindex", return_value=self._cons_df()),
+        ):
+            raw = await self._collector().collect(
+                trade_date=datetime.date(2026, 7, 21)
+            )
+
+        assert mock_pro.stk_auction.call_count == 2
+        mock_pro.stk_auction.assert_any_call(trade_date="20260721", offset=0, limit=page_size)
+        mock_pro.stk_auction.assert_any_call(trade_date="20260721", offset=page_size, limit=page_size)
+        by_code = {item["index_code"]: item for item in raw}
+        # 创业板在第二页，翻页后聚合正确
+        assert by_code["sz399006"]["auction_amount"] == pytest.approx(7e8)
 
     @pytest.mark.asyncio
     async def test_collect_respects_requested_symbols(self) -> None:

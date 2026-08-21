@@ -22,6 +22,7 @@ _CN_TZ = ZoneInfo("Asia/Shanghai")
 
 _CYB_PREFIXES = ("300", "301", "302")
 _SSE_PREFIXES = ("60", "68")
+_PAGE_SIZE = 8000
 
 
 class TushareIndexAuctionCollector(PostgresCollector):
@@ -60,7 +61,7 @@ class TushareIndexAuctionCollector(PostgresCollector):
         requested = set(symbols) if symbols else {"sh000001", "sz399006", "sh000688"}
 
         pro = ts.pro_api(self.api_key)
-        df = pro.stk_auction(trade_date=target.strftime("%Y%m%d"))
+        df = self._fetch_stk_auction(pro, target.strftime("%Y%m%d"))
         if df is None or df.empty:
             return []
         df = df.assign(amount=df["amount"].map(to_float))
@@ -100,3 +101,27 @@ class TushareIndexAuctionCollector(PostgresCollector):
             return None
         total = float(df.loc[mask, "amount"].sum())
         return total if total > 0 else None
+
+    @staticmethod
+    def _fetch_stk_auction(pro: Any, trade_date: str) -> Any:
+        """按 offset 翻页拉取全量竞价数据。
+
+        stk_auction 单次返回上限 8000 行且按 ts_code 排序；盘后全量含
+        指数/基金等超 3 万行，创业板（300/301/302）排在 16000 名之后，
+        单次调用会被整段截断，必须翻页拼齐。
+        """
+        import pandas as pd
+
+        frames: list[Any] = []
+        offset = 0
+        while True:
+            df = pro.stk_auction(trade_date=trade_date, offset=offset, limit=_PAGE_SIZE)
+            if df is None or df.empty:
+                break
+            frames.append(df)
+            if len(df) < _PAGE_SIZE:
+                break
+            offset += _PAGE_SIZE
+        if not frames:
+            return pd.DataFrame()
+        return pd.concat(frames, ignore_index=True)
