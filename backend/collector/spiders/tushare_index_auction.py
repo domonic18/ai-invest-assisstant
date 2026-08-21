@@ -29,6 +29,9 @@ class TushareIndexAuctionCollector(PostgresCollector):
 
     table = "quote_auction_index"
     conflict_key = "trade_date, index_code"
+    # 早间 9:26 拉取时 tushare 可能只返回部分市场（深市滞后），
+    # 冲突时覆盖旧值，让 9:27-9:29 重试与 16:35 兜底能纠正不完整数据
+    update_columns: ClassVar[list[str]] = ["auction_amount", "source"]
     normalize = False
     key_fields: ClassVar[list[str]] = ["trade_date", "index_code"]
     required_fields: ClassVar[list[str]] = [
@@ -65,15 +68,15 @@ class TushareIndexAuctionCollector(PostgresCollector):
         amounts: dict[str, float | None] = {}
         if "sh000001" in requested:
             mask = df["ts_code"].str[:2].isin(_SSE_PREFIXES)
-            amounts["sh000001"] = float(df.loc[mask, "amount"].sum())
+            amounts["sh000001"] = self._bucket_amount(df, mask)
         if "sz399006" in requested:
             mask = df["ts_code"].str[:3].isin(_CYB_PREFIXES)
-            amounts["sz399006"] = float(df.loc[mask, "amount"].sum())
+            amounts["sz399006"] = self._bucket_amount(df, mask)
         if "sh000688" in requested:
             cons = ak.index_stock_cons_csindex(symbol="000688")
             codes = set(cons["成分券代码"].astype(str))
             mask = df["ts_code"].str[:6].isin(codes)
-            amounts["sh000688"] = float(df.loc[mask, "amount"].sum())
+            amounts["sh000688"] = self._bucket_amount(df, mask)
 
         return [
             {
@@ -85,3 +88,15 @@ class TushareIndexAuctionCollector(PostgresCollector):
             for code, amount in amounts.items()
             if amount is not None
         ]
+
+    @staticmethod
+    def _bucket_amount(df: Any, mask: Any) -> float | None:
+        """聚合桶成交额；桶为空或合计为 0 时返回 None，跳过写入留给后续重试。
+
+        9:26 早间拉取时 tushare 可能只返回部分市场（深市竞价数据滞后），
+        空桶求和为 0，若直接写入会被冲突键挡住、重试无法修复。
+        """
+        if not bool(mask.any()):
+            return None
+        total = float(df.loc[mask, "amount"].sum())
+        return total if total > 0 else None

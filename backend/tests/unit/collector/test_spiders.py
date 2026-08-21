@@ -1561,6 +1561,50 @@ class TestTushareIndexAuctionCollector:
         assert raw == []
 
     @pytest.mark.asyncio
+    async def test_collect_skips_empty_bucket(self) -> None:
+        """早间深市数据滞后时，创业板/科创50 空桶不得写入 0 值。"""
+        sh_only = pd.DataFrame(
+            [
+                {"ts_code": "600001.SH", "amount": 10e8},
+                {"ts_code": "600002.SH", "amount": 2e8},
+            ]
+        )
+        mock_pro = MagicMock()
+        mock_pro.stk_auction.return_value = sh_only
+        with (
+            patch("tushare.pro_api", return_value=mock_pro),
+            patch(
+                "akshare.index_stock_cons_csindex", return_value=self._cons_df()
+            ),
+        ):
+            raw = await self._collector().collect(
+                trade_date=datetime.date(2026, 7, 21)
+            )
+
+        assert [item["index_code"] for item in raw] == ["sh000001"]
+        assert raw[0]["auction_amount"] == pytest.approx(12e8)
+
+    @pytest.mark.asyncio
+    async def test_collect_skips_zero_sum_bucket(self) -> None:
+        """桶内有行但合计为 0 视为数据异常，同样跳过留给重试。"""
+        df = self._auction_df()
+        df.loc[df["ts_code"].str[:3].isin(("300", "301", "302")), "amount"] = 0.0
+        mock_pro = MagicMock()
+        mock_pro.stk_auction.return_value = df
+        with (
+            patch("tushare.pro_api", return_value=mock_pro),
+            patch(
+                "akshare.index_stock_cons_csindex", return_value=self._cons_df()
+            ),
+        ):
+            raw = await self._collector().collect(
+                trade_date=datetime.date(2026, 7, 21)
+            )
+
+        codes = {item["index_code"] for item in raw}
+        assert codes == {"sh000001", "sh000688"}
+
+    @pytest.mark.asyncio
     async def test_collect_requires_api_key(self) -> None:
         collector = TushareIndexAuctionCollector(
             {"source": "tushare", "data_type": "index-auction"}
