@@ -152,7 +152,6 @@ TASK_SPECS: dict[str, TaskSpec] = {
             name="financial-report",
             data_type="financial_statement",
             collectors={
-                "eastmoney": "collector.spiders.eastmoney_financial_statement:EastmoneyFinancialStatementCollector",
                 "cninfo": "collector.spiders.cninfo_financial_report:CninfoFinancialReportCollector",
             },
             config_params=("report_types", "start_date", "end_date"),

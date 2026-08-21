@@ -18,62 +18,35 @@ collect_stock_list = TASK_MAP["stock-list"]
 class TestCollectorTaskEntries:
     @pytest.mark.asyncio
     async def test_collect_financial_report_end_to_end(self) -> None:
-        balance_df = pd.DataFrame(
-            [
-                {
-                    "REPORT_DATE": "2024-03-31 00:00:00",
-                    "REPORT_TYPE": "一季报",
-                    "TOTAL_ASSETS": 1000000.0,
-                    "TOTAL_LIABILITIES": 400000.0,
-                    "TOTAL_EQUITY": 600000.0,
-                }
-            ]
-        )
-        income_df = pd.DataFrame(
-            [
-                {
-                    "REPORT_DATE": "2024-03-31 00:00:00",
-                    "REPORT_TYPE": "一季报",
-                    "TOTAL_OPERATE_INCOME": 200000.0,
-                    "TOTAL_OPERATE_COST": 120000.0,
-                    "NETPROFIT": 50000.0,
-                    "BASIC_EPS": 0.5,
-                }
-            ]
-        )
-        cash_df = pd.DataFrame(
-            [
-                {
-                    "REPORT_DATE": "2024-03-31 00:00:00",
-                    "REPORT_TYPE": "一季报",
-                    "NETCASH_OPERATE": 30000.0,
-                    "NETCASH_INVEST": -10000.0,
-                    "NETCASH_FINANCE": -5000.0,
-                    "CCE_ADD": 15000.0,
-                }
-            ]
-        )
+        raw_items = [
+            {
+                "stock_code": "000001",
+                "title": "2023年年度报告",
+                "publish_date": "2024-03-15",
+                "report_type": "annual",
+                "report_category": "年报",
+                "source_url": "http://static.cninfo.com.cn/finalpage/2024-03-15/test.PDF",
+                "announcement_id": "12345",
+                "org_id": "org123",
+                "file_bytes": b"%PDF-1.4 fake",
+                "file_size": 15,
+                "file_type": "pdf",
+                "source": "cninfo",
+            }
+        ]
 
         with (
             patch(
                 "collector.runtime.registry._resolve_task_channels",
-                AsyncMock(return_value=[("eastmoney", {"base_url": None, "api_key": None})]),
+                AsyncMock(return_value=[("cninfo", {"base_url": None, "api_key": None})]),
             ),
             patch(
-                "akshare.stock_balance_sheet_by_report_em",
-                return_value=balance_df,
+                "collector.spiders.cninfo_financial_report.CninfoFinancialReportCollector.collect",
+                AsyncMock(return_value=raw_items),
             ),
             patch(
-                "akshare.stock_profit_sheet_by_report_em",
-                return_value=income_df,
-            ),
-            patch(
-                "akshare.stock_cash_flow_sheet_by_report_em",
-                return_value=cash_df,
-            ),
-            patch(
-                "collector.spiders.eastmoney_financial_statement.EastmoneyFinancialStatementCollector.store",
-                AsyncMock(return_value=3),
+                "collector.spiders.cninfo_financial_report.CninfoFinancialReportCollector._save_items",
+                AsyncMock(return_value=(3, [])),
             ),
         ):
             result = await collect_financial_report()

@@ -81,6 +81,16 @@ class TestCninfoFinancialReportCollector:
         }
         assert await collector.validate(item) is False
 
+    def test_report_types_accepts_english_enums(self) -> None:
+        collector = CninfoFinancialReportCollector(
+            {
+                "source": "cninfo",
+                "data_type": "financial_report",
+                "report_types": ["annual", "semi_annual", "q1", "q3"],
+            }
+        )
+        assert collector.report_types == ["年报", "半年报", "一季报", "三季报"]
+
     @pytest.mark.asyncio
     async def test_collect_downloads_pdfs(self) -> None:
         collector = CninfoFinancialReportCollector(
@@ -88,9 +98,10 @@ class TestCninfoFinancialReportCollector:
                 "source": "cninfo",
                 "data_type": "financial_report",
                 "max_pages": 1,
-                "report_types": ["年报"],
+                "report_types": ["annual"],
             }
         )
+        assert collector.report_types == ["年报"]
         query_response = {
             "announcements": [
                 {

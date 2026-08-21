@@ -34,6 +34,20 @@ _REPORT_TYPE_KEY: dict[str, str] = {
     "三季报": "q3",
 }
 
+# 管理后台/CLI 传英文枚举，巨潮 category 用中文名——两边都要能收
+_REPORT_TYPE_ALIASES: dict[str, str] = {
+    "annual": "年报",
+    "年报": "年报",
+    "semi": "半年报",
+    "semi_annual": "半年报",
+    "半年报": "半年报",
+    "中报": "半年报",
+    "q1": "一季报",
+    "一季报": "一季报",
+    "q3": "三季报",
+    "三季报": "三季报",
+}
+
 _CNINFO_QUERY_URL = "http://www.cninfo.com.cn/new/hisAnnouncement/query"
 _CNINFO_TOPSEARCH_URL = "http://www.cninfo.com.cn/new/information/topSearch/query"
 _CNINFO_DOWNLOAD_BASE = "http://static.cninfo.com.cn/"
@@ -49,7 +63,9 @@ class CninfoFinancialReportCollector(BaseCollector):
 
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        self.report_types = config.get("report_types") or DEFAULT_REPORT_TYPES
+        self.report_types = _normalize_report_types(
+            config.get("report_types")
+        ) or list(DEFAULT_REPORT_TYPES)
         self.base_url = config.get("base_url") or _CNINFO_QUERY_URL
         self.api_key = config.get("api_key")
         self.timeout = float(config.get("timeout", 60))
@@ -353,6 +369,16 @@ def _plate_for_code(code: str) -> str | None:
     if code.startswith(("4", "8", "9")):
         return "bj"
     return None
+
+
+def _normalize_report_types(values: list[str] | None) -> list[str]:
+    """英文枚举/中文别名统一为中文名，未知值原样保留由 category 映射跳过。"""
+    normalized: list[str] = []
+    for value in values or []:
+        name = _REPORT_TYPE_ALIASES.get(str(value).strip()) or str(value).strip()
+        if name and name not in normalized:
+            normalized.append(name)
+    return normalized
 
 
 def _parse_date(value: str | None) -> date | None:
