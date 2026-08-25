@@ -33,6 +33,12 @@ apiClient.interceptors.response.use(
       localStorage.removeItem('access_token')
       window.location.href = '/login'
     }
+    const serverDetail = error.response?.data?.detail
+    if (serverDetail) {
+      return Promise.reject(
+        new Error(typeof serverDetail === 'string' ? serverDetail : JSON.stringify(serverDetail))
+      )
+    }
     return Promise.reject(error)
   }
 )
