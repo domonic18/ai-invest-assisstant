@@ -349,6 +349,21 @@ CREATE TABLE user_watchlist (
 CREATE INDEX idx_watchlist_user ON user_watchlist(user_id);
 
 -- ============================================================
+-- 7.5 对话助手域
+-- ============================================================
+
+CREATE TABLE assistant_session (
+    id              UUID PRIMARY KEY,                -- 兼作 Agent Protocol thread_id
+    user_id         BIGINT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    title           VARCHAR(128),
+    last_message_at TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_assistant_session_user ON assistant_session (user_id, last_message_at DESC);
+
+-- ============================================================
 -- 8. AI 分析结果域
 -- ============================================================
 

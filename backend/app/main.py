@@ -7,6 +7,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.agent.runtime.assistant_agent import (
+    close_assistant_runtime,
+    setup_assistant_runtime,
+)
 from app.api.v1 import api_router
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
@@ -25,8 +29,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await seed_default_channels(session)
     except Exception as exc:  # noqa: BLE001
         logger.warning("failed_to_seed_collector_channels: %s", str(exc))
+    try:
+        await setup_assistant_runtime()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("failed_to_setup_assistant_runtime: %s", str(exc))
     yield
     # Shutdown
+    await close_assistant_runtime()
 
 
 app = FastAPI(

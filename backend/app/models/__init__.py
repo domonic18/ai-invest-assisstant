@@ -1,6 +1,7 @@
 """SQLAlchemy ORM models."""
 
 from app.models.ai_analysis_result import AiAnalysisResult
+from app.models.assistant_session import AssistantSession
 from app.models.auction import AuctionData
 from app.models.capital_fund_flow_sector import SectorFundFlow
 from app.models.collector_channel_config import CollectorChannelConfig
@@ -35,6 +36,7 @@ from app.models.watchlist import UserWatchlist
 
 __all__ = [
     "AiAnalysisResult",
+    "AssistantSession",
     "AuctionData",
     "BalanceSheet",
     "CashFlowStatement",

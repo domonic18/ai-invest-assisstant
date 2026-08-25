@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    assistant,
     auction,
     auth,
     chain,
@@ -42,6 +43,9 @@ api_router.include_router(financial.router, prefix="/financial", tags=["financia
 api_router.include_router(auction.router, prefix="/auction", tags=["auction"])
 api_router.include_router(fund_flow.router, prefix="/fund-flow", tags=["fund-flow"])
 api_router.include_router(market.router, prefix="/market", tags=["market"])
+api_router.include_router(
+    assistant.router, prefix="/assistant", tags=["assistant"]
+)
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(admin_users.router, prefix="/users")
