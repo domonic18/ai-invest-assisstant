@@ -2,6 +2,8 @@ import { Drawer } from 'antd'
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 
+import { AssistantFab, AssistantPanel } from '@/components/assistant/AssistantPanel'
+
 import { Header } from './Header'
 import { MobileTabBar } from './MobileTabBar'
 import { Sidebar, SidebarMenu } from './Sidebar'
@@ -30,6 +32,8 @@ export function Layout() {
       >
         <SidebarMenu onNavigate={closeMenu} />
       </Drawer>
+      <AssistantFab />
+      <AssistantPanel />
     </div>
   )
 }
