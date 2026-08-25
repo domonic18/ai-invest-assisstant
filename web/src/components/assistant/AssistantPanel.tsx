@@ -1,10 +1,11 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, Drawer, Popconfirm, Select, Space } from 'antd'
-import { useEffect } from 'react'
+import { Button, Drawer, Space } from 'antd'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { deleteSession, fetchSessions } from '@/api/assistant'
+import { useAssistantSessions } from './hooks/useAssistantSessions'
 import { useAssistantStore, type TodoStep } from '@/stores/assistant'
 
+import { AssistantHeader } from './AssistantHeader'
+import { AssistantSidebar } from './AssistantSidebar'
 import { AssistantThread } from './AssistantThread'
 import { AssistantRuntimeProvider } from './AssistantRuntimeProvider'
 
@@ -14,9 +15,35 @@ const TODO_MARKERS: Record<TodoStep['status'], string> = {
   pending: '○',
 }
 
+const MIN_SIDEBAR_WIDTH = 220
+const MAX_SIDEBAR_WIDTH = 400
+const DEFAULT_SIDEBAR_WIDTH = 260
+const SIDEBAR_STORAGE_KEY = 'assistant-sidebar-width'
+
+const MIN_DRAWER_WIDTH = 520
+const MAX_DRAWER_WIDTH = 960
+const DEFAULT_DRAWER_WIDTH = 760
+const DRAWER_STORAGE_KEY = 'assistant-drawer-width'
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
+}
+
+function readStoredWidth(
+  key: string,
+  defaultValue: number,
+  min: number,
+  max: number,
+): number {
+  if (typeof window === 'undefined') return defaultValue
+  const raw = window.localStorage.getItem(key)
+  const value = raw ? Number.parseInt(raw, 10) : NaN
+  return Number.isFinite(value) ? clamp(value, min, max) : defaultValue
+}
+
 function TodoListBar({ todos }: { todos: TodoStep[] }) {
   return (
-    <div className="border-b border-gray-800 px-3 py-2">
+    <div className="border-b border-gray-800 px-4 py-2">
       <div className="mb-1 text-xs text-gray-500">执行计划</div>
       <ol className="space-y-1">
         {todos.map((todo, index) => (
@@ -54,76 +81,157 @@ export function AssistantPanel() {
   const switchThread = useAssistantStore((state) => state.switchThread)
   const todos = useAssistantStore((state) => state.todos)
 
-  const queryClient = useQueryClient()
-  const { data } = useQuery({
-    queryKey: ['assistant-sessions'],
-    queryFn: () => fetchSessions({ limit: 50 }),
-    enabled: open,
-  })
+  const { sessions, isLoading, deleteSessionById, refresh } = useAssistantSessions({ enabled: open })
 
-  // 面板打开或活跃线程变化（新会话创建/切换）时刷新会话列表，
-  // 否则 TanStack Query 会一直用首次打开时的旧数据（当时可能为空）
+  const [sidebarWidth, setSidebarWidth] = useState(() =>
+    readStoredWidth(
+      SIDEBAR_STORAGE_KEY,
+      DEFAULT_SIDEBAR_WIDTH,
+      MIN_SIDEBAR_WIDTH,
+      MAX_SIDEBAR_WIDTH,
+    ),
+  )
+  const [sidebarResizing, setSidebarResizing] = useState(false)
+  const sidebarStartXRef = useRef(0)
+  const sidebarStartWidthRef = useRef(sidebarWidth)
+
+  const [drawerWidth, setDrawerWidth] = useState(() =>
+    readStoredWidth(
+      DRAWER_STORAGE_KEY,
+      DEFAULT_DRAWER_WIDTH,
+      MIN_DRAWER_WIDTH,
+      MAX_DRAWER_WIDTH,
+    ),
+  )
+  const [drawerResizing, setDrawerResizing] = useState(false)
+  const drawerStartXRef = useRef(0)
+  const drawerStartWidthRef = useRef(drawerWidth)
+
   useEffect(() => {
-    if (open) {
-      queryClient.invalidateQueries({ queryKey: ['assistant-sessions'] })
-    }
-  }, [open, threadId, queryClient])
+    if (!open) return
+    refresh()
+  }, [open, threadId, refresh])
 
-  const options = (data?.sessions ?? []).map((session) => ({
-    value: session.thread_id,
-    label: session.title || '新会话',
-  }))
+  useEffect(() => {
+    if (!sidebarResizing) return
+    document.body.style.cursor = 'col-resize'
+    const handleMouseMove = (e: MouseEvent) => {
+      const next = clamp(
+        sidebarStartWidthRef.current + (e.clientX - sidebarStartXRef.current),
+        MIN_SIDEBAR_WIDTH,
+        MAX_SIDEBAR_WIDTH,
+      )
+      setSidebarWidth(next)
+    }
+    const handleMouseUp = () => {
+      setSidebarResizing(false)
+      window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarWidth))
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+    }
+  }, [sidebarResizing, sidebarWidth])
+
+  useEffect(() => {
+    if (!drawerResizing) return
+    document.body.style.cursor = 'col-resize'
+    const handleMouseMove = (e: MouseEvent) => {
+      // 抽屉在右侧，左边缘向左拖动（clientX 减小）时宽度增加
+      const next = clamp(
+        drawerStartWidthRef.current + (drawerStartXRef.current - e.clientX),
+        MIN_DRAWER_WIDTH,
+        MAX_DRAWER_WIDTH,
+      )
+      setDrawerWidth(next)
+    }
+    const handleMouseUp = () => {
+      setDrawerResizing(false)
+      window.localStorage.setItem(DRAWER_STORAGE_KEY, String(drawerWidth))
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+    }
+  }, [drawerResizing, drawerWidth])
+
+  const activeTitle = useMemo(() => {
+    if (!threadId) return null
+    return sessions.find((s) => s.thread_id === threadId)?.title ?? null
+  }, [sessions, threadId])
 
   const handleDelete = async (value: string) => {
-    await deleteSession(value)
-    await queryClient.invalidateQueries({ queryKey: ['assistant-sessions'] })
+    await deleteSessionById(value)
     if (value === threadId) switchThread(undefined)
   }
 
+  const handleSidebarResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setSidebarResizing(true)
+    sidebarStartXRef.current = e.clientX
+    sidebarStartWidthRef.current = sidebarWidth
+  }
+
+  const handleDrawerResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setDrawerResizing(true)
+    drawerStartXRef.current = e.clientX
+    drawerStartWidthRef.current = drawerWidth
+  }
+
+  const isResizing = sidebarResizing || drawerResizing
+
   return (
     <Drawer
-      title="AI 投研助手"
+      title={null}
       placement="right"
       open={open}
       onClose={closePanel}
-      width={480}
-      styles={{ body: { padding: 0, display: 'flex', flexDirection: 'column' } }}
+      width={drawerWidth}
+      styles={{ body: { padding: 0 } }}
     >
-      <div className="flex items-center gap-2 border-b border-gray-800 px-3 py-2">
-        <Select
-          className="flex-1"
-          placeholder="新会话"
-          value={threadId}
-          options={options}
-          onChange={(value) => switchThread(value)}
-          allowClear
-          onClear={() => switchThread(undefined)}
-          popupMatchSelectWidth={false}
+      <div className={`relative flex h-full bg-[#0c0e12] ${isResizing ? 'select-none' : ''}`}>
+        <div
+          role="separator"
+          aria-label="调整对话框宽度"
+          onMouseDown={handleDrawerResizeStart}
+          className="absolute left-0 top-0 bottom-0 z-10 w-1.5 cursor-col-resize bg-transparent hover:bg-blue-500/20 active:bg-blue-500/40"
         />
-        <Button size="small" onClick={() => switchThread(undefined)}>
-          新会话
-        </Button>
-        {threadId && (
-          <Popconfirm
-            title="删除该会话？"
-            onConfirm={() => handleDelete(threadId)}
-            okText="删除"
-            cancelText="取消"
-          >
-            <Button size="small" danger>
-              删除
-            </Button>
-          </Popconfirm>
-        )}
-      </div>
-      {todos && todos.length > 0 && <TodoListBar todos={todos} />}
-      <div className="min-h-0 flex-1">
-        {/* 不能加 key：runtime 原生支持 threadId 受控切换，加 key 会在
-            threads.create 后因 onThreadIdChange 触发整个 runtime 重挂载，
-            销毁乐观消息并中断进行中的流 */}
-        <AssistantRuntimeProvider>
-          <AssistantThread />
-        </AssistantRuntimeProvider>
+        <AssistantSidebar
+          sessions={sessions}
+          activeThreadId={threadId}
+          isLoading={isLoading}
+          width={sidebarWidth}
+          onNewThread={() => switchThread(undefined)}
+          onSwitchThread={(id) => switchThread(id)}
+          onDeleteThread={handleDelete}
+        />
+        <div
+          role="separator"
+          aria-label="调整侧边栏宽度"
+          onMouseDown={handleSidebarResizeStart}
+          className="group relative z-10 w-1.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/20 active:bg-blue-500/40"
+        >
+          <div className="absolute left-1/2 top-1/2 h-8 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gray-700 transition-colors group-hover:bg-blue-400 group-active:bg-blue-300" />
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <AssistantHeader title={activeTitle} onClose={closePanel} />
+          {todos && todos.length > 0 && <TodoListBar todos={todos} />}
+          <div className="min-h-0 flex-1">
+            {/* 不能加 key：runtime 原生支持 threadId 受控切换，加 key 会在
+                threads.create 后因 onThreadIdChange 触发整个 runtime 重挂载，
+                销毁乐观消息并中断进行中的流 */}
+            <AssistantRuntimeProvider>
+              <AssistantThread />
+            </AssistantRuntimeProvider>
+          </div>
+        </div>
       </div>
     </Drawer>
   )
