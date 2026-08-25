@@ -18,6 +18,7 @@ import {
   Tag,
   message,
 } from 'antd'
+import dayjs from 'dayjs'
 import { useState } from 'react'
 
 import {
@@ -135,7 +136,12 @@ export function AdminUsers() {
       render: (value: boolean) =>
         value ? <Tag color="green">启用</Tag> : <Tag>禁用</Tag>,
     },
-    { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt' },
+    {
+      title: '创建时间',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'),
+    },
     {
       title: '操作',
       key: 'actions',
