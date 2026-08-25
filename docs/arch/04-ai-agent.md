@@ -19,6 +19,11 @@
 │              （PydanticAI + YAML Prompts + MCP）                         │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │         对话式 AI 助手（agent/runtime，deepagents，Phase 1 已上线）  │   │
+│  │   右侧面板多轮对话 / Skill 渐进披露 / MCP 工具调用 / 会话历史       │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
 │  │                YAML 声明式 Skill（prompts/skills/）                │   │
 │  │   market-daily-review / limit-up-review / industry-chain-analysis │   │
 │  │   research-report-summary / financial-report-summary              │   │
@@ -43,7 +48,8 @@
 
 | 层次 | 技术 | 说明 |
 |------|------|------|
-| **Agent SDK** | PydanticAI | Python 原生，类型安全，支持 OpenAI / Anthropic / 兼容端点 |
+| **Agent SDK** | PydanticAI | Python 原生，类型安全，支持 OpenAI / Anthropic / 兼容端点（单轮管线） |
+| **Agent Harness** | deepagents（LangChain/LangGraph） | 对话式 AI 助手运行时：内置规划（TodoList）、Skill 渐进披露、MCP 工具、文件上下文（规划中，见第 10 节） |
 | **提示词管理** | YAML 文件 | `backend/app/prompts/` 统一管理 |
 | **Skill 业务描述** | `skills/<id>/SKILL.md` | 业务描述用 Markdown，提示词用 YAML |
 | **工具协议** | MCP | 内部 / 外部工具统一标准 |
@@ -364,9 +370,41 @@ async def analyze_chain(payload: ChainAnalyzeRequest, db: AsyncSession = Depends
 | **复用范围** | 平台内部 Agent | 内部 + 外部 AI 工具 | 平台内部 Agent |
 | **关系** | 声明需要什么 | 提供具体能力 | 驱动 Agent 如何思考 |
 
-## 10. 后续文档索引
+## 10. 对话式 AI 助手（deepagents，Phase 1 已上线 2026-08-25）
+
+现有 AI 能力是各页面"按钮式"单轮管线；对话式助手以 [deepagents](https://docs.langchain.com/oss/python/deepagents/overview)
+为运行时，让用户用自然语言驱动平台能力。完整方案见
+[ai-assistant-deepagents.md](../plan/ai-assistant-deepagents.md)。
+
+### 10.1 定位与边界
+
+- **新增不重写**：deepagents 仅承载对话助手（`app/agent/runtime/`）；既有 PydanticAI 单轮管线保持不变，其中有价值的能力（产业链分析、AI 复盘等）以工具形式暴露给助手复用。
+- **模型同源**：助手经 `resolve_default_llm()` 读取 `llm_config` 默认配置，转换为 LangChain 模型实例（Anthropic 协议 → `ChatAnthropic`，OpenAI 兼容 → `ChatOpenAI`）。
+- **标准协议 + 成熟组件**：前后端交互采用 [LangChain Agent Protocol](https://langchain-ai.github.io/agent-protocol/)（thread/run 模型）；前端采用 [assistant-ui](https://www.assistant-ui.com) 组件库，其 `@assistant-ui/react-langgraph` 运行时经 `@langchain/langgraph-sdk` 直连协议端点。
+
+### 10.2 核心组成
+
+| 组成 | 实现 |
+|------|------|
+| 运行时组装 | `agent/runtime/assistant_agent.py`：`create_deep_agent(model, tools, system_prompt, skills, subagents, checkpointer)` |
+| 工具层 | `agent/runtime/assistant_tools.py`：LangChain `@tool` 包装 `db_tools` 与读服务（行情/K线/财务/新闻/知识库/板块资金/大盘/竞价，Phase 1 共 8 个只读工具） |
+| Skill 渐进披露 | 根目录 `skills/*/SKILL.md` 升级为标准 frontmatter 格式（`name`/`description`），启动只加载元数据、按需读全文 |
+| Subagents | 领域子代理（market-analyst / fundamental-analyst / news-scout）+ 内置 `task` 派发（Phase 2） |
+| MCP 双向 | 平台经 fastmcp 对外暴露数据工具（`/api/v1/mcp`，替换现有空壳）；助手经 `langchain-mcp-adapters` 接入外部 MCP Server（Phase 3） |
+| 会话持久化 | `assistant_session` 表（会话列表/归属/标题）+ LangGraph `AsyncPostgresSaver`（消息轨迹与 agent 线程状态，`thread_id` 兼作会话 id） |
+| API/协议 | `api/v1/assistant.py` 实现 LangChain Agent Protocol：threads / runs（SSE `streamMode: messages·updates·custom`）/ cancel；业务侧仅保留会话列表与 skills 端点 |
+| 前端 | assistant-ui 右侧 Drawer 助手面板（流式渲染、思考/工具折叠、中断、HITL 卡片、Generative UI 图表），任意页面右下角唤起 |
+
+### 10.3 分阶段落地
+
+Phase 1 基础对话闭环（工具调用 + 会话历史）→ Phase 2 Skills 标准化 + 子代理 →
+Phase 3 MCP 双向 → Phase 4 写操作 + HITL 确认 + 页面上下文注入。
+工期与验收标准详见方案文档第 7 节。
+
+## 11. 后续文档索引
 
 - [00-overview.md](./00-overview.md) — 总体架构与目录结构
 - [03-data-storage.md](./03-data-storage.md) — 数据库设计（产业链版本表、AI 复盘多租户表）
 - [05-web-frontend.md](./05-web-frontend.md) — 前端如何展示版本化分析结果
 - [06-deployment.md](./06-deployment.md) — SCF Web 函数（LLM 接口代理超时 300s）
+- [ai-assistant-deepagents.md](../plan/ai-assistant-deepagents.md) — 对话式 AI 助手实现方案（deepagents）

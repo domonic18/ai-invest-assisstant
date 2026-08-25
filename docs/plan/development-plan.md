@@ -194,6 +194,24 @@ web/CLAUDE.md                     # 前端 AI 上下文 ✅
 
 **实际状态**：⏸️ 尚未启动。
 
+### 阶段 7：对话式 AI 助手（deepagents，约 6 周）
+
+> 方案详见 [ai-assistant-deepagents.md](./ai-assistant-deepagents.md)（2026-08 立项）。
+
+**目标**：以 deepagents 为运行时构建对话式 AI 助手——前端右侧面板多轮对话 + 会话历史，智能体自主规划并调用平台数据工具，支持 Skill 渐进披露与 MCP 双向调用。
+
+**交付物**：
+
+- Phase 1（约 2 周）：基础对话闭环——`agent/runtime/` 运行时组装（模型复用 `llm_config` 默认配置）、8 个只读数据工具、`assistant_session` 表（消息走 checkpoint）、Agent Protocol（threads/runs）流式 API、前端 assistant-ui 右侧助手面板与历史会话。
+- Phase 2（约 2 周）：`skills/*/SKILL.md` 标准化（frontmatter）+ 领域子代理（行情/基本面/资讯，开 subgraphs）+ TodoList custom 通道渲染 + `page_context` 页面上下文注入。
+- Phase 3（约 1 周）：写操作工具 + HITL 确认流（`interrupt_on` 通道 Phase 1 已就绪）。
+- Phase 4（约 2 周）：MCP 双向——fastmcp 对外暴露数据工具（`/api/v1/mcp`）+ 外部 MCP Server 管理与接入。
+- 生产上线：Phase 3 完成后统一评估（含 Caddy SSE 验证与 20260825 迁移）。
+
+**验收标准**：登录后任意页面可唤起助手；"平安银行最近走势如何"类问题能调用工具并基于真实数据回答；会话历史可回看可继续；外部 MCP 客户端可调用平台 ≥ 5 个数据工具。
+
+**实际状态**：🟡 Phase 1 已上线（2026-08-25 验收通过，M8 达成）：基础对话闭环 + 8 个只读工具 + Agent Protocol 端点 + assistant-ui 前端面板（流式/思考与工具折叠/中断/会话管理）；生产暂不上线（待功能完善），Phase 2 待启动。
+
 ### 路线图总览
 
 ```
@@ -205,6 +223,7 @@ web/CLAUDE.md                     # 前端 AI 上下文 ✅
                                                                        ├────阶段4────┤🟡
                                                                                    ├──────阶段5──────┤❌
                                                                                                    ├────阶段6────┤⏸️
+     阶段7（AI 助手）独立于上方周次排期，按 Phase 1-4 顺序推进
 ```
 
 图例：✅ 已完成 / 🟡 主体完成，剩余增强 / 🔴 骨架完成，待生产加固 / ❌ 已取消 / ⏸️ 未启动
@@ -313,6 +332,19 @@ web/CLAUDE.md                     # 前端 AI 上下文 ✅
 | AI 分析页 / 个人中心 | P2 | 4d | ⏸️ | 复用后端接口 |
 | 测试与包体积优化 | P2 | 2d | ⏸️ | 目标 < 2MB |
 
+### 阶段 7
+
+| 任务 | 优先级 | 建议工时 | 状态 | 说明 |
+|------|--------|----------|------|------|
+| deepagents 依赖引入 + 模型连通性 spike | P0 | 1d | ✅ | Kimi tool calling 兼容，thinking 原生流式输出 |
+| 助手运行时组装 + 8 个只读工具 | P0 | 4d | ✅ | `agent/runtime/`，模型复用 `llm_config` |
+| 会话表 + Alembic 迁移 + init-scripts 同步 | P0 | 1d | ✅ | `assistant_session`（消息轨迹走 checkpoint） |
+| Agent Protocol 端点（threads/runs/cancel） | P0 | 3d | ✅ | `api/v1/assistant.py` + service 层 |
+| 前端右侧助手面板 + 历史会话 | P0 | 4d | ✅ | assistant-ui + 自定义 threadListAdapter + 骨架屏加载 |
+| SKILL.md frontmatter 标准化 + 子代理 | P1 | 4d | 🔵 | 渐进披露 + market/fundamental/news 三子代理 |
+| MCP 双向（fastmcp 对外 + 外部 server 接入） | P1 | 4d | 🔵 | 替换空壳 `api/v1/mcp/server.py` |
+| 写操作工具 + HITL 确认流 | P2 | 3d | 🔵 | interrupt_on + 前端确认卡片 |
+
 ## 5. 里程碑
 
 | 里程碑 | 时间 | 判定标准 |
@@ -324,6 +356,7 @@ web/CLAUDE.md                     # 前端 AI 上下文 ✅
 | M5：后台管理可用 | 第 16 周末 | 管理员可通过 `/admin` 完成用户/股票/研报/新闻/任务 CRUD 与采集任务监控。 |
 | M6：V1.0 功能交付 | 第 20 周末 | 仪表盘等核心页面全部展示真实数据（无硬编码占位）；5 个核心 Skill 与 LLM 财报解读可通过 API 返回有效结果；`uv run pytest -m unit` 全部通过。 |
 | M7：小程序可用（V1.1） | 第 24 周末 | 微信开发者工具可预览；集合竞价曲线正确渲染；包体积 < 2MB。 |
+| M8：AI 助手对话闭环（阶段 7 Phase 1） | ✅ 2026-08-25 | 任意页面唤起助手完成多轮工具调用问答（真实数据）；会话历史可回看；流式渲染无截断、可中断、AI 可提问（HITL）。验收通过。 |
 
 ## 6. 关键成功指标
 
@@ -404,15 +437,18 @@ web/CLAUDE.md                     # 前端 AI 上下文 ✅
    - Prompt 放 `app/prompts/skills/`（遵循现有 Prompt 管理规范），模型经 `llm_router` 创建。
    - 前端在个股详情/财务分析页展示解读结果。
 
-5. **产业链分析 / 热点追踪页组件补全**（P1，约 10d）
+5. **对话式 AI 助手（阶段 7，P0）**（2026-08 新增）
+   - 按方案 [ai-assistant-deepagents.md](./ai-assistant-deepagents.md) 分 Phase 1-4 推进；先做模型连通性 spike（Kimi + deepagents 原生 tool calling），再进入 Phase 1 基础对话闭环。
+
+6. **产业链分析 / 热点追踪页组件补全**（P1，约 10d）
    - 产业链：价值分布分析、瓶颈与卡脖子风险、核心标的近期动态与 AI 提醒。
    - 热点：市场情绪指数、热点传导链、热点话题云、资金异动信号。
 
-6. **测试与覆盖率基线**（P0）
+7. **测试与覆盖率基线**（P0）
    - 运行 `uv run pytest --cov` 与 `npm run test:coverage`（如已配置），把第 6 节指标量化。
    - 补齐 `tests/integration/` 与 E2E 测试骨架。
 
-7. **Makefile 与 README 同步**（P2）
+8. **Makefile 与 README 同步**（P2）
    - 完善一键启动命令，降低新成员上手成本。
 
-> **Go/No-Go 建议**：V1.0 以「6 个原型页面功能全部对齐且无硬编码数据 + LLM 财报解读 + 测试基线」为收口标准；完成后再评估是否启动小程序（V1.1）。
+> **Go/No-Go 建议**：V1.0 以「6 个原型页面功能全部对齐且无硬编码数据 + LLM 财报解读 + 测试基线」为收口标准；完成后再评估是否启动小程序（V1.1）。AI 助手（阶段 7）与 V1.0 收口并行推进。
