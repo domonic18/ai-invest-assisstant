@@ -1,16 +1,15 @@
 import { RobotOutlined } from '@ant-design/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button, Card, Empty, Input, message, Popconfirm, Tag, Typography } from 'antd'
-import dayjs from 'dayjs'
 import { useState } from 'react'
 
 import {
+  generateMarketReview,
   NonTradingDayError,
   saveMarketReviewSection,
 } from '@/api/market'
 import { MarkdownText } from '@/components/common/MarkdownText'
 import { useMarketReview } from '@/hooks/useMarket'
-import { useAssistantStore } from '@/stores/assistant'
 import { useAuthStore } from '@/stores/auth'
 import type { MarketReview, MarketReviewSection } from '@ai-invest/shared'
 
@@ -97,7 +96,7 @@ interface AiReviewSectionProps {
 export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
   const queryClient = useQueryClient()
   const isAdmin = useAuthStore((state) => state.isAdmin)
-  const sendQuestion = useAssistantStore((state) => state.sendQuestion)
+  const [generating, setGenerating] = useState(false)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const { data, isLoading, isError, error, refetch } = useMarketReview(tradeDate)
@@ -106,13 +105,17 @@ export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
     queryClient.setQueryData(['market', 'ai-review', tradeDate], review)
   }
 
-  const buildReviewQuestion = () => {
-    const date = tradeDate ?? dayjs().format('YYYY-MM-DD')
-    return `请基于 ${date} 的行情、涨停与板块资金数据，生成一份每日复盘报告，包括大盘综述、涨停分析和板块资金流向。`
-  }
-
-  const handleGenerateInAssistant = () => {
-    sendQuestion(buildReviewQuestion())
+  const handleGenerate = async (regenerate: boolean) => {
+    setGenerating(true)
+    try {
+      const review = await generateMarketReview(regenerate, tradeDate)
+      setReviewCache(review)
+      message.success(regenerate ? '已重新生成' : '已生成 AI 复盘')
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '生成失败')
+    } finally {
+      setGenerating(false)
+    }
   }
 
   const handleSaveSection = async (sectionKey: string, content: string) => {
@@ -181,8 +184,12 @@ export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         >
           {isAdmin && (
-            <Button type="primary" onClick={handleGenerateInAssistant}>
-              使用 AI 助手生成复盘
+            <Button
+              type="primary"
+              loading={generating}
+              onClick={() => handleGenerate(false)}
+            >
+              {generating ? 'AI 生成中，通常需要 10-30 秒…' : '生成 AI 复盘'}
             </Button>
           )}
         </Empty>
@@ -193,10 +200,11 @@ export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
   const regenerateButton = isAdmin ? (
     <Button
       size="small"
-      onClick={handleGenerateInAssistant}
+      loading={generating}
+      onClick={() => handleGenerate(true)}
       disabled={editingKey !== null}
     >
-      在 AI 助手中重新生成
+      重新生成
     </Button>
   ) : null
 
@@ -212,7 +220,7 @@ export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
               title="重新生成将覆盖人工编辑的内容"
               okText="重新生成"
               cancelText="取消"
-              onConfirm={handleGenerateInAssistant}
+              onConfirm={() => handleGenerate(true)}
             >
               {regenerateButton}
             </Popconfirm>
