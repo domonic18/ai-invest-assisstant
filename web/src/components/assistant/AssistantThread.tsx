@@ -2,11 +2,14 @@ import {
   ThreadPrimitive,
   useAuiState,
 } from '@assistant-ui/react'
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
+
+import { useAssistantStore } from '@/stores/assistant'
 
 import { AssistantEmptyState } from './AssistantEmptyState'
 import {
   SuggestedQuestionContext,
+  useSuggestedQuestion,
 } from './SuggestedQuestionContext'
 import { Composer } from './composer/Composer'
 import { AssistantMessage } from './messages/AssistantMessage'
@@ -46,6 +49,20 @@ function HistorySkeleton() {
   )
 }
 
+function PendingQuestionSender() {
+  const sendQuestion = useSuggestedQuestion()
+  const pendingQuestion = useAssistantStore((state) => state.pendingQuestion)
+  const clearPendingQuestion = useAssistantStore((state) => state.clearPendingQuestion)
+
+  useEffect(() => {
+    if (!pendingQuestion) return
+    sendQuestion(pendingQuestion)
+    clearPendingQuestion()
+  }, [pendingQuestion, sendQuestion, clearPendingQuestion])
+
+  return null
+}
+
 export function AssistantThread() {
   const isLoading = useAuiState((s) => s.thread.isLoading)
   const sendRef = useRef<(question: string) => void>(() => {})
@@ -58,6 +75,7 @@ export function AssistantThread() {
 
   return (
     <SuggestedQuestionContext.Provider value={{ sendQuestion }}>
+      <PendingQuestionSender />
       <ThreadPrimitive.Root className="flex h-full flex-col bg-[#0c0e12]">
         <ThreadPrimitive.Viewport className="flex-1 overflow-y-auto px-4 py-4">
           {isLoading ? (
@@ -74,6 +92,7 @@ export function AssistantThread() {
           )}
         </ThreadPrimitive.Viewport>
         <Composer registerSend={registerSend} />
+        <PendingQuestionSender />
       </ThreadPrimitive.Root>
     </SuggestedQuestionContext.Provider>
   )
