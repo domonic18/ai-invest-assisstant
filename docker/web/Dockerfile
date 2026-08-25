@@ -22,11 +22,11 @@ COPY shared/ ./
 RUN npm run build
 
 WORKDIR /web
-COPY web/package.json web/pnpm-lock.yaml* web/package-lock.json* ./
-RUN npm install -g pnpm && pnpm config set registry ${NPM_REGISTRY} && \
-    pnpm install --no-frozen-lockfile || npm install
+RUN npm config set registry ${NPM_REGISTRY}
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
 COPY web/ .
-RUN pnpm build || npm run build
+RUN npm run build
 
 # runtime
 FROM python:3.11-slim-bookworm
