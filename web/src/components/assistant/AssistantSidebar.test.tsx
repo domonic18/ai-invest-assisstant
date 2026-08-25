@@ -3,6 +3,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 
 import { AssistantSidebar } from './AssistantSidebar'
 
+const FIXED_NOW = new Date('2026-08-25T08:00:00Z')
+
 import type { AssistantSessionItem } from '@/api/assistant'
 
 function makeSession(title: string, threadId: string): AssistantSessionItem {
@@ -55,6 +57,7 @@ describe('AssistantSidebar', () => {
   })
 
   it('groups sessions by date', () => {
+    vi.setSystemTime(FIXED_NOW)
     render(
       <AssistantSidebar
         sessions={[
@@ -78,5 +81,6 @@ describe('AssistantSidebar', () => {
     expect(screen.getAllByText('今天')).toHaveLength(2)
     expect(screen.getAllByText('昨天')).toHaveLength(2)
     expect(screen.getAllByText('更早')).toHaveLength(2)
+    vi.useRealTimers()
   })
 })
