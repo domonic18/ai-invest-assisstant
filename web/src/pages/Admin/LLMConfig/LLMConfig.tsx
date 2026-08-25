@@ -139,7 +139,13 @@ export function LLMConfig() {
       render: (value: string) => PROVIDER_LABEL[value] || value,
     },
     { title: '模型', dataIndex: 'modelName', key: 'modelName' },
-    { title: 'API Key', dataIndex: 'apiKeyMasked', key: 'apiKeyMasked' },
+    {
+      title: 'API Key',
+      dataIndex: 'apiKeyMasked',
+      key: 'apiKeyMasked',
+      width: 160,
+      ellipsis: true,
+    },
     {
       title: '默认',
       dataIndex: 'isDefault',
@@ -157,6 +163,8 @@ export function LLMConfig() {
     {
       title: '最后测试',
       key: 'lastTest',
+      width: 220,
+      ellipsis: true,
       render: (_: unknown, record: LLMConfig) => {
         if (!record.lastTestStatus) return '-'
         return record.lastTestStatus === 'success' ? (
@@ -241,6 +249,7 @@ export function LLMConfig() {
         rowKey="id"
         loading={isLoading}
         pagination={false}
+        scroll={{ x: 'max-content' }}
       />
 
       <LLMConfigModal
