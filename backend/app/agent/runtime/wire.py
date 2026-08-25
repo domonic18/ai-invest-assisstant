@@ -78,6 +78,11 @@ def sse_event(event: str, data: Any) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
 
 
+def namespace_label(namespaces: tuple[str, ...]) -> str:
+    """subgraphs 命名空间 → SSE 事件后缀（取最后一段，如 task:xxx）。"""
+    return namespaces[-1] if namespaces else ""
+
+
 class RunRegistry:
     """活跃 run 注册表：支持跨请求取消（POST /threads/{tid}/runs/{rid}/cancel）。"""
 

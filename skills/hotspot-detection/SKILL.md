@@ -1,3 +1,8 @@
+---
+name: hotspot-detection
+description: 市场热点检测：聚合近期新闻、分析情绪与资金流、交叉产业链突破信号，输出热点板块排行与可操作洞察。当用户问"今天什么热门/热点/资金流向哪/市场情绪/异动"时使用。
+---
+
 # Hotspot Detection Skill
 
 ## Description

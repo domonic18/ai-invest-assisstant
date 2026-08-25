@@ -1,3 +1,8 @@
+---
+name: chain-breakthrough
+description: 供应链突破检测：识别产业链中的技术突破、产能扩张与政策利好信号，定位受益环节与公司。当用户问某行业"突破点/国产替代/技术突破/产能扩张/政策利好"或"最近有什么新变化"时使用。
+---
+
 # Supply Chain Breakthrough Detection Skill
 
 ## Description

@@ -1,6 +1,6 @@
 # 对话式 AI 助手实现方案（deepagents）
 
-> 状态：Phase 1 已上线（2026-08-25 验收通过）｜ Phase 2-4 规划中 ｜ 创建：2026-08-24 ｜ 关联文档：[04-ai-agent.md](../arch/04-ai-agent.md)
+> 状态：Phase 1 已上线（2026-08-25 验收通过）｜ Phase 2 已验收（2026-08-25）｜ Phase 3-4 规划中 ｜ 创建：2026-08-24 ｜ 关联文档：[04-ai-agent.md](../arch/04-ai-agent.md)
 
 ## 1. 背景与目标
 
@@ -352,13 +352,15 @@ const runtime = useLangGraphRuntime({
 
 ### Phase 2：Skills + Subagents + 页面上下文（约 2 周）
 
-1. `skills/*/SKILL.md` 加标准 frontmatter（`name`/`description`，正文保留方法论），`skills=` 接入渐进披露
-2. 三个领域子代理 + `task` 派发调优；开 `subgraphs=True` 验证子代理事件透传与事件量影响
-3. 前端渲染 TodoList 计划：走 custom 通道（`push_ui_message("todos", …)`）+ `makeAssistantDataUI`，比解析 updates 稳定
-4. `page_context` 注入（前端 stream 回调携带当前路由/标的，后端注入用户消息）——从原 Phase 4 提前
-5. `GET /assistant/skills` 端点补全（frontmatter 标准化后自动完整）
+1. ✅ `skills/*/SKILL.md` 加标准 frontmatter（`name`/`description`，正文保留方法论），`skills=` 接入渐进披露
+2. ✅ 三个领域子代理 + `task` 派发调优；开 `subgraphs=True` 验证子代理事件透传与事件量影响
+3. ✅ 前端渲染 TodoList 计划：解析 `updates` 通道中的 `write_todos` 状态更新，经 Zustand 驱动 `AssistantPanel` 顶部计划条
+4. ✅ `page_context` 注入（前端 stream 回调携带当前路由/标的，后端注入用户消息）——从原 Phase 4 提前
+5. ✅ `GET /assistant/skills` 端点补全（frontmatter 标准化后自动完整）
 
 **验收**：问"帮我做一次半导体产业链体检"，助手按 SKILL.md 方法论规划步骤、派发子代理、产出结构化分析。
+
+**实际状态**：✅ 已完成（2026-08-25）：5 个 SKILL.md frontmatter 标准化；三个子代理（market-analyst / fundamental-analyst / news-scout）+ subgraphs 事件透传；`TodoListMiddleware` 显式注入使 `write_todos` 在多步任务中可用；前端 `TodoListBar` 实时渲染计划步骤；`page_context` 前后端贯通；Docker 镜像已包含 `/skills/` 目录并配置 `CompositeBackend` 只读挂载。
 
 ### Phase 3：写操作 + HITL 确认流（约 1 周，通道 Phase 1 已就绪）
 

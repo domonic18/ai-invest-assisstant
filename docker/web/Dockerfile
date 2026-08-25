@@ -48,6 +48,8 @@ COPY --from=backend-builder /usr/local/lib/python3.11/site-packages /usr/local/l
 COPY --from=backend-builder /usr/local/bin /usr/local/bin
 COPY --from=backend-builder /app /app
 COPY --from=frontend-builder /web/dist /usr/share/nginx/html
+# 助手 Skills：settings.skills_dir 在容器内解析为 /skills（/app 的上四级）
+COPY skills/ /skills/
 
 COPY docker/web/nginx.conf /etc/nginx/nginx.conf
 COPY docker/web/supervisord.conf /etc/supervisor/conf.d/supervisord.conf

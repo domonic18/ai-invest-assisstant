@@ -1,3 +1,8 @@
+---
+name: industry-chain-analysis
+description: 产业链分析：拆解指定行业的上下游结构，识别各环节代表上市公司并对比财务表现与竞争格局，产出结构化产业链分析与投资观点。当用户要求"产业链体检/上下游/供应链/价值链分析"时使用。
+---
+
 # Industry Chain Analysis Skill
 
 ## Description

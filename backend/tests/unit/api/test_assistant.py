@@ -125,6 +125,32 @@ class TestRunStream:
             )
         assert response.status_code == 422
 
+    def test_page_context_prefixes_user_message(self) -> None:
+        from app.api.v1.assistant import _with_page_context
+
+        result = _with_page_context(
+            "这只股票最近走势如何？",
+            {"page": "个股详情", "stock_code": "000001", "route": "/stock/000001"},
+        )
+        assert result.startswith('[页面上下文] {"page": "个股详情"')
+        assert result.endswith("这只股票最近走势如何？")
+
+    def test_page_context_absent_keeps_content(self) -> None:
+        from app.api.v1.assistant import _with_page_context
+
+        assert _with_page_context("你好", None) == "你好"
+        assert _with_page_context("你好", {}) == "你好"
+
+    def test_page_context_block_list_prepends_text_block(self) -> None:
+        from app.api.v1.assistant import _with_page_context
+
+        blocks = [{"type": "text", "text": "问题"}]
+        result = _with_page_context(blocks, {"page": "资金流向"})
+        assert isinstance(result, list)
+        assert result[0]["type"] == "text"
+        assert result[0]["text"].startswith("[页面上下文]")
+        assert result[1] == blocks[0]
+
     def test_cancel_unknown_run_404(self, assistant_client) -> None:
         client, _ = assistant_client
         with patch(

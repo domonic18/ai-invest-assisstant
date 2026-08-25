@@ -62,7 +62,7 @@ class TestAssistantAgent:
         assert get_cp.await_count == 1
 
     @pytest.mark.asyncio
-    async def test_reset_assistant_agent_rebuilds(self) -> None:
+    async def test_agent_includes_todo_list_middleware(self) -> None:
         from langgraph.checkpoint.memory import MemorySaver
 
         from app.agent.runtime import assistant_agent
@@ -77,8 +77,30 @@ class TestAssistantAgent:
                 AsyncMock(return_value=MemorySaver()),
             ),
         ):
-            agent1 = await assistant_agent.get_assistant_agent()
-            assistant_agent.reset_assistant_agent()
-            agent2 = await assistant_agent.get_assistant_agent()
+            agent = await assistant_agent.get_assistant_agent()
 
-        assert agent1 is not agent2
+        graph = agent.get_graph()
+        node_names = set(graph.nodes.keys())
+        assert "TodoListMiddleware.after_model" in node_names
+        assert "todos" in agent.channels
+
+    @pytest.mark.asyncio
+    async def test_agent_includes_skills_channels(self) -> None:
+        from langgraph.checkpoint.memory import MemorySaver
+
+        from app.agent.runtime import assistant_agent
+
+        with (
+            patch(
+                "app.agent.runtime.assistant_agent.resolve_default_llm",
+                AsyncMock(return_value=_resolved()),
+            ),
+            patch(
+                "app.agent.runtime.assistant_agent.get_checkpointer",
+                AsyncMock(return_value=MemorySaver()),
+            ),
+        ):
+            agent = await assistant_agent.get_assistant_agent()
+
+        assert "skills_metadata" in agent.channels
+        assert "skills_load_errors" in agent.channels

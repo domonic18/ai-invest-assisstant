@@ -4,9 +4,11 @@ import {
   InMemoryThreadListAdapter,
 } from '@assistant-ui/react'
 import { useLangGraphRuntime } from '@assistant-ui/react-langgraph'
+import { useLocation } from 'react-router-dom'
 
 import { createAssistantClient } from '@/api/assistant'
-import { useAssistantStore } from '@/stores/assistant'
+import { useAssistantStore, type TodoStep } from '@/stores/assistant'
+import { buildPageContext } from '@/utils/pageContext'
 
 const ASSISTANT_ID = 'invest-assistant'
 
@@ -30,15 +32,33 @@ type StateWithTasks = {
   tasks?: Array<{ interrupts?: Array<Record<string, unknown>> }>
 }
 
+/** 从根图 updates 载荷（{node: state_update}）中提取 deepagents todos */
+function extractTodos(updates: unknown): TodoStep[] | undefined {
+  if (typeof updates !== 'object' || updates === null) return undefined
+  for (const node of Object.values(updates as Record<string, unknown>)) {
+    if (typeof node !== 'object' || node === null) continue
+    const todos = (node as Record<string, unknown>).todos
+    if (Array.isArray(todos)) return todos as TodoStep[]
+  }
+  return undefined
+}
+
 export function AssistantRuntimeProvider({ children }: { children: ReactNode }) {
   const threadId = useAssistantStore((state) => state.threadId)
   const onThreadIdChange = useAssistantStore((state) => state.switchThread)
+  const location = useLocation()
 
   const runtime = useLangGraphRuntime({
     threadId,
     onThreadIdChange,
     unstable_allowCancellation: true,
     unstable_threadListAdapter: threadListAdapter,
+    eventHandlers: {
+      onUpdates: (updates) => {
+        const todos = extractTodos(updates)
+        if (todos) useAssistantStore.getState().setTodos(todos)
+      },
+    },
     load: async (externalId: string) => {
       const client = createAssistantClient()
       const state = await client.threads.getState(externalId)
@@ -57,6 +77,7 @@ export function AssistantRuntimeProvider({ children }: { children: ReactNode }) 
       const stream = await client.runs.stream(externalId, ASSISTANT_ID, {
         input: messages.length ? { messages } : null,
         command: config.command,
+        metadata: { page_context: buildPageContext(location.pathname) },
         checkpoint: config.checkpointId
           ? {
               checkpoint_id: config.checkpointId,

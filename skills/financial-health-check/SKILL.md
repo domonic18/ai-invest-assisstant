@@ -1,3 +1,8 @@
+---
+name: financial-health-check
+description: 个股财务体检：计算核心财务比率（ROE、毛利率、资产负债率、现金流等）、与行业对比并标记风险项，产出结构化健康报告。当用户要求"财务体检/财务分析"或询问具体财务指标时使用。
+---
+
 # Financial Health Check Skill
 
 ## Description

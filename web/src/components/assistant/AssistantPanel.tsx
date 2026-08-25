@@ -3,16 +3,56 @@ import { Button, Drawer, Popconfirm, Select, Space } from 'antd'
 import { useEffect } from 'react'
 
 import { deleteSession, fetchSessions } from '@/api/assistant'
-import { useAssistantStore } from '@/stores/assistant'
+import { useAssistantStore, type TodoStep } from '@/stores/assistant'
 
 import { AssistantThread } from './AssistantThread'
 import { AssistantRuntimeProvider } from './AssistantRuntimeProvider'
+
+const TODO_MARKERS: Record<TodoStep['status'], string> = {
+  completed: '✓',
+  in_progress: '◐',
+  pending: '○',
+}
+
+function TodoListBar({ todos }: { todos: TodoStep[] }) {
+  return (
+    <div className="border-b border-gray-800 px-3 py-2">
+      <div className="mb-1 text-xs text-gray-500">执行计划</div>
+      <ol className="space-y-1">
+        {todos.map((todo, index) => (
+          <li
+            key={index}
+            className={`flex items-start gap-2 text-xs ${
+              todo.status === 'in_progress'
+                ? 'text-blue-300'
+                : todo.status === 'completed'
+                  ? 'text-gray-500'
+                  : 'text-gray-400'
+            }`}
+          >
+            <span
+              className={`w-4 shrink-0 text-center ${
+                todo.status === 'in_progress' ? 'animate-pulse' : ''
+              }`}
+            >
+              {TODO_MARKERS[todo.status]}
+            </span>
+            <span className={todo.status === 'completed' ? 'line-through' : ''}>
+              {todo.content}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
 
 export function AssistantPanel() {
   const open = useAssistantStore((state) => state.open)
   const closePanel = useAssistantStore((state) => state.closePanel)
   const threadId = useAssistantStore((state) => state.threadId)
   const switchThread = useAssistantStore((state) => state.switchThread)
+  const todos = useAssistantStore((state) => state.todos)
 
   const queryClient = useQueryClient()
   const { data } = useQuery({
@@ -76,6 +116,7 @@ export function AssistantPanel() {
           </Popconfirm>
         )}
       </div>
+      {todos && todos.length > 0 && <TodoListBar todos={todos} />}
       <div className="min-h-0 flex-1">
         {/* 不能加 key：runtime 原生支持 threadId 受控切换，加 key 会在
             threads.create 后因 onThreadIdChange 触发整个 runtime 重挂载，

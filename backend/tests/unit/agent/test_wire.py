@@ -9,6 +9,7 @@ from langgraph.types import Interrupt
 from app.agent.runtime.wire import (
     RunRegistry,
     jsonable,
+    namespace_label,
     serialize_message,
     sse_event,
 )
@@ -78,6 +79,16 @@ class TestSseEvent:
         frame = sse_event("messages", [{"type": "ai"}])
         assert frame.startswith("event: messages\ndata: ")
         assert frame.endswith("\n\n")
+
+
+@pytest.mark.unit
+class TestNamespaceLabel:
+    def test_empty_namespaces_is_root(self) -> None:
+        assert namespace_label(()) == ""
+
+    def test_subgraph_label_takes_last_segment(self) -> None:
+        assert namespace_label(("task:abc123",)) == "task:abc123"
+        assert namespace_label(("n1:1", "task:xyz:sub")) == "task:xyz:sub"
 
 
 @pytest.mark.unit

@@ -10,6 +10,9 @@ from collections.abc import Sequence
 from typing import Any, cast
 
 import structlog
+from deepagents.backends import CompositeBackend, FilesystemBackend, StateBackend
+from deepagents.middleware.filesystem import FilesystemPermission
+from langchain.agents.middleware import TodoListMiddleware
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
@@ -103,13 +106,37 @@ async def get_assistant_agent(
 
         tools = build_assistant_tools()
 
+    from app.agent.runtime.assistant_subagents import build_subagents
+
     async with AsyncSessionLocal() as session:
         cfg = await resolve_default_llm(session)
 
+    skills_dir = get_settings().skills_dir
+    backend: CompositeBackend | None = None
+    permissions: list[FilesystemPermission] | None = None
+    if skills_dir.exists():
+        backend = CompositeBackend(
+            default=StateBackend(),
+            routes={
+                "/skills/": FilesystemBackend(
+                    root_dir=str(skills_dir), virtual_mode=True
+                ),
+            },
+        )
+        permissions = [
+            FilesystemPermission(
+                operations=["write"], paths=["/skills/**"], mode="deny"
+            )
+        ]
     _agent = create_deep_agent(
         model=build_langchain_model(cfg),
         tools=list(tools),
         system_prompt=load_assistant_system_prompt(),
+        middleware=[TodoListMiddleware()],
+        subagents=build_subagents(),
+        skills=[str(skills_dir)] if skills_dir.exists() else None,
+        backend=backend,
+        permissions=permissions,
         checkpointer=await get_checkpointer(),
         name="invest-assistant",
     )
@@ -118,6 +145,7 @@ async def get_assistant_agent(
         provider=cfg.provider,
         model=cfg.model_name,
         n_tools=len(tools),
+        skills_dir=str(skills_dir) if skills_dir.exists() else None,
     )
     return _agent
 

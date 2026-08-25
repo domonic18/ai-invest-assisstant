@@ -6,6 +6,7 @@
 """
 
 import asyncio
+import json
 import uuid as uuid_mod
 from collections.abc import AsyncIterator
 from typing import Annotated, Any, cast
@@ -164,10 +165,14 @@ async def stream_run(
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY, "仅接受 human 类型输入消息"
             )
+    page_context = (data.metadata or {}).get("page_context")
     lc_input = (
         {
             "messages": [
-                HumanMessage(content=m.get("content", ""), id=m.get("id"))
+                HumanMessage(
+                    content=_with_page_context(m.get("content", ""), page_context),
+                    id=m.get("id"),
+                )
                 for m in messages_in
             ]
         }
@@ -198,20 +203,29 @@ async def stream_run(
             yield wire.sse_event(
                 "metadata", {"run_id": run_id, "thread_id": thread_id}
             )
-            async for mode, payload in agent.astream(
+            async for namespaces, mode, payload in agent.astream(
                 stream_input,
                 {"configurable": configurable},
                 stream_mode=["messages", "updates", "custom"],
+                subgraphs=True,
             ):
+                # 根图事件全量透传；子图只透传节点完成快照（updates|ns），
+                # 子代理 token 流不透传以控制事件量
                 if mode == "messages":
+                    if namespaces:
+                        continue
                     message, meta = cast("tuple[Any, Any]", payload)
                     yield wire.sse_event(
                         "messages",
                         [wire.serialize_message(message), wire.jsonable(meta or {})],
                     )
                 elif mode == "updates":
-                    yield wire.sse_event("updates", wire.jsonable(payload))
+                    label = wire.namespace_label(cast("tuple[str, ...]", namespaces))
+                    event = "updates" if not label else f"updates|{label}"
+                    yield wire.sse_event(event, wire.jsonable(payload))
                 elif mode == "custom":
+                    if namespaces:
+                        continue
                     yield wire.sse_event("custom", wire.jsonable(payload))
             yield wire.sse_event("end", {})
         except asyncio.CancelledError:
@@ -290,6 +304,22 @@ async def _touch_session(thread_id: str, title: str | None) -> None:
             await AssistantService(db).touch_session(thread_id, title)
     except Exception as exc:  # noqa: BLE001
         logger.warning("assistant_touch_failed", thread_id=thread_id, error=str(exc))
+
+
+def _with_page_context(content: Any, page_context: Any) -> Any:
+    """把页面上下文（run metadata.page_context）注入首条用户消息前缀。
+
+    使"这只股票/当前板块"等指代可解析；content 可能是 str 或内容块列表，
+    块列表时把上下文行作为首个 text 块插入。
+    """
+    if not isinstance(page_context, dict) or not page_context:
+        return content
+    context_line = f"[页面上下文] {json.dumps(page_context, ensure_ascii=False)}"
+    if isinstance(content, str):
+        return f"{context_line}\n\n{content}"
+    if isinstance(content, list):
+        return [{"type": "text", "text": context_line}, *content]
+    return content
 
 
 def _first_text(messages_in: list[dict[str, Any]]) -> str | None:
