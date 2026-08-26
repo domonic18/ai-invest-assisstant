@@ -33,7 +33,8 @@ import {
   useUpdateAdminTask,
 } from '@/hooks/useAdminTasks'
 import type { AdminTask } from '@ai-invest/shared'
-import { formatCronExpression } from '@/utils/formatters'
+import { formatCronExpression, formatDateTime } from '@/utils/formatters'
+import { COLLECTOR_TASK_LABEL, getSourceLabel, getTaskLabel } from '@/utils/collectorTaskLabels'
 
 interface TaskFormValues {
   taskName: string
@@ -43,11 +44,10 @@ interface TaskFormValues {
   isActive: boolean
 }
 
-const TASK_TYPE_OPTIONS = [
-  { label: '定时任务', value: 'scheduled' },
-  { label: '手动任务', value: 'manual' },
-  { label: '事件任务', value: 'event' },
-]
+const TASK_TYPE_OPTIONS = Object.entries(COLLECTOR_TASK_LABEL).map(([value, label]) => ({
+  label,
+  value,
+}))
 
 const STATUS_COLORS: Record<string, string> = {
   success: 'green',
@@ -148,9 +148,15 @@ export function AdminTasks() {
   }
 
   const columns = [
-    { title: '任务名称', dataIndex: 'taskName', key: 'taskName' },
-    { title: '任务类型', dataIndex: 'taskType', key: 'taskType' },
-    { title: '来源', dataIndex: 'source', key: 'source' },
+    {
+      title: '任务名称',
+      dataIndex: 'taskName',
+      key: 'taskName',
+      render: (_: string, record: AdminTask) =>
+        `${getSourceLabel(record.source)} - ${getTaskLabel(record.taskType)}`,
+    },
+    { title: '任务类型', dataIndex: 'taskType', key: 'taskType', render: (value: string) => getTaskLabel(value) },
+    { title: '来源', dataIndex: 'source', key: 'source', render: (value: string | null) => getSourceLabel(value) },
     {
       title: '执行时间',
       dataIndex: 'schedule',
@@ -178,7 +184,7 @@ export function AdminTasks() {
       render: (value: string, record: AdminTask) => (
         <Space>
           <Tag color={STATUS_COLORS[value] || 'default'}>{value}</Tag>
-          <span className="text-gray-400">{record.lastRunAt || '-'}</span>
+          <span className="text-gray-400">{formatDateTime(record.lastRunAt)}</span>
         </Space>
       ),
     },

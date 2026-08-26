@@ -12,6 +12,8 @@ import { Card, Col, Row, Space, Table, Tag, Typography } from 'antd'
 import { Link } from 'react-router-dom'
 
 import { useCollectorLogs } from '@/hooks/useCollectorAdmin'
+import { formatDateTime } from '@/utils/formatters'
+import { getSourceLabel, getTaskLabel } from '@/utils/collectorTaskLabels'
 
 const ADMIN_LINKS = [
   { title: '用户管理', path: '/admin/users', icon: <TeamOutlined />, color: 'bg-blue-500/10 text-blue-400' },
@@ -37,8 +39,8 @@ export function Admin() {
   const { data: logs, isLoading } = useCollectorLogs(10)
 
   const logColumns = [
-    { title: '任务', dataIndex: 'taskName', key: 'taskName' },
-    { title: '来源', dataIndex: 'source', key: 'source', render: (v: string | null) => v || '-' },
+    { title: '任务', dataIndex: 'taskName', key: 'taskName', render: (v: string) => getTaskLabel(v) },
+    { title: '来源', dataIndex: 'source', key: 'source', render: (v: string | null) => getSourceLabel(v) },
     {
       title: '状态',
       dataIndex: 'status',
@@ -46,12 +48,14 @@ export function Admin() {
       render: (v: string) => <Tag color={STATUS_COLORS[v] || 'default'}>{v}</Tag>,
     },
     { title: '记录数', dataIndex: 'recordsCount', key: 'recordsCount' },
-    { title: '开始时间', dataIndex: 'startedAt', key: 'startedAt', render: (v: string | null) => v || '-' },
+    { title: '开始时间', dataIndex: 'startedAt', key: 'startedAt', width: 170, render: (v: string | null) => formatDateTime(v) },
     {
       title: '错误',
       dataIndex: 'errorMsg',
       key: 'errorMsg',
-      render: (v: string | null) => v ? <Typography.Text type="danger">{v}</Typography.Text> : '-',
+      width: 240,
+      ellipsis: true,
+      render: (v: string | null) => v ? <Typography.Text type="danger" ellipsis={{ tooltip: v }}>{v}</Typography.Text> : '-',
     },
   ]
 

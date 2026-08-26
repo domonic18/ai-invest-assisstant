@@ -23,6 +23,7 @@ import {
   useUpdateAdminStock,
 } from '@/hooks/useAdminStocks'
 import type { AdminStock } from '@ai-invest/shared'
+import { formatDate } from '@/utils/formatters'
 
 interface StockFormValues {
   stockCode: string
@@ -114,7 +115,7 @@ export function AdminStocks() {
     { title: '一级行业', dataIndex: 'industryL1', key: 'industryL1', render: (v: string | null) => v || '-' },
     { title: '二级行业', dataIndex: 'industryL2', key: 'industryL2', render: (v: string | null) => v || '-' },
     { title: '三级行业', dataIndex: 'industryL3', key: 'industryL3', render: (v: string | null) => v || '-' },
-    { title: '上市日期', dataIndex: 'listingDate', key: 'listingDate', render: (v: string | null) => v || '-' },
+    { title: '上市日期', dataIndex: 'listingDate', key: 'listingDate', render: (v: string | null) => formatDate(v) },
     {
       title: '操作',
       key: 'actions',

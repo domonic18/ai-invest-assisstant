@@ -26,6 +26,7 @@ import {
   useUpdateAdminNews,
 } from '@/hooks/useAdminNews'
 import type { AdminNews } from '@ai-invest/shared'
+import { formatDate } from '@/utils/formatters'
 
 interface NewsFormValues {
   stockCode?: string
@@ -162,7 +163,7 @@ export function AdminNews() {
     { title: '类型', dataIndex: 'docType', key: 'docType' },
     { title: '股票代码', dataIndex: 'stockCode', key: 'stockCode', render: (v: string | null) => v || '-' },
     { title: '来源', dataIndex: 'source', key: 'source', render: (v: string | null) => v || '-' },
-    { title: '发布日期', dataIndex: 'publishDate', key: 'publishDate', render: (v: string | null) => v || '-' },
+    { title: '发布日期', dataIndex: 'publishDate', key: 'publishDate', render: (v: string | null) => formatDate(v) },
     { title: '情感', dataIndex: 'sentiment', key: 'sentiment', render: (v: number | null) => <SentimentTag value={v} /> },
     {
       title: '关键词',

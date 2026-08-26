@@ -3,6 +3,8 @@ import { Alert, Button, Card, Space, Table, Tag, Typography, message } from 'ant
 import { useState } from 'react'
 
 import { useCollectorLogs, useRunCollectorTask } from '@/hooks/useCollectorAdmin'
+import { getSourceLabel, getTaskLabel } from '@/utils/collectorTaskLabels'
+import { formatDateTime } from '@/utils/formatters'
 import type {
   CollectorTaskName,
   CollectorTaskOption,
@@ -12,22 +14,22 @@ import type {
 import { CollectorTaskModal } from './CollectorTaskModal'
 
 const TASK_OPTIONS: CollectorTaskOption[] = [
-  { key: 'kline', label: 'K 线采集' },
-  { key: 'index-kline', label: '指数 K 线采集' },
-  { key: 'auction', label: '集合竞价采集' },
-  { key: 'fund-flow', label: '资金流向采集' },
-  { key: 'news', label: '新闻采集' },
-  { key: 'company-profile', label: '公司概况采集' },
-  { key: 'disclosure', label: '公告披露采集' },
-  { key: 'sector-fund-flow', label: '板块资金流向采集' },
-  { key: 'dragon-list', label: '龙虎榜采集' },
-  { key: 'research-report', label: '个股研报采集' },
-  { key: 'financial-report', label: '财报采集' },
-  { key: 'ipo-info', label: 'IPO 信息采集' },
-  { key: 'fund-holdings', label: '基金持仓采集' },
-  { key: 'macro', label: '宏观经济采集' },
-  { key: 'stock-list', label: '股票列表同步' },
-  { key: 'limit-up-pool', label: '涨停股池采集' },
+  { key: 'kline', label: getTaskLabel('kline') },
+  { key: 'index-kline', label: getTaskLabel('index-kline') },
+  { key: 'auction', label: getTaskLabel('auction') },
+  { key: 'fund-flow', label: getTaskLabel('fund-flow') },
+  { key: 'news', label: getTaskLabel('news') },
+  { key: 'company-profile', label: getTaskLabel('company-profile') },
+  { key: 'disclosure', label: getTaskLabel('disclosure') },
+  { key: 'sector-fund-flow', label: getTaskLabel('sector-fund-flow') },
+  { key: 'dragon-list', label: getTaskLabel('dragon-list') },
+  { key: 'research-report', label: getTaskLabel('research-report') },
+  { key: 'financial-report', label: getTaskLabel('financial-report') },
+  { key: 'ipo-info', label: getTaskLabel('ipo-info') },
+  { key: 'fund-holdings', label: getTaskLabel('fund-holdings') },
+  { key: 'macro', label: getTaskLabel('macro') },
+  { key: 'stock-list', label: getTaskLabel('stock-list') },
+  { key: 'limit-up-pool', label: getTaskLabel('limit-up-pool') },
 ]
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
@@ -65,7 +67,7 @@ export function Collector() {
         report_date: options.reportDate || undefined,
       }
       await runMutation.mutateAsync({ taskName, body })
-      const label = TASK_OPTIONS.find((t) => t.key === taskName)?.label ?? taskName
+      const label = getTaskLabel(taskName)
       message.info(`「${label}」已派发到采集队列，执行状态见下方日志`)
       setModalOpen(false)
     } catch (err) {
@@ -74,8 +76,8 @@ export function Collector() {
   }
 
   const columns = [
-    { title: '任务', dataIndex: 'taskName', key: 'taskName' },
-    { title: '渠道', dataIndex: 'source', key: 'source', render: (value: string | null) => value ?? '-' },
+    { title: '任务', dataIndex: 'taskName', key: 'taskName', render: (value: string) => getTaskLabel(value) },
+    { title: '渠道', dataIndex: 'source', key: 'source', render: (value: string | null) => getSourceLabel(value) },
     {
       title: '状态',
       dataIndex: 'status',
@@ -90,18 +92,22 @@ export function Collector() {
       title: '开始时间',
       dataIndex: 'startedAt',
       key: 'startedAt',
-      render: (value: string | null) => value ?? '-',
+      width: 170,
+      render: (value: string | null) => (value ? formatDateTime(value) : '-'),
     },
     {
       title: '结束时间',
       dataIndex: 'finishedAt',
       key: 'finishedAt',
-      render: (value: string | null) => value ?? '-',
+      width: 170,
+      render: (value: string | null) => (value ? formatDateTime(value) : '-'),
     },
     {
       title: '错误信息',
       dataIndex: 'errorMsg',
       key: 'errorMsg',
+      width: 240,
+      ellipsis: true,
       render: (value: string | null) =>
         value ? (
           <Typography.Text type="danger" ellipsis={{ tooltip: value }}>

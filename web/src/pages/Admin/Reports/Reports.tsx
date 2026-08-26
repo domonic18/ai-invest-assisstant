@@ -26,6 +26,7 @@ import {
   useUpdateAdminReport,
 } from '@/hooks/useAdminReports'
 import type { AdminReport } from '@ai-invest/shared'
+import { formatDate } from '@/utils/formatters'
 
 interface ReportFormValues {
   filePath: string
@@ -145,7 +146,7 @@ export function AdminReports() {
     { title: '类型', dataIndex: 'fileType', key: 'fileType' },
     { title: '股票代码', dataIndex: 'stockCode', key: 'stockCode', render: (v: string | null) => v || '-' },
     { title: '股票名称', dataIndex: 'stockName', key: 'stockName', render: (v: string | null) => v || '-' },
-    { title: '报告日期', dataIndex: 'reportDate', key: 'reportDate', render: (v: string | null) => v || '-' },
+    { title: '报告日期', dataIndex: 'reportDate', key: 'reportDate', render: (v: string | null) => formatDate(v) },
     { title: '报告类型', dataIndex: 'reportType', key: 'reportType', render: (v: string | null) => v || '-' },
     { title: '券商', dataIndex: 'broker', key: 'broker', render: (v: string | null) => v || '-' },
     { title: '大小', dataIndex: 'fileSize', key: 'fileSize', render: (v: number | null) => formatFileSize(v) },
