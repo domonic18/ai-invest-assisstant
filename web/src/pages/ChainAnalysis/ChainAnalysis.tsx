@@ -4,7 +4,7 @@ import {
   ReloadOutlined,
   SearchOutlined,
 } from '@ant-design/icons'
-import { Alert, Button, Card, Col, Empty, Input, List, Row, Space, Spin, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Empty, Input, Space, Spin, Tag, Typography } from 'antd'
 import { AxiosError } from 'axios'
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -18,10 +18,9 @@ import {
 } from '@/hooks/useChain'
 import { useAssistantStore } from '@/stores/assistant'
 import { useColorScheme } from '@/stores/settings'
-import { fallColorSoft, riseColorSoft } from '@/utils/formatters'
 import type { ChainNode } from '@ai-invest/shared'
 
-import { BottleneckPanel } from './components/BottleneckPanel'
+import { InsightTabs } from './components/InsightTabs'
 import { KeyCompaniesPanel } from './components/KeyCompaniesPanel'
 import { NodeDetailCard } from './components/NodeDetailCard'
 import { QuadrantMatrix } from './components/QuadrantMatrix'
@@ -57,7 +56,10 @@ export function ChainAnalysis() {
   }, [industry])
 
   useEffect(() => {
-    if (pageResult?.type === 'industry_chain.analysis_complete' && pageResult.industry === activeIndustry) {
+    if (
+      pageResult?.type === 'industry_chain.analysis_complete' &&
+      pageResult.industry === activeIndustry
+    ) {
       setAssistantAnalyzing(false)
       void queryClient.invalidateQueries({ queryKey: ['chain', 'latest', activeIndustry] })
       void queryClient.invalidateQueries({ queryKey: ['chain', 'versions', activeIndustry] })
@@ -100,32 +102,32 @@ export function ChainAnalysis() {
   const isLoading =
     latestQuery.isLoading || (!isLatestSelected && selectedQuery.isLoading)
 
+  const hasMatrixData =
+    result?.nodes.some(
+      (node) => node.localizationRate !== null && node.avgGrossMargin !== null
+    ) ?? false
+
+  const hasValueData =
+    result?.nodes.some((node) => node.avgGrossMargin !== null) ||
+    result?.valueDistribution?.highestMarginSegment != null ||
+    result?.valueDistribution?.lowestMarginSegment != null
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <Typography.Title level={4} className="!mb-0">
-              {activeIndustry}产业链全景分析
-            </Typography.Title>
-            {detail && detail.version.status === 'success' && (
-              <Tag color="success">
-                AI 生成 · v{detail.version.versionNo} (
-                {new Date(detail.version.createdAt).toLocaleDateString('zh-CN', {
-                  month: '2-digit',
-                  day: '2-digit',
-                })}{' '}
-                更新)
-              </Tag>
-            )}
-          </div>
-          {result && (
-            <Typography.Text type="secondary" className="text-sm">
-              覆盖 {result.nodes.length} 个产业链环节 ·{' '}
-              {detail?.version.companyCount ??
-                result.nodes.reduce((sum, node) => sum + node.companies.length, 0)}{' '}
-              家核心标的 · {result.edges.length} 条供应关系
-            </Typography.Text>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <Typography.Title level={5} className="!mb-0">
+            {activeIndustry}产业链
+          </Typography.Title>
+          {detail && detail.version.status === 'success' && (
+            <Tag color="success" className="text-xs">
+              AI 生成 · v{detail.version.versionNo} (
+              {new Date(detail.version.createdAt).toLocaleDateString('zh-CN', {
+                month: '2-digit',
+                day: '2-digit',
+              })}
+              )
+            </Tag>
           )}
         </div>
         <Space>
@@ -135,7 +137,7 @@ export function ChainAnalysis() {
             placeholder="输入行业名称"
             prefix={<SearchOutlined />}
             onPressEnter={handleAnalyze}
-            style={{ width: 240 }}
+            style={{ width: 220 }}
           />
           <Button
             type="primary"
@@ -187,7 +189,7 @@ export function ChainAnalysis() {
 
       {result && (
         <>
-          <Card title="产业链关系图谱" variant="borderless">
+          <Card variant="borderless" bodyStyle={{ padding: 0 }} className="overflow-hidden">
             <div className="relative">
               <ChainGraph
                 nodes={result.nodes}
@@ -234,99 +236,48 @@ export function ChainAnalysis() {
             </div>
           </Card>
 
-          <Card title="AI 综述" variant="borderless">
-            <Typography.Paragraph className="!mb-0">
-              {result.summary}
-            </Typography.Paragraph>
-          </Card>
+          {result.summary && (
+            <Card title="AI 综述" variant="borderless">
+              <Typography.Paragraph className="!mb-0">
+                {result.summary}
+              </Typography.Paragraph>
+            </Card>
+          )}
 
-          <Row gutter={[24, 24]}>
-            <Col xs={24} lg={12}>
-              <Card title="毛利率 × 国产化率矩阵" variant="borderless">
-                <QuadrantMatrix nodes={result.nodes} />
-              </Card>
-            </Col>
-            <Col xs={24} lg={12}>
-              <Card title="价值分布" variant="borderless">
-                <ValueDistributionCard
+          {(hasMatrixData || hasValueData) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+              {hasMatrixData && (
+                <Card title="毛利率 × 国产化率矩阵" variant="borderless">
+                  <QuadrantMatrix nodes={result.nodes} />
+                </Card>
+              )}
+              {hasValueData && (
+                <Card title="价值分布" variant="borderless">
+                  <ValueDistributionCard
+                    nodes={result.nodes}
+                    valueDistribution={result.valueDistribution}
+                  />
+                </Card>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-6">
+            <div className="xl:col-span-2">
+              <Card title="洞察分析" variant="borderless" className="h-full">
+                <InsightTabs
+                  opportunities={result.opportunities}
+                  risks={result.risks}
                   nodes={result.nodes}
-                  valueDistribution={result.valueDistribution}
                 />
               </Card>
-            </Col>
-          </Row>
-
-          <Row gutter={[24, 24]}>
-            <Col xs={24} lg={12}>
-              <Card title="瓶颈与卡脖子风险" variant="borderless">
-                <BottleneckPanel nodes={result.nodes} />
-              </Card>
-            </Col>
-            <Col xs={24} lg={12}>
-              <Card title="核心标的" variant="borderless">
+            </div>
+            <div>
+              <Card title="核心标的" variant="borderless" className="h-full">
                 <KeyCompaniesPanel companies={result.keyCompaniesSummary} />
               </Card>
-            </Col>
-          </Row>
-
-          <Row gutter={[24, 24]}>
-            <Col xs={24} lg={12}>
-              <Card title="机会" variant="borderless">
-                <List
-                  size="small"
-                  dataSource={result.opportunities}
-                  renderItem={(item) => (
-                    <List.Item>
-                      <Space direction="vertical" size={2}>
-                        <Space>
-                          <Typography.Text className={riseColorSoft()} strong>
-                            {item.title}
-                          </Typography.Text>
-                          {item.relatedSegment && <Tag>{item.relatedSegment}</Tag>}
-                          {item.confidence && (
-                            <Tag color="success">置信度 {item.confidence}</Tag>
-                          )}
-                        </Space>
-                        {item.description && (
-                          <Typography.Text type="secondary">
-                            {item.description}
-                          </Typography.Text>
-                        )}
-                      </Space>
-                    </List.Item>
-                  )}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} lg={12}>
-              <Card title="风险" variant="borderless">
-                <List
-                  size="small"
-                  dataSource={result.risks}
-                  renderItem={(item) => (
-                    <List.Item>
-                      <Space direction="vertical" size={2}>
-                        <Space>
-                          <Typography.Text className={fallColorSoft()} strong>
-                            {item.title}
-                          </Typography.Text>
-                          {item.relatedSegment && <Tag>{item.relatedSegment}</Tag>}
-                          {item.severity && (
-                            <Tag color="error">严重度 {item.severity}</Tag>
-                          )}
-                        </Space>
-                        {item.description && (
-                          <Typography.Text type="secondary">
-                            {item.description}
-                          </Typography.Text>
-                        )}
-                      </Space>
-                    </List.Item>
-                  )}
-                />
-              </Card>
-            </Col>
-          </Row>
+            </div>
+          </div>
         </>
       )}
 

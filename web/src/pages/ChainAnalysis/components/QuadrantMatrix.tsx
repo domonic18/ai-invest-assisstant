@@ -24,11 +24,7 @@ export function QuadrantMatrix({ nodes }: QuadrantMatrixProps) {
   )
 
   if (points.length === 0) {
-    return (
-      <div className="flex h-72 items-center justify-center text-gray-500">
-        各环节国产化率/毛利率数据不足
-      </div>
-    )
+    return null
   }
 
   const meanMargin =

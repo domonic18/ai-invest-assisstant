@@ -27,7 +27,7 @@ export function VersionSwitcher({
   const latestVersionNo = Math.max(...successVersions.map((v) => v.versionNo))
 
   return (
-    <div className="flex items-center justify-between gap-3 flex-wrap rounded-lg border border-solid border-[#23262d] bg-[#111318] px-4 py-3">
+    <div className="flex items-center justify-between gap-3 flex-wrap rounded-lg border border-solid border-[#23262d] bg-[#111318] px-4 py-2">
       <Space wrap>
         <Typography.Text type="secondary" strong>
           图谱版本:
@@ -35,7 +35,7 @@ export function VersionSwitcher({
         <Select
           value={currentVersionId ?? undefined}
           onChange={onChange}
-          style={{ minWidth: 300 }}
+          style={{ minWidth: 240 }}
           options={successVersions.map((v) => ({
             value: v.id,
             label: `${formatVersionDate(v.createdAt)} · v${v.versionNo}${

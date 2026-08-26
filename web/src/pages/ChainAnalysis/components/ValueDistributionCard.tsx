@@ -17,6 +17,15 @@ export function ValueDistributionCard({
     .slice()
     .sort((a, b) => (b.avgGrossMargin ?? 0) - (a.avgGrossMargin ?? 0))
 
+  const hasDistribution =
+    valueDistribution &&
+    (valueDistribution.highestMarginSegment !== null ||
+      valueDistribution.lowestMarginSegment !== null)
+
+  if (ranked.length === 0 && !hasDistribution) {
+    return null
+  }
+
   const option = {
     backgroundColor: 'transparent',
     animation: false,
