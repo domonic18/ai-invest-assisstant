@@ -24,6 +24,15 @@ from app.services import market_stats_service as market_stats_svc
 INDUSTRY_COMPANIES_MAX_LIMIT = 200
 
 
+def _normalize_industry(industry: str) -> str:
+    """规范化行业名称，去除常见后缀，保证前后端一致匹配。"""
+    name = industry.strip()
+    for suffix in ("产业链", "行业", "板块"):
+        if name.endswith(suffix):
+            name = name[: -len(suffix)]
+    return name.strip()
+
+
 @tool
 async def query_industry_companies(
     industry: str, limit: int = 150
@@ -55,20 +64,21 @@ async def persist_chain_analysis(
     from app.schemas.chain import ChainAnalysisResult
     from app.services import chain_service
 
+    normalized = _normalize_industry(industry)
     user_id = int(config.get("configurable", {}).get("user_id", 0))
     async with AsyncSessionLocal() as session:
         parsed = ChainAnalysisResult.model_validate(result)
         response = await chain_service.persist_analysis_result(
-            session, industry, parsed, user_id=user_id
+            session, normalized, parsed, user_id=user_id
         )
         payload = {
-            "industry": industry,
+            "industry": normalized,
             "version_id": response.version_id,
             "version_no": response.version_no,
             "status": response.status,
             "__event__": {
                 "type": "industry_chain.analysis_complete",
-                "industry": industry,
+                "industry": normalized,
                 "version_id": response.version_id,
                 "version_no": response.version_no,
             },

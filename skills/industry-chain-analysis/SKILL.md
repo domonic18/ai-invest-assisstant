@@ -135,6 +135,7 @@ allowed-tools: query_industry_companies, query_financial_reports, download_finan
 - 所有 `edges.source` 与 `edges.target` 必须与某个 `node.name` 匹配。
 - 无法从提供的数据计算出的数值指标统一使用 `null`。
 - 持久化完成后，用 2-4 句话向用户总结分析结论，并告知图谱已在产业链页面展示。
+- **进度反馈**：本 Skill 涉及多次工具调用，分析过程中请在每次开始新阶段前用 1-2 句 assistant 正文告知用户当前进展（例如“已获取半导体行业上市公司清单，接下来读取关键财报摘要……”），避免用户只看到工具调用而不知道进行到哪一步。
 
 ## 示例
 用户："分析半导体产业链"
