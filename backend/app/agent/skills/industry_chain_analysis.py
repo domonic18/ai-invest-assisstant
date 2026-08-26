@@ -1,5 +1,13 @@
-"""Industry chain analysis skill execution."""
+"""Industry chain analysis skill execution.
 
+.. deprecated::
+    该 PydanticAI 单轮执行器已被 Skill 驱动的 Assistant Agent 工作流替代。
+    产业链分析逻辑现在由 ``skills/industry-chain-analysis/SKILL.md`` 描述，
+    Agent 通过读取 SKILL.md 并调用平台工具完成分析。
+    保留本模块仅作兼容，新实现请勿依赖。
+"""
+
+import warnings
 from typing import Any
 
 from sqlalchemy import select
@@ -12,6 +20,13 @@ from app.agent.tools import db_tools
 from app.core.config import get_settings
 from app.models.stock import StockBasic
 from app.schemas.chain import ChainAnalysisResult
+
+warnings.warn(
+    "industry_chain_analysis.run_skill is deprecated; "
+    "use the Skill-driven Assistant Agent workflow instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 _MAX_NODES = 40
 _MAX_COMPANIES_PER_NODE = 5

@@ -125,12 +125,73 @@ def _to_graph_rows(
     return nodes, edges, mappings
 
 
+async def persist_analysis_result(
+    session: AsyncSession,
+    industry: str,
+    result: ChainAnalysisResult,
+    *,
+    model: str | None = None,
+) -> ChainAnalyzeResponse:
+    """将已生成的产业链分析结果持久化为新版本。
+
+    Args:
+        industry: 行业名称。
+        result: 已校验的 ChainAnalysisResult。
+        model: 可选的生成模型名称，用于 ai_analysis_result 记录。
+
+    Returns:
+        包含 version_id / version_no / status 的响应。
+    """
+    started = time.perf_counter()
+    version_no = await repository.next_version_no(session, industry)
+    input_hash = f"{industry}:v{version_no}"
+
+    latency_ms = int((time.perf_counter() - started) * 1000)
+    structured = result.model_dump(mode="json")
+    ai_result_id = await _insert_ai_result(
+        session,
+        input_hash=input_hash,
+        model=model,
+        structured=structured,
+        latency_ms=latency_ms,
+        status="success",
+    )
+    version = await repository.create_version(
+        session,
+        industry=industry,
+        version_no=version_no,
+        status="success",
+        snapshot=structured,
+        ai_result_id=ai_result_id,
+        model=model,
+        node_count=len(result.nodes),
+        company_count=sum(len(node.companies) for node in result.nodes),
+    )
+    nodes, edges, mappings = _to_graph_rows(industry, version.id, result)
+    await repository.replace_graph(
+        session,
+        industry=industry,
+        version_id=version.id,
+        nodes=nodes,
+        edges=edges,
+        mappings=mappings,
+    )
+    await session.commit()
+
+    return ChainAnalyzeResponse(
+        version_id=version.id,
+        version_no=version_no,
+        status="success",
+        result=result,
+    )
+
+
 async def analyze_and_persist(
     session: AsyncSession,
     industry: str,
     focus: str | None = None,
 ) -> ChainAnalyzeResponse:
-    """执行 AI 产业链分析并将结果持久化为新版本。
+    """执行 AI 产业链分析并将结果持久化为新版本（旧版 PydanticAI 执行器入口，逐步废弃）。
 
     Raises:
         ChainAnalysisFailedError: LLM 调用或结果校验失败（失败版本已落库）。
@@ -168,43 +229,8 @@ async def analyze_and_persist(
         await session.commit()
         raise ChainAnalysisFailedError(str(exc)) from exc
 
-    latency_ms = int((time.perf_counter() - started) * 1000)
-    structured = result.model_dump(mode="json")
-    ai_result_id = await _insert_ai_result(
-        session,
-        input_hash=input_hash,
-        model=resolved.model_name,
-        structured=structured,
-        latency_ms=latency_ms,
-        status="success",
-    )
-    version = await repository.create_version(
-        session,
-        industry=industry,
-        version_no=version_no,
-        status="success",
-        snapshot=structured,
-        ai_result_id=ai_result_id,
-        model=resolved.model_name,
-        node_count=len(result.nodes),
-        company_count=sum(len(node.companies) for node in result.nodes),
-    )
-    nodes, edges, mappings = _to_graph_rows(industry, version.id, result)
-    await repository.replace_graph(
-        session,
-        industry=industry,
-        version_id=version.id,
-        nodes=nodes,
-        edges=edges,
-        mappings=mappings,
-    )
-    await session.commit()
-
-    return ChainAnalyzeResponse(
-        version_id=version.id,
-        version_no=version_no,
-        status="success",
-        result=result,
+    return await persist_analysis_result(
+        session, industry, result, model=resolved.model_name
     )
 
 
