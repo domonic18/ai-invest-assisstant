@@ -14,7 +14,7 @@ from typing import Annotated, Any, cast
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, ToolMessage
 from langgraph.types import Command
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -215,10 +215,19 @@ async def stream_run(
                     if namespaces:
                         continue
                     message, meta = cast("tuple[Any, Any]", payload)
+                    serialized = wire.serialize_message(message)
                     yield wire.sse_event(
                         "messages",
-                        [wire.serialize_message(message), wire.jsonable(meta or {})],
+                        [serialized, wire.jsonable(meta or {})],
                     )
+                    if (
+                        isinstance(message, ToolMessage)
+                        and isinstance(message.content, dict)
+                        and "__event__" in message.content
+                    ):
+                        yield wire.sse_event(
+                            "custom", wire.jsonable(message.content["__event__"])
+                        )
                 elif mode == "updates":
                     label = wire.namespace_label(cast("tuple[str, ...]", namespaces))
                     event = "updates" if not label else f"updates|{label}"

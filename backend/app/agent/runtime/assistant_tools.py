@@ -1,7 +1,8 @@
-"""助手只读数据工具：LangChain ``@tool`` 包装既有 service / db_tools。
+"""助手数据工具：LangChain ``@tool`` 包装既有 service / db_tools。
 
-全部为只读查询；包装层统一做行数/天数上限裁剪，防止单次工具输出撑爆
-模型上下文。写操作类工具（触发采集/AI 分析等）在 Phase 4 配合 HITL 引入。
+只读查询工具统一做行数/天数上限裁剪，防止单次工具输出撑爆模型上下文。
+产业链分析的持久化通过 ``persist_chain_analysis`` 显式写操作工具完成，便于
+过程可观测与后续接入 HITL。
 """
 
 from datetime import date
@@ -18,6 +19,58 @@ from app.services import (
     stock_service,
 )
 from app.services import market_stats_service as market_stats_svc
+
+INDUSTRY_COMPANIES_MAX_LIMIT = 200
+
+
+@tool
+async def query_industry_companies(
+    industry: str, limit: int = 150
+) -> list[dict[str, Any]]:
+    """按行业名称查询上市公司清单，返回股票代码、名称、二级/三级行业、经营范围。
+
+    Args:
+        industry: 行业名称，如 "半导体"。
+        limit: 返回公司数上限，默认 150，最大 200。
+    """
+    limit = max(1, min(limit, INDUSTRY_COMPANIES_MAX_LIMIT))
+    async with AsyncSessionLocal() as session:
+        return await db_tools.query_industry_companies(session, industry, limit)
+
+
+@tool
+async def persist_chain_analysis(
+    industry: str,
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    """将产业链分析结果持久化到数据库，生成新版本并在产业链页面展示。
+
+    Args:
+        industry: 行业名称。
+        result: 符合 ChainAnalysisResult schema 的结构化 JSON 对象。
+    """
+    from app.schemas.chain import ChainAnalysisResult
+    from app.services import chain_service
+
+    async with AsyncSessionLocal() as session:
+        parsed = ChainAnalysisResult.model_validate(result)
+        response = await chain_service.persist_analysis_result(
+            session, industry, parsed
+        )
+        payload = {
+            "industry": industry,
+            "version_id": response.version_id,
+            "version_no": response.version_no,
+            "status": response.status,
+            "__event__": {
+                "type": "industry_chain.analysis_complete",
+                "industry": industry,
+                "version_id": response.version_id,
+                "version_no": response.version_no,
+            },
+        }
+        return payload
+
 
 KLINE_MAX_DAYS = 120
 FINANCIAL_MAX_CODES = 5
@@ -197,7 +250,7 @@ async def get_auction_summary(days: int = 5) -> dict[str, Any]:
 
 
 def build_assistant_tools() -> list[BaseTool]:
-    """Phase 1 工具清单（8 个只读工具）。"""
+    """助手工具清单：只读查询工具 + 产业链分析持久化工具。"""
     return [
         get_stock_quote,
         get_stock_kline,
@@ -207,4 +260,6 @@ def build_assistant_tools() -> list[BaseTool]:
         get_sector_fund_flow,
         get_market_overview,
         get_auction_summary,
+        query_industry_companies,
+        persist_chain_analysis,
     ]

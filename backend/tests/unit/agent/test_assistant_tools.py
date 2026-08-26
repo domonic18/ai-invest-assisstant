@@ -11,6 +11,7 @@ from app.schemas.capital_fund_flow_sector import (
     SectorFlowSeries,
     SectorFlowTrendResponse,
 )
+from app.schemas.chain import ChainAnalyzeResponse
 from app.schemas.market import IndexQuoteResponse, MarketStatsResponse
 from app.schemas.stock import IndexAuctionSeries, IndexAuctionTrendResponse
 
@@ -27,7 +28,7 @@ def no_db(monkeypatch):
 
 @pytest.mark.unit
 class TestBuildAssistantTools:
-    def test_returns_eight_readonly_tools(self) -> None:
+    def test_returns_ten_tools(self) -> None:
         tools = at.build_assistant_tools()
         names = [t.name for t in tools]
         assert names == [
@@ -39,6 +40,8 @@ class TestBuildAssistantTools:
             "get_sector_fund_flow",
             "get_market_overview",
             "get_auction_summary",
+            "query_industry_companies",
+            "persist_chain_analysis",
         ]
 
 
@@ -78,6 +81,56 @@ class TestClamping:
         ) as m:
             await at.search_vector_kb.ainvoke({"query": "光模块", "limit": 99})
         assert m.call_args.args[2] == at.KB_MAX_ROWS
+
+
+@pytest.mark.unit
+class TestIndustryChainTools:
+    @pytest.mark.asyncio
+    async def test_query_industry_companies_limit_clamped(self) -> None:
+        payload = [{"code": "000001", "name": "平安银行"}]
+        with patch.object(
+            at.db_tools, "query_industry_companies", AsyncMock(return_value=payload)
+        ) as m:
+            result = await at.query_industry_companies.ainvoke(
+                {"industry": "银行", "limit": 500}
+            )
+        assert m.call_args.args[2] == at.INDUSTRY_COMPANIES_MAX_LIMIT
+        assert result == payload
+
+    @pytest.mark.asyncio
+    async def test_persist_chain_analysis_emits_event(self) -> None:
+        result_payload = {
+            "nodes": [
+                {
+                    "name": "设计",
+                    "type": "upstream",
+                    "companies": [{"code": "000001", "name": "A"}],
+                }
+            ],
+            "edges": [
+                {
+                    "source": "设计",
+                    "target": "制造",
+                    "relation": "供应",
+                    "strength": 0.8,
+                }
+            ],
+            "summary": "测试",
+        }
+        version = ChainAnalyzeResponse(
+            version_id=123, version_no=5, status="success"
+        )
+        with patch(
+            "app.services.chain_service.persist_analysis_result",
+            AsyncMock(return_value=version),
+        ) as m:
+            result = await at.persist_chain_analysis.ainvoke(
+                {"industry": "半导体", "result": result_payload}
+            )
+        m.assert_awaited_once()
+        assert result["version_id"] == 123
+        assert result["version_no"] == 5
+        assert result["__event__"]["type"] == "industry_chain.analysis_complete"
 
 
 @pytest.mark.unit
