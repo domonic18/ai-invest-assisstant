@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import structlog
+from cryptography.fernet import InvalidToken
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.collector_channel_config import CollectorChannelConfig
@@ -244,16 +245,24 @@ class CollectorChannelConfigService:
         await self.session.flush()
 
     def _to_response(self, config: CollectorChannelConfig) -> CollectorChannelConfigResponse:
+        api_key_masked: str | None = None
+        if config.api_key_encrypted:
+            try:
+                api_key_masked = mask_token(decrypt_token(config.api_key_encrypted))
+            except InvalidToken:
+                logger.warning(
+                    "collector_channel_decryption_failed",
+                    config_id=config.id,
+                    source=config.source,
+                    message="Stored API key cannot be decrypted with current key",
+                )
+                api_key_masked = "[无法解密]"
         return CollectorChannelConfigResponse(
             id=config.id,
             source=config.source,
             name=config.name,
             base_url=config.base_url,
-            api_key_masked=(
-                mask_token(decrypt_token(config.api_key_encrypted))
-                if config.api_key_encrypted
-                else None
-            ),
+            api_key_masked=api_key_masked,
             is_enabled=config.is_enabled,
             supported_data_types=config.supported_data_types or [],
             extra=config.extra or {},
@@ -274,12 +283,22 @@ async def resolve_collector_channel(
     config = await service.get_enabled_config(source)
     if not config:
         return None
+
+    api_key: str | None = None
+    if config.api_key_encrypted:
+        try:
+            api_key = decrypt_token(config.api_key_encrypted)
+        except InvalidToken:
+            logger.error(
+                "collector_channel_resolve_decryption_failed",
+                source=config.source,
+                config_id=config.id,
+                message="Cannot decrypt API key; channel unavailable",
+            )
+            return None
+
     return {
         "base_url": config.base_url,
-        "api_key": (
-            decrypt_token(config.api_key_encrypted)
-            if config.api_key_encrypted
-            else None
-        ),
+        "api_key": api_key,
         "extra": config.extra or {},
     }
