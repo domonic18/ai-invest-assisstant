@@ -249,6 +249,11 @@ async def list_versions(
     return [_to_summary(version) for version in versions]
 
 
+async def list_industries(session: AsyncSession, user_id: int) -> list[str]:
+    """列出该用户已有成功分析版本的所有行业名称（最近更新在前）。"""
+    return await repository.list_industries(session, user_id)
+
+
 def _parse_snapshot(version: ChainAnalysisVersion) -> ChainAnalysisResult | None:
     """解析版本快照为分析结果，失败版本返回 None。"""
     if version.status != "success":

@@ -25,6 +25,7 @@ export const ENDPOINTS = {
   },
   chain: {
     analyze: `${API_BASE}/chain/analyze`,
+    industries: `${API_BASE}/chain/industries`,
     latest: (industry: string) =>
       `${API_BASE}/chain/${encodeURIComponent(industry)}/latest`,
     versions: (industry: string) =>

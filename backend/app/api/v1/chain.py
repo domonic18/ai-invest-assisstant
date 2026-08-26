@@ -23,6 +23,15 @@ from app.services import chain_service
 router = APIRouter()
 
 
+@router.get("/industries", response_model=list[str])
+async def list_industries(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> list[str]:
+    """列出当前用户已有成功分析版本的所有行业名称（最近更新在前）。"""
+    return await chain_service.list_industries(session, user.id)
+
+
 @router.post("/analyze", response_model=ChainAnalyzeResponse)
 async def analyze_chain(
     request: ChainAnalysisRequest,

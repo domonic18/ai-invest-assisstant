@@ -58,6 +58,20 @@ async def create_version(
     return version
 
 
+async def list_industries(session: AsyncSession, user_id: int) -> list[str]:
+    """列出该用户已存在成功分析版本的所有行业名称（按最近创建时间倒序）。"""
+    stmt = (
+        select(ChainAnalysisVersion.industry)
+        .where(
+            ChainAnalysisVersion.user_id == user_id,
+            ChainAnalysisVersion.status == "success",
+        )
+        .group_by(ChainAnalysisVersion.industry)
+        .order_by(func.max(ChainAnalysisVersion.created_at).desc())
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
 async def list_versions(
     session: AsyncSession, industry: str, user_id: int
 ) -> list[ChainAnalysisVersion]:

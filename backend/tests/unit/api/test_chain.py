@@ -142,3 +142,22 @@ class TestVersionEndpoints:
         mock_compare.return_value = None
         response = auth_client.get("/api/v1/chain/versions/compare?base_id=1&target_id=2")
         assert response.status_code == 404
+
+
+@pytest.mark.unit
+class TestIndustriesEndpoint:
+    @patch("app.api.v1.chain.chain_service.list_industries")
+    def test_list_industries(self, mock_list, auth_client, user) -> None:
+        mock_list.return_value = ["半导体", "机器人", "新能源汽车"]
+        response = auth_client.get("/api/v1/chain/industries")
+        assert response.status_code == 200
+        assert response.json() == ["半导体", "机器人", "新能源汽车"]
+        assert mock_list.call_args.args[1] == user.id
+
+    @patch("app.api.v1.chain.chain_service.list_industries")
+    def test_list_industries_empty(self, mock_list, auth_client, user) -> None:
+        mock_list.return_value = []
+        response = auth_client.get("/api/v1/chain/industries")
+        assert response.status_code == 200
+        assert response.json() == []
+        assert mock_list.call_args.args[1] == user.id
