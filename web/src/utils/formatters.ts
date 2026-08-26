@@ -1,5 +1,6 @@
 import cronstrue from 'cronstrue'
 import 'cronstrue/locales/zh_CN'
+import dayjs from 'dayjs'
 
 import { semanticColors } from '@/theme/colors'
 import { useSettingsStore } from '@/stores/settings'
@@ -30,6 +31,18 @@ export function formatAmount(value: number | null | undefined): string {
   if (abs >= 1e8) return `${sign}${(abs / 1e8).toFixed(1)}亿`
   if (abs >= 1e4) return `${sign}${(abs / 1e4).toFixed(1)}万`
   return `${sign}${abs.toFixed(0)}`
+}
+
+/** 将 ISO 日期格式化为本地日期：YYYY-MM-DD。 */
+export function formatDate(value: string | null | undefined): string {
+  if (!value) return '-'
+  return dayjs(value).format('YYYY-MM-DD')
+}
+
+/** 将 ISO 时间格式化为本地时间：YYYY-MM-DD HH:mm:ss。 */
+export function formatDateTime(value: string | null | undefined): string {
+  if (!value) return '-'
+  return dayjs(value).format('YYYY-MM-DD HH:mm:ss')
 }
 
 /** 封板时间："092500" → "09:25:00"（东财 6 位零填充格式）。 */
