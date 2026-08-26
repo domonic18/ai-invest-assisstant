@@ -3,54 +3,52 @@ name: hotspot-detection
 description: 市场热点检测：聚合近期新闻、分析情绪与资金流、交叉产业链突破信号，输出热点板块排行与可操作洞察。当用户问"今天什么热门/热点/资金流向哪/市场情绪/异动"时使用。
 ---
 
-# Hotspot Detection Skill
+# 市场热点检测
 
-## Description
-Track real-time market hotspots by aggregating news, analyzing sentiment,
-cross-referencing capital flows, and identifying supply chain breakthroughs.
-Output a comprehensive hotspot dashboard with actionable insights.
+## 描述
+通过聚合新闻、分析情绪、交叉对比资金流向与产业链突破信号，实时跟踪市场热点，输出包含可操作洞察的热点看板。
 
-## Triggers
-- User asks what's hot in the market today
-- User wants to know trending topics or sectors
-- User asks about market sentiment or fund flow anomalies
-- Keywords: 热点, 热门, 资金流向, 情绪, 异动, hotspot, trending
+## 触发条件
+- 用户询问今天市场热点
+- 用户想了解 trending 主题或板块
+- 用户询问市场情绪或资金异常
+- 关键词：热点、热门、资金流向、情绪、异动、hotspot、trending
 
-## Analysis Workflow
+## 分析流程
 
-### Step 1: News Aggregation
-1. Query Elasticsearch `announcements` index for news in the last 24 hours (limit 200)
-2. Group by industry tags and keyword clusters
-3. Calculate hotness score = news_count * recency_weight * importance_weight
-4. Identify top 10 hot topics
+### 步骤 1：新闻聚合
+1. 查询 Elasticsearch `announcements` 索引最近 24 小时新闻（限制 200 条）
+2. 按行业标签与关键词聚类
+3. 计算热度分 = 新闻数 × 时间权重 × 重要性权重
+4. 识别前 10 大热点主题
 
-### Step 2: Sentiment Analysis
-For each hot topic cluster:
-1. Classify each article as Positive / Negative / Neutral
-2. Calculate sentiment ratio (positive / total)
-3. Extract key positive drivers and negative concerns
-4. Assign overall sentiment score (-1.0 to +1.0)
+### 步骤 2：情绪分析
+对每个热点主题聚类：
+1. 将每篇文章分类为正面 / 负面 / 中性
+2. 计算情绪比例（正面 / 总数）
+3. 提取正面驱动因素与负面担忧
+4. 给出整体情绪得分（-1.0 到 +1.0）
 
-### Step 3: Capital Flow Cross-Reference
-1. Query PostgreSQL `fund_flow` for today's sector capital flows
-2. Match hot topics with capital flow sectors
-3. Mark sectors with "资金+情绪共振" (both hot news AND significant inflows)
-4. Mark sectors with "背离" (hot news but OUTflows, or cold news but INflows)
+### 步骤 3：资金流向交叉验证
+1. 查询 PostgreSQL `fund_flow` 获取今日板块资金流向
+2. 将热点主题与资金流板块匹配
+3. 标记"资金+情绪共振"（热点新闻且大幅净流入）
+4. 标记"背离"（热点新闻但净流出，或冷门新闻但净流入）
 
-### Step 4: Supply Chain Breakthrough Detection
-Scan hot news for breakthrough signals:
-- Technology: "突破" "量产" "首发" "自主可控" "国产替代"
-- Capacity: "扩产" "投产" "产能" "新产线"
-- Policy: "政策" "补贴" "规划" "支持"
-- Product: "新品" "发布" "通过认证"
+### 步骤 4：产业链突破信号扫描
+在热点新闻中扫描突破信号：
+- 技术："突破" "量产" "首发" "自主可控" "国产替代"
+- 产能："扩产" "投产" "产能" "新产线"
+- 政策："政策" "补贴" "规划" "支持"
+- 产品："新品" "发布" "通过认证"
 
-For each breakthrough:
-1. Determine which industry chain segment it affects
-2. Identify affected listed companies
-3. Estimate impact magnitude (high/medium/low)
-4. Write a one-sentence impact summary
+对每条突破：
+1. 判断影响的产业链环节
+2. 识别受影响上市公司
+3. 估算影响幅度（高/中/低）
+4. 写一句话影响摘要
 
-### Step 5: Output
+### 步骤 5：输出
 ```json
 {
   "analyzed_at": "2026-07-05T15:30:00Z",
@@ -99,17 +97,16 @@ For each breakthrough:
 }
 ```
 
-## Available Tools
-- Elasticsearch for news search and aggregation
-- PostgreSQL for fund flow data
-- Python 3 for clustering and sentiment scoring
-- Milvus for matching breakthroughs with company contexts
+## 可用工具
+- Elasticsearch：新闻搜索与聚合
+- PostgreSQL：资金流数据
+- Python 3：聚类与情绪打分
+- Milvus：将突破信号与公司上下文匹配
 
-## Expected Output
-Save to `data/analysis/hotspot/hotspot_{date}.json`
-Also generate a Markdown summary for frontend display.
+## 预期输出
+保存到 `data/analysis/hotspot/hotspot_{date}.json`，并生成 Markdown 摘要供前端展示。
 
-## Notes
-- Run automatically every 30 minutes during trading hours
-- Cross-reference with official exchange announcements for verification
-- Flag unverified rumors as "待确认"
+## 备注
+- 交易时段每 30 分钟自动运行一次
+- 交叉验证交易所官方公告
+- 对未经证实的传闻标注"待确认"

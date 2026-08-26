@@ -3,48 +3,45 @@ name: research-summary
 description: 研报观点汇总：批量提炼指定公司或行业的券商研报，结构化提取评级、目标价、核心逻辑与盈利预测，识别共识与分歧。当用户要求"总结研报/对比券商观点/评级变化"时使用。
 ---
 
-# Research Report Summary Skill
+# 研报观点汇总
 
-## Description
-Batch summarize broker research reports for a specified company or industry.
-Extract structured opinions including ratings, target prices, core logic,
-and盈利预测. Track rating changes and identify consensus vs. divergence.
+## 描述
+批量总结指定公司或行业的券商研报，结构化提取评级、目标价、核心逻辑与盈利预测，跟踪评级变化并识别共识与分歧。
 
-## Triggers
-- User asks to summarize analyst reports for a company
-- User wants to compare multiple broker opinions
-- User asks about rating changes for a stock
-- Keywords: 研报, 评级, 目标价, 券商观点, research report, analyst rating
+## 触发条件
+- 用户要求总结某公司研报
+- 用户希望对比多家券商观点
+- 用户询问某股票评级变化
+- 关键词：研报、评级、目标价、券商观点、research report、analyst rating
 
-## Analysis Workflow
+## 分析流程
 
-### Step 1: Report Retrieval
-1. Query PostgreSQL `file_metadata` table for recent research reports on the target company (last 90 days)
-2. If no direct reports found, expand search to industry-wide reports
-3. From MinIO, locate the PDF files for the found reports
-4. Search Milvus `research_doc_chunks` for key sections: recommendations, earnings forecasts, risk warnings
+### 步骤 1：研报检索
+1. 查询 PostgreSQL `file_metadata` 表，获取目标公司最近 90 天研报
+2. 若未找到直接研报，扩展到行业研报
+3. 从 MinIO 定位找到研报的 PDF 文件
+4. 在 Milvus `research_doc_chunks` 中搜索关键章节：评级、盈利预测、风险提示
 
-### Step 2: Multi-Broker Opinion Extraction
-For each report, extract:
-1. **Rating**: Buy / Overweight / Neutral / Underweight / Sell
-2. **Target price** (if available)
-3. **Core thesis** (2-3 sentence summary)
-4. **Earnings forecast**: next 2 years revenue and net profit projections
-5. **Key risks** mentioned
-6. **Report date** and **analyst name**
+### 步骤 2：多券商观点提取
+对每篇研报提取：
+1. **评级**：买入 / 增持 / 中性 / 减持 / 卖出
+2. **目标价**（如有）
+3. **核心逻辑**（2-3 句话总结）
+4. **盈利预测**：未来 2 年营业收入与净利润预测
+5. **提到的关键风险**
+6. **报告日期**与**分析师姓名**
 
-### Step 3: Rating Change Detection
-1. For each broker, find the previous report on the same company
-2. Compare current vs previous rating → mark as Upgraded / Maintained / Downgraded
-3. Calculate target price change percentage
+### 步骤 3：评级变化检测
+1. 对每家券商，查找同公司上一篇研报
+2. 对比当前与上次评级 → 标记上调 / 维持 / 下调
+3. 计算目标价变化百分比
 
-### Step 4: Consensus & Divergence Analysis
-1. Calculate rating distribution (Buy: X%, Neutral: Y%, Sell: Z%)
-2. Calculate target price range (low - high)
-3. Identify metrics where analyst forecasts diverge significantly (std > 30% of mean)
+### 步骤 4：共识与分歧分析
+1. 计算评级分布（买入：X%，中性：Y%，卖出：Z%）
+2. 计算目标价区间（最低 - 最高）
+3. 识别分析师预测分歧显著的指标（标准差 > 均值 30%）
 
-### Step 5: Output
-Generate structured JSON:
+### 步骤 5：输出
 ```json
 {
   "company": {"code": "000001", "name": "平安银行"},
@@ -83,16 +80,16 @@ Generate structured JSON:
 }
 ```
 
-## Available Tools
-- PostgreSQL for report metadata and historical ratings
-- MinIO for PDF file access
-- Milvus for vector search within report documents
-- Python 3 for data processing
+## 可用工具
+- PostgreSQL：研报元数据与历史评级
+- MinIO：PDF 文件访问
+- Milvus：研报文档向量化检索
+- Python 3：数据处理
 
-## Expected Output
-Save to `data/analysis/{stock_code}/research_summary_{date}.json`
+## 预期输出
+保存到 `data/analysis/{stock_code}/research_summary_{date}.json`
 
-## Notes
-- Only include reports from legitimate securities firms
-- Mark ratings clearly with both Chinese and English equivalents
-- Earnings forecasts in 亿元
+## 备注
+- 仅使用正规券商研报
+- 评级同时标注中英文对应关系
+- 盈利预测单位为亿元
