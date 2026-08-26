@@ -1,12 +1,13 @@
 """assistant 协议端点单测（TestClient + dependency override + mock agent）。"""
 
+import json
 import uuid
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, ToolMessage
 
 from app.dependencies import get_current_user, get_db
 from app.main import app
@@ -161,6 +162,58 @@ class TestRunStream:
                 f"/api/v1/assistant/threads/{uuid.uuid4()}/runs/deadbeef/cancel"
             )
         assert response.status_code == 404
+
+    def test_stream_emits_custom_event_from_tool_message(self, assistant_client) -> None:
+        client, _ = assistant_client
+
+        async def _fake_astream(*args, **kwargs):
+            tool_msg = ToolMessage(
+                content=json.dumps(
+                    {
+                        "industry": "半导体",
+                        "version_id": 123,
+                        "version_no": 5,
+                        "status": "success",
+                        "__event__": {
+                            "type": "industry_chain.analysis_complete",
+                            "industry": "半导体",
+                            "version_id": 123,
+                            "version_no": 5,
+                        },
+                    },
+                    ensure_ascii=False,
+                ),
+                tool_call_id="call1",
+                name="persist_chain_analysis",
+                id="t1",
+            )
+            yield (), "messages", (tool_msg, {})
+
+        agent = MagicMock()
+        agent.astream = _fake_astream
+        with (
+            patch(
+                "app.services.assistant_service.AssistantService.get_session",
+                AsyncMock(return_value=_session_row()),
+            ),
+            patch(
+                "app.api.v1.assistant.get_assistant_agent",
+                AsyncMock(return_value=agent),
+            ),
+            patch(
+                "app.api.v1.assistant._touch_session",
+                AsyncMock(return_value=None),
+            ),
+        ):
+            response = client.post(
+                f"/api/v1/assistant/threads/{uuid.uuid4()}/runs/stream",
+                json={"input": {"messages": [{"type": "human", "content": "分析半导体"}]}},
+            )
+        assert response.status_code == 200
+        text = response.text
+        assert 'event: messages' in text
+        assert 'event: custom' in text
+        assert 'industry_chain.analysis_complete' in text
 
 
 @pytest.mark.unit
