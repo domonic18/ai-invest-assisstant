@@ -212,7 +212,7 @@ async def stream_run(
     elif lc_input is not None:
         stream_input = lc_input
 
-    configurable: dict[str, Any] = {"thread_id": thread_id}
+    configurable: dict[str, Any] = {"thread_id": thread_id, "user_id": user.id}
     if data.checkpoint and data.checkpoint.get("checkpoint_id"):
         configurable["checkpoint_id"] = data.checkpoint["checkpoint_id"]
 

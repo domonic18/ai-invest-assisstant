@@ -63,10 +63,10 @@ describe('edgeStyleByCriticality', () => {
     expect(style.lineDash).toBeUndefined()
   })
 
-  it('low/null 为浅灰虚线', () => {
+  it('low/null 为暗色半透明虚线', () => {
     for (const criticality of ['low', null] as const) {
       const style = edgeStyleByCriticality(criticality)
-      expect(style.stroke).toBe('#cbd5e1')
+      expect(style.stroke).toBe('rgba(255,255,255,0.2)')
       expect(style.lineDash).toEqual([6, 4])
     }
   })

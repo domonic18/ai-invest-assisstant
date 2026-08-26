@@ -13,11 +13,11 @@ export const NODE_TYPE_LABELS: Record<ChainNode['type'], string> = {
   downstream: '下游 — 应用与终端',
 }
 
-/** 分栏标题条的底色与文字色。 */
+/** 分栏标题条的底色与文字色（深色画布版本）。 */
 export const BAND_STYLES: Record<ChainNode['type'], { fill: string; text: string }> = {
-  upstream: { fill: '#dbeafe', text: '#2563eb' },
-  midstream: { fill: '#eef2ff', text: '#4f46e5' },
-  downstream: { fill: '#d1fae5', text: '#059669' },
+  upstream: { fill: 'rgba(59,130,246,0.12)', text: '#3b82f6' },
+  midstream: { fill: 'rgba(99,102,241,0.12)', text: '#6366f1' },
+  downstream: { fill: 'rgba(16,185,129,0.12)', text: '#10b981' },
 }
 
 const BARRIER_LABELS: Record<string, string> = {
@@ -65,7 +65,7 @@ export function edgeStyleByCriticality(
     case 'medium':
       return { stroke: '#9ca3af' }
     default:
-      return { stroke: '#cbd5e1', lineDash: [6, 4] }
+      return { stroke: 'rgba(255,255,255,0.2)', lineDash: [6, 4] }
   }
 }
 
@@ -81,12 +81,12 @@ export function buildSignalBadges(node: ChainNode, maxCount = 2): SignalBadge[] 
   const badges: SignalBadge[] = node.recentBreakthroughs.map((text) => ({
     icon: '⚡',
     text,
-    fill: '#fef2f2',
+    fill: 'rgba(239,68,68,0.12)',
     textFill: '#ef4444',
   }))
   for (const text of node.bottleneckIndicators) {
     if (badges.length >= maxCount) break
-    badges.push({ icon: '⚠', text, fill: '#fffbeb', textFill: '#d29922' })
+    badges.push({ icon: '⚠', text, fill: 'rgba(217,153,34,0.12)', textFill: '#d29922' })
   }
   return badges.slice(0, maxCount)
 }

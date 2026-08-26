@@ -17,8 +17,9 @@ class ChainAnalysisVersion(Base):
     __tablename__ = "industry_chain_analysis_version"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    industry_level_1: Mapped[str] = mapped_column(String(50), nullable=False)
-    version_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    industry: Mapped[str] = mapped_column(String(50), nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     label: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="success")
     snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
@@ -28,7 +29,7 @@ class ChainAnalysisVersion(Base):
     model: Mapped[str | None] = mapped_column(String(50), nullable=True)
     node_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     company_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, nullable=False
@@ -42,7 +43,7 @@ class ChainNode(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     node_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    industry_level_1: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    industry: Mapped[str | None] = mapped_column(String(50), nullable=True)
     node_type: Mapped[str] = mapped_column(String(20), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     version_id: Mapped[int | None] = mapped_column(
@@ -53,14 +54,16 @@ class ChainNode(Base):
         Numeric(8, 2), nullable=True
     )
     revenue_growth: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
-    rd_ratio: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
+    research_and_development_ratio: Mapped[Decimal | None] = mapped_column(
+        Numeric(8, 2), nullable=True
+    )
     bargaining_power: Mapped[Decimal | None] = mapped_column(
         Numeric(5, 2), nullable=True
     )
     localization_rate: Mapped[Decimal | None] = mapped_column(
         Numeric(5, 2), nullable=True
     )
-    tech_barrier: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    technology_barrier: Mapped[str | None] = mapped_column(String(10), nullable=True)
     bottleneck_indicators: Mapped[list[str] | None] = mapped_column(
         ARRAY(Text), nullable=True
     )
@@ -88,7 +91,7 @@ class ChainEdge(Base):
         ForeignKey("industry_chain_node.id", ondelete="CASCADE"), nullable=False
     )
     relation_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    relation_desc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    relation_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     strength: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     criticality: Mapped[str | None] = mapped_column(String(10), nullable=True)
     data_source: Mapped[str | None] = mapped_column(String(50), nullable=True)

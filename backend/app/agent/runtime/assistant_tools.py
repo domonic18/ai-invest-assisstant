@@ -6,9 +6,10 @@
 """
 
 from datetime import date
-from typing import Any
+from typing import Annotated, Any
 
-from langchain_core.tools import BaseTool, tool
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import BaseTool, InjectedToolArg, tool
 
 from app.agent.tools import db_tools
 from app.core.database import AsyncSessionLocal
@@ -42,20 +43,23 @@ async def query_industry_companies(
 async def persist_chain_analysis(
     industry: str,
     result: dict[str, Any],
+    config: Annotated[RunnableConfig, InjectedToolArg],
 ) -> dict[str, Any]:
     """将产业链分析结果持久化到数据库，生成新版本并在产业链页面展示。
 
     Args:
         industry: 行业名称。
         result: 符合 ChainAnalysisResult schema 的结构化 JSON 对象。
+        config: LangGraph 运行时配置，自动注入当前用户 ID。
     """
     from app.schemas.chain import ChainAnalysisResult
     from app.services import chain_service
 
+    user_id = int(config.get("configurable", {}).get("user_id", 0))
     async with AsyncSessionLocal() as session:
         parsed = ChainAnalysisResult.model_validate(result)
         response = await chain_service.persist_analysis_result(
-            session, industry, parsed
+            session, industry, parsed, user_id=user_id
         )
         payload = {
             "industry": industry,

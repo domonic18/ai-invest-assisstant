@@ -128,9 +128,11 @@ class TestIndustryChainTools:
             AsyncMock(return_value=version),
         ) as m:
             result = await at.persist_chain_analysis.ainvoke(
-                {"industry": "半导体", "result": result_payload}
+                {"industry": "半导体", "result": result_payload},
+                {"configurable": {"user_id": 7}},
             )
         m.assert_awaited_once()
+        assert m.await_args.kwargs["user_id"] == 7
         assert result["version_id"] == 123
         assert result["version_no"] == 5
         assert result["__event__"]["type"] == "industry_chain.analysis_complete"

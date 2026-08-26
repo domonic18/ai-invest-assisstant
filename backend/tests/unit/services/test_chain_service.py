@@ -65,14 +65,14 @@ def _result() -> ChainAnalysisResult:
 
 def _version(
     version_id: int,
-    version_no: int,
+    version_number: int,
     status: str = "success",
     snapshot: dict | None = None,
 ) -> ChainAnalysisVersion:
     return ChainAnalysisVersion(
         id=version_id,
-        industry_level_1="半导体",
-        version_no=version_no,
+        industry="半导体",
+        version_number=version_number,
         status=status,
         snapshot=snapshot if snapshot is not None else _result().model_dump(mode="json"),
         created_by="manual",
@@ -88,7 +88,7 @@ class TestAnalyzeAndPersist:
         with (
             patch.object(
                 chain_service.repository,
-                "next_version_no",
+                "next_version_number",
                 new=AsyncMock(return_value=1),
             ),
             patch.object(
@@ -139,7 +139,7 @@ class TestAnalyzeAndPersist:
                 "source": "硅材料",
                 "target": "晶圆制造",
                 "relation_type": "供应",
-                "relation_desc": "",
+                "relation_description": "",
                 "strength": 95.0,
                 "criticality": None,
             }
@@ -156,7 +156,7 @@ class TestAnalyzeAndPersist:
         with (
             patch.object(
                 chain_service.repository,
-                "next_version_no",
+                "next_version_number",
                 new=AsyncMock(return_value=2),
             ),
             patch.object(
@@ -187,7 +187,7 @@ class TestAnalyzeAndPersist:
 
         create_kwargs = mock_create.await_args.kwargs
         assert create_kwargs["status"] == "failed"
-        assert create_kwargs["error_msg"] == "llm timeout"
+        assert create_kwargs["error_message"] == "llm timeout"
         mock_replace.assert_not_awaited()
         session.commit.assert_awaited_once()
 
@@ -216,13 +216,13 @@ class TestCompareVersions:
             2: _version(2, 2, snapshot=target_result.model_dump(mode="json")),
         }
 
-        async def _get_version(session, version_id):  # noqa: ANN001, ANN202
+        async def _get_version(session, version_id, user_id):  # noqa: ANN001, ANN202, ARG001
             return versions.get(version_id)
 
         with patch.object(
             chain_service.repository, "get_version", new=_get_version
         ):
-            result = await chain_service.compare_versions(AsyncMock(), 1, 2)
+            result = await chain_service.compare_versions(AsyncMock(), 1, 2, user_id=0)
 
         assert result is not None
         assert result.added_nodes == ["封装测试"]
@@ -242,11 +242,11 @@ class TestCompareVersions:
     async def test_compare_returns_none_for_missing_or_failed(self) -> None:
         versions = {1: _version(1, 1, status="failed", snapshot={"error": "x"})}
 
-        async def _get_version(session, version_id):  # noqa: ANN001, ANN202
+        async def _get_version(session, version_id, user_id):  # noqa: ANN001, ANN202, ARG001
             return versions.get(version_id)
 
         with patch.object(
             chain_service.repository, "get_version", new=_get_version
         ):
-            assert await chain_service.compare_versions(AsyncMock(), 1, 99) is None
-            assert await chain_service.compare_versions(AsyncMock(), 1, 1) is None
+            assert await chain_service.compare_versions(AsyncMock(), 1, 99, user_id=0) is None
+            assert await chain_service.compare_versions(AsyncMock(), 1, 1, user_id=0) is None

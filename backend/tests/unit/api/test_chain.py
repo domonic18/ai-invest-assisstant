@@ -5,6 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
+from app.dependencies import get_current_user
+from app.main import app
 from app.schemas.chain import (
     ChainAnalysisResult,
     ChainAnalyzeResponse,
@@ -14,6 +16,20 @@ from app.schemas.chain import (
 )
 from app.services.chain_service import ChainAnalysisFailedError
 from app.services.llm_config_service import LLMConfigNotConfiguredError
+
+
+@pytest.fixture
+def user():
+    return type(
+        "User", (object,), {"id": 42, "username": "test", "role": "user", "is_active": True}
+    )()
+
+
+@pytest.fixture
+def auth_client(client, user):
+    app.dependency_overrides[get_current_user] = lambda: user
+    yield client
+    app.dependency_overrides.clear()
 
 
 def _summary(version_id: int = 1, version_no: int = 1) -> ChainVersionSummary:
@@ -38,30 +54,31 @@ def _result() -> ChainAnalysisResult:
 @pytest.mark.unit
 class TestAnalyzeEndpoint:
     @patch("app.api.v1.chain.chain_service.analyze_and_persist")
-    def test_analyze_success(self, mock_analyze, client) -> None:
+    def test_analyze_success(self, mock_analyze, auth_client, user) -> None:
         mock_analyze.return_value = ChainAnalyzeResponse(
             version_id=1, version_no=1, status="success", result=_result()
         )
-        response = client.post(
+        response = auth_client.post(
             "/api/v1/chain/analyze", json={"industry": "半导体"}
         )
         assert response.status_code == 200
         data = response.json()
         assert data["versionId"] == 1
         assert data["result"]["summary"] == "s"
+        assert mock_analyze.call_args.kwargs["user_id"] == user.id
 
     @patch("app.api.v1.chain.chain_service.analyze_and_persist")
-    def test_analyze_llm_not_configured(self, mock_analyze, client) -> None:
+    def test_analyze_llm_not_configured(self, mock_analyze, auth_client) -> None:
         mock_analyze.side_effect = LLMConfigNotConfiguredError("未配置默认 LLM")
-        response = client.post(
+        response = auth_client.post(
             "/api/v1/chain/analyze", json={"industry": "半导体"}
         )
         assert response.status_code == 500
 
     @patch("app.api.v1.chain.chain_service.analyze_and_persist")
-    def test_analyze_failed(self, mock_analyze, client) -> None:
+    def test_analyze_failed(self, mock_analyze, auth_client) -> None:
         mock_analyze.side_effect = ChainAnalysisFailedError("llm timeout")
-        response = client.post(
+        response = auth_client.post(
             "/api/v1/chain/analyze", json={"industry": "半导体"}
         )
         assert response.status_code == 500
@@ -70,54 +87,58 @@ class TestAnalyzeEndpoint:
 @pytest.mark.unit
 class TestVersionEndpoints:
     @patch("app.api.v1.chain.chain_service.get_latest_detail")
-    def test_get_latest(self, mock_latest, client) -> None:
+    def test_get_latest(self, mock_latest, auth_client, user) -> None:
         mock_latest.return_value = ChainVersionDetail(
             version=_summary(), result=_result()
         )
-        response = client.get("/api/v1/chain/半导体/latest")
+        response = auth_client.get("/api/v1/chain/半导体/latest")
         assert response.status_code == 200
         assert response.json()["version"]["versionNo"] == 1
+        assert mock_latest.call_args.kwargs["user_id"] == user.id
 
     @patch("app.api.v1.chain.chain_service.get_latest_detail")
-    def test_get_latest_not_found(self, mock_latest, client) -> None:
+    def test_get_latest_not_found(self, mock_latest, auth_client) -> None:
         mock_latest.return_value = None
-        response = client.get("/api/v1/chain/半导体/latest")
+        response = auth_client.get("/api/v1/chain/半导体/latest")
         assert response.status_code == 404
 
     @patch("app.api.v1.chain.chain_service.list_versions")
-    def test_list_versions(self, mock_list, client) -> None:
+    def test_list_versions(self, mock_list, auth_client, user) -> None:
         mock_list.return_value = [_summary(2, 2), _summary(1, 1)]
-        response = client.get("/api/v1/chain/半导体/versions")
+        response = auth_client.get("/api/v1/chain/半导体/versions")
         assert response.status_code == 200
         assert [item["versionNo"] for item in response.json()] == [2, 1]
+        assert mock_list.call_args.kwargs["user_id"] == user.id
 
     @patch("app.api.v1.chain.chain_service.get_version_detail")
-    def test_get_version(self, mock_get, client) -> None:
+    def test_get_version(self, mock_get, auth_client, user) -> None:
         mock_get.return_value = ChainVersionDetail(
             version=_summary(), result=_result()
         )
-        response = client.get("/api/v1/chain/versions/1")
+        response = auth_client.get("/api/v1/chain/versions/1")
         assert response.status_code == 200
+        assert mock_get.call_args.kwargs["user_id"] == user.id
 
     @patch("app.api.v1.chain.chain_service.get_version_detail")
-    def test_get_version_not_found(self, mock_get, client) -> None:
+    def test_get_version_not_found(self, mock_get, auth_client) -> None:
         mock_get.return_value = None
-        response = client.get("/api/v1/chain/versions/99")
+        response = auth_client.get("/api/v1/chain/versions/99")
         assert response.status_code == 404
 
     @patch("app.api.v1.chain.chain_service.compare_versions")
-    def test_compare(self, mock_compare, client) -> None:
+    def test_compare(self, mock_compare, auth_client, user) -> None:
         mock_compare.return_value = ChainCompareResult(
             base_version=_summary(1, 1),
             target_version=_summary(2, 2),
             added_nodes=["封装测试"],
         )
-        response = client.get("/api/v1/chain/versions/compare?base_id=1&target_id=2")
+        response = auth_client.get("/api/v1/chain/versions/compare?base_id=1&target_id=2")
         assert response.status_code == 200
         assert response.json()["addedNodes"] == ["封装测试"]
+        assert mock_compare.call_args.kwargs["user_id"] == user.id
 
     @patch("app.api.v1.chain.chain_service.compare_versions")
-    def test_compare_not_found(self, mock_compare, client) -> None:
+    def test_compare_not_found(self, mock_compare, auth_client) -> None:
         mock_compare.return_value = None
-        response = client.get("/api/v1/chain/versions/compare?base_id=1&target_id=2")
+        response = auth_client.get("/api/v1/chain/versions/compare?base_id=1&target_id=2")
         assert response.status_code == 404

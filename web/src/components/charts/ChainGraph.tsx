@@ -34,8 +34,8 @@ const BAND_GAP = 12
 const BAND_PAD_X = 24
 const BAND_GROUP_NAME = 'chain-bands'
 
-const TEXT_PRIMARY = '#1f2937'
-const TEXT_SECONDARY = '#6b7280'
+const TEXT_PRIMARY = '#d1d4dc'
+const TEXT_SECONDARY = '#8c8c8c'
 
 G6.registerNode(
   'chain-node',
@@ -51,12 +51,12 @@ G6.registerNode(
           width: NODE_WIDTH,
           height: NODE_HEIGHT,
           radius: 8,
-          fill: '#ffffff',
+          fill: '#1a1d24',
           stroke: color,
           lineWidth: 2,
-          shadowColor: 'rgba(0,0,0,0.15)',
-          shadowBlur: 4,
-          shadowOffsetY: 1,
+          shadowColor: 'rgba(0,0,0,0.4)',
+          shadowBlur: 6,
+          shadowOffsetY: 2,
         },
         name: 'chain-node-box',
       })
@@ -91,7 +91,7 @@ G6.registerNode(
           y1: -HALF_H + 44,
           x2: HALF_W - 15,
           y2: -HALF_H + 44,
-          stroke: '#e2e8f0',
+          stroke: '#23262e',
           lineWidth: 1,
         },
         name: 'chain-node-divider',
@@ -468,7 +468,7 @@ export function ChainGraph({ nodes, edges, onNodeClick }: ChainGraphProps) {
     <div
       ref={wrapperRef}
       className={
-        isFullscreen ? 'relative w-full h-full bg-[#fafbfc] p-4' : 'relative w-full'
+        isFullscreen ? 'relative w-full h-full bg-[#14161c] p-4' : 'relative w-full'
       }
     >
       <ChainGraphToolbar
@@ -487,7 +487,7 @@ export function ChainGraph({ nodes, edges, onNodeClick }: ChainGraphProps) {
       />
       <div
         ref={containerRef}
-        className={`w-full bg-[#fafbfc] rounded-lg border border-[#e2e8f0] ${
+        className={`w-full bg-[#14161c] rounded-lg border border-[#23262e] ${
           isFullscreen ? 'h-full' : 'h-[700px]'
         }`}
       />

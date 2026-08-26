@@ -9,7 +9,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db
+from app.dependencies import get_current_user, get_db
+from app.models.user import User
 from app.schemas.chain import (
     ChainAnalysisRequest,
     ChainAnalyzeResponse,
@@ -26,21 +27,25 @@ router = APIRouter()
 async def analyze_chain(
     request: ChainAnalysisRequest,
     session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> ChainAnalyzeResponse:
     """产业链分析：调用 AI Agent 生成图谱并持久化为新版本。"""
     return await chain_service.analyze_and_persist(
-        session, request.industry, request.focus
+        session, request.industry, request.focus, user_id=user.id
     )
 
 
 @router.get("/versions/compare", response_model=ChainCompareResult)
 async def compare_versions(
     session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
     base_id: Annotated[int, Query(gt=0)],
     target_id: Annotated[int, Query(gt=0)],
 ) -> ChainCompareResult:
     """对比两个分析版本的差异。"""
-    result = await chain_service.compare_versions(session, base_id, target_id)
+    result = await chain_service.compare_versions(
+        session, base_id, target_id, user_id=user.id
+    )
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -53,9 +58,12 @@ async def compare_versions(
 async def get_version(
     version_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> ChainVersionDetail:
     """查询指定版本详情（含完整快照）。"""
-    detail = await chain_service.get_version_detail(session, version_id)
+    detail = await chain_service.get_version_detail(
+        session, version_id, user_id=user.id
+    )
     if detail is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -68,9 +76,12 @@ async def get_version(
 async def get_latest(
     industry: str,
     session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> ChainVersionDetail:
     """查询指定行业最新成功版本。"""
-    detail = await chain_service.get_latest_detail(session, industry)
+    detail = await chain_service.get_latest_detail(
+        session, industry, user_id=user.id
+    )
     if detail is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -83,6 +94,9 @@ async def get_latest(
 async def list_versions(
     industry: str,
     session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> list[ChainVersionSummary]:
     """列出指定行业的全部版本（版本号降序）。"""
-    return await chain_service.list_versions(session, industry)
+    return await chain_service.list_versions(
+        session, industry, user_id=user.id
+    )
