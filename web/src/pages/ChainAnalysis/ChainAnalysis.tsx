@@ -7,15 +7,16 @@ import {
 import { Alert, Button, Card, Col, Empty, Input, List, Row, Space, Spin, Tag, Typography } from 'antd'
 import { AxiosError } from 'axios'
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { ChainGraph } from '@/components/charts/ChainGraph'
 import {
-  useChainAnalysis,
   useChainLatest,
   useChainVersion,
   useChainVersions,
 } from '@/hooks/useChain'
+import { useAssistantStore } from '@/stores/assistant'
 import { useColorScheme } from '@/stores/settings'
 import { fallColorSoft, riseColorSoft } from '@/utils/formatters'
 import type { ChainNode } from '@ai-invest/shared'
@@ -37,10 +38,14 @@ export function ChainAnalysis() {
   const [detailCollapsed, setDetailCollapsed] = useState(false)
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
   const [compareOpen, setCompareOpen] = useState(false)
+  const [assistantAnalyzing, setAssistantAnalyzing] = useState(false)
+
+  const queryClient = useQueryClient()
+  const sendQuestion = useAssistantStore((state) => state.sendQuestion)
+  const pageResult = useAssistantStore((state) => state.pageResult)
 
   const latestQuery = useChainLatest(activeIndustry)
   const versionsQuery = useChainVersions(activeIndustry)
-  const analyzeMutation = useChainAnalysis(activeIndustry)
 
   useEffect(() => {
     if (industry) {
@@ -50,6 +55,15 @@ export function ChainAnalysis() {
       setSelectedNode(null)
     }
   }, [industry])
+
+  useEffect(() => {
+    if (pageResult?.type === 'industry_chain.analysis_complete' && pageResult.industry === activeIndustry) {
+      setAssistantAnalyzing(false)
+      void queryClient.invalidateQueries({ queryKey: ['chain', 'latest', activeIndustry] })
+      void queryClient.invalidateQueries({ queryKey: ['chain', 'versions', activeIndustry] })
+      useAssistantStore.getState().setPageResult(null)
+    }
+  }, [pageResult, activeIndustry, queryClient])
 
   const latestVersionId = latestQuery.data?.version.id ?? null
   const isLatestSelected =
@@ -71,15 +85,8 @@ export function ChainAnalysis() {
     setActiveIndustry(target)
     setSelectedNode(null)
     setSelectedVersionId(null)
-    analyzeMutation.mutate(
-      { industry: target },
-      {
-        onSuccess: (data) => {
-          setSelectedVersionId(null)
-          void data
-        },
-      }
-    )
+    setAssistantAnalyzing(true)
+    sendQuestion(`请分析【${target}】产业链`)
   }
 
   const handleNodeClick = (nodeName: string) => {
@@ -134,7 +141,7 @@ export function ChainAnalysis() {
             type="primary"
             icon={<ReloadOutlined />}
             onClick={handleAnalyze}
-            loading={analyzeMutation.isPending}
+            loading={assistantAnalyzing}
           >
             刷新分析
           </Button>
@@ -153,32 +160,22 @@ export function ChainAnalysis() {
         />
       )}
 
-      {analyzeMutation.isError && (
+      {assistantAnalyzing && (
         <Alert
-          message="分析失败"
-          description={
-            analyzeMutation.error instanceof Error
-              ? analyzeMutation.error.message
-              : '未知错误'
-          }
-          type="error"
+          message="AI 助手正在分析产业链"
+          description="已打开 AI 助手侧边栏，可在侧边栏查看 Agent 读取资料、调用工具与思考的完整过程。"
+          type="info"
           showIcon
         />
       )}
 
-      {analyzeMutation.isPending && (
-        <div className="flex justify-center py-20">
-          <Spin size="large" tip="AI 正在生成产业链分析（约 1-2 分钟）..." />
-        </div>
-      )}
-
-      {isLoading && !analyzeMutation.isPending && (
+      {isLoading && !assistantAnalyzing && (
         <div className="flex justify-center py-20">
           <Spin size="large" />
         </div>
       )}
 
-      {!isLoading && !result && !analyzeMutation.isPending && (
+      {!isLoading && !result && !assistantAnalyzing && (
         <Empty
           description={
             noVersionYet
