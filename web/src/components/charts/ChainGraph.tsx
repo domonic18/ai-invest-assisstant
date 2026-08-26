@@ -1,10 +1,11 @@
-import { FullscreenExitOutlined, FullscreenOutlined } from '@ant-design/icons'
+import { useEffect, useRef, useState } from 'react'
+
 import G6 from '@antv/g6'
 import type { IGroup, ModelConfig } from '@antv/g6'
-import { useEffect, useRef, useState } from 'react'
 
 import type { ChainEdge, ChainNode } from '@ai-invest/shared'
 
+import { ChainGraphToolbar } from './ChainGraphToolbar'
 import {
   BAND_STYLES,
   NODE_TYPE_COLORS,
@@ -178,6 +179,7 @@ function drawChainBands(graph: InstanceType<typeof G6.Graph>) {
   let minX = Infinity
   let maxX = -Infinity
   for (const item of graph.getNodes()) {
+    if (!item.isVisible()) continue
     const model = item.getModel()
     const data = model.nodeData as ChainNode | undefined
     if (!data || model.x === undefined || model.y === undefined) continue
@@ -234,13 +236,21 @@ export function ChainGraph({ nodes, edges, onNodeClick }: ChainGraphProps) {
   const graphRef = useRef<InstanceType<typeof G6.Graph> | null>(null)
   const onNodeClickRef = useRef(onNodeClick)
   const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const [nodeFilters, setNodeFilters] = useState({
+    upstream: true,
+    midstream: true,
+    downstream: true,
+  })
+  const [edgeFilter, setEdgeFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all')
+  const [searchKeyword, setSearchKeyword] = useState('')
+
   onNodeClickRef.current = onNodeClick
 
   useEffect(() => {
     const onFullscreenChange = () => {
       const active = document.fullscreenElement === wrapperRef.current
       setIsFullscreen(active)
-      // 等 fullscreen 样式生效后再同步画布尺寸并复位视野
       requestAnimationFrame(() => {
         const graph = graphRef.current
         const container = containerRef.current
@@ -271,8 +281,6 @@ export function ChainGraph({ nodes, edges, onNodeClick }: ChainGraphProps) {
       container: containerRef.current,
       width,
       height,
-      // dagre 布局在 g6-pc 中是异步执行的，必须在布局完成后（success 回调内）fitView，
-      // 因此用构造配置而不是 render 后手动调用
       fitView: true,
       fitViewPadding: 20,
       layout: {
@@ -294,14 +302,31 @@ export function ChainGraph({ nodes, edges, onNodeClick }: ChainGraphProps) {
           },
         },
       },
+      nodeStateStyles: {
+        dim: {
+          opacity: 0.2,
+        },
+        highlight: {
+          lineWidth: 4,
+          stroke: '#2563eb',
+          shadowColor: 'rgba(37, 99, 235, 0.4)',
+          shadowBlur: 12,
+        },
+      },
       modes: {
         default: [
           'drag-canvas',
-          // sensitivity 默认为 2，滚轮缩放过于灵敏；降为 1 使缩放更平滑
           { type: 'zoom-canvas', sensitivity: 1, minZoom: 0.2, maxZoom: 3 },
           'drag-node',
         ],
       },
+      plugins: [
+        new G6.Minimap({
+          size: [160, 100],
+          className: 'chain-graph-minimap',
+          type: 'keyShape',
+        }),
+      ],
     })
 
     graph.on('node:click', (evt) => {
@@ -347,8 +372,6 @@ export function ChainGraph({ nodes, edges, onNodeClick }: ChainGraphProps) {
       }
     })
 
-    // afterlayout 在位置刷新后、构造配置 fitView 前触发：先画分栏条再统一 fitView，
-    // 保证分栏条计入视野 bbox；changeData 的重新布局同样走此回调
     graph.once('afterlayout', () => {
       if (graph.get('destroyed')) return
       drawChainBands(graph)
@@ -363,6 +386,84 @@ export function ChainGraph({ nodes, edges, onNodeClick }: ChainGraphProps) {
     }
   }, [nodes, edges])
 
+  // 节点类型过滤
+  useEffect(() => {
+    const graph = graphRef.current
+    if (!graph) return
+
+    for (const item of graph.getNodes()) {
+      const data = item.getModel().nodeData as ChainNode | undefined
+      if (!data) continue
+      const visible = nodeFilters[data.type]
+      if (visible) {
+        graph.showItem(item)
+      } else {
+        graph.hideItem(item)
+      }
+    }
+    drawChainBands(graph)
+  }, [nodeFilters])
+
+  // 边关键性过滤
+  useEffect(() => {
+    const graph = graphRef.current
+    if (!graph) return
+
+    for (const item of graph.getEdges()) {
+      const data = item.getModel().edgeData as ChainEdge | undefined
+      if (!data) continue
+      const visible = edgeFilter === 'all' || data.criticality === edgeFilter
+      if (visible) {
+        graph.showItem(item)
+      } else {
+        graph.hideItem(item)
+      }
+    }
+  }, [edgeFilter])
+
+  const handleSearch = () => {
+    const graph = graphRef.current
+    if (!graph) return
+
+    const keyword = searchKeyword.trim().toLowerCase()
+    const matched = new Set<string>()
+
+    if (keyword) {
+      for (const item of graph.getNodes()) {
+        const model = item.getModel()
+        const data = model.nodeData as ChainNode | undefined
+        if (!data) continue
+        const hit =
+          data.name.toLowerCase().includes(keyword) ||
+          data.companies.some(
+            (c) =>
+              c.name.toLowerCase().includes(keyword) || c.code.includes(keyword),
+          )
+        if (hit) {
+          matched.add(String(model.id))
+        }
+      }
+    }
+
+    for (const item of graph.getNodes()) {
+      const id = String(item.getModel().id)
+      const isMatched = matched.has(id)
+      graph.setItemState(item, 'dim', !isMatched && keyword.length > 0)
+      graph.setItemState(item, 'highlight', isMatched)
+    }
+
+    if (matched.size > 0) {
+      const first = graph.findById(Array.from(matched)[0])
+      if (first) {
+        graph.focusItem(first, true, { duration: 300, easing: 'easeCubic' })
+      }
+    }
+  }
+
+  const handleZoomIn = () => graphRef.current?.zoom(1.2)
+  const handleZoomOut = () => graphRef.current?.zoom(0.8)
+  const handleFitView = () => graphRef.current?.fitView(20)
+
   return (
     <div
       ref={wrapperRef}
@@ -370,20 +471,26 @@ export function ChainGraph({ nodes, edges, onNodeClick }: ChainGraphProps) {
         isFullscreen ? 'relative w-full h-full bg-[#fafbfc] p-4' : 'relative w-full'
       }
     >
+      <ChainGraphToolbar
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={toggleFullscreen}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onFitView={handleFitView}
+        nodeFilters={nodeFilters}
+        onNodeFiltersChange={setNodeFilters}
+        edgeFilter={edgeFilter}
+        onEdgeFilterChange={setEdgeFilter}
+        searchKeyword={searchKeyword}
+        onSearchChange={setSearchKeyword}
+        onSearch={handleSearch}
+      />
       <div
         ref={containerRef}
         className={`w-full bg-[#fafbfc] rounded-lg border border-[#e2e8f0] ${
           isFullscreen ? 'h-full' : 'h-[700px]'
         }`}
       />
-      <button
-        type="button"
-        onClick={toggleFullscreen}
-        title={isFullscreen ? '退出全屏' : '全屏查看'}
-        className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-md border border-[#e2e8f0] bg-white text-[#6b7280] shadow-sm hover:text-[#1f2937]"
-      >
-        {isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-      </button>
     </div>
   )
 }
