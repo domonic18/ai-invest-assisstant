@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   analyzeChain,
   fetchChainCompare,
+  fetchChainIndustries,
   fetchChainLatest,
   fetchChainVersion,
   fetchChainVersions,
@@ -15,6 +16,14 @@ export function useChainLatest(industry: string | undefined) {
     enabled: !!industry,
     staleTime: 10 * 60 * 1000,
     retry: false,
+  })
+}
+
+export function useChainIndustries() {
+  return useQuery({
+    queryKey: ['chain', 'industries'],
+    queryFn: fetchChainIndustries,
+    staleTime: 1 * 60 * 1000,
   })
 }
 

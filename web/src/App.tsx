@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ConfigProvider, theme } from 'antd'
+import { App as AntApp, ConfigProvider, theme } from 'antd'
 import { useEffect } from 'react'
 import { RouterProvider } from 'react-router-dom'
 
@@ -50,10 +50,12 @@ export default function App() {
         },
       }}
     >
-      <QueryClientProvider client={queryClient}>
-        <AuthInitializer />
-        <RouterProvider router={router} />
-      </QueryClientProvider>
+      <AntApp>
+        <QueryClientProvider client={queryClient}>
+          <AuthInitializer />
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      </AntApp>
     </ConfigProvider>
   )
 }

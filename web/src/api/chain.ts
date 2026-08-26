@@ -51,6 +51,11 @@ export async function analyzeChain(
   }
 }
 
+export async function fetchChainIndustries(): Promise<string[]> {
+  const response = await apiClient.get<string[]>(ENDPOINTS.chain.industries)
+  return response.data
+}
+
 export async function fetchChainLatest(
   industry: string
 ): Promise<ChainVersionDetail> {

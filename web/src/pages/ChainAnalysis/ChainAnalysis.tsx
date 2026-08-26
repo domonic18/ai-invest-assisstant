@@ -1,17 +1,32 @@
 import {
   CloseOutlined,
   MenuUnfoldOutlined,
-  ReloadOutlined,
-  SearchOutlined,
+  PlusOutlined,
+  RobotOutlined,
 } from '@ant-design/icons'
-import { Alert, Button, Card, Empty, Input, Space, Spin, Tag, Typography } from 'antd'
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Empty,
+  Input,
+  Modal,
+  Select,
+  Space,
+  Spin,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd'
 import { AxiosError } from 'axios'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 
 import { ChainGraph } from '@/components/charts/ChainGraph'
 import {
+  useChainIndustries,
   useChainLatest,
   useChainVersion,
   useChainVersions,
@@ -28,16 +43,33 @@ import { ValueDistributionCard } from './components/ValueDistributionCard'
 import { VersionCompareDrawer } from './components/VersionCompareDrawer'
 import { VersionSwitcher } from './components/VersionSwitcher'
 
+const PRESET_INDUSTRIES = ['半导体', '新能源汽车', '光伏', '锂电池', '人工智能', '创新药']
+
+function normalizeIndustry(industry: string): string {
+  let name = industry.trim()
+  const suffixes = ['产业链', '行业', '板块']
+  for (const suffix of suffixes) {
+    if (name.endsWith(suffix)) {
+      name = name.slice(0, -suffix.length)
+    }
+  }
+  return name.trim()
+}
+
 export function ChainAnalysis() {
   useColorScheme()
   const { industry } = useParams<{ industry?: string }>()
-  const [inputIndustry, setInputIndustry] = useState(industry || '半导体')
+  const navigate = useNavigate()
+  const { message } = App.useApp()
   const [activeIndustry, setActiveIndustry] = useState(industry || '半导体')
   const [selectedNode, setSelectedNode] = useState<ChainNode | null>(null)
   const [detailCollapsed, setDetailCollapsed] = useState(false)
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
   const [compareOpen, setCompareOpen] = useState(false)
   const [assistantAnalyzing, setAssistantAnalyzing] = useState(false)
+  const [pendingIndustry, setPendingIndustry] = useState<string | null>(null)
+  const [newAnalysisOpen, setNewAnalysisOpen] = useState(false)
+  const [newIndustry, setNewIndustry] = useState('')
 
   const queryClient = useQueryClient()
   const sendQuestion = useAssistantStore((state) => state.sendQuestion)
@@ -45,10 +77,10 @@ export function ChainAnalysis() {
 
   const latestQuery = useChainLatest(activeIndustry)
   const versionsQuery = useChainVersions(activeIndustry)
+  const industriesQuery = useChainIndustries()
 
   useEffect(() => {
     if (industry) {
-      setInputIndustry(industry)
       setActiveIndustry(industry)
       setSelectedVersionId(null)
       setSelectedNode(null)
@@ -56,16 +88,24 @@ export function ChainAnalysis() {
   }, [industry])
 
   useEffect(() => {
-    if (
-      pageResult?.type === 'industry_chain.analysis_complete' &&
-      pageResult.industry === activeIndustry
-    ) {
-      setAssistantAnalyzing(false)
+    if (pageResult?.type !== 'industry_chain.analysis_complete') return
+    const eventIndustry = normalizeIndustry(pageResult.industry)
+    const isCurrent = eventIndustry === normalizeIndustry(activeIndustry)
+    const isPending = pendingIndustry !== null && eventIndustry === normalizeIndustry(pendingIndustry)
+    if (!isCurrent && !isPending) return
+
+    setAssistantAnalyzing(false)
+    setPendingIndustry(null)
+    void queryClient.invalidateQueries({ queryKey: ['chain', 'industries'] })
+    if (isCurrent) {
       void queryClient.invalidateQueries({ queryKey: ['chain', 'latest', activeIndustry] })
       void queryClient.invalidateQueries({ queryKey: ['chain', 'versions', activeIndustry] })
-      useAssistantStore.getState().setPageResult(null)
     }
-  }, [pageResult, activeIndustry, queryClient])
+    if (isPending && !isCurrent) {
+      message.success(`「${pageResult.industry}」产业链分析已完成，可在下拉框中查看`)
+    }
+    useAssistantStore.getState().setPageResult(null)
+  }, [pageResult, activeIndustry, pendingIndustry, queryClient, message])
 
   const latestVersionId = latestQuery.data?.version.id ?? null
   const isLatestSelected =
@@ -81,15 +121,45 @@ export function ChainAnalysis() {
     latestQuery.error instanceof AxiosError &&
     latestQuery.error.response?.status === 404
 
-  const handleAnalyze = () => {
-    const target = inputIndustry.trim()
+  const handleReanalyze = () => {
+    const target = activeIndustry.trim()
     if (!target) return
-    setActiveIndustry(target)
+    setPendingIndustry(target)
     setSelectedNode(null)
     setSelectedVersionId(null)
     setAssistantAnalyzing(true)
     sendQuestion(`请分析【${target}】产业链`)
   }
+
+  const handleStartNewAnalysis = () => {
+    const target = newIndustry.trim()
+    if (!target) {
+      message.warning('请输入产业链名称')
+      return
+    }
+    setPendingIndustry(target)
+    setNewAnalysisOpen(false)
+    setNewIndustry('')
+    setSelectedNode(null)
+    setSelectedVersionId(null)
+    setAssistantAnalyzing(true)
+    sendQuestion(`请分析【${target}】产业链`)
+  }
+
+  const handleIndustryChange = (value: string) => {
+    if (!value || normalizeIndustry(value) === normalizeIndustry(activeIndustry)) return
+    navigate(`/chain/${encodeURIComponent(value)}`)
+  }
+
+  const analyzedIndustries = useMemo(() => industriesQuery.data ?? [], [industriesQuery.data])
+  const industryOptions = useMemo(
+    () =>
+      analyzedIndustries.map((item) => ({
+        value: item,
+        label: item,
+      })),
+    [analyzedIndustries]
+  )
 
   const handleNodeClick = (nodeName: string) => {
     const node = result?.nodes.find((item) => item.name === nodeName)
@@ -114,7 +184,7 @@ export function ChainAnalysis() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <Typography.Title level={5} className="!mb-0">
             {activeIndustry}产业链
@@ -130,25 +200,69 @@ export function ChainAnalysis() {
             </Tag>
           )}
         </div>
-        <Space>
-          <Input
-            value={inputIndustry}
-            onChange={(e) => setInputIndustry(e.target.value)}
-            placeholder="输入行业名称"
-            prefix={<SearchOutlined />}
-            onPressEnter={handleAnalyze}
-            style={{ width: 220 }}
+        <Space wrap>
+          <Select
+            value={activeIndustry}
+            onChange={handleIndustryChange}
+            options={industryOptions}
+            loading={industriesQuery.isLoading}
+            placeholder="选择已分析产业链"
+            showSearch
+            filterOption={(input, option) =>
+              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            style={{ minWidth: 180 }}
           />
-          <Button
-            type="primary"
-            icon={<ReloadOutlined />}
-            onClick={handleAnalyze}
-            loading={assistantAnalyzing}
-          >
-            刷新分析
+          <Tooltip title="使用 AI 助手重新分析当前产业链">
+            <Button
+              type="primary"
+              icon={<RobotOutlined />}
+              onClick={handleReanalyze}
+              loading={assistantAnalyzing}
+            >
+              重新分析
+            </Button>
+          </Tooltip>
+          <Button icon={<PlusOutlined />} onClick={() => setNewAnalysisOpen(true)}>
+            新建分析
           </Button>
         </Space>
       </div>
+
+      <Modal
+        title="分析新产业链"
+        open={newAnalysisOpen}
+        onOk={handleStartNewAnalysis}
+        onCancel={() => setNewAnalysisOpen(false)}
+        okButtonProps={{ icon: <RobotOutlined />, loading: assistantAnalyzing }}
+        okText="开始 AI 分析"
+        cancelText="取消"
+      >
+        <div className="space-y-4">
+          <Input
+            value={newIndustry}
+            onChange={(e) => setNewIndustry(e.target.value)}
+            placeholder="输入产业链名称，如：机器人、创新药"
+            onPressEnter={handleStartNewAnalysis}
+          />
+          <div className="flex items-center gap-2 flex-wrap">
+            <Typography.Text type="secondary" className="text-xs whitespace-nowrap">
+              快速选择：
+            </Typography.Text>
+            <Space size={4} wrap>
+              {PRESET_INDUSTRIES.map((item) => (
+                <Tag
+                  key={item}
+                  className="cursor-pointer hover:border-[#6366f1] hover:text-[#6366f1] transition-colors"
+                  onClick={() => setNewIndustry(item)}
+                >
+                  {item}
+                </Tag>
+              ))}
+            </Space>
+          </div>
+        </div>
+      </Modal>
 
       {versions.length > 0 && (
         <VersionSwitcher
