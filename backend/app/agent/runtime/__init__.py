@@ -39,7 +39,8 @@ async def run_structured_agent(
         model_config=model_config,
         result_type=result_type,
     )
-    result = await agent.run(user_prompt)
+    async with agent:
+        result = await agent.run(user_prompt)
     return cast(T, result.output)
 
 
@@ -72,7 +73,8 @@ async def run_structured_agent_with_metrics(
     )
 
     started = time.perf_counter()
-    result = await agent.run(user_prompt)
+    async with agent:
+        result = await agent.run(user_prompt)
     latency_ms = int((time.perf_counter() - started) * 1000)
     output = cast(T, result.output)
     model_name = f"{resolved.provider}/{resolved.model_name}"
