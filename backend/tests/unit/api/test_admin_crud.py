@@ -107,6 +107,7 @@ def _task_mock() -> MagicMock:
     task.source = "tushare"
     task.schedule = "0 9 * * *"
     task.is_active = True
+    task.queue = None
     task.last_run_at = None
     task.last_status = "pending"
     task.last_error = None

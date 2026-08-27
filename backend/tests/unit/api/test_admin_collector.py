@@ -36,6 +36,7 @@ class TestAdminCollectorEndpoints:
     ) -> None:
         mock_log = MagicMock()
         mock_log.id = 42
+        mock_log.celery_task_id = "celery-uuid"
         mock_dispatch.return_value = mock_log
         client, _ = admin_client
 
@@ -49,6 +50,7 @@ class TestAdminCollectorEndpoints:
         assert data["task_name"] == "financial-report"
         assert data["status"] == "dispatched"
         assert data["log_id"] == 42
+        assert data["celery_task_id"] == "celery-uuid"
         mock_dispatch.assert_awaited_once()
         call_kwargs = mock_dispatch.await_args.kwargs
         assert call_kwargs["task_name"] == "financial-report"

@@ -59,6 +59,7 @@ class TestCollectorDispatcher:
         mock_log.id = 5
 
         with (
+            patch("collector.runtime.dispatcher._USE_LEGACY_QUEUE", True),
             patch("collector.runtime.dispatcher.CollectorLog", return_value=mock_log),
             patch.object(
                 CollectorQueue,
@@ -87,6 +88,7 @@ class TestCollectorDispatcher:
         mock_log = MagicMock()
 
         with (
+            patch("collector.runtime.dispatcher._USE_LEGACY_QUEUE", True),
             patch("collector.runtime.dispatcher.CollectorLog", return_value=mock_log),
             patch.object(
                 CollectorQueue,

@@ -88,9 +88,16 @@ class TestRunTask:
 
         assert outcome is result
         mock_task.assert_awaited_once()
-        task_name, log_id, task_run_id, persisted = mock_persist.await_args.args
+        (
+            task_name,
+            log_id,
+            celery_task_id,
+            task_run_id,
+            persisted,
+        ) = mock_persist.await_args.args
         assert task_name == "financial-report"
         assert log_id is None
+        assert celery_task_id is None
         assert len(task_run_id) == 8
         assert persisted is result
 
@@ -158,7 +165,9 @@ class TestLogPersistence:
         with patch(
             "collector.runtime.runner.AsyncSessionLocal", session_factory
         ):
-            await _persist_result("financial-report", 1, "abcd1234", _make_result())
+            await _persist_result(
+                "financial-report", 1, None, "abcd1234", _make_result()
+            )
 
         assert mock_log.status == "success"
         assert mock_log.source == "cninfo"
@@ -180,7 +189,9 @@ class TestLogPersistence:
         with patch(
             "collector.runtime.runner.AsyncSessionLocal", session_factory
         ):
-            await _persist_result("financial-report", None, "abcd1234", _make_result())
+            await _persist_result(
+                "financial-report", None, None, "abcd1234", _make_result()
+            )
 
         mock_session.add.assert_called_once()
         added = mock_session.add.call_args.args[0]
@@ -199,7 +210,7 @@ class TestLogPersistence:
             try:
                 raise ValueError("x" * 10000)
             except ValueError as exc:
-                await _persist_error(1, exc)
+                await _persist_error(1, None, exc)
 
         assert mock_log.status == "failed"
         assert "ValueError" in mock_log.error_msg
