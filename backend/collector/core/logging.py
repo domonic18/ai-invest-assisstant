@@ -61,15 +61,22 @@ def configure_logging(level: str | None = None) -> None:
 
 
 def bind_task_context(
-    task_run_id: str, task: str, source: str | None = None
+    task_run_id: str,
+    task: str,
+    source: str | None = None,
+    celery_task_id: str | None = None,
 ) -> None:
     """绑定一次任务执行的上下文，后续日志自动携带这些字段。"""
     context: dict[str, str] = {"task_run_id": task_run_id, "task": task}
     if source:
         context["source"] = source
+    if celery_task_id:
+        context["celery_task_id"] = celery_task_id
     structlog.contextvars.bind_contextvars(**context)
 
 
 def clear_task_context() -> None:
     """任务结束后清理上下文，避免泄漏到下一次执行。"""
-    structlog.contextvars.unbind_contextvars("task_run_id", "task", "source")
+    structlog.contextvars.unbind_contextvars(
+        "task_run_id", "task", "source", "celery_task_id"
+    )

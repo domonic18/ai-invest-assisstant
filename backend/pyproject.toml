@@ -125,6 +125,10 @@ disallow_any_generics = false
 module = [
     "app.agent.*",
     "apscheduler.*",
+    "celery.*",
+    "kombu.*",
+    "pandas.*",
+    "tushare.*",
 ]
 ignore_missing_imports = true
 disallow_untyped_defs = false
