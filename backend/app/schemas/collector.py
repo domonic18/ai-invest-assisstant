@@ -66,6 +66,7 @@ class CollectorRunResponse(BaseModel):
     task_name: str
     status: str = "accepted"
     log_id: int | None = None
+    celery_task_id: str | None = None
 
 
 class CollectorLogResponse(BaseModel):
@@ -77,6 +78,7 @@ class CollectorLogResponse(BaseModel):
     task_name: str
     source: str | None
     status: str
+    celery_task_id: str | None = None
     started_at: datetime | None
     finished_at: datetime | None
     records_count: int

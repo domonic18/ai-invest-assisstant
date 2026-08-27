@@ -1,5 +1,6 @@
 """Knowledge base service for indexing financial reports and other documents."""
 
+import asyncio
 from datetime import date, datetime
 from typing import Any
 
@@ -110,7 +111,7 @@ class KnowledgeBaseService:
         Currently supports PDFs when ``pypdf`` is installed.
         """
         if file_type.lower() in ("pdf", "application/pdf"):
-            return _extract_pdf_text(data)
+            return await asyncio.to_thread(_extract_pdf_text, data)
         return None
 
 

@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     redis_url: RedisDsn = RedisDsn("redis://localhost:6379/0")
     collector_queue_key: str = "collector:queue"
 
+    # Celery
+    celery_broker_url: str = "redis://localhost:6379/1"
+    celery_result_backend: str = "redis://localhost:6379/2"
+    celery_task_default_queue: str = "collector.batch"
+    celery_result_expires: int = 3600
+
     # Elasticsearch
     elasticsearch_url: str = "http://localhost:9200"
 

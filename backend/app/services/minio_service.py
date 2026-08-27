@@ -1,5 +1,6 @@
 """MinIO object storage service for financial reports and other files."""
 
+import asyncio
 from datetime import timedelta
 
 from minio import Minio
@@ -41,8 +42,8 @@ class MinIOService:
         """Create the bucket if it does not already exist."""
         bucket = bucket_name or self.default_bucket
         try:
-            if not self.client.bucket_exists(bucket):
-                self.client.make_bucket(bucket)
+            if not await asyncio.to_thread(self.client.bucket_exists, bucket):
+                await asyncio.to_thread(self.client.make_bucket, bucket)
         except S3Error as exc:
             raise RuntimeError(f"Failed to ensure MinIO bucket {bucket}: {exc}") from exc
 
@@ -72,7 +73,8 @@ class MinIOService:
         bucket = bucket_name or self.default_bucket
         await self.ensure_bucket(bucket)
         try:
-            self.client.put_object(
+            await asyncio.to_thread(
+                self.client.put_object,
                 bucket,
                 object_name,
                 BytesIO(data),
@@ -92,8 +94,11 @@ class MinIOService:
         """Return a temporary download URL for an object."""
         bucket = bucket_name or self.default_bucket
         try:
-            return self._presign_client.presigned_get_object(
-                bucket, object_name, expires=expires
+            return await asyncio.to_thread(
+                self._presign_client.presigned_get_object,
+                bucket,
+                object_name,
+                expires=expires,
             )
         except S3Error:
             return None
@@ -106,8 +111,8 @@ class MinIOService:
         """Download an object and return its bytes."""
         bucket = bucket_name or self.default_bucket
         try:
-            response = self.client.get_object(bucket, object_name)
-            return response.read()
+            response = await asyncio.to_thread(self.client.get_object, bucket, object_name)
+            return await asyncio.to_thread(response.read)
         except S3Error as exc:
             raise RuntimeError(f"Failed to download {object_name}: {exc}") from exc
 

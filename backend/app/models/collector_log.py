@@ -18,6 +18,9 @@ class CollectorLog(Base):
     task_name: Mapped[str] = mapped_column(String(100), nullable=False)
     source: Mapped[str | None] = mapped_column(String(50), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
+    celery_task_id: Mapped[str | None] = mapped_column(
+        String(64), index=True, nullable=True
+    )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     records_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

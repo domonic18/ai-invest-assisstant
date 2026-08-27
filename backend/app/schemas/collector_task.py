@@ -12,6 +12,7 @@ class CollectorTaskBase(BaseModel):
     task_type: str = Field(..., max_length=50)
     source: str = Field(..., max_length=50)
     schedule: str | None = Field(None, max_length=100)
+    queue: str | None = Field(None, max_length=20)
     is_active: bool = True
 
 
@@ -25,6 +26,7 @@ class CollectorTaskUpdate(BaseModel):
     task_type: str | None = Field(None, max_length=50)
     source: str | None = Field(None, max_length=50)
     schedule: str | None = Field(None, max_length=100)
+    queue: str | None = Field(None, max_length=20)
     is_active: bool | None = None
 
 

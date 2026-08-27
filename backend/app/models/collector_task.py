@@ -18,6 +18,7 @@ class CollectorTask(Base):
     task_type: Mapped[str] = mapped_column(String(50), nullable=False)
     source: Mapped[str] = mapped_column(String(50), nullable=False)
     schedule: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    queue: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_run_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

@@ -35,6 +35,7 @@ class AdminTaskService:
             task_type=data.task_type,
             source=data.source,
             schedule=data.schedule,
+            queue=data.queue,
             is_active=data.is_active,
         )
         self.repo.add(task)
