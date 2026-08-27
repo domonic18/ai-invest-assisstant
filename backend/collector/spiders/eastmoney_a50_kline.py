@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from collector.core.async_helpers import run_in_thread
 from collector.core.http_client import eastmoney_get
 from collector.core.parsing import parse_date
 from collector.spiders.kline_base import BaseKlineCollector
@@ -22,7 +23,8 @@ class EastmoneyA50KlineCollector(BaseKlineCollector):
     """
 
     async def collect(self, **kwargs: Any) -> list[dict[str, Any]]:
-        response = eastmoney_get(
+        response = await run_in_thread(
+            eastmoney_get,
             _KLINE_URL,
             params={
                 "secid": _SECID,

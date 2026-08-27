@@ -12,6 +12,7 @@ import io
 from datetime import date
 from typing import Any, ClassVar
 
+from collector.core.async_helpers import run_in_thread
 from collector.core.base import PostgresCollector
 from collector.core.calendar import latest_trading_day
 
@@ -100,7 +101,7 @@ class SinaMarketBreadthCollector(PostgresCollector):
             contextlib.redirect_stdout(io.StringIO()),
             contextlib.redirect_stderr(io.StringIO()),
         ):
-            df = ak.stock_zh_a_spot()
+            df = await run_in_thread(ak.stock_zh_a_spot)
         if df is None or df.empty:
             return []
 

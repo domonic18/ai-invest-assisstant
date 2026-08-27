@@ -9,6 +9,7 @@ import json
 from datetime import datetime
 from typing import Any
 
+from collector.core.async_helpers import run_in_thread
 from collector.core.base import BaseCollector
 from collector.core.config import redis_url as default_redis_url
 from collector.core.parsing import clean_stock_code, to_float
@@ -27,7 +28,7 @@ class SinaQuoteCollector(BaseCollector):
     ) -> list[dict[str, Any]]:
         import akshare as ak  # type: ignore[import-untyped]
 
-        df = ak.stock_zh_a_spot()
+        df = await run_in_thread(ak.stock_zh_a_spot)
         if df is None or df.empty:
             return []
 

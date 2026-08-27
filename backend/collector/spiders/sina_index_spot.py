@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Any
 
 from app.core.constants import INDEX_CODES
+from collector.core.async_helpers import run_in_thread
 from collector.core.base import BaseCollector
 from collector.core.config import redis_url as default_redis_url
 from collector.core.parsing import to_float, to_int
@@ -37,7 +38,7 @@ class SinaIndexSpotCollector(BaseCollector):
             contextlib.redirect_stdout(io.StringIO()),
             contextlib.redirect_stderr(io.StringIO()),
         ):
-            df = ak.stock_zh_index_spot_sina()
+            df = await run_in_thread(ak.stock_zh_index_spot_sina)
         if df is None or df.empty:
             return []
 

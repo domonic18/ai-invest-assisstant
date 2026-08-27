@@ -68,11 +68,13 @@ async def run_task(params: dict[str, Any]) -> CollectResult:
     """
     task_name: str = params.get("task", "")
     log_id = params.get("log_id")
+    celery_task_id = params.get("celery_task_id")
     task_run_id = uuid.uuid4().hex[:8]
     bind_task_context(
         task_run_id=task_run_id,
         task=task_name or "unknown",
         source=params.get("preferred_source"),
+        celery_task_id=celery_task_id,
     )
 
     try:
@@ -94,7 +96,7 @@ async def run_task(params: dict[str, Any]) -> CollectResult:
         logger.info("collector_task_started", log_id=log_id, kwargs=kwargs)
         result = await coro(**kwargs)
 
-        await _persist_result(task_name, log_id, task_run_id, result)
+        await _persist_result(task_name, log_id, celery_task_id, task_run_id, result)
         logger.info(
             "collector_task_finished",
             status=result.status.value,
@@ -105,7 +107,7 @@ async def run_task(params: dict[str, Any]) -> CollectResult:
         return result
     except Exception as exc:
         if log_id is not None:
-            await _persist_error(log_id, exc)
+            await _persist_error(log_id, celery_task_id, exc)
         logger.exception("collector_task_failed")
         raise
     finally:
@@ -128,6 +130,7 @@ async def _mark_running(log_id: int) -> None:
 async def _persist_result(
     task_name: str,
     log_id: int | None,
+    celery_task_id: str | None,
     task_run_id: str,
     result: CollectResult,
 ) -> None:
@@ -143,10 +146,13 @@ async def _persist_result(
             log.finished_at = result.finished_at or datetime.now(timezone.utc)
             log.records_count = result.items_stored
             log.error_msg = _truncate(error_msg) if error_msg else None
+            if celery_task_id is not None:
+                log.celery_task_id = celery_task_id
             log.meta = {
                 **(log.meta or {}),
                 **(result.metadata or {}),
                 "task_run_id": task_run_id,
+                "celery_task_id": celery_task_id,
             }
         else:
             session.add(
@@ -158,13 +164,14 @@ async def _persist_result(
                     finished_at=result.finished_at or datetime.now(timezone.utc),
                     records_count=result.items_stored,
                     error_msg=_truncate(error_msg) if error_msg else None,
-                    meta={**(result.metadata or {}), "task_run_id": task_run_id},
+                    celery_task_id=celery_task_id,
+                    meta={**(result.metadata or {}), "task_run_id": task_run_id, "celery_task_id": celery_task_id},
                 )
             )
         await session.commit()
 
 
-async def _persist_error(log_id: int, exc: Exception) -> None:
+async def _persist_error(log_id: int, celery_task_id: str | None, exc: Exception) -> None:
     error_msg = _truncate(traceback.format_exc())
     async with AsyncSessionLocal() as session:
         log = await session.get(CollectorLog, log_id)
@@ -172,6 +179,8 @@ async def _persist_error(log_id: int, exc: Exception) -> None:
             log.status = "failed"
             log.finished_at = datetime.now(timezone.utc)
             log.error_msg = error_msg
+            if celery_task_id is not None:
+                log.celery_task_id = celery_task_id
             await session.commit()
 
 

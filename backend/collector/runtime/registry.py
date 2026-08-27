@@ -16,9 +16,9 @@ runner 的任务参数白名单同样从 TASK_SPECS 派生，参数只在声明�
 
 import importlib
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
-from typing import Any
+from typing import Any, Literal
 
 import structlog
 
@@ -35,6 +35,9 @@ class TaskSpec:
     name: str
     data_type: str
     collectors: dict[str, str]
+    queue: Literal["realtime", "batch", "heavy"] | None = None
+    soft_time_limit: int | None = None
+    max_retries: int | None = None
     config_params: tuple[str, ...] = ()
     run_params: tuple[str, ...] = ()
     defaults: dict[str, Any] = field(default_factory=dict)
@@ -276,6 +279,29 @@ TASK_SPECS: dict[str, TaskSpec] = {
             converters={"trade_date": date.fromisoformat},
         ),
     ]
+}
+
+# Default queue assignments.  Keep this mapping data-driven so new tasks do not
+# require framework code changes; they can also override via TaskSpec.queue.
+_QUEUE_OVERRIDES: dict[str, Literal["realtime", "batch", "heavy"]] = {
+    "auction": "realtime",
+    "index-spot": "realtime",
+    "index-minute": "realtime",
+    "stock-minute": "realtime",
+    "market-breadth": "realtime",
+    "news": "realtime",
+    "quote": "realtime",
+    "company-profile": "heavy",
+    "disclosure": "heavy",
+    "financial-report": "heavy",
+    "ipo-info": "heavy",
+    "market-daily-review": "heavy",
+    "research-report": "heavy",
+}
+
+TASK_SPECS = {
+    name: replace(spec, queue=_QUEUE_OVERRIDES.get(name, spec.queue))
+    for name, spec in TASK_SPECS.items()
 }
 
 

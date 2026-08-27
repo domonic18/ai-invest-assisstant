@@ -10,6 +10,7 @@ import time
 from datetime import date
 from typing import Any, ClassVar
 
+from collector.core.async_helpers import run_in_thread
 from collector.core.calendar import is_trading_day, latest_trading_day
 from collector.core.http_client import eastmoney_get
 from collector.core.parsing import parse_cn_amount, to_float, to_optional_str
@@ -73,8 +74,11 @@ class EastMoneySectorFundFlowCollector(BaseSectorFundFlowCollector):
     ) -> list[dict[str, Any]]:
         sector_type = sector_type or self.sector_type
         if trade_date is not None:
-            return self._collect_history(sector_type, trade_date)
-        rows = self._fetch_rank(sector_type)
+            rows: list[dict[str, Any]] = await run_in_thread(
+                self._collect_history, sector_type, trade_date
+            )
+            return rows
+        rows = await run_in_thread(self._fetch_rank, sector_type)
         trade_date = latest_trading_day()
         raw: list[dict[str, Any]] = []
         for row in rows:
