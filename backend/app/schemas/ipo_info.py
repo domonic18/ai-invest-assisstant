@@ -6,7 +6,7 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class IpoInfoBase(BaseModel):
+class IPOInfoBase(BaseModel):
     """Base fields for IPO information."""
 
     stock_code: str = Field(..., max_length=10)
@@ -25,11 +25,11 @@ class IpoInfoBase(BaseModel):
     source: str | None = Field(None, max_length=50)
 
 
-class IpoInfoCreate(IpoInfoBase):
+class IPOInfoCreate(IPOInfoBase):
     """Request schema for creating an IPO record."""
 
 
-class IpoInfoUpdate(BaseModel):
+class IPOInfoUpdate(BaseModel):
     """Request schema for updating an IPO record."""
 
     stock_name: str | None = Field(None, max_length=100)
@@ -47,7 +47,7 @@ class IpoInfoUpdate(BaseModel):
     source: str | None = Field(None, max_length=50)
 
 
-class IpoInfoResponse(IpoInfoBase):
+class IPOInfoResponse(IPOInfoBase):
     """Response schema for an IPO record."""
 
     model_config = ConfigDict(from_attributes=True)

@@ -6,7 +6,7 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class FundHoldingsBase(BaseModel):
+class FundHoldingBase(BaseModel):
     """Base fields for fund holdings."""
 
     stock_code: str = Field(..., max_length=10)
@@ -21,11 +21,11 @@ class FundHoldingsBase(BaseModel):
     source: str | None = Field(None, max_length=50)
 
 
-class FundHoldingsCreate(FundHoldingsBase):
+class FundHoldingCreate(FundHoldingBase):
     """Request schema for creating a fund holding record."""
 
 
-class FundHoldingsUpdate(BaseModel):
+class FundHoldingUpdate(BaseModel):
     """Request schema for updating a fund holding record."""
 
     stock_name: str | None = Field(None, max_length=100)
@@ -39,7 +39,7 @@ class FundHoldingsUpdate(BaseModel):
     source: str | None = Field(None, max_length=50)
 
 
-class FundHoldingsResponse(FundHoldingsBase):
+class FundHoldingResponse(FundHoldingBase):
     """Response schema for a fund holding record."""
 
     model_config = ConfigDict(from_attributes=True)

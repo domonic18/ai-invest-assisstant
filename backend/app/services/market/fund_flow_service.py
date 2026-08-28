@@ -5,7 +5,7 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.fund_flow import FundFlow
+from app.models.capital_fund_flow_stock import FundFlow
 
 
 async def get_fund_flow(

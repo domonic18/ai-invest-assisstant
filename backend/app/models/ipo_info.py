@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
 
-class IpoInfo(Base):
+class IPOInfo(Base):
     """新股发行信息表。"""
 
     __tablename__ = "ipo_info"

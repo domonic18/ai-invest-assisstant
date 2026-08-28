@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
 
-class FundHoldings(Base):
+class FundHolding(Base):
     """个股基金持仓表。"""
 
     __tablename__ = "fund_holding"

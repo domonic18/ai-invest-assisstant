@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import INDEX_CODES
-from app.models.auction import AuctionData
+from app.models.quote_auction_stock import AuctionData
 from app.repositories.market import index_auction_repository
 from app.schemas.stock import IndexAuctionSeries, IndexAuctionTrendResponse
 
