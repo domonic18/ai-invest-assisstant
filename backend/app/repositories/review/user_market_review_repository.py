@@ -1,6 +1,6 @@
 """用户大盘综述编辑副本仓储：读取、按分区 overlay、upsert。"""
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -51,7 +51,7 @@ async def upsert_sections(
             "model": stmt.excluded.model,
             "generated_at": stmt.excluded.generated_at,
             "base_review_id": stmt.excluded.base_review_id,
-            "updated_at": datetime.utcnow(),
+            "updated_at": datetime.now(timezone.utc),
         },
     )
     await session.execute(stmt)

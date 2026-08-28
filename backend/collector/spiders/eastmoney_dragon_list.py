@@ -1,8 +1,8 @@
 """基于 akshare 的东方财富龙虎榜采集器。"""
 
-from datetime import date
 from typing import Any, ClassVar
 
+from app.core.clock import today_cn
 from collector.core.base import PostgresCollector
 from collector.core.parsing import (
     parse_cn_amount,
@@ -28,7 +28,7 @@ class EastMoneyDragonListCollector(PostgresCollector):
     ) -> list[dict[str, Any]]:
         import akshare as ak  # type: ignore[import-untyped]
 
-        end = parse_date(end_date) or date.today()
+        end = parse_date(end_date) or today_cn()
         start = parse_date(start_date) or end
         start_str = start.strftime("%Y%m%d")
         end_str = end.strftime("%Y%m%d")

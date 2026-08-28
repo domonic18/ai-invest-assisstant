@@ -7,11 +7,12 @@ MinIO 与 file_metadata。
 """
 
 import asyncio
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any
 
 import structlog
 
+from app.core.clock import today_cn
 from collector.core.base import BaseCollector, CollectResult, CollectStatus
 from collector.core.parsing import to_float, to_int, to_optional_str
 
@@ -52,7 +53,7 @@ class EastMoneyResearchReportCollector(BaseCollector):
         """查询 reportapi 列表接口并下载研报 PDF。"""
         import httpx
 
-        end = _parse_date(end_date) or date.today()
+        end = _parse_date(end_date) or today_cn()
         start = _parse_date(start_date) or end
         if start > end:
             start = end
@@ -169,7 +170,7 @@ class EastMoneyResearchReportCollector(BaseCollector):
 
     async def run(self, **kwargs: Any) -> CollectResult:
         """运行完整流程，把存储警告体现在结果的 errors 中。"""
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
         try:
             raw_data = await self.collect(**kwargs)
             transformed: list[dict[str, Any]] = []
@@ -195,7 +196,7 @@ class EastMoneyResearchReportCollector(BaseCollector):
                 items_stored=stored_count,
                 errors=errors,
                 started_at=started_at,
-                finished_at=datetime.utcnow(),
+                finished_at=datetime.now(timezone.utc),
             )
         except Exception as exc:  # noqa: BLE001
             return CollectResult(
@@ -206,7 +207,7 @@ class EastMoneyResearchReportCollector(BaseCollector):
                 items_stored=0,
                 errors=[str(exc)],
                 started_at=started_at,
-                finished_at=datetime.utcnow(),
+                finished_at=datetime.now(timezone.utc),
             )
 
 

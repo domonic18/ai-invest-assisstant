@@ -1,13 +1,13 @@
 """个股基础信息与行情业务服务。"""
 
 import json
-from datetime import date
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import get_redis
+from app.core.clock import today_cn
 from app.models.capital_fund_flow_sector import SectorFundFlow
 from app.models.stock import StockBasic
 from app.repositories.market.kline_repository import fetch_daily_bars
@@ -150,7 +150,7 @@ async def get_stock_sectors(session: AsyncSession, stock_code: str) -> dict[str,
         await session.scalar(
             select(func.max(SectorFundFlow.trade_date))
         )
-    ) or date.today()
+    ) or today_cn()
     flow_rows = list(
         (
             await session.execute(

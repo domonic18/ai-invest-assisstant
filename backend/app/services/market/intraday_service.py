@@ -2,10 +2,10 @@
 
 from datetime import date
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clock import CN_TZ, today_cn
 from app.repositories.market.kline_repository import (
     fetch_daily_bars,
     fetch_minute_bars,
@@ -13,8 +13,6 @@ from app.repositories.market.kline_repository import (
     prev_minute_close,
 )
 from app.services.market.stock_service import get_stock_by_code
-
-_CN_TZ = ZoneInfo("Asia/Shanghai")
 
 
 def _to_float(value: Any) -> float | None:
@@ -40,7 +38,7 @@ async def get_stock_intraday(
         return {
             "code": stock_code,
             "name": stock.stock_name or stock_code,
-            "trade_date": date.today(),
+            "trade_date": today_cn(),
             "prev_close": 0.0,
             "points": [],
         }
@@ -56,7 +54,7 @@ async def get_stock_intraday(
 
     points = [
         {
-            "time": bar.trade_time.astimezone(_CN_TZ).strftime("%H:%M"),
+            "time": bar.trade_time.astimezone(CN_TZ).strftime("%H:%M"),
             "price": _to_float(bar.close) or 0.0,
             "volume": _to_int(bar.volume) or 0,
             "amount": _to_float(bar.amount) or 0.0,

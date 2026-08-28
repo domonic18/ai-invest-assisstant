@@ -7,15 +7,14 @@ time_bucket 的默认 origin 使 1 week 对齐自然周（周一起）、
 
 from datetime import date, datetime, time, timedelta
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clock import CN_TZ, today_cn
 from app.models.kline import KlineDaily, KlineMinute
 
 # quote_kline_stock_minute.trade_time 为 TIMESTAMPTZ，按交易时区（Asia/Shanghai）界定自然日
-_CN_TZ = ZoneInfo("Asia/Shanghai")
 
 # period -> time_bucket 间隔；daily 不走聚合
 PERIOD_BUCKET: dict[str, str] = {
@@ -59,7 +58,7 @@ def _daily_since(end_date: date | None, limit: int) -> date:
     无时间下界时 TimescaleDB 无法做 chunk 排除，数千个 chunk 的
     规划耗时可达数百毫秒；下界保证命中的 chunk 数量与 limit 成正比。
     """
-    return (end_date or date.today()) - timedelta(days=limit * 2)
+    return (end_date or today_cn()) - timedelta(days=limit * 2)
 
 
 async def fetch_daily_bars(
@@ -92,7 +91,7 @@ async def fetch_aggregated_bars(
     时间下界 = limit 个 bucket 跨度 + 31 天余量，触发 chunk 排除，
     避免全量 chunk 规划开销。
     """
-    since = date.today() - timedelta(days=_BUCKET_DAYS[bucket] * limit + 31)
+    since = today_cn() - timedelta(days=_BUCKET_DAYS[bucket] * limit + 31)
     result = await session.execute(
         _AGGREGATED_SQL,
         {"code": code, "bucket": bucket, "since": since, "limit": limit},
@@ -108,9 +107,9 @@ async def fetch_minute_bars(
         select(KlineMinute)
         .where(
             KlineMinute.stock_code == code,
-            KlineMinute.trade_time >= datetime.combine(day, time.min, tzinfo=_CN_TZ),
+            KlineMinute.trade_time >= datetime.combine(day, time.min, tzinfo=CN_TZ),
             KlineMinute.trade_time
-            < datetime.combine(day + timedelta(days=1), time.min, tzinfo=_CN_TZ),
+            < datetime.combine(day + timedelta(days=1), time.min, tzinfo=CN_TZ),
         )
         .order_by(KlineMinute.trade_time)
     )
@@ -128,9 +127,9 @@ async def fetch_minute_bars_multi(
         select(KlineMinute)
         .where(
             KlineMinute.stock_code.in_(codes),
-            KlineMinute.trade_time >= datetime.combine(day, time.min, tzinfo=_CN_TZ),
+            KlineMinute.trade_time >= datetime.combine(day, time.min, tzinfo=CN_TZ),
             KlineMinute.trade_time
-            < datetime.combine(day + timedelta(days=1), time.min, tzinfo=_CN_TZ),
+            < datetime.combine(day + timedelta(days=1), time.min, tzinfo=CN_TZ),
         )
         .order_by(KlineMinute.stock_code, KlineMinute.trade_time)
     )
@@ -145,7 +144,7 @@ async def latest_minute_day(session: AsyncSession, code: str) -> date | None:
             KlineMinute.stock_code == code
         )
     )
-    return latest.astimezone(_CN_TZ).date() if latest is not None else None
+    return latest.astimezone(CN_TZ).date() if latest is not None else None
 
 
 async def prev_minute_close(
@@ -156,7 +155,7 @@ async def prev_minute_close(
         select(KlineMinute.close)
         .where(
             KlineMinute.stock_code == code,
-            KlineMinute.trade_time < datetime.combine(day, time.min, tzinfo=_CN_TZ),
+            KlineMinute.trade_time < datetime.combine(day, time.min, tzinfo=CN_TZ),
         )
         .order_by(KlineMinute.trade_time.desc())
         .limit(1)

@@ -5,7 +5,7 @@
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from collector.core.async_helpers import run_in_thread
@@ -58,7 +58,7 @@ class SinaQuoteCollector(BaseCollector):
                     "volume": row["成交量"],
                     "amount": row["成交额"],
                     "timestamp": row["时间戳"],
-                    "updated_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
 

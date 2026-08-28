@@ -1,7 +1,7 @@
 """知识库服务：将研报等文档索引进 Elasticsearch。"""
 
 import asyncio
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any
 
 from elasticsearch import AsyncElasticsearch
@@ -95,7 +95,7 @@ class KnowledgeBaseService:
             "minio_path": minio_path,
             "content": content,
             "extra": extra or {},
-            "indexed_at": datetime.utcnow().isoformat(),
+            "indexed_at": datetime.now(timezone.utc).isoformat(),
         }
         try:
             client = await self._get_client()

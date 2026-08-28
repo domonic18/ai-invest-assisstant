@@ -1,8 +1,8 @@
 """基于 akshare 买卖盘快照的同花顺集合竞价采集器。"""
 
-from datetime import date
 from typing import Any, ClassVar
 
+from app.core.clock import today_cn
 from collector.spiders.auction_base import BaseAuctionCollector
 
 
@@ -23,7 +23,7 @@ class ThsAuctionCollector(BaseAuctionCollector):
 
         symbols = symbols or ["000001"]
         raw: list[dict[str, Any]] = []
-        trade_date = date.today()
+        trade_date = today_cn()
 
         for symbol in symbols:
             df = ak.stock_bid_ask_em(symbol=symbol)

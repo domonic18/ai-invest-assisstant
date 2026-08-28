@@ -1,10 +1,11 @@
 """基于 akshare 的 CNINFO 信息披露/公告采集器。"""
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
+from app.core.clock import today_cn
 from collector.core.base import PostgresCollector
 from collector.core.parsing import clean_stock_code, parse_date, to_optional_str
 
@@ -26,7 +27,7 @@ class CninfoDisclosureCollector(PostgresCollector):
     ) -> list[dict[str, Any]]:
         import akshare as ak  # type: ignore[import-untyped]
 
-        end = parse_date(end_date) or date.today()
+        end = parse_date(end_date) or today_cn()
         start = parse_date(start_date) or (end - timedelta(days=7))
 
         start_str = start.strftime("%Y%m%d")

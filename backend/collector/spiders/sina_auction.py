@@ -1,10 +1,10 @@
 """基于 hq.sinajs.cn 实时买卖盘的新浪集合竞价采集器。"""
 
-from datetime import date
 from typing import Any, ClassVar
 
 import httpx
 
+from app.core.clock import today_cn
 from collector.core.parsing import clean_stock_code
 from collector.spiders.auction_base import BaseAuctionCollector
 
@@ -31,7 +31,7 @@ class SinaAuctionCollector(BaseAuctionCollector):
     ) -> list[dict[str, Any]]:
         symbols = symbols or ["000001"]
         raw: list[dict[str, Any]] = []
-        trade_date = date.today()
+        trade_date = today_cn()
 
         for symbol in symbols:
             snapshot = await self._fetch_snapshot(symbol)

@@ -8,7 +8,7 @@ TTL 24h 保证非交易时段仍能展示收盘快照。
 import contextlib
 import io
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from app.core.constants import INDEX_CODES
@@ -73,7 +73,7 @@ class SinaIndexSpotCollector(BaseCollector):
             "volume": to_int(raw.get("volume")),
             "amount": to_float(raw.get("amount")),
             "quote_time": str(raw.get("quote_time") or ""),
-            "updated_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
     async def validate(self, item: dict[str, Any]) -> bool:

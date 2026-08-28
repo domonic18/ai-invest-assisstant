@@ -6,6 +6,8 @@
 
 from datetime import date, timedelta
 
+from app.core.clock import today_cn
+
 _cache: tuple[frozenset[date], date, date] | None = None  # (dates, max_date, fetched_on)
 
 
@@ -18,7 +20,7 @@ def _fetch_trade_dates() -> frozenset[date]:
 
 def _load() -> tuple[frozenset[date], date] | None:
     global _cache
-    today = date.today()
+    today = today_cn()
     if _cache is None or _cache[2] < today:
         try:
             dates = _fetch_trade_dates()
@@ -38,7 +40,7 @@ def is_trading_day(day: date) -> bool:
 
 def latest_trading_day(today: date | None = None) -> date:
     """最近的（含当日的）交易日。"""
-    day = today or date.today()
+    day = today or today_cn()
     loaded = _load()
     if loaded is None:
         while day.weekday() >= 5:

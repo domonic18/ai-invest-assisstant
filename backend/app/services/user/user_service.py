@@ -1,6 +1,6 @@
 """用户业务服务。"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -92,5 +92,5 @@ class UserService:
 
     async def update_last_login(self, user: User) -> None:
         """更新最后登录时间。"""
-        user.last_login_at = datetime.utcnow()
+        user.last_login_at = datetime.now(timezone.utc)
         await self.session.commit()

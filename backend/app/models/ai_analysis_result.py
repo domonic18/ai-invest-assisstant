@@ -1,7 +1,7 @@
 """AI 分析结果记录的 SQLAlchemy ORM 模型。"""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -35,5 +35,5 @@ class AiAnalysisResult(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="success")
     error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

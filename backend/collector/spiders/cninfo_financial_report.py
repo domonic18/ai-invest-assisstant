@@ -9,6 +9,7 @@ from typing import Any
 
 import structlog
 
+from app.core.clock import CN_TZ, today_cn
 from collector.core.base import BaseCollector, CollectResult, CollectStatus
 from collector.core.parsing import clean_stock_code, to_optional_str
 
@@ -80,9 +81,9 @@ class CninfoFinancialReportCollector(BaseCollector):
         import httpx
 
         if end_date is None:
-            end = date.today()
+            end = today_cn()
         else:
-            end = _parse_date(end_date) or date.today()
+            end = _parse_date(end_date) or today_cn()
         if start_date is None:
             start = end - timedelta(days=365)
         else:
@@ -232,7 +233,7 @@ class CninfoFinancialReportCollector(BaseCollector):
         覆写基类模板，使存储层警告（如 MinIO 或知识库不可用）体现在结果的
         errors 中而不是被静默吞掉。
         """
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
         try:
             raw_data = await self.collect(**kwargs)
             transformed: list[dict[str, Any]] = []
@@ -258,7 +259,7 @@ class CninfoFinancialReportCollector(BaseCollector):
                 items_stored=stored_count,
                 errors=errors,
                 started_at=started_at,
-                finished_at=datetime.utcnow(),
+                finished_at=datetime.now(timezone.utc),
             )
         except Exception as exc:  # noqa: BLE001
             return CollectResult(
@@ -269,7 +270,7 @@ class CninfoFinancialReportCollector(BaseCollector):
                 items_stored=0,
                 errors=[str(exc)],
                 started_at=started_at,
-                finished_at=datetime.utcnow(),
+                finished_at=datetime.now(timezone.utc),
             )
 
 
@@ -387,7 +388,7 @@ def _parse_date(value: str | None) -> date | None:
         ts = int(text)
         if ts > 10_000_000_000:  # CNINFO 返回的是毫秒级时间戳
             ts //= 1000
-        return datetime.fromtimestamp(ts, tz=timezone.utc).date()
+        return datetime.fromtimestamp(ts, tz=CN_TZ).date()
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%Y/%m/%d"):
         try:
             return datetime.strptime(text, fmt).date()

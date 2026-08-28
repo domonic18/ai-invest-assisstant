@@ -5,6 +5,7 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clock import today_cn
 from app.core.constants import INDEX_CODES
 from app.models.quote_auction_stock import AuctionData
 from app.repositories.market import index_auction_repository
@@ -51,7 +52,7 @@ async def get_index_auction_trend(
         rows = await index_auction_repository.list_range(
             session,
             start_date or date.min,
-            end_date or date.today(),
+            end_date or today_cn(),
         )
     else:
         rows = await index_auction_repository.list_recent(session, days)

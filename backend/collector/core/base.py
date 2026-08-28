@@ -9,7 +9,7 @@ collect（transform/validate 有默认实现，可按需覆写），新增一个
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, ClassVar
 
@@ -86,7 +86,7 @@ class BaseCollector(ABC):
 
     async def run(self, **kwargs: Any) -> CollectResult:
         """执行完整采集流程（模板方法）。"""
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
         errors: list[str] = []
 
         try:
@@ -119,7 +119,7 @@ class BaseCollector(ABC):
                 items_stored=stored_count,
                 errors=errors,
                 started_at=started_at,
-                finished_at=datetime.utcnow(),
+                finished_at=datetime.now(timezone.utc),
             )
         except Exception as exc:  # noqa: BLE001
             logger.exception(
@@ -135,7 +135,7 @@ class BaseCollector(ABC):
                 items_stored=0,
                 errors=[str(exc)],
                 started_at=started_at,
-                finished_at=datetime.utcnow(),
+                finished_at=datetime.now(timezone.utc),
             )
 
 

@@ -5,7 +5,7 @@
 """
 
 import hashlib
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any
 
 import structlog
@@ -316,7 +316,7 @@ async def generate_market_review(
             contents=contents,
             sections=sections,
             model=model_name,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
             cached=False,
             edited=False,
         )

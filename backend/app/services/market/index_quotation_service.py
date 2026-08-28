@@ -10,11 +10,11 @@ import asyncio
 import json
 from datetime import date
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import get_redis
+from app.core.clock import CN_TZ, today_cn
 from app.core.constants import INDEX_CODES, KLINE_CHART_EXTRA_CODES
 from app.repositories.market.kline_repository import (
     PERIOD_BUCKET,
@@ -34,7 +34,6 @@ from app.schemas.market import (
 
 _INDEX_SPOT_KEY = "market:index_spot"
 _TREND_DAYS = 30
-_CN_TZ = ZoneInfo("Asia/Shanghai")
 
 
 async def _index_spot() -> list[dict[str, Any]] | None:
@@ -95,7 +94,7 @@ async def get_index_intraday(
     target = trade_date or await latest_minute_day(session, code)
     if target is None:
         return IndexIntradayResponse(
-            code=code, name=INDEX_CODES[code], trade_date=date.today(),
+            code=code, name=INDEX_CODES[code], trade_date=today_cn(),
             prev_close=0.0, points=[],
         )
 
@@ -117,7 +116,7 @@ async def get_index_intraday(
 
     points = [
         IndexIntradayPoint(
-            time=bar.trade_time.astimezone(_CN_TZ).strftime("%H:%M"),
+            time=bar.trade_time.astimezone(CN_TZ).strftime("%H:%M"),
             price=float(bar.close) if bar.close is not None else 0.0,
             volume=float(bar.volume) if bar.volume is not None else 0.0,
             amount=float(bar.amount) if bar.amount is not None else 0.0,
@@ -144,7 +143,7 @@ async def get_index_quotes(
     """
     if trade_date is not None:
         quotes = await _historical_index_quotes(session, trade_date)
-        if quotes or trade_date < date.today():
+        if quotes or trade_date < today_cn():
             return quotes
         # 当日盘中日线尚未更新，回退实时快照
     spot = await _index_spot()

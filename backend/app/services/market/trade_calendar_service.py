@@ -9,6 +9,7 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clock import today_cn
 from app.models.market_breadth import MarketBreadth
 from app.repositories.market.kline_repository import fetch_max_daily_date, has_daily_bar
 
@@ -22,7 +23,7 @@ async def resolve_latest_trade_date(session: AsyncSession) -> date:
     否则回退到最近一根指数日 K 的日期。避免被涨停池等
     可能被非交易日污染表的 max(trade_date) 带偏。
     """
-    today = date.today()
+    today = today_cn()
     kline_max = await fetch_max_daily_date(session, _INDEX_BENCHMARK)
     if kline_max is None:
         return today
