@@ -2,77 +2,25 @@ import { Button, Drawer, Space } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAssistantSessions } from './hooks/useAssistantSessions'
-import { useAssistantStore, type TodoStep } from '@/stores/assistant'
+import { useAssistantStore } from '@/stores/assistant'
 
 import { AssistantHeader } from './AssistantHeader'
 import { AssistantSidebar } from './AssistantSidebar'
 import { AssistantThread } from './AssistantThread'
 import { AssistantRuntimeProvider } from './AssistantRuntimeProvider'
-
-const TODO_MARKERS: Record<TodoStep['status'], string> = {
-  completed: '✓',
-  in_progress: '◐',
-  pending: '○',
-}
-
-const MIN_SIDEBAR_WIDTH = 220
-const MAX_SIDEBAR_WIDTH = 400
-const DEFAULT_SIDEBAR_WIDTH = 260
-const SIDEBAR_STORAGE_KEY = 'assistant-sidebar-width'
-
-const MIN_DRAWER_WIDTH = 520
-const MAX_DRAWER_WIDTH = 960
-const DEFAULT_DRAWER_WIDTH = 760
-const DRAWER_STORAGE_KEY = 'assistant-drawer-width'
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value))
-}
-
-function readStoredWidth(
-  key: string,
-  defaultValue: number,
-  min: number,
-  max: number,
-): number {
-  if (typeof window === 'undefined') return defaultValue
-  const raw = window.localStorage.getItem(key)
-  const value = raw ? Number.parseInt(raw, 10) : NaN
-  return Number.isFinite(value) ? clamp(value, min, max) : defaultValue
-}
-
-function TodoListBar({ todos }: { todos: TodoStep[] }) {
-  return (
-    <div className="border-b border-gray-800 px-4 py-2">
-      <div className="mb-1 text-xs text-gray-500">执行计划</div>
-      <ol className="space-y-1">
-        {todos.map((todo, index) => (
-          <li
-            key={index}
-            className={`flex items-start gap-2 text-xs ${
-              todo.status === 'in_progress'
-                ? 'text-blue-300'
-                : todo.status === 'completed'
-                  ? 'text-gray-500'
-                  : 'text-gray-400'
-            }`}
-          >
-            <span
-              className={`w-4 shrink-0 text-center ${
-                todo.status === 'in_progress' ? 'animate-pulse' : ''
-              }`}
-            >
-              {TODO_MARKERS[todo.status]}
-            </span>
-            <span className={todo.status === 'completed' ? 'line-through' : ''}>
-              {todo.content}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </div>
-  )
-}
+import { TodoListBar } from './ui/TodoListBar'
+import {
+  clamp,
+  DEFAULT_DRAWER_WIDTH,
+  DEFAULT_SIDEBAR_WIDTH,
+  DRAWER_STORAGE_KEY,
+  MAX_DRAWER_WIDTH,
+  MAX_SIDEBAR_WIDTH,
+  MIN_DRAWER_WIDTH,
+  MIN_SIDEBAR_WIDTH,
+  readStoredWidth,
+  SIDEBAR_STORAGE_KEY,
+} from './utils'
 
 export function AssistantPanel() {
   const open = useAssistantStore((state) => state.open)

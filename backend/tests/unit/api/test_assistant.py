@@ -90,7 +90,7 @@ class TestThreadEndpoints:
                 AsyncMock(return_value=_session_row()),
             ),
             patch(
-                "app.api.v1.assistant.get_assistant_agent",
+                "app.api.v1.assistant.runs.get_assistant_agent",
                 AsyncMock(return_value=agent),
             ),
         ):
@@ -127,7 +127,7 @@ class TestRunStream:
         assert response.status_code == 422
 
     def test_page_context_prefixes_user_message(self) -> None:
-        from app.api.v1.assistant import _with_page_context
+        from app.api.v1.assistant.page_context import _with_page_context
 
         result = _with_page_context(
             "这只股票最近走势如何？",
@@ -137,13 +137,13 @@ class TestRunStream:
         assert result.endswith("这只股票最近走势如何？")
 
     def test_page_context_absent_keeps_content(self) -> None:
-        from app.api.v1.assistant import _with_page_context
+        from app.api.v1.assistant.page_context import _with_page_context
 
         assert _with_page_context("你好", None) == "你好"
         assert _with_page_context("你好", {}) == "你好"
 
     def test_page_context_block_list_prepends_text_block(self) -> None:
-        from app.api.v1.assistant import _with_page_context
+        from app.api.v1.assistant.page_context import _with_page_context
 
         blocks = [{"type": "text", "text": "问题"}]
         result = _with_page_context(blocks, {"page": "资金流向"})
@@ -197,11 +197,11 @@ class TestRunStream:
                 AsyncMock(return_value=_session_row()),
             ),
             patch(
-                "app.api.v1.assistant.get_assistant_agent",
+                "app.api.v1.assistant.runs.get_assistant_agent",
                 AsyncMock(return_value=agent),
             ),
             patch(
-                "app.api.v1.assistant._touch_session",
+                "app.api.v1.assistant.runs._touch_session",
                 AsyncMock(return_value=None),
             ),
         ):
@@ -224,7 +224,7 @@ class TestSkillsEndpoint:
         settings.skills_dir = MagicMock()
         settings.skills_dir.exists.return_value = False
         with patch(
-            "app.api.v1.assistant.get_settings", return_value=settings
+            "app.services.assistant_service.get_settings", return_value=settings
         ):
             response = client.get("/api/v1/assistant/skills")
         assert response.status_code == 200

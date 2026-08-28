@@ -102,7 +102,7 @@ async def get_assistant_agent(
     from deepagents import create_deep_agent
 
     if tools is None:
-        from app.agent.runtime.assistant_tools import build_assistant_tools
+        from app.agent.tools import build_assistant_tools
 
         tools = build_assistant_tools()
 

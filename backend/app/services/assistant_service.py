@@ -11,7 +11,9 @@ import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.models.assistant_session import AssistantSession
+from app.schemas.assistant import SkillSummary
 
 logger = structlog.get_logger(__name__)
 
@@ -101,6 +103,16 @@ class AssistantService:
         await self._session.commit()
         logger.info("assistant_session_deleted", thread_id=thread_id)
         return True
+
+    def list_skills(self) -> list[SkillSummary]:
+        """扫描 skills/ 目录并解析 SKILL.md 摘要。"""
+        skills_dir = get_settings().skills_dir
+        if not skills_dir.exists():
+            return []
+        return [
+            SkillSummary(**parse_skill_file(path))
+            for path in sorted(skills_dir.glob("*/SKILL.md"))
+        ]
 
 
 def parse_skill_file(path: Path) -> dict[str, Any]:
