@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import get_password_hash, verify_password
 from app.models.user import User
-from app.repositories.user_repository import UserRepository
+from app.repositories.user.user_repository import UserRepository
 from app.schemas.auth import RegisterRequest
 from app.schemas.user import MovingAverageConfig, UserSettings, UserSettingsUpdate
 

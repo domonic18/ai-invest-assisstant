@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.kline import KlineDaily, KlineMinute
-from app.repositories.kline_repository import fetch_daily_bars, fetch_minute_bars
+from app.repositories.market.kline_repository import fetch_daily_bars, fetch_minute_bars
 
 _CN_TZ = ZoneInfo("Asia/Shanghai")
 

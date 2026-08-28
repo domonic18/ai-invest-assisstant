@@ -10,7 +10,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import UnprocessableEntityError
-from app.repositories import user_market_review_repository
+from app.repositories.review import user_market_review_repository
 from app.schemas.market import MarketReviewResponse
 from app.services import market_stats_service
 from app.services.review.market_review_formatter import (

@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.models.watchlist import UserWatchlist
-from app.repositories.watchlist_repository import WatchlistRepository
+from app.repositories.user.watchlist_repository import WatchlistRepository
 from app.schemas.user import WatchlistItemCreate
 
 

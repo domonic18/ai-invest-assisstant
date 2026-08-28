@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.market_breadth import MarketBreadth
-from app.repositories.kline_repository import fetch_max_daily_date, has_daily_bar
+from app.repositories.market.kline_repository import fetch_max_daily_date, has_daily_bar
 
 _INDEX_BENCHMARK = "sh000001"
 

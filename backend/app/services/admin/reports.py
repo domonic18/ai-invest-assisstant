@@ -6,8 +6,8 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.file_metadata import FileMetadata
-from app.repositories.file_metadata_repository import FileMetadataRepository
-from app.repositories.stock_repository import StockRepository
+from app.repositories.market.stock_repository import StockRepository
+from app.repositories.reports.file_metadata_repository import FileMetadataRepository
 from app.schemas.file_metadata import FileMetadataCreate, FileMetadataUpdate
 
 

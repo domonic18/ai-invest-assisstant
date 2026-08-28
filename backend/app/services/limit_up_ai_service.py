@@ -19,7 +19,7 @@ from app.agent.core.prompt_renderer import PromptRenderer
 from app.agent.runtime import run_structured_agent_with_metrics
 from app.core.config import get_settings
 from app.models.news_announcement import NewsAnnouncement
-from app.repositories import ai_analysis_repository
+from app.repositories.review import ai_analysis_repository
 
 SKILL_ID = "limit-up-review"
 

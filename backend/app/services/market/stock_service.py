@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.cache import get_redis
 from app.models.capital_fund_flow_sector import SectorFundFlow
 from app.models.stock import StockBasic
-from app.repositories.kline_repository import fetch_daily_bars
-from app.repositories.stock_concept_repository import StockConceptRepository
+from app.repositories.market.kline_repository import fetch_daily_bars
+from app.repositories.market.stock_concept_repository import StockConceptRepository
 
 
 def _to_float(value: Any) -> float | None:

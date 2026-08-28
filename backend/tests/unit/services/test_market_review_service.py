@@ -118,11 +118,11 @@ class TestGetMarketReview:
     async def test_returns_none_when_no_cached_row(self) -> None:
         with (
             patch(
-                "app.repositories.ai_analysis_repository.load_latest_success",
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.repositories.user_market_review_repository.find",
+                "app.repositories.review.user_market_review_repository.find",
                 AsyncMock(return_value=None),
             ),
             _patch_stats(),
@@ -141,11 +141,11 @@ class TestGetMarketReview:
 
         with (
             patch(
-                "app.repositories.ai_analysis_repository.load_latest_success",
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
                 AsyncMock(return_value=_base_row(_structured())),
             ),
             patch(
-                "app.repositories.user_market_review_repository.find",
+                "app.repositories.review.user_market_review_repository.find",
                 AsyncMock(return_value=user_row),
             ),
             _patch_stats(),
@@ -175,11 +175,11 @@ class TestGetMarketReview:
     async def test_falls_back_to_base_when_no_overlay(self) -> None:
         with (
             patch(
-                "app.repositories.ai_analysis_repository.load_latest_success",
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
                 AsyncMock(return_value=_base_row(_structured())),
             ),
             patch(
-                "app.repositories.user_market_review_repository.find",
+                "app.repositories.review.user_market_review_repository.find",
                 AsyncMock(return_value=None),
             ),
             _patch_stats(),
@@ -202,7 +202,7 @@ class TestUpdateMarketReview:
     async def test_raises_when_no_existing_base(self) -> None:
         with (
             patch(
-                "app.repositories.ai_analysis_repository.load_latest_success",
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
                 AsyncMock(return_value=None),
             ),
             _patch_trading_day(),
@@ -218,7 +218,7 @@ class TestUpdateMarketReview:
         upsert_mock = AsyncMock()
         with (
             patch(
-                "app.repositories.user_market_review_repository.upsert_sections",
+                "app.repositories.review.user_market_review_repository.upsert_sections",
                 upsert_mock,
             ),
             _patch_trading_day(),
@@ -236,15 +236,15 @@ class TestUpdateMarketReview:
         upsert_mock = AsyncMock()
         with (
             patch(
-                "app.repositories.ai_analysis_repository.load_latest_success",
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
                 AsyncMock(return_value=_base_row(_structured(), row_id=42)),
             ),
             patch(
-                "app.repositories.user_market_review_repository.find",
+                "app.repositories.review.user_market_review_repository.find",
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.repositories.user_market_review_repository.upsert_sections",
+                "app.repositories.review.user_market_review_repository.upsert_sections",
                 upsert_mock,
             ),
             _patch_trading_day(),
@@ -275,15 +275,15 @@ class TestUpdateMarketReview:
         upsert_mock = AsyncMock()
         with (
             patch(
-                "app.repositories.ai_analysis_repository.load_latest_success",
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
                 AsyncMock(return_value=_base_row(_structured(), row_id=42)),
             ),
             patch(
-                "app.repositories.user_market_review_repository.find",
+                "app.repositories.review.user_market_review_repository.find",
                 AsyncMock(return_value=_user_row({"risk_advice": "用户风险"})),
             ),
             patch(
-                "app.repositories.user_market_review_repository.upsert_sections",
+                "app.repositories.review.user_market_review_repository.upsert_sections",
                 upsert_mock,
             ),
             _patch_trading_day(),
@@ -306,7 +306,7 @@ class TestGenerateMarketReview:
     async def test_returns_cached_base_without_lock_when_exists(self) -> None:
         with (
             patch(
-                "app.repositories.ai_analysis_repository.load_latest_success",
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
                 AsyncMock(return_value=_base_row(_structured())),
             ),
             _patch_stats(),
@@ -325,7 +325,7 @@ class TestGenerateMarketReview:
     async def test_raises_when_lock_held_and_no_cache(self) -> None:
         with (
             patch(
-                "app.repositories.ai_analysis_repository.load_latest_success",
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
                 AsyncMock(return_value=None),
             ),
             _patch_stats(),

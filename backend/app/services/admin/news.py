@@ -3,7 +3,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.news_announcement import NewsAnnouncement
-from app.repositories.news_announcement_repository import NewsAnnouncementRepository
+from app.repositories.reports.news_announcement_repository import NewsAnnouncementRepository
 from app.schemas.news_announcement import (
     NewsAnnouncementCreate,
     NewsAnnouncementResponse,

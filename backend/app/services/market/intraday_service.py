@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repositories.kline_repository import (
+from app.repositories.market.kline_repository import (
     fetch_daily_bars,
     fetch_minute_bars,
     latest_minute_day,

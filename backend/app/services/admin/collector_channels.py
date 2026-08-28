@@ -9,10 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.collector_channel_config import CollectorChannelConfig
 from app.models.collector_channel_data_type import CollectorChannelDataType
-from app.repositories.collector_channel_config_repository import (
+from app.repositories.admin.collector_channel_config_repository import (
     CollectorChannelConfigRepository,
 )
-from app.repositories.collector_channel_data_type_repository import (
+from app.repositories.admin.collector_channel_data_type_repository import (
     CollectorChannelDataTypeRepository,
 )
 from app.schemas.collector_channel_config import (

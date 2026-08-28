@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.skills import industry_chain_analysis
 from app.core.exceptions import InternalError
 from app.models.industry_chain import ChainAnalysisVersion, ChainNode
-from app.repositories import ai_analysis_repository
-from app.repositories import industry_chain_repository as repository
+from app.repositories.chain import industry_chain_repository as repository
+from app.repositories.review import ai_analysis_repository
 from app.schemas.chain import (
     ChainAnalysisResult,
     ChainAnalyzeResponse,

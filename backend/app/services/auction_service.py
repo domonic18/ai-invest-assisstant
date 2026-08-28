@@ -5,7 +5,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import INDEX_CODES
-from app.repositories import index_auction_repository
+from app.repositories.market import index_auction_repository
 from app.schemas.stock import IndexAuctionSeries, IndexAuctionTrendResponse
 
 # 图例展示顺序：上证指数 / 科创50 / 创业板指数

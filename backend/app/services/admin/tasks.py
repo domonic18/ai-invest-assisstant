@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.collector_task import CollectorTask
-from app.repositories.collector_task_repository import CollectorTaskRepository
+from app.repositories.admin.collector_task_repository import CollectorTaskRepository
 from app.schemas.collector_task import CollectorTaskCreate, CollectorTaskUpdate
 
 

@@ -9,9 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import NotFoundError
 from app.models.collector_log import CollectorLog
 from app.models.file_metadata import FileMetadata
-from app.repositories.collector_log_repository import CollectorLogRepository
-from app.repositories.file_metadata_repository import FileMetadataRepository
-from app.repositories.stock_repository import StockRepository
+from app.repositories.admin.collector_log_repository import CollectorLogRepository
+from app.repositories.market.stock_repository import StockRepository
+from app.repositories.reports.file_metadata_repository import FileMetadataRepository
 from app.schemas.file_metadata import FinancialReportResponse
 from app.services.reports.financial_report_summarizer import FinancialReportSummarizer
 from collector.runtime.dispatcher import dispatch_collector_task

@@ -34,13 +34,13 @@ def _patch_attribution_cache(output: dict | None):
     """
     if output is None:
         return patch(
-            "app.repositories.ai_analysis_repository.load_latest_success",
+            "app.repositories.review.ai_analysis_repository.load_latest_success",
             AsyncMock(return_value=None),
         )
     row = MagicMock()
     row.structured_output = output
     return patch(
-        "app.repositories.ai_analysis_repository.load_latest_success",
+        "app.repositories.review.ai_analysis_repository.load_latest_success",
         AsyncMock(return_value=row),
     )
 

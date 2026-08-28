@@ -2,30 +2,8 @@
 
 Repositories encapsulate SQLAlchemy query logic. They do not manage
 transactions; services own the transaction boundary.
+
+按业务子域分组，与 ``app/services/`` 的域划分保持一致：
+market / chain / reports / review / admin / user；
+通用 CRUD 基类见 ``base``。
 """
-
-from app.repositories.base import BaseRepository
-from app.repositories.collector_channel_config_repository import (
-    CollectorChannelConfigRepository,
-)
-from app.repositories.collector_log_repository import CollectorLogRepository
-from app.repositories.collector_task_repository import CollectorTaskRepository
-from app.repositories.file_metadata_repository import FileMetadataRepository
-from app.repositories.llm_config_repository import LLMConfigRepository
-from app.repositories.news_announcement_repository import NewsAnnouncementRepository
-from app.repositories.stock_repository import StockRepository
-from app.repositories.user_repository import UserRepository
-from app.repositories.watchlist_repository import WatchlistRepository
-
-__all__ = [
-    "BaseRepository",
-    "CollectorChannelConfigRepository",
-    "CollectorLogRepository",
-    "CollectorTaskRepository",
-    "FileMetadataRepository",
-    "LLMConfigRepository",
-    "NewsAnnouncementRepository",
-    "StockRepository",
-    "UserRepository",
-    "WatchlistRepository",
-]

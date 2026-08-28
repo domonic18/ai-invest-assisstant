@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.kline import KlineDaily
-from app.repositories.kline_repository import (
+from app.repositories.market.kline_repository import (
     PERIOD_BUCKET,
     fetch_aggregated_bars,
     fetch_daily_bars,

@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.stock import StockBasic
-from app.repositories.stock_repository import StockRepository
+from app.repositories.market.stock_repository import StockRepository
 from app.schemas.stock import AdminStockCreate, AdminStockUpdate
 
 

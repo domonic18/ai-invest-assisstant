@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import InternalError, NotFoundError
 from app.models.llm_config import LLMConfig
-from app.repositories.llm_config_repository import LLMConfigRepository
+from app.repositories.admin.llm_config_repository import LLMConfigRepository
 from app.schemas.llm_config import (
     LLMConfigCreate,
     LLMConfigResponse,

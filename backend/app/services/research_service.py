@@ -14,7 +14,7 @@ from app.core.config import get_settings
 from app.core.exceptions import ConflictError, NotFoundError, UnprocessableEntityError
 from app.core.locking import redis_lock
 from app.models.news_announcement import NewsAnnouncement
-from app.repositories.news_announcement_repository import NewsAnnouncementRepository
+from app.repositories.reports.news_announcement_repository import NewsAnnouncementRepository
 from app.schemas.news_announcement import (
     ResearchReportDetailResponse,
     ResearchReportResponse,

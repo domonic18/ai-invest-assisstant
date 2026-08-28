@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.capital_fund_flow_sector import SectorFundFlow
 from app.models.pool_limit_up_stock import LimitUpPool
-from app.repositories.kline_repository import fetch_minute_bars_multi
+from app.repositories.market.kline_repository import fetch_minute_bars_multi
 from app.schemas.market import (
     LimitUpGroup,
     LimitUpIntradayResponse,

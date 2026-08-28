@@ -72,7 +72,7 @@ class TestGetCachedAttribution:
     @pytest.mark.asyncio
     async def test_returns_none_when_no_cached_row(self) -> None:
         with patch(
-            "app.repositories.ai_analysis_repository.load_latest_success",
+            "app.repositories.review.ai_analysis_repository.load_latest_success",
             AsyncMock(return_value=None),
         ):
             result = await limit_up_ai_service.get_cached_attribution(
@@ -84,7 +84,7 @@ class TestGetCachedAttribution:
     @pytest.mark.asyncio
     async def test_returns_parsed_content(self) -> None:
         with patch(
-            "app.repositories.ai_analysis_repository.load_latest_success",
+            "app.repositories.review.ai_analysis_repository.load_latest_success",
             AsyncMock(return_value=_cached_row(_content_dict())),
         ):
             result = await limit_up_ai_service.get_cached_attribution(
@@ -113,7 +113,7 @@ class TestGenerateAttribution:
     async def test_returns_cached_without_llm(self) -> None:
         with (
             patch(
-                "app.repositories.ai_analysis_repository.load_latest_success",
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
                 AsyncMock(return_value=_cached_row(_content_dict())),
             ),
             patch(
@@ -131,7 +131,7 @@ class TestGenerateAttribution:
     async def test_raises_when_pool_empty(self) -> None:
         with (
             patch(
-                "app.repositories.ai_analysis_repository.load_latest_success",
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
                 AsyncMock(return_value=None),
             ),
             patch(

@@ -3,7 +3,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.collector_log import CollectorLog
-from app.repositories.collector_log_repository import CollectorLogRepository
+from app.repositories.admin.collector_log_repository import CollectorLogRepository
 
 
 class CollectorLogService:

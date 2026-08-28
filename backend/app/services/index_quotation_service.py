@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import get_redis
 from app.core.constants import INDEX_CODES, KLINE_CHART_EXTRA_CODES
-from app.repositories.kline_repository import (
+from app.repositories.market.kline_repository import (
     PERIOD_BUCKET,
     fetch_aggregated_bars,
     fetch_daily_bars,

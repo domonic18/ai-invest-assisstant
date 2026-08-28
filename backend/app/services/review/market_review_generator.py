@@ -17,7 +17,7 @@ from app.agent.core.prompt_renderer import PromptRenderer
 from app.core.config import get_settings
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.locking import redis_lock
-from app.repositories import (
+from app.repositories.review import (
     ai_analysis_repository,
     user_market_review_repository,
 )
