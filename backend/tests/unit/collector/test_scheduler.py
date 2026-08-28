@@ -1,4 +1,4 @@
-"""Unit tests for collector scheduler cron parsing."""
+"""Unit tests for collector cron parsing utilities."""
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from apscheduler.triggers.cron import CronTrigger
 
-from collector.runtime.scheduler import SCHEDULER_TZ, _convert_day_of_week, _parse_cron
+from collector.core.cron import SCHEDULER_TZ, _convert_day_of_week, _parse_cron
 
 
 @pytest.mark.unit

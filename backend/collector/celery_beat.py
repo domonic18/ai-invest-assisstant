@@ -7,7 +7,6 @@ ad-hoc tasks.
 """
 
 import asyncio
-import re
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
@@ -20,17 +19,7 @@ from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
 from app.models.collector_task import CollectorTask
 from collector.celery_app import resolve_queue
-from collector.runtime.scheduler import _parse_cron
-
-_STEP_ONLY_PATTERN = re.compile(r"^(\d+)/(\d+)$")
-
-
-def _normalize_cron_field(value: str) -> str:
-    """Normalize cron fields like ``0/30`` to ``*/30`` for Celery compatibility."""
-    match = _STEP_ONLY_PATTERN.match(value)
-    if match:
-        return f"*/{match.group(2)}"
-    return value
+from collector.core.cron import _normalize_cron_field, _parse_cron
 
 
 class CollectorDatabaseScheduler(Scheduler):
