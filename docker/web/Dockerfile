@@ -1,10 +1,13 @@
 # backend-builder
 FROM python:3.11-slim-bookworm AS backend-builder
 WORKDIR /app
-COPY backend/pyproject.toml .
-RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple \
-    && pip install --no-cache-dir -e .
+ENV UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
+# 依赖层：先按 uv.lock 精确安装（--frozen 禁止重解析），源码变更不使缓存失效
+COPY backend/pyproject.toml backend/uv.lock ./
+RUN pip install --no-cache-dir uv \
+    && uv sync --frozen --no-dev --no-install-project
 COPY backend/ .
+RUN uv sync --frozen --no-dev
 
 # frontend-builder
 FROM node:20-alpine AS frontend-builder
@@ -44,8 +47,8 @@ RUN set -eux; \
 
 WORKDIR /app
 
-COPY --from=backend-builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=backend-builder /usr/local/bin /usr/local/bin
+ENV PATH="/app/.venv/bin:$PATH"
+COPY --from=backend-builder /app/.venv /app/.venv
 COPY --from=backend-builder /app /app
 COPY --from=frontend-builder /web/dist /usr/share/nginx/html
 # 助手 Skills：settings.skills_dir 在容器内解析为 /skills（/app 的上四级）
