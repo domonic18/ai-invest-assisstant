@@ -1,10 +1,11 @@
-"""每日复盘采集器契约测试（交易日跳过/生成/缓存命中）。"""
+"""每日复盘采集器契约测试（交易日跳过/生成/缓存命中/数据未就绪传播）。"""
 
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.services.review import ReviewInputDataNotReadyError
 from collector.core.base import CollectStatus
 from collector.spiders.market_daily_review import MarketDailyReviewCollector
 
@@ -98,3 +99,35 @@ class TestMarketDailyReviewCollector:
 
         assert result.status == CollectStatus.SKIPPED
         assert result.items_stored == 0
+
+    @pytest.mark.asyncio
+    async def test_not_ready_error_propagates(self) -> None:
+        """数据未就绪异常必须向上传播，由 Celery 任务重试，而非转为 FAILED 结果。"""
+        collector = MarketDailyReviewCollector({"source": "internal", "data_type": "ai_market_daily_review"})
+
+        with (
+            patch(
+                "collector.spiders.market_daily_review.is_trading_day",
+                return_value=True,
+            ),
+            patch(
+                "collector.spiders.market_daily_review.latest_trading_day",
+                return_value=_TRADE_DATE,
+            ),
+            patch(
+                "collector.spiders.market_daily_review.AsyncSessionLocal"
+            ) as mock_session_factory,
+            patch(
+                "collector.spiders.market_daily_review.market_review_service.generate_market_review",
+                AsyncMock(side_effect=ReviewInputDataNotReadyError()),
+            ),
+        ):
+            mock_session = AsyncMock()
+            mock_session_factory.return_value.__aenter__ = AsyncMock(
+                return_value=mock_session
+            )
+            mock_session_factory.return_value.__aexit__ = AsyncMock(
+                return_value=False
+            )
+            with pytest.raises(ReviewInputDataNotReadyError):
+                await collector.run()

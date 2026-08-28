@@ -4,7 +4,7 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from celery.exceptions import SoftTimeLimitExceeded
+from celery.exceptions import Retry, SoftTimeLimitExceeded
 
 from collector.celery_tasks import (
     AsyncTask,
@@ -147,6 +147,38 @@ class TestRunCollectorTask:
         task.pop_request()
 
         mock_timeout.assert_awaited_once_with(7)
+
+    @patch("collector.celery_tasks.run_task", new_callable=AsyncMock)
+    def test_not_ready_error_schedules_retry(self, mock_run_task: AsyncMock) -> None:
+        """输入数据未就绪时按 10 分钟退避重试，而非当天直接失败。"""
+        from app.services.review import ReviewInputDataNotReadyError
+
+        mock_run_task.side_effect = ReviewInputDataNotReadyError()
+
+        task = run_collector_task
+        task.push_request(id="celery-id", retries=0)
+
+        retry_kwargs: dict = {}
+
+        def _fake_retry(**kwargs: object) -> None:
+            retry_kwargs.update(kwargs)
+            raise Retry()
+
+        with (
+            patch.object(run_collector_task, "retry", side_effect=_fake_retry),
+            patch(
+                "collector.celery_tasks._update_task_schedule_state", new=AsyncMock()
+            ) as mock_update,
+        ):
+            with pytest.raises(Retry):
+                task.run({"task": "market-daily-review"})
+
+        task.pop_request()
+
+        assert retry_kwargs["countdown"] == 600
+        assert retry_kwargs["max_retries"] == 3
+        assert isinstance(retry_kwargs["exc"], ReviewInputDataNotReadyError)
+        mock_update.assert_awaited_once()
 
     @patch("collector.celery_tasks.run_task", new_callable=AsyncMock)
     def test_consecutive_runs_reuse_same_loop(self, mock_run_task: AsyncMock) -> None:
