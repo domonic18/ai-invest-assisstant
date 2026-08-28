@@ -21,7 +21,7 @@ from app.api.v1.assistant.threads import _require_thread
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.assistant import RunCancelRequest, RunStreamRequest, ThreadStateResponse
-from app.services.assistant_service import touch_session_standalone
+from app.services.assistant.assistant_service import touch_session_standalone
 
 logger = structlog.get_logger(__name__)
 

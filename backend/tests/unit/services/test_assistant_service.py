@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.models.assistant_session import AssistantSession
-from app.services.assistant_service import (
+from app.services.assistant.assistant_service import (
     AssistantService,
     parse_skill_file,
     touch_session_standalone,

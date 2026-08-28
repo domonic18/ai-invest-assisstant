@@ -12,7 +12,7 @@ from app.core.security import create_access_token
 from app.dependencies import get_db
 from app.schemas.auth import AuthResponse, RegisterRequest
 from app.schemas.user import UserResponse
-from app.services.user_service import UserService
+from app.services.user import UserService
 
 router = APIRouter()
 settings = get_settings()

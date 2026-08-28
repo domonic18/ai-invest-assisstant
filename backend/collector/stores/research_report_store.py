@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.file_metadata import FileMetadata
 from app.models.news_announcement import NewsAnnouncement
-from app.services.minio_service import MinIOService
+from app.services.common.minio_service import MinIOService
 from collector.core.base import get_engine
 
 logger = structlog.get_logger()

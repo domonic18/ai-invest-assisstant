@@ -161,7 +161,7 @@ class EastMoneyResearchReportCollector(BaseCollector):
     async def _save_items(
         self, items: list[dict[str, Any]]
     ) -> tuple[int, list[str]]:
-        from app.services.minio_service import get_minio_service
+        from app.services.common.minio_service import get_minio_service
         from collector.stores.research_report_store import ResearchReportStore
 
         store = ResearchReportStore(minio=get_minio_service())

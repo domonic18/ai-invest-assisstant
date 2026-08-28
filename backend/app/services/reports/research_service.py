@@ -93,7 +93,7 @@ class ResearchService:
         file_path = (report.extra or {}).get("file_path")
         if not file_path:
             return None
-        from app.services.minio_service import get_minio_service
+        from app.services.common.minio_service import get_minio_service
 
         return await get_minio_service().get_presigned_url(file_path)
 
@@ -133,7 +133,7 @@ class ResearchService:
 
     async def _load_pdf_bytes(self, report: NewsAnnouncement) -> bytes:
         """定位研报 PDF：优先 MinIO 已存文件，否则从来源 URL 下载并补存。"""
-        from app.services.minio_service import get_minio_service
+        from app.services.common.minio_service import get_minio_service
 
         minio = get_minio_service()
         file_path = (report.extra or {}).get("file_path")
@@ -173,7 +173,7 @@ class ResearchService:
         return file_bytes
 
     async def _extract_text(self, file_bytes: bytes) -> str:
-        from app.services.knowledge_base_service import get_knowledge_base_service
+        from app.services.common.knowledge_base_service import get_knowledge_base_service
 
         text = await get_knowledge_base_service().extract_text(file_bytes, "pdf")
         if not text:

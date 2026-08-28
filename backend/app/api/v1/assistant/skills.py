@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.assistant import SkillSummary
-from app.services.assistant_service import AssistantService
+from app.services.assistant.assistant_service import AssistantService
 
 router = APIRouter()
 

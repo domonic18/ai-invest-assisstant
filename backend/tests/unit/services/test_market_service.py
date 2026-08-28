@@ -11,7 +11,6 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.services import watchlist_quote_service
 from app.services.market import (
     index_quotation_service,
     limit_pool_service,
@@ -19,6 +18,7 @@ from app.services.market import (
     market_stats_service,
     trade_calendar_service,
 )
+from app.services.user import watchlist_quote_service
 
 
 def _scalars_result(items):

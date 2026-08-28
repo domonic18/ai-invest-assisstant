@@ -219,8 +219,8 @@ class CninfoFinancialReportCollector(BaseCollector):
     async def _save_items(
         self, items: list[dict[str, Any]]
     ) -> tuple[int, list[str]]:
-        from app.services.knowledge_base_service import get_knowledge_base_service
-        from app.services.minio_service import get_minio_service
+        from app.services.common.knowledge_base_service import get_knowledge_base_service
+        from app.services.common.minio_service import get_minio_service
         from collector.stores.financial_report_store import FinancialReportStore
 
         minio = get_minio_service()

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import UnprocessableEntityError
 from app.core.locking import redis_lock
 from app.models.file_metadata import FileMetadata
-from app.services.minio_service import get_minio_service
+from app.services.common.minio_service import get_minio_service
 
 _SUMMARY_SKILL_ID = "financial-report-summary"
 _SUMMARY_TEXT_LIMIT = 12000
@@ -103,7 +103,7 @@ class FinancialReportSummarizer:
             ) from exc
 
     async def _extract_text(self, file_bytes: bytes) -> str:
-        from app.services.knowledge_base_service import get_knowledge_base_service
+        from app.services.common.knowledge_base_service import get_knowledge_base_service
 
         text = await get_knowledge_base_service().extract_text(file_bytes, "pdf")
         if not text:

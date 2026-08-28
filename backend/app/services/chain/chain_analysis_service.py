@@ -13,7 +13,7 @@ from app.models.industry_chain import ChainNode
 from app.repositories.chain import industry_chain_repository as repository
 from app.repositories.review import ai_analysis_repository
 from app.schemas.chain import ChainAnalysisResult, ChainAnalyzeResponse
-from app.services.llm_config_service import resolve_default_llm
+from app.services.admin.llm_config_service import resolve_default_llm
 
 SKILL_ID = "industry-chain-analysis"
 

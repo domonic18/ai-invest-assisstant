@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.database import Base
 from app.models.llm_config import LLMConfig
 from app.schemas.llm_config import LLMConfigCreate, LLMConfigUpdate
-from app.services.llm_config_service import (
+from app.services.admin.llm_config_service import (
     LLMConfigNotConfiguredError,
     LLMConfigService,
     resolve_default_llm,

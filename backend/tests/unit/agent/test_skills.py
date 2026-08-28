@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from app.core.config import get_settings
-from app.services.assistant_service import parse_skill_file
+from app.services.assistant.assistant_service import parse_skill_file
 
 EXPECTED_SKILLS = {
     "chain-breakthrough",

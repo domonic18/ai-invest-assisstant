@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from langgraph.graph.state import CompiledStateGraph
 
-from app.services.llm_config_service import ResolvedLLMConfig
+from app.services.admin.llm_config_service import ResolvedLLMConfig
 
 
 def _resolved() -> ResolvedLLMConfig:

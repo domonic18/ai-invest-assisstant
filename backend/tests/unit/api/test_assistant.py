@@ -42,7 +42,7 @@ class TestThreadEndpoints:
         client, _ = assistant_client
         row = _session_row()
         with patch(
-            "app.services.assistant_service.AssistantService.create_session",
+            "app.services.assistant.assistant_service.AssistantService.create_session",
             AsyncMock(return_value=row),
         ):
             response = client.post("/api/v1/assistant/threads", json={})
@@ -55,7 +55,7 @@ class TestThreadEndpoints:
         client, _ = assistant_client
         row = _session_row("平安银行")
         with patch(
-            "app.services.assistant_service.AssistantService.list_sessions",
+            "app.services.assistant.assistant_service.AssistantService.list_sessions",
             AsyncMock(return_value=([row], 1)),
         ):
             response = client.get("/api/v1/assistant/sessions")
@@ -67,7 +67,7 @@ class TestThreadEndpoints:
     def test_state_requires_owned_thread(self, assistant_client) -> None:
         client, _ = assistant_client
         with patch(
-            "app.services.assistant_service.AssistantService.get_session",
+            "app.services.assistant.assistant_service.AssistantService.get_session",
             AsyncMock(return_value=None),
         ):
             response = client.get(
@@ -86,7 +86,7 @@ class TestThreadEndpoints:
         agent.aget_state = AsyncMock(return_value=snapshot)
         with (
             patch(
-                "app.services.assistant_service.AssistantService.get_session",
+                "app.services.assistant.assistant_service.AssistantService.get_session",
                 AsyncMock(return_value=_session_row()),
             ),
             patch(
@@ -105,7 +105,7 @@ class TestThreadEndpoints:
     def test_delete_thread_404_when_not_owned(self, assistant_client) -> None:
         client, _ = assistant_client
         with patch(
-            "app.services.assistant_service.AssistantService.delete_session",
+            "app.services.assistant.assistant_service.AssistantService.delete_session",
             AsyncMock(return_value=False),
         ):
             response = client.delete(f"/api/v1/assistant/threads/{uuid.uuid4()}")
@@ -117,7 +117,7 @@ class TestRunStream:
     def test_rejects_non_human_input_message(self, assistant_client) -> None:
         client, _ = assistant_client
         with patch(
-            "app.services.assistant_service.AssistantService.get_session",
+            "app.services.assistant.assistant_service.AssistantService.get_session",
             AsyncMock(return_value=_session_row()),
         ):
             response = client.post(
@@ -155,7 +155,7 @@ class TestRunStream:
     def test_cancel_unknown_run_404(self, assistant_client) -> None:
         client, _ = assistant_client
         with patch(
-            "app.services.assistant_service.AssistantService.get_session",
+            "app.services.assistant.assistant_service.AssistantService.get_session",
             AsyncMock(return_value=_session_row()),
         ):
             response = client.post(
@@ -193,7 +193,7 @@ class TestRunStream:
         agent.astream = _fake_astream
         with (
             patch(
-                "app.services.assistant_service.AssistantService.get_session",
+                "app.services.assistant.assistant_service.AssistantService.get_session",
                 AsyncMock(return_value=_session_row()),
             ),
             patch(
@@ -224,7 +224,7 @@ class TestSkillsEndpoint:
         settings.skills_dir = MagicMock()
         settings.skills_dir.exists.return_value = False
         with patch(
-            "app.services.assistant_service.get_settings", return_value=settings
+            "app.services.assistant.assistant_service.get_settings", return_value=settings
         ):
             response = client.get("/api/v1/assistant/skills")
         assert response.status_code == 200

@@ -23,7 +23,7 @@ from app.agent.core.prompt_loader import PromptLoader
 from app.agent.runtime.model_factory import build_langchain_model
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
-from app.services.llm_config_service import resolve_default_llm
+from app.services.admin.llm_config_service import resolve_default_llm
 
 logger = structlog.get_logger(__name__)
 

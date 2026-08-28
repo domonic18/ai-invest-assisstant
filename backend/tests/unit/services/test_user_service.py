@@ -4,7 +4,7 @@ import pytest
 
 from app.schemas.auth import RegisterRequest
 from app.schemas.user import MovingAverageConfig, UserSettings, UserSettingsUpdate
-from app.services.user_service import DEFAULT_MA_CONFIGS, UserService
+from app.services.user.user_service import DEFAULT_MA_CONFIGS, UserService
 
 
 @pytest.mark.unit

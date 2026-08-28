@@ -119,7 +119,7 @@ class FinancialReportService:
             raise NotFoundError(f"Financial report {report_id} not found")
         if not report.file_path:
             return None
-        from app.services.minio_service import get_minio_service
+        from app.services.common.minio_service import get_minio_service
 
         return await get_minio_service().get_presigned_url(report.file_path)
 

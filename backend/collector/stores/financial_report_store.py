@@ -8,8 +8,8 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.file_metadata import FileMetadata
-from app.services.knowledge_base_service import KnowledgeBaseService
-from app.services.minio_service import MinIOService
+from app.services.common.knowledge_base_service import KnowledgeBaseService
+from app.services.common.minio_service import MinIOService
 from collector.core.base import get_engine
 
 logger = structlog.get_logger()

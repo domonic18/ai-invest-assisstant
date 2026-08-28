@@ -1,6 +1,12 @@
 """Admin-facing business services."""
 
 from app.services.admin.collector_channels import CollectorChannelConfigService
+from app.services.admin.llm_config_service import (
+    LLMConfigNotConfiguredError,
+    LLMConfigService,
+    ResolvedLLMConfig,
+    resolve_default_llm,
+)
 from app.services.admin.news import AdminNewsService
 from app.services.admin.reports import AdminReportService
 from app.services.admin.stocks import AdminStockService
@@ -14,4 +20,8 @@ __all__ = [
     "AdminTaskService",
     "AdminUserService",
     "CollectorChannelConfigService",
+    "LLMConfigNotConfiguredError",
+    "LLMConfigService",
+    "ResolvedLLMConfig",
+    "resolve_default_llm",
 ]

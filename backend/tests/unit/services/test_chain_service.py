@@ -17,9 +17,9 @@ from app.schemas.chain import (
     ChainRisk,
     KeyCompanySummary,
 )
+from app.services.admin.llm_config_service import ResolvedLLMConfig
 from app.services.chain import chain_analysis_service, chain_service
 from app.services.chain.chain_service import ChainAnalysisFailedError
-from app.services.llm_config_service import ResolvedLLMConfig
 
 
 def _resolved() -> ResolvedLLMConfig:

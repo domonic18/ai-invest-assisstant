@@ -13,7 +13,7 @@ from app.schemas.assistant import (
     ThreadCreateRequest,
     ThreadResponse,
 )
-from app.services.assistant_service import AssistantService
+from app.services.assistant.assistant_service import AssistantService
 
 router = APIRouter(prefix="/threads")
 sessions_router = APIRouter()

@@ -16,8 +16,7 @@ from app.schemas.user import (
     WatchlistItemResponse,
 )
 from app.services.market import market_service
-from app.services.user_service import UserService
-from app.services.watchlist_service import WatchlistService
+from app.services.user import UserService, WatchlistService
 
 router = APIRouter()
 

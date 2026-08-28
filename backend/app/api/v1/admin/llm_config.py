@@ -12,7 +12,7 @@ from app.schemas.llm_config import (
     LLMConfigTestResponse,
     LLMConfigUpdate,
 )
-from app.services.llm_config_service import LLMConfigService
+from app.services.admin.llm_config_service import LLMConfigService
 
 router = APIRouter(
     prefix="/llm-configs",
