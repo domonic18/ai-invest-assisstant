@@ -211,8 +211,8 @@ CREATE INDEX idx_news_publish_date ON news_announcement(publish_date DESC);
 
 CREATE TABLE industry_chain_analysis_version (
     id               BIGSERIAL PRIMARY KEY,
-    industry_level_1 VARCHAR(50)  NOT NULL,
-    version_no       INT          NOT NULL,
+    industry         VARCHAR(50)  NOT NULL,
+    version_number   INT          NOT NULL,
     label            VARCHAR(100),
     status           VARCHAR(20)  NOT NULL DEFAULT 'success'
                      CONSTRAINT chk_industry_chain_analysis_version_status
@@ -223,37 +223,40 @@ CREATE TABLE industry_chain_analysis_version (
     model            VARCHAR(50),
     node_count       INT,
     company_count    INT,
-    error_msg        TEXT,
+    error_message    TEXT,
     created_by       VARCHAR(20)  NOT NULL DEFAULT 'manual',
     created_at       TIMESTAMPTZ  DEFAULT NOW(),
+    user_id          BIGINT       NOT NULL DEFAULT 0,
 
-    CONSTRAINT uq_industry_chain_analysis_version_industry_version
-        UNIQUE (industry_level_1, version_no)
+    CONSTRAINT uq_industry_chain_analysis_version_user_industry_version_number
+        UNIQUE (user_id, industry, version_number)
 );
 
 CREATE INDEX idx_industry_chain_analysis_version_industry
-    ON industry_chain_analysis_version(industry_level_1, created_at DESC);
+    ON industry_chain_analysis_version(industry, created_at DESC);
+CREATE INDEX idx_industry_chain_analysis_version_user_industry
+    ON industry_chain_analysis_version(user_id, industry, created_at DESC);
 
 CREATE TABLE industry_chain_node (
     id          BIGSERIAL PRIMARY KEY,
     node_name   VARCHAR(100) NOT NULL,
-    industry_level_1 VARCHAR(50),
+    industry    VARCHAR(50),
     node_type   VARCHAR(20) NOT NULL CHECK (node_type IN ('upstream', 'midstream', 'downstream')),
     description TEXT,
     version_id  BIGINT REFERENCES industry_chain_analysis_version(id) ON DELETE CASCADE,
     avg_gross_margin DECIMAL(8,2),
     revenue_growth   DECIMAL(8,2),
-    rd_ratio         DECIMAL(8,2),
+    research_and_development_ratio DECIMAL(8,2),
     bargaining_power DECIMAL(5,2),
     localization_rate DECIMAL(5,2),
-    tech_barrier     VARCHAR(10),
+    technology_barrier VARCHAR(10),
     bottleneck_indicators TEXT[],
     recent_breakthroughs  TEXT[],
     created_at  TIMESTAMPTZ DEFAULT NOW(),
     updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_chain_node_industry ON industry_chain_node(industry_level_1);
+CREATE INDEX idx_chain_node_industry ON industry_chain_node(industry);
 CREATE INDEX idx_chain_node_type ON industry_chain_node(node_type);
 CREATE INDEX idx_industry_chain_node_version ON industry_chain_node(version_id);
 
@@ -262,7 +265,7 @@ CREATE TABLE industry_chain_edge (
     source_node_id  BIGINT NOT NULL REFERENCES industry_chain_node(id) ON DELETE CASCADE,
     target_node_id  BIGINT NOT NULL REFERENCES industry_chain_node(id) ON DELETE CASCADE,
     relation_type   VARCHAR(50),
-    relation_desc   TEXT,
+    relation_description   TEXT,
     strength        DECIMAL(5,2) CHECK (strength >= 0 AND strength <= 100),
     criticality     VARCHAR(10),
     data_source   VARCHAR(50) DEFAULT 'manual',
@@ -293,6 +296,24 @@ CREATE INDEX idx_company_chain_code ON industry_chain_company_mapping(stock_code
 CREATE INDEX idx_company_chain_node ON industry_chain_company_mapping(chain_node_id);
 CREATE INDEX idx_industry_chain_company_mapping_version
     ON industry_chain_company_mapping(version_id);
+
+-- 股票-概念映射表（同花顺概念成分股）
+CREATE TABLE mapping_stock_concept (
+    id            BIGSERIAL PRIMARY KEY,
+    stock_code    VARCHAR(10)  NOT NULL,
+    concept_code  VARCHAR(20)  NOT NULL,
+    concept_name  VARCHAR(100) NOT NULL,
+    source        VARCHAR(50)  DEFAULT 'ths' NOT NULL,
+    updated_at    TIMESTAMPTZ  DEFAULT NOW(),
+
+    CONSTRAINT uq_mapping_stock_concept_stock_concept
+        UNIQUE (stock_code, concept_code)
+);
+
+CREATE INDEX idx_mapping_stock_concept_stock_code
+    ON mapping_stock_concept(stock_code);
+CREATE INDEX idx_mapping_stock_concept_concept_code
+    ON mapping_stock_concept(concept_code);
 
 -- ============================================================
 -- 6. 文件元数据域
@@ -424,10 +445,12 @@ CREATE TABLE collector_task (
     last_status     VARCHAR(20)  DEFAULT 'pending' CHECK (last_status IN ('pending', 'running', 'success', 'failed')),
     last_error      TEXT,
     created_at      TIMESTAMPTZ  DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ  DEFAULT NOW()
+    updated_at      TIMESTAMPTZ  DEFAULT NOW(),
+    queue           VARCHAR(20)               -- 任务路由队列覆盖（空则按 task_type 解析）
 );
 
 CREATE INDEX idx_collector_task_active ON collector_task(is_active);
+CREATE INDEX idx_collector_task_active_schedule ON collector_task(is_active, schedule) WHERE is_active = TRUE;
 
 CREATE TABLE collector_log (
     id          BIGSERIAL PRIMARY KEY,
@@ -435,15 +458,36 @@ CREATE TABLE collector_log (
     task_name   VARCHAR(100),
     source      VARCHAR(50),
     status      VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'running', 'success', 'partial', 'failed', 'skipped')),
+    celery_task_id VARCHAR(64),
     started_at  TIMESTAMPTZ DEFAULT NOW(),
     finished_at TIMESTAMPTZ,
     records_count INT DEFAULT 0,
     error_msg   TEXT,
-    metadata    JSONB
+    metadata    JSONB,
+
+    CONSTRAINT uq_collector_log_celery_task_id UNIQUE (celery_task_id)
 );
 
 CREATE INDEX idx_collector_log_task ON collector_log(task_id, started_at DESC);
 CREATE INDEX idx_collector_log_started ON collector_log(started_at DESC);
+CREATE INDEX idx_collector_log_celery_task_id ON collector_log(celery_task_id);
+CREATE INDEX idx_collector_log_status_started_at ON collector_log(status, started_at DESC);
+CREATE INDEX idx_collector_log_task_name ON collector_log(task_name);
+
+CREATE TABLE collector_dead_letter (
+    id            SERIAL PRIMARY KEY,
+    task_name     VARCHAR(100) NOT NULL,
+    source        VARCHAR(50),
+    payload       JSONB NOT NULL,
+    celery_task_id VARCHAR(64),
+    collector_log_id INT,
+    error_msg     TEXT,
+    retry_count   INT NOT NULL DEFAULT 0,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_collector_dead_letter_task_name ON collector_dead_letter(task_name);
+CREATE INDEX idx_collector_dead_letter_created_at ON collector_dead_letter(created_at DESC);
 
 -- ============================================================
 -- 10. LLM 配置域（后台管理）

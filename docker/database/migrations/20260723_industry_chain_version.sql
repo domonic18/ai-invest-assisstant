@@ -6,8 +6,8 @@
 
 CREATE TABLE IF NOT EXISTS industry_chain_analysis_version (
     id               BIGSERIAL PRIMARY KEY,
-    industry_level_1 VARCHAR(50)  NOT NULL,
-    version_no       INT          NOT NULL,
+    industry         VARCHAR(50)  NOT NULL,
+    version_number   INT          NOT NULL,
     label            VARCHAR(100),
     status           VARCHAR(20)  NOT NULL DEFAULT 'success'
                      CONSTRAINT chk_industry_chain_analysis_version_status
@@ -17,26 +17,26 @@ CREATE TABLE IF NOT EXISTS industry_chain_analysis_version (
     model            VARCHAR(50),
     node_count       INT,
     company_count    INT,
-    error_msg        TEXT,
+    error_message    TEXT,
     created_by       VARCHAR(20)  NOT NULL DEFAULT 'manual',
     created_at       TIMESTAMPTZ  DEFAULT NOW(),
 
     CONSTRAINT uq_industry_chain_analysis_version_industry_version
-        UNIQUE (industry_level_1, version_no)
+        UNIQUE (industry, version_number)
 );
 
 CREATE INDEX IF NOT EXISTS idx_industry_chain_analysis_version_industry
-    ON industry_chain_analysis_version(industry_level_1, created_at DESC);
+    ON industry_chain_analysis_version(industry, created_at DESC);
 
 ALTER TABLE industry_chain_node
     ADD COLUMN IF NOT EXISTS version_id BIGINT
         REFERENCES industry_chain_analysis_version(id) ON DELETE CASCADE,
     ADD COLUMN IF NOT EXISTS avg_gross_margin DECIMAL(8,2),
     ADD COLUMN IF NOT EXISTS revenue_growth   DECIMAL(8,2),
-    ADD COLUMN IF NOT EXISTS rd_ratio         DECIMAL(8,2),
+    ADD COLUMN IF NOT EXISTS research_and_development_ratio DECIMAL(8,2),
     ADD COLUMN IF NOT EXISTS bargaining_power DECIMAL(5,2),
     ADD COLUMN IF NOT EXISTS localization_rate DECIMAL(5,2),
-    ADD COLUMN IF NOT EXISTS tech_barrier     VARCHAR(10),
+    ADD COLUMN IF NOT EXISTS technology_barrier VARCHAR(10),
     ADD COLUMN IF NOT EXISTS bottleneck_indicators TEXT[],
     ADD COLUMN IF NOT EXISTS recent_breakthroughs  TEXT[],
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
@@ -47,7 +47,8 @@ CREATE INDEX IF NOT EXISTS idx_industry_chain_node_version
 ALTER TABLE industry_chain_edge
     ADD COLUMN IF NOT EXISTS version_id BIGINT
         REFERENCES industry_chain_analysis_version(id) ON DELETE CASCADE,
-    ADD COLUMN IF NOT EXISTS criticality VARCHAR(10);
+    ADD COLUMN IF NOT EXISTS criticality VARCHAR(10),
+    ADD COLUMN IF NOT EXISTS relation_description TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_industry_chain_edge_version
     ON industry_chain_edge(version_id);
