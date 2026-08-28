@@ -13,6 +13,7 @@ services:
     env_file:
       - .env
     environment:
+      TZ: Asia/Shanghai
       DEBUG: ${DEBUG}
     depends_on:
       postgres:
@@ -37,6 +38,7 @@ services:
     env_file:
       - .env
     environment:
+      TZ: Asia/Shanghai
       COLLECTOR_MODE: beat
     depends_on:
       postgres:
@@ -55,6 +57,7 @@ services:
     env_file:
       - .env
     environment:
+      TZ: Asia/Shanghai
       COLLECTOR_MODE: worker
       COLLECTOR_QUEUE: ${CELERY_REALTIME_QUEUE}
       COLLECTOR_CONCURRENCY: ${CELERY_REALTIME_CONCURRENCY}
@@ -87,6 +90,7 @@ services:
     env_file:
       - .env
     environment:
+      TZ: Asia/Shanghai
       COLLECTOR_MODE: worker
       COLLECTOR_QUEUE: ${CELERY_BATCH_QUEUE}
       COLLECTOR_CONCURRENCY: ${CELERY_BATCH_CONCURRENCY}
@@ -119,6 +123,7 @@ services:
     env_file:
       - .env
     environment:
+      TZ: Asia/Shanghai
       COLLECTOR_MODE: worker
       COLLECTOR_QUEUE: ${CELERY_HEAVY_QUEUE}
       COLLECTOR_CONCURRENCY: ${CELERY_HEAVY_CONCURRENCY}
