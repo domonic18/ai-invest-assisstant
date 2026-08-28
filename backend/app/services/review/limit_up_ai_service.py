@@ -19,6 +19,7 @@ from app.agent.core.prompt_renderer import PromptRenderer
 from app.core.config import get_settings
 from app.models.news_announcement import NewsAnnouncement
 from app.repositories.review import ai_analysis_repository
+from app.services.common.formatters import format_amount_yi
 
 SKILL_ID = "limit-up-review"
 
@@ -111,12 +112,6 @@ async def _persist(
     await session.commit()
 
 
-def _format_amount(amount: float | None) -> str:
-    if amount is None:
-        return "未知"
-    return f"{amount / 1e8:.1f} 亿元"
-
-
 async def _fetch_news_context(session: AsyncSession, trade_date: date) -> str:
     stmt = (
         select(NewsAnnouncement.title, NewsAnnouncement.summary)
@@ -191,7 +186,7 @@ async def generate_attribution(
     )
     sector_context = "；".join(
         f"{item.sector_name}（{item.change_pct:+.2f}%，涨停 {item.limit_up_count} 家，"
-        f"主力净流入 {_format_amount(item.main_net_inflow)}）"
+        f"主力净流入 {format_amount_yi(item.main_net_inflow)}）"
         for item in sectors.leading
         if item.change_pct is not None
     ) or "无数据"

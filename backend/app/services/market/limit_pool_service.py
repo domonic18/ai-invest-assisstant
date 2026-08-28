@@ -38,8 +38,12 @@ def _seal_type(first_seal_time: str | None, broken_limit_count: int | None) -> s
     return "一字板" if not broken_limit_count else "T字板"
 
 
-def _normalize_industry(name: str) -> str:
-    """东财二级行业名去级次后缀（"白酒Ⅱ"→"白酒"），用于匹配板块资金流行业名。"""
+def _strip_sector_level_suffix(name: str) -> str:
+    """东财二级行业名去级次后缀（"白酒Ⅱ"→"白酒"），用于匹配板块资金流行业名。
+
+    与 common.industry.normalize_industry 口径不同：这里只去东财级次 Ⅱ/Ⅲ，
+    不去"产业链/行业/板块"业务后缀。
+    """
     for suffix in _INDUSTRY_SUFFIXES:
         if name.endswith(suffix):
             return name[: -len(suffix)]
@@ -56,7 +60,7 @@ def _build_limit_up_groups(
 ) -> list[LimitUpGroup]:
     """按行业分组涨停个股，组行情匹配板块资金流（精确→归一化→互相包含）。"""
     stats = {
-        _normalize_industry(row.sector_name): (
+        _strip_sector_level_suffix(row.sector_name): (
             float(row.change_pct) if row.change_pct is not None else None,
             float(row.main_net_inflow)
             if row.main_net_inflow is not None
@@ -66,7 +70,7 @@ def _build_limit_up_groups(
     }
 
     def _sector_stats(industry: str) -> tuple[float | None, float | None]:
-        normalized = _normalize_industry(industry)
+        normalized = _strip_sector_level_suffix(industry)
         if normalized in stats:
             return stats[normalized]
         for name, value in stats.items():

@@ -7,17 +7,9 @@ from langchain_core.tools import InjectedToolArg, tool
 
 from app.agent.tools import db_tools
 from app.core.database import AsyncSessionLocal
+from app.services.common.industry import normalize_industry
 
 INDUSTRY_COMPANIES_MAX_LIMIT = 200
-
-
-def _normalize_industry(industry: str) -> str:
-    """规范化行业名称，去除常见后缀，保证前后端一致匹配。"""
-    name = industry.strip()
-    for suffix in ("产业链", "行业", "板块"):
-        if name.endswith(suffix):
-            name = name[: -len(suffix)]
-    return name.strip()
 
 
 @tool
@@ -51,7 +43,7 @@ async def persist_chain_analysis(
     from app.schemas.chain import ChainAnalysisResult
     from app.services.chain import chain_service
 
-    normalized = _normalize_industry(industry)
+    normalized = normalize_industry(industry)
     user_id = int(config.get("configurable", {}).get("user_id", 0))
     async with AsyncSessionLocal() as session:
         parsed = ChainAnalysisResult.model_validate(result)

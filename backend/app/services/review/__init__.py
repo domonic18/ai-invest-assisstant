@@ -3,7 +3,6 @@
 from app.services.review.market_review_formatter import (
     BaseReview,
     build_response,
-    format_amount,
 )
 from app.services.review.market_review_generator import (
     MarketReviewContent,
@@ -30,7 +29,6 @@ __all__ = [
     "ReviewNotFoundError",
     "UnknownSectionError",
     "build_response",
-    "format_amount",
     "generate_market_review",
     "get_market_review",
     "input_hash",

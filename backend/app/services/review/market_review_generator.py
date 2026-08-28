@@ -22,10 +22,10 @@ from app.repositories.review import (
     user_market_review_repository,
 )
 from app.schemas.market import MarketReviewResponse
+from app.services.common.formatters import format_amount
 from app.services.review.market_review_formatter import (
     BaseReview,
     build_response,
-    format_amount,
 )
 
 logger = structlog.get_logger(__name__)

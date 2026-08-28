@@ -40,11 +40,3 @@ def build_response(
         cached=cached,
         edited=edited,
     )
-
-
-def format_amount(amount: float | None) -> str:
-    if amount is None:
-        return "未知"
-    if amount >= 1e12:
-        return f"{amount / 1e12:.2f} 万亿元"
-    return f"{amount / 1e8:.0f} 亿元"
