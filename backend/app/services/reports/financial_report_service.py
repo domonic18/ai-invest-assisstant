@@ -14,7 +14,6 @@ from app.repositories.market.stock_repository import StockRepository
 from app.repositories.reports.file_metadata_repository import FileMetadataRepository
 from app.schemas.file_metadata import FinancialReportResponse
 from app.services.reports.financial_report_summarizer import FinancialReportSummarizer
-from collector.runtime.dispatcher import dispatch_collector_task
 
 logger = structlog.get_logger(__name__)
 
@@ -101,6 +100,10 @@ class FinancialReportService:
             params["start_date"] = start_date.isoformat()
         if end_date:
             params["end_date"] = end_date.isoformat()
+        # 延迟导入：collector.celery_app → registry → channels → app.services 聚合包
+        # 会回到本模块，顶层导入构成 services ↔ collector 循环
+        from collector.runtime.dispatcher import dispatch_collector_task
+
         return await dispatch_collector_task(
             session=self.session, task_name="financial-report", params=params
         )

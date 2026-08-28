@@ -187,7 +187,7 @@ class TestTriggerCollect:
         log.status = "pending"
 
         with patch(
-            "app.services.reports.financial_report_service.dispatch_collector_task",
+            "collector.runtime.dispatcher.dispatch_collector_task",
             new=AsyncMock(return_value=log),
         ) as mock_dispatch:
             result = await financial_report_service.trigger_collect(
