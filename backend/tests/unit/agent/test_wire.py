@@ -56,7 +56,7 @@ class TestSerializeMessage:
 @pytest.mark.unit
 class TestExtractEventMarker:
     def test_extracts_from_dict(self) -> None:
-        from app.api.v1.assistant import _extract_event_marker
+        from app.api.v1.assistant.runs import _extract_event_marker
 
         marker = _extract_event_marker(
             {"result": "ok", "__event__": {"type": "test.event"}}
@@ -64,19 +64,19 @@ class TestExtractEventMarker:
         assert marker == {"type": "test.event"}
 
     def test_extracts_from_json_string(self) -> None:
-        from app.api.v1.assistant import _extract_event_marker
+        from app.api.v1.assistant.runs import _extract_event_marker
 
         marker = _extract_event_marker('{"__event__": {"type": "test.event"}}')
         assert marker == {"type": "test.event"}
 
     def test_extracts_from_python_repr_string(self) -> None:
-        from app.api.v1.assistant import _extract_event_marker
+        from app.api.v1.assistant.runs import _extract_event_marker
 
         marker = _extract_event_marker("{'__event__': {'type': 'test.event'}}")
         assert marker == {"type": "test.event"}
 
     def test_returns_none_for_plain_string(self) -> None:
-        from app.api.v1.assistant import _extract_event_marker
+        from app.api.v1.assistant.runs import _extract_event_marker
 
         assert _extract_event_marker("plain result") is None
 

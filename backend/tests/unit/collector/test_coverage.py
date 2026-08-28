@@ -1,9 +1,8 @@
-"""Verification tests that every declared channel/data-type has a runnable task.
+"""校验每个已声明渠道/数据类型都有可执行任务的覆盖测试。
 
-The architecture design assigns specific data types to each source channel.  This
-module ensures that ``DEFAULT_CHANNELS`` and ``TASK_MAP`` stay in sync: every
-data type declared in a channel must map to a task, and the task must be able to
-resolve a collector for that channel.
+架构设计为每个 source 渠道分配了特定的数据类型。本模块保证
+``DEFAULT_CHANNELS`` 与 ``TASK_MAP`` 保持同步：渠道声明的每个数据类型
+必须映射到任务，且任务必须能为该渠道解析出采集器。
 """
 
 from collections.abc import Awaitable, Callable
@@ -26,7 +25,7 @@ def _is_internal_task(task_name: str) -> bool:
 @pytest.mark.unit
 class TestCollectorCoverage:
     def test_all_channel_data_types_have_tasks(self) -> None:
-        """Every data type listed in DEFAULT_CHANNELS must exist in TASK_MAP."""
+        """DEFAULT_CHANNELS 中列出的每个数据类型必须存在于 TASK_MAP。"""
         channel_types = {
             data_type
             for channel in DEFAULT_CHANNELS
@@ -36,7 +35,7 @@ class TestCollectorCoverage:
         assert not missing, f"Channel data types without tasks: {sorted(missing)}"
 
     def test_all_task_names_are_channel_data_types(self) -> None:
-        """Every TASK_MAP key should be declared by at least one channel.
+        """每个 TASK_MAP 键应至少被一个渠道声明。
 
         内部任务（source=internal）不依赖外部采集渠道，允许不在 channel 中声明。
         """
@@ -52,7 +51,7 @@ class TestCollectorCoverage:
     @pytest.mark.parametrize("task_name", list(TASK_MAP.keys()))
     @pytest.mark.asyncio
     async def test_each_task_runs_with_mocked_channel(self, task_name: str) -> None:
-        """Each task can resolve a channel and produce a CollectResult."""
+        """每个任务都能解析出渠道并产出 CollectResult。"""
         task_coro: Callable[..., Awaitable[CollectResult]] = cast(
             Callable[..., Awaitable[CollectResult]], TASK_MAP[task_name]
         )

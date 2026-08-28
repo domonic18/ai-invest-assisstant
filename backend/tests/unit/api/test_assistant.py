@@ -42,7 +42,7 @@ class TestThreadEndpoints:
         client, _ = assistant_client
         row = _session_row()
         with patch(
-            "app.services.assistant_service.AssistantService.create_session",
+            "app.services.assistant.assistant_service.AssistantService.create_session",
             AsyncMock(return_value=row),
         ):
             response = client.post("/api/v1/assistant/threads", json={})
@@ -55,7 +55,7 @@ class TestThreadEndpoints:
         client, _ = assistant_client
         row = _session_row("平安银行")
         with patch(
-            "app.services.assistant_service.AssistantService.list_sessions",
+            "app.services.assistant.assistant_service.AssistantService.list_sessions",
             AsyncMock(return_value=([row], 1)),
         ):
             response = client.get("/api/v1/assistant/sessions")
@@ -67,7 +67,7 @@ class TestThreadEndpoints:
     def test_state_requires_owned_thread(self, assistant_client) -> None:
         client, _ = assistant_client
         with patch(
-            "app.services.assistant_service.AssistantService.get_session",
+            "app.services.assistant.assistant_service.AssistantService.get_session",
             AsyncMock(return_value=None),
         ):
             response = client.get(
@@ -86,11 +86,11 @@ class TestThreadEndpoints:
         agent.aget_state = AsyncMock(return_value=snapshot)
         with (
             patch(
-                "app.services.assistant_service.AssistantService.get_session",
+                "app.services.assistant.assistant_service.AssistantService.get_session",
                 AsyncMock(return_value=_session_row()),
             ),
             patch(
-                "app.api.v1.assistant.get_assistant_agent",
+                "app.api.v1.assistant.runs.get_assistant_agent",
                 AsyncMock(return_value=agent),
             ),
         ):
@@ -105,7 +105,7 @@ class TestThreadEndpoints:
     def test_delete_thread_404_when_not_owned(self, assistant_client) -> None:
         client, _ = assistant_client
         with patch(
-            "app.services.assistant_service.AssistantService.delete_session",
+            "app.services.assistant.assistant_service.AssistantService.delete_session",
             AsyncMock(return_value=False),
         ):
             response = client.delete(f"/api/v1/assistant/threads/{uuid.uuid4()}")
@@ -117,7 +117,7 @@ class TestRunStream:
     def test_rejects_non_human_input_message(self, assistant_client) -> None:
         client, _ = assistant_client
         with patch(
-            "app.services.assistant_service.AssistantService.get_session",
+            "app.services.assistant.assistant_service.AssistantService.get_session",
             AsyncMock(return_value=_session_row()),
         ):
             response = client.post(
@@ -127,7 +127,7 @@ class TestRunStream:
         assert response.status_code == 422
 
     def test_page_context_prefixes_user_message(self) -> None:
-        from app.api.v1.assistant import _with_page_context
+        from app.api.v1.assistant.page_context import _with_page_context
 
         result = _with_page_context(
             "这只股票最近走势如何？",
@@ -137,13 +137,13 @@ class TestRunStream:
         assert result.endswith("这只股票最近走势如何？")
 
     def test_page_context_absent_keeps_content(self) -> None:
-        from app.api.v1.assistant import _with_page_context
+        from app.api.v1.assistant.page_context import _with_page_context
 
         assert _with_page_context("你好", None) == "你好"
         assert _with_page_context("你好", {}) == "你好"
 
     def test_page_context_block_list_prepends_text_block(self) -> None:
-        from app.api.v1.assistant import _with_page_context
+        from app.api.v1.assistant.page_context import _with_page_context
 
         blocks = [{"type": "text", "text": "问题"}]
         result = _with_page_context(blocks, {"page": "资金流向"})
@@ -155,7 +155,7 @@ class TestRunStream:
     def test_cancel_unknown_run_404(self, assistant_client) -> None:
         client, _ = assistant_client
         with patch(
-            "app.services.assistant_service.AssistantService.get_session",
+            "app.services.assistant.assistant_service.AssistantService.get_session",
             AsyncMock(return_value=_session_row()),
         ):
             response = client.post(
@@ -193,15 +193,15 @@ class TestRunStream:
         agent.astream = _fake_astream
         with (
             patch(
-                "app.services.assistant_service.AssistantService.get_session",
+                "app.services.assistant.assistant_service.AssistantService.get_session",
                 AsyncMock(return_value=_session_row()),
             ),
             patch(
-                "app.api.v1.assistant.get_assistant_agent",
+                "app.api.v1.assistant.runs.get_assistant_agent",
                 AsyncMock(return_value=agent),
             ),
             patch(
-                "app.api.v1.assistant._touch_session",
+                "app.api.v1.assistant.runs.touch_session_standalone",
                 AsyncMock(return_value=None),
             ),
         ):
@@ -224,7 +224,7 @@ class TestSkillsEndpoint:
         settings.skills_dir = MagicMock()
         settings.skills_dir.exists.return_value = False
         with patch(
-            "app.api.v1.assistant.get_settings", return_value=settings
+            "app.services.assistant.assistant_service.get_settings", return_value=settings
         ):
             response = client.get("/api/v1/assistant/skills")
         assert response.status_code == 200

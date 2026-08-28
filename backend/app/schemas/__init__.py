@@ -1,4 +1,4 @@
-"""Pydantic schemas."""
+"""Pydantic schemas 模块。"""
 
 from app.schemas.auth import AuthResponse, RegisterRequest, TokenPayload
 from app.schemas.capital_fund_flow_sector import (

@@ -1,4 +1,4 @@
-"""Unit tests for AI agent database tools."""
+"""AI Agent 数据库工具契约测试。"""
 
 import inspect
 from datetime import date, datetime, timezone
@@ -154,7 +154,7 @@ class TestSearchVectorKb:
         session.execute.return_value = news_result
 
         with patch(
-            "app.services.knowledge_base_service.get_knowledge_base_service",
+            "app.services.common.knowledge_base_service.get_knowledge_base_service",
             side_effect=Exception("es down"),
         ):
             rows = await db_tools.search_vector_kb(session, "半导体 产业链")

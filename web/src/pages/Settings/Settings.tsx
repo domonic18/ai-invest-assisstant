@@ -1,51 +1,18 @@
 import { LogoutOutlined, SettingOutlined } from '@ant-design/icons'
-import {
-  Button,
-  Card,
-  ColorPicker,
-  Descriptions,
-  InputNumber,
-  Space,
-  Switch,
-  Typography,
-  message,
-} from 'antd'
+import { Button, Card, Descriptions, Space, Switch, Typography, message } from 'antd'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { MovingAverageConfig } from '@ai-invest/shared'
 
 import { useAuthStore } from '@/stores/auth'
 import { useColorScheme, useSettingsStore } from '@/stores/settings'
-import { normalizeHexColor } from '@/utils/color'
-
-const MAX_MA_COUNT = 6
-
-const PRESET_COLORS = [
-  '#f0b429',
-  '#9d7ff5',
-  '#3fb6e0',
-  '#e8833a',
-  '#c0c4d0',
-  '#22c55e',
-  '#ef4444',
-  '#06b6d4',
-]
-
-function sortByPeriod(configs: MovingAverageConfig[]): MovingAverageConfig[] {
-  return [...configs].sort((a, b) => a.period - b.period)
-}
-
-function nextDefaultPeriod(configs: MovingAverageConfig[]): number {
-  if (configs.length === 0) return 5
-  const maxPeriod = Math.max(...configs.map((c) => c.period))
-  const next = Math.ceil((maxPeriod + 10) / 10) * 10
-  return Math.min(next, 500)
-}
-
-function nextDefaultColor(configs: MovingAverageConfig[]): string {
-  const used = new Set(configs.map((c) => c.color.toLowerCase()))
-  return PRESET_COLORS.find((color) => !used.has(color.toLowerCase())) ?? '#8884d8'
-}
+import { MovingAverageConfigList } from './components/MovingAverageConfigList'
+import {
+  MAX_MA_COUNT,
+  nextDefaultColor,
+  nextDefaultPeriod,
+  sortByPeriod,
+} from './utils'
 
 export function Settings() {
   const navigate = useNavigate()
@@ -57,7 +24,7 @@ export function Settings() {
   const settingsError = useSettingsStore((state) => state.settingsError)
 
   const [draftConfigs, setDraftConfigs] = useState<MovingAverageConfig[]>(
-    () => userSettings.maConfigs
+    () => userSettings.maConfigs,
   )
   const [saving, setSaving] = useState(false)
 
@@ -156,72 +123,15 @@ export function Settings() {
           </Typography.Text>
         }
       >
-        <div className="space-y-3">
-          {draftConfigs.map((cfg, index) => (
-            <div
-              key={`${cfg.period}-${index}`}
-              className="flex items-center gap-3 p-3 rounded-lg bg-[#14161b] border border-gray-800"
-            >
-              <ColorPicker
-                value={cfg.color}
-                size="small"
-                showText
-                onChange={(color) =>
-                  updateConfig(index, { color: normalizeHexColor(color.toHexString()) })
-                }
-              />
-              <div className="flex items-center gap-2">
-                <Typography.Text className="text-xs text-gray-400">MA</Typography.Text>
-                <InputNumber
-                  min={1}
-                  max={500}
-                  value={cfg.period}
-                  onChange={(value) =>
-                    updateConfig(index, { period: value ?? 1 })
-                  }
-                  size="small"
-                  className="w-20"
-                />
-              </div>
-              <div className="flex items-center gap-2 ml-2">
-                <Switch
-                  size="small"
-                  checked={cfg.enabled}
-                  onChange={(checked) => updateConfig(index, { enabled: checked })}
-                />
-                <Typography.Text className="text-xs text-gray-400">
-                  {cfg.enabled ? '显示' : '隐藏'}
-                </Typography.Text>
-              </div>
-              <Button
-                type="text"
-                danger
-                size="small"
-                className="ml-auto"
-                onClick={() => removeConfig(index)}
-              >
-                删除
-              </Button>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex items-center justify-between mt-4">
-          <Button
-            type="dashed"
-            onClick={addConfig}
-            disabled={draftConfigs.length >= MAX_MA_COUNT}
-          >
-            添加均线（最多 {MAX_MA_COUNT} 条）
-          </Button>
-          <Button type="primary" loading={saving} onClick={handleSave}>
-            保存配置
-          </Button>
-        </div>
-
-        <Typography.Text type="secondary" className="text-xs block mt-3">
-          提示：此处配置的均线会同步应用到每日复盘的大盘指数日线、周线、月线等 K 线图中。
-        </Typography.Text>
+        <MovingAverageConfigList
+          configs={draftConfigs}
+          maxCount={MAX_MA_COUNT}
+          onUpdate={updateConfig}
+          onRemove={removeConfig}
+          onAdd={addConfig}
+          onSave={handleSave}
+          saving={saving}
+        />
       </Card>
 
       <Card title="账号安全" variant="borderless">

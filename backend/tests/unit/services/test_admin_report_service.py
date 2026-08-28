@@ -1,4 +1,4 @@
-"""Unit tests for admin report service."""
+"""AdminReportService 研报管理契约测试。"""
 
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock
@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.schemas.file_metadata import FileMetadataCreate, FileMetadataUpdate
-from app.services.admin_report_service import AdminReportService
+from app.services.admin.reports import AdminReportService
 
 
 def _result_mock(items=None, scalar=None):

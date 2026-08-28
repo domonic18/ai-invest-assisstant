@@ -1,3 +1,5 @@
+"""collector 数据管道（清洗/校验/去重步骤）契约测试。"""
+
 import pytest
 
 from collector.core.pipelines import DataPipeline, DeduplicateStep, NormalizeStep, ValidateStep

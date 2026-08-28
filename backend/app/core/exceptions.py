@@ -14,7 +14,7 @@ exception_handler 统一转换为 JSONResponse `{detail: message}`，
 
 
 class AppError(Exception):
-    """Base application exception. Carries an HTTP status code & message."""
+    """应用异常基类，携带 HTTP 状态码与错误消息。"""
 
     status_code: int = 500
     default_message: str = "Internal Server Error"

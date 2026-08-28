@@ -1,11 +1,11 @@
-"""Unit tests for hotspot service."""
+"""hotspot_service 板块列表查询契约测试。"""
 
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.services import hotspot_service
+from app.services.market import hotspot_service
 
 
 def _result_mock(items=None, scalar=None):

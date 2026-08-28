@@ -1,16 +1,16 @@
-"""Unit tests for limit-up AI attribution service."""
+"""涨停 AI 归因服务契约测试。"""
 
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services import limit_up_ai_service
-from app.services.limit_up_ai_service import (
+from app.services.review import limit_up_ai_service
+from app.services.review.limit_up_ai_service import (
     AttributionGroup,
     LimitUpAttributionContent,
 )
-from app.services.market_review_service import NonTradingDayError
+from app.services.review.market_review_service import NonTradingDayError
 
 _TRADE_DATE = date(2026, 7, 20)
 
@@ -72,7 +72,7 @@ class TestGetCachedAttribution:
     @pytest.mark.asyncio
     async def test_returns_none_when_no_cached_row(self) -> None:
         with patch(
-            "app.repositories.ai_analysis_repository.load_latest_success",
+            "app.repositories.review.ai_analysis_repository.load_latest_success",
             AsyncMock(return_value=None),
         ):
             result = await limit_up_ai_service.get_cached_attribution(
@@ -84,7 +84,7 @@ class TestGetCachedAttribution:
     @pytest.mark.asyncio
     async def test_returns_parsed_content(self) -> None:
         with patch(
-            "app.repositories.ai_analysis_repository.load_latest_success",
+            "app.repositories.review.ai_analysis_repository.load_latest_success",
             AsyncMock(return_value=_cached_row(_content_dict())),
         ):
             result = await limit_up_ai_service.get_cached_attribution(
@@ -102,7 +102,7 @@ class TestGenerateAttribution:
     async def test_rejects_non_trading_day(self) -> None:
         with (
             patch(
-                "app.services.trade_calendar_service.is_trading_day",
+                "app.services.market.trade_calendar_service.is_trading_day",
                 AsyncMock(return_value=False),
             ),
             pytest.raises(NonTradingDayError),
@@ -113,11 +113,11 @@ class TestGenerateAttribution:
     async def test_returns_cached_without_llm(self) -> None:
         with (
             patch(
-                "app.repositories.ai_analysis_repository.load_latest_success",
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
                 AsyncMock(return_value=_cached_row(_content_dict())),
             ),
             patch(
-                "app.services.trade_calendar_service.is_trading_day",
+                "app.services.market.trade_calendar_service.is_trading_day",
                 AsyncMock(return_value=True),
             ),
         ):
@@ -131,15 +131,15 @@ class TestGenerateAttribution:
     async def test_raises_when_pool_empty(self) -> None:
         with (
             patch(
-                "app.repositories.ai_analysis_repository.load_latest_success",
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.services.trade_calendar_service.is_trading_day",
+                "app.services.market.trade_calendar_service.is_trading_day",
                 AsyncMock(return_value=True),
             ),
             patch(
-                "app.services.limit_pool_service.get_limit_up",
+                "app.services.market.limit_pool_service.get_limit_up",
                 AsyncMock(return_value=MagicMock(items=[])),
             ),
             pytest.raises(ValueError, match="无涨停数据"),

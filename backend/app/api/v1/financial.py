@@ -1,4 +1,4 @@
-"""Financial health API endpoints."""
+"""财务健康度 API 路由。"""
 
 from datetime import date
 from typing import Annotated
@@ -12,7 +12,7 @@ from app.schemas.financial import (
     FinancialHealthResponse,
     FinancialHistoryResponse,
 )
-from app.services import financial_service
+from app.services.market import financial_service
 
 router = APIRouter()
 

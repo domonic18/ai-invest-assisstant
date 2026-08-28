@@ -1,4 +1,4 @@
-"""Unit tests for market overview services.
+"""大盘概览服务契约测试。
 
 阶段 2.3 后 market_service 已拆为 7 个子服务；测试 patch 目标按函数实际定义
 模块定向（patch market_service 命名空间无法拦截子服务内部的查找）。
@@ -11,14 +11,14 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.services import (
+from app.services.market import (
     index_quotation_service,
     limit_pool_service,
     market_service,
     market_stats_service,
     trade_calendar_service,
-    watchlist_quote_service,
 )
+from app.services.user import watchlist_quote_service
 
 
 def _scalars_result(items):
@@ -34,13 +34,13 @@ def _patch_attribution_cache(output: dict | None):
     """
     if output is None:
         return patch(
-            "app.repositories.ai_analysis_repository.load_latest_success",
+            "app.repositories.review.ai_analysis_repository.load_latest_success",
             AsyncMock(return_value=None),
         )
     row = MagicMock()
     row.structured_output = output
     return patch(
-        "app.repositories.ai_analysis_repository.load_latest_success",
+        "app.repositories.review.ai_analysis_repository.load_latest_success",
         AsyncMock(return_value=row),
     )
 

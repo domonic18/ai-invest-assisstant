@@ -1,4 +1,4 @@
-"""Tests for the generic Celery collector task wrapper."""
+"""通用 Celery 采集任务包装器契约测试。"""
 
 import asyncio
 from unittest.mock import AsyncMock, patch
@@ -150,7 +150,7 @@ class TestRunCollectorTask:
 
     @patch("collector.celery_tasks.run_task", new_callable=AsyncMock)
     def test_consecutive_runs_reuse_same_loop(self, mock_run_task: AsyncMock) -> None:
-        """Two task runs in the same child process should share one event loop."""
+        """同一子进程内的两次任务执行应共享同一个 event loop。"""
         mock_run_task.return_value = CollectResult(
             source="sina",
             data_type="quote",
@@ -178,7 +178,7 @@ class TestRunCollectorTask:
 
     @patch("collector.celery_tasks.run_task", new_callable=AsyncMock)
     def test_consecutive_runs_do_not_dispose_engines(self, mock_run_task: AsyncMock) -> None:
-        """With a persistent loop, engines should not be disposed between tasks."""
+        """持久化 loop 下，任务之间不应销毁 engine。"""
         mock_run_task.return_value = CollectResult(
             source="sina",
             data_type="quote",

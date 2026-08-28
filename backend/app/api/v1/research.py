@@ -1,4 +1,4 @@
-"""Research report API endpoints."""
+"""研报 API 路由。"""
 
 from datetime import date
 from typing import Annotated, Any
@@ -13,7 +13,7 @@ from app.schemas.news_announcement import (
     ResearchReportListRequest,
 )
 from app.schemas.stock import PaginatedResponse
-from app.services import research_service
+from app.services.reports import research_service
 
 router = APIRouter()
 

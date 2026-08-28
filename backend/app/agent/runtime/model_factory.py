@@ -11,7 +11,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
-from app.services.llm_config_service import ResolvedLLMConfig
+from app.services.admin.llm_config_service import ResolvedLLMConfig
 
 # 助手回答含 thinking 块与工具结果整理，给足输出空间
 ANTHROPIC_MAX_TOKENS = 8192

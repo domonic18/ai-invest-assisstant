@@ -1,4 +1,4 @@
-"""Internal database tools for AI Agent."""
+"""AI Agent 内部数据库查询工具。"""
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -205,7 +205,7 @@ async def search_vector_kb(
 ) -> list[dict[str, Any]]:
     """检索知识库研报片段；ES 不可用时回退 news_announcement 研报记录。"""
     try:
-        from app.services.knowledge_base_service import get_knowledge_base_service
+        from app.services.common.knowledge_base_service import get_knowledge_base_service
 
         service = get_knowledge_base_service()
         client = await service._get_client()

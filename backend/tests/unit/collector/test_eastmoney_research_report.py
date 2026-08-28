@@ -1,4 +1,4 @@
-"""Unit tests for the EastMoney research report collector."""
+"""EastMoney 研报采集器契约测试。"""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 

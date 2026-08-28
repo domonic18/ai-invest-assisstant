@@ -1,4 +1,4 @@
-"""Admin collector task management API endpoints."""
+"""管理后台采集任务管理 API 端点。"""
 
 from typing import Annotated, Any
 
@@ -12,7 +12,7 @@ from app.schemas.collector_task import (
     CollectorTaskUpdate,
 )
 from app.schemas.stock import PaginatedResponse
-from app.services.admin_task_service import AdminTaskService
+from app.services.admin.tasks import AdminTaskService
 from collector.runtime.dispatcher import dispatch_collector_task
 
 router = APIRouter(dependencies=[Depends(get_current_admin_user)])

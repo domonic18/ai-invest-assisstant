@@ -1,4 +1,4 @@
-"""Financial report (earnings filings) API endpoints."""
+"""财报（业绩报告）API 路由。"""
 
 from datetime import date
 from typing import Annotated, Any
@@ -15,7 +15,7 @@ from app.schemas.file_metadata import (
     FinancialReportResponse,
 )
 from app.schemas.stock import PaginatedResponse
-from app.services import financial_report_service
+from app.services.reports import financial_report_service
 
 router = APIRouter()
 

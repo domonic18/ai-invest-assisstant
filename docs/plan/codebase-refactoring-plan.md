@@ -1207,6 +1207,15 @@ backend/collector/
 
 队列、超时、重试策略在 `celery_app.py` 中按队列维护；`TaskSpec` 可覆盖具体任务的队列归属。
 
+**Celery Worker 进程生命周期（已落地）**：
+
+- `celery_tasks.py` 中 `AsyncTask` / `LogAwareTask` 为每个 prefork 子进程维护一个**持久事件循环**，任务通过 `loop.run_until_complete()` 在该循环上执行；
+- `celery_app.py` 的 `worker_process_init` 信号在每个子进程中重建 `app.core.database` 与 `collector.core.base` 的异步引擎，并启用 `pool_pre_ping=True`；
+- `worker_process_shutdown` 信号在子进程退出时释放上述引擎；
+- `LogAwareTask.on_failure` 复用同一持久循环记录失败日志与死信，避免跨 loop 操作 asyncpg 连接。
+
+该机制解决了此前每个任务各自 `asyncio.run()` 导致 asyncpg 连接被新 loop 复用、从而出现 `another operation is in progress` 卡死/异常的问题。
+
 #### 4.10.2 问题评估
 
 | 问题 | 影响 | 说明 |
@@ -1216,6 +1225,7 @@ backend/collector/
 | 常量未集中 | 魔法字符串 | 队列名 `collector.realtime` / `collector.batch` / `collector.heavy`、任务状态 `pending` / `running` / `failed` / `success` 在多处硬编码 |
 | 测试覆盖不足 | 风险 | Celery 任务、DatabaseScheduler、死信写入等已有单元测试，但缺少 worker 端到端 / 死信重放测试 |
 | 死信处理未闭环 | 运维风险 | `CollectorDeadLetter` 记录失败任务，但缺少自动重放或告警机制 |
+| Worker 事件循环与 asyncpg 连接复用 | 已修复 | 原 `asyncio.run()` 模式使 asyncpg 连接跨 loop 复用，导致任务卡死/抛 `another operation is in progress`；已通过 `AsyncTask` 持久事件循环 + `worker_process_init/shutdown` 引擎生命周期修复 |
 | SCF 入口兼容性 | 风险 | `scf_handler.py` 仍直接调用 `runner.run_task_sync`；若未来全面切 Celery，需评估是否保留同步入口 |
 
 #### 4.10.3 推荐目录结构
@@ -1224,8 +1234,8 @@ backend/collector/
 
 ```
 backend/collector/
-├── celery_app.py              # Celery App 工厂 + 队列/策略定义
-├── celery_tasks.py            # 通用任务 + LogAwareTask + 死信/超时 hook
+├── celery_app.py              # Celery App 工厂 + 队列/策略定义 + worker 生命周期信号
+├── celery_tasks.py            # AsyncTask / LogAwareTask + 通用任务 + 死信/超时 hook
 ├── celery_beat.py             # CollectorDatabaseScheduler
 ├── core/                      # 基础设施（保持现状）
 │   ├── base.py
@@ -1298,6 +1308,8 @@ export const COLLECTOR_MODE = {
 #### 4.10.7 测试补充
 
 - 单元测试：保持现有 `test_celery_app.py`、`test_celery_beat.py`、`test_celery_tasks.py`；
+  - `test_celery_app.py` 需覆盖 `worker_process_init` 引擎重建与 `pool_pre_ping=True`、`worker_process_shutdown` 引擎释放；
+  - `test_celery_tasks.py` 需覆盖 `AsyncTask._ensure_loop()` 持久循环复用、`LogAwareTask.on_failure` 在同一循环上记录死信、任务连续执行不跨 loop 复用 asyncpg 连接；
 - 集成测试：在 `backend/tests/integration/` 中新增 `test_collector_dispatch.py`，验证：
   - API 调用 → `dispatch_collector_task` → `CollectorLog.pending`；
   - Celery task 执行 → `CollectorLog.success/failed`；

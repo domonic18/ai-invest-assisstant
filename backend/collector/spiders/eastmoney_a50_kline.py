@@ -1,4 +1,4 @@
-"""EastMoney FTSE China A50 index futures daily K-line collector."""
+"""东方财富富时中国 A50 期指日 K 采集器。"""
 
 from typing import Any
 

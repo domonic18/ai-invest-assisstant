@@ -1,4 +1,4 @@
-"""Unit tests for financial report API endpoints."""
+"""财务报告 API 端点契约测试。"""
 
 from datetime import date, datetime
 from unittest.mock import MagicMock, patch

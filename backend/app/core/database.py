@@ -1,3 +1,5 @@
+"""异步数据库引擎与 session 工厂（全局单例）。"""
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 

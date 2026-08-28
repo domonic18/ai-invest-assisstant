@@ -1,8 +1,7 @@
-"""Celery app factory and queue routing for collector tasks.
+"""采集任务的 Celery app 工厂与队列路由。
 
-The Celery app is intentionally thin and data-driven: it does not hard-code
-individual task names.  Queue, timeout, and retry policies are derived from
-``TaskSpec`` declarations in ``collector.runtime.registry``.
+Celery app 刻意保持精简且数据驱动：不硬编码任何具体任务名。队列、超时与
+重试策略均从 ``collector.runtime.registry`` 的 ``TaskSpec`` 声明派生。
 """
 
 from typing import Any
@@ -12,6 +11,7 @@ from celery import Celery
 from celery.signals import worker_process_init, worker_process_shutdown
 from kombu import Queue
 
+from app.constants.collector import CollectorQueue
 from collector.core import config as collector_config
 from collector.core.logging import configure_logging
 from collector.runtime.registry import TASK_SPECS
@@ -24,29 +24,29 @@ __all__ = [
     "resolve_task_options",
 ]
 
-DEFAULT_QUEUE = "collector.batch"
+DEFAULT_QUEUE = CollectorQueue.BATCH
 
 QUEUE_NAMES = (
-    "collector.realtime",
-    "collector.batch",
-    "collector.heavy",
+    CollectorQueue.REALTIME,
+    CollectorQueue.BATCH,
+    CollectorQueue.HEAVY,
 )
 
-# Default policies when a TaskSpec does not override them.
+# TaskSpec 未覆盖时的默认策略。
 QUEUE_DEFAULTS: dict[str, dict[str, Any]] = {
-    "collector.realtime": {
+    CollectorQueue.REALTIME: {
         "soft_time_limit": 60,
         "hard_time_limit": 120,
         "max_retries": 3,
         "retry_backoff": 30,
     },
-    "collector.batch": {
+    CollectorQueue.BATCH: {
         "soft_time_limit": 300,
         "hard_time_limit": 600,
         "max_retries": 3,
         "retry_backoff": 60,
     },
-    "collector.heavy": {
+    CollectorQueue.HEAVY: {
         "soft_time_limit": 1800,
         "hard_time_limit": 3600,
         "max_retries": 2,
@@ -56,7 +56,7 @@ QUEUE_DEFAULTS: dict[str, dict[str, Any]] = {
 
 
 def make_celery_app() -> Celery:
-    """Create and configure the collector Celery application."""
+    """创建并配置采集器 Celery 应用。"""
     app = Celery(APP_NAME)
     app.conf.update(
         broker_url=collector_config.celery_broker_url,
@@ -72,25 +72,25 @@ def make_celery_app() -> Celery:
             Queue(name, exchange=name, routing_key=name) for name in QUEUE_NAMES
         ),
     )
-    # Auto-discover tasks in the collector package.
+    # 自动发现 collector 包内的任务。
     app.autodiscover_tasks(["collector"], force=True)
     return app
 
 
 app = make_celery_app()
-# Explicitly import the task module so ``run_collector_task`` is registered
-# even though the file is named ``celery_tasks.py`` instead of ``tasks.py``.
+# 显式导入任务模块，使 ``run_collector_task`` 得以注册——
+# 本文件名为 ``celery_tasks.py`` 而非 ``tasks.py``。
 import collector.celery_tasks  # noqa: F401, E402
 
 
 def resolve_queue(task_name: str, preferred_source: str | None = None) -> str:
-    """Resolve the target Celery queue for a collector task.
+    """解析采集任务的目标 Celery 队列。
 
-    Resolution order:
-    1. ``CollectorTask.queue`` override is applied by the dispatcher when it
-       passes an explicit ``queue`` in ``apply_async``.
-    2. ``TaskSpec.queue`` default.
-    3. Fallback to ``collector.batch``.
+    解析顺序：
+    1. dispatcher 在 ``apply_async`` 传入显式 ``queue`` 时应用
+       ``CollectorTask.queue`` 覆盖。
+    2. ``TaskSpec.queue`` 默认值。
+    3. 兜底 ``collector.batch``。
     """
     spec = TASK_SPECS.get(task_name)
     queue: str | None = spec.queue if spec is not None else None
@@ -106,12 +106,11 @@ def resolve_task_options(
     preferred_source: str | None = None,
     queue_override: str | None = None,
 ) -> dict[str, Any]:
-    """Return Celery ``apply_async`` options for a task.
+    """返回任务的 Celery ``apply_async`` 选项。
 
-    Options include ``queue``, ``soft_time_limit``, ``max_retries``, and
-    ``retry_backoff``.  TaskSpec overrides take precedence over queue defaults.
-    An explicit ``queue_override`` (e.g. from ``CollectorTask.queue``) wins over
-    everything else.
+    选项包括 ``queue``、``soft_time_limit``、``max_retries`` 与
+    ``retry_backoff``。TaskSpec 覆盖值优先于队列默认值；显式 ``queue_override``
+    （如来自 ``CollectorTask.queue``）优先于一切。
     """
     queue = queue_override or resolve_queue(task_name, preferred_source)
     if queue is not None and not queue.startswith("collector."):
@@ -139,18 +138,17 @@ def resolve_task_options(
 
 @app.on_after_configure.connect
 def _setup_logging(sender: Celery, **kwargs: Any) -> None:  # noqa: ARG001
-    """Ensure structured logging is configured in the Celery master process."""
+    """确保 Celery 主进程完成结构化日志配置。"""
     configure_logging()
 
 
 @worker_process_init.connect
 def _init_worker_process(**kwargs: Any) -> None:  # noqa: ARG001
-    """Recreate SQLAlchemy engines in each prefork child process.
+    """在每个 prefork 子进程中重建 SQLAlchemy engine。
 
-    The parent process creates async engines during module import; child
-    processes must not reuse those connections.  We dispose the inherited
-    engines and create fresh ones, then rebind ``AsyncSessionLocal`` so that
-    all imported references see the new engine.
+    父进程在模块导入时创建了异步 engine；子进程不得复用这些连接。这里释放
+    继承的 engine 并创建新的，然后重新绑定 ``AsyncSessionLocal``，使所有已
+    导入的引用都指向新 engine。
     """
     import asyncio
 
@@ -164,7 +162,7 @@ def _init_worker_process(**kwargs: Any) -> None:  # noqa: ARG001
     logger = structlog.get_logger(__name__)
     logger.info("worker_process_init_recreate_engines")
 
-    # Dispose inherited engines from the parent process.
+    # 释放从父进程继承的 engine。
     try:
         app_database.engine.sync_engine.dispose(close=False)
     except Exception:  # noqa: BLE001
@@ -180,7 +178,7 @@ def _init_worker_process(**kwargs: Any) -> None:  # noqa: ARG001
     except Exception:  # noqa: BLE001
         pass
 
-    # Create a brand-new async engine in the child and rebind the session maker.
+    # 在子进程中创建全新的异步 engine 并重新绑定 session maker。
     new_engine = async_sa.create_async_engine(
         app_database.engine.url.render_as_string(hide_password=False),
         echo=app_database.engine.echo,
@@ -194,7 +192,7 @@ def _init_worker_process(**kwargs: Any) -> None:  # noqa: ARG001
 
 @worker_process_shutdown.connect
 def _shutdown_worker_process(**kwargs: Any) -> None:  # noqa: ARG001
-    """Dispose SQLAlchemy engines when a prefork child process exits."""
+    """prefork 子进程退出时释放 SQLAlchemy engine。"""
     import asyncio
 
     from app.core import database as app_database

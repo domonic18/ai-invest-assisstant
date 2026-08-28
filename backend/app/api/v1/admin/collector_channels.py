@@ -1,4 +1,4 @@
-"""Admin collector channel configuration API endpoints."""
+"""管理后台采集渠道配置 API 端点。"""
 
 from typing import Annotated
 
@@ -11,7 +11,7 @@ from app.schemas.collector_channel_config import (
     CollectorChannelConfigResponse,
     CollectorChannelConfigUpdate,
 )
-from app.services.collector_channel_config_service import (
+from app.services.admin.collector_channels import (
     CollectorChannelConfigService,
 )
 
@@ -25,7 +25,7 @@ router = APIRouter(
 async def list_collector_channel_configs(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[CollectorChannelConfigResponse]:
-    """List all collector channel configurations."""
+    """列出全部采集渠道配置。"""
     service = CollectorChannelConfigService(session)
     return await service.list_configs()
 
@@ -35,7 +35,7 @@ async def create_collector_channel_config(
     data: CollectorChannelConfigCreate,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> CollectorChannelConfigResponse:
-    """Create a new collector channel configuration."""
+    """创建新的采集渠道配置。"""
     service = CollectorChannelConfigService(session)
     return await service.create_config(data)
 
@@ -45,7 +45,7 @@ async def get_collector_channel_config(
     config_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> CollectorChannelConfigResponse:
-    """Get a single collector channel configuration."""
+    """获取单条采集渠道配置。"""
     service = CollectorChannelConfigService(session)
     config = await service.get_config(config_id)
     if not config:
@@ -62,7 +62,7 @@ async def update_collector_channel_config(
     data: CollectorChannelConfigUpdate,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> CollectorChannelConfigResponse:
-    """Update an existing collector channel configuration."""
+    """更新已有采集渠道配置。"""
     service = CollectorChannelConfigService(session)
     updated = await service.update_config(config_id, data)
     if not updated:
@@ -78,7 +78,7 @@ async def delete_collector_channel_config(
     config_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
-    """Delete a collector channel configuration."""
+    """删除采集渠道配置。"""
     service = CollectorChannelConfigService(session)
     try:
         await service.delete_config(config_id)

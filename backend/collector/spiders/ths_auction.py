@@ -1,4 +1,4 @@
-"""TongHuaShun auction data collector via akshare bid/ask snapshot."""
+"""基于 akshare 买卖盘快照的同花顺集合竞价采集器。"""
 
 from datetime import date
 from typing import Any, ClassVar

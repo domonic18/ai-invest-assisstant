@@ -3,7 +3,7 @@
 import pytest
 
 from app.agent.runtime.model_factory import build_langchain_model
-from app.services.llm_config_service import ResolvedLLMConfig
+from app.services.admin.llm_config_service import ResolvedLLMConfig
 
 
 def _cfg(provider: str) -> ResolvedLLMConfig:

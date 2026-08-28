@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.llm_router import build_agent
-from app.services.llm_config_service import resolve_default_llm
+from app.services.admin.llm_config_service import resolve_default_llm
 
 T = TypeVar("T", bound=BaseModel)
 

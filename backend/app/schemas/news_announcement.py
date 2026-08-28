@@ -1,4 +1,4 @@
-"""Pydantic schemas for news announcements and research reports."""
+"""新闻、公告与研报的 Pydantic schemas。"""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class NewsAnnouncementBase(BaseModel):
-    """Base fields for news announcement."""
+    """新闻公告的基础字段。"""
 
     stock_code: str | None = Field(None, max_length=10)
     doc_type: str = Field(..., max_length=20)
@@ -26,11 +26,11 @@ class NewsAnnouncementBase(BaseModel):
 
 
 class NewsAnnouncementCreate(NewsAnnouncementBase):
-    """Request schema for creating a news announcement."""
+    """创建新闻公告的请求 schema。"""
 
 
 class NewsAnnouncementUpdate(BaseModel):
-    """Request schema for updating a news announcement."""
+    """更新新闻公告的请求 schema。"""
 
     stock_code: str | None = Field(None, max_length=10)
     doc_type: str | None = Field(None, max_length=20)
@@ -48,7 +48,7 @@ class NewsAnnouncementUpdate(BaseModel):
 
 
 class NewsAnnouncementResponse(NewsAnnouncementBase):
-    """Response schema for a news announcement."""
+    """新闻公告的响应 schema。"""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -57,7 +57,7 @@ class NewsAnnouncementResponse(NewsAnnouncementBase):
 
 
 class ResearchReportListRequest(BaseModel):
-    """Request schema for listing research reports."""
+    """研报列表查询请求 schema。"""
 
     stock_code: str | None = Field(None, max_length=10)
     q: str | None = Field(None, max_length=100)
@@ -70,7 +70,7 @@ class ResearchReportListRequest(BaseModel):
 
 
 class ResearchReportResponse(BaseModel):
-    """Response schema for a research report in list view."""
+    """研报列表条目的响应 schema。"""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -101,6 +101,6 @@ class ResearchReportFiltersResponse(BaseModel):
 
 
 class ResearchReportDetailResponse(ResearchReportResponse):
-    """Response schema for research report detail, including full content."""
+    """研报详情的响应 schema，包含完整正文。"""
 
     content: str | None = None

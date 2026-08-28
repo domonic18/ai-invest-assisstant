@@ -1,4 +1,4 @@
-"""Unit tests for hotspot API endpoints."""
+"""热点板块 API 端点契约测试。"""
 
 from datetime import date, datetime
 from decimal import Decimal

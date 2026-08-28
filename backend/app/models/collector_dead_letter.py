@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for collector dead-letter queue."""
+"""采集任务死信队列的 SQLAlchemy ORM 模型。"""
 
 from datetime import datetime
 

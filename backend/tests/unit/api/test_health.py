@@ -1,3 +1,5 @@
+"""健康检查端点契约测试。"""
+
 import pytest
 from fastapi.testclient import TestClient
 

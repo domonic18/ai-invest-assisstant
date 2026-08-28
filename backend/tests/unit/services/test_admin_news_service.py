@@ -1,11 +1,11 @@
-"""Unit tests for admin news service."""
+"""AdminNewsService 新闻管理契约测试。"""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.schemas.news_announcement import NewsAnnouncementCreate, NewsAnnouncementUpdate
-from app.services.admin_news_service import AdminNewsService
+from app.services.admin.news import AdminNewsService
 
 
 def _result_mock(items=None, scalar=None):

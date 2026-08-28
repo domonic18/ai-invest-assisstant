@@ -1,4 +1,4 @@
-"""Market overview (每日复盘) API endpoints.
+"""市场总览（每日复盘）API 路由。
 
 业务异常（NonTradingDayError/ReviewNotFoundError/LLMConfigNotConfiguredError 等）
 均由 ``app.main.app_error_handler`` 统一转换为 JSONResponse ``{detail: message}``，
@@ -27,7 +27,9 @@ from app.schemas.market import (
     MarketStatsResponse,
     SectorOverviewResponse,
 )
-from app.services import limit_up_ai_service, market_review_service, market_service
+from app.services import review as market_review_service
+from app.services.market import market_service
+from app.services.review import limit_up_ai_service
 
 router = APIRouter()
 

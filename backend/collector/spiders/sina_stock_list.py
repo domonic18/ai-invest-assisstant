@@ -1,16 +1,13 @@
-"""A-share stock list sync collector via akshare.
+"""基于 akshare 的 A 股股票列表同步采集器。
 
-Fetches the full A-share code/name list and enriches it with:
+抓取全市场 A 股代码/名称列表并做两类补充：
 
-- exchange-published details (full name, listing date, share counts, province)
-  from the SSE/SZSE/BSE official lists
-- the Shenwan (申万) three-level industry classification resolved from index
-  constituents (L3 first, falling back to L2 then L1 for unmapped stocks)
+- 沪深北交易所官方名单发布的详情（公司全称、上市日期、股本、省份）
+- 从指数成分解析出的申万三级分类（优先 L3，未映射的股票回退 L2、再 L1）
 
-Results are upserted into ``stock_basic``.  Richer profile fields (legal
-person, registered capital, business scope, ...) stay owned by the
-company-profile task; ``update_skip_null`` ensures this collector never
-overwrites existing values with NULLs.
+结果 upsert 到 ``stock_basic``。更丰富的概况字段（法人、注册资本、经营范围
+等）仍归 company-profile 任务所有；``update_skip_null`` 确保本采集器不会用
+NULL 覆盖已有值。
 """
 
 import logging
@@ -107,7 +104,7 @@ class SinaStockListCollector(PostgresCollector):
 
 
 def _fetch_exchange_details(ak: Any) -> dict[str, dict[str, Any]]:
-    """Merge listing details from the SSE/SZSE/BSE official stock lists."""
+    """合并上交所/深交所/北交所官方股票列表的上市详情。"""
     details: dict[str, dict[str, Any]] = {}
 
     try:
@@ -154,10 +151,9 @@ def _fetch_sw_industry_map(
     stock_codes: list[str],
     delay: float = 0.2,
 ) -> dict[str, dict[str, Any]]:
-    """Map stock codes to the Shenwan L1/L2/L3 industry classification.
+    """把股票代码映射到申万一/二/三级行业分类。
 
-    Constituents are fetched per index, most detailed level first; stocks not
-    yet mapped fall back to L2 and then L1 indices.
+    成分按指数逐个抓取，从最细级别开始；尚未映射到的股票回退 L2、再 L1。
     """
     try:
         l1_info = ak.sw_index_first_info()
@@ -209,7 +205,7 @@ def _fetch_sw_industry_map(
 
 
 def _fetch_sw_components(ak: Any, index_code: str) -> Any | None:
-    """Fetch index constituents, tolerating per-index failures."""
+    """抓取指数成分，容忍单个指数失败。"""
     symbol = str(index_code).split(".")[0]
     try:
         return ak.index_component_sw(symbol=symbol)

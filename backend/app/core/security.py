@@ -1,4 +1,4 @@
-"""Security utilities for authentication."""
+"""认证相关安全工具。"""
 
 from datetime import datetime, timedelta, timezone
 from typing import Any

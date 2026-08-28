@@ -1,1 +1,1 @@
-"""Backend utility helpers."""
+"""后端通用工具函数。"""

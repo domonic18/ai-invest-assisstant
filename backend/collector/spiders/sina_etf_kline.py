@@ -1,4 +1,4 @@
-"""Sina ETF daily K-line collector via akshare."""
+"""基于 akshare 的新浪 ETF 日 K 采集器。"""
 
 from typing import Any, ClassVar
 

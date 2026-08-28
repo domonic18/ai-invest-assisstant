@@ -1,4 +1,4 @@
-"""CNINFO company profile collector via akshare."""
+"""基于 akshare 的 CNINFO 公司概况采集器。"""
 
 from typing import Any, ClassVar
 

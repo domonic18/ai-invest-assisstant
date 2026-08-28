@@ -1,4 +1,4 @@
-"""Auction data API endpoints."""
+"""集合竞价 API 路由。"""
 
 from datetime import date
 from typing import Annotated, Any
@@ -12,7 +12,8 @@ from app.schemas.stock import (
     IndexAuctionTrendResponse,
     PaginatedResponse,
 )
-from app.services import auction_service, stock_service
+from app.services import market as stock_service
+from app.services.market import auction_service
 
 router = APIRouter()
 

@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for index call-auction turnover."""
+"""指数集合竞价成交额的 SQLAlchemy ORM 模型。"""
 
 from datetime import date, datetime
 from decimal import Decimal

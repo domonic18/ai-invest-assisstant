@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models for industry chain analysis."""
+"""产业链分析的 SQLAlchemy ORM 模型。"""
 
 from datetime import datetime
 from decimal import Decimal

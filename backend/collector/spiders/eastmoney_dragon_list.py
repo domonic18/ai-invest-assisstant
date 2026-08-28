@@ -1,4 +1,4 @@
-"""EastMoney dragon list (lhb) collector via akshare."""
+"""基于 akshare 的东方财富龙虎榜采集器。"""
 
 from datetime import date
 from typing import Any, ClassVar

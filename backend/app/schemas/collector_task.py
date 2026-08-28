@@ -1,4 +1,4 @@
-"""Pydantic schemas for collector task management."""
+"""采集器任务管理的 Pydantic schemas。"""
 
 from datetime import datetime
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class CollectorTaskBase(BaseModel):
-    """Base fields for collector task."""
+    """采集器任务的基础字段。"""
 
     task_name: str = Field(..., max_length=100)
     task_type: str = Field(..., max_length=50)
@@ -17,11 +17,11 @@ class CollectorTaskBase(BaseModel):
 
 
 class CollectorTaskCreate(CollectorTaskBase):
-    """Request schema for creating a collector task."""
+    """创建采集器任务的请求 schema。"""
 
 
 class CollectorTaskUpdate(BaseModel):
-    """Request schema for updating a collector task."""
+    """更新采集器任务的请求 schema。"""
 
     task_type: str | None = Field(None, max_length=50)
     source: str | None = Field(None, max_length=50)
@@ -31,7 +31,7 @@ class CollectorTaskUpdate(BaseModel):
 
 
 class CollectorTaskResponse(CollectorTaskBase):
-    """Response schema for a collector task."""
+    """采集器任务的响应 schema。"""
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -1,4 +1,4 @@
-"""Storage orchestration for EastMoney research report PDFs."""
+"""东方财富研报 PDF 的存储编排。"""
 
 import hashlib
 from datetime import datetime
@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.file_metadata import FileMetadata
 from app.models.news_announcement import NewsAnnouncement
-from app.services.minio_service import MinIOService
+from app.services.common.minio_service import MinIOService
 from collector.core.base import get_engine
 
 logger = structlog.get_logger()
@@ -19,18 +19,17 @@ _FILE_CATEGORY = "research_report"
 
 
 class ResearchReportStore:
-    """Save research report metadata to DB and PDFs to MinIO.
+    """把研报元数据写入数据库、PDF 存入 MinIO。
 
-    Metadata is always persisted to ``news_announcement`` (upsert by
-    ``source_url``) so that reports remain visible even when the PDF download
-    failed.  MinIO failures are logged but do not block the database record.
+    元数据始终持久化到 ``news_announcement``（按 ``source_url`` upsert），即使
+    PDF 下载失败研报仍可见。MinIO 失败只记录日志，不阻塞数据库记录。
     """
 
     def __init__(self, minio: MinIOService):
         self.minio = minio
 
     async def save_many(self, items: list[dict[str, Any]]) -> tuple[int, list[str]]:
-        """Persist all items and return the number saved plus any error messages."""
+        """持久化全部条目，返回保存数量与错误信息列表。"""
         session_maker = async_sessionmaker(
             get_engine(), class_=AsyncSession, expire_on_commit=False
         )

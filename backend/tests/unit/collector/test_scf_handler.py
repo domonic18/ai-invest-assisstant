@@ -1,4 +1,4 @@
-"""Unit tests for the SCF handler (event parsing + response wrapping)."""
+"""SCF handler 契约测试（事件解析 + 响应包装）。"""
 
 import json
 from typing import Any

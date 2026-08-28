@@ -1,4 +1,4 @@
-"""Unit tests for financial report service."""
+"""财务报告服务契约测试。"""
 
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -6,10 +6,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.exceptions import NotFoundError
-from app.services import financial_report_service
-from app.services.financial_report_service import (
+from app.services.reports import financial_report_service
+from app.services.reports.financial_report_summarizer import (
     FinancialReportSummaryResult,
-    _render_summary_markdown,
+    render_summary_markdown,
 )
 
 
@@ -40,7 +40,7 @@ class TestFinancialReportService:
         session.get.return_value = _financial_report_mock(summary="existing summary")
 
         with patch(
-            "app.services.financial_report_service.redis_lock"
+            "app.services.reports.financial_report_summarizer.redis_lock"
         ) as mock_lock:
             result = await financial_report_service.summarize_report(session, 1)
 
@@ -77,7 +77,7 @@ class TestRenderSummaryMarkdown:
             risk_warning="- 原材料价格波动",
             outlook="- 下半年产能释放",
         )
-        markdown = _render_summary_markdown(output)
+        markdown = render_summary_markdown(output)
         assert "### 核心业绩" in markdown
         assert "### 营收与利润" in markdown
         assert "### 经营亮点" in markdown
@@ -86,7 +86,7 @@ class TestRenderSummaryMarkdown:
 
     def test_omits_empty_fields(self) -> None:
         output = FinancialReportSummaryResult(core_performance="- 营收增长")
-        markdown = _render_summary_markdown(output)
+        markdown = render_summary_markdown(output)
         assert "### 核心业绩" in markdown
         assert "风险提示" not in markdown
         assert "未来展望" not in markdown
@@ -102,10 +102,10 @@ class TestListReportsSearch:
 
         with (
             patch(
-                "app.services.financial_report_service.FileMetadataRepository"
+                "app.services.reports.financial_report_service.FileMetadataRepository"
             ) as mock_repo_cls,
             patch(
-                "app.services.financial_report_service.StockRepository"
+                "app.services.reports.financial_report_service.StockRepository"
             ) as mock_stock_cls,
         ):
             mock_stock_cls.return_value.search = AsyncMock(
@@ -127,10 +127,10 @@ class TestListReportsSearch:
 
         with (
             patch(
-                "app.services.financial_report_service.FileMetadataRepository"
+                "app.services.reports.financial_report_service.FileMetadataRepository"
             ) as mock_repo_cls,
             patch(
-                "app.services.financial_report_service.StockRepository"
+                "app.services.reports.financial_report_service.StockRepository"
             ) as mock_stock_cls,
         ):
             mock_repo_cls.return_value.list_paginated = AsyncMock(
@@ -187,7 +187,7 @@ class TestTriggerCollect:
         log.status = "pending"
 
         with patch(
-            "app.services.financial_report_service.dispatch_collector_task",
+            "collector.runtime.dispatcher.dispatch_collector_task",
             new=AsyncMock(return_value=log),
         ) as mock_dispatch:
             result = await financial_report_service.trigger_collect(

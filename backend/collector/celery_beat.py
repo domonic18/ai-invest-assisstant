@@ -1,13 +1,11 @@
-"""Celery Beat scheduler that reads cron schedules from the ``collector_task`` table.
+"""从 ``collector_task`` 表读取 cron 调度配置的 Celery Beat 调度器。
 
-This replaces the in-process APScheduler used by the legacy collector worker.
-It keeps the admin UI's single source of truth (``collector_task.schedule``)
-while giving scheduled tasks the same retries, timeouts, and monitoring as
-ad-hoc tasks.
+它取代了旧版采集 worker 使用的进程内 APScheduler，既保留管理端 UI 的唯一
+真相源（``collector_task.schedule``），又让定时任务获得与临时任务一致的重试、
+超时与监控能力。
 """
 
 import asyncio
-import re
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
@@ -20,21 +18,11 @@ from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
 from app.models.collector_task import CollectorTask
 from collector.celery_app import resolve_queue
-from collector.runtime.scheduler import _parse_cron
-
-_STEP_ONLY_PATTERN = re.compile(r"^(\d+)/(\d+)$")
-
-
-def _normalize_cron_field(value: str) -> str:
-    """Normalize cron fields like ``0/30`` to ``*/30`` for Celery compatibility."""
-    match = _STEP_ONLY_PATTERN.match(value)
-    if match:
-        return f"*/{match.group(2)}"
-    return value
+from collector.core.cron import _normalize_cron_field, _parse_cron
 
 
 class CollectorDatabaseScheduler(Scheduler):
-    """Beat scheduler that loads schedules from ``collector_task`` rows."""
+    """从 ``collector_task`` 行加载调度配置的 Beat 调度器。"""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._schedule: dict[str, ScheduleEntry] = {}

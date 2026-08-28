@@ -1,4 +1,4 @@
-"""K-line data API endpoints."""
+"""K 线数据 API 路由。"""
 
 from datetime import date
 from typing import Annotated, Any
@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db
 from app.schemas.stock import KlineDataResponse, PaginatedResponse
-from app.services import stock_service
+from app.services import market as stock_service
 
 router = APIRouter()
 

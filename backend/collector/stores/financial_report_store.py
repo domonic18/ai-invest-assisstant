@@ -1,4 +1,4 @@
-"""Storage orchestration for downloaded financial report PDFs."""
+"""下载财报 PDF 的存储编排。"""
 
 import hashlib
 from datetime import date
@@ -8,8 +8,8 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.file_metadata import FileMetadata
-from app.services.knowledge_base_service import KnowledgeBaseService
-from app.services.minio_service import MinIOService
+from app.services.common.knowledge_base_service import KnowledgeBaseService
+from app.services.common.minio_service import MinIOService
 from collector.core.base import get_engine
 
 logger = structlog.get_logger()
@@ -18,11 +18,10 @@ _FILE_CATEGORY = "financial_report"
 
 
 class FinancialReportStore:
-    """Save financial report PDFs to MinIO, metadata to DB, and index to KB.
+    """把财报 PDF 存入 MinIO、元数据写入数据库并索引到知识库。
 
-    Storage is resilient: metadata is always persisted to PostgreSQL first so that
-    administrators can see what was collected.  MinIO and knowledge-base failures
-    are logged but do not block the database record.
+    存储过程具备容错性：元数据始终先持久化到 PostgreSQL，管理员可以看到
+    采集到了什么。MinIO 与知识库失败只记录日志，不阻塞数据库记录。
     """
 
     def __init__(
@@ -34,7 +33,7 @@ class FinancialReportStore:
         self.kb = kb
 
     async def save_many(self, items: list[dict[str, Any]]) -> tuple[int, list[str]]:
-        """Persist all items and return the number saved plus any error messages."""
+        """持久化全部条目，返回保存数量与错误信息列表。"""
         session_maker = async_sessionmaker(
             get_engine(), class_=AsyncSession, expire_on_commit=False
         )

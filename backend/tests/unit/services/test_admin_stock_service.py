@@ -1,11 +1,11 @@
-"""Unit tests for admin stock service."""
+"""AdminStockService 股票管理契约测试。"""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.schemas.stock import AdminStockCreate, AdminStockUpdate
-from app.services.admin_stock_service import AdminStockService
+from app.services.admin.stocks import AdminStockService
 
 
 def _result_mock(items=None, scalar=None):

@@ -1,4 +1,4 @@
-"""Admin collector data-type channel priority API endpoints."""
+"""管理后台采集数据类型渠道优先级 API 端点。"""
 
 from typing import Annotated
 
@@ -10,7 +10,7 @@ from app.schemas.collector_channel_config import (
     DataTypeChannelPriorityInput,
     DataTypeChannelsResponse,
 )
-from app.services.collector_channel_config_service import (
+from app.services.admin.collector_channels import (
     CollectorChannelConfigService,
 )
 

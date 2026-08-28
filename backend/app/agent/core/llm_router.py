@@ -1,4 +1,4 @@
-"""LLM model routing and Agent building helpers."""
+"""LLM 模型路由与 Agent 构建辅助函数。"""
 
 import httpx
 from anthropic import AsyncAnthropic
@@ -73,7 +73,7 @@ def build_agent(
     result_type: type | None = None,
 ) -> Agent:
     provider, model = parse_model_string(prompt_config.model)
-    # Model config overrides if explicit provider is given
+    # 显式指定 provider 时以 model 配置为准
     provider = model_config.get("provider", provider)
     model = model_config.get("model", model)
     model_instance = build_model(

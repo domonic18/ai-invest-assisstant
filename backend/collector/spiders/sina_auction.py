@@ -1,4 +1,4 @@
-"""Sina auction data collector via hq.sinajs.cn real-time depth."""
+"""基于 hq.sinajs.cn 实时买卖盘的新浪集合竞价采集器。"""
 
 from datetime import date
 from typing import Any, ClassVar
@@ -43,7 +43,7 @@ class SinaAuctionCollector(BaseAuctionCollector):
         return raw
 
     async def _fetch_snapshot(self, symbol: str) -> dict[str, Any]:
-        """Fetch a Sina real-time snapshot and parse the 5-level depth."""
+        """抓取新浪实时快照并解析五档盘口。"""
         sina_symbol = self._to_sina_symbol(symbol)
         url = f"{self.base_url.rstrip('/')}/list={sina_symbol}"
         headers = {"Referer": "https://finance.sina.com.cn"}
@@ -63,12 +63,11 @@ class SinaAuctionCollector(BaseAuctionCollector):
             ) from exc
 
         parts = payload.split(",")
-        # Sina returns a short 33-field snapshot outside trading hours and a
-        # longer one during trading. We only need indices 0-5 and 8-29.
+        # 新浪盘后返回 33 字段的短快照，盘中返回更长快照；只需 0-5 与 8-29 下标。
         if len(parts) < 30:
             raise ValueError(f"Incomplete Sina snapshot for {symbol}: {parts}")
 
-        # Sina field order:
+        # 新浪字段顺序：
         # 0 name, 1 open, 2 prev_close, 3 current, 4 high, 5 low,
         # 6 bid1_price, 7 ask1_price, 8 volume, 9 amount,
         # 10 buy1_vol, 11 buy1_price, 12 buy2_vol, 13 buy2_price, ...

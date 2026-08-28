@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for assistant chat sessions."""
+"""助手聊天会话的 SQLAlchemy ORM 模型。"""
 
 import uuid
 from datetime import datetime

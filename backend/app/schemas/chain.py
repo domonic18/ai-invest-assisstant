@@ -1,4 +1,4 @@
-"""Industry chain analysis related Pydantic schemas.
+"""产业链分析相关的 Pydantic schemas。
 
 字段在 Python 侧保留 snake_case（与 ORM 模型一致），但 wire format 输出 camelCase
 （与 ``shared/types/chain.ts`` 单一真相源对齐）。``industry_level_1`` 在 API 上

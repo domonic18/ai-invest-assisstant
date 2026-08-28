@@ -92,6 +92,9 @@ async def fetch_kline(
 
 分层：`路由 (api/) → 服务 (services/) → 仓储 (repositories/) → 模型 (models/)`
 
+- **services 与 repositories 按业务子域组织**：`services/` 与 `repositories/` 根目录不存放平文件，
+  新服务/仓储一律放入对应子域包（admin/ assistant/ chain/ collector/ common/ market/ reports/ review/ user/）；
+  services 顶层禁止导入 `app.agent.*`（反向依赖会成环，需在函数内延迟导入）
 - **路由层禁止直接操作数据库**：不允许在路由中调用 `session.execute` / `session.add` / `session.commit`，一律委托给服务层
 - **仓储层禁止管理事务**：`repositories/` 只做查询构造与执行，**绝不**调用 `commit()` / `rollback()`
 - **服务层拥有事务边界**：所有写操作（add/delete/update）成功后必须显式 `await session.commit()`；禁止只 `flush()` 不 `commit()`（`get_db` 不会自动提交，只 flush 的写入会在请求结束时被回滚）

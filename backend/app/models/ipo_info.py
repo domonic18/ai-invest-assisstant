@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for IPO information."""
+"""新股发行信息的 SQLAlchemy ORM 模型。"""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
 
-class IpoInfo(Base):
+class IPOInfo(Base):
     """新股发行信息表。"""
 
     __tablename__ = "ipo_info"

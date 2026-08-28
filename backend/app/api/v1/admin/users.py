@@ -1,4 +1,4 @@
-"""Admin user management API endpoints."""
+"""管理后台用户管理 API 端点。"""
 
 from typing import Annotated
 
@@ -13,7 +13,7 @@ from app.schemas.user import (
     AdminUserUpdate,
     UserResponse,
 )
-from app.services.admin_user_service import AdminUserService
+from app.services.admin.users import AdminUserService
 
 router = APIRouter(dependencies=[Depends(get_current_admin_user)])
 

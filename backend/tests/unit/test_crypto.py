@@ -1,4 +1,4 @@
-"""Tests for credential encryption utilities."""
+"""凭证加密工具契约测试。"""
 
 
 import pytest

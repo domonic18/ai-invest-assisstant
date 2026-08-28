@@ -23,7 +23,7 @@ from app.agent.core.prompt_loader import PromptLoader
 from app.agent.runtime.model_factory import build_langchain_model
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
-from app.services.llm_config_service import resolve_default_llm
+from app.services.admin.llm_config_service import resolve_default_llm
 
 logger = structlog.get_logger(__name__)
 
@@ -102,7 +102,7 @@ async def get_assistant_agent(
     from deepagents import create_deep_agent
 
     if tools is None:
-        from app.agent.runtime.assistant_tools import build_assistant_tools
+        from app.agent.tools import build_assistant_tools
 
         tools = build_assistant_tools()
 

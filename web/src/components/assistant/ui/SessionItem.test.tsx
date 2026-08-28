@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
+import dayjs from 'dayjs'
+
 import { SessionItem } from './SessionItem'
 
 import type { AssistantSessionItem } from '@/api/assistant'
@@ -27,7 +29,9 @@ describe('SessionItem', () => {
       />,
     )
     expect(screen.getByText('测试会话')).toBeInTheDocument()
-    expect(screen.getByText('08-25 18:30')).toBeInTheDocument()
+    // 组件按本地时区渲染 updated_at（dayjs），断言不能用写死时区的字面量，
+    // 否则 CI（UTC）与本地（UTC+8）结果不同；期望值由同一 fixture 独立推导
+    expect(screen.getByText(dayjs('2026-08-25T10:30:00Z').format('MM-DD HH:mm'))).toBeInTheDocument()
   })
 
   it('calls onClick when clicked', () => {

@@ -1,4 +1,4 @@
-"""Unit tests for market daily review collector."""
+"""每日复盘采集器契约测试（交易日跳过/生成/缓存命中）。"""
 
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch

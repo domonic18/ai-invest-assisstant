@@ -1,4 +1,4 @@
-"""Pydantic schemas for sector fund flow (hotspot)."""
+"""板块资金流向（热点）的 Pydantic schemas。"""
 
 from datetime import date, datetime
 from decimal import Decimal

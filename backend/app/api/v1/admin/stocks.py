@@ -1,4 +1,4 @@
-"""Admin stock management API endpoints."""
+"""管理后台股票管理 API 端点。"""
 
 from typing import Annotated
 
@@ -12,7 +12,7 @@ from app.schemas.stock import (
     PaginatedResponse,
     StockBasicResponse,
 )
-from app.services.admin_stock_service import AdminStockService
+from app.services.admin.stocks import AdminStockService
 
 router = APIRouter(dependencies=[Depends(get_current_admin_user)])
 

@@ -1,4 +1,4 @@
-"""Industry chain analysis API endpoints.
+"""产业链分析 API 路由。
 
 业务异常（ChainAnalysisFailedError / LLMConfigNotConfiguredError）由全局
 AppError handler 统一转换为 JSONResponse ``{detail: message}``。
@@ -18,7 +18,7 @@ from app.schemas.chain import (
     ChainVersionDetail,
     ChainVersionSummary,
 )
-from app.services import chain_service
+from app.services.chain import chain_service
 
 router = APIRouter()
 

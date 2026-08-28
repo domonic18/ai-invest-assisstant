@@ -1,3 +1,5 @@
+"""股票搜索/详情 API 端点契约测试。"""
+
 from unittest.mock import patch
 
 import pytest

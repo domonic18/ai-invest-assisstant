@@ -1,9 +1,8 @@
-"""Celery task wrappers for collector execution.
+"""采集执行的 Celery 任务包装。
 
-This module exposes a single generic Celery task that executes any collector
-spider registered in ``collector.runtime.registry.TASK_MAP``.  The task body
-reuses ``collector.runtime.runner.run_task`` so that logging, status
-persistence, and source fallback remain unchanged.
+本模块只暴露一个通用 Celery 任务，可执行 ``collector.runtime.registry.TASK_MAP``
+中注册的任意采集 spider。任务体复用 ``collector.runtime.runner.run_task``，
+日志、状态持久化与多渠道 fallback 行为保持不变。
 """
 
 import asyncio
@@ -16,6 +15,7 @@ from celery import Task
 from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy import select
 
+from app.constants.collector import CollectorStatus
 from app.core.database import AsyncSessionLocal
 from app.models.collector_dead_letter import CollectorDeadLetter
 from app.models.collector_log import CollectorLog
@@ -35,22 +35,20 @@ def _truncate(text: str) -> str:
 
 
 class AsyncTask(Task):
-    """Celery task base that runs async code on a persistent child-process loop.
+    """在子进程持久事件循环上运行异步代码的 Celery 任务基类。
 
-    Celery prefork children reuse the same process for many tasks.  The default
-    ``asyncio.run()`` pattern creates and destroys an event loop for every task,
-    which leaves asyncpg connections from the previous loop in the SQLAlchemy
-    pool; the next task then reuses those connections on a new loop and gets
-    ``asyncpg.exceptions.InterfaceError: another operation is in progress``.
+    Celery prefork 子进程会复用同一进程执行多个任务。默认的 ``asyncio.run()``
+    模式为每个任务创建再销毁一个事件循环，导致上一个循环的 asyncpg 连接残留在
+    SQLAlchemy 连接池中；下一个任务在新循环上复用这些连接时会报
+    ``asyncpg.exceptions.InterfaceError: another operation is in progress``。
 
-    Keeping one loop per child process eliminates that cross-loop connection
-    reuse and lets the connection pool warm up normally.
+    每个子进程保持一个循环可消除这种跨循环连接复用，让连接池正常预热。
     """
 
     _loop: asyncio.AbstractEventLoop | None = None
 
     def _ensure_loop(self) -> asyncio.AbstractEventLoop:
-        """Return the child-process event loop, creating it if necessary."""
+        """返回子进程事件循环，必要时创建。"""
         if self._loop is None or self._loop.is_closed():
             self._loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._loop)
@@ -58,7 +56,7 @@ class AsyncTask(Task):
 
 
 class LogAwareTask(AsyncTask):
-    """Base Celery task that writes timeout status before a hard kill."""
+    """在硬性终止前写入超时状态的 Celery 任务基类。"""
 
     def on_failure(
         self,
@@ -68,7 +66,7 @@ class LogAwareTask(AsyncTask):
         kwargs: dict[str, Any],
         einfo: Any,
     ) -> None:
-        """Called when all retries are exhausted or failure is permanent."""
+        """重试耗尽或失败为永久性时被调用。"""
         try:
             payload = args[0] if args else {}
             log_id = payload.get("log_id")
@@ -100,7 +98,7 @@ async def _mark_log_failed(log_id: int, exc: BaseException) -> None:
         log = await session.get(CollectorLog, log_id)
         if log is None:
             return
-        log.status = "failed"
+        log.status = CollectorStatus.FAILED
         log.finished_at = datetime_now_utc()
         log.error_msg = _truncate(f"{type(exc).__name__}: {exc}")
         await session.commit()
@@ -139,13 +137,13 @@ def datetime_now_utc() -> datetime:
     name="collector.celery_tasks.run_collector_task",
 )
 def run_collector_task(self: LogAwareTask, payload: dict[str, Any]) -> dict[str, Any]:
-    """Execute a collector task in a prefork worker.
+    """在 prefork worker 中执行采集任务。
 
-    The payload must contain at least ``task``.  ``log_id`` is optional for
-    ad-hoc / scheduled entries that do not originate from the dispatcher.
+    payload 至少须包含 ``task``。``log_id`` 可选，供不来自 dispatcher 的临时
+    或定时任务使用。
 
-    All async work runs on the child process's persistent event loop so that
-    SQLAlchemy's asyncpg connection pool is not shared across different loops.
+    所有异步工作都运行在子进程的持久事件循环上，避免 SQLAlchemy 的 asyncpg
+    连接池被跨循环共享。
     """
     configure_logging()
     payload = dict(payload)
@@ -183,11 +181,10 @@ def run_collector_task(self: LogAwareTask, payload: dict[str, Any]) -> dict[str,
 
 
 async def _dispose_async_engines() -> None:
-    """Dispose asyncpg connection pools.
+    """释放 asyncpg 连接池。
 
-    Kept as a helper for explicit cleanup (e.g. worker shutdown).  With the
-    persistent event loop used by :class:`AsyncTask`, per-task disposal is no
-    longer required because connections stay bound to the same loop.
+    保留为显式清理的辅助函数（如 worker 关闭时）。采用 :class:`AsyncTask` 的
+    持久事件循环后，逐任务释放已无必要，因为连接始终绑定在同一循环上。
     """
     from app.core import database as app_database
     from collector.core.base import dispose_engine
@@ -209,7 +206,7 @@ async def _mark_log_timeout(log_id: int) -> None:
         log = await session.get(CollectorLog, log_id)
         if log is None:
             return
-        log.status = "failed"
+        log.status = CollectorStatus.FAILED
         log.finished_at = datetime_now_utc()
         log.error_msg = "Task exceeded soft time limit"
         await session.commit()
@@ -220,7 +217,7 @@ async def _update_task_schedule_state(
     result: CollectResult | None,
     error: str | None,
 ) -> None:
-    """Update collector_task lifecycle fields for scheduled runs."""
+    """为定时任务运行更新 collector_task 的生命周期字段。"""
     task_name = payload.get("task_name") or payload.get("task")
     if not task_name:
         return
@@ -236,7 +233,7 @@ async def _update_task_schedule_state(
             task.last_status = result.status.value
             task.last_error = "\n".join(result.errors) if result.errors else None
         else:
-            task.last_status = "failed"
+            task.last_status = CollectorStatus.FAILED
             task.last_error = error
         await session.commit()
 

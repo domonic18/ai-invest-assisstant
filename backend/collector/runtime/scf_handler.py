@@ -1,6 +1,6 @@
-"""Tencent SCF Job handler for collector tasks.
+"""采集任务的腾讯云 SCF Job handler。
 
-Usage in SCF:
+SCF 中的用法：
     执行方法: index.main_handler
     触发方式: 定时触发 / 事件触发
     触发事件: {"task": "financial-report", "symbols": ["000001"], "report_types": ["年报"]}
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def _parse_event(event: dict[str, Any] | str | None) -> dict[str, Any]:
-    """Parse an SCF event into a task parameter dictionary."""
+    """把 SCF 事件解析为任务参数字典。"""
     if event is None:
         return {}
     if isinstance(event, str):
@@ -34,14 +34,14 @@ def _parse_event(event: dict[str, Any] | str | None) -> dict[str, Any]:
 def main_handler(
     event: dict[str, Any] | str | None, context: Any
 ) -> dict[str, Any]:
-    """SCF entry point.
+    """SCF 入口函数。
 
     Args:
-        event: SCF trigger event containing task parameters.
-        context: SCF runtime context.
+        event: 包含任务参数的 SCF 触发事件。
+        context: SCF 运行时上下文。
 
     Returns:
-        Collection result summary.
+        采集结果摘要。
     """
     from collector.core.logging import configure_logging
 

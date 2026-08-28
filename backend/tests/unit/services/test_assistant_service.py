@@ -7,7 +7,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.models.assistant_session import AssistantSession
-from app.services.assistant_service import AssistantService, parse_skill_file
+from app.services.assistant.assistant_service import (
+    AssistantService,
+    parse_skill_file,
+    touch_session_standalone,
+)
 
 
 def _row(**overrides: object) -> AssistantSession:
@@ -117,3 +121,32 @@ class TestParseSkillFile:
         assert result["id"] == "legacy"
         assert result["name"] == "legacy"
         assert result["description"] == "第一行说明文字"
+
+
+@pytest.mark.unit
+class TestTouchSessionStandalone:
+    @pytest.mark.asyncio
+    async def test_uses_own_session_and_swallows_errors(self) -> None:
+        db = MagicMock()
+        db.__aenter__ = AsyncMock(return_value=db)
+        db.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch(
+                "app.core.database.AsyncSessionLocal",
+                return_value=db,
+            ) as session_local,
+            patch.object(
+                AssistantService,
+                "touch_session",
+                AsyncMock(),
+            ) as touch,
+        ):
+            await touch_session_standalone("tid", "标题")
+            touch.assert_awaited_once_with("tid", "标题")
+            session_local.assert_called_once()
+
+            touch.reset_mock(side_effect=True)
+            touch.side_effect = RuntimeError("db down")
+            # 失败只记日志，不向外抛
+            await touch_session_standalone("tid", None)

@@ -1,4 +1,4 @@
-"""Sina macro economic indicator collector via akshare."""
+"""基于 akshare 的新浪宏观经济指标采集器。"""
 
 import re
 from datetime import date, datetime

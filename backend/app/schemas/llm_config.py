@@ -1,4 +1,4 @@
-"""Pydantic schemas for LLM configuration management."""
+"""LLM 配置管理的 Pydantic schemas。"""
 
 from datetime import datetime
 from typing import Any
@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class LLMConfigCreate(BaseModel):
-    """Request schema for creating an LLM configuration."""
+    """创建 LLM 配置的请求 schema。"""
 
     name: str = Field(..., min_length=1, max_length=100)
     provider: str = Field(..., min_length=1, max_length=20)
@@ -20,9 +20,9 @@ class LLMConfigCreate(BaseModel):
 
 
 class LLMConfigUpdate(BaseModel):
-    """Request schema for updating an LLM configuration.
+    """更新 LLM 配置的请求 schema。
 
-    An empty ``api_key`` means "do not change the stored key".
+    空 ``api_key`` 表示不修改已存储的 key。
     """
 
     name: str | None = Field(None, min_length=1, max_length=100)
@@ -36,7 +36,7 @@ class LLMConfigUpdate(BaseModel):
 
 
 class LLMConfigResponse(BaseModel):
-    """Response schema for an LLM configuration (API key is masked)."""
+    """LLM 配置的响应 schema（API key 已脱敏）。"""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -57,7 +57,7 @@ class LLMConfigResponse(BaseModel):
 
 
 class LLMConfigTestResponse(BaseModel):
-    """Response schema for a connectivity test."""
+    """连通性测试的响应 schema。"""
 
     status: str
     detail: str

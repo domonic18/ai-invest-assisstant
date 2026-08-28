@@ -1,4 +1,4 @@
-"""EastMoney financial statement collector via akshare."""
+"""基于 akshare 的东方财富财务报表采集器。"""
 
 from collections.abc import Mapping, Sequence
 from datetime import date

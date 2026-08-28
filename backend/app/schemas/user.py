@@ -1,4 +1,4 @@
-"""User and watchlist related Pydantic schemas."""
+"""用户与自选股相关的 Pydantic schemas。"""
 
 from datetime import datetime
 

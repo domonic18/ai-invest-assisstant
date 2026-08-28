@@ -1,3 +1,5 @@
+"""auth 注册/登录端点契约测试。"""
+
 from unittest.mock import AsyncMock, patch
 
 import pytest

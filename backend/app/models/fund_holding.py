@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for fund holdings."""
+"""个股基金持仓的 SQLAlchemy ORM 模型。"""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
 
-class FundHoldings(Base):
+class FundHolding(Base):
     """个股基金持仓表。"""
 
     __tablename__ = "fund_holding"

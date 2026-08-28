@@ -1,4 +1,4 @@
-"""Sina K-line collector via akshare."""
+"""基于 akshare 的新浪 K 线采集器。"""
 
 from typing import Any
 

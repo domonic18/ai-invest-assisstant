@@ -1,4 +1,4 @@
-"""Unit tests for index technical service（AI 综述技术分析输入构建）。"""
+"""指数技术面服务契约测试（AI 综述技术分析输入构建）。"""
 
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services import index_technical_service
-from app.services.index_technical_service import TECH_CODES, build_technical_context
+from app.services.market import index_technical_service
+from app.services.market.index_technical_service import TECH_CODES, build_technical_context
 
 _TRADE_DATE = date(2026, 7, 17)  # 周五
 

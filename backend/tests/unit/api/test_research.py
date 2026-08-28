@@ -1,4 +1,4 @@
-"""Unit tests for research API endpoints."""
+"""研报 API 端点契约测试。"""
 
 from datetime import datetime
 from unittest.mock import MagicMock, patch

@@ -1,7 +1,7 @@
-"""EastMoney limit-up pool collector via akshare.
+"""基于 akshare 的东财涨停池采集器。
 
-Fetches the daily 涨停股池 (stock_zt_pool_em) and stores it into
-``pool_limit_up_stock`` for the daily-review dashboard (涨停板 / 连板天梯).
+抓取每日涨停股池（stock_zt_pool_em）写入 ``pool_limit_up_stock``，供盘面
+复盘看板（涨停板 / 连板天梯）使用。
 """
 
 from datetime import date

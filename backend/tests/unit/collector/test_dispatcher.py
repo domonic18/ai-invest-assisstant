@@ -1,4 +1,4 @@
-"""Tests for the collector task dispatcher."""
+"""collector 任务派发器契约测试。"""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 

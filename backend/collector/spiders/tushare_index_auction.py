@@ -1,4 +1,4 @@
-"""Tushare index call-auction amount collector.
+"""Tushare 指数集合竞价成交额采集器。
 
 指数 9:25 集合竞价成交额 = 成分范围个股 stk_auction（纯 9:25 撮合）合计，
 已与同花顺手工记录核对（误差 <0.6%）：

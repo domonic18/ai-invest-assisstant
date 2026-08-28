@@ -1,4 +1,4 @@
-"""CNINFO IPO information collector via akshare."""
+"""基于 akshare 的 CNINFO 新股发行信息采集器。"""
 
 from datetime import date, datetime
 from typing import Any, ClassVar
@@ -77,7 +77,7 @@ class CninfoIpoCollector(PostgresCollector):
 def _to_date(value: Any) -> date | None:
     if value is None:
         return None
-    # Handle pandas NaT / numpy NaT explicitly before isinstance checks.
+    # 在 isinstance 判断之前显式处理 pandas NaT / numpy NaT。
     if _is_na(value):
         return None
     if isinstance(value, date) and not isinstance(value, datetime):
@@ -96,7 +96,7 @@ def _to_date(value: Any) -> date | None:
 
 
 def _is_na(value: Any) -> bool:
-    """Return True for pandas/numpy missing-value sentinels."""
+    """pandas/numpy 缺失值哨兵返回 True。"""
     try:
         import pandas as pd  # type: ignore[import-untyped]
 

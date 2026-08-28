@@ -1,4 +1,4 @@
-"""Users and watchlist API endpoints."""
+"""用户与自选股 API 路由。"""
 
 from typing import Annotated, Any
 
@@ -15,9 +15,8 @@ from app.schemas.user import (
     WatchlistItemCreate,
     WatchlistItemResponse,
 )
-from app.services import market_service
-from app.services.user_service import UserService
-from app.services.watchlist_service import WatchlistService
+from app.services.market import market_service
+from app.services.user import UserService, WatchlistService
 
 router = APIRouter()
 

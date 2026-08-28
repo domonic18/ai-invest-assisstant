@@ -1,4 +1,4 @@
-"""Unit tests for market AI review endpoints (auth / admin / overlay isolation)."""
+"""大盘 AI 复盘端点契约测试（鉴权 / 管理员 / 分区覆盖隔离）。"""
 
 from datetime import date
 from unittest.mock import AsyncMock, patch
@@ -153,7 +153,7 @@ class TestUpdateAiReview:
         assert mock_update.await_args.args[3:] == ("overview", "updated")
 
     def test_422_when_section_unknown(self, auth_client) -> None:
-        from app.services.market_review_service import UnknownSectionError
+        from app.services.review.market_review_service import UnknownSectionError
 
         with patch(
             "app.api.v1.market.market_review_service.update_market_review",

@@ -1,4 +1,4 @@
-"""Data cleaning pipeline for collectors."""
+"""采集器的数据清洗管道。"""
 
 from abc import ABC, abstractmethod
 from typing import Any

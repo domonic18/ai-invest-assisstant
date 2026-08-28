@@ -1,4 +1,4 @@
-"""Authentication related Pydantic schemas."""
+"""认证相关的 Pydantic schemas。"""
 
 from pydantic import BaseModel, EmailStr, Field
 

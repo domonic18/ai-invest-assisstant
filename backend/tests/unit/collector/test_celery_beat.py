@@ -1,4 +1,4 @@
-"""Tests for Celery Beat database scheduler."""
+"""Celery Beat 数据库调度器契约测试。"""
 
 from unittest.mock import MagicMock, patch
 

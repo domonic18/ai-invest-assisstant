@@ -1,4 +1,4 @@
-"""Unit tests for index call-auction trend service."""
+"""指数集合竞价趋势服务契约测试。"""
 
 from datetime import date
 from decimal import Decimal
@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.models.quote_auction_index import IndexAuction
-from app.services import auction_service
+from app.services.market import auction_service
 
 
 def _row(day: date, code: str, amount: str) -> IndexAuction:

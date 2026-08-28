@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for system-wide LLM configurations."""
+"""系统级 LLM 配置的 SQLAlchemy ORM 模型。"""
 
 from datetime import datetime
 from typing import Any
@@ -11,7 +11,7 @@ from app.core.database import Base
 
 
 class LLMConfig(Base):
-    """System-wide LLM configuration managed by admins."""
+    """管理员管理的系统级 LLM 配置。"""
 
     __tablename__ = "llm_config"
 

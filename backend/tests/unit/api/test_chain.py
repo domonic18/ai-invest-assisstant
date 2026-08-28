@@ -1,4 +1,4 @@
-"""Unit tests for industry chain API endpoints."""
+"""产业链 API 端点契约测试。"""
 
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -14,8 +14,8 @@ from app.schemas.chain import (
     ChainVersionDetail,
     ChainVersionSummary,
 )
-from app.services.chain_service import ChainAnalysisFailedError
-from app.services.llm_config_service import LLMConfigNotConfiguredError
+from app.services.admin.llm_config_service import LLMConfigNotConfiguredError
+from app.services.chain.chain_service import ChainAnalysisFailedError
 
 
 @pytest.fixture

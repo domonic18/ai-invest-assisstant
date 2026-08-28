@@ -1,4 +1,4 @@
-"""Unit tests for industry chain analysis skill post-validation."""
+"""产业链分析 skill 后校验契约测试。"""
 
 from unittest.mock import AsyncMock, MagicMock
 

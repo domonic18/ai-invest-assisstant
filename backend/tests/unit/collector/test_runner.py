@@ -1,4 +1,4 @@
-"""Unit tests for the collector runtime runner (unified execution path)."""
+"""collector runtime runner 契约测试（统一执行入口与日志落库）。"""
 
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch

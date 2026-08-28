@@ -1,4 +1,4 @@
-"""Unit tests for collector channel configuration service."""
+"""采集渠道配置服务契约测试。"""
 
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -10,7 +10,7 @@ from app.schemas.collector_channel_config import (
     CollectorChannelConfigUpdate,
     DataTypeChannelPriorityInput,
 )
-from app.services.collector_channel_config_service import (
+from app.services.admin.collector_channels import (
     CollectorChannelConfigService,
 )
 
@@ -57,11 +57,11 @@ class TestCollectorChannelConfigService:
             supported_data_types=["fund-flow"],
         )
         with patch(
-            "app.services.collector_channel_config_service.CollectorChannelConfig",
+            "app.services.admin.collector_channels.CollectorChannelConfig",
             return_value=self._config_mock(),
         ):
             with patch(
-                "app.services.collector_channel_config_service.encrypt_token",
+                "app.services.admin.collector_channels.encrypt_token",
                 return_value="enc",
             ):
                 await svc.create_config(data)
@@ -74,7 +74,7 @@ class TestCollectorChannelConfigService:
         session.get.return_value = self._config_mock(is_enabled=True)
         data = CollectorChannelConfigUpdate(is_enabled=False)
         with patch(
-            "app.services.collector_channel_config_service.mask_token",
+            "app.services.admin.collector_channels.mask_token",
             return_value="***",
         ):
             result = await svc.update_config(1, data)

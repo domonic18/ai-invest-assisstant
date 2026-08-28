@@ -220,7 +220,8 @@ skills/
 `industry-chain-analysis` Skill 是目前唯一端到端跑通的 Agent 能力：
 
 - `agent/skills/industry_chain_analysis.py` — Agent 装配（注入 db_tools）
-- `services/chain_service.py` — `analyze_and_persist` / `list_versions` / `get_version_detail` / `get_latest_detail` / `compare_versions`
+- `services/chain/chain_service.py` — 版本管理与对比（`list_versions` / `get_version_detail` / `get_latest_detail` / `compare_versions`）
+- `services/chain/chain_analysis_service.py` — `analyze_and_persist` / `persist_analysis_result`
 - `api/v1/chain.py` — 5 个版本管理端点
 - 数据落库到 `industry_chain_version` / `industry_chain_node` / `industry_chain_edge` / `industry_chain_company_mapping`
 - 推导方式：基于**经营范围**自下而上推导环节（不再要求行业预设）

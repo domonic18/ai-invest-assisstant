@@ -1,4 +1,4 @@
-"""Stock basic information API endpoints."""
+"""个股基础信息 API 路由。"""
 
 from datetime import date
 from typing import Annotated
@@ -15,7 +15,7 @@ from app.schemas.stock import (
     StockSearchRequest,
     StockSectorsResponse,
 )
-from app.services import stock_service
+from app.services import market as stock_service
 
 router = APIRouter()
 

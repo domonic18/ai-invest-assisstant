@@ -1,9 +1,8 @@
-"""Credential encryption utilities using Fernet symmetric encryption.
+"""基于 Fernet 对称加密的凭据加密工具。
 
-The encryption key is derived from ``CREDENTIAL_ENCRYPTION_KEY`` first,
-then falls back to ``SECRET_KEY`` for development convenience. In production
-``DEBUG=False`` a warning is logged once if the dedicated credential key is
-missing, because JWT key leakage should not compromise stored credentials.
+加密密钥优先取 ``CREDENTIAL_ENCRYPTION_KEY``，为空时回退到 ``SECRET_KEY``
+以便开发环境使用。生产环境（``DEBUG=False``）缺少专用凭据密钥时只告警一次：
+JWT 密钥泄露不应波及已存储的凭据。
 """
 
 from __future__ import annotations
@@ -19,7 +18,7 @@ _jwt_fallback_warned = False
 
 
 def _load_fernet() -> Fernet:
-    """Load a Fernet instance, deriving the key from configured secrets."""
+    """加载 Fernet 实例，从配置的密钥派生加密密钥。"""
     global _jwt_fallback_warned
 
     settings = get_settings()
@@ -27,7 +26,7 @@ def _load_fernet() -> Fernet:
     if not secret:
         secret = settings.secret_key
         if secret and not settings.debug and not _jwt_fallback_warned:
-            # Lazy import to avoid circular setup issues.
+            # 延迟导入，避免循环依赖问题。
             import structlog
 
             logger = structlog.get_logger()
@@ -49,17 +48,17 @@ def _load_fernet() -> Fernet:
 
 
 def encrypt_token(plain: str) -> str:
-    """Encrypt a plaintext string and return a base64-encoded token."""
+    """加密明文字符串并返回 base64 编码的 token。"""
     return _load_fernet().encrypt(plain.encode("utf-8")).decode("utf-8")
 
 
 def decrypt_token(cipher: str) -> str:
-    """Decrypt a base64-encoded token and return the plaintext string."""
+    """解密 base64 编码的 token 并返回明文字符串。"""
     return _load_fernet().decrypt(cipher.encode("utf-8")).decode("utf-8")
 
 
 def mask_token(token: str) -> str:
-    """Mask a token for display, keeping the first 4 and last 4 characters."""
+    """掩码展示 token，保留前 4 位与后 4 位。"""
     if not token:
         return ""
     if len(token) <= 8:

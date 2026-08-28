@@ -1,4 +1,4 @@
-"""Admin news announcement management API endpoints."""
+"""管理后台新闻公告管理 API 端点。"""
 
 from typing import Annotated
 
@@ -12,7 +12,7 @@ from app.schemas.news_announcement import (
     NewsAnnouncementUpdate,
 )
 from app.schemas.stock import PaginatedResponse
-from app.services.admin_news_service import AdminNewsService
+from app.services.admin.news import AdminNewsService
 
 router = APIRouter(dependencies=[Depends(get_current_admin_user)])
 

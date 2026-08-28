@@ -1,17 +1,25 @@
-"""Business services."""
+"""业务服务（按业务子域聚合；导入顺序避免子包间依赖环）。"""
 
 from app.services import (
-    collector_channel_config_service,
-    llm_config_service,
-    stock_service,
-    user_service,
-    watchlist_service,
+    admin,
+    assistant,
+    chain,
+    collector,
+    common,
+    market,
+    reports,
+    review,
+    user,
 )
 
 __all__ = [
-    "collector_channel_config_service",
-    "llm_config_service",
-    "stock_service",
-    "user_service",
-    "watchlist_service",
+    "admin",
+    "assistant",
+    "chain",
+    "collector",
+    "common",
+    "market",
+    "reports",
+    "review",
+    "user",
 ]
