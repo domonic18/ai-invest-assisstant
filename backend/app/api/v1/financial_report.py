@@ -15,7 +15,7 @@ from app.schemas.file_metadata import (
     FinancialReportResponse,
 )
 from app.schemas.stock import PaginatedResponse
-from app.services import financial_report_service
+from app.services.reports import financial_report_service
 
 router = APIRouter()
 

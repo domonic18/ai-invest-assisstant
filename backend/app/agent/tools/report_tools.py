@@ -25,7 +25,7 @@ async def query_financial_reports(
         start_date: 报告期起始，ISO 格式如 "2024-01-01"。
         end_date: 报告期截止，ISO 格式如 "2024-12-31"。
     """
-    from app.services.financial_report_service import FinancialReportService
+    from app.services.reports.financial_report_service import FinancialReportService
 
     try:
         resolved_start = date.fromisoformat(start_date) if start_date else None
@@ -75,7 +75,7 @@ async def download_financial_reports(
         start_date: 报告期起始，ISO 格式如 "2024-01-01"。
         end_date: 报告期截止，ISO 格式如 "2024-12-31"。
     """
-    from app.services.financial_report_service import FinancialReportService
+    from app.services.reports.financial_report_service import FinancialReportService
 
     try:
         resolved_start = date.fromisoformat(start_date) if start_date else None
@@ -104,7 +104,7 @@ async def summarize_financial_report(report_id: int) -> dict[str, Any]:
     Args:
         report_id: 财报在系统中的 ID（由 query_financial_reports 返回的 id 字段）。
     """
-    from app.services.financial_report_service import FinancialReportService
+    from app.services.reports.financial_report_service import FinancialReportService
 
     async with AsyncSessionLocal() as session:
         service = FinancialReportService(session)

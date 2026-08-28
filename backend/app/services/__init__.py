@@ -3,6 +3,7 @@
 from app.services import (
     admin,
     llm_config_service,
+    reports,
     stock_service,
     user_service,
     watchlist_service,
@@ -11,6 +12,7 @@ from app.services import (
 __all__ = [
     "admin",
     "llm_config_service",
+    "reports",
     "stock_service",
     "user_service",
     "watchlist_service",

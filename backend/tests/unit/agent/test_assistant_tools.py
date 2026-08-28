@@ -155,7 +155,7 @@ class TestFinancialReportTools:
         mock_service = MagicMock()
         mock_service.list_reports = AsyncMock(return_value=([item], 1))
         with patch(
-            "app.services.financial_report_service.FinancialReportService",
+            "app.services.reports.financial_report_service.FinancialReportService",
             return_value=mock_service,
         ):
             result = await at.query_financial_reports.ainvoke(
@@ -174,7 +174,7 @@ class TestFinancialReportTools:
         mock_service = MagicMock()
         mock_service.trigger_collect = AsyncMock(return_value=log)
         with patch(
-            "app.services.financial_report_service.FinancialReportService",
+            "app.services.reports.financial_report_service.FinancialReportService",
             return_value=mock_service,
         ):
             result = await at.download_financial_reports.ainvoke(
@@ -190,7 +190,7 @@ class TestFinancialReportTools:
             return_value={"summary": "营收增长 12%", "cached": False}
         )
         with patch(
-            "app.services.financial_report_service.FinancialReportService",
+            "app.services.reports.financial_report_service.FinancialReportService",
             return_value=mock_service,
         ):
             result = await at.summarize_financial_report.ainvoke({"report_id": 7})
