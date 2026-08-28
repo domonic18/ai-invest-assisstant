@@ -12,7 +12,7 @@ from app.schemas.news_announcement import (
     NewsAnnouncementUpdate,
 )
 from app.schemas.stock import PaginatedResponse
-from app.services.admin_news_service import AdminNewsService
+from app.services.admin.news import AdminNewsService
 
 router = APIRouter(dependencies=[Depends(get_current_admin_user)])
 

@@ -12,7 +12,7 @@ from app.schemas.collector_task import (
     CollectorTaskUpdate,
 )
 from app.schemas.stock import PaginatedResponse
-from app.services.admin_task_service import AdminTaskService
+from app.services.admin.tasks import AdminTaskService
 from collector.runtime.dispatcher import dispatch_collector_task
 
 router = APIRouter(dependencies=[Depends(get_current_admin_user)])

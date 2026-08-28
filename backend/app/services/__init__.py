@@ -1,7 +1,7 @@
 """Business services."""
 
 from app.services import (
-    collector_channel_config_service,
+    admin,
     llm_config_service,
     stock_service,
     user_service,
@@ -9,7 +9,7 @@ from app.services import (
 )
 
 __all__ = [
-    "collector_channel_config_service",
+    "admin",
     "llm_config_service",
     "stock_service",
     "user_service",

@@ -11,7 +11,7 @@ from app.schemas.collector_channel_config import (
     CollectorChannelConfigResponse,
     CollectorChannelConfigUpdate,
 )
-from app.services.collector_channel_config_service import (
+from app.services.admin.collector_channels import (
     CollectorChannelConfigService,
 )
 

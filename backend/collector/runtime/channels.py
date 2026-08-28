@@ -11,7 +11,7 @@ from typing import Any
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.collector_channel_config_service import resolve_collector_channel
+from app.services.admin.collector_channels import resolve_collector_channel
 
 logger = structlog.get_logger()
 

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.schemas.user import AdminUserCreate, AdminUserUpdate
-from app.services.admin_user_service import AdminUserService
+from app.services.admin.users import AdminUserService
 
 
 def _result_mock(items=None, scalar=None):

@@ -12,7 +12,7 @@ from app.schemas.file_metadata import (
     FileMetadataUpdate,
 )
 from app.schemas.stock import PaginatedResponse
-from app.services.admin_report_service import AdminReportService
+from app.services.admin.reports import AdminReportService
 
 router = APIRouter(dependencies=[Depends(get_current_admin_user)])
 

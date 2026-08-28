@@ -12,7 +12,7 @@ from app.schemas.stock import (
     PaginatedResponse,
     StockBasicResponse,
 )
-from app.services.admin_stock_service import AdminStockService
+from app.services.admin.stocks import AdminStockService
 
 router = APIRouter(dependencies=[Depends(get_current_admin_user)])
 

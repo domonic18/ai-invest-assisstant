@@ -10,7 +10,7 @@ from app.schemas.collector_channel_config import (
     DataTypeChannelPriorityInput,
     DataTypeChannelsResponse,
 )
-from app.services.collector_channel_config_service import (
+from app.services.admin.collector_channels import (
     CollectorChannelConfigService,
 )
 

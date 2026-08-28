@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.schemas.collector_task import CollectorTaskCreate, CollectorTaskUpdate
-from app.services.admin_task_service import AdminTaskService
+from app.services.admin.tasks import AdminTaskService
 
 
 def _result_mock(items=None, scalar=None):
