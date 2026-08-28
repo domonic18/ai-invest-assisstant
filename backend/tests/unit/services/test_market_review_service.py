@@ -1,4 +1,4 @@
-"""Unit tests for market review service (AI 复盘读写分离、多租户隔离与按分区编辑保存)。"""
+"""大盘复盘服务契约测试（AI 复盘读写分离、多租户隔离与按分区编辑保存）。"""
 
 from contextlib import asynccontextmanager
 from datetime import date, datetime

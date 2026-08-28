@@ -1,4 +1,4 @@
-"""Unit tests for the shared EastMoney HTTP client."""
+"""EastMoney 共享 HTTP client 契约测试。"""
 
 import time
 from unittest.mock import MagicMock, patch

@@ -1,3 +1,5 @@
+"""UserService 注册/认证/用户设置契约测试。"""
+
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

@@ -1,4 +1,4 @@
-"""Unit tests for research service."""
+"""研报服务契约测试。"""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 

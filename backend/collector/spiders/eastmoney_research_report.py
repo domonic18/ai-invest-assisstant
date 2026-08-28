@@ -1,4 +1,4 @@
-"""EastMoney research report collector via reportapi HTTP interface.
+"""基于 reportapi HTTP 接口的东方财富研报采集器。
 
 拉取东方财富个股研报列表（reportapi），下载原始 PDF，输出包含
 ``file_bytes`` 的标准化条目。``store`` 步骤由
@@ -49,7 +49,7 @@ class EastMoneyResearchReportCollector(BaseCollector):
         end_date: str | None = None,
         **kwargs: Any,
     ) -> list[dict[str, Any]]:
-        """Query the reportapi list endpoint and download report PDFs."""
+        """查询 reportapi 列表接口并下载研报 PDF。"""
         import httpx
 
         end = _parse_date(end_date) or date.today()
@@ -79,7 +79,7 @@ class EastMoneyResearchReportCollector(BaseCollector):
     async def _fetch_list(
         self, client: Any, start: date, end: date
     ) -> list[dict[str, Any]]:
-        """Fetch all report list pages for the date range."""
+        """抓取日期范围内的全部研报列表页。"""
         entries: list[dict[str, Any]] = []
         page_no = 1
         total_pages = 1
@@ -108,7 +108,7 @@ class EastMoneyResearchReportCollector(BaseCollector):
     async def _download_pdfs(
         self, client: Any, entries: list[dict[str, Any]]
     ) -> None:
-        """Download report PDFs concurrently; failures keep the metadata entry."""
+        """并发下载研报 PDF；失败的条目保留元数据。"""
         semaphore = asyncio.Semaphore(_DOWNLOAD_CONCURRENCY)
 
         async def fetch_one(entry: dict[str, Any]) -> None:
@@ -152,7 +152,7 @@ class EastMoneyResearchReportCollector(BaseCollector):
         )
 
     async def store(self, items: list[dict[str, Any]]) -> int:
-        """Persist metadata to DB and PDFs to MinIO via the store layer."""
+        """通过 store 层把元数据写入数据库、PDF 写入 MinIO。"""
         if not items:
             return 0
         count, _ = await self._save_items(items)
@@ -168,7 +168,7 @@ class EastMoneyResearchReportCollector(BaseCollector):
         return await store.save_many(items)
 
     async def run(self, **kwargs: Any) -> CollectResult:
-        """Run the full cycle, surfacing storage warnings in the result errors."""
+        """运行完整流程，把存储警告体现在结果的 errors 中。"""
         started_at = datetime.utcnow()
         try:
             raw_data = await self.collect(**kwargs)
@@ -211,7 +211,7 @@ class EastMoneyResearchReportCollector(BaseCollector):
 
 
 async def download_research_pdf(url: str, timeout: float = 60) -> bytes:
-    """Download one report PDF with a Chrome TLS fingerprint.
+    """用 Chrome TLS 指纹下载单份研报 PDF。
 
     pdf.dfcfw.com 的 WAF 按 TLS 指纹拦截：httpx/OpenSSL 会返回 JS 反爬挑战，
     curl_cffi 的 Chrome 指纹可正常取回 PDF。非 PDF 内容（反爬页面）视为失败。
@@ -229,7 +229,7 @@ async def download_research_pdf(url: str, timeout: float = 60) -> bytes:
 
 
 def _map_entry(item: dict[str, Any]) -> dict[str, Any] | None:
-    """Map one reportapi list item to a raw entry; None if key fields missing."""
+    """把单条 reportapi 列表项映射为原始条目；关键字段缺失返回 None。"""
     info_code = _str(item.get("infoCode"))
     stock_code = _str(item.get("stockCode"))
     title = _str(item.get("title"))

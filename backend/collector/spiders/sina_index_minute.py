@@ -1,4 +1,4 @@
-"""Sina index minute K-line collector via akshare.
+"""基于 akshare 的新浪指数分钟 K 线采集器。
 
 抓取主要指数 1 分钟线写入 quote_kline_stock_minute 超表，/indices/intraday 分时图
 只读该表。新浪接口返回最近约 8 个交易日，运行时只保留目标交易日

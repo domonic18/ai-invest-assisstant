@@ -1,4 +1,4 @@
-"""Tests for Celery app queue routing, task option resolution, and worker lifecycle."""
+"""Celery app 契约测试：队列路由、任务选项解析与 worker 生命周期。"""
 
 from unittest.mock import MagicMock, patch
 

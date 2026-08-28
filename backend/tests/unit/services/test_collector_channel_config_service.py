@@ -1,4 +1,4 @@
-"""Unit tests for collector channel configuration service."""
+"""采集渠道配置服务契约测试。"""
 
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch

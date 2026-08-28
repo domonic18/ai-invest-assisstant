@@ -1,7 +1,7 @@
-"""Dispatcher for collector tasks from the web API to Celery.
+"""把采集任务从 web API 分发到 Celery 的调度器。
 
-The dispatcher creates a pending ``CollectorLog`` row and submits the task to
-Celery via ``run_collector_task.apply_async``.
+dispatcher 创建一条 pending 状态的 ``CollectorLog`` 行，并通过
+``run_collector_task.apply_async`` 把任务提交给 Celery。
 """
 
 from datetime import datetime, timezone
@@ -19,15 +19,15 @@ async def dispatch_collector_task(
     task_name: str,
     params: dict[str, Any],
 ) -> CollectorLog:
-    """Create a pending log entry and submit the task to Celery.
+    """创建 pending 日志条目并把任务提交到 Celery。
 
     Args:
-        session: Database session for persisting the log entry.
-        task_name: The collector task name (e.g. ``financial-report``).
-        params: Task parameters such as ``symbols``, ``start_date``, etc.
+        session: 用于持久化日志条目的数据库会话。
+        task_name: 采集任务名（如 ``financial-report``）。
+        params: 任务参数，如 ``symbols``、``start_date`` 等。
 
     Returns:
-        The newly created ``CollectorLog`` row.
+        新创建的 ``CollectorLog`` 行。
     """
     from collector.celery_tasks import run_collector_task
 
@@ -59,7 +59,7 @@ async def dispatch_collector_task(
 
 
 async def _load_task_queue(session: AsyncSession, task_name: str) -> str | None:
-    """Return the queue override stored on ``collector_task`` if any."""
+    """返回 ``collector_task`` 上存储的队列覆盖值（如有）。"""
     from sqlalchemy import select
 
     from app.models.collector_task import CollectorTask
@@ -71,7 +71,7 @@ async def _load_task_queue(session: AsyncSession, task_name: str) -> str | None:
 
 
 def _serialize_meta(params: dict[str, Any]) -> dict[str, Any]:
-    """Return a JSON-safe copy of dispatch params for CollectorLog.meta."""
+    """返回分发参数的 JSON 安全副本，用于 CollectorLog.meta。"""
     meta: dict[str, Any] = {}
     for key, value in params.items():
         if isinstance(value, (list, dict, str, int, float, bool)) or value is None:

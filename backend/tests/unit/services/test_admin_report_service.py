@@ -1,4 +1,4 @@
-"""Unit tests for admin report service."""
+"""AdminReportService 研报管理契约测试。"""
 
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock

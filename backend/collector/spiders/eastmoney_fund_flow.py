@@ -1,4 +1,4 @@
-"""EastMoney individual stock fund flow collector via akshare."""
+"""基于 akshare 的东方财富个股资金流向采集器。"""
 
 from typing import Any, ClassVar
 
@@ -32,7 +32,7 @@ class EastMoneyFundFlowCollector(PostgresCollector):
         trade_date = latest_trading_day()
         raw: list[dict[str, Any]] = []
 
-        # Normalize requested symbols to plain 6-digit codes.
+        # 把请求的 symbols 规范化为纯 6 位代码。
         requested: set[str] | None = None
         if symbols:
             requested = set()

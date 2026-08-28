@@ -1,4 +1,4 @@
-"""Unit tests for market AI review endpoints (auth / admin / overlay isolation)."""
+"""大盘 AI 复盘端点契约测试（鉴权 / 管理员 / 分区覆盖隔离）。"""
 
 from datetime import date
 from unittest.mock import AsyncMock, patch

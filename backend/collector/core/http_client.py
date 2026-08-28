@@ -1,4 +1,4 @@
-"""Shared rate-limited HTTP client for EastMoney endpoints.
+"""东财接口共享的限流 HTTP 客户端。
 
 东财 push2 系列接口对高频请求会做 IP 级临时封禁（RemoteDisconnected），
 所有东财采集器必须经由本模块发起请求：全局最小间隔 + 随机抖动降低触发

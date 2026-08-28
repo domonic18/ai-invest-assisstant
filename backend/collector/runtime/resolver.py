@@ -1,8 +1,7 @@
-"""Task-based collector channel resolution.
+"""基于任务的采集渠道解析。
 
-Channels are resolved through the ``collector_channel_data_type`` association
-table: a channel is eligible for a task only if it is enabled **and** has an
-association row for the task; ordering follows the admin-configured priority.
+渠道通过 ``collector_channel_data_type`` 关联表解析：渠道只有处于启用状态
+**且**拥有该任务的关联行才有资格；排序遵循管理端配置的优先级。
 """
 
 from typing import Any
@@ -16,7 +15,7 @@ from collector.runtime.channels import ChannelConfig
 async def list_ordered_channel_configs_for_task(
     session: AsyncSession, task_name: str
 ) -> list[Any]:
-    """Return enabled channel config rows for ``task_name`` ordered by priority."""
+    """返回支持 ``task_name`` 的已启用渠道配置行，按优先级排序。"""
     from app.models.collector_channel_config import CollectorChannelConfig
     from app.models.collector_channel_data_type import CollectorChannelDataType
 
@@ -38,12 +37,11 @@ async def resolve_channel_for_task(
     task_name: str,
     preferred_source: str | None = None,
 ) -> ChannelConfig | None:
-    """Resolve an enabled channel that supports ``task_name``.
+    """解析一个支持 ``task_name`` 的已启用渠道。
 
-    If ``preferred_source`` is provided and matches an enabled channel that
-    supports the task, it is returned. Otherwise the enabled supporting
-    channel with the smallest priority value is returned. ``None`` means no
-    channel is available.
+    若提供 ``preferred_source`` 且匹配到支持该任务的已启用渠道，则返回它；
+    否则返回 priority 值最小的已启用支持渠道。返回 ``None`` 表示没有可用
+    渠道。
     """
     rows = await list_ordered_channel_configs_for_task(session, task_name)
 
@@ -63,10 +61,9 @@ async def resolve_channels_for_task(
     task_name: str,
     preferred_source: str | None = None,
 ) -> list[ChannelConfig]:
-    """Resolve all enabled channels for ``task_name`` ordered by priority.
+    """解析 ``task_name`` 的全部已启用渠道，按优先级排序。
 
-    ``preferred_source`` moves the matching channel to the front while keeping
-    the remaining candidates as fallbacks.
+    ``preferred_source`` 把匹配的渠道移到最前，其余候选保持作为 fallback。
     """
     rows = await list_ordered_channel_configs_for_task(session, task_name)
     configs = [_to_channel_config(row) for row in rows]
@@ -78,9 +75,9 @@ async def resolve_channels_for_task(
 async def list_channels_for_task(
     session: AsyncSession, task_name: str
 ) -> list[dict[str, Any]]:
-    """List all enabled channels that support ``task_name``.
+    """列出支持 ``task_name`` 的全部已启用渠道。
 
-    Returned dictionaries are lightweight and suitable for admin UI selectors.
+    返回的字典为轻量结构，适合管理端 UI 的选择器。
     """
     rows = await list_ordered_channel_configs_for_task(session, task_name)
     return [

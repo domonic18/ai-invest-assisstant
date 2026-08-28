@@ -1,3 +1,5 @@
+"""测试全局 fixture：TestClient 封装与 mock session。"""
+
 import pytest
 from fastapi.testclient import TestClient
 

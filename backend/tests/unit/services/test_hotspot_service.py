@@ -1,4 +1,4 @@
-"""Unit tests for hotspot service."""
+"""hotspot_service 板块列表查询契约测试。"""
 
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock

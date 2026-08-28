@@ -1,4 +1,4 @@
-"""Sina finance news collector via akshare EastMoney stock news."""
+"""基于 akshare 东财个股新闻接口的新浪财经新闻采集器。"""
 
 from datetime import datetime
 from typing import Any, ClassVar

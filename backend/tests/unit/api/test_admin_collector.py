@@ -1,4 +1,4 @@
-"""Unit tests for admin collector trigger API."""
+"""后台采集任务触发 API 契约测试。"""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -11,7 +11,7 @@ from app.main import app
 
 @pytest.fixture
 def admin_client(client) -> tuple[TestClient, AsyncMock]:
-    """Return a client with admin auth and a mock database session."""
+    """返回带管理员鉴权的 client 与 mock 数据库会话。"""
     mock_session = AsyncMock()
     mock_user = MagicMock()
     mock_user.id = 1

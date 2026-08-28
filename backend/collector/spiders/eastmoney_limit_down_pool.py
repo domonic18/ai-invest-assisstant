@@ -1,4 +1,4 @@
-"""Eastmoney limit-down pool collector via akshare.
+"""基于 akshare 的东财跌停池采集器。
 
 抓取东财跌停池（stock_zt_pool_dtgc_em），将跌停家数按交易日 upsert 到
 ``market_breadth.limit_down_count``——与 sina_market_breadth、

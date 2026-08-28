@@ -1,8 +1,8 @@
-"""Helpers for running synchronous code without blocking the asyncio event loop.
+"""在不阻塞 asyncio 事件循环的前提下运行同步代码的辅助函数。
 
-Many third-party libraries used by collectors (akshare, requests, pandas,
-pypdf, minio) are synchronous.  Wrapping their calls in a thread pool keeps the
-event loop responsive when running inside an async worker, CLI, or SCF handler.
+采集器使用的许多第三方库（akshare、requests、pandas、pypdf、minio）都是
+同步的。把它们的调用包装进线程池，可以让事件循环在 async worker、CLI 或
+SCF handler 中运行时保持响应。
 """
 
 import asyncio
@@ -17,7 +17,7 @@ DEFAULT_MAX_WORKERS = 4
 
 
 def get_executor(max_workers: int = DEFAULT_MAX_WORKERS) -> ThreadPoolExecutor:
-    """Return the process-level thread pool executor, creating it if needed."""
+    """返回进程级共享线程池执行器，必要时创建。"""
     global _executor  # noqa: PLW0603
     if _executor is None:
         _executor = ThreadPoolExecutor(
@@ -28,13 +28,13 @@ def get_executor(max_workers: int = DEFAULT_MAX_WORKERS) -> ThreadPoolExecutor:
 
 
 async def run_in_thread(func: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
-    """Run ``func(*args, **kwargs)`` in a thread pool and await the result."""
+    """在线程池中运行 ``func(*args, **kwargs)`` 并等待结果。"""
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(get_executor(), partial(func, *args, **kwargs))
 
 
 async def to_thread(func: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
-    """Alias for ``asyncio.to_thread`` when available, otherwise ``run_in_thread``."""
+    """可用时等价于 ``asyncio.to_thread``，否则退回 ``run_in_thread``。"""
     if hasattr(asyncio, "to_thread"):
         return await asyncio.to_thread(func, *args, **kwargs)
     return await run_in_thread(func, *args, **kwargs)

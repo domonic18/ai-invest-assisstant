@@ -1,4 +1,4 @@
-"""Exchange official market turnover collector via akshare.
+"""基于 akshare 的沪深交易所官方成交额采集器。
 
 上交所 stock_sse_deal_daily（成交金额单位：亿元）+ 深交所 stock_szse_summary
 （成交金额单位：元）合并为两市成交额（元），按交易日 upsert 到

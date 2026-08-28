@@ -1,4 +1,4 @@
-"""Unit tests for financial health service."""
+"""财务健康度服务契约测试。"""
 
 from datetime import date, datetime
 from decimal import Decimal

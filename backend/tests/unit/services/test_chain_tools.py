@@ -1,4 +1,4 @@
-"""Unit tests for AI agent database tools."""
+"""AI Agent 数据库工具契约测试。"""
 
 import inspect
 from datetime import date, datetime, timezone

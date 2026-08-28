@@ -1,4 +1,4 @@
-"""Sina market breadth collector via akshare.
+"""基于 akshare 的新浪市场宽度采集器。
 
 抓取全市场 A 股快照（ak.stock_zh_a_spot，70 页串行约 28s），统计
 涨跌家数与涨跌停家数，按交易日 upsert 到 ``market_breadth``。

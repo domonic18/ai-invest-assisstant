@@ -1,4 +1,4 @@
-"""Unit tests for financial health API endpoints."""
+"""财务健康度 API 端点契约测试。"""
 
 from datetime import date
 from unittest.mock import patch

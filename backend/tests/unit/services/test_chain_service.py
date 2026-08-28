@@ -1,4 +1,4 @@
-"""Unit tests for industry chain analysis service."""
+"""产业链分析服务契约测试。"""
 
 from datetime import datetime, timezone
 from decimal import Decimal

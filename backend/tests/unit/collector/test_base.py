@@ -1,3 +1,5 @@
+"""BaseCollector 基类契约测试（run 流程：采集→转换→校验→计数）。"""
+
 import pytest
 
 from collector.core.base import BaseCollector, CollectResult, CollectStatus
@@ -16,7 +18,7 @@ class DummyCollector(BaseCollector):
         return [
             {"code": "000001", "value": 10},
             {"code": "000002", "value": 20},
-            {"code": "", "value": 30},  # invalid, filtered by validate
+            {"code": "", "value": 30},  # 无效项，由 validate 过滤
         ]
 
     async def transform(self, raw: dict) -> dict:

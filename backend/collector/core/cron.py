@@ -1,9 +1,8 @@
-"""Cron parsing utilities for Celery beat scheduler.
+"""Celery beat 调度器的 cron 表达式解析工具。
 
-These helpers were originally part of the legacy APScheduler-based collector
-scheduler. They are kept in a standalone module because the Celery
-``CollectorDatabaseScheduler`` still needs to parse cron expressions stored in
-``collector_task.schedule``.
+这些辅助函数最初属于旧版基于 APScheduler 的采集调度器，之所以保留在独立
+模块中，是因为 Celery ``CollectorDatabaseScheduler`` 仍需解析存储在
+``collector_task.schedule`` 里的 cron 表达式。
 """
 
 import os
@@ -18,7 +17,7 @@ _STEP_ONLY_PATTERN = re.compile(r"^(\d+)/(\d+)$")
 
 
 def _normalize_cron_field(value: str) -> str:
-    """Normalize cron fields like ``0/30`` to ``*/30`` for Celery compatibility."""
+    """将 ``0/30`` 形式的 cron 字段规范化为 ``*/30``，以兼容 Celery。"""
     match = _STEP_ONLY_PATTERN.match(value)
     if match:
         return f"*/{match.group(2)}"

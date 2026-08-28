@@ -1,4 +1,4 @@
-"""EastMoney sector fund flow collector.
+"""东方财富板块资金流向采集器。
 
 东财 push2 接口要求携带 Referer 头（缺失时直接断开连接），akshare 的请求
 未携带会被拒绝，因此这里直接请求接口，字段口径与

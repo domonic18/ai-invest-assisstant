@@ -1,4 +1,4 @@
-"""Sina index spot collector via akshare.
+"""基于 akshare 的新浪指数现货快照采集器。
 
 实时态数据不落 PG：抓取主要指数快照写入 Redis 单键 ``market:index_spot``，
 /indices 接口只读该键（与 sina_quote 的实时层一致）。盘中每分钟覆盖，

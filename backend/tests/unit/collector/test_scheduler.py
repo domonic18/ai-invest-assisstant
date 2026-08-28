@@ -1,4 +1,4 @@
-"""Unit tests for collector cron parsing utilities."""
+"""collector cron 解析工具契约测试。"""
 
 from datetime import datetime
 from zoneinfo import ZoneInfo

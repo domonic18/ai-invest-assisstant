@@ -1,3 +1,5 @@
+"""collector spiders 采集器契约测试（transform/validate/store 与数据口径守卫）。"""
+
 import datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch

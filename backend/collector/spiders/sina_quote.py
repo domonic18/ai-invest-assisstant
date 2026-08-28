@@ -1,8 +1,7 @@
-"""Sina real-time quote collector via akshare.
+"""基于 akshare 的新浪 A 股实时行情采集器。
 
-Fetches A-share spot/quotes for all listed stocks and writes the requested
-symbols into Redis as ``quote:{stock_code}`` with a short TTL.  This matches
-the storage-layer design where real-time quotes live in the Redis cache tier.
+抓取全市场 A 股现货/行情快照，把请求的 symbols 以 ``quote:{stock_code}`` 为键
+写入 Redis 并设置较短 TTL。与存储层设计一致：实时行情存放在 Redis 缓存层。
 """
 
 import json

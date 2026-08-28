@@ -1,4 +1,4 @@
-"""CNINFO disclosure/announcement collector via akshare."""
+"""基于 akshare 的 CNINFO 信息披露/公告采集器。"""
 
 import json
 from datetime import date, datetime, timedelta

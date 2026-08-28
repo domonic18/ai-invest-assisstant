@@ -1,4 +1,4 @@
-"""Unit tests for industry chain API endpoints."""
+"""产业链 API 端点契约测试。"""
 
 from datetime import datetime, timezone
 from unittest.mock import patch

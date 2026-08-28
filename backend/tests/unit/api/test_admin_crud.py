@@ -1,4 +1,4 @@
-"""Unit tests for admin CRUD endpoints."""
+"""后台 CRUD 端点契约测试。"""
 
 from datetime import date, datetime
 from unittest.mock import AsyncMock, MagicMock, patch

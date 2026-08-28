@@ -1,1 +1,1 @@
-# Data source spiders
+"""数据源采集器。"""

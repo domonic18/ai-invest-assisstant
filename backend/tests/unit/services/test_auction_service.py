@@ -1,4 +1,4 @@
-"""Unit tests for index call-auction trend service."""
+"""指数集合竞价趋势服务契约测试。"""
 
 from datetime import date
 from decimal import Decimal

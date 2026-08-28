@@ -1,4 +1,4 @@
-"""Unit tests for limit-up AI attribution service."""
+"""涨停 AI 归因服务契约测试。"""
 
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch

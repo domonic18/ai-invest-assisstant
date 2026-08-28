@@ -283,8 +283,8 @@ TASK_SPECS: dict[str, TaskSpec] = {
     ]
 }
 
-# Default queue assignments.  Keep this mapping data-driven so new tasks do not
-# require framework code changes; they can also override via TaskSpec.queue.
+# 默认队列分配。保持此映射数据驱动，新增任务无需改框架代码；
+# 也可通过 TaskSpec.queue 覆盖。
 _QUEUE_OVERRIDES: dict[str, Literal["realtime", "batch", "heavy"]] = {
     "auction": "realtime",
     "index-spot": "realtime",
@@ -327,11 +327,11 @@ async def _resolve_task_channels(
     task_name: str,
     preferred_source: str | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
-    """Resolve ordered channel candidates for ``task_name``.
+    """解析 ``task_name`` 的有序渠道候选列表。
 
-    Returns ``[(source, channel_config), ...]`` ordered by admin-configured
-    priority (``preferred_source`` first when given). Empty list means no
-    enabled channel supports the task.
+    返回 ``[(source, channel_config), ...]``，按管理端配置的优先级排序
+    （指定 ``preferred_source`` 时置首）。返回空列表表示没有已启用的渠道
+    支持该任务。
     """
     from app.core.database import AsyncSessionLocal
 
@@ -359,13 +359,11 @@ async def _run_collector_for_task(
     extra_config: dict[str, Any] | None = None,
     **run_kwargs: Any,
 ) -> CollectResult:
-    """Resolve channel candidates and run collectors with fallback.
+    """解析渠道候选并带 fallback 地运行采集器。
 
-    Candidates are tried in priority order: a collector that finishes with
-    ``SUCCESS`` or ``PARTIAL`` wins; ``FAILED``/``SKIPPED`` or a source without
-    a matching collector falls through to the next candidate. When all
-    candidates fail, the last result is returned with the errors of every
-    attempt appended.
+    按优先级顺序尝试各候选：以 ``SUCCESS`` 或 ``PARTIAL`` 结束的采集器胜出；
+    ``FAILED``/``SKIPPED`` 或没有对应采集器的 source 则落入下一个候选。全部
+    失败时返回最后一个结果，并附上每一次尝试的错误。
     """
     candidates = await _resolve_task_channels(task_name, preferred_source)
     if not candidates:

@@ -29,7 +29,7 @@ _ERROR_MSG_MAX_LEN = 4000
 
 
 def _build_task_kwargs(task_name: str, params: dict[str, Any]) -> dict[str, Any]:
-    """Build kwargs for the collector task function from request params.
+    """根据请求参数为采集任务函数构建 kwargs。
 
     任务级参数白名单由 TASK_SPECS 声明表派生，registry 之外不再重复维护。
     """
@@ -54,17 +54,17 @@ def _build_task_kwargs(task_name: str, params: dict[str, Any]) -> dict[str, Any]
 
 
 async def run_task(params: dict[str, Any]) -> CollectResult:
-    """Run the collector task described by ``params`` and persist its log.
+    """执行 ``params`` 描述的采集任务并持久化其日志。
 
     Args:
-        params: Must contain ``task`` (task name). Optional fields depend on the
-            task, e.g. ``symbols``, ``period``, ``start_date``, ``end_date``,
-            ``report_types``, ``sector_type``, ``indicators``, ``report_date``,
-            ``preferred_source``. ``log_id`` references a pending CollectorLog
-            row created by the dispatcher.
+        params: 必须包含 ``task``（任务名）。可选字段取决于具体任务，如
+            ``symbols``、``period``、``start_date``、``end_date``、
+            ``report_types``、``sector_type``、``indicators``、``report_date``、
+            ``preferred_source``。``log_id`` 指向 dispatcher 创建的 pending
+            CollectorLog 行。
 
     Returns:
-        The collector result.
+        采集结果。
     """
     task_name: str = params.get("task", "")
     log_id = params.get("log_id")
@@ -185,7 +185,7 @@ async def _persist_error(log_id: int, celery_task_id: str | None, exc: Exception
 
 
 def run_task_sync(params: dict[str, Any]) -> CollectResult:
-    """Synchronous wrapper that runs the async task in a fresh event loop."""
+    """在全新事件循环中运行异步任务的同步包装。"""
     import asyncio
 
     return asyncio.run(run_task(params))

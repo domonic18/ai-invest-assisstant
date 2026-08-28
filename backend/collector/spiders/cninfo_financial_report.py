@@ -1,9 +1,7 @@
-"""CNINFO periodic financial report file collector.
+"""CNINFO 定期财报文件采集器。
 
-Crawls 巨潮资讯 (cninfo.com.cn) for financial report announcements and downloads
-the original PDF files.  The resulting items are passed to storage layers that
-persist the files to MinIO, record metadata, and index them for the knowledge
-base.
+爬取巨潮资讯（cninfo.com.cn）的财报公告并下载原始 PDF 文件。产出的条目
+交给存储层处理：文件持久化到 MinIO、记录元数据并写入知识库索引。
 """
 
 from datetime import date, datetime, timedelta, timezone
@@ -78,7 +76,7 @@ class CninfoFinancialReportCollector(BaseCollector):
         end_date: str | None = None,
         **kwargs: Any,
     ) -> list[dict[str, Any]]:
-        """Query CNINFO and download financial report PDFs."""
+        """查询 CNINFO 并下载财报 PDF 文件。"""
         import httpx
 
         if end_date is None:
@@ -205,10 +203,10 @@ class CninfoFinancialReportCollector(BaseCollector):
         )
 
     async def store(self, items: list[dict[str, Any]]) -> int:
-        """Persist downloaded PDFs to MinIO, metadata to DB, and index to KB.
+        """把下载的 PDF 持久化到 MinIO、元数据写入数据库并索引到知识库。
 
-        This is a thin orchestration layer; concrete exporters are imported lazily
-        to keep the collector usable in unit tests without a running MinIO cluster.
+        本方法只是薄编排层；具体 exporter 惰性导入，使采集器在单元测试中
+        无需运行 MinIO 集群即可使用。
         """
         if not items:
             return 0
@@ -229,10 +227,10 @@ class CninfoFinancialReportCollector(BaseCollector):
         return await store.save_many(items)
 
     async def run(self, **kwargs: Any) -> CollectResult:
-        """Run the full collect/transform/validate/store cycle.
+        """运行完整的 collect/transform/validate/store 流程。
 
-        Overrides the base template so that storage-level warnings (e.g. MinIO or
-        KB unavailable) are surfaced in the result errors instead of being silent.
+        覆写基类模板，使存储层警告（如 MinIO 或知识库不可用）体现在结果的
+        errors 中而不是被静默吞掉。
         """
         started_at = datetime.utcnow()
         try:
@@ -276,7 +274,7 @@ class CninfoFinancialReportCollector(BaseCollector):
 
 
 async def _resolve_org_id(client: Any, code: str) -> str | None:
-    """Resolve the CNINFO ``orgId`` for a stock code via ``topSearch/query``."""
+    """通过 ``topSearch/query`` 解析股票代码对应的 CNINFO ``orgId``。"""
     try:
         response = await client.post(
             _CNINFO_TOPSEARCH_URL, data={"keyWord": code, "maxNum": 10}
@@ -303,7 +301,7 @@ async def _query_announcements(
     se_date: str,
     max_pages: int,
 ) -> list[dict[str, Any]]:
-    """Query CNINFO ``hisAnnouncement/query`` and return all announcements."""
+    """查询 CNINFO ``hisAnnouncement/query`` 并返回全部公告。"""
     results: list[dict[str, Any]] = []
     page_num = 1
 
@@ -387,7 +385,7 @@ def _parse_date(value: str | None) -> date | None:
     text = value.strip()
     if text.isdigit():
         ts = int(text)
-        if ts > 10_000_000_000:  # CNINFO returns epoch milliseconds
+        if ts > 10_000_000_000:  # CNINFO 返回的是毫秒级时间戳
             ts //= 1000
         return datetime.fromtimestamp(ts, tz=timezone.utc).date()
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%Y/%m/%d"):

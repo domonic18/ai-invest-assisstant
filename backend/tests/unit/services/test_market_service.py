@@ -1,4 +1,4 @@
-"""Unit tests for market overview services.
+"""大盘概览服务契约测试。
 
 阶段 2.3 后 market_service 已拆为 7 个子服务；测试 patch 目标按函数实际定义
 模块定向（patch market_service 命名空间无法拦截子服务内部的查找）。

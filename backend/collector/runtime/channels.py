@@ -1,8 +1,7 @@
-"""Collector channel resolution and seeding.
+"""采集渠道解析与种子数据。
 
-Channels are admin-configurable data sources.  Each collector task picks the
-first enabled channel from its candidate list and receives the channel's
-``base_url`` / ``api_key`` in its configuration.
+渠道是管理端可配置的数据源。每个采集任务从候选列表中选取第一个已启用的
+渠道，并在配置中拿到该渠道的 ``base_url`` / ``api_key``。
 """
 
 from dataclasses import dataclass
@@ -18,7 +17,7 @@ logger = structlog.get_logger()
 
 @dataclass(frozen=True)
 class ChannelConfig:
-    """Resolved configuration for an enabled collector channel."""
+    """已启用采集渠道的解析结果配置。"""
 
     source: str
     base_url: str | None
@@ -103,11 +102,11 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
 
 
 async def seed_default_channels(session: AsyncSession) -> None:
-    """Insert default channel rows for any missing sources and merge default
-    supported data types into existing default channels.
+    """为缺失的 source 插入默认渠道行，并把默认支持的数据类型合并进已有的
+    默认渠道。
 
-    This is idempotent: existing rows are updated to include any new default
-    data types, but admin-added types and other customizations are preserved.
+    本操作幂等：已有行会更新以纳入新增的默认数据类型，但管理员添加的类型
+    及其他自定义配置会保留。
     """
     from sqlalchemy import select
 
@@ -153,7 +152,7 @@ async def seed_default_channels(session: AsyncSession) -> None:
 
 
 async def _seed_data_type_associations(session: AsyncSession) -> None:
-    """Seed channel data-type priority rows for default channels.
+    """为默认渠道播种渠道-数据类型优先级行。
 
     priority 取 DEFAULT_CHANNELS 声明序号；已存在的关联行跳过，不覆盖管理员
     在后台自定义的优先级。
@@ -197,10 +196,10 @@ async def _seed_data_type_associations(session: AsyncSession) -> None:
 async def get_channel_config(
     session: AsyncSession, sources: list[str]
 ) -> ChannelConfig | None:
-    """Return the first enabled channel config among ``sources``.
+    """返回 ``sources`` 中第一个已启用的渠道配置。
 
-    ``sources`` should be ordered by preference.  If none of the listed
-    sources is enabled or configured, ``None`` is returned.
+    ``sources`` 应按偏好排序。若列表中的 source 都未启用或未配置，返回
+    ``None``。
     """
     for source in sources:
         resolved = await resolve_collector_channel(session, source)

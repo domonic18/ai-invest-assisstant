@@ -1,4 +1,4 @@
-"""EastMoney fund holdings collector via akshare."""
+"""基于 akshare 的东方财富个股基金持仓采集器。"""
 
 from datetime import date, datetime
 from typing import Any, ClassVar

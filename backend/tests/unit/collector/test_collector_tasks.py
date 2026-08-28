@@ -1,4 +1,4 @@
-"""Unit tests for collector task entry functions."""
+"""collector 任务入口函数契约测试。"""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 

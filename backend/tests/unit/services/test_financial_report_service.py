@@ -1,4 +1,4 @@
-"""Unit tests for financial report service."""
+"""财务报告服务契约测试。"""
 
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch

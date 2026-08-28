@@ -1,4 +1,4 @@
-"""Unit tests for sector fund flow trend service."""
+"""板块资金流趋势服务契约测试。"""
 
 from datetime import date
 from decimal import Decimal

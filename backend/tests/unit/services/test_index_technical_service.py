@@ -1,4 +1,4 @@
-"""Unit tests for index technical service（AI 综述技术分析输入构建）。"""
+"""指数技术面服务契约测试（AI 综述技术分析输入构建）。"""
 
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace

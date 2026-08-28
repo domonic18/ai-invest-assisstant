@@ -1,4 +1,4 @@
-"""Unit tests for admin task service."""
+"""AdminTaskService 采集任务管理契约测试。"""
 
 from unittest.mock import AsyncMock, MagicMock
 

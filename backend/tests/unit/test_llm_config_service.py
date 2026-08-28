@@ -1,4 +1,4 @@
-"""Tests for LLM configuration service."""
+"""LLM 配置服务契约测试（默认配置唯一性与凭证脱敏）。"""
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
