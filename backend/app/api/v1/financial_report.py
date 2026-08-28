@@ -1,4 +1,4 @@
-"""Financial report (earnings filings) API endpoints."""
+"""财报（业绩报告）API 路由。"""
 
 from datetime import date
 from typing import Annotated, Any

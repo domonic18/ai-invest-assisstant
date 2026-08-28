@@ -1,4 +1,4 @@
-"""Admin-facing business services."""
+"""管理后台业务服务。"""
 
 from app.services.admin.collector_channels import CollectorChannelConfigService
 from app.services.admin.llm_config_service import (

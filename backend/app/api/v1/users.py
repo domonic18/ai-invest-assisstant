@@ -1,4 +1,4 @@
-"""Users and watchlist API endpoints."""
+"""用户与自选股 API 路由。"""
 
 from typing import Annotated, Any
 

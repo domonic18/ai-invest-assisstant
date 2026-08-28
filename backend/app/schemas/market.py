@@ -1,4 +1,4 @@
-"""Pydantic schemas for market overview (每日复盘) APIs."""
+"""市场总览（每日复盘）API 的 Pydantic schemas。"""
 
 from datetime import date, datetime
 

@@ -1,4 +1,4 @@
-"""FastAPI dependencies for authentication and database sessions."""
+"""FastAPI 依赖项：认证与数据库会话。"""
 
 from collections.abc import AsyncGenerator
 from typing import Annotated

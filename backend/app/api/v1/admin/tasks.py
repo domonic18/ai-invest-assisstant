@@ -1,4 +1,4 @@
-"""Admin collector task management API endpoints."""
+"""管理后台采集任务管理 API 端点。"""
 
 from typing import Annotated, Any
 

@@ -1,4 +1,4 @@
-"""Knowledge base service for indexing financial reports and other documents."""
+"""知识库服务：将研报等文档索引进 Elasticsearch。"""
 
 import asyncio
 from datetime import date, datetime
@@ -12,10 +12,9 @@ DEFAULT_INDEX = "kb-documents"
 
 
 def _extract_pdf_text(data: bytes) -> str | None:
-    """Best-effort text extraction from a PDF.
+    """尽力从 PDF 提取文本。
 
-    Requires ``pypdf`` to be installed; returns ``None`` otherwise so callers can
-    fall back to metadata-only indexing.
+    需要安装 ``pypdf``；未安装时返回 ``None``，调用方可退化为仅索引元数据。
     """
     try:
         from io import BytesIO
@@ -34,7 +33,7 @@ def _extract_pdf_text(data: bytes) -> str | None:
 
 
 class KnowledgeBaseService:
-    """Index document metadata and content to Elasticsearch."""
+    """将文档元数据与内容索引到 Elasticsearch。"""
 
     def __init__(self, client: AsyncElasticsearch | None = None) -> None:
         self.client = client
@@ -48,7 +47,7 @@ class KnowledgeBaseService:
         return self.client
 
     async def close(self) -> None:
-        """Close the underlying Elasticsearch client if this service owns it."""
+        """关闭由本服务持有的底层 Elasticsearch 客户端。"""
         if self._owns_client and self.client is not None:
             await self.client.close()
             self.client = None
@@ -67,23 +66,23 @@ class KnowledgeBaseService:
         content: str | None = None,
         extra: dict[str, Any] | None = None,
     ) -> bool:
-        """Index a document into the knowledge base.
+        """将文档索引进知识库。
 
         Args:
-            doc_id: Unique document identifier, typically ``source_url`` hash.
-            stock_code: Related stock code, if any.
-            title: Document title.
-            source_url: Original source URL.
-            publish_date: Report publication date.
-            report_type: Normalized report type (e.g. ``annual``).
-            file_type: File extension / MIME category.
-            file_size: File size in bytes.
-            minio_path: MinIO object path for the stored file.
-            content: Extracted text content, if available.
-            extra: Additional metadata.
+            doc_id: 文档唯一标识，通常为 ``source_url`` 哈希。
+            stock_code: 关联股票代码（如有关联）。
+            title: 文档标题。
+            source_url: 原始来源 URL。
+            publish_date: 研报发布日期。
+            report_type: 规范化后的研报类型（如 ``annual``）。
+            file_type: 文件扩展名 / MIME 类别。
+            file_size: 文件大小（字节）。
+            minio_path: 存储文件在 MinIO 中的对象路径。
+            content: 提取出的文本内容（如有）。
+            extra: 附加元数据。
 
         Returns:
-            ``True`` if the document was indexed successfully.
+            文档索引成功返回 ``True``。
         """
         body: dict[str, Any] = {
             "stock_code": stock_code,
@@ -106,9 +105,9 @@ class KnowledgeBaseService:
             return False
 
     async def extract_text(self, data: bytes, file_type: str) -> str | None:
-        """Extract searchable text from file bytes.
+        """从文件字节中提取可检索文本。
 
-        Currently supports PDFs when ``pypdf`` is installed.
+        当前支持安装了 ``pypdf`` 时的 PDF。
         """
         if file_type.lower() in ("pdf", "application/pdf"):
             return await asyncio.to_thread(_extract_pdf_text, data)
@@ -119,7 +118,7 @@ _kb_service: KnowledgeBaseService | None = None
 
 
 def get_knowledge_base_service() -> KnowledgeBaseService:
-    """Return a lazily initialized knowledge base service singleton."""
+    """返回懒初始化的知识库服务单例。"""
     global _kb_service
     if _kb_service is None:
         _kb_service = KnowledgeBaseService()

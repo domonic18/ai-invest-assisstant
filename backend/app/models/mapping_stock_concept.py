@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for stock-concept mapping."""
+"""股票-概念映射的 SQLAlchemy ORM 模型。"""
 
 from datetime import datetime
 

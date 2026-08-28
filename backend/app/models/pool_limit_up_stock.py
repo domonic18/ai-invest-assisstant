@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for the daily limit-up pool."""
+"""每日涨停股池的 SQLAlchemy ORM 模型。"""
 
 from datetime import date, datetime
 from decimal import Decimal

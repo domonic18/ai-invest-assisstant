@@ -1,4 +1,4 @@
-"""Financial report (earnings filings) business services."""
+"""财报（业绩报告文件）业务服务。"""
 
 from datetime import date
 from typing import Any
@@ -22,7 +22,7 @@ _FILE_TYPE = "financial_report"
 
 
 class FinancialReportService:
-    """Financial report business services."""
+    """财报业务服务。"""
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -146,7 +146,7 @@ def to_report_response(
     )
 
 
-# Module-level helpers for backwards compatibility.
+# 模块级兼容旧调用点的辅助函数。
 async def list_reports(
     session: AsyncSession,
     stock_code: str | None = None,

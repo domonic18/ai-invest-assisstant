@@ -1,4 +1,4 @@
-"""Stock market data related Pydantic schemas."""
+"""股票行情数据相关的 Pydantic schemas。"""
 
 from datetime import date, time
 from decimal import Decimal

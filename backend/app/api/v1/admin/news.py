@@ -1,4 +1,4 @@
-"""Admin news announcement management API endpoints."""
+"""管理后台新闻公告管理 API 端点。"""
 
 from typing import Annotated
 

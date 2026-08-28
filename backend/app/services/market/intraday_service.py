@@ -1,4 +1,4 @@
-"""Stock intraday (minute) business services."""
+"""个股分时（分钟）业务服务。"""
 
 from datetime import date
 from typing import Any

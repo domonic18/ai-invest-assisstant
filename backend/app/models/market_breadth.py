@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for the daily market breadth snapshot."""
+"""每日市场涨跌统计快照的 SQLAlchemy ORM 模型。"""
 
 from datetime import date, datetime
 

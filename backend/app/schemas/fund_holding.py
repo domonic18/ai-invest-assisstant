@@ -1,4 +1,4 @@
-"""Pydantic schemas for fund holdings."""
+"""个股基金持仓的 Pydantic schemas。"""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class FundHoldingBase(BaseModel):
-    """Base fields for fund holdings."""
+    """基金持仓的基础字段。"""
 
     stock_code: str = Field(..., max_length=10)
     stock_name: str | None = Field(None, max_length=100)
@@ -22,11 +22,11 @@ class FundHoldingBase(BaseModel):
 
 
 class FundHoldingCreate(FundHoldingBase):
-    """Request schema for creating a fund holding record."""
+    """创建基金持仓记录的请求 schema。"""
 
 
 class FundHoldingUpdate(BaseModel):
-    """Request schema for updating a fund holding record."""
+    """更新基金持仓记录的请求 schema。"""
 
     stock_name: str | None = Field(None, max_length=100)
     report_date: date | None = None
@@ -40,7 +40,7 @@ class FundHoldingUpdate(BaseModel):
 
 
 class FundHoldingResponse(FundHoldingBase):
-    """Response schema for a fund holding record."""
+    """基金持仓记录的响应 schema。"""
 
     model_config = ConfigDict(from_attributes=True)
 

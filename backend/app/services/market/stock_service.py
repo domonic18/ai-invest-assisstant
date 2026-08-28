@@ -1,4 +1,4 @@
-"""Stock basic info and quote business services."""
+"""个股基础信息与行情业务服务。"""
 
 import json
 from datetime import date
@@ -145,7 +145,7 @@ async def get_stock_sectors(session: AsyncSession, stock_code: str) -> dict[str,
     for concept in concepts:
         sectors.append({"name": concept.concept_name, "type": "concept"})
 
-    #  enrichment with latest sector fund flow stats
+    # 用最新板块资金流统计做补充
     latest_date = (
         await session.scalar(
             select(func.max(SectorFundFlow.trade_date))

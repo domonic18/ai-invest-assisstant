@@ -1,4 +1,4 @@
-"""Pydantic schemas for financial health analysis."""
+"""财务健康度分析的 Pydantic schemas。"""
 
 from datetime import date, datetime
 from decimal import Decimal

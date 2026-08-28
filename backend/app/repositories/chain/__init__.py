@@ -1,1 +1,1 @@
-"""Industry chain domain repositories (产业链数据访问)."""
+"""产业链域仓储（产业链数据访问）。"""

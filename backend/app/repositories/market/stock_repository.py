@@ -1,4 +1,4 @@
-"""Stock repository."""
+"""个股基础信息仓储。"""
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +8,7 @@ from app.repositories.base import BaseRepository
 
 
 class StockRepository(BaseRepository[StockBasic]):
-    """Data access for stock basic information."""
+    """个股基础信息的数据访问。"""
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, StockBasic)
@@ -20,7 +20,7 @@ class StockRepository(BaseRepository[StockBasic]):
         offset: int = 0,
         limit: int = 20,
     ) -> tuple[list[StockBasic], int]:
-        """Search stocks by code or name and return paginated results."""
+        """按代码或名称搜索股票，返回分页结果。"""
         stmt = select(StockBasic).order_by(StockBasic.id)
         count_stmt = select(func.count()).select_from(StockBasic)
 
@@ -39,10 +39,10 @@ class StockRepository(BaseRepository[StockBasic]):
         return list(result.scalars().all()), total
 
     async def get_names_by_codes(self, codes: list[str]) -> dict[str, str]:
-        """Return a mapping of stock_code to stock_name for the given codes.
+        """返回给定代码集合的 stock_code 到 stock_name 映射。
 
-        ``stock_basic`` is unique on ``(stock_code, market)`` only, so a code may
-        appear in multiple markets; the first name encountered wins.
+        ``stock_basic`` 仅在 ``(stock_code, market)`` 上唯一，同一代码可能
+        出现在多个市场，取先遇到的名字。
         """
         if not codes:
             return {}

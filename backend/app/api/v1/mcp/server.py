@@ -1,3 +1,5 @@
+"""MCP 服务 API 路由。"""
+
 from typing import Any
 
 from fastapi import APIRouter

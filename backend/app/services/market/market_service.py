@@ -1,4 +1,4 @@
-"""Market overview services（facade）。
+"""大盘总览服务（facade）。
 
 历史为单文件 1038 行 6 职责；阶段 2.3 已拆分为 7 个职责服务：
 - ``trade_calendar_service`` — 交易日判定

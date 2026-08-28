@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for file metadata."""
+"""文件元数据的 SQLAlchemy ORM 模型。"""
 
 from datetime import date, datetime
 

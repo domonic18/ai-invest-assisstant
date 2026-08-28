@@ -1,4 +1,4 @@
-"""Stock fund flow business services."""
+"""个股资金流向业务服务。"""
 
 from datetime import date
 

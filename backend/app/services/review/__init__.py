@@ -1,4 +1,4 @@
-"""Review domain business services (AI 复盘)."""
+"""复盘域业务服务（AI 复盘）。"""
 
 from app.services.review.market_review_formatter import (
     BaseReview,

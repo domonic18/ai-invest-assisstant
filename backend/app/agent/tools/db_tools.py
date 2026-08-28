@@ -1,4 +1,4 @@
-"""Internal database tools for AI Agent."""
+"""AI Agent 内部数据库查询工具。"""
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal

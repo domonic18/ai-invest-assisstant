@@ -1,4 +1,4 @@
-"""K-line data API endpoints."""
+"""K 线数据 API 路由。"""
 
 from datetime import date
 from typing import Annotated, Any

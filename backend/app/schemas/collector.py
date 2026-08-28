@@ -1,4 +1,4 @@
-"""Pydantic schemas for collector admin APIs."""
+"""采集器管理 API 的 Pydantic schemas。"""
 
 from datetime import datetime
 from enum import Enum
@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class CollectorTaskName(str, Enum):
-    """Supported collector task names."""
+    """支持的采集器任务名。"""
 
     KLINE = "kline"
     INDEX_KLINE = "index-kline"
@@ -29,7 +29,7 @@ class CollectorTaskName(str, Enum):
 
 
 class CollectorTaskRunRequest(BaseModel):
-    """Optional runtime parameters for triggering a collector task."""
+    """触发采集器任务的可选运行参数。"""
 
     preferred_source: str | None = Field(None, max_length=50)
     symbols: list[str] | None = Field(None, max_length=100)
@@ -44,7 +44,7 @@ class CollectorTaskRunRequest(BaseModel):
 
 
 class CollectorTaskChannelItem(BaseModel):
-    """A single channel available for a task."""
+    """任务可用的单个渠道。"""
 
     source: str
     name: str
@@ -52,7 +52,7 @@ class CollectorTaskChannelItem(BaseModel):
 
 
 class CollectorTaskChannelsResponse(BaseModel):
-    """Available channels and resolved default for a collector task."""
+    """采集器任务的可用渠道及解析出的默认渠道。"""
 
     task_name: str
     data_type: str
@@ -61,7 +61,7 @@ class CollectorTaskChannelsResponse(BaseModel):
 
 
 class CollectorRunResponse(BaseModel):
-    """Response returned after accepting a collector trigger request."""
+    """接受采集触发请求后返回的响应。"""
 
     task_name: str
     status: str = "accepted"
@@ -70,7 +70,7 @@ class CollectorRunResponse(BaseModel):
 
 
 class CollectorLogResponse(BaseModel):
-    """A single collector execution log entry."""
+    """单条采集器执行日志。"""
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -87,7 +87,7 @@ class CollectorLogResponse(BaseModel):
 
 
 class CollectorDeadLetterResponse(BaseModel):
-    """A single collector dead-letter entry."""
+    """单条采集器死信记录。"""
 
     model_config = ConfigDict(from_attributes=True)
 

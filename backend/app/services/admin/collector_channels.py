@@ -1,4 +1,4 @@
-"""Collector channel configuration service."""
+"""采集渠道配置服务。"""
 
 from datetime import datetime, timezone
 from typing import Any
@@ -29,7 +29,7 @@ logger = structlog.get_logger()
 
 
 class CollectorChannelConfigService:
-    """Admin-facing collector channel configuration service."""
+    """面向管理后台的采集渠道配置服务。"""
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -37,7 +37,7 @@ class CollectorChannelConfigService:
         self.data_type_repo = CollectorChannelDataTypeRepository(session)
 
     async def list_configs(self) -> list[CollectorChannelConfigResponse]:
-        """List all channel configurations ordered by source."""
+        """按来源排序列出全部渠道配置。"""
         rows = await self.repo.list_ordered()
         return [self._to_response(row) for row in rows]
 
@@ -51,7 +51,7 @@ class CollectorChannelConfigService:
     async def create_config(
         self, data: CollectorChannelConfigCreate
     ) -> CollectorChannelConfigResponse:
-        """Create a new channel configuration."""
+        """创建新的渠道配置。"""
         config = CollectorChannelConfig(
             source=data.source,
             name=data.name,
@@ -79,7 +79,7 @@ class CollectorChannelConfigService:
     async def update_config(
         self, config_id: int, data: CollectorChannelConfigUpdate
     ) -> CollectorChannelConfigResponse | None:
-        """Update an existing channel configuration."""
+        """更新已有渠道配置。"""
         config = await self.repo.get(config_id)
         if not config:
             return None
@@ -104,7 +104,7 @@ class CollectorChannelConfigService:
         return self._to_response(config)
 
     async def delete_config(self, config_id: int) -> None:
-        """Delete a channel configuration."""
+        """删除渠道配置。"""
         config = await self.repo.get(config_id)
         if not config:
             raise ValueError(f"Collector channel config {config_id} not found")
@@ -112,7 +112,7 @@ class CollectorChannelConfigService:
         await self.session.commit()
 
     async def get_enabled_config(self, source: str) -> CollectorChannelConfig | None:
-        """Return the enabled configuration for a source, if any."""
+        """返回某来源已启用的配置（如存在）。"""
         return await self.repo.get_enabled_by_source(source)
 
     async def list_data_type_channels(self) -> list[DataTypeChannelsResponse]:
@@ -274,10 +274,9 @@ class CollectorChannelConfigService:
 async def resolve_collector_channel(
     session: AsyncSession, source: str
 ) -> dict[str, Any] | None:
-    """Resolve an enabled collector channel configuration for a source.
+    """解析某来源已启用的采集渠道配置。
 
-    Returns a dictionary with ``base_url``, ``api_key`` and ``extra`` when an
-    enabled config exists, otherwise ``None``.
+    存在已启用配置时返回包含 ``base_url``、``api_key`` 与 ``extra`` 的字典，否则返回 ``None``。
     """
     service = CollectorChannelConfigService(session)
     config = await service.get_enabled_config(source)

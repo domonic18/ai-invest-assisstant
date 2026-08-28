@@ -1,4 +1,4 @@
-"""File metadata repository."""
+"""文件元数据仓储。"""
 
 from datetime import date, timedelta
 
@@ -10,7 +10,7 @@ from app.repositories.base import BaseRepository
 
 
 class FileMetadataRepository(BaseRepository[FileMetadata]):
-    """Data access for file metadata."""
+    """文件元数据的数据访问。"""
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, FileMetadata)
@@ -28,7 +28,7 @@ class FileMetadataRepository(BaseRepository[FileMetadata]):
         offset: int = 0,
         limit: int = 20,
     ) -> tuple[list[FileMetadata], int]:
-        """Return paginated file metadata with optional filters.
+        """返回分页的文件元数据，支持可选筛选条件。
 
         ``q_stock_codes`` 是与关键词同义匹配到的股票代码集合（名称/代码模糊命中），
         与标题匹配取 OR，使搜索同时覆盖标题、股票名称和代码。

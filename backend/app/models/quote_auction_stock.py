@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models for auction data."""
+"""个股集合竞价数据的 SQLAlchemy ORM 模型。"""
 
 from datetime import date, datetime, time
 from decimal import Decimal

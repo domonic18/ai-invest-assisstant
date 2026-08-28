@@ -1,4 +1,4 @@
-"""Admin stock business services."""
+"""后台股票业务服务。"""
 
 from typing import Any
 

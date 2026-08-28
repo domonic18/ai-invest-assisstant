@@ -1,4 +1,4 @@
-"""User business services."""
+"""用户业务服务。"""
 
 from datetime import datetime
 from typing import Any
@@ -22,7 +22,7 @@ DEFAULT_MA_CONFIGS: list[MovingAverageConfig] = [
 
 
 class UserService:
-    """User business services."""
+    """用户业务服务。"""
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -30,12 +30,12 @@ class UserService:
 
     @staticmethod
     def _default_settings() -> UserSettings:
-        """Return default user settings."""
+        """返回默认用户配置。"""
         return UserSettings(ma_configs=DEFAULT_MA_CONFIGS)
 
     @staticmethod
     def _parse_settings(raw: Any) -> UserSettings:
-        """Parse raw JSON settings with fallback to defaults."""
+        """解析原始 JSON 配置，失败时回退默认值。"""
         if not isinstance(raw, dict):
             return UserService._default_settings()
         try:
@@ -55,7 +55,7 @@ class UserService:
         return validated
 
     async def has_users(self) -> bool:
-        """Check whether at least one user already exists."""
+        """检查是否已存在至少一个用户。"""
         return (await self.repo.count()) > 0
 
     async def get_user_by_username(self, username: str) -> User | None:
@@ -69,8 +69,7 @@ class UserService:
     async def create_user(self, data: RegisterRequest) -> User:
         """创建新用户。
 
-        The very first registered account is granted the ``admin`` role so that
-        there is always an administrator who can access the management console.
+        首个注册的账号会被授予 ``admin`` 角色，确保始终存在可访问管理后台的管理员。
         """
         is_first_user = not await self.has_users()
         user = User(

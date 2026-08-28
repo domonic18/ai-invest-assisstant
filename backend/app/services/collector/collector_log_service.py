@@ -1,4 +1,4 @@
-"""Collector log business services."""
+"""采集日志业务服务。"""
 
 from sqlalchemy.ext.asyncio import AsyncSession
 

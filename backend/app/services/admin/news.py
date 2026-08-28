@@ -1,4 +1,4 @@
-"""Admin news announcement business services."""
+"""后台新闻公告业务服务。"""
 
 from sqlalchemy.ext.asyncio import AsyncSession
 

@@ -1,4 +1,4 @@
-"""Admin collector task business services."""
+"""后台采集任务业务服务。"""
 
 from datetime import datetime, timezone
 from typing import Any
@@ -88,7 +88,7 @@ class AdminTaskService:
         return task
 
     async def _set_active(self, task_id: int, active: bool) -> CollectorTask | None:
-        """Enable or disable a task."""
+        """启用或停用任务。"""
         task = await self.repo.get(task_id)
         if not task:
             return None

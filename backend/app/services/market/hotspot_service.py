@@ -1,4 +1,4 @@
-"""Hotspot (sector fund flow) business services."""
+"""热点（板块资金流向）业务服务。"""
 
 from datetime import date
 

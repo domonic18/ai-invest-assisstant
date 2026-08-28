@@ -1,4 +1,4 @@
-"""Authentication API endpoints."""
+"""认证 API 路由。"""
 
 from datetime import timedelta
 from typing import Any

@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for IPO information."""
+"""新股发行信息的 SQLAlchemy ORM 模型。"""
 
 from datetime import date, datetime
 from decimal import Decimal

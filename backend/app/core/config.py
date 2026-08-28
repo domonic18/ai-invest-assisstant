@@ -1,3 +1,5 @@
+"""应用配置（Pydantic Settings，从 .env 读取）。"""
+
 import secrets
 from functools import lru_cache
 from pathlib import Path
@@ -13,12 +15,12 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Application
+    # 应用
     app_name: str = "AI Invest Assistant"
     debug: bool = False
     secret_key: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
 
-    # Database
+    # 数据库
     database_url: PostgresDsn = PostgresDsn("postgresql+asyncpg://user:password@localhost:5432/invest")
     database_echo: bool = False
 
@@ -49,12 +51,12 @@ class Settings(BaseSettings):
 
     # JWT
     jwt_algorithm: str = "HS256"
-    jwt_access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
+    jwt_access_token_expire_minutes: int = 60 * 24 * 7  # 7 天
 
-    # Encryption for stored credentials (API keys, tokens)
+    # 凭据加密（API key、token 等存储凭据）
     credential_encryption_key: str = ""
 
-    # LLM HTTP Client Timeouts
+    # LLM HTTP 客户端超时
     # 控制所有通过 pydantic-ai / httpx 发起的 LLM 调用的 HTTP 超时。
     # 读超时过小会导致长文本、结构化输出或 provider 拥堵时被异常截断；过大则会让
     # Agent 在 provider 偶发慢响应时长时间挂起。默认值兼顾正常响应与快速失败。
@@ -64,7 +66,7 @@ class Settings(BaseSettings):
     llm_http_pool_timeout: float = 60.0  # 从连接池获取连接的超时（秒）
     llm_max_retries: int = 2  # provider 默认重试次数
 
-    # Paths
+    # 路径
     base_dir: Path = Path(__file__).resolve().parent.parent
     prompts_dir: Path = base_dir / "prompts"
     skills_dir: Path = Path(__file__).resolve().parent.parent.parent.parent / "skills"

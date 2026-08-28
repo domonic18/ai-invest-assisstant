@@ -1,4 +1,4 @@
-"""Market overview (每日复盘) API endpoints.
+"""市场总览（每日复盘）API 路由。
 
 业务异常（NonTradingDayError/ReviewNotFoundError/LLMConfigNotConfiguredError 等）
 均由 ``app.main.app_error_handler`` 统一转换为 JSONResponse ``{detail: message}``，

@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models for fund flow data."""
+"""个股资金流向数据的 SQLAlchemy ORM 模型。"""
 
 from datetime import date, datetime
 from decimal import Decimal

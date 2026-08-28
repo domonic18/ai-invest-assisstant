@@ -1,4 +1,4 @@
-"""Admin collector trigger and log API endpoints."""
+"""管理后台采集任务触发与日志 API 端点。"""
 
 from typing import Annotated, Any
 
@@ -32,10 +32,10 @@ async def run_collector_task(
     session: Annotated[AsyncSession, Depends(get_db)],
     body: CollectorTaskRunRequest | None = None,
 ) -> CollectorRunResponse:
-    """Dispatch a collector task to the collector worker queue.
+    """将采集任务派发到 collector worker 队列。
 
-    The task is executed by the collector workers, not the web container. Use
-    the log endpoint to monitor progress.
+    任务由 collector worker 执行，而非 web 容器；
+    通过日志端点监控进度。
     """
     params = body.model_dump(exclude_unset=True) if body else {}
     log = await dispatch_collector_task(
@@ -56,7 +56,7 @@ async def get_collector_log_celery_status(
     log_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
-    """Return the Celery task state for a collector log entry."""
+    """返回采集日志对应的 Celery 任务状态。"""
     log = await CollectorLogService(session).get_by_id(log_id)
     if log is None:
         raise HTTPException(
@@ -84,7 +84,7 @@ async def list_dead_letters(
     page: int = 1,
     page_size: int = 20,
 ) -> PaginatedResponse:
-    """List collector dead-letter entries, newest first."""
+    """按最新优先列出采集死信记录。"""
     total, rows = await CollectorLogService(session).list_dead_letters(page, page_size)
     items = [
         CollectorDeadLetterResponse.model_validate(row).model_dump() for row in rows
@@ -102,7 +102,7 @@ async def list_collector_logs(
     session: Annotated[AsyncSession, Depends(get_db)],
     limit: int = 50,
 ) -> list[CollectorLogResponse]:
-    """List recent collector execution logs, newest first."""
+    """按最新优先列出最近的采集执行日志。"""
     try:
         rows = await CollectorLogService(session).list_recent(limit)
     except ValueError as exc:
@@ -121,7 +121,7 @@ async def get_collector_task_channels(
     task_name: CollectorTaskName,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> CollectorTaskChannelsResponse:
-    """List channels available for a task and the channel that will be used."""
+    """列出任务可用的渠道以及实际将使用的渠道。"""
     channels = await list_channels_for_task(session, task_name.value)
     resolved = await resolve_channel_for_task(session, task_name.value)
     spec = TASK_SPECS.get(task_name.value)

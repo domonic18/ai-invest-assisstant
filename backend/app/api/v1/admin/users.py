@@ -1,4 +1,4 @@
-"""Admin user management API endpoints."""
+"""管理后台用户管理 API 端点。"""
 
 from typing import Annotated
 

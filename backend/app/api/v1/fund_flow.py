@@ -1,4 +1,4 @@
-"""Fund flow data API endpoints."""
+"""资金流向 API 路由。"""
 
 from datetime import date
 from typing import Annotated, Any, Literal

@@ -1,4 +1,4 @@
-"""Market data business services."""
+"""行情数据业务服务。"""
 
 from app.services.market import (  # noqa: F401 — 子模块 re-export，供子域内互引
     financial_service,

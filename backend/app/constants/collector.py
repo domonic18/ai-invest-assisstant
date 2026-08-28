@@ -1,4 +1,4 @@
-"""Celery collector constants."""
+"""Celery 采集器常量。"""
 
 from enum import Enum
 

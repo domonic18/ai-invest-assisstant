@@ -1,4 +1,4 @@
-"""Pydantic schemas for collector channel configuration management."""
+"""采集器渠道配置管理的 Pydantic schemas。"""
 
 from datetime import datetime
 from typing import Any
@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class CollectorChannelConfigCreate(BaseModel):
-    """Request schema for creating a collector channel configuration."""
+    """创建采集器渠道配置的请求 schema。"""
 
     source: str = Field(..., min_length=1, max_length=50)
     name: str = Field(..., min_length=1, max_length=100)
@@ -19,9 +19,9 @@ class CollectorChannelConfigCreate(BaseModel):
 
 
 class CollectorChannelConfigUpdate(BaseModel):
-    """Request schema for updating a collector channel configuration.
+    """更新采集器渠道配置的请求 schema。
 
-    An empty ``api_key`` means "do not change the stored key".
+    空 ``api_key`` 表示不修改已存储的 key。
     """
 
     name: str | None = Field(None, min_length=1, max_length=100)
@@ -33,7 +33,7 @@ class CollectorChannelConfigUpdate(BaseModel):
 
 
 class CollectorChannelConfigResponse(BaseModel):
-    """Response schema for a collector channel configuration (API key is masked)."""
+    """采集器渠道配置的响应 schema（API key 已脱敏）。"""
 
     model_config = ConfigDict(from_attributes=True)
 

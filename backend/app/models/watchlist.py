@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models for user watchlist."""
+"""用户自选股的 SQLAlchemy ORM 模型。"""
 
 from datetime import datetime
 from typing import TYPE_CHECKING

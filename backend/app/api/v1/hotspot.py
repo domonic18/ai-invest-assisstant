@@ -1,4 +1,4 @@
-"""Hotspot (sector fund flow) API endpoints."""
+"""热点（板块资金流向）API 路由。"""
 
 from datetime import date
 from typing import Annotated

@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for news announcements and research reports."""
+"""新闻、公告与研报的 SQLAlchemy ORM 模型。"""
 
 from datetime import datetime
 from decimal import Decimal

@@ -1,4 +1,4 @@
-"""Collector dead-letter repository."""
+"""采集死信仓储。"""
 
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +8,7 @@ from app.repositories.base import BaseRepository
 
 
 class CollectorDeadLetterRepository(BaseRepository[CollectorDeadLetter]):
-    """Data access for collector dead-letter entries."""
+    """采集死信记录的数据访问。"""
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, CollectorDeadLetter)
@@ -16,7 +16,7 @@ class CollectorDeadLetterRepository(BaseRepository[CollectorDeadLetter]):
     async def list_paginated(
         self, offset: int = 0, limit: int = 20
     ) -> tuple[int, list[CollectorDeadLetter]]:
-        """Return dead letters newest first with total count."""
+        """按最新优先返回死信列表及总条数。"""
         total = await self.session.scalar(select(func.count(CollectorDeadLetter.id)))
         stmt = (
             select(CollectorDeadLetter)

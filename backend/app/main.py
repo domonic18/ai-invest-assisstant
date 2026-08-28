@@ -1,3 +1,5 @@
+"""FastAPI 应用入口：路由注册、CORS、生命周期与全局异常处理。"""
+
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -23,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # Startup
+    # 启动
     try:
         async with AsyncSessionLocal() as session:
             await seed_default_channels(session)
@@ -34,7 +36,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception as exc:  # noqa: BLE001
         logger.warning("failed_to_setup_assistant_runtime: %s", str(exc))
     yield
-    # Shutdown
+    # 关闭
     await close_assistant_runtime()
 
 

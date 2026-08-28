@@ -1,4 +1,4 @@
-"""Admin collector data-type channel priority API endpoints."""
+"""管理后台采集数据类型渠道优先级 API 端点。"""
 
 from typing import Annotated
 

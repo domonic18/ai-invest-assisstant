@@ -1,4 +1,4 @@
-"""Admin report (file metadata) management API endpoints."""
+"""管理后台研报（文件元数据）管理 API 端点。"""
 
 from typing import Annotated
 

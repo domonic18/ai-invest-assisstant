@@ -1,4 +1,4 @@
-"""Stock basic information API endpoints."""
+"""个股基础信息 API 路由。"""
 
 from datetime import date
 from typing import Annotated

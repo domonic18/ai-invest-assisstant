@@ -1,4 +1,4 @@
-"""Pydantic schemas for file metadata."""
+"""文件元数据的 Pydantic schemas。"""
 
 from datetime import date, datetime
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class FileMetadataBase(BaseModel):
-    """Base fields for file metadata."""
+    """文件元数据的基础字段。"""
 
     file_path: str = Field(..., max_length=500)
     original_name: str | None = Field(None, max_length=500)
@@ -21,11 +21,11 @@ class FileMetadataBase(BaseModel):
 
 
 class FileMetadataCreate(FileMetadataBase):
-    """Request schema for creating file metadata."""
+    """创建文件元数据的请求 schema。"""
 
 
 class FileMetadataUpdate(BaseModel):
-    """Request schema for updating file metadata."""
+    """更新文件元数据的请求 schema。"""
 
     original_name: str | None = Field(None, max_length=500)
     file_type: str | None = Field(None, max_length=20)
@@ -39,7 +39,7 @@ class FileMetadataUpdate(BaseModel):
 
 
 class FileMetadataResponse(FileMetadataBase):
-    """Response schema for file metadata."""
+    """文件元数据的响应 schema。"""
 
     model_config = ConfigDict(from_attributes=True)
 

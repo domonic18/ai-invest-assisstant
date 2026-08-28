@@ -1,4 +1,4 @@
-"""Application constants."""
+"""应用级常量。"""
 
 from app.constants.collector import CollectorMode, CollectorQueue, CollectorStatus
 from app.constants.roles import UserRole

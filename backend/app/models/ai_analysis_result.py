@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for AI analysis result records."""
+"""AI 分析结果记录的 SQLAlchemy ORM 模型。"""
 
 import uuid
 from datetime import datetime

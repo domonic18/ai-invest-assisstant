@@ -1,4 +1,4 @@
-"""Industry chain analysis skill execution.
+"""产业链分析 Skill 执行。
 
 .. deprecated::
     该 PydanticAI 单轮执行器已被 Skill 驱动的 Assistant Agent 工作流替代。

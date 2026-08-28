@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for balance sheet."""
+"""资产负债表的 SQLAlchemy ORM 模型。"""
 
 from datetime import date, datetime
 from decimal import Decimal

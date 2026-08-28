@@ -1,4 +1,4 @@
-"""LLM configuration repository."""
+"""LLM 配置仓储。"""
 
 from typing import cast
 
@@ -10,19 +10,19 @@ from app.repositories.base import BaseRepository
 
 
 class LLMConfigRepository(BaseRepository[LLMConfig]):
-    """Data access for LLM configurations."""
+    """LLM 配置的数据访问。"""
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, LLMConfig)
 
     async def list_ordered(self) -> list[LLMConfig]:
-        """Return all configs ordered by default first, then id."""
+        """返回全部配置，默认配置优先，再按 id 排序。"""
         stmt = select(LLMConfig).order_by(LLMConfig.is_default.desc(), LLMConfig.id)
         result = await self.execute(stmt)
         return list(result.scalars().all())
 
     async def get_default_active(self) -> LLMConfig | None:
-        """Return the active default configuration, if any."""
+        """返回启用状态的默认配置，若不存在则为 None。"""
         stmt = select(LLMConfig).where(
             LLMConfig.is_default.is_(True),
             LLMConfig.is_active.is_(True),
@@ -31,14 +31,14 @@ class LLMConfigRepository(BaseRepository[LLMConfig]):
         return cast(LLMConfig | None, result.scalar_one_or_none())
 
     async def clear_other_defaults(self, exclude_id: int | None = None) -> None:
-        """Clear the default flag from all other configurations."""
+        """清除其余全部配置的默认标记。"""
         stmt = update(LLMConfig).values(is_default=False)
         if exclude_id is not None:
             stmt = stmt.where(LLMConfig.id != exclude_id)
         await self.execute(stmt)
 
     async def get_first_active(self) -> LLMConfig | None:
-        """Return the first active configuration ordered by id."""
+        """按 id 排序返回第一个启用状态的配置。"""
         stmt = (
             select(LLMConfig)
             .where(LLMConfig.is_active.is_(True))

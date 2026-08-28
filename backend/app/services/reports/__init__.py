@@ -1,4 +1,4 @@
-"""Report domain business services."""
+"""研报域业务服务。"""
 
 from app.services.reports.financial_report_service import (
     FinancialReportService,

@@ -1,3 +1,5 @@
+"""Agent Prompt YAML 配置的加载与缓存。"""
+
 from pathlib import Path
 
 import yaml

@@ -1,4 +1,4 @@
-"""News announcement repository."""
+"""新闻公告仓储。"""
 
 from datetime import date, timedelta
 from typing import Any
@@ -11,7 +11,7 @@ from app.repositories.base import BaseRepository
 
 
 class NewsAnnouncementRepository(BaseRepository[NewsAnnouncement]):
-    """Data access for news announcements."""
+    """新闻公告的数据访问。"""
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, NewsAnnouncement)
@@ -28,7 +28,7 @@ class NewsAnnouncementRepository(BaseRepository[NewsAnnouncement]):
         start_date: date | None = None,
         end_date: date | None = None,
     ) -> Any:
-        """Apply common filters to a statement."""
+        """为语句应用通用筛选条件。"""
         if stock_code:
             stmt = stmt.where(NewsAnnouncement.stock_code == stock_code)
         if doc_type:
@@ -64,7 +64,7 @@ class NewsAnnouncementRepository(BaseRepository[NewsAnnouncement]):
         offset: int = 0,
         limit: int = 20,
     ) -> tuple[list[NewsAnnouncement], int]:
-        """Return paginated news announcements with optional filters."""
+        """返回分页的新闻公告，支持可选筛选条件。"""
         stmt = select(NewsAnnouncement)
         if order_by is not None:
             stmt = stmt.order_by(order_by)
@@ -90,7 +90,7 @@ class NewsAnnouncementRepository(BaseRepository[NewsAnnouncement]):
         return list(result.scalars().all()), total
 
     async def list_research_filters(self) -> tuple[list[str], list[str]]:
-        """Return distinct brokers and industry tags across research reports."""
+        """返回研报中去重后的券商与行业标签列表。"""
         broker_stmt = (
             select(func.distinct(NewsAnnouncement.extra["broker"].astext))
             .where(NewsAnnouncement.doc_type == "research")
@@ -114,7 +114,7 @@ class NewsAnnouncementRepository(BaseRepository[NewsAnnouncement]):
         offset: int = 0,
         limit: int = 20,
     ) -> tuple[list[NewsAnnouncement], int]:
-        """Return paginated announcements filtered by doc_type."""
+        """按文档类型筛选并返回分页公告。"""
         return await self.list_paginated(
             stock_code=stock_code,
             doc_type=doc_type,

@@ -1,1 +1,1 @@
-"""Market domain repositories (行情数据访问)."""
+"""行情域仓储（行情数据访问）。"""

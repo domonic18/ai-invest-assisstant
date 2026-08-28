@@ -1,4 +1,4 @@
-"""Admin report (file metadata) business services."""
+"""后台研报（文件元数据）业务服务。"""
 
 from datetime import datetime, timezone
 from typing import Any

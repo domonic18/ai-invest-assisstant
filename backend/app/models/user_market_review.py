@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for user_market_review table.
+"""user_market_review 表的 SQLAlchemy ORM 模型。
 
 用户编辑的大盘综述副本（多租户隔离）：sections JSONB 列按分区键存编辑内容，
 base_review_id 关联到 ai_analysis_result 共享 base。

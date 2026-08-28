@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for collector channel configurations."""
+"""采集器渠道配置的 SQLAlchemy ORM 模型。"""
 
 from datetime import datetime
 from typing import Any
@@ -11,7 +11,7 @@ from app.core.database import Base
 
 
 class CollectorChannelConfig(Base):
-    """Configurable data source channel managed by admins."""
+    """管理员可配置的数据源渠道。"""
 
     __tablename__ = "collector_channel_config"
 

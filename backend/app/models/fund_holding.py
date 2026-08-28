@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for fund holdings."""
+"""个股基金持仓的 SQLAlchemy ORM 模型。"""
 
 from datetime import date, datetime
 from decimal import Decimal

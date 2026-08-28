@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models."""
+"""SQLAlchemy ORM 模型。"""
 
 from app.models.ai_analysis_result import AiAnalysisResult
 from app.models.assistant_session import AssistantSession

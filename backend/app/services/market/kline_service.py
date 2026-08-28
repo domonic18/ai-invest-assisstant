@@ -1,4 +1,4 @@
-"""Stock K-line business services."""
+"""个股 K 线业务服务。"""
 
 from datetime import date
 from typing import Any

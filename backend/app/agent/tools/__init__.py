@@ -1,4 +1,4 @@
-"""Agent tools.
+"""Agent 工具。
 
 按业务域拆分的 LangChain 工具集合；``build_assistant_tools`` 返回助手运行时
 使用的完整工具清单。

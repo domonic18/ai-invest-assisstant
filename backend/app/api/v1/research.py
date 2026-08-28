@@ -1,4 +1,4 @@
-"""Research report API endpoints."""
+"""研报 API 路由。"""
 
 from datetime import date
 from typing import Annotated, Any

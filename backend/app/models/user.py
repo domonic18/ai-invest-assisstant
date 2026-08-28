@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models for users and authentication."""
+"""用户与认证的 SQLAlchemy ORM 模型。"""
 
 from datetime import datetime
 from typing import TYPE_CHECKING

@@ -1,4 +1,4 @@
-"""Admin LLM configuration API endpoints."""
+"""管理后台 LLM 配置 API 端点。"""
 
 from typing import Annotated
 
@@ -24,7 +24,7 @@ router = APIRouter(
 async def list_llm_configs(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[LLMConfigResponse]:
-    """List all LLM configurations."""
+    """列出全部 LLM 配置。"""
     return await LLMConfigService(session).list_configs()
 
 
@@ -33,7 +33,7 @@ async def create_llm_config(
     data: LLMConfigCreate,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> LLMConfigResponse:
-    """Create a new LLM configuration."""
+    """创建新的 LLM 配置。"""
     try:
         return await LLMConfigService(session).create_config(data)
     except ValueError as exc:
@@ -45,7 +45,7 @@ async def get_llm_config(
     config_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> LLMConfigResponse:
-    """Get a single LLM configuration."""
+    """获取单条 LLM 配置。"""
     config = await LLMConfigService(session).get_config(config_id)
     if not config:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="LLM config not found")
@@ -58,7 +58,7 @@ async def update_llm_config(
     data: LLMConfigUpdate,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> LLMConfigResponse:
-    """Update an LLM configuration."""
+    """更新 LLM 配置。"""
     result = await LLMConfigService(session).update_config(config_id, data)
     if not result:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="LLM config not found")
@@ -70,7 +70,7 @@ async def delete_llm_config(
     config_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
-    """Delete an LLM configuration."""
+    """删除 LLM 配置。"""
     try:
         await LLMConfigService(session).delete_config(config_id)
     except ValueError as exc:
@@ -82,7 +82,7 @@ async def set_default_llm_config(
     config_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> LLMConfigResponse:
-    """Set an LLM configuration as the global default."""
+    """将某条 LLM 配置设为全局默认。"""
     try:
         return await LLMConfigService(session).set_default_config(config_id)
     except ValueError as exc:
@@ -94,7 +94,7 @@ async def test_llm_config(
     config_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> LLMConfigTestResponse:
-    """Test connectivity for an LLM configuration."""
+    """测试 LLM 配置的连通性。"""
     try:
         return await LLMConfigService(session).test_config_connection(config_id)
     except ValueError as exc:

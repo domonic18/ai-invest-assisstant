@@ -1,4 +1,4 @@
-"""Auction data API endpoints."""
+"""集合竞价 API 路由。"""
 
 from datetime import date
 from typing import Annotated, Any

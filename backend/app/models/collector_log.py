@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for collector execution logs."""
+"""采集任务执行日志的 SQLAlchemy ORM 模型。"""
 
 from datetime import datetime
 

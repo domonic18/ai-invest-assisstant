@@ -1,4 +1,4 @@
-"""Collector task repository."""
+"""采集任务仓储。"""
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +8,7 @@ from app.repositories.base import BaseRepository
 
 
 class CollectorTaskRepository(BaseRepository[CollectorTask]):
-    """Data access for collector tasks."""
+    """采集任务的数据访问。"""
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, CollectorTask)
@@ -19,7 +19,7 @@ class CollectorTaskRepository(BaseRepository[CollectorTask]):
         offset: int = 0,
         limit: int = 20,
     ) -> tuple[list[CollectorTask], int]:
-        """Return paginated collector tasks ordered by id."""
+        """按 id 排序返回分页的采集任务。"""
         stmt = select(CollectorTask).order_by(CollectorTask.id).offset(offset).limit(limit)
         count_stmt = select(func.count()).select_from(CollectorTask)
         result = await self.execute(stmt)

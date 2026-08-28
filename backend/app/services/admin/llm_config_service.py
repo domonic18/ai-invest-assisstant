@@ -1,8 +1,8 @@
-"""LLM configuration service and default resolver.
+"""LLM 配置服务与默认模型解析。
 
-Provides admin CRUD, default-model switching, connectivity testing, and a
-``resolve_default_llm`` helper for AI skill callers. There is no env fallback:
-if no enabled default config exists, callers receive ``LLMConfigNotConfiguredError``.
+提供管理后台 CRUD、默认模型切换、连通性测试，以及供 AI Skill 调用的
+``resolve_default_llm`` 辅助函数。没有环境变量回退：若不存在已启用的
+默认配置，调用方将收到 ``LLMConfigNotConfiguredError``。
 """
 
 from __future__ import annotations
@@ -30,20 +30,20 @@ logger = structlog.get_logger()
 
 
 class LLMConfigNotConfiguredError(InternalError):
-    """Raised when no enabled default LLM configuration exists."""
+    """不存在已启用的默认 LLM 配置时抛出。"""
 
     default_message = "未配置默认 LLM 模型，请联系管理员在后台配置"
 
 
 class LLMConfigNotFoundError(NotFoundError):
-    """Raised when a requested LLM configuration does not exist or is disabled."""
+    """请求的 LLM 配置不存在或已禁用时抛出。"""
 
     default_message = "LLM 配置不存在或已禁用"
 
 
 @dataclass(frozen=True)
 class ResolvedLLMConfig:
-    """Decrypted configuration ready for AI SDK/Agent injection."""
+    """解密后的配置，可直接注入 AI SDK/Agent。"""
 
     config_id: int
     provider: str
@@ -54,14 +54,14 @@ class ResolvedLLMConfig:
 
 
 class LLMConfigService:
-    """Admin-facing LLM configuration service."""
+    """面向管理后台的 LLM 配置服务。"""
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.repo = LLMConfigRepository(session)
 
     async def list_configs(self) -> list[LLMConfigResponse]:
-        """List all configurations with the default model first."""
+        """列出全部配置，默认模型排在最前。"""
         rows = await self.repo.list_ordered()
         return [self._to_response(row) for row in rows]
 
@@ -73,7 +73,7 @@ class LLMConfigService:
         return self._to_response(config)
 
     async def create_config(self, data: LLMConfigCreate) -> LLMConfigResponse:
-        """Create a new configuration."""
+        """创建新配置。"""
         config = LLMConfig(
             name=data.name,
             provider=data.provider,
@@ -100,7 +100,7 @@ class LLMConfigService:
     async def update_config(
         self, config_id: int, data: LLMConfigUpdate
     ) -> LLMConfigResponse | None:
-        """Update an existing configuration."""
+        """更新已有配置。"""
         config = await self.repo.get(config_id)
         if not config:
             return None
@@ -129,7 +129,7 @@ class LLMConfigService:
         return self._to_response(config)
 
     async def delete_config(self, config_id: int) -> None:
-        """Delete a configuration, reassigning default if needed."""
+        """删除配置，必要时重新指定默认模型。"""
         config = await self.repo.get(config_id)
         if not config:
             raise ValueError(f"LLM config {config_id} not found")
@@ -142,7 +142,7 @@ class LLMConfigService:
         await self.session.commit()
 
     async def set_default_config(self, config_id: int) -> LLMConfigResponse:
-        """Set a configuration as the global default."""
+        """将某配置设为全局默认。"""
         config = await self.repo.get(config_id)
         if not config:
             raise ValueError(f"LLM config {config_id} not found")
@@ -155,7 +155,7 @@ class LLMConfigService:
         return self._to_response(config)
 
     async def test_config_connection(self, config_id: int) -> LLMConfigTestResponse:
-        """Test connectivity and persist the result."""
+        """测试连通性并持久化结果。"""
         config = await self.repo.get(config_id)
         if not config:
             raise ValueError(f"LLM config {config_id} not found")
@@ -170,7 +170,7 @@ class LLMConfigService:
         return LLMConfigTestResponse(status=test_status, detail=detail, tested_at=now)
 
     async def get_default_config(self) -> LLMConfig:
-        """Return the active default configuration."""
+        """返回已启用的默认配置。"""
         config = await self.repo.get_default_active()
         if not config:
             raise LLMConfigNotConfiguredError(
@@ -181,7 +181,7 @@ class LLMConfigService:
     async def _call_model(
         self, config: LLMConfig, api_key: str
     ) -> tuple[str, str]:
-        """Send a lightweight Anthropic-compatible probe to verify connectivity."""
+        """发送轻量 Anthropic 兼容探测请求以验证连通性。"""
         url = f"{config.base_url.rstrip('/')}/v1/messages"
         headers = {
             "x-api-key": api_key,
@@ -224,10 +224,10 @@ class LLMConfigService:
 
 
 async def resolve_default_llm(session: AsyncSession) -> ResolvedLLMConfig:
-    """Resolve the enabled default LLM configuration for AI callers.
+    """为 AI 调用方解析已启用的默认 LLM 配置。
 
     Raises:
-        LLMConfigNotConfiguredError: If no enabled default config exists.
+        LLMConfigNotConfiguredError: 不存在已启用的默认配置时抛出。
     """
     service = LLMConfigService(session)
     config = await service.get_default_config()

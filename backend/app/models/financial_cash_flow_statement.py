@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for cash flow statement."""
+"""现金流量表的 SQLAlchemy ORM 模型。"""
 
 from datetime import date, datetime
 from decimal import Decimal

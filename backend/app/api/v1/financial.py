@@ -1,4 +1,4 @@
-"""Financial health API endpoints."""
+"""财务健康度 API 路由。"""
 
 from datetime import date
 from typing import Annotated

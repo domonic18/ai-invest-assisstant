@@ -1,4 +1,4 @@
-"""User roles."""
+"""用户角色。"""
 
 from enum import Enum
 

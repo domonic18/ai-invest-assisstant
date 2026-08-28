@@ -1,4 +1,4 @@
-"""Admin stock management API endpoints."""
+"""管理后台股票管理 API 端点。"""
 
 from typing import Annotated
 

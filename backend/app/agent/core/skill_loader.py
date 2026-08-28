@@ -1,3 +1,5 @@
+"""SKILL.md 技能定义的解析与加载。"""
+
 import json
 import re
 from pathlib import Path
@@ -53,7 +55,7 @@ class SkillLoader:
         return skill
 
     def _parse_markdown(self, text: str):
-        # Simple markdown parser for SKILL.md format
+        # 解析 SKILL.md 格式的简易 markdown 解析器
         lines = text.strip().split("\n")
         meta = {"id": "", "name": "", "version": "1.0.0"}
         sections = {}
@@ -69,7 +71,7 @@ class SkillLoader:
                 current_section = line[3:].strip()
                 current_content = []
             elif line.startswith("- **") and current_section == "元数据":
-                # Parse metadata bullet
+                # 解析元数据条目
                 match = re.match(r"- \*\*(\w+)\*\*:\s*(.+)", line)
                 if match:
                     meta[match.group(1)] = match.group(2).strip()

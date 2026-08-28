@@ -1,4 +1,4 @@
-"""Financial report AI summarizer."""
+"""财报 AI 摘要生成器。"""
 
 from typing import Any
 

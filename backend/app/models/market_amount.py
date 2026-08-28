@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM model for official daily market turnover."""
+"""沪深交易所官方每日市场成交额的 SQLAlchemy ORM 模型。"""
 
 from datetime import date, datetime
 from decimal import Decimal

@@ -1,4 +1,4 @@
-"""Common business statuses used across the application."""
+"""跨模块通用的业务状态。"""
 
 from enum import Enum
 
