@@ -1,17 +1,11 @@
-import {
-  FileTextOutlined,
-  HeartOutlined,
-  HeartTwoTone,
-  ReloadOutlined,
-  WalletOutlined,
-} from '@ant-design/icons'
-import { Button, Empty, List, Select, Skeleton, Spin, Tabs, Tag, Typography } from 'antd'
+import { FileTextOutlined, WalletOutlined } from '@ant-design/icons'
 import { useIsFetching } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
-import { StockChartView, type StockChartViewIndicators } from '@/components/charts/StockChartView'
-import { FinancialTrendCharts } from '@/components/charts/FinancialTrendCharts'
+import { Select, Tabs } from 'antd'
+
+import { StockChartView } from '@/components/charts/StockChartView'
 import { useFinancial } from '@/hooks/useFinancial'
 import { useFinancialHistory } from '@/hooks/useFinancialHistory'
 import { useResearch } from '@/hooks/useResearch'
@@ -22,301 +16,30 @@ import {
   useStockSectors,
 } from '@/hooks/useStocks'
 import { queryKeys } from '@/hooks/queryKeys'
-import { FINANCIAL_METRIC_LABELS } from '@/constants/financial'
 import { panelColors } from '@/theme/colors'
-import type { ResearchReport, StockQuote, StockSector } from '@ai-invest/shared'
+import type { StockQuote, StockSector } from '@ai-invest/shared'
 
-type StockSectorsData = { code: string; name: string; sectors: StockSector[] }
-
+import {
+  type ChartViewConfig,
+  findPresetKey,
+  MIN_CHART_HEIGHT,
+  STORAGE_KEY,
+  TOOLBAR_HEIGHT,
+  VIEW_PRESETS,
+  type ViewPresetKey,
+} from './chartConfig'
+import { ErrorState } from './components/ErrorState'
+import { StockFinancial } from './components/StockFinancial'
+import { StockHeader } from './components/StockHeader'
+import { StockResearch } from './components/StockResearch'
 import { StockLoadingStatus, type LoadingTask } from './StockLoadingStatus'
 import { StockQuoteHeader } from './StockQuoteHeader'
 import { StockSectors } from './StockSectors'
 
+type StockSectorsData = { code: string; name: string; sectors: StockSector[] }
+
 const PANEL_BG = panelColors.bg
 const BORDER_COLOR = panelColors.border
-
-const STORAGE_KEY = 'ai-invest.stock-detail.views'
-
-const DEFAULT_INDICATORS: StockChartViewIndicators = {
-  volume: true,
-  ma: true,
-  macd: false,
-  kdj: false,
-}
-
-interface ChartViewConfig {
-  id: string
-  period: string
-  indicators: StockChartViewIndicators
-}
-
-type ViewPresetKey = 'daily-weekly' | 'daily-monthly' | 'daily' | 'weekly'
-
-interface ViewPreset {
-  key: ViewPresetKey
-  label: string
-  views: ChartViewConfig[]
-}
-
-const VIEW_PRESETS: ViewPreset[] = [
-  {
-    key: 'daily-weekly',
-    label: '日线 + 周线',
-    views: [
-      { id: 'daily', period: 'daily', indicators: { ...DEFAULT_INDICATORS } },
-      { id: 'weekly', period: 'weekly', indicators: { ...DEFAULT_INDICATORS } },
-    ],
-  },
-  {
-    key: 'daily-monthly',
-    label: '日线 + 月线',
-    views: [
-      { id: 'daily', period: 'daily', indicators: { ...DEFAULT_INDICATORS } },
-      { id: 'monthly', period: 'monthly', indicators: { ...DEFAULT_INDICATORS } },
-    ],
-  },
-  {
-    key: 'daily',
-    label: '仅日线',
-    views: [{ id: 'daily', period: 'daily', indicators: { ...DEFAULT_INDICATORS } }],
-  },
-  {
-    key: 'weekly',
-    label: '仅周线',
-    views: [{ id: 'weekly', period: 'weekly', indicators: { ...DEFAULT_INDICATORS } }],
-  },
-]
-
-const TOOLBAR_HEIGHT = 68
-const MIN_CHART_HEIGHT = 180
-
-function findPresetKey(views: ChartViewConfig[]): ViewPresetKey | 'custom' {
-  for (const preset of VIEW_PRESETS) {
-    if (
-      views.length === preset.views.length &&
-      views.every((v, i) => v.period === preset.views[i].period)
-    ) {
-      return preset.key
-    }
-  }
-  return 'custom'
-}
-
-interface StockFinancialProps {
-  data: ReturnType<typeof useFinancial>['data']
-  history: ReturnType<typeof useFinancialHistory>['data']
-  isLoading: boolean
-  historyLoading: boolean
-  isError: boolean
-  historyError: boolean
-  onRetry: () => void
-}
-
-function StockFinancial({
-  data,
-  history,
-  isLoading,
-  historyLoading,
-  isError,
-  historyError,
-  onRetry,
-}: StockFinancialProps) {
-  if (isLoading) {
-    return (
-      <div className="py-2">
-        <Skeleton active paragraph={{ rows: 4 }} />
-      </div>
-    )
-  }
-
-  if (isError) {
-    return (
-      <div className="py-4 flex flex-col items-start gap-2">
-        <Typography.Text type="danger" className="text-xs">
-          财务数据加载失败
-        </Typography.Text>
-        <Button size="small" icon={<ReloadOutlined />} onClick={onRetry}>
-          重试
-        </Button>
-      </div>
-    )
-  }
-
-  if (!data) {
-    return <Empty description="暂无财务数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-  }
-
-  const renderPercent = (value: number | null) =>
-    value === null ? '-' : `${(value * 100).toFixed(2)}%`
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 text-xs text-[#8c8c8c]">
-        <span>报告期：{data.reportDate || '-'}</span>
-        <span>类型：{data.reportType || '-'}</span>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        {Object.entries(data.metrics).map(([key, value]) => (
-          <div
-            key={key}
-            className="flex flex-col p-2 rounded"
-            style={{ backgroundColor: '#14161c' }}
-          >
-            <span className="text-[10px] text-[#8c8c8c]">{FINANCIAL_METRIC_LABELS[key] || key}</span>
-            <span className="text-sm text-[#d1d4dc] font-medium">{renderPercent(value)}</span>
-          </div>
-        ))}
-      </div>
-
-      {historyError ? (
-        <div className="flex items-center gap-2">
-          <Typography.Text type="danger" className="text-xs">
-            历史趋势加载失败
-          </Typography.Text>
-          <Button size="small" icon={<ReloadOutlined />} onClick={onRetry}>
-            重试
-          </Button>
-        </div>
-      ) : historyLoading ? (
-        <div className="flex justify-center py-6">
-          <Spin size="small" />
-        </div>
-      ) : history?.history.length ? (
-        <FinancialTrendCharts history={history.history} />
-      ) : (
-        <Empty description="暂无历史财务趋势" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-      )}
-    </div>
-  )
-}
-
-interface StockResearchProps {
-  data: ReturnType<typeof useResearch>['data']
-  isLoading: boolean
-  isError: boolean
-  onRetry: () => void
-}
-
-function StockResearch({ data, isLoading, isError, onRetry }: StockResearchProps) {
-  if (isLoading) {
-    return (
-      <div className="py-2">
-        <Skeleton active paragraph={{ rows: 4 }} />
-      </div>
-    )
-  }
-
-  if (isError) {
-    return (
-      <div className="py-4 flex flex-col items-start gap-2">
-        <Typography.Text type="danger" className="text-xs">
-          研报加载失败
-        </Typography.Text>
-        <Button size="small" icon={<ReloadOutlined />} onClick={onRetry}>
-          重试
-        </Button>
-      </div>
-    )
-  }
-
-  if (!data?.items.length) {
-    return <Empty description="暂无相关研报" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-  }
-
-  return (
-    <List
-      dataSource={data.items}
-      renderItem={(item: ResearchReport) => (
-        <List.Item className="!border-b-[#23262e]">
-          <List.Item.Meta
-            title={
-              <span className="text-[#d1d4dc] text-sm">{item.title}</span>
-            }
-            description={
-              <div className="space-y-1">
-                <span className="text-xs text-[#8c8c8c]">
-                  {item.source || '未知来源'} · {item.publishDate || '-'}
-                </span>
-                {item.summary && (
-                  <Typography.Paragraph className="!text-xs text-[#8c8c8c] !mb-0">
-                    {item.summary}
-                  </Typography.Paragraph>
-                )}
-              </div>
-            }
-          />
-        </List.Item>
-      )}
-    />
-  )
-}
-
-interface StockHeaderProps {
-  stock?: {
-    name: string
-    code: string
-    market: string
-    industry?: string | null
-  } | null
-  stockCode: string
-  isWatched?: boolean
-  onToggleWatchlist: () => void
-  isWatchlistLoading?: boolean
-}
-
-function StockHeader({
-  stock,
-  stockCode,
-  isWatched,
-  onToggleWatchlist,
-  isWatchlistLoading,
-}: StockHeaderProps) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex items-center gap-2">
-        {stock ? (
-          <>
-            <Typography.Title level={5} className="!mb-0 text-[#d1d4dc]">
-              {stock.name}
-            </Typography.Title>
-            <span className="text-sm text-[#8c8c8c]">{stockCode}</span>
-            <Tag color="blue" className="!text-xs">{stock.market}</Tag>
-            {stock.industry && <Tag className="!text-xs">{stock.industry}</Tag>}
-          </>
-        ) : (
-          <>
-            <Skeleton.Input active size="small" style={{ width: 120 }} />
-            <span className="text-sm text-[#8c8c8c]">{stockCode}</span>
-          </>
-        )}
-      </div>
-      <Button
-        type={isWatched ? 'default' : 'primary'}
-        size="small"
-        icon={isWatched ? <HeartTwoTone twoToneColor="#eb2f96" /> : <HeartOutlined />}
-        onClick={onToggleWatchlist}
-        loading={isWatchlistLoading}
-        disabled={isWatched || !stock}
-      >
-        {isWatched ? '已加入自选' : '加入自选'}
-      </Button>
-    </div>
-  )
-}
-
-function ErrorState({ message, onRetry, isRetrying }: { message: string; onRetry?: () => void; isRetrying?: boolean }) {
-  return (
-    <div className="flex flex-col items-center justify-center h-full gap-3 py-20">
-      <Typography.Text type="danger">{message}</Typography.Text>
-      {onRetry && (
-        <Button icon={<ReloadOutlined />} onClick={onRetry} loading={isRetrying}>
-          重试
-        </Button>
-      )}
-    </div>
-  )
-}
 
 export function StockDetail() {
   const { code } = useParams<{ code?: string }>()
@@ -538,9 +261,9 @@ export function StockDetail() {
       key: 'news',
       label: <span className="text-xs">相关新闻</span>,
       children: (
-        <Typography.Text type="secondary" className="text-xs">
+        <span className="text-xs text-[#8c8c8c]">
           相关新闻功能开发中，敬请期待。
-        </Typography.Text>
+        </span>
       ),
     },
   ]
