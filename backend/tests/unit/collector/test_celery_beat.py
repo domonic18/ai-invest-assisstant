@@ -63,6 +63,26 @@ class TestCollectorDatabaseScheduler:
         heavy_entry = schedule["collector-task-financial-report-nightly"]
         assert heavy_entry.options["queue"] == "collector.heavy"
 
+    def test_sync_reuses_persistent_loop(self) -> None:
+        """重复 sync 必须复用同一事件循环，避免 asyncpg 连接跨循环复用崩溃。"""
+        app = MagicMock()
+        app.conf.beat_schedule = {}
+        with patch.object(
+            CollectorDatabaseScheduler,
+            "_fetch_active_schedules",
+            return_value=[],
+        ):
+            scheduler = CollectorDatabaseScheduler(app=app)
+            first = CollectorDatabaseScheduler._ensure_loop()
+            scheduler.sync()
+            second = CollectorDatabaseScheduler._ensure_loop()
+
+        assert first is second
+        assert not first.is_closed()
+
+        first.close()
+        CollectorDatabaseScheduler._loop = None
+
     def test_invalid_schedule_is_skipped(self) -> None:
         rows = [
             {

@@ -24,6 +24,8 @@ from collector.core.cron import _normalize_cron_field, _parse_cron
 class CollectorDatabaseScheduler(Scheduler):
     """从 ``collector_task`` 行加载调度配置的 Beat 调度器。"""
 
+    _loop: asyncio.AbstractEventLoop | None = None
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._schedule: dict[str, ScheduleEntry] = {}
         self._last_sync_at: datetime | None = None
@@ -40,8 +42,22 @@ class CollectorDatabaseScheduler(Scheduler):
     def schedule(self) -> Mapping[str, ScheduleEntry]:
         return self._schedule
 
+    @classmethod
+    def _ensure_loop(cls) -> asyncio.AbstractEventLoop:
+        """返回 beat 进程的持久事件循环，必要时创建。
+
+        每次 sync 都 ``asyncio.run()`` 会销毁再新建循环，而 asyncpg 连接池
+        中的连接仍绑定在旧循环上，下一次 sync 复用连接时抛
+        ``another operation is in progress`` 导致 beat 崩溃循环。与 worker
+        侧 :class:`AsyncTask` 相同，进程内保持一个循环供所有 DB 查询使用。
+        """
+        if cls._loop is None or cls._loop.is_closed():
+            cls._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(cls._loop)
+        return cls._loop
+
     def _load_schedules(self) -> None:
-        rows = asyncio.run(self._fetch_active_schedules())
+        rows = self._ensure_loop().run_until_complete(self._fetch_active_schedules())
         new_schedule: dict[str, ScheduleEntry] = {}
 
         for row in rows:
