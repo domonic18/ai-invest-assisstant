@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.agent.skills import industry_chain_analysis
 from app.models.industry_chain import ChainAnalysisVersion
 from app.schemas.chain import (
     ChainAnalysisResult,
@@ -95,7 +96,7 @@ class TestAnalyzeAndPersist:
                 chain_analysis_service, "resolve_default_llm", new=AsyncMock(return_value=_resolved())
             ),
             patch.object(
-                chain_analysis_service.industry_chain_analysis,
+                industry_chain_analysis,
                 "run_skill",
                 new=AsyncMock(return_value=_result()),
             ),
@@ -163,7 +164,7 @@ class TestAnalyzeAndPersist:
                 chain_analysis_service, "resolve_default_llm", new=AsyncMock(return_value=_resolved())
             ),
             patch.object(
-                chain_analysis_service.industry_chain_analysis,
+                industry_chain_analysis,
                 "run_skill",
                 new=AsyncMock(side_effect=RuntimeError("llm timeout")),
             ),

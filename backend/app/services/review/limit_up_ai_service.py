@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptLoader
 from app.agent.core.prompt_renderer import PromptRenderer
-from app.agent.runtime import run_structured_agent_with_metrics
 from app.core.config import get_settings
 from app.models.news_announcement import NewsAnnouncement
 from app.repositories.review import ai_analysis_repository
@@ -207,6 +206,9 @@ async def generate_attribution(
         sector_context=sector_context,
         news_context=news_context,
     )
+
+    # 延迟导入：app.agent.runtime 顶层依赖 services，避免 services 聚合时环导入
+    from app.agent.runtime import run_structured_agent_with_metrics
 
     content, latency_ms, model_name = await run_structured_agent_with_metrics(
         session,

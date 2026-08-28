@@ -8,7 +8,6 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.skills import industry_chain_analysis
 from app.core.exceptions import InternalError
 from app.models.industry_chain import ChainNode
 from app.repositories.chain import industry_chain_repository as repository
@@ -176,6 +175,9 @@ async def analyze_and_persist(
     started = time.perf_counter()
     version_number = await repository.next_version_number(session, industry, user_id)
     input_hash = f"{user_id}:{industry}:v{version_number}"
+
+    # 延迟导入：skills 执行器顶层依赖 agent.runtime/agent.tools，后者又依赖 services
+    from app.agent.skills import industry_chain_analysis
 
     resolved = await resolve_default_llm(session)
     try:

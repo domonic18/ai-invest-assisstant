@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptLoader
 from app.agent.core.prompt_renderer import PromptRenderer
-from app.agent.runtime import run_structured_agent
 from app.core.config import get_settings
 from app.core.exceptions import ConflictError, NotFoundError, UnprocessableEntityError
 from app.core.locking import redis_lock
@@ -182,6 +181,9 @@ class ResearchService:
         return text[:_SUMMARY_TEXT_LIMIT]
 
     async def _generate_summary(self, report: NewsAnnouncement, text: str) -> str:
+        # 延迟导入：app.agent.runtime 顶层依赖 services，避免 services 聚合时环导入
+        from app.agent.runtime import run_structured_agent
+
         prompt_config = PromptLoader(get_settings().prompts_dir).load(
             "skills", _SUMMARY_SKILL_ID
         )
