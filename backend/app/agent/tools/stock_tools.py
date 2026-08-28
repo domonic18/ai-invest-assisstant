@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 
 from app.agent.tools import db_tools
 from app.core.database import AsyncSessionLocal
-from app.services import stock_service
+from app.services import market as stock_service
 
 KLINE_MAX_DAYS = 120
 FINANCIAL_MAX_CODES = 5

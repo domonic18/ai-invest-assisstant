@@ -12,7 +12,8 @@ from app.schemas.stock import (
     IndexAuctionTrendResponse,
     PaginatedResponse,
 )
-from app.services import auction_service, stock_service
+from app.services import auction_service
+from app.services import market as stock_service
 
 router = APIRouter()
 

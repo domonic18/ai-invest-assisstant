@@ -15,7 +15,7 @@ from app.schemas.stock import (
     StockSearchRequest,
     StockSectorsResponse,
 )
-from app.services import stock_service
+from app.services import market as stock_service
 
 router = APIRouter()
 

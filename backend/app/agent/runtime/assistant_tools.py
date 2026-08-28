@@ -46,7 +46,9 @@ from app.services import (
     auction_service,
     index_quotation_service,
     sector_fund_flow_service,
-    stock_service,
+)
+from app.services import (
+    market as stock_service,
 )
 from app.services import market_stats_service as market_stats_svc
 
