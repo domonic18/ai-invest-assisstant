@@ -119,6 +119,23 @@ async def fetch_kline(
 - **约束与索引命名**：`pk_<table>`、`uq_<table>_<columns>`、`fk_<table>_<ref_table>`、`idx_<table>_<columns>`、`chk_<table>_<column>`。
 - **审计字段**：业务表统一使用 `created_at`/`updated_at`。
 
+### 时间与时区规范（必须遵守）
+
+A 股业务日期与时区不一致曾导致复盘/调度类事故，以下约定为强制项：
+
+- **业务"今天"统一用 `app.core.clock`**：`today_cn()`（Asia/Shanghai 日历日）、
+  `CN_TZ`/`now_cn()`。禁止用 `date.today()`（依赖容器本地时区）或
+  `datetime.now(timezone.utc).date()`（00:00-08:00 CST 会落在前一日）作为交易日、
+  日期区间默认值等业务日期。
+- **时间戳统一用 aware UTC**：数据库 `timestamptz` 字段与日志时间用
+  `datetime.now(timezone.utc)`；禁止 naive 的 `datetime.utcnow()`。
+- **Celery 调度一律按 Asia/Shanghai 意义书写**：`celery_app.conf` 已显式设置
+  `timezone="Asia/Shanghai"`，cron 表达式（`collector_task.schedule` 及
+  `docker/database/init-scripts/03-seed.sql`）中的小时均为北京时间；
+  应用容器（web/beat/worker）必须注入 `TZ: Asia/Shanghai` 环境变量。
+- **前端渲染时间戳不得写死时区字面量**：用 dayjs 按 ISO 时间（UTC）解析后本地化
+  格式化；测试断言期望值须由同一 fixture 推导，禁止硬编码本地时间字符串。
+
 ### Collector 分层结构
 
 ```
