@@ -24,7 +24,6 @@ class Settings(BaseSettings):
 
     # Redis
     redis_url: RedisDsn = RedisDsn("redis://localhost:6379/0")
-    collector_queue_key: str = "collector:queue"
 
     # Celery
     celery_broker_url: str = "redis://localhost:6379/1"
