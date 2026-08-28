@@ -189,6 +189,8 @@ TASK_SPECS: dict[str, TaskSpec] = {
             collectors={
                 "sina": "collector.spiders.sina_stock_list:SinaStockListCollector",
             },
+            queue="heavy",
+            soft_time_limit=1800,
         ),
         TaskSpec(
             name="limit-up-pool",

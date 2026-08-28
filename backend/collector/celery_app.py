@@ -145,28 +145,33 @@ def _setup_logging(sender: Celery, **kwargs: Any) -> None:  # noqa: ARG001
 
 @worker_process_init.connect
 def _init_worker_process(**kwargs: Any) -> None:  # noqa: ARG001
-    """Dispose inherited SQLAlchemy engines in each prefork child process.
+    """Recreate SQLAlchemy engines in each prefork child process.
 
-    The parent process may have opened database connections during app import;
-    child processes must not reuse them.
+    The parent process creates async engines during module import; child
+    processes must not reuse those connections.  We dispose the inherited
+    engines and create fresh ones, then rebind ``AsyncSessionLocal`` so that
+    all imported references see the new engine.
     """
     import asyncio
 
-    from app.core.database import engine as app_engine
+    import sqlalchemy.ext.asyncio as async_sa
+
+    from app.core import database as app_database
     from collector.core.base import dispose_engine
     from collector.core.logging import configure_logging as configure_child_logging
 
     configure_child_logging()
     logger = structlog.get_logger(__name__)
-    logger.info("worker_process_init_dispose_engines")
+    logger.info("worker_process_init_recreate_engines")
 
+    # Dispose inherited engines from the parent process.
     try:
-        app_engine.sync_engine.dispose(close=False)
+        app_database.engine.sync_engine.dispose(close=False)
     except Exception:  # noqa: BLE001
         pass
 
     try:
-        asyncio.run(app_engine.dispose())
+        asyncio.run(app_database.engine.dispose())
     except Exception:  # noqa: BLE001
         pass
 
@@ -174,3 +179,13 @@ def _init_worker_process(**kwargs: Any) -> None:  # noqa: ARG001
         asyncio.run(dispose_engine())
     except Exception:  # noqa: BLE001
         pass
+
+    # Create a brand-new async engine in the child and rebind the session maker.
+    new_engine = async_sa.create_async_engine(
+        app_database.engine.url.render_as_string(hide_password=False),
+        echo=app_database.engine.echo,
+        future=True,
+    )
+    app_database.engine = new_engine
+    app_database.AsyncSessionLocal.configure(bind=new_engine)
+    logger.info("worker_process_recreated_app_engine")

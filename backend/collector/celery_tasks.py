@@ -149,8 +149,33 @@ def run_collector_task(self: LogAwareTask, payload: dict[str, Any]) -> dict[str,
                 payload, None, error=f"{type(exc).__name__}: {exc}"
             )
             raise exc
+        finally:
+            await _dispose_async_engines()
 
     return asyncio.run(_execute())
+
+
+async def _dispose_async_engines() -> None:
+    """Dispose asyncpg connection pools before the task event loop closes.
+
+    Celery prefork children reuse the same process for multiple tasks.  Each
+    task currently runs under its own ``asyncio.run()`` event loop.  Without
+    disposal, asyncpg connections from the previous loop remain in the pool
+    and raise ``another operation is in progress`` when reused on a new loop.
+    """
+    from app.core import database as app_database
+    from collector.core.base import dispose_engine
+
+    try:
+        if app_database.engine is not None:
+            await app_database.engine.dispose()
+    except Exception:  # noqa: BLE001
+        logger.exception("dispose_app_engine_failed")
+
+    try:
+        await dispose_engine()
+    except Exception:  # noqa: BLE001
+        logger.exception("dispose_collector_engine_failed")
 
 
 async def _mark_log_timeout(log_id: int) -> None:
