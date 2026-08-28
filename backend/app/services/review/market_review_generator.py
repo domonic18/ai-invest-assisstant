@@ -119,7 +119,7 @@ async def _load_user_edit_row(
 
 
 async def assert_trading_day(session: AsyncSession, day: date) -> None:
-    from app.services import trade_calendar_service
+    from app.services.market import trade_calendar_service
 
     if not await trade_calendar_service.is_trading_day(session, day):
         raise NonTradingDayError(f"{day.isoformat()} 不是交易日，每日复盘只对交易日有效")
@@ -173,7 +173,7 @@ async def generate_market_review(
         ReviewGenerationLockedError: 非阻塞模式下锁被占用且缓存不存在。
     """
     # 懒加载：同层 service 导入会在 services/__init__ 初始化时触发与 app.agent.runtime 的循环导入
-    from app.services import (
+    from app.services.market import (
         index_quotation_service,
         index_technical_service,
         limit_pool_service,

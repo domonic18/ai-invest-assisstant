@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.models.capital_fund_flow_sector import SectorFundFlow
-from app.services import sector_fund_flow_service
+from app.services.market import sector_fund_flow_service
 
 
 def _row(day: date, code: str, name: str, amount: str | None) -> SectorFundFlow:

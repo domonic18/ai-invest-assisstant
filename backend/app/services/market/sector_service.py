@@ -16,7 +16,7 @@ from app.schemas.market import (
     SectorHeatItem,
     SectorOverviewResponse,
 )
-from app.services import limit_pool_service, trade_calendar_service
+from app.services.market import limit_pool_service, trade_calendar_service
 
 
 async def get_sector_overview(

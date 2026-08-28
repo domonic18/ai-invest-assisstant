@@ -17,7 +17,7 @@ from app.schemas.collector import (
     CollectorTaskRunRequest,
 )
 from app.schemas.stock import PaginatedResponse
-from app.services.collector_log_service import CollectorLogService
+from app.services.collector.collector_log_service import CollectorLogService
 from collector.celery_app import app as celery_app
 from collector.runtime.dispatcher import dispatch_collector_task
 from collector.runtime.registry import TASK_SPECS

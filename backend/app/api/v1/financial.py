@@ -12,7 +12,7 @@ from app.schemas.financial import (
     FinancialHealthResponse,
     FinancialHistoryResponse,
 )
-from app.services import financial_service
+from app.services.market import financial_service
 
 router = APIRouter()
 

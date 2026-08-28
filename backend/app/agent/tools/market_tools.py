@@ -6,12 +6,14 @@ from typing import Any
 from langchain_core.tools import tool
 
 from app.core.database import AsyncSessionLocal
-from app.services import (
+from app.services.market import (
     auction_service,
     index_quotation_service,
     sector_fund_flow_service,
 )
-from app.services import market_stats_service as market_stats_svc
+from app.services.market import (
+    market_stats_service as market_stats_svc,
+)
 
 SECTOR_MAX_DAYS = 60
 SECTOR_TOP_N = 10

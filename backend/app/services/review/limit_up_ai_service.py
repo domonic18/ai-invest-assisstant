@@ -153,7 +153,7 @@ async def generate_attribution(
         LLMConfigNotConfiguredError: 未配置默认 LLM
     """
     # 延迟 import 打破 limit_pool_service → limit_up_ai_service → limit_pool_service 循环
-    from app.services import (
+    from app.services.market import (
         limit_pool_service,
         sector_service,
         trade_calendar_service,

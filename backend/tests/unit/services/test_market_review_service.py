@@ -74,14 +74,14 @@ def _contents_of(result: object) -> dict[str, str]:
 
 def _patch_stats() -> patch:
     return patch(
-        "app.services.market_stats_service.get_market_stats",
+        "app.services.market.market_stats_service.get_market_stats",
         AsyncMock(return_value=SimpleNamespace(trade_date=_TRADE_DATE)),
     )
 
 
 def _patch_trading_day(value: bool = True) -> patch:
     return patch(
-        "app.services.trade_calendar_service.is_trading_day",
+        "app.services.market.trade_calendar_service.is_trading_day",
         AsyncMock(return_value=value),
     )
 

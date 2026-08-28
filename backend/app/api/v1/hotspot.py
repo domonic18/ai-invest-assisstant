@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db
 from app.schemas.capital_fund_flow_sector import HotspotListRequest, SectorFundFlowResponse
 from app.schemas.stock import PaginatedResponse
-from app.services import hotspot_service
+from app.services.market import hotspot_service
 
 router = APIRouter()
 

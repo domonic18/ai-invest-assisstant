@@ -14,7 +14,7 @@ from app.models.market_amount import MarketAmount
 from app.models.market_breadth import MarketBreadth
 from app.models.pool_limit_up_stock import LimitUpPool
 from app.schemas.market import MarketStatsResponse
-from app.services import index_quotation_service, trade_calendar_service
+from app.services.market import index_quotation_service, trade_calendar_service
 
 
 def _emotion_label(score: float) -> str:

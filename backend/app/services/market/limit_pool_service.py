@@ -19,7 +19,7 @@ from app.schemas.market import (
     LimitUpItem,
     LimitUpResponse,
 )
-from app.services import trade_calendar_service
+from app.services.market import trade_calendar_service
 from app.services.review import limit_up_ai_service
 from app.services.review.limit_up_ai_service import LimitUpAttributionContent
 

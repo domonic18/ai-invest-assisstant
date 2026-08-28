@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.models.quote_auction_index import IndexAuction
-from app.services import auction_service
+from app.services.market import auction_service
 
 
 def _row(day: date, code: str, amount: str) -> IndexAuction:

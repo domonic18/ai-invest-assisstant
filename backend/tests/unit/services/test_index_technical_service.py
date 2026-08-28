@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services import index_technical_service
-from app.services.index_technical_service import TECH_CODES, build_technical_context
+from app.services.market import index_technical_service
+from app.services.market.index_technical_service import TECH_CODES, build_technical_context
 
 _TRADE_DATE = date(2026, 7, 17)  # 周五
 

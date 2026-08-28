@@ -102,7 +102,7 @@ class TestGenerateAttribution:
     async def test_rejects_non_trading_day(self) -> None:
         with (
             patch(
-                "app.services.trade_calendar_service.is_trading_day",
+                "app.services.market.trade_calendar_service.is_trading_day",
                 AsyncMock(return_value=False),
             ),
             pytest.raises(NonTradingDayError),
@@ -117,7 +117,7 @@ class TestGenerateAttribution:
                 AsyncMock(return_value=_cached_row(_content_dict())),
             ),
             patch(
-                "app.services.trade_calendar_service.is_trading_day",
+                "app.services.market.trade_calendar_service.is_trading_day",
                 AsyncMock(return_value=True),
             ),
         ):
@@ -135,11 +135,11 @@ class TestGenerateAttribution:
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.services.trade_calendar_service.is_trading_day",
+                "app.services.market.trade_calendar_service.is_trading_day",
                 AsyncMock(return_value=True),
             ),
             patch(
-                "app.services.limit_pool_service.get_limit_up",
+                "app.services.market.limit_pool_service.get_limit_up",
                 AsyncMock(return_value=MagicMock(items=[])),
             ),
             pytest.raises(ValueError, match="无涨停数据"),

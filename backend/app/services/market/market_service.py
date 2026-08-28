@@ -14,16 +14,18 @@ market_review_service、test_market_service 等）不破。新代码请直接 im
 """
 
 from app.core.constants import INDEX_CODES  # noqa: F401 — 测试与旧调用点仍引用
-from app.services import (
+from app.services import watchlist_quote_service
+from app.services.collector import market_dispatch_service
+from app.services.collector.market_dispatch_service import (  # noqa: F401
+    NonTradingDayError,
+)
+from app.services.market import (
     index_quotation_service,
     limit_pool_service,
-    market_dispatch_service,
     market_stats_service,
     sector_service,
     trade_calendar_service,
-    watchlist_quote_service,
 )
-from app.services.market_dispatch_service import NonTradingDayError  # noqa: F401
 
 # 交易日工具
 resolve_latest_trade_date = trade_calendar_service.resolve_latest_trade_date

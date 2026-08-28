@@ -9,7 +9,7 @@ import pytest
 from app.models.financial_balance_sheet import BalanceSheet
 from app.models.financial_cash_flow_statement import CashFlowStatement
 from app.models.financial_income_statement import IncomeStatement
-from app.services import financial_service
+from app.services.market import financial_service
 
 
 @pytest.mark.unit

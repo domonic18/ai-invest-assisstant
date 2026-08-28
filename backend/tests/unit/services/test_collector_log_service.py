@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.services.collector_log_service import CollectorLogService
+from app.services.collector.collector_log_service import CollectorLogService
 
 
 @pytest.mark.unit

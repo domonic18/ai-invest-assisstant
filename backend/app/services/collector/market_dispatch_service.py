@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError
 from app.schemas.market import CollectTaskResult
-from app.services import trade_calendar_service
+from app.services.market import trade_calendar_service
 
 _BACKFILL_TASKS = (
     "limit-up-pool",

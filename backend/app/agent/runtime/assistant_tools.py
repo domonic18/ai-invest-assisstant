@@ -43,14 +43,16 @@ from app.agent.tools.stock_tools import (
 )
 from app.core.database import AsyncSessionLocal
 from app.services import (
+    market as stock_service,
+)
+from app.services.market import (
     auction_service,
     index_quotation_service,
     sector_fund_flow_service,
 )
-from app.services import (
-    market as stock_service,
+from app.services.market import (
+    market_stats_service as market_stats_svc,
 )
-from app.services import market_stats_service as market_stats_svc
 
 __all__ = [
     "AsyncSessionLocal",

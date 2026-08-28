@@ -15,7 +15,7 @@ from app.schemas.user import (
     WatchlistItemCreate,
     WatchlistItemResponse,
 )
-from app.services import market_service
+from app.services.market import market_service
 from app.services.user_service import UserService
 from app.services.watchlist_service import WatchlistService
 
