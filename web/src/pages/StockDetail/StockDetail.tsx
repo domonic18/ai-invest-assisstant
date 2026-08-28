@@ -5,7 +5,7 @@ import { useParams } from 'react-router-dom'
 
 import { Select, Tabs } from 'antd'
 
-import { StockChartView } from '@/components/charts/StockChartView'
+import { StockChartView } from '@/components/charts/stockChartView'
 import { useFinancial } from '@/hooks/useFinancial'
 import { useFinancialHistory } from '@/hooks/useFinancialHistory'
 import { useResearch } from '@/hooks/useResearch'

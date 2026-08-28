@@ -1,4 +1,4 @@
-import type { StockChartViewIndicators } from '@/components/charts/StockChartView'
+import type { StockChartViewIndicators } from '@/components/charts/stockChartView'
 
 export const STORAGE_KEY = 'ai-invest.stock-detail.views'
 
