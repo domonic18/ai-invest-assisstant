@@ -1,71 +1,85 @@
-"""collector cron 解析工具契约测试。"""
+"""collector cron 解析工具契约测试（Celery crontab 语义）。
 
-from datetime import datetime
+Celery crontab 星期数字约定与标准 cron 一致（0/7=周日、1=周一），
+``_parse_cron`` 必须原样透传星期字段——任何转换都会使调度整体偏移一天。
+"""
+
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 import pytest
-from apscheduler.triggers.cron import CronTrigger
+from celery.schedules import crontab
 
-from collector.core.cron import SCHEDULER_TZ, _convert_day_of_week, _parse_cron
+from collector.core.cron import _normalize_cron_field, _parse_cron
+
+_CN = ZoneInfo("Asia/Shanghai")
+
+
+def _build_crontab(schedule: str) -> crontab:
+    parsed = _parse_cron(schedule)
+    return crontab(
+        minute=_normalize_cron_field(parsed["minute"]),
+        hour=_normalize_cron_field(parsed["hour"]),
+        day_of_month=parsed["day"],
+        month_of_year=parsed["month"],
+        day_of_week=parsed["day_of_week"],
+    )
+
+
+def _next_from(schedule: str, after_cst: datetime) -> datetime:
+    """返回 schedule 在 after_cst（北京时间 aware）之后的下次触发（UTC aware）。"""
+    after_utc = after_cst.astimezone(timezone.utc)
+    return after_utc + _build_crontab(schedule).remaining_estimate(after_utc)
 
 
 @pytest.mark.unit
-class TestConvertDayOfWeek:
-    @pytest.mark.parametrize(
-        ("expr", "expected"),
-        [
-            ("*", "*"),
-            ("1-5", "0-4"),  # 周一~周五
-            ("6", "5"),  # 周六
-            ("0", "6"),  # 周日
-            ("7", "6"),  # 周日（另一种写法）
-            ("1,3,5", "0,2,4"),
-            ("0-6", "0,1,2,3,4,5,6"),  # 整周回绕展开
-            ("mon-fri", "mon-fri"),  # 名称原样保留
-            ("*/2", "*/2"),
-        ],
-    )
-    def test_mapping(self, expr: str, expected: str) -> None:
-        assert _convert_day_of_week(expr) == expected
+class TestNormalizeCronField:
+    def test_step_only_normalized(self) -> None:
+        assert _normalize_cron_field("0/30") == "*/30"
+
+    def test_range_with_step_unchanged(self) -> None:
+        assert _normalize_cron_field("2-57/5") == "2-57/5"
+
+    def test_asterisk_unchanged(self) -> None:
+        assert _normalize_cron_field("*") == "*"
 
 
 @pytest.mark.unit
 class TestParseCron:
-    def test_weekday_conversion(self) -> None:
+    def test_weekday_passthrough(self) -> None:
         parsed = _parse_cron("*/5 9-15 * * 1-5")
-        assert parsed["day_of_week"] == "0-4"
+        assert parsed["day_of_week"] == "1-5"
         assert parsed["minute"] == "*/5"
         assert parsed["hour"] == "9-15"
+        assert parsed["day"] == "*"
+        assert parsed["month"] == "*"
 
     def test_invalid_expression(self) -> None:
         with pytest.raises(ValueError, match="Invalid cron expression"):
             _parse_cron("*/5 9-15 *")
 
-    def test_saturday_not_fired_for_weekday_schedule(self) -> None:
+
+@pytest.mark.unit
+class TestCeleryWeekdaySemantics:
+    def test_weekday_schedule_skips_weekend(self) -> None:
         """1-5（周一至周五）的调度不应在周六触发。"""
-        parsed = _parse_cron("*/5 9-15 * * 1-5")
-        trigger = CronTrigger(timezone=SCHEDULER_TZ, **parsed)
         # 2026-07-18 12:00 北京时间 = 周六
-        saturday = datetime(2026, 7, 18, 12, 0, tzinfo=ZoneInfo("Asia/Shanghai"))
-        nxt = trigger.get_next_fire_time(None, saturday)
-        assert nxt is not None
+        saturday = datetime(2026, 7, 18, 12, 0, tzinfo=_CN)
+        nxt = _next_from("*/5 9-15 * * 1-5", saturday).astimezone(_CN)
         assert nxt.weekday() == 0  # 下一次触发是周一
+        assert (nxt.hour, nxt.minute) == (9, 0)
 
     def test_saturday_schedule_fires_on_saturday(self) -> None:
-        parsed = _parse_cron("0 2 * * 6")
-        trigger = CronTrigger(timezone=SCHEDULER_TZ, **parsed)
-        friday = datetime(2026, 7, 17, 12, 0, tzinfo=ZoneInfo("Asia/Shanghai"))
-        nxt = trigger.get_next_fire_time(None, friday)
-        assert nxt is not None
+        # 2026-07-17 12:00 北京时间 = 周五
+        friday = datetime(2026, 7, 17, 12, 0, tzinfo=_CN)
+        nxt = _next_from("0 2 * * 6", friday).astimezone(_CN)
         assert nxt.weekday() == 5  # 周六
         assert (nxt.hour, nxt.minute) == (2, 0)
 
-    def test_timezone_is_beijing(self) -> None:
-        parsed = _parse_cron("35 15 * * 1-5")
-        trigger = CronTrigger(timezone=SCHEDULER_TZ, **parsed)
-        # 2026-07-20 10:00 北京时间 = 周一
-        monday = datetime(2026, 7, 20, 10, 0, tzinfo=ZoneInfo("Asia/Shanghai"))
-        nxt = trigger.get_next_fire_time(None, monday)
-        assert nxt is not None
-        assert (nxt.hour, nxt.minute) == (15, 35)
-        assert nxt.utcoffset().total_seconds() == 8 * 3600
+    def test_friday_evening_next_fire_is_monday(self) -> None:
+        """周五收盘批之后的下次触发应为下周一，而非周日。"""
+        # 2026-08-28 18:57 北京时间 = 周五
+        friday = datetime(2026, 8, 28, 18, 57, tzinfo=_CN)
+        nxt = _next_from("0 16 * * 1-5", friday).astimezone(_CN)
+        assert nxt.weekday() == 0  # 周一
+        assert (nxt.hour, nxt.minute) == (16, 0)
