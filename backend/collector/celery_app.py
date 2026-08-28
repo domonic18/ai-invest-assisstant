@@ -61,6 +61,8 @@ def make_celery_app() -> Celery:
     app.conf.update(
         broker_url=collector_config.celery_broker_url,
         result_backend=collector_config.celery_result_backend,
+        timezone="Asia/Shanghai",
+        enable_utc=True,
         task_serializer="json",
         accept_content=["json"],
         task_acks_late=True,
