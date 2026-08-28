@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services import limit_up_ai_service
-from app.services.limit_up_ai_service import (
+from app.services.review import limit_up_ai_service
+from app.services.review.limit_up_ai_service import (
     AttributionGroup,
     LimitUpAttributionContent,
 )

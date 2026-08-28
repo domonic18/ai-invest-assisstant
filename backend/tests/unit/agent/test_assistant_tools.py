@@ -124,7 +124,7 @@ class TestIndustryChainTools:
             version_id=123, version_no=5, status="success"
         )
         with patch(
-            "app.services.chain_service.persist_analysis_result",
+            "app.services.chain.chain_service.persist_analysis_result",
             AsyncMock(return_value=version),
         ) as m:
             result = await at.persist_chain_analysis.ainvoke(

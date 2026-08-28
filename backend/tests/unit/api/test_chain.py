@@ -14,7 +14,7 @@ from app.schemas.chain import (
     ChainVersionDetail,
     ChainVersionSummary,
 )
-from app.services.chain_service import ChainAnalysisFailedError
+from app.services.chain.chain_service import ChainAnalysisFailedError
 from app.services.llm_config_service import LLMConfigNotConfiguredError
 
 

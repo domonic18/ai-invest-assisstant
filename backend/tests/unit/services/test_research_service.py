@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.exceptions import NotFoundError
-from app.services import research_service
-from app.services.research_service import (
+from app.services.reports import research_service
+from app.services.reports.research_service import (
     ResearchReportSummaryResult,
     _derived_fields,
     _render_summary_markdown,
@@ -54,7 +54,7 @@ class TestResearchService:
         session.get.return_value = report
 
         with patch(
-            "app.services.research_service.redis_lock"
+            "app.services.reports.research_service.redis_lock"
         ) as mock_lock:
             result = await research_service.summarize_report(session, 1)
 

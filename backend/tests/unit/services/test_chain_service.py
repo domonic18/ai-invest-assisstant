@@ -16,8 +16,8 @@ from app.schemas.chain import (
     ChainRisk,
     KeyCompanySummary,
 )
-from app.services import chain_service
-from app.services.chain_service import ChainAnalysisFailedError
+from app.services.chain import chain_analysis_service, chain_service
+from app.services.chain.chain_service import ChainAnalysisFailedError
 from app.services.llm_config_service import ResolvedLLMConfig
 
 
@@ -87,34 +87,34 @@ class TestAnalyzeAndPersist:
         version = _version(7, 1)
         with (
             patch.object(
-                chain_service.repository,
+                chain_analysis_service.repository,
                 "next_version_number",
                 new=AsyncMock(return_value=1),
             ),
             patch.object(
-                chain_service, "resolve_default_llm", new=AsyncMock(return_value=_resolved())
+                chain_analysis_service, "resolve_default_llm", new=AsyncMock(return_value=_resolved())
             ),
             patch.object(
-                chain_service.industry_chain_analysis,
+                chain_analysis_service.industry_chain_analysis,
                 "run_skill",
                 new=AsyncMock(return_value=_result()),
             ),
             patch.object(
-                chain_service, "_insert_ai_result", new=AsyncMock(return_value=42)
+                chain_analysis_service, "_insert_ai_result", new=AsyncMock(return_value=42)
             ) as mock_ai,
             patch.object(
-                chain_service.repository,
+                chain_analysis_service.repository,
                 "create_version",
                 new=AsyncMock(return_value=version),
             ) as mock_create,
             patch.object(
-                chain_service.repository,
+                chain_analysis_service.repository,
                 "replace_graph",
                 new=AsyncMock(),
             ) as mock_replace,
         ):
             session = AsyncMock()
-            response = await chain_service.analyze_and_persist(session, "半导体")
+            response = await chain_analysis_service.analyze_and_persist(session, "半导体")
 
         assert response.version_id == 7
         assert response.version_no == 1
@@ -155,35 +155,35 @@ class TestAnalyzeAndPersist:
     async def test_failure_persists_failed_version_and_raises(self) -> None:
         with (
             patch.object(
-                chain_service.repository,
+                chain_analysis_service.repository,
                 "next_version_number",
                 new=AsyncMock(return_value=2),
             ),
             patch.object(
-                chain_service, "resolve_default_llm", new=AsyncMock(return_value=_resolved())
+                chain_analysis_service, "resolve_default_llm", new=AsyncMock(return_value=_resolved())
             ),
             patch.object(
-                chain_service.industry_chain_analysis,
+                chain_analysis_service.industry_chain_analysis,
                 "run_skill",
                 new=AsyncMock(side_effect=RuntimeError("llm timeout")),
             ),
             patch.object(
-                chain_service, "_insert_ai_result", new=AsyncMock(return_value=43)
+                chain_analysis_service, "_insert_ai_result", new=AsyncMock(return_value=43)
             ),
             patch.object(
-                chain_service.repository,
+                chain_analysis_service.repository,
                 "create_version",
                 new=AsyncMock(return_value=_version(8, 2, status="failed")),
             ) as mock_create,
             patch.object(
-                chain_service.repository,
+                chain_analysis_service.repository,
                 "replace_graph",
                 new=AsyncMock(),
             ) as mock_replace,
         ):
             session = AsyncMock()
             with pytest.raises(ChainAnalysisFailedError, match="llm timeout"):
-                await chain_service.analyze_and_persist(session, "半导体")
+                await chain_analysis_service.analyze_and_persist(session, "半导体")
 
         create_kwargs = mock_create.await_args.kwargs
         assert create_kwargs["status"] == "failed"

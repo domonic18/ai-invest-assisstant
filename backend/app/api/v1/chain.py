@@ -18,7 +18,7 @@ from app.schemas.chain import (
     ChainVersionDetail,
     ChainVersionSummary,
 )
-from app.services import chain_service
+from app.services.chain import chain_service
 
 router = APIRouter()
 

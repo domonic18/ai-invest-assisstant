@@ -19,8 +19,9 @@ from app.schemas.market import (
     LimitUpItem,
     LimitUpResponse,
 )
-from app.services import limit_up_ai_service, trade_calendar_service
-from app.services.limit_up_ai_service import LimitUpAttributionContent
+from app.services import trade_calendar_service
+from app.services.review import limit_up_ai_service
+from app.services.review.limit_up_ai_service import LimitUpAttributionContent
 
 _SEAL_OPEN_THRESHOLD = "093000"  # 开盘（含集合竞价）即封板的时间上界
 _INDUSTRY_SUFFIXES = ("Ⅲ", "Ⅱ")

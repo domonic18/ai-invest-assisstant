@@ -13,7 +13,7 @@ from app.schemas.news_announcement import (
     ResearchReportListRequest,
 )
 from app.schemas.stock import PaginatedResponse
-from app.services import research_service
+from app.services.reports import research_service
 
 router = APIRouter()
 

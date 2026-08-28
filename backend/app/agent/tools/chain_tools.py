@@ -49,7 +49,7 @@ async def persist_chain_analysis(
         config: LangGraph 运行时配置，自动注入当前用户 ID。
     """
     from app.schemas.chain import ChainAnalysisResult
-    from app.services import chain_service
+    from app.services.chain import chain_service
 
     normalized = _normalize_industry(industry)
     user_id = int(config.get("configurable", {}).get("user_id", 0))
