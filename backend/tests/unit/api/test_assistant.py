@@ -201,7 +201,7 @@ class TestRunStream:
                 AsyncMock(return_value=agent),
             ),
             patch(
-                "app.api.v1.assistant.runs._touch_session",
+                "app.api.v1.assistant.runs.touch_session_standalone",
                 AsyncMock(return_value=None),
             ),
         ):

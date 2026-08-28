@@ -115,6 +115,20 @@ class AssistantService:
         ]
 
 
+async def touch_session_standalone(thread_id: str, title: str | None) -> None:
+    """run 结束后用独立 session 回写 last_message_at/标题；失败只记日志。
+
+    供 SSE 流收尾（可能处于取消传播上下文）调用，自管连接生命周期。
+    """
+    from app.core.database import AsyncSessionLocal
+
+    try:
+        async with AsyncSessionLocal() as db:
+            await AssistantService(db).touch_session(thread_id, title)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("assistant_touch_failed", thread_id=thread_id, error=str(exc))
+
+
 def parse_skill_file(path: Path) -> dict[str, Any]:
     """解析 skills/<id>/SKILL.md 摘要：优先 YAML frontmatter，退化用目录名+首行。"""
     import yaml

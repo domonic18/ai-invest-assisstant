@@ -84,3 +84,19 @@ class CollectorLogResponse(BaseModel):
     records_count: int
     error_msg: str | None
     metadata: dict | None = Field(alias="meta")
+
+
+class CollectorDeadLetterResponse(BaseModel):
+    """A single collector dead-letter entry."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    task_name: str
+    source: str | None
+    payload: dict
+    celery_task_id: str | None
+    collector_log_id: int | None
+    error_msg: str | None
+    retry_count: int
+    created_at: datetime

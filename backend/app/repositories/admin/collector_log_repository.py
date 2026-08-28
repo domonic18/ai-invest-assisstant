@@ -18,3 +18,7 @@ class CollectorLogRepository(BaseRepository[CollectorLog]):
         stmt = select(CollectorLog).order_by(desc(CollectorLog.started_at)).limit(limit)
         result = await self.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_by_id(self, log_id: int) -> CollectorLog | None:
+        """Return a single collector log by primary key."""
+        return await self.session.get(CollectorLog, log_id)

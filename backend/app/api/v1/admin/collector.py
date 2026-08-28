@@ -4,13 +4,11 @@ from typing import Annotated, Any
 
 from celery.result import AsyncResult
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_db
-from app.models.collector_dead_letter import CollectorDeadLetter
-from app.models.collector_log import CollectorLog
 from app.schemas.collector import (
+    CollectorDeadLetterResponse,
     CollectorLogResponse,
     CollectorRunResponse,
     CollectorTaskChannelItem,
@@ -59,7 +57,7 @@ async def get_collector_log_celery_status(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     """Return the Celery task state for a collector log entry."""
-    log = await session.get(CollectorLog, log_id)
+    log = await CollectorLogService(session).get_by_id(log_id)
     if log is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -87,22 +85,12 @@ async def list_dead_letters(
     page_size: int = 20,
 ) -> PaginatedResponse:
     """List collector dead-letter entries, newest first."""
-    offset = (page - 1) * page_size
-    total = await session.scalar(select(func.count(CollectorDeadLetter.id)))
-    result = await session.execute(
-        select(CollectorDeadLetter)
-        .order_by(CollectorDeadLetter.created_at.desc())
-        .offset(offset)
-        .limit(page_size)
-    )
-    rows = result.scalars().all()
-    items = []
-    for row in rows:
-        item = row.__dict__.copy()
-        item.pop("_sa_instance_state", None)
-        items.append(item)
+    total, rows = await CollectorLogService(session).list_dead_letters(page, page_size)
+    items = [
+        CollectorDeadLetterResponse.model_validate(row).model_dump() for row in rows
+    ]
     return PaginatedResponse(
-        total=total or 0,
+        total=total,
         page=page,
         page_size=page_size,
         items=items,

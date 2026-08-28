@@ -16,31 +16,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.runtime import wire
 from app.agent.runtime.assistant_agent import get_assistant_agent
+from app.api.v1.assistant.page_context import _with_page_context
 from app.api.v1.assistant.threads import _require_thread
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.assistant import RunCancelRequest, RunStreamRequest, ThreadStateResponse
-from app.services.assistant_service import AssistantService
+from app.services.assistant_service import touch_session_standalone
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
-
-
-def _with_page_context(content: Any, page_context: Any) -> Any:
-    """把页面上下文（run metadata.page_context）注入首条用户消息前缀。
-
-    使"这只股票/当前板块"等指代可解析；content 可能是 str 或内容块列表，
-    块列表时把上下文行作为首个 text 块插入。
-    """
-    if not isinstance(page_context, dict) or not page_context:
-        return content
-    context_line = f"[页面上下文] {json.dumps(page_context, ensure_ascii=False)}"
-    if isinstance(content, str):
-        return f"{context_line}\n\n{content}"
-    if isinstance(content, list):
-        return [{"type": "text", "text": context_line}, *content]
-    return content
 
 
 def _first_text(messages_in: list[dict[str, Any]]) -> str | None:
@@ -244,7 +229,9 @@ async def stream_run(
             # 操作数据库，会把 SQLAlchemy 池中的 asyncpg 连接打断成脏连接，
             # 导致后续请求 500（connection is closed）。放独立任务 + shield，
             # 让回写在取消传播之外完成。
-            touch = asyncio.create_task(_touch_session(thread_id, first_title))
+            touch = asyncio.create_task(
+                touch_session_standalone(thread_id, first_title)
+            )
             try:
                 await asyncio.shield(touch)
             except Exception:  # noqa: BLE001  # 失败已在任务内记录
@@ -270,14 +257,3 @@ async def cancel_run(
     if not wire.run_registry.cancel(thread_id, run_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "运行不存在或已结束")
     return {"status": "cancelled"}
-
-
-async def _touch_session(thread_id: str, title: str | None) -> None:
-    """run 结束后回写 last_message_at/标题；失败只记日志不影响流。"""
-    from app.core.database import AsyncSessionLocal
-
-    try:
-        async with AsyncSessionLocal() as db:
-            await AssistantService(db).touch_session(thread_id, title)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("assistant_touch_failed", thread_id=thread_id, error=str(exc))
