@@ -41,8 +41,6 @@ dependencies = [
     "bcrypt>=4.1.0",
     # Encryption
     "cryptography>=42.0.0",
-    # Scheduler
-    "apscheduler>=3.10.0",
     # AI Agent
     "pydantic-ai>=0.0.10",
     "openai>=1.35.0",
@@ -124,7 +122,6 @@ disallow_any_generics = false
 [[tool.mypy.overrides]]
 module = [
     "app.agent.*",
-    "apscheduler.*",
     "celery.*",
     "kombu.*",
     "pandas.*",
