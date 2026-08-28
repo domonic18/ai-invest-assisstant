@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     # 读超时过小会导致长文本、结构化输出或 provider 拥堵时被异常截断；过大则会让
     # Agent 在 provider 偶发慢响应时长时间挂起。默认值兼顾正常响应与快速失败。
     llm_http_connect_timeout: float = 5.0  # TCP 连接建立超时（秒）
-    llm_http_read_timeout: float = 60.0  # 等待响应首字节及后续数据的超时（秒）
+    llm_http_read_timeout: float = 300.0  # 等待响应首字节及后续数据的超时（秒）；非流式长文本生成常超 60s
     llm_http_write_timeout: float = 60.0  # 请求体发送超时（秒）
     llm_http_pool_timeout: float = 60.0  # 从连接池获取连接的超时（秒）
     llm_max_retries: int = 2  # provider 默认重试次数
