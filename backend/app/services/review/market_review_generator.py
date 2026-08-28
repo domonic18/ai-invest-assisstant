@@ -1,14 +1,10 @@
-"""AI 大盘综述（LLM 复盘报告）服务。
+"""AI 大盘综述生成器：上下文组装、LLM 生成、缓存持久化。
 
 生成结果按 (skill_id, input_hash) 缓存在 ai_analysis_result 表作为共享 base；
-用户编辑副本保存在 user_market_review 表（sections JSONB 列），读取时按分区 overlay。
-内容分区由 prompt YAML 的 sections 声明驱动：新增分析维度只需在
-skills/market-daily-review.yaml 追加一条 section，无需改动本模块、API 或前端。
 生成逻辑统一加 Redis 分布式锁，避免多租户场景下重复调用 LLM。
 """
 
 import hashlib
-from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
 
@@ -18,28 +14,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptConfig, PromptLoader, PromptSection
 from app.agent.core.prompt_renderer import PromptRenderer
-from app.agent.runtime import run_structured_agent_with_metrics
 from app.core.config import get_settings
-from app.core.exceptions import (
-    BadRequestError,
-    ConflictError,
-    NotFoundError,
-    UnprocessableEntityError,
-)
+from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.locking import redis_lock
-from app.models.user_market_review import UserMarketReview
 from app.repositories import (
     ai_analysis_repository,
     user_market_review_repository,
 )
-from app.schemas.market import MarketReviewResponse, MarketReviewSection
-from app.services import (
-    index_quotation_service,
-    index_technical_service,
-    limit_pool_service,
-    market_stats_service,
-    sector_service,
-    trade_calendar_service,
+from app.schemas.market import MarketReviewResponse
+from app.services.review.market_review_formatter import (
+    BaseReview,
+    build_response,
+    format_amount,
 )
 
 logger = structlog.get_logger(__name__)
@@ -47,12 +33,12 @@ logger = structlog.get_logger(__name__)
 SKILL_ID = "market-daily-review"
 
 
-class ReviewNotFoundError(NotFoundError):
-    """指定交易日不存在已生成的 AI 复盘。"""
-
-
 class NonTradingDayError(BadRequestError):
     """指定日期不是交易日，每日复盘只对交易日有效。"""
+
+
+class ReviewNotFoundError(NotFoundError):
+    """指定交易日不存在已生成的 AI 复盘。"""
 
 
 class ReviewGenerationLockedError(ConflictError):
@@ -65,88 +51,53 @@ class ReviewInputDataNotReadyError(BadRequestError):
     default_message = "当日行情数据尚未采集完成，请稍后重试"
 
 
-class UnknownSectionError(UnprocessableEntityError):
-    """编辑的分区未在 prompt YAML 的 sections 中声明。"""
-
-
 class MarketReviewContent(BaseModel):
     """LLM 结构化输出：分区 key -> Markdown 内容。"""
 
     sections: dict[str, str]
 
 
-@dataclass
-class _BaseReview:
-    """共享 base 记录（含数据库主键，用于用户编辑副本关联）。"""
-
-    id: int
-    response: MarketReviewResponse
-
-
-def _load_prompt_config() -> PromptConfig:
+def load_prompt_config() -> PromptConfig:
     config = PromptLoader(get_settings().prompts_dir).load("skills", SKILL_ID)
     if not config.sections:
         raise ValueError(f"{SKILL_ID} prompt 未声明任何 sections 分区")
     return config
 
 
-def _input_hash(trade_date: date, sections: list[PromptSection]) -> str:
+def input_hash(trade_date: date, sections: list[PromptSection]) -> str:
     """缓存键纳入分区键集合：新增/调整分区后旧缓存自动失效。"""
     keys = ",".join(section.key for section in sections)
     raw = f"{SKILL_ID}:{keys}:{trade_date.isoformat()}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def _build_response(
-    trade_date: date,
-    contents: dict[str, str],
-    sections: list[PromptSection],
-    model: str | None,
-    generated_at: datetime,
-    cached: bool,
-    edited: bool,
-) -> MarketReviewResponse:
-    """按 YAML 声明的分区顺序组装响应（未声明的内容键丢弃，缺失分区补空串）。"""
-    return MarketReviewResponse(
-        trade_date=trade_date,
-        sections=[
-            MarketReviewSection(
-                key=section.key,
-                title=section.title,
-                content=contents.get(section.key, ""),
-            )
-            for section in sections
-        ],
-        model=model,
-        generated_at=generated_at,
-        cached=cached,
-        edited=edited,
-    )
+def render_section_instructions(sections: list[PromptSection]) -> str:
+    lines = ["请输出以下分区（以分区 key 为字段名）："]
+    for index, section in enumerate(sections, start=1):
+        requirements = section.requirements.strip()
+        lines.append(f"{index}. {section.key}（{section.title}）：{requirements}")
+    return "\n".join(lines)
 
 
-def _format_amount(amount: float | None) -> str:
-    if amount is None:
-        return "未知"
-    if amount >= 1e12:
-        return f"{amount / 1e12:.2f} 万亿元"
-    return f"{amount / 1e8:.0f} 亿元"
+def _hash_for(session_date: date, sections: list[PromptSection]) -> str:
+    return input_hash(session_date, sections)
 
 
 async def _load_base_review(
     session: AsyncSession, trade_date: date, sections: list[PromptSection]
-) -> _BaseReview | None:
+) -> BaseReview | None:
     """读取共享 base 记录。"""
     row = await ai_analysis_repository.load_latest_success(
         session,
         skill_id=SKILL_ID,
-        input_hash=_input_hash(trade_date, sections),
+        input_hash=_hash_for(trade_date, sections),
     )
     if row is None or not row.structured_output:
         return None
     output = row.structured_output
-    return _BaseReview(
+    return BaseReview(
         id=row.id,
-        response=_build_response(
+        response=build_response(
             trade_date=date.fromisoformat(output["trade_date"]),
             contents=output.get("sections") or {},
             sections=sections,
@@ -160,118 +111,23 @@ async def _load_base_review(
 
 async def _load_user_edit_row(
     session: AsyncSession, user_id: int, trade_date: date
-) -> UserMarketReview | None:
+) -> Any | None:
     """读取用户编辑副本原始行（sections JSONB，未编辑的分区不在其中）。"""
     return await user_market_review_repository.find(
         session, user_id=user_id, trade_date=trade_date
     )
 
 
-async def _resolve_trade_date(
-    session: AsyncSession, trade_date: date | None
-) -> date:
-    stats = await market_stats_service.get_market_stats(session, trade_date)
-    return stats.trade_date
+async def assert_trading_day(session: AsyncSession, day: date) -> None:
+    from app.services import trade_calendar_service
 
-
-async def _assert_trading_day(session: AsyncSession, day: date) -> None:
     if not await trade_calendar_service.is_trading_day(session, day):
         raise NonTradingDayError(f"{day.isoformat()} 不是交易日，每日复盘只对交易日有效")
 
 
-async def get_market_review(
-    session: AsyncSession,
-    user_id: int,
-    trade_date: date | None = None,
-) -> MarketReviewResponse | None:
-    """读取用户视图的大盘综述：用户编辑版按分区 overlay 在共享 base 之上。
-
-    只读，不触发 LLM 生成。
-    """
-    if trade_date is not None:
-        await _assert_trading_day(session, trade_date)
-    resolved_date = await _resolve_trade_date(session, trade_date)
-
-    sections = _load_prompt_config().sections
-    base = await _load_base_review(session, resolved_date, sections)
-    user_row = await _load_user_edit_row(session, user_id, resolved_date)
-    if user_row is None:
-        return base.response if base is not None else None
-
-    base_contents = (
-        {item.key: item.content for item in base.response.sections}
-        if base is not None
-        else {}
-    )
-    user_sections: dict[str, str] = user_row.sections or {}
-    merged = {
-        section.key: user_sections.get(section.key, base_contents.get(section.key, ""))
-        for section in sections
-    }
-    base_model = base.response.model if base is not None else None
-    return _build_response(
-        trade_date=resolved_date,
-        contents=merged,
-        sections=sections,
-        model=user_row.model or base_model,
-        generated_at=user_row.generated_at or user_row.created_at,
-        cached=True,
-        edited=True,
-    )
-
-
-async def update_market_review(
-    session: AsyncSession,
-    user_id: int,
-    trade_date: date,
-    section_key: str,
-    content: str,
-) -> MarketReviewResponse:
-    """按分区保存用户编辑内容到个人账户（不影响共享 base）。
-
-    其余分区沿用用户已有编辑，未曾编辑的分区从共享 base 拷贝补齐。
-    """
-    await _assert_trading_day(session, trade_date)
-
-    sections = _load_prompt_config().sections
-    if section_key not in {section.key for section in sections}:
-        raise UnknownSectionError(f"未知的复盘分区：{section_key}")
-
-    base = await _load_base_review(session, trade_date, sections)
-    if base is None:
-        raise ReviewNotFoundError(f"{trade_date.isoformat()} 尚未生成 AI 复盘")
-
-    merged = {item.key: item.content for item in base.response.sections}
-    existing = await _load_user_edit_row(session, user_id, trade_date)
-    if existing is not None:
-        merged.update(existing.sections or {})
-    merged[section_key] = content
-
-    await user_market_review_repository.upsert_sections(
-        session,
-        user_id=user_id,
-        trade_date=trade_date,
-        sections=merged,
-        model=base.response.model,
-        generated_at=base.response.generated_at,
-        base_review_id=base.id,
-    )
-    await session.commit()
-
-    return _build_response(
-        trade_date=trade_date,
-        contents=merged,
-        sections=sections,
-        model=base.response.model,
-        generated_at=base.response.generated_at,
-        cached=True,
-        edited=True,
-    )
-
-
 async def _persist(
     session: AsyncSession,
-    input_hash: str,
+    input_hash_str: str,
     model: str,
     contents: dict[str, str],
     trade_date: date,
@@ -284,21 +140,13 @@ async def _persist(
     await ai_analysis_repository.insert_result(
         session,
         skill_id=SKILL_ID,
-        input_hash=input_hash,
+        input_hash=input_hash_str,
         prompt_id=SKILL_ID,
         model=model,
         structured=structured,
         latency_ms=latency_ms,
     )
     await session.commit()
-
-
-def _render_section_instructions(sections: list[PromptSection]) -> str:
-    lines = ["请输出以下分区（以分区 key 为字段名）："]
-    for index, section in enumerate(sections, start=1):
-        requirements = section.requirements.strip()
-        lines.append(f"{index}. {section.key}（{section.title}）：{requirements}")
-    return "\n".join(lines)
 
 
 async def generate_market_review(
@@ -324,14 +172,23 @@ async def generate_market_review(
         NonTradingDayError: 指定日期不是交易日。
         ReviewGenerationLockedError: 非阻塞模式下锁被占用且缓存不存在。
     """
+    # 懒加载：同层 service 导入会在 services/__init__ 初始化时触发与 app.agent.runtime 的循环导入
+    from app.services import (
+        index_quotation_service,
+        index_technical_service,
+        limit_pool_service,
+        market_stats_service,
+        sector_service,
+    )
+
     if trade_date is not None:
-        await _assert_trading_day(session, trade_date)
+        await assert_trading_day(session, trade_date)
     stats = await market_stats_service.get_market_stats(session, trade_date)
     resolved_date = stats.trade_date
 
-    prompt_config = _load_prompt_config()
+    prompt_config = load_prompt_config()
     sections = prompt_config.sections
-    input_hash = _input_hash(resolved_date, sections)
+    current_hash = _hash_for(resolved_date, sections)
 
     if not regenerate:
         cached = await _load_base_review(session, resolved_date, sections)
@@ -376,11 +233,11 @@ async def generate_market_review(
             or "当日无连板个股"
         )
         inflow_context = "；".join(
-            f"{item.sector_name} {_format_amount(item.main_net_inflow)}"
+            f"{item.sector_name} {format_amount(item.main_net_inflow)}"
             for item in sectors.top_inflow
         ) or "无数据"
         outflow_context = "；".join(
-            f"{item.sector_name} {_format_amount(item.main_net_inflow)}"
+            f"{item.sector_name} {format_amount(item.main_net_inflow)}"
             for item in sectors.top_outflow
         ) or "无数据"
         leading_context = "；".join(
@@ -399,7 +256,7 @@ async def generate_market_review(
             trade_date=resolved_date.isoformat(),
             index_context=index_context,
             technical_context=technical_context,
-            amount_text=_format_amount(stats.amount),
+            amount_text=format_amount(stats.amount),
             up_count=stats.up_count if stats.up_count is not None else "未知",
             down_count=stats.down_count if stats.down_count is not None else "未知",
             flat_count=stats.flat_count if stats.flat_count is not None else "未知",
@@ -426,8 +283,10 @@ async def generate_market_review(
             inflow_context=inflow_context,
             outflow_context=outflow_context,
             leading_context=leading_context,
-            section_instructions=_render_section_instructions(sections),
+            section_instructions=render_section_instructions(sections),
         )
+
+        from app.agent.runtime import run_structured_agent_with_metrics
 
         output, latency_ms, model_name = await run_structured_agent_with_metrics(
             session,
@@ -449,10 +308,10 @@ async def generate_market_review(
         }
 
         await _persist(
-            session, input_hash, model_name, contents, resolved_date, latency_ms
+            session, current_hash, model_name, contents, resolved_date, latency_ms
         )
 
-        return _build_response(
+        return build_response(
             trade_date=resolved_date,
             contents=contents,
             sections=sections,

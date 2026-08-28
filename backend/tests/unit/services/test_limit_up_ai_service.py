@@ -10,7 +10,7 @@ from app.services.limit_up_ai_service import (
     AttributionGroup,
     LimitUpAttributionContent,
 )
-from app.services.market_review_service import NonTradingDayError
+from app.services.review.market_review_service import NonTradingDayError
 
 _TRADE_DATE = date(2026, 7, 20)
 

@@ -8,8 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.agent.core.prompt_loader import PromptSection
-from app.services import market_review_service
-from app.services.market_review_service import (
+from app.services import review as market_review_service
+from app.services.review import market_review_generator
+from app.services.review.market_review_service import (
     ReviewGenerationLockedError,
     ReviewNotFoundError,
     UnknownSectionError,
@@ -72,26 +73,34 @@ def _contents_of(result: object) -> dict[str, str]:
 
 
 def _patch_stats() -> patch:
-    return patch.object(
-        market_review_service.market_stats_service,
-        "get_market_stats",
+    return patch(
+        "app.services.market_stats_service.get_market_stats",
         AsyncMock(return_value=SimpleNamespace(trade_date=_TRADE_DATE)),
     )
 
 
 def _patch_trading_day(value: bool = True) -> patch:
-    return patch.object(
-        market_review_service.trade_calendar_service,
-        "is_trading_day",
+    return patch(
+        "app.services.trade_calendar_service.is_trading_day",
         AsyncMock(return_value=value),
     )
 
 
 def _patch_prompt_config() -> patch:
+    config = SimpleNamespace(sections=_SECTIONS)
     return patch.object(
         market_review_service,
-        "_load_prompt_config",
-        lambda: SimpleNamespace(sections=_SECTIONS),
+        "load_prompt_config",
+        lambda: config,
+    )
+
+
+def _patch_prompt_config_for_generate() -> patch:
+    config = SimpleNamespace(sections=_SECTIONS)
+    return patch.object(
+        market_review_generator,
+        "load_prompt_config",
+        lambda: config,
     )
 
 
@@ -100,7 +109,7 @@ def _patch_redis_lock(acquired: bool = True) -> patch:
     async def _fake_lock(*args: object, **kwargs: object):
         yield acquired
 
-    return patch.object(market_review_service, "redis_lock", _fake_lock)
+    return patch.object(market_review_generator, "redis_lock", _fake_lock)
 
 
 @pytest.mark.unit
@@ -302,7 +311,7 @@ class TestGenerateMarketReview:
             ),
             _patch_stats(),
             _patch_trading_day(),
-            _patch_prompt_config(),
+            _patch_prompt_config_for_generate(),
         ):
             result = await market_review_service.generate_market_review(
                 AsyncMock(), _TRADE_DATE
@@ -321,7 +330,7 @@ class TestGenerateMarketReview:
             ),
             _patch_stats(),
             _patch_trading_day(),
-            _patch_prompt_config(),
+            _patch_prompt_config_for_generate(),
             _patch_redis_lock(acquired=False),
             pytest.raises(ReviewGenerationLockedError),
         ):

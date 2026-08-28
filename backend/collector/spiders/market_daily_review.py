@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any
 
 from app.core.database import AsyncSessionLocal
-from app.services import market_review_service
+from app.services import review as market_review_service
 from collector.core.base import BaseCollector, CollectResult, CollectStatus
 from collector.core.calendar import is_trading_day, latest_trading_day
 

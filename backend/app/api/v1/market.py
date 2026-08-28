@@ -27,7 +27,8 @@ from app.schemas.market import (
     MarketStatsResponse,
     SectorOverviewResponse,
 )
-from app.services import limit_up_ai_service, market_review_service, market_service
+from app.services import limit_up_ai_service, market_service
+from app.services import review as market_review_service
 
 router = APIRouter()
 

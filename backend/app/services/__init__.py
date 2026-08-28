@@ -5,6 +5,7 @@ from app.services import (
     llm_config_service,
     market,
     reports,
+    review,
     user_service,
     watchlist_service,
 )
@@ -14,6 +15,7 @@ __all__ = [
     "llm_config_service",
     "market",
     "reports",
+    "review",
     "user_service",
     "watchlist_service",
 ]

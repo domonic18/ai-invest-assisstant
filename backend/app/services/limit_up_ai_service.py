@@ -159,7 +159,7 @@ async def generate_attribution(
         sector_service,
         trade_calendar_service,
     )
-    from app.services.market_review_service import NonTradingDayError
+    from app.services.review.market_review_service import NonTradingDayError
 
     if trade_date is not None and not await trade_calendar_service.is_trading_day(
         session, trade_date
