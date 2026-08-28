@@ -12,7 +12,8 @@
 - 根目录下存在 4 个 `docker-compose*.yml` 文件，命名与用途不一致；
 - `docs/` 中缺少开源项目标准的贡献指南、变更日志、安全策略等；
 - 测试目录结构分散，集成测试目录为空；
-- Skill 与 Prompt 存在双轨维护风险。
+- Skill 与 Prompt 存在双轨维护风险；
+- **Celery 采集架构落地后，仍存在已弃用的脚本、配置、测试和空文件未清理。**
 
 ### 1.2 目标
 
@@ -23,7 +24,8 @@
 - **常量、枚举、场景定义集中管理，前后端统一引用**；
 - Docker Compose 配置一套易懂、可组合；
 - 文档完整，便于新贡献者上手；
-- 测试覆盖结构与业务模块对齐。
+- 测试覆盖结构与业务模块对齐；
+- **清理已弃用的脚本、配置、测试与空目录，消除误导性代码。**
 
 ### 1.3 重构原则
 
@@ -77,16 +79,29 @@
 
 ### 2.3 Docker Compose 现状
 
-当前根目录存在 4 个 Compose 文件，与“本地开发”和“远程生产”两个主要场景不匹配：
+当前根目录存在 4 个 Compose 文件，且 `docker-compose.yml` 已从单一 `collector` 服务演进到 Celery 采集架构（`celery-beat`、`celery-worker-realtime`、`celery-worker-batch`、`celery-worker-heavy`），但方案文档尚未反映这一变化：
 
 | 文件 | 用途 | 问题 |
 |---|---|---|
 | `docker-compose.infra.yml` | 基础设施：Postgres/TimescaleDB、Redis、ES、MinIO、Milvus、etcd | 作为独立文件存在，本地/生产都需要它，增加组合复杂度 |
-| `docker-compose.yml` | 应用基座：web + collector + 默认环境变量 | 与 `-dev` 文件大量重复定义 `web`/`collector` |
+| `docker-compose.yml` | 应用基座：web + celery-beat + 3 类 celery-worker | 与旧版单一 `collector` 概念不一致；Celery 服务未在重构方案中体现 |
 | `docker-compose-dev.yml` | 开发模式：web + collector + 本地 volume 挂载 | 使用连字符，命名风格不一致；不是真正的 override |
-| `docker-compose.prod.yml` | 生产覆盖：关闭 web 端口、添加 Caddy | 必须与 `docker-compose.yml` + `infra` 组合使用 |
+| `docker-compose.prod.yml` | 生产覆盖：关闭 web 端口、添加 Caddy | 注释仍提示 3 文件 `COMPOSE_FILE` 组合；未覆盖 Celery worker 的副本/资源伸缩 |
 
-核心矛盾：两个主要场景（本地开发、远程生产）需要记忆不同的 `COMPOSE_FILE` 组合，且 `docker-compose.yml` 与 `docker-compose-dev.yml` 重复定义了应用服务。
+核心矛盾：两个主要场景（本地开发、远程生产）需要记忆不同的 `COMPOSE_FILE` 组合，且重构方案未纳入 Celery 采集架构；同时 `Makefile` 的 `infra` / `collector` / `scheduler` 目标与已废弃的脚本/Compose 文件耦合。
+
+### 2.4 遗留代码现状
+
+Celery 采集架构已取代旧的 Redis-list worker 与 APScheduler，但以下遗留项仍在代码库中：
+
+- `scripts/run-collector.sh` 调用不存在的 `collector.tasks`；
+- `scripts/run-scheduler.sh` 调用已弃用的 `collector.scheduler`；
+- `scripts/deploy-scf.sh` 为 TODO 占位；
+- `Makefile` 的 `collector` / `scheduler` / `infra` 目标已失效；
+- `backend/app/core/config.py` 与 `backend/collector/core/config.py` 仍保留仅 legacy 队列使用的 `collector_queue_key`；
+- `backend/app/agent/core/mcp_client.py` 为空占位；`backend/app/agent/router.py` 的 `route_skill` 无引用；`backend/app/agent/skills/industry_chain_analysis.py` 已弃用；
+- `backend/tests/unit/collector/test_worker.py`、`test_queue.py` 测试已不存在的实现；
+- `web/src/types/`、`web/src/test/mocks/` 为空目录。
 
 ### 2.5 常量 / 场景定义现状
 
@@ -154,6 +169,22 @@
 
 - `backend/app/api/v1/assistant.py`（369 行）：混合了 thread CRUD、run 流式接口、skill 列表、page-context 辅助函数。
 
+#### 3.1.6 遗留脚本、配置与未使用代码
+
+除 Celery 采集架构已经替换掉的 `runtime/worker.py`、`scheduler.py`、`queue.py` 之外，代码库还存在以下遗留项：
+
+- `scripts/run-collector.sh`、`scripts/run-scheduler.sh` 分别调用已不存在的 `collector.tasks` 与已弃用的 `collector.scheduler`；
+- `scripts/deploy-scf.sh` 为 TODO 占位脚本，无实际逻辑；
+- `Makefile` 的 `collector` / `scheduler` / `infra` 目标依赖上述废弃脚本与即将废弃的 `docker-compose.infra.yml`；
+- `backend/app/core/config.py` 与 `backend/collector/core/config.py` 暴露 `collector_queue_key`，仅 legacy Redis list 队列使用；
+- `backend/app/agent/core/mcp_client.py` 为空占位文件；
+- `backend/app/agent/router.py` 中的 `route_skill` 无引用；
+- `backend/app/agent/skills/industry_chain_analysis.py` 已标记 deprecated；
+- `backend/tests/unit/collector/test_worker.py`、`test_queue.py` 测试已弃用实现；
+- `web/src/types/`、`web/src/test/mocks/` 为空目录。
+
+这些遗留项会导致新贡献者误判入口、运行无效命令，并在重构时产生额外依赖分析成本。
+
 ### 3.2 前端（web/src/）
 
 #### 3.2.1 页面组件内联子组件 / 职责过重
@@ -179,7 +210,7 @@
 
 #### 3.2.3 空目录与主题值重复
 
-- `web/src/types/` 为空；
+- `web/src/types/`、`web/src/test/mocks/` 为空；
 - 多个页面直接使用 Tailwind 十六进制色值，未复用 `theme/colors.ts`。
 
 ### 3.3 共享层（shared/）
@@ -262,8 +293,8 @@
 
 | 文件 | 职责 | 使用场景 |
 |---|---|---|
-| `docker-compose.yml` | 本地开发全栈：基础设施（Postgres/TimescaleDB、Redis、ES、MinIO、Milvus、etcd）+ `web` + `collector`，启用 volume 挂载、`.env` 加载、宿主机端口映射 | 本地开发 `docker compose up -d` |
-| `docker-compose.prod.yml` | 生产部署全栈：与本地相同的 infra + 应用服务，关闭 web 宿主机端口，添加 Caddy 反向代理，使用构建产物而非 volume 挂载 | 远程服务器 `docker compose -f docker-compose.prod.yml up -d --build` |
+| `docker-compose.yml` | 本地开发全栈：基础设施（Postgres/TimescaleDB、Redis、ES、MinIO、Milvus、etcd）+ `web` + Celery 采集服务（`celery-beat`、`celery-worker-realtime`、`celery-worker-batch`、`celery-worker-heavy`），启用 volume 挂载、`.env` 加载、宿主机端口映射 | 本地开发 `docker compose up -d` |
+| `docker-compose.prod.yml` | 生产部署全栈：与本地相同的 infra + `web` + Celery 采集服务；关闭 web 宿主机端口，添加 Caddy 反向代理；可叠加 `docker compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml` 实现 worker 多副本/资源调整 | 远程服务器 `docker compose -f docker-compose.prod.yml up -d --build` |
 
 #### 移除的文件
 
@@ -292,6 +323,26 @@ docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 > 服务器 `.env` 中不再需要设置 `COMPOSE_FILE`，直接指定 `-f docker-compose.prod.yml` 即可。
+
+**生产 worker 伸缩（可选）**
+
+对于 `celery-worker-batch` / `celery-worker-heavy` 等队列，可新增 `docker-compose.prod.override.yml` 只覆盖目标服务的 `deploy.replicas` 与资源限制，避免直接修改主生产文件：
+
+```yaml
+services:
+  celery-worker-heavy:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 4G
+```
+
+启动时使用：
+
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml up -d
+```
 
 #### 命名规范
 
@@ -690,7 +741,9 @@ web/src/api/mappers/
 
 #### 4.4.5 删除空目录或补充说明
 
-- 删除 `web/src/types/`，或在其中添加 `README.md` 说明共享类型来自 `shared/`。
+- 删除 `web/src/types/`，前端类型统一来自 `shared/types/` 或页面级 `types.ts`；
+- 删除 `web/src/test/mocks/`，测试 mock 统一放在 `web/src/**/__tests__/` 或 `vitest.setup.ts`；
+- 若未来需要保留上述目录，必须添加 `README.md` 说明用途，禁止长期为空。
 
 #### 4.4.6 主题色统一
 
@@ -1120,16 +1173,193 @@ export const SKILL_ID = {
 
 ---
 
+### 4.10 Celery 采集架构重构
+
+#### 4.10.1 现状
+
+采集层已完成从“单一 collector 容器轮询 Redis”到 **Celery 分布式任务队列** 的演进，当前结构如下：
+
+```
+backend/collector/
+├── celery_app.py              # Celery App 工厂、队列定义、队列策略解析
+├── celery_beat.py             # 自定义 DatabaseScheduler，从 collector_task 表读取 cron
+├── celery_tasks.py            # 通用 Celery task：run_collector_task，含死信/超时处理
+├── runtime/
+│   ├── dispatcher.py          # API 调用入口：创建 pending log + apply_async
+│   ├── runner.py              # 统一执行器：所有入口共享的采集/存储/日志路径
+│   ├── scheduler.py           # 旧版 APScheduler（已弃用）
+│   ├── worker.py              # 旧版 Redis 轮询 worker（已弃用）
+│   ├── queue.py               # 旧版 Redis list 队列（仅 legacy flag 启用）
+│   ├── registry.py            # TASK_SPECS / TASK_MAP 声明表
+│   ├── channels.py            # 数据源通道 fallback
+│   ├── resolver.py            # 通道解析
+│   └── cli.py / scf_handler.py # CLI / 腾讯云 SCF 入口
+├── spiders/                   # 具体采集器
+└── stores/                    # 重存储编排
+```
+
+**Celery 服务构成（`docker-compose.yml`）**：
+
+- `celery-beat`：调度器，使用 `CollectorDatabaseScheduler`；
+- `celery-worker-realtime`：实时队列，轻量任务；
+- `celery-worker-batch`：批量队列，常规任务；
+- `celery-worker-heavy`：重任务队列，大内存/长耗时任务。
+
+队列、超时、重试策略在 `celery_app.py` 中按队列维护；`TaskSpec` 可覆盖具体任务的队列归属。
+
+#### 4.10.2 问题评估
+
+| 问题 | 影响 | 说明 |
+|---|---|---|
+| 遗留代码未清理 | 维护成本 | `runtime/worker.py`、`runtime/scheduler.py`、`runtime/queue.py` 已停止维护，但仍在代码库中；新贡献者容易混淆 |
+| Docker Compose 方案未反映 Celery | 部署文档过时 | 重构方案仍按“单一 collector”描述，未纳入 `celery-beat` 与多 worker |
+| 常量未集中 | 魔法字符串 | 队列名 `collector.realtime` / `collector.batch` / `collector.heavy`、任务状态 `pending` / `running` / `failed` / `success` 在多处硬编码 |
+| 测试覆盖不足 | 风险 | Celery 任务、DatabaseScheduler、死信写入等已有单元测试，但缺少 worker 端到端 / 死信重放测试 |
+| 死信处理未闭环 | 运维风险 | `CollectorDeadLetter` 记录失败任务，但缺少自动重放或告警机制 |
+| SCF 入口兼容性 | 风险 | `scf_handler.py` 仍直接调用 `runner.run_task_sync`；若未来全面切 Celery，需评估是否保留同步入口 |
+
+#### 4.10.3 推荐目录结构
+
+清理遗留代码后， collector 目录保持“薄入口、重运行”：
+
+```
+backend/collector/
+├── celery_app.py              # Celery App 工厂 + 队列/策略定义
+├── celery_tasks.py            # 通用任务 + LogAwareTask + 死信/超时 hook
+├── celery_beat.py             # CollectorDatabaseScheduler
+├── core/                      # 基础设施（保持现状）
+│   ├── base.py
+│   ├── config.py
+│   ├── logging.py
+│   ├── parsing.py
+│   ├── http_client.py
+│   └── pipelines.py
+├── runtime/
+│   ├── __init__.py
+│   ├── dispatcher.py          # API → Celery 分发
+│   ├── runner.py              # 统一执行器
+│   ├── registry.py            # TASK_SPECS / TASK_MAP
+│   ├── channels.py            # 数据源通道
+│   ├── resolver.py            # 通道解析
+│   └── entrypoints/           # 非 Celery 入口集中管理
+│       ├── cli.py
+│       └── scf_handler.py
+├── spiders/                   # 采集器（保持现状）
+└── stores/                    # 重存储（保持现状）
+```
+
+**清理动作**：
+
+- 删除 `runtime/worker.py`、`runtime/scheduler.py`、`runtime/queue.py`；
+- 在 `dispatcher.py` 中移除 `_USE_LEGACY_QUEUE` 与 `_push_legacy` 分支；
+- `entrypoint-collector.sh` 中保留 `beat` / `worker` 模式，移除 legacy worker 启动路径（如存在）。
+
+#### 4.10.4 常量统一
+
+在 `shared/constants/collector.ts` 中补充 Celery 相关常量，并在 `backend/app/constants/collector.py` 镜像：
+
+```typescript
+// shared/constants/collector.ts
+export const COLLECTOR_STATUS = {
+  PENDING: 'pending',
+  RUNNING: 'running',
+  SUCCESS: 'success',
+  FAILED: 'failed',
+  PARTIAL: 'partial',
+} as const
+
+export const COLLECTOR_QUEUE = {
+  REALTIME: 'collector.realtime',
+  BATCH: 'collector.batch',
+  HEAVY: 'collector.heavy',
+} as const
+
+export const COLLECTOR_MODE = {
+  BEAT: 'beat',
+  WORKER: 'worker',
+} as const
+```
+
+后端 `celery_app.py` 中的 `QUEUE_NAMES`、`QUEUE_DEFAULTS`，`celery_tasks.py` 中的状态字符串，`dispatcher.py` 与 `runner.py` 中的 `pending` / `running` / `failed` / `success` 全部改为引用上述常量。
+
+#### 4.10.5 Docker Compose 与部署
+
+- `docker-compose.yml` 保持 `celery-beat` + 3 worker 的服务定义，作为本地开发全栈；
+- `docker-compose.prod.yml` 可额外提供 `deploy.replicas` 示例注释，或配套 `docker-compose.prod.override.yml` 实现 worker 水平扩展；
+- 更新 `docs/ops/deployment.md`，补充 Celery worker 资源规划、队列职责、beat 高可用说明（单 beat 即可，挂掉后重启会从 DB 重新加载 schedule）。
+
+#### 4.10.6 死信与可观测性
+
+- 在 `celery_tasks.py` 的 `LogAwareTask.on_failure` 中已有死信写入，需补充：
+  - 死信重放脚本 `scripts/replay_dead_letters.py`；
+  - 死信告警（可接入现有 structlog / 未来监控体系）；
+- 为关键任务添加 `before_task` / `after_task` 信号埋点，便于追踪任务生命周期。
+
+#### 4.10.7 测试补充
+
+- 单元测试：保持现有 `test_celery_app.py`、`test_celery_beat.py`、`test_celery_tasks.py`；
+- 集成测试：在 `backend/tests/integration/` 中新增 `test_collector_dispatch.py`，验证：
+  - API 调用 → `dispatch_collector_task` → `CollectorLog.pending`；
+  - Celery task 执行 → `CollectorLog.success/failed`；
+  - 死信写入与重放；
+- E2E：在 `qa/` 中验证关键采集任务（如 `limit-up-pool`）在 Celery 链路下完整跑通。
+
+---
+
+### 4.11 遗留代码清理
+
+Celery 采集架构落地后，代码库中仍存在一批已弃用或未使用的文件、函数、配置与测试。它们会增加新贡献者的认知负担，并在重构过程中产生误导。需在阶段 1 与阶段 3 中分批清理。
+
+#### 4.11.1 已发现的遗留项
+
+| 类别 | 文件 / 位置 | 现状 | 建议处理 |
+|---|---|---|---|
+| 脚本 | `scripts/run-collector.sh` | 调用已不存在的 `collector.tasks` 模块 | **删除** |
+| 脚本 | `scripts/run-scheduler.sh` | 调用已弃用的 `collector.scheduler` 模块 | **删除** |
+| 脚本 | `scripts/deploy-scf.sh` | 仅含 TODO 占位，无实际部署逻辑 | **删除或实现**；若 SCF 部署由 CI 接管，则删除 |
+| 构建入口 | `Makefile` 的 `collector` / `scheduler` / `infra` 目标 | `collector`/`scheduler` 调用上述废弃脚本；`infra` 使用将被废弃的 `docker-compose.infra.yml` | **移除** `collector`/`scheduler`/`infra` 目标；新增 `celery-beat` / `celery-worker` 等开发目标（可选） |
+| 占位文件 | `backend/app/agent/core/mcp_client.py` | 仅有一行注释，无任何实现 | **删除**；未来需要 MCP client 时新建 |
+| 未使用函数 | `backend/app/agent/router.py` 中的 `route_skill` | 无其他模块引用， Supervisor 路由逻辑已迁移 | **删除**该函数；若文件为空则删除文件 |
+| 已弃用 Skill | `backend/app/agent/skills/industry_chain_analysis.py` | 模块级 `DeprecationWarning`，已被 Skill 驱动的 Assistant Agent 工作流替代 | **删除**；校验产业链分析页面仍通过 Assistant Agent 正常调用 |
+| 遗留配置 | `backend/app/core/config.py` 中的 `collector_queue_key` | 仅被 legacy Redis list 队列使用 | **删除**字段及默认值 |
+| 遗留配置 | `backend/collector/core/config.py` 中的 `collector_queue_key` | 转发自 `app.core.config`，已被 Celery 队列取代 | **删除**字段 |
+| 遗留测试 | `backend/tests/unit/collector/test_worker.py` | 测试已弃用的 `runtime/worker.py` | **删除** |
+| 遗留测试 | `backend/tests/unit/collector/test_queue.py` | 测试 legacy Redis list 队列 | **删除** |
+| 空目录 | `web/src/types/` | 目录为空，前端类型已放在 `shared/types/` 或页面级 `types.ts` | **删除** |
+| 空目录 | `web/src/test/mocks/` | 目录为空，mock 已分散在 `web/src/**/__tests__/` 或 `vitest.setup.ts` | **删除** |
+
+#### 4.11.2 清理原则
+
+1. **先验证再删除**：删除任何脚本/函数/测试前，先全局搜索引用（`grep -R` / LSP find references），确认无运行时代码依赖；
+2. **配置项回退**：删除 `collector_queue_key` 等 Pydantic Settings 字段前，确认线上 `.env` 未覆盖该字段，避免启动报错；
+3. **保留历史入口**：`runtime/entrypoints/cli.py` 与 `scf_handler.py` 不删除，仅清理其内部对 legacy queue 的引用；
+4. **空目录处理**：Git 不跟踪空目录，删除后检查 `.gitkeep` 是否需要同步清理；
+5. **分阶段执行**：脚本与 Makefile 目标在阶段 1 清理；配置字段、弃用 Skill、空目录在阶段 3 与 Celery 常量替换同步完成。
+
+#### 4.11.3 验收要点
+
+- `scripts/` 下无调用已不存在模块的脚本；
+- `Makefile` 无 `collector` / `scheduler` / `infra` 目标；
+- 全局搜索 `collector_queue_key`、`collector.scheduler`、`collector.tasks`、`route_skill` 无结果；
+- `backend/app/agent/skills/industry_chain_analysis.py` 已删除；
+- `backend/tests/unit/collector/` 下无 `test_worker.py`、`test_queue.py`；
+- `web/src/types/`、`web/src/test/mocks/` 已删除。
+
+---
+
 ## 5. 实施路线图
 
 ### 阶段 1：低风险、高可见（1-2 周）
 
-1. **Docker Compose 整理**
+1. **Docker Compose 与遗留脚本清理**
    - 保留 2 个文件在项目根目录：
-     - `docker-compose.yml`：本地开发全栈（infra + web + collector + dev volumes）；
-     - `docker-compose.prod.yml`：生产部署全栈（infra + web + collector + Caddy）；
+     - `docker-compose.yml`：本地开发全栈（infra + web + Celery 采集服务：`celery-beat` + `celery-worker-realtime` / `batch` / `heavy` + dev volumes）；
+     - `docker-compose.prod.yml`：生产部署全栈（infra + web + Celery 采集服务 + Caddy）；
    - 废弃 `docker-compose-dev.yml`、`docker-compose.override.yml`、`docker-compose.infra.yml`，将其内容合并到两个全栈文件中；
-   - 更新 `Makefile`、`README.md`、服务器 `.env` 中的启动命令，移除 `COMPOSE_FILE` 变量。
+   - 删除 `scripts/run-collector.sh`、`scripts/run-scheduler.sh`、`scripts/deploy-scf.sh`；
+   - 移除 `Makefile` 中的 `collector` / `scheduler` / `infra` 目标，补充 `backend` / `web` / `sync` / `lint` / `test` / `build` / `setup` 等开发目标；
+   - 更新 `README.md`、服务器 `.env` 中的启动命令，移除 `COMPOSE_FILE` 变量；
+   - 更新 `docs/ops/deployment.md` 中的服务说明，补充 Celery worker 队列职责与扩展方式。
 
 2. **文档补齐**
    - 新增 `CONTRIBUTING.md`、`CHANGELOG.md`、`SECURITY.md`；
@@ -1193,6 +1423,18 @@ export const SKILL_ID = {
    - 补充 `backend/tests/integration/`；
    - 扩展 `web/e2e/`。
 
+3. **Celery 采集架构固化与遗留代码清理**
+   - 清理遗留采集入口：删除 `collector/runtime/worker.py`、`scheduler.py`、`queue.py`，移除 `dispatcher.py` 中 `_USE_LEGACY_QUEUE` 分支；
+   - 删除 `backend/app/agent/skills/industry_chain_analysis.py`、`backend/app/agent/core/mcp_client.py`、`backend/app/agent/router.py` 中的 `route_skill`；
+   - 移除 `backend/app/core/config.py` 与 `backend/collector/core/config.py` 中的 `collector_queue_key`；
+   - 删除 `backend/tests/unit/collector/test_worker.py`、`test_queue.py`；
+   - 删除 `web/src/types/`、`web/src/test/mocks/` 空目录；
+   - 创建 `shared/constants/collector.ts` 与 `backend/app/constants/collector.py`，统一队列名、任务状态、Celery 模式常量；
+   - 将 `celery_app.py` / `celery_tasks.py` / `dispatcher.py` / `runner.py` 中的硬编码字符串改为引用常量；
+   - 新增 `scripts/replay_dead_letters.py` 死信重放脚本；
+   - 在 `backend/tests/integration/` 中补充 `test_collector_dispatch.py`；
+   - 更新 `docs/ops/deployment.md` 中 Celery worker 资源规划与 beat 高可用说明。
+
 ### 阶段 4：验收与固化（1 周）
 
 1. 全量 `uv run ruff check .`、`uv run mypy app/`、`npm run typecheck`、`npm run lint` 通过；
@@ -1208,10 +1450,12 @@ export const SKILL_ID = {
 |---|---|---|
 | 组件封装 | 页面/容器组件不内联定义子组件；单一文件 ≤ 350 行；图表组件数据转换、option 构建、UI 分离 | 搜索 `function .*\({` 内联定义；检查 `pages/*/components/` 目录；审查 `StockDetail.tsx`、`FinancialReport.tsx`、`Research.tsx`、`Financial.tsx`、`Settings.tsx`、`StockChartView.tsx`、`FinancialTrendCharts.tsx`、`AssistantPanel.tsx` |
 | 目录清晰度 | 路由层、服务层、数据访问层按业务子域平行分组；禁止 Repository 混入 `services/` | 目录结构 Review；检查 `services/` 内无 `*_repository.py` |
-| Docker Compose | 根目录仅保留 2 个 Compose 文件：`docker-compose.yml`（本地开发全栈）与 `docker-compose.prod.yml`（生产部署全栈）；无重复服务定义；`docker-compose-dev.yml` / `docker-compose.override.yml` / `docker-compose.infra.yml` 已废弃 | `ls docker-compose*.yml`；检查本地 `docker compose up -d` 与生产 `docker compose -f docker-compose.prod.yml up -d --build` 可正常启动 |
+| Docker Compose | 根目录仅保留 2 个 Compose 文件：`docker-compose.yml`（本地开发全栈，含 web + Celery beat/worker）与 `docker-compose.prod.yml`（生产部署全栈）；无重复服务定义；旧 `docker-compose-dev.yml` / `docker-compose.override.yml` / `docker-compose.infra.yml` 已废弃；`Makefile` 无 `collector` / `scheduler` / `infra` 目标；`scripts/run-collector.sh`、`run-scheduler.sh`、`deploy-scf.sh` 已删除 | `ls docker-compose*.yml`；检查 `Makefile`；检查 `scripts/`；检查本地 `docker compose up -d` 与生产 `docker compose -f docker-compose.prod.yml up -d --build` 可正常启动；验证 3 个 Celery worker 队列健康 |
 | 重复代码 | 行业规范化、金额格式化只保留一份 | 代码搜索 `_normalize_industry`、`_format_amount` |
 | **常量管理** | **业务状态、角色、类型等无魔法字符串；前后端常量语义一致** | **搜索 `"success"` / `"admin"` / `"upstream"` 等是否仍散落；检查 `shared/constants/` 与 `backend/app/constants/` 覆盖率** |
 | 文档 | 具备 `CONTRIBUTING.md`、`CHANGELOG.md`、`SECURITY.md` | 文件存在性检查 |
+| 采集架构 | 遗留 `worker.py` / `scheduler.py` / `queue.py` 已删除；队列名、任务状态等使用 `shared/constants/collector.ts` / `backend/app/constants/collector.py`；死信有重放脚本 | 检查 `collector/runtime/` 无遗留文件；搜索 `"collector.realtime"` / `"pending"` 等硬编码；存在 `scripts/replay_dead_letters.py` |
+| 遗留代码清理 | `collector_queue_key`、`route_skill`、已弃用 Skill、legacy worker/queue 测试、空目录已清理 | 全局搜索 `collector_queue_key`、`route_skill`、`industry_chain_analysis`；检查 `scripts/`、`web/src/types/`、`web/src/test/mocks/`、legacy 测试文件不存在 |
 | 测试 | `backend/tests/integration/` 非空；`test_spiders.py` ≤ 400 行 | 目录/文件检查 |
 | 类型安全 | 全量 typecheck / mypy 通过 | CI 检查 |
 | 向后兼容 | 所有现有 API URL、请求/响应字段不变 | 回归测试 |
@@ -1226,6 +1470,12 @@ export const SKILL_ID = {
 | 前端组件拆分引入 props drilling | 中 | 拆分同时引入 Context 或继续用 Zustand |
 | Skill/Prompt 统一过程中运行时 Prompt 丢失 | 高 | 迁移前备份 `backend/app/prompts/skills/`，新构建脚本验证输出 |
 | Compose 文件合并/重命名导致 CI/CD 或本地脚本失效 | 中 | 同步更新 `Makefile`、`.github/workflows/ci.yml`、服务器 `.env`，移除 `COMPOSE_FILE` 变量；保留旧文件作为软链接过渡 1 个版本（可选） |
+| 删除遗留 collector worker/scheduler 影响 SCF/CLI 入口 | 中 | 保留 `runtime/entrypoints/cli.py` 与 `scf_handler.py`；删除前确认 `COLLECTOR_USE_LEGACY_QUEUE=false` 且 Celery worker 运行稳定 1 个版本 |
+| 删除脚本/Makefile 目标导致本地开发者习惯命令失效 | 低 | 在 `README.md` 与 `Makefile` 顶部注释中给出等价命令（如 `make backend` / `make web`）；阶段 1 同步更新 |
+| 删除 `collector_queue_key` 等 Settings 字段导致旧 `.env` 启动报错 | 低 | 删除前确认线上 `.env` 未设置该字段；Pydantic Settings 开启 `extra='ignore'` 或一次性清理 |
+| 删除已弃用 Skill 后产业链分析功能异常 | 中 | 删除前确认当前产业链分析已完全走 Assistant Agent + `skills/industry-chain-analysis/SKILL.md`；回归验证 |
+| Celery worker 资源不足导致采集超时 | 中 | 按队列配置 `deploy.resources.limits`； heavy 队列预留更大内存；监控死信表增长 |
+| 采集状态常量替换遗漏导致调度/日志状态不一致 | 中 | 全量替换后运行采集集成测试；使用 `StrEnum` 强制类型检查 |
 | shared 自动构建影响本地开发 | 中 | 提供 `make setup` 一键脚本，CI 中显式 `npm run build:shared` |
 | 常量替换遗漏导致运行时拼写错误 | 中 | 分域逐步替换，每次替换后跑对应模块单测；Python 使用 `StrEnum` 强制类型检查 |
 | 前后端常量不同步 | 中 | `shared/constants/` 为唯一真相源，后端通过生成脚本或共享配置保持同步 |
@@ -1244,6 +1494,24 @@ export const SKILL_ID = {
 | `backend/app/agent/runtime/assistant_tools.py` | 389 | `tools/market_tools.py` + `tools/stock_tools.py` + `tools/news_tools.py` + `tools/report_tools.py` + `tools/chain_tools.py` |
 | `backend/app/services/chain_service.py` | 351 | 保持，但提取 `chain_analysis_service.py` 负责 analyze/persist |
 | `backend/app/services/financial_report_service.py` | 318 | `reports/financial_report_service.py` + `reports/financial_report_summarizer.py` |
+| `backend/collector/runtime/worker.py` | 83 | **删除**（已由 Celery worker 替代） |
+| `backend/collector/runtime/scheduler.py` | 157 | **删除**（已由 Celery beat + `CollectorDatabaseScheduler` 替代） |
+| `backend/collector/runtime/queue.py` | 86 | **删除**（legacy Redis list，确认无启用后移除） |
+| `backend/collector/celery_app.py` | ~180 | 保留；将 `QUEUE_NAMES` / `QUEUE_DEFAULTS` 中的硬编码改为引用 `app.constants.collector` |
+| `backend/collector/celery_tasks.py` | ~205 | 保留；将任务状态字符串改为引用常量；死信写入逻辑可复用 |
+| `backend/collector/celery_beat.py` | ~115 | 保留；`_normalize_cron_field` 等工具可移入 `collector/core/cron.py` |
+| `scripts/run-collector.sh` | 9 | **删除**；调用已不存在的 `collector.tasks` |
+| `scripts/run-scheduler.sh` | 9 | **删除**；调用已弃用的 `collector.scheduler` |
+| `scripts/deploy-scf.sh` | 11 | **删除**（或实现）；当前为 TODO 占位 |
+| `backend/app/agent/core/mcp_client.py` | 2 | **删除**；空占位文件 |
+| `backend/app/agent/router.py` | 17 | **删除** `route_skill` 函数；若文件为空则删除文件 |
+| `backend/app/agent/skills/industry_chain_analysis.py` | ~140 | **删除**；已被 Skill 驱动的 Assistant Agent 替代 |
+| `backend/app/core/config.py` 中的 `collector_queue_key` | 1 | **删除**；仅 legacy 队列使用 |
+| `backend/collector/core/config.py` 中的 `collector_queue_key` | 1 | **删除**；转发自 app config，已无用 |
+| `backend/tests/unit/collector/test_worker.py` | ~80 | **删除**；测试已弃用 worker |
+| `backend/tests/unit/collector/test_queue.py` | ~140 | **删除**；测试 legacy Redis list 队列 |
+| `web/src/types/` | - | **删除**空目录 |
+| `web/src/test/mocks/` | - | **删除**空目录 |
 
 ### 8.2 前端
 
