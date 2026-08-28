@@ -165,7 +165,10 @@ ai-invest-assisstant/
 │   │   ├── models/                     # SQLAlchemy ORM：命名遵循 <分类>_<数据类型>_<标的> 约定
 │   │   ├── schemas/                    # Pydantic 数据模型
 │   │   ├── repositories/               # 仓储层（查询构造与执行，禁止管理事务）
+│   │   │                               #   按业务子域分组：admin/ chain/ market/ reports/ review/ user/
 │   │   ├── services/                   # 业务逻辑层（事务边界、AI 调用、采集编排）
+│   │   │                               #   按业务子域分组：admin/ assistant/ chain/ collector/ common/
+│   │   │                               #   market/ reports/ review/ user/（根目录仅 __init__ 聚合）
 │   │   ├── utils/                      # crypto 等公共工具
 │   │   ├── dependencies/               # get_db 等依赖注入
 │   │   └── main.py                     # 应用入口
