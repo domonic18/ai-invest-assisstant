@@ -12,6 +12,7 @@ from celery import Celery
 from celery.signals import worker_process_init, worker_process_shutdown
 from kombu import Queue
 
+from app.constants.collector import CollectorQueue
 from collector.core import config as collector_config
 from collector.core.logging import configure_logging
 from collector.runtime.registry import TASK_SPECS
@@ -24,29 +25,29 @@ __all__ = [
     "resolve_task_options",
 ]
 
-DEFAULT_QUEUE = "collector.batch"
+DEFAULT_QUEUE = CollectorQueue.BATCH
 
 QUEUE_NAMES = (
-    "collector.realtime",
-    "collector.batch",
-    "collector.heavy",
+    CollectorQueue.REALTIME,
+    CollectorQueue.BATCH,
+    CollectorQueue.HEAVY,
 )
 
 # Default policies when a TaskSpec does not override them.
 QUEUE_DEFAULTS: dict[str, dict[str, Any]] = {
-    "collector.realtime": {
+    CollectorQueue.REALTIME: {
         "soft_time_limit": 60,
         "hard_time_limit": 120,
         "max_retries": 3,
         "retry_backoff": 30,
     },
-    "collector.batch": {
+    CollectorQueue.BATCH: {
         "soft_time_limit": 300,
         "hard_time_limit": 600,
         "max_retries": 3,
         "retry_backoff": 60,
     },
-    "collector.heavy": {
+    CollectorQueue.HEAVY: {
         "soft_time_limit": 1800,
         "hard_time_limit": 3600,
         "max_retries": 2,

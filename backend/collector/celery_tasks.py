@@ -16,6 +16,7 @@ from celery import Task
 from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy import select
 
+from app.constants.collector import CollectorStatus
 from app.core.database import AsyncSessionLocal
 from app.models.collector_dead_letter import CollectorDeadLetter
 from app.models.collector_log import CollectorLog
@@ -100,7 +101,7 @@ async def _mark_log_failed(log_id: int, exc: BaseException) -> None:
         log = await session.get(CollectorLog, log_id)
         if log is None:
             return
-        log.status = "failed"
+        log.status = CollectorStatus.FAILED
         log.finished_at = datetime_now_utc()
         log.error_msg = _truncate(f"{type(exc).__name__}: {exc}")
         await session.commit()
@@ -209,7 +210,7 @@ async def _mark_log_timeout(log_id: int) -> None:
         log = await session.get(CollectorLog, log_id)
         if log is None:
             return
-        log.status = "failed"
+        log.status = CollectorStatus.FAILED
         log.finished_at = datetime_now_utc()
         log.error_msg = "Task exceeded soft time limit"
         await session.commit()
@@ -236,7 +237,7 @@ async def _update_task_schedule_state(
             task.last_status = result.status.value
             task.last_error = "\n".join(result.errors) if result.errors else None
         else:
-            task.last_status = "failed"
+            task.last_status = CollectorStatus.FAILED
             task.last_error = error
         await session.commit()
 
