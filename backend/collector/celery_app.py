@@ -9,7 +9,7 @@ from typing import Any
 
 import structlog
 from celery import Celery
-from celery.signals import worker_process_init
+from celery.signals import worker_process_init, worker_process_shutdown
 from kombu import Queue
 
 from collector.core import config as collector_config
@@ -185,7 +185,32 @@ def _init_worker_process(**kwargs: Any) -> None:  # noqa: ARG001
         app_database.engine.url.render_as_string(hide_password=False),
         echo=app_database.engine.echo,
         future=True,
+        pool_pre_ping=True,
     )
     app_database.engine = new_engine
     app_database.AsyncSessionLocal.configure(bind=new_engine)
     logger.info("worker_process_recreated_app_engine")
+
+
+@worker_process_shutdown.connect
+def _shutdown_worker_process(**kwargs: Any) -> None:  # noqa: ARG001
+    """Dispose SQLAlchemy engines when a prefork child process exits."""
+    import asyncio
+
+    from app.core import database as app_database
+    from collector.core.base import dispose_engine
+    from collector.core.logging import configure_logging as configure_child_logging
+
+    configure_child_logging()
+    logger = structlog.get_logger(__name__)
+    logger.info("worker_process_shutdown_dispose_engines")
+
+    try:
+        asyncio.run(app_database.engine.dispose())
+    except Exception:  # noqa: BLE001
+        pass
+
+    try:
+        asyncio.run(dispose_engine())
+    except Exception:  # noqa: BLE001
+        pass

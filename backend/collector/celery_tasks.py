@@ -34,7 +34,30 @@ def _truncate(text: str) -> str:
     return text[:_ERROR_MSG_MAX_LEN]
 
 
-class LogAwareTask(Task):
+class AsyncTask(Task):
+    """Celery task base that runs async code on a persistent child-process loop.
+
+    Celery prefork children reuse the same process for many tasks.  The default
+    ``asyncio.run()`` pattern creates and destroys an event loop for every task,
+    which leaves asyncpg connections from the previous loop in the SQLAlchemy
+    pool; the next task then reuses those connections on a new loop and gets
+    ``asyncpg.exceptions.InterfaceError: another operation is in progress``.
+
+    Keeping one loop per child process eliminates that cross-loop connection
+    reuse and lets the connection pool warm up normally.
+    """
+
+    _loop: asyncio.AbstractEventLoop | None = None
+
+    def _ensure_loop(self) -> asyncio.AbstractEventLoop:
+        """Return the child-process event loop, creating it if necessary."""
+        if self._loop is None or self._loop.is_closed():
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+        return self._loop
+
+
+class LogAwareTask(AsyncTask):
     """Base Celery task that writes timeout status before a hard kill."""
 
     def on_failure(
@@ -50,17 +73,22 @@ class LogAwareTask(Task):
             payload = args[0] if args else {}
             log_id = payload.get("log_id")
             task_name = payload.get("task", "unknown")
-            if log_id is not None:
-                asyncio.run(_mark_log_failed(log_id, exc))
-            asyncio.run(
-                _write_dead_letter(
+            error_msg = _truncate("".join(traceback.format_exception(exc)))
+            retry_count = self.request.retries
+
+            async def _record_failure() -> None:
+                if log_id is not None:
+                    await _mark_log_failed(log_id, exc)
+                await _write_dead_letter(
                     task_name=task_name,
                     payload=payload,
                     celery_task_id=task_id,
-                    error_msg=_truncate("".join(traceback.format_exception(exc))),
-                    retry_count=self.request.retries,
+                    error_msg=error_msg,
+                    retry_count=retry_count,
                 )
-            )
+
+            loop = self._ensure_loop()
+            loop.run_until_complete(_record_failure())
         except Exception:  # noqa: BLE001
             logger.exception("celery_on_failure_hook_failed")
         finally:
@@ -116,8 +144,8 @@ def run_collector_task(self: LogAwareTask, payload: dict[str, Any]) -> dict[str,
     The payload must contain at least ``task``.  ``log_id`` is optional for
     ad-hoc / scheduled entries that do not originate from the dispatcher.
 
-    All async work is executed under a single event loop so that SQLAlchemy's
-    asyncpg connections are not reused across different loops.
+    All async work runs on the child process's persistent event loop so that
+    SQLAlchemy's asyncpg connection pool is not shared across different loops.
     """
     configure_logging()
     payload = dict(payload)
@@ -149,19 +177,17 @@ def run_collector_task(self: LogAwareTask, payload: dict[str, Any]) -> dict[str,
                 payload, None, error=f"{type(exc).__name__}: {exc}"
             )
             raise exc
-        finally:
-            await _dispose_async_engines()
 
-    return asyncio.run(_execute())
+    loop = self._ensure_loop()
+    return loop.run_until_complete(_execute())
 
 
 async def _dispose_async_engines() -> None:
-    """Dispose asyncpg connection pools before the task event loop closes.
+    """Dispose asyncpg connection pools.
 
-    Celery prefork children reuse the same process for multiple tasks.  Each
-    task currently runs under its own ``asyncio.run()`` event loop.  Without
-    disposal, asyncpg connections from the previous loop remain in the pool
-    and raise ``another operation is in progress`` when reused on a new loop.
+    Kept as a helper for explicit cleanup (e.g. worker shutdown).  With the
+    persistent event loop used by :class:`AsyncTask`, per-task disposal is no
+    longer required because connections stay bound to the same loop.
     """
     from app.core import database as app_database
     from collector.core.base import dispose_engine
