@@ -52,6 +52,9 @@ services:
       - app-network
 
   celery-worker-realtime:
+    # 本地机为 Apple Silicon：akshare 依赖的 py_mini_racer 无 arm64 原生库，
+    # worker 固定用 linux/amd64 模拟运行（与生产架构一致）。生产 compose 不带此配置。
+    platform: linux/amd64
     build:
       context: .
       dockerfile: docker/collector/Dockerfile
@@ -85,6 +88,7 @@ services:
           memory: 512M
 
   celery-worker-batch:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: docker/collector/Dockerfile
@@ -118,6 +122,7 @@ services:
           memory: 1G
 
   celery-worker-heavy:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: docker/collector/Dockerfile
