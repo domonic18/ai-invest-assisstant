@@ -56,6 +56,74 @@ class TestAdminCollectorEndpoints:
         assert call_kwargs["task_name"] == "financial-report"
         assert call_kwargs["params"]["preferred_source"] == "cninfo"
 
+    @patch("app.api.v1.admin.collector.dispatch_collector_task")
+    def test_run_accepts_registry_task_with_trade_date(
+        self,
+        mock_dispatch: AsyncMock,
+        admin_client: tuple[TestClient, AsyncMock],
+    ) -> None:
+        """注册表内任意任务（含此前未开放的非采集类）均可触发并透传 trade_date。"""
+        mock_log = MagicMock()
+        mock_log.id = 7
+        mock_log.celery_task_id = "review-uuid"
+        mock_dispatch.return_value = mock_log
+        client, _ = admin_client
+
+        response = client.post(
+            "/api/v1/admin/collector/tasks/market-daily-review/run",
+            json={"trade_date": "2026-08-28"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["task_name"] == "market-daily-review"
+        assert data["log_id"] == 7
+        call_kwargs = mock_dispatch.await_args.kwargs
+        assert call_kwargs["params"] == {"trade_date": "2026-08-28"}
+
+    @patch("app.api.v1.admin.collector.dispatch_collector_task")
+    def test_run_unknown_task_returns_404(
+        self,
+        mock_dispatch: AsyncMock,
+        admin_client: tuple[TestClient, AsyncMock],
+    ) -> None:
+        client, _ = admin_client
+
+        response = client.post("/api/v1/admin/collector/tasks/not-a-task/run")
+
+        assert response.status_code == 404
+        mock_dispatch.assert_not_awaited()
+
+    def test_get_collector_task_catalog(
+        self,
+        admin_client: tuple[TestClient, AsyncMock],
+    ) -> None:
+        """任务目录由注册表派生：覆盖全部任务且带中文 label。"""
+        client, _ = admin_client
+
+        response = client.get("/api/v1/admin/collector/tasks/catalog")
+
+        assert response.status_code == 200
+        items = response.json()["items"]
+        names = {item["name"] for item in items}
+        assert len(items) == 29
+        assert "market-daily-review" in names
+        assert "index-auction" in names
+        by_name = {item["name"]: item for item in items}
+        assert by_name["market-daily-review"]["label"] == "每日市场复盘"
+        assert by_name["limit-up-pool"]["run_params"] == ["trade_date"]
+        assert "internal" in by_name["market-daily-review"]["sources"]
+
+    def test_get_collector_task_channels_unknown_task_returns_404(
+        self,
+        admin_client: tuple[TestClient, AsyncMock],
+    ) -> None:
+        client, _ = admin_client
+
+        response = client.get("/api/v1/admin/collector/tasks/not-a-task/channels")
+
+        assert response.status_code == 404
+
     @patch("app.api.v1.admin.collector.list_channels_for_task")
     @patch("app.api.v1.admin.collector.resolve_channel_for_task")
     def test_get_collector_task_channels(

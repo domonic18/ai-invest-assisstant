@@ -388,3 +388,30 @@ class TestRunCollectorFallback:
             )
 
         assert result.status == CollectStatus.SKIPPED
+
+    @pytest.mark.asyncio
+    async def test_skipped_is_terminal_and_not_coerced_to_failed(self, collectors) -> None:
+        """SKIPPED（如复盘已生成/非交易日）是良性终态，不得被改写为 FAILED。"""
+        from collector.runtime import registry as tasks
+
+        class SkipCollector(collectors):
+            async def run(self, **kwargs):
+                result = _result(self.source, CollectStatus.SKIPPED)
+                result.metadata = {"cached": True}
+                return result
+
+        with patch(
+            "collector.runtime.registry._resolve_task_channels",
+            AsyncMock(
+                return_value=[("internal", {"base_url": None, "api_key": None})]
+            ),
+        ):
+            result = await tasks._run_collector_for_task(
+                "market-daily-review",
+                "ai_market_daily_review",
+                {"internal": SkipCollector},
+                None,
+            )
+
+        assert result.status == CollectStatus.SKIPPED
+        assert result.metadata == {"cached": True}
