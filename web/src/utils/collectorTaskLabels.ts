@@ -46,6 +46,7 @@ export const COLLECTOR_TASK_LABEL: Record<string, string> = {
   'broken-pool': '炸板统计',
   'limit-down-pool': '跌停股池',
   'market-daily-review': '每日市场复盘',
+  'limit-up-ai-review': '涨停AI归因',
 }
 
 /** 获取任务/数据类型的中文显示名；未配置时返回原始 key。 */
