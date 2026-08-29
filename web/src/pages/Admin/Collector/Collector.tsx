@@ -1,8 +1,12 @@
 import { PlayCircleOutlined, SyncOutlined } from '@ant-design/icons'
-import { Alert, Button, Card, Space, Table, Tag, Typography, message } from 'antd'
+import { Alert, Button, Card, Space, Spin, Table, Tag, Typography, message } from 'antd'
 import { useState } from 'react'
 
-import { useCollectorLogs, useRunCollectorTask } from '@/hooks/useCollectorAdmin'
+import {
+  useCollectorLogs,
+  useCollectorTaskCatalog,
+  useRunCollectorTask,
+} from '@/hooks/useCollectorAdmin'
 import { getSourceLabel, getTaskLabel } from '@/utils/collectorTaskLabels'
 import { formatDateTime } from '@/utils/formatters'
 import type {
@@ -12,25 +16,6 @@ import type {
 } from '@ai-invest/shared'
 
 import { CollectorTaskModal } from './CollectorTaskModal'
-
-const TASK_OPTIONS: CollectorTaskOption[] = [
-  { key: 'kline', label: getTaskLabel('kline') },
-  { key: 'index-kline', label: getTaskLabel('index-kline') },
-  { key: 'auction', label: getTaskLabel('auction') },
-  { key: 'fund-flow', label: getTaskLabel('fund-flow') },
-  { key: 'news', label: getTaskLabel('news') },
-  { key: 'company-profile', label: getTaskLabel('company-profile') },
-  { key: 'disclosure', label: getTaskLabel('disclosure') },
-  { key: 'sector-fund-flow', label: getTaskLabel('sector-fund-flow') },
-  { key: 'dragon-list', label: getTaskLabel('dragon-list') },
-  { key: 'research-report', label: getTaskLabel('research-report') },
-  { key: 'financial-report', label: getTaskLabel('financial-report') },
-  { key: 'ipo-info', label: getTaskLabel('ipo-info') },
-  { key: 'fund-holdings', label: getTaskLabel('fund-holdings') },
-  { key: 'macro', label: getTaskLabel('macro') },
-  { key: 'stock-list', label: getTaskLabel('stock-list') },
-  { key: 'limit-up-pool', label: getTaskLabel('limit-up-pool') },
-]
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
   success: { color: 'green', label: '成功' },
@@ -43,10 +28,14 @@ const STATUS_TAG: Record<string, { color: string; label: string }> = {
 
 export function Collector() {
   const { data: logs, isLoading, refetch } = useCollectorLogs(20)
+  const { data: catalog } = useCollectorTaskCatalog()
   const runMutation = useRunCollectorTask()
 
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<CollectorTaskOption | null>(null)
+
+  const taskOptions: CollectorTaskOption[] =
+    catalog?.items.map((item) => ({ key: item.name, label: item.label })) ?? []
 
   const handleOpenModal = (task: CollectorTaskOption) => {
     setSelectedTask(task)
@@ -65,6 +54,7 @@ export function Collector() {
         indicators: options.indicators,
         report_types: options.reportTypes,
         report_date: options.reportDate || undefined,
+        trade_date: options.tradeDate || undefined,
       }
       await runMutation.mutateAsync({ taskName, body })
       const label = getTaskLabel(taskName)
@@ -139,17 +129,21 @@ export function Collector() {
       />
 
       <Space wrap className="mb-6">
-        {TASK_OPTIONS.map((task) => (
-          <Button
-            key={task.key}
-            type="primary"
-            icon={<PlayCircleOutlined />}
-            onClick={() => handleOpenModal(task)}
-            loading={runMutation.isPending}
-          >
-            {task.label}
-          </Button>
-        ))}
+        {taskOptions.length === 0 ? (
+          <Spin />
+        ) : (
+          taskOptions.map((task) => (
+            <Button
+              key={task.key}
+              type="primary"
+              icon={<PlayCircleOutlined />}
+              onClick={() => handleOpenModal(task)}
+              loading={runMutation.isPending}
+            >
+              {task.label}
+            </Button>
+          ))
+        )}
       </Space>
 
       <Table

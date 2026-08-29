@@ -4,9 +4,15 @@ import time
 from unittest.mock import MagicMock, patch
 
 import pytest
+from curl_cffi.requests.exceptions import ConnectionError as CffiConnectionError
+from curl_cffi.requests.exceptions import HTTPError as CffiHTTPError
 
 from collector.core import http_client
-from collector.core.http_client import _RateLimiter, eastmoney_get
+from collector.core.http_client import (
+    _RateLimiter,
+    eastmoney_get,
+    eastmoney_get_chrome,
+)
 
 
 @pytest.mark.unit
@@ -64,3 +70,51 @@ class TestEastmoneyGet:
             pytest.raises(RuntimeError, match="boom"),
         ):
             eastmoney_get("https://push2.eastmoney.com/api")
+
+
+@pytest.mark.unit
+class TestEastmoneyGetChrome:
+    @staticmethod
+    def _http_error(status: int) -> CffiHTTPError:
+        response = MagicMock()
+        response.status_code = status
+        return CffiHTTPError(f"{status}", response=response)
+
+    def test_chrome_retries_connection_error_then_succeeds(self) -> None:
+        ok = MagicMock()
+        ok.status_code = 200
+        ok.raise_for_status.return_value = None
+        session = MagicMock()
+        session.get.side_effect = [CffiConnectionError("curl(56)"), ok]
+        with (
+            patch.object(http_client._limiter, "wait"),
+            patch.object(http_client, "_get_cffi_session", return_value=session),
+        ):
+            assert eastmoney_get_chrome("https://push2delay.eastmoney.com/api") is ok
+        assert session.get.call_count == 2
+
+    def test_chrome_retries_429_and_gives_up_after_attempts(self) -> None:
+        session = MagicMock()
+        session.get.return_value = MagicMock(
+            raise_for_status=MagicMock(side_effect=self._http_error(429))
+        )
+        with (
+            patch.object(http_client._limiter, "wait"),
+            patch.object(http_client, "_get_cffi_session", return_value=session),
+            pytest.raises(CffiHTTPError),
+        ):
+            eastmoney_get_chrome("https://push2delay.eastmoney.com/api")
+        assert session.get.call_count == 3
+
+    def test_chrome_does_not_retry_client_error(self) -> None:
+        session = MagicMock()
+        session.get.return_value = MagicMock(
+            raise_for_status=MagicMock(side_effect=self._http_error(404))
+        )
+        with (
+            patch.object(http_client._limiter, "wait"),
+            patch.object(http_client, "_get_cffi_session", return_value=session),
+            pytest.raises(CffiHTTPError),
+        ):
+            eastmoney_get_chrome("https://push2delay.eastmoney.com/api")
+        assert session.get.call_count == 1

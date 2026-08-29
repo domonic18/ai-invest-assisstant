@@ -35,6 +35,7 @@ import {
 import type { AdminTask } from '@ai-invest/shared'
 import { formatCronExpression, formatDateTime } from '@/utils/formatters'
 import { COLLECTOR_TASK_LABEL, getSourceLabel, getTaskLabel } from '@/utils/collectorTaskLabels'
+import { useCollectorTaskCatalog } from '@/hooks/useCollectorAdmin'
 
 interface TaskFormValues {
   taskName: string
@@ -44,7 +45,7 @@ interface TaskFormValues {
   isActive: boolean
 }
 
-const TASK_TYPE_OPTIONS = Object.entries(COLLECTOR_TASK_LABEL).map(([value, label]) => ({
+const FALLBACK_TASK_TYPE_OPTIONS = Object.entries(COLLECTOR_TASK_LABEL).map(([value, label]) => ({
   label,
   value,
 }))
@@ -62,6 +63,11 @@ export function AdminTasks() {
   const [params, setParams] = useState({ page: 1, pageSize: 20 })
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<AdminTask | null>(null)
+  const { data: catalog } = useCollectorTaskCatalog()
+
+  const taskTypeOptions =
+    catalog?.items.map((item) => ({ label: item.label, value: item.name })) ??
+    FALLBACK_TASK_TYPE_OPTIONS
 
   const { data, isLoading } = useAdminTasks(params)
   const createMutation = useCreateAdminTask()
@@ -268,7 +274,7 @@ export function AdminTasks() {
             <Input disabled={!!editing} />
           </Form.Item>
           <Form.Item name="taskType" label="任务类型" rules={[{ required: true }]}>
-            <Select options={TASK_TYPE_OPTIONS} />
+            <Select options={taskTypeOptions} />
           </Form.Item>
           <Form.Item name="source" label="来源" rules={[{ required: true }]}>
             <Input placeholder="akshare / tushare / eastmoney" />

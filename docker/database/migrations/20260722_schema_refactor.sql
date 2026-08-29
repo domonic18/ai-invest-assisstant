@@ -4,15 +4,33 @@
 -- 1. 仅重命名表与字段，使旧库结构与当前代码/01-schema.sql 对齐。
 -- 2. 不强制重命名索引/约束名称（不影响应用运行）。
 -- 3. 后续再按顺序执行 docker/database/migrations/ 下的增量迁移。
+-- 4. 列重命名均通过 _rename_column_if_exists 条件执行，保证在
+--    已是最终命名的全新库（01-schema.sql 初始化）上可重复执行。
 -- ============================================================
+
+-- 安全重命名辅助函数
+CREATE OR REPLACE FUNCTION _rename_column_if_exists(
+    p_table TEXT,
+    p_old TEXT,
+    p_new TEXT
+) RETURNS void AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = p_table AND column_name = p_old
+    ) THEN
+        EXECUTE format('ALTER TABLE %I RENAME COLUMN %I TO %I', p_table, p_old, p_new);
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 -- 1. 用户域
 ALTER TABLE IF EXISTS users RENAME TO "user";
-ALTER TABLE IF EXISTS "user" RENAME COLUMN password_hash TO password_hash;  -- 无变化，占位保持可读
 
 -- 2. 行情域
 ALTER TABLE IF EXISTS kline_daily RENAME TO quote_kline_stock_daily;
-ALTER TABLE IF EXISTS quote_kline_stock_daily RENAME COLUMN pct_change TO change_pct;
+SELECT _rename_column_if_exists('quote_kline_stock_daily', 'pct_change', 'change_pct');
 
 ALTER TABLE IF EXISTS kline_minute RENAME TO quote_kline_stock_minute;
 
@@ -27,8 +45,8 @@ ALTER TABLE IF EXISTS sector_fund_flow RENAME TO capital_fund_flow_sector;
 
 -- 4. 股池域
 ALTER TABLE IF EXISTS limit_up_pool RENAME TO pool_limit_up_stock;
-ALTER TABLE IF EXISTS pool_limit_up_stock RENAME COLUMN break_count TO broken_limit_count;
-ALTER TABLE IF EXISTS pool_limit_up_stock RENAME COLUMN limit_stat TO limit_status;
+SELECT _rename_column_if_exists('pool_limit_up_stock', 'break_count', 'broken_limit_count');
+SELECT _rename_column_if_exists('pool_limit_up_stock', 'limit_stat', 'limit_status');
 
 ALTER TABLE IF EXISTS dragon_list RENAME TO pool_dragon_tiger_stock;
 
@@ -36,35 +54,35 @@ ALTER TABLE IF EXISTS dragon_list RENAME TO pool_dragon_tiger_stock;
 ALTER TABLE IF EXISTS balance_sheet RENAME TO financial_balance_sheet;
 
 ALTER TABLE IF EXISTS income_statement RENAME TO financial_income_statement;
-ALTER TABLE IF EXISTS financial_income_statement RENAME COLUMN rd_expense TO research_development_expense;
+SELECT _rename_column_if_exists('financial_income_statement', 'rd_expense', 'research_development_expense');
 
 ALTER TABLE IF EXISTS cash_flow_statement RENAME TO financial_cash_flow_statement;
-ALTER TABLE IF EXISTS financial_cash_flow_statement RENAME COLUMN cf_operations TO cash_flow_from_operations;
-ALTER TABLE IF EXISTS financial_cash_flow_statement RENAME COLUMN cf_investing TO cash_flow_from_investing;
-ALTER TABLE IF EXISTS financial_cash_flow_statement RENAME COLUMN cf_financing TO cash_flow_from_financing;
+SELECT _rename_column_if_exists('financial_cash_flow_statement', 'cf_operations', 'cash_flow_from_operations');
+SELECT _rename_column_if_exists('financial_cash_flow_statement', 'cf_investing', 'cash_flow_from_investing');
+SELECT _rename_column_if_exists('financial_cash_flow_statement', 'cf_financing', 'cash_flow_from_financing');
 
 -- 6. 产业链域
 ALTER TABLE IF EXISTS company_chain_mapping RENAME TO industry_chain_company_mapping;
-ALTER TABLE IF EXISTS industry_chain_company_mapping RENAME COLUMN position TO chain_position;
+SELECT _rename_column_if_exists('industry_chain_company_mapping', 'position', 'chain_position');
 
-ALTER TABLE IF EXISTS industry_chain_node RENAME COLUMN industry_l1 TO industry_level_1;
+SELECT _rename_column_if_exists('industry_chain_node', 'industry_l1', 'industry_level_1');
 
-ALTER TABLE IF EXISTS industry_chain_edge RENAME COLUMN source TO data_source;
+SELECT _rename_column_if_exists('industry_chain_edge', 'source', 'data_source');
 
 -- 7. 基础标的域
-ALTER TABLE IF EXISTS stock_basic RENAME COLUMN industry_l1 TO industry_level_1;
-ALTER TABLE IF EXISTS stock_basic RENAME COLUMN industry_l2 TO industry_level_2;
-ALTER TABLE IF EXISTS stock_basic RENAME COLUMN industry_l3 TO industry_level_3;
+SELECT _rename_column_if_exists('stock_basic', 'industry_l1', 'industry_level_1');
+SELECT _rename_column_if_exists('stock_basic', 'industry_l2', 'industry_level_2');
+SELECT _rename_column_if_exists('stock_basic', 'industry_l3', 'industry_level_3');
 
 -- 8. 市场统计域
-ALTER TABLE IF EXISTS market_breadth RENAME COLUMN stat_time TO snapshot_time;
-ALTER TABLE IF EXISTS market_breadth RENAME COLUMN broken_count TO broken_limit_count;
+SELECT _rename_column_if_exists('market_breadth', 'stat_time', 'snapshot_time');
+SELECT _rename_column_if_exists('market_breadth', 'broken_count', 'broken_limit_count');
 
 -- 9. 文件域
-ALTER TABLE IF EXISTS file_metadata RENAME COLUMN uploaded_at TO created_at;
+SELECT _rename_column_if_exists('file_metadata', 'uploaded_at', 'created_at');
 
 -- 10. 资讯域
-ALTER TABLE IF EXISTS news_announcement RENAME COLUMN es_id TO elasticsearch_doc_id;
+SELECT _rename_column_if_exists('news_announcement', 'es_id', 'elasticsearch_doc_id');
 ALTER TABLE IF EXISTS news_announcement ADD COLUMN IF NOT EXISTS extra JSONB DEFAULT '{}'::jsonb;
 
 -- 11. 配置域
@@ -99,3 +117,6 @@ BEGIN
         ALTER SEQUENCE fund_holdings_id_seq RENAME TO fund_holding_id_seq;
     END IF;
 END $$;
+
+-- 清理辅助函数
+DROP FUNCTION IF EXISTS _rename_column_if_exists(TEXT, TEXT, TEXT);

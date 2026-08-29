@@ -36,7 +36,6 @@ from collector.spiders.sina_market_breadth import SinaMarketBreadthCollector
 from collector.spiders.sina_news import SinaNewsCollector
 from collector.spiders.sina_stock_list import SinaStockListCollector
 from collector.spiders.ths_auction import ThsAuctionCollector
-from collector.spiders.ths_kline import ThsKlineCollector
 from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
 
 _SECTOR_FUND_FLOW_UPDATE_COLUMNS = [
@@ -148,15 +147,6 @@ CONTRACTS: list[SpiderContract] = [
         cls=SinaKlineCollector,
         config={"source": "sina", "data_type": "kline", "period": "minute"},
         store=StoreContract(table="quote_kline_stock_minute", conflict_key="stock_code, trade_date"),
-        has_normalize=False,
-        dedup_keys=["stock_code", "trade_date"],
-        required_fields=["stock_code", "trade_date", "close"],
-    ),
-    SpiderContract(
-        name="ths_kline",
-        cls=ThsKlineCollector,
-        config={"source": "ths", "data_type": "kline"},
-        store=StoreContract(table="quote_kline_stock_daily", conflict_key="stock_code, trade_date"),
         has_normalize=False,
         dedup_keys=["stock_code", "trade_date"],
         required_fields=["stock_code", "trade_date", "close"],

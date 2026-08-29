@@ -39,7 +39,7 @@ from collector.spiders.sina_quote import SinaQuoteCollector
 from collector.spiders.sina_stock_list import SinaStockListCollector
 from collector.spiders.sina_stock_minute import SinaStockMinuteCollector
 from collector.spiders.ths_auction import ThsAuctionCollector
-from collector.spiders.ths_kline import ThsKlineCollector
+from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
 from collector.spiders.tushare_index_auction import TushareIndexAuctionCollector
 
 
@@ -251,36 +251,6 @@ class TestEastmoneyFinancialStatementCollector:
         assert result.status.value == "success"
         assert result.items_stored == 3
         collector.store.assert_awaited_once()  # type: ignore[attr-defined]
-
-
-@pytest.mark.unit
-class TestThsKlineCollector:
-    @pytest.mark.asyncio
-    async def test_transform_and_validate(self) -> None:
-        collector = ThsKlineCollector({"source": "ths", "data_type": "quote_kline_stock_daily"})
-        raw = {
-            "stock_code": "000001",
-            "trade_date": "2024-01-02",
-            "open": 10.5,
-            "high": 11.0,
-            "low": 10.2,
-            "close": 10.8,
-            "volume": 100000,
-            "amount": 1080000.0,
-            "amplitude": 7.62,
-            "change_pct": 2.86,
-            "turnover_rate": 0.52,
-        }
-        item = await collector.transform(raw)
-        assert item["close"] == 10.8
-        assert item["volume"] == 100000
-        assert await collector.validate(item) is True
-
-    @pytest.mark.asyncio
-    async def test_validate_rejects_missing_close(self) -> None:
-        collector = ThsKlineCollector({"source": "ths", "data_type": "quote_kline_stock_daily"})
-        item = {"stock_code": "000001", "trade_date": "2024-01-02", "close": None}
-        assert await collector.validate(item) is False
 
 
 @pytest.mark.unit
@@ -1258,7 +1228,6 @@ class TestThsSectorFundFlowCollector:
 
     @pytest.mark.asyncio
     async def test_collect_maps_ths_fields(self) -> None:
-        from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
 
         collector = ThsSectorFundFlowCollector(
             {"source": "ths", "data_type": "capital_fund_flow_sector"}
@@ -1281,7 +1250,6 @@ class TestThsSectorFundFlowCollector:
 
     @pytest.mark.asyncio
     async def test_collect_concept_maps_ths_fields(self) -> None:
-        from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
 
         collector = ThsSectorFundFlowCollector(
             {"source": "ths", "data_type": "capital_fund_flow_sector"}
@@ -1302,7 +1270,6 @@ class TestThsSectorFundFlowCollector:
 
     @pytest.mark.asyncio
     async def test_collect_rejects_unsupported_sector_type(self) -> None:
-        from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
 
         collector = ThsSectorFundFlowCollector(
             {"source": "ths", "data_type": "capital_fund_flow_sector"}
@@ -1312,7 +1279,6 @@ class TestThsSectorFundFlowCollector:
 
     @pytest.mark.asyncio
     async def test_validate(self) -> None:
-        from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
 
         collector = ThsSectorFundFlowCollector(
             {"source": "ths", "data_type": "capital_fund_flow_sector"}
@@ -1842,3 +1808,101 @@ class TestEastmoneyLimitDownPoolCollector:
             assert await collector.collect(
                 trade_date=datetime.date(2026, 7, 19)
             ) == []
+
+
+@pytest.mark.unit
+class TestEastmoneyConceptConstituentCollector:
+    @staticmethod
+    def _clist_response(diff: list, total: int) -> MagicMock:
+        payload = MagicMock()
+        payload.json.return_value = {"data": {"total": total, "diff": diff}}
+        return payload
+
+    @pytest.mark.asyncio
+    async def test_collect_maps_concepts_and_members(self) -> None:
+        from collector.spiders import eastmoney_concept_constituents as spider_mod
+
+        collector = spider_mod.EastmoneyConceptConstituentCollector(
+            {"source": "eastmoney", "data_type": "mapping_stock_concept"}
+        )
+        responses = [
+            # 概念列表：单页即取满（len(rows) >= total），覆盖分页终止条件
+            self._clist_response(
+                [{"f12": "BK0816", "f14": "稀土永磁"}, {"f12": "BK1000", "f14": "测试概念"}],
+                total=2,
+            ),
+            # BK0816 成分：含一个非纯数字代码（应被过滤）
+            self._clist_response(
+                [{"f12": "600111", "f14": "北方稀土"}, {"f12": "HK00700", "f14": "腾讯控股"}],
+                total=2,
+            ),
+            self._clist_response(
+                [{"f12": "000001", "f14": "平安银行"}, {"f12": "600000", "f14": "浦发银行"}],
+                total=2,
+            ),
+        ]
+        urls: list[str] = []
+
+        def fake_get(url: str, params: dict, **kwargs: object) -> MagicMock:
+            urls.append(url)
+            return responses.pop(0)
+
+        with patch.object(spider_mod, "eastmoney_get_chrome", fake_get):
+            items = await collector.collect()
+
+        assert items == [
+            {
+                "stock_code": "600111",
+                "concept_code": "BK0816",
+                "concept_name": "稀土永磁",
+                "source": "eastmoney",
+            },
+            {
+                "stock_code": "000001",
+                "concept_code": "BK1000",
+                "concept_name": "测试概念",
+                "source": "eastmoney",
+            },
+            {
+                "stock_code": "600000",
+                "concept_code": "BK1000",
+                "concept_name": "测试概念",
+                "source": "eastmoney",
+            },
+        ]
+        assert responses == []  # 全部请求均已消费
+        # clist 固定走 push2delay 镜像主机（push2 会被高频连发封禁）
+        assert urls and all(u.startswith("https://push2delay.eastmoney.com/") for u in urls)
+
+    @pytest.mark.asyncio
+    async def test_collect_raises_when_concept_list_fails(self) -> None:
+        from collector.spiders import eastmoney_concept_constituents as spider_mod
+
+        collector = spider_mod.EastmoneyConceptConstituentCollector(
+            {"source": "eastmoney", "data_type": "mapping_stock_concept"}
+        )
+        with patch.object(
+            spider_mod, "eastmoney_get_chrome", MagicMock(side_effect=ConnectionError("boom"))
+        ):
+            with pytest.raises(RuntimeError, match="获取东方财富概念列表失败"):
+                await collector.collect()
+
+    @pytest.mark.asyncio
+    async def test_collect_raises_when_member_fetch_fails(self) -> None:
+        """单概念成员拉取失败必须整体失败重试，禁止残缺映射入库。"""
+        from collector.spiders import eastmoney_concept_constituents as spider_mod
+
+        collector = spider_mod.EastmoneyConceptConstituentCollector(
+            {"source": "eastmoney", "data_type": "mapping_stock_concept"}
+        )
+        responses = [
+            self._clist_response([{"f12": "BK0816", "f14": "稀土永磁"}], total=1),
+            ConnectionError("Remote end closed connection without response"),
+        ]
+
+        def fake_get(url: str, params: dict, **kwargs: object) -> MagicMock:
+            return responses.pop(0)
+
+        with patch.object(spider_mod, "eastmoney_get_chrome", fake_get):
+            with pytest.raises(RuntimeError, match="概念成分拉取失败 1/1"):
+                await collector.collect()

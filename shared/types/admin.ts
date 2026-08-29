@@ -53,30 +53,24 @@ export interface CollectorChannelConfigFormValues {
   supportedDataTypes: string[]
 }
 
-export type CollectorTaskName =
-  | 'kline'
-  | 'index-kline'
-  | 'auction'
-  | 'fund-flow'
-  | 'news'
-  | 'company-profile'
-  | 'disclosure'
-  | 'sector-fund-flow'
-  | 'dragon-list'
-  | 'research-report'
-  | 'financial-report'
-  | 'ipo-info'
-  | 'fund-holdings'
-  | 'macro'
-  | 'stock-list'
-  | 'limit-up-pool'
-  | 'market-breadth'
-  | 'index-spot'
-  | 'index-minute'
-  | 'market-amount'
-  | 'broken-pool'
-  | 'etf-kline'
-  | 'a50-kline'
+/**
+ * 采集任务名。任务清单由后端注册表派生（GET /admin/collector/tasks/catalog），
+ * 禁止在前端另行硬编码任务列表。
+ */
+export type CollectorTaskName = string
+
+export interface CollectorTaskCatalogItem {
+  name: CollectorTaskName
+  label: string
+  dataType: string
+  sources: string[]
+  configParams: string[]
+  runParams: string[]
+}
+
+export interface CollectorTaskCatalog {
+  items: CollectorTaskCatalogItem[]
+}
 
 export interface CollectorTaskChannel {
   source: string
@@ -94,6 +88,7 @@ export interface CollectorTaskRunOptions {
   indicators?: string[] | null
   reportTypes?: string[] | null
   reportDate?: string | null
+  tradeDate?: string | null
 }
 
 export interface CollectorLog {

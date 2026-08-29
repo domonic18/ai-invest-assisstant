@@ -4,7 +4,13 @@
 BEGIN;
 
 ALTER TABLE collector_log
-    ADD COLUMN IF NOT EXISTS celery_task_id VARCHAR(64) NULL,
+    ADD COLUMN IF NOT EXISTS celery_task_id VARCHAR(64) NULL;
+
+-- 01-schema.sql 已同步为最终态（含该约束），DROP IF EXISTS 保证全新库上可重复执行
+ALTER TABLE collector_log
+    DROP CONSTRAINT IF EXISTS uq_collector_log_celery_task_id;
+
+ALTER TABLE collector_log
     ADD CONSTRAINT uq_collector_log_celery_task_id UNIQUE (celery_task_id);
 
 CREATE INDEX IF NOT EXISTS idx_collector_log_celery_task_id ON collector_log(celery_task_id);

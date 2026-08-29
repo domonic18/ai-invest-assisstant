@@ -11,14 +11,12 @@ stk_auction 历史数据自 2025-01 起，盘中 9:26 后可查当日，盘后�
 是本任务的唯一数据源（新浪分钟线首根 bar 会被盘后立即修订，不可用）。
 """
 
-from datetime import date, datetime
+from datetime import date
 from typing import Any, ClassVar
-from zoneinfo import ZoneInfo
 
 from collector.core.base import PostgresCollector
+from collector.core.calendar import latest_trading_day
 from collector.core.parsing import to_float
-
-_CN_TZ = ZoneInfo("Asia/Shanghai")
 
 _CYB_PREFIXES = ("300", "301", "302")
 _SSE_PREFIXES = ("60", "68")
@@ -57,7 +55,7 @@ class TushareIndexAuctionCollector(PostgresCollector):
         if not self.api_key:
             raise ValueError("tushare channel api_key (token) is required")
 
-        target = trade_date or datetime.now(_CN_TZ).date()
+        target = trade_date or latest_trading_day()
         requested = set(symbols) if symbols else {"sh000001", "sz399006", "sh000688"}
 
         pro = ts.pro_api(self.api_key)

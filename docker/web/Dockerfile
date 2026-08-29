@@ -1,7 +1,9 @@
 # backend-builder
 FROM python:3.11-slim-bookworm AS backend-builder
 WORKDIR /app
-ENV UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
+# 国内服务器/本地构建均走清华镜像（pip 不读 UV_DEFAULT_INDEX，需单独配置）
+ENV UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple \
+    PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 # 依赖层：先按 uv.lock 精确安装（--frozen 禁止重解析），源码变更不使缓存失效
 COPY backend/pyproject.toml backend/uv.lock ./
 RUN pip install --no-cache-dir uv \

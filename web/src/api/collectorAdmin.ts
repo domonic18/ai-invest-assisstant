@@ -2,6 +2,7 @@ import { ENDPOINTS } from '@ai-invest/shared'
 import type {
   ApiCollectorLogResponse,
   ApiCollectorRunResponse,
+  ApiCollectorTaskCatalogResponse,
   ApiCollectorTaskChannelsResponse,
   ApiCollectorTaskRunRequest,
 } from '@ai-invest/shared'
@@ -10,6 +11,13 @@ import { apiClient } from './client'
 
 export async function fetchCollectorLogs(limit = 50): Promise<ApiCollectorLogResponse[]> {
   const { data } = await apiClient.get(ENDPOINTS.admin.collectorLogs, { params: { limit } })
+  return data
+}
+
+export async function fetchCollectorTaskCatalog(): Promise<ApiCollectorTaskCatalogResponse> {
+  const { data } = await apiClient.get<ApiCollectorTaskCatalogResponse>(
+    ENDPOINTS.admin.collectorTaskCatalog,
+  )
   return data
 }
 

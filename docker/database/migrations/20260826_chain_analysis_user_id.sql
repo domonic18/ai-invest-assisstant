@@ -48,6 +48,10 @@ ALTER TABLE industry_chain_analysis_version
 ALTER TABLE industry_chain_analysis_version
     DROP CONSTRAINT IF EXISTS uq_industry_chain_analysis_version_user_industry_version;
 
+-- 01-schema.sql 已同步为最终态（含该约束），DROP IF EXISTS 保证全新库上可重复执行
+ALTER TABLE industry_chain_analysis_version
+    DROP CONSTRAINT IF EXISTS uq_industry_chain_analysis_version_user_industry_version_number;
+
 ALTER TABLE industry_chain_analysis_version
     ADD CONSTRAINT uq_industry_chain_analysis_version_user_industry_version_number
         UNIQUE (user_id, industry, version_number);

@@ -2,10 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   fetchCollectorLogs,
+  fetchCollectorTaskCatalog,
   fetchCollectorTaskChannels,
   runCollectorTask,
 } from '@/api/collectorAdmin'
-import { mapCollectorLog } from '@/api/mappers'
+import { mapCollectorLog, mapCollectorTaskCatalog } from '@/api/mappers'
 import type {
   ApiCollectorTaskRunRequest,
   CollectorTaskName,
@@ -14,6 +15,17 @@ import type {
 import { queryKeys } from './queryKeys'
 
 const IN_FLIGHT_STATUSES = new Set(['pending', 'running'])
+
+export function useCollectorTaskCatalog() {
+  return useQuery({
+    queryKey: queryKeys.collector.taskCatalog,
+    queryFn: async () => {
+      const data = await fetchCollectorTaskCatalog()
+      return mapCollectorTaskCatalog(data)
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
 
 export function useCollectorLogs(limit = 50) {
   return useQuery({

@@ -1,31 +1,8 @@
 """采集器管理 API 的 Pydantic schemas。"""
 
 from datetime import datetime
-from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
-
-
-class CollectorTaskName(str, Enum):
-    """支持的采集器任务名。"""
-
-    KLINE = "kline"
-    INDEX_KLINE = "index-kline"
-    AUCTION = "auction"
-    FUND_FLOW = "fund-flow"
-    NEWS = "news"
-    COMPANY_PROFILE = "company-profile"
-    DISCLOSURE = "disclosure"
-    SECTOR_FUND_FLOW = "sector-fund-flow"
-    DRAGON_LIST = "dragon-list"
-    RESEARCH_REPORT = "research-report"
-    FINANCIAL_REPORT = "financial-report"
-    IPO_INFO = "ipo-info"
-    FUND_HOLDINGS = "fund-holdings"
-    MACRO = "macro"
-    QUOTE = "quote"
-    STOCK_LIST = "stock-list"
-    LIMIT_UP_POOL = "limit-up-pool"
 
 
 class CollectorTaskRunRequest(BaseModel):
@@ -58,6 +35,23 @@ class CollectorTaskChannelsResponse(BaseModel):
     data_type: str
     channels: list[CollectorTaskChannelItem]
     resolved_source: str | None
+
+
+class CollectorTaskCatalogItem(BaseModel):
+    """任务目录项（由注册表 TASK_SPECS 派生）。"""
+
+    name: str
+    label: str
+    data_type: str
+    sources: list[str]
+    config_params: list[str]
+    run_params: list[str]
+
+
+class CollectorTaskCatalogResponse(BaseModel):
+    """任务目录：管理端 UI 触发列表的唯一数据源。"""
+
+    items: list[CollectorTaskCatalogItem]
 
 
 class CollectorRunResponse(BaseModel):

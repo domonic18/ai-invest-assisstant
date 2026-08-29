@@ -2,8 +2,8 @@
 
 from typing import Any, ClassVar
 
-from app.core.clock import today_cn
 from collector.core.base import PostgresCollector
+from collector.core.calendar import latest_trading_day
 from collector.core.parsing import (
     parse_cn_amount,
     parse_date,
@@ -28,7 +28,8 @@ class EastMoneyDragonListCollector(PostgresCollector):
     ) -> list[dict[str, Any]]:
         import akshare as ak  # type: ignore[import-untyped]
 
-        end = parse_date(end_date) or today_cn()
+        # 默认取最近交易日：周末/节假日手动补跑时静默空采（today 会取到非交易日）。
+        end = parse_date(end_date) or latest_trading_day()
         start = parse_date(start_date) or end
         start_str = start.strftime("%Y%m%d")
         end_str = end.strftime("%Y%m%d")

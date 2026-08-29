@@ -21,6 +21,7 @@ class TestResolveQueue:
     def test_task_spec_queue_override(self) -> None:
         assert resolve_queue("quote") == "collector.realtime"
         assert resolve_queue("financial-report") == "collector.heavy"
+        assert resolve_queue("limit-up-ai-review") == "collector.heavy"
 
     def test_source_does_not_influence_queue(self) -> None:
         assert resolve_queue("fund-flow", preferred_source="eastmoney") == "collector.batch"

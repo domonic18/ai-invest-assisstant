@@ -3,16 +3,14 @@
 上交所 stock_sse_deal_daily（成交金额单位：亿元）+ 深交所 stock_szse_summary
 （成交金额单位：元）合并为两市成交额（元），按交易日 upsert 到
 ``market_amount``。官方数据盘后发布，调度在 15:40/16:40/17:40 多次重试；
-数据未发布或非交易日返回空列表。
+交易日数据未发布时返回空列表。默认取最近交易日，非交易日可补采上一交易日。
 """
 
-from datetime import date, datetime
+from datetime import date
 from typing import Any, ClassVar
-from zoneinfo import ZoneInfo
 
 from collector.core.base import PostgresCollector
-
-_CN_TZ = ZoneInfo("Asia/Shanghai")
+from collector.core.calendar import latest_trading_day
 
 
 class ExchangeMarketAmountCollector(PostgresCollector):
@@ -30,7 +28,7 @@ class ExchangeMarketAmountCollector(PostgresCollector):
     ) -> list[dict[str, Any]]:
         import akshare as ak  # type: ignore[import-untyped]
 
-        target = trade_date or datetime.now(_CN_TZ).date()
+        target = trade_date or latest_trading_day()
         day = target.strftime("%Y%m%d")
         try:
             sse = ak.stock_sse_deal_daily(date=day)
