@@ -1,5 +1,6 @@
 """涨停 AI 归因服务契约测试。"""
 
+from contextlib import asynccontextmanager
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -9,8 +10,12 @@ from app.services.review import limit_up_ai_service
 from app.services.review.limit_up_ai_service import (
     AttributionGroup,
     LimitUpAttributionContent,
+    LimitUpAttributionLockedError,
 )
-from app.services.review.market_review_service import NonTradingDayError
+from app.services.review.market_review_service import (
+    NonTradingDayError,
+    ReviewInputDataNotReadyError,
+)
 
 _TRADE_DATE = date(2026, 7, 20)
 
@@ -128,7 +133,7 @@ class TestGenerateAttribution:
         assert result.groups[0].theme == "电力改革"
 
     @pytest.mark.asyncio
-    async def test_raises_when_pool_empty(self) -> None:
+    async def test_raises_not_ready_when_pool_empty(self) -> None:
         with (
             patch(
                 "app.repositories.review.ai_analysis_repository.load_latest_success",
@@ -142,6 +147,32 @@ class TestGenerateAttribution:
                 "app.services.market.limit_pool_service.get_limit_up",
                 AsyncMock(return_value=MagicMock(items=[])),
             ),
-            pytest.raises(ValueError, match="无涨停数据"),
+            pytest.raises(ReviewInputDataNotReadyError, match="涨停池数据尚未就绪"),
+        ):
+            await limit_up_ai_service.generate_attribution(AsyncMock(), _TRADE_DATE)
+
+    @pytest.mark.asyncio
+    async def test_raises_locked_when_lock_not_acquired(self) -> None:
+        """锁被其他实例占用且缓存仍为空时抛 ConflictError，而非双跑 LLM。"""
+
+        @asynccontextmanager
+        async def _locked(*args, **kwargs):
+            yield False
+
+        with (
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.market.trade_calendar_service.is_trading_day",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.services.market.limit_pool_service.get_limit_up",
+                AsyncMock(return_value=MagicMock(items=[MagicMock(stock_code="000001")])),
+            ),
+            patch.object(limit_up_ai_service, "redis_lock", _locked),
+            pytest.raises(LimitUpAttributionLockedError, match="正在生成"),
         ):
             await limit_up_ai_service.generate_attribution(AsyncMock(), _TRADE_DATE)

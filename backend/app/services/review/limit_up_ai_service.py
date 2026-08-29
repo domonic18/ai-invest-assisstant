@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.core.prompt_loader import PromptLoader
 from app.agent.core.prompt_renderer import PromptRenderer
 from app.core.config import get_settings
+from app.core.exceptions import ConflictError
+from app.core.locking import redis_lock
 from app.models.news_announcement import NewsAnnouncement
 from app.repositories.review import ai_analysis_repository
 from app.services.common.formatters import format_amount_yi
@@ -25,6 +27,12 @@ SKILL_ID = "limit-up-review"
 
 _MAX_NEWS_ITEMS = 30
 _NEWS_SUMMARY_CHARS = 200
+
+
+class LimitUpAttributionLockedError(ConflictError):
+    """其他实例正在生成同一交易日的涨停归因。"""
+
+    default_message = "涨停归因正在生成中，请稍后重试"
 
 
 class AttributionGroup(BaseModel):
@@ -144,7 +152,8 @@ async def generate_attribution(
 
     Raises:
         NonTradingDayError: 指定日期不是交易日
-        ValueError: 当日无涨停数据，无法归因
+        ReviewInputDataNotReadyError: 涨停池数据尚未落库（由 Celery 定时任务退避重试）
+        LimitUpAttributionLockedError: 其他实例正在生成同一交易日的归因
         LLMConfigNotConfiguredError: 未配置默认 LLM
     """
     # 延迟 import 打破 limit_pool_service → limit_up_ai_service → limit_pool_service 循环
@@ -153,7 +162,10 @@ async def generate_attribution(
         sector_service,
         trade_calendar_service,
     )
-    from app.services.review.market_review_service import NonTradingDayError
+    from app.services.review.market_review_service import (
+        NonTradingDayError,
+        ReviewInputDataNotReadyError,
+    )
 
     if trade_date is not None and not await trade_calendar_service.is_trading_day(
         session, trade_date
@@ -173,47 +185,63 @@ async def generate_attribution(
 
     limit_up = await limit_pool_service.get_limit_up(session, resolved_date)
     if not limit_up.items:
-        raise ValueError(f"{resolved_date.isoformat()} 无涨停数据，无法归因")
+        raise ReviewInputDataNotReadyError(
+            f"{resolved_date.isoformat()} 涨停池数据尚未就绪，无法归因"
+        )
 
-    sectors = await sector_service.get_sector_overview(session, resolved_date)
-    news_context = await _fetch_news_context(session, resolved_date)
+    async with redis_lock(f"{SKILL_ID}:{resolved_date.isoformat()}", ttl=300) as acquired:
+        if not acquired:
+            cached = await _load_cached(session, input_hash)
+            if cached:
+                return cached
+            raise LimitUpAttributionLockedError(
+                f"其他实例正在生成 {resolved_date.isoformat()} 的涨停归因"
+            )
 
-    limit_up_context = "\n".join(
-        f"{item.stock_name}（{item.stock_code}）{item.industry or '未分类'}"
-        f" {item.consecutive_boards or 1}板"
-        f" {item.seal_type or '普通'} 首次封板 {item.first_seal_time or '未知'}"
-        for item in limit_up.items
-    )
-    sector_context = "；".join(
-        f"{item.sector_name}（{item.change_pct:+.2f}%，涨停 {item.limit_up_count} 家，"
-        f"主力净流入 {format_amount_yi(item.main_net_inflow)}）"
-        for item in sectors.leading
-        if item.change_pct is not None
-    ) or "无数据"
+        if not regenerate:
+            cached = await _load_cached(session, input_hash)
+            if cached:
+                return cached
 
-    prompt_loader = PromptLoader(get_settings().prompts_dir)
-    prompt_config = prompt_loader.load("skills", SKILL_ID)
-    user_prompt = PromptRenderer.render(
-        prompt_config.user_prompt_template,
-        trade_date=resolved_date.isoformat(),
-        pool_count=str(len(limit_up.items)),
-        limit_up_context=limit_up_context,
-        sector_context=sector_context,
-        news_context=news_context,
-    )
+        sectors = await sector_service.get_sector_overview(session, resolved_date)
+        news_context = await _fetch_news_context(session, resolved_date)
 
-    # 延迟导入：app.agent.runtime 顶层依赖 services，避免 services 聚合时环导入
-    from app.agent.runtime import run_structured_agent_with_metrics
+        limit_up_context = "\n".join(
+            f"{item.stock_name}（{item.stock_code}）{item.industry or '未分类'}"
+            f" {item.consecutive_boards or 1}板"
+            f" {item.seal_type or '普通'} 首次封板 {item.first_seal_time or '未知'}"
+            for item in limit_up.items
+        )
+        sector_context = "；".join(
+            f"{item.sector_name}（{item.change_pct:+.2f}%，涨停 {item.limit_up_count} 家，"
+            f"主力净流入 {format_amount_yi(item.main_net_inflow)}）"
+            for item in sectors.leading
+            if item.change_pct is not None
+        ) or "无数据"
 
-    content, latency_ms, model_name = await run_structured_agent_with_metrics(
-        session,
-        prompt_config=prompt_config,
-        user_prompt=user_prompt,
-        result_type=LimitUpAttributionContent,
-    )
+        prompt_loader = PromptLoader(get_settings().prompts_dir)
+        prompt_config = prompt_loader.load("skills", SKILL_ID)
+        user_prompt = PromptRenderer.render(
+            prompt_config.user_prompt_template,
+            trade_date=resolved_date.isoformat(),
+            pool_count=str(len(limit_up.items)),
+            limit_up_context=limit_up_context,
+            sector_context=sector_context,
+            news_context=news_context,
+        )
 
-    valid_codes = {item.stock_code for item in limit_up.items}
-    content = _validate(content, valid_codes)
+        # 延迟导入：app.agent.runtime 顶层依赖 services，避免 services 聚合时环导入
+        from app.agent.runtime import run_structured_agent_with_metrics
 
-    await _persist(session, input_hash, model_name, content, latency_ms)
-    return content
+        content, latency_ms, model_name = await run_structured_agent_with_metrics(
+            session,
+            prompt_config=prompt_config,
+            user_prompt=user_prompt,
+            result_type=LimitUpAttributionContent,
+        )
+
+        valid_codes = {item.stock_code for item in limit_up.items}
+        content = _validate(content, valid_codes)
+
+        await _persist(session, input_hash, model_name, content, latency_ms)
+        return content
