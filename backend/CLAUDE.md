@@ -154,6 +154,8 @@ collector/
 - **解析函数只用 `core.parsing`**（`to_optional_str`/`to_float`/`parse_cn_amount`/`clean_stock_code`/`parse_date`/`parse_time`），禁止在 spider 里重复定义
 - **akshare 容错约定**：空数据（`df is None or df.empty`）返回 `[]`；异常不要吞——多渠道任务的 fallback 依赖异常向上传播，仅已知"无数据即抛错"的接口（如涨停池/龙虎榜）可 try/except 返回 `[]`
 - **新增采集任务**：在 `runtime/registry.py` 的 TASK_SPECS 增加一条 TaskSpec 声明（data_type/采集器懒加载路径/config_params/run_params），任务参数只在此维护一处，runner 的参数白名单自动派生
+- **任务目录 API 从 TASK_SPECS 派生**（`GET /admin/collector/tasks/catalog`）：API/UI 一律从目录取任务清单，禁止在枚举、shared 类型或前端另行硬编码；SKIPPED 是采集器的良性终态（非交易日/已生成），fallback 只对 FAILED 轮换渠道，不得把 SKIPPED 改写为 FAILED
+- **日期类参数默认值必须是 `latest_trading_day()`**（股池/龙虎榜/成交额/复盘均如此），禁止 `today_cn()`/`now` 兜底——周末手动补跑会静默空采；仅"天然只有当日"的数据（auction 快照、新浪分钟线）可用当日
 - **执行入口统一走 `runtime.runner.run_task`**（worker/scheduler/CLI/SCF 共享）：生成 `task_run_id` 绑定日志上下文、回写 `collector_log`、失败记录 traceback；`runtime/scf_handler.py` 只做 SCF 事件解析
 - **日志**：入口调用 `core.logging.configure_logging()`，禁止 `logging.basicConfig`；任务日志自动携带 `task_run_id`/`task`/`source`
 - **配置**：用 `core.config`（委托 `app.core.config`），禁止新增环境变量读取点
