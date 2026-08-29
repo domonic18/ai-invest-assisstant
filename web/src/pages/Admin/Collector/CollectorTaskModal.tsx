@@ -16,9 +16,10 @@ import {
   Tag,
   Typography,
 } from 'antd'
+import type { ReactNode } from 'react'
 import { useEffect, useMemo } from 'react'
 
-import { useCollectorTaskChannels } from '@/hooks/useCollectorAdmin'
+import { useCollectorTaskCatalog, useCollectorTaskChannels } from '@/hooks/useCollectorAdmin'
 import type {
   CollectorTaskName,
   CollectorTaskOption,
@@ -45,6 +46,7 @@ interface TaskFormValues {
   indicators?: string[]
   reportTypes?: string[]
   reportDate?: string
+  tradeDate?: string
 }
 
 const PERIOD_OPTIONS = [
@@ -71,6 +73,64 @@ const FINANCIAL_REPORT_TYPE_OPTIONS = [
   { value: '三季报', label: '三季报' },
 ]
 
+/**
+ * 任务参数 → 表单控件映射（按参数维度声明）。
+ * 任务参数清单来自任务目录 API（注册表 config_params + run_params），
+ * 新任务复用既有参数即可自动获得表单，无需改此组件。
+ */
+const PARAM_RENDERERS: Record<string, () => ReactNode> = {
+  period: () => (
+    <Form.Item key="period" label="周期" name="period">
+      <Select options={PERIOD_OPTIONS} />
+    </Form.Item>
+  ),
+  start_date: () => (
+    <Form.Item key="start_date" label="开始日期" name="startDate">
+      <Input placeholder="YYYY-MM-DD" />
+    </Form.Item>
+  ),
+  end_date: () => (
+    <Form.Item key="end_date" label="结束日期" name="endDate">
+      <Input placeholder="YYYY-MM-DD" />
+    </Form.Item>
+  ),
+  trade_date: () => (
+    <Form.Item
+      key="trade_date"
+      label="交易日"
+      name="tradeDate"
+      help="补采历史数据时填写，格式 YYYY-MM-DD，留空使用最近交易日"
+    >
+      <Input placeholder="YYYY-MM-DD" />
+    </Form.Item>
+  ),
+  sector_type: () => (
+    <Form.Item key="sector_type" label="板块类型" name="sectorType">
+      <Select options={SECTOR_TYPE_OPTIONS} />
+    </Form.Item>
+  ),
+  indicators: () => (
+    <Form.Item key="indicators" label="指标" name="indicators">
+      <Checkbox.Group options={MACRO_INDICATOR_OPTIONS} />
+    </Form.Item>
+  ),
+  report_types: () => (
+    <Form.Item key="report_types" label="财报类型" name="reportTypes">
+      <Checkbox.Group options={FINANCIAL_REPORT_TYPE_OPTIONS} />
+    </Form.Item>
+  ),
+  report_date: () => (
+    <Form.Item
+      key="report_date"
+      label="财报日期"
+      name="reportDate"
+      help="如 20250331，留空使用默认值"
+    >
+      <Input placeholder="YYYYMMDD" />
+    </Form.Item>
+  ),
+}
+
 function parseSymbols(input: string | undefined): string[] | undefined {
   if (!input) return undefined
   const symbols = input
@@ -89,27 +149,33 @@ export function CollectorTaskModal({
 }: CollectorTaskModalProps) {
   const [form] = Form.useForm<TaskFormValues>()
   const preferredSource = Form.useWatch('preferredSource', form)
-  const { data, isLoading, error } = useCollectorTaskChannels(task?.key ?? null)
+  const { data: channels, isLoading, error } = useCollectorTaskChannels(task?.key ?? null)
+  const { data: catalog } = useCollectorTaskCatalog()
+
+  const specItem = useMemo(
+    () => catalog?.items.find((item) => item.name === task?.key),
+    [catalog, task],
+  )
 
   const channelOptions = useMemo(
     () =>
-      data?.channels.map((channel) => ({
+      channels?.channels.map((channel) => ({
         value: channel.source,
         label: `${channel.name} (${channel.source})`,
       })) ?? [],
-    [data],
+    [channels],
   )
 
   const selectedChannelName = useMemo(() => {
-    if (!data) return undefined
-    const source = preferredSource ?? data.resolved_source
-    return data.channels.find((c) => c.source === source)?.name ?? source
-  }, [data, preferredSource])
+    if (!channels) return undefined
+    const source = preferredSource ?? channels.resolved_source
+    return channels.channels.find((c) => c.source === source)?.name ?? source
+  }, [channels, preferredSource])
 
   useEffect(() => {
-    if (open && data) {
+    if (open && channels) {
       form.setFieldsValue({
-        preferredSource: data.resolved_source ?? undefined,
+        preferredSource: channels.resolved_source ?? undefined,
         symbols: undefined,
         period: 'daily',
         startDate: undefined,
@@ -118,9 +184,10 @@ export function CollectorTaskModal({
         indicators: ['cpi', 'pmi', 'gdp'],
         reportTypes: ['年报', '半年报', '一季报', '三季报'],
         reportDate: undefined,
+        tradeDate: undefined,
       })
     }
-  }, [open, data, form])
+  }, [open, channels, form])
 
   const handleOk = async () => {
     const values = await form.validateFields()
@@ -135,9 +202,16 @@ export function CollectorTaskModal({
         indicators: values.indicators,
         reportTypes: values.reportTypes,
         reportDate: values.reportDate,
+        tradeDate: values.tradeDate,
       })
     }
   }
+
+  const paramFields = specItem
+    ? [...specItem.configParams, ...specItem.runParams]
+        .map((param) => PARAM_RENDERERS[param]?.())
+        .filter(Boolean)
+    : []
 
   return (
     <Modal
@@ -169,7 +243,7 @@ export function CollectorTaskModal({
           type="error"
           showIcon
         />
-      ) : isLoading || !data ? (
+      ) : isLoading || !channels ? (
         <Space className="py-8" size="middle">
           <Spin />
           <Typography.Text type="secondary">正在解析可用渠道...</Typography.Text>
@@ -185,7 +259,7 @@ export function CollectorTaskModal({
                   <Tag color={preferredSource ? 'green' : 'blue'}>
                     {selectedChannelName || '无可用渠道'}
                   </Tag>
-                  {!preferredSource && data.resolved_source && (
+                  {!preferredSource && channels.resolved_source && (
                     <Typography.Text type="secondary" className="ml-2">
                       （{AUTO_RESOLVE_LABEL}）
                     </Typography.Text>
@@ -215,53 +289,7 @@ export function CollectorTaskModal({
                 label: '高级选项',
                 children: (
                   <>
-                    {task?.key === 'kline' && (
-                      <Form.Item label="周期" name="period">
-                        <Select options={PERIOD_OPTIONS} />
-                      </Form.Item>
-                    )}
-                    {(task?.key === 'disclosure' || task?.key === 'dragon-list') && (
-                      <>
-                        <Form.Item label="开始日期" name="startDate">
-                          <Input placeholder="YYYY-MM-DD" />
-                        </Form.Item>
-                        <Form.Item label="结束日期" name="endDate">
-                          <Input placeholder="YYYY-MM-DD" />
-                        </Form.Item>
-                      </>
-                    )}
-                    {task?.key === 'financial-report' && (
-                      <>
-                        <Form.Item label="财报类型" name="reportTypes">
-                          <Checkbox.Group options={FINANCIAL_REPORT_TYPE_OPTIONS} />
-                        </Form.Item>
-                        <Form.Item label="开始日期" name="startDate">
-                          <Input placeholder="YYYY-MM-DD" />
-                        </Form.Item>
-                        <Form.Item label="结束日期" name="endDate">
-                          <Input placeholder="YYYY-MM-DD" />
-                        </Form.Item>
-                      </>
-                    )}
-                    {task?.key === 'fund-holdings' && (
-                      <Form.Item
-                        label="财报日期"
-                        name="reportDate"
-                        help="如 20250331，留空使用默认值"
-                      >
-                        <Input placeholder="YYYYMMDD" />
-                      </Form.Item>
-                    )}
-                    {task?.key === 'sector-fund-flow' && (
-                      <Form.Item label="板块类型" name="sectorType">
-                        <Select options={SECTOR_TYPE_OPTIONS} />
-                      </Form.Item>
-                    )}
-                    {task?.key === 'macro' && (
-                      <Form.Item label="指标" name="indicators">
-                        <Checkbox.Group options={MACRO_INDICATOR_OPTIONS} />
-                      </Form.Item>
-                    )}
+                    {paramFields}
                     <Form.Item
                       label="股票代码"
                       name="symbols"

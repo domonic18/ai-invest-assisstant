@@ -391,6 +391,20 @@ export interface ApiCollectorTaskRunRequest {
   indicators?: string[] | null
   report_types?: string[] | null
   report_date?: string | null
+  trade_date?: string | null
+}
+
+export interface ApiCollectorTaskCatalogItem {
+  name: string
+  label: string
+  data_type: string
+  sources: string[]
+  config_params: string[]
+  run_params: string[]
+}
+
+export interface ApiCollectorTaskCatalogResponse {
+  items: ApiCollectorTaskCatalogItem[]
 }
 
 export interface ApiCollectorRunResponse {

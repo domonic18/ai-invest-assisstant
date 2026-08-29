@@ -112,6 +112,7 @@ export const ENDPOINTS = {
       `${API_BASE}/admin/collector/data-types/${dataType}/channels`,
     collectorChannel: (id: number | string) => `${API_BASE}/admin/collector/channels/${id}`,
     collectorTaskChannels: (task: string) => `${API_BASE}/admin/collector/tasks/${task}/channels`,
+    collectorTaskCatalog: `${API_BASE}/admin/collector/tasks/catalog`,
     collectorLogs: `${API_BASE}/admin/collector/logs`,
     runCollectorTask: (task: string) => `${API_BASE}/admin/collector/tasks/${task}/run`,
   },

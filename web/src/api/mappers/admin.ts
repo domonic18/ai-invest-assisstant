@@ -6,6 +6,7 @@ import type {
   ApiAdminUserResponse,
   ApiCollectorChannelConfigResponse,
   ApiCollectorLogResponse,
+  ApiCollectorTaskCatalogResponse,
   ApiDataTypeChannelsResponse,
   ApiLLMConfigResponse,
 } from '@ai-invest/shared'
@@ -18,6 +19,7 @@ import type {
   CollectorChannelConfig,
   CollectorDataTypeChannels,
   CollectorLog,
+  CollectorTaskCatalog,
   LLMConfig,
 } from '@ai-invest/shared'
 
@@ -66,6 +68,19 @@ export function mapCollectorLog(dto: ApiCollectorLogResponse): CollectorLog {
     recordsCount: dto.records_count,
     errorMsg: dto.error_msg,
     metadata: dto.metadata,
+  }
+}
+
+export function mapCollectorTaskCatalog(dto: ApiCollectorTaskCatalogResponse): CollectorTaskCatalog {
+  return {
+    items: dto.items.map((item) => ({
+      name: item.name,
+      label: item.label,
+      dataType: item.data_type,
+      sources: item.sources,
+      configParams: item.config_params,
+      runParams: item.run_params,
+    })),
   }
 }
 
