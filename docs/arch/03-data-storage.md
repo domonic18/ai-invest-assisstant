@@ -8,7 +8,7 @@
 │                                                                    │
 │  ┌─────────────────────────────────────────────────────────────┐ │
 │  │              应用缓存层 (Redis)                               │ │
-│  │  热点数据 │ Session │ 实时行情缓存 │ 采集任务队列              │ │
+│  │  热点数据 │ Session │ Celery broker │ 分布式锁                │ │
 │  └─────────────────────────────────────────────────────────────┘ │
 │                              │                                     │
 │  ┌───────────────────────────┴─────────────────────────────────┐ │
@@ -22,13 +22,8 @@
 │  └─────────────────────────────────────────────────────────────┘ │
 │                              │                                     │
 │  ┌───────────────────────────┴─────────────────────────────────┐ │
-│  │              文件存储层 (MinIO)                                │ │
-│  │  财报 PDF │ 研报 PDF │ 公告 PDF                               │ │
-│  └───────────────────────────┬─────────────────────────────────┘ │
-│                              │                                     │
-│  ┌───────────────────────────┴─────────────────────────────────┐ │
-│  │              向量知识库 (Milvus)                               │ │
-│  │  PDF 文档向量 │ 财务指标向量 │ 产业链节点语义向量              │ │
+│  │              文件存储层 (COS · S3 兼容)                        │ │
+│  │  财报 PDF │ 研报 PDF │ 公告 PDF │ pg_dump 备份                │ │
 │  └─────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -49,8 +44,6 @@
 - **字段名**：完整单词优先，禁用无上下文缩写；同一语义统一用同一单词（涨跌幅一律 `change_pct`）
 - **约束 / 索引命名**：`pk_<table>` / `uq_<table>_<columns>` / `fk_<table>_<ref_table>` / `idx_<table>_<columns>` / `chk_<table>_<column>`
 - **审计字段**：业务表统一使用 `created_at` / `updated_at`
-
-> 完整重构方案见 `docs/plan/database-refactoring-plan.md`（已归档）。
 
 ## 3. 核心表清单（按业务域）
 
@@ -130,10 +123,12 @@
 | `users` | 用户（首个注册用户自动晋升 admin） |
 | `user_settings` | 用户级设置（涨跌配色方案 / K 线均线 MA 列表） |
 | `watchlist` | 自选股 |
-| `collector_task` | 采集任务定义（task_type / cron / 启用） |
+| `assistant_session` | AI 助手会话（LangChain Agent Protocol 线程/运行持久化） |
+| `collector_task` | 采集任务定义（task_type / cron / queue / 启用），**调度唯一真相源** |
 | `collector_channel_config` | 渠道级配置（source / base_url / api_key / extra） |
 | `collector_channel_data_type` | 渠道 × 数据类型优先级关联表 |
-| `collector_log` | 采集执行日志（runner 唯一写入点） |
+| `collector_log` | 采集执行日志（runner 唯一写入点，含 `celery_task_id`） |
+| `collector_dead_letter` | 采集死信（全渠道失败落库，管理端可查看/重放） |
 | `llm_config` | LLM 配置（provider / model / api_key 加密存储） |
 
 ## 4. Elasticsearch 索引设计
@@ -167,51 +162,28 @@
 }
 ```
 
-## 5. MinIO 文件存储
+## 5. 对象存储（COS · S3 兼容）
 
 ```
-{MINIO_BUCKET}/                       # 默认 invest-files
+{bucket}/                              # invest-files
 ├── financial-reports/                # 财报 PDF
 │   └── {stock_code}/
 │       └── {report_date}_{report_type}.pdf
 ├── research-reports/                 # 研报 PDF
 │   └── {broker}/
 │       └── {stock_code}_{date}_{title}.pdf
-└── announcements/                    # 公告 PDF
-    └── {stock_code}/
-        └── {date}_{announcement_id}.pdf
+├── announcements/                    # 公告 PDF
+│   └── {stock_code}/
+│       └── {date}_{announcement_id}.pdf
+└── backups/                          # pg_dump 定时备份
 ```
 
-- 下载走预签名 URL（`minio_service` 生成），前端不直连 MinIO
+- 应用经 S3 兼容 SDK（`minio_service` 封装）读写，仅改 endpoint + 密钥即可在 S3 兼容存储间切换
+- 下载走预签名 URL，前端不直连存储
 - `file_metadata.summary` 缓存 AI 摘要，列表 / 详情接口直接返回，避免重复 LLM 调用
 - 研报 PDF 下载用 `curl_cffi` 模拟 Chrome TLS 指纹绕过 `pdf.dfcfw.com` 的 WAF（httpx 会被 JS 反爬页拦截）
 
-## 6. Milvus 向量知识库
-
-```python
-# financial_doc_chunks
-FieldSchema("stock_code",   DataType.VARCHAR, max_length=10)
-FieldSchema("report_date",  DataType.VARCHAR, max_length=10)
-FieldSchema("report_type",  DataType.VARCHAR, max_length=20)
-FieldSchema("chunk_index",  DataType.INT32)
-FieldSchema("chunk_text",   DataType.VARCHAR, max_length=4000)
-FieldSchema("embedding",    DataType.FLOAT_VECTOR, dim=1536)  # OpenAI / 兼容端点
-FieldSchema("file_path",    DataType.VARCHAR, max_length=500)
-FieldSchema("page_number",  DataType.INT32)
-
-# research_doc_chunks
-FieldSchema("stock_code",   DataType.VARCHAR, max_length=10)
-FieldSchema("industry",     DataType.VARCHAR, max_length=50)
-FieldSchema("broker",       DataType.VARCHAR, max_length=100)
-FieldSchema("publish_date", DataType.VARCHAR, max_length=10)
-FieldSchema("rating",       DataType.VARCHAR, max_length=20)
-FieldSchema("chunk_text",   DataType.VARCHAR, max_length=4000)
-FieldSchema("embedding",    DataType.FLOAT_VECTOR, dim=1536)
-```
-
-PDF 处理管道：`下载 → PyMuPDF / pdfplumber 解析 → 文本切片 → Embedding → Milvus`；表格抽取走结构化入库。
-
-## 7. Redis 缓存设计
+## 6. Redis 缓存设计
 
 | 缓存类型 | Key Pattern | TTL | 说明 |
 |----------|-------------|-----|------|
@@ -221,16 +193,16 @@ PDF 处理管道：`下载 → PyMuPDF / pdfplumber 解析 → 文本切片 → 
 | 产业链图 | `chain:{industry_l1}` | 24h | 产业链图谱缓存 |
 | Session | `session:{session_id}` | 24h | 用户登录会话 |
 | 限流 | `ratelimit:{user_id}` | 1min | API 限流计数 |
-| 任务锁 | `lock:{task_name}` | 5min | 防止重复执行（`collector.core.locks`） |
-| 采集队列 | `collector:queue` | - | List 类型，dispatcher 投递 / worker 拉取 |
+| AI 生成锁 | `redis_lock`（`app.core.locking`） | 300s | 防止定时任务与手动触发并发双跑 LLM |
+| Celery broker | `collector.realtime` / `batch` / `heavy` | - | kombu List，beat/dispatcher 投递、worker 消费 |
 
-## 8. 迁移管理
+## 7. 迁移管理
 
-- 全量初始化脚本：`docker/database/init-scripts/01-schema.sql` ~ `04-milvus-collections.py`
-- 增量迁移：`docker/database/migrations/` 下按日期归档的 SQL（如 `20260722_schema_refactor.sql`、`20260725_file_metadata_summary.sql`、`20260727_eastmoney_concept_constituents.sql`）
-- 新增字段时**同时**更新 init-scripts（新部署）+ 写一条带日期前缀的 migration（已部署环境）
+- 全量初始化脚本：`docker/database/init-scripts/`（`01-schema.sql` / `02-indexes.sql` / `03-seed.sql`）
+- 增量迁移：`docker/database/migrations/` 下按日期归档的 SQL（如 `20260722_schema_refactor.sql`、`20260829_limit_up_ai_review_task.sql`），幂等可重复执行
+- 新增字段时**同时**更新 init-scripts（新部署）+ 写一条带日期前缀的 migration（已部署环境），历史上已四例漂移，须严守
 
-## 9. 后续文档索引
+## 8. 后续文档索引
 
 - [00-overview.md](./00-overview.md) — 总体架构与目录结构
 - [02-data-collection.md](./02-data-collection.md) — 采集引擎架构
