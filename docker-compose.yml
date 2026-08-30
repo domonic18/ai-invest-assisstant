@@ -9,6 +9,9 @@ services:
     build:
       context: .
       dockerfile: docker/web/Dockerfile
+    # image 供服务器 docker compose pull 定位 TCR；build 保留给本地与应急构建；
+    # APP_TAG 在服务器 .env 钉版（填 CI 输出的 git 短 sha），缺省 latest
+    image: ccr.ccs.tencentyun.com/domonic18/web-api:${APP_TAG:-latest}
     ports:
       - "${WEB_PORT}:9000"
     env_file:
@@ -36,6 +39,7 @@ services:
     build:
       context: .
       dockerfile: docker/collector/Dockerfile
+    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
     env_file:
       - .env
     environment:
@@ -58,6 +62,7 @@ services:
     build:
       context: .
       dockerfile: docker/collector/Dockerfile
+    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
     env_file:
       - .env
     environment:
@@ -92,6 +97,7 @@ services:
     build:
       context: .
       dockerfile: docker/collector/Dockerfile
+    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
     env_file:
       - .env
     environment:
@@ -126,6 +132,7 @@ services:
     build:
       context: .
       dockerfile: docker/collector/Dockerfile
+    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
     env_file:
       - .env
     environment:
@@ -214,7 +221,7 @@ services:
       - app-network
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-10-15T17-29-55Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
