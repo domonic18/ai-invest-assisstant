@@ -139,7 +139,8 @@ jobs:
     needs: [backend, web]
     # push 到 develop/main 自动构建；workflow_dispatch 供首次打通 TCR 时手动触发
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')) || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 30
+    # 冷缓存首次全量构建 >30min，放宽至 60；层缓存导入 GHA cache 后后续构建会显著缩短
+    timeout-minutes: 60
 
     steps:
       - name: Checkout / 检出代码
