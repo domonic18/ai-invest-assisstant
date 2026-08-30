@@ -22,30 +22,37 @@
 
 | 阶段 | 内容 | 解决 | 风险 | 状态 |
 |------|------|------|------|------|
-| Phase 1 | CI/CD：Actions 构建 → TCR → 服务器 pull 部署 | 问题 1/3 | 低 | 待实施 |
+| Phase 1 | CI/CD：Actions 构建 → TCR → 服务器手动 pull 部署 | 问题 1/3 | 低 | 代码就绪，待验证（需配 repo secrets + 手动触发） |
 | Phase 2 | 瘦身：下线 milvus/etcd；MinIO→COS；COS 兼 PG 备份；worker 3→2 收缩 | 问题 2 | 低 | 待实施 |
 | Phase 3 | Web API → SCF Web 函数（爬虫任务留置轻量） | 问题 2 | 中，有两道验证关卡 | 评估中 |
 | Phase 4 | SPA → EdgeOne Pages；Agent Runtime 承载 deepagents（助手对话主承载，摆脱 SCF 900s） | 前瞻 | 有三道前置验证关卡 | 评估结论已定（2026-08-30） |
+
+> 各阶段验证方法见对应章节；每次落地后统一以 [06-deployment.md §4.3 验收清单](../arch/06-deployment.md) 为基线回归。
 
 ## 3. Phase 1：CI/CD 流水线
 
 GitHub Actions（`.github/workflows/ci.yml`，develop push 触发 + workflow_dispatch 手动）：
 
-1. **构建**：`docker/web/Dockerfile` 与 `docker/collector/Dockerfile` 双镜像，linux/amd64（buildx），tag = `latest` + git short sha
-2. **推送 TCR**：`ccr.ccs.tencentyun.com/domonic18/{web-api,collector}`；需 repo secrets：`TCR_NAMESPACE=domonic18`、`TCR_USERNAME`（腾讯云 UIN）、`TCR_PASSWORD`（**推送至今未验证成功，Phase 1 第一项就是打通它**）
-3. **部署**：SSH action 登录轻量服务器执行 `docker compose pull && docker compose up -d`；可选 watchtower 轮询 TCR 替代 SSH（二选一，SSH 方案先行）
+1. **构建推送**：按 [06-deployment.md §3 镜像与发布](../arch/06-deployment.md) 构建推送 `web-api` / `collector` 双镜像（linux/amd64，tag = `latest` + git short sha）
+2. **凭据**：repo secrets `TCR_NAMESPACE` / `TCR_USERNAME`（腾讯云 UIN）/ `TCR_PASSWORD`（**推送至今未验证成功，Phase 1 第一项就是打通它**）
+3. **compose 镜像定位（前置，已实施）**：应用服务 `image:` 指向 TCR（`web-api` / `collector` 双镜像，beat 与 workers 共用 collector），tag 走 `${APP_TAG:-latest}`——服务器 `.env` 以 `APP_TAG` 钉版（填 CI 输出的 git 短 sha），缺省 `latest`；生产不用裸 `latest` 做部署指针（不可复现）。`build:` 保留，供本地与 §7 应急构建
+4. **部署（手动）**：CI 不含任何部署 job；服务器一次性 `docker login ccr.ccs.tencentyun.com`。发布 = `.env` 写入本次短 sha → `docker compose pull && docker compose up -d --wait --remove-orphans --no-build`（`--wait` 借 healthcheck 作部署闸门、失败非零退出；`--remove-orphans` 为 Phase 2 下线服务自动清孤儿容器；`--no-build` 防误在服务器构建）。回滚 = `.env` 改回上一 sha 重跑同命令。定期 `docker image prune -f` 控制旧镜像盘占。发布节奏自控，不引入 SSH action / watchtower
 
-效果：服务器不再执行任何构建（僵持事故根因根除），合并即发布。远程构建流程仅作为 CI 故障时的应急手段保留（见 §7）。
+效果：服务器不再执行任何构建（僵持事故根因根除），仅做镜像拉取与启动；合并即产出新镜像，上线时机由人工控制。远程构建流程仅作为 CI 故障时的应急手段保留（见 §7）。
+
+验证：`workflow_dispatch` 手动触发一次流水线 → Actions 全绿、TCR 出现双镜像新 tag → 登录服务器手动 pull 部署后按 [06-deployment.md §4.3 验收清单](../arch/06-deployment.md) 回归（health / worker ping / 任务目录）。
 
 ## 4. Phase 2：轻量服务器瘦身 + COS
 
 | 动作 | 依据 | 效果 |
 |------|------|------|
 | 下线 milvus + etcd | 代码仅 `app/core/config.py` 出现，无任何业务引用 | 释放约 2GB 内存 |
-| MinIO → COS | COS 提供 S3 兼容端点，`minio_service.py`/研报/财报/知识库仅改 endpoint + 密钥；对象用 COS Migration 工具搬迁；`MINIO_PUBLIC_ENDPOINT` 同步切换 | 释放 MinIO 内存，文件存储转托管 |
+| MinIO → COS | COS 提供 S3 兼容端点，应用侧仅改 endpoint + 密钥；对象用 COS Migration 工具搬迁 | 释放 MinIO 内存，文件存储转托管 |
 | COS 兼作 PG 备份目标 | `pg_dump` 定时任务推 COS，解决单机数据风险 | 数据安全 |
 | worker 收缩 3→2 | realtime 与 batch 合并为单 worker（`-Q realtime,batch`，Celery 按列举顺序消费；batch 定点盘后、realtime 盘中，时间窗天然错开互不挤占）；**heavy 保持独立容器且并发=1**——LLM 分钟级任务（复盘/归因）不得占用通用采集池 | 释放约 200-400MB；队列仍为 3 条，仅容器数收缩 |
 | ES 暂留并盘用量 | 新闻搜索 + 知识库在用 | 后续决定升云 ES 或降级 PG 全文检索 |
+
+验证：每项动作落地后按 [06-deployment.md §4.3 验收清单](../arch/06-deployment.md) 回归；`free -h` 核对内存释放与上表"效果"相符；COS 切换后应用走通一次研报/财报文件读写、`pg_dump` 定时任务在 COS 产出当日对象；worker 合并后双容器 `inspect ping` 应答、`collector_log` 无积压。
 
 ## 5. Phase 3：Web API → SCF Web 函数（先过验证关卡）
 
@@ -62,9 +69,13 @@ GitHub Actions（`.github/workflows/ci.yml`，develop push 触发 + workflow_dis
 
 ### 5.2 迁移要点
 
-- Web 函数用现有一体镜像（nginx+uvicorn），内存 2048MB，超时 900s；API 网关触发器方案作废（该产品 2025-06-30 停服），入口用函数默认域名 / 自定义域名
+- Web 函数沿用 [06-deployment.md §1](../arch/06-deployment.md) 定义的一体镜像与规格；API 网关触发器方案作废（该产品 2025-06-30 停服），入口用函数默认域名 / 自定义域名
 - **冷启动**：镜像函数初始化默认 90s，个人低频使用需预置并发（1-2 实例）保体验——这是本阶段主要成本项，也是"是否值得迁移"的核心权衡
 - Caddy 保留为 COS/MinIO 兼容层撤除后的过渡入口或直接下线
+
+### 5.3 迁移后验收
+
+两道关卡通过并完成切换后，以 [06-deployment.md §4.3](../arch/06-deployment.md) 为基线回归：域名 `/health` 200、助手流式经函数 URL 稳定出 token、预置并发下首请求体验可接受。观察期内保留回退能力（入口切回轻量服务器），稳定后再下线旧链路。
 
 ## 6. Phase 4：EdgeOne（评估结论已定，2026-08-30）
 
@@ -75,6 +86,7 @@ GitHub Actions（`.github/workflows/ci.yml`，develop push 触发 + workflow_dis
   1. SSE 流式经 Agent Runtime 入口的透传与空闲超时表现
   2. deepagents / LangGraph 依赖在沙箱镜像内的兼容性与镜像体积
   3. 沙箱数量 / 回收配额对多会话并发的满足度
+- **实施后验收**：以 [06-deployment.md §4.3](../arch/06-deployment.md) 为基线——流式对话经 Agent Runtime 入口正常出 token、可中断；SPA 经 Pages 域名访问、`/assets/` 命中长缓存且发版即生效
 - 与 Phase 1-3 解耦，不阻塞
 
 ## 7. 应急构建流程（CI 不可用时）
