@@ -17,17 +17,15 @@
         │                              │
         └────────── HTTPS ─────────────┘
                      │
-   ┌─────────────────┴──────────────────┐
-   │     腾讯云 SCF Web 函数              │
-   │     Docker 镜像 (前后端合一)         │
-   │                                     │
-   │  Nginx :9000                        │
-   │  ├── /       → React 静态资源        │
-   │  │           (/assets/ 长缓存)       │
-   │  ├── /api/*  → FastAPI :8000        │
-   │  │           (代理超时 300s for LLM) │
-   │  └── /docs /openapi.json /health    │
-   └─────────────────────────────────────┘
+        ┌────────────┴──────────────┐
+        ▼                           ▼
+┌──────────────────┐      ┌─────────────────────────┐
+│ EdgeOne Pages     │      │ SCF Web 函数（API）      │
+│ React SPA 静态托管 │ ───▶ │ FastAPI（nginx+uvicorn） │
+│ /assets/ 长缓存    │/api/*│ 代理超时 300s（LLM）     │
+│ invest.17aitech   │      │ /docs /health           │
+│ .com              │      └─────────────────────────┘
+└──────────────────┘
 ```
 
 - **桌面端** — 全功能投资分析平台（产业链图谱 / K 线 / 资金流向 / 研报 / 财报 / 后台管理）
@@ -70,10 +68,10 @@
 ├── /admin/stocks               # 股票管理（含列表同步任务入口）
 ├── /admin/reports              # 研报管理
 ├── /admin/news                 # 资讯管理
-├── /admin/tasks                # 采集任务（cron 中文展示 + 触发）
+├── /admin/tasks                # 采集任务管理（collector_task 调度行 CRUD，cron 中文展示）
 ├── /admin/llm-configs          # LLM 配置
-├── /admin/collector-channels   # 采集渠道管理
-└── /admin/collector            # 数据类型优先级（按数据类型 Tab）
+├── /admin/collector-channels   # 采集渠道管理（渠道启用 + 数据类型优先级）
+└── /admin/collector            # 采集任务（TASK_SPECS 目录驱动：任务清单/标签/状态 + 手动执行）
 ```
 
 > 侧边栏按"复盘 / 分析 / 设置"三大组分组，移动端折叠为底部 Tab Bar。
@@ -129,7 +127,7 @@
 
 ### 4.4 资金流向（板块河流图 + 排名图）
 
-- 行业板块走东财 / 概念板块钉死同花顺（东财概念板块资金流已被 IP 封禁）
+- 行业板块走东财 / 概念板块钉死同花顺（东财 WAF 按 TLS 指纹 + 主机限流，概念口径走同花顺采集更稳）
 - 河流图按时间轴展示板块净流入流出演化
 - 排名图展示当日 TOP 行业 / 概念
 - 金额按流入红 / 流出绿着色（订阅 `useColorScheme`）
@@ -165,10 +163,10 @@
 | 股票管理 | 列表 / 字段补全 / **同步任务入口** |
 | 研报管理 | 列表 / 名称展示 |
 | 资讯管理 | 列表 / 删除 |
-| 任务管理 | 采集任务列表 / 触发（cron 中文展示） |
+| 采集任务管理 | `collector_task` 调度行 CRUD（任务 / 渠道 / cron 中文展示 / 启用） |
 | LLM 配置 | provider / base_url / api_key 加密存储 |
-| 采集渠道 | 渠道启用 / base_url / api_key / extra |
-| 数据类型优先级 | 按数据类型 Tab 配置渠道优先级 |
+| 采集渠道管理 | 渠道启用 / base_url / api_key / extra + 数据类型优先级 |
+| 采集任务 | TASK_SPECS 目录驱动只读清单（label / 渠道 / 队列 / 最近执行）+ 手动执行 + 采集日志 |
 
 ## 5. 项目结构
 
@@ -180,11 +178,12 @@ web/
 │   │   ├── layout/             # Header / Sidebar / Layout / MobileTabBar
 │   │   ├── charts/             # KlineChart / IndexKlineChart / IntradayChart / IntradaySpark /
 │   │   │                       #   ChainGraph / FinancialTrendCharts / StockChartView / useKlineKeyboardNav
+│   │   ├── assistant/          # assistant-ui 助手面板：RuntimeProvider / Thread / Composer / 会话侧栏
 │   │   ├── common/             # Brand / MarkdownText / SourceNote
 │   │   └── auth/               # ProtectedLayout / ProtectedAdmin / RedirectIfAuthenticated
 │   ├── hooks/                  # TanStack Query 包装的 Hooks
 │   ├── pages/                  # 见 §3 路由
-│   ├── stores/                 # Zustand（auth / colorScheme / userSettings）
+│   ├── stores/                 # Zustand（auth / colorScheme / userSettings / assistant）
 │   ├── test/                   # 测试环境初始化与 mocks
 │   ├── types/ utils/ constants/ config/
 │   ├── App.tsx / main.tsx / router.tsx
@@ -246,9 +245,8 @@ export default defineConfig({
 })
 ```
 
-Nginx 配置（`docker/web/nginx.conf`）匹配 SPA 部署：
-- `/assets/` 长缓存（`max-age=31536000, immutable`） — 产物带内容哈希
-- `/index.html` 禁止启发式缓存（发版后立即生效）
+Nginx 配置（`docker/web/nginx.conf`）：
+- SPA 静态资源由 EdgeOne Pages 托管时沿用同一缓存语义：`/assets/` 长缓存（`max-age=31536000, immutable`，产物带内容哈希），`/index.html` 禁止启发式缓存（发版后立即生效）
 - `/api/` 代理超时 300s（LLM 调用可达 1-2 分钟）
 
 ## 9. 后续文档索引

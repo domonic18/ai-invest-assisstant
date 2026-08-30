@@ -8,125 +8,116 @@
 - **数据源**：巨潮资讯(cninfo)、同花顺(10jqka)、东方财富、新浪财经、Tushare、上交所/深交所
 - **采集内容**：行情(K 线/分时/竞价)、财务报表、涨停/跌停池、板块资金流、研报与财报 PDF、公告与新闻、市场宽度、宏观指标
 - **AI 能力**：产业链分析、研报/财报摘要、涨停归因、每日 AI 大盘综述（YAML 声明式分区、可模块级编辑）
-- **输出形式**：响应式 Web 前端（桌面 + 移动端底部导航）
-- **部署方式**：腾讯云函数 SCF（Web 函数 + Job 函数）+ 腾讯云轻量服务器（中间件）
+- **输出形式**：响应式 Web 前端（桌面 + 移动端底部导航）+ AI 助手对话面板
+- **部署方式**：EdgeOne（SPA + Agent Runtime）+ SCF Web 函数（API）+ 轻量服务器（数据与采集任务）+ COS（文件），详见 [06-deployment.md](./06-deployment.md)
 
 ## 2. 部署架构全景图
 
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                              腾讯云 部署全景                                 │
-│                                                                             │
-│  ┌─────────────────────────────┐   ┌──────────────────────────────────────┐ │
-│  │ 腾讯云 SCF Web 函数          │   │ 腾讯云 SCF Job 函数 (异步采集)        │ │
-│  │                             │   │                                      │ │
-│  │ ┌─────────────────────────┐ │   │  ┌──────┐ ┌──────┐ ┌──────┐ ┌────┐ │ │
-│  │ │  Docker 镜像 (前后端合一) │ │   │  │K线采集│ │财报采集│ │新闻采集│ │研报│ │ │
-│  │ │                         │ │   │  │Job   │ │Job   │ │Job   │ │Job │ │ │
-│  │ │  Nginx :9000            │ │   │  └──┬───┘ └──┬───┘ └──┬───┘ └──┬─┘ │ │
-│  │ │  ├── / → React 静态资源  │ │   │     │ Timer 触发器按需触发           │ │
-│  │ │  ├── /api/* → FastAPI   │ │   │     └──────────┬──────────┬─────┘   │ │
-│  │ │  └── /ws/* → WebSocket  │ │   │        写入 PG/ES/MinIO/Milvus      │ │
-│  │ └─────────────────────────┘ │   │        （或常驻 worker 从 Redis 队列拉取）│ │
-│  │                             │   │                                      │ │
-│  │  ←── 浏览器 (Web 桌面/移动) │   └──────────────────────────────────────┘ │
-│  └─────────────────────────────┘                                            │
-│                                                                             │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │              腾讯云轻量应用服务器 (4核16GB + 500GB 数据盘)             │  │
-│  │                                                                       │  │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────────┐ ┌────────────────────┐  │  │
-│  │  │PostgreSQL│ │  Redis   │ │Elasticsearch │ │     MinIO          │  │  │
-│  │  │+Timescale│ │  缓存/队列│ │  全文检索     │ │  PDF文件/对象存储   │  │  │
-│  │  │:5432     │ │  :6379   │ │  :9200       │ │  :9000             │  │  │
-│  │  └──────────┘ └──────────┘ └──────────────┘ └────────────────────┘  │  │
-│  │                         ┌──────────────────┐                        │  │
-│  │                         │ Milvus 向量知识库  │                        │  │
-│  │                         │ :19530            │                        │  │
-│  │                         └──────────────────┘                        │  │
-│  │                                                                       │  │
-│  │              所有服务通过 Docker Compose 统一编排管理                  │  │
-│  └───────────────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────┐
+│ 用户浏览器（桌面 / 移动 · 响应式单端） │
+└────────────────────────────────────────┘
+                     │ SPA 静态资源                                  │ AI 助手对话
+                     ▼                                           ▼
+┌──────────────────────────────────────┐   ┌────────────────────────────────────┐
+│ EdgeOne Pages                        │   │ EdgeOne Agent Runtime              │
+│ SPA 静态托管（免费档）               │   │ deepagents 助手运行时              │
+│ invest.17aitech.com（已备案）        │   │ 会话沙箱 · 毫秒级冷启动            │
+└──────────────────────────────────────┘   └────────────────────────────────────┘
+                     │ /api/*                                    │ 回调核心 API
+                     ▼                                           ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ SCF Web 函数 — API 计算层                                                    │
+│ FastAPI（nginx + uvicorn 一体镜像）· SSE 流式输出                            │
+│ 预置并发保冷启动 · 执行上限 900s                                             │
+└──────────────────────────────────────────────────────────────────────────────┘
+                        │ CCN 云联网内网（读写 PG/Redis/ES）              │ S3 协议
+                        ▼                                        ▼
+┌────────────────────────────────────────────┐   ┌──────────────────────────────┐
+│ 轻量应用服务器 2C4G（ap-beijing）          │   │ COS 对象存储                 │
+│ 数据层 postgres/timescale · redis · es     │   │ 研报/财报 PDF · 知识库文件   │
+│ 任务层 celery-beat + 双 worker             │   │ pg_dump 定时备份目标         │
+│   （realtime+batch 合并 · heavy 并发=1）   │   └──────────────────────────────┘
+│   采集爬虫 + LLM 归因                      │
+│   （>900s / WAF 固定出口，永久驻留）       │
+│     ─▶ 东财 / 新浪 / 巨潮 / tushare        │
+└────────────────────────────────────────────┘
 ```
 
-> Web 与采集共享同一套 `backend/` 代码：`app/` 是 FastAPI Web 服务，`collector/` 是采集 runtime，按场景选择 SCF Job（一次性触发，CLI 入口 `collector.runtime.cli`）或常驻 worker（从 Redis 队列拉取，入口 `collector.runtime.worker`）。
+- **接入层**：EdgeOne 承载 SPA 静态托管与 deepagents 助手运行时，域名 invest.17aitech.com（已备案）
+- **API 层**：SCF Web 函数（FastAPI 一体镜像），SSE 流式输出；长任务（>900s）与需固定出口 IP 的采集爬虫留置轻量服务器执行
+- **数据与任务层**：轻量服务器承载 postgres/timescale、redis、elasticsearch 与 Celery 采集调度（`collector_task` 表为调度真相源）
+- **文件存储**：COS（S3 兼容端点），兼作 pg_dump 定时备份目标
+- **镜像发布**：GitHub Actions 构建推送 TCR，服务器/SCF 拉取部署；现状问题与演进路径见 [../plan/deployment-evolution-plan.md](../plan/deployment-evolution-plan.md)
+
+> Web 与采集共享同一套 `backend/` 代码：`app/` 是 FastAPI Web 服务，`collector/` 是采集 runtime，通过 Celery 队列（realtime/batch/heavy）执行，亦保留 CLI 单任务入口 `collector.runtime.cli` 与 SCF 事件适配 `collector.runtime.scf_handler`。
 
 ## 3. 系统逻辑架构
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              用户层 (User Layer)                              │
-│                                                                              │
-│  ┌──────────────────────────────┐    ┌──────────────────────────────┐       │
-│  │   Web 桌面端 (浏览器)         │    │   Web 移动端 (响应式 + Tab Bar)│       │
-│  │  每日复盘 │ 产业链 │ 个股      │    │  复盘 │ 分析 │ 设置           │       │
-│  │  资金流向 │ 集合竞价 │ 研报     │    │  AI 助手底部弹层               │       │
-│  │  财报中心 │ 后台管理            │    │                              │       │
-│  │  React + ECharts + G6 + D3   │    │                              │       │
-│  └──────────────┬───────────────┘    └──────────────┬───────────────┘       │
-│                 │                                   │                        │
-│                              HTTPS (API 网关)                                │
-│                 │                                   │                        │
-└─────────────────┴───────────────────────────────────┴────────────────────────┘
-                  │                                   │
-┌─────────────────┴───────────────────────────────────┴────────────────────────┐
-│                    腾讯云 SCF — Web 函数 (Docker 镜像)                         │
-│                                                                              │
-│  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │            Nginx (:9000) + FastAPI (:8000)  ← 同一容器内               │   │
-│  │  JWT 鉴权 │ 路由 │ 静态资源（hash 长缓存 / SPA 入口禁缓存）            │   │
-│  │  / → React 静态资源    /api/* → FastAPI（LLM 接口代理超时 300s）       │   │
-│  │  /docs /openapi.json /health                                          │   │
-│  └──────────────────────────────────────────────────────────────────────┘   │
-└───────┬──────────────────────────────────────────────────────────────────────┘
-        │
-┌───────┴──────────────────────────────────────────────────────────────────────┐
-│              腾讯云 SCF — Job 函数 / 常驻 worker (异步采集)                    │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐                        │
-│  │行情采集Job│ │财报采集Job│ │新闻采集Job│ │研报采集Job│  Timer 触发器或        │
-│  └─────┬────┘ └─────┬────┘ └─────┬────┘ └─────┬────┘  Redis 队列调度          │
-│        └─────────────┴───────────┴─────────────┘                              │
-│                          │                                                    │
-│      collector runtime：core / runtime / spiders / stores                    │
-│      多渠道优先级 + 失败自动 fallback，runner 是 collector_log 唯一写入口      │
-└──────────────────────────┬────────────────────────────────────────────────────┘
-                           │
-┌──────────────────────────┴────────────────────────────────────────────────────┐
-│                    腾讯云轻量服务器 — 数据存储层 (Docker Compose)               │
-│  ┌──────────┐ ┌──────────┐ ┌──────────────┐ ┌────────────────────────┐       │
-│  │PostgreSQL│ │  Redis   │ │Elasticsearch │ │ MinIO + Milvus         │       │
-│  │ 结构化数据│ │ 缓存/队列 │ │  全文检索    │ │ PDF存储 / 向量知识库   │       │
-│  └──────────┘ └──────────┘ └──────────────┘ └────────────────────────┘       │
-└───────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│ 用户层 (User Layer)                                                                │
+│ 桌面 Web：每日复盘 / 产业链 / 个股 / 资金流 / 集合竞价 / 研报 / 财报 / 后台管理    │
+│ 移动 Web：响应式 + 底部 Tab Bar · AI 助手对话面板                                  │
+└────────────────────────────────────────────────────────────────────────────────────┘
+                                         HTTPS
+                                           ▼
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│ API 层 (FastAPI · nginx :9000)                                                     │
+│ JWT 鉴权 │ REST 路由 │ SSE 流式输出（AI 助手）│ /health /docs │ MCP Server         │
+│ auth/users/stocks/kline/auction/fund_flow/market/chain/research/                   │
+│ financial_report/financial/hotspot/assistant/admin                                 │
+└────────────────────────────────────────────────────────────────────────────────────┘
+                                           │
+                                           ▼
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│ 应用服务层 (app/services · 事务边界)                                               │
+│ 业务子域服务：admin/assistant/chain/collector/market/reports/review/user           │
+│ AI Agent 运行时：deepagents 助手 + PydanticAI Skills + YAML Prompts                │
+│ llm_router 双协议路由 · repositories 只构造查询（禁止管理事务）                    │
+└────────────────────────────────────────────────────────────────────────────────────┘
+                                     投递采集任务│
+                                           ▼
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│ 采集执行层 (collector runtime)                                                     │
+│ celery-beat（collector_task 表同步调度）→ 双 worker（realtime+batch / heavy）      │
+│ runner 统一执行（collector_log 唯一写入口）· registry 30 任务 TaskSpec             │
+│ 多渠道优先级 + FAILED 自动 fallback · 日期参数默认 latest_trading_day              │
+└────────────────────────────────────────────────────────────────────────────────────┘
+                                         读写│
+                                           ▼
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│ 数据层                                                                             │
+│ PostgreSQL/Timescale（结构化 + 时序）│ Redis（缓存 / broker / 分布式锁）           │
+│ Elasticsearch（全文检索）│ COS（研报/财报 PDF · 知识库文件）                       │
+└────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 4. 技术选型总览
 
 | 层次 | 技术 | 部署位置 | 选型理由 |
 |------|------|----------|----------|
-| **Web 前端** | React 18 + Vite + TypeScript | SCF Web 函数（Docker 镜像内 Nginx 静态资源） | 现代前端框架，生态完善 |
-| **后端 API** | FastAPI (Python 3.10+) + SQLAlchemy 2.0 | SCF Web 函数（Docker 镜像内 Supervisor 守护） | 异步高性能、类型安全 |
-| **数据采集** | 自研 collector runtime + httpx + akshare（仅部分数据源） | SCF Job 函数 / 常驻 worker | 声明式 TaskSpec 注册表 + 多渠道 fallback |
-| **可视化** | ECharts + AntV/G6 v5 + D3.js | 前端打包至镜像 | 产业链图谱(G6)、K线/竞价(ECharts)、板块河流/排名(D3/ECharts) |
+| **Web 前端** | React 18 + Vite + TypeScript | EdgeOne Pages | 现代前端框架，生态完善 |
+| **后端 API** | FastAPI (Python 3.10+) + SQLAlchemy 2.0 | SCF Web 函数（nginx + uvicorn 一体镜像） | 异步高性能、类型安全 |
+| **AI 助手运行时** | deepagents（LangChain Agent Protocol）+ assistant-ui | EdgeOne Agent Runtime | 流式对话/工具调用，会话持久化 `assistant_session` |
+| **数据采集** | 自研 collector runtime + Celery + httpx/akshare/curl_cffi | 轻量服务器 Celery 双 worker（realtime+batch / heavy 并发=1） | 声明式 TaskSpec 注册表（30 任务）+ 多渠道 fallback |
+| **可视化** | ECharts + AntV/G6 v5 + D3.js | 前端打包至 EdgeOne | 产业链图谱(G6)、K线/竞价(ECharts)、板块河流/排名(D3/ECharts) |
 | **结构化存储** | PostgreSQL + TimescaleDB | 轻量服务器 Docker | 时序行情数据高效存储 |
-| **搜索引擎** | Elasticsearch | 轻量服务器 Docker | 公告/新闻全文检索 |
-| **文件存储** | MinIO (S3 兼容) | 轻量服务器 Docker | PDF 财报/研报对象存储，预签名 URL 下发 |
-| **向量知识库** | Milvus Standalone | 轻量服务器 Docker | PDF 文档向量化，Agent RAG 检索 |
-| **缓存/队列** | Redis | 轻量服务器 Docker | 热数据缓存、Session、采集任务队列 |
-| **AI Agent** | PydanticAI + YAML Prompts + Skills + MCP | SCF Web 函数（通过 API 触发） | Python 原生 Agent SDK，OpenAI/Anthropic 双协议路由 |
+| **搜索引擎** | Elasticsearch | 轻量服务器 Docker | 公告/新闻全文检索 + 知识库 |
+| **文件存储** | COS (S3 兼容) | 腾讯云 COS | PDF 财报/研报对象存储，兼作 pg_dump 备份目标 |
+| **缓存/队列** | Redis | 轻量服务器 Docker | 热数据缓存、Session、Celery broker、分布式锁 |
+| **AI Agent** | PydanticAI + YAML Prompts + Skills + MCP | EdgeOne Agent Runtime（回调核心 API） | Python 原生 Agent SDK，OpenAI/Anthropic 双协议路由 |
 | **认证** | JWT (OAuth2 表单) | FastAPI 模块 | 首个注册用户自动晋升管理员 |
-| **容器化** | Docker + Docker Compose | SCF + 轻量服务器 | 环境统一，一键部署 |
-| **CI/CD** | GitHub Actions → TCR | GitHub | 自动构建推送，VERSION 文件注入构建号 |
+| **容器化** | Docker + Docker Compose | 轻量服务器 | 环境统一，一键部署 |
+| **CI/CD** | GitHub Actions → TCR | GitHub | 自动构建推送，服务器/SCF 仅 pull 部署 |
 
 ## 5. 项目目录结构
 
 ```
 ai-invest-assisstant/
 ├── .github/
-│   └── workflows/                      # GitHub Actions CI/CD
-│       ├── ci.yml
-│       └── build-and-push.yml
+│   └── workflows/
+│       └── ci.yml                      # GitHub Actions CI/CD（构建 → TCR）
 │
 ├── backend/                            # FastAPI 后端 + 采集模块
 │   ├── app/                            # Web API 应用
@@ -148,18 +139,19 @@ ai-invest-assisstant/
 │   │   │   │   ├── tasks.py / system.py
 │   │   │   │   ├── llm_config.py
 │   │   │   │   ├── collector.py / collector_channels.py / collector_data_types.py
+│   │   │   ├── assistant/              # AI 助手协议接口（threads / runs / skills / page_context）
 │   │   │   └── mcp/                    # MCP Server 接口
 │   │   │       └── server.py
 │   │   ├── agent/                      # AI Agent 运行时
-│   │   │   ├── core/                   # prompt_loader / skill_loader / llm_router / mcp_client / prompt_renderer
+│   │   │   ├── core/                   # llm_router / prompt_loader / prompt_renderer / skill_loader
+│   │   │   ├── runtime/                # deepagents 助手运行时：assistant_agent / assistant_tools / model_factory / wire
 │   │   │   ├── skills/                 # 已实现：industry_chain_analysis（产业链）
-│   │   │   ├── tools/                  # db_tools 等内部工具
-│   │   │   └── router.py               # Supervisor 路由
+│   │   │   └── tools/                  # db / chain / market / news / report / stock 内部工具
 │   │   ├── prompts/                    # 提示词配置（YAML）
-│   │   │   ├── agents/                 # supervisor / chain / research / hotspot / financial analyst
-│   │   │   └── skills/                 # industry-chain / research-report-summary / financial-report-summary /
+│   │   │   ├── agents/                 # supervisor / assistant / chain / research / hotspot / financial analyst
+│   │   │   └── skills/                 # industry-chain-analysis / research-report-summary / financial-report-summary /
 │   │   │                               #   financial-health-check / hotspot-detection / chain-breakthrough /
-│   │   │                               #   market-daily-review / limit-up-review
+│   │   │                               #   market-daily-review / limit-up-review / research-summary
 │   │   ├── core/                       # 配置、安全、连接、异常
 │   │   │   ├── config.py / security.py / database.py / redis.py / logging.py / exceptions.py
 │   │   ├── models/                     # SQLAlchemy ORM：命名遵循 <分类>_<数据类型>_<标的> 约定
@@ -173,10 +165,13 @@ ai-invest-assisstant/
 │   │   ├── dependencies/               # get_db 等依赖注入
 │   │   └── main.py                     # 应用入口
 │   ├── collector/                      # 采集 runtime
+│   │   ├── celery_app.py               # Celery 应用（timezone=Asia/Shanghai，3 队列）
+│   │   ├── celery_beat.py              # CollectorDatabaseScheduler（collector_task 表为调度真相源）
+│   │   ├── celery_tasks.py             # 任务投递与 ReviewInputDataNotReady 重试封装
 │   │   ├── core/                       # 基础设施：base(PostgresCollector/共享 engine) / http_client / parsing /
-│   │   │                               #   pipelines / exporters / locks / calendar / logging / config
+│   │   │                               #   pipelines / exporters / calendar / logging / config
 │   │   ├── runtime/                    # 执行层：runner(统一执行器) / registry(TaskSpec 声明表) / resolver /
-│   │   │                               #   channels / queue / dispatcher / scheduler / worker / cli / scf_handler
+│   │   │                               #   channels / dispatcher / cli / scf_handler
 │   │   ├── spiders/                    # 各数据源采集器（声明表配置 + collect/transform）
 │   │   │                               #   含 *_base.py 共享基类（kline_base / auction_base / sector_fund_flow_base）
 │   │   └── stores/                     # 重存储编排（financial_report_store / research_report_store）
@@ -192,6 +187,7 @@ ai-invest-assisstant/
 │   │   │   ├── layout/                 # Header / Sidebar / Layout / MobileTabBar
 │   │   │   ├── charts/                 # KlineChart / IndexKlineChart / IntradayChart / IntradaySpark /
 │   │   │   │                           #   ChainGraph / FinancialTrendCharts / StockChartView / useKlineKeyboardNav
+│   │   │   ├── assistant/              # assistant-ui 助手面板：Provider / Thread / Composer / 会话侧栏
 │   │   │   ├── common/                 # Brand / MarkdownText / SourceNote
 │   │   │   └── auth/                   # ProtectedLayout / ProtectedAdmin / RedirectIfAuthenticated
 │   │   ├── hooks/                      # 自定义 Hooks（TanStack Query 包装）
@@ -227,16 +223,16 @@ ai-invest-assisstant/
 │   └── package.json
 │
 ├── docker/                             # 容器与编排配置
-│   ├── web/                            # Web 函数镜像（前后端合一）
+│   ├── web/                            # Web 镜像（前后端合一，SPA + FastAPI）
 │   │   ├── Dockerfile
 │   │   ├── nginx.conf                  # /assets/ 长缓存 / /api/ 代理超时 300s
 │   │   └── supervisord.conf            # 守护 Nginx + FastAPI
-│   ├── collector/                      # 采集镜像（CLI 单任务 或 常驻 worker）
+│   ├── collector/                      # 采集镜像（CLI 单任务 或 Celery beat/worker）
 │   │   ├── Dockerfile
-│   │   └── entrypoint-collector.sh     # COLLECT_TASK 单任务，否则启动 worker
+│   │   └── entrypoint-collector.sh     # COLLECT_TASK 单任务；COLLECTOR_MODE=beat/worker
 │   └── database/
-│       ├── init-scripts/               # 01-schema / 02-indexes / 03-seed / 04-milvus-collections
-│       └── migrations/                 # 增量迁移 SQL（按日期归档）
+│       ├── init-scripts/               # 01-schema / 02-indexes / 03-seed
+│       └── migrations/                 # 增量迁移 SQL（按日期归档，幂等可重复执行）
 │
 ├── docs/                               # 项目文档
 │   ├── arch/                           # 架构设计
@@ -257,17 +253,15 @@ ai-invest-assisstant/
 │   └── integration/
 │       ├── test_auth.py / test_collector.py / test_health.py
 │
-├── scripts/                            # 本地与部署脚本
-│   ├── setup-local.sh / build-images.sh / deploy-scf.sh
-│   ├── run-collector.sh / run-scheduler.sh
+├── scripts/                            # 本地与构建脚本
+│   └── setup-local.sh / build-images.sh
 │
 ├── .dockerignore                       # Docker 构建忽略规则
 ├── .env.example                        # 环境变量模板
 ├── .gitignore
 ├── VERSION                             # 版本号（CI 注入构建号）
-├── docker-compose.yml                  # 全栈本地/生产编排
-├── docker-compose-dev.yml              # 开发环境编排
-├── docker-compose.infra.yml            # 轻量服务器基础设施编排
+├── docker-compose.yml                  # 全栈编排（本地/生产共用）
+├── docker-compose.prod.yml             # 生产叠加（端口/环境变量/资源限制）
 ├── Makefile                            # 常用命令
 ├── LICENSE
 └── README.md
@@ -275,7 +269,7 @@ ai-invest-assisstant/
 
 ### 目录设计原则
 
-1. **后端与采集解耦**：`backend/app/` 负责 Web API，`backend/collector/` 负责 SCF Job / worker 采集，两者可独立打包镜像但共享 ORM 与仓储层。
+1. **后端与采集解耦**：`backend/app/` 负责 Web API，`backend/collector/` 负责 Celery 采集调度与执行，两者独立打包镜像但共享 ORM 与仓储层。
 2. **共享契约中心化**：`shared/` 作为独立 npm 包，被 Web 与后端共同引用，避免接口契约漂移。
 3. **前端按页面组织**：`web/src/pages/` 按业务模块划分（每日复盘 / 产业链 / 个股 / 资金流 / 竞价 / 研报 / 财报 / 财务 / 热点 / 设置 / 后台），组件、Hooks、状态管理各自独立。
 4. **测试分层独立**：白盒测试贴近代码（`backend/tests/`、`web/src/test/`），黑盒 QA 测试独立成册（`qa/`），便于不同环境执行。
@@ -287,67 +281,59 @@ ai-invest-assisstant/
 ## 6. 核心数据流
 
 ```
-                    ┌──────────────────┐
-                    │  腾讯云 SCF Job    │
-                    │  Timer 触发器     │
-                    │  定时触发采集任务   │
-                    └────────┬─────────┘
-                             │
-         ┌───────────────────┼───────────────────┐
-         ▼                   ▼                   ▼
-   ┌──────────┐      ┌──────────────┐      ┌──────────┐
-   │ 行情采集  │      │ 财报/研报采集 │      │ 新闻采集  │
-   │ (Job)    │      │ (Job)        │      │ (Job)    │
-   └────┬─────┘      └──────┬───────┘      └────┬─────┘
-        │                   │                   │
-        ▼                   ▼                   ▼
-   ┌────────────────────────────────────────────────┐
-   │           数据清洗管道 (Pipeline)                │
-   │        去重 → 标准化 → 校验 → 脱敏              │
-   └──────────────────────┬─────────────────────────┘
-                          │
-              ┌───────────┼───────────┐
-              ▼           ▼           ▼
-        ┌─────────┐ ┌──────────┐ ┌────────┐
-        │PostgreSQL│ │  MinIO   │ │   ES   │
-        │+Milvus  │ │ PDF/研报 │ │新闻索引│
-        └────┬─────┘ └────┬─────┘ └───┬────┘
-             │            │            │
-             └────────────┼────────────┘
-                          │              ← 轻量服务器（数据存储）
-         ═════════════════╪══════════════
-                          │              ← SCF Web 函数（计算 + 展示）
-                          │
-              ┌───────────┴───────────┐
-              │    AI Agent 分析引擎   │
-              │ (PydanticAI + MCP + Skills) │
-              │                       │
-              │  ┌─────────────────┐  │
-              │  │ 财报分析 Skill   │  │
-              │  ├─────────────────┤  │
-              │  │ 研报摘要 Skill   │  │
-              │  ├─────────────────┤  │
-              │  │ 热点追踪 Skill   │  │
-              │  ├─────────────────┤  │
-              │  │ 财务体检 Skill   │  │
-              │  ├─────────────────┤  │
-              │  │ 突破点追踪 Skill │  │
-              │  └─────────────────┘  │
-              └───────────┬───────────┘
-                          │
-          ┌───────────────┴───────────────┐
-          │                               │
-   ┌──────┴──────┐               ┌────────┴────────┐
-   │  Web 前端    │               │  微信小程序       │
-   │  可视化展示   │               │  移动端数据查看    │
-   └─────────────┘               └─────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│ 外部数据源：东方财富 / 新浪财经 / 巨潮资讯 / tushare / 交易所              │
+└────────────────────────────────────────────────────────────────────────────┘
+                                     拉取│
+                                       ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│ 采集执行层（Celery worker · realtime/batch/heavy）                         │
+│ registry TaskSpec 声明（30 任务）· 多渠道优先级 · FAILED fallback          │
+│ 限流/反爬：curl_cffi 指纹 · push2delay 镜像 · 重试退避                     │
+└────────────────────────────────────────────────────────────────────────────┘
+                                     清洗│
+                                       ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│ 数据清洗管道（collector.core.parsing / pipelines）                         │
+│ parsing → transform → validate（required_fields 校验）                     │
+└────────────────────────────────────────────────────────────────────────────┘
+                                     入库│
+                                       ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│ 数据存储                                                                   │
+│ PostgreSQL/Timescale：行情 / 股池 / 资金流 / 财务 / 调度元数据             │
+│ Elasticsearch：新闻与公告全文索引 · COS：研报/财报 PDF 文件                │
+└────────────────────────────────────────────────────────────────────────────┘
+                                     查询│
+                                       ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│ API 层（FastAPI）                                                          │
+│ 查询聚合 · Redis 缓存 · SSE 流式 · MCP Server 对外暴露                     │
+└────────────────────────────────────────────────────────────────────────────┘
+                                   数据供给│
+                                       ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│ AI 分析引擎（YAML Skills + PydanticAI / deepagents）                       │
+│ 每日复盘综述 · 涨停归因 · 产业链分析 · 研报/财报摘要                       │
+│ 财务体检 · 热点检测 · 突破点追踪 · AI 助手对话                             │
+└────────────────────────────────────────────────────────────────────────────┘
+                                     展示│
+                                       ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│ 前端可视化（React SPA · EdgeOne 托管）                                     │
+│ 复盘 / 产业链图谱 / 个股 / 资金流 / 竞价 / 研报 / 财报 / 后台              │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
+
+> AI 分析结果按 `input_hash = sha256(skill_id + 业务日期)` 缓存于 `ai_analysis_result` 表，
+> 定时任务（交易日 15:05 复盘综述、16:30 涨停归因）与手动触发共享幂等缓存。
+
 
 ## 7. 功能矩阵
 
 | 功能模块 | 桌面 Web | 移动 Web | 实现要点 |
 |----------|----------|----------|----------|
-| 每日复盘 | ✅ 完整 | ✅ 卡片 | 指数 K 线 / 涨停复盘 / AI 大盘综述（可模块级编辑）/ 自选股行情卡 |
+| 每日复盘 | ✅ 完整 | ✅ 卡片 | 指数 K 线 / 涨停复盘（含 AI 归因）/ AI 大盘综述（可模块级编辑）/ 自选股行情卡 |
 | 产业链分析 | ✅ 完整交互 | ✅ 双指缩放 | G6 图谱 + 版本切换 + AI 助手确认；基于经营范围自下而上推导环节 |
 | 个股详情 | ✅ 多周期 K 线 | ✅ 单图 | 同花顺风格多窗口预设（日/周/月）+ 财务 tab 历史趋势 + 板块归属 |
 | 集合竞价 | ✅ 指数成交额趋势 | ✅ | 指数竞价口径走 Tushare `stk_auction` 聚合 |
@@ -357,16 +343,17 @@ ai-invest-assisstant/
 | 财报中心 | ✅ 列表 + 采集 + AI 摘要 | ❌ | 后台触发采集，file_metadata.summary 缓存 AI 摘要 |
 | 热点追踪 | ✅ | ✅ 速览 | 话题云、新闻时间线、热点传导链 |
 | AI 分析报告 | ✅ 完整 | ✅ 精简 | YAML 声明式分区，产业链/涨停复盘/每日综述各有独立 prompt |
+| AI 助手 | ✅ 对话面板 | ✅ 底部弹层 | assistant-ui + deepagents，流式 SSE、工具调用折叠、会话持久化 |
 | 自选股管理 | ✅ | ✅ | 个股详情页一键加入/移除 |
 | 用户设置 | ✅ 完整 | ✅ 基础 | 涨跌配色方案（红涨绿跌 / 绿涨红跌）+ 个人 K 线均线 |
-| 后台管理 | ✅ 9 个子页 | ❌ | 用户/股票/研报/资讯/任务/LLM 配置/采集渠道/数据类型优先级 |
+| 后台管理 | ✅ 9 个子页 | ❌ | 用户/股票/研报/资讯/任务/LLM 配置/采集渠道/采集任务（目录驱动） |
 
 ## 8. 后续文档索引
 
-- [01-data-source.md](./01-data-source.md) — 数据源详细分析与采集策略
-- [02-data-collection.md](./02-data-collection.md) — 采集引擎架构与云函数 Job 定时调度
+- [01-data-source.md](./01-data-source.md) — 数据源清单、反爬策略与存储去向
+- [02-data-collection.md](./02-data-collection.md) — 采集引擎架构与 Celery 调度
 - [03-data-storage.md](./03-data-storage.md) — 数据库设计与存储方案
-- [04-ai-agent.md](./04-ai-agent.md) — AI Agent 体系设计（Python Agent SDK + YAML 提示词）
-- [05-web-frontend.md](./05-web-frontend.md) — Web 前端 + 小程序架构设计
-- [06-deployment.md](./06-deployment.md) — 腾讯云部署方案（SCF + 轻量服务器）
+- [04-ai-agent.md](./04-ai-agent.md) — AI Agent 体系设计（deepagents + YAML 提示词）
+- [05-web-frontend.md](./05-web-frontend.md) — Web 前端架构设计
+- [06-deployment.md](./06-deployment.md) — 部署架构与运维实操
 - [07-testing.md](./07-testing.md) — 测试体系设计（单元/集成/E2E/QA）

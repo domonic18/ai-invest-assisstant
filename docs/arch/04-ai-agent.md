@@ -19,8 +19,8 @@
 │              （PydanticAI + YAML Prompts + MCP）                         │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │         对话式 AI 助手（agent/runtime，deepagents，Phase 1 已上线）  │   │
-│  │   右侧面板多轮对话 / Skill 渐进披露 / MCP 工具调用 / 会话历史       │   │
+│  │         对话式 AI 助手（agent/runtime，deepagents 运行时）          │   │
+│  │   右侧面板多轮对话 / Skill 渐进披露 / 工具调用 / 会话历史           │   │
 │  └──────────────────────────────────────────────────────────────────┘   │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
@@ -49,7 +49,7 @@
 | 层次 | 技术 | 说明 |
 |------|------|------|
 | **Agent SDK** | PydanticAI | Python 原生，类型安全，支持 OpenAI / Anthropic / 兼容端点（单轮管线） |
-| **Agent Harness** | deepagents（LangChain/LangGraph） | 对话式 AI 助手运行时：内置规划（TodoList）、Skill 渐进披露、MCP 工具、文件上下文（规划中，见第 10 节） |
+| **Agent Harness** | deepagents（LangChain/LangGraph） | 对话式 AI 助手运行时：内置规划（TodoList）、Skill 渐进披露、工具调用（见第 10 节） |
 | **提示词管理** | YAML 文件 | `backend/app/prompts/` 统一管理 |
 | **Skill 业务描述** | `skills/<id>/SKILL.md` | 业务描述用 Markdown，提示词用 YAML |
 | **工具协议** | MCP | 内部 / 外部工具统一标准 |
@@ -79,6 +79,7 @@ backend/
     ├── prompts/                          # 提示词与 Agent 配置（YAML）
     │   ├── agents/                       # Agent 角色定义
     │   │   ├── supervisor.yaml
+    │   │   ├── assistant.yaml            # 对话助手 system prompt
     │   │   ├── chain_analyst.yaml
     │   │   ├── research_analyst.yaml
     │   │   ├── hotspot_analyst.yaml
@@ -88,6 +89,7 @@ backend/
     │       ├── market-daily-review.yaml
     │       ├── limit-up-review.yaml
     │       ├── research-report-summary.yaml
+    │       ├── research-summary.yaml
     │       ├── financial-report-summary.yaml
     │       ├── financial-health-check.yaml
     │       ├── hotspot-detection.yaml
@@ -98,13 +100,17 @@ backend/
     │   │   ├── prompt_loader.py          # YAML 提示词加载器（带缓存与 reload）
     │   │   ├── prompt_renderer.py        # 模板变量渲染
     │   │   ├── skill_loader.py           # SKILL.md 加载器
-    │   │   ├── llm_router.py             # OpenAI / Anthropic 双协议路由
-    │   │   └── mcp_client.py             # MCP 工具客户端
+    │   │   └── llm_router.py             # OpenAI / Anthropic 双协议路由
+    │   ├── runtime/                      # deepagents 对话助手（见第 10 节）
+    │   │   ├── assistant_agent.py        # create_deep_agent 组装
+    │   │   ├── assistant_tools.py        # LangChain @tool 只读数据工具
+    │   │   └── model_factory.py          # llm_config → LangChain 模型
     │   ├── skills/                       # Skill 运行时绑定
     │   │   └── industry_chain_analysis.py
-    │   ├── tools/                        # 内部工具实现
-    │   │   └── db_tools.py
-    │   └── router.py                     # Supervisor 路由
+    │   └── tools/                        # 内部工具实现
+    │       ├── db_tools.py
+    │       ├── chain_tools.py / market_tools.py / news_tools.py
+    │       └── report_tools.py / stock_tools.py
     │
     └── api/v1/mcp/server.py              # MCP Server 暴露
 ```
@@ -263,22 +269,14 @@ LLM 配置由后台管理（`/api/v1/admin/llm-configs`）维护，API key 用 `
 
 ### 6.1 内部 MCP Server
 
-平台自身作为 MCP Server 暴露数据工具（`api/v1/mcp/server.py`）：
-
-```python
-@app.list_tools()
-async def list_tools() -> list[Tool]:
-    return [
-        Tool(name="query_industry_companies", ...),
-        Tool(name="search_vector_kb", ...),
-        ...
-    ]
-```
+平台自身作为 MCP Server 暴露数据工具（`api/v1/mcp/server.py`），内部 Agent 与外部 AI 工具共用同一套工具面。
 
 ### 6.2 Agent 中使用工具
 
+PydanticAI 通过 `@agent.tool` 注入数据工具，deepagents 助手通过 LangChain `@tool` 包装（见第 10 节）：
+
 ```python
-async def build_chain_analysis_agent(prompt_loader, model_config, db, milvus, es):
+async def build_chain_analysis_agent(prompt_loader, model_config, db):
     prompt = prompt_loader.load("skills", "industry-chain-analysis")
     agent = build_agent(prompt, model_config)
 
@@ -291,30 +289,17 @@ async def build_chain_analysis_agent(prompt_loader, model_config, db, milvus, es
     return agent
 ```
 
-## 7. RAG 管道设计
+## 7. 知识检索
 
-```
-用户查询
-    │
-    ▼
-┌──────────────────────────────────────┐
-│         查询重写 (Query Rewrite)       │
-└──────────────┬───────────────────────┘
-               │
-    ┌──────────┼──────────┐
-    ▼          ▼          ▼
-┌────────┐ ┌────────┐ ┌────────┐
-│Milvus  │ │Elastic │ │Postgre │
-│向量检索 │ │全文检索 │ │结构化查询│
-└───┬────┘ └───┬────┘ └───┬────┘
-    └──────────┼──────────┘
-               ▼
-┌──────────────────────────────────────┐
-│         结果融合 (Fusion, RRF)         │
-└──────────────┬───────────────────────┘
-               ▼
-         LLM 生成回答
-```
+LLM 上下文供给走三类检索，未引入向量库：
+
+| 检索路径 | 载体 | 场景 |
+|----------|------|------|
+| 结构化查询 | PostgreSQL（`agent/tools/db_tools`） | 行情/财务/股池/产业链数据注入 prompt |
+| 全文检索 | Elasticsearch | 新闻/公告语义关键词召回 |
+| 文档直读 | COS（PDF）+ `file_metadata.summary` 缓存摘要 | 研报/财报摘要 Skill |
+
+> 如未来需要文档级语义检索（Embedding + 向量库），再行评估引入，当前规模下结构化 + 全文检索已满足分析类 Skill 的上下文需求。
 
 ## 8. 调用方式
 
@@ -331,8 +316,12 @@ async def analyze_chain(payload: ChainAnalyzeRequest, db: AsyncSession = Depends
 
 ### 8.2 定时任务调用
 
-`market-daily-review` 由采集 worker 在盘后调度触发：`market-daily-review` 任务的 `internal` 渠道在
-`spiders/market_daily_review.py` 中汇总当日数据后调用 `market_review_service` 生成共享底稿。
+两个 AI 生成任务由采集调度自动触发（internal 渠道，heavy 队列）：
+
+- **每日复盘综述**：交易日 15:05，`spiders/market_daily_review.py` 汇总当日数据后调用 `market_review_service` 生成共享底稿
+- **涨停 AI 归因**：交易日 16:30，`spiders/limit_up_ai_review.py` 调用 `limit_up_ai_service.generate_attribution`（依赖 16:00 涨停股池；未就绪由 Celery 10 分钟退避重试 3 次兜底）
+
+两者结果均按 `input_hash=sha256(skill_id+日期)` 缓存于 `ai_analysis_result`，已生成则 SKIPPED；Redis 分布式锁防止定时任务与手动点击并发双跑 LLM。
 
 ### 8.3 MCP 外部调用
 
@@ -371,11 +360,10 @@ async def analyze_chain(payload: ChainAnalyzeRequest, db: AsyncSession = Depends
 | **复用范围** | 平台内部 Agent | 内部 + 外部 AI 工具 | 平台内部 Agent |
 | **关系** | 声明需要什么 | 提供具体能力 | 驱动 Agent 如何思考 |
 
-## 10. 对话式 AI 助手（deepagents，Phase 1 已上线 2026-08-25）
+## 10. 对话式 AI 助手（deepagents）
 
 现有 AI 能力是各页面"按钮式"单轮管线；对话式助手以 [deepagents](https://docs.langchain.com/oss/python/deepagents/overview)
-为运行时，让用户用自然语言驱动平台能力。完整方案见
-[ai-assistant-deepagents.md](../plan/ai-assistant-deepagents.md)。
+为运行时，让用户用自然语言驱动平台能力。
 
 ### 10.1 定位与边界
 
@@ -388,24 +376,18 @@ async def analyze_chain(payload: ChainAnalyzeRequest, db: AsyncSession = Depends
 | 组成 | 实现 |
 |------|------|
 | 运行时组装 | `agent/runtime/assistant_agent.py`：`create_deep_agent(model, tools, system_prompt, skills, subagents, checkpointer)` |
-| 工具层 | `agent/runtime/assistant_tools.py`：LangChain `@tool` 包装 `db_tools` 与读服务（行情/K线/财务/新闻/知识库/板块资金/大盘/竞价，Phase 1 共 8 个只读工具） |
+| 工具层 | `agent/runtime/assistant_tools.py`：LangChain `@tool` 包装 `db_tools` 与读服务（行情/K线/财务/新闻/知识库/板块资金/大盘/竞价等只读工具） |
 | Skill 渐进披露 | 根目录 `skills/*/SKILL.md` 升级为标准 frontmatter 格式（`name`/`description`），启动只加载元数据、按需读全文 |
-| Subagents | 领域子代理（market-analyst / fundamental-analyst / news-scout）+ 内置 `task` 派发（Phase 2） |
-| MCP 双向 | 平台经 fastmcp 对外暴露数据工具（`/api/v1/mcp`，替换现有空壳）；助手经 `langchain-mcp-adapters` 接入外部 MCP Server（Phase 3） |
+| MCP 双向 | 平台经 fastmcp 对外暴露数据工具（`/api/v1/mcp`）；助手经 `langchain-mcp-adapters` 接入外部 MCP Server |
 | 会话持久化 | `assistant_session` 表（会话列表/归属/标题）+ LangGraph `AsyncPostgresSaver`（消息轨迹与 agent 线程状态，`thread_id` 兼作会话 id） |
 | API/协议 | `api/v1/assistant.py` 实现 LangChain Agent Protocol：threads / runs（SSE `streamMode: messages·updates·custom`）/ cancel；业务侧仅保留会话列表与 skills 端点 |
 | 前端 | assistant-ui 右侧 Drawer 助手面板（流式渲染、思考/工具折叠、中断、HITL 卡片、Generative UI 图表），任意页面右下角唤起 |
 
-### 10.3 分阶段落地
-
-Phase 1 基础对话闭环（工具调用 + 会话历史）→ Phase 2 Skills 标准化 + 子代理 →
-Phase 3 MCP 双向 → Phase 4 写操作 + HITL 确认 + 页面上下文注入。
-工期与验收标准详见方案文档第 7 节。
+> 后续演进方向（领域子代理派发、写操作 + HITL 确认、页面上下文注入等）按需规划实施。
 
 ## 11. 后续文档索引
 
 - [00-overview.md](./00-overview.md) — 总体架构与目录结构
 - [03-data-storage.md](./03-data-storage.md) — 数据库设计（产业链版本表、AI 复盘多租户表）
 - [05-web-frontend.md](./05-web-frontend.md) — 前端如何展示版本化分析结果
-- [06-deployment.md](./06-deployment.md) — SCF Web 函数（LLM 接口代理超时 300s）
-- [ai-assistant-deepagents.md](../plan/ai-assistant-deepagents.md) — 对话式 AI 助手实现方案（deepagents）
+- [06-deployment.md](./06-deployment.md) — 部署架构（Agent Runtime / SCF 承载）

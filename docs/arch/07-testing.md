@@ -18,11 +18,11 @@
 │  └──────────────────────────────────────────────────────┘  │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │         集成测试（pytest + httpx / TestClient）        │  │
-│  │    API 接口、数据库、Redis、ES、Milvus、MinIO 协作     │  │
+│  │    API 接口、数据库、Redis、ES、COS 协作               │  │
 │  └──────────────────────────────────────────────────────┘  │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │         单元测试（pytest / Vitest）                    │  │
-│  │    Service、Schema、Pipeline、Hooks、Utils            │  │
+│  │    Service、Schema、采集器、Agent、Hooks、Utils       │  │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -36,29 +36,15 @@ backend/
 ├── app/                              # 业务代码
 ├── tests/
 │   ├── __init__.py
-│   ├── conftest.py                   # 共享 fixtures、标记、数据库配置
-│   ├── unit/                         # 单元测试
-│   │   ├── services/
-│   │   │   ├── test_stock_service.py
-│   │   │   ├── test_chain_service.py
-│   │   │   └── test_auth_service.py
-│   │   ├── collectors/
-│   │   │   ├── test_base_collector.py
-│   │   │   └── test_cninfo_collector.py
-│   │   ├── pipelines/
-│   │   │   └── test_data_pipeline.py
-│   │   └── schemas/
-│   │       └── test_api_schemas.py
-│   └── integration/                  # 集成测试
-│       ├── api/
-│       │   ├── test_auth_api.py
-│       │   ├── test_stocks_api.py
-│       │   └── test_chain_api.py
-│       ├── db/
-│       │   └── test_timescale_hypertable.py
-│       └── mcp/
-│           └── test_mcp_server.py
-├── pytest.ini
+│   ├── conftest.py                   # 共享 fixtures（TestClient 封装 + mock session）
+│   ├── unit/                         # 单元测试（无外部依赖，全部 mock）
+│   │   ├── agent/                    # 运行时组装 / wire 序列化 / subagents / skills
+│   │   ├── api/                      # 协议端点 / admin 接口
+│   │   ├── collector/                # 采集器 / registry / celery 队列
+│   │   ├── services/                 # 服务层业务逻辑
+│   │   ├── test_crypto.py
+│   │   └── test_llm_config_service.py
+│   └── integration/                  # 集成测试（需中间件）
 ├── pyproject.toml                      # uv 依赖与工具配置
 └── uv.lock                             # 依赖锁定文件
 ```
@@ -70,9 +56,9 @@ backend/
 | 包管理 | uv | Python 依赖与虚拟环境 |
 | 测试框架 | pytest + pytest-asyncio | 单元/集成测试 |
 | HTTP 客户端 | httpx / TestClient | API 接口测试 |
-| 数据库 | SQLite + aiosqlite（内存模式） | 集成测试隔离数据库 |
+| 数据隔离 | mock session（覆盖 `get_db`） | 单元测试不落库，仓储/服务协作全 mock |
 | 异步 | pytest-asyncio | 协程测试 |
-| Mock | unittest.mock / pytest-mock / respx | 外部 HTTP/Milvus/ES 模拟 |
+| Mock | unittest.mock / pytest-mock / respx | 外部 HTTP/ES 模拟 |
 | 覆盖率 | pytest-cov | 覆盖率统计 |
 
 ### 3.3 测试标记
@@ -97,78 +83,42 @@ markers =
 # tests/conftest.py
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-# 内存 SQLite，StaticPool 保证多协程共享同一连接
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """为 session 级 async fixture 提供统一事件循环。"""
-    import asyncio
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture(scope="session")
-async def engine():
-    engine = create_async_engine(
-        TEST_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
+from app.dependencies import get_db
+from app.main import app
 
 
 @pytest.fixture
-async def db_session(engine):
-    async_session = async_sessionmaker(engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
-        await session.rollback()
-
-
-@pytest.fixture
-def client(db_session):
-    """依赖 db_session 的 TestClient。"""
-    app.dependency_overrides[get_db] = lambda: db_session
-    with TestClient(app) as c:
-        yield c
+def client():
+    """返回已清除依赖覆盖的 TestClient。"""
+    app.dependency_overrides.clear()
+    yield TestClient(app)
     app.dependency_overrides.clear()
 
 
+class _MockSession:
+    """极简 mock session，用于覆盖 get_db。"""
+
+    async def commit(self) -> None: ...
+    async def refresh(self, obj: object) -> None: ...
+    async def close(self) -> None: ...
+
+
 @pytest.fixture
-def mock_milvus(mocker):
-    """模拟 Milvus 向量搜索结果。"""
-    return mocker.patch("app.services.chain_service.search_milvus", return_value=[])
+def mock_session(client):
+    """覆盖 get_db 返回一个 mock session（单元测试不落库）。"""
+    session = _MockSession()
+
+    async def _override_get_db():
+        yield session
+
+    app.dependency_overrides[get_db] = _override_get_db
+    return session
 ```
 
-### 3.5 PostgreSQL → SQLite 兼容补丁
+> 单元测试以 mock 为主（外部 HTTP、session、LLM 均不打真实端点）；涉及真实 PG/Redis/ES 的路径归入 `integration/` 与 `qa/`。
 
-集成测试使用 SQLite 内存数据库，需对 PostgreSQL 特有类型打补丁：
-
-```python
-# tests/conftest.py
-def _patch_postgresql_types_for_sqlite():
-    from sqlalchemy import JSON, Text
-    from sqlalchemy.dialects import postgresql
-    from sqlalchemy.ext.compiler import compiles
-
-    @compiles(postgresql.JSONB, 'sqlite')
-    def compile_jsonb_sqlite(element, compiler, **kw):
-        return compiler.process(JSON(), **kw)
-
-    @compiles(postgresql.ARRAY, 'sqlite')
-    def compile_array_sqlite(element, compiler, **kw):
-        return compiler.process(Text(), **kw)
-```
-
-### 3.6 单元测试示例
+### 3.5 单元测试示例
 
 ```python
 # tests/unit/services/test_stock_service.py
@@ -187,7 +137,7 @@ class TestStockService:
         assert StockService.calculate_change_pct(110, 100) == 10.0
 ```
 
-### 3.7 集成测试示例
+### 3.6 集成测试示例
 
 ```python
 # tests/integration/api/test_auth_api.py
@@ -322,16 +272,13 @@ export default defineConfig({
 ### 5.1 目录结构
 
 ```
-qa/
-├── conftest.py                       # 环境变量、fixtures、资源清理
-├── pyproject.toml                    # uv 依赖配置
-└── integration/                      # 黑盒集成测试
+qa/                                  # 独立 uv 项目
+├── pyproject.toml                   # uv 依赖配置
+└── integration/                     # 黑盒集成测试
+    ├── conftest.py                  # 环境变量、fixtures、资源清理
     ├── test_auth.py
-    ├── test_stocks.py
-    ├── test_chain.py
-    ├── test_auction.py
-    ├── test_hotspot.py
-    └── test_mcp.py
+    ├── test_collector.py
+    └── test_health.py
 ```
 
 ### 5.2 环境变量
@@ -373,22 +320,17 @@ class TestStocks:
 ### 6.2 示例
 
 ```python
-# backend/tests/unit/collectors/test_cninfo_collector.py
+# backend/tests/unit/collector/test_limit_up_ai_review.py（节选）
 import pytest
-from collector.spiders.cninfo import CninfoCollector
+from collector.spiders.limit_up_ai_review import LimitUpAiReviewCollector
 
 
 @pytest.mark.unit
 @pytest.mark.collector
-class TestCninfoCollector:
-    @pytest.fixture
-    def collector(self):
-        return CninfoCollector({"source": "cninfo", "data_type": "announcement"})
-
-    async def test_transform(self, collector):
-        raw = {"announcementId": "123", "announcementTitle": "年度报告"}
-        item = await collector.transform(raw)
-        assert item["title"] == "年度报告"
+class TestLimitUpAiReviewCollector:
+    async def test_cached_hit_skipped(self, monkeypatch):
+        # 缓存命中 → SKIPPED（良性终态，不触发 LLM，不轮换渠道）
+        ...
 ```
 
 ## 7. Skill 测试
@@ -437,39 +379,13 @@ class TestChainSkillOutput:
 
 ## 9. CI/CD 集成
 
-### 9.1 GitHub Actions 工作流
+### 9.1 GitHub Actions 工作流（`.github/workflows/ci.yml`）
 
-```yaml
-# .github/workflows/ci.yml
-name: CI
-
-on: [push, pull_request]
-
-jobs:
-  backend-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Sync dependencies
-        run: cd backend && uv sync
-      - name: Run unit tests
-        run: cd backend && uv run pytest -m unit --cov=app --cov-report=xml
-
-  web-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: cd web && npm install
-      - run: cd web && npm run lint
-      - run: cd web && npm run typecheck
-      - run: cd web && npm run test:unit -- --coverage
-```
+| Job | 触发 | 内容 |
+|-----|------|------|
+| Backend | push / PR / 手动 | uv 同步依赖 → `ruff check` → `mypy` → `pytest -m unit` |
+| Web | push / PR / 手动 | 构建 shared 包 → npm 安装 → lint → typecheck → 单测 |
+| Docker | push develop / main | buildx 构建 amd64 双镜像（web-api / collector）→ 推送 TCR（secrets：`TCR_NAMESPACE` / `TCR_USERNAME` / `TCR_PASSWORD`） |
 
 ### 9.2 测试阶段
 
@@ -500,12 +416,11 @@ jobs:
 
 ### 11.2 Mock 数据
 
-- `backend/tests/fixtures/`：存放采集器原始响应样本、Skill 输出样例。
-- `web/src/test/mocks/`：MSW handler 与 API 响应模拟数据。
+- 采集器原始响应样本、Skill 输出样例内联在对应单测文件中维护（必要时抽到 `backend/tests/fixtures/`）。
+- `web/src/test/`：测试环境初始化与 API 响应模拟数据。
 
 ## 12. 后续文档索引
 
 - [00-overview.md](./00-overview.md) — 总体架构与目录结构
-- [05-web-frontend.md](./05-web-frontend.md) — Web + 小程序前端架构
-- [06-deployment.md](./06-deployment.md) — 部署与运维方案
-- [../plan/development-plan.md](../plan/development-plan.md) — 开发计划与里程碑
+- [05-web-frontend.md](./05-web-frontend.md) — Web 前端架构
+- [06-deployment.md](./06-deployment.md) — 部署架构与运维

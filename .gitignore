@@ -28,6 +28,11 @@ web/dist/
 .yarn/
 pnpm-lock.yaml
 
+# TypeScript 增量构建产物（npx tsc -b 生成，禁止入库）
+*.tsbuildinfo
+web/*.config.js
+web/*.config.d.ts
+
 # ====================
 # IDE & Editor
 # ====================

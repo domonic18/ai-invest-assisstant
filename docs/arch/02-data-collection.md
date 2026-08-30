@@ -2,34 +2,32 @@
 
 ## 1. 采集引擎总览
 
-采集模块独立于 Web API，位于 `backend/collector/`，是**声明式 + 多渠道 fallback**的 runtime：
-所有任务在 `runtime/registry.py` 的 `TASK_SPECS` 注册表声明，新增数据源只需扩展声明表与 spider 类，
-无需改动 runner / scheduler / API。
+采集模块独立于 Web API，位于 `backend/collector/`，是**声明式注册表 + 多渠道 fallback**的 runtime，
+执行载体为 **Celery**（beat 调度 + 3 个队列 worker）。所有任务在 `runtime/registry.py` 的
+`TASK_SPECS` 注册表声明，新增数据源只需扩展声明表与 spider 类，无需改动 runner / 调度 / API。
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
 │                          采集 runtime 总览                                   │
 │                                                                            │
-│  触发方式（共用同一份 runtime）                                              │
-│  ├── SCF Job（Timer） → runtime.scf_handler → runtime.cli → runner.run_task │
-│  ├── 常驻 worker       → runtime.worker ← Redis 队列 → runner.run_task       │
-│  ├── 调度器            → runtime.scheduler（cron）→ Redis 队列              │
-│  └── 管理后台 API      → runtime.dispatcher（投递）→ Redis 队列              │
+│  collector/ 顶层（Celery 装配）                                             │
+│  ├── celery_app.py    Celery 应用（timezone=Asia/Shanghai，3 队列）         │
+│  │                    collector.realtime / collector.batch / collector.heavy│
+│  ├── celery_beat.py   CollectorDatabaseScheduler：collector_task 表为       │
+│  │                    调度唯一真相源，beat 周期同步 DB（改行即生效）         │
+│  └── celery_tasks.py  任务投递封装 + NotReady 自动重试（见 §6）              │
 │                                                                            │
-│  runtime/                                                                  │
-│  ├── registry.py     TaskSpec 声明表（任务参数 + 渠道懒加载路径）             │
+│  runtime/                                                                   │
+│  ├── registry.py     TaskSpec 声明表（30 任务：参数 + 渠道懒加载路径）       │
 │  ├── resolver.py     按 collector_channel_data_type 优先级解析可用渠道       │
 │  ├── channels.py     渠道配置数据访问                                        │
-│  ├── queue.py        Redis 队列封装                                         │
-│  ├── dispatcher.py   后台 API → 队列                                        │
-│  ├── scheduler.py    cron → 队列                                            │
-│  ├── worker.py       常驻消费循环                                            │
-│  ├── runner.py       统一执行器（collector_log 唯一写入点）                  │
-│  ├── cli.py          CLI 入口（SCF Job / 本地脚本）                          │
-│  └── scf_handler.py  SCF 事件解析                                            │
+│  ├── dispatcher.py   管理后台 API → Celery 队列投递                         │
+│  ├── runner.py       统一执行器 run_task（collector_log 唯一写入点）         │
+│  ├── cli.py          CLI 入口（本地调试 / 应急）                             │
+│  └── scf_handler.py  SCF 事件解析（云函数承载时的适配层）                    │
 │                                                                            │
 │  core/    base(PostgresCollector/共享 engine) / http_client / parsing /     │
-│           pipelines / exporters / locks / calendar / logging / config       │
+│           pipelines / exporters / calendar / logging / config               │
 │  spiders/ 各数据源采集器（声明表配置 + collect/transform）                   │
 │  stores/  重存储编排（financial_report_store / research_report_store）       │
 └────────────────────────────────────────────────────────────────────────────┘
@@ -37,78 +35,63 @@
 
 ## 2. 调度与执行入口
 
-### 2.1 三种触发方式共享同一执行器
+### 2.1 四种触发方式共享同一执行器
 
 ```
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│ SCF Timer     │  │ scheduler    │  │ dispatcher   │  │ CLI/本地脚本 │
-│ (云函数触发)  │  │ (常驻 cron)  │  │ (后台 API)   │  │              │
-└──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
-       │ scf_handler      │ 入队            │ 入队            │
-       ▼                  ▼                 ▼                 ▼
-   runtime.cli     ──────► Redis 队列 ◄──────              runtime.cli
-                            (collector:queue)
-                                  │
-                                  ▼
-                        ┌──────────────────┐
-                        │ runtime.worker   │ ← 常驻消费循环（也可由 cli 单跑）
-                        └────────┬─────────┘
-                                 │
-                                 ▼
-                        ┌──────────────────┐
-                        │ runtime.runner   │ 生成 task_run_id，回写 collector_log
-                        │   .run_task      │ 失败记录 traceback
-                        └────────┬─────────┘
-                                 │
-                                 ▼
-                        ┌──────────────────┐
-                        │ registry 解析    │ 按 TaskSpec 拉起对应 spider
-                        │ 多渠道 fallback  │ 失败自动切换下一渠道
-                        └──────────────────┘
+┌────────────────────┐ ┌────────────────┐ ┌──────────────┐ ┌─────────────┐
+│ celery-beat         │ │ 管理后台 API    │ │ CLI/本地脚本 │ │ SCF 事件     │
+│ collector_task 表   │ │ dispatcher 投递│ │ runtime.cli  │ │ scf_handler │
+└─────────┬──────────┘ └───────┬────────┘ └──────┬───────┘ └──────┬──────┘
+          │ 按 schedule 投递    │                 │ 直接调用        │
+          ▼                    ▼                 ▼                ▼
+   ┌────────────────────────────────┐                          runtime.cli
+   │ Celery 队列                     │
+   │ realtime(实时) / batch(批量) /  │
+   │ heavy(LLM 长任务, 并发=1)       │
+   └──────────────┬─────────────────┘
+                  ▼
+   ┌────────────────────────────────┐
+   │ runtime.runner.run_task        │ 生成 task_run_id，回写 collector_log，
+   │ （worker/scheduler/CLI/SCF 共享）│ 失败记录 traceback
+   └──────────────┬─────────────────┘
+                  ▼
+   ┌────────────────────────────────┐
+   │ registry 解析 → 拉起 spider     │ 多渠道 fallback（仅 FAILED 轮换）
+   └────────────────────────────────┘
 ```
 
-`docker/collector/entrypoint-collector.sh` 通过环境变量 `COLLECT_TASK` 选择执行模式：
-- 设置 `COLLECT_TASK=<task>` → 跑一次性任务后退出（适配 SCF Job）
-- 未设置 → 启动常驻 worker（监听 Redis 队列）
+`docker/collector/entrypoint-collector.sh` 通过环境变量选择进程角色：
 
-### 2.2 调度矩阵（参考）
+- `COLLECTOR_MODE=beat` → celery-beat（挂 `CollectorDatabaseScheduler`）
+- `COLLECTOR_MODE=worker` + `COLLECTOR_QUEUE=<queue>` → 队列 worker
+- 设置 `COLLECT_TASK=<task>` → 跑一次性任务后退出（CLI / SCF 模式）
 
-```
-┌──────────────────┬──────────────────┬──────────────────────────────────┐
-│ 任务              │ 触发节奏          │ 备注                              │
-├──────────────────┼──────────────────┼──────────────────────────────────┤
-│ kline            │ 交易日 16:00 起   │ sina → ths fallback               │
-│ index-kline      │ 交易日盘后        │ 仅 sina                           │
-│ etf-kline        │ 交易日盘后        │ 沪深 300 ETF                      │
-│ a50-kline        │ 交易日盘后        │ 富时 A50（东财）                  │
-│ stock-minute     │ 交易日盘后        │ 个股分钟线                        │
-│ index-minute     │ 交易日盘后        │ 指数分钟线                        │
-│ index-auction    │ 交易日盘前 9:15   │ Tushare stk_auction 聚合          │
-│ sector-fund-flow │ 交易日盘后        │ 东财（行业）/ 同花顺（概念）      │
-│ fund-flow        │ 交易日盘后        │ 东财个股资金流                    │
-│ limit-up-pool    │ 交易日盘后        │ 东财官方涨停池                    │
-│ limit-down-pool  │ 交易日盘后        │ 东财跌停池                       │
-│ dragon-list      │ 交易日盘后        │ 东财龙虎榜                       │
-│ broken-pool      │ 交易日盘后        │ 东耳炸板池                       │
-│ market-breadth   │ 交易日盘后        │ sina 市场宽度                    │
-│ market-amount    │ 交易日盘后        │ 上交所/深交所成交流水             │
-│ index-spot       │ 盘中实时          │ sina 指数 spot                    │
-│ quote            │ 盘中实时          │ sina 个股实时行情                 │
-│ stock-list       │ 每日              │ sina 全市场列表 + 字段补全        │
-│ company-profile  │ 每日              │ 巨潮资讯公司信息                  │
-│ disclosure       │ 每小时            │ 巨潮资讯公告                      │
-│ financial-report │ 每日 / 财报季密集 │ 东财结构化 / 巨潮 PDF（双源）     │
-│ research-report  │ 每日 9,18         │ 东财研报                          │
-│ fund-holdings    │ 每季              │ 东财基金持仓                      │
-│ ipo-info         │ 每日              │ 巨潮 IPO 信息                     │
-│ concept-constit. │ 每日              │ 东财概念成分股                    │
-│ news             │ 每 30 分钟        │ sina 财经新闻                    │
-│ macro            │ 按需              │ sina 宏观指标                    │
-│ market-daily-... │ 交易日盘后        │ internal 渠道，汇总当日复盘数据  │
-└──────────────────┴──────────────────┴──────────────────────────────────┘
-```
+### 2.2 调度矩阵（节奏参考）
 
-> 具体时间在 `runtime/scheduler.py` 与 `docker/database/init-scripts/03-seed.sql` 的种子任务表中维护。
+调度真相源是 `collector_task` 表（种子见 `docker/database/init-scripts/03-seed.sql`），
+beat 周期同步，在管理后台改行即生效；下表仅列节奏概况，**具体 cron 以表内容为准**：
+
+| 任务 | 渠道 | 节奏 |
+|------|------|------|
+| kline_{daily,weekly,monthly} | sina（唯一） | 交易日盘后 |
+| index-kline / etf-kline / a50-kline | sina / 东财 | 交易日盘后 |
+| stock-minute / index-minute | sina | 交易日盘后 |
+| index-auction（指数集合竞价） | tushare（唯一） | 交易日 9:15 盘前 |
+| auction（个股集合竞价） | sina → ths | 交易日盘前 |
+| market-amount（市场成交额） | exchange（唯一） | 交易日盘中/盘后 |
+| sector-fund-flow（板块资金流） | eastmoney → ths | 交易日盘后 |
+| fund-flow（个股资金流） | eastmoney | 交易日盘后 |
+| limit-up-pool / limit-down-pool / broken-pool | eastmoney | 交易日 16:00 盘后 |
+| dragon-list（龙虎榜） | eastmoney | 交易日盘后 |
+| market-breadth / index-spot / quote / stock-list | sina | 盘中高频 / 每日 |
+| concept-constituents（概念成分股） | eastmoney（curl_cffi） | 每日 |
+| news / macro | sina | 每 30 分钟 / 按需 |
+| company-profile / disclosure / financial-report / ipo-info | cninfo | 每日 / 公告小时级 / 财报季密集 |
+| research-report / fund-holdings | eastmoney | 每日两次 / 每季 |
+| market-daily-review（每日复盘） | internal | 交易日 15:05，LLM 生成 |
+| limit-up-ai-review（涨停AI归因） | internal | 交易日 16:30（依赖 16:00 涨停池），LLM 生成 |
+
+> internal 两个 AI 任务结果按 `input_hash=sha256(skill_id+日期)` 缓存于 `ai_analysis_result`，已生成则 SKIPPED（良性终态）。
 
 ## 3. 注册表驱动的任务声明
 
@@ -120,49 +103,43 @@
 @dataclass(frozen=True)
 class TaskSpec:
     name: str                            # 任务名（与 collector_task.task_type 对应）
-    data_type: str                       # 写入 collector_log/渠道解析的数据类型；支持 {param}
+    label: str                           # 中文展示名（目录 API / 前端标签）
+    data_type: str                       # 渠道解析键；支持 {param} 模板（如 kline_{period}）
     collectors: dict[str, str]           # source -> "module:Class" 懒加载路径
+    queue: str = ...                     # Celery 队列（_QUEUE_OVERRIDES 集中覆盖，如 heavy）
+    soft_time_limit: int = ...           # 软超时（LLM 任务放宽）
+    max_retries: int = ...               # Celery 重试次数
     config_params: tuple[str, ...] = ()  # 透传到 collector config 的任务参数
     run_params: tuple[str, ...] = ()     # 透传到 collector.run(**kwargs) 的参数
-    defaults: dict[str, Any] = field(default_factory=dict)
-    converters: dict[str, Callable] = field(default_factory=dict)
-
-    @property
-    def param_keys(self) -> tuple[str, ...]:
-        return self.config_params + self.run_params
+    defaults: dict[str, Any] = ...       # 参数默认值（日期类一律 latest_trading_day()）
+    converters: dict[str, Callable] = ...  # 参数类型转换（如 date.fromisoformat）
 ```
 
 新增采集任务的典型声明：
 
 ```python
 TaskSpec(
-    name="concept-constituents",
-    data_type="mapping_stock_concept",
-    collectors={
-        "eastmoney": "collector.spiders.eastmoney_concept_constituents:EastmoneyConceptConstituentCollector",
-    },
-),
-TaskSpec(
-    name="sector-fund-flow",
-    data_type="capital_fund_flow_sector",
-    collectors={
-        "eastmoney": "collector.spiders.eastmoney_sector_fund_flow:EastMoneySectorFundFlowCollector",
-        "ths": "collector.spiders.ths_sector_fund_flow:ThsSectorFundFlowCollector",
-    },
-    run_params=("sector_type", "trade_date"),
+    name="limit-up-ai-review",
+    label="涨停AI归因",
+    data_type="ai_limit_up_review",
+    collectors={"internal": "collector.spiders.limit_up_ai_review:LimitUpAiReviewCollector"},
+    run_params=("trade_date",),
     converters={"trade_date": date.fromisoformat},
 ),
 ```
 
-runner 的任务参数白名单从 `TASK_SPECS` 派生，参数只在声明表维护一处。
+runner 的任务参数白名单从 `TASK_SPECS` 派生，参数只在声明表维护一处；
+管理后台"采集任务"页（目录 API `GET /admin/collector/tasks/catalog`）亦从 TASK_SPECS 派生，
+API/UI 禁止另行硬编码任务清单。
 
 ### 3.2 多渠道 fallback
 
 `_run_collector_for_task` 按 `resolve_channels_for_task` 返回的优先级顺序逐个尝试：
 
-- 渠道未启用 / 该任务无对应采集器 → 记录 `[source] 渠道没有任务 X 对应的采集器`，跳到下一个
-- 采集器返回 `FAILED` / `SKIPPED` → 记录错误，尝试下一渠道
-- 任意渠道返回 `SUCCESS` / `PARTIAL` → 立即返回；其余失败渠道的错误合并进 `result.errors`
+- 渠道未启用 / 该任务无对应采集器 → 记录日志，跳到下一个
+- **仅 `FAILED` 触发轮换下一渠道**；`SUCCESS` / `PARTIAL` 立即返回
+- **`SKIPPED` 是良性终态**（非交易日、已生成、无数据等），不轮换、不改写为 FAILED
+- 全渠道失败 → FAILED，其余渠道的错误合并进 `result.errors`，并写 `collector_dead_letter` 死信
 
 > 设计要点：多渠道任务的 fallback 依赖异常向上传播，spider 内除已知"无数据即抛错"的接口（涨停池 / 龙虎榜）外，不要 try/except 吞异常返回空列表。
 
@@ -206,7 +183,7 @@ class SinaKlineCollector(PostgresCollector):
 
 | 共享基类 | 子类（渠道） |
 |----------|--------------|
-| `kline_base.py` | `sina_kline` / `ths_kline` |
+| `kline_base.py` | `sina_kline`（ths_kline 已下线：其接口实走东财 push2his 路径，被 WAF 封死） |
 | `auction_base.py` | `sina_auction` / `ths_auction` |
 | `sector_fund_flow_base.py` | `eastmoney_sector_fund_flow` / `ths_sector_fund_flow` |
 
@@ -216,7 +193,7 @@ class SinaKlineCollector(PostgresCollector):
 
 `stores/` 承载需要复杂文件 / 元数据 / 多步写入的采集：
 
-- `financial_report_store.py` — 东财结构化 + 巨潮 PDF 双源；下载 PDF 入 MinIO，元数据写 `file_metadata`，触发 AI 摘要时回写 `summary` 列
+- `financial_report_store.py` — 东财结构化 + 巨潮 PDF 双源；下载 PDF 入 COS（S3 兼容），元数据写 `file_metadata`，触发 AI 摘要时回写 `summary` 列
 - `research_report_store.py` — 东财研报下载；通过 `curl_cffi` 模拟 Chrome TLS 指纹绕过 `pdf.dfcfw.com` 的 WAF
 
 > 同样写入 collector_log，但走自己的事务边界（不经过 `get_db`）。
@@ -225,25 +202,31 @@ class SinaKlineCollector(PostgresCollector):
 
 - **解析函数只用 `core.parsing`**：`to_optional_str` / `to_float` / `parse_cn_amount` / `clean_stock_code` / `parse_date` / `parse_time` — 禁止在 spider 内重复定义
 - **akshare 容错**：空数据（`df is None or df.empty`）返回 `[]`；异常向上传播以便 fallback 生效
-- **HTTP 客户端**：东财 push2/push2his 已被 IP 封禁，统一走 `core.http_client` 中的限流客户端；同花顺作为备用源
+- **HTTP 客户端**：统一走 `core.http_client` 限流客户端（超时/重试/间隔）。东财 WAF 按 **TLS 指纹 + 路径 + 主机**限流（非 IP 封禁）：`push2` 高频连发按主机封禁 → 批量拉取走 `push2delay` 镜像；`push2his` kline 路径封死 → K 线一律走新浪；TLS 指纹敏感接口用 `curl_cffi` Chrome 指纹
+- **日期参数**：默认值必须是 `latest_trading_day()`，禁止 `today_cn()`/`now` 兜底——周末手动补跑会静默空采；仅"天然只有当日"的数据（auction 快照、新浪分钟线）可用当日
 - **日志**：入口调用 `core.logging.configure_logging()`，禁止 `logging.basicConfig`；任务日志自动携带 `task_run_id` / `task` / `source`
 - **配置**：用 `core.config`（委托 `app.core.config`），禁止新增环境变量读取点
+- **时区**：业务日期用 `app.core.clock`，Celery 调度一律按 Asia/Shanghai 书写
 
 ## 6. 容错与监控
 
 ```
-监控策略
+容错与监控
   ├── collector_log（PostgreSQL，runner 唯一写入点）
   │     ├── task_run_id / task / source / status / 数据量
-  │     ├── started_at / finished_at / errors[] / traceback
+  │     ├── started_at / finished_at / errors[] / traceback / celery_task_id
   │     └── 每次执行一条记录，便于按任务/渠道/日期审计
   │
-  ├── 多渠道 fallback
-  │     └── 失败自动切换下一渠道，最终失败时合并所有尝试的错误
+  ├── 多渠道 fallback（仅 FAILED 轮换；SKIPPED 良性终态）
   │
-  └── 失败重试
-        ├── SCF 异步重试（云函数内置）
-        └── 下一次 Timer 触发自动覆盖（增量采集天然容错）
+  ├── Celery 自动重试
+  │     ├── ReviewInputDataNotReadyError（上游数据未就绪，如涨停池延迟）
+  │     │     → self.retry(countdown=600, max_retries=3) 10 分钟退避
+  │     └── SKIPPED 不重试（良性终态）
+  │
+  ├── collector_dead_letter 死信表（全渠道失败落库，可管理端查看/重放）
+  │
+  └── 调度自愈：beat 周期同步 collector_task 表，改行即生效无需重启
 ```
 
 `runner.run_task` 是 `collector_log` 的**唯一写入点**：
@@ -253,7 +236,7 @@ class SinaKlineCollector(PostgresCollector):
 
 ## 7. 后续文档索引
 
-- [01-data-source.md](./01-data-source.md) — 数据源详细分析
+- [01-data-source.md](./01-data-source.md) — 数据源与反爬策略
 - [03-data-storage.md](./03-data-storage.md) — 数据库设计与命名约定
 - [04-ai-agent.md](./04-ai-agent.md) — AI Agent 体系（采集 → Skill 数据工具）
-- [06-deployment.md](./06-deployment.md) — SCF Job / worker 部署方案
+- [06-deployment.md](./06-deployment.md) — 部署架构与运维
