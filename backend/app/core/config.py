@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     minio_bucket: str = "invest-files"
     minio_secure: bool = False
     minio_region: str = "us-east-1"
+    # COS 等强制 virtual-host 寻址的 S3 兼容服务须开启（MinIO 保持关闭）
+    minio_virtual_host: bool = False
 
     # JWT
     jwt_algorithm: str = "HS256"

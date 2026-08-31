@@ -14,24 +14,27 @@ class MinIOService:
 
     def __init__(self) -> None:
         settings = get_settings()
-        self.client = Minio(
-            settings.minio_endpoint,
-            access_key=settings.minio_access_key,
-            secret_key=settings.minio_secret_key,
-            secure=settings.minio_secure,
-            region=settings.minio_region,
-        )
-        # 预签名 URL 会把 endpoint 主机写入签名，因此必须用公网可达的
-        # endpoint 而非集群内部地址来签名。COS 等非 us-east-1 的 S3 兼容
-        # 服务需要显式 region，否则签名会被拒绝。
-        self._presign_client = (
-            Minio(
-                settings.minio_public_endpoint,
+
+        def build_client(endpoint: str) -> Minio:
+            # COS 等非 us-east-1 的 S3 兼容服务需要显式 region，否则签名被拒；
+            # COS 还禁用 path-style 寻址，须启用 virtual-host（SDK 自动把
+            # bucket 前置到主机名，因此 endpoint 用区域域名而非 bucket 域名）。
+            client = Minio(
+                endpoint,
                 access_key=settings.minio_access_key,
                 secret_key=settings.minio_secret_key,
                 secure=settings.minio_secure,
                 region=settings.minio_region,
             )
+            if settings.minio_virtual_host:
+                client.enable_virtual_style_endpoint()
+            return client
+
+        self.client = build_client(settings.minio_endpoint)
+        # 预签名 URL 会把 endpoint 主机写入签名，必须用公网可达的 endpoint
+        # 而非集群内部地址来签名
+        self._presign_client = (
+            build_client(settings.minio_public_endpoint)
             if settings.minio_public_endpoint
             else self.client
         )
