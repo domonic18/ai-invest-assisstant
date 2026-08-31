@@ -36,10 +36,6 @@ class Settings(BaseSettings):
     # Elasticsearch
     elasticsearch_url: str = "http://localhost:9200"
 
-    # Milvus
-    milvus_host: str = "localhost"
-    milvus_port: int = 19530
-
     # MinIO
     minio_endpoint: str = "localhost:9000"
     minio_public_endpoint: str | None = None
