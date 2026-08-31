@@ -24,7 +24,7 @@
 ## 2. 网络与域名
 
 - **公网入口**：`invest.17aitech.com`（已备案）→ EdgeOne 接入；SPA 静态资源走 Pages，`/api/*` 走 SCF（自定义域名或函数默认域名），助手对话经 Agent Runtime 会话沙箱承载（沙箱内回调 SCF API 取数）
-- **内网互通**：SCF 绑定 VPC，经**云联网 CCN** 连接轻量服务器 VPC（同地域免费），读写 PG/Redis/ES
+- **数据面互通**：SCF 不绑 VPC（默认具备公网出口），经轻量服务器公网 IP 直连 PG/Redis——轻量防火墙放行 5432/6379，Redis requirepass / PG 账号密码认证；ES 无认证留置轻量本地、不对外发布
 - **文件访问**：COS 预签名 URL 下发下载，前端不直连存储
 - **备份链路**：轻量服务器 `pg_dump` 定时任务直推 COS
 

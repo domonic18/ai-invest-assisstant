@@ -4,7 +4,7 @@
 
 ## 1. 现状（方案 A：轻量服务器全栈单机）
 
-生产环境为腾讯云轻量应用服务器（Lighthouse 2C4G/50G，ap-beijing，`49.233.145.117`），域名 `invest.17aitech.com`（已备案）→ Caddy 反代。代码位于 `/opt/investment`（develop 分支），`COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml` 两文件叠加。
+生产环境为腾讯云轻量应用服务器（Lighthouse 2C4G/50G，ap-beijing，`49.233.145.117`），域名 `invest.17aitech.com`（已备案）→ Caddy 反代。代码位于 `/opt/investment`（develop 分支）。本地开发与生产是**两套互相独立的 compose 文件**：`docker-compose.yml` = 本地（含 minio 对象存储、端口全发布、无 caddy/https），`docker-compose.prod.yml` = 生产（COS 对象存储无 minio 容器、caddy 80/443、应用镜像走 TCR）。compose 默认只加载 `docker-compose.yml` 这一个文件名，生产命令一律显式 `docker compose -f docker-compose.prod.yml …` 指定（`-f` 优先级高于 `.env` 的 `COMPOSE_FILE`；生产机上 up/pull/down/restart 裸跑会误用本地文件）。
 
 | 分组 | 容器 | 说明 |
 |------|------|------|
@@ -37,7 +37,7 @@ GitHub Actions（`.github/workflows/ci.yml`，develop push 触发 + workflow_dis
 1. **构建推送**：按 [06-deployment.md §3 镜像与发布](../arch/06-deployment.md) 构建推送 `web-api` / `collector` 双镜像（linux/amd64，tag = `latest` + git short sha）
 2. **凭据**：repo secrets `TCR_NAMESPACE` / `TCR_USERNAME`（腾讯云 UIN）/ `TCR_PASSWORD`（**推送至今未验证成功，Phase 1 第一项就是打通它**）
 3. **compose 镜像定位（前置，已实施）**：应用服务 `image:` 指向 TCR（`web-api` / `collector` 双镜像，beat 与 workers 共用 collector），tag 走 `${APP_TAG:-latest}`——服务器 `.env` 以 `APP_TAG` 钉版（填 CI 输出的 git 短 sha），缺省 `latest`；生产不用裸 `latest` 做部署指针（不可复现）。`build:` 保留，供本地与 §7 应急构建
-4. **部署（手动）**：CI 不含任何部署 job；服务器一次性 `docker login ccr.ccs.tencentyun.com`。发布 = `.env` 写入本次短 sha → `docker compose pull && docker compose up -d --wait --remove-orphans --no-build`（`--wait` 借 healthcheck 作部署闸门、失败非零退出；`--remove-orphans` 为 Phase 2 下线服务自动清孤儿容器；`--no-build` 防误在服务器构建）。回滚 = `.env` 改回上一 sha 重跑同命令。定期 `docker image prune -f` 控制旧镜像盘占。发布节奏自控，不引入 SSH action / watchtower
+4. **部署（手动）**：CI 不含任何部署 job；服务器一次性 `docker login ccr.ccs.tencentyun.com`。发布 = `.env` 写入本次短 sha → `docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d --wait --remove-orphans --no-build`（`--wait` 借 healthcheck 作部署闸门、失败非零退出；`--remove-orphans` 为 Phase 2 下线服务自动清孤儿容器；`--no-build` 防误在服务器构建）。**写操作命令必须带 `-f docker-compose.prod.yml`**——裸命令落到 `docker-compose.yml`（本地文件），会重新拉起 minio 并把 caddy 当 orphan 摘除。回滚 = `.env` 改回上一 sha 重跑同命令。定期 `docker image prune -f` 控制旧镜像盘占。发布节奏自控，不引入 SSH action / watchtower
 
 效果：服务器不再执行任何构建（僵持事故根因根除），仅做镜像拉取与启动；合并即产出新镜像，上线时机由人工控制。远程构建流程仅作为 CI 故障时的应急手段保留（见 §7）。
 
@@ -84,7 +84,7 @@ MinIO→COS 切换记录（2026-08-31 当日完成，验收全绿）：
 
 ### 5.1 验证关卡（两道，任一不过则放弃或延期）
 
-1. **网络**：轻量服务器不能直接加入自定义 VPC，但可通过**云联网 CCN** 打通：轻量控制台「内网互联」关联云联网 → SCF 绑定同地域 VPC → VPC 关联该云联网（同地域免费）。需控制台实操验证 SCF 内网可达 PG/Redis
+1. **网络**：不走云联网/VPC——SCF 不绑 VPC 即默认具备公网出口，直连轻量公网 IP 的 PG/Redis。前置改造（2026-08-31 已落 `feat/phase3-scf`）：生产 compose 发布 PG 5432 / Redis 6379、Redis 以 `REDIS_PASSWORD` requirepass 启动（compose 硬必需，漏配拒启，连接串同步改带密码）；轻量控制台防火墙放行 5432/6379 后从 SCF 实测可达。ES 无认证不发布（新闻搜索/知识库端点迁移期不可用，后续随 ES 云化或降级另议）
 2. **流式**：SCF Web 函数官方支持 SSE（AI 生成场景），但须实测助手流式对话经函数 URL 入口的空闲超时表现（社区有网关层提前断连案例），并确认 LLM 长响应（实测归因约 90s）在 900s 内稳定
 
 ### 5.2 迁移要点
