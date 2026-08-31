@@ -25,10 +25,13 @@ case "$MODE" in
     if [ -n "$COLLECTOR_CONCURRENCY" ]; then
       CONCURRENCY_OPT="--concurrency=$COLLECTOR_CONCURRENCY"
     fi
+    # QUEUE 可为逗号分隔多队列（如 collector.realtime,collector.batch）；
+    # 节点名取第一个队列，保证唯一可读
+    FIRST_QUEUE="${QUEUE%%,*}"
     echo "Starting Celery worker for queue: $QUEUE"
     exec python -m celery -A collector.celery_app worker \
       -Q "$QUEUE" \
-      -n "${QUEUE##collector.}@%h" \
+      -n "${FIRST_QUEUE##collector.}@%h" \
       -P "$POOL" \
       $CONCURRENCY_OPT \
       --prefetch-multiplier=1 \

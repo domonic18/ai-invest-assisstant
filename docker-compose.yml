@@ -55,7 +55,9 @@ services:
     networks:
       - app-network
 
-  celery-worker-realtime:
+  celery-worker:
+    # realtime+batch 合并单容器：batch 定点盘后、realtime 盘中，时间窗错开互不挤占；
+    # 队列仍为 3 条，仅容器收缩。
     # 本地机为 Apple Silicon：akshare 依赖的 py_mini_racer 无 arm64 原生库，
     # worker 固定用 linux/amd64 模拟运行（与生产架构一致）。生产 compose 不带此配置。
     platform: linux/amd64
@@ -68,44 +70,9 @@ services:
     environment:
       TZ: Asia/Shanghai
       COLLECTOR_MODE: worker
-      COLLECTOR_QUEUE: ${CELERY_REALTIME_QUEUE}
-      COLLECTOR_CONCURRENCY: ${CELERY_REALTIME_CONCURRENCY}
-      COLLECTOR_MAX_TASKS_PER_CHILD: ${CELERY_REALTIME_MAX_TASKS_PER_CHILD}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-    logging: *logging
-    healthcheck:
-      test: ["CMD", "python", "-m", "celery", "-A", "collector.celery_app", "inspect", "ping", "-t", "5"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    networks:
-      - app-network
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
-
-  celery-worker-batch:
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: docker/collector/Dockerfile
-    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
-    env_file:
-      - .env
-    environment:
-      TZ: Asia/Shanghai
-      COLLECTOR_MODE: worker
-      COLLECTOR_QUEUE: ${CELERY_BATCH_QUEUE}
-      COLLECTOR_CONCURRENCY: ${CELERY_BATCH_CONCURRENCY}
-      COLLECTOR_MAX_TASKS_PER_CHILD: ${CELERY_BATCH_MAX_TASKS_PER_CHILD}
+      COLLECTOR_QUEUE: ${CELERY_WORKER_QUEUES:-collector.realtime,collector.batch}
+      COLLECTOR_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY:-2}
+      COLLECTOR_MAX_TASKS_PER_CHILD: ${CELERY_WORKER_MAX_TASKS_PER_CHILD:-200}
     depends_on:
       postgres:
         condition: service_healthy
@@ -128,6 +95,7 @@ services:
           memory: 1G
 
   celery-worker-heavy:
+    # LLM 分钟级任务（复盘/归因）独占容器，并发=1，不与通用采集池混跑
     platform: linux/amd64
     build:
       context: .
@@ -138,9 +106,9 @@ services:
     environment:
       TZ: Asia/Shanghai
       COLLECTOR_MODE: worker
-      COLLECTOR_QUEUE: ${CELERY_HEAVY_QUEUE}
-      COLLECTOR_CONCURRENCY: ${CELERY_HEAVY_CONCURRENCY}
-      COLLECTOR_MAX_TASKS_PER_CHILD: ${CELERY_HEAVY_MAX_TASKS_PER_CHILD}
+      COLLECTOR_QUEUE: ${CELERY_HEAVY_QUEUE:-collector.heavy}
+      COLLECTOR_CONCURRENCY: ${CELERY_HEAVY_CONCURRENCY:-1}
+      COLLECTOR_MAX_TASKS_PER_CHILD: ${CELERY_HEAVY_MAX_TASKS_PER_CHILD:-10}
     depends_on:
       postgres:
         condition: service_healthy
@@ -237,52 +205,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    restart: unless-stopped
-    logging: *logging
-    networks:
-      - app-network
-
-  milvus:
-    image: milvusdb/milvus:v2.4.0
-    command: ["milvus", "run", "standalone"]
-    environment:
-      ETCD_ENDPOINTS: etcd:2379
-      MINIO_ADDRESS: minio:9000
-      MINIO_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY}
-    ports:
-      - "${MILVUS_PORT}:19530"
-    depends_on:
-      etcd:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-fs", "http://localhost:9091/healthz"]
-      interval: 30s
-      start_period: 90s
-      timeout: 20s
-      retries: 3
-    restart: unless-stopped
-    logging: *logging
-    networks:
-      - app-network
-
-  etcd:
-    image: quay.io/coreos/etcd:v3.5.5
-    environment:
-      - ETCD_AUTO_COMPACTION_MODE=revision
-      - ETCD_AUTO_COMPACTION_RETENTION=1000
-      - ETCD_QUOTA_BACKEND_BYTES=4294967296
-    command: etcd -data-dir /etcd-data -advertise-client-urls http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379
-    volumes:
-      - ./workspace/etcd:/etcd-data
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/etcdctl", "endpoint", "health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
     restart: unless-stopped
     logging: *logging
     networks:
