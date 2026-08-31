@@ -81,21 +81,26 @@ crawler/
 ├── CLAUDE.md                   # 项目级 AI 上下文
 ├── backend/CLAUDE.md           # 后端 AI 上下文
 ├── web/CLAUDE.md               # 前端 AI 上下文
-├── docker-compose.infra.yml    # 轻量服务器基础设施编排
-├── docker-compose.yml          # 全栈本地/生产编排
-├── docker-compose-dev.yml      # 开发环境编排
+├── docker-compose.yml          # 本地开发全栈编排（含 PostgreSQL/Redis/Elasticsearch/MinIO）
+├── docker-compose.prod.yml     # 生产服务器编排（无 MinIO，文件存储走 COS）
 └── Makefile                    # 常用开发命令
 ```
 
 ## 快速开始
 
-### 部署基础设施
+项目根目录提供两个独立的 Docker Compose 文件：
+
+- `docker-compose.yml`：本地开发全栈（含 PostgreSQL、Redis、Elasticsearch、MinIO）
+- `docker-compose.prod.yml`：生产服务器（无 MinIO，文件存储使用腾讯云 COS）
 
 ```bash
-# 轻量服务器
-ssh root@<IP>
-curl -fsSL https://get.docker.com | sh
-docker compose -f docker-compose.infra.yml up -d
+# 本地开发（自动读取 docker-compose.yml）
+cp .env.example .env
+docker compose up -d
+
+# 生产服务器（显式指定 prod 文件）
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d --wait --remove-orphans --no-build
 ```
 
 ### 构建镜像
@@ -113,7 +118,7 @@ docker build -t collector:latest -f docker/collector/Dockerfile .
 # 一键安装依赖（后端 uv sync + 前端 npm install + 创建 .env）
 make setup
 
-# 启动基础设施（PostgreSQL、Redis、Elasticsearch、MinIO、Milvus）
+# 启动基础设施（PostgreSQL、Redis、Elasticsearch、MinIO）
 make infra
 
 # 后端（新终端）

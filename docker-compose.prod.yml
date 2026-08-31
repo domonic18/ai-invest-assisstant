@@ -10,7 +10,7 @@ services:
       context: .
       dockerfile: docker/web/Dockerfile
     # image 供服务器 docker compose pull 定位 TCR；build 保留给本地与应急构建；
-    # APP_TAG 在服务器 .env 钉版（填 CI 输出的 git 短 sha），缺省 latest
+    # APP_TAG 在服务器 .env 钉版（CI git 短 sha），缺省 latest
     image: ccr.ccs.tencentyun.com/domonic18/web-api:${APP_TAG:-latest}
     # 生产环境不暴露 web 容器端口，仅通过 Caddy 反向代理访问。
     env_file:
@@ -56,7 +56,7 @@ services:
 
   celery-worker:
     # realtime+batch 合并单容器：batch 定点盘后、realtime 盘中，时间窗错开互不挤占；
-    # 队列仍为 3 条，仅容器收缩。
+    # 队列仍为 3 条，仅容器数收缩。
     build:
       context: .
       dockerfile: docker/collector/Dockerfile
@@ -179,28 +179,6 @@ services:
       timeout: 10s
       retries: 10
       start_period: 30s
-    restart: unless-stopped
-    logging: *logging
-    networks:
-      - app-network
-
-  minio:
-    image: minio/minio:RELEASE.2025-10-15T17-29-55Z
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
-    # ports:
-    #   - "${MINIO_API_PORT}:9000"
-    #   - "${MINIO_CONSOLE_PORT}:9001"
-    volumes:
-      - ./workspace/minio:/data
-    healthcheck:
-      test: ["CMD", "curl", "-fs", "http://localhost:9000/minio/health/live"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
     restart: unless-stopped
     logging: *logging
     networks:
