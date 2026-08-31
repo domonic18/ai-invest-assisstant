@@ -22,7 +22,7 @@
 
 | 阶段 | 内容 | 解决 | 风险 | 状态 |
 |------|------|------|------|------|
-| Phase 1 | CI/CD：Actions 构建 → TCR → 服务器手动 pull 部署 | 问题 1/3 | 低 | 代码就绪，待验证（需配 repo secrets + 手动触发） |
+| Phase 1 | CI/CD：Actions 构建 → TCR → 服务器手动 pull 部署 | 问题 1/3 | 低 | **已完成（2026-08-31 验收全绿）** |
 | Phase 2 | 瘦身：下线 milvus/etcd；MinIO→COS；COS 兼 PG 备份；worker 3→2 收缩 | 问题 2 | 低 | 待实施 |
 | Phase 3 | Web API → SCF Web 函数（爬虫任务留置轻量） | 问题 2 | 中，有两道验证关卡 | 评估中 |
 | Phase 4 | SPA → EdgeOne Pages；Agent Runtime 承载 deepagents（助手对话主承载，摆脱 SCF 900s） | 前瞻 | 有三道前置验证关卡 | 评估结论已定（2026-08-30） |
@@ -41,6 +41,13 @@ GitHub Actions（`.github/workflows/ci.yml`，develop push 触发 + workflow_dis
 效果：服务器不再执行任何构建（僵持事故根因根除），仅做镜像拉取与启动；合并即产出新镜像，上线时机由人工控制。远程构建流程仅作为 CI 故障时的应急手段保留（见 §7）。
 
 验证：`workflow_dispatch` 手动触发一次流水线 → Actions 全绿、TCR 出现双镜像新 tag → 登录服务器手动 pull 部署后按 [06-deployment.md §4.3 验收清单](../arch/06-deployment.md) 回归（health / worker ping / 任务目录）。
+
+实施记录（2026-08-31，验收全绿）：
+
+- 双镜像并行 job + 推送 stall 步骤级超时（25/30 分钟）+ 自动重试 + `provenance: false`；跨镜像 GHA cache 复用使第二个镜像构建秒级
+- **推送 TCR 避开北京时间晚高峰（约 20:00-24:00）**：实测 19:55 推送成功、20:47 起四连 stall（token 认证后零进展）、次日 07:33 错峰重推秒过——美国 runner → 北京 TCR 个人版的跨境拥塞是概率性根因，失败重跑即可，无需改架构
+- 服务器 daemon 的阿里云镜像加速对部分 Docker Hub 镜像返回 403：minio 钉住版本拉不动，用本地在跑镜像 retag 兜底（Phase 2 下线前不再升级）
+- 首次 pull 部署：web/beat/3 workers 全部切换 TCR 镜像 `654715b`，health / 域名 200 / 3 worker ping 全绿，基础设施容器零扰动
 
 ## 4. Phase 2：轻量服务器瘦身 + COS
 
