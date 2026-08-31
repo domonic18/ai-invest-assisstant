@@ -19,11 +19,11 @@ class MinIOService:
             access_key=settings.minio_access_key,
             secret_key=settings.minio_secret_key,
             secure=settings.minio_secure,
+            region=settings.minio_region,
         )
         # 预签名 URL 会把 endpoint 主机写入签名，因此必须用公网可达的
-        # endpoint 而非集群内部地址来签名。显式指定 region 可让预签名
-        # 纯客户端完成；否则 SDK 会通过 HTTP 查询 bucket 所在区域，
-        # 而公网 endpoint 可能无法访问该查询接口。
+        # endpoint 而非集群内部地址来签名。COS 等非 us-east-1 的 S3 兼容
+        # 服务需要显式 region，否则签名会被拒绝。
         self._presign_client = (
             Minio(
                 settings.minio_public_endpoint,
