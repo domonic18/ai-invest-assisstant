@@ -23,9 +23,10 @@
 | 阶段 | 内容 | 解决 | 风险 | 状态 |
 |------|------|------|------|------|
 | Phase 1 | CI/CD：Actions 构建 → TCR → 服务器手动 pull 部署 | 问题 1/3 | 低 | **已完成（2026-08-31 验收全绿）** |
-| Phase 2 | 瘦身：下线 milvus/etcd；MinIO→COS；COS 兼 PG 备份；worker 3→2 收缩 | 问题 2 | 低 | 待实施 |
+| Phase 2 | 瘦身：下线 milvus/etcd；MinIO→COS；worker 3→2 收缩 | 问题 2 | 低 | 待实施 |
 | Phase 3 | Web API → SCF Web 函数（爬虫任务留置轻量） | 问题 2 | 中，有两道验证关卡 | 评估中 |
 | Phase 4 | SPA → EdgeOne Pages；Agent Runtime 承载 deepagents（助手对话主承载，摆脱 SCF 900s） | 前瞻 | 有三道前置验证关卡 | 评估结论已定（2026-08-30） |
+| Phase 5 | PG 备份入 COS：`pg_dump` 定时任务推对象存储 | 数据安全 | 低 | 后置（排在全部开发计划之后，2026-08-31 用户明确） |
 
 > 各阶段验证方法见对应章节；每次落地后统一以 [06-deployment.md §4.3 验收清单](../arch/06-deployment.md) 为基线回归。
 
@@ -55,11 +56,10 @@ GitHub Actions（`.github/workflows/ci.yml`，develop push 触发 + workflow_dis
 |------|------|------|
 | 下线 milvus + etcd | 代码仅 `app/core/config.py` 出现，无任何业务引用 | 释放约 2GB 内存 |
 | MinIO → COS | COS 提供 S3 兼容端点，应用侧仅改 endpoint + 密钥；对象用 COS Migration 工具搬迁 | 释放 MinIO 内存，文件存储转托管 |
-| COS 兼作 PG 备份目标 | `pg_dump` 定时任务推 COS，解决单机数据风险 | 数据安全 |
 | worker 收缩 3→2 | realtime 与 batch 合并为单 worker（`-Q realtime,batch`，Celery 按列举顺序消费；batch 定点盘后、realtime 盘中，时间窗天然错开互不挤占）；**heavy 保持独立容器且并发=1**——LLM 分钟级任务（复盘/归因）不得占用通用采集池 | 释放约 200-400MB；队列仍为 3 条，仅容器数收缩 |
 | ES 暂留并盘用量 | 新闻搜索 + 知识库在用 | 后续决定升云 ES 或降级 PG 全文检索 |
 
-验证：每项动作落地后按 [06-deployment.md §4.3 验收清单](../arch/06-deployment.md) 回归；`free -h` 核对内存释放与上表"效果"相符；COS 切换后应用走通一次研报/财报文件读写、`pg_dump` 定时任务在 COS 产出当日对象；worker 合并后双容器 `inspect ping` 应答、`collector_log` 无积压。
+验证：每项动作落地后按 [06-deployment.md §4.3 验收清单](../arch/06-deployment.md) 回归；`free -h` 核对内存释放与上表"效果"相符；COS 切换后应用走通一次研报/财报文件读写（PG 备份任务后置，见 §7）；worker 合并后双容器 `inspect ping` 应答、`collector_log` 无积压。
 
 ## 5. Phase 3：Web API → SCF Web 函数（先过验证关卡）
 
@@ -96,23 +96,29 @@ GitHub Actions（`.github/workflows/ci.yml`，develop push 触发 + workflow_dis
 - **实施后验收**：以 [06-deployment.md §4.3](../arch/06-deployment.md) 为基线——流式对话经 Agent Runtime 入口正常出 token、可中断；SPA 经 Pages 域名访问、`/assets/` 命中长缓存且发版即生效
 - 与 Phase 1-3 解耦，不阻塞
 
-## 7. 应急构建流程（CI 不可用时）
+## 7. Phase 5（后置）：PG 备份入 COS
+
+`pg_dump` 定时任务产出备份并上传对象存储，解决单机数据风险。实施内容：collector 镜像内置 `pg_dump` 客户端（PGDG 源装 postgresql-client-16）、备份任务模块（subprocess 导出 → MinIOService 上传，S3 兼容协议天然支持 COS）、TASK_SPECS 注册与调度。
+
+**实施时机：排在全部开发计划最后**（2026-08-31 用户明确，Phase 2 不含此项）。
+
+验证：`pg_dump` 任务在 COS 产出当日备份对象，恢复演练一次（对象下载 → 空库恢复 → 行数抽查）。
+
+## 8. 应急构建流程（CI 不可用时）
 
 服务器上构建必须按安全流程执行，否则 web 镜像 vite 构建会耗尽内存导致整机僵持（sshd 不应答、HTTP 全死，控制台软重启信号僵持下迟迟不生效）：
 
 ```bash
 cd /opt/investment
-sudo docker compose stop elasticsearch milvus web celery-beat celery-worker-realtime celery-worker-batch celery-worker-heavy  # 留 pg/redis/minio/etcd/caddy
+sudo docker compose stop elasticsearch web celery-beat celery-worker celery-worker-heavy  # 留 pg/redis/minio/caddy
 sudo docker compose build web                     # 先 web（内存大户）
-sudo docker compose build celery-beat celery-worker-realtime celery-worker-batch celery-worker-heavy
+sudo docker compose build celery-beat celery-worker celery-worker-heavy
 sudo docker compose up -d                          # 全量拉起
 ```
 
 构建日志放 `/home/ubuntu/`（/tmp 重启即丢）；依赖锁未变时层缓存生效，全程约 10 分钟。
 
-> 上述容器名对应 Phase 2 收缩前的 3-worker 拓扑；收缩后合并为 `worker`（realtime+batch）与 `worker-heavy`。
-
-## 8. 成本对比（估算，待控制台核实）
+## 9. 成本对比（估算，待控制台核实）
 
 | 项 | 现状（方案 A） | 目标架构后 |
 |----|---------------|-------------------|
