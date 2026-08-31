@@ -23,7 +23,7 @@
 | 阶段 | 内容 | 解决 | 风险 | 状态 |
 |------|------|------|------|------|
 | Phase 1 | CI/CD：Actions 构建 → TCR → 服务器手动 pull 部署 | 问题 1/3 | 低 | **已完成（2026-08-31 验收全绿）** |
-| Phase 2 | 瘦身：下线 milvus/etcd；MinIO→COS；worker 3→2 收缩 | 问题 2 | 低 | 待实施 |
+| Phase 2 | 瘦身：下线 milvus/etcd；MinIO→COS；worker 3→2 收缩 | 问题 2 | 低 | **代码与部署已完成（2026-08-31 验收全绿）；MinIO→COS 待 COS 凭据** |
 | Phase 3 | Web API → SCF Web 函数（爬虫任务留置轻量） | 问题 2 | 中，有两道验证关卡 | 评估中 |
 | Phase 4 | SPA → EdgeOne Pages；Agent Runtime 承载 deepagents（助手对话主承载，摆脱 SCF 900s） | 前瞻 | 有三道前置验证关卡 | 评估结论已定（2026-08-30） |
 | Phase 5 | PG 备份入 COS：`pg_dump` 定时任务推对象存储 | 数据安全 | 低 | 后置（排在全部开发计划之后，2026-08-31 用户明确） |
@@ -60,6 +60,13 @@ GitHub Actions（`.github/workflows/ci.yml`，develop push 触发 + workflow_dis
 | ES 暂留并盘用量 | 新闻搜索 + 知识库在用 | 后续决定升云 ES 或降级 PG 全文检索 |
 
 验证：每项动作落地后按 [06-deployment.md §4.3 验收清单](../arch/06-deployment.md) 回归；`free -h` 核对内存释放与上表"效果"相符；COS 切换后应用走通一次研报/财报文件读写（PG 备份任务后置，见 §7）；worker 合并后双容器 `inspect ping` 应答、`collector_log` 无积压。
+
+实施记录（2026-08-31，PR #5 合并后当日部署，验收全绿）：
+
+- 代码：worker 合并 `celery-worker`（`-Q realtime,batch`，entrypoint 节点名取首队列）+ `celery-worker-heavy` 改名对齐 arch 终态；milvus/etcd 从双 compose、config.py、init-scripts、skill 描述全链路清除；`.env.example` 规范化重构，调优常量默认值下沉 compose `${VAR:-默认}`；本地栈 8 容器全 Healthy 验证
+- 服务器：`.env` 备份后清 10 行旧 CELERY 常量并钉 `APP_TAG=08266dc` → 定向 `pull` 四应用镜像（避开 minio 镜像源 403）→ `up -d --wait --remove-orphans --no-build`；9 容器全 Healthy，`realtime@`/`heavy@` 双节点 ping OK，域名 `/health` 200，beat 分钟级调度正常
+- 资源：内存可用约 446Mi → 1.3Gi；删 milvus/etcd 镜像释放约 2.5G 磁盘（avail 16G）；上一版 `654715b` 镜像保留供一步回滚
+- 剩余：MinIO→COS 切换待用户提供 COS 凭据（对象用 COS Migration 工具搬迁，应用侧仅改 endpoint+密钥）
 
 ## 5. Phase 3：Web API → SCF Web 函数（先过验证关卡）
 
