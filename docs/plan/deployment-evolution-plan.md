@@ -23,7 +23,7 @@
 | 阶段 | 内容 | 解决 | 风险 | 状态 |
 |------|------|------|------|------|
 | Phase 1 | CI/CD：Actions 构建 → TCR → 服务器手动 pull 部署 | 问题 1/3 | 低 | **已完成（2026-08-31 验收全绿）** |
-| Phase 2 | 瘦身：下线 milvus/etcd；MinIO→COS；worker 3→2 收缩 | 问题 2 | 低 | **代码与部署已完成（2026-08-31 验收全绿）；MinIO→COS 待 COS 凭据** |
+| Phase 2 | 瘦身：下线 milvus/etcd；MinIO→COS；worker 3→2 收缩 | 问题 2 | 低 | **已完成（2026-08-31 验收全绿，含 MinIO→COS 迁移）** |
 | Phase 3 | Web API → SCF Web 函数（爬虫任务留置轻量） | 问题 2 | 中，有两道验证关卡 | 评估中 |
 | Phase 4 | SPA → EdgeOne Pages；Agent Runtime 承载 deepagents（助手对话主承载，摆脱 SCF 900s） | 前瞻 | 有三道前置验证关卡 | 评估结论已定（2026-08-30） |
 | Phase 5 | PG 备份入 COS：`pg_dump` 定时任务推对象存储 | 数据安全 | 低 | 后置（排在全部开发计划之后，2026-08-31 用户明确） |
@@ -46,7 +46,7 @@ GitHub Actions（`.github/workflows/ci.yml`，develop push 触发 + workflow_dis
 实施记录（2026-08-31，验收全绿）：
 
 - 双镜像并行 job + 推送 stall 步骤级超时（25/30 分钟）+ 自动重试 + `provenance: false`；跨镜像 GHA cache 复用使第二个镜像构建秒级
-- **推送 TCR 避开北京时间晚高峰（约 20:00-24:00）**：实测 19:55 推送成功、20:47 起四连 stall（token 认证后零进展）、次日 07:33 错峰重推秒过——美国 runner → 北京 TCR 个人版的跨境拥塞是概率性根因，失败重跑即可，无需改架构
+- **推送 TCR 避开北京时间晚高峰（约 20:00-24:00）**：实测 19:55 推送成功、20:47 起四连 stall（token 认证后零进展）、次日 07:33 错峰重推秒过——美国 runner → 北京 TCR 个人版的跨境拥塞是概率性根因，失败重跑即可，无需改架构。拥塞也可能连续数小时（实测两轮 4+4 次尝试全 stall）；此时兜底走本地 `docker buildx --platform linux/amd64 build --push` 直推 TCR（国内出网 48-52s），服务器 `APP_TAG` 钉该 sha 即可
 - 服务器 daemon 的阿里云镜像加速对部分 Docker Hub 镜像返回 403：minio 钉住版本拉不动，用本地在跑镜像 retag 兜底（Phase 2 下线前不再升级）
 - 首次 pull 部署：web/beat/3 workers 全部切换 TCR 镜像 `654715b`，health / 域名 200 / 3 worker ping 全绿，基础设施容器零扰动
 
@@ -66,7 +66,13 @@ GitHub Actions（`.github/workflows/ci.yml`，develop push 触发 + workflow_dis
 - 代码：worker 合并 `celery-worker`（`-Q realtime,batch`，entrypoint 节点名取首队列）+ `celery-worker-heavy` 改名对齐 arch 终态；milvus/etcd 从双 compose、config.py、init-scripts、skill 描述全链路清除；`.env.example` 规范化重构，调优常量默认值下沉 compose `${VAR:-默认}`；本地栈 8 容器全 Healthy 验证
 - 服务器：`.env` 备份后清 10 行旧 CELERY 常量并钉 `APP_TAG=08266dc` → 定向 `pull` 四应用镜像（避开 minio 镜像源 403）→ `up -d --wait --remove-orphans --no-build`；9 容器全 Healthy，`realtime@`/`heavy@` 双节点 ping OK，域名 `/health` 200，beat 分钟级调度正常
 - 资源：内存可用约 446Mi → 1.3Gi；删 milvus/etcd 镜像释放约 2.5G 磁盘（avail 16G）；上一版 `654715b` 镜像保留供一步回滚
-- 剩余：MinIO→COS 切换待用户提供 COS 凭据（对象用 COS Migration 工具搬迁，应用侧仅改 endpoint+密钥）
+
+MinIO→COS 切换记录（2026-08-31 当日完成，验收全绿）：
+
+- **minio-py 走 path-style 会被 COS 拒绝**（`PathStyleDomainForbidden`，SDK 仅对 AWS/aliyuncs 自动 virtual-host）：新增 `MINIO_VIRTUAL_HOST` 配置，开启后对两个 client 调用 `enable_virtual_style_endpoint()`；endpoint 填**区域域名**（`cos.ap-beijing.myqcloud.com`，SDK 自动把 bucket 前置到主机名，勿填 bucket 域名否则双重前缀）；另 COS 签名必需显式 `MINIO_REGION`
+- **迁移**：以旧 web 容器（minio-py 7.2.20 已含 virtual-host API）跑拷贝脚本，src=旧 minio（path-style）→ dst=COS（virtual-host），690 对象 / 542MiB 零错误；抽样权威比对原始 etag == COS etag（md5）逐字节一致——MinIO 磁盘 `part.1` 比对象多 32 字节系 bitrot 附加物，非内容
+- **验收**：容器内 upload → 预签名（virtual-host 域名 + SigV4）→ download roundtrip；真实研报预签名 URL 从公网 curl 200（482841B application/pdf）；`--remove-orphans` 摘除 minio 容器后 8 容器全 Healthy、health 200、双 worker pong、beat 正常；`workspace/minio` 数据目录保留兜底
+- **部署插曲**：TCR 跨境推送连续 stall 时，本地 `docker buildx --platform linux/amd64 build --push` 直推 TCR（国内出网秒级，48-52s）；服务器访问 GitHub 中断不阻塞部署（应用代码全在 TCR 镜像内，仓库副本仅作 compose 编排）
 
 ## 5. Phase 3：Web API → SCF Web 函数（先过验证关卡）
 
