@@ -35,14 +35,15 @@ export const ENDPOINTS = {
       `${API_BASE}/chain/versions/compare?base_id=${baseId}&target_id=${targetId}`,
   },
   research: {
-    list: `${API_BASE}/research`,
+    // 集合端点后端路由为 "/"（带尾斜杠）：不带斜杠会触发 307 重定向
+    list: `${API_BASE}/research/`,
     filters: `${API_BASE}/research/filters`,
     detail: (id: number | string) => `${API_BASE}/research/${id}`,
     summarize: (id: number | string) => `${API_BASE}/research/${id}/summarize`,
     pdfUrl: (id: number | string) => `${API_BASE}/research/${id}/pdf-url`,
   },
   financialReports: {
-    list: `${API_BASE}/financial-reports`,
+    list: `${API_BASE}/financial-reports/`,
     detail: (id: number | string) => `${API_BASE}/financial-reports/${id}`,
     summarize: (id: number | string) =>
       `${API_BASE}/financial-reports/${id}/summarize`,
@@ -53,7 +54,7 @@ export const ENDPOINTS = {
       `${API_BASE}/financial-reports/collect-logs/${logId}`,
   },
   hotspot: {
-    list: `${API_BASE}/hotspot`,
+    list: `${API_BASE}/hotspot/`,
   },
   financial: {
     health: (code: string) => `${API_BASE}/financial/${code}`,
@@ -69,7 +70,7 @@ export const ENDPOINTS = {
     },
   },
   fundFlow: {
-    list: `${API_BASE}/fund-flow`,
+    list: `${API_BASE}/fund-flow/`,
     sectorTrend: (sectorType = 'industry', days = 60) =>
       `${API_BASE}/fund-flow/sector-trend?sector_type=${sectorType}&days=${days}`,
   },
