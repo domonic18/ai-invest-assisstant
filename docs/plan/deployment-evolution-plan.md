@@ -36,8 +36,8 @@ GitHub Actions（`.github/workflows/ci.yml`，develop push 触发 + workflow_dis
 
 1. **构建推送**：按 [06-deployment.md §3 镜像与发布](../arch/06-deployment.md) 构建推送 `web-api` / `collector` 双镜像（linux/amd64，tag = `latest` + git short sha）
 2. **凭据**：repo secrets `TCR_NAMESPACE` / `TCR_USERNAME`（腾讯云 UIN）/ `TCR_PASSWORD`（**推送至今未验证成功，Phase 1 第一项就是打通它**）
-3. **compose 镜像定位（前置，已实施）**：应用服务 `image:` 指向 TCR（`web-api` / `collector` 双镜像，beat 与 workers 共用 collector），tag 走 `${APP_TAG:-latest}`——服务器 `.env` 以 `APP_TAG` 钉版（填 CI 输出的 git 短 sha），缺省 `latest`；生产不用裸 `latest` 做部署指针（不可复现）。`build:` 保留，供本地与 §7 应急构建
-4. **部署（手动）**：CI 不含任何部署 job；服务器一次性 `docker login ccr.ccs.tencentyun.com`。发布 = `.env` 写入本次短 sha → `docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d --wait --remove-orphans --no-build`（`--wait` 借 healthcheck 作部署闸门、失败非零退出；`--remove-orphans` 为 Phase 2 下线服务自动清孤儿容器；`--no-build` 防误在服务器构建）。**写操作命令必须带 `-f docker-compose.prod.yml`**——裸命令落到 `docker-compose.yml`（本地文件），会重新拉起 minio 并把 caddy 当 orphan 摘除。回滚 = `.env` 改回上一 sha 重跑同命令。定期 `docker image prune -f` 控制旧镜像盘占。发布节奏自控，不引入 SSH action / watchtower
+3. **compose 镜像定位（前置，已实施）**：应用服务 `image:` 指向 TCR（`web-api` / `collector` 双镜像，beat 与 workers 共用 collector），tag 走 `${APP_TAG:-latest}`——服务器 `.env` 以 `APP_TAG` 钉版（填 CI 输出的 `<分支>-<短 sha>`，如 `develop-4cdc1b7`），缺省 `latest`；生产不用裸 `latest` 做部署指针（不可复现）。`build:` 保留，供本地与 §7 应急构建
+4. **部署（手动）**：CI 不含任何部署 job；服务器一次性 `docker login ccr.ccs.tencentyun.com`。发布 = `.env` 写入本次 tag（分支-短 sha）→ `docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d --wait --remove-orphans --no-build`（`--wait` 借 healthcheck 作部署闸门、失败非零退出；`--remove-orphans` 为 Phase 2 下线服务自动清孤儿容器；`--no-build` 防误在服务器构建）。**写操作命令必须带 `-f docker-compose.prod.yml`**——裸命令落到 `docker-compose.yml`（本地文件），会重新拉起 minio 并把 caddy 当 orphan 摘除。回滚 = `.env` 改回上一 tag 重跑同命令。定期 `docker image prune -f` 控制旧镜像盘占。发布节奏自控，不引入 SSH action / watchtower
 
 效果：服务器不再执行任何构建（僵持事故根因根除），仅做镜像拉取与启动；合并即产出新镜像，上线时机由人工控制。远程构建流程仅作为 CI 故障时的应急手段保留（见 §7）。
 
@@ -46,7 +46,7 @@ GitHub Actions（`.github/workflows/ci.yml`，develop push 触发 + workflow_dis
 实施记录（2026-08-31，验收全绿）：
 
 - 双镜像并行 job + 推送 stall 步骤级超时（25/30 分钟）+ 自动重试 + `provenance: false`；跨镜像 GHA cache 复用使第二个镜像构建秒级
-- **推送 TCR 避开北京时间晚高峰（约 20:00-24:00）**：实测 19:55 推送成功、20:47 起四连 stall（token 认证后零进展）、次日 07:33 错峰重推秒过——美国 runner → 北京 TCR 个人版的跨境拥塞是概率性根因，失败重跑即可，无需改架构。拥塞也可能连续数小时（实测两轮 4+4 次尝试全 stall）；此时兜底走本地 `docker buildx --platform linux/amd64 build --push` 直推 TCR（国内出网 48-52s），服务器 `APP_TAG` 钉该 sha 即可
+- **推送 TCR 避开北京时间晚高峰（约 20:00-24:00）**：实测 19:55 推送成功、20:47 起四连 stall（token 认证后零进展）、次日 07:33 错峰重推秒过——美国 runner → 北京 TCR 个人版的跨境拥塞是概率性根因，失败重跑即可，无需改架构。拥塞也可能连续数小时（实测两轮 4+4 次尝试全 stall）；此时兜底走本地 `docker buildx --platform linux/amd64 build --push` 直推 TCR（国内出网 48-52s），服务器 `APP_TAG` 钉该 tag（分支-短 sha）即可
 - 服务器 daemon 的阿里云镜像加速对部分 Docker Hub 镜像返回 403：minio 钉住版本拉不动，用本地在跑镜像 retag 兜底（Phase 2 下线前不再升级）
 - 首次 pull 部署：web/beat/3 workers 全部切换 TCR 镜像 `654715b`，health / 域名 200 / 3 worker ping 全绿，基础设施容器零扰动
 
@@ -93,6 +93,7 @@ MinIO→COS 切换记录（2026-08-31 当日完成，验收全绿）：
 - **SCF 控制台环境变量两个坑**（均曾致函数不可用）：① 连接串笔误（端口 `:5432:5432`）令 pydantic Settings 导入即崩，uvicorn 被 supervisor 反复拉起（~13s 循环），网关返回 502；② 控制台**不做 `${...}` 引用替换**（compose 特性），照抄 `.env.example` 引用式写法则密码成为字面量——应用正常启动但 PG 认证失败，服务器 PG 日志 `password authentication failed` 为判别特征。诊断链：响应头 + 函数日志 traceback → 控制台修正
 - **流式关卡**：助手 SSE 经函数 URL 实测 496 个 token 增量块 25.4s 持续到达（首字节 0.59s），无网关缓冲倾倒，`event: end` 正常收尾、会话落库成功；90s 级长任务与实测同机制，900s 预算余量充足
 - **规格定版（实测）**：实例内存基线 ~527MB（uvicorn 单 worker 一体镜像）；**1024MB 下 8 路行情接口并发突发即杀实例**（60-100ms 极速 502、~13s 重启循环，登录页即可触发），而 `/health` 8 并发全绿证明扩容正常、瓶颈在单实例内存——提至 **2048MB** 后 3 波 × 8 接口 24/24 全 200（0.08-1.19s）。超时 900s；预置并发 1-2 实例建议设置（消除闲置回收后首次请求冷启动）
+- **下线旧链路 + 冷启动实测（2026-09-01）**：服务器 `compose stop web caddy`（保留 6 容器：pg/redis/es/beat/双 worker，内存可用 910Mi → 1.3Gi），随后 web/caddy 定义已从 `docker-compose.prod.yml` 移除（compose 仅余 6 服务），下次发布 `--remove-orphans` 自动清掉两个已停容器；回退 = 从 git 历史恢复两服务定义 + `up -d web caddy` + DNS 切回（TCR web-api 镜像与服务器本地 caddy 镜像保留勿 prune）。同日复现闲置回收后首请求 502：平台 init 仅 1.3s 但应用启动 ~18s（PG 连接池 + 渠道 seeding + assistant checkpointer），窗口内请求被函数内 nginx 拒绝；保温后 `/`、`/docs`、`/health` 全部 200——**预置并发从建议升级为必配**（SCF 控制台设 1×2048MB 实例）
 
 ### 5.2 迁移要点
 
