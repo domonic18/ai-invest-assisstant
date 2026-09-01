@@ -3,11 +3,11 @@
 ## 1. 项目定位
 
 面向投资分析场景的**数据采集 → 清洗入库 → 智能分析 → 可视化展示**全链路平台，
-以 Web 端为核心，覆盖每日复盘、产业链分析、个股研究、资金流向、集合竞价、研报与财报中心等场景。
+以 Web 端为核心，覆盖工作台、每日复盘、产业链分析、个股研究、资金流向、集合竞价、投资日历、研报与财报中心等场景。
 
-- **数据源**：巨潮资讯(cninfo)、同花顺(10jqka)、东方财富、新浪财经、Tushare、上交所/深交所
-- **采集内容**：行情(K 线/分时/竞价)、财务报表、涨停/跌停池、板块资金流、研报与财报 PDF、公告与新闻、市场宽度、宏观指标
-- **AI 能力**：产业链分析、研报/财报摘要、涨停归因、每日 AI 大盘综述（YAML 声明式分区、可模块级编辑）
+- **数据源**：巨潮资讯(cninfo)、同花顺(10jqka)、东方财富、新浪财经、Tushare、上交所/深交所、财联社
+- **采集内容**：行情(K 线/分时/竞价)、财务报表、涨停/跌停池、板块资金流、研报与财报 PDF、公告与新闻（含财联社电报准实时快讯）、市场宽度、宏观指标、投资日历事件、全球跟踪指标（黄金/美债收益率/美元指数）
+- **AI 能力**：产业链分析、研报/财报摘要、涨停归因、每日 AI 大盘综述（YAML 声明式分区、可模块级编辑）、自选股 AI 每日分析（盘面解读/操作策略/止损线）
 - **输出形式**：响应式 Web 前端（桌面 + 移动端底部导航）+ AI 助手对话面板
 - **部署方式**：SCF Web 函数（SPA + API 同源一体镜像）+ 轻量服务器（数据与采集任务）+ COS（文件），详见 [06-deployment.md](./06-deployment.md)
 
@@ -50,7 +50,7 @@
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────┐
 │ 用户层 (User Layer)                                                                │
-│ 桌面 Web：每日复盘 / 产业链 / 个股 / 资金流 / 集合竞价 / 研报 / 财报 / 后台管理    │
+│ 工作台 / 复盘 / 产业链 / 个股 / 资金流 / 集合竞价 / 日历 / 研报 / 财报 / 后台管理  │
 │ 移动 Web：响应式 + 底部 Tab Bar · AI 助手对话面板                                  │
 └────────────────────────────────────────────────────────────────────────────────────┘
                                          HTTPS
@@ -59,7 +59,7 @@
 │ API 层 (FastAPI · nginx :9000)                                                     │
 │ JWT 鉴权 │ REST 路由 │ SSE 流式输出（AI 助手）│ /health /docs │ MCP Server         │
 │ auth/users/stocks/kline/auction/fund_flow/market/chain/research/                   │
-│ financial_report/financial/hotspot/assistant/admin                                 │
+│ financial_report/financial/hotspot/calendar/assistant/admin                        │
 └────────────────────────────────────────────────────────────────────────────────────┘
                                            │
                                            ▼
@@ -74,7 +74,8 @@
 ┌────────────────────────────────────────────────────────────────────────────────────┐
 │ 采集执行层 (collector runtime)                                                     │
 │ celery-beat（collector_task 表同步调度）→ 双 worker（realtime+batch / heavy）      │
-│ runner 统一执行（collector_log 唯一写入口）· registry 30 任务 TaskSpec             │
+│ 准实时：stream 驻留进程（财联社电报 10s 增量轮询，非 beat 调度）                   │
+│ runner 统一执行（collector_log 唯一写入口）· registry 33 任务 TaskSpec             │
 │ 多渠道优先级 + FAILED 自动 fallback · 日期参数默认 latest_trading_day              │
 └────────────────────────────────────────────────────────────────────────────────────┘
                                          读写│
@@ -93,7 +94,7 @@
 | **Web 前端** | React 18 + Vite + TypeScript | SCF web-api 一体镜像（nginx 同源） | 现代前端框架，生态完善 |
 | **后端 API** | FastAPI (Python 3.10+) + SQLAlchemy 2.0 | SCF Web 函数（nginx + uvicorn 一体镜像） | 异步高性能、类型安全 |
 | **AI 助手运行时** | deepagents（LangChain Agent Protocol）+ assistant-ui | SCF web-api 进程内 | 流式对话/工具调用，会话持久化 `assistant_session` |
-| **数据采集** | 自研 collector runtime + Celery + httpx/akshare/curl_cffi | 轻量服务器 Celery 双 worker（realtime+batch / heavy 并发=1） | 声明式 TaskSpec 注册表（30 任务）+ 多渠道 fallback |
+| **数据采集** | 自研 collector runtime + Celery + httpx/akshare/curl_cffi | 轻量服务器 Celery 双 worker（realtime+batch / heavy 并发=1） | 声明式 TaskSpec 注册表（33 任务）+ 多渠道 fallback |
 | **可视化** | ECharts + AntV/G6 v5 + D3.js | 前端打包至 web-api 镜像 | 产业链图谱(G6)、K线/竞价(ECharts)、板块河流/排名(D3/ECharts) |
 | **结构化存储** | PostgreSQL + TimescaleDB | 轻量服务器 Docker | 时序行情数据高效存储 |
 | **搜索引擎** | Elasticsearch | 轻量服务器 Docker | 公告/新闻全文检索 + 知识库 |
@@ -144,7 +145,7 @@ ai-invest-assisstant/
 │   │   │   ├── agents/                 # supervisor / assistant / chain / research / hotspot / financial analyst
 │   │   │   └── skills/                 # industry-chain-analysis / research-report-summary / financial-report-summary /
 │   │   │                               #   financial-health-check / hotspot-detection / chain-breakthrough /
-│   │   │                               #   market-daily-review / limit-up-review / research-summary
+│   │   │                               #   market-daily-review / limit-up-review / watchlist-daily-analysis / research-summary
 │   │   ├── core/                       # 配置、安全、连接、异常
 │   │   │   ├── config.py / security.py / database.py / redis.py / logging.py / exceptions.py
 │   │   ├── models/                     # SQLAlchemy ORM：命名遵循 <分类>_<数据类型>_<标的> 约定
@@ -186,6 +187,8 @@ ai-invest-assisstant/
 │   │   ├── hooks/                      # 自定义 Hooks（TanStack Query 包装）
 │   │   ├── pages/                      # 页面
 │   │   │   ├── Dashboard/              # 每日复盘：指数 K 线 / 行情统计 / 板块 / 涨停复盘 / AI 综述 / 自选股
+│   │   │   ├── Workbench/              # 工作台聚合页（登录默认入口：日历摘要 / 复盘结论 / 要闻 / 自选股概览 / 市场快览）
+│   │   │   ├── Calendar/               # 投资日历（月历 / 周历 / 事件列表）
 │   │   │   ├── ChainAnalysis/          # 产业链版本化分析（G6 图谱 + 版本切换）
 │   │   │   ├── StockDetail/            # 同花顺风格多周期 K 线 + 财务 tab（含历史趋势）
 │   │   │   ├── CapitalFlow/            # 板块河流图 + 排名图（含概念板块）
@@ -196,7 +199,7 @@ ai-invest-assisstant/
 │   │   │   ├── Hotspot/
 │   │   │   ├── Settings/               # 基本信息 / 配色方案 / K 线均线 / 安全
 │   │   │   ├── Login/ Register/
-│   │   │   └── Admin/                  # 总览 + Users/Stocks/Reports/News/Tasks/LLMConfig/Collector/CollectorChannelConfig
+│   │   │   └── Admin/                  # 总览 + Users/Stocks/Reports/News/Tasks/LLMConfig/Collector/CollectorChannelConfig/TrackedIndex
 │   │   ├── stores/                     # Zustand 状态（auth / colorScheme / userSettings）
 │   │   ├── test/                       # 测试环境初始化与 mocks
 │   │   ├── types/ utils/ constants/ config/
@@ -264,7 +267,7 @@ ai-invest-assisstant/
 
 1. **后端与采集解耦**：`backend/app/` 负责 Web API，`backend/collector/` 负责 Celery 采集调度与执行，两者独立打包镜像但共享 ORM 与仓储层。
 2. **共享契约中心化**：`shared/` 作为独立 npm 包，被 Web 与后端共同引用，避免接口契约漂移。
-3. **前端按页面组织**：`web/src/pages/` 按业务模块划分（每日复盘 / 产业链 / 个股 / 资金流 / 竞价 / 研报 / 财报 / 财务 / 热点 / 设置 / 后台），组件、Hooks、状态管理各自独立。
+3. **前端按页面组织**：`web/src/pages/` 按业务模块划分（工作台 / 每日复盘 / 产业链 / 个股 / 资金流 / 竞价 / 日历 / 研报 / 财报 / 财务 / 热点 / 设置 / 后台），组件、Hooks、状态管理各自独立。
 4. **测试分层独立**：白盒测试贴近代码（`backend/tests/`、`web/src/test/`），黑盒 QA 测试独立成册（`qa/`），便于不同环境执行。
 5. **文档与代码分离**：`docs/` 仅存放设计文档与原型，不混入工程代码。
 6. **Skill 与提示词热更新**：`skills/` 以 Markdown 形式维护业务逻辑，`backend/app/prompts/` 以 YAML 形式维护 LLM 提示词，无需修改代码即可调整 AI 分析行为。
@@ -275,13 +278,13 @@ ai-invest-assisstant/
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ 外部数据源：东方财富 / 新浪财经 / 巨潮资讯 / tushare / 交易所              │
+│ 外部数据源：东方财富 / 新浪财经 / 巨潮资讯 / tushare / 交易所 / 财联社     │
 └────────────────────────────────────────────────────────────────────────────┘
                                      拉取│
                                        ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ 采集执行层（Celery worker · realtime/batch/heavy）                         │
-│ registry TaskSpec 声明（30 任务）· 多渠道优先级 · FAILED fallback          │
+│ registry TaskSpec 声明（33 任务）· 多渠道优先级 · FAILED fallback          │
 │ 限流/反爬：curl_cffi 指纹 · push2delay 镜像 · 重试退避                     │
 └────────────────────────────────────────────────────────────────────────────┘
                                      清洗│
@@ -294,7 +297,8 @@ ai-invest-assisstant/
                                        ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ 数据存储                                                                   │
-│ PostgreSQL/Timescale：行情 / 股池 / 资金流 / 财务 / 调度元数据             │
+│ PostgreSQL/Timescale：行情 / 股池 / 资金流 / 财务 / 全球指标 /             │
+│ 日历事件 / 调度元数据                                                      │
 │ Elasticsearch：新闻与公告全文索引 · COS：研报/财报 PDF 文件                │
 └────────────────────────────────────────────────────────────────────────────┘
                                      查询│
@@ -307,25 +311,26 @@ ai-invest-assisstant/
                                        ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ AI 分析引擎（YAML Skills + PydanticAI / deepagents）                       │
-│ 每日复盘综述 · 涨停归因 · 产业链分析 · 研报/财报摘要                       │
+│ 每日复盘综述 · 涨停归因 · 自选股每日分析 · 产业链分析 · 研报/财报摘要      │
 │ 财务体检 · 热点检测 · 突破点追踪 · AI 助手对话                             │
 └────────────────────────────────────────────────────────────────────────────┘
                                      展示│
                                        ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ 前端可视化（React SPA · SCF web-api 同源托管）                             │
-│ 复盘 / 产业链图谱 / 个股 / 资金流 / 竞价 / 研报 / 财报 / 后台              │
+│ 工作台 / 复盘 / 产业链 / 个股 / 资金流 / 竞价 / 日历 / 研报 / 财报 / 后台  │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> AI 分析结果按 `input_hash = sha256(skill_id + 业务日期)` 缓存于 `ai_analysis_result` 表，
-> 定时任务（交易日 15:05 复盘综述、16:30 涨停归因）与手动触发共享幂等缓存。
+> AI 分析结果按 `input_hash = sha256(skill_id + 业务键)` 缓存于 `ai_analysis_result` 表，
+> 定时任务（交易日 15:05 复盘综述、16:30 涨停归因、盘后自选股批量分析）与手动触发共享幂等缓存。
 
 
 ## 7. 功能矩阵
 
 | 功能模块 | 桌面 Web | 移动 Web | 实现要点 |
 |----------|----------|----------|----------|
+| 工作台 | ✅ 登录默认页 | ❌ | 卡片化聚合：日历摘要 / 复盘结论 / 要闻 / 自选股概览 / 市场快览；模块可折叠、空态兜底 |
 | 每日复盘 | ✅ 完整 | ✅ 卡片 | 指数 K 线 / 涨停复盘（含 AI 归因）/ AI 大盘综述（可模块级编辑）/ 自选股行情卡 |
 | 产业链分析 | ✅ 完整交互 | ✅ 双指缩放 | G6 图谱 + 版本切换 + AI 助手确认；基于经营范围自下而上推导环节 |
 | 个股详情 | ✅ 多周期 K 线 | ✅ 单图 | 同花顺风格多窗口预设（日/周/月）+ 财务 tab 历史趋势 + 板块归属 |
@@ -335,11 +340,14 @@ ai-invest-assisstant/
 | 研报中心 | ✅ 筛选 + PDF + AI 摘要 | ❌ | 券商/行业/评级多维筛选；PDF 用 curl_cffi 绕 WAF |
 | 财报中心 | ✅ 列表 + 采集 + AI 摘要 | ❌ | 后台触发采集，file_metadata.summary 缓存 AI 摘要 |
 | 热点追踪 | ✅ | ✅ 速览 | 话题云、新闻时间线、热点传导链 |
-| AI 分析报告 | ✅ 完整 | ✅ 精简 | YAML 声明式分区，产业链/涨停复盘/每日综述各有独立 prompt |
+| 投资日历 | ✅ 月历/周历/列表 | ❌ | `calendar_event`：财联社日历 + FOMC/BLS 固定日程，`source_hash` 幂等去重，分类筛选 |
+| AI 分析报告 | ✅ 完整 | ✅ 精简 | YAML 声明式分区，产业链/涨停归因/每日综述/自选股每日分析各有独立 prompt |
 | AI 助手 | ✅ 对话面板 | ✅ 底部弹层 | assistant-ui + deepagents，流式 SSE、工具调用折叠、会话持久化 |
-| 自选股管理 | ✅ | ✅ | 个股详情页一键加入/移除 |
+| 自选股管理 | ✅ | ✅ | 分组增删改查（`watchlist_group`，未分组归默认分组）+ AI 复盘分组开关，个股详情一键加入/移除 |
+| 自选股 AI 每日分析 | ✅ 个股 Tab + 列表卡片 | ❌ | 盘后定时批量（heavy 队列），仅遍历开启复盘开关的分组；三段式输出（盘面解读/操作策略/止损线），`input_hash` 幂等缓存 |
+| 跟踪指数 | ✅ 大盘页/工作台动态清单 | ✅ | `tracked_index_config` 全局配置 + `quote_global_index_daily`（黄金/美债收益率/美元指数），后台维护 |
 | 用户设置 | ✅ 完整 | ✅ 基础 | 涨跌配色方案（红涨绿跌 / 绿涨红跌）+ 个人 K 线均线 |
-| 后台管理 | ✅ 9 个子页 | ❌ | 用户/股票/研报/资讯/任务/LLM 配置/采集渠道/采集任务（目录驱动） |
+| 后台管理 | ✅ 10 个子页 | ❌ | 用户/股票/研报/资讯/任务/LLM 配置/采集渠道/跟踪指数/采集任务（目录驱动） |
 
 ## 8. 后续文档索引
 

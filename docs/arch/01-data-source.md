@@ -1,6 +1,6 @@
 # 数据源设计
 
-> 任务与渠道的权威目录是 `backend/collector/runtime/registry.py` 的 TASK_SPECS（30 个任务），运行时可经 `GET /api/v1/admin/collector/tasks/catalog` 查询；本文描述各数据源的定位、反爬要点与存储去向。
+> 任务与渠道的权威目录是 `backend/collector/runtime/registry.py` 的 TASK_SPECS（33 个任务），运行时可经 `GET /api/v1/admin/collector/tasks/catalog` 查询；本文描述各数据源的定位、反爬要点与存储去向。
 
 ## 1. 数据源全景
 
@@ -19,7 +19,9 @@
 │ ● 分钟线     │ ● 概念成分股  │              │ ● 指数集合竞价(唯一)      │
 │ ● 新闻/宏观  │ ● 个股研报    │              │ 交易所：                  │
 │ ● 集合竞价   │ ● 基金持仓    │              │ ● 市场成交额(唯一)        │
-│              │ ● 富时A50     │              │ internal：AI 复盘/归因    │
+│              │ ● 富时A50     │              │ internal：AI 生成任务     │
+│              │ ● 全球指数/黄金│             │ 财联社：电报快讯/日历     │
+│              │              │              │ Fed/BLS：固定日程         │
 └──────────────┴──────────────┴──────────────┴───────────────────────────┘
 ```
 
@@ -48,6 +50,7 @@
 | 概念成分股 | `concept-constituents` | 高频连发触发 WAF，走 **push2delay 镜像 + curl_cffi** |
 | 个股研报 / 基金持仓 | `research-report` / `fund-holdings` | 研报 PDF 下载走 curl_cffi Chrome 指纹（pdf.dfcfw.com 按 TLS 指纹拦截 httpx） |
 | 富时 A50 | `a50-kline` | 无替代源 |
+| 全球指数 / 黄金 | `global-index`（美元指数 UDI / COMEX 黄金等） | 跟踪指数清单（见 03 §3.9）的数据源主渠道；低频采集走 push2delay，akshare `index_global_*` 可作口径参考 |
 
 **WAF 行为要点**：按 TLS 指纹 + 路径 + 主机限流（非简单 IP 封禁）。`push2` 高频连发按主机封禁→批量拉取用 `push2delay` 镜像；`push2his` kline 路径已封死→K 线一律走新浪。
 
@@ -65,6 +68,7 @@
 |----------|------|------|
 | 指数集合竞价 | Tushare `stk_auction` | 指数竞价成交额**唯一口径**（聚合自个股），竞价付费权限已开通 |
 | 市场成交额 | 交易所（`exchange`） | 沪深两所官方口径 |
+| 美债收益率（2Y/10Y） | Tushare `us_tycr` | 美债收益率唯一口径；渠道已接，实施前确认积分权限 |
 
 ### 2.6 internal — AI 生成任务（非外部采集）
 
@@ -72,6 +76,26 @@
 |------|------|
 | `market-daily-review` | 每日复盘综述，交易日 15:05 触发，LLM 生成，结果缓存 `ai_analysis_result` |
 | `limit-up-ai-review` | 涨停 AI 归因，交易日 16:30 触发（依赖 16:00 涨停股池），同缓存机制 |
+| `watchlist-daily-analysis` | 自选股 AI 每日分析，交易日盘后批量（heavy 队列），仅遍历开启 AI 复盘开关的分组；三段式输出（盘面解读/操作策略/止损线），按 skill+code+日期 缓存 |
+
+### 2.7 财联社 — 电报快讯（准实时）+ 投资日历
+
+财联社两类数据共用一套接入机制（开源 cls-monitor 实现验证）：`sign = MD5(SHA1(参数按 key 字母序拼接))` 签名、`curl_cffi` Chrome TLS 指纹、页面预热获取 WAF Cookie、`sv` 版本号从页面 JS bundle 自动提取。
+
+| 数据 | 接口 | 采集方式 | 存储 |
+|------|------|----------|------|
+| 电报 7×24 快讯 | `www.cls.cn/api/cache`（`name=telegraphList` + `lastTime` 增量游标） | 驻留进程 10 秒增量轮询——官方无推送 API/WebSocket，页面"实时"本身即 10s 轮询，同节奏即准实时且与真实用户行为一致；游标断点续传、失败指数退避、看门狗补漏 | 快讯入 ES 索引，按 cls 消息 id 幂等 |
+| 投资日历事件 | investkalendar nodeapi | 每日增量采集 | `calendar_event`，按 `source_hash` 幂等去重 |
+
+日历接口两条落地路径：① 逆向签名机制直连接口；② 兜底解析其每月"资本市场大事提醒"栏目文章。
+
+### 2.8 海外官方 — 固定日程（半自动导入）
+
+| 数据类型 | 来源 | 说明 |
+|----------|------|------|
+| FOMC 议息会议日程 | federalreserve.gov 年度日历页 | 每年初发布、结构稳定，导入脚本 + 人工校对 |
+| 美国 CPI / 非农等披露日程 | bls.gov/schedule | 同上 |
+| 平台衍生事件 | 财报披露日期 / AI 提取的关键里程碑 | 自选股财报披露自动关联；AI 从财报提取技术突破等事件时间（见 [04 §8.2](./04-ai-agent.md)） |
 
 ## 3. 渠道优先级与故障切换
 
@@ -96,7 +120,8 @@
 
 | 数据 | 存储 | 说明 |
 |------|------|------|
-| 行情/K线/股池/资金流/财务结构化字段/调度元数据 | PostgreSQL + TimescaleDB | 时序表走 hypertable |
-| 新闻 / 公告全文 | Elasticsearch | 全文检索 |
+| 行情/K线/股池/资金流/财务结构化字段/调度元数据/全球指标行情 | PostgreSQL + TimescaleDB | 时序表走 hypertable |
+| 新闻 / 公告 / 电报快讯全文 | Elasticsearch | 全文检索 |
 | 财报 PDF / 研报 PDF | COS（S3 兼容） | 预签名 URL 下载 |
-| AI 分析结果（复盘综述/涨停归因） | `ai_analysis_result` 表 | 按 `input_hash=sha256(skill_id+日期)` 幂等缓存 |
+| AI 分析结果（复盘综述/涨停归因/自选股每日分析） | `ai_analysis_result` 表 | 按 `input_hash`（skill_id + 业务键）幂等缓存 |
+| 投资日历事件 | `calendar_event` 表 | 按 `source_hash` 幂等去重 |

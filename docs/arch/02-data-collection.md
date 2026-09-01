@@ -18,7 +18,7 @@
 │  └── celery_tasks.py  任务投递封装 + NotReady 自动重试（见 §6）              │
 │                                                                            │
 │  runtime/                                                                   │
-│  ├── registry.py     TaskSpec 声明表（30 任务：参数 + 渠道懒加载路径）       │
+│  ├── registry.py     TaskSpec 声明表（33 任务：参数 + 渠道懒加载路径）       │
 │  ├── resolver.py     按 collector_channel_data_type 优先级解析可用渠道       │
 │  ├── channels.py     渠道配置数据访问                                        │
 │  ├── dispatcher.py   管理后台 API → Celery 队列投递                         │
@@ -64,6 +64,7 @@
 
 - `COLLECTOR_MODE=beat` → celery-beat（挂 `CollectorDatabaseScheduler`）
 - `COLLECTOR_MODE=worker` + `COLLECTOR_QUEUE=<queue>` → 队列 worker
+- `COLLECTOR_MODE=stream` → 准实时驻留采集进程（财联社电报 10 秒增量轮询，自有循环、不走 Celery 队列，不注册 TASK_SPECS）
 - 设置 `COLLECT_TASK=<task>` → 跑一次性任务后退出（CLI / SCF 模式）
 
 ### 2.2 调度矩阵（节奏参考）
@@ -86,12 +87,16 @@ beat 周期同步，在管理后台改行即生效；下表仅列节奏概况，
 | market-breadth / index-spot / quote / stock-list | sina | 盘中高频 / 每日 |
 | concept-constituents（概念成分股） | eastmoney（curl_cffi） | 每日 |
 | news / macro | sina | 每 30 分钟 / 按需 |
+| cls-telegraph（财联社电报快讯） | cls | 驻留进程 10 秒增量轮询（非 beat 调度，见 §2.1 stream 角色），lastTime 游标断点续传 |
 | company-profile / disclosure / financial-report / ipo-info | cninfo | 每日 / 公告小时级 / 财报季密集 |
 | research-report / fund-holdings | eastmoney | 每日两次 / 每季 |
 | market-daily-review（每日复盘） | internal | 交易日 15:05，LLM 生成 |
 | limit-up-ai-review（涨停AI归因） | internal | 交易日 16:30（依赖 16:00 涨停池），LLM 生成 |
+| watchlist-daily-analysis（自选股AI分析） | internal | 交易日盘后（heavy），仅遍历开启 AI 复盘开关的分组，LLM 生成 |
+| invest-calendar（投资日历） | cls（调研项） | 每日增量；Fed/BLS 固定日程每年初导入 |
+| global-index（全球指标） | eastmoney → tushare | 交易日盘中低频 + 盘后收盘价落库 |
 
-> internal 两个 AI 任务结果按 `input_hash=sha256(skill_id+日期)` 缓存于 `ai_analysis_result`，已生成则 SKIPPED（良性终态）。
+> internal AI 任务结果按 `input_hash`（skill_id + 业务键：复盘/归因为日期，自选股分析为 code+日期）缓存于 `ai_analysis_result`，已生成则 SKIPPED（良性终态）。
 
 ## 3. 注册表驱动的任务声明
 

@@ -41,6 +41,8 @@
   - 财务报表：`financial_`（如 `financial_balance_sheet`、`financial_income_statement`、`financial_cash_flow_statement`）
   - 产业链：`industry_chain_`
   - 成分/映射：`mapping_`（如 `mapping_stock_concept`、`mapping_index_stock`）
+  - 投资日历：`calendar_`（如 `calendar_event`）
+  - 跟踪指数配置：`tracked_index_config`（对齐渠道配置表命名风格）；其行情数据走 `quote_` 前缀（`quote_global_index_daily`）
 - **字段名**：完整单词优先，禁用无上下文缩写；同一语义统一用同一单词（涨跌幅一律 `change_pct`）
 - **约束 / 索引命名**：`pk_<table>` / `uq_<table>_<columns>` / `fk_<table>_<ref_table>` / `idx_<table>_<columns>` / `chk_<table>_<column>`
 - **审计字段**：业务表统一使用 `created_at` / `updated_at`
@@ -130,6 +132,17 @@
 | `collector_log` | 采集执行日志（runner 唯一写入点，含 `celery_task_id`） |
 | `collector_dead_letter` | 采集死信（全渠道失败落库，管理端可查看/重放） |
 | `llm_config` | LLM 配置（provider / model / api_key 加密存储） |
+
+### 3.9 日历 / 跟踪指数域
+
+| 表 | 说明 |
+|----|------|
+| `calendar_event` | 投资日历事件（event_time / 标题 / 分类[宏观·央行动态·新股·解禁·财报·会议] / 影响市场 / 来源 / 关联标的），`source_hash` 幂等去重 |
+| `tracked_index_config` | 跟踪指数配置（index_code / name / 市场类别[A股·全球] / 数据源标识 / 排序 / 启用）——大盘页与工作台指标清单的真相源，管理员后台维护 |
+| `quote_global_index_daily` | 全球指标日行情（Timescale 超表：index_code / trade_date / OHLC / 涨跌幅），覆盖黄金/美债收益率/美元指数等 |
+| `watchlist_group` | 自选股分组（user_id / name / sort_order / `ai_review_enabled` AI 复盘开关，默认 false）；`watchlist` 增加 `group_id` 外键，空值归入默认分组 |
+
+> 自选股 AI 每日分析复用 `ai_analysis_result`（input_hash = sha256(skill + code + 日期)），三段式结构（盘面解读/操作策略/止损线）以 JSON 存储，无需专表。
 
 ## 4. Elasticsearch 索引设计
 
