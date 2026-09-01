@@ -168,6 +168,7 @@ jobs:
         run: |
           {
             echo "sha_short=$(git rev-parse --short HEAD)"
+            echo "branch=$(echo "${GITHUB_REF#refs/heads/}" | tr '/' '-')"
             echo "app_version=$(cat VERSION).${GITHUB_RUN_NUMBER}"
           } >> "$GITHUB_OUTPUT"
 
@@ -181,7 +182,7 @@ jobs:
           push: true
           provenance: false
           tags: |
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web-api:${{ steps.vars.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web-api:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
             ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web-api:latest
           build-args: |
             VITE_APP_VERSION=${{ steps.vars.outputs.app_version }}
@@ -198,7 +199,7 @@ jobs:
           push: true
           provenance: false
           tags: |
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web-api:${{ steps.vars.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web-api:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
             ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web-api:latest
           build-args: |
             VITE_APP_VERSION=${{ steps.vars.outputs.app_version }}
@@ -234,7 +235,11 @@ jobs:
 
       - name: Resolve tags / 解析标签
         id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          {
+            echo "sha_short=$(git rev-parse --short HEAD)"
+            echo "branch=$(echo "${GITHUB_REF#refs/heads/}" | tr '/' '-')"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build and Push / 构建并推送（第 1 次尝试）
         uses: docker/build-push-action@v7
@@ -245,7 +250,7 @@ jobs:
           push: true
           provenance: false
           tags: |
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector:${{ steps.vars.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
             ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -260,7 +265,7 @@ jobs:
           push: true
           provenance: false
           tags: |
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector:${{ steps.vars.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
             ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
