@@ -17,15 +17,13 @@
         │                              │
         └────────── HTTPS ─────────────┘
                      │
-        ┌────────────┴──────────────┐
-        ▼                           ▼
-┌──────────────────┐      ┌─────────────────────────┐
-│ EdgeOne Pages     │      │ SCF Web 函数（API）      │
-│ React SPA 静态托管 │ ───▶ │ FastAPI（nginx+uvicorn） │
-│ /assets/ 长缓存    │/api/*│ 代理超时 300s（LLM）     │
-│ invest.17aitech   │      │ /docs /health           │
-│ .com              │      └─────────────────────────┘
-└──────────────────┘
+                     ▼
+┌────────────────────────────────────────────┐
+│ SCF Web 函数 — web-api 一体镜像（:9000）   │
+│ React SPA（nginx 静态）· /assets/ 长缓存   │
+│ FastAPI /api/* 同源 · 代理超时 300s（LLM） │
+│ invest.17aitech.com · /docs /health        │
+└────────────────────────────────────────────┘
 ```
 
 - **桌面端** — 全功能投资分析平台（产业链图谱 / K 线 / 资金流向 / 研报 / 财报 / 后台管理）
@@ -246,7 +244,7 @@ export default defineConfig({
 ```
 
 Nginx 配置（`docker/web/nginx.conf`）：
-- SPA 静态资源由 EdgeOne Pages 托管时沿用同一缓存语义：`/assets/` 长缓存（`max-age=31536000, immutable`，产物带内容哈希），`/index.html` 禁止启发式缓存（发版后立即生效）
+- nginx（web-api 一体镜像）对 SPA 静态资源采用缓存语义：`/assets/` 长缓存（`max-age=31536000, immutable`，产物带内容哈希），`/index.html` 禁止启发式缓存（发版后立即生效）
 - `/api/` 代理超时 300s（LLM 调用可达 1-2 分钟）
 
 ## 9. 后续文档索引

@@ -6,9 +6,7 @@
 
 | 节点 | 承载内容 | 技术形态 |
 |------|----------|----------|
-| EdgeOne Pages | React SPA 静态托管（免费静态托管档），**SPA 公网唯一出口**；域名 `invest.17aitech.com`（已备案） | 静态资源，`VITE_APP_VERSION` 由 CI 注入 |
-| EdgeOne Agent Runtime | deepagents 助手对话运行时**主承载**（会话独占沙箱，毫秒级冷启动）；不受 SCF 900s 限制（边缘档单次执行上限 3600s） | 回调核心 API，不直连数据库 |
-| SCF Web 函数 | FastAPI API 层（`docker/web` 一体镜像：nginx + uvicorn），SSE 流式输出；仅承载 `/api/*`，静态请求不经此出口 | 内存 2048MB，超时 900s，预置并发 1-2 实例保冷启动；镜像内 nginx 静态兜底仅服务本地 compose / 灾备 |
+| SCF Web 函数 | web-api 一体镜像（`docker/web`：nginx + uvicorn）：React SPA 与 FastAPI API 层**同源同端口**（:9000），SSE 流式输出；助手对话（deepagents）进程内承载 | 内存 2048MB，超时 900s，预置并发 1-2 实例保冷启动；自定义域名 `invest.17aitech.com`（已备案） |
 | 轻量应用服务器 2C4G（ap-beijing） | 数据层（postgres/timescale、redis、elasticsearch）+ 任务层（celery-beat + worker〔realtime+batch〕+ worker-heavy〔并发=1〕） | Docker Compose 编排；采集爬虫与 LLM 归因永久驻留 |
 | COS | 研报/财报 PDF、知识库文件（S3 兼容端点）；`pg_dump` 定时备份目标 | 应用经 S3 SDK 读写 |
 | TCR（ccr.ccs.tencentyun.com/domonic18） | 镜像仓库：`web-api` + `collector` 双镜像，linux/amd64 | tag = `latest` + git short sha |
@@ -19,18 +17,18 @@
 2. **WAF 出口稳定性**：东财 WAF 按 TLS 指纹 + 主机限流，SCF 共享出口 IP 池风险高于轻量服务器固定出口 IP
 3. PG/Redis 驻留轻量，worker 与数据同机时延最低
 
-**助手对话不受 900s 约束**：900s 是 SCF 函数执行上限；助手对话由 EdgeOne Agent Runtime 会话沙箱承载后不再经过函数时长闸门。边缘档单次执行上限 3600s、会话空闲 300s，对话分钟级场景余量充足，配额形式为沙箱数量 + 沙箱回收时间（可提工单调整）。若未来出现 >1h 的长时 Agent（如深度研报告成），升级路径为腾讯云 Agent Runtime（云端独立产品，会话持续运行最长 7 天、暂停保留 30 天且暂停期间不收费）。任务侧（worker 拓扑）收缩为双 worker：realtime 与 batch 合并（时间窗天然错开：batch 定点盘后、realtime 盘中），heavy 独立容器且并发=1——LLM 分钟级任务不得占用通用采集池。
+**助手对话随 API 同进程承载**（deepagents / LangGraph 运行于 web-api 内）：实测流式对话 25.4s、LLM 归因约 90s，对 900s 函数执行上限余量 10 倍以上；独立沙箱运行时（EdgeOne Agent Runtime 等）经评估不引入——拆分收益不抵新增平台的管理面与凭据/DNS 依赖。任务侧（worker 拓扑）为双 worker：realtime 与 batch 合并（时间窗天然错开：batch 定点盘后、realtime 盘中），heavy 独立容器且并发=1——LLM 分钟级任务不得占用通用采集池。
 
 ## 2. 网络与域名
 
-- **公网入口**：`invest.17aitech.com`（已备案）→ EdgeOne 接入；SPA 静态资源走 Pages，`/api/*` 走 SCF（自定义域名或函数默认域名），助手对话经 Agent Runtime 会话沙箱承载（沙箱内回调 SCF API 取数）
+- **公网入口**：`invest.17aitech.com`（已备案）→ SCF Web 函数自定义域名；SPA 与 `/api/*` 同源同端口（一体镜像 :9000），无跨域
 - **数据面互通**：SCF 不绑 VPC（默认具备公网出口），经轻量服务器公网 IP 直连 PG/Redis——轻量防火墙放行 5432/6379，Redis requirepass / PG 账号密码认证；ES 无认证留置轻量本地、不对外发布
 - **文件访问**：COS 预签名 URL 下发下载，前端不直连存储
 - **备份链路**：轻量服务器 `pg_dump` 定时任务直推 COS
 
 ## 3. 镜像与发布
 
-- **web-api 镜像**（`docker/web/Dockerfile`）：前端 vite 构建注入 `VITE_APP_VERSION`，nginx + FastAPI 合一，:9000 端口；SPA 公网出口走 EdgeOne Pages，镜像内静态资源仅作兜底（本地 compose / 灾备）
+- **web-api 镜像**（`docker/web/Dockerfile`）：前端 vite 构建注入 `VITE_APP_VERSION`，nginx + FastAPI 合一，:9000 端口；SPA 由镜像内 nginx 直接服务，与 API 同源（SCF 与本地 compose 同一形态）
 - **collector 镜像**（`docker/collector/Dockerfile`）：`COLLECT_TASK` 单任务模式 / `COLLECTOR_MODE=beat|worker` 常驻模式
 - **发布流**：push develop → GitHub Actions 构建推送 TCR → 轻量服务器 `.env` 以 `APP_TAG` 钉版（git 短 sha，缺省 latest）后 `docker compose pull && docker compose up -d`、SCF 更新镜像版本；服务器不执行任何构建（实施细节与应急构建见 [deployment-evolution-plan.md](../plan/deployment-evolution-plan.md)）
 
@@ -55,5 +53,5 @@ sudo docker exec -i investment-postgres-1 psql -U invest -d invest -v ON_ERROR_S
 - web/API：`curl localhost:9000/health` 200；SPA `/` 200；域名 `https://invest.17aitech.com/health` 200
 - worker：`docker exec investment-celery-worker-1 python -m celery -A collector.celery_app inspect ping`（heavy 同理换 `investment-celery-worker-heavy-1`）
 - registry：`GET /api/v1/admin/collector/tasks/catalog` 任务数与注册表一致
-- 助手：流式对话经 Agent Runtime 入口正常出 token、可中断
+- 助手：流式对话经函数 URL 入口正常出 token、可中断
 - 备份：COS 上存在当日 `pg_dump` 对象

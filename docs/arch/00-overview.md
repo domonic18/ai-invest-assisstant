@@ -9,7 +9,7 @@
 - **采集内容**：行情(K 线/分时/竞价)、财务报表、涨停/跌停池、板块资金流、研报与财报 PDF、公告与新闻、市场宽度、宏观指标
 - **AI 能力**：产业链分析、研报/财报摘要、涨停归因、每日 AI 大盘综述（YAML 声明式分区、可模块级编辑）
 - **输出形式**：响应式 Web 前端（桌面 + 移动端底部导航）+ AI 助手对话面板
-- **部署方式**：EdgeOne（SPA + Agent Runtime）+ SCF Web 函数（API）+ 轻量服务器（数据与采集任务）+ COS（文件），详见 [06-deployment.md](./06-deployment.md)
+- **部署方式**：SCF Web 函数（SPA + API 同源一体镜像）+ 轻量服务器（数据与采集任务）+ COS（文件），详见 [06-deployment.md](./06-deployment.md)
 
 ## 2. 部署架构全景图
 
@@ -17,21 +17,14 @@
 ┌────────────────────────────────────────┐
 │ 用户浏览器（桌面 / 移动 · 响应式单端） │
 └────────────────────────────────────────┘
-                     │ SPA 静态资源                                  │ AI 助手对话
-                     ▼                                           ▼
-┌──────────────────────────────────────┐   ┌────────────────────────────────────┐
-│ EdgeOne Pages                        │   │ EdgeOne Agent Runtime              │
-│ SPA 静态托管（免费档）               │   │ deepagents 助手运行时              │
-│ invest.17aitech.com（已备案）        │   │ 会话沙箱 · 毫秒级冷启动            │
-└──────────────────────────────────────┘   └────────────────────────────────────┘
-                     │ /api/*                                    │ 回调核心 API
-                     ▼                                           ▼
+                     │ HTTPS（SPA + /api/* 同源）
+                     ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ SCF Web 函数 — API 计算层                                                    │
-│ FastAPI（nginx + uvicorn 一体镜像）· SSE 流式输出                            │
-│ 预置并发保冷启动 · 执行上限 900s                                             │
+│ SCF Web 函数 — web-api 一体镜像（:9000）                                     │
+│ React SPA（nginx 静态）+ FastAPI（uvicorn）· SSE 流式输出                    │
+│ deepagents 助手对话进程内承载 · 预置并发保冷启动 · 执行上限 900s              │
 └──────────────────────────────────────────────────────────────────────────────┘
-                        │ CCN 云联网内网（读写 PG/Redis/ES）              │ S3 协议
+                        │ 公网直连（读写 PG/Redis）                       │ S3 协议
                         ▼                                        ▼
 ┌────────────────────────────────────────────┐   ┌──────────────────────────────┐
 │ 轻量应用服务器 2C4G（ap-beijing）          │   │ COS 对象存储                 │
@@ -44,7 +37,7 @@
 └────────────────────────────────────────────┘
 ```
 
-- **接入层**：EdgeOne 承载 SPA 静态托管与 deepagents 助手运行时，域名 invest.17aitech.com（已备案）
+- **接入层**：SCF Web 函数自定义域名 invest.17aitech.com（已备案），SPA 与 API 同源一体（nginx + FastAPI 一体镜像 :9000），助手对话进程内承载
 - **API 层**：SCF Web 函数（FastAPI 一体镜像），SSE 流式输出；长任务（>900s）与需固定出口 IP 的采集爬虫留置轻量服务器执行
 - **数据与任务层**：轻量服务器承载 postgres/timescale、redis、elasticsearch 与 Celery 采集调度（`collector_task` 表为调度真相源）
 - **文件存储**：COS（S3 兼容端点），兼作 pg_dump 定时备份目标
@@ -97,16 +90,16 @@
 
 | 层次 | 技术 | 部署位置 | 选型理由 |
 |------|------|----------|----------|
-| **Web 前端** | React 18 + Vite + TypeScript | EdgeOne Pages | 现代前端框架，生态完善 |
+| **Web 前端** | React 18 + Vite + TypeScript | SCF web-api 一体镜像（nginx 同源） | 现代前端框架，生态完善 |
 | **后端 API** | FastAPI (Python 3.10+) + SQLAlchemy 2.0 | SCF Web 函数（nginx + uvicorn 一体镜像） | 异步高性能、类型安全 |
-| **AI 助手运行时** | deepagents（LangChain Agent Protocol）+ assistant-ui | EdgeOne Agent Runtime | 流式对话/工具调用，会话持久化 `assistant_session` |
+| **AI 助手运行时** | deepagents（LangChain Agent Protocol）+ assistant-ui | SCF web-api 进程内 | 流式对话/工具调用，会话持久化 `assistant_session` |
 | **数据采集** | 自研 collector runtime + Celery + httpx/akshare/curl_cffi | 轻量服务器 Celery 双 worker（realtime+batch / heavy 并发=1） | 声明式 TaskSpec 注册表（30 任务）+ 多渠道 fallback |
-| **可视化** | ECharts + AntV/G6 v5 + D3.js | 前端打包至 EdgeOne | 产业链图谱(G6)、K线/竞价(ECharts)、板块河流/排名(D3/ECharts) |
+| **可视化** | ECharts + AntV/G6 v5 + D3.js | 前端打包至 web-api 镜像 | 产业链图谱(G6)、K线/竞价(ECharts)、板块河流/排名(D3/ECharts) |
 | **结构化存储** | PostgreSQL + TimescaleDB | 轻量服务器 Docker | 时序行情数据高效存储 |
 | **搜索引擎** | Elasticsearch | 轻量服务器 Docker | 公告/新闻全文检索 + 知识库 |
 | **文件存储** | COS (S3 兼容) | 腾讯云 COS | PDF 财报/研报对象存储，兼作 pg_dump 备份目标 |
 | **缓存/队列** | Redis | 轻量服务器 Docker | 热数据缓存、Session、Celery broker、分布式锁 |
-| **AI Agent** | PydanticAI + YAML Prompts + Skills + MCP | EdgeOne Agent Runtime（回调核心 API） | Python 原生 Agent SDK，OpenAI/Anthropic 双协议路由 |
+| **AI Agent** | PydanticAI + YAML Prompts + Skills + MCP | web-api 进程内 | Python 原生 Agent SDK，OpenAI/Anthropic 双协议路由 |
 | **认证** | JWT (OAuth2 表单) | FastAPI 模块 | 首个注册用户自动晋升管理员 |
 | **容器化** | Docker + Docker Compose | 轻量服务器 | 环境统一，一键部署 |
 | **CI/CD** | GitHub Actions → TCR | GitHub | 自动构建推送，服务器/SCF 仅 pull 部署 |
@@ -320,7 +313,7 @@ ai-invest-assisstant/
                                      展示│
                                        ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ 前端可视化（React SPA · EdgeOne 托管）                                     │
+│ 前端可视化（React SPA · SCF web-api 同源托管）                             │
 │ 复盘 / 产业链图谱 / 个股 / 资金流 / 竞价 / 研报 / 财报 / 后台              │
 └────────────────────────────────────────────────────────────────────────────┘
 ```

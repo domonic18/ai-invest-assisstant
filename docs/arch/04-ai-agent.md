@@ -390,4 +390,4 @@ async def analyze_chain(payload: ChainAnalyzeRequest, db: AsyncSession = Depends
 - [00-overview.md](./00-overview.md) — 总体架构与目录结构
 - [03-data-storage.md](./03-data-storage.md) — 数据库设计（产业链版本表、AI 复盘多租户表）
 - [05-web-frontend.md](./05-web-frontend.md) — 前端如何展示版本化分析结果
-- [06-deployment.md](./06-deployment.md) — 部署架构（Agent Runtime / SCF 承载）
+- [06-deployment.md](./06-deployment.md) — 部署架构（SCF 承载）
