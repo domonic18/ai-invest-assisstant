@@ -125,23 +125,26 @@ ON CONFLICT (channel_id, data_type) DO NOTHING;
 
 -- cls 渠道（签名自持无需 api_key，入目录便于管理）
 INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
-VALUES ('cls', '财联社', true, '["news-telegraph"]'::jsonb)
+VALUES ('cls', '财联社', true, '["cls-telegraph-backfill"]'::jsonb)
 ON CONFLICT (source) DO NOTHING;
 
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
-SELECT id, 'news-telegraph', 1
+SELECT id, 'cls-telegraph-backfill', 1
 FROM collector_channel_config
 WHERE source = 'cls'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
+-- 渠道解析按 TaskSpec.name 匹配 collector_channel_data_type.data_type，
+-- 同一任务类型的多条调度行（实时/收盘/美债）镜像 index-auction 的多行模式
 INSERT INTO collector_task (task_name, task_type, source, schedule, is_active)
 VALUES
     -- 盘中半小时级实时快照（COMEX 黄金/美元指数，push2delay 镜像）
-    ('eastmoney_global_index_realtime', 'global-index-realtime', 'eastmoney', '*/30 9-17 * * 1-5', true),
+    ('eastmoney_global_index_realtime', 'global-index', 'eastmoney', '*/30 9-17 * * 1-5', true),
     -- 美股收盘定盘兜底（北京时间 6/7 点覆盖美夏/冬令时收盘）
-    ('eastmoney_global_index_close', 'global-index-close', 'eastmoney', '0 6,7 * * 2-6', true),
+    ('eastmoney_global_index_close', 'global-index', 'eastmoney', '0 6,7 * * 2-6', true),
     -- 美债收益率日度（us_tycr 单次返回全量历史，upsert 幂等）
-    ('tushare_us_yield_daily', 'us-yield-daily', 'tushare', '30 6 * * 2-6', true),
+    ('tushare_us_yield_daily', 'global-index', 'tushare', '30 6 * * 2-6', true),
     -- cls 电报历史回补：手动触发不排 cron，增量由 stream 驻留进程负责
     ('cls_telegraph_backfill', 'cls-telegraph-backfill', 'cls', NULL, false)
-ON CONFLICT (task_name) DO NOTHING;
+ON CONFLICT (task_name) DO UPDATE
+SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;
