@@ -32,6 +32,11 @@ class UserWatchlistGroup(Base):
     )
 
     user: Mapped["User"] = relationship("User")
+    items: Mapped[list["UserWatchlist"]] = relationship(
+        back_populates="group",
+        lazy="selectin",
+        order_by="UserWatchlist.created_at.desc()",
+    )
 
 
 class UserWatchlist(Base):
@@ -51,4 +56,4 @@ class UserWatchlist(Base):
     )
 
     user: Mapped["User"] = relationship("User", back_populates="watchlist")
-    group: Mapped["UserWatchlistGroup"] = relationship("UserWatchlistGroup")
+    group: Mapped["UserWatchlistGroup"] = relationship("UserWatchlistGroup", back_populates="items")
