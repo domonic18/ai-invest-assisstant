@@ -51,6 +51,8 @@ from app.schemas.stock import (
     KlineDataResponse,
     PaginatedResponse,
     PaginationParams,
+    StockAiAnalysisResponse,
+    StockAiAnalysisSection,
     StockBasicResponse,
     StockSearchRequest,
 )
@@ -87,6 +89,8 @@ __all__ = [
     "AdminUserResetPassword",
     "StockBasicResponse",
     "StockSearchRequest",
+    "StockAiAnalysisResponse",
+    "StockAiAnalysisSection",
     "AdminStockCreate",
     "AdminStockUpdate",
     "KlineDataResponse",
