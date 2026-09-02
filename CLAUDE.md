@@ -30,7 +30,7 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 请见文档：
 
 - [docs/arch/](./docs/arch/) — 架构设计（终态方案）
-- [docs/plan/deployment-evolution-plan.md](./docs/plan/deployment-evolution-plan.md) — 部署演进路线
+- [docs/plan/development-plan.md](./docs/plan/development-plan.md) — 功能开发计划（批次与状态真相源）
 
 ### 各目录 AI 上下文
 

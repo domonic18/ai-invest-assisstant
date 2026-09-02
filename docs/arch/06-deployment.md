@@ -1,6 +1,6 @@
 # 部署架构与运维
 
-> 目标架构设计（最终形态）。实施路线与现状问题分析见 [../plan/deployment-evolution-plan.md](../plan/deployment-evolution-plan.md)；部署全景图见 [00-overview.md §2](./00-overview.md)。
+> 目标架构设计（最终形态）。部署全景图见 [00-overview.md §2](./00-overview.md)。
 
 ## 1. 节点与职责
 
@@ -31,7 +31,7 @@
 - **web-api 镜像**（`docker/web/Dockerfile`）：前端 vite 构建注入 `VITE_APP_VERSION`，单 uvicorn 进程直听 :9000（API + SPA 静态托管合一，`STATIC_DIR=/app/static`）；与 API 同源（SCF 与本地 compose 同一形态）
 - **冷启动策略**：单进程消除"代理端口已开而后端未就绪"的 502 竞态；lifespan 预热（渠道 seeding / 助手 checkpointer）走后台任务不阻塞监听，`/health` 返回 `warmup_done` 观测位；前端对幂等 GET 在 502/503/504/网络错误时自动重试（1s/2s 退避）。SCF 控制台 env 须显式设 `FORCE_FORWARDED_HTTPS=1`（入口 HTTPS 但以 HTTP 转发容器且不带 `X-Forwarded-Proto`，中间件据此强制 scheme=https；本地 http 访问保持 0）
 - **collector 镜像**（`docker/collector/Dockerfile`）：`COLLECT_TASK` 单任务模式 / `COLLECTOR_MODE=beat|worker` 常驻模式
-- **发布流**：push develop → GitHub Actions 构建推送 TCR → 轻量服务器 `.env` 以 `APP_TAG` 钉版（`<分支>-<git 短 sha>`，如 `develop-4cdc1b7`，缺省 latest）后 `docker compose pull && docker compose up -d`、SCF 更新镜像版本；服务器不执行任何构建（实施细节与应急构建见 [deployment-evolution-plan.md](../plan/deployment-evolution-plan.md)）
+- **发布流**：push develop → GitHub Actions 构建推送 TCR → 轻量服务器 `.env` 以 `APP_TAG` 钉版（`<分支>-<git 短 sha>`，如 `develop-4cdc1b7`，缺省 latest）后 `docker compose pull && docker compose up -d`、SCF 更新镜像版本；服务器不执行任何构建
 
 ## 4. 运维实操
 

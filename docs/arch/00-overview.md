@@ -41,7 +41,7 @@
 - **API 层**：SCF Web 函数（FastAPI 一体镜像），SSE 流式输出；长任务（>900s）与需固定出口 IP 的采集爬虫留置轻量服务器执行
 - **数据与任务层**：轻量服务器承载 postgres/timescale、redis、elasticsearch 与 Celery 采集调度（`collector_task` 表为调度真相源）
 - **文件存储**：COS（S3 兼容端点），兼作 pg_dump 定时备份目标
-- **镜像发布**：GitHub Actions 构建推送 TCR，服务器/SCF 拉取部署；现状问题与演进路径见 [../plan/deployment-evolution-plan.md](../plan/deployment-evolution-plan.md)
+- **镜像发布**：GitHub Actions 构建推送 TCR，服务器/SCF 拉取部署，详见 [06-deployment.md](./06-deployment.md)
 
 > Web 与采集共享同一套 `backend/` 代码：`app/` 是 FastAPI Web 服务，`collector/` 是采集 runtime，通过 Celery 队列（realtime/batch/heavy）执行，亦保留 CLI 单任务入口 `collector.runtime.cli` 与 SCF 事件适配 `collector.runtime.scf_handler`。
 
