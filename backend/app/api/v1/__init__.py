@@ -16,6 +16,7 @@ from app.api.v1 import (
     market,
     research,
     stocks,
+    telegraph,
     users,
 )
 from app.api.v1.admin import collector as admin_collector
@@ -51,6 +52,7 @@ api_router.include_router(market.router, prefix="/market", tags=["market"])
 api_router.include_router(
     assistant.router, prefix="/assistant", tags=["assistant"]
 )
+api_router.include_router(telegraph.router, prefix="/telegraph", tags=["telegraph"])
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(admin_users.router, prefix="/users")

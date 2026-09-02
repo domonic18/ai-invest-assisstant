@@ -1,6 +1,6 @@
 """财联社电报的 SQLAlchemy ORM 模型。"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import JSON, DateTime, SmallInteger, String, Text, UniqueConstraint
@@ -32,7 +32,9 @@ class NewsTelegraph(Base):
     )
     publish_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
 
     __table_args__ = (UniqueConstraint("cls_msg_id"),)
