@@ -20,8 +20,8 @@
                      ▼
 ┌────────────────────────────────────────────┐
 │ SCF Web 函数 — web-api 一体镜像（:9000）   │
-│ React SPA（nginx 静态）· /assets/ 长缓存   │
-│ FastAPI /api/* 同源 · 代理超时 300s（LLM） │
+│ React SPA（FastAPI 静态托管）· /assets/ 长缓存 │
+│ FastAPI /api/* 同源 · SSE 流式输出（LLM）  │
 │ invest.17aitech.com · /docs /health        │
 └────────────────────────────────────────────┘
 ```
@@ -271,9 +271,11 @@ export default defineConfig({
 })
 ```
 
-Nginx 配置（`docker/web/nginx.conf`）：
-- nginx（web-api 一体镜像）对 SPA 静态资源采用缓存语义：`/assets/` 长缓存（`max-age=31536000, immutable`，产物带内容哈希），`/index.html` 禁止启发式缓存（发版后立即生效）
-- `/api/` 代理超时 300s（LLM 调用可达 1-2 分钟）
+SPA 静态托管（FastAPI 内置，`app/main.py` 的 `register_spa_routes`）：
+- web-api 一体镜像为**单 uvicorn 进程直听 :9000**（无 nginx/supervisord），端口监听即完整服务，消除冷启动代理竞态 502
+- 缓存语义：`/assets/` 长缓存（`max-age=31536000, immutable`，产物带内容哈希），`/index.html` 与 SPA 路由 fallback 禁止启发式缓存（发版后立即生效）
+- HSTS / CSP `upgrade-insecure-requests` 仅 HTTPS 下发；`FORCE_FORWARDED_HTTPS=1`（SCF）强制 scheme=https，本地 http 访问不受影响
+- API 未匹配路径保持 JSON 404，不落 index.html
 
 ## 9. 后续文档索引
 

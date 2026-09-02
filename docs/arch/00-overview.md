@@ -21,7 +21,7 @@
                      ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ SCF Web 函数 — web-api 一体镜像（:9000）                                     │
-│ React SPA（nginx 静态）+ FastAPI（uvicorn）· SSE 流式输出                    │
+│ React SPA + FastAPI 单 uvicorn 进程（SPA 静态托管）· SSE 流式输出            │
 │ deepagents 助手对话进程内承载 · 预置并发保冷启动 · 执行上限 900s              │
 └──────────────────────────────────────────────────────────────────────────────┘
                         │ 公网直连（读写 PG/Redis）                       │ S3 协议
@@ -37,7 +37,7 @@
 └────────────────────────────────────────────┘
 ```
 
-- **接入层**：SCF Web 函数自定义域名 invest.17aitech.com（已备案），SPA 与 API 同源一体（nginx + FastAPI 一体镜像 :9000），助手对话进程内承载
+- **接入层**：SCF Web 函数自定义域名 invest.17aitech.com（已备案），SPA 与 API 同源一体（单 uvicorn 进程一体镜像 :9000），助手对话进程内承载
 - **API 层**：SCF Web 函数（FastAPI 一体镜像），SSE 流式输出；长任务（>900s）与需固定出口 IP 的采集爬虫留置轻量服务器执行
 - **数据与任务层**：轻量服务器承载 postgres/timescale、redis、elasticsearch 与 Celery 采集调度（`collector_task` 表为调度真相源）
 - **文件存储**：COS（S3 兼容端点），兼作 pg_dump 定时备份目标
@@ -56,7 +56,7 @@
                                          HTTPS
                                            ▼
 ┌────────────────────────────────────────────────────────────────────────────────────┐
-│ API 层 (FastAPI · nginx :9000)                                                     │
+│ API 层 (FastAPI · uvicorn :9000)                                                   │
 │ JWT 鉴权 │ REST 路由 │ SSE 流式输出（AI 助手）│ /health /docs │ MCP Server         │
 │ auth/users/stocks/kline/auction/fund_flow/market/chain/research/                   │
 │ financial_report/financial/hotspot/calendar/assistant/admin                        │
@@ -91,8 +91,8 @@
 
 | 层次 | 技术 | 部署位置 | 选型理由 |
 |------|------|----------|----------|
-| **Web 前端** | React 18 + Vite + TypeScript | SCF web-api 一体镜像（nginx 同源） | 现代前端框架，生态完善 |
-| **后端 API** | FastAPI (Python 3.10+) + SQLAlchemy 2.0 | SCF Web 函数（nginx + uvicorn 一体镜像） | 异步高性能、类型安全 |
+| **Web 前端** | React 18 + Vite + TypeScript | SCF web-api 一体镜像（FastAPI 静态托管同源） | 现代前端框架，生态完善 |
+| **后端 API** | FastAPI (Python 3.10+) + SQLAlchemy 2.0 | SCF Web 函数（单 uvicorn 进程一体镜像） | 异步高性能、类型安全 |
 | **AI 助手运行时** | deepagents（LangChain Agent Protocol）+ assistant-ui | SCF web-api 进程内 | 流式对话/工具调用，会话持久化 `assistant_session` |
 | **数据采集** | 自研 collector runtime + Celery + httpx/akshare/curl_cffi | 轻量服务器 Celery 双 worker（realtime+batch / heavy 并发=1） | 声明式 TaskSpec 注册表（33 任务）+ 多渠道 fallback |
 | **可视化** | ECharts + AntV/G6 v5 + D3.js | 前端打包至 web-api 镜像 | 产业链图谱(G6)、K线/竞价(ECharts)、板块河流/排名(D3/ECharts) |
@@ -219,10 +219,8 @@ ai-invest-assisstant/
 │   └── package.json
 │
 ├── docker/                             # 容器与编排配置
-│   ├── web/                            # Web 镜像（前后端合一，SPA + FastAPI）
-│   │   ├── Dockerfile
-│   │   ├── nginx.conf                  # /assets/ 长缓存 / /api/ 代理超时 300s
-│   │   └── supervisord.conf            # 守护 Nginx + FastAPI
+│   ├── web/                            # Web 镜像（前后端合一，单 uvicorn 进程）
+│   │   └── Dockerfile                  # SPA 静态托管 + API 同源 :9000（无代理层）
 │   ├── collector/                      # 采集镜像（CLI 单任务 或 Celery beat/worker）
 │   │   ├── Dockerfile
 │   │   └── entrypoint-collector.sh     # COLLECT_TASK 单任务；COLLECTOR_MODE=beat/worker
