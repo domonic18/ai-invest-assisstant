@@ -89,6 +89,7 @@
 - 研报 PDF 全文在线阅读、资金流向桑基图（V1.1 遗留）
 - 小程序端（Taro）
 - PG 备份入 COS（硬性排最后）
+- 存储治理三件套（2026-09-02 全库审计发现，上生产前评估）：① 4 张 hypertable 开 TimescaleDB 压缩策略（分钟线收益最大）② collector_log 保留策略（建议 90 天，index-minute/index-spot 占增量约 3/4）③ LangGraph checkpoint 随 assistant_session 删除级联清理（存量约 20 个孤儿 thread）
 
 ## 4. 状态维护
 
