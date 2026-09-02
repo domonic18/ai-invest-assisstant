@@ -153,7 +153,7 @@ class TestEastmoneyGlobalIndexHistory:
 
 @pytest.mark.unit
 class TestTushareUsYield:
-    async def test_maps_y2_y10_with_bp_change(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_maps_y2_y10_with_pct_change(self, monkeypatch: pytest.MonkeyPatch) -> None:
         df = pd.DataFrame(
             {
                 "date": ["2026-08-29", "2026-09-01", "2026-09-02"],
@@ -169,7 +169,7 @@ class TestTushareUsYield:
         items = await collector.collect()
 
         us2y = [i for i in items if i["index_code"] == "US2Y"]
-        # NaN 日跳过并断开 bp 连差基准
+        # NaN 日跳过并断开涨跌幅连差基准
         assert [i["trade_date"].isoformat() for i in us2y] == [
             "2026-08-29",
             "2026-09-02",
@@ -179,8 +179,8 @@ class TestTushareUsYield:
         assert us2y[1]["close"] == 4.42
 
         us10y = [i for i in items if i["index_code"] == "US10Y"]
-        assert us10y[1]["change_pct"] == pytest.approx(2.0)  # +2bp
-        assert us10y[2]["change_pct"] == pytest.approx(-1.0)  # -1bp
+        assert us10y[1]["change_pct"] == pytest.approx(0.4175)  # (4.81-4.79)/4.79
+        assert us10y[2]["change_pct"] == pytest.approx(-0.2079)  # (4.80-4.81)/4.81
         assert all(i["source"] == "tushare" for i in items)
 
     async def test_requires_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:

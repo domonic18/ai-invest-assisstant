@@ -3,7 +3,7 @@
 us_tycr 无 ts_code 参数，单次调用返回全量历史（date/y1..y30 列，单位 %）。
 按 :data:`GLOBAL_INDEX_CODES` 中 tushare 源的 field 映射展开（y2→US2Y、
 y10→US10Y）写入 quote_global_index_daily。收益率为单点报价（无 OHLC），
-仅写 close；change_pct 存相邻交易日变动，单位 bp（百分点差 ×100）。
+仅写 close；change_pct 存相邻交易日涨跌幅（%），与表内其他来源口径一致。
 """
 
 from typing import Any, ClassVar
@@ -65,11 +65,11 @@ class TushareUsYieldCollector(PostgresCollector):
                     continue
                 close = to_float(row.get(field))
                 if close is None:
-                    # 个别十档当日缺数：断开 bp 连差基准
+                    # 个别十档当日缺数：断开涨跌幅连差基准
                     prev = None
                     continue
                 change_pct = (
-                    round((close - prev) * 100, 4) if prev is not None else None
+                    round((close - prev) / prev * 100, 4) if prev is not None else None
                 )
                 items.append(
                     {
