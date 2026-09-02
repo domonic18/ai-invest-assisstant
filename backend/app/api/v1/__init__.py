@@ -26,6 +26,7 @@ from app.api.v1.admin import reports as admin_reports
 from app.api.v1.admin import stocks as admin_stocks
 from app.api.v1.admin import system as admin_system
 from app.api.v1.admin import tasks as admin_tasks
+from app.api.v1.admin import tracked_index as admin_tracked_indexes
 from app.api.v1.admin import users as admin_users
 from app.api.v1.mcp import server as mcp_server
 
@@ -60,6 +61,7 @@ admin_router.include_router(admin_collector.router)
 admin_router.include_router(admin_collector_data_types.router)
 admin_router.include_router(admin_collector_channels.router)
 admin_router.include_router(admin_llm_configs.router)
+admin_router.include_router(admin_tracked_indexes.router)
 api_router.include_router(admin_router)
 
 api_router.include_router(mcp_server.router, prefix="/mcp", tags=["mcp"])

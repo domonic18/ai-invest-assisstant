@@ -63,6 +63,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
             "broken-pool",
             "limit-down-pool",
             "a50-kline",
+            "global-index",
         ],
         "extra": {},
     },
@@ -87,7 +88,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "name": "Tushare Pro",
         "base_url": "http://api.tushare.pro",
         "is_enabled": True,
-        "supported_data_types": ["index-auction"],
+        "supported_data_types": ["index-auction", "global-index"],
         "extra": {},
     },
     {

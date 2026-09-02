@@ -22,6 +22,9 @@ from collector.spiders.eastmoney_financial_statement import (
 )
 from collector.spiders.eastmoney_fund_flow import EastMoneyFundFlowCollector
 from collector.spiders.eastmoney_fund_holdings import EastMoneyFundHoldingsCollector
+from collector.spiders.eastmoney_global_index import (
+    EastmoneyGlobalIndexCollector,
+)
 from collector.spiders.eastmoney_limit_up_pool import EastMoneyLimitUpPoolCollector
 from collector.spiders.eastmoney_sector_fund_flow import (
     EastMoneySectorFundFlowCollector,
@@ -37,6 +40,7 @@ from collector.spiders.sina_news import SinaNewsCollector
 from collector.spiders.sina_stock_list import SinaStockListCollector
 from collector.spiders.ths_auction import ThsAuctionCollector
 from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
+from collector.spiders.tushare_us_yield import TushareUsYieldCollector
 
 _SECTOR_FUND_FLOW_UPDATE_COLUMNS = [
     "sector_name",
@@ -368,6 +372,42 @@ CONTRACTS: list[SpiderContract] = [
         has_normalize=True,
         dedup_keys=["trade_date"],
         required_fields=["trade_date", "broken_limit_count"],
+    ),
+    SpiderContract(
+        name="eastmoney_global_index",
+        cls=EastmoneyGlobalIndexCollector,
+        config={"source": "eastmoney", "data_type": "global_index"},
+        store=StoreContract(
+            table="quote_global_index_daily",
+            conflict_key="index_code, trade_date",
+            update_columns=[
+                "open",
+                "high",
+                "low",
+                "close",
+                "change_pct",
+                "volume",
+                "amount",
+                "source",
+            ],
+        ),
+        has_normalize=False,
+        dedup_keys=["index_code", "trade_date"],
+        required_fields=["index_code", "trade_date", "close"],
+    ),
+    SpiderContract(
+        name="tushare_us_yield",
+        cls=TushareUsYieldCollector,
+        config={"source": "tushare", "data_type": "global_index", "api_key": "token"},
+        store=StoreContract(
+            table="quote_global_index_daily",
+            conflict_key="index_code, trade_date",
+            update_columns=["close", "change_pct", "source"],
+            update_skip_null=True,
+        ),
+        has_normalize=False,
+        dedup_keys=["index_code", "trade_date"],
+        required_fields=["index_code", "trade_date", "close"],
     ),
 ]
 

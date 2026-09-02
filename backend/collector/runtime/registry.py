@@ -91,6 +91,16 @@ TASK_SPECS: dict[str, TaskSpec] = {
             },
         ),
         TaskSpec(
+            name="global-index",
+            label="全球指标行情",
+            data_type="global_index",
+            collectors={
+                "eastmoney": "collector.spiders.eastmoney_global_index:EastmoneyGlobalIndexCollector",
+                "tushare": "collector.spiders.tushare_us_yield:TushareUsYieldCollector",
+            },
+            run_params=("history_days",),
+        ),
+        TaskSpec(
             name="auction",
             label="集合竞价",
             data_type="auction",
@@ -332,6 +342,7 @@ _QUEUE_OVERRIDES: dict[str, Literal["realtime", "batch", "heavy"]] = {
     # 超出 batch 队列 600s 硬超时，归入 heavy。
     "concept-constituents": "heavy",
     "auction": "realtime",
+    "global-index": "realtime",
     "index-spot": "realtime",
     "index-minute": "realtime",
     "stock-minute": "realtime",
