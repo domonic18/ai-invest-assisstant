@@ -41,6 +41,7 @@ const Register = lazy(() => import('./pages/Register/Register').then((m) => ({ d
 const Research = lazy(() => import('./pages/Research/Research').then((m) => ({ default: m.Research })))
 const Settings = lazy(() => import('./pages/Settings/Settings').then((m) => ({ default: m.Settings })))
 const StockDetail = lazy(() => import('./pages/StockDetail/StockDetail').then((m) => ({ default: m.StockDetail })))
+const Telegraph = lazy(() => import('./pages/Telegraph').then((m) => ({ default: m.Telegraph })))
 
 function lazyEl(node: ReactNode) {
   return <Suspense fallback={<PageSkeleton />}>{node}</Suspense>
@@ -58,6 +59,7 @@ export const router = createBrowserRouter([
       { path: 'capital-flow', element: lazyEl(<CapitalFlow />) },
       { path: 'auction', element: lazyEl(<AuctionReview />) },
       { path: 'calendar', element: lazyEl(<Calendar />) },
+      { path: 'telegraph', element: lazyEl(<Telegraph />) },
       { path: 'research', element: lazyEl(<Research />) },
       { path: 'financial-reports', element: lazyEl(<FinancialReportPage />) },
       { path: 'financial/:code', element: lazyEl(<Financial />) },

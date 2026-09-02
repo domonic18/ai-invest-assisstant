@@ -13,6 +13,7 @@ import {
   SettingOutlined,
   ShopOutlined,
   TeamOutlined,
+  ThunderboltOutlined,
   UserOutlined,
   VerticalAlignTopOutlined,
 } from '@ant-design/icons'
@@ -31,6 +32,7 @@ const REVIEW_MENU_ITEMS: MenuItem[] = [
   { key: '/auction', icon: <ShopOutlined />, label: '集合竞价' },
   { key: '/calendar', icon: <CalendarOutlined />, label: '投资日历' },
   { key: '/capital-flow', icon: <FundOutlined />, label: '资金流向' },
+  { key: '/telegraph', icon: <ThunderboltOutlined />, label: '财联社电报' },
 ]
 
 const ANALYSIS_MENU_ITEMS: MenuItem[] = [

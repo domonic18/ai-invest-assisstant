@@ -90,6 +90,9 @@ export const ENDPOINTS = {
     events: `${API_BASE}/calendar/events`,
     upcoming: `${API_BASE}/calendar/events/upcoming`,
   },
+  telegraph: {
+    list: `${API_BASE}/telegraph`,
+  },
   admin: {
     users: `${API_BASE}/admin/users`,
     user: (id: number | string) => `${API_BASE}/admin/users/${id}`,

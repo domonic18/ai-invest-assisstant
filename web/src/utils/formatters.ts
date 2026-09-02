@@ -45,6 +45,16 @@ export function formatDateTime(value: string | null | undefined): string {
   return dayjs(value).format('YYYY-MM-DD HH:mm:ss')
 }
 
+/** 相对时间：X秒前 / X分钟前 / X小时前，超过一天回落到日期。 */
+export function formatRelativeTime(value: string | null | undefined): string {
+  if (!value) return '-'
+  const diffSec = dayjs().diff(dayjs(value), 'second')
+  if (diffSec < 60) return `${Math.max(diffSec, 0)}秒前`
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}分钟前`
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}小时前`
+  return formatDate(value)
+}
+
 /** 封板时间："092500" → "09:25:00"（东财 6 位零填充格式）。 */
 export function formatSealTime(value: string | null | undefined): string {
   if (!value) return '-'

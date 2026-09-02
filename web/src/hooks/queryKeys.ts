@@ -87,4 +87,9 @@ export const queryKeys = {
     sectors: (code: string) => ['stocks', 'sectors', code] as const,
   },
   watchlist: ['watchlist'] as const,
+  telegraph: {
+    all: ['telegraph'] as const,
+    list: (page: number, pageSize: number, minImportance?: number) =>
+      ['telegraph', 'list', page, pageSize, minImportance ?? 0] as const,
+  },
 } as const
