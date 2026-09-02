@@ -15,3 +15,12 @@ KLINE_CHART_EXTRA_CODES: dict[str, str] = {
     "sh510300": "沪深300ETF",
     "CN00Y": "富时A50",
 }
+
+# 全球跟踪指标清单（quote_global_index_daily 的 index_code 域）。
+# eastmoney：push2delay ulist 实时快照（secid）；tushare：us_tycr 列名（date/y1..y30）
+GLOBAL_INDEX_CODES: dict[str, dict[str, str]] = {
+    "GC00Y": {"name": "COMEX 黄金", "data_source": "eastmoney", "secid": "101.GC00Y"},
+    "DXY": {"name": "美元指数", "data_source": "eastmoney", "secid": "100.UDI"},
+    "US2Y": {"name": "美债 2Y 收益率", "data_source": "tushare", "field": "y2"},
+    "US10Y": {"name": "美债 10Y 收益率", "data_source": "tushare", "field": "y10"},
+}

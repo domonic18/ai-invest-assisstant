@@ -73,3 +73,55 @@ VALUES
     -- 研报每日 8 点/18 点采集（东财 reportapi 列表 + PDF 落 MinIO）
     ('eastmoney_research_report', 'research-report', 'eastmoney', '0 8,18 * * *', true)
 ON CONFLICT (task_name) DO NOTHING;
+
+-- ============================================================
+-- 批次 A：跟踪指数默认配置 + 全球指标/cls 电报采集任务
+-- ============================================================
+
+INSERT INTO tracked_index_config (index_code, index_name, market_category, data_source, sort_order, is_enabled)
+VALUES
+    ('sh000001', '上证指数',       'A股', 'sina',      1, true),
+    ('sz399001', '深证成指',       'A股', 'sina',      2, true),
+    ('sz399006', '创业板指',       'A股', 'sina',      3, true),
+    ('sh000688', '科创50',         'A股', 'sina',      4, true),
+    ('GC00Y',    'COMEX 黄金',     '全球', 'eastmoney', 5, true),
+    ('DXY',      '美元指数',       '全球', 'eastmoney', 6, true),
+    ('US2Y',     '美债 2Y 收益率', '全球', 'tushare',   7, true),
+    ('US10Y',    '美债 10Y 收益率', '全球', 'tushare',  8, true)
+ON CONFLICT (index_code) DO NOTHING;
+
+-- 防御性补齐 eastmoney/tushare 渠道的 global-index 数据类型（渠道已存在时）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["global-index"]'::jsonb
+WHERE source IN ('eastmoney', 'tushare')
+  AND NOT supported_data_types @> '["global-index"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT c.id, d.data_type, 1
+FROM collector_channel_config c
+CROSS JOIN (VALUES ('global-index')) AS d(data_type)
+WHERE c.source IN ('eastmoney', 'tushare')
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
+-- cls 渠道（签名自持无需 api_key，入目录便于管理）
+INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
+VALUES ('cls', '财联社', true, '["news-telegraph"]'::jsonb)
+ON CONFLICT (source) DO NOTHING;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'news-telegraph', 1
+FROM collector_channel_config
+WHERE source = 'cls'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
+INSERT INTO collector_task (task_name, task_type, source, schedule, is_active)
+VALUES
+    -- 盘中半小时级实时快照（COMEX 黄金/美元指数，push2delay 镜像）
+    ('eastmoney_global_index_realtime', 'global-index-realtime', 'eastmoney', '*/30 9-17 * * 1-5', true),
+    -- 美股收盘定盘兜底（北京时间 6/7 点覆盖美夏/冬令时收盘）
+    ('eastmoney_global_index_close', 'global-index-close', 'eastmoney', '0 6,7 * * 2-6', true),
+    -- 美债收益率日度（us_tycr 单次返回全量历史，upsert 幂等）
+    ('tushare_us_yield_daily', 'us-yield-daily', 'tushare', '30 6 * * 2-6', true),
+    -- cls 电报历史回补：手动触发不排 cron，增量由 stream 驻留进程负责
+    ('cls_telegraph_backfill', 'cls-telegraph-backfill', 'cls', NULL, false)
+ON CONFLICT (task_name) DO NOTHING;
