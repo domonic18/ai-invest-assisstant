@@ -6,6 +6,7 @@ from app.api.v1 import (
     assistant,
     auction,
     auth,
+    calendar,
     chain,
     financial,
     financial_report,
@@ -42,6 +43,7 @@ api_router.include_router(
     financial_report.router, prefix="/financial-reports", tags=["financial-reports"]
 )
 api_router.include_router(hotspot.router, prefix="/hotspot", tags=["hotspot"])
+api_router.include_router(calendar.router, prefix="/calendar", tags=["calendar"])
 api_router.include_router(financial.router, prefix="/financial", tags=["financial"])
 api_router.include_router(auction.router, prefix="/auction", tags=["auction"])
 api_router.include_router(fund_flow.router, prefix="/fund-flow", tags=["fund-flow"])

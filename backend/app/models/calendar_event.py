@@ -1,6 +1,6 @@
 """投资日历事件的 SQLAlchemy ORM 模型。"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -27,7 +27,7 @@ class CalendarEvent(Base):
     )
     source_hash: Mapped[str] = mapped_column(String(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
 
     __table_args__ = (UniqueConstraint("source_hash"),)

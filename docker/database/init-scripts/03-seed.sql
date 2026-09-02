@@ -128,3 +128,41 @@ VALUES
     ('cls_telegraph_backfill', 'cls-telegraph-backfill', 'cls', NULL, false)
 ON CONFLICT (task_name) DO UPDATE
 SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;
+
+-- FOMC/BLS 2026 官方日程种子（federalreserve.gov / bls.gov 实抓；
+-- FOMC 决议 = 议程第 2 日 14:00 ET，CPI/非农 = 08:30 ET，UTC 时刻已按美夏/冬令时换算）
+-- 后续年度：每年 1 月新增迁移续写，ON CONFLICT (source_hash) DO NOTHING 幂等
+INSERT INTO calendar_event (event_time, title, category, impact_markets, source, source_url, related_symbols, source_hash) VALUES
+('2026-01-09 13:30:00+00', '美国非农就业数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/emp.htm', ARRAY['US10Y','DXY','GC00Y'], '5ada86512ff88920540d48f0c8d68410'),
+('2026-01-13 13:30:00+00', '美国 CPI 通胀数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/cpi.htm', ARRAY['US10Y','DXY','GC00Y'], '310717f1cfcdbbfb1773a648b67810f0'),
+('2026-01-28 19:00:00+00', '美联储 FOMC 利率决议', '央行动态', ARRAY['美股','美债','美元','黄金'], 'fomc', 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm', ARRAY['US10Y','US2Y','DXY','GC00Y'], '7d9ab859a6d92df63158fc388746463e'),
+('2026-02-11 13:30:00+00', '美国非农就业数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/emp.htm', ARRAY['US10Y','DXY','GC00Y'], '1b3217748b418bf7093de3af29db1d52'),
+('2026-02-13 13:30:00+00', '美国 CPI 通胀数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/cpi.htm', ARRAY['US10Y','DXY','GC00Y'], 'a81e4f526f8134db5f3b7280698cffbe'),
+('2026-03-06 13:30:00+00', '美国非农就业数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/emp.htm', ARRAY['US10Y','DXY','GC00Y'], '04d0e62b21a64e6808171e31ca2e6d09'),
+('2026-03-11 12:30:00+00', '美国 CPI 通胀数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/cpi.htm', ARRAY['US10Y','DXY','GC00Y'], '491f6a1c5019ee3d1c8bc9e573d44922'),
+('2026-03-18 18:00:00+00', '美联储 FOMC 利率决议', '央行动态', ARRAY['美股','美债','美元','黄金'], 'fomc', 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm', ARRAY['US10Y','US2Y','DXY','GC00Y'], '7dae77ff06f09974bcc270ec55920840'),
+('2026-04-03 12:30:00+00', '美国非农就业数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/emp.htm', ARRAY['US10Y','DXY','GC00Y'], 'ab6a183b04fe089330f745848b5bf374'),
+('2026-04-10 12:30:00+00', '美国 CPI 通胀数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/cpi.htm', ARRAY['US10Y','DXY','GC00Y'], 'e134f51d5f40907c7d6d1e2c8f191904'),
+('2026-04-29 18:00:00+00', '美联储 FOMC 利率决议', '央行动态', ARRAY['美股','美债','美元','黄金'], 'fomc', 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm', ARRAY['US10Y','US2Y','DXY','GC00Y'], '4c28c434108012bbce547e9052706292'),
+('2026-05-08 12:30:00+00', '美国非农就业数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/emp.htm', ARRAY['US10Y','DXY','GC00Y'], 'bf00c4fe4ed205cfae0e51e8fb94eb0d'),
+('2026-05-12 12:30:00+00', '美国 CPI 通胀数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/cpi.htm', ARRAY['US10Y','DXY','GC00Y'], 'ca02f703b04c1b52b7ef5939f8e6cf2e'),
+('2026-06-05 12:30:00+00', '美国非农就业数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/emp.htm', ARRAY['US10Y','DXY','GC00Y'], '596875055b5f4fdc7a9958d997e83398'),
+('2026-06-10 12:30:00+00', '美国 CPI 通胀数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/cpi.htm', ARRAY['US10Y','DXY','GC00Y'], '3a52c920b3a843bb339a59062e68d4cd'),
+('2026-06-17 18:00:00+00', '美联储 FOMC 利率决议', '央行动态', ARRAY['美股','美债','美元','黄金'], 'fomc', 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm', ARRAY['US10Y','US2Y','DXY','GC00Y'], '9cf4a7ba256806fdb7044f9981e9da38'),
+('2026-07-02 12:30:00+00', '美国非农就业数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/emp.htm', ARRAY['US10Y','DXY','GC00Y'], '07b064681a7cc82d71712eb057d7d592'),
+('2026-07-14 12:30:00+00', '美国 CPI 通胀数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/cpi.htm', ARRAY['US10Y','DXY','GC00Y'], '0e695964446d6f899032c1dce330e1e2'),
+('2026-07-29 18:00:00+00', '美联储 FOMC 利率决议', '央行动态', ARRAY['美股','美债','美元','黄金'], 'fomc', 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm', ARRAY['US10Y','US2Y','DXY','GC00Y'], '32d7bf07bccdbba3f6bcc29a5c6509e8'),
+('2026-08-07 12:30:00+00', '美国非农就业数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/emp.htm', ARRAY['US10Y','DXY','GC00Y'], '8ebf697d4910e41c4bbe27debda54d59'),
+('2026-08-12 12:30:00+00', '美国 CPI 通胀数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/cpi.htm', ARRAY['US10Y','DXY','GC00Y'], 'ee993baf3f0f7d95e6d4965d69b3df56'),
+('2026-09-04 12:30:00+00', '美国非农就业数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/emp.htm', ARRAY['US10Y','DXY','GC00Y'], '24891af1bab17af158c848613581ba51'),
+('2026-09-11 12:30:00+00', '美国 CPI 通胀数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/cpi.htm', ARRAY['US10Y','DXY','GC00Y'], '5a8acdb70fd5e5cd9deeed79728b135f'),
+('2026-09-16 18:00:00+00', '美联储 FOMC 利率决议', '央行动态', ARRAY['美股','美债','美元','黄金'], 'fomc', 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm', ARRAY['US10Y','US2Y','DXY','GC00Y'], 'bda13d0848df907f1af4a5060c3f20a1'),
+('2026-10-02 12:30:00+00', '美国非农就业数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/emp.htm', ARRAY['US10Y','DXY','GC00Y'], '9d102de9da9d6c744afb467b962f9d41'),
+('2026-10-14 12:30:00+00', '美国 CPI 通胀数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/cpi.htm', ARRAY['US10Y','DXY','GC00Y'], '1510a60d336146cbaa40c26bd72dbceb'),
+('2026-10-28 18:00:00+00', '美联储 FOMC 利率决议', '央行动态', ARRAY['美股','美债','美元','黄金'], 'fomc', 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm', ARRAY['US10Y','US2Y','DXY','GC00Y'], 'beca6c1e922e31b3a8d9f3dd1514b377'),
+('2026-11-06 13:30:00+00', '美国非农就业数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/emp.htm', ARRAY['US10Y','DXY','GC00Y'], '56da1a6b66a3d0d0b9de850015663353'),
+('2026-11-10 13:30:00+00', '美国 CPI 通胀数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/cpi.htm', ARRAY['US10Y','DXY','GC00Y'], 'a888904731810af53d29860062101cf5'),
+('2026-12-04 13:30:00+00', '美国非农就业数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/emp.htm', ARRAY['US10Y','DXY','GC00Y'], '4ea2c71f6ddf8572fc02ffc57002aacd'),
+('2026-12-09 19:00:00+00', '美联储 FOMC 利率决议', '央行动态', ARRAY['美股','美债','美元','黄金'], 'fomc', 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm', ARRAY['US10Y','US2Y','DXY','GC00Y'], 'b9092f7a568310de2b6db378bb572040'),
+('2026-12-10 13:30:00+00', '美国 CPI 通胀数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/cpi.htm', ARRAY['US10Y','DXY','GC00Y'], 'cd797738527eca7aed1e05985d9207ee')
+ON CONFLICT (source_hash) DO NOTHING;
