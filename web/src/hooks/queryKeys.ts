@@ -49,6 +49,7 @@ export const queryKeys = {
   },
   hotspot: ['hotspot'] as const,
   llmConfigs: ['llm-configs'] as const,
+  trackedIndexes: ['tracked-indexes'] as const,
   market: {
     all: ['market'] as const,
     indices: (tradeDate?: string) => ['market', 'indices', tradeDate] as const,

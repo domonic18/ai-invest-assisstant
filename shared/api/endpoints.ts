@@ -107,6 +107,10 @@ export const ENDPOINTS = {
     testLLMConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}/test`,
     setDefaultLLMConfig: (id: number | string) =>
       `${API_BASE}/admin/llm-configs/${id}/set-default`,
+    trackedIndexes: `${API_BASE}/admin/tracked-indexes`,
+    trackedIndex: (id: number | string) => `${API_BASE}/admin/tracked-indexes/${id}`,
+    trackedIndexToggle: (id: number | string) =>
+      `${API_BASE}/admin/tracked-indexes/${id}/toggle`,
     collectorChannels: `${API_BASE}/admin/collector/channels`,
     collectorDataTypes: `${API_BASE}/admin/collector/data-types`,
     collectorDataTypeChannels: (dataType: string) =>

@@ -20,6 +20,9 @@ const CollectorChannelConfig = lazy(() =>
   })),
 )
 const LLMConfig = lazy(() => import('./pages/Admin/LLMConfig/LLMConfig').then((m) => ({ default: m.LLMConfig })))
+const TrackedIndex = lazy(() =>
+  import('./pages/Admin/TrackedIndex/TrackedIndex').then((m) => ({ default: m.TrackedIndex })),
+)
 const AuctionReview = lazy(() =>
   import('./pages/AuctionReview/AuctionReview').then((m) => ({ default: m.AuctionReview })),
 )
@@ -68,6 +71,7 @@ export const router = createBrowserRouter([
           { path: 'news', element: lazyEl(<AdminNews />) },
           { path: 'tasks', element: lazyEl(<AdminTasks />) },
           { path: 'llm-configs', element: lazyEl(<LLMConfig />) },
+          { path: 'tracked-indexes', element: lazyEl(<TrackedIndex />) },
           { path: 'collector-channels', element: lazyEl(<CollectorChannelConfig />) },
           { path: 'collector', element: lazyEl(<Collector />) },
         ],

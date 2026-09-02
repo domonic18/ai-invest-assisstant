@@ -13,6 +13,7 @@ import {
   ShopOutlined,
   TeamOutlined,
   UserOutlined,
+  VerticalAlignTopOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { Menu } from 'antd'
@@ -45,6 +46,7 @@ const ADMIN_MENU_ITEMS: MenuItem[] = [
   { key: '/admin/news', icon: <ReadOutlined />, label: '资讯管理' },
   { key: '/admin/tasks', icon: <ContainerOutlined />, label: '任务管理' },
   { key: '/admin/llm-configs', icon: <RobotOutlined />, label: 'LLM 配置' },
+  { key: '/admin/tracked-indexes', icon: <VerticalAlignTopOutlined />, label: '跟踪指数' },
   { key: '/admin/collector-channels', icon: <SettingOutlined />, label: '采集渠道' },
   { key: '/admin/collector', icon: <PlayCircleOutlined />, label: '采集任务' },
 ]

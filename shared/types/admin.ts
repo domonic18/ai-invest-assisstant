@@ -389,3 +389,27 @@ export interface CollectorDataTypeChannels {
   dataType: string
   channels: CollectorDataTypeChannel[]
 }
+
+export interface TrackedIndexConfig {
+  id: number
+  indexCode: string
+  indexName: string
+  marketCategory: string
+  dataSource: string
+  sortOrder: number
+  isEnabled: boolean
+  latestClose: number | null
+  latestChangePct: number | null
+  latestTradeDate: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TrackedIndexFormValues {
+  indexCode: string
+  indexName: string
+  marketCategory: string
+  dataSource: string
+  sortOrder: number
+  isEnabled: boolean
+}
