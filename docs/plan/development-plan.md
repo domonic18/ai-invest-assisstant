@@ -20,7 +20,7 @@
 
 | 需求 | 状态 | 关键缺口 / 前置 |
 |------|------|----------------|
-| F-DC-04 电报准实时 | 已实现（批次 A） | `cls_telegraph` spider + `collector-stream` 驻留进程（10s 轮询/Redis 游标心跳/指数退避/补漏）；查询 API 待批次 C 工作台定形 |
+| F-DC-04 电报准实时 | 已实现（批次 A） | `cls_telegraph` spider + `collector-stream` 驻留进程（10s 轮询/Redis 游标心跳/指数退避/补漏）；分页查询 API + `/telegraph` 时间线页（10s 自动刷新/新电报红点/断流延迟探针） |
 | F-DC-05 投资日历底座 | 已实现（批次 A） | `calendar_event` 表 + FOMC/BLS 2026 官方日程种子 + 查询 API（CN 日界→UTC 区间）；cls investkalendar 仍留调研项 |
 | F-DC-06 全球指标采集 | 已实现（批次 A） | `global-index` 任务（东财 push2delay 实时 + tushare us_tycr 全历史）→ `quote_global_index_daily` |
 | F-VIS-07 投资日历页 | 已实现（批次 A） | 月/周/列表三视图 + 分类筛选 + 事件 Drawer，`/calendar` 主导航 |
@@ -63,6 +63,7 @@
 > - **与原计划的偏差**：① 全球指标未拆 3 个 TaskSpec，收敛为单 `global-index` 任务（东财/tushare 双渠道 fallback），调度节奏仍按 realtime/收盘后/每日三行 `collector_task` 入 beat，与既有"调度在 DB"模型一致；② 日历表定名 `calendar_event`（原计划 `invest_calendar_event`），归入 market 子域；③ 电报不入 ES（采集侧现状零 ES 写入，与 news 一致）。
 > - **新探针发现**：tushare `us_tycr` 限频 **1 次/小时**——种子调度 `30 6 * * 2-6` 每日一次安全，但禁止高频手动重跑；渠道 fallback 会把限频异常转为切源并在 `collector_log.error_msg` 留痕，终态仍 success。
 > - **口径修正**：`quote_global_index_daily.change_pct` 全表统一为涨跌幅 %——tushare 美债最初写 bp 差（+4bp 会显示成 +4.00%），已改 `(close-prev)/prev` 并清理本地存量。
+> - **范围追加**：电报查询 API + `/telegraph` 前端时间线页自批次 C 提前落地（原计划后置到工作台）——采集链路需要可视化验收入口：分页查询（公开路由，镜像 calendar 竖切片）+ 后端一次剥净 cls 富文本 HTML + 10s 自动刷新/新电报 NEW 红点/最新延迟断流探针。
 
 ### 批次 B：自选股 AI 链路（批次 A 无依赖，可提前启动）
 
