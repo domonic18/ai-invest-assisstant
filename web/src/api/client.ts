@@ -1,5 +1,12 @@
 import axios from 'axios'
 
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    /** GET 幂等重试标记（502/503/504/网络错误），防拦截器死循环 */
+    __retried?: number
+  }
+}
+
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '',
   timeout: 30000,
@@ -26,18 +33,39 @@ apiClient.interceptors.request.use((config) => {
   return config
 })
 
+const RETRYABLE_STATUS = new Set([502, 503, 504])
+const MAX_RETRIES = 2
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  async (error) => {
+    const { config, response } = error as {
+      config?: import('axios').InternalAxiosRequestConfig
+      response?: { status: number; data?: { detail?: unknown } }
+    }
+
+    // 冷启动/网关瞬时故障：仅幂等 GET 自动重试（1s / 2s 退避）
+    const retryable =
+      config &&
+      (config.method ?? 'get').toLowerCase() === 'get' &&
+      (!response || RETRYABLE_STATUS.has(response.status))
+    if (retryable && (config.__retried ?? 0) < MAX_RETRIES) {
+      config.__retried = (config.__retried ?? 0) + 1
+      await sleep(1000 * config.__retried)
+      return apiClient.request(config)
+    }
+
+    if (response?.status === 401) {
       localStorage.removeItem('access_token')
       window.location.href = '/login'
     }
-    const serverDetail = error.response?.data?.detail
-    if (serverDetail) {
-      return Promise.reject(
-        new Error(typeof serverDetail === 'string' ? serverDetail : JSON.stringify(serverDetail))
-      )
+    // 服务端 detail 转为 message 展示；原地改写保留 response/status 供调用方判断
+    const serverDetail = response?.data?.detail
+    if (serverDetail && error instanceof Error) {
+      error.message =
+        typeof serverDetail === 'string' ? serverDetail : JSON.stringify(serverDetail)
     }
     return Promise.reject(error)
   }

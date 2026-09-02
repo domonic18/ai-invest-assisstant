@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     llm_http_pool_timeout: float = 60.0  # 从连接池获取连接的超时（秒）
     llm_max_retries: int = 2  # provider 默认重试次数
 
+    # SPA 静态托管（web 镜像内烘 ENV STATIC_DIR=/app/static；为空则纯 API 模式）
+    static_dir: Path | None = None
+    # SCF 入口 HTTPS 但以 HTTP 转发容器且不带 X-Forwarded-Proto 时置 1，
+    # 由 ForceForwardedHttpsMiddleware 强制 scheme=https（本地 http 访问必须保持 0）
+    force_forwarded_https: bool = False
+
     # 路径
     base_dir: Path = Path(__file__).resolve().parent.parent
     prompts_dir: Path = base_dir / "prompts"

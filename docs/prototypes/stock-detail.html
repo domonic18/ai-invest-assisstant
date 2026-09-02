@@ -324,6 +324,24 @@ tr:hover td { background: var(--bg-hover); }
 .tab-nav-btn.active { background: var(--bg-elevated); color: var(--text-primary); box-shadow: var(--shadow-sm); font-weight: 500; }
 .tab-pane { display: none; }
 .tab-pane.active { display: block; }
+
+/* AI 每日分析 */
+.ai-line { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.ai-line:last-of-type { border-bottom: none; }
+.ai-key { flex-shrink: 0; width: 64px; font-size: 12px; font-weight: 600; color: var(--accent); padding-top: 2px; }
+.ai-text { flex: 1; font-size: 13px; color: var(--text-secondary); line-height: 1.8; }
+.ai-note { font-size: 11px; color: var(--text-tertiary); margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); font-family: var(--font-mono); }
+.ai-disclaimer { font-size: 10px; color: var(--text-tertiary); margin-top: 8px; }
+
+/* 板块归属 */
+.sector-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.sector-row:last-child { border-bottom: none; }
+.sector-key { flex-shrink: 0; width: 36px; font-size: 11px; color: var(--text-tertiary); }
+.sector-val { color: var(--text-primary); }
+.sector-val a { margin-left: 8px; font-size: 11px; }
+.concept-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 16px; font-size: 12px; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-secondary); }
+.concept-chip:hover { border-color: var(--accent); color: var(--accent); }
+.concept-chip em { font-style: normal; font-size: 10px; color: var(--text-tertiary); }
 .rating-bar { display: flex; gap: 4px; align-items: flex-end; height: 120px; }
 .rating-bar-item { flex: 1; border-radius: 2px; text-align: center; padding-top: 4px; font-size: var(--text-xs); color: var(--text-secondary); }
 
@@ -349,14 +367,18 @@ tr:hover td { background: var(--bg-hover); }
 <div class="sidebar-version">v1.0.0</div>
 </div>
 <nav class="sidebar-nav">
+<a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
 <div class="sidebar-section-title">复盘</div>
+
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
 <a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
 <a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
 <a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
+<a class="sidebar-item" href="financial-reports.html"><span class="sidebar-item-icon">◈</span><span>财报中心</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
@@ -395,8 +417,9 @@ tr:hover td { background: var(--bg-hover); }
       <div class="tab-nav">
         <button class="tab-nav-btn active" data-tab="pane-kline">K线分析</button>
         <button class="tab-nav-btn" data-tab="pane-fin">财务体检</button>
+        <button class="tab-nav-btn" data-tab="pane-ai">AI 每日分析</button>
+        <button class="tab-nav-btn" data-tab="pane-sector">板块归属</button>
         <button class="tab-nav-btn" data-tab="pane-research">研报观点</button>
-        <button class="tab-nav-btn" data-tab="pane-news">相关新闻</button>
       </div>
 
       <!-- Tab: K线分析（KlineChart：蜡烛图 + 成交量，含 dataZoom） -->
@@ -473,15 +496,67 @@ tr:hover td { background: var(--bg-hover); }
         </div>
       </div>
 
-      <!-- Tab: 相关新闻（占位） -->
-      <div class="tab-pane" id="pane-news">
+      <!-- Tab: AI 每日分析（盘后批量 · heavy 队列 · input_hash 幂等缓存） -->
+      <div class="tab-pane" id="pane-ai">
         <div class="card">
-          <div class="card-body" style="text-align:center;padding:var(--space-12);color:var(--text-tertiary)">
-            <div style="font-size:var(--text-2xl);margin-bottom:var(--space-2)">🚧</div>
-            功能开发中，敬请期待
+          <div class="card-header">
+            <span class="card-title">AI 每日分析 <span class="tag tag-purple" style="margin-left:6px">2026-09-01 盘后生成</span></span>
+            <span><span class="tag tag-green">已生成 · 命中缓存</span> <span class="tag" style="margin-left:6px">heavy 队列 · 单股串行</span></span>
+          </div>
+          <div class="card-body">
+            <div class="ai-line"><span class="ai-key">盘面解读</span><p class="ai-text">北方华创今日高开后沿 MA5 震荡上行，收涨 5.02% 报 318.40，量比较昨日放大 1.3 倍。消息面上国家大基金三期落地首笔投资，半导体设备板块整体异动，公司作为平台型设备龙头获资金集中承接，日线突破 39.8 平台后回踩确认有效。</p></div>
+            <div class="ai-line"><span class="ai-key">操作策略</span><p class="ai-text">持仓为主：突破 320 一线且量能维持，可持股待涨至前高 345 区域；若回踩 305–310 平台缩量企稳，可分批补仓。板块情绪依赖大基金三期后续订单落地节奏，注意跟踪招标公告。</p></div>
+            <div class="ai-line"><span class="ai-key">止损线</span><p class="ai-text">跌破 296（日线 MA20）减仓 1/2；跌破 285 平台（周线 MA5）清仓观望。若单日放量跌停或板块出现系统性利空，不等待止损线直接执行。</p></div>
+            <div class="ai-note">input_hash = sha256(watchlist-daily-analysis + 002371 + 2026-09-01) · 已缓存，重复打开不再调用 LLM · 所属分组「核心持仓」已开启 AI 复盘开关，每个交易日盘后自动批量生成</div>
+            <div class="ai-disclaimer">以上内容由 AI 生成，不构成投资建议，请结合自身风险承受能力独立决策。</div>
           </div>
         </div>
       </div>
+
+      <!-- Tab: 板块归属（行业 + 概念） -->
+      <div class="tab-pane" id="pane-sector">
+        <div class="grid-2 mb-4">
+          <div class="card">
+            <div class="card-header"><span class="card-title">所属行业</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">申万分类 · stock_basic</span></div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-2)">
+              <div class="sector-row"><span class="sector-key">一级</span><span class="sector-val">半导体 <a href="capital-flow.html">板块资金流 →</a></span></div>
+              <div class="sector-row"><span class="sector-key">二级</span><span class="sector-val">半导体设备</span></div>
+              <div class="sector-row"><span class="sector-key">三级</span><span class="sector-val">集成电路设备</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">概念归属</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">共 12 个 · mapping_stock_concept</span></div>
+            <div class="card-body" style="display:flex;flex-wrap:wrap;gap:var(--space-2)">
+              <a class="concept-chip" href="capital-flow.html">国家大基金三期 <em>1,286 只相关资讯</em></a>
+              <a class="concept-chip" href="capital-flow.html">半导体设备</a>
+              <a class="concept-chip" href="capital-flow.html">国产替代</a>
+              <a class="concept-chip" href="capital-flow.html">晶圆厂扩产</a>
+              <a class="concept-chip" href="capital-flow.html">存储芯片</a>
+              <a class="concept-chip" href="capital-flow.html">MSCI 中国</a>
+              <a class="concept-chip" href="capital-flow.html">融资融券</a>
+              <a class="concept-chip" href="capital-flow.html">沪港通</a>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">同板块成分股表现</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">半导体设备 · 今日</span></div>
+          <div class="card-body-sm">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>代码</th><th>名称</th><th>现价</th><th>涨跌幅</th><th>主力净流入</th></tr></thead>
+                <tbody>
+                  <tr style="background:var(--accent-soft)"><td class="text-mono">002371</td><td>北方华创</td><td class="text-mono">318.40</td><td class="text-mono" style="color:var(--red);font-weight:600">+5.02%</td><td class="text-mono" style="color:var(--red)">+8.6 亿</td></tr>
+                  <tr><td class="text-mono">688012</td><td>中微公司</td><td class="text-mono">212.35</td><td class="text-mono" style="color:var(--red)">+4.11%</td><td class="text-mono" style="color:var(--red)">+5.2 亿</td></tr>
+                  <tr><td class="text-mono">002077</td><td>大族数控</td><td class="text-mono">38.12</td><td class="text-mono" style="color:var(--red)">+2.86%</td><td class="text-mono" style="color:var(--green)">-1.1 亿</td></tr>
+                  <tr><td class="text-mono">688082</td><td>盛美上海</td><td class="text-mono">108.66</td><td class="text-mono" style="color:var(--red)">+1.94%</td><td class="text-mono" style="color:var(--red)">+2.4 亿</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: 研报观点（List：标题 / 来源 / 发布日期 / 摘要） -->
     </div>
   </div>
 </div>

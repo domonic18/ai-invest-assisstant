@@ -6,7 +6,7 @@
 
 | 节点 | 承载内容 | 技术形态 |
 |------|----------|----------|
-| SCF Web 函数 | web-api 一体镜像（`docker/web`：nginx + uvicorn）：React SPA 与 FastAPI API 层**同源同端口**（:9000），SSE 流式输出；助手对话（deepagents）进程内承载 | 内存 2048MB，超时 900s，预置并发 1-2 实例保冷启动；自定义域名 `invest.17aitech.com`（已备案） |
+| SCF Web 函数 | web-api 一体镜像（`docker/web`：单 uvicorn 进程）：React SPA（FastAPI 静态托管）与 FastAPI API 层**同源同端口**（:9000），SSE 流式输出；助手对话（deepagents）进程内承载 | 内存 2048MB，超时 900s，预置并发 1-2 实例保冷启动；自定义域名 `invest.17aitech.com`（已备案） |
 | 轻量应用服务器 2C4G（ap-beijing） | 数据层（postgres/timescale、redis、elasticsearch）+ 任务层（celery-beat + worker〔realtime+batch〕+ worker-heavy〔并发=1〕） | Docker Compose 编排；采集爬虫与 LLM 归因永久驻留 |
 | COS | 研报/财报 PDF、知识库文件（S3 兼容端点）；`pg_dump` 定时备份目标 | 应用经 S3 SDK 读写 |
 | TCR（ccr.ccs.tencentyun.com/domonic18） | 镜像仓库：`web-api` + `collector` 双镜像，linux/amd64 | tag = `latest` + git short sha |
@@ -28,7 +28,8 @@
 
 ## 3. 镜像与发布
 
-- **web-api 镜像**（`docker/web/Dockerfile`）：前端 vite 构建注入 `VITE_APP_VERSION`，nginx + FastAPI 合一，:9000 端口；SPA 由镜像内 nginx 直接服务，与 API 同源（SCF 与本地 compose 同一形态）
+- **web-api 镜像**（`docker/web/Dockerfile`）：前端 vite 构建注入 `VITE_APP_VERSION`，单 uvicorn 进程直听 :9000（API + SPA 静态托管合一，`STATIC_DIR=/app/static`）；与 API 同源（SCF 与本地 compose 同一形态）
+- **冷启动策略**：单进程消除"代理端口已开而后端未就绪"的 502 竞态；lifespan 预热（渠道 seeding / 助手 checkpointer）走后台任务不阻塞监听，`/health` 返回 `warmup_done` 观测位；前端对幂等 GET 在 502/503/504/网络错误时自动重试（1s/2s 退避）。SCF 控制台 env 须显式设 `FORCE_FORWARDED_HTTPS=1`（入口 HTTPS 但以 HTTP 转发容器且不带 `X-Forwarded-Proto`，中间件据此强制 scheme=https；本地 http 访问保持 0）
 - **collector 镜像**（`docker/collector/Dockerfile`）：`COLLECT_TASK` 单任务模式 / `COLLECTOR_MODE=beat|worker` 常驻模式
 - **发布流**：push develop → GitHub Actions 构建推送 TCR → 轻量服务器 `.env` 以 `APP_TAG` 钉版（`<分支>-<git 短 sha>`，如 `develop-4cdc1b7`，缺省 latest）后 `docker compose pull && docker compose up -d`、SCF 更新镜像版本；服务器不执行任何构建（实施细节与应急构建见 [deployment-evolution-plan.md](../plan/deployment-evolution-plan.md)）
 

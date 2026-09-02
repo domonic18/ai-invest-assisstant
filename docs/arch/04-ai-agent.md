@@ -28,6 +28,7 @@
 │  │   market-daily-review / limit-up-review / industry-chain-analysis │   │
 │  │   research-report-summary / financial-report-summary              │   │
 │  │   financial-health-check / hotspot-detection / chain-breakthrough │   │
+│  │   watchlist-daily-analysis                                        │   │
 │  └──────────────────────────────────────────────────────────────────┘   │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
@@ -66,6 +67,7 @@
 | 研报 AI 摘要 | `POST /api/v1/research/{id}/summarize` | `skills/research-report-summary.yaml` | PDF 下载用 `curl_cffi` 绕 WAF；摘要缓存到 `file_metadata.summary` |
 | 财报 AI 摘要 | `POST /api/v1/financial-reports/{id}/summarize` | `skills/financial-report-summary.yaml` | 触发采集后异步生成摘要，回写 `file_metadata.summary` |
 | 财务体检 | `GET /api/v1/financial/{code}` | `skills/financial-health-check.yaml` | 个股详情 Tab，含近 8 期财务健康度历史趋势 |
+| 自选股 AI 每日分析 | 采集调度盘后批量（heavy 队列） | `skills/watchlist-daily-analysis.yaml` | 三段式输出（盘面解读 / 操作策略 / 止损线），按 `input_hash`（skill+code+日期）缓存；展示于个股详情 Tab 与自选股列表卡片 |
 
 > `hotspot-detection`、`chain-breakthrough` 提示词已就位，业务接口随页面迭代补齐。
 
@@ -88,6 +90,7 @@ backend/
     │       ├── industry-chain-analysis.yaml
     │       ├── market-daily-review.yaml
     │       ├── limit-up-review.yaml
+    │       ├── watchlist-daily-analysis.yaml
     │       ├── research-report-summary.yaml
     │       ├── research-summary.yaml
     │       ├── financial-report-summary.yaml
@@ -316,12 +319,13 @@ async def analyze_chain(payload: ChainAnalyzeRequest, db: AsyncSession = Depends
 
 ### 8.2 定时任务调用
 
-两个 AI 生成任务由采集调度自动触发（internal 渠道，heavy 队列）：
+三个 AI 生成任务由采集调度自动触发（internal 渠道，heavy 队列）：
 
 - **每日复盘综述**：交易日 15:05，`spiders/market_daily_review.py` 汇总当日数据后调用 `market_review_service` 生成共享底稿
 - **涨停 AI 归因**：交易日 16:30，`spiders/limit_up_ai_review.py` 调用 `limit_up_ai_service.generate_attribution`（依赖 16:00 涨停股池；未就绪由 Celery 10 分钟退避重试 3 次兜底）
+- **自选股 AI 每日分析**：交易日盘后，`spiders/watchlist_daily_analysis.py` 仅遍历**开启 AI 复盘开关的分组**（`watchlist_group.ai_review_enabled`）逐只生成三段式分析（盘面解读 / 操作策略 / 止损线），单股串行避免并发限流；未开启分组的标的不消耗 LLM
 
-两者结果均按 `input_hash=sha256(skill_id+日期)` 缓存于 `ai_analysis_result`，已生成则 SKIPPED；Redis 分布式锁防止定时任务与手动点击并发双跑 LLM。
+三者结果均按 `input_hash`（`skill_id` + 业务键：复盘 / 归因为日期，自选股分析为 code+日期）缓存于 `ai_analysis_result`，已生成则 SKIPPED；Redis 分布式锁防止定时任务与手动点击并发双跑 LLM。
 
 ### 8.3 MCP 外部调用
 

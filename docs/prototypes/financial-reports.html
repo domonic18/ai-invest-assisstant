@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Invest Assistant — 集合竞价复盘</title>
+<title>AI Invest Assistant — 财报中心</title>
 <style>
 /* ======================================================
    AI Invest Assistant — Design System
@@ -282,41 +282,42 @@ tr:hover td { background: var(--bg-hover); }
   background: var(--red); border-radius: 50%;
 }
 
-</style>
-<style>
-.date-range-bar{display:flex;gap:var(--space-3);align-items:center;margin-bottom:var(--space-6);padding:var(--space-4);background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);flex-wrap:wrap}
-.date-preset{display:flex;gap:var(--space-1)}
-.date-preset-btn{padding:var(--space-1) var(--space-3);border-radius:var(--radius-sm);font-size:var(--text-xs);border:1px solid var(--border-hover);background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer;transition:all var(--transition-fast)}
-.date-preset-btn:hover{border-color:rgba(94,106,210,.4)}
-.date-preset-btn.active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);font-weight:500}
 
-.auction-summary-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--space-4);margin-bottom:var(--space-6)}
-.auction-summary-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-4);text-align:center;box-shadow:var(--shadow-sm)}
-.auc-sum-label{font-size:var(--text-xs);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:var(--space-1)}
-.auc-sum-value{font-size:var(--text-xl);font-weight:700;color:var(--text-primary)}
-.auc-sum-sub{font-size:var(--text-xs);color:var(--text-tertiary);margin-top:2px}
+/* ======= Page: Financial Reports ======= */
+.header-left{display:flex;align-items:center;gap:8px}
+.header-right{display:flex;align-items:center;gap:8px}
+.header-badge{position:relative;width:34px;height:34px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);cursor:pointer}
+.header-badge:hover{background:var(--bg-hover)}
 
-.auc-chart-area{background:linear-gradient(135deg,var(--bg-surface) 0%,var(--bg-hover) 100%);border-radius:var(--radius-md);height:280px;position:relative;overflow:hidden;margin-bottom:var(--space-3)}
-.auc-chart-line{position:absolute;height:2px;background:var(--accent);opacity:.7}
-.auc-chart-legend{display:flex;gap:var(--space-4);justify-content:center;font-size:var(--text-xs);color:var(--text-tertiary);margin-top:var(--space-2)}
-.auc-chart-legend-item{display:flex;align-items:center;gap:4px}
-.auc-chart-legend-dot{width:8px;height:8px;border-radius:2px}
+.fr-toolbar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:20px;padding:16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm)}
+.fr-toolbar .form-group{margin-bottom:0}
+.fr-toolbar .form-label{font-size:11px}
+.fr-spacer{flex:1}
+.fr-stat-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.fr-stat{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px}
+.fr-stat-label{font-size:11px;color:var(--text-tertiary)}
+.fr-stat-value{font-size:22px;font-weight:700;font-family:var(--font-mono);margin-top:2px}
+.fr-stat-sub{font-size:11px;color:var(--text-tertiary);margin-top:2px}
 
-.compact-table{font-size:var(--text-xs)}
-.compact-table td,.compact-table th{padding:var(--space-2) var(--space-3)}
-.tag-outline{display:inline-flex;padding:1px 6px;border-radius:3px;font-size:10px;border:1px solid;font-weight:500}
-.tag-outline.high-vol{border-color:var(--red);color:var(--red)}
-.tag-outline.low-vol{border-color:var(--text-tertiary);color:var(--text-tertiary)}
-.tag-outline.tail-move{border-color:var(--amber);color:var(--amber)}
-.tag-outline.steady{border-color:var(--green);color:var(--green)}
+.fr-name{color:var(--text-primary)}
+.fr-name .code{font-size:11px;color:var(--text-tertiary);font-family:var(--font-mono);margin-left:4px}
+.fr-actions{display:flex;gap:6px;white-space:nowrap}
+.fr-sum-badge{display:inline-flex;align-items:center;gap:4px}
 
-.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-.calendar-header{text-align:center;font-size:var(--text-xs);color:var(--text-tertiary);padding:var(--space-1)}
-.calendar-day{aspect-ratio:1;border-radius:var(--radius-sm);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:var(--text-xs);font-weight:500;cursor:pointer;transition:all var(--transition-fast)}
-.calendar-day:hover{transform:scale(1.05)}
-.calendar-day.empty{background:transparent}
-.calendar-day.today{border:2px solid var(--accent)}
-.calendar-day.selected{box-shadow:0 0 0 2px var(--accent)}
+.sum-panel{margin-top:14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-surface);padding:16px}
+.sum-panel-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.sum-panel-title h4{font-size:13px;font-weight:600;color:var(--text-primary)}
+.sum-section{margin-bottom:12px}
+.sum-section h5{font-size:12px;font-weight:600;color:var(--accent);margin-bottom:4px}
+.sum-section p{font-size:12px;color:var(--text-secondary);line-height:1.7}
+.sum-src{font-size:10px;color:var(--text-tertiary);border-top:1px dashed var(--border);padding-top:8px;margin-top:4px}
+
+.log-strip{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:12px}
+.log-strip:last-child{border-bottom:none}
+.log-id{flex-shrink:0;width:84px;font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary)}
+.log-text{flex:1;color:var(--text-secondary);line-height:1.5}
+.log-time{flex-shrink:0;font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary)}
+.disclaimer{font-size:10px;color:var(--text-tertiary);margin-top:12px;padding-top:10px;border-top:1px dashed var(--border)}
 </style>
 </head>
 <body>
@@ -329,20 +330,18 @@ tr:hover td { background: var(--bg-hover); }
 <div class="sidebar-brand-text">AI Invest</div>
 <div class="sidebar-version">v1.0.0</div>
 </div>
-
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
 <div class="sidebar-section-title">复盘</div>
-
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
-<a class="sidebar-item active" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
+<a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
 <a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
 <a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
 <a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
 <a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
-<a class="sidebar-item" href="financial-reports.html"><span class="sidebar-item-icon">◈</span><span>财报中心</span></a>
+<a class="sidebar-item active" href="financial-reports.html"><span class="sidebar-item-icon">◈</span><span>财报中心</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
@@ -352,126 +351,101 @@ tr:hover td { background: var(--bg-hover); }
 <div class="app-main">
 <header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
 <div class="app-content">
-<h1 class="page-title">集合竞价复盘</h1>
+<h1 class="page-title">财报中心</h1>
 
-<!-- Date Range Selector -->
-<div class="date-range-bar">
-<span style="font-size:var(--text-sm);color:var(--text-secondary);font-weight:500">时间范围:</span>
-<div class="date-preset">
-<button class="date-preset-btn active">近 5 日</button>
-<button class="date-preset-btn">近 10 日</button>
-<button class="date-preset-btn">近 20 日</button>
-<button class="date-preset-btn">近 60 日</button>
-</div>
-<input type="date" class="form-input" style="width:130px;font-size:var(--text-xs)" value="2026-06-25">
-<span style="color:var(--text-tertiary)">至</span>
-<input type="date" class="form-input" style="width:130px;font-size:var(--text-xs)" value="2026-07-05">
-<button class="btn btn-primary btn-sm">查询</button>
-<button class="btn btn-outline btn-sm">导出 CSV</button>
+<!-- 筛选与采集工具栏 -->
+<div class="fr-toolbar">
+<div class="form-group"><label class="form-label">股票</label><input class="form-input" style="width:180px" placeholder="代码 / 名称，支持多只"></div>
+<div class="form-group"><label class="form-label">报告类型</label><select class="form-select" style="width:130px"><option>全部类型</option><option>年报</option><option selected>半年报</option><option>一季报</option><option>三季报</option></select></div>
+<div class="form-group"><label class="form-label">报告期</label><select class="form-select" style="width:110px"><option>2026 中报</option><option>2025 年报</option><option>2025 三季报</option><option>全部年份</option></select></div>
+<div class="form-group"><label class="form-label">AI 摘要</label><select class="form-select" style="width:120px"><option>全部</option><option>已生成</option><option>未生成</option></select></div>
+<button class="btn btn-primary">查询</button>
+<div class="fr-spacer"></div>
+<button class="btn btn-secondary">⟳ 触发采集</button>
 </div>
 
-<!-- Summary Stats -->
-<div class="auction-summary-grid">
-<div class="auction-summary-card"><div class="auc-sum-label">统计交易日数</div><div class="auc-sum-value">5</div><div class="auc-sum-sub">2026-06-28 — 07-04</div></div>
-<div class="auction-summary-card"><div class="auc-sum-label">放量竞价日</div><div class="auc-sum-value" style="color:var(--red)">2</div><div class="auc-sum-sub">量比 > 1.5</div></div>
-<div class="auction-summary-card"><div class="auc-sum-label">缩量竞价日</div><div class="auc-sum-value" style="color:var(--green)">2</div><div class="auc-sum-sub">量比 < 0.8</div></div>
-<div class="auction-summary-card"><div class="auc-sum-label">尾段异动日</div><div class="auc-sum-value" style="color:var(--amber)">1</div><div class="auc-sum-sub">9:20后价格大幅波动</div></div>
-<div class="auction-summary-card"><div class="auc-sum-label">竞价量能异动个股</div><div class="auc-sum-value">12</div><div class="auc-sum-sub">5日累计</div></div>
+<!-- 统计条 -->
+<div class="fr-stat-strip">
+<div class="fr-stat"><div class="fr-stat-label">已入库财报</div><div class="fr-stat-value">1,286</div><div class="fr-stat-sub">PDF 存 COS · file_metadata 关联</div></div>
+<div class="fr-stat"><div class="fr-stat-label">AI 摘要已生成</div><div class="fr-stat-value" style="color:var(--green)">432</div><div class="fr-stat-sub">缓存于 file_metadata.summary</div></div>
+<div class="fr-stat"><div class="fr-stat-label">本年新增</div><div class="fr-stat-value">187</div><div class="fr-stat-sub">2026 中报披露季</div></div>
+<div class="fr-stat"><div class="fr-stat-label">采集失败待重试</div><div class="fr-stat-value" style="color:var(--amber)">3</div><div class="fr-stat-sub">死信队列可重放</div></div>
 </div>
 
-<!-- Multi-day Auction Chart -->
 <div class="card mb-6">
-<div class="card-header"><span class="card-title">多日竞价走势叠加</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">上证指数 · 9:15-9:25 价格走势</span></div>
-<div class="card-body">
-<div class="auc-chart-area">
-<!-- Simulated multi-line chart with CSS overlays -->
-<svg width="100%" height="280" style="position:absolute;top:0;left:0">
-<line x1="50" y1="260" x2="50" y2="20" stroke="var(--border)" stroke-width="1"/>
-<line x1="50" y1="260" x2="680" y2="260" stroke="var(--border)" stroke-width="1"/>
-<polyline points="50,200 130,210 210,195 290,220 370,180 450,170 530,160 610,155 680,150" fill="none" stroke="#ef4444" stroke-width="2" opacity="0.8"/>
-<polyline points="50,210 130,220 210,215 290,230 370,200 450,185 530,175 610,170 680,165" fill="none" stroke="#6366f1" stroke-width="2" opacity="0.8"/>
-<polyline points="50,220 130,225 210,205 290,240 370,190 450,182 530,178 610,172 680,160" fill="none" stroke="#10b981" stroke-width="2" opacity="0.8"/>
-<polyline points="50,190 130,195 210,185 290,210 370,165 450,160 530,155 610,148 680,140" fill="none" stroke="#f59e0b" stroke-width="2" opacity="0.8"/>
-<polyline points="50,230 130,235 210,225 290,250 370,210 450,195 530,185 610,178 680,170" fill="none" stroke="#8b5cf6" stroke-width="2" opacity="0.8"/>
-<text x="50" y="15" font-size="12" fill="var(--text-secondary)">价格</text>
-<text x="620" y="275" font-size="11" fill="var(--text-secondary)">9:25</text>
-<text x="50" y="275" font-size="11" fill="var(--text-secondary)">9:15</text>
-</svg>
-</div>
-<div class="auc-chart-legend">
-<div class="auc-chart-legend-item"><span class="auc-chart-legend-dot" style="background:#ef4444"></span>07-04 周五</div>
-<div class="auc-chart-legend-item"><span class="auc-chart-legend-dot" style="background:#6366f1"></span>07-03 周四</div>
-<div class="auc-chart-legend-item"><span class="auc-chart-legend-dot" style="background:#10b981"></span>07-02 周三</div>
-<div class="auc-chart-legend-item"><span class="auc-chart-legend-dot" style="background:#f59e0b"></span>07-01 周二</div>
-<div class="auc-chart-legend-item"><span class="auc-chart-legend-dot" style="background:#8b5cf6"></span>06-30 周一</div>
-</div>
-</div>
-</div>
-
-<!-- Auction Stats Table -->
-<div class="grid-2 mb-6">
-<div class="card">
-<div class="card-header"><span class="card-title">各交易日竞价统计</span></div>
+<div class="card-header"><span class="card-title">财报列表</span><span style="font-size:11px;color:var(--text-tertiary)">共 1,286 份 · 当前筛选 6 份</span></div>
 <div class="card-body-sm">
 <div class="table-wrap">
-<table class="compact-table">
-<thead><tr><th>日期</th><th>竞价开盘价</th><th>前收价</th><th>竞价量(万手)</th><th>量比</th><th>特征</th></tr></thead>
+<table>
+<thead><tr><th>股票</th><th>报告期</th><th>类型</th><th>发布日期</th><th>文件</th><th>AI 摘要</th><th>操作</th></tr></thead>
 <tbody>
-<tr><td>07-04 (五)</td><td class="text-mono">3,354.28</td><td class="text-mono">3,335.12</td><td>1,248</td><td style="color:var(--red);font-weight:500">1.82</td><td><span class="tag-outline high-vol">放量竞价</span></td></tr>
-<tr><td>07-03 (四)</td><td class="text-mono">3,330.80</td><td class="text-mono">3,325.46</td><td>892</td><td>1.05</td><td><span class="tag-outline steady">平稳竞价</span></td></tr>
-<tr><td>07-02 (三)</td><td class="text-mono">3,318.45</td><td class="text-mono">3,340.12</td><td>752</td><td style="color:var(--green)">0.72</td><td><span class="tag-outline low-vol">缩量竞价</span></td></tr>
-<tr><td>07-01 (二)</td><td class="text-mono">3,345.60</td><td class="text-mono">3,328.90</td><td>1,156</td><td style="color:var(--red);font-weight:500">1.65</td><td><span class="tag-outline high-vol">放量竞价</span></td></tr>
-<tr><td>06-30 (一)</td><td class="text-mono">3,342.15</td><td class="text-mono">3,346.28</td><td>986</td><td>0.95</td><td><span class="tag-outline tail-move">尾段异动</span></td></tr>
+<tr>
+<td class="fr-name">恒瑞医药<span class="code">600276</span></td><td>2026 中报</td><td><span class="tag tag-blue">半年报</span></td><td class="text-mono">2026-08-21</td><td class="text-mono">2.4 MB</td>
+<td class="fr-sum-badge"><span class="tag tag-amber">AI 生成中…</span></td>
+<td><div class="fr-actions"><button class="btn btn-ghost btn-sm" disabled>查看摘要</button><a class="btn btn-ghost btn-sm" href="#">PDF</a></div></td>
+</tr>
+<tr>
+<td class="fr-name">中际旭创<span class="code">300308</span></td><td>2026 中报</td><td><span class="tag tag-blue">半年报</span></td><td class="text-mono">2026-08-18</td><td class="text-mono">3.1 MB</td>
+<td class="fr-sum-badge"><span class="tag tag-green">已生成 · 缓存</span></td>
+<td><div class="fr-actions"><button class="btn btn-ghost btn-sm" onclick="toggleSum()">查看摘要</button><a class="btn btn-ghost btn-sm" href="#">PDF</a><button class="btn btn-ghost btn-sm">重新生成</button></div></td>
+</tr>
+<tr>
+<td class="fr-name">宁德时代<span class="code">300750</span></td><td>2026 中报</td><td><span class="tag tag-blue">半年报</span></td><td class="text-mono">2026-08-25</td><td class="text-mono">5.8 MB</td>
+<td class="fr-sum-badge"><span class="tag tag-green">已生成 · 缓存</span></td>
+<td><div class="fr-actions"><button class="btn btn-ghost btn-sm" onclick="toggleSum()">查看摘要</button><a class="btn btn-ghost btn-sm" href="#">PDF</a><button class="btn btn-ghost btn-sm">重新生成</button></div></td>
+</tr>
+<tr>
+<td class="fr-name">北方华创<span class="code">002371</span></td><td>2026 中报</td><td><span class="tag tag-blue">半年报</span></td><td class="text-mono">2026-08-27</td><td class="text-mono">2.9 MB</td>
+<td class="fr-sum-badge"><span class="tag">未生成</span></td>
+<td><div class="fr-actions"><button class="btn btn-secondary btn-sm">AI 摘要</button><a class="btn btn-ghost btn-sm" href="#">PDF</a></div></td>
+</tr>
+<tr>
+<td class="fr-name">贵州茅台<span class="code">600519</span></td><td>2025 年报</td><td><span class="tag tag-purple">年报</span></td><td class="text-mono">2026-04-02</td><td class="text-mono">8.6 MB</td>
+<td class="fr-sum-badge"><span class="tag tag-green">已生成 · 缓存</span></td>
+<td><div class="fr-actions"><button class="btn btn-ghost btn-sm" onclick="toggleSum()">查看摘要</button><a class="btn btn-ghost btn-sm" href="#">PDF</a><button class="btn btn-ghost btn-sm">重新生成</button></div></td>
+</tr>
+<tr>
+<td class="fr-name">奥比中光<span class="code">688322</span></td><td>2026 中报</td><td><span class="tag tag-blue">半年报</span></td><td class="text-mono">2026-08-26</td><td class="text-mono">1.7 MB</td>
+<td class="fr-sum-badge"><span class="tag">未生成</span></td>
+<td><div class="fr-actions"><button class="btn btn-secondary btn-sm">AI 摘要</button><a class="btn btn-ghost btn-sm" href="#">PDF</a></div></td>
+</tr>
 </tbody>
 </table>
 </div>
+<div class="disclaimer">AI 摘要按输入幂等缓存：同报告期重复点击不再调用 LLM；「重新生成」将忽略缓存强制重算。摘要仅作辅助阅读，不构成投资建议。</div>
+
+<!-- AI 摘要展开示意 -->
+<div class="sum-panel" id="sum-panel">
+<div class="sum-panel-title">
+<h4>AI 摘要 · 宁德时代 300750 · 2026 中报</h4>
+<div><span class="tag tag-green">命中缓存</span> <button class="btn btn-ghost btn-sm" onclick="toggleSum()">收起</button></div>
+</div>
+<div class="sum-section"><h5>业绩概览</h5><p>2026 年上半年营收 1,920.4 亿元（同比 +12.3%），归母净利润 218.6 亿元（同比 +18.9%）；毛利率 24.1%，较去年同期提升 1.2pct，主因海外高毛利订单占比提升。</p></div>
+<div class="sum-section"><h5>资产负债与现金流</h5><p>经营性现金流净额 342.7 亿元，显著高于净利润，盈利质量扎实；货币资金 + 理财合计约 3,100 亿元，资产负债率降至 64.8%，资本开支节奏放缓。</p></div>
+<div class="sum-section"><h5>风险提示</h5><p>碳酸锂价格波动对成本端的影响；海外贸易政策不确定性；储能竞争加剧带来的价格压力。</p></div>
+<div class="sum-src">来源：file_metadata.summary（JSONB）· 生成于 2026-08-25 19:42 · skill: financial-report-summary · input_hash 命中</div>
+</div>
 </div>
 </div>
 
+<!-- 最近采集日志 -->
 <div class="card">
-<div class="card-header"><span class="card-title">竞价异动个股汇总</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">5日累计</span></div>
+<div class="card-header"><span class="card-title">最近采集日志</span><span style="font-size:11px;color:var(--text-tertiary)">collector_log · cninfo 渠道</span></div>
 <div class="card-body-sm">
-<div class="table-wrap">
-<table class="compact-table">
-<thead><tr><th>代码</th><th>名称</th><th>异动天数</th><th>最大量比</th><th>日期</th><th>方向</th></tr></thead>
-<tbody>
-<tr><td class="text-mono">600519</td><td>贵州茅台</td><td>3</td><td style="color:var(--red);font-weight:500">2.18</td><td>07-04</td><td><span class="tag tag-green">高开</span></td></tr>
-<tr><td class="text-mono">002371</td><td>北方华创</td><td>2</td><td style="color:var(--red);font-weight:500">1.95</td><td>07-04</td><td><span class="tag tag-green">高开</span></td></tr>
-<tr><td class="text-mono">300750</td><td>宁德时代</td><td>2</td><td style="color:var(--red);font-weight:500">1.72</td><td>07-01</td><td><span class="tag tag-green">高开</span></td></tr>
-<tr><td class="text-mono">688981</td><td>中芯国际</td><td>1</td><td>0.68</td><td>07-02</td><td><span class="tag tag-red">低开</span></td></tr>
-<tr><td class="text-mono">300124</td><td>汇川技术</td><td>2</td><td style="color:var(--red);font-weight:500">1.58</td><td>07-03</td><td><span class="tag tag-green">高开</span></td></tr>
-<tr><td class="text-mono">688256</td><td>寒武纪</td><td>4</td><td style="color:var(--red);font-weight:700">2.85</td><td>07-04</td><td><span class="tag tag-green">高开</span></td></tr>
-</tbody>
-</table>
-</div>
-</div>
+<div class="log-strip"><span class="log-id">#a91f3c</span><span class="log-text"><span class="tag tag-green">success</span> financial_report · 巨潮资讯 · 入库 42 份 PDF（2026 中报批次）</span><span class="log-time">08-27 18:05</span></div>
+<div class="log-strip"><span class="log-id">#a90d77</span><span class="log-text"><span class="tag tag-green">success</span> financial_report · 入库 118 份 · AI 摘要批量生成任务已投递 heavy 队列</span><span class="log-time">08-26 18:02</span></div>
+<div class="log-strip"><span class="log-id">#a8z9e1</span><span class="log-text"><span class="tag tag-amber">partial</span> 3 份 PDF 下载失败（WAF 429），已入死信队列可重放</span><span class="log-time">08-25 18:07</span></div>
 </div>
 </div>
 
-<!-- Calendar View -->
-<div class="card">
-<div class="card-header"><span class="card-title">竞价特征日历</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">2026年7月</span></div>
-<div class="card-body">
-<div class="calendar-grid">
-<div class="calendar-header">日</div><div class="calendar-header">一</div><div class="calendar-header">二</div><div class="calendar-header">三</div><div class="calendar-header">四</div><div class="calendar-header">五</div><div class="calendar-header">六</div>
-<div class="calendar-day empty"></div><div class="calendar-day empty"></div><div class="calendar-day empty"></div>
-<div class="calendar-day" style="background:rgba(210,153,34,.08)"><span>1</span><span class="tag-outline tail-move" style="font-size:9px">异动</span></div>
-<div class="calendar-day" style="background:rgba(46,160,67,.08)"><span>2</span><span class="tag-outline low-vol" style="font-size:9px">缩量</span></div>
-<div class="calendar-day" style="background:var(--bg-hover)"><span>3</span><span class="tag-outline steady" style="font-size:9px">平稳</span></div>
-<div class="calendar-day" style="background:var(--bg-hover)"><span>4</span><span style="font-size:9px;color:var(--text-tertiary)">休市</span></div>
-<div class="calendar-day" style="background:var(--bg-hover)"><span>5</span><span style="font-size:9px;color:var(--text-tertiary)">休市</span></div>
-<div class="calendar-day" style="background:rgba(248,81,73,.08)"><span>6</span><span class="tag-outline high-vol" style="font-size:9px">放量</span></div>
-<div class="calendar-day" style="background:var(--bg-hover)"><span>7</span><span class="tag-outline steady" style="font-size:9px">平稳</span></div>
-<div class="calendar-day" style="background:rgba(248,81,73,.08) selected today"><span>5</span><span class="tag-outline high-vol" style="font-size:9px">放量</span></div>
-</div>
-<div style="display:flex;gap:var(--space-4);justify-content:center;margin-top:var(--space-3);font-size:var(--text-xs);color:var(--text-tertiary)">
-<span><span style="display:inline-block;width:12px;height:12px;background:rgba(248,81,73,.08);border-radius:2px;margin-right:4px"></span>放量竞价</span>
-<span><span style="display:inline-block;width:12px;height:12px;background:rgba(46,160,67,.08);border-radius:2px;margin-right:4px"></span>缩量竞价</span>
-<span><span style="display:inline-block;width:12px;height:12px;background:rgba(210,153,34,.08);border-radius:2px;margin-right:4px"></span>尾段异动</span>
-<span><span style="display:inline-block;width:12px;height:12px;background:var(--bg-hover);border-radius:2px;margin-right:4px"></span>平稳竞价</span>
 </div>
 </div>
 </div>
-</div></div></div>
+<script>
+function toggleSum(){
+var p=document.getElementById('sum-panel');
+p.style.display=(p.style.display==='none')?'':'none';
+}
+</script>
 </body>
 </html>

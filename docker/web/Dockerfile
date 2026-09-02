@@ -33,7 +33,8 @@ RUN npm ci
 COPY web/ .
 RUN npm run build
 
-# runtime
+# runtime — 单 uvicorn 进程直听 9000：API + SPA 静态托管一体，
+# 无 nginx/supervisord 启动竞态（端口监听即完整服务，消除冷启动 502 窗口）
 FROM python:3.11-slim-bookworm
 
 RUN set -eux; \
@@ -44,7 +45,7 @@ RUN set -eux; \
         sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list; \
     fi; \
     apt-get update && apt-get install -y --no-install-recommends \
-    nginx supervisor curl \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -52,12 +53,11 @@ WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH"
 COPY --from=backend-builder /app/.venv /app/.venv
 COPY --from=backend-builder /app /app
-COPY --from=frontend-builder /web/dist /usr/share/nginx/html
+COPY --from=frontend-builder /web/dist /app/static
 # 助手 Skills：settings.skills_dir 在容器内解析为 /skills（/app 的上四级）
 COPY skills/ /skills/
 
-COPY docker/web/nginx.conf /etc/nginx/nginx.conf
-COPY docker/web/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+ENV STATIC_DIR=/app/static
 
 EXPOSE 9000
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "9000", "--proxy-headers", "--forwarded-allow-ips=*"]
