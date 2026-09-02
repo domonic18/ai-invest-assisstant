@@ -37,13 +37,46 @@ export interface ApiAuthResponse {
 export interface ApiWatchlistItemCreate {
   stock_code: string
   tags?: string[]
+  group_id?: number
 }
 
 export interface ApiWatchlistItemResponse {
   id: number
   stock_code: string
   tags: string[] | null
+  group_id: number
   created_at: string
+}
+
+export interface ApiWatchlistGroupCreate {
+  name: string
+  ai_review_enabled?: boolean
+}
+
+export interface ApiWatchlistGroupUpdate {
+  name?: string
+  ai_review_enabled?: boolean
+}
+
+export interface ApiWatchlistGroupResponse {
+  id: number
+  name: string
+  sort_order: number
+  is_default: boolean
+  ai_review_enabled: boolean
+  created_at: string
+}
+
+export interface ApiWatchlistGroupWithItemsResponse extends ApiWatchlistGroupResponse {
+  items: ApiWatchlistItemResponse[]
+}
+
+export interface ApiWatchlistGroupReorderRequest {
+  group_ids: number[]
+}
+
+export interface ApiWatchlistItemMoveRequest {
+  group_id: number
 }
 
 export interface ApiStockBasicResponse {

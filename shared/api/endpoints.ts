@@ -11,6 +11,12 @@ export const ENDPOINTS = {
     meSettings: `${API_BASE}/users/me/settings`,
     watchlist: `${API_BASE}/users/watchlist`,
     watchlistQuotes: `${API_BASE}/users/watchlist/quotes`,
+    watchlistGroups: `${API_BASE}/users/watchlist/groups`,
+    watchlistGroup: (groupId: number | string) =>
+      `${API_BASE}/users/watchlist/groups/${groupId}`,
+    watchlistGroupOrder: `${API_BASE}/users/watchlist/groups/order`,
+    watchlistItem: (itemId: number | string) =>
+      `${API_BASE}/users/watchlist/items/${itemId}`,
   },
   stocks: {
     search: `${API_BASE}/stocks/search`,

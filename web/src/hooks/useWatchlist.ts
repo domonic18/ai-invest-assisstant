@@ -6,7 +6,7 @@ import { queryKeys } from './queryKeys'
 
 export function useWatchlist() {
   return useQuery({
-    queryKey: queryKeys.watchlist,
+    queryKey: queryKeys.watchlist.items,
     queryFn: fetchWatchlist,
   })
 }
@@ -17,7 +17,8 @@ export function useAddWatchlistItem() {
   return useMutation({
     mutationFn: addWatchlistItem,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.watchlist })
+      queryClient.invalidateQueries({ queryKey: queryKeys.watchlist.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.market.watchlistQuotes })
     },
   })
 }
@@ -28,7 +29,8 @@ export function useRemoveWatchlistItem() {
   return useMutation({
     mutationFn: removeWatchlistItem,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.watchlist })
+      queryClient.invalidateQueries({ queryKey: queryKeys.watchlist.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.market.watchlistQuotes })
     },
   })
 }

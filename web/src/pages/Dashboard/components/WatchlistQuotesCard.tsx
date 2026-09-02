@@ -14,7 +14,7 @@ export function WatchlistQuotesCard() {
     <Card
       variant="borderless"
       title="自选股行情"
-      extra={<Link to="/settings" className="text-xs">管理自选</Link>}
+      extra={<Link to="/watchlist" className="text-xs">管理自选</Link>}
     >
       {isLoading ? (
         <div className="flex justify-center py-6"><Spin /></div>

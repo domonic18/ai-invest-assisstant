@@ -97,7 +97,18 @@ export interface WatchlistItem {
   code: string
   name?: string
   tags: string[]
+  groupId: number
   price?: number
   changePercent?: number
   createdAt: string
+}
+
+export interface WatchlistGroup {
+  id: number
+  name: string
+  sortOrder: number
+  isDefault: boolean
+  aiReviewEnabled: boolean
+  createdAt: string
+  items: WatchlistItem[]
 }

@@ -6,6 +6,7 @@ import type {
   ApiStockKlineResponse,
   ApiStockQuoteResponse,
   ApiStockSectorsResponse,
+  ApiWatchlistGroupWithItemsResponse,
   ApiWatchlistItemResponse,
 } from '@ai-invest/shared'
 import type {
@@ -16,6 +17,7 @@ import type {
   StockKline,
   StockQuote,
   StockSector,
+  WatchlistGroup,
   WatchlistItem,
 } from '@ai-invest/shared'
 
@@ -138,6 +140,21 @@ export function mapWatchlistItem(dto: ApiWatchlistItemResponse): WatchlistItem {
     id: String(dto.id),
     code: dto.stock_code,
     tags: dto.tags || [],
+    groupId: dto.group_id,
     createdAt: dto.created_at,
+  }
+}
+
+export function mapWatchlistGroup(
+  dto: ApiWatchlistGroupWithItemsResponse,
+): WatchlistGroup {
+  return {
+    id: dto.id,
+    name: dto.name,
+    sortOrder: dto.sort_order,
+    isDefault: dto.is_default,
+    aiReviewEnabled: dto.ai_review_enabled,
+    createdAt: dto.created_at,
+    items: (dto.items ?? []).map(mapWatchlistItem),
   }
 }
