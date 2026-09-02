@@ -86,6 +86,10 @@ export const ENDPOINTS = {
     aiReview: `${API_BASE}/market/ai-review`,
     collect: `${API_BASE}/market/collect`,
   },
+  calendar: {
+    events: `${API_BASE}/calendar/events`,
+    upcoming: `${API_BASE}/calendar/events/upcoming`,
+  },
   admin: {
     users: `${API_BASE}/admin/users`,
     user: (id: number | string) => `${API_BASE}/admin/users/${id}`,

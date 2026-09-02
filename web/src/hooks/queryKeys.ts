@@ -27,6 +27,11 @@ export const queryKeys = {
     version: (industry: string, versionId: number) =>
       ['chain', 'version', industry, versionId] as const,
   },
+  calendar: {
+    all: ['calendar'] as const,
+    events: (start: string, end: string) => ['calendar', 'events', start, end] as const,
+    upcoming: (limit: number) => ['calendar', 'upcoming', limit] as const,
+  },
   collector: {
     logs: ['collector-logs'] as const,
     taskCatalog: ['collector-task-catalog'] as const,

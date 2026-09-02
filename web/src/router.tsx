@@ -26,6 +26,7 @@ const TrackedIndex = lazy(() =>
 const AuctionReview = lazy(() =>
   import('./pages/AuctionReview/AuctionReview').then((m) => ({ default: m.AuctionReview })),
 )
+const Calendar = lazy(() => import('./pages/Calendar').then((m) => ({ default: m.Calendar })))
 const CapitalFlow = lazy(() => import('./pages/CapitalFlow/CapitalFlow').then((m) => ({ default: m.CapitalFlow })))
 const ChainAnalysis = lazy(() =>
   import('./pages/ChainAnalysis/ChainAnalysis').then((m) => ({ default: m.ChainAnalysis })),
@@ -56,6 +57,7 @@ export const router = createBrowserRouter([
       { path: 'hotspot', element: lazyEl(<Hotspot />) },
       { path: 'capital-flow', element: lazyEl(<CapitalFlow />) },
       { path: 'auction', element: lazyEl(<AuctionReview />) },
+      { path: 'calendar', element: lazyEl(<Calendar />) },
       { path: 'research', element: lazyEl(<Research />) },
       { path: 'financial-reports', element: lazyEl(<FinancialReportPage />) },
       { path: 'financial/:code', element: lazyEl(<Financial />) },
