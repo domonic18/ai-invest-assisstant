@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 财报中心</title>
+<style>
+/* ======================================================
+   AI Invest Assistant — Design System
+   Inspired by SquadSight: dark, professional, tech-driven
+   ====================================================== */
+:root {
+  /* Background */
+  --bg: #0c0e12;
+  --bg-elevated: #111318;
+  --bg-surface: #181a21;
+  --bg-hover: #1c1f26;
+
+  /* Borders */
+  --border: #23262d;
+  --border-hover: #2e323c;
+  --border-focus: #5e6ad2;
+
+  /* Text */
+  --text-primary: #f0f1f5;
+  --text-secondary: #8a8f98;
+  --text-tertiary: #5c616e;
+
+  /* Brand */
+  --accent: #5e6ad2;
+  --accent-hover: #6872e3;
+  --accent-soft: rgba(94, 106, 210, 0.12);
+
+  /* Semantic */
+  --green: #2ea043;
+  --green-soft: rgba(46, 160, 67, 0.12);
+  --red: #f85149;
+  --red-soft: rgba(248, 81, 73, 0.12);
+  --amber: #d29922;
+  --amber-soft: rgba(210, 153, 34, 0.12);
+  --blue: #58a6ff;
+  --blue-soft: rgba(88, 166, 255, 0.12);
+
+  /* Typography */
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
+  --shadow-md: 0 4px 6px rgba(0,0,0,.4);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,.5);
+
+  /* Layout */
+  --sidebar-w: 220px;
+  --header-h: 56px;
+
+  /* Transitions */
+  --transition: 200ms ease;
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 32px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+}
+
+/* Reset */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+/* Selection */
+::selection { background: var(--accent-soft); color: var(--text-primary); }
+a { color: var(--accent); text-decoration: none; transition: color var(--transition); }
+a:hover { color: var(--accent-hover); }
+
+/* ======= Layout ======= */
+.app-layout { display: flex; height: 100vh; }
+.app-sidebar {
+  width: var(--sidebar-w); background: var(--bg-elevated);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  flex-shrink: 0; overflow-y: auto;
+}
+.app-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.app-header {
+  height: var(--header-h); background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border); display: flex; align-items: center;
+  justify-content: space-between; padding: 0 20px; flex-shrink: 0;
+}
+.app-content { flex: 1; overflow-y: auto; padding: 24px; }
+
+/* ======= Sidebar ======= */
+.sidebar-brand { padding: 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+.sidebar-logo {
+  width: 34px; height: 34px; background: var(--accent); border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.sidebar-logo svg { width: 18px; height: 18px; }
+.sidebar-brand-text { font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -.01em; }
+.sidebar-version { font-size: 10px; color: var(--text-tertiary); margin-left: auto; }
+.sidebar-nav { padding: 8px; flex: 1; }
+.sidebar-section-title {
+  font-size: 10px; color: var(--text-tertiary); text-transform: uppercase;
+  letter-spacing: .08em; padding: 12px 10px 6px; font-weight: 600;
+}
+.sidebar-item {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px;
+  border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary);
+  text-decoration: none; cursor: pointer; transition: all var(--transition);
+}
+.sidebar-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sidebar-item.active { background: var(--accent-soft); color: var(--accent); }
+.sidebar-item-icon { opacity: .5; width: 16px; font-size: 12px; text-align: center; }
+.sidebar-item.active .sidebar-item-icon { opacity: 1; }
+.sidebar-footer {
+  padding: 12px 16px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.sidebar-avatar {
+  width: 30px; height: 30px; border-radius: 50%; background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600; color: #fff; flex-shrink: 0;
+}
+.sidebar-user-info { font-size: 12px; color: var(--text-secondary); }
+.sidebar-user-name { color: var(--text-primary); font-weight: 500; }
+
+/* ======= Header ======= */
+.header-search {
+  width: 260px; padding: 7px 12px; background: var(--bg-surface);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 13px; color: var(--text-primary); outline: none;
+  transition: border var(--transition);
+}
+.header-search::placeholder { color: var(--text-tertiary); }
+.header-search:focus { border-color: var(--border-focus); }
+.header-actions { display: flex; align-items: center; gap: 8px; }
+.header-btn {
+  width: 34px; height: 34px; border-radius: var(--radius-sm);
+  background: transparent; border: none; color: var(--text-secondary);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all var(--transition); font-size: 16px;
+}
+.header-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* ======= Cards ======= */
+.card {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.card-header {
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-title { font-size: 14px; font-weight: 600; color: var(--text-primary); letter-spacing: -.01em; }
+.card-body { padding: 20px; }
+.card-body-sm { padding: 14px; }
+
+/* ======= Stats ======= */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.stat-label { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .05em; font-weight: 500; }
+.stat-value { font-size: 24px; font-weight: 700; color: var(--text-primary); letter-spacing: -.02em; }
+.stat-change { font-size: 11px; font-weight: 500; }
+.stat-change.up { color: var(--green); }
+.stat-change.down { color: var(--red); }
+
+/* ======= Tables ======= */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead { border-bottom: 1px solid var(--border); }
+th {
+  text-align: left; padding: 10px 14px; font-weight: 500; color: var(--text-tertiary);
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap;
+}
+td { padding: 10px 14px; color: var(--text-secondary); border-bottom: 1px solid var(--border); white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg-hover); }
+
+/* ======= Buttons ======= */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+  border: 1px solid transparent; cursor: pointer;
+  transition: all var(--transition); letter-spacing: .01em;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-secondary { background: var(--bg-surface); color: var(--text-secondary); border-color: var(--border); }
+.btn-secondary:hover { background: var(--bg-hover); border-color: var(--border-hover); color: var(--text-primary); }
+.btn-ghost { background: transparent; color: var(--text-secondary); }
+.btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-danger:hover { background: #e0483f; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-lg { padding: 10px 24px; font-size: 14px; }
+
+/* ======= Tags ======= */
+.tag {
+  display: inline-flex; align-items: center; padding: 2px 8px;
+  border-radius: 4px; font-size: 11px; font-weight: 500;
+}
+.tag-green { background: var(--green-soft); color: var(--green); }
+.tag-red { background: var(--red-soft); color: var(--red); }
+.tag-amber { background: var(--amber-soft); color: var(--amber); }
+.tag-blue { background: var(--blue-soft); color: var(--blue); }
+.tag-purple { background: var(--accent-soft); color: var(--accent); }
+
+/* ======= Forms ======= */
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
+.form-input, .form-select, .form-textarea {
+  width: 100%; padding: 8px 12px; font-size: 13px; color: var(--text-primary);
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); outline: none; transition: border var(--transition);
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--border-focus); }
+.form-input::placeholder { color: var(--text-tertiary); }
+.form-hint { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+.form-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235c616e' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+
+/* ======= Grids ======= */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+.gap-4 { gap: 14px; }
+.mb-4 { margin-bottom: 14px; }
+.mb-6 { margin-bottom: 24px; }
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+.text-muted { color: var(--text-secondary); }
+.text-mono { font-family: var(--font-mono); }
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.page-title { font-size: 20px; font-weight: 600; color: var(--text-primary); letter-spacing: -.01em; margin-bottom: 24px; }
+.divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+/* ======= Analysis Meter ======= */
+.analysis-meter { height: 6px; border-radius: 3px; background: var(--bg-surface); overflow: hidden; }
+.analysis-meter-fill { height: 100%; border-radius: 3px; }
+
+/* ======= Notification ======= */
+.notification-dot {
+  position: absolute; top: 7px; right: 7px; width: 6px; height: 6px;
+  background: var(--red); border-radius: 50%;
+}
+
+
+/* ======= Page: Financial Reports ======= */
+.header-left{display:flex;align-items:center;gap:8px}
+.header-right{display:flex;align-items:center;gap:8px}
+.header-badge{position:relative;width:34px;height:34px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);cursor:pointer}
+.header-badge:hover{background:var(--bg-hover)}
+
+.fr-toolbar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:20px;padding:16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm)}
+.fr-toolbar .form-group{margin-bottom:0}
+.fr-toolbar .form-label{font-size:11px}
+.fr-spacer{flex:1}
+.fr-stat-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.fr-stat{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px}
+.fr-stat-label{font-size:11px;color:var(--text-tertiary)}
+.fr-stat-value{font-size:22px;font-weight:700;font-family:var(--font-mono);margin-top:2px}
+.fr-stat-sub{font-size:11px;color:var(--text-tertiary);margin-top:2px}
+
+.fr-name{color:var(--text-primary)}
+.fr-name .code{font-size:11px;color:var(--text-tertiary);font-family:var(--font-mono);margin-left:4px}
+.fr-actions{display:flex;gap:6px;white-space:nowrap}
+.fr-sum-badge{display:inline-flex;align-items:center;gap:4px}
+
+.sum-panel{margin-top:14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-surface);padding:16px}
+.sum-panel-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.sum-panel-title h4{font-size:13px;font-weight:600;color:var(--text-primary)}
+.sum-section{margin-bottom:12px}
+.sum-section h5{font-size:12px;font-weight:600;color:var(--accent);margin-bottom:4px}
+.sum-section p{font-size:12px;color:var(--text-secondary);line-height:1.7}
+.sum-src{font-size:10px;color:var(--text-tertiary);border-top:1px dashed var(--border);padding-top:8px;margin-top:4px}
+
+.log-strip{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:12px}
+.log-strip:last-child{border-bottom:none}
+.log-id{flex-shrink:0;width:84px;font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary)}
+.log-text{flex:1;color:var(--text-secondary);line-height:1.5}
+.log-time{flex-shrink:0;font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary)}
+.disclaimer{font-size:10px;color:var(--text-tertiary);margin-top:12px;padding-top:10px;border-top:1px dashed var(--border)}
+</style>
+</head>
+<body>
+<div class="app-layout">
+<aside class="app-sidebar">
+<div class="sidebar-brand">
+<div class="sidebar-logo">
+<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#fff" stroke-width="2.5"/><polyline points="8,20 12,16 16,18 20,12 24,14" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="14" r="2.5" fill="#fff"/></svg>
+</div>
+<div class="sidebar-brand-text">AI Invest</div>
+<div class="sidebar-version">v1.0.0</div>
+</div>
+<nav class="sidebar-nav">
+<a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
+<div class="sidebar-section-title">复盘</div>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
+<div class="sidebar-section-title">分析</div>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
+<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
+<a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
+<a class="sidebar-item active" href="financial-reports.html"><span class="sidebar-item-icon">◈</span><span>财报中心</span></a>
+<div class="sidebar-section-title">设置</div>
+<a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+<a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
+</nav>
+<div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
+</aside>
+<div class="app-main">
+<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
+<div class="app-content">
+<h1 class="page-title">财报中心</h1>
+
+<!-- 筛选与采集工具栏 -->
+<div class="fr-toolbar">
+<div class="form-group"><label class="form-label">股票</label><input class="form-input" style="width:180px" placeholder="代码 / 名称，支持多只"></div>
+<div class="form-group"><label class="form-label">报告类型</label><select class="form-select" style="width:130px"><option>全部类型</option><option>年报</option><option selected>半年报</option><option>一季报</option><option>三季报</option></select></div>
+<div class="form-group"><label class="form-label">报告期</label><select class="form-select" style="width:110px"><option>2026 中报</option><option>2025 年报</option><option>2025 三季报</option><option>全部年份</option></select></div>
+<div class="form-group"><label class="form-label">AI 摘要</label><select class="form-select" style="width:120px"><option>全部</option><option>已生成</option><option>未生成</option></select></div>
+<button class="btn btn-primary">查询</button>
+<div class="fr-spacer"></div>
+<button class="btn btn-secondary">⟳ 触发采集</button>
+</div>
+
+<!-- 统计条 -->
+<div class="fr-stat-strip">
+<div class="fr-stat"><div class="fr-stat-label">已入库财报</div><div class="fr-stat-value">1,286</div><div class="fr-stat-sub">PDF 存 COS · file_metadata 关联</div></div>
+<div class="fr-stat"><div class="fr-stat-label">AI 摘要已生成</div><div class="fr-stat-value" style="color:var(--green)">432</div><div class="fr-stat-sub">缓存于 file_metadata.summary</div></div>
+<div class="fr-stat"><div class="fr-stat-label">本年新增</div><div class="fr-stat-value">187</div><div class="fr-stat-sub">2026 中报披露季</div></div>
+<div class="fr-stat"><div class="fr-stat-label">采集失败待重试</div><div class="fr-stat-value" style="color:var(--amber)">3</div><div class="fr-stat-sub">死信队列可重放</div></div>
+</div>
+
+<div class="card mb-6">
+<div class="card-header"><span class="card-title">财报列表</span><span style="font-size:11px;color:var(--text-tertiary)">共 1,286 份 · 当前筛选 6 份</span></div>
+<div class="card-body-sm">
+<div class="table-wrap">
+<table>
+<thead><tr><th>股票</th><th>报告期</th><th>类型</th><th>发布日期</th><th>文件</th><th>AI 摘要</th><th>操作</th></tr></thead>
+<tbody>
+<tr>
+<td class="fr-name">恒瑞医药<span class="code">600276</span></td><td>2026 中报</td><td><span class="tag tag-blue">半年报</span></td><td class="text-mono">2026-08-21</td><td class="text-mono">2.4 MB</td>
+<td class="fr-sum-badge"><span class="tag tag-amber">AI 生成中…</span></td>
+<td><div class="fr-actions"><button class="btn btn-ghost btn-sm" disabled>查看摘要</button><a class="btn btn-ghost btn-sm" href="#">PDF</a></div></td>
+</tr>
+<tr>
+<td class="fr-name">中际旭创<span class="code">300308</span></td><td>2026 中报</td><td><span class="tag tag-blue">半年报</span></td><td class="text-mono">2026-08-18</td><td class="text-mono">3.1 MB</td>
+<td class="fr-sum-badge"><span class="tag tag-green">已生成 · 缓存</span></td>
+<td><div class="fr-actions"><button class="btn btn-ghost btn-sm" onclick="toggleSum()">查看摘要</button><a class="btn btn-ghost btn-sm" href="#">PDF</a><button class="btn btn-ghost btn-sm">重新生成</button></div></td>
+</tr>
+<tr>
+<td class="fr-name">宁德时代<span class="code">300750</span></td><td>2026 中报</td><td><span class="tag tag-blue">半年报</span></td><td class="text-mono">2026-08-25</td><td class="text-mono">5.8 MB</td>
+<td class="fr-sum-badge"><span class="tag tag-green">已生成 · 缓存</span></td>
+<td><div class="fr-actions"><button class="btn btn-ghost btn-sm" onclick="toggleSum()">查看摘要</button><a class="btn btn-ghost btn-sm" href="#">PDF</a><button class="btn btn-ghost btn-sm">重新生成</button></div></td>
+</tr>
+<tr>
+<td class="fr-name">北方华创<span class="code">002371</span></td><td>2026 中报</td><td><span class="tag tag-blue">半年报</span></td><td class="text-mono">2026-08-27</td><td class="text-mono">2.9 MB</td>
+<td class="fr-sum-badge"><span class="tag">未生成</span></td>
+<td><div class="fr-actions"><button class="btn btn-secondary btn-sm">AI 摘要</button><a class="btn btn-ghost btn-sm" href="#">PDF</a></div></td>
+</tr>
+<tr>
+<td class="fr-name">贵州茅台<span class="code">600519</span></td><td>2025 年报</td><td><span class="tag tag-purple">年报</span></td><td class="text-mono">2026-04-02</td><td class="text-mono">8.6 MB</td>
+<td class="fr-sum-badge"><span class="tag tag-green">已生成 · 缓存</span></td>
+<td><div class="fr-actions"><button class="btn btn-ghost btn-sm" onclick="toggleSum()">查看摘要</button><a class="btn btn-ghost btn-sm" href="#">PDF</a><button class="btn btn-ghost btn-sm">重新生成</button></div></td>
+</tr>
+<tr>
+<td class="fr-name">奥比中光<span class="code">688322</span></td><td>2026 中报</td><td><span class="tag tag-blue">半年报</span></td><td class="text-mono">2026-08-26</td><td class="text-mono">1.7 MB</td>
+<td class="fr-sum-badge"><span class="tag">未生成</span></td>
+<td><div class="fr-actions"><button class="btn btn-secondary btn-sm">AI 摘要</button><a class="btn btn-ghost btn-sm" href="#">PDF</a></div></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="disclaimer">AI 摘要按输入幂等缓存：同报告期重复点击不再调用 LLM；「重新生成」将忽略缓存强制重算。摘要仅作辅助阅读，不构成投资建议。</div>
+
+<!-- AI 摘要展开示意 -->
+<div class="sum-panel" id="sum-panel">
+<div class="sum-panel-title">
+<h4>AI 摘要 · 宁德时代 300750 · 2026 中报</h4>
+<div><span class="tag tag-green">命中缓存</span> <button class="btn btn-ghost btn-sm" onclick="toggleSum()">收起</button></div>
+</div>
+<div class="sum-section"><h5>业绩概览</h5><p>2026 年上半年营收 1,920.4 亿元（同比 +12.3%），归母净利润 218.6 亿元（同比 +18.9%）；毛利率 24.1%，较去年同期提升 1.2pct，主因海外高毛利订单占比提升。</p></div>
+<div class="sum-section"><h5>资产负债与现金流</h5><p>经营性现金流净额 342.7 亿元，显著高于净利润，盈利质量扎实；货币资金 + 理财合计约 3,100 亿元，资产负债率降至 64.8%，资本开支节奏放缓。</p></div>
+<div class="sum-section"><h5>风险提示</h5><p>碳酸锂价格波动对成本端的影响；海外贸易政策不确定性；储能竞争加剧带来的价格压力。</p></div>
+<div class="sum-src">来源：file_metadata.summary（JSONB）· 生成于 2026-08-25 19:42 · skill: financial-report-summary · input_hash 命中</div>
+</div>
+</div>
+</div>
+
+<!-- 最近采集日志 -->
+<div class="card">
+<div class="card-header"><span class="card-title">最近采集日志</span><span style="font-size:11px;color:var(--text-tertiary)">collector_log · cninfo 渠道</span></div>
+<div class="card-body-sm">
+<div class="log-strip"><span class="log-id">#a91f3c</span><span class="log-text"><span class="tag tag-green">success</span> financial_report · 巨潮资讯 · 入库 42 份 PDF（2026 中报批次）</span><span class="log-time">08-27 18:05</span></div>
+<div class="log-strip"><span class="log-id">#a90d77</span><span class="log-text"><span class="tag tag-green">success</span> financial_report · 入库 118 份 · AI 摘要批量生成任务已投递 heavy 队列</span><span class="log-time">08-26 18:02</span></div>
+<div class="log-strip"><span class="log-id">#a8z9e1</span><span class="log-text"><span class="tag tag-amber">partial</span> 3 份 PDF 下载失败（WAF 429），已入死信队列可重放</span><span class="log-time">08-25 18:07</span></div>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+<script>
+function toggleSum(){
+var p=document.getElementById('sum-panel');
+p.style.display=(p.style.display==='none')?'':'none';
+}
+</script>
+</body>
+</html>
