@@ -44,9 +44,11 @@ async def get_checkpointer() -> BaseCheckpointSaver:
         settings = get_settings()
         dsn = str(settings.database_url).replace("+asyncpg", "")
         # saver 的 setup() 用 CREATE INDEX CONCURRENTLY，连接必须 autocommit
+        # min_size 显式压小：默认 4 会急切建 4 条连接，公网远程 PG 时显著拖慢冷启动
         pool = AsyncConnectionPool(
             conninfo=dsn,
             open=False,
+            min_size=2,
             max_size=10,
             kwargs={"autocommit": True, "prepare_threshold": 0},
         )
