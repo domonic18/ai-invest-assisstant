@@ -99,6 +99,14 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "supported_data_types": ["market-amount"],
         "extra": {},
     },
+    {
+        "source": "cls",
+        "name": "财联社",
+        "base_url": "https://www.cls.cn",
+        "is_enabled": True,
+        "supported_data_types": ["cls-telegraph-backfill"],
+        "extra": {},
+    },
 ]
 
 

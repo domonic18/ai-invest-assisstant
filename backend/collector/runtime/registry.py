@@ -124,6 +124,17 @@ TASK_SPECS: dict[str, TaskSpec] = {
             collectors={"sina": "collector.spiders.sina_news:SinaNewsCollector"},
         ),
         TaskSpec(
+            name="cls-telegraph-backfill",
+            label="财联社电报回补",
+            data_type="news_telegraph",
+            queue="realtime",
+            collectors={
+                "cls": "collector.spiders.cls_telegraph:ClsTelegraphCollector",
+            },
+            run_params=("rn",),
+            defaults={"rn": 20},
+        ),
+        TaskSpec(
             name="company-profile",
             label="公司概况",
             data_type="company_profile",

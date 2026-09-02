@@ -12,6 +12,7 @@ import pytest
 
 from collector.core.exporters import PostgresExporter
 from collector.core.pipelines import DeduplicateStep, NormalizeStep, ValidateStep
+from collector.spiders.cls_telegraph import ClsTelegraphCollector
 from collector.spiders.cninfo_disclosure import CninfoDisclosureCollector
 from collector.spiders.cninfo_ipo import CninfoIpoCollector
 from collector.spiders.cninfo_profile import CninfoProfileCollector
@@ -408,6 +409,15 @@ CONTRACTS: list[SpiderContract] = [
         has_normalize=False,
         dedup_keys=["index_code", "trade_date"],
         required_fields=["index_code", "trade_date", "close"],
+    ),
+    SpiderContract(
+        name="cls_telegraph",
+        cls=ClsTelegraphCollector,
+        config={"source": "cls", "data_type": "news_telegraph"},
+        store=StoreContract(table="news_telegraph", conflict_key="cls_msg_id"),
+        has_normalize=False,
+        dedup_keys=["cls_msg_id"],
+        required_fields=["cls_msg_id", "publish_time"],
     ),
 ]
 
