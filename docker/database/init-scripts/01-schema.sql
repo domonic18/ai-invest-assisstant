@@ -357,17 +357,33 @@ CREATE TABLE "user" (
 
 CREATE INDEX idx_user_email ON "user"(email);
 
+CREATE TABLE user_watchlist_group (
+    id                BIGSERIAL PRIMARY KEY,
+    user_id           BIGINT       NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    name              VARCHAR(50)  NOT NULL,
+    sort_order        INT          NOT NULL DEFAULT 0,
+    is_default        BOOLEAN      NOT NULL DEFAULT FALSE,
+    ai_review_enabled BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at        TIMESTAMPTZ  DEFAULT NOW(),
+
+    UNIQUE (user_id, name)
+);
+
+CREATE INDEX idx_user_watchlist_group_user ON user_watchlist_group(user_id);
+
 CREATE TABLE user_watchlist (
     id         BIGSERIAL PRIMARY KEY,
     user_id    BIGINT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     stock_code VARCHAR(10) NOT NULL,
     tags       VARCHAR(50)[],
+    group_id   BIGINT NOT NULL REFERENCES user_watchlist_group(id),
     created_at TIMESTAMPTZ DEFAULT NOW(),
 
     UNIQUE (user_id, stock_code)
 );
 
 CREATE INDEX idx_watchlist_user ON user_watchlist(user_id);
+CREATE INDEX idx_user_watchlist_group_id ON user_watchlist(group_id);
 
 -- ============================================================
 -- 7.5 对话助手域

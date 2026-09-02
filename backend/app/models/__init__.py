@@ -36,7 +36,7 @@ from app.models.stock import StockBasic
 from app.models.tracked_index import TrackedIndexConfig
 from app.models.user import User
 from app.models.user_market_review import UserMarketReview
-from app.models.watchlist import UserWatchlist
+from app.models.watchlist import UserWatchlist, UserWatchlistGroup
 
 __all__ = [
     "AiAnalysisResult",
@@ -75,4 +75,5 @@ __all__ = [
     "User",
     "UserMarketReview",
     "UserWatchlist",
+    "UserWatchlistGroup",
 ]
