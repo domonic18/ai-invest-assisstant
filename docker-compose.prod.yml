@@ -96,6 +96,40 @@ services:
           cpus: "1.0"
           memory: 2G
 
+  collector-stream:
+    # 财联社电报驻留采集：10s 轮询写 news_telegraph，游标/心跳存 Redis，
+    # 独立进程不占 Celery 池
+    build:
+      context: .
+      dockerfile: docker/collector/Dockerfile
+    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+      COLLECTOR_MODE: stream
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      # 心跳键由 stream 每 10s 刷新（TTL 120s），TTL>0 即数据流存活
+      test: ["CMD-SHELL", "python -c \"import os, redis; exit(0 if redis.from_url(os.environ['REDIS_URL']).ttl('collector:stream:cls_telegraph:heartbeat') > 0 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
   postgres:
     image: timescale/timescaledb:latest-pg16
     environment:
