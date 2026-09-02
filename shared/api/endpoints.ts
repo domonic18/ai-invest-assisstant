@@ -25,6 +25,7 @@ export const ENDPOINTS = {
     kline: (code: string) => `${API_BASE}/stocks/${code}/kline`,
     intraday: (code: string) => `${API_BASE}/stocks/${code}/intraday`,
     sectors: (code: string) => `${API_BASE}/stocks/${code}/sectors`,
+    aiAnalysis: (code: string) => `${API_BASE}/stocks/${code}/ai-analysis`,
   },
   kline: {
     get: (code: string) => `${API_BASE}/kline/${code}`,

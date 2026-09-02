@@ -1,4 +1,4 @@
-import { FileTextOutlined, WalletOutlined } from '@ant-design/icons'
+import { FileTextOutlined, RobotOutlined, WalletOutlined } from '@ant-design/icons'
 import { useIsFetching } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
@@ -11,6 +11,7 @@ import { useFinancialHistory } from '@/hooks/useFinancialHistory'
 import { useResearch } from '@/hooks/useResearch'
 import { useAddWatchlistItem, useWatchlist } from '@/hooks/useWatchlist'
 import {
+  useStockAiAnalysis,
   useStockDetail,
   useStockQuote,
   useStockSectors,
@@ -29,6 +30,7 @@ import {
   type ViewPresetKey,
 } from './chartConfig'
 import { ErrorState } from './components/ErrorState'
+import { StockAiAnalysisSection } from './components/StockAiAnalysisSection'
 import { StockFinancial } from './components/StockFinancial'
 import { StockHeader } from './components/StockHeader'
 import { StockResearch } from './components/StockResearch'
@@ -51,6 +53,7 @@ export function StockDetail() {
   const financialQ = useFinancial(stockCode)
   const historyQ = useFinancialHistory(stockCode, 8)
   const researchQ = useResearch({ stockCode, pageSize: 5 })
+  const aiAnalysisQ = useStockAiAnalysis(stockCode)
   const { data: watchlist } = useWatchlist()
   const addMutation = useAddWatchlistItem()
 
@@ -196,6 +199,12 @@ export function StockDetail() {
       status: researchQ.isLoading ? 'loading' : researchQ.isError ? 'error' : 'idle',
       onRetry: () => researchQ.refetch(),
     },
+    {
+      key: 'ai-analysis',
+      label: 'AI 分析',
+      status: aiAnalysisQ.isLoading ? 'loading' : aiAnalysisQ.isError ? 'error' : 'idle',
+      onRetry: () => aiAnalysisQ.refetch(),
+    },
   ]
 
   if (!stockCode) {
@@ -265,6 +274,16 @@ export function StockDetail() {
           相关新闻功能开发中，敬请期待。
         </span>
       ),
+    },
+    {
+      key: 'ai',
+      label: (
+        <span className="text-xs">
+          <RobotOutlined className="mr-1" />
+          AI 分析
+        </span>
+      ),
+      children: <StockAiAnalysisSection stockCode={stockCode} />,
     },
   ]
 

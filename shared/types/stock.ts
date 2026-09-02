@@ -112,3 +112,19 @@ export interface WatchlistGroup {
   createdAt: string
   items: WatchlistItem[]
 }
+
+export interface StockAiAnalysisSection {
+  key: string
+  title: string
+  content: string
+}
+
+export interface StockAiAnalysis {
+  stockCode: string
+  stockName: string
+  tradeDate: string
+  model: string | null
+  generatedAt: string
+  cached: boolean
+  sections: StockAiAnalysisSection[]
+}

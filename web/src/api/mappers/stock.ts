@@ -1,6 +1,7 @@
 import type {
   ApiAuctionDataResponse,
   ApiKlineDataResponse,
+  ApiStockAiAnalysisResponse,
   ApiStockBasicResponse,
   ApiStockIntradayResponse,
   ApiStockKlineResponse,
@@ -13,6 +14,7 @@ import type {
   AuctionData,
   KlineData,
   Stock,
+  StockAiAnalysis,
   StockIntraday,
   StockKline,
   StockQuote,
@@ -142,6 +144,22 @@ export function mapWatchlistItem(dto: ApiWatchlistItemResponse): WatchlistItem {
     tags: dto.tags || [],
     groupId: dto.group_id,
     createdAt: dto.created_at,
+  }
+}
+
+export function mapStockAiAnalysis(dto: ApiStockAiAnalysisResponse): StockAiAnalysis {
+  return {
+    stockCode: dto.stock_code,
+    stockName: dto.stock_name,
+    tradeDate: dto.trade_date,
+    model: dto.model,
+    generatedAt: dto.generated_at,
+    cached: dto.cached,
+    sections: dto.sections.map((section) => ({
+      key: section.key,
+      title: section.title,
+      content: section.content,
+    })),
   }
 }
 

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import {
   fetchKline,
+  fetchStockAiAnalysis,
   fetchStockDetail,
   fetchStockIntraday,
   fetchStockKline,
@@ -80,5 +81,15 @@ export function useKline(code: string, pageSize = 100) {
     queryFn: () => fetchKline(code, { pageSize }),
     enabled: code.length > 0,
     staleTime: INTRADAY_STALE_TIME,
+  })
+}
+
+/** 只读已生成的个股 AI 分析；未生成返回 null（不触发生成）。 */
+export function useStockAiAnalysis(code: string, tradeDate?: string) {
+  return useQuery({
+    queryKey: queryKeys.stocks.aiAnalysis(code, tradeDate),
+    queryFn: () => fetchStockAiAnalysis(code, tradeDate),
+    enabled: code.length > 0,
+    staleTime: 10 * 60_000,
   })
 }

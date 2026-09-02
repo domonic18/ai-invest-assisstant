@@ -108,6 +108,22 @@ export interface ApiStockQuoteResponse {
   updated_at: string | null
 }
 
+export interface ApiStockAiAnalysisSection {
+  key: string
+  title: string
+  content: string
+}
+
+export interface ApiStockAiAnalysisResponse {
+  stock_code: string
+  stock_name: string
+  trade_date: string
+  model: string | null
+  generated_at: string
+  cached: boolean
+  sections: ApiStockAiAnalysisSection[]
+}
+
 export interface ApiStockKlineBar {
   date: string
   open: number
