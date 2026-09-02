@@ -86,6 +86,13 @@ export const ENDPOINTS = {
     aiReview: `${API_BASE}/market/ai-review`,
     collect: `${API_BASE}/market/collect`,
   },
+  calendar: {
+    events: `${API_BASE}/calendar/events`,
+    upcoming: `${API_BASE}/calendar/events/upcoming`,
+  },
+  telegraph: {
+    list: `${API_BASE}/telegraph`,
+  },
   admin: {
     users: `${API_BASE}/admin/users`,
     user: (id: number | string) => `${API_BASE}/admin/users/${id}`,
@@ -107,6 +114,10 @@ export const ENDPOINTS = {
     testLLMConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}/test`,
     setDefaultLLMConfig: (id: number | string) =>
       `${API_BASE}/admin/llm-configs/${id}/set-default`,
+    trackedIndexes: `${API_BASE}/admin/tracked-indexes`,
+    trackedIndex: (id: number | string) => `${API_BASE}/admin/tracked-indexes/${id}`,
+    trackedIndexToggle: (id: number | string) =>
+      `${API_BASE}/admin/tracked-indexes/${id}/toggle`,
     collectorChannels: `${API_BASE}/admin/collector/channels`,
     collectorDataTypes: `${API_BASE}/admin/collector/data-types`,
     collectorDataTypeChannels: (dataType: string) =>

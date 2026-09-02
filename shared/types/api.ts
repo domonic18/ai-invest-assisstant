@@ -797,3 +797,40 @@ export interface ApiDataTypeChannelPriorityInput {
   channel_id: number
   priority: number
 }
+
+export interface ApiTrackedIndexResponse {
+  id: number
+  index_code: string
+  index_name: string
+  market_category: string
+  data_source: string
+  sort_order: number
+  is_enabled: boolean
+  latest_close: number | null
+  latest_change_pct: number | null
+  latest_trade_date: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ApiTrackedIndexCreateRequest {
+  index_code: string
+  index_name: string
+  market_category: string
+  data_source: string
+  sort_order?: number
+  is_enabled?: boolean
+}
+
+export interface ApiTrackedIndexUpdateRequest {
+  index_name?: string
+  market_category?: string
+  data_source?: string
+  sort_order?: number
+  is_enabled?: boolean
+}
+
+export interface ApiTrackedIndexToggleResponse {
+  id: number
+  is_enabled: boolean
+}

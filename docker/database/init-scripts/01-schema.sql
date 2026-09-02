@@ -750,3 +750,92 @@ CREATE TABLE IF NOT EXISTS quote_auction_index (
 );
 
 CREATE INDEX IF NOT EXISTS idx_quote_auction_index_date ON quote_auction_index(trade_date DESC);
+
+-- ============================================================
+-- 18. 全球指标日行情（COMEX 黄金 / 美元指数 / 美债收益率等）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS quote_global_index_daily (
+    index_code    VARCHAR(16)   NOT NULL,
+    trade_date    DATE          NOT NULL,
+    open          DECIMAL(16,4),
+    high          DECIMAL(16,4),
+    low           DECIMAL(16,4),
+    close         DECIMAL(16,4),
+    change_pct    DECIMAL(12,4),
+    volume        BIGINT,
+    amount        DECIMAL(20,2),
+    source        VARCHAR(50),
+    created_at    TIMESTAMPTZ DEFAULT NOW(),
+
+    PRIMARY KEY (index_code, trade_date)
+);
+
+SELECT create_hypertable('quote_global_index_daily', 'trade_date', chunk_time_interval => INTERVAL '1 year', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_quote_global_index_daily_code_date
+    ON quote_global_index_daily(index_code, trade_date DESC);
+
+-- ============================================================
+-- 19. 跟踪指数配置（工作台/行情卡展示清单，Admin CRUD 管理）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS tracked_index_config (
+    id               BIGSERIAL PRIMARY KEY,
+    index_code       VARCHAR(16)  NOT NULL,
+    index_name       VARCHAR(100) NOT NULL,
+    market_category  VARCHAR(10)  NOT NULL CONSTRAINT chk_tracked_index_config_market_category
+                     CHECK (market_category IN ('A股', '全球')),
+    data_source      VARCHAR(50)  NOT NULL,
+    sort_order       INT          NOT NULL DEFAULT 100,
+    is_enabled       BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at       TIMESTAMPTZ DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ DEFAULT NOW(),
+
+    CONSTRAINT uq_tracked_index_config_index_code UNIQUE (index_code)
+);
+
+-- ============================================================
+-- 20. 投资日历事件（FOMC/BLS 官方日程等）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS calendar_event (
+    id              BIGSERIAL PRIMARY KEY,
+    event_time      TIMESTAMPTZ  NOT NULL,
+    end_time        TIMESTAMPTZ,
+    title           VARCHAR(300) NOT NULL,
+    category        VARCHAR(20)  NOT NULL CONSTRAINT chk_calendar_event_category
+                    CHECK (category IN ('宏观', '央行动态', '新股', '解禁', '财报', '会议')),
+    impact_markets  VARCHAR(50)[],
+    source          VARCHAR(50),
+    source_url      VARCHAR(1000),
+    related_symbols TEXT[],
+    source_hash     VARCHAR(32)  NOT NULL,          -- md5(source|event_time|title)，幂等键
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+
+    CONSTRAINT uq_calendar_event_source_hash UNIQUE (source_hash)
+);
+
+CREATE INDEX IF NOT EXISTS idx_calendar_event_time ON calendar_event(event_time);
+CREATE INDEX IF NOT EXISTS idx_calendar_event_category_time ON calendar_event(category, event_time);
+
+-- ============================================================
+-- 21. 财联社电报（stream 驻留进程增量轮询，cls_msg_id 幂等）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS news_telegraph (
+    id            BIGSERIAL PRIMARY KEY,
+    cls_msg_id    BIGINT       NOT NULL,
+    title         VARCHAR(500),
+    content       TEXT,
+    category      VARCHAR(50),                       -- cls type 字段原值
+    importance    SMALLINT,
+    shared        SMALLINT,
+    stock_codes   TEXT[],
+    extra         JSONB,                             -- 其余 cls 字段（brief/shareurl 等）
+    publish_time  TIMESTAMPTZ  NOT NULL,
+    created_at    TIMESTAMPTZ DEFAULT NOW(),
+
+    CONSTRAINT uq_news_telegraph_cls_msg_id UNIQUE (cls_msg_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_news_telegraph_publish_time ON news_telegraph(publish_time DESC);

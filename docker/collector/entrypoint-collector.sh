@@ -38,6 +38,10 @@ case "$MODE" in
       --max-tasks-per-child="$MAX_TASKS" \
       --loglevel="${CELERY_LOG_LEVEL:-info}"
     ;;
+  stream)
+    echo "Starting cls telegraph stream resident collector"
+    exec python -m collector.runtime.stream
+    ;;
   *)
     echo "Unknown COLLECTOR_MODE: $MODE" >&2
     exit 1

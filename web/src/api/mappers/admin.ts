@@ -9,6 +9,7 @@ import type {
   ApiCollectorTaskCatalogResponse,
   ApiDataTypeChannelsResponse,
   ApiLLMConfigResponse,
+  ApiTrackedIndexResponse,
 } from '@ai-invest/shared'
 import type {
   AdminNews,
@@ -21,6 +22,7 @@ import type {
   CollectorLog,
   CollectorTaskCatalog,
   LLMConfig,
+  TrackedIndexConfig,
 } from '@ai-invest/shared'
 
 export function mapLLMConfig(dto: ApiLLMConfigResponse): LLMConfig {
@@ -37,6 +39,23 @@ export function mapLLMConfig(dto: ApiLLMConfigResponse): LLMConfig {
     lastTestedAt: dto.last_tested_at,
     lastTestStatus: dto.last_test_status,
     lastTestError: dto.last_test_error,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
+  }
+}
+
+export function mapTrackedIndex(dto: ApiTrackedIndexResponse): TrackedIndexConfig {
+  return {
+    id: dto.id,
+    indexCode: dto.index_code,
+    indexName: dto.index_name,
+    marketCategory: dto.market_category,
+    dataSource: dto.data_source,
+    sortOrder: dto.sort_order,
+    isEnabled: dto.is_enabled,
+    latestClose: dto.latest_close,
+    latestChangePct: dto.latest_change_pct,
+    latestTradeDate: dto.latest_trade_date,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
   }

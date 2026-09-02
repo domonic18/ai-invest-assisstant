@@ -6,6 +6,7 @@ from app.api.v1 import (
     assistant,
     auction,
     auth,
+    calendar,
     chain,
     financial,
     financial_report,
@@ -15,6 +16,7 @@ from app.api.v1 import (
     market,
     research,
     stocks,
+    telegraph,
     users,
 )
 from app.api.v1.admin import collector as admin_collector
@@ -26,6 +28,7 @@ from app.api.v1.admin import reports as admin_reports
 from app.api.v1.admin import stocks as admin_stocks
 from app.api.v1.admin import system as admin_system
 from app.api.v1.admin import tasks as admin_tasks
+from app.api.v1.admin import tracked_index as admin_tracked_indexes
 from app.api.v1.admin import users as admin_users
 from app.api.v1.mcp import server as mcp_server
 
@@ -41,6 +44,7 @@ api_router.include_router(
     financial_report.router, prefix="/financial-reports", tags=["financial-reports"]
 )
 api_router.include_router(hotspot.router, prefix="/hotspot", tags=["hotspot"])
+api_router.include_router(calendar.router, prefix="/calendar", tags=["calendar"])
 api_router.include_router(financial.router, prefix="/financial", tags=["financial"])
 api_router.include_router(auction.router, prefix="/auction", tags=["auction"])
 api_router.include_router(fund_flow.router, prefix="/fund-flow", tags=["fund-flow"])
@@ -48,6 +52,7 @@ api_router.include_router(market.router, prefix="/market", tags=["market"])
 api_router.include_router(
     assistant.router, prefix="/assistant", tags=["assistant"]
 )
+api_router.include_router(telegraph.router, prefix="/telegraph", tags=["telegraph"])
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(admin_users.router, prefix="/users")
@@ -60,6 +65,7 @@ admin_router.include_router(admin_collector.router)
 admin_router.include_router(admin_collector_data_types.router)
 admin_router.include_router(admin_collector_channels.router)
 admin_router.include_router(admin_llm_configs.router)
+admin_router.include_router(admin_tracked_indexes.router)
 api_router.include_router(admin_router)
 
 api_router.include_router(mcp_server.router, prefix="/mcp", tags=["mcp"])

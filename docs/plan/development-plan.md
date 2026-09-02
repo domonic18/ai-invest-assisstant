@@ -20,11 +20,11 @@
 
 | 需求 | 状态 | 关键缺口 / 前置 |
 |------|------|----------------|
-| F-DC-04 电报准实时 | 未实现 | cls.cn telegraph 采集全缺（签名算法已在需求文档明确：`MD5(SHA1(参数按 key 序拼接))` + Chrome TLS 指纹）；需驻留轮询进程方案 |
-| F-DC-05 投资日历底座 | 未实现 | `invest_calendar_event` 表/spider/API 全缺；**cls investkalendar 签名逆向仍是调研项**；FOMC/BLS 半自动导入无依赖风险 |
-| F-DC-06 全球指标采集 | 未实现 | 黄金/美债 2Y·10Y/美元指数 spider 全缺；**tushare `us_tycr` 权限、东财 WAF 约束需逐一验证**（优先 push2delay 镜像/低频） |
-| F-VIS-07 投资日历页 | 未实现 | 依赖 F-DC-05 |
-| F-VIS-08 跟踪指数管理 | 未实现 | `tracked_index_config` 表 + Admin 第 10 页 CRUD；无数据源的指标不允许启用 |
+| F-DC-04 电报准实时 | 已实现（批次 A） | `cls_telegraph` spider + `collector-stream` 驻留进程（10s 轮询/Redis 游标心跳/指数退避/补漏）；分页查询 API + `/telegraph` 时间线页（10s 自动刷新/新电报红点/断流延迟探针） |
+| F-DC-05 投资日历底座 | 已实现（批次 A） | `calendar_event` 表 + FOMC/BLS 2026 官方日程种子 + 查询 API（CN 日界→UTC 区间）；cls investkalendar 仍留调研项 |
+| F-DC-06 全球指标采集 | 已实现（批次 A） | `global-index` 任务（东财 push2delay 实时 + tushare us_tycr 全历史）→ `quote_global_index_daily` |
+| F-VIS-07 投资日历页 | 已实现（批次 A） | 月/周/列表三视图 + 分类筛选 + 事件 Drawer，`/calendar` 主导航 |
+| F-VIS-08 跟踪指数管理 | 已实现（批次 A） | `tracked_index_config` + Admin 第 10 页 CRUD/启停（无数据源指标禁用启用） |
 | F-USER-01 自选股分组 | 未实现 | `user_watchlist` 仅 user_id/stock_code/tags，需分组表改造（单一归属 + AI 复盘开关 + 默认分组） |
 | F-AI-07 自选股 AI 每日分析 | 未实现 | 依赖分组开关；**实现路径已有成熟模板**（镜像 market-daily-review 四件套：spider 覆写 run + TaskSpec + seed + heavy 队列） |
 | F-VIS-06 工作台 | 未实现 | 纯聚合层，依赖 F-DC-04/05/06 + F-AI-07 的数据底座；登录默认入口从 `/` 切换 |
@@ -51,6 +51,20 @@
 | A2 全球指标 + 跟踪指数管理 | 指标 spider（先验证 tushare us_tycr / 东财 push2delay）→ `quote_global_index_daily` + `tracked_index_config` → Admin 第 10 页 CRUD + 启停校验 | `collector/spiders/`、`models/`、`api/v1/admin/`、`web/src/pages/Admin/` | 中：渠道权限未验证 |
 | A3 投资日历底座 | 调研 cls investkalendar 签名（**先调研出结论再排实现**）；无障碍部分先行：`invest_calendar_event` 表 + FOMC/BLS 年度日程半自动导入 + 查询 API | `models/`、`docker/database/migrations/`、`api/v1/` | 高（cls 线）/ 低（FOMC 线） |
 
+> **调研结论回填（2026-09-02 探针实测，批次 A 开发前置项已全部闭环）**
+>
+> - **A1 cls 电报**：站点已迁 Next.js，旧 `nodeapi/telegraphList`、`api/cache` 均失效；真实端点 `GET www.cls.cn/v1/roll/get_roll_list`。签名 = `md5_hex(sha1_hex(参数按 key 升序 k=v& 拼接))`（非社区旧版 `k1v1k2v2` 裸拼接），sv=8.7.9 硬编码于 `_app` bundle 可正则提取；需 curl_cffi Chrome 指纹 + 首次访问 `/telegraph` 取 WAF Cookie，实测 errno=0 通过。`last_time` 向旧翻页（排他），增量= `last_time=0` 取最新 rn 条按 `ctime>游标` 过滤，rn 上限约 20。→ 按原方案实施，stream 默认启用。
+> - **A2 全球指标**：tushare `us_tycr` 权限已通（单次调用返回全量历史，列为 `date/y1..y30`，y2/y10 即美债 2Y/10Y 收益率 %，非 ts_code 接口）；东财 push2delay `ulist.np/get` 实时快照可用（secid `101.GC00Y`/`100.UDI`，fltt=2 已缩放），但 push2delay 无日 K；历史回补走 akshare 三路（`futures_foreign_hist`/`index_global_hist_em`/`bond_zh_us_rate`）实测可用。→ 实时走 push2delay、美债走 us_tycr、回补走 akshare，按原方案实施。
+> - **A3 日历**：FOMC/BLS 2026 官方日程已从 federalreserve.gov / bls.gov 实抓（BLS 拒直连，经服务端 reader 通道取得）；cls investkalendar 签名机制与电报同源（同一 sign 模块），复用门槛已大幅降低，仍留调研项、本轮不做。
+
+> **实施回填（2026-09-02，批次 A 三线 + 日历页交付，分支 `feat/batch-a-foundation`）**
+>
+> - **交付**：`20260902_batch_a_foundation` 迁移（4 新表 + 32 条官方日程种子）；`global-index` / `cls-telegraph-backfill` 任务与 `collector-stream` 驻留服务；日历查询 API 与前端页；Admin 跟踪指数第 10 页。E2E 实测：电报回补 20 条幂等重跑零重复；stream 首启看门狗补漏 64 条（覆盖 2.5h 断档）、重启游标自举零重复、SIGTERM 优雅退出；东财黄金/美元指数实测入库。
+> - **与原计划的偏差**：① 全球指标未拆 3 个 TaskSpec，收敛为单 `global-index` 任务（东财/tushare 双渠道 fallback），调度节奏仍按 realtime/收盘后/每日三行 `collector_task` 入 beat，与既有"调度在 DB"模型一致；② 日历表定名 `calendar_event`（原计划 `invest_calendar_event`），归入 market 子域；③ 电报不入 ES（采集侧现状零 ES 写入，与 news 一致）。
+> - **新探针发现**：tushare `us_tycr` 限频 **1 次/小时**——种子调度 `30 6 * * 2-6` 每日一次安全，但禁止高频手动重跑；渠道 fallback 会把限频异常转为切源并在 `collector_log.error_msg` 留痕，终态仍 success。
+> - **口径修正**：`quote_global_index_daily.change_pct` 全表统一为涨跌幅 %——tushare 美债最初写 bp 差（+4bp 会显示成 +4.00%），已改 `(close-prev)/prev` 并清理本地存量。
+> - **范围追加**：电报查询 API + `/telegraph` 前端时间线页自批次 C 提前落地（原计划后置到工作台）——采集链路需要可视化验收入口：分页查询（公开路由，镜像 calendar 竖切片）+ 后端一次剥净 cls 富文本 HTML + 10s 自动刷新/新电报 NEW 红点/最新延迟断流探针。
+
 ### 批次 B：自选股 AI 链路（批次 A 无依赖，可提前启动）
 
 | 项 | 内容 | 关键落点 |
@@ -75,6 +89,7 @@
 - 研报 PDF 全文在线阅读、资金流向桑基图（V1.1 遗留）
 - 小程序端（Taro）
 - PG 备份入 COS（硬性排最后）
+- 存储治理三件套（2026-09-02 全库审计发现，上生产前评估）：① 4 张 hypertable 开 TimescaleDB 压缩策略（分钟线收益最大）② collector_log 保留策略（建议 90 天，index-minute/index-spot 占增量约 3/4）③ LangGraph checkpoint 随 assistant_session 删除级联清理（存量约 20 个孤儿 thread）
 
 ## 4. 状态维护
 

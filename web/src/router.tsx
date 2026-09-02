@@ -20,9 +20,13 @@ const CollectorChannelConfig = lazy(() =>
   })),
 )
 const LLMConfig = lazy(() => import('./pages/Admin/LLMConfig/LLMConfig').then((m) => ({ default: m.LLMConfig })))
+const TrackedIndex = lazy(() =>
+  import('./pages/Admin/TrackedIndex/TrackedIndex').then((m) => ({ default: m.TrackedIndex })),
+)
 const AuctionReview = lazy(() =>
   import('./pages/AuctionReview/AuctionReview').then((m) => ({ default: m.AuctionReview })),
 )
+const Calendar = lazy(() => import('./pages/Calendar').then((m) => ({ default: m.Calendar })))
 const CapitalFlow = lazy(() => import('./pages/CapitalFlow/CapitalFlow').then((m) => ({ default: m.CapitalFlow })))
 const ChainAnalysis = lazy(() =>
   import('./pages/ChainAnalysis/ChainAnalysis').then((m) => ({ default: m.ChainAnalysis })),
@@ -37,6 +41,7 @@ const Register = lazy(() => import('./pages/Register/Register').then((m) => ({ d
 const Research = lazy(() => import('./pages/Research/Research').then((m) => ({ default: m.Research })))
 const Settings = lazy(() => import('./pages/Settings/Settings').then((m) => ({ default: m.Settings })))
 const StockDetail = lazy(() => import('./pages/StockDetail/StockDetail').then((m) => ({ default: m.StockDetail })))
+const Telegraph = lazy(() => import('./pages/Telegraph').then((m) => ({ default: m.Telegraph })))
 
 function lazyEl(node: ReactNode) {
   return <Suspense fallback={<PageSkeleton />}>{node}</Suspense>
@@ -53,6 +58,8 @@ export const router = createBrowserRouter([
       { path: 'hotspot', element: lazyEl(<Hotspot />) },
       { path: 'capital-flow', element: lazyEl(<CapitalFlow />) },
       { path: 'auction', element: lazyEl(<AuctionReview />) },
+      { path: 'calendar', element: lazyEl(<Calendar />) },
+      { path: 'telegraph', element: lazyEl(<Telegraph />) },
       { path: 'research', element: lazyEl(<Research />) },
       { path: 'financial-reports', element: lazyEl(<FinancialReportPage />) },
       { path: 'financial/:code', element: lazyEl(<Financial />) },
@@ -68,6 +75,7 @@ export const router = createBrowserRouter([
           { path: 'news', element: lazyEl(<AdminNews />) },
           { path: 'tasks', element: lazyEl(<AdminTasks />) },
           { path: 'llm-configs', element: lazyEl(<LLMConfig />) },
+          { path: 'tracked-indexes', element: lazyEl(<TrackedIndex />) },
           { path: 'collector-channels', element: lazyEl(<CollectorChannelConfig />) },
           { path: 'collector', element: lazyEl(<Collector />) },
         ],

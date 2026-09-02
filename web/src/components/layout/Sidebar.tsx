@@ -1,5 +1,6 @@
 import {
   BarChartOutlined,
+  CalendarOutlined,
   ContainerOutlined,
   DashboardOutlined,
   FileTextOutlined,
@@ -12,7 +13,9 @@ import {
   SettingOutlined,
   ShopOutlined,
   TeamOutlined,
+  ThunderboltOutlined,
   UserOutlined,
+  VerticalAlignTopOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { Menu } from 'antd'
@@ -27,7 +30,9 @@ type MenuItem = Required<MenuProps>['items'][number]
 const REVIEW_MENU_ITEMS: MenuItem[] = [
   { key: '/', icon: <BarChartOutlined />, label: '每日复盘' },
   { key: '/auction', icon: <ShopOutlined />, label: '集合竞价' },
+  { key: '/calendar', icon: <CalendarOutlined />, label: '投资日历' },
   { key: '/capital-flow', icon: <FundOutlined />, label: '资金流向' },
+  { key: '/telegraph', icon: <ThunderboltOutlined />, label: '财联社电报' },
 ]
 
 const ANALYSIS_MENU_ITEMS: MenuItem[] = [
@@ -45,6 +50,7 @@ const ADMIN_MENU_ITEMS: MenuItem[] = [
   { key: '/admin/news', icon: <ReadOutlined />, label: '资讯管理' },
   { key: '/admin/tasks', icon: <ContainerOutlined />, label: '任务管理' },
   { key: '/admin/llm-configs', icon: <RobotOutlined />, label: 'LLM 配置' },
+  { key: '/admin/tracked-indexes', icon: <VerticalAlignTopOutlined />, label: '跟踪指数' },
   { key: '/admin/collector-channels', icon: <SettingOutlined />, label: '采集渠道' },
   { key: '/admin/collector', icon: <PlayCircleOutlined />, label: '采集任务' },
 ]
