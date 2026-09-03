@@ -19,7 +19,7 @@ import { useRemoveWatchlistItem } from '@/hooks/useWatchlist'
 import { IntradaySpark } from '@/components/charts/IntradaySpark'
 import { changeColor, formatPercent } from '@/utils/formatters'
 
-import { apiErrorMessage } from './errorMessage'
+import { apiErrorMessage } from '@/utils/errorMessage'
 
 interface GroupCardProps {
   group: WatchlistGroup

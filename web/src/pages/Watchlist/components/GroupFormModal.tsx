@@ -4,7 +4,7 @@ import type { WatchlistGroup } from '@ai-invest/shared'
 
 import { useCreateWatchlistGroup, useUpdateWatchlistGroup } from '@/hooks/useWatchlistGroups'
 
-import { apiErrorMessage } from './errorMessage'
+import { apiErrorMessage } from '@/utils/errorMessage'
 
 interface GroupFormModalProps {
   open: boolean
