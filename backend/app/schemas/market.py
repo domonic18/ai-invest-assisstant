@@ -57,6 +57,16 @@ class IndexKlineResponse(BaseModel):
     bars: list[IndexKlineBar]
 
 
+class GlobalIndexQuoteResponse(BaseModel):
+    """全球指标最新快照（黄金/美元指数/美债收益率等）。"""
+
+    index_code: str
+    index_name: str
+    close: float | None = None
+    change_pct: float | None = None
+    trade_date: date | None = None
+
+
 class MarketStatsResponse(BaseModel):
     """市场涨跌与成交统计，含情绪温度。"""
 

@@ -15,6 +15,7 @@ from app.dependencies import get_current_admin_user, get_current_user, get_db
 from app.models.user import User
 from app.schemas.market import (
     CollectTaskResult,
+    GlobalIndexQuoteResponse,
     IndexIntradayResponse,
     IndexKlineResponse,
     IndexQuoteResponse,
@@ -28,7 +29,7 @@ from app.schemas.market import (
     SectorOverviewResponse,
 )
 from app.services import review as market_review_service
-from app.services.market import market_service
+from app.services.market import global_index_service, market_service
 from app.services.review import limit_up_ai_service
 
 router = APIRouter()
@@ -44,6 +45,14 @@ async def get_indices(
     默认取实时快照；指定历史交易日时返回当日收盘行情（非交易日返回空）。
     """
     return await market_service.get_index_quotes(session, trade_date)
+
+
+@router.get("/global-indices", response_model=list[GlobalIndexQuoteResponse])
+async def get_global_indices(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> list[GlobalIndexQuoteResponse]:
+    """启用中的全球指标最新快照（黄金/美元指数/美债收益率等）。"""
+    return await global_index_service.get_global_index_quotes(session)
 
 
 @router.get("/indices/kline", response_model=IndexKlineResponse)
