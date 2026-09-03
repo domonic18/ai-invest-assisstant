@@ -24,6 +24,10 @@ def spa_app(tmp_path: Path) -> FastAPI:
     async def ping() -> dict[str, str]:
         return {"pong": "1"}
 
+    @spa.get("/api/v1/items/")
+    async def items() -> dict[str, list[str]]:
+        return {"items": []}
+
     register_spa_routes(spa, static_dir)
     return spa
 
@@ -63,6 +67,15 @@ class TestSpaRoutes:
         assert resp.status_code == 404
         assert "index" not in resp.text
         assert resp.json()["detail"]
+
+    def test_api_no_slash_redirects_to_collection_root(self, spa_app: FastAPI) -> None:
+        client = TestClient(spa_app)
+        resp = client.get("/api/v1/items?page=2", follow_redirects=False)
+        assert resp.status_code == 307
+        assert resp.headers["location"] == "http://testserver/api/v1/items/?page=2"
+        followed = client.get("/api/v1/items")
+        assert followed.status_code == 200
+        assert followed.json() == {"items": []}
 
 
 @pytest.mark.unit

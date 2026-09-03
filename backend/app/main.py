@@ -7,10 +7,10 @@ from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Receive, Send
 
@@ -147,9 +147,17 @@ def register_spa_routes(app: FastAPI, static_dir: Path) -> None:
     index_file = static_dir / "index.html"
 
     @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
-    async def serve_spa(request: Request, full_path: str) -> FileResponse:
+    async def serve_spa(request: Request, full_path: str) -> Response:
         # API 未匹配路径保持 JSON 404，不落 index.html
         if full_path == "api" or full_path.startswith("api/"):
+            # SPA catch-all 会抢在 Starlette redirect_slashes 之前接住请求，
+            # 这里补回"缺尾斜杠"重定向，使集合根路由（如 /api/v1/admin/users/）
+            # 的无斜杠形式可达；带尾斜杠的未知路径仍 404，不会形成重定向环
+            if not full_path.endswith("/"):
+                return RedirectResponse(
+                    str(request.url.replace(path=f"{request.url.path}/")),
+                    status_code=307,
+                )
             raise HTTPException(status_code=404)
         if full_path:
             candidate = (static_dir / full_path).resolve()
