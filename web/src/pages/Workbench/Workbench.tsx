@@ -1,5 +1,6 @@
 import { Button, Empty, Typography } from 'antd'
 import dayjs from 'dayjs'
+import { useEffect, useState } from 'react'
 
 import { useWorkbench } from '@/hooks/useWorkbench'
 
@@ -13,8 +14,18 @@ import { WatchlistOverviewCard } from './components/WatchlistOverviewCard'
 
 const WEEKDAYS = '日一二三四五六'
 
+function useNow(intervalMs = 1000) {
+  const [now, setNow] = useState(() => dayjs())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(dayjs()), intervalMs)
+    return () => clearInterval(timer)
+  }, [intervalMs])
+  return now
+}
+
 export function Workbench() {
   const { data, isLoading, isError, refetch } = useWorkbench()
+  const now = useNow()
 
   if (isError) {
     return (
@@ -30,8 +41,9 @@ export function Workbench() {
     <div className="space-y-5">
       <div className="flex items-baseline justify-between">
         <Typography.Title level={4} className="!mb-0">工作台</Typography.Title>
-        <Typography.Text className="text-xs text-gray-500">
-          {dayjs().format('YYYY-MM-DD')} 周{WEEKDAYS[dayjs().day()]}
+        <Typography.Text className="text-xs text-gray-500 font-mono" data-testid="workbench-clock">
+          {now.format('YYYY-MM-DD')} 周{WEEKDAYS[now.day()]}{' '}
+          {now.format('HH:mm:ss')}
         </Typography.Text>
       </div>
 
