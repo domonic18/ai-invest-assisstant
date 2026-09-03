@@ -16,6 +16,7 @@ import {
   useToggleGroupAiReview,
 } from '@/hooks/useWatchlistGroups'
 import { useRemoveWatchlistItem } from '@/hooks/useWatchlist'
+import { IntradaySpark } from '@/components/charts/IntradaySpark'
 import { changeColor, formatPercent } from '@/utils/formatters'
 
 import { apiErrorMessage } from './errorMessage'
@@ -154,19 +155,26 @@ export function GroupCard({ group, groups, quotesByCode, onEdit, onReorder }: Gr
                   </Popconfirm>,
                 ]}
               >
-                <div className="flex items-center justify-between w-full pr-2">
-                  <div>
+                <div className="flex items-center justify-between w-full pr-2 gap-2">
+                  <div className="min-w-0">
                     <Link to={`/stock/${item.code}`} className="font-medium">
                       {quote?.name ?? item.code}
                     </Link>
                     <span className="ml-2 text-xs text-gray-500 font-mono">{item.code}</span>
                   </div>
-                  <div className="text-right">
-                    <div className="font-mono text-sm">
-                      {quote?.price != null ? quote.price.toFixed(2) : '-'}
-                    </div>
-                    <div className={`text-xs ${changeColor(quote?.changePct)}`}>
-                      {quote?.changePct != null ? formatPercent(quote.changePct) : '-'}
+                  <div className="flex items-center gap-3 shrink-0">
+                    <IntradaySpark
+                      points={quote?.trend}
+                      changePct={quote?.changePct ?? null}
+                      width={64}
+                    />
+                    <div className="text-right">
+                      <div className="font-mono text-sm">
+                        {quote?.price != null ? quote.price.toFixed(2) : '-'}
+                      </div>
+                      <div className={`text-xs ${changeColor(quote?.changePct)}`}>
+                        {quote?.changePct != null ? formatPercent(quote.changePct) : '-'}
+                      </div>
                     </div>
                   </div>
                 </div>
