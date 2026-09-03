@@ -8,8 +8,38 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import get_redis
 from app.models.kline import KlineDaily
+from app.models.stock import StockBasic
 from app.models.watchlist import UserWatchlist
+from app.repositories.market.kline_repository import fetch_minute_bars_multi
 from app.schemas.market import WatchlistQuoteItem
+from app.services.market import trade_calendar_service
+from app.services.market.intraday_utils import downsample
+
+
+async def _load_stock_names(
+    session: AsyncSession, codes: list[str]
+) -> dict[str, str]:
+    """stock_basic 批量取股票名称（Redis 快照缺失时的兜底）。"""
+    rows = await session.execute(
+        select(StockBasic.stock_code, StockBasic.stock_name).where(
+            StockBasic.stock_code.in_(codes)
+        )
+    )
+    return {code: name for code, name in rows.all()}
+
+
+async def _load_minute_trend(
+    session: AsyncSession, codes: list[str]
+) -> dict[str, list[float]]:
+    """最近交易日分钟收盘价降采样（≤60 点），无数据返回空数组。"""
+    resolved = await trade_calendar_service.resolve_latest_trade_date(session)
+    bars = await fetch_minute_bars_multi(session, codes, resolved)
+    closes_by_code: dict[str, list[float]] = {}
+    for bar in bars:
+        if bar.close is None:
+            continue
+        closes_by_code.setdefault(bar.stock_code, []).append(float(bar.close))
+    return {code: downsample(closes) for code, closes in closes_by_code.items() if closes}
 
 
 async def get_watchlist_quotes(
@@ -25,6 +55,7 @@ async def get_watchlist_quotes(
     if not watch_items:
         return []
 
+    codes = [item.stock_code for item in watch_items]
     redis = get_redis()
     quotes: dict[str, dict[str, Any]] = {}
     for item in watch_items:
@@ -32,19 +63,24 @@ async def get_watchlist_quotes(
         if raw:
             quotes[item.stock_code] = json.loads(raw)
 
+    names = await _load_stock_names(session, codes)
+    trends = await _load_minute_trend(session, codes)
+
     results: list[WatchlistQuoteItem] = []
     for item in watch_items:
+        trend = trends.get(item.stock_code, [])
         cached = quotes.get(item.stock_code)
         if cached:
             results.append(
                 WatchlistQuoteItem(
                     code=item.stock_code,
-                    name=cached.get("stock_name"),
+                    name=cached.get("stock_name") or names.get(item.stock_code),
                     price=cached.get("price"),
                     change_pct=cached.get("change_pct"),
                     amount=cached.get("amount"),
                     tags=list(item.tags or []),
                     updated_at=cached.get("updated_at"),
+                    trend=trend,
                 )
             )
             continue
@@ -60,6 +96,7 @@ async def get_watchlist_quotes(
         results.append(
             WatchlistQuoteItem(
                 code=item.stock_code,
+                name=names.get(item.stock_code),
                 price=float(kline.close) if kline and kline.close is not None else None,
                 change_pct=(
                     float(kline.change_pct)
@@ -71,6 +108,7 @@ async def get_watchlist_quotes(
                 ),
                 tags=list(item.tags or []),
                 updated_at=kline.trade_date.isoformat() if kline else None,
+                trend=trend,
             )
         )
     return results
