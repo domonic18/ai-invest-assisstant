@@ -51,7 +51,7 @@ async def get_workbench(session: AsyncSession, user_id: int) -> WorkbenchRespons
         logger.warning("workbench_telegraph_degraded", exc_info=True)
 
     try:
-        data.watchlist = await watchlist_quote_service.get_watchlist_quotes(
+        data.watchlist_groups = await watchlist_quote_service.get_watchlist_groups(
             session, user_id
         )
     except Exception:

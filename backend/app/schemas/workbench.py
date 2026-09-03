@@ -1,5 +1,7 @@
 """工作台聚合响应的 Pydantic schemas。"""
 
+from typing import Literal
+
 from pydantic import BaseModel
 
 from app.schemas.calendar import CalendarEventResponse
@@ -13,13 +15,30 @@ from app.schemas.market import (
 from app.schemas.telegraph import TelegraphResponse
 
 
+class WorkbenchWatchlistStock(WatchlistQuoteItem):
+    """自选股概览行：行情快照 + 所属分组开启 AI 复盘时的分析状态与摘要。"""
+
+    ai_status: Literal["off", "pending", "ready"] = "off"
+    ai_summary: str | None = None
+
+
+class WorkbenchWatchlistGroup(BaseModel):
+    """工作台自选股概览的分组容器。"""
+
+    id: int
+    name: str
+    is_default: bool = False
+    ai_review_enabled: bool = False
+    items: list[WorkbenchWatchlistStock] = []
+
+
 class WorkbenchResponse(BaseModel):
     """工作台五模块聚合数据；单模块降级时对应字段为空态而非整体报错。"""
 
     calendar: list[CalendarEventResponse] = []
     review: MarketReviewResponse | None = None
     telegraph: list[TelegraphResponse] = []
-    watchlist: list[WatchlistQuoteItem] = []
+    watchlist_groups: list[WorkbenchWatchlistGroup] = []
     indices: list[IndexQuoteResponse] = []
     stats: MarketStatsResponse | None = None
     global_indices: list[GlobalIndexQuoteResponse] = []

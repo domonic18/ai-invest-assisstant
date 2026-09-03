@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.schemas.calendar import CalendarEventResponse
-from app.schemas.market import GlobalIndexQuoteResponse, WatchlistQuoteItem
+from app.schemas.market import GlobalIndexQuoteResponse
 from app.schemas.telegraph import TelegraphResponse
-from app.schemas.workbench import WorkbenchResponse
+from app.schemas.workbench import WorkbenchResponse, WorkbenchWatchlistGroup
 from app.services.workbench import workbench_service
 
 _MODULE = "app.services.workbench.workbench_service"
@@ -33,7 +33,7 @@ class TestGetWorkbench:
     @pytest.mark.asyncio
     async def test_all_modules_populated(self) -> None:
         session = AsyncMock()
-        quote = WatchlistQuoteItem(code="600967", name="内蒙一机")
+        group = WorkbenchWatchlistGroup(id=1, name="核心持仓", ai_review_enabled=True)
 
         with (
             patch(
@@ -49,8 +49,8 @@ class TestGetWorkbench:
                 AsyncMock(return_value=([], 0)),
             ),
             patch(
-                f"{_MODULE}.watchlist_quote_service.get_watchlist_quotes",
-                AsyncMock(return_value=[quote]),
+                f"{_MODULE}.watchlist_quote_service.get_watchlist_groups",
+                AsyncMock(return_value=[group]),
             ),
             patch(
                 f"{_MODULE}.index_quotation_service.get_index_quotes",
@@ -70,14 +70,14 @@ class TestGetWorkbench:
         assert isinstance(result, WorkbenchResponse)
         assert result.calendar[0].title == "FOMC 议息会议"
         assert result.review is None
-        assert result.watchlist == [quote]
+        assert result.watchlist_groups == [group]
         assert result.stats is None
         global_mock.assert_awaited_once_with(session)
 
     @pytest.mark.asyncio
     async def test_single_module_failure_degrades_others_intact(self) -> None:
         session = AsyncMock()
-        quote = WatchlistQuoteItem(code="600236", name="桂冠电力")
+        group = WorkbenchWatchlistGroup(id=2, name="默认分组", is_default=True)
 
         with (
             patch(
@@ -93,8 +93,8 @@ class TestGetWorkbench:
                 AsyncMock(return_value=([], 0)),
             ),
             patch(
-                f"{_MODULE}.watchlist_quote_service.get_watchlist_quotes",
-                AsyncMock(return_value=[quote]),
+                f"{_MODULE}.watchlist_quote_service.get_watchlist_groups",
+                AsyncMock(return_value=[group]),
             ),
             patch(
                 f"{_MODULE}.index_quotation_service.get_index_quotes",
@@ -119,7 +119,7 @@ class TestGetWorkbench:
 
         assert result.calendar == []
         assert result.indices == []
-        assert result.watchlist == [quote]
+        assert result.watchlist_groups == [group]
         assert result.global_indices[0].index_code == "GC00Y"
 
     @pytest.mark.asyncio
@@ -141,7 +141,7 @@ class TestGetWorkbench:
                 AsyncMock(return_value=([item], 57)),
             ) as tg_mock,
             patch(
-                f"{_MODULE}.watchlist_quote_service.get_watchlist_quotes",
+                f"{_MODULE}.watchlist_quote_service.get_watchlist_groups",
                 AsyncMock(return_value=[]),
             ),
             patch(
