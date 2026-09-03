@@ -129,3 +129,63 @@ class TestStockAiAnalysisEndpoint:
     def test_ai_analysis_requires_auth(self, client) -> None:
         resp = client.get("/api/v1/stocks/600519/ai-analysis")
         assert resp.status_code in (401, 403)
+
+    def test_generate_ai_analysis_defaults_latest_trade_date(self, auth_client) -> None:
+        analysis = StockAiAnalysisResponse(
+            stock_code="600519",
+            stock_name="贵州茅台",
+            trade_date=date(2026, 9, 1),
+            model="anthropic/kimi",
+            generated_at=datetime(2026, 9, 1, 8, 40, tzinfo=timezone.utc),
+            sections=[
+                StockAiAnalysisSection(key="strategy", title="操作策略", content="内容")
+            ],
+        )
+        with (
+            patch(
+                "app.api.v1.stocks.trade_calendar_service.resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 9, 1)),
+            ),
+            patch(
+                "app.api.v1.stocks.stock_daily_analysis_service.generate_stock_analysis",
+                AsyncMock(return_value=analysis),
+            ) as gen_mock,
+        ):
+            resp = auth_client.post("/api/v1/stocks/600519/ai-analysis", json={})
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["stock_code"] == "600519"
+        assert body["cached"] is False
+        args, kwargs = gen_mock.await_args
+        assert args[1] == "600519"
+        assert kwargs["trade_date"] == date(2026, 9, 1)
+        assert kwargs["regenerate"] is False
+
+    def test_generate_ai_analysis_regenerate_with_date(self, auth_client) -> None:
+        analysis = StockAiAnalysisResponse(
+            stock_code="600519",
+            stock_name="贵州茅台",
+            trade_date=date(2026, 8, 28),
+            model="anthropic/kimi",
+            generated_at=datetime(2026, 9, 2, 8, 40, tzinfo=timezone.utc),
+            sections=[],
+        )
+        with patch(
+            "app.api.v1.stocks.stock_daily_analysis_service.generate_stock_analysis",
+            AsyncMock(return_value=analysis),
+        ) as gen_mock:
+            resp = auth_client.post(
+                "/api/v1/stocks/600519/ai-analysis",
+                json={"trade_date": "2026-08-28", "regenerate": True},
+            )
+
+        assert resp.status_code == 200
+        args, kwargs = gen_mock.await_args
+        assert args[1] == "600519"
+        assert kwargs["trade_date"] == date(2026, 8, 28)
+        assert kwargs["regenerate"] is True
+
+    def test_generate_ai_analysis_requires_auth(self, client) -> None:
+        resp = client.post("/api/v1/stocks/600519/ai-analysis", json={})
+        assert resp.status_code in (401, 403)

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.stock import (
+    StockAiAnalysisGenerateRequest,
     StockAiAnalysisResponse,
     StockBasicResponse,
     StockIntradayResponse,
@@ -138,3 +139,29 @@ async def get_stock_ai_analysis(
     if analysis is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     return analysis
+
+
+@router.post(
+    "/{code}/ai-analysis",
+    response_model=StockAiAnalysisResponse,
+)
+async def generate_stock_ai_analysis(
+    code: str,
+    data: StockAiAnalysisGenerateRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> StockAiAnalysisResponse:
+    """手动触发 LLM 生成个股 AI 分析（regenerate=true 强制重新生成）。
+
+    trade_date 缺省取最近交易日；缓存命中且未强制时直接返回既有结果。
+    LLM 调用同步执行（约 12-25s），锁冲突/数据未就绪由全局异常处理映射。
+    """
+    resolved_date = data.trade_date or await trade_calendar_service.resolve_latest_trade_date(
+        session
+    )
+    return await stock_daily_analysis_service.generate_stock_analysis(
+        session,
+        code,
+        trade_date=resolved_date,
+        regenerate=data.regenerate,
+    )

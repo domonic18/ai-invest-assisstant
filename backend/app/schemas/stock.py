@@ -220,6 +220,13 @@ class StockAiAnalysisResponse(BaseModel):
     sections: list[StockAiAnalysisSection]
 
 
+class StockAiAnalysisGenerateRequest(BaseModel):
+    """触发个股 AI 分析生成请求。"""
+
+    trade_date: date | None = None
+    regenerate: bool = False
+
+
 class PaginationParams(BaseModel):
     """通用分页参数。"""
 
