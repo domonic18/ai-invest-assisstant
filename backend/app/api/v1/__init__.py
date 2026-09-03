@@ -18,6 +18,7 @@ from app.api.v1 import (
     stocks,
     telegraph,
     users,
+    workbench,
 )
 from app.api.v1.admin import collector as admin_collector
 from app.api.v1.admin import collector_channels as admin_collector_channels
@@ -53,6 +54,7 @@ api_router.include_router(
     assistant.router, prefix="/assistant", tags=["assistant"]
 )
 api_router.include_router(telegraph.router, prefix="/telegraph", tags=["telegraph"])
+api_router.include_router(workbench.router, prefix="/workbench", tags=["workbench"])
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(admin_users.router, prefix="/users")
