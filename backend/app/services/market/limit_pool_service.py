@@ -20,12 +20,12 @@ from app.schemas.market import (
     LimitUpResponse,
 )
 from app.services.market import trade_calendar_service
+from app.services.market.intraday_utils import downsample
 from app.services.review import limit_up_ai_service
 from app.services.review.limit_up_ai_service import LimitUpAttributionContent
 
 _SEAL_OPEN_THRESHOLD = "093000"  # 开盘（含集合竞价）即封板的时间上界
 _INDUSTRY_SUFFIXES = ("Ⅲ", "Ⅱ")
-_INTRADAY_SAMPLE_POINTS = 60
 
 
 def _seal_type(first_seal_time: str | None, broken_limit_count: int | None) -> str | None:
@@ -224,14 +224,6 @@ async def get_limit_up(
     return _limit_up_response(resolved, items, groups)
 
 
-def _downsample(values: list[float], limit: int = _INTRADAY_SAMPLE_POINTS) -> list[float]:
-    """等距降采样（保留首尾点），供分时缩略图使用。"""
-    if len(values) <= limit:
-        return values
-    step = (len(values) - 1) / (limit - 1)
-    return [values[round(i * step)] for i in range(limit)]
-
-
 async def get_limit_up_intraday(
     session: AsyncSession, trade_date: date | None = None
 ) -> LimitUpIntradayResponse:
@@ -255,7 +247,7 @@ async def get_limit_up_intraday(
             continue
         closes_by_code.setdefault(bar.stock_code, []).append(float(bar.close))
     series = {
-        code: _downsample(closes)
+        code: downsample(closes)
         for code, closes in closes_by_code.items()
         if closes
     }
