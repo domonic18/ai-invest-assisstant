@@ -60,17 +60,15 @@ class TestGetWatchlistQuotes:
 
     @pytest.mark.asyncio
     async def test_fallback_uses_stock_basic_name_and_kline(self) -> None:
-        kline = MagicMock()
-        kline.close = 10.5
-        kline.change_pct = -0.5
-        kline.amount = 5_000_000.0
-        kline.trade_date = date(2026, 7, 16)
+        latest = SimpleNamespace(
+            close=10.5, change_pct=-0.5, amount=5_000_000.0, trade_date=date(2026, 7, 16)
+        )
+        prev = SimpleNamespace(
+            close=10.0, change_pct=None, amount=1.0, trade_date=date(2026, 7, 15)
+        )
 
         session = AsyncMock()
-        session.execute.side_effect = [
-            _scalars_result([_watch("600000")]),
-            MagicMock(scalar_one_or_none=MagicMock(return_value=kline)),
-        ]
+        session.execute.return_value = _scalars_result([_watch("600000")])
 
         redis = AsyncMock()
         redis.get.return_value = None
@@ -86,22 +84,87 @@ class TestGetWatchlistQuotes:
                 AsyncMock(return_value=date(2026, 9, 2)),
             ),
             patch.object(wsvc, "fetch_minute_bars_multi", AsyncMock(return_value=[])),
+            patch.object(
+                wsvc, "fetch_daily_bars", AsyncMock(return_value=[latest, prev])
+            ),
         ):
             quotes = await wsvc.get_watchlist_quotes(session, user_id=1)
 
         assert quotes[0].name == "浦发银行"
         assert quotes[0].price == 10.5
+        # 日 K 自带 change_pct 时直接采用，不走前收盘推算
         assert quotes[0].change_pct == -0.5
+        assert quotes[0].amount == 5_000_000.0
         assert quotes[0].updated_at == "2026-07-16"
         assert quotes[0].trend == []
 
     @pytest.mark.asyncio
+    async def test_fallback_computes_change_pct_from_prev_close(self) -> None:
+        latest = SimpleNamespace(
+            close=10.5, change_pct=None, amount=5_000_000.0, trade_date=date(2026, 7, 16)
+        )
+        prev = SimpleNamespace(
+            close=10.0, change_pct=None, amount=1.0, trade_date=date(2026, 7, 15)
+        )
+
+        session = AsyncMock()
+        session.execute.return_value = _scalars_result([_watch("600000")])
+
+        redis = AsyncMock()
+        redis.get.return_value = None
+
+        with (
+            patch.object(wsvc, "get_redis", MagicMock(return_value=redis)),
+            patch.object(wsvc, "_load_stock_names", AsyncMock(return_value={})),
+            patch.object(
+                wsvc.trade_calendar_service,
+                "resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 9, 2)),
+            ),
+            patch.object(wsvc, "fetch_minute_bars_multi", AsyncMock(return_value=[])),
+            patch.object(
+                wsvc, "fetch_daily_bars", AsyncMock(return_value=[latest, prev])
+            ),
+        ):
+            quotes = await wsvc.get_watchlist_quotes(session, user_id=1)
+
+        assert quotes[0].change_pct == pytest.approx(5.0)
+
+    @pytest.mark.asyncio
+    async def test_fallback_without_daily_bars_keeps_name_and_trend(self) -> None:
+        session = AsyncMock()
+        session.execute.return_value = _scalars_result([_watch("600967")])
+        redis = AsyncMock()
+        redis.get.return_value = None
+        bars = [SimpleNamespace(stock_code="600967", close=float(i + 1)) for i in range(10)]
+
+        with (
+            patch.object(wsvc, "get_redis", MagicMock(return_value=redis)),
+            patch.object(
+                wsvc, "_load_stock_names", AsyncMock(return_value={"600967": "内蒙一机"})
+            ),
+            patch.object(
+                wsvc.trade_calendar_service,
+                "resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 9, 2)),
+            ),
+            patch.object(
+                wsvc, "fetch_minute_bars_multi", AsyncMock(return_value=bars)
+            ),
+            patch.object(wsvc, "fetch_daily_bars", AsyncMock(return_value=[])),
+        ):
+            quotes = await wsvc.get_watchlist_quotes(session, user_id=1)
+
+        assert quotes[0].name == "内蒙一机"
+        assert quotes[0].price is None
+        assert quotes[0].change_pct is None
+        assert quotes[0].updated_at is None
+        assert len(quotes[0].trend) == 10
+
+    @pytest.mark.asyncio
     async def test_trend_downsample_preserves_endpoints(self) -> None:
         session = AsyncMock()
-        session.execute.side_effect = [
-            _scalars_result([_watch("600000")]),
-            MagicMock(scalar_one_or_none=MagicMock(return_value=None)),
-        ]
+        session.execute.return_value = _scalars_result([_watch("600000")])
         redis = AsyncMock()
         redis.get.return_value = None
         bars = [SimpleNamespace(stock_code="600000", close=float(i + 1)) for i in range(121)]
@@ -115,6 +178,7 @@ class TestGetWatchlistQuotes:
                 AsyncMock(return_value=date(2026, 9, 2)),
             ),
             patch.object(wsvc, "fetch_minute_bars_multi", AsyncMock(return_value=bars)),
+            patch.object(wsvc, "fetch_daily_bars", AsyncMock(return_value=[])),
         ):
             quotes = await wsvc.get_watchlist_quotes(session, user_id=1)
 

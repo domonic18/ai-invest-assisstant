@@ -7,10 +7,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import get_redis
-from app.models.kline import KlineDaily
 from app.models.stock import StockBasic
 from app.models.watchlist import UserWatchlist
-from app.repositories.market.kline_repository import fetch_minute_bars_multi
+from app.repositories.market.kline_repository import (
+    fetch_daily_bars,
+    fetch_minute_bars_multi,
+)
 from app.schemas.market import WatchlistQuoteItem
 from app.services.market import trade_calendar_service
 from app.services.market.intraday_utils import downsample
@@ -85,29 +87,34 @@ async def get_watchlist_quotes(
             )
             continue
 
-        kline = (
-            await session.execute(
-                select(KlineDaily)
-                .where(KlineDaily.stock_code == item.stock_code)
-                .order_by(KlineDaily.trade_date.desc())
-                .limit(1)
-            )
-        ).scalar_one_or_none()
+        daily = [
+            bar
+            for bar in await fetch_daily_bars(session, item.stock_code, limit=2)
+            if bar.close is not None
+        ]
+        latest = daily[0] if daily else None
+        prev = daily[1] if len(daily) > 1 else None
+        # 日 K 渠道多缺 change_pct 字段，缺省时按前收盘推算（与 get_stock_quote 同口径）
+        price: float | None = None
+        change_pct: float | None = None
+        amount: float | None = None
+        if latest is not None and latest.close is not None:
+            price = float(latest.close)
+            if latest.change_pct is not None:
+                change_pct = float(latest.change_pct)
+            elif prev is not None and prev.close:
+                change_pct = (price - float(prev.close)) / float(prev.close) * 100
+            if latest.amount is not None:
+                amount = float(latest.amount)
         results.append(
             WatchlistQuoteItem(
                 code=item.stock_code,
                 name=names.get(item.stock_code),
-                price=float(kline.close) if kline and kline.close is not None else None,
-                change_pct=(
-                    float(kline.change_pct)
-                    if kline and kline.change_pct is not None
-                    else None
-                ),
-                amount=(
-                    float(kline.amount) if kline and kline.amount is not None else None
-                ),
+                price=price,
+                change_pct=change_pct,
+                amount=amount,
                 tags=list(item.tags or []),
-                updated_at=kline.trade_date.isoformat() if kline else None,
+                updated_at=latest.trade_date.isoformat() if latest is not None else None,
                 trend=trend,
             )
         )
