@@ -104,7 +104,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "name": "财联社",
         "base_url": "https://www.cls.cn",
         "is_enabled": True,
-        "supported_data_types": ["cls-telegraph-backfill"],
+        "supported_data_types": ["cls-telegraph-backfill", "cls-investkalendar"],
         "extra": {},
     },
 ]

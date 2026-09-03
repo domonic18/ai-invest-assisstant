@@ -32,7 +32,8 @@ _session: CffiSession | None = None
 _sv = DEFAULT_SV
 
 
-def _get_session() -> CffiSession:
+def shared_session() -> CffiSession:
+    """cls 站点共享会话（Chrome 指纹，WAF Cookie 跨任务复用）。"""
     global _session
     if _session is None:
         with _session_lock:
@@ -47,7 +48,7 @@ def warm_session() -> str:
     失败时抛出原始异常，由调用方决定退避重试节奏。
     """
     global _sv
-    response = _get_session().get(_TELEGRAPH_PAGE_URL, timeout=15)
+    response = shared_session().get(_TELEGRAPH_PAGE_URL, timeout=15)
     response.raise_for_status()
     _sv = extract_sv(response.text)
     logger.info("cls_session_warmed", sv=_sv)
@@ -116,7 +117,7 @@ def fetch_page(last_time: int = 0, rn: int = 20) -> list[dict[str, Any]]:
         "last_time": str(last_time),
     }
     params["sign"] = build_cls_sign(params)
-    response: CffiResponse = _get_session().get(
+    response: CffiResponse = shared_session().get(
         _ROLL_LIST_URL, params=params, timeout=15
     )
     response.raise_for_status()

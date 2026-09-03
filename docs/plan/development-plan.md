@@ -21,7 +21,7 @@
 | 需求 | 状态 | 关键缺口 / 前置 |
 |------|------|----------------|
 | F-DC-04 电报准实时 | 已实现（批次 A） | `cls_telegraph` spider + `collector-stream` 驻留进程（10s 轮询/Redis 游标心跳/指数退避/补漏）；分页查询 API + `/telegraph` 时间线页（10s 自动刷新/新电报红点/断流延迟探针） |
-| F-DC-05 投资日历底座 | 已实现（批次 A） | `calendar_event` 表 + FOMC/BLS 2026 官方日程种子 + 查询 API（CN 日界→UTC 区间）；cls investkalendar 仍留调研项 |
+| F-DC-05 投资日历底座 | 已实现（批次 A + investkalendar 增补） | `calendar_event` 表 + FOMC/BLS 2026 官方日程种子 + cls investkalendar 每日采集（2026-09-03）+ 查询 API（CN 日界→UTC 区间） |
 | F-DC-06 全球指标采集 | 已实现（批次 A） | `global-index` 任务（东财 push2delay 实时 + tushare us_tycr 全历史）→ `quote_global_index_daily` |
 | F-VIS-07 投资日历页 | 已实现（批次 A） | 月/周/列表三视图 + 分类筛选 + 事件 Drawer，`/calendar` 主导航 |
 | F-VIS-08 跟踪指数管理 | 已实现（批次 A） | `tracked_index_config` + Admin 第 10 页 CRUD/启停（无数据源指标禁用启用） |
@@ -56,6 +56,12 @@
 > - **A1 cls 电报**：站点已迁 Next.js，旧 `nodeapi/telegraphList`、`api/cache` 均失效；真实端点 `GET www.cls.cn/v1/roll/get_roll_list`。签名 = `md5_hex(sha1_hex(参数按 key 升序 k=v& 拼接))`（非社区旧版 `k1v1k2v2` 裸拼接），sv=8.7.9 硬编码于 `_app` bundle 可正则提取；需 curl_cffi Chrome 指纹 + 首次访问 `/telegraph` 取 WAF Cookie，实测 errno=0 通过。`last_time` 向旧翻页（排他），增量= `last_time=0` 取最新 rn 条按 `ctime>游标` 过滤，rn 上限约 20。→ 按原方案实施，stream 默认启用。
 > - **A2 全球指标**：tushare `us_tycr` 权限已通（单次调用返回全量历史，列为 `date/y1..y30`，y2/y10 即美债 2Y/10Y 收益率 %，非 ts_code 接口）；东财 push2delay `ulist.np/get` 实时快照可用（secid `101.GC00Y`/`100.UDI`，fltt=2 已缩放），但 push2delay 无日 K；历史回补走 akshare 三路（`futures_foreign_hist`/`index_global_hist_em`/`bond_zh_us_rate`）实测可用。→ 实时走 push2delay、美债走 us_tycr、回补走 akshare，按原方案实施。
 > - **A3 日历**：FOMC/BLS 2026 官方日程已从 federalreserve.gov / bls.gov 实抓（BLS 拒直连，经服务端 reader 通道取得）；cls investkalendar 签名机制与电报同源（同一 sign 模块），复用门槛已大幅降低，仍留调研项、本轮不做。
+
+> **增补回填（2026-09-03，cls investkalendar 采集上线，分支 `feat/cls-investkalendar`）**
+>
+> - **调研结论（探针实测，原 A3 留调研项闭环）**：旧 `nodeapi/updateInvestkalendar` 已 404；真实端点 `GET www.cls.cn/api/calendar/web/list`（由页面 chunk `pages/investkalendar-*.js` 定位），签名与电报同源（`cls_sign` 复用）。端点固定返回**今日起约 3 周滚动前瞻窗口**（`tradeDate` 不改变窗口），每日一次全量拉取即可覆盖；条目 `type=1` 经济数据（economic 载荷：前值/预期/公布值/star）→ `宏观`、`type=2` 事件会议 → `会议`；`calendar_time` 为北京时间字符串（00:00:00=时间未定）。新股/解禁为 cls 独立接口，本轮不扩。
+> - **交付**：`cls-investkalendar` 任务四件套（spider `cls_investkalendar.py` 复用电报共享 WAF 会话 + TaskSpec + cls 渠道登记 + 迁移 `20260903_cls_investkalendar.sql` 调度 `15 7 * * *` 全周）写入 `calendar_event`（`source_hash=md5(source|event_time|title)` 幂等 DO NOTHING，不追踪 cls 侧预期值/公布值更新）。E2E：CLI 触发 SUCCESS 57 条入库（33 会议 + 24 宏观），北京时间→aware UTC 换算正确，重跑零重复，`/calendar/events` API 与后台任务目录（34 任务）可见。
+> - **偏差**：① `impact_markets`/`related_symbols` 不从 cls 数据推导（避免编造口径），留空；② cls 渠道在 `DEFAULT_CHANNELS`/seed 的 `supported_data_types` 同步登记任务名；③ 电报 spider 的 `_get_session` 公开为 `shared_session()` 供两任务复用同一 WAF 会话。
 
 > **实施回填（2026-09-02，批次 A 三线 + 日历页交付，分支 `feat/batch-a-foundation`）**
 >
