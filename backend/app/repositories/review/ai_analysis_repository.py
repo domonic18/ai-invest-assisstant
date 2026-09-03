@@ -63,3 +63,21 @@ async def load_latest_success(
         .limit(1)
     )
     return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def load_success_by_hashes(
+    session: AsyncSession, *, skill_id: str, input_hashes: list[str]
+) -> list[AiAnalysisResult]:
+    """按 input_hash 批量读取 success 记录，created_at 倒序（同 hash 去重由调用方做）。"""
+    if not input_hashes:
+        return []
+    stmt = (
+        select(AiAnalysisResult)
+        .where(
+            AiAnalysisResult.skill_id == skill_id,
+            AiAnalysisResult.input_hash.in_(input_hashes),
+            AiAnalysisResult.status == "success",
+        )
+        .order_by(AiAnalysisResult.created_at.desc())
+    )
+    return list((await session.execute(stmt)).scalars().all())

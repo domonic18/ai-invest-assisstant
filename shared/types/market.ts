@@ -326,6 +326,22 @@ export interface WatchlistQuote {
   trend: number[]
 }
 
+export interface ApiGlobalIndexQuoteResponse {
+  index_code: string
+  index_name: string
+  close: number | null
+  change_pct: number | null
+  trade_date: string | null
+}
+
+export interface GlobalIndexQuote {
+  indexCode: string
+  indexName: string
+  close: number | null
+  changePct: number | null
+  tradeDate: string | null
+}
+
 export interface MarketReviewSection {
   key: string
   title: string

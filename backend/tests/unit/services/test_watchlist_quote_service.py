@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.schemas.market import WatchlistQuoteItem
 from app.services.user import watchlist_quote_service as wsvc
 
 
@@ -202,3 +203,133 @@ class TestGetWatchlistQuotes:
 
         assert quotes == []
         names.assert_not_awaited()
+
+
+def _group(gid: int, name: str, *, enabled: bool = False, default: bool = False) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=gid, name=name, is_default=default, ai_review_enabled=enabled
+    )
+
+
+def _watch_in(code: str, group_id: int) -> SimpleNamespace:
+    watch = SimpleNamespace(stock_code=code, tags=[], group_id=group_id)
+    return watch
+
+
+@pytest.mark.unit
+class TestGetWatchlistGroups:
+    @pytest.mark.asyncio
+    async def test_groups_with_quotes_and_ai_statuses(self) -> None:
+        session = AsyncMock()
+        groups = [
+            _group(1, "核心持仓", enabled=True),
+            _group(2, "默认分组", default=True),
+        ]
+        items = [
+            _watch_in("600967", 1),
+            _watch_in("600236", 2),
+        ]
+        session.execute = AsyncMock(
+            side_effect=[_scalars_result(groups), _scalars_result(items)]
+        )
+        quote_a = WatchlistQuoteItem(code="600967", name="内蒙一机", price=10.0)
+        quote_b = WatchlistQuoteItem(code="600236", name="桂冠电力", price=5.0)
+
+        with (
+            patch.object(
+                wsvc,
+                "_build_quote_items",
+                AsyncMock(return_value=[quote_b, quote_a]),
+            ),
+            patch.object(
+                wsvc,
+                "_load_ai_analysis",
+                AsyncMock(return_value={"600967": ("ready", "周线企稳，量能温和")}),
+            ),
+        ):
+            result = await wsvc.get_watchlist_groups(session, user_id=3)
+
+        assert [g.name for g in result] == ["核心持仓", "默认分组"]
+        assert result[0].items[0].ai_status == "ready"
+        assert result[0].items[0].ai_summary == "周线企稳，量能温和"
+        assert result[1].items[0].ai_status == "off"
+        assert result[1].items[0].ai_summary is None
+
+    @pytest.mark.asyncio
+    async def test_enabled_group_without_result_is_pending(self) -> None:
+        session = AsyncMock()
+        groups = [_group(1, "核心持仓", enabled=True)]
+        items = [_watch_in("600967", 1)]
+        session.execute = AsyncMock(
+            side_effect=[_scalars_result(groups), _scalars_result(items)]
+        )
+        quote = WatchlistQuoteItem(code="600967", name="内蒙一机")
+
+        with (
+            patch.object(
+                wsvc, "_build_quote_items", AsyncMock(return_value=[quote])
+            ),
+            patch.object(wsvc, "_load_ai_analysis", AsyncMock(return_value={})),
+        ):
+            result = await wsvc.get_watchlist_groups(session, user_id=3)
+
+        assert result[0].items[0].ai_status == "pending"
+
+    @pytest.mark.asyncio
+    async def test_no_groups_returns_empty(self) -> None:
+        session = AsyncMock()
+        session.execute = AsyncMock(return_value=_scalars_result([]))
+        build = AsyncMock()
+
+        with patch.object(wsvc, "_build_quote_items", build):
+            result = await wsvc.get_watchlist_groups(session, user_id=3)
+
+        assert result == []
+        build.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_load_ai_analysis_prefers_latest_and_strips_markdown(self) -> None:
+        session = AsyncMock()
+        rows = [
+            SimpleNamespace(
+                input_hash="h-600967-2026-09-03",
+                structured_output={
+                    "sections": {"intraday_review": "## 盘面解读\n缩量*反弹*，`关注` 39.8 元"}
+                },
+            ),
+            SimpleNamespace(
+                input_hash="h-600967-2026-09-03",
+                structured_output={"sections": {"intraday_review": "**旧内容**"}},
+            ),
+        ]
+
+        fake_sections = [SimpleNamespace(key="intraday_review", title="盘面解读")]
+        with (
+            patch.object(
+                wsvc.trade_calendar_service,
+                "resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 9, 3)),
+            ),
+            patch.object(
+                wsvc.ai_analysis_repository,
+                "load_success_by_hashes",
+                AsyncMock(return_value=rows),
+            ) as repo_mock,
+            patch(
+                "app.services.review.stock_daily_analysis_service.load_prompt_config",
+                MagicMock(return_value=SimpleNamespace(sections=fake_sections)),
+            ),
+            patch(
+                "app.services.review.stock_daily_analysis_service.input_hash",
+                MagicMock(
+                    side_effect=lambda code, td, secs: f"h-{code}-{td.isoformat()}"
+                ),
+            ),
+        ):
+            result = await wsvc._load_ai_analysis(session, ["600967"])
+
+        # 两个 hash 都请求了（同一 code 仅一个 hash 命中，此处模拟两行不同 hash）
+        assert repo_mock.await_args.kwargs["input_hashes"] == ["h-600967-2026-09-03"]
+        # created_at 倒序：同 hash 首行（最新）保留，旧行跳过
+        assert result["600967"][0] == "ready"
+        assert result["600967"][1] == "盘面解读 缩量反弹，关注 39.8 元"

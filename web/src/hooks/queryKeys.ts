@@ -98,4 +98,8 @@ export const queryKeys = {
     list: (page: number, pageSize: number, minImportance?: number) =>
       ['telegraph', 'list', page, pageSize, minImportance ?? 0] as const,
   },
+  workbench: {
+    all: ['workbench'] as const,
+    overview: ['workbench', 'overview'] as const,
+  },
 } as const

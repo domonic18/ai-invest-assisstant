@@ -1,4 +1,5 @@
 import {
+  AppstoreOutlined,
   BarChartOutlined,
   CalendarOutlined,
   ContainerOutlined,
@@ -29,7 +30,8 @@ import { Brand } from '@/components/common/Brand'
 type MenuItem = Required<MenuProps>['items'][number]
 
 const REVIEW_MENU_ITEMS: MenuItem[] = [
-  { key: '/', icon: <BarChartOutlined />, label: '每日复盘' },
+  { key: '/workbench', icon: <AppstoreOutlined />, label: '工作台' },
+  { key: '/review', icon: <BarChartOutlined />, label: '每日复盘' },
   { key: '/auction', icon: <ShopOutlined />, label: '集合竞价' },
   { key: '/calendar', icon: <CalendarOutlined />, label: '投资日历' },
   { key: '/capital-flow', icon: <FundOutlined />, label: '资金流向' },

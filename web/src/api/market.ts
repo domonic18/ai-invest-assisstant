@@ -31,7 +31,7 @@ import axios from 'axios'
 
 import { apiClient } from './client'
 
-function mapIndexQuote(dto: ApiIndexQuoteResponse): IndexQuote {
+export function mapIndexQuote(dto: ApiIndexQuoteResponse): IndexQuote {
   return {
     code: dto.code,
     name: dto.name,
@@ -62,7 +62,7 @@ function mapIndexKline(dto: ApiIndexKlineResponse): IndexKline {
   }
 }
 
-function mapMarketStats(dto: ApiMarketStatsResponse): MarketStats {
+export function mapMarketStats(dto: ApiMarketStatsResponse): MarketStats {
   return {
     tradeDate: dto.trade_date,
     amount: dto.amount,
@@ -149,7 +149,7 @@ function mapSectorOverview(dto: ApiSectorOverviewResponse): SectorOverview {
   }
 }
 
-function mapWatchlistQuote(dto: ApiWatchlistQuoteItem): WatchlistQuote {
+export function mapWatchlistQuote(dto: ApiWatchlistQuoteItem): WatchlistQuote {
   return {
     code: dto.code,
     name: dto.name,
@@ -162,7 +162,7 @@ function mapWatchlistQuote(dto: ApiWatchlistQuoteItem): WatchlistQuote {
   }
 }
 
-function mapMarketReview(dto: ApiMarketReviewResponse): MarketReview {
+export function mapMarketReview(dto: ApiMarketReviewResponse): MarketReview {
   return {
     tradeDate: dto.trade_date,
     sections: dto.sections.map((section) => ({

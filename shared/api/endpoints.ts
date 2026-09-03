@@ -91,6 +91,7 @@ export const ENDPOINTS = {
     limitUpAiReview: `${API_BASE}/market/limit-up/ai-review`,
     sectors: `${API_BASE}/market/sectors`,
     aiReview: `${API_BASE}/market/ai-review`,
+    globalIndices: `${API_BASE}/market/global-indices`,
     collect: `${API_BASE}/market/collect`,
   },
   calendar: {
@@ -100,18 +101,22 @@ export const ENDPOINTS = {
   telegraph: {
     list: `${API_BASE}/telegraph`,
   },
+  workbench: {
+    base: `${API_BASE}/workbench`,
+  },
   admin: {
-    users: `${API_BASE}/admin/users`,
+    // 集合根路由后端以 "/" 注册，常量保持同形避免依赖 307 重定向
+    users: `${API_BASE}/admin/users/`,
     user: (id: number | string) => `${API_BASE}/admin/users/${id}`,
     userResetPassword: (id: number | string) =>
       `${API_BASE}/admin/users/${id}/reset-password`,
-    stocks: `${API_BASE}/admin/stocks`,
+    stocks: `${API_BASE}/admin/stocks/`,
     stock: (id: number | string) => `${API_BASE}/admin/stocks/${id}`,
-    reports: `${API_BASE}/admin/reports`,
+    reports: `${API_BASE}/admin/reports/`,
     report: (id: number | string) => `${API_BASE}/admin/reports/${id}`,
-    news: `${API_BASE}/admin/news`,
+    news: `${API_BASE}/admin/news/`,
     newsItem: (id: number | string) => `${API_BASE}/admin/news/${id}`,
-    tasks: `${API_BASE}/admin/tasks`,
+    tasks: `${API_BASE}/admin/tasks/`,
     task: (id: number | string) => `${API_BASE}/admin/tasks/${id}`,
     taskTrigger: (id: number | string) => `${API_BASE}/admin/tasks/${id}/trigger`,
     taskPause: (id: number | string) => `${API_BASE}/admin/tasks/${id}/pause`,

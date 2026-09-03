@@ -43,6 +43,9 @@ const Settings = lazy(() => import('./pages/Settings/Settings').then((m) => ({ d
 const StockDetail = lazy(() => import('./pages/StockDetail/StockDetail').then((m) => ({ default: m.StockDetail })))
 const Telegraph = lazy(() => import('./pages/Telegraph').then((m) => ({ default: m.Telegraph })))
 const Watchlist = lazy(() => import('./pages/Watchlist').then((m) => ({ default: m.Watchlist })))
+const Workbench = lazy(() =>
+  import('./pages/Workbench/Workbench').then((m) => ({ default: m.Workbench })),
+)
 
 function lazyEl(node: ReactNode) {
   return <Suspense fallback={<PageSkeleton />}>{node}</Suspense>
@@ -53,7 +56,9 @@ export const router = createBrowserRouter([
     path: '/',
     element: <ProtectedLayout />,
     children: [
-      { index: true, element: <Dashboard /> },
+      { index: true, element: <Navigate to="/workbench" replace /> },
+      { path: 'workbench', element: lazyEl(<Workbench />) },
+      { path: 'review', element: <Dashboard /> },
       { path: 'chain/:industry?', element: lazyEl(<ChainAnalysis />) },
       { path: 'stock/:code', element: lazyEl(<StockDetail />) },
       { path: 'hotspot', element: lazyEl(<Hotspot />) },
