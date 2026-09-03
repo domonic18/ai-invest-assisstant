@@ -1,8 +1,10 @@
-import { Card, Empty, List, Spin, Tag } from 'antd'
+import { Empty, List, Spin, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { Link } from 'react-router-dom'
 
 import type { TelegraphItem } from '@ai-invest/shared'
+
+import { FoldCard } from './FoldCard'
 
 interface TelegraphCardProps {
   items?: TelegraphItem[]
@@ -20,11 +22,24 @@ function importanceTag(importance: number | null) {
   return <Tag color={preset.color}>{preset.label}</Tag>
 }
 
+/** 电报准实时徽标（红点 + 文案，镜像 /telegraph 页断流探针语义）。 */
+function LiveBadge() {
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-px rounded-full bg-red-500/10 text-red-400 text-[10px] font-semibold">
+      <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+      电报 10s 准实时
+    </span>
+  )
+}
+
 export function TelegraphCard({ items, loading }: TelegraphCardProps) {
   return (
-    <Card
-      variant="borderless"
-      title="财联社电报"
+    <FoldCard
+      title={
+        <span>
+          要闻资讯 <LiveBadge />
+        </span>
+      }
       extra={<Link to="/telegraph" className="text-xs">更多电报</Link>}
     >
       {loading ? (
@@ -33,20 +48,20 @@ export function TelegraphCard({ items, loading }: TelegraphCardProps) {
         <List
           dataSource={items}
           renderItem={(item) => (
-            <List.Item className="!px-0">
-              <div className="flex items-start gap-2 w-full min-w-0">
-                <span className="text-xs text-gray-500 font-mono shrink-0 mt-0.5">
+            <List.Item className="!px-0 !py-2.5">
+              <div className="flex items-start gap-2.5 w-full min-w-0">
+                <span className="shrink-0 text-[11px] text-gray-500 font-mono mt-1">
                   {dayjs(item.publishTime).format('HH:mm')}
                 </span>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    {importanceTag(item.importance)}
-                    {item.title ? (
-                      <span className="text-sm font-medium truncate">{item.title}</span>
-                    ) : null}
+                  <div className="text-[13px] text-gray-100 leading-normal line-clamp-2">
+                    {item.title ?? item.content}
                   </div>
-                  {!item.title && item.content && (
-                    <div className="text-sm text-gray-400 truncate">{item.content}</div>
+                  {(item.category || item.importance !== null) && (
+                    <div className="flex gap-1.5 mt-1">
+                      {importanceTag(item.importance)}
+                      {item.category && <Tag>{item.category}</Tag>}
+                    </div>
                   )}
                 </div>
               </div>
@@ -56,6 +71,6 @@ export function TelegraphCard({ items, loading }: TelegraphCardProps) {
       ) : (
         <Empty description="暂无电报" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       )}
-    </Card>
+    </FoldCard>
   )
 }

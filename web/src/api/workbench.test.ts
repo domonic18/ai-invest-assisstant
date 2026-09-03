@@ -9,8 +9,8 @@ import type {
   ApiMarketReviewResponse,
   ApiMarketStatsResponse,
   ApiTelegraphResponse,
-  ApiWatchlistQuoteItem,
   ApiWorkbenchResponse,
+  ApiWorkbenchWatchlistGroup,
 } from '@ai-invest/shared'
 
 const calendarDto: ApiCalendarEventResponse = {
@@ -45,15 +45,25 @@ const telegraphDto: ApiTelegraphResponse = {
   publish_time: '2026-09-03T09:30:00+08:00',
 }
 
-const watchlistDto: ApiWatchlistQuoteItem = {
-  code: '600519',
-  name: '贵州茅台',
-  price: 1500.5,
-  change_pct: 1.2,
-  amount: 3500000000,
-  tags: [],
-  updated_at: '2026-09-03T15:00:00+08:00',
-  trend: [1495, 1500.5],
+const watchlistGroupDto: ApiWorkbenchWatchlistGroup = {
+  id: 1,
+  name: '核心持仓',
+  is_default: false,
+  ai_review_enabled: true,
+  items: [
+    {
+      code: '600519',
+      name: '贵州茅台',
+      price: 1500.5,
+      change_pct: 1.2,
+      amount: 3500000000,
+      tags: [],
+      updated_at: '2026-09-03T15:00:00+08:00',
+      trend: [1495, 1500.5],
+      ai_status: 'ready',
+      ai_summary: '沿 MA5 上行，持仓为主',
+    },
+  ],
 }
 
 const indexDto: ApiIndexQuoteResponse = {
@@ -119,7 +129,7 @@ describe('mapWorkbench', () => {
       calendar: [calendarDto],
       review: reviewDto,
       telegraph: [telegraphDto],
-      watchlist: [watchlistDto],
+      watchlist_groups: [watchlistGroupDto],
       indices: [indexDto],
       stats: statsDto,
       global_indices: [globalDto],
@@ -132,7 +142,10 @@ describe('mapWorkbench', () => {
     expect(overview.review?.sections[0].content).toBe('**缩量反弹**')
     expect(overview.telegraph).toHaveLength(1)
     expect(overview.telegraph[0].clsMsgId).toBe(99)
-    expect(overview.watchlist[0].code).toBe('600519')
+    expect(overview.watchlistGroups[0].name).toBe('核心持仓')
+    expect(overview.watchlistGroups[0].items[0].code).toBe('600519')
+    expect(overview.watchlistGroups[0].items[0].aiStatus).toBe('ready')
+    expect(overview.watchlistGroups[0].items[0].aiSummary).toBe('沿 MA5 上行，持仓为主')
     expect(overview.indices[0].code).toBe('sh000001')
     expect(overview.stats?.emotionScore).toBe(55)
     expect(overview.globalIndices[0].indexName).toBe('伦敦金')
@@ -143,7 +156,7 @@ describe('mapWorkbench', () => {
       calendar: [],
       review: null,
       telegraph: [],
-      watchlist: [],
+      watchlist_groups: [],
       indices: [],
       stats: null,
       global_indices: [],

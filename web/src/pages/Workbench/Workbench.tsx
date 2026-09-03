@@ -1,12 +1,17 @@
 import { Button, Empty, Typography } from 'antd'
+import dayjs from 'dayjs'
 
 import { useWorkbench } from '@/hooks/useWorkbench'
-import { WatchlistQuotesCard } from '@/pages/Dashboard/components/WatchlistQuotesCard'
 
 import { CalendarSummaryCard } from './components/CalendarSummaryCard'
-import { MarketSnapshotCard } from './components/MarketSnapshotCard'
+import { IndexStrip } from './components/IndexStrip'
+import { QuickEntriesCard } from './components/QuickEntriesCard'
 import { ReviewSummaryCard } from './components/ReviewSummaryCard'
+import { SectorFlowCard } from './components/SectorFlowCard'
 import { TelegraphCard } from './components/TelegraphCard'
+import { WatchlistOverviewCard } from './components/WatchlistOverviewCard'
+
+const WEEKDAYS = '日一二三四五六'
 
 export function Workbench() {
   const { data, isLoading, isError, refetch } = useWorkbench()
@@ -22,29 +27,35 @@ export function Workbench() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
+    <div className="space-y-5">
+      <div className="flex items-baseline justify-between">
         <Typography.Title level={4} className="!mb-0">工作台</Typography.Title>
         <Typography.Text className="text-xs text-gray-500">
-          市场快览 · AI 复盘 · 财联社电报 · 投资日历 · 自选行情
+          {dayjs().format('YYYY-MM-DD')} 周{WEEKDAYS[dayjs().day()]}
         </Typography.Text>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-6">
-        <div className="xl:col-span-2 space-y-6">
-          <MarketSnapshotCard
-            indices={data?.indices}
+      <IndexStrip
+        indices={data?.indices}
+        globalIndices={data?.globalIndices}
+        loading={isLoading}
+      />
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-5">
+        <div className="xl:col-span-2 space-y-5">
+          <ReviewSummaryCard
+            review={data?.review ?? null}
             stats={data?.stats ?? undefined}
-            globalIndices={data?.globalIndices}
             loading={isLoading}
           />
-          <ReviewSummaryCard review={data?.review ?? null} loading={isLoading} />
           <TelegraphCard items={data?.telegraph} loading={isLoading} />
+          <WatchlistOverviewCard groups={data?.watchlistGroups} loading={isLoading} />
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-5">
           <CalendarSummaryCard events={data?.calendar} loading={isLoading} />
-          <WatchlistQuotesCard quotes={data?.watchlist} loading={isLoading} />
+          <SectorFlowCard />
+          <QuickEntriesCard />
         </div>
       </div>
     </div>

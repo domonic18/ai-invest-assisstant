@@ -3,6 +3,8 @@ import type {
   ApiGlobalIndexQuoteResponse,
   ApiWorkbenchResponse,
   GlobalIndexQuote,
+  WorkbenchWatchlistGroup,
+  WorkbenchWatchlistStock,
   WorkbenchOverview,
 } from '@ai-invest/shared'
 
@@ -27,12 +29,43 @@ export function mapGlobalIndexQuote(
   }
 }
 
+export function mapWatchlistStock(dto: {
+  code: string
+  name: string | null
+  price: number | null
+  change_pct: number | null
+  amount: number | null
+  tags: string[]
+  updated_at: string | null
+  trend?: number[]
+  ai_status: WorkbenchWatchlistStock['aiStatus']
+  ai_summary: string | null
+}): WorkbenchWatchlistStock {
+  return {
+    ...mapWatchlistQuote(dto),
+    aiStatus: dto.ai_status,
+    aiSummary: dto.ai_summary,
+  }
+}
+
+export function mapWatchlistGroup(
+  dto: ApiWorkbenchResponse['watchlist_groups'][number],
+): WorkbenchWatchlistGroup {
+  return {
+    id: dto.id,
+    name: dto.name,
+    isDefault: dto.is_default,
+    aiReviewEnabled: dto.ai_review_enabled,
+    items: dto.items.map(mapWatchlistStock),
+  }
+}
+
 export function mapWorkbench(dto: ApiWorkbenchResponse): WorkbenchOverview {
   return {
     calendar: dto.calendar.map(mapCalendarEvent),
     review: dto.review ? mapMarketReview(dto.review) : null,
     telegraph: dto.telegraph.map(mapTelegraph),
-    watchlist: dto.watchlist.map(mapWatchlistQuote),
+    watchlistGroups: dto.watchlist_groups.map(mapWatchlistGroup),
     indices: dto.indices.map(mapIndexQuote),
     stats: dto.stats ? mapMarketStats(dto.stats) : null,
     globalIndices: dto.global_indices.map(mapGlobalIndexQuote),

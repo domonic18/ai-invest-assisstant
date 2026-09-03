@@ -1,24 +1,15 @@
 import { Card, Empty, List, Spin } from 'antd'
 import { Link } from 'react-router-dom'
 
-import type { WatchlistQuote } from '@ai-invest/shared'
 import { useWatchlistQuotes } from '@/hooks/useMarket'
 import { SourceNote } from '@/components/common/SourceNote'
 import { IntradaySpark } from '@/components/charts/IntradaySpark'
 import { useColorScheme } from '@/stores/settings'
 import { changeColor, formatPercent } from '@/utils/formatters'
 
-interface WatchlistQuotesCardProps {
-  /** 传入时直接使用（工作台聚合数据），缺省自取（每日复盘页行为不变）。 */
-  quotes?: WatchlistQuote[]
-  loading?: boolean
-}
-
-export function WatchlistQuotesCard({ quotes, loading }: WatchlistQuotesCardProps) {
+export function WatchlistQuotesCard() {
   useColorScheme()
-  const self = useWatchlistQuotes()
-  const data = quotes ?? self.data
-  const isLoading = loading ?? self.isLoading
+  const { data, isLoading } = useWatchlistQuotes()
 
   return (
     <Card

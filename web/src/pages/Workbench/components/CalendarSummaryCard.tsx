@@ -1,9 +1,11 @@
-import { Card, Empty, List, Spin, Tag } from 'antd'
+import { Empty, Spin, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { Link } from 'react-router-dom'
 
 import type { CalendarEvent } from '@ai-invest/shared'
 import { categoryMeta } from '@/pages/Calendar/categoryMeta'
+
+import { FoldCard } from './FoldCard'
 
 interface CalendarSummaryCardProps {
   events?: CalendarEvent[]
@@ -12,35 +14,38 @@ interface CalendarSummaryCardProps {
 
 export function CalendarSummaryCard({ events, loading }: CalendarSummaryCardProps) {
   return (
-    <Card
-      variant="borderless"
-      title="投资日历"
-      extra={<Link to="/calendar" className="text-xs">全部日程</Link>}
+    <FoldCard
+      title="投资日历 · 临近日程"
+      extra={<Link to="/calendar" className="text-xs">进入完整日历</Link>}
     >
       {loading ? (
         <div className="flex justify-center py-6"><Spin /></div>
       ) : events?.length ? (
-        <List
-          dataSource={events}
-          renderItem={(item) => (
-            <List.Item className="!px-0">
-              <div className="flex items-center gap-2 w-full min-w-0">
-                <span className="text-xs text-gray-500 font-mono shrink-0">
-                  {dayjs(item.eventTime).format('MM-DD HH:mm')}
-                </span>
-                <Tag color={categoryMeta(item.category).tagColor} className="!m-0 shrink-0">
-                  {item.category}
-                </Tag>
-                <span className="text-sm truncate" title={item.title}>
-                  {item.title}
-                </span>
+        events.map((item) => {
+          const date = dayjs(item.eventTime)
+          const isToday = date.isSame(dayjs(), 'day')
+          return (
+            <div
+              key={item.id}
+              className="flex items-start gap-2.5 py-2 border-b border-gray-800 last:border-b-0"
+            >
+              <span className="shrink-0 w-12 text-[11px] text-gray-500 font-mono leading-snug">
+                {date.format('MM-DD')}
+                {isToday && <br />}
+                {isToday && <span className="text-amber-400 font-semibold">今日</span>}
+              </span>
+              <div className="min-w-0">
+                <div className="text-xs text-gray-100 leading-normal">{item.title}</div>
+                <div className="mt-1">
+                  <Tag color={categoryMeta(item.category).tagColor}>{item.category}</Tag>
+                </div>
               </div>
-            </List.Item>
-          )}
-        />
+            </div>
+          )
+        })
       ) : (
         <Empty description="暂无临近事件" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       )}
-    </Card>
+    </FoldCard>
   )
 }
