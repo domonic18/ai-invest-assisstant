@@ -4,6 +4,8 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import { useAuthStore } from '@/stores/auth'
 
+import { StockSearch } from './StockSearch'
+
 interface HeaderProps {
   /** 移动端打开导航抽屉。 */
   onMenuClick?: () => void
@@ -42,14 +44,19 @@ export function Header({ onMenuClick }: HeaderProps) {
   ]
 
   return (
-    <header className="h-14 border-b border-gray-800 flex items-center px-3 md:px-6 justify-between md:justify-end bg-[#111318]">
-      <Button
-        type="text"
-        icon={<MenuOutlined />}
-        onClick={onMenuClick}
-        className="md:!hidden text-gray-300"
-        aria-label="打开导航菜单"
-      />
+    <header className="h-14 border-b border-gray-800 flex items-center px-3 md:px-6 justify-between bg-[#111318]">
+      <div className="flex items-center gap-3 min-w-0">
+        <Button
+          type="text"
+          icon={<MenuOutlined />}
+          onClick={onMenuClick}
+          className="md:!hidden text-gray-300"
+          aria-label="打开导航菜单"
+        />
+        <div className="hidden md:block">
+          <StockSearch />
+        </div>
+      </div>
       <Space>
         {user ? (
           <Dropdown menu={{ items }} placement="bottomRight">
