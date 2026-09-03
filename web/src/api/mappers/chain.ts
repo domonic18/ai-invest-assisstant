@@ -1,4 +1,5 @@
 import type {
+  ApiChainAlert,
   ApiChainAnalysisResult,
   ApiChainCompareResult,
   ApiChainEdge,
@@ -7,6 +8,8 @@ import type {
   ApiChainVersionSummary,
 } from '@ai-invest/shared'
 import type {
+  ChainAlert,
+  ChainAlertType,
   ChainAnalysisResult,
   ChainCompareResult,
   ChainEdge,
@@ -14,6 +17,20 @@ import type {
   ChainVersionDetail,
   ChainVersionSummary,
 } from '@ai-invest/shared'
+
+export function mapChainAlert(dto: ApiChainAlert): ChainAlert {
+  return {
+    industry: dto.industry,
+    alertType: dto.alertType as ChainAlertType,
+    severity: dto.severity,
+    title: dto.title,
+    description: dto.description || '',
+    affectedSegments: dto.affectedSegments || [],
+    relatedStockCodes: dto.relatedStockCodes || [],
+    signalDate: dto.signalDate,
+    createdAt: dto.createdAt,
+  }
+}
 
 export function mapChainNode(dto: ApiChainNode): ChainNode {
   return {

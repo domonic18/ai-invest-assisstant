@@ -1,9 +1,11 @@
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
+  ApiChainAlert,
   ApiChainAnalyzeResponse,
   ApiChainCompareResult,
   ApiChainVersionDetail,
   ApiChainVersionSummary,
+  ChainAlert,
   ChainCompareResult,
   ChainVersionDetail,
   ChainVersionSummary,
@@ -11,6 +13,7 @@ import type {
 
 import { apiClient } from './client'
 import {
+  mapChainAlert,
   mapChainAnalysisResult,
   mapChainCompareResult,
   mapChainVersionDetail,
@@ -63,6 +66,16 @@ export async function fetchChainLatest(
     ENDPOINTS.chain.latest(industry)
   )
   return mapChainVersionDetail(response.data)
+}
+
+export async function fetchChainAlerts(
+  industry: string,
+  days = 30
+): Promise<ChainAlert[]> {
+  const response = await apiClient.get<ApiChainAlert[]>(
+    ENDPOINTS.chain.alerts(industry, days)
+  )
+  return response.data.map(mapChainAlert)
 }
 
 export async function fetchChainVersions(

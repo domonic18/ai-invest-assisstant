@@ -33,6 +33,8 @@ export const ENDPOINTS = {
   chain: {
     analyze: `${API_BASE}/chain/analyze`,
     industries: `${API_BASE}/chain/industries`,
+    alerts: (industry: string, days = 30) =>
+      `${API_BASE}/chain/alerts?industry=${encodeURIComponent(industry)}&days=${days}`,
     latest: (industry: string) =>
       `${API_BASE}/chain/${encodeURIComponent(industry)}/latest`,
     versions: (industry: string) =>

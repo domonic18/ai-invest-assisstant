@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   mapAuthResponse,
+  mapChainAlert,
   mapChainAnalysisResult,
   mapCollectorLog,
   mapKlineData,
@@ -13,6 +14,7 @@ import {
 
 import type {
   ApiAuthResponse,
+  ApiChainAlert,
   ApiChainAnalysisResult,
   ApiCollectorLogResponse,
   ApiKlineDataResponse,
@@ -161,6 +163,45 @@ describe('mappers', () => {
     expect(result.risks[0].severity).toBe('high')
     expect(result.valueDistribution?.highestMarginSegment).toBe('芯片设计')
     expect(result.keyCompaniesSummary[0].score).toBe(85)
+  })
+
+  it('maps chain alert', () => {
+    const dto: ApiChainAlert = {
+      industry: '半导体',
+      alertType: '技术突破',
+      severity: 3,
+      title: '先进制程良率突破',
+      description: '头部代工厂 3nm 良率爬坡超预期',
+      affectedSegments: ['晶圆制造'],
+      relatedStockCodes: ['688981'],
+      signalDate: '2026-08-29',
+      createdAt: '2026-08-29T06:05:00+08:00',
+    }
+    const alert = mapChainAlert(dto)
+    expect(alert.industry).toBe('半导体')
+    expect(alert.alertType).toBe('技术突破')
+    expect(alert.severity).toBe(3)
+    expect(alert.title).toBe('先进制程良率突破')
+    expect(alert.affectedSegments).toEqual(['晶圆制造'])
+    expect(alert.relatedStockCodes).toEqual(['688981'])
+    expect(alert.signalDate).toBe('2026-08-29')
+  })
+
+  it('maps chain alert with missing optional arrays', () => {
+    const alert = mapChainAlert({
+      industry: '光伏',
+      alertType: '政策催化',
+      severity: 1,
+      title: '补贴政策落地',
+      description: '',
+      affectedSegments: null as unknown as string[],
+      relatedStockCodes: null as unknown as string[],
+      signalDate: '2026-08-29',
+      createdAt: '2026-08-29T06:05:00+08:00',
+    })
+    expect(alert.affectedSegments).toEqual([])
+    expect(alert.relatedStockCodes).toEqual([])
+    expect(alert.description).toBe('')
   })
 
   it('maps LLM config', () => {
