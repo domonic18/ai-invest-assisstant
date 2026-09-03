@@ -85,7 +85,7 @@ class TestFetchPage:
         session = MagicMock()
         session.get.return_value = _response(_PROBE_PAYLOAD)
         with (
-            patch.object(cls_telegraph, "_get_session", return_value=session),
+            patch.object(cls_telegraph, "shared_session", return_value=session),
             patch.object(cls_telegraph, "_sv", "8.7.9"),
         ):
             rows = fetch_page(last_time=0, rn=20)
@@ -132,7 +132,7 @@ class TestFetchPage:
         session = MagicMock()
         session.get.return_value = _response({"errno": 0, "data": {"roll_data": []}})
         with (
-            patch.object(cls_telegraph, "_get_session", return_value=session),
+            patch.object(cls_telegraph, "shared_session", return_value=session),
             patch.object(cls_telegraph, "_sv", "8.7.9"),
         ):
             assert fetch_page(last_time=1785695000, rn=20) == []
@@ -143,7 +143,7 @@ class TestFetchPage:
         session = MagicMock()
         session.get.return_value = _response({"errno": 403, "errmsg": "forbidden"})
         with (
-            patch.object(cls_telegraph, "_get_session", return_value=session),
+            patch.object(cls_telegraph, "shared_session", return_value=session),
             patch.object(cls_telegraph, "_sv", "8.7.9"),
         ):
             with pytest.raises(RuntimeError, match="errno=403"):
@@ -158,7 +158,7 @@ class TestWarmAndReset:
         page.text = 'var cfg={sv:"9.9.9"}'
         page.raise_for_status.return_value = None
         session.get.side_effect = [page, _response(_PROBE_PAYLOAD)]
-        with patch.object(cls_telegraph, "_get_session", return_value=session):
+        with patch.object(cls_telegraph, "shared_session", return_value=session):
             assert cls_telegraph.warm_session() == "9.9.9"
             rows = fetch_page()
         params = session.get.call_args.kwargs["params"]

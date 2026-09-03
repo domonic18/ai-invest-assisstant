@@ -135,6 +135,14 @@ TASK_SPECS: dict[str, TaskSpec] = {
             defaults={"rn": 20},
         ),
         TaskSpec(
+            name="cls-investkalendar",
+            label="财联社投资日历",
+            data_type="invest_calendar",
+            collectors={
+                "cls": "collector.spiders.cls_investkalendar:ClsInvestkalendarCollector",
+            },
+        ),
+        TaskSpec(
             name="company-profile",
             label="公司概况",
             data_type="company_profile",

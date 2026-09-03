@@ -114,12 +114,13 @@ ON CONFLICT (channel_id, data_type) DO NOTHING;
 
 -- cls 渠道（签名自持无需 api_key，入目录便于管理）
 INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
-VALUES ('cls', '财联社', true, '["cls-telegraph-backfill"]'::jsonb)
+VALUES ('cls', '财联社', true, '["cls-telegraph-backfill", "cls-investkalendar"]'::jsonb)
 ON CONFLICT (source) DO NOTHING;
 
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
-SELECT id, 'cls-telegraph-backfill', 1
+SELECT id, d.data_type, 1
 FROM collector_channel_config
+CROSS JOIN (VALUES ('cls-telegraph-backfill'), ('cls-investkalendar')) AS d(data_type)
 WHERE source = 'cls'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
@@ -134,7 +135,9 @@ VALUES
     -- 美债收益率日度（us_tycr 单次返回全量历史，upsert 幂等）
     ('tushare_us_yield_daily', 'global-index', 'tushare', '30 6 * * 2-6', true),
     -- cls 电报历史回补：手动触发不排 cron，增量由 stream 驻留进程负责
-    ('cls_telegraph_backfill', 'cls-telegraph-backfill', 'cls', NULL, false)
+    ('cls_telegraph_backfill', 'cls-telegraph-backfill', 'cls', NULL, false),
+    -- cls 投资日历：每日 07:15 拉取前瞻窗口（含周末会议，不设星期过滤）
+    ('cls_investkalendar_daily', 'cls-investkalendar', 'cls', '15 7 * * *', true)
 ON CONFLICT (task_name) DO UPDATE
 SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;
 
