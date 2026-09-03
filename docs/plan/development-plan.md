@@ -74,6 +74,12 @@
 | B3 AI 每日分析定时任务 | 镜像 market-daily-review 四件套：skill yaml（三段式输出 Pydantic 校验）+ service（input_hash=skill+code+date 缓存）+ spider 覆写 run + TaskSpec（heavy 队列，单股串行）+ seed cron | `app/prompts/skills/`、`app/services/review/`、`collector/spiders/`、`registry.py`、`03-seed.sql` |
 | B4 个股详情 AI Tab | 个股详情页新增"AI 每日分析"Tab（盘面解读/操作策略/止损线 + 免责声明） | `web/src/pages/StockDetail/` |
 
+> **实施回填（2026-09-02，批次 B 四项交付，分支 `feat/batch-b-watchlist-ai`）**
+>
+> - **交付**：迁移 `20260902_batch_b1_watchlist_group.sql`（分组表 + `group_id` 回填 + SET NOT NULL，幂等验证两遍）；分组 CRUD/排序/移动/删除 API + `/watchlist` 管理页（分组折叠、AI 开关、跨组移动）；`stock-daily-analysis` 四件套（skill yaml + service + spider + TaskSpec heavy 队列）与查询端点 `GET /stocks/{code}/ai-analysis`；StockDetail "AI 分析" Tab。E2E 实测：本地容器重建后 CLI 触发任务 SUCCESS，两只自选股（桂冠电力/爱丽家居）经 Kimi（anthropic 协议）真实生成，`ai_analysis_result.stock_code` 按股落行、input_hash 含 stock_code 各不相同、4 sections 全非空；查询端点未登录 401 符合预期。
+> - **关键修正（渠道登记以任务名为键）**：internal 渠道的 `supported_data_types`、`collector_channel_data_type.data_type`、`collector_task.task_type` 三处都必须登记 TaskSpec **name**（`stock-daily-analysis`）而非 `data_type`（`ai_stock_daily_analysis`）——渠道解析（`resolver.py` 按 `data_type == task_name` 匹配）与 beat 派发（`celery_beat.py` 以 `task_type` 为任务名）都以任务名为键，与 market-daily-review / limit-up-ai-review 既有先例一致；首轮验收曾因误用 data_type 登记 SKIPPED"没有启用任何可用的采集渠道"，已在迁移中含修复块（jsonb 剔除 + 残留行清理）。
+> - **与原计划的偏差**：① skill 输出定稿 4 段（盘面解读/关键事件/操作策略/风险与止损，原计划三段式）；② `input_hash` 实为 `sha256(skill_id:section_keys:stock_code:trade_date)`（含 section 键，原计划 skill+code+date）；③ 删除非默认分组时组内股票**移入默认分组**（用户决策，非级联删除）；④ K 线缺失时降级为仅行情生成并在 prompt 注明数据范围，K 线与行情全缺才抛 `ReviewInputDataNotReadyError` 走 celery 10 分钟重试，spider 仅在全部股票未就绪时整体 re-raise，单股失败隔离并回滚。
+
 ### 批次 C：工作台聚合（依赖 A1/A2/A3(部分)/B3）
 
 | 项 | 内容 | 关键落点 |

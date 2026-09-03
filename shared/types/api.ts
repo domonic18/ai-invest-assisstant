@@ -37,13 +37,46 @@ export interface ApiAuthResponse {
 export interface ApiWatchlistItemCreate {
   stock_code: string
   tags?: string[]
+  group_id?: number
 }
 
 export interface ApiWatchlistItemResponse {
   id: number
   stock_code: string
   tags: string[] | null
+  group_id: number
   created_at: string
+}
+
+export interface ApiWatchlistGroupCreate {
+  name: string
+  ai_review_enabled?: boolean
+}
+
+export interface ApiWatchlistGroupUpdate {
+  name?: string
+  ai_review_enabled?: boolean
+}
+
+export interface ApiWatchlistGroupResponse {
+  id: number
+  name: string
+  sort_order: number
+  is_default: boolean
+  ai_review_enabled: boolean
+  created_at: string
+}
+
+export interface ApiWatchlistGroupWithItemsResponse extends ApiWatchlistGroupResponse {
+  items: ApiWatchlistItemResponse[]
+}
+
+export interface ApiWatchlistGroupReorderRequest {
+  group_ids: number[]
+}
+
+export interface ApiWatchlistItemMoveRequest {
+  group_id: number
 }
 
 export interface ApiStockBasicResponse {
@@ -73,6 +106,22 @@ export interface ApiStockQuoteResponse {
   market_cap: number | null
   circulating_market_cap: number | null
   updated_at: string | null
+}
+
+export interface ApiStockAiAnalysisSection {
+  key: string
+  title: string
+  content: string
+}
+
+export interface ApiStockAiAnalysisResponse {
+  stock_code: string
+  stock_name: string
+  trade_date: string
+  model: string | null
+  generated_at: string
+  cached: boolean
+  sections: ApiStockAiAnalysisSection[]
 }
 
 export interface ApiStockKlineBar {

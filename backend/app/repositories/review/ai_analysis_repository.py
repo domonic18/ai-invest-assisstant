@@ -23,17 +23,20 @@ async def insert_result(
     latency_ms: int,
     status: str = "success",
     error_msg: str | None = None,
+    stock_code: str | None = None,
 ) -> int:
     """写入一条 ai_analysis_result 记录并返回 id（不 commit）。
 
     raw_output 与 structured_output 同写入；structured_output 走 ORM JSONB
-    列，避免手写 ``CAST(:x AS JSONB)``。
+    列，避免手写 ``CAST(:x AS JSONB)``。个股级分析（如按股每日复盘）传入
+    stock_code 以便按标的检索。
     """
     row = AiAnalysisResult(
         skill_id=skill_id,
         input_hash=input_hash,
         prompt_id=prompt_id,
         model=model,
+        stock_code=stock_code,
         raw_output=str(structured),
         structured_output=structured,
         latency_ms=latency_ms,

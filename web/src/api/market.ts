@@ -158,6 +158,7 @@ function mapWatchlistQuote(dto: ApiWatchlistQuoteItem): WatchlistQuote {
     amount: dto.amount,
     tags: dto.tags,
     updatedAt: dto.updated_at,
+    trend: dto.trend ?? [],
   }
 }
 

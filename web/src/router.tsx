@@ -42,6 +42,7 @@ const Research = lazy(() => import('./pages/Research/Research').then((m) => ({ d
 const Settings = lazy(() => import('./pages/Settings/Settings').then((m) => ({ default: m.Settings })))
 const StockDetail = lazy(() => import('./pages/StockDetail/StockDetail').then((m) => ({ default: m.StockDetail })))
 const Telegraph = lazy(() => import('./pages/Telegraph').then((m) => ({ default: m.Telegraph })))
+const Watchlist = lazy(() => import('./pages/Watchlist').then((m) => ({ default: m.Watchlist })))
 
 function lazyEl(node: ReactNode) {
   return <Suspense fallback={<PageSkeleton />}>{node}</Suspense>
@@ -64,6 +65,7 @@ export const router = createBrowserRouter([
       { path: 'financial-reports', element: lazyEl(<FinancialReportPage />) },
       { path: 'financial/:code', element: lazyEl(<Financial />) },
       { path: 'settings', element: lazyEl(<Settings />) },
+      { path: 'watchlist', element: lazyEl(<Watchlist />) },
       {
         path: 'admin',
         element: <ProtectedAdmin />,

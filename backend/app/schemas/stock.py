@@ -1,6 +1,6 @@
 """股票行情数据相关的 Pydantic schemas。"""
 
-from datetime import date, time
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Literal
 
@@ -198,6 +198,33 @@ class FundFlowResponse(BaseModel):
     large_net: Decimal | None = None
     medium_net: Decimal | None = None
     small_net: Decimal | None = None
+
+
+class StockAiAnalysisSection(BaseModel):
+    """个股 AI 分析单分区内容。"""
+
+    key: str
+    title: str
+    content: str
+
+
+class StockAiAnalysisResponse(BaseModel):
+    """个股每日 AI 分析响应。"""
+
+    stock_code: str
+    stock_name: str
+    trade_date: date
+    model: str | None = None
+    generated_at: datetime
+    cached: bool = False
+    sections: list[StockAiAnalysisSection]
+
+
+class StockAiAnalysisGenerateRequest(BaseModel):
+    """触发个股 AI 分析生成请求。"""
+
+    trade_date: date | None = None
+    regenerate: bool = False
 
 
 class PaginationParams(BaseModel):

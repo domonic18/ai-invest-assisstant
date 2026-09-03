@@ -1,21 +1,25 @@
 import type {
   ApiAuctionDataResponse,
   ApiKlineDataResponse,
+  ApiStockAiAnalysisResponse,
   ApiStockBasicResponse,
   ApiStockIntradayResponse,
   ApiStockKlineResponse,
   ApiStockQuoteResponse,
   ApiStockSectorsResponse,
+  ApiWatchlistGroupWithItemsResponse,
   ApiWatchlistItemResponse,
 } from '@ai-invest/shared'
 import type {
   AuctionData,
   KlineData,
   Stock,
+  StockAiAnalysis,
   StockIntraday,
   StockKline,
   StockQuote,
   StockSector,
+  WatchlistGroup,
   WatchlistItem,
 } from '@ai-invest/shared'
 
@@ -138,6 +142,37 @@ export function mapWatchlistItem(dto: ApiWatchlistItemResponse): WatchlistItem {
     id: String(dto.id),
     code: dto.stock_code,
     tags: dto.tags || [],
+    groupId: dto.group_id,
     createdAt: dto.created_at,
+  }
+}
+
+export function mapStockAiAnalysis(dto: ApiStockAiAnalysisResponse): StockAiAnalysis {
+  return {
+    stockCode: dto.stock_code,
+    stockName: dto.stock_name,
+    tradeDate: dto.trade_date,
+    model: dto.model,
+    generatedAt: dto.generated_at,
+    cached: dto.cached,
+    sections: dto.sections.map((section) => ({
+      key: section.key,
+      title: section.title,
+      content: section.content,
+    })),
+  }
+}
+
+export function mapWatchlistGroup(
+  dto: ApiWatchlistGroupWithItemsResponse,
+): WatchlistGroup {
+  return {
+    id: dto.id,
+    name: dto.name,
+    sortOrder: dto.sort_order,
+    isDefault: dto.is_default,
+    aiReviewEnabled: dto.ai_review_enabled,
+    createdAt: dto.created_at,
+    items: (dto.items ?? []).map(mapWatchlistItem),
   }
 }

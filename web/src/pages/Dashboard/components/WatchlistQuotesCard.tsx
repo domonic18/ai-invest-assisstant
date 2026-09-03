@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 import { useWatchlistQuotes } from '@/hooks/useMarket'
 import { SourceNote } from '@/components/common/SourceNote'
+import { IntradaySpark } from '@/components/charts/IntradaySpark'
 import { useColorScheme } from '@/stores/settings'
 import { changeColor, formatPercent } from '@/utils/formatters'
 
@@ -14,7 +15,7 @@ export function WatchlistQuotesCard() {
     <Card
       variant="borderless"
       title="自选股行情"
-      extra={<Link to="/settings" className="text-xs">管理自选</Link>}
+      extra={<Link to="/watchlist" className="text-xs">管理自选</Link>}
     >
       {isLoading ? (
         <div className="flex justify-center py-6"><Spin /></div>
@@ -23,19 +24,22 @@ export function WatchlistQuotesCard() {
           dataSource={data}
           renderItem={(item) => (
             <List.Item className="!px-0">
-              <div className="flex items-center justify-between w-full">
-                <div>
+              <div className="flex items-center justify-between w-full gap-2">
+                <div className="min-w-0">
                   <Link to={`/stock/${item.code}`} className="font-medium">
                     {item.name ?? item.code}
                   </Link>
                   <span className="ml-2 text-xs text-gray-500 font-mono">{item.code}</span>
                 </div>
-                <div className="text-right">
-                  <div className="font-mono text-sm">
-                    {item.price != null ? item.price.toFixed(2) : '-'}
-                  </div>
-                  <div className={`text-xs ${changeColor(item.changePct)}`}>
-                    {item.changePct != null ? formatPercent(item.changePct) : '-'}
+                <div className="flex items-center gap-3 shrink-0">
+                  <IntradaySpark points={item.trend} changePct={item.changePct} width={64} />
+                  <div className="text-right">
+                    <div className="font-mono text-sm">
+                      {item.price != null ? item.price.toFixed(2) : '-'}
+                    </div>
+                    <div className={`text-xs ${changeColor(item.changePct)}`}>
+                      {item.changePct != null ? formatPercent(item.changePct) : '-'}
+                    </div>
                   </div>
                 </div>
               </div>

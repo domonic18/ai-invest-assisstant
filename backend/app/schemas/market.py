@@ -173,6 +173,7 @@ class WatchlistQuoteItem(BaseModel):
     amount: float | None = None
     tags: list[str] = []
     updated_at: str | None = None
+    trend: list[float] = []
 
 
 class MarketReviewSection(BaseModel):

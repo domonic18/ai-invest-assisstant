@@ -12,6 +12,7 @@ import {
   RobotOutlined,
   SettingOutlined,
   ShopOutlined,
+  StarOutlined,
   TeamOutlined,
   ThunderboltOutlined,
   UserOutlined,
@@ -95,6 +96,7 @@ export function SidebarMenu({ onNavigate }: SidebarMenuProps) {
   }, [isAdminPath])
 
   const settingsChildren: MenuItem[] = [
+    { key: '/watchlist', icon: <StarOutlined />, label: '自选股管理' },
     { key: '/settings', icon: <UserOutlined />, label: '个人设置' },
     ...(isAdmin
       ? [

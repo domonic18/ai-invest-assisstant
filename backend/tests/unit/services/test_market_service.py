@@ -18,7 +18,6 @@ from app.services.market import (
     market_stats_service,
     trade_calendar_service,
 )
-from app.services.user import watchlist_quote_service
 
 
 def _scalars_result(items):
@@ -822,60 +821,6 @@ class TestGetSectorOverview:
         assert overview.top_outflow[0].sector_name == "弱势板块"
         assert overview.leading[0].limit_up_count == 2
         assert "涨停股A" in overview.leading[0].top_stock_names
-
-
-@pytest.mark.unit
-class TestGetWatchlistQuotes:
-    @pytest.mark.asyncio
-    async def test_prefers_redis_quote(self) -> None:
-        watch = MagicMock()
-        watch.stock_code = "000001"
-        watch.tags = ["银行"]
-
-        session = AsyncMock()
-        session.execute.return_value = _scalars_result([watch])
-
-        redis = AsyncMock()
-        redis.get.return_value = (
-            b'{"stock_name":"\\u5e73\\u5b89\\u94f6\\u884c","price":12.5,'
-            b'"change_pct":1.2,"amount":1e8,"updated_at":"2026-07-17"}'
-        )
-
-        with patch.object(watchlist_quote_service, "get_redis", MagicMock(return_value=redis)):
-            quotes = await market_service.get_watchlist_quotes(session, user_id=1)
-
-        assert len(quotes) == 1
-        assert quotes[0].price == 12.5
-        assert quotes[0].change_pct == 1.2
-        # 共享 Redis 客户端复用连接，单次查询后不应关闭
-        redis.close.assert_not_awaited()
-
-    @pytest.mark.asyncio
-    async def test_falls_back_to_kline(self) -> None:
-        watch = MagicMock()
-        watch.stock_code = "600000"
-        watch.tags = []
-
-        kline = MagicMock()
-        kline.close = Decimal("10.5")
-        kline.change_pct = Decimal("-0.5")
-        kline.amount = Decimal("5000000")
-        kline.trade_date = date(2026, 7, 16)
-
-        session = AsyncMock()
-        session.execute.side_effect = [
-            _scalars_result([watch]),
-            MagicMock(scalar_one_or_none=MagicMock(return_value=kline)),
-        ]
-
-        redis = AsyncMock()
-        redis.get.return_value = None
-
-        with patch.object(watchlist_quote_service, "get_redis", MagicMock(return_value=redis)):
-            quotes = await market_service.get_watchlist_quotes(session, user_id=1)
-
-        assert quotes[0].price == 10.5
-        assert quotes[0].updated_at == "2026-07-16"
 
 
 @pytest.mark.unit

@@ -98,10 +98,12 @@ describe('mappers', () => {
       id: 1,
       stock_code: '000001',
       tags: ['金融'],
+      group_id: 7,
       created_at: '2024-01-01T00:00:00Z',
     }
     const item = mapWatchlistItem(dto)
     expect(item.id).toBe('1')
+    expect(item.groupId).toBe(7)
     expect(item.tags).toEqual(['金融'])
   })
 

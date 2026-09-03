@@ -1,8 +1,8 @@
 """基于 akshare 的新浪个股分钟 K 线采集器。
 
-抓取涨停池个股 1 分钟线写入 quote_kline_stock_minute 超表，涨停复盘行的全天分时
-缩略图只读该表。新浪接口返回最近约 8 个交易日，运行时只保留目标
-交易日（默认当日）。symbols 缺省时取目标日 pool_limit_up_stock 全部个股。
+抓取 1 分钟线写入 quote_kline_stock_minute 超表，涨停复盘行与自选股行情卡的
+全天分时缩略图只读该表。新浪接口返回最近约 8 个交易日，运行时只保留目标
+交易日（默认当日）。symbols 缺省时取目标日涨停池 ∪ 全部自选股（去重）。
 """
 
 import contextlib
@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.pool_limit_up_stock import LimitUpPool
+from app.models.watchlist import UserWatchlist
 from collector.core.base import PostgresCollector, get_engine
 from collector.core.parsing import to_float, to_int
 
@@ -30,17 +31,21 @@ def _to_sina_symbol(code: str) -> str | None:
     return None
 
 
-async def _fetch_limit_up_codes(target: date) -> list[str]:
+async def _fetch_default_codes(target: date) -> list[str]:
+    """默认采集范围：目标日涨停池 ∪ 全部自选股，去重升序。"""
     session_maker = async_sessionmaker(
         get_engine(), class_=AsyncSession, expire_on_commit=False
     )
     async with session_maker() as session:
-        rows = await session.execute(
+        pool = await session.execute(
             select(LimitUpPool.stock_code)
             .where(LimitUpPool.trade_date == target)
             .order_by(LimitUpPool.stock_code)
         )
-        return [row[0] for row in rows.all()]
+        watchlist = await session.execute(
+            select(UserWatchlist.stock_code).distinct().order_by(UserWatchlist.stock_code)
+        )
+        return sorted({row[0] for row in pool.all()} | {row[0] for row in watchlist.all()})
 
 
 class SinaStockMinuteCollector(PostgresCollector):
@@ -61,7 +66,7 @@ class SinaStockMinuteCollector(PostgresCollector):
         import akshare as ak  # type: ignore[import-untyped]
 
         target = trade_date or datetime.now(_CN_TZ).date()
-        codes = symbols or await _fetch_limit_up_codes(target)
+        codes = symbols or await _fetch_default_codes(target)
 
         raw: list[dict[str, Any]] = []
         for code in codes:

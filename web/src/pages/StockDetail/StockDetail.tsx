@@ -1,4 +1,4 @@
-import { FileTextOutlined, WalletOutlined } from '@ant-design/icons'
+import { FileTextOutlined, RobotOutlined, WalletOutlined } from '@ant-design/icons'
 import { useIsFetching } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
@@ -9,8 +9,9 @@ import { StockChartView } from '@/components/charts/stockChartView'
 import { useFinancial } from '@/hooks/useFinancial'
 import { useFinancialHistory } from '@/hooks/useFinancialHistory'
 import { useResearch } from '@/hooks/useResearch'
-import { useAddWatchlistItem, useWatchlist } from '@/hooks/useWatchlist'
+import { useWatchlist } from '@/hooks/useWatchlist'
 import {
+  useStockAiAnalysis,
   useStockDetail,
   useStockQuote,
   useStockSectors,
@@ -28,7 +29,9 @@ import {
   VIEW_PRESETS,
   type ViewPresetKey,
 } from './chartConfig'
+import { AddToWatchlistModal } from './components/AddToWatchlistModal'
 import { ErrorState } from './components/ErrorState'
+import { StockAiAnalysisSection } from './components/StockAiAnalysisSection'
 import { StockFinancial } from './components/StockFinancial'
 import { StockHeader } from './components/StockHeader'
 import { StockResearch } from './components/StockResearch'
@@ -51,8 +54,10 @@ export function StockDetail() {
   const financialQ = useFinancial(stockCode)
   const historyQ = useFinancialHistory(stockCode, 8)
   const researchQ = useResearch({ stockCode, pageSize: 5 })
+  const aiAnalysisQ = useStockAiAnalysis(stockCode)
   const { data: watchlist } = useWatchlist()
-  const addMutation = useAddWatchlistItem()
+
+  const [addWatchOpen, setAddWatchOpen] = useState(false)
 
   const klineFetching = useIsFetching({
     queryKey: queryKeys.stocks.kline(stockCode),
@@ -104,12 +109,6 @@ export function StockDetail() {
   }, [views])
 
   const isWatched = watchlist?.some((item) => item.code === stockCode)
-
-  const handleToggleWatchlist = () => {
-    if (!isWatched) {
-      addMutation.mutate({ stockCode, tags: [] })
-    }
-  }
 
   const handlePresetChange = (value: ViewPresetKey | 'custom') => {
     const preset = VIEW_PRESETS.find((p) => p.key === value)
@@ -196,6 +195,12 @@ export function StockDetail() {
       status: researchQ.isLoading ? 'loading' : researchQ.isError ? 'error' : 'idle',
       onRetry: () => researchQ.refetch(),
     },
+    {
+      key: 'ai-analysis',
+      label: 'AI 分析',
+      status: aiAnalysisQ.isLoading ? 'loading' : aiAnalysisQ.isError ? 'error' : 'idle',
+      onRetry: () => aiAnalysisQ.refetch(),
+    },
   ]
 
   if (!stockCode) {
@@ -266,6 +271,16 @@ export function StockDetail() {
         </span>
       ),
     },
+    {
+      key: 'ai',
+      label: (
+        <span className="text-xs">
+          <RobotOutlined className="mr-1" />
+          AI 分析
+        </span>
+      ),
+      children: <StockAiAnalysisSection stockCode={stockCode} />,
+    },
   ]
 
   const headerContent = (
@@ -273,13 +288,18 @@ export function StockDetail() {
       stock={stock}
       stockCode={stockCode}
       isWatched={isWatched}
-      onToggleWatchlist={handleToggleWatchlist}
-      isWatchlistLoading={addMutation.isPending}
+      onToggleWatchlist={() => setAddWatchOpen(true)}
     />
   )
 
   return (
     <div className="flex flex-col h-full">
+      <AddToWatchlistModal
+        open={addWatchOpen}
+        stockCode={stockCode}
+        onClose={() => setAddWatchOpen(false)}
+      />
+
       {/* Mobile-only header */}
       <div
         className="lg:hidden px-4 py-3"

@@ -1,5 +1,6 @@
 """collector spiders 采集器契约测试（transform/validate/store 与数据口径守卫）。"""
 
+import contextlib
 import datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -37,7 +38,7 @@ from collector.spiders.sina_market_breadth import (
 from collector.spiders.sina_news import SinaNewsCollector
 from collector.spiders.sina_quote import SinaQuoteCollector
 from collector.spiders.sina_stock_list import SinaStockListCollector
-from collector.spiders.sina_stock_minute import SinaStockMinuteCollector
+from collector.spiders.sina_stock_minute import SinaStockMinuteCollector, _fetch_default_codes
 from collector.spiders.ths_auction import ThsAuctionCollector
 from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
 from collector.spiders.tushare_index_auction import TushareIndexAuctionCollector
@@ -1692,7 +1693,7 @@ class TestSinaStockMinuteCollector:
         )
         with (
             patch(
-                "collector.spiders.sina_stock_minute._fetch_limit_up_codes",
+                "collector.spiders.sina_stock_minute._fetch_default_codes",
                 AsyncMock(return_value=["600001"]),
             ),
             patch("akshare.stock_zh_a_minute", return_value=self._df()),
@@ -1700,6 +1701,29 @@ class TestSinaStockMinuteCollector:
             raw = await collector.collect(trade_date=datetime.date(2026, 7, 21))
 
         assert {item["stock_code"] for item in raw} == {"600001"}
+
+    @pytest.mark.asyncio
+    async def test_default_codes_union_watchlist_dedup(self) -> None:
+        pool_result = MagicMock(all=MagicMock(return_value=[("600001",), ("600002",)]))
+        watch_result = MagicMock(
+            all=MagicMock(return_value=[("600002",), ("603221",), ("830001",)])
+        )
+        session = AsyncMock()
+        session.execute.side_effect = [pool_result, watch_result]
+
+        @contextlib.asynccontextmanager
+        async def _cm():
+            yield session
+
+        def _fake_session_maker(*_args: object, **_kwargs: object):
+            return lambda: _cm()
+
+        with patch(
+            "collector.spiders.sina_stock_minute.async_sessionmaker", _fake_session_maker
+        ):
+            codes = await _fetch_default_codes(datetime.date(2026, 9, 3))
+
+        assert codes == ["600001", "600002", "603221", "830001"]
 
 
 @pytest.mark.unit

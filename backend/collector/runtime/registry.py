@@ -343,6 +343,16 @@ TASK_SPECS: dict[str, TaskSpec] = {
             run_params=("trade_date",),
             converters={"trade_date": date.fromisoformat},
         ),
+        TaskSpec(
+            name="stock-daily-analysis",
+            label="个股每日AI分析",
+            data_type="ai_stock_daily_analysis",
+            collectors={
+                "internal": "collector.spiders.stock_daily_analysis:StockDailyAnalysisCollector",
+            },
+            run_params=("trade_date",),
+            converters={"trade_date": date.fromisoformat},
+        ),
     ]
 }
 
@@ -366,6 +376,7 @@ _QUEUE_OVERRIDES: dict[str, Literal["realtime", "batch", "heavy"]] = {
     "ipo-info": "heavy",
     "market-daily-review": "heavy",
     "limit-up-ai-review": "heavy",
+    "stock-daily-analysis": "heavy",
     "research-report": "heavy",
 }
 

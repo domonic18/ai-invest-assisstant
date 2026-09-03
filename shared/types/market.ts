@@ -144,6 +144,7 @@ export interface ApiWatchlistQuoteItem {
   amount: number | null
   tags: string[]
   updated_at: string | null
+  trend?: number[]
 }
 
 export interface ApiMarketReviewSection {
@@ -322,6 +323,7 @@ export interface WatchlistQuote {
   amount: number | null
   tags: string[]
   updatedAt: string | null
+  trend: number[]
 }
 
 export interface MarketReviewSection {
