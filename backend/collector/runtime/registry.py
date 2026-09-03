@@ -371,6 +371,17 @@ TASK_SPECS: dict[str, TaskSpec] = {
             run_params=("trade_date",),
             converters={"trade_date": date.fromisoformat},
         ),
+        TaskSpec(
+            name="collector-log-cleanup",
+            label="采集日志保留清理",
+            data_type="system_maintenance",
+            collectors={
+                "internal": (
+                    "collector.spiders.collector_log_cleanup:"
+                    "CollectorLogCleanupCollector"
+                ),
+            },
+        ),
     ]
 }
 
