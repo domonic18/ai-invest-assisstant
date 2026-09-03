@@ -3,6 +3,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 import type { CalendarEvent } from '@ai-invest/shared'
 
 import { categoryMeta } from './categoryMeta'
+import { EventTimeDot } from './EventTimeDot'
 import { eventTimeHm } from './eventTime'
 import { mondayOf } from './weekRange'
 
@@ -59,7 +60,7 @@ export function WeekView({ weekAnchor, events, onSelectEvent }: WeekViewProps) {
                     {hm ? (
                       <span className="font-mono">{hm}</span>
                     ) : (
-                      <span className="font-bold">·</span>
+                      <EventTimeDot />
                     )}{' '}
                     {event.title}
                   </div>

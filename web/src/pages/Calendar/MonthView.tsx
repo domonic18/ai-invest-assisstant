@@ -3,6 +3,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 import type { CalendarEvent } from '@ai-invest/shared'
 
 import { categoryMeta } from './categoryMeta'
+import { EventTimeDot } from './EventTimeDot'
 import { eventTimeHm } from './eventTime'
 
 const DOW_LABELS = ['日', '一', '二', '三', '四', '五', '六']
@@ -67,7 +68,7 @@ export function MonthView({ month, events, onSelectEvent }: MonthViewProps) {
                     {hm ? (
                       <span className="font-mono">{hm}</span>
                     ) : (
-                      <span className="font-bold">·</span>
+                      <EventTimeDot />
                     )}{' '}
                     {event.title}
                   </div>
