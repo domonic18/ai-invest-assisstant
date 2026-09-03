@@ -30,7 +30,7 @@
 | F-VIS-06 工作台 | 已实现（批次 C） | `GET /api/v1/workbench` 七模块聚合（整端点鉴权、逐模块降级恒 200）+ `/workbench` 五卡片页；登录默认入口 `/` → `/workbench`，每日复盘迁 `/review` |
 | F-USER-03 用户级模型配置 | 部分实现 | 仅管理员全局 llm_config，无 user 维度 |
 | F-API-01 API-KEY/MCP | 桩 | `/api/v1/mcp/server.py` 返回空，无 API-KEY 管理 |
-| F-AI-01 产业链定时刷新 + AI 提醒 | 实现中（批次 D） | 分支 `feat/batch-d-chain-alerts`：定时刷新四件套 + chain_alert 表 + 图谱页提醒面板 |
+| F-AI-01 产业链定时刷新 + AI 提醒 | 已实现（批次 D） | `chain-refresh` 周任务（周六 06:00 北京时间，heavy 逐链串行，按用户复制落版本）+ `chain_alert` 表（同链同类型同日唯一）+ `GET /chain/alerts` + 图谱页 ChainAlertPanel |
 | 小程序端 | 未启动 | V1.0 目标项，整体后置 |
 
 ## 2. 重新评估结论
@@ -113,6 +113,12 @@
 | D2 AI 提醒面板 | `chain_alert` 表（industry/类型/重要程度/触发条件说明/影响环节/建议关注标的）+ 分析任务产出具名告警（5 触发类型：财报异动/评级调整/技术突破/格局变化/政策催化）+ 查询 API + 产业链图谱页顶部提醒面板（按重要程度排序） | `models/`、`docker/database/migrations/`、`api/v1/chain.py`、`web/src/pages/Chain/` | 中：告警去重口径（同链同类型同日唯一） |
 | D3 存储治理三件套 | ① 4 张 hypertable 开 TimescaleDB 压缩策略（`quote_kline_stock_minute` 收益最大，其余为 kline 日线/资金流/全球指数）② collector_log 90 天保留策略 ③ LangGraph checkpoint 随 assistant_session 删除级联清理（存量约 20 孤儿 thread） | `docker/database/migrations/`（均幂等） | 低：压缩段只读不影响写入路径 |
 | D4 工作台板块资金卡接线 | workbench 聚合 +1 模块 sector_flow（`capital_fund_flow_sector` 数据已有，eastmoney_sector_fund_flow 任务在跑），`/workbench`「板块资金动向」空态卡换实数据（涨幅前 N + 色彩走 scheme-aware helpers） | `services/workbench/`、`api/v1/workbench.py`、`shared/types/workbench.ts`、`web/src/pages/Workbench/` | 低 |
+
+> **实施回填（2026-09-03，批次 D 交付，分支 `feat/batch-d-chain-alerts`）**
+>
+> - **交付**：D1 `chain-refresh` 定时刷新四件套——复用单轮执行器 `analyze_industry_chain`（移除 DeprecationWarning 转正为定时路径载体），链级 Redis 非阻塞锁防与手动分析竞争版本号；**按用户复制落版本**：AI 每链只生成一次，对拥有该链 success 版本的每个 user_id 各落一版（created_by=scheduled），读路径零改动。D2 `chain_alert` 全局告警表（无 user_id，UNIQUE(industry, alert_type, signal_date) 吸收按用户复制与同日手动+定时双产）+ AI 结构化输出直接产告警（`ChainAnalysisResult.alerts`，5 类型 + severity 1-3，`_validate` 清洗截断 ≤10，宁缺毋滥）+ `GET /api/v1/chain/alerts`（camelCase wire，severity 降序）+ 图谱页 ChainAlertPanel（类型 Tag 配色/severity 徽标/影响环节/相关标的）。D3 存储治理迁移（幂等）：三表压缩策略（minute 14d / kline_daily 90d / fund_flow_stock 90d；quote_global_index_daily 因 us_tycr 全历史 upsert 写旧 chunk 排除）+ collector_log 90 天保留（存量 DELETE + `collector-log-cleanup` 每日 03:40）+ checkpoint 孤儿 thread 清理（to_regclass 防护）。D4 workbench +1 模块 sector_flow（最新交易日行业板块主力净流入 top8，亿元），SectorFlowCard 空态卡换实数据（涨跌色走 scheme-aware helpers + useColorScheme 订阅）。
+> - **与原计划的偏差**：① 压缩策略幂等检查原查 `timescaledb_information.compression_policies`，实测 TimescaleDB 2.28 无该视图，改查 `timescaledb_information.jobs`（proc_name='policy_compression'）；② D1 原计划的"input_hash 缓存防重"未做——刷新语义即每周期产新版本（版本切换器可见），防重由告警唯一约束 + 链级锁承担；③ 渠道登记实际只落 seed/迁移的 DB 三处（任务名为键）——DEFAULT_CHANNELS 本无 internal 条目且 internal 任务豁免渠道覆盖检查，`channels.py` 无需改动；④ `ChainAlertItem.severity` 不加 ge/le 约束（单个 LLM 坏值不炸整个结构化解析），`_validate` clamp + DB CHECK 兜底。
+> - **验收（API 级已过，浏览器侧待人工）**：backend unit 790 全绿/mypy/ruff；web typecheck/lint/test:unit(89)/build 全绿；docker 全量重建后 CLI 实测 `chain-refresh` SUCCESS（4 目标 3 生成：半导体×2 用户含遗留 user_id=0、锂电池、机器人；创新药因公司映射无数据单链失败被 rollback 隔离，signal_date=最新交易日）；告警唯一约束实测重复插入吸收（INSERT 0 0）；`/chain/alerts` 401/200 + camelCase + severity 降序；`collector-log-cleanup` SUCCESS 且 90 天前存量 0；三条压缩策略在册（jobs 视图）；`/workbench` sector_flow 8 行实数据；`/chain/{industry}/latest`、versions（scheduled v3 置顶）、industries 回归正常。本周模型对四链均未产出证据充分的告警（alerts=[]，宁缺毋滥生效），告警写入路径以探针行实测后清理。
 
 ### 后置池（不排序，触发条件成熟再评估）
 
