@@ -25,9 +25,9 @@
 | F-DC-06 全球指标采集 | 已实现（批次 A） | `global-index` 任务（东财 push2delay 实时 + tushare us_tycr 全历史）→ `quote_global_index_daily` |
 | F-VIS-07 投资日历页 | 已实现（批次 A） | 月/周/列表三视图 + 分类筛选 + 事件 Drawer，`/calendar` 主导航 |
 | F-VIS-08 跟踪指数管理 | 已实现（批次 A） | `tracked_index_config` + Admin 第 10 页 CRUD/启停（无数据源指标禁用启用） |
-| F-USER-01 自选股分组 | 未实现 | `user_watchlist` 仅 user_id/stock_code/tags，需分组表改造（单一归属 + AI 复盘开关 + 默认分组） |
-| F-AI-07 自选股 AI 每日分析 | 未实现 | 依赖分组开关；**实现路径已有成熟模板**（镜像 market-daily-review 四件套：spider 覆写 run + TaskSpec + seed + heavy 队列） |
-| F-VIS-06 工作台 | 未实现 | 纯聚合层，依赖 F-DC-04/05/06 + F-AI-07 的数据底座；登录默认入口从 `/` 切换 |
+| F-USER-01 自选股分组 | 已实现（批次 B） | `user_watchlist_group` + `group_id` 单一归属（默认分组不可删，非默认组删除时股票移入默认组）+ 分组 CRUD/排序 API + `/watchlist` 管理页与分组级 AI 开关 |
+| F-AI-07 自选股 AI 每日分析 | 已实现（批次 B） | `stock-daily-analysis` 四件套（heavy 队列单股串行、input_hash 缓存、K 线缺失降级）+ `GET /stocks/{code}/ai-analysis` + StockDetail "AI 分析" Tab |
+| F-VIS-06 工作台 | 已实现（批次 C） | `GET /api/v1/workbench` 七模块聚合（整端点鉴权、逐模块降级恒 200）+ `/workbench` 五卡片页；登录默认入口 `/` → `/workbench`，每日复盘迁 `/review` |
 | F-USER-03 用户级模型配置 | 部分实现 | 仅管理员全局 llm_config，无 user 维度 |
 | F-API-01 API-KEY/MCP | 桩 | `/api/v1/mcp/server.py` 返回空，无 API-KEY 管理 |
 | F-AI-01 产业链定时刷新 + AI 提醒 | 部分实现 | 版本管理已有；定时更新任务与提醒面板全缺 |
@@ -86,6 +86,12 @@
 |----|------|----------|
 | C1 聚合端点 | `/api/v1/workbench`：一次请求聚合五模块数据（各模块独立降级，缺失返回空态不报错） | `api/v1/`、`services/` |
 | C2 工作台页面 | `/workbench` 路由 + 五模块卡片（可折叠）+ 登录默认入口从 `/` 切换（每日复盘保留独立页） | `web/src/pages/Workbench/`、`router.tsx` |
+
+> **实施回填（2026-09-03，批次 C 交付，分支 `feat/batch-c-workbench`）**
+>
+> - **交付**：`GET /api/v1/workbench`（整端点鉴权）一次聚合七字段——calendar(8)/review/telegraph(12)/watchlist/indices/stats/global_indices，聚合服务顺序 await + 每模块独立 try/except 降级（structlog warning + 空态兜底，整体恒 200）；配套补齐全球指标公开读端点 `GET /api/v1/market/global-indices`（`TrackedIndexConfig` 全球分类按 sort_order → `GlobalIndexDaily` 每 code 最新行，启用过滤）。前端 `/workbench` 五卡片：市场快览复用 `MarketStatsSection` + 新增 `GlobalIndicesRow` 全球指标 chips、AI 复盘速览（只读，生成/编辑仍在 `/review`）、电报紧凑列表、日历摘要、自选行情（`WatchlistQuotesCard` 加可选 props 双模复用）；`/` 重定向 `/workbench`、Dashboard 迁 `/review`、登录/注册落 `/workbench`、侧边栏与移动 TabBar 首项工作台、pageContext 增补两路由。
+> - **与原计划的偏差**：① 聚合并发用顺序 await 而非 `asyncio.gather`——既有 gather 先例（index_quotation_service）共享单个 AsyncSession 属不安全模式，不复刻，七模块全为 Redis/索引 PG 快读顺序总耗时可控；② `review=None`（当日未生成）按正常空态透传，不计入降级日志；③ 卡片未做 Collapse 折叠，统一 borderless Card 风格对齐 Dashboard；④ 全球指标快照字段含 close（计划仅列名称+涨跌幅），与 A 股指数 tile 视觉一致；⑤ Register.tsx 同步登录后跳转（计划只列 Login.tsx）。
+> - **验收（API 级已过，浏览器侧待人工）**：backend unit 全绿（新增 global_index service 4 例 + workbench service 3 例 + api 5 例）/ mypy / ruff；web typecheck/lint/test:unit(85)/build 全绿；docker 重建后 curl 实测：无 token `/workbench` 401、带 token（sub=3）200 七字段齐（watchlist 4 只含名称与分时 trend、global_indices 黄金/美元指数/美债 2Y/10Y 均带 close/change_pct/trade_date）、`/market/global-indices` 无鉴权 200、SPA `/workbench` 与 `/review` 均 200。
 
 ### 后置池（不排序，触发条件成熟再评估）
 
