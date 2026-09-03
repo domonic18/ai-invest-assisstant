@@ -30,7 +30,7 @@ export function Register() {
         password: values.password,
       })
       authLogin(result.accessToken, result.user)
-      navigate('/')
+      navigate('/workbench')
     } catch (err) {
       const message = err instanceof Error ? err.message : '注册失败，请重试'
       setError(message)

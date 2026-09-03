@@ -23,6 +23,11 @@ describe('buildPageContext', () => {
     expect(context.industry).toBe('半导体')
   })
 
+  it('识别工作台与每日复盘页', () => {
+    expect(buildPageContext('/workbench').page).toBe('工作台')
+    expect(buildPageContext('/review').page).toBe('每日复盘')
+  })
+
   it('识别无参数的普通页面', () => {
     expect(buildPageContext('/capital-flow').page).toBe('资金流向')
     expect(buildPageContext('/').page).toBeUndefined()

@@ -28,7 +28,9 @@ export function buildPageContext(pathname: string): PageContext {
     context.industry = decodeURIComponent(chain[1])
     return context
   }
-  if (pathname.startsWith('/capital-flow')) context.page = '资金流向'
+  if (pathname.startsWith('/workbench')) context.page = '工作台'
+  else if (pathname.startsWith('/review')) context.page = '每日复盘'
+  else if (pathname.startsWith('/capital-flow')) context.page = '资金流向'
   else if (pathname.startsWith('/auction')) context.page = '集合竞价'
   else if (pathname.startsWith('/hotspot')) context.page = '热点追踪'
   else if (pathname.startsWith('/research')) context.page = '研报中心'

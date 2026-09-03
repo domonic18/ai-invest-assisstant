@@ -1,5 +1,5 @@
 import {
-  BarChartOutlined,
+  AppstoreOutlined,
   FundOutlined,
   LogoutOutlined,
   SettingOutlined,
@@ -13,7 +13,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/auth'
 
 const TAB_ITEMS = [
-  { key: '/', icon: <BarChartOutlined />, label: '复盘' },
+  { key: '/workbench', icon: <AppstoreOutlined />, label: '工作台' },
   { key: '/auction', icon: <ShopOutlined />, label: '竞价' },
   { key: '/capital-flow', icon: <FundOutlined />, label: '资金' },
 ]

@@ -24,7 +24,7 @@ export function Login() {
     try {
       const result = await login(values)
       authLogin(result.accessToken, result.user)
-      navigate('/')
+      navigate('/workbench')
     } catch (err) {
       const message = err instanceof Error ? err.message : '登录失败，请重试'
       setError(message)
