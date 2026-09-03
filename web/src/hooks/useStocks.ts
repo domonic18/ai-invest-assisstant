@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   fetchKline,
@@ -8,6 +8,7 @@ import {
   fetchStockKline,
   fetchStockQuote,
   fetchStockSectors,
+  generateStockAiAnalysis,
   searchStocks,
   type StockKlineParams,
 } from '@/api/stocks'
@@ -91,5 +92,20 @@ export function useStockAiAnalysis(code: string, tradeDate?: string) {
     queryFn: () => fetchStockAiAnalysis(code, tradeDate),
     enabled: code.length > 0,
     staleTime: 10 * 60_000,
+  })
+}
+
+/** 手动触发生成（或强制重新生成）个股 AI 分析，成功后刷新对应日期缓存。 */
+export function useGenerateStockAiAnalysis(code: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (options: { tradeDate?: string; regenerate?: boolean }) =>
+      generateStockAiAnalysis(code, options),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.stocks.aiAnalysis(code, variables.tradeDate),
+      })
+    },
   })
 }

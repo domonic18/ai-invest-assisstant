@@ -107,6 +107,22 @@ export async function fetchStockAiAnalysis(
   }
 }
 
+/** 手动触发个股 AI 分析生成（同步 LLM 调用，约 12-25s，超时放宽到 60s）。 */
+export async function generateStockAiAnalysis(
+  code: string,
+  options: { tradeDate?: string; regenerate?: boolean } = {},
+): Promise<StockAiAnalysis> {
+  const response = await apiClient.post<ApiStockAiAnalysisResponse>(
+    ENDPOINTS.stocks.aiAnalysis(code),
+    {
+      trade_date: options.tradeDate,
+      regenerate: options.regenerate ?? false,
+    },
+    { timeout: 60_000 },
+  )
+  return mapStockAiAnalysis(response.data)
+}
+
 export async function fetchKline(code: string, params: KlineParams = {}) {
   const response = await apiClient.get<ApiPaginatedResponse<ApiKlineDataResponse>>(
     ENDPOINTS.kline.get(code),

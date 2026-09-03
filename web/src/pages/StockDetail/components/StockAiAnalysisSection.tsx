@@ -1,10 +1,11 @@
 import { RobotOutlined } from '@ant-design/icons'
-import { Button, Card, DatePicker, Empty, Typography } from 'antd'
+import { Button, Card, DatePicker, Empty, Typography, message } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useState } from 'react'
 
 import { MarkdownText } from '@/components/common/MarkdownText'
-import { useStockAiAnalysis } from '@/hooks/useStocks'
+import { useGenerateStockAiAnalysis, useStockAiAnalysis } from '@/hooks/useStocks'
+import { apiErrorMessage } from '@/utils/errorMessage'
 
 interface StockAiAnalysisSectionProps {
   stockCode: string
@@ -13,6 +14,18 @@ interface StockAiAnalysisSectionProps {
 export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProps) {
   const [tradeDate, setTradeDate] = useState<string | undefined>(undefined)
   const { data, isLoading, isError, error, refetch } = useStockAiAnalysis(stockCode, tradeDate)
+  const generateMutation = useGenerateStockAiAnalysis(stockCode)
+
+  const generate = (regenerate: boolean) => {
+    generateMutation.mutate(
+      { tradeDate, regenerate },
+      {
+        onSuccess: (result) =>
+          message.success(result.cached ? '已有当日分析，直接展示缓存' : '分析已生成'),
+        onError: (err) => message.error(apiErrorMessage(err, '生成失败，请稍后重试')),
+      },
+    )
+  }
 
   const datePicker = (
     <DatePicker
@@ -25,15 +38,19 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
     />
   )
 
+  const header = (
+    <div className="flex items-center justify-between mb-3">
+      <Typography.Text className="text-gray-400 text-xs tracking-widest">
+        AI 分析
+      </Typography.Text>
+      {datePicker}
+    </div>
+  )
+
   if (isLoading) {
     return (
       <div className="p-3">
-        <div className="flex items-center justify-between mb-3">
-          <Typography.Text className="text-gray-400 text-xs tracking-widest">
-            AI 分析
-          </Typography.Text>
-          {datePicker}
-        </div>
+        {header}
         <div className="text-sm text-gray-400">加载 AI 分析内容…</div>
       </div>
     )
@@ -42,12 +59,7 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
   if (isError) {
     return (
       <div className="p-3">
-        <div className="flex items-center justify-between mb-3">
-          <Typography.Text className="text-gray-400 text-xs tracking-widest">
-            AI 分析
-          </Typography.Text>
-          {datePicker}
-        </div>
+        {header}
         <Empty
           description={error instanceof Error ? error.message : '加载失败'}
           image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -63,16 +75,24 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
   if (!data) {
     return (
       <div className="p-3">
-        <div className="flex items-center justify-between mb-3">
-          <Typography.Text className="text-gray-400 text-xs tracking-widest">
-            AI 分析
-          </Typography.Text>
-          {datePicker}
-        </div>
-        <Empty description="该交易日尚未生成 AI 分析" image={Empty.PRESENTED_IMAGE_SIMPLE}>
-          <span className="text-xs text-gray-500">
-            开启自选股分组的 AI 复盘后，每个交易日收盘自动生成
-          </span>
+        {header}
+        <Empty
+          description="该交易日尚未生成 AI 分析"
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+        >
+          <div className="space-y-2">
+            <Button
+              size="small"
+              type="primary"
+              loading={generateMutation.isPending}
+              onClick={() => generate(false)}
+            >
+              生成{tradeDate ? `${tradeDate} ` : '当日 '}分析
+            </Button>
+            <div className="text-xs text-gray-500">
+              开启自选股分组的 AI 复盘后，每个交易日收盘自动生成
+            </div>
+          </div>
         </Empty>
       </div>
     )
@@ -109,10 +129,20 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
       ) : (
         <Empty description="当日分析内容为空" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       )}
-      <div className="text-xs text-gray-500">
-        模型: {data.model ?? '-'} · 生成时间:{' '}
-        {new Date(data.generatedAt).toLocaleString('zh-CN')}
-        {data.cached && ' · 缓存'}
+      <div className="flex items-center justify-between text-xs text-gray-500">
+        <span>
+          模型: {data.model ?? '-'} · 生成时间:{' '}
+          {new Date(data.generatedAt).toLocaleString('zh-CN')}
+          {data.cached && ' · 缓存'}
+        </span>
+        <Button
+          size="small"
+          type="text"
+          loading={generateMutation.isPending}
+          onClick={() => generate(true)}
+        >
+          重新生成
+        </Button>
       </div>
       <div className="text-center text-xs text-gray-500">
         内容由 AI 生成，仅供参考，不构成投资建议
