@@ -30,7 +30,7 @@
 | F-VIS-06 工作台 | 已实现（批次 C） | `GET /api/v1/workbench` 七模块聚合（整端点鉴权、逐模块降级恒 200）+ `/workbench` 五卡片页；登录默认入口 `/` → `/workbench`，每日复盘迁 `/review` |
 | F-USER-03 用户级模型配置 | 部分实现 | 仅管理员全局 llm_config，无 user 维度 |
 | F-API-01 API-KEY/MCP | 桩 | `/api/v1/mcp/server.py` 返回空，无 API-KEY 管理 |
-| F-AI-01 产业链定时刷新 + AI 提醒 | 部分实现 | 版本管理已有；定时更新任务与提醒面板全缺 |
+| F-AI-01 产业链定时刷新 + AI 提醒 | 实现中（批次 D） | 分支 `feat/batch-d-chain-alerts`：定时刷新四件套 + chain_alert 表 + 图谱页提醒面板 |
 | 小程序端 | 未启动 | V1.0 目标项，整体后置 |
 
 ## 2. 重新评估结论
@@ -100,15 +100,28 @@
 > - **与原计划的偏差**：① 聚合并发用顺序 await 而非 `asyncio.gather`——既有 gather 先例（index_quotation_service）共享单个 AsyncSession 属不安全模式，不复刻，七模块全为 Redis/索引 PG 快读顺序总耗时可控；② `review=None`（当日未生成）按正常空态透传，不计入降级日志；③ 首轮实现未对齐原型（指数埋在重型卡、无分组/AI 摘要），已按 `workbench.html` 重构并补折叠（antd 5.29 Card 无 collapsible，自建 FoldCard）；④ Register.tsx 同步登录后跳转（计划只列 Login.tsx）。
 > - **验收（API 级已过，浏览器侧待人工）**：backend unit 全绿（global_index 4 例 + workbench service 3 例 + watchlist_groups 4 例 + api 用例更新）/ mypy / ruff；web typecheck/lint/test:unit(85)/build 全绿；docker 重建后 curl 实测：无 token `/workbench` 401、带 token（sub=3）200 七字段齐（`watchlist_groups` 分组/AI 状态正确：未开启组 `off`、开启组盘后前 `pending`）、`/market/global-indices` 无鉴权 200、SPA `/workbench` 与 `/review` 均 200。
 
+### 批次 D：产业链 AI 提醒（F-AI-01）+ 存储治理（2026-09-03 立项，分支 `feat/batch-d-chain-alerts`）
+
+> 依赖盘点：V1.2 数据底座（批次 A/B/C）收官后首轮迭代。D1 → D2 串行（告警由刷新任务产出），
+> D3/D4 与主线独立可并行。需求基准 [01-requirement.md F-AI-01](../requirement/01-requirement.md)：
+> 定时自动更新（每周/每月 AI 重新分析）+ 手动触发（已有 POST /chain/analyze）+ AI 提醒 5 触发类型；
+> "重大事件触发刷新"后置池保留。MCP get_chain_alerts 随 F-API-01 后置。
+
+| 项 | 内容 | 关键落点 | 风险 |
+|----|------|----------|------|
+| D1 产业链定时刷新 | 镜像 market-daily-review 四件套：skill yaml（结构化输出 Pydantic 校验，更新内容=财务数据/核心标的/国产化率/动态事件）+ service（input_hash 缓存防重）+ 覆写 run 的 spider + TaskSpec（heavy 队列，逐链串行）+ seed cron；产物走既有版本管理落新版本 | `app/prompts/skills/`、`app/services/chain/`、`collector/spiders/`、`registry.py`、`03-seed.sql` | 中：全链分析 token 成本，需控频（周级） |
+| D2 AI 提醒面板 | `chain_alert` 表（industry/类型/重要程度/触发条件说明/影响环节/建议关注标的）+ 分析任务产出具名告警（5 触发类型：财报异动/评级调整/技术突破/格局变化/政策催化）+ 查询 API + 产业链图谱页顶部提醒面板（按重要程度排序） | `models/`、`docker/database/migrations/`、`api/v1/chain.py`、`web/src/pages/Chain/` | 中：告警去重口径（同链同类型同日唯一） |
+| D3 存储治理三件套 | ① 4 张 hypertable 开 TimescaleDB 压缩策略（`quote_kline_stock_minute` 收益最大，其余为 kline 日线/资金流/全球指数）② collector_log 90 天保留策略 ③ LangGraph checkpoint 随 assistant_session 删除级联清理（存量约 20 孤儿 thread） | `docker/database/migrations/`（均幂等） | 低：压缩段只读不影响写入路径 |
+| D4 工作台板块资金卡接线 | workbench 聚合 +1 模块 sector_flow（`capital_fund_flow_sector` 数据已有，eastmoney_sector_fund_flow 任务在跑），`/workbench`「板块资金动向」空态卡换实数据（涨幅前 N + 色彩走 scheme-aware helpers） | `services/workbench/`、`api/v1/workbench.py`、`shared/types/workbench.ts`、`web/src/pages/Workbench/` | 低 |
+
 ### 后置池（不排序，触发条件成熟再评估）
 
-- 产业链图谱定时自动刷新 + AI 提醒面板（F-AI-01 增强）
+- F-AI-01 增强：重大事件触发产业链刷新（告警驱动再分析）
 - API-KEY 管理 + MCP Server 实装（F-API-01）
 - 用户级模型配置（F-USER-03）
 - 研报 PDF 全文在线阅读、资金流向桑基图（V1.1 遗留）
 - 小程序端（Taro）
 - PG 备份入 COS（硬性排最后）
-- 存储治理三件套（2026-09-02 全库审计发现，上生产前评估）：① 4 张 hypertable 开 TimescaleDB 压缩策略（分钟线收益最大）② collector_log 保留策略（建议 90 天，index-minute/index-spot 占增量约 3/4）③ LangGraph checkpoint 随 assistant_session 删除级联清理（存量约 20 个孤儿 thread）
 
 ## 4. 状态维护
 
