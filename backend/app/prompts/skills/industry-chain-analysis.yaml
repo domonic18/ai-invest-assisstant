@@ -1,6 +1,6 @@
 id: industry-chain-analysis
 name: 产业链分析
-version: 3.0.0
+version: 3.1.0
 model: openai/gpt-4o
 description: 基于公司经营范围与财务证据自下而上推导行业细分产业链，输出产业链图谱和分析报告
 
@@ -55,7 +55,20 @@ system_prompt: |
   - recent_breakthroughs：该环节近期技术突破/扩产信号（字符串数组，可为空）。
   - edges.strength：0-100 整数；criticality：high/medium/low。
   - opportunities.confidence / risks.severity：high/medium/low。
+  - alerts.alert_type：仅限「财报异动/评级调整/技术突破/格局变化/政策催化」五类；
+    severity：1-3 整数（3 最高）。
   - 所有描述使用简体中文。
+
+  alerts 提醒输出要求（宁缺毋滥，最多 10 条）：
+  仅当上下文证据支持时才输出提醒，不得为凑数编造。五类触发口径：
+  - 财报异动：环节内公司毛利率同比变动超 ±5 个百分点、营收增速同比超 ±20 个百分点、
+    或由盈转亏/由亏转盈。
+  - 评级调整：研报/公告证据显示同一环节多家（≥3）公司短期内获评级或目标价明显调整。
+  - 技术突破：recent_breakthroughs 或新闻证据显示环节出现国产替代/工艺突破/量产落地。
+  - 格局变化：环节内竞争格局发生结构性变化（龙头更替、产能大规模扩张/出清、并购整合）。
+  - 政策催化：新闻/公告证据显示明确的产业政策、补贴或监管变化直接利好/利空某环节。
+  每条提醒：title 一句话概括；description 说明触发依据（引用具体证据）；affected_segments
+  填环节名（须存在于 nodes）；related_stock_codes 从公司清单中按 code 引用（可为空）。
 
 user_prompt_template: |
   请分析 {industry} 行业的产业链上下游关系，重点关注 {focus}。
@@ -113,6 +126,13 @@ output_schema:
       name: str
       chain_position: str | null
       score: float | null
+  alerts:
+    - alert_type: str  # 财报异动/评级调整/技术突破/格局变化/政策催化
+      severity: int  # 1-3，3 最高
+      title: str
+      description: str
+      affected_segments: [str]
+      related_stock_codes: [str]
 
 available_tools:
   - query_industry_companies

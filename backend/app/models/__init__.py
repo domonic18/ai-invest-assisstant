@@ -5,6 +5,7 @@ from app.models.assistant_session import AssistantSession
 from app.models.calendar_event import CalendarEvent
 from app.models.capital_fund_flow_sector import SectorFundFlow
 from app.models.capital_fund_flow_stock import FundFlow
+from app.models.chain_alert import ChainAlert
 from app.models.collector_channel_config import CollectorChannelConfig
 from app.models.collector_channel_data_type import CollectorChannelDataType
 from app.models.collector_log import CollectorLog
@@ -45,6 +46,7 @@ __all__ = [
     "BalanceSheet",
     "CalendarEvent",
     "CashFlowStatement",
+    "ChainAlert",
     "ChainAnalysisVersion",
     "ChainCompanyMapping",
     "ChainEdge",

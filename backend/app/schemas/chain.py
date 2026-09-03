@@ -5,7 +5,8 @@
 对外暴露为语义更清晰的 ``industry``（DB 列名仍是 industry_level_1，不改 schema）。
 """
 
-from datetime import datetime
+from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
@@ -91,6 +92,24 @@ class KeyCompanySummary(ChainModel):
     score: float | None = None
 
 
+ChainAlertType = Literal["财报异动", "评级调整", "技术突破", "格局变化", "政策催化"]
+
+
+class ChainAlertItem(ChainModel):
+    """分析产出的产业链提醒条目。
+
+    severity 接收 1-3（3 最高）；LLM 越界值不在此硬拒（避免单条坏数据炸掉整次
+    结构化解析），由 skill 后校验 ``_validate`` 钳制，DB CHECK 兜底。
+    """
+
+    alert_type: ChainAlertType
+    severity: int
+    title: str
+    description: str = ""
+    affected_segments: list[str] = Field(default_factory=list)
+    related_stock_codes: list[str] = Field(default_factory=list)
+
+
 class ChainAnalysisRequest(ChainModel):
     """产业链分析请求。"""
 
@@ -108,6 +127,7 @@ class ChainAnalysisResult(ChainModel):
     opportunities: list[ChainOpportunity] = Field(default_factory=list)
     risks: list[ChainRisk] = Field(default_factory=list)
     key_companies_summary: list[KeyCompanySummary] = Field(default_factory=list)
+    alerts: list[ChainAlertItem] = Field(default_factory=list)
 
     @field_validator("opportunities", mode="before")
     @classmethod
@@ -126,6 +146,19 @@ class ChainAnalysisResult(ChainModel):
         if isinstance(value, list):
             return [
                 {"title": item} if isinstance(item, str) else item for item in value
+            ]
+        return value
+
+    @field_validator("alerts", mode="before")
+    @classmethod
+    def _coerce_alerts(cls, value: object) -> object:
+        """容忍 LLM 输出纯字符串列表，包装为对象。"""
+        if isinstance(value, list):
+            return [
+                {"title": item, "alert_type": "格局变化", "severity": 2}
+                if isinstance(item, str)
+                else item
+                for item in value
             ]
         return value
 
@@ -193,3 +226,17 @@ class ChainCompareResult(ChainModel):
     added_companies: list[ChainCompareCompanyChange] = Field(default_factory=list)
     removed_companies: list[ChainCompareCompanyChange] = Field(default_factory=list)
     metric_changes: list[ChainCompareMetricChange] = Field(default_factory=list)
+
+
+class ChainAlertResponse(ChainModel):
+    """GET /chain/alerts 列表项。"""
+
+    industry: str
+    alert_type: ChainAlertType
+    severity: int
+    title: str
+    description: str
+    affected_segments: list[str] = Field(default_factory=list)
+    related_stock_codes: list[str] = Field(default_factory=list)
+    signal_date: date
+    created_at: datetime
