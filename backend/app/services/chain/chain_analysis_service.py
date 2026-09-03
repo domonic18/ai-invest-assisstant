@@ -1,21 +1,32 @@
 """产业链 AI 分析执行与结果持久化（chain 子域）。
 
-版本管理、详情与对比见 ``chain_service``。
+版本管理、详情与对比见 ``chain_service``；提醒落库由本模块持久化路径自动触发
+（定时刷新与手动分析共用，重复条目由 chain_alert 唯一约束吸收）。
 """
 
 import time
+from datetime import date
 from typing import Any
 
+import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clock import today_cn
 from app.core.exceptions import InternalError
 from app.models.industry_chain import ChainNode
-from app.repositories.chain import industry_chain_repository as repository
+from app.repositories.chain import (
+    chain_alert_repository,
+)
+from app.repositories.chain import (
+    industry_chain_repository as repository,
+)
 from app.repositories.review import ai_analysis_repository
 from app.schemas.chain import ChainAnalysisResult, ChainAnalyzeResponse
 from app.services.admin.llm_config_service import resolve_default_llm
 
 SKILL_ID = "industry-chain-analysis"
+
+logger = structlog.get_logger(__name__)
 
 
 class ChainAnalysisFailedError(InternalError):
@@ -102,14 +113,18 @@ async def persist_analysis_result(
     *,
     model: str | None = None,
     user_id: int = 0,
+    created_by: str = "manual",
+    signal_date: date | None = None,
 ) -> ChainAnalyzeResponse:
-    """将已生成的产业链分析结果持久化为新版本。
+    """将已生成的产业链分析结果持久化为新版本，并落分析产出的提醒。
 
     Args:
         industry: 行业名称。
         result: 已校验的 ChainAnalysisResult。
         model: 可选的生成模型名称，用于 ai_analysis_result 记录。
         user_id: 触发分析的用户 ID，默认 0（系统/全局）。
+        created_by: 版本来源标识（manual/scheduled），定时刷新传 scheduled。
+        signal_date: 提醒信号日，默认当日（CN 日历日）；定时刷新传最近交易日。
 
     Returns:
         包含 version_id / version_no / status 的响应。
@@ -139,6 +154,7 @@ async def persist_analysis_result(
         model=model,
         node_count=len(result.nodes),
         company_count=sum(len(node.companies) for node in result.nodes),
+        created_by=created_by,
     )
     nodes, edges, mappings = _to_graph_rows(industry, version.id, result)
     await repository.replace_graph(
@@ -150,6 +166,20 @@ async def persist_analysis_result(
         edges=edges,
         mappings=mappings,
     )
+    if result.alerts:
+        inserted = await chain_alert_repository.insert_alerts(
+            session,
+            industry=industry,
+            alerts=result.alerts,
+            signal_date=signal_date or today_cn(),
+            version_id=version.id,
+        )
+        logger.info(
+            "chain_alerts_persisted",
+            industry=industry,
+            produced=len(result.alerts),
+            inserted=inserted,
+        )
     await session.commit()
 
     return ChainAnalyzeResponse(

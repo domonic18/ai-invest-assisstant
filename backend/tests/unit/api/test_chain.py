@@ -1,6 +1,6 @@
 """产业链 API 端点契约测试。"""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from unittest.mock import patch
 
 import pytest
@@ -8,6 +8,7 @@ import pytest
 from app.dependencies import get_current_user
 from app.main import app
 from app.schemas.chain import (
+    ChainAlertResponse,
     ChainAnalysisResult,
     ChainAnalyzeResponse,
     ChainCompareResult,
@@ -161,3 +162,50 @@ class TestIndustriesEndpoint:
         assert response.status_code == 200
         assert response.json() == []
         assert mock_list.call_args.args[1] == user.id
+
+
+@pytest.mark.unit
+class TestAlertsEndpoint:
+    @patch("app.api.v1.chain.chain_service.list_alerts")
+    def test_list_alerts(self, mock_list, auth_client) -> None:
+        mock_list.return_value = [
+            ChainAlertResponse(
+                industry="半导体",
+                alert_type="财报异动",
+                severity=3,
+                title="毛利率异动",
+                description="环节毛利率同比 -6pct",
+                affected_segments=["硅材料"],
+                related_stock_codes=["600703"],
+                signal_date=date(2026, 9, 4),
+                created_at=datetime(2026, 9, 5, tzinfo=timezone.utc),
+            )
+        ]
+        response = auth_client.get("/api/v1/chain/alerts?industry=半导体&days=30")
+        assert response.status_code == 200
+        data = response.json()
+        assert data[0]["alertType"] == "财报异动"
+        assert data[0]["severity"] == 3
+        assert data[0]["affectedSegments"] == ["硅材料"]
+        assert data[0]["signalDate"].startswith("2026-09-04")
+        assert mock_list.call_args.args[1] == "半导体"
+        assert mock_list.call_args.kwargs["days"] == 30
+
+    @patch("app.api.v1.chain.chain_service.list_alerts")
+    def test_list_alerts_empty(self, mock_list, auth_client) -> None:
+        mock_list.return_value = []
+        response = auth_client.get("/api/v1/chain/alerts?industry=半导体")
+        assert response.status_code == 200
+        assert response.json() == []
+
+    @patch("app.api.v1.chain.chain_service.list_alerts")
+    def test_list_alerts_requires_industry(self, mock_list, auth_client) -> None:
+        response = auth_client.get("/api/v1/chain/alerts")
+        assert response.status_code == 422
+        mock_list.assert_not_called()
+
+    @patch("app.api.v1.chain.chain_service.list_alerts")
+    def test_list_alerts_requires_auth(self, mock_list, client) -> None:
+        response = client.get("/api/v1/chain/alerts?industry=半导体")
+        assert response.status_code == 401
+        mock_list.assert_not_called()

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.chain import (
+    ChainAlertResponse,
     ChainAnalysisRequest,
     ChainAnalyzeResponse,
     ChainCompareResult,
@@ -30,6 +31,17 @@ async def list_industries(
 ) -> list[str]:
     """列出当前用户已有成功分析版本的所有行业名称（最近更新在前）。"""
     return await chain_service.list_industries(session, user.id)
+
+
+@router.get("/alerts", response_model=list[ChainAlertResponse])
+async def list_alerts(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+    industry: Annotated[str, Query(min_length=1, max_length=50)],
+    days: Annotated[int, Query(ge=1, le=365)] = 30,
+) -> list[ChainAlertResponse]:
+    """查询指定行业近 N 天的 AI 提醒（severity 降序）。"""
+    return await chain_service.list_alerts(session, industry, days=days)
 
 
 @router.post("/analyze", response_model=ChainAnalyzeResponse)
