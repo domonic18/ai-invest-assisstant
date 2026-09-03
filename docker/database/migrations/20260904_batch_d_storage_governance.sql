@@ -30,14 +30,17 @@ ALTER TABLE capital_fund_flow_stock SET (
 );
 
 -- 分钟线 14 天后压缩（chunk 默认 7 天，收益最大）；日表 90 天，
--- 为盘后回补/修正留足可写窗口
+-- 为盘后回补/修正留足可写窗口。
+-- 幂等检查查 timescaledb_information.jobs（compression_policies 视图
+-- 在 TimescaleDB 2.28 不存在）
 DO $$
 DECLARE
     job_count int;
 BEGIN
     SELECT count(*) INTO job_count
-    FROM timescaledb_information.compression_policies
-    WHERE hypertable_name = 'quote_kline_stock_minute';
+    FROM timescaledb_information.jobs
+    WHERE proc_name = 'policy_compression'
+      AND hypertable_name = 'quote_kline_stock_minute';
     IF job_count = 0 THEN
         PERFORM add_compression_policy(
             'quote_kline_stock_minute', INTERVAL '14 days'
@@ -45,8 +48,9 @@ BEGIN
     END IF;
 
     SELECT count(*) INTO job_count
-    FROM timescaledb_information.compression_policies
-    WHERE hypertable_name = 'quote_kline_stock_daily';
+    FROM timescaledb_information.jobs
+    WHERE proc_name = 'policy_compression'
+      AND hypertable_name = 'quote_kline_stock_daily';
     IF job_count = 0 THEN
         PERFORM add_compression_policy(
             'quote_kline_stock_daily', INTERVAL '90 days'
@@ -54,8 +58,9 @@ BEGIN
     END IF;
 
     SELECT count(*) INTO job_count
-    FROM timescaledb_information.compression_policies
-    WHERE hypertable_name = 'capital_fund_flow_stock';
+    FROM timescaledb_information.jobs
+    WHERE proc_name = 'policy_compression'
+      AND hypertable_name = 'capital_fund_flow_stock';
     IF job_count = 0 THEN
         PERFORM add_compression_policy(
             'capital_fund_flow_stock', INTERVAL '90 days'
