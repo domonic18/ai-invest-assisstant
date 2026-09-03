@@ -91,6 +91,7 @@ export const ENDPOINTS = {
     limitUpAiReview: `${API_BASE}/market/limit-up/ai-review`,
     sectors: `${API_BASE}/market/sectors`,
     aiReview: `${API_BASE}/market/ai-review`,
+    globalIndices: `${API_BASE}/market/global-indices`,
     collect: `${API_BASE}/market/collect`,
   },
   calendar: {
@@ -99,6 +100,9 @@ export const ENDPOINTS = {
   },
   telegraph: {
     list: `${API_BASE}/telegraph`,
+  },
+  workbench: {
+    base: `${API_BASE}/workbench`,
   },
   admin: {
     users: `${API_BASE}/admin/users`,
