@@ -4,6 +4,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 import type { CalendarEvent, CalendarEventCategory } from '@ai-invest/shared'
 
 import { categoryMeta } from './categoryMeta'
+import { eventTimeHm } from './eventTime'
 
 interface ListViewProps {
   month: Dayjs
@@ -17,11 +18,19 @@ export function ListView({ month, events, onSelectEvent }: ListViewProps) {
       title: '日期 / 时间',
       key: 'time',
       width: 150,
-      render: (_: unknown, record: CalendarEvent) => (
-        <span className="font-mono tabular-nums">
-          {dayjs(record.eventTime).format('MM-DD HH:mm')}
-        </span>
-      ),
+      render: (_: unknown, record: CalendarEvent) => {
+        const hm = eventTimeHm(record)
+        return (
+          <span className="font-mono tabular-nums">
+            {dayjs(record.eventTime).format('MM-DD')}{' '}
+            {hm ?? (
+              <span className={`font-bold ${categoryMeta(record.category).dotClass}`}>
+                ·
+              </span>
+            )}
+          </span>
+        )
+      },
     },
     {
       title: '事件',

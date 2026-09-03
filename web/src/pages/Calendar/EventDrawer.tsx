@@ -1,10 +1,12 @@
 import { Descriptions, Drawer, Tag, Typography } from 'antd'
+import dayjs from 'dayjs'
 
 import type { CalendarEvent } from '@ai-invest/shared'
 
-import { formatDateTime } from '@/utils/formatters'
+import { formatDate, formatDateTime } from '@/utils/formatters'
 
 import { categoryMeta } from './categoryMeta'
+import { isDateOnlyEvent } from './eventTime'
 
 interface EventDrawerProps {
   event: CalendarEvent | null
@@ -19,9 +21,11 @@ export function EventDrawer({ event, onClose }: EventDrawerProps) {
           <Tag color={categoryMeta(event.category).tagColor}>{event.category}</Tag>
           <Descriptions column={1} size="small" bordered>
             <Descriptions.Item label="事件时间">
-              {formatDateTime(event.eventTime)}
+              {isDateOnlyEvent(event)
+                ? formatDate(event.eventTime)
+                : formatDateTime(event.eventTime)}
             </Descriptions.Item>
-            {event.endTime && (
+            {event.endTime && !dayjs(event.endTime).isSame(dayjs(event.eventTime), 'minute') && (
               <Descriptions.Item label="结束时间">
                 {formatDateTime(event.endTime)}
               </Descriptions.Item>

@@ -3,6 +3,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 import type { CalendarEvent } from '@ai-invest/shared'
 
 import { categoryMeta } from './categoryMeta'
+import { eventTimeHm } from './eventTime'
 import { mondayOf } from './weekRange'
 
 const DOW_LABELS = ['一', '二', '三', '四', '五', '六', '日']
@@ -47,16 +48,23 @@ export function WeekView({ weekAnchor, events, onSelectEvent }: WeekViewProps) {
             {dayEvents.length === 0 ? (
               <div className="text-[11px] text-gray-600">暂无事件</div>
             ) : (
-              dayEvents.map((event) => (
-                <div
-                  key={event.id}
-                  onClick={() => onSelectEvent(event)}
-                  className={`mb-1.5 px-1.5 py-1 rounded text-[11px] leading-snug cursor-pointer border-l-2 ${categoryMeta(event.category).chipClass}`}
-                >
-                  <span className="font-mono">{dayjs(event.eventTime).format('HH:mm')}</span>{' '}
-                  {event.title}
-                </div>
-              ))
+              dayEvents.map((event) => {
+                const hm = eventTimeHm(event)
+                return (
+                  <div
+                    key={event.id}
+                    onClick={() => onSelectEvent(event)}
+                    className={`mb-1.5 px-1.5 py-1 rounded text-[11px] leading-snug cursor-pointer border-l-2 ${categoryMeta(event.category).chipClass}`}
+                  >
+                    {hm ? (
+                      <span className="font-mono">{hm}</span>
+                    ) : (
+                      <span className="font-bold">·</span>
+                    )}{' '}
+                    {event.title}
+                  </div>
+                )
+              })
             )}
           </div>
         )

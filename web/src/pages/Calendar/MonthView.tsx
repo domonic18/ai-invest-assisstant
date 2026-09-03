@@ -3,6 +3,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 import type { CalendarEvent } from '@ai-invest/shared'
 
 import { categoryMeta } from './categoryMeta'
+import { eventTimeHm } from './eventTime'
 
 const DOW_LABELS = ['日', '一', '二', '三', '四', '五', '六']
 const MAX_CHIPS = 3
@@ -54,16 +55,24 @@ export function MonthView({ month, events, onSelectEvent }: MonthViewProps) {
               >
                 {date.date()}
               </span>
-              {dayEvents.slice(0, MAX_CHIPS).map((event) => (
-                <div
-                  key={event.id}
-                  onClick={() => onSelectEvent(event)}
-                  className={`mt-1 px-1.5 py-0.5 rounded text-[11px] leading-snug truncate cursor-pointer border-l-2 ${categoryMeta(event.category).chipClass}`}
-                  title={event.title}
-                >
-                  {dayjs(event.eventTime).format('HH:mm')} {event.title}
-                </div>
-              ))}
+              {dayEvents.slice(0, MAX_CHIPS).map((event) => {
+                const hm = eventTimeHm(event)
+                return (
+                  <div
+                    key={event.id}
+                    onClick={() => onSelectEvent(event)}
+                    className={`mt-1 px-1.5 py-0.5 rounded text-[11px] leading-snug truncate cursor-pointer border-l-2 ${categoryMeta(event.category).chipClass}`}
+                    title={event.title}
+                  >
+                    {hm ? (
+                      <span className="font-mono">{hm}</span>
+                    ) : (
+                      <span className="font-bold">·</span>
+                    )}{' '}
+                    {event.title}
+                  </div>
+                )
+              })}
               {dayEvents.length > MAX_CHIPS && (
                 <div className="mt-1 text-[11px] text-gray-500">+{dayEvents.length - MAX_CHIPS}</div>
               )}
