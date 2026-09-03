@@ -2,12 +2,22 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   analyzeChain,
+  fetchChainAlerts,
   fetchChainCompare,
   fetchChainIndustries,
   fetchChainLatest,
   fetchChainVersion,
   fetchChainVersions,
 } from '@/api/chain'
+
+export function useChainAlerts(industry: string | undefined, days = 30) {
+  return useQuery({
+    queryKey: ['chain', 'alerts', industry, days],
+    queryFn: () => fetchChainAlerts(industry!, days),
+    enabled: !!industry,
+    staleTime: 5 * 60 * 1000,
+  })
+}
 
 export function useChainLatest(industry: string | undefined) {
   return useQuery({

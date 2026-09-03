@@ -1,13 +1,10 @@
-"""产业链分析 Skill 执行。
+"""产业链分析单轮执行器。
 
-.. deprecated::
-    该 PydanticAI 单轮执行器已被 Skill 驱动的 Assistant Agent 工作流替代。
-    产业链分析逻辑现在由 ``skills/industry-chain-analysis/SKILL.md`` 描述，
-    Agent 通过读取 SKILL.md 并调用平台工具完成分析。
-    保留本模块仅作兼容，新实现请勿依赖。
+定时刷新（chain-refresh 任务）与 ``POST /chain/analyze`` 兼容入口共用本模块；
+交互式产业链分析走 Skill 驱动的 Assistant Agent 工作流
+（``skills/industry-chain-analysis/SKILL.md``），两者共享同一份 skill yaml。
 """
 
-import warnings
 from typing import Any
 
 from sqlalchemy import select
@@ -21,15 +18,9 @@ from app.core.config import get_settings
 from app.models.stock import StockBasic
 from app.schemas.chain import ChainAnalysisResult
 
-warnings.warn(
-    "industry_chain_analysis.run_skill is deprecated; "
-    "use the Skill-driven Assistant Agent workflow instead.",
-    DeprecationWarning,
-    stacklevel=2,
-)
-
 _MAX_NODES = 40
 _MAX_COMPANIES_PER_NODE = 5
+_MAX_ALERTS = 10
 _COMPANY_PREFETCH_LIMIT = 150
 _FINANCIAL_PREFETCH_COUNT = 40
 _BUSINESS_SCOPE_MAX_CHARS = 120
@@ -89,6 +80,17 @@ async def _validate(
     result.key_companies_summary = [
         item for item in result.key_companies_summary if item.code in valid_codes
     ]
+
+    cleaned_alerts = [alert for alert in result.alerts[:_MAX_ALERTS] if alert.title]
+    for alert in cleaned_alerts:
+        alert.severity = max(1, min(3, alert.severity))
+        alert.affected_segments = [
+            segment for segment in alert.affected_segments if segment in node_names
+        ]
+        alert.related_stock_codes = [
+            code for code in alert.related_stock_codes if code in valid_codes
+        ]
+    result.alerts = cleaned_alerts
     return result
 
 

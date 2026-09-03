@@ -2,7 +2,9 @@ import { ENDPOINTS } from '@ai-invest/shared'
 import type {
   ApiGlobalIndexQuoteResponse,
   ApiWorkbenchResponse,
+  ApiWorkbenchSectorFlowItem,
   GlobalIndexQuote,
+  WorkbenchSectorFlowItem,
   WorkbenchWatchlistGroup,
   WorkbenchWatchlistStock,
   WorkbenchOverview,
@@ -60,6 +62,17 @@ export function mapWatchlistGroup(
   }
 }
 
+export function mapSectorFlowItem(
+  dto: ApiWorkbenchSectorFlowItem,
+): WorkbenchSectorFlowItem {
+  return {
+    sectorName: dto.sector_name,
+    changePct: dto.change_pct,
+    mainNetInflow: dto.main_net_inflow,
+    topStockName: dto.top_stock_name,
+  }
+}
+
 export function mapWorkbench(dto: ApiWorkbenchResponse): WorkbenchOverview {
   return {
     calendar: dto.calendar.map(mapCalendarEvent),
@@ -69,6 +82,7 @@ export function mapWorkbench(dto: ApiWorkbenchResponse): WorkbenchOverview {
     indices: dto.indices.map(mapIndexQuote),
     stats: dto.stats ? mapMarketStats(dto.stats) : null,
     globalIndices: dto.global_indices.map(mapGlobalIndexQuote),
+    sectorFlow: dto.sector_flow.map(mapSectorFlowItem),
   }
 }
 

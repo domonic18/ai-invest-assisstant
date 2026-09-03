@@ -15,22 +15,23 @@ VALUES
     ('601318', '中国平安', 'sh', '非银金融', '保险', '保险III', '2007-03-01')
 ON CONFLICT (stock_code, market) DO NOTHING;
 
--- market_daily_review_1600 / limit_up_ai_review_1630 / stock_daily_analysis_1640 任务的 internal 渠道（内部生成，非外部数据源）
+-- market_daily_review_1600 / limit_up_ai_review_1630 / stock_daily_analysis_1640 /
+-- chain_refresh_weekly / collector_log_cleanup_daily 任务的 internal 渠道（内部生成，非外部数据源）
 -- supported_data_types 与 collector_channel_data_type 按任务名登记（渠道解析/beat 派发以任务名为键）
 INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
-VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis"]'::jsonb)
+VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup"]'::jsonb)
 ON CONFLICT (source) DO NOTHING;
 
 -- 兼容存量环境：internal 渠道已存在时补齐后续新增的数据类型
 UPDATE collector_channel_config
-SET supported_data_types = supported_data_types || '["stock-daily-analysis"]'::jsonb
+SET supported_data_types = supported_data_types || '["stock-daily-analysis", "chain-refresh", "collector-log-cleanup"]'::jsonb
 WHERE source = 'internal'
-  AND NOT supported_data_types @> '["stock-daily-analysis"]'::jsonb;
+  AND NOT supported_data_types @> '["chain-refresh"]'::jsonb;
 
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, d.data_type, 1
 FROM collector_channel_config,
-     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis')) AS d(data_type)
+     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup')) AS d(data_type)
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
@@ -79,6 +80,10 @@ VALUES
     ('limit_up_ai_review_1630', 'limit-up-ai-review', 'internal', '30 16 * * 1-5', true),
     -- 16:40 遍历开启 AI 复盘分组的自选股逐只生成个股分析，晚于大盘复盘
     ('stock_daily_analysis_1640', 'ai_stock_daily_analysis', 'internal', '40 16 * * 1-5', true),
+    -- 周六 06:00 对已有成功版本的产业链重新 AI 分析并落新版本（非交易日运行，无交易日门控）
+    ('chain_refresh_weekly', 'chain-refresh', 'internal', '0 6 * * 6', true),
+    -- 每日 03:40 清理 90 天前的采集执行日志
+    ('collector_log_cleanup_daily', 'collector-log-cleanup', 'internal', '40 3 * * *', true),
     -- 研报每日 8 点/18 点采集（东财 reportapi 列表 + PDF 落 MinIO）
     ('eastmoney_research_report', 'research-report', 'eastmoney', '0 8,18 * * *', true)
 ON CONFLICT (task_name) DO NOTHING;

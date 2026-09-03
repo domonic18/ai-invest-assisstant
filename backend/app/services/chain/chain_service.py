@@ -4,13 +4,20 @@ AI 分析执行与结果持久化见 ``chain_analysis_service``，此处 re-expo
 ``app.services.chain.chain_service.analyze_and_persist`` 等既有调用点不变。
 """
 
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.industry_chain import ChainAnalysisVersion
-from app.repositories.chain import industry_chain_repository as repository
+from app.repositories.chain import (
+    chain_alert_repository,
+)
+from app.repositories.chain import (
+    industry_chain_repository as repository,
+)
 from app.schemas.chain import (
+    ChainAlertResponse,
+    ChainAlertType,
     ChainAnalysisResult,
     ChainCompareCompanyChange,
     ChainCompareMetricChange,
@@ -30,6 +37,7 @@ __all__ = [
     "compare_versions",
     "get_latest_detail",
     "get_version_detail",
+    "list_alerts",
     "list_industries",
     "list_versions",
     "persist_analysis_result",
@@ -71,6 +79,27 @@ async def list_versions(
 async def list_industries(session: AsyncSession, user_id: int) -> list[str]:
     """列出该用户已有成功分析版本的所有行业名称（最近更新在前）。"""
     return await repository.list_industries(session, user_id)
+
+
+async def list_alerts(
+    session: AsyncSession, industry: str, days: int = 30
+) -> list[ChainAlertResponse]:
+    """查询指定行业近 N 天 AI 提醒（severity 降序，行业级全局数据）。"""
+    alerts = await chain_alert_repository.list_alerts(session, industry, days)
+    return [
+        ChainAlertResponse(
+            industry=alert.industry,
+            alert_type=cast(ChainAlertType, alert.alert_type),
+            severity=alert.severity,
+            title=alert.title,
+            description=alert.description,
+            affected_segments=alert.affected_segments or [],
+            related_stock_codes=alert.related_stock_codes or [],
+            signal_date=alert.signal_date,
+            created_at=alert.created_at,
+        )
+        for alert in alerts
+    ]
 
 
 def _parse_snapshot(version: ChainAnalysisVersion) -> ChainAnalysisResult | None:

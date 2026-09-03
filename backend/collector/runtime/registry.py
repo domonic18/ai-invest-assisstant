@@ -361,6 +361,27 @@ TASK_SPECS: dict[str, TaskSpec] = {
             run_params=("trade_date",),
             converters={"trade_date": date.fromisoformat},
         ),
+        TaskSpec(
+            name="chain-refresh",
+            label="产业链定时刷新",
+            data_type="ai_chain_refresh",
+            collectors={
+                "internal": "collector.spiders.chain_refresh:ChainRefreshCollector",
+            },
+            run_params=("trade_date",),
+            converters={"trade_date": date.fromisoformat},
+        ),
+        TaskSpec(
+            name="collector-log-cleanup",
+            label="采集日志保留清理",
+            data_type="system_maintenance",
+            collectors={
+                "internal": (
+                    "collector.spiders.collector_log_cleanup:"
+                    "CollectorLogCleanupCollector"
+                ),
+            },
+        ),
     ]
 }
 
@@ -386,6 +407,8 @@ _QUEUE_OVERRIDES: dict[str, Literal["realtime", "batch", "heavy"]] = {
     "limit-up-ai-review": "heavy",
     "stock-daily-analysis": "heavy",
     "research-report": "heavy",
+    # 全链 AI 分析逐链分钟级，逐链串行走 heavy 专用 worker
+    "chain-refresh": "heavy",
 }
 
 TASK_SPECS = {

@@ -35,6 +35,7 @@ import { useAssistantStore } from '@/stores/assistant'
 import { useColorScheme } from '@/stores/settings'
 import type { ChainNode } from '@ai-invest/shared'
 
+import { ChainAlertPanel } from './components/ChainAlertPanel'
 import { InsightTabs } from './components/InsightTabs'
 import { KeyCompaniesPanel } from './components/KeyCompaniesPanel'
 import { NodeDetailCard } from './components/NodeDetailCard'
@@ -263,6 +264,8 @@ export function ChainAnalysis() {
           </div>
         </div>
       </Modal>
+
+      <ChainAlertPanel industry={activeIndustry} />
 
       {versions.length > 0 && (
         <VersionSwitcher

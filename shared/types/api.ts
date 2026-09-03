@@ -340,6 +340,18 @@ export interface ApiChainCompareResult {
   metricChanges: ApiChainCompareMetricChange[]
 }
 
+export interface ApiChainAlert {
+  industry: string
+  alertType: string
+  severity: number
+  title: string
+  description: string
+  affectedSegments: string[]
+  relatedStockCodes: string[]
+  signalDate: string
+  createdAt: string
+}
+
 export interface ApiLLMConfigResponse {
   id: number
   name: string

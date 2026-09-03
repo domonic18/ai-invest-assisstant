@@ -106,3 +106,24 @@ export interface ChainCompareResult {
   removedCompanies: ChainCompareCompanyChange[]
   metricChanges: ChainCompareMetricChange[]
 }
+
+/** 产业链提醒类型：与后端 ChainAlertType 枚举一致。 */
+export type ChainAlertType =
+  | '财报异动'
+  | '评级调整'
+  | '技术突破'
+  | '格局变化'
+  | '政策催化'
+
+/** 产业链提醒（客户端视图模型）。 */
+export interface ChainAlert {
+  industry: string
+  alertType: ChainAlertType
+  severity: number
+  title: string
+  description: string
+  affectedSegments: string[]
+  relatedStockCodes: string[]
+  signalDate: string
+  createdAt: string
+}

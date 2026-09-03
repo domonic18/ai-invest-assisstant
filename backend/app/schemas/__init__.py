@@ -6,6 +6,8 @@ from app.schemas.capital_fund_flow_sector import (
     SectorFundFlowResponse,
 )
 from app.schemas.chain import (
+    ChainAlertItem,
+    ChainAlertResponse,
     ChainAnalysisRequest,
     ChainAnalysisResult,
     ChainCompany,
@@ -100,6 +102,8 @@ __all__ = [
     "FundFlowResponse",
     "PaginationParams",
     "PaginatedResponse",
+    "ChainAlertItem",
+    "ChainAlertResponse",
     "ChainAnalysisRequest",
     "ChainAnalysisResult",
     "ChainCompany",

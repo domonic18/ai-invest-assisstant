@@ -33,3 +33,26 @@ async def list_recent(
         )
     )
     return list((await session.execute(stmt)).scalars().all())
+
+
+async def list_latest_day(
+    session: AsyncSession, sector_type: str = "industry", limit: int = 8
+) -> list[SectorFundFlow]:
+    """最新一个有数据交易日的板块排行，主力净流入降序取前 N。"""
+    latest_date = (
+        select(SectorFundFlow.trade_date)
+        .where(SectorFundFlow.sector_type == sector_type)
+        .order_by(SectorFundFlow.trade_date.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    stmt = (
+        select(SectorFundFlow)
+        .where(
+            SectorFundFlow.sector_type == sector_type,
+            SectorFundFlow.trade_date == latest_date,
+        )
+        .order_by(SectorFundFlow.main_net_inflow.desc().nullslast())
+        .limit(limit)
+    )
+    return list((await session.execute(stmt)).scalars().all())

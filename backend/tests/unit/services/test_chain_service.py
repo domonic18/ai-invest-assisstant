@@ -1,14 +1,17 @@
 """产业链分析服务契约测试。"""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.agent.skills import industry_chain_analysis
+from app.models.chain_alert import ChainAlert
 from app.models.industry_chain import ChainAnalysisVersion
 from app.schemas.chain import (
+    ChainAlertItem,
+    ChainAlertResponse,
     ChainAnalysisResult,
     ChainCompany,
     ChainEdge,
@@ -251,3 +254,105 @@ class TestCompareVersions:
         ):
             assert await chain_service.compare_versions(AsyncMock(), 1, 99, user_id=0) is None
             assert await chain_service.compare_versions(AsyncMock(), 1, 1, user_id=0) is None
+
+
+@pytest.mark.unit
+class TestPersistAlerts:
+    async def _persist(self, result: ChainAnalysisResult, **kwargs: object) -> object:
+        with (
+            patch.object(
+                chain_analysis_service.repository,
+                "next_version_number",
+                new=AsyncMock(return_value=3),
+            ),
+            patch.object(
+                chain_analysis_service,
+                "_insert_ai_result",
+                new=AsyncMock(return_value=44),
+            ),
+            patch.object(
+                chain_analysis_service.repository,
+                "create_version",
+                new=AsyncMock(return_value=_version(9, 3)),
+            ) as mock_create,
+            patch.object(
+                chain_analysis_service.repository, "replace_graph", new=AsyncMock()
+            ),
+            patch.object(
+                chain_analysis_service.chain_alert_repository,
+                "insert_alerts",
+                new=AsyncMock(return_value=1),
+            ) as mock_alerts,
+        ):
+            session = AsyncMock()
+            response = await chain_analysis_service.persist_analysis_result(
+                session, "半导体", result, **kwargs
+            )
+        return response, mock_create, mock_alerts
+
+    @pytest.mark.asyncio
+    async def test_persists_alerts_with_signal_date_and_created_by(self) -> None:
+        result = _result()
+        result.alerts = [
+            ChainAlertItem(
+                alert_type="财报异动",
+                severity=3,
+                title="毛利率异动",
+                description="环节毛利率同比 -6pct",
+                affected_segments=["硅材料"],
+                related_stock_codes=["600703"],
+            )
+        ]
+
+        _, mock_create, mock_alerts = await self._persist(
+            result,
+            user_id=3,
+            created_by="scheduled",
+            signal_date=date(2026, 9, 4),
+        )
+
+        assert mock_create.await_args.kwargs["created_by"] == "scheduled"
+        alerts_kwargs = mock_alerts.await_args.kwargs
+        assert alerts_kwargs["industry"] == "半导体"
+        assert alerts_kwargs["signal_date"] == date(2026, 9, 4)
+        assert alerts_kwargs["version_id"] == 9
+        assert alerts_kwargs["alerts"][0].title == "毛利率异动"
+
+    @pytest.mark.asyncio
+    async def test_skips_alert_insert_without_alerts(self) -> None:
+        _, mock_create, mock_alerts = await self._persist(
+            _result(), user_id=3, created_by="scheduled"
+        )
+
+        assert mock_create.await_args.kwargs["created_by"] == "scheduled"
+        mock_alerts.assert_not_awaited()
+
+
+@pytest.mark.unit
+class TestListAlerts:
+    @pytest.mark.asyncio
+    async def test_maps_rows_to_response(self) -> None:
+        alert = ChainAlert(
+            id=1,
+            industry="半导体",
+            alert_type="技术突破",
+            severity=3,
+            title="光刻胶国产替代",
+            description="d",
+            affected_segments=["光刻胶"],
+            related_stock_codes=["600703"],
+            signal_date=date(2026, 9, 4),
+            created_at=datetime(2026, 9, 5, tzinfo=timezone.utc),
+        )
+        with patch.object(
+            chain_service.chain_alert_repository,
+            "list_alerts",
+            new=AsyncMock(return_value=[alert]),
+        ):
+            rows = await chain_service.list_alerts(AsyncMock(), "半导体", days=30)
+
+        assert len(rows) == 1
+        assert isinstance(rows[0], ChainAlertResponse)
+        assert rows[0].alert_type == "技术突破"
+        assert rows[0].affected_segments == ["光刻胶"]
+        assert rows[0].signal_date == date(2026, 9, 4)
