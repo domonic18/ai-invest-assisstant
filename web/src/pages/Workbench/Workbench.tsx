@@ -9,7 +9,6 @@ import { IndexStrip } from './components/IndexStrip'
 import { QuickEntriesCard } from './components/QuickEntriesCard'
 import { ReviewSummaryCard } from './components/ReviewSummaryCard'
 import { SectorFlowCard } from './components/SectorFlowCard'
-import { StockSearch } from './components/StockSearch'
 import { TelegraphCard } from './components/TelegraphCard'
 import { WatchlistOverviewCard } from './components/WatchlistOverviewCard'
 
@@ -40,9 +39,8 @@ export function Workbench() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="flex items-baseline justify-between">
         <Typography.Title level={4} className="!mb-0">工作台</Typography.Title>
-        <StockSearch />
         <Typography.Text className="text-xs text-gray-500 font-mono" data-testid="workbench-clock">
           {now.format('YYYY-MM-DD')} 周{WEEKDAYS[now.day()]}{' '}
           {now.format('HH:mm:ss')}
