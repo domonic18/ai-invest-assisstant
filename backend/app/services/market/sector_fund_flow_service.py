@@ -4,6 +4,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.market import sector_fund_flow_repository
 from app.schemas.capital_fund_flow_sector import SectorFlowSeries, SectorFlowTrendResponse
+from app.schemas.workbench import SectorFlowItem
+
+
+async def get_latest_sector_flow(
+    session: AsyncSession, sector_type: str = "industry", limit: int = 8
+) -> list[SectorFlowItem]:
+    """最新一个有数据交易日的板块主力净流入排行（单位换算为亿元）。"""
+    rows = await sector_fund_flow_repository.list_latest_day(
+        session, sector_type=sector_type, limit=limit
+    )
+    return [
+        SectorFlowItem(
+            sector_name=row.sector_name,
+            change_pct=round(float(row.change_pct), 2) if row.change_pct is not None else None,
+            main_net_inflow=(
+                round(float(row.main_net_inflow) / 1e8, 2)
+                if row.main_net_inflow is not None
+                else None
+            ),
+            top_stock_name=row.top_stock_name,
+        )
+        for row in rows
+    ]
 
 
 async def get_sector_flow_trend(

@@ -11,6 +11,7 @@ from app.services.market import (
     global_index_service,
     index_quotation_service,
     market_stats_service,
+    sector_fund_flow_service,
     telegraph_service,
 )
 from app.services.review import market_review_service
@@ -71,5 +72,10 @@ async def get_workbench(session: AsyncSession, user_id: int) -> WorkbenchRespons
         data.global_indices = await global_index_service.get_global_index_quotes(session)
     except Exception:
         logger.warning("workbench_global_indices_degraded", exc_info=True)
+
+    try:
+        data.sector_flow = await sector_fund_flow_service.get_latest_sector_flow(session)
+    except Exception:
+        logger.warning("workbench_sector_flow_degraded", exc_info=True)
 
     return data

@@ -66,7 +66,7 @@ export function Workbench() {
 
         <div className="space-y-5">
           <CalendarSummaryCard events={data?.calendar} loading={isLoading} />
-          <SectorFlowCard />
+          <SectorFlowCard items={data?.sectorFlow} loading={isLoading} />
           <QuickEntriesCard />
         </div>
       </div>

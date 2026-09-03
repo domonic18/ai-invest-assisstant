@@ -32,8 +32,17 @@ class WorkbenchWatchlistGroup(BaseModel):
     items: list[WorkbenchWatchlistStock] = []
 
 
+class SectorFlowItem(BaseModel):
+    """板块资金动向卡单行：最新交易日主力净流入排行（金额单位亿元）。"""
+
+    sector_name: str
+    change_pct: float | None = None
+    main_net_inflow: float | None = None
+    top_stock_name: str | None = None
+
+
 class WorkbenchResponse(BaseModel):
-    """工作台五模块聚合数据；单模块降级时对应字段为空态而非整体报错。"""
+    """工作台六模块聚合数据；单模块降级时对应字段为空态而非整体报错。"""
 
     calendar: list[CalendarEventResponse] = []
     review: MarketReviewResponse | None = None
@@ -42,3 +51,4 @@ class WorkbenchResponse(BaseModel):
     indices: list[IndexQuoteResponse] = []
     stats: MarketStatsResponse | None = None
     global_indices: list[GlobalIndexQuoteResponse] = []
+    sector_flow: list[SectorFlowItem] = []

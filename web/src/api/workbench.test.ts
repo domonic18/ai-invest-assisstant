@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { mapGlobalIndexQuote, mapWorkbench } from './workbench'
+import { mapGlobalIndexQuote, mapSectorFlowItem, mapWorkbench } from './workbench'
 
 import type {
   ApiCalendarEventResponse,
@@ -8,6 +8,7 @@ import type {
   ApiIndexQuoteResponse,
   ApiMarketReviewResponse,
   ApiMarketStatsResponse,
+  ApiWorkbenchSectorFlowItem,
   ApiTelegraphResponse,
   ApiWorkbenchResponse,
   ApiWorkbenchWatchlistGroup,
@@ -123,8 +124,38 @@ describe('mapGlobalIndexQuote', () => {
   })
 })
 
+const sectorFlowDto: ApiWorkbenchSectorFlowItem = {
+  sector_name: '半导体',
+  change_pct: 2.35,
+  main_net_inflow: 48.6,
+  top_stock_name: '中芯国际',
+}
+
+describe('mapSectorFlowItem', () => {
+  it('maps fields to camelCase', () => {
+    expect(mapSectorFlowItem(sectorFlowDto)).toEqual({
+      sectorName: '半导体',
+      changePct: 2.35,
+      mainNetInflow: 48.6,
+      topStockName: '中芯国际',
+    })
+  })
+
+  it('keeps null metrics as null', () => {
+    const item = mapSectorFlowItem({
+      sector_name: '银行',
+      change_pct: null,
+      main_net_inflow: null,
+      top_stock_name: null,
+    })
+    expect(item.changePct).toBeNull()
+    expect(item.mainNetInflow).toBeNull()
+    expect(item.topStockName).toBeNull()
+  })
+})
+
 describe('mapWorkbench', () => {
-  it('maps all seven modules', () => {
+  it('maps all eight modules', () => {
     const dto: ApiWorkbenchResponse = {
       calendar: [calendarDto],
       review: reviewDto,
@@ -133,6 +164,7 @@ describe('mapWorkbench', () => {
       indices: [indexDto],
       stats: statsDto,
       global_indices: [globalDto],
+      sector_flow: [sectorFlowDto],
     }
 
     const overview = mapWorkbench(dto)
@@ -149,6 +181,8 @@ describe('mapWorkbench', () => {
     expect(overview.indices[0].code).toBe('sh000001')
     expect(overview.stats?.emotionScore).toBe(55)
     expect(overview.globalIndices[0].indexName).toBe('伦敦金')
+    expect(overview.sectorFlow[0].sectorName).toBe('半导体')
+    expect(overview.sectorFlow[0].mainNetInflow).toBe(48.6)
   })
 
   it('passes null review/stats through as null', () => {
@@ -160,11 +194,13 @@ describe('mapWorkbench', () => {
       indices: [],
       stats: null,
       global_indices: [],
+      sector_flow: [],
     }
 
     const overview = mapWorkbench(dto)
     expect(overview.review).toBeNull()
     expect(overview.stats).toBeNull()
     expect(overview.calendar).toEqual([])
+    expect(overview.sectorFlow).toEqual([])
   })
 })

@@ -8,7 +8,11 @@ import pytest
 from app.schemas.calendar import CalendarEventResponse
 from app.schemas.market import GlobalIndexQuoteResponse
 from app.schemas.telegraph import TelegraphResponse
-from app.schemas.workbench import WorkbenchResponse, WorkbenchWatchlistGroup
+from app.schemas.workbench import (
+    SectorFlowItem,
+    WorkbenchResponse,
+    WorkbenchWatchlistGroup,
+)
 from app.services.workbench import workbench_service
 
 _MODULE = "app.services.workbench.workbench_service"
@@ -64,6 +68,19 @@ class TestGetWorkbench:
                 f"{_MODULE}.global_index_service.get_global_index_quotes",
                 AsyncMock(return_value=[]),
             ) as global_mock,
+            patch(
+                f"{_MODULE}.sector_fund_flow_service.get_latest_sector_flow",
+                AsyncMock(
+                    return_value=[
+                        SectorFlowItem(
+                            sector_name="半导体",
+                            change_pct=2.35,
+                            main_net_inflow=48.6,
+                            top_stock_name="中芯国际",
+                        )
+                    ]
+                ),
+            ) as sector_mock,
         ):
             result = await workbench_service.get_workbench(session, user_id=3)
 
@@ -73,6 +90,9 @@ class TestGetWorkbench:
         assert result.watchlist_groups == [group]
         assert result.stats is None
         global_mock.assert_awaited_once_with(session)
+        sector_mock.assert_awaited_once_with(session)
+        assert result.sector_flow[0].sector_name == "半导体"
+        assert result.sector_flow[0].main_net_inflow == 48.6
 
     @pytest.mark.asyncio
     async def test_single_module_failure_degrades_others_intact(self) -> None:
@@ -114,6 +134,10 @@ class TestGetWorkbench:
                     ]
                 ),
             ),
+            patch(
+                f"{_MODULE}.sector_fund_flow_service.get_latest_sector_flow",
+                AsyncMock(side_effect=RuntimeError("db boom")),
+            ),
         ):
             result = await workbench_service.get_workbench(session, user_id=3)
 
@@ -121,6 +145,7 @@ class TestGetWorkbench:
         assert result.indices == []
         assert result.watchlist_groups == [group]
         assert result.global_indices[0].index_code == "GC00Y"
+        assert result.sector_flow == []
 
     @pytest.mark.asyncio
     async def test_telegraph_items_only_kept(self) -> None:

@@ -49,6 +49,22 @@ export interface WorkbenchWatchlistGroup {
   items: WorkbenchWatchlistStock[]
 }
 
+/** 后端板块资金动向卡单行（snake_case，金额单位亿元）。 */
+export interface ApiWorkbenchSectorFlowItem {
+  sector_name: string
+  change_pct: number | null
+  main_net_inflow: number | null
+  top_stock_name: string | null
+}
+
+/** 板块资金动向卡单行（金额单位亿元）。 */
+export interface WorkbenchSectorFlowItem {
+  sectorName: string
+  changePct: number | null
+  mainNetInflow: number | null
+  topStockName: string | null
+}
+
 /** GET /workbench 原始聚合响应（snake_case）。 */
 export interface ApiWorkbenchResponse {
   calendar: ApiCalendarEventResponse[]
@@ -58,6 +74,7 @@ export interface ApiWorkbenchResponse {
   indices: ApiIndexQuoteResponse[]
   stats: ApiMarketStatsResponse | null
   global_indices: ApiGlobalIndexQuoteResponse[]
+  sector_flow: ApiWorkbenchSectorFlowItem[]
 }
 
 /** 工作台聚合的客户端视图模型。 */
@@ -69,4 +86,5 @@ export interface WorkbenchOverview {
   indices: IndexQuote[]
   stats: MarketStats | null
   globalIndices: GlobalIndexQuote[]
+  sectorFlow: WorkbenchSectorFlowItem[]
 }
