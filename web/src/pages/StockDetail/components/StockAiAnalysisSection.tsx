@@ -1,7 +1,7 @@
-import { ReloadOutlined, RobotOutlined } from '@ant-design/icons'
+import { LoadingOutlined, ReloadOutlined, RobotOutlined } from '@ant-design/icons'
 import { Button, Card, DatePicker, Empty, Typography, message } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { MarkdownText } from '@/components/common/MarkdownText'
 import { useGenerateStockAiAnalysis, useStockAiAnalysis } from '@/hooks/useStocks'
@@ -11,17 +11,48 @@ interface StockAiAnalysisSectionProps {
   stockCode: string
 }
 
+// 生成派发到异步任务后，worker 取锁有延迟，轮询初期可能短暂看到 none
+const NONE_GRACE_MS = 10_000
+
 export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProps) {
   const [tradeDate, setTradeDate] = useState<string | undefined>(undefined)
-  const { data, isLoading, isError, error, refetch } = useStockAiAnalysis(stockCode, tradeDate)
+  const [pending, setPending] = useState(false)
+  const pendingSinceRef = useRef(0)
+  const { data: status, isLoading, isError, error, refetch } = useStockAiAnalysis(
+    stockCode,
+    tradeDate,
+    (query) => (pending || query.state.data?.status === 'running' ? 3000 : false),
+  )
   const generateMutation = useGenerateStockAiAnalysis(stockCode)
+  const data = status?.data ?? null
+
+  useEffect(() => {
+    if (!pending || !status) return
+    if (status.status === 'ready') {
+      setPending(false)
+      message.success('分析完成，已刷新结果')
+    } else if (
+      status.status === 'none' &&
+      Date.now() - pendingSinceRef.current > NONE_GRACE_MS
+    ) {
+      setPending(false)
+      message.error('生成失败或数据未就绪，请稍后重试')
+    }
+  }, [pending, status])
 
   const generate = (regenerate: boolean) => {
     generateMutation.mutate(
       { tradeDate, regenerate },
       {
-        onSuccess: (result) =>
-          message.success(result.cached ? '已有当日分析，直接展示缓存' : '分析已生成'),
+        onSuccess: (result) => {
+          if (result.status === 'ready') {
+            message.success(result.data?.cached ? '已有当日分析，直接展示缓存' : '分析已生成')
+            return
+          }
+          pendingSinceRef.current = Date.now()
+          setPending(true)
+          message.info('分析生成中，完成后自动刷新')
+        },
         onError: (err) => message.error(apiErrorMessage(err, '生成失败，请稍后重试')),
       },
     )
@@ -82,6 +113,18 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
             重试
           </Button>
         </Empty>
+      </div>
+    )
+  }
+
+  if (status?.status === 'running') {
+    return (
+      <div className="p-3">
+        {header}
+        <div className="flex items-center gap-2 text-sm text-gray-400">
+          <LoadingOutlined spin />
+          AI 分析生成中，完成后自动展示…
+        </div>
       </div>
     )
   }

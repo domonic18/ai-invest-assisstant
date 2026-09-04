@@ -242,9 +242,21 @@ async def generate_stock_analysis(
 async def get_stock_analysis(
     session: AsyncSession, stock_code: str, *, trade_date: date
 ) -> StockAiAnalysisResponse | None:
-    """读取已生成的个股分析缓存；无则返回 None（API 层转 204）。"""
+    """读取已生成的个股分析缓存；无则返回 None。"""
     sections = load_prompt_config().sections
     return await _load_cached(session, stock_code, trade_date, sections)
+
+
+async def is_generation_running(stock_code: str, trade_date: date) -> bool:
+    """该股当日分析的生成锁是否被持有（异步生成进行中）。"""
+    from app.core.cache import get_redis
+
+    client = get_redis()
+    lock = client.lock(
+        f"lock:ai:{SKILL_ID}:{stock_code}:{trade_date.isoformat()}",
+        thread_local=False,
+    )
+    return bool(await lock.locked())
 
 
 async def list_active_watch_stock_codes(session: AsyncSession) -> list[str]:

@@ -227,6 +227,17 @@ class StockAiAnalysisGenerateRequest(BaseModel):
     regenerate: bool = False
 
 
+class StockAiAnalysisStatusResponse(BaseModel):
+    """个股 AI 分析异步状态响应（轮询契约）。
+
+    ready 时 data 必非空；running 表示生成任务进行中；none 表示无缓存且
+    无进行中的生成。
+    """
+
+    status: Literal["running", "ready", "none"]
+    data: StockAiAnalysisResponse | None = None
+
+
 class PaginationParams(BaseModel):
     """通用分页参数。"""
 

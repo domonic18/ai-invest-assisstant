@@ -1,8 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseQueryOptions,
+} from '@tanstack/react-query'
 
 import {
   fetchKline,
-  fetchStockAiAnalysis,
+  fetchStockAiAnalysisStatus,
   fetchStockDetail,
   fetchStockIntraday,
   fetchStockKline,
@@ -13,6 +18,7 @@ import {
   type StockKlineParams,
 } from '@/api/stocks'
 import { queryKeys } from './queryKeys'
+import type { StockAiAnalysisStatus } from '@/api/stocks'
 
 // 当前交易日实时数据：30s 内视为新鲜，避免反复打详情接口
 const LIVE_STALE_TIME = 30_000
@@ -85,17 +91,22 @@ export function useKline(code: string, pageSize = 100) {
   })
 }
 
-/** 只读已生成的个股 AI 分析；未生成返回 null（不触发生成）。 */
-export function useStockAiAnalysis(code: string, tradeDate?: string) {
+/** 个股 AI 分析状态：ready 含数据，running 生成中（可传 refetchInterval 轮询），none 无结果。 */
+export function useStockAiAnalysis(
+  code: string,
+  tradeDate?: string,
+  refetchInterval?: UseQueryOptions<StockAiAnalysisStatus>['refetchInterval'],
+) {
   return useQuery({
     queryKey: queryKeys.stocks.aiAnalysis(code, tradeDate),
-    queryFn: () => fetchStockAiAnalysis(code, tradeDate),
+    queryFn: () => fetchStockAiAnalysisStatus(code, tradeDate),
     enabled: code.length > 0,
     staleTime: 10 * 60_000,
+    refetchInterval,
   })
 }
 
-/** 手动触发生成（或强制重新生成）个股 AI 分析，成功后刷新对应日期缓存。 */
+/** 触发个股 AI 分析生成（或强制重新生成）：200 缓存命中，202 已派发异步任务。 */
 export function useGenerateStockAiAnalysis(code: string) {
   const queryClient = useQueryClient()
 

@@ -159,6 +159,13 @@ export interface ApiStockAiAnalysisResponse {
   sections: ApiStockAiAnalysisSection[]
 }
 
+export type ApiStockAiAnalysisStatus = 'running' | 'ready' | 'none'
+
+export interface ApiStockAiAnalysisStatusResponse {
+  status: ApiStockAiAnalysisStatus
+  data: ApiStockAiAnalysisResponse | null
+}
+
 export interface ApiStockKlineBar {
   date: string
   open: number

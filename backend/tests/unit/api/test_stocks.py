@@ -1,7 +1,7 @@
 """股票搜索/详情 API 端点契约测试。"""
 
 from datetime import date, datetime, timezone
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -71,7 +71,7 @@ def auth_client(client, normal_user):
 
 @pytest.mark.unit
 class TestStockAiAnalysisEndpoint:
-    def test_ai_analysis_204_when_not_generated(self, auth_client) -> None:
+    def test_ai_analysis_status_none_when_not_generated(self, auth_client) -> None:
         with (
             patch(
                 "app.api.v1.stocks.trade_calendar_service.resolve_latest_trade_date",
@@ -81,12 +81,42 @@ class TestStockAiAnalysisEndpoint:
                 "app.api.v1.stocks.stock_daily_analysis_service.get_stock_analysis",
                 AsyncMock(return_value=None),
             ) as get_mock,
+            patch(
+                "app.api.v1.stocks.stock_daily_analysis_service.is_generation_running",
+                AsyncMock(return_value=False),
+            ),
         ):
             resp = auth_client.get("/api/v1/stocks/600519/ai-analysis")
 
-        assert resp.status_code == 204
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "none"
+        assert body["data"] is None
         _, kwargs = get_mock.await_args
         assert kwargs["trade_date"] == date(2026, 9, 1)
+
+    def test_ai_analysis_status_running_when_lock_held(self, auth_client) -> None:
+        with (
+            patch(
+                "app.api.v1.stocks.trade_calendar_service.resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 9, 1)),
+            ),
+            patch(
+                "app.api.v1.stocks.stock_daily_analysis_service.get_stock_analysis",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.api.v1.stocks.stock_daily_analysis_service.is_generation_running",
+                AsyncMock(return_value=True),
+            ) as lock_mock,
+        ):
+            resp = auth_client.get("/api/v1/stocks/600519/ai-analysis")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "running"
+        assert body["data"] is None
+        lock_mock.assert_awaited_once_with("600519", date(2026, 9, 1))
 
     def test_ai_analysis_200_with_sections(self, auth_client) -> None:
         analysis = StockAiAnalysisResponse(
@@ -116,13 +146,14 @@ class TestStockAiAnalysisEndpoint:
 
         assert resp.status_code == 200
         body = resp.json()
-        assert body["stock_code"] == "600519"
-        assert body["stock_name"] == "贵州茅台"
-        assert body["trade_date"] == "2026-08-29"
-        assert body["model"] == "openai/gpt-4o"
-        assert body["cached"] is True
-        assert body["sections"][0]["key"] == "intraday_review"
-        assert body["sections"][0]["content"] == "内容"
+        assert body["status"] == "ready"
+        assert body["data"]["stock_code"] == "600519"
+        assert body["data"]["stock_name"] == "贵州茅台"
+        assert body["data"]["trade_date"] == "2026-08-29"
+        assert body["data"]["model"] == "openai/gpt-4o"
+        assert body["data"]["cached"] is True
+        assert body["data"]["sections"][0]["key"] == "intraday_review"
+        assert body["data"]["sections"][0]["content"] == "内容"
         _, kwargs = get_mock.await_args
         assert kwargs["trade_date"] == date(2026, 8, 29)
 
@@ -130,13 +161,43 @@ class TestStockAiAnalysisEndpoint:
         resp = client.get("/api/v1/stocks/600519/ai-analysis")
         assert resp.status_code in (401, 403)
 
-    def test_generate_ai_analysis_defaults_latest_trade_date(self, auth_client) -> None:
+    def test_generate_ai_analysis_dispatches_celery_task(self, auth_client) -> None:
+        task_mock = type("Task", (object,), {"apply_async": MagicMock()})()
+        with (
+            patch(
+                "app.api.v1.stocks.trade_calendar_service.resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 9, 1)),
+            ),
+            patch(
+                "app.api.v1.stocks.stock_daily_analysis_service.get_stock_analysis",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.api.v1.stocks.stock_daily_analysis_service.is_generation_running",
+                AsyncMock(return_value=False),
+            ),
+            patch(
+                "collector.celery_tasks.run_stock_ai_analysis", task_mock
+            ),
+        ):
+            resp = auth_client.post("/api/v1/stocks/600519/ai-analysis", json={})
+
+        assert resp.status_code == 202
+        body = resp.json()
+        assert body["status"] == "running"
+        assert body["data"] is None
+        _, kwargs = task_mock.apply_async.call_args
+        assert kwargs["args"] == ["600519", "2026-09-01"]
+        assert kwargs["queue"] == "collector.heavy"
+
+    def test_generate_ai_analysis_cache_hit_returns_ready(self, auth_client) -> None:
         analysis = StockAiAnalysisResponse(
             stock_code="600519",
             stock_name="贵州茅台",
             trade_date=date(2026, 9, 1),
             model="anthropic/kimi",
             generated_at=datetime(2026, 9, 1, 8, 40, tzinfo=timezone.utc),
+            cached=True,
             sections=[
                 StockAiAnalysisSection(key="strategy", title="操作策略", content="内容")
             ],
@@ -147,44 +208,71 @@ class TestStockAiAnalysisEndpoint:
                 AsyncMock(return_value=date(2026, 9, 1)),
             ),
             patch(
-                "app.api.v1.stocks.stock_daily_analysis_service.generate_stock_analysis",
+                "app.api.v1.stocks.stock_daily_analysis_service.get_stock_analysis",
                 AsyncMock(return_value=analysis),
-            ) as gen_mock,
+            ) as get_mock,
         ):
             resp = auth_client.post("/api/v1/stocks/600519/ai-analysis", json={})
 
         assert resp.status_code == 200
         body = resp.json()
-        assert body["stock_code"] == "600519"
-        assert body["cached"] is False
-        args, kwargs = gen_mock.await_args
-        assert args[1] == "600519"
-        assert kwargs["trade_date"] == date(2026, 9, 1)
-        assert kwargs["regenerate"] is False
+        assert body["status"] == "ready"
+        assert body["data"]["cached"] is True
+        get_mock.assert_awaited_once()
 
-    def test_generate_ai_analysis_regenerate_with_date(self, auth_client) -> None:
-        analysis = StockAiAnalysisResponse(
-            stock_code="600519",
-            stock_name="贵州茅台",
-            trade_date=date(2026, 8, 28),
-            model="anthropic/kimi",
-            generated_at=datetime(2026, 9, 2, 8, 40, tzinfo=timezone.utc),
-            sections=[],
-        )
-        with patch(
-            "app.api.v1.stocks.stock_daily_analysis_service.generate_stock_analysis",
-            AsyncMock(return_value=analysis),
-        ) as gen_mock:
+    def test_generate_ai_analysis_running_lock_skips_dispatch(self, auth_client) -> None:
+        task_mock = type("Task", (object,), {"apply_async": MagicMock()})()
+        with (
+            patch(
+                "app.api.v1.stocks.trade_calendar_service.resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 9, 1)),
+            ),
+            patch(
+                "app.api.v1.stocks.stock_daily_analysis_service.get_stock_analysis",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.api.v1.stocks.stock_daily_analysis_service.is_generation_running",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "collector.celery_tasks.run_stock_ai_analysis", task_mock
+            ),
+        ):
+            resp = auth_client.post("/api/v1/stocks/600519/ai-analysis", json={})
+
+        assert resp.status_code == 202
+        assert resp.json()["status"] == "running"
+        task_mock.apply_async.assert_not_called()
+
+    def test_generate_ai_analysis_regenerate_bypasses_cache(self, auth_client) -> None:
+        task_mock = type("Task", (object,), {"apply_async": MagicMock()})()
+        with (
+            patch(
+                "app.api.v1.stocks.trade_calendar_service.resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 8, 28)),
+            ),
+            patch(
+                "app.api.v1.stocks.stock_daily_analysis_service.get_stock_analysis",
+                AsyncMock(return_value=None),
+            ) as get_mock,
+            patch(
+                "app.api.v1.stocks.stock_daily_analysis_service.is_generation_running",
+                AsyncMock(return_value=False),
+            ),
+            patch(
+                "collector.celery_tasks.run_stock_ai_analysis", task_mock
+            ),
+        ):
             resp = auth_client.post(
                 "/api/v1/stocks/600519/ai-analysis",
                 json={"trade_date": "2026-08-28", "regenerate": True},
             )
 
-        assert resp.status_code == 200
-        args, kwargs = gen_mock.await_args
-        assert args[1] == "600519"
-        assert kwargs["trade_date"] == date(2026, 8, 28)
-        assert kwargs["regenerate"] is True
+        assert resp.status_code == 202
+        _, kwargs = task_mock.apply_async.call_args
+        assert kwargs["args"] == ["600519", "2026-08-28"]
+        get_mock.assert_not_awaited()
 
     def test_generate_ai_analysis_requires_auth(self, client) -> None:
         resp = client.post("/api/v1/stocks/600519/ai-analysis", json={})
