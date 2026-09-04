@@ -2,6 +2,7 @@
 
 from typing import Annotated, Any
 
+import structlog
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +33,26 @@ from app.services.user.screenshot_recognition_service import (
 from app.services.user.watchlist_service import GroupLimitError
 
 router = APIRouter()
+
+logger = structlog.get_logger()
+
+
+async def _dispatch_kline_backfill(session: AsyncSession, codes: list[str]) -> None:
+    """导入成功后异步回补日 K；派发失败仅记录日志，不阻塞导入主流程。
+
+    dispatcher 内部会 commit，必须在 service 层提交之后调用（延迟导入避免
+    API 启动即加载 Celery）。
+    """
+    from collector.runtime.dispatcher import dispatch_collector_task
+
+    try:
+        await dispatch_collector_task(
+            session, "kline", {"symbols": codes, "period": "daily"}
+        )
+    except Exception:
+        logger.warning(
+            "watchlist_kline_backfill_dispatch_failed", codes=codes, exc_info=True
+        )
 
 
 @router.get("/me", response_model=UserResponse)
@@ -96,6 +117,7 @@ async def add_watchlist(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
+    await _dispatch_kline_backfill(session, [item.stock_code])
     return WatchlistItemResponse.model_validate(item)
 
 
@@ -127,11 +149,15 @@ async def batch_add_watchlist(
 ) -> WatchlistBatchResponse:
     """批量导入自选股（截图识别确认后的目标分组落库）。"""
     try:
-        return await WatchlistService(session).batch_add_items(current_user, data)
+        result = await WatchlistService(session).batch_add_items(current_user, data)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
+    created_codes = [row.stock_code for row in result.created]
+    if created_codes:
+        await _dispatch_kline_backfill(session, created_codes)
+    return result
 
 
 @router.get("/watchlist/quotes", response_model=list[WatchlistQuoteItem])

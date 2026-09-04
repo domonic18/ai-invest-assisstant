@@ -33,6 +33,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "is_enabled": True,
         "supported_data_types": [
             "kline",
+            "watchlist-kline-daily",
             "index-kline",
             "auction",
             "macro",

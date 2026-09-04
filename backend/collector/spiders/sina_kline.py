@@ -2,8 +2,27 @@
 
 from typing import Any
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from app.models.watchlist import UserWatchlist
+from collector.core.base import get_engine
 from collector.core.parsing import clean_stock_code
 from collector.spiders.kline_base import BaseKlineCollector
+
+
+async def _fetch_watchlist_codes() -> list[str]:
+    """默认采集范围：全部自选股代码去重升序；空集返回空列表（跳过采集）。"""
+    session_maker = async_sessionmaker(
+        get_engine(), class_=AsyncSession, expire_on_commit=False
+    )
+    async with session_maker() as session:
+        rows = await session.execute(
+            select(UserWatchlist.stock_code)
+            .distinct()
+            .order_by(UserWatchlist.stock_code)
+        )
+        return [row[0] for row in rows.all()]
 
 
 class SinaKlineCollector(BaseKlineCollector):
@@ -14,7 +33,7 @@ class SinaKlineCollector(BaseKlineCollector):
     ) -> list[dict[str, Any]]:
         import akshare as ak  # type: ignore[import-untyped]
 
-        symbols = symbols or ["000001"]
+        symbols = symbols or await _fetch_watchlist_codes()
         raw: list[dict[str, Any]] = []
 
         for symbol in symbols:

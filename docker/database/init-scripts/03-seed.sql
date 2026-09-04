@@ -47,10 +47,24 @@ FROM collector_channel_config
 WHERE source = 'eastmoney'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
+-- 防御性补齐 sina 渠道的 watchlist-kline-daily 数据类型（渠道已存在时）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["watchlist-kline-daily"]'::jsonb
+WHERE source = 'sina'
+  AND NOT supported_data_types @> '["watchlist-kline-daily"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'watchlist-kline-daily', 1
+FROM collector_channel_config
+WHERE source = 'sina'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
 -- Default collector tasks
 INSERT INTO collector_task (task_name, task_type, source, schedule, is_active)
 VALUES
     ('ths_kline_daily', 'kline', 'ths', '0 16 * * 1-5', true),
+    -- 自选股日 K 自动补采：缺省 symbols = 全部自选股，错开 16:00 收盘批
+    ('watchlist_kline_daily', 'watchlist-kline-daily', 'sina', '30 16 * * 1-5', true),
     ('sina_index_kline', 'index-kline', 'sina', '0 16,18 * * 1-5', true),
     ('ths_auction', 'auction', 'ths', '15,25 9 * * 1-5', true),
     ('eastmoney_fund_flow', 'fund-flow', 'eastmoney', '0 16 * * 1-5', true),
