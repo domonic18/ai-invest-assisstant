@@ -13,10 +13,7 @@ from app.services.review.market_review_generator import (
     ReviewGenerationLockedError,
     ReviewInputDataNotReadyError,
 )
-from app.services.review.stock_daily_analysis_service import (
-    StockAnalysisContent,
-    input_hash,
-)
+from app.services.review.stock_daily_analysis_service import input_hash
 
 _TRADE_DATE = date(2026, 9, 1)
 _CREATED_AT = datetime(2026, 9, 1, 16, 45, 0, tzinfo=timezone.utc)
@@ -59,12 +56,7 @@ def _base_row(sections: dict[str, str] | None = None) -> object:
     return row
 
 
-_PROMPT_TEMPLATE = (
-    "请分析 {stock_name}（{stock_code}）{trade_date}：\n"
-    "【当日行情快照】\n{quote_context}\n"
-    "【近 20 日 K 线摘要】\n{kline_context}\n"
-    "{section_instructions}"
-)
+_PROMPT_TEMPLATE = "请生成 {stock_name}（{stock_code}）{trade_date} 的每日个股分析：\n{section_instructions}"
 
 
 def _patch_prompt_config() -> None:
@@ -122,10 +114,8 @@ def _patch_agent(
     sections: dict[str, str], model: str = "openai/gpt-4o", latency_ms: int = 150
 ):
     return patch(
-        "app.agent.runtime.run_structured_agent_with_metrics",
-        AsyncMock(
-            return_value=(StockAnalysisContent(sections=sections), latency_ms, model)
-        ),
+        "app.agent.skills.stock_daily_analysis_agent.run_skill",
+        AsyncMock(return_value=(sections, model, latency_ms)),
     )
 
 

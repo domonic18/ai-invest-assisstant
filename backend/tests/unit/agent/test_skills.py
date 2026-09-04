@@ -13,6 +13,7 @@ EXPECTED_SKILLS = {
     "hotspot-detection",
     "industry-chain-analysis",
     "research-summary",
+    "stock-daily-analysis",
 }
 
 
