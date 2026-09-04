@@ -88,6 +88,78 @@ async def fetch_kline(
 - 使用一致的 JSON 响应格式
 - 列表端点支持分页
 
+### 数据库分层与事务边界（必须遵守）
+
+分层：`路由 (api/) → 服务 (services/) → 仓储 (repositories/) → 模型 (models/)`
+
+- **services 与 repositories 按业务子域组织**：`services/` 与 `repositories/` 根目录不存放平文件，
+  新服务/仓储一律放入对应子域包（admin/ assistant/ chain/ collector/ common/ market/ reports/ review/ user/）；
+  services 顶层禁止导入 `app.agent.*`（反向依赖会成环，需在函数内延迟导入）
+- **路由层禁止直接操作数据库**：不允许在路由中调用 `session.execute` / `session.add` / `session.commit`，一律委托给服务层
+- **仓储层禁止管理事务**：`repositories/` 只做查询构造与执行，**绝不**调用 `commit()` / `rollback()`
+- **服务层拥有事务边界**：所有写操作（add/delete/update）成功后必须显式 `await session.commit()`；禁止只 `flush()` 不 `commit()`（`get_db` 不会自动提交，只 flush 的写入会在请求结束时被回滚）
+- **独立执行单元自行管理事务**：`collector/` 下的 worker、dispatcher、store 等不经过 `get_db` 的代码，必须在自己创建的 session 上显式 commit
+- **批量写入容错**：循环写入单条失败时，使用 `session.begin_nested()`（SAVEPOINT）隔离失败项，避免污染整个会话
+- **`get_db` 的唯一实现位于 `app/dependencies/__init__.py`**，异常时自动回滚；不要在其他模块重复定义
+
+### 数据库命名规范
+
+新增或重命名表/字段时遵循以下约定（完整重构计划见 `docs/plan/database-refactoring-plan.md`）：
+
+- **表名**：小写蛇形、单数名词，同一业务分类使用统一前缀。
+  - 行情数据：`quote_`（如 `quote_kline_stock_daily`、`quote_auction_index`）
+  - 资金流向：`capital_`（如 `capital_fund_flow_stock`、`capital_fund_flow_sector`）
+  - 市场情绪：`market_`（如 `market_breadth`）
+  - 股池：`pool_`（如 `pool_limit_up_stock`）
+  - 财务报表：`financial_`（如 `financial_balance_sheet`）
+  - 产业链：`industry_chain_`（如 `industry_chain_company_mapping`）
+  - 成分/映射：`mapping_`（如 `mapping_index_stock`）
+- **表名结构**：`<分类前缀>_<数据类型>_<标的类型>[_<粒度/子类型>]`，无标的类型的市场级数据可省略 `<标的类型>`。
+- **字段名**：完整单词优先，禁用无上下文缩写；同一语义使用同一单词（如涨跌幅统一用 `change_pct`）。
+- **约束与索引命名**：`pk_<table>`、`uq_<table>_<columns>`、`fk_<table>_<ref_table>`、`idx_<table>_<columns>`、`chk_<table>_<column>`。
+- **审计字段**：业务表统一使用 `created_at`/`updated_at`。
+
+### 时间与时区规范（必须遵守）
+
+A 股业务日期与时区不一致曾导致复盘/调度类事故，以下约定为强制项：
+
+- **业务"今天"统一用 `app.core.clock`**：`today_cn()`（Asia/Shanghai 日历日）、
+  `CN_TZ`/`now_cn()`。禁止用 `date.today()`（依赖容器本地时区）或
+  `datetime.now(timezone.utc).date()`（00:00-08:00 CST 会落在前一日）作为交易日、
+  日期区间默认值等业务日期。
+- **时间戳统一用 aware UTC**：数据库 `timestamptz` 字段与日志时间用
+  `datetime.now(timezone.utc)`；禁止 naive 的 `datetime.utcnow()`。
+- **Celery 调度一律按 Asia/Shanghai 意义书写**：`celery_app.conf` 已显式设置
+  `timezone="Asia/Shanghai"`，cron 表达式（`collector_task.schedule` 及
+  `docker/database/init-scripts/03-seed.sql`）中的小时均为北京时间；
+  应用容器（web/beat/worker）必须注入 `TZ: Asia/Shanghai` 环境变量。
+- **前端渲染时间戳不得写死时区字面量**：用 dayjs 按 ISO 时间（UTC）解析后本地化
+  格式化；测试断言期望值须由同一 fixture 推导，禁止硬编码本地时间字符串。
+
+### Collector 分层结构
+
+```
+collector/
+├── core/       # 基础设施：base(BaseCollector/PostgresCollector/共享 engine)、
+│               #   pipelines、exporters、http_client、parsing、logging、config
+├── runtime/    # 执行层：runner(统一执行器/collector_log 唯一写入口)、
+│               #   registry(TaskSpec 声明表 + 多渠道 fallback)、resolver、channels、
+│               #   queue、dispatcher、scheduler、worker、cli、scf_handler
+├── spiders/    # 数据源采集器（声明表配置 + collect/transform）
+└── stores/     # 重存储编排（如 financial_report_store）
+```
+
+- **新增 DB 类采集器**：继承 `core.base.PostgresCollector`，声明 `table`/`conflict_key`/`update_columns`/`key_fields`/`required_fields` 类属性并实现 `collect`（`transform` 默认透传、`validate` 默认按 required_fields 校验，可按需覆写），通常不超过 30 行；不要自建 engine/pipeline/store
+- **同一数据类型的多渠道 spider**（如 sina/ths 的 kline、auction、eastmoney/ths 的 sector-fund-flow）：共用 `spiders/` 下的数据类型基类（`kline_base.py`/`auction_base.py`/`sector_fund_flow_base.py`），子类只写 collect 与数据源键名声明；新增同类渠道优先复用/扩展这些基类
+- **解析函数只用 `core.parsing`**（`to_optional_str`/`to_float`/`parse_cn_amount`/`clean_stock_code`/`parse_date`/`parse_time`），禁止在 spider 里重复定义
+- **akshare 容错约定**：空数据（`df is None or df.empty`）返回 `[]`；异常不要吞——多渠道任务的 fallback 依赖异常向上传播，仅已知"无数据即抛错"的接口（如涨停池/龙虎榜）可 try/except 返回 `[]`
+- **新增采集任务**：在 `runtime/registry.py` 的 TASK_SPECS 增加一条 TaskSpec 声明（data_type/采集器懒加载路径/config_params/run_params），任务参数只在此维护一处，runner 的参数白名单自动派生
+- **任务目录 API 从 TASK_SPECS 派生**（`GET /admin/collector/tasks/catalog`）：API/UI 一律从目录取任务清单，禁止在枚举、shared 类型或前端另行硬编码；SKIPPED 是采集器的良性终态（非交易日/已生成），fallback 只对 FAILED 轮换渠道，不得把 SKIPPED 改写为 FAILED
+- **日期类参数默认值必须是 `latest_trading_day()`**（股池/龙虎榜/成交额/复盘均如此），禁止 `today_cn()`/`now` 兜底——周末手动补跑会静默空采；仅"天然只有当日"的数据（auction 快照、新浪分钟线）可用当日
+- **执行入口统一走 `runtime.runner.run_task`**（worker/scheduler/CLI/SCF 共享）：生成 `task_run_id` 绑定日志上下文、回写 `collector_log`、失败记录 traceback；`runtime/scf_handler.py` 只做 SCF 事件解析
+- **日志**：入口调用 `core.logging.configure_logging()`，禁止 `logging.basicConfig`；任务日志自动携带 `task_run_id`/`task`/`source`
+- **配置**：用 `core.config`（委托 `app.core.config`），禁止新增环境变量读取点
+
 ### AI Agent 与 Prompt 管理
 
 - 所有 Agent Prompt 必须放在 `app/prompts/agents/` 和 `app/prompts/skills/` 下的 YAML 文件中

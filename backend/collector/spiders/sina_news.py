@@ -1,30 +1,23 @@
-"""Sina finance news collector via akshare EastMoney stock news."""
+"""基于 akshare 东财个股新闻接口的新浪财经新闻采集器。"""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, ClassVar
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-from collector.base import BaseCollector
-from collector.exporters import PostgresExporter
-from collector.pipelines import DataPipeline, DeduplicateStep, ValidateStep
-from collector.settings import settings
+from collector.core.base import PostgresCollector
 
 
-class SinaNewsCollector(BaseCollector):
+class SinaNewsCollector(PostgresCollector):
     """新浪财经新闻数据采集器（基于东方财富个股新闻接口）。"""
 
-    def __init__(self, config: dict[str, Any]):
-        super().__init__(config)
-        self.pipeline = DataPipeline(
-            steps=[
-                DeduplicateStep(key_fields=["source_url"]),
-                ValidateStep(required_fields=["title", "source_url", "publish_date"]),
-            ]
-        )
-        self._engine = create_async_engine(settings.database_url)
+    table = "news_announcement"
+    conflict_key = "source_url"
+    normalize = False
+    key_fields: ClassVar[list[str]] = ["source_url"]
+    required_fields: ClassVar[list[str]] = ["title", "source_url", "publish_date"]
 
-    async def collect(self, symbols: list[str] | None = None, **kwargs: Any) -> list[dict[str, Any]]:
+    async def collect(
+        self, symbols: list[str] | None = None, **kwargs: Any
+    ) -> list[dict[str, Any]]:
         import akshare as ak  # type: ignore[import-untyped]
 
         symbols = symbols or ["000001"]
@@ -32,6 +25,8 @@ class SinaNewsCollector(BaseCollector):
 
         for symbol in symbols:
             df = ak.stock_news_em(symbol=symbol)
+            if df is None or df.empty:
+                continue
             for _, row in df.iterrows():
                 raw.append(
                     {
@@ -64,13 +59,15 @@ class SinaNewsCollector(BaseCollector):
             "title": str(raw["title"]),
             "summary": str(raw.get("summary", "")),
             "content": str(raw.get("content", "")),
-            "source": str(raw.get("source", "")) if raw.get("source") is not None else None,
+            "source": (
+                str(raw.get("source", "")) if raw.get("source") is not None else None
+            ),
             "source_url": str(raw["source_url"]),
             "publish_date": publish_date,
             "sentiment": None,
             "keywords": None,
             "industry_tags": None,
-            "es_id": None,
+            "elasticsearch_doc_id": None,
         }
 
     async def validate(self, item: dict[str, Any]) -> bool:
@@ -79,21 +76,3 @@ class SinaNewsCollector(BaseCollector):
             and bool(item.get("source_url"))
             and item.get("publish_date") is not None
         )
-
-    async def store(self, items: list[dict[str, Any]]) -> int:
-        cleaned = await self.pipeline.process(items)
-        if not cleaned:
-            return 0
-
-        session_maker = async_sessionmaker(
-            self._engine, class_=AsyncSession, expire_on_commit=False
-        )
-        async with session_maker() as session:
-            exporter = PostgresExporter(session)
-            count = await exporter.insert_many(
-                "news_announcement",
-                cleaned,
-                conflict_key="source_url",
-            )
-        await self._engine.dispose()
-        return count

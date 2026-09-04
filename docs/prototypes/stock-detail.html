@@ -322,6 +322,26 @@ tr:hover td { background: var(--bg-hover); }
   transition: all var(--transition-fast);
 }
 .tab-nav-btn.active { background: var(--bg-elevated); color: var(--text-primary); box-shadow: var(--shadow-sm); font-weight: 500; }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* AI 每日分析 */
+.ai-line { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.ai-line:last-of-type { border-bottom: none; }
+.ai-key { flex-shrink: 0; width: 64px; font-size: 12px; font-weight: 600; color: var(--accent); padding-top: 2px; }
+.ai-text { flex: 1; font-size: 13px; color: var(--text-secondary); line-height: 1.8; }
+.ai-note { font-size: 11px; color: var(--text-tertiary); margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); font-family: var(--font-mono); }
+.ai-disclaimer { font-size: 10px; color: var(--text-tertiary); margin-top: 8px; }
+
+/* 板块归属 */
+.sector-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.sector-row:last-child { border-bottom: none; }
+.sector-key { flex-shrink: 0; width: 36px; font-size: 11px; color: var(--text-tertiary); }
+.sector-val { color: var(--text-primary); }
+.sector-val a { margin-left: 8px; font-size: 11px; }
+.concept-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 16px; font-size: 12px; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-secondary); }
+.concept-chip:hover { border-color: var(--accent); color: var(--accent); }
+.concept-chip em { font-style: normal; font-size: 10px; color: var(--text-tertiary); }
 .rating-bar { display: flex; gap: 4px; align-items: flex-end; height: 120px; }
 .rating-bar-item { flex: 1; border-radius: 2px; text-align: center; padding-top: 4px; font-size: var(--text-xs); color: var(--text-secondary); }
 
@@ -345,16 +365,20 @@ tr:hover td { background: var(--bg-hover); }
 </div>
 <div class="sidebar-brand-text">AI Invest</div>
 <div class="sidebar-version">v1.0.0</div>
-</div><div class="sidebar-brand-text">Invest</div></div>
+</div>
 <nav class="sidebar-nav">
+<a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
 <div class="sidebar-section-title">复盘</div>
+
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
 <a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
 <a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
 <a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
+<a class="sidebar-item" href="financial-reports.html"><span class="sidebar-item-icon">◈</span><span>财报中心</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
@@ -373,44 +397,33 @@ tr:hover td { background: var(--bg-hover); }
 
     <div class="app-content">
 
-      <!-- Stock Header -->
+      <!-- Stock Header：名称 + 代码 + 市场/行业标签 + 加自选（与实现一致，无行情价格区） -->
       <div class="stock-header-card">
         <div>
-          <div style="display:flex;align-items:baseline;gap:var(--space-3)">
+          <div style="display:flex;align-items:center;gap:var(--space-3)">
             <h1 style="font-size:var(--text-2xl);font-weight:700;color:var(--text-primary);letter-spacing:-.01em">北方华创</h1>
             <span class="text-mono" style="font-size:var(--text-lg);color:var(--text-tertiary)">002371</span>
-            <span class="tag tag-purple">半导体设备</span>
             <span class="tag tag-blue">深市</span>
+            <span class="tag tag-purple">半导体设备</span>
           </div>
-          <div style="display:flex;align-items:baseline;gap:var(--space-3);margin-top:var(--space-3)">
-            <span class="stock-price-large">358.20</span>
-            <span class="stock-price-change" style="color:var(--red)">+20.80 (+6.18%)</span>
-          </div>
-          <div class="stock-meta-grid">
-            <div class="stock-meta-item"><div class="stock-meta-label">今开</div><div class="stock-meta-value">342.00</div></div>
-            <div class="stock-meta-item"><div class="stock-meta-label">最高</div><div class="stock-meta-value" style="color:var(--red)">361.50</div></div>
-            <div class="stock-meta-item"><div class="stock-meta-label">最低</div><div class="stock-meta-value">338.80</div></div>
-            <div class="stock-meta-item"><div class="stock-meta-label">成交量</div><div class="stock-meta-value">8,425万</div></div>
-            <div class="stock-meta-item"><div class="stock-meta-label">成交额</div><div class="stock-meta-value">28.7亿</div></div>
-            <div class="stock-meta-item"><div class="stock-meta-label">换手率</div><div class="stock-meta-value">5.62%</div></div>
-          </div>
+          <div class="text-muted" style="font-size:var(--text-sm);margin-top:var(--space-2)">北方华创科技集团股份有限公司 · 深交所主板</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-2)">
-          <button class="btn btn-primary">⭐ 加入自选</button>
-          <button class="btn btn-secondary">生成 AI 分析</button>
+          <button class="btn btn-secondary">♡ 加入自选</button>
         </div>
       </div>
 
       <!-- Tab Nav -->
       <div class="tab-nav">
-        <button class="tab-nav-btn active">K线分析</button>
-        <button class="tab-nav-btn">财务体检</button>
-        <button class="tab-nav-btn">研报观点</button>
-        <button class="tab-nav-btn">相关新闻</button>
+        <button class="tab-nav-btn active" data-tab="pane-kline">K线分析</button>
+        <button class="tab-nav-btn" data-tab="pane-fin">财务体检</button>
+        <button class="tab-nav-btn" data-tab="pane-ai">AI 每日分析</button>
+        <button class="tab-nav-btn" data-tab="pane-sector">板块归属</button>
+        <button class="tab-nav-btn" data-tab="pane-research">研报观点</button>
       </div>
 
-      <!-- K-line Chart Placeholder -->
-      <div class="grid-2-1 mb-6">
+      <!-- Tab: K线分析（KlineChart：蜡烛图 + 成交量，含 dataZoom） -->
+      <div class="tab-pane active" id="pane-kline">
         <div class="card">
           <div class="card-header">
             <span class="card-title">K线图表</span>
@@ -421,94 +434,139 @@ tr:hover td { background: var(--bg-hover); }
             </div>
           </div>
           <div class="card-body">
-            <div style="background:linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-hover) 100%);border-radius:var(--radius-md);height:320px;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary);font-size:var(--text-lg)">
-              ┃ K 线图表区域 (ECharts 渲染) ┃
+            <div style="background:linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-hover) 100%);border-radius:var(--radius-md);height:380px;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary);font-size:var(--text-lg)">
+              ┃ K 线蜡烛图 + 成交量柱（ECharts 渲染，支持缩放） ┃
             </div>
             <div style="display:flex;justify-content:center;gap:var(--space-4);margin-top:var(--space-3)">
-              <span style="font-size:var(--text-xs);color:var(--text-secondary)">MA5: 347.65</span>
-              <span style="font-size:var(--text-xs);color:var(--text-secondary)">MA10: 342.18</span>
-              <span style="font-size:var(--text-xs);color:var(--text-secondary)">MA20: 335.42</span>
-              <span style="font-size:var(--text-xs);color:var(--text-secondary)">MACD: +3.28</span>
-              <span style="font-size:var(--text-xs);color:var(--text-secondary)">KDJ: K72.3 D68.1</span>
+              <span style="font-size:var(--text-xs);color:#f85149">MA5: 347.65</span>
+              <span style="font-size:var(--text-xs);color:#d29922">MA10: 342.18</span>
+              <span style="font-size:var(--text-xs);color:#58a6ff">MA20: 335.42</span>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Quick Financial -->
+      <!-- Tab: 财务体检（指标 Statistic 卡片网格） -->
+      <div class="tab-pane" id="pane-fin">
         <div class="card">
-          <div class="card-header"><span class="card-title">关键财务指标</span><span class="tag tag-green">2025 Q4</span></div>
-          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-4)">
-            <div style="display:flex;justify-content:space-between"><span style="font-size:var(--text-sm);color:var(--text-secondary)">营业收入</span><span style="font-weight:600">285.6亿</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="font-size:var(--text-sm);color:var(--text-secondary)">净利润</span><span style="font-weight:600;color:var(--green)">62.3亿 · +38.5%</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="font-size:var(--text-sm);color:var(--text-secondary)">毛利率</span><span style="font-weight:600">46.2%</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="font-size:var(--text-sm);color:var(--text-secondary)">ROE</span><span style="font-weight:600">22.8%</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="font-size:var(--text-sm);color:var(--text-secondary)">PE (TTM)</span><span style="font-weight:600">48.5</span></div>
-            <div style="display:flex;justify-content:space-between"><span style="font-size:var(--text-sm);color:var(--text-secondary)">总市值</span><span style="font-weight:600">1,892亿</span></div>
-            <button class="btn btn-secondary" style="width:100%;margin-top:var(--space-2)">查看完整财务体检 →</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Research Reports -->
-      <div class="card mb-6">
-        <div class="card-header">
-          <span class="card-title">券商研报观点</span>
-          <div style="display:flex;gap:var(--space-2)">
-            <button class="btn btn-secondary btn-sm">按评级筛选</button>
-            <button class="btn btn-ghost btn-sm">查看全部 28 篇 →</button>
-          </div>
-        </div>
-        <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3)">
-          <div class="research-item">
-            <div class="research-item-header">
-              <span style="font-weight:600;font-size:var(--text-base)">中信证券</span>
-              <span class="tag tag-green">买入 · 目标价 ¥420</span>
-              <span style="font-size:var(--text-xs);color:var(--text-tertiary)">2026-07-02</span>
-            </div>
-            <p style="font-size:var(--text-sm);color:var(--text-secondary);margin-bottom:var(--space-2)">刻蚀设备出货量超预期，5nm刻蚀机通过中芯国际认证，有望在2026H2放量。薄膜沉积设备在存储芯片领域取得突破。</p>
-            <div style="display:flex;gap:var(--space-4);font-size:var(--text-xs);color:var(--text-tertiary)">
-              <span>2026E 营收: 358亿</span><span>2026E 净利润: 82亿</span><span>PE: 35x</span>
-            </div>
-          </div>
-          <div class="research-item">
-            <div class="research-item-header">
-              <span style="font-weight:600;font-size:var(--text-base)">华泰证券</span>
-              <span class="tag tag-green">增持 · 目标价 ¥395</span>
-              <span style="font-size:var(--text-xs);color:var(--text-tertiary)">2026-06-28</span>
-            </div>
-            <p style="font-size:var(--text-sm);color:var(--text-secondary);margin-bottom:var(--space-2)">半导体设备国产替代加速，公司作为平台型设备龙头优先受益。ICP刻蚀和PVD设备市场份额持续提升。</p>
-            <div style="display:flex;gap:var(--space-4);font-size:var(--text-xs);color:var(--text-tertiary)">
-              <span>2026E 营收: 345亿</span><span>2026E 净利润: 78亿</span><span>PE: 38x</span>
-            </div>
-          </div>
-          <div class="research-item">
-            <div class="research-item-header">
-              <span style="font-weight:600;font-size:var(--text-base)">国泰君安</span>
-              <span class="tag tag-amber">中性 · 目标价 ¥340</span>
-              <span style="font-size:var(--text-xs);color:var(--text-tertiary)">2026-06-25</span>
-            </div>
-            <p style="font-size:var(--text-sm);color:var(--text-secondary);margin-bottom:var(--space-2)">当前估值已反映乐观预期。后续需关注地缘政治风险和下游晶圆厂资本开支节奏变化。</p>
-            <div style="display:flex;gap:var(--space-4);font-size:var(--text-xs);color:var(--text-tertiary)">
-              <span>2026E 营收: 330亿</span><span>2026E 净利润: 72亿</span><span>PE: 44x</span>
+          <div class="card-header"><span class="card-title">财务体检</span><span class="tag tag-green">最新报告期</span></div>
+          <div class="card-body">
+            <div class="grid-3" style="gap:var(--space-4)">
+              <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4);text-align:center"><div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px">资产负债率</div><div style="font-size:var(--text-2xl);font-weight:700">58.3%</div></div>
+              <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4);text-align:center"><div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px">流动比率</div><div style="font-size:var(--text-2xl);font-weight:700">1.85</div></div>
+              <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4);text-align:center"><div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px">ROE</div><div style="font-size:var(--text-2xl);font-weight:700;color:var(--green)">22.8%</div></div>
+              <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4);text-align:center"><div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px">毛利率</div><div style="font-size:var(--text-2xl);font-weight:700">46.2%</div></div>
+              <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4);text-align:center"><div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px">净利率</div><div style="font-size:var(--text-2xl);font-weight:700">21.8%</div></div>
+              <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4);text-align:center"><div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px">经营现金流 / 营收</div><div style="font-size:var(--text-2xl);font-weight:700">12.4%</div></div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Rating Trend -->
-      <div class="card">
-        <div class="card-header"><span class="card-title">评级趋势</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">近 6 个月 · 28 篇研报统计</span></div>
-        <div class="card-body">
-          <div class="rating-bar" style="padding:0 var(--space-8)">
-            <div class="rating-bar-item" style="height:80px;background:var(--green)">16<span style="display:block;font-size:10px;color:var(--text-secondary)">买入</span></div>
-            <div class="rating-bar-item" style="height:45px;background:var(--green)">8<span style="display:block;font-size:10px;color:var(--text-secondary)">增持</span></div>
-            <div class="rating-bar-item" style="height:18px;background:var(--amber-300)">3<span style="display:block;font-size:10px;color:var(--text-secondary)">中性</span></div>
-            <div class="rating-bar-item" style="height:6px;background:var(--red-300)">1<span style="display:block;font-size:10px;color:var(--text-secondary)">减持</span></div>
+      <!-- Tab: 研报观点（List：标题 / 来源 / 发布日期 / 摘要） -->
+      <div class="tab-pane" id="pane-research">
+        <div class="card">
+          <div class="card-header"><span class="card-title">研报观点</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">共 28 篇</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3)">
+            <div class="research-item">
+              <div class="research-item-header">
+                <span style="font-weight:600;font-size:var(--text-base)">刻蚀设备出货超预期，5nm 刻蚀机通过验证</span>
+                <span style="font-size:var(--text-xs);color:var(--text-tertiary)">2026-07-02</span>
+              </div>
+              <div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:var(--space-2)">中信证券</div>
+              <p style="font-size:var(--text-sm);color:var(--text-secondary)">刻蚀设备出货量超预期，5nm刻蚀机通过中芯国际认证，有望在2026H2放量。薄膜沉积设备在存储芯片领域取得突破。</p>
+            </div>
+            <div class="research-item">
+              <div class="research-item-header">
+                <span style="font-weight:600;font-size:var(--text-base)">平台型设备龙头，国产替代核心受益</span>
+                <span style="font-size:var(--text-xs);color:var(--text-tertiary)">2026-06-28</span>
+              </div>
+              <div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:var(--space-2)">华泰证券</div>
+              <p style="font-size:var(--text-sm);color:var(--text-secondary)">半导体设备国产替代加速，公司作为平台型设备龙头优先受益。ICP刻蚀和PVD设备市场份额持续提升。</p>
+            </div>
+            <div class="research-item">
+              <div class="research-item-header">
+                <span style="font-weight:600;font-size:var(--text-base)">估值已反映乐观预期，关注下游资本开支节奏</span>
+                <span style="font-size:var(--text-xs);color:var(--text-tertiary)">2026-06-25</span>
+              </div>
+              <div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:var(--space-2)">国泰君安</div>
+              <p style="font-size:var(--text-sm);color:var(--text-secondary)">当前估值已反映乐观预期。后续需关注地缘政治风险和下游晶圆厂资本开支节奏变化。</p>
+            </div>
           </div>
         </div>
       </div>
+
+      <!-- Tab: AI 每日分析（盘后批量 · heavy 队列 · input_hash 幂等缓存） -->
+      <div class="tab-pane" id="pane-ai">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">AI 每日分析 <span class="tag tag-purple" style="margin-left:6px">2026-09-01 盘后生成</span></span>
+            <span><span class="tag tag-green">已生成 · 命中缓存</span> <span class="tag" style="margin-left:6px">heavy 队列 · 单股串行</span></span>
+          </div>
+          <div class="card-body">
+            <div class="ai-line"><span class="ai-key">盘面解读</span><p class="ai-text">北方华创今日高开后沿 MA5 震荡上行，收涨 5.02% 报 318.40，量比较昨日放大 1.3 倍。消息面上国家大基金三期落地首笔投资，半导体设备板块整体异动，公司作为平台型设备龙头获资金集中承接，日线突破 39.8 平台后回踩确认有效。</p></div>
+            <div class="ai-line"><span class="ai-key">操作策略</span><p class="ai-text">持仓为主：突破 320 一线且量能维持，可持股待涨至前高 345 区域；若回踩 305–310 平台缩量企稳，可分批补仓。板块情绪依赖大基金三期后续订单落地节奏，注意跟踪招标公告。</p></div>
+            <div class="ai-line"><span class="ai-key">止损线</span><p class="ai-text">跌破 296（日线 MA20）减仓 1/2；跌破 285 平台（周线 MA5）清仓观望。若单日放量跌停或板块出现系统性利空，不等待止损线直接执行。</p></div>
+            <div class="ai-note">input_hash = sha256(watchlist-daily-analysis + 002371 + 2026-09-01) · 已缓存，重复打开不再调用 LLM · 所属分组「核心持仓」已开启 AI 复盘开关，每个交易日盘后自动批量生成</div>
+            <div class="ai-disclaimer">以上内容由 AI 生成，不构成投资建议，请结合自身风险承受能力独立决策。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: 板块归属（行业 + 概念） -->
+      <div class="tab-pane" id="pane-sector">
+        <div class="grid-2 mb-4">
+          <div class="card">
+            <div class="card-header"><span class="card-title">所属行业</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">申万分类 · stock_basic</span></div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-2)">
+              <div class="sector-row"><span class="sector-key">一级</span><span class="sector-val">半导体 <a href="capital-flow.html">板块资金流 →</a></span></div>
+              <div class="sector-row"><span class="sector-key">二级</span><span class="sector-val">半导体设备</span></div>
+              <div class="sector-row"><span class="sector-key">三级</span><span class="sector-val">集成电路设备</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">概念归属</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">共 12 个 · mapping_stock_concept</span></div>
+            <div class="card-body" style="display:flex;flex-wrap:wrap;gap:var(--space-2)">
+              <a class="concept-chip" href="capital-flow.html">国家大基金三期 <em>1,286 只相关资讯</em></a>
+              <a class="concept-chip" href="capital-flow.html">半导体设备</a>
+              <a class="concept-chip" href="capital-flow.html">国产替代</a>
+              <a class="concept-chip" href="capital-flow.html">晶圆厂扩产</a>
+              <a class="concept-chip" href="capital-flow.html">存储芯片</a>
+              <a class="concept-chip" href="capital-flow.html">MSCI 中国</a>
+              <a class="concept-chip" href="capital-flow.html">融资融券</a>
+              <a class="concept-chip" href="capital-flow.html">沪港通</a>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">同板块成分股表现</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">半导体设备 · 今日</span></div>
+          <div class="card-body-sm">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>代码</th><th>名称</th><th>现价</th><th>涨跌幅</th><th>主力净流入</th></tr></thead>
+                <tbody>
+                  <tr style="background:var(--accent-soft)"><td class="text-mono">002371</td><td>北方华创</td><td class="text-mono">318.40</td><td class="text-mono" style="color:var(--red);font-weight:600">+5.02%</td><td class="text-mono" style="color:var(--red)">+8.6 亿</td></tr>
+                  <tr><td class="text-mono">688012</td><td>中微公司</td><td class="text-mono">212.35</td><td class="text-mono" style="color:var(--red)">+4.11%</td><td class="text-mono" style="color:var(--red)">+5.2 亿</td></tr>
+                  <tr><td class="text-mono">002077</td><td>大族数控</td><td class="text-mono">38.12</td><td class="text-mono" style="color:var(--red)">+2.86%</td><td class="text-mono" style="color:var(--green)">-1.1 亿</td></tr>
+                  <tr><td class="text-mono">688082</td><td>盛美上海</td><td class="text-mono">108.66</td><td class="text-mono" style="color:var(--red)">+1.94%</td><td class="text-mono" style="color:var(--red)">+2.4 亿</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: 研报观点（List：标题 / 来源 / 发布日期 / 摘要） -->
     </div>
   </div>
 </div>
+<script>
+document.querySelectorAll('.tab-nav-btn').forEach(function(t){
+  t.addEventListener('click',function(){
+    document.querySelectorAll('.tab-nav-btn').forEach(function(x){x.classList.toggle('active',x===t)});
+    document.querySelectorAll('.tab-pane').forEach(function(p){p.classList.toggle('active',p.id===t.dataset.tab)});
+  });
+});
+</script>
 </body>
 </html>

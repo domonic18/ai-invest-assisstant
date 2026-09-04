@@ -1,10 +1,13 @@
-from collections.abc import AsyncGenerator
+"""异步数据库引擎与 session 工厂（全局单例）。"""
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import declarative_base
 
 from app.core.config import get_settings
 
 settings = get_settings()
+
+Base = declarative_base()
 
 engine = create_async_engine(
     str(settings.database_url),
@@ -19,11 +22,3 @@ AsyncSessionLocal = async_sessionmaker(
     autocommit=False,
     autoflush=False,
 )
-
-
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()

@@ -7,7 +7,7 @@ name = "ai-invest-assistant-backend"
 version = "0.1.0"
 description = "AI Investment Assistant - Backend API and Agent Services"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
     {name = "AI Invest Assistant Team"},
@@ -16,7 +16,6 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Framework :: FastAPI",
@@ -30,54 +29,53 @@ dependencies = [
     "pydantic>=2.7.0",
     "pydantic-settings>=2.3.0",
     "python-multipart>=0.0.9",
-
     # Database
     "sqlalchemy[asyncio]>=2.0.30",
     "asyncpg>=0.29.0",
     "alembic>=1.13.0",
-
     # Cache & Queue
     "redis>=5.0.0",
     "celery>=5.4.0",
-
     # Auth
     "python-jose[cryptography]>=3.3.0",
-    "passlib[bcrypt]>=1.7.4",
-
+    "bcrypt>=4.1.0",
+    # Encryption
+    "cryptography>=42.0.0",
     # AI Agent
     "pydantic-ai>=0.0.10",
     "openai>=1.35.0",
     "anthropic>=0.28.0",
-
     # MCP
     "mcp>=1.0.0",
-
     # Search & Vector
-    "elasticsearch[async]>=8.13.0",
+    "elasticsearch[async]>=8.13.0,<9",
     "pymilvus>=2.4.0",
-
     # Storage
     "minio>=7.2.0",
-
     # Data & Finance
     "pandas>=2.2.0",
     "numpy>=1.26.0,<2.0",
     "akshare>=1.14.0",
-
     # Web Scraping
     "scrapy>=2.11.0",
     "playwright>=1.44.0",
     "httpx>=0.27.0",
-
     # Utils
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.1",
     "python-dateutil>=2.9.0",
     "structlog>=24.1.0",
     "tenacity>=8.3.0",
-
     # WeChat Mini Program auth (optional)
     "itsdangerous>=2.2.0",
+    "tushare>=1.4.29",
+    "curl-cffi>=0.15.0",
+    "pypdf>=6.14.2",
+    "deepagents>=0.7.8",
+    "langchain-anthropic>=1.6.1",
+    "langchain-openai>=1.6.0",
+    "langgraph-checkpoint-postgres>=3.1.2",
+    "psycopg[binary]>=3.3.4",
 ]
 
 [tool.uv]
@@ -101,11 +99,9 @@ dev = [
     # Type stubs
     "types-pyyaml",
     "types-python-jose",
-    "types-passlib",
 
     # Development
     "ipython>=8.24.0",
-    "apscheduler>=3.10.0",
 ]
 
 [tool.ruff]
@@ -126,7 +122,10 @@ disallow_any_generics = false
 [[tool.mypy.overrides]]
 module = [
     "app.agent.*",
-    "apscheduler.*",
+    "celery.*",
+    "kombu.*",
+    "pandas.*",
+    "tushare.*",
 ]
 ignore_missing_imports = true
 disallow_untyped_defs = false

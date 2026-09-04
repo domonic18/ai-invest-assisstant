@@ -1,312 +1,136 @@
-# AI Invest Assistant 开发计划
+# 功能开发计划（基于 2026-09-02 实现现状重新评估）
 
-## 1. 项目现状
+> 需求基准见 [01-requirement.md §7 版本规划](../requirement/01-requirement.md)；部署架构终态见
+> [../arch/06-deployment.md](../arch/06-deployment.md)。本文档是功能开发的真相源：
+> 维护批次、优先级与状态，每批次落地后更新状态标注。评估基线：2026-09-02（PR #6 已含 web-api 单进程改造）。
 
-### 1.1 已完成资产
+## 1. 现状盘点
 
-| 资产 | 状态 | 说明 |
+### 1.1 已落地
+
+| 领域 | 内容 | 佐证 |
 |------|------|------|
-| 需求文档 | 已完成 | `docs/requirement/01-requirement.md` 定义 P0-P3 功能矩阵、版本边界、非功能需求 |
-| 架构设计 | 已完成 | `docs/arch/00-overview.md ~ 06-deployment.md` 覆盖总体架构、数据源、采集、存储、AI Agent、前端、部署 |
-| Web 原型 | 已完成 | `docs/prototypes/*.html` 共 13 个页面，覆盖 Dashboard、产业链、热点、资金流向、集合竞价、个股、研报、后台、设置等 |
-| AI Skill | 已完成 | `skills/*/` 下 5 个 SKILL.md |
-
-### 1.2 尚未启动的工程目录
-
-当前仓库仅有文档与原型，以下工程目录需要逐步创建：
-
-```
-backend/                          # FastAPI + 采集模块
-├── pyproject.toml                # uv 依赖与工具配置
-├── uv.lock                       # 锁定文件
-web/                              # React + Vite + TypeScript
-miniapp/                          # Taro 4 + React 微信小程序（V1.1 阶段启动）
-shared/                           # Web + 小程序共享类型/工具/API 封装
-docker/                           # Docker 镜像与数据库初始化
-├── web/                          # Web 函数 Dockerfile + Nginx/Supervisor 配置
-├── collector/                    # SCF Job 采集 Dockerfile + 入口脚本
-└── database/                     # 数据库初始化 SQL
-    └── init-scripts/
-├── docker-compose.yml            # 全栈本地/生产编排
-docker-compose-dev.yml            # 开发环境编排
-docker-compose.infra.yml          # 轻量服务器基础设施编排
-.env.example
-Makefile
-CLAUDE.md                         # 项目级 AI 上下文
-backend/CLAUDE.md                 # 后端 AI 上下文
-web/CLAUDE.md                     # 前端 AI 上下文
-```
-
-### 1.3 开发策略
-
-- **数据先行**：先完成 schema、采集器、清洗管道与种子数据，再启动前后端。
-- **接口契约先行**：`shared/` 目录下的类型与端点常量作为后端、Web、小程序三方的法律依据。
-- **Skill 与代码解耦**：AI 分析优先通过 Skill + Python Agent SDK（PydanticAI / OpenAI Agents SDK）实现，复杂场景再补充 Python 代码。
-- **串并混合**：数据层 → 后端 API → Web 端 → 后台/MCP → 部署优化 → 小程序，前后端可部分重叠推进；小程序待主产品稳定后再启动。
-
-## 2. 开发目标
-
-在约 **18-22 周**内交付 **V1.0 MVP**（后端 + Web + 后台管理/MCP），并在此基础上用约 **3-4 周**完成微信小程序：
-
-1. 基础设施可一键部署（轻量服务器 Docker Compose + SCF 镜像）。
-2. 数据采集管道打通：行情、公告/新闻、财报、研报、集合竞价、资金流向。
-3. 后端 API 支撑 Web 端，具备 JWT 认证与基础限流。
-4. Web 端上线：仪表盘、产业链全景、热点追踪、集合竞价复盘、资金流向、个股详情、研报中心、用户设置。
-5. 5 个核心 AI Skill 可通过后端 API 被调用并返回结构化结果。
-6. 后台管理系统支持用户/股票/研报/新闻/采集任务的 CRUD 与监控。
-7. API-KEY 与 MCP 接口就绪，支持外部 AI 工具接入。
-8. **V1.1 阶段**：待 Web 端与后端整体稳定、生产环境运行正常后，再启动微信小程序开发。
-
-## 3. 分阶段路线图
-
-### 阶段 0：项目启动与工程骨架（第 1-2 周）
-
-**目标**：搭建可运行的多模块工程骨架，建立共享契约、本地开发流程与 CI 基础。
-
-**交付物**：后端 / Web / shared / docker / qa 工程目录、小程序骨架（可选）、顶层配置、CI 与 lint 脚本。
-
-**验收标准**：`make backend` 与 `make web` 能分别启动后端与 Web 前端；`make lint` 通过；`uv run pytest -m unit` 与 `npm run test:unit` 可执行（测试用例可逐步补充）；小程序工程目录可编译（可选）。
-
-### 开发环境说明
-
-- **Python 后端统一使用 `uv` 管理依赖**，不再使用 `pip` + `requirements.txt`。
-  - 进入 `backend/` 后执行 `uv sync` 同步环境（含 dev 依赖）。
-  - 运行服务：`uv run uvicorn app.main:app --reload --port 8000`
-  - 运行测试：`uv run pytest -m unit`
-  - 类型检查：`uv run mypy app/`
-  - 代码 lint：`uv run ruff check .`
-- **前端使用 npm**，进入 `web/` 后执行 `npm install`。
-- **AI 上下文文件**：修改代码前请先阅读 `CLAUDE.md`、`backend/CLAUDE.md`、`web/CLAUDE.md`。
-
-### 阶段 1：数据层与采集管道（第 3-6 周）
-
-**目标**：建立可落地真实数据的存储层与采集管道。
-
-**交付物**：
-- PostgreSQL + TimescaleDB schema、Redis key 设计、ES 索引模板、MinIO bucket、Milvus collection
-- 采集器基类、清洗管道、行情/新闻/公告/公司信息采集器
-- SCF Job 入口、本地调度、开发种子数据
-
-**验收标准**：`docker compose -f docker-compose.infra.yml up -d` 拉起全部中间件；行情与新闻采集稳定入库；幂等写入。
-
-### 阶段 2：后端 API 与 AI 集成（第 5-9 周）
-
-> 与阶段 1 后半段重叠 2 周。
-
-**目标**：构建支撑双端的后端 API，并接入 Python Agent SDK。
-
-**交付物**：
-- FastAPI 核心模块、JWT / 微信登录、股票数据接口、自选股接口
-- 产业链 / 研报 / 热点 / 财务 / 突破点 AI 分析 API
-- Skill 调用封装、后台管理前置 API、Swagger 文档、单元测试
-
-**验收标准**：P0/P1 接口可调用并返回符合 `shared/` 类型的响应；5 个核心 Skill 可返回有效 JSON；API P95 < 500ms。
-
-### 阶段 3：Web 前端（第 8-13 周）
-
-> 与阶段 2 重叠 2 周。
-
-**目标**：将 HTML 原型工程化为 React 应用并完成 API 对接。
-
-**交付物**：登录/注册、仪表盘、产业链分析、个股详情、热点追踪、资金流向、集合竞价复盘、研报中心、用户设置，以及 K 线/G6/D3/竞价图表组件。
-
-**验收标准**：P0 页面可访问并联调通过；产业链图谱可交互；首屏加载 < 3 秒；E2E 覆盖登录 → 仪表盘 → 产业链链路。
-
-### 阶段 4：后台管理与 MCP 接口（第 12-16 周）
-
-**目标**：构建独立后台管理端，完成 API-KEY 管理与 MCP 接口暴露。
-
-**交付物**：
-- 后台管理：用户/股票/研报/新闻/采集任务 CRUD、系统监控、审计日志
-- API-KEY 生命周期管理
-- MCP Server：9 个 Tools + 2 个 Resources、SSE 传输、客户端配置模板
-
-**验收标准**：管理员可通过 `/admin` 完成 P0 CRUD；MCP Tool 调用成功率 ≥ 95%。
-
-### 阶段 5：部署、测试与生产加固（第 15-20 周）
-
-**目标**：完成腾讯云部署、镜像构建、监控告警、性能优化与安全加固，达到 Web 端生产上线标准。
-
-**交付物**：轻量服务器部署脚本、Web/Job 镜像构建、SCF 配置、域名 HTTPS、CLS 日志、监控告警、性能优化、安全加固、集成/压力测试、上线检查清单。
-
-**验收标准**：生产环境可访问；采集任务稳定运行 3 个交易日；系统可用性 ≥ 99.5%；通过安全审查。
-
-### 阶段 6：微信小程序（第 20-24 周）
-
-> 待 Web 端与后端整体稳定、生产环境运行正常后再启动。
-
-**目标**：完成小程序端核心功能，复用共享层与后端接口。
-
-**交付物**：首页、行情/自选股、集合竞价可视化（ec-canvas）、AI 分析页、个人中心、微信登录。
-
-**验收标准**：可在微信开发者工具预览；集合竞价曲线正确渲染；包体积 < 2MB。
-
-### 路线图总览
-
-```
-周次  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
-     ├────阶段0────┤
-                   ├────────阶段1────────┤
-                               ├────────────阶段2────────────┤
-                                             ├────────────────阶段3────────────────┤
-                                                                       ├────阶段4────┤
-                                                                                   ├──────阶段5──────┤
-                                                                                                   ├────阶段6────┤
-```
-
-> 阶段 6（小程序）待 Web 端与后端整体稳定、生产环境运行正常后再启动。V1.0 MVP 以阶段 5 结束为标志。
-
-## 4. 关键任务分解
-
-### 阶段 0
-
-| 任务 | 优先级 | 建议工时 |
-|------|--------|----------|
-| 后端工程骨架 | P0 | 2d | backend/app/、backend/app/prompts/、backend/collector/、backend/pyproject.toml |
-| Web 前端工程骨架 | P0 | 2d |
-| shared 共享层 | P0 | 2d |
-| Docker 镜像与数据库初始化配置占位 | P0 | 2d | docker/web/、docker/collector/、docker/database/init-scripts/ |
-| 测试工程目录占位 | P0 | 1d | backend/tests/、web/src/test/、qa/integration/ |
-| CI / lint / 开发脚本 | P0 | 1d | 使用 uv 管理 Python 依赖 |
-| CLAUDE.md 上下文文件 | P0 | 0.5d | 根目录、backend/、web/ |
-| 小程序工程骨架（可选） | P2 | 1d | 仅创建目录与编译脚本 |
-| 更新 README 开发指南 | P1 | 1d |
-
-### 阶段 1
-
-| 任务 | 优先级 | 建议工时 |
-|------|--------|----------|
-| PostgreSQL schema 初始化 | P0 | 3d | docker/database/init-scripts/01-schema.sql、02-indexes.sql |
-| Redis / ES / MinIO / Milvus 初始化 | P1 | 3d |
-| 采集器基类与清洗管道 | P0 | 3d |
-| 行情采集器（日 K / 分钟 K） | P0 | 3d |
-| 新闻/公告采集器 | P0 | 3d |
-| 公司基本信息采集器 | P1 | 2d |
-| SCF Job 入口与本地调度 | P1 | 2d |
-| 开发环境种子数据 | P1 | 2d |
-| 采集监控与日志 | P2 | 2d |
-
-### 阶段 2
-
-| 任务 | 优先级 | 建议工时 |
-|------|--------|----------|
-| FastAPI 核心模块 | P0 | 3d |
-| 用户认证接口 | P0 | 2d |
-| 股票数据接口 | P0 | 3d |
-| 自选股接口 | P1 | 2d |
-| Python Agent SDK 与 Prompt 加载器封装 | P0 | 3d | pydantic-ai、prompt_loader、llm_router |
-| 产业链 / 研报 / 热点 / 财务 / 突破点 API | P0-P1 | 10d |
-| 后台管理前置 API | P1 | 3d |
-| API 文档与单元测试 | P1 | 3d |
-| 后端集成测试 | P1 | 3d | 数据库/API/MCP 集成 |
-| Skill 输出解析与回归测试 | P1 | 2d | JSON Schema、输出样例库 |
-
-### 阶段 3
-
-| 任务 | 优先级 | 建议工时 |
-|------|--------|----------|
-| 前端基础框架 | P0 | 3d |
-| 登录/注册 | P0 | 2d |
-| 仪表盘 | P0 | 3d |
-| 产业链分析页 | P0 | 5d |
-| 个股详情页 | P0 | 4d |
-| 热点追踪 / 资金流向 / 集合竞价复盘 | P0 | 9d |
-| 研报中心 / 用户设置 | P1 | 6d |
-| 图表组件封装 | P0 | 4d |
-| 前端单元测试 | P1 | 3d | Vitest + jsdom |
-| Playwright E2E 测试 | P1 | 3d | 登录 → 仪表盘 → 产业链 → 个股 |
-
-### 阶段 4
-
-| 任务 | 优先级 | 建议工时 |
-|------|--------|----------|
-| 后台管理框架与用户管理 | P0 | 4d |
-| 股票 / 研报 / 新闻 / 采集任务管理 | P1 | 8d |
-| 系统监控与审计日志 | P1-P2 | 4d |
-| API-KEY 管理 | P1 | 2d |
-| MCP Server 与客户端模板 | P1 | 5d |
-
-### 阶段 5
-
-| 任务 | 优先级 | 建议工时 |
-|------|--------|----------|
-| 轻量服务器部署脚本 | P0 | 2d |
-| Web / Job 镜像构建与 SCF 配置 | P0 | 4d |
-| 域名与 HTTPS | P0 | 1d |
-| 日志与监控 | P1 | 2d |
-| 性能优化 | P1 | 3d |
-| 安全加固 | P0 | 3d |
-| 后端集成测试补全 | P0 | 2d |
-| qa/ 黑盒集成测试 | P0 | 2d | 部署后环境接口测试 |
-| 压力测试 | P0 | 2d | 100 并发 |
-| 上线检查清单 | P1 | 1d |
-
-### 阶段 6
-
-| 任务 | 优先级 | 建议工时 |
-|------|--------|----------|
-| 小程序框架搭建 | P1 | 2d |
-| 微信登录 | P1 | 2d |
-| 首页 / 行情页 / 集合竞价可视化 | P1 | 9d |
-| AI 分析页 / 个人中心 | P2 | 4d |
-| 测试与包体积优化 | P2 | 2d |
-
-## 5. 里程碑
-
-| 里程碑 | 时间 | 判定标准 |
-|--------|------|----------|
-| M1：工程骨架可用 | 第 2 周末 | 本地可启动后端、Web，CI 通过 |
-| M2：数据管道跑通 | 第 6 周末 | 行情/新闻采集稳定入库，schema 冻结 |
-| M3：后端 API 可用 | 第 9 周末 | P0 接口全部可调用，Skill 返回有效结果 |
-| M4：Web 端可用 | 第 13 周末 | P0 页面联调通过，E2E 核心链路通过 |
-| M5：后台与 MCP 可用 | 第 16 周末 | 后台 CRUD 完整，MCP Tool 可调用 |
-| M6：Web 生产上线（V1.0 MVP） | 第 20 周末 | 生产环境稳定运行，通过安全审查 |
-| M7：小程序可用（V1.1） | 第 24 周末 | 4 个 Tab 可用，包体积 < 2MB |
-
-## 6. 关键成功指标
-
-| 指标 | 目标 |
-|------|------|
-| V1.0 MVP 交付周期（Web 生产上线） | ≤ 20 周 |
-| 后端 API 接口覆盖率 | 100% 覆盖需求文档 P0/P1 功能 |
-| 数据采集成功率 | 交易日关键任务 ≥ 95% |
-| Web 首屏加载 | < 3 秒 |
-| AI Skill 可调用率 | 5 个核心 Skill 全部可通过 API 返回有效结构化结果 |
-| 后端 Service 层测试覆盖率 | ≥ 70% |
-| 后端 API 层测试覆盖率 | ≥ 60% |
-| 前端 Utils/Hooks 测试覆盖率 | ≥ 60% |
-| E2E 核心链路覆盖 | 登录 → 仪表盘 → 产业链 → 个股 100% |
-| qa/ 黑盒集成测试通过率 | ≥ 95% |
-| 小程序包体积（V1.1） | < 2 MB |
-
-## 7. 主要风险与应对
-
-| 风险 | 等级 | 应对措施 |
-|------|------|----------|
-| 数据源接口变更或反爬升级 | 高 | 多源故障切换、本地缓存、监控告警、采集器与 pipeline 解耦 |
-| AI Skill 输出格式不稳定 | 高 | 明确 JSON Schema、Pydantic 校验、格式修复兜底、回归样例库 |
-| 数据质量差导致 AI 结果不可用 | 高 | 数据校验规则、异常数据人工确认队列、来源引用与置信度标注 |
-| 前后端接口契约频繁变更 | 中 | shared 目录作为法律依据、mock API、每周契约对齐 |
-| 中间件资源占用超出预算 | 中 | 开发环境按需启停、ES/Milvus 内存调优、必要时降级为可选 |
-| 小程序审核不通过或包体积超标 | 中 | 代码压缩、按需引入、CDN 资源、避免敏感文案、预留审核缓冲 |
-| 数据采集合规性 | 高 | 遵守 robots.txt、仅采集公开数据、保留日志 |
-| 平台输出被误认为投资建议 | 中 | 显著免责声明、不出现买卖建议、用户协议明确 |
-| SCF 冷启动或超时 | 中 | 预置并发、合理超时、AI 分析异步化、P99 监控 |
-| 生产密钥 / API-KEY 泄露 | 中 | 环境变量/密钥管理、AES-256-GCM 加密、日志过滤、撤销机制 |
-
-## 8. 资源需求建议
-
-| 角色 | 人数 | 主要职责 |
-|------|------|----------|
-| 后端工程师 | 1-2 | FastAPI、采集器、数据库、Skill 集成 |
-| 前端工程师 | 1 | React Web 端、后台管理 |
-| 小程序工程师 | 0 → 1（V1.1） | Taro 小程序（可由前端兼任），V1.0 阶段不投入 |
-| DevOps / 部署 | 0.5 | Docker、SCF、CI/CD、监控 |
-| 产品/测试 | 0.5 | 原型验收、测试用例、上线检查 |
-
-## 9. 风险跟踪机制
-
-- **每日站会**：同步阻塞问题。
-- **每周风险登记册 review**：技术负责人更新风险状态。
-- **每阶段末里程碑评审**：Go / No-Go 决策。
-- **上线前检查**：全团队执行上线检查清单。
+| 数据采集 | TASK_SPECS 30 任务：行情/ETF/A50、竞价、资金流、新闻、股池（涨停/跌停/炸板）、龙虎榜、研报、财报、IPO、宏观、指数多源 | `collector/runtime/registry.py` |
+| AI 定时分析 | 大盘复盘 + 涨停 AI 归因已定时化（交易日 16:30，heavy 队列，input_hash 缓存）| `03-seed.sql` cron `30 16 * * 1-5` |
+| 产业链 | 图谱分析 + 版本管理 + 版本对比（手动触发） | `api/v1/chain.py` |
+| 前端页面 | 复盘/产业链/个股/热点/资金流/竞价/研报/财报/财务 + 后台管理 9 页（含采集任务目录、LLM 配置） | `web/src/router.tsx` |
+| 部署 | SCF + 轻量双节点、CI/CD（TCR）、冷启动 502 已根治 | [../arch/06-deployment.md](../arch/06-deployment.md) |
+
+### 1.2 未落地（按需求编号）
+
+| 需求 | 状态 | 关键缺口 / 前置 |
+|------|------|----------------|
+| F-DC-04 电报准实时 | 已实现（批次 A） | `cls_telegraph` spider + `collector-stream` 驻留进程（10s 轮询/Redis 游标心跳/指数退避/补漏）；分页查询 API + `/telegraph` 时间线页（10s 自动刷新/新电报红点/断流延迟探针） |
+| F-DC-05 投资日历底座 | 已实现（批次 A + investkalendar 增补） | `calendar_event` 表 + FOMC/BLS 2026 官方日程种子 + cls investkalendar 每日采集（2026-09-03）+ 查询 API（CN 日界→UTC 区间） |
+| F-DC-06 全球指标采集 | 已实现（批次 A） | `global-index` 任务（东财 push2delay 实时 + tushare us_tycr 全历史）→ `quote_global_index_daily` |
+| F-VIS-07 投资日历页 | 已实现（批次 A） | 月/周/列表三视图 + 分类筛选 + 事件 Drawer，`/calendar` 主导航 |
+| F-VIS-08 跟踪指数管理 | 已实现（批次 A） | `tracked_index_config` + Admin 第 10 页 CRUD/启停（无数据源指标禁用启用） |
+| F-USER-01 自选股分组 | 已实现（批次 B） | `user_watchlist_group` + `group_id` 单一归属（默认分组不可删，非默认组删除时股票移入默认组）+ 分组 CRUD/排序 API + `/watchlist` 管理页与分组级 AI 开关 |
+| F-AI-07 自选股 AI 每日分析 | 已实现（批次 B） | `stock-daily-analysis` 四件套（heavy 队列单股串行、input_hash 缓存、K 线缺失降级）+ `GET /stocks/{code}/ai-analysis` + StockDetail "AI 分析" Tab |
+| F-VIS-06 工作台 | 已实现（批次 C） | `GET /api/v1/workbench` 七模块聚合（整端点鉴权、逐模块降级恒 200）+ `/workbench` 五卡片页；登录默认入口 `/` → `/workbench`，每日复盘迁 `/review` |
+| F-USER-03 用户级模型配置 | 部分实现 | 仅管理员全局 llm_config，无 user 维度 |
+| F-API-01 API-KEY/MCP | 桩 | `/api/v1/mcp/server.py` 返回空，无 API-KEY 管理 |
+| F-AI-01 产业链定时刷新 + AI 提醒 | 已实现（批次 D） | `chain-refresh` 周任务（周六 06:00 北京时间，heavy 逐链串行，按用户复制落版本）+ `chain_alert` 表（同链同类型同日唯一）+ `GET /chain/alerts` + 图谱页 ChainAlertPanel |
+| 小程序端 | 未启动 | V1.0 目标项，整体后置 |
+
+## 2. 重新评估结论
+
+1. **工作台是纯聚合层，数据底座先行**：F-VIS-06 五个模块（日历摘要/复盘结论/要闻/自选概览/市场快览）分别依赖 F-DC-05、既有 ai-review、F-DC-04、F-AI-07、F-DC-06——先底座后聚合，避免空壳页
+2. **自选股 AI 链路是最高确定性批次**：定时化机制、input_hash 缓存、heavy 队列串行均已在复盘/归因验证过，属模式复制而非新架构；且它是工作台"自选股概览"的前置
+3. **两条数据源风险线必须先调研再排期**：cls investkalendar 签名（日历）与全球指标渠道权限（F-DC-06）——调研不过则对应功能降级（日历先上 FOMC/BLS 权威日程，跟踪指数先上 A 股指数动态化）
+4. **后置判断**：小程序端、MCP/API-KEY、用户级模型配置、产业链 AI 提醒均移入后置池——当前单用户/少用户阶段收益低；产业链定时刷新保留在 V1.1 意义上，但优先级低于 V1.2 数据底座
+5. **PG 备份入 COS** 维持"排在全部开发计划之后"
+
+## 3. 批次计划
+
+### 批次 A：数据底座（三线可并行）
+
+| 项 | 内容 | 关键落点 | 风险 |
+|----|------|----------|------|
+| A1 财联社电报采集 | telegraph spider（10s 增量轮询、cls 消息 id 幂等、游标断点）+ 驻留进程部署形态（轻量服务器常驻或 celery beat 短周期） | `collector/spiders/`、`03-seed.sql` | 中：WAF 风控节奏需实测 |
+| A2 全球指标 + 跟踪指数管理 | 指标 spider（先验证 tushare us_tycr / 东财 push2delay）→ `quote_global_index_daily` + `tracked_index_config` → Admin 第 10 页 CRUD + 启停校验 | `collector/spiders/`、`models/`、`api/v1/admin/`、`web/src/pages/Admin/` | 中：渠道权限未验证 |
+| A3 投资日历底座 | 调研 cls investkalendar 签名（**先调研出结论再排实现**）；无障碍部分先行：`invest_calendar_event` 表 + FOMC/BLS 年度日程半自动导入 + 查询 API | `models/`、`docker/database/migrations/`、`api/v1/` | 高（cls 线）/ 低（FOMC 线） |
+
+> **调研结论回填（2026-09-02 探针实测，批次 A 开发前置项已全部闭环）**
+>
+> - **A1 cls 电报**：站点已迁 Next.js，旧 `nodeapi/telegraphList`、`api/cache` 均失效；真实端点 `GET www.cls.cn/v1/roll/get_roll_list`。签名 = `md5_hex(sha1_hex(参数按 key 升序 k=v& 拼接))`（非社区旧版 `k1v1k2v2` 裸拼接），sv=8.7.9 硬编码于 `_app` bundle 可正则提取；需 curl_cffi Chrome 指纹 + 首次访问 `/telegraph` 取 WAF Cookie，实测 errno=0 通过。`last_time` 向旧翻页（排他），增量= `last_time=0` 取最新 rn 条按 `ctime>游标` 过滤，rn 上限约 20。→ 按原方案实施，stream 默认启用。
+> - **A2 全球指标**：tushare `us_tycr` 权限已通（单次调用返回全量历史，列为 `date/y1..y30`，y2/y10 即美债 2Y/10Y 收益率 %，非 ts_code 接口）；东财 push2delay `ulist.np/get` 实时快照可用（secid `101.GC00Y`/`100.UDI`，fltt=2 已缩放），但 push2delay 无日 K；历史回补走 akshare 三路（`futures_foreign_hist`/`index_global_hist_em`/`bond_zh_us_rate`）实测可用。→ 实时走 push2delay、美债走 us_tycr、回补走 akshare，按原方案实施。
+> - **A3 日历**：FOMC/BLS 2026 官方日程已从 federalreserve.gov / bls.gov 实抓（BLS 拒直连，经服务端 reader 通道取得）；cls investkalendar 签名机制与电报同源（同一 sign 模块），复用门槛已大幅降低，仍留调研项、本轮不做。
+
+> **增补回填（2026-09-03，cls investkalendar 采集上线，分支 `feat/cls-investkalendar`）**
+>
+> - **调研结论（探针实测，原 A3 留调研项闭环）**：旧 `nodeapi/updateInvestkalendar` 已 404；真实端点 `GET www.cls.cn/api/calendar/web/list`（由页面 chunk `pages/investkalendar-*.js` 定位），签名与电报同源（`cls_sign` 复用）。端点固定返回**今日起约 3 周滚动前瞻窗口**（`tradeDate` 不改变窗口），每日一次全量拉取即可覆盖；条目 `type=1` 经济数据（economic 载荷：前值/预期/公布值/star）→ `宏观`、`type=2` 事件会议 → `会议`；`calendar_time` 为北京时间字符串（00:00:00=时间未定）。新股/解禁为 cls 独立接口，本轮不扩。
+> - **交付**：`cls-investkalendar` 任务四件套（spider `cls_investkalendar.py` 复用电报共享 WAF 会话 + TaskSpec + cls 渠道登记 + 迁移 `20260903_cls_investkalendar.sql` 调度 `15 7 * * *` 全周）写入 `calendar_event`（`source_hash=md5(source|event_time|title)` 幂等 DO NOTHING，不追踪 cls 侧预期值/公布值更新）。E2E：CLI 触发 SUCCESS 57 条入库（33 会议 + 24 宏观），北京时间→aware UTC 换算正确，重跑零重复，`/calendar/events` API 与后台任务目录（34 任务）可见。
+> - **偏差**：① `impact_markets`/`related_symbols` 不从 cls 数据推导（避免编造口径），留空；② cls 渠道在 `DEFAULT_CHANNELS`/seed 的 `supported_data_types` 同步登记任务名；③ 电报 spider 的 `_get_session` 公开为 `shared_session()` 供两任务复用同一 WAF 会话。
+
+> **实施回填（2026-09-02，批次 A 三线 + 日历页交付，分支 `feat/batch-a-foundation`）**
+>
+> - **交付**：`20260902_batch_a_foundation` 迁移（4 新表 + 32 条官方日程种子）；`global-index` / `cls-telegraph-backfill` 任务与 `collector-stream` 驻留服务；日历查询 API 与前端页；Admin 跟踪指数第 10 页。E2E 实测：电报回补 20 条幂等重跑零重复；stream 首启看门狗补漏 64 条（覆盖 2.5h 断档）、重启游标自举零重复、SIGTERM 优雅退出；东财黄金/美元指数实测入库。
+> - **与原计划的偏差**：① 全球指标未拆 3 个 TaskSpec，收敛为单 `global-index` 任务（东财/tushare 双渠道 fallback），调度节奏仍按 realtime/收盘后/每日三行 `collector_task` 入 beat，与既有"调度在 DB"模型一致；② 日历表定名 `calendar_event`（原计划 `invest_calendar_event`），归入 market 子域；③ 电报不入 ES（采集侧现状零 ES 写入，与 news 一致）。
+> - **新探针发现**：tushare `us_tycr` 限频 **1 次/小时**——种子调度 `30 6 * * 2-6` 每日一次安全，但禁止高频手动重跑；渠道 fallback 会把限频异常转为切源并在 `collector_log.error_msg` 留痕，终态仍 success。
+> - **口径修正**：`quote_global_index_daily.change_pct` 全表统一为涨跌幅 %——tushare 美债最初写 bp 差（+4bp 会显示成 +4.00%），已改 `(close-prev)/prev` 并清理本地存量。
+> - **范围追加**：电报查询 API + `/telegraph` 前端时间线页自批次 C 提前落地（原计划后置到工作台）——采集链路需要可视化验收入口：分页查询（公开路由，镜像 calendar 竖切片）+ 后端一次剥净 cls 富文本 HTML + 10s 自动刷新/新电报 NEW 红点/最新延迟断流探针。
+
+### 批次 B：自选股 AI 链路（批次 A 无依赖，可提前启动）
+
+| 项 | 内容 | 关键落点 |
+|----|------|----------|
+| B1 分组模型改造 | `user_watchlist_group` 表 + `user_watchlist.group_id`（单一归属、默认分组不可删）+ 分组 CRUD API | `models/watchlist.py`、`api/v1/users.py`、迁移 SQL |
+| B2 分组 UI + AI 复盘开关 | 自选股页分组折叠组织、分组增删改查/排序、分组级 AI 复盘开关 | `web/src/pages/`、shared 类型 |
+| B3 AI 每日分析定时任务 | 镜像 market-daily-review 四件套：skill yaml（三段式输出 Pydantic 校验）+ service（input_hash=skill+code+date 缓存）+ spider 覆写 run + TaskSpec（heavy 队列，单股串行）+ seed cron | `app/prompts/skills/`、`app/services/review/`、`collector/spiders/`、`registry.py`、`03-seed.sql` |
+| B4 个股详情 AI Tab | 个股详情页新增"AI 每日分析"Tab（盘面解读/操作策略/止损线 + 免责声明） | `web/src/pages/StockDetail/` |
+
+> **实施回填（2026-09-02，批次 B 四项交付，分支 `feat/batch-b-watchlist-ai`）**
+>
+> - **交付**：迁移 `20260902_batch_b1_watchlist_group.sql`（分组表 + `group_id` 回填 + SET NOT NULL，幂等验证两遍）；分组 CRUD/排序/移动/删除 API + `/watchlist` 管理页（分组折叠、AI 开关、跨组移动）；`stock-daily-analysis` 四件套（skill yaml + service + spider + TaskSpec heavy 队列）与查询端点 `GET /stocks/{code}/ai-analysis`；StockDetail "AI 分析" Tab。E2E 实测：本地容器重建后 CLI 触发任务 SUCCESS，两只自选股（桂冠电力/爱丽家居）经 Kimi（anthropic 协议）真实生成，`ai_analysis_result.stock_code` 按股落行、input_hash 含 stock_code 各不相同、4 sections 全非空；查询端点未登录 401 符合预期。
+> - **关键修正（渠道登记以任务名为键）**：internal 渠道的 `supported_data_types`、`collector_channel_data_type.data_type`、`collector_task.task_type` 三处都必须登记 TaskSpec **name**（`stock-daily-analysis`）而非 `data_type`（`ai_stock_daily_analysis`）——渠道解析（`resolver.py` 按 `data_type == task_name` 匹配）与 beat 派发（`celery_beat.py` 以 `task_type` 为任务名）都以任务名为键，与 market-daily-review / limit-up-ai-review 既有先例一致；首轮验收曾因误用 data_type 登记 SKIPPED"没有启用任何可用的采集渠道"，已在迁移中含修复块（jsonb 剔除 + 残留行清理）。
+> - **与原计划的偏差**：① skill 输出定稿 4 段（盘面解读/关键事件/操作策略/风险与止损，原计划三段式）；② `input_hash` 实为 `sha256(skill_id:section_keys:stock_code:trade_date)`（含 section 键，原计划 skill+code+date）；③ 删除非默认分组时组内股票**移入默认分组**（用户决策，非级联删除）；④ K 线缺失时降级为仅行情生成并在 prompt 注明数据范围，K 线与行情全缺才抛 `ReviewInputDataNotReadyError` 走 celery 10 分钟重试，spider 仅在全部股票未就绪时整体 re-raise，单股失败隔离并回滚。
+
+### 批次 C：工作台聚合（依赖 A1/A2/A3(部分)/B3）
+
+| 项 | 内容 | 关键落点 |
+|----|------|----------|
+| C1 聚合端点 | `/api/v1/workbench`：一次请求聚合五模块数据（各模块独立降级，缺失返回空态不报错） | `api/v1/`、`services/` |
+| C2 工作台页面 | `/workbench` 路由 + 五模块卡片（可折叠）+ 登录默认入口从 `/` 切换（每日复盘保留独立页） | `web/src/pages/Workbench/`、`router.tsx` |
+
+> **实施回填（2026-09-03，批次 C 交付，分支 `feat/batch-c-workbench`）**
+>
+> - **交付**：`GET /api/v1/workbench`（整端点鉴权）一次聚合七字段——calendar(8)/review/telegraph(12)/watchlist_groups/indices/stats/global_indices，聚合服务顺序 await + 每模块独立 try/except 降级（structlog warning + 空态兜底，整体恒 200）；配套补齐全球指标公开读端点 `GET /api/v1/market/global-indices`（`TrackedIndexConfig` 全球分类按 sort_order → `GlobalIndexDaily` 每 code 最新行，启用过滤）。前端 `/workbench` 按原型（`docs/prototypes/workbench.html`）布局：页首 8 指标横条（A 股跟踪指数 + 全球指标）→ 左列「复盘核心结论（分区摘要 + 情绪 chips）/ 要闻资讯（准实时徽标 + 标签行）/ 自选股概览（分组 chips 切换 + AI 状态与盘面解读摘要 + 免责声明）」右列「投资日历（今日标记）/ 板块资金动向空态卡 / 快捷入口」，全部卡片可折叠；`/` 重定向 `/workbench`、Dashboard 迁 `/review`、登录/注册落 `/workbench`、侧边栏与移动 TabBar 首项工作台、pageContext 增补两路由。
+> - **自选概览的聚合扩展（原型反馈驱动）**：`watchlist` 字段升级为 `watchlist_groups`——分组容器（名称/默认/`ai_review_enabled`）+ 行内 `ai_status`（`off` 分组未开启 / `pending` 已开启未生成 / `ready` 已生成）与 `ai_summary`（`intraday_review` 分区剥 Markdown 截 120 字）；`ai_analysis_repository.load_success_by_hashes` 按 input_hash 批量取最新 success 记录，同一行情组装抽出 `_build_quote_items` 复用。`ready` 判定锚定最近交易日，当日 16:30 任务未跑前显示 `pending` 属预期。
+> - **与原计划的偏差**：① 聚合并发用顺序 await 而非 `asyncio.gather`——既有 gather 先例（index_quotation_service）共享单个 AsyncSession 属不安全模式，不复刻，七模块全为 Redis/索引 PG 快读顺序总耗时可控；② `review=None`（当日未生成）按正常空态透传，不计入降级日志；③ 首轮实现未对齐原型（指数埋在重型卡、无分组/AI 摘要），已按 `workbench.html` 重构并补折叠（antd 5.29 Card 无 collapsible，自建 FoldCard）；④ Register.tsx 同步登录后跳转（计划只列 Login.tsx）。
+> - **验收（API 级已过，浏览器侧待人工）**：backend unit 全绿（global_index 4 例 + workbench service 3 例 + watchlist_groups 4 例 + api 用例更新）/ mypy / ruff；web typecheck/lint/test:unit(85)/build 全绿；docker 重建后 curl 实测：无 token `/workbench` 401、带 token（sub=3）200 七字段齐（`watchlist_groups` 分组/AI 状态正确：未开启组 `off`、开启组盘后前 `pending`）、`/market/global-indices` 无鉴权 200、SPA `/workbench` 与 `/review` 均 200。
+
+### 批次 D：产业链 AI 提醒（F-AI-01）+ 存储治理（2026-09-03 立项，分支 `feat/batch-d-chain-alerts`）
+
+> 依赖盘点：V1.2 数据底座（批次 A/B/C）收官后首轮迭代。D1 → D2 串行（告警由刷新任务产出），
+> D3/D4 与主线独立可并行。需求基准 [01-requirement.md F-AI-01](../requirement/01-requirement.md)：
+> 定时自动更新（每周/每月 AI 重新分析）+ 手动触发（已有 POST /chain/analyze）+ AI 提醒 5 触发类型；
+> "重大事件触发刷新"后置池保留。MCP get_chain_alerts 随 F-API-01 后置。
+
+| 项 | 内容 | 关键落点 | 风险 |
+|----|------|----------|------|
+| D1 产业链定时刷新 | 镜像 market-daily-review 四件套：skill yaml（结构化输出 Pydantic 校验，更新内容=财务数据/核心标的/国产化率/动态事件）+ service（input_hash 缓存防重）+ 覆写 run 的 spider + TaskSpec（heavy 队列，逐链串行）+ seed cron；产物走既有版本管理落新版本 | `app/prompts/skills/`、`app/services/chain/`、`collector/spiders/`、`registry.py`、`03-seed.sql` | 中：全链分析 token 成本，需控频（周级） |
+| D2 AI 提醒面板 | `chain_alert` 表（industry/类型/重要程度/触发条件说明/影响环节/建议关注标的）+ 分析任务产出具名告警（5 触发类型：财报异动/评级调整/技术突破/格局变化/政策催化）+ 查询 API + 产业链图谱页顶部提醒面板（按重要程度排序） | `models/`、`docker/database/migrations/`、`api/v1/chain.py`、`web/src/pages/Chain/` | 中：告警去重口径（同链同类型同日唯一） |
+| D3 存储治理三件套 | ① 4 张 hypertable 开 TimescaleDB 压缩策略（`quote_kline_stock_minute` 收益最大，其余为 kline 日线/资金流/全球指数）② collector_log 90 天保留策略 ③ LangGraph checkpoint 随 assistant_session 删除级联清理（存量约 20 孤儿 thread） | `docker/database/migrations/`（均幂等） | 低：压缩段只读不影响写入路径 |
+| D4 工作台板块资金卡接线 | workbench 聚合 +1 模块 sector_flow（`capital_fund_flow_sector` 数据已有，eastmoney_sector_fund_flow 任务在跑），`/workbench`「板块资金动向」空态卡换实数据（涨幅前 N + 色彩走 scheme-aware helpers） | `services/workbench/`、`api/v1/workbench.py`、`shared/types/workbench.ts`、`web/src/pages/Workbench/` | 低 |
+
+> **实施回填（2026-09-03，批次 D 交付，分支 `feat/batch-d-chain-alerts`）**
+>
+> - **交付**：D1 `chain-refresh` 定时刷新四件套——复用单轮执行器 `analyze_industry_chain`（移除 DeprecationWarning 转正为定时路径载体），链级 Redis 非阻塞锁防与手动分析竞争版本号；**按用户复制落版本**：AI 每链只生成一次，对拥有该链 success 版本的每个 user_id 各落一版（created_by=scheduled），读路径零改动。D2 `chain_alert` 全局告警表（无 user_id，UNIQUE(industry, alert_type, signal_date) 吸收按用户复制与同日手动+定时双产）+ AI 结构化输出直接产告警（`ChainAnalysisResult.alerts`，5 类型 + severity 1-3，`_validate` 清洗截断 ≤10，宁缺毋滥）+ `GET /api/v1/chain/alerts`（camelCase wire，severity 降序）+ 图谱页 ChainAlertPanel（类型 Tag 配色/severity 徽标/影响环节/相关标的）。D3 存储治理迁移（幂等）：三表压缩策略（minute 14d / kline_daily 90d / fund_flow_stock 90d；quote_global_index_daily 因 us_tycr 全历史 upsert 写旧 chunk 排除）+ collector_log 90 天保留（存量 DELETE + `collector-log-cleanup` 每日 03:40）+ checkpoint 孤儿 thread 清理（to_regclass 防护）。D4 workbench +1 模块 sector_flow（最新交易日行业板块主力净流入 top8，亿元），SectorFlowCard 空态卡换实数据（涨跌色走 scheme-aware helpers + useColorScheme 订阅）。
+> - **与原计划的偏差**：① 压缩策略幂等检查原查 `timescaledb_information.compression_policies`，实测 TimescaleDB 2.28 无该视图，改查 `timescaledb_information.jobs`（proc_name='policy_compression'）；② D1 原计划的"input_hash 缓存防重"未做——刷新语义即每周期产新版本（版本切换器可见），防重由告警唯一约束 + 链级锁承担；③ 渠道登记实际只落 seed/迁移的 DB 三处（任务名为键）——DEFAULT_CHANNELS 本无 internal 条目且 internal 任务豁免渠道覆盖检查，`channels.py` 无需改动；④ `ChainAlertItem.severity` 不加 ge/le 约束（单个 LLM 坏值不炸整个结构化解析），`_validate` clamp + DB CHECK 兜底。
+> - **验收（API 级已过，浏览器侧待人工）**：backend unit 790 全绿/mypy/ruff；web typecheck/lint/test:unit(89)/build 全绿；docker 全量重建后 CLI 实测 `chain-refresh` SUCCESS（4 目标 3 生成：半导体×2 用户含遗留 user_id=0、锂电池、机器人；创新药因公司映射无数据单链失败被 rollback 隔离，signal_date=最新交易日）；告警唯一约束实测重复插入吸收（INSERT 0 0）；`/chain/alerts` 401/200 + camelCase + severity 降序；`collector-log-cleanup` SUCCESS 且 90 天前存量 0；三条压缩策略在册（jobs 视图）；`/workbench` sector_flow 8 行实数据；`/chain/{industry}/latest`、versions（scheduled v3 置顶）、industries 回归正常。本周模型对四链均未产出证据充分的告警（alerts=[]，宁缺毋滥生效），告警写入路径以探针行实测后清理。
+
+### 后置池（不排序，触发条件成熟再评估）
+
+- F-AI-01 增强：重大事件触发产业链刷新（告警驱动再分析）
+- API-KEY 管理 + MCP Server 实装（F-API-01）
+- 用户级模型配置（F-USER-03）
+- 研报 PDF 全文在线阅读、资金流向桑基图（V1.1 遗留）
+- 小程序端（Taro）
+- PG 备份入 COS（硬性排最后）
+
+## 4. 状态维护
+
+- 每项落地后在本文件标注：`未实现` → `实现中（分支）` → `已完成（日期 + PR）`
+- 批次内验收基线：backend `uv run pytest -m unit` + `mypy` + `ruff`；web `typecheck`/`lint`/`test:unit`/`build`；定时类任务按 collector 验收惯例（任务目录 API 可见、collector_log 终态、前端展示）
+- 数据源调研项（A1 cls WAF 节奏、A2 渠道权限、A3 cls 签名）结论直接回填本文件对应行

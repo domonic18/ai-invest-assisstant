@@ -1,21 +1,253 @@
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
 services:
   web:
     build:
       context: .
       dockerfile: docker/web/Dockerfile
+    # image 供服务器 docker compose pull 定位 TCR；build 保留给本地与应急构建；
+    # APP_TAG 在服务器 .env 钉版（CI git 短 sha），缺省 latest
+    image: ccr.ccs.tencentyun.com/domonic18/web-api:${APP_TAG:-latest}
     ports:
-      - "9000:9000"
+      - "${WEB_PORT:-9000}:9000"
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      TZ: Asia/Shanghai
+      DEBUG: ${DEBUG}
+      # SCF 入口 HTTPS 但以 HTTP 转发容器时须置 1（服务器 .env / SCF 控制台），
+      # 本地 http 访问必须保持 0，否则响应会被 upgrade-insecure-requests 破坏
+      FORCE_FORWARDED_HTTPS: ${FORCE_FORWARDED_HTTPS:-0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app-network
 
-  collector:
+  celery-beat:
     build:
       context: .
       dockerfile: docker/collector/Dockerfile
+    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - COLLECT_TASK=${COLLECT_TASK:-default}
+      TZ: Asia/Shanghai
+      COLLECTOR_MODE: beat
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    networks:
+      - app-network
+
+  celery-worker:
+    # realtime+batch 合并单容器：batch 定点盘后、realtime 盘中，时间窗错开互不挤占；
+    # 队列仍为 3 条，仅容器收缩。
+    # 本地机为 Apple Silicon：akshare 依赖的 py_mini_racer 无 arm64 原生库，
+    # worker 固定用 linux/amd64 模拟运行（与生产架构一致）。
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: docker/collector/Dockerfile
+    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+      COLLECTOR_MODE: worker
+      COLLECTOR_QUEUE: ${CELERY_WORKER_QUEUES:-collector.realtime,collector.batch}
+      COLLECTOR_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY:-2}
+      COLLECTOR_MAX_TASKS_PER_CHILD: ${CELERY_WORKER_MAX_TASKS_PER_CHILD:-200}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "python", "-m", "celery", "-A", "collector.celery_app", "inspect", "ping", "-t", "5"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  celery-worker-heavy:
+    # LLM 分钟级任务（复盘/归因）独占容器，并发=1，不与通用采集池混跑
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: docker/collector/Dockerfile
+    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+      COLLECTOR_MODE: worker
+      COLLECTOR_QUEUE: ${CELERY_HEAVY_QUEUE:-collector.heavy}
+      COLLECTOR_CONCURRENCY: ${CELERY_HEAVY_CONCURRENCY:-1}
+      COLLECTOR_MAX_TASKS_PER_CHILD: ${CELERY_HEAVY_MAX_TASKS_PER_CHILD:-10}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "python", "-m", "celery", "-A", "collector.celery_app", "inspect", "ping", "-t", "5"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2G
+
+  collector-stream:
+    # 财联社电报驻留采集：10s 轮询写 news_telegraph，游标/心跳存 Redis，
+    # 独立进程不占 Celery 池；amd64 与 worker 同理（py_mini_racer 无 arm64 原生库）
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: docker/collector/Dockerfile
+    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+      COLLECTOR_MODE: stream
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      # 心跳键由 stream 每 10s 刷新（TTL 120s），TTL>0 即数据流存活
+      test: ["CMD-SHELL", "python -c \"import os, redis; exit(0 if redis.from_url(os.environ['REDIS_URL']).ttl('collector:stream:cls_telegraph:heartbeat') > 0 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./workspace/postgres:/var/lib/postgresql/data
+      - ./docker/database/init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *logging
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+    logging: *logging
+    networks:
+      - app-network
+
+  elasticsearch:
+    image: elasticsearch:8.13.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+    volumes:
+      - ./workspace/elasticsearch:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    logging: *logging
+    networks:
+      - app-network
+
+  minio:
+    image: minio/minio:RELEASE.2025-10-15T17-29-55Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - ./workspace/minio:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *logging
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

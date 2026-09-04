@@ -1,0 +1,79 @@
+id: market-daily-review
+name: 大盘每日复盘综述
+version: 1.2.0
+model: openai/gpt-4o
+description: 基于当日指数行情、涨跌统计、涨停连板与板块资金数据，生成结构化大盘复盘综述
+
+triggers:
+  - 每日复盘页请求 AI 大盘综述
+
+workflow:
+  - 汇总当日指数行情、涨跌家数、成交额与情绪温度
+  - 汇总涨停池与连板天梯、板块资金净流入/流出 TOP
+  - 调用 LLM 按 sections 声明生成结构化复盘综述
+
+# 内容分区声明：新增分析维度只需在此追加一条（key 为输出/存储键，title 为前端展示名，
+# requirements 为该分区的撰写要求，渲染进 user prompt 的 {section_instructions}）
+sections:
+  - key: overview
+    title: AI 大盘综述
+    requirements: |
+      固定按两段小标题撰写：
+      1、指数情况：结合沪指分时走势（开盘/盘中跳水/尾盘）与日 K 线形态（阴阳线实体幅度、是否创新低），结合量能变化判断是否杀出恐慌盘（下跌伴随放量）
+      2、量能情况：两市成交额及环比（放量/缩量多少亿），结合量能分时结构（开盘缩量/下跌放量/尾盘异动）判断量能异动
+  - key: technical_analysis
+    title: 技术面分析
+    requirements: |
+      逐标的（沪指/创业板/科创50/沪深300ETF/富时A50）分析日线与周线形态——是否跌破支撑位或关键均线、是否突破小平台、是否出现地量；判断趋势时注意：下降拐点 = 趋势支撑线附近 + 地量
+      均线数值、新低/地量/放量判断、分时量能结构必须引用输入的【指数技术分析】预计算指标，禁止自行估算
+  - key: capital_analysis
+    title: 资金面分析
+    requirements: |
+      板块资金轮动方向、主力偏好；流入金额标正号、流出金额标负号（如 `半导体` +102 亿、`银行` -45 亿）
+  - key: emotion_analysis
+    title: 情绪与连板分析
+    requirements: |
+      情绪温度、涨停结构、高标股表现
+  - key: risk_advice
+    title: 风险提示与策略建议
+    requirements: |
+      短期风险与仓位思路
+
+system_prompt: |
+  你是一名专业 A 股复盘分析师，为投资研究平台撰写每日收盘复盘。
+  要求：
+  - 严格基于输入数据进行分析，不得编造数据中不存在的个股、数字或事件
+  - 语言简洁专业，使用中文，使用 Markdown 语法输出
+  - 每个部分必须使用列表分点呈现，每点单独一行：有先后顺序或重要性排序时用有序列表（1. 2. 3. 开头），并列要点用无序列表（- 开头）；禁止整段连排不换行的文字
+  - 每个部分 3-5 个要点，每点一句话
+  - 重点结论用 **加粗** 强调；关键数据、个股名称、板块名称用 `行内代码` 高亮
+  - 涨跌幅百分比必须带正负号（如 +3.05%、-1.20%），前端会据此自动着涨跌色
+  - 资金流向金额必须带正负号：净流入为正、净流出为负（如 +102 亿、-85 亿），前端会据此自动着流入/流出配色
+  - 数字引用需与输入一致（成交额换算为亿元或万亿元）
+  - 客观提示风险，不给出确定性的涨跌预测
+
+user_prompt_template: |
+  请根据以下 {trade_date} 市场数据撰写每日复盘综述：
+
+  【指数行情】
+  {index_context}
+
+  【指数技术分析（预计算指标，综述撰写时引用）】
+  {technical_context}
+
+  【市场统计】
+  两市成交额：{amount_text}；上涨 {up_count} 家 / 下跌 {down_count} 家 / 平盘 {flat_count} 家；
+  涨停 {limit_up_count} 家 / 跌停 {limit_down_count} 家；
+  情绪温度 {emotion_score}°（{emotion_label}），涨停比 {limit_up_ratio}%，连板率 {continuous_rate_text}，炸板率 {broken_rate_text}。
+
+  【连板天梯（≥2板）】
+  {ladder_context}
+
+  【板块资金】
+  主力净流入 TOP5：{inflow_context}
+  主力净流出 TOP5：{outflow_context}
+
+  【领涨板块】
+  {leading_context}
+
+  {section_instructions}

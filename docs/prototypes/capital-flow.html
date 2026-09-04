@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Invest Assistant — 资金流向动态追踪</title>
+<title>AI Invest Assistant — 资金流向</title>
 <style>
 /* ======================================================
    AI Invest Assistant — Design System
@@ -284,40 +284,29 @@ tr:hover td { background: var(--bg-hover); }
 
 </style>
 <style>
-.flow-canvas{background:linear-gradient(135deg,#0d1117 0%,#161b22 100%);border-radius:var(--radius-lg);min-height:480px;position:relative;overflow:hidden;padding:var(--space-6)}
-.flow-sector{position:absolute;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:var(--radius-lg);padding:var(--space-3) var(--space-4);text-align:center;transition:all .3s ease;cursor:pointer;backdrop-filter:blur(4px)}
-.flow-sector:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);transform:scale(1.02)}
-.flow-sector-name{font-size:var(--text-sm);font-weight:600;color:#e2e8f0}
-.flow-sector-flow{font-size:var(--text-xs);margin-top:2px;font-weight:500}
-.flow-sector-flow.in{color:#4ade80}
-.flow-sector-flow.out{color:#f87171}
-.flow-sector-size{font-size:10px;color:rgba(255,255,255,.35);margin-top:2px}
-
-.flow-arrow{position:absolute;height:2px;transform-origin:left center;opacity:.5;transition:opacity .2s}
-.flow-arrow:hover{opacity:.8}
-
-.timeline-scrubber{display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-6);padding:var(--space-4);background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm)}
-.scrubber-bar{flex:1;height:6px;background:var(--bg-hover);border-radius:3px;position:relative;cursor:pointer}
-.scrubber-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--blue));border-radius:3px;width:60%}
-.scrubber-dot{position:absolute;top:-5px;width:16px;height:16px;background:var(--accent);border-radius:50%;border:3px solid #fff;box-shadow:var(--shadow-md);cursor:pointer;left:60%}
-
-.flow-rank-card{display:flex;align-items:center;justify-content:space-between;padding:var(--space-3);background:var(--bg-surface);border-radius:var(--radius-md);margin-bottom:var(--space-2);transition:background var(--transition-fast)}
-.flow-rank-card:hover{background:var(--bg-hover)}
-.flow-rank-left{display:flex;align-items:center;gap:var(--space-3)}
-.flow-rank-num{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:var(--text-xs);font-weight:700;color:var(--text-primary)}
-.flow-rank-num.r1{background:var(--red)}
-.flow-rank-num.r2{background:var(--amber)}
-.flow-rank-num.r3{background:var(--amber)}
-.flow-rank-num.rn{background:var(--text-tertiary)}
-
-.heat-calendar{display:grid;grid-template-columns:repeat(10,1fr);gap:3px}
-.heat-day{aspect-ratio:1;border-radius:3px;cursor:pointer;transition:transform var(--transition-fast)}
-.heat-day:hover{transform:scale(1.15)}
-.heat-legend{display:flex;align-items:center;gap:var(--space-2);justify-content:flex-end;font-size:var(--text-xs);color:var(--text-tertiary);margin-top:var(--space-2)}
-
-.anim-indicator{display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-xs);color:var(--text-tertiary)}
-.anim-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.5s ease infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.seg-control{display:inline-flex;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:2px;gap:2px}
+.seg-item{padding:5px 14px;font-size:var(--text-xs);color:var(--text-secondary);border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap}
+.seg-item.active{background:var(--accent-soft);color:var(--accent);font-weight:500}
+.radio-pills{display:inline-flex;gap:6px}
+.radio-pill{padding:5px 12px;font-size:var(--text-xs);color:var(--text-secondary);background:var(--bg-surface);border:1px solid var(--border);border-radius:999px;cursor:pointer;white-space:nowrap}
+.radio-pill.active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);font-weight:500}
+.chart-legend{display:flex;gap:var(--space-4);flex-wrap:wrap;justify-content:center;margin-top:var(--space-3);font-size:var(--text-xs);color:var(--text-secondary)}
+.chart-legend-item{display:flex;align-items:center;gap:6px}
+.chart-legend-line{width:16px;height:3px;border-radius:2px}
+.rank-bars{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6)}
+.rank-group-title{font-size:var(--text-sm);font-weight:600;margin-bottom:var(--space-3)}
+.rank-bar-row{display:flex;align-items:center;gap:var(--space-2);margin-bottom:6px;font-size:var(--text-xs)}
+.rank-bar-label{width:72px;text-align:right;color:var(--text-secondary);flex-shrink:0}
+.rank-bar-track{flex:1;height:14px;background:var(--bg-surface);border-radius:3px;overflow:hidden}
+.rank-bar-fill{height:100%;border-radius:3px}
+.rank-bar-val{width:56px;font-family:var(--font-mono);flex-shrink:0;color:var(--text-secondary)}
+.timeline-mock{display:flex;align-items:center;gap:var(--space-4);margin-top:var(--space-5);padding-top:var(--space-4);border-top:1px solid var(--border)}
+.timeline-track{flex:1;display:flex;justify-content:space-between;position:relative;padding:0 4px}
+.timeline-track::before{content:'';position:absolute;left:0;right:0;top:5px;height:2px;background:var(--border-hover)}
+.timeline-step{display:flex;flex-direction:column;align-items:center;gap:6px;position:relative;z-index:1}
+.timeline-dot{width:12px;height:12px;border-radius:50%;background:var(--bg-hover);border:2px solid var(--border-hover)}
+.timeline-dot.active{background:var(--accent);border-color:var(--accent);box-shadow:0 0 8px rgba(94,106,210,.5)}
+.timeline-date{font-size:10px;color:var(--text-tertiary);white-space:nowrap}
 </style>
 </head>
 <body>
@@ -332,14 +321,18 @@ tr:hover td { background: var(--bg-hover); }
 </div>
 
 <nav class="sidebar-nav">
+<a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
 <div class="sidebar-section-title">复盘</div>
+
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
 <a class="sidebar-item active" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
 <a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
 <a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
+<a class="sidebar-item" href="financial-reports.html"><span class="sidebar-item-icon">◈</span><span>财报中心</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
@@ -349,148 +342,106 @@ tr:hover td { background: var(--bg-hover); }
 <div class="app-main">
 <header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
 <div class="app-content">
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6)">
-<h1 class="page-title" style="margin-bottom:0">资金流向动态追踪</h1>
-<div style="display:flex;gap:var(--space-2);align-items:center">
-<div class="anim-indicator"><span class="anim-dot"></span>动态播放中</div>
-<span style="font-size:var(--text-xs);color:var(--text-tertiary)">近 5 日</span>
-<button class="btn btn-secondary btn-sm">暂停</button>
+<!-- Header: 标题 + 板块类型 Segmented + 时间范围 Radio -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6);flex-wrap:wrap;gap:var(--space-3)">
+<h1 class="page-title" style="margin-bottom:0">资金流向</h1>
+<div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap">
+<div class="seg-control"><span class="seg-item active">行业板块</span><span class="seg-item">概念板块</span></div>
+<div class="radio-pills"><span class="radio-pill active">近 30 个交易日</span><span class="radio-pill">近 60 个交易日</span><span class="radio-pill">近 120 个交易日</span></div>
 </div>
 </div>
 
-<!-- Timeline Scrubber -->
-<div class="timeline-scrubber">
-<span style="font-size:var(--text-xs);color:var(--text-tertiary);min-width:50px">06-30</span>
-<div class="scrubber-bar">
-<div class="scrubber-fill"></div>
-<div class="scrubber-dot"></div>
-</div>
-<span style="font-size:var(--text-xs);color:var(--text-tertiary);min-width:50px">07-04</span>
-<button class="btn btn-ghost btn-sm" style="font-size:var(--text-sm)">▶</button>
-<button class="btn btn-ghost btn-sm">⏸</button>
-<button class="btn btn-ghost btn-sm">⏩</button>
-</div>
-
-<!-- Dynamic Flow Canvas -->
-<div class="flow-canvas mb-6" style="position:relative">
-<div style="position:absolute;top:var(--space-3);left:var(--space-3);font-size:var(--text-xs);color:rgba(255,255,255,.3)">板块资金流向 · 07-04 14:30</div>
-
-<!-- Sector Nodes -->
-<div class="flow-sector" style="top:20px;left:30px;min-width:120px">
-<div class="flow-sector-name">🔥 AI芯片</div>
-<div class="flow-sector-flow in">+48.2亿</div>
-<div class="flow-sector-size">主力净流入</div>
-</div>
-<div class="flow-sector" style="top:160px;left:50px;min-width:120px">
-<div class="flow-sector-name">🔧 半导体设备</div>
-<div class="flow-sector-flow in">+22.6亿</div>
-<div class="flow-sector-size">主力净流入</div>
-</div>
-<div class="flow-sector" style="top:300px;left:20px;min-width:120px">
-<div class="flow-sector-name">🔋 固态电池</div>
-<div class="flow-sector-flow in">+18.4亿</div>
-<div class="flow-sector-size">主力净流入</div>
-</div>
-
-<div class="flow-sector" style="top:80px;right:60px;min-width:110px">
-<div class="flow-sector-name">🤖 机器人</div>
-<div class="flow-sector-flow in">+12.8亿</div>
-<div class="flow-sector-size">主力净流入</div>
-</div>
-<div class="flow-sector" style="top:200px;right:30px;min-width:110px">
-<div class="flow-sector-name">🛫 低空经济</div>
-<div class="flow-sector-flow in">+9.5亿</div>
-<div class="flow-sector-size">主力净流入</div>
-</div>
-
-<div class="flow-sector" style="top:340px;right:50px;min-width:100px">
-<div class="flow-sector-name">🍶 白酒</div>
-<div class="flow-sector-flow out">-15.8亿</div>
-<div class="flow-sector-size">主力净流出</div>
-</div>
-<div class="flow-sector" style="bottom:20px;left:200px;min-width:90px">
-<div class="flow-sector-name">⛏ 煤炭</div>
-<div class="flow-sector-flow out">-8.4亿</div>
-<div class="flow-sector-size">主力净流出</div>
-</div>
-<div class="flow-sector" style="top:50px;left:44%;min-width:100px">
-<div class="flow-sector-name">🏗 建材</div>
-<div class="flow-sector-flow out">-5.2亿</div>
-<div class="flow-sector-size">主力净流出</div>
-</div>
-
-<!-- Flow arrows (CSS) -->
-<div style="position:absolute;top:55px;left:155px;width:160px;border-top:2px dashed rgba(74,222,128,.3);transform:rotate(-12deg)"></div>
-<div style="position:absolute;top:10px;left:160px;width:260px;border-bottom:2px dashed rgba(74,222,128,.25);transform:rotate(18deg)"></div>
-<div style="position:absolute;top:195px;left:180px;width:200px;border-top:2px dashed rgba(248,113,113,.25);transform:rotate(-20deg)"></div>
-<div style="position:absolute;top:200px;left:175px;width:190px;border-top:2px dashed rgba(74,222,128,.3)"></div>
-<div style="position:absolute;bottom:80px;left:160px;width:130px;border-top:2px dashed rgba(74,222,128,.25);transform:rotate(-15deg)"></div>
-<div style="position:absolute;top:120px;right:175px;width:100px;border-top:2px dashed rgba(74,222,128,.2);transform:rotate(-25deg)"></div>
-
-<!-- Connection labels -->
-<div style="position:absolute;top:28px;left:260px;font-size:9px;color:rgba(74,222,128,.5)">算力需求拉动</div>
-<div style="position:absolute;top:228px;left:380px;font-size:9px;color:rgba(248,113,113,.4)">资金撤离</div>
-<div style="position:absolute;top:185px;left:260px;font-size:9px;color:rgba(74,222,128,.4)">设备采购预期</div>
-</div>
-
-<!-- Flow Rankings -->
-<div class="grid-2 mb-6">
-<div class="card">
-<div class="card-header"><span class="card-title">板块资金净流入 Top 10</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">主力资金 · 近5日累计</span></div>
-<div class="card-body-sm">
-<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num r1">1</span><span style="font-size:var(--text-sm);font-weight:500">AI芯片</span></div><span style="font-weight:600;color:var(--green)">+48.2亿</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">连续5日流入</span></div>
-<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num r2">2</span><span style="font-size:var(--text-sm);font-weight:500">半导体设备</span></div><span style="font-weight:600;color:var(--green)">+22.6亿</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">连续3日流入</span></div>
-<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num r3">3</span><span style="font-size:var(--text-sm);font-weight:500">固态电池</span></div><span style="font-weight:600;color:var(--green)">+18.4亿</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">今日转流入</span></div>
-<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num rn">4</span><span style="font-size:var(--text-sm);font-weight:500">机器人</span></div><span style="font-weight:600;color:var(--green)">+12.8亿</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">连续4日流入</span></div>
-<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num rn">5</span><span style="font-size:var(--text-sm);font-weight:500">低空经济</span></div><span style="font-weight:600;color:var(--green)">+9.5亿</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">政策驱动</span></div>
-</div>
-</div>
-
-<div class="card">
-<div class="card-header"><span class="card-title">板块资金净流出 Top 10</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">主力资金 · 近5日累计</span></div>
-<div class="card-body-sm">
-<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num r1" style="background:var(--green)">1</span><span style="font-size:var(--text-sm);font-weight:500">白酒</span></div><span style="font-weight:600;color:var(--red)">-15.8亿</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">连续5日流出</span></div>
-<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num r2" style="background:var(--green)">2</span><span style="font-size:var(--text-sm);font-weight:500">煤炭</span></div><span style="font-weight:600;color:var(--red)">-8.4亿</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">连续4日流出</span></div>
-<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num r3" style="background:var(--green-400)">3</span><span style="font-size:var(--text-sm);font-weight:500">建材</span></div><span style="font-weight:600;color:var(--red)">-5.2亿</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">房地产拖累</span></div>
-<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num rn">4</span><span style="font-size:var(--text-sm);font-weight:500">银行</span></div><span style="font-weight:600;color:var(--red-400)">-4.8亿</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">连续3日流出</span></div>
-<div class="flow-rank-card"><div class="flow-rank-left"><span class="flow-rank-num rn">5</span><span style="font-size:var(--text-sm);font-weight:500">农牧</span></div><span style="font-weight:600;color:var(--red-400)">-3.6亿</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">周期下行</span></div>
-</div>
-</div>
-</div>
-
-<!-- Heat Calendar + Rotation Signal -->
-<div class="grid-2">
-<div class="card">
-<div class="card-header"><span class="card-title">资金轮动热力日历</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">近 30 日板块净流入</span></div>
+<!-- Card 1: 板块资金流向趋势（上=净流入 / 下=净流出） -->
+<div class="card mb-6">
+<div class="card-header"><span class="card-title">板块资金流向（上=净流入 / 下=净流出，单位：亿元）</span></div>
 <div class="card-body">
-<div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:var(--space-2)">AI芯片板块 日均资金流向</div>
-<div class="heat-calendar">
-<div class="heat-day" style="background:#c6f6d5"></div><div class="heat-day" style="background:#9ae6b4"></div><div class="heat-day" style="background:#68d391"></div>
-<div class="heat-day" style="background:#c6f6d5"></div><div class="heat-day" style="background:#9ae6b4"></div><div class="heat-day" style="background:#feb2b2"></div>
-<div class="heat-day" style="background:#feb2b2"></div><div class="heat-day" style="background:#c6f6d5"></div><div class="heat-day" style="background:#68d391"></div>
-<div class="heat-day" style="background:#48bb78"></div><div class="heat-day" style="background:#9ae6b4"></div><div class="heat-day" style="background:#c6f6d5"></div>
-<div class="heat-day" style="background:#68d391"></div><div class="heat-day" style="background:#feb2b2"></div><div class="heat-day" style="background:#c6f6d5"></div>
-<div class="heat-day" style="background:#9ae6b4"></div><div class="heat-day" style="background:#48bb78"></div><div class="heat-day" style="background:#38a169"></div>
-<div class="heat-day" style="background:#c6f6d5"></div><div class="heat-day" style="background:#68d391"></div>
+<svg viewBox="0 0 1100 360" width="100%" xmlns="http://www.w3.org/2000/svg">
+<!-- grid lines -->
+<line x1="60" y1="40" x2="1060" y2="40" stroke="#23262d"/>
+<line x1="60" y1="110" x2="1060" y2="110" stroke="#23262d"/>
+<line x1="60" y1="180" x2="1060" y2="180" stroke="#5c616e" stroke-dasharray="6,4"/>
+<line x1="60" y1="250" x2="1060" y2="250" stroke="#23262d"/>
+<line x1="60" y1="320" x2="1060" y2="320" stroke="#23262d"/>
+<!-- y labels -->
+<text x="50" y="44" text-anchor="end" font-size="11" fill="#5c616e">+40</text>
+<text x="50" y="114" text-anchor="end" font-size="11" fill="#5c616e">+20</text>
+<text x="50" y="184" text-anchor="end" font-size="11" fill="#5c616e">0</text>
+<text x="50" y="254" text-anchor="end" font-size="11" fill="#5c616e">-20</text>
+<text x="50" y="324" text-anchor="end" font-size="11" fill="#5c616e">-40</text>
+<!-- x labels -->
+<text x="80" y="345" text-anchor="middle" font-size="11" fill="#5c616e">06-24</text>
+<text x="260" y="345" text-anchor="middle" font-size="11" fill="#5c616e">06-30</text>
+<text x="440" y="345" text-anchor="middle" font-size="11" fill="#5c616e">07-04</text>
+<text x="620" y="345" text-anchor="middle" font-size="11" fill="#5c616e">07-10</text>
+<text x="800" y="345" text-anchor="middle" font-size="11" fill="#5c616e">07-16</text>
+<text x="980" y="345" text-anchor="middle" font-size="11" fill="#5c616e">07-23</text>
+<!-- 净流入：红色族 -->
+<polyline points="80,150 260,120 440,90 620,110 800,70 980,55 1040,42" fill="none" stroke="#f85149" stroke-width="2.5"/>
+<polyline points="80,165 260,140 440,130 620,100 800,90 980,75 1040,62" fill="none" stroke="#fb923c" stroke-width="2"/>
+<polyline points="80,175 260,160 440,150 620,140 800,125 980,110 1040,98" fill="none" stroke="#fbbf24" stroke-width="2"/>
+<!-- 净流出：绿色族 -->
+<polyline points="80,190 260,200 440,195 620,210 800,205 980,215 1040,212" fill="none" stroke="#86efac" stroke-width="2"/>
+<polyline points="80,210 260,225 440,235 620,230 800,245 980,250 1040,255" fill="none" stroke="#4ade80" stroke-width="2"/>
+<polyline points="80,230 260,250 440,270 620,285 800,290 980,300 1040,308" fill="none" stroke="#16a34a" stroke-width="2"/>
+<!-- 选中日期 markLine -->
+<line x1="1040" y1="30" x2="1040" y2="330" stroke="#8a8f98" stroke-dasharray="4,4"/>
+<text x="1036" y="26" text-anchor="end" font-size="10" fill="#8a8f98">选中 07-23</text>
+</svg>
+<div class="chart-legend">
+<div class="chart-legend-item"><span class="chart-legend-line" style="background:#f85149"></span>半导体</div>
+<div class="chart-legend-item"><span class="chart-legend-line" style="background:#fb923c"></span>算力</div>
+<div class="chart-legend-item"><span class="chart-legend-line" style="background:#fbbf24"></span>消费电子</div>
+<div class="chart-legend-item"><span class="chart-legend-line" style="background:#86efac"></span>医药</div>
+<div class="chart-legend-item"><span class="chart-legend-line" style="background:#4ade80"></span>银行</div>
+<div class="chart-legend-item"><span class="chart-legend-line" style="background:#16a34a"></span>煤炭</div>
 </div>
-<div class="heat-legend"><span style="display:inline-block;width:12px;height:12px;background:#c6f6d5;border-radius:2px"></span>弱流入<span style="display:inline-block;width:12px;height:12px;background:#48bb78;border-radius:2px;margin-left:4px"></span>中流入<span style="display:inline-block;width:12px;height:12px;background:#38a169;border-radius:2px;margin-left:4px"></span>强流入<span style="display:inline-block;width:12px;height:12px;background:#feb2b2;border-radius:2px;margin-left:4px"></span>流出</div>
 </div>
 </div>
 
+<!-- Card 2: 当日板块排名（timeline 切换日期） -->
 <div class="card">
-<div class="card-header"><span class="card-title">板块轮动信号</span><span class="tag tag-amber">3 个信号</span></div>
-<div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3)">
-<div style="padding:var(--space-3);background:rgba(210,153,34,.08);border-radius:var(--radius-md);border-left:3px solid var(--amber)">
-<div style="font-size:var(--text-sm);font-weight:600;color:var(--text-primary);margin-bottom:2px">🔀 白酒→AI芯片 资金转移</div>
-<div style="font-size:var(--text-xs);color:var(--text-secondary)">近5日白酒净流出15.8亿，AI芯片净流入48.2亿，消费板块资金向科技板块迁移明显</div>
+<div class="card-header"><span class="card-title">当日板块排名（2026-07-23）（单位：亿元）</span></div>
+<div class="card-body">
+<div class="rank-bars">
+<div>
+<div class="rank-group-title" style="color:var(--red)">净流入 TOP 10</div>
+<div class="rank-bar-row"><span class="rank-bar-label">半导体</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:100%;background:#f85149"></div></div><span class="rank-bar-val" style="color:var(--red)">+38.6</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">算力</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:62%;background:#f85149"></div></div><span class="rank-bar-val" style="color:var(--red)">+24.1</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">消费电子</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:41%;background:#f85149"></div></div><span class="rank-bar-val" style="color:var(--red)">+15.8</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">证券</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:32%;background:#f85149"></div></div><span class="rank-bar-val" style="color:var(--red)">+12.4</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">军工</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:25%;background:#f85149"></div></div><span class="rank-bar-val" style="color:var(--red)">+9.7</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">通信设备</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:21%;background:#f85149"></div></div><span class="rank-bar-val" style="color:var(--red)">+8.2</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">汽车零部件</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:17%;background:#f85149"></div></div><span class="rank-bar-val" style="color:var(--red)">+6.5</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">光伏设备</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:13%;background:#f85149"></div></div><span class="rank-bar-val" style="color:var(--red)">+5.1</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">软件开发</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:11%;background:#f85149"></div></div><span class="rank-bar-val" style="color:var(--red)">+4.3</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">游戏</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:8%;background:#f85149"></div></div><span class="rank-bar-val" style="color:var(--red)">+3.2</span></div>
 </div>
-<div style="padding:var(--space-3);background:rgba(210,153,34,.08);border-radius:var(--radius-md);border-left:3px solid var(--amber)">
-<div style="font-size:var(--text-sm);font-weight:600;color:var(--text-primary);margin-bottom:2px">🔀 银行→半导体设备 轮动加速</div>
-<div style="font-size:var(--text-xs);color:var(--text-secondary)">防御性板块持续失血，半导体设备连续3日净流入，资金风险偏好明显提升</div>
+<div>
+<div class="rank-group-title" style="color:var(--green)">净流出 TOP 10</div>
+<div class="rank-bar-row"><span class="rank-bar-label">煤炭</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:100%;background:#2ea043"></div></div><span class="rank-bar-val" style="color:var(--green)">-12.8</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">银行</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:73%;background:#2ea043"></div></div><span class="rank-bar-val" style="color:var(--green)">-9.4</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">房地产</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:59%;background:#2ea043"></div></div><span class="rank-bar-val" style="color:var(--green)">-7.6</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">钢铁</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:46%;background:#2ea043"></div></div><span class="rank-bar-val" style="color:var(--green)">-5.9</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">石油石化</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:38%;background:#2ea043"></div></div><span class="rank-bar-val" style="color:var(--green)">-4.8</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">交通运输</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:29%;background:#2ea043"></div></div><span class="rank-bar-val" style="color:var(--green)">-3.7</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">公用事业</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:24%;background:#2ea043"></div></div><span class="rank-bar-val" style="color:var(--green)">-3.1</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">建筑装饰</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:20%;background:#2ea043"></div></div><span class="rank-bar-val" style="color:var(--green)">-2.6</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">农林牧渔</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:17%;background:#2ea043"></div></div><span class="rank-bar-val" style="color:var(--green)">-2.2</span></div>
+<div class="rank-bar-row"><span class="rank-bar-label">轻工制造</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:14%;background:#2ea043"></div></div><span class="rank-bar-val" style="color:var(--green)">-1.8</span></div>
 </div>
-<div style="padding:var(--space-3);background:rgba(46,160,67,.08);border-radius:var(--radius-md);border-left:3px solid var(--green)">
-<div style="font-size:var(--text-sm);font-weight:600;color:var(--text-primary);margin-bottom:2px">📈 固态电池 资金首次转正</div>
-<div style="font-size:var(--text-xs);color:var(--text-secondary)">此前连续流出12日后首次转为净流入，宁德时代固态电池量产消息为催化剂</div>
+</div>
+<!-- ECharts timeline 切换日期 -->
+<div class="timeline-mock">
+<button class="btn btn-ghost btn-sm" style="font-size:var(--text-sm)">▶</button>
+<div class="timeline-track">
+<div class="timeline-step"><div class="timeline-dot"></div><span class="timeline-date">07-16</span></div>
+<div class="timeline-step"><div class="timeline-dot"></div><span class="timeline-date">07-17</span></div>
+<div class="timeline-step"><div class="timeline-dot"></div><span class="timeline-date">07-18</span></div>
+<div class="timeline-step"><div class="timeline-dot"></div><span class="timeline-date">07-19</span></div>
+<div class="timeline-step"><div class="timeline-dot"></div><span class="timeline-date">07-20</span></div>
+<div class="timeline-step"><div class="timeline-dot"></div><span class="timeline-date">07-21</span></div>
+<div class="timeline-step"><div class="timeline-dot"></div><span class="timeline-date">07-22</span></div>
+<div class="timeline-step"><div class="timeline-dot active"></div><span class="timeline-date" style="color:var(--accent)">07-23</span></div>
 </div>
 </div>
 </div>

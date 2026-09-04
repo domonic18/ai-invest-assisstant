@@ -1,0 +1,202 @@
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  celery-beat:
+    build:
+      context: .
+      dockerfile: docker/collector/Dockerfile
+    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+      COLLECTOR_MODE: beat
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    networks:
+      - app-network
+
+  celery-worker:
+    # realtime+batch 合并单容器：batch 定点盘后、realtime 盘中，时间窗错开互不挤占；
+    # 队列仍为 3 条，仅容器数收缩。
+    build:
+      context: .
+      dockerfile: docker/collector/Dockerfile
+    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+      COLLECTOR_MODE: worker
+      COLLECTOR_QUEUE: ${CELERY_WORKER_QUEUES:-collector.realtime,collector.batch}
+      COLLECTOR_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY:-2}
+      COLLECTOR_MAX_TASKS_PER_CHILD: ${CELERY_WORKER_MAX_TASKS_PER_CHILD:-200}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "python", "-m", "celery", "-A", "collector.celery_app", "inspect", "ping", "-t", "5"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  celery-worker-heavy:
+    # LLM 分钟级任务（复盘/归因）独占容器，并发=1，不与通用采集池混跑
+    build:
+      context: .
+      dockerfile: docker/collector/Dockerfile
+    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+      COLLECTOR_MODE: worker
+      COLLECTOR_QUEUE: ${CELERY_HEAVY_QUEUE:-collector.heavy}
+      COLLECTOR_CONCURRENCY: ${CELERY_HEAVY_CONCURRENCY:-1}
+      COLLECTOR_MAX_TASKS_PER_CHILD: ${CELERY_HEAVY_MAX_TASKS_PER_CHILD:-10}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "python", "-m", "celery", "-A", "collector.celery_app", "inspect", "ping", "-t", "5"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2G
+
+  collector-stream:
+    # 财联社电报驻留采集：10s 轮询写 news_telegraph，游标/心跳存 Redis，
+    # 独立进程不占 Celery 池
+    build:
+      context: .
+      dockerfile: docker/collector/Dockerfile
+    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+      COLLECTOR_MODE: stream
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      # 心跳键由 stream 每 10s 刷新（TTL 120s），TTL>0 即数据流存活
+      test: ["CMD-SHELL", "python -c \"import os, redis; exit(0 if redis.from_url(os.environ['REDIS_URL']).ttl('collector:stream:cls_telegraph:heartbeat') > 0 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./workspace/postgres:/var/lib/postgresql/data
+      - ./docker/database/init-scripts:/docker-entrypoint-initdb.d
+    # 发布到宿主机供 SCF 经轻量公网 IP 直连（不走云联网/VPC）；
+    # 公网可达性由轻量控制台防火墙管控，放行 5432 前确认 POSTGRES_PASSWORD 足够强
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging: *logging
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    # 发布到宿主机供 SCF 经轻量公网 IP 直连；公网可达必须密码认证：
+    # REDIS_PASSWORD 硬必需（漏配则 compose 直接报错，避免无密码 Redis 暴露公网）；
+    # 连接方 URL 需同步改为 redis://:密码@redis:6379/n
+    #（server .env 的 REDIS_URL 与两个 CELERY_*URL）
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD required in .env}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+    logging: *logging
+    networks:
+      - app-network
+
+  elasticsearch:
+    image: elasticsearch:8.13.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    # ports:
+    #   - "${ELASTICSEARCH_PORT}:9200"
+    volumes:
+      - ./workspace/elasticsearch:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    logging: *logging
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

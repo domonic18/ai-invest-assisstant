@@ -1,344 +1,253 @@
-# 前端架构设计（单镜像部署版）
+# 前端架构设计（响应式 Web 单端版）
 
 ## 1. 多端架构总览
 
-系统提供 **Web 端 + 微信小程序** 双端访问能力，共享同一套后端 API。
+前端为**响应式 Web**单端实现，桌面与移动端共用一套代码，通过响应式断点与底部 Tab Bar 切换布局：
 
 ```
                       用户
                        │
         ┌──────────────┴──────────────┐
-        │                             │
-   ┌────┴────┐                  ┌─────┴─────┐
-   │ 浏览器   │                  │ 微信客户端  │
-   │ (Web端) │                  │ (小程序端)  │
-   └────┬────┘                  └─────┬─────┘
-        │                             │
-   HTTPS (API 网关)              HTTPS (wx.request)
-        │                             │
-   ┌────┴─────────────────────────────┴────┐
-   │     腾讯云 SCF Web 函数                │
-   │     Docker 镜像 (前后端合一)            │
-   │                                       │
-   │  Nginx :9000                          │
-   │  ├── /       → React 静态资源 (Web端)  │
-   │  ├── /api/*  → FastAPI :8000          │
-   │  └── /ws/*   → WebSocket              │
-   └───────────────────────────────────────┘
+        │                              │
+   ┌────┴──────────┐           ┌──────┴──────┐
+   │ 桌面浏览器      │           │ 移动浏览器    │
+   │ (≥1024px)      │           │ (≤768px)    │
+   │ 侧边栏 + 顶部栏 │           │ 底部 Tab Bar │
+   └────┬──────────┘           └──────┬──────┘
+        │                              │
+        └────────── HTTPS ─────────────┘
+                     │
+                     ▼
+┌────────────────────────────────────────────┐
+│ SCF Web 函数 — web-api 一体镜像（:9000）   │
+│ React SPA（FastAPI 静态托管）· /assets/ 长缓存 │
+│ FastAPI /api/* 同源 · SSE 流式输出（LLM）  │
+│ invest.17aitech.com · /docs /health        │
+└────────────────────────────────────────────┘
 ```
 
-**Web 端** — 全功能投资分析平台（产业链图谱、K线、资金流向、研报等）
+- **桌面端** — 全功能投资分析平台（产业链图谱 / K 线 / 资金流向 / 研报 / 财报 / 后台管理）
+- **移动端** — 复盘 / 分析 / 设置三大分组 + 底部 Tab Bar + 抽屉导航，AI 助手底部弹层，图谱双指缩放
 
-**小程序端** — 轻量级数据查看工具，聚焦移动端高频场景：
-- 集合竞价可视化分析曲线
-- 自选股实时行情
-- 热点资讯速览
-- AI 分析结果推送
-
-## 2. Web 端技术栈
+## 2. 技术栈
 
 | 类别 | 技术 | 用途 |
 |------|------|------|
-| 框架 | React 18 + TypeScript | 主框架 |
-| 构建 | Vite 5 | 开发/构建（输出至 `dist/`） |
-| 状态管理 | Zustand | 轻量全局状态 |
-| 路由 | React Router v6 | 页面路由 |
-| UI 组件 | Ant Design 5 | 基础组件库 |
-| K线图 | ECharts + echarts-for-react | 行情可视化 |
-| 产业链图 | AntV/G6 v5 | 图谱可视化 |
-| 资金流向 | D3.js | 桑基图/流向图 |
-| 表格 | AG-Grid | 大数据量表格 |
-| HTTP | Axios + React Query (TanStack) | 数据请求/缓存 |
-| WebSocket | Socket.IO | 实时行情推送 |
-| 认证 | JWT + React Context | 登录态管理 |
-| 测试 | Vitest + Playwright | 单元/E2E 测试 |
+| 框架 | React 18.3 + TypeScript 5.4 | 主框架 |
+| 构建 | Vite 5.2 | 开发 / 构建（输出至 `dist/`） |
+| 状态管理 | Zustand | auth / colorScheme / userSettings 等全局状态 |
+| 路由 | React Router 6.23 | 页面路由 |
+| UI 组件 | Ant Design 5 + Tailwind CSS | 组件库 + 自定义布局微调 |
+| K 线图 | ECharts + echarts-for-react | 行情可视化（含键盘缩放 / 平移） |
+| 产业链图 | AntV/G6 v5 | 图谱可视化（自定义节点 / 分栏背景） |
+| 资金流向 | ECharts | 板块河流图 + 排名图（含概念板块） |
+| HTTP | axios + TanStack Query | 数据请求 / 缓存 |
+| 测试 | Vitest + @testing-library/react + Playwright | 单元 / E2E |
 
-## 3. 微信小程序端技术栈
-
-| 类别 | 技术 | 用途 |
-|------|------|------|
-| 框架 | Taro 4.x (React 语法) | 跨端开发，可使用 Web 端组件 |
-| UI 组件 | Taro UI / NutUI | 小程序原生风格组件库 |
-| 图表 | ECharts for 小程序 (ec-canvas) | 集合竞价曲线、K线缩略图 |
-| 状态管理 | Zustand (适配 Taro) | 与 Web 端共享状态逻辑 |
-| HTTP | Taro.request | 微信小程序网络请求 |
-| 认证 | wx.login + JWT | 微信登录 + 后端 JWT |
-| 构建 | Taro CLI | 编译为微信小程序代码 |
-
-> **选型理由**：Taro 允许用 React 语法编写小程序，Web 端的大量 hooks、类型定义、API 客户端可直接复用。`ec-canvas` 是 ECharts 官方的小程序版本，集合竞价曲线、K 线缩略图可直接渲染。
-
-## 4. Web 端页面路由
+## 3. 页面路由
 
 ```
-/login                          # 登录页
+/login                          # 登录页（OAuth2 表单，首个注册用户自动晋升管理员）
 /register                       # 注册页
 
-/                               # 首页（仪表盘）
-├── /dashboard                  # 数据看板总览
-│   ├── /market                 # 市场总览
-│   └── /watchlist              # 我的自选
-
-├── /chain                      # 产业链分析
-│   ├── /:industry              # 行业产业链全景
-│   ├── /compare                # 产业链对比
-│   └── /breakthrough           # 突破点追踪
-
-├── /stock/:code                # 个股详情
-│   ├── /financial              # 财务分析
-│   ├── /research               # 研报汇总
-│   ├── /kline                  # K线分析
-│   └── /news                   # 相关新闻
-
+/workbench                      # 工作台（登录后默认入口：日历摘要 / 复盘结论 / 要闻 / 自选股概览 / 市场快览）
+/                               # 每日复盘（Dashboard）
+├── /chain/:industry?           # 产业链分析（带行业参数，支持版本切换）
+├── /stock/:code                # 个股详情（同花顺风格多周期 K 线 + 财务 tab）
 ├── /hotspot                    # 热点追踪
-│   ├── /news                   # 新闻聚类
-│   ├── /sentiment              # 市场情绪
-│   └── /capital-flow           # 资金流向
+├── /capital-flow               # 资金流向（板块河流图 + 排名图）
+├── /auction                    # 集合竞价（指数成交额趋势）
+├── /calendar                   # 投资日历（月历 / 周历 / 列表三视图，分类筛选）
+├── /research                   # 研报中心（筛选 / PDF / AI 摘要）
+├── /financial-reports          # 财报中心（采集 / 列表 / AI 摘要）
+├── /financial/:code            # 财务体检详情（独立入口，也嵌入个股 Tab）
+└── /settings                   # 个人设置（基本信息 / 配色 / K 线均线 / 安全）
 
-├── /research                   # 研报中心
-│   ├── /latest                 # 最新研报
-│   ├── /:broker                # 按券商筛选
-│   └── /rating-changes         # 评级变化
-
-└── /settings                   # 用户设置
-    ├── /profile                # 个人资料
-    └── /watchlist-manage       # 管理自选
+/admin                          # 后台管理总览
+├── /admin/users                # 用户管理
+├── /admin/stocks               # 股票管理（含列表同步任务入口）
+├── /admin/reports              # 研报管理
+├── /admin/news                 # 资讯管理
+├── /admin/tasks                # 采集任务管理（collector_task 调度行 CRUD，cron 中文展示）
+├── /admin/llm-configs          # LLM 配置
+├── /admin/collector-channels   # 采集渠道管理（渠道启用 + 数据类型优先级）
+├── /admin/tracked-index        # 跟踪指数管理（大盘页/工作台指标清单，全局动态可配）
+└── /admin/collector            # 采集任务（TASK_SPECS 目录驱动：任务清单/标签/状态 + 手动执行）
 ```
 
-## 5. 小程序端页面设计
+> 侧边栏按"复盘 / 分析 / 设置"三大组分组，移动端折叠为底部 Tab Bar。
+
+## 4. 核心页面
+
+### 4.1 工作台（登录默认入口）
+
+卡片化聚合页（`/workbench`，登录后默认路由；每日复盘保留为独立页，侧边栏入口不变）：
+
+| 模块 | 内容 |
+|------|------|
+| 投资日历摘要 | 近 7 日关键事件，点击进入完整日历 |
+| 复盘核心结论 | AI 大盘综述分区摘要 + 涨停情绪概要（链接至每日复盘页） |
+| 要闻资讯 | 重要新闻 / 公告流（按重要性排序） |
+| 自选股概览 | 自选股行情卡 + 当日 AI 每日分析摘要（三段式） |
+| 市场快览 | 跟踪指数与全球指标实时卡片（清单由后台"跟踪指数管理"配置） |
+
+模块卡片可折叠；各模块数据缺失时展示空态而非报错。
+
+### 4.2 每日复盘（Dashboard）
+
+桌面 / 移动端均展示：指数 K 线（多标的）+ 行情统计 + 板块表现 + 涨停复盘 + AI 大盘综述 + 自选股行情卡。
+- 顶部提供补采入口（盘后三态空态：未开盘 / 盘中 / 已收盘）
+- AI 综述支持模块级编辑（每个分区独立保存）
+- 涨停复盘按行业分组（同花顺风格），含 AI 归因、行对齐与分时缩略图
+
+### 4.3 产业链全景分析（核心页面）
 
 ```
-底部 TabBar
-├── 🏠 首页 (index)
-│   ├── 大盘概览（上证/深证/创业板指数卡片）
-│   ├── 今日热点（3-5 条摘要）
-│   └── 产业链突破点速报
-│
-├── 📈 行情 (market)
-│   ├── 自选股列表（实时价格、涨跌幅）
-│   ├── 集合竞价可视化分析（核心功能）
-│   │   ├── 竞价价格曲线 (ec-canvas)
-│   │   ├── 匹配量柱状图
-│   │   └── 未匹配量 / 虚拟撮合
-│   └── 个股 K 线缩略图
-│
-├── 🤖 AI 分析 (ai)
-│   ├── AI 分析报告列表
-│   ├── 产业链分析摘要
-│   └── 研报观点速览
-│
-└── 👤 我的 (profile)
-    ├── 用户信息
-    ├── 自选股管理
-    ├── 关注行业设置
-    └── 消息通知设置
+┌──────────────────────────────────────────────────────────────┐
+│ [行业选择器 ▼] [版本切换 ▼]  [AI 助手确认]  [紧凑工具栏]    │
+├──────────────────────────────────────────────────────────────┤
+│                                                               │
+│  ┌──────────────── 产业链关系图谱 (G6 v5) ──────────────┐    │
+│  │   自定义节点 + 分栏背景（上中下游） + 边样式            │    │
+│  │    [硅材料] ──→ [晶圆制造] ──→ [芯片设计] ──→ [...]   │    │
+│  │   基于经营范围自下而上推导环节                          │    │
+│  │   移动端：双指缩放                                       │    │
+│  └───────────────────────────────────────────────────────┘    │
+│                                                               │
+├──────────────────────────┬────────────────────────────────────┤
+│  版本对比 / 详情面板      │  关键指标 / 节点详情               │
+└──────────────────────────┴────────────────────────────────────┘
 ```
 
-### 5.1 集合竞价可视化页面（小程序核心）
+### 4.4 个股详情（同花顺风格）
 
 ```
-┌──────────────────────────────────────┐
-│  ← 集合竞价                  分享    │
-├──────────────────────────────────────┤
-│                                      │
-│   [股票搜索] 平安银行 000001  ▼       │
-│                                      │
-│   ┌──── 竞价信息卡片 ────────────┐   │
-│   │  匹配价: 12.35  ↑ +2.3%      │   │
-│   │  匹配量: 125,600 手          │   │
-│   │  未匹配买单: 38,200 手       │   │
-│   │  未匹配卖单: 12,500 手       │   │
-│   └──────────────────────────────┘   │
-│                                      │
-│   ┌──── 竞价价格曲线 ────────────┐   │
-│   │  ec-canvas 折线图             │   │
-│   │                               │   │
-│   │  价格                         │   │
-│   │  12.4│        ╱────           │   │
-│   │  12.3│    ╱──                 │   │
-│   │  12.2│╱──                    │   │
-│   │      └──────────────────     │   │
-│   │      9:15  9:20  9:25  时间  │   │
-│   └──────────────────────────────┘   │
-│                                      │
-│   ┌──── 匹配量柱状图 ────────────┐   │
-│   │  ▓▓▓▓▓▓░░░░  (已匹配)        │   │
-│   │  ░░░░▓▓▓▓▓▓  (未匹配买单)    │   │
-│   │  ░░░░░░░░▓▓  (未匹配卖单)    │   │
-│   │  9:15   9:20   9:25          │   │
-│   └──────────────────────────────┘   │
-│                                      │
-│   ┌──── 买一卖一明细 ────────────┐   │
-│   │  买一 12.34  15,200手        │   │
-│   │  卖一 12.36   8,300手        │   │
-│   │  昨收 12.07                  │   │
-│   └──────────────────────────────┘   │
-└──────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  [行情头：现价 / 涨跌 / 成交]  [加入自选 ♥]                  │
+├──────────────────────────────────────────────────────────────┤
+│  Tabs: K 线 │ 财务 │ 研报 │ 板块归属 │ AI 每日分析            │
+├──────────────────────────────────────────────────────────────┤
+│  K 线 Tab：多周期预设（日+周 / 日 + 月 / 仅日 / 仅周）       │
+│   ┌──────────── K 线图（键盘缩放 / 平移） ──────────────┐   │
+│   │  默认可视 bar 数可配置                                │   │
+│   └──────────────────────────────────────────────────────┘   │
+│                                                               │
+│  财务 Tab：                                                  │
+│   - 当期财务体检评分（毛利率 / 净利率 / ROE / 资产负债率）   │
+│   - 近 8 期历史趋势图（FinancialTrendCharts）                │
+│                                                               │
+│  板块归属 Tab：行业 + 概念板块（基于 mapping_stock_concept） │
+│                                                               │
+│  AI 每日分析 Tab：盘面解读 / 操作策略 / 止损线（盘后定时生成）│
+│   固定附"AI 生成，不构成投资建议"免责声明                     │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-## 6. 小程序核心组件
+### 4.5 资金流向（板块河流图 + 排名图）
 
-### 6.1 集合竞价曲线组件
+- 行业板块走东财 / 概念板块钉死同花顺（东财 WAF 按 TLS 指纹 + 主机限流，概念口径走同花顺采集更稳）
+- 河流图按时间轴展示板块净流入流出演化
+- 排名图展示当日 TOP 行业 / 概念
+- 金额按流入红 / 流出绿着色（订阅 `useColorScheme`）
 
-```tsx
-// miniapp/src/components/AuctionChart.tsx
-import { useEffect, useState } from 'react';
-import Taro, { useDidShow } from '@tarojs/taro';
-import { View } from '@tarojs/components';
-import * as echarts from 'echarts/core';
-// ec-canvas 是 ECharts 的小程序封装
-import EcCanvas from '@/components/ec-canvas';
+### 4.6 集合竞价复盘
 
-interface AuctionPoint {
-  time: string;
-  price: number;
-  matchVol: number;
-  bidVol: number;
-  askVol: number;
-}
+- 改为指数集合竞价成交额趋势图（口径走 Tushare `stk_auction` 聚合）
+- 不再使用新浪分钟线（首根 bar 盘后立即被修订）
 
-export function AuctionChart({ stockCode }: { stockCode: string }) {
-  const [data, setData] = useState<AuctionPoint[]>([]);
+### 4.7 投资日历
 
-  useDidShow(() => {
-    fetchAuctionData(stockCode);
-  });
+- 月历 / 周历 / 事件列表三视图切换，今日高亮 + 未来事件按临近度排序
+- 事件分类筛选：宏观数据 / 央行动态 / 新股 / 解禁 / 财报 / 会议 / 自选相关
+- 事件详情：影响市场、关联板块 / 标的、来源链接
+- 数据来自 `calendar_event`（财联社投资日历 + FOMC / BLS 固定日程导入）
 
-  const fetchAuctionData = async (code: string) => {
-    const res = await Taro.request({
-      url: `${API_BASE}/api/v1/stocks/${code}/auction`,
-      header: { Authorization: `Bearer ${getToken()}` },
-    });
-    setData(res.data.points);
-  };
+### 4.8 研报 / 财报中心
 
-  const getOption = () => ({
-    grid: { top: 20, right: 20, bottom: 30, left: 50 },
-    xAxis: {
-      type: 'category',
-      data: data.map(d => d.time),
-    },
-    yAxis: [
-      { type: 'value', name: '价格', axisLabel: { formatter: '{value}' } },
-      { type: 'value', name: '量(手)' },
-    ],
-    series: [
-      {
-        name: '匹配价', type: 'line', data: data.map(d => d.price),
-        smooth: true, lineStyle: { color: '#1890ff', width: 2 },
-        itemStyle: { color: '#1890ff' },
-      },
-      {
-        name: '匹配量', type: 'bar', yAxisIndex: 1,
-        data: data.map(d => d.matchVol),
-        itemStyle: { color: 'rgba(24,144,255,0.3)' },
-      },
-    ],
-  });
+| 维度 | 研报中心 | 财报中心 |
+|------|----------|----------|
+| 路由 | `/research` | `/financial-reports` |
+| 筛选 | 券商 / 行业 / 评级 / 时间 | 报告类型 / 时间 |
+| PDF 下载 | 预签名 URL（`curl_cffi` 绕 WAF） | 预签名 URL |
+| AI 摘要 | `POST /research/{id}/summarize`，缓存到 `file_metadata.summary` | 同上 |
+| 采集触发 | 后台任务管理 | 列表页 `CollectModal`，返回 log_id 可查采集日志 |
 
-  return (
-    <View className="auction-chart">
-      <EcCanvas
-        canvasId="auction-canvas"
-        ec={echarts}
-        option={getOption()}
-      />
-    </View>
-  );
-}
-```
+### 4.9 个人设置
 
-### 6.2 自选股实时行情列表
+- **基本信息**：用户名 / 邮箱
+- **行情配色**：涨跌配色方案开关（红涨绿跌 / 绿涨红跌），全站通过 `useColorScheme()` + formatters 自动应用
+- **K 线均线**：用户级 MA 周期列表（保存到 `user_settings`），K 线组件订阅生效
+- **账号安全**：修改密码
 
-```tsx
-// miniapp/src/pages/market/index.tsx
-import { View, ScrollView } from '@tarojs/components';
-import { useRealtimeQuote } from '@/hooks/useRealtimeQuote';
+### 4.10 后台管理（10 个子页）
 
-export default function MarketPage() {
-  const { quotes } = useRealtimeQuote(watchlist);
+| 页面 | 功能 |
+|------|------|
+| 总览 | 系统状态 / 最近任务 |
+| 用户管理 | 列表 / 角色 / 启用 |
+| 股票管理 | 列表 / 字段补全 / **同步任务入口** |
+| 研报管理 | 列表 / 名称展示 |
+| 资讯管理 | 列表 / 删除 |
+| 采集任务管理 | `collector_task` 调度行 CRUD（任务 / 渠道 / cron 中文展示 / 启用） |
+| LLM 配置 | provider / base_url / api_key 加密存储 |
+| 采集渠道管理 | 渠道启用 / base_url / api_key / extra + 数据类型优先级 |
+| 跟踪指数管理 | `tracked_index_config` 全局指标清单维护（新增 / 删除 / 排序 / 启停），大盘页与工作台共用 |
+| 采集任务 | TASK_SPECS 目录驱动只读清单（label / 渠道 / 队列 / 最近执行）+ 手动执行 + 采集日志 |
 
-  return (
-    <ScrollView className="market-page">
-      {watchlist.map(stock => {
-        const q = quotes[stock.code];
-        return (
-          <View
-            key={stock.code}
-            className="stock-item"
-            onClick={() => Taro.navigateTo({
-              url: `/pages/auction/index?code=${stock.code}`
-            })}
-          >
-            <View className="stock-name">{stock.name}</View>
-            <View className="stock-code">{stock.code}</View>
-            <View className={`stock-price ${q?.changePct > 0 ? 'up' : 'down'}`}>
-              {q?.price?.toFixed(2)}
-            </View>
-            <View className={`stock-change ${q?.changePct > 0 ? 'up' : 'down'}`}>
-              {q?.changePct > 0 ? '+' : ''}{q?.changePct?.toFixed(2)}%
-            </View>
-          </View>
-        );
-      })}
-    </ScrollView>
-  );
-}
-```
-
-## 7. 小程序认证流程
+## 5. 项目结构
 
 ```
-小程序端                         后端 API
-   │                              │
-   ├── wx.login() ───────────────→│
-   │  获取临时 code                │
-   │                              │
-   ├── POST /api/v1/auth/wx-login │
-   │   { code }                   │
-   │                              ├── 调用微信 API 换取 openid
-   │                              ├── 查询/创建用户
-   │←── { access_token,           │
-   │      refresh_token,          │
-   │      user_info }             │
-   │                              │
-   ├── 存储 token 到本地          │
-   │                              │
-   ├── 后续请求带 Authorization ──→│  JWT 校验
+web/
+├── src/
+│   ├── api/                    # API 请求层
+│   ├── components/
+│   │   ├── layout/             # Header / Sidebar / Layout / MobileTabBar
+│   │   ├── charts/             # KlineChart / IndexKlineChart / IntradayChart / IntradaySpark /
+│   │   │                       #   ChainGraph / FinancialTrendCharts / StockChartView / useKlineKeyboardNav
+│   │   ├── assistant/          # assistant-ui 助手面板：RuntimeProvider / Thread / Composer / 会话侧栏
+│   │   ├── common/             # Brand / MarkdownText / SourceNote
+│   │   └── auth/               # ProtectedLayout / ProtectedAdmin / RedirectIfAuthenticated
+│   ├── hooks/                  # TanStack Query 包装的 Hooks
+│   ├── pages/                  # 见 §3 路由
+│   ├── stores/                 # Zustand（auth / colorScheme / userSettings / assistant）
+│   ├── test/                   # 测试环境初始化与 mocks
+│   ├── types/ utils/ constants/ config/
+│   ├── App.tsx / main.tsx / router.tsx
+├── e2e/                        # Playwright E2E
+├── index.html
+├── package.json
+└── ... 构建配置（vite / vitest / playwright / tsconfig）
 ```
 
-## 8. 多端共享层
+## 6. 涨跌配色方案
+
+涨跌色统一通过 formatters 中的 **scheme-aware helpers** 输出，组件用 `useColorScheme()` 订阅当前方案：
+
+- **红涨绿跌**（国内习惯，默认）
+- **绿涨红跌**（国际习惯）
+
+切换在个人设置页完成，写入 `user_settings`，全站图表 / 数字 / 标签自动跟随。
+
+## 7. 共享代码层（`shared/`）
 
 ```
-shared/                       # Web 与小程序共享代码
+shared/                       # 独立 npm 包，被 web 与 backend（uv）共享
 ├── api/
-│   ├── client.ts             # API 客户端（适配 axios / Taro.request）
-│   ├── stock.ts              # 股票数据接口
-│   └── auth.ts               # 认证接口
+│   ├── endpoints.ts          # API 端点常量
+│   └── index.ts
 ├── types/
-│   ├── stock.ts              # 类型定义
-│   ├── chain.ts
-│   └── api.ts
-├── utils/
-│   ├── formatters.ts         # 数字/日期格式化
-│   └── constants.ts
-└── hooks/
-    ├── useAuth.ts            # 认证 hook（适配两端）
-    └── useDebounce.ts
+│   ├── stock.ts / chain.ts / market.ts / admin.ts / api.ts / user.ts
+└── utils/
+    └── ...
 ```
 
-## 9. Vite 构建配置
+## 8. Vite 构建配置
 
 ```typescript
 // vite.config.ts
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import path from 'path';
-
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    alias: { '@': path.resolve(__dirname, 'src') },
-  },
+  resolve: { alias: { '@': path.resolve(__dirname, 'src') } },
   base: '/',
   build: {
     outDir: 'dist',
@@ -357,206 +266,20 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': { target: 'http://127.0.0.1:8000' },
-      '/ws': { target: 'ws://127.0.0.1:8000', ws: true },
     },
   },
-});
+})
 ```
 
-## 10. Taro 小程序配置
+SPA 静态托管（FastAPI 内置，`app/main.py` 的 `register_spa_routes`）：
+- web-api 一体镜像为**单 uvicorn 进程直听 :9000**（无 nginx/supervisord），端口监听即完整服务，消除冷启动代理竞态 502
+- 缓存语义：`/assets/` 长缓存（`max-age=31536000, immutable`，产物带内容哈希），`/index.html` 与 SPA 路由 fallback 禁止启发式缓存（发版后立即生效）
+- HSTS / CSP `upgrade-insecure-requests` 仅 HTTPS 下发；`FORCE_FORWARDED_HTTPS=1`（SCF）强制 scheme=https，本地 http 访问不受影响
+- API 未匹配路径保持 JSON 404，不落 index.html
 
-```typescript
-// miniapp/config/index.ts
-import { defineConfig } from '@tarojs/cli';
+## 9. 后续文档索引
 
-export default defineConfig({
-  projectName: 'ai-invest-miniapp',
-  date: '2026-07-05',
-  designWidth: 750,
-  deviceRatio: {
-    640: 2.34 / 2,
-    750: 1,
-    828: 1.81 / 2,
-  },
-  sourceRoot: 'src',
-  outputRoot: 'dist',
-  plugins: [],
-  defineConstants: {
-    API_BASE: '"https://api.your-domain.com"',
-  },
-  copy: {
-    patterns: [
-      { from: 'src/components/ec-canvas/', to: 'dist/components/ec-canvas/' },
-    ],
-  },
-  mini: {
-    postcss: {
-      pxtransform: { enable: true },
-      url: { enable: true, config: { limit: 1024 } },
-    },
-    webpackChain(chain) {
-      // 共享目录 alias
-      chain.resolve.alias.set('@shared', path.resolve(__dirname, '../../shared'));
-    },
-  },
-});
-```
-
-## 11. Web 端核心页面
-
-### 11.1 产业链全景图（核心页面）
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  [行业选择器 ▼]  半导体  ▼   [时间范围]  [分析模式 ▼]       │
-├──────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌──────────────── 产业链关系图谱 (G6) ────────────────┐    │
-│  │                                                       │    │
-│  │    [硅材料] ──→ [晶圆制造] ──→ [芯片设计] ──→ [...] │    │
-│  │      │            │             │                    │    │
-│  │      ▼            ▼             ▼                    │    │
-│  │   [设备商]    [封装测试]    [终端应用]                │    │
-│  │                                                       │    │
-│  │   ● 节点大小 = 营收规模                               │    │
-│  │   ● 颜色深浅 = 毛利率水平                             │    │
-│  │   ● 连线粗细 = 业务关联强度                           │    │
-│  └───────────────────────────────────────────────────────┘    │
-│                                                               │
-├──────────────────────────┬────────────────────────────────────┤
-│  左侧：节点详情面板       │  右侧：关键指标                   │
-│                          │                                    │
-│  选中节点：晶圆制造       │  行业毛利率走势图 (ECharts)        │
-│  代表公司：              │  ┌────────────────────────────┐   │
-│  ● 中芯国际 (688981)    │  │  ▁▂▃▄▅▆▇███▇▆▅▄▃▂▁        │   │
-│  ● 华虹半导体 (688347)  │  │  2020  2021  2022  2023     │   │
-│  ● 晶合集成 (688249)    │  └────────────────────────────┘   │
-│                          │                                    │
-│  平均毛利率：28.5%       │  资金流向 (桑基图)                 │
-│  同比增长：+3.2%         │  ┌────────────────────────────┐   │
-│  议价能力：★★★★☆        │  │ 主力 ──→ 晶圆制造           │   │
-│  [查看详细分析 →]        │  │ 游资 ──→ 芯片设计           │   │
-│                          │  └────────────────────────────┘   │
-└──────────────────────────┴────────────────────────────────────┘
-```
-
-### 11.2 资金流向页
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  资金流向监控                            [日期选择器 ▼ 今天] │
-├──────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
-│  │ 主力净流入    │  │ 北向资金      │  │ 融资融券          │   │
-│  │  +125.6亿     │  │  +38.2亿      │  │ 余额: 15,823亿   │   │
-│  │  ↑ 12.3%      │  │  ↑ 5.1%       │  │ ↑ 0.8%           │   │
-│  └──────────────┘  └──────────────┘  └──────────────────┘   │
-│                                                               │
-│  ┌──── 资金流向桑基图 (D3.js) ───────────────────────────┐   │
-│  │  [主力] ──────┬──→ [半导体] 28.5亿                     │   │
-│  │               ├──→ [新能源] 22.1亿                     │   │
-│  │               └──→ [医药]   18.3亿                     │   │
-│  │  [游资] ──────┬──→ [AI概念] 12.6亿                    │   │
-│  └─────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### 11.3 热点追踪页
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  热点追踪                              [刷新] [自动刷新: 5min]│
-├──────────────────────────────────────────────────────────────┤
-│  热点话题云: AI芯片 🟢  固态电池 🟢  机器人 🟡  低空经济 🟡  │
-│                                                               │
-│  最新热点新闻（时间线）                                       │
-│  14:32 [AI芯片] 英伟达发布新一代GPU，算力提升300%            │
-│  14:15 [固态电池] 宁德时代固态电池通过车规认证               │
-│                                                               │
-│  🚀 产业链突破点追踪                                         │
-│  半导体设备：国产5nm刻蚀机交付，打破海外垄断                  │
-│  AI算力：华为昇腾910C量产，性能比肩H100                      │
-└──────────────────────────────────────────────────────────────┘
-```
-
-## 12. Web 端项目结构
-
-```
-web/
-├── public/
-│   └── favicon.ico
-├── src/
-│   ├── api/                    # API 请求层
-│   │   ├── client.ts           # Axios 实例（JWT 拦截器）
-│   │   ├── stock.ts            # 股票相关 API
-│   │   ├── chain.ts            # 产业链 API
-│   │   ├── research.ts         # 研报 API
-│   │   └── auth.ts             # 认证 API
-│   ├── components/             # 通用组件
-│   │   ├── layout/             # 布局 (Header/Sidebar/Content)
-│   │   ├── charts/             # 图表 (KlineChart/ChainGraph/SankeyChart)
-│   │   ├── common/             # 通用 (StockSelector/DateRangePicker)
-│   │   └── auth/               # 认证 (LoginForm/RegisterForm)
-│   ├── hooks/                  # Hooks
-│   ├── pages/                  # 页面
-│   │   ├── Dashboard/  ChainAnalysis/  StockDetail/
-│   │   ├── Hotspot/   CapitalFlow/    Research/
-│   │   ├── Login/     Settings/
-│   ├── stores/                 # Zustand 状态
-│   ├── types/                  # 类型定义
-│   ├── utils/                  # 工具函数
-│   ├── App.tsx / main.tsx / router.tsx
-├── index.html
-├── package.json / tsconfig.json / vite.config.ts
-└── .env.production
-```
-
-## 13. 小程序端项目结构
-
-```
-miniapp/
-├── config/
-│   └── index.ts                # Taro 构建配置
-├── src/
-│   ├── pages/
-│   │   ├── index/              # 首页（大盘概览）
-│   │   ├── market/             # 行情页（自选股列表入口）
-│   │   ├── auction/            # 集合竞价可视化（核心）
-│   │   ├── ai/                 # AI 分析报告
-│   │   └── profile/            # 个人中心
-│   ├── components/
-│   │   ├── ec-canvas/          # ECharts 小程序封装
-│   │   ├── AuctionChart.tsx    # 竞价曲线组件
-│   │   ├── StockCard.tsx       # 股票卡片
-│   │   └── HotNewsCard.tsx     # 热点新闻卡片
-│   ├── hooks/
-│   │   ├── useAuth.ts          # 微信登录 hook
-│   │   ├── useRealtimeQuote.ts # 实时行情
-│   │   └── useAuctionData.ts   # 竞价数据
-│   ├── utils/
-│   │   ├── request.ts          # Taro.request 封装
-│   │   └── auth.ts             # Token 管理
-│   ├── app.config.ts           # 小程序全局配置
-│   ├── app.tsx                 # 小程序入口
-│   └── app.scss
-├── project.config.json         # 微信小程序项目配置
-├── package.json
-└── tsconfig.json
-```
-
-## 14. 共享代码层
-
-```
-shared/
-├── api/
-│   ├── types.ts                # API 响应类型
-│   └── endpoints.ts            # API 端点常量
-├── types/
-│   ├── stock.ts                # 股票数据结构
-│   ├── chain.ts                # 产业链数据结构
-│   └── auction.ts              # 集合竞价数据结构
-└── utils/
-    ├── formatters.ts           # 金额/百分比格式化
-    └── constants.ts            # 行业分类/市场枚举
-```
+- [00-overview.md](./00-overview.md) — 总体架构与目录结构
+- [04-ai-agent.md](./04-ai-agent.md) — AI Agent 体系（前端如何调用版本化分析）
+- [06-deployment.md](./06-deployment.md) — 部署方案
+- [07-testing.md](./07-testing.md) — 测试体系

@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 移动端适配</title>
+<style>
+:root {
+  --bg: #0c0e12;
+  --bg-elevated: #111318;
+  --bg-surface: #181a21;
+  --bg-hover: #1c1f26;
+  --border: #23262d;
+  --border-hover: #2e323c;
+  --border-focus: #5e6ad2;
+  --text-primary: #f0f1f5;
+  --text-secondary: #8a8f98;
+  --text-tertiary: #5c616e;
+  --accent: #5e6ad2;
+  --accent-hover: #6872e3;
+  --accent-soft: rgba(94, 106, 210, 0.12);
+  --green: #2ea043;
+  --green-soft: rgba(46, 160, 67, 0.12);
+  --red: #f85149;
+  --red-soft: rgba(248, 81, 73, 0.12);
+  --amber: #d29922;
+  --amber-soft: rgba(210, 153, 34, 0.12);
+  --blue: #58a6ff;
+  --blue-soft: rgba(88, 166, 255, 0.12);
+  /* 涨跌配色遵循国内习惯：红涨绿跌 */
+  --rise: #f85149;
+  --fall: #2ea043;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font); font-size: 14px; color: var(--text-primary);
+  background: var(--bg); line-height: 1.5; -webkit-font-smoothing: antialiased;
+  padding: 40px 24px 80px;
+}
+.page-head { max-width: 1200px; margin: 0 auto 32px; }
+.page-head h1 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; margin-bottom: 6px; }
+.page-head p { font-size: 13px; color: var(--text-secondary); }
+
+/* ======= 设计原则 ======= */
+.principles { max-width: 1200px; margin: 0 auto 40px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.principle { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; }
+.principle h3 { font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--accent); }
+.principle ul { list-style: none; font-size: 12px; color: var(--text-secondary); }
+.principle li { padding: 2px 0; }
+.principle li::before { content: '· '; color: var(--text-tertiary); }
+
+/* ======= 手机框 ======= */
+.frames { max-width: 1200px; margin: 0 auto; display: flex; gap: 32px; flex-wrap: wrap; align-items: flex-start; }
+.frame-block { display: flex; flex-direction: column; gap: 12px; }
+.frame-caption { font-size: 13px; font-weight: 600; color: var(--text-primary); text-align: center; }
+.frame-sub { font-size: 11px; color: var(--text-tertiary); text-align: center; max-width: 375px; }
+.phone {
+  width: 375px; height: 740px; background: var(--bg); border: 1px solid var(--border-hover);
+  border-radius: 28px; overflow: hidden; display: flex; flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0,0,0,.5); position: relative; flex-shrink: 0;
+}
+.phone-notch { height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.phone-notch::after { content: ''; width: 90px; height: 5px; border-radius: 3px; background: var(--border-hover); }
+
+/* App Bar */
+.m-appbar {
+  height: 48px; background: var(--bg-elevated); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; padding: 0 12px; flex-shrink: 0;
+}
+.m-appbar-title { font-size: 15px; font-weight: 600; flex: 1; }
+.m-icon-btn {
+  width: 36px; height: 36px; border-radius: var(--radius-sm); display: flex; align-items: center;
+  justify-content: center; color: var(--text-secondary); font-size: 16px; background: transparent; border: none;
+}
+.m-body { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+
+/* Bottom Tab Bar */
+.m-tabbar {
+  height: 56px; background: var(--bg-elevated); border-top: 1px solid var(--border);
+  display: flex; flex-shrink: 0;
+}
+.m-tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 10px; color: var(--text-tertiary); }
+.m-tab.active { color: var(--accent); }
+.m-tab-icon { font-size: 16px; }
+
+/* Cards & components (mobile) */
+.m-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.m-card-head { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; }
+.m-card-body { padding: 12px; }
+.m-index-row { display: flex; gap: 8px; }
+.m-index-box { flex: 1; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 8px 10px; }
+.m-index-name { font-size: 10px; color: var(--text-tertiary); }
+.m-index-val { font-size: 15px; font-weight: 700; font-family: 'SF Mono', monospace; }
+.m-index-chg { font-size: 10px; font-weight: 500; }
+.rise { color: var(--rise); }
+.fall { color: var(--fall); }
+.m-breadth { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 6px; }
+.m-breadth-rise { background: var(--rise); }
+.m-breadth-fall { background: var(--fall); }
+.m-heat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.m-heat-cell { padding: 8px 4px; border-radius: 4px; text-align: center; font-size: 10px; font-weight: 500; }
+.m-ladder { display: flex; flex-direction: column; gap: 6px; }
+.m-ladder-item { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 6px 8px; background: var(--bg-surface); border-radius: var(--radius-sm); }
+.m-ladder-rank { min-width: 34px; height: 20px; border-radius: 4px; background: var(--red-soft); color: var(--red); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.m-tag { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 500; }
+.m-tag-red { background: var(--red-soft); color: var(--red); }
+.m-tag-green { background: var(--green-soft); color: var(--green); }
+.m-tag-amber { background: var(--amber-soft); color: var(--amber); }
+.m-tag-purple { background: var(--accent-soft); color: var(--accent); }
+.m-btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 8px 14px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; border: 1px solid transparent; cursor: pointer; }
+.m-btn-primary { background: var(--accent); color: #fff; }
+.m-btn-secondary { background: var(--bg-surface); color: var(--text-secondary); border-color: var(--border); }
+.m-select { width: 100%; padding: 9px 12px; font-size: 12px; color: var(--text-primary); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); appearance: none; }
+.m-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); padding: 0 8px; overflow-x: auto; }
+.m-tab-item { padding: 9px 12px; font-size: 12px; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.m-tab-item.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+.m-expand { font-size: 11px; color: var(--accent); }
+
+/* 图谱（移动端：可滑动缩放容器） */
+.m-graph-hint { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px; font-size: 10px; color: var(--text-tertiary); background: var(--bg-surface); border-top: 1px solid var(--border); }
+
+/* 助手底部弹层 */
+.m-sheet-mask { position: absolute; inset: 0; background: rgba(0,0,0,.55); }
+.m-sheet {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 78%;
+  background: var(--bg-elevated); border-top: 1px solid var(--border-hover);
+  border-radius: 16px 16px 0 0; display: flex; flex-direction: column; overflow: hidden;
+}
+.m-sheet-handle { padding: 8px; display: flex; justify-content: center; flex-shrink: 0; }
+.m-sheet-handle::after { content: ''; width: 36px; height: 4px; border-radius: 2px; background: var(--border-hover); }
+.m-sheet-head { padding: 0 14px 10px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+.m-sheet-body { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.m-msg-user { align-self: flex-end; background: var(--accent); color: #fff; padding: 7px 11px; border-radius: 12px 12px 4px 12px; font-size: 12px; max-width: 85%; }
+.m-msg-ai { align-self: flex-start; background: var(--bg-surface); border: 1px solid var(--border); padding: 9px 11px; border-radius: 12px 12px 12px 4px; font-size: 12px; width: 100%; }
+.m-stage { display: flex; align-items: center; gap: 7px; padding: 4px 0; color: var(--text-secondary); }
+.m-stage-done { color: var(--green); }
+.m-stage-elapsed { margin-left: auto; font-size: 10px; color: var(--text-tertiary); font-family: 'SF Mono', monospace; }
+.m-result { border: 1px solid var(--accent); border-radius: var(--radius-md); padding: 10px; background: var(--accent-soft); }
+.m-result-actions { display: flex; gap: 8px; margin-top: 10px; }
+.m-result-actions .m-btn { flex: 1; }
+
+/* 抽屉导航 */
+.m-drawer-mask { position: absolute; inset: 0; background: rgba(0,0,0,.55); }
+.m-drawer {
+  position: absolute; top: 0; bottom: 0; left: 0; width: 72%;
+  background: var(--bg-elevated); border-right: 1px solid var(--border-hover);
+  display: flex; flex-direction: column;
+}
+.m-drawer-brand { padding: 16px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+.m-drawer-logo { width: 28px; height: 28px; background: var(--accent); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; }
+.m-drawer-nav { flex: 1; padding: 8px; overflow-y: auto; }
+.m-drawer-section { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .08em; padding: 10px 8px 4px; font-weight: 600; }
+.m-drawer-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary); }
+.m-drawer-item.active { background: var(--accent-soft); color: var(--accent); }
+.m-drawer-user { padding: 12px 14px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<div class="page-head">
+<h1>移动端适配原型</h1>
+<p>断点 ≤768px 启用移动布局 · 解决手机端访问时每日复盘等核心功能不可用的问题</p>
+</div>
+
+<div class="principles">
+<div class="principle">
+<h3>导航模式</h3>
+<ul>
+<li>侧边栏 → 汉堡按钮 + 左侧抽屉导航</li>
+<li>核心功能 → 底部 Tab Bar（复盘/竞价/资金/我的）</li>
+<li>页面标题收进 App Bar，不重复占位</li>
+</ul>
+</div>
+<div class="principle">
+<h3>内容重排</h3>
+<ul>
+<li>多列网格 → 单列纵向堆叠</li>
+<li>数据表格 → 卡片式列表（关键字段前置）</li>
+<li>统计卡片一行 3 个，数值优先、标签精简</li>
+</ul>
+</div>
+<div class="principle">
+<h3>图谱与弹层</h3>
+<ul>
+<li>产业链图谱：双指缩放 + 拖动，默认 fitView 全图</li>
+<li>AI 助手 Drawer → 全屏底部弹层（78% 高，可下滑关闭）</li>
+<li>版本对比/详情 → 全屏页面而非侧拉抽屉</li>
+</ul>
+</div>
+<div class="principle">
+<h3>触控规范</h3>
+<ul>
+<li>触控目标 ≥ 36×36px（按钮/Tab/列表项）</li>
+<li>正文字号 ≥ 12px，数字用等宽字体</li>
+<li>涨跌配色遵循国内习惯：红涨绿跌</li>
+</ul>
+</div>
+</div>
+
+<div class="frames">
+
+<!-- ========== Frame 1: 每日复盘 ========== -->
+<div class="frame-block">
+<div class="phone">
+<div class="phone-notch"></div>
+<div class="m-appbar">
+<button class="m-icon-btn">☰</button>
+<span class="m-appbar-title">每日复盘</span>
+<span style="font-size:11px;color:var(--text-tertiary)">07-05 周五</span>
+<button class="m-icon-btn">⟳</button>
+</div>
+<div class="m-body">
+
+<!-- 指数概览 -->
+<div class="m-index-row">
+<div class="m-index-box"><div class="m-index-name">上证指数</div><div class="m-index-val rise">3,247.86</div><div class="m-index-chg rise">+0.82%</div></div>
+<div class="m-index-box"><div class="m-index-name">深证成指</div><div class="m-index-val rise">10,584.3</div><div class="m-index-chg rise">+1.24%</div></div>
+<div class="m-index-box"><div class="m-index-name">创业板指</div><div class="m-index-val fall">2,116.42</div><div class="m-index-chg fall">-0.35%</div></div>
+</div>
+
+<!-- 涨跌统计 -->
+<div class="m-card">
+<div class="m-card-body" style="padding:10px 12px">
+<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary)">
+<span>上涨 <strong class="rise">3,412</strong></span><span>涨停 <strong class="rise">68</strong></span><span>跌停 <strong class="fall">12</strong></span><span>下跌 <strong class="fall">1,586</strong></span>
+</div>
+<div class="m-breadth"><div class="m-breadth-rise" style="width:68%"></div><div class="m-breadth-fall" style="width:32%"></div></div>
+<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-tertiary);margin-top:6px">
+<span>成交额 9,842 亿</span><span>较昨日 +12.4%</span>
+</div>
+</div>
+</div>
+
+<!-- AI 大盘综述 -->
+<div class="m-card">
+<div class="m-card-head"><span>🤖 AI 大盘综述</span><span class="m-tag m-tag-purple">AI</span></div>
+<div class="m-card-body" style="font-size:12px;color:var(--text-secondary);line-height:1.7">
+指数震荡上行，半导体与 AI 算力领涨，成交额放大至 9,842 亿。情绪面修复至中性偏多，连板高度升至 5 板…
+<span class="m-expand">展开全文 ↓</span>
+</div>
+</div>
+
+<!-- 板块热力图 -->
+<div class="m-card">
+<div class="m-card-head"><span>板块热力图</span><span class="m-expand">查看全部 →</span></div>
+<div class="m-card-body">
+<div class="m-heat-grid">
+<div class="m-heat-cell" style="background:rgba(248,81,73,.35)">半导体<br>+3.2%</div>
+<div class="m-heat-cell" style="background:rgba(248,81,73,.25)">算力<br>+2.1%</div>
+<div class="m-heat-cell" style="background:rgba(248,81,73,.18)">消费电子<br>+1.4%</div>
+<div class="m-heat-cell" style="background:rgba(248,81,73,.12)">军工<br>+0.9%</div>
+<div class="m-heat-cell" style="background:rgba(248,81,73,.08)">医药<br>+0.5%</div>
+<div class="m-heat-cell" style="background:rgba(46,160,67,.08)">银行<br>-0.3%</div>
+<div class="m-heat-cell" style="background:rgba(46,160,67,.15)">地产<br>-0.8%</div>
+<div class="m-heat-cell" style="background:rgba(46,160,67,.25)">煤炭<br>-1.6%</div>
+</div>
+</div>
+</div>
+
+<!-- 连板天梯 -->
+<div class="m-card">
+<div class="m-card-head"><span>连板天梯</span><span class="m-expand">竞价复盘 →</span></div>
+<div class="m-card-body">
+<div class="m-ladder">
+<div class="m-ladder-item"><span class="m-ladder-rank">5板</span><span style="flex:1;font-weight:600">高新发展</span><span class="m-tag m-tag-red">算力</span></div>
+<div class="m-ladder-item"><span class="m-ladder-rank">4板</span><span style="flex:1;font-weight:600">中际旭创</span><span class="m-tag m-tag-red">光模块</span></div>
+<div class="m-ladder-item"><span class="m-ladder-rank">3板</span><span style="flex:1;font-weight:600">通富微电</span><span class="m-tag m-tag-red">先进封装</span></div>
+</div>
+</div>
+</div>
+
+</div>
+<div class="m-tabbar">
+<div class="m-tab active"><span class="m-tab-icon">◈</span><span>复盘</span></div>
+<div class="m-tab"><span class="m-tab-icon">◈</span><span>竞价</span></div>
+<div class="m-tab"><span class="m-tab-icon">◈</span><span>资金</span></div>
+<div class="m-tab"><span class="m-tab-icon">◈</span><span>我的</span></div>
+</div>
+</div>
+<div class="frame-caption">① 每日复盘（移动端首页）</div>
+<div class="frame-sub">指数/涨跌统计 → AI 综述 → 热力图 → 连板，单列堆叠；底部 Tab Bar 切换核心功能</div>
+</div>
+
+<!-- ========== Frame 2: 产业链分析 ========== -->
+<div class="frame-block">
+<div class="phone">
+<div class="phone-notch"></div>
+<div class="m-appbar">
+<button class="m-icon-btn">☰</button>
+<span class="m-appbar-title">产业链分析</span>
+<button class="m-icon-btn">⛶</button>
+</div>
+<div class="m-body">
+
+<!-- 行业与操作 -->
+<select class="m-select"><option selected>半导体 · 二级行业 · 176 家 ✓已有图谱</option><option>电子（一级）· 1243 家</option><option>消费电子 · 98 家</option></select>
+<div style="display:flex;gap:8px">
+<select class="m-select" style="flex:1"><option selected>v12 · 07-05 (最新)</option><option>v11 · 06-28</option></select>
+<button class="m-btn m-btn-secondary">⇄ 对比</button>
+<button class="m-btn m-btn-primary">✦ AI 分析</button>
+</div>
+
+<!-- 图谱（滑动缩放） -->
+<div class="m-card">
+<div style="overflow:auto;background:#fafbfc;border-radius:var(--radius-lg) var(--radius-lg) 0 0">
+<svg viewBox="0 0 520 340" width="520" height="340" xmlns="http://www.w3.org/2000/svg">
+<rect width="520" height="340" fill="#fafbfc"/>
+<rect x="10" y="10" width="500" height="20" rx="4" fill="#dbeafe"/>
+<text x="260" y="24" text-anchor="middle" font-size="10" font-weight="700" fill="#2563eb">◆ 上游 — 原材料与零部件</text>
+<rect x="30" y="42" width="100" height="56" rx="6" fill="#fff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="80" y="64" text-anchor="middle" font-size="10" font-weight="700" fill="#1f2937">光刻胶</text>
+<text x="80" y="78" text-anchor="middle" font-size="8" fill="#6b7280">毛利率 42% · 国产化 15%</text>
+<rect x="32" y="84" width="96" height="10" rx="2" fill="#fef2f2"/>
+<text x="80" y="91" text-anchor="middle" font-size="7" fill="#ef4444">⚡ ArF验证中</text>
+<rect x="150" y="42" width="100" height="56" rx="6" fill="#fff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="200" y="64" text-anchor="middle" font-size="10" font-weight="700" fill="#1f2937">硅片</text>
+<text x="200" y="78" text-anchor="middle" font-size="8" fill="#6b7280">毛利率 25% · 国产化 35%</text>
+<rect x="270" y="42" width="100" height="56" rx="6" fill="#fff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="320" y="64" text-anchor="middle" font-size="10" font-weight="700" fill="#1f2937">电子特气</text>
+<text x="320" y="78" text-anchor="middle" font-size="8" fill="#6b7280">毛利率 39% · 国产化 48%</text>
+<rect x="390" y="42" width="100" height="56" rx="6" fill="#fff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="440" y="64" text-anchor="middle" font-size="10" font-weight="700" fill="#1f2937">CMP材料</text>
+<text x="440" y="78" text-anchor="middle" font-size="8" fill="#6b7280">毛利率 53% · 国产化 25%</text>
+
+<rect x="10" y="128" width="500" height="20" rx="4" fill="#eef2ff"/>
+<text x="260" y="142" text-anchor="middle" font-size="10" font-weight="700" fill="#4f46e5">◆ 中游 — 制造与集成</text>
+<rect x="60" y="160" width="110" height="60" rx="6" fill="#fff" stroke="#6366f1" stroke-width="1.5"/>
+<text x="115" y="183" text-anchor="middle" font-size="10" font-weight="700" fill="#1f2937">半导体设备</text>
+<text x="115" y="197" text-anchor="middle" font-size="8" fill="#6b7280">北方华创 中微公司</text>
+<rect x="62" y="203" width="106" height="10" rx="2" fill="#fef2f2"/>
+<text x="115" y="210" text-anchor="middle" font-size="7" fill="#ef4444">⚡ 5nm刻蚀验证通过</text>
+<rect x="200" y="160" width="110" height="60" rx="6" fill="#fff" stroke="#6366f1" stroke-width="1.5"/>
+<text x="255" y="183" text-anchor="middle" font-size="10" font-weight="700" fill="#1f2937">晶圆制造</text>
+<text x="255" y="197" text-anchor="middle" font-size="8" fill="#6b7280">中芯国际 华虹</text>
+<rect x="340" y="160" width="110" height="60" rx="6" fill="#fff" stroke="#6366f1" stroke-width="1.5"/>
+<text x="395" y="183" text-anchor="middle" font-size="10" font-weight="700" fill="#1f2937">封装测试</text>
+<text x="395" y="197" text-anchor="middle" font-size="8" fill="#6b7280">长电科技 通富微电</text>
+
+<rect x="10" y="250" width="500" height="20" rx="4" fill="#d1fae5"/>
+<text x="260" y="264" text-anchor="middle" font-size="10" font-weight="700" fill="#059669">◆ 下游 — 应用与终端</text>
+<rect x="80" y="282" width="100" height="46" rx="6" fill="#fff" stroke="#10b981" stroke-width="1.5"/>
+<text x="130" y="302" text-anchor="middle" font-size="10" font-weight="700" fill="#1f2937">AI服务器</text>
+<text x="130" y="316" text-anchor="middle" font-size="8" fill="#6b7280">增速 +85.6%</text>
+<rect x="220" y="282" width="100" height="46" rx="6" fill="#fff" stroke="#10b981" stroke-width="1.5"/>
+<text x="270" y="302" text-anchor="middle" font-size="10" font-weight="700" fill="#1f2937">汽车电子</text>
+<text x="270" y="316" text-anchor="middle" font-size="8" fill="#6b7280">增速 +32.5%</text>
+<rect x="360" y="282" width="100" height="46" rx="6" fill="#fff" stroke="#10b981" stroke-width="1.5"/>
+<text x="410" y="302" text-anchor="middle" font-size="10" font-weight="700" fill="#1f2937">消费电子</text>
+<text x="410" y="316" text-anchor="middle" font-size="8" fill="#6b7280">增速 +8.3%</text>
+
+<line x1="115" y1="98" x2="115" y2="158" stroke="#9ca3af" stroke-dasharray="4,3"/>
+<line x1="255" y1="98" x2="255" y2="158" stroke="#9ca3af" stroke-dasharray="4,3"/>
+<line x1="395" y1="98" x2="395" y2="158" stroke="#9ca3af" stroke-dasharray="4,3"/>
+<line x1="130" y1="220" x2="130" y2="280" stroke="#9ca3af" stroke-dasharray="4,3"/>
+<line x1="270" y1="220" x2="270" y2="280" stroke="#9ca3af" stroke-dasharray="4,3"/>
+<line x1="410" y1="220" x2="410" y2="280" stroke="#9ca3af" stroke-dasharray="4,3"/>
+</svg>
+</div>
+<div class="m-graph-hint">⇔ 左右滑动查看全图 · 双指缩放 · 点节点看详情</div>
+</div>
+
+<!-- 分析 Tabs -->
+<div class="m-card">
+<div class="m-tabs">
+<span class="m-tab-item active">AI 综述</span>
+<span class="m-tab-item">价值分析</span>
+<span class="m-tab-item">瓶颈与标的</span>
+<span class="m-tab-item">机会与风险</span>
+</div>
+<div class="m-card-body" style="font-size:12px;color:var(--text-secondary);line-height:1.7">
+上游高壁垒高毛利、中游国产替代加速、下游 AI 需求爆发。<strong style="color:var(--rise)">高毛利 × 低国产化率</strong>象限（EDA、光刻胶、CMP 材料）替代机会最大…
+<span class="m-expand">展开全文 ↓</span>
+</div>
+</div>
+
+</div>
+<div class="m-tabbar">
+<div class="m-tab"><span class="m-tab-icon">◈</span><span>复盘</span></div>
+<div class="m-tab active"><span class="m-tab-icon">◈</span><span>产业链</span></div>
+<div class="m-tab"><span class="m-tab-icon">◈</span><span>资金</span></div>
+<div class="m-tab"><span class="m-tab-icon">◈</span><span>我的</span></div>
+</div>
+</div>
+<div class="frame-caption">② 产业链分析</div>
+<div class="frame-sub">行业/版本下拉 + AI 分析按钮置顶；图谱容器支持滑动与双指缩放；下方内容收进 Tabs</div>
+</div>
+
+<!-- ========== Frame 3: AI 助手底部弹层 ========== -->
+<div class="frame-block">
+<div class="phone">
+<div class="phone-notch"></div>
+<div class="m-appbar">
+<button class="m-icon-btn">☰</button>
+<span class="m-appbar-title">产业链分析</span>
+<button class="m-icon-btn">⛶</button>
+</div>
+<div class="m-body" style="opacity:.35">
+<select class="m-select"><option selected>半导体 · 二级行业 · 176 家</option></select>
+<div class="m-card"><div class="m-card-body" style="height:120px"></div></div>
+<div class="m-card"><div class="m-card-body" style="height:80px"></div></div>
+</div>
+
+<div class="m-sheet-mask"></div>
+<div class="m-sheet">
+<div class="m-sheet-handle"></div>
+<div class="m-sheet-head"><span>✦ AI 产业链分析助手</span><span style="color:var(--text-tertiary);font-weight:400">✕</span></div>
+<div class="m-sheet-body">
+<div class="m-msg-user">分析「半导体」产业链</div>
+<div class="m-msg-ai">
+<div class="m-stage"><span class="m-stage-done">✓</span><span>已找到 176 家上市公司</span><span class="m-stage-elapsed">1.2s</span></div>
+<div class="m-stage"><span class="m-stage-done">✓</span><span>财务数据预取完成 · 40 家</span><span class="m-stage-elapsed">3.8s</span></div>
+<div class="m-stage"><span class="m-stage-done">✓</span><span>新闻公告检索完成 · 32 条</span><span class="m-stage-elapsed">2.4s</span></div>
+<div class="m-stage"><span class="m-stage-done">✓</span><span>知识库研报匹配 · 18 篇</span><span class="m-stage-elapsed">2.1s</span></div>
+<div class="m-stage"><span style="color:var(--accent)">◌</span><span style="color:var(--accent)">正在推导细分环节并生成图谱…</span><span class="m-stage-elapsed">87s</span></div>
+</div>
+<div class="m-msg-ai">
+<div class="m-result">
+<div style="font-weight:600;font-size:12px">分析完成，已生成草稿 v13</div>
+<div style="display:flex;gap:12px;font-size:11px;color:var(--text-secondary);margin:6px 0"><span>24 环节</span><span>28 供应关系</span><span>5 核心标的</span></div>
+<div style="font-size:11px;color:var(--text-secondary)">上游材料国产替代加速，光刻/EDA 仍为关键瓶颈…</div>
+<div class="m-result-actions">
+<button class="m-btn m-btn-primary">确认更新图谱</button>
+<button class="m-btn m-btn-secondary">放弃</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="frame-caption">③ AI 助手（底部弹层）</div>
+<div class="frame-sub">Drawer 在移动端变为 78% 高底部弹层：阶段进度可见、结果需确认才更新图谱；下滑/点遮罩关闭并中断</div>
+</div>
+
+<!-- ========== Frame 4: 抽屉导航 ========== -->
+<div class="frame-block">
+<div class="phone">
+<div class="phone-notch"></div>
+<div class="m-appbar">
+<button class="m-icon-btn">☰</button>
+<span class="m-appbar-title">每日复盘</span>
+<button class="m-icon-btn">⟳</button>
+</div>
+<div class="m-body" style="opacity:.35">
+<div class="m-index-row">
+<div class="m-index-box"><div class="m-index-name">上证指数</div><div class="m-index-val">3,247</div></div>
+<div class="m-index-box"><div class="m-index-name">深证成指</div><div class="m-index-val">10,584</div></div>
+<div class="m-index-box"><div class="m-index-name">创业板指</div><div class="m-index-val">2,116</div></div>
+</div>
+<div class="m-card"><div class="m-card-body" style="height:140px"></div></div>
+</div>
+
+<div class="m-drawer-mask"></div>
+<div class="m-drawer">
+<div class="m-drawer-brand">
+<div class="m-drawer-logo">
+<svg viewBox="0 0 32 32" width="16" height="16" fill="none"><circle cx="16" cy="16" r="14" stroke="#fff" stroke-width="2.5"/><polyline points="8,20 12,16 16,18 20,12 24,14" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</div>
+AI Invest
+</div>
+<div class="m-drawer-nav">
+<div class="m-drawer-section">复盘</div>
+<div class="m-drawer-item active">◈ 每日复盘</div>
+<div class="m-drawer-item">◈ 集合竞价</div>
+<div class="m-drawer-item">◈ 资金流向</div>
+<div class="m-drawer-section">分析</div>
+<div class="m-drawer-item">◈ 产业链分析</div>
+<div class="m-drawer-item">◈ 热点追踪</div>
+<div class="m-drawer-item">◈ 研报中心</div>
+<div class="m-drawer-section">设置</div>
+<div class="m-drawer-item">◈ 个人设置</div>
+</div>
+<div class="m-drawer-user">user@example.com</div>
+</div>
+</div>
+<div class="frame-caption">④ 抽屉导航</div>
+<div class="frame-sub">汉堡按钮触发，72% 宽左侧抽屉；保留桌面端完整菜单分组，点遮罩关闭</div>
+</div>
+
+</div>
+</body>
+</html>

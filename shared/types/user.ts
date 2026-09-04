@@ -1,3 +1,13 @@
+export interface MovingAverageConfig {
+  period: number
+  color: string
+  enabled: boolean
+}
+
+export interface UserSettings {
+  maConfigs: MovingAverageConfig[]
+}
+
 export interface User {
   id: string
   username: string

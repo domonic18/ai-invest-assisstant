@@ -1,7 +1,17 @@
+"""Agent Prompt YAML 配置的加载与缓存。"""
+
 from pathlib import Path
 
 import yaml
 from pydantic import BaseModel, Field
+
+
+class PromptSection(BaseModel):
+    """结构化输出的一个内容分区（key 为输出键，title 为展示名）。"""
+
+    key: str
+    title: str
+    requirements: str = ""
 
 
 class PromptConfig(BaseModel):
@@ -13,6 +23,7 @@ class PromptConfig(BaseModel):
     system_prompt: str
     user_prompt_template: str = ""
     output_schema: dict = Field(default_factory=dict)
+    sections: list[PromptSection] = Field(default_factory=list)
     examples: list[dict] = Field(default_factory=list)
     triggers: list[str] = Field(default_factory=list)
     workflow: list[str] = Field(default_factory=list)

@@ -12,7 +12,7 @@ triggers:
 workflow:
   - 从 PostgreSQL 查询目标公司最近的研报元数据
   - 从 MinIO 获取研报 PDF 文件路径
-  - 从 Milvus 知识库检索研报文本切片
+  - 从 Elasticsearch 知识库检索研报文本切片
   - 提取每篇研报的关键信息
   - 对比评级变化，计算一致度和分歧
 

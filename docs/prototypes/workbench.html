@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 工作台</title>
+<style>
+/* ======================================================
+   AI Invest Assistant — Design System
+   Inspired by SquadSight: dark, professional, tech-driven
+   ====================================================== */
+:root {
+  /* Background */
+  --bg: #0c0e12;
+  --bg-elevated: #111318;
+  --bg-surface: #181a21;
+  --bg-hover: #1c1f26;
+
+  /* Borders */
+  --border: #23262d;
+  --border-hover: #2e323c;
+  --border-focus: #5e6ad2;
+
+  /* Text */
+  --text-primary: #f0f1f5;
+  --text-secondary: #8a8f98;
+  --text-tertiary: #5c616e;
+
+  /* Brand */
+  --accent: #5e6ad2;
+  --accent-hover: #6872e3;
+  --accent-soft: rgba(94, 106, 210, 0.12);
+
+  /* Semantic */
+  --green: #2ea043;
+  --green-soft: rgba(46, 160, 67, 0.12);
+  --red: #f85149;
+  --red-soft: rgba(248, 81, 73, 0.12);
+  --amber: #d29922;
+  --amber-soft: rgba(210, 153, 34, 0.12);
+  --blue: #58a6ff;
+  --blue-soft: rgba(88, 166, 255, 0.12);
+
+  /* Typography */
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
+  --shadow-md: 0 4px 6px rgba(0,0,0,.4);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,.5);
+
+  /* Layout */
+  --sidebar-w: 220px;
+  --header-h: 56px;
+
+  /* Transitions */
+  --transition: 200ms ease;
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 32px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+}
+
+/* Reset */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+/* Selection */
+::selection { background: var(--accent-soft); color: var(--text-primary); }
+a { color: var(--accent); text-decoration: none; transition: color var(--transition); }
+a:hover { color: var(--accent-hover); }
+
+/* ======= Layout ======= */
+.app-layout { display: flex; height: 100vh; }
+.app-sidebar {
+  width: var(--sidebar-w); background: var(--bg-elevated);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  flex-shrink: 0; overflow-y: auto;
+}
+.app-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.app-header {
+  height: var(--header-h); background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border); display: flex; align-items: center;
+  justify-content: space-between; padding: 0 20px; flex-shrink: 0;
+}
+.app-content { flex: 1; overflow-y: auto; padding: 24px; }
+
+/* ======= Sidebar ======= */
+.sidebar-brand { padding: 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+.sidebar-logo {
+  width: 34px; height: 34px; background: var(--accent); border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.sidebar-logo svg { width: 18px; height: 18px; }
+.sidebar-brand-text { font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -.01em; }
+.sidebar-version { font-size: 10px; color: var(--text-tertiary); margin-left: auto; }
+.sidebar-nav { padding: 8px; flex: 1; }
+.sidebar-section-title {
+  font-size: 10px; color: var(--text-tertiary); text-transform: uppercase;
+  letter-spacing: .08em; padding: 12px 10px 6px; font-weight: 600;
+}
+.sidebar-item {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px;
+  border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary);
+  text-decoration: none; cursor: pointer; transition: all var(--transition);
+}
+.sidebar-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sidebar-item.active { background: var(--accent-soft); color: var(--accent); }
+.sidebar-item-icon { opacity: .5; width: 16px; font-size: 12px; text-align: center; }
+.sidebar-item.active .sidebar-item-icon { opacity: 1; }
+.sidebar-footer {
+  padding: 12px 16px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.sidebar-avatar {
+  width: 30px; height: 30px; border-radius: 50%; background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600; color: #fff; flex-shrink: 0;
+}
+.sidebar-user-info { font-size: 12px; color: var(--text-secondary); }
+.sidebar-user-name { color: var(--text-primary); font-weight: 500; }
+
+/* ======= Header ======= */
+.header-search {
+  width: 260px; padding: 7px 12px; background: var(--bg-surface);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 13px; color: var(--text-primary); outline: none;
+  transition: border var(--transition);
+}
+.header-search::placeholder { color: var(--text-tertiary); }
+.header-search:focus { border-color: var(--border-focus); }
+.header-actions { display: flex; align-items: center; gap: 8px; }
+.header-btn {
+  width: 34px; height: 34px; border-radius: var(--radius-sm);
+  background: transparent; border: none; color: var(--text-secondary);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all var(--transition); font-size: 16px;
+}
+.header-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* ======= Cards ======= */
+.card {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.card-header {
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-title { font-size: 14px; font-weight: 600; color: var(--text-primary); letter-spacing: -.01em; }
+.card-body { padding: 20px; }
+.card-body-sm { padding: 14px; }
+
+/* ======= Stats ======= */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.stat-label { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .05em; font-weight: 500; }
+.stat-value { font-size: 24px; font-weight: 700; color: var(--text-primary); letter-spacing: -.02em; }
+.stat-change { font-size: 11px; font-weight: 500; }
+.stat-change.up { color: var(--green); }
+.stat-change.down { color: var(--red); }
+
+/* ======= Tables ======= */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead { border-bottom: 1px solid var(--border); }
+th {
+  text-align: left; padding: 10px 14px; font-weight: 500; color: var(--text-tertiary);
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap;
+}
+td { padding: 10px 14px; color: var(--text-secondary); border-bottom: 1px solid var(--border); white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg-hover); }
+
+/* ======= Buttons ======= */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+  border: 1px solid transparent; cursor: pointer;
+  transition: all var(--transition); letter-spacing: .01em;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-secondary { background: var(--bg-surface); color: var(--text-secondary); border-color: var(--border); }
+.btn-secondary:hover { background: var(--bg-hover); border-color: var(--border-hover); color: var(--text-primary); }
+.btn-ghost { background: transparent; color: var(--text-secondary); }
+.btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-danger:hover { background: #e0483f; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-lg { padding: 10px 24px; font-size: 14px; }
+
+/* ======= Tags ======= */
+.tag {
+  display: inline-flex; align-items: center; padding: 2px 8px;
+  border-radius: 4px; font-size: 11px; font-weight: 500;
+}
+.tag-green { background: var(--green-soft); color: var(--green); }
+.tag-red { background: var(--red-soft); color: var(--red); }
+.tag-amber { background: var(--amber-soft); color: var(--amber); }
+.tag-blue { background: var(--blue-soft); color: var(--blue); }
+.tag-purple { background: var(--accent-soft); color: var(--accent); }
+
+/* ======= Forms ======= */
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
+.form-input, .form-select, .form-textarea {
+  width: 100%; padding: 8px 12px; font-size: 13px; color: var(--text-primary);
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); outline: none; transition: border var(--transition);
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--border-focus); }
+.form-input::placeholder { color: var(--text-tertiary); }
+.form-hint { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+.form-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235c616e' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+
+/* ======= Grids ======= */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+.gap-4 { gap: 14px; }
+.mb-4 { margin-bottom: 14px; }
+.mb-6 { margin-bottom: 24px; }
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+.text-muted { color: var(--text-secondary); }
+.text-mono { font-family: var(--font-mono); }
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.page-title { font-size: 20px; font-weight: 600; color: var(--text-primary); letter-spacing: -.01em; margin-bottom: 24px; }
+.divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+/* ======= Analysis Meter ======= */
+.analysis-meter { height: 6px; border-radius: 3px; background: var(--bg-surface); overflow: hidden; }
+.analysis-meter-fill { height: 100%; border-radius: 3px; }
+
+/* ======= Notification ======= */
+.notification-dot {
+  position: absolute; top: 7px; right: 7px; width: 6px; height: 6px;
+  background: var(--red); border-radius: 50%;
+}
+
+
+/* ======= Page: Workbench ======= */
+.header-left{display:flex;align-items:center;gap:8px}
+.header-right{display:flex;align-items:center;gap:8px}
+.header-badge{position:relative;width:34px;height:34px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);cursor:pointer}
+.header-badge:hover{background:var(--bg-hover)}
+
+.wb-greet{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:20px}
+.wb-greet h1{font-size:20px;font-weight:600;letter-spacing:-.01em}
+.wb-greet .sub{font-size:12px;color:var(--text-tertiary)}
+
+.idx-strip{display:grid;grid-template-columns:repeat(8,1fr);gap:10px;margin-bottom:24px}
+.idx-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px}
+.idx-name{font-size:11px;color:var(--text-tertiary);white-space:nowrap}
+.idx-val{font-size:16px;font-weight:700;font-family:var(--font-mono);margin:2px 0}
+.idx-chg{font-size:11px;font-weight:600;font-family:var(--font-mono)}
+.up{color:var(--green)}.down{color:var(--red)}
+.idx-src{font-size:9px;color:var(--text-tertiary);margin-top:2px}
+
+.wb-grid{display:grid;grid-template-columns:2fr 1fr;gap:14px}
+.wb-col{display:flex;flex-direction:column;gap:14px}
+
+.card-header .fold-btn{background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:14px;width:26px;height:26px;border-radius:var(--radius-sm)}
+.card-header .fold-btn:hover{background:var(--bg-hover);color:var(--text-primary)}
+.card.folded .card-body{display:none}
+
+.badge-live{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;background:var(--red-soft);color:var(--red)}
+.badge-live::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--red)}
+
+.sum-line{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.sum-line:last-child{border-bottom:none}
+.sum-key{flex-shrink:0;width:52px;font-size:11px;font-weight:600;color:var(--accent)}
+.sum-text{font-size:12px;color:var(--text-secondary);line-height:1.6}
+.emotion-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.e-chip{font-size:11px;padding:3px 10px;border-radius:10px;background:var(--bg-surface);border:1px solid var(--border);color:var(--text-secondary)}
+.e-chip b{color:var(--text-primary);font-family:var(--font-mono)}
+
+.news-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.news-item:last-child{border-bottom:none}
+.news-time{flex-shrink:0;font-size:11px;color:var(--text-tertiary);font-family:var(--font-mono);margin-top:2px}
+.news-title{font-size:13px;color:var(--text-primary);line-height:1.5}
+.news-meta{display:flex;gap:6px;margin-top:4px}
+
+.evt-item{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.evt-item:last-child{border-bottom:none}
+.evt-date{flex-shrink:0;width:56px;font-size:11px;color:var(--text-tertiary);font-family:var(--font-mono);margin-top:2px}
+.evt-title{font-size:12px;color:var(--text-primary);line-height:1.5}
+
+.grp-chips{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.grp-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:16px;font-size:12px;background:var(--bg-surface);border:1px solid var(--border);color:var(--text-secondary);cursor:pointer}
+.grp-chip.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.sw-on{display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--green)}
+.stock-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.stock-row:last-child{border-bottom:none}
+.stock-name{width:130px;font-size:13px;color:var(--text-primary)}
+.stock-name .code{font-size:11px;color:var(--text-tertiary);font-family:var(--font-mono);margin-left:4px}
+.stock-px{width:90px;text-align:right;font-family:var(--font-mono);font-size:13px}
+.stock-chg{width:80px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:600}
+.stock-ai{flex:1;font-size:11px;color:var(--text-secondary);line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ai-status{flex-shrink:0}
+.disclaimer{font-size:10px;color:var(--text-tertiary);margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
+
+.empty-state{padding:28px 16px;text-align:center;color:var(--text-tertiary);font-size:12px}
+.empty-state .icon{font-size:22px;display:block;margin-bottom:8px;opacity:.5}
+</style>
+</head>
+<body>
+<div class="app-layout">
+<aside class="app-sidebar">
+<div class="sidebar-brand">
+<div class="sidebar-logo">
+<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#fff" stroke-width="2.5"/><polyline points="8,20 12,16 16,18 20,12 24,14" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="14" r="2.5" fill="#fff"/></svg>
+</div>
+<div class="sidebar-brand-text">AI Invest</div>
+<div class="sidebar-version">v1.0.0</div>
+</div>
+<nav class="sidebar-nav">
+<a class="sidebar-item active" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
+<div class="sidebar-section-title">复盘</div>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
+<div class="sidebar-section-title">分析</div>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
+<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
+<a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
+<a class="sidebar-item" href="financial-reports.html"><span class="sidebar-item-icon">◈</span><span>财报中心</span></a>
+<div class="sidebar-section-title">设置</div>
+<a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+<a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
+</nav>
+<div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
+</aside>
+<div class="app-main">
+<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
+<div class="app-content">
+
+<div class="wb-greet">
+<h1>工作台</h1>
+<div class="sub">2026-09-02 周三 · 交易日 · 登录后默认入口</div>
+</div>
+
+<!-- 市场快览：跟踪指数 + 全球指标（清单由后台·跟踪指数管理配置） -->
+<div class="idx-strip">
+<div class="idx-card"><div class="idx-name">上证指数</div><div class="idx-val">3,845.21</div><div class="idx-chg up">+0.62%</div><div class="idx-src">sina</div></div>
+<div class="idx-card"><div class="idx-name">深证成指</div><div class="idx-val">12,804.66</div><div class="idx-chg up">+0.88%</div><div class="idx-src">sina</div></div>
+<div class="idx-card"><div class="idx-name">创业板指</div><div class="idx-val">2,672.05</div><div class="idx-chg up">+1.24%</div><div class="idx-src">sina</div></div>
+<div class="idx-card"><div class="idx-name">科创50</div><div class="idx-val">1,128.44</div><div class="idx-chg down">-0.35%</div><div class="idx-src">sina</div></div>
+<div class="idx-card"><div class="idx-name">COMEX 黄金</div><div class="idx-val">3,912.5</div><div class="idx-chg up">+0.41%</div><div class="idx-src">eastmoney</div></div>
+<div class="idx-card"><div class="idx-name">美债 10Y</div><div class="idx-val">4.118%</div><div class="idx-chg down">-2.3bp</div><div class="idx-src">tushare</div></div>
+<div class="idx-card"><div class="idx-name">美债 2Y</div><div class="idx-val">3.654%</div><div class="idx-chg down">-1.8bp</div><div class="idx-src">tushare</div></div>
+<div class="idx-card"><div class="idx-name">美元指数</div><div class="idx-val">98.35</div><div class="idx-chg down">-0.22%</div><div class="idx-src">eastmoney</div></div>
+</div>
+
+<div class="wb-grid">
+<div class="wb-col">
+
+<!-- 复盘核心结论 -->
+<div class="card">
+<div class="card-header">
+<span class="card-title">复盘核心结论 <span class="tag tag-purple" style="margin-left:6px">AI · 15:05 生成</span></span>
+<button class="fold-btn" data-fold>−</button>
+</div>
+<div class="card-body">
+<div class="sum-line"><span class="sum-key">综述</span><span class="sum-text">三大指数缩量反弹，创业板指领涨；两市成交额 1.42 万亿，较昨日放量约 6%。</span></div>
+<div class="sum-line"><span class="sum-key">技术面</span><span class="sum-text">沪指站稳 MA20，日线 MACD 金叉雏形；创业板回踩 MA60 后获承接。</span></div>
+<div class="sum-line"><span class="sum-key">资金面</span><span class="sum-text">主力净流入居前：半导体、电池；净流出居前：银行、电力。北向净买入 38.2 亿。</span></div>
+<div class="sum-line"><span class="sum-key">情绪面</span><span class="sum-text">涨停家数回升至 68 家，连板高度 5 板，情绪修复至活跃区上沿。</span></div>
+<div class="emotion-chips">
+<span class="e-chip">涨停 <b>68</b></span>
+<span class="e-chip">跌停 <b>7</b></span>
+<span class="e-chip">炸板 <b>15</b></span>
+<span class="e-chip">连板高度 <b>5</b></span>
+<span class="e-chip">昨日涨停表现 <b class="up">+0.87%</b></span>
+</div>
+<div style="margin-top:12px;text-align:right"><a href="dashboard.html">查看完整复盘 →</a></div>
+</div>
+</div>
+
+<!-- 要闻资讯 -->
+<div class="card">
+<div class="card-header">
+<span class="card-title">要闻资讯 <span class="badge-live" style="margin-left:6px">电报 10s 准实时</span></span>
+<button class="fold-btn" data-fold>−</button>
+</div>
+<div class="card-body">
+<div class="news-item"><span class="news-time">10:35</span><div><div class="news-title">【电报】央行开展 3,000 亿元逆回购操作，中标利率 1.40% 持平</div><div class="news-meta"><span class="tag tag-purple">宏观</span><span class="tag">电报快讯</span></div></div></div>
+<div class="news-item"><span class="news-time">10:12</span><div><div class="news-title">【电报】中际旭创：9 月 1 日首次回购 37.41 万股，支付 3.18 亿元</div><div class="news-meta"><span class="tag tag-blue">公告</span><span class="tag">电报快讯</span></div></div></div>
+<div class="news-item"><span class="news-time">09:58</span><div><div class="news-title">半导体设备板块异动拉升，北方华创涨超 5%，消息面上国家大基金三期落地首笔投资</div><div class="news-meta"><span class="tag tag-amber">行业</span><span class="tag">电报快讯</span></div></div></div>
+<div class="news-item"><span class="news-time">09:02</span><div><div class="news-title">恒瑞医药：上半年净利润 34.32 亿元，同比增长 18.6%，创新药收入占比过半</div><div class="news-meta"><span class="tag tag-blue">公告</span></div></div></div>
+</div>
+</div>
+
+<!-- 自选股概览 -->
+<div class="card">
+<div class="card-header">
+<span class="card-title">自选股概览</span>
+<button class="fold-btn" data-fold>−</button>
+</div>
+<div class="card-body">
+<div class="grp-chips">
+<span class="grp-chip active">核心持仓 <span class="sw-on">● AI 复盘</span></span>
+<span class="grp-chip">默认分组 <span class="sw-on" style="color:var(--text-tertiary)">○</span></span>
+<span class="grp-chip">白马观察 <span class="sw-on" style="color:var(--text-tertiary)">○</span></span>
+<span class="grp-chip" style="border-style:dashed">＋ 管理分组</span>
+</div>
+<div class="stock-row">
+<span class="stock-name">奥比中光<span class="code">688322</span></span>
+<span class="stock-px">38.66</span><span class="stock-chg up">+4.21%</span>
+<span class="stock-ai">盘面解读：周线回踩 M60 企稳，量能温和。策略：若放量突破 39.8 小平台则补仓 4 成。止损：跌破周线 M60 减至 1 成。</span>
+<span class="ai-status"><span class="tag tag-green">AI 已生成</span></span>
+</div>
+<div class="stock-row">
+<span class="stock-name">中际旭创<span class="code">300308</span></span>
+<span class="stock-px">142.80</span><span class="stock-chg up">+2.35%</span>
+<span class="stock-ai">盘面解读：沿 MA5 上行，抛压有限。策略：持仓为主，冲高 148 一线可部分止盈。止损：跌破 MA10 减半。</span>
+<span class="ai-status"><span class="tag tag-green">AI 已生成</span></span>
+</div>
+<div class="stock-row">
+<span class="stock-name">恒瑞医药<span class="code">600276</span></span>
+<span class="stock-px">52.14</span><span class="stock-chg down">-1.08%</span>
+<span class="stock-ai"></span>
+<span class="ai-status"><span class="tag tag-amber">AI 生成中…</span></span>
+</div>
+<div class="stock-row">
+<span class="stock-name">北方华创<span class="code">002371</span></span>
+<span class="stock-px">318.40</span><span class="stock-chg up">+5.02%</span>
+<span class="stock-ai"></span>
+<span class="ai-status"><span class="tag">未开启</span></span>
+</div>
+<div class="disclaimer">AI 生成，不构成投资建议 · 仅"核心持仓"分组开启 AI 每日复盘，盘后定时批量生成（heavy 队列）</div>
+</div>
+</div>
+
+</div>
+<div class="wb-col">
+
+<!-- 投资日历摘要 -->
+<div class="card">
+<div class="card-header">
+<span class="card-title">投资日历 · 近 7 日</span>
+<button class="fold-btn" data-fold>−</button>
+</div>
+<div class="card-body">
+<div class="evt-item"><span class="evt-date">09-02<br>今日</span><div><div class="evt-title">美国 8 月 ISM 制造业 PMI</div><div class="news-meta"><span class="tag tag-blue">宏观数据</span></div></div></div>
+<div class="evt-item"><span class="evt-date">09-03</span><div><div class="evt-title">华卓精科 科创板申购</div><div class="news-meta"><span class="tag tag-green">新股</span></div></div></div>
+<div class="evt-item"><span class="evt-date">09-04</span><div><div class="evt-title">美国 8 月非农就业报告（NFP）</div><div class="news-meta"><span class="tag tag-blue">宏观数据</span></div></div></div>
+<div class="evt-item"><span class="evt-date">09-09</span><div><div class="evt-title">宁德时代 4.2 亿股限售解禁 ★自选相关</div><div class="news-meta"><span class="tag tag-amber">解禁</span></div></div></div>
+<div class="evt-item"><span class="evt-date">09-16</span><div><div class="evt-title">美联储 FOMC 议息会议（两日）</div><div class="news-meta"><span class="tag tag-purple">央行动态</span></div></div></div>
+<div style="margin-top:12px;text-align:right"><a href="calendar.html">进入完整日历 →</a></div>
+</div>
+</div>
+
+<!-- 空态示意 -->
+<div class="card">
+<div class="card-header">
+<span class="card-title">板块资金动向</span>
+<button class="fold-btn" data-fold>−</button>
+</div>
+<div class="card-body">
+<div class="empty-state">
+<span class="icon"> ◇ </span>
+今日资金流向数据采集中，盘后 17:00 自动更新
+</div>
+</div>
+</div>
+
+<!-- 快捷入口 -->
+<div class="card">
+<div class="card-header"><span class="card-title">快捷入口</span><button class="fold-btn" data-fold>−</button></div>
+<div class="card-body" style="display:flex;flex-direction:column;gap:8px">
+<a class="btn btn-secondary" href="chain-analysis.html">🔗 产业链全景分析</a>
+<a class="btn btn-secondary" href="research.html">📄 研报中心</a>
+<a class="btn btn-secondary" href="hotspot.html">🔥 热点追踪</a>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+</div>
+</div>
+<script>
+document.querySelectorAll('[data-fold]').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    var card=btn.closest('.card');card.classList.toggle('folded');
+    btn.textContent=card.classList.contains('folded')?'+':'−';
+  });
+});
+document.querySelectorAll('.grp-chip').forEach(function(chip){
+  chip.addEventListener('click',function(){
+    document.querySelectorAll('.grp-chip').forEach(function(c){c.classList.remove('active')});
+    chip.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

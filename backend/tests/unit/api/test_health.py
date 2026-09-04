@@ -1,3 +1,5 @@
+"""健康检查端点契约测试。"""
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -10,4 +12,5 @@ class TestHealth:
         with TestClient(app) as client:
             response = client.get("/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
+        assert response.json()["status"] == "ok"
+        assert isinstance(response.json()["warmup_done"], bool)

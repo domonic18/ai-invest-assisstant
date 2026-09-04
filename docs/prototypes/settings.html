@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Invest Assistant — 个人设置</title>
+<title>AI Invest Assistant — 用户设置</title>
 <style>
 /* ======================================================
    AI Invest Assistant — Design System
@@ -284,101 +284,64 @@ tr:hover td { background: var(--bg-hover); }
 
 </style>
 <style>
-.settings-layout { display: grid; grid-template-columns: 200px 1fr; gap: var(--space-6); }
-.settings-nav {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-2);
-  height: fit-content;
-  box-shadow: var(--shadow-sm);
-}
-.settings-nav-item {
-  display: block; width: 100%;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  text-align: left;
-  cursor: pointer;
-  border: none;
-  background: transparent;
-  transition: all var(--transition-fast);
-}
-.settings-nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
-.settings-nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+.settings-wrap { max-width: 720px; display: flex; flex-direction: column; gap: var(--space-5); }
 
-.settings-panel {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
+.desc-row {
+  display: flex; align-items: baseline; gap: var(--space-4);
+  padding: var(--space-3) 0; border-bottom: 1px solid var(--border);
 }
-.settings-panel-header {
-  padding: var(--space-5) var(--space-6);
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-}
-.settings-panel-title { font-size: var(--text-lg); font-weight: 600; color: var(--text-primary); }
-.settings-panel-desc { font-size: var(--text-sm); color: var(--text-tertiary); margin-top: 2px; }
-.settings-panel-body { padding: var(--space-6); }
+.desc-row:last-child { border-bottom: none; }
+.desc-label { width: 96px; flex-shrink: 0; font-size: var(--text-sm); color: var(--text-tertiary); }
+.desc-value { font-size: var(--text-sm); color: var(--text-primary); }
 
-.settings-section { margin-bottom: var(--space-8); }
-.settings-section:last-child { margin-bottom: 0; }
-.settings-section-title {
-  font-size: var(--text-base);
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: var(--space-4);
-  padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--border);
+.scheme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.scheme-option {
+  padding: var(--space-4); background: var(--bg-surface);
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  cursor: pointer; transition: border-color var(--transition-fast);
 }
+.scheme-option.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.scheme-name { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); margin-bottom: var(--space-2); }
+.scheme-demo { font-family: var(--font-mono); font-size: var(--text-xs); display: flex; gap: var(--space-4); }
+.scheme-demo .up-red { color: var(--red); }
+.scheme-demo .down-green { color: var(--green); }
+.scheme-demo .up-green { color: var(--green); }
+.scheme-demo .down-red { color: var(--red); }
 
-.api-key-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: var(--space-4);
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--space-3);
+.ma-row {
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--space-3) 0; border-bottom: 1px solid var(--border);
 }
-.api-key-name { font-weight: 500; font-size: var(--text-sm); color: var(--text-primary); }
-.api-key-masked { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-tertiary); }
-.api-key-meta { font-size: var(--text-xs); color: var(--text-tertiary); }
-
-.model-card {
-  padding: var(--space-4);
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--space-3);
+.ma-row:last-of-type { border-bottom: none; }
+.ma-swatch { width: 28px; height: 4px; border-radius: 2px; flex-shrink: 0; }
+.ma-period-input {
+  width: 90px; padding: 5px 10px; font-size: var(--text-sm);
+  color: var(--text-primary); background: var(--bg-surface);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  outline: none; text-align: center; font-family: var(--font-mono);
 }
-.model-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-3); }
-.model-card-title { font-weight: 600; font-size: var(--text-sm); color: var(--text-primary); }
-.model-card-scene { font-size: var(--text-xs); color: var(--text-tertiary); display: flex; gap: var(--space-4); }
-
-.divider { border: none; border-top: 1px solid var(--border); margin: var(--space-6) 0; }
-
-.status-indicator {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-  margin-right: var(--space-1);
+.ma-period-input:focus { border-color: var(--border-focus); }
+.ma-label { font-size: var(--text-sm); color: var(--text-secondary); }
+.switch {
+  width: 36px; height: 20px; border-radius: 10px;
+  background: var(--border-hover); position: relative; cursor: pointer;
+  transition: background var(--transition-fast); flex-shrink: 0;
 }
-.status-indicator.online { background: var(--green); }
-.status-indicator.offline { background: var(--text-tertiary); }
-.status-indicator.warning { background: var(--amber); }
-
-.alert-success {
-  padding: var(--space-3) var(--space-4);
-  background: rgba(46,160,67,.12);
-  border: 1px solid #a7f3d0;
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  color: var(--green);
-  margin-bottom: var(--space-4);
+.switch::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%; background: #fff;
+  transition: left var(--transition-fast);
 }
+.switch.on { background: var(--accent); }
+.switch.on::after { left: 18px; }
+
+.hint-box {
+  margin-top: var(--space-4); padding: var(--space-3) var(--space-4);
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); font-size: var(--text-xs);
+  color: var(--text-tertiary); line-height: 1.6;
+}
+.card-extra { font-size: var(--text-xs); color: var(--text-tertiary); }
 </style>
 </head>
 <body>
@@ -393,14 +356,18 @@ tr:hover td { background: var(--bg-hover); }
 </div>
 
 <nav class="sidebar-nav">
+<a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
 <div class="sidebar-section-title">复盘</div>
+
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
 <a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
 <a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
 <a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
+<a class="sidebar-item" href="financial-reports.html"><span class="sidebar-item-icon">◈</span><span>财报中心</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item active" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
@@ -414,198 +381,104 @@ tr:hover td { background: var(--bg-hover); }
         <input class="header-search" type="text" placeholder="搜索股票代码或名称…">
         <button class="btn btn-primary btn-sm">搜索</button>
       </div>
-      <div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div>
+      <div class="header-right" style="display:flex;gap:8px"><button class="header-btn" style="position:relative">⧂<div class="notification-dot"></div></button><button class="header-btn">⚙</button></div>
     </header>
 
     <div class="app-content">
-      <h1 class="page-title">个人设置</h1>
+      <h1 class="page-title">用户设置</h1>
 
-      <div class="settings-layout">
-        <!-- Nav -->
-        <nav class="settings-nav">
-          <button class="settings-nav-item active">模型配置</button>
-          <button class="settings-nav-item">API-KEY 管理</button>
-          <button class="settings-nav-item">账户信息</button>
-          <button class="settings-nav-item">通知偏好</button>
-        </nav>
+      <div class="settings-wrap">
 
-        <!-- Panels -->
-        <div>
-          <!-- ========== Model Config Panel ========== -->
-          <div class="settings-panel mb-6" id="model-config">
-            <div class="settings-panel-header">
-              <div>
-                <div class="settings-panel-title">模型配置</div>
-                <div class="settings-panel-desc">自定义 AI 分析所用的模型服务，支持 OpenAI、DeepSeek、通义千问等兼容接口</div>
-              </div>
-              <button class="btn btn-primary btn-sm">+ 添加模型</button>
-            </div>
-            <div class="settings-panel-body">
-
-              <div class="settings-section">
-                <div class="alert-success">✅ 系统默认模型已就绪，未配置时将自动使用默认模型进行分析</div>
-
-                <!-- Model Card 1: 已配置 -->
-                <div class="model-card">
-                  <div class="model-card-header">
-                    <div>
-                      <div class="model-card-title">
-                        <span class="status-indicator online"></span>DeepSeek V3 · 研报分析
-                      </div>
-                    </div>
-                    <div style="display:flex;gap:var(--space-2)">
-                      <button class="btn btn-ghost btn-sm">测试连接</button>
-                      <button class="btn btn-ghost btn-sm">编辑</button>
-                      <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
-                    </div>
-                  </div>
-                  <div class="model-card-scene">
-                    <span>Base URL: api.deepseek.com/v1</span>
-                    <span>Model: deepseek-chat</span>
-                    <span>API Key: sk-****-a1b2</span>
-                    <span style="color:var(--green)">● 已连接 · 128ms</span>
-                  </div>
-                </div>
-
-                <!-- Model Card 2: 离线 -->
-                <div class="model-card">
-                  <div class="model-card-header">
-                    <div>
-                      <div class="model-card-title">
-                        <span class="status-indicator offline"></span>GPT-4o · 热点追踪
-                      </div>
-                    </div>
-                    <div style="display:flex;gap:var(--space-2)">
-                      <button class="btn btn-ghost btn-sm">测试连接</button>
-                      <button class="btn btn-ghost btn-sm">编辑</button>
-                      <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
-                    </div>
-                  </div>
-                  <div class="model-card-scene">
-                    <span>Base URL: api.openai.com/v1</span>
-                    <span>Model: gpt-4o</span>
-                    <span>API Key: sk-****-c3d4</span>
-                    <span style="color:var(--red)">● 连接失败 · 已回退到默认模型</span>
-                  </div>
-                </div>
-
-                <!-- Add Model Form (collapsed view) -->
-                <div style="margin-top:var(--space-4);padding:var(--space-4);border:1px dashed var(--border-hover);border-radius:var(--radius-md)">
-                  <div style="font-size:var(--text-sm);font-weight:600;color:var(--text-secondary);margin-bottom:var(--space-4)">添加新模型配置</div>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
-                    <div class="form-group" style="margin-bottom:0">
-                      <label class="form-label">Base URL</label>
-                      <input class="form-input" type="text" placeholder="https://api.openai.com/v1">
-                    </div>
-                    <div class="form-group" style="margin-bottom:0">
-                      <label class="form-label">API Key</label>
-                      <input class="form-input" type="password" placeholder="sk-...">
-                      <div class="form-hint">密钥将使用 AES-256-GCM 加密存储</div>
-                    </div>
-                    <div class="form-group" style="margin-bottom:0">
-                      <label class="form-label">Model</label>
-                      <input class="form-input" type="text" placeholder="gpt-4o">
-                    </div>
-                    <div class="form-group" style="margin-bottom:0">
-                      <label class="form-label">应用场景</label>
-                      <select class="form-select">
-                        <option>研报分析</option><option>热点追踪</option>
-                        <option>产业链分析</option><option>财务体检</option><option>通用</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div style="display:flex;gap:var(--space-2);margin-top:var(--space-4)">
-                    <button class="btn btn-primary btn-sm">保存并测试连接</button>
-                    <button class="btn btn-ghost btn-sm">取消</button>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <!-- 基本信息 -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">基本信息</span></div>
+          <div class="card-body">
+            <div class="desc-row"><span class="desc-label">用户名</span><span class="desc-value">Domonic</span></div>
+            <div class="desc-row"><span class="desc-label">邮箱</span><span class="desc-value">domonic@example.com</span></div>
+            <div class="desc-row"><span class="desc-label">角色</span><span class="desc-value"><span class="tag tag-purple">管理员</span></span></div>
           </div>
+        </div>
 
-          <!-- ========== API KEY Panel ========== -->
-          <div class="settings-panel" id="apikey-panel">
-            <div class="settings-panel-header">
-              <div>
-                <div class="settings-panel-title">API-KEY 管理</div>
-                <div class="settings-panel-desc">创建和管理 API 密钥，用于通过 MCP 接口调用平台 AI 分析能力</div>
+        <!-- 行情配色 -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">行情配色</span></div>
+          <div class="card-body">
+            <div class="scheme-grid">
+              <div class="scheme-option active">
+                <div class="scheme-name">红涨绿跌 <span class="tag tag-purple" style="margin-left:4px">国内习惯</span></div>
+                <div class="scheme-demo"><span class="up-red">▲ +2.35%</span><span class="down-green">▼ -1.28%</span></div>
               </div>
-              <button class="btn btn-primary btn-sm">+ 创建 API-KEY</button>
-            </div>
-            <div class="settings-panel-body">
-
-              <div class="settings-section">
-                <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-bottom:var(--space-4)">
-                  您最多可创建 5 个 API-KEY。密钥创建时<strong>仅显示一次</strong>，请妥善保存。丢失后无法找回，只能重新创建。
-                </div>
-
-                <div class="api-key-row">
-                  <div>
-                    <div class="api-key-name">研报分析 · 主力密钥</div>
-                    <div class="api-key-masked">aik-****-xY7k</div>
-                    <div class="api-key-meta">创建于 2026-06-15 · 读写权限 · 永不过期 · 今日调用 28 次</div>
-                  </div>
-                  <div style="display:flex;gap:var(--space-2)">
-                    <button class="btn btn-ghost btn-sm">复制</button>
-                    <button class="btn btn-ghost btn-sm">重命名</button>
-                    <button class="btn btn-ghost btn-sm" style="color:var(--red)">撤销</button>
-                  </div>
-                </div>
-
-                <div class="api-key-row">
-                  <div>
-                    <div class="api-key-name">MCP 调试密钥</div>
-                    <div class="api-key-masked">aik-****-pQ3m</div>
-                    <div class="api-key-meta">创建于 2026-07-01 · 只读权限 · 2026-09-01 过期</div>
-                  </div>
-                  <div style="display:flex;gap:var(--space-2)">
-                    <button class="btn btn-ghost btn-sm">复制</button>
-                    <button class="btn btn-ghost btn-sm">重命名</button>
-                    <button class="btn btn-ghost btn-sm" style="color:var(--red)">撤销</button>
-                  </div>
-                </div>
-
-                <div class="api-key-row">
-                  <div>
-                    <div class="api-key-name">团队共享密钥</div>
-                    <div class="api-key-masked">aik-****-nR8t</div>
-                    <div class="api-key-meta">创建于 2026-05-20 · 读写权限 · 永不过期 · 今日调用 142 次</div>
-                  </div>
-                  <div style="display:flex;gap:var(--space-2)">
-                    <button class="btn btn-ghost btn-sm">复制</button>
-                    <button class="btn btn-ghost btn-sm">重命名</button>
-                    <button class="btn btn-ghost btn-sm" style="color:var(--red)">撤销</button>
-                  </div>
-                </div>
-              </div>
-
-              <hr class="divider">
-
-              <div class="settings-section">
-                <div class="settings-section-title">MCP 接入配置</div>
-                <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-bottom:var(--space-4)">
-                  将以下配置添加到 MCP 客户端（Claude Desktop、Cursor 等），即可使用平台 AI 分析能力。
-                </div>
-                <div style="background:var(--surface-dark);border-radius:var(--radius-md);padding:var(--space-4);font-family:var(--font-mono);font-size:var(--text-xs);color:#a5d6ff;line-height:1.7;overflow-x:auto">
-                  {<br>
-                  &nbsp;&nbsp;"mcpServers": {<br>
-                  &nbsp;&nbsp;&nbsp;&nbsp;"ai-invest-assistant": {<br>
-                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"url": "https://api.your-domain.com/mcp",<br>
-                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"headers": {<br>
-                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"X-API-Key": "aik-****-xY7k"<br>
-                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
-                  &nbsp;&nbsp;&nbsp;&nbsp;}<br>
-                  &nbsp;&nbsp;}<br>
-                  }
-                </div>
-                <div style="margin-top:var(--space-3)">
-                  <button class="btn btn-secondary btn-sm">复制配置</button>
-                  <button class="btn btn-ghost btn-sm" style="margin-left:var(--space-2)">查看 MCP 接口文档 →</button>
-                </div>
+              <div class="scheme-option">
+                <div class="scheme-name">绿涨红跌 <span style="font-size:11px;color:var(--text-tertiary);font-weight:400;margin-left:4px">国际习惯</span></div>
+                <div class="scheme-demo"><span class="up-green">▲ +2.35%</span><span class="down-red">▼ -1.28%</span></div>
               </div>
             </div>
           </div>
         </div>
+
+        <!-- K 线均线配置 -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">K 线均线配置</span><span class="card-extra">已启用 3 条</span></div>
+          <div class="card-body">
+            <div class="ma-row">
+              <span class="ma-swatch" style="background:#f85149"></span>
+              <input class="ma-period-input" type="number" value="5">
+              <span class="ma-label">MA5</span>
+              <span style="flex:1"></span>
+              <span class="card-extra">显示</span>
+              <span class="switch on"></span>
+              <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
+            </div>
+            <div class="ma-row">
+              <span class="ma-swatch" style="background:#d29922"></span>
+              <input class="ma-period-input" type="number" value="10">
+              <span class="ma-label">MA10</span>
+              <span style="flex:1"></span>
+              <span class="card-extra">显示</span>
+              <span class="switch on"></span>
+              <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
+            </div>
+            <div class="ma-row">
+              <span class="ma-swatch" style="background:#58a6ff"></span>
+              <input class="ma-period-input" type="number" value="20">
+              <span class="ma-label">MA20</span>
+              <span style="flex:1"></span>
+              <span class="card-extra">显示</span>
+              <span class="switch on"></span>
+              <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
+            </div>
+            <div class="ma-row">
+              <span class="ma-swatch" style="background:#a3a8b8"></span>
+              <input class="ma-period-input" type="number" value="60">
+              <span class="ma-label">MA60</span>
+              <span style="flex:1"></span>
+              <span class="card-extra">显示</span>
+              <span class="switch"></span>
+              <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:16px">
+              <button class="btn btn-secondary btn-sm">+ 添加均线（最多 6 条）</button>
+              <span style="flex:1"></span>
+              <button class="btn btn-primary btn-sm">保存配置</button>
+            </div>
+            <div class="hint-box">此处配置的均线会同步应用到每日复盘的大盘指数日线、周线、月线等 K 线图中。</div>
+          </div>
+        </div>
+
+        <!-- 账号安全 -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">账号安全</span></div>
+          <div class="card-body">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <div style="font-size:13px;color:var(--text-primary);font-weight:500">退出登录</div>
+                <div style="font-size:12px;color:var(--text-tertiary);margin-top:2px">退出当前账号，返回登录页</div>
+              </div>
+              <button class="btn btn-danger btn-sm">退出登录</button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>

@@ -1,12 +1,76 @@
-import { Link } from 'react-router-dom'
+import { LogoutOutlined, MenuOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons'
+import { Avatar, Button, Dropdown, Space } from 'antd'
+import { Link, useNavigate } from 'react-router-dom'
 
-export function Header() {
+import { useAuthStore } from '@/stores/auth'
+
+import { StockSearch } from './StockSearch'
+
+interface HeaderProps {
+  /** 移动端打开导航抽屉。 */
+  onMenuClick?: () => void
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
+  const navigate = useNavigate()
+  const { user, isAdmin, logout } = useAuthStore()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
+
+  const items = [
+    ...(isAdmin
+      ? [
+          {
+            key: 'admin',
+            icon: <SettingOutlined />,
+            label: <Link to="/admin">后台管理</Link>,
+          },
+        ]
+      : []),
+    {
+      key: 'settings',
+      icon: <SettingOutlined />,
+      label: <Link to="/settings">设置</Link>,
+    },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '退出登录',
+      onClick: handleLogout,
+    },
+  ]
+
   return (
-    <header className="h-14 border-b border-gray-800 flex items-center px-6 justify-between bg-gray-900">
-      <h1 className="text-lg font-semibold">AI Invest Assistant</h1>
-      <div className="flex gap-4">
-        <Link to="/settings" className="text-sm text-gray-400 hover:text-white">设置</Link>
+    <header className="h-14 border-b border-gray-800 flex items-center px-3 md:px-6 justify-between bg-[#111318]">
+      <div className="flex items-center gap-3 min-w-0">
+        <Button
+          type="text"
+          icon={<MenuOutlined />}
+          onClick={onMenuClick}
+          className="md:!hidden text-gray-300"
+          aria-label="打开导航菜单"
+        />
+        <div className="hidden md:block">
+          <StockSearch />
+        </div>
       </div>
+      <Space>
+        {user ? (
+          <Dropdown menu={{ items }} placement="bottomRight">
+            <Button type="text" className="text-gray-300">
+              <Space>
+                <Avatar size="small" icon={<UserOutlined />} />
+                {user.username}
+              </Space>
+            </Button>
+          </Dropdown>
+        ) : (
+          <Link to="/login">登录</Link>
+        )}
+      </Space>
     </header>
   )
 }

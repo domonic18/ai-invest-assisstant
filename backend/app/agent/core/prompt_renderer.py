@@ -1,3 +1,5 @@
+"""Prompt 模板渲染与变量提取。"""
+
 from string import Formatter
 
 

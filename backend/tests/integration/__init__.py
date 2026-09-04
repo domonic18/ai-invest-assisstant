@@ -1,1 +1,1 @@
-# Placeholder for integration tests
+"""集成测试包（需要数据库/Redis 等中间件）。"""
