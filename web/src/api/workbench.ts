@@ -1,9 +1,18 @@
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
+  ApiCollectorEngineStatus,
+  ApiCollectorRunItem,
+  ApiCollectorUpcomingItem,
   ApiGlobalIndexQuoteResponse,
+  ApiReviewStatus,
   ApiWorkbenchResponse,
   ApiWorkbenchSectorFlowItem,
+  CollectorEngineStatus,
+  CollectorRunItem,
+  CollectorUpcomingItem,
   GlobalIndexQuote,
+  ReviewDayStatusItem,
+  ReviewStatus,
   WorkbenchSectorFlowItem,
   WorkbenchWatchlistGroup,
   WorkbenchWatchlistStock,
@@ -73,16 +82,71 @@ export function mapSectorFlowItem(
   }
 }
 
+export function mapReviewStatus(dto: ApiReviewStatus): ReviewStatus {
+  const recentDays: ReviewDayStatusItem[] = (dto.recent_days ?? []).map((day) => ({
+    tradeDate: day.trade_date,
+    status: day.status,
+  }))
+  return {
+    status: dto.status,
+    tradeDate: dto.trade_date,
+    generatedAt: dto.generated_at,
+    durationSeconds: dto.duration_seconds,
+    plannedTime: dto.planned_time,
+    nextRunAt: dto.next_run_at,
+    streakDays: dto.streak_days,
+    monthSuccessRate: dto.month_success_rate,
+    recentDays,
+  }
+}
+
+export function mapCollectorRunItem(dto: ApiCollectorRunItem): CollectorRunItem {
+  return {
+    taskName: dto.task_name,
+    taskLabel: dto.task_label,
+    source: dto.source,
+    status: dto.status,
+    startedAt: dto.started_at,
+    finishedAt: dto.finished_at,
+    durationSeconds: dto.duration_seconds,
+    recordsCount: dto.records_count,
+  }
+}
+
+export function mapCollectorUpcomingItem(
+  dto: ApiCollectorUpcomingItem,
+): CollectorUpcomingItem {
+  return {
+    runAt: dto.run_at,
+    taskName: dto.task_name,
+    taskLabel: dto.task_label,
+    source: dto.source,
+  }
+}
+
+export function mapCollectorStatus(dto: ApiCollectorEngineStatus): CollectorEngineStatus {
+  return {
+    isRunning: dto.is_running,
+    running: dto.running ? mapCollectorRunItem(dto.running) : null,
+    recentRuns: (dto.recent_runs ?? []).map(mapCollectorRunItem),
+    upcoming: (dto.upcoming ?? []).map(mapCollectorUpcomingItem),
+  }
+}
+
 export function mapWorkbench(dto: ApiWorkbenchResponse): WorkbenchOverview {
   return {
     calendar: dto.calendar.map(mapCalendarEvent),
     review: dto.review ? mapMarketReview(dto.review) : null,
+    reviewStatus: dto.review_status ? mapReviewStatus(dto.review_status) : null,
     telegraph: dto.telegraph.map(mapTelegraph),
     watchlistGroups: dto.watchlist_groups.map(mapWatchlistGroup),
     indices: dto.indices.map(mapIndexQuote),
     stats: dto.stats ? mapMarketStats(dto.stats) : null,
     globalIndices: dto.global_indices.map(mapGlobalIndexQuote),
     sectorFlow: dto.sector_flow.map(mapSectorFlowItem),
+    collectorStatus: dto.collector_status
+      ? mapCollectorStatus(dto.collector_status)
+      : null,
   }
 }
 

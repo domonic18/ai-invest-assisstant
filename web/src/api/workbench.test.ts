@@ -1,13 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
-import { mapGlobalIndexQuote, mapSectorFlowItem, mapWorkbench } from './workbench'
+import {
+  mapCollectorStatus,
+  mapGlobalIndexQuote,
+  mapReviewStatus,
+  mapSectorFlowItem,
+  mapWorkbench,
+} from './workbench'
 
 import type {
   ApiCalendarEventResponse,
+  ApiCollectorEngineStatus,
   ApiGlobalIndexQuoteResponse,
   ApiIndexQuoteResponse,
   ApiMarketReviewResponse,
   ApiMarketStatsResponse,
+  ApiReviewStatus,
   ApiWorkbenchSectorFlowItem,
   ApiTelegraphResponse,
   ApiWorkbenchResponse,
@@ -154,17 +162,104 @@ describe('mapSectorFlowItem', () => {
   })
 })
 
+const reviewStatusDto: ApiReviewStatus = {
+  status: 'done',
+  trade_date: '2026-09-04',
+  generated_at: '2026-09-04T08:32:00+00:00',
+  duration_seconds: 134,
+  planned_time: '16:30',
+  next_run_at: '2026-09-07T08:30:00+00:00',
+  streak_days: 3,
+  month_success_rate: 96.4,
+  recent_days: [
+    { trade_date: '2026-09-04', status: 'success' },
+    { trade_date: '2026-09-03', status: 'failed' },
+    { trade_date: '2026-09-02', status: 'pending' },
+  ],
+}
+
+describe('mapReviewStatus', () => {
+  it('maps fields to camelCase', () => {
+    const status = mapReviewStatus(reviewStatusDto)
+    expect(status.status).toBe('done')
+    expect(status.tradeDate).toBe('2026-09-04')
+    expect(status.durationSeconds).toBe(134)
+    expect(status.plannedTime).toBe('16:30')
+    expect(status.streakDays).toBe(3)
+    expect(status.monthSuccessRate).toBe(96.4)
+    expect(status.recentDays[1]).toEqual({ tradeDate: '2026-09-03', status: 'failed' })
+  })
+})
+
+const collectorStatusDto: ApiCollectorEngineStatus = {
+  is_running: true,
+  running: {
+    task_name: 'sina_quote',
+    task_label: '实时行情',
+    source: 'sina',
+    status: 'running',
+    started_at: '2026-09-04T06:59:00+00:00',
+    finished_at: null,
+    duration_seconds: null,
+    records_count: null,
+  },
+  recent_runs: [
+    {
+      task_name: 'market-breadth',
+      task_label: '涨跌统计',
+      source: 'sina',
+      status: 'SUCCESS',
+      started_at: '2026-09-04T07:55:00+00:00',
+      finished_at: '2026-09-04T07:55:32+00:00',
+      duration_seconds: 32,
+      records_count: 1240,
+    },
+  ],
+  upcoming: [
+    {
+      run_at: '2026-09-04T08:00:00+00:00',
+      task_name: 'eastmoney_limit_up_pool',
+      task_label: '涨停股池',
+      source: 'eastmoney',
+    },
+  ],
+}
+
+describe('mapCollectorStatus', () => {
+  it('maps running/recent/upcoming to camelCase', () => {
+    const status = mapCollectorStatus(collectorStatusDto)
+    expect(status.isRunning).toBe(true)
+    expect(status.running?.taskLabel).toBe('实时行情')
+    expect(status.running?.finishedAt).toBeNull()
+    expect(status.recentRuns[0].recordsCount).toBe(1240)
+    expect(status.upcoming[0].runAt).toBe('2026-09-04T08:00:00+00:00')
+  })
+
+  it('keeps null running as null', () => {
+    const status = mapCollectorStatus({
+      is_running: false,
+      running: null,
+      recent_runs: [],
+      upcoming: [],
+    })
+    expect(status.running).toBeNull()
+    expect(status.recentRuns).toEqual([])
+  })
+})
+
 describe('mapWorkbench', () => {
-  it('maps all eight modules', () => {
+  it('maps all modules', () => {
     const dto: ApiWorkbenchResponse = {
       calendar: [calendarDto],
       review: reviewDto,
+      review_status: reviewStatusDto,
       telegraph: [telegraphDto],
       watchlist_groups: [watchlistGroupDto],
       indices: [indexDto],
       stats: statsDto,
       global_indices: [globalDto],
       sector_flow: [sectorFlowDto],
+      collector_status: collectorStatusDto,
     }
 
     const overview = mapWorkbench(dto)
@@ -172,6 +267,8 @@ describe('mapWorkbench', () => {
     expect(overview.calendar[0].title).toBe('美联储议息会议')
     expect(overview.review?.tradeDate).toBe('2026-09-02')
     expect(overview.review?.sections[0].content).toBe('**缩量反弹**')
+    expect(overview.reviewStatus?.status).toBe('done')
+    expect(overview.reviewStatus?.recentDays[0].tradeDate).toBe('2026-09-04')
     expect(overview.telegraph).toHaveLength(1)
     expect(overview.telegraph[0].clsMsgId).toBe(99)
     expect(overview.watchlistGroups[0].name).toBe('核心持仓')
@@ -183,23 +280,29 @@ describe('mapWorkbench', () => {
     expect(overview.globalIndices[0].indexName).toBe('伦敦金')
     expect(overview.sectorFlow[0].sectorName).toBe('半导体')
     expect(overview.sectorFlow[0].mainNetInflow).toBe(48.6)
+    expect(overview.collectorStatus?.isRunning).toBe(true)
+    expect(overview.collectorStatus?.upcoming[0].taskLabel).toBe('涨停股池')
   })
 
-  it('passes null review/stats through as null', () => {
+  it('passes null review/stats/collector through as null', () => {
     const dto: ApiWorkbenchResponse = {
       calendar: [],
       review: null,
+      review_status: null,
       telegraph: [],
       watchlist_groups: [],
       indices: [],
       stats: null,
       global_indices: [],
       sector_flow: [],
+      collector_status: null,
     }
 
     const overview = mapWorkbench(dto)
     expect(overview.review).toBeNull()
     expect(overview.stats).toBeNull()
+    expect(overview.reviewStatus).toBeNull()
+    expect(overview.collectorStatus).toBeNull()
     expect(overview.calendar).toEqual([])
     expect(overview.sectorFlow).toEqual([])
   })
