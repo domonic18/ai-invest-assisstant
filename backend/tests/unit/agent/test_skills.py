@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from app.agent.core.prompt_loader import PromptLoader
 from app.core.config import get_settings
 from app.services.assistant.assistant_service import parse_skill_file
 
@@ -43,3 +44,16 @@ class TestSkillFrontmatter:
     def test_skills_dir_exists_for_agent_wiring(self) -> None:
         """assistant_agent 以 skills_dir 存在性决定是否接入渐进披露。"""
         assert get_settings().skills_dir.exists()
+
+
+@pytest.mark.unit
+class TestPromptSkillsYaml:
+    def test_all_skill_prompts_parse(self) -> None:
+        """每个 prompts/skills/*.yaml 必须能被 PromptLoader 解析为合法 PromptConfig。"""
+        prompts_dir = get_settings().prompts_dir
+        yaml_files = sorted((prompts_dir / "skills").glob("*.yaml"))
+        assert yaml_files, "prompts/skills 下无 YAML"
+        loader = PromptLoader(prompts_dir)
+        for path in yaml_files:
+            config = loader.load("skills", path.stem)
+            assert config.system_prompt.strip(), f"{path.name} 缺 system_prompt"

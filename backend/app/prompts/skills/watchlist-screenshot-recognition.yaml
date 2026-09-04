@@ -26,6 +26,7 @@ user_prompt_template: |
   请识别这张截图中的股票列表。
 
 output_schema:
-  - code: str  # 6 位数字代码
-    name: str | null
-    confidence: float | null  # 0-1
+  stocks:
+    - code: str  # 6 位数字代码
+      name: str | null
+      confidence: float | null  # 0-1
