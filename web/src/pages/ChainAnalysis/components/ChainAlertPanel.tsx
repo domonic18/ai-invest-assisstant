@@ -1,4 +1,4 @@
-import { Card, Empty, Spin, Tag, Typography } from 'antd'
+import { Card, Spin, Tag, Typography } from 'antd'
 
 import type { ChainAlert } from '@ai-invest/shared'
 
@@ -22,17 +22,41 @@ function severityMeta(severity: number) {
   return SEVERITY_META[severity] ?? SEVERITY_META[1]
 }
 
-/** 产业链提醒面板：AI 归因的重大变化（按严重度排序），随选中行业联动。 */
+/** 产业链提醒面板：AI 归因的重大变化（按严重度排序），随选中行业联动。
+
+ 无提醒/加载中折叠为单行细条，避免空态占据版面。
+ */
 export function ChainAlertPanel({ industry }: { industry: string }) {
   const { data: alerts, isLoading } = useChainAlerts(industry)
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-solid border-[#23262d] bg-[#111318] px-4 py-2">
+        <Typography.Text type="secondary" strong>
+          产业链提醒
+        </Typography.Text>
+        <Spin size="small" />
+      </div>
+    )
+  }
+
+  if (!alerts?.length) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-solid border-[#23262d] bg-[#111318] px-4 py-2">
+        <Typography.Text type="secondary" strong>
+          产业链提醒
+        </Typography.Text>
+        <Typography.Text type="secondary" className="text-xs">
+          暂无提醒
+        </Typography.Text>
+      </div>
+    )
+  }
+
   return (
     <Card title="产业链提醒" variant="borderless">
-      {isLoading ? (
-        <div className="flex justify-center py-6"><Spin /></div>
-      ) : alerts?.length ? (
-        <div className="space-y-4">
-          {alerts.map((alert) => {
+      <div className="space-y-4">
+        {alerts.map((alert) => {
             const severity = severityMeta(alert.severity)
             return (
               <div
@@ -79,14 +103,8 @@ export function ChainAlertPanel({ industry }: { industry: string }) {
                 )}
               </div>
             )
-          })}
-        </div>
-      ) : (
-        <Empty
-          description="暂无产业链提醒"
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-        />
-      )}
+        })}
+      </div>
     </Card>
   )
 }
