@@ -84,6 +84,45 @@ class WatchlistItemCreate(BaseModel):
     group_id: int | None = Field(None, description="目标分组，缺省挂默认分组")
 
 
+class WatchlistScreenshotRecognitionItem(BaseModel):
+    """截图识别结果单项（已与 stock_basic 交叉校验）。"""
+
+    stock_code: str
+    stock_name: str | None = Field(None, description="识别名称；命中库内时为标准简称")
+    confidence: float | None = None
+    valid: bool = Field(False, description="代码/名称命中 stock_basic")
+    matched_name: str | None = Field(None, description="库内标准简称（valid 时返回）")
+
+
+class WatchlistScreenshotRecognitionResponse(BaseModel):
+    """截图识别响应。"""
+
+    items: list[WatchlistScreenshotRecognitionItem]
+
+
+class WatchlistBatchItemCreate(BaseModel):
+    """自选股批量导入单项。"""
+
+    stock_code: str = Field(..., min_length=6, max_length=10)
+    tags: list[str] | None = None
+
+
+class WatchlistBatchCreate(BaseModel):
+    """自选股批量导入请求：二选一指定目标分组。"""
+
+    items: list[WatchlistBatchItemCreate] = Field(..., min_length=1, max_length=50)
+    group_id: int | None = None
+    new_group_name: str | None = Field(None, min_length=1, max_length=50)
+
+
+class WatchlistBatchDuplicatedItem(BaseModel):
+    """批量导入时已存在的股票。"""
+
+    stock_code: str
+    group_id: int | None = None
+    group_name: str | None = None
+
+
 class WatchlistItemResponse(BaseModel):
     """自选股响应模型。"""
 
@@ -94,6 +133,14 @@ class WatchlistItemResponse(BaseModel):
     tags: list[str] | None = None
     group_id: int
     created_at: datetime
+
+
+class WatchlistBatchResponse(BaseModel):
+    """自选股批量导入响应。"""
+
+    created: list[WatchlistItemResponse] = []
+    duplicated: list[WatchlistBatchDuplicatedItem] = []
+    invalid: list[str] = []
 
 
 class WatchlistGroupCreate(BaseModel):

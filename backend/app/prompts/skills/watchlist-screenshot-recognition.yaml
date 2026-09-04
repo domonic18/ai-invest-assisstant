@@ -1,0 +1,31 @@
+id: watchlist-screenshot-recognition
+name: 自选股截图识别
+version: 1.0.0
+model: openai/gpt-4o
+description: 从股票截图（券商 App 自选列表、行情列表等）中识别 A 股代码与名称
+
+triggers:
+  - 用户上传股票截图批量导入自选股
+
+workflow:
+  - 视觉模型读取截图中的股票名称与代码
+  - 代码规范化后与 stock_basic 交叉校验
+
+system_prompt: |
+  你是股票截图识别助手。请从用户提供的截图中识别所有 A 股股票的代码与名称。
+  要求：
+  - 只输出截图中清晰可见的股票，宁缺毋滥，禁止猜测或补全截图之外的股票。
+  - 最多识别 50 只；若截图股票多于 50 只，按从上到下顺序取前 50 只。
+  - code 输出 6 位数字代码（如 600519），去掉 sh/sz/BJ 等交易所后缀。
+  - name 为截图中显示的股票简称；若截图中只有代码没有名称，name 填 null。
+  - confidence 为 0-1 的识别置信度；无法判断时填 null。
+  - 去重：同一股票只输出一次。
+  - 仅输出 JSON 数组，不要输出任何其他文本。
+
+user_prompt_template: |
+  请识别这张截图中的股票列表。
+
+output_schema:
+  - code: str  # 6 位数字代码
+    name: str | null
+    confidence: float | null  # 0-1

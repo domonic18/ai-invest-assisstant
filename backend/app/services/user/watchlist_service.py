@@ -4,9 +4,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.models.watchlist import UserWatchlist, UserWatchlistGroup
+from app.repositories.market.stock_repository import StockRepository
 from app.repositories.user.watchlist_group_repository import WatchlistGroupRepository
 from app.repositories.user.watchlist_repository import WatchlistRepository
-from app.schemas.user import WatchlistGroupCreate, WatchlistGroupUpdate, WatchlistItemCreate
+from app.schemas.user import (
+    WatchlistBatchCreate,
+    WatchlistBatchDuplicatedItem,
+    WatchlistBatchResponse,
+    WatchlistGroupCreate,
+    WatchlistGroupUpdate,
+    WatchlistItemCreate,
+    WatchlistItemResponse,
+)
 
 DEFAULT_GROUP_NAME = "默认分组"
 MAX_GROUPS_PER_USER = 20
@@ -150,6 +159,74 @@ class WatchlistService:
         await self.session.commit()
         await self.repo.refresh(item)
         return item
+
+    async def batch_add_items(
+        self, user: User, data: WatchlistBatchCreate
+    ) -> WatchlistBatchResponse:
+        """批量导入自选股：group_id/new_group_name 二选一，逐项查重与校验。
+
+        代码不在 ``stock_basic`` 的归入 invalid；已存在的归入 duplicated
+        （附当前所在分组）；新增逐条 SAVEPOINT 隔离，最后统一提交。
+        """
+        if data.group_id is not None and data.new_group_name:
+            raise ValueError("group_id and new_group_name are mutually exclusive")
+
+        target: UserWatchlistGroup | None
+        if data.new_group_name:
+            target = await self.create_group(
+                user.id, WatchlistGroupCreate(name=data.new_group_name)
+            )
+        elif data.group_id is not None:
+            target = await self.group_repo.get_by_user_and_id(user.id, data.group_id)
+            if target is None:
+                raise ValueError("Group not found")
+        else:
+            target = await self.get_or_create_default_group(user.id)
+
+        codes = [item.stock_code for item in data.items]
+        names_by_code = await StockRepository(self.session).get_names_by_codes(codes)
+
+        groups = await self.group_repo.list_by_user(user.id)
+        group_names = {g.id: g.name for g in groups}
+
+        response = WatchlistBatchResponse()
+        pending: list[UserWatchlist] = []
+        seen_in_request: set[str] = set()
+        for item in data.items:
+            if item.stock_code in seen_in_request:
+                continue
+            seen_in_request.add(item.stock_code)
+
+            if item.stock_code not in names_by_code:
+                response.invalid.append(item.stock_code)
+                continue
+
+            existing = await self.repo.get_by_user_and_stock(user.id, item.stock_code)
+            if existing:
+                response.duplicated.append(
+                    WatchlistBatchDuplicatedItem(
+                        stock_code=item.stock_code,
+                        group_id=existing.group_id,
+                        group_name=group_names.get(existing.group_id),
+                    )
+                )
+                continue
+
+            row = UserWatchlist(
+                user_id=user.id,
+                stock_code=item.stock_code,
+                tags=item.tags,
+                group_id=target.id,
+            )
+            async with self.session.begin_nested():
+                self.repo.add(row)
+            pending.append(row)
+
+        await self.session.commit()
+        for row in pending:
+            await self.repo.refresh(row)
+        response.created = [WatchlistItemResponse.model_validate(row) for row in pending]
+        return response
 
     async def move_watchlist_item(
         self, user_id: int, item_id: int, target_group_id: int

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { PlusOutlined } from '@ant-design/icons'
-import { Button, Card, Spin } from 'antd'
+import { PictureOutlined, PlusOutlined } from '@ant-design/icons'
+import { Button, Card, Space, Spin } from 'antd'
 import type { WatchlistGroup } from '@ai-invest/shared'
 
 import { useWatchlistQuotes } from '@/hooks/useMarket'
@@ -8,12 +8,14 @@ import { useReorderWatchlistGroups, useWatchlistGroups } from '@/hooks/useWatchl
 
 import { GroupCard } from './components/GroupCard'
 import { GroupFormModal } from './components/GroupFormModal'
+import { ScreenshotImportModal } from './components/ScreenshotImportModal'
 
 export function Watchlist() {
   const { data: groups, isLoading } = useWatchlistGroups()
   const { data: quotes } = useWatchlistQuotes()
   const reorder = useReorderWatchlistGroups()
   const [formOpen, setFormOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [editing, setEditing] = useState<WatchlistGroup | null>(null)
 
   const quotesByCode = useMemo(
@@ -31,16 +33,21 @@ export function Watchlist() {
               开启分组的 AI 复盘后，每个交易日收盘自动生成组内个股分析
             </p>
           </div>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setEditing(null)
-              setFormOpen(true)
-            }}
-          >
-            新建分组
-          </Button>
+          <Space>
+            <Button icon={<PictureOutlined />} onClick={() => setImportOpen(true)}>
+              截图导入
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setEditing(null)
+                setFormOpen(true)
+              }}
+            >
+              新建分组
+            </Button>
+          </Space>
         </div>
       </Card>
 
@@ -65,6 +72,11 @@ export function Watchlist() {
       )}
 
       <GroupFormModal open={formOpen} group={editing} onClose={() => setFormOpen(false)} />
+      <ScreenshotImportModal
+        open={importOpen}
+        groups={groups ?? []}
+        onClose={() => setImportOpen(false)}
+      />
     </div>
   )
 }

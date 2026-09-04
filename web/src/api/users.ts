@@ -1,10 +1,13 @@
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
+  ApiWatchlistBatchItemCreate,
+  ApiWatchlistBatchResponse,
   ApiWatchlistGroupCreate,
   ApiWatchlistGroupReorderRequest,
   ApiWatchlistGroupUpdate,
   ApiWatchlistGroupWithItemsResponse,
   ApiWatchlistItemResponse,
+  ApiWatchlistScreenshotRecognitionResponse,
 } from '@ai-invest/shared'
 
 import { apiClient } from './client'
@@ -71,4 +74,55 @@ export async function deleteWatchlistGroup(groupId: number) {
 
 export async function reorderWatchlistGroups(data: ApiWatchlistGroupReorderRequest) {
   await apiClient.put(ENDPOINTS.users.watchlistGroupOrder, data)
+}
+
+export interface WatchlistRecognizedItem {
+  stockCode: string
+  stockName: string | null
+  confidence: number | null
+  valid: boolean
+  matchedName: string | null
+}
+
+export interface WatchlistBatchImportResult {
+  created: number
+  duplicated: Array<{ stockCode: string; groupName: string | null }>
+  invalid: string[]
+}
+
+export async function recognizeWatchlistScreenshot(file: File): Promise<WatchlistRecognizedItem[]> {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await apiClient.post<ApiWatchlistScreenshotRecognitionResponse>(
+    ENDPOINTS.users.watchlistRecognizeScreenshot,
+    form,
+  )
+  return response.data.items.map((item) => ({
+    stockCode: item.stock_code,
+    stockName: item.stock_name,
+    confidence: item.confidence,
+    valid: item.valid,
+    matchedName: item.matched_name,
+  }))
+}
+
+export async function batchAddWatchlist(data: {
+  items: ApiWatchlistBatchItemCreate[]
+  groupId?: number
+  newGroupName?: string
+}): Promise<WatchlistBatchImportResult> {
+  const { items, groupId, newGroupName } = data
+  const response = await apiClient.post<ApiWatchlistBatchResponse>(ENDPOINTS.users.watchlistBatch, {
+    items,
+    group_id: groupId,
+    new_group_name: newGroupName,
+  })
+  return {
+    created: response.data.created.length,
+    duplicated: response.data.duplicated.map((d) => ({
+      stockCode: d.stock_code,
+      groupName: d.group_name,
+    })),
+    invalid: response.data.invalid,
+  }
 }

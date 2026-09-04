@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
@@ -12,6 +12,8 @@ from app.schemas.user import (
     UserResponse,
     UserSettingsResponse,
     UserSettingsUpdate,
+    WatchlistBatchCreate,
+    WatchlistBatchResponse,
     WatchlistGroupCreate,
     WatchlistGroupReorderRequest,
     WatchlistGroupUpdate,
@@ -19,9 +21,14 @@ from app.schemas.user import (
     WatchlistItemCreate,
     WatchlistItemMoveRequest,
     WatchlistItemResponse,
+    WatchlistScreenshotRecognitionResponse,
 )
 from app.services.market import market_service
 from app.services.user import UserService, WatchlistService
+from app.services.user.screenshot_recognition_service import (
+    ScreenshotValidationError,
+    recognize_screenshot,
+)
 from app.services.user.watchlist_service import GroupLimitError
 
 router = APIRouter()
@@ -90,6 +97,41 @@ async def add_watchlist(
             detail=str(exc),
         ) from exc
     return WatchlistItemResponse.model_validate(item)
+
+
+@router.post(
+    "/watchlist/recognize-screenshot",
+    response_model=WatchlistScreenshotRecognitionResponse,
+)
+async def recognize_watchlist_screenshot(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    file: Annotated[UploadFile, File(description="股票截图（png/jpeg/webp，≤8MB）")],
+) -> WatchlistScreenshotRecognitionResponse:
+    """截图识别候选自选股：视觉模型识别 + stock_basic 交叉校验。"""
+    data = await file.read()
+    try:
+        items = await recognize_screenshot(session, data, file.content_type)
+    except ScreenshotValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    return WatchlistScreenshotRecognitionResponse(items=items)
+
+
+@router.post("/watchlist/batch", response_model=WatchlistBatchResponse)
+async def batch_add_watchlist(
+    data: WatchlistBatchCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> WatchlistBatchResponse:
+    """批量导入自选股（截图识别确认后的目标分组落库）。"""
+    try:
+        return await WatchlistService(session).batch_add_items(current_user, data)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
 
 
 @router.get("/watchlist/quotes", response_model=list[WatchlistQuoteItem])
