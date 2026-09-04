@@ -23,6 +23,7 @@ from app.schemas.workbench import (
 _UPCOMING_WINDOW = timedelta(hours=12)
 _UPCOMING_LIMIT = 8
 _MAX_OCCURRENCES_PER_TASK = 3
+_RECENT_LIMIT = 6
 _RUNNING_MAX_AGE = timedelta(hours=2)
 
 
@@ -55,7 +56,7 @@ async def get_collector_status(
     task_labels = {name: spec.label for name, spec in TASK_SPECS.items()}
 
     running_row = await log_repo.get_latest_running(max_age=_RUNNING_MAX_AGE)
-    recent_rows = await log_repo.list_recent_terminal(limit=3)
+    recent_rows = await log_repo.list_recent_terminal(limit=_RECENT_LIMIT)
 
     upcoming: list[CollectorUpcomingItem] = []
     base = now.replace(tzinfo=None)

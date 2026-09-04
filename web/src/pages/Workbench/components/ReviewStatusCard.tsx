@@ -144,7 +144,7 @@ export function ReviewStatusCard({
       ) : !status ? (
         <div className="text-xs text-gray-500 py-6 text-center">暂无复盘状态数据</div>
       ) : (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full justify-between gap-3.5">
           <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-[#181a21] border border-gray-800">
             <div className="flex items-center gap-2.5 min-w-0">
               <span className={`shrink-0 w-2.5 h-2.5 rounded-full ${DOT_CLASS[status.status]}`} />
@@ -159,16 +159,16 @@ export function ReviewStatusCard({
           </div>
 
           {status.recentDays.length > 0 && (
-            <div className="flex gap-4 mt-3.5 p-2.5 rounded-lg bg-[#181a21] border border-gray-800 overflow-x-auto">
+            <div className="flex gap-4 p-2.5 rounded-lg bg-[#181a21] border border-gray-800 overflow-x-auto">
               {status.recentDays.map((day) => {
                 const isToday = day.tradeDate === TODAY
                 return (
-                  <div key={day.tradeDate} className="flex flex-col items-center gap-1">
+                  <div key={day.tradeDate} className="flex flex-col items-center gap-1 flex-1">
                     <span className="text-[11px] text-gray-400 font-mono">
                       {day.tradeDate.slice(5)}
                     </span>
                     <span
-                      className={`w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold ${dayMarkClass(day, isToday)}`}
+                      className={`w-[20px] h-[20px] rounded-full flex items-center justify-center text-[10px] font-bold ${dayMarkClass(day, isToday)}`}
                     >
                       {dayMarkText(day)}
                     </span>
@@ -179,16 +179,16 @@ export function ReviewStatusCard({
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-2.5 mt-3.5">
-            <div className="rounded-lg bg-[#181a21] border border-gray-800 px-3 py-2.5 text-center">
+          <div className="grid grid-cols-3 gap-2.5">
+            <div className="rounded-lg bg-[#181a21] border border-gray-800 px-3 py-3 text-center">
               <div className="text-lg font-bold font-mono text-gray-100">{status.streakDays}</div>
               <div className="text-[10px] text-gray-500 mt-0.5">连续生成天数</div>
             </div>
-            <div className="rounded-lg bg-[#181a21] border border-gray-800 px-3 py-2.5 text-center">
+            <div className="rounded-lg bg-[#181a21] border border-gray-800 px-3 py-3 text-center">
               <div className="text-lg font-bold font-mono text-gray-100">{stockSummary(groups)}</div>
               <div className="text-[10px] text-gray-500 mt-0.5">自选股点评已生成</div>
             </div>
-            <div className="rounded-lg bg-[#181a21] border border-gray-800 px-3 py-2.5 text-center">
+            <div className="rounded-lg bg-[#181a21] border border-gray-800 px-3 py-3 text-center">
               <div className="text-lg font-bold font-mono text-gray-100">
                 {status.monthSuccessRate != null ? `${status.monthSuccessRate}%` : '-'}
               </div>
@@ -197,7 +197,7 @@ export function ReviewStatusCard({
           </div>
 
           {chips.length > 0 && (
-            <div className="flex gap-2 flex-wrap mt-3.5 pt-3.5 border-t border-gray-800">
+            <div className="flex gap-2 flex-wrap pt-3.5 border-t border-gray-800">
               {chips.map((chip) => (
                 <span
                   key={chip.label}
@@ -209,7 +209,6 @@ export function ReviewStatusCard({
             </div>
           )}
 
-          <div className="flex-1" />
           <div className="pt-2.5 text-[10px] text-gray-600 border-t border-dashed border-gray-800">
             复盘正文与分时归因在「每日复盘」页查看；工作台仅呈现状态与统计
           </div>

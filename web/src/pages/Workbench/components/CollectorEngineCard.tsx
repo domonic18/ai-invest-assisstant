@@ -101,11 +101,11 @@ export function CollectorEngineCard({
               即将运行 · 未来 12 小时
             </div>
             {status.upcoming.length ? (
-              <div className="space-y-1.5">
+              <div>
                 {status.upcoming.map((item) => (
                   <div
                     key={`${item.taskName}-${item.runAt}`}
-                    className="flex items-center gap-2.5 text-xs"
+                    className="flex items-center gap-2.5 text-xs py-1.5 border-b border-dashed border-gray-800 last:border-b-0"
                   >
                     <span className="w-10 shrink-0 font-mono text-gray-400">
                       {dayjs(item.runAt).format('HH:mm')}
@@ -123,11 +123,11 @@ export function CollectorEngineCard({
           <div className="mt-3.5">
             <div className="text-[11px] text-gray-500 font-semibold mb-1.5">最近运行</div>
             {status.recentRuns.length ? (
-              <div className="space-y-1.5">
+              <div>
                 {status.recentRuns.map((run, i) => (
                   <div
                     key={`${run.taskName}-${run.startedAt ?? i}`}
-                    className="flex items-center gap-2.5 text-xs"
+                    className="flex items-center gap-2.5 text-xs py-1.5 border-b border-dashed border-gray-800 last:border-b-0"
                   >
                     <span className={`w-1.5 h-1.5 shrink-0 rounded-full ${runDotClass(run.status)}`} />
                     <span className="min-w-0 flex-1 truncate text-gray-100">{run.taskLabel}</span>

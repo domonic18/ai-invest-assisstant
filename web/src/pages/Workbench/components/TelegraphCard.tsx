@@ -13,6 +13,9 @@ interface TelegraphCardProps {
   stretch?: boolean
 }
 
+/** 概览只呈现固定条数（原型密度），其余引流到电报页。 */
+const MAX_ITEMS = 10
+
 function importanceTag(importance: number | null) {
   if (importance === null) return null
   const presets: Record<number, { color: string; label: string }> = {
@@ -51,7 +54,7 @@ export function TelegraphCard({ items, loading, className, stretch }: TelegraphC
       ) : items?.length ? (
         <div className="flex-1 min-h-0 overflow-y-auto">
           <List
-            dataSource={items}
+            dataSource={items.slice(0, MAX_ITEMS)}
             renderItem={(item) => (
               <List.Item className="!px-0 !py-2.5">
                 <div className="flex items-start gap-2.5 w-full min-w-0">
