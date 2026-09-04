@@ -346,6 +346,52 @@ tr:hover td { background: var(--bg-hover); }
 
 .empty-state{padding:28px 16px;text-align:center;color:var(--text-tertiary);font-size:12px}
 .empty-state .icon{font-size:22px;display:block;margin-bottom:8px;opacity:.5}
+
+/* ======= 复盘状态卡 ======= */
+.rv-status{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-surface)}
+.rv-status-main{display:flex;align-items:center;gap:10px;min-width:0}
+.rv-status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.rv-status-dot.ok{background:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
+.rv-status-dot.wait{background:var(--amber);box-shadow:0 0 0 3px var(--amber-soft)}
+.rv-status-dot.err{background:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
+.rv-status-title{font-size:14px;font-weight:600}
+.rv-status-sub{font-size:11px;color:var(--text-tertiary);margin-top:2px}
+.rv-countdown{font-family:var(--font-mono);color:var(--amber);font-weight:600}
+.rv-strip{display:flex;gap:14px;margin-top:14px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-surface);overflow-x:auto}
+.rv-day{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--text-tertiary)}
+.rv-day b{font-size:11px;color:var(--text-secondary);font-weight:500}
+.rv-mark{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
+.rv-mark.ok{background:var(--green-soft);color:var(--green)}
+.rv-mark.skip{background:var(--bg-hover);color:var(--text-tertiary)}
+.rv-mark.fail{background:var(--red-soft);color:var(--red)}
+.rv-mark.wait{background:var(--amber-soft);color:var(--amber)}
+.rv-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.rv-stat{border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 12px;text-align:center;background:var(--bg-surface)}
+.rv-stat-v{font-size:18px;font-weight:700;font-family:var(--font-mono)}
+.rv-stat-k{font-size:10px;color:var(--text-tertiary);margin-top:2px}
+.rv-demo{display:inline-flex;gap:4px;margin-left:8px}
+.rv-demo button{background:var(--bg-surface);border:1px solid var(--border);color:var(--text-tertiary);font-size:10px;padding:2px 8px;border-radius:10px;cursor:pointer;transition:all var(--transition-fast)}
+.rv-demo button.active{border-color:var(--accent);color:var(--accent)}
+
+/* ======= 采集引擎卡 ======= */
+.badge-run{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;background:var(--green-soft);color:var(--green)}
+.badge-run::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--green)}
+.ce-now{display:flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-surface)}
+.ce-pulse{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;animation:ce-pulse 1.6s ease infinite}
+@keyframes ce-pulse{0%{box-shadow:0 0 0 0 rgba(46,160,67,.45)}70%{box-shadow:0 0 0 6px rgba(46,160,67,0)}100%{box-shadow:0 0 0 0 rgba(46,160,67,0)}}
+.ce-now-title{font-size:13px;font-weight:600}
+.ce-now-sub{font-size:11px;color:var(--text-tertiary);margin-top:2px;font-family:var(--font-mono)}
+.ce-sec-title{font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin:16px 0 4px}
+.ce-up-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed var(--border);font-size:12px}
+.ce-up-row:last-of-type{border-bottom:none}
+.ce-up-time{flex-shrink:0;width:42px;font-family:var(--font-mono);font-size:12px;color:var(--accent);font-weight:600}
+.ce-up-name{flex:1;color:var(--text-secondary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ce-log-row{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:11px;color:var(--text-secondary);font-family:var(--font-mono)}
+.ce-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.ce-dot.ok{background:var(--green)}
+.ce-dot.skip{background:var(--text-tertiary)}
+.ce-dot.err{background:var(--red)}
+.ce-log-meta{margin-left:auto;color:var(--text-tertiary)}
 </style>
 </head>
 <body>
@@ -400,25 +446,70 @@ tr:hover td { background: var(--bg-hover); }
 <div class="wb-grid">
 <div class="wb-col">
 
-<!-- 复盘核心结论 -->
+<!-- 复盘状态：只做"做没做 / 何时做 / 做得怎样"的状态与统计，正文引流到复盘页 -->
 <div class="card">
 <div class="card-header">
-<span class="card-title">复盘核心结论 <span class="tag tag-purple" style="margin-left:6px">AI · 15:05 生成</span></span>
+<span class="card-title">复盘状态
+<span class="rv-demo"><button data-rv-state="done" class="active">已生成态</button><button data-rv-state="pending">待生成态</button></span>
+</span>
 <button class="fold-btn" data-fold>−</button>
 </div>
 <div class="card-body">
-<div class="sum-line"><span class="sum-key">综述</span><span class="sum-text">三大指数缩量反弹，创业板指领涨；两市成交额 1.42 万亿，较昨日放量约 6%。</span></div>
-<div class="sum-line"><span class="sum-key">技术面</span><span class="sum-text">沪指站稳 MA20，日线 MACD 金叉雏形；创业板回踩 MA60 后获承接。</span></div>
-<div class="sum-line"><span class="sum-key">资金面</span><span class="sum-text">主力净流入居前：半导体、电池；净流出居前：银行、电力。北向净买入 38.2 亿。</span></div>
-<div class="sum-line"><span class="sum-key">情绪面</span><span class="sum-text">涨停家数回升至 68 家，连板高度 5 板，情绪修复至活跃区上沿。</span></div>
-<div class="emotion-chips">
+
+<div data-rv-panel="done">
+<div class="rv-status">
+<div class="rv-status-main">
+<span class="rv-status-dot ok"></span>
+<div>
+<div class="rv-status-title">今日复盘已生成</div>
+<div class="rv-status-sub">AI · 16:32 生成 · 耗时 2m14s · 已人工编辑 1 次</div>
+</div>
+</div>
+<a class="btn btn-primary btn-sm" href="dashboard.html">查看完整复盘</a>
+</div>
+<div class="rv-strip">
+<div class="rv-day"><b>09-04</b><span class="rv-mark ok">✓</span>今日</div>
+<div class="rv-day"><b>09-03</b><span class="rv-mark ok">✓</span></div>
+<div class="rv-day"><b>09-02</b><span class="rv-mark ok">✓</span></div>
+<div class="rv-day"><b>09-01</b><span class="rv-mark ok">✓</span></div>
+<div class="rv-day"><b>08-31</b><span class="rv-mark fail">✕</span>失败</div>
+</div>
+</div>
+
+<div data-rv-panel="pending" style="display:none">
+<div class="rv-status">
+<div class="rv-status-main">
+<span class="rv-status-dot wait"></span>
+<div>
+<div class="rv-status-title">今日复盘待生成</div>
+<div class="rv-status-sub">计划 <span class="rv-countdown">16:30</span> 自动运行 · 距开始约 1 小时 26 分 · 收盘数据 16:00 批次就绪后触发</div>
+</div>
+</div>
+<a class="btn btn-secondary btn-sm" href="dashboard.html">查看昨日复盘</a>
+</div>
+<div class="rv-strip">
+<div class="rv-day"><b>09-04</b><span class="rv-mark wait">…</span>今日</div>
+<div class="rv-day"><b>09-03</b><span class="rv-mark ok">✓</span></div>
+<div class="rv-day"><b>09-02</b><span class="rv-mark ok">✓</span></div>
+<div class="rv-day"><b>09-01</b><span class="rv-mark ok">✓</span></div>
+<div class="rv-day"><b>08-31</b><span class="rv-mark fail">✕</span>失败</div>
+</div>
+</div>
+
+<div class="rv-stats">
+<div class="rv-stat"><div class="rv-stat-v">3</div><div class="rv-stat-k">连续生成天数</div></div>
+<div class="rv-stat"><div class="rv-stat-v">6/8</div><div class="rv-stat-k">自选股点评已生成</div></div>
+<div class="rv-stat"><div class="rv-stat-v">96%</div><div class="rv-stat-k">本月生成成功率</div></div>
+</div>
+
+<div class="emotion-chips" style="margin-top:14px">
 <span class="e-chip">涨停 <b>68</b></span>
 <span class="e-chip">跌停 <b>7</b></span>
 <span class="e-chip">炸板 <b>15</b></span>
 <span class="e-chip">连板高度 <b>5</b></span>
 <span class="e-chip">昨日涨停表现 <b class="up">+0.87%</b></span>
 </div>
-<div style="margin-top:12px;text-align:right"><a href="dashboard.html">查看完整复盘 →</a></div>
+<div class="disclaimer">复盘正文与分时归因在「每日复盘」页查看；工作台仅呈现状态与统计</div>
 </div>
 </div>
 
@@ -429,10 +520,16 @@ tr:hover td { background: var(--bg-hover); }
 <button class="fold-btn" data-fold>−</button>
 </div>
 <div class="card-body">
-<div class="news-item"><span class="news-time">10:35</span><div><div class="news-title">【电报】央行开展 3,000 亿元逆回购操作，中标利率 1.40% 持平</div><div class="news-meta"><span class="tag tag-purple">宏观</span><span class="tag">电报快讯</span></div></div></div>
-<div class="news-item"><span class="news-time">10:12</span><div><div class="news-title">【电报】中际旭创：9 月 1 日首次回购 37.41 万股，支付 3.18 亿元</div><div class="news-meta"><span class="tag tag-blue">公告</span><span class="tag">电报快讯</span></div></div></div>
-<div class="news-item"><span class="news-time">09:58</span><div><div class="news-title">半导体设备板块异动拉升，北方华创涨超 5%，消息面上国家大基金三期落地首笔投资</div><div class="news-meta"><span class="tag tag-amber">行业</span><span class="tag">电报快讯</span></div></div></div>
-<div class="news-item"><span class="news-time">09:02</span><div><div class="news-title">恒瑞医药：上半年净利润 34.32 亿元，同比增长 18.6%，创新药收入占比过半</div><div class="news-meta"><span class="tag tag-blue">公告</span></div></div></div>
+<div class="news-item"><span class="news-time">13:42</span><div><div class="news-title">【电报】三大指数午后震荡走高，创业板指涨幅扩大至 1.2%，半导体、光伏领涨</div><div class="news-meta"><span class="tag tag-amber">行业</span><span class="tag">电报快讯</span></div></div></div>
+<div class="news-item"><span class="news-time">13:05</span><div><div class="news-title">【电报】国家发改委：一批稳增长政策将于近期陆续出台，聚焦扩内需与提振民营经济</div><div class="news-meta"><span class="tag tag-purple">宏观</span><span class="tag tag-red">重要</span></div></div></div>
+<div class="news-item"><span class="news-time">11:38</span><div><div class="news-title">【电报】央行开展 3,000 亿元逆回购操作，中标利率 1.40% 持平</div><div class="news-meta"><span class="tag tag-purple">宏观</span><span class="tag">电报快讯</span></div></div></div>
+<div class="news-item"><span class="news-time">11:12</span><div><div class="news-title">【电报】中际旭创：9 月 1 日首次回购 37.41 万股，支付 3.18 亿元</div><div class="news-meta"><span class="tag tag-blue">公告</span><span class="tag">电报快讯</span></div></div></div>
+<div class="news-item"><span class="news-time">10:47</span><div><div class="news-title">北向资金今日净买入 38.2 亿元，宁德时代、贵州茅台获净买入居前</div><div class="news-meta"><span class="tag tag-purple">宏观</span></div></div></div>
+<div class="news-item"><span class="news-time">10:21</span><div><div class="news-title">【电报】半导体设备板块异动拉升，北方华创涨超 5%，国家大基金三期落地首笔投资</div><div class="news-meta"><span class="tag tag-amber">行业</span><span class="tag tag-red">重要</span></div></div></div>
+<div class="news-item"><span class="news-time">09:58</span><div><div class="news-title">【电报】恒瑞医药：上半年净利润 34.32 亿元，同比增长 18.6%，创新药收入占比过半</div><div class="news-meta"><span class="tag tag-blue">公告</span></div></div></div>
+<div class="news-item"><span class="news-time">09:40</span><div><div class="news-title">两市成交额早盘破 8,000 亿，较昨日同期放量约 9%，情绪修复明显</div><div class="news-meta"><span class="tag tag-amber">行业</span></div></div></div>
+<div class="news-item"><span class="news-time">09:15</span><div><div class="news-title">【电报】离岸人民币兑美元升破 7.10 关口，创近三个月新高</div><div class="news-meta"><span class="tag tag-purple">宏观</span><span class="tag">电报快讯</span></div></div></div>
+<div class="news-item"><span class="news-time">09:02</span><div><div class="news-title">【电报】美股隔夜收涨，纳指涨 0.9% 再创新高，英伟达涨 2.3%</div><div class="news-meta"><span class="tag tag-purple">宏观</span></div></div></div>
 </div>
 </div>
 
@@ -510,6 +607,42 @@ tr:hover td { background: var(--bg-hover); }
 </div>
 </div>
 
+<!-- 采集引擎：引擎是否在跑 + 接下来半天的自动化任务 + 最近运行结果 -->
+<div class="card">
+<div class="card-header">
+<span class="card-title">采集引擎 <span class="badge-run" style="margin-left:6px">运行中</span></span>
+<button class="fold-btn" data-fold>−</button>
+</div>
+<div class="card-body">
+
+<div class="ce-now">
+<span class="ce-pulse"></span>
+<div class="ce-now-info">
+<div class="ce-now-title">行情快照采集 <span class="tag" style="margin-left:4px">sina</span></div>
+<div class="ce-now-sub">已运行 00:47 · 交易时段每 5 分钟一班</div>
+</div>
+</div>
+
+<div class="ce-sec-title">即将运行 · 未来 12 小时</div>
+<div class="ce-up-row"><span class="ce-up-time">16:00</span><span class="ce-up-name">涨停/跌停/炸板股池 · 板块资金 · 资金流向</span><span class="tag">eastmoney</span></div>
+<div class="ce-up-row"><span class="ce-up-time">16:05</span><span class="ce-up-name">ETF 日K 采集</span><span class="tag">sina</span></div>
+<div class="ce-up-row"><span class="ce-up-time">16:20</span><span class="ce-up-name">个股分钟线（涨停复盘分时图）</span><span class="tag">sina</span></div>
+<div class="ce-up-row"><span class="ce-up-time">16:30</span><span class="ce-up-name">大盘复盘 AI 生成 + 涨停 AI 归因</span><span class="tag tag-purple">internal</span></div>
+<div class="ce-up-row"><span class="ce-up-time">16:40</span><span class="ce-up-name">自选股 AI 每日点评（开启分组 · 8 只）</span><span class="tag tag-purple">internal</span></div>
+<div class="ce-up-row"><span class="ce-up-time">17:40</span><span class="ce-up-name">A50 期指日K（日盘收盘）</span><span class="tag">eastmoney</span></div>
+<div class="ce-up-row"><span class="ce-up-time">18:00</span><span class="ce-up-name">研报列表 + PDF 落库</span><span class="tag">eastmoney</span></div>
+<div class="ce-up-row"><span class="ce-up-time">21:40</span><span class="ce-up-name">A50 期指日K（夜盘修正）</span><span class="tag">eastmoney</span></div>
+
+<div class="ce-sec-title">最近运行</div>
+<div class="ce-log-row"><span class="ce-dot ok"></span>15:57 涨跌统计 <span class="ce-log-meta">SUCCESS · 1,240 条 · 32s</span></div>
+<div class="ce-log-row"><span class="ce-dot ok"></span>15:40 两市成交额 <span class="ce-log-meta">SUCCESS · 2 条 · 4s</span></div>
+<div class="ce-log-row"><span class="ce-dot skip"></span>15:30 电报回补 <span class="ce-log-meta">SKIPPED · 非运行窗口</span></div>
+
+<div class="disclaimer">运行状态每 30s 自动刷新 · 完整日志与手动补跑见后台任务管理</div>
+<div style="text-align:right"><a href="admin.html">后台任务管理 →</a></div>
+</div>
+</div>
+
 <!-- 快捷入口 -->
 <div class="card">
 <div class="card-header"><span class="card-title">快捷入口</span><button class="fold-btn" data-fold>−</button></div>
@@ -537,6 +670,15 @@ document.querySelectorAll('.grp-chip').forEach(function(chip){
   chip.addEventListener('click',function(){
     document.querySelectorAll('.grp-chip').forEach(function(c){c.classList.remove('active')});
     chip.classList.add('active');
+  });
+});
+document.querySelectorAll('[data-rv-state]').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    document.querySelectorAll('[data-rv-state]').forEach(function(b){b.classList.remove('active')});
+    btn.classList.add('active');
+    document.querySelectorAll('[data-rv-panel]').forEach(function(p){
+      p.style.display = p.getAttribute('data-rv-panel')===btn.getAttribute('data-rv-state') ? '' : 'none';
+    });
   });
 });
 </script>
