@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   analyzeChain,
+  deleteChainVersion,
   fetchChainAlerts,
   fetchChainCompare,
   fetchChainIndustries,
@@ -61,6 +62,16 @@ export function useChainCompare(baseId: number | null, targetId: number | null) 
     queryFn: () => fetchChainCompare(baseId!, targetId!),
     enabled: baseId !== null && targetId !== null,
     staleTime: Infinity,
+  })
+}
+
+export function useDeleteChainVersion() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: deleteChainVersion,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chain'] })
+    },
   })
 }
 

@@ -146,6 +146,30 @@ class TestVersionEndpoints:
 
 
 @pytest.mark.unit
+class TestDeleteVersionEndpoint:
+    @patch("app.api.v1.chain.chain_service.delete_version")
+    def test_delete_version_success(self, mock_delete, auth_client, user) -> None:
+        mock_delete.return_value = True
+        response = auth_client.delete("/api/v1/chain/versions/3")
+
+        assert response.status_code == 204
+        assert response.content == b""
+        assert mock_delete.call_args.args[1] == 3
+        assert mock_delete.call_args.kwargs["user_id"] == user.id
+
+    @patch("app.api.v1.chain.chain_service.delete_version")
+    def test_delete_version_not_found(self, mock_delete, auth_client) -> None:
+        mock_delete.return_value = False
+        response = auth_client.delete("/api/v1/chain/versions/99")
+
+        assert response.status_code == 404
+
+    def test_delete_version_requires_auth(self, client) -> None:
+        response = client.delete("/api/v1/chain/versions/3")
+        assert response.status_code in (401, 403)
+
+
+@pytest.mark.unit
 class TestIndustriesEndpoint:
     @patch("app.api.v1.chain.chain_service.list_industries")
     def test_list_industries(self, mock_list, auth_client, user) -> None:

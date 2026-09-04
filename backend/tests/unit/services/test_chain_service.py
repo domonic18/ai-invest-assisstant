@@ -257,6 +257,35 @@ class TestCompareVersions:
 
 
 @pytest.mark.unit
+class TestDeleteVersion:
+    @pytest.mark.asyncio
+    async def test_deletes_and_commits_when_found(self) -> None:
+        session = AsyncMock()
+        with patch.object(
+            chain_service.repository,
+            "delete_version",
+            new=AsyncMock(return_value=True),
+        ) as delete_mock:
+            assert await chain_service.delete_version(session, 7, user_id=42) is True
+
+        delete_mock.assert_awaited_once_with(session, 7, 42)
+        session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_returns_false_and_skips_commit_when_missing(self) -> None:
+        session = AsyncMock()
+        with patch.object(
+            chain_service.repository,
+            "delete_version",
+            new=AsyncMock(return_value=False),
+        ) as delete_mock:
+            assert await chain_service.delete_version(session, 99, user_id=42) is False
+
+        delete_mock.assert_awaited_once_with(session, 99, 42)
+        session.commit.assert_not_awaited()
+
+
+@pytest.mark.unit
 class TestPersistAlerts:
     async def _persist(self, result: ChainAnalysisResult, **kwargs: object) -> object:
         with (

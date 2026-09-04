@@ -30,9 +30,11 @@ import {
   useChainLatest,
   useChainVersion,
   useChainVersions,
+  useDeleteChainVersion,
 } from '@/hooks/useChain'
 import { useAssistantStore } from '@/stores/assistant'
 import { useColorScheme } from '@/stores/settings'
+import { apiErrorMessage } from '@/utils/errorMessage'
 import type { ChainNode } from '@ai-invest/shared'
 
 import { ChainAlertPanel } from './components/ChainAlertPanel'
@@ -79,6 +81,7 @@ export function ChainAnalysis() {
   const latestQuery = useChainLatest(activeIndustry)
   const versionsQuery = useChainVersions(activeIndustry)
   const industriesQuery = useChainIndustries()
+  const deleteVersionMutation = useDeleteChainVersion()
 
   useEffect(() => {
     if (industry) {
@@ -168,6 +171,20 @@ export function ChainAnalysis() {
       setSelectedNode(node)
       setDetailCollapsed(false)
     }
+  }
+
+  const handleDeleteVersion = (versionId: number) => {
+    deleteVersionMutation.mutate(versionId, {
+      onSuccess: () => {
+        message.success('版本已删除')
+        // 当前展示版本被删时回退到最新成功版本（selectedVersionId 置 null 即取 latest）
+        if (detail?.version.id === versionId) {
+          setSelectedVersionId(null)
+          setSelectedNode(null)
+        }
+      },
+      onError: (err) => message.error(apiErrorMessage(err, '删除失败，请稍后重试')),
+    })
   }
 
   const isLoading =
@@ -276,6 +293,12 @@ export function ChainAnalysis() {
             setSelectedNode(null)
           }}
           onCompare={() => setCompareOpen(true)}
+          onDelete={handleDeleteVersion}
+          deletingId={
+            deleteVersionMutation.isPending
+              ? (deleteVersionMutation.variables ?? null)
+              : null
+          }
         />
       )}
 

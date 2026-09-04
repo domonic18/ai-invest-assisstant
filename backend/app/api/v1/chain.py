@@ -93,6 +93,21 @@ async def get_version(
     return detail
 
 
+@router.delete("/versions/{version_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_version(
+    version_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> None:
+    """删除指定分析版本（节点/边/映射级联清理，AI 结果保留）。"""
+    deleted = await chain_service.delete_version(session, version_id, user_id=user.id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="版本不存在",
+        )
+
+
 @router.get("/{industry}/latest", response_model=ChainVersionDetail)
 async def get_latest(
     industry: str,

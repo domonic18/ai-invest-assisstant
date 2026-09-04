@@ -96,6 +96,10 @@ export async function fetchChainVersion(
   return mapChainVersionDetail(response.data)
 }
 
+export async function deleteChainVersion(versionId: number): Promise<void> {
+  await apiClient.delete(ENDPOINTS.chain.version(versionId))
+}
+
 export async function fetchChainCompare(
   baseId: number,
   targetId: number
