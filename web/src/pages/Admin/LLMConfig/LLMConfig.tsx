@@ -28,7 +28,7 @@ import {
   useTestLLMConfig,
   useUpdateLLMConfig,
 } from '@/hooks/useLLMConfigs'
-import type { LLMConfig, LLMConfigFormValues } from '@ai-invest/shared'
+import type { LLMConfig, LLMConfigCapabilities, LLMConfigFormValues } from '@ai-invest/shared'
 
 import { LLMConfigModal } from './LLMConfigModal'
 
@@ -38,6 +38,10 @@ const PROVIDER_LABEL: Record<string, string> = {
   deepseek: 'DeepSeek',
   zhipu: '智谱 GLM',
   custom: '自定义',
+}
+
+function getCapabilities(config: LLMConfig | null): LLMConfigCapabilities {
+  return (config?.extra?.capabilities ?? {}) as LLMConfigCapabilities
 }
 
 export function LLMConfig() {
@@ -65,6 +69,7 @@ export function LLMConfig() {
   const handleSubmit = async (values: LLMConfigFormValues) => {
     try {
       if (editing) {
+        // extra 整体覆盖写，须保留已有键仅更新 capabilities.vision
         await updateMutation.mutateAsync({
           id: editing.id,
           data: {
@@ -75,6 +80,10 @@ export function LLMConfig() {
             api_key: values.apiKey || undefined,
             is_default: values.isDefault,
             is_active: values.isActive,
+            extra: {
+              ...editing.extra,
+              capabilities: { ...getCapabilities(editing), vision: values.vision === true },
+            },
           },
         })
         message.success('配置已更新')
@@ -87,6 +96,7 @@ export function LLMConfig() {
           api_key: values.apiKey,
           is_default: values.isDefault,
           is_active: values.isActive,
+          extra: { capabilities: { vision: values.vision === true } },
         })
         message.success('配置已创建')
       }
@@ -152,6 +162,12 @@ export function LLMConfig() {
       key: 'isDefault',
       render: (value: boolean) =>
         value ? <Tag color="gold">默认</Tag> : null,
+    },
+    {
+      title: '能力',
+      key: 'capabilities',
+      render: (_: unknown, record: LLMConfig) =>
+        getCapabilities(record).vision ? <Tag color="geekblue">视觉</Tag> : null,
     },
     {
       title: '启用',

@@ -24,6 +24,7 @@ export function LLMConfigModal({ open, editing, onCancel, onSubmit, loading }: L
 
   useEffect(() => {
     if (open) {
+      const capabilities = (editing?.extra?.capabilities ?? {}) as { vision?: boolean }
       if (editing) {
         form.setFieldsValue({
           name: editing.name,
@@ -33,6 +34,7 @@ export function LLMConfigModal({ open, editing, onCancel, onSubmit, loading }: L
           apiKey: '',
           isDefault: editing.isDefault,
           isActive: editing.isActive,
+          vision: capabilities.vision === true,
         })
       } else {
         form.resetFields()
@@ -40,6 +42,7 @@ export function LLMConfigModal({ open, editing, onCancel, onSubmit, loading }: L
           provider: 'openai',
           isActive: true,
           isDefault: false,
+          vision: false,
         })
       }
     }
@@ -105,6 +108,15 @@ export function LLMConfigModal({ open, editing, onCancel, onSubmit, loading }: L
         </Form.Item>
 
         <Form.Item label="启用" name="isActive" valuePropName="checked">
+          <Switch />
+        </Form.Item>
+
+        <Form.Item
+          label="视觉能力"
+          name="vision"
+          valuePropName="checked"
+          extra="开启后该模型可用于图片识别（如自选股截图导入），须为支持图片输入的模型"
+        >
           <Switch />
         </Form.Item>
       </Form>
