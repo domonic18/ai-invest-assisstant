@@ -14,6 +14,8 @@ import { FoldCard } from './FoldCard'
 interface WatchlistOverviewCardProps {
   groups?: WorkbenchWatchlistGroup[]
   loading?: boolean
+  className?: string
+  stretch?: boolean
 }
 
 const AI_STATUS_META: Record<
@@ -25,7 +27,12 @@ const AI_STATUS_META: Record<
   off: { color: 'default', label: '未开启' },
 }
 
-export function WatchlistOverviewCard({ groups, loading }: WatchlistOverviewCardProps) {
+export function WatchlistOverviewCard({
+  groups,
+  loading,
+  className,
+  stretch,
+}: WatchlistOverviewCardProps) {
   useColorScheme()
   const [activeId, setActiveId] = useState<number | null>(null)
 
@@ -36,13 +43,15 @@ export function WatchlistOverviewCard({ groups, loading }: WatchlistOverviewCard
     <FoldCard
       title="自选股概览"
       extra={<Link to="/watchlist" className="text-xs">管理分组</Link>}
+      className={className}
+      stretch={stretch}
     >
       {loading ? (
         <div className="flex justify-center py-6"><Spin /></div>
       ) : !groups?.length ? (
         <Empty description="暂无自选股" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       ) : (
-        <div>
+        <div className="flex flex-col h-full">
           <div className="flex gap-2 flex-wrap mb-3">
             {groups.map((group) => (
               <button
@@ -101,7 +110,8 @@ export function WatchlistOverviewCard({ groups, loading }: WatchlistOverviewCard
             ))
           )}
 
-          <div className="text-[10px] text-gray-500 mt-2.5 pt-2.5 border-t border-dashed border-gray-800">
+          <div className="flex-1" />
+          <div className="text-[10px] text-gray-500 pt-2.5 border-t border-dashed border-gray-800">
             AI 生成，不构成投资建议 · 仅开启 AI 复盘的分组在盘后定时批量生成
           </div>
         </div>

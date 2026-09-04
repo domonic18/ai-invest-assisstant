@@ -10,13 +10,17 @@ import { FoldCard } from './FoldCard'
 interface CalendarSummaryCardProps {
   events?: CalendarEvent[]
   loading?: boolean
+  className?: string
+  stretch?: boolean
 }
 
-export function CalendarSummaryCard({ events, loading }: CalendarSummaryCardProps) {
+export function CalendarSummaryCard({ events, loading, className, stretch }: CalendarSummaryCardProps) {
   return (
     <FoldCard
       title="投资日历 · 临近日程"
       extra={<Link to="/calendar" className="text-xs">进入完整日历</Link>}
+      className={className}
+      stretch={stretch}
     >
       {loading ? (
         <div className="flex justify-center py-6"><Spin /></div>
