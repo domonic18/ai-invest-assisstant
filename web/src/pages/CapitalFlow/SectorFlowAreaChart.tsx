@@ -3,19 +3,21 @@ import type { EChartsOption, SeriesOption } from 'echarts'
 import { useMemo } from 'react'
 
 import type { SectorFlowTrend } from '@/api/fundFlow'
+import { ChartColors } from '@/theme/colors'
 import { useColorScheme } from '@/stores/settings'
 
 // 只画累计 |净流入| 前 8 的板块，其余合并为「其他」
 const TOP_SECTORS = 8
 
-// 红涨绿跌 / 绿涨红跌两套色族：区间内累计净流入的板块用涨色族，净流出用跌色族
+// 红涨绿跌 / 绿涨红跌两套色族（对齐原型：每族 3 个可区分色循环，不再用近似色阶）：
+// 区间内累计净流入的板块用涨色族，净流出用跌色族
 const RISE_FAMILY = {
-  cn: ['#f85149', '#ff7b72', '#ffa198', '#d73a49', '#e5534b', '#ff9d94', '#c93c37', '#f47067'],
-  us: ['#2ea043', '#3fb950', '#56d364', '#238636', '#2da44e', '#4ac26b', '#1a7f37', '#46c160'],
+  cn: ['#f85149', '#fb923c', '#fbbf24'],
+  us: ['#2ea043', '#4ade80', '#86efac'],
 } as const
 const FALL_FAMILY = {
-  cn: ['#2ea043', '#3fb950', '#56d364', '#238636', '#2da44e', '#4ac26b', '#1a7f37', '#46c160'],
-  us: ['#f85149', '#ff7b72', '#ffa198', '#d73a49', '#e5534b', '#ff9d94', '#c93c37', '#f47067'],
+  cn: ['#16a34a', '#4ade80', '#86efac'],
+  us: ['#f85149', '#fb923c', '#fbbf24'],
 } as const
 
 interface SectorFlowAreaChartProps {
@@ -74,7 +76,7 @@ export function SectorFlowAreaChart({
           silent: true,
           symbol: 'none',
           label: { show: false },
-          lineStyle: { color: '#8c8c8c', type: 'dashed', width: 1 },
+          lineStyle: { color: ChartColors.textMuted, type: 'dashed', width: 1 },
           data: [{ xAxis: selectedDate }],
         },
       }
@@ -93,7 +95,7 @@ export function SectorFlowAreaChart({
     },
     legend: {
       bottom: 0,
-      textStyle: { color: '#8c8c8c', fontSize: 10 },
+      textStyle: { color: ChartColors.textMuted, fontSize: 10 },
       itemWidth: 14,
       itemHeight: 2,
       icon: 'rect',
@@ -104,20 +106,20 @@ export function SectorFlowAreaChart({
       data: data.dates,
       boundaryGap: false,
       axisLabel: {
-        color: '#8c8c8c',
+        color: ChartColors.textMuted,
         fontSize: 10,
         formatter: (value: string) => value.slice(5),
       },
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: '#3a3f4b' } },
+      axisLine: { lineStyle: { color: ChartColors.panelBorder } },
     },
     yAxis: {
       type: 'value',
       scale: true,
       name: '亿元',
-      nameTextStyle: { color: '#8c8c8c', fontSize: 10 },
-      axisLabel: { color: '#8c8c8c', fontSize: 10 },
-      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } },
+      nameTextStyle: { color: ChartColors.textMuted, fontSize: 10 },
+      axisLabel: { color: ChartColors.textMuted, fontSize: 10 },
+      splitLine: { lineStyle: { color: ChartColors.grid } },
     },
     series,
   }

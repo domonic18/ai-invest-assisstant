@@ -9,6 +9,14 @@ export const REPORT_TYPE_LABELS = new Map(
   REPORT_TYPE_OPTIONS.map((option) => [option.value, option.label]),
 )
 
+/** 类型 tag 配色对齐原型：年报紫 / 半年报蓝。 */
+export const REPORT_TYPE_TAG_COLORS: Record<string, string> = {
+  annual: 'purple',
+  semi_annual: 'blue',
+  q1: 'cyan',
+  q3: 'geekblue',
+}
+
 export interface FinancialReportParams {
   q: string
   reportType?: string
@@ -18,16 +26,12 @@ export interface FinancialReportParams {
   pageSize: number
 }
 
-export interface SummaryModal {
+export interface SummaryPanel {
+  reportId: number
   title: string
   content: string
-}
-
-export function summarySnippet(summary: string): string {
-  return summary
-    .replace(/[#*`>-]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
+  /** true 命中缓存（来自库内摘要）/ false 本次新生成 / null 未知。 */
+  cached: boolean | null
 }
 
 export function formatFileSize(size: number | null): string | null {

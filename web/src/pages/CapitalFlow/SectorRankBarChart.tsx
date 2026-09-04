@@ -3,10 +3,15 @@ import type { EChartsOption } from 'echarts'
 import { useMemo } from 'react'
 
 import type { SectorFlowTrend } from '@/api/fundFlow'
-import { changeHex } from '@/utils/formatters'
+import { ChartColors } from '@/theme/colors'
+import { fallHex, riseHex } from '@/utils/formatters'
+import { useColorScheme } from '@/stores/settings'
 
-// 每天展示净流入前 10 + 净流出前 10
+// 每天左榜展示净流入前 10（涨色）、右榜净流出前 10（跌色），对齐原型双栏排行
 const TOP_N = 10
+
+// 应用主色（Linear 靛蓝），时间轴选中点与播放控件用它与涨跌色区分
+const ACCENT = '#5e6ad2'
 
 interface SectorRankBarChartProps {
   data: SectorFlowTrend
@@ -19,15 +24,22 @@ interface RankItem {
   value: number
 }
 
-function pickDayItems(data: SectorFlowTrend, dateIndex: number): RankItem[] {
-  const items: RankItem[] = data.sectors
+function pickInflow(data: SectorFlowTrend, dateIndex: number): RankItem[] {
+  return data.sectors
     .map((s) => ({ name: s.name, value: s.values[dateIndex] }))
     .filter((it): it is RankItem => it.value !== null && it.value !== undefined)
+    .filter((it) => it.value > 0)
     .sort((a, b) => b.value - a.value)
-  if (items.length <= TOP_N * 2) return items
-  return [...items.slice(0, TOP_N), ...items.slice(-TOP_N)].sort(
-    (a, b) => b.value - a.value,
-  )
+    .slice(0, TOP_N)
+}
+
+function pickOutflow(data: SectorFlowTrend, dateIndex: number): RankItem[] {
+  return data.sectors
+    .map((s) => ({ name: s.name, value: s.values[dateIndex] }))
+    .filter((it): it is RankItem => it.value !== null && it.value !== undefined)
+    .filter((it) => it.value < 0)
+    .sort((a, b) => a.value - b.value)
+    .slice(0, TOP_N)
 }
 
 export function SectorRankBarChart({
@@ -35,15 +47,48 @@ export function SectorRankBarChart({
   selectedDate,
   onSelectDate,
 }: SectorRankBarChartProps) {
+  useColorScheme()
   const currentIndex = useMemo(() => {
     const idx = selectedDate ? data.dates.indexOf(selectedDate) : -1
     return idx >= 0 ? idx : Math.max(data.dates.length - 1, 0)
   }, [data.dates, selectedDate])
 
+  const muted = ChartColors.textMuted
+  const axisValue = {
+    type: 'value' as const,
+    name: '亿元',
+    nameTextStyle: { color: muted, fontSize: 10 },
+    axisLabel: { color: muted, fontSize: 10 },
+    splitLine: { lineStyle: { color: ChartColors.grid } },
+  }
+  const axisCategory = {
+    type: 'category' as const,
+    inverse: true,
+    axisLabel: { color: muted, fontSize: 10 },
+    axisTick: { show: false },
+    axisLine: { lineStyle: { color: ChartColors.panelBorder } },
+  }
+
   const option = {
     baseOption: {
       backgroundColor: 'transparent',
       animation: false,
+      title: [
+        {
+          text: `净流入 TOP${TOP_N}`,
+          left: '25%',
+          top: 0,
+          textAlign: 'center',
+          textStyle: { color: riseHex(), fontSize: 12, fontWeight: 600 },
+        },
+        {
+          text: `净流出 TOP${TOP_N}`,
+          left: '75%',
+          top: 0,
+          textAlign: 'center',
+          textStyle: { color: fallHex(), fontSize: 12, fontWeight: 600 },
+        },
+      ],
       timeline: {
         axisType: 'category',
         data: data.dates,
@@ -52,34 +97,37 @@ export function SectorRankBarChart({
         playInterval: 1200,
         bottom: 0,
         label: {
-          color: '#8c8c8c',
+          color: muted,
           fontSize: 10,
           formatter: (value: string) => value.slice(5),
         },
-        lineStyle: { color: '#3a3f4b' },
-        itemStyle: { color: '#3a3f4b' },
-        checkpointStyle: { color: '#5470c6', borderColor: '#5470c6' },
-        controlStyle: { color: '#8c8c8c', borderColor: '#8c8c8c' },
-        emphasis: { label: { color: '#c9cdd4' } },
+        lineStyle: { color: ChartColors.panelBorder },
+        itemStyle: { color: ChartColors.panelBorder },
+        checkpointStyle: { color: ACCENT, borderColor: ACCENT },
+        controlStyle: { color: muted, borderColor: muted },
+        emphasis: { label: { color: ChartColors.textMain } },
       },
-      grid: { left: 90, right: 70, top: 10, bottom: 60 },
-      xAxis: {
-        type: 'value',
-        // 两侧留 25% 余量，防止长条的端点金额标签溢出到坐标轴区域
-        min: (v: { min: number }) => Math.floor(v.min * 1.25),
-        max: (v: { max: number }) => Math.ceil(v.max * 1.25),
-        name: '亿元',
-        nameTextStyle: { color: '#8c8c8c', fontSize: 10 },
-        axisLabel: { color: '#8c8c8c', fontSize: 10 },
-        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } },
-      },
-      yAxis: {
-        type: 'category',
-        inverse: true,
-        axisLabel: { color: '#8c8c8c', fontSize: 10 },
-        axisTick: { show: false },
-        axisLine: { lineStyle: { color: '#3a3f4b' } },
-      },
+      grid: [
+        { left: 90, right: '55%', top: 30, bottom: 60 },
+        { left: '55%', right: 90, top: 30, bottom: 60 },
+      ],
+      xAxis: [
+        {
+          ...axisValue,
+          gridIndex: 0,
+          // 端点金额标签留 15% 余量防溢出
+          max: (v: { max: number }) => Math.ceil(v.max * 1.15),
+        },
+        {
+          ...axisValue,
+          gridIndex: 1,
+          min: (v: { min: number }) => Math.floor(v.min * 1.15),
+        },
+      ],
+      yAxis: [
+        { ...axisCategory, gridIndex: 0 },
+        { ...axisCategory, gridIndex: 1 },
+      ],
       tooltip: {
         trigger: 'item',
         formatter: (params: { name: string; value: number }) =>
@@ -88,24 +136,41 @@ export function SectorRankBarChart({
       series: [
         {
           type: 'bar',
+          xAxisIndex: 0,
+          yAxisIndex: 0,
           barMaxWidth: 14,
-          label: { show: true, fontSize: 10, color: '#8c8c8c' },
+          label: { show: true, fontSize: 10, color: muted },
+        },
+        {
+          type: 'bar',
+          xAxisIndex: 1,
+          yAxisIndex: 1,
+          barMaxWidth: 14,
+          label: { show: true, fontSize: 10, color: muted },
         },
       ],
     },
     options: data.dates.map((_, dateIndex) => {
-      const items = pickDayItems(data, dateIndex)
+      const inflow = pickInflow(data, dateIndex)
+      const outflow = pickOutflow(data, dateIndex)
       return {
-        yAxis: { data: items.map((it) => it.name) },
+        yAxis: [
+          { data: inflow.map((it) => it.name) },
+          { data: outflow.map((it) => it.name) },
+        ],
         series: [
           {
-            data: items.map((it) => ({
+            data: inflow.map((it) => ({
               value: it.value,
-              itemStyle: { color: changeHex(it.value) },
-              label: {
-                position: it.value >= 0 ? ('right' as const) : ('left' as const),
-                formatter: `${it.value.toFixed(2)} 亿`,
-              },
+              itemStyle: { color: riseHex() },
+              label: { position: 'right' as const, formatter: `${it.value.toFixed(2)} 亿` },
+            })),
+          },
+          {
+            data: outflow.map((it) => ({
+              value: it.value,
+              itemStyle: { color: fallHex() },
+              label: { position: 'left' as const, formatter: `${it.value.toFixed(2)} 亿` },
             })),
           },
         ],
