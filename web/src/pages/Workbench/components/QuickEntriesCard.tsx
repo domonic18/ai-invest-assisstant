@@ -9,13 +9,17 @@ const ENTRIES = [
   { to: '/hotspot', label: '热点追踪' },
 ]
 
-export function QuickEntriesCard() {
+interface QuickEntriesCardProps {
+  className?: string
+}
+
+export function QuickEntriesCard({ className }: QuickEntriesCardProps) {
   return (
-    <FoldCard title="快捷入口">
-      <div className="flex flex-col gap-2">
+    <FoldCard title="快捷入口" className={className}>
+      <div className="flex flex-wrap gap-2">
         {ENTRIES.map((entry) => (
           <Link key={entry.to} to={entry.to}>
-            <Button block>{entry.label}</Button>
+            <Button>{entry.label}</Button>
           </Link>
         ))}
       </div>

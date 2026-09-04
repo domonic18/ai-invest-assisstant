@@ -5,9 +5,10 @@ import { useEffect, useState } from 'react'
 import { useWorkbench } from '@/hooks/useWorkbench'
 
 import { CalendarSummaryCard } from './components/CalendarSummaryCard'
+import { CollectorEngineCard } from './components/CollectorEngineCard'
 import { IndexStrip } from './components/IndexStrip'
 import { QuickEntriesCard } from './components/QuickEntriesCard'
-import { ReviewSummaryCard } from './components/ReviewSummaryCard'
+import { ReviewStatusCard } from './components/ReviewStatusCard'
 import { SectorFlowCard } from './components/SectorFlowCard'
 import { TelegraphCard } from './components/TelegraphCard'
 import { WatchlistOverviewCard } from './components/WatchlistOverviewCard'
@@ -53,22 +54,33 @@ export function Workbench() {
         loading={isLoading}
       />
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-5">
-        <div className="xl:col-span-2 space-y-5">
-          <ReviewSummaryCard
-            review={data?.review ?? null}
-            stats={data?.stats ?? undefined}
-            loading={isLoading}
-          />
-          <TelegraphCard items={data?.telegraph} loading={isLoading} />
-          <WatchlistOverviewCard groups={data?.watchlistGroups} loading={isLoading} />
-        </div>
-
-        <div className="space-y-5">
-          <CalendarSummaryCard events={data?.calendar} loading={isLoading} />
-          <SectorFlowCard items={data?.sectorFlow} loading={isLoading} />
-          <QuickEntriesCard />
-        </div>
+      {/* 行对齐网格：行内两卡等高（stretch），行序 复盘/日历 → 要闻/引擎 → 自选/板块 → 快捷入口 */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-5 items-stretch">
+        <ReviewStatusCard
+          status={data?.reviewStatus ?? null}
+          review={data?.review ?? null}
+          groups={data?.watchlistGroups}
+          stats={data?.stats ?? undefined}
+          loading={isLoading}
+          className="xl:col-span-2"
+          stretch
+        />
+        <CalendarSummaryCard events={data?.calendar} loading={isLoading} stretch />
+        <TelegraphCard
+          items={data?.telegraph}
+          loading={isLoading}
+          className="xl:col-span-2"
+          stretch
+        />
+        <CollectorEngineCard status={data?.collectorStatus ?? null} loading={isLoading} stretch />
+        <WatchlistOverviewCard
+          groups={data?.watchlistGroups}
+          loading={isLoading}
+          className="xl:col-span-2"
+          stretch
+        />
+        <SectorFlowCard items={data?.sectorFlow} loading={isLoading} stretch />
+        <QuickEntriesCard className="xl:col-span-3" />
       </div>
     </div>
   )

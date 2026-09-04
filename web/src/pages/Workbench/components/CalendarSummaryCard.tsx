@@ -10,18 +10,25 @@ import { FoldCard } from './FoldCard'
 interface CalendarSummaryCardProps {
   events?: CalendarEvent[]
   loading?: boolean
+  className?: string
+  stretch?: boolean
 }
 
-export function CalendarSummaryCard({ events, loading }: CalendarSummaryCardProps) {
+/** 概览只呈现最近几条（原型密度），完整日程引流到日历页。 */
+const MAX_EVENTS = 6
+
+export function CalendarSummaryCard({ events, loading, className, stretch }: CalendarSummaryCardProps) {
   return (
     <FoldCard
       title="投资日历 · 临近日程"
       extra={<Link to="/calendar" className="text-xs">进入完整日历</Link>}
+      className={className}
+      stretch={stretch}
     >
       {loading ? (
         <div className="flex justify-center py-6"><Spin /></div>
       ) : events?.length ? (
-        events.map((item) => {
+        events.slice(0, MAX_EVENTS).map((item) => {
           const date = dayjs(item.eventTime)
           const isToday = date.isSame(dayjs(), 'day')
           return (

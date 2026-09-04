@@ -76,6 +76,7 @@ dependencies = [
     "langchain-openai>=1.6.0",
     "langgraph-checkpoint-postgres>=3.1.2",
     "psycopg[binary]>=3.3.4",
+    "croniter>=6.2.4",
 ]
 
 [tool.uv]
@@ -123,6 +124,7 @@ disallow_any_generics = false
 module = [
     "app.agent.*",
     "celery.*",
+    "croniter.*",
     "kombu.*",
     "pandas.*",
     "tushare.*",
