@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from app.core.clock import today_cn
 from app.services.market import (
     index_quotation_service,
     limit_pool_service,
@@ -698,12 +699,12 @@ class TestGetLimitUp:
 
         assert result.total == 0
         assert result.ladder == []
-        assert result.trade_date == date.today()
+        assert result.trade_date == today_cn()
 
     @pytest.mark.asyncio
     async def test_intraday_today_does_not_fall_back_to_previous_pool(self) -> None:
         """盘中（当日已有涨跌统计、涨停池未写入）返回当日空结果，而非旧池。"""
-        today = date.today()
+        today = today_cn()
         session = AsyncMock()
         session.scalar.return_value = 1  # 当日已有 market_breadth 行
         session.execute.return_value = _scalars_result([])  # 当日涨停池为空
@@ -1014,14 +1015,14 @@ class TestResolveLatestTradeDate:
             trade_calendar_service, "fetch_max_daily_date", AsyncMock(return_value=None)
         ):
             assert await market_service.resolve_latest_trade_date(session) == (
-                date.today()
+                today_cn()
             )
 
     @pytest.mark.asyncio
     async def test_intraday_returns_today_when_breadth_exists(self) -> None:
         session = AsyncMock()
         session.scalar.return_value = 1  # 当日已有涨跌统计
-        today = date.today()
+        today = today_cn()
         kline_max = today - timedelta(days=3)
         with patch.object(
             trade_calendar_service,

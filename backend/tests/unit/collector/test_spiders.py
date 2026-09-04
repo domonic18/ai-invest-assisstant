@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pandas as pd
 import pytest
 
+from collector.core.calendar import latest_trading_day
 from collector.spiders.cninfo_financial_report import CninfoFinancialReportCollector
 from collector.spiders.cninfo_ipo import CninfoIpoCollector
 from collector.spiders.eastmoney_a50_kline import EastmoneyA50KlineCollector
@@ -1384,11 +1385,11 @@ class TestSinaMarketBreadthCollector:
             ]
         )
         with patch("akshare.stock_zh_a_spot", return_value=mock_df):
-            raw = await collector.collect(trade_date=datetime.date.today())
+            raw = await collector.collect(trade_date=latest_trading_day())
 
         assert len(raw) == 1
         item = raw[0]
-        assert item["trade_date"] == datetime.date.today()
+        assert item["trade_date"] == latest_trading_day()
         assert item["up_count"] == 1
         assert item["down_count"] == 1
         assert item["limit_up_count"] == 1
