@@ -10,9 +10,8 @@ declare module 'axios' {
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '',
   timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  // 不全局固定 Content-Type：axios 对对象体自动设 application/json，
+  // FormData 交给浏览器补 multipart boundary（固定 JSON 会把 File 序列化成 {}）
 })
 
 apiClient.interceptors.request.use((config) => {
