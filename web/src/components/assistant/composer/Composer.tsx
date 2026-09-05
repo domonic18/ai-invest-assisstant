@@ -1,25 +1,9 @@
 import {
   ComposerPrimitive,
   ThreadPrimitive,
-  unstable_useComposerInput,
 } from '@assistant-ui/react'
-import { useEffect } from 'react'
 
-interface ComposerProps {
-  /** 注册一个可由外部（如建议问题）调用的发送回调。 */
-  registerSend?: (send: (question: string) => void) => void
-}
-
-export function Composer({ registerSend }: ComposerProps) {
-  const composer = unstable_useComposerInput()
-
-  useEffect(() => {
-    registerSend?.((question) => {
-      composer.setText(question)
-      composer.send()
-    })
-  }, [composer, registerSend])
-
+export function Composer() {
   return (
     <ComposerPrimitive.Root className="border-t border-gray-800 bg-[#0c0e12] p-3">
       <div className="relative flex items-end gap-2 rounded-xl border border-gray-700 bg-gray-900 p-2 shadow-sm transition-colors focus-within:border-blue-500/60">
