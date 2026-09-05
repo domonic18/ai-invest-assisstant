@@ -1,7 +1,9 @@
-"""AI 大盘综述生成器：上下文组装、LLM 生成、缓存持久化。
+"""AI 大盘综述生成器：deepagents 工具循环生成、缓存持久化。
 
 生成结果按 (skill_id, input_hash) 缓存在 ai_analysis_result 表作为共享 base；
-生成逻辑统一加 Redis 分布式锁，避免多租户场景下重复调用 LLM。
+生成逻辑统一加 Redis 分布式锁，避免多租户场景下重复调用 LLM。生成内核为
+``app.agent.skills.market_review_agent.run_skill``（数据取数由 SKILL 工具循环
+完成），就绪预检保留以支撑 celery 任务的退避重试语义。
 """
 
 import hashlib
@@ -9,11 +11,9 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 import structlog
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptConfig, PromptLoader, PromptSection
-from app.agent.core.prompt_renderer import PromptRenderer
 from app.core.config import get_settings
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.locking import redis_lock
@@ -22,7 +22,6 @@ from app.repositories.review import (
     user_market_review_repository,
 )
 from app.schemas.market import MarketReviewResponse
-from app.services.common.formatters import format_amount
 from app.services.review.market_review_formatter import (
     BaseReview,
     build_response,
@@ -51,12 +50,6 @@ class ReviewInputDataNotReadyError(BadRequestError):
     default_message = "当日行情数据尚未采集完成，请稍后重试"
 
 
-class MarketReviewContent(BaseModel):
-    """LLM 结构化输出：分区 key -> Markdown 内容。"""
-
-    sections: dict[str, str]
-
-
 def load_prompt_config() -> PromptConfig:
     config = PromptLoader(get_settings().prompts_dir).load("skills", SKILL_ID)
     if not config.sections:
@@ -69,14 +62,6 @@ def input_hash(trade_date: date, sections: list[PromptSection]) -> str:
     keys = ",".join(section.key for section in sections)
     raw = f"{SKILL_ID}:{keys}:{trade_date.isoformat()}"
     return hashlib.sha256(raw.encode()).hexdigest()
-
-
-def render_section_instructions(sections: list[PromptSection]) -> str:
-    lines = ["请输出以下分区（以分区 key 为字段名）："]
-    for index, section in enumerate(sections, start=1):
-        requirements = section.requirements.strip()
-        lines.append(f"{index}. {section.key}（{section.title}）：{requirements}")
-    return "\n".join(lines)
 
 
 def _hash_for(session_date: date, sections: list[PromptSection]) -> str:
@@ -149,6 +134,51 @@ async def _persist(
     await session.commit()
 
 
+async def persist_market_review_result(
+    session: AsyncSession,
+    *,
+    trade_date: date,
+    contents: dict[str, str],
+    model: str,
+    latency_ms: int = 0,
+) -> MarketReviewResponse:
+    """将助手/skill 产出的五分区复盘落库（ai_analysis_result），返回响应。
+
+    Args:
+        latency_ms: 生成耗时（毫秒）；助手对话路径由工具层计时传入，
+            手动编辑路径缺省为 0。
+
+    Raises:
+        ValueError: sections 缺少 prompt 声明的分区键或内容为空。
+    """
+    sections = load_prompt_config().sections
+    missing = [s.key for s in sections if not (contents.get(s.key) or "").strip()]
+    if missing:
+        expected = ", ".join(s.key for s in sections)
+        raise ValueError(
+            f"sections 缺少必填分区：{', '.join(missing)}；期望键集：{expected}"
+        )
+
+    filtered = {s.key: contents[s.key] for s in sections}
+    await _persist(
+        session,
+        _hash_for(trade_date, sections),
+        model,
+        filtered,
+        trade_date,
+        latency_ms,
+    )
+    return build_response(
+        trade_date=trade_date,
+        contents=filtered,
+        sections=sections,
+        model=model,
+        generated_at=datetime.now(timezone.utc),
+        cached=False,
+        edited=False,
+    )
+
+
 async def generate_market_review(
     session: AsyncSession,
     trade_date: date | None = None,
@@ -171,18 +201,13 @@ async def generate_market_review(
     Raises:
         NonTradingDayError: 指定日期不是交易日。
         ReviewGenerationLockedError: 非阻塞模式下锁被占用且缓存不存在。
+        ReviewInputDataNotReadyError: 板块资金等输入数据尚未就绪。
     """
-    # 懒加载：同层 service 导入会在 services/__init__ 初始化时触发与 app.agent.runtime 的循环导入
-    from app.services.market import (
-        index_quotation_service,
-        index_technical_service,
-        limit_pool_service,
-        market_stats_service,
-        sector_service,
-    )
-
     if trade_date is not None:
         await assert_trading_day(session, trade_date)
+
+    from app.services.market import market_stats_service, sector_service
+
     stats = await market_stats_service.get_market_stats(session, trade_date)
     resolved_date = stats.trade_date
 
@@ -214,98 +239,21 @@ async def generate_market_review(
             if cached is not None:
                 return cached.response
 
-        indices = await index_quotation_service.get_index_quotes(session, resolved_date)
-        limit_up = await limit_pool_service.get_limit_up(session, resolved_date)
+        # 就绪预检：板块资金数据未就绪时抛错，celery 任务依赖该异常做退避重试，
+        # 同时避免在数据缺失时白烧 LLM token（具体取数由 SKILL 工具循环完成）
         sectors = await sector_service.get_sector_overview(session, resolved_date)
-        technical_context = await index_technical_service.build_technical_context(
-            session, resolved_date
-        )
-
-        index_context = "；".join(
-            f"{item.name} {item.price:.2f}（{item.change_pct:+.2f}%）" for item in indices
-        )
-        ladder_context = (
-            "；".join(
-                f"{item.stock_name}（{item.stock_code}）{item.consecutive_boards}板"
-                f" [{item.industry or '未分类'}]"
-                for item in limit_up.ladder[:10]
-            )
-            or "当日无连板个股"
-        )
-        inflow_context = "；".join(
-            f"{item.sector_name} {format_amount(item.main_net_inflow)}"
-            for item in sectors.top_inflow
-        ) or "无数据"
-        outflow_context = "；".join(
-            f"{item.sector_name} {format_amount(item.main_net_inflow)}"
-            for item in sectors.top_outflow
-        ) or "无数据"
-        leading_context = "；".join(
-            f"{item.sector_name}（{item.change_pct:+.2f}%，涨停 {item.limit_up_count} 家）"
-            for item in sectors.leading
-            if item.change_pct is not None
-        ) or "无数据"
-
-        if inflow_context == "无数据" and outflow_context == "无数据" and leading_context == "无数据":
+        has_flow = bool(sectors.top_inflow) or bool(sectors.top_outflow)
+        has_leading = any(item.change_pct is not None for item in sectors.leading)
+        if not (has_flow or has_leading):
             raise ReviewInputDataNotReadyError(
                 "板块资金与领涨板块数据尚未就绪，无法生成资金面分析"
             )
 
-        user_prompt = PromptRenderer.render(
-            prompt_config.user_prompt_template,
-            trade_date=resolved_date.isoformat(),
-            index_context=index_context,
-            technical_context=technical_context,
-            amount_text=format_amount(stats.amount),
-            up_count=stats.up_count if stats.up_count is not None else "未知",
-            down_count=stats.down_count if stats.down_count is not None else "未知",
-            flat_count=stats.flat_count if stats.flat_count is not None else "未知",
-            limit_up_count=stats.limit_up_count,
-            limit_down_count=stats.limit_down_count,
-            emotion_score=(
-                stats.emotion_score if stats.emotion_score is not None else "未知"
-            ),
-            emotion_label=stats.emotion_label or "未知",
-            limit_up_ratio=(
-                stats.limit_up_ratio if stats.limit_up_ratio is not None else "未知"
-            ),
-            continuous_rate_text=(
-                f"{stats.continuous_rate * 100:.1f}%"
-                if stats.continuous_rate is not None
-                else "未知"
-            ),
-            broken_rate_text=(
-                f"{stats.broken_rate * 100:.1f}%"
-                if stats.broken_rate is not None
-                else "未知"
-            ),
-            ladder_context=ladder_context,
-            inflow_context=inflow_context,
-            outflow_context=outflow_context,
-            leading_context=leading_context,
-            section_instructions=render_section_instructions(sections),
+        from app.agent.skills.market_review_agent import run_skill
+
+        contents, model_name, latency_ms = await run_skill(
+            session, trade_date=resolved_date, prompt_config=prompt_config
         )
-
-        from app.agent.runtime import run_structured_agent_with_metrics
-
-        output, latency_ms, model_name = await run_structured_agent_with_metrics(
-            session,
-            prompt_config=prompt_config,
-            user_prompt=user_prompt,
-            result_type=MarketReviewContent,
-        )
-
-        declared_keys = {section.key for section in sections}
-        missing = declared_keys - output.sections.keys()
-        if missing:
-            logger.warning(
-                "market_review_section_missing",
-                trade_date=resolved_date.isoformat(),
-                missing=sorted(missing),
-            )
-        contents = {
-            section.key: output.sections.get(section.key, "") for section in sections
-        }
 
         await _persist(
             session, current_hash, model_name, contents, resolved_date, latency_ms

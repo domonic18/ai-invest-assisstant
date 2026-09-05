@@ -13,6 +13,7 @@ EXPECTED_SKILLS = {
     "financial-health-check",
     "hotspot-detection",
     "industry-chain-analysis",
+    "market-daily-review",
     "research-summary",
     "stock-daily-analysis",
 }

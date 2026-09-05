@@ -7,11 +7,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.agent.core.prompt_loader import PromptConfig, PromptSection
-from app.agent.skills.stock_daily_analysis_agent import (
-    SkillOutputError,
-    _parse_sections,
-    run_skill,
-)
+from app.agent.skills.skill_runtime import SkillOutputError, parse_sections
+from app.agent.skills.stock_daily_analysis_agent import run_skill
 
 _TRADE_DATE = date(2026, 9, 1)
 
@@ -65,25 +62,25 @@ def _patch_run_env(agent: _FakeAgent):
 @pytest.mark.unit
 class TestParseSections:
     def test_parses_valid_json(self) -> None:
-        contents = _parse_sections(_VALID_JSON, _SECTIONS)
+        contents = parse_sections(_VALID_JSON, _SECTIONS)
         assert contents == {"intraday_review": "盘面内容", "strategy": "策略内容"}
 
     def test_parses_json_wrapped_in_text(self) -> None:
         text = f"分析结论如下：\n```json\n{_VALID_JSON}\n```"
-        assert _parse_sections(text, _SECTIONS)["strategy"] == "策略内容"
+        assert parse_sections(text, _SECTIONS)["strategy"] == "策略内容"
 
     def test_raises_when_no_json(self) -> None:
         with pytest.raises(SkillOutputError):
-            _parse_sections("没有 JSON 的回复", _SECTIONS)
+            parse_sections("没有 JSON 的回复", _SECTIONS)
 
     def test_raises_when_sections_missing(self) -> None:
         with pytest.raises(SkillOutputError):
-            _parse_sections('{"foo": 1}', _SECTIONS)
+            parse_sections('{"foo": 1}', _SECTIONS)
 
     def test_raises_when_section_key_missing(self) -> None:
         text = '{"sections": {"intraday_review": "内容"}}'
         with pytest.raises(SkillOutputError, match="strategy"):
-            _parse_sections(text, _SECTIONS)
+            parse_sections(text, _SECTIONS)
 
 
 @pytest.mark.unit
