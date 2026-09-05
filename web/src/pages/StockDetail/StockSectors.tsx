@@ -1,12 +1,12 @@
 import { DownOutlined, ReloadOutlined, UpOutlined } from '@ant-design/icons'
-import { Button, Skeleton, Typography } from 'antd'
+import { Button, Skeleton } from 'antd'
 import { useState } from 'react'
 
-import { changeColor, formatAmount, formatPercent } from '@/utils/formatters'
-import type { StockSector } from '@ai-invest/shared'
+import type { Stock, StockSector } from '@ai-invest/shared'
 
 interface StockSectorsProps {
   sectors?: { code: string; name: string; sectors: StockSector[] } | null
+  stock?: Stock | null
   isLoading?: boolean
   isError?: boolean
   onRetry?: () => void
@@ -15,60 +15,61 @@ interface StockSectorsProps {
 /** 收起态展示的概念数量：覆盖高频关注即可，避免标签占满侧栏。 */
 const COLLAPSED_COUNT = 5
 
-function SectorTag({ sector }: { sector: StockSector }) {
-  const changeText = sector.changePct != null ? formatPercent(sector.changePct) : null
-  const flowText = sector.mainNetInflow != null ? formatAmount(sector.mainNetInflow) : null
-
+function SectionHeader({ title, sub }: { title: string; sub?: string }) {
   return (
-    <span
-      className={`inline-flex items-center text-xs px-1.5 py-0.5 rounded ${
-        sector.type === 'industry'
-          ? 'bg-[#1a2a3a] text-[#6ab2ff]'
-          : 'bg-[#1a2f2f] text-[#5eead4]'
-      }`}
-    >
-      <span className="mr-1">{sector.name}</span>
-      {changeText && (
-        <span className={changeColor(sector.changePct)}>{changeText}</span>
-      )}
-      {flowText && (
-        <span className={`ml-1 ${changeColor(sector.mainNetInflow)}`}>({flowText})</span>
-      )}
-    </span>
+    <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-[#23262d]">
+      <span className="text-[13px] font-semibold text-[#f0f1f5]">{title}</span>
+      {sub && <span className="text-[11px] text-[#5c616e]">{sub}</span>}
+    </div>
   )
 }
 
-export function StockSectors({ sectors, isLoading, isError, onRetry }: StockSectorsProps) {
+export function StockSectors({
+  sectors,
+  stock,
+  isLoading,
+  isError,
+  onRetry,
+}: StockSectorsProps) {
   const [expanded, setExpanded] = useState(false)
 
   if (isLoading) {
     return (
-      <div className="px-3 py-2">
-        <Skeleton active paragraph={{ rows: 1 }} />
+      <div>
+        <SectionHeader title="所属行业" sub="申万分类" />
+        <div className="px-3.5 py-3">
+          <Skeleton active title={false} paragraph={{ rows: 2 }} />
+        </div>
       </div>
     )
   }
 
   if (isError) {
     return (
-      <div className="px-3 py-2 flex items-center gap-2">
-        <Typography.Text type="danger" className="text-xs">
-          概念板块加载失败
-        </Typography.Text>
-        {onRetry && (
-          <Button size="small" icon={<ReloadOutlined />} onClick={onRetry}>
-            重试
-          </Button>
-        )}
+      <div>
+        <SectionHeader title="所属行业" sub="申万分类" />
+        <div className="px-3.5 py-3 flex items-center gap-2">
+          <span className="text-xs text-[#f85149]">概念板块加载失败</span>
+          {onRetry && (
+            <Button size="small" icon={<ReloadOutlined />} onClick={onRetry}>
+              重试
+            </Button>
+          )}
+        </div>
       </div>
     )
   }
 
-  const concepts = sectors?.sectors.filter((s) => s.type === 'concept') ?? []
-  if (!concepts.length) return null
+  const industryLevels = [
+    { label: '一级', value: stock?.industryLevel1 },
+    { label: '二级', value: stock?.industryLevel2 },
+    { label: '三级', value: stock?.industryLevel3 },
+  ].filter((lv): lv is { label: string; value: string } => Boolean(lv.value))
 
-  // 行业归属已在头部展示；此处只列概念。有板块资金流的概念排前
-  // （按主力净流入降序）作为"最相关"排序，其余保持原始顺序。
+  const concepts = sectors?.sectors.filter((s) => s.type === 'concept') ?? []
+  if (!industryLevels.length && !concepts.length) return null
+
+  // 有板块资金流的概念排前（按主力净流入降序）作为"最相关"排序，其余保持原始顺序。
   const ranked = [
     ...concepts
       .filter((c) => c.mainNetInflow != null)
@@ -79,35 +80,62 @@ export function StockSectors({ sectors, isLoading, isError, onRetry }: StockSect
   const hiddenCount = ranked.length - COLLAPSED_COUNT
 
   return (
-    <div className="px-3 py-2">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-xs text-[#8c8c8c]">概念：</span>
-        {visible.map((sector) => (
-          <SectorTag key={`${sector.type}-${sector.name}`} sector={sector} />
-        ))}
-        {hiddenCount > 0 && !expanded && (
-          <Button
-            type="link"
-            size="small"
-            className="!px-0 !h-auto !text-xs"
-            icon={<DownOutlined className="!text-[10px]" />}
-            onClick={() => setExpanded(true)}
-          >
-            展开 {hiddenCount} 个
-          </Button>
-        )}
-        {expanded && hiddenCount > 0 && (
-          <Button
-            type="link"
-            size="small"
-            className="!px-0 !h-auto !text-xs"
-            icon={<UpOutlined className="!text-[10px]" />}
-            onClick={() => setExpanded(false)}
-          >
-            收起
-          </Button>
-        )}
-      </div>
+    <div>
+      {industryLevels.length > 0 && (
+        <div>
+          <SectionHeader title="所属行业" sub="申万分类" />
+          <div className="px-3.5 pb-1">
+            {industryLevels.map((lv, i) => (
+              <div
+                key={lv.label}
+                className={`flex items-center gap-3 py-[7px] ${
+                  i < industryLevels.length - 1 ? 'border-b border-[#23262d]' : ''
+                }`}
+              >
+                <span className="shrink-0 w-8 text-[11px] text-[#5c616e]">{lv.label}</span>
+                <span className="text-[13px] text-[#f0f1f5]">{lv.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {concepts.length > 0 && (
+        <div>
+          <SectionHeader
+            title="概念归属"
+            sub={`按主力净流入排序 · 共 ${concepts.length} 个`}
+          />
+          <div className="px-3.5 pb-3 pt-2.5">
+            <div className="flex flex-wrap gap-1.5">
+              {visible.map((sector) => (
+                <span
+                  key={`${sector.type}-${sector.name}`}
+                  className="inline-flex items-center rounded-full px-2.5 py-1 text-xs bg-[#181a21] border border-[#23262d] text-[#8a8f98]"
+                >
+                  {sector.name}
+                </span>
+              ))}
+            </div>
+            {(hiddenCount > 0 || expanded) && (
+              <button
+                type="button"
+                onClick={() => setExpanded((prev) => !prev)}
+                className="mt-2 w-full flex items-center justify-center gap-1 py-[5px] text-xs text-[#5c616e] bg-transparent border border-dashed border-[#23262d] rounded transition-colors hover:text-[#5e6ad2] hover:border-[rgba(94,106,210,0.4)]"
+              >
+                {expanded ? (
+                  <>
+                    收起 <UpOutlined className="!text-[10px]" />
+                  </>
+                ) : (
+                  <>
+                    展开全部 {hiddenCount} 个 <DownOutlined className="!text-[10px]" />
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

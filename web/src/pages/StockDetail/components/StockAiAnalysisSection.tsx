@@ -1,11 +1,11 @@
-import { LoadingOutlined, ReloadOutlined, RobotOutlined } from '@ant-design/icons'
-import { Button, Card, DatePicker, Empty, Typography, message } from 'antd'
+import { CalendarOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Button, DatePicker, Empty, message } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { MarkdownText } from '@/components/common/MarkdownText'
 import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
-import { useStockAiAnalysis } from '@/hooks/useStocks'
+import { useStockAiAnalysis, useStockAiAnalysisDates } from '@/hooks/useStocks'
 import { useAssistantStore } from '@/stores/assistant'
 
 interface StockAiAnalysisSectionProps {
@@ -20,6 +20,12 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
     stockCode,
     tradeDate,
   )
+  const { data: analysisDates, refetch: refetchDates } =
+    useStockAiAnalysisDates(stockCode)
+  const recordedDates = useMemo(
+    () => new Set(analysisDates ?? []),
+    [analysisDates],
+  )
   const data = status?.data ?? null
   // 后端把显式非交易日归位到不晚于该日的最近交易日；生成与展示一律以
   // 归位后的有效交易日为准，避免对周末/节假日发起无意义分析
@@ -29,6 +35,7 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
     if (event.stockCode !== stockCode) return false
     setAnalyzing(false)
     void refetch()
+    void refetchDates()
     message.success('AI 分析完成，已刷新结果')
     return true
   })
@@ -53,27 +60,51 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
   const datePicker = (
     <DatePicker
       size="small"
+      variant="borderless"
+      format="MM-DD"
       value={pickerDate ? dayjs(pickerDate) : undefined}
-      placeholder="最近交易日"
+      placeholder="交易日"
       allowClear
+      suffixIcon={<CalendarOutlined className="!text-[10px] !text-[#5c616e]" />}
       disabledDate={(d: Dayjs) =>
         d.isAfter(dayjs(), 'day') || d.day() === 0 || d.day() === 6
       }
+      cellRender={(current, info) => {
+        if (info.type !== 'date' || !dayjs.isDayjs(current)) return info.originNode
+        const iso = current.format('YYYY-MM-DD')
+        const hasRecord = recordedDates.has(iso)
+        return (
+          <div
+            className="ant-picker-cell-inner relative"
+            title={hasRecord ? `${iso} 已生成分析` : undefined}
+          >
+            {current.date()}
+            {hasRecord && (
+              <span className="absolute bottom-[2px] left-1/2 -translate-x-1/2 w-[4px] h-[4px] rounded-full bg-[#5e6ad2]" />
+            )}
+          </div>
+        )
+      }}
       onChange={(d: Dayjs | null) => setTradeDate(d ? d.format('YYYY-MM-DD') : undefined)}
     />
   )
 
   const header = (
-    <div className="flex items-center justify-between mb-3">
-      <Typography.Text className="text-gray-400 text-xs tracking-widest">
+    <div className="flex items-center flex-nowrap gap-2 px-3.5 py-2.5 border-b border-[#23262d]">
+      <span className="text-[13px] font-semibold whitespace-nowrap text-[#f0f1f5]">
         AI 分析解读
-      </Typography.Text>
-      <div className="flex items-center gap-2">
+      </span>
+      <div className="ml-auto flex items-center flex-nowrap gap-1">
         {datePicker}
         {data && (
-          <Button size="small" type="primary" ghost icon={<ReloadOutlined />} onClick={startAnalysis}>
+          <button
+            type="button"
+            onClick={startAnalysis}
+            className="shrink-0 whitespace-nowrap inline-flex items-center gap-1 px-2 py-[5px] text-xs rounded-md text-[#8a8f98] bg-transparent border border-transparent transition-colors hover:bg-[#1c1f26] hover:text-[#f0f1f5]"
+          >
+            <ReloadOutlined style={{ fontSize: 12 }} />
             重新生成
-          </Button>
+          </button>
         )}
       </div>
     </div>
@@ -81,18 +112,19 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
 
   if (isLoading) {
     return (
-      <div className="p-3">
+      <div>
         {header}
-        <div className="text-sm text-gray-400">加载 AI 分析内容…</div>
+        <div className="p-3.5 text-sm text-[#8a8f98]">加载 AI 分析内容…</div>
       </div>
     )
   }
 
   if (isError) {
     return (
-      <div className="p-3">
+      <div>
         {header}
         <Empty
+          className="py-4"
           description={error instanceof Error ? error.message : '加载失败'}
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         >
@@ -106,9 +138,9 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
 
   if (status?.status === 'running') {
     return (
-      <div className="p-3">
+      <div>
         {header}
-        <div className="flex items-center gap-2 text-sm text-gray-400">
+        <div className="p-3.5 flex items-center gap-2 text-sm text-[#8a8f98]">
           <LoadingOutlined spin />
           AI 分析生成中，完成后自动展示…
         </div>
@@ -118,9 +150,10 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
 
   if (!data) {
     return (
-      <div className="p-3">
+      <div>
         {header}
         <Empty
+          className="py-4"
           description="该交易日尚未生成 AI 分析"
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         >
@@ -128,11 +161,11 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
             <Button size="small" type="primary" onClick={startAnalysis}>
               生成{effectiveDate ? ` ${effectiveDate} ` : '当日 '}分析
             </Button>
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-[#5c616e]">
               点击后将在 AI 助手侧边栏执行分析，完成后自动展示
               {analyzing && '；分析进行中，进展见右侧 AI 助手'}
             </div>
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-[#5c616e]">
               开启自选股分组的 AI 复盘后，每个交易日收盘自动生成
             </div>
           </div>
@@ -144,42 +177,46 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
   const sections = data.sections.filter((section) => section.content)
 
   return (
-    <div className="p-3 space-y-3">
+    <div>
       {header}
       {analyzing && (
-        <div className="flex items-center gap-2 text-xs text-gray-400">
+        <div className="px-3.5 pt-2 flex items-center gap-2 text-xs text-[#8a8f98]">
           <LoadingOutlined spin />
           分析进行中，进展见右侧 AI 助手…
         </div>
       )}
-      {sections.length ? (
-        sections.map((section) => (
-          <Card
-            key={section.key}
-            variant="borderless"
-            size="small"
-            title={
-              <span>
-                <RobotOutlined className="mr-2" />
+      <div className="px-3.5 pb-3">
+        {sections.length ? (
+          sections.map((section, i) => (
+            <div
+              key={section.key}
+              className={`flex gap-2.5 py-2.5 ${
+                i < sections.length - 1 ? 'border-b border-[#23262d]' : ''
+              }`}
+            >
+              <span className="shrink-0 w-[60px] pt-0.5 text-xs font-semibold text-[#5e6ad2]">
                 {section.title}
               </span>
-            }
-          >
-            <div className="text-sm">
-              <MarkdownText content={section.content} />
+              <div className="flex-1 min-w-0 text-xs text-[#8a8f98] leading-[1.75]">
+                <MarkdownText content={section.content} />
+              </div>
             </div>
-          </Card>
-        ))
-      ) : (
-        <Empty description="当日分析内容为空" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-      )}
-      <div className="text-xs text-gray-500">
-        模型: {data.model ?? '-'} · 数据日期: {data.tradeDate} · 生成时间:{' '}
-        {new Date(data.generatedAt).toLocaleString('zh-CN')}
-        {data.cached && ' · 缓存'}
-      </div>
-      <div className="text-center text-xs text-gray-500">
-        内容由 AI 生成，仅供参考，不构成投资建议
+          ))
+        ) : (
+          <Empty
+            className="py-4"
+            description="当日分析内容为空"
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          />
+        )}
+        <div className="mt-2.5 pt-2.5 border-t border-dashed border-[#23262d] font-mono text-[11px] text-[#5c616e]">
+          模型 {data.model ?? '-'} · {data.tradeDate} · 生成{' '}
+          {new Date(data.generatedAt).toLocaleString('zh-CN')}
+          {data.cached && ' · 命中缓存'}
+        </div>
+        <div className="mt-2 text-[10px] text-[#5c616e]">
+          以上内容由 AI 生成，不构成投资建议，请结合自身风险承受能力独立决策。
+        </div>
       </div>
     </div>
   )

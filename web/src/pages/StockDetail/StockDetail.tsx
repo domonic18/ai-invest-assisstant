@@ -1,9 +1,16 @@
-import { FileTextOutlined, RobotOutlined, WalletOutlined } from '@ant-design/icons'
+import {
+  AppstoreOutlined,
+  DoubleLeftOutlined,
+  DoubleRightOutlined,
+  FileTextOutlined,
+  RobotOutlined,
+  WalletOutlined,
+} from '@ant-design/icons'
 import { useIsFetching } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
-import { Select, Tabs } from 'antd'
+import { Tabs } from 'antd'
 
 import { StockChartView } from '@/components/charts/stockChartView'
 import { useFinancial } from '@/hooks/useFinancial'
@@ -21,28 +28,40 @@ import { panelColors } from '@/theme/colors'
 import type { StockQuote, StockSector } from '@ai-invest/shared'
 
 import {
+  buildViews,
   type ChartViewConfig,
-  findPresetKey,
+  DEFAULT_INDICATORS,
   MIN_CHART_HEIGHT,
   STORAGE_KEY,
   TOOLBAR_HEIGHT,
-  VIEW_PRESETS,
-  type ViewPresetKey,
 } from './chartConfig'
 import { AddToWatchlistModal } from './components/AddToWatchlistModal'
 import { ErrorState } from './components/ErrorState'
+import { QuoteStrip } from './components/QuoteStrip'
 import { StockAiAnalysisSection } from './components/StockAiAnalysisSection'
 import { StockFinancial } from './components/StockFinancial'
-import { StockHeader } from './components/StockHeader'
 import { StockResearch } from './components/StockResearch'
 import { StockLoadingStatus, type LoadingTask } from './StockLoadingStatus'
-import { StockQuoteHeader } from './StockQuoteHeader'
 import { StockSectors } from './StockSectors'
 
 type StockSectorsData = { code: string; name: string; sectors: StockSector[] }
 
 const PANEL_BG = panelColors.bg
 const BORDER_COLOR = panelColors.border
+
+/** 右栏收起态记忆（与左侧边栏折叠同样的持久化约定）。 */
+const RIGHT_PANEL_COLLAPSED_KEY = 'ai-invest.stock-detail.right-panel.collapsed'
+
+/** 双图加权分配：上 58 / 下 42，与原型一致。 */
+const DUAL_VIEW_WEIGHTS = [0.58, 0.42]
+
+function normalizeViews(parsed: unknown): ChartViewConfig[] | null {
+  if (!Array.isArray(parsed) || parsed.length === 0) return null
+  return (parsed as ChartViewConfig[]).map((v) => ({
+    ...v,
+    indicators: { ...DEFAULT_INDICATORS, ...v.indicators },
+  }))
+}
 
 export function StockDetail() {
   const { code } = useParams<{ code?: string }>()
@@ -58,13 +77,24 @@ export function StockDetail() {
   const { data: watchlist } = useWatchlist()
 
   const [addWatchOpen, setAddWatchOpen] = useState(false)
+  const [panelCollapsed, setPanelCollapsed] = useState(
+    () => localStorage.getItem(RIGHT_PANEL_COLLAPSED_KEY) === '1',
+  )
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(RIGHT_PANEL_COLLAPSED_KEY, panelCollapsed ? '1' : '0')
+    } catch {
+      // ignore storage errors
+    }
+  }, [panelCollapsed])
 
   const klineFetching = useIsFetching({
     queryKey: queryKeys.stocks.kline(stockCode),
   })
 
-  const [views, setViews] = useState<ChartViewConfig[]>(VIEW_PRESETS[0].views)
-  const [presetKey, setPresetKey] = useState<ViewPresetKey | 'custom'>('daily-weekly')
+  const [views, setViews] = useState<ChartViewConfig[]>(() => buildViews(true))
+  const [dual, setDual] = useState(true)
   const [viewsLoaded, setViewsLoaded] = useState(false)
 
   const storageKey = useMemo(() => `${STORAGE_KEY}.${stockCode}`, [stockCode])
@@ -73,23 +103,14 @@ export function StockDetail() {
     if (!stockCode) return
     try {
       const rawViews = localStorage.getItem(storageKey)
-      const rawPreset = localStorage.getItem(`${storageKey}.preset`)
-      let initialViews = VIEW_PRESETS[0].views
-      if (rawViews) {
-        const parsed = JSON.parse(rawViews) as ChartViewConfig[]
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          initialViews = parsed
-        }
-      }
-      setViews(initialViews)
-      if (rawPreset && VIEW_PRESETS.some((p) => p.key === rawPreset)) {
-        setPresetKey(rawPreset as ViewPresetKey)
-      } else {
-        setPresetKey(findPresetKey(initialViews))
-      }
+      const rawDual = localStorage.getItem(`${storageKey}.dual`)
+      const nextDual = rawDual !== '0'
+      const parsed = rawViews ? normalizeViews(JSON.parse(rawViews)) : null
+      setDual(nextDual)
+      setViews(parsed ?? buildViews(nextDual))
     } catch {
-      setViews(VIEW_PRESETS[0].views)
-      setPresetKey('daily-weekly')
+      setDual(true)
+      setViews(buildViews(true))
     }
     setViewsLoaded(true)
   }, [storageKey, stockCode])
@@ -98,23 +119,24 @@ export function StockDetail() {
     if (!viewsLoaded) return
     try {
       localStorage.setItem(storageKey, JSON.stringify(views))
-      localStorage.setItem(`${storageKey}.preset`, presetKey)
+      localStorage.setItem(`${storageKey}.dual`, dual ? '1' : '0')
     } catch {
       // ignore storage errors
     }
-  }, [views, presetKey, viewsLoaded, storageKey])
-
-  useEffect(() => {
-    setPresetKey(findPresetKey(views))
-  }, [views])
+  }, [views, dual, viewsLoaded, storageKey])
 
   const isWatched = watchlist?.some((item) => item.code === stockCode)
 
-  const handlePresetChange = (value: ViewPresetKey | 'custom') => {
-    const preset = VIEW_PRESETS.find((p) => p.key === value)
-    if (!preset) return
-    setPresetKey(value)
-    setViews(preset.views.map((v) => ({ ...v })))
+  const handleDualChange = (next: boolean) => {
+    setDual(next)
+    setViews((prev) => {
+      if (next) {
+        if (prev.length === 2) return prev
+        const weekly = buildViews(true).find((v) => v.id === 'weekly')
+        return weekly ? [...prev, { ...weekly }] : prev
+      }
+      return prev.filter((v) => v.id === 'daily')
+    })
   }
 
   const updateView = (id: string, patch: Partial<ChartViewConfig>) => {
@@ -147,8 +169,17 @@ export function StockDetail() {
     }
   }, [])
 
-  const chartHeight = useMemo(() => {
-    return Math.max(MIN_CHART_HEIGHT, Math.floor(containerHeight / views.length) - TOOLBAR_HEIGHT)
+  const viewHeights = useMemo(() => {
+    if (views.length === 2) {
+      return DUAL_VIEW_WEIGHTS.map(
+        (w) => Math.max(MIN_CHART_HEIGHT, Math.floor(containerHeight * w) - TOOLBAR_HEIGHT),
+      )
+    }
+    const each = Math.max(
+      MIN_CHART_HEIGHT,
+      Math.floor(containerHeight / views.length) - TOOLBAR_HEIGHT,
+    )
+    return Array.from({ length: views.length }, () => each)
   }, [containerHeight, views.length])
 
   const loadingTasks: LoadingTask[] = [
@@ -221,6 +252,16 @@ export function StockDetail() {
   const quote: StockQuote | undefined = quoteQ.data
   const sectors: StockSectorsData | undefined = sectorsQ.data
 
+  const sectorTabChildren = (
+    <StockSectors
+      sectors={sectors}
+      stock={stock}
+      isLoading={sectorsQ.isLoading}
+      isError={sectorsQ.isError}
+      onRetry={() => sectorsQ.refetch()}
+    />
+  )
+
   const rightTabItems = [
     {
       key: 'ai',
@@ -272,16 +313,17 @@ export function StockDetail() {
         />
       ),
     },
+    {
+      key: 'sector',
+      label: (
+        <span className="text-xs">
+          <AppstoreOutlined className="mr-1" />
+          板块
+        </span>
+      ),
+      children: sectorTabChildren,
+    },
   ]
-
-  const headerContent = (
-    <StockHeader
-      stock={stock}
-      stockCode={stockCode}
-      isWatched={isWatched}
-      onToggleWatchlist={() => setAddWatchOpen(true)}
-    />
-  )
 
   return (
     <div className="flex flex-col h-full">
@@ -291,14 +333,6 @@ export function StockDetail() {
         onClose={() => setAddWatchOpen(false)}
       />
 
-      {/* Mobile-only header */}
-      <div
-        className="lg:hidden px-4 py-3"
-        style={{ borderBottom: `1px solid ${BORDER_COLOR}`, backgroundColor: PANEL_BG }}
-      >
-        {headerContent}
-      </div>
-
       {/* Mobile loading status (mirrors right-panel status on small screens) */}
       <div className="lg:hidden">
         <StockLoadingStatus tasks={loadingTasks} />
@@ -306,22 +340,20 @@ export function StockDetail() {
 
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Center: charts */}
+        {/* Center: quote strip + charts */}
         <div className="flex-1 flex flex-col min-w-0">
           <div
-            className="flex items-center justify-between px-3 py-2"
+            className="shrink-0"
             style={{ borderBottom: `1px solid ${BORDER_COLOR}`, backgroundColor: PANEL_BG }}
           >
-            <span className="text-sm font-medium text-[#d1d4dc]">多周期 K 线</span>
-            <Select<ViewPresetKey | 'custom'>
-              value={presetKey}
-              onChange={handlePresetChange}
-              options={[
-                ...VIEW_PRESETS.map((p) => ({ value: p.key, label: p.label })),
-                { value: 'custom' as const, label: '自定义' },
-              ]}
-              size="small"
-              className="w-36"
+            <QuoteStrip
+              stockCode={stockCode}
+              stock={stock}
+              stockLoading={detailQ.isLoading}
+              quote={quote}
+              quoteLoading={quoteQ.isLoading}
+              isWatched={isWatched}
+              onAddWatchlist={() => setAddWatchOpen(true)}
             />
           </div>
 
@@ -330,7 +362,7 @@ export function StockDetail() {
             className="flex-1 overflow-hidden flex flex-col"
             style={{ backgroundColor: '#050608' }}
           >
-            {views.map((view) => (
+            {views.map((view, i) => (
               <StockChartView
                 key={view.id}
                 code={stockCode}
@@ -338,7 +370,8 @@ export function StockDetail() {
                 defaultIndicators={view.indicators}
                 onPeriodChange={(period) => updateView(view.id, { period })}
                 onIndicatorsChange={(indicators) => updateView(view.id, { indicators })}
-                height={chartHeight}
+                height={viewHeights[i] ?? MIN_CHART_HEIGHT}
+                layoutToggle={i === 0 ? { value: dual, onChange: handleDualChange } : undefined}
               />
             ))}
           </div>
@@ -346,40 +379,47 @@ export function StockDetail() {
 
         {/* Right: info panel */}
         <div
-          className="hidden lg:flex lg:flex-col lg:w-80 shrink-0 overflow-y-auto"
-          style={{ borderLeft: `1px solid ${BORDER_COLOR}`, backgroundColor: PANEL_BG }}
+          className="hidden lg:flex lg:flex-col shrink-0 overflow-hidden"
+          style={{
+            borderLeft: `1px solid ${BORDER_COLOR}`,
+            backgroundColor: PANEL_BG,
+            width: panelCollapsed ? 36 : 360,
+          }}
         >
-          <div className="px-3 py-3" style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
-            {headerContent}
-          </div>
+          {panelCollapsed ? (
+            <button
+              type="button"
+              title="展开信息面板"
+              onClick={() => setPanelCollapsed(false)}
+              className="w-full h-9 flex items-center justify-center text-[#8a8f98] transition-colors hover:bg-[#1c1f26] hover:text-[#f0f1f5]"
+            >
+              <DoubleLeftOutlined />
+            </button>
+          ) : (
+            <>
+              <StockLoadingStatus tasks={loadingTasks} />
 
-          <StockLoadingStatus tasks={loadingTasks} />
-
-          <div style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
-            <StockQuoteHeader
-              quote={quote}
-              isLoading={quoteQ.isLoading}
-              isError={quoteQ.isError}
-              onRetry={() => quoteQ.refetch()}
-            />
-          </div>
-
-          <div style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
-            <StockSectors
-              sectors={sectors}
-              isLoading={sectorsQ.isLoading}
-              isError={sectorsQ.isError}
-              onRetry={() => sectorsQ.refetch()}
-            />
-          </div>
-
-          <div className="flex-1 p-3">
-            <Tabs
-              defaultActiveKey="ai"
-              items={rightTabItems}
-              className="stock-detail-tabs"
-            />
-          </div>
+              <div className="flex-1 overflow-y-auto p-3">
+                <Tabs
+                  defaultActiveKey="ai"
+                  items={rightTabItems}
+                  className="stock-detail-tabs"
+                  tabBarExtraContent={{
+                    right: (
+                      <button
+                        type="button"
+                        title="收起信息面板"
+                        onClick={() => setPanelCollapsed(true)}
+                        className="flex items-center justify-center w-6 h-6 rounded text-[#8a8f98] transition-colors hover:bg-[#1c1f26] hover:text-[#f0f1f5]"
+                      >
+                        <DoubleRightOutlined className="!text-[12px]" />
+                      </button>
+                    ),
+                  }}
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
