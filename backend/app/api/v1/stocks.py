@@ -3,14 +3,12 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.collector import CollectorQueue
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.stock import (
-    StockAiAnalysisGenerateRequest,
     StockAiAnalysisStatusResponse,
     StockBasicResponse,
     StockIntradayResponse,
@@ -145,43 +143,3 @@ async def get_stock_ai_analysis(
     if await stock_daily_analysis_service.is_generation_running(code, resolved_date):
         return StockAiAnalysisStatusResponse(status="running")
     return StockAiAnalysisStatusResponse(status="none")
-
-
-@router.post(
-    "/{code}/ai-analysis",
-    response_model=StockAiAnalysisStatusResponse,
-    responses={200: {"description": "缓存命中，直接返回既有分析"}, 202: {"description": "已派发异步生成任务"}},
-)
-async def generate_stock_ai_analysis(
-    code: str,
-    data: StockAiAnalysisGenerateRequest,
-    session: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
-    response: Response,
-) -> StockAiAnalysisStatusResponse:
-    """触发个股 AI 分析生成（regenerate=true 强制重新生成）。
-
-    trade_date 缺省取最近交易日；命中缓存且未强制时 200 直接返回既有结果，
-    否则派发 Celery 异步任务并返回 202，前端轮询 GET 获取进度与结果。
-    """
-    resolved_date = data.trade_date or await trade_calendar_service.resolve_latest_trade_date(
-        session
-    )
-    if not data.regenerate:
-        cached = await stock_daily_analysis_service.get_stock_analysis(
-            session, code, trade_date=resolved_date
-        )
-        if cached is not None:
-            return StockAiAnalysisStatusResponse(status="ready", data=cached)
-    if await stock_daily_analysis_service.is_generation_running(code, resolved_date):
-        response.status_code = status.HTTP_202_ACCEPTED
-        return StockAiAnalysisStatusResponse(status="running")
-
-    from collector.celery_tasks import run_stock_ai_analysis
-
-    run_stock_ai_analysis.apply_async(
-        args=[code, resolved_date.isoformat()],
-        queue=CollectorQueue.HEAVY.value,
-    )
-    response.status_code = status.HTTP_202_ACCEPTED
-    return StockAiAnalysisStatusResponse(status="running")

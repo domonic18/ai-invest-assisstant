@@ -266,39 +266,3 @@ def _result_to_dict(result: CollectResult) -> dict[str, Any]:
         "finished_at": result.finished_at.isoformat() if result.finished_at else None,
         "metadata": result.metadata or {},
     }
-
-
-@app.task(
-    bind=True,
-    base=AsyncTask,
-    name="collector.celery_tasks.run_stock_ai_analysis",
-    soft_time_limit=600,
-)
-def run_stock_ai_analysis(
-    self: AsyncTask, stock_code: str, trade_date: str
-) -> dict[str, Any]:
-    """异步生成个股每日 AI 分析（web API 手动触发）。
-
-    不进 TaskSpec/collector_log：产物落在 ai_analysis_result 表，进度由
-    redis 生成锁与 GET 轮询接口反馈。deepagents 工具循环耗时较长，
-    soft_time_limit 放宽到 600s。
-    """
-    configure_logging()
-
-    async def _execute() -> dict[str, Any]:
-        from datetime import date
-
-        from app.services.review import stock_daily_analysis_service
-
-        async with AsyncSessionLocal() as session:
-            analysis = await stock_daily_analysis_service.generate_stock_analysis(
-                session, stock_code, trade_date=date.fromisoformat(trade_date)
-            )
-            return {
-                "stock_code": stock_code,
-                "trade_date": trade_date,
-                "cached": analysis.cached,
-            }
-
-    loop = self._ensure_loop()
-    return loop.run_until_complete(_execute())

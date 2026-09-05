@@ -220,13 +220,6 @@ class StockAiAnalysisResponse(BaseModel):
     sections: list[StockAiAnalysisSection]
 
 
-class StockAiAnalysisGenerateRequest(BaseModel):
-    """触发个股 AI 分析生成请求。"""
-
-    trade_date: date | None = None
-    regenerate: bool = False
-
-
 class StockAiAnalysisStatusResponse(BaseModel):
     """个股 AI 分析异步状态响应（轮询契约）。
 
