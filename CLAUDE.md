@@ -13,7 +13,7 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 ### 技术栈概览
 
 - **前端**: React 18.3+ + TypeScript 5.4+ + Vite 5.2+ + React Router 6.23+ + TanStack Query + Zustand + ECharts + AntV/G6 + D3 + Tailwind CSS
-- **后端**: Python 3.10+ + FastAPI 0.111+ + SQLAlchemy 2.0+ + Alembic + Pydantic 2.7+ + PydanticAI/OpenAI Agents SDK
+- **后端**: Python 3.10+ + FastAPI 0.111+ + SQLAlchemy 2.0+ + Alembic + Pydantic 2.7+ + LangChain/deepagents
 - **数据存储**: PostgreSQL/TimescaleDB + Redis + Elasticsearch + COS（S3 兼容对象存储）
 - **消息队列**: Celery + Redis
 - **部署**: Docker + Docker Compose + 腾讯云 SCF（SPA + API 同源一体镜像）+ 轻量服务器（数据与采集任务）+ COS（文件）
@@ -100,7 +100,34 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 - 使用一致的 JSON 响应格式
 - 列表端点支持分页
 
-## 4. 任务完成后协议
+## 4. AI 功能交互范式（新增 AI 功能必须遵循）
+
+页面级 AI 生成统一走「侧边栏 Agent 触发 + page_event 回写」；定时自动化走「Celery → internal 采集器 → 服务层」。
+禁止为 AI 生成新增阻塞式 HTTP 端点（分钟级长任务会被代理 504 中断，且用户看不到过程）。
+
+### 路径一：前端手动触发（侧边栏 Agent）
+
+1. **触发**：页面按钮调 `useAssistantStore.getState().sendQuestion(prompt)`，打开侧边栏并预置问题（范本 `web/src/pages/Dashboard/components/LimitUpSection.tsx` / `AiReviewSection.tsx`）
+2. **执行**：助手 agent 按 `skills/<skill-id>/SKILL.md` 取数分析（工具集见 `backend/app/agent/tools/__init__.py` 的 `build_assistant_tools()`）
+3. **落库**：分析完成调用 `persist_*` 工具写库，工具返回值携带 `__event__`（用 `page_event("<domain>.complete", **fields)` 构造，见 `backend/app/agent/tools/page_event.py`）
+4. **回写**：事件经 SSE 送到前端；`web/src/components/assistant/pageEvents.ts` 的 `PAGE_EVENT_DEFINITIONS` 是唯一映射点（snake_case 字段 parse 为 camelCase + 定义对话内查看按钮文案）
+5. **刷新**：页面用 `usePageAssistantResult('<domain>.complete', cb)` 订阅，回调内 `invalidateQueries` 刷新数据 + `message.success` 并返回 true；面板关闭时用 panelOpen effect 复位"生成中"状态
+
+### 路径二：定时自动化（Celery 定时任务）
+
+- cron 声明在 `collector_task` 表（seed：`docker/database/init-scripts/03-seed.sql`，小时均为北京时间，如 `limit_up_ai_review_1630` = `30 16 * * 1-5`）
+- 链路：celery beat → collector runtime `run_task` → `TASK_SPECS` 该任务的 `internal` 渠道（`backend/collector/runtime/registry.py`）→ `backend/collector/spiders/<skill>_*.py` 调服务层生成函数（如 `limit_up_ai_service.generate_attribution`）
+- 服务层负责 redis 并发锁 + 缓存优先（已生成直接返回）；输入数据未就绪抛 `ReviewInputDataNotReadyError` 由定时任务退避重试
+- 两条路径共用同一 SKILL.md 与服务层，落库同 skill_id（新行即最新），手动与定时结果互不冲突
+
+### 新增一个 AI 功能的接线清单
+
+- 后端：`skills/<id>/SKILL.md`（触发条件 / allowed-tools 含 persist 工具 / 输出 Schema）→ persist 工具（返回 `__event__`）→ 注册进 `build_assistant_tools()` → `TASK_SPECS` 加 internal spec + seed cron → 服务层加锁与缓存
+- 前端：`stores/assistant.ts` 的 `PageAssistantResult` 联合类型加分支 → `pageEvents.ts` 注册表加一条 → 页面 `usePageAssistantResult` 订阅
+
+约定：事件类型命名 `<domain>.complete`；事件字段 snake_case；SKILL.md 的 allowed-tools 列出两条路径工具的并集（含 persist 工具）；persist 工具只注入助手对话路径，定时路径直接调服务层；服务层禁止顶层导入 `app.agent.tools / skills / runtime`（函数内延迟导入，`app.agent.core` 纯配置叶可顶层导入），工具层可导入服务层。
+
+## 5. 任务完成后协议
 
 完成任何编码任务后，遵循此检查清单：
 
