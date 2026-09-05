@@ -1,14 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 
 import {
   fetchKline,
-  fetchStockAiAnalysis,
+  fetchStockAiAnalysisDates,
+  fetchStockAiAnalysisStatus,
   fetchStockDetail,
   fetchStockIntraday,
   fetchStockKline,
   fetchStockQuote,
   fetchStockSectors,
-  generateStockAiAnalysis,
   searchStocks,
   type StockKlineParams,
 } from '@/api/stocks'
@@ -85,27 +85,23 @@ export function useKline(code: string, pageSize = 100) {
   })
 }
 
-/** 只读已生成的个股 AI 分析；未生成返回 null（不触发生成）。 */
+/** 个股 AI 分析状态：ready 含数据，running 表示定时任务生成中，none 无结果。 */
 export function useStockAiAnalysis(code: string, tradeDate?: string) {
   return useQuery({
     queryKey: queryKeys.stocks.aiAnalysis(code, tradeDate),
-    queryFn: () => fetchStockAiAnalysis(code, tradeDate),
+    queryFn: () => fetchStockAiAnalysisStatus(code, tradeDate),
     enabled: code.length > 0,
     staleTime: 10 * 60_000,
+    refetchInterval: (query) => (query.state.data?.status === 'running' ? 3000 : false),
   })
 }
 
-/** 手动触发生成（或强制重新生成）个股 AI 分析，成功后刷新对应日期缓存。 */
-export function useGenerateStockAiAnalysis(code: string) {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: (options: { tradeDate?: string; regenerate?: boolean }) =>
-      generateStockAiAnalysis(code, options),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.stocks.aiAnalysis(code, variables.tradeDate),
-      })
-    },
+/** 该股已生成分析的全部交易日（升序），供日历标记有记录的日期。 */
+export function useStockAiAnalysisDates(code: string) {
+  return useQuery({
+    queryKey: queryKeys.stocks.aiAnalysisDates(code),
+    queryFn: () => fetchStockAiAnalysisDates(code),
+    enabled: code.length > 0,
+    staleTime: 10 * 60_000,
   })
 }

@@ -3,6 +3,10 @@ export interface Stock {
   name: string
   industry: string
   market: 'SH' | 'SZ' | 'BJ'
+  fullName?: string | null
+  industryLevel1?: string | null
+  industryLevel2?: string | null
+  industryLevel3?: string | null
 }
 
 export interface StockQuote {
@@ -30,6 +34,9 @@ export interface StockKlineBar {
   close: number
   volume: number
   amount: number
+  changePct: number | null
+  amplitude: number | null
+  turnoverRate: number | null
 }
 
 export interface StockKline {

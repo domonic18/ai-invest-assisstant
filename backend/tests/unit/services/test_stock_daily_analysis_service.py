@@ -13,10 +13,7 @@ from app.services.review.market_review_generator import (
     ReviewGenerationLockedError,
     ReviewInputDataNotReadyError,
 )
-from app.services.review.stock_daily_analysis_service import (
-    StockAnalysisContent,
-    input_hash,
-)
+from app.services.review.stock_daily_analysis_service import input_hash
 
 _TRADE_DATE = date(2026, 9, 1)
 _CREATED_AT = datetime(2026, 9, 1, 16, 45, 0, tzinfo=timezone.utc)
@@ -59,12 +56,7 @@ def _base_row(sections: dict[str, str] | None = None) -> object:
     return row
 
 
-_PROMPT_TEMPLATE = (
-    "请分析 {stock_name}（{stock_code}）{trade_date}：\n"
-    "【当日行情快照】\n{quote_context}\n"
-    "【近 20 日 K 线摘要】\n{kline_context}\n"
-    "{section_instructions}"
-)
+_PROMPT_TEMPLATE = "请生成 {stock_name}（{stock_code}）{trade_date} 的每日个股分析：\n{section_instructions}"
 
 
 def _patch_prompt_config() -> None:
@@ -122,10 +114,8 @@ def _patch_agent(
     sections: dict[str, str], model: str = "openai/gpt-4o", latency_ms: int = 150
 ):
     return patch(
-        "app.agent.runtime.run_structured_agent_with_metrics",
-        AsyncMock(
-            return_value=(StockAnalysisContent(sections=sections), latency_ms, model)
-        ),
+        "app.agent.skills.stock_daily_analysis_agent.run_skill",
+        AsyncMock(return_value=(sections, model, latency_ms)),
     )
 
 
@@ -325,6 +315,81 @@ class TestGenerateStockAnalysis:
 
         assert result.cached is False
         insert_mock.assert_awaited_once()
+
+
+@pytest.mark.unit
+class TestPersistStockAnalysis:
+    @pytest.mark.asyncio
+    async def test_persists_sections_and_builds_response(self) -> None:
+        insert_mock = AsyncMock(return_value=1)
+        stock_patch, _, _ = _patch_market_data(stock_name="贵州茅台")
+        session = AsyncMock()
+        with (
+            _patch_prompt_config(),
+            stock_patch,
+            patch(
+                "app.repositories.review.ai_analysis_repository.insert_result",
+                insert_mock,
+            ),
+        ):
+            result = await stock_daily_analysis_service.persist_stock_analysis(
+                session,
+                _STOCK_CODE,
+                trade_date=_TRADE_DATE,
+                contents=_contents(),
+                model="anthropic/kimi",
+            )
+
+        assert result.cached is False
+        assert result.model == "anthropic/kimi"
+        assert result.stock_name == "贵州茅台"
+        assert [s.key for s in result.sections] == [s.key for s in _SECTIONS]
+        insert_mock.assert_awaited_once()
+        _, kwargs = insert_mock.await_args
+        assert kwargs["stock_code"] == _STOCK_CODE
+        assert kwargs["model"] == "anthropic/kimi"
+        assert kwargs["structured"]["sections"] == _contents()
+        session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_raises_when_section_missing_or_empty(self) -> None:
+        cases = (
+            (_contents(strategy=""), "strategy"),
+            ({k: v for k, v in _contents().items() if k != "risk_lines"}, "risk_lines"),
+        )
+        for bad, missing_key in cases:
+            with (
+                _patch_prompt_config(),
+                pytest.raises(ValueError, match=missing_key),
+            ):
+                await stock_daily_analysis_service.persist_stock_analysis(
+                    AsyncMock(),
+                    _STOCK_CODE,
+                    trade_date=_TRADE_DATE,
+                    contents=bad,
+                    model="anthropic/kimi",
+                )
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_code_when_stock_unknown(self) -> None:
+        stock_patch, _, _ = _patch_market_data(stock_name=None)
+        with (
+            _patch_prompt_config(),
+            stock_patch,
+            patch(
+                "app.repositories.review.ai_analysis_repository.insert_result",
+                AsyncMock(return_value=1),
+            ),
+        ):
+            result = await stock_daily_analysis_service.persist_stock_analysis(
+                AsyncMock(),
+                _STOCK_CODE,
+                trade_date=_TRADE_DATE,
+                contents=_contents(),
+                model="anthropic/kimi",
+            )
+
+        assert result.stock_name == _STOCK_CODE
 
 
 @pytest.mark.unit

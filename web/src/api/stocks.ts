@@ -2,7 +2,8 @@ import { ENDPOINTS } from '@ai-invest/shared'
 import type {
   ApiKlineDataResponse,
   ApiPaginatedResponse,
-  ApiStockAiAnalysisResponse,
+  ApiStockAiAnalysisDatesResponse,
+  ApiStockAiAnalysisStatusResponse,
   ApiStockBasicResponse,
   ApiStockIntradayResponse,
   ApiStockKlineResponse,
@@ -10,7 +11,6 @@ import type {
   ApiStockSectorsResponse,
 } from '@ai-invest/shared'
 import type { StockAiAnalysis } from '@ai-invest/shared'
-import axios from 'axios'
 
 import { apiClient } from './client'
 import {
@@ -85,42 +85,39 @@ export async function fetchStockSectors(code: string) {
   return mapStockSectors(response.data)
 }
 
-/** 只读取已生成的个股 AI 分析；未生成（204）返回 null，不会触发生成。 */
-export async function fetchStockAiAnalysis(
-  code: string,
-  tradeDate?: string,
-): Promise<StockAiAnalysis | null> {
-  try {
-    const response = await apiClient.get<ApiStockAiAnalysisResponse>(
-      ENDPOINTS.stocks.aiAnalysis(code),
-      { params: { trade_date: tradeDate } },
-    )
-    if (response.status === 204) {
-      return null
-    }
-    return mapStockAiAnalysis(response.data)
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 204) {
-      return null
-    }
-    throw error
+export interface StockAiAnalysisStatus {
+  status: 'running' | 'ready' | 'none'
+  data: StockAiAnalysis | null
+  /** 本次查询实际采用的有效交易日（显式非交易日已被后端归位）。 */
+  tradeDate: string
+}
+
+function mapAiAnalysisStatus(dto: ApiStockAiAnalysisStatusResponse): StockAiAnalysisStatus {
+  return {
+    status: dto.status,
+    data: dto.data ? mapStockAiAnalysis(dto.data) : null,
+    tradeDate: dto.trade_date,
   }
 }
 
-/** 手动触发个股 AI 分析生成（同步 LLM 调用，约 12-25s，超时放宽到 60s）。 */
-export async function generateStockAiAnalysis(
+/** 读取个股 AI 分析状态（轮询契约）：ready 含数据，running 生成中，none 无结果。 */
+export async function fetchStockAiAnalysisStatus(
   code: string,
-  options: { tradeDate?: string; regenerate?: boolean } = {},
-): Promise<StockAiAnalysis> {
-  const response = await apiClient.post<ApiStockAiAnalysisResponse>(
+  tradeDate?: string,
+): Promise<StockAiAnalysisStatus> {
+  const response = await apiClient.get<ApiStockAiAnalysisStatusResponse>(
     ENDPOINTS.stocks.aiAnalysis(code),
-    {
-      trade_date: options.tradeDate,
-      regenerate: options.regenerate ?? false,
-    },
-    { timeout: 60_000 },
+    { params: { trade_date: tradeDate } },
   )
-  return mapStockAiAnalysis(response.data)
+  return mapAiAnalysisStatus(response.data)
+}
+
+/** 该股已成功生成分析的全部交易日（升序），供日历标记。 */
+export async function fetchStockAiAnalysisDates(code: string): Promise<string[]> {
+  const response = await apiClient.get<ApiStockAiAnalysisDatesResponse>(
+    ENDPOINTS.stocks.aiAnalysisDates(code),
+  )
+  return response.data.trade_dates
 }
 
 export async function fetchKline(code: string, params: KlineParams = {}) {

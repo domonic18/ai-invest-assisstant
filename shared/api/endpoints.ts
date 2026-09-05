@@ -11,6 +11,8 @@ export const ENDPOINTS = {
     meSettings: `${API_BASE}/users/me/settings`,
     watchlist: `${API_BASE}/users/watchlist`,
     watchlistQuotes: `${API_BASE}/users/watchlist/quotes`,
+    watchlistRecognizeScreenshot: `${API_BASE}/users/watchlist/recognize-screenshot`,
+    watchlistBatch: `${API_BASE}/users/watchlist/batch`,
     watchlistGroups: `${API_BASE}/users/watchlist/groups`,
     watchlistGroup: (groupId: number | string) =>
       `${API_BASE}/users/watchlist/groups/${groupId}`,
@@ -26,6 +28,8 @@ export const ENDPOINTS = {
     intraday: (code: string) => `${API_BASE}/stocks/${code}/intraday`,
     sectors: (code: string) => `${API_BASE}/stocks/${code}/sectors`,
     aiAnalysis: (code: string) => `${API_BASE}/stocks/${code}/ai-analysis`,
+    aiAnalysisDates: (code: string) =>
+      `${API_BASE}/stocks/${code}/ai-analysis/dates`,
   },
   kline: {
     get: (code: string) => `${API_BASE}/kline/${code}`,
@@ -141,5 +145,9 @@ export const ENDPOINTS = {
     collectorTaskCatalog: `${API_BASE}/admin/collector/tasks/catalog`,
     collectorLogs: `${API_BASE}/admin/collector/logs`,
     runCollectorTask: (task: string) => `${API_BASE}/admin/collector/tasks/${task}/run`,
+    marketReviews: `${API_BASE}/admin/market-reviews/`,
+    marketReview: (tradeDate: string) =>
+      `${API_BASE}/admin/market-reviews/${tradeDate}`,
+    marketReviewSectionDefs: `${API_BASE}/admin/market-reviews/section-definitions`,
   },
 } as const

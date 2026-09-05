@@ -35,6 +35,7 @@ __all__ = [
     "ChainAnalysisFailedError",
     "analyze_and_persist",
     "compare_versions",
+    "delete_version",
     "get_latest_detail",
     "get_version_detail",
     "list_alerts",
@@ -74,6 +75,20 @@ async def list_versions(
     """列出指定用户、指定行业的全部版本（版本号降序）。"""
     versions = await repository.list_versions(session, industry, user_id)
     return [_to_summary(version) for version in versions]
+
+
+async def delete_version(
+    session: AsyncSession, version_id: int, user_id: int
+) -> bool:
+    """删除指定版本（归属校验），成功返回 True，版本不存在返回 False。
+
+    图谱节点/边/映射经 DB 级联清理；chain_alert 保留（version_id 置空）；
+    ai_analysis_result 保留供审计。
+    """
+    deleted = await repository.delete_version(session, version_id, user_id)
+    if deleted:
+        await session.commit()
+    return deleted
 
 
 async def list_industries(session: AsyncSession, user_id: int) -> list[str]:

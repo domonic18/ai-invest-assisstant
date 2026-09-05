@@ -31,7 +31,7 @@ from collector.spiders.sina_etf_kline import SinaEtfKlineCollector
 from collector.spiders.sina_index_kline import SinaIndexKlineCollector
 from collector.spiders.sina_index_minute import SinaIndexMinuteCollector
 from collector.spiders.sina_index_spot import SinaIndexSpotCollector
-from collector.spiders.sina_kline import SinaKlineCollector
+from collector.spiders.sina_kline import SinaKlineCollector, _fetch_watchlist_codes
 from collector.spiders.sina_market_breadth import (
     SinaMarketBreadthCollector,
     count_breadth,
@@ -277,6 +277,26 @@ class TestSinaKlineCollector:
         assert item["close"] == 10.8
         assert item["volume"] == 100000
         assert await collector.validate(item) is True
+
+    @pytest.mark.asyncio
+    async def test_fetch_watchlist_codes_dedup_sorted(self) -> None:
+        result = MagicMock(all=MagicMock(return_value=[("000001",), ("600519",)]))
+        session = AsyncMock()
+        session.execute = AsyncMock(return_value=result)
+
+        @contextlib.asynccontextmanager
+        async def _cm():
+            yield session
+
+        def _fake_session_maker(*_args: object, **_kwargs: object):
+            return lambda: _cm()
+
+        with patch(
+            "collector.spiders.sina_kline.async_sessionmaker", _fake_session_maker
+        ):
+            codes = await _fetch_watchlist_codes()
+
+        assert codes == ["000001", "600519"]
 
 
 @pytest.mark.unit

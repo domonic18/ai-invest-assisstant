@@ -98,6 +98,22 @@ async def get_version(
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
+async def delete_version(
+    session: AsyncSession, version_id: int, user_id: int
+) -> bool:
+    """删除归属用户的版本行并 flush（不 commit）。
+
+    节点/边/公司映射经 DB 外键级联清理，chain_alert.version_id 置空，
+    ai_analysis_result 记录保留。
+    """
+    version = await get_version(session, version_id, user_id)
+    if version is None:
+        return False
+    await session.delete(version)
+    await session.flush()
+    return True
+
+
 async def get_latest_success_version(
     session: AsyncSession, industry: str, user_id: int
 ) -> ChainAnalysisVersion | None:

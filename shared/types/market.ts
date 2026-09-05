@@ -184,6 +184,29 @@ export interface ApiMarketReviewUpdateRequest {
   content: string
 }
 
+export interface ApiAdminSectionDefinition {
+  key: string
+  title: string
+}
+
+export interface ApiAdminMarketReviewItem {
+  trade_date: string
+  model: string | null
+  latency_ms: number | null
+  generated_at: string
+  history_count: number
+  user_copy_count: number
+}
+
+export interface ApiAdminMarketReviewCreateRequest {
+  trade_date: string
+  sections: Record<string, string>
+}
+
+export interface ApiAdminMarketReviewSectionsRequest {
+  sections: Record<string, string>
+}
+
 /** Domain types (camelCase) for frontend consumption. */
 export interface IndexQuote {
   code: string
@@ -355,6 +378,15 @@ export interface MarketReview {
   generatedAt: string
   cached: boolean
   edited: boolean
+}
+
+export interface AdminMarketReviewItem {
+  tradeDate: string
+  model: string | null
+  latencyMs: number | null
+  generatedAt: string
+  historyCount: number
+  userCopyCount: number
 }
 
 export interface CollectTaskResult {

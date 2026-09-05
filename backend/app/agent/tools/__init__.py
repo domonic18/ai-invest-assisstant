@@ -12,9 +12,15 @@ from app.agent.tools.chain_tools import (
     query_industry_companies,
 )
 from app.agent.tools.market_tools import (
+    collect_market_data,
     get_auction_summary,
+    get_index_technical,
+    get_limit_up_ladder,
     get_market_overview,
     get_sector_fund_flow,
+    get_sector_overview,
+    get_trade_calendar,
+    persist_market_review,
 )
 from app.agent.tools.news_tools import search_news, search_vector_kb
 from app.agent.tools.report_tools import (
@@ -25,6 +31,7 @@ from app.agent.tools.report_tools import (
 from app.agent.tools.stock_tools import (
     get_stock_kline,
     get_stock_quote,
+    persist_stock_daily_analysis,
     query_financial_data,
 )
 
@@ -39,16 +46,23 @@ __all__ = [
     "get_stock_quote",
     "get_stock_kline",
     "query_financial_data",
+    "persist_stock_daily_analysis",
     "search_news",
     "search_vector_kb",
     "get_sector_fund_flow",
+    "get_sector_overview",
     "get_market_overview",
     "get_auction_summary",
+    "get_trade_calendar",
+    "get_limit_up_ladder",
+    "get_index_technical",
+    "persist_market_review",
+    "collect_market_data",
 ]
 
 
 def build_assistant_tools() -> list[BaseTool]:
-    """助手工具清单：只读查询工具 + 产业链分析持久化工具 + 财报工具。"""
+    """助手工具清单：只读查询工具 + 产业链分析/个股分析/大盘复盘持久化工具 + 财报工具 + 行情补采。"""
     return [
         get_stock_quote,
         get_stock_kline,
@@ -56,10 +70,17 @@ def build_assistant_tools() -> list[BaseTool]:
         search_news,
         search_vector_kb,
         get_sector_fund_flow,
+        get_sector_overview,
         get_market_overview,
+        get_limit_up_ladder,
+        get_index_technical,
         get_auction_summary,
+        get_trade_calendar,
         query_industry_companies,
         persist_chain_analysis,
+        persist_stock_daily_analysis,
+        persist_market_review,
+        collect_market_data,
         query_financial_reports,
         download_financial_reports,
         summarize_financial_report,

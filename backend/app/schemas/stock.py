@@ -109,6 +109,9 @@ class StockKlineBar(BaseModel):
     close: float | None = None
     volume: int | None = None
     amount: float | None = None
+    change_pct: float | None = None
+    amplitude: float | None = None
+    turnover_rate: float | None = None
 
 
 class StockKlineResponse(BaseModel):
@@ -220,11 +223,24 @@ class StockAiAnalysisResponse(BaseModel):
     sections: list[StockAiAnalysisSection]
 
 
-class StockAiAnalysisGenerateRequest(BaseModel):
-    """触发个股 AI 分析生成请求。"""
+class StockAiAnalysisStatusResponse(BaseModel):
+    """个股 AI 分析异步状态响应（轮询契约）。
 
-    trade_date: date | None = None
-    regenerate: bool = False
+    ready 时 data 必非空；running 表示生成任务进行中；none 表示无缓存且
+    无进行中的生成。trade_date 是本次查询实际采用的有效交易日
+    （缺省=最近交易日；显式非交易日归位到不晚于该日的最近交易日）。
+    """
+
+    status: Literal["running", "ready", "none"]
+    data: StockAiAnalysisResponse | None = None
+    trade_date: date
+
+
+class StockAiAnalysisDatesResponse(BaseModel):
+    """个股已生成分析的全部交易日（升序），供前端日历标记。"""
+
+    code: str
+    trade_dates: list[date]
 
 
 class PaginationParams(BaseModel):

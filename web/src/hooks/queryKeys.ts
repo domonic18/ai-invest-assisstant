@@ -13,6 +13,7 @@ export const queryKeys = {
     stocks: ['admin-stocks'] as const,
     users: ['admin-users'] as const,
     tasks: ['admin-tasks'] as const,
+    marketReviews: ['admin-market-reviews'] as const,
   },
   auction: {
     all: ['auction'] as const,
@@ -87,6 +88,7 @@ export const queryKeys = {
     sectors: (code: string) => ['stocks', 'sectors', code] as const,
     aiAnalysis: (code: string, tradeDate?: string) =>
       ['stocks', 'ai-analysis', code, tradeDate] as const,
+    aiAnalysisDates: (code: string) => ['stocks', 'ai-analysis-dates', code] as const,
   },
   watchlist: {
     all: ['watchlist'] as const,

@@ -54,3 +54,16 @@ class StockRepository(BaseRepository[StockBasic]):
         for code, name in result.all():
             names.setdefault(code, name)
         return names
+
+    async def get_codes_by_names(self, names: list[str]) -> dict[str, str]:
+        """返回给定名称集合的 stock_name 到 stock_code 映射（同名取先遇到）。"""
+        if not names:
+            return {}
+        stmt = select(StockBasic.stock_name, StockBasic.stock_code).where(
+            StockBasic.stock_name.in_(names)
+        )
+        result = await self.execute(stmt)
+        codes: dict[str, str] = {}
+        for name, code in result.all():
+            codes.setdefault(name, code)
+        return codes

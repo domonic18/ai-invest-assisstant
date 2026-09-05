@@ -41,6 +41,12 @@
   --blue: #58a6ff;
   --blue-soft: rgba(88, 166, 255, 0.12);
 
+  /* MA 指标色（与 ECharts 实现约定一致） */
+  --ma5: #f85149;
+  --ma10: #d29922;
+  --ma20: #58a6ff;
+  --ma60: #a371f7;
+
   /* Typography */
   --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
@@ -59,11 +65,11 @@
   /* Layout */
   --sidebar-w: 220px;
   --header-h: 56px;
+  --info-panel-w: 360px;
 
   /* Transitions */
   --transition: 200ms ease;
   --transition-fast: 150ms ease;
-  --transition-normal: 200ms ease;
   --text-xs: 11px;
   --text-sm: 13px;
   --text-base: 14px;
@@ -80,7 +86,6 @@
   --space-8: 32px;
   --space-10: 40px;
   --space-12: 48px;
-
 }
 
 /* Reset */
@@ -187,28 +192,15 @@ a:hover { color: var(--accent-hover); }
 .card-body { padding: 20px; }
 .card-body-sm { padding: 14px; }
 
-/* ======= Stats ======= */
-.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
-.stat-card {
-  background: var(--bg-elevated); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); padding: 18px 20px;
-  display: flex; flex-direction: column; gap: 6px;
-}
-.stat-label { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .05em; font-weight: 500; }
-.stat-value { font-size: 24px; font-weight: 700; color: var(--text-primary); letter-spacing: -.02em; }
-.stat-change { font-size: 11px; font-weight: 500; }
-.stat-change.up { color: var(--green); }
-.stat-change.down { color: var(--red); }
-
 /* ======= Tables ======= */
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 thead { border-bottom: 1px solid var(--border); }
 th {
-  text-align: left; padding: 10px 14px; font-weight: 500; color: var(--text-tertiary);
+  text-align: left; padding: 8px 12px; font-weight: 500; color: var(--text-tertiary);
   font-size: 11px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap;
 }
-td { padding: 10px 14px; color: var(--text-secondary); border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 8px 12px; color: var(--text-secondary); border-bottom: 1px solid var(--border); white-space: nowrap; }
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: var(--bg-hover); }
 
@@ -225,10 +217,7 @@ tr:hover td { background: var(--bg-hover); }
 .btn-secondary:hover { background: var(--bg-hover); border-color: var(--border-hover); color: var(--text-primary); }
 .btn-ghost { background: transparent; color: var(--text-secondary); }
 .btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
-.btn-danger { background: var(--red); color: #fff; }
-.btn-danger:hover { background: #e0483f; }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
-.btn-lg { padding: 10px 24px; font-size: 14px; }
 
 /* ======= Tags ======= */
 .tag {
@@ -241,119 +230,382 @@ tr:hover td { background: var(--bg-hover); }
 .tag-blue { background: var(--blue-soft); color: var(--blue); }
 .tag-purple { background: var(--accent-soft); color: var(--accent); }
 
-/* ======= Forms ======= */
-.form-group { margin-bottom: 16px; }
-.form-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
-.form-input, .form-select, .form-textarea {
-  width: 100%; padding: 8px 12px; font-size: 13px; color: var(--text-primary);
-  background: var(--bg-surface); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); outline: none; transition: border var(--transition);
-}
-.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--border-focus); }
-.form-input::placeholder { color: var(--text-tertiary); }
-.form-hint { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
-.form-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235c616e' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
-
-/* ======= Grids ======= */
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
-.grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
-.gap-4 { gap: 14px; }
-.mb-4 { margin-bottom: 14px; }
-.mb-6 { margin-bottom: 24px; }
-.text-right { text-align: right; }
-.text-center { text-align: center; }
+/* ======= Utility ======= */
 .text-muted { color: var(--text-secondary); }
 .text-mono { font-family: var(--font-mono); }
-.flex { display: flex; }
-.flex-col { flex-direction: column; }
-.items-center { align-items: center; }
-.justify-between { justify-content: space-between; }
-.page-title { font-size: 20px; font-weight: 600; color: var(--text-primary); letter-spacing: -.01em; margin-bottom: 24px; }
-.divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+.up { color: var(--red) !important; }
+.down { color: var(--green) !important; }
 
-/* ======= Analysis Meter ======= */
-.analysis-meter { height: 6px; border-radius: 3px; background: var(--bg-surface); overflow: hidden; }
-.analysis-meter-fill { height: 100%; border-radius: 3px; }
+/* ======================================================
+   个股详情页专属样式（v0.3 重设计 · 同花顺式双栏）
+   行情条位于图表列顶部（不横贯整页），右侧信息栏通高
+   ====================================================== */
+.app-content.stock-page {
+  display: flex; flex-direction: column;
+  overflow: hidden; padding: 16px 20px;
+}
+.stock-body { display: flex; gap: 12px; flex: 1; min-height: 0; }
 
-/* ======= Notification ======= */
-.notification-dot {
-  position: absolute; top: 7px; right: 7px; width: 6px; height: 6px;
-  background: var(--red); border-radius: 50%;
+[hidden] { display: none !important; }
+
+/* 规划中角标（筹码峰 / 画线工具 / 指数 ETF 等未来特性） */
+.planned-badge {
+  position: absolute; top: 8px; right: 8px; z-index: 6;
+  font-size: 10px; color: var(--amber); border: 1px dashed var(--amber);
+  border-radius: 4px; padding: 1px 6px; background: rgba(12,14,18,.8);
+  pointer-events: none;
 }
 
-</style>
-<style>
-.stock-header-card {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-6);
-  box-shadow: var(--shadow-sm);
-  display: flex; justify-content: space-between; align-items: flex-start;
-  margin-bottom: var(--space-6);
+/* ======= ① 行情条（同花顺式：仅占图表列宽度） ======= */
+.quote-strip { flex-shrink: 0; border-bottom: 1px solid var(--border); }
+.qs-top { display: flex; align-items: center; gap: 12px; padding: 12px 20px 6px; }
+.qs-identity { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.qs-identity h1 {
+  font-size: 20px; font-weight: 700; color: var(--text-primary);
+  letter-spacing: -.01em; white-space: nowrap;
 }
-.stock-price-large { font-size: 2.5rem; font-weight: 700; color: var(--text-primary); letter-spacing: -.03em; }
-.stock-price-change { font-size: var(--text-lg); font-weight: 500; }
-.stock-meta-grid {
-  display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--space-4);
-  margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border);
+.qs-code { font-size: 14px; color: var(--text-tertiary); font-family: var(--font-mono); }
+.qs-fullname {
+  font-size: 11px; color: var(--text-tertiary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.stock-meta-item { text-align: center; }
-.stock-meta-label { font-size: var(--text-xs); color: var(--text-tertiary); margin-bottom: 2px; }
-.stock-meta-value { font-size: var(--text-base); font-weight: 600; color: var(--text-primary); }
+.qs-price { display: flex; align-items: baseline; gap: 8px; flex-shrink: 0; }
+.qs-price-num { font-size: 28px; font-weight: 700; font-family: var(--font-mono); letter-spacing: -.02em; }
+.qs-chg { font-size: 14px; font-weight: 600; font-family: var(--font-mono); }
+.qs-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.qs-actions .btn { white-space: nowrap; }
+.qs-metrics { display: flex; align-items: center; flex-wrap: wrap; padding: 2px 20px 10px; }
+.qs-metric { display: flex; align-items: baseline; gap: 6px; padding: 0 14px; border-left: 1px solid var(--border); }
+.qs-metric:first-child { border-left: none; padding-left: 0; }
+.qs-metric-label { font-size: 11px; color: var(--text-tertiary); white-space: nowrap; }
+.qs-metric-value {
+  font-size: 13px; font-family: var(--font-mono); font-weight: 600;
+  color: var(--text-primary); white-space: nowrap;
+}
 
-.tab-nav {
-  display: flex; gap: var(--space-1);
-  background: var(--bg-hover);
-  padding: 3px;
-  border-radius: var(--radius-md);
-  margin-bottom: var(--space-6);
-  width: fit-content;
-}
-.tab-nav-btn {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-.tab-nav-btn.active { background: var(--bg-elevated); color: var(--text-primary); box-shadow: var(--shadow-sm); font-weight: 500; }
-.tab-pane { display: none; }
-.tab-pane.active { display: block; }
+/* ======= ② 图表区 ======= */
+.chart-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+.chart-main { flex: 1; min-height: 0; display: flex; overflow: hidden; }
 
-/* AI 每日分析 */
-.ai-line { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+/* 画线工具竖条（规划中，静态占位） */
+.draw-toolbar {
+  width: 44px; flex-shrink: 0; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 0; position: relative;
+}
+.draw-tool {
+  width: 30px; height: 28px; border-radius: var(--radius-sm); border: none;
+  background: transparent; color: var(--text-tertiary); font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: not-allowed; transition: all var(--transition-fast);
+}
+.draw-tool:hover { background: var(--bg-hover); }
+.draw-tool.active { background: var(--accent-soft); color: var(--accent); }
+.draw-toolbar-note {
+  margin-top: auto; writing-mode: vertical-rl; font-size: 10px;
+  color: var(--amber); letter-spacing: .2em; padding: 6px 0;
+}
+
+/* 图表列 */
+.chart-col { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.chart-block { display: flex; flex-direction: column; overflow: hidden; }
+.chart-block.main { flex: 58; min-height: 0; }  /* 日线单元：主图+VOL+MACD 三窗格，占比略高 */
+.chart-block.week { flex: 42; min-height: 0; }  /* 周线单元：主图+VOL 两窗格 */
+
+/* 可拖拽分隔条（主/副图 55/45，落地时支持拖动 30%–70%） */
+.chart-splitter {
+  height: 4px; flex-shrink: 0; background: var(--bg);
+  cursor: row-resize; display: flex; align-items: center; justify-content: center;
+  transition: background var(--transition-fast);
+}
+.chart-splitter span { width: 32px; height: 2px; border-radius: 1px; background: var(--border); }
+.chart-splitter:hover { background: var(--bg-hover); }
+.chart-splitter:hover span { background: var(--accent); }
+
+/* 图表工具栏 */
+.chart-toolbar {
+  height: 36px; flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+  padding: 0 10px; border-bottom: 1px solid var(--border);
+}
+.seg-group {
+  display: flex; gap: 2px; background: var(--bg-hover);
+  padding: 2px; border-radius: var(--radius-sm);
+}
+.seg-btn {
+  padding: 3px 10px; font-size: 12px; color: var(--text-secondary);
+  border: none; background: transparent; border-radius: 4px; cursor: pointer;
+  transition: all var(--transition-fast); white-space: nowrap;
+}
+.seg-btn:hover { color: var(--text-primary); }
+.seg-btn.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+.ct-divider { width: 1px; height: 16px; background: var(--border); }
+.tool-toggle {
+  padding: 3px 8px; font-size: 12px; color: var(--text-tertiary);
+  background: transparent; border: 1px solid var(--border); border-radius: 4px;
+  cursor: pointer; transition: all var(--transition-fast); white-space: nowrap;
+}
+.tool-toggle:hover { color: var(--text-primary); border-color: var(--border-hover); }
+.tool-toggle.active { color: var(--accent); border-color: rgba(94,106,210,.4); background: var(--accent-soft); }
+.ct-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.ct-icon-btn {
+  width: 26px; height: 26px; border-radius: 4px; border: none; background: transparent;
+  color: var(--text-tertiary); font-size: 13px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.ct-icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* K 线画布（CSS 示意）。窗格配比：日线 52:24:24（K线:VOL:MACD），周线 64:36（K线:VOL） */
+.chart-canvas { flex: 1; min-height: 0; position: relative; background: var(--bg); }
+.chart-canvas.has-sub { flex: 52; }
+.chart-canvas.duo-main { flex: 64; }
+.chart-canvas.sub { flex: 24; border-top: 1px solid var(--border); }
+.chart-canvas.sub.vol { flex: 36; }
+.plot-area { position: absolute; left: 46px; right: 60px; top: 26px; bottom: 20px; }
+.plot-area.sub-plot { top: 10px; }
+
+/* 网格线 */
+.plot-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px),
+    linear-gradient(to right, var(--border) 1px, transparent 1px);
+  background-size: 100% 25%, 12.5% 100%;
+  opacity: .45;
+}
+
+/* 蜡烛容器（JS 生成示意蜡烛） */
+.candles { position: absolute; inset: 0; }
+
+/* MA 常驻数值行 */
+.ma-legend {
+  position: absolute; top: 6px; left: 46px; z-index: 4;
+  display: flex; gap: 12px; font-size: var(--text-xs);
+  font-family: var(--font-mono); pointer-events: none;
+}
+.ma-legend .ma5 { color: var(--ma5); }
+.ma-legend .ma10 { color: var(--ma10); }
+.ma-legend .ma20 { color: var(--ma20); }
+.ma-legend .ma60 { color: var(--ma60); }
+
+/* 双侧刻度：右=价格，左=涨跌幅% */
+.axis-right {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 58px; z-index: 3;
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 4px 6px 4px 0; font-size: 11px; font-family: var(--font-mono);
+  color: var(--text-tertiary); text-align: right; pointer-events: none;
+}
+.axis-left {
+  position: absolute; top: 0; left: 0; bottom: 0; width: 44px; z-index: 3;
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 4px 0 4px 6px; font-size: 11px; font-family: var(--font-mono);
+  pointer-events: none;
+}
+.axis-time {
+  position: absolute; left: 46px; right: 60px; bottom: 2px; z-index: 3;
+  display: flex; justify-content: space-between;
+  font-size: 11px; font-family: var(--font-mono); color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+/* 最新价标签 */
+.last-price-tag {
+  position: absolute; right: 2px; z-index: 5;
+  background: var(--red); color: #fff; font-size: 11px; font-family: var(--font-mono);
+  padding: 1px 6px; border-radius: 3px; pointer-events: none;
+}
+.last-price-tag::before {
+  content: ''; position: absolute; left: -8px; top: 50%; width: 8px; height: 1px;
+  background: var(--red);
+}
+
+/* 副图标签（VOL/MACD/KDJ） */
+.sub-label {
+  position: absolute; top: 6px; left: 46px; z-index: 4;
+  font-size: 11px; color: var(--text-secondary); font-weight: 600;
+}
+.sub-axis-right {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 58px; z-index: 3;
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 6px 6px 6px 0; font-size: 11px; font-family: var(--font-mono);
+  color: var(--text-tertiary); text-align: right; pointer-events: none;
+}
+
+/* MACD 副图：图例行 / 零轴 / DIF-DEA 双线 */
+.sub-legend {
+  position: absolute; top: 5px; left: 46px; z-index: 4;
+  display: flex; gap: 10px; font-size: 11px; font-family: var(--font-mono); pointer-events: none;
+}
+.sub-legend .dif { color: var(--text-primary); }
+.sub-legend .dea { color: var(--ma10); }
+.zero-line {
+  position: absolute; left: 46px; right: 60px; top: 50%; z-index: 2;
+  border-top: 1px dashed var(--border-hover); pointer-events: none;
+}
+.macd-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+/* tooltip 规格示意 */
+.chart-tooltip {
+  position: absolute; top: 34px; left: 14%; z-index: 6; width: 220px;
+  background: var(--bg-elevated); border: 1px solid var(--border-hover);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
+  padding: 10px 12px; font-size: 12px; pointer-events: none;
+}
+.tt-date { font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+.tt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; font-family: var(--font-mono); color: var(--text-secondary); }
+.tt-grid .k { color: var(--text-tertiary); font-family: var(--font); }
+.tt-grid .strong { font-weight: 600; }
+.tt-ma {
+  margin-top: 6px; padding-top: 5px; border-top: 1px solid var(--border);
+  display: flex; gap: 8px; font-size: 10px; font-family: var(--font-mono);
+}
+
+/* 筹码峰叠加面板（规划中占位） */
+.chip-distribution {
+  position: absolute; top: 26px; right: 60px; bottom: 20px; width: 20%; z-index: 4;
+  border-left: 1px solid var(--border); background: rgba(12,14,18,.6);
+  display: flex; flex-direction: column; padding: 8px 0 8px 8px;
+}
+.chip-bars { flex: 1; display: flex; flex-direction: column; justify-content: space-between; padding-right: 8px; }
+.chip-bar { height: 3px; border-radius: 0 2px 2px 0; margin-left: auto; }
+.chip-bar.gain { background: rgba(248,81,73,.55); }
+.chip-bar.loss { background: rgba(46,160,67,.55); }
+.chip-cost-line { border-top: 1px dashed var(--amber); position: relative; margin: 0 8px; }
+.chip-cost-line span {
+  position: absolute; right: 0; top: 1px; font-size: 9px; color: var(--amber);
+  font-family: var(--font-mono);
+}
+.chip-summary {
+  padding: 6px 8px 0 0; font-size: 11px; color: var(--text-secondary);
+  display: flex; flex-direction: column; gap: 2px; font-family: var(--font-mono);
+}
+.chip-summary .k { color: var(--text-tertiary); font-family: var(--font); }
+
+/* dataZoom 精修滑块 */
+.datazoom-bar {
+  height: 28px; flex-shrink: 0; margin: 4px 10px 8px;
+  background: var(--bg-surface); border-radius: var(--radius-sm);
+  position: relative; overflow: hidden; border: 1px solid var(--border);
+}
+.dz-shadow {
+  position: absolute; inset: 2px 8px; display: flex; align-items: flex-end;
+  gap: 1px; opacity: .25; pointer-events: none;
+}
+.dz-shadow i { flex: 1; min-width: 1px; background: var(--text-secondary); }
+.dz-window {
+  position: absolute; top: 0; bottom: 0; left: 50%; right: 0;
+  border-top: 2px solid var(--accent); border-bottom: 2px solid var(--accent);
+  display: flex; align-items: center; cursor: grab;
+}
+.dz-date {
+  font-size: 10px; font-family: var(--font-mono); color: var(--text-tertiary);
+  padding: 0 6px; white-space: nowrap;
+}
+.dz-handle {
+  position: absolute; top: 0; bottom: 0; width: 8px;
+  background: var(--bg-hover); display: flex; align-items: center; justify-content: center;
+  cursor: ew-resize;
+}
+.dz-handle i {
+  width: 2px; height: 12px; border-radius: 1px; background: var(--text-tertiary);
+  box-shadow: -3px 0 0 var(--text-tertiary), 3px 0 0 var(--text-tertiary);
+}
+.dz-handle:hover i { background: var(--accent); box-shadow: -3px 0 0 var(--accent), 3px 0 0 var(--accent); }
+.dz-handle.left { left: 0; border-radius: 3px 0 0 3px; }
+.dz-handle.right { right: 0; border-radius: 0 3px 3px 0; }
+
+/* ======= ③ 右侧信息栏 ======= */
+.info-panel {
+  width: var(--info-panel-w); flex-shrink: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.info-tabs {
+  display: flex; gap: 2px; padding: 6px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0; background: var(--bg-hover); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.info-tabs .tab-btn {
+  flex: 1; padding: 5px 4px; font-size: 12px; color: var(--text-secondary);
+  border: none; background: transparent; border-radius: var(--radius-sm);
+  cursor: pointer; transition: all var(--transition-fast); text-align: center; white-space: nowrap;
+}
+.info-tabs .tab-btn:hover { color: var(--text-primary); }
+.info-tabs .tab-btn.active { background: var(--bg-elevated); color: var(--text-primary); font-weight: 500; box-shadow: var(--shadow-sm); }
+.info-scroll { flex: 1; overflow-y: auto; padding: 12px; }
+.info-scroll .tab-pane { display: none; }
+.info-scroll .tab-pane.active { display: block; }
+.info-scroll .card { margin-bottom: 12px; }
+
+/* AI 分析 header：单行不换行（标题 + 日期 + 重新生成） */
+.ai-header {
+  display: flex; align-items: center; gap: 8px; flex-wrap: nowrap;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.ai-header .card-title { white-space: nowrap; font-size: 13px; }
+.ai-header .ai-date { flex-shrink: 0; font-family: var(--font-mono); }
+.ai-header .btn { margin-left: auto; white-space: nowrap; flex-shrink: 0; }
+.ai-status-row { padding: 6px 14px 0; font-size: 11px; color: var(--text-tertiary); display: flex; align-items: center; gap: 6px; }
+.ai-body { padding: 4px 14px 12px; }
+
+/* AI 分区（沿用四分区结构） */
+.ai-line { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .ai-line:last-of-type { border-bottom: none; }
-.ai-key { flex-shrink: 0; width: 64px; font-size: 12px; font-weight: 600; color: var(--accent); padding-top: 2px; }
-.ai-text { flex: 1; font-size: 13px; color: var(--text-secondary); line-height: 1.8; }
-.ai-note { font-size: 11px; color: var(--text-tertiary); margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); font-family: var(--font-mono); }
+.ai-key { flex-shrink: 0; width: 60px; font-size: 12px; font-weight: 600; color: var(--accent); padding-top: 2px; }
+.ai-text { flex: 1; font-size: 12px; color: var(--text-secondary); line-height: 1.75; }
+.ai-note { font-size: 11px; color: var(--text-tertiary); margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); font-family: var(--font-mono); }
 .ai-disclaimer { font-size: 10px; color: var(--text-tertiary); margin-top: 8px; }
 
-/* 板块归属 */
-.sector-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+/* 财务（右栏窄卡片 2 列） */
+.fin-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.fin-item {
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.fin-label { font-size: var(--text-xs); color: var(--text-tertiary); }
+.fin-value { font-size: 15px; font-weight: 600; font-family: var(--font-mono); }
+
+/* 板块 */
+.sector-row { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .sector-row:last-child { border-bottom: none; }
-.sector-key { flex-shrink: 0; width: 36px; font-size: 11px; color: var(--text-tertiary); }
+.sector-key { flex-shrink: 0; width: 32px; font-size: 11px; color: var(--text-tertiary); }
 .sector-val { color: var(--text-primary); }
 .sector-val a { margin-left: 8px; font-size: 11px; }
-.concept-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 16px; font-size: 12px; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-secondary); }
+.concept-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.concept-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+  border-radius: 14px; font-size: 12px; background: var(--bg-surface);
+  border: 1px solid var(--border); color: var(--text-secondary);
+}
 .concept-chip:hover { border-color: var(--accent); color: var(--accent); }
-.concept-chip em { font-style: normal; font-size: 10px; color: var(--text-tertiary); }
-.rating-bar { display: flex; gap: 4px; align-items: flex-end; height: 120px; }
-.rating-bar-item { flex: 1; border-radius: 2px; text-align: center; padding-top: 4px; font-size: var(--text-xs); color: var(--text-secondary); }
+.concept-fold-btn {
+  margin-top: 8px; width: 100%; text-align: center; padding: 5px 0;
+  font-size: 12px; color: var(--text-tertiary); background: transparent;
+  border: 1px dashed var(--border); border-radius: var(--radius-sm); cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.concept-fold-btn:hover { color: var(--accent); border-color: rgba(94,106,210,.4); }
 
+/* 指数/ETF 差异化标注 */
+.type-note {
+  border: 1px dashed var(--amber); border-radius: var(--radius-md);
+  padding: 10px 12px; font-size: 11px; color: var(--text-secondary);
+  line-height: 1.7; position: relative; margin-top: 4px;
+}
+.type-note .tn-title { color: var(--amber); font-weight: 600; margin-bottom: 2px; }
+
+/* 研报（右栏紧凑版） */
 .research-item {
-  padding: var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--space-3);
+  padding: 12px 14px; border: 1px solid var(--border);
+  border-radius: var(--radius-md); margin-bottom: 8px;
   transition: border-color var(--transition-fast);
 }
 .research-item:hover { border-color: rgba(94,106,210,.25); }
-.research-item-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-2); }
+.research-item-header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.research-item-header .r-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.research-item-header .r-date { font-size: 11px; color: var(--text-tertiary); flex-shrink: 0; font-family: var(--font-mono); }
+.research-src { font-size: 11px; color: var(--text-tertiary); margin-bottom: 4px; }
+.research-abs { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+
+.card-pad { padding: 12px 14px; }
 </style>
 </head>
 <body>
@@ -369,7 +621,6 @@ tr:hover td { background: var(--bg-hover); }
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
 <div class="sidebar-section-title">复盘</div>
-
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
 <a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
@@ -395,178 +646,480 @@ tr:hover td { background: var(--bg-hover); }
       <div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div>
     </header>
 
-    <div class="app-content">
+    <div class="app-content stock-page">
 
-      <!-- Stock Header：名称 + 代码 + 市场/行业标签 + 加自选（与实现一致，无行情价格区） -->
-      <div class="stock-header-card">
-        <div>
-          <div style="display:flex;align-items:center;gap:var(--space-3)">
-            <h1 style="font-size:var(--text-2xl);font-weight:700;color:var(--text-primary);letter-spacing:-.01em">北方华创</h1>
-            <span class="text-mono" style="font-size:var(--text-lg);color:var(--text-tertiary)">002371</span>
-            <span class="tag tag-blue">深市</span>
-            <span class="tag tag-purple">半导体设备</span>
-          </div>
-          <div class="text-muted" style="font-size:var(--text-sm);margin-top:var(--space-2)">北方华创科技集团股份有限公司 · 深交所主板</div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-2)">
-          <button class="btn btn-secondary">♡ 加入自选</button>
-        </div>
-      </div>
+      <div class="stock-body">
 
-      <!-- Tab Nav -->
-      <div class="tab-nav">
-        <button class="tab-nav-btn active" data-tab="pane-kline">K线分析</button>
-        <button class="tab-nav-btn" data-tab="pane-fin">财务体检</button>
-        <button class="tab-nav-btn" data-tab="pane-ai">AI 每日分析</button>
-        <button class="tab-nav-btn" data-tab="pane-sector">板块归属</button>
-        <button class="tab-nav-btn" data-tab="pane-research">研报观点</button>
-      </div>
-
-      <!-- Tab: K线分析（KlineChart：蜡烛图 + 成交量，含 dataZoom） -->
-      <div class="tab-pane active" id="pane-kline">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">K线图表</span>
-            <div style="display:flex;gap:var(--space-1)">
-              <button class="btn btn-sm" style="background:var(--accent-soft);color:var(--accent)">日K</button>
-              <button class="btn btn-sm btn-ghost">周K</button>
-              <button class="btn btn-sm btn-ghost">月K</button>
-            </div>
-          </div>
-          <div class="card-body">
-            <div style="background:linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-hover) 100%);border-radius:var(--radius-md);height:380px;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary);font-size:var(--text-lg)">
-              ┃ K 线蜡烛图 + 成交量柱（ECharts 渲染，支持缩放） ┃
-            </div>
-            <div style="display:flex;justify-content:center;gap:var(--space-4);margin-top:var(--space-3)">
-              <span style="font-size:var(--text-xs);color:#f85149">MA5: 347.65</span>
-              <span style="font-size:var(--text-xs);color:#d29922">MA10: 342.18</span>
-              <span style="font-size:var(--text-xs);color:#58a6ff">MA20: 335.42</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Tab: 财务体检（指标 Statistic 卡片网格） -->
-      <div class="tab-pane" id="pane-fin">
-        <div class="card">
-          <div class="card-header"><span class="card-title">财务体检</span><span class="tag tag-green">最新报告期</span></div>
-          <div class="card-body">
-            <div class="grid-3" style="gap:var(--space-4)">
-              <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4);text-align:center"><div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px">资产负债率</div><div style="font-size:var(--text-2xl);font-weight:700">58.3%</div></div>
-              <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4);text-align:center"><div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px">流动比率</div><div style="font-size:var(--text-2xl);font-weight:700">1.85</div></div>
-              <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4);text-align:center"><div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px">ROE</div><div style="font-size:var(--text-2xl);font-weight:700;color:var(--green)">22.8%</div></div>
-              <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4);text-align:center"><div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px">毛利率</div><div style="font-size:var(--text-2xl);font-weight:700">46.2%</div></div>
-              <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4);text-align:center"><div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px">净利率</div><div style="font-size:var(--text-2xl);font-weight:700">21.8%</div></div>
-              <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-4);text-align:center"><div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px">经营现金流 / 营收</div><div style="font-size:var(--text-2xl);font-weight:700">12.4%</div></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Tab: 研报观点（List：标题 / 来源 / 发布日期 / 摘要） -->
-      <div class="tab-pane" id="pane-research">
-        <div class="card">
-          <div class="card-header"><span class="card-title">研报观点</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">共 28 篇</span></div>
-          <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-3)">
-            <div class="research-item">
-              <div class="research-item-header">
-                <span style="font-weight:600;font-size:var(--text-base)">刻蚀设备出货超预期，5nm 刻蚀机通过验证</span>
-                <span style="font-size:var(--text-xs);color:var(--text-tertiary)">2026-07-02</span>
+        <!-- 图表区：同花顺式行情条（图表列顶部） + 画线工具竖条(可开关·规划中) + 双图堆叠 + 精修 dataZoom -->
+        <div class="chart-panel card">
+          <!-- ① 行情条：标识 + 价格 + 快照 10 项 + 操作（同花顺式，仅占图表列宽度，右栏通高不被压） -->
+          <div class="quote-strip">
+            <div class="qs-top">
+              <div class="qs-identity">
+                <h1>北方华创</h1>
+                <span class="qs-code">002371</span>
+                <span class="tag tag-blue">深市</span>
+                <span class="tag tag-purple">半导体设备</span>
+                <span class="qs-fullname">北方华创科技集团股份有限公司 · 深交所主板</span>
               </div>
-              <div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:var(--space-2)">中信证券</div>
-              <p style="font-size:var(--text-sm);color:var(--text-secondary)">刻蚀设备出货量超预期，5nm刻蚀机通过中芯国际认证，有望在2026H2放量。薄膜沉积设备在存储芯片领域取得突破。</p>
-            </div>
-            <div class="research-item">
-              <div class="research-item-header">
-                <span style="font-weight:600;font-size:var(--text-base)">平台型设备龙头，国产替代核心受益</span>
-                <span style="font-size:var(--text-xs);color:var(--text-tertiary)">2026-06-28</span>
+              <div class="qs-price">
+                <span class="qs-price-num up">318.40</span>
+                <span class="qs-chg up">+15.20</span>
+                <span class="qs-chg up">+5.02%</span>
               </div>
-              <div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:var(--space-2)">华泰证券</div>
-              <p style="font-size:var(--text-sm);color:var(--text-secondary)">半导体设备国产替代加速，公司作为平台型设备龙头优先受益。ICP刻蚀和PVD设备市场份额持续提升。</p>
-            </div>
-            <div class="research-item">
-              <div class="research-item-header">
-                <span style="font-weight:600;font-size:var(--text-base)">估值已反映乐观预期，关注下游资本开支节奏</span>
-                <span style="font-size:var(--text-xs);color:var(--text-tertiary)">2026-06-25</span>
+              <div class="qs-actions">
+                <button class="btn btn-secondary btn-sm">☆ 加入自选</button>
+                <button class="btn btn-ghost btn-sm" title="导出数据">⤓</button>
+                <button class="btn btn-ghost btn-sm" title="行情设置">⚙</button>
               </div>
-              <div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:var(--space-2)">国泰君安</div>
-              <p style="font-size:var(--text-sm);color:var(--text-secondary)">当前估值已反映乐观预期。后续需关注地缘政治风险和下游晶圆厂资本开支节奏变化。</p>
+            </div>
+            <div class="qs-metrics">
+              <div class="qs-metric"><span class="qs-metric-label">今开</span><span class="qs-metric-value up">304.60</span></div>
+              <div class="qs-metric"><span class="qs-metric-label">最高</span><span class="qs-metric-value up">319.80</span></div>
+              <div class="qs-metric"><span class="qs-metric-label">最低</span><span class="qs-metric-value down">301.55</span></div>
+              <div class="qs-metric"><span class="qs-metric-label">成交量</span><span class="qs-metric-value">8.42万手</span></div>
+              <div class="qs-metric"><span class="qs-metric-label">成交额</span><span class="qs-metric-value">26.7亿</span></div>
+              <div class="qs-metric"><span class="qs-metric-label">换手率</span><span class="qs-metric-value">1.85%</span></div>
+              <div class="qs-metric"><span class="qs-metric-label">振幅</span><span class="qs-metric-value">6.02%</span></div>
+              <div class="qs-metric"><span class="qs-metric-label">总市值</span><span class="qs-metric-value">1693亿</span></div>
+              <div class="qs-metric"><span class="qs-metric-label">PE(TTM)</span><span class="qs-metric-value">41.2</span></div>
+              <div class="qs-metric"><span class="qs-metric-label">量比</span><span class="qs-metric-value up">1.34</span></div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- Tab: AI 每日分析（盘后批量 · heavy 队列 · input_hash 幂等缓存） -->
-      <div class="tab-pane" id="pane-ai">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">AI 每日分析 <span class="tag tag-purple" style="margin-left:6px">2026-09-01 盘后生成</span></span>
-            <span><span class="tag tag-green">已生成 · 命中缓存</span> <span class="tag" style="margin-left:6px">heavy 队列 · 单股串行</span></span>
-          </div>
-          <div class="card-body">
-            <div class="ai-line"><span class="ai-key">盘面解读</span><p class="ai-text">北方华创今日高开后沿 MA5 震荡上行，收涨 5.02% 报 318.40，量比较昨日放大 1.3 倍。消息面上国家大基金三期落地首笔投资，半导体设备板块整体异动，公司作为平台型设备龙头获资金集中承接，日线突破 39.8 平台后回踩确认有效。</p></div>
-            <div class="ai-line"><span class="ai-key">操作策略</span><p class="ai-text">持仓为主：突破 320 一线且量能维持，可持股待涨至前高 345 区域；若回踩 305–310 平台缩量企稳，可分批补仓。板块情绪依赖大基金三期后续订单落地节奏，注意跟踪招标公告。</p></div>
-            <div class="ai-line"><span class="ai-key">止损线</span><p class="ai-text">跌破 296（日线 MA20）减仓 1/2；跌破 285 平台（周线 MA5）清仓观望。若单日放量跌停或板块出现系统性利空，不等待止损线直接执行。</p></div>
-            <div class="ai-note">input_hash = sha256(watchlist-daily-analysis + 002371 + 2026-09-01) · 已缓存，重复打开不再调用 LLM · 所属分组「核心持仓」已开启 AI 复盘开关，每个交易日盘后自动批量生成</div>
-            <div class="ai-disclaimer">以上内容由 AI 生成，不构成投资建议，请结合自身风险承受能力独立决策。</div>
-          </div>
-        </div>
-      </div>
+          <div class="chart-main">
+          <aside class="draw-toolbar" id="drawToolbar" hidden>
+            <span class="planned-badge" style="writing-mode:horizontal-tb;right:auto;left:6px;top:6px">规划中</span>
+            <button class="draw-tool active" title="光标">✛</button>
+            <button class="draw-tool" title="趋势线">╱</button>
+            <button class="draw-tool" title="水平线">―</button>
+            <button class="draw-tool" title="平行线">∥</button>
+            <button class="draw-tool" title="斐波那契回撤">ƒ</button>
+            <button class="draw-tool" title="矩形">▭</button>
+            <button class="draw-tool" title="文字">T</button>
+            <button class="draw-tool" title="橡皮擦">⌫</button>
+            <button class="draw-tool" title="测量">⊞</button>
+            <button class="draw-tool" title="清除全部">🗑</button>
+            <span class="draw-toolbar-note">画线工具</span>
+          </aside>
 
-      <!-- Tab: 板块归属（行业 + 概念） -->
-      <div class="tab-pane" id="pane-sector">
-        <div class="grid-2 mb-4">
-          <div class="card">
-            <div class="card-header"><span class="card-title">所属行业</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">申万分类 · stock_basic</span></div>
-            <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-2)">
-              <div class="sector-row"><span class="sector-key">一级</span><span class="sector-val">半导体 <a href="capital-flow.html">板块资金流 →</a></span></div>
-              <div class="sector-row"><span class="sector-key">二级</span><span class="sector-val">半导体设备</span></div>
-              <div class="sector-row"><span class="sector-key">三级</span><span class="sector-val">集成电路设备</span></div>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-header"><span class="card-title">概念归属</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">共 12 个 · mapping_stock_concept</span></div>
-            <div class="card-body" style="display:flex;flex-wrap:wrap;gap:var(--space-2)">
-              <a class="concept-chip" href="capital-flow.html">国家大基金三期 <em>1,286 只相关资讯</em></a>
-              <a class="concept-chip" href="capital-flow.html">半导体设备</a>
-              <a class="concept-chip" href="capital-flow.html">国产替代</a>
-              <a class="concept-chip" href="capital-flow.html">晶圆厂扩产</a>
-              <a class="concept-chip" href="capital-flow.html">存储芯片</a>
-              <a class="concept-chip" href="capital-flow.html">MSCI 中国</a>
-              <a class="concept-chip" href="capital-flow.html">融资融券</a>
-              <a class="concept-chip" href="capital-flow.html">沪港通</a>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header"><span class="card-title">同板块成分股表现</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">半导体设备 · 今日</span></div>
-          <div class="card-body-sm">
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>代码</th><th>名称</th><th>现价</th><th>涨跌幅</th><th>主力净流入</th></tr></thead>
-                <tbody>
-                  <tr style="background:var(--accent-soft)"><td class="text-mono">002371</td><td>北方华创</td><td class="text-mono">318.40</td><td class="text-mono" style="color:var(--red);font-weight:600">+5.02%</td><td class="text-mono" style="color:var(--red)">+8.6 亿</td></tr>
-                  <tr><td class="text-mono">688012</td><td>中微公司</td><td class="text-mono">212.35</td><td class="text-mono" style="color:var(--red)">+4.11%</td><td class="text-mono" style="color:var(--red)">+5.2 亿</td></tr>
-                  <tr><td class="text-mono">002077</td><td>大族数控</td><td class="text-mono">38.12</td><td class="text-mono" style="color:var(--red)">+2.86%</td><td class="text-mono" style="color:var(--green)">-1.1 亿</td></tr>
-                  <tr><td class="text-mono">688082</td><td>盛美上海</td><td class="text-mono">108.66</td><td class="text-mono" style="color:var(--red)">+1.94%</td><td class="text-mono" style="color:var(--red)">+2.4 亿</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
+          <div class="chart-col">
+            <!-- 图1 · 日线单元：主图 + VOL + MACD（指标可切换，两副图窗格常驻各自的量能/指标） -->
+            <div class="chart-block main">
+              <div class="chart-toolbar">
+                <div class="seg-group">
+                  <button class="seg-btn">分时</button>
+                  <button class="seg-btn active">日K</button>
+                  <button class="seg-btn">周K</button>
+                  <button class="seg-btn">月K</button>
+                </div>
+                <span class="ct-divider"></span>
+                <button class="tool-toggle active">前复权</button>
+                <button class="tool-toggle" id="btnDrawToggle" title="展开/收起画线工具">✎ 画线</button>
+                <button class="tool-toggle" id="btnChipToggle" title="展开/收起筹码峰分布">筹 · 筹码峰</button>
+                <button class="tool-toggle">指标：VOL · MACD ▾</button>
+                <div class="ct-right">
+                  <div class="seg-group">
+                    <button class="seg-btn active">双图</button>
+                    <button class="seg-btn">单图</button>
+                  </div>
+                  <button class="ct-icon-btn" title="指标参数设置">⚙</button>
+                  <button class="ct-icon-btn" title="全屏">⛶</button>
+                </div>
+              </div>
 
-      <!-- Tab: 研报观点（List：标题 / 来源 / 发布日期 / 摘要） -->
+              <!-- K 线主图：MA 常驻行 + 左轴涨跌幅% + 右轴价格 + 最新价标签 + 筹码峰 + tooltip 规格示意 -->
+              <div class="chart-canvas has-sub">
+                <div class="ma-legend">
+                  <span class="ma5">MA5: 309.86</span>
+                  <span class="ma10">MA10: 303.42</span>
+                  <span class="ma20">MA20: 297.15</span>
+                  <span class="ma60">MA60: 285.63</span>
+                </div>
+                <div class="plot-grid"></div>
+                <div class="plot-area">
+                  <div class="candles" id="candlesMain"></div>
+                </div>
+                <div class="axis-left">
+                  <span class="up">+6%</span><span class="up">+4%</span><span class="up">+2%</span>
+                  <span>0%</span>
+                  <span class="down">-2%</span><span class="down">-4%</span>
+                </div>
+                <div class="axis-right">
+                  <span>332.00</span><span>323.50</span><span>315.00</span><span>306.50</span><span>298.00</span><span>289.50</span>
+                </div>
+                <div class="axis-time"><span>01-12</span><span>03-02</span><span>04-24</span><span>06-16</span><span>07-28</span><span>09-04</span></div>
+                <div class="last-price-tag" style="top: 12%">318.40</div>
+
+                <!-- 筹码峰叠加面板（可开关·规划中）：横向成本分布 + 获利线 + 摘要，工具栏「筹」按钮开合 -->
+                <div class="chip-distribution" id="chipPanel" hidden>
+                  <span class="planned-badge">规划中</span>
+                  <div class="chip-bars" id="chipBars"></div>
+                  <div class="chip-cost-line"><span>平均成本 296.2</span></div>
+                  <div class="chip-summary">
+                    <span><span class="k">获利比例 </span>68.4%</span>
+                    <span><span class="k">90%区间 </span>271.5–335.4</span>
+                  </div>
+                </div>
+
+                <!-- tooltip 规格示意：日期 → 开高低收 → 涨跌 → 量额 → 振幅/换手 → MA 弱化行 -->
+                <div class="chart-tooltip">
+                  <div class="tt-date">2026-09-04 周五</div>
+                  <div class="tt-grid">
+                    <span><span class="k">开 </span>304.60</span>
+                    <span><span class="k">高 </span>319.80</span>
+                    <span><span class="k">低 </span>301.55</span>
+                    <span class="strong up"><span class="k">收 </span>318.40</span>
+                    <span class="up">+15.20</span>
+                    <span class="up">+5.02%</span>
+                    <span><span class="k">量 </span>8.42万手</span>
+                    <span><span class="k">额 </span>26.7亿</span>
+                    <span><span class="k">振幅 </span>6.02%</span>
+                    <span><span class="k">换手 </span>1.85%</span>
+                  </div>
+                  <div class="tt-ma">
+                    <span style="color:var(--ma5)">MA5 309.86</span>
+                    <span style="color:var(--ma10)">MA10 303.42</span>
+                    <span style="color:var(--ma20)">MA20 297.15</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- VOL 副图：右轴刻度（万手），左轴隐藏 -->
+              <div class="chart-canvas sub">
+                <span class="sub-label">VOL(万手)</span>
+                <div class="plot-grid"></div>
+                <div class="plot-area sub-plot">
+                  <div class="candles" id="volBars"></div>
+                </div>
+                <div class="sub-axis-right"><span>12.4</span><span>8.3</span><span>4.2</span><span>0</span></div>
+              </div>
+
+              <!-- MACD 副图：DIF/DEA 双线 + 红绿柱，零轴虚线；工具栏「指标 ▾」可换成 KDJ/BOLL 等 -->
+              <div class="chart-canvas sub">
+                <div class="sub-legend">
+                  <span style="color:var(--text-secondary);font-weight:600">MACD(12,26,9)</span>
+                  <span class="dif">DIF: 2.86</span>
+                  <span class="dea">DEA: 2.31</span>
+                  <span style="color:var(--red)">MACD: +1.10</span>
+                </div>
+                <div class="plot-grid"></div>
+                <div class="zero-line"></div>
+                <div class="plot-area sub-plot">
+                  <div class="candles" id="macdBars"></div>
+                  <svg class="macd-lines" id="macdLines" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+                </div>
+                <div class="sub-axis-right"><span>4.0</span><span>2.0</span><span>0</span><span>-2.0</span><span>-4.0</span></div>
+              </div>
+            </div>
+
+            <div class="chart-splitter" title="拖拽调整双图高度（30%–70%）"><span></span></div>
+
+            <!-- 图2 · 周线单元：独立周期切换 + 自身 VOL 副图 -->
+            <div class="chart-block week">
+              <div class="chart-toolbar">
+                <div class="seg-group">
+                  <button class="seg-btn">分时</button>
+                  <button class="seg-btn">日K</button>
+                  <button class="seg-btn active">周K</button>
+                  <button class="seg-btn">月K</button>
+                </div>
+                <span class="ct-divider"></span>
+                <button class="tool-toggle">指标：VOL ▾</button>
+                <div class="ct-right">
+                  <button class="ct-icon-btn" title="指标参数设置">⚙</button>
+                  <button class="ct-icon-btn" title="全屏">⛶</button>
+                </div>
+              </div>
+              <div class="chart-canvas duo-main">
+                <div class="ma-legend">
+                  <span class="ma5">MA5: 296.24</span>
+                  <span class="ma10">MA10: 281.07</span>
+                  <span class="ma20">MA20: 272.90</span>
+                </div>
+                <div class="plot-grid"></div>
+                <div class="plot-area">
+                  <div class="candles" id="candlesWeek"></div>
+                </div>
+                <div class="axis-left">
+                  <span class="up">+10%</span><span class="up">+5%</span>
+                  <span>0%</span>
+                  <span class="down">-5%</span><span class="down">-10%</span>
+                </div>
+                <div class="axis-right">
+                  <span>330</span><span>305</span><span>280</span><span>255</span><span>230</span>
+                </div>
+                <div class="axis-time"><span>2024-Q4</span><span>2025-Q1</span><span>2025-Q3</span><span>2026-Q1</span><span>2026-Q3</span></div>
+                <div class="last-price-tag" style="top: 8%">318.40</div>
+              </div>
+              <!-- 周线 VOL 副图 -->
+              <div class="chart-canvas sub vol">
+                <span class="sub-label">VOL(万手)</span>
+                <div class="plot-grid"></div>
+                <div class="plot-area sub-plot">
+                  <div class="candles" id="volBarsWeek"></div>
+                </div>
+                <div class="sub-axis-right"><span>62</span><span>41</span><span>21</span><span>0</span></div>
+              </div>
+            </div>
+
+            <!-- 底部统一 dataZoom（精修：窗口内标注起止日期 + 两端抓手 + 低透明度 K 线缩略） -->
+            <div class="datazoom-bar">
+              <div class="dz-shadow" id="dzShadow"></div>
+              <div class="dz-window">
+                <span class="dz-handle left"><i></i></span>
+                <span class="dz-date">2026-01-12</span>
+                <span class="dz-date" style="margin-left:auto">2026-09-04</span>
+                <span class="dz-handle right"><i></i></span>
+              </div>
+            </div>
+          </div>
+          </div><!-- /chart-main -->
+        </div>
+
+        <!-- ③ 右侧信息栏（360px，通高）：AI 分析为默认 tab -->
+        <aside class="info-panel card">
+          <div class="info-tabs">
+            <button class="tab-btn active" data-tab="pane-ai">AI 分析</button>
+            <button class="tab-btn" data-tab="pane-fin">财务</button>
+            <button class="tab-btn" data-tab="pane-research">研报</button>
+            <button class="tab-btn" data-tab="pane-sector">板块</button>
+          </div>
+          <div class="info-scroll">
+
+            <!-- AI 每日分析：header 单行（标题+日期+重新生成），四分区与实现一致 -->
+            <div class="tab-pane active" id="pane-ai">
+              <div class="card">
+                <div class="ai-header">
+                  <span class="card-title">AI 分析解读</span>
+                  <span class="tag tag-purple ai-date">2026-09-04</span>
+                  <button class="btn btn-ghost btn-sm">↻ 重新生成</button>
+                </div>
+                <div class="ai-status-row"><span class="tag tag-green">已生成 · 命中缓存</span><span>每个交易日盘后由自选股 AI 复盘自动生成</span></div>
+                <div class="ai-body">
+                  <div class="ai-line"><span class="ai-key">盘面解读</span><p class="ai-text">北方华创今日高开后沿 MA5 震荡上行，收涨 +5.02% 报 <b>318.40</b>，量能较昨日放大 1.3 倍。日线突破 320 平台后回踩确认有效，量价配合良好。</p></div>
+                  <div class="ai-line"><span class="ai-key">关键事件</span><p class="ai-text">国家大基金三期落地首笔投资，半导体设备板块整体异动；公司作为平台型设备龙头获资金集中承接，当日主力净流入 +8.6 亿居板块首位。</p></div>
+                  <div class="ai-line"><span class="ai-key">操作策略</span><p class="ai-text">持仓为主：突破 <b>320</b> 一线且量能维持，可持股待涨至前高 345 区域；若回踩 305–310 平台缩量企稳，可分批补仓。</p></div>
+                  <div class="ai-line"><span class="ai-key">风险与止损</span><p class="ai-text">跌破 <b>296</b>（日线 MA20）减仓 1/2；跌破 285 平台（周线 MA5）清仓观望。板块情绪依赖大基金三期后续订单落地节奏。</p></div>
+                  <div class="ai-note">input_hash 命中缓存，重复打开不再调用 LLM · 所属分组「核心持仓」已开启 AI 复盘</div>
+                  <div class="ai-disclaimer">以上内容由 AI 生成，不构成投资建议，请结合自身风险承受能力独立决策。</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 财务：右栏 2 列指标卡 -->
+            <div class="tab-pane" id="pane-fin">
+              <div class="card">
+                <div class="card-header" style="padding:10px 14px"><span class="card-title" style="font-size:13px">核心财务指标</span><span class="tag tag-green">2026 中报</span></div>
+                <div class="card-pad">
+                  <div class="fin-grid">
+                    <div class="fin-item"><span class="fin-label">ROE</span><span class="fin-value" style="color:var(--green)">22.8%</span></div>
+                    <div class="fin-item"><span class="fin-label">毛利率</span><span class="fin-value">46.2%</span></div>
+                    <div class="fin-item"><span class="fin-label">净利率</span><span class="fin-value">21.8%</span></div>
+                    <div class="fin-item"><span class="fin-label">营收同比</span><span class="fin-value" style="color:var(--red)">+31.5%</span></div>
+                    <div class="fin-item"><span class="fin-label">资产负债率</span><span class="fin-value">58.3%</span></div>
+                    <div class="fin-item"><span class="fin-label">经营现金流/营收</span><span class="fin-value">12.4%</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-header" style="padding:10px 14px"><span class="card-title" style="font-size:13px">历史趋势</span><span style="font-size:11px;color:var(--text-tertiary)">近 8 期 · ROE / 毛利率 / 净利率</span></div>
+                <div class="card-pad" style="color:var(--text-tertiary);font-size:12px;text-align:center;padding:24px 0">
+                  财务趋势图（ECharts 折线，随实现渲染）
+                </div>
+              </div>
+            </div>
+
+            <!-- 研报（右栏紧凑列表） -->
+            <div class="tab-pane" id="pane-research">
+              <div class="card">
+                <div class="card-header" style="padding:10px 14px"><span class="card-title" style="font-size:13px">相关研报</span><span style="font-size:11px;color:var(--text-tertiary)">共 28 篇</span></div>
+                <div class="card-pad">
+                  <div class="research-item">
+                    <div class="research-item-header"><span class="r-title">刻蚀设备出货超预期，5nm 刻蚀机通过验证</span><span class="r-date">07-02</span></div>
+                    <div class="research-src">中信证券</div>
+                    <p class="research-abs">刻蚀设备出货量超预期，5nm 刻蚀机通过中芯国际认证，有望在 2026H2 放量。</p>
+                  </div>
+                  <div class="research-item">
+                    <div class="research-item-header"><span class="r-title">平台型设备龙头，国产替代核心受益</span><span class="r-date">06-28</span></div>
+                    <div class="research-src">华泰证券</div>
+                    <p class="research-abs">半导体设备国产替代加速，ICP 刻蚀和 PVD 设备市场份额持续提升。</p>
+                  </div>
+                  <div class="research-item">
+                    <div class="research-item-header"><span class="r-title">估值已反映乐观预期，关注资本开支节奏</span><span class="r-date">06-25</span></div>
+                    <div class="research-src">国泰君安</div>
+                    <p class="research-abs">关注地缘政治风险与下游晶圆厂资本开支节奏变化。</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 板块：行业（头部已有行业标签，此处保留三级明细）+ 概念折叠 + 成分股 -->
+            <div class="tab-pane" id="pane-sector">
+              <div class="card">
+                <div class="card-header" style="padding:10px 14px"><span class="card-title" style="font-size:13px">所属行业</span><span style="font-size:11px;color:var(--text-tertiary)">申万分类</span></div>
+                <div class="card-pad" style="padding-top:4px">
+                  <div class="sector-row"><span class="sector-key">一级</span><span class="sector-val">半导体 <a href="capital-flow.html">板块资金流 →</a></span></div>
+                  <div class="sector-row"><span class="sector-key">二级</span><span class="sector-val">半导体设备</span></div>
+                  <div class="sector-row"><span class="sector-key">三级</span><span class="sector-val">集成电路设备</span></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-header" style="padding:10px 14px"><span class="card-title" style="font-size:13px">概念归属</span><span style="font-size:11px;color:var(--text-tertiary)">按主力净流入排序 · 共 12 个</span></div>
+                <div class="card-pad">
+                  <div class="concept-chips" id="conceptChips">
+                    <a class="concept-chip" href="capital-flow.html">国家大基金三期</a>
+                    <a class="concept-chip" href="capital-flow.html">半导体设备</a>
+                    <a class="concept-chip" href="capital-flow.html">国产替代</a>
+                    <a class="concept-chip" href="capital-flow.html">晶圆厂扩产</a>
+                    <a class="concept-chip" href="capital-flow.html">存储芯片</a>
+                    <a class="concept-chip" href="capital-flow.html">MSCI 中国</a>
+                    <a class="concept-chip" href="capital-flow.html" data-fold hidden>融资融券</a>
+                    <a class="concept-chip" href="capital-flow.html" data-fold hidden>沪港通</a>
+                    <a class="concept-chip" href="capital-flow.html" data-fold hidden>富时罗素</a>
+                    <a class="concept-chip" href="capital-flow.html" data-fold hidden>标普道琼斯</a>
+                    <a class="concept-chip" href="capital-flow.html" data-fold hidden>机构重仓</a>
+                    <a class="concept-chip" href="capital-flow.html" data-fold hidden>深股通</a>
+                  </div>
+                  <button class="concept-fold-btn" id="conceptFoldBtn">展开全部 6 个 ⌄</button>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-header" style="padding:10px 14px"><span class="card-title" style="font-size:13px">同板块成分股</span><span style="font-size:11px;color:var(--text-tertiary)">半导体设备 · 今日</span></div>
+                <div class="card-body-sm" style="padding:6px 8px">
+                  <div class="table-wrap">
+                    <table>
+                      <thead><tr><th>代码</th><th>名称</th><th>涨跌幅</th><th>主力净流入</th></tr></thead>
+                      <tbody>
+                        <tr style="background:var(--accent-soft)"><td class="text-mono">002371</td><td>北方华创</td><td class="text-mono up" style="font-weight:600">+5.02%</td><td class="text-mono up">+8.6亿</td></tr>
+                        <tr><td class="text-mono">688012</td><td>中微公司</td><td class="text-mono up">+4.11%</td><td class="text-mono up">+5.2亿</td></tr>
+                        <tr><td class="text-mono">688082</td><td>盛美上海</td><td class="text-mono up">+1.94%</td><td class="text-mono up">+2.4亿</td></tr>
+                        <tr><td class="text-mono">002077</td><td>大族数控</td><td class="text-mono up">+2.86%</td><td class="text-mono down">-1.1亿</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 指数/ETF 差异化（同一页面骨架，按标的类型裁剪） -->
+            <div class="type-note">
+              <div class="tn-title">指数 / ETF 复用同骨架（规划说明）</div>
+              路由扩展 <span class="text-mono">/quote/:type/:code</span>：指数隐藏 换手率/总市值/PE/量比 与 财务·研报·AI 分析 tab，快照改涨跌家数/领涨板块，板块 tab 改权重股；ETF 隐藏 PE，增 IOPV/溢价率，板块 tab 改成份券与跟踪指数。
+            </div>
+
+          </div>
+        </aside>
+
+      </div>
     </div>
   </div>
 </div>
 <script>
-document.querySelectorAll('.tab-nav-btn').forEach(function(t){
+/* Tab 切换 */
+document.querySelectorAll('.info-tabs .tab-btn').forEach(function(t){
   t.addEventListener('click',function(){
-    document.querySelectorAll('.tab-nav-btn').forEach(function(x){x.classList.toggle('active',x===t)});
-    document.querySelectorAll('.tab-pane').forEach(function(p){p.classList.toggle('active',p.id===t.dataset.tab)});
+    document.querySelectorAll('.info-tabs .tab-btn').forEach(function(x){x.classList.toggle('active',x===t)});
+    document.querySelectorAll('.info-scroll .tab-pane').forEach(function(p){p.classList.toggle('active',p.id===t.dataset.tab)});
   });
 });
+/* 概念折叠展开 */
+(function(){
+  var btn=document.getElementById('conceptFoldBtn');
+  btn.addEventListener('click',function(){
+    var folded=document.querySelectorAll('#conceptChips [data-fold]');
+    var hidden=folded[0] && folded[0].hidden;
+    folded.forEach(function(c){c.hidden=!hidden});
+    btn.textContent=hidden?'收起 ⌃':'展开全部 6 个 ⌄';
+  });
+})();
+/* 画线工具竖条 / 筹码峰面板：默认收起，工具栏按钮开合 */
+(function(){
+  [['btnDrawToggle','drawToolbar'],['btnChipToggle','chipPanel']].forEach(function(p){
+    var btn=document.getElementById(p[0]),target=document.getElementById(p[1]);
+    btn.addEventListener('click',function(){
+      target.hidden=!target.hidden;
+      btn.classList.toggle('active',!target.hidden);
+    });
+  });
+})();
+/* 确定性伪随机（固定种子，保证每次打开渲染一致） */
+function seeded(seed){var s=seed;return function(){s=(s*9301+49297)%233280;return s/233280}}
+/* 示意蜡烛图：生成贴近真实形态的蜡烛 + 成交量 */
+function renderCandles(el,n,seed,lo,hi){
+  var rnd=seeded(seed),data=[],p=lo+(hi-lo)*0.35,i;
+  for(i=0;i<n;i++){
+    var o=p,c=Math.max(lo,Math.min(hi,p+(rnd()-0.44)*(hi-lo)*0.09));
+    var h=Math.max(o,c)+rnd()*(hi-lo)*0.03,l=Math.min(o,c)-rnd()*(hi-lo)*0.03;
+    data.push({o:o,c:c,h:h,l:l});p=c;
+  }
+  var maxH=0,minL=Infinity;
+  data.forEach(function(d){maxH=Math.max(maxH,d.h);minL=Math.min(minL,d.l)});
+  var volMax=0,vols=data.map(function(d){var v=rnd();volMax=Math.max(volMax,v);return v});
+  var volEl=document.getElementById(el.getAttribute('data-vol'));
+  data.forEach(function(d,i){
+    var up=d.c>=d.o,col=up?'var(--red)':'var(--green)';
+    var x=(i+0.5)/n*100,y=function(v){return (maxH-v)/(maxH-minL)*100};
+    var wick=document.createElement('i');
+    wick.style.cssText='position:absolute;left:'+(x-0.06)+'%;width:0.12%;top:'+y(d.h)+'%;height:'+(y(d.l)-y(d.h))+'%;background:'+col;
+    el.appendChild(wick);
+    var body=document.createElement('i');
+    body.style.cssText='position:absolute;left:'+(x-0.8)+'%;width:1.6%;top:'+y(Math.max(d.o,d.c))+'%;height:'+Math.max(0.8,y(Math.min(d.o,d.c))-y(Math.max(d.o,d.c)))+'%;background:'+col+';border-radius:1px';
+    el.appendChild(body);
+    if(volEl){
+      var vb=document.createElement('i');
+      var vh=(vols[i]/volMax)*92+6;
+      vb.style.cssText='position:absolute;left:'+(x-0.8)+'%;width:1.6%;bottom:0;height:'+vh+'%;background:'+col+';opacity:.75';
+      volEl.appendChild(vb);
+    }
+  });
+}
+var mainC=document.getElementById('candlesMain');
+mainC.setAttribute('data-vol','volBars');
+renderCandles(mainC,44,42,278,336);
+var weekC=document.getElementById('candlesWeek');
+weekC.setAttribute('data-vol','volBarsWeek');
+renderCandles(weekC,16,7,232,342);
+/* MACD 柱状 + DIF/DEA 双线（示意数据，确定性种子） */
+(function(){
+  var bars=document.getElementById('macdBars'),svg=document.getElementById('macdLines');
+  var rnd=seeded(77),n=44,v=0,dif=[],i;
+  for(i=0;i<n;i++){v+=(rnd()-0.46)*1.1;v=Math.max(-3.2,Math.min(3.8,v));dif.push(v)}
+  var dea=dif.map(function(_,k){var s=0,c=0,j;for(j=Math.max(0,k-5);j<=k;j++){s+=dif[j];c++}return s/c});
+  var ext=2.5;
+  dif.forEach(function(d,k){ext=Math.max(ext,Math.abs(d),Math.abs(dea[k]))});
+  dif.forEach(function(d,k){
+    var x=(k+0.5)/n*100,h=Math.abs(d)/ext*46,b=document.createElement('i');
+    b.style.cssText='position:absolute;left:'+(x-0.8)+'%;width:1.6%;'+(d>=0?'top:'+(50-h)+'%;':'top:50%;')+'height:'+h+'%;background:'+(d>=0?'var(--red)':'var(--green)')+';opacity:.85';
+    bars.appendChild(b);
+  });
+  function pts(arr){
+    return arr.map(function(d,k){var x=(k+0.5)/n*100,y=50-d/ext*46;return x.toFixed(2)+','+y.toFixed(2)}).join(' ');
+  }
+  svg.innerHTML=
+    '<polyline points="'+pts(dif)+'" fill="none" stroke="var(--text-primary)" stroke-width="1" vector-effect="non-scaling-stroke" opacity=".85"/>'+
+    '<polyline points="'+pts(dea)+'" fill="none" stroke="var(--ma10)" stroke-width="1" vector-effect="non-scaling-stroke" opacity=".9"/>';
+})();
+/* dataZoom 缩略 K 线阴影 */
+(function(){
+  var el=document.getElementById('dzShadow'),rnd=seeded(99),i;
+  for(i=0;i<120;i++){
+    var b=document.createElement('i');
+    b.style.height=(12+rnd()*80)+'%';
+    el.appendChild(b);
+  }
+})();
+/* 筹码峰横向柱（正态峰形示意，获利线以上红/以下绿） */
+(function(){
+  var el=document.getElementById('chipBars'),rnd=seeded(2026),i;
+  for(i=0;i<24;i++){
+    var b=document.createElement('i');
+    b.className='chip-bar '+(i<10?'loss':'gain');
+    var bell=Math.exp(-Math.pow(i-11,2)/46);
+    b.style.width=(12+bell*78+rnd()*8)+'%';
+    el.appendChild(b);
+  }
+})();
 </script>
 </body>
 </html>

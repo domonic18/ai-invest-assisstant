@@ -1,7 +1,9 @@
-"""个股每日 AI 分析服务：上下文组装、LLM 生成、缓存持久化。
+"""个股每日 AI 分析服务：数据就绪检查、锁、缓存与持久化。
 
-镜像 market-daily-review 生成链路；结果按 (skill_id, input_hash) 缓存于
-ai_analysis_result 表，stock_code 独立落列以便按标的检索。
+LLM 生成委托 ``app.agent.skills.stock_daily_analysis_agent.run_skill``
+（deepagents 工具循环，分析流程见 ``skills/stock-daily-analysis/SKILL.md``）；
+结果按 (skill_id, input_hash) 缓存于 ai_analysis_result 表，stock_code
+独立落列以便按标的检索。
 """
 
 import hashlib
@@ -9,18 +11,15 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import structlog
-from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptConfig, PromptLoader, PromptSection
-from app.agent.core.prompt_renderer import PromptRenderer
 from app.core.config import get_settings
 from app.core.locking import redis_lock
 from app.models.watchlist import UserWatchlist, UserWatchlistGroup
 from app.repositories.review import ai_analysis_repository
 from app.schemas.stock import StockAiAnalysisResponse, StockAiAnalysisSection
-from app.services.common.formatters import format_amount
 from app.services.review.market_review_generator import (
     ReviewGenerationLockedError,
     ReviewInputDataNotReadyError,
@@ -32,12 +31,6 @@ SKILL_ID = "stock-daily-analysis"
 KLINE_BARS = 20
 KLINE_WINDOW_DAYS = 40  # 日历日窗口，足够覆盖 KLINE_BARS 个交易日
 LOCK_TTL_SECONDS = 300
-
-
-class StockAnalysisContent(BaseModel):
-    """LLM 结构化输出：分区 key -> Markdown 内容。"""
-
-    sections: dict[str, str]
 
 
 def load_prompt_config() -> PromptConfig:
@@ -52,14 +45,6 @@ def input_hash(stock_code: str, trade_date: date, sections: list[PromptSection])
     keys = ",".join(section.key for section in sections)
     raw = f"{SKILL_ID}:{keys}:{stock_code}:{trade_date.isoformat()}"
     return hashlib.sha256(raw.encode()).hexdigest()
-
-
-def render_section_instructions(sections: list[PromptSection]) -> str:
-    lines = ["请输出以下分区（以分区 key 为字段名）："]
-    for index, section in enumerate(sections, start=1):
-        requirements = section.requirements.strip()
-        lines.append(f"{index}. {section.key}（{section.title}）：{requirements}")
-    return "\n".join(lines)
 
 
 def _build_response(
@@ -111,47 +96,6 @@ async def _load_cached(
         generated_at=row.created_at,
         cached=True,
     )
-
-
-def _fmt_price(value: Any) -> str:
-    return f"{float(value):.2f}" if value is not None else "—"
-
-
-def _fmt_pct(value: Any) -> str:
-    return f"{float(value):+.2f}%" if value is not None else "—"
-
-
-def _fmt_amount(value: Any) -> str:
-    return format_amount(float(value)) if value is not None else "—"
-
-
-def _render_quote_context(quote: dict[str, Any] | None) -> str:
-    if not quote:
-        return "无当日行情快照（仅基于 K 线数据分析，实际数据范围以 K 线为准）"
-    parts = [
-        f"最新价 {_fmt_price(quote.get('price'))}",
-        f"昨收 {_fmt_price(quote.get('prev_close'))}",
-        f"今开 {_fmt_price(quote.get('open'))}",
-        f"最高 {_fmt_price(quote.get('high'))}",
-        f"最低 {_fmt_price(quote.get('low'))}",
-        f"涨跌幅 {_fmt_pct(quote.get('change_pct'))}",
-        f"成交量 {quote.get('volume') if quote.get('volume') is not None else '—'}",
-        f"成交额 {_fmt_amount(quote.get('amount'))}",
-    ]
-    return "；".join(parts)
-
-
-def _render_kline_context(bars: list[Any]) -> str:
-    if not bars:
-        return "无 K 线数据（数据范围内该股无日线记录）"
-    lines = []
-    for bar in bars:
-        lines.append(
-            f"{bar.trade_date.isoformat()} 开 {_fmt_price(bar.open)} 高 {_fmt_price(bar.high)} "
-            f"低 {_fmt_price(bar.low)} 收 {_fmt_price(bar.close)} 涨跌幅 {_fmt_pct(bar.change_pct)} "
-            f"量 {bar.volume if bar.volume is not None else '—'} 额 {_fmt_amount(bar.amount)}"
-        )
-    return "\n".join(lines)
 
 
 async def _load_recent_kline(
@@ -262,37 +206,15 @@ async def generate_stock_analysis(
                 f"{stock_code} 的 K 线与行情数据尚未就绪，无法生成个股分析"
             )
 
-        user_prompt = PromptRenderer.render(
-            prompt_config.user_prompt_template,
-            stock_code=stock_code,
-            stock_name=stock_name,
-            trade_date=trade_date.isoformat(),
-            quote_context=_render_quote_context(quote),
-            kline_context=_render_kline_context(kline_bars),
-            section_instructions=render_section_instructions(sections),
-        )
+        from app.agent.skills.stock_daily_analysis_agent import run_skill
 
-        from app.agent.runtime import run_structured_agent_with_metrics
-
-        output, latency_ms, model_name = await run_structured_agent_with_metrics(
+        contents, model_name, latency_ms = await run_skill(
             session,
+            stock_code,
+            trade_date=trade_date,
+            stock_name=stock_name,
             prompt_config=prompt_config,
-            user_prompt=user_prompt,
-            result_type=StockAnalysisContent,
         )
-
-        declared_keys = {section.key for section in sections}
-        missing = declared_keys - output.sections.keys()
-        if missing:
-            logger.warning(
-                "stock_analysis_section_missing",
-                stock_code=stock_code,
-                trade_date=trade_date.isoformat(),
-                missing=sorted(missing),
-            )
-        contents = {
-            section.key: output.sections.get(section.key, "") for section in sections
-        }
 
         await _persist(
             session,
@@ -317,12 +239,81 @@ async def generate_stock_analysis(
         )
 
 
+async def persist_stock_analysis(
+    session: AsyncSession,
+    stock_code: str,
+    *,
+    trade_date: date,
+    contents: dict[str, str],
+    model: str,
+) -> StockAiAnalysisResponse:
+    """将助手/skill 产出的四分区分析落库（ai_analysis_result），返回响应。
+
+    Raises:
+        ValueError: sections 缺少 prompt 声明的分区键或内容为空。
+    """
+    from app.services.market import stock_service
+
+    sections = load_prompt_config().sections
+    missing = [s.key for s in sections if not (contents.get(s.key) or "").strip()]
+    if missing:
+        expected = ", ".join(s.key for s in sections)
+        raise ValueError(
+            f"sections 缺少必填分区：{', '.join(missing)}；期望键集：{expected}"
+        )
+
+    stock = await stock_service.get_stock_by_code(session, stock_code)
+    stock_name = stock.stock_name if stock else stock_code
+
+    await _persist(
+        session,
+        stock_code=stock_code,
+        stock_name=stock_name,
+        trade_date=trade_date,
+        hash_str=input_hash(stock_code, trade_date, sections),
+        model=model,
+        contents={s.key: contents[s.key] for s in sections},
+        latency_ms=0,
+    )
+    return _build_response(
+        stock_code=stock_code,
+        stock_name=stock_name,
+        trade_date=trade_date,
+        contents=contents,
+        sections=sections,
+        model=model,
+        generated_at=datetime.now(timezone.utc),
+        cached=False,
+    )
+
+
 async def get_stock_analysis(
     session: AsyncSession, stock_code: str, *, trade_date: date
 ) -> StockAiAnalysisResponse | None:
-    """读取已生成的个股分析缓存；无则返回 None（API 层转 204）。"""
+    """读取已生成的个股分析缓存；无则返回 None。"""
     sections = load_prompt_config().sections
     return await _load_cached(session, stock_code, trade_date, sections)
+
+
+async def is_generation_running(stock_code: str, trade_date: date) -> bool:
+    """该股当日分析的生成锁是否被持有（异步生成进行中）。"""
+    from app.core.cache import get_redis
+
+    client = get_redis()
+    lock = client.lock(
+        f"lock:ai:{SKILL_ID}:{stock_code}:{trade_date.isoformat()}",
+        thread_local=False,
+    )
+    return bool(await lock.locked())
+
+
+async def list_analysis_trade_dates(
+    session: AsyncSession, stock_code: str
+) -> list[date]:
+    """该股已成功生成分析的全部交易日（升序），供日历标记。"""
+    return await ai_analysis_repository.list_success_trade_dates(
+        session, skill_id=SKILL_ID, stock_code=stock_code
+    )
 
 
 async def list_active_watch_stock_codes(session: AsyncSession) -> list[str]:

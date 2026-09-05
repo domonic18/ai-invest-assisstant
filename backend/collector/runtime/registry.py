@@ -67,6 +67,17 @@ TASK_SPECS: dict[str, TaskSpec] = {
             defaults={"period": "daily"},
         ),
         TaskSpec(
+            name="watchlist-kline-daily",
+            label="自选股日 K 补采",
+            data_type="watchlist_kline_daily",
+            # 缺省 symbols = 全部自选股（见 sina_kline._fetch_watchlist_codes）
+            collectors={
+                "sina": "collector.spiders.sina_kline:SinaKlineCollector",
+            },
+            config_params=("period",),
+            defaults={"period": "daily"},
+        ),
+        TaskSpec(
             name="index-kline",
             label="指数 K 线",
             data_type="index_kline",
@@ -382,6 +393,14 @@ TASK_SPECS: dict[str, TaskSpec] = {
                 ),
             },
         ),
+        TaskSpec(
+            name="kline-freshness",
+            label="日K新鲜度自愈",
+            data_type="kline_freshness",
+            collectors={
+                "internal": "collector.spiders.kline_freshness:KlineFreshnessCollector",
+            },
+        ),
     ]
 }
 
@@ -409,6 +428,8 @@ _QUEUE_OVERRIDES: dict[str, Literal["realtime", "batch", "heavy"]] = {
     "research-report": "heavy",
     # 全链 AI 分析逐链分钟级，逐链串行走 heavy 专用 worker
     "chain-refresh": "heavy",
+    # 自愈需串行重跑多个日 K 采集任务（全历史 upsert），耗时分钟级
+    "kline-freshness": "heavy",
 }
 
 TASK_SPECS = {

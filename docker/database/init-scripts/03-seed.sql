@@ -16,22 +16,23 @@ VALUES
 ON CONFLICT (stock_code, market) DO NOTHING;
 
 -- market_daily_review_1600 / limit_up_ai_review_1630 / stock_daily_analysis_1640 /
--- chain_refresh_weekly / collector_log_cleanup_daily 任务的 internal 渠道（内部生成，非外部数据源）
+-- chain_refresh_weekly / collector_log_cleanup_daily / kline_freshness_evening 任务的
+-- internal 渠道（内部生成，非外部数据源）
 -- supported_data_types 与 collector_channel_data_type 按任务名登记（渠道解析/beat 派发以任务名为键）
 INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
-VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup"]'::jsonb)
+VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness"]'::jsonb)
 ON CONFLICT (source) DO NOTHING;
 
 -- 兼容存量环境：internal 渠道已存在时补齐后续新增的数据类型
 UPDATE collector_channel_config
-SET supported_data_types = supported_data_types || '["stock-daily-analysis", "chain-refresh", "collector-log-cleanup"]'::jsonb
+SET supported_data_types = supported_data_types || '["stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness"]'::jsonb
 WHERE source = 'internal'
   AND NOT supported_data_types @> '["chain-refresh"]'::jsonb;
 
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, d.data_type, 1
 FROM collector_channel_config,
-     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup')) AS d(data_type)
+     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness')) AS d(data_type)
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
@@ -47,10 +48,25 @@ FROM collector_channel_config
 WHERE source = 'eastmoney'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
+-- 防御性补齐 sina 渠道的 watchlist-kline-daily 数据类型（渠道已存在时）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["watchlist-kline-daily"]'::jsonb
+WHERE source = 'sina'
+  AND NOT supported_data_types @> '["watchlist-kline-daily"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'watchlist-kline-daily', 1
+FROM collector_channel_config
+WHERE source = 'sina'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
 -- Default collector tasks
 INSERT INTO collector_task (task_name, task_type, source, schedule, is_active)
 VALUES
-    ('ths_kline_daily', 'kline', 'ths', '0 16 * * 1-5', true),
+    -- kline 任务的 ths 渠道已因东财 WAF 移除，统一走 sina 全历史 upsert
+    ('ths_kline_daily', 'kline', 'sina', '0 16 * * 1-5', true),
+    -- 自选股日 K 自动补采：缺省 symbols = 全部自选股，错开 16:00 收盘批
+    ('watchlist_kline_daily', 'watchlist-kline-daily', 'sina', '30 16 * * 1-5', true),
     ('sina_index_kline', 'index-kline', 'sina', '0 16,18 * * 1-5', true),
     ('ths_auction', 'auction', 'ths', '15,25 9 * * 1-5', true),
     ('eastmoney_fund_flow', 'fund-flow', 'eastmoney', '0 16 * * 1-5', true),
@@ -85,7 +101,10 @@ VALUES
     -- 每日 03:40 清理 90 天前的采集执行日志
     ('collector_log_cleanup_daily', 'collector-log-cleanup', 'internal', '40 3 * * *', true),
     -- 研报每日 8 点/18 点采集（东财 reportapi 列表 + PDF 落 MinIO）
-    ('eastmoney_research_report', 'research-report', 'eastmoney', '0 8,18 * * *', true)
+    ('eastmoney_research_report', 'research-report', 'eastmoney', '0 8,18 * * *', true),
+    -- 交易日晚间校验自选股/指数/ETF/A50 日 K 是否覆盖最近交易日，缺失则重跑采集自愈
+    -- （新浪当日 bar 收盘后存在发布滞后，18:30/21:00 两档兜底；数据已齐时良性 SKIPPED）
+    ('kline_freshness_evening', 'kline-freshness', 'internal', '30 18,21 * * 1-5', true)
 ON CONFLICT (task_name) DO NOTHING;
 
 -- ============================================================

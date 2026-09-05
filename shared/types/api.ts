@@ -79,10 +79,46 @@ export interface ApiWatchlistItemMoveRequest {
   group_id: number
 }
 
+export interface ApiWatchlistScreenshotRecognitionItem {
+  stock_code: string
+  stock_name: string | null
+  confidence: number | null
+  valid: boolean
+  matched_name: string | null
+}
+
+export interface ApiWatchlistScreenshotRecognitionResponse {
+  items: ApiWatchlistScreenshotRecognitionItem[]
+}
+
+export interface ApiWatchlistBatchItemCreate {
+  stock_code: string
+  tags?: string[]
+}
+
+export interface ApiWatchlistBatchCreate {
+  items: ApiWatchlistBatchItemCreate[]
+  group_id?: number
+  new_group_name?: string
+}
+
+export interface ApiWatchlistBatchDuplicatedItem {
+  stock_code: string
+  group_id: number | null
+  group_name: string | null
+}
+
+export interface ApiWatchlistBatchResponse {
+  created: ApiWatchlistItemResponse[]
+  duplicated: ApiWatchlistBatchDuplicatedItem[]
+  invalid: string[]
+}
+
 export interface ApiStockBasicResponse {
   stock_code: string
   stock_name: string
   market: string
+  full_name: string | null
   industry_level_1: string | null
   industry_level_2: string | null
   industry_level_3: string | null
@@ -124,6 +160,19 @@ export interface ApiStockAiAnalysisResponse {
   sections: ApiStockAiAnalysisSection[]
 }
 
+export type ApiStockAiAnalysisStatus = 'running' | 'ready' | 'none'
+
+export interface ApiStockAiAnalysisStatusResponse {
+  status: ApiStockAiAnalysisStatus
+  data: ApiStockAiAnalysisResponse | null
+  trade_date: string
+}
+
+export interface ApiStockAiAnalysisDatesResponse {
+  code: string
+  trade_dates: string[]
+}
+
 export interface ApiStockKlineBar {
   date: string
   open: number
@@ -132,6 +181,9 @@ export interface ApiStockKlineBar {
   close: number
   volume: number
   amount: number
+  change_pct: number | null
+  amplitude: number | null
+  turnover_rate: number | null
 }
 
 export interface ApiStockKlineResponse {

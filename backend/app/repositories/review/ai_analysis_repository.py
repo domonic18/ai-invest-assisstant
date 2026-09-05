@@ -4,6 +4,7 @@
 替代散落在 service 层的 ``text("INSERT INTO ai_analysis_result ...")`` raw SQL。
 """
 
+from datetime import date
 from typing import Any
 
 from sqlalchemy import select
@@ -63,6 +64,30 @@ async def load_latest_success(
         .limit(1)
     )
     return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def list_success_trade_dates(
+    session: AsyncSession, *, skill_id: str, stock_code: str
+) -> list[date]:
+    """按标的聚合 success 记录中 structured_output.trade_date 的去重列表（升序）。
+
+    供日历标记「哪些交易日已生成过分析」。trade_date 从 JSONB 解出，
+    脏数据（缺失/非 ISO 格式）跳过而非中断。
+    """
+    stmt = select(AiAnalysisResult.structured_output).where(
+        AiAnalysisResult.skill_id == skill_id,
+        AiAnalysisResult.stock_code == stock_code,
+        AiAnalysisResult.status == "success",
+    )
+    rows = list((await session.execute(stmt)).scalars().all())
+    dates: set[date] = set()
+    for structured in rows:
+        raw = (structured or {}).get("trade_date")
+        try:
+            dates.add(date.fromisoformat(str(raw)))
+        except (TypeError, ValueError):
+            continue
+    return sorted(dates)
 
 
 async def load_success_by_hashes(

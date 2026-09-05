@@ -171,6 +171,18 @@ async def fetch_max_daily_date(session: AsyncSession, code: str) -> date | None:
     return max_date if isinstance(max_date, date) else None
 
 
+async def fetch_max_daily_date_on_or_before(
+    session: AsyncSession, code: str, day: date
+) -> date | None:
+    """该代码不晚于 day 的最近一根日 K 交易日期。"""
+    max_date = await session.scalar(
+        select(func.max(KlineDaily.trade_date)).where(
+            KlineDaily.stock_code == code, KlineDaily.trade_date <= day
+        )
+    )
+    return max_date if isinstance(max_date, date) else None
+
+
 async def has_daily_bar(session: AsyncSession, code: str, day: date) -> bool:
     """判断该代码在指定日期是否存在日 K。"""
     count = await session.scalar(

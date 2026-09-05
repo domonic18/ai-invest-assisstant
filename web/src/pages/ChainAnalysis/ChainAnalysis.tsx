@@ -25,14 +25,17 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { ChainGraph } from '@/components/charts/ChainGraph'
+import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
 import {
   useChainIndustries,
   useChainLatest,
   useChainVersion,
   useChainVersions,
+  useDeleteChainVersion,
 } from '@/hooks/useChain'
 import { useAssistantStore } from '@/stores/assistant'
 import { useColorScheme } from '@/stores/settings'
+import { apiErrorMessage } from '@/utils/errorMessage'
 import type { ChainNode } from '@ai-invest/shared'
 
 import { ChainAlertPanel } from './components/ChainAlertPanel'
@@ -74,11 +77,11 @@ export function ChainAnalysis() {
 
   const queryClient = useQueryClient()
   const sendQuestion = useAssistantStore((state) => state.sendQuestion)
-  const pageResult = useAssistantStore((state) => state.pageResult)
 
   const latestQuery = useChainLatest(activeIndustry)
   const versionsQuery = useChainVersions(activeIndustry)
   const industriesQuery = useChainIndustries()
+  const deleteVersionMutation = useDeleteChainVersion()
 
   useEffect(() => {
     if (industry) {
@@ -88,12 +91,11 @@ export function ChainAnalysis() {
     }
   }, [industry])
 
-  useEffect(() => {
-    if (pageResult?.type !== 'industry_chain.analysis_complete') return
-    const eventIndustry = normalizeIndustry(pageResult.industry)
+  usePageAssistantResult('industry_chain.analysis_complete', (event) => {
+    const eventIndustry = normalizeIndustry(event.industry)
     const isCurrent = eventIndustry === normalizeIndustry(activeIndustry)
     const isPending = pendingIndustry !== null && eventIndustry === normalizeIndustry(pendingIndustry)
-    if (!isCurrent && !isPending) return
+    if (!isCurrent && !isPending) return false
 
     setAssistantAnalyzing(false)
     setPendingIndustry(null)
@@ -103,10 +105,10 @@ export function ChainAnalysis() {
       void queryClient.invalidateQueries({ queryKey: ['chain', 'versions', activeIndustry] })
     }
     if (isPending && !isCurrent) {
-      message.success(`「${pageResult.industry}」产业链分析已完成，可在下拉框中查看`)
+      message.success(`「${event.industry}」产业链分析已完成，可在下拉框中查看`)
     }
-    useAssistantStore.getState().setPageResult(null)
-  }, [pageResult, activeIndustry, pendingIndustry, queryClient, message])
+    return true
+  })
 
   const latestVersionId = latestQuery.data?.version.id ?? null
   const isLatestSelected =
@@ -168,6 +170,20 @@ export function ChainAnalysis() {
       setSelectedNode(node)
       setDetailCollapsed(false)
     }
+  }
+
+  const handleDeleteVersion = (versionId: number) => {
+    deleteVersionMutation.mutate(versionId, {
+      onSuccess: () => {
+        message.success('版本已删除')
+        // 当前展示版本被删时回退到最新成功版本（selectedVersionId 置 null 即取 latest）
+        if (detail?.version.id === versionId) {
+          setSelectedVersionId(null)
+          setSelectedNode(null)
+        }
+      },
+      onError: (err) => message.error(apiErrorMessage(err, '删除失败，请稍后重试')),
+    })
   }
 
   const isLoading =
@@ -276,6 +292,12 @@ export function ChainAnalysis() {
             setSelectedNode(null)
           }}
           onCompare={() => setCompareOpen(true)}
+          onDelete={handleDeleteVersion}
+          deletingId={
+            deleteVersionMutation.isPending
+              ? (deleteVersionMutation.variables ?? null)
+              : null
+          }
         />
       )}
 

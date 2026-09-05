@@ -6,6 +6,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg, tool
 
 from app.agent.tools import db_tools
+from app.agent.tools.page_event import page_event
 from app.core.database import AsyncSessionLocal
 from app.services.common.industry import normalize_industry
 
@@ -55,11 +56,11 @@ async def persist_chain_analysis(
             "version_id": response.version_id,
             "version_no": response.version_no,
             "status": response.status,
-            "__event__": {
-                "type": "industry_chain.analysis_complete",
-                "industry": normalized,
-                "version_id": response.version_id,
-                "version_no": response.version_no,
-            },
+            "__event__": page_event(
+                "industry_chain.analysis_complete",
+                industry=normalized,
+                version_id=response.version_id,
+                version_no=response.version_no,
+            ),
         }
         return payload

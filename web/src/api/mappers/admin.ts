@@ -1,4 +1,5 @@
 import type {
+  ApiAdminMarketReviewItem,
   ApiAdminNewsResponse,
   ApiAdminReportResponse,
   ApiAdminStockResponse,
@@ -12,6 +13,7 @@ import type {
   ApiTrackedIndexResponse,
 } from '@ai-invest/shared'
 import type {
+  AdminMarketReviewItem,
   AdminNews,
   AdminReport,
   AdminStock,
@@ -180,6 +182,17 @@ export function mapAdminNews(dto: ApiAdminNewsResponse): AdminNews {
     industryTags: dto.industry_tags,
     extra: dto.extra,
     createdAt: dto.created_at,
+  }
+}
+
+export function mapAdminMarketReview(dto: ApiAdminMarketReviewItem): AdminMarketReviewItem {
+  return {
+    tradeDate: dto.trade_date,
+    model: dto.model,
+    latencyMs: dto.latency_ms,
+    generatedAt: dto.generated_at,
+    historyCount: dto.history_count,
+    userCopyCount: dto.user_copy_count,
   }
 }
 

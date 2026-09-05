@@ -4,6 +4,7 @@ import {
   mapAuthResponse,
   mapChainAlert,
   mapChainAnalysisResult,
+  mapAdminMarketReview,
   mapCollectorLog,
   mapKlineData,
   mapLLMConfig,
@@ -13,6 +14,7 @@ import {
 } from './mappers'
 
 import type {
+  ApiAdminMarketReviewItem,
   ApiAuthResponse,
   ApiChainAlert,
   ApiChainAnalysisResult,
@@ -64,6 +66,7 @@ describe('mappers', () => {
       stock_code: '000001',
       stock_name: '平安银行',
       market: 'sz',
+      full_name: '平安银行股份有限公司',
       industry_level_1: '金融',
       industry_level_2: '银行',
       industry_level_3: '股份制银行',
@@ -244,5 +247,22 @@ describe('mappers', () => {
     expect(result.taskName).toBe('kline')
     expect(result.source).toBe('sina')
     expect(result.recordsCount).toBe(100)
+  })
+
+  it('maps admin market review item', () => {
+    const dto: ApiAdminMarketReviewItem = {
+      trade_date: '2026-09-04',
+      model: 'anthropic/kimi',
+      latency_ms: 59000,
+      generated_at: '2026-09-05T08:00:00Z',
+      history_count: 3,
+      user_copy_count: 1,
+    }
+    const item = mapAdminMarketReview(dto)
+    expect(item.tradeDate).toBe('2026-09-04')
+    expect(item.model).toBe('anthropic/kimi')
+    expect(item.latencyMs).toBe(59000)
+    expect(item.historyCount).toBe(3)
+    expect(item.userCopyCount).toBe(1)
   })
 })

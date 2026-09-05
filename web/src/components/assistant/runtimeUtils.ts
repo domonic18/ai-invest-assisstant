@@ -1,5 +1,7 @@
 import type { PageAssistantResult, TodoStep } from '@/stores/assistant'
 
+import { parsePageEvent } from './pageEvents'
+
 type StateWithTasks = {
   tasks?: Array<{ interrupts?: Array<Record<string, unknown>> }>
 }
@@ -15,25 +17,34 @@ export function extractTodos(updates: unknown): TodoStep[] | undefined {
   return undefined
 }
 
-/** 从 messages 列表或 updates 中提取产业链分析完成事件。 */
-export function extractPageResultFromMessages(messages: unknown[]): PageAssistantResult | null {
+/** 从工具结果/ToolMessage content（对象或 JSON 字符串）中提取 __event__ 标记。 */
+export function extractEventMarker(content: unknown): Record<string, unknown> | null {
+  let raw = content
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+  if (typeof raw !== 'object' || raw === null) return null
+  const event = (raw as Record<string, unknown>).__event__
+  if (typeof event !== 'object' || event === null) return null
+  return event as Record<string, unknown>
+}
+
+/** 从 messages 列表或 updates 中提取已注册的页面回写事件。 */
+export function extractPageResultFromMessages(
+  messages: unknown[],
+): PageAssistantResult | null {
   for (const msg of messages) {
     if (typeof msg !== 'object' || msg === null) continue
     const typed = msg as Record<string, unknown>
     if (typed.type !== 'tool') continue
-    const content = typed.content
-    if (typeof content !== 'object' || content === null) continue
-    const event = (content as Record<string, unknown>).__event__
-    if (typeof event !== 'object' || event === null) continue
-    const e = event as Record<string, unknown>
-    if (e.type !== 'industry_chain.analysis_complete') continue
-    return {
-      type: 'industry_chain.analysis_complete',
-      industry: String(e.industry ?? ''),
-      versionId: Number(e.version_id),
-      versionNo: Number(e.version_no),
-      createdAt: e.created_at ? String(e.created_at) : undefined,
-    }
+    const event = extractEventMarker(typed.content)
+    if (!event) continue
+    const parsed = parsePageEvent(event)
+    if (parsed) return parsed.result
   }
   return null
 }

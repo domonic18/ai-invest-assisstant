@@ -1,10 +1,12 @@
 """个股行情与财务相关助手工具。"""
 
+from datetime import date
 from typing import Any
 
 from langchain_core.tools import tool
 
 from app.agent.tools import db_tools
+from app.agent.tools.page_event import page_event
 from app.core.database import AsyncSessionLocal
 from app.services import market as stock_service
 
@@ -51,3 +53,46 @@ async def query_financial_data(
     periods = max(1, min(periods, FINANCIAL_MAX_PERIODS))
     async with AsyncSessionLocal() as session:
         return await db_tools.query_financial_data(session, codes, periods)
+
+
+@tool
+async def persist_stock_daily_analysis(
+    stock_code: str, trade_date: str, sections: dict[str, str]
+) -> dict[str, Any]:
+    """持久化个股每日 AI 分析结果到数据库，个股页 AI 复盘会自动刷新展示。
+
+    Args:
+        stock_code: 6 位股票代码，如 "600519"（贵州茅台）。
+        trade_date: 交易日（YYYY-MM-DD）。
+        sections: 分析分区内容字典，键必须与 stock-daily-analysis SKILL 输出 Schema
+            完全一致（intraday_review / key_events / strategy / risk_lines），
+            值为对应分区的 Markdown 正文。
+    """
+    from app.services.admin.llm_config_service import resolve_default_llm
+    from app.services.review import stock_daily_analysis_service
+
+    try:
+        resolved = date.fromisoformat(trade_date)
+    except ValueError:
+        return {"error": f"trade_date 格式应为 YYYY-MM-DD，收到：{trade_date}"}
+
+    async with AsyncSessionLocal() as session:
+        cfg = await resolve_default_llm(session)
+        analysis = await stock_daily_analysis_service.persist_stock_analysis(
+            session,
+            stock_code,
+            trade_date=resolved,
+            contents=sections,
+            model=f"{cfg.provider}/{cfg.model_name}",
+        )
+        return {
+            "stock_code": analysis.stock_code,
+            "stock_name": analysis.stock_name,
+            "trade_date": analysis.trade_date.isoformat(),
+            "section_titles": [section.title for section in analysis.sections],
+            "__event__": page_event(
+                "stock_daily_analysis.complete",
+                stock_code=analysis.stock_code,
+                trade_date=analysis.trade_date.isoformat(),
+            ),
+        }

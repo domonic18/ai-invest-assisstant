@@ -71,6 +71,9 @@ async def get_stock_kline(
                 "close": _to_float(row.close),
                 "volume": _to_int(row.volume),
                 "amount": _to_float(row.amount),
+                "change_pct": _to_float(row.change_pct),
+                "amplitude": _to_float(row.amplitude),
+                "turnover_rate": _to_float(row.turnover_rate),
             }
             for row in reversed(rows)
         ]

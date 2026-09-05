@@ -239,3 +239,28 @@ async def resolve_default_llm(session: AsyncSession) -> ResolvedLLMConfig:
         model_name=config.model_name,
         extra=config.extra or {},
     )
+
+
+async def resolve_vision_llm(session: AsyncSession) -> ResolvedLLMConfig:
+    """为图片识别类 AI 调用解析标记了视觉能力的启用配置。
+
+    配置在管理后台 ``extra.capabilities.vision = true`` 标记。
+
+    Raises:
+        LLMConfigNotConfiguredError: 不存在已启用的视觉配置时抛出。
+    """
+    service = LLMConfigService(session)
+    configs = await service.repo.list_vision_active()
+    if not configs:
+        raise LLMConfigNotConfiguredError(
+            "未配置视觉模型，请联系管理员在后台「LLM 配置」中勾选「视觉能力」"
+        )
+    config = configs[0]
+    return ResolvedLLMConfig(
+        config_id=config.id,
+        provider=config.provider,
+        base_url=config.base_url,
+        api_key=decrypt_token(config.api_key_encrypted),
+        model_name=config.model_name,
+        extra=config.extra or {},
+    )

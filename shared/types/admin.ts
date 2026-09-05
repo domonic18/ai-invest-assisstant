@@ -1,3 +1,8 @@
+/** llm_config.extra.capabilities 约定：视觉等能力标记。 */
+export interface LLMConfigCapabilities {
+  vision?: boolean
+}
+
 export interface LLMConfig {
   id: number
   name: string
@@ -23,6 +28,7 @@ export interface LLMConfigFormValues {
   apiKey: string
   isDefault: boolean
   isActive: boolean
+  vision?: boolean
 }
 
 export interface LLMConfigTestResult {

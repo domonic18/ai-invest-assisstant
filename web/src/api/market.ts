@@ -281,23 +281,6 @@ export async function fetchMarketReview(
 
 const LLM_GENERATION_TIMEOUT = 300_000
 
-/** 触发 LLM 生成 AI 复盘（regenerate=true 强制重新生成）。 */
-export async function generateMarketReview(
-  regenerate = false,
-  tradeDate?: string,
-): Promise<MarketReview> {
-  const body: ApiMarketReviewGenerateRequest = {
-    trade_date: tradeDate,
-    regenerate,
-  }
-  const response = await apiClient.post<ApiMarketReviewResponse>(
-    ENDPOINTS.market.aiReview,
-    body,
-    { timeout: LLM_GENERATION_TIMEOUT },
-  )
-  return mapMarketReview(response.data)
-}
-
 /** 按分区保存人工编辑后的复盘内容（sectionKey 为后端 prompt YAML 声明的分区键）。 */
 export async function saveMarketReviewSection(
   tradeDate: string,

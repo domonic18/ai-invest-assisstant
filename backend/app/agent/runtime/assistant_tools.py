@@ -19,6 +19,7 @@ from app.agent.tools.market_tools import (
     get_auction_summary,
     get_market_overview,
     get_sector_fund_flow,
+    get_trade_calendar,
 )
 from app.agent.tools.news_tools import (
     KB_MAX_ROWS,
@@ -39,6 +40,7 @@ from app.agent.tools.stock_tools import (
     KLINE_MAX_DAYS,
     get_stock_kline,
     get_stock_quote,
+    persist_stock_daily_analysis,
     query_financial_data,
 )
 from app.core.database import AsyncSessionLocal
@@ -49,6 +51,7 @@ from app.services.market import (
     auction_service,
     index_quotation_service,
     sector_fund_flow_service,
+    trade_calendar_service,
 )
 from app.services.market import (
     market_stats_service as market_stats_svc,
@@ -65,17 +68,20 @@ __all__ = [
     "get_stock_quote",
     "get_stock_kline",
     "query_financial_data",
+    "persist_stock_daily_analysis",
     "search_news",
     "search_vector_kb",
     "get_sector_fund_flow",
     "get_market_overview",
     "get_auction_summary",
+    "get_trade_calendar",
     "db_tools",
     "stock_service",
     "market_stats_svc",
     "sector_fund_flow_service",
     "index_quotation_service",
     "auction_service",
+    "trade_calendar_service",
     "INDUSTRY_COMPANIES_MAX_LIMIT",
     "FINANCIAL_REPORT_MAX_LIMIT",
     "KLINE_MAX_DAYS",
