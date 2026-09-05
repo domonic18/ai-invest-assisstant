@@ -4,7 +4,6 @@ import {
   createAdminMarketReview,
   deleteAdminMarketReview,
   fetchAdminMarketReviews,
-  generateAdminMarketReviewByAI,
   updateAdminMarketReview,
   type AdminMarketReviewListParams,
 } from '@/api/adminMarketReviews'
@@ -44,16 +43,6 @@ export function useDeleteAdminMarketReview() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (tradeDate: string) => deleteAdminMarketReview(tradeDate),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.marketReviews }),
-  })
-}
-
-export function useGenerateAdminMarketReviewByAI() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ tradeDate, regenerate }: { tradeDate: string; regenerate: boolean }) =>
-      generateAdminMarketReviewByAI(tradeDate, regenerate),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.marketReviews }),
   })

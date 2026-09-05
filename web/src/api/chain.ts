@@ -1,7 +1,6 @@
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
   ApiChainAlert,
-  ApiChainAnalyzeResponse,
   ApiChainCompareResult,
   ApiChainVersionDetail,
   ApiChainVersionSummary,
@@ -14,45 +13,10 @@ import type {
 import { apiClient } from './client'
 import {
   mapChainAlert,
-  mapChainAnalysisResult,
   mapChainCompareResult,
   mapChainVersionDetail,
   mapChainVersionSummary,
 } from './mappers'
-
-import type { ChainAnalysisResult } from '@ai-invest/shared'
-
-export interface AnalyzeChainParams {
-  industry: string
-  focus?: string
-}
-
-export interface AnalyzeChainResponse {
-  versionId: number
-  versionNo: number
-  status: string
-  result: ChainAnalysisResult | null
-}
-
-export async function analyzeChain(
-  params: AnalyzeChainParams
-): Promise<AnalyzeChainResponse> {
-  const response = await apiClient.post<ApiChainAnalyzeResponse>(
-    ENDPOINTS.chain.analyze,
-    {
-      industry: params.industry,
-      focus: params.focus,
-    }
-  )
-  return {
-    versionId: response.data.versionId,
-    versionNo: response.data.versionNo,
-    status: response.data.status,
-    result: response.data.result
-      ? mapChainAnalysisResult(response.data.result)
-      : null,
-  }
-}
 
 export async function fetchChainIndustries(): Promise<string[]> {
   const response = await apiClient.get<string[]>(ENDPOINTS.chain.industries)

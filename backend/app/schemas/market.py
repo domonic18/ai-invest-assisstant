@@ -205,13 +205,6 @@ class MarketReviewResponse(BaseModel):
     edited: bool = False
 
 
-class MarketReviewGenerateRequest(BaseModel):
-    """触发 AI 复盘生成请求。"""
-
-    trade_date: date | None = None
-    regenerate: bool = False
-
-
 class MarketReviewUpdateRequest(BaseModel):
     """按分区保存人工编辑后的复盘内容。"""
 

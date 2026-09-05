@@ -12,15 +12,18 @@ import {
   message,
 } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 
 import type { AdminMarketReviewItem } from '@ai-invest/shared'
 
 import {
   useAdminMarketReviews,
   useDeleteAdminMarketReview,
-  useGenerateAdminMarketReviewByAI,
 } from '@/hooks/useAdminMarketReviews'
+import { queryKeys } from '@/hooks/queryKeys'
+import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
+import { useAssistantStore } from '@/stores/assistant'
 import { formatDateTime } from '@/utils/formatters'
 
 import { MarketReviewAdminModal } from './MarketReviewAdminModal'
@@ -51,7 +54,31 @@ export function MarketReviewAdmin() {
     pageSize,
   })
   const deleteMutation = useDeleteAdminMarketReview()
-  const generateMutation = useGenerateAdminMarketReviewByAI()
+
+  const queryClient = useQueryClient()
+  const panelOpen = useAssistantStore((s) => s.open)
+
+  // AI 生成走侧边栏 agent（取数/分析过程全程可见，persist 工具落库）；
+  // 完成事件经 pageResult 回写后刷新本列表
+  const startGenerate = (tradeDate: string, regenerate: boolean) => {
+    setGeneratingDate(tradeDate)
+    useAssistantStore
+      .getState()
+      .sendQuestion(`请${regenerate ? '重新' : ''}生成 ${tradeDate} 的大盘每日复盘`)
+  }
+
+  usePageAssistantResult('market_daily_review.complete', () => {
+    if (generatingDate === null) return false
+    setGeneratingDate(null)
+    void queryClient.invalidateQueries({ queryKey: queryKeys.admin.marketReviews })
+    message.success('AI 复盘已生成，列表已刷新')
+    return true
+  })
+
+  // 侧边栏关闭（含 agent 中途失败被放弃）时解除进行中提示
+  useEffect(() => {
+    if (!panelOpen) setGeneratingDate(null)
+  }, [panelOpen])
 
   const openCreate = () => {
     setEditingDate(null)
@@ -72,16 +99,8 @@ export function MarketReviewAdmin() {
     }
   }
 
-  const handleRegenerate = async (record: AdminMarketReviewItem) => {
-    setGeneratingDate(record.tradeDate)
-    try {
-      await generateMutation.mutateAsync({ tradeDate: record.tradeDate, regenerate: true })
-      message.success(`${record.tradeDate} 复盘已重新生成`)
-    } catch (err) {
-      message.error(err instanceof Error && err.message ? err.message : 'AI 生成失败')
-    } finally {
-      setGeneratingDate(null)
-    }
+  const handleRegenerate = (record: AdminMarketReviewItem) => {
+    startGenerate(record.tradeDate, true)
   }
 
   const handleRangeChange = (dates: [Dayjs | null, Dayjs | null] | null) => {
@@ -219,6 +238,7 @@ export function MarketReviewAdmin() {
         open={modalOpen}
         tradeDate={editingDate}
         onCancel={() => setModalOpen(false)}
+        onAIAsk={(d) => startGenerate(d, false)}
       />
     </Card>
   )

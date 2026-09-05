@@ -4,7 +4,6 @@ import type {
   ApiAdminMarketReviewItem,
   ApiAdminMarketReviewSectionsRequest,
   ApiAdminSectionDefinition,
-  ApiMarketReviewGenerateRequest,
   ApiMarketReviewResponse,
   ApiPaginatedResponse,
   MarketReview,
@@ -13,8 +12,6 @@ import type {
 import { apiClient } from './client'
 import { mapAdminMarketReview, mapPaginatedResponse } from './mappers'
 import { mapMarketReview } from './market'
-
-const LLM_GENERATION_TIMEOUT = 300_000
 
 export interface AdminMarketReviewListParams {
   startDate?: string
@@ -78,20 +75,4 @@ export async function updateAdminMarketReview(
 
 export async function deleteAdminMarketReview(tradeDate: string) {
   await apiClient.delete(ENDPOINTS.admin.marketReview(tradeDate))
-}
-
-export async function generateAdminMarketReviewByAI(
-  tradeDate: string,
-  regenerate: boolean,
-): Promise<MarketReview> {
-  const body: ApiMarketReviewGenerateRequest = {
-    trade_date: tradeDate,
-    regenerate,
-  }
-  const response = await apiClient.post<ApiMarketReviewResponse>(
-    ENDPOINTS.market.aiReview,
-    body,
-    { timeout: LLM_GENERATION_TIMEOUT },
-  )
-  return mapMarketReview(response.data)
 }

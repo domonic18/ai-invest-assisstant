@@ -35,7 +35,6 @@ export const ENDPOINTS = {
     get: (code: string) => `${API_BASE}/kline/${code}`,
   },
   chain: {
-    analyze: `${API_BASE}/chain/analyze`,
     industries: `${API_BASE}/chain/industries`,
     alerts: (industry: string, days = 30) =>
       `${API_BASE}/chain/alerts?industry=${encodeURIComponent(industry)}&days=${days}`,

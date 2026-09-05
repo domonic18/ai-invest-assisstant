@@ -162,11 +162,6 @@ export interface ApiMarketReviewResponse {
   edited: boolean
 }
 
-export interface ApiMarketReviewGenerateRequest {
-  trade_date?: string
-  regenerate?: boolean
-}
-
 export interface ApiMarketCollectRequest {
   trade_date: string
 }

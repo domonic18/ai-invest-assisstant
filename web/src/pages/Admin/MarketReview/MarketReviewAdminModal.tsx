@@ -9,7 +9,6 @@ import {
 } from '@/api/adminMarketReviews'
 import {
   useCreateAdminMarketReview,
-  useGenerateAdminMarketReviewByAI,
   useUpdateAdminMarketReview,
 } from '@/hooks/useAdminMarketReviews'
 
@@ -18,6 +17,8 @@ interface MarketReviewAdminModalProps {
   /** null = 新增模式；非空 = 编辑该交易日的最新记录 */
   tradeDate: string | null
   onCancel: () => void
+  /** 创建模式选择「AI 生成」时：唤起侧边栏 agent 生成指定交易日复盘 */
+  onAIAsk?: (tradeDate: string) => void
 }
 
 type CreateMode = 'manual' | 'ai'
@@ -29,6 +30,7 @@ export function MarketReviewAdminModal({
   open,
   tradeDate,
   onCancel,
+  onAIAsk,
 }: MarketReviewAdminModalProps) {
   const isEdit = tradeDate !== null
   const [form] = Form.useForm<{ tradeDate?: Dayjs; createMode?: CreateMode }>()
@@ -63,9 +65,7 @@ export function MarketReviewAdminModal({
 
   const createMutation = useCreateAdminMarketReview()
   const updateMutation = useUpdateAdminMarketReview()
-  const generateMutation = useGenerateAdminMarketReviewByAI()
-  const submitting =
-    createMutation.isPending || updateMutation.isPending || generateMutation.isPending
+  const submitting = createMutation.isPending || updateMutation.isPending
 
   const handleOk = async () => {
     if (isEdit) {
@@ -83,13 +83,8 @@ export function MarketReviewAdminModal({
     const targetDate = values.tradeDate?.format('YYYY-MM-DD')
     if (!targetDate) return
     if (values.createMode === 'ai') {
-      try {
-        await generateMutation.mutateAsync({ tradeDate: targetDate, regenerate: false })
-        message.success('AI 复盘已生成')
-        onCancel()
-      } catch (err) {
-        message.error(errorMessage(err, 'AI 生成失败'))
-      }
+      onAIAsk?.(targetDate)
+      onCancel()
       return
     }
     try {
@@ -134,7 +129,7 @@ export function MarketReviewAdminModal({
               <Radio.Group
                 onChange={(e) => setCreateMode(e.target.value)}
                 options={[
-                  { value: 'ai', label: 'AI 生成（约 1 分钟）' },
+                  { value: 'ai', label: 'AI 生成（侧边栏助手执行）' },
                   { value: 'manual', label: '手动填写' },
                 ]}
               />
