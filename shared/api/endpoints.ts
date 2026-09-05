@@ -145,5 +145,9 @@ export const ENDPOINTS = {
     collectorTaskCatalog: `${API_BASE}/admin/collector/tasks/catalog`,
     collectorLogs: `${API_BASE}/admin/collector/logs`,
     runCollectorTask: (task: string) => `${API_BASE}/admin/collector/tasks/${task}/run`,
+    marketReviews: `${API_BASE}/admin/market-reviews/`,
+    marketReview: (tradeDate: string) =>
+      `${API_BASE}/admin/market-reviews/${tradeDate}`,
+    marketReviewSectionDefs: `${API_BASE}/admin/market-reviews/section-definitions`,
   },
 } as const

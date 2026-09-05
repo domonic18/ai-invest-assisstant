@@ -24,6 +24,7 @@ from app.api.v1.admin import collector as admin_collector
 from app.api.v1.admin import collector_channels as admin_collector_channels
 from app.api.v1.admin import collector_data_types as admin_collector_data_types
 from app.api.v1.admin import llm_config as admin_llm_configs
+from app.api.v1.admin import market_review as admin_market_reviews
 from app.api.v1.admin import news as admin_news
 from app.api.v1.admin import reports as admin_reports
 from app.api.v1.admin import stocks as admin_stocks
@@ -68,6 +69,7 @@ admin_router.include_router(admin_collector_data_types.router)
 admin_router.include_router(admin_collector_channels.router)
 admin_router.include_router(admin_llm_configs.router)
 admin_router.include_router(admin_tracked_indexes.router)
+admin_router.include_router(admin_market_reviews.router, prefix="/market-reviews")
 api_router.include_router(admin_router)
 
 api_router.include_router(mcp_server.router, prefix="/mcp", tags=["mcp"])
