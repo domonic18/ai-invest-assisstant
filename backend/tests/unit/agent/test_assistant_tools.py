@@ -13,7 +13,10 @@ from app.schemas.capital_fund_flow_sector import (
 )
 from app.schemas.chain import ChainAnalyzeResponse
 from app.schemas.market import IndexQuoteResponse, MarketStatsResponse
-from app.schemas.stock import IndexAuctionSeries, IndexAuctionTrendResponse
+from app.schemas.stock import (
+    IndexAuctionSeries,
+    IndexAuctionTrendResponse,
+)
 
 
 @asynccontextmanager
@@ -28,7 +31,7 @@ def no_db(monkeypatch):
 
 @pytest.mark.unit
 class TestBuildAssistantTools:
-    def test_returns_thirteen_tools(self) -> None:
+    def test_returns_fourteen_tools(self) -> None:
         tools = at.build_assistant_tools()
         names = [t.name for t in tools]
         assert names == [
@@ -42,6 +45,7 @@ class TestBuildAssistantTools:
             "get_auction_summary",
             "query_industry_companies",
             "persist_chain_analysis",
+            "persist_stock_daily_analysis",
             "query_financial_reports",
             "download_financial_reports",
             "summarize_financial_report",
@@ -136,6 +140,63 @@ class TestIndustryChainTools:
         assert result["version_id"] == 123
         assert result["version_no"] == 5
         assert result["__event__"]["type"] == "industry_chain.analysis_complete"
+
+
+@pytest.mark.unit
+class TestStockDailyAnalysisTool:
+    @pytest.mark.asyncio
+    async def test_persists_sections_and_emits_event(self) -> None:
+        cfg = MagicMock()
+        cfg.provider = "anthropic"
+        cfg.model_name = "kimi"
+        analysis = MagicMock()
+        analysis.stock_code = "600519"
+        analysis.stock_name = "贵州茅台"
+        analysis.trade_date = date(2026, 9, 4)
+        analysis.sections = [MagicMock(title="操作策略")]
+        sections = {
+            "intraday_review": "盘面解读",
+            "key_events": "关键事件",
+            "strategy": "操作策略",
+            "risk_lines": "风险与止损",
+        }
+        with (
+            patch(
+                "app.services.admin.llm_config_service.resolve_default_llm",
+                AsyncMock(return_value=cfg),
+            ),
+            patch(
+                "app.services.review.stock_daily_analysis_service.persist_stock_analysis",
+                AsyncMock(return_value=analysis),
+            ) as persist_mock,
+        ):
+            result = await at.persist_stock_daily_analysis.ainvoke(
+                {
+                    "stock_code": "600519",
+                    "trade_date": "2026-09-04",
+                    "sections": sections,
+                }
+            )
+
+        _, kwargs = persist_mock.await_args
+        assert kwargs["trade_date"] == date(2026, 9, 4)
+        assert kwargs["contents"] == sections
+        assert kwargs["model"] == "anthropic/kimi"
+        assert result["stock_code"] == "600519"
+        assert result["stock_name"] == "贵州茅台"
+        assert result["section_titles"] == ["操作策略"]
+        assert result["__event__"] == {
+            "type": "stock_daily_analysis.complete",
+            "stock_code": "600519",
+            "trade_date": "2026-09-04",
+        }
+
+    @pytest.mark.asyncio
+    async def test_rejects_bad_trade_date(self) -> None:
+        result = await at.persist_stock_daily_analysis.ainvoke(
+            {"stock_code": "600519", "trade_date": "2026/09/04", "sections": {}}
+        )
+        assert "error" in result
 
 
 @pytest.mark.unit

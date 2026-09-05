@@ -25,6 +25,7 @@ from app.agent.tools.report_tools import (
 from app.agent.tools.stock_tools import (
     get_stock_kline,
     get_stock_quote,
+    persist_stock_daily_analysis,
     query_financial_data,
 )
 
@@ -39,6 +40,7 @@ __all__ = [
     "get_stock_quote",
     "get_stock_kline",
     "query_financial_data",
+    "persist_stock_daily_analysis",
     "search_news",
     "search_vector_kb",
     "get_sector_fund_flow",
@@ -48,7 +50,7 @@ __all__ = [
 
 
 def build_assistant_tools() -> list[BaseTool]:
-    """助手工具清单：只读查询工具 + 产业链分析持久化工具 + 财报工具。"""
+    """助手工具清单：只读查询工具 + 产业链分析/个股分析持久化工具 + 财报工具。"""
     return [
         get_stock_quote,
         get_stock_kline,
@@ -60,6 +62,7 @@ def build_assistant_tools() -> list[BaseTool]:
         get_auction_summary,
         query_industry_companies,
         persist_chain_analysis,
+        persist_stock_daily_analysis,
         query_financial_reports,
         download_financial_reports,
         summarize_financial_report,

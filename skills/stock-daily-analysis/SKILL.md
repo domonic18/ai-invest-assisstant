@@ -14,7 +14,7 @@ allowed-tools: get_stock_quote, get_stock_kline, query_financial_data, search_ne
 - 自选股分组开启 AI 复盘后的每日定时任务（stock_daily_analysis_1640）
 
 ## 输出 Schema
-最终回复必须且只能是一个 JSON 对象，不要 markdown 代码围栏、不要额外解释文字：
+产出统一为四个分区（key 集合以 `backend/app/prompts/skills/stock-daily-analysis.yaml` 为准）：
 
 ```json
 {
@@ -28,6 +28,10 @@ allowed-tools: get_stock_quote, get_stock_kline, query_financial_data, search_ne
 ```
 
 分区 key 必须与任务指令中声明的完全一致，缺一不可，值必须是非空 Markdown 字符串。
+
+按运行路径二选一交付：
+- **助手对话路径**（任务指令要求调用 `persist_stock_daily_analysis`）：撰写完四分区后，将其作为 `sections` 参数传入该工具保存，不要在回复中输出 JSON。
+- **独立执行器路径**（定时任务等直接执行）：最终回复必须且只能是上述 JSON 对象，不要 markdown 代码围栏、不要额外解释文字。
 
 ## 可用工具
 - `get_stock_quote(stock_code)`: 最新行情快照——现价、开高低收、涨跌幅、成交量/额、市值（Redis 实时缺失时回退最近日 K）。
@@ -49,8 +53,8 @@ allowed-tools: get_stock_quote, get_stock_kline, query_financial_data, search_ne
 ### 步骤 4：消息面检索（可选）
 调用 `search_news(keyword=<股票名称>, days=14, limit=8)` 检索近期消息。仅当检索结果明确与该股相关时才可写入关键事件分区，否则注明"数据范围内未观察到明显事件"。
 
-### 步骤 5：撰写分区并输出
-基于以上数据撰写四个分区，最终回复按「输出 Schema」输出 JSON。
+### 步骤 5：撰写分区并交付
+基于以上数据撰写四个分区，按任务指令选择交付方式：助手对话路径调用 `persist_stock_daily_analysis(stock_code, trade_date, sections)` 保存；独立执行器路径按「输出 Schema」输出 JSON。
 
 ## 规则
 - 所有文本使用简体中文，Markdown 语法，每个分区 2-4 个要点、每点一行，禁止整段连排。

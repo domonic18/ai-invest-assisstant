@@ -39,6 +39,7 @@ from app.agent.tools.stock_tools import (
     KLINE_MAX_DAYS,
     get_stock_kline,
     get_stock_quote,
+    persist_stock_daily_analysis,
     query_financial_data,
 )
 from app.core.database import AsyncSessionLocal
@@ -65,6 +66,7 @@ __all__ = [
     "get_stock_quote",
     "get_stock_kline",
     "query_financial_data",
+    "persist_stock_daily_analysis",
     "search_news",
     "search_vector_kb",
     "get_sector_fund_flow",

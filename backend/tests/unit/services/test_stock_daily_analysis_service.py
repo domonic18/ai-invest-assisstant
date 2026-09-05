@@ -318,6 +318,81 @@ class TestGenerateStockAnalysis:
 
 
 @pytest.mark.unit
+class TestPersistStockAnalysis:
+    @pytest.mark.asyncio
+    async def test_persists_sections_and_builds_response(self) -> None:
+        insert_mock = AsyncMock(return_value=1)
+        stock_patch, _, _ = _patch_market_data(stock_name="贵州茅台")
+        session = AsyncMock()
+        with (
+            _patch_prompt_config(),
+            stock_patch,
+            patch(
+                "app.repositories.review.ai_analysis_repository.insert_result",
+                insert_mock,
+            ),
+        ):
+            result = await stock_daily_analysis_service.persist_stock_analysis(
+                session,
+                _STOCK_CODE,
+                trade_date=_TRADE_DATE,
+                contents=_contents(),
+                model="anthropic/kimi",
+            )
+
+        assert result.cached is False
+        assert result.model == "anthropic/kimi"
+        assert result.stock_name == "贵州茅台"
+        assert [s.key for s in result.sections] == [s.key for s in _SECTIONS]
+        insert_mock.assert_awaited_once()
+        _, kwargs = insert_mock.await_args
+        assert kwargs["stock_code"] == _STOCK_CODE
+        assert kwargs["model"] == "anthropic/kimi"
+        assert kwargs["structured"]["sections"] == _contents()
+        session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_raises_when_section_missing_or_empty(self) -> None:
+        cases = (
+            (_contents(strategy=""), "strategy"),
+            ({k: v for k, v in _contents().items() if k != "risk_lines"}, "risk_lines"),
+        )
+        for bad, missing_key in cases:
+            with (
+                _patch_prompt_config(),
+                pytest.raises(ValueError, match=missing_key),
+            ):
+                await stock_daily_analysis_service.persist_stock_analysis(
+                    AsyncMock(),
+                    _STOCK_CODE,
+                    trade_date=_TRADE_DATE,
+                    contents=bad,
+                    model="anthropic/kimi",
+                )
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_code_when_stock_unknown(self) -> None:
+        stock_patch, _, _ = _patch_market_data(stock_name=None)
+        with (
+            _patch_prompt_config(),
+            stock_patch,
+            patch(
+                "app.repositories.review.ai_analysis_repository.insert_result",
+                AsyncMock(return_value=1),
+            ),
+        ):
+            result = await stock_daily_analysis_service.persist_stock_analysis(
+                AsyncMock(),
+                _STOCK_CODE,
+                trade_date=_TRADE_DATE,
+                contents=_contents(),
+                model="anthropic/kimi",
+            )
+
+        assert result.stock_name == _STOCK_CODE
+
+
+@pytest.mark.unit
 class TestGetStockAnalysis:
     @pytest.mark.asyncio
     async def test_returns_none_when_no_cache(self) -> None:

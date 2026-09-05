@@ -239,6 +239,54 @@ async def generate_stock_analysis(
         )
 
 
+async def persist_stock_analysis(
+    session: AsyncSession,
+    stock_code: str,
+    *,
+    trade_date: date,
+    contents: dict[str, str],
+    model: str,
+) -> StockAiAnalysisResponse:
+    """将助手/skill 产出的四分区分析落库（ai_analysis_result），返回响应。
+
+    Raises:
+        ValueError: sections 缺少 prompt 声明的分区键或内容为空。
+    """
+    from app.services.market import stock_service
+
+    sections = load_prompt_config().sections
+    missing = [s.key for s in sections if not (contents.get(s.key) or "").strip()]
+    if missing:
+        expected = ", ".join(s.key for s in sections)
+        raise ValueError(
+            f"sections 缺少必填分区：{', '.join(missing)}；期望键集：{expected}"
+        )
+
+    stock = await stock_service.get_stock_by_code(session, stock_code)
+    stock_name = stock.stock_name if stock else stock_code
+
+    await _persist(
+        session,
+        stock_code=stock_code,
+        stock_name=stock_name,
+        trade_date=trade_date,
+        hash_str=input_hash(stock_code, trade_date, sections),
+        model=model,
+        contents={s.key: contents[s.key] for s in sections},
+        latency_ms=0,
+    )
+    return _build_response(
+        stock_code=stock_code,
+        stock_name=stock_name,
+        trade_date=trade_date,
+        contents=contents,
+        sections=sections,
+        model=model,
+        generated_at=datetime.now(timezone.utc),
+        cached=False,
+    )
+
+
 async def get_stock_analysis(
     session: AsyncSession, stock_code: str, *, trade_date: date
 ) -> StockAiAnalysisResponse | None:
