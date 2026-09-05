@@ -6,12 +6,11 @@
 
 import re
 
-from pydantic import BaseModel
-from pydantic_ai import BinaryContent
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptLoader
-from app.agent.runtime import run_structured_agent
+from app.agent.runtime.structured import run_structured
 from app.core.config import get_settings
 
 SKILL_ID = "watchlist-screenshot-recognition"
@@ -29,6 +28,12 @@ class RecognizedStock(BaseModel):
     confidence: float | None = None
 
 
+class RecognizedStockList(BaseModel):
+    """输出容器模型：``with_structured_output`` 要求单一 pydantic 模型。"""
+
+    stocks: list[RecognizedStock] = Field(default_factory=list)
+
+
 def normalize_code(raw: str) -> str | None:
     """规范化股票代码：去除交易所后缀，提取 6 位数字。"""
     text = _CODE_SUFFIX_RE.sub("", raw.strip())
@@ -38,24 +43,25 @@ def normalize_code(raw: str) -> str | None:
 
 async def run_skill(
     session: AsyncSession,
-    image: BinaryContent,
+    *,
+    data: bytes,
+    media_type: str,
 ) -> list[RecognizedStock]:
     """调用视觉模型识别截图中的股票列表。
 
     Raises:
         LLMConfigNotConfiguredError: 未配置视觉模型。
-        ValidationError: 模型输出不符合 schema（经 pydantic-ai 重试后仍失败）。
+        ValidationError: 模型输出不符合 schema（经 langchain 重试后仍失败）。
     """
     prompt_config = PromptLoader(get_settings().prompts_dir).load("skills", SKILL_ID)
     user_prompt: str = prompt_config.user_prompt_template or "请识别截图中的股票列表。"
-    raw = await run_structured_agent(
+    result = await run_structured(
         session,
-        prompt_config=prompt_config,
+        result_type=RecognizedStockList,
         user_prompt=user_prompt,
-        result_type=list[RecognizedStock],
-        images=[image],
+        images=[(data, media_type)],
     )
-    return _dedupe(raw)[:_MAX_RECOGNIZED]
+    return _dedupe(result.stocks)[:_MAX_RECOGNIZED]
 
 
 def _dedupe(items: list[RecognizedStock]) -> list[RecognizedStock]:

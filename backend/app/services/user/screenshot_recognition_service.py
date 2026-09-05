@@ -6,7 +6,6 @@
 
 import structlog
 from pydantic import ValidationError
-from pydantic_ai import BinaryContent
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.market.stock_repository import StockRepository
@@ -33,7 +32,7 @@ async def recognize_screenshot(
     Raises:
         ScreenshotValidationError: 图片类型或大小不符合要求。
     """
-    if content_type not in ALLOWED_IMAGE_TYPES:
+    if content_type is None or content_type not in ALLOWED_IMAGE_TYPES:
         raise ScreenshotValidationError(
             f"不支持的图片类型：{content_type or '未知'}，仅支持 png/jpeg/webp"
         )
@@ -43,9 +42,7 @@ async def recognize_screenshot(
     from app.agent.skills.watchlist_screenshot_recognition import run_skill
 
     try:
-        recognized = await run_skill(
-            session, BinaryContent(data=data, media_type=content_type)
-        )
+        recognized = await run_skill(session, data=data, media_type=content_type)
     except ValidationError as exc:
         logger.warning("watchlist_screenshot_recognition_invalid_output", error=str(exc))
         return []

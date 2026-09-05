@@ -197,7 +197,7 @@ async def analyze_and_persist(
     *,
     user_id: int = 0,
 ) -> ChainAnalyzeResponse:
-    """执行 AI 产业链分析并将结果持久化为新版本（旧版 PydanticAI 执行器入口，逐步废弃）。
+    """执行 AI 产业链分析并将结果持久化为新版本。
 
     Raises:
         ChainAnalysisFailedError: LLM 调用或结果校验失败（失败版本已落库）。

@@ -1,19 +1,8 @@
 id: stock-daily-analysis
 name: 个股每日 AI 分析
 version: 2.0.0
-model: openai/gpt-4o
 description: 基于工具取数（行情快照/日 K/财务/新闻）生成单只股票的每日结构化 AI 分析，分析流程由 skills/stock-daily-analysis/SKILL.md 维护
 
-triggers:
-  - 个股详情页请求当日 AI 分析
-  - 自选股分组开启 AI 复盘后的每日定时任务
-
-workflow:
-  - Agent 按 SKILL.md 流程调用工具获取行情/K 线/财务/新闻
-  - 按 sections 声明生成结构化个股分析并输出 JSON
-
-# 内容分区声明：key 为输出/存储键（缓存键组成部分），title 为前端展示名，
-# requirements 渲染进 user prompt 的 {section_instructions}
 sections:
   - key: intraday_review
     title: 盘面解读

@@ -15,19 +15,16 @@ class PromptSection(BaseModel):
 
 
 class PromptConfig(BaseModel):
+    """Prompt YAML 契约：system_prompt/user_prompt_template 为模板真源，
+    sections 声明分区型输出（key 集合）的契约。"""
+
     id: str
     name: str
     version: str
-    model: str | None = None
     description: str = ""
     system_prompt: str
     user_prompt_template: str = ""
-    output_schema: dict = Field(default_factory=dict)
     sections: list[PromptSection] = Field(default_factory=list)
-    examples: list[dict] = Field(default_factory=list)
-    triggers: list[str] = Field(default_factory=list)
-    workflow: list[str] = Field(default_factory=list)
-    available_tools: list[str] = Field(default_factory=list)
 
 
 class PromptLoader:

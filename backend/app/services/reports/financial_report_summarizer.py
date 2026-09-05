@@ -113,7 +113,7 @@ class FinancialReportSummarizer:
     async def _generate_summary(self, report: FileMetadata, text: str) -> str:
         from app.agent.core.prompt_loader import PromptLoader
         from app.agent.core.prompt_renderer import PromptRenderer
-        from app.agent.runtime import run_structured_agent
+        from app.agent.runtime.structured import run_structured
         from app.core.config import get_settings
 
         prompt_config = PromptLoader(get_settings().prompts_dir).load(
@@ -128,10 +128,9 @@ class FinancialReportSummarizer:
             report_text=text,
         )
 
-        output = await run_structured_agent(
+        output = await run_structured(
             self.session,
-            prompt_config=prompt_config,
-            user_prompt=user_prompt,
             result_type=FinancialReportSummaryResult,
+            user_prompt=user_prompt,
         )
         return render_summary_markdown(output)

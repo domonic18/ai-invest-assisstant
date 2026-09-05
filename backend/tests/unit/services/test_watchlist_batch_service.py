@@ -176,7 +176,8 @@ def _patch_recognition_env(
     codes_by_name: dict[str, str],
     recognized: list,
 ) -> None:
-    async def fake_run_skill(_session, _image):
+    async def fake_run_skill(_session, *, data, media_type):
+        del data, media_type
         return recognized
 
     monkeypatch.setattr(

@@ -92,7 +92,7 @@ async def get_assistant_agent(
     """组装并缓存对话助手 deepagents 图。
 
     Args:
-        tools: 注入的数据工具；缺省用 ``assistant_tools.build_assistant_tools()``。
+        tools: 注入的数据工具；缺省用 ``app.agent.tools.build_assistant_tools()``。
 
     Returns:
         已绑定 checkpointer 的 CompiledStateGraph；后续调用直接返回缓存实例。
