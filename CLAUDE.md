@@ -110,7 +110,7 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 1. **触发**：页面按钮调 `useAssistantStore.getState().sendQuestion(prompt)`，打开侧边栏并预置问题（范本 `web/src/pages/Dashboard/components/LimitUpSection.tsx` / `AiReviewSection.tsx`）
 2. **执行**：助手 agent 按 `skills/<skill-id>/SKILL.md` 取数分析（工具集见 `backend/app/agent/tools/__init__.py` 的 `build_assistant_tools()`）
 3. **落库**：分析完成调用 `persist_*` 工具写库，工具返回值携带 `__event__`（用 `page_event("<domain>.complete", **fields)` 构造，见 `backend/app/agent/tools/page_event.py`）
-4. **回写**：事件经 SSE 送到前端；`web/src/components/assistant/pageEvents.ts` 的 `PAGE_EVENT_DEFINITIONS` 是唯一映射点（snake_case 字段 parse 为 camelCase + 定义对话内查看按钮文案）
+4. **回写**：事件经 SSE 送到前端；`web/src/components/assistant/pageEvents.ts` 的 `PAGE_EVENT_DEFINITIONS` 是唯一映射点（snake_case 字段 parse 为 camelCase + 查看按钮文案 + `path` 结果页路由——会话内查看按钮据此导航，用户在任何页面触发都能直达）
 5. **刷新**：页面用 `usePageAssistantResult('<domain>.complete', cb)` 订阅，回调内 `invalidateQueries` 刷新数据 + `message.success` 并返回 true；面板关闭时用 panelOpen effect 复位"生成中"状态
 
 ### 路径二：定时自动化（Celery 定时任务）
@@ -123,7 +123,7 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 ### 新增一个 AI 功能的接线清单
 
 - 后端：`skills/<id>/SKILL.md`（触发条件 / allowed-tools 含 persist 工具 / 输出 Schema）→ persist 工具（返回 `__event__`）→ 注册进 `build_assistant_tools()` → `TASK_SPECS` 加 internal spec + seed cron → 服务层加锁与缓存
-- 前端：`stores/assistant.ts` 的 `PageAssistantResult` 联合类型加分支 → `pageEvents.ts` 注册表加一条 → 页面 `usePageAssistantResult` 订阅
+- 前端：`stores/assistant.ts` 的 `PageAssistantResult` 联合类型加分支 → `pageEvents.ts` 注册表加一条（必填 parse / actionLabel / path 导航目标）→ 页面 `usePageAssistantResult` 订阅
 
 约定：事件类型命名 `<domain>.complete`；事件字段 snake_case；SKILL.md 的 allowed-tools 列出两条路径工具的并集（含 persist 工具）；persist 工具只注入助手对话路径，定时路径直接调服务层；服务层禁止顶层导入 `app.agent.tools / skills / runtime`（函数内延迟导入，`app.agent.core` 纯配置叶可顶层导入），工具层可导入服务层。
 
