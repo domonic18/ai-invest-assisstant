@@ -224,11 +224,13 @@ class StockAiAnalysisStatusResponse(BaseModel):
     """个股 AI 分析异步状态响应（轮询契约）。
 
     ready 时 data 必非空；running 表示生成任务进行中；none 表示无缓存且
-    无进行中的生成。
+    无进行中的生成。trade_date 是本次查询实际采用的有效交易日
+    （缺省=最近交易日；显式非交易日归位到不晚于该日的最近交易日）。
     """
 
     status: Literal["running", "ready", "none"]
     data: StockAiAnalysisResponse | None = None
+    trade_date: date
 
 
 class PaginationParams(BaseModel):

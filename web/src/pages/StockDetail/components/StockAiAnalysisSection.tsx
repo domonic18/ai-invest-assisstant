@@ -21,6 +21,9 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
     tradeDate,
   )
   const data = status?.data ?? null
+  // 后端把显式非交易日归位到不晚于该日的最近交易日；生成与展示一律以
+  // 归位后的有效交易日为准，避免对周末/节假日发起无意义分析
+  const effectiveDate = status?.tradeDate
 
   usePageAssistantResult('stock_daily_analysis.complete', (event) => {
     if (event.stockCode !== stockCode) return false
@@ -42,17 +45,20 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
     useAssistantStore
       .getState()
       .sendQuestion(
-        `请生成 ${stockCode}${tradeDate ? `（${tradeDate}）` : '（最近交易日）'} 的每日个股分析`
+        `请生成 ${stockCode}（${effectiveDate ?? '最近交易日'}） 的每日个股分析`
       )
   }
 
+  const pickerDate = tradeDate ?? effectiveDate
   const datePicker = (
     <DatePicker
       size="small"
-      value={tradeDate ? dayjs(tradeDate) : undefined}
+      value={pickerDate ? dayjs(pickerDate) : undefined}
       placeholder="最近交易日"
       allowClear
-      disabledDate={(d: Dayjs) => d.isAfter(dayjs(), 'day')}
+      disabledDate={(d: Dayjs) =>
+        d.isAfter(dayjs(), 'day') || d.day() === 0 || d.day() === 6
+      }
       onChange={(d: Dayjs | null) => setTradeDate(d ? d.format('YYYY-MM-DD') : undefined)}
     />
   )
@@ -120,7 +126,7 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
         >
           <div className="space-y-2">
             <Button size="small" type="primary" onClick={startAnalysis}>
-              生成{tradeDate ? `${tradeDate} ` : '当日 '}分析
+              生成{effectiveDate ? ` ${effectiveDate} ` : '当日 '}分析
             </Button>
             <div className="text-xs text-gray-500">
               点击后将在 AI 助手侧边栏执行分析，完成后自动展示
@@ -168,7 +174,7 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
         <Empty description="当日分析内容为空" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       )}
       <div className="text-xs text-gray-500">
-        模型: {data.model ?? '-'} · 生成时间:{' '}
+        模型: {data.model ?? '-'} · 数据日期: {data.tradeDate} · 生成时间:{' '}
         {new Date(data.generatedAt).toLocaleString('zh-CN')}
         {data.cached && ' · 缓存'}
       </div>

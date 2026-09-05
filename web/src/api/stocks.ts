@@ -87,12 +87,15 @@ export async function fetchStockSectors(code: string) {
 export interface StockAiAnalysisStatus {
   status: 'running' | 'ready' | 'none'
   data: StockAiAnalysis | null
+  /** 本次查询实际采用的有效交易日（显式非交易日已被后端归位）。 */
+  tradeDate: string
 }
 
 function mapAiAnalysisStatus(dto: ApiStockAiAnalysisStatusResponse): StockAiAnalysisStatus {
   return {
     status: dto.status,
     data: dto.data ? mapStockAiAnalysis(dto.data) : null,
+    tradeDate: dto.trade_date,
   }
 }
 

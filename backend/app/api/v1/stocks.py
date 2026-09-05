@@ -129,17 +129,24 @@ async def get_stock_ai_analysis(
 ) -> StockAiAnalysisStatusResponse:
     """轮询个股 AI 分析状态（trade_date 缺省取最近交易日）。
 
-    ready 时附带完整分析数据；running 表示异步生成进行中；none 表示
-    无缓存且无进行中的生成。
+    显式传入非交易日（周末/节假日）时归位到不晚于该日的最近交易日，
+    避免对非交易日触发无意义的生成。ready 时附带完整分析数据；
+    running 表示异步生成进行中；none 表示无缓存且无进行中的生成。
     """
     resolved_date = trade_date or await trade_calendar_service.resolve_latest_trade_date(
         session
     )
+    if not await trade_calendar_service.is_trading_day(session, resolved_date):
+        resolved_date = await trade_calendar_service.resolve_trade_date_on_or_before(
+            session, resolved_date
+        )
     analysis = await stock_daily_analysis_service.get_stock_analysis(
         session, code, trade_date=resolved_date
     )
     if analysis is not None:
-        return StockAiAnalysisStatusResponse(status="ready", data=analysis)
+        return StockAiAnalysisStatusResponse(
+            status="ready", data=analysis, trade_date=resolved_date
+        )
     if await stock_daily_analysis_service.is_generation_running(code, resolved_date):
-        return StockAiAnalysisStatusResponse(status="running")
-    return StockAiAnalysisStatusResponse(status="none")
+        return StockAiAnalysisStatusResponse(status="running", trade_date=resolved_date)
+    return StockAiAnalysisStatusResponse(status="none", trade_date=resolved_date)

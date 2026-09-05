@@ -164,6 +164,7 @@ export type ApiStockAiAnalysisStatus = 'running' | 'ready' | 'none'
 export interface ApiStockAiAnalysisStatusResponse {
   status: ApiStockAiAnalysisStatus
   data: ApiStockAiAnalysisResponse | null
+  trade_date: string
 }
 
 export interface ApiStockKlineBar {
