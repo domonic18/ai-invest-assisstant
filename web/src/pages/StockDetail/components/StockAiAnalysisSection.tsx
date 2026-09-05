@@ -1,61 +1,49 @@
 import { LoadingOutlined, ReloadOutlined, RobotOutlined } from '@ant-design/icons'
 import { Button, Card, DatePicker, Empty, Typography, message } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { MarkdownText } from '@/components/common/MarkdownText'
-import { useGenerateStockAiAnalysis, useStockAiAnalysis } from '@/hooks/useStocks'
-import { apiErrorMessage } from '@/utils/errorMessage'
+import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
+import { useStockAiAnalysis } from '@/hooks/useStocks'
+import { useAssistantStore } from '@/stores/assistant'
 
 interface StockAiAnalysisSectionProps {
   stockCode: string
 }
 
-// 生成派发到异步任务后，worker 取锁有延迟，轮询初期可能短暂看到 none
-const NONE_GRACE_MS = 10_000
-
 export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProps) {
   const [tradeDate, setTradeDate] = useState<string | undefined>(undefined)
-  const [pending, setPending] = useState(false)
-  const pendingSinceRef = useRef(0)
+  const [analyzing, setAnalyzing] = useState(false)
+  const panelOpen = useAssistantStore((state) => state.open)
   const { data: status, isLoading, isError, error, refetch } = useStockAiAnalysis(
     stockCode,
     tradeDate,
-    (query) => (pending || query.state.data?.status === 'running' ? 3000 : false),
   )
-  const generateMutation = useGenerateStockAiAnalysis(stockCode)
   const data = status?.data ?? null
 
-  useEffect(() => {
-    if (!pending || !status) return
-    if (status.status === 'ready') {
-      setPending(false)
-      message.success('分析完成，已刷新结果')
-    } else if (
-      status.status === 'none' &&
-      Date.now() - pendingSinceRef.current > NONE_GRACE_MS
-    ) {
-      setPending(false)
-      message.error('生成失败或数据未就绪，请稍后重试')
-    }
-  }, [pending, status])
+  usePageAssistantResult('stock_daily_analysis.complete', (event) => {
+    if (event.stockCode !== stockCode) return false
+    setAnalyzing(false)
+    void refetch()
+    message.success('AI 分析完成，已刷新结果')
+    return true
+  })
 
-  const generate = (regenerate: boolean) => {
-    generateMutation.mutate(
-      { tradeDate, regenerate },
-      {
-        onSuccess: (result) => {
-          if (result.status === 'ready') {
-            message.success(result.data?.cached ? '已有当日分析，直接展示缓存' : '分析已生成')
-            return
-          }
-          pendingSinceRef.current = Date.now()
-          setPending(true)
-          message.info('分析生成中，完成后自动刷新')
-        },
-        onError: (err) => message.error(apiErrorMessage(err, '生成失败，请稍后重试')),
-      },
-    )
+  // 侧边栏关闭（含 agent 中途失败被放弃）时解除本区的进行中提示
+  useEffect(() => {
+    if (!panelOpen) setAnalyzing(false)
+  }, [panelOpen])
+
+  // 生成入口走 AI 助手侧边栏：agent 按 SKILL.md 取数分析，过程全程可见，
+  // 完成后经 pageResult 事件回写刷新本区
+  const startAnalysis = () => {
+    setAnalyzing(true)
+    useAssistantStore
+      .getState()
+      .sendQuestion(
+        `请生成 ${stockCode}${tradeDate ? `（${tradeDate}）` : '（最近交易日）'} 的每日个股分析`
+      )
   }
 
   const datePicker = (
@@ -77,14 +65,7 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
       <div className="flex items-center gap-2">
         {datePicker}
         {data && (
-          <Button
-            size="small"
-            type="primary"
-            ghost
-            icon={<ReloadOutlined />}
-            loading={generateMutation.isPending}
-            onClick={() => generate(true)}
-          >
+          <Button size="small" type="primary" ghost icon={<ReloadOutlined />} onClick={startAnalysis}>
             重新生成
           </Button>
         )}
@@ -138,14 +119,13 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         >
           <div className="space-y-2">
-            <Button
-              size="small"
-              type="primary"
-              loading={generateMutation.isPending}
-              onClick={() => generate(false)}
-            >
+            <Button size="small" type="primary" onClick={startAnalysis}>
               生成{tradeDate ? `${tradeDate} ` : '当日 '}分析
             </Button>
+            <div className="text-xs text-gray-500">
+              点击后将在 AI 助手侧边栏执行分析，完成后自动展示
+              {analyzing && '；分析进行中，进展见右侧 AI 助手'}
+            </div>
             <div className="text-xs text-gray-500">
               开启自选股分组的 AI 复盘后，每个交易日收盘自动生成
             </div>
@@ -160,6 +140,12 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
   return (
     <div className="p-3 space-y-3">
       {header}
+      {analyzing && (
+        <div className="flex items-center gap-2 text-xs text-gray-400">
+          <LoadingOutlined spin />
+          分析进行中，进展见右侧 AI 助手…
+        </div>
+      )}
       {sections.length ? (
         sections.map((section) => (
           <Card

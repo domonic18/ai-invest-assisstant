@@ -108,21 +108,6 @@ export async function fetchStockAiAnalysisStatus(
   return mapAiAnalysisStatus(response.data)
 }
 
-/** 触发个股 AI 分析生成：200 缓存命中（ready），202 已派发异步任务（running）。 */
-export async function generateStockAiAnalysis(
-  code: string,
-  options: { tradeDate?: string; regenerate?: boolean } = {},
-): Promise<StockAiAnalysisStatus> {
-  const response = await apiClient.post<ApiStockAiAnalysisStatusResponse>(
-    ENDPOINTS.stocks.aiAnalysis(code),
-    {
-      trade_date: options.tradeDate,
-      regenerate: options.regenerate ?? false,
-    },
-  )
-  return mapAiAnalysisStatus(response.data)
-}
-
 export async function fetchKline(code: string, params: KlineParams = {}) {
   const response = await apiClient.get<ApiPaginatedResponse<ApiKlineDataResponse>>(
     ENDPOINTS.kline.get(code),
