@@ -5,14 +5,14 @@ import { PAGE_EVENT_DEFINITIONS, parsePageEvent } from './pageEvents'
 describe('parsePageEvent', () => {
   it('parses chain event with action label', () => {
     const parsed = parsePageEvent({
-      type: 'industry_chain.analysis_complete',
+      type: 'industry_chain.analysis.complete',
       industry: '半导体',
       version_id: 123,
       version_no: 5,
     })
     expect(parsed).not.toBeNull()
     expect(parsed?.result).toEqual({
-      type: 'industry_chain.analysis_complete',
+      type: 'industry_chain.analysis.complete',
       industry: '半导体',
       versionId: 123,
       versionNo: 5,

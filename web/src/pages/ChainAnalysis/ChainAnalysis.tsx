@@ -77,6 +77,7 @@ export function ChainAnalysis() {
 
   const queryClient = useQueryClient()
   const sendQuestion = useAssistantStore((state) => state.sendQuestion)
+  const panelOpen = useAssistantStore((s) => s.open)
 
   const latestQuery = useChainLatest(activeIndustry)
   const versionsQuery = useChainVersions(activeIndustry)
@@ -91,7 +92,7 @@ export function ChainAnalysis() {
     }
   }, [industry])
 
-  usePageAssistantResult('industry_chain.analysis_complete', (event) => {
+  usePageAssistantResult('industry_chain.analysis.complete', (event) => {
     const eventIndustry = normalizeIndustry(event.industry)
     const isCurrent = eventIndustry === normalizeIndustry(activeIndustry)
     const isPending = pendingIndustry !== null && eventIndustry === normalizeIndustry(pendingIndustry)
@@ -109,6 +110,14 @@ export function ChainAnalysis() {
     }
     return true
   })
+
+  // 侧边栏关闭（含 agent 中途失败被放弃）时解除本页的进行中提示
+  useEffect(() => {
+    if (!panelOpen) {
+      setAssistantAnalyzing(false)
+      setPendingIndustry(null)
+    }
+  }, [panelOpen])
 
   const latestVersionId = latestQuery.data?.version.id ?? null
   const isLatestSelected =

@@ -57,7 +57,7 @@ async def persist_chain_analysis(
             "version_no": response.version_no,
             "status": response.status,
             "__event__": page_event(
-                "industry_chain.analysis_complete",
+                "industry_chain.analysis.complete",
                 industry=normalized,
                 version_id=response.version_id,
                 version_no=response.version_no,

@@ -19,10 +19,10 @@ export interface PageEventDefinition {
 
 export const PAGE_EVENT_DEFINITIONS: readonly PageEventDefinition[] = [
   {
-    eventType: 'industry_chain.analysis_complete',
+    eventType: 'industry_chain.analysis.complete',
     actionLabel: '查看产业链图谱',
     parse: (e) => ({
-      type: 'industry_chain.analysis_complete',
+      type: 'industry_chain.analysis.complete',
       industry: String(e.industry ?? ''),
       versionId: Number(e.version_id),
       versionNo: Number(e.version_no),
@@ -43,6 +43,14 @@ export const PAGE_EVENT_DEFINITIONS: readonly PageEventDefinition[] = [
     actionLabel: '查看复盘结果',
     parse: (e) => ({
       type: 'market_daily_review.complete',
+      tradeDate: String(e.trade_date ?? ''),
+    }),
+  },
+  {
+    eventType: 'limit_up_attribution.complete',
+    actionLabel: '查看涨停归因',
+    parse: (e) => ({
+      type: 'limit_up_attribution.complete',
       tradeDate: String(e.trade_date ?? ''),
     }),
   },

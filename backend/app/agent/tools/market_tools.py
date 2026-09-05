@@ -5,6 +5,7 @@ from datetime import date
 from typing import Any
 
 from langchain_core.tools import tool
+from pydantic import BaseModel
 
 from app.agent.tools.page_event import page_event
 from app.core.clock import now_cn
@@ -232,6 +233,33 @@ async def get_limit_up_ladder(trade_date: str | None = None) -> dict[str, Any]:
 
 
 @tool
+async def get_limit_up_pool(trade_date: str | None = None) -> dict[str, Any]:
+    """查询涨停池全量明细：每只涨停股的代码、名称、所属行业、连板数、封板形态与首次封板时间。
+
+    与 get_limit_up_ladder 的区别：本工具返回全部涨停个股明细（涨停归因等按个股
+    分析的场景使用）；天梯只聚合统计与 ≥2 板梯队。
+
+    Args:
+        trade_date: 可选历史交易日，ISO 格式如 "2026-09-04"；缺省为最近交易日。
+    """
+    from app.services.market import limit_pool_service
+
+    _note_review_start()
+    resolved, error = _parse_trade_date(trade_date)
+    if error:
+        return {"error": error}
+
+    async with AsyncSessionLocal() as session:
+        response = await limit_pool_service.get_limit_up(session, resolved)
+
+    return {
+        "trade_date": response.trade_date.isoformat(),
+        "total": response.total,
+        "items": [item.model_dump(mode="json") for item in response.items],
+    }
+
+
+@tool
 async def get_index_technical(trade_date: str | None = None) -> dict[str, Any]:
     """获取五大标的（沪指/创业板/科创50/沪深300ETF/富时A50）的预计算技术分析文本：日 K/周 K 形态、均线、新低/地量/放量判断。
 
@@ -292,6 +320,79 @@ async def persist_market_review(
             "__event__": page_event(
                 "market_daily_review.complete",
                 trade_date=response.trade_date.isoformat(),
+            ),
+        }
+
+
+class LimitUpAttributionGroupArgs(BaseModel):
+    """persist_limit_up_attribution 的单组归因参数。"""
+
+    theme: str
+    reason: str
+    stock_codes: list[str]
+
+
+@tool
+async def persist_limit_up_attribution(
+    trade_date: str,
+    groups: list[LimitUpAttributionGroupArgs],
+    stock_themes: dict[str, list[str]] | None = None,
+) -> dict[str, Any]:
+    """持久化 AI 涨停归因结果到数据库，涨停页卡片会自动刷新展示。
+
+    Args:
+        trade_date: 交易日（YYYY-MM-DD）。
+        groups: 题材分组列表。theme 为题材名（禁止「其他」「综合」等无信息量名称），
+            reason 为该题材的涨停原因归纳（1-2 句），stock_codes 为组内涨停股的
+            6 位代码，必须来自 get_limit_up_pool 返回的明细；一股只属一组。
+        stock_themes: 可选，个股题材标签映射（6 位代码 → 1-3 个 2-8 字题材标签）。
+    """
+    from app.services.admin.llm_config_service import resolve_default_llm
+    from app.services.review import limit_up_ai_service
+    from app.services.review.market_review_service import (
+        NonTradingDayError,
+        ReviewInputDataNotReadyError,
+    )
+
+    resolved, error = _parse_trade_date(trade_date)
+    if error:
+        return {"error": error}
+    assert resolved is not None
+
+    async with AsyncSessionLocal() as session:
+        if not await trade_calendar_service.is_trading_day(session, resolved):
+            return {"error": f"{resolved.isoformat()} 不是交易日，涨停归因只对交易日有效"}
+
+        content = limit_up_ai_service.LimitUpAttributionContent(
+            groups=[
+                limit_up_ai_service.AttributionGroup(
+                    theme=group.theme,
+                    reason=group.reason,
+                    stock_codes=group.stock_codes,
+                )
+                for group in groups
+            ],
+            stock_themes=stock_themes or {},
+        )
+        try:
+            cfg = await resolve_default_llm(session)
+            saved = await limit_up_ai_service.persist_attribution_result(
+                session,
+                resolved,
+                content,
+                model=f"{cfg.provider}/{cfg.model_name}",
+                latency_ms=_consume_review_latency(),
+            )
+        except (NonTradingDayError, ReviewInputDataNotReadyError) as exc:
+            return {"error": str(exc)}
+
+        return {
+            "trade_date": resolved.isoformat(),
+            "groups": len(saved.groups),
+            "stocks": sum(len(group.stock_codes) for group in saved.groups),
+            "__event__": page_event(
+                "limit_up_attribution.complete",
+                trade_date=resolved.isoformat(),
             ),
         }
 
