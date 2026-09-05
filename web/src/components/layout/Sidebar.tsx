@@ -8,6 +8,8 @@ import {
   FundOutlined,
   HeatMapOutlined,
   LineChartOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
   PlayCircleOutlined,
   ReadOutlined,
   RobotOutlined,
@@ -21,11 +23,16 @@ import {
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { Menu } from 'antd'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuthStore } from '@/stores/auth'
 import { Brand } from '@/components/common/Brand'
+import {
+  SIDEBAR_COLLAPSED_WIDTH,
+  SIDEBAR_DEFAULT_WIDTH,
+  useSidebarStore,
+} from '@/stores/sidebar'
 
 type MenuItem = Required<MenuProps>['items'][number]
 
@@ -81,9 +88,10 @@ function resolveSelectedKey(pathname: string, keys: string[]): string {
 interface SidebarMenuProps {
   /** 导航后回调（移动端抽屉场景用于关闭抽屉）。 */
   onNavigate?: () => void
+  collapsed?: boolean
 }
 
-export function SidebarMenu({ onNavigate }: SidebarMenuProps) {
+export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, isAdmin } = useAuthStore()
@@ -120,14 +128,32 @@ export function SidebarMenu({ onNavigate }: SidebarMenuProps) {
 
   return (
     <div className="h-full flex flex-col bg-[#111318]">
-      <div className="h-14 flex items-center px-4 border-b border-gray-800 shrink-0">
-        <Brand showVersion />
+      <div
+        className={`h-14 flex items-center border-b border-gray-800 shrink-0 ${
+          collapsed ? 'justify-center px-0' : 'px-4'
+        }`}
+      >
+        {collapsed ? (
+          <SidebarIconButton title="展开侧边栏" onClick={() => useSidebarStore.getState().toggleCollapsed()}>
+            <MenuUnfoldOutlined />
+          </SidebarIconButton>
+        ) : (
+          <>
+            <div className="flex-1 min-w-0">
+              <Brand showVersion />
+            </div>
+            <SidebarIconButton title="收起侧边栏" onClick={() => useSidebarStore.getState().toggleCollapsed()}>
+              <MenuFoldOutlined />
+            </SidebarIconButton>
+          </>
+        )}
       </div>
       <Menu
         theme="dark"
         mode="inline"
+        inlineCollapsed={collapsed}
         selectedKeys={[resolveSelectedKey(location.pathname, leafKeys(items))]}
-        openKeys={openKeys}
+        openKeys={collapsed ? [] : openKeys}
         onOpenChange={(keys) => setOpenKeys(keys as string[])}
         items={items}
         onClick={({ key }) => {
@@ -139,7 +165,7 @@ export function SidebarMenu({ onNavigate }: SidebarMenuProps) {
         className="!bg-transparent flex-1 overflow-y-auto"
         style={{ borderRight: 0 }}
       />
-      {user && (
+      {user && !collapsed && (
         <div className="p-4 border-t border-gray-800 text-sm text-gray-400 shrink-0">
           {user.email}
         </div>
@@ -148,10 +174,62 @@ export function SidebarMenu({ onNavigate }: SidebarMenuProps) {
   )
 }
 
-export function Sidebar() {
+function SidebarIconButton({
+  title,
+  onClick,
+  children,
+}: {
+  title: string
+  onClick: () => void
+  children: ReactNode
+}) {
   return (
-    <aside className="hidden md:flex w-56 border-r border-gray-800 bg-[#111318] flex-col">
-      <SidebarMenu />
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className="flex items-center justify-center w-7 h-7 shrink-0 rounded text-[#8a8f98] transition-colors hover:bg-[#1c1f26] hover:text-[#f0f1f5]"
+    >
+      {children}
+    </button>
+  )
+}
+
+export function Sidebar() {
+  const collapsed = useSidebarStore((s) => s.collapsed)
+  const width = useSidebarStore((s) => s.width)
+  const setWidth = useSidebarStore((s) => s.setWidth)
+
+  // 右缘拖拽调宽：sidebar 贴视口左缘，宽度即鼠标 clientX；双击复位
+  const startResize = (e: ReactMouseEvent) => {
+    e.preventDefault()
+    const onMove = (ev: MouseEvent) => setWidth(ev.clientX)
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  return (
+    <aside
+      className="relative hidden md:flex shrink-0 border-r border-gray-800 bg-[#111318] flex-col"
+      style={{ width: collapsed ? SIDEBAR_COLLAPSED_WIDTH : width }}
+    >
+      <SidebarMenu collapsed={collapsed} />
+      {!collapsed && (
+        <div
+          title="拖拽调整宽度 · 双击复位"
+          onMouseDown={startResize}
+          onDoubleClick={() => setWidth(SIDEBAR_DEFAULT_WIDTH)}
+          className="absolute top-0 right-0 z-10 h-full w-[3px] cursor-col-resize transition-colors hover:bg-[rgba(94,106,210,0.5)]"
+        />
+      )}
     </aside>
   )
 }
