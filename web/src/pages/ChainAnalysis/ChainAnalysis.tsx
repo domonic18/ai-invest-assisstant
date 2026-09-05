@@ -25,6 +25,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { ChainGraph } from '@/components/charts/ChainGraph'
+import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
 import {
   useChainIndustries,
   useChainLatest,
@@ -76,7 +77,6 @@ export function ChainAnalysis() {
 
   const queryClient = useQueryClient()
   const sendQuestion = useAssistantStore((state) => state.sendQuestion)
-  const pageResult = useAssistantStore((state) => state.pageResult)
 
   const latestQuery = useChainLatest(activeIndustry)
   const versionsQuery = useChainVersions(activeIndustry)
@@ -91,12 +91,11 @@ export function ChainAnalysis() {
     }
   }, [industry])
 
-  useEffect(() => {
-    if (pageResult?.type !== 'industry_chain.analysis_complete') return
-    const eventIndustry = normalizeIndustry(pageResult.industry)
+  usePageAssistantResult('industry_chain.analysis_complete', (event) => {
+    const eventIndustry = normalizeIndustry(event.industry)
     const isCurrent = eventIndustry === normalizeIndustry(activeIndustry)
     const isPending = pendingIndustry !== null && eventIndustry === normalizeIndustry(pendingIndustry)
-    if (!isCurrent && !isPending) return
+    if (!isCurrent && !isPending) return false
 
     setAssistantAnalyzing(false)
     setPendingIndustry(null)
@@ -106,10 +105,10 @@ export function ChainAnalysis() {
       void queryClient.invalidateQueries({ queryKey: ['chain', 'versions', activeIndustry] })
     }
     if (isPending && !isCurrent) {
-      message.success(`「${pageResult.industry}」产业链分析已完成，可在下拉框中查看`)
+      message.success(`「${event.industry}」产业链分析已完成，可在下拉框中查看`)
     }
-    useAssistantStore.getState().setPageResult(null)
-  }, [pageResult, activeIndustry, pendingIndustry, queryClient, message])
+    return true
+  })
 
   const latestVersionId = latestQuery.data?.version.id ?? null
   const isLatestSelected =
