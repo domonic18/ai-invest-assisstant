@@ -29,6 +29,10 @@ export function mapStock(dto: ApiStockBasicResponse): Stock {
     name: dto.stock_name,
     industry: dto.industry_level_1 || dto.industry_level_2 || dto.industry_level_3 || '',
     market: normalizeMarket(dto.market),
+    fullName: dto.full_name,
+    industryLevel1: dto.industry_level_1,
+    industryLevel2: dto.industry_level_2,
+    industryLevel3: dto.industry_level_3,
   }
 }
 
@@ -84,6 +88,9 @@ export function mapStockKline(dto: ApiStockKlineResponse): StockKline {
       close: bar.close,
       volume: bar.volume,
       amount: bar.amount,
+      changePct: bar.change_pct,
+      amplitude: bar.amplitude,
+      turnoverRate: bar.turnover_rate,
     })),
   }
 }

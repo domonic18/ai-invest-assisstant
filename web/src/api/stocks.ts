@@ -2,6 +2,7 @@ import { ENDPOINTS } from '@ai-invest/shared'
 import type {
   ApiKlineDataResponse,
   ApiPaginatedResponse,
+  ApiStockAiAnalysisDatesResponse,
   ApiStockAiAnalysisStatusResponse,
   ApiStockBasicResponse,
   ApiStockIntradayResponse,
@@ -109,6 +110,14 @@ export async function fetchStockAiAnalysisStatus(
     { params: { trade_date: tradeDate } },
   )
   return mapAiAnalysisStatus(response.data)
+}
+
+/** 该股已成功生成分析的全部交易日（升序），供日历标记。 */
+export async function fetchStockAiAnalysisDates(code: string): Promise<string[]> {
+  const response = await apiClient.get<ApiStockAiAnalysisDatesResponse>(
+    ENDPOINTS.stocks.aiAnalysisDates(code),
+  )
+  return response.data.trade_dates
 }
 
 export async function fetchKline(code: string, params: KlineParams = {}) {

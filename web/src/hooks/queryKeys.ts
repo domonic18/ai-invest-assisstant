@@ -87,6 +87,7 @@ export const queryKeys = {
     sectors: (code: string) => ['stocks', 'sectors', code] as const,
     aiAnalysis: (code: string, tradeDate?: string) =>
       ['stocks', 'ai-analysis', code, tradeDate] as const,
+    aiAnalysisDates: (code: string) => ['stocks', 'ai-analysis-dates', code] as const,
   },
   watchlist: {
     all: ['watchlist'] as const,

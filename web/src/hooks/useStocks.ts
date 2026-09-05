@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import {
   fetchKline,
+  fetchStockAiAnalysisDates,
   fetchStockAiAnalysisStatus,
   fetchStockDetail,
   fetchStockIntraday,
@@ -92,5 +93,15 @@ export function useStockAiAnalysis(code: string, tradeDate?: string) {
     enabled: code.length > 0,
     staleTime: 10 * 60_000,
     refetchInterval: (query) => (query.state.data?.status === 'running' ? 3000 : false),
+  })
+}
+
+/** 该股已生成分析的全部交易日（升序），供日历标记有记录的日期。 */
+export function useStockAiAnalysisDates(code: string) {
+  return useQuery({
+    queryKey: queryKeys.stocks.aiAnalysisDates(code),
+    queryFn: () => fetchStockAiAnalysisDates(code),
+    enabled: code.length > 0,
+    staleTime: 10 * 60_000,
   })
 }

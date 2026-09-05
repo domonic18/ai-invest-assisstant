@@ -118,6 +118,7 @@ export interface ApiStockBasicResponse {
   stock_code: string
   stock_name: string
   market: string
+  full_name: string | null
   industry_level_1: string | null
   industry_level_2: string | null
   industry_level_3: string | null
@@ -167,6 +168,11 @@ export interface ApiStockAiAnalysisStatusResponse {
   trade_date: string
 }
 
+export interface ApiStockAiAnalysisDatesResponse {
+  code: string
+  trade_dates: string[]
+}
+
 export interface ApiStockKlineBar {
   date: string
   open: number
@@ -175,6 +181,9 @@ export interface ApiStockKlineBar {
   close: number
   volume: number
   amount: number
+  change_pct: number | null
+  amplitude: number | null
+  turnover_rate: number | null
 }
 
 export interface ApiStockKlineResponse {

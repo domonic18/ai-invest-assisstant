@@ -109,6 +109,9 @@ class StockKlineBar(BaseModel):
     close: float | None = None
     volume: int | None = None
     amount: float | None = None
+    change_pct: float | None = None
+    amplitude: float | None = None
+    turnover_rate: float | None = None
 
 
 class StockKlineResponse(BaseModel):
@@ -231,6 +234,13 @@ class StockAiAnalysisStatusResponse(BaseModel):
     status: Literal["running", "ready", "none"]
     data: StockAiAnalysisResponse | None = None
     trade_date: date
+
+
+class StockAiAnalysisDatesResponse(BaseModel):
+    """个股已生成分析的全部交易日（升序），供前端日历标记。"""
+
+    code: str
+    trade_dates: list[date]
 
 
 class PaginationParams(BaseModel):

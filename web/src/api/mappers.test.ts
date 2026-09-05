@@ -64,6 +64,7 @@ describe('mappers', () => {
       stock_code: '000001',
       stock_name: '平安银行',
       market: 'sz',
+      full_name: '平安银行股份有限公司',
       industry_level_1: '金融',
       industry_level_2: '银行',
       industry_level_3: '股份制银行',

@@ -28,6 +28,8 @@ export const ENDPOINTS = {
     intraday: (code: string) => `${API_BASE}/stocks/${code}/intraday`,
     sectors: (code: string) => `${API_BASE}/stocks/${code}/sectors`,
     aiAnalysis: (code: string) => `${API_BASE}/stocks/${code}/ai-analysis`,
+    aiAnalysisDates: (code: string) =>
+      `${API_BASE}/stocks/${code}/ai-analysis/dates`,
   },
   kline: {
     get: (code: string) => `${API_BASE}/kline/${code}`,

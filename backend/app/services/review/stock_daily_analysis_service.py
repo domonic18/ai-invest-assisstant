@@ -307,6 +307,15 @@ async def is_generation_running(stock_code: str, trade_date: date) -> bool:
     return bool(await lock.locked())
 
 
+async def list_analysis_trade_dates(
+    session: AsyncSession, stock_code: str
+) -> list[date]:
+    """该股已成功生成分析的全部交易日（升序），供日历标记。"""
+    return await ai_analysis_repository.list_success_trade_dates(
+        session, skill_id=SKILL_ID, stock_code=stock_code
+    )
+
+
 async def list_active_watch_stock_codes(session: AsyncSession) -> list[str]:
     """开启 AI 复盘分组内的去重股票代码（定时任务遍历范围）。"""
     stmt = (

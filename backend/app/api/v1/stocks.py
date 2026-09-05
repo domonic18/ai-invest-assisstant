@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.stock import (
+    StockAiAnalysisDatesResponse,
     StockAiAnalysisStatusResponse,
     StockBasicResponse,
     StockIntradayResponse,
@@ -150,3 +151,20 @@ async def get_stock_ai_analysis(
     if await stock_daily_analysis_service.is_generation_running(code, resolved_date):
         return StockAiAnalysisStatusResponse(status="running", trade_date=resolved_date)
     return StockAiAnalysisStatusResponse(status="none", trade_date=resolved_date)
+
+
+@router.get(
+    "/{code}/ai-analysis/dates",
+    response_model=StockAiAnalysisDatesResponse,
+)
+async def get_stock_ai_analysis_dates(
+    code: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> StockAiAnalysisDatesResponse:
+    """该股已成功生成分析的全部交易日（升序）。
+
+    供详情页日历以标记区分「有分析记录 / 无分析记录」的日期。
+    """
+    dates = await stock_daily_analysis_service.list_analysis_trade_dates(session, code)
+    return StockAiAnalysisDatesResponse(code=code, trade_dates=dates)
