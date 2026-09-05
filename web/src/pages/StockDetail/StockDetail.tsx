@@ -223,6 +223,16 @@ export function StockDetail() {
 
   const rightTabItems = [
     {
+      key: 'ai',
+      label: (
+        <span className="text-xs">
+          <RobotOutlined className="mr-1" />
+          AI 分析
+        </span>
+      ),
+      children: <StockAiAnalysisSection stockCode={stockCode} />,
+    },
+    {
       key: 'financial',
       label: (
         <span className="text-xs">
@@ -261,25 +271,6 @@ export function StockDetail() {
           onRetry={() => researchQ.refetch()}
         />
       ),
-    },
-    {
-      key: 'news',
-      label: <span className="text-xs">相关新闻</span>,
-      children: (
-        <span className="text-xs text-[#8c8c8c]">
-          相关新闻功能开发中，敬请期待。
-        </span>
-      ),
-    },
-    {
-      key: 'ai',
-      label: (
-        <span className="text-xs">
-          <RobotOutlined className="mr-1" />
-          AI 分析
-        </span>
-      ),
-      children: <StockAiAnalysisSection stockCode={stockCode} />,
     },
   ]
 
@@ -384,7 +375,7 @@ export function StockDetail() {
 
           <div className="flex-1 p-3">
             <Tabs
-              defaultActiveKey="financial"
+              defaultActiveKey="ai"
               items={rightTabItems}
               className="stock-detail-tabs"
             />
