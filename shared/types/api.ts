@@ -947,3 +947,32 @@ export interface ApiTrackedIndexToggleResponse {
   id: number
   is_enabled: boolean
 }
+
+export interface ApiAdminAiSkillInfo {
+  skill_id: string
+  label: string
+  event_type: string | null
+}
+
+export interface ApiAdminAiResultKeyField {
+  name: string
+  label: string
+  value: string
+}
+
+export interface ApiAdminAiResultItem {
+  id: number
+  skill_id: string
+  key_fields: ApiAdminAiResultKeyField[]
+  model: string | null
+  latency_ms: number | null
+  status: string
+  created_at: string
+  history_count: number
+  regenerate_prompt: string | null
+}
+
+export interface ApiAdminAiResultDetail extends ApiAdminAiResultItem {
+  error_msg: string | null
+  structured_output: Record<string, unknown> | null
+}
