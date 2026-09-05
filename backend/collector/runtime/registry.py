@@ -393,6 +393,14 @@ TASK_SPECS: dict[str, TaskSpec] = {
                 ),
             },
         ),
+        TaskSpec(
+            name="kline-freshness",
+            label="日K新鲜度自愈",
+            data_type="kline_freshness",
+            collectors={
+                "internal": "collector.spiders.kline_freshness:KlineFreshnessCollector",
+            },
+        ),
     ]
 }
 
@@ -420,6 +428,8 @@ _QUEUE_OVERRIDES: dict[str, Literal["realtime", "batch", "heavy"]] = {
     "research-report": "heavy",
     # 全链 AI 分析逐链分钟级，逐链串行走 heavy 专用 worker
     "chain-refresh": "heavy",
+    # 自愈需串行重跑多个日 K 采集任务（全历史 upsert），耗时分钟级
+    "kline-freshness": "heavy",
 }
 
 TASK_SPECS = {

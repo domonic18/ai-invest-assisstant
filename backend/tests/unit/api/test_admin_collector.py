@@ -106,7 +106,7 @@ class TestAdminCollectorEndpoints:
         assert response.status_code == 200
         items = response.json()["items"]
         names = {item["name"] for item in items}
-        assert len(items) == 37
+        assert len(items) == 38
         assert "market-daily-review" in names
         assert "limit-up-ai-review" in names
         assert "stock-daily-analysis" in names
@@ -114,8 +114,10 @@ class TestAdminCollectorEndpoints:
         assert "cls-investkalendar" in names
         assert "chain-refresh" in names
         assert "collector-log-cleanup" in names
+        assert "kline-freshness" in names
         by_name = {item["name"]: item for item in items}
         assert by_name["market-daily-review"]["label"] == "每日市场复盘"
+        assert by_name["kline-freshness"]["label"] == "日K新鲜度自愈"
         assert by_name["limit-up-pool"]["run_params"] == ["trade_date"]
         assert "internal" in by_name["market-daily-review"]["sources"]
 
