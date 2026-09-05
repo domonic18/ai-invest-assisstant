@@ -7,7 +7,10 @@ export interface TodoStep {
 }
 
 /** 由 Assistant Agent 产生、需要回写到页面的结构化结果。 */
-export type PageAssistantResult = ChainAnalysisResult | StockDailyAnalysisResult
+export type PageAssistantResult =
+  | ChainAnalysisResult
+  | StockDailyAnalysisResult
+  | MarketDailyReviewResult
 
 /** 产业链分析完成回写 */
 export interface ChainAnalysisResult {
@@ -22,6 +25,12 @@ export interface ChainAnalysisResult {
 export interface StockDailyAnalysisResult {
   type: 'stock_daily_analysis.complete'
   stockCode: string
+  tradeDate: string
+}
+
+/** 大盘每日复盘完成回写 */
+export interface MarketDailyReviewResult {
+  type: 'market_daily_review.complete'
   tradeDate: string
 }
 

@@ -38,6 +38,14 @@ export const PAGE_EVENT_DEFINITIONS: readonly PageEventDefinition[] = [
       tradeDate: String(e.trade_date ?? ''),
     }),
   },
+  {
+    eventType: 'market_daily_review.complete',
+    actionLabel: '查看复盘结果',
+    parse: (e) => ({
+      type: 'market_daily_review.complete',
+      tradeDate: String(e.trade_date ?? ''),
+    }),
+  },
 ]
 
 const definitionsByType = new Map(
