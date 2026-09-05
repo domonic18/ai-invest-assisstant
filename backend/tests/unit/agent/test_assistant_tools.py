@@ -630,8 +630,15 @@ class TestPersistLimitUpAttributionTool:
     async def test_reports_not_ready_error(self) -> None:
         from app.services.review.market_review_service import ReviewInputDataNotReadyError
 
+        cfg = MagicMock()
+        cfg.provider = "anthropic"
+        cfg.model_name = "kimi"
         with (
             patch.object(mt.trade_calendar_service, "is_trading_day", AsyncMock(return_value=True)),
+            patch(
+                "app.services.admin.llm_config_service.resolve_default_llm",
+                AsyncMock(return_value=cfg),
+            ),
             patch(
                 "app.services.review.limit_up_ai_service.persist_attribution_result",
                 AsyncMock(side_effect=ReviewInputDataNotReadyError("涨停池数据尚未就绪")),
