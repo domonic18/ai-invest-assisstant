@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.exceptions import NotFoundError, UnprocessableEntityError
 from app.dependencies import get_current_admin_user, get_db
 from app.main import app
 from app.schemas.ai_result import (
@@ -13,7 +14,6 @@ from app.schemas.ai_result import (
     AdminAiResultItem,
     AdminAiResultKeyField,
 )
-from app.core.exceptions import NotFoundError, UnprocessableEntityError
 
 _ROW_ID = 7
 _CREATED_AT = datetime(2026, 9, 5, 8, 0, tzinfo=timezone.utc)

@@ -8,9 +8,9 @@ import pytest
 from app.core.exceptions import NotFoundError, UnprocessableEntityError
 from app.repositories.admin import ai_result_repository
 from app.services.admin.ai_results import (
+    SKILL_DESCRIPTORS,
     UNKNOWN,
     AdminAiResultService,
-    SKILL_DESCRIPTORS,
 )
 from app.services.review.limit_up_ai_service import (
     _input_hash as limit_up_input_hash,
