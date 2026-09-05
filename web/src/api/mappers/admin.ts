@@ -1,5 +1,7 @@
 import type {
-  ApiAdminMarketReviewItem,
+  ApiAdminAiResultDetail,
+  ApiAdminAiResultItem,
+  ApiAdminAiSkillInfo,
   ApiAdminNewsResponse,
   ApiAdminReportResponse,
   ApiAdminStockResponse,
@@ -13,7 +15,9 @@ import type {
   ApiTrackedIndexResponse,
 } from '@ai-invest/shared'
 import type {
-  AdminMarketReviewItem,
+  AdminAiResultDetail,
+  AdminAiResultItem,
+  AdminAiSkillInfo,
   AdminNews,
   AdminReport,
   AdminStock,
@@ -185,14 +189,33 @@ export function mapAdminNews(dto: ApiAdminNewsResponse): AdminNews {
   }
 }
 
-export function mapAdminMarketReview(dto: ApiAdminMarketReviewItem): AdminMarketReviewItem {
+export function mapAdminAiSkill(dto: ApiAdminAiSkillInfo): AdminAiSkillInfo {
   return {
-    tradeDate: dto.trade_date,
+    skillId: dto.skill_id,
+    label: dto.label,
+    eventType: dto.event_type,
+  }
+}
+
+export function mapAdminAiResult(dto: ApiAdminAiResultItem): AdminAiResultItem {
+  return {
+    id: dto.id,
+    skillId: dto.skill_id,
+    keyFields: dto.key_fields.map((field) => ({ ...field })),
     model: dto.model,
     latencyMs: dto.latency_ms,
-    generatedAt: dto.generated_at,
+    status: dto.status,
+    createdAt: dto.created_at,
     historyCount: dto.history_count,
-    userCopyCount: dto.user_copy_count,
+    regeneratePrompt: dto.regenerate_prompt,
+  }
+}
+
+export function mapAdminAiResultDetail(dto: ApiAdminAiResultDetail): AdminAiResultDetail {
+  return {
+    ...mapAdminAiResult(dto),
+    errorMsg: dto.error_msg,
+    structuredOutput: dto.structured_output,
   }
 }
 
