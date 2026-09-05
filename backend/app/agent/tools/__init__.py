@@ -15,6 +15,7 @@ from app.agent.tools.market_tools import (
     get_auction_summary,
     get_market_overview,
     get_sector_fund_flow,
+    get_trade_calendar,
 )
 from app.agent.tools.news_tools import search_news, search_vector_kb
 from app.agent.tools.report_tools import (
@@ -46,6 +47,7 @@ __all__ = [
     "get_sector_fund_flow",
     "get_market_overview",
     "get_auction_summary",
+    "get_trade_calendar",
 ]
 
 
@@ -60,6 +62,7 @@ def build_assistant_tools() -> list[BaseTool]:
         get_sector_fund_flow,
         get_market_overview,
         get_auction_summary,
+        get_trade_calendar,
         query_industry_companies,
         persist_chain_analysis,
         persist_stock_daily_analysis,

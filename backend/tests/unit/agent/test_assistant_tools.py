@@ -31,7 +31,7 @@ def no_db(monkeypatch):
 
 @pytest.mark.unit
 class TestBuildAssistantTools:
-    def test_returns_fourteen_tools(self) -> None:
+    def test_returns_fifteen_tools(self) -> None:
         tools = at.build_assistant_tools()
         names = [t.name for t in tools]
         assert names == [
@@ -43,6 +43,7 @@ class TestBuildAssistantTools:
             "get_sector_fund_flow",
             "get_market_overview",
             "get_auction_summary",
+            "get_trade_calendar",
             "query_industry_companies",
             "persist_chain_analysis",
             "persist_stock_daily_analysis",
@@ -50,6 +51,31 @@ class TestBuildAssistantTools:
             "download_financial_reports",
             "summarize_financial_report",
         ]
+
+
+@pytest.mark.unit
+class TestTradeCalendarTool:
+    @pytest.mark.asyncio
+    async def test_returns_now_today_and_trading_days(self) -> None:
+        with (
+            patch("app.agent.tools.market_tools.now_cn") as mock_now,
+            patch.object(
+                at.trade_calendar_service,
+                "resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 9, 4)),
+            ),
+            patch.object(
+                at.trade_calendar_service,
+                "is_trading_day",
+                AsyncMock(return_value=False),
+            ),
+        ):
+            result = await at.get_trade_calendar.ainvoke({})
+
+        assert result["today"] == mock_now.return_value.date().isoformat()
+        assert result["latest_trading_day"] == "2026-09-04"
+        assert result["today_is_trading_day"] is False
+        assert "now" in result
 
 
 @pytest.mark.unit

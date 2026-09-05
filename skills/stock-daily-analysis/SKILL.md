@@ -38,8 +38,12 @@ allowed-tools: get_stock_quote, get_stock_kline, query_financial_data, search_ne
 - `get_stock_kline(stock_code, limit=30)`: 近期日 K（日期、开高低收、量、额、涨跌幅），按交易日倒序；本分析传 `limit=20`。
 - `query_financial_data(stock_codes, periods=3)`: 核心财务指标——最新报告期毛利率、营收同比、研发占比、应收账款周转。
 - `search_news(keyword, days=30, limit=15)`: 按关键词检索近期新闻/公告/研报标题与摘要，用于关键事件分区的消息面佐证。
+- `get_trade_calendar()`: 仅助手对话路径可用——当前北京时间、今天是否交易日、最近（含今日）交易日。
 
 ## 分析流程
+
+### 步骤 0：交易日确认
+助手对话路径先调用 `get_trade_calendar` 获取最近交易日；独立执行器路径直接使用任务指令给定的 trade_date。取数后若发现 K 线最新日期早于最近交易日，说明当日数据尚未采集完成：在盘面解读分区开头披露「最近交易日应为 X，数据截至 Y」，随后以实际数据日期 Y 完成分析，不得把 Y 表述为最近交易日。
 
 ### 步骤 1：行情快照
 调用 `get_stock_quote(stock_code=...)` 获取当日盘面数据。若返回为空，后续以 K 线最近一根 bar 为盘面依据。
@@ -62,7 +66,7 @@ allowed-tools: get_stock_quote, get_stock_kline, query_financial_data, search_ne
 - 涨跌幅百分比必须带正负号（如 +3.05%、-1.20%）。
 - 金额换算为亿元或万元，与工具返回口径一致。
 - 不得编造数据中不存在的价位、事件或消息；支撑/压力与止损位必须来自实际数据的高低点。
-- 数据不足（K 线缺失或不足 20 日）时在相关分区开头说明实际数据范围。
+- 数据不足（K 线缺失或不足 20 日）或滞后于最近交易日时，在盘面解读分区开头说明实际数据范围。
 - 客观提示风险，不给出确定性的涨跌预测，不构成投资建议。
 - 除最终 JSON 外，不要输出长篇中间结论；工具调用失败时基于已有数据继续分析并在相关分区说明。
 

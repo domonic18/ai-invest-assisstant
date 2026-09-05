@@ -5,11 +5,13 @@ from typing import Any
 
 from langchain_core.tools import tool
 
+from app.core.clock import now_cn
 from app.core.database import AsyncSessionLocal
 from app.services.market import (
     auction_service,
     index_quotation_service,
     sector_fund_flow_service,
+    trade_calendar_service,
 )
 from app.services.market import (
     market_stats_service as market_stats_svc,
@@ -110,3 +112,24 @@ async def get_auction_summary(days: int = 5) -> dict[str, Any]:
         for s in response.series
     ]
     return {"dates": dates, "series": series}
+
+
+@tool
+async def get_trade_calendar() -> dict[str, Any]:
+    """获取当前北京时间与 A 股交易日信息：今天日期、今天是否交易日、最近（含今日）交易日。
+
+    涉及「今天/最近交易日/最新数据」等时间语义时先调用本工具确认，
+    再与查到的数据日期对照；数据日期早于最近交易日时须向用户如实披露滞后。
+    """
+    now = now_cn()
+    async with AsyncSessionLocal() as session:
+        latest = await trade_calendar_service.resolve_latest_trade_date(session)
+        today_is_trading = await trade_calendar_service.is_trading_day(
+            session, now.date()
+        )
+    return {
+        "now": now.isoformat(),
+        "today": now.date().isoformat(),
+        "today_is_trading_day": today_is_trading,
+        "latest_trading_day": latest.isoformat(),
+    }
