@@ -1,14 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Button, Card, message, Skeleton, Tag, Typography } from 'antd'
-import axios from 'axios'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { LimitUpData, LimitUpStock } from '@ai-invest/shared'
-import { generateLimitUpAttribution } from '@/api/market'
 import { IntradaySpark } from '@/components/charts/IntradaySpark'
 import { SourceNote } from '@/components/common/SourceNote'
 import { useLimitUpIntraday } from '@/hooks/useMarket'
+import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
+import { useAssistantStore } from '@/stores/assistant'
 import { useColorScheme } from '@/stores/settings'
 import {
   changeColor,
@@ -68,14 +68,6 @@ function SealBadge({ item }: { item: LimitUpStock }) {
   )
 }
 
-function errorMessage(err: unknown): string {
-  if (axios.isAxiosError(err)) {
-    const detail = (err.response?.data as { detail?: string } | undefined)?.detail
-    return detail ?? err.message
-  }
-  return err instanceof Error ? err.message : '操作失败'
-}
-
 function ThemeTags({ item }: { item: LimitUpStock }) {
   if (item.themes.length === 0) {
     return (
@@ -105,20 +97,31 @@ export function LimitUpSection({
   useColorScheme()
   const queryClient = useQueryClient()
   const [generating, setGenerating] = useState(false)
+  const panelOpen = useAssistantStore((s) => s.open)
   const { data: intraday } = useLimitUpIntraday(tradeDate, (data?.total ?? 0) > 0)
 
-  const handleGenerate = async (regenerate: boolean) => {
+  // 生成入口走 AI 助手侧边栏：agent 按 SKILL.md 工具取数分析，过程全程可见，
+  // 完成后经 pageResult 事件回写刷新本区
+  const handleGenerate = (regenerate: boolean) => {
     setGenerating(true)
-    try {
-      const result = await generateLimitUpAttribution(regenerate, tradeDate)
-      queryClient.setQueryData(['market', 'limit-up', tradeDate], result)
-      message.success(regenerate ? '已重新归因' : 'AI 归因完成')
-    } catch (err) {
-      message.error(errorMessage(err))
-    } finally {
-      setGenerating(false)
-    }
+    useAssistantStore
+      .getState()
+      .sendQuestion(
+        `请${regenerate ? '重新' : ''}生成 ${tradeDate ?? '最近交易日'} 的涨停板块归因`
+      )
   }
+
+  usePageAssistantResult('limit_up_attribution.complete', () => {
+    setGenerating(false)
+    void queryClient.invalidateQueries({ queryKey: ['market', 'limit-up', tradeDate] })
+    message.success('AI 归因已生成，已刷新')
+    return true
+  })
+
+  // 侧边栏关闭（含 agent 中途失败被放弃）时解除本区的进行中提示
+  useEffect(() => {
+    if (!panelOpen) setGenerating(false)
+  }, [panelOpen])
 
   if (loading) {
     return <Skeleton active paragraph={{ rows: 6 }} />
@@ -204,7 +207,7 @@ export function LimitUpSection({
                 loading={generating}
                 onClick={() => handleGenerate(false)}
               >
-                {generating ? 'AI 归因中，通常需要 10-30 秒…' : 'AI 归因'}
+                {generating ? 'AI 归因中，请留意侧边栏助手…' : 'AI 归因'}
               </Button>
             )}
           </span>

@@ -8,7 +8,6 @@ import type {
   ApiLimitUpIntradayResponse,
   ApiLimitUpResponse,
   ApiMarketCollectRequest,
-  ApiMarketReviewGenerateRequest,
   ApiMarketReviewResponse,
   ApiMarketReviewUpdateRequest,
   ApiMarketStatsResponse,
@@ -279,8 +278,6 @@ export async function fetchMarketReview(
   }
 }
 
-const LLM_GENERATION_TIMEOUT = 300_000
-
 /** 按分区保存人工编辑后的复盘内容（sectionKey 为后端 prompt YAML 声明的分区键）。 */
 export async function saveMarketReviewSection(
   tradeDate: string,
@@ -297,23 +294,6 @@ export async function saveMarketReviewSection(
     body,
   )
   return mapMarketReview(response.data)
-}
-
-/** 触发 LLM 生成 AI 涨停归因（regenerate=true 强制重新生成），返回完整涨停数据。 */
-export async function generateLimitUpAttribution(
-  regenerate = false,
-  tradeDate?: string,
-): Promise<LimitUpData> {
-  const body: ApiMarketReviewGenerateRequest = {
-    trade_date: tradeDate,
-    regenerate,
-  }
-  const response = await apiClient.post<ApiLimitUpResponse>(
-    ENDPOINTS.market.limitUpAiReview,
-    body,
-    { timeout: LLM_GENERATION_TIMEOUT },
-  )
-  return mapLimitUpData(response.data)
 }
 
 /** 补采指定交易日的行情数据（涨停池/炸板池/成交额）。 */

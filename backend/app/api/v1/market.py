@@ -11,7 +11,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_admin_user, get_current_user, get_db
+from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.market import (
     CollectTaskResult,
@@ -22,7 +22,6 @@ from app.schemas.market import (
     LimitUpIntradayResponse,
     LimitUpResponse,
     MarketCollectRequest,
-    MarketReviewGenerateRequest,
     MarketReviewResponse,
     MarketReviewUpdateRequest,
     MarketStatsResponse,
@@ -30,7 +29,6 @@ from app.schemas.market import (
 )
 from app.services import review as market_review_service
 from app.services.market import global_index_service, market_service
-from app.services.review import limit_up_ai_service
 
 router = APIRouter()
 
@@ -103,22 +101,6 @@ async def get_limit_up_intraday(
     return await market_service.get_limit_up_intraday(session, trade_date)
 
 
-@router.post("/limit-up/ai-review", response_model=LimitUpResponse)
-async def generate_limit_up_ai_review(
-    data: MarketReviewGenerateRequest,
-    session: Annotated[AsyncSession, Depends(get_db)],
-) -> LimitUpResponse:
-    """触发 LLM 生成 AI 涨停归因（regenerate=true 强制重新生成）。
-
-    生成成功后返回带题材分组与原因的完整涨停数据；无缓存时 GET /limit-up
-    回退为行业分组。LLM 未配置 / 非交易日等业务异常由全局 AppError handler 统一处理。
-    """
-    await limit_up_ai_service.generate_attribution(
-        session, data.trade_date, data.regenerate
-    )
-    return await market_service.get_limit_up(session, data.trade_date)
-
-
 @router.get("/sectors", response_model=SectorOverviewResponse)
 async def get_sector_overview(
     session: Annotated[AsyncSession, Depends(get_db)],
@@ -146,22 +128,6 @@ async def get_ai_review(
     if review is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     return review
-
-
-@router.post("/ai-review", response_model=MarketReviewResponse)
-async def generate_ai_review(
-    data: MarketReviewGenerateRequest,
-    session: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_admin_user)],
-) -> MarketReviewResponse:
-    """管理员触发 LLM 生成 AI 大盘综述共享 base（regenerate=true 强制重新生成）。"""
-    return await market_review_service.generate_market_review(
-        session,
-        data.trade_date,
-        data.regenerate,
-        blocking=True,
-        blocking_timeout=30,
-    )
 
 
 @router.put("/ai-review", response_model=MarketReviewResponse)

@@ -42,6 +42,7 @@ allowed-tools: get_market_overview, get_limit_up_ladder, get_index_technical, ge
 - **独立执行器路径**（定时任务等直接执行）：最终回复必须且只能是上述 JSON 对象，不要 markdown 代码围栏、不要额外解释文字。
 
 ## 可用工具
+执行器路径固定注入前四个取数工具；后三个仅助手对话路径可用。
 - `get_market_overview(trade_date)`: 四大指数行情（名称、点位、涨跌幅）+ 全市场统计——两市成交额（含环比）、上涨/下跌/平盘家数、涨停/跌停家数、情绪温度（分值与标签）、涨停比、连板率、炸板率。
 - `get_limit_up_ladder(trade_date)`: 涨停池与连板天梯——涨停总数、首板/连板家数、最高连板数、≥2 板连板梯队（个股代码/名称、连板数、所属行业）。
 - `get_index_technical(trade_date)`: 五标的（沪指/创业板/科创50/沪深300ETF/富时A50）预计算技术面文本——日 K/周 K 形态、均线数值、新低/地量/放量判断、分时量能结构；必须直接引用，禁止自行估算。

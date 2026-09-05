@@ -181,8 +181,8 @@ class ResearchService:
         return text[:_SUMMARY_TEXT_LIMIT]
 
     async def _generate_summary(self, report: NewsAnnouncement, text: str) -> str:
-        # 延迟导入：app.agent.runtime 顶层依赖 services，避免 services 聚合时环导入
-        from app.agent.runtime import run_structured_agent
+        # 延迟导入：agent 运行时顶层依赖 services，避免 services 聚合时环导入
+        from app.agent.runtime.structured import run_structured
 
         prompt_config = PromptLoader(get_settings().prompts_dir).load(
             "skills", _SUMMARY_SKILL_ID
@@ -201,11 +201,10 @@ class ResearchService:
             report_text=text,
         )
 
-        output = await run_structured_agent(
+        output = await run_structured(
             self.session,
-            prompt_config=prompt_config,
-            user_prompt=user_prompt,
             result_type=ResearchReportSummaryResult,
+            user_prompt=user_prompt,
         )
         return _render_summary_markdown(output)
 

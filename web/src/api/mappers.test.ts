@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  mapAdminAiResult,
+  mapAdminAiResultDetail,
+  mapAdminAiSkill,
   mapAuthResponse,
   mapChainAlert,
   mapChainAnalysisResult,
-  mapAdminMarketReview,
   mapCollectorLog,
   mapKlineData,
   mapLLMConfig,
@@ -14,7 +16,9 @@ import {
 } from './mappers'
 
 import type {
-  ApiAdminMarketReviewItem,
+  ApiAdminAiResultDetail,
+  ApiAdminAiResultItem,
+  ApiAdminAiSkillInfo,
   ApiAuthResponse,
   ApiChainAlert,
   ApiChainAnalysisResult,
@@ -249,20 +253,45 @@ describe('mappers', () => {
     expect(result.recordsCount).toBe(100)
   })
 
-  it('maps admin market review item', () => {
-    const dto: ApiAdminMarketReviewItem = {
-      trade_date: '2026-09-04',
+  it('maps admin ai skill info', () => {
+    const dto: ApiAdminAiSkillInfo = {
+      skill_id: 'market-daily-review',
+      label: '大盘每日复盘',
+      event_type: 'market_daily_review.complete',
+    }
+    const skill = mapAdminAiSkill(dto)
+    expect(skill.skillId).toBe('market-daily-review')
+    expect(skill.label).toBe('大盘每日复盘')
+    expect(skill.eventType).toBe('market_daily_review.complete')
+  })
+
+  it('maps admin ai result item and detail', () => {
+    const dto: ApiAdminAiResultItem = {
+      id: 7,
+      skill_id: 'market-daily-review',
+      key_fields: [{ name: 'trade_date', label: '交易日', value: '2026-09-04' }],
       model: 'anthropic/kimi',
       latency_ms: 59000,
-      generated_at: '2026-09-05T08:00:00Z',
+      status: 'success',
+      created_at: '2026-09-05T08:00:00Z',
       history_count: 3,
-      user_copy_count: 1,
+      regenerate_prompt: '请重新生成 2026-09-04 的大盘每日复盘',
     }
-    const item = mapAdminMarketReview(dto)
-    expect(item.tradeDate).toBe('2026-09-04')
-    expect(item.model).toBe('anthropic/kimi')
+    const item = mapAdminAiResult(dto)
+    expect(item.id).toBe(7)
+    expect(item.skillId).toBe('market-daily-review')
+    expect(item.keyFields[0]).toEqual({ name: 'trade_date', label: '交易日', value: '2026-09-04' })
     expect(item.latencyMs).toBe(59000)
     expect(item.historyCount).toBe(3)
-    expect(item.userCopyCount).toBe(1)
+    expect(item.regeneratePrompt).toBe('请重新生成 2026-09-04 的大盘每日复盘')
+
+    const detailDto: ApiAdminAiResultDetail = {
+      ...dto,
+      error_msg: null,
+      structured_output: { trade_date: '2026-09-04', sections: {} },
+    }
+    const detail = mapAdminAiResultDetail(detailDto)
+    expect(detail.errorMsg).toBeNull()
+    expect(detail.structuredOutput).toEqual({ trade_date: '2026-09-04', sections: {} })
   })
 })

@@ -42,7 +42,6 @@ dependencies = [
     # Encryption
     "cryptography>=42.0.0",
     # AI Agent
-    "pydantic-ai>=0.0.10",
     "openai>=1.35.0",
     "anthropic>=0.28.0",
     # MCP
@@ -77,6 +76,7 @@ dependencies = [
     "langgraph-checkpoint-postgres>=3.1.2",
     "psycopg[binary]>=3.3.4",
     "croniter>=6.2.4",
+    "email-validator>=2.3.0",
 ]
 
 [tool.uv]

@@ -162,11 +162,6 @@ export interface ApiMarketReviewResponse {
   edited: boolean
 }
 
-export interface ApiMarketReviewGenerateRequest {
-  trade_date?: string
-  regenerate?: boolean
-}
-
 export interface ApiMarketCollectRequest {
   trade_date: string
 }
@@ -182,29 +177,6 @@ export interface ApiMarketReviewUpdateRequest {
   trade_date: string
   section_key: string
   content: string
-}
-
-export interface ApiAdminSectionDefinition {
-  key: string
-  title: string
-}
-
-export interface ApiAdminMarketReviewItem {
-  trade_date: string
-  model: string | null
-  latency_ms: number | null
-  generated_at: string
-  history_count: number
-  user_copy_count: number
-}
-
-export interface ApiAdminMarketReviewCreateRequest {
-  trade_date: string
-  sections: Record<string, string>
-}
-
-export interface ApiAdminMarketReviewSectionsRequest {
-  sections: Record<string, string>
 }
 
 /** Domain types (camelCase) for frontend consumption. */
@@ -378,15 +350,6 @@ export interface MarketReview {
   generatedAt: string
   cached: boolean
   edited: boolean
-}
-
-export interface AdminMarketReviewItem {
-  tradeDate: string
-  model: string | null
-  latencyMs: number | null
-  generatedAt: string
-  historyCount: number
-  userCopyCount: number
 }
 
 export interface CollectTaskResult {

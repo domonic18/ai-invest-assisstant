@@ -419,3 +419,45 @@ export interface TrackedIndexFormValues {
   sortOrder: number
   isEnabled: boolean
 }
+
+/** 已纳管 AI skill 清单项（管理页 Tab 与完成事件订阅的数据源）。 */
+export interface AdminAiSkillInfo {
+  skillId: string
+  label: string
+  eventType: string | null
+}
+
+/** 业务键的单个字段（如 交易日 / 股票代码 / 行业+版本）。 */
+export interface AdminAiKeyField {
+  name: string
+  label: string
+  value: string
+}
+
+/** AI 结果管理列表行：每个业务键最新一条生成记录的元信息。 */
+export interface AdminAiResultItem {
+  id: number
+  skillId: string
+  keyFields: AdminAiKeyField[]
+  model: string | null
+  latencyMs: number | null
+  status: string
+  createdAt: string
+  historyCount: number
+  regeneratePrompt: string | null
+}
+
+/** 单条生成记录详情：元信息 + 结构化输出全文。 */
+export interface AdminAiResultDetail extends AdminAiResultItem {
+  errorMsg: string | null
+  structuredOutput: Record<string, unknown> | null
+}
+
+export interface AdminAiResultListParams {
+  skillId: string
+  status?: string
+  startDate?: string
+  endDate?: string
+  page?: number
+  pageSize?: number
+}

@@ -15,7 +15,7 @@ VALUES
     ('601318', '中国平安', 'sh', '非银金融', '保险', '保险III', '2007-03-01')
 ON CONFLICT (stock_code, market) DO NOTHING;
 
--- market_daily_review_1600 / limit_up_ai_review_1630 / stock_daily_analysis_1640 /
+-- market_daily_review_1630 / limit_up_ai_review_1630 / stock_daily_analysis_1640 /
 -- chain_refresh_weekly / collector_log_cleanup_daily / kline_freshness_evening 任务的
 -- internal 渠道（内部生成，非外部数据源）
 -- supported_data_types 与 collector_channel_data_type 按任务名登记（渠道解析/beat 派发以任务名为键）
@@ -90,8 +90,8 @@ VALUES
     ('sina_stock_minute', 'stock-minute', 'sina', '20 16,18 * * 1-5', true),
     -- A50 期指日盘 16:30 收盘，17:40 取当日日 K，21:40 夜盘修正
     ('eastmoney_a50_kline', 'a50-kline', 'eastmoney', '40 17,21 * * 1-5', true),
-    -- 16:00 收盘批数据就绪后生成大盘综述 AI base，避免多租户重复调用 LLM
-    ('market_daily_review_1600', 'market-daily-review', 'internal', '30 16 * * 1-5', true),
+    -- 16:30 收盘批数据就绪后生成大盘综述 AI base，避免多租户重复调用 LLM
+    ('market_daily_review_1630', 'market-daily-review', 'internal', '30 16 * * 1-5', true),
     -- 16:30 涨停股池（16:00 批次）落库后生成涨停 AI 归因，与复盘同批串行执行
     ('limit_up_ai_review_1630', 'limit-up-ai-review', 'internal', '30 16 * * 1-5', true),
     -- 16:40 遍历开启 AI 复盘分组的自选股逐只生成个股分析，晚于大盘复盘

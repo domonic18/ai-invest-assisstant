@@ -1,48 +1,69 @@
-"""产业链分析单轮执行器。
+"""产业链分析 deepagents skill 执行器。
 
 定时刷新（chain-refresh 任务）与 ``POST /chain/analyze`` 兼容入口共用本模块；
 交互式产业链分析走 Skill 驱动的 Assistant Agent 工作流
 （``skills/industry-chain-analysis/SKILL.md``），两者共享同一份 skill yaml。
+独立执行器注入精简取数工具（公司清单/财务指标/新闻/研报摘录），agent 循环
+取数后输出符合 ``ChainAnalysisResult`` 的 JSON，后置校验剔除幻觉代码与超限规模。
 """
 
 from typing import Any
 
+from langchain_core.tools import tool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptLoader
 from app.agent.core.prompt_renderer import PromptRenderer
-from app.agent.runtime import run_structured_agent
-from app.agent.tools import db_tools
+from app.agent.runtime.model_factory import build_langchain_model
+from app.agent.skills.skill_runtime import invoke_structured, load_skill_instructions
+from app.agent.tools import db_tools, search_news, search_vector_kb
 from app.core.config import get_settings
+from app.core.database import AsyncSessionLocal
 from app.models.stock import StockBasic
 from app.schemas.chain import ChainAnalysisResult
+from app.services.admin.llm_config_service import resolve_default_llm
+
+SKILL_ID = "industry-chain-analysis"
 
 _MAX_NODES = 40
 _MAX_COMPANIES_PER_NODE = 5
 _MAX_ALERTS = 10
-_COMPANY_PREFETCH_LIMIT = 150
-_FINANCIAL_PREFETCH_COUNT = 40
-_BUSINESS_SCOPE_MAX_CHARS = 120
+_COMPANY_SCOPE_MAX_CHARS = 120
+_FINANCIAL_COMPANY_LIMIT = 40
 
 
-def _format_financial_context(financials: list[dict[str, Any]]) -> list[str]:
-    """格式化财务指标上下文行。"""
-    lines = []
-    for item in financials:
-        if not item.get("has_data"):
-            continue
-        parts = [f"{item['stock_code']}"]
-        if item.get("gross_margin_pct") is not None:
-            parts.append(f"毛利率 {item['gross_margin_pct']}%")
-        if item.get("revenue_yoy_pct") is not None:
-            parts.append(f"营收同比 {item['revenue_yoy_pct']}%")
-        if item.get("rd_ratio_pct") is not None:
-            parts.append(f"研发占比 {item['rd_ratio_pct']}%")
-        if item.get("receivables_turnover") is not None:
-            parts.append(f"应收周转 {item['receivables_turnover']}")
-        lines.append("- " + "，".join(parts))
-    return lines
+@tool
+async def get_industry_companies(
+    industry: str, limit: int = 150
+) -> list[dict[str, Any]]:
+    """按行业名称查询上市公司清单，返回股票代码、名称、二级/三级行业、经营范围（已截断）。
+
+    Args:
+        industry: 行业名称，如 "半导体"。
+        limit: 返回公司数上限，默认 150，最大 200。
+    """
+    limit = max(1, min(limit, 200))
+    async with AsyncSessionLocal() as session:
+        companies = await db_tools.query_industry_companies(session, industry, limit)
+    for company in companies:
+        scope = (company.get("business_scope") or "").replace("\n", " ").strip()
+        if len(scope) > _COMPANY_SCOPE_MAX_CHARS:
+            scope = scope[:_COMPANY_SCOPE_MAX_CHARS] + "…"
+        company["business_scope"] = scope
+    return companies
+
+
+@tool
+async def get_financial_metrics(stock_codes: list[str]) -> list[dict[str, Any]]:
+    """批量查询公司核心财务指标：最新报告期毛利率、营收同比、研发占比、应收账款周转。
+
+    Args:
+        stock_codes: 6 位股票代码列表，单次最多 40 只（超出部分忽略）。
+    """
+    codes = stock_codes[:_FINANCIAL_COMPANY_LIMIT]
+    async with AsyncSessionLocal() as session:
+        return await db_tools.query_financial_data(session, codes)
 
 
 async def _validate(
@@ -60,10 +81,10 @@ async def _validate(
         stmt = select(StockBasic.stock_code).where(StockBasic.stock_code.in_(codes))
         valid_codes = set((await session.execute(stmt)).scalars().all())
 
-    for node in result.nodes[: _MAX_NODES]:
+    for node in result.nodes[:_MAX_NODES]:
         node.companies = [
             company
-            for company in node.companies[: _MAX_COMPANIES_PER_NODE]
+            for company in node.companies[:_MAX_COMPANIES_PER_NODE]
             if company.code in valid_codes
         ]
     result.nodes = result.nodes[:_MAX_NODES]
@@ -99,64 +120,35 @@ async def analyze_industry_chain(
     industry: str,
     focus: str | None = None,
 ) -> ChainAnalysisResult:
-    """执行产业链分析 Skill。"""
+    """执行产业链分析 Skill（deepagents agent 循环）。"""
     prompt_loader = PromptLoader(get_settings().prompts_dir)
-    prompt_config = prompt_loader.load("skills", "industry-chain-analysis")
+    prompt_config = prompt_loader.load("skills", SKILL_ID)
+    cfg = await resolve_default_llm(session)
 
-    companies = await db_tools.query_industry_companies(
-        session, industry, limit=_COMPANY_PREFETCH_LIMIT
+    from deepagents import create_deep_agent
+
+    agent = create_deep_agent(
+        model=build_langchain_model(cfg),
+        tools=[
+            get_industry_companies,
+            get_financial_metrics,
+            search_news,
+            search_vector_kb,
+        ],
+        system_prompt=(
+            f"{prompt_config.system_prompt.strip()}\n\n{load_skill_instructions(SKILL_ID)}"
+        ),
+        name=SKILL_ID,
     )
-    if not companies:
-        raise ValueError(f"行业 {industry} 未匹配到上市公司，无法进行产业链分析")
-    context_lines = [f"行业：{industry}，共找到 {len(companies)} 家上市公司"]
-    for company in companies:
-        scope = (company.get("business_scope") or "").replace("\n", " ").strip()
-        if len(scope) > _BUSINESS_SCOPE_MAX_CHARS:
-            scope = scope[:_BUSINESS_SCOPE_MAX_CHARS] + "…"
-        context_lines.append(
-            f"- {company['stock_code']} | {company['stock_name']} | "
-            f"{company['industry_level_2'] or ''}/{company['industry_level_3'] or ''} | "
-            f"{scope}"
-        )
-
-    financials = await db_tools.query_financial_data(
-        session,
-        [company["stock_code"] for company in companies[:_FINANCIAL_PREFETCH_COUNT]],
-    )
-    financial_lines = _format_financial_context(financials)
-
-    news = await db_tools.search_news(session, industry, days=30, limit=10)
-    news_lines = [
-        f"- [{item['doc_type']}] {item['title']}" for item in news
-    ]
-
-    kb_docs = await db_tools.search_vector_kb(
-        session, f"{industry} 主营业务 经营范围 产业链"
-    )
-    kb_lines = [
-        f"- {item['title']}: {item['content'][:300]}" for item in kb_docs if item.get("title")
-    ]
-
-    sections = [
-        "\n".join(context_lines),
-        "财务指标（近一期）：\n" + "\n".join(financial_lines) if financial_lines else "",
-        "近期行业动态：\n" + "\n".join(news_lines) if news_lines else "",
-        "年报/研报摘录：\n" + "\n".join(kb_lines) if kb_lines else "",
-    ]
-    context = "\n\n".join(section for section in sections if section)
 
     user_prompt = PromptRenderer.render(
         prompt_config.user_prompt_template,
         industry=industry,
         focus=focus or "产业链上下游结构与投资价值",
-        context=context,
     )
 
-    output = await run_structured_agent(
-        session,
-        prompt_config=prompt_config,
-        user_prompt=user_prompt,
-        result_type=ChainAnalysisResult,
+    output = await invoke_structured(
+        agent, user_prompt, ChainAnalysisResult, skill_id=SKILL_ID, industry=industry
     )
     return await _validate(session, output)
 

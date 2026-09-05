@@ -8,7 +8,7 @@
 - **Web 框架**: FastAPI 0.111+ / Uvicorn
 - **ORM**: SQLAlchemy 2.0+ / Alembic
 - **数据验证**: Pydantic 2.7+ / Pydantic Settings
-- **AI Agent**: PydanticAI 2.x / OpenAI SDK / Anthropic SDK
+- **AI Agent**: deepagents (LangChain/LangGraph) / OpenAI SDK / Anthropic SDK
 - **MCP**: mcp 1.x
 - **配置管理**: Pydantic Settings + YAML 配置文件
 - **日志**: structlog
@@ -94,7 +94,9 @@ async def fetch_kline(
 
 - **services 与 repositories 按业务子域组织**：`services/` 与 `repositories/` 根目录不存放平文件，
   新服务/仓储一律放入对应子域包（admin/ assistant/ chain/ collector/ common/ market/ reports/ review/ user/）；
-  services 顶层禁止导入 `app.agent.*`（反向依赖会成环，需在函数内延迟导入）
+  services 顶层禁止导入 `app.agent.tools` / `app.agent.skills` / `app.agent.runtime`
+  （它们反向依赖 services，顶层导入会成环，需在函数内延迟导入）；
+  `app.agent.core`（Prompt 加载/渲染等纯配置叶子）可顶层导入
 - **路由层禁止直接操作数据库**：不允许在路由中调用 `session.execute` / `session.add` / `session.commit`，一律委托给服务层
 - **仓储层禁止管理事务**：`repositories/` 只做查询构造与执行，**绝不**调用 `commit()` / `rollback()`
 - **服务层拥有事务边界**：所有写操作（add/delete/update）成功后必须显式 `await session.commit()`；禁止只 `flush()` 不 `commit()`（`get_db` 不会自动提交，只 flush 的写入会在请求结束时被回滚）
@@ -164,8 +166,8 @@ collector/
 
 - 所有 Agent Prompt 必须放在 `app/prompts/agents/` 和 `app/prompts/skills/` 下的 YAML 文件中
 - 禁止在 Python 代码中硬编码 Prompt
-- 使用 `PromptLoader` / `SkillLoader` 加载配置
-- 使用 `llm_router.build_model()` / `build_agent()` 统一创建模型与 Agent
+- 使用 `PromptLoader` 加载配置、`PromptRenderer` 渲染模板
+- 使用 `model_factory.build_langchain_model()` 统一创建模型；多步任务走 `agent/skills/skill_runtime` deepagents 骨架，单轮结构化任务走 `agent/runtime/structured.run_structured`
 
 ### 可观测系统与日志标准
 

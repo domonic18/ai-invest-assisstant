@@ -11,10 +11,11 @@ export type PageAssistantResult =
   | ChainAnalysisResult
   | StockDailyAnalysisResult
   | MarketDailyReviewResult
+  | LimitUpAttributionResult
 
 /** 产业链分析完成回写 */
 export interface ChainAnalysisResult {
-  type: 'industry_chain.analysis_complete'
+  type: 'industry_chain.analysis.complete'
   industry: string
   versionId: number
   versionNo: number
@@ -31,6 +32,12 @@ export interface StockDailyAnalysisResult {
 /** 大盘每日复盘完成回写 */
 export interface MarketDailyReviewResult {
   type: 'market_daily_review.complete'
+  tradeDate: string
+}
+
+/** 涨停 AI 归因完成回写 */
+export interface LimitUpAttributionResult {
+  type: 'limit_up_attribution.complete'
   tradeDate: string
 }
 

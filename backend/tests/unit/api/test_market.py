@@ -98,29 +98,6 @@ class TestGetAiReview:
 
 
 @pytest.mark.unit
-class TestGenerateAiReview:
-    def test_requires_admin(self, auth_client) -> None:
-        response = auth_client.post(
-            "/api/v1/market/ai-review",
-            json={"trade_date": _TRADE_DATE.isoformat(), "regenerate": False},
-        )
-        assert response.status_code == 403
-
-    def test_admin_triggers_generation(self, admin_client) -> None:
-        with patch(
-            "app.api.v1.market.market_review_service.generate_market_review",
-            AsyncMock(return_value=_mock_review(cached=False, edited=False)),
-        ):
-            response = admin_client.post(
-                "/api/v1/market/ai-review",
-                json={"trade_date": _TRADE_DATE.isoformat(), "regenerate": True},
-            )
-
-        assert response.status_code == 200
-        assert response.json()["cached"] is False
-
-
-@pytest.mark.unit
 class TestUpdateAiReview:
     def test_requires_auth(self, client) -> None:
         response = client.put(

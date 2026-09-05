@@ -205,13 +205,6 @@ class MarketReviewResponse(BaseModel):
     edited: bool = False
 
 
-class MarketReviewGenerateRequest(BaseModel):
-    """触发 AI 复盘生成请求。"""
-
-    trade_date: date | None = None
-    regenerate: bool = False
-
-
 class MarketReviewUpdateRequest(BaseModel):
     """按分区保存人工编辑后的复盘内容。"""
 
@@ -224,37 +217,6 @@ class MarketCollectRequest(BaseModel):
     """补采指定交易日行情数据请求。"""
 
     trade_date: date
-
-
-class AdminSectionDefinition(BaseModel):
-    """复盘分区定义（prompt YAML sections 的 key/title 透出）。"""
-
-    key: str
-    title: str
-
-
-class AdminMarketReviewItem(BaseModel):
-    """复盘管理列表行：每个交易日最新一条生成记录的元信息。"""
-
-    trade_date: date
-    model: str | None = None
-    latency_ms: int | None = None
-    generated_at: datetime
-    history_count: int = 0
-    user_copy_count: int = 0
-
-
-class AdminMarketReviewCreateRequest(BaseModel):
-    """手动创建复盘请求（sections 须覆盖 prompt 声明的全部分区）。"""
-
-    trade_date: date
-    sections: dict[str, str]
-
-
-class AdminMarketReviewSectionsRequest(BaseModel):
-    """以新记录覆盖指定交易日复盘内容。"""
-
-    sections: dict[str, str]
 
 
 class CollectTaskResult(BaseModel):

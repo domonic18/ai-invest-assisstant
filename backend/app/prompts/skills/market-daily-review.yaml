@@ -1,21 +1,8 @@
 id: market-daily-review
 name: 大盘每日复盘综述
 version: 1.2.0
-model: openai/gpt-4o
 description: 基于当日指数行情、涨跌统计、涨停连板与板块资金数据，生成结构化大盘复盘综述
 
-triggers:
-  - 每日复盘页请求 AI 大盘综述
-
-workflow:
-  - 调用 get_market_overview 获取指数行情、涨跌家数、成交额环比与情绪温度
-  - 调用 get_index_technical 获取五标的预计算技术面指标（均线/新低/地量）
-  - 调用 get_limit_up_ladder 获取涨停统计与连板天梯
-  - 调用 get_sector_overview 获取板块主力资金净流入/净流出 TOP 与领涨板块
-  - 调用 LLM 按 sections 声明生成结构化复盘综述
-
-# 内容分区声明：新增分析维度只需在此追加一条（key 为输出/存储键，title 为前端展示名，
-# requirements 为该分区的撰写要求，渲染进 user prompt 的 {section_instructions}）
 sections:
   - key: overview
     title: AI 大盘综述

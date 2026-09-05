@@ -11,6 +11,7 @@ from typing import Any
 
 import structlog
 from langchain_core.messages import HumanMessage
+from pydantic import BaseModel, ValidationError
 
 from app.agent.core.prompt_loader import PromptSection
 from app.core.config import get_settings
@@ -108,3 +109,56 @@ async def invoke_sections(
         )
         text = await invoke(agent, retry_prompt)
         return parse_sections(text, sections)
+
+
+def parse_structured(text: str, result_type: type[BaseModel]) -> Any:
+    """从最终回复提取 JSON 对象并按 pydantic 模型校验，返回模型实例。"""
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if match is None:
+        raise SkillOutputError("输出中未找到 JSON 对象")
+    try:
+        data = json.loads(match.group(0))
+    except json.JSONDecodeError as exc:
+        raise SkillOutputError(f"JSON 解析失败：{exc}") from exc
+    try:
+        return result_type.model_validate(data)
+    except ValidationError as exc:
+        errors = "; ".join(
+            f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+            for error in exc.errors()[:3]
+        )
+        raise SkillOutputError(
+            f"JSON 不符合 {result_type.__name__} schema：{errors}"
+        ) from exc
+
+
+async def invoke_structured(
+    agent: Any,
+    prompt: str,
+    result_type: type[BaseModel],
+    *,
+    skill_id: str,
+    **log_fields: Any,
+) -> Any:
+    """调用 agent 并解析为 pydantic 结构化输出；失败自动重试一次。
+
+    输出契约（字段与口径）由任务指令中的「输出 Schema」声明，此处只做
+    JSON 提取与 pydantic 校验。
+    """
+    text = await invoke(agent, prompt)
+    try:
+        return parse_structured(text, result_type)
+    except SkillOutputError as first_err:
+        logger.warning(
+            f"{skill_id.replace('-', '_')}_output_retry",
+            skill_id=skill_id,
+            error=str(first_err),
+            **log_fields,
+        )
+        retry_prompt = (
+            f"{prompt}\n\n【重试】上一次最终回复无法解析（{first_err}）。"
+            "请严格按任务指令中的输出 Schema 重新输出：最终回复必须且只能是"
+            "一个合法 JSON 对象，不要 markdown 代码围栏、不要任何其他文字。"
+        )
+        text = await invoke(agent, retry_prompt)
+        return parse_structured(text, result_type)

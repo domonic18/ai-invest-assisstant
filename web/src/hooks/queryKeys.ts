@@ -13,7 +13,8 @@ export const queryKeys = {
     stocks: ['admin-stocks'] as const,
     users: ['admin-users'] as const,
     tasks: ['admin-tasks'] as const,
-    marketReviews: ['admin-market-reviews'] as const,
+    aiResults: ['admin-ai-results'] as const,
+    aiResultSkills: ['admin-ai-result-skills'] as const,
   },
   auction: {
     all: ['auction'] as const,

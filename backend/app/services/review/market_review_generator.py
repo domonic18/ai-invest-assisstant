@@ -183,8 +183,6 @@ async def generate_market_review(
     session: AsyncSession,
     trade_date: date | None = None,
     regenerate: bool = False,
-    blocking: bool = False,
-    blocking_timeout: float = 30,
 ) -> MarketReviewResponse:
     """生成（或读取缓存的）AI 大盘综述共享 base。
 
@@ -192,15 +190,13 @@ async def generate_market_review(
         session: 数据库会话。
         trade_date: 指定交易日；None 时取最近交易日。
         regenerate: 是否强制重新生成。
-        blocking: 获取 Redis 锁时是否阻塞等待。
-        blocking_timeout: 阻塞等待锁的最大秒数。
 
     Returns:
         MarketReviewResponse，cached=True 表示命中已有缓存。
 
     Raises:
         NonTradingDayError: 指定日期不是交易日。
-        ReviewGenerationLockedError: 非阻塞模式下锁被占用且缓存不存在。
+        ReviewGenerationLockedError: 锁被占用且缓存不存在。
         ReviewInputDataNotReadyError: 板块资金等输入数据尚未就绪。
     """
     if trade_date is not None:
@@ -223,8 +219,6 @@ async def generate_market_review(
     async with redis_lock(
         f"market-daily-review:{resolved_date}",
         ttl=300,
-        blocking=blocking,
-        blocking_timeout=blocking_timeout,
     ) as acquired:
         if not acquired:
             cached = await _load_base_review(session, resolved_date, sections)

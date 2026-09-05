@@ -2,31 +2,24 @@
 
 生成结果按 (skill_id, input_hash=trade_date) 缓存在 ai_analysis_result 表，
 支持强制重新生成。本模块顶层不依赖 market_service（供其顶层 import），
-生成路径在函数内延迟 import 以打破循环。
+生成路径在函数内延迟 import 以打破循环。LLM 交互由 deepagents 执行器
+``app.agent.skills.limit_up_review_agent`` 承担，本模块负责缓存/加锁/后置校验/落库。
 """
 
 import hashlib
-from datetime import date, timedelta
+from datetime import date
 from typing import Any
 
 from pydantic import BaseModel
-from sqlalchemy import Date, select
-from sqlalchemy import cast as sa_cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptLoader
-from app.agent.core.prompt_renderer import PromptRenderer
 from app.core.config import get_settings
 from app.core.exceptions import ConflictError
 from app.core.locking import redis_lock
-from app.models.news_announcement import NewsAnnouncement
 from app.repositories.review import ai_analysis_repository
-from app.services.common.formatters import format_amount_yi
 
 SKILL_ID = "limit-up-review"
-
-_MAX_NEWS_ITEMS = 30
-_NEWS_SUMMARY_CHARS = 200
 
 
 class LimitUpAttributionLockedError(ConflictError):
@@ -120,27 +113,30 @@ async def _persist(
     await session.commit()
 
 
-async def _fetch_news_context(session: AsyncSession, trade_date: date) -> str:
-    stmt = (
-        select(NewsAnnouncement.title, NewsAnnouncement.summary)
-        .where(
-            sa_cast(NewsAnnouncement.publish_date, Date).in_(
-                [trade_date, trade_date - timedelta(days=1)]
-            )
+async def persist_attribution_result(
+    session: AsyncSession,
+    trade_date: date,
+    content: LimitUpAttributionContent,
+    *,
+    model: str,
+    latency_ms: int = 0,
+) -> LimitUpAttributionContent:
+    """持久化助手对话路径产出的归因（校验代码后写 ai_analysis_result 最新行）。
+
+    Raises:
+        ReviewInputDataNotReadyError: 涨停池数据尚未落库，无法校验与落库。
+    """
+    from app.services.market import limit_pool_service
+    from app.services.review.market_review_service import ReviewInputDataNotReadyError
+
+    limit_up = await limit_pool_service.get_limit_up(session, trade_date)
+    if not limit_up.items:
+        raise ReviewInputDataNotReadyError(
+            f"{trade_date.isoformat()} 涨停池数据尚未就绪，无法归因"
         )
-        .order_by(NewsAnnouncement.publish_date.desc())
-        .limit(_MAX_NEWS_ITEMS)
-    )
-    rows = (await session.execute(stmt)).all()
-    if not rows:
-        return "当日无相关新闻入库"
-    lines = []
-    for title, summary in rows:
-        line = title or ""
-        if summary:
-            line += f" — {summary[:_NEWS_SUMMARY_CHARS]}"
-        lines.append(line)
-    return "\n".join(lines)
+    content = _validate(content, {item.stock_code for item in limit_up.items})
+    await _persist(session, _input_hash(trade_date), model, content, latency_ms)
+    return content
 
 
 async def generate_attribution(
@@ -157,11 +153,7 @@ async def generate_attribution(
         LLMConfigNotConfiguredError: 未配置默认 LLM
     """
     # 延迟 import 打破 limit_pool_service → limit_up_ai_service → limit_pool_service 循环
-    from app.services.market import (
-        limit_pool_service,
-        sector_service,
-        trade_calendar_service,
-    )
+    from app.services.market import limit_pool_service, trade_calendar_service
     from app.services.review.market_review_service import (
         NonTradingDayError,
         ReviewInputDataNotReadyError,
@@ -203,41 +195,17 @@ async def generate_attribution(
             if cached:
                 return cached
 
-        sectors = await sector_service.get_sector_overview(session, resolved_date)
-        news_context = await _fetch_news_context(session, resolved_date)
-
-        limit_up_context = "\n".join(
-            f"{item.stock_name}（{item.stock_code}）{item.industry or '未分类'}"
-            f" {item.consecutive_boards or 1}板"
-            f" {item.seal_type or '普通'} 首次封板 {item.first_seal_time or '未知'}"
-            for item in limit_up.items
-        )
-        sector_context = "；".join(
-            f"{item.sector_name}（{item.change_pct:+.2f}%，涨停 {item.limit_up_count} 家，"
-            f"主力净流入 {format_amount_yi(item.main_net_inflow)}）"
-            for item in sectors.leading
-            if item.change_pct is not None
-        ) or "无数据"
-
         prompt_loader = PromptLoader(get_settings().prompts_dir)
         prompt_config = prompt_loader.load("skills", SKILL_ID)
-        user_prompt = PromptRenderer.render(
-            prompt_config.user_prompt_template,
-            trade_date=resolved_date.isoformat(),
-            pool_count=str(len(limit_up.items)),
-            limit_up_context=limit_up_context,
-            sector_context=sector_context,
-            news_context=news_context,
-        )
 
-        # 延迟导入：app.agent.runtime 顶层依赖 services，避免 services 聚合时环导入
-        from app.agent.runtime import run_structured_agent_with_metrics
+        # 延迟导入：agent 执行器反向依赖本模块的输出模型，避免 services 聚合时环导入
+        from app.agent.skills.limit_up_review_agent import run_skill
 
-        content, latency_ms, model_name = await run_structured_agent_with_metrics(
+        content, model_name, latency_ms = await run_skill(
             session,
+            trade_date=resolved_date,
+            pool_count=len(limit_up.items),
             prompt_config=prompt_config,
-            user_prompt=user_prompt,
-            result_type=LimitUpAttributionContent,
         )
 
         valid_codes = {item.stock_code for item in limit_up.items}

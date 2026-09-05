@@ -175,7 +175,7 @@ class TestRunStream:
                         "version_no": 5,
                         "status": "success",
                         "__event__": {
-                            "type": "industry_chain.analysis_complete",
+                            "type": "industry_chain.analysis.complete",
                             "industry": "半导体",
                             "version_id": 123,
                             "version_no": 5,
@@ -213,7 +213,7 @@ class TestRunStream:
         text = response.text
         assert 'event: messages' in text
         assert 'event: custom' in text
-        assert 'industry_chain.analysis_complete' in text
+        assert 'industry_chain.analysis.complete' in text
 
 
 @pytest.mark.unit

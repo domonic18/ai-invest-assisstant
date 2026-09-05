@@ -1,7 +1,7 @@
 ---
 name: stock-daily-analysis
 description: 个股每日收盘分析：工具化获取个股行情快照、日 K 线、财务指标与近期新闻，产出按分区组织的结构化每日分析。个股详情页触发生成与自选股 AI 复盘定时任务均通过本 Skill 执行。
-allowed-tools: get_stock_quote, get_stock_kline, query_financial_data, search_news
+allowed-tools: get_stock_quote, get_stock_kline, query_financial_data, search_news, get_trade_calendar, persist_stock_daily_analysis
 ---
 
 # 个股每日分析
@@ -34,6 +34,7 @@ allowed-tools: get_stock_quote, get_stock_kline, query_financial_data, search_ne
 - **独立执行器路径**（定时任务等直接执行）：最终回复必须且只能是上述 JSON 对象，不要 markdown 代码围栏、不要额外解释文字。
 
 ## 可用工具
+执行器路径固定注入前四个取数工具；`get_trade_calendar` 仅助手对话路径可用。
 - `get_stock_quote(stock_code)`: 最新行情快照——现价、开高低收、涨跌幅、成交量/额、市值（Redis 实时缺失时回退最近日 K）。
 - `get_stock_kline(stock_code, limit=30)`: 近期日 K（日期、开高低收、量、额、涨跌幅），按交易日倒序；本分析传 `limit=20`。
 - `query_financial_data(stock_codes, periods=3)`: 核心财务指标——最新报告期毛利率、营收同比、研发占比、应收账款周转。

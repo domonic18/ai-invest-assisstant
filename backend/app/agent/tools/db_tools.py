@@ -1,10 +1,11 @@
 """AI Agent 内部数据库查询工具。"""
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import Date, or_, select
+from sqlalchemy import cast as sa_cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.financial_balance_sheet import BalanceSheet
@@ -185,6 +186,38 @@ async def search_news(
             NewsAnnouncement.publish_date,
         )
         .where(*conditions)
+        .order_by(NewsAnnouncement.publish_date.desc())
+        .limit(limit)
+    )
+    rows = (await session.execute(stmt)).all()
+    return [
+        {
+            "doc_type": doc_type,
+            "title": title,
+            "summary": (summary or "")[:200],
+            "publish_date": publish_date.isoformat() if publish_date else None,
+        }
+        for doc_type, title, summary, publish_date in rows
+    ]
+
+
+async def search_news_by_date(
+    session: AsyncSession,
+    start_date: date,
+    end_date: date,
+    limit: int = 30,
+) -> list[dict[str, Any]]:
+    """按发布日期区间（业务日，含首尾）检索新闻/公告/研报，按时间倒序。"""
+    stmt = (
+        select(
+            NewsAnnouncement.doc_type,
+            NewsAnnouncement.title,
+            NewsAnnouncement.summary,
+            NewsAnnouncement.publish_date,
+        )
+        .where(
+            sa_cast(NewsAnnouncement.publish_date, Date).between(start_date, end_date)
+        )
         .order_by(NewsAnnouncement.publish_date.desc())
         .limit(limit)
     )

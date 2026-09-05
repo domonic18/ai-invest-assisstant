@@ -22,3 +22,22 @@ export function usePageAssistantResult<T extends PageAssistantResult['type']>(
     }
   }, [pageResult, type, onResult])
 }
+
+/**
+ * 订阅多个页面回写事件类型（事件类型集合来自运行时数据时使用，
+ * 如管理页按后端注册表订阅全部已纳管 skill 的完成事件）。
+ */
+export function usePageAssistantResultAny(
+  types: readonly PageAssistantResult['type'][],
+  onResult: (result: PageAssistantResult) => boolean,
+) {
+  const pageResult = useAssistantStore((state) => state.pageResult)
+
+  useEffect(() => {
+    if (!pageResult || !types.includes(pageResult.type)) return
+    const handled = onResult(pageResult)
+    if (handled) {
+      useAssistantStore.getState().setPageResult(null)
+    }
+  }, [pageResult, types, onResult])
+}

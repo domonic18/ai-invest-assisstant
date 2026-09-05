@@ -35,7 +35,6 @@ export const ENDPOINTS = {
     get: (code: string) => `${API_BASE}/kline/${code}`,
   },
   chain: {
-    analyze: `${API_BASE}/chain/analyze`,
     industries: `${API_BASE}/chain/industries`,
     alerts: (industry: string, days = 30) =>
       `${API_BASE}/chain/alerts?industry=${encodeURIComponent(industry)}&days=${days}`,
@@ -145,9 +144,8 @@ export const ENDPOINTS = {
     collectorTaskCatalog: `${API_BASE}/admin/collector/tasks/catalog`,
     collectorLogs: `${API_BASE}/admin/collector/logs`,
     runCollectorTask: (task: string) => `${API_BASE}/admin/collector/tasks/${task}/run`,
-    marketReviews: `${API_BASE}/admin/market-reviews/`,
-    marketReview: (tradeDate: string) =>
-      `${API_BASE}/admin/market-reviews/${tradeDate}`,
-    marketReviewSectionDefs: `${API_BASE}/admin/market-reviews/section-definitions`,
+    aiResults: `${API_BASE}/admin/ai-results/`,
+    aiResult: (id: number | string) => `${API_BASE}/admin/ai-results/${id}`,
+    aiResultSkills: `${API_BASE}/admin/ai-results/skills`,
   },
 } as const

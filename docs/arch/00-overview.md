@@ -66,8 +66,8 @@
 ┌────────────────────────────────────────────────────────────────────────────────────┐
 │ 应用服务层 (app/services · 事务边界)                                               │
 │ 业务子域服务：admin/assistant/chain/collector/market/reports/review/user           │
-│ AI Agent 运行时：deepagents 助手 + PydanticAI Skills + YAML Prompts                │
-│ llm_router 双协议路由 · repositories 只构造查询（禁止管理事务）                    │
+│ AI Agent 运行时：deepagents（助手 + Skill 执行器）+ YAML Prompts                   │
+│ model_factory 统一模型工厂 · repositories 只构造查询（禁止管理事务）               │
 └────────────────────────────────────────────────────────────────────────────────────┘
                                      投递采集任务│
                                            ▼
@@ -100,7 +100,7 @@
 | **搜索引擎** | Elasticsearch | 轻量服务器 Docker | 公告/新闻全文检索 + 知识库 |
 | **文件存储** | COS (S3 兼容) | 腾讯云 COS | PDF 财报/研报对象存储，兼作 pg_dump 备份目标 |
 | **缓存/队列** | Redis | 轻量服务器 Docker | 热数据缓存、Session、Celery broker、分布式锁 |
-| **AI Agent** | PydanticAI + YAML Prompts + Skills + MCP | web-api 进程内 | Python 原生 Agent SDK，OpenAI/Anthropic 双协议路由 |
+| **AI Agent** | deepagents (LangChain/LangGraph) + YAML Prompts + Skills + MCP | web-api 进程内 | OpenAI/Anthropic 双协议统一模型工厂 |
 | **认证** | JWT (OAuth2 表单) | FastAPI 模块 | 首个注册用户自动晋升管理员 |
 | **容器化** | Docker + Docker Compose | 轻量服务器 | 环境统一，一键部署 |
 | **CI/CD** | GitHub Actions → TCR | GitHub | 自动构建推送，服务器/SCF 仅 pull 部署 |
@@ -137,15 +137,15 @@ ai-invest-assisstant/
 │   │   │   └── mcp/                    # MCP Server 接口
 │   │   │       └── server.py
 │   │   ├── agent/                      # AI Agent 运行时
-│   │   │   ├── core/                   # llm_router / prompt_loader / prompt_renderer / skill_loader
-│   │   │   ├── runtime/                # deepagents 助手运行时：assistant_agent / assistant_tools / model_factory / wire
-│   │   │   ├── skills/                 # 已实现：industry_chain_analysis（产业链）
+│   │   │   ├── core/                   # prompt_loader / prompt_renderer
+│   │   │   ├── runtime/                # assistant_agent / assistant_subagents / model_factory / structured / wire
+│   │   │   ├── skills/                 # skill_runtime 骨架 + 各 Skill 执行器（复盘/归因/产业链/摘要/截图识别）
 │   │   │   └── tools/                  # db / chain / market / news / report / stock 内部工具
 │   │   ├── prompts/                    # 提示词配置（YAML）
-│   │   │   ├── agents/                 # supervisor / assistant / chain / research / hotspot / financial analyst
-│   │   │   └── skills/                 # industry-chain-analysis / research-report-summary / financial-report-summary /
-│   │   │                               #   financial-health-check / hotspot-detection / chain-breakthrough /
-│   │   │                               #   market-daily-review / limit-up-review / watchlist-daily-analysis / research-summary
+│   │   │   ├── agents/                 # assistant / subagent_{fundamental,market,news}
+│   │   │   └── skills/                 # industry-chain-analysis / market-daily-review / limit-up-review /
+│   │   │                               #   stock-daily-analysis / research-report-summary / financial-report-summary /
+│   │   │                               #   watchlist-screenshot-recognition
 │   │   ├── core/                       # 配置、安全、连接、异常
 │   │   │   ├── config.py / security.py / database.py / redis.py / logging.py / exceptions.py
 │   │   ├── models/                     # SQLAlchemy ORM：命名遵循 <分类>_<数据类型>_<标的> 约定
@@ -236,6 +236,9 @@ ai-invest-assisstant/
 │
 ├── skills/                             # Skill 业务描述（SKILL.md）
 │   ├── industry-chain-analysis/
+│   ├── market-daily-review/
+│   ├── limit-up-review/
+│   ├── stock-daily-analysis/
 │   ├── research-summary/
 │   ├── financial-health-check/
 │   ├── hotspot-detection/
@@ -308,9 +311,9 @@ ai-invest-assisstant/
                                    数据供给│
                                        ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ AI 分析引擎（YAML Skills + PydanticAI / deepagents）                       │
+│ AI 分析引擎（YAML Skills + deepagents / LangChain）                        │
 │ 每日复盘综述 · 涨停归因 · 自选股每日分析 · 产业链分析 · 研报/财报摘要      │
-│ 财务体检 · 热点检测 · 突破点追踪 · AI 助手对话                             │
+│ 截图识别 · 热点检测 · 突破点追踪 · AI 助手对话                             │
 └────────────────────────────────────────────────────────────────────────────┘
                                      展示│
                                        ▼

@@ -176,3 +176,125 @@ class TestGenerateAttribution:
             pytest.raises(LimitUpAttributionLockedError, match="正在生成"),
         ):
             await limit_up_ai_service.generate_attribution(AsyncMock(), _TRADE_DATE)
+
+    @pytest.mark.asyncio
+    async def test_ready_pool_runs_skill_validates_and_persists(self) -> None:
+        """就绪路径：执行 deepagents skill → 后置校验 → 落库。"""
+        pool_item = MagicMock(stock_code="000001")
+
+        @asynccontextmanager
+        async def _locked(*args, **kwargs):
+            yield True
+
+        with (
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.market.trade_calendar_service.is_trading_day",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.services.market.limit_pool_service.get_limit_up",
+                AsyncMock(return_value=MagicMock(items=[pool_item])),
+            ),
+            patch.object(limit_up_ai_service, "redis_lock", _locked),
+            patch(
+                "app.agent.skills.limit_up_review_agent.run_skill",
+                AsyncMock(
+                    return_value=(
+                        LimitUpAttributionContent(
+                            groups=[
+                                AttributionGroup(
+                                    theme="电力改革",
+                                    reason="政策催化",
+                                    stock_codes=["000001", "999999"],
+                                )
+                            ],
+                            stock_themes={
+                                "000001": ["电力改革"],
+                                "999999": ["幻觉"],
+                            },
+                        ),
+                        "openai/gpt-4o",
+                        1234,
+                    )
+                ),
+            ) as run_skill_mock,
+            patch(
+                "app.repositories.review.ai_analysis_repository.insert_result",
+                AsyncMock(),
+            ) as insert_mock,
+        ):
+            content = await limit_up_ai_service.generate_attribution(
+                AsyncMock(), _TRADE_DATE, regenerate=True
+            )
+
+        # 幻觉代码被剔除
+        assert content.groups[0].stock_codes == ["000001"]
+        assert content.stock_themes == {"000001": ["电力改革"]}
+        run_skill_mock.assert_awaited_once()
+        insert_mock.assert_awaited_once()
+        kwargs = insert_mock.await_args.kwargs
+        assert kwargs["model"] == "openai/gpt-4o"
+        assert kwargs["latency_ms"] == 1234
+        assert kwargs["status"] == "success"
+
+
+@pytest.mark.unit
+class TestPersistAttributionResult:
+    """助手对话路径入口：校验涨停池 → 过滤幻觉 → 落库。"""
+
+    @pytest.mark.asyncio
+    async def test_filters_hallucinated_codes_and_persists(self) -> None:
+        pool_items = [MagicMock(stock_code="000001"), MagicMock(stock_code="000002")]
+        content = LimitUpAttributionContent(
+            groups=[
+                AttributionGroup(
+                    theme="电力改革", reason="政策催化", stock_codes=["000001", "999999"]
+                ),
+                AttributionGroup(theme="AI", reason="产业催化", stock_codes=["000002"]),
+            ],
+            stock_themes={"000001": ["电力改革"], "999999": ["幻觉"]},
+        )
+
+        with (
+            patch(
+                "app.services.market.limit_pool_service.get_limit_up",
+                AsyncMock(return_value=MagicMock(items=pool_items)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.insert_result",
+                AsyncMock(),
+            ) as insert_mock,
+        ):
+            session = AsyncMock()
+            result = await limit_up_ai_service.persist_attribution_result(
+                session, _TRADE_DATE, content, model="anthropic/kimi", latency_ms=50
+            )
+
+        assert result.groups[0].stock_codes == ["000001"]
+        assert result.stock_themes == {"000001": ["电力改革"]}
+        insert_mock.assert_awaited_once()
+        kwargs = insert_mock.await_args.kwargs
+        assert kwargs["skill_id"] == limit_up_ai_service.SKILL_ID
+        assert kwargs["input_hash"] == limit_up_ai_service._input_hash(_TRADE_DATE)
+        assert kwargs["model"] == "anthropic/kimi"
+        assert kwargs["latency_ms"] == 50
+        assert kwargs["status"] == "success"
+        session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_raises_not_ready_when_pool_empty(self) -> None:
+        with patch(
+            "app.services.market.limit_pool_service.get_limit_up",
+            AsyncMock(return_value=MagicMock(items=[])),
+        ):
+            with pytest.raises(ReviewInputDataNotReadyError, match="涨停池数据尚未就绪"):
+                await limit_up_ai_service.persist_attribution_result(
+                    AsyncMock(),
+                    _TRADE_DATE,
+                    LimitUpAttributionContent(groups=[]),
+                    model="anthropic/kimi",
+                )
