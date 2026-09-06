@@ -101,7 +101,7 @@
 | **文件存储** | COS (S3 兼容) | 腾讯云 COS | PDF 财报/研报对象存储，兼作 pg_dump 备份目标 |
 | **缓存/队列** | Redis | 轻量服务器 Docker | 热数据缓存、Session、Celery broker、分布式锁 |
 | **AI Agent** | deepagents (LangChain/LangGraph) + YAML Prompts + Skills + MCP | web-api 进程内 | OpenAI/Anthropic 双协议统一模型工厂 |
-| **认证** | JWT (OAuth2 表单) | FastAPI 模块 | 首个注册用户自动晋升管理员 |
+| **认证** | JWT (OAuth2 表单) | FastAPI 模块 | 管理员经 `python -m app.cli.bootstrap_admin` 显式提权 |
 | **容器化** | Docker + Docker Compose | 轻量服务器 | 环境统一，一键部署 |
 | **CI/CD** | GitHub Actions → TCR | GitHub | 自动构建推送，服务器/SCF 仅 pull 部署 |
 
