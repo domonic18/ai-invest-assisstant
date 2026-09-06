@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.core.exceptions import NotFoundError
+
 
 @pytest.mark.unit
 class TestFinancialReportEndpoints:
@@ -116,7 +118,7 @@ class TestFinancialReportEndpoints:
     def test_collect_financial_report_unknown_stock(
         self, mock_trigger, client
     ) -> None:
-        mock_trigger.side_effect = ValueError("股票 999999 不存在")
+        mock_trigger.side_effect = NotFoundError("股票 999999 不存在")
         response = client.post(
             "/api/v1/financial-reports/collect",
             json={"stock_code": "999999"},

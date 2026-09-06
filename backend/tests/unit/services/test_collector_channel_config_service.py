@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.schemas.collector_channel_config import (
     CollectorChannelConfigCreate,
     CollectorChannelConfigUpdate,
@@ -166,7 +167,7 @@ class TestDataTypeChannelPriority:
         svc, _ = service
         svc.data_type_repo.get_distinct_data_types.return_value = set()
 
-        with pytest.raises(ValueError, match="未知的数据类型"):
+        with pytest.raises(BadRequestError, match="未知的数据类型"):
             await svc.replace_data_type_channels("not-a-task", [])
 
     @pytest.mark.asyncio
@@ -175,7 +176,7 @@ class TestDataTypeChannelPriority:
         svc.data_type_repo.get_distinct_data_types.return_value = {"kline"}
         svc.repo.get.return_value = None
 
-        with pytest.raises(LookupError, match="渠道配置不存在"):
+        with pytest.raises(NotFoundError, match="渠道配置不存在"):
             await svc.replace_data_type_channels(
                 "kline", [DataTypeChannelPriorityInput(channel_id=99, priority=1)]
             )

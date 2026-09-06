@@ -3,9 +3,10 @@
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError
 from app.dependencies import get_db
 from app.schemas.news_announcement import (
     ResearchReportDetailResponse,
@@ -77,10 +78,7 @@ async def get_research(
     """获取单篇研报详情。"""
     report = await research_service.get_report(session, report_id)
     if report is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Research report not found",
-        )
+        raise NotFoundError("Research report not found")
     return research_service.to_report_detail_response(report)
 
 
@@ -90,18 +88,9 @@ async def get_research_pdf_url(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, str]:
     """返回研报 PDF 的预签名下载地址；无已存文件时 404。"""
-    try:
-        url = await research_service.get_pdf_url(session, report_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    url = await research_service.get_pdf_url(session, report_id)
     if url is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Research report PDF not available",
-        )
+        raise NotFoundError("Research report PDF not available")
     return {"url": url}
 
 

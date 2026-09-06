@@ -6,9 +6,10 @@ AppError handler 统一转换为 JSONResponse ``{detail: message}``。
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.chain import (
@@ -68,10 +69,7 @@ async def compare_versions(
         session, base_id, target_id, user_id=user.id
     )
     if result is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="版本不存在或不是成功版本",
-        )
+        raise NotFoundError("版本不存在或不是成功版本")
     return result
 
 
@@ -86,10 +84,7 @@ async def get_version(
         session, version_id, user_id=user.id
     )
     if detail is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="版本不存在",
-        )
+        raise NotFoundError("版本不存在")
     return detail
 
 
@@ -102,10 +97,7 @@ async def delete_version(
     """删除指定分析版本（节点/边/映射级联清理，AI 结果保留）。"""
     deleted = await chain_service.delete_version(session, version_id, user_id=user.id)
     if not deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="版本不存在",
-        )
+        raise NotFoundError("版本不存在")
 
 
 @router.get("/{industry}/latest", response_model=ChainVersionDetail)
@@ -119,10 +111,7 @@ async def get_latest(
         session, industry, user_id=user.id
     )
     if detail is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="该行业暂无分析版本",
-        )
+        raise NotFoundError("该行业暂无分析版本")
     return detail
 
 

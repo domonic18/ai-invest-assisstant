@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import BadRequestError
 from app.models.kline import KlineDaily
 from app.repositories.market.kline_repository import (
     PERIOD_BUCKET,
@@ -58,7 +59,7 @@ async def get_stock_kline(
     """获取个股多周期 K 线（升序返回）。"""
     stock = await get_stock_by_code(session, stock_code)
     if stock is None:
-        raise ValueError(f"股票 {stock_code} 不存在")
+        raise BadRequestError(f"股票 {stock_code} 不存在")
 
     if period == "daily":
         rows = await fetch_daily_bars(session, stock_code, limit=limit)
@@ -80,7 +81,7 @@ async def get_stock_kline(
     else:
         bucket = PERIOD_BUCKET.get(period)
         if bucket is None:
-            raise ValueError(f"不支持的 K 线周期: {period}")
+            raise BadRequestError(f"不支持的 K 线周期: {period}")
         agg_rows = await fetch_aggregated_bars(session, stock_code, bucket, limit=limit)
         bars = [
             {

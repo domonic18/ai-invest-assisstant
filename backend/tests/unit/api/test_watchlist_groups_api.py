@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.dependencies import get_current_user
 from app.main import app
 
@@ -100,7 +101,7 @@ class TestWatchlistGroupsApi:
     def test_create_group_duplicate_name_400(self, auth_client) -> None:
         with patch("app.api.v1.users.WatchlistService") as service_cls:
             service_cls.return_value.create_group = AsyncMock(
-                side_effect=ValueError("Group name already exists")
+                side_effect=BadRequestError("Group name already exists")
             )
             resp = auth_client.post(
                 "/api/v1/users/watchlist/groups",
@@ -112,7 +113,7 @@ class TestWatchlistGroupsApi:
     def test_update_group_missing_404(self, auth_client) -> None:
         with patch("app.api.v1.users.WatchlistService") as service_cls:
             service_cls.return_value.update_group = AsyncMock(
-                side_effect=LookupError("Group not found")
+                side_effect=NotFoundError("Group not found")
             )
             resp = auth_client.patch(
                 "/api/v1/users/watchlist/groups/999",
@@ -131,7 +132,7 @@ class TestWatchlistGroupsApi:
     def test_reorder_mismatch_400(self, auth_client) -> None:
         with patch("app.api.v1.users.WatchlistService") as service_cls:
             service_cls.return_value.reorder_groups = AsyncMock(
-                side_effect=ValueError("Group id list does not match user groups")
+                side_effect=BadRequestError("Group id list does not match user groups")
             )
             resp = auth_client.put(
                 "/api/v1/users/watchlist/groups/order",
@@ -143,7 +144,7 @@ class TestWatchlistGroupsApi:
     def test_move_item_missing_404(self, auth_client) -> None:
         with patch("app.api.v1.users.WatchlistService") as service_cls:
             service_cls.return_value.move_watchlist_item = AsyncMock(
-                side_effect=LookupError("Watchlist item not found")
+                side_effect=NotFoundError("Watchlist item not found")
             )
             resp = auth_client.patch(
                 "/api/v1/users/watchlist/items/999",

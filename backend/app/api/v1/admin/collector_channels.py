@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_db
@@ -47,13 +47,7 @@ async def get_collector_channel_config(
 ) -> CollectorChannelConfigResponse:
     """获取单条采集渠道配置。"""
     service = CollectorChannelConfigService(session)
-    config = await service.get_config(config_id)
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Collector channel config not found",
-        )
-    return config
+    return await service.get_config(config_id)
 
 
 @router.put("/{config_id}", response_model=CollectorChannelConfigResponse)
@@ -64,13 +58,7 @@ async def update_collector_channel_config(
 ) -> CollectorChannelConfigResponse:
     """更新已有采集渠道配置。"""
     service = CollectorChannelConfigService(session)
-    updated = await service.update_config(config_id, data)
-    if not updated:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Collector channel config not found",
-        )
-    return updated
+    return await service.update_config(config_id, data)
 
 
 @router.delete("/{config_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -80,10 +68,4 @@ async def delete_collector_channel_config(
 ) -> None:
     """删除采集渠道配置。"""
     service = CollectorChannelConfigService(session)
-    try:
-        await service.delete_config(config_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    await service.delete_config(config_id)

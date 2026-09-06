@@ -36,7 +36,7 @@ class TestAuthEndpoints:
                 },
             )
 
-        assert response.status_code == 200
+        assert response.status_code == 201
         data = response.json()
         assert data["user"]["username"] == "tester"
         assert "access_token" in data

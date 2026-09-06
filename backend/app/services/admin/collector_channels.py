@@ -7,6 +7,7 @@ import structlog
 from cryptography.fernet import InvalidToken
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.models.collector_channel_config import CollectorChannelConfig
 from app.models.collector_channel_data_type import CollectorChannelDataType
 from app.repositories.admin.collector_channel_config_repository import (
@@ -41,11 +42,11 @@ class CollectorChannelConfigService:
         rows = await self.repo.list_ordered()
         return [self._to_response(row) for row in rows]
 
-    async def get_config(self, config_id: int) -> CollectorChannelConfigResponse | None:
-        """按 ID 查询渠道配置。"""
+    async def get_config(self, config_id: int) -> CollectorChannelConfigResponse:
+        """按 ID 查询渠道配置，缺失时抛 NotFoundError。"""
         config = await self.repo.get(config_id)
         if not config:
-            return None
+            raise NotFoundError(f"Collector channel config {config_id} not found")
         return self._to_response(config)
 
     async def create_config(
@@ -78,11 +79,11 @@ class CollectorChannelConfigService:
 
     async def update_config(
         self, config_id: int, data: CollectorChannelConfigUpdate
-    ) -> CollectorChannelConfigResponse | None:
-        """更新已有渠道配置。"""
+    ) -> CollectorChannelConfigResponse:
+        """更新已有渠道配置，缺失时抛 NotFoundError。"""
         config = await self.repo.get(config_id)
         if not config:
-            return None
+            raise NotFoundError(f"Collector channel config {config_id} not found")
 
         if data.name is not None:
             config.name = data.name
@@ -107,7 +108,7 @@ class CollectorChannelConfigService:
         """删除渠道配置。"""
         config = await self.repo.get(config_id)
         if not config:
-            raise ValueError(f"Collector channel config {config_id} not found")
+            raise NotFoundError(f"Collector channel config {config_id} not found")
         await self.repo.delete(config)
         await self.session.commit()
 
@@ -147,21 +148,21 @@ class CollectorChannelConfigService:
         """整体替换某数据类型的渠道关联（增删与排序一次完成）。
 
         Raises:
-            ValueError: data_type 不是已知的采集任务类型。
-            LookupError: 存在不合法的 channel_id。
+            BadRequestError: data_type 不是已知的采集任务类型。
+            NotFoundError: 存在不合法的 channel_id。
         """
         from collector.runtime.registry import TASK_MAP
 
         known_types = set(TASK_MAP) | await self.data_type_repo.get_distinct_data_types()
         if data_type not in known_types:
-            raise ValueError(f"未知的数据类型: {data_type}")
+            raise BadRequestError(f"未知的数据类型: {data_type}")
 
         channel_ids = {item.channel_id for item in items}
         channels: dict[int, CollectorChannelConfig] = {}
         for channel_id in channel_ids:
             channel = await self.repo.get(channel_id)
             if channel is None:
-                raise LookupError(f"渠道配置不存在: {channel_id}")
+                raise NotFoundError(f"渠道配置不存在: {channel_id}")
             channels[channel_id] = channel
 
         affected_channel_ids = {

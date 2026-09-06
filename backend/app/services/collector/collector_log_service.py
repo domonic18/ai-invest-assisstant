@@ -2,6 +2,7 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import BadRequestError
 from app.models.collector_dead_letter import CollectorDeadLetter
 from app.models.collector_log import CollectorLog
 from app.repositories.admin.collector_dead_letter_repository import (
@@ -23,7 +24,7 @@ class CollectorLogService:
     async def list_recent(self, limit: int = 50) -> list[CollectorLog]:
         """查询最近的采集执行日志，按开始时间倒序。"""
         if limit <= 0 or limit > self.MAX_LIMIT:
-            raise ValueError(f"limit must be between 1 and {self.MAX_LIMIT}")
+            raise BadRequestError(f"limit must be between 1 and {self.MAX_LIMIT}")
         return await self.repo.list_recent(limit)
 
     async def get_by_id(self, log_id: int) -> CollectorLog | None:

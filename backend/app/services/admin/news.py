@@ -2,6 +2,7 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError
 from app.models.news_announcement import NewsAnnouncement
 from app.repositories.reports.news_announcement_repository import NewsAnnouncementRepository
 from app.schemas.news_announcement import (
@@ -36,9 +37,12 @@ class AdminNewsService:
             limit=page_size,
         )
 
-    async def get_news(self, news_id: int) -> NewsAnnouncement | None:
-        """按 ID 查询新闻公告。"""
-        return await self.repo.get(news_id)
+    async def get_news(self, news_id: int) -> NewsAnnouncement:
+        """按 ID 查询新闻公告，缺失时抛 NotFoundError。"""
+        news = await self.repo.get(news_id)
+        if not news:
+            raise NotFoundError(f"News {news_id} not found")
+        return news
 
     async def create_news(self, data: NewsAnnouncementCreate) -> NewsAnnouncement:
         """创建新闻公告。"""
@@ -64,11 +68,9 @@ class AdminNewsService:
 
     async def update_news(
         self, news_id: int, data: NewsAnnouncementUpdate
-    ) -> NewsAnnouncement | None:
-        """更新新闻公告。"""
-        news = await self.repo.get(news_id)
-        if not news:
-            return None
+    ) -> NewsAnnouncement:
+        """更新新闻公告，缺失时抛 NotFoundError。"""
+        news = await self.get_news(news_id)
 
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(news, field, value)
@@ -79,9 +81,7 @@ class AdminNewsService:
 
     async def delete_news(self, news_id: int) -> None:
         """删除新闻公告。"""
-        news = await self.repo.get(news_id)
-        if not news:
-            raise ValueError(f"News {news_id} not found")
+        news = await self.get_news(news_id)
         await self.repo.delete(news)
         await self.session.commit()
 

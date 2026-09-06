@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.dependencies import get_current_admin_user, get_current_user, get_db
 from app.main import app
 
@@ -96,7 +97,7 @@ class TestTrackedIndexEndpoints:
     @patch("app.api.v1.admin.tracked_index.TrackedIndexService")
     def test_create_invalid_enable_returns_400(self, mock_service, admin_client) -> None:
         mock_service.return_value.create_index = AsyncMock(
-            side_effect=ValueError("无数据源的指标不允许启用")
+            side_effect=BadRequestError("无数据源的指标不允许启用")
         )
         client, _ = admin_client
         response = client.post(
@@ -124,7 +125,9 @@ class TestTrackedIndexEndpoints:
 
     @patch("app.api.v1.admin.tracked_index.TrackedIndexService")
     def test_toggle_missing_returns_404(self, mock_service, admin_client) -> None:
-        mock_service.return_value.toggle_index = AsyncMock(return_value=None)
+        mock_service.return_value.toggle_index = AsyncMock(
+            side_effect=NotFoundError("跟踪指数配置不存在")
+        )
         client, _ = admin_client
         response = client.patch("/api/v1/admin/tracked-indexes/99/toggle")
         assert response.status_code == 404
