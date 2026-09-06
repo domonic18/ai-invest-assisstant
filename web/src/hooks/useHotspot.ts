@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { fetchHotspots, type HotspotParams } from '@/api/hotspot'
+import { fetchHotspots, fetchLatestDaySectors, type HotspotParams } from '@/api/hotspot'
 
 const HOTSPOT_KEY = ['hotspot'] as const
 
@@ -11,6 +11,15 @@ export function useHotspot(params: HotspotParams = {}) {
   return useQuery({
     queryKey: [...HOTSPOT_KEY, params],
     queryFn: () => fetchHotspots(params),
+    refetchInterval: HOTSPOT_REFETCH_INTERVAL,
+  })
+}
+
+/** 最新有数据交易日的完整板块清单（话题云 / 信号卡共用，5 分钟自动刷新）。 */
+export function useLatestDaySectors() {
+  return useQuery({
+    queryKey: [...HOTSPOT_KEY, 'latest-day'],
+    queryFn: () => fetchLatestDaySectors(),
     refetchInterval: HOTSPOT_REFETCH_INTERVAL,
   })
 }

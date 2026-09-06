@@ -1,10 +1,10 @@
 import { ReloadOutlined } from '@ant-design/icons'
-import { Button, Card, Form, Table, Typography } from 'antd'
+import { Button, Card, Form, Table, Tag, Typography } from 'antd'
 import { useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { useHotspot } from '@/hooks/useHotspot'
+import { useHotspot, useLatestDaySectors } from '@/hooks/useHotspot'
 import { useTelegraph } from '@/hooks/useTelegraph'
 import type { SectorFundFlow } from '@ai-invest/shared'
 import { useColorScheme } from '@/stores/settings'
@@ -12,7 +12,33 @@ import { useColorScheme } from '@/stores/settings'
 import { FundSignalCard } from './components/FundSignalCard'
 import { HotTimeline } from './components/HotTimeline'
 import { HotspotFilters, type FilterForm } from './components/HotspotFilters'
-import { columns } from './utils'
+import { SentimentCard } from './components/SentimentCard'
+import { TopicCloud } from './components/TopicCloud'
+import { columns, topTopicNames } from './utils'
+
+function CategoryChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded px-2.5 py-1 text-xs transition-colors ${
+        active
+          ? 'bg-[#5e6ad2]/15 text-[#8b94e0]'
+          : 'text-gray-500 hover:bg-gray-800 hover:text-gray-300'
+      }`}
+    >
+      {label}
+    </button>
+  )
+}
 
 export function Hotspot() {
   useColorScheme()
@@ -24,9 +50,19 @@ export function Hotspot() {
     page: 1,
     pageSize: 20,
   })
+  const [topic, setTopic] = useState<string | null>(null)
 
   const { data, isLoading } = useHotspot(params)
+  const { data: sectors } = useLatestDaySectors()
   const { data: telegraph, isLoading: telegraphLoading } = useTelegraph(1, 15, undefined, true)
+
+  const chipTopics = useMemo(() => topTopicNames(sectors ?? []), [sectors])
+  const timelineItems = useMemo(() => {
+    if (!topic) return telegraph?.items
+    return (telegraph?.items ?? []).filter(
+      (item) => (item.title ?? '').includes(topic) || (item.content ?? '').includes(topic),
+    )
+  }, [telegraph, topic])
 
   const handleSearch = (values: FilterForm) => {
     setParams({
@@ -57,19 +93,48 @@ export function Hotspot() {
         </div>
       </div>
 
-      {/* 原型 grid-2-1 双栏：左实时热点时间线，右资金异动信号 */}
+      {/* 原型全宽卡：热点话题云（最新交易日涨幅 TOP 板块，热度分层） */}
+      <Card
+        title="热点话题云"
+        variant="borderless"
+        extra={<Tag color="green">实时更新</Tag>}
+      >
+        <TopicCloud />
+      </Card>
+
+      {/* 原型 grid-2-1 双栏：左实时热点时间线，右资金异动信号 + 市场情绪指数 */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <Card
           title="实时热点时间线"
           variant="borderless"
           className="xl:col-span-2"
-          extra={<Link to="/telegraph" className="text-xs">更多电报</Link>}
+          extra={(
+            <div className="flex items-center gap-1">
+              <CategoryChip label="全部" active={topic === null} onClick={() => setTopic(null)} />
+              {chipTopics.map((name) => (
+                <CategoryChip
+                  key={name}
+                  label={name}
+                  active={topic === name}
+                  onClick={() => setTopic(name)}
+                />
+              ))}
+              <Link to="/telegraph" className="ml-1.5 text-xs text-gray-500 hover:text-[#8b94e0]">
+                更多电报
+              </Link>
+            </div>
+          )}
         >
-          <HotTimeline items={telegraph?.items} loading={telegraphLoading} />
+          <HotTimeline items={timelineItems} loading={telegraphLoading} />
         </Card>
-        <Card title="资金异动信号" variant="borderless">
-          <FundSignalCard />
-        </Card>
+        <div className="flex flex-col gap-4">
+          <Card title="资金异动信号" variant="borderless">
+            <FundSignalCard />
+          </Card>
+          <Card title="市场情绪指数" variant="borderless">
+            <SentimentCard />
+          </Card>
+        </div>
       </div>
 
       <Card title="板块资金明细" variant="borderless">
