@@ -24,11 +24,14 @@ _EM_JITTER_RANGE = (0.1, 0.5)
 _CHROME_RETRY_ATTEMPTS = 3  # 连接级瞬时错误的尝试次数（含首次）
 _CHROME_RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
+DEFAULT_TIMEOUT_SECONDS = 15
+
 _DEFAULT_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": DEFAULT_USER_AGENT,
     # push2 接口缺失 Referer 会直接断开连接
     "Referer": "https://data.eastmoney.com/bkzj/hy.html",
 }
@@ -75,7 +78,7 @@ def eastmoney_get(
     url: str,
     params: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
-    timeout: float = 15,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
 ) -> requests.Response:
     """限流 + 重试的东财 GET 请求，返回已校验状态码的响应。"""
     _limiter.wait()
@@ -103,7 +106,7 @@ def eastmoney_get_chrome(
     url: str,
     params: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
-    timeout: float = 15,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
 ) -> CffiResponse:
     """Chrome TLS 指纹的东财 GET（含连接级重试）。
 

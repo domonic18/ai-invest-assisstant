@@ -10,11 +10,13 @@ from contextlib import asynccontextmanager
 
 from app.core.cache import get_redis
 
+DEFAULT_LOCK_TTL_SECONDS = 300
+
 
 @asynccontextmanager
 async def redis_lock(
     key: str,
-    ttl: int = 300,
+    ttl: int = DEFAULT_LOCK_TTL_SECONDS,
     blocking: bool = True,
     blocking_timeout: float = 30,
 ) -> AsyncGenerator[bool, None]:

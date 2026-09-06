@@ -11,6 +11,7 @@ import structlog
 
 from app.core.clock import CN_TZ, today_cn
 from collector.core.base import BaseCollector, CollectResult, CollectStatus
+from collector.core.http_client import DEFAULT_USER_AGENT
 from collector.core.parsing import clean_stock_code, to_optional_str
 
 _str = to_optional_str
@@ -94,11 +95,7 @@ class CninfoFinancialReportCollector(BaseCollector):
 
         raw: list[dict[str, Any]] = []
         headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
+            "User-Agent": DEFAULT_USER_AGENT,
         }
         logger.info(
             "cninfo_financial_report_collect_start",

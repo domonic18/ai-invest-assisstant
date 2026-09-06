@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.core.prompt_loader import PromptLoader
 from app.core.config import get_settings
 from app.core.exceptions import ConflictError
-from app.core.locking import redis_lock
+from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
 from app.repositories.review import ai_analysis_repository
 
 SKILL_ID = "limit-up-review"
@@ -181,7 +181,7 @@ async def generate_attribution(
             f"{resolved_date.isoformat()} 涨停池数据尚未就绪，无法归因"
         )
 
-    async with redis_lock(f"{SKILL_ID}:{resolved_date.isoformat()}", ttl=300) as acquired:
+    async with redis_lock(f"{SKILL_ID}:{resolved_date.isoformat()}", ttl=DEFAULT_LOCK_TTL_SECONDS) as acquired:
         if not acquired:
             cached = await _load_cached(session, input_hash)
             if cached:

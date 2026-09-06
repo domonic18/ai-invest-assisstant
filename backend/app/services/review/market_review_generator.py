@@ -16,12 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.core.prompt_loader import PromptConfig, PromptLoader, PromptSection
 from app.core.config import get_settings
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
-from app.core.locking import redis_lock
+from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
 from app.repositories.review import (
     ai_analysis_repository,
     user_market_review_repository,
 )
 from app.schemas.market import MarketReviewResponse
+from app.services.market.trade_calendar_service import NonTradingDayError
 from app.services.review.market_review_formatter import (
     BaseReview,
     build_response,
@@ -30,10 +31,6 @@ from app.services.review.market_review_formatter import (
 logger = structlog.get_logger(__name__)
 
 SKILL_ID = "market-daily-review"
-
-
-class NonTradingDayError(BadRequestError):
-    """指定日期不是交易日，每日复盘只对交易日有效。"""
 
 
 class ReviewNotFoundError(NotFoundError):
@@ -218,7 +215,7 @@ async def generate_market_review(
 
     async with redis_lock(
         f"market-daily-review:{resolved_date}",
-        ttl=300,
+        ttl=DEFAULT_LOCK_TTL_SECONDS,
     ) as acquired:
         if not acquired:
             cached = await _load_base_review(session, resolved_date, sections)
