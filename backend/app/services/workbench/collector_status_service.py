@@ -7,6 +7,7 @@ label 声明（管理端任务目录同一真相源），不在此另建映射�
 
 from datetime import datetime, timedelta, timezone
 
+import structlog
 from croniter import croniter
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +26,8 @@ _UPCOMING_LIMIT = 8
 _MAX_OCCURRENCES_PER_TASK = 3
 _RECENT_LIMIT = 6
 _RUNNING_MAX_AGE = timedelta(hours=2)
+
+logger = structlog.get_logger(__name__)
 
 
 def _run_item(row: CollectorLog, task_labels: dict[str, str]) -> CollectorRunItem:
@@ -68,11 +71,21 @@ async def get_collector_status(
         try:
             it = croniter(task.schedule, base)
         except Exception:
+            logger.warning(
+                "collector_schedule_invalid",
+                task_name=task.task_name,
+                schedule=task.schedule,
+            )
             continue
         for _ in range(_MAX_OCCURRENCES_PER_TASK):
             try:
                 nxt = it.get_next(datetime)
             except Exception:
+                logger.warning(
+                    "collector_schedule_expand_failed",
+                    task_name=task.task_name,
+                    schedule=task.schedule,
+                )
                 break
             if nxt - base > _UPCOMING_WINDOW:
                 break
