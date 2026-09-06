@@ -1,7 +1,7 @@
 import { RobotOutlined } from '@ant-design/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button, Card, Empty, Input, message, Popconfirm, Tag, Typography } from 'antd'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { NonTradingDayError, saveMarketReviewSection } from '@/api/market'
 import { MarkdownText } from '@/components/common/MarkdownText'
@@ -93,6 +93,7 @@ interface AiReviewSectionProps {
 export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
   const queryClient = useQueryClient()
   const panelOpen = useAssistantStore((state) => state.open)
+  const mountedRef = useRef(true)
   const [generating, setGenerating] = useState(false)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -125,6 +126,13 @@ export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
     if (!panelOpen) setGenerating(false)
   }, [panelOpen])
 
+  useEffect(
+    () => () => {
+      mountedRef.current = false
+    },
+    [],
+  )
+
   const handleSaveSection = async (sectionKey: string, content: string) => {
     if (!data) return
     if (!content.trim()) {
@@ -134,13 +142,16 @@ export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
     setSaving(true)
     try {
       const review = await saveMarketReviewSection(data.tradeDate, sectionKey, content)
+      if (!mountedRef.current) return
       setReviewCache(review)
       setEditingKey(null)
       message.success('复盘内容已保存')
     } catch (err) {
-      message.error(err instanceof Error ? err.message : '保存失败')
+      if (mountedRef.current) {
+        message.error(err instanceof Error ? err.message : '保存失败')
+      }
     } finally {
-      setSaving(false)
+      if (mountedRef.current) setSaving(false)
     }
   }
 

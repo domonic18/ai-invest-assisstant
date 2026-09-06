@@ -45,7 +45,7 @@ export function CollectModal({ open, onClose, onCollected }: CollectModalProps) 
   }
 
   useEffect(() => {
-    if (!log) return
+    if (!log || !open) return
     if (log.status === 'success') {
       message.success(`采集完成，入库 ${log.records_count} 条`)
       onCollected()
@@ -56,7 +56,7 @@ export function CollectModal({ open, onClose, onCollected }: CollectModalProps) 
       setLogId(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [log?.status])
+  }, [log?.status, open])
 
   const handleSearchStock = async (keyword: string) => {
     if (!keyword) {
