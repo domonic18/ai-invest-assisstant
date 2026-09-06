@@ -36,15 +36,13 @@ export const ENDPOINTS = {
   },
   chain: {
     industries: `${API_BASE}/chain/industries`,
-    alerts: (industry: string, days = 30) =>
-      `${API_BASE}/chain/alerts?industry=${encodeURIComponent(industry)}&days=${days}`,
+    alerts: `${API_BASE}/chain/alerts`,
     latest: (industry: string) =>
       `${API_BASE}/chain/${encodeURIComponent(industry)}/latest`,
     versions: (industry: string) =>
       `${API_BASE}/chain/${encodeURIComponent(industry)}/versions`,
     version: (id: number | string) => `${API_BASE}/chain/versions/${id}`,
-    compare: (baseId: number, targetId: number) =>
-      `${API_BASE}/chain/versions/compare?base_id=${baseId}&target_id=${targetId}`,
+    compare: `${API_BASE}/chain/versions/compare`,
   },
   research: {
     // 集合端点后端路由为 "/"（带尾斜杠）：不带斜杠会触发 307 重定向
@@ -83,13 +81,12 @@ export const ENDPOINTS = {
   },
   fundFlow: {
     list: `${API_BASE}/fund-flow/`,
-    sectorTrend: (sectorType = 'industry', days = 60) =>
-      `${API_BASE}/fund-flow/sector-trend?sector_type=${sectorType}&days=${days}`,
+    sectorTrend: `${API_BASE}/fund-flow/sector-trend`,
   },
   market: {
     indices: `${API_BASE}/market/indices`,
-    indexIntraday: (code: string) => `${API_BASE}/market/indices/intraday?code=${code}`,
-    indexKline: (code: string) => `${API_BASE}/market/indices/kline?code=${code}`,
+    indexIntraday: `${API_BASE}/market/indices/intraday`,
+    indexKline: `${API_BASE}/market/indices/kline`,
     stats: `${API_BASE}/market/stats`,
     limitUp: `${API_BASE}/market/limit-up`,
     limitUpIntraday: `${API_BASE}/market/limit-up/intraday`,
