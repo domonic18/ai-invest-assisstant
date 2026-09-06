@@ -85,8 +85,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.debug else [],
-    allow_credentials=True,
+    # 前端与 API 恒同源：dev 走 Vite 代理（web/vite.config.ts），prod 由本服务
+    # /SCF 托管 SPA，正常流量不产生跨源请求，故保持空 origins（中间件不响应
+    # 任何预检）。如未来出现独立前端域，须显式列举域名；
+    # 禁止回退 allow_origins=["*"] + allow_credentials（对任意源放行凭证）。
+    allow_origins=[],
     allow_methods=["*"],
     allow_headers=["*"],
 )
