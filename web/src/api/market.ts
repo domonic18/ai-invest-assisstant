@@ -36,7 +36,7 @@ export function mapIndexQuote(dto: ApiIndexQuoteResponse): IndexQuote {
     name: dto.name,
     price: dto.price,
     change: dto.change,
-    changePct: dto.change_pct,
+    changePct: dto.changePct,
     amount: dto.amount,
     trend: dto.trend,
   }
@@ -46,8 +46,8 @@ function mapIndexIntraday(dto: ApiIndexIntradayResponse): IndexIntraday {
   return {
     code: dto.code,
     name: dto.name,
-    tradeDate: dto.trade_date,
-    prevClose: dto.prev_close,
+    tradeDate: dto.tradeDate,
+    prevClose: dto.prevClose,
     points: dto.points,
   }
 }
@@ -63,87 +63,87 @@ function mapIndexKline(dto: ApiIndexKlineResponse): IndexKline {
 
 export function mapMarketStats(dto: ApiMarketStatsResponse): MarketStats {
   return {
-    tradeDate: dto.trade_date,
+    tradeDate: dto.tradeDate,
     amount: dto.amount,
-    prevAmount: dto.prev_amount,
-    amountChange: dto.amount_change,
-    amountChangePct: dto.amount_change_pct,
-    upCount: dto.up_count,
-    downCount: dto.down_count,
-    flatCount: dto.flat_count,
-    limitUpCount: dto.limit_up_count,
-    limitDownCount: dto.limit_down_count,
-    brokenLimitCount: dto.broken_limit_count,
-    emotionScore: dto.emotion_score,
-    emotionLabel: dto.emotion_label,
-    limitUpRatio: dto.limit_up_ratio,
-    continuousRate: dto.continuous_rate,
-    brokenRate: dto.broken_rate,
+    prevAmount: dto.prevAmount,
+    amountChange: dto.amountChange,
+    amountChangePct: dto.amountChangePct,
+    upCount: dto.upCount,
+    downCount: dto.downCount,
+    flatCount: dto.flatCount,
+    limitUpCount: dto.limitUpCount,
+    limitDownCount: dto.limitDownCount,
+    brokenLimitCount: dto.brokenLimitCount,
+    emotionScore: dto.emotionScore,
+    emotionLabel: dto.emotionLabel,
+    limitUpRatio: dto.limitUpRatio,
+    continuousRate: dto.continuousRate,
+    brokenRate: dto.brokenRate,
   }
 }
 
 function mapLimitUpStock(dto: ApiLimitUpItem): LimitUpStock {
   return {
-    stockCode: dto.stock_code,
-    stockName: dto.stock_name,
-    changePct: dto.change_pct,
-    latestPrice: dto.latest_price,
-    sealedAmount: dto.sealed_amount,
-    firstSealTime: dto.first_seal_time,
-    lastSealTime: dto.last_seal_time,
-    brokenLimitCount: dto.broken_limit_count,
-    limitStatus: dto.limit_status,
-    consecutiveBoards: dto.consecutive_boards,
+    stockCode: dto.stockCode,
+    stockName: dto.stockName,
+    changePct: dto.changePct,
+    latestPrice: dto.latestPrice,
+    sealedAmount: dto.sealedAmount,
+    firstSealTime: dto.firstSealTime,
+    lastSealTime: dto.lastSealTime,
+    brokenLimitCount: dto.brokenLimitCount,
+    limitStatus: dto.limitStatus,
+    consecutiveBoards: dto.consecutiveBoards,
     industry: dto.industry,
-    sealType: dto.seal_type,
+    sealType: dto.sealType,
     themes: dto.themes,
   }
 }
 
 function mapLimitUpData(dto: ApiLimitUpResponse): LimitUpData {
   return {
-    tradeDate: dto.trade_date,
+    tradeDate: dto.tradeDate,
     total: dto.total,
-    firstBoard: dto.first_board,
+    firstBoard: dto.firstBoard,
     continuous: dto.continuous,
-    maxBoards: dto.max_boards,
+    maxBoards: dto.maxBoards,
     ladder: dto.ladder.map(mapLimitUpStock),
     items: dto.items.map(mapLimitUpStock),
     groups: dto.groups.map((group) => ({
       name: group.name,
       count: group.count,
-      changePct: group.change_pct,
-      mainNetInflow: group.main_net_inflow,
+      changePct: group.changePct,
+      mainNetInflow: group.mainNetInflow,
       reason: group.reason,
       items: group.items.map(mapLimitUpStock),
     })),
-    aiGenerated: dto.ai_generated,
+    aiGenerated: dto.aiGenerated,
   }
 }
 
 function mapSectorOverview(dto: ApiSectorOverviewResponse): SectorOverview {
   return {
-    tradeDate: dto.trade_date,
+    tradeDate: dto.tradeDate,
     heatmap: dto.heatmap.map((item) => ({
-      sectorName: item.sector_name,
-      changePct: item.change_pct,
+      sectorName: item.sectorName,
+      changePct: item.changePct,
     })),
-    topInflow: dto.top_inflow.map((item) => ({
-      sectorName: item.sector_name,
-      mainNetInflow: item.main_net_inflow,
-      topStockName: item.top_stock_name,
+    topInflow: dto.topInflow.map((item) => ({
+      sectorName: item.sectorName,
+      mainNetInflow: item.mainNetInflow,
+      topStockName: item.topStockName,
     })),
-    topOutflow: dto.top_outflow.map((item) => ({
-      sectorName: item.sector_name,
-      mainNetInflow: item.main_net_inflow,
-      topStockName: item.top_stock_name,
+    topOutflow: dto.topOutflow.map((item) => ({
+      sectorName: item.sectorName,
+      mainNetInflow: item.mainNetInflow,
+      topStockName: item.topStockName,
     })),
     leading: dto.leading.map((item) => ({
-      sectorName: item.sector_name,
-      changePct: item.change_pct,
-      limitUpCount: item.limit_up_count,
-      mainNetInflow: item.main_net_inflow,
-      topStockNames: item.top_stock_names,
+      sectorName: item.sectorName,
+      changePct: item.changePct,
+      limitUpCount: item.limitUpCount,
+      mainNetInflow: item.mainNetInflow,
+      topStockNames: item.topStockNames,
     })),
   }
 }
@@ -153,24 +153,24 @@ export function mapWatchlistQuote(dto: ApiWatchlistQuoteItem): WatchlistQuote {
     code: dto.code,
     name: dto.name,
     price: dto.price,
-    changePct: dto.change_pct,
+    changePct: dto.changePct,
     amount: dto.amount,
     tags: dto.tags,
-    updatedAt: dto.updated_at,
+    updatedAt: dto.updatedAt,
     trend: dto.trend ?? [],
   }
 }
 
 export function mapMarketReview(dto: ApiMarketReviewResponse): MarketReview {
   return {
-    tradeDate: dto.trade_date,
+    tradeDate: dto.tradeDate,
     sections: dto.sections.map((section) => ({
       key: section.key,
       title: section.title,
       content: section.content,
     })),
     model: dto.model,
-    generatedAt: dto.generated_at,
+    generatedAt: dto.generatedAt,
     cached: dto.cached,
     edited: dto.edited,
   }
@@ -181,7 +181,7 @@ export async function fetchMarketIndices(
 ): Promise<IndexQuote[]> {
   const response = await apiClient.get<ApiIndexQuoteResponse[]>(
     ENDPOINTS.market.indices,
-    { params: { trade_date: tradeDate } },
+    { params: { tradeDate: tradeDate } },
   )
   return response.data.map(mapIndexQuote)
 }
@@ -192,7 +192,7 @@ export async function fetchIndexIntraday(
 ): Promise<IndexIntraday> {
   const response = await apiClient.get<ApiIndexIntradayResponse>(
     ENDPOINTS.market.indexIntraday,
-    { params: { code, trade_date: tradeDate } },
+    { params: { code, tradeDate: tradeDate } },
   )
   return mapIndexIntraday(response.data)
 }
@@ -212,7 +212,7 @@ export async function fetchIndexKline(
 export async function fetchMarketStats(tradeDate?: string): Promise<MarketStats> {
   const response = await apiClient.get<ApiMarketStatsResponse>(
     ENDPOINTS.market.stats,
-    { params: { trade_date: tradeDate } },
+    { params: { tradeDate: tradeDate } },
   )
   return mapMarketStats(response.data)
 }
@@ -220,7 +220,7 @@ export async function fetchMarketStats(tradeDate?: string): Promise<MarketStats>
 export async function fetchLimitUp(tradeDate?: string): Promise<LimitUpData> {
   const response = await apiClient.get<ApiLimitUpResponse>(
     ENDPOINTS.market.limitUp,
-    { params: { trade_date: tradeDate } },
+    { params: { tradeDate: tradeDate } },
   )
   return mapLimitUpData(response.data)
 }
@@ -230,9 +230,9 @@ export async function fetchLimitUpIntraday(
 ): Promise<LimitUpIntraday> {
   const response = await apiClient.get<ApiLimitUpIntradayResponse>(
     ENDPOINTS.market.limitUpIntraday,
-    { params: { trade_date: tradeDate } },
+    { params: { tradeDate: tradeDate } },
   )
-  return { tradeDate: response.data.trade_date, series: response.data.series }
+  return { tradeDate: response.data.tradeDate, series: response.data.series }
 }
 
 export async function fetchSectorOverview(
@@ -240,7 +240,7 @@ export async function fetchSectorOverview(
 ): Promise<SectorOverview> {
   const response = await apiClient.get<ApiSectorOverviewResponse>(
     ENDPOINTS.market.sectors,
-    { params: { trade_date: tradeDate } },
+    { params: { tradeDate: tradeDate } },
   )
   return mapSectorOverview(response.data)
 }
@@ -262,7 +262,7 @@ export async function fetchMarketReview(
   try {
     const response = await apiClient.get<ApiMarketReviewResponse>(
       ENDPOINTS.market.aiReview,
-      { params: { trade_date: tradeDate } },
+      { params: { tradeDate: tradeDate } },
     )
     if (response.status === 204) {
       return null
@@ -285,8 +285,8 @@ export async function saveMarketReviewSection(
   content: string,
 ): Promise<MarketReview> {
   const body: ApiMarketReviewUpdateRequest = {
-    trade_date: tradeDate,
-    section_key: sectionKey,
+    tradeDate: tradeDate,
+    sectionKey: sectionKey,
     content,
   }
   const response = await apiClient.put<ApiMarketReviewResponse>(
@@ -300,7 +300,7 @@ export async function saveMarketReviewSection(
 export async function collectMarketData(
   tradeDate: string,
 ): Promise<CollectTaskResult[]> {
-  const body: ApiMarketCollectRequest = { trade_date: tradeDate }
+  const body: ApiMarketCollectRequest = { tradeDate: tradeDate }
   const response = await apiClient.post<ApiCollectTaskResult[]>(
     ENDPOINTS.market.collect,
     body,
@@ -308,7 +308,7 @@ export async function collectMarketData(
   return response.data.map((item) => ({
     task: item.task,
     status: item.status,
-    itemsCollected: item.items_collected,
+    itemsCollected: item.itemsCollected,
     errors: item.errors,
   }))
 }
