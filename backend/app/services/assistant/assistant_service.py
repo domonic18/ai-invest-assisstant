@@ -2,6 +2,7 @@
 Skill 摘要解析。消息轨迹由 LangGraph checkpoint 承载，不落业务表。
 """
 
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -127,6 +128,36 @@ async def touch_session_standalone(thread_id: str, title: str | None) -> None:
             await AssistantService(db).touch_session(thread_id, title)
     except Exception as exc:  # noqa: BLE001
         logger.warning("assistant_touch_failed", thread_id=thread_id, error=str(exc))
+
+
+def derive_session_title(messages_in: list[dict[str, Any]]) -> str | None:
+    """取首条用户消息前 20 字作会话标题（纯 str 或 text 块列表均可）。"""
+    if not messages_in:
+        return None
+    content = messages_in[0].get("content")
+    if isinstance(content, str):
+        return content[:20]
+    if isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict) and isinstance(block.get("text"), str):
+                return str(block["text"])[:20]
+    return None
+
+
+async def finalize_run(thread_id: str, messages_in: list[dict[str, Any]]) -> None:
+    """SSE 流收尾：派生标题并回写会话活跃时间。
+
+    用户取消时本任务已收到 CancelledError，若在取消上下文里直接操作数据库，
+    会把 SQLAlchemy 池中的 asyncpg 连接打断成脏连接，导致后续请求 500
+    （connection is closed）。放独立任务 + shield，让回写在取消传播之外完成。
+    """
+    touch = asyncio.create_task(
+        touch_session_standalone(thread_id, derive_session_title(messages_in))
+    )
+    try:
+        await asyncio.shield(touch)
+    except Exception:  # noqa: BLE001  # 失败已在任务内记录
+        pass
 
 
 def parse_skill_file(path: Path) -> dict[str, Any]:

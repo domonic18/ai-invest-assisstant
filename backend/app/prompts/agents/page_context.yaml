@@ -1,0 +1,7 @@
+id: page_context
+name: 页面上下文注入
+version: 1.0.0
+description: run metadata.page_context 注入用户消息前缀的模板（context 为 JSON 字符串）
+
+system_prompt: ""
+user_prompt_template: "[页面上下文] {context}"

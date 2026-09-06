@@ -1,7 +1,9 @@
 """用户自选股与分组业务服务。"""
 
+import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.models.user import User
 from app.models.watchlist import UserWatchlist, UserWatchlistGroup
 from app.repositories.market.stock_repository import StockRepository
@@ -20,8 +22,10 @@ from app.schemas.user import (
 DEFAULT_GROUP_NAME = "默认分组"
 MAX_GROUPS_PER_USER = 20
 
+logger = structlog.get_logger()
 
-class GroupLimitError(ValueError):
+
+class GroupLimitError(ConflictError):
     """分组数量超出上限。"""
 
 
@@ -64,7 +68,7 @@ class WatchlistService:
         if await self.group_repo.count_by_user(user_id) >= MAX_GROUPS_PER_USER:
             raise GroupLimitError(f"Group limit reached ({MAX_GROUPS_PER_USER})")
         if await self.group_repo.get_by_name(user_id, data.name) is not None:
-            raise ValueError("Group name already exists")
+            raise BadRequestError("Group name already exists")
         groups = await self.group_repo.list_by_user(user_id)
         sort_order = groups[-1].sort_order + 1 if groups else 0
         group = UserWatchlistGroup(
@@ -86,9 +90,9 @@ class WatchlistService:
         group = await self._get_owned_group(user_id, group_id)
         if data.name is not None and data.name != group.name:
             if group.is_default:
-                raise ValueError("Default group cannot be renamed")
+                raise BadRequestError("Default group cannot be renamed")
             if await self.group_repo.get_by_name(user_id, data.name) is not None:
-                raise ValueError("Group name already exists")
+                raise BadRequestError("Group name already exists")
             group.name = data.name
         if data.ai_review_enabled is not None:
             group.ai_review_enabled = data.ai_review_enabled
@@ -100,10 +104,10 @@ class WatchlistService:
         """删除分组：默认分组拒绝，组内股票移入默认分组。"""
         group = await self._get_owned_group(user_id, group_id)
         if group.is_default:
-            raise ValueError("Default group cannot be deleted")
+            raise BadRequestError("Default group cannot be deleted")
         default = await self.get_or_create_default_group(user_id)
         if group.id == default.id:  # 理论不可达，防御越权构造
-            raise ValueError("Default group cannot be deleted")
+            raise BadRequestError("Default group cannot be deleted")
         for item in group.items:
             item.group_id = default.id
         await self.session.delete(group)
@@ -114,7 +118,7 @@ class WatchlistService:
         groups = await self.group_repo.list_by_user(user_id)
         by_id = {g.id: g for g in groups}
         if sorted(group_ids) != sorted(by_id):
-            raise ValueError("Group id list does not match user groups")
+            raise BadRequestError("Group id list does not match user groups")
         for idx, group_id in enumerate(group_ids):
             by_id[group_id].sort_order = idx
         await self.session.commit()
@@ -123,7 +127,7 @@ class WatchlistService:
         """获取属于指定用户的分组，否则视为不存在。"""
         group = await self.group_repo.get_by_user_and_id(user_id, group_id)
         if group is None:
-            raise LookupError("Group not found")
+            raise NotFoundError("Group not found")
         return group
 
     # ------------------------------------------------------------------
@@ -140,12 +144,12 @@ class WatchlistService:
         """添加自选股（group_id 缺省挂默认分组）。"""
         existing = await self.repo.get_by_user_and_stock(user.id, data.stock_code)
         if existing:
-            raise ValueError("Stock already in watchlist")
+            raise BadRequestError("Stock already in watchlist")
 
         if data.group_id is not None:
             group = await self.group_repo.get_by_user_and_id(user.id, data.group_id)
             if group is None:
-                raise ValueError("Group not found")
+                raise BadRequestError("Group not found")
         else:
             group = await self.get_or_create_default_group(user.id)
 
@@ -158,6 +162,7 @@ class WatchlistService:
         self.repo.add(item)
         await self.session.commit()
         await self.repo.refresh(item)
+        await self._dispatch_kline_backfill([item.stock_code])
         return item
 
     async def batch_add_items(
@@ -169,7 +174,7 @@ class WatchlistService:
         （附当前所在分组）；新增逐条 SAVEPOINT 隔离，最后统一提交。
         """
         if data.group_id is not None and data.new_group_name:
-            raise ValueError("group_id and new_group_name are mutually exclusive")
+            raise BadRequestError("group_id and new_group_name are mutually exclusive")
 
         target: UserWatchlistGroup | None
         if data.new_group_name:
@@ -179,7 +184,7 @@ class WatchlistService:
         elif data.group_id is not None:
             target = await self.group_repo.get_by_user_and_id(user.id, data.group_id)
             if target is None:
-                raise ValueError("Group not found")
+                raise BadRequestError("Group not found")
         else:
             target = await self.get_or_create_default_group(user.id)
 
@@ -226,7 +231,26 @@ class WatchlistService:
         for row in pending:
             await self.repo.refresh(row)
         response.created = [WatchlistItemResponse.model_validate(row) for row in pending]
+        if pending:
+            await self._dispatch_kline_backfill([row.stock_code for row in pending])
         return response
+
+    async def _dispatch_kline_backfill(self, codes: list[str]) -> None:
+        """导入成功后异步回补日 K；派发失败仅记录日志，不阻塞导入主流程。
+
+        dispatcher 内部会 commit，必须在 service 层提交之后调用（延迟导入
+        collector.runtime 避免环导入与 API 启动即加载 Celery）。
+        """
+        from collector.runtime.dispatcher import dispatch_collector_task
+
+        try:
+            await dispatch_collector_task(
+                self.session, "kline", {"symbols": codes, "period": "daily"}
+            )
+        except Exception:
+            logger.warning(
+                "watchlist_kline_backfill_dispatch_failed", codes=codes, exc_info=True
+            )
 
     async def move_watchlist_item(
         self, user_id: int, item_id: int, target_group_id: int
@@ -235,7 +259,7 @@ class WatchlistService:
         item = await self._get_owned_item(user_id, item_id)
         target = await self.group_repo.get_by_user_and_id(user_id, target_group_id)
         if target is None:
-            raise ValueError("Target group not found")
+            raise BadRequestError("Target group not found")
         if item.group_id == target_group_id:
             return item
         item.group_id = target_group_id
@@ -253,5 +277,5 @@ class WatchlistService:
         """获取属于指定用户的自选股，否则视为不存在。"""
         item = await self.session.get(UserWatchlist, item_id)
         if item is None or item.user_id != user_id:
-            raise LookupError("Watchlist item not found")
+            raise NotFoundError("Watchlist item not found")
         return item

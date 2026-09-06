@@ -56,6 +56,9 @@ def _batch(*codes: str, new_group: str = "截图导入") -> WatchlistBatchCreate
 async def test_batch_add_creates_valid_and_flags_invalid(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(
+        "collector.runtime.dispatcher.dispatch_collector_task", AsyncMock()
+    )
     session = _make_session()
     service = WatchlistService(session)
     monkeypatch.setattr(
@@ -116,6 +119,9 @@ async def test_batch_add_reports_duplicates(monkeypatch: pytest.MonkeyPatch) -> 
 async def test_batch_add_skips_duplicates_within_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(
+        "collector.runtime.dispatcher.dispatch_collector_task", AsyncMock()
+    )
     session = _make_session()
     service = WatchlistService(session)
     monkeypatch.setattr(
