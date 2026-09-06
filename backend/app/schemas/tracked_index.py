@@ -2,10 +2,12 @@
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.schemas.base import CamelModel
 
 
-class TrackedIndexCreate(BaseModel):
+class TrackedIndexCreate(CamelModel):
     """创建跟踪指数配置的请求 schema。"""
 
     index_code: str = Field(..., min_length=1, max_length=16)
@@ -16,7 +18,7 @@ class TrackedIndexCreate(BaseModel):
     is_enabled: bool = True
 
 
-class TrackedIndexUpdate(BaseModel):
+class TrackedIndexUpdate(CamelModel):
     """更新跟踪指数配置的请求 schema。"""
 
     index_name: str | None = Field(None, min_length=1, max_length=100)
@@ -26,10 +28,8 @@ class TrackedIndexUpdate(BaseModel):
     is_enabled: bool | None = None
 
 
-class TrackedIndexResponse(BaseModel):
+class TrackedIndexResponse(CamelModel):
     """跟踪指数配置的响应 schema（含最新行情联查结果）。"""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     index_code: str
@@ -45,7 +45,7 @@ class TrackedIndexResponse(BaseModel):
     updated_at: datetime
 
 
-class TrackedIndexToggleResponse(BaseModel):
+class TrackedIndexToggleResponse(CamelModel):
     """启用状态切换的响应 schema。"""
 
     id: int

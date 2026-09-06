@@ -3,10 +3,12 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.schemas.base import CamelModel
 
 
-class CollectorChannelConfigCreate(BaseModel):
+class CollectorChannelConfigCreate(CamelModel):
     """创建采集器渠道配置的请求 schema。"""
 
     source: str = Field(..., min_length=1, max_length=50)
@@ -18,7 +20,7 @@ class CollectorChannelConfigCreate(BaseModel):
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
-class CollectorChannelConfigUpdate(BaseModel):
+class CollectorChannelConfigUpdate(CamelModel):
     """更新采集器渠道配置的请求 schema。
 
     空 ``api_key`` 表示不修改已存储的 key。
@@ -32,10 +34,8 @@ class CollectorChannelConfigUpdate(BaseModel):
     extra: dict[str, Any] | None = None
 
 
-class CollectorChannelConfigResponse(BaseModel):
+class CollectorChannelConfigResponse(CamelModel):
     """采集器渠道配置的响应 schema（API key 已脱敏）。"""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     source: str
@@ -49,7 +49,7 @@ class CollectorChannelConfigResponse(BaseModel):
     updated_at: datetime
 
 
-class DataTypeChannelItem(BaseModel):
+class DataTypeChannelItem(CamelModel):
     """某数据类型下一个渠道的优先级视图。"""
 
     channel_id: int
@@ -59,14 +59,14 @@ class DataTypeChannelItem(BaseModel):
     priority: int
 
 
-class DataTypeChannelsResponse(BaseModel):
+class DataTypeChannelsResponse(CamelModel):
     """某数据类型的渠道优先级列表（按 priority 升序）。"""
 
     data_type: str
     channels: list[DataTypeChannelItem]
 
 
-class DataTypeChannelPriorityInput(BaseModel):
+class DataTypeChannelPriorityInput(CamelModel):
     """整体替换某数据类型渠道关联的输入项。"""
 
     channel_id: int
