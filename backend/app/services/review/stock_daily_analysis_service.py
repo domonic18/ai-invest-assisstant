@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptConfig, PromptLoader, PromptSection
 from app.core.config import get_settings
-from app.core.locking import redis_lock
+from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
 from app.models.watchlist import UserWatchlist, UserWatchlistGroup
 from app.repositories.review import ai_analysis_repository
 from app.schemas.stock import StockAiAnalysisResponse, StockAiAnalysisSection
@@ -30,7 +30,6 @@ logger = structlog.get_logger(__name__)
 SKILL_ID = "stock-daily-analysis"
 KLINE_BARS = 20
 KLINE_WINDOW_DAYS = 40  # 日历日窗口，足够覆盖 KLINE_BARS 个交易日
-LOCK_TTL_SECONDS = 300
 
 
 def load_prompt_config() -> PromptConfig:
@@ -179,7 +178,7 @@ async def generate_stock_analysis(
 
     async with redis_lock(
         f"ai:{SKILL_ID}:{stock_code}:{trade_date.isoformat()}",
-        ttl=LOCK_TTL_SECONDS,
+        ttl=DEFAULT_LOCK_TTL_SECONDS,
         blocking=True,
         blocking_timeout=30,
     ) as acquired:
