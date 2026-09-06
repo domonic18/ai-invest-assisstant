@@ -38,3 +38,15 @@ class CollectorChannelConfigRepository(BaseRepository[CollectorChannelConfig]):
             .limit(1)
         )
         return result.scalar_one_or_none() is not None
+
+    async def map_by_ids(
+        self, config_ids: set[int]
+    ) -> dict[int, CollectorChannelConfig]:
+        """批量返回指定 ID 的渠道配置（id -> 行）。"""
+        if not config_ids:
+            return {}
+        stmt = select(CollectorChannelConfig).where(
+            CollectorChannelConfig.id.in_(config_ids)
+        )
+        result = await self.execute(stmt)
+        return {row.id: row for row in result.scalars().all()}

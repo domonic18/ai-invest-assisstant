@@ -7,11 +7,13 @@ AI 未覆盖时回退按行业聚合 + 板块资金流匹配。
 
 from datetime import date
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.capital_fund_flow_sector import SectorFundFlow
-from app.models.pool_limit_up_stock import LimitUpPool
+from app.repositories.market import (
+    limit_pool_repository,
+    sector_fund_flow_repository,
+)
 from app.repositories.market.kline_repository import fetch_minute_bars_multi
 from app.schemas.market import (
     LimitUpGroup,
@@ -167,15 +169,7 @@ async def get_limit_up(
     """
     resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(session)
 
-    stmt = (
-        select(LimitUpPool)
-        .where(LimitUpPool.trade_date == resolved)
-        .order_by(
-            LimitUpPool.consecutive_boards.desc().nullslast(),
-            LimitUpPool.sealed_amount.desc().nullslast(),
-        )
-    )
-    rows = list((await session.execute(stmt)).scalars().all())
+    rows = await limit_pool_repository.list_by_date(session, resolved)
 
     if not rows:
         return _limit_up_response(resolved, [])
@@ -208,17 +202,8 @@ async def get_limit_up(
         return _limit_up_response(
             resolved, items, _build_ai_groups(items, attribution), ai_generated=True
         )
-    sector_rows = list(
-        (
-            await session.execute(
-                select(SectorFundFlow).where(
-                    SectorFundFlow.sector_type == "industry",
-                    SectorFundFlow.trade_date == resolved,
-                )
-            )
-        )
-        .scalars()
-        .all()
+    sector_rows = await sector_fund_flow_repository.list_by_type_and_date(
+        session, "industry", resolved
     )
     groups = _build_limit_up_groups(items, sector_rows)
     return _limit_up_response(resolved, items, groups)
@@ -229,17 +214,7 @@ async def get_limit_up_intraday(
 ) -> LimitUpIntradayResponse:
     """涨停个股全天分时缩略图（每股 ≤60 个收盘价采样点，读 ``quote_kline_stock_minute``）。"""
     resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(session)
-    codes = list(
-        (
-            await session.execute(
-                select(LimitUpPool.stock_code).where(
-                    LimitUpPool.trade_date == resolved
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
+    codes = await limit_pool_repository.list_codes_by_date(session, resolved)
     bars = await fetch_minute_bars_multi(session, codes, resolved)
     closes_by_code: dict[str, list[float]] = {}
     for bar in bars:

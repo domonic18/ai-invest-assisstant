@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.news_announcement import NewsAnnouncement
 from app.repositories.base import BaseRepository
 
+_FILTER_VALUES_CAP = 500
+
 
 class NewsAnnouncementRepository(BaseRepository[NewsAnnouncement]):
     """新闻公告的数据访问。"""
@@ -90,16 +92,18 @@ class NewsAnnouncementRepository(BaseRepository[NewsAnnouncement]):
         return list(result.scalars().all()), total
 
     async def list_research_filters(self) -> tuple[list[str], list[str]]:
-        """返回研报中去重后的券商与行业标签列表。"""
+        """返回研报中去重后的券商与行业标签列表（distinct 值封顶，防全表膨胀）。"""
         broker_stmt = (
             select(func.distinct(NewsAnnouncement.extra["broker"].astext))
             .where(NewsAnnouncement.doc_type == "research")
             .where(NewsAnnouncement.extra["broker"].astext.isnot(None))
+            .limit(_FILTER_VALUES_CAP)
         )
         industry_stmt = (
             select(func.distinct(NewsAnnouncement.industry_tags[1]))
             .where(NewsAnnouncement.doc_type == "research")
             .where(NewsAnnouncement.industry_tags.isnot(None))
+            .limit(_FILTER_VALUES_CAP)
         )
         brokers = (await self.session.execute(broker_stmt)).scalars().all()
         industries = (await self.session.execute(industry_stmt)).scalars().all()

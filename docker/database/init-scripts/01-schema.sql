@@ -421,8 +421,8 @@ CREATE TABLE ai_analysis_result (
     created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_ai_skill_code ON ai_analysis_result(skill_id, stock_code);
-CREATE INDEX idx_ai_skill_hash ON ai_analysis_result(skill_id, input_hash);
+CREATE INDEX idx_ai_skill_stock_status ON ai_analysis_result(skill_id, stock_code, status, created_at DESC);
+CREATE INDEX idx_ai_skill_hash_status ON ai_analysis_result(skill_id, input_hash, status, created_at DESC);
 CREATE INDEX idx_ai_created_at ON ai_analysis_result(created_at DESC);
 
 ALTER TABLE industry_chain_analysis_version
@@ -484,11 +484,10 @@ CREATE TABLE collector_log (
     CONSTRAINT uq_collector_log_celery_task_id UNIQUE (celery_task_id)
 );
 
-CREATE INDEX idx_collector_log_task ON collector_log(task_id, started_at DESC);
 CREATE INDEX idx_collector_log_started ON collector_log(started_at DESC);
 CREATE INDEX idx_collector_log_celery_task_id ON collector_log(celery_task_id);
 CREATE INDEX idx_collector_log_status_started_at ON collector_log(status, started_at DESC);
-CREATE INDEX idx_collector_log_task_name ON collector_log(task_name);
+CREATE INDEX idx_collector_log_task_started ON collector_log(task_name, started_at DESC);
 
 CREATE TABLE collector_dead_letter (
     id            SERIAL PRIMARY KEY,

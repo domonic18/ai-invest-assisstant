@@ -4,13 +4,19 @@
 替代散落在 service 层的 ``text("INSERT INTO ai_analysis_result ...")`` raw SQL。
 """
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 
+from app.core.clock import utc_now
 from app.models.ai_analysis_result import AiAnalysisResult
+
+# 按标的枚举历史时只回看此窗口（日历标记场景约一个年视图），避免全历史
+# JSONB 扫描随时间线性膨胀
+_TRADE_DATES_WINDOW_DAYS = 400
 
 
 async def insert_result(
@@ -78,6 +84,7 @@ async def list_success_trade_dates(
         AiAnalysisResult.skill_id == skill_id,
         AiAnalysisResult.stock_code == stock_code,
         AiAnalysisResult.status == "success",
+        AiAnalysisResult.created_at >= utc_now() - timedelta(days=_TRADE_DATES_WINDOW_DAYS),
     )
     rows = list((await session.execute(stmt)).scalars().all())
     dates: set[date] = set()
@@ -93,7 +100,7 @@ async def list_success_trade_dates(
 async def load_success_by_hashes(
     session: AsyncSession, *, skill_id: str, input_hashes: list[str]
 ) -> list[AiAnalysisResult]:
-    """按 input_hash 批量读取 success 记录，created_at 倒序（同 hash 去重由调用方做）。"""
+    """按 input_hash 批量读取最新的 success 记录（每 hash 一行，排除 raw_output）。"""
     if not input_hashes:
         return []
     stmt = (
@@ -103,6 +110,13 @@ async def load_success_by_hashes(
             AiAnalysisResult.input_hash.in_(input_hashes),
             AiAnalysisResult.status == "success",
         )
-        .order_by(AiAnalysisResult.created_at.desc())
+        .distinct(AiAnalysisResult.input_hash)
+        .order_by(AiAnalysisResult.input_hash, AiAnalysisResult.created_at.desc())
+        .options(
+            load_only(
+                AiAnalysisResult.input_hash,
+                AiAnalysisResult.structured_output,
+            )
+        )
     )
     return list((await session.execute(stmt)).scalars().all())

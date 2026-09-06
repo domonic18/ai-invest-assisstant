@@ -10,6 +10,7 @@ from typing import Any
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.core.clock import CN_TZ, today_cn
 from app.models.kline import KlineDaily, KlineMinute
@@ -78,6 +79,81 @@ async def fetch_daily_bars(
     stmt = stmt.order_by(KlineDaily.trade_date.desc()).limit(limit)
     result = await session.execute(stmt)
     return list(result.scalars().all())
+
+
+async def fetch_daily_bars_multi(
+    session: AsyncSession,
+    codes: list[str],
+    end_date: date | None = None,
+    limit: int = 250,
+) -> dict[str, list[KlineDaily]]:
+    """批量读取多标的日 K（每标的各取倒序 limit 根），按代码分组的升序列表。
+
+    单次 IN + 窗口函数（row_number per stock_code）替代逐标的查询，
+    复用 `_daily_since` 时间下界触发 chunk 排除。
+    """
+    if not codes:
+        return {}
+    rn = (
+        func.row_number()
+        .over(
+            partition_by=KlineDaily.stock_code,
+            order_by=KlineDaily.trade_date.desc(),
+        )
+        .label("rn")
+    )
+    inner = (
+        select(KlineDaily)
+        .where(
+            KlineDaily.stock_code.in_(codes),
+            KlineDaily.trade_date >= _daily_since(end_date, limit),
+        )
+        .add_columns(rn)
+        .subquery()
+    )
+    daily = aliased(KlineDaily, inner)
+    stmt = (
+        select(daily)
+        .select_from(inner)
+        .where(inner.c.rn <= limit)
+        .order_by(daily.stock_code, daily.trade_date)
+    )
+    bars_by_code: dict[str, list[KlineDaily]] = {}
+    for row in (await session.execute(stmt)).scalars().all():
+        bars_by_code.setdefault(row.stock_code, []).append(row)
+    return bars_by_code
+
+
+async def list_daily_paginated(
+    session: AsyncSession,
+    stock_code: str,
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[KlineDaily], int]:
+    """按代码分页查询日 K（trade_date 倒序，总数与列表同条件）。"""
+    stmt = select(KlineDaily).where(KlineDaily.stock_code == stock_code)
+    count_stmt = (
+        select(func.count())
+        .select_from(KlineDaily)
+        .where(KlineDaily.stock_code == stock_code)
+    )
+    if start_date:
+        stmt = stmt.where(KlineDaily.trade_date >= start_date)
+        count_stmt = count_stmt.where(KlineDaily.trade_date >= start_date)
+    if end_date:
+        stmt = stmt.where(KlineDaily.trade_date <= end_date)
+        count_stmt = count_stmt.where(KlineDaily.trade_date <= end_date)
+    stmt = (
+        stmt.order_by(KlineDaily.trade_date.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    result = await session.execute(stmt)
+    total = (await session.scalar(count_stmt)) or 0
+    return list(result.scalars().all()), total
 
 
 async def fetch_aggregated_bars(

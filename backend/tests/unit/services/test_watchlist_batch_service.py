@@ -70,7 +70,7 @@ async def test_batch_add_creates_valid_and_flags_invalid(
         ),
     )
     _patch_groups(service)
-    service.repo.get_by_user_and_stock = AsyncMock(return_value=None)
+    service.repo.map_by_user_and_codes = AsyncMock(return_value={})
 
     created_rows: list[MagicMock] = []
 
@@ -102,8 +102,8 @@ async def test_batch_add_reports_duplicates(monkeypatch: pytest.MonkeyPatch) -> 
         ),
     )
     _patch_groups(service)
-    service.repo.get_by_user_and_stock = AsyncMock(
-        side_effect=lambda _uid, code: _make_item(code, group_id=7)
+    service.repo.map_by_user_and_codes = AsyncMock(
+        return_value={"600519": _make_item("600519", group_id=7)}
     )
 
     result = await service.batch_add_items(SimpleNamespace(id=1), _batch("600519"))
@@ -132,7 +132,7 @@ async def test_batch_add_skips_duplicates_within_request(
     )
     _patch_groups(service)
     _stub_item_repo_add(service)
-    service.repo.get_by_user_and_stock = AsyncMock(return_value=None)
+    service.repo.map_by_user_and_codes = AsyncMock(return_value={})
 
     result = await service.batch_add_items(SimpleNamespace(id=1), _batch("600519", "600519"))
 

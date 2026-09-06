@@ -6,10 +6,10 @@
 
 from datetime import date
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.capital_fund_flow_sector import SectorFundFlow
+from app.repositories.market import sector_fund_flow_repository
 from app.schemas.market import (
     LeadingSectorItem,
     SectorFlowItem,
@@ -31,11 +31,9 @@ async def get_sector_overview(
     """
     resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(session)
 
-    stmt = select(SectorFundFlow).where(
-        SectorFundFlow.sector_type == sector_type,
-        SectorFundFlow.trade_date == resolved,
+    rows = await sector_fund_flow_repository.list_by_type_and_date(
+        session, sector_type, resolved
     )
-    rows = list((await session.execute(stmt)).scalars().all())
 
     def _pct(row: SectorFundFlow) -> float:
         return float(row.change_pct) if row.change_pct is not None else 0.0

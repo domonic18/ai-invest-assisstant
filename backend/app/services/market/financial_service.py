@@ -4,12 +4,12 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.financial_balance_sheet import BalanceSheet
 from app.models.financial_cash_flow_statement import CashFlowStatement
 from app.models.financial_income_statement import IncomeStatement
+from app.repositories.market import financial_statement_repository
 from app.schemas.financial import (
     BalanceSheetResponse,
     CashFlowStatementResponse,
@@ -66,42 +66,15 @@ async def get_health(
     Returns:
         财务健康度响应对象。
     """
-    balance_stmt = (
-        select(BalanceSheet)
-        .where(BalanceSheet.stock_code == stock_code)
-        .order_by(BalanceSheet.report_date.desc())
-        .limit(1)
+    balance = await financial_statement_repository.get_statement(
+        session, BalanceSheet, stock_code, report_date
     )
-    income_stmt = (
-        select(IncomeStatement)
-        .where(IncomeStatement.stock_code == stock_code)
-        .order_by(IncomeStatement.report_date.desc())
-        .limit(1)
+    income = await financial_statement_repository.get_statement(
+        session, IncomeStatement, stock_code, report_date
     )
-    cash_stmt = (
-        select(CashFlowStatement)
-        .where(CashFlowStatement.stock_code == stock_code)
-        .order_by(CashFlowStatement.report_date.desc())
-        .limit(1)
+    cash = await financial_statement_repository.get_statement(
+        session, CashFlowStatement, stock_code, report_date
     )
-
-    if report_date:
-        balance_stmt = select(BalanceSheet).where(
-            BalanceSheet.stock_code == stock_code,
-            BalanceSheet.report_date == report_date,
-        )
-        income_stmt = select(IncomeStatement).where(
-            IncomeStatement.stock_code == stock_code,
-            IncomeStatement.report_date == report_date,
-        )
-        cash_stmt = select(CashFlowStatement).where(
-            CashFlowStatement.stock_code == stock_code,
-            CashFlowStatement.report_date == report_date,
-        )
-
-    balance = (await session.execute(balance_stmt)).scalar_one_or_none()
-    income = (await session.execute(income_stmt)).scalar_one_or_none()
-    cash = (await session.execute(cash_stmt)).scalar_one_or_none()
 
     latest_date: date | None = None
     for statement in (balance, income, cash):
@@ -136,28 +109,15 @@ async def get_health_history(
     Returns:
         按报告期升序排列的财务健康度响应列表。
     """
-    balance_stmt = (
-        select(BalanceSheet)
-        .where(BalanceSheet.stock_code == stock_code)
-        .order_by(BalanceSheet.report_date.desc())
-        .limit(limit)
+    balances = await financial_statement_repository.list_statements(
+        session, BalanceSheet, stock_code, limit
     )
-    income_stmt = (
-        select(IncomeStatement)
-        .where(IncomeStatement.stock_code == stock_code)
-        .order_by(IncomeStatement.report_date.desc())
-        .limit(limit)
+    incomes = await financial_statement_repository.list_statements(
+        session, IncomeStatement, stock_code, limit
     )
-    cash_stmt = (
-        select(CashFlowStatement)
-        .where(CashFlowStatement.stock_code == stock_code)
-        .order_by(CashFlowStatement.report_date.desc())
-        .limit(limit)
+    cash_flows = await financial_statement_repository.list_statements(
+        session, CashFlowStatement, stock_code, limit
     )
-
-    balances = (await session.execute(balance_stmt)).scalars().all()
-    incomes = (await session.execute(income_stmt)).scalars().all()
-    cash_flows = (await session.execute(cash_stmt)).scalars().all()
 
     by_date: dict[date, list[BalanceSheet | IncomeStatement | CashFlowStatement | None]] = {}
     for statement in balances:

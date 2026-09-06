@@ -158,29 +158,29 @@ class CollectorChannelConfigService:
             raise BadRequestError(f"未知的数据类型: {data_type}")
 
         channel_ids = {item.channel_id for item in items}
-        channels: dict[int, CollectorChannelConfig] = {}
-        for channel_id in channel_ids:
-            channel = await self.repo.get(channel_id)
-            if channel is None:
-                raise NotFoundError(f"渠道配置不存在: {channel_id}")
-            channels[channel_id] = channel
+        channels = await self.repo.map_by_ids(channel_ids)
+        missing = channel_ids - channels.keys()
+        if missing:
+            raise NotFoundError(f"渠道配置不存在: {sorted(missing)[0]}")
 
         affected_channel_ids = {
             assoc.channel_id
             for assoc in await self.data_type_repo.list_for_data_type(data_type)
         } | channel_ids
 
-        await self.data_type_repo.delete_for_data_type(data_type)
-        ordered = sorted(items, key=lambda item: item.priority)
-        for index, item in enumerate(ordered, start=1):
-            self.session.add(
-                CollectorChannelDataType(
-                    channel_id=item.channel_id,
-                    data_type=data_type,
-                    priority=index,
+        # 替换是全或无单元：SAVEPOINT 保证中途失败回滚到替换前，会话不被污染
+        async with self.session.begin_nested():
+            await self.data_type_repo.delete_for_data_type(data_type)
+            ordered = sorted(items, key=lambda item: item.priority)
+            for index, item in enumerate(ordered, start=1):
+                self.session.add(
+                    CollectorChannelDataType(
+                        channel_id=item.channel_id,
+                        data_type=data_type,
+                        priority=index,
+                    )
                 )
-            )
-        await self.session.flush()
+            await self.session.flush()
         await self._resync_jsonb_for_channels(affected_channel_ids)
         await self.session.commit()
         logger.info(
@@ -222,26 +222,30 @@ class CollectorChannelConfigService:
         for assoc in existing:
             if assoc.data_type not in desired:
                 await self.session.delete(assoc)
-        for data_type in sorted(desired - existing_types):
-            max_priority = await self.data_type_repo.max_priority(data_type)
-            self.session.add(
-                CollectorChannelDataType(
-                    channel_id=channel.id,
-                    data_type=data_type,
-                    priority=max_priority + 1,
+        new_types = sorted(desired - existing_types)
+        if new_types:
+            max_priorities = await self.data_type_repo.max_priorities(set(new_types))
+            for data_type in new_types:
+                self.session.add(
+                    CollectorChannelDataType(
+                        channel_id=channel.id,
+                        data_type=data_type,
+                        priority=max_priorities.get(data_type, 0) + 1,
+                    )
                 )
-            )
         await self.session.flush()
 
     async def _resync_jsonb_for_channels(self, channel_ids: set[int]) -> None:
         """用关联表重写每个渠道的 supported_data_types 冗余缓存。"""
-        for channel_id in channel_ids:
-            channel = await self.repo.get(channel_id)
-            if channel is None:
-                continue
-            associations = await self.data_type_repo.list_for_channel(channel_id)
+        if not channel_ids:
+            return
+        channels = await self.repo.map_by_ids(channel_ids)
+        assocs_by_channel: dict[int, list[CollectorChannelDataType]] = {}
+        for assoc in await self.data_type_repo.list_for_channels(channel_ids):
+            assocs_by_channel.setdefault(assoc.channel_id, []).append(assoc)
+        for channel_id, channel in channels.items():
             channel.supported_data_types = sorted(
-                assoc.data_type for assoc in associations
+                assoc.data_type for assoc in assocs_by_channel.get(channel_id, [])
             )
         await self.session.flush()
 

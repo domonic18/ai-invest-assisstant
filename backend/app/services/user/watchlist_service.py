@@ -197,6 +197,9 @@ class WatchlistService:
         response = WatchlistBatchResponse()
         pending: list[UserWatchlist] = []
         seen_in_request: set[str] = set()
+        existing_by_code = await self.repo.map_by_user_and_codes(
+            user.id, list(names_by_code)
+        )
         for item in data.items:
             if item.stock_code in seen_in_request:
                 continue
@@ -206,7 +209,7 @@ class WatchlistService:
                 response.invalid.append(item.stock_code)
                 continue
 
-            existing = await self.repo.get_by_user_and_stock(user.id, item.stock_code)
+            existing = existing_by_code.get(item.stock_code)
             if existing:
                 response.duplicated.append(
                     WatchlistBatchDuplicatedItem(
