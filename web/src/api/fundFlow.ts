@@ -11,7 +11,8 @@ export async function fetchSectorFundFlowTrend(
   days = 60,
 ): Promise<SectorFlowTrend> {
   const response = await apiClient.get<ApiSectorFlowTrendResponse>(
-    ENDPOINTS.fundFlow.sectorTrend(sectorType, days),
+    ENDPOINTS.fundFlow.sectorTrend,
+    { params: { sector_type: sectorType, days } },
   )
   return response.data
 }

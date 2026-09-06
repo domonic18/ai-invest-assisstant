@@ -191,8 +191,8 @@ export async function fetchIndexIntraday(
   tradeDate?: string,
 ): Promise<IndexIntraday> {
   const response = await apiClient.get<ApiIndexIntradayResponse>(
-    ENDPOINTS.market.indexIntraday(code),
-    { params: { trade_date: tradeDate } },
+    ENDPOINTS.market.indexIntraday,
+    { params: { code, trade_date: tradeDate } },
   )
   return mapIndexIntraday(response.data)
 }
@@ -203,8 +203,8 @@ export async function fetchIndexKline(
   limit = 250,
 ): Promise<IndexKline> {
   const response = await apiClient.get<ApiIndexKlineResponse>(
-    ENDPOINTS.market.indexKline(code),
-    { params: { period, limit } },
+    ENDPOINTS.market.indexKline,
+    { params: { code, period, limit } },
   )
   return mapIndexKline(response.data)
 }

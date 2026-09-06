@@ -1,10 +1,10 @@
 import { Spin } from 'antd'
-import axios from 'axios'
 
 import { IntradayChart } from '@/components/charts/IntradayChart'
 import { useIndexIntraday } from '@/hooks/useMarket'
 import { useColorScheme } from '@/stores/settings'
 import { changeHex, formatPercent } from '@/utils/formatters'
+import { apiErrorMessage } from '@/utils/errorMessage'
 
 interface IndexIntradayPanelProps {
   code: string
@@ -24,12 +24,9 @@ export function IndexIntradayPanel({ code, tradeDate }: IndexIntradayPanelProps)
   }
 
   if (error || !data) {
-    const detail = axios.isAxiosError(error)
-      ? (error.response?.data as { detail?: string } | undefined)?.detail
-      : null
     return (
       <div className="text-gray-500 text-sm py-8 text-center">
-        {detail ?? '暂无分时数据'}
+        {apiErrorMessage(error, '暂无分时数据')}
       </div>
     )
   }
