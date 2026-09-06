@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import CN_TZ, today_cn
+from app.core.exceptions import BadRequestError
 from app.repositories.market.kline_repository import (
     fetch_daily_bars,
     fetch_minute_bars,
@@ -31,7 +32,7 @@ async def get_stock_intraday(
     """获取个股分时数据（价格 + 成交量）。"""
     stock = await get_stock_by_code(session, stock_code)
     if stock is None:
-        raise ValueError(f"股票 {stock_code} 不存在")
+        raise BadRequestError(f"股票 {stock_code} 不存在")
 
     target = trade_date or await latest_minute_day(session, stock_code)
     if target is None:

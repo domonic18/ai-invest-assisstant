@@ -65,11 +65,11 @@ class LLMConfigService:
         rows = await self.repo.list_ordered()
         return [self._to_response(row) for row in rows]
 
-    async def get_config(self, config_id: int) -> LLMConfigResponse | None:
-        """按 ID 查询 LLM 配置。"""
+    async def get_config(self, config_id: int) -> LLMConfigResponse:
+        """按 ID 查询 LLM 配置，缺失时抛 LLMConfigNotFoundError。"""
         config = await self.repo.get(config_id)
         if not config:
-            return None
+            raise LLMConfigNotFoundError(f"LLM config {config_id} not found")
         return self._to_response(config)
 
     async def create_config(self, data: LLMConfigCreate) -> LLMConfigResponse:
@@ -99,11 +99,11 @@ class LLMConfigService:
 
     async def update_config(
         self, config_id: int, data: LLMConfigUpdate
-    ) -> LLMConfigResponse | None:
-        """更新已有配置。"""
+    ) -> LLMConfigResponse:
+        """更新已有配置，缺失时抛 LLMConfigNotFoundError。"""
         config = await self.repo.get(config_id)
         if not config:
-            return None
+            raise LLMConfigNotFoundError(f"LLM config {config_id} not found")
 
         if data.name is not None:
             config.name = data.name
@@ -132,7 +132,7 @@ class LLMConfigService:
         """删除配置，必要时重新指定默认模型。"""
         config = await self.repo.get(config_id)
         if not config:
-            raise ValueError(f"LLM config {config_id} not found")
+            raise LLMConfigNotFoundError(f"LLM config {config_id} not found")
         was_default = config.is_default
         await self.repo.delete(config)
         if was_default:
@@ -145,7 +145,7 @@ class LLMConfigService:
         """将某配置设为全局默认。"""
         config = await self.repo.get(config_id)
         if not config:
-            raise ValueError(f"LLM config {config_id} not found")
+            raise LLMConfigNotFoundError(f"LLM config {config_id} not found")
         await self.repo.clear_other_defaults(exclude_id=config_id)
         config.is_default = True
         config.is_active = True
@@ -158,7 +158,7 @@ class LLMConfigService:
         """测试连通性并持久化结果。"""
         config = await self.repo.get(config_id)
         if not config:
-            raise ValueError(f"LLM config {config_id} not found")
+            raise LLMConfigNotFoundError(f"LLM config {config_id} not found")
 
         api_key = decrypt_token(config.api_key_encrypted)
         test_status, detail = await self._call_model(config, api_key)

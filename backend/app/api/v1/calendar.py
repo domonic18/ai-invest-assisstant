@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_HISTORY_LIMIT, MAX_HISTORY_LIMIT
 from app.dependencies import get_db
 from app.schemas.calendar import CalendarEventResponse
 from app.services.market import calendar_service
@@ -32,7 +33,7 @@ async def list_calendar_events(
 @router.get("/events/upcoming", response_model=list[CalendarEventResponse])
 async def list_upcoming_calendar_events(
     session: Annotated[AsyncSession, Depends(get_db)],
-    limit: int = Query(10, ge=1, le=50),
+    limit: int = Query(DEFAULT_HISTORY_LIMIT, ge=1, le=MAX_HISTORY_LIMIT),
 ) -> list[CalendarEventResponse]:
     """查询即将发生的事件（临近度升序）。"""
     events = await calendar_service.list_upcoming(session, limit=limit)

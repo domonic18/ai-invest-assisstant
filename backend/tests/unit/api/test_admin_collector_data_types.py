@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.dependencies import get_current_admin_user, get_db
 from app.main import app
 from app.schemas.collector_channel_config import (
@@ -99,7 +100,7 @@ class TestAdminCollectorDataTypes:
     ) -> None:
         service = mock_service_cls.return_value
         service.replace_data_type_channels = AsyncMock(
-            side_effect=ValueError("未知的数据类型: bad-type")
+            side_effect=BadRequestError("未知的数据类型: bad-type")
         )
         client, _ = admin_client
 
@@ -118,7 +119,7 @@ class TestAdminCollectorDataTypes:
     ) -> None:
         service = mock_service_cls.return_value
         service.replace_data_type_channels = AsyncMock(
-            side_effect=LookupError("渠道配置不存在: 99")
+            side_effect=NotFoundError("渠道配置不存在: 99")
         )
         client, _ = admin_client
 

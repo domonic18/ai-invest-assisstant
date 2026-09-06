@@ -4,6 +4,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.security import get_password_hash
 from app.models.user import User
 from app.repositories.user.user_repository import UserRepository
@@ -30,16 +31,19 @@ class AdminUserService:
         total = await self.repo.count()
         return items, total
 
-    async def get_user(self, user_id: int) -> User | None:
-        """按 ID 查询用户。"""
-        return await self.repo.get(user_id)
+    async def get_user(self, user_id: int) -> User:
+        """按 ID 查询用户，缺失时抛 NotFoundError。"""
+        user = await self.repo.get(user_id)
+        if not user:
+            raise NotFoundError(f"User {user_id} not found")
+        return user
 
     async def create_user(self, data: AdminUserCreate) -> User:
         """创建新用户。"""
         if await self.repo.exists_by_username(data.username):
-            raise ValueError(f"Username {data.username} already exists")
+            raise BadRequestError(f"Username {data.username} already exists")
         if await self.repo.exists_by_email(data.email):
-            raise ValueError(f"Email {data.email} already exists")
+            raise BadRequestError(f"Email {data.email} already exists")
 
         user = User(
             username=data.username,
@@ -53,19 +57,17 @@ class AdminUserService:
         await self.repo.refresh(user)
         return user
 
-    async def update_user(self, user_id: int, data: AdminUserUpdate) -> User | None:
-        """更新用户信息。"""
-        user = await self.repo.get(user_id)
-        if not user:
-            return None
+    async def update_user(self, user_id: int, data: AdminUserUpdate) -> User:
+        """更新用户信息，缺失时抛 NotFoundError。"""
+        user = await self.get_user(user_id)
 
         if data.username is not None and data.username != user.username:
             if await self.repo.exists_by_username(data.username):
-                raise ValueError(f"Username {data.username} already exists")
+                raise BadRequestError(f"Username {data.username} already exists")
             user.username = data.username
         if data.email is not None and data.email != user.email:
             if await self.repo.exists_by_email(data.email):
-                raise ValueError(f"Email {data.email} already exists")
+                raise BadRequestError(f"Email {data.email} already exists")
             user.email = data.email
         if data.role is not None:
             user.role = data.role
@@ -77,18 +79,14 @@ class AdminUserService:
         return user
 
     async def delete_user(self, user_id: int) -> None:
-        """删除用户。"""
-        user = await self.repo.get(user_id)
-        if not user:
-            raise ValueError(f"User {user_id} not found")
+        """删除用户，缺失时抛 NotFoundError。"""
+        user = await self.get_user(user_id)
         await self.repo.delete(user)
         await self.session.commit()
 
-    async def reset_password(self, user_id: int, password: str) -> User | None:
-        """重置用户密码。"""
-        user = await self.repo.get(user_id)
-        if not user:
-            return None
+    async def reset_password(self, user_id: int, password: str) -> User:
+        """重置用户密码，缺失时抛 NotFoundError。"""
+        user = await self.get_user(user_id)
         user.password_hash = get_password_hash(password)
         await self.session.commit()
         await self.repo.refresh(user)

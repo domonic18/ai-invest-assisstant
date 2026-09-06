@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.ai_result import AdminAiResultDetail, AdminAiSkillInfo
 from app.schemas.stock import PaginatedResponse
@@ -30,8 +31,8 @@ async def list_ai_results(
     status_filter: str | None = Query(default=None, alias="status"),
     start_date: date | None = None,
     end_date: date | None = None,
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
+    page: int = Query(default=DEFAULT_PAGE, ge=1),
+    page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
 ) -> PaginatedResponse:
     """分页返回每个业务键最新一条生成记录的元信息。"""
     items, total = await AdminAiResultService(session).list_results(

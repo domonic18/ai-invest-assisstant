@@ -8,9 +8,9 @@ from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestError
 from app.schemas.market import CollectTaskResult
 from app.services.market import trade_calendar_service
+from app.services.market.trade_calendar_service import NonTradingDayError
 
 _BACKFILL_TASKS = (
     "limit-up-pool",
@@ -19,10 +19,6 @@ _BACKFILL_TASKS = (
     "market-amount",
     "sector-fund-flow",
 )
-
-
-class NonTradingDayError(BadRequestError):
-    """指定日期不是交易日。"""
 
 
 async def backfill_trade_date(

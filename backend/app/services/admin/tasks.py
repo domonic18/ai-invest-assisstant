@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError
 from app.models.collector_task import CollectorTask
 from app.repositories.admin.collector_task_repository import CollectorTaskRepository
 from app.schemas.collector_task import CollectorTaskCreate, CollectorTaskUpdate
@@ -24,9 +25,12 @@ class AdminTaskService:
         offset = (page - 1) * page_size
         return await self.repo.list_paginated(offset=offset, limit=page_size)
 
-    async def get_task(self, task_id: int) -> CollectorTask | None:
-        """按 ID 查询采集任务。"""
-        return await self.repo.get(task_id)
+    async def get_task(self, task_id: int) -> CollectorTask:
+        """按 ID 查询采集任务，缺失时抛 NotFoundError。"""
+        task = await self.repo.get(task_id)
+        if not task:
+            raise NotFoundError(f"Task {task_id} not found")
+        return task
 
     async def create_task(self, data: CollectorTaskCreate) -> CollectorTask:
         """创建采集任务。"""
@@ -43,13 +47,9 @@ class AdminTaskService:
         await self.repo.refresh(task)
         return task
 
-    async def update_task(
-        self, task_id: int, data: CollectorTaskUpdate
-    ) -> CollectorTask | None:
-        """更新采集任务。"""
-        task = await self.repo.get(task_id)
-        if not task:
-            return None
+    async def update_task(self, task_id: int, data: CollectorTaskUpdate) -> CollectorTask:
+        """更新采集任务，缺失时抛 NotFoundError。"""
+        task = await self.get_task(task_id)
 
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(task, field, value)
@@ -61,37 +61,43 @@ class AdminTaskService:
 
     async def delete_task(self, task_id: int) -> None:
         """删除采集任务。"""
-        task = await self.repo.get(task_id)
-        if not task:
-            raise ValueError(f"Task {task_id} not found")
+        task = await self.get_task(task_id)
         await self.repo.delete(task)
         await self.session.commit()
 
-    async def pause_task(self, task_id: int) -> CollectorTask | None:
+    async def pause_task(self, task_id: int) -> CollectorTask:
         """暂停采集任务。"""
         return await self._set_active(task_id, False)
 
-    async def resume_task(self, task_id: int) -> CollectorTask | None:
+    async def resume_task(self, task_id: int) -> CollectorTask:
         """恢复采集任务。"""
         return await self._set_active(task_id, True)
 
-    async def trigger_task(self, task_id: int) -> CollectorTask | None:
-        """触发采集任务，更新最后运行时间。"""
-        task = await self.repo.get(task_id)
-        if not task:
-            return None
+    async def trigger_task(self, task_id: int) -> CollectorTask:
+        """触发采集任务：置 running 并派发到采集器队列。
+
+        dispatcher 内部会 commit，必须在状态提交之后调用；延迟导入
+        collector.runtime 避免环导入。
+        """
+        task = await self.get_task(task_id)
         task.last_run_at = datetime.now(timezone.utc)
         task.last_status = "running"
         task.updated_at = datetime.now(timezone.utc)
         await self.session.commit()
         await self.repo.refresh(task)
+
+        from collector.runtime.dispatcher import dispatch_collector_task
+
+        await dispatch_collector_task(
+            session=self.session,
+            task_name=task.task_type,
+            params={"preferred_source": task.source},
+        )
         return task
 
-    async def _set_active(self, task_id: int, active: bool) -> CollectorTask | None:
+    async def _set_active(self, task_id: int, active: bool) -> CollectorTask:
         """启用或停用任务。"""
-        task = await self.repo.get(task_id)
-        if not task:
-            return None
+        task = await self.get_task(task_id)
         task.is_active = active
         task.updated_at = datetime.now(timezone.utc)
         await self.session.commit()

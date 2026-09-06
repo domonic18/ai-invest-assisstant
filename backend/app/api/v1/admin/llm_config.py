@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_db
@@ -34,10 +34,7 @@ async def create_llm_config(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> LLMConfigResponse:
     """创建新的 LLM 配置。"""
-    try:
-        return await LLMConfigService(session).create_config(data)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return await LLMConfigService(session).create_config(data)
 
 
 @router.get("/{config_id}", response_model=LLMConfigResponse)
@@ -46,10 +43,7 @@ async def get_llm_config(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> LLMConfigResponse:
     """获取单条 LLM 配置。"""
-    config = await LLMConfigService(session).get_config(config_id)
-    if not config:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="LLM config not found")
-    return config
+    return await LLMConfigService(session).get_config(config_id)
 
 
 @router.put("/{config_id}", response_model=LLMConfigResponse)
@@ -59,10 +53,7 @@ async def update_llm_config(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> LLMConfigResponse:
     """更新 LLM 配置。"""
-    result = await LLMConfigService(session).update_config(config_id, data)
-    if not result:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="LLM config not found")
-    return result
+    return await LLMConfigService(session).update_config(config_id, data)
 
 
 @router.delete("/{config_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -71,10 +62,7 @@ async def delete_llm_config(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     """删除 LLM 配置。"""
-    try:
-        await LLMConfigService(session).delete_config(config_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    await LLMConfigService(session).delete_config(config_id)
 
 
 @router.post("/{config_id}/set-default", response_model=LLMConfigResponse)
@@ -83,10 +71,7 @@ async def set_default_llm_config(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> LLMConfigResponse:
     """将某条 LLM 配置设为全局默认。"""
-    try:
-        return await LLMConfigService(session).set_default_config(config_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return await LLMConfigService(session).set_default_config(config_id)
 
 
 @router.post("/{config_id}/test", response_model=LLMConfigTestResponse)
@@ -95,7 +80,4 @@ async def test_llm_config(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> LLMConfigTestResponse:
     """测试 LLM 配置的连通性。"""
-    try:
-        return await LLMConfigService(session).test_config_connection(config_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return await LLMConfigService(session).test_config_connection(config_id)

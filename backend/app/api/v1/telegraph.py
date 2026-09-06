@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.dependencies import get_db
 from app.schemas.stock import PaginatedResponse
 from app.schemas.telegraph import TelegraphResponse
@@ -16,8 +17,8 @@ router = APIRouter()
 @router.get("", response_model=PaginatedResponse)
 async def list_telegraph(
     session: Annotated[AsyncSession, Depends(get_db)],
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page: int = Query(DEFAULT_PAGE, ge=1),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
     category: str | None = Query(None, description="分类精确筛选"),
     min_importance: int | None = Query(None, ge=1, description="重要度下限"),
 ) -> PaginatedResponse:

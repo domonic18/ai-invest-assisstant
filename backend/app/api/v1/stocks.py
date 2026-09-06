@@ -3,9 +3,10 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.stock import (
@@ -46,10 +47,7 @@ async def get_stock(
     """获取股票基础信息。"""
     item = await stock_service.get_stock_by_code(session, code, market)
     if item is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Stock not found",
-        )
+        raise NotFoundError("Stock not found")
     return StockBasicResponse.model_validate(item)
 
 
@@ -61,10 +59,7 @@ async def get_stock_quote(
     """获取个股实时行情快照（Redis 优先，缺失时回退日 K）。"""
     data = await stock_service.get_stock_quote(session, code)
     if data is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Stock quote not found",
-        )
+        raise NotFoundError("Stock quote not found")
     return StockQuoteResponse.model_validate(data)
 
 
@@ -76,13 +71,7 @@ async def get_stock_kline(
     limit: int = Query(default=250, ge=1, le=500),
 ) -> StockKlineResponse:
     """获取个股日/周/月 K 线。"""
-    try:
-        data = await stock_service.get_stock_kline(session, code, period, limit)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
+    data = await stock_service.get_stock_kline(session, code, period, limit)
     return StockKlineResponse.model_validate(data)
 
 
@@ -93,13 +82,7 @@ async def get_stock_intraday(
     trade_date: date | None = None,
 ) -> StockIntradayResponse:
     """获取个股分时数据。"""
-    try:
-        data = await stock_service.get_stock_intraday(session, code, trade_date)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
+    data = await stock_service.get_stock_intraday(session, code, trade_date)
     return StockIntradayResponse.model_validate(data)
 
 
@@ -111,10 +94,7 @@ async def get_stock_sectors(
     """获取个股所属行业与概念。"""
     data = await stock_service.get_stock_sectors(session, code)
     if data is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Stock not found",
-        )
+        raise NotFoundError("Stock not found")
     return StockSectorsResponse.model_validate(data)
 
 

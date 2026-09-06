@@ -3,9 +3,10 @@
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError
 from app.dependencies import get_db
 from app.schemas.file_metadata import (
     FinancialReportCollectLogResponse,
@@ -71,19 +72,13 @@ async def collect_financial_report(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> FinancialReportCollectResponse:
     """触发单只股票的财报采集（异步执行，用 collect-logs 轮询进度）。"""
-    try:
-        log = await financial_report_service.trigger_collect(
-            session,
-            stock_code=body.stock_code,
-            report_types=body.report_types,
-            start_date=body.start_date,
-            end_date=body.end_date,
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    log = await financial_report_service.trigger_collect(
+        session,
+        stock_code=body.stock_code,
+        report_types=body.report_types,
+        start_date=body.start_date,
+        end_date=body.end_date,
+    )
     return FinancialReportCollectResponse(log_id=log.id, status=log.status)
 
 
@@ -97,10 +92,7 @@ async def get_collect_log(
     """查询财报采集任务进度。"""
     log = await financial_report_service.get_collect_log(session, log_id)
     if log is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Collect log not found",
-        )
+        raise NotFoundError("Collect log not found")
     return FinancialReportCollectLogResponse(
         log_id=log.id,
         status=log.status,
@@ -118,10 +110,7 @@ async def get_financial_report(
     """获取单篇财报详情。"""
     report = await financial_report_service.get_report(session, report_id)
     if report is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Financial report not found",
-        )
+        raise NotFoundError("Financial report not found")
     names = await financial_report_service.get_stock_names(session, [report])
     return financial_report_service.to_report_response(
         report, names.get(report.stock_code or "")
@@ -134,18 +123,9 @@ async def get_financial_report_pdf_url(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, str]:
     """返回财报 PDF 的预签名下载地址；无已存文件时 404。"""
-    try:
-        url = await financial_report_service.get_pdf_url(session, report_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    url = await financial_report_service.get_pdf_url(session, report_id)
     if url is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Financial report PDF not available",
-        )
+        raise NotFoundError("Financial report PDF not available")
     return {"url": url}
 
 

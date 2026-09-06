@@ -8,6 +8,7 @@ import structlog
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import BadRequestError
 from app.repositories.market.stock_repository import StockRepository
 from app.schemas.user import WatchlistScreenshotRecognitionItem
 
@@ -17,7 +18,7 @@ ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp"}
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 
 
-class ScreenshotValidationError(ValueError):
+class ScreenshotValidationError(BadRequestError):
     """截图不满足识别要求（类型/大小）。"""
 
 

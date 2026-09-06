@@ -46,7 +46,7 @@ class TestThreadEndpoints:
             AsyncMock(return_value=row),
         ):
             response = client.post("/api/v1/assistant/threads", json={})
-        assert response.status_code == 200
+        assert response.status_code == 201
         body = response.json()
         assert body["thread_id"] == str(row.id)
         assert body["metadata"]["user_id"] == 1
@@ -201,7 +201,7 @@ class TestRunStream:
                 AsyncMock(return_value=agent),
             ),
             patch(
-                "app.api.v1.assistant.runs.touch_session_standalone",
+                "app.api.v1.assistant.runs.finalize_run",
                 AsyncMock(return_value=None),
             ),
         ):

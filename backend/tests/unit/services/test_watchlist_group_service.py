@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.schemas.user import (
     WatchlistGroupCreate,
     WatchlistGroupUpdate,
@@ -86,7 +87,7 @@ class TestGroupCrud:
             get_by_name=AsyncMock(return_value=_make_group(7)),
         )
 
-        with pytest.raises(ValueError, match="already exists"):
+        with pytest.raises(BadRequestError, match="already exists"):
             await service.create_group(1, WatchlistGroupCreate(name="科技"))
 
         session.commit.assert_not_awaited()
@@ -130,7 +131,7 @@ class TestGroupCrud:
         default_group = _make_group(7, name="默认分组", is_default=True)
         _patch_repo(service, get_by_user_and_id=AsyncMock(return_value=default_group))
 
-        with pytest.raises(ValueError, match="Default group"):
+        with pytest.raises(BadRequestError, match="Default group"):
             await service.update_group(1, 7, WatchlistGroupUpdate(name="改名"))
 
     @pytest.mark.asyncio
@@ -161,7 +162,7 @@ class TestGroupCrud:
         default_group = _make_group(7, name="默认分组", is_default=True)
         _patch_repo(service, get_by_user_and_id=AsyncMock(return_value=default_group))
 
-        with pytest.raises(ValueError, match="Default group"):
+        with pytest.raises(BadRequestError, match="Default group"):
             await service.delete_group(1, 7)
 
     @pytest.mark.asyncio
@@ -173,7 +174,7 @@ class TestGroupCrud:
             list_by_user=AsyncMock(return_value=[_make_group(7), _make_group(8)]),
         )
 
-        with pytest.raises(ValueError, match="does not match"):
+        with pytest.raises(BadRequestError, match="does not match"):
             await service.reorder_groups(1, [7])
 
     @pytest.mark.asyncio
@@ -196,7 +197,12 @@ class TestGroupCrud:
 @pytest.mark.unit
 class TestItems:
     @pytest.mark.asyncio
-    async def test_add_item_defaults_to_default_group(self) -> None:
+    async def test_add_item_defaults_to_default_group(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "collector.runtime.dispatcher.dispatch_collector_task", AsyncMock()
+        )
         session = _make_session()
         service = WatchlistService(session)
         default_group = _make_group(7, name="默认分组", is_default=True)
@@ -221,7 +227,7 @@ class TestItems:
         user = MagicMock()
         user.id = 1
 
-        with pytest.raises(ValueError, match="Group not found"):
+        with pytest.raises(BadRequestError, match="Group not found"):
             await service.add_watchlist_item(
                 user, WatchlistItemCreate(stock_code="600519", group_id=999)
             )
@@ -236,7 +242,7 @@ class TestItems:
         session.get = AsyncMock(return_value=item)
         _patch_repo(service, get_by_user_and_id=AsyncMock(return_value=None))
 
-        with pytest.raises(ValueError, match="Target group not found"):
+        with pytest.raises(BadRequestError, match="Target group not found"):
             await service.move_watchlist_item(1, 99, 999)
 
     @pytest.mark.asyncio
@@ -259,5 +265,5 @@ class TestItems:
         service = WatchlistService(session)
         session.get = AsyncMock(return_value=None)
 
-        with pytest.raises(LookupError):
+        with pytest.raises(NotFoundError):
             await service.remove_watchlist_item(1, 99)

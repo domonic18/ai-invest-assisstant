@@ -3,11 +3,12 @@
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
+from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.security import decode_access_token
 from app.models.user import User
 
@@ -33,11 +34,7 @@ async def get_current_user(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
     """通过 JWT 获取当前用户。"""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    credentials_exception = UnauthorizedError("Could not validate credentials")
 
     payload = decode_access_token(token)
     if payload is None:
@@ -59,8 +56,5 @@ async def get_current_admin_user(
 ) -> User:
     """通过 JWT 获取当前管理员用户。"""
     if user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
-        )
+        raise ForbiddenError("Admin access required")
     return user

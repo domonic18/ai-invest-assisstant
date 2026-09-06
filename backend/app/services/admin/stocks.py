@@ -4,6 +4,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError
 from app.models.stock import StockBasic
 from app.repositories.market.stock_repository import StockRepository
 from app.schemas.stock import AdminStockCreate, AdminStockUpdate
@@ -23,9 +24,12 @@ class AdminStockService:
         offset = (page - 1) * page_size
         return await self.repo.search(q=q, offset=offset, limit=page_size)
 
-    async def get_stock(self, stock_id: int) -> StockBasic | None:
-        """按 ID 查询股票基础信息。"""
-        return await self.repo.get(stock_id)
+    async def get_stock(self, stock_id: int) -> StockBasic:
+        """按 ID 查询股票基础信息，缺失时抛 NotFoundError。"""
+        stock = await self.repo.get(stock_id)
+        if not stock:
+            raise NotFoundError(f"Stock {stock_id} not found")
+        return stock
 
     async def create_stock(self, data: AdminStockCreate) -> StockBasic:
         """创建股票基础信息。"""
@@ -43,13 +47,9 @@ class AdminStockService:
         await self.repo.refresh(stock)
         return stock
 
-    async def update_stock(
-        self, stock_id: int, data: AdminStockUpdate
-    ) -> StockBasic | None:
-        """更新股票基础信息。"""
-        stock = await self.repo.get(stock_id)
-        if not stock:
-            return None
+    async def update_stock(self, stock_id: int, data: AdminStockUpdate) -> StockBasic:
+        """更新股票基础信息，缺失时抛 NotFoundError。"""
+        stock = await self.get_stock(stock_id)
 
         if data.stock_name is not None:
             stock.stock_name = data.stock_name
@@ -70,9 +70,7 @@ class AdminStockService:
 
     async def delete_stock(self, stock_id: int) -> None:
         """删除股票基础信息。"""
-        stock = await self.repo.get(stock_id)
-        if not stock:
-            raise ValueError(f"Stock {stock_id} not found")
+        stock = await self.get_stock(stock_id)
         await self.repo.delete(stock)
         await self.session.commit()
 

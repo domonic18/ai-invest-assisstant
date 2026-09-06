@@ -112,7 +112,12 @@ async def request_validation_handler(
         exc.errors(),
         body[:500],
     )
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    # 错误体单一形状：detail 为字符串，与 AppError handler 一致
+    detail = "; ".join(
+        f"{'.'.join(str(loc) for loc in error['loc'])}: {error['msg']}"
+        for error in exc.errors()
+    )
+    return JSONResponse(status_code=422, content={"detail": detail})
 
 
 @app.exception_handler(AppError)
