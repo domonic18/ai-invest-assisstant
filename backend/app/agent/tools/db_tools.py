@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
+import structlog
 from sqlalchemy import Date, or_, select
 from sqlalchemy import cast as sa_cast
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +15,8 @@ from app.models.kline import KlineDaily
 from app.models.news_announcement import NewsAnnouncement
 from app.models.stock import StockBasic
 from app.utils.numeric import safe_divide
+
+logger = structlog.get_logger(__name__)
 
 
 async def query_industry_companies(
@@ -259,7 +262,7 @@ async def search_vector_kb(
                 for hit in hits
             ]
     except Exception:  # noqa: BLE001
-        pass
+        logger.warning("vector_kb_search_failed_fallback_news", exc_info=True)
 
     rows = await search_news(session, query, days=90, limit=limit, doc_types=["research"])
     return [

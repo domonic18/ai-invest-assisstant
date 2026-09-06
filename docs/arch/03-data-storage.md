@@ -122,7 +122,7 @@
 
 | 表 | 说明 |
 |----|------|
-| `users` | 用户（首个注册用户自动晋升 admin） |
+| `users` | 用户（注册一律 user 角色，管理员经 bootstrap_admin 显式提权） |
 | `user_settings` | 用户级设置（涨跌配色方案 / K 线均线 MA 列表） |
 | `watchlist` | 自选股 |
 | `assistant_session` | AI 助手会话（LangChain Agent Protocol 线程/运行持久化） |

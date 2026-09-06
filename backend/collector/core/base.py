@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from app.core.clock import utc_now
 from collector.core.config import database_url
 from collector.core.exporters import PostgresExporter
 from collector.core.pipelines import (
@@ -52,7 +53,7 @@ class CollectResult:
     items_collected: int = 0
     items_stored: int = 0
     errors: list[str] = field(default_factory=list)
-    started_at: datetime = field(default_factory=datetime.utcnow)
+    started_at: datetime = field(default_factory=utc_now)
     finished_at: datetime | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 

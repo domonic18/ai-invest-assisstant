@@ -1,19 +1,16 @@
 """用户自选股与分组的 SQLAlchemy ORM 模型。"""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import ARRAY, BigInteger, Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.clock import utc_now
 from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.user import User
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 class UserWatchlistGroup(Base):
@@ -28,7 +25,7 @@ class UserWatchlistGroup(Base):
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     ai_review_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, nullable=False
+        DateTime(timezone=True), default=utc_now, nullable=False
     )
 
     user: Mapped["User"] = relationship("User")
@@ -52,7 +49,7 @@ class UserWatchlist(Base):
         BigInteger, ForeignKey("user_watchlist_group.id"), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, nullable=False
+        DateTime(timezone=True), default=utc_now, nullable=False
     )
 
     user: Mapped["User"] = relationship("User", back_populates="watchlist")

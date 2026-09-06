@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.clock import utc_now
 from app.core.database import Base
 
 
@@ -19,5 +20,5 @@ class MappingStockConcept(Base):
     concept_name: Mapped[str] = mapped_column(String(100), nullable=False)
     source: Mapped[str] = mapped_column(String(50), default="ths", nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        default=datetime.utcnow, nullable=False
+        default=utc_now, nullable=False
     )

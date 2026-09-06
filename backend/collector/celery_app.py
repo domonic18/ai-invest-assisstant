@@ -39,18 +39,21 @@ QUEUE_DEFAULTS: dict[str, dict[str, Any]] = {
         "hard_time_limit": 120,
         "max_retries": 3,
         "retry_backoff": 30,
+        "retry_backoff_max": 300,
     },
     CollectorQueue.BATCH: {
         "soft_time_limit": 300,
         "hard_time_limit": 600,
         "max_retries": 3,
         "retry_backoff": 60,
+        "retry_backoff_max": 600,
     },
     CollectorQueue.HEAVY: {
         "soft_time_limit": 1800,
         "hard_time_limit": 3600,
         "max_retries": 2,
         "retry_backoff": 300,
+        "retry_backoff_max": 1800,
     },
 }
 
@@ -80,9 +83,6 @@ def make_celery_app() -> Celery:
 
 
 app = make_celery_app()
-# 显式导入任务模块，使 ``run_collector_task`` 得以注册——
-# 本文件名为 ``celery_tasks.py`` 而非 ``tasks.py``。
-import collector.celery_tasks  # noqa: F401, E402
 
 
 def resolve_queue(task_name: str, preferred_source: str | None = None) -> str:
@@ -110,9 +110,10 @@ def resolve_task_options(
 ) -> dict[str, Any]:
     """返回任务的 Celery ``apply_async`` 选项。
 
-    选项包括 ``queue``、``soft_time_limit``、``max_retries`` 与
-    ``retry_backoff``。TaskSpec 覆盖值优先于队列默认值；显式 ``queue_override``
-    （如来自 ``CollectorTask.queue``）优先于一切。
+    选项包括 ``queue``、``soft_time_limit``、``hard_time_limit``、
+    ``max_retries``、``retry_backoff`` 与 ``retry_backoff_max``。TaskSpec
+    覆盖值优先于队列默认值；显式 ``queue_override``（如来自
+    ``CollectorTask.queue``）优先于一切。
     """
     queue = queue_override or resolve_queue(task_name, preferred_source)
     if queue is not None and not queue.startswith("collector."):
@@ -124,6 +125,10 @@ def resolve_task_options(
         spec.soft_time_limit if spec is not None and spec.soft_time_limit is not None
         else defaults["soft_time_limit"]
     )
+    hard_time_limit = (
+        spec.hard_time_limit if spec is not None and spec.hard_time_limit is not None
+        else defaults["hard_time_limit"]
+    )
     max_retries = (
         spec.max_retries if spec is not None and spec.max_retries is not None
         else defaults["max_retries"]
@@ -132,9 +137,10 @@ def resolve_task_options(
     return {
         "queue": queue,
         "soft_time_limit": soft_time_limit,
+        "hard_time_limit": hard_time_limit,
         "max_retries": max_retries,
         "retry_backoff": defaults["retry_backoff"],
-        "retry_backoff_max": defaults["hard_time_limit"],
+        "retry_backoff_max": defaults["retry_backoff_max"],
     }
 
 
@@ -214,3 +220,9 @@ def _shutdown_worker_process(**kwargs: Any) -> None:  # noqa: ARG001
         asyncio.run(dispose_engine())
     except Exception:  # noqa: BLE001
         pass
+
+
+# 显式导入任务模块，使 ``run_collector_task`` 得以注册——
+# 本文件名为 ``celery_tasks.py`` 而非 ``tasks.py``，autodiscover 不会加载它。
+# 置于模块末尾：celery_tasks 顶层反向导入本模块的 resolve_task_options。
+import collector.celery_tasks  # noqa: E402, F401

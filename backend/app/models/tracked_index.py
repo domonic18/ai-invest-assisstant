@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.clock import utc_now
 from app.core.database import Base
 
 
@@ -21,8 +22,8 @@ class TrackedIndexConfig(Base):
     sort_order: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=utc_now, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )

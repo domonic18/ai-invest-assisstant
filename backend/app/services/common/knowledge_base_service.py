@@ -4,9 +4,12 @@ import asyncio
 from datetime import date, datetime, timezone
 from typing import Any
 
+import structlog
 from elasticsearch import AsyncElasticsearch
 
 from app.core.config import get_settings
+
+logger = structlog.get_logger(__name__)
 
 DEFAULT_INDEX = "kb-documents"
 
@@ -14,7 +17,8 @@ DEFAULT_INDEX = "kb-documents"
 def _extract_pdf_text(data: bytes) -> str | None:
     """尽力从 PDF 提取文本。
 
-    需要安装 ``pypdf``；未安装时返回 ``None``，调用方可退化为仅索引元数据。
+    需要安装 ``pypdf``；未安装或解析失败时返回 ``None``，
+    调用方可退化为仅索引元数据。
     """
     try:
         from io import BytesIO
@@ -28,7 +32,11 @@ def _extract_pdf_text(data: bytes) -> str | None:
             if text:
                 parts.append(text)
         return "\n".join(parts) if parts else None
+    except ImportError:
+        logger.debug("pypdf_not_installed_skip_pdf_text")
+        return None
     except Exception:  # noqa: BLE001
+        logger.warning("pdf_text_extract_failed", exc_info=True)
         return None
 
 
@@ -102,6 +110,12 @@ class KnowledgeBaseService:
             await client.index(index=self.index_name, id=doc_id, document=body)
             return True
         except Exception:  # noqa: BLE001
+            logger.warning(
+                "kb_index_document_failed",
+                doc_id=doc_id,
+                index=self.index_name,
+                exc_info=True,
+            )
             return False
 
     async def extract_text(self, data: bytes, file_type: str) -> str | None:

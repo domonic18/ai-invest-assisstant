@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.clock import utc_now
 from app.core.database import Base
 
 
@@ -28,8 +29,8 @@ class CollectorTask(Base):
     )
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=utc_now, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=utc_now, nullable=False
     )

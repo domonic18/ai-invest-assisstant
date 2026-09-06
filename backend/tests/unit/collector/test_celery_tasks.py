@@ -133,20 +133,57 @@ class TestRunCollectorTask:
         mock_update.assert_awaited_once()
 
     @patch("collector.celery_tasks.run_task", new_callable=AsyncMock)
-    def test_soft_timeout_marks_log_failed(self, mock_run_task: AsyncMock) -> None:
+    def test_soft_timeout_below_max_retries_schedules_retry(self, mock_run_task: AsyncMock) -> None:
+        """软超时先按队列退避策略重试，不写终态日志。"""
         mock_run_task.side_effect = SoftTimeLimitExceeded()
 
         task = run_collector_task
         task.push_request(id="celery-id", retries=0)
 
+        retry_kwargs: dict = {}
+
+        def _fake_retry(**kwargs: object) -> None:
+            retry_kwargs.update(kwargs)
+            raise Retry()
+
+        with (
+            patch.object(run_collector_task, "retry", side_effect=_fake_retry),
+            patch("collector.celery_tasks._mark_log_timeout", new=AsyncMock()) as mock_timeout,
+            patch(
+                "collector.celery_tasks._update_task_schedule_state", new=AsyncMock()
+            ) as mock_update,
+        ):
+            with pytest.raises(Retry):
+                task.run({"task": "quote", "log_id": 7})
+
+        task.pop_request()
+
+        # quote → realtime 队列：backoff 30s / 最多 3 次。
+        assert retry_kwargs["countdown"] == 30
+        assert retry_kwargs["max_retries"] == 3
+        assert isinstance(retry_kwargs["exc"], SoftTimeLimitExceeded)
+        mock_timeout.assert_not_awaited()
+        mock_update.assert_awaited_once()
+
+    @patch("collector.celery_tasks.run_task", new_callable=AsyncMock)
+    def test_soft_timeout_exhausted_marks_log_failed(self, mock_run_task: AsyncMock) -> None:
+        """重试耗尽后软超时走终态：标记日志失败并向上抛出（进入死信）。"""
+        mock_run_task.side_effect = SoftTimeLimitExceeded()
+
+        task = run_collector_task
+        task.push_request(id="celery-id", retries=3)
+
         with patch("collector.celery_tasks._mark_log_timeout", new=AsyncMock()) as mock_timeout:
-            with patch("collector.celery_tasks._update_task_schedule_state", new=AsyncMock()):
+            with patch(
+                "collector.celery_tasks._update_task_schedule_state", new=AsyncMock()
+            ) as mock_update:
                 with pytest.raises(SoftTimeLimitExceeded):
                     task.run({"task": "quote", "log_id": 7})
 
         task.pop_request()
 
         mock_timeout.assert_awaited_once_with(7)
+        mock_update.assert_awaited_once()
 
     @patch("collector.celery_tasks.run_task", new_callable=AsyncMock)
     def test_not_ready_error_schedules_retry(self, mock_run_task: AsyncMock) -> None:
