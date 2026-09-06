@@ -1,10 +1,7 @@
 """Pydantic schemas 模块。"""
 
 from app.schemas.auth import AuthResponse, RegisterRequest, TokenPayload
-from app.schemas.capital_fund_flow_sector import (
-    HotspotListRequest,
-    SectorFundFlowResponse,
-)
+from app.schemas.capital_fund_flow_sector import SectorFundFlowResponse
 from app.schemas.chain import (
     ChainAlertItem,
     ChainAlertResponse,
@@ -119,7 +116,6 @@ __all__ = [
     "ResearchReportDetailResponse",
     "ResearchReportListRequest",
     "SectorFundFlowResponse",
-    "HotspotListRequest",
     "FinancialHealthResponse",
     "FinancialHealthRequest",
     "FileMetadataCreate",
