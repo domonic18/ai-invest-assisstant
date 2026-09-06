@@ -1,18 +1,19 @@
 """认证相关的 Pydantic schemas。"""
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import EmailStr, Field
 
+from app.schemas.base import CamelModel
 from app.schemas.user import UserResponse
 
 
-class TokenPayload(BaseModel):
+class TokenPayload(CamelModel):
     """JWT payload。"""
 
     sub: str | None = None
     role: str | None = None
 
 
-class RegisterRequest(BaseModel):
+class RegisterRequest(CamelModel):
     """用户注册请求。"""
 
     username: str = Field(..., min_length=3, max_length=50)
@@ -20,7 +21,7 @@ class RegisterRequest(BaseModel):
     password: str = Field(..., min_length=6, max_length=128)
 
 
-class AuthResponse(BaseModel):
+class AuthResponse(CamelModel):
     """认证响应。"""
 
     access_token: str

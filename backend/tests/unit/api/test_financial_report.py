@@ -1,7 +1,8 @@
 """财务报告 API 端点契约测试。"""
 
 from datetime import date, datetime
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -10,20 +11,20 @@ from app.core.exceptions import NotFoundError
 
 @pytest.mark.unit
 class TestFinancialReportEndpoints:
-    def _report_mock(self, report_id: int = 1) -> MagicMock:
-        report = MagicMock()
-        report.id = report_id
-        report.stock_code = "000001"
-        report.original_name = "2025年年度报告"
-        report.title = None
-        report.stock_name = None
-        report.file_type = "financial_report"
-        report.report_type = "annual"
-        report.report_date = date(2026, 3, 15)
-        report.file_size = 2_400_000
-        report.summary = "summary"
-        report.created_at = datetime(2026, 3, 15, 0, 0, 0)
-        return report
+    def _report_mock(self, report_id: int = 1) -> SimpleNamespace:
+        return SimpleNamespace(
+            id=report_id,
+            stock_code="000001",
+            original_name="2025年年度报告",
+            title=None,
+            stock_name=None,
+            file_type="financial_report",
+            report_type="annual",
+            report_date=date(2026, 3, 15),
+            file_size=2_400_000,
+            summary="summary",
+            created_at=datetime(2026, 3, 15, 0, 0, 0),
+        )
 
     @patch("app.api.v1.financial_report.financial_report_service.get_stock_names")
     @patch("app.api.v1.financial_report.financial_report_service.list_reports")
@@ -37,11 +38,11 @@ class TestFinancialReportEndpoints:
         data = response.json()
         assert data["total"] == 1
         item = data["items"][0]
-        assert item["stock_code"] == "000001"
-        assert item["stock_name"] == "平安银行"
+        assert item["stockCode"] == "000001"
+        assert item["stockName"] == "平安银行"
         assert item["title"] == "2025年年度报告"
-        assert item["report_type"] == "annual"
-        assert item["has_summary"] is True
+        assert item["reportType"] == "annual"
+        assert item["hasSummary"] is True
         kwargs = mock_list.await_args.kwargs
         assert kwargs["report_type"] == "annual"
 
@@ -70,7 +71,7 @@ class TestFinancialReportEndpoints:
         assert response.status_code == 200
         body = response.json()
         assert body["title"] == "2025年年度报告"
-        assert body["stock_name"] == "平安银行"
+        assert body["stockName"] == "平安银行"
 
     @patch("app.api.v1.financial_report.financial_report_service.get_report")
     def test_get_financial_report_not_found(self, mock_get, client) -> None:
@@ -100,16 +101,14 @@ class TestFinancialReportEndpoints:
 
     @patch("app.api.v1.financial_report.financial_report_service.trigger_collect")
     def test_collect_financial_report(self, mock_trigger, client) -> None:
-        log = MagicMock()
-        log.id = 42
-        log.status = "pending"
+        log = SimpleNamespace(id=42, status="pending")
         mock_trigger.return_value = log
         response = client.post(
             "/api/v1/financial-reports/collect",
-            json={"stock_code": "002156", "report_types": ["annual"]},
+            json={"stockCode": "002156", "reportTypes": ["annual"]},
         )
         assert response.status_code == 200
-        assert response.json() == {"log_id": 42, "status": "pending"}
+        assert response.json() == {"logId": 42, "status": "pending"}
         kwargs = mock_trigger.await_args.kwargs
         assert kwargs["stock_code"] == "002156"
         assert kwargs["report_types"] == ["annual"]
@@ -127,18 +126,19 @@ class TestFinancialReportEndpoints:
 
     @patch("app.api.v1.financial_report.financial_report_service.get_collect_log")
     def test_collect_log_status(self, mock_get_log, client) -> None:
-        log = MagicMock()
-        log.id = 42
-        log.status = "success"
-        log.records_count = 3
-        log.error_msg = None
-        log.finished_at = datetime(2026, 7, 25, 8, 0, 0)
+        log = SimpleNamespace(
+            id=42,
+            status="success",
+            records_count=3,
+            error_msg=None,
+            finished_at=datetime(2026, 7, 25, 8, 0, 0),
+        )
         mock_get_log.return_value = log
         response = client.get("/api/v1/financial-reports/collect-logs/42")
         assert response.status_code == 200
         body = response.json()
         assert body["status"] == "success"
-        assert body["records_count"] == 3
+        assert body["recordsCount"] == 3
 
     @patch("app.api.v1.financial_report.financial_report_service.get_collect_log")
     def test_collect_log_not_found(self, mock_get_log, client) -> None:

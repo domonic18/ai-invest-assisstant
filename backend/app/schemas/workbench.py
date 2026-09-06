@@ -3,8 +3,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel
-
+from app.schemas.base import CamelModel
 from app.schemas.calendar import CalendarEventResponse
 from app.schemas.market import (
     GlobalIndexQuoteResponse,
@@ -23,7 +22,7 @@ class WorkbenchWatchlistStock(WatchlistQuoteItem):
     ai_summary: str | None = None
 
 
-class WorkbenchWatchlistGroup(BaseModel):
+class WorkbenchWatchlistGroup(CamelModel):
     """工作台自选股概览的分组容器。"""
 
     id: int
@@ -33,7 +32,7 @@ class WorkbenchWatchlistGroup(BaseModel):
     items: list[WorkbenchWatchlistStock] = []
 
 
-class SectorFlowItem(BaseModel):
+class SectorFlowItem(CamelModel):
     """板块资金动向卡单行：最新交易日主力净流入排行（金额单位亿元）。"""
 
     sector_name: str
@@ -42,14 +41,14 @@ class SectorFlowItem(BaseModel):
     top_stock_name: str | None = None
 
 
-class ReviewDayStatus(BaseModel):
+class ReviewDayStatus(CamelModel):
     """近段交易日单日复盘生成结果。"""
 
     trade_date: date
     status: Literal["success", "failed", "pending"]
 
 
-class ReviewStatusResponse(BaseModel):
+class ReviewStatusResponse(CamelModel):
     """复盘状态卡数据：做没做 / 何时做 / 做得怎样（正文不在工作台展示）。"""
 
     status: Literal["done", "pending", "failed"]
@@ -63,7 +62,7 @@ class ReviewStatusResponse(BaseModel):
     recent_days: list[ReviewDayStatus] = []
 
 
-class CollectorRunItem(BaseModel):
+class CollectorRunItem(CamelModel):
     """采集引擎最近一条运行记录。"""
 
     task_name: str
@@ -76,7 +75,7 @@ class CollectorRunItem(BaseModel):
     records_count: int | None = None
 
 
-class CollectorUpcomingItem(BaseModel):
+class CollectorUpcomingItem(CamelModel):
     """采集引擎未来计划中的一次运行。"""
 
     run_at: datetime
@@ -85,7 +84,7 @@ class CollectorUpcomingItem(BaseModel):
     source: str | None = None
 
 
-class CollectorStatusResponse(BaseModel):
+class CollectorStatusResponse(CamelModel):
     """采集引擎状态卡数据：是否在跑 / 接下来半天跑什么 / 最近跑得怎样。"""
 
     is_running: bool = False
@@ -94,7 +93,7 @@ class CollectorStatusResponse(BaseModel):
     upcoming: list[CollectorUpcomingItem] = []
 
 
-class WorkbenchResponse(BaseModel):
+class WorkbenchResponse(CamelModel):
     """工作台聚合数据；单模块降级时对应字段为空态而非整体报错。"""
 
     calendar: list[CalendarEventResponse] = []

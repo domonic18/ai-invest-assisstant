@@ -2,29 +2,30 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
 
 @pytest.mark.unit
 class TestHotspotEndpoints:
-    def _sector_mock(self) -> MagicMock:
-        sector = MagicMock()
-        sector.sector_code = "BK01"
-        sector.sector_name = "银行"
-        sector.sector_type = "industry"
-        sector.trade_date = date(2024, 1, 1)
-        sector.change_pct = Decimal("1.5")
-        sector.main_net_inflow = Decimal("1000000")
-        sector.super_large_net = Decimal("500000")
-        sector.large_net = Decimal("300000")
-        sector.medium_net = Decimal("200000")
-        sector.small_net = Decimal("0")
-        sector.top_stock_code = "000001"
-        sector.top_stock_name = "平安银行"
-        sector.created_at = datetime(2024, 1, 1, 0, 0, 0)
-        return sector
+    def _sector_mock(self) -> SimpleNamespace:
+        return SimpleNamespace(
+            sector_code="BK01",
+            sector_name="银行",
+            sector_type="industry",
+            trade_date=date(2024, 1, 1),
+            change_pct=Decimal("1.5"),
+            main_net_inflow=Decimal("1000000"),
+            super_large_net=Decimal("500000"),
+            large_net=Decimal("300000"),
+            medium_net=Decimal("200000"),
+            small_net=Decimal("0"),
+            top_stock_code="000001",
+            top_stock_name="平安银行",
+            created_at=datetime(2024, 1, 1, 0, 0, 0),
+        )
 
     @patch("app.api.v1.hotspot.hotspot_service.list_sectors")
     def test_list_hotspots(self, mock_list, client) -> None:
@@ -33,7 +34,7 @@ class TestHotspotEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 1
-        assert data["items"][0]["sector_name"] == "银行"
+        assert data["items"][0]["sectorName"] == "银行"
 
     @patch("app.api.v1.hotspot.hotspot_service.list_sectors")
     def test_amount_fields_serialize_as_numbers(self, mock_list, client) -> None:
@@ -41,7 +42,7 @@ class TestHotspotEndpoints:
         mock_list.return_value = ([self._sector_mock()], 1)
         response = client.get("/api/v1/hotspot/")
         item = response.json()["items"][0]
-        for field in ("change_pct", "main_net_inflow", "super_large_net"):
+        for field in ("changePct", "mainNetInflow", "superLargeNet"):
             assert isinstance(item[field], (int, float)), f"{field} 应为 number"
 
     @patch("app.api.v1.hotspot.hotspot_service.list_sectors")

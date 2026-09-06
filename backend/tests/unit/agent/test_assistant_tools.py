@@ -35,6 +35,7 @@ from app.agent.tools import (
 from app.agent.tools import (
     stock_tools as st,
 )
+from app.schemas.auction import IndexAuctionSeries, IndexAuctionTrendResponse
 from app.schemas.capital_fund_flow_sector import (
     SectorFlowSeries,
     SectorFlowTrendResponse,
@@ -44,10 +45,6 @@ from app.schemas.market import (
     CollectTaskResult,
     IndexQuoteResponse,
     MarketStatsResponse,
-)
-from app.schemas.stock import (
-    IndexAuctionSeries,
-    IndexAuctionTrendResponse,
 )
 
 

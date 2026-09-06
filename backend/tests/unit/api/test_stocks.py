@@ -41,7 +41,7 @@ class TestStocksEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
-        assert data[0]["stock_code"] == "000001"
+        assert data[0]["stockCode"] == "000001"
 
     def test_get_stock_not_found(self, client) -> None:
         with patch("app.api.v1.stocks.stock_service.get_stock_by_code", return_value=None):
@@ -96,7 +96,7 @@ class TestStockAiAnalysisEndpoint:
         body = resp.json()
         assert body["status"] == "none"
         assert body["data"] is None
-        assert body["trade_date"] == "2026-09-01"
+        assert body["tradeDate"] == "2026-09-01"
         _, kwargs = get_mock.await_args
         assert kwargs["trade_date"] == date(2026, 9, 1)
 
@@ -160,10 +160,10 @@ class TestStockAiAnalysisEndpoint:
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "ready"
-        assert body["trade_date"] == "2026-08-29"
-        assert body["data"]["stock_code"] == "600519"
-        assert body["data"]["stock_name"] == "贵州茅台"
-        assert body["data"]["trade_date"] == "2026-08-29"
+        assert body["tradeDate"] == "2026-08-29"
+        assert body["data"]["stockCode"] == "600519"
+        assert body["data"]["stockName"] == "贵州茅台"
+        assert body["data"]["tradeDate"] == "2026-08-29"
         assert body["data"]["model"] == "openai/gpt-4o"
         assert body["data"]["cached"] is True
         assert body["data"]["sections"][0]["key"] == "intraday_review"
@@ -207,8 +207,8 @@ class TestStockAiAnalysisEndpoint:
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "ready"
-        assert body["trade_date"] == "2026-09-04"
-        assert body["data"]["trade_date"] == "2026-09-04"
+        assert body["tradeDate"] == "2026-09-04"
+        assert body["data"]["tradeDate"] == "2026-09-04"
         _, kwargs = get_mock.await_args
         assert kwargs["trade_date"] == date(2026, 9, 4)
 
