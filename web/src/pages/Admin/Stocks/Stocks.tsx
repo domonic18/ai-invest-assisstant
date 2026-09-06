@@ -74,13 +74,13 @@ export function AdminStocks() {
 
   const handleSubmit = async (values: StockFormValues) => {
     const payload = {
-      stock_code: values.stockCode,
-      stock_name: values.stockName,
+      stockCode: values.stockCode,
+      stockName: values.stockName,
       market: values.market,
-      industry_level_1: values.industryL1,
-      industry_level_2: values.industryL2,
-      industry_level_3: values.industryL3,
-      listing_date: values.listingDate
+      industryLevel1: values.industryL1,
+      industryLevel2: values.industryL2,
+      industryLevel3: values.industryL3,
+      listingDate: values.listingDate
         ? values.listingDate.format('YYYY-MM-DD')
         : undefined,
     }

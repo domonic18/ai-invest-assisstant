@@ -25,15 +25,15 @@ export interface FinancialReportParams {
 function mapFinancialReport(dto: ApiFinancialReportResponse): FinancialReport {
   return {
     id: dto.id,
-    stockCode: dto.stock_code,
-    stockName: dto.stock_name,
+    stockCode: dto.stockCode,
+    stockName: dto.stockName,
     title: dto.title,
-    reportType: dto.report_type,
-    reportDate: dto.report_date,
-    fileSize: dto.file_size,
+    reportType: dto.reportType,
+    reportDate: dto.reportDate,
+    fileSize: dto.fileSize,
     summary: dto.summary,
-    hasSummary: dto.has_summary,
-    createdAt: dto.created_at,
+    hasSummary: dto.hasSummary,
+    createdAt: dto.createdAt,
   }
 }
 

@@ -84,7 +84,7 @@ export function AdminUsers() {
             username: values.username,
             email: values.email,
             role: values.role,
-            is_active: values.isActive,
+            isActive: values.isActive,
           },
         })
         message.success('用户已更新')
@@ -94,7 +94,7 @@ export function AdminUsers() {
           email: values.email,
           password: values.password || '',
           role: values.role,
-          is_active: values.isActive,
+          isActive: values.isActive,
         })
         message.success('用户已创建')
       }

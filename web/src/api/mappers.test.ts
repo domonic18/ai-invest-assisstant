@@ -37,9 +37,9 @@ describe('mappers', () => {
       username: 'tester',
       email: 'test@example.com',
       role: 'admin',
-      is_active: true,
-      last_login_at: null,
-      created_at: '2024-01-01T00:00:00Z',
+      isActive: true,
+      lastLoginAt: null,
+      createdAt: '2024-01-01T00:00:00Z',
     }
     const user = mapUser(dto)
     expect(user.id).toBe('1')
@@ -48,16 +48,16 @@ describe('mappers', () => {
 
   it('maps auth response', () => {
     const dto: ApiAuthResponse = {
-      access_token: 'token',
-      token_type: 'bearer',
+      accessToken: 'token',
+      tokenType: 'bearer',
       user: {
         id: 1,
         username: 'tester',
         email: 'test@example.com',
         role: 'user',
-        is_active: true,
-        last_login_at: null,
-        created_at: '2024-01-01T00:00:00Z',
+        isActive: true,
+        lastLoginAt: null,
+        createdAt: '2024-01-01T00:00:00Z',
       },
     }
     const result = mapAuthResponse(dto)
@@ -67,16 +67,16 @@ describe('mappers', () => {
 
   it('maps stock', () => {
     const dto: ApiStockBasicResponse = {
-      stock_code: '000001',
-      stock_name: '平安银行',
+      stockCode: '000001',
+      stockName: '平安银行',
       market: 'sz',
-      full_name: '平安银行股份有限公司',
-      industry_level_1: '金融',
-      industry_level_2: '银行',
-      industry_level_3: '股份制银行',
-      listing_date: '1991-04-03',
-      total_shares: null,
-      circulating_shares: null,
+      fullName: '平安银行股份有限公司',
+      industryLevel1: '金融',
+      industryLevel2: '银行',
+      industryLevel3: '股份制银行',
+      listingDate: '1991-04-03',
+      totalShares: null,
+      circulatingShares: null,
     }
     const stock = mapStock(dto)
     expect(stock.code).toBe('000001')
@@ -86,7 +86,7 @@ describe('mappers', () => {
 
   it('maps kline data', () => {
     const dto: ApiKlineDataResponse = {
-      trade_date: '2024-01-01',
+      tradeDate: '2024-01-01',
       open: 10,
       high: 11,
       low: 9,
@@ -94,8 +94,8 @@ describe('mappers', () => {
       volume: 1000,
       amount: 10000,
       amplitude: 5,
-      change_pct: 2,
-      turnover_rate: 1.5,
+      changePct: 2,
+      turnoverRate: 1.5,
     }
     const item = mapKlineData(dto)
     expect(item.date).toBe('2024-01-01')
@@ -105,10 +105,10 @@ describe('mappers', () => {
   it('maps watchlist item', () => {
     const dto: ApiWatchlistItemResponse = {
       id: 1,
-      stock_code: '000001',
+      stockCode: '000001',
       tags: ['金融'],
-      group_id: 7,
-      created_at: '2024-01-01T00:00:00Z',
+      groupId: 7,
+      createdAt: '2024-01-01T00:00:00Z',
     }
     const item = mapWatchlistItem(dto)
     expect(item.id).toBe('1')
@@ -216,17 +216,17 @@ describe('mappers', () => {
       id: 1,
       name: 'OpenAI GPT-4o',
       provider: 'openai',
-      base_url: 'https://api.openai.com/v1',
-      model_name: 'gpt-4o',
-      api_key_masked: 'sk-te************************st',
-      is_default: true,
-      is_active: true,
+      baseUrl: 'https://api.openai.com/v1',
+      modelName: 'gpt-4o',
+      apiKeyMasked: 'sk-te************************st',
+      isDefault: true,
+      isActive: true,
       extra: {},
-      last_tested_at: '2024-01-01T00:00:00Z',
-      last_test_status: 'success',
-      last_test_error: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
+      lastTestedAt: '2024-01-01T00:00:00Z',
+      lastTestStatus: 'success',
+      lastTestError: null,
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
     }
     const result = mapLLMConfig(dto)
     expect(result.id).toBe(1)
@@ -238,13 +238,13 @@ describe('mappers', () => {
   it('maps collector log', () => {
     const dto: ApiCollectorLogResponse = {
       id: 1,
-      task_name: 'kline',
+      taskName: 'kline',
       source: 'sina',
       status: 'success',
-      started_at: '2024-01-01T00:00:00Z',
-      finished_at: '2024-01-01T00:01:00Z',
-      records_count: 100,
-      error_msg: null,
+      startedAt: '2024-01-01T00:00:00Z',
+      finishedAt: '2024-01-01T00:01:00Z',
+      recordsCount: 100,
+      errorMsg: null,
       metadata: {},
     }
     const result = mapCollectorLog(dto)
@@ -255,9 +255,9 @@ describe('mappers', () => {
 
   it('maps admin ai skill info', () => {
     const dto: ApiAdminAiSkillInfo = {
-      skill_id: 'market-daily-review',
+      skillId: 'market-daily-review',
       label: '大盘每日复盘',
-      event_type: 'market_daily_review.complete',
+      eventType: 'market_daily_review.complete',
     }
     const skill = mapAdminAiSkill(dto)
     expect(skill.skillId).toBe('market-daily-review')
@@ -268,14 +268,14 @@ describe('mappers', () => {
   it('maps admin ai result item and detail', () => {
     const dto: ApiAdminAiResultItem = {
       id: 7,
-      skill_id: 'market-daily-review',
-      key_fields: [{ name: 'trade_date', label: '交易日', value: '2026-09-04' }],
+      skillId: 'market-daily-review',
+      keyFields: [{ name: 'trade_date', label: '交易日', value: '2026-09-04' }],
       model: 'anthropic/kimi',
-      latency_ms: 59000,
+      latencyMs: 59000,
       status: 'success',
-      created_at: '2026-09-05T08:00:00Z',
-      history_count: 3,
-      regenerate_prompt: '请重新生成 2026-09-04 的大盘每日复盘',
+      createdAt: '2026-09-05T08:00:00Z',
+      historyCount: 3,
+      regeneratePrompt: '请重新生成 2026-09-04 的大盘每日复盘',
     }
     const item = mapAdminAiResult(dto)
     expect(item.id).toBe(7)
@@ -287,11 +287,11 @@ describe('mappers', () => {
 
     const detailDto: ApiAdminAiResultDetail = {
       ...dto,
-      error_msg: null,
-      structured_output: { trade_date: '2026-09-04', sections: {} },
+      errorMsg: null,
+      structuredOutput: { tradeDate: '2026-09-04', sections: {} },
     }
     const detail = mapAdminAiResultDetail(detailDto)
     expect(detail.errorMsg).toBeNull()
-    expect(detail.structuredOutput).toEqual({ trade_date: '2026-09-04', sections: {} })
+    expect(detail.structuredOutput).toEqual({ tradeDate: '2026-09-04', sections: {} })
   })
 })

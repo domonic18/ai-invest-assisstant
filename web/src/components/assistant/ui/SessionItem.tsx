@@ -13,8 +13,8 @@ interface SessionItemProps {
 
 export function SessionItem({ session, isActive, onClick, onDelete }: SessionItemProps) {
   const title = session.title?.trim() || '新会话'
-  const updatedAt = session.updated_at
-    ? dayjs(session.updated_at).format('MM-DD HH:mm')
+  const updatedAt = session.updatedAt
+    ? dayjs(session.updatedAt).format('MM-DD HH:mm')
     : null
 
   return (

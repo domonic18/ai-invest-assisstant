@@ -56,22 +56,22 @@ export function TrackedIndex() {
         await updateMutation.mutateAsync({
           id: editing.id,
           data: {
-            index_name: values.indexName,
-            market_category: values.marketCategory,
-            data_source: values.dataSource,
-            sort_order: values.sortOrder,
-            is_enabled: values.isEnabled,
+            indexName: values.indexName,
+            marketCategory: values.marketCategory,
+            dataSource: values.dataSource,
+            sortOrder: values.sortOrder,
+            isEnabled: values.isEnabled,
           },
         })
         message.success('配置已更新')
       } else {
         await createMutation.mutateAsync({
-          index_code: values.indexCode,
-          index_name: values.indexName,
-          market_category: values.marketCategory,
-          data_source: values.dataSource,
-          sort_order: values.sortOrder,
-          is_enabled: values.isEnabled,
+          indexCode: values.indexCode,
+          indexName: values.indexName,
+          marketCategory: values.marketCategory,
+          dataSource: values.dataSource,
+          sortOrder: values.sortOrder,
+          isEnabled: values.isEnabled,
         })
         message.success('配置已创建')
       }

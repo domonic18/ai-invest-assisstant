@@ -75,11 +75,11 @@ export function LLMConfig() {
           data: {
             name: values.name,
             provider: values.provider,
-            base_url: values.baseUrl,
-            model_name: values.modelName,
-            api_key: values.apiKey || undefined,
-            is_default: values.isDefault,
-            is_active: values.isActive,
+            baseUrl: values.baseUrl,
+            modelName: values.modelName,
+            apiKey: values.apiKey || undefined,
+            isDefault: values.isDefault,
+            isActive: values.isActive,
             extra: {
               ...editing.extra,
               capabilities: { ...getCapabilities(editing), vision: values.vision === true },
@@ -91,11 +91,11 @@ export function LLMConfig() {
         await createMutation.mutateAsync({
           name: values.name,
           provider: values.provider,
-          base_url: values.baseUrl,
-          model_name: values.modelName,
-          api_key: values.apiKey,
-          is_default: values.isDefault,
-          is_active: values.isActive,
+          baseUrl: values.baseUrl,
+          modelName: values.modelName,
+          apiKey: values.apiKey,
+          isDefault: values.isDefault,
+          isActive: values.isActive,
           extra: { capabilities: { vision: values.vision === true } },
         })
         message.success('配置已创建')

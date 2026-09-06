@@ -139,7 +139,7 @@ export function ScreenshotImportModal({ open, groups, onClose }: ScreenshotImpor
     try {
       const trimmed = newGroupName.trim()
       const res = await batchAddWatchlist({
-        items: selected.map((item) => ({ stock_code: item.stockCode })),
+        items: selected.map((item) => ({ stockCode: item.stockCode })),
         groupId: trimmed ? undefined : groupId,
         newGroupName: trimmed || undefined,
       })

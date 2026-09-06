@@ -5,11 +5,11 @@ import { API_BASE } from '@ai-invest/shared'
 import { apiClient } from './client'
 
 export interface AssistantSessionItem {
-  thread_id: string
+  threadId: string
   title: string | null
-  last_message_at: string | null
-  created_at: string
-  updated_at: string
+  lastMessageAt: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export interface SessionListResponse {

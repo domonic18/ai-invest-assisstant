@@ -24,53 +24,53 @@ import type {
 
 const calendarDto: ApiCalendarEventResponse = {
   id: 1,
-  event_time: '2026-09-04T10:00:00+08:00',
-  end_time: null,
+  eventTime: '2026-09-04T10:00:00+08:00',
+  endTime: null,
   title: '美联储议息会议',
   category: '央行动态',
-  impact_markets: ['美股'],
+  impactMarkets: ['美股'],
   source: '官方日程',
-  source_url: null,
-  related_symbols: null,
+  sourceUrl: null,
+  relatedSymbols: null,
 }
 
 const reviewDto: ApiMarketReviewResponse = {
-  trade_date: '2026-09-02',
+  tradeDate: '2026-09-02',
   sections: [{ key: 'overview', title: '大盘综述', content: '**缩量反弹**' }],
   model: 'kimi',
-  generated_at: '2026-09-02T16:00:00+08:00',
+  generatedAt: '2026-09-02T16:00:00+08:00',
   cached: true,
   edited: false,
 }
 
 const telegraphDto: ApiTelegraphResponse = {
-  cls_msg_id: 99,
+  clsMsgId: 99,
   title: '央行开展逆回购',
   content: '操作量 3000 亿元',
   category: '宏观',
   importance: 3,
   shared: 12,
-  stock_codes: null,
-  publish_time: '2026-09-03T09:30:00+08:00',
+  stockCodes: null,
+  publishTime: '2026-09-03T09:30:00+08:00',
 }
 
 const watchlistGroupDto: ApiWorkbenchWatchlistGroup = {
   id: 1,
   name: '核心持仓',
-  is_default: false,
-  ai_review_enabled: true,
+  isDefault: false,
+  aiReviewEnabled: true,
   items: [
     {
       code: '600519',
       name: '贵州茅台',
       price: 1500.5,
-      change_pct: 1.2,
+      changePct: 1.2,
       amount: 3500000000,
       tags: [],
-      updated_at: '2026-09-03T15:00:00+08:00',
+      updatedAt: '2026-09-03T15:00:00+08:00',
       trend: [1495, 1500.5],
-      ai_status: 'ready',
-      ai_summary: '沿 MA5 上行，持仓为主',
+      aiStatus: 'ready',
+      aiSummary: '沿 MA5 上行，持仓为主',
     },
   ],
 }
@@ -80,36 +80,36 @@ const indexDto: ApiIndexQuoteResponse = {
   name: '上证指数',
   price: 3250.5,
   change: 12.3,
-  change_pct: 0.38,
+  changePct: 0.38,
   amount: 320000000000,
   trend: [3240, 3250.5],
 }
 
 const statsDto: ApiMarketStatsResponse = {
-  trade_date: '2026-09-02',
+  tradeDate: '2026-09-02',
   amount: 1500000000000,
-  prev_amount: null,
-  amount_change: null,
-  amount_change_pct: null,
-  up_count: 3200,
-  down_count: 1800,
-  flat_count: 200,
-  limit_up_count: 65,
-  limit_down_count: 3,
-  broken_limit_count: 12,
-  emotion_score: 55,
-  emotion_label: '温和',
-  limit_up_ratio: null,
-  continuous_rate: null,
-  broken_rate: null,
+  prevAmount: null,
+  amountChange: null,
+  amountChangePct: null,
+  upCount: 3200,
+  downCount: 1800,
+  flatCount: 200,
+  limitUpCount: 65,
+  limitDownCount: 3,
+  brokenLimitCount: 12,
+  emotionScore: 55,
+  emotionLabel: '温和',
+  limitUpRatio: null,
+  continuousRate: null,
+  brokenRate: null,
 }
 
 const globalDto: ApiGlobalIndexQuoteResponse = {
-  index_code: 'XAU',
-  index_name: '伦敦金',
+  indexCode: 'XAU',
+  indexName: '伦敦金',
   close: 2650.4,
-  change_pct: -0.52,
-  trade_date: '2026-09-02',
+  changePct: -0.52,
+  tradeDate: '2026-09-02',
 }
 
 describe('mapGlobalIndexQuote', () => {
@@ -125,7 +125,7 @@ describe('mapGlobalIndexQuote', () => {
   })
 
   it('keeps null metrics as null', () => {
-    const quote = mapGlobalIndexQuote({ ...globalDto, close: null, change_pct: null, trade_date: null })
+    const quote = mapGlobalIndexQuote({ ...globalDto, close: null, changePct: null, tradeDate: null })
     expect(quote.close).toBeNull()
     expect(quote.changePct).toBeNull()
     expect(quote.tradeDate).toBeNull()
@@ -133,10 +133,10 @@ describe('mapGlobalIndexQuote', () => {
 })
 
 const sectorFlowDto: ApiWorkbenchSectorFlowItem = {
-  sector_name: '半导体',
-  change_pct: 2.35,
-  main_net_inflow: 48.6,
-  top_stock_name: '中芯国际',
+  sectorName: '半导体',
+  changePct: 2.35,
+  mainNetInflow: 48.6,
+  topStockName: '中芯国际',
 }
 
 describe('mapSectorFlowItem', () => {
@@ -151,10 +151,10 @@ describe('mapSectorFlowItem', () => {
 
   it('keeps null metrics as null', () => {
     const item = mapSectorFlowItem({
-      sector_name: '银行',
-      change_pct: null,
-      main_net_inflow: null,
-      top_stock_name: null,
+      sectorName: '银行',
+      changePct: null,
+      mainNetInflow: null,
+      topStockName: null,
     })
     expect(item.changePct).toBeNull()
     expect(item.mainNetInflow).toBeNull()
@@ -164,17 +164,17 @@ describe('mapSectorFlowItem', () => {
 
 const reviewStatusDto: ApiReviewStatus = {
   status: 'done',
-  trade_date: '2026-09-04',
-  generated_at: '2026-09-04T08:32:00+00:00',
-  duration_seconds: 134,
-  planned_time: '16:30',
-  next_run_at: '2026-09-07T08:30:00+00:00',
-  streak_days: 3,
-  month_success_rate: 96.4,
-  recent_days: [
-    { trade_date: '2026-09-04', status: 'success' },
-    { trade_date: '2026-09-03', status: 'failed' },
-    { trade_date: '2026-09-02', status: 'pending' },
+  tradeDate: '2026-09-04',
+  generatedAt: '2026-09-04T08:32:00+00:00',
+  durationSeconds: 134,
+  plannedTime: '16:30',
+  nextRunAt: '2026-09-07T08:30:00+00:00',
+  streakDays: 3,
+  monthSuccessRate: 96.4,
+  recentDays: [
+    { tradeDate: '2026-09-04', status: 'success' },
+    { tradeDate: '2026-09-03', status: 'failed' },
+    { tradeDate: '2026-09-02', status: 'pending' },
   ],
 }
 
@@ -192,34 +192,34 @@ describe('mapReviewStatus', () => {
 })
 
 const collectorStatusDto: ApiCollectorEngineStatus = {
-  is_running: true,
+  isRunning: true,
   running: {
-    task_name: 'sina_quote',
-    task_label: '实时行情',
+    taskName: 'sina_quote',
+    taskLabel: '实时行情',
     source: 'sina',
     status: 'running',
-    started_at: '2026-09-04T06:59:00+00:00',
-    finished_at: null,
-    duration_seconds: null,
-    records_count: null,
+    startedAt: '2026-09-04T06:59:00+00:00',
+    finishedAt: null,
+    durationSeconds: null,
+    recordsCount: null,
   },
-  recent_runs: [
+  recentRuns: [
     {
-      task_name: 'market-breadth',
-      task_label: '涨跌统计',
+      taskName: 'market-breadth',
+      taskLabel: '涨跌统计',
       source: 'sina',
       status: 'SUCCESS',
-      started_at: '2026-09-04T07:55:00+00:00',
-      finished_at: '2026-09-04T07:55:32+00:00',
-      duration_seconds: 32,
-      records_count: 1240,
+      startedAt: '2026-09-04T07:55:00+00:00',
+      finishedAt: '2026-09-04T07:55:32+00:00',
+      durationSeconds: 32,
+      recordsCount: 1240,
     },
   ],
   upcoming: [
     {
-      run_at: '2026-09-04T08:00:00+00:00',
-      task_name: 'eastmoney_limit_up_pool',
-      task_label: '涨停股池',
+      runAt: '2026-09-04T08:00:00+00:00',
+      taskName: 'eastmoney_limit_up_pool',
+      taskLabel: '涨停股池',
       source: 'eastmoney',
     },
   ],
@@ -237,9 +237,9 @@ describe('mapCollectorStatus', () => {
 
   it('keeps null running as null', () => {
     const status = mapCollectorStatus({
-      is_running: false,
+      isRunning: false,
       running: null,
-      recent_runs: [],
+      recentRuns: [],
       upcoming: [],
     })
     expect(status.running).toBeNull()
@@ -252,14 +252,14 @@ describe('mapWorkbench', () => {
     const dto: ApiWorkbenchResponse = {
       calendar: [calendarDto],
       review: reviewDto,
-      review_status: reviewStatusDto,
+      reviewStatus: reviewStatusDto,
       telegraph: [telegraphDto],
-      watchlist_groups: [watchlistGroupDto],
+      watchlistGroups: [watchlistGroupDto],
       indices: [indexDto],
       stats: statsDto,
-      global_indices: [globalDto],
-      sector_flow: [sectorFlowDto],
-      collector_status: collectorStatusDto,
+      globalIndices: [globalDto],
+      sectorFlow: [sectorFlowDto],
+      collectorStatus: collectorStatusDto,
     }
 
     const overview = mapWorkbench(dto)
@@ -288,14 +288,14 @@ describe('mapWorkbench', () => {
     const dto: ApiWorkbenchResponse = {
       calendar: [],
       review: null,
-      review_status: null,
+      reviewStatus: null,
       telegraph: [],
-      watchlist_groups: [],
+      watchlistGroups: [],
       indices: [],
       stats: null,
-      global_indices: [],
-      sector_flow: [],
-      collector_status: null,
+      globalIndices: [],
+      sectorFlow: [],
+      collectorStatus: null,
     }
 
     const overview = mapWorkbench(dto)
