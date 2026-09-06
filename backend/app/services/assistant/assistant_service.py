@@ -9,11 +9,11 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models.assistant_session import AssistantSession
+from app.repositories.assistant.session_repository import AssistantSessionRepository
 from app.schemas.assistant import SkillSummary
 
 logger = structlog.get_logger(__name__)
@@ -22,13 +22,14 @@ logger = structlog.get_logger(__name__)
 class AssistantService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+        self._repo = AssistantSessionRepository(session)
 
     async def create_session(
         self, user_id: int, title: str | None = None
     ) -> AssistantSession:
         """新建会话；id 即 Agent Protocol thread_id。"""
         row = AssistantSession(id=uuid.uuid4(), user_id=user_id, title=title)
-        self._session.add(row)
+        self._repo.add(row)
         await self._session.commit()
         await self._session.refresh(row)
         return row
@@ -37,25 +38,7 @@ class AssistantService:
         self, user_id: int, limit: int = 20, offset: int = 0
     ) -> tuple[list[AssistantSession], int]:
         """当前用户会话列表（最近活跃优先）与总数。"""
-        base = select(AssistantSession).where(AssistantSession.user_id == user_id)
-        rows = (
-            await self._session.execute(
-                base.order_by(
-                    AssistantSession.last_message_at.desc().nulls_last(),
-                    AssistantSession.created_at.desc(),
-                )
-                .limit(limit)
-                .offset(offset)
-            )
-        ).scalars().all()
-        total = (
-            await self._session.execute(
-                select(func.count()).select_from(AssistantSession).where(
-                    AssistantSession.user_id == user_id
-                )
-            )
-        ).scalar_one()
-        return list(rows), total
+        return await self._repo.list_by_user(user_id, limit, offset)
 
     async def get_session(
         self, user_id: int, thread_id: str
@@ -65,14 +48,7 @@ class AssistantService:
             tid = uuid.UUID(thread_id)
         except ValueError:
             return None
-        return (
-            await self._session.execute(
-                select(AssistantSession).where(
-                    AssistantSession.id == tid,
-                    AssistantSession.user_id == user_id,
-                )
-            )
-        ).scalar_one_or_none()
+        return await self._repo.get_by_user_and_thread(user_id, tid)
 
     async def touch_session(self, thread_id: str, title: str | None = None) -> None:
         """run 结束后回写 last_message_at；首次对话补标题（取首条消息前 20 字）。"""

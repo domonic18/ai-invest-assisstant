@@ -1,7 +1,9 @@
 """基于 akshare 的新浪 A 股实时行情采集器。
 
 抓取全市场 A 股现货/行情快照，把请求的 symbols 以 ``quote:{stock_code}`` 为键
-写入 Redis 并设置较短 TTL。与存储层设计一致：实时行情存放在 Redis 缓存层。
+写入 Redis 并设置较短 TTL；同时写一份长 TTL 的 ``quote:eod:{stock_code}``
+收盘兜底快照，供盘后/周末读路径回退（否则最后一份快照 5 分钟即过期，
+非交易日个股页拿不到任何行情）。与存储层设计一致：实时行情存放在 Redis 缓存层。
 """
 
 import json
@@ -13,6 +15,9 @@ from collector.core.base import BaseCollector
 from collector.core.config import redis_url as default_redis_url
 from collector.core.parsing import clean_stock_code, to_float
 
+# 兜底快照要覆盖「周五收盘 + 周末 + 周一节假日」，4 天足够撑到下一交易日
+_EOD_TTL_SECONDS = 4 * 86400
+
 
 class SinaQuoteCollector(BaseCollector):
     """新浪财经 A 股实时行情采集器。"""
@@ -21,6 +26,9 @@ class SinaQuoteCollector(BaseCollector):
         super().__init__(config)
         self._redis_url = config.get("redis_url") or default_redis_url
         self.ttl_seconds = int(config.get("ttl_seconds", 300))
+        self.eod_ttl_seconds = int(
+            config.get("eod_ttl_seconds", _EOD_TTL_SECONDS)
+        )
 
     async def collect(
         self, symbols: list[str] | None = None, **kwargs: Any
@@ -100,9 +108,11 @@ class SinaQuoteCollector(BaseCollector):
         redis = from_url(self._redis_url)
         try:
             for item in items:
-                key = f"quote:{item['stock_code']}"
+                code = item["stock_code"]
+                payload = json.dumps(item, ensure_ascii=False)
+                await redis.setex(f"quote:{code}", self.ttl_seconds, payload)
                 await redis.setex(
-                    key, self.ttl_seconds, json.dumps(item, ensure_ascii=False)
+                    f"quote:eod:{code}", self.eod_ttl_seconds, payload
                 )
         finally:
             await redis.close()

@@ -1,13 +1,16 @@
 """板块资金流向（热点）的 Pydantic schemas。"""
 
 from datetime import date, datetime
-from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class SectorFundFlowResponse(BaseModel):
-    """板块资金流向响应。"""
+    """板块资金流向响应。
+
+    金额字段用 float：Pydantic v2 会把 Decimal 序列化成 JSON 字符串，
+    违背 shared 契约声明的 number 类型（前端 toFixed 直接崩）。
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -15,24 +18,15 @@ class SectorFundFlowResponse(BaseModel):
     sector_name: str
     sector_type: str
     trade_date: date
-    change_pct: Decimal | None = None
-    main_net_inflow: Decimal | None = None
-    super_large_net: Decimal | None = None
-    large_net: Decimal | None = None
-    medium_net: Decimal | None = None
-    small_net: Decimal | None = None
+    change_pct: float | None = None
+    main_net_inflow: float | None = None
+    super_large_net: float | None = None
+    large_net: float | None = None
+    medium_net: float | None = None
+    small_net: float | None = None
     top_stock_code: str | None = None
     top_stock_name: str | None = None
     created_at: datetime
-
-
-class HotspotListRequest(BaseModel):
-    """热点列表请求。"""
-
-    sector_type: str | None = Field(None, max_length=20)
-    trade_date: date | None = None
-    page: int = Field(default=1, ge=1)
-    page_size: int = Field(default=20, ge=1, le=100)
 
 
 class SectorFlowSeries(BaseModel):

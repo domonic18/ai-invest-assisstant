@@ -3,7 +3,6 @@
 from datetime import date
 from typing import Any
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError
@@ -12,6 +11,7 @@ from app.repositories.market.kline_repository import (
     PERIOD_BUCKET,
     fetch_aggregated_bars,
     fetch_daily_bars,
+    list_daily_paginated,
 )
 from app.services.market.stock_service import get_stock_by_code
 
@@ -33,21 +33,14 @@ async def get_kline_by_code(
     page_size: int = 20,
 ) -> tuple[list[KlineDaily], int]:
     """分页查询日 K 线数据。"""
-    stmt = select(KlineDaily).where(KlineDaily.stock_code == stock_code)
-    count_stmt = select(func.count()).select_from(KlineDaily).where(KlineDaily.stock_code == stock_code)
-
-    if start_date:
-        stmt = stmt.where(KlineDaily.trade_date >= start_date)
-        count_stmt = count_stmt.where(KlineDaily.trade_date >= start_date)
-    if end_date:
-        stmt = stmt.where(KlineDaily.trade_date <= end_date)
-        count_stmt = count_stmt.where(KlineDaily.trade_date <= end_date)
-
-    stmt = stmt.order_by(KlineDaily.trade_date.desc()).offset((page - 1) * page_size).limit(page_size)
-
-    result = await session.execute(stmt)
-    total = await session.scalar(count_stmt) or 0
-    return list(result.scalars().all()), total
+    return await list_daily_paginated(
+        session,
+        stock_code,
+        start_date=start_date,
+        end_date=end_date,
+        page=page,
+        page_size=page_size,
+    )
 
 
 async def get_stock_kline(

@@ -4,17 +4,20 @@ import json
 import re
 from typing import Any, Literal
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import get_redis
-from app.models.stock import StockBasic
-from app.models.watchlist import UserWatchlist, UserWatchlistGroup
+from app.models.watchlist import UserWatchlist
 from app.repositories.market.kline_repository import (
     fetch_daily_bars,
     fetch_minute_bars_multi,
 )
+from app.repositories.market.stock_repository import StockRepository
 from app.repositories.review import ai_analysis_repository
+from app.repositories.user.watchlist_group_repository import (
+    WatchlistGroupRepository,
+)
+from app.repositories.user.watchlist_repository import WatchlistRepository
 from app.schemas.market import WatchlistQuoteItem
 from app.schemas.workbench import WorkbenchWatchlistGroup, WorkbenchWatchlistStock
 from app.services.market import trade_calendar_service
@@ -25,12 +28,7 @@ async def _load_stock_names(
     session: AsyncSession, codes: list[str]
 ) -> dict[str, str]:
     """stock_basic 批量取股票名称（Redis 快照缺失时的兜底）。"""
-    rows = await session.execute(
-        select(StockBasic.stock_code, StockBasic.stock_name).where(
-            StockBasic.stock_code.in_(codes)
-        )
-    )
-    return {code: name for code, name in rows.all()}
+    return await StockRepository(session).get_names_by_codes(codes)
 
 
 async def _load_minute_trend(
@@ -51,12 +49,7 @@ async def get_watchlist_quotes(
     session: AsyncSession, user_id: int
 ) -> list[WatchlistQuoteItem]:
     """自选股实时行情：优先 Redis 快照，缺失时回退最近 K 线收盘价。"""
-    stmt = (
-        select(UserWatchlist)
-        .where(UserWatchlist.user_id == user_id)
-        .order_by(UserWatchlist.created_at.desc())
-    )
-    watch_items = list((await session.execute(stmt)).scalars().all())
+    watch_items = await WatchlistRepository(session).list_by_user(user_id)
     if not watch_items:
         return []
     return await _build_quote_items(session, watch_items)
@@ -70,7 +63,10 @@ async def _build_quote_items(
     redis = get_redis()
     quotes: dict[str, dict[str, Any]] = {}
     for item in watch_items:
-        raw = await redis.get(f"quote:{item.stock_code}")
+        live, eod = await redis.mget(
+            f"quote:{item.stock_code}", f"quote:eod:{item.stock_code}"
+        )
+        raw = live or eod
         if raw:
             quotes[item.stock_code] = json.loads(raw)
 
@@ -164,7 +160,7 @@ async def _load_ai_analysis(
     )
 
     results: dict[str, tuple[_AiStatus, str | None]] = {}
-    for row in rows:  # created_at 倒序，首个命中即最新
+    for row in rows:  # 每 hash 仅一行（最新 success）
         code = code_by_hash.get(row.input_hash or "")
         if code is None or code in results:
             continue
@@ -183,21 +179,11 @@ async def get_watchlist_groups(
     session: AsyncSession, user_id: int
 ) -> list[WorkbenchWatchlistGroup]:
     """自选股按分组组织：行情 + 分组级 AI 复盘状态与盘面解读摘要（工作台概览）。"""
-    group_stmt = (
-        select(UserWatchlistGroup)
-        .where(UserWatchlistGroup.user_id == user_id)
-        .order_by(UserWatchlistGroup.sort_order, UserWatchlistGroup.id)
-    )
-    groups = list((await session.execute(group_stmt)).scalars().all())
+    groups = await WatchlistGroupRepository(session).list_by_user(user_id)
     if not groups:
         return []
 
-    item_stmt = (
-        select(UserWatchlist)
-        .where(UserWatchlist.user_id == user_id)
-        .order_by(UserWatchlist.created_at.desc())
-    )
-    watch_items = list((await session.execute(item_stmt)).scalars().all())
+    watch_items = await WatchlistRepository(session).list_by_user(user_id)
 
     group_by_id = {group.id: group for group in groups}
     enabled_codes = [

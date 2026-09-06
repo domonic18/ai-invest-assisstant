@@ -201,6 +201,7 @@
 | 缓存类型 | Key Pattern | TTL | 说明 |
 |----------|-------------|-----|------|
 | 实时行情 | `quote:{stock_code}` | 5min | 最新成交价 / 涨跌幅 |
+| 行情收盘兜底 | `quote:eod:{stock_code}` | 4d | 最后一份快照的长 TTL 副本，盘后/周末读路径回退 |
 | K 线缓存 | `kline:{stock_code}:{period}:latest` | 1h | 最近 K 线 |
 | 热门股票 | `hot_stocks:daily` | 1d | 当日热门 |
 | 产业链图 | `chain:{industry_l1}` | 24h | 产业链图谱缓存 |

@@ -7,12 +7,10 @@
 from datetime import date
 from typing import Any
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.market_amount import MarketAmount
 from app.models.market_breadth import MarketBreadth
-from app.models.pool_limit_up_stock import LimitUpPool
+from app.repositories.market import limit_pool_repository, market_stats_repository
 from app.schemas.market import MarketStatsResponse
 from app.services.market import index_quotation_service, trade_calendar_service
 
@@ -77,11 +75,7 @@ _EMPTY_BREADTH: dict[str, Any] = {
 
 async def _pool_limit_up_count(session: AsyncSession, trade_date: date) -> int | None:
     """东财涨停池家数（官方池口径，不含 ST 股）；池未覆盖当日时返回 None。"""
-    count = await session.scalar(
-        select(func.count())
-        .select_from(LimitUpPool)
-        .where(LimitUpPool.trade_date == trade_date)
-    )
+    count = await limit_pool_repository.count_by_date(session, trade_date)
     return count or None
 
 
@@ -91,11 +85,8 @@ async def _live_breadth(session: AsyncSession, resolved: date) -> dict[str, Any]
     盘前/周末时最新一行是上一交易日收盘快照；采集器尚未覆盖时返回空统计。
     涨停数在东财涨停池入库后覆盖为池计数。
     """
-    row = await session.scalar(
-        select(MarketBreadth)
-        .where(MarketBreadth.trade_date <= resolved)
-        .order_by(MarketBreadth.trade_date.desc())
-        .limit(1)
+    row = await market_stats_repository.get_latest_breadth_on_or_before(
+        session, resolved
     )
     if row is None:
         return dict(_EMPTY_BREADTH)
@@ -114,9 +105,7 @@ async def _historical_breadth(
     优先取 ``market_breadth`` 当日行；该表未覆盖的更早日期回退旧口径：
     涨停数取数据库涨停池，跌停/上涨/下跌/平盘家数返回 None/0。
     """
-    row = await session.scalar(
-        select(MarketBreadth).where(MarketBreadth.trade_date == trade_date)
-    )
+    row = await market_stats_repository.get_breadth_by_date(session, trade_date)
     if row is not None and row.limit_up_count is not None:
         breadth = _breadth_dict(row)
         pool_count = await _pool_limit_up_count(session, trade_date)
@@ -142,14 +131,7 @@ async def _amount_pair(
     session: AsyncSession, resolved: date
 ) -> tuple[float | None, float | None]:
     """官方成交额（含前一有数据交易日），只读 ``market_amount`` 表。"""
-    rows = (
-        await session.execute(
-            select(MarketAmount)
-            .where(MarketAmount.trade_date <= resolved)
-            .order_by(MarketAmount.trade_date.desc())
-            .limit(2)
-        )
-    ).scalars().all()
+    rows = await market_stats_repository.list_recent_amounts(session, resolved)
     amount = float(rows[0].amount) if rows and rows[0].amount is not None else None
     prev = (
         float(rows[1].amount)
@@ -168,20 +150,11 @@ async def _limit_up_rates(
     数据库无当日涨停池时连板率为 None；炸板家数由 ``eastmoney_broken_pool``
     任务盘后写入 ``market_breadth.broken_limit_count``。
     """
-    total = await session.scalar(
-        select(func.count())
-        .select_from(LimitUpPool)
-        .where(LimitUpPool.trade_date == trade_date)
-    ) or 0
+    total = await limit_pool_repository.count_by_date(session, trade_date)
     continuous: int | None = None
     if total:
-        continuous = await session.scalar(
-            select(func.count())
-            .select_from(LimitUpPool)
-            .where(
-                LimitUpPool.trade_date == trade_date,
-                LimitUpPool.consecutive_boards >= 2,
-            )
+        continuous = await limit_pool_repository.count_continuous_by_date(
+            session, trade_date
         )
 
     continuous_rate = (
@@ -190,10 +163,8 @@ async def _limit_up_rates(
         else None
     )
 
-    broken_limit_count = await session.scalar(
-        select(MarketBreadth.broken_limit_count).where(
-            MarketBreadth.trade_date == trade_date
-        )
+    broken_limit_count = await market_stats_repository.get_broken_limit_count(
+        session, trade_date
     )
 
     broken_rate = (

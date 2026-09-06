@@ -1,5 +1,7 @@
 """个股基础信息仓储。"""
 
+from typing import cast
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,6 +39,32 @@ class StockRepository(BaseRepository[StockBasic]):
         result = await self.execute(stmt)
         total = (await self.scalar(count_stmt)) or 0
         return list(result.scalars().all()), total
+
+    async def search_by_keyword(
+        self, query: str, limit: int = 20
+    ) -> list[StockBasic]:
+        """按代码或名称模糊搜索（搜索联想场景，无计数）。"""
+        pattern = f"%{query}%"
+        stmt = (
+            select(StockBasic)
+            .where(
+                StockBasic.stock_code.ilike(pattern)
+                | StockBasic.stock_name.ilike(pattern)
+            )
+            .limit(limit)
+        )
+        result = await self.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_by_code(
+        self, stock_code: str, market: str | None = None
+    ) -> StockBasic | None:
+        """按股票代码查询基础信息（可选市场过滤）。"""
+        stmt = select(StockBasic).where(StockBasic.stock_code == stock_code)
+        if market:
+            stmt = stmt.where(StockBasic.market == market)
+        result = await self.execute(stmt)
+        return cast(StockBasic | None, result.scalar_one_or_none())
 
     async def get_names_by_codes(self, codes: list[str]) -> dict[str, str]:
         """返回给定代码集合的 stock_code 到 stock_name 映射。

@@ -6,12 +6,11 @@
 
 from datetime import date, timedelta
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import today_cn
 from app.core.exceptions import BadRequestError
-from app.models.market_breadth import MarketBreadth
+from app.repositories.market import market_stats_repository
 from app.repositories.market.kline_repository import (
     fetch_max_daily_date,
     fetch_max_daily_date_on_or_before,
@@ -37,12 +36,7 @@ async def resolve_latest_trade_date(session: AsyncSession) -> date:
     if kline_max is None:
         return today
     if today > kline_max and today.weekday() < 5:
-        has_breadth = await session.scalar(
-            select(func.count())
-            .select_from(MarketBreadth)
-            .where(MarketBreadth.trade_date == today)
-        )
-        if has_breadth:
+        if await market_stats_repository.has_breadth_on(session, today):
             return today
     return kline_max
 

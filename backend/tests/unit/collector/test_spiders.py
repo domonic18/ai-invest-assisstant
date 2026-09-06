@@ -760,11 +760,13 @@ class TestSinaQuoteCollector:
             count = await collector.store(items)
 
         assert count == 1
-        mock_redis.setex.assert_awaited_once()
-        key, ttl, value = mock_redis.setex.await_args.args
-        assert key == "quote:000001"
-        assert ttl == 60
-        assert "000001" in value
+        assert mock_redis.setex.await_count == 2
+        writes = {args.args[0]: (args.args[1], args.args[2]) for args in mock_redis.setex.await_args_list}
+        assert set(writes) == {"quote:000001", "quote:eod:000001"}
+        assert writes["quote:000001"][0] == 60
+        # 收盘兜底键默认 4 天，覆盖周末与节假日
+        assert writes["quote:eod:000001"][0] == 4 * 86400
+        assert "000001" in writes["quote:eod:000001"][1]
 
 
 @pytest.mark.unit

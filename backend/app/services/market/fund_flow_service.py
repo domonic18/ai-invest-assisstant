@@ -2,10 +2,10 @@
 
 from datetime import date
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.capital_fund_flow_stock import FundFlow
+from app.repositories.market import fund_flow_repository
 
 
 async def get_fund_flow(
@@ -17,21 +17,11 @@ async def get_fund_flow(
     page_size: int = 20,
 ) -> tuple[list[FundFlow], int]:
     """分页查询资金流向数据。"""
-    stmt = select(FundFlow)
-    count_stmt = select(func.count()).select_from(FundFlow)
-
-    if stock_code:
-        stmt = stmt.where(FundFlow.stock_code == stock_code)
-        count_stmt = count_stmt.where(FundFlow.stock_code == stock_code)
-    if start_date:
-        stmt = stmt.where(FundFlow.trade_date >= start_date)
-        count_stmt = count_stmt.where(FundFlow.trade_date >= start_date)
-    if end_date:
-        stmt = stmt.where(FundFlow.trade_date <= end_date)
-        count_stmt = count_stmt.where(FundFlow.trade_date <= end_date)
-
-    stmt = stmt.order_by(FundFlow.trade_date.desc()).offset((page - 1) * page_size).limit(page_size)
-
-    result = await session.execute(stmt)
-    total = await session.scalar(count_stmt) or 0
-    return list(result.scalars().all()), total
+    return await fund_flow_repository.list_paginated(
+        session,
+        stock_code=stock_code,
+        start_date=start_date,
+        end_date=end_date,
+        page=page,
+        page_size=page_size,
+    )

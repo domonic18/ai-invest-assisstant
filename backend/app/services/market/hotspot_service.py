@@ -2,10 +2,10 @@
 
 from datetime import date
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.capital_fund_flow_sector import SectorFundFlow
+from app.repositories.market import sector_fund_flow_repository
 
 
 async def list_sectors(
@@ -27,22 +27,10 @@ async def list_sectors(
     Returns:
         (板块资金流列表, 总数)。
     """
-    stmt = select(SectorFundFlow)
-    count_stmt = select(func.count()).select_from(SectorFundFlow)
-
-    if sector_type:
-        stmt = stmt.where(SectorFundFlow.sector_type == sector_type)
-        count_stmt = count_stmt.where(SectorFundFlow.sector_type == sector_type)
-    if trade_date:
-        stmt = stmt.where(SectorFundFlow.trade_date == trade_date)
-        count_stmt = count_stmt.where(SectorFundFlow.trade_date == trade_date)
-
-    stmt = (
-        stmt.order_by(SectorFundFlow.main_net_inflow.desc().nullslast())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+    return await sector_fund_flow_repository.list_paginated(
+        session,
+        sector_type=sector_type,
+        trade_date=trade_date,
+        page=page,
+        page_size=page_size,
     )
-
-    result = await session.execute(stmt)
-    total = await session.scalar(count_stmt) or 0
-    return list(result.scalars().all()), total

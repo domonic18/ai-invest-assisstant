@@ -11,14 +11,13 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import structlog
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptConfig, PromptLoader, PromptSection
 from app.core.config import get_settings
 from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
-from app.models.watchlist import UserWatchlist, UserWatchlistGroup
 from app.repositories.review import ai_analysis_repository
+from app.repositories.user.watchlist_repository import WatchlistRepository
 from app.schemas.stock import StockAiAnalysisResponse, StockAiAnalysisSection
 from app.services.review.market_review_generator import (
     ReviewGenerationLockedError,
@@ -317,11 +316,4 @@ async def list_analysis_trade_dates(
 
 async def list_active_watch_stock_codes(session: AsyncSession) -> list[str]:
     """开启 AI 复盘分组内的去重股票代码（定时任务遍历范围）。"""
-    stmt = (
-        select(UserWatchlist.stock_code)
-        .join(UserWatchlistGroup, UserWatchlist.group_id == UserWatchlistGroup.id)
-        .where(UserWatchlistGroup.ai_review_enabled.is_(True))
-        .distinct()
-        .order_by(UserWatchlist.stock_code)
-    )
-    return list((await session.execute(stmt)).scalars())
+    return await WatchlistRepository(session).list_active_review_stock_codes()
