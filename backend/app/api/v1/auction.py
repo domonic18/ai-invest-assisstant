@@ -8,11 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError, UnprocessableEntityError
 from app.dependencies import get_db
-from app.schemas.stock import (
-    AuctionDataResponse,
-    IndexAuctionTrendResponse,
-    PaginatedResponse,
-)
+from app.schemas.auction import AuctionDataResponse, IndexAuctionTrendResponse
+from app.schemas.stock import PaginatedResponse
 from app.services import market as stock_service
 from app.services.market import auction_service
 
