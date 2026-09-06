@@ -1,11 +1,11 @@
 import { Spin } from 'antd'
-import axios from 'axios'
 
 import type { IndexKlinePeriod, MovingAverageConfig } from '@ai-invest/shared'
 import { IndexKlineChart } from '@/components/charts/IndexKlineChart'
 import { useIndexKline } from '@/hooks/useMarket'
 import { useColorScheme } from '@/stores/settings'
 import { changeHex, formatPercent } from '@/utils/formatters'
+import { apiErrorMessage } from '@/utils/errorMessage'
 
 interface IndexKlinePanelProps {
   code: string
@@ -34,12 +34,9 @@ export function IndexKlinePanel({ code, period, maConfigs }: IndexKlinePanelProp
   }
 
   if (error || !data) {
-    const detail = axios.isAxiosError(error)
-      ? (error.response?.data as { detail?: string } | undefined)?.detail
-      : null
     return (
       <div className="text-gray-500 text-sm py-8 text-center">
-        {detail ?? '暂无 K 线数据'}
+        {apiErrorMessage(error, '暂无 K 线数据')}
       </div>
     )
   }

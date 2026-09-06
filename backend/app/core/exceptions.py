@@ -59,3 +59,14 @@ class UnprocessableEntityError(AppError):
 class InternalError(AppError):
     status_code = 500
     default_message = "Internal server error"
+
+
+class LoginLockedError(AppError):
+    """登录失败次数过多被临时锁定。"""
+
+    status_code = 429
+    default_message = "Too many failed login attempts"
+
+    def __init__(self, retry_after: int = 0, message: str | None = None):
+        self.retry_after = retry_after
+        super().__init__(message or self.default_message)

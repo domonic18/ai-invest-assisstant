@@ -37,7 +37,8 @@ export async function fetchChainAlerts(
   days = 30
 ): Promise<ChainAlert[]> {
   const response = await apiClient.get<ApiChainAlert[]>(
-    ENDPOINTS.chain.alerts(industry, days)
+    ENDPOINTS.chain.alerts,
+    { params: { industry, days } }
   )
   return response.data.map(mapChainAlert)
 }
@@ -69,7 +70,8 @@ export async function fetchChainCompare(
   targetId: number
 ): Promise<ChainCompareResult> {
   const response = await apiClient.get<ApiChainCompareResult>(
-    ENDPOINTS.chain.compare(baseId, targetId)
+    ENDPOINTS.chain.compare,
+    { params: { base_id: baseId, target_id: targetId } }
   )
   return mapChainCompareResult(response.data)
 }

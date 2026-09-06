@@ -47,7 +47,7 @@
 ## 3. 页面路由
 
 ```
-/login                          # 登录页（OAuth2 表单，首个注册用户自动晋升管理员）
+/login                          # 登录页（OAuth2 表单，管理员经 `python -m app.cli.bootstrap_admin` 显式提权）
 /register                       # 注册页
 
 /workbench                      # 工作台（登录后默认入口：日历摘要 / 复盘结论 / 要闻 / 自选股概览 / 市场快览）

@@ -39,6 +39,7 @@ class TaskSpec:
     collectors: dict[str, str]
     queue: Literal["realtime", "batch", "heavy"] | None = None
     soft_time_limit: int | None = None
+    hard_time_limit: int | None = None
     max_retries: int | None = None
     config_params: tuple[str, ...] = ()
     run_params: tuple[str, ...] = ()

@@ -3,12 +3,12 @@
 from datetime import timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.exceptions import AppError, BadRequestError, UnauthorizedError
+from app.core.exceptions import AppError, BadRequestError
 from app.core.security import create_access_token
 from app.dependencies import get_db
 from app.schemas.auth import AuthResponse, RegisterRequest
@@ -38,14 +38,14 @@ async def register(data: RegisterRequest, session: AsyncSession = Depends(get_db
 
 @router.post("/login", response_model=AuthResponse)
 async def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     session: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
-    """用户登录。"""
+    """用户登录（防爆破限流与失败审计在服务层）。"""
     user_service = UserService(session)
-    user = await user_service.authenticate_user(form_data.username, form_data.password)
-    if user is None:
-        raise UnauthorizedError("Incorrect username or password")
+    client_ip = request.client.host if request.client else "-"
+    user = await user_service.attempt_login(form_data.username, form_data.password, client_ip)
 
     await user_service.update_last_login(user)
     access_token = create_access_token(

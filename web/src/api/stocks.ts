@@ -39,6 +39,7 @@ export interface KlineParams {
 export interface StockKlineParams {
   period?: 'daily' | 'weekly' | 'monthly'
   limit?: number
+  signal?: AbortSignal
 }
 
 export async function searchStocks(params: SearchStocksParams) {
@@ -66,6 +67,7 @@ export async function fetchStockKline(code: string, params: StockKlineParams = {
       period: params.period ?? 'daily',
       limit: params.limit ?? 250,
     },
+    signal: params.signal,
   })
   return mapStockKline(response.data)
 }

@@ -20,7 +20,7 @@ from app.core.database import AsyncSessionLocal
 from app.models.collector_dead_letter import CollectorDeadLetter
 from app.models.collector_log import CollectorLog
 from app.models.collector_task import CollectorTask
-from collector.celery_app import app
+from collector.celery_app import app, resolve_task_options
 from collector.core.base import CollectResult
 from collector.core.logging import configure_logging
 from collector.runtime.runner import run_task
@@ -155,11 +155,33 @@ def run_collector_task(self: LogAwareTask, payload: dict[str, Any]) -> dict[str,
             await _update_task_schedule_state(payload, result, error=None)
             return _result_to_dict(result)
         except SoftTimeLimitExceeded as exc:
-            logger.warning(
-                "collector_task_soft_timeout",
+            options = resolve_task_options(payload.get("task", ""))
+            retries = self.request.retries
+            if retries < options["max_retries"]:
+                # 软超时可能是采集源瞬时不稳：按队列退避策略重试；重试期间
+                # 不写终态日志（collector_log 由下次尝试复用并覆盖）。
+                logger.warning(
+                    "collector_task_soft_timeout_retry",
+                    task=payload.get("task"),
+                    celery_task_id=self.request.id,
+                    retries=retries,
+                    countdown=options["retry_backoff"],
+                )
+                await _update_task_schedule_state(
+                    payload,
+                    None,
+                    error=f"SoftTimeLimitExceeded after {retries} retries",
+                )
+                raise self.retry(
+                    countdown=options["retry_backoff"],
+                    max_retries=options["max_retries"],
+                    exc=exc,
+                ) from exc
+            logger.error(
+                "collector_task_soft_timeout_exhausted",
                 task=payload.get("task"),
                 celery_task_id=self.request.id,
-                retries=self.request.retries,
+                retries=retries,
             )
             log_id = payload.get("log_id")
             if log_id is not None:
@@ -167,7 +189,7 @@ def run_collector_task(self: LogAwareTask, payload: dict[str, Any]) -> dict[str,
             await _update_task_schedule_state(
                 payload,
                 None,
-                error=f"SoftTimeLimitExceeded after {self.request.retries} retries",
+                error=f"SoftTimeLimitExceeded after {retries} retries",
             )
             raise exc
         except Exception as exc:

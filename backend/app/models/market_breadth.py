@@ -5,6 +5,7 @@ from datetime import date, datetime
 from sqlalchemy import Date, DateTime, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.clock import utc_now
 from app.core.database import Base
 
 
@@ -24,7 +25,7 @@ class MarketBreadth(Base):
     snapshot_time: Mapped[str | None] = mapped_column(String(20), nullable=True)
     source: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=utc_now, nullable=False
     )
 
     __table_args__ = (UniqueConstraint("trade_date"),)

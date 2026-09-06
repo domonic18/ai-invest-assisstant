@@ -2,6 +2,8 @@ import { CheckOutlined, CopyOutlined } from '@ant-design/icons'
 import {
   createContext,
   useContext,
+  useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -20,14 +22,23 @@ const CodeBlockContext = createContext(false)
 
 function CodeBlock({ children }: { children: React.ReactNode }) {
   const [copied, setCopied] = useState(false)
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const text = typeof children === 'string' ? children : ''
+
+  useEffect(
+    () => () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current)
+    },
+    [],
+  )
 
   const handleCopy = async () => {
     if (!text) return
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      if (copyTimer.current) clearTimeout(copyTimer.current)
+      copyTimer.current = setTimeout(() => setCopied(false), 2000)
     } catch {
       // ignore
     }

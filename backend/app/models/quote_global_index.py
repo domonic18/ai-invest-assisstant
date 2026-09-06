@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import BIGINT, Date, DateTime, Numeric, PrimaryKeyConstraint, String
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.clock import utc_now
 from app.core.database import Base
 
 
@@ -25,7 +26,7 @@ class GlobalIndexDaily(Base):
     amount: Mapped[Decimal | None] = mapped_column(Numeric(20, 2))
     source: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=utc_now, nullable=False
     )
 
     __table_args__ = (PrimaryKeyConstraint("index_code", "trade_date"),)
