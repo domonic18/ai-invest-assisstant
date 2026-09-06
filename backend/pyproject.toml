@@ -110,8 +110,16 @@ line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501"]
+select = ["E", "F", "I", "N", "W", "UP", "DTZ"]
+ignore = [
+    "E501",
+    # 数据源墙时间字符串解析（北京时间日历数据），改 aware 属数据迁移语义变更，不在重构范围
+    "DTZ007",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# 测试 fixture 构造 naive 时间用于断言对照，不触达 DB 默认值；生产代码 DTZ 严格管控
+"tests/**" = ["DTZ001", "DTZ003", "DTZ011"]
 
 [tool.mypy]
 python_version = "3.10"

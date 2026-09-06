@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import ARRAY, BIGINT, DATE, DateTime, Numeric, String, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.clock import utc_now
 from app.core.database import Base
 
 
@@ -25,7 +26,7 @@ class AuctionData(Base):
     ask_prices: Mapped[list[Decimal | None] | None] = mapped_column(ARRAY(Numeric(12, 3)))
     ask_volumes: Mapped[list[int | None] | None] = mapped_column(ARRAY(BIGINT))
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=utc_now, nullable=False
     )
 
     __table_args__ = (

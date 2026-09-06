@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import BIGINT, DateTime, Numeric, PrimaryKeyConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.clock import utc_now
 from app.core.database import Base
 
 
@@ -26,7 +27,7 @@ class KlineDaily(Base):
     change_pct: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
     turnover_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=utc_now, nullable=False
     )
 
     __table_args__ = (
@@ -48,7 +49,7 @@ class KlineMinute(Base):
     volume: Mapped[int | None] = mapped_column(BIGINT)
     amount: Mapped[Decimal | None] = mapped_column(Numeric(20, 2))
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=utc_now, nullable=False
     )
 
     __table_args__ = (

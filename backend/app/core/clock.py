@@ -7,7 +7,7 @@
 （``datetime.now(timezone.utc)``，禁止 naive 的 ``datetime.utcnow()``）。
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 CN_TZ = ZoneInfo("Asia/Shanghai")
@@ -16,6 +16,7 @@ __all__ = [
     "CN_TZ",
     "now_cn",
     "today_cn",
+    "utc_now",
 ]
 
 
@@ -27,3 +28,8 @@ def now_cn() -> datetime:
 def today_cn() -> date:
     """当前 Asia/Shanghai 日历日，即 A 股业务"今天"。"""
     return now_cn().date()
+
+
+def utc_now() -> datetime:
+    """当前 aware UTC 时间；timestamptz 列默认值与日志时间戳统一使用本函数。"""
+    return datetime.now(timezone.utc)
