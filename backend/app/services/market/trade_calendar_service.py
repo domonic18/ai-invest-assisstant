@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import today_cn
+from app.core.exceptions import BadRequestError
 from app.models.market_breadth import MarketBreadth
 from app.repositories.market.kline_repository import (
     fetch_max_daily_date,
@@ -18,6 +19,10 @@ from app.repositories.market.kline_repository import (
 )
 
 _INDEX_BENCHMARK = "sh000001"
+
+
+class NonTradingDayError(BadRequestError):
+    """指定日期不是交易日（本语义唯一来源；补采/复盘/涨停归因共用）。"""
 
 
 async def resolve_latest_trade_date(session: AsyncSession) -> date:
