@@ -5,6 +5,9 @@ import dayjs from 'dayjs'
 import { semanticColors } from '@/theme/colors'
 import { useSettingsStore } from '@/stores/settings'
 
+/** 全站交易日/日期展示格式（dayjs format token）。 */
+export const DATE_FORMAT = 'YYYY-MM-DD'
+
 export function formatNumber(value: number, decimals = 2): string {
   return value.toFixed(decimals)
 }
@@ -36,7 +39,7 @@ export function formatAmount(value: number | null | undefined): string {
 /** 将 ISO 日期格式化为本地日期：YYYY-MM-DD。 */
 export function formatDate(value: string | null | undefined): string {
   if (!value) return '-'
-  return dayjs(value).format('YYYY-MM-DD')
+  return dayjs(value).format(DATE_FORMAT)
 }
 
 /** 将 ISO 时间格式化为本地时间：YYYY-MM-DD HH:mm:ss。 */

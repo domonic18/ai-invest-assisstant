@@ -15,7 +15,7 @@ import {
 import dayjs from 'dayjs'
 import { useState } from 'react'
 
-import type { TelegraphItem } from '@ai-invest/shared'
+import { PAGE_SIZE, type TelegraphItem } from '@ai-invest/shared'
 
 import { useTelegraph } from '@/hooks/useTelegraph'
 import { formatDateTime, formatRelativeTime } from '@/utils/formatters'
@@ -85,7 +85,7 @@ function BadgeNew() {
 
 export function Telegraph() {
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(30)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE.feed)
   const [minImportance, setMinImportance] = useState(0)
   const [autoRefresh, setAutoRefresh] = useState(true)
 

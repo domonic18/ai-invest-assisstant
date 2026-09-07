@@ -2,7 +2,9 @@ import { useQuery } from '@tanstack/react-query'
 
 import { fetchHotspots, fetchLatestDaySectors, type HotspotParams } from '@/api/hotspot'
 
-const HOTSPOT_KEY = ['hotspot'] as const
+import { queryKeys } from '@/hooks/queryKeys'
+
+const HOTSPOT_KEY = queryKeys.hotspot
 
 /** 原型口径：热点页板块数据 5 分钟自动刷新。 */
 const HOTSPOT_REFETCH_INTERVAL = 5 * 60_000

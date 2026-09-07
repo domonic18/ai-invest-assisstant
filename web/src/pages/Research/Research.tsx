@@ -13,8 +13,12 @@ import { ResearchCard } from './components/ResearchCard'
 import { ResearchFilters } from './components/ResearchFilters'
 import { type ResearchParams, type SummaryModal } from './utils'
 
+import { PAGE_SIZE } from '@ai-invest/shared'
+
+import { DATE_FORMAT } from '@/utils/formatters'
+
 export function Research() {
-  const [params, setParams] = useState<ResearchParams>({ q: '', page: 1, pageSize: 10 })
+  const [params, setParams] = useState<ResearchParams>({ q: '', page: 1, pageSize: PAGE_SIZE.list })
   const [keyword, setKeyword] = useState('')
   const [industry, setIndustry] = useState<string | undefined>()
   const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
@@ -32,8 +36,8 @@ export function Research() {
       ...prev,
       q: keyword,
       industry,
-      startDate: start ? start.format('YYYY-MM-DD') : undefined,
-      endDate: end ? end.format('YYYY-MM-DD') : undefined,
+      startDate: start ? start.format(DATE_FORMAT) : undefined,
+      endDate: end ? end.format(DATE_FORMAT) : undefined,
       page: 1,
     }))
   }

@@ -13,6 +13,8 @@ import { SectorFlowCard } from './components/SectorFlowCard'
 import { TelegraphCard } from './components/TelegraphCard'
 import { WatchlistOverviewCard } from './components/WatchlistOverviewCard'
 
+import { DATE_FORMAT } from '@/utils/formatters'
+
 const WEEKDAYS = '日一二三四五六'
 
 function useNow(intervalMs = 1000) {
@@ -43,7 +45,7 @@ export function Workbench() {
       <div className="flex items-baseline justify-between">
         <Typography.Title level={4} className="!mb-0">工作台</Typography.Title>
         <Typography.Text className="text-xs text-gray-500 font-mono" data-testid="workbench-clock">
-          {now.format('YYYY-MM-DD')} 周{WEEKDAYS[now.day()]}{' '}
+          {now.format(DATE_FORMAT)} 周{WEEKDAYS[now.day()]}{' '}
           {now.format('HH:mm:ss')}
         </Typography.Text>
       </div>

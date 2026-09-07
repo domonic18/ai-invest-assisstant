@@ -8,6 +8,10 @@ import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
 import { useStockAiAnalysis, useStockAiAnalysisDates } from '@/hooks/useStocks'
 import { useAssistantStore } from '@/stores/assistant'
 
+import { PAGE_EVENT_TYPES } from '@ai-invest/shared'
+
+import { DATE_FORMAT } from '@/utils/formatters'
+
 interface StockAiAnalysisSectionProps {
   stockCode: string
 }
@@ -31,7 +35,7 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
   // 归位后的有效交易日为准，避免对周末/节假日发起无意义分析
   const effectiveDate = status?.tradeDate
 
-  usePageAssistantResult('stock_daily_analysis.complete', (event) => {
+  usePageAssistantResult(PAGE_EVENT_TYPES.stockDailyAnalysis, (event) => {
     if (event.stockCode !== stockCode) return false
     setAnalyzing(false)
     void refetch()
@@ -71,7 +75,7 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
       }
       cellRender={(current, info) => {
         if (info.type !== 'date' || !dayjs.isDayjs(current)) return info.originNode
-        const iso = current.format('YYYY-MM-DD')
+        const iso = current.format(DATE_FORMAT)
         const hasRecord = recordedDates.has(iso)
         return (
           <div
@@ -85,7 +89,7 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
           </div>
         )
       }}
-      onChange={(d: Dayjs | null) => setTradeDate(d ? d.format('YYYY-MM-DD') : undefined)}
+      onChange={(d: Dayjs | null) => setTradeDate(d ? d.format(DATE_FORMAT) : undefined)}
     />
   )
 

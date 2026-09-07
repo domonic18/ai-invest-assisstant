@@ -14,7 +14,9 @@ import type {
   ApiAdminUserUpdateRequest,
 } from '@ai-invest/shared'
 
-const ADMIN_USERS_KEY = ['admin-users'] as const
+import { queryKeys } from '@/hooks/queryKeys'
+
+const ADMIN_USERS_KEY = queryKeys.admin.users
 
 export function useAdminUsers(params: AdminUserParams = {}) {
   return useQuery({

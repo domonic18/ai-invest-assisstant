@@ -28,7 +28,7 @@ import {
   useResetAdminUserPassword,
   useUpdateAdminUser,
 } from '@/hooks/useAdminUsers'
-import type { AdminUser } from '@ai-invest/shared'
+import { PAGE_SIZE, type AdminUser } from '@ai-invest/shared'
 
 interface UserFormValues {
   username: string
@@ -47,7 +47,7 @@ const ROLE_OPTIONS = [
 export function AdminUsers() {
   const [form] = Form.useForm<UserFormValues>()
   const [pwdForm] = Form.useForm<{ password: string }>()
-  const [params, setParams] = useState({ page: 1, pageSize: 20 })
+  const [params, setParams] = useState({ page: 1, pageSize: PAGE_SIZE.table })
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<AdminUser | null>(null)
   const [resetting, setResetting] = useState<AdminUser | null>(null)

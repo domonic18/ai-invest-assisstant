@@ -12,7 +12,9 @@ import type {
   ApiAdminNewsUpdateRequest,
 } from '@ai-invest/shared'
 
-const ADMIN_NEWS_KEY = ['admin-news'] as const
+import { queryKeys } from '@/hooks/queryKeys'
+
+const ADMIN_NEWS_KEY = queryKeys.admin.news
 
 export function useAdminNews(params: AdminNewsParams = {}) {
   return useQuery({

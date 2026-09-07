@@ -4,7 +4,7 @@ import type { ColumnsType } from 'antd/es/table'
 import type { Dayjs } from 'dayjs'
 import { useState } from 'react'
 
-import type { FinancialReport } from '@ai-invest/shared'
+import { PAGE_SIZE, type FinancialReport } from '@ai-invest/shared'
 
 import { MarkdownText } from '@/components/common/MarkdownText'
 import {
@@ -15,6 +15,7 @@ import {
 
 import { CollectModal } from './CollectModal'
 import { FinancialReportFilters } from './components/FinancialReportFilters'
+import { DATE_FORMAT } from '@/utils/formatters'
 import {
   type FinancialReportParams,
   type SummaryPanel,
@@ -32,7 +33,7 @@ function periodLabel(report: FinancialReport): string {
 }
 
 export function FinancialReportPage() {
-  const [params, setParams] = useState<FinancialReportParams>({ q: '', page: 1, pageSize: 10 })
+  const [params, setParams] = useState<FinancialReportParams>({ q: '', page: 1, pageSize: PAGE_SIZE.list })
   const [keyword, setKeyword] = useState('')
   const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
   const [summaryPanel, setSummaryPanel] = useState<SummaryPanel | null>(null)
@@ -50,8 +51,8 @@ export function FinancialReportPage() {
     setParams((prev) => ({
       ...prev,
       q: keyword,
-      startDate: start ? start.format('YYYY-MM-DD') : undefined,
-      endDate: end ? end.format('YYYY-MM-DD') : undefined,
+      startDate: start ? start.format(DATE_FORMAT) : undefined,
+      endDate: end ? end.format(DATE_FORMAT) : undefined,
       page: 1,
     }))
   }

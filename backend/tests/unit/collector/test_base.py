@@ -1,8 +1,13 @@
 """BaseCollector 基类契约测试（run 流程：采集→转换→校验→计数）。"""
 
+from unittest.mock import AsyncMock, patch
+
+import pandas as pd
 import pytest
 
 from collector.core.base import BaseCollector, CollectResult, CollectStatus
+from collector.spiders.eastmoney_fund_flow import EastMoneyFundFlowCollector
+from collector.spiders.sina_kline import SinaKlineCollector
 
 
 class DummyCollector(BaseCollector):
@@ -55,3 +60,62 @@ class TestBaseCollector:
         assert result.items_stored == 0
         assert len(result.errors) == 1
         assert "collect error" in result.errors[0]
+
+
+@pytest.mark.unit
+class TestCollectorRun:
+    @pytest.mark.asyncio
+    async def test_kline_run_with_mocked_collect(self) -> None:
+        collector = SinaKlineCollector({"source": "sina", "data_type": "quote_kline_stock_daily"})
+        collector.store = AsyncMock(return_value=1)  # type: ignore[method-assign]
+        collector.collect = AsyncMock(  # type: ignore[method-assign]
+            return_value=[
+                {
+                    "stock_code": "000001",
+                    "trade_date": "2024-01-02",
+                    "open": 10.5,
+                    "high": 11.0,
+                    "low": 10.2,
+                    "close": 10.8,
+                    "volume": 100000,
+                    "amount": 1080000.0,
+                    "amplitude": None,
+                    "change_pct": None,
+                    "turnover_rate": 0.52,
+                }
+            ]
+        )
+
+        result = await collector.run()
+
+        assert result.status.value == "success"
+        assert result.items_collected == 1
+        assert result.items_stored == 1
+        collector.store.assert_awaited_once()  # type: ignore[attr-defined]
+
+    @pytest.mark.asyncio
+    async def test_fund_flow_run_with_mocked_akshare(self) -> None:
+        collector = EastMoneyFundFlowCollector({"source": "eastmoney", "data_type": "fund_flow"})
+        mock_df = pd.DataFrame(
+            [
+                {
+                    "股票代码": 1,
+                    "股票简称": "Test",
+                    "最新价": 10.0,
+                    "涨跌幅": 1.0,
+                    "换手率": 1.0,
+                    "流入资金": "100万",
+                    "流出资金": "50万",
+                    "净额": "50万",
+                    "成交额": "150万",
+                }
+            ]
+        )
+
+        with patch("akshare.stock_fund_flow_individual", return_value=mock_df):
+            collector.store = AsyncMock(return_value=1)  # type: ignore[method-assign]
+            result = await collector.run(symbols=["000001"])
+
+        assert result.status.value == "success"
+        assert result.items_collected == 1
+        assert result.items_stored == 1

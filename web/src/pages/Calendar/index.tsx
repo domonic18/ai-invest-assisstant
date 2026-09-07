@@ -14,6 +14,8 @@ import { MonthView } from './MonthView'
 import { WeekView } from './WeekView'
 import { mondayOf } from './weekRange'
 
+import { DATE_FORMAT } from '@/utils/formatters'
+
 type CalendarView = 'month' | 'week' | 'list'
 
 const VIEW_OPTIONS = [
@@ -36,8 +38,8 @@ export function Calendar() {
       : { start: month.startOf('month'), end: month.endOf('month') }
 
   const { data: events, isLoading } = useCalendarEvents(
-    range.start.format('YYYY-MM-DD'),
-    range.end.format('YYYY-MM-DD'),
+    range.start.format(DATE_FORMAT),
+    range.end.format(DATE_FORMAT),
   )
 
   const filteredEvents = useMemo(

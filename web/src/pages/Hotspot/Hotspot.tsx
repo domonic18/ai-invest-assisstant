@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom'
 
 import { useHotspot, useLatestDaySectors } from '@/hooks/useHotspot'
 import { useTelegraph } from '@/hooks/useTelegraph'
-import type { SectorFundFlow } from '@ai-invest/shared'
+import { PAGE_SIZE, type SectorFundFlow } from '@ai-invest/shared'
 import { useColorScheme } from '@/stores/settings'
 
 import { FundSignalCard } from './components/FundSignalCard'
@@ -15,6 +15,8 @@ import { HotspotFilters, type FilterForm } from './components/HotspotFilters'
 import { SentimentCard } from './components/SentimentCard'
 import { TopicCloud } from './components/TopicCloud'
 import { columns, topTopicNames } from './utils'
+
+import { DATE_FORMAT } from '@/utils/formatters'
 
 function CategoryChip({
   label,
@@ -48,7 +50,7 @@ export function Hotspot() {
     sectorType: '',
     tradeDate: '',
     page: 1,
-    pageSize: 20,
+    pageSize: PAGE_SIZE.table,
   })
   const [topic, setTopic] = useState<string | null>(null)
 
@@ -67,7 +69,7 @@ export function Hotspot() {
   const handleSearch = (values: FilterForm) => {
     setParams({
       sectorType: values.sectorType || '',
-      tradeDate: values.tradeDate ? values.tradeDate.format('YYYY-MM-DD') : '',
+      tradeDate: values.tradeDate ? values.tradeDate.format(DATE_FORMAT) : '',
       page: 1,
       pageSize: params.pageSize,
     })

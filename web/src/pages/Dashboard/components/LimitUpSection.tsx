@@ -3,7 +3,7 @@ import { Button, Card, message, Skeleton, Tag, Typography } from 'antd'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import type { LimitUpData, LimitUpStock } from '@ai-invest/shared'
+import { PAGE_EVENT_TYPES, type LimitUpData, type LimitUpStock } from '@ai-invest/shared'
 import { IntradaySpark } from '@/components/charts/IntradaySpark'
 import { SourceNote } from '@/components/common/SourceNote'
 import { useLimitUpIntraday } from '@/hooks/useMarket'
@@ -111,7 +111,7 @@ export function LimitUpSection({
       )
   }
 
-  usePageAssistantResult('limit_up_attribution.complete', () => {
+  usePageAssistantResult(PAGE_EVENT_TYPES.limitUpAttribution, () => {
     setGenerating(false)
     void queryClient.invalidateQueries({ queryKey: ['market', 'limit-up', tradeDate] })
     message.success('AI 归因已生成，已刷新')

@@ -12,15 +12,14 @@ import {
   fetchSectorOverview,
   fetchWatchlistQuotes,
 } from '@/api/market'
-
-const MARKET_KEY = ['market'] as const
+import { queryKeys } from '@/hooks/queryKeys'
 
 const LIVE_REFETCH_INTERVAL = 60_000
 const LIVE_STALE_TIME = 30_000
 
 export function useMarketIndices(tradeDate?: string) {
   return useQuery({
-    queryKey: [...MARKET_KEY, 'indices', tradeDate],
+    queryKey: queryKeys.market.indices(tradeDate),
     queryFn: () => fetchMarketIndices(tradeDate),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: tradeDate ? false : LIVE_REFETCH_INTERVAL,
@@ -29,7 +28,7 @@ export function useMarketIndices(tradeDate?: string) {
 
 export function useIndexIntraday(code: string, tradeDate?: string) {
   return useQuery({
-    queryKey: [...MARKET_KEY, 'intraday', code, tradeDate],
+    queryKey: queryKeys.market.intraday(code, tradeDate),
     queryFn: () => fetchIndexIntraday(code, tradeDate),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: tradeDate ? false : LIVE_REFETCH_INTERVAL,
@@ -39,7 +38,7 @@ export function useIndexIntraday(code: string, tradeDate?: string) {
 
 export function useIndexKline(code: string, period: IndexKlinePeriod) {
   return useQuery({
-    queryKey: [...MARKET_KEY, 'kline', code, period],
+    queryKey: queryKeys.market.kline(code, period),
     queryFn: () => fetchIndexKline(code, period),
     staleTime: 5 * 60_000,
   })
@@ -47,7 +46,7 @@ export function useIndexKline(code: string, period: IndexKlinePeriod) {
 
 export function useMarketStats(tradeDate?: string) {
   return useQuery({
-    queryKey: [...MARKET_KEY, 'stats', tradeDate],
+    queryKey: queryKeys.market.stats(tradeDate),
     queryFn: () => fetchMarketStats(tradeDate),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: tradeDate ? false : LIVE_REFETCH_INTERVAL,
@@ -56,7 +55,7 @@ export function useMarketStats(tradeDate?: string) {
 
 export function useLimitUp(tradeDate?: string) {
   return useQuery({
-    queryKey: [...MARKET_KEY, 'limit-up', tradeDate],
+    queryKey: queryKeys.market.limitUp(tradeDate),
     queryFn: () => fetchLimitUp(tradeDate),
     staleTime: LIVE_STALE_TIME,
   })
@@ -64,7 +63,7 @@ export function useLimitUp(tradeDate?: string) {
 
 export function useLimitUpIntraday(tradeDate?: string, enabled = true) {
   return useQuery({
-    queryKey: [...MARKET_KEY, 'limit-up-intraday', tradeDate],
+    queryKey: queryKeys.market.limitUpIntraday(tradeDate),
     queryFn: () => fetchLimitUpIntraday(tradeDate),
     staleTime: 5 * 60_000,
     enabled,
@@ -73,7 +72,7 @@ export function useLimitUpIntraday(tradeDate?: string, enabled = true) {
 
 export function useSectorOverview(tradeDate?: string) {
   return useQuery({
-    queryKey: [...MARKET_KEY, 'sectors', tradeDate],
+    queryKey: queryKeys.market.sectors(tradeDate),
     queryFn: () => fetchSectorOverview(tradeDate),
     staleTime: LIVE_STALE_TIME,
   })
@@ -81,7 +80,7 @@ export function useSectorOverview(tradeDate?: string) {
 
 export function useWatchlistQuotes() {
   return useQuery({
-    queryKey: [...MARKET_KEY, 'watchlist-quotes'],
+    queryKey: queryKeys.market.watchlistQuotes,
     queryFn: fetchWatchlistQuotes,
     staleTime: LIVE_STALE_TIME,
     refetchInterval: LIVE_REFETCH_INTERVAL,
@@ -90,7 +89,7 @@ export function useWatchlistQuotes() {
 
 export function useMarketReview(tradeDate?: string) {
   return useQuery({
-    queryKey: [...MARKET_KEY, 'ai-review', tradeDate],
+    queryKey: queryKeys.market.aiReview(tradeDate),
     queryFn: () => fetchMarketReview(tradeDate),
     staleTime: 5 * 60 * 1000,
   })

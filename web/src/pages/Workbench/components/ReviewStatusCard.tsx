@@ -12,6 +12,8 @@ import type {
 
 import { FoldCard } from './FoldCard'
 
+import { DATE_FORMAT } from '@/utils/formatters'
+
 interface ReviewStatusCardProps {
   status?: ReviewStatus | null
   review?: MarketReview | null
@@ -87,7 +89,7 @@ function stockSummary(groups?: WorkbenchWatchlistGroup[]): string {
   return `${ready}/${total}`
 }
 
-const TODAY = dayjs().format('YYYY-MM-DD')
+const TODAY = dayjs().format(DATE_FORMAT)
 
 /** 复盘状态卡：只呈现"做没做 / 何时做 / 做得怎样"，正文引流到每日复盘页。 */
 export function ReviewStatusCard({

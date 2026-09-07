@@ -13,7 +13,9 @@ import { useColorScheme } from '@/stores/settings'
 
 import { AuctionStatsCards } from './components/AuctionStatsCards'
 import { AuctionStatsTable } from './components/AuctionStatsTable'
+import { DATE_FORMAT } from '@/utils/formatters'
 import {
+
   buildDailyStats,
   downloadCsv,
   presetToRange,
@@ -37,8 +39,8 @@ export function AuctionReview() {
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [pickerValue, setPickerValue] = useState<[Dayjs | null, Dayjs | null] | null>(null)
   const { data, isLoading, error } = useIndexAuctionTrend({
-    startDate: range?.[0].format('YYYY-MM-DD'),
-    endDate: range?.[1].format('YYYY-MM-DD'),
+    startDate: range?.[0].format(DATE_FORMAT),
+    endDate: range?.[1].format(DATE_FORMAT),
   })
 
   const stats = useMemo(() => (data ? buildDailyStats(data) : []), [data])

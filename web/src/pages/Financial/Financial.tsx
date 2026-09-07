@@ -20,6 +20,8 @@ import { useFinancial } from '@/hooks/useFinancial'
 import { FinancialStatementTables } from './components/FinancialStatementTables'
 import { renderPercent } from './utils'
 
+import { DATE_FORMAT } from '@/utils/formatters'
+
 const METRIC_LABELS = FINANCIAL_METRIC_LABELS
 
 export function Financial() {
@@ -30,7 +32,7 @@ export function Financial() {
   const { data, isLoading } = useFinancial(code || '', reportDate)
 
   const handleDateChange = (date: Dayjs | null) => {
-    setReportDate(date ? date.format('YYYY-MM-DD') : undefined)
+    setReportDate(date ? date.format(DATE_FORMAT) : undefined)
   }
 
   return (

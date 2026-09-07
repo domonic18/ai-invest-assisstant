@@ -16,6 +16,7 @@ import { Link } from 'react-router-dom'
 import { useCollectorLogs } from '@/hooks/useCollectorAdmin'
 import { formatDateTime } from '@/utils/formatters'
 import { getSourceLabel, getTaskLabel } from '@/utils/collectorTaskLabels'
+import { statusTagColor } from '@ai-invest/shared'
 
 const ADMIN_LINKS = [
   { title: '用户管理', path: '/admin/users', icon: <TeamOutlined />, color: 'bg-blue-500/10 text-blue-400' },
@@ -30,15 +31,6 @@ const ADMIN_LINKS = [
   { title: '采集任务', path: '/admin/collector', icon: <PlayCircleOutlined />, color: 'bg-indigo-500/10 text-indigo-400' },
 ]
 
-const STATUS_COLORS: Record<string, string> = {
-  success: 'green',
-  failed: 'red',
-  pending: 'gold',
-  running: 'blue',
-  partial: 'orange',
-  skipped: 'default',
-}
-
 export function Admin() {
   const { data: logs, isLoading } = useCollectorLogs(10)
 
@@ -49,7 +41,7 @@ export function Admin() {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (v: string) => <Tag color={STATUS_COLORS[v] || 'default'}>{v}</Tag>,
+      render: (v: string) => <Tag color={statusTagColor(v)}>{v}</Tag>,
     },
     { title: '记录数', dataIndex: 'recordsCount', key: 'recordsCount' },
     { title: '开始时间', dataIndex: 'startedAt', key: 'startedAt', width: 170, render: (v: string | null) => formatDateTime(v) },

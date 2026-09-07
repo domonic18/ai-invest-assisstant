@@ -2,7 +2,9 @@ import { useQuery } from '@tanstack/react-query'
 
 import { fetchFinancialHealth } from '@/api/financial'
 
-const FINANCIAL_KEY = ['financial'] as const
+import { queryKeys } from '@/hooks/queryKeys'
+
+const FINANCIAL_KEY = queryKeys.financial.all
 
 export function useFinancial(code: string, reportDate?: string) {
   return useQuery({

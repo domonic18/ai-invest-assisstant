@@ -19,7 +19,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
-import type { AdminAiResultItem } from '@ai-invest/shared'
+import { PAGE_SIZE, type AdminAiResultItem } from '@ai-invest/shared'
 
 import {
   invalidateAiResultCaches,
@@ -30,19 +30,15 @@ import {
 } from '@/hooks/useAdminAiResults'
 import { usePageAssistantResultAny } from '@/hooks/usePageAssistantResult'
 import { useAssistantStore, type PageAssistantResult } from '@/stores/assistant'
-import { formatDateTime } from '@/utils/formatters'
+import {DATE_FORMAT,  formatDateTime } from '@/utils/formatters'
 
 import { JsonView } from './JsonView'
+import { statusTagColor } from '@ai-invest/shared'
 
 const STATUS_OPTIONS = [
   { value: 'success', label: '成功' },
   { value: 'failed', label: '失败' },
 ]
-
-const STATUS_TAG_COLOR: Record<string, string> = {
-  success: 'green',
-  failed: 'red',
-}
 
 function formatLatency(latencyMs: number | null): string {
   if (latencyMs == null || latencyMs === 0) return '-'
@@ -56,7 +52,7 @@ function keyFieldsText(record: AdminAiResultItem): string {
 export function AiResultsAdmin() {
   const [activeSkill, setActiveSkill] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE.table)
   const [dateRange, setDateRange] = useState<[string | null, string | null]>([null, null])
   const [status, setStatus] = useState<string | undefined>(undefined)
   const [detailId, setDetailId] = useState<number | null>(null)
@@ -135,7 +131,7 @@ export function AiResultsAdmin() {
   const handleRangeChange = (dates: [Dayjs | null, Dayjs | null] | null) => {
     setDateRange(
       dates
-        ? [dates[0]?.format('YYYY-MM-DD') ?? null, dates[1]?.format('YYYY-MM-DD') ?? null]
+        ? [dates[0]?.format(DATE_FORMAT) ?? null, dates[1]?.format(DATE_FORMAT) ?? null]
         : [null, null],
     )
     setPage(1)
@@ -153,7 +149,7 @@ export function AiResultsAdmin() {
       key: 'status',
       width: 90,
       render: (value: string) => (
-        <Tag color={STATUS_TAG_COLOR[value] ?? 'default'}>{value}</Tag>
+        <Tag color={statusTagColor(value)}>{value}</Tag>
       ),
     },
     {
