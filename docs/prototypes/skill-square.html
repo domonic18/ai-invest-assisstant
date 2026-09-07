@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 技能广场</title>
+<style>
+:root{--bg:#0c0e12;--bg-elevated:#111318;--bg-surface:#181a21;--bg-hover:#1c1f26;--border:#23262d;--border-hover:#2e323c;--border-focus:#5e6ad2;--text-primary:#f0f1f5;--text-secondary:#8a8f98;--text-tertiary:#5c616e;--accent:#5e6ad2;--accent-hover:#6872e3;--accent-soft:rgba(94,106,210,.12);--green:#2ea043;--green-soft:rgba(46,160,67,.12);--red:#f85149;--red-soft:rgba(248,81,73,.12);--amber:#d29922;--amber-soft:rgba(210,153,34,.12);--blue:#58a6ff;--blue-soft:rgba(88,166,255,.12);--font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;--font-mono:'SF Mono','Fira Code','Consolas',monospace;--radius-sm:6px;--radius-md:8px;--radius-lg:12px;--transition:200ms ease;--sidebar-w:220px;--header-h:56px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);font-size:14px;color:var(--text-primary);background:var(--bg);line-height:1.5;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-hover);border-radius:3px}
+::selection{background:var(--accent-soft)}
+a{color:var(--accent);text-decoration:none}
+
+/* Layout */
+.app-layout{display:flex;min-height:100vh}
+.app-sidebar{width:var(--sidebar-w);background:var(--bg-elevated);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto}
+.app-main{flex:1;display:flex;flex-direction:column;min-width:0}
+.app-header{height:var(--header-h);background:var(--bg-elevated);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0;position:sticky;top:0;z-index:10}
+.app-content{padding:24px;max-width:1280px;width:100%;margin:0 auto}
+
+/* Sidebar */
+.sidebar-brand{padding:16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+.sidebar-logo{width:34px;height:34px;background:var(--accent);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sidebar-logo svg{width:18px;height:18px}
+.sidebar-brand-text{font-size:16px;font-weight:700}
+.sidebar-version{font-size:10px;color:var(--text-tertiary);margin-left:auto}
+.sidebar-nav{padding:8px;flex:1}
+.sidebar-section-title{font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:12px 10px 6px;font-weight:600}
+.sidebar-item{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--radius-sm);font-size:13px;color:var(--text-secondary);cursor:pointer;transition:all var(--transition)}
+.sidebar-item:hover{background:var(--bg-hover);color:var(--text-primary)}
+.sidebar-item.active{background:var(--accent-soft);color:var(--accent)}
+.sidebar-item-icon{opacity:.5;width:16px;font-size:12px;text-align:center}
+.sidebar-item.active .sidebar-item-icon{opacity:1}
+.sidebar-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.sidebar-avatar{width:30px;height:30px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;flex-shrink:0}
+.sidebar-user-info{font-size:12px;color:var(--text-secondary)}
+.sidebar-user-name{color:var(--text-primary);font-weight:500}
+
+/* Common */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;border:1px solid transparent;cursor:pointer;transition:all var(--transition)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-secondary{background:var(--bg-surface);color:var(--text-secondary);border-color:var(--border)}
+.btn-secondary:hover{background:var(--bg-hover);color:var(--text-primary)}
+.btn-ghost{background:transparent;color:var(--text-secondary)}
+.btn-ghost:hover{background:var(--bg-hover);color:var(--text-primary)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn-block{width:100%;justify-content:center}
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;background:var(--bg-surface);color:var(--text-secondary)}
+.tag-green{background:var(--green-soft);color:var(--green)}
+.tag-blue{background:var(--blue-soft);color:var(--blue)}
+.tag-amber{background:var(--amber-soft);color:var(--amber)}
+.tag-purple{background:var(--accent-soft);color:var(--accent)}
+.text-mono{font-family:var(--font-mono);font-size:12px}
+
+/* Page head */
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px}
+.page-head h1{font-size:20px;font-weight:600;letter-spacing:-.01em}
+.page-head .sub{font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.6;max-width:640px}
+
+/* Tabs */
+.vtabs{display:flex;gap:4px;padding:4px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);width:fit-content;margin-bottom:18px}
+.vtab{padding:6px 16px;border-radius:var(--radius-sm);font-size:13px;color:var(--text-secondary);cursor:pointer;transition:all var(--transition)}
+.vtab:hover{color:var(--text-primary)}
+.vtab.active{background:var(--accent-soft);color:var(--accent);font-weight:500}
+.vtab .cnt{font-size:11px;color:var(--text-tertiary);margin-left:4px}
+.vtab.active .cnt{color:var(--accent)}
+
+/* Kind filter chips */
+.kind-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.kchip{padding:4px 12px;border-radius:999px;font-size:12px;color:var(--text-secondary);background:var(--bg-surface);border:1px solid var(--border);cursor:pointer;transition:all var(--transition)}
+.kchip:hover{border-color:var(--border-hover);color:var(--text-primary)}
+.kchip.active{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.kchip .n{color:var(--text-tertiary);margin-left:2px}
+
+/* Skill cards */
+.sk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.sk-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;display:flex;flex-direction:column;gap:10px;transition:border-color var(--transition)}
+.sk-card:hover{border-color:var(--border-hover)}
+.sk-head{display:flex;align-items:center;gap:10px}
+.sk-icon{width:38px;height:38px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.sk-title{font-size:14px;font-weight:600;line-height:1.3}
+.sk-id{font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary);margin-top:2px}
+.sk-builtin{margin-left:auto;font-size:10px;color:var(--text-tertiary);border:1px solid var(--border);border-radius:4px;padding:1px 6px;flex-shrink:0}
+.sk-desc{font-size:12px;color:var(--text-secondary);line-height:1.6;min-height:38px}
+.sk-meta{display:flex;gap:6px;flex-wrap:wrap}
+.sk-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:10px;border-top:1px solid var(--border)}
+.sk-author{font-size:11px;color:var(--text-tertiary)}
+.sk-installed{font-size:12px;color:var(--green);font-weight:500;display:inline-flex;align-items:center;gap:4px}
+
+/* My skills pane */
+.mine-section{margin-bottom:28px}
+.mine-title{font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.mine-title .hint{font-size:11px;color:var(--text-tertiary);font-weight:400}
+.mine-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.mine-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;display:flex;flex-direction:column;gap:10px}
+.mine-card .draft{border-style:dashed}
+.mine-actions{display:flex;gap:8px;flex-wrap:wrap}
+.inst-row{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md)}
+.inst-row + .inst-row{margin-top:8px}
+.inst-name{font-size:13px;font-weight:500}
+.inst-sub{font-size:11px;color:var(--text-tertiary);margin-top:2px}
+.inst-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.builtin-note{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--bg-elevated);border:1px dashed var(--border);border-radius:var(--radius-md);font-size:12px;color:var(--text-secondary)}
+.builtin-note .bn-list{color:var(--text-tertiary)}
+
+/* Switch */
+.switch{width:32px;height:18px;border-radius:9px;background:var(--border-hover);position:relative;cursor:pointer;transition:background var(--transition);flex-shrink:0}
+.switch::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left var(--transition)}
+.switch.on{background:var(--accent)}
+.switch.on::after{left:16px}
+
+/* Drawer */
+.drawer-mask{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40;opacity:0;pointer-events:none;transition:opacity var(--transition)}
+.drawer-mask.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:-480px;width:480px;max-width:92vw;height:100vh;background:var(--bg-elevated);border-left:1px solid var(--border);z-index:41;transition:right 260ms ease;display:flex;flex-direction:column}
+.drawer.open{right:0}
+.drawer-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.drawer-title{font-size:15px;font-weight:600}
+.drawer-close{background:none;border:none;color:var(--text-tertiary);font-size:16px;cursor:pointer}
+.drawer-close:hover{color:var(--text-primary)}
+.drawer-body{padding:20px;overflow-y:auto;flex:1}
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
+.form-label .req{color:var(--red)}
+.form-label .opt{color:var(--text-tertiary);font-weight:400;font-size:11px;margin-left:4px}
+.form-input,.form-textarea{width:100%;padding:8px 12px;font-size:13px;color:var(--text-primary);background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);outline:none;transition:border var(--transition);font-family:var(--font)}
+.form-textarea{font-family:var(--font-mono);font-size:12px;line-height:1.7;resize:vertical}
+.form-input:focus,.form-textarea:focus{border-color:var(--border-focus)}
+.form-input::placeholder,.form-textarea::placeholder{color:var(--text-tertiary)}
+.form-hint{font-size:11px;color:var(--text-tertiary);margin-top:4px;line-height:1.6}
+.drawer-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;flex-shrink:0}
+
+/* Detail drawer */
+.dt-row{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:12px}
+.dt-key{width:88px;color:var(--text-tertiary);flex-shrink:0}
+.dt-val{color:var(--text-primary);line-height:1.7}
+.dt-sec{font-size:12px;font-weight:600;margin:18px 0 8px;color:var(--text-primary)}
+.code-block{background:#0a0c10;border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;font-family:var(--font-mono);font-size:11px;line-height:1.7;color:var(--text-secondary);white-space:pre;overflow-x:auto}
+.code-block .ck{color:var(--blue)}
+.code-block .cs{color:var(--green)}
+
+/* Type note */
+.type-note{margin-top:36px;padding:16px 20px;background:var(--bg-elevated);border:1px dashed var(--border-hover);border-radius:var(--radius-lg);font-size:12px;color:var(--text-secondary);line-height:1.9}
+.type-note b{color:var(--text-primary);font-weight:600}
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="app-sidebar">
+<div class="sidebar-brand">
+<div class="sidebar-logo">
+<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#fff" stroke-width="2.5"/><polyline points="8,20 12,16 16,18 20,12 24,14" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="14" r="2.5" fill="#fff"/></svg>
+</div>
+<div class="sidebar-brand-text">AI Invest</div>
+<div class="sidebar-version">v1.0.0</div>
+</div>
+
+<nav class="sidebar-nav">
+<a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
+<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
+<a class="sidebar-item" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
+<a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
+<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
+<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
+<div class="sidebar-section-title">分析</div>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
+<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
+<div class="sidebar-section-title">设置</div>
+<a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+<a class="sidebar-item active" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
+<a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
+</nav>
+<div class="sidebar-footer"><div class="sidebar-avatar">D</div><div class="sidebar-user-info"><div class="sidebar-user-name">Domonic</div><div>普通用户</div></div></div>
+  </aside>
+
+  <div class="app-main">
+    <header class="app-header">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:13px;color:var(--text-tertiary);font-weight:500">设置 /</span>
+        <span style="font-size:13px;color:var(--text-primary);font-weight:500">技能广场</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:11px;color:var(--text-tertiary)">已安装技能将注入 AI 助手上下文</span>
+        <button style="width:34px;height:34px;border-radius:var(--radius-sm);background:transparent;border:none;color:var(--text-secondary);cursor:pointer;font-size:16px">⚙</button>
+      </div>
+    </header>
+
+    <div class="app-content">
+
+      <div class="page-head">
+        <div>
+          <h1>技能广场</h1>
+          <div class="sub">AI 技能的分发与管理入口：内置技能开箱即用；安装自定义技能后，其索引将注入 AI 助手上下文（渐进披露，按需读取全文）；自己创建的技能默认私有，可发布到广场共享。</div>
+        </div>
+        <button class="btn btn-primary" id="btnCreate">＋ 创建自定义技能</button>
+      </div>
+
+      <div class="vtabs" id="vtabs">
+        <div class="vtab active" data-pane="pane-square">技能广场<span class="cnt">11</span></div>
+        <div class="vtab" data-pane="pane-mine">我的技能<span class="cnt">3</span></div>
+      </div>
+
+      <!-- ========== Pane 1：技能广场 ========== -->
+      <div id="pane-square">
+        <div class="kind-chips" id="kindChips">
+          <div class="kchip active" data-kind="all">全部<span class="n">11</span></div>
+          <div class="kchip" data-kind="executable">可执行<span class="n">5</span></div>
+          <div class="kchip" data-kind="prompt_only">提示词<span class="n">3</span></div>
+          <div class="kchip" data-kind="doc_only">方法论<span class="n">2</span></div>
+          <div class="kchip" data-kind="custom">自定义<span class="n">1</span></div>
+        </div>
+
+        <div class="sk-grid" id="skGrid">
+
+          <div class="sk-card" data-kind="executable">
+            <div class="sk-head">
+              <div class="sk-icon" style="background:var(--accent-soft);color:var(--accent)">📊</div>
+              <div><div class="sk-title">大盘每日复盘</div><div class="sk-id">market-daily-review</div></div>
+              <span class="sk-builtin">内置</span>
+            </div>
+            <div class="sk-desc">盘后生成大盘综述：指数解读、涨跌统计、情绪研判与次日展望，支持模块级人工编辑。</div>
+            <div class="sk-meta"><span class="tag tag-green">可执行</span><span class="tag">定时 16:30</span><span class="tag">侧边栏触发</span></div>
+            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
+          </div>
+
+          <div class="sk-card" data-kind="executable">
+            <div class="sk-head">
+              <div class="sk-icon" style="background:var(--red-soft);color:var(--red)">🚀</div>
+              <div><div class="sk-title">涨停复盘归因</div><div class="sk-id">limit-up-review</div></div>
+              <span class="sk-builtin">内置</span>
+            </div>
+            <div class="sk-desc">涨停/连板/炸板股池分组复盘，分时归因与题材聚类，同花顺风格分组展示。</div>
+            <div class="sk-meta"><span class="tag tag-green">可执行</span><span class="tag">定时 16:30</span><span class="tag">侧边栏触发</span></div>
+            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
+          </div>
+
+          <div class="sk-card" data-kind="executable">
+            <div class="sk-head">
+              <div class="sk-icon" style="background:var(--green-soft);color:var(--green)">🎯</div>
+              <div><div class="sk-title">个股每日分析</div><div class="sk-id">stock-daily-analysis</div></div>
+              <span class="sk-builtin">内置</span>
+            </div>
+            <div class="sk-desc">自选股盘面解读 / 关键事件 / 操作策略 / 风险与止损四段式输出，按开启 AI 复盘的分组盘后批量生成。</div>
+            <div class="sk-meta"><span class="tag tag-green">可执行</span><span class="tag">heavy 队列</span><span class="tag">自选分组开关</span></div>
+            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
+          </div>
+
+          <div class="sk-card" data-kind="executable">
+            <div class="sk-head">
+              <div class="sk-icon" style="background:var(--blue-soft);color:var(--blue)">🔗</div>
+              <div><div class="sk-title">产业链分析</div><div class="sk-id">industry-chain-analysis</div></div>
+              <span class="sk-builtin">内置</span>
+            </div>
+            <div class="sk-desc">基于经营范围自下而上推导产业链环节，生成图谱 + 矩阵 + 洞察；支持版本管理与周级定时刷新。</div>
+            <div class="sk-meta"><span class="tag tag-green">可执行</span><span class="tag">周六 06:00</span><span class="tag">版本管理</span></div>
+            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
+          </div>
+
+          <div class="sk-card" data-kind="executable">
+            <div class="sk-head">
+              <div class="sk-icon" style="background:var(--amber-soft);color:var(--amber)">📸</div>
+              <div><div class="sk-title">自选股截图识别</div><div class="sk-id">watchlist-screenshot-recognition</div></div>
+              <span class="sk-builtin">内置</span>
+            </div>
+            <div class="sk-desc">上传券商 App 自选股截图，视觉模型识别代码与名称，批量导入自选股（REST 端点触发，非对话工具）。</div>
+            <div class="sk-meta"><span class="tag tag-green">可执行</span><span class="tag">视觉模型</span><span class="tag">REST 触发</span></div>
+            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
+          </div>
+
+          <div class="sk-card" data-kind="prompt_only">
+            <div class="sk-head">
+              <div class="sk-icon" style="background:var(--blue-soft);color:var(--blue)">📄</div>
+              <div><div class="sk-title">研报摘要</div><div class="sk-id">research-report-summary</div></div>
+              <span class="sk-builtin">内置</span>
+            </div>
+            <div class="sk-desc">个股详情页研报 tab 的 AI 解读提示词：核心观点 / 盈利预测 / 风险提示三段式摘要。</div>
+            <div class="sk-meta"><span class="tag tag-blue">提示词</span><span class="tag">助手调用</span></div>
+            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
+          </div>
+
+          <div class="sk-card" data-kind="prompt_only">
+            <div class="sk-head">
+              <div class="sk-icon" style="background:var(--green-soft);color:var(--green)">📑</div>
+              <div><div class="sk-title">财报摘要</div><div class="sk-id">financial-report-summary</div></div>
+              <span class="sk-builtin">内置</span>
+            </div>
+            <div class="sk-desc">个股详情页财报 tab 的 AI 解读提示词：营收利润拆解 / 同比环比 / 关键科目异动。</div>
+            <div class="sk-meta"><span class="tag tag-blue">提示词</span><span class="tag">助手调用</span></div>
+            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
+          </div>
+
+          <div class="sk-card" data-kind="doc_only">
+            <div class="sk-head">
+              <div class="sk-icon" style="background:var(--accent-soft);color:var(--accent)">🧩</div>
+              <div><div class="sk-title">产业链突破挖掘</div><div class="sk-id">chain-breakthrough</div></div>
+              <span class="sk-builtin">内置</span>
+            </div>
+            <div class="sk-desc">方法论文档：识别产业链环节技术突破的分析框架（技术壁垒 / 国产化率 / 客户验证三维度）。</div>
+            <div class="sk-meta"><span class="tag tag-amber">方法论</span><span class="tag">分析框架</span></div>
+            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
+          </div>
+
+          <div class="sk-card" data-kind="doc_only">
+            <div class="sk-head">
+              <div class="sk-icon" style="background:var(--red-soft);color:var(--red)">🩺</div>
+              <div><div class="sk-title">财务健康检查</div><div class="sk-id">financial-health-check</div></div>
+              <span class="sk-builtin">内置</span>
+            </div>
+            <div class="sk-desc">方法论文档：财务健康度评估清单（现金流质量 / 杠杆水平 / 盈利持续性 / 商誉风险）。</div>
+            <div class="sk-meta"><span class="tag tag-amber">方法论</span><span class="tag">评估清单</span></div>
+            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
+          </div>
+
+          <div class="sk-card" data-kind="prompt_only">
+            <div class="sk-head">
+              <div class="sk-icon" style="background:var(--amber-soft);color:var(--amber)">🔥</div>
+              <div><div class="sk-title">热点检测</div><div class="sk-id">hotspot-detection</div></div>
+              <span class="sk-builtin">内置</span>
+            </div>
+            <div class="sk-desc">热点主题检测提示词（资讯中心「热点主题」视图消费）：主题聚类 / 情绪判定 / 传导链推导。</div>
+            <div class="sk-meta"><span class="tag tag-blue">提示词</span><span class="tag">资讯中心消费</span></div>
+            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
+          </div>
+
+          <div class="sk-card" data-kind="custom">
+            <div class="sk-head">
+              <div class="sk-icon" style="background:rgba(99,102,241,.1);color:#818cf8">🐉</div>
+              <div><div class="sk-title">龙头战法每日复盘</div><div class="sk-id">dragon-head-review</div></div>
+              <span class="sk-builtin" style="color:var(--accent);border-color:transparent;background:var(--accent-soft)">自定义</span>
+            </div>
+            <div class="sk-desc">按连板高度与题材梯队复盘当日龙头股：卡位关系 / 断板回封 / 明日晋级推演。</div>
+            <div class="sk-meta"><span class="tag tag-purple">自定义</span><span class="tag tag-green">v2</span></div>
+            <div class="sk-foot"><span class="sk-author">@zhangwei 发布</span><button class="btn btn-primary btn-sm">安装</button></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ========== Pane 2：我的技能 ========== -->
+      <div id="pane-mine" style="display:none">
+
+        <div class="mine-section">
+          <div class="mine-title">我的自定义技能 <span class="hint">默认私有，发布后广场可见；skillId 全局唯一，不可与内置保留字冲突</span></div>
+          <div class="mine-grid">
+            <div class="mine-card">
+              <div class="sk-head">
+                <div class="sk-icon" style="background:var(--accent-soft);color:var(--accent)">🧭</div>
+                <div><div class="sk-title">竞价异动早盘策略</div><div class="sk-id">my-auction-strategy · v3</div></div>
+                <span class="tag tag-green">已发布</span>
+              </div>
+              <div class="sk-desc">集合竞价量价异动 + 昨日涨停表现，推演早盘关注池与回避清单。</div>
+              <div class="sk-meta"><span class="tag tag-blue">提示词</span><span class="tag">含 User Prompt 模板</span></div>
+              <div class="mine-actions">
+                <button class="btn btn-ghost btn-sm">编辑</button>
+                <button class="btn btn-ghost btn-sm">新版本</button>
+                <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
+              </div>
+            </div>
+            <div class="mine-card draft">
+              <div class="sk-head">
+                <div class="sk-icon" style="background:var(--bg-surface);color:var(--text-secondary)">⛏</div>
+                <div><div class="sk-title">北向资金风格跟踪</div><div class="sk-id">my-northbound-style · v2</div></div>
+                <span class="tag tag-amber">草稿</span>
+              </div>
+              <div class="sk-desc">按周汇总北向净买入行业分布变化，标注风格切换信号（编写中，仅自己可见）。</div>
+              <div class="sk-meta"><span class="tag tag-blue">提示词</span><span class="tag">未发布</span></div>
+              <div class="mine-actions">
+                <button class="btn btn-ghost btn-sm">编辑</button>
+                <button class="btn btn-primary btn-sm">发布</button>
+                <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mine-section">
+          <div class="mine-title">已安装（来自广场） <span class="hint">关闭开关后不再注入助手上下文；卸载不影响技能本体</span></div>
+          <div class="inst-row">
+            <div class="sk-icon" style="width:32px;height:32px;font-size:14px;background:rgba(99,102,241,.1);color:#818cf8">🐉</div>
+            <div><div class="inst-name">龙头战法每日复盘</div><div class="inst-sub">@zhangwei · v2 · 安装于 2026-09-05</div></div>
+            <div class="inst-right">
+              <span style="font-size:11px;color:var(--text-tertiary)">注入助手</span>
+              <span class="switch on"></span>
+              <button class="btn btn-ghost btn-sm">卸载</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="mine-section">
+          <div class="mine-title">内置技能 <span class="hint">随平台版本更新，始终对 AI 助手可用</span></div>
+          <div class="builtin-note">
+            <span>◆</span>
+            <span>大盘每日复盘 · 涨停复盘归因 · 个股每日分析 · 产业链分析 · 自选股截图识别 · 研报摘要 · 财报摘要 · 热点检测 · 产业链突破挖掘 · 财务健康检查<span class="bn-list">（10 项，详见技能广场）</span></span>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="type-note">
+        <b>实现说明（对齐批次 7 已交付的后端 API）</b><br>
+        ① 端点映射：广场列表 = <span class="text-mono">GET /api/v1/skills</span>（返回 available + mine 两组）；安装 = <span class="text-mono">POST /skills/{id}/install</span>（201；重复安装 409）；卸载 = <span class="text-mono">DELETE /skills/{id}/install</span>（204）；创建 = <span class="text-mono">POST /skills</span>（skillId 撞内置保留字或他人技能 409）；编辑 = <span class="text-mono">PATCH /skills/{id}</span>（仅本人，version 自增）；发布 = <span class="text-mono">POST /skills/{id}/publish</span>（仅本人）。<br>
+        ② 内置技能语义：10 个 builtin 随镜像分发、目录全量挂载给助手（开箱即用，无需安装）；「安装 / 启用开关」的注入语义主要作用于自定义技能——安装且 enabled 的 custom skill 以索引行（技能名：描述）注入助手上下文，全文按需读取（渐进披露）。<br>
+        ③ kind 四类：可执行（有执行器，定时 / 页面双路径）/ 提示词（助手按需调用）/ 方法论（知识文档）/ 自定义（用户配置，DB JSONB）。<br>
+        ④ 自定义技能 = 配置非代码：无执行沙箱，不支持联网取数工具以外的能力声明；allowed_tools 约束本批不执法。<br>
+        ⑤ wire 契约：shared/types/skill.ts 已有（ApiSkillItem 等 camelCase），前端页面 / hooks 待批次 J 落地。
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ========== 创建自定义技能抽屉 ========== -->
+<div class="drawer-mask" id="maskCreate"></div>
+<div class="drawer" id="drawerCreate">
+  <div class="drawer-header">
+    <span class="drawer-title">创建自定义技能</span>
+    <button class="drawer-close" data-close="drawerCreate">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="form-group">
+      <label class="form-label">技能标识 <span class="req">*</span></label>
+      <input class="form-input text-mono" placeholder="例如 my-auction-strategy" value="my-auction-strategy">
+      <div class="form-hint">小写字母 / 数字 / 连字符；全局唯一，不可与内置保留字冲突（冲突返回 409）。创建后不可修改。</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">技能名称 <span class="req">*</span></label>
+      <input class="form-input" value="竞价异动早盘策略">
+    </div>
+    <div class="form-group">
+      <label class="form-label">描述</label>
+      <textarea class="form-textarea" rows="2" style="font-family:var(--font)">集合竞价量价异动 + 昨日涨停表现，推演早盘关注池与回避清单</textarea>
+      <div class="form-hint">将作为索引行注入 AI 助手上下文（一行摘要，写清楚"什么时候用这个技能"）。</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">SKILL.md 内容 <span class="req">*</span></label>
+      <textarea class="form-textarea" rows="8">---
+name: 竞价异动早盘策略
+description: 集合竞价量价异动与昨日涨停表现分析框架
+---
+
+## 触发条件
+用户询问早盘策略 / 竞价异动时使用
+
+## 分析步骤
+1. 调用集合竞价数据（竞价成交额、未匹配量）
+2. 对照昨日涨停股池表现
+3. 输出关注池与回避清单</textarea>
+      <div class="form-hint">frontmatter 的 name / description 会同步为技能元信息；正文是助手执行时读取的方法论。</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">System Prompt <span class="req">*</span></label>
+      <textarea class="form-textarea" rows="5">你是一名 A 股早盘竞价分析专家。基于提供的集合竞价与昨日涨停数据，严格区分事实与推断；不构成投资建议。</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">User Prompt 模板 <span class="opt">可选</span></label>
+      <textarea class="form-textarea" rows="4">请分析 {trade_date} 的集合竞价情况：\n- 竞价成交额异动板块：{sectors}\n- 昨日涨停今日竞价表现：{limit_up_pool}</textarea>
+      <div class="form-hint">支持 {"{placeholder}"} 占位符，调用时替换；留空则直接透传用户问题。</div>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn btn-primary" data-close="drawerCreate">保存草稿</button>
+    <button class="btn btn-secondary" data-close="drawerCreate">取消</button>
+    <span style="margin-left:auto;font-size:11px;color:var(--text-tertiary);align-self:center">草稿仅自己可见，发布后进入广场</span>
+  </div>
+</div>
+
+<!-- ========== 技能详情抽屉 ========== -->
+<div class="drawer-mask" id="maskDetail"></div>
+<div class="drawer" id="drawerDetail">
+  <div class="drawer-header">
+    <span class="drawer-title">技能详情</span>
+    <button class="drawer-close" data-close="drawerDetail">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="dt-row"><div class="dt-key">名称</div><div class="dt-val">大盘每日复盘 <span class="tag tag-green" style="margin-left:6px">可执行</span></div></div>
+    <div class="dt-row"><div class="dt-key">标识</div><div class="dt-val text-mono">market-daily-review</div></div>
+    <div class="dt-row"><div class="dt-key">来源</div><div class="dt-val">内置（随平台版本更新）</div></div>
+    <div class="dt-row"><div class="dt-key">触发方式</div><div class="dt-val">定时任务（交易日 16:30，heavy 队列）+ 复盘页侧边栏手动触发，双路径共用同一 SKILL.md</div></div>
+    <div class="dt-row"><div class="dt-key">消费页面</div><div class="dt-val">每日复盘页（AI 大盘综述模块）· 工作台（复盘状态卡）</div></div>
+
+    <div class="dt-sec">SKILL.md frontmatter</div>
+    <div class="code-block">---
+<span class="ck">name:</span> 大盘每日复盘
+<span class="ck">description:</span> 盘后生成大盘综述与次日展望
+<span class="ck">allowed-tools:</span> [get_index_kline, get_market_breadth, persist_market_review]
+---</div>
+
+    <div class="dt-sec">结构化输出（示意）</div>
+    <div class="code-block">{
+  <span class="ck">"market_overview"</span>: { <span class="ck">"index_code"</span>: <span class="cs">"000001"</span>, <span class="ck">"change_pct"</span>: 0.82 },
+  <span class="ck">"sentiment"</span>: <span class="cs">"偏暖"</span>,
+  <span class="ck">"highlights"</span>: [<span class="cs">"…"</span>],
+  <span class="ck">"next_day_outlook"</span>: <span class="cs">"…"</span>
+}</div>
+
+    <div style="margin-top:20px">
+      <button class="btn btn-primary btn-block">在助手中试用</button>
+      <div style="text-align:center;font-size:11px;color:var(--text-tertiary);margin-top:8px">打开侧边栏 AI 助手并预置技能调用</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Tab 切换
+var vtabs = document.getElementById('vtabs');
+vtabs.querySelectorAll('.vtab').forEach(function (tab) {
+  tab.addEventListener('click', function () {
+    vtabs.querySelectorAll('.vtab').forEach(function (t) { t.classList.remove('active'); });
+    tab.classList.add('active');
+    document.getElementById('pane-square').style.display = tab.getAttribute('data-pane') === 'pane-square' ? '' : 'none';
+    document.getElementById('pane-mine').style.display = tab.getAttribute('data-pane') === 'pane-mine' ? '' : 'none';
+  });
+});
+
+// kind 筛选（样式级切换 + 卡片显隐）
+var chips = document.getElementById('kindChips');
+chips.querySelectorAll('.kchip').forEach(function (chip) {
+  chip.addEventListener('click', function () {
+    chips.querySelectorAll('.kchip').forEach(function (c) { c.classList.remove('active'); });
+    chip.classList.add('active');
+    var kind = chip.getAttribute('data-kind');
+    document.querySelectorAll('#skGrid .sk-card').forEach(function (card) {
+      card.style.display = (kind === 'all' || card.getAttribute('data-kind') === kind) ? '' : 'none';
+    });
+  });
+});
+
+// 抽屉开合
+function bindDrawer(triggerSel, drawerId) {
+  var drawer = document.getElementById(drawerId);
+  var mask = document.getElementById(drawerId === 'drawerCreate' ? 'maskCreate' : 'maskDetail');
+  document.querySelectorAll(triggerSel).forEach(function (btn) {
+    btn.addEventListener('click', function () { drawer.classList.add('open'); mask.classList.add('open'); });
+  });
+  mask.addEventListener('click', function () { drawer.classList.remove('open'); mask.classList.remove('open'); });
+  drawer.querySelectorAll('[data-close]').forEach(function (btn) {
+    btn.addEventListener('click', function () { drawer.classList.remove('open'); mask.classList.remove('open'); });
+  });
+}
+bindDrawer('#btnCreate', 'drawerCreate');
+bindDrawer('[data-detail]', 'drawerDetail');
+
+// 安装按钮 → 已安装态（纯示意）
+document.querySelectorAll('#skGrid .btn-primary').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var foot = btn.closest('.sk-foot');
+    btn.remove();
+    var ok = document.createElement('span');
+    ok.className = 'sk-installed';
+    ok.textContent = '✓ 已安装';
+    foot.insertBefore(ok, foot.querySelector('.sk-author').nextSibling);
+  });
+});
+
+// 开关切换（纯示意）
+document.querySelectorAll('.switch').forEach(function (sw) {
+  sw.addEventListener('click', function () { sw.classList.toggle('on'); });
+});
+</script>
+</body>
+</html>
