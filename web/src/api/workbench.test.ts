@@ -6,7 +6,7 @@ import {
   mapReviewStatus,
   mapSectorFlowItem,
   mapWorkbench,
-} from './workbench'
+} from './mappers/workbench'
 
 import type {
   ApiCalendarEventResponse,

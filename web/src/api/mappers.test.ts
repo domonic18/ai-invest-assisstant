@@ -8,11 +8,16 @@ import {
   mapChainAlert,
   mapChainAnalysisResult,
   mapCollectorLog,
+  mapIndexQuote,
   mapKlineData,
   mapLLMConfig,
+  mapLimitUpData,
+  mapMarketReview,
+  mapSectorOverview,
   mapStock,
   mapUser,
   mapWatchlistItem,
+  mapWatchlistQuote,
 } from './mappers'
 
 import type {
@@ -23,11 +28,16 @@ import type {
   ApiChainAlert,
   ApiChainAnalysisResult,
   ApiCollectorLogResponse,
+  ApiIndexQuoteResponse,
   ApiKlineDataResponse,
   ApiLLMConfigResponse,
+  ApiLimitUpResponse,
+  ApiMarketReviewResponse,
+  ApiSectorOverviewResponse,
   ApiStockBasicResponse,
   ApiUserResponse,
   ApiWatchlistItemResponse,
+  ApiWatchlistQuoteItem,
 } from '@ai-invest/shared'
 
 describe('mappers', () => {
@@ -293,5 +303,118 @@ describe('mappers', () => {
     const detail = mapAdminAiResultDetail(detailDto)
     expect(detail.errorMsg).toBeNull()
     expect(detail.structuredOutput).toEqual({ tradeDate: '2026-09-04', sections: {} })
+  })
+
+  it('maps index quote', () => {
+    const dto: ApiIndexQuoteResponse = {
+      code: 'sh000001',
+      name: '上证指数',
+      price: 3200.5,
+      change: 15.2,
+      changePct: 0.48,
+      amount: 450000000000,
+      trend: [3180, 3190, 3200],
+    }
+    const quote = mapIndexQuote(dto)
+    expect(quote.code).toBe('sh000001')
+    expect(quote.changePct).toBe(0.48)
+    expect(quote.trend).toEqual([3180, 3190, 3200])
+  })
+
+  it('maps limit-up data with nested groups', () => {
+    const stock = {
+      stockCode: '000001',
+      stockName: '平安银行',
+      changePct: 10.01,
+      latestPrice: 12.5,
+      sealedAmount: 200000000,
+      firstSealTime: '09:25:00',
+      lastSealTime: '14:50:00',
+      brokenLimitCount: 1,
+      limitStatus: '连板',
+      consecutiveBoards: 2,
+      industry: '银行',
+      sealType: 'T字板',
+      themes: ['金融'],
+    }
+    const dto: ApiLimitUpResponse = {
+      tradeDate: '2026-09-04',
+      total: 45,
+      firstBoard: 30,
+      continuous: 15,
+      maxBoards: 5,
+      ladder: [stock],
+      items: [stock],
+      groups: [
+        {
+          name: '银行',
+          count: 3,
+          changePct: 2.5,
+          mainNetInflow: 1.2e9,
+          reason: '降准利好',
+          items: [stock],
+        },
+      ],
+      aiGenerated: true,
+    }
+    const data = mapLimitUpData(dto)
+    expect(data.total).toBe(45)
+    expect(data.ladder[0].consecutiveBoards).toBe(2)
+    expect(data.groups[0].items[0].stockCode).toBe('000001')
+    expect(data.groups[0].reason).toBe('降准利好')
+  })
+
+  it('maps sector overview arrays', () => {
+    const dto: ApiSectorOverviewResponse = {
+      tradeDate: '2026-09-04',
+      heatmap: [{ sectorName: '半导体', changePct: 3.2 }],
+      topInflow: [{ sectorName: '半导体', mainNetInflow: 5e9, topStockName: '中芯国际' }],
+      topOutflow: [{ sectorName: '银行', mainNetInflow: -2e9, topStockName: '招商银行' }],
+      leading: [
+        {
+          sectorName: '半导体',
+          changePct: 3.2,
+          limitUpCount: 8,
+          mainNetInflow: 5e9,
+          topStockNames: ['中芯国际'],
+        },
+      ],
+    }
+    const overview = mapSectorOverview(dto)
+    expect(overview.heatmap[0].sectorName).toBe('半导体')
+    expect(overview.topOutflow[0].mainNetInflow).toBe(-2e9)
+    expect(overview.leading[0].topStockNames).toEqual(['中芯国际'])
+  })
+
+  it('maps watchlist quote with null trend fallback', () => {
+    const dto: ApiWatchlistQuoteItem = {
+      code: '600519',
+      name: '贵州茅台',
+      price: 1500,
+      changePct: -0.5,
+      amount: 2e9,
+      tags: ['白酒'],
+      updatedAt: '2026-09-04T15:00:00+08:00',
+      trend: null as unknown as number[],
+    }
+    const quote = mapWatchlistQuote(dto)
+    expect(quote.code).toBe('600519')
+    expect(quote.trend).toEqual([])
+  })
+
+  it('maps market review sections', () => {
+    const dto: ApiMarketReviewResponse = {
+      tradeDate: '2026-09-04',
+      sections: [
+        { key: 'market_overview', title: '大盘总览', content: '指数震荡上行' },
+      ],
+      model: 'anthropic/kimi',
+      generatedAt: '2026-09-04T16:30:00+08:00',
+      cached: false,
+      edited: true,
+    }
+    const review = mapMarketReview(dto)
+    expect(review.sections[0].key).toBe('market_overview')
+    expect(review.edited).toBe(true)
   })
 })
