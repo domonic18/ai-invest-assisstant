@@ -2,7 +2,7 @@
 
 分析流程与工具编排由 ``skills/market-daily-review/SKILL.md`` 声明（可直接
 改该文件升级分析逻辑）；输出契约（分区 key）以
-``prompts/skills/market-daily-review.yaml`` 为真源。共享执行骨架见
+``skills/market-daily-review/prompt.yaml`` 为真源。共享执行骨架见
 ``app.agent.skills.skill_runtime``。
 """
 
