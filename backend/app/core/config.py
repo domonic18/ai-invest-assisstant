@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     llm_http_read_timeout: float = 300.0  # 等待响应首字节及后续数据的超时（秒）；非流式长文本生成常超 60s
     llm_max_retries: int = 2  # provider 默认重试次数
 
+    # Skill 包文件浏览（GET /skills/{id}/files）：只读文本小文件，超过上限的文件跳过
+    skill_file_max_bytes: int = 64 * 1024
+    skill_files_max_count: int = 20
+
     # SPA 静态托管（web 镜像内烘 ENV STATIC_DIR=/app/static；为空则纯 API 模式）
     static_dir: Path | None = None
     # SCF 入口 HTTPS 但以 HTTP 转发容器且不带 X-Forwarded-Proto 时置 1，

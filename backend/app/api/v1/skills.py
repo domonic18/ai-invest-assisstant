@@ -10,6 +10,7 @@ from app.models.user import User
 from app.schemas.skill import (
     CustomSkillCreateRequest,
     CustomSkillUpdateRequest,
+    SkillFilesResponse,
     SkillResponse,
     SkillSquareResponse,
     UserSkillResponse,
@@ -50,6 +51,16 @@ async def get_skill_detail(
 ) -> SkillResponse:
     """技能详情（未发布仅属主可见）。"""
     return await SkillService(session).get_skill_detail(current_user.id, skill_id)
+
+
+@router.get("/{skill_id}/files", response_model=SkillFilesResponse)
+async def get_skill_files(
+    skill_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> SkillFilesResponse:
+    """技能包文件浏览（builtin 读镜像目录；custom 由配置合成虚拟文件）。"""
+    return await SkillService(session).get_skill_files(current_user.id, skill_id)
 
 
 @router.patch("/{skill_id}", response_model=SkillResponse)

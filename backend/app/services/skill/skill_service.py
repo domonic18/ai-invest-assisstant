@@ -7,14 +7,18 @@ allowed_tools 执法等延后批次。事务边界在本层（成功显式 commi
 from typing import Any
 
 import structlog
+import yaml
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models.skill import Skill, UserSkill
 from app.repositories.skill import SkillRepository, UserSkillRepository
 from app.schemas.skill import (
     CustomSkillCreateRequest,
     CustomSkillUpdateRequest,
+    SkillFile,
+    SkillFilesResponse,
     SkillItem,
     SkillResponse,
     SkillSquareResponse,
@@ -25,6 +29,9 @@ from app.skills import builtin_skill_ids
 logger = structlog.get_logger(__name__)
 
 _CUSTOM_DEFINITION_SCHEMA_VERSION = 1
+
+# 文件浏览仅服务文本类文件（本模块私有的安全契约；大小/数量上限走 Settings）
+SKILL_TEXT_SUFFIXES = {".md", ".yaml", ".yml", ".json", ".txt", ".py", ".j2", ".tmpl"}
 
 
 class SkillService:
@@ -69,6 +76,80 @@ class SkillService:
         """技能详情：未发布技能仅属主可见。"""
         row = await self._get_visible_skill(user_id, skill_id)
         return SkillResponse.model_validate(row)
+
+    async def get_skill_files(self, user_id: int, skill_id: str) -> SkillFilesResponse:
+        """技能包文件浏览：builtin 读镜像内 ``skills/<id>/`` 目录；
+        custom 由 ``custom_definition`` 合成虚拟文件（SKILL.md + prompt.yaml）。
+
+        Raises:
+            NotFoundError: 技能不存在/不可见，或 builtin 目录缺失。
+        """
+        row = await self._get_visible_skill(user_id, skill_id)
+        if row.is_builtin:
+            return self._builtin_files(row.skill_id)
+        return self._custom_files(row)
+
+    @staticmethod
+    def _builtin_files(skill_id: str) -> SkillFilesResponse:
+        settings = get_settings()
+        base = settings.skills_dir.resolve()
+        root = (base / skill_id).resolve()
+        # skill_id 经 DB 行校验（create 有 kebab-case pattern），此处再钉一次目录边界
+        if not root.is_relative_to(base) or not root.is_dir():
+            raise NotFoundError(f"技能包文件缺失: {skill_id}")
+
+        files: list[SkillFile] = []
+        for path in sorted(root.rglob("*")):
+            if len(files) >= settings.skill_files_max_count:
+                break
+            if (
+                not path.is_file()
+                or path.name.startswith(".")
+                or path.suffix.lower() not in SKILL_TEXT_SUFFIXES
+            ):
+                continue
+            data = path.read_bytes()
+            if len(data) > settings.skill_file_max_bytes:
+                continue
+            files.append(
+                SkillFile(
+                    path=path.relative_to(root).as_posix(),
+                    size=len(data),
+                    content=data.decode("utf-8", errors="replace"),
+                )
+            )
+        return SkillFilesResponse(
+            skill_id=skill_id, is_builtin=True, synthetic=False, files=files
+        )
+
+    @staticmethod
+    def _custom_files(row: Skill) -> SkillFilesResponse:
+        """由 ``custom_definition`` JSONB 合成虚拟技能包文件。"""
+        definition: dict[str, Any] = row.custom_definition or {}
+        prompt: dict[str, Any] = {"id": row.skill_id, "name": row.label, "version": row.version}
+        if row.description:
+            prompt["description"] = row.description
+        for key in ("sections", "allowed_tools", "system_prompt", "user_prompt_template"):
+            if definition.get(key):
+                prompt[key] = definition[key]
+        prompt_yaml = yaml.safe_dump(prompt, allow_unicode=True, sort_keys=False)
+        skill_md = str(definition.get("skill_md", ""))
+
+        files = [
+            SkillFile(
+                path="SKILL.md",
+                size=len(skill_md.encode("utf-8")),
+                content=skill_md,
+            ),
+            SkillFile(
+                path="prompt.yaml",
+                size=len(prompt_yaml.encode("utf-8")),
+                content=prompt_yaml,
+            ),
+        ]
+        return SkillFilesResponse(
+            skill_id=row.skill_id, is_builtin=False, synthetic=True, files=files
+        )
 
     async def install_skill(self, user_id: int, skill_id: str) -> UserSkillResponse:
         """安装技能（本人未发布 custom 允许自装）。
