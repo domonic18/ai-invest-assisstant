@@ -48,7 +48,8 @@ class TestThreadEndpoints:
             response = client.post("/api/v1/assistant/threads", json={})
         assert response.status_code == 201
         body = response.json()
-        assert body["threadId"] == str(row.id)
+        # langgraph-sdk 契约：snake_case wire
+        assert body["thread_id"] == str(row.id)
         assert body["metadata"]["user_id"] == 1
 
     def test_list_sessions_shape(self, assistant_client) -> None:

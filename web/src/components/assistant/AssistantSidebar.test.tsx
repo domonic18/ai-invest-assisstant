@@ -9,11 +9,11 @@ import type { AssistantSessionItem } from '@/api/assistant'
 
 function makeSession(title: string, threadId: string): AssistantSessionItem {
   return {
-    threadId: threadId,
+    thread_id: threadId,
     title,
-    lastMessageAt: null,
-    createdAt: '2026-08-25T10:00:00Z',
-    updatedAt: '2026-08-25T10:00:00Z',
+    last_message_at: null,
+    created_at: '2026-08-25T10:00:00Z',
+    updated_at: '2026-08-25T10:00:00Z',
   }
 }
 
@@ -64,11 +64,11 @@ describe('AssistantSidebar', () => {
           makeSession('今天', 't1'),
           {
             ...makeSession('昨天', 't2'),
-            updatedAt: '2026-08-24T10:00:00Z',
+            updated_at: '2026-08-24T10:00:00Z',
           },
           {
             ...makeSession('更早', 't3'),
-            updatedAt: '2026-08-20T10:00:00Z',
+            updated_at: '2026-08-20T10:00:00Z',
           },
         ]}
         activeThreadId={undefined}
