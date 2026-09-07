@@ -8,12 +8,9 @@ import {
   useFinancialReportCollectLog,
 } from '@/hooks/useFinancialReport'
 
-const REPORT_TYPE_OPTIONS = [
-  { value: 'annual', label: '年报' },
-  { value: 'semi_annual', label: '半年报' },
-  { value: 'q1', label: '一季报' },
-  { value: 'q3', label: '三季报' },
-]
+import { REPORT_TYPE_OPTIONS } from './utils'
+
+import { DATE_FORMAT } from '@/utils/formatters'
 
 interface StockOption {
   value: string
@@ -89,8 +86,8 @@ export function CollectModal({ open, onClose, onCollected }: CollectModalProps) 
       const result = await collectMutation.mutateAsync({
         stockCode,
         reportTypes: reportTypes.length > 0 ? reportTypes : null,
-        startDate: start ? start.format('YYYY-MM-DD') : null,
-        endDate: end ? end.format('YYYY-MM-DD') : null,
+        startDate: start ? start.format(DATE_FORMAT) : null,
+        endDate: end ? end.format(DATE_FORMAT) : null,
       })
       setLogId(result.logId)
     } catch (err) {

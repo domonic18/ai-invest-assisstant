@@ -6,6 +6,8 @@ import { categoryMeta } from './categoryMeta'
 import { EventTimeDot } from './EventTimeDot'
 import { eventTimeHm } from './eventTime'
 
+import { DATE_FORMAT } from '@/utils/formatters'
+
 const DOW_LABELS = ['日', '一', '二', '三', '四', '五', '六']
 const MAX_CHIPS = 3
 
@@ -22,7 +24,7 @@ export function MonthView({ month, events, onSelectEvent }: MonthViewProps) {
 
   const eventsByDay = new Map<string, CalendarEvent[]>()
   for (const event of events) {
-    const key = dayjs(event.eventTime).format('YYYY-MM-DD')
+    const key = dayjs(event.eventTime).format(DATE_FORMAT)
     const list = eventsByDay.get(key)
     if (list) list.push(event)
     else eventsByDay.set(key, [event])
@@ -41,10 +43,10 @@ export function MonthView({ month, events, onSelectEvent }: MonthViewProps) {
         {cells.map((date) => {
           const inMonth = date.isSame(month, 'month')
           const isToday = date.isSame(today, 'day')
-          const dayEvents = eventsByDay.get(date.format('YYYY-MM-DD')) ?? []
+          const dayEvents = eventsByDay.get(date.format(DATE_FORMAT)) ?? []
           return (
             <div
-              key={date.format('YYYY-MM-DD')}
+              key={date.format(DATE_FORMAT)}
               className={`min-h-[84px] rounded border p-1.5 ${
                 inMonth ? 'bg-white/[0.03] border-white/10' : 'bg-transparent border-dashed border-white/5 opacity-50'
               } ${isToday ? '!border-blue-500' : ''}`}

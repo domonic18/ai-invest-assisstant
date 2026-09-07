@@ -25,8 +25,8 @@ import {
   useDeleteAdminNews,
   useUpdateAdminNews,
 } from '@/hooks/useAdminNews'
-import type { AdminNews } from '@ai-invest/shared'
-import { formatDate } from '@/utils/formatters'
+import { PAGE_SIZE, type AdminNews } from '@ai-invest/shared'
+import {DATE_FORMAT,  formatDate } from '@/utils/formatters'
 
 interface NewsFormValues {
   stockCode?: string
@@ -62,7 +62,7 @@ function SentimentTag({ value }: { value: number | null }) {
 export function AdminNews() {
   const [form] = Form.useForm<NewsFormValues>()
   const [filter] = Form.useForm<FilterForm>()
-  const [params, setParams] = useState({ stockCode: '', docType: '', q: '', page: 1, pageSize: 20 })
+  const [params, setParams] = useState({ stockCode: '', docType: '', q: '', page: 1, pageSize: PAGE_SIZE.table })
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<AdminNews | null>(null)
 
@@ -103,7 +103,7 @@ export function AdminNews() {
     content: values.content,
     source: values.source,
     sourceUrl: values.sourceUrl,
-    publishDate: values.publishDate ? values.publishDate.format('YYYY-MM-DD') : undefined,
+    publishDate: values.publishDate ? values.publishDate.format(DATE_FORMAT) : undefined,
     sentiment: values.sentiment ?? undefined,
     keywords: values.keywords,
     industryTags: values.industryTags,

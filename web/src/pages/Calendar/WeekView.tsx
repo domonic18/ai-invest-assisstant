@@ -7,6 +7,8 @@ import { EventTimeDot } from './EventTimeDot'
 import { eventTimeHm } from './eventTime'
 import { mondayOf } from './weekRange'
 
+import { DATE_FORMAT } from '@/utils/formatters'
+
 const DOW_LABELS = ['一', '二', '三', '四', '五', '六', '日']
 
 interface WeekViewProps {
@@ -22,7 +24,7 @@ export function WeekView({ weekAnchor, events, onSelectEvent }: WeekViewProps) {
 
   const eventsByDay = new Map<string, CalendarEvent[]>()
   for (const event of events) {
-    const key = dayjs(event.eventTime).format('YYYY-MM-DD')
+    const key = dayjs(event.eventTime).format(DATE_FORMAT)
     const list = eventsByDay.get(key)
     if (list) list.push(event)
     else eventsByDay.set(key, [event])
@@ -32,10 +34,10 @@ export function WeekView({ weekAnchor, events, onSelectEvent }: WeekViewProps) {
     <div className="grid grid-cols-7 gap-2">
       {days.map((date, idx) => {
         const isToday = date.isSame(today, 'day')
-        const dayEvents = eventsByDay.get(date.format('YYYY-MM-DD')) ?? []
+        const dayEvents = eventsByDay.get(date.format(DATE_FORMAT)) ?? []
         return (
           <div
-            key={date.format('YYYY-MM-DD')}
+            key={date.format(DATE_FORMAT)}
             className={`rounded border p-2 min-h-[200px] ${
               isToday ? 'border-blue-500' : 'border-white/10 bg-white/[0.03]'
             }`}

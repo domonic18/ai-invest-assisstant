@@ -4,6 +4,8 @@ import type { ColumnsType } from 'antd/es/table'
 import type { AuctionDayStat } from '../utils'
 import { featureLabel } from '../utils'
 
+import { PAGE_SIZE } from '@ai-invest/shared'
+
 interface AuctionStatsTableProps {
   seriesNames: string[]
   stats: AuctionDayStat[]
@@ -64,7 +66,7 @@ export function AuctionStatsTable({ seriesNames, stats }: AuctionStatsTableProps
       columns={columns}
       dataSource={ordered}
       size="small"
-      pagination={{ pageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
+      pagination={{ pageSize: PAGE_SIZE.list, showSizeChanger: false, hideOnSinglePage: true }}
     />
   )
 }

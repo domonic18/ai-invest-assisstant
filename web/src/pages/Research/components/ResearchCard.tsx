@@ -6,6 +6,8 @@ import type { ResearchReport } from '@ai-invest/shared'
 
 import { summarySnippet } from '../utils'
 
+import { DATE_FORMAT } from '@/utils/formatters'
+
 interface ResearchCardProps {
   report: ResearchReport
   summarizing: boolean
@@ -46,7 +48,7 @@ export function ResearchCard({
             <span>{report.broker ?? '未知券商'}</span>
             <span>·</span>
             <span>
-              {report.publishDate ? dayjs(report.publishDate).format('YYYY-MM-DD') : '-'}
+              {report.publishDate ? dayjs(report.publishDate).format(DATE_FORMAT) : '-'}
             </span>
             {report.pages != null && (
               <>

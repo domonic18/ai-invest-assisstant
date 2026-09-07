@@ -18,11 +18,13 @@ import { MarketStatsSection } from './components/MarketStatsSection'
 import { SectorSection } from './components/SectorSection'
 import { WatchlistQuotesCard } from './components/WatchlistQuotesCard'
 
+import { DATE_FORMAT } from '@/utils/formatters'
+
 export function Dashboard() {
   const queryClient = useQueryClient()
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null)
   const [collecting, setCollecting] = useState(false)
-  const tradeDate = selectedDate?.format('YYYY-MM-DD')
+  const tradeDate = selectedDate?.format(DATE_FORMAT)
   const isPastDate = Boolean(tradeDate && dayjs(tradeDate).isBefore(dayjs(), 'day'))
 
   const { data: indices, isLoading: indicesLoading } = useMarketIndices(tradeDate)
@@ -86,7 +88,7 @@ export function Dashboard() {
             data={sectors}
             loading={sectorsLoading}
             pendingClose={
-              sectors?.tradeDate === dayjs().format('YYYY-MM-DD') &&
+              sectors?.tradeDate === dayjs().format(DATE_FORMAT) &&
               dayjs().hour() < 15
             }
             canBackfill={isPastDate}
@@ -95,7 +97,7 @@ export function Dashboard() {
             data={limitUp}
             loading={limitUpLoading}
             pendingClose={
-              limitUp?.tradeDate === dayjs().format('YYYY-MM-DD') &&
+              limitUp?.tradeDate === dayjs().format(DATE_FORMAT) &&
               dayjs().hour() < 15
             }
             canBackfill={isPastDate}

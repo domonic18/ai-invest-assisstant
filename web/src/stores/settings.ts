@@ -1,11 +1,9 @@
 import { create } from 'zustand'
-import type { MovingAverageConfig, UserSettings } from '@ai-invest/shared'
+import { StorageKey, type MovingAverageConfig, type UserSettings } from '@ai-invest/shared'
 
 import { fetchUserSettings, updateUserSettings } from '@/api/settings'
 
 export type ColorScheme = 'cn' | 'us'
-
-const STORAGE_KEY = 'color_scheme'
 
 const DEFAULT_MA_CONFIGS: MovingAverageConfig[] = [
   { period: 5, color: '#f0b429', enabled: true },
@@ -21,11 +19,11 @@ const DEFAULT_USER_SETTINGS: UserSettings = {
 }
 
 const getStoredScheme = (): ColorScheme => {
-  return localStorage.getItem(STORAGE_KEY) === 'us' ? 'us' : 'cn'
+  return localStorage.getItem(StorageKey.settings.colorScheme) === 'us' ? 'us' : 'cn'
 }
 
 const getStoredToken = (): string | null => {
-  return localStorage.getItem('access_token')
+  return localStorage.getItem(StorageKey.auth.accessToken)
 }
 
 interface SettingsState {
@@ -46,7 +44,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   settingsError: null,
 
   setColorScheme: (scheme) => {
-    localStorage.setItem(STORAGE_KEY, scheme)
+    localStorage.setItem(StorageKey.settings.colorScheme, scheme)
     set({ colorScheme: scheme })
   },
 

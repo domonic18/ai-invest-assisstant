@@ -1,5 +1,7 @@
 import axios from 'axios'
 
+import { StorageKey } from '@ai-invest/shared'
+
 declare module 'axios' {
   export interface AxiosRequestConfig {
     /** GET 幂等重试标记（502/503/504/网络错误），防拦截器死循环 */
@@ -15,7 +17,7 @@ export const apiClient = axios.create({
 })
 
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token')
+  const token = localStorage.getItem(StorageKey.auth.accessToken)
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -57,7 +59,7 @@ apiClient.interceptors.response.use(
     }
 
     if (response?.status === 401) {
-      localStorage.removeItem('access_token')
+      localStorage.removeItem(StorageKey.auth.accessToken)
       window.location.href = '/login'
     }
     // 服务端 detail 转为 message 展示；原地改写保留 response/status 供调用方判断

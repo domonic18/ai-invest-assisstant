@@ -8,7 +8,7 @@ import { MarkdownText } from '@/components/common/MarkdownText'
 import { useMarketReview } from '@/hooks/useMarket'
 import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
 import { useAssistantStore } from '@/stores/assistant'
-import type { MarketReview, MarketReviewSection } from '@ai-invest/shared'
+import { PAGE_EVENT_TYPES, type MarketReview, type MarketReviewSection } from '@ai-invest/shared'
 
 interface ReviewCardProps {
   section: MarketReviewSection
@@ -114,7 +114,7 @@ export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
       )
   }
 
-  usePageAssistantResult('market_daily_review.complete', () => {
+  usePageAssistantResult(PAGE_EVENT_TYPES.marketDailyReview, () => {
     setGenerating(false)
     void refetch()
     message.success('复盘已生成，已刷新')
