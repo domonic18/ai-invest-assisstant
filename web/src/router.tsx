@@ -37,13 +37,8 @@ const ChainAnalysis = lazy(() =>
   import('./pages/ChainAnalysis/ChainAnalysis').then((m) => ({ default: m.ChainAnalysis })),
 )
 const Financial = lazy(() => import('./pages/Financial/Financial').then((m) => ({ default: m.Financial })))
-const FinancialReportPage = lazy(() =>
-  import('./pages/FinancialReport/FinancialReport').then((m) => ({ default: m.FinancialReportPage })),
-)
-const Hotspot = lazy(() => import('./pages/Hotspot/Hotspot').then((m) => ({ default: m.Hotspot })))
 const Login = lazy(() => import('./pages/Login/Login').then((m) => ({ default: m.Login })))
 const Register = lazy(() => import('./pages/Register/Register').then((m) => ({ default: m.Register })))
-const Research = lazy(() => import('./pages/Research/Research').then((m) => ({ default: m.Research })))
 const Settings = lazy(() => import('./pages/Settings/Settings').then((m) => ({ default: m.Settings })))
 const StockDetail = lazy(() => import('./pages/StockDetail/StockDetail').then((m) => ({ default: m.StockDetail })))
 const Telegraph = lazy(() => import('./pages/Telegraph').then((m) => ({ default: m.Telegraph })))
@@ -66,13 +61,15 @@ export const router = createBrowserRouter([
       { path: 'review', element: <Dashboard /> },
       { path: 'chain/:industry?', element: lazyEl(<ChainAnalysis />) },
       { path: 'stock/:code', element: lazyEl(<StockDetail />) },
-      { path: 'hotspot', element: lazyEl(<Hotspot />) },
       { path: 'capital-flow', element: lazyEl(<CapitalFlow />) },
-      { path: 'auction', element: lazyEl(<AuctionReview />) },
+      { path: 'auction-review', element: lazyEl(<AuctionReview />) },
+      // 旧路由外链兜底：研报/财报入口并入个股详情右栏 tab（4.4.0）
+      { path: 'auction', element: <Navigate to="/auction-review" replace /> },
+      { path: 'hotspot', element: <Navigate to="/workbench" replace /> },
+      { path: 'research', element: <Navigate to="/workbench" replace /> },
+      { path: 'financial-reports', element: <Navigate to="/workbench" replace /> },
       { path: 'calendar', element: lazyEl(<Calendar />) },
       { path: 'telegraph', element: lazyEl(<Telegraph />) },
-      { path: 'research', element: lazyEl(<Research />) },
-      { path: 'financial-reports', element: lazyEl(<FinancialReportPage />) },
       { path: 'financial/:code', element: lazyEl(<Financial />) },
       { path: 'settings', element: lazyEl(<Settings />) },
       { path: 'watchlist', element: lazyEl(<Watchlist />) },

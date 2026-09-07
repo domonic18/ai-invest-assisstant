@@ -48,6 +48,8 @@ export const queryKeys = {
   },
   financialReports: {
     all: ['financial-reports'] as const,
+    list: (stockCode: string, pageSize: number) =>
+      ['financial-reports', stockCode, pageSize] as const,
   },
   fundFlow: {
     all: ['fund-flow'] as const,

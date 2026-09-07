@@ -65,6 +65,8 @@ export function StockInfoPanel({
       ),
       children: (
         <StockFinancial
+          stockCode={stockCode}
+          stockName={stock?.name}
           data={financialQ.data}
           history={historyQ.data}
           isLoading={financialQ.isLoading}
@@ -88,6 +90,7 @@ export function StockInfoPanel({
       ),
       children: (
         <StockResearch
+          stockCode={stockCode}
           data={researchQ.data}
           isLoading={researchQ.isLoading}
           isError={researchQ.isError}

@@ -14,8 +14,8 @@ import { useAuthStore } from '@/stores/auth'
 
 const TAB_ITEMS = [
   { key: '/workbench', icon: <AppstoreOutlined />, label: '工作台' },
-  { key: '/auction', icon: <ShopOutlined />, label: '竞价' },
-  { key: '/capital-flow', icon: <FundOutlined />, label: '资金' },
+  { key: '/auction-review', icon: <ShopOutlined />, label: '竞价' },
+  { key: '/capital-flow', icon: <FundOutlined />, label: '板块' },
 ]
 
 export function MobileTabBar() {
