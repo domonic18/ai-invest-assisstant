@@ -135,7 +135,7 @@ a:hover { color: var(--accent-hover); }
 .sidebar-logo svg { width: 18px; height: 18px; }
 .sidebar-brand-text { font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -.01em; }
 .sidebar-version { font-size: 10px; color: var(--text-tertiary); margin-left: auto; }
-.sidebar-nav { padding: 8px; flex: 1; }
+.sidebar-nav { padding: 8px; flex: 1; overflow-y: auto; }
 .sidebar-section-title {
   font-size: 10px; color: var(--text-tertiary); text-transform: uppercase;
   letter-spacing: .08em; padding: 12px 10px 6px; font-weight: 600;
@@ -605,6 +605,30 @@ tr:hover td { background: var(--bg-hover); }
 .research-src { font-size: 11px; color: var(--text-tertiary); margin-bottom: 4px; }
 .research-abs { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
 
+/* 研报/财报：条目操作行（查看 + AI 解读）与 AI 解读展开块 */
+.r-actions { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.r-actions .spacer { flex: 1; }
+.r-link { font-size: 11px; color: var(--accent); cursor: pointer; }
+.r-link:hover { text-decoration: underline; }
+.ai-interpret {
+  margin-top: 8px; padding: 10px 12px; border-radius: var(--radius-sm);
+  background: var(--accent-soft); border: 1px solid rgba(94,106,210,.25);
+  font-size: 12px; color: var(--text-secondary); line-height: 1.7;
+}
+.ai-interpret .ai-tag-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+.ai-interpret b { color: var(--text-primary); }
+.fetch-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 14px; border-top: 1px dashed var(--border); font-size: 11px; color: var(--text-tertiary);
+}
+.report-row {
+  display: flex; align-items: center; gap: 8px; padding: 9px 0;
+  border-bottom: 1px solid var(--border); font-size: 12px;
+}
+.report-row:last-child { border-bottom: none; }
+.report-name { color: var(--text-primary); font-weight: 500; }
+.report-meta { font-size: 11px; color: var(--text-tertiary); }
+
 .card-pad { padding: 12px 14px; }
 </style>
 </head>
@@ -620,16 +644,20 @@ tr:hover td { background: var(--bg-hover); }
 </div>
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
-<div class="sidebar-section-title">复盘</div>
-<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
+<a class="sidebar-item active" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
-<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
+<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
 <a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
-<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
-<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
-<a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
-<a class="sidebar-item" href="financial-reports.html"><span class="sidebar-item-icon">◈</span><span>财报中心</span></a>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
+<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
@@ -881,7 +909,7 @@ tr:hover td { background: var(--bg-hover); }
         <aside class="info-panel card">
           <div class="info-tabs">
             <button class="tab-btn active" data-tab="pane-ai">AI 分析</button>
-            <button class="tab-btn" data-tab="pane-fin">财务</button>
+            <button class="tab-btn" data-tab="pane-fin">财报</button>
             <button class="tab-btn" data-tab="pane-research">研报</button>
             <button class="tab-btn" data-tab="pane-sector">板块</button>
           </div>
@@ -907,8 +935,42 @@ tr:hover td { background: var(--bg-hover); }
               </div>
             </div>
 
-            <!-- 财务：右栏 2 列指标卡 -->
+            <!-- 财报：披露列表（查看 + AI 解读 + 触发采集）+ 核心指标 -->
             <div class="tab-pane" id="pane-fin">
+              <div class="card">
+                <div class="card-header" style="padding:10px 14px"><span class="card-title" style="font-size:13px">财报披露</span><span style="font-size:11px;color:var(--text-tertiary)">巨潮资讯源</span></div>
+                <div class="card-pad" style="padding-top:4px">
+                  <div class="report-row">
+                    <span class="report-name">2026 中期报告</span>
+                    <span class="report-meta">07-28 · 86 页</span>
+                    <span style="flex:1"></span>
+                    <a class="r-link">查看 PDF</a>
+                    <a class="r-link">AI 解读</a>
+                  </div>
+                  <div class="ai-interpret">
+                    <div class="ai-tag-row"><span class="tag tag-green" style="font-size:10px">AI 解读</span><span class="tag tag-purple" style="font-size:10px">2026 中报</span></div>
+                    <b>业绩概览：</b>营收 149.6 亿（<span class="up">+31.5%</span>），归母净利 32.6 亿（<span class="up">+48.2%</span>），盈利增速显著快于收入，规模效应与产品结构升级驱动毛利率提升 2.1pct 至 46.2%。<br>
+                    <b>核心看点：</b>合同负债 58.3 亿创历史新高，预收设备款充足，在手订单能见度延伸至 2027；先进制程刻蚀/薄膜设备收入占比首破 40%。<br>
+                    <b>风险提示：</b>存货中发出商品占比偏高，若下游晶圆厂验收节奏放缓，存在减值计提风险。
+                    <div class="ai-disclaimer" style="margin-top:6px">AI 生成摘要，完整信息以财报原文为准</div>
+                  </div>
+                  <div class="report-row">
+                    <span class="report-name">2026 一季度报告</span>
+                    <span class="report-meta">04-26 · 42 页</span>
+                    <span style="flex:1"></span>
+                    <a class="r-link">查看 PDF</a>
+                    <a class="r-link">AI 解读</a>
+                  </div>
+                  <div class="report-row">
+                    <span class="report-name">2025 年度报告</span>
+                    <span class="report-meta">2026-03-18 · 214 页</span>
+                    <span style="flex:1"></span>
+                    <a class="r-link">查看 PDF</a>
+                    <a class="r-link">AI 解读</a>
+                  </div>
+                </div>
+                <div class="fetch-row"><span>披露即自动采集 · 更新于 07-28</span><a class="r-link">⟳ 获取最新财报</a></div>
+              </div>
               <div class="card">
                 <div class="card-header" style="padding:10px 14px"><span class="card-title" style="font-size:13px">核心财务指标</span><span class="tag tag-green">2026 中报</span></div>
                 <div class="card-pad">
@@ -922,16 +984,17 @@ tr:hover td { background: var(--bg-hover); }
                   </div>
                 </div>
               </div>
-              <div class="card">
-                <div class="card-header" style="padding:10px 14px"><span class="card-title" style="font-size:13px">历史趋势</span><span style="font-size:11px;color:var(--text-tertiary)">近 8 期 · ROE / 毛利率 / 净利率</span></div>
-                <div class="card-pad" style="color:var(--text-tertiary);font-size:12px;text-align:center;padding:24px 0">
-                  财务趋势图（ECharts 折线，随实现渲染）
-                </div>
-              </div>
             </div>
 
-            <!-- 研报（右栏紧凑列表） -->
+            <!-- 研报：观点汇总 + 紧凑列表（查看 + AI 解读 + 触发采集） -->
             <div class="tab-pane" id="pane-research">
+              <div class="card">
+                <div class="card-header" style="padding:10px 14px"><span class="card-title" style="font-size:13px">AI 观点汇总</span><span style="font-size:11px;color:var(--text-tertiary)">近 90 天 · 14 家机构</span></div>
+                <div class="card-pad" style="font-size:12px;color:var(--text-secondary);line-height:1.8">
+                  评级分布：<b>买入 10 · 增持 4 · 中性 0</b>　·　目标价均值 <b class="text-mono">358.5</b>（区间 320–415）<br>
+                  共识逻辑：国产替代加速 + 先进制程设备放量；分歧点：当前估值对乐观预期的透支程度。
+                </div>
+              </div>
               <div class="card">
                 <div class="card-header" style="padding:10px 14px"><span class="card-title" style="font-size:13px">相关研报</span><span style="font-size:11px;color:var(--text-tertiary)">共 28 篇</span></div>
                 <div class="card-pad">
@@ -939,18 +1002,29 @@ tr:hover td { background: var(--bg-hover); }
                     <div class="research-item-header"><span class="r-title">刻蚀设备出货超预期，5nm 刻蚀机通过验证</span><span class="r-date">07-02</span></div>
                     <div class="research-src">中信证券</div>
                     <p class="research-abs">刻蚀设备出货量超预期，5nm 刻蚀机通过中芯国际认证，有望在 2026H2 放量。</p>
+                    <div class="r-actions"><span class="spacer"></span><a class="r-link">查看 PDF</a><a class="r-link">AI 解读</a></div>
+                    <div class="ai-interpret">
+                      <div class="ai-tag-row"><span class="tag tag-green" style="font-size:10px">AI 解读</span><span class="tag tag-purple" style="font-size:10px">中信证券 07-02</span></div>
+                      <b>评级：</b>买入（维持）　<b>目标价：</b><span class="text-mono">365.00</span>（现价 318.40，空间 +14.6%）<br>
+                      <b>核心逻辑：</b>5nm 刻蚀机通过中芯国际产线验证是国产先进制程设备的里程碑，2026H2 放量后刻蚀收入占比有望达 35%；平台化布局摊薄研发费用，净利率仍有上行空间。<br>
+                      <b>与市场分歧：</b>报告对 2027 年刻蚀 TAM 的测算高于卖方共识约 12%，若下游扩产不及预期，目标价存在下修风险。
+                      <div class="ai-disclaimer" style="margin-top:6px">AI 生成摘要，完整信息以研报原文为准</div>
+                    </div>
                   </div>
                   <div class="research-item">
                     <div class="research-item-header"><span class="r-title">平台型设备龙头，国产替代核心受益</span><span class="r-date">06-28</span></div>
                     <div class="research-src">华泰证券</div>
                     <p class="research-abs">半导体设备国产替代加速，ICP 刻蚀和 PVD 设备市场份额持续提升。</p>
+                    <div class="r-actions"><span class="spacer"></span><a class="r-link">查看 PDF</a><a class="r-link">AI 解读</a></div>
                   </div>
                   <div class="research-item">
                     <div class="research-item-header"><span class="r-title">估值已反映乐观预期，关注资本开支节奏</span><span class="r-date">06-25</span></div>
                     <div class="research-src">国泰君安</div>
                     <p class="research-abs">关注地缘政治风险与下游晶圆厂资本开支节奏变化。</p>
+                    <div class="r-actions"><span class="spacer"></span><a class="r-link">查看 PDF</a><a class="r-link">AI 解读</a></div>
                   </div>
                 </div>
+                <div class="fetch-row"><span>东财研报源 · 每日增量采集</span><a class="r-link">⟳ 获取最新研报</a></div>
               </div>
             </div>
 
@@ -1005,7 +1079,7 @@ tr:hover td { background: var(--bg-hover); }
             <!-- 指数/ETF 差异化（同一页面骨架，按标的类型裁剪） -->
             <div class="type-note">
               <div class="tn-title">指数 / ETF 复用同骨架（规划说明）</div>
-              路由扩展 <span class="text-mono">/quote/:type/:code</span>：指数隐藏 换手率/总市值/PE/量比 与 财务·研报·AI 分析 tab，快照改涨跌家数/领涨板块，板块 tab 改权重股；ETF 隐藏 PE，增 IOPV/溢价率，板块 tab 改成份券与跟踪指数。
+              路由扩展 <span class="text-mono">/quote/:type/:code</span>：指数隐藏 换手率/总市值/PE/量比 与 财报·研报·AI 分析 tab，快照改涨跌家数/领涨板块，板块 tab 改权重股；ETF 隐藏 PE，增 IOPV/溢价率，板块 tab 改成份券与跟踪指数。
             </div>
 
           </div>
