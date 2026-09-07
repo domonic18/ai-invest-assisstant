@@ -135,13 +135,49 @@ a{color:var(--accent);text-decoration:none}
 .drawer-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;flex-shrink:0}
 
 /* Detail drawer */
-.dt-row{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:12px}
+.dt-row{display:flex;gap:10px;padding:8px 0;font-size:12px}
 .dt-key{width:88px;color:var(--text-tertiary);flex-shrink:0}
 .dt-val{color:var(--text-primary);line-height:1.7}
 .dt-sec{font-size:12px;font-weight:600;margin:18px 0 8px;color:var(--text-primary)}
 .code-block{background:#0a0c10;border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;font-family:var(--font-mono);font-size:11px;line-height:1.7;color:var(--text-secondary);white-space:pre;overflow-x:auto}
 .code-block .ck{color:var(--blue)}
 .code-block .cs{color:var(--green)}
+
+/* Detail drawer — wide（技能包文件浏览器） */
+.drawer-wide{width:780px;right:-780px}
+.detail-body{padding:0;display:flex;flex-direction:column;overflow:hidden}
+.detail-meta{padding:10px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
+.detail-split{flex:1;display:flex;min-height:0}
+.file-pane{width:248px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;padding:12px 10px}
+.fp-title{font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;padding:0 8px 8px}
+.ft-dir{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--text-primary);padding:6px 8px;font-family:var(--font-mono)}
+.ft-file{display:flex;align-items:center;gap:7px;padding:6px 8px 6px 24px;border-radius:var(--radius-sm);font-size:12.5px;color:var(--text-secondary);cursor:pointer;transition:all var(--transition)}
+.ft-file:hover{background:var(--bg-hover);color:var(--text-primary)}
+.ft-file.active{background:var(--accent-soft);color:var(--accent)}
+.ft-name{font-family:var(--font-mono);font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ft-size{font-size:10px;color:var(--text-tertiary);flex-shrink:0}
+.ft-file.active .ft-size{color:var(--accent)}
+.ft-note{margin-top:12px;padding:8px 10px;border-top:1px solid var(--border);font-size:10.5px;color:var(--text-tertiary);line-height:1.7}
+.content-pane{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.crumb{padding:10px 18px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:11.5px;color:var(--text-tertiary);flex-shrink:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.crumb b{color:var(--text-primary);font-weight:500}
+.view-toggle{display:flex;gap:4px;padding:4px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);width:fit-content;margin:10px 18px 0;flex-shrink:0}
+.view-toggle .vt2{padding:3px 12px;border-radius:4px;font-size:11.5px;color:var(--text-secondary);cursor:pointer;transition:all var(--transition);border:none;background:transparent}
+.view-toggle .vt2.active{background:var(--accent-soft);color:var(--accent)}
+.file-content{flex:1;overflow-y:auto;padding:6px 18px 18px}
+.md-view{font-size:12.5px}
+.md-view h1{font-size:18px;font-weight:600;margin:8px 0 14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.md-view h2{font-size:14px;font-weight:600;margin:20px 0 8px;color:var(--text-primary)}
+.md-view h3{font-size:13px;font-weight:600;margin:16px 0 6px;color:var(--text-primary)}
+.md-view p{font-size:12.5px;color:var(--text-secondary);line-height:1.8;margin:6px 0}
+.md-view ul,.md-view ol{padding-left:20px;margin:6px 0}
+.md-view li{font-size:12.5px;color:var(--text-secondary);line-height:1.8;margin:3px 0}
+.md-view code{font-family:var(--font-mono);font-size:11px;background:var(--bg-surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px;color:var(--blue)}
+.md-view pre{background:#0a0c10;border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 12px;overflow-x:auto;margin:8px 0}
+.md-view pre code{background:none;border:none;padding:0;color:var(--text-secondary)}
+.md-view strong{color:var(--text-primary)}
+.md-view .frontmatter{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 12px;font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);margin:0 0 12px;line-height:1.8}
+.md-view .frontmatter .ck{color:var(--blue)}
 
 /* Type note */
 .type-note{margin-top:36px;padding:16px 20px;background:var(--bg-elevated);border:1px dashed var(--border-hover);border-radius:var(--radius-lg);font-size:12px;color:var(--text-secondary);line-height:1.9}
@@ -406,12 +442,12 @@ a{color:var(--accent);text-decoration:none}
       </div>
 
       <div class="type-note">
-        <b>实现说明（对齐批次 7 已交付的后端 API）</b><br>
-        ① 端点映射：广场列表 = <span class="text-mono">GET /api/v1/skills</span>（返回 available + mine 两组）；安装 = <span class="text-mono">POST /skills/{id}/install</span>（201；重复安装 409）；卸载 = <span class="text-mono">DELETE /skills/{id}/install</span>（204）；创建 = <span class="text-mono">POST /skills</span>（skillId 撞内置保留字或他人技能 409）；编辑 = <span class="text-mono">PATCH /skills/{id}</span>（仅本人，version 自增）；发布 = <span class="text-mono">POST /skills/{id}/publish</span>（仅本人）。<br>
-        ② 内置技能语义：10 个 builtin 随镜像分发、目录全量挂载给助手（开箱即用，无需安装）；「安装 / 启用开关」的注入语义主要作用于自定义技能——安装且 enabled 的 custom skill 以索引行（技能名：描述）注入助手上下文，全文按需读取（渐进披露）。<br>
-        ③ kind 四类：可执行（有执行器，定时 / 页面双路径）/ 提示词（助手按需调用）/ 方法论（知识文档）/ 自定义（用户配置，DB JSONB）。<br>
-        ④ 自定义技能 = 配置非代码：无执行沙箱，不支持联网取数工具以外的能力声明；allowed_tools 约束本批不执法。<br>
-        ⑤ wire 契约：shared/types/skill.ts 已有（ApiSkillItem 等 camelCase），前端页面 / hooks 待批次 J 落地。
+        <b>实现说明（对齐批次 7 已交付的后端 API + 迭代 1 详情视图增强）</b><br>
+        ① 端点映射：广场列表 = <span class="text-mono">GET /api/v1/skills</span>（返回 available + mine 两组）；详情 = <span class="text-mono">GET /skills/{id}</span>；技能包文件 = <span class="text-mono">GET /skills/{id}/files</span>（返回文件清单 + 全文：builtin 读镜像内 skills/&lt;id&gt;/ 目录，custom 由 DB 配置合成虚拟文件）；安装 = <span class="text-mono">POST /skills/{id}/install</span>（201；重复安装 409）；卸载 = <span class="text-mono">DELETE /skills/{id}/install</span>（204）；创建 = <span class="text-mono">POST /skills</span>（skillId 撞内置保留字或他人技能 409）；编辑 = <span class="text-mono">PATCH /skills/{id}</span>（仅本人，version 自增）；发布 = <span class="text-mono">POST /skills/{id}/publish</span>（仅本人）。<br>
+        ② 详情视图（行业范式：Claude Agent Skills 的「技能 = 自包含目录」+ GitHub 仓库文件浏览器）：抽屉加宽至 780px，上部技能元信息（标识 / 触发方式 / 运行时绑定 executor+collector task / 消费页面），下部左右分栏——左侧技能包目录树（文件 + 大小），右侧文件内容（Markdown 文件提供「预览 / 源码」双视图，yaml 等仅源码）。窄屏（&lt;720px）抽屉回退为全宽、目录树折叠为顶部文件下拉。<br>
+        ③ 内置技能语义：10 个 builtin 随镜像分发、目录全量挂载给助手（开箱即用，无需安装）；「安装 / 启用开关」的注入语义主要作用于自定义技能——安装且 enabled 的 custom skill 以索引行（技能名：描述）注入助手上下文，全文按需读取（渐进披露）。<br>
+        ④ kind 四类：可执行（有执行器，定时 / 页面双路径）/ 提示词（助手按需调用）/ 方法论（知识文档）/ 自定义（用户配置，DB JSONB）。<br>
+        ⑤ 自定义技能 = 配置非代码：无执行沙箱；详情视图的「虚拟文件」= SKILL.md（skill_md 字段）+ prompt.yaml（由 system_prompt / user_prompt_template / sections 合成），标注「由配置合成，非镜像文件」。allowed_tools 约束本批不执法。
       </div>
 
     </div>
@@ -473,39 +509,170 @@ description: 集合竞价量价异动与昨日涨停表现分析框架
   </div>
 </div>
 
-<!-- ========== 技能详情抽屉 ========== -->
+<!-- ========== 技能详情抽屉（技能包文件浏览器） ========== -->
 <div class="drawer-mask" id="maskDetail"></div>
-<div class="drawer" id="drawerDetail">
+<div class="drawer drawer-wide" id="drawerDetail">
   <div class="drawer-header">
-    <span class="drawer-title">技能详情</span>
+    <span class="drawer-title">大盘每日复盘 <span class="tag tag-green" style="margin-left:8px">可执行</span><span class="tag" style="margin-left:4px">内置</span></span>
     <button class="drawer-close" data-close="drawerDetail">✕</button>
   </div>
-  <div class="drawer-body">
-    <div class="dt-row"><div class="dt-key">名称</div><div class="dt-val">大盘每日复盘 <span class="tag tag-green" style="margin-left:6px">可执行</span></div></div>
-    <div class="dt-row"><div class="dt-key">标识</div><div class="dt-val text-mono">market-daily-review</div></div>
-    <div class="dt-row"><div class="dt-key">来源</div><div class="dt-val">内置（随平台版本更新）</div></div>
-    <div class="dt-row"><div class="dt-key">触发方式</div><div class="dt-val">定时任务（交易日 16:30，heavy 队列）+ 复盘页侧边栏手动触发，双路径共用同一 SKILL.md</div></div>
-    <div class="dt-row"><div class="dt-key">消费页面</div><div class="dt-val">每日复盘页（AI 大盘综述模块）· 工作台（复盘状态卡）</div></div>
-
-    <div class="dt-sec">SKILL.md frontmatter</div>
-    <div class="code-block">---
-<span class="ck">name:</span> 大盘每日复盘
-<span class="ck">description:</span> 盘后生成大盘综述与次日展望
-<span class="ck">allowed-tools:</span> [get_index_kline, get_market_breadth, persist_market_review]
----</div>
-
-    <div class="dt-sec">结构化输出（示意）</div>
-    <div class="code-block">{
-  <span class="ck">"market_overview"</span>: { <span class="ck">"index_code"</span>: <span class="cs">"000001"</span>, <span class="ck">"change_pct"</span>: 0.82 },
-  <span class="ck">"sentiment"</span>: <span class="cs">"偏暖"</span>,
-  <span class="ck">"highlights"</span>: [<span class="cs">"…"</span>],
-  <span class="ck">"next_day_outlook"</span>: <span class="cs">"…"</span>
-}</div>
-
-    <div style="margin-top:20px">
-      <button class="btn btn-primary btn-block">在助手中试用</button>
-      <div style="text-align:center;font-size:11px;color:var(--text-tertiary);margin-top:8px">打开侧边栏 AI 助手并预置技能调用</div>
+  <div class="drawer-body detail-body">
+    <div class="detail-meta">
+      <div class="dt-row"><div class="dt-key">标识</div><div class="dt-val text-mono">market-daily-review</div></div>
+      <div class="dt-row"><div class="dt-key">触发方式</div><div class="dt-val">定时任务（交易日 16:30，heavy 队列）+ 复盘页侧边栏手动触发，双路径共用同一技能包</div></div>
+      <div class="dt-row"><div class="dt-key">运行时绑定</div><div class="dt-val text-mono" style="font-size:11px">executor: app.agent.skills.market_review_agent · collector task: market-daily-review</div></div>
+      <div class="dt-row"><div class="dt-key">消费页面</div><div class="dt-val">每日复盘页（AI 大盘综述模块）· 工作台（复盘状态卡）</div></div>
     </div>
+    <div class="detail-split">
+      <aside class="file-pane">
+        <div class="fp-title">技能包结构</div>
+        <div class="ft-dir">📁 market-daily-review</div>
+        <div class="ft-file active" data-file="SKILL.md"><span>📘</span><span class="ft-name">SKILL.md</span><span class="ft-size">8.1 KB</span></div>
+        <div class="ft-file" data-file="prompt.yaml"><span>⚙</span><span class="ft-name">prompt.yaml</span><span class="ft-size">1.9 KB</span></div>
+        <div class="ft-note">内置技能包 = 自包含目录（SKILL.md 方法论 + prompt.yaml 提示词契约），随平台镜像分发；自定义技能的文件由其配置合成（虚拟文件）。</div>
+      </aside>
+      <div class="content-pane">
+        <div class="crumb">skills <span>/</span> market-daily-review <span>/</span> <b data-crumb-file>SKILL.md</b></div>
+        <div class="view-toggle" data-view-toggle>
+          <button class="vt2 active" data-view="preview">预览</button>
+          <button class="vt2" data-view="source">源码</button>
+        </div>
+        <div class="file-content">
+
+          <!-- SKILL.md 内容 -->
+          <div data-file-panel="SKILL.md">
+            <div class="md-view" data-panel-view="preview">
+              <div class="frontmatter">---
+<span class="ck">name:</span> market-daily-review
+<span class="ck">description:</span> 大盘每日复盘综述：工具化获取大盘概览、指数技术面预计算指标、涨停连板天梯与板块资金流向，产出按分区组织的结构化收盘复盘
+<span class="ck">allowed-tools:</span> get_market_overview, get_limit_up_ladder, get_index_technical, get_sector_overview, get_trade_calendar, collect_market_data, persist_market_review
+---</div>
+              <h1>大盘每日复盘</h1>
+              <h2>描述</h2>
+              <p>以工具实时取数为依据，为整个 A 股市场生成当日收盘复盘：<strong>大盘综述、技术面分析、资金面分析、情绪与连板分析、风险提示与策略建议</strong>五个分区。分析流程与工具编排由本文件维护，输出分区契约以 <code>prompt.yaml</code> 为准。</p>
+              <h2>触发条件</h2>
+              <ul>
+                <li>每日复盘页请求生成 AI 大盘综述</li>
+                <li>每日收盘后的定时任务（market_daily_review_1630，北京时间 16:30）</li>
+              </ul>
+              <h2>输出 Schema</h2>
+              <pre><code>{
+  "sections": {
+    "overview": "AI 大盘综述（Markdown）",
+    "technical_analysis": "技术面分析（Markdown）",
+    "capital_analysis": "资金面分析（Markdown）",
+    "emotion_analysis": "情绪与连板分析（Markdown）",
+    "risk_advice": "风险提示与策略建议（Markdown）"
+  }
+}</code></pre>
+              <h2>可用工具</h2>
+              <p>执行器路径固定注入前四个取数工具；后三个仅助手对话路径可用。</p>
+              <ul>
+                <li><code>get_market_overview(trade_date)</code>：四大指数行情 + 全市场统计——两市成交额（含环比）、上涨/下跌/平盘家数、涨停/跌停家数、情绪温度、涨停比、连板率、炸板率</li>
+                <li><code>get_index_technical(trade_date)</code>：五标的（沪指/创业板/科创50/沪深300ETF/富时A50）预计算技术面文本，必须直接引用，禁止自行估算</li>
+                <li><code>get_sector_overview(trade_date)</code>：行业板块概览——涨跌幅热力图、主力净流入/净流出 TOP5、领涨板块</li>
+                <li><code>persist_market_review(trade_date, sections)</code>：仅助手对话路径——将五分区复盘保存入库，复盘页卡片自动刷新</li>
+              </ul>
+              <h2>分析流程</h2>
+              <h3>步骤 0：交易日确认</h3>
+              <p>助手对话路径先调用 <code>get_trade_calendar</code> 获取最近交易日；独立执行器路径直接使用任务指令给定的 trade_date。数据缺失自愈：任一取数步骤返回空数据时，调用 <code>collect_market_data</code> 派发补采任务（涨停池/成交额约 1 分钟、板块资金流约 10 分钟），重试后仍缺失时如实披露，不得编造。</p>
+              <h3>步骤 1-4：大盘概览 → 技术面 → 连板情绪 → 资金面</h3>
+              <p>依次调用四个取数工具，为对应分区准备数据；金额必须带正负号（净流入为正、净流出为负）。</p>
+              <h3>步骤 5：撰写分区并交付</h3>
+              <p>助手对话路径调用 <code>persist_market_review</code> 保存；独立执行器路径按「输出 Schema」输出 JSON。</p>
+              <h2>规则</h2>
+              <ul>
+                <li>所有数据必须来自工具调用结果，不得编造；工具未覆盖的维度如实说明</li>
+                <li>简体中文 + Markdown；每分区 3-5 个要点、每点一行</li>
+                <li>涨跌幅与资金金额必须带正负号（前端据此自动着色）</li>
+                <li>客观提示风险，不给出确定性涨跌预测，不构成投资建议</li>
+              </ul>
+            </div>
+            <div class="code-block" data-panel-view="source" style="display:none;white-space:pre-wrap">---
+name: market-daily-review
+description: 大盘每日复盘综述：工具化获取大盘概览、指数技术面预计算指标、涨停连板天梯与板块资金流向，产出按分区组织的结构化收盘复盘。复盘页触发生成与每日定时任务（market_daily_review_1630）均通过本 Skill 执行。
+allowed-tools: get_market_overview, get_limit_up_ladder, get_index_technical, get_sector_overview, get_trade_calendar, collect_market_data, persist_market_review
+---
+
+# 大盘每日复盘
+
+## 描述
+以工具实时取数为依据，为整个 A 股市场生成当日收盘复盘：大盘综述、技术面分析、资金面分析、情绪与连板分析、风险提示与策略建议五个分区。分析流程与工具编排由本文件维护，输出分区契约（key 集合与各分区撰写要求）以 prompt.yaml 为准。
+
+## 触发条件
+- 每日复盘页请求生成 AI 大盘综述
+- 每日收盘后的定时任务（market_daily_review_1630，北京时间 16:30）
+
+## 输出 Schema
+（完整源码同「预览」……此处为 SKILL.md 原文，随技能包分发，详情视图可完整滚动阅读）</div>
+          </div>
+
+          <!-- prompt.yaml 内容 -->
+          <div data-file-panel="prompt.yaml" style="display:none">
+            <div class="code-block" data-panel-view="source" style="white-space:pre-wrap">id: market-daily-review
+name: 大盘每日复盘综述
+version: 1.2.0
+description: 基于当日指数行情、涨跌统计、涨停连板与板块资金数据，生成结构化大盘复盘综述
+
+sections:
+  - key: overview
+    title: AI 大盘综述
+    requirements: |
+      固定按两段小标题撰写：
+      1、指数情况：结合沪指分时走势（开盘/盘中跳水/尾盘）与日 K 线形态（阴阳线实体幅度、是否创新低），结合量能变化判断是否杀出恐慌盘（下跌伴随放量）
+      2、量能情况：两市成交额及环比（放量/缩量多少亿），结合量能分时结构（开盘缩量/下跌放量/尾盘异动）判断量能异动
+  - key: technical_analysis
+    title: 技术面分析
+    requirements: |
+      逐标的（沪指/创业板/科创50/沪深300ETF/富时A50）分析日线与周线形态——是否跌破支撑位或关键均线、是否突破小平台、是否出现地量；判断趋势时注意：下降拐点 = 趋势支撑线附近 + 地量
+      均线数值、新低/地量/放量判断、分时量能结构必须引用 get_index_technical 工具返回的预计算指标，禁止自行估算
+  - key: capital_analysis
+    title: 资金面分析
+    requirements: |
+      板块资金轮动方向、主力偏好；流入金额标正号、流出金额标负号（如 半导体 +102 亿、银行 -45 亿）
+  - key: emotion_analysis
+    title: 情绪与连板分析
+    requirements: |
+      情绪温度、涨停结构、高标股表现
+  - key: risk_advice
+    title: 风险提示与策略建议
+    requirements: |
+      短期风险与仓位思路
+
+system_prompt: |
+  你是一名专业 A 股复盘分析师，为投资研究平台撰写每日收盘复盘。
+  要求：
+  - 所有数据必须来自工具调用结果，不得编造数据中不存在的个股、数字或事件；工具未覆盖的维度如实说明，不得臆测
+  - 语言简洁专业，使用中文，使用 Markdown 语法输出
+  - 每个部分必须使用列表分点呈现，每点单独一行；禁止整段连排不换行的文字
+  - 每个部分 3-5 个要点，每点一句话
+  - 重点结论用 **加粗** 强调；关键数据、个股名称、板块名称用 行内代码 高亮
+  - 涨跌幅百分比必须带正负号（如 +3.05%、-1.20%），前端会据此自动着涨跌色
+  - 资金流向金额必须带正负号：净流入为正、净流出为负
+  - 数字引用需与工具返回一致（成交额换算为亿元或万亿元）
+  - 客观提示风险，不给出确定性的涨跌预测
+
+user_prompt_template: |
+  请生成 {trade_date} 的每日大盘复盘综述。
+
+  先按系统指令中的分析流程调用工具获取当日市场数据，须覆盖以下维度：
+  指数行情与市场统计（成交额及环比、上涨/下跌/平盘家数、涨停/跌停家数、情绪温度、涨停比、连板率、炸板率）、
+  五标的预计算技术面指标、连板天梯（≥2 板）、板块主力资金净流入/净流出 TOP、领涨板块表现。
+
+  再撰写以下分区：
+
+  {section_instructions}
+
+  完成后按系统指令交付：助手对话路径调用 persist_market_review 保存；独立执行器路径最终回复只输出 sections JSON。</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn btn-primary" style="flex:1">在助手中试用</button>
+    <div style="align-self:center;font-size:11px;color:var(--text-tertiary)">打开侧边栏 AI 助手并预置技能调用</div>
   </div>
 </div>
 
@@ -564,6 +731,39 @@ document.querySelectorAll('#skGrid .btn-primary').forEach(function (btn) {
 // 开关切换（纯示意）
 document.querySelectorAll('.switch').forEach(function (sw) {
   sw.addEventListener('click', function () { sw.classList.toggle('on'); });
+});
+
+// 详情抽屉：文件切换 + 预览/源码切换
+var filePane = document.querySelector('#drawerDetail .file-pane');
+filePane.querySelectorAll('.ft-file').forEach(function (row) {
+  row.addEventListener('click', function () {
+    filePane.querySelectorAll('.ft-file').forEach(function (r) { r.classList.remove('active'); });
+    row.classList.add('active');
+    var name = row.getAttribute('data-file');
+    document.querySelector('[data-crumb-file]').textContent = name;
+    document.querySelectorAll('#drawerDetail [data-file-panel]').forEach(function (panel) {
+      panel.style.display = panel.getAttribute('data-file-panel') === name ? '' : 'none';
+    });
+    // yaml 无预览视图，强制源码；md 恢复预览
+    var toggle = document.querySelector('[data-view-toggle]');
+    var isMd = name === 'SKILL.md';
+    toggle.style.display = isMd ? '' : 'none';
+    setActiveView(isMd ? 'preview' : 'source');
+  });
+});
+function setActiveView(view) {
+  document.querySelectorAll('[data-view-toggle] .vt2').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-view') === view);
+  });
+  document.querySelectorAll('#drawerDetail [data-file-panel]').forEach(function (panel) {
+    if (panel.style.display === 'none') return;
+    panel.querySelectorAll('[data-panel-view]').forEach(function (el) {
+      el.style.display = el.getAttribute('data-panel-view') === view ? '' : 'none';
+    });
+  });
+}
+document.querySelectorAll('[data-view-toggle] .vt2').forEach(function (btn) {
+  btn.addEventListener('click', function () { setActiveView(btn.getAttribute('data-view')); });
 });
 </script>
 </body>

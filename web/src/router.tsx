@@ -40,6 +40,7 @@ const Financial = lazy(() => import('./pages/Financial/Financial').then((m) => (
 const Login = lazy(() => import('./pages/Login/Login').then((m) => ({ default: m.Login })))
 const Register = lazy(() => import('./pages/Register/Register').then((m) => ({ default: m.Register })))
 const Settings = lazy(() => import('./pages/Settings/Settings').then((m) => ({ default: m.Settings })))
+const SkillsPage = lazy(() => import('./pages/Skills/SkillsPage').then((m) => ({ default: m.SkillsPage })))
 const StockDetail = lazy(() => import('./pages/StockDetail/StockDetail').then((m) => ({ default: m.StockDetail })))
 const Telegraph = lazy(() => import('./pages/Telegraph').then((m) => ({ default: m.Telegraph })))
 const Watchlist = lazy(() => import('./pages/Watchlist').then((m) => ({ default: m.Watchlist })))
@@ -72,6 +73,7 @@ export const router = createBrowserRouter([
       { path: 'telegraph', element: lazyEl(<Telegraph />) },
       { path: 'financial/:code', element: lazyEl(<Financial />) },
       { path: 'settings', element: lazyEl(<Settings />) },
+      { path: 'skills', element: lazyEl(<SkillsPage />) },
       { path: 'watchlist', element: lazyEl(<Watchlist />) },
       {
         path: 'admin',

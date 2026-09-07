@@ -1,5 +1,6 @@
 import {
   AppstoreOutlined,
+  BlockOutlined,
   FundOutlined,
   LogoutOutlined,
   SettingOutlined,
@@ -84,6 +85,10 @@ export function MobileTabBar() {
         <button type="button" className={actionClass} onClick={() => go('/settings')}>
           <SettingOutlined className="text-gray-400" />
           个人设置
+        </button>
+        <button type="button" className={actionClass} onClick={() => go('/skills')}>
+          <BlockOutlined className="text-gray-400" />
+          技能广场
         </button>
         {isAdmin && (
           <button type="button" className={actionClass} onClick={() => go('/admin')}>

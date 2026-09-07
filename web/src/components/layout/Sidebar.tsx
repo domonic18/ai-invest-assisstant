@@ -1,6 +1,7 @@
 import {
   AppstoreOutlined,
   BarChartOutlined,
+  BlockOutlined,
   CalendarOutlined,
   ContainerOutlined,
   DashboardOutlined,
@@ -111,6 +112,7 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
 
   const settingsChildren: MenuItem[] = [
     { key: '/settings', icon: <UserOutlined />, label: '个人设置' },
+    { key: '/skills', icon: <BlockOutlined />, label: '技能广场' },
     // 自选股管理不在侧边栏（4.4.0），入口为工作台自选卡「管理分组」
     { key: '/watchlist', icon: <StarOutlined />, label: '自选股管理' },
     ...(isAdmin

@@ -21,6 +21,12 @@ export const queryKeys = {
     indexTrend: (days: number, startDate?: string, endDate?: string) =>
       ['auction', 'index-trend', days, startDate, endDate] as const,
   },
+  skills: {
+    all: ['skills'] as const,
+    square: ['skills', 'square'] as const,
+    detail: (skillId: string) => ['skills', 'detail', skillId] as const,
+    files: (skillId: string) => ['skills', 'files', skillId] as const,
+  },
   chain: {
     all: ['chain'] as const,
     analysis: (industry: string) => ['chain', 'analysis', industry] as const,

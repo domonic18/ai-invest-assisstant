@@ -73,3 +73,18 @@ export interface ApiCustomSkillUpdateRequest {
   description?: string | null
   customDefinition?: ApiCustomSkillDefinition
 }
+
+/** 技能包内单个文件（builtin 读镜像目录；custom 由配置合成虚拟文件）。 */
+export interface ApiSkillFile {
+  path: string
+  size: number
+  content: string
+}
+
+/** GET /skills/{id}/files 响应：synthetic=true 表示由 DB 配置合成，非镜像文件。 */
+export interface ApiSkillFilesResponse {
+  skillId: string
+  isBuiltin: boolean
+  synthetic: boolean
+  files: ApiSkillFile[]
+}
