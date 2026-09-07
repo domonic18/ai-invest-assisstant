@@ -14,7 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.models.assistant_session import AssistantSession
 from app.repositories.assistant.session_repository import AssistantSessionRepository
+from app.repositories.skill import SkillRepository, UserSkillRepository
 from app.schemas.assistant import SkillSummary
+from app.skills import iter_skills
 
 logger = structlog.get_logger(__name__)
 
@@ -81,14 +83,60 @@ class AssistantService:
         logger.info("assistant_session_deleted", thread_id=thread_id)
         return True
 
-    def list_skills(self) -> list[SkillSummary]:
-        """扫描 skills/ 目录并解析 SKILL.md 摘要。"""
+    async def list_skills(self, user_id: int) -> list[SkillSummary]:
+        """builtin 技能摘要（registry 驱动）+ 用户已启用 custom 技能。"""
         skills_dir = get_settings().skills_dir
-        if not skills_dir.exists():
+        summaries: list[SkillSummary] = []
+        for descriptor in iter_skills():
+            if not descriptor.skill_md:
+                continue
+            path = skills_dir / descriptor.skill_id / "SKILL.md"
+            if not path.exists():
+                continue
+            parsed = parse_skill_file(path)
+            summaries.append(
+                SkillSummary(
+                    id=parsed["id"],
+                    name=parsed["name"],
+                    description=parsed["description"],
+                    kind=descriptor.kind,
+                    is_custom=False,
+                )
+            )
+        summaries.extend(await self.list_enabled_custom_skills(user_id))
+        return summaries
+
+    async def list_enabled_custom_skills(self, user_id: int) -> list[SkillSummary]:
+        """用户已安装且启用的 custom 技能摘要（助手上下文注入数据源）。"""
+        installs = await UserSkillRepository(self._session).list_installed(user_id)
+        enabled_ids = [item.skill_id for item in installs if item.enabled]
+        if not enabled_ids:
             return []
+        rows = await SkillRepository(self._session).get_by_skill_ids(enabled_ids)
+        summaries: list[SkillSummary] = []
+        for row in rows:
+            if row.is_builtin:
+                continue
+            definition = row.custom_definition or {}
+            description = row.description or str(
+                definition.get("skill_md") or ""
+            ).strip()[:120]
+            summaries.append(
+                SkillSummary(
+                    id=row.skill_id,
+                    name=row.label,
+                    description=description,
+                    kind="custom",
+                    is_custom=True,
+                )
+            )
+        return summaries
+
+    async def custom_skill_index_lines(self, user_id: int) -> list[str]:
+        """已启用 custom 技能的索引行（渐进披露：每技能一行，全文不注入）。"""
         return [
-            SkillSummary(**parse_skill_file(path))
-            for path in sorted(skills_dir.glob("*/SKILL.md"))
+            f"{summary.name}：{summary.description}" if summary.description else summary.name
+            for summary in await self.list_enabled_custom_skills(user_id)
         ]
 
 

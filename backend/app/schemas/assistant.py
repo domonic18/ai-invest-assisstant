@@ -62,6 +62,10 @@ class ThreadStateResponse(CamelModel):
 
 
 class SkillSummary(CamelModel):
+    """技能摘要（旧字段不变，kind/isCustom 为批次7 增量，wire 向后兼容）。"""
+
     id: str
     name: str
     description: str = ""
+    kind: str | None = None
+    is_custom: bool = False
