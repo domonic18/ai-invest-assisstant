@@ -1,17 +1,9 @@
-import {
-  CloseOutlined,
-  MenuUnfoldOutlined,
-  PlusOutlined,
-  RobotOutlined,
-} from '@ant-design/icons'
+import { PlusOutlined, RobotOutlined } from '@ant-design/icons'
 import {
   Alert,
   App,
   Button,
-  Card,
   Empty,
-  Input,
-  Modal,
   Select,
   Space,
   Spin,
@@ -20,11 +12,10 @@ import {
   Typography,
 } from 'antd'
 import { AxiosError } from 'axios'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 
-import { ChainGraph } from '@/components/charts/ChainGraph'
 import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
 import {
   useChainIndustries,
@@ -36,18 +27,14 @@ import {
 import { useAssistantStore } from '@/stores/assistant'
 import { useColorScheme } from '@/stores/settings'
 import { apiErrorMessage } from '@/utils/errorMessage'
-import type { ChainNode } from '@ai-invest/shared'
+import { PAGE_EVENT_TYPES, type ChainNode } from '@ai-invest/shared'
 
+import { AnalysisResultSections } from './components/AnalysisResultSections'
 import { ChainAlertPanel } from './components/ChainAlertPanel'
-import { InsightTabs } from './components/InsightTabs'
-import { KeyCompaniesPanel } from './components/KeyCompaniesPanel'
-import { NodeDetailCard } from './components/NodeDetailCard'
-import { QuadrantMatrix } from './components/QuadrantMatrix'
-import { ValueDistributionCard } from './components/ValueDistributionCard'
+import { ChainGraphPanel } from './components/ChainGraphPanel'
+import { NewAnalysisModal } from './components/NewAnalysisModal'
 import { VersionCompareDrawer } from './components/VersionCompareDrawer'
 import { VersionSwitcher } from './components/VersionSwitcher'
-
-const PRESET_INDUSTRIES = ['半导体', '新能源汽车', '光伏', '锂电池', '人工智能', '创新药']
 
 function normalizeIndustry(industry: string): string {
   let name = industry.trim()
@@ -73,7 +60,6 @@ export function ChainAnalysis() {
   const [assistantAnalyzing, setAssistantAnalyzing] = useState(false)
   const [pendingIndustry, setPendingIndustry] = useState<string | null>(null)
   const [newAnalysisOpen, setNewAnalysisOpen] = useState(false)
-  const [newIndustry, setNewIndustry] = useState('')
 
   const queryClient = useQueryClient()
   const sendQuestion = useAssistantStore((state) => state.sendQuestion)
@@ -92,7 +78,7 @@ export function ChainAnalysis() {
     }
   }, [industry])
 
-  usePageAssistantResult('industry_chain.analysis.complete', (event) => {
+  usePageAssistantResult(PAGE_EVENT_TYPES.chainAnalysis, (event) => {
     const eventIndustry = normalizeIndustry(event.industry)
     const isCurrent = eventIndustry === normalizeIndustry(activeIndustry)
     const isPending = pendingIndustry !== null && eventIndustry === normalizeIndustry(pendingIndustry)
@@ -133,9 +119,7 @@ export function ChainAnalysis() {
     latestQuery.error instanceof AxiosError &&
     latestQuery.error.response?.status === 404
 
-  const handleReanalyze = () => {
-    const target = activeIndustry.trim()
-    if (!target) return
+  const startAnalysis = (target: string) => {
     setPendingIndustry(target)
     setSelectedNode(null)
     setSelectedVersionId(null)
@@ -143,19 +127,10 @@ export function ChainAnalysis() {
     sendQuestion(`请分析【${target}】产业链`)
   }
 
-  const handleStartNewAnalysis = () => {
-    const target = newIndustry.trim()
-    if (!target) {
-      message.warning('请输入产业链名称')
-      return
-    }
-    setPendingIndustry(target)
-    setNewAnalysisOpen(false)
-    setNewIndustry('')
-    setSelectedNode(null)
-    setSelectedVersionId(null)
-    setAssistantAnalyzing(true)
-    sendQuestion(`请分析【${target}】产业链`)
+  const handleReanalyze = () => {
+    const target = activeIndustry.trim()
+    if (!target) return
+    startAnalysis(target)
   }
 
   const handleIndustryChange = (value: string) => {
@@ -163,15 +138,10 @@ export function ChainAnalysis() {
     navigate(`/chain/${encodeURIComponent(value)}`)
   }
 
-  const analyzedIndustries = useMemo(() => industriesQuery.data ?? [], [industriesQuery.data])
-  const industryOptions = useMemo(
-    () =>
-      analyzedIndustries.map((item) => ({
-        value: item,
-        label: item,
-      })),
-    [analyzedIndustries]
-  )
+  const industryOptions = (industriesQuery.data ?? []).map((item) => ({
+    value: item,
+    label: item,
+  }))
 
   const handleNodeClick = (nodeName: string) => {
     const node = result?.nodes.find((item) => item.name === nodeName)
@@ -197,16 +167,6 @@ export function ChainAnalysis() {
 
   const isLoading =
     latestQuery.isLoading || (!isLatestSelected && selectedQuery.isLoading)
-
-  const hasMatrixData =
-    result?.nodes.some(
-      (node) => node.localizationRate !== null && node.avgGrossMargin !== null
-    ) ?? false
-
-  const hasValueData =
-    result?.nodes.some((node) => node.avgGrossMargin !== null) ||
-    result?.valueDistribution?.highestMarginSegment != null ||
-    result?.valueDistribution?.lowestMarginSegment != null
 
   return (
     <div className="space-y-4">
@@ -255,40 +215,12 @@ export function ChainAnalysis() {
         </Space>
       </div>
 
-      <Modal
-        title="分析新产业链"
+      <NewAnalysisModal
         open={newAnalysisOpen}
-        onOk={handleStartNewAnalysis}
+        analyzing={assistantAnalyzing}
+        onConfirm={startAnalysis}
         onCancel={() => setNewAnalysisOpen(false)}
-        okButtonProps={{ icon: <RobotOutlined />, loading: assistantAnalyzing }}
-        okText="开始 AI 分析"
-        cancelText="取消"
-      >
-        <div className="space-y-4">
-          <Input
-            value={newIndustry}
-            onChange={(e) => setNewIndustry(e.target.value)}
-            placeholder="输入产业链名称，如：机器人、创新药"
-            onPressEnter={handleStartNewAnalysis}
-          />
-          <div className="flex items-center gap-2 flex-wrap">
-            <Typography.Text type="secondary" className="text-xs whitespace-nowrap">
-              快速选择：
-            </Typography.Text>
-            <Space size={4} wrap>
-              {PRESET_INDUSTRIES.map((item) => (
-                <Tag
-                  key={item}
-                  className="cursor-pointer hover:border-[#6366f1] hover:text-[#6366f1] transition-colors"
-                  onClick={() => setNewIndustry(item)}
-                >
-                  {item}
-                </Tag>
-              ))}
-            </Space>
-          </div>
-        </div>
-      </Modal>
+      />
 
       <ChainAlertPanel industry={activeIndustry} />
 
@@ -337,95 +269,17 @@ export function ChainAnalysis() {
 
       {result && (
         <>
-          <Card variant="borderless" bodyStyle={{ padding: 0 }} className="overflow-hidden">
-            <div className="relative">
-              <ChainGraph
-                nodes={result.nodes}
-                edges={result.edges}
-                onNodeClick={handleNodeClick}
-              />
-              {selectedNode && detailCollapsed && (
-                <Button
-                  size="small"
-                  icon={<MenuUnfoldOutlined />}
-                  onClick={() => setDetailCollapsed(false)}
-                  className="!absolute right-12 top-3 z-10"
-                >
-                  节点详情
-                </Button>
-              )}
-              {selectedNode && !detailCollapsed && (
-                <Card
-                  size="small"
-                  title={selectedNode.name}
-                  className="!absolute right-12 top-3 bottom-3 w-80 z-10 shadow-xl flex flex-col [&_.ant-card-body]:flex-1 [&_.ant-card-body]:overflow-y-auto"
-                  extra={
-                    <Space size={4}>
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<MenuUnfoldOutlined rotate={180} />}
-                        title="收起"
-                        onClick={() => setDetailCollapsed(true)}
-                      />
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<CloseOutlined />}
-                        title="关闭"
-                        onClick={() => setSelectedNode(null)}
-                      />
-                    </Space>
-                  }
-                >
-                  <NodeDetailCard node={selectedNode} />
-                </Card>
-              )}
-            </div>
-          </Card>
-
-          {result.summary && (
-            <Card title="AI 综述" variant="borderless">
-              <Typography.Paragraph className="!mb-0">
-                {result.summary}
-              </Typography.Paragraph>
-            </Card>
-          )}
-
-          {(hasMatrixData || hasValueData) && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-              {hasMatrixData && (
-                <Card title="毛利率 × 国产化率矩阵" variant="borderless">
-                  <QuadrantMatrix nodes={result.nodes} />
-                </Card>
-              )}
-              {hasValueData && (
-                <Card title="价值分布" variant="borderless">
-                  <ValueDistributionCard
-                    nodes={result.nodes}
-                    valueDistribution={result.valueDistribution}
-                  />
-                </Card>
-              )}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-6">
-            <div className="xl:col-span-2">
-              <Card title="洞察分析" variant="borderless" className="h-full">
-                <InsightTabs
-                  opportunities={result.opportunities}
-                  risks={result.risks}
-                  nodes={result.nodes}
-                />
-              </Card>
-            </div>
-            <div>
-              <Card title="核心标的" variant="borderless" className="h-full">
-                <KeyCompaniesPanel companies={result.keyCompaniesSummary} />
-              </Card>
-            </div>
-          </div>
+          <ChainGraphPanel
+            nodes={result.nodes}
+            edges={result.edges}
+            selectedNode={selectedNode}
+            detailCollapsed={detailCollapsed}
+            onNodeClick={handleNodeClick}
+            onExpandDetail={() => setDetailCollapsed(false)}
+            onCollapseDetail={() => setDetailCollapsed(true)}
+            onCloseDetail={() => setSelectedNode(null)}
+          />
+          <AnalysisResultSections result={result} />
         </>
       )}
 
