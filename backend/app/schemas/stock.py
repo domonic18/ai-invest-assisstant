@@ -1,16 +1,15 @@
 """股票行情数据相关的 Pydantic schemas。"""
 
-from datetime import date, datetime, time
-from decimal import Decimal
+from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.schemas.base import CamelModel
 
 
-class StockBasicResponse(BaseModel):
+class StockBasicResponse(CamelModel):
     """股票基础信息响应。"""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     stock_code: str
@@ -25,20 +24,20 @@ class StockBasicResponse(BaseModel):
     full_name: str | None = None
     legal_person: str | None = None
     website: str | None = None
-    registered_capital: Decimal | None = None
+    registered_capital: float | None = None
     business_scope: str | None = None
     province: str | None = None
     city: str | None = None
 
 
-class StockSearchRequest(BaseModel):
+class StockSearchRequest(CamelModel):
     """股票搜索请求。"""
 
     q: str = Field(..., min_length=1, max_length=50)
     limit: int = Field(default=20, ge=1, le=100)
 
 
-class AdminStockCreate(BaseModel):
+class AdminStockCreate(CamelModel):
     """后台创建股票请求。"""
 
     stock_code: str = Field(..., min_length=6, max_length=10)
@@ -50,7 +49,7 @@ class AdminStockCreate(BaseModel):
     listing_date: date | None = None
 
 
-class AdminStockUpdate(BaseModel):
+class AdminStockUpdate(CamelModel):
     """后台更新股票请求。"""
 
     stock_name: str | None = Field(None, max_length=50)
@@ -61,27 +60,23 @@ class AdminStockUpdate(BaseModel):
     listing_date: date | None = None
 
 
-class KlineDataResponse(BaseModel):
+class KlineDataResponse(CamelModel):
     """日 K 线数据响应。"""
 
-    model_config = ConfigDict(from_attributes=True)
-
     trade_date: date
-    open: Decimal | None = None
-    high: Decimal | None = None
-    low: Decimal | None = None
-    close: Decimal | None = None
+    open: float | None = None
+    high: float | None = None
+    low: float | None = None
+    close: float | None = None
     volume: int | None = None
-    amount: Decimal | None = None
-    amplitude: Decimal | None = None
-    change_pct: Decimal | None = None
-    turnover_rate: Decimal | None = None
+    amount: float | None = None
+    amplitude: float | None = None
+    change_pct: float | None = None
+    turnover_rate: float | None = None
 
 
-class StockQuoteResponse(BaseModel):
+class StockQuoteResponse(CamelModel):
     """个股实时行情快照响应。"""
-
-    model_config = ConfigDict(from_attributes=True)
 
     code: str
     name: str
@@ -99,7 +94,7 @@ class StockQuoteResponse(BaseModel):
     updated_at: str | None = None
 
 
-class StockKlineBar(BaseModel):
+class StockKlineBar(CamelModel):
     """个股 K 线单根 bar。"""
 
     date: date
@@ -114,7 +109,7 @@ class StockKlineBar(BaseModel):
     turnover_rate: float | None = None
 
 
-class StockKlineResponse(BaseModel):
+class StockKlineResponse(CamelModel):
     """个股多周期 K 线响应。"""
 
     code: str
@@ -123,7 +118,7 @@ class StockKlineResponse(BaseModel):
     bars: list[StockKlineBar]
 
 
-class StockIntradayPoint(BaseModel):
+class StockIntradayPoint(CamelModel):
     """个股分时单点。"""
 
     time: str
@@ -132,7 +127,7 @@ class StockIntradayPoint(BaseModel):
     amount: float
 
 
-class StockIntradayResponse(BaseModel):
+class StockIntradayResponse(CamelModel):
     """个股分时响应。"""
 
     code: str
@@ -142,7 +137,7 @@ class StockIntradayResponse(BaseModel):
     points: list[StockIntradayPoint]
 
 
-class StockSectorItem(BaseModel):
+class StockSectorItem(CamelModel):
     """个股所属板块/概念项。"""
 
     name: str
@@ -151,7 +146,7 @@ class StockSectorItem(BaseModel):
     main_net_inflow: float | None = None
 
 
-class StockSectorsResponse(BaseModel):
+class StockSectorsResponse(CamelModel):
     """个股所属板块与概念响应。"""
 
     code: str
@@ -159,51 +154,7 @@ class StockSectorsResponse(BaseModel):
     sectors: list[StockSectorItem]
 
 
-class AuctionDataResponse(BaseModel):
-    """集合竞价数据响应。"""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    trade_date: date
-    match_time: time
-    price: Decimal | None = None
-    volume: int | None = None
-    bid_prices: list[Decimal | None] | None = None
-    bid_volumes: list[int | None] | None = None
-    ask_prices: list[Decimal | None] | None = None
-    ask_volumes: list[int | None] | None = None
-
-
-class IndexAuctionSeries(BaseModel):
-    """单个指数的集合竞价成交额序列（亿元，与 dates 逐点对齐，缺数据为 None）。"""
-
-    code: str
-    name: str
-    values: list[float | None]
-
-
-class IndexAuctionTrendResponse(BaseModel):
-    """指数集合竞价成交额趋势（dates 升序）。"""
-
-    dates: list[date]
-    series: list[IndexAuctionSeries]
-
-
-class FundFlowResponse(BaseModel):
-    """资金流向数据响应。"""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    stock_code: str
-    trade_date: date
-    main_net_inflow: Decimal | None = None
-    super_large_net: Decimal | None = None
-    large_net: Decimal | None = None
-    medium_net: Decimal | None = None
-    small_net: Decimal | None = None
-
-
-class StockAiAnalysisSection(BaseModel):
+class StockAiAnalysisSection(CamelModel):
     """个股 AI 分析单分区内容。"""
 
     key: str
@@ -211,7 +162,7 @@ class StockAiAnalysisSection(BaseModel):
     content: str
 
 
-class StockAiAnalysisResponse(BaseModel):
+class StockAiAnalysisResponse(CamelModel):
     """个股每日 AI 分析响应。"""
 
     stock_code: str
@@ -223,7 +174,7 @@ class StockAiAnalysisResponse(BaseModel):
     sections: list[StockAiAnalysisSection]
 
 
-class StockAiAnalysisStatusResponse(BaseModel):
+class StockAiAnalysisStatusResponse(CamelModel):
     """个股 AI 分析异步状态响应（轮询契约）。
 
     ready 时 data 必非空；running 表示生成任务进行中；none 表示无缓存且
@@ -236,21 +187,21 @@ class StockAiAnalysisStatusResponse(BaseModel):
     trade_date: date
 
 
-class StockAiAnalysisDatesResponse(BaseModel):
+class StockAiAnalysisDatesResponse(CamelModel):
     """个股已生成分析的全部交易日（升序），供前端日历标记。"""
 
     code: str
     trade_dates: list[date]
 
 
-class PaginationParams(BaseModel):
+class PaginationParams(CamelModel):
     """通用分页参数。"""
 
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
 
 
-class PaginatedResponse(BaseModel):
+class PaginatedResponse(CamelModel):
     """通用分页响应。"""
 
     total: int

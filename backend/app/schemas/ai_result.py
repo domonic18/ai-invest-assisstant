@@ -3,10 +3,10 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from app.schemas.base import CamelModel
 
 
-class AdminAiSkillInfo(BaseModel):
+class AdminAiSkillInfo(CamelModel):
     """已纳管 AI skill 清单项（管理页 Tab 与完成事件订阅的数据源）。"""
 
     skill_id: str
@@ -14,7 +14,7 @@ class AdminAiSkillInfo(BaseModel):
     event_type: str | None = None
 
 
-class AdminAiResultKeyField(BaseModel):
+class AdminAiResultKeyField(CamelModel):
     """业务键的单个字段（如 交易日 / 股票代码 / 行业+版本）。"""
 
     name: str
@@ -22,7 +22,7 @@ class AdminAiResultKeyField(BaseModel):
     value: str
 
 
-class AdminAiResultItem(BaseModel):
+class AdminAiResultItem(CamelModel):
     """AI 结果管理列表行：每个业务键最新一条生成记录的元信息。"""
 
     id: int

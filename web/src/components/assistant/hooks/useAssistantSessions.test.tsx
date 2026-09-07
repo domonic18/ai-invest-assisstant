@@ -23,11 +23,11 @@ describe('useAssistantSessions', () => {
     mockedFetch.mockResolvedValueOnce({
       sessions: [
         {
-          thread_id: 't-1',
+          threadId: 't-1',
           title: '测试',
-          last_message_at: null,
-          created_at: '2026-08-25T10:00:00Z',
-          updated_at: '2026-08-25T10:00:00Z',
+          lastMessageAt: null,
+          createdAt: '2026-08-25T10:00:00Z',
+          updatedAt: '2026-08-25T10:00:00Z',
         },
       ],
       total: 1,

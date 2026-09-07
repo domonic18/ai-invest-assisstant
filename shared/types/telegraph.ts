@@ -1,23 +1,23 @@
-/** 财联社电报（news_telegraph）类型：snake_case wire + camelCase 领域类型。 */
+/** 财联社电报（news_telegraph）类型：camelCase wire + camelCase 领域类型。 */
 
-/** 后端 GET /telegraph 分页响应（snake_case）。 */
+/** 后端 GET /telegraph 分页响应。 */
 export interface ApiTelegraphPage {
   total: number
   page: number
-  page_size: number
+  pageSize: number
   items: ApiTelegraphResponse[]
 }
 
-/** 后端电报条目（snake_case）。 */
+/** 后端电报条目。 */
 export interface ApiTelegraphResponse {
-  cls_msg_id: number
+  clsMsgId: number
   title: string | null
   content: string | null
   category: string | null
   importance: number | null
   shared: number | null
-  stock_codes: string[] | null
-  publish_time: string
+  stockCodes: string[] | null
+  publishTime: string
 }
 
 /** 电报条目领域类型（camelCase，前端使用）。 */

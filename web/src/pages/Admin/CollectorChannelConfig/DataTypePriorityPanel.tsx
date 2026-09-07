@@ -91,7 +91,7 @@ export function DataTypePriorityPanel() {
       await replaceMutation.mutateAsync({
         dataType: selectedType,
         items: draft.map((item, index) => ({
-          channel_id: item.channelId,
+          channelId: item.channelId,
           priority: index + 1,
         })),
       })

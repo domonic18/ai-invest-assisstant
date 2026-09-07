@@ -148,18 +148,20 @@ class TestListReportsSearch:
 class TestToReportResponse:
     def test_derives_title_and_has_summary(self) -> None:
         from datetime import datetime
+        from types import SimpleNamespace
 
-        report = MagicMock()
-        report.id = 1
-        report.stock_code = "000001"
-        report.original_name = "2025年年度报告"
-        report.title = None
-        report.stock_name = None
-        report.report_type = "annual"
-        report.report_date = None
-        report.file_size = 1024
-        report.summary = "摘要"
-        report.created_at = datetime(2026, 3, 15)
+        report = SimpleNamespace(
+            id=1,
+            stock_code="000001",
+            original_name="2025年年度报告",
+            title=None,
+            stock_name=None,
+            report_type="annual",
+            report_date=None,
+            file_size=1024,
+            summary="摘要",
+            created_at=datetime(2026, 3, 15),
+        )
 
         response = financial_report_service.to_report_response(
             report, stock_name="平安银行"

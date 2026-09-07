@@ -180,7 +180,7 @@ class TestGlobalIndicesEndpoint:
 
         assert resp.status_code == 200
         body = resp.json()
-        assert body[0]["index_code"] == "GC00Y"
+        assert body[0]["indexCode"] == "GC00Y"
         assert body[0]["close"] == 2650.5
         svc_mock.assert_awaited_once()
 

@@ -11,11 +11,11 @@ export interface ApiMovingAverageConfig {
 }
 
 export interface ApiUserSettings {
-  ma_configs: ApiMovingAverageConfig[]
+  maConfigs: ApiMovingAverageConfig[]
 }
 
 export interface ApiUserSettingsUpdateRequest {
-  ma_configs: ApiMovingAverageConfig[]
+  maConfigs: ApiMovingAverageConfig[]
 }
 
 export interface ApiUserResponse {
@@ -23,48 +23,48 @@ export interface ApiUserResponse {
   username: string
   email: string
   role: string
-  is_active: boolean
-  last_login_at: string | null
-  created_at: string
+  isActive: boolean
+  lastLoginAt: string | null
+  createdAt: string
 }
 
 export interface ApiAuthResponse {
-  access_token: string
-  token_type: string
+  accessToken: string
+  tokenType: string
   user: ApiUserResponse
 }
 
 export interface ApiWatchlistItemCreate {
-  stock_code: string
+  stockCode: string
   tags?: string[]
-  group_id?: number
+  groupId?: number
 }
 
 export interface ApiWatchlistItemResponse {
   id: number
-  stock_code: string
+  stockCode: string
   tags: string[] | null
-  group_id: number
-  created_at: string
+  groupId: number
+  createdAt: string
 }
 
 export interface ApiWatchlistGroupCreate {
   name: string
-  ai_review_enabled?: boolean
+  aiReviewEnabled?: boolean
 }
 
 export interface ApiWatchlistGroupUpdate {
   name?: string
-  ai_review_enabled?: boolean
+  aiReviewEnabled?: boolean
 }
 
 export interface ApiWatchlistGroupResponse {
   id: number
   name: string
-  sort_order: number
-  is_default: boolean
-  ai_review_enabled: boolean
-  created_at: string
+  sortOrder: number
+  isDefault: boolean
+  aiReviewEnabled: boolean
+  createdAt: string
 }
 
 export interface ApiWatchlistGroupWithItemsResponse extends ApiWatchlistGroupResponse {
@@ -72,19 +72,19 @@ export interface ApiWatchlistGroupWithItemsResponse extends ApiWatchlistGroupRes
 }
 
 export interface ApiWatchlistGroupReorderRequest {
-  group_ids: number[]
+  groupIds: number[]
 }
 
 export interface ApiWatchlistItemMoveRequest {
-  group_id: number
+  groupId: number
 }
 
 export interface ApiWatchlistScreenshotRecognitionItem {
-  stock_code: string
-  stock_name: string | null
+  stockCode: string
+  stockName: string | null
   confidence: number | null
   valid: boolean
-  matched_name: string | null
+  matchedName: string | null
 }
 
 export interface ApiWatchlistScreenshotRecognitionResponse {
@@ -92,20 +92,20 @@ export interface ApiWatchlistScreenshotRecognitionResponse {
 }
 
 export interface ApiWatchlistBatchItemCreate {
-  stock_code: string
+  stockCode: string
   tags?: string[]
 }
 
 export interface ApiWatchlistBatchCreate {
   items: ApiWatchlistBatchItemCreate[]
-  group_id?: number
-  new_group_name?: string
+  groupId?: number
+  newGroupName?: string
 }
 
 export interface ApiWatchlistBatchDuplicatedItem {
-  stock_code: string
-  group_id: number | null
-  group_name: string | null
+  stockCode: string
+  groupId: number | null
+  groupName: string | null
 }
 
 export interface ApiWatchlistBatchResponse {
@@ -115,33 +115,33 @@ export interface ApiWatchlistBatchResponse {
 }
 
 export interface ApiStockBasicResponse {
-  stock_code: string
-  stock_name: string
+  stockCode: string
+  stockName: string
   market: string
-  full_name: string | null
-  industry_level_1: string | null
-  industry_level_2: string | null
-  industry_level_3: string | null
-  listing_date: string | null
-  total_shares: number | null
-  circulating_shares: number | null
+  fullName: string | null
+  industryLevel1: string | null
+  industryLevel2: string | null
+  industryLevel3: string | null
+  listingDate: string | null
+  totalShares: number | null
+  circulatingShares: number | null
 }
 
 export interface ApiStockQuoteResponse {
   code: string
   name: string
   price: number | null
-  prev_close: number | null
+  prevClose: number | null
   change: number | null
-  change_pct: number | null
+  changePct: number | null
   open: number | null
   high: number | null
   low: number | null
   volume: number | null
   amount: number | null
-  market_cap: number | null
-  circulating_market_cap: number | null
-  updated_at: string | null
+  marketCap: number | null
+  circulatingMarketCap: number | null
+  updatedAt: string | null
 }
 
 export interface ApiStockAiAnalysisSection {
@@ -151,11 +151,11 @@ export interface ApiStockAiAnalysisSection {
 }
 
 export interface ApiStockAiAnalysisResponse {
-  stock_code: string
-  stock_name: string
-  trade_date: string
+  stockCode: string
+  stockName: string
+  tradeDate: string
   model: string | null
-  generated_at: string
+  generatedAt: string
   cached: boolean
   sections: ApiStockAiAnalysisSection[]
 }
@@ -165,12 +165,12 @@ export type ApiStockAiAnalysisStatus = 'running' | 'ready' | 'none'
 export interface ApiStockAiAnalysisStatusResponse {
   status: ApiStockAiAnalysisStatus
   data: ApiStockAiAnalysisResponse | null
-  trade_date: string
+  tradeDate: string
 }
 
 export interface ApiStockAiAnalysisDatesResponse {
   code: string
-  trade_dates: string[]
+  tradeDates: string[]
 }
 
 export interface ApiStockKlineBar {
@@ -181,9 +181,9 @@ export interface ApiStockKlineBar {
   close: number
   volume: number
   amount: number
-  change_pct: number | null
+  changePct: number | null
   amplitude: number | null
-  turnover_rate: number | null
+  turnoverRate: number | null
 }
 
 export interface ApiStockKlineResponse {
@@ -203,16 +203,16 @@ export interface ApiStockIntradayPoint {
 export interface ApiStockIntradayResponse {
   code: string
   name: string
-  trade_date: string
-  prev_close: number
+  tradeDate: string
+  prevClose: number
   points: ApiStockIntradayPoint[]
 }
 
 export interface ApiStockSectorItem {
   name: string
   type: 'industry' | 'concept'
-  change_pct: number | null
-  main_net_inflow: number | null
+  changePct: number | null
+  mainNetInflow: number | null
 }
 
 export interface ApiStockSectorsResponse {
@@ -222,7 +222,7 @@ export interface ApiStockSectorsResponse {
 }
 
 export interface ApiKlineDataResponse {
-  trade_date: string
+  tradeDate: string
   open: number
   high: number
   low: number
@@ -230,19 +230,19 @@ export interface ApiKlineDataResponse {
   volume: number
   amount: number
   amplitude: number
-  change_pct: number
-  turnover_rate: number
+  changePct: number
+  turnoverRate: number
 }
 
 export interface ApiAuctionDataResponse {
-  trade_date: string
-  match_time: string
+  tradeDate: string
+  matchTime: string
   price: number
   volume: number
-  bid_prices: number[]
-  bid_volumes: number[]
-  ask_prices: number[]
-  ask_volumes: number[]
+  bidPrices: number[]
+  bidVolumes: number[]
+  askPrices: number[]
+  askVolumes: number[]
 }
 
 export interface ApiIndexAuctionTrendResponse {
@@ -255,19 +255,19 @@ export interface ApiIndexAuctionTrendResponse {
 }
 
 export interface ApiFundFlowResponse {
-  stock_code: string
-  trade_date: string
-  main_net_inflow: number
-  super_large_net: number
-  large_net: number
-  medium_net: number
-  small_net: number
+  stockCode: string
+  tradeDate: string
+  mainNetInflow: number
+  superLargeNet: number
+  largeNet: number
+  mediumNet: number
+  smallNet: number
 }
 
 export interface ApiPaginatedResponse<T> {
   total: number
   page: number
-  page_size: number
+  pageSize: number
   items: T[]
 }
 
@@ -408,112 +408,112 @@ export interface ApiLLMConfigResponse {
   id: number
   name: string
   provider: string
-  base_url: string
-  model_name: string
-  api_key_masked: string
-  is_default: boolean
-  is_active: boolean
+  baseUrl: string
+  modelName: string
+  apiKeyMasked: string
+  isDefault: boolean
+  isActive: boolean
   extra: Record<string, unknown>
-  last_tested_at: string | null
-  last_test_status: string | null
-  last_test_error: string | null
-  created_at: string
-  updated_at: string
+  lastTestedAt: string | null
+  lastTestStatus: string | null
+  lastTestError: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ApiLLMConfigCreateRequest {
   name: string
   provider: string
-  base_url: string
-  api_key: string
-  model_name: string
-  is_default?: boolean
-  is_active?: boolean
+  baseUrl: string
+  apiKey: string
+  modelName: string
+  isDefault?: boolean
+  isActive?: boolean
   extra?: Record<string, unknown>
 }
 
 export interface ApiLLMConfigUpdateRequest {
   name?: string
   provider?: string
-  base_url?: string
-  api_key?: string
-  model_name?: string
-  is_default?: boolean
-  is_active?: boolean
+  baseUrl?: string
+  apiKey?: string
+  modelName?: string
+  isDefault?: boolean
+  isActive?: boolean
   extra?: Record<string, unknown>
 }
 
 export interface ApiLLMConfigTestResponse {
   status: string
   detail: string
-  tested_at: string
+  testedAt: string
 }
 
 export interface ApiCollectorChannelConfigResponse {
   id: number
   source: string
   name: string
-  base_url: string | null
-  api_key_masked: string | null
-  is_enabled: boolean
-  supported_data_types: string[]
+  baseUrl: string | null
+  apiKeyMasked: string | null
+  isEnabled: boolean
+  supportedDataTypes: string[]
   extra: Record<string, unknown>
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ApiCollectorChannelConfigCreateRequest {
   source: string
   name: string
-  base_url?: string
-  api_key?: string
-  is_enabled?: boolean
-  supported_data_types?: string[]
+  baseUrl?: string
+  apiKey?: string
+  isEnabled?: boolean
+  supportedDataTypes?: string[]
   extra?: Record<string, unknown>
 }
 
 export interface ApiCollectorChannelConfigUpdateRequest {
   name?: string
-  base_url?: string
-  api_key?: string
-  is_enabled?: boolean
-  supported_data_types?: string[]
+  baseUrl?: string
+  apiKey?: string
+  isEnabled?: boolean
+  supportedDataTypes?: string[]
   extra?: Record<string, unknown>
 }
 
 export interface ApiCollectorTaskChannelItem {
   source: string
   name: string
-  is_enabled: boolean
+  isEnabled: boolean
 }
 
 export interface ApiCollectorTaskChannelsResponse {
-  task_name: string
-  data_type: string
+  taskName: string
+  dataType: string
   channels: ApiCollectorTaskChannelItem[]
-  resolved_source: string | null
+  resolvedSource: string | null
 }
 
 export interface ApiCollectorTaskRunRequest {
-  preferred_source?: string | null
+  preferredSource?: string | null
   symbols?: string[] | null
   period?: string | null
-  start_date?: string | null
-  end_date?: string | null
-  sector_type?: string | null
+  startDate?: string | null
+  endDate?: string | null
+  sectorType?: string | null
   indicators?: string[] | null
-  report_types?: string[] | null
-  report_date?: string | null
-  trade_date?: string | null
+  reportTypes?: string[] | null
+  reportDate?: string | null
+  tradeDate?: string | null
 }
 
 export interface ApiCollectorTaskCatalogItem {
   name: string
   label: string
-  data_type: string
+  dataType: string
   sources: string[]
-  config_params: string[]
-  run_params: string[]
+  configParams: string[]
+  runParams: string[]
 }
 
 export interface ApiCollectorTaskCatalogResponse {
@@ -521,41 +521,43 @@ export interface ApiCollectorTaskCatalogResponse {
 }
 
 export interface ApiCollectorRunResponse {
-  task_name: string
+  taskName: string
   status: string
+  logId?: number | null
+  celeryTaskId?: string | null
 }
 
 export interface ApiCollectorLogResponse {
   id: number
-  task_name: string
+  taskName: string
   source: string | null
   status: string
-  started_at: string | null
-  finished_at: string | null
-  records_count: number
-  error_msg: string | null
+  startedAt: string | null
+  finishedAt: string | null
+  recordsCount: number
+  errorMsg: string | null
   metadata: Record<string, unknown> | null
 }
 
 export interface ApiResearchReportResponse {
   id: number
-  stock_code: string | null
+  stockCode: string | null
   title: string
   summary: string | null
   content: string | null
   source: string | null
-  source_url: string | null
-  publish_date: string | null
+  sourceUrl: string | null
+  publishDate: string | null
   sentiment: number | null
   keywords: string[] | null
-  industry_tags: string[] | null
+  industryTags: string[] | null
   extra: Record<string, unknown>
-  created_at: string
+  createdAt: string
   broker: string | null
   rating: string | null
   pages: number | null
   industry: string | null
-  has_summary: boolean
+  hasSummary: boolean
 }
 
 export interface ApiResearchReportFiltersResponse {
@@ -579,15 +581,15 @@ export interface ApiResearchReportListRequest {
 
 export interface ApiFinancialReportResponse {
   id: number
-  stock_code: string | null
-  stock_name: string | null
+  stockCode: string | null
+  stockName: string | null
   title: string | null
-  report_type: string | null
-  report_date: string | null
-  file_size: number | null
+  reportType: string | null
+  reportDate: string | null
+  fileSize: number | null
   summary: string | null
-  has_summary: boolean
-  created_at: string
+  hasSummary: boolean
+  createdAt: string
 }
 
 export interface ApiFinancialSummarizeResponse {
@@ -596,39 +598,39 @@ export interface ApiFinancialSummarizeResponse {
 }
 
 export interface ApiFinancialReportCollectRequest {
-  stock_code: string
-  report_types?: string[] | null
-  start_date?: string | null
-  end_date?: string | null
+  stockCode: string
+  reportTypes?: string[] | null
+  startDate?: string | null
+  endDate?: string | null
 }
 
 export interface ApiFinancialReportCollectResponse {
-  log_id: number
+  logId: number
   status: string
 }
 
 export interface ApiFinancialReportCollectLogResponse {
-  log_id: number
+  logId: number
   status: string
-  records_count: number
-  error_msg: string | null
-  finished_at: string | null
+  recordsCount: number
+  errorMsg: string | null
+  finishedAt: string | null
 }
 
 export interface ApiSectorFundFlowResponse {
-  sector_code: string
-  sector_name: string
-  sector_type: string
-  trade_date: string
-  change_pct: number | null
-  main_net_inflow: number | null
-  super_large_net: number | null
-  large_net: number | null
-  medium_net: number | null
-  small_net: number | null
-  top_stock_code: string | null
-  top_stock_name: string | null
-  created_at: string
+  sectorCode: string
+  sectorName: string
+  sectorType: string
+  tradeDate: string
+  changePct: number | null
+  mainNetInflow: number | null
+  superLargeNet: number | null
+  largeNet: number | null
+  mediumNet: number | null
+  smallNet: number | null
+  topStockCode: string | null
+  topStockName: string | null
+  createdAt: string
 }
 
 export interface ApiHotspotListRequest {
@@ -648,67 +650,67 @@ export interface ApiSectorFlowTrendResponse {
 }
 
 export interface ApiBalanceSheetResponse {
-  stock_code: string
-  report_date: string
-  report_type: string
-  total_assets: number | null
-  current_assets: number | null
-  cash_equivalents: number | null
-  accounts_receivable: number | null
+  stockCode: string
+  reportDate: string
+  reportType: string
+  totalAssets: number | null
+  currentAssets: number | null
+  cashEquivalents: number | null
+  accountsReceivable: number | null
   inventory: number | null
-  fixed_assets: number | null
-  intangible_assets: number | null
+  fixedAssets: number | null
+  intangibleAssets: number | null
   goodwill: number | null
-  total_liabilities: number | null
-  current_liabilities: number | null
-  long_term_debt: number | null
-  total_equity: number | null
-  paid_in_capital: number | null
-  retained_earnings: number | null
-  created_at: string
+  totalLiabilities: number | null
+  currentLiabilities: number | null
+  longTermDebt: number | null
+  totalEquity: number | null
+  paidInCapital: number | null
+  retainedEarnings: number | null
+  createdAt: string
 }
 
 export interface ApiIncomeStatementResponse {
-  stock_code: string
-  report_date: string
-  report_type: string
-  total_revenue: number | null
-  operating_cost: number | null
-  selling_expense: number | null
-  admin_expense: number | null
-  research_development_expense: number | null
-  finance_expense: number | null
-  operating_profit: number | null
-  net_profit: number | null
-  net_profit_deducted: number | null
+  stockCode: string
+  reportDate: string
+  reportType: string
+  totalRevenue: number | null
+  operatingCost: number | null
+  sellingExpense: number | null
+  adminExpense: number | null
+  researchDevelopmentExpense: number | null
+  financeExpense: number | null
+  operatingProfit: number | null
+  netProfit: number | null
+  netProfitDeducted: number | null
   eps: number | null
-  created_at: string
+  createdAt: string
 }
 
 export interface ApiCashFlowStatementResponse {
-  stock_code: string
-  report_date: string
-  report_type: string
-  cash_flow_from_operations: number | null
-  cash_flow_from_investing: number | null
-  cash_flow_from_financing: number | null
-  net_cash_flow: number | null
-  free_cash_flow: number | null
-  created_at: string
+  stockCode: string
+  reportDate: string
+  reportType: string
+  cashFlowFromOperations: number | null
+  cashFlowFromInvesting: number | null
+  cashFlowFromFinancing: number | null
+  netCashFlow: number | null
+  freeCashFlow: number | null
+  createdAt: string
 }
 
 export interface ApiFinancialHealthResponse {
-  stock_code: string
-  report_date: string | null
-  report_type: string | null
-  financial_balance_sheet: ApiBalanceSheetResponse | null
-  financial_income_statement: ApiIncomeStatementResponse | null
-  financial_cash_flow_statement: ApiCashFlowStatementResponse | null
+  stockCode: string
+  reportDate: string | null
+  reportType: string | null
+  financialBalanceSheet: ApiBalanceSheetResponse | null
+  financialIncomeStatement: ApiIncomeStatementResponse | null
+  financialCashFlowStatement: ApiCashFlowStatementResponse | null
   metrics: Record<string, number | null>
 }
 
 export interface ApiFinancialHistoryResponse {
-  stock_code: string
+  stockCode: string
   history: ApiFinancialHealthResponse[]
 }
 
@@ -717,9 +719,9 @@ export interface ApiAdminUserResponse {
   username: string
   email: string
   role: string
-  is_active: boolean
-  last_login_at: string | null
-  created_at: string
+  isActive: boolean
+  lastLoginAt: string | null
+  createdAt: string
 }
 
 export interface ApiAdminUserCreateRequest {
@@ -727,14 +729,14 @@ export interface ApiAdminUserCreateRequest {
   email: string
   password: string
   role?: string
-  is_active?: boolean
+  isActive?: boolean
 }
 
 export interface ApiAdminUserUpdateRequest {
   username?: string
   email?: string
   role?: string
-  is_active?: boolean
+  isActive?: boolean
 }
 
 export interface ApiAdminUserResetPasswordRequest {
@@ -743,215 +745,215 @@ export interface ApiAdminUserResetPasswordRequest {
 
 export interface ApiAdminStockResponse {
   id: number
-  stock_code: string
-  stock_name: string
+  stockCode: string
+  stockName: string
   market: string
-  industry_level_1: string | null
-  industry_level_2: string | null
-  industry_level_3: string | null
-  listing_date: string | null
-  total_shares: number | null
-  circulating_shares: number | null
-  full_name: string | null
-  created_at: string
+  industryLevel1: string | null
+  industryLevel2: string | null
+  industryLevel3: string | null
+  listingDate: string | null
+  totalShares: number | null
+  circulatingShares: number | null
+  fullName: string | null
+  createdAt: string
 }
 
 export interface ApiAdminStockCreateRequest {
-  stock_code: string
-  stock_name: string
+  stockCode: string
+  stockName: string
   market: string
-  industry_level_1?: string
-  industry_level_2?: string
-  industry_level_3?: string
-  listing_date?: string
+  industryLevel1?: string
+  industryLevel2?: string
+  industryLevel3?: string
+  listingDate?: string
 }
 
 export interface ApiAdminStockUpdateRequest {
-  stock_name?: string
+  stockName?: string
   market?: string
-  industry_level_1?: string
-  industry_level_2?: string
-  industry_level_3?: string
-  listing_date?: string
+  industryLevel1?: string
+  industryLevel2?: string
+  industryLevel3?: string
+  listingDate?: string
 }
 
 export interface ApiAdminReportResponse {
   id: number
-  file_path: string
-  original_name: string | null
-  file_type: string
-  stock_code: string | null
-  stock_name: string | null
-  report_date: string | null
-  report_type: string | null
+  filePath: string
+  originalName: string | null
+  fileType: string
+  stockCode: string | null
+  stockName: string | null
+  reportDate: string | null
+  reportType: string | null
   broker: string | null
-  file_size: number | null
-  md5_hash: string | null
-  download_url: string | null
-  download_count: number
-  created_at: string
+  fileSize: number | null
+  md5Hash: string | null
+  downloadUrl: string | null
+  downloadCount: number
+  createdAt: string
 }
 
 export interface ApiAdminReportCreateRequest {
-  file_path: string
-  original_name?: string
-  file_type: string
-  stock_code?: string
-  report_date?: string
-  report_type?: string
+  filePath: string
+  originalName?: string
+  fileType: string
+  stockCode?: string
+  reportDate?: string
+  reportType?: string
   broker?: string
-  file_size?: number
-  md5_hash?: string
-  download_url?: string
+  fileSize?: number
+  md5Hash?: string
+  downloadUrl?: string
 }
 
 export interface ApiAdminReportUpdateRequest {
-  original_name?: string
-  file_type?: string
-  stock_code?: string
-  report_date?: string
-  report_type?: string
+  originalName?: string
+  fileType?: string
+  stockCode?: string
+  reportDate?: string
+  reportType?: string
   broker?: string
-  file_size?: number
-  md5_hash?: string
-  download_url?: string
+  fileSize?: number
+  md5Hash?: string
+  downloadUrl?: string
 }
 
 export interface ApiAdminNewsResponse {
   id: number
-  stock_code: string | null
-  doc_type: string
+  stockCode: string | null
+  docType: string
   title: string
   summary: string | null
   content: string | null
   source: string | null
-  source_url: string | null
-  publish_date: string | null
+  sourceUrl: string | null
+  publishDate: string | null
   sentiment: number | null
   keywords: string[] | null
-  industry_tags: string[] | null
+  industryTags: string[] | null
   extra: Record<string, unknown>
-  created_at: string
+  createdAt: string
 }
 
 export interface ApiAdminNewsCreateRequest {
-  stock_code?: string
-  doc_type: string
+  stockCode?: string
+  docType: string
   title: string
   summary?: string
   content?: string
   source?: string
-  source_url?: string
-  publish_date?: string
+  sourceUrl?: string
+  publishDate?: string
   sentiment?: number
   keywords?: string[]
-  industry_tags?: string[]
+  industryTags?: string[]
   extra?: Record<string, unknown>
 }
 
 export interface ApiAdminNewsUpdateRequest {
-  stock_code?: string
-  doc_type?: string
+  stockCode?: string
+  docType?: string
   title?: string
   summary?: string
   content?: string
   source?: string
-  source_url?: string
-  publish_date?: string
+  sourceUrl?: string
+  publishDate?: string
   sentiment?: number
   keywords?: string[]
-  industry_tags?: string[]
+  industryTags?: string[]
   extra?: Record<string, unknown>
 }
 
 export interface ApiAdminTaskResponse {
   id: number
-  task_name: string
-  task_type: string
+  taskName: string
+  taskType: string
   source: string
   schedule: string | null
-  is_active: boolean
-  last_run_at: string | null
-  last_status: string
-  last_error: string | null
-  created_at: string
-  updated_at: string
+  isActive: boolean
+  lastRunAt: string | null
+  lastStatus: string
+  lastError: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ApiAdminTaskCreateRequest {
-  task_name: string
-  task_type: string
+  taskName: string
+  taskType: string
   source: string
   schedule?: string
-  is_active?: boolean
+  isActive?: boolean
 }
 
 export interface ApiAdminTaskUpdateRequest {
-  task_type?: string
+  taskType?: string
   source?: string
   schedule?: string
-  is_active?: boolean
+  isActive?: boolean
 }
 
 export interface ApiDataTypeChannelItem {
-  channel_id: number
+  channelId: number
   source: string
   name: string
-  is_enabled: boolean
+  isEnabled: boolean
   priority: number
 }
 
 export interface ApiDataTypeChannelsResponse {
-  data_type: string
+  dataType: string
   channels: ApiDataTypeChannelItem[]
 }
 
 export interface ApiDataTypeChannelPriorityInput {
-  channel_id: number
+  channelId: number
   priority: number
 }
 
 export interface ApiTrackedIndexResponse {
   id: number
-  index_code: string
-  index_name: string
-  market_category: string
-  data_source: string
-  sort_order: number
-  is_enabled: boolean
-  latest_close: number | null
-  latest_change_pct: number | null
-  latest_trade_date: string | null
-  created_at: string
-  updated_at: string
+  indexCode: string
+  indexName: string
+  marketCategory: string
+  dataSource: string
+  sortOrder: number
+  isEnabled: boolean
+  latestClose: number | null
+  latestChangePct: number | null
+  latestTradeDate: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ApiTrackedIndexCreateRequest {
-  index_code: string
-  index_name: string
-  market_category: string
-  data_source: string
-  sort_order?: number
-  is_enabled?: boolean
+  indexCode: string
+  indexName: string
+  marketCategory: string
+  dataSource: string
+  sortOrder?: number
+  isEnabled?: boolean
 }
 
 export interface ApiTrackedIndexUpdateRequest {
-  index_name?: string
-  market_category?: string
-  data_source?: string
-  sort_order?: number
-  is_enabled?: boolean
+  indexName?: string
+  marketCategory?: string
+  dataSource?: string
+  sortOrder?: number
+  isEnabled?: boolean
 }
 
 export interface ApiTrackedIndexToggleResponse {
   id: number
-  is_enabled: boolean
+  isEnabled: boolean
 }
 
 export interface ApiAdminAiSkillInfo {
-  skill_id: string
+  skillId: string
   label: string
-  event_type: string | null
+  eventType: string | null
 }
 
 export interface ApiAdminAiResultKeyField {
@@ -962,17 +964,17 @@ export interface ApiAdminAiResultKeyField {
 
 export interface ApiAdminAiResultItem {
   id: number
-  skill_id: string
-  key_fields: ApiAdminAiResultKeyField[]
+  skillId: string
+  keyFields: ApiAdminAiResultKeyField[]
   model: string | null
-  latency_ms: number | null
+  latencyMs: number | null
   status: string
-  created_at: string
-  history_count: number
-  regenerate_prompt: string | null
+  createdAt: string
+  historyCount: number
+  regeneratePrompt: string | null
 }
 
 export interface ApiAdminAiResultDetail extends ApiAdminAiResultItem {
-  error_msg: string | null
-  structured_output: Record<string, unknown> | null
+  errorMsg: string | null
+  structuredOutput: Record<string, unknown> | null
 }

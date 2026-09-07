@@ -4,7 +4,9 @@ import html
 import re
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import field_validator
+
+from app.schemas.base import CamelModel
 
 _TAG_PATTERN = re.compile(r"<[^>]+>")
 
@@ -20,10 +22,8 @@ def strip_html(raw: str | None) -> str | None:
     return text.strip() or None
 
 
-class TelegraphResponse(BaseModel):
+class TelegraphResponse(CamelModel):
     """电报条目。"""
-
-    model_config = ConfigDict(from_attributes=True)
 
     cls_msg_id: int
     title: str | None = None

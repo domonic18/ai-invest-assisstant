@@ -98,7 +98,7 @@ function mapAiAnalysisStatus(dto: ApiStockAiAnalysisStatusResponse): StockAiAnal
   return {
     status: dto.status,
     data: dto.data ? mapStockAiAnalysis(dto.data) : null,
-    tradeDate: dto.trade_date,
+    tradeDate: dto.tradeDate,
   }
 }
 
@@ -119,7 +119,7 @@ export async function fetchStockAiAnalysisDates(code: string): Promise<string[]>
   const response = await apiClient.get<ApiStockAiAnalysisDatesResponse>(
     ENDPOINTS.stocks.aiAnalysisDates(code),
   )
-  return response.data.trade_dates
+  return response.data.tradeDates
 }
 
 export async function fetchKline(code: string, params: KlineParams = {}) {

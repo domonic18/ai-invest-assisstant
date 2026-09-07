@@ -47,12 +47,12 @@ export function CollectModal({ open, onClose, onCollected }: CollectModalProps) 
   useEffect(() => {
     if (!log || !open) return
     if (log.status === 'success') {
-      message.success(`采集完成，入库 ${log.records_count} 条`)
+      message.success(`采集完成，入库 ${log.recordsCount} 条`)
       onCollected()
       reset()
       onClose()
     } else if (log.status === 'failed') {
-      message.error(log.error_msg ?? '采集失败')
+      message.error(log.errorMsg ?? '采集失败')
       setLogId(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -87,12 +87,12 @@ export function CollectModal({ open, onClose, onCollected }: CollectModalProps) 
     const [start, end] = range ?? []
     try {
       const result = await collectMutation.mutateAsync({
-        stock_code: stockCode,
-        report_types: reportTypes.length > 0 ? reportTypes : null,
-        start_date: start ? start.format('YYYY-MM-DD') : null,
-        end_date: end ? end.format('YYYY-MM-DD') : null,
+        stockCode,
+        reportTypes: reportTypes.length > 0 ? reportTypes : null,
+        startDate: start ? start.format('YYYY-MM-DD') : null,
+        endDate: end ? end.format('YYYY-MM-DD') : null,
       })
-      setLogId(result.log_id)
+      setLogId(result.logId)
     } catch (err) {
       message.error(err instanceof Error ? err.message : '采集任务提交失败')
     }
@@ -153,7 +153,7 @@ export function CollectModal({ open, onClose, onCollected }: CollectModalProps) 
             type={log.status === 'success' ? 'success' : 'info'}
             message={
               log.status === 'success' ? (
-                `采集完成，入库 ${log.records_count} 条`
+                `采集完成，入库 ${log.recordsCount} 条`
               ) : (
                 <span className="inline-flex items-center gap-2">
                   <Spin size="small" /> 采集中，通常需要几十秒，请稍候…

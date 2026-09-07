@@ -26,10 +26,10 @@ function groupSessions(sessions: AssistantSessionItem[]) {
   const yest = now.subtract(1, 'day')
 
   for (const session of sessions) {
-    const time = session.updated_at
-      ? dayjs(session.updated_at)
-      : session.created_at
-        ? dayjs(session.created_at)
+    const time = session.updatedAt
+      ? dayjs(session.updatedAt)
+      : session.createdAt
+        ? dayjs(session.createdAt)
         : null
     if (!time) {
       earlier.push(session)
@@ -137,11 +137,11 @@ function Section({ title, sessions, activeThreadId, onSwitch, onDelete }: Sectio
       <div className="space-y-0.5">
         {sessions.map((session) => (
           <SessionItem
-            key={session.thread_id}
+            key={session.threadId}
             session={session}
-            isActive={session.thread_id === activeThreadId}
-            onClick={() => onSwitch(session.thread_id)}
-            onDelete={() => onDelete(session.thread_id)}
+            isActive={session.threadId === activeThreadId}
+            onClick={() => onSwitch(session.threadId)}
+            onDelete={() => onDelete(session.threadId)}
           />
         ))}
       </div>

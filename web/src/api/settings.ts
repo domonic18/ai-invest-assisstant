@@ -16,7 +16,7 @@ export async function fetchUserSettings(): Promise<UserSettings> {
 
 export async function updateUserSettings(settings: UserSettings): Promise<UserSettings> {
   const body: ApiUserSettingsUpdateRequest = {
-    ma_configs: settings.maConfigs.map((item) => ({
+    maConfigs: settings.maConfigs.map((item) => ({
       period: Math.round(item.period),
       color: normalizeHexColor(item.color),
       enabled: item.enabled,

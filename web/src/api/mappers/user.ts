@@ -16,14 +16,14 @@ export function mapUser(dto: ApiUserResponse): User {
 
 export function mapAuthResponse(dto: ApiAuthResponse): AuthResponse {
   return {
-    accessToken: dto.access_token,
+    accessToken: dto.accessToken,
     user: mapUser(dto.user),
   }
 }
 
 export function mapUserSettings(dto: ApiUserSettings): UserSettings {
   return {
-    maConfigs: dto.ma_configs.map(
+    maConfigs: dto.maConfigs.map(
       (item): MovingAverageConfig => ({
         period: item.period,
         color: item.color,

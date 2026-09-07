@@ -7,7 +7,7 @@ export function mapPaginatedResponse<T, R>(
   return {
     total: dto.total,
     page: dto.page,
-    pageSize: dto.page_size,
+    pageSize: dto.pageSize,
     items: dto.items.map(mapper),
   }
 }

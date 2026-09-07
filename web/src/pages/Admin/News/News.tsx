@@ -96,17 +96,17 @@ export function AdminNews() {
   }
 
   const buildPayload = (values: NewsFormValues) => ({
-    stock_code: values.stockCode,
-    doc_type: values.docType,
+    stockCode: values.stockCode,
+    docType: values.docType,
     title: values.title,
     summary: values.summary,
     content: values.content,
     source: values.source,
-    source_url: values.sourceUrl,
-    publish_date: values.publishDate ? values.publishDate.format('YYYY-MM-DD') : undefined,
+    sourceUrl: values.sourceUrl,
+    publishDate: values.publishDate ? values.publishDate.format('YYYY-MM-DD') : undefined,
     sentiment: values.sentiment ?? undefined,
     keywords: values.keywords,
-    industry_tags: values.industryTags,
+    industryTags: values.industryTags,
     extra: {},
   })
 

@@ -111,7 +111,7 @@ export function AssistantPanel() {
 
   const activeTitle = useMemo(() => {
     if (!threadId) return null
-    return sessions.find((s) => s.thread_id === threadId)?.title ?? null
+    return sessions.find((s) => s.threadId === threadId)?.title ?? null
   }, [sessions, threadId])
 
   const handleDelete = async (value: string) => {

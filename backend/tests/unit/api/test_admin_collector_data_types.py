@@ -64,7 +64,7 @@ class TestAdminCollectorDataTypes:
 
         assert response.status_code == 200
         data = response.json()
-        assert data[0]["data_type"] == "kline"
+        assert data[0]["dataType"] == "kline"
         assert [ch["source"] for ch in data[0]["channels"]] == ["sina", "ths"]
 
     @patch("app.api.v1.admin.collector_data_types.CollectorChannelConfigService")
@@ -82,8 +82,8 @@ class TestAdminCollectorDataTypes:
         response = client.put(
             "/api/v1/admin/collector/data-types/kline/channels",
             json=[
-                {"channel_id": 3, "priority": 1},
-                {"channel_id": 1, "priority": 2},
+                {"channelId": 3, "priority": 1},
+                {"channelId": 1, "priority": 2},
             ],
         )
 
@@ -106,7 +106,7 @@ class TestAdminCollectorDataTypes:
 
         response = client.put(
             "/api/v1/admin/collector/data-types/bad-type/channels",
-            json=[{"channel_id": 1, "priority": 1}],
+            json=[{"channelId": 1, "priority": 1}],
         )
 
         assert response.status_code == 400
@@ -125,7 +125,7 @@ class TestAdminCollectorDataTypes:
 
         response = client.put(
             "/api/v1/admin/collector/data-types/kline/channels",
-            json=[{"channel_id": 99, "priority": 1}],
+            json=[{"channelId": 99, "priority": 1}],
         )
 
         assert response.status_code == 404

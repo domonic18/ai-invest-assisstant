@@ -39,7 +39,7 @@ class TestAuthEndpoints:
         assert response.status_code == 201
         data = response.json()
         assert data["user"]["username"] == "tester"
-        assert "access_token" in data
+        assert "accessToken" in data
 
     def test_login_invalid_credentials(self, client) -> None:
         from app.core.exceptions import UnauthorizedError

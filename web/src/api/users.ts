@@ -26,9 +26,9 @@ export async function fetchWatchlist() {
 
 export async function addWatchlistItem(data: WatchlistCreateData) {
   const response = await apiClient.post<ApiWatchlistItemResponse>(ENDPOINTS.users.watchlist, {
-    stock_code: data.stockCode,
+    stockCode: data.stockCode,
     tags: data.tags,
-    group_id: data.groupId,
+    groupId: data.groupId,
   })
   return mapWatchlistItem(response.data)
 }
@@ -40,7 +40,7 @@ export async function removeWatchlistItem(id: string) {
 export async function moveWatchlistItem(id: string, groupId: number) {
   const response = await apiClient.patch<ApiWatchlistItemResponse>(
     ENDPOINTS.users.watchlistItem(id),
-    { group_id: groupId },
+    { groupId },
   )
   return mapWatchlistItem(response.data)
 }
@@ -98,11 +98,11 @@ export async function recognizeWatchlistScreenshot(file: File): Promise<Watchlis
     form,
   )
   return response.data.items.map((item) => ({
-    stockCode: item.stock_code,
-    stockName: item.stock_name,
+    stockCode: item.stockCode,
+    stockName: item.stockName,
     confidence: item.confidence,
     valid: item.valid,
-    matchedName: item.matched_name,
+    matchedName: item.matchedName,
   }))
 }
 
@@ -114,14 +114,14 @@ export async function batchAddWatchlist(data: {
   const { items, groupId, newGroupName } = data
   const response = await apiClient.post<ApiWatchlistBatchResponse>(ENDPOINTS.users.watchlistBatch, {
     items,
-    group_id: groupId,
-    new_group_name: newGroupName,
+    groupId: groupId,
+    newGroupName: newGroupName,
   })
   return {
     created: response.data.created.length,
     duplicated: response.data.duplicated.map((d) => ({
-      stockCode: d.stock_code,
-      groupName: d.group_name,
+      stockCode: d.stockCode,
+      groupName: d.groupName,
     })),
     invalid: response.data.invalid,
   }

@@ -1,26 +1,26 @@
 """对话助手（Agent Protocol）API schemas。
 
-请求体字段对齐 ``@langchain/langgraph-sdk`` 的 camelCase wire 形状
-（alias 兼容 snake_case），响应保持项目统一的 snake_case。
+wire 全程对齐 ``@langchain/langgraph-sdk`` 的 camelCase 形状
+（``populate_by_name`` 兼容 snake_case 输入）。
 """
 
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.schemas.base import CamelModel
 
 
-class ThreadCreateRequest(BaseModel):
+class ThreadCreateRequest(CamelModel):
     """POST /threads 请求体（langgraph-sdk client.threads.create）。"""
-
-    model_config = ConfigDict(populate_by_name=True)
 
     title: str | None = None
     metadata: dict[str, Any] | None = None
     thread_id: str | None = None
 
 
-class ThreadResponse(BaseModel):
+class ThreadResponse(CamelModel):
     thread_id: str
     title: str | None = None
     last_message_at: datetime | None = None
@@ -29,32 +29,30 @@ class ThreadResponse(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class SessionListResponse(BaseModel):
+class SessionListResponse(CamelModel):
     sessions: list[ThreadResponse]
     total: int
 
 
-class RunStreamRequest(BaseModel):
+class RunStreamRequest(CamelModel):
     """POST /threads/{id}/runs/stream 请求体（langgraph-sdk client.runs.stream）。"""
 
-    model_config = ConfigDict(populate_by_name=True)
-
-    assistant_id: str | None = Field(default=None, alias="assistantId")
+    assistant_id: str | None = None
     input: dict[str, Any] | None = None
     command: dict[str, Any] | None = None
-    stream_mode: list[str] | None = Field(default=None, alias="streamMode")
+    stream_mode: list[str] | None = None
     config: dict[str, Any] | None = None
     checkpoint: dict[str, Any] | None = None
-    on_disconnect: str | None = Field(default=None, alias="onDisconnect")
+    on_disconnect: str | None = None
     metadata: dict[str, Any] | None = None
 
 
-class RunCancelRequest(BaseModel):
+class RunCancelRequest(CamelModel):
     action: str | None = None
     wait: bool | None = None
 
 
-class ThreadStateResponse(BaseModel):
+class ThreadStateResponse(CamelModel):
     """GET /threads/{id}/state 响应（assistant-ui load() 消费）。"""
 
     values: dict[str, Any] = Field(default_factory=dict)
@@ -63,7 +61,7 @@ class ThreadStateResponse(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class SkillSummary(BaseModel):
+class SkillSummary(CamelModel):
     id: str
     name: str
     description: str = ""

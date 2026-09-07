@@ -36,34 +36,34 @@ export function mapLLMConfig(dto: ApiLLMConfigResponse): LLMConfig {
     id: dto.id,
     name: dto.name,
     provider: dto.provider,
-    baseUrl: dto.base_url,
-    modelName: dto.model_name,
-    apiKeyMasked: dto.api_key_masked,
-    isDefault: dto.is_default,
-    isActive: dto.is_active,
+    baseUrl: dto.baseUrl,
+    modelName: dto.modelName,
+    apiKeyMasked: dto.apiKeyMasked,
+    isDefault: dto.isDefault,
+    isActive: dto.isActive,
     extra: dto.extra,
-    lastTestedAt: dto.last_tested_at,
-    lastTestStatus: dto.last_test_status,
-    lastTestError: dto.last_test_error,
-    createdAt: dto.created_at,
-    updatedAt: dto.updated_at,
+    lastTestedAt: dto.lastTestedAt,
+    lastTestStatus: dto.lastTestStatus,
+    lastTestError: dto.lastTestError,
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
   }
 }
 
 export function mapTrackedIndex(dto: ApiTrackedIndexResponse): TrackedIndexConfig {
   return {
     id: dto.id,
-    indexCode: dto.index_code,
-    indexName: dto.index_name,
-    marketCategory: dto.market_category,
-    dataSource: dto.data_source,
-    sortOrder: dto.sort_order,
-    isEnabled: dto.is_enabled,
-    latestClose: dto.latest_close,
-    latestChangePct: dto.latest_change_pct,
-    latestTradeDate: dto.latest_trade_date,
-    createdAt: dto.created_at,
-    updatedAt: dto.updated_at,
+    indexCode: dto.indexCode,
+    indexName: dto.indexName,
+    marketCategory: dto.marketCategory,
+    dataSource: dto.dataSource,
+    sortOrder: dto.sortOrder,
+    isEnabled: dto.isEnabled,
+    latestClose: dto.latestClose,
+    latestChangePct: dto.latestChangePct,
+    latestTradeDate: dto.latestTradeDate,
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
   }
 }
 
@@ -72,26 +72,26 @@ export function mapCollectorChannelConfig(dto: ApiCollectorChannelConfigResponse
     id: dto.id,
     source: dto.source,
     name: dto.name,
-    baseUrl: dto.base_url,
-    apiKeyMasked: dto.api_key_masked,
-    isEnabled: dto.is_enabled,
-    supportedDataTypes: dto.supported_data_types,
+    baseUrl: dto.baseUrl,
+    apiKeyMasked: dto.apiKeyMasked,
+    isEnabled: dto.isEnabled,
+    supportedDataTypes: dto.supportedDataTypes,
     extra: dto.extra,
-    createdAt: dto.created_at,
-    updatedAt: dto.updated_at,
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
   }
 }
 
 export function mapCollectorLog(dto: ApiCollectorLogResponse): CollectorLog {
   return {
     id: dto.id,
-    taskName: dto.task_name,
+    taskName: dto.taskName,
     source: dto.source,
     status: dto.status,
-    startedAt: dto.started_at,
-    finishedAt: dto.finished_at,
-    recordsCount: dto.records_count,
-    errorMsg: dto.error_msg,
+    startedAt: dto.startedAt,
+    finishedAt: dto.finishedAt,
+    recordsCount: dto.recordsCount,
+    errorMsg: dto.errorMsg,
     metadata: dto.metadata,
   }
 }
@@ -101,22 +101,22 @@ export function mapCollectorTaskCatalog(dto: ApiCollectorTaskCatalogResponse): C
     items: dto.items.map((item) => ({
       name: item.name,
       label: item.label,
-      dataType: item.data_type,
+      dataType: item.dataType,
       sources: item.sources,
-      configParams: item.config_params,
-      runParams: item.run_params,
+      configParams: item.configParams,
+      runParams: item.runParams,
     })),
   }
 }
 
 export function mapCollectorDataTypeChannels(dto: ApiDataTypeChannelsResponse): CollectorDataTypeChannels {
   return {
-    dataType: dto.data_type,
+    dataType: dto.dataType,
     channels: dto.channels.map((ch) => ({
-      channelId: ch.channel_id,
+      channelId: ch.channelId,
       source: ch.source,
       name: ch.name,
-      isEnabled: ch.is_enabled,
+      isEnabled: ch.isEnabled,
       priority: ch.priority,
     })),
   }
@@ -128,109 +128,109 @@ export function mapAdminUser(dto: ApiAdminUserResponse): AdminUser {
     username: dto.username,
     email: dto.email,
     role: dto.role,
-    isActive: dto.is_active,
-    lastLoginAt: dto.last_login_at,
-    createdAt: dto.created_at,
+    isActive: dto.isActive,
+    lastLoginAt: dto.lastLoginAt,
+    createdAt: dto.createdAt,
   }
 }
 
 export function mapAdminStock(dto: ApiAdminStockResponse): AdminStock {
   return {
     id: dto.id,
-    stockCode: dto.stock_code,
-    stockName: dto.stock_name,
+    stockCode: dto.stockCode,
+    stockName: dto.stockName,
     market: dto.market,
-    industryL1: dto.industry_level_1,
-    industryL2: dto.industry_level_2,
-    industryL3: dto.industry_level_3,
-    listingDate: dto.listing_date,
-    totalShares: dto.total_shares,
-    circulatingShares: dto.circulating_shares,
-    fullName: dto.full_name,
-    createdAt: dto.created_at,
+    industryL1: dto.industryLevel1,
+    industryL2: dto.industryLevel2,
+    industryL3: dto.industryLevel3,
+    listingDate: dto.listingDate,
+    totalShares: dto.totalShares,
+    circulatingShares: dto.circulatingShares,
+    fullName: dto.fullName,
+    createdAt: dto.createdAt,
   }
 }
 
 export function mapAdminReport(dto: ApiAdminReportResponse): AdminReport {
   return {
     id: dto.id,
-    filePath: dto.file_path,
-    originalName: dto.original_name,
-    fileType: dto.file_type,
-    stockCode: dto.stock_code,
-    stockName: dto.stock_name,
-    reportDate: dto.report_date,
-    reportType: dto.report_type,
+    filePath: dto.filePath,
+    originalName: dto.originalName,
+    fileType: dto.fileType,
+    stockCode: dto.stockCode,
+    stockName: dto.stockName,
+    reportDate: dto.reportDate,
+    reportType: dto.reportType,
     broker: dto.broker,
-    fileSize: dto.file_size,
-    md5Hash: dto.md5_hash,
-    downloadUrl: dto.download_url,
-    downloadCount: dto.download_count,
-    createdAt: dto.created_at,
+    fileSize: dto.fileSize,
+    md5Hash: dto.md5Hash,
+    downloadUrl: dto.downloadUrl,
+    downloadCount: dto.downloadCount,
+    createdAt: dto.createdAt,
   }
 }
 
 export function mapAdminNews(dto: ApiAdminNewsResponse): AdminNews {
   return {
     id: dto.id,
-    stockCode: dto.stock_code,
-    docType: dto.doc_type,
+    stockCode: dto.stockCode,
+    docType: dto.docType,
     title: dto.title,
     summary: dto.summary,
     content: dto.content,
     source: dto.source,
-    sourceUrl: dto.source_url,
-    publishDate: dto.publish_date,
+    sourceUrl: dto.sourceUrl,
+    publishDate: dto.publishDate,
     sentiment: dto.sentiment,
     keywords: dto.keywords,
-    industryTags: dto.industry_tags,
+    industryTags: dto.industryTags,
     extra: dto.extra,
-    createdAt: dto.created_at,
+    createdAt: dto.createdAt,
   }
 }
 
 export function mapAdminAiSkill(dto: ApiAdminAiSkillInfo): AdminAiSkillInfo {
   return {
-    skillId: dto.skill_id,
+    skillId: dto.skillId,
     label: dto.label,
-    eventType: dto.event_type,
+    eventType: dto.eventType,
   }
 }
 
 export function mapAdminAiResult(dto: ApiAdminAiResultItem): AdminAiResultItem {
   return {
     id: dto.id,
-    skillId: dto.skill_id,
-    keyFields: dto.key_fields.map((field) => ({ ...field })),
+    skillId: dto.skillId,
+    keyFields: dto.keyFields.map((field) => ({ ...field })),
     model: dto.model,
-    latencyMs: dto.latency_ms,
+    latencyMs: dto.latencyMs,
     status: dto.status,
-    createdAt: dto.created_at,
-    historyCount: dto.history_count,
-    regeneratePrompt: dto.regenerate_prompt,
+    createdAt: dto.createdAt,
+    historyCount: dto.historyCount,
+    regeneratePrompt: dto.regeneratePrompt,
   }
 }
 
 export function mapAdminAiResultDetail(dto: ApiAdminAiResultDetail): AdminAiResultDetail {
   return {
     ...mapAdminAiResult(dto),
-    errorMsg: dto.error_msg,
-    structuredOutput: dto.structured_output,
+    errorMsg: dto.errorMsg,
+    structuredOutput: dto.structuredOutput,
   }
 }
 
 export function mapAdminTask(dto: ApiAdminTaskResponse): AdminTask {
   return {
     id: dto.id,
-    taskName: dto.task_name,
-    taskType: dto.task_type,
+    taskName: dto.taskName,
+    taskType: dto.taskType,
     source: dto.source,
     schedule: dto.schedule,
-    isActive: dto.is_active,
-    lastRunAt: dto.last_run_at,
-    lastStatus: dto.last_status,
-    lastError: dto.last_error,
-    createdAt: dto.created_at,
-    updatedAt: dto.updated_at,
+    isActive: dto.isActive,
+    lastRunAt: dto.lastRunAt,
+    lastStatus: dto.lastStatus,
+    lastError: dto.lastError,
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
   }
 }

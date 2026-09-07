@@ -2,10 +2,12 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.schemas.base import CamelModel
 
 
-class CollectorTaskRunRequest(BaseModel):
+class CollectorTaskRunRequest(CamelModel):
     """触发采集器任务的可选运行参数。"""
 
     preferred_source: str | None = Field(None, max_length=50)
@@ -20,7 +22,7 @@ class CollectorTaskRunRequest(BaseModel):
     trade_date: str | None = Field(None, max_length=20)
 
 
-class CollectorTaskChannelItem(BaseModel):
+class CollectorTaskChannelItem(CamelModel):
     """任务可用的单个渠道。"""
 
     source: str
@@ -28,7 +30,7 @@ class CollectorTaskChannelItem(BaseModel):
     is_enabled: bool
 
 
-class CollectorTaskChannelsResponse(BaseModel):
+class CollectorTaskChannelsResponse(CamelModel):
     """采集器任务的可用渠道及解析出的默认渠道。"""
 
     task_name: str
@@ -37,7 +39,7 @@ class CollectorTaskChannelsResponse(BaseModel):
     resolved_source: str | None
 
 
-class CollectorTaskCatalogItem(BaseModel):
+class CollectorTaskCatalogItem(CamelModel):
     """任务目录项（由注册表 TASK_SPECS 派生）。"""
 
     name: str
@@ -48,13 +50,13 @@ class CollectorTaskCatalogItem(BaseModel):
     run_params: list[str]
 
 
-class CollectorTaskCatalogResponse(BaseModel):
+class CollectorTaskCatalogResponse(CamelModel):
     """任务目录：管理端 UI 触发列表的唯一数据源。"""
 
     items: list[CollectorTaskCatalogItem]
 
 
-class CollectorRunResponse(BaseModel):
+class CollectorRunResponse(CamelModel):
     """接受采集触发请求后返回的响应。"""
 
     task_name: str
@@ -63,10 +65,12 @@ class CollectorRunResponse(BaseModel):
     celery_task_id: str | None = None
 
 
-class CollectorLogResponse(BaseModel):
-    """单条采集器执行日志。"""
+class CollectorLogResponse(CamelModel):
+    """单条采集器执行日志。
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    ORM 列名为 ``meta``，wire 输出 ``metadata``：validation_alias 只影响
+    读取来源，序列化仍走 to_camel 的字段名。
+    """
 
     id: int
     task_name: str
@@ -77,13 +81,11 @@ class CollectorLogResponse(BaseModel):
     finished_at: datetime | None
     records_count: int
     error_msg: str | None
-    metadata: dict | None = Field(alias="meta")
+    metadata: dict | None = Field(default=None, validation_alias="meta")
 
 
-class CollectorDeadLetterResponse(BaseModel):
+class CollectorDeadLetterResponse(CamelModel):
     """单条采集器死信记录。"""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     task_name: str

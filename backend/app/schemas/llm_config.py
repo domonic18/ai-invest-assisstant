@@ -3,10 +3,12 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.schemas.base import CamelModel
 
 
-class LLMConfigCreate(BaseModel):
+class LLMConfigCreate(CamelModel):
     """创建 LLM 配置的请求 schema。"""
 
     name: str = Field(..., min_length=1, max_length=100)
@@ -19,7 +21,7 @@ class LLMConfigCreate(BaseModel):
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
-class LLMConfigUpdate(BaseModel):
+class LLMConfigUpdate(CamelModel):
     """更新 LLM 配置的请求 schema。
 
     空 ``api_key`` 表示不修改已存储的 key。
@@ -35,10 +37,8 @@ class LLMConfigUpdate(BaseModel):
     extra: dict[str, Any] | None = None
 
 
-class LLMConfigResponse(BaseModel):
+class LLMConfigResponse(CamelModel):
     """LLM 配置的响应 schema（API key 已脱敏）。"""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     name: str
@@ -56,7 +56,7 @@ class LLMConfigResponse(BaseModel):
     updated_at: datetime
 
 
-class LLMConfigTestResponse(BaseModel):
+class LLMConfigTestResponse(CamelModel):
     """连通性测试的响应 schema。"""
 
     status: str

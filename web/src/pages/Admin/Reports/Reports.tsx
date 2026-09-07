@@ -97,16 +97,16 @@ export function AdminReports() {
 
   const handleSubmit = async (values: ReportFormValues) => {
     const payload = {
-      file_path: values.filePath,
-      original_name: values.originalName,
-      file_type: values.fileType,
-      stock_code: values.stockCode,
-      report_date: values.reportDate ? values.reportDate.format('YYYY-MM-DD') : undefined,
-      report_type: values.reportType,
+      filePath: values.filePath,
+      originalName: values.originalName,
+      fileType: values.fileType,
+      stockCode: values.stockCode,
+      reportDate: values.reportDate ? values.reportDate.format('YYYY-MM-DD') : undefined,
+      reportType: values.reportType,
       broker: values.broker,
-      file_size: values.fileSize ?? undefined,
-      md5_hash: values.md5Hash,
-      download_url: values.downloadUrl,
+      fileSize: values.fileSize ?? undefined,
+      md5Hash: values.md5Hash,
+      downloadUrl: values.downloadUrl,
     }
     try {
       if (editing) {

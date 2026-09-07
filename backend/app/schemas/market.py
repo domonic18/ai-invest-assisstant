@@ -2,10 +2,12 @@
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from app.schemas.base import CamelModel
 
 
-class IndexQuoteResponse(BaseModel):
+class IndexQuoteResponse(CamelModel):
     """大盘指数行情。"""
 
     code: str
@@ -17,7 +19,7 @@ class IndexQuoteResponse(BaseModel):
     trend: list[float] = []
 
 
-class IndexIntradayPoint(BaseModel):
+class IndexIntradayPoint(CamelModel):
     """指数分时数据点（1 分钟）。"""
 
     time: str
@@ -26,7 +28,7 @@ class IndexIntradayPoint(BaseModel):
     amount: float
 
 
-class IndexIntradayResponse(BaseModel):
+class IndexIntradayResponse(CamelModel):
     """指数分时图（最近一个交易日的分钟级行情与量能）。"""
 
     code: str
@@ -36,7 +38,7 @@ class IndexIntradayResponse(BaseModel):
     points: list[IndexIntradayPoint]
 
 
-class IndexKlineBar(BaseModel):
+class IndexKlineBar(CamelModel):
     """指数 K 线单根 bar（日线或聚合周期）。"""
 
     date: date
@@ -48,7 +50,7 @@ class IndexKlineBar(BaseModel):
     amount: float | None = None
 
 
-class IndexKlineResponse(BaseModel):
+class IndexKlineResponse(CamelModel):
     """指数多周期 K 线（日/周/月/季/年，由本地 quote_kline_stock_daily 聚合）。"""
 
     code: str
@@ -57,7 +59,7 @@ class IndexKlineResponse(BaseModel):
     bars: list[IndexKlineBar]
 
 
-class GlobalIndexQuoteResponse(BaseModel):
+class GlobalIndexQuoteResponse(CamelModel):
     """全球指标最新快照（黄金/美元指数/美债收益率等）。"""
 
     index_code: str
@@ -67,7 +69,7 @@ class GlobalIndexQuoteResponse(BaseModel):
     trade_date: date | None = None
 
 
-class MarketStatsResponse(BaseModel):
+class MarketStatsResponse(CamelModel):
     """市场涨跌与成交统计，含情绪温度。"""
 
     trade_date: date
@@ -88,7 +90,7 @@ class MarketStatsResponse(BaseModel):
     broken_rate: float | None = None
 
 
-class LimitUpItem(BaseModel):
+class LimitUpItem(CamelModel):
     """涨停股池条目。"""
 
     stock_code: str
@@ -106,7 +108,7 @@ class LimitUpItem(BaseModel):
     themes: list[str] = []  # AI 归因的题材标签（1-3 个短词）
 
 
-class LimitUpGroup(BaseModel):
+class LimitUpGroup(CamelModel):
     """涨停复盘分组（行业分组或 AI 题材分组）。"""
 
     name: str  # 行业名或 AI 题材名
@@ -117,7 +119,7 @@ class LimitUpGroup(BaseModel):
     items: list[LimitUpItem] = []
 
 
-class LimitUpResponse(BaseModel):
+class LimitUpResponse(CamelModel):
     """涨停板与连板天梯。"""
 
     trade_date: date
@@ -131,21 +133,21 @@ class LimitUpResponse(BaseModel):
     ai_generated: bool = False  # groups 是否为 AI 题材归因分组
 
 
-class LimitUpIntradayResponse(BaseModel):
+class LimitUpIntradayResponse(CamelModel):
     """涨停个股全天分时缩略图数据（每股 ≤60 个收盘价等距采样点）。"""
 
     trade_date: date
     series: dict[str, list[float]] = {}
 
 
-class SectorHeatItem(BaseModel):
+class SectorHeatItem(CamelModel):
     """板块热力图单元。"""
 
     sector_name: str
     change_pct: float | None = None
 
 
-class SectorFlowItem(BaseModel):
+class SectorFlowItem(CamelModel):
     """板块资金净流入/流出条目。"""
 
     sector_name: str
@@ -153,7 +155,7 @@ class SectorFlowItem(BaseModel):
     top_stock_name: str | None = None
 
 
-class LeadingSectorItem(BaseModel):
+class LeadingSectorItem(CamelModel):
     """领涨板块条目。"""
 
     sector_name: str
@@ -163,7 +165,7 @@ class LeadingSectorItem(BaseModel):
     top_stock_names: list[str] = []
 
 
-class SectorOverviewResponse(BaseModel):
+class SectorOverviewResponse(CamelModel):
     """板块热力图 + 资金 TOP5 + 领涨板块。"""
 
     trade_date: date
@@ -173,7 +175,7 @@ class SectorOverviewResponse(BaseModel):
     leading: list[LeadingSectorItem] = []
 
 
-class WatchlistQuoteItem(BaseModel):
+class WatchlistQuoteItem(CamelModel):
     """自选股实时行情。"""
 
     code: str
@@ -186,7 +188,7 @@ class WatchlistQuoteItem(BaseModel):
     trend: list[float] = []
 
 
-class MarketReviewSection(BaseModel):
+class MarketReviewSection(CamelModel):
     """AI 复盘的一个内容分区（key 与标题由 prompt YAML 的 sections 声明驱动）。"""
 
     key: str
@@ -194,7 +196,7 @@ class MarketReviewSection(BaseModel):
     content: str
 
 
-class MarketReviewResponse(BaseModel):
+class MarketReviewResponse(CamelModel):
     """AI 大盘综述（LLM 结构化输出，按分区组织）。"""
 
     trade_date: date
@@ -205,7 +207,7 @@ class MarketReviewResponse(BaseModel):
     edited: bool = False
 
 
-class MarketReviewUpdateRequest(BaseModel):
+class MarketReviewUpdateRequest(CamelModel):
     """按分区保存人工编辑后的复盘内容。"""
 
     trade_date: date
@@ -213,13 +215,13 @@ class MarketReviewUpdateRequest(BaseModel):
     content: str = Field(min_length=1)
 
 
-class MarketCollectRequest(BaseModel):
+class MarketCollectRequest(CamelModel):
     """补采指定交易日行情数据请求。"""
 
     trade_date: date
 
 
-class CollectTaskResult(BaseModel):
+class CollectTaskResult(CamelModel):
     """单个采集任务的补采结果。"""
 
     task: str

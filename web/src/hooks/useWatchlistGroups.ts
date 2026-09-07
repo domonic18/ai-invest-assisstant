@@ -58,7 +58,7 @@ export function useDeleteWatchlistGroup() {
 export function useReorderWatchlistGroups() {
   const invalidate = useInvalidateWatchlist()
   return useMutation({
-    mutationFn: (groupIds: number[]) => reorderWatchlistGroups({ group_ids: groupIds }),
+    mutationFn: (groupIds: number[]) => reorderWatchlistGroups({ groupIds }),
     onSuccess: invalidate,
   })
 }
@@ -76,7 +76,7 @@ export function useToggleGroupAiReview() {
   const invalidate = useInvalidateWatchlist()
   return useMutation({
     mutationFn: ({ groupId, enabled }: { groupId: number; enabled: boolean }) =>
-      updateWatchlistGroup(groupId, { ai_review_enabled: enabled }),
+      updateWatchlistGroup(groupId, { aiReviewEnabled: enabled }),
     onSuccess: invalidate,
   })
 }

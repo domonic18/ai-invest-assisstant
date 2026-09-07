@@ -97,11 +97,11 @@ export function AdminTasks() {
 
   const handleSubmit = async (values: TaskFormValues) => {
     const payload = {
-      task_name: values.taskName,
-      task_type: values.taskType,
+      taskName: values.taskName,
+      taskType: values.taskType,
       source: values.source,
       schedule: values.schedule,
-      is_active: values.isActive,
+      isActive: values.isActive,
     }
     try {
       if (editing) {

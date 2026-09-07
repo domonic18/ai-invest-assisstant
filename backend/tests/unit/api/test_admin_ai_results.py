@@ -83,7 +83,7 @@ class TestAdminAiResultEndpoints:
         assert response.status_code == 200
         body = response.json()
         assert len(body) == 4
-        assert {item["skill_id"] for item in body} >= {
+        assert {item["skillId"] for item in body} >= {
             "market-daily-review",
             "limit-up-review",
             "stock-daily-analysis",
@@ -100,8 +100,8 @@ class TestAdminAiResultEndpoints:
         body = response.json()
         assert body["total"] == 1
         assert body["items"][0]["id"] == _ROW_ID
-        assert body["items"][0]["key_fields"][0]["value"] == "2026-09-04"
-        assert body["items"][0]["history_count"] == 2
+        assert body["items"][0]["keyFields"][0]["value"] == "2026-09-04"
+        assert body["items"][0]["historyCount"] == 2
 
     def test_list_results_requires_skill_id(self, admin_client) -> None:
         client, _ = admin_client
@@ -122,7 +122,7 @@ class TestAdminAiResultEndpoints:
             response = client.get(f"/api/v1/admin/ai-results/{_ROW_ID}")
         assert response.status_code == 200
         body = response.json()
-        assert body["structured_output"]["trade_date"] == "2026-09-04"
+        assert body["structuredOutput"]["trade_date"] == "2026-09-04"
         assert body["model"] == "anthropic/kimi"
 
     def test_get_detail_404_when_missing(self, admin_client) -> None:

@@ -25,14 +25,14 @@ import type {
 
 export function mapStock(dto: ApiStockBasicResponse): Stock {
   return {
-    code: dto.stock_code,
-    name: dto.stock_name,
-    industry: dto.industry_level_1 || dto.industry_level_2 || dto.industry_level_3 || '',
+    code: dto.stockCode,
+    name: dto.stockName,
+    industry: dto.industryLevel1 || dto.industryLevel2 || dto.industryLevel3 || '',
     market: normalizeMarket(dto.market),
-    fullName: dto.full_name,
-    industryLevel1: dto.industry_level_1,
-    industryLevel2: dto.industry_level_2,
-    industryLevel3: dto.industry_level_3,
+    fullName: dto.fullName,
+    industryLevel1: dto.industryLevel1,
+    industryLevel2: dto.industryLevel2,
+    industryLevel3: dto.industryLevel3,
   }
 }
 
@@ -46,7 +46,7 @@ function normalizeMarket(market: string): 'SH' | 'SZ' | 'BJ' {
 
 export function mapKlineData(dto: ApiKlineDataResponse): KlineData {
   return {
-    date: dto.trade_date,
+    date: dto.tradeDate,
     open: Number(dto.open),
     high: Number(dto.high),
     low: Number(dto.low),
@@ -61,17 +61,17 @@ export function mapStockQuote(dto: ApiStockQuoteResponse): StockQuote {
     code: dto.code,
     name: dto.name,
     price: dto.price,
-    prevClose: dto.prev_close,
+    prevClose: dto.prevClose,
     change: dto.change,
-    changePct: dto.change_pct,
+    changePct: dto.changePct,
     open: dto.open,
     high: dto.high,
     low: dto.low,
     volume: dto.volume,
     amount: dto.amount,
-    marketCap: dto.market_cap,
-    circulatingMarketCap: dto.circulating_market_cap,
-    updatedAt: dto.updated_at,
+    marketCap: dto.marketCap,
+    circulatingMarketCap: dto.circulatingMarketCap,
+    updatedAt: dto.updatedAt,
   }
 }
 
@@ -88,9 +88,9 @@ export function mapStockKline(dto: ApiStockKlineResponse): StockKline {
       close: bar.close,
       volume: bar.volume,
       amount: bar.amount,
-      changePct: bar.change_pct,
+      changePct: bar.changePct,
       amplitude: bar.amplitude,
-      turnoverRate: bar.turnover_rate,
+      turnoverRate: bar.turnoverRate,
     })),
   }
 }
@@ -99,8 +99,8 @@ export function mapIntraday(dto: ApiStockIntradayResponse): StockIntraday {
   return {
     code: dto.code,
     name: dto.name,
-    tradeDate: dto.trade_date,
-    prevClose: dto.prev_close,
+    tradeDate: dto.tradeDate,
+    prevClose: dto.prevClose,
     points: dto.points.map((point) => ({
       time: point.time,
       price: point.price,
@@ -114,8 +114,8 @@ export function mapStockSector(dto: ApiStockSectorsResponse['sectors'][number]):
   return {
     name: dto.name,
     type: dto.type,
-    changePct: dto.change_pct,
-    mainNetInflow: dto.main_net_inflow,
+    changePct: dto.changePct,
+    mainNetInflow: dto.mainNetInflow,
   }
 }
 
@@ -133,34 +133,34 @@ export function mapStockSectors(dto: ApiStockSectorsResponse): {
 
 export function mapAuctionData(dto: ApiAuctionDataResponse): AuctionData {
   return {
-    date: dto.trade_date,
-    time: dto.match_time,
+    date: dto.tradeDate,
+    time: dto.matchTime,
     price: Number(dto.price),
     volume: Number(dto.volume),
-    bidPrices: dto.bid_prices,
-    bidVolumes: dto.bid_volumes,
-    askPrices: dto.ask_prices,
-    askVolumes: dto.ask_volumes,
+    bidPrices: dto.bidPrices,
+    bidVolumes: dto.bidVolumes,
+    askPrices: dto.askPrices,
+    askVolumes: dto.askVolumes,
   }
 }
 
 export function mapWatchlistItem(dto: ApiWatchlistItemResponse): WatchlistItem {
   return {
     id: String(dto.id),
-    code: dto.stock_code,
+    code: dto.stockCode,
     tags: dto.tags || [],
-    groupId: dto.group_id,
-    createdAt: dto.created_at,
+    groupId: dto.groupId,
+    createdAt: dto.createdAt,
   }
 }
 
 export function mapStockAiAnalysis(dto: ApiStockAiAnalysisResponse): StockAiAnalysis {
   return {
-    stockCode: dto.stock_code,
-    stockName: dto.stock_name,
-    tradeDate: dto.trade_date,
+    stockCode: dto.stockCode,
+    stockName: dto.stockName,
+    tradeDate: dto.tradeDate,
     model: dto.model,
-    generatedAt: dto.generated_at,
+    generatedAt: dto.generatedAt,
     cached: dto.cached,
     sections: dto.sections.map((section) => ({
       key: section.key,
@@ -176,10 +176,10 @@ export function mapWatchlistGroup(
   return {
     id: dto.id,
     name: dto.name,
-    sortOrder: dto.sort_order,
-    isDefault: dto.is_default,
-    aiReviewEnabled: dto.ai_review_enabled,
-    createdAt: dto.created_at,
+    sortOrder: dto.sortOrder,
+    isDefault: dto.isDefault,
+    aiReviewEnabled: dto.aiReviewEnabled,
+    createdAt: dto.createdAt,
     items: (dto.items ?? []).map(mapWatchlistItem),
   }
 }

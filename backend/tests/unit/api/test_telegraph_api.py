@@ -1,23 +1,26 @@
 """财联社电报查询 API 端点与 HTML 剥离测试。"""
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from types import SimpleNamespace
+from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.schemas.telegraph import TelegraphResponse, strip_html
 
 
-def _item_mock(**overrides: object) -> MagicMock:
-    item = MagicMock()
-    item.cls_msg_id = 1899921
-    item.title = "快讯标题"
-    item.content = "<p>宁德时代获机构增持</p>"
-    item.category = "公司"
-    item.importance = 3
-    item.shared = -1
-    item.stock_codes = ["sz300750"]
-    item.publish_time = datetime(2026, 9, 2, 7, 0, tzinfo=timezone.utc)
+def _item_mock(**overrides: Any) -> SimpleNamespace:
+    item = SimpleNamespace(
+        cls_msg_id=1899921,
+        title="快讯标题",
+        content="<p>宁德时代获机构增持</p>",
+        category="公司",
+        importance=3,
+        shared=-1,
+        stock_codes=["sz300750"],
+        publish_time=datetime(2026, 9, 2, 7, 0, tzinfo=timezone.utc),
+    )
     for key, value in overrides.items():
         setattr(item, key, value)
     return item
@@ -59,13 +62,13 @@ class TestTelegraphEndpoint:
         data = response.json()
         assert data["total"] == 42
         assert data["page"] == 2
-        assert data["page_size"] == 30
+        assert data["pageSize"] == 30
         assert len(data["items"]) == 1
         item = data["items"][0]
-        assert item["cls_msg_id"] == 1899921
+        assert item["clsMsgId"] == 1899921
         assert item["content"] == "宁德时代获机构增持"  # 已剥 HTML
-        assert item["stock_codes"] == ["sz300750"]
-        assert item["publish_time"] == "2026-09-02T07:00:00Z"
+        assert item["stockCodes"] == ["sz300750"]
+        assert item["publishTime"] == "2026-09-02T07:00:00Z"
         mock_list.assert_awaited_once_with(
             mock_list.await_args.args[0],
             page=2,

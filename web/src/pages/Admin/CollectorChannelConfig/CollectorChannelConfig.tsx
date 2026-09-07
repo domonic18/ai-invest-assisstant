@@ -90,7 +90,7 @@ export function CollectorChannelConfig() {
     try {
       await updateMutation.mutateAsync({
         id: config.id,
-        data: { is_enabled: checked },
+        data: { isEnabled: checked },
       })
       message.success(`${config.name} 已${checked ? '启用' : '禁用'}`)
     } catch (err) {

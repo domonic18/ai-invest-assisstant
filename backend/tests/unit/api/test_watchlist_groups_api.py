@@ -80,8 +80,8 @@ class TestWatchlistGroupsApi:
         assert resp.status_code == 200
         body = resp.json()
         assert len(body) == 2
-        assert body[0]["is_default"] is True
-        assert body[0]["items"][0]["stock_code"] == "600519"
+        assert body[0]["isDefault"] is True
+        assert body[0]["items"][0]["stockCode"] == "600519"
         assert body[1]["items"] == []
 
     def test_create_group_conflict_on_limit(self, auth_client) -> None:

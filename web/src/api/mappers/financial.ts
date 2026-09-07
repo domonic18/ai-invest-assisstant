@@ -15,73 +15,73 @@ import type {
 
 export function mapBalanceSheet(dto: ApiBalanceSheetResponse): BalanceSheet {
   return {
-    stockCode: dto.stock_code,
-    reportDate: dto.report_date,
-    reportType: dto.report_type,
-    totalAssets: dto.total_assets,
-    currentAssets: dto.current_assets,
-    cashEquivalents: dto.cash_equivalents,
-    accountsReceivable: dto.accounts_receivable,
+    stockCode: dto.stockCode,
+    reportDate: dto.reportDate,
+    reportType: dto.reportType,
+    totalAssets: dto.totalAssets,
+    currentAssets: dto.currentAssets,
+    cashEquivalents: dto.cashEquivalents,
+    accountsReceivable: dto.accountsReceivable,
     inventory: dto.inventory,
-    fixedAssets: dto.fixed_assets,
-    intangibleAssets: dto.intangible_assets,
+    fixedAssets: dto.fixedAssets,
+    intangibleAssets: dto.intangibleAssets,
     goodwill: dto.goodwill,
-    totalLiabilities: dto.total_liabilities,
-    currentLiabilities: dto.current_liabilities,
-    longTermDebt: dto.long_term_debt,
-    totalEquity: dto.total_equity,
-    paidInCapital: dto.paid_in_capital,
-    retainedEarnings: dto.retained_earnings,
-    createdAt: dto.created_at,
+    totalLiabilities: dto.totalLiabilities,
+    currentLiabilities: dto.currentLiabilities,
+    longTermDebt: dto.longTermDebt,
+    totalEquity: dto.totalEquity,
+    paidInCapital: dto.paidInCapital,
+    retainedEarnings: dto.retainedEarnings,
+    createdAt: dto.createdAt,
   }
 }
 
 export function mapIncomeStatement(dto: ApiIncomeStatementResponse): IncomeStatement {
   return {
-    stockCode: dto.stock_code,
-    reportDate: dto.report_date,
-    reportType: dto.report_type,
-    totalRevenue: dto.total_revenue,
-    operatingCost: dto.operating_cost,
-    sellingExpense: dto.selling_expense,
-    adminExpense: dto.admin_expense,
-    researchDevelopmentExpense: dto.research_development_expense,
-    financeExpense: dto.finance_expense,
-    operatingProfit: dto.operating_profit,
-    netProfit: dto.net_profit,
-    netProfitDeducted: dto.net_profit_deducted,
+    stockCode: dto.stockCode,
+    reportDate: dto.reportDate,
+    reportType: dto.reportType,
+    totalRevenue: dto.totalRevenue,
+    operatingCost: dto.operatingCost,
+    sellingExpense: dto.sellingExpense,
+    adminExpense: dto.adminExpense,
+    researchDevelopmentExpense: dto.researchDevelopmentExpense,
+    financeExpense: dto.financeExpense,
+    operatingProfit: dto.operatingProfit,
+    netProfit: dto.netProfit,
+    netProfitDeducted: dto.netProfitDeducted,
     eps: dto.eps,
-    createdAt: dto.created_at,
+    createdAt: dto.createdAt,
   }
 }
 
 export function mapCashFlowStatement(dto: ApiCashFlowStatementResponse): CashFlowStatement {
   return {
-    stockCode: dto.stock_code,
-    reportDate: dto.report_date,
-    reportType: dto.report_type,
-    cashFlowFromOperations: dto.cash_flow_from_operations,
-    cashFlowFromInvesting: dto.cash_flow_from_investing,
-    cashFlowFromFinancing: dto.cash_flow_from_financing,
-    netCashFlow: dto.net_cash_flow,
-    freeCashFlow: dto.free_cash_flow,
-    createdAt: dto.created_at,
+    stockCode: dto.stockCode,
+    reportDate: dto.reportDate,
+    reportType: dto.reportType,
+    cashFlowFromOperations: dto.cashFlowFromOperations,
+    cashFlowFromInvesting: dto.cashFlowFromInvesting,
+    cashFlowFromFinancing: dto.cashFlowFromFinancing,
+    netCashFlow: dto.netCashFlow,
+    freeCashFlow: dto.freeCashFlow,
+    createdAt: dto.createdAt,
   }
 }
 
 export function mapFinancialHealth(dto: ApiFinancialHealthResponse): FinancialHealth {
   return {
-    stockCode: dto.stock_code,
-    reportDate: dto.report_date,
-    reportType: dto.report_type,
-    financialBalanceSheet: dto.financial_balance_sheet
-      ? mapBalanceSheet(dto.financial_balance_sheet)
+    stockCode: dto.stockCode,
+    reportDate: dto.reportDate,
+    reportType: dto.reportType,
+    financialBalanceSheet: dto.financialBalanceSheet
+      ? mapBalanceSheet(dto.financialBalanceSheet)
       : null,
-    financialIncomeStatement: dto.financial_income_statement
-      ? mapIncomeStatement(dto.financial_income_statement)
+    financialIncomeStatement: dto.financialIncomeStatement
+      ? mapIncomeStatement(dto.financialIncomeStatement)
       : null,
-    financialCashFlowStatement: dto.financial_cash_flow_statement
-      ? mapCashFlowStatement(dto.financial_cash_flow_statement)
+    financialCashFlowStatement: dto.financialCashFlowStatement
+      ? mapCashFlowStatement(dto.financialCashFlowStatement)
       : null,
     metrics: dto.metrics,
   }
@@ -89,7 +89,7 @@ export function mapFinancialHealth(dto: ApiFinancialHealthResponse): FinancialHe
 
 export function mapFinancialHistory(dto: ApiFinancialHistoryResponse): FinancialHistory {
   return {
-    stockCode: dto.stock_code,
+    stockCode: dto.stockCode,
     history: dto.history.map(mapFinancialHealth),
   }
 }

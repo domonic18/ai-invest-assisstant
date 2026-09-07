@@ -32,41 +32,32 @@ export function mapGlobalIndexQuote(
   dto: ApiGlobalIndexQuoteResponse,
 ): GlobalIndexQuote {
   return {
-    indexCode: dto.index_code,
-    indexName: dto.index_name,
+    indexCode: dto.indexCode,
+    indexName: dto.indexName,
     close: dto.close,
-    changePct: dto.change_pct,
-    tradeDate: dto.trade_date,
+    changePct: dto.changePct,
+    tradeDate: dto.tradeDate,
   }
 }
 
-export function mapWatchlistStock(dto: {
-  code: string
-  name: string | null
-  price: number | null
-  change_pct: number | null
-  amount: number | null
-  tags: string[]
-  updated_at: string | null
-  trend?: number[]
-  ai_status: WorkbenchWatchlistStock['aiStatus']
-  ai_summary: string | null
-}): WorkbenchWatchlistStock {
+export function mapWatchlistStock(
+  dto: ApiWorkbenchResponse['watchlistGroups'][number]['items'][number],
+): WorkbenchWatchlistStock {
   return {
     ...mapWatchlistQuote(dto),
-    aiStatus: dto.ai_status,
-    aiSummary: dto.ai_summary,
+    aiStatus: dto.aiStatus,
+    aiSummary: dto.aiSummary,
   }
 }
 
 export function mapWatchlistGroup(
-  dto: ApiWorkbenchResponse['watchlist_groups'][number],
+  dto: ApiWorkbenchResponse['watchlistGroups'][number],
 ): WorkbenchWatchlistGroup {
   return {
     id: dto.id,
     name: dto.name,
-    isDefault: dto.is_default,
-    aiReviewEnabled: dto.ai_review_enabled,
+    isDefault: dto.isDefault,
+    aiReviewEnabled: dto.aiReviewEnabled,
     items: dto.items.map(mapWatchlistStock),
   }
 }
@@ -75,41 +66,41 @@ export function mapSectorFlowItem(
   dto: ApiWorkbenchSectorFlowItem,
 ): WorkbenchSectorFlowItem {
   return {
-    sectorName: dto.sector_name,
-    changePct: dto.change_pct,
-    mainNetInflow: dto.main_net_inflow,
-    topStockName: dto.top_stock_name,
+    sectorName: dto.sectorName,
+    changePct: dto.changePct,
+    mainNetInflow: dto.mainNetInflow,
+    topStockName: dto.topStockName,
   }
 }
 
 export function mapReviewStatus(dto: ApiReviewStatus): ReviewStatus {
-  const recentDays: ReviewDayStatusItem[] = (dto.recent_days ?? []).map((day) => ({
-    tradeDate: day.trade_date,
+  const recentDays: ReviewDayStatusItem[] = (dto.recentDays ?? []).map((day) => ({
+    tradeDate: day.tradeDate,
     status: day.status,
   }))
   return {
     status: dto.status,
-    tradeDate: dto.trade_date,
-    generatedAt: dto.generated_at,
-    durationSeconds: dto.duration_seconds,
-    plannedTime: dto.planned_time,
-    nextRunAt: dto.next_run_at,
-    streakDays: dto.streak_days,
-    monthSuccessRate: dto.month_success_rate,
+    tradeDate: dto.tradeDate,
+    generatedAt: dto.generatedAt,
+    durationSeconds: dto.durationSeconds,
+    plannedTime: dto.plannedTime,
+    nextRunAt: dto.nextRunAt,
+    streakDays: dto.streakDays,
+    monthSuccessRate: dto.monthSuccessRate,
     recentDays,
   }
 }
 
 export function mapCollectorRunItem(dto: ApiCollectorRunItem): CollectorRunItem {
   return {
-    taskName: dto.task_name,
-    taskLabel: dto.task_label,
+    taskName: dto.taskName,
+    taskLabel: dto.taskLabel,
     source: dto.source,
     status: dto.status,
-    startedAt: dto.started_at,
-    finishedAt: dto.finished_at,
-    durationSeconds: dto.duration_seconds,
-    recordsCount: dto.records_count,
+    startedAt: dto.startedAt,
+    finishedAt: dto.finishedAt,
+    durationSeconds: dto.durationSeconds,
+    recordsCount: dto.recordsCount,
   }
 }
 
@@ -117,18 +108,18 @@ export function mapCollectorUpcomingItem(
   dto: ApiCollectorUpcomingItem,
 ): CollectorUpcomingItem {
   return {
-    runAt: dto.run_at,
-    taskName: dto.task_name,
-    taskLabel: dto.task_label,
+    runAt: dto.runAt,
+    taskName: dto.taskName,
+    taskLabel: dto.taskLabel,
     source: dto.source,
   }
 }
 
 export function mapCollectorStatus(dto: ApiCollectorEngineStatus): CollectorEngineStatus {
   return {
-    isRunning: dto.is_running,
+    isRunning: dto.isRunning,
     running: dto.running ? mapCollectorRunItem(dto.running) : null,
-    recentRuns: (dto.recent_runs ?? []).map(mapCollectorRunItem),
+    recentRuns: (dto.recentRuns ?? []).map(mapCollectorRunItem),
     upcoming: (dto.upcoming ?? []).map(mapCollectorUpcomingItem),
   }
 }
@@ -137,15 +128,15 @@ export function mapWorkbench(dto: ApiWorkbenchResponse): WorkbenchOverview {
   return {
     calendar: dto.calendar.map(mapCalendarEvent),
     review: dto.review ? mapMarketReview(dto.review) : null,
-    reviewStatus: dto.review_status ? mapReviewStatus(dto.review_status) : null,
+    reviewStatus: dto.reviewStatus ? mapReviewStatus(dto.reviewStatus) : null,
     telegraph: dto.telegraph.map(mapTelegraph),
-    watchlistGroups: dto.watchlist_groups.map(mapWatchlistGroup),
+    watchlistGroups: dto.watchlistGroups.map(mapWatchlistGroup),
     indices: dto.indices.map(mapIndexQuote),
     stats: dto.stats ? mapMarketStats(dto.stats) : null,
-    globalIndices: dto.global_indices.map(mapGlobalIndexQuote),
-    sectorFlow: dto.sector_flow.map(mapSectorFlowItem),
-    collectorStatus: dto.collector_status
-      ? mapCollectorStatus(dto.collector_status)
+    globalIndices: dto.globalIndices.map(mapGlobalIndexQuote),
+    sectorFlow: dto.sectorFlow.map(mapSectorFlowItem),
+    collectorStatus: dto.collectorStatus
+      ? mapCollectorStatus(dto.collectorStatus)
       : null,
   }
 }

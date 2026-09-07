@@ -11,7 +11,7 @@ from app.repositories.market import (
     index_auction_repository,
     stock_auction_repository,
 )
-from app.schemas.stock import IndexAuctionSeries, IndexAuctionTrendResponse
+from app.schemas.auction import IndexAuctionSeries, IndexAuctionTrendResponse
 
 # 图例展示顺序：上证指数 / 科创50 / 创业板指数
 _TREND_CODES: tuple[str, ...] = ("sh000001", "sh000688", "sz399006")
