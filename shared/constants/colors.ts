@@ -29,3 +29,27 @@ export const ChartColors = {
   rise: '#ef4444',
   fall: '#22c55e',
 } as const
+
+/** 通用执行状态的 AntD Tag 颜色与中文标签（权威映射，全站唯一来源）。 */
+export interface StatusTagMeta {
+  color: string
+  label: string
+}
+
+export const STATUS_TAG_META: Record<string, StatusTagMeta> = {
+  success: { color: 'green', label: '成功' },
+  failed: { color: 'red', label: '失败' },
+  running: { color: 'processing', label: '运行中' },
+  pending: { color: 'gold', label: '排队中' },
+  partial: { color: 'orange', label: '部分成功' },
+  skipped: { color: 'default', label: '跳过' },
+  idle: { color: 'default', label: '空闲' },
+}
+
+export function statusTagColor(status: string): string {
+  return STATUS_TAG_META[status]?.color ?? 'default'
+}
+
+export function statusLabel(status: string): string {
+  return STATUS_TAG_META[status]?.label ?? status
+}
