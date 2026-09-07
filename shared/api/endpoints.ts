@@ -8,6 +8,7 @@ export const ENDPOINTS = {
   },
   users: {
     me: `${API_BASE}/users/me`,
+    mePassword: `${API_BASE}/users/me/password`,
     meSettings: `${API_BASE}/users/me/settings`,
     watchlist: `${API_BASE}/users/watchlist`,
     watchlistQuotes: `${API_BASE}/users/watchlist/quotes`,
