@@ -10,6 +10,7 @@ from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
 from app.models.file_metadata import FileMetadata
 from app.services.common.minio_service import get_minio_service
 from app.services.reports.exceptions import SummaryInProgressError, SummaryUnavailableError
+from app.skills.prompt import load_skill_prompt
 
 _SUMMARY_SKILL_ID = "financial-report-summary"
 
@@ -103,14 +104,10 @@ class FinancialReportSummarizer:
         return text[:SUMMARY_TEXT_LIMIT]
 
     async def _generate_summary(self, report: FileMetadata, text: str) -> str:
-        from app.agent.core.prompt_loader import PromptLoader
         from app.agent.core.prompt_renderer import PromptRenderer
         from app.agent.runtime.structured import run_structured
-        from app.core.config import get_settings
 
-        prompt_config = PromptLoader(get_settings().prompts_dir).load(
-            "skills", _SUMMARY_SKILL_ID
-        )
+        prompt_config = load_skill_prompt(_SUMMARY_SKILL_ID)
         user_prompt = PromptRenderer.render(
             prompt_config.user_prompt_template,
             title=report.original_name or "未知",

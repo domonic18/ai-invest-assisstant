@@ -164,7 +164,8 @@ collector/
 
 ### AI Agent 与 Prompt 管理
 
-- 所有 Agent Prompt 必须放在 `app/prompts/agents/` 和 `app/prompts/skills/` 下的 YAML 文件中
+- Agent 系统提示词（assistant/subagent/page_context 等应用基础设施）放 `app/prompts/agents/` 下的 YAML 文件；skill 提示词是 skill 分发单元（`skills/<skill_id>/` 自包含目录）的一部分，放 `skills/<skill_id>/prompt.yaml`，经 `app.skills.prompt.load_skill_prompt` 加载
+- builtin skill 必须登记进 `app/skills/registry.py`（`BUILTIN_SKILLS`），文件资产与代码硬编码的 skill_id 由 `tests/unit/skills/test_registry.py` 钉死一致
 - 禁止在 Python 代码中硬编码 Prompt
 - 使用 `PromptLoader` 加载配置、`PromptRenderer` 渲染模板
 - 使用 `model_factory.build_langchain_model()` 统一创建模型；多步任务走 `agent/skills/skill_runtime` deepagents 骨架，单轮结构化任务走 `agent/runtime/structured.run_structured`

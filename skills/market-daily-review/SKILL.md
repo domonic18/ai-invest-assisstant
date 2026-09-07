@@ -1,6 +1,6 @@
 ---
 name: market-daily-review
-description: 大盘每日复盘综述：工具化获取大盘概览、指数技术面预计算指标、涨停连板天梯与板块资金流向，产出按分区组织的结构化收盘复盘。复盘页触发生成与每日定时任务（market_daily_review_1600）均通过本 Skill 执行。
+description: 大盘每日复盘综述：工具化获取大盘概览、指数技术面预计算指标、涨停连板天梯与板块资金流向，产出按分区组织的结构化收盘复盘。复盘页触发生成与每日定时任务（market_daily_review_1630）均通过本 Skill 执行。
 allowed-tools: get_market_overview, get_limit_up_ladder, get_index_technical, get_sector_overview, get_trade_calendar, collect_market_data, persist_market_review
 ---
 
@@ -11,7 +11,7 @@ allowed-tools: get_market_overview, get_limit_up_ladder, get_index_technical, ge
 
 ## 触发条件
 - 每日复盘页请求生成 AI 大盘综述
-- 每日收盘后的定时任务（market_daily_review_1600，北京时间 16:30）
+- 每日收盘后的定时任务（market_daily_review_1630，北京时间 16:30）
 
 ## 输出 Schema
 产出统一为五个分区（key 集合以 `backend/app/prompts/skills/market-daily-review.yaml` 为准）：

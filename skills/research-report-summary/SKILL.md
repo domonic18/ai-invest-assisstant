@@ -1,5 +1,5 @@
 ---
-name: research-summary
+name: research-report-summary
 description: 研报观点汇总：批量提炼指定公司或行业的券商研报，结构化提取评级、目标价、核心逻辑与盈利预测，识别共识与分歧。当用户要求"总结研报/对比券商观点/评级变化"时使用。
 ---
 

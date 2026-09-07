@@ -13,8 +13,7 @@ from typing import Any
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.core.prompt_loader import PromptConfig, PromptLoader, PromptSection
-from app.core.config import get_settings
+from app.agent.core.prompt_loader import PromptConfig, PromptSection
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
 from app.repositories.review import (
@@ -27,6 +26,7 @@ from app.services.review.market_review_formatter import (
     BaseReview,
     build_response,
 )
+from app.skills.prompt import load_skill_prompt
 
 logger = structlog.get_logger(__name__)
 
@@ -48,7 +48,7 @@ class ReviewInputDataNotReadyError(BadRequestError):
 
 
 def load_prompt_config() -> PromptConfig:
-    config = PromptLoader(get_settings().prompts_dir).load("skills", SKILL_ID)
+    config = load_skill_prompt(SKILL_ID)
     if not config.sections:
         raise ValueError(f"{SKILL_ID} prompt 未声明任何 sections 分区")
     return config

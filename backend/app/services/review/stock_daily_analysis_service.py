@@ -13,8 +13,7 @@ from typing import Any
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.core.prompt_loader import PromptConfig, PromptLoader, PromptSection
-from app.core.config import get_settings
+from app.agent.core.prompt_loader import PromptConfig, PromptSection
 from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
 from app.repositories.review import ai_analysis_repository
 from app.repositories.user.watchlist_repository import WatchlistRepository
@@ -23,6 +22,7 @@ from app.services.review.market_review_generator import (
     ReviewGenerationLockedError,
     ReviewInputDataNotReadyError,
 )
+from app.skills.prompt import load_skill_prompt
 
 logger = structlog.get_logger(__name__)
 
@@ -32,7 +32,7 @@ KLINE_WINDOW_DAYS = 40  # 日历日窗口，足够覆盖 KLINE_BARS 个交易日
 
 
 def load_prompt_config() -> PromptConfig:
-    config = PromptLoader(get_settings().prompts_dir).load("skills", SKILL_ID)
+    config = load_skill_prompt(SKILL_ID)
     if not config.sections:
         raise ValueError(f"{SKILL_ID} prompt 未声明任何 sections 分区")
     return config

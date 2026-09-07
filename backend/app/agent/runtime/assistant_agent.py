@@ -19,7 +19,7 @@ from langgraph.graph.state import CompiledStateGraph
 from psycopg import AsyncConnection
 from psycopg_pool import AsyncConnectionPool
 
-from app.agent.core.prompt_loader import PromptLoader
+from app.agent.core.prompt_loader import get_prompt_loader
 from app.agent.runtime.model_factory import build_langchain_model
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
@@ -82,7 +82,7 @@ async def close_assistant_runtime() -> None:
 
 def load_assistant_system_prompt() -> str:
     """加载助手系统提示词（prompts/agents/assistant.yaml）。"""
-    config = PromptLoader(get_settings().prompts_dir).load("agents", "assistant")
+    config = get_prompt_loader().load("agents", "assistant")
     return config.system_prompt
 
 

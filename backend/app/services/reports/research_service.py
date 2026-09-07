@@ -7,10 +7,8 @@ import structlog
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.core.prompt_loader import PromptLoader
 from app.agent.core.prompt_renderer import PromptRenderer
 from app.constants.summary import SUMMARY_TEXT_LIMIT
-from app.core.config import get_settings
 from app.core.exceptions import NotFoundError
 from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
 from app.models.news_announcement import NewsAnnouncement
@@ -20,6 +18,7 @@ from app.schemas.news_announcement import (
     ResearchReportResponse,
 )
 from app.services.reports.exceptions import SummaryInProgressError, SummaryUnavailableError
+from app.skills.prompt import load_skill_prompt
 
 logger = structlog.get_logger(__name__)
 
@@ -177,9 +176,7 @@ class ResearchService:
         # 延迟导入：agent 运行时顶层依赖 services，避免 services 聚合时环导入
         from app.agent.runtime.structured import run_structured
 
-        prompt_config = PromptLoader(get_settings().prompts_dir).load(
-            "skills", _SUMMARY_SKILL_ID
-        )
+        prompt_config = load_skill_prompt(_SUMMARY_SKILL_ID)
         extra = report.extra or {}
         user_prompt = PromptRenderer.render(
             prompt_config.user_prompt_template,

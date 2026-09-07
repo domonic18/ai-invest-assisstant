@@ -13,11 +13,10 @@ from typing import Any
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.core.prompt_loader import PromptLoader
-from app.core.config import get_settings
 from app.core.exceptions import ConflictError
 from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
 from app.repositories.review import ai_analysis_repository
+from app.skills.prompt import load_skill_prompt
 
 SKILL_ID = "limit-up-review"
 
@@ -195,8 +194,7 @@ async def generate_attribution(
             if cached:
                 return cached
 
-        prompt_loader = PromptLoader(get_settings().prompts_dir)
-        prompt_config = prompt_loader.load("skills", SKILL_ID)
+        prompt_config = load_skill_prompt(SKILL_ID)
 
         # 延迟导入：agent 执行器反向依赖本模块的输出模型，避免 services 聚合时环导入
         from app.agent.skills.limit_up_review_agent import run_skill
