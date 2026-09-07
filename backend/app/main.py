@@ -22,6 +22,7 @@ from app.api.v1 import api_router
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
 from app.core.exceptions import AppError
+from app.services.skill import sync_builtin_skills
 from collector.runtime.channels import seed_default_channels
 
 settings = get_settings()
@@ -55,6 +56,11 @@ async def _warmup(app: FastAPI) -> None:
             await seed_default_channels(session)
     except Exception as exc:  # noqa: BLE001
         logger.warning("failed_to_seed_collector_channels: %s", str(exc))
+    try:
+        async with AsyncSessionLocal() as session:
+            await sync_builtin_skills(session)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("failed_to_sync_builtin_skills: %s", str(exc))
     try:
         await setup_assistant_runtime()
     except Exception as exc:  # noqa: BLE001

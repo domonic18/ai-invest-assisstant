@@ -9,11 +9,11 @@ import type { AssistantSessionItem } from '@/api/assistant'
 
 function makeSession(overrides?: Partial<AssistantSessionItem>): AssistantSessionItem {
   return {
-    threadId: 't-1',
+    thread_id: 't-1',
     title: '测试会话',
-    lastMessageAt: null,
-    createdAt: '2026-08-25T10:00:00Z',
-    updatedAt: '2026-08-25T10:30:00Z',
+    last_message_at: null,
+    created_at: '2026-08-25T10:00:00Z',
+    updated_at: '2026-08-25T10:30:00Z',
     ...overrides,
   }
 }

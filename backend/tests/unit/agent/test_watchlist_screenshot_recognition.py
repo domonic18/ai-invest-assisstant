@@ -46,8 +46,8 @@ class TestRunSkill:
         with (
             patch.object(wsr, "run_structured", structured),
             patch.object(
-                wsr.PromptLoader,
-                "load",
+                wsr,
+                "load_skill_prompt",
                 return_value=SimpleNamespace(user_prompt_template="识别这张图"),
             ),
         ):

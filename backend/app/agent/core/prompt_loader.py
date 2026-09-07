@@ -50,3 +50,16 @@ class PromptLoader:
         key = f"{scope}/{prompt_id}"
         self._cache.pop(key, None)
         return self.load(scope, prompt_id)
+
+
+_shared_loader: PromptLoader | None = None
+
+
+def get_prompt_loader() -> PromptLoader:
+    """模块级共享实例（agents scope）：复用同一进程内缓存，避免每次调用重建。"""
+    global _shared_loader
+    if _shared_loader is None:
+        from app.core.config import get_settings
+
+        _shared_loader = PromptLoader(get_settings().prompts_dir)
+    return _shared_loader

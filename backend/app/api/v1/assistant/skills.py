@@ -18,5 +18,5 @@ async def list_skills(
     session: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
 ) -> list[SkillSummary]:
-    """可用 Skill 摘要（frontmatter name/description）。"""
-    return AssistantService(session).list_skills()
+    """可用 Skill 摘要（builtin registry + 用户已启用 custom）。"""
+    return await AssistantService(session).list_skills(user.id)

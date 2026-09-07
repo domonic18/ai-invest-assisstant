@@ -52,6 +52,14 @@ export const ENDPOINTS = {
     summarize: (id: number | string) => `${API_BASE}/research/${id}/summarize`,
     pdfUrl: (id: number | string) => `${API_BASE}/research/${id}/pdf-url`,
   },
+  skills: {
+    list: `${API_BASE}/skills`,
+    create: `${API_BASE}/skills`,
+    detail: (skillId: string) => `${API_BASE}/skills/${skillId}`,
+    update: (skillId: string) => `${API_BASE}/skills/${skillId}`,
+    publish: (skillId: string) => `${API_BASE}/skills/${skillId}/publish`,
+    install: (skillId: string) => `${API_BASE}/skills/${skillId}/install`,
+  },
   financialReports: {
     list: `${API_BASE}/financial-reports/`,
     detail: (id: number | string) => `${API_BASE}/financial-reports/${id}`,

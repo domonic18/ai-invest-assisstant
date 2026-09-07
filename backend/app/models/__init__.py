@@ -33,6 +33,7 @@ from app.models.pool_limit_up_stock import LimitUpPool
 from app.models.quote_auction_index import IndexAuction
 from app.models.quote_auction_stock import AuctionData
 from app.models.quote_global_index import GlobalIndexDaily
+from app.models.skill import Skill, UserSkill
 from app.models.stock import StockBasic
 from app.models.tracked_index import TrackedIndexConfig
 from app.models.user import User
@@ -72,10 +73,12 @@ __all__ = [
     "NewsAnnouncement",
     "NewsTelegraph",
     "SectorFundFlow",
+    "Skill",
     "StockBasic",
     "TrackedIndexConfig",
     "User",
     "UserMarketReview",
     "UserWatchlist",
     "UserWatchlistGroup",
+    "UserSkill",
 ]

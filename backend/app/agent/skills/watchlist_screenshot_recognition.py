@@ -9,9 +9,8 @@ import re
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.core.prompt_loader import PromptLoader
 from app.agent.runtime.structured import run_structured
-from app.core.config import get_settings
+from app.skills.prompt import load_skill_prompt
 
 SKILL_ID = "watchlist-screenshot-recognition"
 _MAX_RECOGNIZED = 50
@@ -53,7 +52,7 @@ async def run_skill(
         LLMConfigNotConfiguredError: 未配置视觉模型。
         ValidationError: 模型输出不符合 schema（经 langchain 重试后仍失败）。
     """
-    prompt_config = PromptLoader(get_settings().prompts_dir).load("skills", SKILL_ID)
+    prompt_config = load_skill_prompt(SKILL_ID)
     user_prompt: str = prompt_config.user_prompt_template or "请识别截图中的股票列表。"
     result = await run_structured(
         session,

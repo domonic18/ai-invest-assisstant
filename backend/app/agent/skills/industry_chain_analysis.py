@@ -13,16 +13,15 @@ from langchain_core.tools import tool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.core.prompt_loader import PromptLoader
 from app.agent.core.prompt_renderer import PromptRenderer
 from app.agent.runtime.model_factory import build_langchain_model
 from app.agent.skills.skill_runtime import invoke_structured, load_skill_instructions
 from app.agent.tools import db_tools, search_news, search_vector_kb
-from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
 from app.models.stock import StockBasic
 from app.schemas.chain import ChainAnalysisResult
 from app.services.admin.llm_config_service import resolve_default_llm
+from app.skills.prompt import load_skill_prompt
 
 SKILL_ID = "industry-chain-analysis"
 
@@ -121,8 +120,7 @@ async def analyze_industry_chain(
     focus: str | None = None,
 ) -> ChainAnalysisResult:
     """执行产业链分析 Skill（deepagents agent 循环）。"""
-    prompt_loader = PromptLoader(get_settings().prompts_dir)
-    prompt_config = prompt_loader.load("skills", SKILL_ID)
+    prompt_config = load_skill_prompt(SKILL_ID)
     cfg = await resolve_default_llm(session)
 
     from deepagents import create_deep_agent

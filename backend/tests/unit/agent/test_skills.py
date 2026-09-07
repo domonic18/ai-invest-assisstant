@@ -1,12 +1,12 @@
-"""skills 渐进披露接入单测：SKILL.md frontmatter 规范与摘要解析。"""
+"""skills 渐进披露接入单测：SKILL.md frontmatter 规范与 prompt 契约解析。"""
 
 from pathlib import Path
 
 import pytest
 
-from app.agent.core.prompt_loader import PromptLoader
 from app.core.config import get_settings
 from app.services.assistant.assistant_service import parse_skill_file
+from app.skills.prompt import load_skill_prompt
 
 EXPECTED_SKILLS = {
     "chain-breakthrough",
@@ -15,8 +15,9 @@ EXPECTED_SKILLS = {
     "industry-chain-analysis",
     "limit-up-review",
     "market-daily-review",
-    "research-summary",
+    "research-report-summary",
     "stock-daily-analysis",
+    "watchlist-screenshot-recognition",
 }
 
 
@@ -31,9 +32,10 @@ class TestSkillFrontmatter:
     def test_all_skills_have_standard_frontmatter(self) -> None:
         """每个 SKILL.md 必须有 name/description frontmatter（deepagents 渐进披露依赖）。"""
         for skill_dir in sorted(_skills_dir().iterdir()):
-            if not skill_dir.is_dir():
+            skill_md = skill_dir / "SKILL.md"
+            if not skill_dir.is_dir() or not skill_md.exists():
                 continue
-            result = parse_skill_file(skill_dir / "SKILL.md")
+            result = parse_skill_file(skill_md)
             assert result["id"] == skill_dir.name
             assert result["name"], f"{skill_dir.name} 缺 frontmatter name"
             assert result["description"], f"{skill_dir.name} 缺 frontmatter description"
@@ -49,13 +51,11 @@ class TestSkillFrontmatter:
 
 
 @pytest.mark.unit
-class TestPromptSkillsYaml:
+class TestSkillPromptYaml:
     def test_all_skill_prompts_parse(self) -> None:
-        """每个 prompts/skills/*.yaml 必须能被 PromptLoader 解析为合法 PromptConfig。"""
-        prompts_dir = get_settings().prompts_dir
-        yaml_files = sorted((prompts_dir / "skills").glob("*.yaml"))
-        assert yaml_files, "prompts/skills 下无 YAML"
-        loader = PromptLoader(prompts_dir)
+        """每个 skills/<id>/prompt.yaml 必须能被 load_skill_prompt 解析为合法 PromptConfig。"""
+        yaml_files = sorted(_skills_dir().glob("*/prompt.yaml"))
+        assert yaml_files, "skills 下无 prompt.yaml"
         for path in yaml_files:
-            config = loader.load("skills", path.stem)
-            assert config.system_prompt.strip(), f"{path.name} 缺 system_prompt"
+            config = load_skill_prompt(path.parent.name)
+            assert config.system_prompt.strip(), f"{path.parent.name} 缺 system_prompt"

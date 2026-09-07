@@ -4,12 +4,13 @@ import { API_BASE, StorageKey } from '@ai-invest/shared'
 
 import { apiClient } from './client'
 
+// 后端 assistant 协议层对齐 langgraph-sdk 的 snake_case wire，勿改成 camelCase
 export interface AssistantSessionItem {
-  threadId: string
+  thread_id: string
   title: string | null
-  lastMessageAt: string | null
-  createdAt: string
-  updatedAt: string
+  last_message_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface SessionListResponse {

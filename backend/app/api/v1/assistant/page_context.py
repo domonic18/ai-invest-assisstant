@@ -3,9 +3,8 @@
 import json
 from typing import Any
 
-from app.agent.core.prompt_loader import PromptLoader
+from app.agent.core.prompt_loader import get_prompt_loader
 from app.agent.core.prompt_renderer import PromptRenderer
-from app.core.config import get_settings
 
 
 def _with_page_context(content: Any, page_context: Any) -> Any:
@@ -17,11 +16,7 @@ def _with_page_context(content: Any, page_context: Any) -> Any:
     """
     if not isinstance(page_context, dict) or not page_context:
         return content
-    template = (
-        PromptLoader(get_settings().prompts_dir)
-        .load("agents", "page_context")
-        .user_prompt_template
-    )
+    template = get_prompt_loader().load("agents", "page_context").user_prompt_template
     context_line = PromptRenderer.render(
         template, context=json.dumps(page_context, ensure_ascii=False)
     )

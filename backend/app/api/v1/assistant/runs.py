@@ -21,11 +21,13 @@ from app.core.exceptions import NotFoundError, UnprocessableEntityError
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.assistant import RunCancelRequest, RunStreamRequest, ThreadStateResponse
-from app.services.assistant.assistant_service import finalize_run
+from app.services.assistant.assistant_service import AssistantService, finalize_run
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
+
+_CUSTOM_SKILL_INDEX_HEADER = "用户已安装以下自定义技能（需使用时说明技能名称）："
 
 
 @router.get("/threads/{thread_id}/state", response_model=ThreadStateResponse)
@@ -84,6 +86,24 @@ async def get_thread_history(
     return history
 
 
+def _with_custom_skills(content: Any, custom_lines: list[str]) -> Any:
+    """把用户 custom 技能索引段注入首条用户消息前缀（渐进披露）。
+
+    content 可能是 str 或内容块列表，块列表时索引作为首个 text 块插入；
+    无 custom 技能时原样返回（零开销）。仅新输入注入，resume 不注入。
+    """
+    if not custom_lines:
+        return content
+    index = _CUSTOM_SKILL_INDEX_HEADER + "\n" + "\n".join(
+        f"- {line}" for line in custom_lines
+    )
+    if isinstance(content, str):
+        return f"{index}\n\n{content}"
+    if isinstance(content, list):
+        return [{"type": "text", "text": index}, *content]
+    return content
+
+
 @router.post("/threads/{thread_id}/runs/stream")
 async def stream_run(
     thread_id: str,
@@ -105,11 +125,19 @@ async def stream_run(
         if message.get("type") != "human":
             raise UnprocessableEntityError("仅接受 human 类型输入消息")
     page_context = (data.metadata or {}).get("page_context")
+    custom_lines = (
+        await AssistantService(session).custom_skill_index_lines(user.id)
+        if messages_in
+        else []
+    )
     lc_input = (
         {
             "messages": [
                 HumanMessage(
-                    content=_with_page_context(m.get("content", ""), page_context),
+                    content=_with_page_context(
+                        _with_custom_skills(m.get("content", ""), custom_lines),
+                        page_context,
+                    ),
                     id=m.get("id"),
                 )
                 for m in messages_in

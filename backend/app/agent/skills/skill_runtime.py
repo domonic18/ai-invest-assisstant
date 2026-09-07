@@ -2,7 +2,7 @@
 
 个股每日分析与大盘每日复盘等 skill 的公共骨架：SKILL.md 指引加载、分区任务
 指令渲染、agent 调用与最终 sections JSON 解析（失败自动重试一次）。输出契约
-（分区 key）仍以各 skill 的 ``prompts/skills/<skill_id>.yaml`` 为真源。
+（分区 key）仍以各 skill 的 ``skills/<skill_id>/prompt.yaml`` 为真源。
 """
 
 import json
@@ -15,6 +15,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.agent.core.prompt_loader import PromptSection
 from app.core.config import get_settings
+from app.skills import get_skill
 
 logger = structlog.get_logger(__name__)
 
@@ -24,7 +25,14 @@ class SkillOutputError(ValueError):
 
 
 def load_skill_instructions(skill_id: str) -> str:
-    """读取 SKILL.md 正文（剥离 YAML frontmatter）作为分析流程指引。"""
+    """读取 SKILL.md 正文（剥离 YAML frontmatter）作为分析流程指引。
+
+    Raises:
+        ValueError: skill 未登记进 registry 或未声明 SKILL.md。
+    """
+    descriptor = get_skill(skill_id)
+    if descriptor is None or not descriptor.skill_md:
+        raise ValueError(f"skill 未登记或未声明 SKILL.md: {skill_id}")
     path = get_settings().skills_dir / skill_id / "SKILL.md"
     text = path.read_text(encoding="utf-8")
     if text.startswith("---"):

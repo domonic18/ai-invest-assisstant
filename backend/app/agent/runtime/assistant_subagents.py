@@ -8,7 +8,7 @@ from typing import Any, cast
 
 from deepagents.middleware.subagents import SubAgent
 
-from app.agent.core.prompt_loader import PromptLoader
+from app.agent.core.prompt_loader import get_prompt_loader
 from app.agent.tools import (
     get_auction_summary,
     get_market_overview,
@@ -19,11 +19,10 @@ from app.agent.tools import (
     search_news,
     search_vector_kb,
 )
-from app.core.config import get_settings
 
 
 def _prompt(prompt_id: str) -> str:
-    config = PromptLoader(get_settings().prompts_dir).load("agents", prompt_id)
+    config = get_prompt_loader().load("agents", prompt_id)
     return config.system_prompt
 
 

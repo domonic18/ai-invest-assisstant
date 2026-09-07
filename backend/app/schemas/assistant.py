@@ -1,18 +1,20 @@
 """对话助手（Agent Protocol）API schemas。
 
-wire 全程对齐 ``@langchain/langgraph-sdk`` 的 camelCase 形状
-（``populate_by_name`` 兼容 snake_case 输入）。
+线程/运行相关 schema 的 wire 全程对齐 ``@langchain/langgraph-sdk``
+的 **snake_case** 形状（LangGraph Platform 官方契约，如 ``thread_id``/
+``stream_mode``/``on_disconnect``），勿改用 CamelModel——SDK Client
+原样透传 JSON，camelCase 会导致前端读不到 ``thread_id``。
 """
 
 from datetime import datetime
 from typing import Any
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from app.schemas.base import CamelModel
 
 
-class ThreadCreateRequest(CamelModel):
+class ThreadCreateRequest(BaseModel):
     """POST /threads 请求体（langgraph-sdk client.threads.create）。"""
 
     title: str | None = None
@@ -20,7 +22,7 @@ class ThreadCreateRequest(CamelModel):
     thread_id: str | None = None
 
 
-class ThreadResponse(CamelModel):
+class ThreadResponse(BaseModel):
     thread_id: str
     title: str | None = None
     last_message_at: datetime | None = None
@@ -29,12 +31,12 @@ class ThreadResponse(CamelModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class SessionListResponse(CamelModel):
+class SessionListResponse(BaseModel):
     sessions: list[ThreadResponse]
     total: int
 
 
-class RunStreamRequest(CamelModel):
+class RunStreamRequest(BaseModel):
     """POST /threads/{id}/runs/stream 请求体（langgraph-sdk client.runs.stream）。"""
 
     assistant_id: str | None = None
@@ -47,12 +49,12 @@ class RunStreamRequest(CamelModel):
     metadata: dict[str, Any] | None = None
 
 
-class RunCancelRequest(CamelModel):
+class RunCancelRequest(BaseModel):
     action: str | None = None
     wait: bool | None = None
 
 
-class ThreadStateResponse(CamelModel):
+class ThreadStateResponse(BaseModel):
     """GET /threads/{id}/state 响应（assistant-ui load() 消费）。"""
 
     values: dict[str, Any] = Field(default_factory=dict)
@@ -62,6 +64,10 @@ class ThreadStateResponse(CamelModel):
 
 
 class SkillSummary(CamelModel):
+    """技能摘要（旧字段不变，kind/isCustom 为批次7 增量，wire 向后兼容）。"""
+
     id: str
     name: str
     description: str = ""
+    kind: str | None = None
+    is_custom: bool = False

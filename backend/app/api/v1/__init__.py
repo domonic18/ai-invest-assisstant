@@ -15,6 +15,7 @@ from app.api.v1 import (
     kline,
     market,
     research,
+    skills,
     stocks,
     telegraph,
     users,
@@ -42,6 +43,7 @@ api_router.include_router(stocks.router, prefix="/stocks", tags=["stocks"])
 api_router.include_router(kline.router, prefix="/kline", tags=["kline"])
 api_router.include_router(chain.router, prefix="/chain", tags=["chain"])
 api_router.include_router(research.router, prefix="/research", tags=["research"])
+api_router.include_router(skills.router, prefix="/skills", tags=["skills"])
 api_router.include_router(
     financial_report.router, prefix="/financial-reports", tags=["financial-reports"]
 )

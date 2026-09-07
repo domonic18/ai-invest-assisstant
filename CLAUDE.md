@@ -99,6 +99,7 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 - 正确使用 HTTP 状态码
 - 使用一致的 JSON 响应格式
 - 列表端点支持分页
+- **wire 字段命名的唯一判据是「契约由谁定义」**：项目自有 API 一律 camelCase（Pydantic `CamelModel` + `shared/types` 单一真相源）；第三方协议客户端直接消费的兼容层用**协议原生形状**，禁止套用 CamelModel。例外是封闭的，当前仅 assistant 线程/运行 schema（`app/schemas/assistant.py`，snake_case 对齐 `@langchain/langgraph-sdk` 透传契约）。改任何 wire 字段前，先枚举该端点的全部消费者（含 SDK 这类透传客户端）——编译器与 mock 单测都抓不到这类错位
 
 ## 4. AI 功能交互范式（新增 AI 功能必须遵循）
 
