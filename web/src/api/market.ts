@@ -44,7 +44,7 @@ export async function fetchMarketIndices(
 ): Promise<IndexQuote[]> {
   const response = await apiClient.get<ApiIndexQuoteResponse[]>(
     ENDPOINTS.market.indices,
-    { params: { tradeDate: tradeDate } },
+    { params: { trade_date: tradeDate } },
   )
   return response.data.map(mapIndexQuote)
 }
@@ -55,7 +55,7 @@ export async function fetchIndexIntraday(
 ): Promise<IndexIntraday> {
   const response = await apiClient.get<ApiIndexIntradayResponse>(
     ENDPOINTS.market.indexIntraday,
-    { params: { code, tradeDate: tradeDate } },
+    { params: { code, trade_date: tradeDate } },
   )
   return mapIndexIntraday(response.data)
 }
@@ -75,7 +75,7 @@ export async function fetchIndexKline(
 export async function fetchMarketStats(tradeDate?: string): Promise<MarketStats> {
   const response = await apiClient.get<ApiMarketStatsResponse>(
     ENDPOINTS.market.stats,
-    { params: { tradeDate: tradeDate } },
+    { params: { trade_date: tradeDate } },
   )
   return mapMarketStats(response.data)
 }
@@ -83,7 +83,7 @@ export async function fetchMarketStats(tradeDate?: string): Promise<MarketStats>
 export async function fetchLimitUp(tradeDate?: string): Promise<LimitUpData> {
   const response = await apiClient.get<ApiLimitUpResponse>(
     ENDPOINTS.market.limitUp,
-    { params: { tradeDate: tradeDate } },
+    { params: { trade_date: tradeDate } },
   )
   return mapLimitUpData(response.data)
 }
@@ -93,7 +93,7 @@ export async function fetchLimitUpIntraday(
 ): Promise<LimitUpIntraday> {
   const response = await apiClient.get<ApiLimitUpIntradayResponse>(
     ENDPOINTS.market.limitUpIntraday,
-    { params: { tradeDate: tradeDate } },
+    { params: { trade_date: tradeDate } },
   )
   return { tradeDate: response.data.tradeDate, series: response.data.series }
 }
@@ -103,7 +103,7 @@ export async function fetchSectorOverview(
 ): Promise<SectorOverview> {
   const response = await apiClient.get<ApiSectorOverviewResponse>(
     ENDPOINTS.market.sectors,
-    { params: { tradeDate: tradeDate } },
+    { params: { trade_date: tradeDate } },
   )
   return mapSectorOverview(response.data)
 }
@@ -125,7 +125,7 @@ export async function fetchMarketReview(
   try {
     const response = await apiClient.get<ApiMarketReviewResponse>(
       ENDPOINTS.market.aiReview,
-      { params: { tradeDate: tradeDate } },
+      { params: { trade_date: tradeDate } },
     )
     if (response.status === 204) {
       return null
