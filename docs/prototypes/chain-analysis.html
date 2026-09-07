@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Invest Assistant — 产业链全景分析</title>
+<title>AI Invest Assistant — 产业图谱</title>
 <style>
 /* ======================================================
    AI Invest Assistant — Design System
@@ -62,8 +62,6 @@
 
   /* Transitions */
   --transition: 200ms ease;
-  --transition-fast: 150ms ease;
-  --transition-normal: 200ms ease;
   --text-xs: 11px;
   --text-sm: 13px;
   --text-base: 14px;
@@ -78,9 +76,6 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
-  --space-10: 40px;
-  --space-12: 48px;
-
 }
 
 /* Reset */
@@ -165,14 +160,6 @@ a:hover { color: var(--accent-hover); }
 }
 .header-search::placeholder { color: var(--text-tertiary); }
 .header-search:focus { border-color: var(--border-focus); }
-.header-actions { display: flex; align-items: center; gap: 8px; }
-.header-btn {
-  width: 34px; height: 34px; border-radius: var(--radius-sm);
-  background: transparent; border: none; color: var(--text-secondary);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: all var(--transition); font-size: 16px;
-}
-.header-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 /* ======= Cards ======= */
 .card {
@@ -187,31 +174,6 @@ a:hover { color: var(--accent-hover); }
 .card-body { padding: 20px; }
 .card-body-sm { padding: 14px; }
 
-/* ======= Stats ======= */
-.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
-.stat-card {
-  background: var(--bg-elevated); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); padding: 18px 20px;
-  display: flex; flex-direction: column; gap: 6px;
-}
-.stat-label { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .05em; font-weight: 500; }
-.stat-value { font-size: 24px; font-weight: 700; color: var(--text-primary); letter-spacing: -.02em; }
-.stat-change { font-size: 11px; font-weight: 500; }
-.stat-change.up { color: var(--green); }
-.stat-change.down { color: var(--red); }
-
-/* ======= Tables ======= */
-.table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-thead { border-bottom: 1px solid var(--border); }
-th {
-  text-align: left; padding: 10px 14px; font-weight: 500; color: var(--text-tertiary);
-  font-size: 11px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap;
-}
-td { padding: 10px 14px; color: var(--text-secondary); border-bottom: 1px solid var(--border); white-space: nowrap; }
-tr:last-child td { border-bottom: none; }
-tr:hover td { background: var(--bg-hover); }
-
 /* ======= Buttons ======= */
 .btn {
   display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
@@ -223,12 +185,11 @@ tr:hover td { background: var(--bg-hover); }
 .btn-primary:hover { background: var(--accent-hover); }
 .btn-secondary { background: var(--bg-surface); color: var(--text-secondary); border-color: var(--border); }
 .btn-secondary:hover { background: var(--bg-hover); border-color: var(--border-hover); color: var(--text-primary); }
+.btn-danger { background: transparent; color: var(--red); border-color: rgba(248,81,73,.4); }
+.btn-danger:hover { background: var(--red-soft); }
 .btn-ghost { background: transparent; color: var(--text-secondary); }
 .btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
-.btn-danger { background: var(--red); color: #fff; }
-.btn-danger:hover { background: #e0483f; }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
-.btn-lg { padding: 10px 24px; font-size: 14px; }
 
 /* ======= Tags ======= */
 .tag {
@@ -241,40 +202,11 @@ tr:hover td { background: var(--bg-hover); }
 .tag-blue { background: var(--blue-soft); color: var(--blue); }
 .tag-purple { background: var(--accent-soft); color: var(--accent); }
 
-/* ======= Forms ======= */
-.form-group { margin-bottom: 16px; }
-.form-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
-.form-input, .form-select, .form-textarea {
-  width: 100%; padding: 8px 12px; font-size: 13px; color: var(--text-primary);
-  background: var(--bg-surface); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); outline: none; transition: border var(--transition);
-}
-.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--border-focus); }
-.form-input::placeholder { color: var(--text-tertiary); }
-.form-hint { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
-.form-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235c616e' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
-
-/* ======= Grids ======= */
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
-.grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
-.gap-4 { gap: 14px; }
-.mb-4 { margin-bottom: 14px; }
+/* ======= Page helpers ======= */
 .mb-6 { margin-bottom: 24px; }
-.text-right { text-align: right; }
-.text-center { text-align: center; }
-.text-muted { color: var(--text-secondary); }
 .text-mono { font-family: var(--font-mono); }
-.flex { display: flex; }
-.flex-col { flex-direction: column; }
-.items-center { align-items: center; }
-.justify-between { justify-content: space-between; }
-.page-title { font-size: 20px; font-weight: 600; color: var(--text-primary); letter-spacing: -.01em; margin-bottom: 24px; }
-.divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
-
-/* ======= Analysis Meter ======= */
-.analysis-meter { height: 6px; border-radius: 3px; background: var(--bg-surface); overflow: hidden; }
-.analysis-meter-fill { height: 100%; border-radius: 3px; }
+.up { color: var(--red); }
+.down { color: var(--green); }
 
 /* ======= Notification ======= */
 .notification-dot {
@@ -282,69 +214,133 @@ tr:hover td { background: var(--bg-hover); }
   background: var(--red); border-radius: 50%;
 }
 
-</style>
-<style>
-/* ======= Compact Toolbar ======= */
-.chain-toolbar{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;padding:var(--space-2) var(--space-4);background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:var(--space-4)}
-.chain-toolbar-left{display:flex;align-items:baseline;gap:var(--space-3);min-width:0}
-.chain-toolbar-title{font-size:var(--text-lg);font-weight:600;color:var(--text-primary);letter-spacing:-.01em;white-space:nowrap}
-.chain-toolbar-stats{font-size:var(--text-xs);color:var(--text-tertiary);white-space:nowrap}
-.chain-toolbar-right{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
-.chain-toolbar .form-select{width:auto;min-width:150px;font-size:var(--text-xs);padding:6px 28px 6px 10px}
-/* ======= Tabs ======= */
-.tabs-bar{display:flex;gap:2px;border-bottom:1px solid var(--border);padding:0 var(--space-4);overflow-x:auto}
-.tab-item{padding:10px 14px;font-size:var(--text-sm);color:var(--text-secondary);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
-.tab-item:hover{color:var(--text-primary)}
-.tab-item.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:500}
-.tab-pane{display:none;padding:var(--space-5)}
-.tab-pane.active{display:block}
-/* ======= Assistant Drawer ======= */
-.assistant-mask{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40;display:none}
-.assistant-drawer{position:fixed;top:0;right:0;bottom:0;width:420px;max-width:100vw;background:var(--bg-elevated);border-left:1px solid var(--border);z-index:50;display:flex;flex-direction:column;transform:translateX(100%);transition:transform 250ms ease;box-shadow:var(--shadow-lg)}
-body.assistant-open .assistant-drawer{transform:none}
-body.assistant-open .assistant-mask{display:block}
-.assistant-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.assistant-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
-.assistant-footer{padding:10px 16px;border-top:1px solid var(--border);font-size:var(--text-xs);color:var(--text-tertiary);flex-shrink:0}
-.msg-user{align-self:flex-end;background:var(--accent);color:#fff;padding:8px 12px;border-radius:12px 12px 4px 12px;font-size:var(--text-sm);max-width:85%}
-.msg-assistant{align-self:flex-start;background:var(--bg-surface);border:1px solid var(--border);padding:10px 12px;border-radius:12px 12px 12px 4px;font-size:var(--text-sm);width:100%;max-width:100%}
-.stage-item{display:flex;align-items:center;gap:8px;padding:5px 0;color:var(--text-secondary)}
-.stage-icon{width:16px;text-align:center;flex-shrink:0}
-.stage-done{color:var(--green)}
-.stage-running{color:var(--accent)}
-.stage-elapsed{margin-left:auto;font-size:var(--text-xs);color:var(--text-tertiary);font-family:var(--font-mono)}
-.stage-spinner{width:12px;height:12px;border:2px solid var(--accent-soft);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;display:inline-block}
-@keyframes spin{to{transform:rotate(360deg)}}
-.result-card{border:1px solid var(--accent);border-radius:var(--radius-md);padding:12px;background:var(--accent-soft)}
-.result-stats{display:flex;gap:var(--space-4);font-size:var(--text-xs);color:var(--text-secondary);margin:8px 0}
-.result-actions{display:flex;gap:var(--space-2);margin-top:10px}
-.signal-item{display:flex;flex-direction:column;gap:2px;padding:var(--space-3);border-radius:var(--radius-md);background:var(--bg-surface);margin-bottom:var(--space-2)}
-.chain-wrapper{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);overflow-x:auto;box-shadow:var(--shadow-sm)}
-.chain-legend{display:flex;gap:var(--space-6);padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--border);font-size:var(--text-xs);color:var(--text-secondary)}
-.chain-legend-item{display:flex;align-items:center;gap:6px}
-.chain-legend-shape{width:10px;height:10px;border-radius:2px}
-.chain-legend-shape.up{background:var(--blue)}
-.chain-legend-shape.mid{background:var(--accent)}
-.chain-legend-shape.down{background:var(--green)}
-.dynamic-timeline{padding:var(--space-3);background:var(--bg-surface);border-radius:var(--radius-md);font-size:var(--text-xs)}
-.dynamic-item{display:flex;gap:var(--space-3);padding:var(--space-2) 0;border-bottom:1px solid var(--border);align-items:flex-start}
-.dynamic-item:last-child{border-bottom:none}
-.dynamic-date{color:var(--text-tertiary);font-family:var(--font-mono);white-space:nowrap;min-width:72px}
-.dynamic-company{color:var(--text-secondary);font-weight:500;min-width:80px}
-.dynamic-desc{color:var(--text-secondary);flex:1}
-.analysis-meter{height:6px;border-radius:3px;background:var(--bg-hover);overflow:hidden}
-.analysis-meter-fill{height:100%;border-radius:3px}
-.matrix-grid{display:grid;grid-template-columns:60px repeat(4,1fr);gap:1px;background:var(--border);border-radius:var(--radius-md);overflow:hidden}
-.matrix-cell{padding:var(--space-2);text-align:center;font-size:var(--text-xs);background:var(--bg-elevated)}
-.matrix-header{background:var(--bg-hover);font-weight:600;color:var(--text-secondary)}
-.matrix-cell.highlight{background:rgba(248,81,73,.08)}
-.bottleneck-card{padding:var(--space-3);border-radius:var(--radius-md);border-left:3px solid;font-size:var(--text-sm);margin-bottom:var(--space-2)}
-.bottleneck-card.danger{background:rgba(248,81,73,.08);border-color:var(--red)}
-.bottleneck-card.warning{background:rgba(210,153,34,.08);border-color:var(--amber)}
-.bottleneck-card.info{background:rgba(88,166,255,.08);border-color:var(--blue)}
-.bottleneck-card.success{background:rgba(46,160,67,.08);border-color:var(--green)}
-.bottleneck-title{font-weight:600;color:var(--text-primary);margin-bottom:2px}
-.bottleneck-desc{font-size:var(--text-xs);color:var(--text-secondary)}
+/* ===== 产业图谱（对齐 ChainAnalysis.tsx 实际实现） ===== */
+
+/* 页头标题行 */
+.page-head-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: var(--space-4); }
+.page-head-left { display: flex; align-items: center; gap: 12px; }
+.page-title { font-size: 19px; font-weight: 600; color: var(--text-primary); letter-spacing: -.01em; }
+.head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.industry-select {
+  min-width: 180px; padding: 6px 12px; font-size: 13px; color: var(--text-primary);
+  background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none;
+}
+
+/* 产业链提醒（有提醒为卡片；空态折叠为单行细条） */
+.alert-item { padding: 0 0 12px; border-bottom: 1px solid var(--border); }
+.alert-item:last-child { border-bottom: none; padding-bottom: 0; }
+.alert-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.alert-title { font-size: 12px; font-weight: 500; color: var(--text-primary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alert-date { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); flex-shrink: 0; }
+.sev { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
+.sev i { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.sev-high { color: #f5222d; } .sev-high i { background: #f5222d; }
+.sev-mid { color: #fa8c16; } .sev-mid i { background: #fa8c16; }
+.sev-low { color: #52c41a; } .sev-low i { background: #52c41a; }
+.alert-desc { font-size: 12px; color: var(--text-secondary); margin-top: 6px; line-height: 1.6; }
+.alert-rel { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--text-tertiary); }
+
+/* 版本切换条（细条） */
+.version-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 8px 16px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-md);
+  margin-bottom: var(--space-4); font-size: 13px;
+}
+.version-bar .vb-label { font-weight: 600; color: var(--text-secondary); font-size: 13px; }
+.version-bar select {
+  min-width: 280px; padding: 5px 10px; font-size: 12px; color: var(--text-primary);
+  background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none;
+}
+.vb-actions { display: flex; align-items: center; gap: 8px; }
+
+/* 图谱面板：G6 dagre TB + 上中下游色带 + 浮动节点详情 */
+.graph-stage { position: relative; background: var(--bg); border-radius: var(--radius-lg); overflow: hidden; }
+.graph-stage svg.g6 { display: block; width: 100%; height: auto; }
+.gnode rect { fill: var(--bg-surface); stroke: var(--border-hover); stroke-width: 1.2; }
+.gnode text { fill: var(--text-secondary); font-size: 12px; text-anchor: middle; dominant-baseline: central; font-family: var(--font); }
+.gnode { cursor: pointer; }
+.gnode:hover rect { stroke: var(--accent); }
+.gnode.selected rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.8; }
+.gnode.selected text { fill: var(--text-primary); font-weight: 600; }
+.gedge { stroke: #3a3f4b; stroke-width: 1.2; fill: none; }
+.gedge-hl { stroke: var(--accent); stroke-width: 1.6; fill: none; }
+.band-label { font-size: 11px; fill: var(--text-tertiary); font-weight: 600; letter-spacing: .1em; }
+.node-detail {
+  position: absolute; right: 14px; top: 14px; width: 320px; max-height: calc(100% - 28px);
+  overflow-y: auto; background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
+}
+.nd-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg-elevated); }
+.nd-title { font-size: 14px; font-weight: 600; color: var(--text-primary); flex: 1; }
+.nd-body { padding: 12px 14px; font-size: 12px; }
+.nd-desc { color: var(--text-secondary); line-height: 1.65; margin-bottom: 12px; }
+.nd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; padding-bottom: 12px; border-bottom: 1px dashed var(--border); }
+.nd-metric .k { font-size: 11px; color: var(--text-tertiary); display: block; }
+.nd-metric .v { font-family: var(--font-mono); font-size: 14px; color: var(--text-primary); font-weight: 600; }
+.nd-sec { margin-top: 10px; }
+.nd-sec .k { font-size: 11px; color: var(--text-tertiary); margin-bottom: 4px; display: block; }
+.nd-li { padding: 3px 0; color: var(--text-secondary); font-size: 12px; border-bottom: 1px solid rgba(35,38,45,.5); }
+.nd-li:last-child { border-bottom: none; }
+.minimap {
+  position: absolute; right: 14px; bottom: 14px; width: 132px; height: 78px;
+  background: rgba(17,19,24,.9); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.minimap .mm-win { position: absolute; border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 2px; }
+.graph-ctl { position: absolute; left: 14px; bottom: 14px; display: flex; gap: 6px; }
+.graph-ctl .btn { background: rgba(17,19,24,.9); }
+
+/* AI 综述 */
+.summary-p { font-size: 13px; color: var(--text-secondary); line-height: 1.8; }
+.summary-p b { color: var(--text-primary); font-weight: 600; }
+
+/* 双卡 / 三卡栅格 */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-bottom: var(--space-4); }
+.grid-insight { display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-4); }
+
+/* 洞察 tabs */
+.itabs { display: flex; gap: 18px; border-bottom: 1px solid var(--border); margin-bottom: 14px; padding: 0 4px; }
+.itab { padding: 8px 2px; font-size: 13px; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.itab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.insight-card { border: 1px solid var(--border); border-left-width: 3px; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px; background: var(--bg-surface); }
+.insight-card:last-child { margin-bottom: 0; }
+.insight-card.opp { border-left-color: var(--green); }
+.insight-card.risk { border-left-color: var(--red); }
+.insight-card.bn { border-left-color: var(--amber); }
+.ic-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; flex-wrap: wrap; }
+.ic-title { font-size: 13px; font-weight: 600; color: var(--text-primary); flex: 1; min-width: 0; }
+.ic-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.65; }
+
+/* 核心标的 */
+.kc-item { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.kc-item:last-child { border-bottom: none; }
+.kc-rank { width: 20px; height: 20px; border-radius: 50%; background: var(--bg-hover); color: var(--text-tertiary); font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.kc-main { flex: 1; min-width: 0; }
+.kc-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.kc-code { font-family: var(--font-mono); font-size: 12px; color: var(--text-tertiary); margin-left: 6px; }
+.kc-score { width: 80px; height: 5px; border-radius: 3px; background: var(--bg-surface); overflow: hidden; flex-shrink: 0; }
+.kc-score i { display: block; height: 100%; background: #6366f1; border-radius: 3px; }
+
+/* 价值分布条形 */
+.vd-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.vd-name { width: 72px; font-size: 12px; color: var(--text-secondary); text-align: right; flex-shrink: 0; }
+.vd-bar { flex: 1; height: 12px; background: var(--bg-surface); border-radius: 3px; overflow: hidden; }
+.vd-bar i { display: block; height: 100%; background: #5e6ad2; border-radius: 3px; }
+.vd-val { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); width: 42px; }
+
+/* 表格 */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead { border-bottom: 1px solid var(--border); }
+th { text-align: left; padding: 8px 12px; font-weight: 500; color: var(--text-tertiary); font-size: 11px; white-space: nowrap; }
+td { padding: 8px 12px; color: var(--text-secondary); border-bottom: 1px solid var(--border); white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+
+/* 规划说明 */
+.type-note {
+  margin-top: var(--space-6); padding: 14px 16px; border: 1px dashed var(--border);
+  border-radius: var(--radius-md); font-size: 12px; color: var(--text-tertiary); line-height: 1.8;
+}
+.type-note .tn-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -382,499 +378,290 @@ body.assistant-open .assistant-mask{display:block}
 <div class="app-main">
 <header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
 <div class="app-content">
-<!-- Compact Toolbar: 标题 + 统计 + 行业切换 + 版本切换 + AI 分析 -->
-<div class="chain-toolbar">
-<div class="chain-toolbar-left">
-<h1 class="chain-toolbar-title">半导体产业链全景分析</h1>
-<span class="chain-toolbar-stats">24 环节 · 69 标的 · 28 供应关系 · v12 (07-05)</span>
+
+<!-- 页头：行业名 + AI 生成版本 tag + 行业切换 + 重新分析（AI 助手）+ 新建分析 -->
+<div class="page-head-row">
+<div class="page-head-left">
+<span class="page-title">半导体产业链</span>
+<span class="tag tag-green">AI 生成 · v3 (09-04)</span>
 </div>
-<div class="chain-toolbar-right">
-<select class="form-select">
-<optgroup label="一级行业">
-<option>电子 · 1243 家</option>
-<option>医药生物 · 486 家</option>
-<option>电力设备 · 372 家</option>
-</optgroup>
-<optgroup label="二级行业">
-<option selected>半导体 · 176 家 ✓已有图谱</option>
-<option>消费电子 · 98 家</option>
-<option>元件 · 63 家</option>
-</optgroup>
+<div class="head-actions">
+<select class="industry-select">
+<option selected>半导体</option>
+<option>新能源车</option>
+<option>光伏</option>
+<option>人工智能</option>
+<option>固态电池</option>
 </select>
-<select class="form-select" style="min-width:130px">
-<option selected>v12 · 07-05 (最新)</option>
-<option>v11 · 06-28</option>
-<option>v10 · 06-21</option>
+<button class="btn btn-primary btn-sm">🤖 重新分析</button>
+<button class="btn btn-secondary btn-sm">＋ 新建分析</button>
+</div>
+</div>
+
+<!-- 产业链提醒：AI 归因重大变化（严重度排序，随行业联动；空态折叠为单行细条） -->
+<div class="card mb-6">
+<div class="card-header"><span class="card-title">产业链提醒</span><span style="font-size:11px;color:var(--text-tertiary)">3 条 · 按严重度排序</span></div>
+<div class="card-body card-body-sm">
+<div class="alert-item">
+<div class="alert-line">
+<span class="tag tag-red">政策催化</span>
+<span class="sev sev-high"><i></i>高</span>
+<span class="alert-title">国家大基金三期首笔投资落地，投向先进制程设备与材料</span>
+<span class="alert-date">2026-09-04</span>
+</div>
+<div class="alert-desc">国家级资金直接注入中游设备环节，国产替代节奏有望提前 1-2 个季度，关注订单落地节奏。</div>
+<div class="alert-rel"><span class="tag">半导体设备</span><span class="tag">材料</span><span>相关标的: 002371、688012、300346</span></div>
+</div>
+<div class="alert-item">
+<div class="alert-line">
+<span class="tag tag-amber">财报异动</span>
+<span class="sev sev-mid"><i></i>中</span>
+<span class="alert-title">北方华创 2026 中报：合同负债 58.3 亿创新高，订单能见度至 2027</span>
+<span class="alert-date">2026-07-28</span>
+</div>
+<div class="alert-desc">预收设备款充足印证下游扩产持续性，中游制造环节景气度获财报验证。</div>
+<div class="alert-rel"><span class="tag">半导体设备</span><span>相关标的: 002371</span></div>
+</div>
+<div class="alert-item">
+<div class="alert-line">
+<span class="tag tag-blue">技术突破</span>
+<span class="sev sev-low"><i></i>低</span>
+<span class="alert-title">5nm 刻蚀机通过中芯国际产线验证</span>
+<span class="alert-date">2026-07-02</span>
+</div>
+<div class="alert-desc">先进制程设备国产化里程碑，2026H2 放量预期增强。</div>
+<div class="alert-rel"><span class="tag">刻蚀设备</span><span>相关标的: 002371、688012</span></div>
+</div>
+</div>
+</div>
+
+<!-- 图谱版本切换条 -->
+<div class="version-bar">
+<div class="vb-actions">
+<span class="vb-label">图谱版本:</span>
+<select>
+<option selected>2026-09-04 · v3 (最新) · 12 环节 / 38 标的</option>
+<option>2026-08-15 · v2 · 11 环节 / 35 标的</option>
+<option>2026-07-01 · v1 · 10 环节 / 31 标的</option>
 </select>
 <button class="btn btn-secondary btn-sm">⇄ 版本对比</button>
-<button class="btn btn-primary btn-sm" id="btn-open-assistant">✦ AI 分析</button>
+<button class="btn btn-danger btn-sm">🗑 删除版本</button>
 </div>
+<span class="tag tag-red">存在失败版本</span>
 </div>
 
-<!-- Chain Graph Card -->
-<div class="chain-wrapper mb-6">
-<div class="chain-legend">
-<div class="chain-legend-item"><span class="chain-legend-shape up"></span>上游 — 原材料与耗材</div>
-<div class="chain-legend-item"><span class="chain-legend-shape mid"></span>中游 — 制造、设备与工具</div>
-<div class="chain-legend-item"><span class="chain-legend-shape down"></span>下游 — 应用场景</div>
-</div>
-<div style="overflow-x:auto;padding:var(--space-4)">
-<svg viewBox="0 0 1400 1100" width="1400" height="1100" xmlns="http://www.w3.org/2000/svg">
+<!-- 图谱面板：G6 dagre 分层（上/中/下游色带）+ 点击节点浮出详情卡（可收起/关闭）+ 缩略图 -->
+<div class="card mb-6" style="overflow:hidden">
+<div class="graph-stage">
+<svg class="g6" viewBox="0 0 1060 430" xmlns="http://www.w3.org/2000/svg">
 <defs>
-<filter id="shadow"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.08"/></filter>
-<marker id="arrowGreen" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#10b981"/></marker>
-<marker id="arrowGray" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#9ca3af"/></marker>
+<marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#3a3f4b"/></marker>
+<marker id="arrhl" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#5e6ad2"/></marker>
 </defs>
+<!-- 上/中/下游色带 -->
+<rect x="0" y="14" width="1060" height="118" fill="rgba(88,166,255,.05)"/>
+<rect x="0" y="150" width="1060" height="118" fill="rgba(94,106,210,.06)"/>
+<rect x="0" y="286" width="1060" height="130" fill="rgba(46,160,67,.05)"/>
+<text class="band-label" x="14" y="40">上游 · 材料</text>
+<text class="band-label" x="14" y="176">中游 · 制造</text>
+<text class="band-label" x="14" y="312">下游 · 应用</text>
 
-<!-- Background -->
-<rect width="1400" height="1100" fill="#fafbfc" rx="8"/>
+<!-- 边（上游 → 中游） -->
+<path class="gedge" d="M185,106 C185,140 260,150 260,182" marker-end="url(#arr)"/>
+<path class="gedge" d="M420,106 C415,140 330,150 328,182" marker-end="url(#arr)"/>
+<path class="gedge-hl" d="M450,106 C460,140 520,150 524,182" marker-end="url(#arrhl)"/>
+<path class="gedge" d="M665,106 C665,140 570,150 568,182" marker-end="url(#arr)"/>
+<path class="gedge" d="M900,106 C900,140 800,150 798,182" marker-end="url(#arr)"/>
+<path class="gedge" d="M460,106 C480,145 770,150 792,182" marker-end="url(#arr)"/>
+<!-- 边（中游 → 下游） -->
+<path class="gedge" d="M260,216 C260,260 200,268 200,302" marker-end="url(#arr)"/>
+<path class="gedge" d="M328,216 C328,260 300,268 300,302" marker-end="url(#arr)"/>
+<path class="gedge" d="M524,216 C524,260 480,268 480,302" marker-end="url(#arr)"/>
+<path class="gedge" d="M798,216 C798,260 700,268 700,302" marker-end="url(#arr)"/>
+<path class="gedge" d="M808,216 C820,260 858,268 858,302" marker-end="url(#arr)"/>
 
-<!-- ====== SECTION LABELS ====== -->
-<rect x="20" y="20" width="1360" height="30" rx="6" fill="#dbeafe" opacity="0.7"/>
-<text x="700" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">◆ 上游 — 原材料与耗材</text>
+<!-- 上游节点 -->
+<g class="gnode"><rect x="130" y="72" width="110" height="34" rx="6"/><text x="185" y="90">硅片</text></g>
+<g class="gnode selected"><rect x="380" y="72" width="110" height="34" rx="6"/><text x="435" y="90">光刻胶</text></g>
+<g class="gnode"><rect x="610" y="72" width="110" height="34" rx="6"/><text x="665" y="90">电子特气</text></g>
+<g class="gnode"><rect x="845" y="72" width="110" height="34" rx="6"/><text x="900" y="90">设备零部件</text></g>
 
-<rect x="20" y="420" width="1360" height="30" rx="6" fill="#eef2ff" opacity="0.7"/>
-<text x="700" y="440" text-anchor="middle" font-size="13" font-weight="700" fill="#4f46e5">◆ 中游 — 制造、设备与工具</text>
+<!-- 中游节点 -->
+<g class="gnode"><rect x="205" y="182" width="110" height="34" rx="6"/><text x="260" y="200">晶圆代工</text></g>
+<g class="gnode"><rect x="469" y="182" width="110" height="34" rx="6"/><text x="524" y="200">封装测试</text></g>
+<g class="gnode"><rect x="743" y="182" width="110" height="34" rx="6"/><text x="798" y="200">EDA/IP</text></g>
 
-<rect x="20" y="760" width="1360" height="30" rx="6" fill="#d1fae5" opacity="0.7"/>
-<text x="700" y="780" text-anchor="middle" font-size="13" font-weight="700" fill="#059669">◆ 下游 — 应用场景</text>
+<!-- 下游节点 -->
+<g class="gnode"><rect x="145" y="302" width="110" height="34" rx="6"/><text x="200" y="320">消费电子</text></g>
+<g class="gnode"><rect x="425" y="302" width="110" height="34" rx="6"/><text x="480" y="320">汽车电子</text></g>
+<g class="gnode"><rect x="645" y="302" width="110" height="34" rx="6"/><text x="700" y="320">算力中心</text></g>
+<g class="gnode"><rect x="803" y="302" width="110" height="34" rx="6"/><text x="858" y="320">工业控制</text></g>
+</svg>
 
-<!-- ====== UPSTREAM ROW 1 ====== -->
-<!-- 节点模板: x,y,w=150,h=100 -->
+<!-- 节点详情浮层（点击「光刻胶」；可收起/关闭，收起后右上角保留「节点详情」恢复按钮） -->
+<div class="node-detail">
+<div class="nd-head">
+<span class="nd-title">光刻胶</span>
+<span class="tag">上游</span>
+<span class="tag tag-purple">技术壁垒 高</span>
+<button class="btn btn-ghost btn-sm" title="收起">⇥</button>
+<button class="btn btn-ghost btn-sm" title="关闭">✕</button>
+</div>
+<div class="nd-body">
+<div class="nd-desc">半导体光刻胶是晶圆制造核心耗材，KrF/ArF 高端品类国产化率不足 15%，验证周期长达 2-3 年构成核心壁垒。</div>
+<div class="nd-grid">
+<div class="nd-metric"><span class="k">平均毛利率</span><span class="v">52.4%</span></div>
+<div class="nd-metric"><span class="k">营收增长</span><span class="v up">+38.2%</span></div>
+<div class="nd-metric"><span class="k">研发占比</span><span class="v">11.6%</span></div>
+<div class="nd-metric"><span class="k">议价能力</span><span class="v">强</span></div>
+<div class="nd-metric"><span class="k">国产化率</span><span class="v" style="color:var(--amber)">14%</span></div>
+</div>
+<div class="nd-sec">
+<span class="k">瓶颈因素</span>
+<span><span class="tag tag-amber" style="margin:0 4px 4px 0">树脂单体进口依赖</span><span class="tag tag-amber">验证周期长</span></span>
+</div>
+<div class="nd-sec">
+<span class="k">近期突破</span>
+<div class="nd-li up">ArF 光刻胶通过存储客户验证，批量供货在即</div>
+<div class="nd-li up">KrF 高分辨率品类导入 Logic 产线</div>
+</div>
+<div class="nd-sec">
+<span class="k">代表公司</span>
+<div class="nd-li">南大光电 (300346)</div>
+<div class="nd-li">彤程新材 (603650)</div>
+<div class="nd-li">晶瑞电材 (300655)</div>
+</div>
+<div class="nd-sec" style="display:flex;align-items:baseline;gap:6px">
+<span class="k" style="margin:0">节点公司数</span>
+<span class="text-mono" style="font-size:16px;font-weight:700;color:var(--text-primary)">6</span>
+</div>
+</div>
+</div>
 
-<!-- 硅材料 -->
-<rect x="60" y="65" width="145" height="100" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
-<text x="132" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">硅材料</text>
-<text x="132" y="107" text-anchor="middle" font-size="10" fill="var(--text-secondary)">高纯度单晶硅/多晶硅</text>
-<line x1="75" y1="115" x2="190" y2="115" stroke="#e2e8f0" stroke-width="1"/>
-<text x="75" y="130" font-size="9" fill="var(--text-secondary)">毛利率 25.3%</text>
-<text x="75" y="143" font-size="9" fill="var(--text-secondary)">国产化率 35%</text>
-<text x="75" y="156" font-size="9" fill="#3b82f6">壁垒 高</text>
-<!-- 信号 -->
-<rect x="62" y="155" width="141" height="12" rx="3" fill="#fef2f2"/>
-<text x="132" y="164" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 300mm大硅片量产</text>
+<!-- 缩略图 minimap -->
+<div class="minimap">
+<div class="mm-win" style="left:18%;top:14%;width:64%;height:66%"></div>
+</div>
+<!-- 画布控制 -->
+<div class="graph-ctl">
+<button class="btn btn-sm">＋</button>
+<button class="btn btn-sm">－</button>
+<button class="btn btn-sm">⤢ 适应画布</button>
+</div>
+</div>
+</div>
 
-<!-- 电子特气 -->
-<rect x="240" y="65" width="145" height="100" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
-<text x="312" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">电子特气</text>
-<text x="312" y="107" text-anchor="middle" font-size="10" fill="var(--text-secondary)">高纯气体/蚀刻气体</text>
-<line x1="255" y1="115" x2="370" y2="115" stroke="#e2e8f0" stroke-width="1"/>
-<text x="255" y="130" font-size="9" fill="var(--text-secondary)">毛利率 38.7%</text>
-<text x="255" y="143" font-size="9" fill="var(--text-secondary)">国产化率 48%</text>
-<text x="255" y="156" font-size="9" fill="#3b82f6">壁垒 高</text>
-<rect x="242" y="155" width="141" height="12" rx="3" fill="#fef2f2"/>
-<text x="312" y="164" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 通过ASML认证</text>
+<!-- AI 综述 -->
+<div class="card mb-6">
+<div class="card-header"><span class="card-title">AI 综述</span></div>
+<div class="card-body">
+<p class="summary-p">半导体产业链呈<b>「设备材料双轮驱动国产替代」</b>格局：上游高端光刻胶与零部件国产化率仍处 10-20% 区间，为最大替代空间；中游晶圆代工扩产周期延续至 2027 年，设备环节订单能见度高（北方华创合同负债创新高）。大基金三期落地后资金向<b>先进制程设备与材料</b>集中，叠加出口管制反制预期，国产替代主题具备政策与产业双重催化。下游算力需求为最强拉动项，消费电子温和复苏。</p>
+</div>
+</div>
 
-<!-- 光刻胶 -->
-<rect x="420" y="65" width="145" height="118" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
-<text x="492" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">光刻胶</text>
-<text x="492" y="107" text-anchor="middle" font-size="10" fill="var(--text-secondary)">ArF/KrF/g-line/i-line</text>
-<line x1="435" y1="115" x2="550" y2="115" stroke="#e2e8f0" stroke-width="1"/>
-<text x="435" y="130" font-size="9" fill="var(--text-secondary)">毛利率 42.1%</text>
-<text x="435" y="143" font-size="9" fill="var(--text-secondary)">国产化率 15%</text>
-<text x="435" y="156" font-size="9" fill="#ef4444">壁垒 极高</text>
-<rect x="422" y="155" width="141" height="12" rx="3" fill="#fef2f2"/>
-<text x="492" y="164" text-anchor="middle" font-size="8" fill="#ef4444">⚡ ArF验证中</text>
-<rect x="422" y="168" width="141" height="12" rx="3" fill="#eff6ff"/>
-<text x="492" y="177" text-anchor="middle" font-size="8" fill="#3b82f6">📋 大基金二期注资</text>
-
-<!-- 靶材 -->
-<rect x="600" y="65" width="145" height="100" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
-<text x="672" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">靶材</text>
-<text x="672" y="107" text-anchor="middle" font-size="10" fill="var(--text-secondary)">高纯金属/合金靶材</text>
-<line x1="615" y1="115" x2="730" y2="115" stroke="#e2e8f0" stroke-width="1"/>
-<text x="615" y="130" font-size="9" fill="var(--text-secondary)">毛利率 31.5%</text>
-<text x="615" y="143" font-size="9" fill="var(--text-secondary)">国产化率 40%</text>
-<text x="615" y="156" font-size="9" fill="#3b82f6">壁垒 中高</text>
-<rect x="602" y="155" width="141" height="12" rx="3" fill="#fef2f2"/>
-<text x="672" y="164" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 5nm制程靶材供货</text>
-
-<!-- CMP抛光 -->
-<rect x="780" y="65" width="145" height="100" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
-<text x="852" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">CMP抛光材料</text>
-<text x="852" y="107" text-anchor="middle" font-size="10" fill="var(--text-secondary)">抛光液/抛光垫</text>
-<line x1="795" y1="115" x2="910" y2="115" stroke="#e2e8f0" stroke-width="1"/>
-<text x="795" y="130" font-size="9" fill="var(--text-secondary)">毛利率 52.8%</text>
-<text x="795" y="143" font-size="9" fill="var(--text-secondary)">国产化率 25%</text>
-<text x="795" y="156" font-size="9" fill="#3b82f6">壁垒 高</text>
-
-<!-- 湿电子化学品 -->
-<rect x="960" y="65" width="145" height="100" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
-<text x="1032" y="88" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">湿电子化学品</text>
-<text x="1032" y="107" text-anchor="middle" font-size="10" fill="var(--text-secondary)">超纯试剂/蚀刻液</text>
-<line x1="975" y1="115" x2="1090" y2="115" stroke="#e2e8f0" stroke-width="1"/>
-<text x="975" y="130" font-size="9" fill="var(--text-secondary)">毛利率 28.4%</text>
-<text x="975" y="143" font-size="9" fill="var(--text-secondary)">国产化率 55%</text>
-<text x="975" y="156" font-size="9" fill="var(--text-secondary)">壁垒 中</text>
-
-<!-- ====== UPSTREAM ROW 2 ====== -->
-<!-- 石英材料 -->
-<rect x="60" y="230" width="145" height="100" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
-<text x="132" y="253" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">石英材料</text>
-<text x="132" y="272" text-anchor="middle" font-size="10" fill="var(--text-secondary)">半导体级石英玻璃</text>
-<line x1="75" y1="280" x2="190" y2="280" stroke="#e2e8f0" stroke-width="1"/>
-<text x="75" y="295" font-size="9" fill="var(--text-secondary)">毛利率 45.2%</text>
-<text x="75" y="308" font-size="9" fill="var(--text-secondary)">国产化率 30%</text>
-<text x="75" y="321" font-size="9" fill="#3b82f6">壁垒 高</text>
-<rect x="62" y="320" width="141" height="12" rx="3" fill="#ecfdf5"/>
-<text x="132" y="329" text-anchor="middle" font-size="8" fill="#10b981">🏭 2026Q3新增产能</text>
-
-<!-- 封装基板 -->
-<rect x="240" y="230" width="145" height="118" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
-<text x="312" y="253" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">封装基板</text>
-<text x="312" y="272" text-anchor="middle" font-size="10" fill="var(--text-secondary)">IC载板/ABF/BT基板</text>
-<line x1="255" y1="280" x2="370" y2="280" stroke="#e2e8f0" stroke-width="1"/>
-<text x="255" y="295" font-size="9" fill="var(--text-secondary)">毛利率 32.6%</text>
-<text x="255" y="308" font-size="9" fill="var(--text-secondary)">国产化率 12%</text>
-<text x="255" y="321" font-size="9" fill="#ef4444">壁垒 极高</text>
-<rect x="242" y="320" width="141" height="12" rx="3" fill="#fef2f2"/>
-<text x="312" y="329" text-anchor="middle" font-size="8" fill="#ef4444">⚡ ABF载板验证通过</text>
-<rect x="242" y="333" width="141" height="12" rx="3" fill="#eff6ff"/>
-<text x="312" y="342" text-anchor="middle" font-size="8" fill="#3b82f6">📋 列入重点攻关清单</text>
-
-<!-- ====== UPSTREAM FLOW ARROWS (to midstream) ====== -->
-<line x1="132" y1="175" x2="132" y2="460" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
-<line x1="312" y1="175" x2="312" y2="460" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
-<line x1="492" y1="183" x2="492" y2="460" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
-<line x1="672" y1="175" x2="672" y2="460" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
-<line x1="852" y1="175" x2="852" y2="460" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
-<line x1="1032" y1="175" x2="1032" y2="460" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
-<line x1="132" y1="340" x2="132" y2="460" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
-<line x1="312" y1="348" x2="312" y2="460" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
-
-<text x="700" y="400" text-anchor="middle" font-size="11" fill="#9ca3af">↓ 原材料供应 · 耗材配套 · 设备零部件 ↓</text>
-
-
-<!-- ====== MIDSTREAM ROW 1 ====== -->
-
-<!-- 半导体设备 -->
-<rect x="60" y="465" width="200" height="115" rx="8" fill="#fff" stroke="#6366f1" stroke-width="2.5" filter="url(#shadow)"/>
-<text x="160" y="488" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text-primary)">半导体设备</text>
-<text x="160" y="507" text-anchor="middle" font-size="10" fill="var(--text-secondary)">刻蚀/薄膜沉积/光刻/清洗/检测</text>
-<line x1="75" y1="515" x2="245" y2="515" stroke="#e2e8f0" stroke-width="1"/>
-<text x="75" y="530" font-size="9" fill="var(--text-secondary)">毛利率 46.2% | 国产化率 25%</text>
-<text x="75" y="543" font-size="9" fill="#ef4444">壁垒 极高</text>
-<text x="75" y="556" font-size="9" fill="var(--text-secondary)">核心: 北方华创 中微公司 盛美上海</text>
-<rect x="62" y="558" width="196" height="12" rx="3" fill="#fef2f2"/>
-<text x="160" y="567" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 5nm刻蚀机通过验证 · 🏭 2026H2产能翻倍</text>
-
-<!-- 晶圆制造 -->
-<rect x="300" y="465" width="200" height="115" rx="8" fill="#fff" stroke="#6366f1" stroke-width="2.5" filter="url(#shadow)"/>
-<text x="400" y="488" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text-primary)">晶圆制造</text>
-<text x="400" y="507" text-anchor="middle" font-size="10" fill="var(--text-secondary)">代工/IDM/特色工艺</text>
-<line x1="315" y1="515" x2="485" y2="515" stroke="#e2e8f0" stroke-width="1"/>
-<text x="315" y="530" font-size="9" fill="var(--text-secondary)">毛利率 22.8% | 国产化率 18%</text>
-<text x="315" y="543" font-size="9" fill="#ef4444">壁垒 极高</text>
-<text x="315" y="556" font-size="9" fill="var(--text-secondary)">核心: 中芯国际 华虹半导体 晶合集成</text>
-<rect x="302" y="558" width="196" height="12" rx="3" fill="#fef2f2"/>
-<text x="400" y="567" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 14nm良率突破92% · 🏭 北京新厂Q4投产</text>
-
-<!-- 封装测试 -->
-<rect x="540" y="465" width="200" height="115" rx="8" fill="#fff" stroke="#6366f1" stroke-width="2.5" filter="url(#shadow)"/>
-<text x="640" y="488" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text-primary)">封装测试</text>
-<text x="640" y="507" text-anchor="middle" font-size="10" fill="var(--text-secondary)">传统封装/先进封装</text>
-<line x1="555" y1="515" x2="725" y2="515" stroke="#e2e8f0" stroke-width="1"/>
-<text x="555" y="530" font-size="9" fill="var(--text-secondary)">毛利率 18.4% | 国产化率 42%</text>
-<text x="555" y="543" font-size="9" fill="var(--text-secondary)">壁垒 中</text>
-<text x="555" y="556" font-size="9" fill="var(--text-secondary)">核心: 长电科技 通富微电 华天科技</text>
-<rect x="542" y="558" width="196" height="12" rx="3" fill="#fef2f2"/>
-<text x="640" y="567" text-anchor="middle" font-size="8" fill="#ef4444">⚡ Chiplet封装量产 · 🏭 CoWoS产能扩建</text>
-
-<!-- EDA -->
-<rect x="780" y="465" width="200" height="128" rx="8" fill="#fff" stroke="#6366f1" stroke-width="2.5" filter="url(#shadow)"/>
-<text x="880" y="488" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text-primary)">EDA工具</text>
-<text x="880" y="507" text-anchor="middle" font-size="10" fill="var(--text-secondary)">全流程/点工具/IP核</text>
-<line x1="795" y1="515" x2="965" y2="515" stroke="#e2e8f0" stroke-width="1"/>
-<text x="795" y="530" font-size="9" fill="var(--text-secondary)">毛利率 89.6% | 国产化率 8%</text>
-<text x="795" y="543" font-size="9" fill="#ef4444">壁垒 极高</text>
-<text x="795" y="556" font-size="9" fill="var(--text-secondary)">核心: 华大九天 概伦电子 广立微</text>
-<rect x="782" y="558" width="196" height="12" rx="3" fill="#fef2f2"/>
-<text x="880" y="567" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 全流程工具链v5.0打通</text>
-<rect x="782" y="571" width="196" height="12" rx="3" fill="#eff6ff"/>
-<text x="880" y="580" text-anchor="middle" font-size="8" fill="#3b82f6">📋 工信部专项支持</text>
-
-<!-- 光刻设备 -->
-<rect x="1020" y="465" width="200" height="102" rx="8" fill="#fff" stroke="#6366f1" stroke-width="2" filter="url(#shadow)"/>
-<text x="1120" y="488" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">光刻设备</text>
-<text x="1120" y="507" text-anchor="middle" font-size="10" fill="var(--text-secondary)">光刻机/光源/光学系统</text>
-<line x1="1035" y1="515" x2="1205" y2="515" stroke="#e2e8f0" stroke-width="1"/>
-<text x="1035" y="530" font-size="9" fill="var(--text-secondary)">毛利率 35.8% | 国产化率 3%</text>
-<text x="1035" y="543" font-size="9" fill="#ef4444">壁垒 极高</text>
-<text x="1035" y="556" font-size="9" fill="var(--text-secondary)">核心: 上海微电子 国望光学</text>
-<rect x="1022" y="558" width="196" height="12" rx="3" fill="#fef2f2"/>
-<text x="1120" y="567" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 28nm浸没式原型机测试中</text>
-
-<!-- MIDSTREAM ROW 2 - 检测设备 -->
-<rect x="60" y="620" width="200" height="90" rx="8" fill="#fff" stroke="#6366f1" stroke-width="2" filter="url(#shadow)"/>
-<text x="160" y="640" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">检测设备</text>
-<text x="160" y="657" text-anchor="middle" font-size="10" fill="var(--text-secondary)">晶圆检测/量测/缺陷分析</text>
-<line x1="75" y1="665" x2="245" y2="665" stroke="#e2e8f0" stroke-width="1"/>
-<text x="75" y="678" font-size="9" fill="var(--text-secondary)">毛利率 52.3% | 国产化率 15% | 壁垒 高</text>
-<text x="75" y="691" font-size="9" fill="var(--text-secondary)">核心: 精测电子 中科飞测 天准科技</text>
-
-<!-- 横线连接中游内部 -->
-<line x1="260" y1="522" x2="300" y2="522" stroke="#6366f1" stroke-width="1" marker-end="url(#arrowGray)"/>
-<line x1="500" y1="522" x2="540" y2="522" stroke="#6366f1" stroke-width="1" marker-end="url(#arrowGray)"/>
-<line x1="740" y1="522" x2="780" y2="522" stroke="#6366f1" stroke-width="1" marker-end="url(#arrowGray)"/>
-<line x1="980" y1="522" x2="1020" y2="522" stroke="#6366f1" stroke-width="1" marker-end="url(#arrowGray)"/>
-
-<!-- ====== MIDSTREAM FLOW ARROWS (to downstream) ====== -->
-<line x1="160" y1="720" x2="160" y2="800" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
-<line x1="400" y1="590" x2="400" y2="800" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
-<line x1="640" y1="590" x2="640" y2="800" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
-<line x1="880" y1="593" x2="880" y2="800" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
-<line x1="1120" y1="577" x2="1120" y2="800" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGray)"/>
-
-<text x="700" y="745" text-anchor="middle" font-size="11" fill="#9ca3af">↓ 芯片产品交付 · 模组集成 · 系统应用 ↓</text>
-
-
-<!-- ====== DOWNSTREAM ====== -->
-
-<!-- AI服务器 -->
-<rect x="60" y="815" width="185" height="100" rx="8" fill="#fff" stroke="#10b981" stroke-width="2" filter="url(#shadow)"/>
-<text x="152" y="838" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text-primary)">AI服务器</text>
-<text x="152" y="857" text-anchor="middle" font-size="10" fill="var(--text-secondary)">算力基础设施</text>
-<line x1="75" y1="865" x2="230" y2="865" stroke="#e2e8f0" stroke-width="1"/>
-<text x="75" y="880" font-size="9" fill="var(--text-secondary)">毛利率 8.2% | 增速 +85.6%</text>
-<text x="75" y="893" font-size="9" fill="var(--text-secondary)">市场 2,860亿 核心: 工业富联</text>
-<rect x="62" y="905" width="181" height="12" rx="3" fill="#ecfdf5"/>
-<text x="152" y="914" text-anchor="middle" font-size="8" fill="#10b981">🏭 AI服务器出货同比+240%</text>
-
-<!-- 消费电子 -->
-<rect x="280" y="815" width="185" height="100" rx="8" fill="#fff" stroke="#10b981" stroke-width="2" filter="url(#shadow)"/>
-<text x="372" y="838" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text-primary)">消费电子</text>
-<text x="372" y="857" text-anchor="middle" font-size="10" fill="var(--text-secondary)">手机/PC/可穿戴</text>
-<line x1="295" y1="865" x2="450" y2="865" stroke="#e2e8f0" stroke-width="1"/>
-<text x="295" y="880" font-size="9" fill="var(--text-secondary)">毛利率 12.5% | 增速 +8.3%</text>
-<text x="295" y="893" font-size="9" fill="var(--text-secondary)">市场 12,400亿 核心: 立讯精密</text>
-
-<!-- 汽车电子 -->
-<rect x="500" y="815" width="185" height="100" rx="8" fill="#fff" stroke="#10b981" stroke-width="2" filter="url(#shadow)"/>
-<text x="592" y="838" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text-primary)">汽车电子</text>
-<text x="592" y="857" text-anchor="middle" font-size="10" fill="var(--text-secondary)">智能座舱/自动驾驶</text>
-<line x1="515" y1="865" x2="670" y2="865" stroke="#e2e8f0" stroke-width="1"/>
-<text x="515" y="880" font-size="9" fill="var(--text-secondary)">毛利率 24.1% | 增速 +32.5%</text>
-<text x="515" y="893" font-size="9" fill="var(--text-secondary)">市场 4,520亿 核心: 德赛西威</text>
-<rect x="502" y="905" width="181" height="12" rx="3" fill="#fef2f2"/>
-<text x="592" y="914" text-anchor="middle" font-size="8" fill="#ef4444">⚡ 高通8295平台量产装车</text>
-
-<!-- 工业控制 -->
-<rect x="720" y="815" width="185" height="100" rx="8" fill="#fff" stroke="#10b981" stroke-width="2" filter="url(#shadow)"/>
-<text x="812" y="838" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text-primary)">工业控制</text>
-<text x="812" y="857" text-anchor="middle" font-size="10" fill="var(--text-secondary)">PLC/变频器/机器人</text>
-<line x1="735" y1="865" x2="890" y2="865" stroke="#e2e8f0" stroke-width="1"/>
-<text x="735" y="880" font-size="9" fill="var(--text-secondary)">毛利率 35.8% | 增速 +18.2%</text>
-<text x="735" y="893" font-size="9" fill="var(--text-secondary)">市场 3,180亿 核心: 汇川技术</text>
-
-<!-- 通信基站 -->
-<rect x="940" y="815" width="185" height="100" rx="8" fill="#fff" stroke="#10b981" stroke-width="2" filter="url(#shadow)"/>
-<text x="1032" y="838" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text-primary)">通信基站</text>
-<text x="1032" y="857" text-anchor="middle" font-size="10" fill="var(--text-secondary)">5G-A/6G通信芯片</text>
-<line x1="955" y1="865" x2="1110" y2="865" stroke="#e2e8f0" stroke-width="1"/>
-<text x="955" y="880" font-size="9" fill="var(--text-secondary)">毛利率 28.5% | 增速 +12.6%</text>
-<text x="955" y="893" font-size="9" fill="var(--text-secondary)">市场 1,850亿 核心: 中兴通讯</text>
-
-<!-- ====== BOTTLENECK MARKERS ====== -->
-<!-- 光刻机 -->
-<circle cx="1155" cy="492" r="18" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
-<text x="1155" y="496" text-anchor="middle" font-size="10" fill="#ef4444">⚠</text>
-<text x="1155" y="520" text-anchor="middle" font-size="8" fill="#ef4444">3%国产化</text>
-
-<!-- EDA -->
-<circle cx="940" cy="492" r="18" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
-<text x="940" y="496" text-anchor="middle" font-size="10" fill="#ef4444">⚠</text>
-<text x="940" y="520" text-anchor="middle" font-size="8" fill="#ef4444">8%国产化</text>
-
-<!-- 光刻胶 -->
-<circle cx="565" cy="80" r="18" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
-<text x="565" y="84" text-anchor="middle" font-size="10" fill="#ef4444">⚠</text>
-<text x="565" y="106" text-anchor="middle" font-size="8" fill="#ef4444">15%国产化</text>
-
-<!-- 封装基板 -->
-<circle cx="385" cy="245" r="18" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
-<text x="385" y="249" text-anchor="middle" font-size="10" fill="#ef4444">⚠</text>
-<text x="385" y="271" text-anchor="middle" font-size="8" fill="#ef4444">12%国产化</text>
-
-<!-- ====== VALUE HIGHLIGHT ====== -->
-<!-- EDA最高毛利标记 -->
-<rect x="775" y="440" width="80" height="18" rx="4" fill="#fef2f2"/>
-<text x="815" y="453" text-anchor="middle" font-size="9" font-weight="700" fill="#ef4444">★ 89.6%毛利</text>
-
-<!-- CMP材料标记 -->
-<rect x="775" y="40" width="72" height="18" rx="4" fill="#fef2f2"/>
-<text x="811" y="53" text-anchor="middle" font-size="9" font-weight="700" fill="#ef4444">★ 52.8%毛利</text>
-
-<!-- AI服务器增速标记 -->
-<rect x="55" y="795" width="80" height="18" rx="4" fill="#ecfdf5"/>
-<text x="95" y="808" text-anchor="middle" font-size="9" font-weight="700" fill="#10b981">★ +85.6%增速</text>
-
+<!-- 毛利率×国产化率矩阵 + 价值分布 -->
+<div class="grid-2">
+<div class="card">
+<div class="card-header"><span class="card-title">毛利率 × 国产化率矩阵</span>
+<span style="font-size:10px;color:var(--text-tertiary)">
+<span style="color:#58a6ff">■</span> 上游
+<span style="color:#5e6ad2;margin-left:6px">■</span> 中游
+<span style="color:#2ea043;margin-left:6px">■</span> 下游
+</span></div>
+<div class="card-body">
+<svg viewBox="0 0 480 300" width="100%" xmlns="http://www.w3.org/2000/svg">
+<!-- 均值分界线 -->
+<line x1="50" y1="150" x2="460" y2="150" stroke="#3a3f4b" stroke-dasharray="4,4"/>
+<line x1="255" y1="20" x2="255" y2="280" stroke="#3a3f4b" stroke-dasharray="4,4"/>
+<!-- 轴 -->
+<line x1="50" y1="280" x2="460" y2="280" stroke="#3a3f4b"/>
+<line x1="50" y1="20" x2="50" y2="280" stroke="#3a3f4b"/>
+<text x="255" y="296" text-anchor="middle" fill="#5c616e" font-size="10">国产化率 %</text>
+<text x="18" y="150" fill="#5c616e" font-size="10" transform="rotate(-90 18 150)" text-anchor="middle">毛利率 %</text>
+<!-- 象限标注 -->
+<text x="60" y="34" fill="#5c616e" font-size="9">高毛利 · 低国产化（替代空间）</text>
+<text x="368" y="34" fill="#5c616e" font-size="9">双高（优势环节）</text>
+<text x="60" y="270" fill="#5c616e" font-size="9">双低</text>
+<text x="318" y="270" fill="#5c616e" font-size="9">高国产化 · 低毛利</text>
+<!-- 散点 -->
+<circle cx="105" cy="60" r="8" fill="#58a6ff" opacity=".85"/><text x="105" y="44" text-anchor="middle" fill="#8a8f98" font-size="9">光刻胶</text>
+<circle cx="150" cy="90" r="8" fill="#58a6ff" opacity=".85"/><text x="150" y="76" text-anchor="middle" fill="#8a8f98" font-size="9">零部件</text>
+<circle cx="215" cy="120" r="8" fill="#58a6ff" opacity=".85"/><text x="215" y="106" text-anchor="middle" fill="#8a8f98" font-size="9">特气</text>
+<circle cx="130" cy="190" r="8" fill="#58a6ff" opacity=".85"/><text x="130" y="210" text-anchor="middle" fill="#8a8f98" font-size="9">硅片</text>
+<circle cx="205" cy="55" r="8" fill="#5e6ad2" opacity=".85"/><text x="205" y="41" text-anchor="middle" fill="#8a8f98" font-size="9">设备</text>
+<circle cx="310" cy="105" r="8" fill="#5e6ad2" opacity=".85"/><text x="310" y="91" text-anchor="middle" fill="#8a8f98" font-size="9">EDA/IP</text>
+<circle cx="285" cy="235" r="8" fill="#5e6ad2" opacity=".85"/><text x="285" y="255" text-anchor="middle" fill="#8a8f98" font-size="9">封测</text>
+<circle cx="355" cy="200" r="8" fill="#2ea043" opacity=".85"/><text x="355" y="220" text-anchor="middle" fill="#8a8f98" font-size="9">消费电子</text>
+<circle cx="400" cy="150" r="8" fill="#2ea043" opacity=".85"/><text x="400" y="136" text-anchor="middle" fill="#8a8f98" font-size="9">算力</text>
+<circle cx="430" cy="245" r="8" fill="#2ea043" opacity=".85"/><text x="430" y="265" text-anchor="middle" fill="#8a8f98" font-size="9">工控</text>
 </svg>
 </div>
-
 </div>
 
-<!-- Analysis Tabs: AI 综述 / 价值分析 / 瓶颈与标的 / 机会与风险 -->
 <div class="card">
-<div class="tabs-bar">
-<div class="tab-item active" data-tab="pane-summary">AI 综述</div>
-<div class="tab-item" data-tab="pane-value">价值分析</div>
-<div class="tab-item" data-tab="pane-bottleneck">瓶颈与标的</div>
-<div class="tab-item" data-tab="pane-signal">机会与风险</div>
+<div class="card-header"><span class="card-title">价值分布</span></div>
+<div class="card-body">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px">
+<div><div style="font-size:11px;color:var(--text-tertiary)">最高毛利环节</div><div style="font-size:16px;font-weight:600;color:var(--text-primary)">光刻胶 <span class="text-mono" style="font-size:12px;color:var(--text-secondary)">52.4%</span></div></div>
+<div><div style="font-size:11px;color:var(--text-tertiary)">最低毛利环节</div><div style="font-size:16px;font-weight:600;color:var(--text-primary)">封装测试 <span class="text-mono" style="font-size:12px;color:var(--text-secondary)">18.6%</span></div></div>
 </div>
-
-<!-- Tab: AI 综述 -->
-<div class="tab-pane active" id="pane-summary">
-<p style="font-size:var(--text-base);color:var(--text-secondary);line-height:1.8;margin-bottom:var(--space-4)">
-半导体产业链呈现<strong>上游高壁垒、高毛利；中游重资产、国产替代加速；下游应用分化、AI需求爆发</strong>的三层结构。
-EDA工具（89.6%）和CMP抛光材料（52.8%）是毛利率最高的环节，同时也是国产化率最低的环节（分别仅8%和25%），构成产业链的"价值-风险"双高区域。
-在投资机会矩阵中，<strong style="color:var(--red)">高毛利 × 低国产化率</strong>象限（EDA、光刻胶、CMP材料、检测设备、光刻设备）是替代机会最大的方向。
-</p>
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--space-4)">
-<div style="padding:var(--space-3);background:rgba(248,81,73,.08);border-radius:var(--radius-md);border-left:3px solid var(--red)">
-<div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px">最大投资机会</div>
-<div style="font-size:var(--text-sm);color:var(--text-primary);font-weight:500">半导体设备国产替代</div>
-<div style="font-size:var(--text-xs);color:var(--text-secondary)">刻蚀/薄膜/检测设备在28nm以上已规模化替代，14nm以下增量空间巨大</div>
-</div>
-<div style="padding:var(--space-3);background:rgba(88,166,255,.08);border-radius:var(--radius-md);border-left:3px solid var(--blue)">
-<div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px">最大催化剂</div>
-<div style="font-size:var(--text-sm);color:var(--text-primary);font-weight:500">AI算力需求×国产替代加速</div>
-<div style="font-size:var(--text-xs);color:var(--text-secondary)">英伟达/华为需求拉动的叠加效应，先进封装和AI芯片设计工具需求井喷</div>
-</div>
-<div style="padding:var(--space-3);background:rgba(210,153,34,.08);border-radius:var(--radius-md);border-left:3px solid var(--amber)">
-<div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:4px">最大风险</div>
-<div style="font-size:var(--text-sm);color:var(--text-primary);font-weight:500">地缘政治供应链扰动</div>
-<div style="font-size:var(--text-xs);color:var(--text-secondary)">出口管制升级可能影响高端设备、EDA软件和先进材料的供应稳定性</div>
+<div class="vd-row"><span class="vd-name">光刻胶</span><div class="vd-bar"><i style="width:100%"></i></div><span class="vd-val">52.4%</span></div>
+<div class="vd-row"><span class="vd-name">EDA/IP</span><div class="vd-bar"><i style="width:82%"></i></div><span class="vd-val">43.1%</span></div>
+<div class="vd-row"><span class="vd-name">设备零部件</span><div class="vd-bar"><i style="width:72%"></i></div><span class="vd-val">37.8%</span></div>
+<div class="vd-row"><span class="vd-name">电子特气</span><div class="vd-bar"><i style="width:63%"></i></div><span class="vd-val">33.0%</span></div>
+<div class="vd-row"><span class="vd-name">晶圆代工</span><div class="vd-bar"><i style="width:56%"></i></div><span class="vd-val">29.2%</span></div>
+<div class="vd-row"><span class="vd-name">硅片</span><div class="vd-bar"><i style="width:42%"></i></div><span class="vd-val">22.0%</span></div>
+<div class="vd-row"><span class="vd-name">封装测试</span><div class="vd-bar"><i style="width:35%"></i></div><span class="vd-val">18.6%</span></div>
 </div>
 </div>
 </div>
 
-<!-- Tab: 价值分析 -->
-<div class="tab-pane" id="pane-value">
-<div class="grid-2">
-<div>
-<div style="font-size:var(--text-sm);font-weight:600;color:var(--text-primary);margin-bottom:var(--space-3)">毛利率 × 国产化率 矩阵 <span style="font-size:var(--text-xs);color:var(--text-tertiary);font-weight:400">投资机会象限</span></div>
-<div class="matrix-grid">
-<div class="matrix-cell matrix-header"></div><div class="matrix-cell matrix-header">国产化率低<br>&lt;30%</div><div class="matrix-cell matrix-header">国产化率中<br>30-50%</div><div class="matrix-cell matrix-header">国产化率高<br>>50%</div><div class="matrix-cell matrix-header">国产化率极高<br>>70%</div>
-<div class="matrix-cell matrix-header">高毛利<br>>40%</div>
-<div class="matrix-cell highlight" style="font-size:10px"><strong>★★★★★</strong><br>EDA工具<br>光刻胶<br>CMP材料<br>光刻设备<br>检测设备</div>
-<div class="matrix-cell" style="font-size:10px;background:rgba(210,153,34,.08)"><strong>★★★★</strong><br>电子特气<br>石英材料</div>
-<div class="matrix-cell" style="font-size:10px"><strong>★★★</strong><br>湿电子化学品</div>
-<div class="matrix-cell" style="font-size:10px">—</div>
-<div class="matrix-cell matrix-header">中毛利<br>20-40%</div>
-<div class="matrix-cell" style="font-size:10px;background:rgba(210,153,34,.08)"><strong>★★★★</strong><br>半导体设备</div>
-<div class="matrix-cell" style="font-size:10px"><strong>★★★</strong><br>硅材料<br>靶材</div>
-<div class="matrix-cell" style="font-size:10px">—</div><div class="matrix-cell" style="font-size:10px">—</div>
-<div class="matrix-cell matrix-header">低毛利<br>&lt;20%</div>
-<div class="matrix-cell" style="font-size:10px"><strong>★★★</strong><br>封装基板</div>
-<div class="matrix-cell" style="font-size:10px"><strong>★★</strong><br>封装测试</div>
-<div class="matrix-cell" style="font-size:10px">—</div><div class="matrix-cell" style="font-size:10px">—</div>
+<!-- 洞察分析（机会/风险/瓶颈 tabs）+ 核心标的 -->
+<div class="grid-insight">
+<div class="card">
+<div class="card-body">
+<div class="itabs">
+<span class="itab active">机会 (4)</span>
+<span class="itab">风险 (3)</span>
+<span class="itab">瓶颈 (5)</span>
 </div>
-<div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-top:var(--space-2)">★ 越多代表替代机会越大。高毛利+低国产化率=最大投资机会</div>
+<div class="insight-card opp">
+<div class="ic-head"><span class="ic-title">高端光刻胶国产替代窗口开启</span><span class="tag tag-green">置信 高</span><span class="tag">光刻胶</span></div>
+<div class="ic-desc">ArF 品类通过存储客户验证 + 大基金三期注资，2 年内国产化率有望从 14% 提升至 30%，弹性最大环节。</div>
 </div>
-<div>
-<div style="font-size:var(--text-sm);font-weight:600;color:var(--text-primary);margin-bottom:var(--space-3)">价值分布（毛利率排序）</div>
-<div style="display:flex;flex-direction:column;gap:var(--space-4)">
-<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>EDA工具</span><span style="color:var(--accent);font-weight:600">89.6%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:89.6%;background:var(--accent)"></div></div></div>
-<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>CMP抛光材料</span><span style="color:var(--accent);font-weight:600">52.8%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:52.8%;background:var(--accent)"></div></div></div>
-<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>检测设备</span><span style="color:var(--accent);font-weight:600">52.3%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:52.3%;background:var(--accent)"></div></div></div>
-<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>半导体设备</span><span style="color:var(--accent);font-weight:600">46.2%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:46.2%;background:var(--accent)"></div></div></div>
-<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>石英材料</span><span style="color:var(--accent);font-weight:600">45.2%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:45.2%;background:var(--accent)"></div></div></div>
-<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>光刻胶</span><span style="color:var(--accent);font-weight:600">42.1%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:42.1%;background:var(--accent)"></div></div></div>
-<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>电子特气</span><span style="color:var(--text-secondary);font-weight:600">38.7%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:38.7%;background:var(--text-tertiary)"></div></div></div>
-<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>晶圆制造</span><span style="color:var(--text-secondary);font-weight:600">22.8%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:22.8%;background:var(--text-tertiary)"></div></div></div>
-<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>封装测试</span><span style="color:var(--text-tertiary);font-weight:600">18.4%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:18.4%;background:var(--text-tertiary)"></div></div></div>
-<div><div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:2px"><span>AI服务器</span><span style="color:var(--text-tertiary);font-weight:600">8.2%</span></div><div class="analysis-meter"><div class="analysis-meter-fill" style="width:8.2%;background:var(--text-tertiary)"></div></div></div>
+<div class="insight-card opp">
+<div class="ic-head"><span class="ic-title">设备零部件受益晶圆厂扩产</span><span class="tag tag-green">置信 高</span><span class="tag">设备零部件</span></div>
+<div class="ic-desc">下游扩产周期延续至 2027，零部件作为后周期品类接力放量，且不受先进制程出口管制直接约束。</div>
 </div>
+<div class="insight-card opp">
+<div class="ic-head"><span class="ic-title">算力需求拉动先进封装</span><span class="tag tag-amber">置信 中</span><span class="tag">封装测试</span></div>
+<div class="ic-desc">AI 芯片对 2.5D/3D 封装需求激增，先进封装产能稀缺性上升，关注中游封测龙头扩产节奏。</div>
 </div>
 </div>
 </div>
 
-<!-- Tab: 瓶颈与标的 -->
-<div class="tab-pane" id="pane-bottleneck">
-<div class="grid-2">
-<div>
-<div style="font-size:var(--text-sm);font-weight:600;color:var(--text-primary);margin-bottom:var(--space-3)">瓶颈与卡脖子风险 <span class="tag tag-red">4 个关注点</span></div>
-<div style="display:flex;flex-direction:column;gap:var(--space-3)">
-<div class="bottleneck-card danger"><div class="bottleneck-title">⚠ 光刻机 — 国产化率 3%</div><div class="bottleneck-desc">ASML垄断高端EUV光刻机。上海微电子28nm原型机测试中，量产时间表不确定。</div></div>
-<div class="bottleneck-card danger"><div class="bottleneck-title">⚠ EDA生态 — 国产化率 8%</div><div class="bottleneck-desc">国产EDA覆盖率约30%，先进制程全流程仍依赖Synopsys/Cadence/Mentor。</div></div>
-<div class="bottleneck-card warning"><div class="bottleneck-title">⚡ 先进制程良率 — 国产化率 18%</div><div class="bottleneck-desc">14nm良率92%，但7nm以下与台积电存在2-3代差距。</div></div>
-<div class="bottleneck-card warning"><div class="bottleneck-title">⚡ ABF载板 — 国产化率 12%</div><div class="bottleneck-desc">全球产能集中在日本味之素，深南电路验证通过但产能爬坡慢。</div></div>
-</div>
-</div>
-<div>
-<div style="font-size:var(--text-sm);font-weight:600;color:var(--text-primary);margin-bottom:var(--space-3)">核心标的</div>
-<div class="signal-item"><div style="display:flex;align-items:center;gap:var(--space-2)"><strong>北方华创</strong><span class="tag tag-purple">半导体设备</span></div><div style="font-size:var(--text-xs);color:var(--text-secondary)">刻蚀/薄膜沉积平台型龙头，5nm 刻蚀机通过产线验证</div></div>
-<div class="signal-item"><div style="display:flex;align-items:center;gap:var(--space-2)"><strong>中芯国际</strong><span class="tag tag-purple">晶圆制造</span></div><div style="font-size:var(--text-xs);color:var(--text-secondary)">14nm 良率 92%，北京 12 英寸新厂 Q4 投产</div></div>
-<div class="signal-item"><div style="display:flex;align-items:center;gap:var(--space-2)"><strong>华大九天</strong><span class="tag tag-purple">EDA工具</span></div><div style="font-size:var(--text-xs);color:var(--text-secondary)">全流程 EDA 工具链 v5.0 打通，国产替代核心受益</div></div>
-<div class="signal-item"><div style="display:flex;align-items:center;gap:var(--space-2)"><strong>南大光电</strong><span class="tag tag-purple">光刻胶</span></div><div style="font-size:var(--text-xs);color:var(--text-secondary)">ArF 光刻胶验证进入最后阶段，获大基金二期注资</div></div>
-<div class="signal-item"><div style="display:flex;align-items:center;gap:var(--space-2)"><strong>长电科技</strong><span class="tag tag-purple">封装测试</span></div><div style="font-size:var(--text-xs);color:var(--text-secondary)">Chiplet 先进封装量产，获 AMD/英伟达订单</div></div>
+<div class="card">
+<div class="card-header"><span class="card-title">核心标的</span><span style="font-size:11px;color:var(--text-tertiary)">Top 10 · 按综合评分</span></div>
+<div class="card-body card-body-sm">
+<div class="kc-item"><span class="kc-rank">1</span><span class="kc-main"><span class="kc-name">北方华创</span><span class="kc-code">002371</span><span class="tag" style="margin-left:6px">中游设备</span></span><span class="kc-score"><i style="width:92%"></i></span></div>
+<div class="kc-item"><span class="kc-rank">2</span><span class="kc-main"><span class="kc-name">中微公司</span><span class="kc-code">688012</span><span class="tag" style="margin-left:6px">中游设备</span></span><span class="kc-score"><i style="width:87%"></i></span></div>
+<div class="kc-item"><span class="kc-rank">3</span><span class="kc-main"><span class="kc-name">南大光电</span><span class="kc-code">300346</span><span class="tag" style="margin-left:6px">上游材料</span></span><span class="kc-score"><i style="width:81%"></i></span></div>
+<div class="kc-item"><span class="kc-rank">4</span><span class="kc-main"><span class="kc-name">中芯国际</span><span class="kc-code">688981</span><span class="tag" style="margin-left:6px">中游制造</span></span><span class="kc-score"><i style="width:78%"></i></span></div>
+<div class="kc-item"><span class="kc-rank">5</span><span class="kc-main"><span class="kc-name">富创精密</span><span class="kc-code">688409</span><span class="tag" style="margin-left:6px">上游零部件</span></span><span class="kc-score"><i style="width:74%"></i></span></div>
+<div class="kc-item"><span class="kc-rank">6</span><span class="kc-main"><span class="kc-name">华海清科</span><span class="kc-code">688120</span><span class="tag" style="margin-left:6px">中游设备</span></span><span class="kc-score"><i style="width:70%"></i></span></div>
+<div class="kc-item"><span class="kc-rank">7</span><span class="kc-main"><span class="kc-name">长电科技</span><span class="kc-code">600584</span><span class="tag" style="margin-left:6px">中游封测</span></span><span class="kc-score"><i style="width:66%"></i></span></div>
+<div class="kc-item"><span class="kc-rank">8</span><span class="kc-main"><span class="kc-name">彤程新材</span><span class="kc-code">603650</span><span class="tag" style="margin-left:6px">上游材料</span></span><span class="kc-score"><i style="width:63%"></i></span></div>
 </div>
 </div>
 </div>
 
-<!-- Tab: 机会与风险 -->
-<div class="tab-pane" id="pane-signal">
-<div class="grid-2">
-<div>
-<div style="font-size:var(--text-sm);font-weight:600;color:var(--text-primary);margin-bottom:var(--space-3)">机会</div>
-<div class="signal-item"><div style="display:flex;align-items:center;gap:var(--space-2)"><strong style="color:var(--green)">AI 算力拉动先进封装</strong><span class="tag tag-purple">封装测试</span><span class="tag tag-green">置信度 高</span></div><div style="font-size:var(--text-xs);color:var(--text-secondary)">Chiplet/CoWoS 产能紧缺，订单外溢至国内封测厂</div></div>
-<div class="signal-item"><div style="display:flex;align-items:center;gap:var(--space-2)"><strong style="color:var(--green)">国产 EDA 政策催化</strong><span class="tag tag-purple">EDA工具</span><span class="tag tag-green">置信度 中</span></div><div style="font-size:var(--text-xs);color:var(--text-secondary)">专项支持叠加三期基金投向工具软件</div></div>
-<div class="signal-item"><div style="display:flex;align-items:center;gap:var(--space-2)"><strong style="color:var(--green)">设备零部件国产化</strong><span class="tag tag-purple">半导体设备</span><span class="tag tag-green">置信度 中</span></div><div style="font-size:var(--text-xs);color:var(--text-secondary)">射频电源/真空泵等零部件验证放量</div></div>
-</div>
-<div>
-<div style="font-size:var(--text-sm);font-weight:600;color:var(--text-primary);margin-bottom:var(--space-3)">风险</div>
-<div class="signal-item"><div style="display:flex;align-items:center;gap:var(--space-2)"><strong style="color:var(--red)">出口管制升级</strong><span class="tag tag-purple">半导体设备</span><span class="tag tag-red">严重度 高</span></div><div style="font-size:var(--text-xs);color:var(--text-secondary)">高端设备与 EDA 软件断供风险上升</div></div>
-<div class="signal-item"><div style="display:flex;align-items:center;gap:var(--space-2)"><strong style="color:var(--red)">成熟制程产能过剩</strong><span class="tag tag-purple">晶圆制造</span><span class="tag tag-red">严重度 中</span></div><div style="font-size:var(--text-xs);color:var(--text-secondary)">代工价格战压制环节毛利率</div></div>
-<div class="signal-item"><div style="display:flex;align-items:center;gap:var(--space-2)"><strong style="color:var(--red)">消费电子需求疲软</strong><span class="tag tag-purple">消费电子</span><span class="tag tag-red">严重度 中</span></div><div style="font-size:var(--text-xs);color:var(--text-secondary)">手机/PC 换机周期拉长，库存去化缓慢</div></div>
-</div>
-</div>
-</div>
+<!-- 实现说明 -->
+<div class="type-note">
+<div class="tn-title">实现说明（对齐 web 实际代码 ChainAnalysis.tsx）</div>
+「重新分析 / 新建分析」经 AI 助手侧边栏执行（sendQuestion），可观察 Agent 读取资料与调工具全过程，完成后经 chain_analysis.complete 事件自动刷新图谱与版本列表；「版本对比」为抽屉式双版本 diff；节点详情浮层可收起（收起后画布右上出现「节点详情」恢复按钮）与关闭；产业链提醒空态折叠为单行细条；矩阵象限分界为各维度均值。
 </div>
 
 </div></div></div>
-
-<!-- AI Assistant Drawer: 分析过程可见 + 结果确认 -->
-<div class="assistant-mask"></div>
-<div class="assistant-drawer">
-<div class="assistant-header">
-<span style="font-weight:600;font-size:var(--text-base)">✦ AI 产业链分析助手</span>
-<button class="btn btn-ghost btn-sm" id="btn-close-assistant">✕</button>
 </div>
-<div class="assistant-body">
-<div class="msg-user">分析「半导体」产业链</div>
-<div class="msg-assistant">
-<div class="stage-item"><span class="stage-icon stage-done">✓</span><span>已找到 176 家上市公司</span><span class="stage-elapsed">1.2s</span></div>
-<div class="stage-item"><span class="stage-icon stage-done">✓</span><span>财务数据预取完成 · 40 家重点标的</span><span class="stage-elapsed">3.8s</span></div>
-<div class="stage-item"><span class="stage-icon stage-done">✓</span><span>近期新闻与公告检索完成 · 32 条</span><span class="stage-elapsed">2.4s</span></div>
-<div class="stage-item"><span class="stage-icon stage-done">✓</span><span>知识库研报匹配完成 · 18 篇</span><span class="stage-elapsed">2.1s</span></div>
-<div class="stage-item"><span class="stage-icon"><span class="stage-spinner"></span></span><span class="stage-running">正在推导细分环节并生成图谱…</span><span class="stage-elapsed">87s</span></div>
-</div>
-<div class="msg-assistant">
-<div class="result-card">
-<div style="font-weight:600">分析完成，已生成草稿 v13</div>
-<div class="result-stats"><span>24 环节</span><span>28 供应关系</span><span>5 核心标的</span></div>
-<div style="font-size:var(--text-xs);color:var(--text-secondary)">上游材料国产替代加速，光刻/EDA 仍为关键瓶颈；AI 算力拉动先进封装景气度上行…</div>
-<div class="result-actions">
-<button class="btn btn-primary btn-sm">确认更新图谱</button>
-<button class="btn btn-ghost btn-sm">放弃</button>
-</div>
-<div style="font-size:10px;color:var(--text-tertiary);margin-top:8px">确认后图谱更新为 v13 · 放弃则不保留本次结果</div>
-</div>
-</div>
-</div>
-<div class="assistant-footer">分析过程约 1-2 分钟 · 关闭面板将中断本次分析</div>
-</div>
-
-<script>
-document.getElementById('btn-open-assistant').addEventListener('click',function(){document.body.classList.add('assistant-open')});
-document.getElementById('btn-close-assistant').addEventListener('click',function(){document.body.classList.remove('assistant-open')});
-document.querySelector('.assistant-mask').addEventListener('click',function(){document.body.classList.remove('assistant-open')});
-document.querySelectorAll('.tab-item').forEach(function(t){
-  t.addEventListener('click',function(){
-    document.querySelectorAll('.tab-item').forEach(function(x){x.classList.toggle('active',x===t)});
-    document.querySelectorAll('.tab-pane').forEach(function(p){p.classList.toggle('active',p.id===t.dataset.tab)});
-  });
-});
-</script>
 </body>
 </html>
