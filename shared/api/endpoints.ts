@@ -8,6 +8,7 @@ export const ENDPOINTS = {
   },
   users: {
     me: `${API_BASE}/users/me`,
+    mePassword: `${API_BASE}/users/me/password`,
     meSettings: `${API_BASE}/users/me/settings`,
     watchlist: `${API_BASE}/users/watchlist`,
     watchlistQuotes: `${API_BASE}/users/watchlist/quotes`,
@@ -56,9 +57,11 @@ export const ENDPOINTS = {
     list: `${API_BASE}/skills`,
     create: `${API_BASE}/skills`,
     detail: (skillId: string) => `${API_BASE}/skills/${skillId}`,
+    files: (skillId: string) => `${API_BASE}/skills/${skillId}/files`,
     update: (skillId: string) => `${API_BASE}/skills/${skillId}`,
     publish: (skillId: string) => `${API_BASE}/skills/${skillId}/publish`,
     install: (skillId: string) => `${API_BASE}/skills/${skillId}/install`,
+    uninstall: (skillId: string) => `${API_BASE}/skills/${skillId}/install`,
   },
   financialReports: {
     list: `${API_BASE}/financial-reports/`,

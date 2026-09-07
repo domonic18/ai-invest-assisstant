@@ -1,6 +1,7 @@
 import {
   AppstoreOutlined,
   BarChartOutlined,
+  BlockOutlined,
   CalendarOutlined,
   ContainerOutlined,
   DashboardOutlined,
@@ -8,7 +9,6 @@ import {
   FileDoneOutlined,
   FundOutlined,
   HeatMapOutlined,
-  LineChartOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   PlayCircleOutlined,
@@ -37,20 +37,23 @@ import {
 
 type MenuItem = Required<MenuProps>['items'][number]
 
-const REVIEW_MENU_ITEMS: MenuItem[] = [
-  { key: '/workbench', icon: <AppstoreOutlined />, label: '工作台' },
-  { key: '/review', icon: <BarChartOutlined />, label: '每日复盘' },
-  { key: '/auction', icon: <ShopOutlined />, label: '集合竞价' },
+// 导航信息架构见需求 4.4.0：监测 → 资讯 → 分析 → 设置。
+// 宏观指数（迭代 2）、资讯中心 /news 与异动双页（迭代 3/5）上线后再挂出；
+// 个股监测经顶部搜索进入（/stock/:code 无默认标的，不设静态导航项）。
+const MONITOR_MENU_ITEMS: MenuItem[] = [
+  { key: '/capital-flow', icon: <FundOutlined />, label: '板块监测' },
+  { key: '/auction-review', icon: <ShopOutlined />, label: '集合竞价' },
+]
+
+const NEWS_MENU_ITEMS: MenuItem[] = [
   { key: '/calendar', icon: <CalendarOutlined />, label: '投资日历' },
-  { key: '/capital-flow', icon: <FundOutlined />, label: '资金流向' },
+  // 迭代 3 资讯中心上线后，电报视图迁入 /news 并下线本项
   { key: '/telegraph', icon: <ThunderboltOutlined />, label: '财联社电报' },
 ]
 
 const ANALYSIS_MENU_ITEMS: MenuItem[] = [
-  { key: '/chain', icon: <HeatMapOutlined />, label: '产业链分析' },
-  { key: '/hotspot', icon: <LineChartOutlined />, label: '热点追踪' },
-  { key: '/financial-reports', icon: <FileTextOutlined />, label: '财报中心' },
-  { key: '/research', icon: <ReadOutlined />, label: '研报中心' },
+  { key: '/review', icon: <BarChartOutlined />, label: '每日复盘' },
+  { key: '/chain', icon: <HeatMapOutlined />, label: '产业图谱' },
 ]
 
 const ADMIN_MENU_ITEMS: MenuItem[] = [
@@ -108,8 +111,10 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
   }, [isAdminPath])
 
   const settingsChildren: MenuItem[] = [
-    { key: '/watchlist', icon: <StarOutlined />, label: '自选股管理' },
     { key: '/settings', icon: <UserOutlined />, label: '个人设置' },
+    { key: '/skills', icon: <BlockOutlined />, label: '技能广场' },
+    // 自选股管理不在侧边栏（4.4.0），入口为工作台自选卡「管理分组」
+    { key: '/watchlist', icon: <StarOutlined />, label: '自选股管理' },
     ...(isAdmin
       ? [
           {
@@ -123,7 +128,9 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
   ]
 
   const items: MenuItem[] = [
-    { type: 'group', key: 'group-review', label: '复盘', children: REVIEW_MENU_ITEMS },
+    { key: '/workbench', icon: <AppstoreOutlined />, label: '工作台' },
+    { type: 'group', key: 'group-monitor', label: '监测', children: MONITOR_MENU_ITEMS },
+    { type: 'group', key: 'group-news', label: '资讯', children: NEWS_MENU_ITEMS },
     { type: 'group', key: 'group-analysis', label: '分析', children: ANALYSIS_MENU_ITEMS },
     { type: 'group', key: 'group-settings', label: '设置', children: settingsChildren },
   ]

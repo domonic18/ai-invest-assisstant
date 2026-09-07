@@ -90,3 +90,24 @@ class UserSkillResponse(CamelModel):
     skill_id: str
     installed: bool
     enabled: bool
+
+
+class SkillFile(CamelModel):
+    """技能包内单个文件（builtin 读镜像目录，custom 由配置合成）。"""
+
+    path: str
+    size: int
+    content: str
+
+
+class SkillFilesResponse(CamelModel):
+    """技能包文件清单响应。
+
+    ``synthetic=True`` 表示文件由 DB ``custom_definition`` 合成（虚拟文件），
+    并非镜像内真实路径。
+    """
+
+    skill_id: str
+    is_builtin: bool
+    synthetic: bool
+    files: list[SkillFile]

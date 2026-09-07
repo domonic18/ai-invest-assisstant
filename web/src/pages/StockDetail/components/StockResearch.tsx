@@ -1,17 +1,48 @@
-import { ReloadOutlined, RobotOutlined } from '@ant-design/icons'
-import { Button, Empty, Skeleton } from 'antd'
+import { FilePdfOutlined, ReloadOutlined, RobotOutlined } from '@ant-design/icons'
+import { App, Button, Empty, Skeleton } from 'antd'
+import { useState } from 'react'
 
+import { fetchResearchPdfUrl } from '@/api/research'
 import { useResearch } from '@/hooks/useResearch'
+import { useAssistantStore } from '@/stores/assistant'
 import type { ResearchReport } from '@ai-invest/shared'
 
 interface StockResearchProps {
+  stockCode: string
   data: ReturnType<typeof useResearch>['data']
   isLoading: boolean
   isError: boolean
   onRetry: () => void
 }
 
-export function StockResearch({ data, isLoading, isError, onRetry }: StockResearchProps) {
+export function StockResearch({ stockCode, data, isLoading, isError, onRetry }: StockResearchProps) {
+  const { message } = App.useApp()
+  const [pdfLoadingId, setPdfLoadingId] = useState<number | null>(null)
+
+  const openPdf = async (id: number) => {
+    setPdfLoadingId(id)
+    try {
+      const url = await fetchResearchPdfUrl(id)
+      if (!url) {
+        message.warning('该研报暂无 PDF 文件')
+        return
+      }
+      window.open(url, '_blank', 'noopener')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '获取 PDF 链接失败')
+    } finally {
+      setPdfLoadingId(null)
+    }
+  }
+
+  const askSummary = (item: ResearchReport) => {
+    useAssistantStore
+      .getState()
+      .sendQuestion(
+        `请解读研报《${item.title}》（${item.stockCode ?? stockCode}），输出核心观点、盈利预测与风险提示`,
+      )
+  }
+
   const header = (
     <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-[#23262d]">
       <span className="text-[13px] font-semibold text-[#f0f1f5]">相关研报</span>
@@ -89,7 +120,7 @@ export function StockResearch({ data, isLoading, isError, onRetry }: StockResear
                 )}
               </div>
               {item.summary && (
-                <div className="rounded-md bg-[#181a21] border-l-2 border-[#5e6ad2] px-2.5 py-2">
+                <div className="rounded-md bg-[#181a21] border-l-2 border-[#5e6ad2] px-2.5 py-2 mb-1.5">
                   <div className="flex items-center gap-1 text-[10px] font-semibold text-[#5e6ad2] mb-1">
                     <RobotOutlined style={{ fontSize: 11 }} />
                     AI 解读要点
@@ -99,6 +130,27 @@ export function StockResearch({ data, isLoading, isError, onRetry }: StockResear
                   </p>
                 </div>
               )}
+              <div className="flex items-center gap-1">
+                <Button
+                  size="small"
+                  type="text"
+                  className="!px-1 !text-[11px] !h-6"
+                  icon={<FilePdfOutlined />}
+                  loading={pdfLoadingId === item.id}
+                  onClick={() => void openPdf(item.id)}
+                >
+                  PDF
+                </Button>
+                <Button
+                  size="small"
+                  type="text"
+                  className="!px-1 !text-[11px] !h-6"
+                  icon={<RobotOutlined />}
+                  onClick={() => askSummary(item)}
+                >
+                  AI 解读
+                </Button>
+              </div>
             </div>
           )
         })}

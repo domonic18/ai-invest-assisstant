@@ -10,6 +10,8 @@ from app.dependencies import get_current_user
 from app.main import app
 from app.schemas.skill import (
     CustomSkillDefinition,
+    SkillFile,
+    SkillFilesResponse,
     SkillItem,
     SkillResponse,
     SkillSquareResponse,
@@ -236,3 +238,37 @@ class TestSkillsApi:
         assert resp.status_code == 201
         call = service_cls.return_value.create_custom_skill.call_args
         assert call.args[1].custom_definition.sections[0].key == "logic"
+
+    def test_get_skill_files(self, auth_client) -> None:
+        payload = SkillFilesResponse(
+            skill_id="market-daily-review",
+            is_builtin=True,
+            synthetic=False,
+            files=[
+                SkillFile(path="SKILL.md", size=11, content="# 大盘每日复盘"),
+                SkillFile(path="prompt.yaml", size=26, content="id: market-daily-review"),
+            ],
+        )
+        with patch("app.api.v1.skills.SkillService") as service_cls:
+            service_cls.return_value.get_skill_files = AsyncMock(return_value=payload)
+            resp = auth_client.get("/api/v1/skills/market-daily-review/files")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["skillId"] == "market-daily-review"
+        assert body["isBuiltin"] is True
+        assert body["synthetic"] is False
+        assert [f["path"] for f in body["files"]] == ["SKILL.md", "prompt.yaml"]
+        assert body["files"][0]["content"] == "# 大盘每日复盘"
+        service_cls.return_value.get_skill_files.assert_awaited_once_with(
+            1, "market-daily-review"
+        )
+
+    def test_get_skill_files_not_found_404(self, auth_client) -> None:
+        with patch("app.api.v1.skills.SkillService") as service_cls:
+            service_cls.return_value.get_skill_files = AsyncMock(
+                side_effect=NotFoundError("技能不存在: ghost")
+            )
+            resp = auth_client.get("/api/v1/skills/ghost/files")
+
+        assert resp.status_code == 404

@@ -181,3 +181,64 @@ class TestUserService:
         assert result.ma_configs[0].color == "#ff0000"
         assert user.settings == result.model_dump()
         session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_update_email_success(self) -> None:
+        session = MagicMock()
+        session.commit = AsyncMock()
+        session.refresh = AsyncMock()
+        user = MagicMock()
+        user.id = 1
+        with patch.object(UserService, "get_user_by_email", AsyncMock(return_value=None)):
+            result = await UserService(session).update_email(user, "new@example.com")
+
+        assert result is user
+        assert user.email == "new@example.com"
+        session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_update_email_taken_by_other_raises_409(self) -> None:
+        from app.core.exceptions import ConflictError
+
+        session = MagicMock()
+        session.commit = AsyncMock()
+        user = MagicMock()
+        user.id = 1
+        other = MagicMock()
+        other.id = 2
+        with patch.object(UserService, "get_user_by_email", AsyncMock(return_value=other)):
+            with pytest.raises(ConflictError):
+                await UserService(session).update_email(user, "taken@example.com")
+
+        session.commit.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_change_password_success_rehashes(self) -> None:
+        from app.core.security import get_password_hash, verify_password
+
+        session = MagicMock()
+        session.commit = AsyncMock()
+        user = MagicMock()
+        user.password_hash = get_password_hash("old12345")
+
+        await UserService(session).change_password(user, "old12345", "new12345")
+
+        assert verify_password("new12345", user.password_hash)
+        assert not verify_password("old12345", user.password_hash)
+        session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_change_password_wrong_current_raises_400(self) -> None:
+        from app.core.exceptions import BadRequestError
+        from app.core.security import get_password_hash, verify_password
+
+        session = MagicMock()
+        session.commit = AsyncMock()
+        user = MagicMock()
+        user.password_hash = get_password_hash("old12345")
+
+        with pytest.raises(BadRequestError):
+            await UserService(session).change_password(user, "wrong", "new12345")
+
+        assert verify_password("old12345", user.password_hash)
+        session.commit.assert_not_awaited()

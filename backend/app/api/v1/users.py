@@ -1,18 +1,19 @@
 """用户与自选股 API 路由。"""
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AppError
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.market import WatchlistQuoteItem
 from app.schemas.user import (
+    PasswordChangeRequest,
     UserResponse,
     UserSettingsResponse,
     UserSettingsUpdate,
+    UserUpdate,
     WatchlistBatchCreate,
     WatchlistBatchResponse,
     WatchlistGroupCreate,
@@ -41,10 +42,27 @@ async def get_me(
     return current_user
 
 
-@router.put("/me")
-async def update_me() -> dict[str, Any]:
-    """更新当前用户信息（占位实现）。"""
-    raise AppError("User update is not implemented yet", status_code=501)
+@router.put("/me", response_model=UserResponse)
+async def update_me(
+    data: UserUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> UserResponse:
+    """更新当前用户信息（邮箱）。"""
+    user = await UserService(session).update_email(current_user, data.email)
+    return UserResponse.model_validate(user)
+
+
+@router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_me_password(
+    data: PasswordChangeRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    """修改当前用户密码（旧 token 无黑名单，前端改密成功后引导重新登录）。"""
+    await UserService(session).change_password(
+        current_user, data.current_password, data.new_password
+    )
 
 
 @router.get("/me/settings", response_model=UserSettingsResponse)

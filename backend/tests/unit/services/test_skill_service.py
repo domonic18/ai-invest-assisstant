@@ -1,7 +1,8 @@
-"""SkillService 契约测试：安装冲突/可见性 404、custom 属主校验、广场分组。"""
+"""SkillService 契约测试：安装冲突/可见性 404、custom 属主校验、广场分组、技能包文件。"""
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -11,6 +12,13 @@ from app.schemas.skill import CustomSkillCreateRequest, CustomSkillDefinition
 from app.services.skill.skill_service import SkillService
 
 _NOW = datetime.now(timezone.utc)
+
+
+class _StubSettings:
+    def __init__(self, skills_dir: Path) -> None:
+        self.skills_dir = skills_dir
+        self.skill_file_max_bytes = 64 * 1024
+        self.skill_files_max_count = 20
 
 
 def _builtin(skill_id: str = "market-daily-review", published: bool = True) -> Skill:
@@ -221,3 +229,73 @@ class TestListSkills:
         service.skills.get_by_skill_id.return_value = None
         result = await service.list_skills(1)
         assert result.mine == []
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+class TestSkillFiles:
+    async def test_builtin_reads_text_files_recursively(
+        self, service: SkillService, tmp_path: Path
+    ) -> None:
+        pkg = tmp_path / "my-skill"
+        (pkg / "references").mkdir(parents=True)
+        (pkg / "SKILL.md").write_text("# 方法论", encoding="utf-8")
+        (pkg / "prompt.yaml").write_text("id: my-skill", encoding="utf-8")
+        (pkg / "references" / "notes.md").write_text("补充", encoding="utf-8")
+        (pkg / "logo.png").write_bytes(b"\x89PNG binary")
+        (pkg / ".hidden").write_text("skip", encoding="utf-8")
+        service.skills.get_by_skill_id.return_value = _builtin("my-skill")
+
+        with patch(
+            "app.services.skill.skill_service.get_settings",
+            return_value=_StubSettings(tmp_path),
+        ):
+            result = await service.get_skill_files(1, "my-skill")
+
+        assert result.is_builtin is True
+        assert result.synthetic is False
+        assert [f.path for f in result.files] == [
+            "SKILL.md",
+            "prompt.yaml",
+            "references/notes.md",
+        ]
+        assert result.files[0].content == "# 方法论"
+        assert result.files[0].size == len("# 方法论".encode())
+
+    async def test_builtin_dir_missing_404(
+        self, service: SkillService, tmp_path: Path
+    ) -> None:
+        with patch(
+            "app.services.skill.skill_service.get_settings",
+            return_value=_StubSettings(tmp_path),
+        ):
+            with pytest.raises(NotFoundError):
+                await service.get_skill_files(1, "no-such-skill")
+
+    async def test_unpublished_others_custom_404(self, service: SkillService) -> None:
+        service.skills.get_by_skill_id.return_value = _custom(owner_user_id=2)
+        with pytest.raises(NotFoundError):
+            await service.get_skill_files(1, "my-skill")
+
+    async def test_custom_synthesizes_virtual_files(
+        self, service: SkillService
+    ) -> None:
+        row = _custom(owner_user_id=1, published=True)
+        row.custom_definition = {
+            "skill_md": "# 方法论",
+            "system_prompt": "你是分析师",
+            "user_prompt_template": "分析 {trade_date}",
+            "schema_version": 1,
+        }
+        service.skills.get_by_skill_id.return_value = row
+
+        result = await service.get_skill_files(1, "my-skill")
+
+        assert result.is_builtin is False
+        assert result.synthetic is True
+        assert [f.path for f in result.files] == ["SKILL.md", "prompt.yaml"]
+        assert result.files[0].content == "# 方法论"
+        prompt = result.files[1].content
+        assert "id: my-skill" in prompt
+        assert "你是分析师" in prompt
+        assert "分析 {trade_date}" in prompt

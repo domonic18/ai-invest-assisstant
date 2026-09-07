@@ -21,6 +21,12 @@ export const queryKeys = {
     indexTrend: (days: number, startDate?: string, endDate?: string) =>
       ['auction', 'index-trend', days, startDate, endDate] as const,
   },
+  skills: {
+    all: ['skills'] as const,
+    square: ['skills', 'square'] as const,
+    detail: (skillId: string) => ['skills', 'detail', skillId] as const,
+    files: (skillId: string) => ['skills', 'files', skillId] as const,
+  },
   chain: {
     all: ['chain'] as const,
     analysis: (industry: string) => ['chain', 'analysis', industry] as const,
@@ -48,6 +54,8 @@ export const queryKeys = {
   },
   financialReports: {
     all: ['financial-reports'] as const,
+    list: (stockCode: string, pageSize: number) =>
+      ['financial-reports', stockCode, pageSize] as const,
   },
   fundFlow: {
     all: ['fund-flow'] as const,
@@ -100,6 +108,10 @@ export const queryKeys = {
     all: ['telegraph'] as const,
     list: (page: number, pageSize: number, minImportance?: number) =>
       ['telegraph', 'list', page, pageSize, minImportance ?? 0] as const,
+  },
+  users: {
+    all: ['users'] as const,
+    me: ['users', 'me'] as const,
   },
   workbench: {
     all: ['workbench'] as const,

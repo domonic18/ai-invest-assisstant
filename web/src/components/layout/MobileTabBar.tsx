@@ -1,5 +1,6 @@
 import {
   AppstoreOutlined,
+  BlockOutlined,
   FundOutlined,
   LogoutOutlined,
   SettingOutlined,
@@ -14,8 +15,8 @@ import { useAuthStore } from '@/stores/auth'
 
 const TAB_ITEMS = [
   { key: '/workbench', icon: <AppstoreOutlined />, label: '工作台' },
-  { key: '/auction', icon: <ShopOutlined />, label: '竞价' },
-  { key: '/capital-flow', icon: <FundOutlined />, label: '资金' },
+  { key: '/auction-review', icon: <ShopOutlined />, label: '竞价' },
+  { key: '/capital-flow', icon: <FundOutlined />, label: '板块' },
 ]
 
 export function MobileTabBar() {
@@ -84,6 +85,10 @@ export function MobileTabBar() {
         <button type="button" className={actionClass} onClick={() => go('/settings')}>
           <SettingOutlined className="text-gray-400" />
           个人设置
+        </button>
+        <button type="button" className={actionClass} onClick={() => go('/skills')}>
+          <BlockOutlined className="text-gray-400" />
+          技能广场
         </button>
         {isAdmin && (
           <button type="button" className={actionClass} onClick={() => go('/admin')}>

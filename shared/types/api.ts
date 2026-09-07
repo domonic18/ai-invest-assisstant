@@ -28,6 +28,15 @@ export interface ApiUserResponse {
   createdAt: string
 }
 
+export interface ApiUserUpdateRequest {
+  email: string
+}
+
+export interface ApiPasswordChangeRequest {
+  currentPassword: string
+  newPassword: string
+}
+
 export interface ApiAuthResponse {
   accessToken: string
   tokenType: string

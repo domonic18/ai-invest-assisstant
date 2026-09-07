@@ -50,6 +50,14 @@ async def get_stock_metrics(
 | 数据库模型 | PascalCase | `Stock`, `KLine` |
 | API 端点 | snake_case | `get_stock_detail` |
 
+### 常量与配置分层（必须遵守）
+
+常量不散落在业务代码中，新增常量先判断属于哪一层再落位：
+
+- **部署可调参数**（超时、重试、大小/数量上限、路径等随环境变化的数值）→ 统一进 `app/core/config.py`（Pydantic Settings，env 可覆盖），禁止在业务模块硬编码
+- **跨模块共享的领域常量**（多处消费的清单/映射/默认值）→ `app/core/constants.py` 或对应 core 模块（如 `locking.DEFAULT_LOCK_TTL_SECONDS`），保持单一真相源
+- **单模块私有契约**（仅本模块消费、属于代码逻辑一部分的白名单/注册表）→ 留在本模块顶部，UPPER_SNAKE_CASE
+
 ### 文档要求
 
 - 每个模块需要文档字符串

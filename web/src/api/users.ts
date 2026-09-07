@@ -1,5 +1,7 @@
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
+  ApiPasswordChangeRequest,
+  ApiUserResponse,
   ApiWatchlistBatchItemCreate,
   ApiWatchlistBatchResponse,
   ApiWatchlistGroupCreate,
@@ -9,9 +11,10 @@ import type {
   ApiWatchlistItemResponse,
   ApiWatchlistScreenshotRecognitionResponse,
 } from '@ai-invest/shared'
+import type { User } from '@ai-invest/shared'
 
 import { apiClient } from './client'
-import { mapWatchlistGroup, mapWatchlistItem } from './mappers'
+import { mapUser, mapWatchlistGroup, mapWatchlistItem } from './mappers'
 
 export interface WatchlistCreateData {
   stockCode: string
@@ -22,6 +25,31 @@ export interface WatchlistCreateData {
 export async function fetchWatchlist() {
   const response = await apiClient.get<ApiWatchlistItemResponse[]>(ENDPOINTS.users.watchlist)
   return response.data.map(mapWatchlistItem)
+}
+
+/** 当前用户资料（含注册时间/上次登录等 wire 全量字段，供设置页展示）。 */
+export interface MyProfile {
+  id: number
+  username: string
+  email: string
+  role: string
+  isActive: boolean
+  lastLoginAt: string | null
+  createdAt: string
+}
+
+export async function fetchMyProfile(): Promise<MyProfile> {
+  const response = await apiClient.get<ApiUserResponse>(ENDPOINTS.users.me)
+  return response.data
+}
+
+export async function updateMyEmail(email: string): Promise<User> {
+  const response = await apiClient.put<ApiUserResponse>(ENDPOINTS.users.me, { email })
+  return mapUser(response.data)
+}
+
+export async function changeMyPassword(data: ApiPasswordChangeRequest): Promise<void> {
+  await apiClient.post(ENDPOINTS.users.mePassword, data)
 }
 
 export async function addWatchlistItem(data: WatchlistCreateData) {
