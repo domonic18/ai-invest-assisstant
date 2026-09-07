@@ -12,7 +12,9 @@ import type {
   ApiAdminReportUpdateRequest,
 } from '@ai-invest/shared'
 
-const ADMIN_REPORTS_KEY = ['admin-reports'] as const
+import { queryKeys } from '@/hooks/queryKeys'
+
+const ADMIN_REPORTS_KEY = queryKeys.admin.reports
 
 export function useAdminReports(params: AdminReportParams = {}) {
   return useQuery({

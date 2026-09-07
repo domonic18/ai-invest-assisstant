@@ -10,7 +10,9 @@ import {
   type FinancialReportParams,
 } from '@/api/financial_report'
 
-const FINANCIAL_REPORT_KEY = ['financial-reports'] as const
+import { queryKeys } from '@/hooks/queryKeys'
+
+const FINANCIAL_REPORT_KEY = queryKeys.financialReports.all
 const IN_FLIGHT_STATUSES = new Set(['pending', 'running'])
 
 export function useFinancialReports(params: FinancialReportParams = {}) {

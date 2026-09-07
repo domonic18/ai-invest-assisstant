@@ -14,7 +14,9 @@ import type {
   ApiLLMConfigUpdateRequest,
 } from '@ai-invest/shared'
 
-const LLM_CONFIGS_KEY = ['llm-configs'] as const
+import { queryKeys } from '@/hooks/queryKeys'
+
+const LLM_CONFIGS_KEY = queryKeys.llmConfigs
 
 export function useLLMConfigs() {
   return useQuery({
