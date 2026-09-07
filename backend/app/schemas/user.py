@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import Field
+from pydantic import EmailStr, Field
 
 from app.schemas.base import CamelModel
 
@@ -47,6 +47,19 @@ class UserResponse(CamelModel):
     is_active: bool
     last_login_at: datetime | None = None
     created_at: datetime
+
+
+class UserUpdate(CamelModel):
+    """更新当前用户信息请求。"""
+
+    email: EmailStr = Field(..., max_length=100)
+
+
+class PasswordChangeRequest(CamelModel):
+    """修改密码请求。"""
+
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=6, max_length=128)
 
 
 class AdminUserCreate(CamelModel):

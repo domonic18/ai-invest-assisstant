@@ -7,7 +7,12 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import login_throttle
-from app.core.exceptions import LoginLockedError, UnauthorizedError
+from app.core.exceptions import (
+    BadRequestError,
+    ConflictError,
+    LoginLockedError,
+    UnauthorizedError,
+)
 from app.core.security import get_password_hash, verify_password
 from app.models.user import User
 from app.repositories.user.user_repository import UserRepository
@@ -113,6 +118,33 @@ class UserService:
         if user is None or not verify_password(password, user.password_hash):
             return None
         return user
+
+    async def update_email(self, user: User, email: str) -> User:
+        """更新当前用户邮箱（全局唯一）。
+
+        Raises:
+            ConflictError: 邮箱已被其他用户占用。
+        """
+        existing = await self.get_user_by_email(email)
+        if existing is not None and existing.id != user.id:
+            raise ConflictError("该邮箱已被使用")
+        user.email = email
+        await self.session.commit()
+        await self.repo.refresh(user)
+        return user
+
+    async def change_password(
+        self, user: User, current_password: str, new_password: str
+    ) -> None:
+        """修改当前用户密码（校验旧密码后重哈希）。
+
+        Raises:
+            BadRequestError: 当前密码不正确。
+        """
+        if not verify_password(current_password, user.password_hash):
+            raise BadRequestError("当前密码不正确")
+        user.password_hash = get_password_hash(new_password)
+        await self.session.commit()
 
     async def update_last_login(self, user: User) -> None:
         """更新最后登录时间。"""
