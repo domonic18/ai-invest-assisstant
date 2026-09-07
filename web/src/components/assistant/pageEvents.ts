@@ -1,3 +1,5 @@
+import { PAGE_EVENT_TYPES, type PageEventType } from '@ai-invest/shared'
+
 import type {
   ChainAnalysisResult,
   PageAssistantResult,
@@ -14,7 +16,7 @@ import type {
  */
 export interface PageEventDefinition<T extends PageAssistantResult = PageAssistantResult> {
   /** 事件类型标识（后端 page_event 的 type，约定 `<domain>.complete`） */
-  eventType: string
+  eventType: PageEventType
   /** 分析完成后在对话内渲染的查看按钮文案 */
   actionLabel: string
   /** 结果展示页路由：会话内查看按钮点击后导航至此（任意页面触发均可直达） */
@@ -25,11 +27,11 @@ export interface PageEventDefinition<T extends PageAssistantResult = PageAssista
 
 export const PAGE_EVENT_DEFINITIONS: readonly PageEventDefinition[] = [
   {
-    eventType: 'industry_chain.analysis.complete',
+    eventType: PAGE_EVENT_TYPES.chainAnalysis,
     actionLabel: '查看产业链图谱',
     path: (r: ChainAnalysisResult) => `/chain/${encodeURIComponent(r.industry)}`,
     parse: (e) => ({
-      type: 'industry_chain.analysis.complete',
+      type: PAGE_EVENT_TYPES.chainAnalysis,
       industry: String(e.industry ?? ''),
       versionId: Number(e.version_id),
       versionNo: Number(e.version_no),
@@ -37,36 +39,36 @@ export const PAGE_EVENT_DEFINITIONS: readonly PageEventDefinition[] = [
     }),
   },
   {
-    eventType: 'stock_daily_analysis.complete',
+    eventType: PAGE_EVENT_TYPES.stockDailyAnalysis,
     actionLabel: '查看个股分析结果',
     path: (r: StockDailyAnalysisResult) => `/stock/${encodeURIComponent(r.stockCode)}`,
     parse: (e) => ({
-      type: 'stock_daily_analysis.complete',
+      type: PAGE_EVENT_TYPES.stockDailyAnalysis,
       stockCode: String(e.stock_code ?? ''),
       tradeDate: String(e.trade_date ?? ''),
     }),
   },
   {
-    eventType: 'market_daily_review.complete',
+    eventType: PAGE_EVENT_TYPES.marketDailyReview,
     actionLabel: '查看复盘结果',
     path: () => '/review',
     parse: (e) => ({
-      type: 'market_daily_review.complete',
+      type: PAGE_EVENT_TYPES.marketDailyReview,
       tradeDate: String(e.trade_date ?? ''),
     }),
   },
   {
-    eventType: 'limit_up_attribution.complete',
+    eventType: PAGE_EVENT_TYPES.limitUpAttribution,
     actionLabel: '查看涨停归因',
     path: () => '/review',
     parse: (e) => ({
-      type: 'limit_up_attribution.complete',
+      type: PAGE_EVENT_TYPES.limitUpAttribution,
       tradeDate: String(e.trade_date ?? ''),
     }),
   },
 ]
 
-const definitionsByType = new Map(
+const definitionsByType = new Map<string, PageEventDefinition>(
   PAGE_EVENT_DEFINITIONS.map((definition) => [definition.eventType, definition]),
 )
 
