@@ -232,34 +232,201 @@ a:hover { color: var(--accent-hover); }
 }
 </style>
 <style>
-/* ===== 资讯中心 ===== */
-.seg-control{display:inline-flex;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:2px;gap:2px}
-.seg-item{padding:5px 14px;font-size:var(--text-xs);color:var(--text-secondary);border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap}
-.seg-item.active{background:var(--accent-soft);color:var(--accent);font-weight:500}
-.view-badge{font-size:10px;color:var(--text-tertiary);margin-left:8px}
-.news-row{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);align-items:baseline}
-.news-row:last-child{border-bottom:none}
-.news-time{font-family:var(--font-mono);color:var(--text-tertiary);font-size:var(--text-xs);flex-shrink:0;width:42px}
-.news-text{font-size:var(--text-sm);color:var(--text-secondary);line-height:1.55}
-.news-text b{color:var(--text-primary);font-weight:500}
-.news-text mark{background:var(--amber-soft);color:var(--amber);padding:0 3px;border-radius:3px}
-.live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--red);margin-right:4px;animation:pulse 1.5s infinite}
+/* ===== 资讯中心（资讯流统一入口，原热点追踪并入） ===== */
+
+/* 渠道监控条 */
+.chan-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+.chan-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; }
+.chan-card.warn { border-color: rgba(210,153,34,.4); }
+.chan-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.chan-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.stat-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+.stat-dot.live { background: var(--red); animation: pulse 1.5s infinite; }
+.stat-dot.ok { background: var(--green); }
+.stat-dot.warn { background: var(--amber); animation: pulse 1.2s infinite; }
+.stat-dot.batch { background: var(--blue); }
+.chan-state { font-size: 10px; color: var(--text-tertiary); }
+.chan-meta { font-size: 11px; color: var(--text-tertiary); margin-bottom: 8px; }
+.chan-stat { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; color: var(--text-secondary); }
+.chan-stat b { font-family: var(--font-mono); font-size: 14px; color: var(--text-primary); font-weight: 600; }
+.chan-stat .last { font-family: var(--font-mono); color: var(--text-tertiary); font-size: 10px; }
+
+/* 全局统计条 */
+.global-stat {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  padding: 10px 16px; font-size: 12px; color: var(--text-secondary);
+  background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+}
+.global-stat b { font-family: var(--font-mono); color: var(--text-primary); font-size: 14px; }
+.global-stat .gs-item { display: flex; align-items: center; gap: 6px; }
+.global-stat .gs-sep { width: 1px; height: 14px; background: var(--border); }
+
+/* 视图 tab（大切换，同个股详情右栏范式） */
+.view-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: var(--space-5); }
+.vtab {
+  padding: 9px 16px; font-size: 13px; color: var(--text-secondary); cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; border-top: none;
+  border-left: none; border-right: none; font-family: inherit;
+}
+.vtab:hover { color: var(--text-primary); }
+.vtab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.vtab .cnt { font-size: 10px; color: var(--text-tertiary); margin-left: 4px; }
+.view-pane { display: none; }
+.view-pane.active { display: block; }
+
+/* 筛选行 */
+.filter-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: var(--space-3); }
+.fchips { display: flex; gap: 6px; flex-wrap: wrap; }
+.fchip { padding: 3px 11px; font-size: 11px; border-radius: 999px; cursor: pointer; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-secondary); }
+.fchip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); font-weight: 500; }
+.fchip .n { color: var(--text-tertiary); margin-left: 3px; }
+.fswitch { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); cursor: pointer; margin-left: auto; }
+.toggle { width: 28px; height: 15px; border-radius: 999px; background: var(--bg-hover); border: 1px solid var(--border); position: relative; transition: all var(--transition); }
+.toggle::after { content: ''; position: absolute; top: 1.5px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--text-tertiary); transition: all var(--transition); }
+.fswitch.on .toggle { background: var(--accent-soft); border-color: var(--accent); }
+.fswitch.on .toggle::after { left: 13px; background: var(--accent); }
+
+/* 新讯息到达浮条（social feed 惯例） */
+.new-msg-bar {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 8px; margin-bottom: var(--space-3); font-size: 12px; color: var(--accent);
+  background: var(--accent-soft); border: 1px dashed rgba(94,106,210,.4); border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.new-msg-bar .t { font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); }
+
+/* 电报条目：重要度左边条 + 精确时间 + 关联标的 */
+.tg-item { display: flex; gap: 12px; padding: 12px 4px 12px 12px; border-bottom: 1px solid var(--border); }
+.tg-item:last-child { border-bottom: none; }
+.tg-imp { width: 3px; border-radius: 2px; flex-shrink: 0; align-self: stretch; }
+.tg-imp.high { background: var(--red); }
+.tg-imp.mid { background: var(--amber); }
+.tg-imp.low { background: var(--border-hover); }
+.tg-main { flex: 1; min-width: 0; }
+.tg-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+.tg-time { font-family: var(--font-mono); font-size: 11px; color: var(--text-primary); }
+.tg-ago { font-size: 10px; color: var(--text-tertiary); }
+.tg-src { font-size: 10px; color: var(--text-tertiary); border: 1px solid var(--border); border-radius: 3px; padding: 0 5px; }
+.tg-body { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.tg-body b { color: var(--text-primary); font-weight: 600; }
+.tg-body mark { background: var(--amber-soft); color: var(--amber); padding: 0 3px; border-radius: 3px; }
+.tg-foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.rel-chip { font-size: 10px; padding: 1px 8px; border-radius: 999px; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-secondary); }
+.rel-chip.up { color: var(--red); border-color: rgba(248,81,73,.35); }
+.rel-chip.down { color: var(--green); border-color: rgba(46,160,67,.35); }
+.tg-star { font-size: 10px; color: var(--amber); }
+.tg-act { margin-left: auto; font-size: 11px; color: var(--accent); cursor: pointer; }
+.tg-act:hover { text-decoration: underline; }
+.day-sep { display: flex; align-items: center; gap: 10px; margin: 14px 0 2px; font-size: 10px; color: var(--text-tertiary); }
+.day-sep::before, .day-sep::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.load-more { text-align: center; padding: 12px; font-size: 12px; color: var(--text-tertiary); cursor: pointer; }
+.load-more:hover { color: var(--accent); }
+
+/* 重点追踪：评分条 + 事件故事线 */
+.grid-2col { display: grid; grid-template-columns: 1.5fr 1fr; gap: var(--space-5); }
+.score-item { padding: 11px 0; border-bottom: 1px solid var(--border); }
+.score-item:last-child { border-bottom: none; }
+.score-top { display: flex; align-items: baseline; gap: 10px; margin-bottom: 5px; }
+.score-val { font-family: var(--font-mono); font-size: 16px; font-weight: 700; color: var(--red); }
+.score-val.mid { color: var(--amber); }
+.score-title { font-size: 13px; font-weight: 600; color: var(--text-primary); flex: 1; }
+.score-bar-wrap { height: 3px; border-radius: 2px; background: var(--bg-surface); margin: 6px 0 7px; overflow: hidden; }
+.score-bar { height: 100%; border-radius: 2px; background: linear-gradient(90deg, rgba(248,81,73,.4), var(--red)); }
+.score-bar.mid { background: linear-gradient(90deg, rgba(210,153,34,.4), var(--amber)); }
+.score-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+
+.story-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 12px; }
+.story-card:last-child { margin-bottom: 0; }
+.story-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+.story-name { font-size: 13px; font-weight: 600; color: var(--text-primary); flex: 1; }
+.story-meta { font-size: 10px; color: var(--text-tertiary); margin-bottom: 8px; }
+.story-latest { font-size: 12px; color: var(--text-secondary); line-height: 1.6; padding: 8px 10px; background: var(--bg-elevated); border-left: 2px solid var(--accent); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin-bottom: 10px; }
+.story-latest b { color: var(--text-primary); }
+.story-chain { display: flex; align-items: flex-start; margin-top: 2px; }
+.snode { flex: 1; text-align: center; position: relative; }
+.snode .pt { width: 8px; height: 8px; border-radius: 50%; background: var(--border-hover); margin: 0 auto 5px; position: relative; z-index: 1; }
+.snode.done .pt { background: var(--accent); }
+.snode.now .pt { background: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
+.snode:not(:last-child)::after { content: ''; position: absolute; top: 3.5px; left: calc(50% + 7px); right: calc(-50% + 7px); height: 1px; background: var(--border-hover); }
+.snode.done:not(:last-child)::after { background: var(--accent); opacity: .5; }
+.snode .d { font-family: var(--font-mono); font-size: 9px; color: var(--text-tertiary); display: block; }
+.snode .l { font-size: 10px; color: var(--text-secondary); display: block; margin-top: 1px; line-height: 1.4; }
+.snode.now .l { color: var(--text-primary); font-weight: 600; }
+.story-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; font-size: 11px; }
+.story-foot a { color: var(--text-tertiary); cursor: pointer; }
+.story-foot a:hover { color: var(--accent); }
+
+/* 热点主题：词云 + 热度榜 + 传导链 */
+.topic-cloud { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 16px; padding: 18px 10px; }
+.cloud-tag { display: inline-block; padding: 3px 10px; border-radius: 999px; cursor: pointer; transition: all var(--transition); background: var(--bg-hover); color: var(--text-secondary); }
+.cloud-tag:hover { color: var(--accent); }
+.topic-row td { vertical-align: middle; }
+.topic-name { font-weight: 600; color: var(--text-primary); font-size: 13px; }
+.heat-mini { height: 4px; width: 90px; border-radius: 2px; background: var(--bg-surface); overflow: hidden; }
+.heat-mini i { display: block; height: 100%; background: linear-gradient(90deg, rgba(248,81,73,.35), var(--red)); border-radius: 2px; }
+.chain-flow { display: flex; align-items: stretch; gap: 0; margin: 10px 0 4px; }
+.chain-node { flex: 1; text-align: center; padding: 8px 6px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.chain-node .cn-t { font-size: 10px; color: var(--text-tertiary); }
+.chain-node .cn-v { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-top: 2px; }
+.chain-arrow { display: flex; align-items: center; padding: 0 6px; color: var(--text-tertiary); font-size: 12px; }
+
+/* 工作原理流程条（重点与跟踪视图） */
+.how-flow { display: flex; align-items: stretch; gap: 0; margin-bottom: var(--space-5); }
+.how-step { flex: 1; padding: 10px 14px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.how-step .hs-t { font-size: 10px; color: var(--accent); font-weight: 600; margin-bottom: 3px; letter-spacing: .04em; }
+.how-step .hs-d { font-size: 11.5px; color: var(--text-secondary); line-height: 1.55; }
+.how-step .hs-d b { color: var(--text-primary); }
+.how-arrow { display: flex; align-items: center; padding: 0 8px; color: var(--text-tertiary); font-size: 14px; }
+.score-why { font-size: 10px; color: var(--text-tertiary); margin-top: 3px; }
+.score-why b { color: var(--text-secondary); font-weight: 500; }
+.story-from { font-size: 10px; padding: 1px 7px; border-radius: 3px; background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-tertiary); }
+
+/* 热点主题卡（卡片列表替代表格） */
+.topic-card { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 12px; background: var(--bg-elevated); }
+.topic-card.open { border-color: rgba(94,106,210,.4); background: linear-gradient(180deg, rgba(94,106,210,.05), transparent 40%), var(--bg-elevated); }
+.tc-head { display: flex; align-items: center; gap: 12px; }
+.tc-rank { font-family: var(--font-mono); font-size: 22px; font-weight: 700; color: var(--text-tertiary); width: 30px; text-align: center; flex-shrink: 0; }
+.tc-rank.top { color: var(--red); }
+.tc-main { flex: 1; min-width: 0; }
+.tc-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.tc-heat { display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
+.tc-side { text-align: right; flex-shrink: 0; }
+.tc-side .chg { font-family: var(--font-mono); font-size: 14px; font-weight: 700; display: block; }
+.tc-side .chg-note { font-size: 10px; color: var(--text-tertiary); display: block; }
+.src-dist { display: flex; height: 5px; width: 150px; border-radius: 3px; overflow: hidden; background: var(--bg-surface); }
+.src-dist i { height: 100%; }
+.src-legend { font-size: 10px; color: var(--text-tertiary); display: flex; align-items: center; gap: 4px; }
+.src-legend .sw { width: 7px; height: 7px; border-radius: 2px; display: inline-block; }
+.tc-formula { font-size: 10.5px; color: var(--text-tertiary); margin-top: 7px; padding-top: 7px; border-top: 1px dashed var(--border); }
+.tc-formula b { color: var(--text-secondary); font-weight: 500; font-family: var(--font-mono); }
+.tc-expand { margin-top: 12px; }
+
+/* 订阅抽屉 */
+.drawer-mark {
+  display: flex; align-items: center; gap: 8px; margin: var(--space-6) 0 var(--space-3);
+  font-size: 10px; color: var(--text-tertiary); letter-spacing: .04em;
+}
+.drawer-mark::before, .drawer-mark::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+#subDrawer { display: none; }
+#subDrawer.open { display: block; }
+
+/* 订阅规则表 */
+.sub-add-row { display: flex; gap: 8px; margin-bottom: var(--space-4); }
+.sub-add-row .form-input { flex: 1; }
+.sub-add-row .form-select { width: 180px; flex: none; }
+.switch-sm { width: 24px; height: 13px; border-radius: 999px; background: var(--bg-hover); border: 1px solid var(--border); position: relative; display: inline-block; vertical-align: middle; }
+.switch-sm::after { content: ''; position: absolute; top: 1.5px; left: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--text-tertiary); }
+.switch-sm.on { background: var(--accent-soft); border-color: var(--accent); }
+.switch-sm.on::after { left: 12px; background: var(--accent); }
+
+/* 规划说明 */
+.type-note {
+  margin-top: var(--space-6); padding: 14px 16px; border: 1px dashed var(--border);
+  border-radius: var(--radius-md); font-size: 12px; color: var(--text-tertiary); line-height: 1.8;
+}
+.type-note .tn-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-.sub-tag{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;font-size:var(--text-xs);background:var(--bg-surface);border:1px solid var(--border);border-radius:999px;color:var(--text-secondary)}
-.sub-tag .hit{font-size:10px;color:var(--amber)}
-.sub-tag .x{cursor:pointer;color:var(--text-tertiary);font-size:12px}
-.sub-tag .x:hover{color:var(--red)}
-.type-pill{padding:4px 12px;font-size:var(--text-xs);border-radius:999px;cursor:pointer;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-secondary)}
-.type-pill.active{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:500}
-.map-wrap{position:relative;background:var(--bg-surface);border-radius:var(--radius-md);padding:8px}
-.heat-dot{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
-.heat-core{border-radius:50%}
-.heat-label{font-size:10px;color:var(--text-secondary);background:rgba(17,19,24,.85);padding:1px 6px;border-radius:3px;white-space:nowrap}
-.cloud{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:14px 18px;padding:28px 12px}
-.cloud span{color:var(--text-secondary);cursor:pointer;transition:all var(--transition)}
-.cloud span:hover{color:var(--accent)}
-.cloud .hot{color:var(--red)}
-.cloud .mid{color:var(--amber)}
 </style>
 </head>
 <body>
@@ -282,7 +449,6 @@ a:hover { color: var(--accent-hover); }
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
 <div class="sidebar-section-title">资讯</div>
 <a class="sidebar-item active" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
-<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
 <a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
@@ -299,131 +465,505 @@ a:hover { color: var(--accent-hover); }
 <header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
 <div class="app-content">
 
-<!-- Header: 标题 + 视图切换 -->
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6);flex-wrap:wrap;gap:var(--space-3)">
+<!-- 页头：全局实时状态 -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-5);flex-wrap:wrap;gap:var(--space-3)">
 <div>
 <h1 class="page-title" style="margin-bottom:4px">资讯中心</h1>
-<div style="font-size:var(--text-xs);color:var(--text-tertiary)">全渠道资讯聚合 · 财联社电报 10s 准实时 · AI 分类打标（财经/军事/政治/产业）</div>
+<div style="font-size:var(--text-xs);color:var(--text-tertiary)"><span class="stat-dot live"></span>实时采集中 · 全渠道聚合 / AI 分级 / 订阅检测 / 事件跟踪 —— 原「热点追踪」已并入本页「热点主题」视图</div>
 </div>
-<div class="seg-control"><span class="seg-item active">渠道视图</span><span class="seg-item">类型视图</span><span class="seg-item">热点订阅</span><span class="seg-item">地图 / 云图</span></div>
-</div>
-
-<!-- 视图一：渠道视图 -->
-<div class="card mb-6">
-<div class="card-header">
-<span class="card-title">① 渠道视图<span class="view-badge">按来源渠道分组，保留各渠道原生节奏</span></span>
-<div class="seg-control"><span class="seg-item active"><span class="live-dot"></span>财联社电报</span><span class="seg-item">新浪财经</span><span class="seg-item">巨潮公告</span></div>
-</div>
-<div class="card-body card-body-sm">
-<div class="news-row"><span class="news-time">17:32</span><span class="news-text"><span class="tag tag-red" style="margin-right:6px">快讯</span><b>10:30 前提要闻</b> — 商务部：加快推进服务业扩大开放综合试点，<mark>半导体出口管制</mark>反制清单正在评估</span></div>
-<div class="news-row"><span class="news-time">17:18</span><span class="news-text"><span class="tag tag-amber" style="margin-right:6px">政治</span>日央行审议委员：若日元持续走弱，支持更快加息节奏</span></div>
-<div class="news-row"><span class="news-time">16:55</span><span class="news-text"><span class="tag tag-blue" style="margin-right:6px">财经</span>美国 8 月非农新增就业 14.2 万人低于预期，失业率 4.2%，<mark>美联储降息</mark>概率大幅上修</span></div>
-<div class="news-row"><span class="news-time">16:31</span><span class="news-text"><span class="tag tag-blue" style="margin-right:6px">财经</span>COMEX 黄金站上 3,900 美元/盎司，日内涨 0.41%</span></div>
-<div class="news-row"><span class="news-time">15:47</span><span class="news-text"><span class="tag tag-red" style="margin-right:6px">产业</span>国内算力基建招标提速，某大厂智算中心二期中标公示</span></div>
-<div class="news-row"><span class="news-time">15:02</span><span class="news-text"><span class="tag tag-purple" style="margin-right:6px">公告</span>中芯国际：完成对北方华创少数股权增持（详见巨潮公告）</span></div>
-<div class="news-row"><span class="news-time">14:26</span><span class="news-text"><span class="tag tag-amber" style="margin-right:6px">军事</span>中东局势：红海航线商船通行量周环比下降 12%</span></div>
+<div style="display:flex;gap:8px">
+<button class="btn btn-secondary btn-sm" id="btnSubDrawer">★ 我的订阅<span style="color:var(--amber)">（今日命中 23）</span></button>
+<button class="btn btn-secondary btn-sm">采集设置</button>
 </div>
 </div>
 
-<!-- 视图二：类型视图 -->
-<div class="card mb-6">
-<div class="card-header">
-<span class="card-title">② 类型视图<span class="view-badge">AI 分类打标 · 财经 / 军事 / 政治 / 产业</span></span>
-<div style="display:flex;gap:6px;flex-wrap:wrap">
-<span class="type-pill active">全部</span><span class="type-pill">财经</span><span class="type-pill">军事</span><span class="type-pill">政治</span><span class="type-pill">产业</span>
+<!-- ① 渠道监控：有哪些渠道 · 获取状态 · 是否持续采集（回答问题 1 / 3） -->
+<div class="chan-grid mb-6">
+<div class="chan-card">
+<div class="chan-head"><span class="chan-name"><span class="stat-dot live"></span>财联社电报</span><span class="chan-state" style="color:var(--red)">LIVE</span></div>
+<div class="chan-meta">10s 增量轮询 · 驻留进程</div>
+<div class="chan-stat"><span>今日 <b>328</b> 条</span><span class="last">12:03:45</span></div>
 </div>
+<div class="chan-card">
+<div class="chan-head"><span class="chan-name"><span class="stat-dot ok"></span>新浪财经</span><span class="chan-state">正常</span></div>
+<div class="chan-meta">15 分钟轮询</div>
+<div class="chan-stat"><span>今日 <b>96</b> 条</span><span class="last">11:58</span></div>
 </div>
-<div class="card-body card-body-sm">
-<div class="news-row"><span class="news-time">16:55</span><span class="news-text"><span class="tag tag-blue" style="margin-right:6px">财经</span>美国非农低于预期，降息交易升温，2Y 美债收益率下行 1.8bp</span></div>
-<div class="news-row"><span class="news-time">14:26</span><span class="news-text"><span class="tag tag-amber" style="margin-right:6px">军事</span>红海航线通行量下降，航运运价指数连续第三周上行</span></div>
-<div class="news-row"><span class="news-time">17:18</span><span class="news-text"><span class="tag tag-amber" style="margin-right:6px">政治</span>日央行鹰派讲话，日债收益率上行，日元短线走强</span></div>
-<div class="news-row"><span class="news-time">17:32</span><span class="news-text"><span class="tag tag-purple" style="margin-right:6px">产业</span>商务部评估半导体出口管制反制清单，国产替代主题升温</span></div>
-<div class="news-row"><span class="news-time">15:47</span><span class="news-text"><span class="tag tag-purple" style="margin-right:6px">产业</span>算力基建招标提速，智算中心二期中标公示</span></div>
+<div class="chan-card warn">
+<div class="chan-head"><span class="chan-name"><span class="stat-dot warn"></span>巨潮公告</span><span class="chan-state" style="color:var(--amber)">延迟</span></div>
+<div class="chan-meta">15 分钟轮询 · 重试中（第 2 次）</div>
+<div class="chan-stat"><span>今日 <b>41</b> 条</span><span class="last">11:31 · 滞后 32min</span></div>
 </div>
+<div class="chan-card">
+<div class="chan-head"><span class="chan-name"><span class="stat-dot ok"></span>华尔街见闻</span><span class="chan-state">正常</span></div>
+<div class="chan-meta">10 分钟轮询</div>
+<div class="chan-stat"><span>今日 <b>57</b> 条</span><span class="last">12:01</span></div>
 </div>
-
-<!-- 视图三：热点订阅 -->
-<div class="card mb-6">
-<div class="card-header">
-<span class="card-title">③ 热点订阅<span class="view-badge">用户配置关键词 / 主题，命中即聚合成时间线</span></span>
-<button class="btn btn-secondary btn-sm">管理订阅</button>
-</div>
-<div class="card-body">
-<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:var(--space-4)">
-<span class="sub-tag">半导体出口管制<span class="hit">今日命中 6</span><span class="x">✕</span></span>
-<span class="sub-tag">美联储降息<span class="hit">今日命中 11</span><span class="x">✕</span></span>
-<span class="sub-tag">新能源车补贴<span class="hit">今日命中 2</span><span class="x">✕</span></span>
-<span class="sub-tag">中东局势<span class="hit">今日命中 4</span><span class="x">✕</span></span>
-<span style="display:inline-flex;gap:6px;align-items:center">
-<input class="form-input" style="width:180px;padding:5px 10px;font-size:var(--text-xs)" placeholder="添加订阅关键词…">
-<button class="btn btn-primary btn-sm">订阅</button>
-</span>
-</div>
-<div class="news-row"><span class="news-time">17:32</span><span class="news-text"><span class="tag tag-red" style="margin-right:6px">命中</span>商务部：半导体出口管制反制清单评估中 → <b>关联板块：半导体 +4.82%</b></span></div>
-<div class="news-row"><span class="news-time">16:55</span><span class="news-text"><span class="tag tag-red" style="margin-right:6px">命中</span>非农不及预期，9 月降息概率升至 68% → <b>关联：黄金 / 美债</b></span></div>
-<div class="news-row"><span class="news-time">14:26</span><span class="news-text"><span class="tag tag-red" style="margin-right:6px">命中</span>红海通行量下降 12%，运价连续上行 → <b>关联板块：航运</b></span></div>
+<div class="chan-card">
+<div class="chan-head"><span class="chan-name"><span class="stat-dot batch"></span>东财研报</span><span class="chan-state">每日批次</span></div>
+<div class="chan-meta">每日 08:00 增量</div>
+<div class="chan-stat"><span>今日 <b>12</b> 篇</span><span class="last">08:00 完成</span></div>
 </div>
 </div>
 
-<!-- 视图四：地图 / 云图 -->
+<!-- 全局统计条 -->
+<div class="global-stat mb-6">
+<span class="gs-item"><span class="stat-dot live"></span>采集中</span>
+<span class="gs-sep"></span>
+<span class="gs-item">今日入库 <b>534</b> 条</span>
+<span class="gs-item">AI 分级完成 <b>534</b>（延迟 &lt;1s）</span>
+<span class="gs-sep"></span>
+<span class="gs-item">高重要度 <b style="color:var(--red)">38</b></span>
+<span class="gs-item">订阅命中 <b style="color:var(--amber)">23</b></span>
+<span class="gs-item">跟踪中事件 <b style="color:var(--accent)">6</b></span>
+<span class="gs-sep"></span>
+<span class="gs-item" style="margin-left:auto;font-size:11px;color:var(--text-tertiary)">最近页面刷新 12:04:20 · SSE 推送已连接</span>
+</div>
+
+<!-- ② 四视图（回答问题 4：同一批资讯的四种看法） -->
+<div class="view-tabs">
+<button class="vtab active" data-view="pane-live">实时电报<span class="cnt">534</span></button>
+<button class="vtab" data-view="pane-focus">重点与跟踪<span class="cnt">6</span></button>
+<button class="vtab" data-view="pane-topic">热点主题<span class="cnt">14</span></button>
+</div>
+
+<!-- 视图一：实时电报（回答问题 2：时效性） -->
+<div class="view-pane active" id="pane-live">
+<div class="filter-bar">
+<div class="fchips">
+<span class="fchip active">全部<span class="n">534</span></span>
+<span class="fchip">高<span class="n">38</span></span>
+<span class="fchip">中<span class="n">121</span></span>
+<span class="fchip">低<span class="n">375</span></span>
+</div>
+<div class="fchips">
+<span class="fchip active">全部渠道</span>
+<span class="fchip">财联社</span>
+<span class="fchip">新浪</span>
+<span class="fchip">巨潮</span>
+<span class="fchip">见闻</span>
+</div>
+<span class="fswitch on"><span class="toggle"></span>仅看订阅命中 ★</span>
+</div>
+<div class="new-msg-bar">↓ <b>6 条新讯息</b> · 最新 12:03:45（财联社）<span class="t">点击载入，不打断当前浏览位置</span></div>
 <div class="card">
+<div class="card-body card-body-sm">
+
+<div class="tg-item">
+<span class="tg-imp high"></span>
+<div class="tg-main">
+<div class="tg-head"><span class="tg-time">12:03:45</span><span class="tg-ago">3 分钟前</span><span class="tg-src">财联社</span><span class="tag tag-red">快讯</span></div>
+<div class="tg-body"><b>商务部：半导体出口管制反制清单正在评估</b>，涉及先进制程设备与材料品类，清单公布时间未定。</div>
+<div class="tg-foot">
+<span class="tg-star">★ 订阅命中「半导体出口管制」</span>
+<span class="rel-chip up">#半导体 +4.82%</span>
+<span class="rel-chip up">#北方华创 +5.02%</span>
+<span class="tg-act">加入跟踪</span>
+</div>
+</div>
+</div>
+
+<div class="tg-item">
+<span class="tg-imp high"></span>
+<div class="tg-main">
+<div class="tg-head"><span class="tg-time">11:47:12</span><span class="tg-ago">20 分钟前</span><span class="tg-src">华尔街见闻</span><span class="tag tag-blue">财经</span></div>
+<div class="tg-body">美国 8 月非农新增就业 14.2 万人低于预期，失业率 4.2%，<b>9 月降息概率升至 68%</b>，2Y 美债收益率下行 8bp。</div>
+<div class="tg-foot">
+<span class="tg-star">★ 订阅命中「美联储降息」</span>
+<span class="rel-chip up">#黄金 3912 +0.6%</span>
+<span class="tg-act">查看事件线</span>
+</div>
+</div>
+</div>
+
+<div class="tg-item">
+<span class="tg-imp mid"></span>
+<div class="tg-main">
+<div class="tg-head"><span class="tg-time">11:31:08</span><span class="tg-ago">36 分钟前</span><span class="tg-src">巨潮公告</span><span class="tag tag-purple">公告</span></div>
+<div class="tg-body"><b>北方华创（002371）：关于收到政府补助的公告</b>，与资产相关的政府补助 2.3 亿元计入递延收益。</div>
+<div class="tg-foot">
+<span class="rel-chip">#北方华创</span>
+<span class="tg-act">查看公告 PDF</span>
+</div>
+</div>
+</div>
+
+<div class="tg-item">
+<span class="tg-imp mid"></span>
+<div class="tg-main">
+<div class="tg-head"><span class="tg-time">10:58:33</span><span class="tg-ago">1 小时前</span><span class="tg-src">财联社</span><span class="tag tag-amber">政治</span></div>
+<div class="tg-body">日本央行审议委员鹰派表态：若日元持续走弱，<b>支持更快加息节奏</b>，日债 10Y 收益率上行至 1.12%。</div>
+<div class="tg-foot">
+<span class="rel-chip">#日债 10Y</span>
+<a class="tg-act" href="macro-monitor.html">宏观指数 →</a>
+</div>
+</div>
+</div>
+
+<div class="tg-item">
+<span class="tg-imp low"></span>
+<div class="tg-main">
+<div class="tg-head"><span class="tg-time">10:22:51</span><span class="tg-ago">1.7 小时前</span><span class="tg-src">新浪财经</span><span class="tag tag-blue">财经</span></div>
+<div class="tg-body">COMEX 黄金站上 3,900 美元/盎司，日内涨 0.41%，连续第五个交易日收高。</div>
+</div>
+</div>
+
+<div class="tg-item">
+<span class="tg-imp low"></span>
+<div class="tg-main">
+<div class="tg-head"><span class="tg-time">09:52:19</span><span class="tg-ago">2.2 小时前</span><span class="tg-src">财联社</span><span class="tag tag-purple">产业</span></div>
+<div class="tg-body">国内算力基建招标提速，某大厂智算中心二期中标公示，总投资约 47 亿元。</div>
+<div class="tg-foot">
+<span class="rel-chip up">#算力</span>
+<span class="tg-act">查看主题</span>
+</div>
+</div>
+</div>
+
+<div class="day-sep">以下为上一交易日（09-04）资讯</div>
+
+<div class="tg-item">
+<span class="tg-imp high"></span>
+<div class="tg-main">
+<div class="tg-head"><span class="tg-time">17:32:00</span><span class="tg-ago">上周五</span><span class="tg-src">财联社</span><span class="tag tag-red">快讯</span></div>
+<div class="tg-body"><b>国家大基金三期完成首笔投资落地</b>，投向先进制程设备与材料环节（详见「重点与跟踪」事件线）。</div>
+<div class="tg-foot">
+<span class="rel-chip up">#半导体设备 +5.8%</span>
+<span class="tg-act">查看事件线</span>
+</div>
+</div>
+</div>
+
+<div class="load-more">↓ 加载更早资讯（按日期分页，source_hash 幂等去重）</div>
+</div>
+</div>
+</div>
+
+<!-- 视图二：重点与跟踪（回答问题 3：重点资讯 + 获取状态 + 持续跟踪） -->
+<div class="view-pane" id="pane-focus">
+
+<!-- 工作原理：信息从何而来、怎么用 -->
+<div class="how-flow">
+<div class="how-step"><div class="hs-t">① 信息从何而来</div><div class="hs-d">全渠道今日 <b>534</b> 条资讯入库时，AI 逐条打<b>重要度评分</b>（影响范围 × 确定性 × 关联标的数），≥70 分进入「今日重点」。</div></div>
+<span class="how-arrow">→</span>
+<div class="how-step"><div class="hs-t">② 事件如何聚合成线</div><div class="hs-d">AI 将<b>同一事件的多篇报道自动聚类</b>为故事线（如「大基金三期」23 篇报道一条线）；报道 ≥5 篇自动建线并持续跟踪新进展。</div></div>
+<span class="how-arrow">→</span>
+<div class="how-step"><div class="hs-t">③ 你怎么用</div><div class="hs-d">在电报流对任意资讯点<b>「加入跟踪」</b>，或订阅关键词命中后一键转跟踪；被跟踪事件有新报道时<b>自动续接到故事线并提醒</b>，可随时停止。</div></div>
+</div>
+
+<div class="grid-2col">
+<div class="card">
+<div class="card-header"><span class="card-title">今日重点（AI 重要度评分）</span><span style="font-size:11px;color:var(--text-tertiary)">高重要度 38 条 · 展示 TOP 5</span></div>
+<div class="card-body card-body-sm">
+<div class="score-item">
+<div class="score-top"><span class="score-val">94</span><span class="score-title">半导体出口管制反制清单评估中</span></div>
+<div class="score-bar-wrap"><div class="score-bar" style="width:94%"></div></div>
+<div class="score-desc">政策直接影响国产替代节奏；关联板块当日涨幅与资金流入已验证（半导体 +4.82%、主力净流入 48.2 亿）。</div>
+<div class="score-why">评分构成：影响范围 <b>高（出口管制级政策）</b> · 确定性 <b>中（评估中未公布）</b> · 关联标的 <b>38 只</b> · 信源 <b>3 家交叉</b></div>
+</div>
+<div class="score-item">
+<div class="score-top"><span class="score-val">91</span><span class="score-title">大基金三期首笔投资落地</span></div>
+<div class="score-bar-wrap"><div class="score-bar" style="width:91%"></div></div>
+<div class="score-desc">先进制程设备与材料环节直接受益；北方华创盘中涨停，跟踪事件已更新进展。</div>
+<div class="score-why">评分构成：影响范围 <b>高（国家级基金）</b> · 确定性 <b>高（已落地）</b> · 关联标的 <b>24 只</b> · 信源 <b>5 家交叉</b></div>
+</div>
+<div class="score-item">
+<div class="score-top"><span class="score-val mid">86</span><span class="score-title">美国非农低于预期，9 月降息概率上修</span></div>
+<div class="score-bar-wrap"><div class="score-bar mid" style="width:86%"></div></div>
+<div class="score-desc">宏观流动性预期变化；利好黄金/成长股，对人民币资产风险偏好中性偏多。</div>
+<div class="score-why">评分构成：影响范围 <b>高（全球流动性）</b> · 确定性 <b>中（概率 68%）</b> · 关联标的 <b>宏观指标</b></div>
+</div>
+<div class="score-item">
+<div class="score-top"><span class="score-val mid">78</span><span class="score-title">日央行鹰派表态</span></div>
+<div class="score-bar-wrap"><div class="score-bar mid" style="width:78%"></div></div>
+<div class="score-desc">套息交易平仓风险提示；对 A 股影响间接，关注日元汇率连锁反应。</div>
+<div class="score-why">评分构成：影响范围 <b>中（间接传导）</b> · 确定性 <b>低（官员表态）</b></div>
+</div>
+<div class="score-item">
+<div class="score-top"><span class="score-val mid">72</span><span class="score-title">算力基建招标提速</span></div>
+<div class="score-bar-wrap"><div class="score-bar mid" style="width:72%"></div></div>
+<div class="score-desc">国内智算中心二期密集公示，产业链上游光模块/液冷受益。</div>
+<div class="score-why">评分构成：影响范围 <b>中（行业级）</b> · 确定性 <b>高（公示文件）</b> · 关联标的 <b>12 只</b></div>
+</div>
+</div>
+</div>
+
+<div class="flex flex-col">
+<div class="card mb-6" style="margin-bottom:12px">
+<div class="card-header"><span class="card-title">跟踪中的事件</span><span style="font-size:11px;color:var(--text-tertiary)">同一事件的多篇报道聚合为故事线</span></div>
+<div class="card-body card-body-sm">
+<div class="story-card">
+<div class="story-head"><span class="story-name">国家大基金三期投资</span><span class="story-from">AI 自动建线 · 报道 ≥5 篇</span><span class="tag tag-red">跟踪中</span></div>
+<div class="story-meta">报道 23 篇 · 跨度 67 天 · 涉及板块：半导体设备 / 材料</div>
+<div class="story-latest"><b>最新进展（09-04）：</b>首笔投资落地，投向先进制程设备与材料；后续关注二期项目申报名单。</div>
+<div class="story-chain">
+<div class="snode done"><span class="pt"></span><span class="d">07-01</span><span class="l">注册成立</span></div>
+<div class="snode done"><span class="pt"></span><span class="d">08-15</span><span class="l">投资框架披露</span></div>
+<div class="snode done"><span class="pt"></span><span class="d">09-04</span><span class="l">首笔落地</span></div>
+<div class="snode now"><span class="pt"></span><span class="d">进行中</span><span class="l">持续跟踪</span></div>
+</div>
+<div class="story-foot"><a>停止跟踪</a><a>查看全部 23 篇报道</a></div>
+</div>
+<div class="story-card">
+<div class="story-head"><span class="story-name">美联储 9 月议息</span><span class="story-from">我手动跟踪 · 来自订阅「美联储降息」</span><span class="tag tag-amber">临近</span></div>
+<div class="story-meta">报道 41 篇 · 距议息 8 天 · 概率：降息 68% / 不变 28%</div>
+<div class="story-latest"><b>最新进展（09-07）：</b>非农数据后降息概率由 52% 上修至 68%；会前关注 09-17 CPI。</div>
+<div class="story-foot"><a>停止跟踪</a><a>日历标记 09-18 决议</a></div>
+</div>
+</div>
+</div>
+<div class="card">
+<div class="card-header"><span class="card-title">已完结事件</span></div>
+<div class="card-body card-body-sm" style="font-size:12px;color:var(--text-secondary);line-height:1.8">
+<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0"><span>某重组传闻澄清</span><span class="tag tag-green" style="flex-shrink:0">08-30 官方澄清终结</span></div>
+<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0"><span>红海航运中断风波</span><span class="tag tag-green" style="flex-shrink:0">09-01 通航恢复终结</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- 视图三：热点主题（原热点追踪页并入，F-AI-03 能力） -->
+<div class="view-pane" id="pane-topic">
+<div class="card mb-6">
+<div class="card-header"><span class="card-title">今日热点词云</span><span style="font-size:11px;color:var(--text-tertiary)">词频窗口近 24h · 点击词条下钻主题详情</span></div>
+<div class="topic-cloud">
+<span class="cloud-tag" style="font-size:1.4rem;background:rgba(248,81,73,.12);color:var(--red);font-weight:700">半导体出口管制</span>
+<span class="cloud-tag" style="font-size:1.3rem;background:rgba(248,81,73,.12);color:var(--red);font-weight:700">大基金三期</span>
+<span class="cloud-tag" style="font-size:1.15rem;background:rgba(210,153,34,.12);color:var(--amber);font-weight:600">美联储降息</span>
+<span class="cloud-tag" style="font-size:1.05rem;background:rgba(210,153,34,.12);color:var(--amber)">算力基建</span>
+<span class="cloud-tag" style="font-size:1rem;background:rgba(88,166,255,.12);color:var(--blue)">国产替代</span>
+<span class="cloud-tag" style="font-size:.95rem;background:rgba(94,106,210,.15);color:var(--accent)">固态电池</span>
+<span class="cloud-tag" style="font-size:.9rem;background:rgba(94,106,210,.15);color:var(--accent)">黄金新高</span>
+<span class="cloud-tag" style="font-size:.85rem">日央行加息</span>
+<span class="cloud-tag" style="font-size:.85rem">低空经济</span>
+<span class="cloud-tag" style="font-size:.8rem">运价上行</span>
+<span class="cloud-tag" style="font-size:.8rem">消费电子回暖</span>
+<span class="cloud-tag" style="font-size:.75rem">数据要素</span>
+</div>
+</div>
+<div class="card">
+<div class="card-header"><span class="card-title">热点主题榜</span><span style="font-size:11px;color:var(--text-tertiary)">AI 聚类当日资讯 → 主题 · 点击卡片展开传导链</span></div>
+<div class="card-body">
+
+<div class="topic-card open">
+<div class="tc-head">
+<span class="tc-rank top">1</span>
+<div class="tc-main">
+<div class="tc-name">半导体出口管制反制 <span class="tag tag-red" style="margin-left:6px">利好国产替代</span></div>
+<div class="tc-heat">
+<span class="src-legend">资讯 <b class="text-mono" style="color:var(--text-primary);font-size:12px">32</b> 条 · 来源</span>
+<span class="src-dist"><i style="width:56%;background:var(--red)"></i><i style="width:28%;background:var(--blue)"></i><i style="width:16%;background:var(--amber)"></i></span>
+<span class="src-legend">财联社 18 / 见闻 9 / 新浪 5</span>
+<span class="src-legend" style="margin-left:auto">情绪：<b style="color:var(--text-secondary)">利好（29 利好 / 3 中性 / 0 利空）</b></span>
+</div>
+</div>
+<div class="tc-side">
+<span class="chg up">半导体 +4.82%</span>
+<span class="chg-note">主力净流入 <span class="up text-mono">+48.2亿</span></span>
+</div>
+</div>
+<div class="tc-formula">热度构成（96/100）：资讯量 <b>32</b> × 板块涨幅 <b>+4.82%</b> × 资金验证 <b>+48.2亿</b> · 交叉信源 <b>3 渠道</b> · 数据来自当日资讯聚类 + 板块行情 / 资金流接口</div>
+<div class="tc-expand">
+<div class="chain-flow">
+<div class="chain-node"><div class="cn-t">事件</div><div class="cn-v">管制反制清单</div></div>
+<span class="chain-arrow">→</span>
+<div class="chain-node"><div class="cn-t">上游材料</div><div class="cn-v">光刻胶/特气</div></div>
+<span class="chain-arrow">→</span>
+<div class="chain-node"><div class="cn-t">中游设备</div><div class="cn-v">刻蚀/薄膜</div></div>
+<span class="chain-arrow">→</span>
+<div class="chain-node"><div class="cn-t">下游制造</div><div class="cn-v">晶圆代工</div></div>
+</div>
+<div style="font-size:11px;color:var(--text-secondary);margin-top:8px">代表标的：<a href="stock-detail.html">北方华创</a> +5.02% · 中微公司 +4.11% · 南大光电 +6.35%　<a href="chain-analysis.html" style="margin-left:6px">产业图谱 →</a>　<a href="sector-anomaly.html" style="margin-left:6px">板块异动归因 →</a></div>
+</div>
+</div>
+
+<div class="topic-card">
+<div class="tc-head">
+<span class="tc-rank top">2</span>
+<div class="tc-main">
+<div class="tc-name">大基金三期落地 <span class="tag tag-red" style="margin-left:6px">利好</span></div>
+<div class="tc-heat">
+<span class="src-legend">资讯 <b class="text-mono" style="color:var(--text-primary);font-size:12px">23</b> 条 · 来源</span>
+<span class="src-dist"><i style="width:65%;background:var(--red)"></i><i style="width:22%;background:var(--blue)"></i><i style="width:13%;background:var(--purple)"></i></span>
+<span class="src-legend">财联社 15 / 见闻 5 / 巨潮 3</span>
+<span class="src-legend" style="margin-left:auto">情绪：<b style="color:var(--text-secondary)">利好（20/3/0）</b></span>
+</div>
+</div>
+<div class="tc-side">
+<span class="chg up">半导体设备 +5.8%</span>
+<span class="chg-note">主力净流入 <span class="up text-mono">+22.6亿</span></span>
+</div>
+</div>
+<div class="tc-formula">热度构成（88/100）：资讯量 <b>23</b> × 板块涨幅 <b>+5.8%</b> × 资金验证 <b>+22.6亿</b> · 数据来自当日资讯聚类 + 板块行情 / 资金流接口</div>
+</div>
+
+<div class="topic-card">
+<div class="tc-head">
+<span class="tc-rank top">3</span>
+<div class="tc-main">
+<div class="tc-name">美联储降息交易 <span class="tag tag-amber" style="margin-left:6px">分歧</span></div>
+<div class="tc-heat">
+<span class="src-legend">资讯 <b class="text-mono" style="color:var(--text-primary);font-size:12px">21</b> 条 · 来源</span>
+<span class="src-dist"><i style="width:48%;background:var(--blue)"></i><i style="width:38%;background:var(--red)"></i><i style="width:14%;background:var(--amber)"></i></span>
+<span class="src-legend">见闻 10 / 财联社 8 / 新浪 3</span>
+<span class="src-legend" style="margin-left:auto">情绪：<b style="color:var(--text-secondary)">分歧（9 利好 / 7 中性 / 5 利空）</b></span>
+</div>
+</div>
+<div class="tc-side">
+<span class="chg up">黄金 +0.6%</span>
+<span class="chg-note">宏观主题 · 无单一板块</span>
+</div>
+</div>
+<div class="tc-formula">热度构成（74/100）：资讯量 <b>21</b> × 宏观指标波动 <b>降息概率 +16pct</b> · 关联指标见<a href="macro-monitor.html">宏观指数监测</a></div>
+</div>
+
+<div class="topic-card">
+<div class="tc-head">
+<span class="tc-rank">4</span>
+<div class="tc-main">
+<div class="tc-name">算力基建招标 <span class="tag tag-red" style="margin-left:6px">利好</span></div>
+<div class="tc-heat">
+<span class="src-legend">资讯 <b class="text-mono" style="color:var(--text-primary);font-size:12px">14</b> 条 · 来源</span>
+<span class="src-dist"><i style="width:71%;background:var(--red)"></i><i style="width:29%;background:var(--purple)"></i></span>
+<span class="src-legend">财联社 10 / 巨潮 4</span>
+<span class="src-legend" style="margin-left:auto">情绪：<b style="color:var(--text-secondary)">利好（11/3/0）</b></span>
+</div>
+</div>
+<div class="tc-side">
+<span class="chg up">算力 +2.3%</span>
+<span class="chg-note">主力净流入 <span class="up text-mono">+9.8亿</span></span>
+</div>
+</div>
+<div class="tc-formula">热度构成（61/100）：资讯量 <b>14</b> × 板块涨幅 <b>+2.3%</b> × 资金验证 <b>+9.8亿</b> · 公告类信源占比高（确定性加权）</div>
+</div>
+
+<div class="load-more">↓ 展开全部 14 个主题</div>
+</div>
+</div>
+</div>
+
+<!-- 我的订阅（配置抽屉：页头「★ 我的订阅」按钮点开，不占用浏览视图 tab） -->
+<div class="drawer-mark">页头「★ 我的订阅（今日命中 23）」点开后的抽屉 —— 订阅是配置能力，命中结果回流电报流（★ 标注 + 筛选开关），故不与浏览视图同列</div>
+<div id="subDrawer">
+<div class="card mb-6">
 <div class="card-header">
-<span class="card-title">④ 地图 / 云图视图<span class="view-badge">全球热点资讯的地理与主题分布</span></span>
-<div class="seg-control"><span class="seg-item active">世界地图热区</span><span class="seg-item">热点词云</span></div>
+<span class="card-title">我的订阅规则</span>
+<span style="font-size:11px;color:var(--text-tertiary)">关键词/正则 · 命中即在电报流标注 ★ 并可推送</span>
+<button class="btn btn-ghost btn-sm" id="btnSubClose">收起 ⌃</button>
 </div>
 <div class="card-body">
-<div class="map-wrap">
-<svg viewBox="0 0 1000 420" width="100%" xmlns="http://www.w3.org/2000/svg">
-<!-- 简化大陆轮廓（示意） -->
-<path d="M120,110 Q180,70 260,85 Q330,95 340,150 Q350,210 300,240 Q250,265 200,240 Q140,215 115,180 Q100,140 120,110 Z" fill="#181a21" stroke="#23262d" stroke-width="1.5"/>
-<path d="M250,270 Q290,250 330,265 Q360,280 350,330 Q335,380 290,395 Q250,405 230,365 Q220,320 250,270 Z" fill="#181a21" stroke="#23262d" stroke-width="1.5"/>
-<path d="M470,90 Q540,60 620,80 Q680,95 690,140 Q700,190 660,210 Q620,230 570,215 Q520,200 490,165 Q460,130 470,90 Z" fill="#181a21" stroke="#23262d" stroke-width="1.5"/>
-<path d="M680,120 Q760,90 850,110 Q920,130 930,180 Q940,230 890,260 Q830,285 770,265 Q710,245 685,200 Q665,155 680,120 Z" fill="#181a21" stroke="#23262d" stroke-width="1.5"/>
-<path d="M860,290 Q910,275 950,295 Q975,320 960,355 Q940,385 900,380 Q865,375 855,340 Q850,310 860,290 Z" fill="#181a21" stroke="#23262d" stroke-width="1.5"/>
-<line x1="0" y1="225" x2="1000" y2="225" stroke="#23262d" stroke-dasharray="2,6"/>
-<!-- 热区：中国 -->
-<circle cx="720" cy="165" r="26" fill="rgba(248,81,73,.16)"/>
-<circle cx="720" cy="165" r="14" fill="rgba(248,81,73,.30)"/>
-<circle cx="720" cy="165" r="6" fill="#f85149"/>
-<!-- 热区：美国 -->
-<circle cx="205" cy="150" r="22" fill="rgba(94,106,210,.18)"/>
-<circle cx="205" cy="150" r="11" fill="rgba(94,106,210,.34)"/>
-<circle cx="205" cy="150" r="5" fill="#5e6ad2"/>
-<!-- 热区：欧洲 -->
-<circle cx="520" cy="120" r="16" fill="rgba(88,166,255,.16)"/>
-<circle cx="520" cy="120" r="8" fill="rgba(88,166,255,.32)"/>
-<circle cx="520" cy="120" r="4" fill="#58a6ff"/>
-<!-- 热区：中东 -->
-<circle cx="585" cy="200" r="14" fill="rgba(210,153,34,.18)"/>
-<circle cx="585" cy="200" r="7" fill="rgba(210,153,34,.34)"/>
-<circle cx="585" cy="200" r="4" fill="#d29922"/>
-<!-- 热区：日本 -->
-<circle cx="825" cy="145" r="10" fill="rgba(210,153,34,.16)"/>
-<circle cx="825" cy="145" r="5" fill="#d29922"/>
-</svg>
-<div class="heat-dot" style="left:72%;top:34%"><span class="heat-core" style="width:10px;height:10px;background:#f85149;box-shadow:0 0 14px rgba(248,81,73,.6)"></span><span class="heat-label">中国 · 算力/半导体 32 条</span></div>
-<div class="heat-dot" style="left:20.5%;top:33%"><span class="heat-core" style="width:9px;height:9px;background:#5e6ad2;box-shadow:0 0 12px rgba(94,106,210,.6)"></span><span class="heat-label">美国 · 降息预期 21 条</span></div>
-<div class="heat-dot" style="left:52%;top:24%"><span class="heat-core" style="width:7px;height:7px;background:#58a6ff"></span><span class="heat-label">欧洲 · 货币政策 9 条</span></div>
-<div class="heat-dot" style="left:58.5%;top:45%"><span class="heat-core" style="width:7px;height:7px;background:#d29922"></span><span class="heat-label">中东 · 航运风险 7 条</span></div>
-<div class="heat-dot" style="left:82.5%;top:31%"><span class="heat-core" style="width:6px;height:6px;background:#d29922"></span><span class="heat-label">日本 · 日央行 5 条</span></div>
+<div class="sub-add-row">
+<input class="form-input" placeholder="订阅关键词，如：半导体出口管制">
+<select class="form-select"><option>范围：全部渠道</option><option>仅财联社</option><option>仅公告</option></select>
+<select class="form-select"><option>类型：全部</option><option>财经</option><option>政治</option><option>产业</option><option>军事</option></select>
+<button class="btn btn-primary btn-sm">添加订阅</button>
 </div>
-<div class="cloud">
-<span class="hot" style="font-size:26px;font-weight:700">半导体出口管制</span>
-<span class="hot" style="font-size:22px;font-weight:600">美联储降息</span>
-<span class="mid" style="font-size:18px">算力基建</span>
-<span style="font-size:15px">国产替代</span>
-<span class="mid" style="font-size:17px">中东局势</span>
-<span style="font-size:14px">运价上行</span>
-<span style="font-size:15px">日央行加息</span>
-<span class="mid" style="font-size:16px">黄金新高</span>
-<span style="font-size:13px">新能源车</span>
-<span style="font-size:13px">消费电子回暖</span>
-<span style="font-size:12px;color:var(--text-tertiary)">房地产政策</span>
+<div class="table-wrap">
+<table>
+<thead><tr><th>关键词</th><th>范围</th><th>推送</th><th>今日命中</th><th>近 7 日</th><th>最近命中</th><th>启用</th><th></th></tr></thead>
+<tbody>
+<tr>
+<td><b>半导体出口管制</b></td><td>全部渠道 · 全部类型</td>
+<td><span class="switch-sm on"></span></td>
+<td class="text-mono" style="color:var(--amber);font-weight:600">6</td>
+<td class="text-mono">23</td>
+<td style="font-size:11px">12:03 商务部评估反制清单</td>
+<td><span class="switch-sm on"></span></td>
+<td><a class="tg-act" style="cursor:pointer">删除</a></td>
+</tr>
+<tr>
+<td><b>美联储降息</b></td><td>全部渠道 · 财经</td>
+<td><span class="switch-sm on"></span></td>
+<td class="text-mono" style="color:var(--amber);font-weight:600">11</td>
+<td class="text-mono">38</td>
+<td style="font-size:11px">11:47 非农后概率升至 68%</td>
+<td><span class="switch-sm on"></span></td>
+<td><a class="tg-act" style="cursor:pointer">删除</a></td>
+</tr>
+<tr>
+<td><b>新能源车补贴</b></td><td>全部渠道 · 产业</td>
+<td><span class="switch-sm"></span></td>
+<td class="text-mono" style="color:var(--amber)">2</td>
+<td class="text-mono">5</td>
+<td style="font-size:11px">09-05 地方补贴退坡细则</td>
+<td><span class="switch-sm on"></span></td>
+<td><a class="tg-act" style="cursor:pointer">删除</a></td>
+</tr>
+<tr>
+<td><b>中东局势</b></td><td>见闻 / 新浪 · 军事政治</td>
+<td><span class="switch-sm"></span></td>
+<td class="text-mono" style="color:var(--amber)">4</td>
+<td class="text-mono">19</td>
+<td style="font-size:11px">09-06 红海通行量周环比 -12%</td>
+<td><span class="switch-sm"></span></td>
+<td><a class="tg-act" style="cursor:pointer">删除</a></td>
+</tr>
+</tbody>
+</table>
 </div>
-<div style="text-align:center;font-size:var(--text-xs);color:var(--text-tertiary);padding-bottom:8px">点击热区 / 词条下钻对应新闻列表 · 词频统计窗口：近 24 小时</div>
 </div>
+</div>
+<div class="card">
+<div class="card-header"><span class="card-title">最近命中时间线</span><span style="font-size:11px;color:var(--text-tertiary)">近 24 小时 · 全部规则 · 命中条目同时出现在电报流（★）</span></div>
+<div class="card-body card-body-sm">
+<div class="tg-item">
+<span class="tg-imp high"></span>
+<div class="tg-main">
+<div class="tg-head"><span class="tg-time">12:03:45</span><span class="tg-star">★ 半导体出口管制</span><span class="tg-src">财联社</span></div>
+<div class="tg-body">商务部：反制清单正在评估 → <b>关联板块：半导体 +4.82%</b></div>
+</div>
+</div>
+<div class="tg-item">
+<span class="tg-imp high"></span>
+<div class="tg-main">
+<div class="tg-head"><span class="tg-time">11:47:12</span><span class="tg-star">★ 美联储降息</span><span class="tg-src">华尔街见闻</span></div>
+<div class="tg-body">非农不及预期，9 月降息概率升至 68% → <b>关联：黄金 / 美债</b></div>
+</div>
+</div>
+<div class="tg-item">
+<span class="tg-imp mid"></span>
+<div class="tg-main">
+<div class="tg-head"><span class="tg-time">09-06 14:26</span><span class="tg-star">★ 中东局势</span><span class="tg-src">华尔街见闻</span></div>
+<div class="tg-body">红海通行量周环比下降 12%，运价连续三周上行 → <b>关联板块：航运</b></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- 规划说明：边界与远期 -->
+<div class="type-note">
+<div class="tn-title">信息架构说明（原「热点追踪」已并入本页）</div>
+① <b>渠道监控</b>回答「有哪些渠道 / 获取状态 / 是否持续采集」；② <b>实时电报</b>回答「最新资讯与时效」（时间精确到秒 + 相对时间 + 新讯息到达不打断浏览）；③ <b>重点与跟踪</b>回答「哪些是重点、是否持续跟踪」（信息来自全渠道资讯的 AI 重要度评分与事件聚类；用户可在电报流「加入跟踪」，新报道自动续接故事线）；④ <b>热点主题</b>为原热点追踪能力（F-AI-03：事件→概念→标的），数据来自当日资讯聚类 + 板块行情/资金流验证，与板块异动分析（F-AI-09）互通归因。<b>订阅</b>为配置能力（页头抽屉），命中结果回流电报流（★ 标注 + 筛选开关），不与浏览视图同列。远期扩展：世界地图热区视图、大屏词云、订阅规则正则与推送渠道（站内 / 小程序）。
 </div>
 
 </div></div></div>
+</div>
+
+<script>
+/* 视图切换（同个股详情右栏 tab 范式） */
+document.querySelectorAll('.view-tabs .vtab').forEach(function(t){
+  t.addEventListener('click',function(){
+    document.querySelectorAll('.view-tabs .vtab').forEach(function(x){x.classList.toggle('active',x===t)});
+    document.querySelectorAll('.view-pane').forEach(function(p){p.classList.toggle('active',p.id===t.dataset.view)});
+  });
+});
+/* 订阅命中开关（示意） */
+document.querySelectorAll('.fswitch').forEach(function(s){
+  s.addEventListener('click',function(){s.classList.toggle('on')});
+});
+/* 我的订阅抽屉开合（页头按钮，配置能力不占视图 tab） */
+(function(){
+  var drawer=document.getElementById('subDrawer');
+  document.getElementById('btnSubDrawer').addEventListener('click',function(){
+    drawer.classList.toggle('open');
+    if(drawer.classList.contains('open'))drawer.scrollIntoView({behavior:'smooth'});
+  });
+  document.getElementById('btnSubClose').addEventListener('click',function(){
+    drawer.classList.remove('open');
+  });
+})();
+</script>
 </body>
 </html>
