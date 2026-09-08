@@ -327,6 +327,7 @@ export interface ApiGlobalIndexQuoteResponse {
   close: number | null
   changePct: number | null
   tradeDate: string | null
+  trend: number[]
 }
 
 export interface GlobalIndexQuote {
@@ -335,6 +336,7 @@ export interface GlobalIndexQuote {
   close: number | null
   changePct: number | null
   tradeDate: string | null
+  trend: number[]
 }
 
 export interface GlobalIndexHistoryPoint {

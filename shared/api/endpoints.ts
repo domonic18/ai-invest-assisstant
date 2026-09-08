@@ -106,6 +106,7 @@ export const ENDPOINTS = {
     aiReview: `${API_BASE}/market/ai-review`,
     globalIndices: `${API_BASE}/market/global-indices`,
     globalIndexHistory: `${API_BASE}/market/global-index-history`,
+    globalIndexKline: `${API_BASE}/market/global-indices/kline`,
     fedWatch: `${API_BASE}/market/fed-watch`,
     sectorQuotes: `${API_BASE}/market/sector-quotes`,
     collect: `${API_BASE}/market/collect`,
@@ -131,6 +132,7 @@ export const ENDPOINTS = {
   },
   workbench: {
     base: `${API_BASE}/workbench`,
+    reviewStatus: `${API_BASE}/workbench/review-status`,
   },
   admin: {
     // 集合根路由后端以 "/" 注册，常量保持同形避免依赖 307 重定向

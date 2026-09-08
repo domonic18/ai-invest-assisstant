@@ -67,6 +67,7 @@ class GlobalIndexQuoteResponse(CamelModel):
     close: float | None = None
     change_pct: float | None = None
     trade_date: date | None = None
+    trend: list[float] = []
 
 
 class FedWatchMeeting(CamelModel):

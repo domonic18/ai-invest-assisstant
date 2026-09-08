@@ -3,7 +3,7 @@
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.quote_global_index import GlobalIndexDaily
@@ -48,6 +48,42 @@ async def map_latest_closes(
     }
 
 
+async def map_recent_closes(
+    session: AsyncSession, codes: list[str], limit: int
+) -> dict[str, list[float]]:
+    """每只指标最近 limit 个收盘（升序，None 收盘剔除），供趋势缩略图。"""
+    if not codes:
+        return {}
+    rn = (
+        func.row_number()
+        .over(
+            partition_by=GlobalIndexDaily.index_code,
+            order_by=GlobalIndexDaily.trade_date.desc(),
+        )
+        .label("rn")
+    )
+    ranked = (
+        select(
+            GlobalIndexDaily.index_code.label("index_code"),
+            GlobalIndexDaily.trade_date.label("trade_date"),
+            GlobalIndexDaily.close.label("close"),
+            rn,
+        )
+        .where(GlobalIndexDaily.index_code.in_(codes))
+        .subquery()
+    )
+    rows = await session.execute(
+        select(ranked.c.index_code, ranked.c.close)
+        .where(ranked.c.rn <= limit)
+        .order_by(ranked.c.index_code, ranked.c.trade_date)
+    )
+    trends: dict[str, list[float]] = {}
+    for code, close in rows.all():
+        if close is not None:
+            trends.setdefault(code, []).append(float(close))
+    return trends
+
+
 async def list_closes(
     session: AsyncSession, code: str, since: date
 ) -> list[tuple[date, Decimal]]:
@@ -61,3 +97,18 @@ async def list_closes(
         .order_by(GlobalIndexDaily.trade_date)
     )
     return [(row[0], row[1]) for row in (await session.execute(stmt)).all()]
+
+
+async def list_daily_bars(
+    session: AsyncSession, code: str, since: date
+) -> list[GlobalIndexDaily]:
+    """指定指标自 since 起的日线 OHLCV（trade_date 升序）。"""
+    stmt = (
+        select(GlobalIndexDaily)
+        .where(
+            GlobalIndexDaily.index_code == code,
+            GlobalIndexDaily.trade_date >= since,
+        )
+        .order_by(GlobalIndexDaily.trade_date)
+    )
+    return list((await session.execute(stmt)).scalars().all())
