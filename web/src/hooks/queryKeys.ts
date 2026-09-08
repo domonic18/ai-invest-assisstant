@@ -81,6 +81,8 @@ export const queryKeys = {
     globalIndices: ['market', 'global-indices'] as const,
     globalIndexHistory: (indexCode: string, months: number) =>
       ['market', 'global-index-history', indexCode, months] as const,
+    globalIndexKline: (indexCode: string, period: string) =>
+      ['market', 'global-index-kline', indexCode, period] as const,
     fedWatch: ['market', 'fed-watch'] as const,
     sectorQuotes: (sectorType: string) =>
       ['market', 'sector-quotes', sectorType] as const,
@@ -144,5 +146,6 @@ export const queryKeys = {
   workbench: {
     all: ['workbench'] as const,
     overview: ['workbench', 'overview'] as const,
+    reviewStatus: ['workbench', 'reviewStatus'] as const,
   },
 } as const
