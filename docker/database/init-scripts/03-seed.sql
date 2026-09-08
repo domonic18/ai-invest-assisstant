@@ -20,19 +20,19 @@ ON CONFLICT (stock_code, market) DO NOTHING;
 -- internal 渠道（内部生成，非外部数据源）
 -- supported_data_types 与 collector_channel_data_type 按任务名登记（渠道解析/beat 派发以任务名为键）
 INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
-VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness"]'::jsonb)
+VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "news-score"]'::jsonb)
 ON CONFLICT (source) DO NOTHING;
 
 -- 兼容存量环境：internal 渠道已存在时补齐后续新增的数据类型
 UPDATE collector_channel_config
-SET supported_data_types = supported_data_types || '["stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness"]'::jsonb
+SET supported_data_types = supported_data_types || '["stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "news-score"]'::jsonb
 WHERE source = 'internal'
   AND NOT supported_data_types @> '["chain-refresh"]'::jsonb;
 
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, d.data_type, 1
 FROM collector_channel_config,
-     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness')) AS d(data_type)
+     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('news-score')) AS d(data_type)
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
@@ -265,6 +265,8 @@ VALUES
     -- 港美股指数历史回补：Yahoo 一次性 12 个月，手动触发不排 cron
     ('yahoo_global_index_backfill', 'global-index', 'yahoo', NULL, false),
     -- Yahoo 全球指标每日幂等续期（USDCNY 每日增量 + HSTECH 404 自愈重试）
-    ('yahoo_global_index_daily', 'global-index', 'yahoo', '40 7 * * *', true)
+    ('yahoo_global_index_daily', 'global-index', 'yahoo', '40 7 * * *', true),
+    -- 资讯 AI 重要度分级（每 5 分钟批量，internal 直调服务层）
+    ('news_ai_score', 'news-score', 'internal', '*/5 * * * *', true)
 ON CONFLICT (task_name) DO UPDATE
 SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;
