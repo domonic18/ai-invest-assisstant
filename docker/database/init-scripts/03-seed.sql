@@ -215,7 +215,13 @@ VALUES
     ('NDX',    '纳斯达克',       '全球', 'eastmoney', 12, true),
     ('SPX',    '标普500',        '全球', 'eastmoney', 13, true),
     ('N225',   '日经225',        '全球', 'eastmoney', 14, true),
-    ('JP10Y',  '日本10Y国债',    '全球', 'mof',       15, true)
+    ('JP10Y',  '日本10Y国债',    '全球', 'mof',       15, true),
+    ('US30Y',  '美债 30Y 收益率', '全球', 'tushare',   16, true),
+    ('USDCNY', '美元/人民币',     '全球', 'yahoo',     17, true),
+    ('USDCNH', '美元/离岸人民币', '全球', 'eastmoney', 18, true),
+    ('USDJPY', '美元/日元',       '全球', 'eastmoney', 19, true),
+    ('USDEUR', '美元/欧元',       '全球', 'eastmoney', 20, true),
+    ('B00Y',   '布伦特原油',      '全球', 'eastmoney', 21, true)
 ON CONFLICT (index_code) DO NOTHING;
 
 -- mof/cme/yahoo 渠道（无鉴权直采，签名/指纹自持无需 api_key）
@@ -257,6 +263,8 @@ VALUES
     -- 板块收盘快照（16:00 收盘批后）
     ('eastmoney_sector_quote', 'sector-quote', 'eastmoney', '5 16 * * 1-5', true),
     -- 港美股指数历史回补：Yahoo 一次性 12 个月，手动触发不排 cron
-    ('yahoo_global_index_backfill', 'global-index', 'yahoo', NULL, false)
+    ('yahoo_global_index_backfill', 'global-index', 'yahoo', NULL, false),
+    -- Yahoo 全球指标每日幂等续期（USDCNY 每日增量 + HSTECH 404 自愈重试）
+    ('yahoo_global_index_daily', 'global-index', 'yahoo', '40 7 * * *', true)
 ON CONFLICT (task_name) DO UPDATE
 SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;
