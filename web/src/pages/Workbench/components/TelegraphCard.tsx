@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom'
 
 import type { TelegraphItem } from '@ai-invest/shared'
 
+import { isNoiseCategory, isNoiseImportance } from '@/pages/News/logic'
+
 import { FoldCard } from './FoldCard'
 
 interface TelegraphCardProps {
@@ -16,12 +18,10 @@ interface TelegraphCardProps {
 /** 与后端 _TELEGRAPH_PAGE_SIZE 对齐；行在 stretch 卡内均匀分布铺满等高卡。 */
 const MAX_ITEMS = 12
 
-function importanceTag(importance: number | null) {
-  if (importance === null) return null
+function importanceTag(importance: number) {
   const presets: Record<number, { color: string; label: string }> = {
     3: { color: 'red', label: '重要' },
     2: { color: 'orange', label: '关注' },
-    1: { color: 'blue', label: '一般' },
   }
   const preset = presets[importance] ?? { color: 'gold', label: `L${importance}` }
   return <Tag color={preset.color}>{preset.label}</Tag>
@@ -53,27 +53,32 @@ export function TelegraphCard({ items, loading, className, stretch }: TelegraphC
         <div className="flex justify-center py-6"><Spin /></div>
       ) : items?.length ? (
         <div className="flex flex-1 min-h-0 flex-col overflow-y-auto">
-          {items.slice(0, MAX_ITEMS).map((item) => (
-            <div
-              key={item.clsMsgId}
-              className="flex flex-1 shrink-0 items-center gap-2.5 py-2.5 border-b border-gray-800 last:border-b-0"
-            >
-              <span className="shrink-0 text-[11px] text-gray-500 font-mono">
-                {dayjs(item.publishTime).format('HH:mm')}
-              </span>
-              <div className="min-w-0">
-                <div className="text-[13px] text-gray-100 leading-normal line-clamp-2">
-                  {item.title ?? item.content}
-                </div>
-                {(item.category || item.importance !== null) && (
-                  <div className="flex gap-1.5 mt-1">
-                    {importanceTag(item.importance)}
-                    {item.category && <Tag>{item.category}</Tag>}
+          {items.slice(0, MAX_ITEMS).map((item) => {
+            // cls C 级重要度与数字编码 category 为噪音，与 /news 电报视图口径一致不渲染
+            const importanceShown = item.importance !== null && !isNoiseImportance(item.importance)
+            const categoryShown = !isNoiseCategory(item.category) && Boolean(item.category)
+            return (
+              <div
+                key={item.clsMsgId}
+                className="flex flex-1 shrink-0 items-center gap-2.5 py-2.5 border-b border-gray-800 last:border-b-0"
+              >
+                <span className="shrink-0 text-[11px] text-gray-500 font-mono">
+                  {dayjs(item.publishTime).format('HH:mm')}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[13px] text-gray-100 leading-normal line-clamp-2">
+                    {item.title ?? item.content}
                   </div>
-                )}
+                  {(importanceShown || categoryShown) && (
+                    <div className="flex gap-1.5 mt-1">
+                      {importanceShown && item.importance !== null && importanceTag(item.importance)}
+                      {categoryShown && <Tag>{item.category}</Tag>}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       ) : (
         <Empty description="暂无电报" image={Empty.PRESENTED_IMAGE_SIMPLE} />

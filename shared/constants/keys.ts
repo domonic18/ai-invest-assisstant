@@ -33,5 +33,6 @@ export const StorageKey = {
   settings: {
     colorScheme: 'color_scheme',
     indicators: 'settings:indicators',
+    calendarDetailCollapsed: 'settings:calendar-detail-collapsed',
   },
 } as const

@@ -3,21 +3,29 @@ import dayjs, { type Dayjs } from 'dayjs'
 import type { CalendarEvent } from '@ai-invest/shared'
 
 import { categoryMeta } from './categoryMeta'
+import { DOW_LABELS_SUN_FIRST, eventHitsWatchlist } from './eventMeta'
 import { EventTimeDot } from './EventTimeDot'
 import { eventTimeHm } from './eventTime'
 
 import { DATE_FORMAT } from '@/utils/formatters'
 
-const DOW_LABELS = ['日', '一', '二', '三', '四', '五', '六']
 const MAX_CHIPS = 3
 
 interface MonthViewProps {
   month: Dayjs
   events: CalendarEvent[]
-  onSelectEvent: (event: CalendarEvent) => void
+  selectedDay: Dayjs
+  onSelectDay: (day: Dayjs) => void
+  watchlistCodes: Set<string>
 }
 
-export function MonthView({ month, events, onSelectEvent }: MonthViewProps) {
+export function MonthView({
+  month,
+  events,
+  selectedDay,
+  onSelectDay,
+  watchlistCodes,
+}: MonthViewProps) {
   const firstCell = month.startOf('month').startOf('week')
   const today = dayjs().startOf('day')
   const cells = Array.from({ length: 42 }, (_, i) => firstCell.add(i, 'day'))
@@ -33,7 +41,7 @@ export function MonthView({ month, events, onSelectEvent }: MonthViewProps) {
   return (
     <div>
       <div className="grid grid-cols-7 gap-1.5 mb-1">
-        {DOW_LABELS.map((label) => (
+        {DOW_LABELS_SUN_FIRST.map((label) => (
           <div key={label} className="text-center text-xs text-gray-500 font-semibold py-1">
             {label}
           </div>
@@ -43,13 +51,19 @@ export function MonthView({ month, events, onSelectEvent }: MonthViewProps) {
         {cells.map((date) => {
           const inMonth = date.isSame(month, 'month')
           const isToday = date.isSame(today, 'day')
+          const isSelected = date.isSame(selectedDay, 'day')
           const dayEvents = eventsByDay.get(date.format(DATE_FORMAT)) ?? []
           return (
             <div
               key={date.format(DATE_FORMAT)}
+              onClick={() => inMonth && onSelectDay(date)}
               className={`min-h-[84px] rounded border p-1.5 ${
-                inMonth ? 'bg-white/[0.03] border-white/10' : 'bg-transparent border-dashed border-white/5 opacity-50'
-              } ${isToday ? '!border-blue-500' : ''}`}
+                inMonth
+                  ? 'bg-white/[0.03] border-white/10 cursor-pointer'
+                  : 'bg-transparent border-dashed border-white/5 opacity-50'
+              } ${isToday || isSelected ? '!border-blue-500' : ''} ${
+                isSelected ? 'shadow-[0_0_0_1px] shadow-blue-500' : ''
+              }`}
             >
               <span
                 className={`inline-flex w-5 h-5 items-center justify-center rounded-full text-xs tabular-nums ${
@@ -63,8 +77,7 @@ export function MonthView({ month, events, onSelectEvent }: MonthViewProps) {
                 return (
                   <div
                     key={event.id}
-                    onClick={() => onSelectEvent(event)}
-                    className={`mt-1 px-1.5 py-0.5 rounded text-[11px] leading-snug truncate cursor-pointer border-l-2 ${categoryMeta(event.category).chipClass}`}
+                    className={`mt-1 px-1.5 py-0.5 rounded text-[11px] leading-snug truncate border-l-2 ${categoryMeta(event.category).chipClass}`}
                     title={event.title}
                   >
                     {hm ? (
@@ -73,6 +86,9 @@ export function MonthView({ month, events, onSelectEvent }: MonthViewProps) {
                       <EventTimeDot />
                     )}{' '}
                     {event.title}
+                    {eventHitsWatchlist(event, watchlistCodes) && (
+                      <span className="text-amber-400"> ★</span>
+                    )}
                   </div>
                 )
               })}
