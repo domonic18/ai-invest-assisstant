@@ -55,7 +55,8 @@ class TestTelegraphEndpoint:
         new_callable=AsyncMock,
     )
     async def test_list_paginated(self, mock_list: AsyncMock, client) -> None:
-        mock_list.return_value = ([_item_mock()], 42)
+        scored_at = datetime(2026, 9, 2, 7, 5, tzinfo=timezone.utc)
+        mock_list.return_value = ([(_item_mock(), 82, scored_at)], 42)
         response = client.get("/api/v1/telegraph", params={"page": 2, "page_size": 30})
 
         assert response.status_code == 200
@@ -69,12 +70,15 @@ class TestTelegraphEndpoint:
         assert item["content"] == "宁德时代获机构增持"  # 已剥 HTML
         assert item["stockCodes"] == ["sz300750"]
         assert item["publishTime"] == "2026-09-02T07:00:00Z"
+        assert item["aiScore"] == 82
+        assert item["aiScoredAt"] == "2026-09-02T07:05:00Z"
         mock_list.assert_awaited_once_with(
             mock_list.await_args.args[0],
             page=2,
             page_size=30,
             category=None,
             min_importance=None,
+            min_ai_score=None,
         )
 
     @patch(
@@ -85,7 +89,7 @@ class TestTelegraphEndpoint:
         mock_list.return_value = ([], 0)
         response = client.get(
             "/api/v1/telegraph",
-            params={"category": "宏观", "min_importance": 2},
+            params={"category": "宏观", "min_importance": 2, "min_ai_score": 70},
         )
 
         assert response.status_code == 200
@@ -93,6 +97,7 @@ class TestTelegraphEndpoint:
         kwargs = mock_list.await_args.kwargs
         assert kwargs["category"] == "宏观"
         assert kwargs["min_importance"] == 2
+        assert kwargs["min_ai_score"] == 70
 
     async def test_page_bounds(self, client) -> None:
         assert (

@@ -28,6 +28,7 @@ from app.models.llm_config import LLMConfig
 from app.models.mapping_stock_concept import MappingStockConcept
 from app.models.market_amount import MarketAmount
 from app.models.market_breadth import MarketBreadth
+from app.models.news_ai_score import NewsAiScore
 from app.models.news_announcement import NewsAnnouncement
 from app.models.news_telegraph import NewsTelegraph
 from app.models.pool_limit_up_stock import LimitUpPool
@@ -74,6 +75,7 @@ __all__ = [
     "MappingStockConcept",
     "MarketAmount",
     "MarketBreadth",
+    "NewsAiScore",
     "NewsAnnouncement",
     "NewsTelegraph",
     "SectorFundFlow",

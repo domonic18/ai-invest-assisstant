@@ -12,12 +12,18 @@ export function useTelegraph(
   page: number,
   pageSize: number,
   minImportance?: number,
+  minAiScore?: number,
   autoRefresh = true,
 ) {
   return useQuery({
-    queryKey: queryKeys.telegraph.list(page, pageSize, minImportance),
+    queryKey: queryKeys.telegraph.list(page, pageSize, minImportance, minAiScore),
     queryFn: async () => {
-      const data = await fetchTelegraph({ page, pageSize, minImportance })
+      const data = await fetchTelegraph({
+        page,
+        pageSize,
+        minImportance,
+        minAiScore,
+      })
       return mapTelegraphPage(data)
     },
     placeholderData: keepPreviousData,

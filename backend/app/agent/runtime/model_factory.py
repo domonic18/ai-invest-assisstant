@@ -17,11 +17,16 @@ from app.services.admin.llm_config_service import ResolvedLLMConfig
 ANTHROPIC_MAX_TOKENS = 8192
 
 
-def build_langchain_model(cfg: ResolvedLLMConfig) -> BaseChatModel:
+def build_langchain_model(
+    cfg: ResolvedLLMConfig, *, disable_thinking: bool = False
+) -> BaseChatModel:
     """把后台 LLM 配置转换为 LangChain 模型实例。
 
     Args:
         cfg: 已解密的默认 LLM 配置（llm_config 表）。
+        disable_thinking: 显式关闭服务端 thinking（anthropic 协议端点默认开启，
+            与 ``with_structured_output`` 的强制 tool_choice 冲突会 400）。
+            助手循环需要 thinking 块，保持默认 False。
 
     Returns:
         anthropic 协议（含 Kimi coding 端点）→ ``ChatAnthropic``；
@@ -43,6 +48,8 @@ def build_langchain_model(cfg: ResolvedLLMConfig) -> BaseChatModel:
             "max_tokens": ANTHROPIC_MAX_TOKENS,
             **common,
         }
+        if disable_thinking:
+            params["thinking"] = {"type": "disabled"}
         return ChatAnthropic(**params)
     return ChatOpenAI(
         model=cfg.model_name,

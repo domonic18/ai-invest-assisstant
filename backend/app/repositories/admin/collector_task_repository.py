@@ -35,3 +35,10 @@ class CollectorTaskRepository(BaseRepository[CollectorTask]):
         )
         result = await self.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_by_task_name(self, task_name: str) -> CollectorTask | None:
+        """按任务名取单个任务配置（schedule/is_active）。"""
+        stmt = select(CollectorTask).where(CollectorTask.task_name == task_name)
+        result = await self.execute(stmt)
+        row: CollectorTask | None = result.scalars().first()
+        return row

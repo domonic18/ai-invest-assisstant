@@ -856,6 +856,24 @@ CREATE TABLE IF NOT EXISTS news_telegraph (
 CREATE INDEX IF NOT EXISTS idx_news_telegraph_publish_time ON news_telegraph(publish_time DESC);
 
 -- ============================================================
+-- 21b. 资讯 AI 重要度分级（跨源通用标注：电报/新闻/公告/推文/视频共用，
+--      (source, item_id) 挂各源自有表业务主键，不改动源表）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS news_ai_score (
+    source       VARCHAR(32)  NOT NULL,
+    item_id      VARCHAR(64)  NOT NULL,
+    score        INT          NOT NULL,
+    score_detail JSONB,
+    scored_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+
+    PRIMARY KEY (source, item_id),
+    CONSTRAINT chk_news_ai_score_value CHECK (score >= 0 AND score <= 100)
+);
+
+CREATE INDEX IF NOT EXISTS idx_news_ai_score_score ON news_ai_score(score DESC);
+
+-- ============================================================
 -- 22. Skill 注册表（builtin 登记 + custom 定义；builtin 行由应用启动
 --     sync_builtin_skills 幂等同步写入，无静态 seed）
 -- ============================================================

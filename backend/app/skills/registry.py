@@ -77,6 +77,13 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         skill_md=True,
     ),
     SkillDescriptor(
+        skill_id="news-score",
+        label="资讯重要度分级",
+        kind="prompt_only",
+        skill_md=True,
+        task_spec_name="news-score",
+    ),
+    SkillDescriptor(
         skill_id="financial-report-summary",
         label="财报结构化摘要",
         kind="prompt_only",

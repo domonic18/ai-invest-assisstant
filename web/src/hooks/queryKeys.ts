@@ -112,8 +112,24 @@ export const queryKeys = {
   },
   telegraph: {
     all: ['telegraph'] as const,
-    list: (page: number, pageSize: number, minImportance?: number) =>
-      ['telegraph', 'list', page, pageSize, minImportance ?? 0] as const,
+    list: (
+      page: number,
+      pageSize: number,
+      minImportance?: number,
+      minAiScore?: number,
+    ) =>
+      [
+        'telegraph',
+        'list',
+        page,
+        pageSize,
+        minImportance ?? 0,
+        minAiScore ?? null,
+      ] as const,
+  },
+  news: {
+    all: ['news'] as const,
+    channels: ['news', 'channels'] as const,
   },
   users: {
     all: ['users'] as const,

@@ -16,6 +16,7 @@ export function mapTelegraph(dto: ApiTelegraphResponse): TelegraphItem {
     stockCodes: dto.stockCodes ?? [],
     publishTime: dto.publishTime,
     sourceUrl: `https://www.cls.cn/detail/${dto.clsMsgId}`,
+    aiScore: dto.aiScore ?? null,
   }
 }
 

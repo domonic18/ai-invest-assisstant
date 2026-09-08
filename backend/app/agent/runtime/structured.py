@@ -46,7 +46,8 @@ async def run_structured(
         ValidationError: 模型输出不符合 schema（重试一次后仍失败）。
     """
     cfg = await resolve_default_llm(session)
-    structured = build_langchain_model(cfg).with_structured_output(result_type)
+    model = build_langchain_model(cfg, disable_thinking=True)
+    structured = model.with_structured_output(result_type)
 
     content: Any = user_prompt
     if images:

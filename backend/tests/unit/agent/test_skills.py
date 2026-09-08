@@ -15,6 +15,7 @@ EXPECTED_SKILLS = {
     "industry-chain-analysis",
     "limit-up-review",
     "market-daily-review",
+    "news-score",
     "research-report-summary",
     "stock-daily-analysis",
     "watchlist-screenshot-recognition",

@@ -41,11 +41,11 @@ const Login = lazy(() => import('./pages/Login/Login').then((m) => ({ default: m
 const MacroMonitor = lazy(() =>
   import('./pages/MacroMonitor/MacroMonitor').then((m) => ({ default: m.MacroMonitor })),
 )
+const News = lazy(() => import('./pages/News').then((m) => ({ default: m.News })))
 const Register = lazy(() => import('./pages/Register/Register').then((m) => ({ default: m.Register })))
 const Settings = lazy(() => import('./pages/Settings/Settings').then((m) => ({ default: m.Settings })))
 const SkillsPage = lazy(() => import('./pages/Skills/SkillsPage').then((m) => ({ default: m.SkillsPage })))
 const StockDetail = lazy(() => import('./pages/StockDetail/StockDetail').then((m) => ({ default: m.StockDetail })))
-const Telegraph = lazy(() => import('./pages/Telegraph').then((m) => ({ default: m.Telegraph })))
 const Watchlist = lazy(() => import('./pages/Watchlist').then((m) => ({ default: m.Watchlist })))
 const Workbench = lazy(() =>
   import('./pages/Workbench/Workbench').then((m) => ({ default: m.Workbench })),
@@ -74,7 +74,9 @@ export const router = createBrowserRouter([
       { path: 'research', element: <Navigate to="/workbench" replace /> },
       { path: 'financial-reports', element: <Navigate to="/workbench" replace /> },
       { path: 'calendar', element: lazyEl(<Calendar />) },
-      { path: 'telegraph', element: lazyEl(<Telegraph />) },
+      { path: 'news', element: lazyEl(<News />) },
+      // 旧路由兜底：电报视图已迁入资讯中心（迭代 3）
+      { path: 'telegraph', element: <Navigate to="/news" replace /> },
       { path: 'financial/:code', element: lazyEl(<Financial />) },
       { path: 'settings', element: lazyEl(<Settings />) },
       { path: 'skills', element: lazyEl(<SkillsPage />) },

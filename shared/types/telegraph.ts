@@ -18,6 +18,9 @@ export interface ApiTelegraphResponse {
   shared: number | null
   stockCodes: string[] | null
   publishTime: string
+  /** AI 重要度 0-100（news_ai_score 另存，未分级为 null） */
+  aiScore?: number | null
+  aiScoredAt?: string | null
 }
 
 /** 电报条目领域类型（camelCase，前端使用）。 */
@@ -32,6 +35,8 @@ export interface TelegraphItem {
   publishTime: string
   /** cls.cn 原文链接，由 clsMsgId 派生 */
   sourceUrl: string
+  /** AI 重要度 0-100（未分级为 null） */
+  aiScore: number | null
 }
 
 /** 电报分页领域类型（camelCase，前端使用）。 */

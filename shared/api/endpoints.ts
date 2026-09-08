@@ -117,6 +117,9 @@ export const ENDPOINTS = {
   telegraph: {
     list: `${API_BASE}/telegraph`,
   },
+  news: {
+    channels: `${API_BASE}/news/channels`,
+  },
   workbench: {
     base: `${API_BASE}/workbench`,
   },

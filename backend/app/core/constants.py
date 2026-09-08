@@ -38,3 +38,11 @@ GLOBAL_INDEX_CODES: dict[str, dict[str, str]] = {
     "USDEUR": {"name": "美元/欧元", "data_source": "eastmoney", "secid": "119.USDEUR"},
     "B00Y": {"name": "布伦特原油", "data_source": "eastmoney", "secid": "112.B00Y"},
 }
+
+# ---- 资讯域共享标识 ----
+# 电报源标识：news_ai_score.source 值、资讯渠道注册表 key、stream 驻留进程
+# Redis 键的 <source> 段共用同一真相源；新增资讯源时在此登记标识
+NEWS_SOURCE_TELEGRAPH = "cls_telegraph"
+# stream 驻留进程 Redis 键模板（collector/runtime/stream 写入，渠道监控读取）
+STREAM_CURSOR_KEY_TEMPLATE = "collector:stream:{source}:last_time"
+STREAM_HEARTBEAT_KEY_TEMPLATE = "collector:stream:{source}:heartbeat"

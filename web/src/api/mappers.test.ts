@@ -15,6 +15,7 @@ import {
   mapMarketReview,
   mapSectorOverview,
   mapStock,
+  mapTelegraph,
   mapUser,
   mapWatchlistItem,
   mapWatchlistQuote,
@@ -416,5 +417,36 @@ describe('mappers', () => {
     const review = mapMarketReview(dto)
     expect(review.sections[0].key).toBe('market_overview')
     expect(review.edited).toBe(true)
+  })
+})
+
+describe('mapTelegraph', () => {
+  it('maps aiScore with null fallback for unscored items', () => {
+    expect(
+      mapTelegraph({
+        clsMsgId: 1899921,
+        title: null,
+        content: '正文',
+        category: null,
+        importance: null,
+        shared: null,
+        stockCodes: null,
+        publishTime: '2026-09-08T04:00:00Z',
+        aiScore: 82,
+        aiScoredAt: '2026-09-08T04:05:00Z',
+      }).aiScore,
+    ).toBe(82)
+    expect(
+      mapTelegraph({
+        clsMsgId: 1899920,
+        title: null,
+        content: null,
+        category: null,
+        importance: null,
+        shared: null,
+        stockCodes: null,
+        publishTime: '2026-09-08T03:00:00Z',
+      }).aiScore,
+    ).toBeNull()
   })
 })
