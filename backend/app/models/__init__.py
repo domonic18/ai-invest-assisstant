@@ -10,6 +10,7 @@ from app.models.collector_channel_config import CollectorChannelConfig
 from app.models.collector_channel_data_type import CollectorChannelDataType
 from app.models.collector_log import CollectorLog
 from app.models.collector_task import CollectorTask
+from app.models.fed_watch import FedWatchProbability, FedWatchSnapshot
 from app.models.file_metadata import FileMetadata
 from app.models.financial_balance_sheet import BalanceSheet
 from app.models.financial_cash_flow_statement import CashFlowStatement
@@ -33,6 +34,7 @@ from app.models.pool_limit_up_stock import LimitUpPool
 from app.models.quote_auction_index import IndexAuction
 from app.models.quote_auction_stock import AuctionData
 from app.models.quote_global_index import GlobalIndexDaily
+from app.models.quote_sector import SectorQuoteDaily
 from app.models.skill import Skill, UserSkill
 from app.models.stock import StockBasic
 from app.models.tracked_index import TrackedIndexConfig
@@ -58,6 +60,8 @@ __all__ = [
     "CollectorTask",
     "FileMetadata",
     "FundFlow",
+    "FedWatchProbability",
+    "FedWatchSnapshot",
     "FundHolding",
     "GlobalIndexDaily",
     "IncomeStatement",
@@ -73,6 +77,7 @@ __all__ = [
     "NewsAnnouncement",
     "NewsTelegraph",
     "SectorFundFlow",
+    "SectorQuoteDaily",
     "Skill",
     "StockBasic",
     "TrackedIndexConfig",

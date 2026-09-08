@@ -17,10 +17,18 @@ KLINE_CHART_EXTRA_CODES: dict[str, str] = {
 }
 
 # 全球跟踪指标清单（quote_global_index_daily 的 index_code 域）。
-# eastmoney：push2delay ulist 实时快照（secid）；tushare：us_tycr 列名（date/y1..y30）
+# eastmoney：push2delay ulist 实时快照（secid）；tushare：us_tycr 列名（date/y1..y30）；
+# mof：日本财务省日债 CSV（历史回补 spider 自行解析）；yahoo：历史回填专用（symbol 供 spider 映射）
 GLOBAL_INDEX_CODES: dict[str, dict[str, str]] = {
     "GC00Y": {"name": "COMEX 黄金", "data_source": "eastmoney", "secid": "101.GC00Y"},
     "DXY": {"name": "美元指数", "data_source": "eastmoney", "secid": "100.UDI"},
     "US2Y": {"name": "美债 2Y 收益率", "data_source": "tushare", "field": "y2"},
     "US10Y": {"name": "美债 10Y 收益率", "data_source": "tushare", "field": "y10"},
+    "HSI": {"name": "恒生指数", "data_source": "eastmoney", "secid": "100.HSI"},
+    "HSTECH": {"name": "恒生科技", "data_source": "eastmoney", "secid": "124.HSTECH"},
+    "DJIA": {"name": "道琼斯", "data_source": "eastmoney", "secid": "100.DJIA"},
+    "NDX": {"name": "纳斯达克", "data_source": "eastmoney", "secid": "100.NDX"},
+    "SPX": {"name": "标普500", "data_source": "eastmoney", "secid": "100.SPX"},
+    "N225": {"name": "日经225", "data_source": "eastmoney", "secid": "100.N225"},
+    "JP10Y": {"name": "日本10Y国债", "data_source": "mof"},
 }
