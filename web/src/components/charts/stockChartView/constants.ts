@@ -7,13 +7,6 @@ export const PERIOD_OPTIONS = [
   { label: '月K', value: 'monthly' },
 ]
 
-export const MA_CONFIGS = [
-  { period: 5, color: '#f85149' },
-  { period: 10, color: '#d29922' },
-  { period: 20, color: '#58a6ff' },
-  { period: 60, color: '#a371f7' },
-]
-
 export const PANEL_BG = panelColors.bg
 export const BORDER_COLOR = panelColors.border
 export const TEXT_MUTED = panelColors.textMuted

@@ -6,6 +6,7 @@ import { IntradayChart } from '@/components/charts/IntradayChart'
 import { useKlineKeyboardNav } from '@/components/charts/useKlineKeyboardNav'
 import { useCollectStockKline } from '@/hooks/useCollectStockKline'
 import { useStockIntraday, useStockKline } from '@/hooks/useStocks'
+import { useMaConfigs } from '@/stores/settings'
 import type { IndexIntraday } from '@ai-invest/shared'
 
 import { BORDER_COLOR, PANEL_BG } from './constants'
@@ -84,6 +85,7 @@ export function StockChartView({
   const { data: klineData, isLoading: klineLoading } = useStockKline(code, klineParams)
   const { data: intradayData, isLoading: intradayLoading } = useStockIntraday(code)
   const collectKline = useCollectStockKline(code)
+  const maConfigs = useMaConfigs()
 
   const isIntraday = period === 'intraday'
 
@@ -92,8 +94,8 @@ export function StockChartView({
 
   const chartData = useMemo(() => {
     if (isIntraday || !klineData || klineData.bars.length === 0) return null
-    return prepareKlineData(klineData)
-  }, [klineData, isIntraday])
+    return prepareKlineData(klineData, maConfigs)
+  }, [klineData, isIntraday, maConfigs])
 
   const option = useMemo(() => {
     if (!chartData) return undefined

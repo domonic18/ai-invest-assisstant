@@ -11,6 +11,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import KLINE_PERIODS
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.market import (
@@ -39,6 +40,8 @@ from app.services.market import (
 )
 
 router = APIRouter()
+
+_KLINE_PERIOD_PATTERN = "^(" + "|".join(KLINE_PERIODS) + ")$"
 
 
 @router.get("/indices", response_model=list[IndexQuoteResponse])
@@ -69,6 +72,19 @@ async def get_global_index_history(
 ) -> list[GlobalIndexHistoryPoint]:
     """全球指标近 N 月收盘走势（trade_date 升序）。"""
     return await global_index_service.get_index_history(session, index_code, months)
+
+
+@router.get("/global-indices/kline", response_model=IndexKlineResponse)
+async def get_global_index_kline(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    index_code: str = Query(..., description="全球指标代码，US2Y10S 为 10Y-2Y 利差"),
+    period: str = Query("daily", pattern=_KLINE_PERIOD_PATTERN),
+    limit: Annotated[int, Query(ge=1, le=1000)] = 250,
+) -> IndexKlineResponse:
+    """全球指标多周期 K 线（股指/商品/汇率含 OHLC；债券收益率与利差为收盘线）。"""
+    return await global_index_service.get_global_index_kline(
+        session, index_code, period, limit
+    )
 
 
 @router.get("/fed-watch", response_model=FedWatchResponse | None)

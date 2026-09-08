@@ -30,6 +30,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuthStore } from '@/stores/auth'
 import { Brand } from '@/components/common/Brand'
+import { SidebarReviewStatus } from '@/components/layout/SidebarReviewStatus'
 import {
   SIDEBAR_COLLAPSED_WIDTH,
   SIDEBAR_DEFAULT_WIDTH,
@@ -176,6 +177,7 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
         className="!bg-transparent flex-1 overflow-y-auto"
         style={{ borderRight: 0 }}
       />
+      {!collapsed && <SidebarReviewStatus />}
       {user && !collapsed && (
         <div className="p-4 border-t border-gray-800 text-sm text-gray-400 shrink-0">
           {user.email}

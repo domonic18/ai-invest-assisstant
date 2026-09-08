@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import get_redis
 from app.core.clock import CN_TZ, today_cn
-from app.core.constants import INDEX_CODES, KLINE_CHART_EXTRA_CODES
+from app.core.constants import INDEX_CODES, INDEX_TREND_DAYS, KLINE_CHART_EXTRA_CODES
 from app.repositories.market.kline_repository import (
     PERIOD_BUCKET,
     fetch_aggregated_bars,
@@ -33,7 +33,7 @@ from app.schemas.market import (
 )
 
 _INDEX_SPOT_KEY = "market:index_spot"
-_TREND_DAYS = 30
+_TREND_DAYS = INDEX_TREND_DAYS
 
 
 async def _index_spot() -> list[dict[str, Any]] | None:

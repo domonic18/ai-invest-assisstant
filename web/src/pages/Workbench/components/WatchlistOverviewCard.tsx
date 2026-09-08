@@ -36,8 +36,9 @@ export function WatchlistOverviewCard({
   useColorScheme()
   const [activeId, setActiveId] = useState<number | null>(null)
 
+  // 未手动选过分组时默认落在默认分组（无默认分组兜底第一个）
   const active: WorkbenchWatchlistGroup | undefined =
-    groups?.find((g) => g.id === activeId) ?? groups?.[0]
+    groups?.find((g) => g.id === activeId) ?? groups?.find((g) => g.isDefault) ?? groups?.[0]
 
   return (
     <FoldCard

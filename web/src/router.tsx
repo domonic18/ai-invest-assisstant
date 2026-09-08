@@ -37,6 +37,9 @@ const ChainAnalysis = lazy(() =>
   import('./pages/ChainAnalysis/ChainAnalysis').then((m) => ({ default: m.ChainAnalysis })),
 )
 const Financial = lazy(() => import('./pages/Financial/Financial').then((m) => ({ default: m.Financial })))
+const IndexDetail = lazy(() =>
+  import('./pages/IndexDetail/IndexDetail').then((m) => ({ default: m.IndexDetail })),
+)
 const Login = lazy(() => import('./pages/Login/Login').then((m) => ({ default: m.Login })))
 const MacroMonitor = lazy(() =>
   import('./pages/MacroMonitor/MacroMonitor').then((m) => ({ default: m.MacroMonitor })),
@@ -67,6 +70,8 @@ export const router = createBrowserRouter([
       { path: 'stock/:code', element: lazyEl(<StockDetail />) },
       { path: 'capital-flow', element: lazyEl(<CapitalFlow />) },
       { path: 'macro-monitor', element: lazyEl(<MacroMonitor />) },
+      // 指数详情：宏观监测/工作台指标卡点击进入（A 股 K 线 + 全球指标历史线）
+      { path: 'index/:code', element: lazyEl(<IndexDetail />) },
       { path: 'auction-review', element: lazyEl(<AuctionReview />) },
       // 旧路由外链兜底：研报/财报入口并入个股详情右栏 tab（4.4.0）
       { path: 'auction', element: <Navigate to="/auction-review" replace /> },

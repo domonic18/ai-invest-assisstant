@@ -36,6 +36,7 @@ export function mapGlobalIndexQuote(
     close: dto.close,
     changePct: dto.changePct,
     tradeDate: dto.tradeDate,
+    trend: dto.trend,
   }
 }
 

@@ -193,6 +193,18 @@ export async function fetchGlobalIndexHistory(
   return response.data
 }
 
+export async function fetchGlobalIndexKline(
+  indexCode: string,
+  period: IndexKlinePeriod,
+  limit = 250,
+): Promise<IndexKline> {
+  const response = await apiClient.get<ApiIndexKlineResponse>(
+    ENDPOINTS.market.globalIndexKline,
+    { params: { index_code: indexCode, period, limit } },
+  )
+  return mapIndexKline(response.data)
+}
+
 export async function fetchFedWatch(): Promise<FedWatchResponse | null> {
   const response = await apiClient.get<FedWatchResponse | null>(
     ENDPOINTS.market.fedWatch,
