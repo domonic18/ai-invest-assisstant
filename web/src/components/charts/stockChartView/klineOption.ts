@@ -6,13 +6,12 @@ import { fallHex, riseHex } from '@/utils/formatters'
 import { calculateMACD, calculateKDJ } from '@/utils/indicators'
 import { deriveAmplitude, deriveBarChange, formatWanShou } from '@/utils/kline'
 import { movingAverage } from '@/utils/movingAverage'
-import type { StockKline, StockKlineBar } from '@ai-invest/shared'
+import type { MovingAverageConfig, StockKline, StockKlineBar } from '@ai-invest/shared'
 
 import type { StockChartViewIndicators } from './StockChartView'
 import {
   BORDER_COLOR,
   GRID_COLOR,
-  MA_CONFIGS,
   TEXT_MAIN,
   TEXT_MUTED,
 } from './constants'
@@ -35,7 +34,10 @@ export interface KlineChartData {
   kdj: ReturnType<typeof calculateKDJ>
 }
 
-export function prepareKlineData(kline: StockKline): KlineChartData {
+export function prepareKlineData(
+  kline: StockKline,
+  maConfigs: MovingAverageConfig[],
+): KlineChartData {
   const bars = kline.bars
   const dates = bars.map((b) => b.date)
   const opens = bars.map((b) => b.open)
@@ -44,10 +46,13 @@ export function prepareKlineData(kline: StockKline): KlineChartData {
   const lows = bars.map((b) => b.low)
   const volumes = bars.map((b) => b.volume)
 
-  const mas = MA_CONFIGS.map((cfg) => ({
-    ...cfg,
-    values: movingAverage(closes, cfg.period),
-  }))
+  const mas = maConfigs
+    .filter((cfg) => cfg.enabled)
+    .map((cfg) => ({
+      period: cfg.period,
+      color: cfg.color,
+      values: movingAverage(closes, cfg.period),
+    }))
 
   return {
     dates,
