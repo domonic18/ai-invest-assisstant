@@ -119,6 +119,15 @@ export const ENDPOINTS = {
   },
   news: {
     channels: `${API_BASE}/news/channels`,
+    focus: `${API_BASE}/news/focus`,
+    stories: `${API_BASE}/news/stories`,
+    story: (id: number | string) => `${API_BASE}/news/stories/${id}`,
+    storyTrack: (id: number | string) => `${API_BASE}/news/stories/${id}/track`,
+    storyStop: (id: number | string) => `${API_BASE}/news/stories/${id}/stop`,
+    topics: `${API_BASE}/news/topics`,
+    subscriptions: `${API_BASE}/news/subscriptions`,
+    subscription: (id: number | string) =>
+      `${API_BASE}/news/subscriptions/${id}`,
   },
   workbench: {
     base: `${API_BASE}/workbench`,

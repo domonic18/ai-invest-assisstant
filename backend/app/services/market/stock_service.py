@@ -9,7 +9,7 @@ from app.core.cache import get_redis
 from app.core.clock import today_cn
 from app.models.stock import StockBasic
 from app.repositories.market import sector_fund_flow_repository
-from app.repositories.market.kline_repository import fetch_daily_bars
+from app.repositories.market.kline_repository import fetch_daily_bars, fetch_daily_bars_multi
 from app.repositories.market.stock_concept_repository import StockConceptRepository
 from app.repositories.market.stock_repository import StockRepository
 
@@ -120,6 +120,68 @@ async def get_stock_quote(session: AsyncSession, stock_code: str) -> dict[str, A
         "circulating_market_cap": circulating_market_cap,
         "updated_at": updated_at,
     }
+
+
+async def batch_quote_snapshot(
+    session: AsyncSession, codes: list[str]
+) -> dict[str, dict[str, Any]]:
+    """批量股票轻量快照：名称 + 当日涨跌幅（电报流等列表标注用）。
+
+    涨跌幅口径与 ``get_stock_quote`` 一致：实时键 → 收盘兜底键 →
+    最近两根日 K 推算；全部 miss 时 change_pct 为 None。
+    """
+    unique = list(dict.fromkeys(codes))
+    if not unique:
+        return {}
+    names = await StockRepository(session).get_names_by_codes(unique)
+    if not names:
+        return {}
+
+    keys: list[str] = []
+    key_owner: list[tuple[str, str]] = []  # (redis_key, code)
+    for code in unique:
+        for prefix in ("quote:", "quote:eod:"):
+            key = f"{prefix}{code}"
+            keys.append(key)
+            key_owner.append((key, code))
+    raw_values = await get_redis().mget(*keys)
+    cached: dict[str, dict[str, Any]] = {}
+    for (key, code), raw in zip(key_owner, raw_values, strict=True):
+        if raw and code not in cached:
+            cached[code] = json.loads(raw)
+
+    result: dict[str, dict[str, Any]] = {}
+    missing: list[str] = []
+    for code in unique:
+        if code not in names:
+            continue
+        snapshot = cached.get(code) or {}
+        price = _to_float(snapshot.get("price"))
+        prev_close = _to_float(snapshot.get("prev_close"))
+        change_pct = (
+            (price - prev_close) / prev_close * 100
+            if price is not None and prev_close
+            else None
+        )
+        if change_pct is None:
+            missing.append(code)
+        result[code] = {
+            "name": names[code] or code,
+            "change_pct": round(change_pct, 2) if change_pct is not None else None,
+        }
+
+    if missing:
+        bars = await fetch_daily_bars_multi(session, missing, limit=2)
+        for code in missing:
+            # fetch_daily_bars_multi 返回升序列表：末位最新，前一根为昨收
+            closes = [b.close for b in bars.get(code, []) if b.close is not None]
+            change_pct = None
+            if len(closes) >= 2 and closes[-2]:
+                change_pct = float(
+                    round((closes[-1] - closes[-2]) / closes[-2] * 100, 2)
+                )
+            result[code]["change_pct"] = change_pct
+    return result
 
 
 async def get_stock_sectors(session: AsyncSession, stock_code: str) -> dict[str, Any] | None:

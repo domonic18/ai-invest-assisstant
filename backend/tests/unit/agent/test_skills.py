@@ -16,6 +16,8 @@ EXPECTED_SKILLS = {
     "limit-up-review",
     "market-daily-review",
     "news-score",
+    "news-storyline",
+    "news-topic",
     "research-report-summary",
     "stock-daily-analysis",
     "watchlist-screenshot-recognition",

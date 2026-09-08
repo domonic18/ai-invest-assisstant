@@ -7,11 +7,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.schemas.news import NewsScoreBatch, NewsScoreItem
+from app.schemas.news import NewsScoreBatch, NewsScoreFactors, NewsScoreItem
 from app.services.news import news_score_service
 from app.services.news.news_score_service import score_pending
 
 _NOW = datetime(2026, 9, 8, 6, 0, tzinfo=timezone.utc)
+
+
+def _factors(impact: int = 80, certainty: int = 70, related: int = 50) -> NewsScoreFactors:
+    return NewsScoreFactors(
+        impact_scope=impact, certainty=certainty, related_count=related
+    )
 
 
 def _tg_row(msg_id: int, content: str = "内容") -> MagicMock:
@@ -58,8 +64,10 @@ class TestScorePending:
         )
         output = NewsScoreBatch(
             items=[
-                NewsScoreItem(source="cls_telegraph", item_id="101", score=85, reason="央行降准"),
-                NewsScoreItem(source="cls_telegraph", item_id="102", score=30, reason="日常播报"),
+                NewsScoreItem(source="cls_telegraph", item_id="101", score=85,
+                              factors=_factors(90, 85, 60), reason="央行降准"),
+                NewsScoreItem(source="cls_telegraph", item_id="102", score=30,
+                              factors=_factors(20, 60, 10), reason="日常播报"),
             ]
         )
         with (
@@ -114,9 +122,12 @@ class TestScorePending:
         batch = [news_score_service._telegraph_payload(_tg_row(301))]
         output = NewsScoreBatch(
             items=[
-                NewsScoreItem(source="cls_telegraph", item_id="301", score=50, reason="ok"),
-                NewsScoreItem(source="cls_telegraph", item_id="999", score=99, reason="幻觉"),
-                NewsScoreItem(source="sina_news", item_id="301", score=99, reason="串源"),
+                NewsScoreItem(source="cls_telegraph", item_id="301", score=50,
+                              factors=_factors(), reason="ok"),
+                NewsScoreItem(source="cls_telegraph", item_id="999", score=99,
+                              factors=_factors(), reason="幻觉"),
+                NewsScoreItem(source="sina_news", item_id="301", score=99,
+                              factors=_factors(), reason="串源"),
             ]
         )
         prompt_config = MagicMock()
@@ -128,7 +139,10 @@ class TestScorePending:
             rows = await news_score_service._score_batch(session, prompt_config, batch)
         assert len(rows) == 1
         assert rows[0]["item_id"] == "301"
-        assert rows[0]["score_detail"] == {"reason": "ok"}
+        assert rows[0]["score_detail"] == {
+            "reason": "ok",
+            "factors": {"impact_scope": 80, "certainty": 70, "related_count": 50},
+        }
 
 
 @pytest.mark.unit
@@ -154,7 +168,8 @@ class TestPayload:
             ]
         )
         output = NewsScoreBatch(
-            items=[NewsScoreItem(source="x_video", item_id="v1", score=88, reason="权威博主")]
+            items=[NewsScoreItem(source="x_video", item_id="v1", score=88,
+                                 factors=_factors(70, 90, 40), reason="权威博主")]
         )
         with (
             _patch_lock(True),

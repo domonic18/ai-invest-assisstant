@@ -14,15 +14,23 @@ export function useTelegraph(
   minImportance?: number,
   minAiScore?: number,
   autoRefresh = true,
+  subscriptionOnly = false,
 ) {
   return useQuery({
-    queryKey: queryKeys.telegraph.list(page, pageSize, minImportance, minAiScore),
+    queryKey: queryKeys.telegraph.list(
+      page,
+      pageSize,
+      minImportance,
+      minAiScore,
+      subscriptionOnly,
+    ),
     queryFn: async () => {
       const data = await fetchTelegraph({
         page,
         pageSize,
         minImportance,
         minAiScore,
+        subscriptionOnly,
       })
       return mapTelegraphPage(data)
     },

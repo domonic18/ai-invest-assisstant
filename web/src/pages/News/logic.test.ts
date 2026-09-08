@@ -3,7 +3,14 @@ import { describe, expect, it } from 'vitest'
 
 import type { TelegraphItem } from '@ai-invest/shared'
 
-import { countNewMessages, groupByDay, isChannelWired, scoreBand } from './logic'
+import {
+  countNewMessages,
+  groupByDay,
+  isChannelWired,
+  isNoiseCategory,
+  isNoiseImportance,
+  scoreBand,
+} from './logic'
 
 function item(clsMsgId: number, publishTime: string): TelegraphItem {
   return {
@@ -14,9 +21,12 @@ function item(clsMsgId: number, publishTime: string): TelegraphItem {
     importance: null,
     shared: null,
     stockCodes: [],
+    stocks: [],
     publishTime,
     sourceUrl: '',
     aiScore: null,
+    aiFactors: null,
+    subscribed: false,
   }
 }
 
@@ -74,5 +84,24 @@ describe('isChannelWired', () => {
     expect(isChannelWired('cls_telegraph')).toBe(true)
     expect(isChannelWired('sina_news')).toBe(false)
     expect(isChannelWired('eastmoney_research_report')).toBe(false)
+  })
+})
+
+describe('isNoiseCategory', () => {
+  it('treats cls numeric codes and null as noise, keeps text categories', () => {
+    expect(isNoiseCategory('-1')).toBe(true)
+    expect(isNoiseCategory('20026')).toBe(true)
+    expect(isNoiseCategory(null)).toBe(true)
+    expect(isNoiseCategory('公司')).toBe(false)
+    expect(isNoiseCategory('宏观')).toBe(false)
+  })
+})
+
+describe('isNoiseImportance', () => {
+  it('hides cls C-level (1) and null, keeps 关注/重要', () => {
+    expect(isNoiseImportance(null)).toBe(true)
+    expect(isNoiseImportance(1)).toBe(true)
+    expect(isNoiseImportance(2)).toBe(false)
+    expect(isNoiseImportance(3)).toBe(false)
   })
 })

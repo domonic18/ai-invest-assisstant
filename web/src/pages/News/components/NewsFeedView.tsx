@@ -1,4 +1,10 @@
-import { ReloadOutlined, VerticalAlignTopOutlined } from '@ant-design/icons'
+import {
+  AimOutlined,
+  LinkOutlined,
+  ReloadOutlined,
+  StarFilled,
+  VerticalAlignTopOutlined,
+} from '@ant-design/icons'
 import {
   Button,
   Card,
@@ -10,18 +16,24 @@ import {
   Tag,
   Tooltip,
   Typography,
+  message,
 } from 'antd'
 import dayjs from 'dayjs'
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { PAGE_SIZE, type ApiNewsChannel, type TelegraphItem } from '@ai-invest/shared'
 
+import { useCreateNewsStory } from '@/hooks/useNewsFocus'
 import { useTelegraph } from '@/hooks/useTelegraph'
-import { formatDateTime, formatRelativeTime } from '@/utils/formatters'
+import { useColorScheme } from '@/stores/settings'
+import { changeColor, formatDateTime, formatRelativeTime } from '@/utils/formatters'
 import {
   countNewMessages,
   groupByDay,
   isChannelWired,
+  isNoiseCategory,
+  isNoiseImportance,
   scoreBand,
   SCORE_HIGH_MIN,
   SCORE_MID_MIN,
@@ -49,11 +61,10 @@ const NEW_ITEM_WINDOW_SEC = 120
 const LAG_WARNING_SEC = 120
 
 function importanceTag(importance: number | null) {
-  if (importance === null) return null
+  if (importance === null || isNoiseImportance(importance)) return null
   const presets: Record<number, { color: string; label: string }> = {
     3: { color: 'red', label: '重要' },
     2: { color: 'orange', label: '关注' },
-    1: { color: 'blue', label: '一般' },
   }
   const preset = presets[importance] ?? { color: 'gold', label: `L${importance}` }
   return <Tag color={preset.color}>{preset.label}</Tag>
@@ -72,13 +83,56 @@ function BadgeNew() {
   )
 }
 
+/** 关联标的 Tag：名称 + 当日涨跌幅（scheme 着色），点击直达个股页。 */
+function StockTags({ item }: { item: TelegraphItem }) {
+  useColorScheme()
+  if (item.stocks.length > 0) {
+    return (
+      <>
+        {item.stocks.map((stock) => (
+          <Link key={stock.code} to={`/stock/${stock.code}`} className="!text-xs">
+            <Tag className="!m-0 !text-xs hover:border-[var(--ant-color-primary)]">
+              {stock.name}
+              {stock.changePct != null && (
+                <span className={changeColor(stock.changePct)}>
+                  {' '}
+                  {stock.changePct >= 0 ? '+' : ''}
+                  {stock.changePct.toFixed(2)}%
+                </span>
+              )}
+            </Tag>
+          </Link>
+        ))}
+      </>
+    )
+  }
+  return (
+    <>
+      {item.stockCodes.map((code) => (
+        <Tag key={code} className="font-mono">
+          {code}
+        </Tag>
+      ))}
+    </>
+  )
+}
+
 function NewsEntry({ item, isNewItem }: { item: TelegraphItem; isNewItem: boolean }) {
+  const createStory = useCreateNewsStory()
+  const [messageApi, contextHolder] = message.useMessage()
+
   return (
     <div className="space-y-1">
+      {contextHolder}
       <div className="flex items-center gap-2 flex-wrap">
         {importanceTag(item.importance)}
-        {item.category && <Tag>{item.category}</Tag>}
+        {!isNoiseCategory(item.category) && item.category && <Tag>{item.category}</Tag>}
         {item.title && <span className="text-sm font-semibold">{item.title}</span>}
+        {item.subscribed && (
+          <Tooltip title="命中我的订阅关键词">
+            <StarFilled className="text-xs text-amber-400" />
+          </Tooltip>
+        )}
         {isNewItem && <BadgeNew />}
       </div>
       {item.content && (
@@ -89,23 +143,44 @@ function NewsEntry({ item, isNewItem }: { item: TelegraphItem; isNewItem: boolea
           {item.content}
         </Typography.Paragraph>
       )}
-      {(item.stockCodes.length > 0 || item.sourceUrl) && (
-        <div className="flex items-center gap-2 flex-wrap">
-          {item.stockCodes.map((code) => (
-            <Tag key={code} className="font-mono">
-              {code}
-            </Tag>
-          ))}
-          <Typography.Link
-            href={item.sourceUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="!text-xs"
-          >
-            查看原文
-          </Typography.Link>
-        </div>
-      )}
+      <div className="flex items-center gap-2 flex-wrap">
+        <StockTags item={item} />
+        {item.sourceUrl && (
+          <Tooltip title="查看原文（cls.cn）">
+            <Typography.Link
+              href={item.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="查看原文"
+            >
+              <LinkOutlined />
+            </Typography.Link>
+          </Tooltip>
+        )}
+        <Tooltip title="跟踪此事件（手动建线）">
+          <Button
+            type="text"
+            size="small"
+            icon={<AimOutlined />}
+            aria-label="跟踪此事件"
+            loading={
+              createStory.isPending &&
+              createStory.variables?.itemId === String(item.clsMsgId)
+            }
+            onClick={() =>
+              createStory.mutate(
+                { source: 'cls_telegraph', itemId: String(item.clsMsgId) },
+                {
+                  onSuccess: () =>
+                    messageApi.success('已创建跟踪线，见「重点与跟踪」视图'),
+                  onError: (error) =>
+                    messageApi.error(error.message || '创建跟踪线失败'),
+                },
+              )
+            }
+          />
+        </Tooltip>
+      </div>
     </div>
   )
 }
@@ -121,6 +196,7 @@ export function NewsFeedView({ channels }: NewsFeedViewProps) {
   const [pageSize, setPageSize] = useState(PAGE_SIZE.feed)
   const [minAiScore, setMinAiScore] = useState<number | undefined>(undefined)
   const [channelKey, setChannelKey] = useState<string>('all')
+  const [subscriptionOnly, setSubscriptionOnly] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [seenTopId, setSeenTopId] = useState<number | null>(null)
 
@@ -130,6 +206,7 @@ export function NewsFeedView({ channels }: NewsFeedViewProps) {
     undefined,
     minAiScore,
     autoRefresh,
+    subscriptionOnly,
   )
 
   const items = useMemo(() => data?.items ?? [], [data])
@@ -197,6 +274,17 @@ export function NewsFeedView({ channels }: NewsFeedViewProps) {
               ),
             )}
           </Space>
+          <Tooltip title="仅显示命中我订阅关键词的电报（页头「我的订阅」管理关键词）">
+            <Tag.CheckableTag
+              checked={subscriptionOnly}
+              onChange={(checked) => {
+                setSubscriptionOnly(checked)
+                setPage(1)
+              }}
+            >
+              ★ 仅看订阅命中
+            </Tag.CheckableTag>
+          </Tooltip>
         </div>
         <Space size="middle" className="items-center">
           {latest && (

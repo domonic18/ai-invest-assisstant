@@ -4,10 +4,12 @@ from datetime import datetime
 
 from sqlalchemy import String, and_, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.constants import NEWS_SOURCE_TELEGRAPH
 from app.models.news_ai_score import NewsAiScore
 from app.models.news_telegraph import NewsTelegraph
+from app.models.user_news_subscription import NewsSubscriptionHit, UserNewsSubscription
 
 _SOURCE_TELEGRAPH = NEWS_SOURCE_TELEGRAPH
 
@@ -26,6 +28,7 @@ async def list_telegraph(
     category: str | None = None,
     min_importance: int | None = None,
     min_ai_score: int | None = None,
+    subscription_user_id: int | None = None,
 ) -> tuple[list[TelegraphRow], int]:
     """分页查询电报（publish_time 降序），左联 AI 分级取 (score, scored_at)。
 
@@ -36,6 +39,7 @@ async def list_telegraph(
         category: 分类精确筛选（None 不过滤）。
         min_importance: 重要度下限筛选（None 不过滤）。
         min_ai_score: AI 重要度下限筛选（None 不过滤，过滤时仅含已分级条目）。
+        subscription_user_id: 传入时仅返回该用户任一启用订阅命中的条目。
 
     Returns:
         ((电报行, ai_score, ai_scored_at) 列表, 总条数)。
@@ -47,6 +51,8 @@ async def list_telegraph(
         conditions.append(NewsTelegraph.importance >= min_importance)
     if min_ai_score is not None:
         conditions.append(NewsAiScore.score >= min_ai_score)
+    if subscription_user_id is not None:
+        conditions.append(_subscription_hit_exists(subscription_user_id))
 
     stmt = select(
         NewsTelegraph, NewsAiScore.score, NewsAiScore.scored_at
@@ -69,6 +75,24 @@ async def list_telegraph(
     )
     rows = list((await session.execute(stmt)).all())
     return [(row[0], row[1], row[2]) for row in rows], int(total)
+
+
+def _subscription_hit_exists(user_id: int) -> ColumnElement[bool]:
+    """「电报被该用户任一启用订阅命中」EXISTS 条件（subscription_only 过滤）。"""
+    return (
+        select(NewsSubscriptionHit.item_id)
+        .join(
+            UserNewsSubscription,
+            UserNewsSubscription.id == NewsSubscriptionHit.subscription_id,
+        )
+        .where(
+            UserNewsSubscription.user_id == user_id,
+            UserNewsSubscription.enabled.is_(True),
+            NewsSubscriptionHit.source == _SOURCE_TELEGRAPH,
+            NewsSubscriptionHit.item_id == cast(NewsTelegraph.cls_msg_id, String),
+        )
+        .exists()
+    )
 
 
 async def today_overview(

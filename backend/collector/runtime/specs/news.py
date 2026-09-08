@@ -1,4 +1,4 @@
-"""资讯任务声明：新闻/财联社电报/投资日历。"""
+"""资讯任务声明：新闻/财联社电报/投资日历/订阅命中扫描。"""
 
 from collector.runtime.specs.base import TaskSpec
 
@@ -8,6 +8,14 @@ SPECS: tuple[TaskSpec, ...] = (
         label="新闻",
         data_type="news",
         collectors={"sina": "collector.spiders.sina_news:SinaNewsCollector"},
+    ),
+    TaskSpec(
+        name="news-subscription-match",
+        label="订阅关键词命中扫描",
+        data_type="news_subscription_hit",
+        collectors={
+            "internal": "collector.spiders.news_subscription_match:NewsSubscriptionMatchCollector",
+        },
     ),
     TaskSpec(
         name="cls-telegraph-backfill",

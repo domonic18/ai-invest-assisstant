@@ -7,7 +7,7 @@ allowed-tools: []
 # 资讯 AI 重要度分级
 
 ## 描述
-对批量输入的资讯条目逐条评估重要度（0-100 整数分），输出评分与简短理由。
+对批量输入的资讯条目逐条评估重要度（0-100 整数分），输出评分、三维构成与简短理由。
 输入由服务层按「未分级且近 3 天」批量构造（含 source / item_id / title /
 content / category / stock_codes），每批不超过 20 条。
 
@@ -27,10 +27,17 @@ content / category / stock_codes），每批不超过 20 条。
 ```json
 {
   "items": [
-    {"source": "cls_telegraph", "item_id": "1234567", "score": 82, "reason": "央行降准 50bp，全市场流动性利好"}
+    {
+      "source": "cls_telegraph",
+      "item_id": "1234567",
+      "score": 82,
+      "factors": {"impact_scope": 90, "certainty": 85, "related_count": 60},
+      "reason": "央行降准 50bp，全市场流动性利好"
+    }
   ]
 }
 ```
 - 每条输入必须对应一条输出，item_id 原样返回，禁止编造输入之外的条目
 - 纯寒暄/无信息量条目给低分，不省略
+- factors 三维各 0-100 整数分（影响范围/确定性/关联标的数），与总分口径一致
 - reason 一句话（≤40 字），说明核心影响因素

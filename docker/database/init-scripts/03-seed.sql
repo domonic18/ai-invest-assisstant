@@ -20,19 +20,19 @@ ON CONFLICT (stock_code, market) DO NOTHING;
 -- internal 渠道（内部生成，非外部数据源）
 -- supported_data_types 与 collector_channel_data_type 按任务名登记（渠道解析/beat 派发以任务名为键）
 INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
-VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "news-score"]'::jsonb)
+VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "news-score", "news-storyline", "news-subscription-match", "news-topic"]'::jsonb)
 ON CONFLICT (source) DO NOTHING;
 
 -- 兼容存量环境：internal 渠道已存在时补齐后续新增的数据类型
 UPDATE collector_channel_config
-SET supported_data_types = supported_data_types || '["stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "news-score"]'::jsonb
+SET supported_data_types = supported_data_types || '["stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "news-score", "news-storyline", "news-subscription-match", "news-topic"]'::jsonb
 WHERE source = 'internal'
   AND NOT supported_data_types @> '["chain-refresh"]'::jsonb;
 
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, d.data_type, 1
 FROM collector_channel_config,
-     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('news-score')) AS d(data_type)
+     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic')) AS d(data_type)
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
@@ -267,6 +267,13 @@ VALUES
     -- Yahoo 全球指标每日幂等续期（USDCNY 每日增量 + HSTECH 404 自愈重试）
     ('yahoo_global_index_daily', 'global-index', 'yahoo', '40 7 * * *', true),
     -- 资讯 AI 重要度分级（每 5 分钟批量，internal 直调服务层）
-    ('news_ai_score', 'news-score', 'internal', '*/5 * * * *', true)
+    ('news_ai_score', 'news-score', 'internal', '*/5 * * * *', true),
+    -- 迭代 4：故事线建线/续接（盘中每 30 分钟，候选=近 48h 高分未入线）
+    ('news_storyline', 'news-storyline', 'internal', '*/30 9-16 * * 1-5', true),
+    -- 订阅关键词命中扫描（每 10 分钟，ILIKE 不耗 LLM，写 hit 表）
+    ('news_subscription_match', 'news-subscription-match', 'internal', '*/10 * * * *', true),
+    -- 热点主题榜盘中/盘后双跑（盘后 16:35 晚于板块收盘快照 16:05；盘中跑板块因子用 T-1 并标注）
+    ('news_topic_intraday', 'news-topic', 'internal', '35 11 * * 1-5', true),
+    ('news_topic_post', 'news-topic', 'internal', '35 16 * * 1-5', true)
 ON CONFLICT (task_name) DO UPDATE
 SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;

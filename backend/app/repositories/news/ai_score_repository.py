@@ -76,6 +76,22 @@ async def score_map(
     return {row.item_id: (row.score, row.scored_at) for row in result.all()}
 
 
+async def score_details(
+    session: AsyncSession,
+    *,
+    source: str,
+    item_ids: list[str],
+) -> dict[str, dict[str, Any]]:
+    """批量取指定条目的 score_detail（电报流 factors/reason 回填）。"""
+    if not item_ids:
+        return {}
+    stmt = select(NewsAiScore.item_id, NewsAiScore.score_detail).where(
+        NewsAiScore.source == source, NewsAiScore.item_id.in_(item_ids)
+    )
+    result = await session.execute(stmt)
+    return {row.item_id: (row.score_detail or {}) for row in result.all()}
+
+
 async def today_stats(
     session: AsyncSession,
     *,
