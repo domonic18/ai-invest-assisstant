@@ -4,7 +4,6 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.calendar import CalendarEventResponse
-from app.schemas.telegraph import TelegraphResponse
 from app.schemas.workbench import WorkbenchResponse
 from app.services.market import (
     calendar_service,
@@ -20,7 +19,7 @@ from app.services.workbench import collector_status_service, review_status_servi
 
 logger = structlog.get_logger(__name__)
 
-_CALENDAR_LIMIT = 8
+_CALENDAR_LIMIT = 12
 _TELEGRAPH_PAGE_SIZE = 12
 
 
@@ -45,10 +44,10 @@ async def get_workbench(session: AsyncSession, user_id: int) -> WorkbenchRespons
         logger.warning("workbench_review_degraded", exc_info=True)
 
     try:
-        items, _total = await telegraph_service.list_telegraph(
+        rows, _total = await telegraph_service.list_telegraph(
             session, page=1, page_size=_TELEGRAPH_PAGE_SIZE
         )
-        data.telegraph = [TelegraphResponse.model_validate(t) for t in items]
+        data.telegraph = telegraph_service.to_responses(rows)
     except Exception:
         logger.warning("workbench_telegraph_degraded", exc_info=True)
 

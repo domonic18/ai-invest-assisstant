@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.dependencies import get_db
 from app.schemas.stock import PaginatedResponse
-from app.schemas.telegraph import TelegraphResponse
 from app.services.market import telegraph_service
 
 router = APIRouter()
@@ -34,15 +33,9 @@ async def list_telegraph(
         min_importance=min_importance,
         min_ai_score=min_ai_score,
     )
-    items: list[TelegraphResponse] = []
-    for item, ai_score, ai_scored_at in rows:
-        response = TelegraphResponse.model_validate(item)
-        response.ai_score = ai_score
-        response.ai_scored_at = ai_scored_at
-        items.append(response)
     return PaginatedResponse(
         total=total,
         page=page,
         page_size=page_size,
-        items=items,
+        items=telegraph_service.to_responses(rows),
     )

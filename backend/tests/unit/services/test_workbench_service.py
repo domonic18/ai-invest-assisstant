@@ -1,13 +1,13 @@
 """工作台聚合服务单测：模块降级隔离与数据透传。"""
 
 from datetime import date, datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.schemas.calendar import CalendarEventResponse
 from app.schemas.market import GlobalIndexQuoteResponse
-from app.schemas.telegraph import TelegraphResponse
 from app.schemas.workbench import (
     CollectorStatusResponse,
     CollectorUpcomingItem,
@@ -180,8 +180,12 @@ class TestGetWorkbench:
 
     @pytest.mark.asyncio
     async def test_telegraph_items_only_kept(self) -> None:
+        """mock 返回生产形状的 (电报行, ai_score, ai_scored_at) 元组，钉死行→响应映射。"""
         session = AsyncMock()
-        item = TelegraphResponse(cls_msg_id=1, publish_time="2026-09-02T10:00:00")
+        row_item = SimpleNamespace(
+            cls_msg_id=1, publish_time=datetime(2026, 9, 2, 10, tzinfo=timezone.utc)
+        )
+        row = (row_item, 82, datetime(2026, 9, 2, 10, 5, tzinfo=timezone.utc))
 
         with (
             patch(
@@ -194,7 +198,7 @@ class TestGetWorkbench:
             ),
             patch(
                 f"{_MODULE}.telegraph_service.list_telegraph",
-                AsyncMock(return_value=([item], 57)),
+                AsyncMock(return_value=([row], 57)),
             ) as tg_mock,
             patch(
                 f"{_MODULE}.watchlist_quote_service.get_watchlist_groups",
@@ -215,6 +219,7 @@ class TestGetWorkbench:
         ):
             result = await workbench_service.get_workbench(session, user_id=3)
 
-        assert result.telegraph == [item]
+        assert result.telegraph[0].cls_msg_id == 1
+        assert result.telegraph[0].ai_score == 82
         assert tg_mock.await_args.kwargs["page"] == 1
         assert tg_mock.await_args.kwargs["page_size"] == 12
