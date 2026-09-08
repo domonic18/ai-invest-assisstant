@@ -202,3 +202,69 @@ INSERT INTO calendar_event (event_time, title, category, impact_markets, source,
 ('2026-12-09 19:00:00+00', '美联储 FOMC 利率决议', '央行动态', ARRAY['美股','美债','美元','黄金'], 'fomc', 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm', ARRAY['US10Y','US2Y','DXY','GC00Y'], 'b9092f7a568310de2b6db378bb572040'),
 ('2026-12-10 13:30:00+00', '美国 CPI 通胀数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/cpi.htm', ARRAY['US10Y','DXY','GC00Y'], 'cd797738527eca7aed1e05985d9207ee')
 ON CONFLICT (source_hash) DO NOTHING;
+
+-- ============================================================
+-- 迭代 2：二批跟踪指数 + mof/cme/yahoo 渠道 + 监测数据任务
+-- ============================================================
+
+INSERT INTO tracked_index_config (index_code, index_name, market_category, data_source, sort_order, is_enabled)
+VALUES
+    ('HSI',    '恒生指数',       '全球', 'eastmoney', 9,  true),
+    ('HSTECH', '恒生科技',       '全球', 'eastmoney', 10, true),
+    ('DJIA',   '道琼斯',         '全球', 'eastmoney', 11, true),
+    ('NDX',    '纳斯达克',       '全球', 'eastmoney', 12, true),
+    ('SPX',    '标普500',        '全球', 'eastmoney', 13, true),
+    ('N225',   '日经225',        '全球', 'eastmoney', 14, true),
+    ('JP10Y',  '日本10Y国债',    '全球', 'mof',       15, true),
+    ('US30Y',  '美债 30Y 收益率', '全球', 'tushare',   16, true),
+    ('USDCNY', '美元/人民币',     '全球', 'yahoo',     17, true),
+    ('USDCNH', '美元/离岸人民币', '全球', 'eastmoney', 18, true),
+    ('USDJPY', '美元/日元',       '全球', 'eastmoney', 19, true),
+    ('USDEUR', '美元/欧元',       '全球', 'eastmoney', 20, true),
+    ('B00Y',   '布伦特原油',      '全球', 'eastmoney', 21, true)
+ON CONFLICT (index_code) DO NOTHING;
+
+-- mof/cme/yahoo 渠道（无鉴权直采，签名/指纹自持无需 api_key）
+INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
+VALUES
+    ('mof',   '日本财务省',    true, '["global-index"]'::jsonb),
+    ('cme',   '芝商所',        true, '["fed-watch"]'::jsonb),
+    ('yahoo', 'Yahoo Finance', true, '["global-index"]'::jsonb)
+ON CONFLICT (source) DO NOTHING;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT c.id, d.data_type, 1
+FROM collector_channel_config c
+JOIN (VALUES
+    ('mof',   'global-index'),
+    ('cme',   'fed-watch'),
+    ('yahoo', 'global-index')
+) AS d(source, data_type) ON d.source = c.source
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
+-- 防御性补齐 eastmoney 渠道的 sector-quote 数据类型（渠道已存在时）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["sector-quote"]'::jsonb
+WHERE source = 'eastmoney'
+  AND NOT supported_data_types @> '["sector-quote"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'sector-quote', 1
+FROM collector_channel_config
+WHERE source = 'eastmoney'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
+INSERT INTO collector_task (task_name, task_type, source, schedule, is_active)
+VALUES
+    -- 日债收益率日度（MOF 全量 CSV upsert 幂等）
+    ('mof_jpy_yield_daily', 'global-index', 'mof', '30 7 * * 2-6', true),
+    -- FedWatch 概率快照（美收盘结算后晨间采集）
+    ('cme_fed_watch_daily', 'fed-watch', 'cme', '30 7 * * 2-6', true),
+    -- 板块收盘快照（16:00 收盘批后）
+    ('eastmoney_sector_quote', 'sector-quote', 'eastmoney', '5 16 * * 1-5', true),
+    -- 港美股指数历史回补：Yahoo 一次性 12 个月，手动触发不排 cron
+    ('yahoo_global_index_backfill', 'global-index', 'yahoo', NULL, false),
+    -- Yahoo 全球指标每日幂等续期（USDCNY 每日增量 + HSTECH 404 自愈重试）
+    ('yahoo_global_index_daily', 'global-index', 'yahoo', '40 7 * * *', true)
+ON CONFLICT (task_name) DO UPDATE
+SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;

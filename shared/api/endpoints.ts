@@ -105,6 +105,9 @@ export const ENDPOINTS = {
     sectors: `${API_BASE}/market/sectors`,
     aiReview: `${API_BASE}/market/ai-review`,
     globalIndices: `${API_BASE}/market/global-indices`,
+    globalIndexHistory: `${API_BASE}/market/global-index-history`,
+    fedWatch: `${API_BASE}/market/fed-watch`,
+    sectorQuotes: `${API_BASE}/market/sector-quotes`,
     collect: `${API_BASE}/market/collect`,
   },
   calendar: {

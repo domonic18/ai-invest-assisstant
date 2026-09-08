@@ -13,6 +13,9 @@ import type {
   ApiSectorOverviewResponse,
   ApiWatchlistQuoteItem,
   CollectTaskResult,
+  FedWatchResponse,
+  GlobalIndexHistoryPoint,
+  GlobalIndexQuote,
   IndexIntraday,
   IndexKline,
   IndexKlinePeriod,
@@ -22,6 +25,7 @@ import type {
   MarketReview,
   MarketStats,
   SectorOverview,
+  SectorQuoteResponse,
   WatchlistQuote,
 } from '@ai-invest/shared'
 import axios from 'axios'
@@ -169,4 +173,39 @@ export async function collectMarketData(
     body,
   )
   return response.data.map(mapCollectTaskResult)
+}
+
+export async function fetchGlobalIndices(): Promise<GlobalIndexQuote[]> {
+  const response = await apiClient.get<GlobalIndexQuote[]>(
+    ENDPOINTS.market.globalIndices,
+  )
+  return response.data
+}
+
+export async function fetchGlobalIndexHistory(
+  indexCode: string,
+  months = 12,
+): Promise<GlobalIndexHistoryPoint[]> {
+  const response = await apiClient.get<GlobalIndexHistoryPoint[]>(
+    ENDPOINTS.market.globalIndexHistory,
+    { params: { index_code: indexCode, months } },
+  )
+  return response.data
+}
+
+export async function fetchFedWatch(): Promise<FedWatchResponse | null> {
+  const response = await apiClient.get<FedWatchResponse | null>(
+    ENDPOINTS.market.fedWatch,
+  )
+  return response.data ?? null
+}
+
+export async function fetchSectorQuotes(
+  sectorType: string,
+): Promise<SectorQuoteResponse | null> {
+  const response = await apiClient.get<SectorQuoteResponse | null>(
+    ENDPOINTS.market.sectorQuotes,
+    { params: { sector_type: sectorType } },
+  )
+  return response.data ?? null
 }

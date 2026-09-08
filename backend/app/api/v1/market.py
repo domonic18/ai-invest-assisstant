@@ -15,6 +15,8 @@ from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.market import (
     CollectTaskResult,
+    FedWatchResponse,
+    GlobalIndexHistoryPoint,
     GlobalIndexQuoteResponse,
     IndexIntradayResponse,
     IndexKlineResponse,
@@ -26,9 +28,15 @@ from app.schemas.market import (
     MarketReviewUpdateRequest,
     MarketStatsResponse,
     SectorOverviewResponse,
+    SectorQuoteResponse,
 )
 from app.services import review as market_review_service
-from app.services.market import global_index_service, market_service
+from app.services.market import (
+    fed_watch_service,
+    global_index_service,
+    market_service,
+    sector_quote_service,
+)
 
 router = APIRouter()
 
@@ -51,6 +59,36 @@ async def get_global_indices(
 ) -> list[GlobalIndexQuoteResponse]:
     """启用中的全球指标最新快照（黄金/美元指数/美债收益率等）。"""
     return await global_index_service.get_global_index_quotes(session)
+
+
+@router.get("/global-index-history", response_model=list[GlobalIndexHistoryPoint])
+async def get_global_index_history(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    index_code: str = Query(..., description="全球指标代码，US2Y10S 为 10Y-2Y 利差"),
+    months: Annotated[int, Query(ge=1, le=24)] = 12,
+) -> list[GlobalIndexHistoryPoint]:
+    """全球指标近 N 月收盘走势（trade_date 升序）。"""
+    return await global_index_service.get_index_history(session, index_code, months)
+
+
+@router.get("/fed-watch", response_model=FedWatchResponse | None)
+async def get_fed_watch(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> FedWatchResponse | None:
+    """CME FedWatch 官方加息概率快照（未采集时返回 null）。"""
+    return await fed_watch_service.get_fed_watch(session)
+
+
+@router.get("/sector-quotes", response_model=SectorQuoteResponse | None)
+async def get_sector_quotes(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    sector_type: Annotated[str, Query(pattern="^(industry|concept)$")] = "industry",
+    trade_date: date | None = None,
+) -> SectorQuoteResponse | None:
+    """单日板块行情快照（涨跌幅降序）；未指定日期取最新快照日。"""
+    return await sector_quote_service.get_sector_quotes(
+        session, sector_type, trade_date
+    )
 
 
 @router.get("/indices/kline", response_model=IndexKlineResponse)

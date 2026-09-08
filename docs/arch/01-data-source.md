@@ -1,6 +1,6 @@
 # 数据源设计
 
-> 任务与渠道的权威目录是 `backend/collector/runtime/registry.py` 的 TASK_SPECS（33 个任务），运行时可经 `GET /api/v1/admin/collector/tasks/catalog` 查询；本文描述各数据源的定位、反爬要点与存储去向。
+> 任务与渠道的权威目录是 `backend/collector/runtime/registry.py` 的 TASK_SPECS，运行时可经 `GET /api/v1/admin/collector/tasks/catalog` 查询；本文描述各数据源的定位、反爬要点与存储去向。
 
 ## 1. 数据源全景
 
@@ -21,13 +21,15 @@
 │ ● 集合竞价   │ ● 基金持仓    │              │ ● 市场成交额(唯一)        │
 │              │ ● 富时A50     │              │ internal：AI 生成任务     │
 │              │ ● 全球指数/黄金│             │ 财联社：电报快讯/日历     │
-│              │              │              │ Fed/BLS：固定日程         │
+│              │ ● 板块行情   │              │ Fed/BLS：固定日程         │
+│              │              │              │ MOF：日债收益率曲线       │
+│              │              │              │ CME·FRED：加息概率        │
 └──────────────┴──────────────┴──────────────┴───────────────────────────┘
 ```
 
 ## 2. 各数据源定位与要点
 
-### 2.1 新浪财经 — 行情主渠道（11 任务）
+### 2.1 新浪财经 — 行情主渠道
 
 | 数据类型 | 说明 | 备注 |
 |----------|------|------|
@@ -39,7 +41,7 @@
 | 新闻 / 宏观经济 | `news` / `macro` | 入 ES 索引 |
 | 集合竞价 | `auction`（sina→ths 双渠道） | 个股竞价 |
 
-### 2.2 东方财富 — 股池/资金流/研报（9 任务）
+### 2.2 东方财富 — 股池/资金流/研报/全球指标
 
 | 数据类型 | 说明 | 备注 |
 |----------|------|------|
@@ -47,14 +49,15 @@
 | 龙虎榜 | `dragon-list` | |
 | 资金流向 | `fund-flow` | 个股资金流 |
 | 板块资金流向 | `sector-fund-flow`（eastmoney→ths 双渠道） | 行业/概念；概念板块口径钉死同花顺语义 |
+| 板块行情 | 行业/概念板块涨跌幅 + 成交额 + 换手 + 涨跌家数 + 领涨股 | clist `fs=m:90+t:2`（行业）/ `fs=m:90+t:3`（概念），push2delay 优先；每日快照自积累为历史，不依赖 push2his K 线（封禁前科） |
 | 概念成分股 | `concept-constituents` | 高频连发触发 WAF，走 **push2delay 镜像 + curl_cffi** |
 | 个股研报 / 基金持仓 | `research-report` / `fund-holdings` | 研报 PDF 下载走 curl_cffi Chrome 指纹（pdf.dfcfw.com 按 TLS 指纹拦截 httpx） |
 | 富时 A50 | `a50-kline` | 无替代源 |
-| 全球指数 / 黄金 | `global-index`（美元指数 UDI / COMEX 黄金等） | 跟踪指数清单（见 03 §3.9）的数据源主渠道；低频采集走 push2delay，akshare `index_global_*` 可作口径参考 |
+| 全球指数 / 黄金 / 汇率 / 港美股指数 | `global-index`（美元指数 UDI / COMEX 黄金 / 布伦特原油 B00Y / 离岸人民币 USDCNH / 日元 USDJPY / 欧元 USDEUR / 恒生 HSI / 恒生科技 HSTECH / 道琼斯 DJIA / 纳斯达克 NDX / 标普 500 SPX / 日经 225 N225） | 跟踪指数清单（见 03 §3.9）的数据源主渠道；低频采集走 push2delay，港美股 secid `100.HSI` / `124.HSTECH` / `100.DJIA` / `100.NDX` / `100.SPX` / `100.N225`，外汇/商品 secid `133.USDCNH` / `119.USDJPY` / `119.USDEUR` / `112.B00Y`（ulist.np/get 同接口；在岸人民币 USDCNY 无东财源走 Yahoo 每日任务）；akshare `index_global_*` 可作口径参考；上线回填走 2.9 |
 
 **WAF 行为要点**：按 TLS 指纹 + 路径 + 主机限流（非简单 IP 封禁）。`push2` 高频连发按主机封禁→批量拉取用 `push2delay` 镜像；`push2his` kline 路径已封死→K 线一律走新浪。
 
-### 2.3 巨潮资讯 — 信息披露（4 任务）
+### 2.3 巨潮资讯 — 信息披露
 
 公司概况 / 公告披露 / 财报（PDF 入 COS，结构化字段入 PG）/ IPO 信息。更新跟随披露节奏（财报季加密扫描）。
 
@@ -68,7 +71,7 @@
 |----------|------|------|
 | 指数集合竞价 | Tushare `stk_auction` | 指数竞价成交额**唯一口径**（聚合自个股），竞价付费权限已开通 |
 | 市场成交额 | 交易所（`exchange`） | 沪深两所官方口径 |
-| 美债收益率（2Y/10Y） | Tushare `us_tycr` | 美债收益率唯一口径；渠道已接，实施前确认积分权限 |
+| 美债收益率（2Y/10Y） | Tushare `us_tycr` | 美债收益率唯一口径；日债口径见 2.9（日本财务省） |
 
 ### 2.6 internal — AI 生成任务（非外部采集）
 
@@ -93,9 +96,17 @@
 
 | 数据类型 | 来源 | 说明 |
 |----------|------|------|
-| FOMC 议息会议日程 | federalreserve.gov 年度日历页 | 每年初发布、结构稳定，导入脚本 + 人工校对 |
+| FOMC 议息会议日程 | federalreserve.gov 年度日历页 | 每年初发布、结构稳定，导入脚本 + 人工校对；宏观日历事件展示与 FedWatch 会议对照（概率本身直采，见 2.9） |
 | 美国 CPI / 非农等披露日程 | bls.gov/schedule | 同上 |
 | 平台衍生事件 | 财报披露日期 / AI 提取的关键里程碑 | 自选股财报披露自动关联；AI 从财报提取技术突破等事件时间（见 [04 §8.2](./04-ai-agent.md)） |
+
+### 2.9 海外宏观指标 — 日债曲线 / 加息概率 / 历史回填
+
+| 数据类型 | 来源 | 接入要点 |
+|----------|------|----------|
+| 日债收益率曲线（1Y-40Y，10Y 为主） | 日本财务省「国債金利情報」CSV：当月增量 `mof.go.jp/jgbs/reference/interest_rate/jgbcm.csv`（日更）+ 全量 `data/jgbcm_all.csv`（1974 年起，日线 2008 年起） | 无鉴权无频控；**Shift-JIS 编码、和历日期（S49/H/R 记法）需转换**；全量文件按 Content-Length 校验完整下载（截断不易察觉）；旧英文路径 `/english/policy/jgbs/reference/jgbcve.csv` 已 404，勿引用 |
+| 美联储议息概率（FedWatch） | **CME FedWatch 官网工具（QuikStrike iframe）官方概率表直采** | 官方付费 API（$25/月）与 investing.com 等三方转发站均不采用。抓取链路（2026-09-08 实测，`curl_cffi` Chrome 指纹，httpx 被 Akamai 拦截）：①`GET cmegroup-tools.quikstrike.net/User/QuikStrikeTools.aspx?viewitemid=IntegratedFedWatchTool&userId=lwolf`（Referer=CME 工具页）从 `#global_instanceCache` 取会话参数 → ②View 页取「Data as of … CT」时间戳（America/Chicago）与「<low>-<high> (Current)」当前目标区间 → ③隐藏字段 postback 切 Probabilities 标签，解析「Conditional Meeting Probabilities」表（行=FOMC 会议日美式日期，列=目标区间 bps，值=落位概率%）。服务层派生为纯求和：hike=高于当前区间概率和、hold=当前区间概率、cut=低于区间概率和。每日 3 请求无频控压力；解析函数用 fixture HTML 单测钉死 + 写路径哨兵（每会议概率和≈100、会议数下限），站点改版时显式 FAILED 走死信告警。晨间采集（`30 7 * * 2-6`，美收盘结算后） |
+| 全球指数历史回填 | Yahoo Finance chart API：`query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1y&interval=1d`（`^HSI` / `^NDX` / `^N225` / 外汇 `USDCNY=X` 等 / 布油 `BZ=F`） | 用于新指标上线时的一次性 12 个月日线回填（收盘值与东财一致）+ `yahoo_global_index_daily` 每日幂等续期（USDCNY 无东财源的每日增量）；此后其余指标由每日快照自积累，避免长期双源口径漂移。**注意**：①短时间连续全量请求会触发 Edge 限流（429），spider 对单 symbol 失败容错（其余照常回填，全失败才走渠道 fallback）；②Yahoo 已下线 `^HSTECH`（404 delisted）、`USDCNH=X` 仅返回当日 1 bar 无历史，两者历史均由东财每日快照自积累 |
 
 ## 3. 渠道优先级与故障切换
 
@@ -108,7 +119,7 @@
 
 | 策略 | 实现 |
 |------|------|
-| TLS 指纹伪装 | 东财系接口（概念成分、研报 PDF）用 `curl_cffi` Chrome 指纹，httpx 会被识别返回 JS 反爬页 |
+| TLS 指纹伪装 | 东财系接口（概念成分、研报 PDF）与 CME 官网（Akamai，httpx 直接超时）用 `curl_cffi` Chrome 指纹，httpx 会被识别返回 JS 反爬页 |
 | 镜像域名 | `push2delay` 承接东财批量拉取，规避 `push2` 主机限流 |
 | 请求限流 + 退避 | `collector.core.http_client` 统一超时/重试/间隔控制 |
 | 固定出口 IP | 采集 worker 永久驻留轻量服务器，固定出口 IP 对东财 WAF 更友好（SCF 共享出口池风险高） |
@@ -120,7 +131,7 @@
 
 | 数据 | 存储 | 说明 |
 |------|------|------|
-| 行情/K线/股池/资金流/财务结构化字段/调度元数据/全球指标行情 | PostgreSQL + TimescaleDB | 时序表走 hypertable |
+| 行情/K线/股池/资金流/板块行情/财务结构化字段/调度元数据/全球指标行情（含日债）/加息概率 | PostgreSQL + TimescaleDB | 时序表走 hypertable；板块行情与加息概率为每日快照自积累 |
 | 新闻 / 公告 / 电报快讯全文 | Elasticsearch | 全文检索 |
 | 财报 PDF / 研报 PDF | COS（S3 兼容） | 预签名 URL 下载 |
 | AI 分析结果（复盘综述/涨停归因/自选股每日分析） | `ai_analysis_result` 表 | 按 `input_hash`（skill_id + 业务键）幂等缓存 |

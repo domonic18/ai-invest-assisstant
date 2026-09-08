@@ -78,6 +78,12 @@ export const queryKeys = {
     sectors: (tradeDate?: string) => ['market', 'sectors', tradeDate] as const,
     watchlistQuotes: ['market', 'watchlist-quotes'] as const,
     aiReview: (tradeDate?: string) => ['market', 'ai-review', tradeDate] as const,
+    globalIndices: ['market', 'global-indices'] as const,
+    globalIndexHistory: (indexCode: string, months: number) =>
+      ['market', 'global-index-history', indexCode, months] as const,
+    fedWatch: ['market', 'fed-watch'] as const,
+    sectorQuotes: (sectorType: string) =>
+      ['market', 'sector-quotes', sectorType] as const,
   },
   research: {
     all: ['research'] as const,

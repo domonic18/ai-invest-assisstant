@@ -897,3 +897,56 @@ CREATE TABLE IF NOT EXISTS user_skill (
 
 CREATE INDEX IF NOT EXISTS idx_user_skill_user ON user_skill(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_skill_skill ON user_skill(skill_id);
+
+-- ============================================================
+-- 23. 迭代 2 监测分组数据：FedWatch 概率快照 / 板块收盘快照
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS fed_watch_snapshot (
+    as_of_date         DATE     NOT NULL,               -- CT 数据日期
+    data_as_at         TIMESTAMPTZ NOT NULL,            -- 官网 "Data as of" CT 时刻（aware UTC）
+    current_range_low  INT      NOT NULL,               -- 当前目标区间下限（bps）
+    current_range_high INT      NOT NULL,               -- 当前目标区间上限（bps）
+
+    PRIMARY KEY (as_of_date),
+    CONSTRAINT chk_fed_watch_snapshot_range CHECK (current_range_low < current_range_high)
+);
+
+CREATE TABLE IF NOT EXISTS fed_watch_probability (
+    as_of_date   DATE         NOT NULL,
+    meeting_date DATE         NOT NULL,
+    range_low    INT          NOT NULL,
+    range_high   INT          NOT NULL,
+    probability  DECIMAL(6,3) NOT NULL,                 -- 0-100
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+
+    PRIMARY KEY (as_of_date, meeting_date, range_low),
+    CONSTRAINT chk_fed_watch_probability_value CHECK (probability >= 0 AND probability <= 100),
+    CONSTRAINT chk_fed_watch_probability_range CHECK (range_low < range_high)
+);
+
+SELECT create_hypertable('fed_watch_probability', 'as_of_date', chunk_time_interval => INTERVAL '1 year', if_not_exists => TRUE);
+
+CREATE TABLE IF NOT EXISTS quote_sector_daily (
+    sector_type       VARCHAR(16)  NOT NULL CONSTRAINT chk_quote_sector_daily_type
+                      CHECK (sector_type IN ('industry', 'concept')),
+    sector_code       VARCHAR(16)  NOT NULL,            -- 东财板块代码（BKxxxx）
+    sector_name       VARCHAR(50)  NOT NULL,
+    trade_date        DATE         NOT NULL,
+    close             DECIMAL(16,4),
+    change_pct        DECIMAL(12,4),
+    amount            DECIMAL(20,2),                    -- 成交额（元）
+    turnover_rate     DECIMAL(10,4),                    -- 换手率（%）
+    up_count          INT,
+    down_count        INT,
+    leader_stock_name VARCHAR(50),
+    source            VARCHAR(50),
+    created_at        TIMESTAMPTZ DEFAULT NOW(),
+
+    PRIMARY KEY (sector_type, sector_code, trade_date)
+);
+
+SELECT create_hypertable('quote_sector_daily', 'trade_date', chunk_time_interval => INTERVAL '1 year', if_not_exists => TRUE);
+
+CREATE INDEX IF NOT EXISTS idx_quote_sector_daily_type_date
+    ON quote_sector_daily(sector_type, trade_date DESC);

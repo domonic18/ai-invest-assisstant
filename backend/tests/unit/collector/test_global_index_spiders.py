@@ -153,12 +153,13 @@ class TestEastmoneyGlobalIndexHistory:
 
 @pytest.mark.unit
 class TestTushareUsYield:
-    async def test_maps_y2_y10_with_pct_change(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_maps_yields_with_pct_change(self, monkeypatch: pytest.MonkeyPatch) -> None:
         df = pd.DataFrame(
             {
                 "date": ["2026-08-29", "2026-09-01", "2026-09-02"],
                 "y2": [4.39, None, 4.42],
                 "y10": [4.79, 4.81, 4.80],
+                "y30": [4.99, None, 4.98],
             }
         )
         fake_ts = types.ModuleType("tushare")
@@ -182,6 +183,9 @@ class TestTushareUsYield:
         assert us10y[1]["change_pct"] == pytest.approx(0.4175)  # (4.81-4.79)/4.79
         assert us10y[2]["change_pct"] == pytest.approx(-0.2079)  # (4.80-4.81)/4.81
         assert all(i["source"] == "tushare" for i in items)
+
+        us30y = [i for i in items if i["index_code"] == "US30Y"]
+        assert [i["close"] for i in us30y] == [4.99, 4.98]
 
     async def test_requires_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         collector = TushareUsYieldCollector(config={})

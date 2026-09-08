@@ -10,7 +10,7 @@
 import random
 import threading
 import time
-from typing import Any
+from typing import Any, Literal
 
 import requests
 from curl_cffi.requests import Response as CffiResponse
@@ -102,25 +102,20 @@ def _get_cffi_session() -> CffiSession:
     return _cffi_session
 
 
-def eastmoney_get_chrome(
+def _chrome_request(
+    method: Literal["GET", "POST"],
     url: str,
     params: dict[str, Any] | None = None,
+    data: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
 ) -> CffiResponse:
-    """Chrome TLS 指纹的东财 GET（含连接级重试）。
-
-    push2 clist 系接口对 requests/httpx 指纹按 TLS 指纹断连，curl_cffi 的
-    Chrome 指纹可正常访问；限流与 :func:`eastmoney_get` 共用。连接被
-    切断（WAF 瞬时限流）与 429/5xx 视为瞬时错误重试，重试间由限流器
-    自然退避。
-    """
     last_error: Exception | None = None
     for _ in range(_CHROME_RETRY_ATTEMPTS):
         _limiter.wait()
         try:
-            response: CffiResponse = _get_cffi_session().get(
-                url, params=params, headers=headers, timeout=timeout
+            response: CffiResponse = _get_cffi_session().request(
+                method, url, params=params, data=data, headers=headers, timeout=timeout
             )
             response.raise_for_status()
             return response
@@ -132,3 +127,37 @@ def eastmoney_get_chrome(
             last_error = exc
     assert last_error is not None
     raise last_error
+
+
+def chrome_get(
+    url: str,
+    params: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+) -> CffiResponse:
+    """Chrome TLS 指纹的通用 GET（共享限流，含连接级重试）。
+
+    供带 WAF/Akamai 指纹拦截的站点使用（东财 push2、CME QuikStrike 等）；
+    会话跨请求保持 cookie。东财调用方继续用 :func:`eastmoney_get_chrome`。
+    """
+    return _chrome_request("GET", url, params=params, headers=headers, timeout=timeout)
+
+
+def chrome_post(
+    url: str,
+    data: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+) -> CffiResponse:
+    """Chrome TLS 指纹的通用 POST（共享限流，含连接级重试），表单编码。"""
+    return _chrome_request("POST", url, data=data, headers=headers, timeout=timeout)
+
+
+def eastmoney_get_chrome(
+    url: str,
+    params: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+) -> CffiResponse:
+    """:func:`chrome_get` 的东财别名（行为不变，限流与重试共用）。"""
+    return chrome_get(url, params=params, headers=headers, timeout=timeout)
