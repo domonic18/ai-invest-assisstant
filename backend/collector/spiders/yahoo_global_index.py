@@ -1,8 +1,9 @@
-"""Yahoo Finance 全球指数历史回填采集器（一次性 12 个月日线）。
+"""Yahoo Finance 全球指标历史回填采集器（12 个月日线，幂等 upsert）。
 
-新指标上线时的历史回填专用：chart API 无鉴权，收盘值与东财一致；此后
-由每日实时快照自积累，避免长期双源口径漂移。仅覆盖 push2delay 无历史
-K 线的港美股指数（东财 GC00Y/DXY 历史另有路径，勿混用）。
+新指标上线时手动触发一次性回填：chart API 无鉴权，收盘值与东财一致。
+覆盖 push2delay 无历史 K 线的港美股指数 + 外汇对 + 布油（东财 GC00Y/DXY
+历史另有路径，勿混用）。此后由每日实时快照自积累；USDCNY 无东财源、
+HSTECH Yahoo 已下线，均靠每日任务重跑本 spider 幂等续期（1y 全量 upsert）。
 """
 
 import time
@@ -25,7 +26,9 @@ _RANGE = "1y"
 _INTERVAL = "1d"
 _ATTEMPTS = 3
 
-# index_code -> Yahoo symbol（回填清单与 GLOBAL_INDEX_CODES 的 yahoo 子集保持一致）
+# index_code -> Yahoo symbol（回填清单与 GLOBAL_INDEX_CODES 的 yahoo 子集保持一致）。
+# ^HSTECH 已 404 delisted、USDCNH=X 仅返回当日 1 bar 无历史：两者历史均靠东财
+# 每日快照自积累；外汇 =X、布油 BZ=F 期货连续
 YAHOO_SYMBOLS: dict[str, str] = {
     "HSI": "^HSI",
     "HSTECH": "^HSTECH",
@@ -33,6 +36,10 @@ YAHOO_SYMBOLS: dict[str, str] = {
     "NDX": "^NDX",
     "SPX": "^GSPC",
     "N225": "^N225",
+    "USDCNY": "USDCNY=X",
+    "USDJPY": "USDJPY=X",
+    "USDEUR": "USDEUR=X",
+    "B00Y": "BZ=F",
 }
 
 

@@ -91,10 +91,15 @@ class TestYahooGlobalIndex:
     async def test_symbols_registry_subset(self) -> None:
         """回填清单必须都登记在 GLOBAL_INDEX_CODES，避免落库孤儿 code。"""
         assert set(YAHOO_SYMBOLS) <= set(GLOBAL_INDEX_CODES)
-        # 且只覆盖非 tushare/mof 的东财系外盘指数
+        # 且只覆盖非 tushare/mof 源的指标（GC00Y/DXY 东财有历史、美债走 tushare；
+        # USDCNH Yahoo 仅当日 1 bar 无历史，不回填）
         assert "GC00Y" not in YAHOO_SYMBOLS
         assert "US10Y" not in YAHOO_SYMBOLS
+        assert "US30Y" not in YAHOO_SYMBOLS
+        assert "USDCNH" not in YAHOO_SYMBOLS
         assert YAHOO_SYMBOLS["SPX"] == "^GSPC"
+        assert YAHOO_SYMBOLS["USDCNY"] == "USDCNY=X"
+        assert YAHOO_SYMBOLS["B00Y"] == "BZ=F"
 
     async def test_collect_empty_result_skips(self) -> None:
         collector = YahooGlobalIndexCollector(config={"source": "yahoo"})

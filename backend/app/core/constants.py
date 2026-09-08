@@ -31,4 +31,10 @@ GLOBAL_INDEX_CODES: dict[str, dict[str, str]] = {
     "SPX": {"name": "标普500", "data_source": "eastmoney", "secid": "100.SPX"},
     "N225": {"name": "日经225", "data_source": "eastmoney", "secid": "100.N225"},
     "JP10Y": {"name": "日本10Y国债", "data_source": "mof"},
+    "US30Y": {"name": "美债 30Y 收益率", "data_source": "tushare", "field": "y30"},
+    "USDCNY": {"name": "美元/人民币", "data_source": "yahoo"},
+    "USDCNH": {"name": "美元/离岸人民币", "data_source": "eastmoney", "secid": "133.USDCNH"},
+    "USDJPY": {"name": "美元/日元", "data_source": "eastmoney", "secid": "119.USDJPY"},
+    "USDEUR": {"name": "美元/欧元", "data_source": "eastmoney", "secid": "119.USDEUR"},
+    "B00Y": {"name": "布伦特原油", "data_source": "eastmoney", "secid": "112.B00Y"},
 }
