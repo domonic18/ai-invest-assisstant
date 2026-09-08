@@ -2,6 +2,9 @@ import { useQuery } from '@tanstack/react-query'
 
 import type { IndexKlinePeriod } from '@ai-invest/shared'
 import {
+  fetchFedWatch,
+  fetchGlobalIndexHistory,
+  fetchGlobalIndices,
   fetchIndexIntraday,
   fetchIndexKline,
   fetchLimitUp,
@@ -10,6 +13,7 @@ import {
   fetchMarketReview,
   fetchMarketStats,
   fetchSectorOverview,
+  fetchSectorQuotes,
   fetchWatchlistQuotes,
 } from '@/api/market'
 import { queryKeys } from '@/hooks/queryKeys'
@@ -36,11 +40,12 @@ export function useIndexIntraday(code: string, tradeDate?: string) {
   })
 }
 
-export function useIndexKline(code: string, period: IndexKlinePeriod) {
+export function useIndexKline(code: string, period: IndexKlinePeriod, enabled = true) {
   return useQuery({
     queryKey: queryKeys.market.kline(code, period),
     queryFn: () => fetchIndexKline(code, period),
     staleTime: 5 * 60_000,
+    enabled,
   })
 }
 
@@ -92,5 +97,42 @@ export function useMarketReview(tradeDate?: string) {
     queryKey: queryKeys.market.aiReview(tradeDate),
     queryFn: () => fetchMarketReview(tradeDate),
     staleTime: 5 * 60 * 1000,
+  })
+}
+
+/** 全球指数实时快照（日频采集，5 分钟档）。 */
+export function useGlobalIndices() {
+  return useQuery({
+    queryKey: queryKeys.market.globalIndices,
+    queryFn: fetchGlobalIndices,
+    staleTime: 5 * 60_000,
+  })
+}
+
+/** 单一全球指标近 N 月收盘序列（宏观页 12 个月走势图 / 2s10s 利差）。 */
+export function useGlobalIndexHistory(indexCode: string, months = 12, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.market.globalIndexHistory(indexCode, months),
+    queryFn: () => fetchGlobalIndexHistory(indexCode, months),
+    staleTime: 5 * 60_000,
+    enabled,
+  })
+}
+
+/** CME FedWatch 加息概率（每日一次快照）。 */
+export function useFedWatch() {
+  return useQuery({
+    queryKey: queryKeys.market.fedWatch,
+    queryFn: fetchFedWatch,
+    staleTime: 5 * 60_000,
+  })
+}
+
+/** 板块行情日快照（行业/概念，CapitalFlow 热力卡）。 */
+export function useSectorQuotes(sectorType: string) {
+  return useQuery({
+    queryKey: queryKeys.market.sectorQuotes(sectorType),
+    queryFn: () => fetchSectorQuotes(sectorType),
+    staleTime: 5 * 60_000,
   })
 }
