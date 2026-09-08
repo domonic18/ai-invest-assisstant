@@ -96,15 +96,33 @@ class TestEastmoneySectorQuoteCollector:
         assert items and items[0]["trade_date"] == date(2026, 9, 7)
 
     async def test_pagination_follows_total(self) -> None:
-        # total > _PAGE_SIZE(500) 时翻第二页
+        # 满页(100)继续翻，短页即停：total=150 → 两页 150 行
+        full_page = [{"f12": f"BK{i:04d}", "f14": f"板块{i}"} for i in range(100)]
         pages = [
-            {"total": 501, "diff": [_INDUSTRY_ROW, _CONCEPT_ROW]},
-            {"total": 501, "diff": [{"f12": "BK0999", "f14": "第二页板块"}]},
+            {"total": 150, "diff": full_page},
+            {"total": 150, "diff": full_page[:50]},
         ]
         with patch(
             "collector.spiders.eastmoney_sector_quote.fetch_sector_page",
             side_effect=pages,
-        ):
+        ) as mock_fetch:
             rows = fetch_sector_rows("m:90+t:2")
 
-        assert len(rows) == 3
+        assert len(rows) == 150
+        assert mock_fetch.call_count == 2
+
+    async def test_pagination_stops_when_total_covered(self) -> None:
+        # 第二页虽满页但已覆盖 total，立即停（防服务端 total 与实收不一致时死循环）
+        full_page = [{"f12": f"BK{i:04d}", "f14": f"板块{i}"} for i in range(100)]
+        pages = [
+            {"total": 150, "diff": full_page},
+            {"total": 150, "diff": full_page},
+        ]
+        with patch(
+            "collector.spiders.eastmoney_sector_quote.fetch_sector_page",
+            side_effect=pages,
+        ) as mock_fetch:
+            rows = fetch_sector_rows("m:90+t:3")
+
+        assert len(rows) == 200 >= 150
+        assert mock_fetch.call_count == 2

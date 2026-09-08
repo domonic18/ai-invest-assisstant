@@ -6,7 +6,6 @@ push2delay clist（行业 ``m:90+t:2`` / 概念 ``m:90+t:3``）收盘后快照�
 行情 15 分钟延迟对收盘快照无影响）。
 """
 
-import math
 import time
 from datetime import date
 from typing import Any, ClassVar
@@ -25,7 +24,9 @@ _CLIST_URL = "https://push2delay.eastmoney.com/api/qt/clist/get"
 # f12 代码 f14 名称 f2 最新价 f3 涨跌幅 f6 成交额 f8 换手率
 # f104 上涨家数 f105 下跌家数 f128 领涨股
 _FIELDS = "f12,f14,f2,f3,f6,f8,f104,f105,f128"
-_PAGE_SIZE = 500
+# push2delay clist 单页实际上限 100（请求更大 pz 会被静默钳制），翻页按实收行数判停
+_PAGE_SIZE = 100
+_MAX_ROWS = 2000
 _SECTOR_FS: dict[str, str] = {"industry": "m:90+t:2", "concept": "m:90+t:3"}
 
 
@@ -50,12 +51,18 @@ def fetch_sector_page(fs: str, page: int) -> dict[str, Any]:
 
 
 def fetch_sector_rows(fs: str) -> list[dict[str, Any]]:
-    """分页拉取板块全量记录。"""
-    data = fetch_sector_page(fs, 1)
-    rows: list[dict[str, Any]] = list(data.get("diff") or [])
-    total = int(data.get("total") or 0)
-    for page in range(2, math.ceil(total / _PAGE_SIZE) + 1):
-        rows.extend(fetch_sector_page(fs, page).get("diff") or [])
+    """分页拉取板块全量记录（短页或 total 覆盖即停）。"""
+    rows: list[dict[str, Any]] = []
+    total = 0
+    page = 1
+    while len(rows) < _MAX_ROWS:
+        data = fetch_sector_page(fs, page)
+        total = int(data.get("total") or total)
+        diff = data.get("diff") or []
+        rows.extend(diff)
+        if len(diff) < _PAGE_SIZE or (total and len(rows) >= total):
+            break
+        page += 1
     return rows
 
 
