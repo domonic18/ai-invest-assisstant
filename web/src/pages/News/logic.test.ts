@@ -17,6 +17,8 @@ function item(clsMsgId: number, publishTime: string): TelegraphItem {
     publishTime,
     sourceUrl: '',
     aiScore: null,
+    aiFactors: null,
+    subscribed: false,
   }
 }
 

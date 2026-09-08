@@ -117,6 +117,7 @@ export const queryKeys = {
       pageSize: number,
       minImportance?: number,
       minAiScore?: number,
+      subscriptionOnly?: boolean,
     ) =>
       [
         'telegraph',
@@ -125,11 +126,16 @@ export const queryKeys = {
         pageSize,
         minImportance ?? 0,
         minAiScore ?? null,
+        subscriptionOnly ?? false,
       ] as const,
   },
   news: {
     all: ['news'] as const,
     channels: ['news', 'channels'] as const,
+    focus: ['news', 'focus'] as const,
+    topics: (sessionKey: string) => ['news', 'topics', sessionKey] as const,
+    story: (id: number) => ['news', 'story', id] as const,
+    subscriptions: ['news', 'subscriptions'] as const,
   },
   users: {
     all: ['users'] as const,
