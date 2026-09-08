@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 import pytest
+import requests
 
 from app.core.constants import GLOBAL_INDEX_CODES
 from collector.spiders.yahoo_global_index import YAHOO_SYMBOLS, YahooGlobalIndexCollector
@@ -102,3 +103,30 @@ class TestYahooGlobalIndex:
         ):
             items = await collector.collect(symbols=["DJIA"])
         assert items == []
+
+    async def test_collect_tolerates_single_symbol_failure(self) -> None:
+        """单 symbol 限流(429)不拖垮整批：其余 code 正常回填。"""
+        collector = YahooGlobalIndexCollector(config={"source": "yahoo"})
+
+        def fake_fetch(symbol: str) -> dict:
+            if symbol == "^HSTECH":
+                raise requests.HTTPError("429 Too Many Requests")
+            return _chart_result([(_TS[0], 100.0, 101.0, 1)])
+
+        with patch(
+            "collector.spiders.yahoo_global_index._fetch_chart",
+            side_effect=fake_fetch,
+        ):
+            items = await collector.collect(symbols=["HSI", "HSTECH", "SPX"])
+
+        assert {i["index_code"] for i in items} == {"HSI", "SPX"}
+
+    async def test_collect_raises_when_all_symbols_fail(self) -> None:
+        """全部失败向上抛错，走渠道 fallback 语义。"""
+        collector = YahooGlobalIndexCollector(config={"source": "yahoo"})
+        with patch(
+            "collector.spiders.yahoo_global_index._fetch_chart",
+            side_effect=requests.HTTPError("429 Too Many Requests"),
+        ):
+            with pytest.raises(requests.HTTPError):
+                await collector.collect(symbols=["HSI", "SPX"])

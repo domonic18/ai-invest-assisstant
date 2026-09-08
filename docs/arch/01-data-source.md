@@ -106,7 +106,7 @@
 |----------|------|----------|
 | 日债收益率曲线（1Y-40Y，10Y 为主） | 日本财务省「国債金利情報」CSV：当月增量 `mof.go.jp/jgbs/reference/interest_rate/jgbcm.csv`（日更）+ 全量 `data/jgbcm_all.csv`（1974 年起，日线 2008 年起） | 无鉴权无频控；**Shift-JIS 编码、和历日期（S49/H/R 记法）需转换**；全量文件按 Content-Length 校验完整下载（截断不易察觉）；旧英文路径 `/english/policy/jgbs/reference/jgbcve.csv` 已 404，勿引用 |
 | 美联储议息概率（FedWatch） | **CME FedWatch 官网工具（QuikStrike iframe）官方概率表直采** | 官方付费 API（$25/月）与 investing.com 等三方转发站均不采用。抓取链路（2026-09-08 实测，`curl_cffi` Chrome 指纹，httpx 被 Akamai 拦截）：①`GET cmegroup-tools.quikstrike.net/User/QuikStrikeTools.aspx?viewitemid=IntegratedFedWatchTool&userId=lwolf`（Referer=CME 工具页）从 `#global_instanceCache` 取会话参数 → ②View 页取「Data as of … CT」时间戳（America/Chicago）与「<low>-<high> (Current)」当前目标区间 → ③隐藏字段 postback 切 Probabilities 标签，解析「Conditional Meeting Probabilities」表（行=FOMC 会议日美式日期，列=目标区间 bps，值=落位概率%）。服务层派生为纯求和：hike=高于当前区间概率和、hold=当前区间概率、cut=低于区间概率和。每日 3 请求无频控压力；解析函数用 fixture HTML 单测钉死 + 写路径哨兵（每会议概率和≈100、会议数下限），站点改版时显式 FAILED 走死信告警。晨间采集（`30 7 * * 2-6`，美收盘结算后） |
-| 全球指数历史回填 | Yahoo Finance chart API：`query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1y&interval=1d`（`^HSI` / `^NDX` / `^N225` 等，无鉴权） | 仅用于新指标上线时的一次性 12 个月日线回填（收盘值与东财一致）；此后由每日快照自积累，避免长期双源口径漂移 |
+| 全球指数历史回填 | Yahoo Finance chart API：`query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1y&interval=1d`（`^HSI` / `^NDX` / `^N225` 等） | 仅用于新指标上线时的一次性 12 个月日线回填（收盘值与东财一致）；此后由每日快照自积累，避免长期双源口径漂移。**注意**：①短时间连续全量请求会触发 Edge 限流（429），spider 对单 symbol 失败容错（其余照常回填，全失败才走渠道 fallback）；②Yahoo 已下线 `^HSTECH`（404 delisted），恒生科技无免费历史源（东财 push2his 被 WAF 封），历史由每日快照自积累 |
 
 ## 3. 渠道优先级与故障切换
 

@@ -92,12 +92,22 @@ class YahooGlobalIndexCollector(PostgresCollector):
 
     def _collect_sync(self, codes: list[str]) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
+        last_error: Exception | None = None
         for code in codes:
-            result = _fetch_chart(YAHOO_SYMBOLS[code])
+            try:
+                result = _fetch_chart(YAHOO_SYMBOLS[code])
+            except (requests.RequestException, ValueError, IndexError) as exc:
+                # Yahoo Edge 限流(429)等单 symbol 异常不拖垮整批：
+                # 部分回填优于整体回退实时快照；全失败才向上抛走渠道 fallback
+                logger.warning("yahoo_chart_failed", index_code=code, error=str(exc))
+                last_error = exc
+                continue
             if result is None:
                 logger.warning("yahoo_chart_empty", index_code=code)
                 continue
             items.extend(self._transform_chart(code, result))
+        if not items and last_error is not None:
+            raise last_error
         return items
 
     @staticmethod
