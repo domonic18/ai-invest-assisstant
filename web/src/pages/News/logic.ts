@@ -65,3 +65,15 @@ const WIRED_FEED_CHANNELS = new Set(['cls_telegraph'])
 export function isChannelWired(key: string): boolean {
   return WIRED_FEED_CHANNELS.has(key)
 }
+
+const NOISE_CATEGORY_RE = /^-?\d+$/
+
+/** cls 原始 category 为数字编码（-1 = 无分类哨兵），对用户无意义不展示。 */
+export function isNoiseCategory(category: string | null): boolean {
+  return category === null || NOISE_CATEGORY_RE.test(category)
+}
+
+/** cls importance：1 = C 级（一般，占绝对多数）不展示降噪；仅 关注(2)/重要(3) 出 Tag。 */
+export function isNoiseImportance(importance: number | null): boolean {
+  return importance === null || importance < 2
+}
