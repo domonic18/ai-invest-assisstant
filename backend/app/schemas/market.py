@@ -69,6 +69,56 @@ class GlobalIndexQuoteResponse(CamelModel):
     trade_date: date | None = None
 
 
+class FedWatchMeeting(CamelModel):
+    """单场 FOMC 会议的加息/维持/降息概率与最可能落位区间。"""
+
+    meeting_date: date
+    prob_hike: float
+    prob_hold: float
+    prob_cut: float
+    likely_range_low: int
+    likely_range_high: int
+
+
+class FedWatchResponse(CamelModel):
+    """CME FedWatch 官方概率快照（派生 hike/hold/cut 为纯求和口径）。"""
+
+    as_of: date
+    data_as_at: datetime
+    current_range_low: int
+    current_range_high: int
+    meetings: list[FedWatchMeeting]
+
+
+class GlobalIndexHistoryPoint(CamelModel):
+    """全球指标历史走势单点（US2Y10S 为 10Y-2Y 利差衍生）。"""
+
+    trade_date: date
+    close: float
+
+
+class SectorQuoteItem(CamelModel):
+    """板块行情条目（行业/概念收盘快照）。"""
+
+    sector_type: str
+    sector_code: str
+    sector_name: str
+    close: float | None = None
+    change_pct: float | None = None
+    amount: float | None = None
+    turnover_rate: float | None = None
+    up_count: int | None = None
+    down_count: int | None = None
+    leader_stock_name: str | None = None
+
+
+class SectorQuoteResponse(CamelModel):
+    """单日板块行情快照（items 按涨跌幅降序）。"""
+
+    trade_date: date
+    items: list[SectorQuoteItem]
+
+
 class MarketStatsResponse(CamelModel):
     """市场涨跌与成交统计，含情绪温度。"""
 

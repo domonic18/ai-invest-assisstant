@@ -96,7 +96,7 @@
 
 | 数据类型 | 来源 | 说明 |
 |----------|------|------|
-| FOMC 议息会议日程 | federalreserve.gov 年度日历页 | 每年初发布、结构稳定，导入脚本 + 人工校对；加息概率计算（见 2.9）的会议日输入 |
+| FOMC 议息会议日程 | federalreserve.gov 年度日历页 | 每年初发布、结构稳定，导入脚本 + 人工校对；宏观日历事件展示与 FedWatch 会议对照（概率本身直采，见 2.9） |
 | 美国 CPI / 非农等披露日程 | bls.gov/schedule | 同上 |
 | 平台衍生事件 | 财报披露日期 / AI 提取的关键里程碑 | 自选股财报披露自动关联；AI 从财报提取技术突破等事件时间（见 [04 §8.2](./04-ai-agent.md)） |
 
@@ -105,7 +105,7 @@
 | 数据类型 | 来源 | 接入要点 |
 |----------|------|----------|
 | 日债收益率曲线（1Y-40Y，10Y 为主） | 日本财务省「国債金利情報」CSV：当月增量 `mof.go.jp/jgbs/reference/interest_rate/jgbcm.csv`（日更）+ 全量 `data/jgbcm_all.csv`（1974 年起，日线 2008 年起） | 无鉴权无频控；**Shift-JIS 编码、和历日期（S49/H/R 记法）需转换**；全量文件按 Content-Length 校验完整下载（截断不易察觉）；旧英文路径 `/english/policy/jgbs/reference/jgbcve.csv` 已 404，勿引用 |
-| 美联储议息概率（FedWatch 等价） | CME 30 天联邦基金利率期货（ZQ）结算价 + FRED EFFR + 本库 FOMC 日程 | 官方付费 API（$25/月）与旧社区端点 `/services/fedwatch/run`（已死，内部网关 DNS 失效）均不采用，走「结算价自算」：`GET cmegroup.com/CmeWS/mvc/Settlements/Futures/Settlements/305/FUT?tradeDate=MM/DD/YYYY`（**美式日期格式**；Akamai 拦截 httpx，须 `curl_cffi` Chrome 指纹；约 60 个 ZQ 合约含结算价/持仓量）→ 隐含利率 = 100 − 结算价，按会议日在月内的天数权重折算每次 FOMC 会议的加息/不变/降息概率（算法参考开源 cme-fedwatch / pyfedwatch）；EFFR 现值取 FRED `fredgraph.csv?id=EFFR`（无鉴权）；会议日复用 `calendar_event` 的 FOMC 日程。结算价 T+1 → 晨间采集（对齐 `tushare_us_yield` 调度模式） |
+| 美联储议息概率（FedWatch） | **CME FedWatch 官网工具（QuikStrike iframe）官方概率表直采** | 官方付费 API（$25/月）与 investing.com 等三方转发站均不采用。抓取链路（2026-09-08 实测，`curl_cffi` Chrome 指纹，httpx 被 Akamai 拦截）：①`GET cmegroup-tools.quikstrike.net/User/QuikStrikeTools.aspx?viewitemid=IntegratedFedWatchTool&userId=lwolf`（Referer=CME 工具页）从 `#global_instanceCache` 取会话参数 → ②View 页取「Data as of … CT」时间戳（America/Chicago）与「<low>-<high> (Current)」当前目标区间 → ③隐藏字段 postback 切 Probabilities 标签，解析「Conditional Meeting Probabilities」表（行=FOMC 会议日美式日期，列=目标区间 bps，值=落位概率%）。服务层派生为纯求和：hike=高于当前区间概率和、hold=当前区间概率、cut=低于区间概率和。每日 3 请求无频控压力；解析函数用 fixture HTML 单测钉死 + 写路径哨兵（每会议概率和≈100、会议数下限），站点改版时显式 FAILED 走死信告警。晨间采集（`30 7 * * 2-6`，美收盘结算后） |
 | 全球指数历史回填 | Yahoo Finance chart API：`query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1y&interval=1d`（`^HSI` / `^NDX` / `^N225` 等，无鉴权） | 仅用于新指标上线时的一次性 12 个月日线回填（收盘值与东财一致）；此后由每日快照自积累，避免长期双源口径漂移 |
 
 ## 3. 渠道优先级与故障切换
@@ -131,7 +131,7 @@
 
 | 数据 | 存储 | 说明 |
 |------|------|------|
-| 行情/K线/股池/资金流/板块行情/财务结构化字段/调度元数据/全球指标行情（含日债）/加息概率 | PostgreSQL + TimescaleDB | 时序表走 hypertable；板块行情与加息概率为每日快照/计算结果自积累 |
+| 行情/K线/股池/资金流/板块行情/财务结构化字段/调度元数据/全球指标行情（含日债）/加息概率 | PostgreSQL + TimescaleDB | 时序表走 hypertable；板块行情与加息概率为每日快照自积累 |
 | 新闻 / 公告 / 电报快讯全文 | Elasticsearch | 全文检索 |
 | 财报 PDF / 研报 PDF | COS（S3 兼容） | 预签名 URL 下载 |
 | AI 分析结果（复盘综述/涨停归因/自选股每日分析） | `ai_analysis_result` 表 | 按 `input_hash`（skill_id + 业务键）幂等缓存 |

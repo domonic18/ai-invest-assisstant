@@ -65,6 +65,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
             "limit-down-pool",
             "a50-kline",
             "global-index",
+            "sector-quote",
         ],
         "extra": {},
     },
@@ -114,6 +115,14 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "base_url": "https://www.mof.go.jp",
         "is_enabled": True,
         "supported_data_types": ["global-index"],
+        "extra": {},
+    },
+    {
+        "source": "cme",
+        "name": "CME",
+        "base_url": None,
+        "is_enabled": True,
+        "supported_data_types": ["fed-watch"],
         "extra": {},
     },
     {

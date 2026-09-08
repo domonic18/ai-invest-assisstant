@@ -79,6 +79,16 @@ SPECS: tuple[TaskSpec, ...] = (
         converters={"trade_date": date.fromisoformat},
     ),
     TaskSpec(
+        name="sector-quote",
+        label="板块行情快照",
+        data_type="sector_quote",
+        collectors={
+            "eastmoney": "collector.spiders.eastmoney_sector_quote:EastmoneySectorQuoteCollector",
+        },
+        run_params=("trade_date",),
+        converters={"trade_date": date.fromisoformat},
+    ),
+    TaskSpec(
         name="global-index",
         label="全球指标行情",
         data_type="global_index",
@@ -89,6 +99,14 @@ SPECS: tuple[TaskSpec, ...] = (
             "mof": "collector.spiders.mof_jpy_yield:MofJpyYieldCollector",
         },
         run_params=("history_days",),
+    ),
+    TaskSpec(
+        name="fed-watch",
+        label="FedWatch 加息概率",
+        data_type="fed_watch",
+        collectors={
+            "cme": "collector.spiders.cme_fed_watch:CmeFedWatchCollector",
+        },
     ),
     TaskSpec(
         name="macro",
