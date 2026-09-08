@@ -8,6 +8,7 @@ export interface TelegraphListParams {
   pageSize?: number
   category?: string
   minImportance?: number
+  minAiScore?: number
 }
 
 export async function fetchTelegraph(
@@ -19,6 +20,8 @@ export async function fetchTelegraph(
   if (params.category) query.set('category', params.category)
   if (params.minImportance !== undefined)
     query.set('min_importance', String(params.minImportance))
+  if (params.minAiScore !== undefined)
+    query.set('min_ai_score', String(params.minAiScore))
   const qs = query.toString()
   const url = qs ? `${ENDPOINTS.telegraph.list}?${qs}` : ENDPOINTS.telegraph.list
   const response = await apiClient.get<ApiTelegraphPage>(url)
