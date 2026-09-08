@@ -5,7 +5,6 @@
 """
 
 import json
-import re
 from collections import Counter
 from typing import Any
 
@@ -41,8 +40,20 @@ _FLOW_FULL_YUAN = 1e9
 
 _WORDCLOUD_TITLES = 300
 _WORDCLOUD_TOP = 40
-_WORDCLOUD_SPLIT_RE = re.compile(r"[\s\W]+")
-_ASCII_RE = re.compile(r"[\x00-\x7f]")
+
+# jieba 词性白名单：名词类 + 动名词/形容词 + 英文词（滤掉动词/虚词等噪音）
+_WORDCLOUD_POS = frozenset({"n", "nr", "ns", "nt", "nz", "vn", "an", "nx", "eng"})
+
+# 财经标题高频但无区分度的通用词（分词后再滤一道）
+_WORDCLOUD_STOPWORDS = frozenset(
+    """
+    公司 相关 表示 认为 报道 消息 发布 公告 数据 显示 预计 预期 可能 继续
+    以及 进行 召开 举行 实现 提出 开展 获批 签署 达成 亿元 万元 今日 昨日
+    明日 今年 去年 明年 目前 近期 记者 了解 获悉 通知 要求 工作 有关 旗下
+    消息面 公告称 报道称 表示将 上述 方面 情况 问题 发展 影响 新股
+    股份 行业 板块 机构 企业 产品 股东 市场 业务 领域 项目
+    """.split()
+)
 
 
 def _resolve_session(session_key: str | None) -> str:
@@ -77,19 +88,22 @@ def _trim_to_cap(payload: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _build_wordcloud(titles: list[str | None]) -> list[dict[str, Any]]:
-    """标题 bigram 词频（无分词依赖），滤数字/字母 gram，取 TOP N。"""
+    """标题分词词频（jieba 词性白名单 + 停用词过滤），取 TOP N。
+
+    bigram 会产出「公司/产品」类无语义切片，改真分词才有区分度。
+    """
+    import jieba.posseg
+
     counter: Counter[str] = Counter()
     for title in titles:
         if not title:
             continue
-        for seg in _WORDCLOUD_SPLIT_RE.split(title):
-            if len(seg) < 2:
+        for word, flag in jieba.posseg.cut(title):
+            if len(word) < 2 or flag not in _WORDCLOUD_POS:
                 continue
-            for i in range(len(seg) - 1):
-                gram = seg[i : i + 2]
-                if _ASCII_RE.search(gram):
-                    continue
-                counter[gram] += 1
+            if word in _WORDCLOUD_STOPWORDS:
+                continue
+            counter[word] += 1
     return [{"word": w, "count": c} for w, c in counter.most_common(_WORDCLOUD_TOP)]
 
 

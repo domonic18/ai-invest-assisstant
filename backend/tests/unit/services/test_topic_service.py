@@ -223,8 +223,8 @@ class TestBuildTopics:
             {"name": "半导体", "change_pct": 5.0, "fund_flow": 5e8}
         ]
         assert topic["item_ids"] == [str(i) for i in range(1, 7)]
-        # 词云 bigram
-        assert kwargs["wordcloud"][0]["word"] == "存储"
+        # 词云真分词：jieba 将「存储芯片」切为整词
+        assert kwargs["wordcloud"][0]["word"] == "存储芯片"
 
     async def test_decimal_sector_factors_converted_to_float(self) -> None:
         """Numeric 列回传 Decimal，payload 必须收敛 float 否则 JSONB 序列化失败。"""
@@ -363,15 +363,24 @@ class TestBuildTopics:
 
 @pytest.mark.unit
 class TestWordcloud:
-    def test_bigram_counts_and_filters_ascii(self) -> None:
-        titles = ["存储芯片涨价", "芯片涨价潮", "A股 GDP 5%"]
+    def test_segmented_counts_and_stopword_filter(self) -> None:
+        titles = [
+            "存储芯片涨价潮来袭",
+            "存储芯片产能扩张",
+            "某公司发布公告称数据超预期",
+        ]
         cloud = topic_service._build_wordcloud(titles)
         words = {item["word"]: item["count"] for item in cloud}
-        assert words["存储"] == 1
-        assert words["芯片"] == 2
-        assert words["涨价"] == 2
-        # 字母/数字/标点 gram 全滤
-        assert all(not any(c.isascii() for c in w) for w in words)
+        # 真分词后领域词计数成立（jieba 将「存储芯片」切为整词）
+        assert words.get("存储芯片") == 2
+        # 停用词与虚词不进词云
+        assert "公司" not in words
+        assert "公告" not in words
+        assert "数据" not in words
+        # 全部词长 ≥2 且按频次降序
+        assert all(len(w) >= 2 for w in words)
+        counts = [item["count"] for item in cloud]
+        assert counts == sorted(counts, reverse=True)
 
     def test_empty_titles(self) -> None:
         assert topic_service._build_wordcloud([None, ""]) == []
