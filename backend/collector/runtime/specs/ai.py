@@ -1,4 +1,4 @@
-"""internal AI 任务声明：定时复盘/涨停归因/个股分析/链刷新（直调服务层）。"""
+"""internal AI 任务声明：定时复盘/涨停归因/个股分析/链刷新/资讯分级（直调服务层）。"""
 
 from datetime import date
 
@@ -44,5 +44,13 @@ SPECS: tuple[TaskSpec, ...] = (
         },
         run_params=("trade_date",),
         converters={"trade_date": date.fromisoformat},
+    ),
+    TaskSpec(
+        name="news-score",
+        label="资讯AI重要度分级",
+        data_type="ai_news_score",
+        collectors={
+            "internal": "collector.spiders.news_ai_score:NewsAiScoreCollector",
+        },
     ),
 )
