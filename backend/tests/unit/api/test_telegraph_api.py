@@ -164,3 +164,34 @@ def telegraph_items_stub(session: Any, rows: list, *, user_id: int) -> list[Tele
     from app.services.market import telegraph_service
 
     return telegraph_service.to_responses(rows)
+
+
+@pytest.mark.unit
+class TestStocksEnrichment:
+    def test_stocks_map_built_in_code_order_with_prefix_stripped(self) -> None:
+        """stocks 快照按原 stock_codes 顺序回填，sh/sz 前缀剥成裸代码。"""
+        from app.services.market import telegraph_service
+
+        rows = [(_item_mock(stock_codes=["sz300750", "sh600115"]), 70, None)]
+        responses = telegraph_service.to_responses(
+            rows,
+            stocks_map={
+                "300750": {"name": "宁德时代", "change_pct": 1.5},
+                "600115": {"name": "中国东航", "change_pct": None},
+            },
+        )
+        stocks = responses[0].stocks
+        assert [(s.code, s.name, s.change_pct) for s in stocks] == [
+            ("300750", "宁德时代", 1.5),
+            ("600115", "中国东航", None),
+        ]
+
+    def test_unknown_code_falls_back_to_raw_display(self) -> None:
+        """快照未命中时代码仍回显（name 用原始带前缀值），涨跌幅为 None。"""
+        from app.services.market import telegraph_service
+
+        rows = [(_item_mock(), 70, None)]
+        responses = telegraph_service.to_responses(rows, stocks_map={})
+        assert [(s.code, s.name, s.change_pct) for s in responses[0].stocks] == [
+            ("300750", "sz300750", None)
+        ]

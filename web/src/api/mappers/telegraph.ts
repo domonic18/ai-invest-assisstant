@@ -19,6 +19,7 @@ export function mapTelegraph(dto: ApiTelegraphResponse): TelegraphItem {
     aiScore: dto.aiScore ?? null,
     aiFactors: dto.aiFactors ?? null,
     subscribed: dto.subscribed ?? false,
+    stocks: dto.stocks ?? [],
   }
 }
 

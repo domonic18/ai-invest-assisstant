@@ -23,6 +23,14 @@ def strip_html(raw: str | None) -> str | None:
     return text.strip() or None
 
 
+class TelegraphStockResponse(CamelModel):
+    """电报关联标的轻量快照（名称 + 当日涨跌幅）。"""
+
+    code: str
+    name: str
+    change_pct: float | None = None
+
+
 class TelegraphResponse(CamelModel):
     """电报条目。"""
 
@@ -33,6 +41,7 @@ class TelegraphResponse(CamelModel):
     importance: int | None = None
     shared: int | None = None
     stock_codes: list[str] | None = None
+    stocks: list[TelegraphStockResponse] = []
     publish_time: datetime
     ai_score: int | None = None
     ai_scored_at: datetime | None = None

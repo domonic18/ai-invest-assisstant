@@ -105,3 +105,75 @@ class TestGetStockQuote:
             quote = await stock_service.get_stock_quote(session, "999999")
 
         assert quote is None
+
+
+@pytest.mark.unit
+class TestBatchQuoteSnapshot:
+    """批量轻量快照：名称 + 当日涨跌幅（实时/收盘键 → 日 K 回退）。"""
+
+    @pytest.mark.asyncio
+    async def test_live_key_hit_computes_change_pct(self) -> None:
+        """实时键命中直接算涨跌幅，不走日 K 回退。"""
+        session = AsyncMock()
+        redis = AsyncMock()
+        # 键序：quote:600115, quote:eod:600115, quote:000001, quote:eod:000001
+        redis.mget.return_value = (
+            '{"price":10.2,"prev_close":10.0}',
+            None,
+            None,
+            '{"price":5.0,"prev_close":5.0}',
+        )
+        repo = MagicMock()
+        repo.get_names_by_codes = AsyncMock(
+            return_value={"600115": "中国东航", "000001": "平安银行"}
+        )
+        kline = AsyncMock()
+        with (
+            patch.object(stock_service, "StockRepository", MagicMock(return_value=repo)),
+            patch.object(stock_service, "get_redis", MagicMock(return_value=redis)),
+            patch.object(stock_service, "fetch_daily_bars_multi", kline),
+        ):
+            result = await stock_service.batch_quote_snapshot(
+                session, ["600115", "000001"]
+            )
+
+        assert result["600115"] == {"name": "中国东航", "change_pct": 2.0}
+        assert result["000001"] == {"name": "平安银行", "change_pct": 0.0}
+        kline.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_kline_fallback_from_latest_two_closes(self) -> None:
+        """Redis 全 miss 时用最近两根日 K（升序：末位最新）推算。"""
+        session = AsyncMock()
+        redis = AsyncMock()
+        redis.mget.return_value = (None, None)
+        repo = MagicMock()
+        repo.get_names_by_codes = AsyncMock(return_value={"600115": "中国东航"})
+        bars = [
+            SimpleNamespace(close=9.0),
+            SimpleNamespace(close=9.9),
+        ]
+        with (
+            patch.object(stock_service, "StockRepository", MagicMock(return_value=repo)),
+            patch.object(stock_service, "get_redis", MagicMock(return_value=redis)),
+            patch.object(
+                stock_service,
+                "fetch_daily_bars_multi",
+                AsyncMock(return_value={"600115": bars}),
+            ),
+        ):
+            result = await stock_service.batch_quote_snapshot(session, ["600115"])
+
+        assert result["600115"] == {"name": "中国东航", "change_pct": 10.0}
+
+    @pytest.mark.asyncio
+    async def test_unknown_code_skipped_and_empty_input(self) -> None:
+        """不在 stock_basic 的代码跳过；空入参直接空 dict。"""
+        session = AsyncMock()
+        repo = MagicMock()
+        repo.get_names_by_codes = AsyncMock(return_value={})
+        with patch.object(
+            stock_service, "StockRepository", MagicMock(return_value=repo)
+        ):
+            assert await stock_service.batch_quote_snapshot(session, ["sh999999"]) == {}
+            assert await stock_service.batch_quote_snapshot(session, []) == {}

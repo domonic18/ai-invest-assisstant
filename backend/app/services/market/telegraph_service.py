@@ -1,5 +1,6 @@
 """财联社电报查询服务。"""
 
+import re
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +10,16 @@ from app.repositories.market import telegraph_repository
 from app.repositories.market.telegraph_repository import TelegraphRow
 from app.repositories.news import ai_score_repository, subscription_repository
 from app.schemas.news import ScoreFactorsResponse
-from app.schemas.telegraph import TelegraphResponse
+from app.schemas.telegraph import TelegraphResponse, TelegraphStockResponse
+from app.services.market import stock_service
+
+_MARKET_PREFIX_RE = re.compile(r"^(sh|sz|bj)(\d{6})$", re.IGNORECASE)
+
+
+def _bare_stock_code(raw: str) -> str:
+    """cls 带市场前缀代码（sh600115）转裸代码（600115）。"""
+    match = _MARKET_PREFIX_RE.match(raw.strip())
+    return match.group(2) if match else raw.strip()
 
 
 async def list_telegraph(
@@ -39,10 +49,12 @@ def to_responses(
     *,
     factors_map: dict[str, dict[str, Any]] | None = None,
     subscribed_ids: set[str] | None = None,
+    stocks_map: dict[str, dict[str, Any]] | None = None,
 ) -> list[TelegraphResponse]:
     """把 ``(电报行, ai_score, ai_scored_at)`` 映射为响应模型（电报页/工作台共用）。
 
-    factors_map/subscribed_ids 可选回填（资讯中心电报流 ★ 标注与评分构成）。
+    factors_map/subscribed_ids/stocks_map 可选回填（资讯中心电报流 ★ 标注、
+    评分构成与关联标的名称/当日涨跌幅）。
     """
     items: list[TelegraphResponse] = []
     for item, ai_score, ai_scored_at in rows:
@@ -56,6 +68,17 @@ def to_responses(
             factors = detail.get("factors")
             if isinstance(factors, dict):
                 response.ai_factors = ScoreFactorsResponse.model_validate(factors)
+        if stocks_map is not None:
+            for raw in item.stock_codes or []:
+                code = _bare_stock_code(raw)
+                snap = stocks_map.get(code)
+                response.stocks.append(
+                    TelegraphStockResponse(
+                        code=code,
+                        name=snap["name"] if snap else raw,
+                        change_pct=snap["change_pct"] if snap else None,
+                    )
+                )
         items.append(response)
     return items
 
@@ -66,7 +89,7 @@ async def enrich_and_respond(
     *,
     user_id: int,
 ) -> list[TelegraphResponse]:
-    """按当前页条目批量回填评分构成与订阅命中（电报流路由入口）。"""
+    """按当前页条目批量回填评分构成、订阅命中与关联标的快照（电报流路由入口）。"""
     item_ids = [str(item.cls_msg_id) for item, _, _ in rows]
     if not item_ids:
         return []
@@ -76,4 +99,12 @@ async def enrich_and_respond(
     subscribed_ids = await subscription_repository.hit_item_ids(
         session, user_id=user_id, source=NEWS_SOURCE_TELEGRAPH, item_ids=item_ids
     )
-    return to_responses(rows, factors_map=details, subscribed_ids=subscribed_ids)
+    codes = [
+        _bare_stock_code(raw)
+        for item, _, _ in rows
+        for raw in (item.stock_codes or [])
+    ]
+    stocks_map = await stock_service.batch_quote_snapshot(session, codes)
+    return to_responses(
+        rows, factors_map=details, subscribed_ids=subscribed_ids, stocks_map=stocks_map
+    )
