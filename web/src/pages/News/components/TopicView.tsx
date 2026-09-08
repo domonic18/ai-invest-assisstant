@@ -1,4 +1,9 @@
-import { DownOutlined, FireOutlined, UpOutlined } from '@ant-design/icons'
+import {
+  DownOutlined,
+  FireOutlined,
+  QuestionCircleOutlined,
+  UpOutlined,
+} from '@ant-design/icons'
 import { Button, Card, Empty, Segmented, Spin, Tag, Tooltip } from 'antd'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -20,7 +25,7 @@ const SENTIMENT_COLOR: Record<ApiNewsTopic['sentiment'], string> = {
   分歧: 'gold',
 }
 
-/** 情绪票数三段分布条（利好红 / 中性灰 / 利空绿，国内配色习惯）。 */
+/** 情绪票数三段分布条（利好红 / 中性灰 / 利空绿，国内配色习惯）；hover 出 ? 说明口径。 */
 function VotesBar({ votes }: { votes: ApiTopicVotes }) {
   const total = votes.bullish + votes.bearish + votes.neutral
   const parts = [
@@ -30,9 +35,16 @@ function VotesBar({ votes }: { votes: ApiTopicVotes }) {
   ]
   return (
     <Tooltip
-      title={`利好 ${votes.bullish} · 中性 ${votes.neutral} · 利空 ${votes.bearish}`}
+      title={
+        <div className="space-y-1">
+          <div>利好 {votes.bullish} · 中性 {votes.neutral} · 利空 {votes.bearish}</div>
+          <div className="opacity-70">
+            情绪票数：AI 聚类时对该主题下每条资讯判定利多 / 利空 / 中性的统计分布
+          </div>
+        </div>
+      }
     >
-      <div className="inline-flex items-center gap-2 cursor-default">
+      <div className="group inline-flex items-center gap-1.5 cursor-default">
         <div className="flex h-1.5 w-32 rounded-full overflow-hidden bg-white/10">
           {parts.map(
             (part) =>
@@ -46,6 +58,7 @@ function VotesBar({ votes }: { votes: ApiTopicVotes }) {
           )}
         </div>
         <span className="text-xs opacity-60">{total} 票</span>
+        <QuestionCircleOutlined className="text-[10px] opacity-0 group-hover:opacity-60 transition-opacity" />
       </div>
     </Tooltip>
   )

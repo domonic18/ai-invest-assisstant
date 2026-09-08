@@ -57,7 +57,7 @@ describe('TopicView', () => {
       isLoading: false,
     } as ReturnType<typeof useNewsTopics>)
 
-    render(
+    const { container } = render(
       <MemoryRouter>
         <TopicView />
       </MemoryRouter>,
@@ -68,6 +68,8 @@ describe('TopicView', () => {
     expect(screen.getByText('半导体')).toBeInTheDocument()
     expect(screen.getByText(/6 条资讯/)).toBeInTheDocument()
     expect(screen.getByText('70')).toBeInTheDocument() // 热度
+    // 票数口径说明问号常驻 DOM，hover 经 group-hover 显隐
+    expect(container.querySelectorAll('.anticon-question-circle').length).toBe(1)
   })
 
   it('marks T-1 sector factors for stale snapshots', () => {
