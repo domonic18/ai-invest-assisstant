@@ -941,6 +941,7 @@ CREATE TABLE IF NOT EXISTS quote_sector_daily (
     down_count        INT,
     leader_stock_name VARCHAR(50),
     source            VARCHAR(50),
+    created_at        TIMESTAMPTZ DEFAULT NOW(),
 
     PRIMARY KEY (sector_type, sector_code, trade_date)
 );

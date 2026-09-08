@@ -54,9 +54,13 @@ CREATE TABLE IF NOT EXISTS quote_sector_daily (
     down_count        INT,
     leader_stock_name VARCHAR(50),
     source            VARCHAR(50),
+    created_at        TIMESTAMPTZ DEFAULT NOW(),
 
     PRIMARY KEY (sector_type, sector_code, trade_date)
 );
+
+-- 2026-09-08 冒烟发现模型审计列缺失：已建表环境补列（幂等）
+ALTER TABLE quote_sector_daily ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
 SELECT create_hypertable('quote_sector_daily', 'trade_date', chunk_time_interval => INTERVAL '1 year', if_not_exists => TRUE);
 
