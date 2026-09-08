@@ -46,3 +46,18 @@ async def map_latest_closes(
         row[0]: (row[1], row[2], row[3])
         for row in (await session.execute(stmt)).all()
     }
+
+
+async def list_closes(
+    session: AsyncSession, code: str, since: date
+) -> list[tuple[date, Decimal]]:
+    """指定指标自 since 起的日线收盘（trade_date 升序）。"""
+    stmt = (
+        select(GlobalIndexDaily.trade_date, GlobalIndexDaily.close)
+        .where(
+            GlobalIndexDaily.index_code == code,
+            GlobalIndexDaily.trade_date >= since,
+        )
+        .order_by(GlobalIndexDaily.trade_date)
+    )
+    return [(row[0], row[1]) for row in (await session.execute(stmt)).all()]

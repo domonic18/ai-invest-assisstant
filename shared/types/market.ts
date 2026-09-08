@@ -337,6 +337,46 @@ export interface GlobalIndexQuote {
   tradeDate: string | null
 }
 
+export interface GlobalIndexHistoryPoint {
+  tradeDate: string
+  close: number
+}
+
+export interface FedWatchMeeting {
+  meetingDate: string
+  probHike: number
+  probHold: number
+  probCut: number
+  likelyRangeLow: number
+  likelyRangeHigh: number
+}
+
+export interface FedWatchResponse {
+  asOf: string
+  dataAsAt: string
+  currentRangeLow: number
+  currentRangeHigh: number
+  meetings: FedWatchMeeting[]
+}
+
+export interface SectorQuoteItem {
+  sectorType: string
+  sectorCode: string
+  sectorName: string
+  close: number | null
+  changePct: number | null
+  amount: number | null
+  turnoverRate: number | null
+  upCount: number | null
+  downCount: number | null
+  leaderStockName: string | null
+}
+
+export interface SectorQuoteResponse {
+  tradeDate: string
+  items: SectorQuoteItem[]
+}
+
 export interface MarketReviewSection {
   key: string
   title: string
