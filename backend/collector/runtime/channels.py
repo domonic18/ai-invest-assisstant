@@ -108,6 +108,22 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "supported_data_types": ["cls-telegraph-backfill", "cls-investkalendar"],
         "extra": {},
     },
+    {
+        "source": "mof",
+        "name": "日本财务省",
+        "base_url": "https://www.mof.go.jp",
+        "is_enabled": True,
+        "supported_data_types": ["global-index"],
+        "extra": {},
+    },
+    {
+        "source": "yahoo",
+        "name": "Yahoo Finance",
+        "base_url": "https://query1.finance.yahoo.com",
+        "is_enabled": True,
+        "supported_data_types": ["global-index"],
+        "extra": {},
+    },
 ]
 
 

@@ -85,6 +85,8 @@ SPECS: tuple[TaskSpec, ...] = (
         collectors={
             "eastmoney": "collector.spiders.eastmoney_global_index:EastmoneyGlobalIndexCollector",
             "tushare": "collector.spiders.tushare_us_yield:TushareUsYieldCollector",
+            "yahoo": "collector.spiders.yahoo_global_index:YahooGlobalIndexCollector",
+            "mof": "collector.spiders.mof_jpy_yield:MofJpyYieldCollector",
         },
         run_params=("history_days",),
     ),
