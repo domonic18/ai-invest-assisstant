@@ -12,8 +12,10 @@ import { useColorScheme } from '@/stores/settings'
 
 /** 区域归属与标签（code → 展示顺序，见 GLOBAL_INDEX_CODES）。 */
 const EQUITY_ORDER = ['HSI', 'HSTECH', 'DJIA', 'NDX', 'SPX', 'N225']
-const BOND_ORDER = ['US2Y', 'US10Y', 'JP10Y']
-const COMMODITY_ORDER = ['GC00Y', 'DXY']
+const BOND_ORDER = ['US2Y', 'US10Y', 'US30Y', 'JP10Y']
+const COMMODITY_ORDER = ['GC00Y', 'B00Y']
+const FX_ORDER = ['DXY', 'USDCNY', 'USDCNH', 'USDJPY', 'USDEUR']
+const FX_CODES = new Set(['USDCNY', 'USDCNH', 'USDJPY', 'USDEUR'])
 const SPREAD_CODE = 'US2Y10S'
 const BOND_CODES = new Set([...BOND_ORDER, SPREAD_CODE])
 
@@ -26,9 +28,15 @@ const TAG_META: Record<string, { tag: string; color: string }> = {
   N225: { tag: '日股', color: 'gold' },
   US2Y: { tag: '美债', color: 'blue' },
   US10Y: { tag: '美债', color: 'blue' },
+  US30Y: { tag: '美债', color: 'blue' },
   JP10Y: { tag: '日债', color: 'gold' },
   GC00Y: { tag: '商品', color: 'gold' },
+  B00Y: { tag: '能源', color: 'gold' },
   DXY: { tag: '汇率', color: 'gold' },
+  USDCNY: { tag: '汇率', color: 'gold' },
+  USDCNH: { tag: '汇率', color: 'gold' },
+  USDJPY: { tag: '汇率', color: 'gold' },
+  USDEUR: { tag: '汇率', color: 'gold' },
 }
 
 function SectionHead({ name, sub }: { name: string; sub: string }) {
@@ -57,6 +65,7 @@ interface GlobalCardProps {
 function GlobalCard({ quote, selected, onSelect }: GlobalCardProps) {
   const meta = TAG_META[quote.indexCode] ?? { tag: '全球', color: 'blue' }
   const isBond = BOND_CODES.has(quote.indexCode)
+  const isFx = FX_CODES.has(quote.indexCode)
   return (
     <MacroCard
       name={quote.indexName}
@@ -67,7 +76,9 @@ function GlobalCard({ quote, selected, onSelect }: GlobalCardProps) {
           ? '-'
           : isBond
             ? `${quote.close.toFixed(3)}%`
-            : fmtIndex(quote.close)
+            : isFx
+              ? quote.close.toFixed(4)
+              : fmtIndex(quote.close)
       }
       changePct={quote.changePct}
       active={selected}
@@ -117,7 +128,7 @@ export function MacroMonitor() {
         </Typography.Title>
         <div className="text-xs text-gray-600">
           投资流程第一站：宏观 → 板块 → 个股 · 指标清单由后台「跟踪指数管理」配置 ·
-          数据源：新浪 / 东方财富 / Tushare / 日本财务省 / CME
+          数据源：新浪 / 东方财富 / Tushare / Yahoo / 日本财务省 / CME
         </div>
       </div>
 
@@ -201,7 +212,7 @@ export function MacroMonitor() {
       </section>
 
       <section>
-        <SectionHead name="商品与其他" sub="贵金属 / 美元指数 / 能源（规划中）" />
+        <SectionHead name="商品" sub="贵金属 / 能源" />
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
           {COMMODITY_ORDER.map((code) => {
             const quote = byCode.get(code)
@@ -215,8 +226,25 @@ export function MacroMonitor() {
               />
             )
           })}
-          <GhostCard title="布伦特原油 · 规划中" note="后台登记 + Spider 支持后启用" />
           <GhostCard title="白银 / 更多指标" note="依托跟踪指数管理扩展" />
+        </div>
+      </section>
+
+      <section>
+        <SectionHead name="汇率" sub="美元指数 / 主要货币对" />
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+          {FX_ORDER.map((code) => {
+            const quote = byCode.get(code)
+            if (!quote) return null
+            return (
+              <GlobalCard
+                key={code}
+                quote={quote}
+                selected={selectedCode === code}
+                onSelect={setSelectedCode}
+              />
+            )
+          })}
         </div>
       </section>
 
