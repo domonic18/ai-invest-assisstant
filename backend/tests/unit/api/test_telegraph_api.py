@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.dependencies import get_current_user
+from app.main import app
 from app.schemas.telegraph import TelegraphResponse, strip_html
 
 
@@ -24,6 +26,22 @@ def _item_mock(**overrides: Any) -> SimpleNamespace:
     for key, value in overrides.items():
         setattr(item, key, value)
     return item
+
+
+@pytest.fixture
+def normal_user():
+    return type(
+        "User",
+        (object,),
+        {"id": 3, "username": "user", "role": "user", "is_active": True},
+    )()
+
+
+@pytest.fixture
+def auth_client(client, normal_user):
+    app.dependency_overrides[get_current_user] = lambda: normal_user
+    yield client
+    app.dependency_overrides.clear()
 
 
 @pytest.mark.unit
@@ -50,14 +68,27 @@ class TestStripHtml:
 
 @pytest.mark.unit
 class TestTelegraphEndpoint:
+    def test_requires_auth(self, client) -> None:
+        assert client.get("/api/v1/telegraph").status_code in (401, 403)
+
+    @patch(
+        "app.api.v1.telegraph.telegraph_service.enrich_and_respond",
+        new_callable=AsyncMock,
+    )
     @patch(
         "app.api.v1.telegraph.telegraph_service.list_telegraph",
         new_callable=AsyncMock,
     )
-    async def test_list_paginated(self, mock_list: AsyncMock, client) -> None:
+    async def test_list_paginated(
+        self, mock_list: AsyncMock, mock_enrich: AsyncMock, auth_client
+    ) -> None:
         scored_at = datetime(2026, 9, 2, 7, 5, tzinfo=timezone.utc)
-        mock_list.return_value = ([(_item_mock(), 82, scored_at)], 42)
-        response = client.get("/api/v1/telegraph", params={"page": 2, "page_size": 30})
+        rows = [(_item_mock(), 82, scored_at)]
+        mock_list.return_value = (rows, 42)
+        mock_enrich.side_effect = telegraph_items_stub
+        response = auth_client.get(
+            "/api/v1/telegraph", params={"page": 2, "page_size": 30}
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -79,17 +110,31 @@ class TestTelegraphEndpoint:
             category=None,
             min_importance=None,
             min_ai_score=None,
+            subscription_only=False,
+            user_id=3,
         )
 
+    @patch(
+        "app.api.v1.telegraph.telegraph_service.enrich_and_respond",
+        new_callable=AsyncMock,
+    )
     @patch(
         "app.api.v1.telegraph.telegraph_service.list_telegraph",
         new_callable=AsyncMock,
     )
-    async def test_list_with_filters(self, mock_list: AsyncMock, client) -> None:
+    async def test_list_with_filters(
+        self, mock_list: AsyncMock, mock_enrich: AsyncMock, auth_client
+    ) -> None:
         mock_list.return_value = ([], 0)
-        response = client.get(
+        mock_enrich.return_value = []
+        response = auth_client.get(
             "/api/v1/telegraph",
-            params={"category": "宏观", "min_importance": 2, "min_ai_score": 70},
+            params={
+                "category": "宏观",
+                "min_importance": 2,
+                "min_ai_score": 70,
+                "subscription_only": True,
+            },
         )
 
         assert response.status_code == 200
@@ -98,14 +143,24 @@ class TestTelegraphEndpoint:
         assert kwargs["category"] == "宏观"
         assert kwargs["min_importance"] == 2
         assert kwargs["min_ai_score"] == 70
+        assert kwargs["subscription_only"] is True
+        assert kwargs["user_id"] == 3
 
-    async def test_page_bounds(self, client) -> None:
+    async def test_page_bounds(self, auth_client) -> None:
         assert (
-            client.get("/api/v1/telegraph", params={"page": 0}).status_code == 422
+            auth_client.get("/api/v1/telegraph", params={"page": 0}).status_code
+            == 422
         )
         assert (
-            client.get(
+            auth_client.get(
                 "/api/v1/telegraph", params={"page_size": 101}
             ).status_code
             == 422
         )
+
+
+def telegraph_items_stub(session: Any, rows: list, *, user_id: int) -> list[TelegraphResponse]:
+    """enrich_and_respond 替身：直接走共享映射保持响应形状。"""
+    from app.services.market import telegraph_service
+
+    return telegraph_service.to_responses(rows)
