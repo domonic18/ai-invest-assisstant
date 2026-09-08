@@ -6,9 +6,8 @@ import { useWorkbench } from '@/hooks/useWorkbench'
 
 import { CalendarSummaryCard } from './components/CalendarSummaryCard'
 import { CollectorEngineCard } from './components/CollectorEngineCard'
+import { FedWatchCard } from './components/FedWatchCard'
 import { IndexStrip } from './components/IndexStrip'
-import { QuickEntriesCard } from './components/QuickEntriesCard'
-import { ReviewStatusCard } from './components/ReviewStatusCard'
 import { SectorFlowCard } from './components/SectorFlowCard'
 import { TelegraphCard } from './components/TelegraphCard'
 import { WatchlistOverviewCard } from './components/WatchlistOverviewCard'
@@ -50,14 +49,17 @@ export function Workbench() {
         </Typography.Text>
       </div>
 
-      <IndexStrip
-        indices={data?.indices}
-        globalIndices={data?.globalIndices}
-        loading={isLoading}
-      />
-
-      {/* 行对齐网格：行内两卡等高（stretch），行序 要闻/日历 → 复盘/引擎 → 自选/板块 → 快捷入口 */}
+      {/* 行对齐网格：行内卡片等高（stretch），行序 指数/加息概率 → 要闻/日历 → 自选/引擎 → 板块（整行）。
+          复盘状态移至左侧导航栏（SidebarReviewStatus）。 */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-5 items-stretch">
+        <IndexStrip
+          indices={data?.indices}
+          globalIndices={data?.globalIndices}
+          loading={isLoading}
+          className="xl:col-span-2"
+          stretch
+        />
+        <FedWatchCard stretch />
         <TelegraphCard
           items={data?.telegraph}
           loading={isLoading}
@@ -65,24 +67,19 @@ export function Workbench() {
           stretch
         />
         <CalendarSummaryCard events={data?.calendar} loading={isLoading} stretch />
-        <ReviewStatusCard
-          status={data?.reviewStatus ?? null}
-          review={data?.review ?? null}
-          groups={data?.watchlistGroups}
-          stats={data?.stats ?? undefined}
-          loading={isLoading}
-          className="xl:col-span-2"
-          stretch
-        />
-        <CollectorEngineCard status={data?.collectorStatus ?? null} loading={isLoading} stretch />
         <WatchlistOverviewCard
           groups={data?.watchlistGroups}
           loading={isLoading}
           className="xl:col-span-2"
           stretch
         />
-        <SectorFlowCard items={data?.sectorFlow} loading={isLoading} stretch />
-        <QuickEntriesCard className="xl:col-span-3" />
+        <CollectorEngineCard status={data?.collectorStatus ?? null} loading={isLoading} stretch />
+        <SectorFlowCard
+          items={data?.sectorFlow}
+          loading={isLoading}
+          className="xl:col-span-3"
+          stretch
+        />
       </div>
     </div>
   )
