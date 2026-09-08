@@ -33,6 +33,8 @@ class TelegraphResponse(CamelModel):
     shared: int | None = None
     stock_codes: list[str] | None = None
     publish_time: datetime
+    ai_score: int | None = None
+    ai_scored_at: datetime | None = None
 
     @field_validator("title", "content", mode="before")
     @classmethod
