@@ -874,6 +874,83 @@ CREATE TABLE IF NOT EXISTS news_ai_score (
 CREATE INDEX IF NOT EXISTS idx_news_ai_score_score ON news_ai_score(score DESC);
 
 -- ============================================================
+-- 21c. 迭代 4 资讯 AI 增强：事件故事线（全局）/ 用户订阅命中 / 热点主题快照
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS news_storyline (
+    id            BIGSERIAL PRIMARY KEY,
+    title         VARCHAR(200) NOT NULL,
+    summary       TEXT,
+    status        VARCHAR(16) NOT NULL DEFAULT 'tracking' CONSTRAINT chk_news_storyline_status
+                  CHECK (status IN ('tracking', 'near_end', 'finished')),
+    origin        VARCHAR(8)  NOT NULL DEFAULT 'ai' CONSTRAINT chk_news_storyline_origin
+                  CHECK (origin IN ('ai', 'manual')),
+    user_id       BIGINT REFERENCES "user"(id) ON DELETE CASCADE,   -- 手动建线者（AI 线为 NULL）
+    report_count  INT NOT NULL DEFAULT 0,
+    first_seen_at TIMESTAMPTZ NOT NULL,
+    last_seen_at  TIMESTAMPTZ NOT NULL,
+    latest_brief  TEXT,
+    nodes         JSONB,                                -- 节点链 [{time, brief}]
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_news_storyline_status
+    ON news_storyline(status, last_seen_at DESC);
+
+CREATE TABLE IF NOT EXISTS user_news_storyline (
+    user_id      BIGINT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    storyline_id BIGINT NOT NULL REFERENCES news_storyline(id) ON DELETE CASCADE,
+    action       VARCHAR(8) NOT NULL DEFAULT 'active' CONSTRAINT chk_user_news_storyline_action
+                 CHECK (action IN ('active', 'stopped')),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, storyline_id)
+);
+
+CREATE TABLE IF NOT EXISTS news_storyline_item (
+    storyline_id BIGINT NOT NULL REFERENCES news_storyline(id) ON DELETE CASCADE,
+    source       VARCHAR(32) NOT NULL,                  -- 与 news_ai_score.source 同口径
+    item_id      VARCHAR(64) NOT NULL,                  -- 源表业务主键（电报=cls_msg_id）
+    added_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (storyline_id, source, item_id),
+    CONSTRAINT uq_news_storyline_item_item UNIQUE (source, item_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_news_subscription (
+    id           BIGSERIAL PRIMARY KEY,
+    user_id      BIGINT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    keyword      VARCHAR(100) NOT NULL,
+    channels     JSONB,                                 -- 命中渠道过滤（NULL/空=全部渠道）
+    push_enabled BOOLEAN NOT NULL DEFAULT FALSE,        -- 推送通道实装前仅存配置
+    enabled      BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_user_news_subscription_user_keyword UNIQUE (user_id, keyword)
+);
+
+CREATE TABLE IF NOT EXISTS news_subscription_hit (
+    subscription_id BIGINT NOT NULL REFERENCES user_news_subscription(id) ON DELETE CASCADE,
+    source          VARCHAR(32) NOT NULL,
+    item_id         VARCHAR(64) NOT NULL,
+    hit_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (subscription_id, source, item_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_news_subscription_hit_item
+    ON news_subscription_hit(source, item_id);
+
+CREATE TABLE IF NOT EXISTS news_topic_snapshot (
+    trade_date   DATE NOT NULL,
+    session      VARCHAR(8) NOT NULL CONSTRAINT chk_news_topic_snapshot_session
+                 CHECK (session IN ('intraday', 'post')),
+    topics       JSONB,                                 -- [{title, sentiment, votes, item_ids, chain, heat, factors, asOfTradeDate}]
+    wordcloud    JSONB,                                 -- [{word, count}]
+    input_hash   VARCHAR(64),
+    generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (trade_date, session)
+);
+
+-- ============================================================
 -- 22. Skill 注册表（builtin 登记 + custom 定义；builtin 行由应用启动
 --     sync_builtin_skills 幂等同步写入，无静态 seed）
 -- ============================================================

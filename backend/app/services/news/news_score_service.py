@@ -131,7 +131,10 @@ async def _score_batch(
                 "source": item.source,
                 "item_id": item.item_id,
                 "score": item.score,
-                "score_detail": {"reason": item.reason},
+                "score_detail": {
+                    "reason": item.reason,
+                    "factors": item.factors.model_dump(),
+                },
             }
         )
     return now_rows

@@ -7,6 +7,7 @@ from datetime import datetime
 from pydantic import field_validator
 
 from app.schemas.base import CamelModel
+from app.schemas.news import ScoreFactorsResponse
 
 _TAG_PATTERN = re.compile(r"<[^>]+>")
 
@@ -35,6 +36,8 @@ class TelegraphResponse(CamelModel):
     publish_time: datetime
     ai_score: int | None = None
     ai_scored_at: datetime | None = None
+    ai_factors: ScoreFactorsResponse | None = None
+    subscribed: bool = False
 
     @field_validator("title", "content", mode="before")
     @classmethod

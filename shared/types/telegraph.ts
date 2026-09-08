@@ -1,5 +1,7 @@
 /** 财联社电报（news_telegraph）类型：camelCase wire + camelCase 领域类型。 */
 
+import type { ApiScoreFactors } from './news'
+
 /** 后端 GET /telegraph 分页响应。 */
 export interface ApiTelegraphPage {
   total: number
@@ -21,6 +23,10 @@ export interface ApiTelegraphResponse {
   /** AI 重要度 0-100（news_ai_score 另存，未分级为 null） */
   aiScore?: number | null
   aiScoredAt?: string | null
+  /** 评分构成三维（存量评分行无构成为 null） */
+  aiFactors?: ApiScoreFactors | null
+  /** 是否命中当前用户订阅关键词 */
+  subscribed?: boolean | null
 }
 
 /** 电报条目领域类型（camelCase，前端使用）。 */
@@ -37,6 +43,10 @@ export interface TelegraphItem {
   sourceUrl: string
   /** AI 重要度 0-100（未分级为 null） */
   aiScore: number | null
+  /** 评分构成三维（存量评分行无构成为 null） */
+  aiFactors: ApiScoreFactors | null
+  /** 是否命中当前用户订阅关键词 */
+  subscribed: boolean
 }
 
 /** 电报分页领域类型（camelCase，前端使用）。 */
