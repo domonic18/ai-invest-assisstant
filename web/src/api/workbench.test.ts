@@ -110,6 +110,7 @@ const globalDto: ApiGlobalIndexQuoteResponse = {
   close: 2650.4,
   changePct: -0.52,
   tradeDate: '2026-09-02',
+  trend: [2648.1, 2650.4],
 }
 
 describe('mapGlobalIndexQuote', () => {
@@ -121,6 +122,7 @@ describe('mapGlobalIndexQuote', () => {
       close: 2650.4,
       changePct: -0.52,
       tradeDate: '2026-09-02',
+      trend: [2648.1, 2650.4],
     })
   })
 

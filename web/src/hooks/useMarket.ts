@@ -4,6 +4,7 @@ import type { IndexKlinePeriod } from '@ai-invest/shared'
 import {
   fetchFedWatch,
   fetchGlobalIndexHistory,
+  fetchGlobalIndexKline,
   fetchGlobalIndices,
   fetchIndexIntraday,
   fetchIndexKline,
@@ -116,6 +117,15 @@ export function useGlobalIndexHistory(indexCode: string, months = 12, enabled = 
     queryFn: () => fetchGlobalIndexHistory(indexCode, months),
     staleTime: 5 * 60_000,
     enabled,
+  })
+}
+
+/** 全球指标多周期 K 线（详情页；含 OHLC 蜡烛与 close-only 收盘线两类源）。 */
+export function useGlobalIndexKline(indexCode: string, period: IndexKlinePeriod) {
+  return useQuery({
+    queryKey: queryKeys.market.globalIndexKline(indexCode, period),
+    queryFn: () => fetchGlobalIndexKline(indexCode, period),
+    staleTime: 5 * 60_000,
   })
 }
 
