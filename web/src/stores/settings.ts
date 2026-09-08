@@ -22,23 +22,30 @@ const getStoredScheme = (): ColorScheme => {
   return localStorage.getItem(StorageKey.settings.colorScheme) === 'us' ? 'us' : 'cn'
 }
 
+const getStoredCalendarDetailCollapsed = (): boolean => {
+  return localStorage.getItem(StorageKey.settings.calendarDetailCollapsed) === '1'
+}
+
 const getStoredToken = (): string | null => {
   return localStorage.getItem(StorageKey.auth.accessToken)
 }
 
 interface SettingsState {
   colorScheme: ColorScheme
+  calendarDetailCollapsed: boolean
   userSettings: UserSettings
   isLoadingSettings: boolean
   settingsError: string | null
 
   setColorScheme: (scheme: ColorScheme) => void
+  toggleCalendarDetailCollapsed: () => void
   initialize: () => Promise<void>
   updateMaConfigs: (configs: MovingAverageConfig[]) => Promise<void>
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   colorScheme: getStoredScheme(),
+  calendarDetailCollapsed: getStoredCalendarDetailCollapsed(),
   userSettings: DEFAULT_USER_SETTINGS,
   isLoadingSettings: false,
   settingsError: null,
@@ -47,6 +54,13 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     localStorage.setItem(StorageKey.settings.colorScheme, scheme)
     set({ colorScheme: scheme })
   },
+
+  toggleCalendarDetailCollapsed: () =>
+    set((state) => {
+      const next = !state.calendarDetailCollapsed
+      localStorage.setItem(StorageKey.settings.calendarDetailCollapsed, next ? '1' : '0')
+      return { calendarDetailCollapsed: next }
+    }),
 
   initialize: async () => {
     if (!getStoredToken()) {

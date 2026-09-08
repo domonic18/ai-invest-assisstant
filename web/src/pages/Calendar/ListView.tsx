@@ -4,16 +4,18 @@ import dayjs, { type Dayjs } from 'dayjs'
 import type { CalendarEvent, CalendarEventCategory } from '@ai-invest/shared'
 
 import { categoryMeta } from './categoryMeta'
+import { eventHitsWatchlist, sourceLabel } from './eventMeta'
 import { EventTimeDot } from './EventTimeDot'
 import { eventTimeHm } from './eventTime'
 
 interface ListViewProps {
   month: Dayjs
   events: CalendarEvent[]
-  onSelectEvent: (event: CalendarEvent) => void
+  onSelectDay: (day: Dayjs) => void
+  watchlistCodes: Set<string>
 }
 
-export function ListView({ month, events, onSelectEvent }: ListViewProps) {
+export function ListView({ month, events, onSelectDay, watchlistCodes }: ListViewProps) {
   const columns = [
     {
       title: '日期 / 时间',
@@ -34,7 +36,7 @@ export function ListView({ month, events, onSelectEvent }: ListViewProps) {
       dataIndex: 'title',
       key: 'title',
       render: (title: string, record: CalendarEvent) => (
-        <a onClick={() => onSelectEvent(record)}>{title}</a>
+        <a onClick={() => onSelectDay(dayjs(record.eventTime))}>{title}</a>
       ),
     },
     {
@@ -58,9 +60,17 @@ export function ListView({ month, events, onSelectEvent }: ListViewProps) {
       dataIndex: 'relatedSymbols',
       key: 'relatedSymbols',
       width: 160,
-      render: (symbols: string[]) =>
+      render: (symbols: string[], record: CalendarEvent) =>
         symbols.length ? (
-          <span className="font-mono">{symbols.join(' ')}</span>
+          <span className="font-mono">
+            {symbols.join(' ')}
+            {eventHitsWatchlist(record, watchlistCodes) && (
+              <span className="text-amber-400" title="关联标的命中自选股">
+                {' '}
+                ★
+              </span>
+            )}
+          </span>
         ) : (
           '-'
         ),
@@ -69,12 +79,8 @@ export function ListView({ month, events, onSelectEvent }: ListViewProps) {
       title: '来源',
       dataIndex: 'source',
       key: 'source',
-      width: 90,
-      render: (source: string | null) => {
-        if (!source) return '-'
-        const labels: Record<string, string> = { fomc: '美联储', bls: 'BLS' }
-        return labels[source] ?? source
-      },
+      width: 130,
+      render: (source: string | null) => sourceLabel(source),
     },
   ]
 
