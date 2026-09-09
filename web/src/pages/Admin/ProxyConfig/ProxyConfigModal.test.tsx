@@ -56,7 +56,7 @@ describe('ProxyConfigModal', () => {
     expect(values.isEnabled).toBe(true)
   })
 
-  it('新建模式密码必填', async () => {
+  it('新建模式密码可留空提交（代理允许无鉴权）', async () => {
     const { onSubmit } = setup()
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: '新代理' } })
@@ -64,9 +64,11 @@ describe('ProxyConfigModal', () => {
     fireEvent.change(screen.getByLabelText('端口'), { target: { value: '7890' } })
     clickOk()
 
-    await waitFor(() =>
-      expect(screen.getByText('请输入密码')).toBeInTheDocument(),
-    )
-    expect(onSubmit).not.toHaveBeenCalled()
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+
+    const values = onSubmit.mock.calls[0][0] as ProxyConfigFormValues
+    // 未触碰的字段 antd 不写入 values（undefined），页面映射 || undefined 后省略
+    expect(values.password ?? '').toBe('')
+    expect(values.username ?? '').toBe('')
   })
 })
