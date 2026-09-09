@@ -10,7 +10,7 @@
 import random
 import threading
 import time
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import requests
 from curl_cffi.requests import Response as CffiResponse
@@ -18,6 +18,9 @@ from curl_cffi.requests import Session as CffiSession
 from curl_cffi.requests import exceptions as cffi_exceptions
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+if TYPE_CHECKING:
+    from curl_cffi.requests import ProxySpec
 
 EM_MIN_INTERVAL = 1.0  # 两次东财请求的最小间隔（秒）
 _EM_JITTER_RANGE = (0.1, 0.5)
@@ -79,10 +82,13 @@ def eastmoney_get(
     params: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    proxies: dict[str, str] | None = None,
 ) -> requests.Response:
     """限流 + 重试的东财 GET 请求，返回已校验状态码的响应。"""
     _limiter.wait()
-    response = _session.get(url, params=params, headers=headers, timeout=timeout)
+    response = _session.get(
+        url, params=params, headers=headers, timeout=timeout, proxies=proxies
+    )
     response.raise_for_status()
     return response
 
@@ -109,13 +115,21 @@ def _chrome_request(
     data: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    proxies: dict[str, str] | None = None,
 ) -> CffiResponse:
     last_error: Exception | None = None
     for _ in range(_CHROME_RETRY_ATTEMPTS):
         _limiter.wait()
         try:
             response: CffiResponse = _get_cffi_session().request(
-                method, url, params=params, data=data, headers=headers, timeout=timeout
+                method,
+                url,
+                params=params,
+                data=data,
+                headers=headers,
+                timeout=timeout,
+                # curl_cffi 静态类型将 proxies 声明为键受限 TypedDict，运行时即 dict
+                proxies=cast("ProxySpec | None", proxies),
             )
             response.raise_for_status()
             return response
@@ -134,13 +148,17 @@ def chrome_get(
     params: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    proxies: dict[str, str] | None = None,
 ) -> CffiResponse:
     """Chrome TLS 指纹的通用 GET（共享限流，含连接级重试）。
 
-    供带 WAF/Akamai 指纹拦截的站点使用（东财 push2、CME QuikStrike 等）；
-    会话跨请求保持 cookie。东财调用方继续用 :func:`eastmoney_get_chrome`。
+    供带 WAF/Akamai 指纹拦截的站点使用（东财 push2、CME QuikStrike、
+    Yahoo chart 等）；会话跨请求保持 cookie，``proxies`` 为请求级代理
+    （仅绑定代理的渠道传入）。东财调用方继续用 :func:`eastmoney_get_chrome`。
     """
-    return _chrome_request("GET", url, params=params, headers=headers, timeout=timeout)
+    return _chrome_request(
+        "GET", url, params=params, headers=headers, timeout=timeout, proxies=proxies
+    )
 
 
 def chrome_post(
@@ -148,9 +166,12 @@ def chrome_post(
     data: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    proxies: dict[str, str] | None = None,
 ) -> CffiResponse:
     """Chrome TLS 指纹的通用 POST（共享限流，含连接级重试），表单编码。"""
-    return _chrome_request("POST", url, data=data, headers=headers, timeout=timeout)
+    return _chrome_request(
+        "POST", url, data=data, headers=headers, timeout=timeout, proxies=proxies
+    )
 
 
 def eastmoney_get_chrome(
@@ -158,6 +179,9 @@ def eastmoney_get_chrome(
     params: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    proxies: dict[str, str] | None = None,
 ) -> CffiResponse:
     """:func:`chrome_get` 的东财别名（行为不变，限流与重试共用）。"""
-    return chrome_get(url, params=params, headers=headers, timeout=timeout)
+    return chrome_get(
+        url, params=params, headers=headers, timeout=timeout, proxies=proxies
+    )

@@ -94,6 +94,7 @@ async def _resolve_task_channels(
             config: dict[str, Any] = {
                 "base_url": channel.base_url,
                 "api_key": channel.api_key,
+                "proxy_url": channel.proxy_url,
             }
             config.update(channel.extra)
             resolved.append((channel.source, config))
