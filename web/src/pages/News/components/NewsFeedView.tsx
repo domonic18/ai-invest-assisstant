@@ -14,20 +14,20 @@ import {
   Spin,
   Switch,
   Tag,
+  theme,
   Tooltip,
   Typography,
   message,
 } from 'antd'
 import dayjs from 'dayjs'
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 
 import { PAGE_SIZE, type ApiNewsChannel, type TelegraphItem } from '@ai-invest/shared'
 
+import { StockLinkTag } from '@/components/common/StockLinkTag'
 import { useCreateNewsStory } from '@/hooks/useNewsFocus'
 import { useTelegraph } from '@/hooks/useTelegraph'
-import { useColorScheme } from '@/stores/settings'
-import { changeColor, formatDateTime, formatRelativeTime } from '@/utils/formatters'
+import { formatDateTime, formatRelativeTime } from '@/utils/formatters'
 import {
   countNewMessages,
   groupByDay,
@@ -85,23 +85,16 @@ function BadgeNew() {
 
 /** 关联标的 Tag：名称 + 当日涨跌幅（scheme 着色），点击直达个股页。 */
 function StockTags({ item }: { item: TelegraphItem }) {
-  useColorScheme()
   if (item.stocks.length > 0) {
     return (
       <>
         {item.stocks.map((stock) => (
-          <Link key={stock.code} to={`/stock/${stock.code}`} className="!text-xs">
-            <Tag className="!m-0 !text-xs hover:border-[var(--ant-color-primary)]">
-              {stock.name}
-              {stock.changePct != null && (
-                <span className={changeColor(stock.changePct)}>
-                  {' '}
-                  {stock.changePct >= 0 ? '+' : ''}
-                  {stock.changePct.toFixed(2)}%
-                </span>
-              )}
-            </Tag>
-          </Link>
+          <StockLinkTag
+            key={stock.code}
+            code={stock.code}
+            name={stock.name}
+            changePct={stock.changePct ?? null}
+          />
         ))}
       </>
     )
@@ -192,6 +185,7 @@ interface NewsFeedViewProps {
 
 /** 实时电报视图：AI 分级三档色条 + 分级/渠道筛选 + 新讯息浮条 + 跨日分隔。 */
 export function NewsFeedView({ channels }: NewsFeedViewProps) {
+  const { token } = theme.useToken()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(PAGE_SIZE.feed)
   const [minAiScore, setMinAiScore] = useState<number | undefined>(undefined)
@@ -314,7 +308,12 @@ export function NewsFeedView({ channels }: NewsFeedViewProps) {
             if (items.length > 0) setSeenTopId(items[0].clsMsgId)
             window.scrollTo({ top: 0, behavior: 'smooth' })
           }}
-          className="flex items-center justify-center gap-2 w-full py-2 text-xs text-[var(--ant-color-primary)] bg-[var(--ant-color-primary-bg)] border border-dashed border-[var(--ant-color-primary-border)] rounded-lg cursor-pointer"
+          className="flex items-center justify-center gap-2 w-full py-2 text-xs border border-dashed rounded-lg cursor-pointer"
+          style={{
+            color: token.colorPrimary,
+            background: token.colorPrimaryBg,
+            borderColor: token.colorPrimaryBorder,
+          }}
         >
           <VerticalAlignTopOutlined />
           <b>{newCount} 条新讯息</b>

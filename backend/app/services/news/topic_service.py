@@ -5,6 +5,7 @@
 """
 
 import json
+import re
 from collections import Counter
 from typing import Any
 
@@ -13,7 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import now_cn, today_cn
 from app.core.locking import redis_lock
+from app.repositories.market.stock_repository import StockRepository
 from app.repositories.news import topic_repository
+from app.services.market import stock_service
 
 logger = structlog.get_logger(__name__)
 
@@ -40,6 +43,9 @@ _FLOW_FULL_YUAN = 1e9
 
 _WORDCLOUD_TITLES = 300
 _WORDCLOUD_TOP = 40
+
+# 传导链标的：LLM 自由文本里的 6 位代码（可带 sh/sz/bj 前缀）
+_CHAIN_STOCK_CODE_RE = re.compile(r"^(?:sh|sz|bj)?(\d{6})$", re.IGNORECASE)
 
 # jieba 词性白名单：名词类 + 动名词/形容词 + 英文词（滤掉动词/虚词等噪音）
 _WORDCLOUD_POS = frozenset({"n", "nr", "ns", "nt", "nz", "vn", "an", "nx", "eng"})
@@ -199,6 +205,56 @@ def _assemble_topic(
     }
 
 
+async def _enrich_chain_stocks(
+    session: AsyncSession, topics: list[dict[str, Any]]
+) -> None:
+    """读取时富化传导链标的：LLM 自由文本（代码或简称）→ {name, code, change_pct}。
+
+    快照 JSONB 存的是原文；涨跌幅必须读时取（快照盘后生成，涨幅随行情变化）。
+    无法解析为 A 股标的的原文保留为纯文本名（code=None，前端不加链接）。
+    """
+    raw_set = {
+        raw
+        for topic in topics
+        for step in topic.get("chain", [])
+        for raw in step.get("stocks", [])
+    }
+    if not raw_set:
+        return
+
+    code_by_raw: dict[str, str] = {}
+    names: list[str] = []
+    for raw in raw_set:
+        match = _CHAIN_STOCK_CODE_RE.match(raw.strip())
+        if match:
+            code_by_raw[raw] = match.group(1)
+        else:
+            names.append(raw)
+    if names:
+        name_map = await StockRepository(session).get_codes_by_names(names)
+        for raw in names:
+            if raw in name_map:
+                code_by_raw[raw] = name_map[raw]
+
+    snapshots = await stock_service.batch_quote_snapshot(
+        session, list(dict.fromkeys(code_by_raw.values()))
+    )
+    for topic in topics:
+        for step in topic.get("chain", []):
+            enriched: list[dict[str, Any]] = []
+            for raw in step.get("stocks", []):
+                code = code_by_raw.get(raw)
+                snap = snapshots.get(code) if code else None
+                enriched.append(
+                    {
+                        "name": snap["name"] if snap else raw,
+                        "code": code,
+                        "change_pct": snap["change_pct"] if snap else None,
+                    }
+                )
+            step["stocks"] = enriched
+
+
 async def get_topics(
     session: AsyncSession,
     *,
@@ -209,10 +265,13 @@ async def get_topics(
     snapshot = await topic_repository.get_snapshot(
         session, trade_date=trade_date, session_key=session_key
     )
+    topics = list(snapshot.topics or []) if snapshot else []
+    if topics:
+        await _enrich_chain_stocks(session, topics)
     return {
         "trade_date": trade_date.isoformat(),
         "session": session_key,
-        "topics": list(snapshot.topics or []) if snapshot else [],
+        "topics": topics,
         "wordcloud": list(snapshot.wordcloud or []) if snapshot else [],
         "generated_at": snapshot.generated_at if snapshot else None,
     }

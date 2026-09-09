@@ -141,11 +141,18 @@ export interface ApiTopicHeatFactors {
   asOfTradeDate: string | null
 }
 
+/** 传导链标的：读取时按 stock_basic + 行情快照富化，无法解析为 A 股标的时 code 为 null（不可点击）。 */
+export interface ApiTopicChainStock {
+  name: string
+  code: string | null
+  changePct: number | null
+}
+
 /** 传导链节点：事件 → 环节 → 代表标的。 */
 export interface ApiTopicChainNode {
   event: string
   link: string
-  stocks: string[]
+  stocks: ApiTopicChainStock[]
 }
 
 /** 热点主题卡。 */

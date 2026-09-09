@@ -247,12 +247,20 @@ class TopicHeatFactorsResponse(CamelModel):
     as_of_trade_date: str | None = None
 
 
+class TopicChainStockResponse(CamelModel):
+    """传导链标的（读取时按 stock_basic + 行情快照富化；无法解析的原文保留、code 为空）。"""
+
+    name: str
+    code: str | None = None
+    change_pct: float | None = None
+
+
 class TopicChainStepResponse(CamelModel):
     """传导链一步。"""
 
     event: str
     link: str
-    stocks: list[str]
+    stocks: list[TopicChainStockResponse]
 
 
 class TopicResponse(CamelModel):
