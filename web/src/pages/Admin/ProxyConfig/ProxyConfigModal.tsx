@@ -43,8 +43,11 @@ export function ProxyConfigModal({ open, editing, onCancel, onSubmit, loading }:
   }, [open, editing, form])
 
   const handleOk = async () => {
-    const values = await form.validateFields()
-    onSubmit(values)
+    // 校验失败（如密码必填）时静默返回，避免 Modal onOk 的 rejection 无人处理
+    const values = await form.validateFields().catch(() => undefined)
+    if (values) {
+      onSubmit(values)
+    }
   }
 
   return (
