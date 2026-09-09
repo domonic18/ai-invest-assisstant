@@ -70,6 +70,23 @@ class TestEastMoneySectorFundFlowCollector:
         assert item["change_pct"] == 4.2
         assert await collector.validate(item) is True
 
+    @pytest.mark.asyncio
+    async def test_collect_without_type_covers_both_types(self) -> None:
+        collector = EastMoneySectorFundFlowCollector(
+            {"source": "eastmoney", "data_type": "capital_fund_flow_sector"}
+        )
+        rows = [
+            {"f12": "BK1036", "f14": "半导体", "f3": 4.2, "f62": 2.26e9,
+             "f66": 1.5e9, "f72": 7.6e8, "f78": -3e8, "f84": -1.9e9,
+             "f204": "北方华创", "f205": "002371"},
+        ]
+        with patch.object(collector, "_fetch_rank", return_value=rows) as rank:
+            raw = await collector.collect()
+
+        assert rank.call_count == 2
+        assert [r["sector_type"] for r in raw] == ["industry", "concept"]
+        assert all(r["sector_name"] == "半导体" for r in raw)
+
     def test_fetch_rank_paginates(self) -> None:
         collector = EastMoneySectorFundFlowCollector(
             {"source": "eastmoney", "data_type": "capital_fund_flow_sector"}
@@ -150,13 +167,16 @@ class TestEastMoneySectorFundFlowCollector:
         response = MagicMock()
         response.json.return_value = {"data": {"total": 0, "diff": []}}
         with patch(
-            "collector.spiders.eastmoney_sector_fund_flow.eastmoney_get",
+            "collector.spiders.eastmoney_sector_fund_flow.eastmoney_get_chrome",
             return_value=response,
         ) as get:
             data = collector._request_page({"pn": 1})
 
         assert data == {"total": 0, "diff": []}
-        assert get.call_args.args[0] == "https://push2.eastmoney.com/api/qt/clist/get"
+        assert (
+            get.call_args.args[0]
+            == "https://push2delay.eastmoney.com/api/qt/clist/get"
+        )
         assert get.call_args.kwargs["params"] == {"pn": 1}
 
 
