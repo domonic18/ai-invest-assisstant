@@ -66,7 +66,7 @@ export function CapitalFlow() {
           />
         </div>
       </div>
-      <SectorQuoteHeatCard />
+      <SectorQuoteHeatCard sectorType={sectorType} />
       {isLoading ? (
         <Card variant="borderless">
           <div className="flex justify-center py-24">
@@ -100,8 +100,8 @@ export function CapitalFlow() {
                 />
                 <SourceNote>
                   {sectorType === 'industry'
-                    ? '行业板块资金流向来自同花顺（以行业名称作为板块代码）'
-                    : '概念板块资金流向来自同花顺（以概念名称作为板块代码）'}
+                    ? '行业板块资金流向来自东方财富，每日收盘后采集'
+                    : '概念板块资金流向来自东方财富，每日收盘后采集'}
                 </SourceNote>
               </>
             )}
@@ -117,8 +117,8 @@ export function CapitalFlow() {
             />
             <SourceNote>
               {sectorType === 'industry'
-                ? '当日排名与趋势数据来自同花顺行业资金流，由每日盘后采集累积'
-                : '当日排名与趋势数据来自同花顺概念资金流，由每日盘后采集累积'}
+                ? '当日排名与趋势数据来自东方财富行业资金流，由每日盘后采集累积'
+                : '当日排名与趋势数据来自东方财富概念资金流，由每日盘后采集累积'}
             </SourceNote>
           </Card>
         </>
