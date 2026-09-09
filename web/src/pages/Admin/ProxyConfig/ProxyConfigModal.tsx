@@ -96,11 +96,7 @@ export function ProxyConfigModal({ open, editing, onCancel, onSubmit, loading }:
           <Input placeholder="可选" autoComplete="off" />
         </Form.Item>
 
-        <Form.Item
-          label="密码"
-          name="password"
-          rules={[{ required: !editing, message: '请输入密码' }]}
-        >
+        <Form.Item label="密码" name="password">
           <Input.Password placeholder={editing ? '留空表示不修改' : '可选'} autoComplete="new-password" />
         </Form.Item>
 
