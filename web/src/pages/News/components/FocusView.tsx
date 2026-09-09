@@ -1,5 +1,5 @@
 import { DownOutlined, UpOutlined } from '@ant-design/icons'
-import { Button, Card, Empty, Spin, Tag, Timeline, Tooltip, Typography } from 'antd'
+import { Button, Card, Empty, Spin, Tag, theme, Timeline, Tooltip, Typography } from 'antd'
 import dayjs from 'dayjs'
 import { useState } from 'react'
 
@@ -22,6 +22,7 @@ const STATUS_META: Record<ApiStorylineStatus, { color: string; label: string }> 
 
 /** 评分构成三维横条（存量评分行无构成为 null → 显示「—」）。 */
 function FactorsBar({ factors }: { factors: ApiScoreFactors | null }) {
+  const { token } = theme.useToken()
   if (!factors) {
     return (
       <Tooltip title="历史评分无构成数据">
@@ -43,8 +44,11 @@ function FactorsBar({ factors }: { factors: ApiScoreFactors | null }) {
           </span>
           <div className="h-1 flex-1 bg-white/10 rounded-full overflow-hidden">
             <div
-              className="h-full bg-[var(--ant-color-primary)] rounded-full"
-              style={{ width: `${row.value}%` }}
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.min(100, Math.max(0, row.value))}%`,
+                background: token.colorPrimary,
+              }}
             />
           </div>
           <span className="text-xs font-mono w-7 shrink-0 text-right">
