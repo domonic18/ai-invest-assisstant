@@ -156,6 +156,10 @@ export const ENDPOINTS = {
     testLLMConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}/test`,
     setDefaultLLMConfig: (id: number | string) =>
       `${API_BASE}/admin/llm-configs/${id}/set-default`,
+    proxyConfigs: `${API_BASE}/admin/proxy-configs`,
+    proxyConfig: (id: number | string) => `${API_BASE}/admin/proxy-configs/${id}`,
+    testProxyConfig: (id: number | string) =>
+      `${API_BASE}/admin/proxy-configs/${id}/test`,
     trackedIndexes: `${API_BASE}/admin/tracked-indexes`,
     trackedIndex: (id: number | string) => `${API_BASE}/admin/tracked-indexes/${id}`,
     trackedIndexToggle: (id: number | string) =>

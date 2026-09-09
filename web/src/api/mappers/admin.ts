@@ -12,6 +12,7 @@ import type {
   ApiCollectorTaskCatalogResponse,
   ApiDataTypeChannelsResponse,
   ApiLLMConfigResponse,
+  ApiProxyConfigResponse,
   ApiTrackedIndexResponse,
 } from '@ai-invest/shared'
 import type {
@@ -28,6 +29,7 @@ import type {
   CollectorLog,
   CollectorTaskCatalog,
   LLMConfig,
+  ProxyConfig,
   TrackedIndexConfig,
 } from '@ai-invest/shared'
 
@@ -77,6 +79,22 @@ export function mapCollectorChannelConfig(dto: ApiCollectorChannelConfigResponse
     isEnabled: dto.isEnabled,
     supportedDataTypes: dto.supportedDataTypes,
     extra: dto.extra,
+    proxyConfigId: dto.proxyConfigId,
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
+  }
+}
+
+export function mapProxyConfig(dto: ApiProxyConfigResponse): ProxyConfig {
+  return {
+    id: dto.id,
+    name: dto.name,
+    protocol: dto.protocol,
+    host: dto.host,
+    port: dto.port,
+    username: dto.username,
+    passwordMasked: dto.passwordMasked,
+    isEnabled: dto.isEnabled,
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
   }

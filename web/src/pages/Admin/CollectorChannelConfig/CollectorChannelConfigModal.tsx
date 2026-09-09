@@ -1,6 +1,7 @@
 import { Checkbox, Form, Input, Modal, Select, Switch } from 'antd'
 import { useEffect } from 'react'
 
+import { useProxyConfigs } from '@/hooks/useProxyConfigs'
 import type {
   CollectorChannelConfig,
   CollectorChannelConfigFormValues,
@@ -46,6 +47,7 @@ export function CollectorChannelConfigModal({
   loading,
 }: CollectorChannelConfigModalProps) {
   const [form] = Form.useForm<CollectorChannelConfigFormValues>()
+  const { data: proxies } = useProxyConfigs()
 
   useEffect(() => {
     if (open) {
@@ -57,6 +59,7 @@ export function CollectorChannelConfigModal({
           apiKey: '',
           isEnabled: editing.isEnabled,
           supportedDataTypes: editing.supportedDataTypes,
+          proxyConfigId: editing.proxyConfigId ?? undefined,
         })
       } else {
         form.resetFields()
@@ -120,6 +123,21 @@ export function CollectorChannelConfigModal({
           rules={[{ required: true, message: '请至少选择一种数据类型' }]}
         >
           <Checkbox.Group options={DATA_TYPE_OPTIONS} />
+        </Form.Item>
+
+        <Form.Item
+          label="代理服务器"
+          name="proxyConfigId"
+          extra="绑定的采集请求经该代理出站；留空直连。代理须处于启用状态才生效"
+        >
+          <Select
+            allowClear
+            placeholder="直连（不使用代理）"
+            options={(proxies || []).map((proxy) => ({
+              value: proxy.id,
+              label: `${proxy.name}（${proxy.host}:${proxy.port}）${proxy.isEnabled ? '' : ' · 已禁用'}`,
+            }))}
+          />
         </Form.Item>
 
         <Form.Item label="启用" name="isEnabled" valuePropName="checked">

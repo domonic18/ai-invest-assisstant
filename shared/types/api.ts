@@ -467,6 +467,7 @@ export interface ApiCollectorChannelConfigResponse {
   isEnabled: boolean
   supportedDataTypes: string[]
   extra: Record<string, unknown>
+  proxyConfigId: number | null
   createdAt: string
   updatedAt: string
 }
@@ -479,6 +480,7 @@ export interface ApiCollectorChannelConfigCreateRequest {
   isEnabled?: boolean
   supportedDataTypes?: string[]
   extra?: Record<string, unknown>
+  proxyConfigId?: number | null
 }
 
 export interface ApiCollectorChannelConfigUpdateRequest {
@@ -488,6 +490,48 @@ export interface ApiCollectorChannelConfigUpdateRequest {
   isEnabled?: boolean
   supportedDataTypes?: string[]
   extra?: Record<string, unknown>
+  proxyConfigId?: number | null
+}
+
+export interface ApiProxyConfigResponse {
+  id: number
+  name: string
+  protocol: 'http' | 'socks5'
+  host: string
+  port: number
+  username: string | null
+  passwordMasked: string | null
+  isEnabled: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ApiProxyConfigCreateRequest {
+  name: string
+  protocol: 'http' | 'socks5'
+  host: string
+  port: number
+  username?: string
+  password?: string
+  isEnabled?: boolean
+}
+
+/** password 留空/缺省表示不修改已存储的密码。 */
+export interface ApiProxyConfigUpdateRequest {
+  name?: string
+  protocol?: 'http' | 'socks5'
+  host?: string
+  port?: number
+  username?: string | null
+  password?: string
+  isEnabled?: boolean
+}
+
+export interface ApiProxyConfigTestResponse {
+  ok: boolean
+  statusCode: number | null
+  latencyMs: number
+  error: string | null
 }
 
 export interface ApiCollectorTaskChannelItem {
