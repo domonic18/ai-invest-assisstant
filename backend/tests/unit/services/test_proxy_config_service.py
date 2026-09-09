@@ -1,8 +1,9 @@
-"""代理服务器配置服务契约测试（加密落库、脱敏响应与连通性测试）。"""
+"""代理服务器配置服务契约测试（加密落库、脱敏响应与 worker 端连通性测试）。"""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
+from celery.exceptions import TimeoutError as CeleryTimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.database import Base
@@ -120,9 +121,9 @@ async def test_delete_config(session: AsyncSession) -> None:
         await service.get_config(created.id)
 
 
-@patch("app.services.admin.proxy_config_service.httpx.AsyncClient")
+@patch("collector.celery_tasks.run_proxy_test")
 async def test_test_config_success(
-    mock_client_cls: MagicMock, session: AsyncSession
+    mock_task: MagicMock, session: AsyncSession
 ) -> None:
     service = ProxyConfigService(session)
     created = await service.create_config(
@@ -134,35 +135,58 @@ async def test_test_config_success(
             password="p@ss",
         )
     )
-    mock_client = AsyncMock()
-    mock_client.get.return_value = MagicMock(status_code=204)
-    mock_client_cls.return_value.__aenter__.return_value = mock_client
-    mock_client_cls.return_value.__aexit__.return_value = False
+    mock_result = MagicMock()
+    mock_result.get.return_value = {
+        "ok": True,
+        "status_code": 204,
+        "latency_ms": 2531,
+        "error": None,
+    }
+    mock_task.apply_async.return_value = mock_result
 
     result = await service.test_config(created.id)
 
     assert result.ok is True
     assert result.status_code == 204
+    assert result.latency_ms == 2531
     assert result.error is None
-    # 代理 URL 组装含编码后的凭据
-    _, kwargs = mock_client_cls.call_args
-    assert kwargs["proxy"] == "http://u:p%40ss@h:8080"
+    # 派发到 realtime 队列，代理 URL 组装含编码后的凭据
+    _, kwargs = mock_task.apply_async.call_args
+    assert kwargs["args"] == ["http://u:p%40ss@h:8080"]
+    assert kwargs["queue"] == "collector.realtime"
 
 
-@patch("app.services.admin.proxy_config_service.httpx.AsyncClient")
-async def test_test_config_connection_error(
-    mock_client_cls: MagicMock, session: AsyncSession
+@patch("collector.celery_tasks.run_proxy_test")
+async def test_test_config_worker_timeout(
+    mock_task: MagicMock, session: AsyncSession
+) -> None:
+    service = ProxyConfigService(session)
+    created = await service.create_config(
+        ProxyConfigCreate(name="slow", host="h", port=8080)
+    )
+    mock_result = MagicMock()
+    mock_result.get.side_effect = CeleryTimeoutError()
+    mock_task.apply_async.return_value = mock_result
+
+    result = await service.test_config(created.id)
+
+    assert result.ok is False
+    assert "采集 worker" in (result.error or "")
+
+
+@patch("collector.celery_tasks.run_proxy_test")
+async def test_test_config_worker_error(
+    mock_task: MagicMock, session: AsyncSession
 ) -> None:
     service = ProxyConfigService(session)
     created = await service.create_config(
         ProxyConfigCreate(name="bad", host="dead.host", port=1)
     )
-    mock_client = AsyncMock()
-    mock_client.get.side_effect = OSError("connection refused")
-    mock_client_cls.return_value.__aenter__.return_value = mock_client
-    mock_client_cls.return_value.__aexit__.return_value = False
+    mock_result = MagicMock()
+    mock_result.get.side_effect = RuntimeError("worker blew up")
+    mock_task.apply_async.return_value = mock_result
 
     result = await service.test_config(created.id)
 
     assert result.ok is False
-    assert "connection refused" in (result.error or "")
+    assert "RuntimeError" in (result.error or "")

@@ -4,14 +4,15 @@
 ``collector.runtime.resolver`` 消费渠道绑定的代理（见批次 3）。
 """
 
-import time
+import asyncio
 from datetime import datetime, timezone
 
-import httpx
 import structlog
+from celery.exceptions import TimeoutError as CeleryTimeoutError
 from cryptography.fernet import InvalidToken
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.collector import CollectorQueue
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.models.proxy_config import ProxyConfig
 from app.repositories.admin.proxy_config_repository import ProxyConfigRepository
@@ -26,9 +27,8 @@ from app.utils.proxy import build_proxy_url
 
 logger = structlog.get_logger()
 
-# 连通性探测目标：Google 无鉴权 204 端点，探测的是代理链路而非目标站 TLS 指纹
-_PROXY_TEST_URL = "https://www.google.com/generate_204"
-_PROXY_TEST_TIMEOUT_SECONDS = 8.0
+# worker 探测 8s + 派发/调度余量；SCF API 网关超时内必须返回
+_PROXY_TEST_WAIT_SECONDS = 15.0
 
 
 class ProxyConfigNotFoundError(NotFoundError):
@@ -107,35 +107,52 @@ class ProxyConfigService:
         logger.info("proxy_config_deleted", proxy_id=config_id, name=config.name)
 
     async def test_config(self, config_id: int) -> ProxyConfigTestResponse:
-        """经该代理请求探测端点，返回连通状态与延迟。"""
+        """派发探测任务到采集 worker，经代理请求探测端点并返回连通状态与延迟。
+
+        代理的消费方是采集 worker：API 侧（SCF）出口 IP 不在代理白名单内，
+        从 API 直接探测会被安全组拦截，故必须经 Celery 在 worker 上执行。
+        """
         config = await self._get_or_404(config_id)
         proxy_url, error = self._build_url_or_error(config)
         if error is not None:
             return ProxyConfigTestResponse(
                 ok=False, status_code=None, latency_ms=0, error=error
             )
-        started = time.monotonic()
+
+        # 延迟导入：celery_tasks 聚合了采集运行时，避免服务模块顶层拉起整链
+        from collector.celery_tasks import run_proxy_test
+
+        result = run_proxy_test.apply_async(
+            args=[proxy_url], queue=CollectorQueue.REALTIME.value
+        )
         try:
-            async with httpx.AsyncClient(
-                proxy=proxy_url, timeout=_PROXY_TEST_TIMEOUT_SECONDS
-            ) as client:
-                response = await client.get(_PROXY_TEST_URL)
-            latency_ms = int((time.monotonic() - started) * 1000)
-            ok = response.status_code == 204
+            payload = await asyncio.to_thread(
+                result.get, timeout=_PROXY_TEST_WAIT_SECONDS
+            )
+        except CeleryTimeoutError:
+            logger.warning(
+                "proxy_config_test_timeout", proxy_id=config.id
+            )
             return ProxyConfigTestResponse(
-                ok=ok,
-                status_code=response.status_code,
-                latency_ms=latency_ms,
-                error=None if ok else f"HTTP {response.status_code}",
+                ok=False,
+                status_code=None,
+                latency_ms=0,
+                error=(
+                    f"采集 worker {_PROXY_TEST_WAIT_SECONDS:.0f}s 内未返回探测结果"
+                    "（worker 未运行或队列阻塞）"
+                ),
             )
         except Exception as exc:  # noqa: BLE001
-            latency_ms = int((time.monotonic() - started) * 1000)
             logger.warning(
                 "proxy_config_test_failed", proxy_id=config.id, error=str(exc)
             )
             return ProxyConfigTestResponse(
-                ok=False, status_code=None, latency_ms=latency_ms, error=str(exc)
+                ok=False,
+                status_code=None,
+                latency_ms=0,
+                error=f"{type(exc).__name__}: {exc}",
             )
+        return ProxyConfigTestResponse(**payload)
 
     async def _get_or_404(self, config_id: int) -> ProxyConfig:
         config = await self.repo.get(config_id)

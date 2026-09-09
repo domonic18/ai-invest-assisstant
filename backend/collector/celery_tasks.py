@@ -1,18 +1,21 @@
 """采集执行的 Celery 任务包装。
 
-本模块只暴露一个通用 Celery 任务，可执行 ``collector.runtime.registry.TASK_MAP``
-中注册的任意采集 spider。任务体复用 ``collector.runtime.runner.run_task``，
-日志、状态持久化与多渠道 fallback 行为保持不变。
+本模块暴露通用采集任务与代理连通性探测任务。采集任务可执行
+``collector.runtime.registry.TASK_MAP`` 中注册的任意采集 spider，任务体复用
+``collector.runtime.runner.run_task``，日志、状态持久化与多渠道 fallback
+行为保持不变。
 """
 
 import asyncio
+import time
 import traceback
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 from celery import Task
 from celery.exceptions import SoftTimeLimitExceeded
+from curl_cffi.requests import Session as CffiSession
 from sqlalchemy import select
 
 from app.constants.collector import CollectorStatus
@@ -25,9 +28,17 @@ from collector.core.base import CollectResult
 from collector.core.logging import configure_logging
 from collector.runtime.runner import run_task
 
+if TYPE_CHECKING:
+    from curl_cffi.requests import ProxySpec
+
 logger = structlog.get_logger(__name__)
 
 _ERROR_MSG_MAX_LEN = 4000
+
+# 代理连通性探测：Google 无鉴权 204 端点，探测的是代理链路而非目标站 TLS
+# 指纹。单次尝试不重试——探测要求快速给出结论，重试只会把失败延迟三倍。
+_PROXY_TEST_URL = "https://www.google.com/generate_204"
+_PROXY_TEST_PROBE_SECONDS = 8.0
 
 
 def _truncate(text: str) -> str:
@@ -216,6 +227,47 @@ def run_collector_task(self: LogAwareTask, payload: dict[str, Any]) -> dict[str,
 
     loop = self._ensure_loop()
     return loop.run_until_complete(_execute())
+
+
+@app.task(name="collector.celery_tasks.run_proxy_test")
+def run_proxy_test(proxy_url: str) -> dict[str, Any]:
+    """在 worker 所在机器经代理探测外网连通性。
+
+    代理的使用方是采集 worker（如 49 生产服务器），管理后台所在的 SCF 出口
+    IP 通常不在代理白名单内，直接从 API 侧探测会被安全组拦截——测试必须在
+    实际消费代理的机器上执行。返回与
+    ``app.schemas.proxy_config.ProxyConfigTestResponse`` 同形的 dict，探测
+    失败不抛异常（避免走采集任务的死信钩子），失败信息放 ``error`` 字段。
+    """
+    proxies = {"http": proxy_url, "https": proxy_url}
+    started = time.monotonic()
+    try:
+        # 每次探测新建会话：不污染共享 cffi 单例的 cookie 状态
+        with CffiSession(impersonate="chrome") as session:
+            response = session.get(
+                _PROXY_TEST_URL,
+                timeout=_PROXY_TEST_PROBE_SECONDS,
+                # curl_cffi 静态类型将 proxies 声明为键受限 TypedDict，运行时即 dict
+                proxies=cast("ProxySpec", proxies),
+            )
+        latency_ms = int((time.monotonic() - started) * 1000)
+        ok = response.status_code == 204
+        return {
+            "ok": ok,
+            "status_code": response.status_code,
+            "latency_ms": latency_ms,
+            "error": None if ok else f"HTTP {response.status_code}",
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "proxy_test_probe_failed", proxy_host=proxy_url, error=str(exc)
+        )
+        return {
+            "ok": False,
+            "status_code": None,
+            "latency_ms": int((time.monotonic() - started) * 1000),
+            "error": f"{type(exc).__name__}: {exc}",
+        }
 
 
 async def _dispose_async_engines() -> None:
