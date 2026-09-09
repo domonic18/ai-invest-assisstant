@@ -23,6 +23,7 @@ class ChannelConfig:
     base_url: str | None
     api_key: str | None
     extra: dict[str, Any]
+    proxy_url: str | None = None
 
 
 DEFAULT_CHANNELS: list[dict[str, Any]] = [

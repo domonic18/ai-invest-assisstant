@@ -64,6 +64,7 @@ export const queryKeys = {
   },
   hotspot: ['hotspot'] as const,
   llmConfigs: ['llm-configs'] as const,
+  proxyConfigs: ['proxy-configs'] as const,
   trackedIndexes: ['tracked-indexes'] as const,
   market: {
     all: ['market'] as const,

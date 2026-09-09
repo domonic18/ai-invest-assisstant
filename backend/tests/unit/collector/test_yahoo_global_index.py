@@ -3,7 +3,7 @@
 from unittest.mock import patch
 
 import pytest
-import requests
+from curl_cffi.requests import exceptions as cffi_exceptions
 
 from app.core.constants import GLOBAL_INDEX_CODES
 from collector.spiders.yahoo_global_index import YAHOO_SYMBOLS, YahooGlobalIndexCollector
@@ -69,7 +69,7 @@ class TestYahooGlobalIndex:
     async def test_collect_maps_all_symbols(self) -> None:
         collector = YahooGlobalIndexCollector(config={"source": "yahoo"})
 
-        def fake_fetch(symbol: str) -> dict:
+        def fake_fetch(symbol: str, proxies=None) -> dict:
             return _chart_result([(_TS[0], 100.0, 101.0, 1)])
 
         with patch(
@@ -86,7 +86,7 @@ class TestYahooGlobalIndex:
             mock_fetch.return_value = _chart_result([(_TS[0], 100.0, 101.0, 1)])
             items = await collector.collect(symbols=["SPX"])
         assert [i["index_code"] for i in items] == ["SPX"]
-        mock_fetch.assert_called_once_with("^GSPC")
+        mock_fetch.assert_called_once_with("^GSPC", None)
 
     async def test_symbols_registry_subset(self) -> None:
         """回填清单必须都登记在 GLOBAL_INDEX_CODES，避免落库孤儿 code。"""
@@ -113,9 +113,9 @@ class TestYahooGlobalIndex:
         """单 symbol 限流(429)不拖垮整批：其余 code 正常回填。"""
         collector = YahooGlobalIndexCollector(config={"source": "yahoo"})
 
-        def fake_fetch(symbol: str) -> dict:
+        def fake_fetch(symbol: str, proxies=None) -> dict:
             if symbol == "^HSTECH":
-                raise requests.HTTPError("429 Too Many Requests")
+                raise cffi_exceptions.ConnectionError("connection reset")
             return _chart_result([(_TS[0], 100.0, 101.0, 1)])
 
         with patch(
@@ -131,7 +131,57 @@ class TestYahooGlobalIndex:
         collector = YahooGlobalIndexCollector(config={"source": "yahoo"})
         with patch(
             "collector.spiders.yahoo_global_index._fetch_chart",
-            side_effect=requests.HTTPError("429 Too Many Requests"),
+            side_effect=cffi_exceptions.ConnectionError("connection reset"),
         ):
-            with pytest.raises(requests.HTTPError):
+            with pytest.raises(cffi_exceptions.ConnectionError):
                 await collector.collect(symbols=["HSI", "SPX"])
+
+    async def test_collect_passes_channel_proxy_to_fetch(self) -> None:
+        """渠道注入的 proxy_url 组为 http/https 双协议 dict 下传。"""
+        collector = YahooGlobalIndexCollector(
+            config={"source": "yahoo", "proxy_url": "http://u:p@1.2.3.4:17890"}
+        )
+        with patch("collector.spiders.yahoo_global_index._fetch_chart") as mock_fetch:
+            mock_fetch.return_value = _chart_result([(_TS[0], 100.0, 101.0, 1)])
+            await collector.collect(symbols=["SPX"])
+
+        mock_fetch.assert_called_once_with(
+            "^GSPC", {"http": "http://u:p@1.2.3.4:17890", "https": "http://u:p@1.2.3.4:17890"}
+        )
+
+    async def test_fetch_chart_passes_proxies_and_timeout(self) -> None:
+        """_fetch_chart 走 chrome_get（Chrome 指纹）并透传 proxies/超时。"""
+        from collector.spiders import yahoo_global_index as mod
+
+        class _FakeResponse:
+            def json(self) -> dict:
+                return {"chart": {"result": [{"ok": 1}]}}
+
+        proxies = {"http": "http://u:p@1.2.3.4:17890", "https": "http://u:p@1.2.3.4:17890"}
+        with patch.object(mod, "chrome_get", return_value=_FakeResponse()) as mock_get:
+            result = mod._fetch_chart("^GSPC", proxies)
+
+        assert result == {"ok": 1}
+        mock_get.assert_called_once_with(
+            "https://query1.finance.yahoo.com/v8/finance/chart/^GSPC",
+            params={"range": "1y", "interval": "1d"},
+            timeout=30,
+            proxies=proxies,
+        )
+
+    async def test_fetch_chart_without_proxies(self) -> None:
+        from collector.spiders import yahoo_global_index as mod
+
+        class _FakeResponse:
+            def json(self) -> dict:
+                return {"chart": {"result": [None]}}
+
+        with patch.object(mod, "chrome_get", return_value=_FakeResponse()) as mock_get:
+            assert mod._fetch_chart("BZ=F") is None
+
+        mock_get.assert_called_once_with(
+            "https://query1.finance.yahoo.com/v8/finance/chart/BZ=F",
+            params={"range": "1y", "interval": "1d"},
+            timeout=30,
+            proxies=None,
+        )

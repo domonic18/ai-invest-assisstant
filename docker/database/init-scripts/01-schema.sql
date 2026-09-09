@@ -531,6 +531,26 @@ CREATE UNIQUE INDEX idx_llm_config_default
     ON llm_config(is_default) WHERE is_default = TRUE;
 
 -- ============================================================
+-- 10b. 代理服务器配置（后台管理，采集渠道按需绑定）
+-- ============================================================
+
+CREATE TABLE proxy_config (
+    id                  BIGSERIAL PRIMARY KEY,
+    name                VARCHAR(128) NOT NULL,
+    protocol            VARCHAR(16)  NOT NULL DEFAULT 'http',
+    host                VARCHAR(255) NOT NULL,
+    port                INTEGER      NOT NULL,
+    username            VARCHAR(255),
+    password_encrypted  TEXT,
+    is_enabled          BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_proxy_config_name UNIQUE (name),
+    CONSTRAINT chk_proxy_config_protocol CHECK (protocol IN ('http', 'socks5')),
+    CONSTRAINT chk_proxy_config_port CHECK (port > 0 AND port < 65536)
+);
+
+-- ============================================================
 -- 11. 采集渠道配置域（后台管理）
 -- ============================================================
 
@@ -543,12 +563,16 @@ CREATE TABLE collector_channel_config (
     is_enabled          BOOLEAN      NOT NULL DEFAULT TRUE,
     supported_data_types JSONB       NOT NULL DEFAULT '[]'::jsonb,
     extra               JSONB        NOT NULL DEFAULT '{}'::jsonb,
+    proxy_config_id     BIGINT,
     created_at          TIMESTAMPTZ DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ DEFAULT NOW()
+    updated_at          TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT fk_collector_channel_config_proxy_config
+        FOREIGN KEY (proxy_config_id) REFERENCES proxy_config(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_collector_channel_enabled ON collector_channel_config(is_enabled);
 CREATE INDEX idx_collector_channel_supported_types ON collector_channel_config USING GIN(supported_data_types);
+CREATE INDEX idx_collector_channel_config_proxy_config_id ON collector_channel_config(proxy_config_id);
 
 -- 渠道-数据类型关联及优先级（同 data_type 下 priority 越小越优先）
 CREATE TABLE collector_channel_data_type (

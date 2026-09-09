@@ -46,6 +46,7 @@ export interface CollectorChannelConfig {
   isEnabled: boolean
   supportedDataTypes: string[]
   extra: Record<string, unknown>
+  proxyConfigId: number | null
   createdAt: string
   updatedAt: string
 }
@@ -57,6 +58,39 @@ export interface CollectorChannelConfigFormValues {
   apiKey: string
   isEnabled: boolean
   supportedDataTypes: string[]
+  proxyConfigId?: number | null
+}
+
+/** 代理服务器配置（密码已脱敏）。 */
+export interface ProxyConfig {
+  id: number
+  name: string
+  protocol: 'http' | 'socks5'
+  host: string
+  port: number
+  username: string | null
+  passwordMasked: string | null
+  isEnabled: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** password 留空表示不修改已存储的密码。 */
+export interface ProxyConfigFormValues {
+  name: string
+  protocol: 'http' | 'socks5'
+  host: string
+  port: number
+  username?: string
+  password: string
+  isEnabled: boolean
+}
+
+export interface ProxyTestResult {
+  ok: boolean
+  statusCode: number | null
+  latencyMs: number
+  error: string | null
 }
 
 /**

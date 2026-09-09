@@ -4,19 +4,21 @@
 覆盖 push2delay 无历史 K 线的港美股指数 + 外汇对 + 布油（东财 GC00Y/DXY
 历史另有路径，勿混用）。此后由每日实时快照自积累；USDCNY 无东财源、
 HSTECH Yahoo 已下线，均靠每日任务重跑本 spider 幂等续期（1y 全量 upsert）。
+
+chart API 按 TLS 指纹拦截（requests 必 429），须走 ``chrome_get`` Chrome
+指纹；生产网络出口受限时通过渠道绑定代理注入 ``proxy_url``。
 """
 
-import time
 from datetime import datetime, timezone
 from typing import Any, ClassVar
 
-import requests
 import structlog
+from curl_cffi.requests import exceptions as cffi_exceptions
 
 from app.core.constants import GLOBAL_INDEX_CODES
 from collector.core.async_helpers import run_in_thread
 from collector.core.base import PostgresCollector
-from collector.core.http_client import DEFAULT_USER_AGENT
+from collector.core.http_client import chrome_get
 from collector.core.parsing import to_float, to_int
 
 logger = structlog.get_logger(__name__)
@@ -24,7 +26,7 @@ logger = structlog.get_logger(__name__)
 _CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 _RANGE = "1y"
 _INTERVAL = "1d"
-_ATTEMPTS = 3
+_CHART_TIMEOUT_SECONDS = 30  # 代理链路 RTT 高于直连
 
 # index_code -> Yahoo symbol（回填清单与 GLOBAL_INDEX_CODES 的 yahoo 子集保持一致）。
 # ^HSTECH 已 404 delisted、USDCNH=X 仅返回当日 1 bar 无历史：两者历史均靠东财
@@ -43,25 +45,18 @@ YAHOO_SYMBOLS: dict[str, str] = {
 }
 
 
-def _fetch_chart(symbol: str) -> dict[str, Any] | None:
-    """拉取单 symbol 的日线索引数据，瞬时错误重试。"""
+def _fetch_chart(
+    symbol: str, proxies: dict[str, str] | None = None
+) -> dict[str, Any] | None:
+    """拉取单 symbol 的日线索引数据（连接级瞬时错误由 chrome_get 重试）。"""
     url = _CHART_URL.format(symbol=symbol)
-    last_error: Exception | None = None
-    for _ in range(_ATTEMPTS):
-        try:
-            response = requests.get(
-                url,
-                params={"range": _RANGE, "interval": _INTERVAL},
-                headers={"User-Agent": DEFAULT_USER_AGENT},
-                timeout=15,
-            )
-            response.raise_for_status()
-            return response.json().get("chart", {}).get("result", [None])[0]
-        except (requests.RequestException, ValueError, IndexError) as exc:
-            last_error = exc
-            time.sleep(1.0)
-    assert last_error is not None
-    raise last_error
+    response = chrome_get(
+        url,
+        params={"range": _RANGE, "interval": _INTERVAL},
+        timeout=_CHART_TIMEOUT_SECONDS,
+        proxies=proxies,
+    )
+    return response.json().get("chart", {}).get("result", [None])[0]
 
 
 class YahooGlobalIndexCollector(PostgresCollector):
@@ -98,12 +93,14 @@ class YahooGlobalIndexCollector(PostgresCollector):
         return await run_in_thread(self._collect_sync, codes)
 
     def _collect_sync(self, codes: list[str]) -> list[dict[str, Any]]:
+        proxy_url = self.config.get("proxy_url")
+        proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
         items: list[dict[str, Any]] = []
         last_error: Exception | None = None
         for code in codes:
             try:
-                result = _fetch_chart(YAHOO_SYMBOLS[code])
-            except (requests.RequestException, ValueError, IndexError) as exc:
+                result = _fetch_chart(YAHOO_SYMBOLS[code], proxies)
+            except (cffi_exceptions.CurlError, ValueError, IndexError) as exc:
                 # Yahoo Edge 限流(429)等单 symbol 异常不拖垮整批：
                 # 部分回填优于整体回退实时快照；全失败才向上抛走渠道 fallback
                 logger.warning("yahoo_chart_failed", index_code=code, error=str(exc))

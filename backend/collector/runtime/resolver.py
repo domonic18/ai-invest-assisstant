@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from collector.runtime.channels import ChannelConfig
 
@@ -21,6 +22,7 @@ async def list_ordered_channel_configs_for_task(
 
     stmt = (
         select(CollectorChannelConfig)
+        .options(joinedload(CollectorChannelConfig.proxy))
         .join(
             CollectorChannelDataType,
             CollectorChannelDataType.channel_id == CollectorChannelConfig.id,
@@ -91,6 +93,7 @@ async def list_channels_for_task(
 
 
 def _to_channel_config(config: Any) -> ChannelConfig:
+    from app.services.admin.collector_channels import resolve_channel_proxy_url
     from app.utils.crypto import decrypt_token
 
     return ChannelConfig(
@@ -102,4 +105,6 @@ def _to_channel_config(config: Any) -> ChannelConfig:
             else None
         ),
         extra=config.extra or {},
+        # 绑定的代理已禁用或解密失败时为 None（等价直连）
+        proxy_url=resolve_channel_proxy_url(config),
     )

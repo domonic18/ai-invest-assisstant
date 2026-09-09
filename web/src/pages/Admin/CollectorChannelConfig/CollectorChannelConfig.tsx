@@ -57,6 +57,8 @@ export function CollectorChannelConfig() {
         api_key: values.apiKey || undefined,
         is_enabled: values.isEnabled,
         supported_data_types: values.supportedDataTypes,
+        // 显式 null = 解绑；undefined（键缺省）= 不改
+        proxy_config_id: values.proxyConfigId ?? null,
       }
       if (editing) {
         await updateMutation.mutateAsync({
