@@ -132,6 +132,22 @@ class TestValidateProbabilities:
         with pytest.raises(ValueError, match="truncated"):
             validate_probabilities(rows)
 
+    def test_degenerate_single_column_rejected(self) -> None:
+        # 生产事故回放（2026-09-09 08:41 CST 补跑）：夜间态页面仅剩
+        # 一列 475-500=100%，每会议和恒 100、会议数达标，靠区间列数拦截
+        rows = [
+            {"meeting_date": meeting, "range_low": 475,
+             "range_high": 500, "probability": 100.0}
+            for meeting in (
+                date(2026, 9, 16),
+                date(2026, 10, 28),
+                date(2026, 12, 9),
+                date(2027, 1, 27),
+            )
+        ]
+        with pytest.raises(ValueError, match="degenerate"):
+            validate_probabilities(rows)
+
 
 def _fixture_rows_excluding(meeting_date: date) -> list[dict[str, object]]:
     return [

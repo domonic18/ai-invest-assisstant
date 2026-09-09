@@ -36,6 +36,8 @@ _PROB_TABLE_TITLE = "Conditional Meeting Probabilities"
 # 写路径哨兵：官网概率四舍五入到 0.1%，FedWatch 常年覆盖 8 场以上会议
 _PROB_SUM_TOLERANCE = 0.5
 _MIN_MEETINGS = 4
+# 正常概率表始终是完整利率阶梯（300-525，7~11 列区间）
+_MIN_RANGE_COLUMNS = 4
 _RANGE_CELL = re.compile(r"(\d{3})-(\d{3})\s*\(Current\)")
 _DATA_AS_OF = re.compile(
     r"Data as of\s+(\d{1,2}\s+[A-Z][a-z]{2}\s+\d{4}\s+\d{2}:\d{2}:\d{2})\s+CT"
@@ -135,10 +137,12 @@ def parse_probabilities(page_html: str) -> list[dict[str, Any]]:
 
 
 def validate_probabilities(rows: list[dict[str, Any]]) -> None:
-    """写路径哨兵：拦站点微调产出的坏数据（列错位/表截断）。
+    """写路径哨兵：拦站点微调产出的坏数据（列错位/表截断/退化单列表）。
 
     每会议区间概率和应恒为 ~100；会议数骤降意味着表被截断或解析
-    错位——此时抛错转 FAILED 走死信告警，而不是静默落库坏数据。
+    错位。退化页（如收盘后夜间态）只带一列区间且恒为 100%——概率和
+    与会议数校验均会放行，须以区间列数下限拦下。命中任一哨兵时抛错
+    转 FAILED 走死信告警，而不是静默落库坏数据。
     """
     by_meeting: dict[Any, list[float]] = {}
     for row in rows:
@@ -146,6 +150,12 @@ def validate_probabilities(rows: list[dict[str, Any]]) -> None:
     if len(by_meeting) < _MIN_MEETINGS:
         raise ValueError(
             f"FedWatch meetings {len(by_meeting)} < {_MIN_MEETINGS}: table truncated?"
+        )
+    range_columns = {row["range_low"] for row in rows}
+    if len(range_columns) < _MIN_RANGE_COLUMNS:
+        raise ValueError(
+            f"FedWatch range columns {len(range_columns)} < {_MIN_RANGE_COLUMNS}: "
+            "degenerate table (e.g. after-hours placeholder)?"
         )
     for meeting_date, probs in by_meeting.items():
         total = sum(probs)
