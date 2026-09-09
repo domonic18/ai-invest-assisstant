@@ -1,9 +1,11 @@
 """run_structured 单轮结构化调用契约测试。"""
 
+from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from langchain_core.exceptions import OutputParserException
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,21 +43,27 @@ class _FakeStructured:
 class _FakeModel:
     def __init__(self, structured: _FakeStructured) -> None:
         self._structured = structured
+        self.methods: list[str | None] = []
 
-    def with_structured_output(self, _schema: type[BaseModel]) -> _FakeStructured:
+    def with_structured_output(
+        self, _schema: type[BaseModel], method: str | None = None
+    ) -> _FakeStructured:
+        self.methods.append(method)
         return self._structured
 
 
-def _patch_run_env(structured: _FakeStructured):
+def _patch_run_env(structured: _FakeStructured, *, provider: str = "anthropic"):
+    fake_model = _FakeModel(structured)
     return (
         patch(
             "app.agent.runtime.structured.resolve_default_llm",
-            new_callable=AsyncMock,
+            new=AsyncMock(return_value=SimpleNamespace(provider=provider)),
         ),
         patch(
             "app.agent.runtime.structured.build_langchain_model",
-            return_value=_FakeModel(structured),
+            return_value=fake_model,
         ),
+        fake_model,
     )
 
 
@@ -120,4 +128,46 @@ class TestRunStructured:
                 user_prompt="hello",
             )
 
+        assert len(structured.prompts) == 2
+
+    @pytest.mark.asyncio
+    async def test_anthropic_provider_uses_json_schema(self) -> None:
+        structured = _FakeStructured([_Out(value="ok")])
+        p_llm, p_model, fake_model = _patch_run_env(structured, provider="anthropic")
+        with p_llm, p_model:
+            await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+            )
+
+        assert fake_model.methods == ["json_schema"]
+
+    @pytest.mark.asyncio
+    async def test_openai_provider_uses_function_calling(self) -> None:
+        structured = _FakeStructured([_Out(value="ok")])
+        p_llm, p_model, fake_model = _patch_run_env(structured, provider="openai")
+        with p_llm, p_model:
+            await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+            )
+
+        assert fake_model.methods == ["function_calling"]
+
+    @pytest.mark.asyncio
+    async def test_retries_on_output_parsing_exception(self) -> None:
+        structured = _FakeStructured(
+            [OutputParserException("bad json"), _Out(value="ok")]
+        )
+        patches = _patch_run_env(structured)
+        with patches[0], patches[1]:
+            result = await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+            )
+
+        assert result == _Out(value="ok")
         assert len(structured.prompts) == 2

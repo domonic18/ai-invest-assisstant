@@ -9,6 +9,7 @@
 import base64
 from typing import Any, TypeVar, cast
 
+from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,7 +48,10 @@ async def run_structured(
     """
     cfg = await resolve_default_llm(session)
     model = build_langchain_model(cfg, disable_thinking=True)
-    structured = model.with_structured_output(result_type)
+    # anthropic 协议端点（kimi coding 等）2026-09-08 起对强制 tool_choice 间歇性忽略，
+    # function_calling 法会静默拿到 None；json_schema 走 anthropic 原生结构化输出
+    method = "json_schema" if cfg.provider == "anthropic" else "function_calling"
+    structured = model.with_structured_output(result_type, method=method)
 
     content: Any = user_prompt
     if images:
@@ -59,6 +63,6 @@ async def run_structured(
 
     try:
         return cast(T, await structured.ainvoke([message]))
-    except ValidationError:
-        # 输出不符合 schema 时重试一次
+    except (ValidationError, OutputParserException):
+        # 输出不符合 schema 时重试一次（json_schema 法解析失败抛 OutputParserException）
         return cast(T, await structured.ainvoke([message]))
