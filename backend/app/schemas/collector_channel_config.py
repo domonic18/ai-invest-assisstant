@@ -18,12 +18,14 @@ class CollectorChannelConfigCreate(CamelModel):
     is_enabled: bool = True
     supported_data_types: list[str] = Field(default_factory=list)
     extra: dict[str, Any] = Field(default_factory=dict)
+    proxy_config_id: int | None = None
 
 
 class CollectorChannelConfigUpdate(CamelModel):
     """更新采集器渠道配置的请求 schema。
 
-    空 ``api_key`` 表示不修改已存储的 key。
+    空 ``api_key`` 表示不修改已存储的 key；``proxy_config_id`` 传 null
+    表示解绑代理（未传则保持不变）。
     """
 
     name: str | None = Field(None, min_length=1, max_length=100)
@@ -32,6 +34,7 @@ class CollectorChannelConfigUpdate(CamelModel):
     is_enabled: bool | None = None
     supported_data_types: list[str] | None = None
     extra: dict[str, Any] | None = None
+    proxy_config_id: int | None = None
 
 
 class CollectorChannelConfigResponse(CamelModel):
@@ -45,6 +48,7 @@ class CollectorChannelConfigResponse(CamelModel):
     is_enabled: bool
     supported_data_types: list[str]
     extra: dict[str, Any]
+    proxy_config_id: int | None
     created_at: datetime
     updated_at: datetime
 

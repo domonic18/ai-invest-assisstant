@@ -25,6 +25,7 @@ from app.schemas.collector_channel_config import (
     DataTypeChannelsResponse,
 )
 from app.utils.crypto import decrypt_token, encrypt_token, mask_token
+from app.utils.proxy import build_proxy_url
 
 logger = structlog.get_logger()
 
@@ -63,6 +64,7 @@ class CollectorChannelConfigService:
             is_enabled=data.is_enabled,
             supported_data_types=data.supported_data_types,
             extra=data.extra,
+            proxy_config_id=data.proxy_config_id,
         )
         self.repo.add(config)
         await self.session.flush()
@@ -98,6 +100,8 @@ class CollectorChannelConfigService:
             config.extra = data.extra
         if data.api_key:
             config.api_key_encrypted = encrypt_token(data.api_key)
+        if "proxy_config_id" in data.model_fields_set:
+            config.proxy_config_id = data.proxy_config_id
 
         config.updated_at = datetime.now(timezone.utc)
         await self.session.commit()
@@ -271,6 +275,7 @@ class CollectorChannelConfigService:
             is_enabled=config.is_enabled,
             supported_data_types=config.supported_data_types or [],
             extra=config.extra or {},
+            proxy_config_id=config.proxy_config_id,
             created_at=config.created_at,
             updated_at=config.updated_at,
         )
@@ -281,7 +286,9 @@ async def resolve_collector_channel(
 ) -> dict[str, Any] | None:
     """解析某来源已启用的采集渠道配置。
 
-    存在已启用配置时返回包含 ``base_url``、``api_key`` 与 ``extra`` 的字典，否则返回 ``None``。
+    存在已启用配置时返回包含 ``base_url``、``api_key``、``extra`` 与
+    ``proxy_url`` 的字典（未绑定代理或代理已禁用时 ``proxy_url`` 为
+    ``None``），否则返回 ``None``。
     """
     service = CollectorChannelConfigService(session)
     config = await service.get_enabled_config(source)
@@ -305,4 +312,29 @@ async def resolve_collector_channel(
         "base_url": config.base_url,
         "api_key": api_key,
         "extra": config.extra or {},
+        "proxy_url": resolve_channel_proxy_url(config),
     }
+
+
+def resolve_channel_proxy_url(config: CollectorChannelConfig) -> str | None:
+    """组装渠道绑定代理的完整 URL（同步：仅读取预载的 relationship）。
+
+    未绑定、代理已禁用或密码解密失败时返回 ``None``（等价直连）；
+    解密失败记录错误日志便于排查凭据/密钥配置问题。
+    """
+    proxy = config.proxy
+    if proxy is None or not proxy.is_enabled:
+        return None
+    password: str | None = None
+    if proxy.password_encrypted:
+        try:
+            password = decrypt_token(proxy.password_encrypted)
+        except InvalidToken:
+            logger.error(
+                "channel_proxy_decryption_failed",
+                source=config.source,
+                proxy_id=proxy.id,
+                message="Cannot decrypt proxy password; falling back to direct",
+            )
+            return None
+    return build_proxy_url(proxy.protocol, proxy.host, proxy.port, proxy.username, password)
