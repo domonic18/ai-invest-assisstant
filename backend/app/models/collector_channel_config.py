@@ -3,11 +3,13 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.clock import utc_now
 from app.core.database import Base
+from app.models.proxy_config import ProxyConfig
 
 
 class CollectorChannelConfig(Base):
@@ -29,9 +31,13 @@ class CollectorChannelConfig(Base):
     extra: Mapped[dict[str, Any]] = mapped_column(
         JSONB().with_variant(JSON(), "sqlite"), default=dict, nullable=False
     )
+    proxy_config_id: Mapped[int | None] = mapped_column(
+        ForeignKey("proxy_config.id", ondelete="SET NULL"), nullable=True
+    )
+    proxy: Mapped[ProxyConfig | None] = relationship()
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=utc_now, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )

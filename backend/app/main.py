@@ -22,6 +22,7 @@ from app.api.v1 import api_router
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
 from app.core.exceptions import AppError
+from app.services.skill import sync_builtin_skills
 from collector.runtime.channels import seed_default_channels
 
 settings = get_settings()
@@ -56,6 +57,11 @@ async def _warmup(app: FastAPI) -> None:
     except Exception as exc:  # noqa: BLE001
         logger.warning("failed_to_seed_collector_channels: %s", str(exc))
     try:
+        async with AsyncSessionLocal() as session:
+            await sync_builtin_skills(session)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("failed_to_sync_builtin_skills: %s", str(exc))
+    try:
         await setup_assistant_runtime()
     except Exception as exc:  # noqa: BLE001
         logger.warning("failed_to_setup_assistant_runtime: %s", str(exc))
@@ -85,8 +91,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.debug else [],
-    allow_credentials=True,
+    # 前端与 API 恒同源：dev 走 Vite 代理（web/vite.config.ts），prod 由本服务
+    # /SCF 托管 SPA，正常流量不产生跨源请求，故保持空 origins（中间件不响应
+    # 任何预检）。如未来出现独立前端域，须显式列举域名；
+    # 禁止回退 allow_origins=["*"] + allow_credentials（对任意源放行凭证）。
+    allow_origins=[],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -109,7 +118,12 @@ async def request_validation_handler(
         exc.errors(),
         body[:500],
     )
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    # 错误体单一形状：detail 为字符串，与 AppError handler 一致
+    detail = "; ".join(
+        f"{'.'.join(str(loc) for loc in error['loc'])}: {error['msg']}"
+        for error in exc.errors()
+    )
+    return JSONResponse(status_code=422, content={"detail": detail})
 
 
 @app.exception_handler(AppError)

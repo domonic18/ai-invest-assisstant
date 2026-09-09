@@ -9,7 +9,9 @@ import {
   type ResearchParams,
 } from '@/api/research'
 
-const RESEARCH_KEY = ['research'] as const
+import { queryKeys } from '@/hooks/queryKeys'
+
+const RESEARCH_KEY = queryKeys.research.all
 
 export function useResearch(params: ResearchParams = {}) {
   return useQuery({

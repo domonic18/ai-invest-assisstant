@@ -1,5 +1,6 @@
 """管理后台业务服务。"""
 
+from app.services.admin.ai_results import AdminAiResultService
 from app.services.admin.collector_channels import CollectorChannelConfigService
 from app.services.admin.llm_config_service import (
     LLMConfigNotConfiguredError,
@@ -14,6 +15,7 @@ from app.services.admin.tasks import AdminTaskService
 from app.services.admin.users import AdminUserService
 
 __all__ = [
+    "AdminAiResultService",
     "AdminNewsService",
     "AdminReportService",
     "AdminStockService",

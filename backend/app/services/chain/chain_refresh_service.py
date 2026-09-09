@@ -8,12 +8,10 @@
 from datetime import date
 
 import structlog
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.skills import industry_chain_analysis
 from app.core.locking import redis_lock
-from app.models.industry_chain import ChainAnalysisVersion
+from app.repositories.chain import industry_chain_repository
 from app.schemas.chain import ChainAnalysisResult
 from app.services.admin.llm_config_service import resolve_default_llm
 from app.services.chain.chain_analysis_service import persist_analysis_result
@@ -28,19 +26,7 @@ async def list_refresh_targets(
     session: AsyncSession,
 ) -> list[tuple[str, list[int]]]:
     """列出刷新目标：status=success 的 (industry, user_id 去重列表)，最近更新在前。"""
-    stmt = (
-        select(
-            ChainAnalysisVersion.industry,
-            func.array_agg(
-                func.distinct(ChainAnalysisVersion.user_id)
-            ).label("user_ids"),
-        )
-        .where(ChainAnalysisVersion.status == "success")
-        .group_by(ChainAnalysisVersion.industry)
-        .order_by(func.max(ChainAnalysisVersion.created_at).desc())
-    )
-    rows = (await session.execute(stmt)).all()
-    return [(row.industry, sorted(int(uid) for uid in row.user_ids)) for row in rows]
+    return await industry_chain_repository.list_refresh_targets(session)
 
 
 async def refresh_industry(
@@ -55,6 +41,9 @@ async def refresh_industry(
     与手动分析并发时（如 POST /analyze 正在生成同链）非阻塞跳过，避免
     ``next_version_number`` 的 max+1 竞争。失败异常向上抛，由调用方隔离。
     """
+    # 延迟 import：skills 执行器反向依赖 services，顶层导入会成环
+    from app.agent.skills import industry_chain_analysis
+
     async with redis_lock(
         f"chain-refresh:{industry}", ttl=_LOCK_TTL_SECONDS, blocking=False
     ) as acquired:

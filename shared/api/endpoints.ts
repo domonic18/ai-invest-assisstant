@@ -8,9 +8,12 @@ export const ENDPOINTS = {
   },
   users: {
     me: `${API_BASE}/users/me`,
+    mePassword: `${API_BASE}/users/me/password`,
     meSettings: `${API_BASE}/users/me/settings`,
     watchlist: `${API_BASE}/users/watchlist`,
     watchlistQuotes: `${API_BASE}/users/watchlist/quotes`,
+    watchlistRecognizeScreenshot: `${API_BASE}/users/watchlist/recognize-screenshot`,
+    watchlistBatch: `${API_BASE}/users/watchlist/batch`,
     watchlistGroups: `${API_BASE}/users/watchlist/groups`,
     watchlistGroup: (groupId: number | string) =>
       `${API_BASE}/users/watchlist/groups/${groupId}`,
@@ -26,22 +29,21 @@ export const ENDPOINTS = {
     intraday: (code: string) => `${API_BASE}/stocks/${code}/intraday`,
     sectors: (code: string) => `${API_BASE}/stocks/${code}/sectors`,
     aiAnalysis: (code: string) => `${API_BASE}/stocks/${code}/ai-analysis`,
+    aiAnalysisDates: (code: string) =>
+      `${API_BASE}/stocks/${code}/ai-analysis/dates`,
   },
   kline: {
     get: (code: string) => `${API_BASE}/kline/${code}`,
   },
   chain: {
-    analyze: `${API_BASE}/chain/analyze`,
     industries: `${API_BASE}/chain/industries`,
-    alerts: (industry: string, days = 30) =>
-      `${API_BASE}/chain/alerts?industry=${encodeURIComponent(industry)}&days=${days}`,
+    alerts: `${API_BASE}/chain/alerts`,
     latest: (industry: string) =>
       `${API_BASE}/chain/${encodeURIComponent(industry)}/latest`,
     versions: (industry: string) =>
       `${API_BASE}/chain/${encodeURIComponent(industry)}/versions`,
     version: (id: number | string) => `${API_BASE}/chain/versions/${id}`,
-    compare: (baseId: number, targetId: number) =>
-      `${API_BASE}/chain/versions/compare?base_id=${baseId}&target_id=${targetId}`,
+    compare: `${API_BASE}/chain/versions/compare`,
   },
   research: {
     // 集合端点后端路由为 "/"（带尾斜杠）：不带斜杠会触发 307 重定向
@@ -50,6 +52,16 @@ export const ENDPOINTS = {
     detail: (id: number | string) => `${API_BASE}/research/${id}`,
     summarize: (id: number | string) => `${API_BASE}/research/${id}/summarize`,
     pdfUrl: (id: number | string) => `${API_BASE}/research/${id}/pdf-url`,
+  },
+  skills: {
+    list: `${API_BASE}/skills`,
+    create: `${API_BASE}/skills`,
+    detail: (skillId: string) => `${API_BASE}/skills/${skillId}`,
+    files: (skillId: string) => `${API_BASE}/skills/${skillId}/files`,
+    update: (skillId: string) => `${API_BASE}/skills/${skillId}`,
+    publish: (skillId: string) => `${API_BASE}/skills/${skillId}/publish`,
+    install: (skillId: string) => `${API_BASE}/skills/${skillId}/install`,
+    uninstall: (skillId: string) => `${API_BASE}/skills/${skillId}/install`,
   },
   financialReports: {
     list: `${API_BASE}/financial-reports/`,
@@ -80,13 +92,12 @@ export const ENDPOINTS = {
   },
   fundFlow: {
     list: `${API_BASE}/fund-flow/`,
-    sectorTrend: (sectorType = 'industry', days = 60) =>
-      `${API_BASE}/fund-flow/sector-trend?sector_type=${sectorType}&days=${days}`,
+    sectorTrend: `${API_BASE}/fund-flow/sector-trend`,
   },
   market: {
     indices: `${API_BASE}/market/indices`,
-    indexIntraday: (code: string) => `${API_BASE}/market/indices/intraday?code=${code}`,
-    indexKline: (code: string) => `${API_BASE}/market/indices/kline?code=${code}`,
+    indexIntraday: `${API_BASE}/market/indices/intraday`,
+    indexKline: `${API_BASE}/market/indices/kline`,
     stats: `${API_BASE}/market/stats`,
     limitUp: `${API_BASE}/market/limit-up`,
     limitUpIntraday: `${API_BASE}/market/limit-up/intraday`,
@@ -94,6 +105,10 @@ export const ENDPOINTS = {
     sectors: `${API_BASE}/market/sectors`,
     aiReview: `${API_BASE}/market/ai-review`,
     globalIndices: `${API_BASE}/market/global-indices`,
+    globalIndexHistory: `${API_BASE}/market/global-index-history`,
+    globalIndexKline: `${API_BASE}/market/global-indices/kline`,
+    fedWatch: `${API_BASE}/market/fed-watch`,
+    sectorQuotes: `${API_BASE}/market/sector-quotes`,
     collect: `${API_BASE}/market/collect`,
   },
   calendar: {
@@ -103,8 +118,21 @@ export const ENDPOINTS = {
   telegraph: {
     list: `${API_BASE}/telegraph`,
   },
+  news: {
+    channels: `${API_BASE}/news/channels`,
+    focus: `${API_BASE}/news/focus`,
+    stories: `${API_BASE}/news/stories`,
+    story: (id: number | string) => `${API_BASE}/news/stories/${id}`,
+    storyTrack: (id: number | string) => `${API_BASE}/news/stories/${id}/track`,
+    storyStop: (id: number | string) => `${API_BASE}/news/stories/${id}/stop`,
+    topics: `${API_BASE}/news/topics`,
+    subscriptions: `${API_BASE}/news/subscriptions`,
+    subscription: (id: number | string) =>
+      `${API_BASE}/news/subscriptions/${id}`,
+  },
   workbench: {
     base: `${API_BASE}/workbench`,
+    reviewStatus: `${API_BASE}/workbench/review-status`,
   },
   admin: {
     // 集合根路由后端以 "/" 注册，常量保持同形避免依赖 307 重定向
@@ -128,6 +156,10 @@ export const ENDPOINTS = {
     testLLMConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}/test`,
     setDefaultLLMConfig: (id: number | string) =>
       `${API_BASE}/admin/llm-configs/${id}/set-default`,
+    proxyConfigs: `${API_BASE}/admin/proxy-configs`,
+    proxyConfig: (id: number | string) => `${API_BASE}/admin/proxy-configs/${id}`,
+    testProxyConfig: (id: number | string) =>
+      `${API_BASE}/admin/proxy-configs/${id}/test`,
     trackedIndexes: `${API_BASE}/admin/tracked-indexes`,
     trackedIndex: (id: number | string) => `${API_BASE}/admin/tracked-indexes/${id}`,
     trackedIndexToggle: (id: number | string) =>
@@ -141,5 +173,8 @@ export const ENDPOINTS = {
     collectorTaskCatalog: `${API_BASE}/admin/collector/tasks/catalog`,
     collectorLogs: `${API_BASE}/admin/collector/logs`,
     runCollectorTask: (task: string) => `${API_BASE}/admin/collector/tasks/${task}/run`,
+    aiResults: `${API_BASE}/admin/ai-results/`,
+    aiResult: (id: number | string) => `${API_BASE}/admin/ai-results/${id}`,
+    aiResultSkills: `${API_BASE}/admin/ai-results/skills`,
   },
 } as const

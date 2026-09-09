@@ -1,6 +1,7 @@
 """后台 CRUD 端点契约测试。"""
 
 from datetime import date, datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -39,81 +40,81 @@ def _user_mock() -> MagicMock:
     return user
 
 
-def _stock_mock() -> MagicMock:
-    stock = MagicMock()
-    stock.id = 1
-    stock.stock_code = "000001"
-    stock.stock_name = "平安银行"
-    stock.market = "sz"
-    stock.industry_level_1 = None
-    stock.industry_level_2 = None
-    stock.industry_level_3 = None
-    stock.listing_date = None
-    stock.full_name = None
-    stock.legal_person = None
-    stock.website = None
-    stock.registered_capital = None
-    stock.business_scope = None
-    stock.province = None
-    stock.city = None
-    stock.created_at = datetime(2024, 1, 1, 0, 0, 0)
-    return stock
+def _stock_mock() -> SimpleNamespace:
+    return SimpleNamespace(
+        id=1,
+        stock_code="000001",
+        stock_name="平安银行",
+        market="sz",
+        industry_level_1=None,
+        industry_level_2=None,
+        industry_level_3=None,
+        listing_date=None,
+        full_name=None,
+        legal_person=None,
+        website=None,
+        registered_capital=None,
+        business_scope=None,
+        province=None,
+        city=None,
+        created_at=datetime(2024, 1, 1, 0, 0, 0),
+    )
 
 
-def _report_mock() -> MagicMock:
-    report = MagicMock()
-    report.id = 1
-    report.file_path = "s3://reports/1.pdf"
-    report.original_name = "report.pdf"
-    report.file_type = "pdf"
-    report.stock_code = "000001"
-    report.stock_name = None
-    report.report_date = date(2024, 1, 1)
-    report.report_type = "年报"
-    report.broker = "Broker"
-    report.file_size = 1024
-    report.md5_hash = None
-    report.download_url = None
-    report.download_count = 0
-    report.created_at = datetime(2024, 1, 1, 0, 0, 0)
-    return report
+def _report_mock() -> SimpleNamespace:
+    return SimpleNamespace(
+        id=1,
+        file_path="s3://reports/1.pdf",
+        original_name="report.pdf",
+        file_type="pdf",
+        stock_code="000001",
+        stock_name=None,
+        report_date=date(2024, 1, 1),
+        report_type="年报",
+        broker="Broker",
+        file_size=1024,
+        md5_hash=None,
+        download_url=None,
+        download_count=0,
+        created_at=datetime(2024, 1, 1, 0, 0, 0),
+    )
 
 
-def _news_mock() -> MagicMock:
-    news = MagicMock()
-    news.id = 1
-    news.stock_code = "000001"
-    news.doc_type = "news"
-    news.title = "News Title"
-    news.summary = None
-    news.content = None
-    news.source = None
-    news.source_url = None
-    news.publish_date = None
-    news.sentiment = None
-    news.keywords = None
-    news.industry_tags = None
-    news.elasticsearch_doc_id = None
-    news.extra = {}
-    news.created_at = datetime(2024, 1, 1, 0, 0, 0)
-    return news
+def _news_mock() -> SimpleNamespace:
+    return SimpleNamespace(
+        id=1,
+        stock_code="000001",
+        doc_type="news",
+        title="News Title",
+        summary=None,
+        content=None,
+        source=None,
+        source_url=None,
+        publish_date=None,
+        sentiment=None,
+        keywords=None,
+        industry_tags=None,
+        elasticsearch_doc_id=None,
+        extra={},
+        created_at=datetime(2024, 1, 1, 0, 0, 0),
+    )
 
 
-def _task_mock() -> MagicMock:
-    task = MagicMock()
-    task.id = 1
-    task.task_name = "kline"
-    task.task_type = "scheduled"
-    task.source = "tushare"
-    task.schedule = "0 9 * * *"
-    task.is_active = True
-    task.queue = None
-    task.last_run_at = None
-    task.last_status = "pending"
-    task.last_error = None
-    task.created_at = datetime(2024, 1, 1, 0, 0, 0)
-    task.updated_at = datetime(2024, 1, 1, 0, 0, 0)
-    return task
+def _task_mock() -> SimpleNamespace:
+    return SimpleNamespace(
+        id=1,
+        task_name="kline",
+        task_type="scheduled",
+        source="tushare",
+        schedule="0 9 * * *",
+        is_active=True,
+        queue=None,
+        last_run_at=None,
+        last_status="pending",
+        last_error=None,
+        created_at=datetime(2024, 1, 1, 0, 0, 0),
+        updated_at=datetime(2024, 1, 1, 0, 0, 0),
+    )
 
 
 @pytest.mark.unit
@@ -187,7 +188,7 @@ class TestAdminStockEndpoints:
         client, _ = admin_client
         response = client.get("/api/v1/admin/stocks/")
         assert response.status_code == 200
-        assert response.json()["items"][0]["stock_code"] == "000001"
+        assert response.json()["items"][0]["stockCode"] == "000001"
 
     @patch("app.api.v1.admin.stocks.AdminStockService")
     def test_create_stock(self, mock_service, admin_client) -> None:
@@ -196,8 +197,8 @@ class TestAdminStockEndpoints:
         response = client.post(
             "/api/v1/admin/stocks/",
             json={
-                "stock_code": "000001",
-                "stock_name": "平安银行",
+                "stockCode": "000001",
+                "stockName": "平安银行",
                 "market": "sz",
             },
         )
@@ -238,7 +239,7 @@ class TestAdminReportEndpoints:
         response = client.get("/api/v1/admin/reports/")
         assert response.status_code == 200
         assert response.json()["total"] == 1
-        assert response.json()["items"][0]["stock_name"] == "平安银行"
+        assert response.json()["items"][0]["stockName"] == "平安银行"
 
     @patch("app.api.v1.admin.reports.AdminReportService")
     def test_create_report(self, mock_service, admin_client) -> None:
@@ -247,9 +248,9 @@ class TestAdminReportEndpoints:
         response = client.post(
             "/api/v1/admin/reports/",
             json={
-                "file_path": "s3://reports/1.pdf",
-                "file_type": "pdf",
-                "stock_code": "000001",
+                "filePath": "s3://reports/1.pdf",
+                "fileType": "pdf",
+                "stockCode": "000001",
             },
         )
         assert response.status_code == 201
@@ -297,7 +298,7 @@ class TestAdminNewsEndpoints:
         response = client.post(
             "/api/v1/admin/news/",
             json={
-                "doc_type": "news",
+                "docType": "news",
                 "title": "News Title",
             },
         )
@@ -346,8 +347,8 @@ class TestAdminTaskEndpoints:
         response = client.post(
             "/api/v1/admin/tasks/",
             json={
-                "task_name": "kline",
-                "task_type": "scheduled",
+                "taskName": "kline",
+                "taskType": "scheduled",
                 "source": "tushare",
             },
         )
@@ -365,7 +366,7 @@ class TestAdminTaskEndpoints:
         client, _ = admin_client
         response = client.put(
             "/api/v1/admin/tasks/1",
-            json={"is_active": False},
+            json={"isActive": False},
         )
         assert response.status_code == 200
 
@@ -376,13 +377,11 @@ class TestAdminTaskEndpoints:
         response = client.delete("/api/v1/admin/tasks/1")
         assert response.status_code == 204
 
-    @patch("app.api.v1.admin.tasks.dispatch_collector_task")
     @patch("app.api.v1.admin.tasks.AdminTaskService")
-    def test_pause_resume_trigger_task(self, mock_service, mock_dispatch, admin_client) -> None:
+    def test_pause_resume_trigger_task(self, mock_service, admin_client) -> None:
         mock_service.return_value.pause_task = AsyncMock(return_value=_task_mock())
         mock_service.return_value.resume_task = AsyncMock(return_value=_task_mock())
         mock_service.return_value.trigger_task = AsyncMock(return_value=_task_mock())
-        mock_dispatch.return_value = AsyncMock()
         client, _ = admin_client
 
         assert client.post("/api/v1/admin/tasks/1/pause").status_code == 200

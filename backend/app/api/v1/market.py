@@ -11,10 +11,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_admin_user, get_current_user, get_db
+from app.core.constants import KLINE_PERIODS
+from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.market import (
     CollectTaskResult,
+    FedWatchResponse,
+    GlobalIndexHistoryPoint,
     GlobalIndexQuoteResponse,
     IndexIntradayResponse,
     IndexKlineResponse,
@@ -22,17 +25,23 @@ from app.schemas.market import (
     LimitUpIntradayResponse,
     LimitUpResponse,
     MarketCollectRequest,
-    MarketReviewGenerateRequest,
     MarketReviewResponse,
     MarketReviewUpdateRequest,
     MarketStatsResponse,
     SectorOverviewResponse,
+    SectorQuoteResponse,
 )
 from app.services import review as market_review_service
-from app.services.market import global_index_service, market_service
-from app.services.review import limit_up_ai_service
+from app.services.market import (
+    fed_watch_service,
+    global_index_service,
+    market_service,
+    sector_quote_service,
+)
 
 router = APIRouter()
+
+_KLINE_PERIOD_PATTERN = "^(" + "|".join(KLINE_PERIODS) + ")$"
 
 
 @router.get("/indices", response_model=list[IndexQuoteResponse])
@@ -53,6 +62,49 @@ async def get_global_indices(
 ) -> list[GlobalIndexQuoteResponse]:
     """启用中的全球指标最新快照（黄金/美元指数/美债收益率等）。"""
     return await global_index_service.get_global_index_quotes(session)
+
+
+@router.get("/global-index-history", response_model=list[GlobalIndexHistoryPoint])
+async def get_global_index_history(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    index_code: str = Query(..., description="全球指标代码，US2Y10S 为 10Y-2Y 利差"),
+    months: Annotated[int, Query(ge=1, le=24)] = 12,
+) -> list[GlobalIndexHistoryPoint]:
+    """全球指标近 N 月收盘走势（trade_date 升序）。"""
+    return await global_index_service.get_index_history(session, index_code, months)
+
+
+@router.get("/global-indices/kline", response_model=IndexKlineResponse)
+async def get_global_index_kline(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    index_code: str = Query(..., description="全球指标代码，US2Y10S 为 10Y-2Y 利差"),
+    period: str = Query("daily", pattern=_KLINE_PERIOD_PATTERN),
+    limit: Annotated[int, Query(ge=1, le=1000)] = 250,
+) -> IndexKlineResponse:
+    """全球指标多周期 K 线（股指/商品/汇率含 OHLC；债券收益率与利差为收盘线）。"""
+    return await global_index_service.get_global_index_kline(
+        session, index_code, period, limit
+    )
+
+
+@router.get("/fed-watch", response_model=FedWatchResponse | None)
+async def get_fed_watch(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> FedWatchResponse | None:
+    """CME FedWatch 官方加息概率快照（未采集时返回 null）。"""
+    return await fed_watch_service.get_fed_watch(session)
+
+
+@router.get("/sector-quotes", response_model=SectorQuoteResponse | None)
+async def get_sector_quotes(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    sector_type: Annotated[str, Query(pattern="^(industry|concept)$")] = "industry",
+    trade_date: date | None = None,
+) -> SectorQuoteResponse | None:
+    """单日板块行情快照（涨跌幅降序）；未指定日期取最新快照日。"""
+    return await sector_quote_service.get_sector_quotes(
+        session, sector_type, trade_date
+    )
 
 
 @router.get("/indices/kline", response_model=IndexKlineResponse)
@@ -103,22 +155,6 @@ async def get_limit_up_intraday(
     return await market_service.get_limit_up_intraday(session, trade_date)
 
 
-@router.post("/limit-up/ai-review", response_model=LimitUpResponse)
-async def generate_limit_up_ai_review(
-    data: MarketReviewGenerateRequest,
-    session: Annotated[AsyncSession, Depends(get_db)],
-) -> LimitUpResponse:
-    """触发 LLM 生成 AI 涨停归因（regenerate=true 强制重新生成）。
-
-    生成成功后返回带题材分组与原因的完整涨停数据；无缓存时 GET /limit-up
-    回退为行业分组。LLM 未配置 / 非交易日等业务异常由全局 AppError handler 统一处理。
-    """
-    await limit_up_ai_service.generate_attribution(
-        session, data.trade_date, data.regenerate
-    )
-    return await market_service.get_limit_up(session, data.trade_date)
-
-
 @router.get("/sectors", response_model=SectorOverviewResponse)
 async def get_sector_overview(
     session: Annotated[AsyncSession, Depends(get_db)],
@@ -146,22 +182,6 @@ async def get_ai_review(
     if review is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     return review
-
-
-@router.post("/ai-review", response_model=MarketReviewResponse)
-async def generate_ai_review(
-    data: MarketReviewGenerateRequest,
-    session: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_admin_user)],
-) -> MarketReviewResponse:
-    """管理员触发 LLM 生成 AI 大盘综述共享 base（regenerate=true 强制重新生成）。"""
-    return await market_review_service.generate_market_review(
-        session,
-        data.trade_date,
-        data.regenerate,
-        blocking=True,
-        blocking_timeout=30,
-    )
 
 
 @router.put("/ai-review", response_model=MarketReviewResponse)

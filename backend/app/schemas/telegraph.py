@@ -4,7 +4,10 @@ import html
 import re
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import field_validator
+
+from app.schemas.base import CamelModel
+from app.schemas.news import ScoreFactorsResponse
 
 _TAG_PATTERN = re.compile(r"<[^>]+>")
 
@@ -20,10 +23,16 @@ def strip_html(raw: str | None) -> str | None:
     return text.strip() or None
 
 
-class TelegraphResponse(BaseModel):
-    """电报条目。"""
+class TelegraphStockResponse(CamelModel):
+    """电报关联标的轻量快照（名称 + 当日涨跌幅）。"""
 
-    model_config = ConfigDict(from_attributes=True)
+    code: str
+    name: str
+    change_pct: float | None = None
+
+
+class TelegraphResponse(CamelModel):
+    """电报条目。"""
 
     cls_msg_id: int
     title: str | None = None
@@ -32,7 +41,12 @@ class TelegraphResponse(BaseModel):
     importance: int | None = None
     shared: int | None = None
     stock_codes: list[str] | None = None
+    stocks: list[TelegraphStockResponse] = []
     publish_time: datetime
+    ai_score: int | None = None
+    ai_scored_at: datetime | None = None
+    ai_factors: ScoreFactorsResponse | None = None
+    subscribed: bool = False
 
     @field_validator("title", "content", mode="before")
     @classmethod

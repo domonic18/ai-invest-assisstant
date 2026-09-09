@@ -8,6 +8,7 @@ import { useColorScheme } from '@/stores/settings'
 import { SourceNote } from '@/components/common/SourceNote'
 
 import { SectorFlowAreaChart } from './SectorFlowAreaChart'
+import { SectorQuoteHeatCard } from './SectorQuoteHeatCard'
 import { SectorRankBarChart } from './SectorRankBarChart'
 
 const RANGE_OPTIONS = [
@@ -65,6 +66,7 @@ export function CapitalFlow() {
           />
         </div>
       </div>
+      <SectorQuoteHeatCard />
       {isLoading ? (
         <Card variant="borderless">
           <div className="flex justify-center py-24">

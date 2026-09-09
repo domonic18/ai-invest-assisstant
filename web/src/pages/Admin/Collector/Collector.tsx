@@ -16,15 +16,7 @@ import type {
 } from '@ai-invest/shared'
 
 import { CollectorTaskModal } from './CollectorTaskModal'
-
-const STATUS_TAG: Record<string, { color: string; label: string }> = {
-  success: { color: 'green', label: '成功' },
-  partial: { color: 'orange', label: '部分成功' },
-  failed: { color: 'red', label: '失败' },
-  pending: { color: 'gold', label: '排队中' },
-  running: { color: 'processing', label: '运行中' },
-  skipped: { color: 'default', label: '跳过' },
-}
+import { statusLabel, statusTagColor } from '@ai-invest/shared'
 
 export function Collector() {
   const { data: logs, isLoading, refetch } = useCollectorLogs(20)
@@ -73,7 +65,7 @@ export function Collector() {
       dataIndex: 'status',
       key: 'status',
       render: (value: string) => {
-        const tag = STATUS_TAG[value] ?? { color: 'default', label: value }
+        const tag = { color: statusTagColor(value), label: statusLabel(value) }
         return <Tag color={tag.color}>{tag.label}</Tag>
       },
     },

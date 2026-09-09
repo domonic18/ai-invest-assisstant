@@ -37,19 +37,17 @@ dependencies = [
     "redis>=5.0.0",
     "celery>=5.4.0",
     # Auth
-    "python-jose[cryptography]>=3.3.0",
+    "pyjwt>=2.10.0",
     "bcrypt>=4.1.0",
     # Encryption
     "cryptography>=42.0.0",
     # AI Agent
-    "pydantic-ai>=0.0.10",
     "openai>=1.35.0",
     "anthropic>=0.28.0",
     # MCP
     "mcp>=1.0.0",
     # Search & Vector
     "elasticsearch[async]>=8.13.0,<9",
-    "pymilvus>=2.4.0",
     # Storage
     "minio>=7.2.0",
     # Data & Finance
@@ -57,17 +55,12 @@ dependencies = [
     "numpy>=1.26.0,<2.0",
     "akshare>=1.14.0",
     # Web Scraping
-    "scrapy>=2.11.0",
-    "playwright>=1.44.0",
     "httpx>=0.27.0",
     # Utils
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.1",
     "python-dateutil>=2.9.0",
     "structlog>=24.1.0",
-    "tenacity>=8.3.0",
-    # WeChat Mini Program auth (optional)
-    "itsdangerous>=2.2.0",
     "tushare>=1.4.29",
     "curl-cffi>=0.15.0",
     "pypdf>=6.14.2",
@@ -76,6 +69,9 @@ dependencies = [
     "langchain-openai>=1.6.0",
     "langgraph-checkpoint-postgres>=3.1.2",
     "psycopg[binary]>=3.3.4",
+    "croniter>=6.2.4",
+    "email-validator>=2.3.0",
+    "jieba>=0.42.1",
 ]
 
 [tool.uv]
@@ -98,7 +94,6 @@ dev = [
 
     # Type stubs
     "types-pyyaml",
-    "types-python-jose",
 
     # Development
     "ipython>=8.24.0",
@@ -109,8 +104,16 @@ line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501"]
+select = ["E", "F", "I", "N", "W", "UP", "DTZ"]
+ignore = [
+    "E501",
+    # 数据源墙时间字符串解析（北京时间日历数据），改 aware 属数据迁移语义变更，不在重构范围
+    "DTZ007",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# 测试 fixture 构造 naive 时间用于断言对照，不触达 DB 默认值；生产代码 DTZ 严格管控
+"tests/**" = ["DTZ001", "DTZ003", "DTZ011"]
 
 [tool.mypy]
 python_version = "3.10"
@@ -123,9 +126,10 @@ disallow_any_generics = false
 module = [
     "app.agent.*",
     "celery.*",
+    "croniter.*",
+    "jieba.*",
     "kombu.*",
     "pandas.*",
-    "tushare.*",
 ]
 ignore_missing_imports = true
 disallow_untyped_defs = false

@@ -421,8 +421,8 @@ CREATE TABLE ai_analysis_result (
     created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_ai_skill_code ON ai_analysis_result(skill_id, stock_code);
-CREATE INDEX idx_ai_skill_hash ON ai_analysis_result(skill_id, input_hash);
+CREATE INDEX idx_ai_skill_stock_status ON ai_analysis_result(skill_id, stock_code, status, created_at DESC);
+CREATE INDEX idx_ai_skill_hash_status ON ai_analysis_result(skill_id, input_hash, status, created_at DESC);
 CREATE INDEX idx_ai_created_at ON ai_analysis_result(created_at DESC);
 
 ALTER TABLE industry_chain_analysis_version
@@ -484,11 +484,10 @@ CREATE TABLE collector_log (
     CONSTRAINT uq_collector_log_celery_task_id UNIQUE (celery_task_id)
 );
 
-CREATE INDEX idx_collector_log_task ON collector_log(task_id, started_at DESC);
 CREATE INDEX idx_collector_log_started ON collector_log(started_at DESC);
 CREATE INDEX idx_collector_log_celery_task_id ON collector_log(celery_task_id);
 CREATE INDEX idx_collector_log_status_started_at ON collector_log(status, started_at DESC);
-CREATE INDEX idx_collector_log_task_name ON collector_log(task_name);
+CREATE INDEX idx_collector_log_task_started ON collector_log(task_name, started_at DESC);
 
 CREATE TABLE collector_dead_letter (
     id            SERIAL PRIMARY KEY,
@@ -532,6 +531,26 @@ CREATE UNIQUE INDEX idx_llm_config_default
     ON llm_config(is_default) WHERE is_default = TRUE;
 
 -- ============================================================
+-- 10b. 代理服务器配置（后台管理，采集渠道按需绑定）
+-- ============================================================
+
+CREATE TABLE proxy_config (
+    id                  BIGSERIAL PRIMARY KEY,
+    name                VARCHAR(128) NOT NULL,
+    protocol            VARCHAR(16)  NOT NULL DEFAULT 'http',
+    host                VARCHAR(255) NOT NULL,
+    port                INTEGER      NOT NULL,
+    username            VARCHAR(255),
+    password_encrypted  TEXT,
+    is_enabled          BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_proxy_config_name UNIQUE (name),
+    CONSTRAINT chk_proxy_config_protocol CHECK (protocol IN ('http', 'socks5')),
+    CONSTRAINT chk_proxy_config_port CHECK (port > 0 AND port < 65536)
+);
+
+-- ============================================================
 -- 11. 采集渠道配置域（后台管理）
 -- ============================================================
 
@@ -544,12 +563,16 @@ CREATE TABLE collector_channel_config (
     is_enabled          BOOLEAN      NOT NULL DEFAULT TRUE,
     supported_data_types JSONB       NOT NULL DEFAULT '[]'::jsonb,
     extra               JSONB        NOT NULL DEFAULT '{}'::jsonb,
+    proxy_config_id     BIGINT,
     created_at          TIMESTAMPTZ DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ DEFAULT NOW()
+    updated_at          TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT fk_collector_channel_config_proxy_config
+        FOREIGN KEY (proxy_config_id) REFERENCES proxy_config(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_collector_channel_enabled ON collector_channel_config(is_enabled);
 CREATE INDEX idx_collector_channel_supported_types ON collector_channel_config USING GIN(supported_data_types);
+CREATE INDEX idx_collector_channel_config_proxy_config_id ON collector_channel_config(proxy_config_id);
 
 -- 渠道-数据类型关联及优先级（同 data_type 下 priority 越小越优先）
 CREATE TABLE collector_channel_data_type (
@@ -855,3 +878,194 @@ CREATE TABLE IF NOT EXISTS news_telegraph (
 );
 
 CREATE INDEX IF NOT EXISTS idx_news_telegraph_publish_time ON news_telegraph(publish_time DESC);
+
+-- ============================================================
+-- 21b. 资讯 AI 重要度分级（跨源通用标注：电报/新闻/公告/推文/视频共用，
+--      (source, item_id) 挂各源自有表业务主键，不改动源表）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS news_ai_score (
+    source       VARCHAR(32)  NOT NULL,
+    item_id      VARCHAR(64)  NOT NULL,
+    score        INT          NOT NULL,
+    score_detail JSONB,
+    scored_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+
+    PRIMARY KEY (source, item_id),
+    CONSTRAINT chk_news_ai_score_value CHECK (score >= 0 AND score <= 100)
+);
+
+CREATE INDEX IF NOT EXISTS idx_news_ai_score_score ON news_ai_score(score DESC);
+
+-- ============================================================
+-- 21c. 迭代 4 资讯 AI 增强：事件故事线（全局）/ 用户订阅命中 / 热点主题快照
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS news_storyline (
+    id            BIGSERIAL PRIMARY KEY,
+    title         VARCHAR(200) NOT NULL,
+    summary       TEXT,
+    status        VARCHAR(16) NOT NULL DEFAULT 'tracking' CONSTRAINT chk_news_storyline_status
+                  CHECK (status IN ('tracking', 'near_end', 'finished')),
+    origin        VARCHAR(8)  NOT NULL DEFAULT 'ai' CONSTRAINT chk_news_storyline_origin
+                  CHECK (origin IN ('ai', 'manual')),
+    user_id       BIGINT REFERENCES "user"(id) ON DELETE CASCADE,   -- 手动建线者（AI 线为 NULL）
+    report_count  INT NOT NULL DEFAULT 0,
+    first_seen_at TIMESTAMPTZ NOT NULL,
+    last_seen_at  TIMESTAMPTZ NOT NULL,
+    latest_brief  TEXT,
+    nodes         JSONB,                                -- 节点链 [{time, brief}]
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_news_storyline_status
+    ON news_storyline(status, last_seen_at DESC);
+
+CREATE TABLE IF NOT EXISTS user_news_storyline (
+    user_id      BIGINT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    storyline_id BIGINT NOT NULL REFERENCES news_storyline(id) ON DELETE CASCADE,
+    action       VARCHAR(8) NOT NULL DEFAULT 'active' CONSTRAINT chk_user_news_storyline_action
+                 CHECK (action IN ('active', 'stopped')),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, storyline_id)
+);
+
+CREATE TABLE IF NOT EXISTS news_storyline_item (
+    storyline_id BIGINT NOT NULL REFERENCES news_storyline(id) ON DELETE CASCADE,
+    source       VARCHAR(32) NOT NULL,                  -- 与 news_ai_score.source 同口径
+    item_id      VARCHAR(64) NOT NULL,                  -- 源表业务主键（电报=cls_msg_id）
+    added_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (storyline_id, source, item_id),
+    CONSTRAINT uq_news_storyline_item_item UNIQUE (source, item_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_news_subscription (
+    id           BIGSERIAL PRIMARY KEY,
+    user_id      BIGINT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    keyword      VARCHAR(100) NOT NULL,
+    channels     JSONB,                                 -- 命中渠道过滤（NULL/空=全部渠道）
+    push_enabled BOOLEAN NOT NULL DEFAULT FALSE,        -- 推送通道实装前仅存配置
+    enabled      BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_user_news_subscription_user_keyword UNIQUE (user_id, keyword)
+);
+
+CREATE TABLE IF NOT EXISTS news_subscription_hit (
+    subscription_id BIGINT NOT NULL REFERENCES user_news_subscription(id) ON DELETE CASCADE,
+    source          VARCHAR(32) NOT NULL,
+    item_id         VARCHAR(64) NOT NULL,
+    hit_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (subscription_id, source, item_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_news_subscription_hit_item
+    ON news_subscription_hit(source, item_id);
+
+CREATE TABLE IF NOT EXISTS news_topic_snapshot (
+    trade_date   DATE NOT NULL,
+    session      VARCHAR(8) NOT NULL CONSTRAINT chk_news_topic_snapshot_session
+                 CHECK (session IN ('intraday', 'post')),
+    topics       JSONB,                                 -- [{title, sentiment, votes, item_ids, chain, heat, factors, asOfTradeDate}]
+    wordcloud    JSONB,                                 -- [{word, count}]
+    input_hash   VARCHAR(64),
+    generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (trade_date, session)
+);
+
+-- ============================================================
+-- 22. Skill 注册表（builtin 登记 + custom 定义；builtin 行由应用启动
+--     sync_builtin_skills 幂等同步写入，无静态 seed）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS skill (
+    id                BIGSERIAL PRIMARY KEY,
+    skill_id          VARCHAR(100) NOT NULL,
+    label             VARCHAR(100) NOT NULL,
+    kind              VARCHAR(20)  NOT NULL CONSTRAINT chk_skill_kind
+                      CHECK (kind IN ('executable', 'prompt_only', 'doc_only', 'custom')),
+    description       TEXT,
+    is_builtin        BOOLEAN NOT NULL DEFAULT TRUE,
+    owner_user_id     BIGINT REFERENCES "user"(id) ON DELETE CASCADE,
+    published         BOOLEAN NOT NULL DEFAULT FALSE,
+    sort              INT NOT NULL DEFAULT 100,
+    custom_definition JSONB,                             -- custom 专用：{skill_md, system_prompt, user_prompt_template?, sections?[]}
+    version           INT NOT NULL DEFAULT 1,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_skill_skill_id UNIQUE (skill_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_skill_owner ON skill(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_skill_published_sort ON skill(published, sort);
+
+CREATE TABLE IF NOT EXISTS user_skill (
+    id           BIGSERIAL PRIMARY KEY,
+    user_id      BIGINT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    skill_id     VARCHAR(100) NOT NULL REFERENCES skill(skill_id) ON DELETE CASCADE,
+    enabled      BOOLEAN NOT NULL DEFAULT TRUE,
+    sort         INT NOT NULL DEFAULT 100,
+    installed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_user_skill_user_skill UNIQUE (user_id, skill_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_skill_user ON user_skill(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_skill_skill ON user_skill(skill_id);
+
+-- ============================================================
+-- 23. 迭代 2 监测分组数据：FedWatch 概率快照 / 板块收盘快照
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS fed_watch_snapshot (
+    as_of_date         DATE     NOT NULL,               -- CT 数据日期
+    data_as_at         TIMESTAMPTZ NOT NULL,            -- 官网 "Data as of" CT 时刻（aware UTC）
+    current_range_low  INT      NOT NULL,               -- 当前目标区间下限（bps）
+    current_range_high INT      NOT NULL,               -- 当前目标区间上限（bps）
+
+    PRIMARY KEY (as_of_date),
+    CONSTRAINT chk_fed_watch_snapshot_range CHECK (current_range_low < current_range_high)
+);
+
+CREATE TABLE IF NOT EXISTS fed_watch_probability (
+    as_of_date   DATE         NOT NULL,
+    meeting_date DATE         NOT NULL,
+    range_low    INT          NOT NULL,
+    range_high   INT          NOT NULL,
+    probability  DECIMAL(6,3) NOT NULL,                 -- 0-100
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+
+    PRIMARY KEY (as_of_date, meeting_date, range_low),
+    CONSTRAINT chk_fed_watch_probability_value CHECK (probability >= 0 AND probability <= 100),
+    CONSTRAINT chk_fed_watch_probability_range CHECK (range_low < range_high)
+);
+
+SELECT create_hypertable('fed_watch_probability', 'as_of_date', chunk_time_interval => INTERVAL '1 year', if_not_exists => TRUE);
+
+CREATE TABLE IF NOT EXISTS quote_sector_daily (
+    sector_type       VARCHAR(16)  NOT NULL CONSTRAINT chk_quote_sector_daily_type
+                      CHECK (sector_type IN ('industry', 'concept')),
+    sector_code       VARCHAR(16)  NOT NULL,            -- 东财板块代码（BKxxxx）
+    sector_name       VARCHAR(50)  NOT NULL,
+    trade_date        DATE         NOT NULL,
+    close             DECIMAL(16,4),
+    change_pct        DECIMAL(12,4),
+    amount            DECIMAL(20,2),                    -- 成交额（元）
+    turnover_rate     DECIMAL(10,4),                    -- 换手率（%）
+    up_count          INT,
+    down_count        INT,
+    leader_stock_name VARCHAR(50),
+    source            VARCHAR(50),
+    created_at        TIMESTAMPTZ DEFAULT NOW(),
+
+    PRIMARY KEY (sector_type, sector_code, trade_date)
+);
+
+SELECT create_hypertable('quote_sector_daily', 'trade_date', chunk_time_interval => INTERVAL '1 year', if_not_exists => TRUE);
+
+CREATE INDEX IF NOT EXISTS idx_quote_sector_daily_type_date
+    ON quote_sector_daily(sector_type, trade_date DESC);

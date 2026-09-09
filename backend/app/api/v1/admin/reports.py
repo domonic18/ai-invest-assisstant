@@ -2,9 +2,10 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.file_metadata import (
     FileMetadataCreate,
@@ -22,8 +23,8 @@ async def list_reports(
     session: Annotated[AsyncSession, Depends(get_db)],
     stock_code: str | None = None,
     file_type: str | None = None,
-    page: int = 1,
-    page_size: int = 20,
+    page: int = DEFAULT_PAGE,
+    page_size: int = DEFAULT_PAGE_SIZE,
 ) -> PaginatedResponse:
     """查询研报文件列表。"""
     items, total = await AdminReportService(session).list_reports(
@@ -63,11 +64,6 @@ async def get_report(
 ) -> FileMetadataResponse:
     """获取单条研报文件元数据。"""
     report = await AdminReportService(session).get_report(report_id)
-    if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Report not found",
-        )
     return FileMetadataResponse.model_validate(report)
 
 
@@ -79,11 +75,6 @@ async def update_report(
 ) -> FileMetadataResponse:
     """更新研报文件元数据。"""
     report = await AdminReportService(session).update_report(report_id, data)
-    if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Report not found",
-        )
     return FileMetadataResponse.model_validate(report)
 
 
@@ -93,10 +84,4 @@ async def delete_report(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     """删除研报文件元数据。"""
-    try:
-        await AdminReportService(session).delete_report(report_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    await AdminReportService(session).delete_report(report_id)

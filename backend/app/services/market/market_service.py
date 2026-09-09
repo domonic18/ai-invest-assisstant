@@ -51,6 +51,7 @@ get_watchlist_quotes = watchlist_quote_service.get_watchlist_quotes
 
 # 补采
 backfill_trade_date = market_dispatch_service.backfill_trade_date
+collect_market_data = market_dispatch_service.collect_market_data
 
 # 测试中直接调用的私有 API（thin re-export；新代码请直接 import 子服务）。
 _index_spot = index_quotation_service._index_spot

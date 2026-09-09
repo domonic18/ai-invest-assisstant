@@ -5,6 +5,7 @@ from typing import Any
 from langchain_core.tools import tool
 
 from app.agent.tools import db_tools
+from app.agent.tools.market_tools import _parse_trade_date
 from app.core.database import AsyncSessionLocal
 
 NEWS_MAX_DAYS = 180
@@ -31,6 +32,26 @@ async def search_news(
     limit = max(1, min(limit, NEWS_MAX_ROWS))
     async with AsyncSessionLocal() as session:
         return await db_tools.search_news(session, keyword, days, limit, doc_types)
+
+
+@tool
+async def search_news_by_date(
+    start_date: str, end_date: str, limit: int = 30
+) -> list[dict[str, Any]] | dict[str, Any]:
+    """按发布日期区间检索新闻/公告/研报的标题与摘要（不限关键词，按时间倒序）。
+
+    Args:
+        start_date: 起始日期（含），ISO 格式如 "2026-09-03"。
+        end_date: 结束日期（含），ISO 格式如 "2026-09-04"。
+        limit: 返回条数，1-30，默认 30。
+    """
+    start, start_error = _parse_trade_date(start_date)
+    end, end_error = _parse_trade_date(end_date)
+    if start_error or end_error or start is None or end is None:
+        return {"error": "start_date/end_date 均须为 YYYY-MM-DD 格式"}
+    limit = max(1, min(limit, NEWS_MAX_ROWS))
+    async with AsyncSessionLocal() as session:
+        return await db_tools.search_news_by_date(session, start, end, limit)
 
 
 @tool

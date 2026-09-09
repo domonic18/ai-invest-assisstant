@@ -62,8 +62,8 @@ def _minute_rows(day: date, count: int = 100, amount: float = 1e8) -> list[Simpl
 def _patch_daily(rows: list[SimpleNamespace]) -> patch:
     return patch.object(
         index_technical_service,
-        "fetch_daily_bars",
-        AsyncMock(return_value=rows),
+        "fetch_daily_bars_multi",
+        AsyncMock(return_value={code: list(rows) for code in TECH_CODES}),
     )
 
 

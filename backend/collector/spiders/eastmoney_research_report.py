@@ -14,6 +14,7 @@ import structlog
 
 from app.core.clock import today_cn
 from collector.core.base import BaseCollector, CollectResult, CollectStatus
+from collector.core.http_client import DEFAULT_USER_AGENT
 from collector.core.parsing import to_float, to_int, to_optional_str
 
 _str = to_optional_str
@@ -26,11 +27,7 @@ _PAGE_SIZE = 50
 _DOWNLOAD_CONCURRENCY = 5
 
 _HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": DEFAULT_USER_AGENT,
 }
 
 

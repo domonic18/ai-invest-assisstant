@@ -1,6 +1,7 @@
 """产业链分析 skill 后校验契约测试。"""
 
-from unittest.mock import AsyncMock, MagicMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -158,3 +159,54 @@ class TestAlertSchemaCoerce:
     def test_invalid_alert_type_rejected(self) -> None:
         with pytest.raises(ValueError):
             ChainAlertItem(alert_type="异动", severity=2, title="t")
+
+
+@pytest.mark.unit
+class TestAnalyzeIndustryChain:
+    @pytest.mark.asyncio
+    async def test_runs_agent_loop_validates_and_returns(self) -> None:
+        """执行器路径：agent 循环输出合法 JSON → 后置校验剔除幻觉代码。"""
+
+        class _FakeAgent:
+            async def ainvoke(self, payload: dict) -> dict:
+                return {
+                    "messages": [
+                        SimpleNamespace(
+                            content=(
+                                '{"nodes": [{"name": "光刻胶", "type": "upstream", '
+                                '"description": "d", "companies": ['
+                                '{"code": "600703", "name": "A"}, '
+                                '{"code": "999999", "name": "幻觉"}]}], '
+                                '"edges": [], "summary": "s", '
+                                '"key_companies_summary": ['
+                                '{"code": "600703", "name": "A"}]}'
+                            )
+                        )
+                    ]
+                }
+
+        scalars = MagicMock()
+        scalars.all.return_value = ["600703"]
+        session = AsyncMock()
+        session.execute.return_value = MagicMock(scalars=MagicMock(return_value=scalars))
+        cfg = SimpleNamespace(
+            provider="openai", model_name="gpt-4o", api_key="k", base_url=None
+        )
+        with (
+            patch(
+                "app.agent.skills.industry_chain_analysis.resolve_default_llm",
+                AsyncMock(return_value=cfg),
+            ),
+            patch(
+                "app.agent.skills.industry_chain_analysis.build_langchain_model",
+                lambda _cfg: object(),
+            ),
+            patch("deepagents.create_deep_agent", return_value=_FakeAgent()),
+        ):
+            result = await industry_chain_analysis.analyze_industry_chain(
+                session, "半导体"
+            )
+
+        assert result.nodes[0].companies[0].code == "600703"
+        assert len(result.nodes[0].companies) == 1
+        assert result.key_companies_summary[0].code == "600703"

@@ -10,28 +10,19 @@
    Inspired by SquadSight: dark, professional, tech-driven
    ====================================================== */
 :root {
-  /* Background */
   --bg: #0c0e12;
   --bg-elevated: #111318;
   --bg-surface: #181a21;
   --bg-hover: #1c1f26;
-
-  /* Borders */
   --border: #23262d;
   --border-hover: #2e323c;
   --border-focus: #5e6ad2;
-
-  /* Text */
   --text-primary: #f0f1f5;
   --text-secondary: #8a8f98;
   --text-tertiary: #5c616e;
-
-  /* Brand */
   --accent: #5e6ad2;
   --accent-hover: #6872e3;
   --accent-soft: rgba(94, 106, 210, 0.12);
-
-  /* Semantic */
   --green: #2ea043;
   --green-soft: rgba(46, 160, 67, 0.12);
   --red: #f85149;
@@ -40,132 +31,70 @@
   --amber-soft: rgba(210, 153, 34, 0.12);
   --blue: #58a6ff;
   --blue-soft: rgba(88, 166, 255, 0.12);
-
-  /* Typography */
   --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-
-  /* Radius */
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
-  --radius-xl: 16px;
-
-  /* Shadows */
   --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
-  --shadow-md: 0 4px 6px rgba(0,0,0,.4);
-  --shadow-lg: 0 10px 25px rgba(0,0,0,.5);
-
-  /* Layout */
   --sidebar-w: 220px;
   --header-h: 56px;
-
-  /* Transitions */
   --transition: 200ms ease;
-  --transition-fast: 150ms ease;
-  --transition-normal: 200ms ease;
   --text-xs: 11px;
   --text-sm: 13px;
   --text-base: 14px;
-  --text-lg: 16px;
-  --text-xl: 20px;
-  --text-2xl: 24px;
-  --text-3xl: 32px;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-10: 40px;
-  --space-12: 48px;
-
 }
-
-/* Reset */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; }
 body {
-  font-family: var(--font);
-  font-size: 14px;
-  color: var(--text-primary);
-  background: var(--bg);
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
+  font-family: var(--font); font-size: 14px; color: var(--text-primary);
+  background: var(--bg); line-height: 1.5; -webkit-font-smoothing: antialiased;
 }
-
-/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
-
-/* Selection */
 ::selection { background: var(--accent-soft); color: var(--text-primary); }
 a { color: var(--accent); text-decoration: none; transition: color var(--transition); }
 a:hover { color: var(--accent-hover); }
 
 /* ======= Layout ======= */
-.app-layout { display: flex; height: 100vh; }
+.app-layout { display: flex; min-height: 100vh; }
 .app-sidebar {
   width: var(--sidebar-w); background: var(--bg-elevated);
   border-right: 1px solid var(--border); display: flex; flex-direction: column;
-  flex-shrink: 0; overflow-y: auto;
+  flex-shrink: 0; position: sticky; top: 0; height: 100vh; overflow-y: auto;
 }
-.app-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.app-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .app-header {
   height: var(--header-h); background: var(--bg-elevated);
   border-bottom: 1px solid var(--border); display: flex; align-items: center;
   justify-content: space-between; padding: 0 20px; flex-shrink: 0;
+  position: sticky; top: 0; z-index: 10;
 }
-.app-content { flex: 1; overflow-y: auto; padding: 24px; }
+.app-content { padding: 24px; max-width: 1440px; width: 100%; margin: 0 auto; }
 
 /* ======= Sidebar ======= */
 .sidebar-brand { padding: 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
-.sidebar-logo {
-  width: 34px; height: 34px; background: var(--accent); border-radius: var(--radius-md);
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
+.sidebar-logo { width: 34px; height: 34px; background: var(--accent); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .sidebar-logo svg { width: 18px; height: 18px; }
-.sidebar-brand-text { font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -.01em; }
+.sidebar-brand-text { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
 .sidebar-version { font-size: 10px; color: var(--text-tertiary); margin-left: auto; }
 .sidebar-nav { padding: 8px; flex: 1; }
-.sidebar-section-title {
-  font-size: 10px; color: var(--text-tertiary); text-transform: uppercase;
-  letter-spacing: .08em; padding: 12px 10px 6px; font-weight: 600;
-}
+.sidebar-section-title { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .08em; padding: 12px 10px 6px; font-weight: 600; }
 .sidebar-item {
   display: flex; align-items: center; gap: 10px; padding: 7px 10px;
   border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary);
-  text-decoration: none; cursor: pointer; transition: all var(--transition);
+  cursor: pointer; transition: all var(--transition);
 }
 .sidebar-item:hover { background: var(--bg-hover); color: var(--text-primary); }
 .sidebar-item.active { background: var(--accent-soft); color: var(--accent); }
 .sidebar-item-icon { opacity: .5; width: 16px; font-size: 12px; text-align: center; }
 .sidebar-item.active .sidebar-item-icon { opacity: 1; }
-.sidebar-footer {
-  padding: 12px 16px; border-top: 1px solid var(--border);
-  display: flex; align-items: center; gap: 10px;
-}
-.sidebar-avatar {
-  width: 30px; height: 30px; border-radius: 50%; background: var(--accent);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 600; color: #fff; flex-shrink: 0;
-}
+.sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.sidebar-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; flex-shrink: 0; }
 .sidebar-user-info { font-size: 12px; color: var(--text-secondary); }
 .sidebar-user-name { color: var(--text-primary); font-weight: 500; }
 
 /* ======= Header ======= */
-.header-search {
-  width: 260px; padding: 7px 12px; background: var(--bg-surface);
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  font-size: 13px; color: var(--text-primary); outline: none;
-  transition: border var(--transition);
-}
-.header-search::placeholder { color: var(--text-tertiary); }
-.header-search:focus { border-color: var(--border-focus); }
-.header-actions { display: flex; align-items: center; gap: 8px; }
 .header-btn {
   width: 34px; height: 34px; border-radius: var(--radius-sm);
   background: transparent; border: none; color: var(--text-secondary);
@@ -174,69 +103,30 @@ a:hover { color: var(--accent-hover); }
 }
 .header-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
-/* ======= Cards ======= */
-.card {
-  background: var(--bg-elevated); border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-}
-.card-header {
-  padding: 14px 20px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-}
-.card-title { font-size: 14px; font-weight: 600; color: var(--text-primary); letter-spacing: -.01em; }
-.card-body { padding: 20px; }
-.card-body-sm { padding: 14px; }
-
-/* ======= Stats ======= */
-.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
-.stat-card {
-  background: var(--bg-elevated); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); padding: 18px 20px;
-  display: flex; flex-direction: column; gap: 6px;
-}
-.stat-label { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .05em; font-weight: 500; }
-.stat-value { font-size: 24px; font-weight: 700; color: var(--text-primary); letter-spacing: -.02em; }
-.stat-change { font-size: 11px; font-weight: 500; }
-.stat-change.up { color: var(--green); }
-.stat-change.down { color: var(--red); }
-
-/* ======= Tables ======= */
+/* ======= Cards / Tables / Buttons / Tags ======= */
+.card { background: var(--bg-elevated); border-radius: var(--radius-lg); }
+.card-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.card-title { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 thead { border-bottom: 1px solid var(--border); }
-th {
-  text-align: left; padding: 10px 14px; font-weight: 500; color: var(--text-tertiary);
-  font-size: 11px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap;
-}
+th { text-align: left; padding: 10px 14px; font-weight: 500; color: var(--text-tertiary); font-size: 11px; white-space: nowrap; }
 td { padding: 10px 14px; color: var(--text-secondary); border-bottom: 1px solid var(--border); white-space: nowrap; }
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: var(--bg-hover); }
-
-/* ======= Buttons ======= */
 .btn {
   display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
   border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
-  border: 1px solid transparent; cursor: pointer;
-  transition: all var(--transition); letter-spacing: .01em;
+  border: 1px solid transparent; cursor: pointer; transition: all var(--transition);
 }
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-primary:hover { background: var(--accent-hover); }
 .btn-secondary { background: var(--bg-surface); color: var(--text-secondary); border-color: var(--border); }
-.btn-secondary:hover { background: var(--bg-hover); border-color: var(--border-hover); color: var(--text-primary); }
+.btn-secondary:hover { background: var(--bg-hover); color: var(--text-primary); }
 .btn-ghost { background: transparent; color: var(--text-secondary); }
 .btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
-.btn-danger { background: var(--red); color: #fff; }
-.btn-danger:hover { background: #e0483f; }
-.btn-outline { background: transparent; color: var(--text-secondary); border-color: var(--border); }
-.btn-outline:hover { background: var(--bg-hover); border-color: var(--border-hover); color: var(--text-primary); }
-.btn-sm { padding: 5px 10px; font-size: 12px; }
-.btn-lg { padding: 10px 24px; font-size: 14px; }
-
-/* ======= Tags ======= */
-.tag {
-  display: inline-flex; align-items: center; padding: 2px 8px;
-  border-radius: 4px; font-size: 11px; font-weight: 500;
-}
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.tag { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--bg-surface); color: var(--text-secondary); }
 .tag-green { background: var(--green-soft); color: var(--green); }
 .tag-red { background: var(--red-soft); color: var(--red); }
 .tag-amber { background: var(--amber-soft); color: var(--amber); }
@@ -244,113 +134,139 @@ tr:hover td { background: var(--bg-hover); }
 .tag-purple { background: var(--accent-soft); color: var(--accent); }
 
 /* ======= Forms ======= */
-.form-group { margin-bottom: 16px; }
-.form-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
-.form-input, .form-select, .form-textarea {
-  width: 100%; padding: 8px 12px; font-size: 13px; color: var(--text-primary);
+.form-input, .form-select {
+  padding: 7px 12px; font-size: 13px; color: var(--text-primary);
   background: var(--bg-surface); border: 1px solid var(--border);
   border-radius: var(--radius-sm); outline: none; transition: border var(--transition);
 }
-.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--border-focus); }
+.form-input:focus, .form-select:focus { border-color: var(--border-focus); }
 .form-input::placeholder { color: var(--text-tertiary); }
-.form-hint { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
-.form-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235c616e' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+.form-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235c616e' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; cursor: pointer; }
 
-/* ======= Grids ======= */
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
-.grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
-.gap-4 { gap: 14px; }
-.mb-4 { margin-bottom: 14px; }
-.mb-6 { margin-bottom: 24px; }
-.text-right { text-align: right; }
-.text-center { text-align: center; }
-.text-muted { color: var(--text-secondary); }
-.text-mono { font-family: var(--font-mono); }
-.flex { display: flex; }
-.flex-col { flex-direction: column; }
-.items-center { align-items: center; }
-.justify-between { justify-content: space-between; }
-.page-title { font-size: 20px; font-weight: 600; color: var(--text-primary); letter-spacing: -.01em; margin-bottom: 24px; }
-.divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+/* ======= Misc ======= */
+.text-mono { font-family: var(--font-mono); font-size: 12px; }
+.text-danger { color: var(--red); font-size: 12px; }
+.text-up { color: #f85149; }
+.text-down { color: #2ea043; }
 
-/* ======= Analysis Meter ======= */
-.analysis-meter { height: 6px; border-radius: 3px; background: var(--bg-surface); overflow: hidden; }
-.analysis-meter-fill { height: 100%; border-radius: 3px; }
-
-/* ======= Notification ======= */
-.notification-dot {
-  position: absolute; top: 7px; right: 7px; width: 6px; height: 6px;
-  background: var(--red); border-radius: 50%;
-}
-
-</style>
-<style>
-.admin-panel {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-.admin-panel-header {
-  padding: var(--space-4) var(--space-6);
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-}
-.admin-panel-title { font-size: var(--text-base); font-weight: 600; color: var(--text-primary); }
-.admin-panel-body { padding: var(--space-5); }
-
-.admin-toolbar {
-  display: flex; gap: var(--space-3); align-items: center;
-  margin-bottom: var(--space-4);
-  flex-wrap: wrap;
-}
-
-.btn-outline { background: transparent; color: var(--text-secondary); border-color: var(--border-hover); }
-.btn-outline:hover { background: var(--bg-hover); color: var(--text-primary); }
-
-.page-block { margin-bottom: var(--space-10); scroll-margin-top: 16px; }
+/* ======= Admin page-block ======= */
+.page-title { font-size: 20px; font-weight: 600; letter-spacing: -.01em; margin-bottom: 24px; }
+.page-block { margin-bottom: 48px; scroll-margin-top: 72px; }
 .page-block-label {
-  display: flex; align-items: center; gap: 10px;
-  margin-bottom: var(--space-3);
-  font-size: var(--text-xs); color: var(--text-tertiary);
-  font-weight: 600; letter-spacing: .05em;
+  display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+  font-size: 11px; color: var(--text-tertiary); font-weight: 600; letter-spacing: .05em;
 }
 .page-block-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-
-.entry-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); margin-bottom: var(--space-5); }
-.entry-card {
-  display: flex; align-items: center; gap: 12px;
-  padding: var(--space-4); background: var(--bg-surface);
-  border: 1px solid var(--border); border-radius: var(--radius-md);
-  cursor: pointer; transition: border-color var(--transition-fast);
-  text-decoration: none;
+.route-badge {
+  font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary);
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 6px; font-weight: 400; letter-spacing: 0;
 }
-.entry-card:hover { border-color: var(--accent); }
+
+/* 主页入口卡片（对齐 Admin.tsx Row/Col lg=6 四列 + tailwind 色板） */
+.entry-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.entry-card {
+  display: flex; align-items: center; gap: 12px; padding: 16px;
+  background: var(--bg-elevated); border-radius: var(--radius-lg);
+  cursor: pointer; transition: opacity var(--transition); text-decoration: none;
+}
+.entry-card:hover { opacity: .8; }
 .entry-icon {
-  width: 36px; height: 36px; border-radius: var(--radius-md);
+  width: 36px; height: 36px; border-radius: var(--radius-sm);
   display: flex; align-items: center; justify-content: center;
   font-size: 16px; flex-shrink: 0;
 }
-.entry-name { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); }
-.entry-desc { font-size: var(--text-xs); color: var(--text-tertiary); margin-top: 2px; }
+.entry-name { font-size: 14px; font-weight: 500; color: var(--text-primary); }
 
-.trigger-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); margin-bottom: var(--space-5); }
+/* 表格上方工具行 */
+.admin-toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 
-.sub-tabs {
-  display: flex; gap: 4px; padding: 4px;
-  background: var(--bg-surface); border: 1px solid var(--border);
-  border-radius: var(--radius-md); width: fit-content;
-  margin-bottom: var(--space-4);
+/* 说明 Alert */
+.info-alert {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--blue-soft); border: 1px solid rgba(88,166,255,.25);
+  border-radius: var(--radius-md); padding: 10px 14px; margin-bottom: 16px;
+  font-size: 12px; color: var(--text-secondary); line-height: 1.6;
 }
-.sub-tab { padding: 5px 14px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--text-secondary); cursor: pointer; }
+.info-alert .ia-icon { color: var(--blue); flex-shrink: 0; font-size: 14px; line-height: 1.4; }
+
+/* 子页 Tabs（采集渠道两视图 / AI 结果 skill tabs） */
+.sub-tabs {
+  display: flex; gap: 4px; padding: 4px; background: var(--bg-surface);
+  border: 1px solid var(--border); border-radius: var(--radius-md); width: fit-content;
+  margin-bottom: 16px;
+}
+.sub-tab { padding: 5px 14px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary); cursor: pointer; }
 .sub-tab.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
 
-.sidebar-sub { margin-left: 26px; display: flex; flex-direction: column; gap: 1px; }
-.sidebar-sub .sidebar-item { font-size: 12px; padding: 5px 10px; }
+/* 开关（antd Switch 示意） */
+.switch {
+  width: 32px; height: 18px; border-radius: 9px; background: var(--border-hover);
+  position: relative; cursor: pointer; transition: background var(--transition); flex-shrink: 0;
+}
+.switch::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+  border-radius: 50%; background: #fff; transition: left var(--transition);
+}
+.switch.on { background: var(--accent); }
+.switch.on::after { left: 16px; }
 
-.text-danger { color: var(--red); font-size: var(--text-xs); }
+/* 采集任务按钮组 */
+.task-btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+
+/* 分页 */
+.pager { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 14px 2px; font-size: 12px; color: var(--text-tertiary); }
+.pager .pg-btn {
+  min-width: 26px; height: 26px; border-radius: var(--radius-sm); background: var(--bg-surface);
+  border: 1px solid var(--border); color: var(--text-secondary); display: inline-flex;
+  align-items: center; justify-content: center; cursor: pointer; font-size: 12px;
+}
+.pager .pg-btn.cur { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* AI 结果详情抽屉示意 */
+.drawer-demo {
+  width: 560px; max-width: 100%; margin-top: 16px;
+  background: var(--bg-elevated); border: 1px solid var(--border-hover);
+  border-radius: var(--radius-lg); box-shadow: 0 10px 25px rgba(0,0,0,.5);
+  overflow: hidden;
+}
+.drawer-demo-header {
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.desc-grid { padding: 16px 20px; }
+.desc-row { display: flex; font-size: 12px; border: 1px solid var(--border); }
+.desc-row + .desc-row { border-top: none; }
+.desc-key { width: 100px; padding: 8px 12px; color: var(--text-tertiary); background: var(--bg-surface); border-right: 1px solid var(--border); flex-shrink: 0; }
+.desc-val { padding: 8px 12px; color: var(--text-primary); }
+.json-block {
+  margin: 0 20px 20px; padding: 14px; background: #0a0c10;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.7;
+  color: var(--text-secondary); white-space: pre; overflow-x: auto;
+}
+.json-block .jk { color: var(--blue); }
+.json-block .js { color: var(--green); }
+.json-block .jn { color: var(--amber); }
+
+/* 优先级面板操作按钮 */
+.mini-btn {
+  width: 24px; height: 24px; border-radius: var(--radius-sm); background: var(--bg-surface);
+  border: 1px solid var(--border); color: var(--text-secondary); display: inline-flex;
+  align-items: center; justify-content: center; cursor: pointer; font-size: 11px;
+  transition: all var(--transition);
+}
+.mini-btn:hover { border-color: var(--border-hover); color: var(--text-primary); }
+.mini-btn.danger:hover { border-color: var(--red); color: var(--red); }
+.mini-btn:disabled { opacity: .35; cursor: default; }
+
+/* 实现说明 */
+.type-note {
+  margin-top: 40px; padding: 16px 20px; background: var(--bg-elevated);
+  border: 1px dashed var(--border-hover); border-radius: var(--radius-lg);
+  font-size: 12px; color: var(--text-secondary); line-height: 1.9;
+}
+.type-note b { color: var(--text-primary); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -366,415 +282,636 @@ tr:hover td { background: var(--bg-hover); }
 
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
-<div class="sidebar-section-title">复盘</div>
-
-<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
+<a class="sidebar-item" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
-<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
 <a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
-<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
-<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
-<a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
-<a class="sidebar-item" href="financial-reports.html"><span class="sidebar-item-icon">◈</span><span>财报中心</span></a>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
+<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
-<a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
-<div class="sidebar-sub">
-<a class="sidebar-item active" href="#p1">管理总览</a>
-<a class="sidebar-item" href="#p2">用户管理</a>
-<a class="sidebar-item" href="#p3">股票管理</a>
-<a class="sidebar-item" href="#p4">研报管理</a>
-<a class="sidebar-item" href="#p5">资讯管理</a>
-<a class="sidebar-item" href="#p6">任务管理</a>
-<a class="sidebar-item" href="#p7">LLM 配置</a>
-<a class="sidebar-item" href="#p8">采集渠道</a>
-<a class="sidebar-item" href="#p9">采集任务</a>
-</div>
+<a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
+<a class="sidebar-item active" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
 </nav>
 <div class="sidebar-footer"><div class="sidebar-avatar">A</div><div class="sidebar-user-info"><div class="sidebar-user-name">管理员</div><div>超级管理员</div></div></div>
-</aside>
+  </aside>
 
   <div class="app-main">
     <header class="app-header">
-      <div style="display:flex;align-items:center;gap:var(--space-3)">
-        <span style="font-size:var(--text-sm);color:var(--text-tertiary);font-weight:500">后台管理 /</span>
-        <span id="admin-breadcrumb" style="font-size:var(--text-sm);color:var(--text-primary);font-weight:500">系统概览</span>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:13px;color:var(--text-tertiary);font-weight:500">后台管理 /</span>
+        <span id="admin-breadcrumb" style="font-size:13px;color:var(--text-primary);font-weight:500">主页</span>
       </div>
-      <div style="display:flex;align-items:center;gap:var(--space-3)">
-        <span style="font-size:var(--text-xs);color:var(--text-tertiary)">超级管理员</span>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:11px;color:var(--text-tertiary)">超级管理员</span>
         <button class="header-btn">⚙</button>
       </div>
     </header>
 
     <div class="app-content">
-      <h1 class="page-title">后台管理</h1>
 
-      <!-- ========== 页面 1/10 管理总览 ========== -->
+      <!-- ==================================================
+           页面 1/11 · 后台主页 /admin
+           实际代码：Admin.tsx — ADMIN_LINKS 十入口卡片（四列栅格）
+           + 最近采集日志（10 条，size=small）
+           ================================================== -->
       <div class="page-block" id="p1">
-        <div class="page-block-label">页面 1/10 · 管理总览</div>
+        <div class="page-block-label">页面 1/11 · 后台主页 <span class="route-badge">/admin</span></div>
+
+        <h1 class="page-title">后台管理</h1>
 
         <div class="entry-grid">
-          <a class="entry-card" href="#p2"><div class="entry-icon" style="background:var(--blue-soft);color:var(--blue)">👥</div><div><div class="entry-name">用户管理</div><div class="entry-desc">账号 · 角色 · 状态</div></div></a>
-          <a class="entry-card" href="#p3"><div class="entry-icon" style="background:var(--accent-soft);color:var(--accent)">📈</div><div><div class="entry-name">股票管理</div><div class="entry-desc">5,421 只标的</div></div></a>
-          <a class="entry-card" href="#p4"><div class="entry-icon" style="background:var(--amber-soft);color:var(--amber)">📄</div><div><div class="entry-name">研报管理</div><div class="entry-desc">1,248 份研报</div></div></a>
-          <a class="entry-card" href="#p5"><div class="entry-icon" style="background:var(--red-soft);color:var(--red)">📰</div><div><div class="entry-name">资讯管理</div><div class="entry-desc">新闻 · 公告</div></div></a>
-          <a class="entry-card" href="#p6"><div class="entry-icon" style="background:var(--green-soft);color:var(--green)">⏱</div><div><div class="entry-name">任务管理</div><div class="entry-desc">定时采集任务</div></div></a>
-          <a class="entry-card" href="#p7"><div class="entry-icon" style="background:var(--accent-soft);color:var(--accent)">✦</div><div><div class="entry-name">LLM 配置</div><div class="entry-desc">模型供应商</div></div></a>
-          <a class="entry-card" href="#p8"><div class="entry-icon" style="background:var(--blue-soft);color:var(--blue)">🔌</div><div><div class="entry-name">采集渠道</div><div class="entry-desc">数据源配置</div></div></a>
-          <a class="entry-card" href="#p9"><div class="entry-icon" style="background:var(--green-soft);color:var(--green)">▶</div><div><div class="entry-name">采集任务</div><div class="entry-desc">手动触发采集</div></div></a>
+          <a class="entry-card" href="#p2" data-crumb="用户管理"><div class="entry-icon" style="background:rgba(59,130,246,.1);color:#60a5fa">👥</div><div class="entry-name">用户管理</div></a>
+          <a class="entry-card" href="#p3" data-crumb="股票管理"><div class="entry-icon" style="background:rgba(34,197,94,.1);color:#4ade80">📈</div><div class="entry-name">股票管理</div></a>
+          <a class="entry-card" href="#p4" data-crumb="研报管理"><div class="entry-icon" style="background:rgba(168,85,247,.1);color:#c084fc">📄</div><div class="entry-name">研报管理</div></a>
+          <a class="entry-card" href="#p5" data-crumb="资讯管理"><div class="entry-icon" style="background:rgba(249,115,22,.1);color:#fb923c">📰</div><div class="entry-name">资讯管理</div></a>
+          <a class="entry-card" href="#p6" data-crumb="任务管理"><div class="entry-icon" style="background:rgba(6,182,212,.1);color:#22d3ee">🗂</div><div class="entry-name">任务管理</div></a>
+          <a class="entry-card" href="#p7" data-crumb="LLM 配置"><div class="entry-icon" style="background:rgba(236,72,153,.1);color:#f472b6">🤖</div><div class="entry-name">LLM 配置</div></a>
+          <a class="entry-card" href="#p8" data-crumb="AI 结果管理"><div class="entry-icon" style="background:rgba(20,184,166,.1);color:#2dd4bf">✅</div><div class="entry-name">AI 结果管理</div></a>
+          <a class="entry-card" href="#p9" data-crumb="跟踪指数"><div class="entry-icon" style="background:rgba(245,158,11,.1);color:#fbbf24">📊</div><div class="entry-name">跟踪指数</div></a>
+          <a class="entry-card" href="#p10" data-crumb="采集渠道"><div class="entry-icon" style="background:rgba(107,114,128,.12);color:#9ca3af">⚙</div><div class="entry-name">采集渠道</div></a>
+          <a class="entry-card" href="#p11" data-crumb="采集任务"><div class="entry-icon" style="background:rgba(99,102,241,.1);color:#818cf8">▶</div><div class="entry-name">采集任务</div></a>
         </div>
 
-        <div class="admin-panel">
-          <div class="admin-panel-header"><span class="admin-panel-title">最近采集日志</span></div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">最近采集日志</span>
+            <a href="#p11" data-crumb="采集任务" style="font-size:13px">查看更多</a>
+          </div>
           <div class="table-wrap">
             <table>
               <thead><tr><th>任务</th><th>来源</th><th>状态</th><th>记录数</th><th>开始时间</th><th>错误</th></tr></thead>
               <tbody>
-                <tr><td>个股日K线</td><td>tushare</td><td><span class="tag tag-green">成功</span></td><td class="text-mono">5,421</td><td class="text-mono">2026-07-23 15:35</td><td>—</td></tr>
-                <tr><td>集合竞价</td><td>tushare</td><td><span class="tag tag-green">成功</span></td><td class="text-mono">5,386</td><td class="text-mono">2026-07-23 09:26</td><td>—</td></tr>
-                <tr><td>板块资金流向</td><td>ths</td><td><span class="tag tag-green">成功</span></td><td class="text-mono">31</td><td class="text-mono">2026-07-23 15:40</td><td>—</td></tr>
-                <tr><td>新闻资讯</td><td>eastmoney</td><td><span class="tag tag-red">失败</span></td><td class="text-mono">0</td><td class="text-mono">2026-07-23 14:00</td><td><span class="text-danger">连接超时，已重试 3 次</span></td></tr>
+                <tr><td>个股日K线</td><td>Tushare Pro</td><td><span class="tag tag-green">成功</span></td><td class="text-mono">5,421</td><td class="text-mono">2026-09-07 15:35:02</td><td>—</td></tr>
+                <tr><td>集合竞价</td><td>Tushare Pro</td><td><span class="tag tag-green">成功</span></td><td class="text-mono">5,386</td><td class="text-mono">2026-09-07 09:26:10</td><td>—</td></tr>
+                <tr><td>板块资金流向</td><td>同花顺</td><td><span class="tag tag-green">成功</span></td><td class="text-mono">431</td><td class="text-mono">2026-09-07 15:40:33</td><td>—</td></tr>
+                <tr><td>新闻资讯</td><td>东方财富</td><td><span class="tag tag-red">失败</span></td><td class="text-mono">0</td><td class="text-mono">2026-09-07 14:00:11</td><td><span class="text-danger">连接超时，已重试 3 次</span></td></tr>
+                <tr><td>产业链采集</td><td>AKShare</td><td><span class="tag tag-blue">运行中</span></td><td>—</td><td class="text-mono">2026-09-07 16:02:45</td><td>—</td></tr>
               </tbody>
             </table>
           </div>
         </div>
       </div>
 
-      <!-- ========== 页面 2/10 用户管理 ========== -->
+      <!-- ==================================================
+           页面 2/11 · 用户管理 /admin/users
+           ================================================== -->
       <div class="page-block" id="p2">
-        <div class="page-block-label">页面 2/10 · 用户管理</div>
-        <div class="admin-panel">
-          <div class="admin-panel-header"><span class="admin-panel-title">用户管理</span></div>
-          <div class="admin-panel-body">
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>用户名</th><th>邮箱</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
-                <tbody>
-                  <tr>
-                    <td>Domonic</td><td>domonic@example.com</td><td><span class="tag tag-purple">管理员</span></td>
-                    <td><span class="tag tag-green">正常</span></td><td class="text-mono">2026-01-15</td>
-                    <td><button class="btn btn-ghost btn-sm">重置密码</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td>zhangwei</td><td>zhangwei@example.com</td><td><span class="tag">普通用户</span></td>
-                    <td><span class="tag tag-green">正常</span></td><td class="text-mono">2026-03-02</td>
-                    <td><button class="btn btn-ghost btn-sm">重置密码</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td>liming</td><td>liming@example.com</td><td><span class="tag">普通用户</span></td>
-                    <td><span class="tag tag-red">已禁用</span></td><td class="text-mono">2026-04-18</td>
-                    <td><button class="btn btn-ghost btn-sm">重置密码</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+        <div class="page-block-label">页面 2/11 · 用户管理 <span class="route-badge">/admin/users</span></div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">用户管理</span>
+            <button class="btn btn-primary btn-sm">＋ 新增用户</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>用户名</th><th>邮箱</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td style="color:var(--text-primary)">Domonic</td><td>domonic@example.com</td><td><span class="tag tag-purple">admin</span></td>
+                  <td><span class="tag tag-green">启用</span></td><td class="text-mono">2026-01-15 10:22:08</td>
+                  <td><button class="btn btn-ghost btn-sm">🔑 重置密码</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td style="color:var(--text-primary)">zhangwei</td><td>zhangwei@example.com</td><td><span class="tag">user</span></td>
+                  <td><span class="tag tag-green">启用</span></td><td class="text-mono">2026-03-02 14:05:41</td>
+                  <td><button class="btn btn-ghost btn-sm">🔑 重置密码</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td style="color:var(--text-primary)">liming</td><td>liming@example.com</td><td><span class="tag">user</span></td>
+                  <td><span class="tag">禁用</span></td><td class="text-mono">2026-04-18 09:11:27</td>
+                  <td><button class="btn btn-ghost btn-sm">🔑 重置密码</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      <!-- ========== 页面 3/10 股票管理 ========== -->
+      <!-- ==================================================
+           页面 3/11 · 股票管理 /admin/stocks
+           ================================================== -->
       <div class="page-block" id="p3">
-        <div class="page-block-label">页面 3/10 · 股票管理</div>
-        <div class="admin-panel">
-          <div class="admin-panel-header"><span class="admin-panel-title">股票管理</span></div>
-          <div class="admin-panel-body">
-            <div class="admin-toolbar">
+        <div class="page-block-label">页面 3/11 · 股票管理 <span class="route-badge">/admin/stocks</span></div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">股票管理</span>
+            <button class="btn btn-primary btn-sm">＋ 新增股票</button>
+          </div>
+          <div style="padding:16px 20px 0">
+            <div class="admin-toolbar" style="margin-bottom:0">
               <input class="form-input" type="text" placeholder="搜索代码或名称…" style="width:220px">
               <button class="btn btn-secondary btn-sm">搜索</button>
             </div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>代码</th><th>名称</th><th>公司全称</th><th>市场</th><th>一级行业</th><th>二级行业</th><th>三级行业</th><th>上市日期</th><th>操作</th></tr></thead>
-                <tbody>
-                  <tr>
-                    <td class="text-mono">002371</td><td>北方华创</td><td style="white-space:normal">北方华创科技集团股份有限公司</td>
-                    <td>深市</td><td>电子</td><td>半导体</td><td>半导体设备</td><td class="text-mono">2010-03-16</td>
-                    <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td class="text-mono">688981</td><td>中芯国际</td><td style="white-space:normal">中芯国际集成电路制造有限公司</td>
-                    <td>沪市</td><td>电子</td><td>半导体</td><td>晶圆制造</td><td class="text-mono">2020-07-16</td>
-                    <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td class="text-mono">600519</td><td>贵州茅台</td><td style="white-space:normal">贵州茅台酒股份有限公司</td>
-                    <td>沪市</td><td>食品饮料</td><td>白酒Ⅱ</td><td>白酒Ⅲ</td><td class="text-mono">2001-08-27</td>
-                    <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
           </div>
+          <div class="table-wrap" style="margin-top:8px">
+            <table>
+              <thead><tr><th>股票代码</th><th>股票名称</th><th>公司全称</th><th>市场</th><th>一级行业</th><th>二级行业</th><th>三级行业</th><th>上市日期</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td class="text-mono">002371</td><td style="color:var(--text-primary)">北方华创</td><td style="white-space:normal">北方华创科技集团股份有限公司</td>
+                  <td>深市</td><td>电子</td><td>半导体</td><td>半导体设备</td><td class="text-mono">2010-03-16</td>
+                  <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td class="text-mono">688981</td><td style="color:var(--text-primary)">中芯国际</td><td style="white-space:normal">中芯国际集成电路制造有限公司</td>
+                  <td>沪市</td><td>电子</td><td>半导体</td><td>晶圆制造</td><td class="text-mono">2020-07-16</td>
+                  <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td class="text-mono">600519</td><td style="color:var(--text-primary)">贵州茅台</td><td style="white-space:normal">中国贵州茅台酒厂（集团）有限责任公司</td>
+                  <td>沪市</td><td>食品饮料</td><td>白酒</td><td>白酒</td><td class="text-mono">2001-08-27</td>
+                  <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td class="text-mono">300750</td><td style="color:var(--text-primary)">宁德时代</td><td style="white-space:normal">宁德时代新能源科技股份有限公司</td>
+                  <td>深市</td><td>电力设备</td><td>电池</td><td>锂电池</td><td class="text-mono">2018-06-11</td>
+                  <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pager">共 5,421 条 <span class="pg-btn">‹</span><span class="pg-btn cur">1</span><span class="pg-btn">2</span><span class="pg-btn">3</span><span class="pg-btn">…</span><span class="pg-btn">136</span><span class="pg-btn">›</span> 20 条/页</div>
         </div>
       </div>
 
-      <!-- ========== 页面 4/10 研报管理 ========== -->
+      <!-- ==================================================
+           页面 4/11 · 研报管理 /admin/reports
+           ================================================== -->
       <div class="page-block" id="p4">
-        <div class="page-block-label">页面 4/10 · 研报管理</div>
-        <div class="admin-panel">
-          <div class="admin-panel-header"><span class="admin-panel-title">研报管理</span></div>
-          <div class="admin-panel-body">
-            <div class="admin-toolbar">
-              <select class="form-select" style="width:120px"><option>全部类型</option><option>个股研报</option><option>行业研报</option></select>
-              <select class="form-select" style="width:130px"><option>全部券商</option><option>中信证券</option><option>华泰证券</option><option>中金公司</option></select>
-              <input class="form-input" type="text" placeholder="搜索文件名或标的…" style="width:200px">
-              <button class="btn btn-secondary btn-sm">搜索</button>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>文件路径</th><th>原文件名</th><th>类型</th><th>代码</th><th>名称</th><th>报告日期</th><th>报告类型</th><th>券商</th><th>大小</th><th>下载</th><th>操作</th></tr></thead>
-                <tbody>
-                  <tr>
-                    <td class="text-mono" style="max-width:180px;overflow:hidden;text-overflow:ellipsis">research/2026/07/a1b2.pdf</td>
-                    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">北方华创-深度报告.pdf</td>
-                    <td><span class="tag tag-blue">个股</span></td><td class="text-mono">002371</td><td>北方华创</td>
-                    <td class="text-mono">2026-07-04</td><td>公司深度</td><td>中信证券</td><td class="text-mono">2.4MB</td><td class="text-mono">128</td>
-                    <td><button class="btn btn-ghost btn-sm">下载</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td class="text-mono" style="max-width:180px;overflow:hidden;text-overflow:ellipsis">research/2026/07/c3d4.pdf</td>
-                    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">半导体设备行业研究.pdf</td>
-                    <td><span class="tag tag-purple">行业</span></td><td>—</td><td>—</td>
-                    <td class="text-mono">2026-07-03</td><td>行业研究</td><td>华泰证券</td><td class="text-mono">5.1MB</td><td class="text-mono">86</td>
-                    <td><button class="btn btn-ghost btn-sm">下载</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td class="text-mono" style="max-width:180px;overflow:hidden;text-overflow:ellipsis">research/2026/07/e5f6.pdf</td>
-                    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">中芯国际-季报点评.pdf</td>
-                    <td><span class="tag tag-blue">个股</span></td><td class="text-mono">688981</td><td>中芯国际</td>
-                    <td class="text-mono">2026-07-02</td><td>季报点评</td><td>中金公司</td><td class="text-mono">1.8MB</td><td class="text-mono">64</td>
-                    <td><button class="btn btn-ghost btn-sm">下载</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+        <div class="page-block-label">页面 4/11 · 研报管理 <span class="route-badge">/admin/reports</span></div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">研报管理</span>
+            <button class="btn btn-primary btn-sm">＋ 上传研报</button>
           </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>文件路径</th><th>原文件名</th><th>类型</th><th>股票代码</th><th>股票名称</th><th>报告日期</th><th>报告类型</th><th>券商</th><th>大小</th><th>下载次数</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td class="text-mono" style="max-width:220px;overflow:hidden;text-overflow:ellipsis">reports/2026/09/688981_中信_0912.pdf</td>
+                  <td style="white-space:normal">中芯国际深度报告.pdf</td><td>pdf</td>
+                  <td class="text-mono">688981</td><td>中芯国际</td><td class="text-mono">2026-09-02</td><td>公司深度</td><td>中信证券</td><td>2.4 MB</td><td>12</td>
+                  <td><button class="btn btn-ghost btn-sm">下载</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td class="text-mono" style="max-width:220px;overflow:hidden;text-overflow:ellipsis">reports/2026/09/002371_国君_0905.pdf</td>
+                  <td style="white-space:normal">北方华创点评：Q2 订单超预期.pdf</td><td>pdf</td>
+                  <td class="text-mono">002371</td><td>北方华创</td><td class="text-mono">2026-08-28</td><td>公司点评</td><td>国泰君安</td><td>1.1 MB</td><td>5</td>
+                  <td><button class="btn btn-ghost btn-sm">下载</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td class="text-mono" style="max-width:220px;overflow:hidden;text-overflow:ellipsis">reports/2026/08/300750_东吴_0830.pdf</td>
+                  <td style="white-space:normal">宁德时代中报综述.pdf</td><td>pdf</td>
+                  <td class="text-mono">300750</td><td>宁德时代</td><td class="text-mono">2026-08-30</td><td>中期财报</td><td>东吴证券</td><td>3.8 MB</td><td>21</td>
+                  <td><button class="btn btn-ghost btn-sm">下载</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pager">共 1,248 条 <span class="pg-btn">‹</span><span class="pg-btn cur">1</span><span class="pg-btn">2</span><span class="pg-btn">…</span><span class="pg-btn">63</span><span class="pg-btn">›</span> 20 条/页</div>
         </div>
       </div>
 
-      <!-- ========== 页面 5/10 资讯管理 ========== -->
+      <!-- ==================================================
+           页面 5/11 · 资讯管理 /admin/news
+           ================================================== -->
       <div class="page-block" id="p5">
-        <div class="page-block-label">页面 5/10 · 资讯管理</div>
-        <div class="admin-panel">
-          <div class="admin-panel-header"><span class="admin-panel-title">资讯管理</span></div>
-          <div class="admin-panel-body">
-            <div class="admin-toolbar">
-              <select class="form-select" style="width:120px"><option>全部类型</option><option>新闻</option><option>公告</option></select>
-              <input class="form-input" type="text" placeholder="搜索标题关键词…" style="width:200px">
-              <button class="btn btn-secondary btn-sm">搜索</button>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>标题</th><th>类型</th><th>代码</th><th>来源</th><th>发布日期</th><th>情感</th><th>关键词</th><th>操作</th></tr></thead>
-                <tbody>
-                  <tr>
-                    <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis">工信部印发《半导体设备国产化三年行动计划》</td>
-                    <td><span class="tag tag-blue">新闻</span></td><td>—</td><td>东方财富</td><td class="text-mono">2026-07-23</td>
-                    <td style="color:var(--green)" class="text-mono">+0.82</td>
-                    <td><span class="tag" style="font-size:10px">半导体</span> <span class="tag" style="font-size:10px">国产化</span></td>
-                    <td><button class="btn btn-ghost btn-sm">查看</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis">中芯国际公告：Q2 营收 18.2 亿美元</td>
-                    <td><span class="tag tag-amber">公告</span></td><td class="text-mono">688981</td><td>巨潮资讯</td><td class="text-mono">2026-07-22</td>
-                    <td style="color:var(--green)" class="text-mono">+0.35</td>
-                    <td><span class="tag" style="font-size:10px">中芯国际</span> <span class="tag" style="font-size:10px">财报</span></td>
-                    <td><button class="btn btn-ghost btn-sm">查看</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis">部分房企债务违约风险再度引发关注</td>
-                    <td><span class="tag tag-blue">新闻</span></td><td>—</td><td>财联社</td><td class="text-mono">2026-07-22</td>
-                    <td style="color:var(--red)" class="text-mono">-0.64</td>
-                    <td><span class="tag" style="font-size:10px">地产</span> <span class="tag" style="font-size:10px">违约</span></td>
-                    <td><button class="btn btn-ghost btn-sm">查看</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+        <div class="page-block-label">页面 5/11 · 资讯管理 <span class="route-badge">/admin/news</span></div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">资讯管理</span>
+            <button class="btn btn-primary btn-sm">＋ 新增资讯</button>
           </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>标题</th><th>类型</th><th>股票代码</th><th>来源</th><th>发布日期</th><th>情感</th><th>关键词</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td style="white-space:normal;max-width:300px">国常会部署一揽子增量政策，加力支持设备更新与以旧换新</td>
+                  <td><span class="tag tag-blue">新闻</span></td><td>—</td><td>财联社</td><td class="text-mono">2026-09-07</td>
+                  <td><span class="tag tag-green">正面 0.72</span></td>
+                  <td style="white-space:normal">设备更新；增量政策</td>
+                  <td><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td style="white-space:normal;max-width:300px">北方华创：拟发行不超 50 亿元可转债用于高端装备产业化项目</td>
+                  <td><span class="tag tag-amber">公告</span></td><td class="text-mono">002371</td><td>巨潮资讯</td><td class="text-mono">2026-09-06</td>
+                  <td><span class="tag">中性 0.08</span></td>
+                  <td style="white-space:normal">可转债；产业化</td>
+                  <td><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td style="white-space:normal;max-width:300px">美对华半导体设备出口管制再收紧，涉及先进制程刻蚀与薄膜沉积</td>
+                  <td><span class="tag tag-blue">新闻</span></td><td class="text-mono">688981</td><td>华尔街见闻</td><td class="text-mono">2026-09-05</td>
+                  <td><span class="tag tag-red">负面 -0.55</span></td>
+                  <td style="white-space:normal">出口管制；先进制程</td>
+                  <td><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pager">共 18,354 条 <span class="pg-btn">‹</span><span class="pg-btn cur">1</span><span class="pg-btn">2</span><span class="pg-btn">…</span><span class="pg-btn">918</span><span class="pg-btn">›</span> 20 条/页</div>
         </div>
       </div>
 
-      <!-- ========== 页面 6/10 任务管理 ========== -->
+      <!-- ==================================================
+           页面 6/11 · 任务管理 /admin/tasks
+           实际代码：Tasks.tsx — Card「采集任务管理」，
+           执行时间显示 cron 中文（Tooltip 显示原始表达式）
+           ================================================== -->
       <div class="page-block" id="p6">
-        <div class="page-block-label">页面 6/10 · 任务管理</div>
-        <div class="admin-panel">
-          <div class="admin-panel-header">
-            <span class="admin-panel-title">任务管理</span>
-            <button class="btn btn-primary btn-sm">+ 新增任务</button>
+        <div class="page-block-label">页面 6/11 · 任务管理 <span class="route-badge">/admin/tasks</span></div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">采集任务管理</span>
+            <button class="btn btn-primary btn-sm">＋ 新增任务</button>
           </div>
-          <div class="admin-panel-body">
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>任务名称</th><th>类型</th><th>来源</th><th>执行时间 (cron)</th><th>状态</th><th>最近运行</th><th>操作</th></tr></thead>
-                <tbody>
-                  <tr>
-                    <td>日K线采集</td><td>定时</td><td>tushare</td><td class="text-mono">0 16 * * 1-5</td>
-                    <td><span class="tag tag-green">启用</span></td><td class="text-mono">2026-07-23 16:00 成功</td>
-                    <td><button class="btn btn-ghost btn-sm">触发</button><button class="btn btn-ghost btn-sm">暂停</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td>集合竞价采集</td><td>定时</td><td>tushare</td><td class="text-mono">26 9 * * 1-5</td>
-                    <td><span class="tag tag-green">启用</span></td><td class="text-mono">2026-07-23 09:26 成功</td>
-                    <td><button class="btn btn-ghost btn-sm">触发</button><button class="btn btn-ghost btn-sm">暂停</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td>板块资金流向采集</td><td>定时</td><td>ths</td><td class="text-mono">40 15 * * 1-5</td>
-                    <td><span class="tag tag-green">启用</span></td><td class="text-mono">2026-07-23 15:40 成功</td>
-                    <td><button class="btn btn-ghost btn-sm">触发</button><button class="btn btn-ghost btn-sm">暂停</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td>新闻资讯采集</td><td>定时</td><td>eastmoney</td><td class="text-mono">*/15 9-15 * * 1-5</td>
-                    <td><span class="tag tag-amber">已暂停</span></td><td class="text-mono">2026-07-23 14:00 失败</td>
-                    <td><button class="btn btn-ghost btn-sm">触发</button><button class="btn btn-ghost btn-sm">启用</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>任务名称</th><th>任务类型</th><th>来源</th><th>执行时间</th><th>状态</th><th>最近运行</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td style="color:var(--text-primary)">Tushare Pro - 个股日K线</td><td>个股日K线</td><td>tushare</td>
+                  <td><span title="Cron: 35 15 * * 1-5" style="cursor:help;border-bottom:1px dotted var(--text-tertiary)">工作日 15:35</span></td>
+                  <td><span class="tag tag-green">启用</span></td>
+                  <td><span class="tag tag-green">成功</span> <span class="text-mono" style="color:var(--text-tertiary)">2026-09-07 15:35:02</span></td>
+                  <td><button class="btn btn-secondary btn-sm">▷ 触发</button><button class="btn btn-ghost btn-sm">暂停</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td style="color:var(--text-primary)">财联社 - 新闻资讯</td><td>新闻资讯</td><td>cls</td>
+                  <td><span title="Cron: *\/10 * * * *" style="cursor:help;border-bottom:1px dotted var(--text-tertiary)">每 10 分钟</span></td>
+                  <td><span class="tag tag-green">启用</span></td>
+                  <td><span class="tag tag-green">成功</span> <span class="text-mono" style="color:var(--text-tertiary)">2026-09-07 16:20:00</span></td>
+                  <td><button class="btn btn-secondary btn-sm">▷ 触发</button><button class="btn btn-ghost btn-sm">暂停</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td style="color:var(--text-primary)">东方财富 - 研报下载</td><td>研报下载</td><td>eastmoney</td>
+                  <td><span title="Cron: 0 8 * * *" style="cursor:help;border-bottom:1px dotted var(--text-tertiary)">每天 08:00</span></td>
+                  <td><span class="tag tag-green">启用</span></td>
+                  <td><span class="tag tag-green">成功</span> <span class="text-mono" style="color:var(--text-tertiary)">2026-09-07 08:00:15</span></td>
+                  <td><button class="btn btn-secondary btn-sm">▷ 触发</button><button class="btn btn-ghost btn-sm">暂停</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td style="color:var(--text-primary)">internal - 大盘复盘 AI 生成</td><td>大盘复盘 AI 生成</td><td>internal</td>
+                  <td><span title="Cron: 30 16 * * 1-5" style="cursor:help;border-bottom:1px dotted var(--text-tertiary)">工作日 16:30</span></td>
+                  <td><span class="tag tag-green">启用</span></td>
+                  <td><span class="tag tag-green">成功</span> <span class="text-mono" style="color:var(--text-tertiary)">2026-09-04 16:31:02</span></td>
+                  <td><button class="btn btn-secondary btn-sm">▷ 触发</button><button class="btn btn-ghost btn-sm">暂停</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td style="color:var(--text-primary)">东方财富 - 龙虎榜</td><td>龙虎榜</td><td>eastmoney</td>
+                  <td><span title="Cron: 10 18 * * 1-5" style="cursor:help;border-bottom:1px dotted var(--text-tertiary)">工作日 18:10</span></td>
+                  <td><span class="tag">禁用</span></td>
+                  <td><span class="tag tag-red">失败</span> <span class="text-mono" style="color:var(--text-tertiary)">2026-09-01 18:10:44</span></td>
+                  <td><button class="btn btn-secondary btn-sm">▷ 触发</button><button class="btn btn-ghost btn-sm">恢复</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
+          <div class="pager">共 24 条 <span class="pg-btn">‹</span><span class="pg-btn cur">1</span><span class="pg-btn">2</span><span class="pg-btn">›</span> 20 条/页</div>
         </div>
       </div>
 
-      <!-- ========== 页面 7/10 LLM 配置 ========== -->
+      <!-- ==================================================
+           页面 7/11 · LLM 配置 /admin/llm-configs
+           ================================================== -->
       <div class="page-block" id="p7">
-        <div class="page-block-label">页面 7/10 · LLM 配置</div>
-        <div class="admin-panel">
-          <div class="admin-panel-header">
-            <span class="admin-panel-title">LLM 配置</span>
-            <button class="btn btn-primary btn-sm">+ 新增配置</button>
+        <div class="page-block-label">页面 7/11 · LLM 配置 <span class="route-badge">/admin/llm-configs</span></div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">LLM 配置</span>
+            <button class="btn btn-primary btn-sm">＋ 新增配置</button>
           </div>
-          <div class="admin-panel-body">
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>名称</th><th>供应商</th><th>模型</th><th>API Key</th><th>默认</th><th>启用</th><th>最后测试</th><th>操作</th></tr></thead>
-                <tbody>
-                  <tr>
-                    <td>Kimi 主力模型</td><td><span class="tag tag-purple">Anthropic</span></td><td class="text-mono">kimi-k2-0905</td>
-                    <td class="text-mono">sk-****a1b2</td><td><span class="tag tag-purple">默认</span></td><td><span class="tag tag-green">启用</span></td>
-                    <td class="text-mono">2026-07-23 成功</td>
-                    <td><button class="btn btn-ghost btn-sm">测试</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td>DeepSeek 备用</td><td><span class="tag tag-blue">DeepSeek</span></td><td class="text-mono">deepseek-chat</td>
-                    <td class="text-mono">sk-****c3d4</td><td>—</td><td><span class="tag tag-green">启用</span></td>
-                    <td class="text-mono">2026-07-20 成功</td>
-                    <td><button class="btn btn-ghost btn-sm">测试</button><button class="btn btn-ghost btn-sm">设默认</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td>GPT-4o</td><td><span class="tag">OpenAI</span></td><td class="text-mono">gpt-4o</td>
-                    <td class="text-mono">sk-****e5f6</td><td>—</td><td><span class="tag">停用</span></td>
-                    <td class="text-mono">2026-06-30 失败</td>
-                    <td><button class="btn btn-ghost btn-sm">测试</button><button class="btn btn-ghost btn-sm">设默认</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>名称</th><th>供应商</th><th>模型</th><th>API Key</th><th>默认</th><th>能力</th><th>启用</th><th>最后测试</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td style="color:var(--text-primary)">Kimi Coding</td><td><span class="tag tag-purple">anthropic</span></td>
+                  <td class="text-mono">kimi-k2-0905-preview</td>
+                  <td class="text-mono">sk-****...j3f2</td>
+                  <td>★</td>
+                  <td><span class="tag tag-blue">结构化输出</span> <span class="tag">视觉</span></td>
+                  <td><span class="switch on"></span></td>
+                  <td class="text-mono" style="color:var(--text-tertiary)">2026-09-06 18:20 · <span style="color:var(--green)">成功</span></td>
+                  <td><button class="btn btn-ghost btn-sm">🧪 测试</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td style="color:var(--text-primary)">DeepSeek 官方</td><td><span class="tag tag-blue">openai</span></td>
+                  <td class="text-mono">deepseek-chat</td>
+                  <td class="text-mono">sk-****...8a1d</td>
+                  <td style="color:var(--text-tertiary)">—</td>
+                  <td><span class="tag tag-blue">结构化输出</span></td>
+                  <td><span class="switch on"></span></td>
+                  <td class="text-mono" style="color:var(--text-tertiary)">2026-09-05 11:02 · <span style="color:var(--green)">成功</span></td>
+                  <td><button class="btn btn-ghost btn-sm">🧪 测试</button><button class="btn btn-ghost btn-sm">★ 设默认</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td style="color:var(--text-primary)">Qwen Plus</td><td><span class="tag tag-green">openai</span></td>
+                  <td class="text-mono">qwen-plus-latest</td>
+                  <td class="text-mono">—</td>
+                  <td style="color:var(--text-tertiary)">—</td>
+                  <td><span class="tag tag-blue">结构化输出</span> <span class="tag">视觉</span></td>
+                  <td><span class="switch"></span></td>
+                  <td class="text-mono" style="color:var(--text-tertiary)">未测试</td>
+                  <td><button class="btn btn-ghost btn-sm">🧪 测试</button><button class="btn btn-ghost btn-sm">★ 设默认</button><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      <!-- ========== 页面 8/10 采集渠道配置 ========== -->
+      <!-- ==================================================
+           页面 8/11 · AI 结果管理 /admin/ai-results
+           实际代码：AiResultsAdmin.tsx — skill Tabs（后端注册表
+           驱动）+ 日期/状态筛选 + 缓存清除语义的删除 +
+           「AI 重新生成」走侧边栏助手 + 详情 Drawer（结构化输出）
+           ================================================== -->
       <div class="page-block" id="p8">
-        <div class="page-block-label">页面 8/10 · 采集渠道配置</div>
-        <div class="admin-panel mb-6">
-          <div class="admin-panel-header">
-            <span class="admin-panel-title">采集渠道配置</span>
-            <button class="btn btn-primary btn-sm">+ 新增渠道</button>
-          </div>
-          <div class="admin-panel-body">
-            <div class="sub-tabs"><span class="sub-tab active">渠道配置</span><span class="sub-tab">数据类型优先级</span></div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>渠道</th><th>标识</th><th>API 地址</th><th>API Key</th><th>数据类型</th><th>启用</th><th>状态</th><th>操作</th></tr></thead>
-                <tbody>
-                  <tr>
-                    <td>新浪财经</td><td class="text-mono">sina</td><td class="text-mono" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">https://hq.sinajs.cn</td>
-                    <td>—</td><td>K线 · 行情</td><td><span class="tag tag-green">启用</span></td><td><span class="tag tag-green">正常</span></td>
-                    <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td>东方财富</td><td class="text-mono">eastmoney</td><td class="text-mono" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">https://push2.eastmoney.com</td>
-                    <td>—</td><td>资金流向 · 新闻</td><td><span class="tag tag-green">启用</span></td><td><span class="tag tag-red">异常</span></td>
-                    <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td>同花顺</td><td class="text-mono">ths</td><td class="text-mono" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">https://data.10jqka.com.cn</td>
-                    <td>—</td><td>板块资金流向</td><td><span class="tag tag-green">启用</span></td><td><span class="tag tag-green">正常</span></td>
-                    <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td>巨潮资讯</td><td class="text-mono">cninfo</td><td class="text-mono" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">http://www.cninfo.com.cn</td>
-                    <td>—</td><td>公告披露</td><td><span class="tag tag-green">启用</span></td><td><span class="tag tag-green">正常</span></td>
-                    <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                </tbody>
-              </table>
+        <div class="page-block-label">页面 8/11 · AI 结果管理 <span class="route-badge">/admin/ai-results</span></div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">AI 结果管理</span></div>
+          <div style="padding:16px 20px 20px">
+            <div class="sub-tabs">
+              <div class="sub-tab active">大盘复盘</div>
+              <div class="sub-tab">涨停复盘</div>
+              <div class="sub-tab">个股分析</div>
+              <div class="sub-tab">产业链分析</div>
             </div>
-          </div>
-        </div>
-
-        <div class="admin-panel">
-          <div class="admin-panel-header"><span class="admin-panel-title">数据类型优先级（Tab 2 预览）</span></div>
-          <div class="admin-panel-body">
             <div class="admin-toolbar">
-              <select class="form-select" style="width:180px"><option>个股日K线</option><option>集合竞价</option><option>板块资金流向</option></select>
+              <input class="form-input" type="date" value="2026-09-01" style="width:140px">
+              <span style="color:var(--text-tertiary)">至</span>
+              <input class="form-input" type="date" value="2026-09-07" style="width:140px">
+              <select class="form-select" style="width:120px"><option>全部状态</option><option>成功</option><option>失败</option></select>
             </div>
+            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">每个业务键显示最新一条生成记录；删除会清空该键全部生成历史（缓存清除语义），可重新生成。</p>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>顺序</th><th>渠道</th><th>标识</th><th>状态</th><th>操作</th></tr></thead>
+                <thead><tr><th>业务键</th><th>状态</th><th>模型</th><th>生成耗时</th><th>生成时间</th><th>生成记录数</th><th>操作</th></tr></thead>
                 <tbody>
                   <tr>
-                    <td class="text-mono">1</td><td>Tushare</td><td class="text-mono">tushare</td><td><span class="tag tag-green">启用</span></td>
-                    <td><button class="btn btn-ghost btn-sm">上移</button><button class="btn btn-ghost btn-sm">下移</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">移除</button></td>
+                    <td style="color:var(--text-primary)">2026-09-07 · 大盘</td>
+                    <td><span class="tag tag-green">success</span></td>
+                    <td><span class="tag tag-blue">kimi-k2-0905-preview</span></td>
+                    <td class="text-mono">45.2s</td><td class="text-mono">2026-09-07 16:31:02</td><td>3 条 <span class="tag tag-amber">3</span></td>
+                    <td><button class="btn btn-ghost btn-sm">👁 查看</button><button class="btn btn-ghost btn-sm">🤖 AI 重新生成</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
                   </tr>
                   <tr>
-                    <td class="text-mono">2</td><td>AKShare</td><td class="text-mono">akshare</td><td><span class="tag tag-green">启用</span></td>
-                    <td><button class="btn btn-ghost btn-sm">上移</button><button class="btn btn-ghost btn-sm">下移</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">移除</button></td>
+                    <td style="color:var(--text-primary)">2026-09-04 · 大盘</td>
+                    <td><span class="tag tag-green">success</span></td>
+                    <td><span class="tag tag-blue">kimi-k2-0905-preview</span></td>
+                    <td class="text-mono">51.8s</td><td class="text-mono">2026-09-04 16:30:58</td><td>1 条</td>
+                    <td><button class="btn btn-ghost btn-sm">👁 查看</button><button class="btn btn-ghost btn-sm">🤖 AI 重新生成</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
                   </tr>
                   <tr>
-                    <td class="text-mono">3</td><td>新浪财经</td><td class="text-mono">sina</td><td><span class="tag">停用</span></td>
-                    <td><button class="btn btn-ghost btn-sm">上移</button><button class="btn btn-ghost btn-sm">下移</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">移除</button></td>
+                    <td style="color:var(--text-primary)">2026-09-03 · 大盘</td>
+                    <td><span class="tag tag-red">failed</span></td>
+                    <td><span class="tag tag-blue">kimi-k2-0905-preview</span></td>
+                    <td class="text-mono">12.3s</td><td class="text-mono">2026-09-03 16:31:40</td><td>2 条 <span class="tag tag-amber">2</span></td>
+                    <td><button class="btn btn-ghost btn-sm">👁 查看</button><button class="btn btn-ghost btn-sm">🤖 AI 重新生成</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
                   </tr>
                 </tbody>
               </table>
+            </div>
+            <div class="pager">共 87 条 <span class="pg-btn">‹</span><span class="pg-btn cur">1</span><span class="pg-btn">2</span><span class="pg-btn">…</span><span class="pg-btn">5</span><span class="pg-btn">›</span> 20 条/页</div>
+
+            <!-- 详情抽屉示意（点击「查看」打开，宽 560） -->
+            <div class="drawer-demo">
+              <div class="drawer-demo-header">
+                <span style="font-size:14px;font-weight:600">生成记录详情</span>
+                <span style="color:var(--text-tertiary);cursor:pointer">✕</span>
+              </div>
+              <div class="desc-grid">
+                <div class="desc-row"><div class="desc-key">业务键</div><div class="desc-val">日期: 2026-09-07，范围: 大盘</div></div>
+                <div class="desc-row"><div class="desc-key">状态</div><div class="desc-val">success</div></div>
+                <div class="desc-row"><div class="desc-key">模型</div><div class="desc-val">kimi-k2-0905-preview</div></div>
+                <div class="desc-row"><div class="desc-key">生成耗时</div><div class="desc-val">45.2s</div></div>
+                <div class="desc-row"><div class="desc-key">生成时间</div><div class="desc-val">2026-09-07 16:31:02</div></div>
+                <div class="desc-row"><div class="desc-key">生成记录数</div><div class="desc-val">3 条</div></div>
+              </div>
+              <p style="font-size:12px;color:var(--text-secondary);padding:0 20px;margin-bottom:8px">结构化输出</p>
+              <div class="json-block">{
+  <span class="jk">"market_overview"</span>: { <span class="jk">"index_code"</span>: <span class="js">"000001"</span>, <span class="jk">"change_pct"</span>: <span class="jn">0.82</span> },
+  <span class="jk">"sentiment"</span>: <span class="js">"偏暖"</span>,
+  <span class="jk">"highlights"</span>: [
+    <span class="js">"量能温和放大，沪指站上 3400"</span>,
+    <span class="js">"半导体设备链领涨，北向净流入 48 亿"</span>
+  ],
+  <span class="jk">"risk_watch"</span>: [ <span class="js">"美股高位的联动风险"</span> ]
+}</div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- ========== 页面 9/10 采集任务 ========== -->
+      <!-- ==================================================
+           页面 9/11 · 跟踪指数 /admin/tracked-indexes
+           实际代码：TrackedIndex.tsx — 最新值 = 收盘 + 涨跌幅
+           （红涨绿跌），启用列 Switch，extra「新增指数」
+           ================================================== -->
       <div class="page-block" id="p9">
-        <div class="page-block-label">页面 9/10 · 采集任务（手动触发）</div>
-        <div class="admin-panel">
-          <div class="admin-panel-header"><span class="admin-panel-title">采集任务</span></div>
-          <div class="admin-panel-body">
-            <div class="trigger-grid">
-              <button class="btn btn-secondary btn-sm">▶ K线数据</button>
-              <button class="btn btn-secondary btn-sm">▶ 指数K线</button>
-              <button class="btn btn-secondary btn-sm">▶ 集合竞价</button>
-              <button class="btn btn-secondary btn-sm">▶ 资金流向</button>
-              <button class="btn btn-secondary btn-sm">▶ 新闻资讯</button>
-              <button class="btn btn-secondary btn-sm">▶ 公司概况</button>
-              <button class="btn btn-secondary btn-sm">▶ 公告披露</button>
-              <button class="btn btn-secondary btn-sm">▶ 板块资金流向</button>
-              <button class="btn btn-secondary btn-sm">▶ 龙虎榜</button>
-              <button class="btn btn-secondary btn-sm">▶ 个股研报</button>
-              <button class="btn btn-secondary btn-sm">▶ 财报数据</button>
-              <button class="btn btn-secondary btn-sm">▶ IPO新股</button>
-              <button class="btn btn-secondary btn-sm">▶ 基金持仓</button>
-              <button class="btn btn-secondary btn-sm">▶ 宏观经济</button>
-              <button class="btn btn-secondary btn-sm">▶ 股票列表同步</button>
-              <button class="btn btn-secondary btn-sm">▶ 涨停股池</button>
+        <div class="page-block-label">页面 9/11 · 跟踪指数 <span class="route-badge">/admin/tracked-indexes</span></div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">跟踪指数</span>
+            <button class="btn btn-primary btn-sm">＋ 新增指数</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>指数代码</th><th>名称</th><th>市场类别</th><th>数据源</th><th>最新值</th><th>排序</th><th>启用</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td class="text-mono">000001</td><td style="color:var(--text-primary)">上证指数</td>
+                  <td><span class="tag tag-red">A 股</span></td><td>Tushare Pro</td>
+                  <td><span class="text-mono" style="color:var(--text-primary)">3,402.56</span> <span class="text-up" style="font-size:12px">+0.82%</span></td>
+                  <td>1</td><td><span class="switch on"></span></td>
+                  <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td class="text-mono">399006</td><td style="color:var(--text-primary)">创业板指</td>
+                  <td><span class="tag tag-red">A 股</span></td><td>Tushare Pro</td>
+                  <td><span class="text-mono" style="color:var(--text-primary)">2,156.33</span> <span class="text-down" style="font-size:12px">-1.24%</span></td>
+                  <td>2</td><td><span class="switch on"></span></td>
+                  <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td class="text-mono">HSI</td><td style="color:var(--text-primary)">恒生指数</td>
+                  <td><span class="tag tag-purple">全球</span></td><td>东方财富</td>
+                  <td><span class="text-mono" style="color:var(--text-primary)">24,112.50</span> <span class="text-up" style="font-size:12px">+1.05%</span></td>
+                  <td>3</td><td><span class="switch on"></span></td>
+                  <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td class="text-mono">SPX</td><td style="color:var(--text-primary)">标普 500</td>
+                  <td><span class="tag tag-purple">全球</span></td><td>新浪财经</td>
+                  <td><span class="text-mono" style="color:var(--text-primary)">6,503.20</span> <span class="text-up" style="font-size:12px">+0.41%</span></td>
+                  <td>4</td><td><span class="switch on"></span></td>
+                  <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td class="text-mono">CN00Y</td><td style="color:var(--text-primary)">富时中国 A50</td>
+                  <td><span class="tag tag-purple">全球</span></td><td>新浪财经</td>
+                  <td><span class="text-mono" style="color:var(--text-primary)">13,842.0</span> <span class="text-down" style="font-size:12px">-0.33%</span></td>
+                  <td>5</td><td><span class="switch on"></span></td>
+                  <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+                <tr>
+                  <td class="text-mono">GOLD</td><td style="color:var(--text-primary)">伦敦金现</td>
+                  <td><span class="tag tag-purple">全球</span></td><td>新浪财经</td>
+                  <td><span class="text-mono" style="color:var(--text-primary)">2,652.30</span> <span class="text-up" style="font-size:12px">+0.18%</span></td>
+                  <td>6</td><td><span class="switch"></span></td>
+                  <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================================================
+           页面 10/11 · 采集渠道 /admin/collector-channels
+           实际代码：CollectorChannelConfig.tsx — Tabs 两视图：
+           渠道配置 + 数据类型优先级（DataTypePriorityPanel）
+           ================================================== -->
+      <div class="page-block" id="p10">
+        <div class="page-block-label">页面 10/11 · 采集渠道 <span class="route-badge">/admin/collector-channels</span></div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">采集渠道配置</span></div>
+          <div style="padding:16px 20px 20px">
+            <div class="sub-tabs" id="channelTabs">
+              <div class="sub-tab active" data-pane="pane-channels">渠道配置</div>
+              <div class="sub-tab" data-pane="pane-datatypes">数据类型优先级</div>
             </div>
-            <div style="font-size:var(--text-sm);font-weight:600;color:var(--text-primary);margin-bottom:var(--space-3)">采集日志</div>
+
+            <!-- Tab 1：渠道配置 -->
+            <div id="pane-channels">
+              <div class="info-alert"><span class="ia-icon">ℹ</span><span>配置每个渠道支持的数据类型。任务触发时，系统只会从支持该任务且已启用的渠道中自动选择；你也可以在任务弹窗中手动指定渠道。</span></div>
+              <div class="admin-toolbar" style="justify-content:flex-end">
+                <button class="btn btn-primary btn-sm">＋ 新增渠道</button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>渠道</th><th>标识</th><th>API 地址</th><th>API Key</th><th>支持的数据类型</th><th>启用</th><th>状态</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td style="color:var(--text-primary)">Tushare Pro</td><td class="text-mono">tushare</td><td>—</td>
+                      <td class="text-mono">sk-****...a2c9</td>
+                      <td style="white-space:normal"><span class="tag">日K线</span> <span class="tag">集合竞价</span> <span class="tag">指数行情</span></td>
+                      <td><span class="switch on"></span></td><td><span class="tag tag-green">启用</span></td>
+                      <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                    </tr>
+                    <tr>
+                      <td style="color:var(--text-primary)">财联社</td><td class="text-mono">cls</td><td>—</td><td>—</td>
+                      <td style="white-space:normal"><span class="tag">新闻资讯</span></td>
+                      <td><span class="switch on"></span></td><td><span class="tag tag-green">启用</span></td>
+                      <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                    </tr>
+                    <tr>
+                      <td style="color:var(--text-primary)">同花顺</td><td class="text-mono">ths</td><td>—</td><td>—</td>
+                      <td style="white-space:normal"><span class="tag">板块资金流向</span> <span class="tag">板块行情</span></td>
+                      <td><span class="switch on"></span></td><td><span class="tag tag-green">启用</span></td>
+                      <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                    </tr>
+                    <tr>
+                      <td style="color:var(--text-primary)">东方财富研报</td><td class="text-mono">eastmoney</td>
+                      <td class="text-mono">https://pdf.dfcfw.com</td><td>—</td>
+                      <td style="white-space:normal"><span class="tag">研报下载</span> <span class="tag">龙虎榜</span></td>
+                      <td><span class="switch on"></span></td><td><span class="tag tag-green">启用</span></td>
+                      <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                    </tr>
+                    <tr>
+                      <td style="color:var(--text-primary)">AKShare</td><td class="text-mono">akshare</td><td>—</td><td>—</td>
+                      <td style="white-space:normal"><span class="tag">产业链</span> <span class="tag">宏观指标</span> <span class="tag">日K线</span></td>
+                      <td><span class="switch"></span></td><td><span class="tag">禁用</span></td>
+                      <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Tab 2：数据类型优先级 -->
+            <div id="pane-datatypes" style="display:none">
+              <div class="info-alert"><span class="ia-icon">ℹ</span><span>配置每个数据类型可用的采集渠道及优先级。任务执行时按顺序尝试：排第一的渠道失败后自动切换到下一个渠道。</span></div>
+              <div class="admin-toolbar">
+                <select class="form-select" style="min-width:220px"><option>日K线</option><option>新闻资讯</option><option>研报下载</option><option>板块资金流向</option></select>
+                <select class="form-select" style="min-width:200px"><option>选择要添加的渠道</option><option>东方财富</option><option>巨潮资讯</option></select>
+                <button class="btn btn-secondary btn-sm">＋ 添加</button>
+                <button class="btn btn-primary btn-sm">保存</button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>顺序</th><th>渠道</th><th>标识</th><th>状态</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td>1</td><td style="color:var(--text-primary)">Tushare Pro</td><td class="text-mono">tushare</td>
+                      <td><span class="tag tag-green">启用</span></td>
+                      <td><button class="mini-btn" disabled>↑</button> <button class="mini-btn">↓</button> <button class="mini-btn danger">✕</button></td>
+                    </tr>
+                    <tr>
+                      <td>2</td><td style="color:var(--text-primary)">AKShare</td><td class="text-mono">akshare</td>
+                      <td><span class="tag tag-green">启用</span></td>
+                      <td><button class="mini-btn">↑</button> <button class="mini-btn">↓</button> <button class="mini-btn danger">✕</button></td>
+                    </tr>
+                    <tr>
+                      <td>3</td><td style="color:var(--text-primary)">新浪财经</td><td class="text-mono">sina</td>
+                      <td><span class="tag">禁用</span></td>
+                      <td><button class="mini-btn">↑</button> <button class="mini-btn" disabled>↓</button> <button class="mini-btn danger">✕</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================================================
+           页面 11/11 · 采集任务 /admin/collector
+           实际代码：Collector.tsx — 任务目录按钮（点击弹渠道
+           选择 + 高级选项弹窗）+ 最近 20 条执行日志
+           ================================================== -->
+      <div class="page-block" id="p11">
+        <div class="page-block-label">页面 11/11 · 采集任务 <span class="route-badge">/admin/collector</span></div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">采集任务</span>
+            <button class="btn btn-secondary btn-sm">⟳ 刷新日志</button>
+          </div>
+          <div style="padding:16px 20px 20px">
+            <div class="info-alert"><span class="ia-icon">ℹ</span><span>点击任务按钮后，会弹出渠道选择与高级选项。系统默认按「支持该任务且已启用」的渠道自动选择，也可手动指定。</span></div>
+            <div class="task-btn-row">
+              <button class="btn btn-primary">▷ 个股日K线</button>
+              <button class="btn btn-primary">▷ 集合竞价</button>
+              <button class="btn btn-primary">▷ 指数行情</button>
+              <button class="btn btn-primary">▷ 板块资金流向</button>
+              <button class="btn btn-primary">▷ 新闻资讯</button>
+              <button class="btn btn-primary">▷ 研报下载</button>
+              <button class="btn btn-primary">▷ 产业链</button>
+              <button class="btn btn-primary">▷ 宏观指标</button>
+              <button class="btn btn-primary">▷ 龙虎榜</button>
+              <button class="btn btn-primary">▷ 大盘复盘 AI 生成</button>
+            </div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>任务</th><th>渠道</th><th>状态</th><th>入库数</th><th>开始时间</th><th>结束时间</th><th>错误</th></tr></thead>
+                <thead><tr><th>任务</th><th>渠道</th><th>状态</th><th>入库数</th><th>开始时间</th><th>结束时间</th><th>错误信息</th></tr></thead>
                 <tbody>
-                  <tr><td>板块资金流向</td><td>ths</td><td><span class="tag tag-green">成功</span></td><td class="text-mono">31</td><td class="text-mono">2026-07-23 15:40:02</td><td class="text-mono">15:40:48</td><td>—</td></tr>
-                  <tr><td>新闻资讯</td><td>eastmoney</td><td><span class="tag tag-red">失败</span></td><td class="text-mono">0</td><td class="text-mono">2026-07-23 14:00:01</td><td class="text-mono">14:00:30</td><td><span class="text-danger">连接超时，已重试 3 次</span></td></tr>
-                  <tr><td>个股日K线</td><td>tushare</td><td><span class="tag tag-green">成功</span></td><td class="text-mono">5,421</td><td class="text-mono">2026-07-23 15:35:00</td><td class="text-mono">15:38:12</td><td>—</td></tr>
+                  <tr><td>个股日K线</td><td>Tushare Pro</td><td><span class="tag tag-green">成功</span></td><td class="text-mono">5,421</td><td class="text-mono">2026-09-07 15:35:02</td><td class="text-mono">2026-09-07 15:36:48</td><td>—</td></tr>
+                  <tr><td>集合竞价</td><td>Tushare Pro</td><td><span class="tag tag-green">成功</span></td><td class="text-mono">5,386</td><td class="text-mono">2026-09-07 09:26:10</td><td class="text-mono">2026-09-07 09:26:41</td><td>—</td></tr>
+                  <tr><td>板块资金流向</td><td>同花顺</td><td><span class="tag tag-green">成功</span></td><td class="text-mono">431</td><td class="text-mono">2026-09-07 15:40:33</td><td class="text-mono">2026-09-07 15:40:39</td><td>—</td></tr>
+                  <tr><td>新闻资讯</td><td>东方财富</td><td><span class="tag tag-red">失败</span></td><td class="text-mono">0</td><td class="text-mono">2026-09-07 14:00:11</td><td class="text-mono">2026-09-07 14:02:03</td><td><span class="text-danger">连接超时，已重试 3 次</span></td></tr>
+                  <tr><td>研报下载</td><td>东方财富</td><td><span class="tag tag-green">成功</span></td><td class="text-mono">36</td><td class="text-mono">2026-09-07 08:00:15</td><td class="text-mono">2026-09-07 08:11:52</td><td>—</td></tr>
+                  <tr><td>产业链采集</td><td>AKShare</td><td><span class="tag tag-blue">运行中</span></td><td>—</td><td class="text-mono">2026-09-07 16:02:45</td><td>—</td><td>—</td></tr>
                 </tbody>
               </table>
             </div>
@@ -782,69 +919,55 @@ tr:hover td { background: var(--bg-hover); }
         </div>
       </div>
 
-      <!-- ========== 页面 10/10 跟踪指数管理 ========== -->
-      <div class="page-block" id="p10">
-        <div class="page-block-label">页面 10/10 · 跟踪指数管理</div>
-        <div class="admin-panel">
-          <div class="admin-panel-header">
-            <span class="admin-panel-title">跟踪指数配置 <span class="tag tag-purple" style="margin-left:6px">tracked_index_config · 大盘页 / 工作台指标清单真相源</span></span>
-            <button class="btn btn-primary btn-sm">+ 新增指数</button>
-          </div>
-          <div class="admin-panel-body">
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>指数代码</th><th>名称</th><th>市场类别</th><th>数据源</th><th>最新值</th><th>排序</th><th>启用</th><th>操作</th></tr></thead>
-                <tbody>
-                  <tr>
-                    <td class="text-mono">000001.SH</td><td>上证指数</td><td><span class="tag tag-blue">A股</span></td><td class="text-mono">sina</td>
-                    <td class="text-mono">3,845.21 <span style="color:var(--red)">+0.62%</span></td><td class="text-mono">1</td><td><span class="tag tag-green">启用</span></td>
-                    <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td class="text-mono">399001.SZ</td><td>深证成指</td><td><span class="tag tag-blue">A股</span></td><td class="text-mono">sina</td>
-                    <td class="text-mono">12,804.66 <span style="color:var(--red)">+0.88%</span></td><td class="text-mono">2</td><td><span class="tag tag-green">启用</span></td>
-                    <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td class="text-mono">399006.SZ</td><td>创业板指</td><td><span class="tag tag-blue">A股</span></td><td class="text-mono">sina</td>
-                    <td class="text-mono">2,672.05 <span style="color:var(--red)">+1.24%</span></td><td class="text-mono">3</td><td><span class="tag tag-green">启用</span></td>
-                    <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td class="text-mono">GC00Y</td><td>COMEX 黄金</td><td><span class="tag tag-purple">全球</span></td><td class="text-mono">eastmoney</td>
-                    <td class="text-mono">3,912.5 <span style="color:var(--red)">+0.41%</span></td><td class="text-mono">5</td><td><span class="tag tag-green">启用</span></td>
-                    <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td class="text-mono">US10Y</td><td>美债 10Y 收益率</td><td><span class="tag tag-purple">全球</span></td><td class="text-mono">tushare</td>
-                    <td class="text-mono">4.118% <span style="color:var(--green)">-2.3bp</span></td><td class="text-mono">6</td><td><span class="tag tag-green">启用</span></td>
-                    <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td class="text-mono">US2Y</td><td>美债 2Y 收益率</td><td><span class="tag tag-purple">全球</span></td><td class="text-mono">tushare</td>
-                    <td class="text-mono">3.654% <span style="color:var(--green)">-1.8bp</span></td><td class="text-mono">7</td><td><span class="tag tag-green">启用</span></td>
-                    <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr>
-                    <td class="text-mono">DXY</td><td>美元指数</td><td><span class="tag tag-purple">全球</span></td><td class="text-mono">eastmoney</td>
-                    <td class="text-mono">98.35 <span style="color:var(--green)">-0.22%</span></td><td class="text-mono">8</td><td><span class="tag tag-green">启用</span></td>
-                    <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                  <tr style="opacity:.55">
-                    <td class="text-mono">XIN9</td><td>富时中国 A50 期货</td><td><span class="tag tag-purple">全球</span></td><td class="text-mono">—</td>
-                    <td class="text-mono">—</td><td class="text-mono">9</td><td><span class="tag">停用</span></td>
-                    <td><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div style="font-size:11px;color:var(--text-tertiary);margin-top:10px">行情写入 <span class="text-mono">quote_global_index_daily</span>（Timescale 超表）；市场类别：A股指数走新浪快照，全球指标走东财 / tushare。停用后大盘页与工作台「市场快览」即时隐藏该项。</div>
-          </div>
-        </div>
+      <div class="type-note">
+        <b>实现说明（本页与 web/ 实际代码一一对应）</b><br>
+        ① 主页 <span class="route-badge">/admin</span>：Admin.tsx — ADMIN_LINKS 十个入口卡片（四列栅格，图标色对齐 tailwind blue/green/purple/orange/cyan/pink/teal/amber/gray/indigo）+ 最近采集日志（前 10 条，「查看更多」跳采集任务页）。<br>
+        ② 子页均为独立路由，原型纵向排列示意；侧边栏无二级导航，返回靠浏览器回退或重新进入后台管理。<br>
+        ③ 任务管理：执行时间显示 cron 的中文释义（悬停显示原始表达式）；操作含触发 / 暂停·恢复 / 编辑 / 删除。<br>
+        ④ AI 结果管理：顶部 Tabs 由后端 skill 注册表驱动（新增 skill 自动出现）；「AI 重新生成」经侧边栏助手 sendQuestion 触发，生成完成事件刷新列表；删除为缓存清除语义（清空该业务键全部历史）。<br>
+        ⑤ 跟踪指数：最新值 = 收盘价 + 涨跌幅（红涨绿跌，scheme-aware）；启用列 Switch 即时生效；此清单同时驱动工作台 / 复盘页的市场快览。<br>
+        ⑥ 采集渠道：双 Tab。渠道配置声明「渠道 × 支持数据类型」；数据类型优先级配置失败自动切换的降级链（↑↓ 调序、✕ 移除、按类型保存）。<br>
+        ⑦ 采集任务：任务按钮来自后端任务目录（点击弹渠道选择 + 高级选项弹窗），下方为最近 20 条执行日志（七列，含结束时间与错误信息）。
       </div>
+
     </div>
   </div>
 </div>
 
+<script>
+// 入口卡片 / 查看更多：锚点滚动 + 面包屑联动（模拟实际路由跳转）
+document.querySelectorAll('a[href^="#p"]').forEach(function (link) {
+  link.addEventListener('click', function () {
+    var crumb = link.getAttribute('data-crumb');
+    if (crumb) document.getElementById('admin-breadcrumb').textContent = crumb;
+  });
+});
+
+// 采集渠道双 Tab 切换（对齐实际 Tabs：渠道配置 / 数据类型优先级）
+var channelTabs = document.getElementById('channelTabs');
+if (channelTabs) {
+  channelTabs.querySelectorAll('.sub-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      channelTabs.querySelectorAll('.sub-tab').forEach(function (t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      document.getElementById('pane-channels').style.display = tab.getAttribute('data-pane') === 'pane-channels' ? '' : 'none';
+      document.getElementById('pane-datatypes').style.display = tab.getAttribute('data-pane') === 'pane-datatypes' ? '' : 'none';
+    });
+  });
+}
+
+// AI 结果 skill Tabs：仅激活态样式切换（示意）
+document.querySelectorAll('#p8 .sub-tabs .sub-tab').forEach(function (tab) {
+  tab.addEventListener('click', function () {
+    tab.parentElement.querySelectorAll('.sub-tab').forEach(function (t) { t.classList.remove('active'); });
+    tab.classList.add('active');
+  });
+});
+
+// 开关点击切换（纯示意）
+document.querySelectorAll('.switch').forEach(function (sw) {
+  sw.addEventListener('click', function () { sw.classList.toggle('on'); });
+});
+</script>
 </body>
 </html>

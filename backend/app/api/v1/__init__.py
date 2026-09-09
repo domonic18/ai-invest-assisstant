@@ -14,17 +14,21 @@ from app.api.v1 import (
     hotspot,
     kline,
     market,
+    news,
     research,
+    skills,
     stocks,
     telegraph,
     users,
     workbench,
 )
+from app.api.v1.admin import ai_results as admin_ai_results
 from app.api.v1.admin import collector as admin_collector
 from app.api.v1.admin import collector_channels as admin_collector_channels
 from app.api.v1.admin import collector_data_types as admin_collector_data_types
 from app.api.v1.admin import llm_config as admin_llm_configs
 from app.api.v1.admin import news as admin_news
+from app.api.v1.admin import proxy_configs as admin_proxy_configs
 from app.api.v1.admin import reports as admin_reports
 from app.api.v1.admin import stocks as admin_stocks
 from app.api.v1.admin import system as admin_system
@@ -41,6 +45,7 @@ api_router.include_router(stocks.router, prefix="/stocks", tags=["stocks"])
 api_router.include_router(kline.router, prefix="/kline", tags=["kline"])
 api_router.include_router(chain.router, prefix="/chain", tags=["chain"])
 api_router.include_router(research.router, prefix="/research", tags=["research"])
+api_router.include_router(skills.router, prefix="/skills", tags=["skills"])
 api_router.include_router(
     financial_report.router, prefix="/financial-reports", tags=["financial-reports"]
 )
@@ -54,6 +59,7 @@ api_router.include_router(
     assistant.router, prefix="/assistant", tags=["assistant"]
 )
 api_router.include_router(telegraph.router, prefix="/telegraph", tags=["telegraph"])
+api_router.include_router(news.router, prefix="/news", tags=["news"])
 api_router.include_router(workbench.router, prefix="/workbench", tags=["workbench"])
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
@@ -67,7 +73,9 @@ admin_router.include_router(admin_collector.router)
 admin_router.include_router(admin_collector_data_types.router)
 admin_router.include_router(admin_collector_channels.router)
 admin_router.include_router(admin_llm_configs.router)
+admin_router.include_router(admin_proxy_configs.router)
 admin_router.include_router(admin_tracked_indexes.router)
+admin_router.include_router(admin_ai_results.router, prefix="/ai-results")
 api_router.include_router(admin_router)
 
 api_router.include_router(mcp_server.router, prefix="/mcp", tags=["mcp"])

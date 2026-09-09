@@ -3,9 +3,13 @@
 from datetime import date
 from typing import Any
 
+import structlog
 from langchain_core.tools import tool
 
 from app.core.database import AsyncSessionLocal
+from app.core.exceptions import AppError
+
+logger = structlog.get_logger(__name__)
 
 FINANCIAL_REPORT_MAX_LIMIT = 100
 
@@ -92,8 +96,15 @@ async def download_financial_reports(
                 start_date=resolved_start,
                 end_date=resolved_end,
             )
-        except Exception as exc:  # noqa: BLE001
-            return {"error": str(exc)}
+        except AppError as exc:
+            # 业务异常文案为人工策划，可安全反馈给 agent 用于自我纠正。
+            return {"error": exc.message}
+        except Exception:  # noqa: BLE001
+            # 意外异常可能携带内部细节（连接串/SQL），不直接喂给 LLM。
+            logger.exception(
+                "financial_report_collect_trigger_failed", stock_code=stock_code
+            )
+            return {"error": "财报采集任务触发失败，请稍后重试或检查采集服务状态"}
         return {"log_id": log.id, "status": log.status}
 
 
@@ -110,5 +121,8 @@ async def summarize_financial_report(report_id: int) -> dict[str, Any]:
         service = FinancialReportService(session)
         try:
             return await service.summarize_report(report_id)
-        except Exception as exc:  # noqa: BLE001
-            return {"error": str(exc)}
+        except AppError as exc:
+            return {"error": exc.message}
+        except Exception:  # noqa: BLE001
+            logger.exception("financial_report_summarize_failed", report_id=report_id)
+            return {"error": "财报摘要生成失败，请稍后重试"}

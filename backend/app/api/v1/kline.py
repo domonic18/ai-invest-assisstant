@@ -3,9 +3,10 @@
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError
 from app.dependencies import get_db
 from app.schemas.stock import KlineDataResponse, PaginatedResponse
 from app.services import market as stock_service
@@ -27,10 +28,7 @@ async def get_kline(
         session, code, start_date, end_date, page, page_size
     )
     if not items:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No kline data found",
-        )
+        raise NotFoundError("No kline data found")
     return {
         "total": total,
         "page": page,

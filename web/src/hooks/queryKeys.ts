@@ -13,11 +13,19 @@ export const queryKeys = {
     stocks: ['admin-stocks'] as const,
     users: ['admin-users'] as const,
     tasks: ['admin-tasks'] as const,
+    aiResults: ['admin-ai-results'] as const,
+    aiResultSkills: ['admin-ai-result-skills'] as const,
   },
   auction: {
     all: ['auction'] as const,
     indexTrend: (days: number, startDate?: string, endDate?: string) =>
       ['auction', 'index-trend', days, startDate, endDate] as const,
+  },
+  skills: {
+    all: ['skills'] as const,
+    square: ['skills', 'square'] as const,
+    detail: (skillId: string) => ['skills', 'detail', skillId] as const,
+    files: (skillId: string) => ['skills', 'files', skillId] as const,
   },
   chain: {
     all: ['chain'] as const,
@@ -46,6 +54,8 @@ export const queryKeys = {
   },
   financialReports: {
     all: ['financial-reports'] as const,
+    list: (stockCode: string, pageSize: number) =>
+      ['financial-reports', stockCode, pageSize] as const,
   },
   fundFlow: {
     all: ['fund-flow'] as const,
@@ -54,6 +64,7 @@ export const queryKeys = {
   },
   hotspot: ['hotspot'] as const,
   llmConfigs: ['llm-configs'] as const,
+  proxyConfigs: ['proxy-configs'] as const,
   trackedIndexes: ['tracked-indexes'] as const,
   market: {
     all: ['market'] as const,
@@ -68,6 +79,14 @@ export const queryKeys = {
     sectors: (tradeDate?: string) => ['market', 'sectors', tradeDate] as const,
     watchlistQuotes: ['market', 'watchlist-quotes'] as const,
     aiReview: (tradeDate?: string) => ['market', 'ai-review', tradeDate] as const,
+    globalIndices: ['market', 'global-indices'] as const,
+    globalIndexHistory: (indexCode: string, months: number) =>
+      ['market', 'global-index-history', indexCode, months] as const,
+    globalIndexKline: (indexCode: string, period: string) =>
+      ['market', 'global-index-kline', indexCode, period] as const,
+    fedWatch: ['market', 'fed-watch'] as const,
+    sectorQuotes: (sectorType: string) =>
+      ['market', 'sector-quotes', sectorType] as const,
   },
   research: {
     all: ['research'] as const,
@@ -87,6 +106,7 @@ export const queryKeys = {
     sectors: (code: string) => ['stocks', 'sectors', code] as const,
     aiAnalysis: (code: string, tradeDate?: string) =>
       ['stocks', 'ai-analysis', code, tradeDate] as const,
+    aiAnalysisDates: (code: string) => ['stocks', 'ai-analysis-dates', code] as const,
   },
   watchlist: {
     all: ['watchlist'] as const,
@@ -95,11 +115,38 @@ export const queryKeys = {
   },
   telegraph: {
     all: ['telegraph'] as const,
-    list: (page: number, pageSize: number, minImportance?: number) =>
-      ['telegraph', 'list', page, pageSize, minImportance ?? 0] as const,
+    list: (
+      page: number,
+      pageSize: number,
+      minImportance?: number,
+      minAiScore?: number,
+      subscriptionOnly?: boolean,
+    ) =>
+      [
+        'telegraph',
+        'list',
+        page,
+        pageSize,
+        minImportance ?? 0,
+        minAiScore ?? null,
+        subscriptionOnly ?? false,
+      ] as const,
+  },
+  news: {
+    all: ['news'] as const,
+    channels: ['news', 'channels'] as const,
+    focus: ['news', 'focus'] as const,
+    topics: (sessionKey: string) => ['news', 'topics', sessionKey] as const,
+    story: (id: number) => ['news', 'story', id] as const,
+    subscriptions: ['news', 'subscriptions'] as const,
+  },
+  users: {
+    all: ['users'] as const,
+    me: ['users', 'me'] as const,
   },
   workbench: {
     all: ['workbench'] as const,
     overview: ['workbench', 'overview'] as const,
+    reviewStatus: ['workbench', 'reviewStatus'] as const,
   },
 } as const

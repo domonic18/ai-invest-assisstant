@@ -2,6 +2,7 @@ import {
   BarChartOutlined,
   ContainerOutlined,
   FileTextOutlined,
+  FileDoneOutlined,
   PlayCircleOutlined,
   ReadOutlined,
   RobotOutlined,
@@ -15,6 +16,7 @@ import { Link } from 'react-router-dom'
 import { useCollectorLogs } from '@/hooks/useCollectorAdmin'
 import { formatDateTime } from '@/utils/formatters'
 import { getSourceLabel, getTaskLabel } from '@/utils/collectorTaskLabels'
+import { statusTagColor } from '@ai-invest/shared'
 
 const ADMIN_LINKS = [
   { title: '用户管理', path: '/admin/users', icon: <TeamOutlined />, color: 'bg-blue-500/10 text-blue-400' },
@@ -23,19 +25,11 @@ const ADMIN_LINKS = [
   { title: '资讯管理', path: '/admin/news', icon: <ReadOutlined />, color: 'bg-orange-500/10 text-orange-400' },
   { title: '任务管理', path: '/admin/tasks', icon: <ContainerOutlined />, color: 'bg-cyan-500/10 text-cyan-400' },
   { title: 'LLM 配置', path: '/admin/llm-configs', icon: <RobotOutlined />, color: 'bg-pink-500/10 text-pink-400' },
+  { title: 'AI 结果管理', path: '/admin/ai-results', icon: <FileDoneOutlined />, color: 'bg-teal-500/10 text-teal-400' },
   { title: '跟踪指数', path: '/admin/tracked-indexes', icon: <VerticalAlignTopOutlined />, color: 'bg-amber-500/10 text-amber-400' },
   { title: '采集渠道', path: '/admin/collector-channels', icon: <SettingOutlined />, color: 'bg-gray-500/10 text-gray-400' },
   { title: '采集任务', path: '/admin/collector', icon: <PlayCircleOutlined />, color: 'bg-indigo-500/10 text-indigo-400' },
 ]
-
-const STATUS_COLORS: Record<string, string> = {
-  success: 'green',
-  failed: 'red',
-  pending: 'gold',
-  running: 'blue',
-  partial: 'orange',
-  skipped: 'default',
-}
 
 export function Admin() {
   const { data: logs, isLoading } = useCollectorLogs(10)
@@ -47,7 +41,7 @@ export function Admin() {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (v: string) => <Tag color={STATUS_COLORS[v] || 'default'}>{v}</Tag>,
+      render: (v: string) => <Tag color={statusTagColor(v)}>{v}</Tag>,
     },
     { title: '记录数', dataIndex: 'recordsCount', key: 'recordsCount' },
     { title: '开始时间', dataIndex: 'startedAt', key: 'startedAt', width: 170, render: (v: string | null) => formatDateTime(v) },

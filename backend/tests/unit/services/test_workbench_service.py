@@ -1,14 +1,17 @@
 """工作台聚合服务单测：模块降级隔离与数据透传。"""
 
-from datetime import date
+from datetime import date, datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.schemas.calendar import CalendarEventResponse
 from app.schemas.market import GlobalIndexQuoteResponse
-from app.schemas.telegraph import TelegraphResponse
 from app.schemas.workbench import (
+    CollectorStatusResponse,
+    CollectorUpcomingItem,
+    ReviewStatusResponse,
     SectorFlowItem,
     WorkbenchResponse,
     WorkbenchWatchlistGroup,
@@ -81,6 +84,25 @@ class TestGetWorkbench:
                     ]
                 ),
             ) as sector_mock,
+            patch(
+                f"{_MODULE}.review_status_service.get_review_status",
+                AsyncMock(return_value=ReviewStatusResponse(status="pending", trade_date=date(2026, 9, 4))),
+            ),
+            patch(
+                f"{_MODULE}.collector_status_service.get_collector_status",
+                AsyncMock(
+                    return_value=CollectorStatusResponse(
+                        upcoming=[
+                            CollectorUpcomingItem(
+                                run_at=datetime(2026, 9, 4, 8, 0, tzinfo=timezone.utc),
+                                task_name="eastmoney_limit_up_pool",
+                                task_label="涨停股池",
+                                source="eastmoney",
+                            )
+                        ]
+                    )
+                ),
+            ),
         ):
             result = await workbench_service.get_workbench(session, user_id=3)
 
@@ -93,6 +115,10 @@ class TestGetWorkbench:
         sector_mock.assert_awaited_once_with(session)
         assert result.sector_flow[0].sector_name == "半导体"
         assert result.sector_flow[0].main_net_inflow == 48.6
+        assert result.review_status is not None
+        assert result.review_status.status == "pending"
+        assert result.collector_status is not None
+        assert result.collector_status.upcoming[0].task_label == "涨停股池"
 
     @pytest.mark.asyncio
     async def test_single_module_failure_degrades_others_intact(self) -> None:
@@ -138,6 +164,10 @@ class TestGetWorkbench:
                 f"{_MODULE}.sector_fund_flow_service.get_latest_sector_flow",
                 AsyncMock(side_effect=RuntimeError("db boom")),
             ),
+            patch(
+                f"{_MODULE}.review_status_service.get_review_status",
+                AsyncMock(side_effect=RuntimeError("db boom")),
+            ),
         ):
             result = await workbench_service.get_workbench(session, user_id=3)
 
@@ -146,11 +176,16 @@ class TestGetWorkbench:
         assert result.watchlist_groups == [group]
         assert result.global_indices[0].index_code == "GC00Y"
         assert result.sector_flow == []
+        assert result.review_status is None
 
     @pytest.mark.asyncio
     async def test_telegraph_items_only_kept(self) -> None:
+        """mock 返回生产形状的 (电报行, ai_score, ai_scored_at) 元组，钉死行→响应映射。"""
         session = AsyncMock()
-        item = TelegraphResponse(cls_msg_id=1, publish_time="2026-09-02T10:00:00")
+        row_item = SimpleNamespace(
+            cls_msg_id=1, publish_time=datetime(2026, 9, 2, 10, tzinfo=timezone.utc)
+        )
+        row = (row_item, 82, datetime(2026, 9, 2, 10, 5, tzinfo=timezone.utc))
 
         with (
             patch(
@@ -163,7 +198,7 @@ class TestGetWorkbench:
             ),
             patch(
                 f"{_MODULE}.telegraph_service.list_telegraph",
-                AsyncMock(return_value=([item], 57)),
+                AsyncMock(return_value=([row], 57)),
             ) as tg_mock,
             patch(
                 f"{_MODULE}.watchlist_quote_service.get_watchlist_groups",
@@ -184,6 +219,7 @@ class TestGetWorkbench:
         ):
             result = await workbench_service.get_workbench(session, user_id=3)
 
-        assert result.telegraph == [item]
+        assert result.telegraph[0].cls_msg_id == 1
+        assert result.telegraph[0].ai_score == 82
         assert tg_mock.await_args.kwargs["page"] == 1
         assert tg_mock.await_args.kwargs["page_size"] == 12

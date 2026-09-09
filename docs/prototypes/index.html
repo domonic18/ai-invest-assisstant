@@ -40,7 +40,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);min-
 </div>
 <div style="display:flex;align-items:baseline;justify-content:center;gap:8px">
 <h1 style="margin-bottom:0">AI Invest Assistant</h1>
-<span class="version">v0.2.0</span>
+<span class="version">v0.4.0</span>
 </div>
 <p>智能投研数据平台 — 原型图预览</p>
 </div>
@@ -57,22 +57,32 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);min-
 <a class="card core" href="workbench.html" target="_blank"><div class="card-icon" style="background:rgba(94,106,210,.12)">🏠</div><div class="card-body"><h3>工作台</h3><p>登录默认入口 · 市场快览（跟踪指数 + 全球指标）· 复盘核心结论 · 要闻资讯（财联社电报 10s 准实时）· 自选股概览（分组 + AI 复盘开关）· 日历摘要</p><span class="tag tag-core">核心</span></div></a>
 <a class="card core" href="dashboard.html" target="_blank"><div class="card-icon" style="background:rgba(94,106,210,.12)">📊</div><div class="card-body"><h3>每日复盘</h3><p>指数多周期 K 线 · 行情统计 · 板块表现 · 涨停复盘（同花顺风格分组） · AI 大盘综述（模块级编辑） · 自选股分组卡（AI 每日分析） · 盘后补采入口</p><span class="tag tag-core">核心</span></div></a>
 <a class="card core" href="chain-analysis.html" target="_blank"><div class="card-icon" style="background:rgba(88,166,255,.1)">🔗</div><div class="card-body"><h3>产业链全景分析</h3><p>G6 v5 图谱 · 自定义节点 / 分栏背景 · 基于经营范围自下而上推导环节 · 版本切换与对比 · AI 助手确认</p><span class="tag tag-core">核心</span></div></a>
-<a class="card core" href="stock-detail.html" target="_blank"><div class="card-icon" style="background:rgba(94,106,210,.12)">📈</div><div class="card-body"><h3>个股详情</h3><p>同花顺风格多周期 K 线（日 / 周 / 月预设） · 键盘缩放平移 · 财务 tab 含历史趋势 · AI 每日分析（盘面解读 / 操作策略 / 止损线） · 板块归属（行业 + 概念） · 一键加入自选</p><span class="tag tag-core">核心</span></div></a>
-<a class="card core" href="capital-flow.html" target="_blank"><div class="card-icon" style="background:rgba(210,153,34,.1)">💸</div><div class="card-body"><h3>资金流向</h3><p>板块河流图 · 当日净流入/净流出排名 · 行业（东财）/ 概念（同花顺）切换 · 流入红 / 流出绿配色</p><span class="tag tag-core">核心</span></div></a>
-<a class="card core" href="auction-review.html" target="_blank"><div class="card-icon" style="background:rgba(46,160,67,.1)">🚀</div><div class="card-body"><h3>集合竞价复盘</h3><p>指数集合竞价成交额趋势（Tushare stk_auction 口径） · 多日对比</p><span class="tag tag-core">核心</span></div></a>
-<a class="card core" href="calendar.html" target="_blank"><div class="card-icon" style="background:rgba(210,153,34,.1)">📅</div><div class="card-body"><h3>投资日历</h3><p>月历 / 周历 / 列表三视图 · 分类筛选（宏观 / 央行 / 新股 / 解禁 / 财报 / 会议）· 事件详情 · 自选相关 ★ 标记 · source_hash 幂等去重</p><span class="tag tag-core">核心</span></div></a>
+<a class="card core" href="stock-detail.html" target="_blank"><div class="card-icon" style="background:rgba(94,106,210,.12)">📈</div><div class="card-body"><h3>个股监测（个股详情）</h3><p>同花顺式行情条（现价 + 快照 10 项）· 双图单元独立周期/指标（日线 K+VOL+MACD，周线 K+VOL）· 分时/K 线多周期 · 右栏四 tab（AI 分析 / 财报 / 研报 / 板块；财报·研报并入个股侧栏：查看 PDF + AI 解读 + 手动触发采集，独立导航入口已移除）· 指数 / ETF 同骨架差异化</p><span class="tag tag-core">核心</span></div></a>
 </div>
 
-<div class="section-title">研究与分析</div>
+<div class="section-title">监测（宏观 → 板块 → 个股）</div>
 <div class="grid">
-<a class="card" href="research.html" target="_blank"><div class="card-icon" style="background:rgba(94,106,210,.08)">📄</div><div class="card-body"><h3>研报中心</h3><p>研报检索与筛选（券商/行业/评级）· PDF 下载 · AI 摘要（file_metadata.summary 缓存）</p><span class="tag tag-accent">辅助</span></div></a>
-<a class="card" href="financial-reports.html" target="_blank"><div class="card-icon" style="background:rgba(94,106,210,.08)">📚</div><div class="card-body"><h3>财报中心</h3><p>报告类型 / 报告期筛选 · 采集触发（log_id 可查日志）· PDF 存 COS · AI 摘要（file_metadata.summary 幂等缓存）</p><span class="tag tag-accent">辅助</span></div></a>
-<a class="card" href="hotspot.html" target="_blank"><div class="card-icon" style="background:rgba(248,81,73,.1)">🔥</div><div class="card-body"><h3>热点追踪</h3><p>话题云、实时时间线、资金异动、热点传导链、市场情绪指数</p><span class="tag tag-accent">辅助</span></div></a>
+<a class="card core" href="macro-monitor.html" target="_blank"><div class="card-icon" style="background:rgba(88,166,255,.1)">🌐</div><div class="card-body"><h3>宏观指数监测</h3><p>投资流程第一站 · 股指（A 股 / 港股 / 美股）/ 债券（美债 2Y·10Y / 日债 10Y）/ 商品（黄金 / 美元指数）/ 政策概率（美联储 FOMC 加息概率）四类分组 · 指标卡片 + sparkline · 清单依托跟踪指数管理可扩展（远期：进出口贸易数据、PMI）</p><span class="tag tag-core">新增</span></div></a>
+<a class="card core" href="capital-flow.html" target="_blank"><div class="card-icon" style="background:rgba(210,153,34,.1)">💸</div><div class="card-body"><h3>板块监测（指数 + 资金流向）</h3><p>板块指数表现热力总览（色深=涨跌幅）· 板块资金流向趋势（上=净流入/下=净流出）· 当日净流入/净流出排名 · 行业（东财）/ 概念（同花顺）切换 · 流入红 / 流出绿配色</p><span class="tag tag-core">升级</span></div></a>
+<a class="card" href="auction-review.html" target="_blank"><div class="card-icon" style="background:rgba(46,160,67,.1)">🚀</div><div class="card-body"><h3>集合竞价复盘</h3><p>指数集合竞价成交额趋势（Tushare stk_auction 口径） · 多日对比</p><span class="tag tag-accent">监测</span></div></a>
+</div>
+
+<div class="section-title">资讯</div>
+<div class="grid">
+<a class="card core" href="news.html" target="_blank"><div class="card-icon" style="background:rgba(94,106,210,.12)">📰</div><div class="card-body"><h3>资讯中心</h3><p>资讯统一入口（原热点追踪并入）：渠道监控（各渠道获取状态/延迟/轮询节奏）· 实时电报（秒级时间线 + AI 重要度分级 + 新讯息到达条）· 重点与跟踪（重要度评分 + 事件故事线持续跟踪）· 热点主题（主题榜 + 情绪 + 传导链）· 订阅规则（关键词命中 + 推送）</p><span class="tag tag-core">重构</span></div></a>
+</div>
+
+<div class="section-title">日历与分析</div>
+<div class="grid">
+<a class="card core" href="calendar.html" target="_blank"><div class="card-icon" style="background:rgba(210,153,34,.1)">📅</div><div class="card-body"><h3>投资日历</h3><p>月历 / 周历 / 列表三视图 · 分类筛选（宏观 / 央行 / 新股 / 解禁 / 财报 / 会议）· 事件详情 · 自选相关 ★ 标记 · source_hash 幂等去重</p><span class="tag tag-core">核心</span></div></a>
+<a class="card core" href="sector-anomaly.html" target="_blank"><div class="card-icon" style="background:rgba(248,81,73,.1)">⚡</div><div class="card-body"><h3>板块异动分析</h3><p>板块级量价 / 资金异常检测（涨跌幅偏离 / 量能放大 / 资金突变 / 齐动性）· 异动强度排序 · AI 归因（事件驱动 / 资金驱动 / 轮动补涨）· 板块指数回看 + 关联资讯 · 产业链直达</p><span class="tag tag-core">新增</span></div></a>
+<a class="card core" href="stock-anomaly.html" target="_blank"><div class="card-icon" style="background:rgba(46,160,67,.1)">🎯</div><div class="card-body"><h3>个股异动分析</h3><p>个股级异动检测（量比 / 换手 / 大单 / 龙虎榜 / 公告联动）· 尾盘异动与分时急拉标注 · AI 归因（独立异动 vs 板块带动）· 自选股命中高亮 ★ · 个股监测直达</p><span class="tag tag-core">新增</span></div></a>
 </div>
 
 <div class="section-title">系统</div>
 <div class="grid">
 <a class="card" href="settings.html" target="_blank"><div class="card-icon" style="background:rgba(88,166,255,.06)">⚙</div><div class="card-body"><h3>个人设置</h3><p>基本信息 · 涨跌配色方案（红涨绿跌 / 绿涨红跌）· 个人 K 线均线 · 账号安全</p><span class="tag tag-accent">设置</span></div></a>
+<a class="card" href="skill-square.html" target="_blank"><div class="card-icon" style="background:rgba(94,106,210,.08)">🧩</div><div class="card-body"><h3>技能广场</h3><p>广场浏览（内置 10 项 · kind 筛选）· 我的技能（安装/卸载 · 自定义草稿/发布）· 自定义技能 = 配置非代码</p><span class="tag tag-accent">设置</span></div></a>
 <a class="card" href="admin.html" target="_blank"><div class="card-icon" style="background:rgba(248,81,73,.08)">🛡</div><div class="card-body"><h3>后台管理</h3><p>总览 · 用户 / 股票 / 研报 / 资讯 / 任务（cron 中文展示）· LLM 配置 · 采集渠道 · 数据类型优先级 · 跟踪指数管理（10 页）</p><span class="tag tag-accent">管理</span></div></a>
 </div>
 
@@ -81,7 +91,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);min-
 <a class="card" href="mobile.html" target="_blank"><div class="card-icon" style="background:rgba(88,166,255,.1)">📱</div><div class="card-body"><h3>移动端适配</h3><p>复盘 / 分析 / 设置三大分组 · 底部 Tab Bar + 抽屉导航 · AI 助手底部弹层 · 图谱双指缩放</p><span class="tag tag-accent">≤768px</span></div></a>
 </div>
 
-<div class="footer">Design System: SquadSight-inspired · Dark Theme · Indigo Accent · v0.2.0</div>
+<div class="footer">Design System: SquadSight-inspired · Dark Theme · Indigo Accent · v0.4.0</div>
 </div>
 </body>
 </html>

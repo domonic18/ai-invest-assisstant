@@ -32,10 +32,11 @@ import {
   useTriggerAdminTask,
   useUpdateAdminTask,
 } from '@/hooks/useAdminTasks'
-import type { AdminTask } from '@ai-invest/shared'
+import { PAGE_SIZE, type AdminTask } from '@ai-invest/shared'
 import { formatCronExpression, formatDateTime } from '@/utils/formatters'
 import { COLLECTOR_TASK_LABEL, getSourceLabel, getTaskLabel } from '@/utils/collectorTaskLabels'
 import { useCollectorTaskCatalog } from '@/hooks/useCollectorAdmin'
+import { statusTagColor } from '@ai-invest/shared'
 
 interface TaskFormValues {
   taskName: string
@@ -50,17 +51,9 @@ const FALLBACK_TASK_TYPE_OPTIONS = Object.entries(COLLECTOR_TASK_LABEL).map(([va
   value,
 }))
 
-const STATUS_COLORS: Record<string, string> = {
-  success: 'green',
-  failed: 'red',
-  running: 'blue',
-  pending: 'orange',
-  idle: 'default',
-}
-
 export function AdminTasks() {
   const [form] = Form.useForm<TaskFormValues>()
-  const [params, setParams] = useState({ page: 1, pageSize: 20 })
+  const [params, setParams] = useState({ page: 1, pageSize: PAGE_SIZE.table })
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<AdminTask | null>(null)
   const { data: catalog } = useCollectorTaskCatalog()
@@ -97,11 +90,11 @@ export function AdminTasks() {
 
   const handleSubmit = async (values: TaskFormValues) => {
     const payload = {
-      task_name: values.taskName,
-      task_type: values.taskType,
+      taskName: values.taskName,
+      taskType: values.taskType,
       source: values.source,
       schedule: values.schedule,
-      is_active: values.isActive,
+      isActive: values.isActive,
     }
     try {
       if (editing) {
@@ -189,7 +182,7 @@ export function AdminTasks() {
       key: 'lastStatus',
       render: (value: string, record: AdminTask) => (
         <Space>
-          <Tag color={STATUS_COLORS[value] || 'default'}>{value}</Tag>
+          <Tag color={statusTagColor(value)}>{value}</Tag>
           <span className="text-gray-400">{formatDateTime(record.lastRunAt)}</span>
         </Space>
       ),

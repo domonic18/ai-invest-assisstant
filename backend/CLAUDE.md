@@ -8,7 +8,7 @@
 - **Web 框架**: FastAPI 0.111+ / Uvicorn
 - **ORM**: SQLAlchemy 2.0+ / Alembic
 - **数据验证**: Pydantic 2.7+ / Pydantic Settings
-- **AI Agent**: PydanticAI 2.x / OpenAI SDK / Anthropic SDK
+- **AI Agent**: deepagents (LangChain/LangGraph) / OpenAI SDK / Anthropic SDK
 - **MCP**: mcp 1.x
 - **配置管理**: Pydantic Settings + YAML 配置文件
 - **日志**: structlog
@@ -49,6 +49,14 @@ async def get_stock_metrics(
 | Pydantic 模型 | PascalCase | `StockResponse` |
 | 数据库模型 | PascalCase | `Stock`, `KLine` |
 | API 端点 | snake_case | `get_stock_detail` |
+
+### 常量与配置分层（必须遵守）
+
+常量不散落在业务代码中，新增常量先判断属于哪一层再落位：
+
+- **部署可调参数**（超时、重试、大小/数量上限、路径等随环境变化的数值）→ 统一进 `app/core/config.py`（Pydantic Settings，env 可覆盖），禁止在业务模块硬编码
+- **跨模块共享的领域常量**（多处消费的清单/映射/默认值）→ `app/core/constants.py` 或对应 core 模块（如 `locking.DEFAULT_LOCK_TTL_SECONDS`），保持单一真相源
+- **单模块私有契约**（仅本模块消费、属于代码逻辑一部分的白名单/注册表）→ 留在本模块顶部，UPPER_SNAKE_CASE
 
 ### 文档要求
 
@@ -94,7 +102,9 @@ async def fetch_kline(
 
 - **services 与 repositories 按业务子域组织**：`services/` 与 `repositories/` 根目录不存放平文件，
   新服务/仓储一律放入对应子域包（admin/ assistant/ chain/ collector/ common/ market/ reports/ review/ user/）；
-  services 顶层禁止导入 `app.agent.*`（反向依赖会成环，需在函数内延迟导入）
+  services 顶层禁止导入 `app.agent.tools` / `app.agent.skills` / `app.agent.runtime`
+  （它们反向依赖 services，顶层导入会成环，需在函数内延迟导入）；
+  `app.agent.core`（Prompt 加载/渲染等纯配置叶子）可顶层导入
 - **路由层禁止直接操作数据库**：不允许在路由中调用 `session.execute` / `session.add` / `session.commit`，一律委托给服务层
 - **仓储层禁止管理事务**：`repositories/` 只做查询构造与执行，**绝不**调用 `commit()` / `rollback()`
 - **服务层拥有事务边界**：所有写操作（add/delete/update）成功后必须显式 `await session.commit()`；禁止只 `flush()` 不 `commit()`（`get_db` 不会自动提交，只 flush 的写入会在请求结束时被回滚）
@@ -153,7 +163,7 @@ collector/
 - **同一数据类型的多渠道 spider**（如 sina/ths 的 kline、auction、eastmoney/ths 的 sector-fund-flow）：共用 `spiders/` 下的数据类型基类（`kline_base.py`/`auction_base.py`/`sector_fund_flow_base.py`），子类只写 collect 与数据源键名声明；新增同类渠道优先复用/扩展这些基类
 - **解析函数只用 `core.parsing`**（`to_optional_str`/`to_float`/`parse_cn_amount`/`clean_stock_code`/`parse_date`/`parse_time`），禁止在 spider 里重复定义
 - **akshare 容错约定**：空数据（`df is None or df.empty`）返回 `[]`；异常不要吞——多渠道任务的 fallback 依赖异常向上传播，仅已知"无数据即抛错"的接口（如涨停池/龙虎榜）可 try/except 返回 `[]`
-- **新增采集任务**：在 `runtime/registry.py` 的 TASK_SPECS 增加一条 TaskSpec 声明（data_type/采集器懒加载路径/config_params/run_params），任务参数只在此维护一处，runner 的参数白名单自动派生
+- **新增采集任务**：在 `runtime/specs/` 对应数据类型模块（kline/market/pool/fund_flow/news/fundamental/ai/maintenance）的 SPECS 增加一条 TaskSpec 声明（data_type/采集器懒加载路径/config_params/run_params），`runtime/registry.py` 聚合为 TASK_SPECS，任务参数只在声明表维护一处，runner 的参数白名单自动派生
 - **任务目录 API 从 TASK_SPECS 派生**（`GET /admin/collector/tasks/catalog`）：API/UI 一律从目录取任务清单，禁止在枚举、shared 类型或前端另行硬编码；SKIPPED 是采集器的良性终态（非交易日/已生成），fallback 只对 FAILED 轮换渠道，不得把 SKIPPED 改写为 FAILED
 - **日期类参数默认值必须是 `latest_trading_day()`**（股池/龙虎榜/成交额/复盘均如此），禁止 `today_cn()`/`now` 兜底——周末手动补跑会静默空采；仅"天然只有当日"的数据（auction 快照、新浪分钟线）可用当日
 - **执行入口统一走 `runtime.runner.run_task`**（worker/scheduler/CLI/SCF 共享）：生成 `task_run_id` 绑定日志上下文、回写 `collector_log`、失败记录 traceback；`runtime/scf_handler.py` 只做 SCF 事件解析
@@ -162,10 +172,11 @@ collector/
 
 ### AI Agent 与 Prompt 管理
 
-- 所有 Agent Prompt 必须放在 `app/prompts/agents/` 和 `app/prompts/skills/` 下的 YAML 文件中
+- Agent 系统提示词（assistant/subagent/page_context 等应用基础设施）放 `app/prompts/agents/` 下的 YAML 文件；skill 提示词是 skill 分发单元（`skills/<skill_id>/` 自包含目录）的一部分，放 `skills/<skill_id>/prompt.yaml`，经 `app.skills.prompt.load_skill_prompt` 加载
+- builtin skill 必须登记进 `app/skills/registry.py`（`BUILTIN_SKILLS`），文件资产与代码硬编码的 skill_id 由 `tests/unit/skills/test_registry.py` 钉死一致
 - 禁止在 Python 代码中硬编码 Prompt
-- 使用 `PromptLoader` / `SkillLoader` 加载配置
-- 使用 `llm_router.build_model()` / `build_agent()` 统一创建模型与 Agent
+- 使用 `PromptLoader` 加载配置、`PromptRenderer` 渲染模板
+- 使用 `model_factory.build_langchain_model()` 统一创建模型；多步任务走 `agent/skills/skill_runtime` deepagents 骨架，单轮结构化任务走 `agent/runtime/structured.run_structured`
 
 ### 可观测系统与日志标准
 

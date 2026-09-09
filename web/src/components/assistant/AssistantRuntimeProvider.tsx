@@ -9,6 +9,7 @@ import { useLocation } from 'react-router-dom'
 import { createAssistantClient } from '@/api/assistant'
 import { useAssistantStore } from '@/stores/assistant'
 import { buildPageContext } from '@/utils/pageContext'
+import { parsePageEvent } from './pageEvents'
 import { extractPageResult, extractTodos, type StateWithTasks } from './runtimeUtils'
 
 const ASSISTANT_ID = 'invest-assistant'
@@ -47,16 +48,8 @@ export function AssistantRuntimeProvider({ children }: { children: ReactNode }) 
         if (pageResult) useAssistantStore.getState().setPageResult(pageResult)
       },
       onCustomEvent: (event) => {
-        const e = event as unknown as Record<string, unknown>
-        if (e.type === 'industry_chain.analysis_complete') {
-          useAssistantStore.getState().setPageResult({
-            type: 'industry_chain.analysis_complete',
-            industry: String(e.industry ?? ''),
-            versionId: Number(e.version_id),
-            versionNo: Number(e.version_no),
-            createdAt: e.created_at ? String(e.created_at) : undefined,
-          })
-        }
+        const parsed = parsePageEvent(event)
+        if (parsed) useAssistantStore.getState().setPageResult(parsed.result)
       },
     },
     load: async (externalId: string) => {

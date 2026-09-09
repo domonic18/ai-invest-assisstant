@@ -2,9 +2,10 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.stock import (
     AdminStockCreate,
@@ -21,8 +22,8 @@ router = APIRouter(dependencies=[Depends(get_current_admin_user)])
 async def list_stocks(
     session: Annotated[AsyncSession, Depends(get_db)],
     q: str | None = None,
-    page: int = 1,
-    page_size: int = 20,
+    page: int = DEFAULT_PAGE,
+    page_size: int = DEFAULT_PAGE_SIZE,
 ) -> PaginatedResponse:
     """查询股票列表。"""
     items, total = await AdminStockService(session).list_stocks(q, page, page_size)
@@ -51,11 +52,6 @@ async def get_stock(
 ) -> StockBasicResponse:
     """获取单条股票基础信息。"""
     stock = await AdminStockService(session).get_stock(stock_id)
-    if not stock:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Stock not found",
-        )
     return StockBasicResponse.model_validate(stock)
 
 
@@ -67,11 +63,6 @@ async def update_stock(
 ) -> StockBasicResponse:
     """更新股票基础信息。"""
     stock = await AdminStockService(session).update_stock(stock_id, data)
-    if not stock:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Stock not found",
-        )
     return StockBasicResponse.model_validate(stock)
 
 
@@ -81,10 +72,4 @@ async def delete_stock(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     """删除股票基础信息。"""
-    try:
-        await AdminStockService(session).delete_stock(stock_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    await AdminStockService(session).delete_stock(stock_id)

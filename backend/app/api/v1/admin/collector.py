@@ -3,9 +3,11 @@
 from typing import Annotated, Any
 
 from celery.result import AsyncResult
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
+from app.core.exceptions import NotFoundError
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.collector import (
     CollectorDeadLetterResponse,
@@ -31,10 +33,7 @@ def _get_task_spec_or_404(task_name: str) -> TaskSpec:
     """任务名校验唯一入口：未注册的任务返回 404。"""
     spec = TASK_SPECS.get(task_name)
     if spec is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Unknown collector task: {task_name}",
-        )
+        raise NotFoundError(f"Unknown collector task: {task_name}")
     return spec
 
 
@@ -91,10 +90,7 @@ async def get_collector_log_celery_status(
     """返回采集日志对应的 Celery 任务状态。"""
     log = await CollectorLogService(session).get_by_id(log_id)
     if log is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Log not found",
-        )
+        raise NotFoundError("Log not found")
     if not log.celery_task_id:
         return {
             "log_id": log_id,
@@ -113,8 +109,8 @@ async def get_collector_log_celery_status(
 @router.get("/dead-letters", response_model=PaginatedResponse)
 async def list_dead_letters(
     session: Annotated[AsyncSession, Depends(get_db)],
-    page: int = 1,
-    page_size: int = 20,
+    page: int = DEFAULT_PAGE,
+    page_size: int = DEFAULT_PAGE_SIZE,
 ) -> PaginatedResponse:
     """按最新优先列出采集死信记录。"""
     total, rows = await CollectorLogService(session).list_dead_letters(page, page_size)
@@ -135,13 +131,7 @@ async def list_collector_logs(
     limit: int = 50,
 ) -> list[CollectorLogResponse]:
     """按最新优先列出最近的采集执行日志。"""
-    try:
-        rows = await CollectorLogService(session).list_recent(limit)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
+    rows = await CollectorLogService(session).list_recent(limit)
     return [CollectorLogResponse.model_validate(row) for row in rows]
 
 

@@ -12,7 +12,9 @@ import type {
   ApiAdminStockUpdateRequest,
 } from '@ai-invest/shared'
 
-const ADMIN_STOCKS_KEY = ['admin-stocks'] as const
+import { queryKeys } from '@/hooks/queryKeys'
+
+const ADMIN_STOCKS_KEY = queryKeys.admin.stocks
 
 export function useAdminStocks(params: AdminStockParams = {}) {
   return useQuery({

@@ -15,7 +15,10 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.kline import KlineDaily, KlineMinute
-from app.repositories.market.kline_repository import fetch_daily_bars, fetch_minute_bars
+from app.repositories.market.kline_repository import (
+    fetch_daily_bars_multi,
+    fetch_minute_bars,
+)
 
 _CN_TZ = ZoneInfo("Asia/Shanghai")
 
@@ -213,12 +216,13 @@ def _format_intraday(
 
 async def build_technical_context(session: AsyncSession, trade_date: date) -> str:
     """构建五标的日线/周线/分时技术分析文本（复盘 prompt 输入）。"""
+    bars_by_code = await fetch_daily_bars_multi(
+        session, list(TECH_CODES), end_date=trade_date, limit=_DAILY_LIMIT
+    )
+
     sections: list[str] = []
     for code, label in TECH_CODES.items():
-        rows = await fetch_daily_bars(
-            session, code, end_date=trade_date, limit=_DAILY_LIMIT
-        )
-        bars = _to_bars(rows)
+        bars = _to_bars(bars_by_code.get(code, []))
         if not bars:
             sections.append(f"■ {label}（{code}）：本地无日 K 数据")
             continue

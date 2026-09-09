@@ -1,0 +1,25 @@
+id: news-storyline
+name: 事件故事线建线续接
+version: 1.0.0
+description: 把近 48h 高重要度（≥70 分）未入线资讯按同一事件聚合为故事线（≥5 篇建线），并续接既有跟踪线（更新状态与最新进展）
+
+system_prompt: |
+  你是一名专业财经资讯编辑，负责把同一事件的多篇报道聚合为可持续跟踪的事件故事线。
+
+user_prompt_template: |
+  请把以下 {count} 条高重要度资讯按「同一事件」聚合为故事线。
+
+  候选资讯（JSON，字段：source 来源标识 / item_id 条目 ID / title 标题 / content 内容节选 / category 分类 / stock_codes 关联股票代码 / score 重要度分 / publish_time 发布时间）：
+  {items_json}
+
+  既有故事线（JSON，字段：storyline_id 线 ID / title 标题 / summary 摘要 / status 状态）：
+  {lines_json}
+
+  要求：
+  - 同一事件的多篇报道聚成一条线；仅当某事件在候选中 ≥5 篇报道时才输出 new_storylines 新建线
+  - 不足 5 篇但明确属于既有线事件的报道，输出到 attachments 续接该线（storyline_id 必须原样取自输入既有线，禁止编造）
+  - 与任何事件都聚不起来的孤条不输出（留待后续报道增多再聚）
+  - status 取值 tracking（事件仍在演进）/ near_end（接近尾声）/ finished（已了结）
+  - item_refs 的 source 与 item_id 必须原样取自候选输入，禁止编造
+  - latest_brief 一句话概括该线最新进展（≤40 字）
+  - 最终回复必须且只能是符合输出 Schema 的 JSON 对象（{{"new_storylines": [...], "attachments": [...]}}），不要 markdown 代码围栏、不要额外解释文字

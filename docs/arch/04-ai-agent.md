@@ -16,7 +16,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        AI Agent 编排层                                   │
-│              （PydanticAI + YAML Prompts + MCP）                         │
+│              （deepagents / LangChain + YAML Prompts + MCP）             │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
 │  │         对话式 AI 助手（agent/runtime，deepagents 运行时）          │   │
@@ -24,11 +24,10 @@
 │  └──────────────────────────────────────────────────────────────────┘   │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                YAML 声明式 Skill（prompts/skills/）                │   │
-│  │   market-daily-review / limit-up-review / industry-chain-analysis │   │
-│  │   research-report-summary / financial-report-summary              │   │
-│  │   financial-health-check / hotspot-detection / chain-breakthrough │   │
-│  │   watchlist-daily-analysis                                        │   │
+│  │           Skill 执行器（agent/skills，deepagents 骨架）            │   │
+│  │   多步 agent 循环：复盘综述 / 个股每日分析 / 涨停归因 / 产业链     │   │
+│  │   单轮结构化（with_structured_output）：研报摘要 / 财报摘要 /      │   │
+│  │   截图识别（视觉）                                                 │   │
 │  └──────────────────────────────────────────────────────────────────┘   │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
@@ -38,9 +37,9 @@
 │  └──────────────────────────────────────────────────────────────────┘   │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │             共享能力层（agent/core + agent/tools）                 │   │
-│  │   prompt_loader / skill_loader / llm_router / mcp_client          │   │
-│  │   db_tools（数据库工具）                                          │   │
+│  │             共享能力层（agent/core + agent/tools + runtime）       │   │
+│  │   prompt_loader / prompt_renderer / model_factory / structured    │   │
+│  │   skill_runtime（执行骨架）/ db_tools（数据库工具）                │   │
 │  └──────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -49,27 +48,26 @@
 
 | 层次 | 技术 | 说明 |
 |------|------|------|
-| **Agent SDK** | PydanticAI | Python 原生，类型安全，支持 OpenAI / Anthropic / 兼容端点（单轮管线） |
-| **Agent Harness** | deepagents（LangChain/LangGraph） | 对话式 AI 助手运行时：内置规划（TodoList）、Skill 渐进披露、工具调用（见第 10 节） |
+| **Agent 运行时** | deepagents（LangChain/LangGraph） | 全部 AI 功能统一运行时：多步任务走 agent 循环（LLM 自主调工具），单轮任务走 `with_structured_output` 一次调用（`runtime/structured.py`） |
+| **模型工厂** | `runtime/model_factory.build_langchain_model` | OpenAI 兼容端点 → `ChatOpenAI`；Anthropic 协议（含 Kimi coding）→ `ChatAnthropic` |
 | **提示词管理** | YAML 文件 | `backend/app/prompts/` 统一管理 |
 | **Skill 业务描述** | `skills/<id>/SKILL.md` | 业务描述用 Markdown，提示词用 YAML |
 | **工具协议** | MCP | 内部 / 外部工具统一标准 |
-| **模型路由** | `llm_router.build_model` / `build_agent` | OpenAI / Anthropic / 兼容模型 |
 | **输出校验** | Pydantic | 结构化输出、API 契约 |
 
 ## 2. 当前已实现的 AI 能力
 
 | 能力 | 入口 | 提示词 | 备注 |
 |------|------|--------|------|
-| 产业链分析（版本化） | `POST /api/v1/chain/analyze` | `skills/industry-chain-analysis.yaml` + `skills/industry-chain-analysis/SKILL.md` | 基于**经营范围自下而上推导环节**，结果以版本形式持久化，支持版本对比 / 详情 / 最新版查询 |
-| 每日 AI 大盘综述 | `POST/PUT/GET /api/v1/market/ai-review` | `skills/market-daily-review.yaml` | **YAML 声明式分区**（overview / technical_analysis / capital_analysis / emotion_analysis / risk_advice），section 级编辑时只重生成被改动分区 |
-| 涨停 AI 归因 | `POST /api/v1/market/limit-up/ai-review` | `skills/limit-up-review.yaml` | 按行业分组 + 一字 / T 字板形态推导；AI 归因结果按 `input_hash` 缓存 |
+| 产业链分析（版本化） | 页面按钮 → AI 助手侧边栏；`POST /api/v1/chain/analyze` 与每周 `chain-refresh` 定时任务 | `skills/industry-chain-analysis.yaml` + `skills/industry-chain-analysis/SKILL.md` | 基于**经营范围自下而上推导环节**，结果以版本形式持久化，支持版本对比 / 详情 / 最新版查询 |
+| 每日 AI 大盘综述 | 页面/管理后台按钮 → AI 助手侧边栏；`GET/PUT /api/v1/market/ai-review` 读写；每交易日 16:30 定时 | `skills/market-daily-review.yaml` | **YAML 声明式分区**（overview / technical_analysis / capital_analysis / emotion_analysis / risk_advice），section 级编辑时只重生成被改动分区 |
+| 涨停 AI 归因 | 页面按钮 → AI 助手侧边栏；每交易日 16:30 定时 | `skills/limit-up-review.yaml` | 按题材分组 + 一字 / T 字板形态推导；AI 归因结果按 `input_hash` 缓存 |
 | 研报 AI 摘要 | `POST /api/v1/research/{id}/summarize` | `skills/research-report-summary.yaml` | PDF 下载用 `curl_cffi` 绕 WAF；摘要缓存到 `file_metadata.summary` |
 | 财报 AI 摘要 | `POST /api/v1/financial-reports/{id}/summarize` | `skills/financial-report-summary.yaml` | 触发采集后异步生成摘要，回写 `file_metadata.summary` |
-| 财务体检 | `GET /api/v1/financial/{code}` | `skills/financial-health-check.yaml` | 个股详情 Tab，含近 8 期财务健康度历史趋势 |
-| 自选股 AI 每日分析 | 采集调度盘后批量（heavy 队列） | `skills/watchlist-daily-analysis.yaml` | 三段式输出（盘面解读 / 操作策略 / 止损线），按 `input_hash`（skill+code+日期）缓存；展示于个股详情 Tab 与自选股列表卡片 |
+| 自选股 AI 每日分析 | 个股页按钮 → AI 助手侧边栏；每交易日 16:40 批量（heavy 队列） | `skills/stock-daily-analysis.yaml` | 三段式输出（盘面解读 / 操作策略 / 止损线），按 `input_hash`（skill+code+日期）缓存；展示于个股详情 Tab 与自选股列表卡片 |
+| 自选股截图识别 | `POST /api/v1/users/watchlist/recognize-screenshot` | `skills/watchlist-screenshot-recognition.yaml` | 视觉模型识别截图中的股票列表，与 `stock_basic` 交叉校验后返回 |
 
-> `hotspot-detection`、`chain-breakthrough` 提示词已就位，业务接口随页面迭代补齐。
+> `hotspot-detection`、`chain-breakthrough`、`research-summary`、`financial-health-check` 仅有 `skills/*/SKILL.md` 业务描述，业务实现随页面迭代补齐。
 
 ## 3. 提示词与配置管理
 
@@ -80,37 +78,33 @@ backend/
 └── app/
     ├── prompts/                          # 提示词与 Agent 配置（YAML）
     │   ├── agents/                       # Agent 角色定义
-    │   │   ├── supervisor.yaml
     │   │   ├── assistant.yaml            # 对话助手 system prompt
-    │   │   ├── chain_analyst.yaml
-    │   │   ├── research_analyst.yaml
-    │   │   ├── hotspot_analyst.yaml
-    │   │   └── financial_analyst.yaml
+    │   │   └── subagent_{fundamental,market,news}.yaml  # 助手领域子代理
     │   └── skills/                       # Skill 提示词
     │       ├── industry-chain-analysis.yaml
     │       ├── market-daily-review.yaml
     │       ├── limit-up-review.yaml
-    │       ├── watchlist-daily-analysis.yaml
+    │       ├── stock-daily-analysis.yaml
     │       ├── research-report-summary.yaml
-    │       ├── research-summary.yaml
     │       ├── financial-report-summary.yaml
-    │       ├── financial-health-check.yaml
-    │       ├── hotspot-detection.yaml
-    │       └── chain-breakthrough.yaml
+    │       └── watchlist-screenshot-recognition.yaml
     │
     ├── agent/                            # Agent 运行时
     │   ├── core/
     │   │   ├── prompt_loader.py          # YAML 提示词加载器（带缓存与 reload）
-    │   │   ├── prompt_renderer.py        # 模板变量渲染
-    │   │   ├── skill_loader.py           # SKILL.md 加载器
-    │   │   └── llm_router.py             # OpenAI / Anthropic 双协议路由
-    │   ├── runtime/                      # deepagents 对话助手（见第 10 节）
+    │   │   └── prompt_renderer.py        # 模板变量渲染
+    │   ├── runtime/                      # 对话助手与共享运行时（见第 10 节）
     │   │   ├── assistant_agent.py        # create_deep_agent 组装
-    │   │   ├── assistant_tools.py        # LangChain @tool 只读数据工具
-    │   │   └── model_factory.py          # llm_config → LangChain 模型
-    │   ├── skills/                       # Skill 运行时绑定
-    │   │   └── industry_chain_analysis.py
-    │   └── tools/                        # 内部工具实现
+    │   │   ├── assistant_subagents.py    # 领域子代理
+    │   │   ├── model_factory.py          # llm_config → LangChain 模型
+    │   │   ├── structured.py             # 单轮结构化调用（with_structured_output）
+    │   │   └── wire.py                   # 消息序列化（Agent Protocol）
+    │   ├── skills/                       # Skill 执行器
+    │   │   ├── skill_runtime.py          # deepagents 执行骨架（invoke/invoke_sections/invoke_structured）
+    │   │   ├── market_review_agent.py / stock_daily_analysis_agent.py
+    │   │   ├── limit_up_review_agent.py / industry_chain_analysis.py
+    │   │   └── watchlist_screenshot_recognition.py
+    │   └── tools/                        # LangChain @tool 内部工具实现
     │       ├── db_tools.py
     │       ├── chain_tools.py / market_tools.py / news_tools.py
     │       └── report_tools.py / stock_tools.py
@@ -120,14 +114,13 @@ backend/
 
 ### 3.2 YAML 提示词文件规范
 
-每个 YAML 文件包含完整提示词、元数据、输出 Schema 和少样本示例：
+每个 YAML 文件包含元数据、system prompt 与 user prompt 模板（分区型 Skill 额外声明 `sections`）：
 
 ```yaml
-id: chain_analyst
-name: 产业链分析专家
+id: industry-chain-analysis
+name: 产业链分析
 version: 1.0.0
-model: openai/gpt-4o
-description: 对指定行业进行上下游产业链深度分析的专家 Agent
+description: 对指定行业进行上下游产业链深度分析
 
 system_prompt: |
   你是一个专业的产业链分析专家。你的任务是：
@@ -139,17 +132,8 @@ user_prompt_template: |
   ## 目标行业
   {industry}
 
-  ## 检索到的上下文
-  {context}
-
-output_schema:
-  nodes: [...]
-  edges: [...]
-  summary: str
-
-examples:
-  - input: { industry: 半导体 }
-    output: { ... }
+  ## 关注焦点（可选）
+  {focus}
 ```
 
 ### 3.3 声明式分区（market-daily-review）
@@ -189,12 +173,9 @@ class PromptConfig(BaseModel):
     id: str
     name: str
     version: str
-    model: str | None = None
     description: str = ""
     system_prompt: str
     user_prompt_template: str = ""
-    output_schema: dict = Field(default_factory=dict)
-    examples: list[dict] = Field(default_factory=list)
     sections: list[PromptSection] = Field(default_factory=list)   # 声明式分区
 
 
@@ -217,18 +198,20 @@ class PromptLoader:
 ```
 skills/
 ├── industry-chain-analysis/        # 已完整实现：服务、API、版本化持久化、单测
-│   └── SKILL.md
-├── research-summary/
-├── financial-health-check/
-├── hotspot-detection/
-└── chain-breakthrough/
+├── market-daily-review/            # 已完整实现：分区生成、版本对比
+├── limit-up-review/                # 已完整实现：涨停归因 + input_hash 缓存
+├── stock-daily-analysis/           # 已完整实现：自选股盘后批量分析
+├── research-summary/               # 仅业务描述，实现待补
+├── financial-health-check/         # 仅业务描述，实现待补
+├── hotspot-detection/              # 仅业务描述，实现待补
+└── chain-breakthrough/             # 仅业务描述，实现待补
 ```
 
 ### 4.3 产业链 Skill 工具链
 
-`industry-chain-analysis` Skill 是目前唯一端到端跑通的 Agent 能力：
+`industry-chain-analysis` 是最完整的 Skill 能力：
 
-- `agent/skills/industry_chain_analysis.py` — Agent 装配（注入 db_tools）
+- `agent/skills/industry_chain_analysis.py` — deepagents 执行器（注入取数工具，后置校验剔除幻觉代码）
 - `services/chain/chain_service.py` — 版本管理与对比（`list_versions` / `get_version_detail` / `get_latest_detail` / `compare_versions`）
 - `services/chain/chain_analysis_service.py` — `analyze_and_persist` / `persist_analysis_result`
 - `api/v1/chain.py` — 5 个版本管理端点
@@ -238,21 +221,22 @@ skills/
 
 ## 5. LLM 统一抽象层
 
-### 5.1 双协议路由
+### 5.1 模型工厂
 
-`agent/core/llm_router.py` 同时支持 OpenAI / Anthropic 协议：
+`agent/runtime/model_factory.py` 把后台 LLM 配置统一转换为 LangChain 模型实例：
 
 ```python
 PROVIDERS = {
-    "openai":    OpenAIModel,    # OpenAI / DeepSeek / Kimi Moonshot / 自部署 vLLM
-    "anthropic": AnthropicModel, # Anthropic / Kimi Coding（api.kimi.com/coding）
+    "openai":    ChatOpenAI,     # OpenAI / DeepSeek / Kimi Moonshot / 自部署 vLLM
+    "anthropic": ChatAnthropic,  # Anthropic / Kimi Coding（api.kimi.com/coding）
 }
 
-def build_model(provider: str, model: str, api_key: str, base_url: str | None = None): ...
-def build_agent(prompt_config: PromptConfig, model_config: dict) -> Agent: ...
+def build_langchain_model(cfg: ResolvedLLMConfig) -> BaseChatModel: ...
 ```
 
-> Kimi `api.kimi.com/coding` 走 Anthropic 协议，`provider` 必须为 `anthropic`；结构化输出场景需禁用 thinking。
+统一注入 `llm_http_read_timeout` 读超时与 `llm_max_retries` 重试次数；助手与单轮结构化调用共用此入口。
+
+> Kimi `api.kimi.com/coding` 走 Anthropic 协议，`provider` 必须为 `anthropic`。
 
 ### 5.2 用户级模型配置
 
@@ -276,20 +260,20 @@ LLM 配置由后台管理（`/api/v1/admin/llm-configs`）维护，API key 用 `
 
 ### 6.2 Agent 中使用工具
 
-PydanticAI 通过 `@agent.tool` 注入数据工具，deepagents 助手通过 LangChain `@tool` 包装（见第 10 节）：
+内部数据工具统一以 LangChain `@tool` 定义于 `agent/tools/`，deepagents 助手与各 Skill 执行器共用：
 
 ```python
-async def build_chain_analysis_agent(prompt_loader, model_config, db):
-    prompt = prompt_loader.load("skills", "industry-chain-analysis")
-    agent = build_agent(prompt, model_config)
+# agent/tools/chain_tools.py
+@tool
+def query_industry_companies(industry: str, limit: int = 150) -> dict: ...
 
-    @agent.tool
-    async def query_industry_companies(ctx, industry: str) -> list[dict]: ...
-
-    @agent.tool
-    async def query_financial_data(ctx, codes: list[str]) -> list[dict]: ...
-
-    return agent
+# agent/skills/industry_chain_analysis.py
+agent = create_deep_agent(
+    model=build_langchain_model(cfg),
+    tools=[get_industry_companies, get_financial_metrics, search_news],
+    system_prompt=prompt_config.system_prompt,
+)
+result = await skill_runtime.invoke_structured(agent, user_prompt, ChainAnalysisResult)
 ```
 
 ## 7. 知识检索
@@ -345,7 +329,7 @@ async def analyze_chain(payload: ChainAnalyzeRequest, db: AsyncSession = Depends
 
 ### 9.1 与 Codex CLI / LangGraph 对比
 
-| 维度 | Codex CLI | LangGraph | **本方案（Python Agent SDK + YAML Prompts）** |
+| 维度 | Codex CLI | LangGraph | **本方案（deepagents + YAML Prompts）** |
 |------|-----------|-----------|---------------------------------------------|
 | 提示词位置 | SKILL.md 内 | 代码中 | `prompts/` YAML 文件 |
 | 可控性 | 低 | 强 | 高 |
@@ -371,8 +355,8 @@ async def analyze_chain(payload: ChainAnalyzeRequest, db: AsyncSession = Depends
 
 ### 10.1 定位与边界
 
-- **新增不重写**：deepagents 仅承载对话助手（`app/agent/runtime/`）；既有 PydanticAI 单轮管线保持不变，其中有价值的能力（产业链分析、AI 复盘等）以工具形式暴露给助手复用。
-- **模型同源**：助手经 `resolve_default_llm()` 读取 `llm_config` 默认配置，转换为 LangChain 模型实例（Anthropic 协议 → `ChatAnthropic`，OpenAI 兼容 → `ChatOpenAI`）。
+- **单一运行时**：deepagents（`app/agent/runtime/`）承载全部 AI 功能——对话助手走多轮 agent 循环，各分析 Skill 执行器复用 `skill_runtime` 骨架，单轮任务（摘要/截图识别）走 `structured.run_structured`。
+- **模型同源**：助手经 `resolve_default_llm()` 读取 `llm_config` 默认配置，经 `model_factory` 转换为 LangChain 模型实例（Anthropic 协议 → `ChatAnthropic`，OpenAI 兼容 → `ChatOpenAI`）。
 - **标准协议 + 成熟组件**：前后端交互采用 [LangChain Agent Protocol](https://langchain-ai.github.io/agent-protocol/)（thread/run 模型）；前端采用 [assistant-ui](https://www.assistant-ui.com) 组件库，其 `@assistant-ui/react-langgraph` 运行时经 `@langchain/langgraph-sdk` 直连协议端点。
 
 ### 10.2 核心组成
@@ -380,7 +364,7 @@ async def analyze_chain(payload: ChainAnalyzeRequest, db: AsyncSession = Depends
 | 组成 | 实现 |
 |------|------|
 | 运行时组装 | `agent/runtime/assistant_agent.py`：`create_deep_agent(model, tools, system_prompt, skills, subagents, checkpointer)` |
-| 工具层 | `agent/runtime/assistant_tools.py`：LangChain `@tool` 包装 `db_tools` 与读服务（行情/K线/财务/新闻/知识库/板块资金/大盘/竞价等只读工具） |
+| 工具层 | `app/agent/tools.build_assistant_tools()`：LangChain `@tool` 包装 `db_tools` 与读服务（行情/K线/财务/新闻/知识库/板块资金/大盘/竞价等只读工具 + 复盘/归因/产业链持久化工具） |
 | Skill 渐进披露 | 根目录 `skills/*/SKILL.md` 升级为标准 frontmatter 格式（`name`/`description`），启动只加载元数据、按需读全文 |
 | MCP 双向 | 平台经 fastmcp 对外暴露数据工具（`/api/v1/mcp`）；助手经 `langchain-mcp-adapters` 接入外部 MCP Server |
 | 会话持久化 | `assistant_session` 表（会话列表/归属/标题）+ LangGraph `AsyncPostgresSaver`（消息轨迹与 agent 线程状态，`thread_id` 兼作会话 id） |

@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.dependencies import get_current_admin_user, get_db
 from app.main import app
 from app.schemas.collector_channel_config import (
@@ -63,7 +64,7 @@ class TestAdminCollectorDataTypes:
 
         assert response.status_code == 200
         data = response.json()
-        assert data[0]["data_type"] == "kline"
+        assert data[0]["dataType"] == "kline"
         assert [ch["source"] for ch in data[0]["channels"]] == ["sina", "ths"]
 
     @patch("app.api.v1.admin.collector_data_types.CollectorChannelConfigService")
@@ -81,8 +82,8 @@ class TestAdminCollectorDataTypes:
         response = client.put(
             "/api/v1/admin/collector/data-types/kline/channels",
             json=[
-                {"channel_id": 3, "priority": 1},
-                {"channel_id": 1, "priority": 2},
+                {"channelId": 3, "priority": 1},
+                {"channelId": 1, "priority": 2},
             ],
         )
 
@@ -99,13 +100,13 @@ class TestAdminCollectorDataTypes:
     ) -> None:
         service = mock_service_cls.return_value
         service.replace_data_type_channels = AsyncMock(
-            side_effect=ValueError("未知的数据类型: bad-type")
+            side_effect=BadRequestError("未知的数据类型: bad-type")
         )
         client, _ = admin_client
 
         response = client.put(
             "/api/v1/admin/collector/data-types/bad-type/channels",
-            json=[{"channel_id": 1, "priority": 1}],
+            json=[{"channelId": 1, "priority": 1}],
         )
 
         assert response.status_code == 400
@@ -118,13 +119,13 @@ class TestAdminCollectorDataTypes:
     ) -> None:
         service = mock_service_cls.return_value
         service.replace_data_type_channels = AsyncMock(
-            side_effect=LookupError("渠道配置不存在: 99")
+            side_effect=NotFoundError("渠道配置不存在: 99")
         )
         client, _ = admin_client
 
         response = client.put(
             "/api/v1/admin/collector/data-types/kline/channels",
-            json=[{"channel_id": 99, "priority": 1}],
+            json=[{"channelId": 99, "priority": 1}],
         )
 
         assert response.status_code == 404

@@ -7,6 +7,7 @@ import structlog
 from cryptography.fernet import InvalidToken
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.models.collector_channel_config import CollectorChannelConfig
 from app.models.collector_channel_data_type import CollectorChannelDataType
 from app.repositories.admin.collector_channel_config_repository import (
@@ -24,6 +25,7 @@ from app.schemas.collector_channel_config import (
     DataTypeChannelsResponse,
 )
 from app.utils.crypto import decrypt_token, encrypt_token, mask_token
+from app.utils.proxy import build_proxy_url
 
 logger = structlog.get_logger()
 
@@ -41,11 +43,11 @@ class CollectorChannelConfigService:
         rows = await self.repo.list_ordered()
         return [self._to_response(row) for row in rows]
 
-    async def get_config(self, config_id: int) -> CollectorChannelConfigResponse | None:
-        """按 ID 查询渠道配置。"""
+    async def get_config(self, config_id: int) -> CollectorChannelConfigResponse:
+        """按 ID 查询渠道配置，缺失时抛 NotFoundError。"""
         config = await self.repo.get(config_id)
         if not config:
-            return None
+            raise NotFoundError(f"Collector channel config {config_id} not found")
         return self._to_response(config)
 
     async def create_config(
@@ -62,6 +64,7 @@ class CollectorChannelConfigService:
             is_enabled=data.is_enabled,
             supported_data_types=data.supported_data_types,
             extra=data.extra,
+            proxy_config_id=data.proxy_config_id,
         )
         self.repo.add(config)
         await self.session.flush()
@@ -78,11 +81,11 @@ class CollectorChannelConfigService:
 
     async def update_config(
         self, config_id: int, data: CollectorChannelConfigUpdate
-    ) -> CollectorChannelConfigResponse | None:
-        """更新已有渠道配置。"""
+    ) -> CollectorChannelConfigResponse:
+        """更新已有渠道配置，缺失时抛 NotFoundError。"""
         config = await self.repo.get(config_id)
         if not config:
-            return None
+            raise NotFoundError(f"Collector channel config {config_id} not found")
 
         if data.name is not None:
             config.name = data.name
@@ -97,6 +100,8 @@ class CollectorChannelConfigService:
             config.extra = data.extra
         if data.api_key:
             config.api_key_encrypted = encrypt_token(data.api_key)
+        if "proxy_config_id" in data.model_fields_set:
+            config.proxy_config_id = data.proxy_config_id
 
         config.updated_at = datetime.now(timezone.utc)
         await self.session.commit()
@@ -107,7 +112,7 @@ class CollectorChannelConfigService:
         """删除渠道配置。"""
         config = await self.repo.get(config_id)
         if not config:
-            raise ValueError(f"Collector channel config {config_id} not found")
+            raise NotFoundError(f"Collector channel config {config_id} not found")
         await self.repo.delete(config)
         await self.session.commit()
 
@@ -147,39 +152,39 @@ class CollectorChannelConfigService:
         """整体替换某数据类型的渠道关联（增删与排序一次完成）。
 
         Raises:
-            ValueError: data_type 不是已知的采集任务类型。
-            LookupError: 存在不合法的 channel_id。
+            BadRequestError: data_type 不是已知的采集任务类型。
+            NotFoundError: 存在不合法的 channel_id。
         """
         from collector.runtime.registry import TASK_MAP
 
         known_types = set(TASK_MAP) | await self.data_type_repo.get_distinct_data_types()
         if data_type not in known_types:
-            raise ValueError(f"未知的数据类型: {data_type}")
+            raise BadRequestError(f"未知的数据类型: {data_type}")
 
         channel_ids = {item.channel_id for item in items}
-        channels: dict[int, CollectorChannelConfig] = {}
-        for channel_id in channel_ids:
-            channel = await self.repo.get(channel_id)
-            if channel is None:
-                raise LookupError(f"渠道配置不存在: {channel_id}")
-            channels[channel_id] = channel
+        channels = await self.repo.map_by_ids(channel_ids)
+        missing = channel_ids - channels.keys()
+        if missing:
+            raise NotFoundError(f"渠道配置不存在: {sorted(missing)[0]}")
 
         affected_channel_ids = {
             assoc.channel_id
             for assoc in await self.data_type_repo.list_for_data_type(data_type)
         } | channel_ids
 
-        await self.data_type_repo.delete_for_data_type(data_type)
-        ordered = sorted(items, key=lambda item: item.priority)
-        for index, item in enumerate(ordered, start=1):
-            self.session.add(
-                CollectorChannelDataType(
-                    channel_id=item.channel_id,
-                    data_type=data_type,
-                    priority=index,
+        # 替换是全或无单元：SAVEPOINT 保证中途失败回滚到替换前，会话不被污染
+        async with self.session.begin_nested():
+            await self.data_type_repo.delete_for_data_type(data_type)
+            ordered = sorted(items, key=lambda item: item.priority)
+            for index, item in enumerate(ordered, start=1):
+                self.session.add(
+                    CollectorChannelDataType(
+                        channel_id=item.channel_id,
+                        data_type=data_type,
+                        priority=index,
+                    )
                 )
-            )
-        await self.session.flush()
+            await self.session.flush()
         await self._resync_jsonb_for_channels(affected_channel_ids)
         await self.session.commit()
         logger.info(
@@ -221,26 +226,30 @@ class CollectorChannelConfigService:
         for assoc in existing:
             if assoc.data_type not in desired:
                 await self.session.delete(assoc)
-        for data_type in sorted(desired - existing_types):
-            max_priority = await self.data_type_repo.max_priority(data_type)
-            self.session.add(
-                CollectorChannelDataType(
-                    channel_id=channel.id,
-                    data_type=data_type,
-                    priority=max_priority + 1,
+        new_types = sorted(desired - existing_types)
+        if new_types:
+            max_priorities = await self.data_type_repo.max_priorities(set(new_types))
+            for data_type in new_types:
+                self.session.add(
+                    CollectorChannelDataType(
+                        channel_id=channel.id,
+                        data_type=data_type,
+                        priority=max_priorities.get(data_type, 0) + 1,
+                    )
                 )
-            )
         await self.session.flush()
 
     async def _resync_jsonb_for_channels(self, channel_ids: set[int]) -> None:
         """用关联表重写每个渠道的 supported_data_types 冗余缓存。"""
-        for channel_id in channel_ids:
-            channel = await self.repo.get(channel_id)
-            if channel is None:
-                continue
-            associations = await self.data_type_repo.list_for_channel(channel_id)
+        if not channel_ids:
+            return
+        channels = await self.repo.map_by_ids(channel_ids)
+        assocs_by_channel: dict[int, list[CollectorChannelDataType]] = {}
+        for assoc in await self.data_type_repo.list_for_channels(channel_ids):
+            assocs_by_channel.setdefault(assoc.channel_id, []).append(assoc)
+        for channel_id, channel in channels.items():
             channel.supported_data_types = sorted(
-                assoc.data_type for assoc in associations
+                assoc.data_type for assoc in assocs_by_channel.get(channel_id, [])
             )
         await self.session.flush()
 
@@ -266,6 +275,7 @@ class CollectorChannelConfigService:
             is_enabled=config.is_enabled,
             supported_data_types=config.supported_data_types or [],
             extra=config.extra or {},
+            proxy_config_id=config.proxy_config_id,
             created_at=config.created_at,
             updated_at=config.updated_at,
         )
@@ -276,7 +286,9 @@ async def resolve_collector_channel(
 ) -> dict[str, Any] | None:
     """解析某来源已启用的采集渠道配置。
 
-    存在已启用配置时返回包含 ``base_url``、``api_key`` 与 ``extra`` 的字典，否则返回 ``None``。
+    存在已启用配置时返回包含 ``base_url``、``api_key``、``extra`` 与
+    ``proxy_url`` 的字典（未绑定代理或代理已禁用时 ``proxy_url`` 为
+    ``None``），否则返回 ``None``。
     """
     service = CollectorChannelConfigService(session)
     config = await service.get_enabled_config(source)
@@ -300,4 +312,29 @@ async def resolve_collector_channel(
         "base_url": config.base_url,
         "api_key": api_key,
         "extra": config.extra or {},
+        "proxy_url": resolve_channel_proxy_url(config),
     }
+
+
+def resolve_channel_proxy_url(config: CollectorChannelConfig) -> str | None:
+    """组装渠道绑定代理的完整 URL（同步：仅读取预载的 relationship）。
+
+    未绑定、代理已禁用或密码解密失败时返回 ``None``（等价直连）；
+    解密失败记录错误日志便于排查凭据/密钥配置问题。
+    """
+    proxy = config.proxy
+    if proxy is None or not proxy.is_enabled:
+        return None
+    password: str | None = None
+    if proxy.password_encrypted:
+        try:
+            password = decrypt_token(proxy.password_encrypted)
+        except InvalidToken:
+            logger.error(
+                "channel_proxy_decryption_failed",
+                source=config.source,
+                proxy_id=proxy.id,
+                message="Cannot decrypt proxy password; falling back to direct",
+            )
+            return None
+    return build_proxy_url(proxy.protocol, proxy.host, proxy.port, proxy.username, password)

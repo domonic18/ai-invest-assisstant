@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import Date, DateTime, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.clock import utc_now
 from app.core.database import Base
 
 
@@ -41,5 +42,5 @@ class IncomeStatement(Base):
     )
     eps: Mapped[Decimal | None] = mapped_column(Numeric(10, 4), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=utc_now, nullable=False
     )

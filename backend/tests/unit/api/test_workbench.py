@@ -80,8 +80,8 @@ class TestWorkbenchEndpoint:
         body = resp.json()
         assert body["calendar"][0]["title"] == "FOMC 议息会议"
         assert body["review"] is None
-        assert body["watchlist_groups"][0]["items"][0]["code"] == "600967"
-        assert body["watchlist_groups"][0]["items"][0]["ai_status"] == "ready"
-        assert body["global_indices"][0]["index_name"] == "COMEX黄金"
+        assert body["watchlistGroups"][0]["items"][0]["code"] == "600967"
+        assert body["watchlistGroups"][0]["items"][0]["aiStatus"] == "ready"
+        assert body["globalIndices"][0]["indexName"] == "COMEX黄金"
         args, _kwargs = svc_mock.await_args
         assert args[1] == 3

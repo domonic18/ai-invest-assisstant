@@ -3,14 +3,15 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.stock import (
-    StockAiAnalysisGenerateRequest,
-    StockAiAnalysisResponse,
+    StockAiAnalysisDatesResponse,
+    StockAiAnalysisStatusResponse,
     StockBasicResponse,
     StockIntradayResponse,
     StockKlineResponse,
@@ -46,10 +47,7 @@ async def get_stock(
     """获取股票基础信息。"""
     item = await stock_service.get_stock_by_code(session, code, market)
     if item is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Stock not found",
-        )
+        raise NotFoundError("Stock not found")
     return StockBasicResponse.model_validate(item)
 
 
@@ -61,10 +59,7 @@ async def get_stock_quote(
     """获取个股实时行情快照（Redis 优先，缺失时回退日 K）。"""
     data = await stock_service.get_stock_quote(session, code)
     if data is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Stock quote not found",
-        )
+        raise NotFoundError("Stock quote not found")
     return StockQuoteResponse.model_validate(data)
 
 
@@ -76,13 +71,7 @@ async def get_stock_kline(
     limit: int = Query(default=250, ge=1, le=500),
 ) -> StockKlineResponse:
     """获取个股日/周/月 K 线。"""
-    try:
-        data = await stock_service.get_stock_kline(session, code, period, limit)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
+    data = await stock_service.get_stock_kline(session, code, period, limit)
     return StockKlineResponse.model_validate(data)
 
 
@@ -93,13 +82,7 @@ async def get_stock_intraday(
     trade_date: date | None = None,
 ) -> StockIntradayResponse:
     """获取个股分时数据。"""
-    try:
-        data = await stock_service.get_stock_intraday(session, code, trade_date)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
+    data = await stock_service.get_stock_intraday(session, code, trade_date)
     return StockIntradayResponse.model_validate(data)
 
 
@@ -111,57 +94,57 @@ async def get_stock_sectors(
     """获取个股所属行业与概念。"""
     data = await stock_service.get_stock_sectors(session, code)
     if data is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Stock not found",
-        )
+        raise NotFoundError("Stock not found")
     return StockSectorsResponse.model_validate(data)
 
 
 @router.get(
     "/{code}/ai-analysis",
-    response_model=StockAiAnalysisResponse,
-    responses={204: {"description": "该交易日尚未生成个股 AI 分析"}},
+    response_model=StockAiAnalysisStatusResponse,
 )
 async def get_stock_ai_analysis(
     code: str,
     session: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
     trade_date: date | None = None,
-) -> StockAiAnalysisResponse | Response:
-    """读取个股指定交易日的 AI 分析（trade_date 缺省取最近交易日）。"""
+) -> StockAiAnalysisStatusResponse:
+    """轮询个股 AI 分析状态（trade_date 缺省取最近交易日）。
+
+    显式传入非交易日（周末/节假日）时归位到不晚于该日的最近交易日，
+    避免对非交易日触发无意义的生成。ready 时附带完整分析数据；
+    running 表示异步生成进行中；none 表示无缓存且无进行中的生成。
+    """
     resolved_date = trade_date or await trade_calendar_service.resolve_latest_trade_date(
         session
     )
+    if not await trade_calendar_service.is_trading_day(session, resolved_date):
+        resolved_date = await trade_calendar_service.resolve_trade_date_on_or_before(
+            session, resolved_date
+        )
     analysis = await stock_daily_analysis_service.get_stock_analysis(
         session, code, trade_date=resolved_date
     )
-    if analysis is None:
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    return analysis
+    if analysis is not None:
+        return StockAiAnalysisStatusResponse(
+            status="ready", data=analysis, trade_date=resolved_date
+        )
+    if await stock_daily_analysis_service.is_generation_running(code, resolved_date):
+        return StockAiAnalysisStatusResponse(status="running", trade_date=resolved_date)
+    return StockAiAnalysisStatusResponse(status="none", trade_date=resolved_date)
 
 
-@router.post(
-    "/{code}/ai-analysis",
-    response_model=StockAiAnalysisResponse,
+@router.get(
+    "/{code}/ai-analysis/dates",
+    response_model=StockAiAnalysisDatesResponse,
 )
-async def generate_stock_ai_analysis(
+async def get_stock_ai_analysis_dates(
     code: str,
-    data: StockAiAnalysisGenerateRequest,
     session: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
-) -> StockAiAnalysisResponse:
-    """手动触发 LLM 生成个股 AI 分析（regenerate=true 强制重新生成）。
+) -> StockAiAnalysisDatesResponse:
+    """该股已成功生成分析的全部交易日（升序）。
 
-    trade_date 缺省取最近交易日；缓存命中且未强制时直接返回既有结果。
-    LLM 调用同步执行（约 12-25s），锁冲突/数据未就绪由全局异常处理映射。
+    供详情页日历以标记区分「有分析记录 / 无分析记录」的日期。
     """
-    resolved_date = data.trade_date or await trade_calendar_service.resolve_latest_trade_date(
-        session
-    )
-    return await stock_daily_analysis_service.generate_stock_analysis(
-        session,
-        code,
-        trade_date=resolved_date,
-        regenerate=data.regenerate,
-    )
+    dates = await stock_daily_analysis_service.list_analysis_trade_dates(session, code)
+    return StockAiAnalysisDatesResponse(code=code, trade_dates=dates)

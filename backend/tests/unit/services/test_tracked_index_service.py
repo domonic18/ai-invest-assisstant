@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.models.tracked_index import TrackedIndexConfig
 from app.schemas.tracked_index import TrackedIndexCreate
 from app.services.admin.tracked_index_service import TrackedIndexService
@@ -64,11 +65,11 @@ class TestValidateEnable:
         if ok:
             TrackedIndexService._validate_enable(code, category, source)
         else:
-            with pytest.raises(ValueError, match="无数据源的指标不允许启用"):
+            with pytest.raises(BadRequestError, match="无数据源的指标不允许启用"):
                 TrackedIndexService._validate_enable(code, category, source)
 
     def test_unknown_category_rejected(self) -> None:
-        with pytest.raises(ValueError, match="market_category"):
+        with pytest.raises(BadRequestError, match="market_category"):
             TrackedIndexService._validate_enable("GC00Y", "美股", "eastmoney")
 
 
@@ -112,14 +113,14 @@ class TestCrud:
             market_category="全球",
             data_source="eastmoney",
         )
-        with pytest.raises(ValueError, match="已存在"):
+        with pytest.raises(BadRequestError, match="已存在"):
             await service.create_index(data)
 
     async def test_toggle_enable_validates(self) -> None:
         service = _service()
         row = _row(is_enabled=False, index_code="BTC")
         service.repo.get = AsyncMock(return_value=row)
-        with pytest.raises(ValueError, match="无数据源的指标不允许启用"):
+        with pytest.raises(BadRequestError, match="无数据源的指标不允许启用"):
             await service.toggle_index(1)
 
     async def test_toggle_disable_skips_validation(self) -> None:
@@ -132,7 +133,7 @@ class TestCrud:
     async def test_delete_missing_raises(self) -> None:
         service = _service()
         service.repo.get = AsyncMock(return_value=None)
-        with pytest.raises(ValueError, match="不存在"):
+        with pytest.raises(NotFoundError, match="不存在"):
             await service.delete_index(99)
 
     async def test_latest_quotes_merged_into_response(self) -> None:

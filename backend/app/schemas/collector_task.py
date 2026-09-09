@@ -2,10 +2,12 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.schemas.base import CamelModel
 
 
-class CollectorTaskBase(BaseModel):
+class CollectorTaskBase(CamelModel):
     """采集器任务的基础字段。"""
 
     task_name: str = Field(..., max_length=100)
@@ -20,7 +22,7 @@ class CollectorTaskCreate(CollectorTaskBase):
     """创建采集器任务的请求 schema。"""
 
 
-class CollectorTaskUpdate(BaseModel):
+class CollectorTaskUpdate(CamelModel):
     """更新采集器任务的请求 schema。"""
 
     task_type: str | None = Field(None, max_length=50)
@@ -32,8 +34,6 @@ class CollectorTaskUpdate(BaseModel):
 
 class CollectorTaskResponse(CollectorTaskBase):
     """采集器任务的响应 schema。"""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     last_run_at: datetime | None = None

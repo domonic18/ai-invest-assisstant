@@ -1,3 +1,8 @@
+/** llm_config.extra.capabilities 约定：视觉等能力标记。 */
+export interface LLMConfigCapabilities {
+  vision?: boolean
+}
+
 export interface LLMConfig {
   id: number
   name: string
@@ -23,6 +28,7 @@ export interface LLMConfigFormValues {
   apiKey: string
   isDefault: boolean
   isActive: boolean
+  vision?: boolean
 }
 
 export interface LLMConfigTestResult {
@@ -40,6 +46,7 @@ export interface CollectorChannelConfig {
   isEnabled: boolean
   supportedDataTypes: string[]
   extra: Record<string, unknown>
+  proxyConfigId: number | null
   createdAt: string
   updatedAt: string
 }
@@ -51,6 +58,39 @@ export interface CollectorChannelConfigFormValues {
   apiKey: string
   isEnabled: boolean
   supportedDataTypes: string[]
+  proxyConfigId?: number | null
+}
+
+/** 代理服务器配置（密码已脱敏）。 */
+export interface ProxyConfig {
+  id: number
+  name: string
+  protocol: 'http' | 'socks5'
+  host: string
+  port: number
+  username: string | null
+  passwordMasked: string | null
+  isEnabled: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** password 留空表示不修改已存储的密码。 */
+export interface ProxyConfigFormValues {
+  name: string
+  protocol: 'http' | 'socks5'
+  host: string
+  port: number
+  username?: string
+  password: string
+  isEnabled: boolean
+}
+
+export interface ProxyTestResult {
+  ok: boolean
+  statusCode: number | null
+  latencyMs: number
+  error: string | null
 }
 
 /**
@@ -412,4 +452,46 @@ export interface TrackedIndexFormValues {
   dataSource: string
   sortOrder: number
   isEnabled: boolean
+}
+
+/** 已纳管 AI skill 清单项（管理页 Tab 与完成事件订阅的数据源）。 */
+export interface AdminAiSkillInfo {
+  skillId: string
+  label: string
+  eventType: string | null
+}
+
+/** 业务键的单个字段（如 交易日 / 股票代码 / 行业+版本）。 */
+export interface AdminAiKeyField {
+  name: string
+  label: string
+  value: string
+}
+
+/** AI 结果管理列表行：每个业务键最新一条生成记录的元信息。 */
+export interface AdminAiResultItem {
+  id: number
+  skillId: string
+  keyFields: AdminAiKeyField[]
+  model: string | null
+  latencyMs: number | null
+  status: string
+  createdAt: string
+  historyCount: number
+  regeneratePrompt: string | null
+}
+
+/** 单条生成记录详情：元信息 + 结构化输出全文。 */
+export interface AdminAiResultDetail extends AdminAiResultItem {
+  errorMsg: string | null
+  structuredOutput: Record<string, unknown> | null
+}
+
+export interface AdminAiResultListParams {
+  skillId: string
+  status?: string
+  startDate?: string
+  endDate?: string
+  page?: number
+  pageSize?: number
 }

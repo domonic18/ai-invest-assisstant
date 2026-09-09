@@ -130,7 +130,7 @@ a:hover { color: var(--accent-hover); }
 .sidebar-logo svg { width: 18px; height: 18px; }
 .sidebar-brand-text { font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -.01em; }
 .sidebar-version { font-size: 10px; color: var(--text-tertiary); margin-left: auto; }
-.sidebar-nav { padding: 8px; flex: 1; }
+.sidebar-nav { padding: 8px; flex: 1; overflow-y: auto; }
 .sidebar-section-title {
   font-size: 10px; color: var(--text-tertiary); text-transform: uppercase;
   letter-spacing: .08em; padding: 12px 10px 6px; font-weight: 600;
@@ -284,64 +284,114 @@ tr:hover td { background: var(--bg-hover); }
 
 </style>
 <style>
-.settings-wrap { max-width: 720px; display: flex; flex-direction: column; gap: var(--space-5); }
+/* ===== 设置页布局：左锚点导航 + 右分区（行业设置页范式） ===== */
+.page-desc { font-size: 13px; color: var(--text-tertiary); margin: -12px 0 20px; }
 
-.desc-row {
-  display: flex; align-items: baseline; gap: var(--space-4);
-  padding: var(--space-3) 0; border-bottom: 1px solid var(--border);
+.settings-layout { display: grid; grid-template-columns: 196px minmax(0, 1fr); gap: 32px; align-items: start; }
+.settings-nav { position: sticky; top: 84px; display: flex; flex-direction: column; gap: 2px; }
+.settings-nav-label { font-size: 11px; letter-spacing: .08em; color: var(--text-tertiary); padding: 0 12px; margin-bottom: 8px; }
+.settings-nav a { display: block; padding: 7px 12px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--text-secondary); text-decoration: none; border-left: 2px solid transparent; transition: color .15s, background .15s; }
+.settings-nav a:hover { color: var(--text-primary); background: var(--bg-surface); }
+.settings-nav a.active { color: var(--accent); background: rgba(94,106,210,.10); border-left-color: var(--accent); font-weight: 500; }
+.settings-body { display: flex; flex-direction: column; gap: 20px; min-width: 0; max-width: 780px; }
+.settings-body section { scroll-margin-top: 84px; }
+
+@media (max-width: 900px) {
+  .settings-layout { grid-template-columns: 1fr; }
+  .settings-nav { position: static; flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
+  .settings-nav-label { display: none; }
+  .settings-nav a { white-space: nowrap; border-left: none; border-bottom: 2px solid transparent; }
+  .settings-nav a.active { border-left: none; border-bottom-color: var(--accent); background: transparent; }
 }
+
+/* ===== 基本信息 ===== */
+.profile-head { display: flex; align-items: center; gap: 16px; }
+.avatar-lg { width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, #5e6ad2, #8265d6); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; color: #fff; flex-shrink: 0; }
+.profile-name { font-size: 15px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+.profile-mail { font-size: 12px; color: var(--text-tertiary); margin-top: 3px; font-family: var(--font-mono); }
+
+.desc-row { display: flex; align-items: baseline; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .desc-row:last-child { border-bottom: none; }
-.desc-label { width: 96px; flex-shrink: 0; font-size: var(--text-sm); color: var(--text-tertiary); }
+.desc-label { width: 110px; flex-shrink: 0; font-size: var(--text-sm); color: var(--text-tertiary); }
 .desc-value { font-size: var(--text-sm); color: var(--text-primary); }
 
-.scheme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
-.scheme-option {
-  padding: var(--space-4); background: var(--bg-surface);
-  border: 1px solid var(--border); border-radius: var(--radius-md);
-  cursor: pointer; transition: border-color var(--transition-fast);
-}
+/* ===== 外观与偏好 ===== */
+.scheme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.scheme-option { padding: 14px 16px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); cursor: pointer; transition: border-color .15s, box-shadow .15s; }
 .scheme-option.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.scheme-name { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); margin-bottom: var(--space-2); }
-.scheme-demo { font-family: var(--font-mono); font-size: var(--text-xs); display: flex; gap: var(--space-4); }
+.scheme-name { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+.scheme-demo { font-family: var(--font-mono); font-size: var(--text-xs); display: flex; gap: 16px; }
 .scheme-demo .up-red { color: var(--red); }
 .scheme-demo .down-green { color: var(--green); }
 .scheme-demo .up-green { color: var(--green); }
 .scheme-demo .down-red { color: var(--red); }
+.scheme-demo .up-red.dim, .scheme-demo .down-green.dim, .scheme-demo .up-green.dim, .scheme-demo .down-red.dim { opacity: .45; }
 
-.ma-row {
-  display: flex; align-items: center; gap: var(--space-4);
-  padding: var(--space-3) 0; border-bottom: 1px solid var(--border);
-}
+.ma-row { display: flex; align-items: center; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .ma-row:last-of-type { border-bottom: none; }
 .ma-swatch { width: 28px; height: 4px; border-radius: 2px; flex-shrink: 0; }
-.ma-period-input {
-  width: 90px; padding: 5px 10px; font-size: var(--text-sm);
-  color: var(--text-primary); background: var(--bg-surface);
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  outline: none; text-align: center; font-family: var(--font-mono);
-}
+.ma-period-input { width: 84px; padding: 5px 10px; font-size: var(--text-sm); color: var(--text-primary); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none; text-align: center; font-family: var(--font-mono); }
 .ma-period-input:focus { border-color: var(--border-focus); }
 .ma-label { font-size: var(--text-sm); color: var(--text-secondary); }
-.switch {
-  width: 36px; height: 20px; border-radius: 10px;
-  background: var(--border-hover); position: relative; cursor: pointer;
-  transition: background var(--transition-fast); flex-shrink: 0;
-}
-.switch::after {
-  content: ''; position: absolute; top: 2px; left: 2px;
-  width: 16px; height: 16px; border-radius: 50%; background: #fff;
-  transition: left var(--transition-fast);
-}
+
+.switch { width: 36px; height: 20px; border-radius: 10px; background: var(--border-hover); position: relative; cursor: pointer; transition: background .15s; flex-shrink: 0; }
+.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
 .switch.on { background: var(--accent); }
 .switch.on::after { left: 18px; }
 
-.hint-box {
-  margin-top: var(--space-4); padding: var(--space-3) var(--space-4);
-  background: var(--bg-surface); border: 1px solid var(--border);
-  border-radius: var(--radius-md); font-size: var(--text-xs);
-  color: var(--text-tertiary); line-height: 1.6;
-}
-.card-extra { font-size: var(--text-xs); color: var(--text-tertiary); }
+.hint-box { margin-top: 14px; padding: 10px 14px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); font-size: 12px; color: var(--text-tertiary); line-height: 1.7; }
+.card-extra { font-size: 12px; color: var(--text-tertiary); }
+
+/* ===== AI 与模型 ===== */
+.conn-row { display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.conn-row:last-of-type { border-bottom: none; }
+.conn-badge { width: 34px; height: 34px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+.conn-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.conn-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; font-family: var(--font-mono); }
+.conn-status { font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+.scene-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.scene-row:last-of-type { border-bottom: none; }
+.scene-name { width: 150px; flex-shrink: 0; font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.scene-desc { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+.pseudo-select { min-width: 170px; padding: 5px 10px; font-size: 12px; color: var(--text-primary); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; }
+.pseudo-select .caret { color: var(--text-tertiary); font-size: 10px; }
+
+.subsection-title { font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--text-secondary); margin: 4px 0 2px; }
+
+/* ===== API-KEY 与 MCP ===== */
+.key-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.key-table th { text-align: left; font-weight: 500; color: var(--text-tertiary); font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.key-table td { padding: 11px 10px; border-bottom: 1px solid var(--border); color: var(--text-primary); vertical-align: middle; }
+.key-table tr:last-child td { border-bottom: none; }
+.key-mono { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); }
+.link-btn { background: none; border: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 0; }
+.link-btn:hover { text-decoration: underline; }
+
+.code-block { background: #0a0c10; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; font-family: var(--font-mono); font-size: 12px; color: #9ecbff; overflow-x: auto; line-height: 1.7; white-space: pre; }
+
+/* ===== 账号安全 ===== */
+.card-danger { border-color: rgba(248,81,73,.35); }
+.card-danger .card-title { color: var(--red); }
+
+/* ===== 抽屉（API-KEY 一次性展示） ===== */
+.drawer-mask { position: fixed; inset: 0; background: rgba(0,0,0,.55); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 59; }
+.drawer-mask.open { opacity: 1; pointer-events: auto; }
+.drawer { position: fixed; top: 0; right: -440px; width: 420px; max-width: 92vw; height: 100%; background: var(--bg-elevated); border-left: 1px solid var(--border); transition: right .25s ease; z-index: 60; display: flex; flex-direction: column; }
+.drawer.open { right: 0; }
+.drawer-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.drawer-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.drawer-close { background: none; border: none; color: var(--text-tertiary); font-size: 18px; cursor: pointer; line-height: 1; }
+.drawer-close:hover { color: var(--text-primary); }
+.drawer-body { padding: 20px; overflow-y: auto; }
+
+.key-reveal { background: #0a0c10; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; font-family: var(--font-mono); font-size: 13px; color: #7ee2a8; word-break: break-all; line-height: 1.6; }
+.mcp-endpoint { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; display: inline-block; }
+
+/* ===== 实现说明 ===== */
+.type-note { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 18px; font-size: 12px; color: var(--text-tertiary); line-height: 1.8; }
+.type-note .tn-title { font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
 </style>
 </head>
 <body>
@@ -357,19 +407,22 @@ tr:hover td { background: var(--bg-hover); }
 
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
-<div class="sidebar-section-title">复盘</div>
-
-<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
+<a class="sidebar-item" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
-<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
 <a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
-<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
-<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
-<a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
-<a class="sidebar-item" href="financial-reports.html"><span class="sidebar-item-icon">◈</span><span>财报中心</span></a>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
+<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item active" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+<a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
 <a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
 </nav>
 <div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
@@ -385,103 +438,389 @@ tr:hover td { background: var(--bg-hover); }
     </header>
 
     <div class="app-content">
-      <h1 class="page-title">用户设置</h1>
+      <h1 class="page-title">个人设置</h1>
+      <p class="page-desc">账号信息、外观偏好、AI 模型与外部接入集中配置</p>
 
-      <div class="settings-wrap">
+      <div class="settings-layout">
 
-        <!-- 基本信息 -->
-        <div class="card">
-          <div class="card-header"><span class="card-title">基本信息</span></div>
-          <div class="card-body">
-            <div class="desc-row"><span class="desc-label">用户名</span><span class="desc-value">Domonic</span></div>
-            <div class="desc-row"><span class="desc-label">邮箱</span><span class="desc-value">domonic@example.com</span></div>
-            <div class="desc-row"><span class="desc-label">角色</span><span class="desc-value"><span class="tag tag-purple">管理员</span></span></div>
-          </div>
-        </div>
+        <!-- 左侧锚点导航 -->
+        <nav class="settings-nav">
+          <div class="settings-nav-label">设置</div>
+          <a href="#sec-profile" class="active">基本信息</a>
+          <a href="#sec-appearance">外观与偏好</a>
+          <a href="#sec-models">AI 与模型</a>
+          <a href="#sec-apikeys">API-KEY 与 MCP</a>
+          <a href="#sec-security">账号安全</a>
+        </nav>
 
-        <!-- 行情配色 -->
-        <div class="card">
-          <div class="card-header"><span class="card-title">行情配色</span></div>
-          <div class="card-body">
-            <div class="scheme-grid">
-              <div class="scheme-option active">
-                <div class="scheme-name">红涨绿跌 <span class="tag tag-purple" style="margin-left:4px">国内习惯</span></div>
-                <div class="scheme-demo"><span class="up-red">▲ +2.35%</span><span class="down-green">▼ -1.28%</span></div>
+        <div class="settings-body">
+
+          <!-- ① 基本信息 -->
+          <section id="sec-profile">
+            <div class="card">
+              <div class="card-header"><span class="card-title">基本信息</span><button class="btn btn-ghost btn-sm" id="btnEditProfile">编辑</button></div>
+              <div class="card-body">
+                <div class="profile-head">
+                  <div class="avatar-lg">D</div>
+                  <div>
+                    <div class="profile-name">Domonic <span class="tag tag-purple">管理员</span></div>
+                    <div class="profile-mail">domonic@example.com</div>
+                  </div>
+                </div>
+                <div style="margin-top:14px">
+                  <div class="desc-row"><span class="desc-label">注册时间</span><span class="desc-value">2026-05-12</span></div>
+                  <div class="desc-row"><span class="desc-label">上次登录</span><span class="desc-value">2026-09-07 09:41（本设备 · Chrome / macOS）</span></div>
+                  <div class="desc-row"><span class="desc-label">自选标的</span><span class="desc-value">24 只 · 4 个分组（3 个分组开启 AI 每日复盘）</span></div>
+                </div>
+                <div class="hint-box">用户名与角色由管理员维护，如需变更请联系管理员；邮箱用于账号找回与重要通知。</div>
               </div>
-              <div class="scheme-option">
-                <div class="scheme-name">绿涨红跌 <span style="font-size:11px;color:var(--text-tertiary);font-weight:400;margin-left:4px">国际习惯</span></div>
-                <div class="scheme-demo"><span class="up-green">▲ +2.35%</span><span class="down-red">▼ -1.28%</span></div>
+            </div>
+          </section>
+
+          <!-- ② 外观与偏好 -->
+          <section id="sec-appearance">
+            <div class="card">
+              <div class="card-header"><span class="card-title">行情配色</span><span class="card-extra">全站即时生效</span></div>
+              <div class="card-body">
+                <div class="scheme-grid" id="schemeGrid">
+                  <div class="scheme-option active" data-scheme="cn">
+                    <div class="scheme-name">红涨绿跌 <span class="tag tag-purple" style="margin-left:4px">国内习惯</span></div>
+                    <div class="scheme-demo"><span class="up-red">▲ +2.35%</span><span class="down-green">▼ -1.28%</span></div>
+                  </div>
+                  <div class="scheme-option" data-scheme="us">
+                    <div class="scheme-name">绿涨红跌 <span style="font-size:11px;color:var(--text-tertiary);font-weight:400;margin-left:4px">国际习惯</span></div>
+                    <div class="scheme-demo"><span class="up-green dim">▲ +2.35%</span><span class="down-red dim">▼ -1.28%</span></div>
+                  </div>
+                </div>
+                <div class="hint-box">配色偏好保存在<b>当前浏览器</b>（本地存储），不同步到账号——更换设备后需重新选择。</div>
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- K 线均线配置 -->
-        <div class="card">
-          <div class="card-header"><span class="card-title">K 线均线配置</span><span class="card-extra">已启用 3 条</span></div>
-          <div class="card-body">
-            <div class="ma-row">
-              <span class="ma-swatch" style="background:#f85149"></span>
-              <input class="ma-period-input" type="number" value="5">
-              <span class="ma-label">MA5</span>
-              <span style="flex:1"></span>
-              <span class="card-extra">显示</span>
-              <span class="switch on"></span>
-              <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
-            </div>
-            <div class="ma-row">
-              <span class="ma-swatch" style="background:#d29922"></span>
-              <input class="ma-period-input" type="number" value="10">
-              <span class="ma-label">MA10</span>
-              <span style="flex:1"></span>
-              <span class="card-extra">显示</span>
-              <span class="switch on"></span>
-              <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
-            </div>
-            <div class="ma-row">
-              <span class="ma-swatch" style="background:#58a6ff"></span>
-              <input class="ma-period-input" type="number" value="20">
-              <span class="ma-label">MA20</span>
-              <span style="flex:1"></span>
-              <span class="card-extra">显示</span>
-              <span class="switch on"></span>
-              <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
-            </div>
-            <div class="ma-row">
-              <span class="ma-swatch" style="background:#a3a8b8"></span>
-              <input class="ma-period-input" type="number" value="60">
-              <span class="ma-label">MA60</span>
-              <span style="flex:1"></span>
-              <span class="card-extra">显示</span>
-              <span class="switch"></span>
-              <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
-            </div>
-            <div style="display:flex;gap:8px;margin-top:16px">
-              <button class="btn btn-secondary btn-sm">+ 添加均线（最多 6 条）</button>
-              <span style="flex:1"></span>
-              <button class="btn btn-primary btn-sm">保存配置</button>
-            </div>
-            <div class="hint-box">此处配置的均线会同步应用到每日复盘的大盘指数日线、周线、月线等 K 线图中。</div>
-          </div>
-        </div>
-
-        <!-- 账号安全 -->
-        <div class="card">
-          <div class="card-header"><span class="card-title">账号安全</span></div>
-          <div class="card-body">
-            <div style="display:flex;align-items:center;justify-content:space-between">
-              <div>
-                <div style="font-size:13px;color:var(--text-primary);font-weight:500">退出登录</div>
-                <div style="font-size:12px;color:var(--text-tertiary);margin-top:2px">退出当前账号，返回登录页</div>
+            <div class="card" style="margin-top:20px">
+              <div class="card-header"><span class="card-title">K 线均线配置</span><span class="card-extra">已启用 3 条</span></div>
+              <div class="card-body">
+                <div class="ma-row">
+                  <span class="ma-swatch" style="background:#f0b429"></span>
+                  <input class="ma-period-input" type="number" value="5">
+                  <span class="ma-label">MA5</span>
+                  <span style="flex:1"></span>
+                  <span class="card-extra">显示</span>
+                  <span class="switch on"></span>
+                  <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
+                </div>
+                <div class="ma-row">
+                  <span class="ma-swatch" style="background:#9d7ff5"></span>
+                  <input class="ma-period-input" type="number" value="10">
+                  <span class="ma-label">MA10</span>
+                  <span style="flex:1"></span>
+                  <span class="card-extra">显示</span>
+                  <span class="switch on"></span>
+                  <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
+                </div>
+                <div class="ma-row">
+                  <span class="ma-swatch" style="background:#3fb6e0"></span>
+                  <input class="ma-period-input" type="number" value="20">
+                  <span class="ma-label">MA20</span>
+                  <span style="flex:1"></span>
+                  <span class="card-extra">显示</span>
+                  <span class="switch on"></span>
+                  <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
+                </div>
+                <div class="ma-row">
+                  <span class="ma-swatch" style="background:#e8833a"></span>
+                  <input class="ma-period-input" type="number" value="60">
+                  <span class="ma-label">MA60</span>
+                  <span style="flex:1"></span>
+                  <span class="card-extra">显示</span>
+                  <span class="switch"></span>
+                  <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:16px">
+                  <button class="btn btn-secondary btn-sm">+ 添加均线（最多 6 条）</button>
+                  <span style="flex:1"></span>
+                  <button class="btn btn-primary btn-sm">保存配置</button>
+                </div>
+                <div class="hint-box">均线配置保存在<b>服务端</b>（随账号漫游），同步应用于每日复盘与个股详情的日 / 周 / 月 K 线图。</div>
               </div>
-              <button class="btn btn-danger btn-sm">退出登录</button>
             </div>
-          </div>
-        </div>
+          </section>
 
+          <!-- ③ AI 与模型 -->
+          <section id="sec-models">
+            <div class="card">
+              <div class="card-header">
+                <span class="card-title">AI 与模型</span>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span class="card-extra">使用自定义模型</span>
+                  <span class="switch on" id="switchCustomModel"></span>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="subsection-title">模型连接</div>
+                <div class="conn-row">
+                  <div class="conn-badge" style="background:rgba(88,166,255,.08)">🟢</div>
+                  <div style="flex:1;min-width:0">
+                    <div class="conn-name">OpenAI · gpt-4o</div>
+                    <div class="conn-sub">https://api.openai.com/v1 · sk-3••••••••f8a2</div>
+                  </div>
+                  <span class="conn-status" style="color:var(--green)"><span class="status-dot" style="background:var(--green)"></span>可用 · 412ms</span>
+                  <button class="btn btn-ghost btn-sm">测试</button>
+                  <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
+                </div>
+                <div class="conn-row">
+                  <div class="conn-badge" style="background:rgba(61,220,151,.08)">🐋</div>
+                  <div style="flex:1;min-width:0">
+                    <div class="conn-name">DeepSeek · deepseek-chat</div>
+                    <div class="conn-sub">https://api.deepseek.com/v1 · sk-9••••••••2c7d</div>
+                  </div>
+                  <span class="conn-status" style="color:var(--green)"><span class="status-dot" style="background:var(--green)"></span>可用 · 298ms</span>
+                  <button class="btn btn-ghost btn-sm">测试</button>
+                  <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
+                </div>
+                <div style="margin-top:12px"><button class="btn btn-secondary btn-sm">+ 添加模型连接</button></div>
+
+                <div class="divider" style="margin:18px 0 12px"></div>
+
+                <div class="subsection-title">场景分配</div>
+                <div class="scene-row">
+                  <div style="flex-shrink:0">
+                    <div class="scene-name">研报摘要</div>
+                    <div class="scene-desc">research-report-summary</div>
+                  </div>
+                  <span style="flex:1"></span>
+                  <div class="pseudo-select"><span>OpenAI · gpt-4o</span><span class="caret">▼</span></div>
+                </div>
+                <div class="scene-row">
+                  <div style="flex-shrink:0">
+                    <div class="scene-name">产业链分析</div>
+                    <div class="scene-desc">industry-chain-analysis</div>
+                  </div>
+                  <span style="flex:1"></span>
+                  <div class="pseudo-select"><span>DeepSeek · deepseek-chat</span><span class="caret">▼</span></div>
+                </div>
+                <div class="scene-row">
+                  <div style="flex-shrink:0">
+                    <div class="scene-name">AI 每日复盘</div>
+                    <div class="scene-desc">stock-daily-analysis</div>
+                  </div>
+                  <span style="flex:1"></span>
+                  <div class="pseudo-select" style="color:var(--text-tertiary)"><span>跟随系统默认</span><span class="caret">▼</span></div>
+                </div>
+                <div class="scene-row">
+                  <div style="flex-shrink:0">
+                    <div class="scene-name">助手对话</div>
+                    <div class="scene-desc">assistant</div>
+                  </div>
+                  <span style="flex:1"></span>
+                  <div class="pseudo-select"><span>DeepSeek · deepseek-chat</span><span class="caret">▼</span></div>
+                </div>
+
+                <div class="hint-box">API Key 以 AES-256-GCM 加密存储、展示时脱敏；某场景模型调用失败时自动回退系统默认模型并站内提示。未开启「使用自定义模型」时全部场景走系统默认模型。</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ④ API-KEY 与 MCP -->
+          <section id="sec-apikeys">
+            <div class="card">
+              <div class="card-header">
+                <span class="card-title">API-KEY 管理</span>
+                <button class="btn btn-primary btn-sm" id="btnCreateKey">+ 创建 API-KEY</button>
+              </div>
+              <div class="card-body">
+                <table class="key-table">
+                  <thead>
+                    <tr><th>名称</th><th>KEY</th><th>权限</th><th>过期时间</th><th>最后使用</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>MCP · Claude Desktop</td>
+                      <td class="key-mono">ai-3f8c••••••••9a41</td>
+                      <td><span class="tag tag-blue">只读</span></td>
+                      <td>2026-12-31</td>
+                      <td style="color:var(--text-tertiary)">2 小时前</td>
+                      <td><button class="link-btn" style="color:var(--red)">撤销</button></td>
+                    </tr>
+                    <tr>
+                      <td>Cursor · 本机</td>
+                      <td class="key-mono">ai-92b0••••••••e4d7</td>
+                      <td><span class="tag tag-purple">读写</span></td>
+                      <td>永久</td>
+                      <td style="color:var(--text-tertiary)">3 天前</td>
+                      <td><button class="link-btn" style="color:var(--red)">撤销</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="hint-box">每个用户最多 5 个有效 KEY；创建时完整展示<b>仅此一次</b>，此后仅显示前缀与掩码；调用频率限制 60 次 / 分钟；疑似泄露请立即撤销（不可恢复）。</div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:20px">
+              <div class="card-header"><span class="card-title">MCP 接入外部工具</span><button class="btn btn-secondary btn-sm" id="btnCopyMcp">复制配置</button></div>
+              <div class="card-body">
+                <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px;line-height:1.7">将平台的产业链分析、研报摘要、热点追踪等 AI 能力以 MCP 标准接口暴露，粘贴以下配置到 Claude Desktop / Cursor 等工具即可接入：</div>
+                <div class="code-block" id="mcpConfig">{
+  "mcpServers": {
+    "ai-invest": {
+      "url": "https://your-domain/api/v1/mcp/sse",
+      "headers": { "X-API-Key": "ai-xxxxxxxx" }
+    }
+  }
+}</div>
+                <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                  <span class="card-extra">可用工具</span>
+                  <span class="tag tag-green">analyze_industry_chain</span>
+                  <span class="tag tag-green">summarize_research_report</span>
+                  <span class="tag tag-green">detect_market_hotspots</span>
+                  <span class="tag tag-green">financial_health_check</span>
+                  <span class="tag tag-green">analyze_call_auction</span>
+                  <span style="color:var(--text-tertiary);font-size:11px">+4</span>
+                </div>
+                <div style="margin-top:12px"><span class="card-extra">SSE 端点</span>&nbsp;&nbsp;<span class="mcp-endpoint">GET /api/v1/mcp/sse</span></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ⑤ 账号安全 -->
+          <section id="sec-security">
+            <div class="card">
+              <div class="card-header"><span class="card-title">修改密码</span></div>
+              <div class="card-body">
+                <div class="form-group"><label class="form-label">当前密码</label><input class="form-input" type="password" placeholder="输入当前密码"></div>
+                <div class="form-group"><label class="form-label">新密码</label><input class="form-input" type="password" placeholder="至少 8 位，含字母与数字"><div class="form-hint">修改后其他设备的登录状态将全部失效</div></div>
+                <div class="form-group"><label class="form-label">确认新密码</label><input class="form-input" type="password" placeholder="再次输入新密码"></div>
+                <div style="display:flex;justify-content:flex-end;margin-top:4px"><button class="btn btn-primary btn-sm">修改密码</button></div>
+              </div>
+            </div>
+
+            <div class="card card-danger" style="margin-top:20px">
+              <div class="card-header"><span class="card-title">危险操作</span></div>
+              <div class="card-body">
+                <div style="display:flex;align-items:center;justify-content:space-between">
+                  <div>
+                    <div style="font-size:13px;color:var(--text-primary);font-weight:500">退出登录</div>
+                    <div style="font-size:12px;color:var(--text-tertiary);margin-top:2px">退出当前账号，返回登录页</div>
+                  </div>
+                  <button class="btn btn-danger btn-sm">退出登录</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 实现说明 -->
+          <div class="type-note">
+            <div class="tn-title">实现说明</div>
+            ① 布局采用设置页标准范式：左侧锚点导航（sticky，滚动联动高亮）+ 右侧分区卡片，窄屏折叠为顶部横滑导航（对齐 GitHub / Linear 设置页）。<br>
+            ② 既有能力对齐 web 实际代码（Settings.tsx）：基本信息 / 行情配色 / K 线均线。配色存浏览器 localStorage（不随账号漫游），均线存服务端（GET / PUT <b>users/me/settings</b>，登录账号漫游）。<br>
+            ③ 「AI 与模型」= 需求 F-USER-03（P1，后置池未实现）：多模型连接 + 场景级分配 + 测试连接 + AES-256-GCM 加密脱敏 + 失败回退系统默认模型。<br>
+            ④ 「API-KEY 与 MCP」= 需求 F-API-01（P1，后置池）：5 个上限 / 一次性展示 / 前缀掩码 / 60 次/分钟频控 / X-API-Key 认证；后端已有 /mcp/tools、/mcp/invoke 骨架路由，KEY 生命周期管理与 SSE 传输未实现。<br>
+            ⑤ 「修改密码」为账号设置行业标配的补充项，需求未单列，落地时需后端新增端点。<br>
+            ⑥ 就近配置不重复入口：「我的订阅」在资讯中心页头抽屉（F-VIS-10）、「分组 AI 复盘开关」在自选页（F-USER-01）、「技能启用」在技能广场（F-USER-04）。
+          </div>
+
+        </div>
       </div>
     </div>
   </div>
 </div>
+
+<!-- API-KEY 一次性展示抽屉 -->
+<div class="drawer-mask" id="drawerMask"></div>
+<div class="drawer" id="drawerKey">
+  <div class="drawer-header">
+    <span class="drawer-title">API-KEY 创建成功</span>
+    <button class="drawer-close" data-close>✕</button>
+  </div>
+  <div class="drawer-body">
+    <div style="font-size:12px;color:var(--text-tertiary);line-height:1.7;margin-bottom:12px">请立即复制保存——完整 KEY <b style="color:var(--amber)">仅此一次展示</b>，关闭后只显示前缀与掩码。</div>
+    <div class="key-reveal" id="keyReveal">ai-7K9dQm2xL4pR8vN6wZjE5tY3uB1hC0aF7Gs2JdK9iM4</div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-primary btn-sm" id="btnCopyKey">复制 KEY</button>
+      <button class="btn btn-ghost btn-sm" data-close>我已保存，关闭</button>
+    </div>
+    <div class="divider" style="margin:18px 0"></div>
+    <div class="form-group">
+      <label class="form-label">名称</label>
+      <input class="form-input" type="text" value="新建 KEY · 2026-09-07">
+    </div>
+    <div class="form-group">
+      <label class="form-label">权限范围</label>
+      <select class="form-select" style="width:100%"><option>只读（默认）</option><option>读写</option></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">过期时间</label>
+      <select class="form-select" style="width:100%"><option>90 天</option><option>永久</option><option>30 天</option></select>
+    </div>
+    <div style="display:flex;justify-content:flex-end"><button class="btn btn-secondary btn-sm" data-close>完成创建</button></div>
+  </div>
+</div>
+
+<script>
+/* 锚点导航滚动联动 */
+(function () {
+  var navLinks = Array.prototype.slice.call(document.querySelectorAll('.settings-nav a'));
+  var sections = navLinks.map(function (a) { return document.querySelector(a.getAttribute('href')); });
+
+  navLinks.forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      var sec = document.querySelector(a.getAttribute('href'));
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  function onScroll() {
+    var pos = window.scrollY + 120, idx = 0;
+    sections.forEach(function (sec, i) { if (sec && sec.offsetTop <= pos) idx = i; });
+    navLinks.forEach(function (a, i) { a.classList.toggle('active', i === idx); });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+
+/* 开关切换 */
+document.querySelectorAll('.switch').forEach(function (s) {
+  if (s.id === 'switchCustomModel') return;
+  s.addEventListener('click', function () { s.classList.toggle('on'); });
+});
+
+/* 配色方案切换 */
+document.querySelectorAll('#schemeGrid .scheme-option').forEach(function (opt) {
+  opt.addEventListener('click', function () {
+    document.querySelectorAll('#schemeGrid .scheme-option').forEach(function (o) { o.classList.remove('active'); });
+    opt.classList.add('active');
+  });
+});
+
+/* API-KEY 抽屉 */
+(function () {
+  var mask = document.getElementById('drawerMask');
+  var drawer = document.getElementById('drawerKey');
+  function open() { mask.classList.add('open'); drawer.classList.add('open'); }
+  function close() { mask.classList.remove('open'); drawer.classList.remove('open'); }
+  document.getElementById('btnCreateKey').addEventListener('click', open);
+  mask.addEventListener('click', close);
+  drawer.querySelectorAll('[data-close]').forEach(function (b) { b.addEventListener('click', close); });
+})();
+
+/* 复制按钮 */
+function bindCopy(btnId, getText) {
+  var btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    var text = getText();
+    var done = function () {
+      var orig = btn.textContent;
+      btn.textContent = '已复制 ✓';
+      setTimeout(function () { btn.textContent = orig; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, done);
+    } else { done(); }
+  });
+}
+bindCopy('btnCopyKey', function () { return document.getElementById('keyReveal').textContent.trim(); });
+bindCopy('btnCopyMcp', function () { return document.getElementById('mcpConfig').textContent.trim(); });
+</script>
 </body>
 </html>

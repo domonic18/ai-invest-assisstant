@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Invest Assistant — 资金流向</title>
+<title>AI Invest Assistant — 板块监测</title>
 <style>
 /* ======================================================
    AI Invest Assistant — Design System
@@ -130,7 +130,7 @@ a:hover { color: var(--accent-hover); }
 .sidebar-logo svg { width: 18px; height: 18px; }
 .sidebar-brand-text { font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -.01em; }
 .sidebar-version { font-size: 10px; color: var(--text-tertiary); margin-left: auto; }
-.sidebar-nav { padding: 8px; flex: 1; }
+.sidebar-nav { padding: 8px; flex: 1; overflow-y: auto; }
 .sidebar-section-title {
   font-size: 10px; color: var(--text-tertiary); text-transform: uppercase;
   letter-spacing: .08em; padding: 12px 10px 6px; font-weight: 600;
@@ -307,6 +307,11 @@ tr:hover td { background: var(--bg-hover); }
 .timeline-dot{width:12px;height:12px;border-radius:50%;background:var(--bg-hover);border:2px solid var(--border-hover)}
 .timeline-dot.active{background:var(--accent);border-color:var(--accent);box-shadow:0 0 8px rgba(94,106,210,.5)}
 .timeline-date{font-size:10px;color:var(--text-tertiary);white-space:nowrap}
+/* 板块指数表现热力总览 */
+.heat-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.heat-chip{padding:10px 8px;border-radius:var(--radius-sm);text-align:center;cursor:default}
+.heat-chip .hc-name{font-size:var(--text-xs);color:var(--text-secondary);margin-bottom:2px}
+.heat-chip .hc-pct{font-size:var(--text-sm);font-weight:600;font-family:var(--font-mono)}
 </style>
 </head>
 <body>
@@ -322,19 +327,22 @@ tr:hover td { background: var(--bg-hover); }
 
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
-<div class="sidebar-section-title">复盘</div>
-
-<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
+<a class="sidebar-item active" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
+<a class="sidebar-item" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
-<a class="sidebar-item active" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
 <a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
-<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
-<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
-<a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
-<a class="sidebar-item" href="financial-reports.html"><span class="sidebar-item-icon">◈</span><span>财报中心</span></a>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
+<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+<a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
 <a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
 </nav>
 <div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
@@ -344,10 +352,42 @@ tr:hover td { background: var(--bg-hover); }
 <div class="app-content">
 <!-- Header: 标题 + 板块类型 Segmented + 时间范围 Radio -->
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6);flex-wrap:wrap;gap:var(--space-3)">
-<h1 class="page-title" style="margin-bottom:0">资金流向</h1>
+<div>
+<h1 class="page-title" style="margin-bottom:4px">板块监测</h1>
+<div style="font-size:var(--text-xs);color:var(--text-tertiary)">投资流程第二站：板块指数表现 + 资金流入流出 · 行情与资金数据联动展示</div>
+</div>
 <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap">
 <div class="seg-control"><span class="seg-item active">行业板块</span><span class="seg-item">概念板块</span></div>
 <div class="radio-pills"><span class="radio-pill active">近 30 个交易日</span><span class="radio-pill">近 60 个交易日</span><span class="radio-pill">近 120 个交易日</span></div>
+</div>
+</div>
+
+<!-- Card 0: 板块指数表现热力总览 -->
+<div class="card mb-6">
+<div class="card-header">
+<span class="card-title">板块指数表现（2026-07-23）</span>
+<a href="sector-anomaly.html" style="font-size:var(--text-xs)">异动归因 → 板块异动分析</a>
+</div>
+<div class="card-body">
+<div class="heat-grid">
+<div class="heat-chip" style="background:rgba(248,81,73,.22)"><div class="hc-name">半导体</div><div class="hc-pct" style="color:#f85149">+4.82%</div></div>
+<div class="heat-chip" style="background:rgba(248,81,73,.16)"><div class="hc-name">算力</div><div class="hc-pct" style="color:#f85149">+3.15%</div></div>
+<div class="heat-chip" style="background:rgba(248,81,73,.13)"><div class="hc-name">军工</div><div class="hc-pct" style="color:#f85149">+2.87%</div></div>
+<div class="heat-chip" style="background:rgba(248,81,73,.10)"><div class="hc-name">消费电子</div><div class="hc-pct" style="color:#f85149">+2.34%</div></div>
+<div class="heat-chip" style="background:rgba(248,81,73,.07)"><div class="hc-name">证券</div><div class="hc-pct" style="color:#f85149">+1.86%</div></div>
+<div class="heat-chip" style="background:rgba(248,81,73,.05)"><div class="hc-name">通信设备</div><div class="hc-pct" style="color:#f85149">+1.42%</div></div>
+<div class="heat-chip" style="background:rgba(248,81,73,.04)"><div class="hc-name">汽车零部件</div><div class="hc-pct" style="color:#f85149">+1.08%</div></div>
+<div class="heat-chip" style="background:rgba(46,160,67,.04)"><div class="hc-name">游戏</div><div class="hc-pct" style="color:#2ea043">+0.62%</div></div>
+<div class="heat-chip" style="background:rgba(46,160,67,.04)"><div class="hc-name">光伏设备</div><div class="hc-pct" style="color:#2ea043">-0.48%</div></div>
+<div class="heat-chip" style="background:rgba(46,160,67,.05)"><div class="hc-name">公用事业</div><div class="hc-pct" style="color:#2ea043">-0.86%</div></div>
+<div class="heat-chip" style="background:rgba(46,160,67,.06)"><div class="hc-name">石油石化</div><div class="hc-pct" style="color:#2ea043">-1.32%</div></div>
+<div class="heat-chip" style="background:rgba(46,160,67,.08)"><div class="hc-name">钢铁</div><div class="hc-pct" style="color:#2ea043">-1.78%</div></div>
+<div class="heat-chip" style="background:rgba(46,160,67,.10)"><div class="hc-name">房地产</div><div class="hc-pct" style="color:#2ea043">-1.98%</div></div>
+<div class="heat-chip" style="background:rgba(46,160,67,.13)"><div class="hc-name">银行</div><div class="hc-pct" style="color:#2ea043">-2.34%</div></div>
+<div class="heat-chip" style="background:rgba(46,160,67,.18)"><div class="hc-name">医药</div><div class="hc-pct" style="color:#2ea043">-2.71%</div></div>
+<div class="heat-chip" style="background:rgba(46,160,67,.24)"><div class="hc-name">煤炭</div><div class="hc-pct" style="color:#2ea043">-3.24%</div></div>
+</div>
+<div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-top:var(--space-3)">色深 = 涨跌幅幅度 · 点击板块下钻成分股（东财行业 / 同花顺概念口径同资金流向切换）</div>
 </div>
 </div>
 

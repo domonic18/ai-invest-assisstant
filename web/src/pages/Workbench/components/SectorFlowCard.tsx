@@ -11,6 +11,8 @@ import { FoldCard } from './FoldCard'
 interface SectorFlowCardProps {
   items?: WorkbenchSectorFlowItem[]
   loading?: boolean
+  className?: string
+  stretch?: boolean
 }
 
 function formatPct(value: number | null): string {
@@ -24,13 +26,15 @@ function formatInflow(value: number | null): string {
 }
 
 /** 板块资金动向卡：最新交易日行业板块主力净流入排行，完整视图在资金流向页。 */
-export function SectorFlowCard({ items, loading }: SectorFlowCardProps) {
+export function SectorFlowCard({ items, loading, className, stretch }: SectorFlowCardProps) {
   useColorScheme()
 
   return (
     <FoldCard
       title="板块资金动向"
       extra={<Link to="/capital-flow" className="text-xs">查看资金流向 →</Link>}
+      className={className}
+      stretch={stretch}
     >
       {loading ? (
         <div className="flex justify-center py-6"><Spin /></div>
@@ -61,10 +65,12 @@ export function SectorFlowCard({ items, loading }: SectorFlowCardProps) {
           </div>
         ))
       ) : (
-        <Empty
-          description="暂无板块资金数据"
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-        />
+        <div className="flex flex-1 items-center justify-center">
+          <Empty
+            description="暂无板块资金数据"
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          />
+        </div>
       )}
     </FoldCard>
   )

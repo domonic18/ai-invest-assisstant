@@ -3,7 +3,7 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db
@@ -25,17 +25,11 @@ async def get_financial_health(
 ) -> FinancialHealthResponse:
     """获取指定股票的财务健康度分析。"""
     params = FinancialHealthRequest(report_date=report_date)
-    try:
-        return await financial_service.get_health(
-            session,
-            stock_code=code,
-            report_date=params.report_date,
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    return await financial_service.get_health(
+        session,
+        stock_code=code,
+        report_date=params.report_date,
+    )
 
 
 @router.get("/{code}/history", response_model=FinancialHistoryResponse)

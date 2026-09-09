@@ -1,28 +1,33 @@
-import { Empty, List, Spin, Tag } from 'antd'
+import { Empty, Spin, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { Link } from 'react-router-dom'
 
 import type { TelegraphItem } from '@ai-invest/shared'
+
+import { isNoiseCategory, isNoiseImportance } from '@/pages/News/logic'
 
 import { FoldCard } from './FoldCard'
 
 interface TelegraphCardProps {
   items?: TelegraphItem[]
   loading?: boolean
+  className?: string
+  stretch?: boolean
 }
 
-function importanceTag(importance: number | null) {
-  if (importance === null) return null
+/** 与后端 _TELEGRAPH_PAGE_SIZE 对齐；行在 stretch 卡内均匀分布铺满等高卡。 */
+const MAX_ITEMS = 12
+
+function importanceTag(importance: number) {
   const presets: Record<number, { color: string; label: string }> = {
     3: { color: 'red', label: '重要' },
     2: { color: 'orange', label: '关注' },
-    1: { color: 'blue', label: '一般' },
   }
   const preset = presets[importance] ?? { color: 'gold', label: `L${importance}` }
   return <Tag color={preset.color}>{preset.label}</Tag>
 }
 
-/** 电报准实时徽标（红点 + 文案，镜像 /telegraph 页断流探针语义）。 */
+/** 电报准实时徽标（红点 + 文案，镜像 /news 电报视图断流探针语义）。 */
 function LiveBadge() {
   return (
     <span className="inline-flex items-center gap-1.5 px-2 py-px rounded-full bg-red-500/10 text-red-400 text-[10px] font-semibold">
@@ -32,7 +37,7 @@ function LiveBadge() {
   )
 }
 
-export function TelegraphCard({ items, loading }: TelegraphCardProps) {
+export function TelegraphCard({ items, loading, className, stretch }: TelegraphCardProps) {
   return (
     <FoldCard
       title={
@@ -40,34 +45,41 @@ export function TelegraphCard({ items, loading }: TelegraphCardProps) {
           要闻资讯 <LiveBadge />
         </span>
       }
-      extra={<Link to="/telegraph" className="text-xs">更多电报</Link>}
+      extra={<Link to="/news" className="text-xs">更多电报</Link>}
+      className={className}
+      stretch={stretch}
     >
       {loading ? (
         <div className="flex justify-center py-6"><Spin /></div>
       ) : items?.length ? (
-        <List
-          dataSource={items}
-          renderItem={(item) => (
-            <List.Item className="!px-0 !py-2.5">
-              <div className="flex items-start gap-2.5 w-full min-w-0">
-                <span className="shrink-0 text-[11px] text-gray-500 font-mono mt-1">
+        <div className="flex flex-1 min-h-0 flex-col overflow-y-auto">
+          {items.slice(0, MAX_ITEMS).map((item) => {
+            // cls C 级重要度与数字编码 category 为噪音，与 /news 电报视图口径一致不渲染
+            const importanceShown = item.importance !== null && !isNoiseImportance(item.importance)
+            const categoryShown = !isNoiseCategory(item.category) && Boolean(item.category)
+            return (
+              <div
+                key={item.clsMsgId}
+                className="flex flex-1 shrink-0 items-center gap-2.5 py-2.5 border-b border-gray-800 last:border-b-0"
+              >
+                <span className="shrink-0 text-[11px] text-gray-500 font-mono">
                   {dayjs(item.publishTime).format('HH:mm')}
                 </span>
                 <div className="min-w-0">
                   <div className="text-[13px] text-gray-100 leading-normal line-clamp-2">
                     {item.title ?? item.content}
                   </div>
-                  {(item.category || item.importance !== null) && (
+                  {(importanceShown || categoryShown) && (
                     <div className="flex gap-1.5 mt-1">
-                      {importanceTag(item.importance)}
-                      {item.category && <Tag>{item.category}</Tag>}
+                      {importanceShown && item.importance !== null && importanceTag(item.importance)}
+                      {categoryShown && <Tag>{item.category}</Tag>}
                     </div>
                   )}
                 </div>
               </div>
-            </List.Item>
-          )}
-        />
+            )
+          })}
+        </div>
       ) : (
         <Empty description="暂无电报" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       )}

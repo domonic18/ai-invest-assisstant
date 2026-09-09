@@ -130,7 +130,7 @@ a:hover { color: var(--accent-hover); }
 .sidebar-logo svg { width: 18px; height: 18px; }
 .sidebar-brand-text { font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -.01em; }
 .sidebar-version { font-size: 10px; color: var(--text-tertiary); margin-left: auto; }
-.sidebar-nav { padding: 8px; flex: 1; }
+.sidebar-nav { padding: 8px; flex: 1; overflow-y: auto; }
 .sidebar-section-title {
   font-size: 10px; color: var(--text-tertiary); text-transform: uppercase;
   letter-spacing: .08em; padding: 12px 10px 6px; font-weight: 600;
@@ -354,18 +354,22 @@ tr:hover td { background: var(--bg-hover); }
 </div>
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
-<div class="sidebar-section-title">复盘</div>
-<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
+<a class="sidebar-item" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
-<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
+<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
 <a class="sidebar-item active" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
-<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业链分析</span></a>
-<a class="sidebar-item" href="hotspot.html"><span class="sidebar-item-icon">◈</span><span>热点追踪</span></a>
-<a class="sidebar-item" href="research.html"><span class="sidebar-item-icon">◈</span><span>研报中心</span></a>
-<a class="sidebar-item" href="financial-reports.html"><span class="sidebar-item-icon">◈</span><span>财报中心</span></a>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
+<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+<a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
 <a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
 </nav>
 <div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>

@@ -1,8 +1,9 @@
 import {
   ThreadPrimitive,
+  useAui,
   useAuiState,
 } from '@assistant-ui/react'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect } from 'react'
 
 import { useAssistantStore } from '@/stores/assistant'
 
@@ -53,29 +54,34 @@ function PendingQuestionSender() {
   const sendQuestion = useSuggestedQuestion()
   const pendingQuestion = useAssistantStore((state) => state.pendingQuestion)
   const clearPendingQuestion = useAssistantStore((state) => state.clearPendingQuestion)
+  // 历史会话加载中或上一轮运行中时无法追加消息；
+  // 就绪前保留 pendingQuestion，就绪后再发送，避免预置问题被静默丢弃
+  const isLoading = useAuiState((s) => s.thread.isLoading)
+  const isRunning = useAuiState((s) => s.thread.isRunning)
 
   useEffect(() => {
-    if (!pendingQuestion) return
+    if (!pendingQuestion || isLoading || isRunning) return
     sendQuestion(pendingQuestion)
     clearPendingQuestion()
-  }, [pendingQuestion, sendQuestion, clearPendingQuestion])
+  }, [pendingQuestion, isLoading, isRunning, sendQuestion, clearPendingQuestion])
 
   return null
 }
 
 export function AssistantThread() {
   const isLoading = useAuiState((s) => s.thread.isLoading)
-  const sendRef = useRef<(question: string) => void>(() => {})
-  const registerSend = useCallback((fn: (question: string) => void) => {
-    sendRef.current = fn
-  }, [])
-  const sendQuestion = useCallback((question: string) => {
-    sendRef.current(question)
-  }, [])
+  const aui = useAui()
+  // 直写 thread 而非 composer.setText + send：assistant-ui 的 setText 经
+  // flushTapSync 延迟生效，同一 tick 内的 send() 读到旧的 canSend 会静默 no-op
+  const sendQuestion = useCallback(
+    (question: string) => {
+      aui.thread.append(question)
+    },
+    [aui],
+  )
 
   return (
     <SuggestedQuestionContext.Provider value={{ sendQuestion }}>
-      <PendingQuestionSender />
       <ThreadPrimitive.Root className="flex h-full flex-col bg-[#0c0e12]">
         <ThreadPrimitive.Viewport className="flex-1 overflow-y-auto px-4 py-4">
           {isLoading ? (
@@ -91,7 +97,7 @@ export function AssistantThread() {
             </>
           )}
         </ThreadPrimitive.Viewport>
-        <Composer registerSend={registerSend} />
+        <Composer />
         <PendingQuestionSender />
       </ThreadPrimitive.Root>
     </SuggestedQuestionContext.Provider>

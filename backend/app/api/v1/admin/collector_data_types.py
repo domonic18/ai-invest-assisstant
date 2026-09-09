@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_db
@@ -37,13 +37,4 @@ async def replace_data_type_channels(
 ) -> DataTypeChannelsResponse:
     """整体替换某数据类型的渠道关联（增删与排序）。"""
     service = CollectorChannelConfigService(session)
-    try:
-        return await service.replace_data_type_channels(data_type, items)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
-    except LookupError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+    return await service.replace_data_type_channels(data_type, items)

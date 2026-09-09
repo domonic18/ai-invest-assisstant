@@ -2,9 +2,10 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.news_announcement import (
     NewsAnnouncementCreate,
@@ -23,8 +24,8 @@ async def list_news(
     stock_code: str | None = None,
     doc_type: str | None = None,
     q: str | None = None,
-    page: int = 1,
-    page_size: int = 20,
+    page: int = DEFAULT_PAGE,
+    page_size: int = DEFAULT_PAGE_SIZE,
 ) -> PaginatedResponse:
     """查询新闻公告列表。"""
     items, total = await AdminNewsService(session).list_news(
@@ -59,11 +60,6 @@ async def get_news(
 ) -> NewsAnnouncementResponse:
     """获取单条新闻公告。"""
     news = await AdminNewsService(session).get_news(news_id)
-    if not news:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="News not found",
-        )
     return NewsAnnouncementResponse.model_validate(news)
 
 
@@ -75,11 +71,6 @@ async def update_news(
 ) -> NewsAnnouncementResponse:
     """更新新闻公告。"""
     news = await AdminNewsService(session).update_news(news_id, data)
-    if not news:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="News not found",
-        )
     return NewsAnnouncementResponse.model_validate(news)
 
 
@@ -89,10 +80,4 @@ async def delete_news(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     """删除新闻公告。"""
-    try:
-        await AdminNewsService(session).delete_news(news_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+    await AdminNewsService(session).delete_news(news_id)

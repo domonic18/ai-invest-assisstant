@@ -1,10 +1,10 @@
-/** Market overview (每日复盘) API response types (snake_case, 与后端一致). */
+/** Market overview (每日复盘) API response types (camelCase wire). */
 export interface ApiIndexQuoteResponse {
   code: string
   name: string
   price: number
   change: number
-  change_pct: number
+  changePct: number
   amount: number | null
   trend: number[]
 }
@@ -19,8 +19,8 @@ export interface ApiIndexIntradayPoint {
 export interface ApiIndexIntradayResponse {
   code: string
   name: string
-  trade_date: string
-  prev_close: number
+  tradeDate: string
+  prevClose: number
   points: ApiIndexIntradayPoint[]
 }
 
@@ -49,90 +49,90 @@ export interface ApiIndexKlineResponse {
 }
 
 export interface ApiMarketStatsResponse {
-  trade_date: string
+  tradeDate: string
   amount: number | null
-  prev_amount: number | null
-  amount_change: number | null
-  amount_change_pct: number | null
-  up_count: number | null
-  down_count: number | null
-  flat_count: number | null
-  limit_up_count: number
-  limit_down_count: number
-  broken_limit_count: number | null
-  emotion_score: number | null
-  emotion_label: string | null
-  limit_up_ratio: number | null
-  continuous_rate: number | null
-  broken_rate: number | null
+  prevAmount: number | null
+  amountChange: number | null
+  amountChangePct: number | null
+  upCount: number | null
+  downCount: number | null
+  flatCount: number | null
+  limitUpCount: number
+  limitDownCount: number
+  brokenLimitCount: number | null
+  emotionScore: number | null
+  emotionLabel: string | null
+  limitUpRatio: number | null
+  continuousRate: number | null
+  brokenRate: number | null
 }
 
 export interface ApiLimitUpItem {
-  stock_code: string
-  stock_name: string | null
-  change_pct: number | null
-  latest_price: number | null
-  sealed_amount: number | null
-  first_seal_time: string | null
-  last_seal_time: string | null
-  broken_limit_count: number | null
-  limit_status: string | null
-  consecutive_boards: number | null
+  stockCode: string
+  stockName: string | null
+  changePct: number | null
+  latestPrice: number | null
+  sealedAmount: number | null
+  firstSealTime: string | null
+  lastSealTime: string | null
+  brokenLimitCount: number | null
+  limitStatus: string | null
+  consecutiveBoards: number | null
   industry: string | null
-  seal_type: string | null
+  sealType: string | null
   themes: string[]
 }
 
 export interface ApiLimitUpGroup {
   name: string
   count: number
-  change_pct: number | null
-  main_net_inflow: number | null
+  changePct: number | null
+  mainNetInflow: number | null
   reason: string | null
   items: ApiLimitUpItem[]
 }
 
 export interface ApiLimitUpResponse {
-  trade_date: string
+  tradeDate: string
   total: number
-  first_board: number
+  firstBoard: number
   continuous: number
-  max_boards: number | null
+  maxBoards: number | null
   ladder: ApiLimitUpItem[]
   items: ApiLimitUpItem[]
   groups: ApiLimitUpGroup[]
-  ai_generated: boolean
+  aiGenerated: boolean
 }
 
 export interface ApiLimitUpIntradayResponse {
-  trade_date: string
+  tradeDate: string
   series: Record<string, number[]>
 }
 
 export interface ApiSectorHeatItem {
-  sector_name: string
-  change_pct: number | null
+  sectorName: string
+  changePct: number | null
 }
 
 export interface ApiSectorFlowItem {
-  sector_name: string
-  main_net_inflow: number | null
-  top_stock_name: string | null
+  sectorName: string
+  mainNetInflow: number | null
+  topStockName: string | null
 }
 
 export interface ApiLeadingSectorItem {
-  sector_name: string
-  change_pct: number | null
-  limit_up_count: number
-  main_net_inflow: number | null
-  top_stock_names: string[]
+  sectorName: string
+  changePct: number | null
+  limitUpCount: number
+  mainNetInflow: number | null
+  topStockNames: string[]
 }
 
 export interface ApiSectorOverviewResponse {
-  trade_date: string
+  tradeDate: string
   heatmap: ApiSectorHeatItem[]
-  top_inflow: ApiSectorFlowItem[]
-  top_outflow: ApiSectorFlowItem[]
+  topInflow: ApiSectorFlowItem[]
+  topOutflow: ApiSectorFlowItem[]
   leading: ApiLeadingSectorItem[]
 }
 
@@ -140,10 +140,10 @@ export interface ApiWatchlistQuoteItem {
   code: string
   name: string | null
   price: number | null
-  change_pct: number | null
+  changePct: number | null
   amount: number | null
   tags: string[]
-  updated_at: string | null
+  updatedAt: string | null
   trend?: number[]
 }
 
@@ -154,33 +154,28 @@ export interface ApiMarketReviewSection {
 }
 
 export interface ApiMarketReviewResponse {
-  trade_date: string
+  tradeDate: string
   sections: ApiMarketReviewSection[]
   model: string | null
-  generated_at: string
+  generatedAt: string
   cached: boolean
   edited: boolean
 }
 
-export interface ApiMarketReviewGenerateRequest {
-  trade_date?: string
-  regenerate?: boolean
-}
-
 export interface ApiMarketCollectRequest {
-  trade_date: string
+  tradeDate: string
 }
 
 export interface ApiCollectTaskResult {
   task: string
   status: string
-  items_collected: number
+  itemsCollected: number
   errors: string[]
 }
 
 export interface ApiMarketReviewUpdateRequest {
-  trade_date: string
-  section_key: string
+  tradeDate: string
+  sectionKey: string
   content: string
 }
 
@@ -327,11 +322,12 @@ export interface WatchlistQuote {
 }
 
 export interface ApiGlobalIndexQuoteResponse {
-  index_code: string
-  index_name: string
+  indexCode: string
+  indexName: string
   close: number | null
-  change_pct: number | null
-  trade_date: string | null
+  changePct: number | null
+  tradeDate: string | null
+  trend: number[]
 }
 
 export interface GlobalIndexQuote {
@@ -340,6 +336,47 @@ export interface GlobalIndexQuote {
   close: number | null
   changePct: number | null
   tradeDate: string | null
+  trend: number[]
+}
+
+export interface GlobalIndexHistoryPoint {
+  tradeDate: string
+  close: number
+}
+
+export interface FedWatchMeeting {
+  meetingDate: string
+  probHike: number
+  probHold: number
+  probCut: number
+  likelyRangeLow: number
+  likelyRangeHigh: number
+}
+
+export interface FedWatchResponse {
+  asOf: string
+  dataAsAt: string
+  currentRangeLow: number
+  currentRangeHigh: number
+  meetings: FedWatchMeeting[]
+}
+
+export interface SectorQuoteItem {
+  sectorType: string
+  sectorCode: string
+  sectorName: string
+  close: number | null
+  changePct: number | null
+  amount: number | null
+  turnoverRate: number | null
+  upCount: number | null
+  downCount: number | null
+  leaderStockName: string | null
+}
+
+export interface SectorQuoteResponse {
+  tradeDate: string
+  items: SectorQuoteItem[]
 }
 
 export interface MarketReviewSection {

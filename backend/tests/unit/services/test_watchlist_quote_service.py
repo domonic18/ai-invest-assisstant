@@ -31,9 +31,10 @@ class TestGetWatchlistQuotes:
         session.execute.return_value = _scalars_result([_watch("000001")])
 
         redis = AsyncMock()
-        redis.get.return_value = (
+        redis.mget.return_value = (
             b'{"stock_name":"\xe5\xb9\xb3\xe5\xae\x89\xe9\x93\xb6\xe8\xa1\x8c",'
-            b'"price":12.5,"change_pct":1.2,"amount":1e8,"updated_at":"2026-09-02"}'
+            b'"price":12.5,"change_pct":1.2,"amount":1e8,"updated_at":"2026-09-02"}',
+            None,
         )
         bars = [SimpleNamespace(stock_code="000001", close=float(i + 1)) for i in range(30)]
 
@@ -60,6 +61,38 @@ class TestGetWatchlistQuotes:
         redis.close.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_eod_fallback_used_when_live_missing(self) -> None:
+        """盘后/周末：实时键过期后用长 TTL 收盘兜底键。"""
+        session = AsyncMock()
+        session.execute.return_value = _scalars_result([_watch("000001")])
+
+        redis = AsyncMock()
+        redis.mget.return_value = (
+            None,
+            b'{"stock_name":"\xe5\xb9\xb3\xe5\xae\x89\xe9\x93\xb6\xe8\xa1\x8c",'
+            b'"price":12.0,"change_pct":0.5,"amount":9e7,"updated_at":"2026-09-04T15:55"}',
+        )
+        bars = [SimpleNamespace(stock_code="000001", close=float(i + 1)) for i in range(30)]
+
+        with (
+            patch.object(wsvc, "get_redis", MagicMock(return_value=redis)),
+            patch.object(
+                wsvc, "_load_stock_names", AsyncMock(return_value={"000001": "基本表名称"})
+            ),
+            patch.object(
+                wsvc.trade_calendar_service,
+                "resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 9, 4)),
+            ),
+            patch.object(wsvc, "fetch_minute_bars_multi", AsyncMock(return_value=bars)),
+        ):
+            quotes = await wsvc.get_watchlist_quotes(session, user_id=1)
+
+        assert quotes[0].name == "平安银行"
+        assert quotes[0].price == 12.0
+        assert quotes[0].updated_at == "2026-09-04T15:55"
+
+    @pytest.mark.asyncio
     async def test_fallback_uses_stock_basic_name_and_kline(self) -> None:
         latest = SimpleNamespace(
             close=10.5, change_pct=-0.5, amount=5_000_000.0, trade_date=date(2026, 7, 16)
@@ -72,7 +105,7 @@ class TestGetWatchlistQuotes:
         session.execute.return_value = _scalars_result([_watch("600000")])
 
         redis = AsyncMock()
-        redis.get.return_value = None
+        redis.mget.return_value = (None, None)
 
         with (
             patch.object(wsvc, "get_redis", MagicMock(return_value=redis)),
@@ -112,7 +145,7 @@ class TestGetWatchlistQuotes:
         session.execute.return_value = _scalars_result([_watch("600000")])
 
         redis = AsyncMock()
-        redis.get.return_value = None
+        redis.mget.return_value = (None, None)
 
         with (
             patch.object(wsvc, "get_redis", MagicMock(return_value=redis)),
@@ -136,7 +169,7 @@ class TestGetWatchlistQuotes:
         session = AsyncMock()
         session.execute.return_value = _scalars_result([_watch("600967")])
         redis = AsyncMock()
-        redis.get.return_value = None
+        redis.mget.return_value = (None, None)
         bars = [SimpleNamespace(stock_code="600967", close=float(i + 1)) for i in range(10)]
 
         with (
@@ -167,7 +200,7 @@ class TestGetWatchlistQuotes:
         session = AsyncMock()
         session.execute.return_value = _scalars_result([_watch("600000")])
         redis = AsyncMock()
-        redis.get.return_value = None
+        redis.mget.return_value = (None, None)
         bars = [SimpleNamespace(stock_code="600000", close=float(i + 1)) for i in range(121)]
 
         with (

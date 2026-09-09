@@ -5,12 +5,14 @@ from app.services.collector.collector_log_service import CollectorLogService
 from app.services.collector.market_dispatch_service import (
     NonTradingDayError,
     backfill_trade_date,
+    collect_market_data,
 )
 
 __all__ = [
     "CollectorLogService",
     "NonTradingDayError",
     "backfill_trade_date",
+    "collect_market_data",
     "collector_log_service",
     "market_dispatch_service",
 ]

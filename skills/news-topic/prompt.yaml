@@ -1,0 +1,22 @@
+id: news-topic
+name: 热点主题聚类
+version: 1.0.0
+description: 把近 24h 高重要度资讯按热点主题聚类（主题/情绪票数/关联板块/传导链），供热点主题榜热度拼装
+
+system_prompt: |
+  你是一名专业财经资讯编辑，负责从当日资讯流中识别热点主题及其市场传导逻辑。
+
+user_prompt_template: |
+  请把以下 {count} 条资讯按「热点主题」聚类。
+
+  资讯列表（JSON，字段：source 来源标识 / item_id 条目 ID / title 标题 / content 内容节选 / category 分类 / stock_codes 关联股票代码 / score 重要度分 / publish_time 发布时间）：
+  {items_json}
+
+  要求：
+  - 只输出有 3 篇及以上资讯支撑的主题（孤立话题不输出）；主题按热度排序，最多 10 个
+  - title 为主题名（如「存储芯片涨价」「美联储降息预期」）
+  - sentiment 主题整体情绪：利好 / 利空 / 分歧；votes 为该主题内资讯的情绪票数分布（利好篇数 bullish / 利空篇数 bearish / 中性篇数 neutral，三者之和等于该主题资讯数）
+  - sector_names 该主题关联的 A 股板块名（用东财板块习惯命名，如「银行」「半导体」「光伏设备」，最多 3 个；无明显板块关联可为空数组）
+  - item_ids 该主题包含的条目 ID，必须原样取自输入，禁止编造
+  - chain 市场传导链（事件 → 环节 → 代表标的），2-4 步；每步 event 事件/环节描述、link 与上一步的传导关系、stocks 代表标的（代码或简称，可为空数组）
+  - 最终回复必须且只能是符合输出 Schema 的 JSON 对象（{{"topics": [...]}}），不要 markdown 代码围栏、不要额外解释文字

@@ -46,8 +46,9 @@ class TestThreadEndpoints:
             AsyncMock(return_value=row),
         ):
             response = client.post("/api/v1/assistant/threads", json={})
-        assert response.status_code == 200
+        assert response.status_code == 201
         body = response.json()
+        # langgraph-sdk 契约：snake_case wire
         assert body["thread_id"] == str(row.id)
         assert body["metadata"]["user_id"] == 1
 
@@ -175,7 +176,7 @@ class TestRunStream:
                         "version_no": 5,
                         "status": "success",
                         "__event__": {
-                            "type": "industry_chain.analysis_complete",
+                            "type": "industry_chain.analysis.complete",
                             "industry": "半导体",
                             "version_id": 123,
                             "version_no": 5,
@@ -197,11 +198,15 @@ class TestRunStream:
                 AsyncMock(return_value=_session_row()),
             ),
             patch(
+                "app.services.assistant.assistant_service.AssistantService.custom_skill_index_lines",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
                 "app.api.v1.assistant.runs.get_assistant_agent",
                 AsyncMock(return_value=agent),
             ),
             patch(
-                "app.api.v1.assistant.runs.touch_session_standalone",
+                "app.api.v1.assistant.runs.finalize_run",
                 AsyncMock(return_value=None),
             ),
         ):
@@ -213,19 +218,62 @@ class TestRunStream:
         text = response.text
         assert 'event: messages' in text
         assert 'event: custom' in text
-        assert 'industry_chain.analysis_complete' in text
+        assert 'industry_chain.analysis.complete' in text
+
+    def test_custom_skills_index_prefixes_user_message(self) -> None:
+        from app.api.v1.assistant.runs import _with_custom_skills
+
+        result = _with_custom_skills("帮我复盘", ["自研选股策略：按量价共振筛选"])
+        assert result.startswith("用户已安装以下自定义技能")
+        assert "- 自研选股策略：按量价共振筛选" in result
+        assert result.endswith("帮我复盘")
+
+    def test_custom_skills_absent_keeps_content(self) -> None:
+        from app.api.v1.assistant.runs import _with_custom_skills
+
+        assert _with_custom_skills("你好", []) == "你好"
+
+    def test_custom_skills_block_list_prepends_text_block(self) -> None:
+        from app.api.v1.assistant.runs import _with_custom_skills
+
+        blocks = [{"type": "text", "text": "问题"}]
+        result = _with_custom_skills(blocks, ["我的技能：描述"])
+        assert isinstance(result, list)
+        assert result[0]["type"] == "text"
+        assert result[0]["text"].startswith("用户已安装以下自定义技能")
+        assert result[1] == blocks[0]
 
 
 @pytest.mark.unit
 class TestSkillsEndpoint:
-    def test_skills_empty_when_dir_missing(self, assistant_client) -> None:
+    def test_skills_endpoint_returns_summaries(self, assistant_client) -> None:
+        from app.schemas.assistant import SkillSummary
+
         client, _ = assistant_client
-        settings = MagicMock()
-        settings.skills_dir = MagicMock()
-        settings.skills_dir.exists.return_value = False
         with patch(
-            "app.services.assistant.assistant_service.get_settings", return_value=settings
+            "app.services.assistant.assistant_service.AssistantService.list_skills",
+            AsyncMock(
+                return_value=[
+                    SkillSummary(
+                        id="market-daily-review",
+                        name="大盘每日复盘",
+                        description="每日复盘",
+                        kind="executable",
+                    ),
+                    SkillSummary(
+                        id="my-skill",
+                        name="自定义技能",
+                        description="x",
+                        kind="custom",
+                        is_custom=True,
+                    ),
+                ]
+            ),
         ):
             response = client.get("/api/v1/assistant/skills")
         assert response.status_code == 200
-        assert response.json() == []
+        body = response.json()
+        assert body[0]["id"] == "market-daily-review"
+        assert body[0]["isCustom"] is False
+        assert body[0]["kind"] == "executable"
+        assert body[1]["isCustom"] is True

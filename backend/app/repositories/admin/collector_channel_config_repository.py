@@ -4,6 +4,7 @@ from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.models.collector_channel_config import CollectorChannelConfig
 from app.repositories.base import BaseRepository
@@ -22,10 +23,14 @@ class CollectorChannelConfigRepository(BaseRepository[CollectorChannelConfig]):
         return list(result.scalars().all())
 
     async def get_enabled_by_source(self, source: str) -> CollectorChannelConfig | None:
-        """返回指定数据源已启用的配置，若不存在则为 None。"""
-        stmt = select(CollectorChannelConfig).where(
-            CollectorChannelConfig.source == source,
-            CollectorChannelConfig.is_enabled.is_(True),
+        """返回指定数据源已启用的配置（预载绑定代理），若不存在则为 None。"""
+        stmt = (
+            select(CollectorChannelConfig)
+            .options(joinedload(CollectorChannelConfig.proxy))
+            .where(
+                CollectorChannelConfig.source == source,
+                CollectorChannelConfig.is_enabled.is_(True),
+            )
         )
         result = await self.execute(stmt)
         return cast(CollectorChannelConfig | None, result.scalar_one_or_none())
@@ -38,3 +43,15 @@ class CollectorChannelConfigRepository(BaseRepository[CollectorChannelConfig]):
             .limit(1)
         )
         return result.scalar_one_or_none() is not None
+
+    async def map_by_ids(
+        self, config_ids: set[int]
+    ) -> dict[int, CollectorChannelConfig]:
+        """批量返回指定 ID 的渠道配置（id -> 行）。"""
+        if not config_ids:
+            return {}
+        stmt = select(CollectorChannelConfig).where(
+            CollectorChannelConfig.id.in_(config_ids)
+        )
+        result = await self.execute(stmt)
+        return {row.id: row for row in result.scalars().all()}

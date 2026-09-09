@@ -1,11 +1,9 @@
 import { create } from 'zustand'
-import type { MovingAverageConfig, UserSettings } from '@ai-invest/shared'
+import { StorageKey, type MovingAverageConfig, type UserSettings } from '@ai-invest/shared'
 
 import { fetchUserSettings, updateUserSettings } from '@/api/settings'
 
 export type ColorScheme = 'cn' | 'us'
-
-const STORAGE_KEY = 'color_scheme'
 
 const DEFAULT_MA_CONFIGS: MovingAverageConfig[] = [
   { period: 5, color: '#f0b429', enabled: true },
@@ -21,34 +19,48 @@ const DEFAULT_USER_SETTINGS: UserSettings = {
 }
 
 const getStoredScheme = (): ColorScheme => {
-  return localStorage.getItem(STORAGE_KEY) === 'us' ? 'us' : 'cn'
+  return localStorage.getItem(StorageKey.settings.colorScheme) === 'us' ? 'us' : 'cn'
+}
+
+const getStoredCalendarDetailCollapsed = (): boolean => {
+  return localStorage.getItem(StorageKey.settings.calendarDetailCollapsed) === '1'
 }
 
 const getStoredToken = (): string | null => {
-  return localStorage.getItem('access_token')
+  return localStorage.getItem(StorageKey.auth.accessToken)
 }
 
 interface SettingsState {
   colorScheme: ColorScheme
+  calendarDetailCollapsed: boolean
   userSettings: UserSettings
   isLoadingSettings: boolean
   settingsError: string | null
 
   setColorScheme: (scheme: ColorScheme) => void
+  toggleCalendarDetailCollapsed: () => void
   initialize: () => Promise<void>
   updateMaConfigs: (configs: MovingAverageConfig[]) => Promise<void>
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   colorScheme: getStoredScheme(),
+  calendarDetailCollapsed: getStoredCalendarDetailCollapsed(),
   userSettings: DEFAULT_USER_SETTINGS,
   isLoadingSettings: false,
   settingsError: null,
 
   setColorScheme: (scheme) => {
-    localStorage.setItem(STORAGE_KEY, scheme)
+    localStorage.setItem(StorageKey.settings.colorScheme, scheme)
     set({ colorScheme: scheme })
   },
+
+  toggleCalendarDetailCollapsed: () =>
+    set((state) => {
+      const next = !state.calendarDetailCollapsed
+      localStorage.setItem(StorageKey.settings.calendarDetailCollapsed, next ? '1' : '0')
+      return { calendarDetailCollapsed: next }
+    }),
 
   initialize: async () => {
     if (!getStoredToken()) {

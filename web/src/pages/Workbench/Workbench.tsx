@@ -5,12 +5,14 @@ import { useEffect, useState } from 'react'
 import { useWorkbench } from '@/hooks/useWorkbench'
 
 import { CalendarSummaryCard } from './components/CalendarSummaryCard'
+import { CollectorEngineCard } from './components/CollectorEngineCard'
+import { FedWatchCard } from './components/FedWatchCard'
 import { IndexStrip } from './components/IndexStrip'
-import { QuickEntriesCard } from './components/QuickEntriesCard'
-import { ReviewSummaryCard } from './components/ReviewSummaryCard'
 import { SectorFlowCard } from './components/SectorFlowCard'
 import { TelegraphCard } from './components/TelegraphCard'
 import { WatchlistOverviewCard } from './components/WatchlistOverviewCard'
+
+import { DATE_FORMAT } from '@/utils/formatters'
 
 const WEEKDAYS = '日一二三四五六'
 
@@ -42,33 +44,42 @@ export function Workbench() {
       <div className="flex items-baseline justify-between">
         <Typography.Title level={4} className="!mb-0">工作台</Typography.Title>
         <Typography.Text className="text-xs text-gray-500 font-mono" data-testid="workbench-clock">
-          {now.format('YYYY-MM-DD')} 周{WEEKDAYS[now.day()]}{' '}
+          {now.format(DATE_FORMAT)} 周{WEEKDAYS[now.day()]}{' '}
           {now.format('HH:mm:ss')}
         </Typography.Text>
       </div>
 
-      <IndexStrip
-        indices={data?.indices}
-        globalIndices={data?.globalIndices}
-        loading={isLoading}
-      />
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-5">
-        <div className="xl:col-span-2 space-y-5">
-          <ReviewSummaryCard
-            review={data?.review ?? null}
-            stats={data?.stats ?? undefined}
-            loading={isLoading}
-          />
-          <TelegraphCard items={data?.telegraph} loading={isLoading} />
-          <WatchlistOverviewCard groups={data?.watchlistGroups} loading={isLoading} />
-        </div>
-
-        <div className="space-y-5">
-          <CalendarSummaryCard events={data?.calendar} loading={isLoading} />
-          <SectorFlowCard items={data?.sectorFlow} loading={isLoading} />
-          <QuickEntriesCard />
-        </div>
+      {/* 行对齐网格：行内卡片等高（stretch），行序 指数/加息概率 → 要闻/日历 → 自选/引擎 → 板块（整行）。
+          复盘状态移至左侧导航栏（SidebarReviewStatus）。 */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-5 items-stretch">
+        <IndexStrip
+          indices={data?.indices}
+          globalIndices={data?.globalIndices}
+          loading={isLoading}
+          className="xl:col-span-2"
+          stretch
+        />
+        <FedWatchCard stretch />
+        <TelegraphCard
+          items={data?.telegraph}
+          loading={isLoading}
+          className="xl:col-span-2"
+          stretch
+        />
+        <CalendarSummaryCard events={data?.calendar} loading={isLoading} stretch />
+        <WatchlistOverviewCard
+          groups={data?.watchlistGroups}
+          loading={isLoading}
+          className="xl:col-span-2"
+          stretch
+        />
+        <CollectorEngineCard status={data?.collectorStatus ?? null} loading={isLoading} stretch />
+        <SectorFlowCard
+          items={data?.sectorFlow}
+          loading={isLoading}
+          className="xl:col-span-3"
+          stretch
+        />
       </div>
     </div>
   )

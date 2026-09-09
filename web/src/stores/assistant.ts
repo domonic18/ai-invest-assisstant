@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 
+import { PAGE_EVENT_TYPES } from '@ai-invest/shared'
+
 /** deepagents TodoList 步骤 */
 export interface TodoStep {
   content: string
@@ -7,12 +9,38 @@ export interface TodoStep {
 }
 
 /** 由 Assistant Agent 产生、需要回写到页面的结构化结果。 */
-export interface PageAssistantResult {
-  type: 'industry_chain.analysis_complete'
+export type PageAssistantResult =
+  | ChainAnalysisResult
+  | StockDailyAnalysisResult
+  | MarketDailyReviewResult
+  | LimitUpAttributionResult
+
+/** 产业链分析完成回写 */
+export interface ChainAnalysisResult {
+  type: typeof PAGE_EVENT_TYPES.chainAnalysis
   industry: string
   versionId: number
   versionNo: number
   createdAt?: string
+}
+
+/** 个股每日 AI 分析完成回写 */
+export interface StockDailyAnalysisResult {
+  type: typeof PAGE_EVENT_TYPES.stockDailyAnalysis
+  stockCode: string
+  tradeDate: string
+}
+
+/** 大盘每日复盘完成回写 */
+export interface MarketDailyReviewResult {
+  type: typeof PAGE_EVENT_TYPES.marketDailyReview
+  tradeDate: string
+}
+
+/** 涨停 AI 归因完成回写 */
+export interface LimitUpAttributionResult {
+  type: typeof PAGE_EVENT_TYPES.limitUpAttribution
+  tradeDate: string
 }
 
 interface AssistantState {

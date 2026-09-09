@@ -1,5 +1,6 @@
 """Celery app 契约测试：队列路由、任务选项解析与 worker 生命周期。"""
 
+from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -35,10 +36,20 @@ class TestResolveQueue:
 class TestResolveTaskOptions:
     def test_defaults_derived_from_queue(self) -> None:
         options = resolve_task_options("quote")
+        defaults = QUEUE_DEFAULTS["collector.realtime"]
         assert options["queue"] == "collector.realtime"
-        assert options["soft_time_limit"] == QUEUE_DEFAULTS["collector.realtime"]["soft_time_limit"]
-        assert options["max_retries"] == QUEUE_DEFAULTS["collector.realtime"]["max_retries"]
-        assert "retry_backoff" in options
+        assert options["soft_time_limit"] == defaults["soft_time_limit"]
+        assert options["hard_time_limit"] == defaults["hard_time_limit"]
+        assert options["max_retries"] == defaults["max_retries"]
+        assert options["retry_backoff"] == defaults["retry_backoff"]
+        assert options["retry_backoff_max"] == defaults["retry_backoff_max"]
+
+    def test_unknown_task_falls_back_to_batch_defaults(self) -> None:
+        options = resolve_task_options("no-such-task")
+        defaults = QUEUE_DEFAULTS["collector.batch"]
+        assert options["queue"] == "collector.batch"
+        assert options["hard_time_limit"] == defaults["hard_time_limit"]
+        assert options["max_retries"] == defaults["max_retries"]
 
     def test_spec_overrides_soft_time_limit_and_retries(self) -> None:
         spec = TASK_SPECS["financial-report"]
@@ -47,6 +58,21 @@ class TestResolveTaskOptions:
         options = resolve_task_options("financial-report")
         assert options["queue"] == "collector.heavy"
         assert options["soft_time_limit"] == QUEUE_DEFAULTS["collector.heavy"]["soft_time_limit"]
+
+    def test_spec_overrides_hard_time_limit(self) -> None:
+        spec = replace(TASK_SPECS["quote"], hard_time_limit=90)
+        with patch("collector.celery_app.TASK_SPECS", {**TASK_SPECS, "quote": spec}):
+            options = resolve_task_options("quote")
+
+        assert options["hard_time_limit"] == 90
+        assert options["soft_time_limit"] == QUEUE_DEFAULTS["collector.realtime"]["soft_time_limit"]
+
+    def test_retry_backoff_max_is_explicit_not_borrowed_hard_limit(self) -> None:
+        assert QUEUE_DEFAULTS["collector.realtime"]["retry_backoff_max"] == 300
+        assert QUEUE_DEFAULTS["collector.batch"]["retry_backoff_max"] == 600
+        assert QUEUE_DEFAULTS["collector.heavy"]["retry_backoff_max"] == 1800
+        options = resolve_task_options("market-daily-review")
+        assert options["retry_backoff_max"] == 1800
 
     def test_queue_override_takes_precedence(self) -> None:
         options = resolve_task_options("quote", queue_override="collector.heavy")

@@ -41,6 +41,7 @@ export default function App() {
     <ConfigProvider
       theme={{
         algorithm: theme.darkAlgorithm,
+        token: { colorPrimary: '#5e6ad2' },
         components: {
           Segmented: {
             trackBg: '#0c0e12',

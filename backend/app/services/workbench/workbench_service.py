@@ -1,10 +1,9 @@
-"""工作台聚合服务：一次请求拼装五模块数据，单模块降级不拖垮整体。"""
+"""工作台聚合服务：一次请求拼装多模块数据，单模块降级不拖垮整体。"""
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.calendar import CalendarEventResponse
-from app.schemas.telegraph import TelegraphResponse
 from app.schemas.workbench import WorkbenchResponse
 from app.services.market import (
     calendar_service,
@@ -16,10 +15,11 @@ from app.services.market import (
 )
 from app.services.review import market_review_service
 from app.services.user import watchlist_quote_service
+from app.services.workbench import collector_status_service, review_status_service
 
 logger = structlog.get_logger(__name__)
 
-_CALENDAR_LIMIT = 8
+_CALENDAR_LIMIT = 12
 _TELEGRAPH_PAGE_SIZE = 12
 
 
@@ -44,10 +44,10 @@ async def get_workbench(session: AsyncSession, user_id: int) -> WorkbenchRespons
         logger.warning("workbench_review_degraded", exc_info=True)
 
     try:
-        items, _total = await telegraph_service.list_telegraph(
+        rows, _total = await telegraph_service.list_telegraph(
             session, page=1, page_size=_TELEGRAPH_PAGE_SIZE
         )
-        data.telegraph = [TelegraphResponse.model_validate(t) for t in items]
+        data.telegraph = telegraph_service.to_responses(rows)
     except Exception:
         logger.warning("workbench_telegraph_degraded", exc_info=True)
 
@@ -77,5 +77,15 @@ async def get_workbench(session: AsyncSession, user_id: int) -> WorkbenchRespons
         data.sector_flow = await sector_fund_flow_service.get_latest_sector_flow(session)
     except Exception:
         logger.warning("workbench_sector_flow_degraded", exc_info=True)
+
+    try:
+        data.review_status = await review_status_service.get_review_status(session)
+    except Exception:
+        logger.warning("workbench_review_status_degraded", exc_info=True)
+
+    try:
+        data.collector_status = await collector_status_service.get_collector_status(session)
+    except Exception:
+        logger.warning("workbench_collector_status_degraded", exc_info=True)
 
     return data

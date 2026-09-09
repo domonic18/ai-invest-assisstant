@@ -1,12 +1,11 @@
 """复盘域业务服务（AI 复盘）。"""
 
+from app.services.market.trade_calendar_service import NonTradingDayError
 from app.services.review.market_review_formatter import (
     BaseReview,
     build_response,
 )
 from app.services.review.market_review_generator import (
-    MarketReviewContent,
-    NonTradingDayError,
     ReviewGenerationLockedError,
     ReviewInputDataNotReadyError,
     ReviewNotFoundError,
@@ -22,7 +21,6 @@ from app.services.review.market_review_service import (
 
 __all__ = [
     "BaseReview",
-    "MarketReviewContent",
     "NonTradingDayError",
     "ReviewGenerationLockedError",
     "ReviewInputDataNotReadyError",

@@ -150,3 +150,105 @@ class TestTouchSessionStandalone:
             touch.side_effect = RuntimeError("db down")
             # 失败只记日志，不向外抛
             await touch_session_standalone("tid", None)
+
+
+@pytest.mark.unit
+class TestListSkills:
+    @pytest.mark.asyncio
+    async def test_list_skills_builtin_from_registry(self) -> None:
+        service = AssistantService(MagicMock())
+        with patch(
+            "app.services.assistant.assistant_service.UserSkillRepository"
+        ) as user_repo_cls:
+            user_repo_cls.return_value.list_installed = AsyncMock(return_value=[])
+            summaries = await service.list_skills(1)
+
+        by_id = {s.id: s for s in summaries}
+        assert "market-daily-review" in by_id
+        assert "research-report-summary" in by_id
+        # financial-report-summary 无 SKILL.md，不进摘要
+        assert "financial-report-summary" not in by_id
+        assert all(not s.is_custom for s in summaries)
+        assert by_id["market-daily-review"].kind == "executable"
+        assert by_id["chain-breakthrough"].kind == "doc_only"
+
+    @pytest.mark.asyncio
+    async def test_list_enabled_custom_skills_filters(self) -> None:
+        from app.models.skill import Skill as SkillRow
+        from app.models.skill import UserSkill
+
+        service = AssistantService(MagicMock())
+        enabled = UserSkill(user_id=1, skill_id="my-skill", enabled=True)
+        disabled = UserSkill(user_id=1, skill_id="off-skill", enabled=False)
+        custom = SkillRow(
+            skill_id="my-skill",
+            label="自定义",
+            kind="custom",
+            is_builtin=False,
+            owner_user_id=1,
+            description="按量价筛选",
+        )
+        with (
+            patch(
+                "app.services.assistant.assistant_service.UserSkillRepository"
+            ) as user_repo_cls,
+            patch(
+                "app.services.assistant.assistant_service.SkillRepository"
+            ) as skill_repo_cls,
+        ):
+            user_repo_cls.return_value.list_installed = AsyncMock(
+                return_value=[enabled, disabled]
+            )
+            skill_repo_cls.return_value.get_by_skill_ids = AsyncMock(
+                return_value=[custom]
+            )
+            summaries = await service.list_enabled_custom_skills(1)
+
+        assert [s.id for s in summaries] == ["my-skill"]
+        assert summaries[0].is_custom is True
+        assert summaries[0].kind == "custom"
+        assert summaries[0].name == "自定义"
+
+    @pytest.mark.asyncio
+    async def test_custom_skill_index_lines_format(self) -> None:
+        from app.models.skill import Skill as SkillRow
+        from app.models.skill import UserSkill
+
+        service = AssistantService(MagicMock())
+        installs = [
+            UserSkill(user_id=1, skill_id="my-skill", enabled=True),
+            UserSkill(user_id=1, skill_id="plain", enabled=True),
+        ]
+        described = SkillRow(
+            skill_id="my-skill",
+            label="策略A",
+            kind="custom",
+            is_builtin=False,
+            owner_user_id=2,
+            description="量价共振",
+        )
+        no_desc = SkillRow(
+            skill_id="plain",
+            label="策略B",
+            kind="custom",
+            is_builtin=False,
+            owner_user_id=2,
+            description=None,
+        )
+        with (
+            patch(
+                "app.services.assistant.assistant_service.UserSkillRepository"
+            ) as user_repo_cls,
+            patch(
+                "app.services.assistant.assistant_service.SkillRepository"
+            ) as skill_repo_cls,
+        ):
+            user_repo_cls.return_value.list_installed = AsyncMock(
+                return_value=installs
+            )
+            skill_repo_cls.return_value.get_by_skill_ids = AsyncMock(
+                return_value=[described, no_desc]
+            )
+            lines = await service.custom_skill_index_lines(1)
+
+        assert lines == ["策略A：量价共振", "策略B"]

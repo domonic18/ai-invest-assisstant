@@ -87,6 +87,25 @@ async def list_versions(
     return list((await session.execute(stmt)).scalars().all())
 
 
+async def list_refresh_targets(
+    session: AsyncSession,
+) -> list[tuple[str, list[int]]]:
+    """刷新目标：status=success 的 (industry, user_id 去重列表)，最近更新在前。"""
+    stmt = (
+        select(
+            ChainAnalysisVersion.industry,
+            func.array_agg(
+                func.distinct(ChainAnalysisVersion.user_id)
+            ).label("user_ids"),
+        )
+        .where(ChainAnalysisVersion.status == "success")
+        .group_by(ChainAnalysisVersion.industry)
+        .order_by(func.max(ChainAnalysisVersion.created_at).desc())
+    )
+    rows = (await session.execute(stmt)).all()
+    return [(row.industry, sorted(int(uid) for uid in row.user_ids)) for row in rows]
+
+
 async def get_version(
     session: AsyncSession, version_id: int, user_id: int
 ) -> ChainAnalysisVersion | None:
@@ -96,6 +115,22 @@ async def get_version(
         ChainAnalysisVersion.user_id == user_id,
     )
     return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def delete_version(
+    session: AsyncSession, version_id: int, user_id: int
+) -> bool:
+    """删除归属用户的版本行并 flush（不 commit）。
+
+    节点/边/公司映射经 DB 外键级联清理，chain_alert.version_id 置空，
+    ai_analysis_result 记录保留。
+    """
+    version = await get_version(session, version_id, user_id)
+    if version is None:
+        return False
+    await session.delete(version)
+    await session.flush()
+    return True
 
 
 async def get_latest_success_version(
@@ -142,54 +177,56 @@ async def replace_graph(
         )
         .scalar_subquery()
     )
-    await session.execute(
-        delete(ChainNode).where(
-            ChainNode.industry == industry,
-            ChainNode.version_id.in_(old_version_ids),
-        )
-    )
-    session.add_all(nodes)
-    await session.flush()
-
-    id_by_name = {node.node_name: node.id for node in nodes}
-
-    edge_objs = []
-    for edge in edges:
-        source_id = id_by_name.get(edge["source"])
-        target_id = id_by_name.get(edge["target"])
-        if source_id is None or target_id is None:
-            continue
-        edge_objs.append(
-            ChainEdge(
-                source_node_id=source_id,
-                target_node_id=target_id,
-                relation_type=edge.get("relation_type"),
-                relation_description=edge.get("relation_description"),
-                strength=edge.get("strength"),
-                criticality=edge.get("criticality"),
-                data_source="agent",
-                version_id=version_id,
+    # 替换是全或无单元：SAVEPOINT 保证中途失败回滚到替换前，会话不被污染
+    async with session.begin_nested():
+        await session.execute(
+            delete(ChainNode).where(
+                ChainNode.industry == industry,
+                ChainNode.version_id.in_(old_version_ids),
             )
         )
-    session.add_all(edge_objs)
+        session.add_all(nodes)
+        await session.flush()
 
-    mapping_objs = []
-    for mapping in mappings:
-        node_id = id_by_name.get(mapping["node_name"])
-        if node_id is None:
-            continue
-        mapping_objs.append(
-            ChainCompanyMapping(
-                stock_code=mapping["stock_code"],
-                chain_node_id=node_id,
-                chain_position=mapping.get("chain_position"),
-                revenue_ratio=mapping.get("revenue_ratio"),
-                confidence=mapping.get("confidence"),
-                version_id=version_id,
+        id_by_name = {node.node_name: node.id for node in nodes}
+
+        edge_objs = []
+        for edge in edges:
+            source_id = id_by_name.get(edge["source"])
+            target_id = id_by_name.get(edge["target"])
+            if source_id is None or target_id is None:
+                continue
+            edge_objs.append(
+                ChainEdge(
+                    source_node_id=source_id,
+                    target_node_id=target_id,
+                    relation_type=edge.get("relation_type"),
+                    relation_description=edge.get("relation_description"),
+                    strength=edge.get("strength"),
+                    criticality=edge.get("criticality"),
+                    data_source="agent",
+                    version_id=version_id,
+                )
             )
-        )
-    session.add_all(mapping_objs)
-    await session.flush()
+        session.add_all(edge_objs)
+
+        mapping_objs = []
+        for mapping in mappings:
+            node_id = id_by_name.get(mapping["node_name"])
+            if node_id is None:
+                continue
+            mapping_objs.append(
+                ChainCompanyMapping(
+                    stock_code=mapping["stock_code"],
+                    chain_node_id=node_id,
+                    chain_position=mapping.get("chain_position"),
+                    revenue_ratio=mapping.get("revenue_ratio"),
+                    confidence=mapping.get("confidence"),
+                    version_id=version_id,
+                )
+            )
+        session.add_all(mapping_objs)
+        await session.flush()
 
 
 async def list_graph_nodes(

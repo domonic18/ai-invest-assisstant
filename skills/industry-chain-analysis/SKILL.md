@@ -1,13 +1,18 @@
 ---
 name: industry-chain-analysis
 description: 产业链分析：拆解指定行业的上下游结构，识别各环节代表上市公司并对比财务表现与竞争格局，产出结构化产业链分析与投资观点。当用户要求产业链体检/上下游/供应链/价值链分析时使用。
-allowed-tools: query_industry_companies, query_financial_reports, download_financial_reports, query_financial_data, summarize_financial_report, search_vector_kb, persist_chain_analysis
+allowed-tools: query_industry_companies, query_financial_reports, download_financial_reports, query_financial_data, summarize_financial_report, search_vector_kb, persist_chain_analysis, get_industry_companies, get_financial_metrics, search_news
 ---
 
 # 产业链分析
 
 ## 描述
 以财报为核心依据，分析指定行业的上下游供应链。识别产业链各节点上的代表性上市公司，对比其财务表现，输出结构化产业链图谱与投资观点。
+
+## 运行路径
+本 Skill 有两条运行路径，注入工具与交付方式不同：
+- **独立执行器路径**（`POST /chain/analyze` 与定时任务 chain-refresh）：注入 `get_industry_companies`、`get_financial_metrics`、`search_news`、`search_vector_kb` 四个精简取数工具，按「独立执行器路径流程」取数并按 system_prompt 的四步方法归因，**最终回复必须且只能是符合「输出 Schema」的 JSON 对象**（不调用 persist_chain_analysis，由服务层校验落库）。
+- **助手对话路径**（交互式）：注入下方「可用工具」中的助手工具集，按「助手对话路径流程」执行（含财报补采与摘要深挖），最终调用 `persist_chain_analysis` 持久化。
 
 ## 触发条件
 - 用户要求分析某行业的供应链/价值链
@@ -26,7 +31,8 @@ allowed-tools: query_industry_companies, query_financial_reports, download_finan
   "value_distribution": {...},
   "opportunities": [...],
   "risks": [...],
-  "key_companies_summary": [...]
+  "key_companies_summary": [...],
+  "alerts": [...]
 }
 ```
 
@@ -70,7 +76,20 @@ allowed-tools: query_industry_companies, query_financial_reports, download_finan
 - `chain_position`: str | null
 - `score`: float | null，0-100
 
+### alerts schema（宁缺毋滥，最多 10 条）
+- `alert_type`: 仅限「财报异动/评级调整/技术突破/格局变化/政策催化」五类
+- `severity`: int，1-3（3 最高）
+- `title`: str，一句话概括；`description`: str，触发依据
+- `affected_segments`: list[str]，环节名（须存在于 nodes）
+- `related_stock_codes`: list[str]，公司清单中的 6 位代码（可为空）
+
 ## 可用工具
+### 仅独立执行器路径注入
+- `get_industry_companies(industry, limit=150)`: 按行业查询公司清单，经营范围截断至 120 字。
+- `get_financial_metrics(stock_codes)`: 批量查询核心财务指标（毛利率/营收同比/研发占比/应收周转），单次最多 40 只。
+- `search_news(keyword, days, limit)`: 按关键词检索近期新闻/公告/研报标题与摘要。
+
+### 仅助手对话路径注入
 - `query_industry_companies(industry, limit=150)`: 按行业名称查询上市公司清单，返回股票代码、名称、二级/三级行业、经营范围。
 - `query_financial_reports(stock_code, report_type, start_date, end_date)`: 查询系统中已存在的财报列表，返回报告 ID、类型、报告期、是否有 PDF/摘要等。
 - `download_financial_reports(stock_code, report_types, start_date, end_date)`: 触发指定股票的财报采集任务（异步）。当系统中缺少所需财报时调用。
@@ -79,7 +98,13 @@ allowed-tools: query_industry_companies, query_financial_reports, download_finan
 - `search_vector_kb(query, limit=5)`: 检索研报/年报知识库片段，用于补充分析师对产业链的观点。
 - `persist_chain_analysis(industry, result)`: 将最终符合 schema 的 JSON 结果持久化到数据库，生成新版本并在产业链页面展示。
 
-## 分析流程
+## 独立执行器路径流程
+1. 调用 `get_industry_companies(industry=..., limit=150)` 获取公司清单（经营范围已截断至 120 字），通读并归纳各公司主营业务。
+2. 从清单中选取代表性公司，调用 `get_financial_metrics(stock_codes=[...])` 获取核心财务指标（单次最多 40 只，可分批）。
+3. 调用 `search_news(keyword=<行业名>, days=30, limit=10)` 与 `search_vector_kb(query="<行业名> 主营业务 经营范围 产业链")` 补充行业动态与研报摘录。
+4. 按 system_prompt 的四步方法（归纳主营 → 聚类环节 → 组织上中下游与 edges → 计算环节指标均值）归因，最终回复**必须且只能是**符合「输出 Schema」的 JSON 对象；companies 中的 code 必须来自公司清单。
+
+## 助手对话路径流程
 
 ### 步骤 1：收集公司清单
 调用 `query_industry_companies(industry=...)` 获取目标行业全部上市公司。
@@ -129,15 +154,15 @@ allowed-tools: query_industry_companies, query_financial_reports, download_finan
 
 ## 规则
 - 所有文本使用简体中文。
-- 股票代码必须是 `query_industry_companies` 返回的公司清单中的 6 位字符串。
-- 分析必须以财报数据与财报摘要为准；不得虚构公司、环节或财务数字。
+- 股票代码必须来自公司清单（助手路径为 `query_industry_companies` 返回，执行器路径为 `get_industry_companies` 返回）中的 6 位字符串。
+- 分析必须以取数工具返回的数据为准；不得虚构公司、环节或财务数字。
 - 每个 node 的 `companies` 至少 2 家、最多 5 家，且不能为空。
 - 所有 `edges.source` 与 `edges.target` 必须与某个 `node.name` 匹配。
 - 无法从提供的数据计算出的数值指标统一使用 `null`。
-- 持久化完成后，用 2-4 句话向用户总结分析结论，并告知图谱已在产业链页面展示。
-- **进度反馈**：本 Skill 涉及多次工具调用，分析过程中请在每次开始新阶段前用 1-2 句 assistant 正文告知用户当前进展（例如“已获取半导体行业上市公司清单，接下来读取关键财报摘要……”），避免用户只看到工具调用而不知道进行到哪一步。
+- 持久化完成后，用 2-4 句话向用户总结分析结论，并告知图谱已在产业链页面展示。（仅助手对话路径）
+- **进度反馈**：本 Skill 涉及多次工具调用，分析过程中请在每次开始新阶段前用 1-2 句 assistant 正文告知用户当前进展（例如“已获取半导体行业上市公司清单，接下来读取关键财报摘要……”），避免用户只看到工具调用而不知道进行到哪一步。（仅助手对话路径；独立执行器路径除最终 JSON 外不要输出任何其他文字）
 
-## 示例
+## 示例（助手对话路径）
 用户："分析半导体产业链"
 
 1. 调用 `query_industry_companies(industry="半导体")`。

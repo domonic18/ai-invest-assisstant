@@ -2,10 +2,12 @@
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.schemas.base import CamelModel
 
 
-class FileMetadataBase(BaseModel):
+class FileMetadataBase(CamelModel):
     """文件元数据的基础字段。"""
 
     file_path: str = Field(..., max_length=500)
@@ -24,7 +26,7 @@ class FileMetadataCreate(FileMetadataBase):
     """创建文件元数据的请求 schema。"""
 
 
-class FileMetadataUpdate(BaseModel):
+class FileMetadataUpdate(CamelModel):
     """更新文件元数据的请求 schema。"""
 
     original_name: str | None = Field(None, max_length=500)
@@ -41,15 +43,13 @@ class FileMetadataUpdate(BaseModel):
 class FileMetadataResponse(FileMetadataBase):
     """文件元数据的响应 schema。"""
 
-    model_config = ConfigDict(from_attributes=True)
-
     id: int
     download_count: int
     created_at: datetime
     stock_name: str | None = None
 
 
-class FinancialReportListRequest(BaseModel):
+class FinancialReportListRequest(CamelModel):
     """财报列表查询参数。"""
 
     stock_code: str | None = None
@@ -61,10 +61,8 @@ class FinancialReportListRequest(BaseModel):
     page_size: int = Field(20, ge=1, le=100)
 
 
-class FinancialReportResponse(BaseModel):
+class FinancialReportResponse(CamelModel):
     """财报中心列表/详情响应（title/has_summary 由服务层派生）。"""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     stock_code: str | None = None
@@ -78,7 +76,7 @@ class FinancialReportResponse(BaseModel):
     created_at: datetime
 
 
-class FinancialReportCollectRequest(BaseModel):
+class FinancialReportCollectRequest(CamelModel):
     """触发单只股票财报采集的请求。"""
 
     stock_code: str = Field(..., min_length=1, max_length=10)
@@ -87,14 +85,14 @@ class FinancialReportCollectRequest(BaseModel):
     end_date: date | None = None
 
 
-class FinancialReportCollectResponse(BaseModel):
+class FinancialReportCollectResponse(CamelModel):
     """采集任务已入队的响应。"""
 
     log_id: int
     status: str
 
 
-class FinancialReportCollectLogResponse(BaseModel):
+class FinancialReportCollectLogResponse(CamelModel):
     """采集任务进度。"""
 
     log_id: int

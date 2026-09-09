@@ -3,15 +3,13 @@
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError, UnprocessableEntityError
 from app.dependencies import get_db
-from app.schemas.stock import (
-    AuctionDataResponse,
-    IndexAuctionTrendResponse,
-    PaginatedResponse,
-)
+from app.schemas.auction import AuctionDataResponse, IndexAuctionTrendResponse
+from app.schemas.stock import PaginatedResponse
 from app.services import market as stock_service
 from app.services.market import auction_service
 
@@ -30,10 +28,7 @@ async def get_index_auction_trend(
     指定 start_date/end_date 时按日期区间查询，否则取最近 days 个交易日。
     """
     if start_date and end_date and start_date > end_date:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="start_date must not be after end_date",
-        )
+        raise UnprocessableEntityError("start_date must not be after end_date")
     return await auction_service.get_index_auction_trend(
         session, days, start_date, end_date
     )
@@ -52,10 +47,7 @@ async def get_auction(
         session, code, trade_date, page, page_size
     )
     if not items:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No auction data found",
-        )
+        raise NotFoundError("No auction data found")
     return {
         "total": total,
         "page": page,

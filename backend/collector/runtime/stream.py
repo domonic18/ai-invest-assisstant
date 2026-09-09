@@ -23,6 +23,11 @@ import redis.asyncio as redis_async
 import structlog
 from sqlalchemy import text
 
+from app.core.constants import (
+    NEWS_SOURCE_TELEGRAPH,
+    STREAM_CURSOR_KEY_TEMPLATE,
+    STREAM_HEARTBEAT_KEY_TEMPLATE,
+)
 from collector.core.async_helpers import run_in_thread
 from collector.core.logging import configure_logging
 from collector.spiders.cls_telegraph import (
@@ -34,8 +39,8 @@ from collector.spiders.cls_telegraph import (
 
 logger = structlog.get_logger(__name__)
 
-CURSOR_KEY = "collector:stream:cls_telegraph:last_time"
-HEARTBEAT_KEY = "collector:stream:cls_telegraph:heartbeat"
+CURSOR_KEY = STREAM_CURSOR_KEY_TEMPLATE.format(source=NEWS_SOURCE_TELEGRAPH)
+HEARTBEAT_KEY = STREAM_HEARTBEAT_KEY_TEMPLATE.format(source=NEWS_SOURCE_TELEGRAPH)
 HEARTBEAT_TTL = 120
 POLL_INTERVAL = 10.0
 BACKOFF_INITIAL = 10.0

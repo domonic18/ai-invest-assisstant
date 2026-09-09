@@ -12,7 +12,9 @@ import type {
   ApiCollectorChannelConfigUpdateRequest,
 } from '@ai-invest/shared'
 
-const COLLECTOR_CHANNELS_KEY = ['collector-channel-configs'] as const
+import { queryKeys } from '@/hooks/queryKeys'
+
+const COLLECTOR_CHANNELS_KEY = queryKeys.collector.channels
 
 export function useCollectorChannelConfigs() {
   return useQuery({

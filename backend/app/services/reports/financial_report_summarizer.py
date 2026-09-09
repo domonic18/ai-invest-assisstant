@@ -5,21 +5,14 @@ from typing import Any
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import UnprocessableEntityError
-from app.core.locking import redis_lock
+from app.constants.summary import SUMMARY_TEXT_LIMIT
+from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
 from app.models.file_metadata import FileMetadata
 from app.services.common.minio_service import get_minio_service
+from app.services.reports.exceptions import SummaryInProgressError, SummaryUnavailableError
+from app.skills.prompt import load_skill_prompt
 
 _SUMMARY_SKILL_ID = "financial-report-summary"
-_SUMMARY_TEXT_LIMIT = 12000
-
-
-class SummaryUnavailableError(UnprocessableEntityError):
-    """财报 PDF 不可用，无法生成摘要。"""
-
-
-class SummaryInProgressError(Exception):
-    """其他请求正在生成该财报的摘要。"""
 
 
 class FinancialReportSummaryResult(BaseModel):
@@ -71,7 +64,7 @@ class FinancialReportSummarizer:
             return {"summary": report.summary, "cached": True}
 
         async with redis_lock(
-            f"financial-summary:{report.id}", ttl=300, blocking=True, blocking_timeout=120
+            f"financial-summary:{report.id}", ttl=DEFAULT_LOCK_TTL_SECONDS, blocking=True, blocking_timeout=120
         ) as acquired:
             if not acquired:
                 await self.session.refresh(report)
@@ -108,17 +101,13 @@ class FinancialReportSummarizer:
         text = await get_knowledge_base_service().extract_text(file_bytes, "pdf")
         if not text:
             raise SummaryUnavailableError("PDF 文本抽取失败或内容为空")
-        return text[:_SUMMARY_TEXT_LIMIT]
+        return text[:SUMMARY_TEXT_LIMIT]
 
     async def _generate_summary(self, report: FileMetadata, text: str) -> str:
-        from app.agent.core.prompt_loader import PromptLoader
         from app.agent.core.prompt_renderer import PromptRenderer
-        from app.agent.runtime import run_structured_agent
-        from app.core.config import get_settings
+        from app.agent.runtime.structured import run_structured
 
-        prompt_config = PromptLoader(get_settings().prompts_dir).load(
-            "skills", _SUMMARY_SKILL_ID
-        )
+        prompt_config = load_skill_prompt(_SUMMARY_SKILL_ID)
         user_prompt = PromptRenderer.render(
             prompt_config.user_prompt_template,
             title=report.original_name or "未知",
@@ -128,10 +117,9 @@ class FinancialReportSummarizer:
             report_text=text,
         )
 
-        output = await run_structured_agent(
+        output = await run_structured(
             self.session,
-            prompt_config=prompt_config,
-            user_prompt=user_prompt,
             result_type=FinancialReportSummaryResult,
+            user_prompt=user_prompt,
         )
         return render_summary_markdown(output)

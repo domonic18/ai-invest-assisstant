@@ -59,7 +59,13 @@ class TestAdminTaskService:
         assert task.is_active is False
 
     @pytest.mark.asyncio
-    async def test_pause_resume_trigger_task(self, service: AdminTaskService) -> None:
+    async def test_pause_resume_trigger_task(
+        self, service: AdminTaskService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        dispatch = AsyncMock()
+        monkeypatch.setattr(
+            "collector.runtime.dispatcher.dispatch_collector_task", dispatch
+        )
         task = MagicMock()
         task.is_active = True
         service.session.get.return_value = task
@@ -75,6 +81,11 @@ class TestAdminTaskService:
         triggered = await service.trigger_task(1)
         assert triggered == task
         assert task.last_status == "running"
+        dispatch.assert_awaited_once_with(
+            session=service.session,
+            task_name=task.task_type,
+            params={"preferred_source": task.source},
+        )
 
     @pytest.mark.asyncio
     async def test_delete_task(self, service: AdminTaskService) -> None:

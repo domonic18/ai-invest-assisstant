@@ -13,12 +13,16 @@ class CollectorChannelDataTypeRepository(BaseRepository[CollectorChannelDataType
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, CollectorChannelDataType)
 
-    async def list_all(self) -> list[CollectorChannelDataType]:
-        """返回所有关联，先按数据类型再按优先级排序。"""
-        stmt = select(CollectorChannelDataType).order_by(
-            CollectorChannelDataType.data_type,
-            CollectorChannelDataType.priority,
-            CollectorChannelDataType.channel_id,
+    async def list_all(self, limit: int = 2000) -> list[CollectorChannelDataType]:
+        """返回所有关联，先按数据类型再按优先级排序（配置表，封顶防御）。"""
+        stmt = (
+            select(CollectorChannelDataType)
+            .order_by(
+                CollectorChannelDataType.data_type,
+                CollectorChannelDataType.priority,
+                CollectorChannelDataType.channel_id,
+            )
+            .limit(limit)
         )
         result = await self.execute(stmt)
         return list(result.scalars().all())
@@ -48,6 +52,18 @@ class CollectorChannelDataTypeRepository(BaseRepository[CollectorChannelDataType
         result = await self.execute(stmt)
         return list(result.scalars().all())
 
+    async def list_for_channels(
+        self, channel_ids: set[int]
+    ) -> list[CollectorChannelDataType]:
+        """批量返回多个渠道的全部关联。"""
+        if not channel_ids:
+            return []
+        stmt = select(CollectorChannelDataType).where(
+            CollectorChannelDataType.channel_id.in_(channel_ids)
+        )
+        result = await self.execute(stmt)
+        return list(result.scalars().all())
+
     async def delete_for_data_type(self, data_type: str) -> None:
         """删除指定数据类型的全部关联。"""
         await self.session.execute(
@@ -64,6 +80,21 @@ class CollectorChannelDataTypeRepository(BaseRepository[CollectorChannelDataType
             )
         )
         return int(result.scalar_one_or_none() or 0)
+
+    async def max_priorities(self, data_types: set[str]) -> dict[str, int]:
+        """批量返回各数据类型的最大优先级（无关联的类型不在结果中）。"""
+        if not data_types:
+            return {}
+        stmt = (
+            select(
+                CollectorChannelDataType.data_type,
+                func.max(CollectorChannelDataType.priority),
+            )
+            .where(CollectorChannelDataType.data_type.in_(data_types))
+            .group_by(CollectorChannelDataType.data_type)
+        )
+        result = await self.execute(stmt)
+        return {data_type: int(max_p) for data_type, max_p in result.all()}
 
     async def get_distinct_data_types(self) -> set[str]:
         """返回关联表中出现的所有数据类型集合。"""

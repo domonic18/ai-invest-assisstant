@@ -17,6 +17,8 @@ WORKDIR /app
 
 COPY --from=backend-builder /app/.venv /app/.venv
 COPY --from=backend-builder /app /app
+# 助手 Skills：settings.skills_dir 在容器内解析为 /skills（与 web 镜像一致）
+COPY skills/ /skills/
 
 ENV PYTHONUNBUFFERED=1
 ENV COLLECT_TASK=default

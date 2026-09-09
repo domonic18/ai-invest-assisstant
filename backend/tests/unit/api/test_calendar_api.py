@@ -1,7 +1,8 @@
 """投资日历 API 端点与服务参数测试。"""
 
 from datetime import date, datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -12,17 +13,20 @@ from app.services.market.calendar_service import _cn_day_range
 CN_TZ = ZoneInfo("Asia/Shanghai")
 
 
-def _event_mock(**overrides: object) -> MagicMock:
-    event = MagicMock()
-    event.id = 1
-    event.event_time = datetime(2026, 1, 28, 19, 0, tzinfo=timezone.utc)
-    event.end_time = None
-    event.title = "美联储 FOMC 利率决议"
-    event.category = "央行动态"
-    event.impact_markets = ["美股", "美债", "美元", "黄金"]
-    event.source = "fomc"
-    event.source_url = "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
-    event.related_symbols = ["US10Y", "US2Y", "DXY", "GC00Y"]
+def _event_mock(**overrides: object) -> SimpleNamespace:
+    """用 SimpleNamespace 模拟 ORM 行（MagicMock 对任意属性不抛 AttributeError，
+    会干扰 from_attributes 的 alias→name 回退）。"""
+    event = SimpleNamespace(
+        id=1,
+        event_time=datetime(2026, 1, 28, 19, 0, tzinfo=timezone.utc),
+        end_time=None,
+        title="美联储 FOMC 利率决议",
+        category="央行动态",
+        impact_markets=["美股", "美债", "美元", "黄金"],
+        source="fomc",
+        source_url="https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+        related_symbols=["US10Y", "US2Y", "DXY", "GC00Y"],
+    )
     for key, value in overrides.items():
         setattr(event, key, value)
     return event
@@ -63,8 +67,8 @@ class TestCalendarEndpoints:
         assert len(data) == 1
         assert data[0]["title"] == "美联储 FOMC 利率决议"
         assert data[0]["category"] == "央行动态"
-        assert data[0]["impact_markets"] == ["美股", "美债", "美元", "黄金"]
-        assert data[0]["related_symbols"] == ["US10Y", "US2Y", "DXY", "GC00Y"]
+        assert data[0]["impactMarkets"] == ["美股", "美债", "美元", "黄金"]
+        assert data[0]["relatedSymbols"] == ["US10Y", "US2Y", "DXY", "GC00Y"]
         mock_list.assert_awaited_once_with(
             mock_list.await_args.args[0],
             start=date(2026, 1, 28),

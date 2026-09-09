@@ -1,19 +1,21 @@
 """对话助手（Agent Protocol）API schemas。
 
-请求体字段对齐 ``@langchain/langgraph-sdk`` 的 camelCase wire 形状
-（alias 兼容 snake_case），响应保持项目统一的 snake_case。
+线程/运行相关 schema 的 wire 全程对齐 ``@langchain/langgraph-sdk``
+的 **snake_case** 形状（LangGraph Platform 官方契约，如 ``thread_id``/
+``stream_mode``/``on_disconnect``），勿改用 CamelModel——SDK Client
+原样透传 JSON，camelCase 会导致前端读不到 ``thread_id``。
 """
 
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
+
+from app.schemas.base import CamelModel
 
 
 class ThreadCreateRequest(BaseModel):
     """POST /threads 请求体（langgraph-sdk client.threads.create）。"""
-
-    model_config = ConfigDict(populate_by_name=True)
 
     title: str | None = None
     metadata: dict[str, Any] | None = None
@@ -37,15 +39,13 @@ class SessionListResponse(BaseModel):
 class RunStreamRequest(BaseModel):
     """POST /threads/{id}/runs/stream 请求体（langgraph-sdk client.runs.stream）。"""
 
-    model_config = ConfigDict(populate_by_name=True)
-
-    assistant_id: str | None = Field(default=None, alias="assistantId")
+    assistant_id: str | None = None
     input: dict[str, Any] | None = None
     command: dict[str, Any] | None = None
-    stream_mode: list[str] | None = Field(default=None, alias="streamMode")
+    stream_mode: list[str] | None = None
     config: dict[str, Any] | None = None
     checkpoint: dict[str, Any] | None = None
-    on_disconnect: str | None = Field(default=None, alias="onDisconnect")
+    on_disconnect: str | None = None
     metadata: dict[str, Any] | None = None
 
 
@@ -63,7 +63,11 @@ class ThreadStateResponse(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class SkillSummary(BaseModel):
+class SkillSummary(CamelModel):
+    """技能摘要（旧字段不变，kind/isCustom 为批次7 增量，wire 向后兼容）。"""
+
     id: str
     name: str
     description: str = ""
+    kind: str | None = None
+    is_custom: bool = False

@@ -42,15 +42,15 @@ class TestAdminCollectorEndpoints:
 
         response = client.post(
             "/api/v1/admin/collector/tasks/financial-report/run",
-            json={"preferred_source": "cninfo", "symbols": ["000001"]},
+            json={"preferredSource": "cninfo", "symbols": ["000001"]},
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["task_name"] == "financial-report"
+        assert data["taskName"] == "financial-report"
         assert data["status"] == "dispatched"
-        assert data["log_id"] == 42
-        assert data["celery_task_id"] == "celery-uuid"
+        assert data["logId"] == 42
+        assert data["celeryTaskId"] == "celery-uuid"
         mock_dispatch.assert_awaited_once()
         call_kwargs = mock_dispatch.await_args.kwargs
         assert call_kwargs["task_name"] == "financial-report"
@@ -76,8 +76,8 @@ class TestAdminCollectorEndpoints:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["task_name"] == "market-daily-review"
-        assert data["log_id"] == 7
+        assert data["taskName"] == "market-daily-review"
+        assert data["logId"] == 7
         call_kwargs = mock_dispatch.await_args.kwargs
         assert call_kwargs["params"] == {"trade_date": "2026-08-28"}
 
@@ -106,17 +106,24 @@ class TestAdminCollectorEndpoints:
         assert response.status_code == 200
         items = response.json()["items"]
         names = {item["name"] for item in items}
-        assert len(items) == 36
+        assert len(items) == 44
+        assert "fed-watch" in names
         assert "market-daily-review" in names
         assert "limit-up-ai-review" in names
+        assert "news-score" in names
+        assert "news-storyline" in names
+        assert "news-topic" in names
+        assert "news-subscription-match" in names
         assert "stock-daily-analysis" in names
         assert "index-auction" in names
         assert "cls-investkalendar" in names
         assert "chain-refresh" in names
         assert "collector-log-cleanup" in names
+        assert "kline-freshness" in names
         by_name = {item["name"]: item for item in items}
         assert by_name["market-daily-review"]["label"] == "每日市场复盘"
-        assert by_name["limit-up-pool"]["run_params"] == ["trade_date"]
+        assert by_name["kline-freshness"]["label"] == "日K新鲜度自愈"
+        assert by_name["limit-up-pool"]["runParams"] == ["trade_date"]
         assert "internal" in by_name["market-daily-review"]["sources"]
 
     def test_get_collector_task_channels_unknown_task_returns_404(
@@ -149,6 +156,6 @@ class TestAdminCollectorEndpoints:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["task_name"] == "financial-report"
-        assert data["resolved_source"] == "cninfo"
+        assert data["taskName"] == "financial-report"
+        assert data["resolvedSource"] == "cninfo"
         assert len(data["channels"]) == 1

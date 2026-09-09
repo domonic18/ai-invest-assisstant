@@ -1,27 +1,19 @@
-import { CloseOutlined, SyncOutlined } from '@ant-design/icons'
-import { Button, Spin, Typography } from 'antd'
 import ReactECharts from 'echarts-for-react'
+import { Spin } from 'antd'
 import { useMemo, useState } from 'react'
 
 import { IntradayChart } from '@/components/charts/IntradayChart'
 import { useKlineKeyboardNav } from '@/components/charts/useKlineKeyboardNav'
 import { useCollectStockKline } from '@/hooks/useCollectStockKline'
 import { useStockIntraday, useStockKline } from '@/hooks/useStocks'
-import { useColorScheme } from '@/stores/settings'
+import { useMaConfigs } from '@/stores/settings'
 import type { IndexIntraday } from '@ai-invest/shared'
 
-import { IndicatorButton } from './IndicatorButton'
-import {
-  BarChartOutlined,
-  FundOutlined,
-  LineChartOutlined,
-} from '@ant-design/icons'
-import {
-  BORDER_COLOR,
-  PANEL_BG,
-  PERIOD_OPTIONS,
-} from './constants'
+import { BORDER_COLOR, PANEL_BG } from './constants'
+import { ChartToolbar } from './ChartToolbar'
+import { KlineEmptyState } from './KlineEmptyState'
 import { buildKlineOption, prepareKlineData } from './klineOption'
+import { useChartFullscreen } from './useChartFullscreen'
 
 export interface StockChartViewIndicators {
   volume: boolean
@@ -34,12 +26,15 @@ export interface StockChartViewProps {
   code: string
   defaultPeriod?: string
   defaultIndicators?: Partial<StockChartViewIndicators>
-  onRemove?: () => void
   onPeriodChange?: (period: string) => void
   onIndicatorsChange?: (indicators: StockChartViewIndicators) => void
   height?: number
-  title?: string
+  /** 单图/双图切换（原型仅首图工具栏展示） */
+  layoutToggle?: { value: boolean; onChange: (dual: boolean) => void }
 }
+
+/** 工具栏 36 + 底边框 1；MA 数值行悬浮于主图内，不占布局高度。 */
+export const CHROME_HEIGHT = 37
 
 function adaptToIndexIntraday(stockIntraday: {
   code: string
@@ -55,13 +50,11 @@ export function StockChartView({
   code,
   defaultPeriod = 'daily',
   defaultIndicators = {},
-  onRemove,
   onPeriodChange,
   onIndicatorsChange,
   height = 460,
-  title,
+  layoutToggle,
 }: StockChartViewProps) {
-  useColorScheme()
   const [period, setPeriod] = useState(defaultPeriod)
   const [indicators, setIndicators] = useState<StockChartViewIndicators>({
     volume: true,
@@ -92,22 +85,37 @@ export function StockChartView({
   const { data: klineData, isLoading: klineLoading } = useStockKline(code, klineParams)
   const { data: intradayData, isLoading: intradayLoading } = useStockIntraday(code)
   const collectKline = useCollectStockKline(code)
+  const maConfigs = useMaConfigs()
 
   const isIntraday = period === 'intraday'
 
+  const { rootRef, isFullscreen, fsHeight, toggleFullscreen } = useChartFullscreen()
+  const effectiveHeight = fsHeight ?? height
+
   const chartData = useMemo(() => {
     if (isIntraday || !klineData || klineData.bars.length === 0) return null
-    return prepareKlineData(klineData)
-  }, [klineData, isIntraday])
+    return prepareKlineData(klineData, maConfigs)
+  }, [klineData, isIntraday, maConfigs])
 
   const option = useMemo(() => {
     if (!chartData) return undefined
-    return buildKlineOption(chartData, indicators, height)
-  }, [chartData, indicators, height])
+    return buildKlineOption(chartData, indicators, effectiveHeight)
+  }, [chartData, indicators, effectiveHeight])
 
-  const { chartRef, wrapperProps, onEvents } = useKlineKeyboardNav(
+  const { chartRef, wrapperProps, onEvents: navEvents } = useKlineKeyboardNav(
     chartData?.dates.length ?? 0,
   )
+
+  // 复位缩放到默认窗口（双击图表 / 设置弹层按钮）
+  const resetZoom = () => {
+    chartRef.current
+      ?.getEchartsInstance()
+      .dispatchAction({ type: 'dataZoom', start: 50, end: 100 })
+  }
+  const onEvents = {
+    ...navEvents,
+    dblclick: resetZoom,
+  }
 
   const isLoading = isIntraday ? intradayLoading : klineLoading
   const hasData = isIntraday
@@ -116,131 +124,59 @@ export function StockChartView({
 
   return (
     <div
+      ref={rootRef}
       className="flex flex-col"
       style={{ backgroundColor: PANEL_BG, border: `1px solid ${BORDER_COLOR}` }}
     >
-      {/* Top toolbar: period tabs + title + remove */}
-      <div
-        className="flex items-center justify-between px-2 py-1.5"
-        style={{ borderBottom: `1px solid ${BORDER_COLOR}` }}
-      >
-        <div className="flex items-center gap-3">
-          {title && (
-            <span className="text-xs font-medium text-[#d1d4dc]">{title}</span>
-          )}
-          <div className="flex items-center">
-            {PERIOD_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => handlePeriodChange(opt.value)}
-                className={`px-3 py-0.5 text-xs transition-colors ${
-                  period === opt.value
-                    ? 'text-[#d1d4dc] bg-[#2a2e38] rounded'
-                    : 'text-[#8c8c8c] hover:text-[#d1d4dc]'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        {onRemove && (
-          <Button
-            type="text"
-            size="small"
-            icon={<CloseOutlined />}
-            onClick={onRemove}
-            className="text-[#8c8c8c] hover:text-[#ff4d4f]"
-          />
-        )}
-      </div>
+      <ChartToolbar
+        period={period}
+        onPeriodChange={handlePeriodChange}
+        indicators={indicators}
+        onToggleIndicator={toggleIndicator}
+        layoutToggle={layoutToggle}
+        onResetZoom={resetZoom}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={toggleFullscreen}
+      />
 
       {/* Chart area */}
       <div className="relative flex-1 min-h-0">
+        {/* MA 常驻数值行（悬浮于主图左上） */}
+        {indicators.ma && !isIntraday && chartData && (
+          <div className="absolute top-1.5 left-[52px] z-10 flex gap-3 font-mono text-[11px] pointer-events-none">
+            {chartData.mas.map((ma) => {
+              const latest = ma.values[ma.values.length - 1]
+              return (
+                <span key={ma.period} style={{ color: ma.color }}>
+                  MA{ma.period}: {latest == null ? '--' : latest.toFixed(2)}
+                </span>
+              )
+            })}
+          </div>
+        )}
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center gap-2 text-[#8c8c8c]" style={{ height }}>
+          <div className="flex flex-col items-center justify-center gap-2 text-[#8c8c8c]" style={{ height: effectiveHeight }}>
             <Spin size="small" />
             <span className="text-xs">正在拉取{isIntraday ? '分时' : 'K 线'}数据...</span>
           </div>
         ) : !hasData ? (
-          <div
-            className="flex flex-col items-center justify-center gap-3 text-[#8c8c8c]"
-            style={{ height }}
-          >
-            <Typography.Text type="secondary" className="text-sm">
-              {isIntraday ? '暂无分时数据' : '暂无 K 线数据'}
-            </Typography.Text>
-            {!isIntraday && (
-              <>
-                <Button
-                  size="small"
-                  icon={<SyncOutlined spin={collectKline.isPending} />}
-                  loading={collectKline.isPending}
-                  onClick={() => collectKline.mutate()}
-                >
-                  {collectKline.isPending ? '采集中，预计 10-30 秒...' : '补采 K 线数据'}
-                </Button>
-                {collectKline.isError && (
-                  <Typography.Text type="danger" className="text-xs">
-                    {(collectKline.error as Error).message}
-                  </Typography.Text>
-                )}
-                {collectKline.isSuccess && (
-                  <Typography.Text type="success" className="text-xs">
-                    采集完成
-                  </Typography.Text>
-                )}
-              </>
-            )}
-          </div>
+          <KlineEmptyState isIntraday={isIntraday} height={effectiveHeight} collectKline={collectKline} />
         ) : isIntraday ? (
           intradayData && (
-            <IntradayChart data={adaptToIndexIntraday(intradayData)} height={height} />
+            <IntradayChart data={adaptToIndexIntraday(intradayData)} height={effectiveHeight} />
           )
         ) : option ? (
           <div {...wrapperProps}>
             <ReactECharts
               ref={chartRef}
               option={option}
-              style={{ height: `${height}px`, width: '100%' }}
+              style={{ height: `${effectiveHeight}px`, width: '100%' }}
               onEvents={onEvents}
               opts={{ renderer: 'canvas' }}
               notMerge
             />
           </div>
         ) : null}
-      </div>
-
-      {/* Bottom toolbar: indicator toggles */}
-      <div
-        className="flex items-center gap-1 px-2 py-1.5"
-        style={{ borderTop: `1px solid ${BORDER_COLOR}` }}
-      >
-        <IndicatorButton
-          active={indicators.volume}
-          label="成交量"
-          icon={<BarChartOutlined />}
-          onClick={() => toggleIndicator('volume')}
-        />
-        <IndicatorButton
-          active={indicators.ma}
-          label="MA"
-          icon={<LineChartOutlined />}
-          onClick={() => toggleIndicator('ma')}
-        />
-        <IndicatorButton
-          active={indicators.macd}
-          label="MACD"
-          icon={<FundOutlined />}
-          onClick={() => toggleIndicator('macd')}
-        />
-        <IndicatorButton
-          active={indicators.kdj}
-          label="KDJ"
-          icon={<LineChartOutlined />}
-          onClick={() => toggleIndicator('kdj')}
-        />
       </div>
     </div>
   )

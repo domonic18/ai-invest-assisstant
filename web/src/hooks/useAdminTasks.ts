@@ -15,7 +15,9 @@ import type {
   ApiAdminTaskUpdateRequest,
 } from '@ai-invest/shared'
 
-const ADMIN_TASKS_KEY = ['admin-tasks'] as const
+import { queryKeys } from '@/hooks/queryKeys'
+
+const ADMIN_TASKS_KEY = queryKeys.admin.tasks
 
 export function useAdminTasks(params: AdminTaskParams = {}) {
   return useQuery({

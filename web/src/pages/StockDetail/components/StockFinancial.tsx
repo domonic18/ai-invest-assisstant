@@ -6,7 +6,11 @@ import { FINANCIAL_METRIC_LABELS } from '@/constants/financial'
 import { useFinancial } from '@/hooks/useFinancial'
 import { useFinancialHistory } from '@/hooks/useFinancialHistory'
 
+import { StockFinancialReports } from './StockFinancialReports'
+
 interface StockFinancialProps {
+  stockCode: string
+  stockName?: string | null
   data: ReturnType<typeof useFinancial>['data']
   history: ReturnType<typeof useFinancialHistory>['data']
   isLoading: boolean
@@ -17,6 +21,8 @@ interface StockFinancialProps {
 }
 
 export function StockFinancial({
+  stockCode,
+  stockName,
   data,
   history,
   isLoading,
@@ -47,7 +53,12 @@ export function StockFinancial({
   }
 
   if (!data) {
-    return <Empty description="暂无财务数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+    return (
+      <div>
+        <Empty description="暂无财务数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        <StockFinancialReports stockCode={stockCode} stockName={stockName} />
+      </div>
+    )
   }
 
   const renderPercent = (value: number | null) =>
@@ -91,6 +102,8 @@ export function StockFinancial({
       ) : (
         <Empty description="暂无历史财务趋势" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       )}
+
+      <StockFinancialReports stockCode={stockCode} stockName={stockName} />
     </div>
   )
 }

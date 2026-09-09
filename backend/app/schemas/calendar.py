@@ -2,13 +2,11 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from app.schemas.base import CamelModel
 
 
-class CalendarEventResponse(BaseModel):
+class CalendarEventResponse(CamelModel):
     """投资日历事件的响应 schema。"""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     event_time: datetime

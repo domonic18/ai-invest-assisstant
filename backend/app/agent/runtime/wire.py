@@ -7,6 +7,7 @@
 直接对接。
 """
 
+import ast
 import asyncio
 import json
 from datetime import date, datetime
@@ -81,6 +82,30 @@ def sse_event(event: str, data: Any) -> str:
 def namespace_label(namespaces: tuple[str, ...]) -> str:
     """subgraphs 命名空间 → SSE 事件后缀（取最后一段，如 task:xxx）。"""
     return namespaces[-1] if namespaces else ""
+
+
+def extract_event_marker(content: Any) -> dict[str, Any] | None:
+    """从 ToolMessage content 中提取 ``__event__`` 标记。
+
+    LangChain 可能把工具返回的 dict 序列化为 JSON 字符串或 Python repr，
+    因此同时支持 dict、JSON 字符串与 ``ast.literal_eval`` 可解析的字符串。
+    """
+    raw = content
+    if isinstance(raw, dict):
+        marker = raw.get("__event__")
+        return marker if isinstance(marker, dict) else None
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            try:
+                parsed = ast.literal_eval(raw)
+            except Exception:  # noqa: BLE001
+                return None
+        if isinstance(parsed, dict):
+            marker = parsed.get("__event__")
+            return marker if isinstance(marker, dict) else None
+    return None
 
 
 class RunRegistry:

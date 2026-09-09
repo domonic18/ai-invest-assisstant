@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError
 from app.models.file_metadata import FileMetadata
 from app.repositories.market.stock_repository import StockRepository
 from app.repositories.reports.file_metadata_repository import FileMetadataRepository
@@ -41,9 +42,12 @@ class AdminReportService:
             for item in items
         ], total
 
-    async def get_report(self, report_id: int) -> FileMetadata | None:
-        """按 ID 查询研报文件元数据。"""
-        return await self.repo.get(report_id)
+    async def get_report(self, report_id: int) -> FileMetadata:
+        """按 ID 查询研报文件元数据，缺失时抛 NotFoundError。"""
+        report = await self.repo.get(report_id)
+        if not report:
+            raise NotFoundError(f"Report {report_id} not found")
+        return report
 
     async def create_report(self, data: FileMetadataCreate) -> FileMetadata:
         """创建研报文件元数据。"""
@@ -66,11 +70,9 @@ class AdminReportService:
 
     async def update_report(
         self, report_id: int, data: FileMetadataUpdate
-    ) -> FileMetadata | None:
-        """更新研报文件元数据。"""
-        report = await self.repo.get(report_id)
-        if not report:
-            return None
+    ) -> FileMetadata:
+        """更新研报文件元数据，缺失时抛 NotFoundError。"""
+        report = await self.get_report(report_id)
 
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(report, field, value)
@@ -82,9 +84,7 @@ class AdminReportService:
 
     async def delete_report(self, report_id: int) -> None:
         """删除研报文件元数据。"""
-        report = await self.repo.get(report_id)
-        if not report:
-            raise ValueError(f"Report {report_id} not found")
+        report = await self.get_report(report_id)
         await self.repo.delete(report)
         await self.session.commit()
 

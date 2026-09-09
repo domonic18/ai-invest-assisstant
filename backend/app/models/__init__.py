@@ -10,6 +10,7 @@ from app.models.collector_channel_config import CollectorChannelConfig
 from app.models.collector_channel_data_type import CollectorChannelDataType
 from app.models.collector_log import CollectorLog
 from app.models.collector_task import CollectorTask
+from app.models.fed_watch import FedWatchProbability, FedWatchSnapshot
 from app.models.file_metadata import FileMetadata
 from app.models.financial_balance_sheet import BalanceSheet
 from app.models.financial_cash_flow_statement import CashFlowStatement
@@ -27,16 +28,26 @@ from app.models.llm_config import LLMConfig
 from app.models.mapping_stock_concept import MappingStockConcept
 from app.models.market_amount import MarketAmount
 from app.models.market_breadth import MarketBreadth
+from app.models.news_ai_score import NewsAiScore
 from app.models.news_announcement import NewsAnnouncement
+from app.models.news_storyline import (
+    NewsStoryline,
+    NewsStorylineItem,
+    UserNewsStoryline,
+)
 from app.models.news_telegraph import NewsTelegraph
+from app.models.news_topic_snapshot import NewsTopicSnapshot
 from app.models.pool_limit_up_stock import LimitUpPool
 from app.models.quote_auction_index import IndexAuction
 from app.models.quote_auction_stock import AuctionData
 from app.models.quote_global_index import GlobalIndexDaily
+from app.models.quote_sector import SectorQuoteDaily
+from app.models.skill import Skill, UserSkill
 from app.models.stock import StockBasic
 from app.models.tracked_index import TrackedIndexConfig
 from app.models.user import User
 from app.models.user_market_review import UserMarketReview
+from app.models.user_news_subscription import NewsSubscriptionHit, UserNewsSubscription
 from app.models.watchlist import UserWatchlist, UserWatchlistGroup
 
 __all__ = [
@@ -57,6 +68,8 @@ __all__ = [
     "CollectorTask",
     "FileMetadata",
     "FundFlow",
+    "FedWatchProbability",
+    "FedWatchSnapshot",
     "FundHolding",
     "GlobalIndexDaily",
     "IncomeStatement",
@@ -69,13 +82,23 @@ __all__ = [
     "MappingStockConcept",
     "MarketAmount",
     "MarketBreadth",
+    "NewsAiScore",
     "NewsAnnouncement",
+    "NewsStoryline",
+    "NewsStorylineItem",
+    "NewsSubscriptionHit",
     "NewsTelegraph",
+    "NewsTopicSnapshot",
     "SectorFundFlow",
+    "SectorQuoteDaily",
+    "Skill",
     "StockBasic",
     "TrackedIndexConfig",
     "User",
     "UserMarketReview",
+    "UserNewsStoryline",
+    "UserNewsSubscription",
     "UserWatchlist",
     "UserWatchlistGroup",
+    "UserSkill",
 ]

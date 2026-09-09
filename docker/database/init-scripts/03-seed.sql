@@ -15,23 +15,24 @@ VALUES
     ('601318', '中国平安', 'sh', '非银金融', '保险', '保险III', '2007-03-01')
 ON CONFLICT (stock_code, market) DO NOTHING;
 
--- market_daily_review_1600 / limit_up_ai_review_1630 / stock_daily_analysis_1640 /
--- chain_refresh_weekly / collector_log_cleanup_daily 任务的 internal 渠道（内部生成，非外部数据源）
+-- market_daily_review_1630 / limit_up_ai_review_1630 / stock_daily_analysis_1640 /
+-- chain_refresh_weekly / collector_log_cleanup_daily / kline_freshness_evening 任务的
+-- internal 渠道（内部生成，非外部数据源）
 -- supported_data_types 与 collector_channel_data_type 按任务名登记（渠道解析/beat 派发以任务名为键）
 INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
-VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup"]'::jsonb)
+VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "news-score", "news-storyline", "news-subscription-match", "news-topic"]'::jsonb)
 ON CONFLICT (source) DO NOTHING;
 
 -- 兼容存量环境：internal 渠道已存在时补齐后续新增的数据类型
 UPDATE collector_channel_config
-SET supported_data_types = supported_data_types || '["stock-daily-analysis", "chain-refresh", "collector-log-cleanup"]'::jsonb
+SET supported_data_types = supported_data_types || '["stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "news-score", "news-storyline", "news-subscription-match", "news-topic"]'::jsonb
 WHERE source = 'internal'
   AND NOT supported_data_types @> '["chain-refresh"]'::jsonb;
 
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, d.data_type, 1
 FROM collector_channel_config,
-     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup')) AS d(data_type)
+     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic')) AS d(data_type)
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
@@ -47,10 +48,25 @@ FROM collector_channel_config
 WHERE source = 'eastmoney'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
+-- 防御性补齐 sina 渠道的 watchlist-kline-daily 数据类型（渠道已存在时）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["watchlist-kline-daily"]'::jsonb
+WHERE source = 'sina'
+  AND NOT supported_data_types @> '["watchlist-kline-daily"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'watchlist-kline-daily', 1
+FROM collector_channel_config
+WHERE source = 'sina'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
 -- Default collector tasks
 INSERT INTO collector_task (task_name, task_type, source, schedule, is_active)
 VALUES
-    ('ths_kline_daily', 'kline', 'ths', '0 16 * * 1-5', true),
+    -- kline 任务的 ths 渠道已因东财 WAF 移除，统一走 sina 全历史 upsert
+    ('ths_kline_daily', 'kline', 'sina', '0 16 * * 1-5', true),
+    -- 自选股日 K 自动补采：缺省 symbols = 全部自选股，错开 16:00 收盘批
+    ('watchlist_kline_daily', 'watchlist-kline-daily', 'sina', '30 16 * * 1-5', true),
     ('sina_index_kline', 'index-kline', 'sina', '0 16,18 * * 1-5', true),
     ('ths_auction', 'auction', 'ths', '15,25 9 * * 1-5', true),
     ('eastmoney_fund_flow', 'fund-flow', 'eastmoney', '0 16 * * 1-5', true),
@@ -74,8 +90,8 @@ VALUES
     ('sina_stock_minute', 'stock-minute', 'sina', '20 16,18 * * 1-5', true),
     -- A50 期指日盘 16:30 收盘，17:40 取当日日 K，21:40 夜盘修正
     ('eastmoney_a50_kline', 'a50-kline', 'eastmoney', '40 17,21 * * 1-5', true),
-    -- 16:00 收盘批数据就绪后生成大盘综述 AI base，避免多租户重复调用 LLM
-    ('market_daily_review_1600', 'market-daily-review', 'internal', '30 16 * * 1-5', true),
+    -- 16:30 收盘批数据就绪后生成大盘综述 AI base，避免多租户重复调用 LLM
+    ('market_daily_review_1630', 'market-daily-review', 'internal', '30 16 * * 1-5', true),
     -- 16:30 涨停股池（16:00 批次）落库后生成涨停 AI 归因，与复盘同批串行执行
     ('limit_up_ai_review_1630', 'limit-up-ai-review', 'internal', '30 16 * * 1-5', true),
     -- 16:40 遍历开启 AI 复盘分组的自选股逐只生成个股分析，晚于大盘复盘
@@ -85,7 +101,10 @@ VALUES
     -- 每日 03:40 清理 90 天前的采集执行日志
     ('collector_log_cleanup_daily', 'collector-log-cleanup', 'internal', '40 3 * * *', true),
     -- 研报每日 8 点/18 点采集（东财 reportapi 列表 + PDF 落 MinIO）
-    ('eastmoney_research_report', 'research-report', 'eastmoney', '0 8,18 * * *', true)
+    ('eastmoney_research_report', 'research-report', 'eastmoney', '0 8,18 * * *', true),
+    -- 交易日晚间校验自选股/指数/ETF/A50 日 K 是否覆盖最近交易日，缺失则重跑采集自愈
+    -- （新浪当日 bar 收盘后存在发布滞后，18:30/21:00 两档兜底；数据已齐时良性 SKIPPED）
+    ('kline_freshness_evening', 'kline-freshness', 'internal', '30 18,21 * * 1-5', true)
 ON CONFLICT (task_name) DO NOTHING;
 
 -- ============================================================
@@ -183,3 +202,78 @@ INSERT INTO calendar_event (event_time, title, category, impact_markets, source,
 ('2026-12-09 19:00:00+00', '美联储 FOMC 利率决议', '央行动态', ARRAY['美股','美债','美元','黄金'], 'fomc', 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm', ARRAY['US10Y','US2Y','DXY','GC00Y'], 'b9092f7a568310de2b6db378bb572040'),
 ('2026-12-10 13:30:00+00', '美国 CPI 通胀数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/cpi.htm', ARRAY['US10Y','DXY','GC00Y'], 'cd797738527eca7aed1e05985d9207ee')
 ON CONFLICT (source_hash) DO NOTHING;
+
+-- ============================================================
+-- 迭代 2：二批跟踪指数 + mof/cme/yahoo 渠道 + 监测数据任务
+-- ============================================================
+
+INSERT INTO tracked_index_config (index_code, index_name, market_category, data_source, sort_order, is_enabled)
+VALUES
+    ('HSI',    '恒生指数',       '全球', 'eastmoney', 9,  true),
+    ('HSTECH', '恒生科技',       '全球', 'eastmoney', 10, true),
+    ('DJIA',   '道琼斯',         '全球', 'eastmoney', 11, true),
+    ('NDX',    '纳斯达克',       '全球', 'eastmoney', 12, true),
+    ('SPX',    '标普500',        '全球', 'eastmoney', 13, true),
+    ('N225',   '日经225',        '全球', 'eastmoney', 14, true),
+    ('JP10Y',  '日本10Y国债',    '全球', 'mof',       15, true),
+    ('US30Y',  '美债 30Y 收益率', '全球', 'tushare',   16, true),
+    ('USDCNY', '美元/人民币',     '全球', 'yahoo',     17, true),
+    ('USDCNH', '美元/离岸人民币', '全球', 'eastmoney', 18, true),
+    ('USDJPY', '美元/日元',       '全球', 'eastmoney', 19, true),
+    ('USDEUR', '美元/欧元',       '全球', 'eastmoney', 20, true),
+    ('B00Y',   '布伦特原油',      '全球', 'eastmoney', 21, true)
+ON CONFLICT (index_code) DO NOTHING;
+
+-- mof/cme/yahoo 渠道（无鉴权直采，签名/指纹自持无需 api_key）
+INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
+VALUES
+    ('mof',   '日本财务省',    true, '["global-index"]'::jsonb),
+    ('cme',   '芝商所',        true, '["fed-watch"]'::jsonb),
+    ('yahoo', 'Yahoo Finance', true, '["global-index"]'::jsonb)
+ON CONFLICT (source) DO NOTHING;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT c.id, d.data_type, 1
+FROM collector_channel_config c
+JOIN (VALUES
+    ('mof',   'global-index'),
+    ('cme',   'fed-watch'),
+    ('yahoo', 'global-index')
+) AS d(source, data_type) ON d.source = c.source
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
+-- 防御性补齐 eastmoney 渠道的 sector-quote 数据类型（渠道已存在时）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["sector-quote"]'::jsonb
+WHERE source = 'eastmoney'
+  AND NOT supported_data_types @> '["sector-quote"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'sector-quote', 1
+FROM collector_channel_config
+WHERE source = 'eastmoney'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
+INSERT INTO collector_task (task_name, task_type, source, schedule, is_active)
+VALUES
+    -- 日债收益率日度（MOF 全量 CSV upsert 幂等）
+    ('mof_jpy_yield_daily', 'global-index', 'mof', '30 7 * * 2-6', true),
+    -- FedWatch 概率快照（美收盘结算后晨间采集）
+    ('cme_fed_watch_daily', 'fed-watch', 'cme', '30 7 * * 2-6', true),
+    -- 板块收盘快照（16:00 收盘批后）
+    ('eastmoney_sector_quote', 'sector-quote', 'eastmoney', '5 16 * * 1-5', true),
+    -- 港美股指数历史回补：Yahoo 一次性 12 个月，手动触发不排 cron
+    ('yahoo_global_index_backfill', 'global-index', 'yahoo', NULL, false),
+    -- Yahoo 全球指标每日幂等续期（USDCNY 每日增量 + HSTECH 404 自愈重试）
+    ('yahoo_global_index_daily', 'global-index', 'yahoo', '40 7 * * *', true),
+    -- 资讯 AI 重要度分级（每 5 分钟批量，internal 直调服务层）
+    ('news_ai_score', 'news-score', 'internal', '*/5 * * * *', true),
+    -- 迭代 4：故事线建线/续接（盘中每 30 分钟，候选=近 48h 高分未入线）
+    ('news_storyline', 'news-storyline', 'internal', '*/30 9-16 * * 1-5', true),
+    -- 订阅关键词命中扫描（每 10 分钟，ILIKE 不耗 LLM，写 hit 表）
+    ('news_subscription_match', 'news-subscription-match', 'internal', '*/10 * * * *', true),
+    -- 热点主题榜盘中/盘后双跑（盘后 16:35 晚于板块收盘快照 16:05；盘中跑板块因子用 T-1 并标注）
+    ('news_topic_intraday', 'news-topic', 'internal', '35 11 * * 1-5', true),
+    ('news_topic_post', 'news-topic', 'internal', '35 16 * * 1-5', true)
+ON CONFLICT (task_name) DO UPDATE
+SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;

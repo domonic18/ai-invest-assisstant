@@ -22,8 +22,8 @@ import {
   useDeleteAdminStock,
   useUpdateAdminStock,
 } from '@/hooks/useAdminStocks'
-import type { AdminStock } from '@ai-invest/shared'
-import { formatDate } from '@/utils/formatters'
+import { PAGE_SIZE, type AdminStock } from '@ai-invest/shared'
+import {DATE_FORMAT,  formatDate } from '@/utils/formatters'
 
 interface StockFormValues {
   stockCode: string
@@ -43,7 +43,7 @@ const MARKET_OPTIONS = [
 
 export function AdminStocks() {
   const [form] = Form.useForm<StockFormValues>()
-  const [params, setParams] = useState({ q: '', page: 1, pageSize: 20 })
+  const [params, setParams] = useState({ q: '', page: 1, pageSize: PAGE_SIZE.table })
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<AdminStock | null>(null)
 
@@ -74,14 +74,14 @@ export function AdminStocks() {
 
   const handleSubmit = async (values: StockFormValues) => {
     const payload = {
-      stock_code: values.stockCode,
-      stock_name: values.stockName,
+      stockCode: values.stockCode,
+      stockName: values.stockName,
       market: values.market,
-      industry_level_1: values.industryL1,
-      industry_level_2: values.industryL2,
-      industry_level_3: values.industryL3,
-      listing_date: values.listingDate
-        ? values.listingDate.format('YYYY-MM-DD')
+      industryLevel1: values.industryL1,
+      industryLevel2: values.industryL2,
+      industryLevel3: values.industryL3,
+      listingDate: values.listingDate
+        ? values.listingDate.format(DATE_FORMAT)
         : undefined,
     }
     try {

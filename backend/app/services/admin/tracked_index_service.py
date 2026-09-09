@@ -4,6 +4,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import GLOBAL_INDEX_CODES, INDEX_CODES
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.models.tracked_index import TrackedIndexConfig
 from app.repositories.admin.tracked_index_repository import TrackedIndexRepository
 from app.schemas.tracked_index import (
@@ -34,20 +35,20 @@ class TrackedIndexService:
         )
         return [self._to_response(row, quotes.get(row.index_code)) for row in rows]
 
-    async def get_index(self, config_id: int) -> TrackedIndexResponse | None:
-        """按 ID 查询单条配置。"""
+    async def get_index(self, config_id: int) -> TrackedIndexResponse:
+        """按 ID 查询单条配置，缺失时抛 NotFoundError。"""
         row = await self.repo.get(config_id)
         if not row:
-            return None
+            raise NotFoundError("跟踪指数配置不存在")
         quotes = await self.repo.latest_quotes([row.index_code], [row.index_code])
         return self._to_response(row, quotes.get(row.index_code))
 
     async def create_index(self, data: TrackedIndexCreate) -> TrackedIndexResponse:
         """创建配置；启用态必须能对应到已支持的数据源。"""
         if data.market_category not in _MARKET_CATEGORIES:
-            raise ValueError("market_category 仅支持 A股/全球")
+            raise BadRequestError("market_category 仅支持 A股/全球")
         if await self.repo.get_by_code(data.index_code):
-            raise ValueError(f"指数代码 {data.index_code} 已存在")
+            raise BadRequestError(f"指数代码 {data.index_code} 已存在")
         if data.is_enabled:
             self._validate_enable(
                 data.index_code, data.market_category, data.data_source
@@ -73,17 +74,17 @@ class TrackedIndexService:
 
     async def update_index(
         self, config_id: int, data: TrackedIndexUpdate
-    ) -> TrackedIndexResponse | None:
+    ) -> TrackedIndexResponse:
         """更新配置；index_code 不可变（变更走删除重建），启用态需通过校验。"""
         row = await self.repo.get(config_id)
         if not row:
-            return None
+            raise NotFoundError("跟踪指数配置不存在")
 
         if data.index_name is not None:
             row.index_name = data.index_name
         if data.market_category is not None:
             if data.market_category not in _MARKET_CATEGORIES:
-                raise ValueError("market_category 仅支持 A股/全球")
+                raise BadRequestError("market_category 仅支持 A股/全球")
             row.market_category = data.market_category
         if data.data_source is not None:
             row.data_source = data.data_source
@@ -100,11 +101,11 @@ class TrackedIndexService:
         logger.info("tracked_index_updated", id=row.id, is_enabled=row.is_enabled)
         return self._to_response(row)
 
-    async def toggle_index(self, config_id: int) -> TrackedIndexConfig | None:
+    async def toggle_index(self, config_id: int) -> TrackedIndexConfig:
         """切换启用状态；启用前校验数据源，停用态允许保留任意代码。"""
         row = await self.repo.get(config_id)
         if not row:
-            return None
+            raise NotFoundError("跟踪指数配置不存在")
         if not row.is_enabled:
             self._validate_enable(row.index_code, row.market_category, row.data_source)
         row.is_enabled = not row.is_enabled
@@ -117,7 +118,7 @@ class TrackedIndexService:
         """删除配置。"""
         row = await self.repo.get(config_id)
         if not row:
-            raise ValueError("跟踪指数配置不存在")
+            raise NotFoundError("跟踪指数配置不存在")
         await self.repo.delete(row)
         await self.session.commit()
         logger.info("tracked_index_deleted", id=config_id, index_code=row.index_code)
@@ -133,9 +134,9 @@ class TrackedIndexService:
         elif market_category == "A股":
             supported = index_code in INDEX_CODES and data_source == _A_SHARE_SOURCE
         else:
-            raise ValueError("market_category 仅支持 A股/全球")
+            raise BadRequestError("market_category 仅支持 A股/全球")
         if not supported:
-            raise ValueError("无数据源的指标不允许启用")
+            raise BadRequestError("无数据源的指标不允许启用")
 
     def _to_response(
         self, row: TrackedIndexConfig, quote: dict | None = None

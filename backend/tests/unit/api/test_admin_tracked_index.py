@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.dependencies import get_current_admin_user, get_current_user, get_db
 from app.main import app
 
@@ -71,8 +72,8 @@ class TestTrackedIndexEndpoints:
         response = client.get("/api/v1/admin/tracked-indexes")
         assert response.status_code == 200
         body = response.json()
-        assert body[0]["index_code"] == "GC00Y"
-        assert body[0]["latest_close"] == 4363.6
+        assert body[0]["indexCode"] == "GC00Y"
+        assert body[0]["latestClose"] == 4363.6
 
     @patch("app.api.v1.admin.tracked_index.TrackedIndexService")
     def test_create(self, mock_service, admin_client) -> None:
@@ -83,12 +84,12 @@ class TestTrackedIndexEndpoints:
         response = client.post(
             "/api/v1/admin/tracked-indexes",
             json={
-                "index_code": "GC00Y",
-                "index_name": "COMEX 黄金",
-                "market_category": "全球",
-                "data_source": "eastmoney",
-                "sort_order": 5,
-                "is_enabled": True,
+                "indexCode": "GC00Y",
+                "indexName": "COMEX 黄金",
+                "marketCategory": "全球",
+                "dataSource": "eastmoney",
+                "sortOrder": 5,
+                "isEnabled": True,
             },
         )
         assert response.status_code == 201
@@ -96,16 +97,16 @@ class TestTrackedIndexEndpoints:
     @patch("app.api.v1.admin.tracked_index.TrackedIndexService")
     def test_create_invalid_enable_returns_400(self, mock_service, admin_client) -> None:
         mock_service.return_value.create_index = AsyncMock(
-            side_effect=ValueError("无数据源的指标不允许启用")
+            side_effect=BadRequestError("无数据源的指标不允许启用")
         )
         client, _ = admin_client
         response = client.post(
             "/api/v1/admin/tracked-indexes",
             json={
-                "index_code": "BTC",
-                "index_name": "比特币",
-                "market_category": "全球",
-                "data_source": "eastmoney",
+                "indexCode": "BTC",
+                "indexName": "比特币",
+                "marketCategory": "全球",
+                "dataSource": "eastmoney",
             },
         )
         assert response.status_code == 400
@@ -120,11 +121,13 @@ class TestTrackedIndexEndpoints:
         client, _ = admin_client
         response = client.patch("/api/v1/admin/tracked-indexes/1/toggle")
         assert response.status_code == 200
-        assert response.json() == {"id": 1, "is_enabled": False}
+        assert response.json() == {"id": 1, "isEnabled": False}
 
     @patch("app.api.v1.admin.tracked_index.TrackedIndexService")
     def test_toggle_missing_returns_404(self, mock_service, admin_client) -> None:
-        mock_service.return_value.toggle_index = AsyncMock(return_value=None)
+        mock_service.return_value.toggle_index = AsyncMock(
+            side_effect=NotFoundError("跟踪指数配置不存在")
+        )
         client, _ = admin_client
         response = client.patch("/api/v1/admin/tracked-indexes/99/toggle")
         assert response.status_code == 404

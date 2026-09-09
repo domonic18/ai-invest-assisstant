@@ -168,14 +168,14 @@ export function CollectorTaskModal({
 
   const selectedChannelName = useMemo(() => {
     if (!channels) return undefined
-    const source = preferredSource ?? channels.resolved_source
+    const source = preferredSource ?? channels.resolvedSource
     return channels.channels.find((c) => c.source === source)?.name ?? source
   }, [channels, preferredSource])
 
   useEffect(() => {
     if (open && channels) {
       form.setFieldsValue({
-        preferredSource: channels.resolved_source ?? undefined,
+        preferredSource: channels.resolvedSource ?? undefined,
         symbols: undefined,
         period: 'daily',
         startDate: undefined,
@@ -259,7 +259,7 @@ export function CollectorTaskModal({
                   <Tag color={preferredSource ? 'green' : 'blue'}>
                     {selectedChannelName || '无可用渠道'}
                   </Tag>
-                  {!preferredSource && channels.resolved_source && (
+                  {!preferredSource && channels.resolvedSource && (
                     <Typography.Text type="secondary" className="ml-2">
                       （{AUTO_RESOLVE_LABEL}）
                     </Typography.Text>

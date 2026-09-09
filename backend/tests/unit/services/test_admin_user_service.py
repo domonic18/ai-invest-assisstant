@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.schemas.user import AdminUserCreate, AdminUserUpdate
 from app.services.admin.users import AdminUserService
 
@@ -60,8 +61,15 @@ class TestAdminUserService:
             email="test@example.com",
             password="secret123",
         )
-        with pytest.raises(ValueError):
+        with pytest.raises(BadRequestError):
             await service.create_user(data)
+
+    @pytest.mark.asyncio
+    async def test_get_user_not_found(self, service: AdminUserService) -> None:
+        service.session.get.return_value = None
+
+        with pytest.raises(NotFoundError):
+            await service.get_user(999)
 
     @pytest.mark.asyncio
     async def test_update_user(self, service: AdminUserService) -> None:

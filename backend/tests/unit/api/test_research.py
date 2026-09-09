@@ -1,34 +1,35 @@
 """研报 API 端点契约测试。"""
 
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
 
 @pytest.mark.unit
 class TestResearchEndpoints:
-    def _report_mock(self, report_id: int = 1) -> MagicMock:
-        report = MagicMock()
-        report.id = report_id
-        report.stock_code = "000001"
-        report.title = "Test Report"
-        report.summary = "summary"
-        report.content = "content"
-        report.source = "broker"
-        report.source_url = "http://example.com"
-        report.publish_date = datetime(2024, 1, 1, 0, 0, 0)
-        report.sentiment = None
-        report.keywords = None
-        report.industry_tags = ["自动化设备"]
-        report.extra = {"broker": "开源证券", "rating": "买入", "pages": 29}
-        report.created_at = datetime(2024, 1, 1, 0, 0, 0)
-        report.broker = None
-        report.rating = None
-        report.pages = None
-        report.industry = None
-        report.has_summary = False
-        return report
+    def _report_mock(self, report_id: int = 1) -> SimpleNamespace:
+        return SimpleNamespace(
+            id=report_id,
+            stock_code="000001",
+            title="Test Report",
+            summary="summary",
+            content="content",
+            source="broker",
+            source_url="http://example.com",
+            publish_date=datetime(2024, 1, 1, 0, 0, 0),
+            sentiment=None,
+            keywords=None,
+            industry_tags=["自动化设备"],
+            extra={"broker": "开源证券", "rating": "买入", "pages": 29},
+            created_at=datetime(2024, 1, 1, 0, 0, 0),
+            broker=None,
+            rating=None,
+            pages=None,
+            industry=None,
+            has_summary=False,
+        )
 
     @patch("app.api.v1.research.research_service.list_reports")
     def test_list_research(self, mock_list, client) -> None:
@@ -38,7 +39,7 @@ class TestResearchEndpoints:
         data = response.json()
         assert data["total"] == 1
         assert len(data["items"]) == 1
-        assert data["items"][0]["stock_code"] == "000001"
+        assert data["items"][0]["stockCode"] == "000001"
 
     @patch("app.api.v1.research.research_service.list_reports")
     def test_list_research_derived_fields(self, mock_list, client) -> None:
@@ -50,7 +51,7 @@ class TestResearchEndpoints:
         assert item["rating"] == "买入"
         assert item["pages"] == 29
         assert item["industry"] == "自动化设备"
-        assert item["has_summary"] is True
+        assert item["hasSummary"] is True
 
     @patch("app.api.v1.research.research_service.list_reports")
     def test_list_research_passes_broker_industry(self, mock_list, client) -> None:

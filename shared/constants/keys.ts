@@ -23,11 +23,16 @@ export const QueryKey = {
 
 /** Local storage keys. */
 export const StorageKey = {
+  auth: {
+    accessToken: 'access_token',
+  },
   assistant: {
     sidebarWidth: 'assistant:sidebar-width',
     threadId: 'assistant:thread-id',
   },
   settings: {
+    colorScheme: 'color_scheme',
     indicators: 'settings:indicators',
+    calendarDetailCollapsed: 'settings:calendar-detail-collapsed',
   },
 } as const

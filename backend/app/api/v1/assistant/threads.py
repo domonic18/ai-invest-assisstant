@@ -2,9 +2,11 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
+from app.core.exceptions import NotFoundError
 from app.dependencies import get_current_user, get_db
 from app.models.assistant_session import AssistantSession
 from app.models.user import User
@@ -36,10 +38,10 @@ async def _require_thread(
     """校验会话存在且归属当前用户，否则 404。"""
     row = await AssistantService(session).get_session(user.id, thread_id)
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "会话不存在")
+        raise NotFoundError("会话不存在")
 
 
-@router.post("", response_model=ThreadResponse)
+@router.post("", response_model=ThreadResponse, status_code=status.HTTP_201_CREATED)
 async def create_thread(
     data: ThreadCreateRequest,
     session: Annotated[AsyncSession, Depends(get_db)],
@@ -54,7 +56,7 @@ async def create_thread(
 async def list_sessions(
     session: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
-    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = DEFAULT_PAGE_SIZE,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> SessionListResponse:
     """当前用户会话列表（分页，最近活跃优先；业务端点，非协议部分）。"""
@@ -75,5 +77,5 @@ async def delete_thread(
     """删除线程：级联删除 LangGraph checkpoint 与 assistant_session。"""
     ok = await AssistantService(session).delete_session(user.id, thread_id)
     if not ok:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "会话不存在")
+        raise NotFoundError("会话不存在")
     return Response(status_code=status.HTTP_204_NO_CONTENT)

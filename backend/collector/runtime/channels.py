@@ -23,6 +23,7 @@ class ChannelConfig:
     base_url: str | None
     api_key: str | None
     extra: dict[str, Any]
+    proxy_url: str | None = None
 
 
 DEFAULT_CHANNELS: list[dict[str, Any]] = [
@@ -33,6 +34,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "is_enabled": True,
         "supported_data_types": [
             "kline",
+            "watchlist-kline-daily",
             "index-kline",
             "auction",
             "macro",
@@ -64,6 +66,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
             "limit-down-pool",
             "a50-kline",
             "global-index",
+            "sector-quote",
         ],
         "extra": {},
     },
@@ -105,6 +108,30 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "base_url": "https://www.cls.cn",
         "is_enabled": True,
         "supported_data_types": ["cls-telegraph-backfill", "cls-investkalendar"],
+        "extra": {},
+    },
+    {
+        "source": "mof",
+        "name": "日本财务省",
+        "base_url": "https://www.mof.go.jp",
+        "is_enabled": True,
+        "supported_data_types": ["global-index"],
+        "extra": {},
+    },
+    {
+        "source": "cme",
+        "name": "CME",
+        "base_url": None,
+        "is_enabled": True,
+        "supported_data_types": ["fed-watch"],
+        "extra": {},
+    },
+    {
+        "source": "yahoo",
+        "name": "Yahoo Finance",
+        "base_url": "https://query1.finance.yahoo.com",
+        "is_enabled": True,
+        "supported_data_types": ["global-index"],
         "extra": {},
     },
 ]

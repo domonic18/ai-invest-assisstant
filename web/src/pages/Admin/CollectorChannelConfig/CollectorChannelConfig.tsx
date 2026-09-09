@@ -57,6 +57,8 @@ export function CollectorChannelConfig() {
         api_key: values.apiKey || undefined,
         is_enabled: values.isEnabled,
         supported_data_types: values.supportedDataTypes,
+        // 显式 null = 解绑；undefined（键缺省）= 不改
+        proxy_config_id: values.proxyConfigId ?? null,
       }
       if (editing) {
         await updateMutation.mutateAsync({
@@ -90,7 +92,7 @@ export function CollectorChannelConfig() {
     try {
       await updateMutation.mutateAsync({
         id: config.id,
-        data: { is_enabled: checked },
+        data: { isEnabled: checked },
       })
       message.success(`${config.name} 已${checked ? '启用' : '禁用'}`)
     } catch (err) {

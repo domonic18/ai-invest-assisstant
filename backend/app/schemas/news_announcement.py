@@ -1,13 +1,14 @@
 """新闻、公告与研报的 Pydantic schemas。"""
 
 from datetime import date, datetime
-from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.schemas.base import CamelModel
 
 
-class NewsAnnouncementBase(BaseModel):
+class NewsAnnouncementBase(CamelModel):
     """新闻公告的基础字段。"""
 
     stock_code: str | None = Field(None, max_length=10)
@@ -18,7 +19,7 @@ class NewsAnnouncementBase(BaseModel):
     source: str | None = Field(None, max_length=50)
     source_url: str | None = Field(None, max_length=1000)
     publish_date: datetime | None = None
-    sentiment: Decimal | None = None
+    sentiment: float | None = None
     keywords: list[str] | None = None
     industry_tags: list[str] | None = None
     elasticsearch_doc_id: str | None = Field(None, max_length=50)
@@ -29,7 +30,7 @@ class NewsAnnouncementCreate(NewsAnnouncementBase):
     """创建新闻公告的请求 schema。"""
 
 
-class NewsAnnouncementUpdate(BaseModel):
+class NewsAnnouncementUpdate(CamelModel):
     """更新新闻公告的请求 schema。"""
 
     stock_code: str | None = Field(None, max_length=10)
@@ -40,7 +41,7 @@ class NewsAnnouncementUpdate(BaseModel):
     source: str | None = Field(None, max_length=50)
     source_url: str | None = Field(None, max_length=1000)
     publish_date: datetime | None = None
-    sentiment: Decimal | None = None
+    sentiment: float | None = None
     keywords: list[str] | None = None
     industry_tags: list[str] | None = None
     elasticsearch_doc_id: str | None = Field(None, max_length=50)
@@ -50,13 +51,11 @@ class NewsAnnouncementUpdate(BaseModel):
 class NewsAnnouncementResponse(NewsAnnouncementBase):
     """新闻公告的响应 schema。"""
 
-    model_config = ConfigDict(from_attributes=True)
-
     id: int
     created_at: datetime
 
 
-class ResearchReportListRequest(BaseModel):
+class ResearchReportListRequest(CamelModel):
     """研报列表查询请求 schema。"""
 
     stock_code: str | None = Field(None, max_length=10)
@@ -69,10 +68,8 @@ class ResearchReportListRequest(BaseModel):
     page_size: int = Field(default=20, ge=1, le=100)
 
 
-class ResearchReportResponse(BaseModel):
+class ResearchReportResponse(CamelModel):
     """研报列表条目的响应 schema。"""
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     stock_code: str | None = None
@@ -81,7 +78,7 @@ class ResearchReportResponse(BaseModel):
     source: str | None = None
     source_url: str | None = None
     publish_date: datetime | None = None
-    sentiment: Decimal | None = None
+    sentiment: float | None = None
     keywords: list[str] | None = None
     industry_tags: list[str] | None = None
     extra: dict[str, Any] = Field(default_factory=dict)
@@ -93,7 +90,7 @@ class ResearchReportResponse(BaseModel):
     has_summary: bool = False
 
 
-class ResearchReportFiltersResponse(BaseModel):
+class ResearchReportFiltersResponse(CamelModel):
     """已采研报的券商/行业去重列表（快筛 badge 数据源）。"""
 
     brokers: list[str] = Field(default_factory=list)

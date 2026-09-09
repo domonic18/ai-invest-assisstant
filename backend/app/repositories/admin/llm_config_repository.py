@@ -47,3 +47,16 @@ class LLMConfigRepository(BaseRepository[LLMConfig]):
         )
         result = await self.execute(stmt)
         return cast(LLMConfig | None, result.scalar_one_or_none())
+
+    async def list_vision_active(self) -> list[LLMConfig]:
+        """返回启用状态且标记视觉能力的配置，默认配置优先。"""
+        stmt = (
+            select(LLMConfig)
+            .where(
+                LLMConfig.is_active.is_(True),
+                LLMConfig.extra["capabilities"]["vision"].as_boolean().is_(True),
+            )
+            .order_by(LLMConfig.is_default.desc(), LLMConfig.id)
+        )
+        result = await self.execute(stmt)
+        return list(result.scalars().all())

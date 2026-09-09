@@ -10,6 +10,7 @@ from app.services.admin.llm_config_service import (
     LLMConfigNotConfiguredError,
     LLMConfigService,
     resolve_default_llm,
+    resolve_vision_llm,
 )
 
 pytestmark = pytest.mark.unit
@@ -145,3 +146,73 @@ async def test_update_without_api_key_does_not_change_key(session: AsyncSession)
     assert updated is not None
     assert updated.name == "Renamed"
     assert updated.api_key_masked == created.api_key_masked
+
+
+async def test_resolve_vision_raises_when_missing(session: AsyncSession) -> None:
+    service = LLMConfigService(session)
+    await service.create_config(
+        LLMConfigCreate(
+            name="Text only",
+            provider="openai",
+            base_url="https://api.openai.com/v1",
+            api_key="sk-text",
+            model_name="gpt-4o",
+            is_default=True,
+        )
+    )
+    with pytest.raises(LLMConfigNotConfiguredError):
+        await resolve_vision_llm(session)
+
+
+async def test_resolve_vision_returns_marked_config(session: AsyncSession) -> None:
+    service = LLMConfigService(session)
+    await service.create_config(
+        LLMConfigCreate(
+            name="Text default",
+            provider="openai",
+            base_url="https://api.openai.com/v1",
+            api_key="sk-text",
+            model_name="gpt-4o",
+            is_default=True,
+        )
+    )
+    await service.create_config(
+        LLMConfigCreate(
+            name="Vision model",
+            provider="zhipu",
+            base_url="https://open.bigmodel.cn/api/paas/v4",
+            api_key="sk-vision",
+            model_name="glm-4v-flash",
+            extra={"capabilities": {"vision": True}},
+        )
+    )
+    resolved = await resolve_vision_llm(session)
+    assert resolved.model_name == "glm-4v-flash"
+    assert resolved.api_key == "sk-vision"
+
+
+async def test_resolve_vision_prefers_default_among_marked(session: AsyncSession) -> None:
+    service = LLMConfigService(session)
+    await service.create_config(
+        LLMConfigCreate(
+            name="Vision default",
+            provider="zhipu",
+            base_url="https://open.bigmodel.cn/api/paas/v4",
+            api_key="sk-vision-default",
+            model_name="glm-4v-plus",
+            is_default=True,
+            extra={"capabilities": {"vision": True}},
+        )
+    )
+    await service.create_config(
+        LLMConfigCreate(
+            name="Vision backup",
+            provider="zhipu",
+            base_url="https://open.bigmodel.cn/api/paas/v4",
+            api_key="sk-vision-backup",
+            model_name="glm-4v-flash",
+            extra={"capabilities": {"vision": True}},
+        )
+    )
+    resolved = await resolve_vision_llm(session)
+    assert resolved.model_name == "glm-4v-plus"

@@ -25,8 +25,8 @@ import {
   useDeleteAdminReport,
   useUpdateAdminReport,
 } from '@/hooks/useAdminReports'
-import type { AdminReport } from '@ai-invest/shared'
-import { formatDate } from '@/utils/formatters'
+import { PAGE_SIZE, type AdminReport } from '@ai-invest/shared'
+import {DATE_FORMAT,  formatDate } from '@/utils/formatters'
 
 interface ReportFormValues {
   filePath: string
@@ -63,7 +63,7 @@ function formatFileSize(bytes: number | null): string {
 export function AdminReports() {
   const [form] = Form.useForm<ReportFormValues>()
   const [filter] = Form.useForm<FilterForm>()
-  const [params, setParams] = useState({ stockCode: '', fileType: '', page: 1, pageSize: 20 })
+  const [params, setParams] = useState({ stockCode: '', fileType: '', page: 1, pageSize: PAGE_SIZE.table })
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<AdminReport | null>(null)
 
@@ -97,16 +97,16 @@ export function AdminReports() {
 
   const handleSubmit = async (values: ReportFormValues) => {
     const payload = {
-      file_path: values.filePath,
-      original_name: values.originalName,
-      file_type: values.fileType,
-      stock_code: values.stockCode,
-      report_date: values.reportDate ? values.reportDate.format('YYYY-MM-DD') : undefined,
-      report_type: values.reportType,
+      filePath: values.filePath,
+      originalName: values.originalName,
+      fileType: values.fileType,
+      stockCode: values.stockCode,
+      reportDate: values.reportDate ? values.reportDate.format(DATE_FORMAT) : undefined,
+      reportType: values.reportType,
       broker: values.broker,
-      file_size: values.fileSize ?? undefined,
-      md5_hash: values.md5Hash,
-      download_url: values.downloadUrl,
+      fileSize: values.fileSize ?? undefined,
+      md5Hash: values.md5Hash,
+      downloadUrl: values.downloadUrl,
     }
     try {
       if (editing) {

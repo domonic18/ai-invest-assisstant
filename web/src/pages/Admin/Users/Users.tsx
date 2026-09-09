@@ -28,7 +28,7 @@ import {
   useResetAdminUserPassword,
   useUpdateAdminUser,
 } from '@/hooks/useAdminUsers'
-import type { AdminUser } from '@ai-invest/shared'
+import { PAGE_SIZE, type AdminUser } from '@ai-invest/shared'
 
 interface UserFormValues {
   username: string
@@ -47,7 +47,7 @@ const ROLE_OPTIONS = [
 export function AdminUsers() {
   const [form] = Form.useForm<UserFormValues>()
   const [pwdForm] = Form.useForm<{ password: string }>()
-  const [params, setParams] = useState({ page: 1, pageSize: 20 })
+  const [params, setParams] = useState({ page: 1, pageSize: PAGE_SIZE.table })
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<AdminUser | null>(null)
   const [resetting, setResetting] = useState<AdminUser | null>(null)
@@ -84,7 +84,7 @@ export function AdminUsers() {
             username: values.username,
             email: values.email,
             role: values.role,
-            is_active: values.isActive,
+            isActive: values.isActive,
           },
         })
         message.success('用户已更新')
@@ -94,7 +94,7 @@ export function AdminUsers() {
           email: values.email,
           password: values.password || '',
           role: values.role,
-          is_active: values.isActive,
+          isActive: values.isActive,
         })
         message.success('用户已创建')
       }

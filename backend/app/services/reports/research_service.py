@@ -7,30 +7,22 @@ import structlog
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.core.prompt_loader import PromptLoader
 from app.agent.core.prompt_renderer import PromptRenderer
-from app.core.config import get_settings
-from app.core.exceptions import ConflictError, NotFoundError, UnprocessableEntityError
-from app.core.locking import redis_lock
+from app.constants.summary import SUMMARY_TEXT_LIMIT
+from app.core.exceptions import NotFoundError
+from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
 from app.models.news_announcement import NewsAnnouncement
 from app.repositories.reports.news_announcement_repository import NewsAnnouncementRepository
 from app.schemas.news_announcement import (
     ResearchReportDetailResponse,
     ResearchReportResponse,
 )
+from app.services.reports.exceptions import SummaryInProgressError, SummaryUnavailableError
+from app.skills.prompt import load_skill_prompt
 
 logger = structlog.get_logger(__name__)
 
 _SUMMARY_SKILL_ID = "research-report-summary"
-_SUMMARY_TEXT_LIMIT = 12000
-
-
-class SummaryUnavailableError(UnprocessableEntityError):
-    """研报 PDF 不可用（无 MinIO 文件且无法从来源下载），无法生成摘要。"""
-
-
-class SummaryInProgressError(ConflictError):
-    """其他请求正在生成该研报的摘要。"""
 
 
 class ResearchReportSummaryResult(BaseModel):
@@ -110,7 +102,7 @@ class ResearchService:
             return {"summary": report.summary, "cached": True}
 
         async with redis_lock(
-            f"research-summary:{report_id}", ttl=300, blocking=True, blocking_timeout=120
+            f"research-summary:{report_id}", ttl=DEFAULT_LOCK_TTL_SECONDS, blocking=True, blocking_timeout=120
         ) as acquired:
             if not acquired:
                 await self.session.refresh(report)
@@ -178,15 +170,13 @@ class ResearchService:
         text = await get_knowledge_base_service().extract_text(file_bytes, "pdf")
         if not text:
             raise SummaryUnavailableError("PDF 文本抽取失败或内容为空")
-        return text[:_SUMMARY_TEXT_LIMIT]
+        return text[:SUMMARY_TEXT_LIMIT]
 
     async def _generate_summary(self, report: NewsAnnouncement, text: str) -> str:
-        # 延迟导入：app.agent.runtime 顶层依赖 services，避免 services 聚合时环导入
-        from app.agent.runtime import run_structured_agent
+        # 延迟导入：agent 运行时顶层依赖 services，避免 services 聚合时环导入
+        from app.agent.runtime.structured import run_structured
 
-        prompt_config = PromptLoader(get_settings().prompts_dir).load(
-            "skills", _SUMMARY_SKILL_ID
-        )
+        prompt_config = load_skill_prompt(_SUMMARY_SKILL_ID)
         extra = report.extra or {}
         user_prompt = PromptRenderer.render(
             prompt_config.user_prompt_template,
@@ -201,11 +191,10 @@ class ResearchService:
             report_text=text,
         )
 
-        output = await run_structured_agent(
+        output = await run_structured(
             self.session,
-            prompt_config=prompt_config,
-            user_prompt=user_prompt,
             result_type=ResearchReportSummaryResult,
+            user_prompt=user_prompt,
         )
         return _render_summary_markdown(output)
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-import type { User } from '@ai-invest/shared'
+import { StorageKey, type User } from '@ai-invest/shared'
 
 import { fetchCurrentUser } from '@/api/auth'
 
@@ -22,7 +22,7 @@ interface AuthState {
 }
 
 const getStoredToken = (): string | null => {
-  return localStorage.getItem('access_token')
+  return localStorage.getItem(StorageKey.auth.accessToken)
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -36,9 +36,9 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setToken: (token) => {
     if (token) {
-      localStorage.setItem('access_token', token)
+      localStorage.setItem(StorageKey.auth.accessToken, token)
     } else {
-      localStorage.removeItem('access_token')
+      localStorage.removeItem(StorageKey.auth.accessToken)
     }
     set({ token })
   },
@@ -72,7 +72,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         (error as { response?: { status?: number } })?.response?.status ??
         (error as { status?: number })?.status
       if (status === 401) {
-        localStorage.removeItem('access_token')
+        localStorage.removeItem(StorageKey.auth.accessToken)
         set({
           token: null,
           user: null,
@@ -92,7 +92,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   login: (token, user) => {
-    localStorage.setItem('access_token', token)
+    localStorage.setItem(StorageKey.auth.accessToken, token)
     set({
       token,
       user,
@@ -103,7 +103,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: () => {
-    localStorage.removeItem('access_token')
+    localStorage.removeItem(StorageKey.auth.accessToken)
     set({
       token: null,
       user: null,

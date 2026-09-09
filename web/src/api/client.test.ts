@@ -1,8 +1,10 @@
-import { AxiosError } from 'axios'
+import { AxiosError, AxiosHeaders } from 'axios'
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { apiClient } from './client'
+
+type Transform = (data: unknown, headers: AxiosHeaders) => unknown
 
 function makeResponse(
   config: InternalAxiosRequestConfig,
@@ -118,5 +120,34 @@ describe('apiClient 502 容错', () => {
     expect(error.message).toBe('业务错误')
     expect(error.response.status).toBe(400)
     expect(call).toBe(1)
+  })
+})
+
+describe('apiClient Content-Type 序列化', () => {
+  function runTransforms(data: unknown) {
+    const headers = new AxiosHeaders()
+    const result = (apiClient.defaults.transformRequest as Transform[]).reduce(
+      (acc, fn) => fn(acc, headers),
+      data,
+    )
+    return { headers, result }
+  }
+
+  it('不全局固定 Content-Type（固定 JSON 会把 FormData 序列化成 {"file":{}}）', () => {
+    expect(apiClient.defaults.headers.common['Content-Type']).toBeUndefined()
+  })
+
+  it('对象请求体仍由 transformRequest 自动设为 application/json', () => {
+    const { headers, result } = runTransforms({ a: 1 })
+    expect(headers.get('Content-Type')).toContain('application/json')
+    expect(result).toBe('{"a":1}')
+  })
+
+  it('FormData 请求体原样透传且不带 JSON Content-Type', () => {
+    const form = new FormData()
+    form.append('file', new Blob(['x']), 'a.png')
+    const { headers, result } = runTransforms(form)
+    expect(result).toBe(form)
+    expect(headers.get('Content-Type')).toBeFalsy()
   })
 })

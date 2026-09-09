@@ -8,9 +8,9 @@ from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestError
 from app.schemas.market import CollectTaskResult
 from app.services.market import trade_calendar_service
+from app.services.market.trade_calendar_service import NonTradingDayError
 
 _BACKFILL_TASKS = (
     "limit-up-pool",
@@ -19,10 +19,6 @@ _BACKFILL_TASKS = (
     "market-amount",
     "sector-fund-flow",
 )
-
-
-class NonTradingDayError(BadRequestError):
-    """指定日期不是交易日。"""
 
 
 async def backfill_trade_date(
@@ -43,5 +39,33 @@ async def backfill_trade_date(
         )
         results.append(
             CollectTaskResult(task=task, status="dispatched", items_collected=0)
+        )
+    return results
+
+
+async def collect_market_data(
+    session: AsyncSession,
+    trade_date: date,
+    symbols: list[str] | None = None,
+) -> list[CollectTaskResult]:
+    """补采指定交易日行情数据（AI 助手数据自愈入口）：股池/成交额/板块资金流 + 指数 K 线。
+
+    Args:
+        symbols: 可选个股代码列表，追加派发个股日 K 采集任务。
+    """
+    results = await backfill_trade_date(session, trade_date)
+
+    from collector.runtime.dispatcher import dispatch_collector_task
+
+    await dispatch_collector_task(session, "index-kline", {})
+    results.append(
+        CollectTaskResult(task="index-kline", status="dispatched", items_collected=0)
+    )
+    if symbols:
+        await dispatch_collector_task(
+            session, "kline", {"symbols": list(symbols)}
+        )
+        results.append(
+            CollectTaskResult(task="kline", status="dispatched", items_collected=0)
         )
     return results
