@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
+  cleanupOldReports,
   createAdminReport,
   deleteAdminReport,
   fetchAdminReports,
@@ -52,6 +53,14 @@ export function useDeleteAdminReport() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => deleteAdminReport(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ADMIN_REPORTS_KEY }),
+  })
+}
+
+export function useCleanupOldReports() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: cleanupOldReports,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ADMIN_REPORTS_KEY }),
   })
 }
