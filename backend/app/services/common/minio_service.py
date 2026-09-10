@@ -93,7 +93,11 @@ class MinIOService:
         bucket_name: str | None = None,
         expires: timedelta = timedelta(days=7),
     ) -> str | None:
-        """返回对象的临时下载 URL。"""
+        """返回对象的临时下载 URL。
+
+        签名内携带 ``response-content-disposition: inline``，浏览器拿到
+        application/pdf 时内联打开而非触发下载。
+        """
         bucket = bucket_name or self.default_bucket
         try:
             return await asyncio.to_thread(
@@ -101,6 +105,7 @@ class MinIOService:
                 bucket,
                 object_name,
                 expires=expires,
+                response_headers={"response-content-disposition": "inline"},
             )
         except S3Error:
             return None
