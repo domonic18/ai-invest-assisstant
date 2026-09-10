@@ -2,6 +2,7 @@ import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import {
   Alert,
   Button,
+  Collapse,
   Form,
   Input,
   InputNumber,
@@ -10,11 +11,11 @@ import {
   Space,
   Switch,
 } from 'antd'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { ApiMcpServerConfig, McpTransportType } from '@ai-invest/shared'
 
 import type { McpServerFormValues, McpServerPayload } from './mcpServerForm'
-import { toPayload } from './mcpServerForm'
+import { parseMcpConfigJson, toPayload } from './mcpServerForm'
 
 interface McpServerModalProps {
   open: boolean
@@ -84,10 +85,14 @@ export function McpServerModal({
 }: McpServerModalProps) {
   const [form] = Form.useForm<McpServerFormValues>()
   const transportType = Form.useWatch('transportType', form) ?? 'http'
+  const [importText, setImportText] = useState('')
+  const [importResult, setImportResult] = useState<{ ok: boolean; message: string } | null>(null)
 
   useEffect(() => {
     if (!open) return
     form.resetFields()
+    setImportText('')
+    setImportResult(null)
     if (editing) {
       const toPairs = (record: Record<string, string>) =>
         Object.entries(record).map(([key, value]) => ({ key, value }))
@@ -114,6 +119,27 @@ export function McpServerModal({
 
   const handleFinish = (values: McpServerFormValues) => {
     onSubmit(toPayload(values))
+  }
+
+  const handleImportJson = () => {
+    try {
+      const cfg = parseMcpConfigJson(importText)
+      const toPairs = (record: Record<string, string>) =>
+        Object.entries(record).map(([key, value]) => ({ key, value }))
+      form.setFieldsValue({
+        ...(cfg.name !== undefined ? { name: cfg.name } : {}),
+        transportType: cfg.transportType,
+        ...(cfg.transportType === 'stdio'
+          ? { command: cfg.command, args: cfg.args.join('\n'), env: toPairs(cfg.env) }
+          : { url: cfg.url, headers: toPairs(cfg.headers) }),
+      })
+      setImportResult({ ok: true, message: '已解析并预填表单，可继续手动调整' })
+    } catch (err) {
+      setImportResult({
+        ok: false,
+        message: err instanceof Error ? err.message : '解析失败',
+      })
+    }
   }
 
   return (
@@ -150,6 +176,38 @@ export function McpServerModal({
         </Button>,
       ]}
     >
+      <Collapse
+        ghost
+        size="small"
+        className="mb-3 -ml-4"
+        items={[
+          {
+            key: 'import',
+            label: '从 JSON 配置导入（Claude Desktop / Cursor 格式）',
+            children: (
+              <div className="space-y-2">
+                <Input.TextArea
+                  rows={6}
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                  style={{ fontFamily: 'monospace' }}
+                  placeholder={`{\n  "mcpServers": {\n    "squadsight": {\n      "url": "https://example.com/mcp",\n      "headers": {\n        "Authorization": "Bearer <YOUR_API_KEY>"\n      }\n    }\n  }\n}`}
+                />
+                <Button size="small" onClick={handleImportJson}>
+                  解析并预填
+                </Button>
+                {importResult && (
+                  <Alert
+                    type={importResult.ok ? 'success' : 'error'}
+                    showIcon
+                    message={importResult.message}
+                  />
+                )}
+              </div>
+            ),
+          },
+        ]}
+      />
       <Form form={form} layout="vertical" onFinish={handleFinish}>
         <Space align="baseline" className="w-full">
           <Form.Item
@@ -199,7 +257,7 @@ export function McpServerModal({
               name="headers"
               label="请求头（如 Authorization）"
               keyPlaceholder="Header 名"
-              valuePlaceholder="值"
+              valuePlaceholder="如 Bearer <YOUR_API_KEY>"
             />
           </>
         )}
@@ -220,7 +278,7 @@ export function McpServerModal({
         <Alert
           type="info"
           showIcon
-          message="启用后工具清单将在助手重建时注入（当前为 Phase 2 接缝，保存即可生效配置）"
+          message="启用后工具将注入 AI 助手：保存/修改配置后助手自动重建并生效，工具调用时按需连接服务"
         />
       </Form>
     </Modal>
