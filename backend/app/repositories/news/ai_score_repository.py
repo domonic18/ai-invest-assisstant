@@ -1,12 +1,13 @@
 """资讯 AI 分级仓储：跨源通用标注表读写。"""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time
 from typing import Any
 
 from sqlalchemy import String, cast, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clock import CN_TZ, today_cn
 from app.core.constants import NEWS_SOURCE_TELEGRAPH
 from app.models.news_ai_score import NewsAiScore
 from app.models.news_telegraph import NewsTelegraph
@@ -18,10 +19,12 @@ async def list_unscored_telegraph(
     session: AsyncSession,
     *,
     limit: int,
-    window_days: int = 3,
 ) -> list[NewsTelegraph]:
-    """取近 window_days 天未分级的电报（新消息优先）。"""
-    since = datetime.now(timezone.utc) - timedelta(days=window_days)
+    """取当日（Asia/Shanghai）未分级的电报（新消息优先）。
+
+    历史积压不评：分析价值随时间衰减，只处理当日发布的内容。
+    """
+    since = datetime.combine(today_cn(), time.min, tzinfo=CN_TZ)
     scored = (
         select(NewsAiScore.item_id)
         .where(
