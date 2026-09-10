@@ -887,6 +887,11 @@ export interface ApiReportStorageSummary {
   totalFileCount: number
 }
 
+export interface ApiReportCleanupResult {
+  removedCount: number
+  sizeBytes: number
+}
+
 export interface ApiAdminNewsResponse {
   id: number
   stockCode: string | null

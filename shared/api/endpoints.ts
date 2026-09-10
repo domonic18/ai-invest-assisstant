@@ -148,6 +148,7 @@ export const ENDPOINTS = {
     stock: (id: number | string) => `${API_BASE}/admin/stocks/${id}`,
     reports: `${API_BASE}/admin/reports/`,
     reportStorageSummary: `${API_BASE}/admin/reports/storage-summary`,
+    reportCleanup: `${API_BASE}/admin/reports/cleanup-old`,
     report: (id: number | string) => `${API_BASE}/admin/reports/${id}`,
     news: `${API_BASE}/admin/news/`,
     newsItem: (id: number | string) => `${API_BASE}/admin/news/${id}`,

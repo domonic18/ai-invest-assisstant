@@ -1,15 +1,17 @@
 """后台研报（文件元数据）业务服务。"""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
+from app.core.clock import utc_now
+from app.core.exceptions import InternalError, NotFoundError
 from app.models.file_metadata import FileMetadata
 from app.repositories.market.stock_repository import StockRepository
 from app.repositories.reports.file_metadata_repository import FileMetadataRepository
 from app.schemas.file_metadata import FileMetadataCreate, FileMetadataUpdate
+from app.services.common.minio_service import get_minio_service
 
 
 class AdminReportService:
@@ -87,6 +89,32 @@ class AdminReportService:
         report = await self.get_report(report_id)
         await self.repo.delete(report)
         await self.session.commit()
+
+    async def cleanup_old_reports(
+        self, file_type: str = "research_report", days: int = 90
+    ) -> tuple[int, int]:
+        """清理指定类型中创建时间超过 days 天的文件，返回 (删除数, 释放字节数)。
+
+        先删 MinIO 对象再删元数据行：对象删除失败时抛 InternalError 保留行
+        待重试，避免出现无元数据引用的孤儿文件。
+        """
+        cutoff = utc_now() - timedelta(days=days)
+        stale = await self.repo.list_older_than(file_type, cutoff)
+        if not stale:
+            return 0, 0
+
+        minio = get_minio_service()
+        try:
+            failed = await minio.remove_files([item.file_path for item in stale])
+        except RuntimeError as exc:
+            raise InternalError(f"对象存储删除失败，本次未清理: {exc}") from exc
+        failed_paths = set(failed)
+        removed = [item for item in stale if item.file_path not in failed_paths]
+        for item in removed:
+            await self.repo.delete(item)
+        await self.session.commit()
+        size = sum(item.file_size or 0 for item in removed)
+        return len(removed), size
 
     def _to_response(self, report: FileMetadata) -> dict[str, Any]:
         """序列化为研报响应字典。"""

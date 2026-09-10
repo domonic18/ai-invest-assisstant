@@ -19,3 +19,10 @@ class ReportStorageSummary(CamelModel):
     items: list[ReportStorageTypeSummary]
     total_size_bytes: int = Field(0, ge=0)
     total_file_count: int = Field(0, ge=0)
+
+
+class ReportCleanupResult(CamelModel):
+    """报告文件清理结果。"""
+
+    removed_count: int = Field(0, ge=0)
+    size_bytes: int = Field(0, ge=0)

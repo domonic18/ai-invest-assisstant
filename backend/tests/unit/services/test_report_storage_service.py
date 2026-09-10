@@ -1,11 +1,14 @@
-"""报告存储占用统计服务单元测试。"""
+"""报告存储占用统计与清理服务单元测试。"""
 
-from unittest.mock import AsyncMock, MagicMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.exceptions import InternalError
 from app.schemas.report_storage import ReportStorageSummary
 from app.services.admin.report_storage_service import ReportStorageService
+from app.services.admin.reports import AdminReportService
 
 
 def _session_with_rows(rows: list[tuple]) -> AsyncMock:
@@ -43,3 +46,79 @@ async def test_storage_summary_empty() -> None:
     assert summary.items == []
     assert summary.total_file_count == 0
     assert summary.total_size_bytes == 0
+
+
+def _cleanup_service(rows: list[SimpleNamespace]) -> object:
+    service = AdminReportService.__new__(AdminReportService)
+    service.session = AsyncMock()
+    service.session.commit = AsyncMock()
+    service.session.delete = AsyncMock()
+    service.repo = AsyncMock()
+    service.repo.list_older_than = AsyncMock(return_value=rows)
+    return service
+
+
+def _stale(path: str, size: int | None) -> SimpleNamespace:
+    return SimpleNamespace(file_path=path, file_size=size)
+
+
+@pytest.mark.unit
+async def test_cleanup_removes_objects_and_rows() -> None:
+    rows = [_stale("reports/old1.pdf", 100), _stale("reports/old2.pdf", None)]
+    service = _cleanup_service(rows)
+
+    with patch(
+        "app.services.admin.reports.get_minio_service"
+    ) as minio_cls:
+        minio_cls.return_value.remove_files = AsyncMock(return_value=[])
+        removed, size = await service.cleanup_old_reports(days=90)
+
+    assert (removed, size) == (2, 100)
+    assert service.repo.delete.await_count == 2
+    service.session.commit.assert_awaited_once()
+
+
+@pytest.mark.unit
+async def test_cleanup_noop_when_nothing_old() -> None:
+    service = _cleanup_service([])
+    with patch(
+        "app.services.admin.reports.get_minio_service"
+    ) as minio_cls:
+        minio_cls.return_value.remove_files = AsyncMock()
+        removed, size = await service.cleanup_old_reports()
+
+    assert (removed, size) == (0, 0)
+    minio_cls.return_value.remove_files.assert_not_awaited()
+    service.session.commit.assert_not_awaited()
+
+
+@pytest.mark.unit
+async def test_cleanup_partial_failure_keeps_failed_rows() -> None:
+    rows = [_stale("reports/a.pdf", 10), _stale("reports/b.pdf", 20)]
+    service = _cleanup_service(rows)
+    with patch(
+        "app.services.admin.reports.get_minio_service"
+    ) as minio_cls:
+        minio_cls.return_value.remove_files = AsyncMock(
+            return_value=["reports/b.pdf"]
+        )
+        removed, size = await service.cleanup_old_reports()
+
+    assert (removed, size) == (1, 10)
+    assert service.repo.delete.await_count == 1
+
+
+@pytest.mark.unit
+async def test_cleanup_minio_error_raises_and_keeps_rows() -> None:
+    service = _cleanup_service([_stale("reports/a.pdf", 10)])
+    with patch(
+        "app.services.admin.reports.get_minio_service"
+    ) as minio_cls:
+        minio_cls.return_value.remove_files = AsyncMock(
+            side_effect=RuntimeError("S3 down")
+        )
+        with pytest.raises(InternalError):
+            await service.cleanup_old_reports()
+
+    service.repo.delete.assert_not_awaited()
+    service.session.commit.assert_not_awaited()

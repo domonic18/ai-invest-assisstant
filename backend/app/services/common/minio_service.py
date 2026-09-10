@@ -3,10 +3,14 @@
 import asyncio
 from datetime import timedelta
 
+import structlog
 from minio import Minio
+from minio.deleteobjects import DeleteObject
 from minio.error import S3Error
 
 from app.core.config import get_settings
+
+logger = structlog.get_logger(__name__)
 
 
 class MinIOService:
@@ -122,6 +126,39 @@ class MinIOService:
             return await asyncio.to_thread(response.read)
         except S3Error as exc:
             raise RuntimeError(f"Failed to download {object_name}: {exc}") from exc
+
+    async def remove_files(
+        self,
+        object_names: list[str],
+        bucket_name: str | None = None,
+    ) -> list[str]:
+        """批量删除对象，返回删除失败的对象名列表。
+
+        S3 语义下删除不存在的键视为成功（no-op），因此缺失对象不算失败。
+        """
+        if not object_names:
+            return []
+        bucket = bucket_name or self.default_bucket
+
+        def _remove() -> list[str]:
+            errors = list(
+                self.client.remove_objects(
+                    bucket, [DeleteObject(name) for name in object_names]
+                )
+            )
+            for err in errors:
+                logger.warning(
+                    "minio_remove_failed",
+                    object=err.name,
+                    code=err.code,
+                    message=err.message,
+                )
+            return [err.name for err in errors if err.name]
+
+        try:
+            return await asyncio.to_thread(_remove)
+        except S3Error as exc:
+            raise RuntimeError(f"Failed to remove {len(object_names)} objects: {exc}") from exc
 
 
 _minio_service: MinIOService | None = None
