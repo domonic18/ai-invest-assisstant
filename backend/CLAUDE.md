@@ -114,7 +114,7 @@ async def fetch_kline(
 
 ### 数据库命名规范
 
-新增或重命名表/字段时遵循以下约定（完整重构计划见 `docs/plan/database-refactoring-plan.md`）：
+新增或重命名表/字段时遵循以下约定：
 
 - **表名**：小写蛇形、单数名词，同一业务分类使用统一前缀。
   - 行情数据：`quote_`（如 `quote_kline_stock_daily`、`quote_auction_index`）
@@ -122,8 +122,11 @@ async def fetch_kline(
   - 市场情绪：`market_`（如 `market_breadth`）
   - 股池：`pool_`（如 `pool_limit_up_stock`）
   - 财务报表：`financial_`（如 `financial_balance_sheet`）
-  - 产业链：`industry_chain_`（如 `industry_chain_company_mapping`）
+  - 产业链：`industry_chain_`（如 `industry_chain_node`、`industry_chain_company_mapping`）
   - 成分/映射：`mapping_`（如 `mapping_index_stock`）
+  - 资讯：`news_`（如 `news_telegraph`、`news_document`、`news_storyline`、`news_topic_snapshot`、`news_calendar_event`）
+  - 用户态：`user_`（如 `user_watchlist`、`user_news_subscription`）
+  - 采集基础设施：`collector_`（如 `collector_task`、`collector_log`、`collector_channel_config`）
 - **表名结构**：`<分类前缀>_<数据类型>_<标的类型>[_<粒度/子类型>]`，无标的类型的市场级数据可省略 `<标的类型>`。
 - **字段名**：完整单词优先，禁用无上下文缩写；同一语义使用同一单词（如涨跌幅统一用 `change_pct`）。
 - **约束与索引命名**：`pk_<table>`、`uq_<table>_<columns>`、`fk_<table>_<ref_table>`、`idx_<table>_<columns>`、`chk_<table>_<column>`。
@@ -169,6 +172,7 @@ collector/
 - **执行入口统一走 `runtime.runner.run_task`**（worker/scheduler/CLI/SCF 共享）：生成 `task_run_id` 绑定日志上下文、回写 `collector_log`、失败记录 traceback；`runtime/scf_handler.py` 只做 SCF 事件解析
 - **日志**：入口调用 `core.logging.configure_logging()`，禁止 `logging.basicConfig`；任务日志自动携带 `task_run_id`/`task`/`source`
 - **配置**：用 `core.config`（委托 `app.core.config`），禁止新增环境变量读取点
+- **`collector_log.task_name` 存 TASK_SPECS 键（task_type），渠道身份 = (task_type, source)**：两者是运行时（resolver/TaskSpec.collectors/collector_task 表）共用的键空间。按渠道查日志/监控必须走 (task_type, source) 二元组，禁止用 `collector_task.task_name` 实例名查 `collector_log`。新渠道接入三步：① `runtime/specs/` 对应 TaskSpec.collectors 加 source；② seed/后台加 collector_task 行（task_type+source+cron）；③ 监控注册表登记一条（task_type+source）——一致性由 `tests/unit/services/test_news_channel_service.py` 钉死
 
 ### AI Agent 与 Prompt 管理
 
