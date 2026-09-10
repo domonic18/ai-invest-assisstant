@@ -4,6 +4,7 @@ import {
   createAdminReport,
   deleteAdminReport,
   fetchAdminReports,
+  fetchReportStorageSummary,
   updateAdminReport,
   type AdminReportParams,
 } from '@/api/adminReports'
@@ -20,6 +21,14 @@ export function useAdminReports(params: AdminReportParams = {}) {
   return useQuery({
     queryKey: [...ADMIN_REPORTS_KEY, params],
     queryFn: () => fetchAdminReports(params),
+  })
+}
+
+export function useReportStorageSummary() {
+  return useQuery({
+    queryKey: [...ADMIN_REPORTS_KEY, 'storage-summary'],
+    queryFn: fetchReportStorageSummary,
+    staleTime: 60_000,
   })
 }
 
