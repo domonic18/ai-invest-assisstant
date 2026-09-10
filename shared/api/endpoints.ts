@@ -56,11 +56,13 @@ export const ENDPOINTS = {
   skills: {
     list: `${API_BASE}/skills`,
     create: `${API_BASE}/skills`,
+    analyze: `${API_BASE}/skills/analyze`,
     detail: (skillId: string) => `${API_BASE}/skills/${skillId}`,
     files: (skillId: string) => `${API_BASE}/skills/${skillId}/files`,
     update: (skillId: string) => `${API_BASE}/skills/${skillId}`,
     publish: (skillId: string) => `${API_BASE}/skills/${skillId}/publish`,
     install: (skillId: string) => `${API_BASE}/skills/${skillId}/install`,
+    installToggle: (skillId: string) => `${API_BASE}/skills/${skillId}/install`,
     uninstall: (skillId: string) => `${API_BASE}/skills/${skillId}/install`,
   },
   financialReports: {
@@ -145,6 +147,7 @@ export const ENDPOINTS = {
     stocks: `${API_BASE}/admin/stocks/`,
     stock: (id: number | string) => `${API_BASE}/admin/stocks/${id}`,
     reports: `${API_BASE}/admin/reports/`,
+    reportStorageSummary: `${API_BASE}/admin/reports/storage-summary`,
     report: (id: number | string) => `${API_BASE}/admin/reports/${id}`,
     news: `${API_BASE}/admin/news/`,
     newsItem: (id: number | string) => `${API_BASE}/admin/news/${id}`,
@@ -182,5 +185,9 @@ export const ENDPOINTS = {
     aiResults: `${API_BASE}/admin/ai-results/`,
     aiResult: (id: number | string) => `${API_BASE}/admin/ai-results/${id}`,
     aiResultSkills: `${API_BASE}/admin/ai-results/skills`,
+    mcpServers: `${API_BASE}/admin/mcp/servers`,
+    mcpServer: (id: number | string) => `${API_BASE}/admin/mcp/servers/${id}`,
+    mcpServerTest: (id: number | string) => `${API_BASE}/admin/mcp/servers/${id}/test`,
+    mcpServerTestDraft: `${API_BASE}/admin/mcp/servers/test`,
   },
 } as const

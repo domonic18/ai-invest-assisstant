@@ -875,6 +875,18 @@ export interface ApiAdminReportUpdateRequest {
   downloadUrl?: string
 }
 
+export interface ApiReportStorageTypeSummary {
+  fileType: string
+  fileCount: number
+  sizeBytes: number
+}
+
+export interface ApiReportStorageSummary {
+  items: ApiReportStorageTypeSummary[]
+  totalSizeBytes: number
+  totalFileCount: number
+}
+
 export interface ApiAdminNewsResponse {
   id: number
   stockCode: string | null
