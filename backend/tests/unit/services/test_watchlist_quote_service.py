@@ -44,9 +44,7 @@ class TestGetWatchlistQuotes:
                 wsvc, "_load_stock_names", AsyncMock(return_value={"000001": "基本表名称"})
             ),
             patch.object(
-                wsvc.trade_calendar_service,
-                "resolve_latest_trade_date",
-                AsyncMock(return_value=date(2026, 9, 2)),
+                wsvc, "today_cn", MagicMock(return_value=date(2026, 9, 2))
             ),
             patch.object(wsvc, "fetch_minute_bars_multi", AsyncMock(return_value=bars)),
         ):
@@ -80,9 +78,7 @@ class TestGetWatchlistQuotes:
                 wsvc, "_load_stock_names", AsyncMock(return_value={"000001": "基本表名称"})
             ),
             patch.object(
-                wsvc.trade_calendar_service,
-                "resolve_latest_trade_date",
-                AsyncMock(return_value=date(2026, 9, 4)),
+                wsvc, "today_cn", MagicMock(return_value=date(2026, 9, 4))
             ),
             patch.object(wsvc, "fetch_minute_bars_multi", AsyncMock(return_value=bars)),
         ):
@@ -113,9 +109,7 @@ class TestGetWatchlistQuotes:
                 wsvc, "_load_stock_names", AsyncMock(return_value={"600000": "浦发银行"})
             ),
             patch.object(
-                wsvc.trade_calendar_service,
-                "resolve_latest_trade_date",
-                AsyncMock(return_value=date(2026, 9, 2)),
+                wsvc, "today_cn", MagicMock(return_value=date(2026, 9, 2))
             ),
             patch.object(wsvc, "fetch_minute_bars_multi", AsyncMock(return_value=[])),
             patch.object(
@@ -151,9 +145,7 @@ class TestGetWatchlistQuotes:
             patch.object(wsvc, "get_redis", MagicMock(return_value=redis)),
             patch.object(wsvc, "_load_stock_names", AsyncMock(return_value={})),
             patch.object(
-                wsvc.trade_calendar_service,
-                "resolve_latest_trade_date",
-                AsyncMock(return_value=date(2026, 9, 2)),
+                wsvc, "today_cn", MagicMock(return_value=date(2026, 9, 2))
             ),
             patch.object(wsvc, "fetch_minute_bars_multi", AsyncMock(return_value=[])),
             patch.object(
@@ -178,9 +170,7 @@ class TestGetWatchlistQuotes:
                 wsvc, "_load_stock_names", AsyncMock(return_value={"600967": "内蒙一机"})
             ),
             patch.object(
-                wsvc.trade_calendar_service,
-                "resolve_latest_trade_date",
-                AsyncMock(return_value=date(2026, 9, 2)),
+                wsvc, "today_cn", MagicMock(return_value=date(2026, 9, 2))
             ),
             patch.object(
                 wsvc, "fetch_minute_bars_multi", AsyncMock(return_value=bars)
@@ -207,9 +197,7 @@ class TestGetWatchlistQuotes:
             patch.object(wsvc, "get_redis", MagicMock(return_value=redis)),
             patch.object(wsvc, "_load_stock_names", AsyncMock(return_value={})),
             patch.object(
-                wsvc.trade_calendar_service,
-                "resolve_latest_trade_date",
-                AsyncMock(return_value=date(2026, 9, 2)),
+                wsvc, "today_cn", MagicMock(return_value=date(2026, 9, 2))
             ),
             patch.object(wsvc, "fetch_minute_bars_multi", AsyncMock(return_value=bars)),
             patch.object(wsvc, "fetch_daily_bars", AsyncMock(return_value=[])),
