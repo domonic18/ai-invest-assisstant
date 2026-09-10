@@ -1,4 +1,5 @@
 import { Empty, List, Progress, Space, Tag, Typography } from 'antd'
+import { Link } from 'react-router-dom'
 
 import type { KeyCompanySummary } from '@ai-invest/shared'
 
@@ -33,9 +34,11 @@ export function KeyCompaniesPanel({ companies }: KeyCompaniesPanelProps) {
             </div>
             <div className="min-w-0 flex-1">
               <Space wrap size={6}>
-                <Typography.Text strong className="text-[#d1d4dc]">
-                  {item.name}
-                </Typography.Text>
+                <Link to={`/stock/${item.code}`}>
+                  <Typography.Text strong className="text-[#d1d4dc]">
+                    {item.name}
+                  </Typography.Text>
+                </Link>
                 <Typography.Text type="secondary" className="text-xs">
                   {item.code}
                 </Typography.Text>
