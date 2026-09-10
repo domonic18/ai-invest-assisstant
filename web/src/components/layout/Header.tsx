@@ -1,5 +1,6 @@
-import { LogoutOutlined, MenuOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons'
-import { Avatar, Button, Dropdown, Space } from 'antd'
+import { LogoutOutlined, MenuOutlined, SettingOutlined, StarOutlined, UserOutlined } from '@ant-design/icons'
+import { Avatar, Button, Dropdown, Space, Tooltip } from 'antd'
+import type { MenuProps } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { useAuthStore } from '@/stores/auth'
@@ -20,7 +21,26 @@ export function Header({ onMenuClick }: HeaderProps) {
     navigate('/login')
   }
 
-  const items = [
+  const items: MenuProps['items'] = [
+    {
+      key: 'profile',
+      type: 'group',
+      label: (
+        <div className="flex items-center gap-2 py-1">
+          <Avatar size="small" icon={<UserOutlined />} />
+          <div className="flex flex-col leading-tight">
+            <span className="text-sm text-gray-200">{user?.username}</span>
+            <span className="text-xs text-gray-500">{user?.email}</span>
+          </div>
+        </div>
+      ),
+    },
+    { type: 'divider' },
+    {
+      key: 'settings',
+      icon: <SettingOutlined />,
+      label: <Link to="/settings">个人设置</Link>,
+    },
     ...(isAdmin
       ? [
           {
@@ -30,14 +50,11 @@ export function Header({ onMenuClick }: HeaderProps) {
           },
         ]
       : []),
-    {
-      key: 'settings',
-      icon: <SettingOutlined />,
-      label: <Link to="/settings">设置</Link>,
-    },
+    { type: 'divider' },
     {
       key: 'logout',
       icon: <LogoutOutlined />,
+      danger: true,
       label: '退出登录',
       onClick: handleLogout,
     },
@@ -57,7 +74,16 @@ export function Header({ onMenuClick }: HeaderProps) {
           <StockSearch />
         </div>
       </div>
-      <Space>
+      <Space size={4}>
+        <Tooltip title="我的自选">
+          <Button
+            type="text"
+            icon={<StarOutlined />}
+            onClick={() => navigate('/watchlist')}
+            className="text-gray-300"
+            aria-label="我的自选"
+          />
+        </Tooltip>
         {user ? (
           <Dropdown menu={{ items }} placement="bottomRight">
             <Button type="text" className="text-gray-300">
