@@ -31,6 +31,7 @@ from app.schemas.market import (
     SectorOverviewResponse,
     SectorQuoteResponse,
 )
+from app.schemas.tracked_index import TrackedIndexOption
 from app.services import review as market_review_service
 from app.services.market import (
     fed_watch_service,
@@ -38,6 +39,7 @@ from app.services.market import (
     market_service,
     sector_quote_service,
 )
+from app.services.user import UserService
 
 router = APIRouter()
 
@@ -58,10 +60,23 @@ async def get_indices(
 
 @router.get("/global-indices", response_model=list[GlobalIndexQuoteResponse])
 async def get_global_indices(
+    current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[GlobalIndexQuoteResponse]:
-    """启用中的全球指标最新快照（黄金/美元指数/美债收益率等）。"""
-    return await global_index_service.get_global_index_quotes(session)
+    """启用中的全球指标最新快照（黄金/美元指数/美债收益率等），按用户个人配置过滤。"""
+    settings = await UserService(session).get_settings(current_user)
+    return await global_index_service.get_global_index_quotes(
+        session, settings.tracked_index_codes
+    )
+
+
+@router.get("/tracked-indexes", response_model=list[TrackedIndexOption])
+async def list_tracked_index_options(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> list[TrackedIndexOption]:
+    """个人设置可勾选的跟踪指数清单（启用中的全球指标）。"""
+    return await global_index_service.list_tracked_index_options(session)
 
 
 @router.get("/global-index-history", response_model=list[GlobalIndexHistoryPoint])

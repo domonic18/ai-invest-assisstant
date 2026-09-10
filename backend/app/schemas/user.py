@@ -23,6 +23,11 @@ class UserSettings(CamelModel):
         default_factory=list,
         description="K 线均线配置列表",
     )
+    # None = 未设置（显示全部启用中的全球指标）；[] = 全部不显示
+    tracked_index_codes: list[str] | None = Field(
+        default=None,
+        description="工作台/宏观页展示的跟踪指数代码列表（全球指标），缺省显示全部",
+    )
 
 
 class UserSettingsResponse(UserSettings):

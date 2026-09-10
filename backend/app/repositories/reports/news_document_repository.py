@@ -3,7 +3,7 @@
 from datetime import date, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.news_document import NewsDocument
@@ -95,6 +95,13 @@ class NewsDocumentRepository(BaseRepository[NewsDocument]):
         result = await self.execute(stmt)
         total = (await self.scalar(count_stmt)) or 0
         return list(result.scalars().all()), total
+
+    async def delete_by_ids(self, ids: list[int]) -> int:
+        """按主键批量删除，返回删除条数。"""
+        result = await self.session.execute(
+            delete(NewsDocument).where(NewsDocument.id.in_(ids))
+        )
+        return int(getattr(result, "rowcount", 0) or 0)
 
     async def list_research_filters(self) -> tuple[list[str], list[str]]:
         """返回研报中去重后的券商与行业标签列表（distinct 值封顶，防全表膨胀）。"""

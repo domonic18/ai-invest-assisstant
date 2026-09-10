@@ -1,5 +1,7 @@
 """后台新闻公告业务服务。"""
 
+from datetime import date
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
@@ -24,6 +26,10 @@ class AdminNewsService:
         stock_code: str | None = None,
         doc_type: str | None = None,
         q: str | None = None,
+        source: str | None = None,
+        broker: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[NewsDocument], int]:
@@ -32,7 +38,12 @@ class AdminNewsService:
         return await self.repo.list_paginated(
             stock_code=stock_code,
             doc_type=doc_type,
+            source=source,
             q=q,
+            broker=broker,
+            start_date=start_date,
+            end_date=end_date,
+            order_by=NewsDocument.publish_date.desc().nullslast(),
             offset=offset,
             limit=page_size,
         )
@@ -84,6 +95,12 @@ class AdminNewsService:
         news = await self.get_news(news_id)
         await self.repo.delete(news)
         await self.session.commit()
+
+    async def delete_news_batch(self, ids: list[int]) -> int:
+        """批量删除新闻公告，返回删除条数。"""
+        deleted = await self.repo.delete_by_ids(ids)
+        await self.session.commit()
+        return deleted
 
     def _to_response(self, news: NewsDocument) -> NewsDocumentResponse:
         """序列化为新闻公告响应模型。"""

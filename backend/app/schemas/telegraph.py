@@ -54,3 +54,24 @@ class TelegraphResponse(CamelModel):
         if isinstance(value, str):
             return strip_html(value)
         return value
+
+
+class AdminTelegraphResponse(CamelModel):
+    """后台电报管理条目（主键 id + AI 分级，无标的富化/订阅字段）。"""
+
+    id: int
+    title: str | None = None
+    content: str | None = None
+    category: str | None = None
+    importance: int | None = None
+    stock_codes: list[str] | None = None
+    publish_time: datetime
+    ai_score: int | None = None
+    ai_scored_at: datetime | None = None
+
+    @field_validator("title", "content", mode="before")
+    @classmethod
+    def _strip_rich_text(cls, value: object) -> object:
+        if isinstance(value, str):
+            return strip_html(value)
+        return value

@@ -50,3 +50,10 @@ class TrackedIndexToggleResponse(CamelModel):
 
     id: int
     is_enabled: bool
+
+
+class TrackedIndexOption(CamelModel):
+    """个人设置中可勾选的跟踪指数项（启用中的全球指标）。"""
+
+    index_code: str
+    index_name: str

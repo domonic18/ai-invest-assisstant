@@ -1,5 +1,6 @@
 """管理后台新闻公告管理 API 端点。"""
 
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
@@ -7,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.dependencies import get_current_admin_user, get_db
+from app.schemas.base import BatchDeleteRequest
 from app.schemas.news_document import (
     NewsDocumentCreate,
     NewsDocumentResponse,
@@ -24,12 +26,24 @@ async def list_news(
     stock_code: str | None = None,
     doc_type: str | None = None,
     q: str | None = None,
+    source: str | None = None,
+    broker: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
     page: int = DEFAULT_PAGE,
     page_size: int = DEFAULT_PAGE_SIZE,
 ) -> PaginatedResponse:
-    """查询新闻公告列表。"""
+    """查询新闻公告列表（关键词/来源/券商/发布日期区间，publish_date 降序）。"""
     items, total = await AdminNewsService(session).list_news(
-        stock_code, doc_type, q, page, page_size
+        stock_code=stock_code,
+        doc_type=doc_type,
+        q=q,
+        source=source,
+        broker=broker,
+        start_date=start_date,
+        end_date=end_date,
+        page=page,
+        page_size=page_size,
     )
     return PaginatedResponse(
         total=total,
@@ -37,6 +51,16 @@ async def list_news(
         page_size=page_size,
         items=[NewsDocumentResponse.model_validate(item) for item in items],
     )
+
+
+@router.post("/batch-delete", status_code=status.HTTP_200_OK)
+async def batch_delete_news(
+    data: BatchDeleteRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, int]:
+    """批量删除新闻公告，返回删除条数。"""
+    deleted = await AdminNewsService(session).delete_news_batch(data.ids)
+    return {"deleted": deleted}
 
 
 @router.post(
