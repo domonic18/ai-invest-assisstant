@@ -1,4 +1,5 @@
 import {
+  ApiOutlined,
   BarChartOutlined,
   FileTextOutlined,
   FileDoneOutlined,
@@ -21,6 +22,7 @@ const ADMIN_LINKS = [
   { title: '报告管理', path: '/admin/reports', icon: <FileTextOutlined />, color: 'bg-purple-500/10 text-purple-400' },
   { title: '资讯管理', path: '/admin/news', icon: <ReadOutlined />, color: 'bg-orange-500/10 text-orange-400' },
   { title: 'LLM 配置', path: '/admin/llm-configs', icon: <RobotOutlined />, color: 'bg-pink-500/10 text-pink-400' },
+  { title: 'MCP 服务', path: '/admin/mcp-servers', icon: <ApiOutlined />, color: 'bg-cyan-500/10 text-cyan-400' },
   { title: '分析结果', path: '/admin/ai-results', icon: <FileDoneOutlined />, color: 'bg-teal-500/10 text-teal-400' },
   { title: '采集管理', path: '/admin/collector', icon: <PlayCircleOutlined />, color: 'bg-indigo-500/10 text-indigo-400' },
 ]
