@@ -6,12 +6,14 @@ import type {
 } from '@ai-invest/shared'
 
 import {
+  analyzeSkillArchive,
   createCustomSkill,
   fetchSkillDetail,
   fetchSkillFiles,
   fetchSkillSquare,
   installSkill,
   publishCustomSkill,
+  toggleInstallSkill,
   uninstallSkill,
   updateCustomSkill,
 } from '@/api/skills'
@@ -64,6 +66,19 @@ export function useUninstallSkill() {
   })
 }
 
+export function useToggleInstallSkill() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ skillId, enabled }: { skillId: string; enabled: boolean }) =>
+      toggleInstallSkill(skillId, enabled),
+    onSuccess: () => {
+      message.success('技能状态已更新')
+      void queryClient.invalidateQueries({ queryKey: queryKeys.skills.all })
+    },
+    onError: (error: Error) => message.error(error.message),
+  })
+}
+
 export function useCreateCustomSkill() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -97,6 +112,13 @@ export function usePublishCustomSkill() {
       message.success('技能已发布，广场可见')
       void queryClient.invalidateQueries({ queryKey: queryKeys.skills.all })
     },
+    onError: (error: Error) => message.error(error.message),
+  })
+}
+
+export function useAnalyzeSkillArchive() {
+  return useMutation({
+    mutationFn: (file: File) => analyzeSkillArchive(file),
     onError: (error: Error) => message.error(error.message),
   })
 }
