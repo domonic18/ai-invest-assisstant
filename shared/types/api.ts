@@ -417,6 +417,7 @@ export interface ApiLLMConfigResponse {
   id: number
   name: string
   provider: string
+  protocol: string
   baseUrl: string
   modelName: string
   apiKeyMasked: string
@@ -433,6 +434,7 @@ export interface ApiLLMConfigResponse {
 export interface ApiLLMConfigCreateRequest {
   name: string
   provider: string
+  protocol?: string
   baseUrl: string
   apiKey: string
   modelName: string
@@ -444,6 +446,7 @@ export interface ApiLLMConfigCreateRequest {
 export interface ApiLLMConfigUpdateRequest {
   name?: string
   provider?: string
+  protocol?: string
   baseUrl?: string
   apiKey?: string
   modelName?: string

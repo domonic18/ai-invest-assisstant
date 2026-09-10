@@ -50,7 +50,7 @@ async def run_structured(
     model = build_langchain_model(cfg, disable_thinking=True)
     # anthropic 协议端点（kimi coding 等）2026-09-08 起对强制 tool_choice 间歇性忽略，
     # function_calling 法会静默拿到 None；json_schema 走 anthropic 原生结构化输出
-    method = "json_schema" if cfg.provider == "anthropic" else "function_calling"
+    method = "json_schema" if cfg.protocol == "anthropic" else "function_calling"
     structured = model.with_structured_output(result_type, method=method)
 
     content: Any = user_prompt

@@ -19,6 +19,7 @@ class LLMConfig(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     provider: Mapped[str] = mapped_column(String(20), nullable=False)
+    protocol: Mapped[str] = mapped_column(String(20), nullable=False, default="openai")
     base_url: Mapped[str] = mapped_column(String(500), nullable=False)
     api_key_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     model_name: Mapped[str] = mapped_column(String(100), nullable=False)

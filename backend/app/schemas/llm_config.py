@@ -1,18 +1,24 @@
 """LLM 配置管理的 Pydantic schemas。"""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
 from app.schemas.base import CamelModel
 
+LLMProtocol = Literal["openai", "anthropic"]
+
 
 class LLMConfigCreate(CamelModel):
-    """创建 LLM 配置的请求 schema。"""
+    """创建 LLM 配置的请求 schema。
+
+    ``protocol`` 缺省时按 ``provider`` 推断：anthropic 渠道 → anthropic，其余 → openai。
+    """
 
     name: str = Field(..., min_length=1, max_length=100)
     provider: str = Field(..., min_length=1, max_length=20)
+    protocol: LLMProtocol | None = None
     base_url: str = Field(..., min_length=1, max_length=500)
     api_key: str = Field(..., min_length=1)
     model_name: str = Field(..., min_length=1, max_length=100)
@@ -29,6 +35,7 @@ class LLMConfigUpdate(CamelModel):
 
     name: str | None = Field(None, min_length=1, max_length=100)
     provider: str | None = Field(None, min_length=1, max_length=20)
+    protocol: LLMProtocol | None = None
     base_url: str | None = Field(None, min_length=1, max_length=500)
     api_key: str | None = Field(None, min_length=1)
     model_name: str | None = Field(None, min_length=1, max_length=100)
@@ -43,6 +50,7 @@ class LLMConfigResponse(CamelModel):
     id: int
     name: str
     provider: str
+    protocol: str
     base_url: str
     model_name: str
     api_key_masked: str

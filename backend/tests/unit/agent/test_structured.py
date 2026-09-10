@@ -52,12 +52,12 @@ class _FakeModel:
         return self._structured
 
 
-def _patch_run_env(structured: _FakeStructured, *, provider: str = "anthropic"):
+def _patch_run_env(structured: _FakeStructured, *, protocol: str = "anthropic"):
     fake_model = _FakeModel(structured)
     return (
         patch(
             "app.agent.runtime.structured.resolve_default_llm",
-            new=AsyncMock(return_value=SimpleNamespace(provider=provider)),
+            new=AsyncMock(return_value=SimpleNamespace(protocol=protocol)),
         ),
         patch(
             "app.agent.runtime.structured.build_langchain_model",
@@ -133,7 +133,7 @@ class TestRunStructured:
     @pytest.mark.asyncio
     async def test_anthropic_provider_uses_json_schema(self) -> None:
         structured = _FakeStructured([_Out(value="ok")])
-        p_llm, p_model, fake_model = _patch_run_env(structured, provider="anthropic")
+        p_llm, p_model, fake_model = _patch_run_env(structured, protocol="anthropic")
         with p_llm, p_model:
             await run_structured(
                 cast(AsyncSession, object()),
@@ -146,7 +146,7 @@ class TestRunStructured:
     @pytest.mark.asyncio
     async def test_openai_provider_uses_function_calling(self) -> None:
         structured = _FakeStructured([_Out(value="ok")])
-        p_llm, p_model, fake_model = _patch_run_env(structured, provider="openai")
+        p_llm, p_model, fake_model = _patch_run_env(structured, protocol="openai")
         with p_llm, p_model:
             await run_structured(
                 cast(AsyncSession, object()),

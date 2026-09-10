@@ -37,6 +37,8 @@ const PROVIDER_LABEL: Record<string, string> = {
   anthropic: 'Anthropic',
   deepseek: 'DeepSeek',
   zhipu: '智谱 GLM',
+  kimi: 'Kimi',
+  minimax: 'MiniMax',
   custom: '自定义',
 }
 
@@ -75,6 +77,7 @@ export function LLMConfig() {
           data: {
             name: values.name,
             provider: values.provider,
+            protocol: values.protocol,
             baseUrl: values.baseUrl,
             modelName: values.modelName,
             apiKey: values.apiKey || undefined,
@@ -91,6 +94,7 @@ export function LLMConfig() {
         await createMutation.mutateAsync({
           name: values.name,
           provider: values.provider,
+          protocol: values.protocol,
           baseUrl: values.baseUrl,
           modelName: values.modelName,
           apiKey: values.apiKey,
@@ -147,6 +151,14 @@ export function LLMConfig() {
       dataIndex: 'provider',
       key: 'provider',
       render: (value: string) => PROVIDER_LABEL[value] || value,
+    },
+    {
+      title: '协议',
+      dataIndex: 'protocol',
+      key: 'protocol',
+      width: 110,
+      render: (value: string) =>
+        value === 'anthropic' ? <Tag color="purple">Anthropic</Tag> : <Tag color="geekblue">OpenAI 兼容</Tag>,
     },
     { title: '模型', dataIndex: 'modelName', key: 'modelName' },
     {
@@ -273,6 +285,8 @@ export function LLMConfig() {
         editing={editing}
         onCancel={() => setModalOpen(false)}
         onSubmit={handleSubmit}
+        onTest={() => editing && handleTest(editing)}
+        testing={testMutation.isPending}
         loading={createMutation.isPending || updateMutation.isPending}
       />
     </Card>

@@ -227,6 +227,7 @@ describe('mappers', () => {
       id: 1,
       name: 'OpenAI GPT-4o',
       provider: 'openai',
+      protocol: 'openai',
       baseUrl: 'https://api.openai.com/v1',
       modelName: 'gpt-4o',
       apiKeyMasked: 'sk-te************************st',

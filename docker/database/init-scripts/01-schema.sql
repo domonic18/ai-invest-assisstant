@@ -513,6 +513,7 @@ CREATE TABLE llm_config (
     id                  BIGSERIAL PRIMARY KEY,
     name                VARCHAR(100) NOT NULL,
     provider            VARCHAR(20)  NOT NULL,
+    protocol            VARCHAR(20)  NOT NULL DEFAULT 'openai',
     base_url            VARCHAR(500) NOT NULL,
     api_key_encrypted   TEXT         NOT NULL,
     model_name          VARCHAR(100) NOT NULL,
@@ -523,7 +524,8 @@ CREATE TABLE llm_config (
     last_test_status    VARCHAR(20),
     last_test_error     TEXT,
     created_at          TIMESTAMPTZ DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ DEFAULT NOW()
+    updated_at          TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT chk_llm_config_protocol CHECK (protocol IN ('openai', 'anthropic'))
 );
 
 CREATE INDEX idx_llm_configs_active ON llm_config(provider) WHERE is_active = TRUE;

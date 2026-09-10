@@ -38,6 +38,7 @@ export function mapLLMConfig(dto: ApiLLMConfigResponse): LLMConfig {
     id: dto.id,
     name: dto.name,
     provider: dto.provider,
+    protocol: dto.protocol === 'anthropic' ? 'anthropic' : 'openai',
     baseUrl: dto.baseUrl,
     modelName: dto.modelName,
     apiKeyMasked: dto.apiKeyMasked,

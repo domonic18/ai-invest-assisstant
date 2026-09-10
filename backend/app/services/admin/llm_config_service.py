@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import structlog
@@ -23,10 +23,16 @@ from app.schemas.llm_config import (
     LLMConfigResponse,
     LLMConfigTestResponse,
     LLMConfigUpdate,
+    LLMProtocol,
 )
 from app.utils.crypto import decrypt_token, encrypt_token, mask_token
 
 logger = structlog.get_logger()
+
+
+def infer_protocol(provider: str) -> LLMProtocol:
+    """按渠道推断默认协议：anthropic 渠道 → anthropic，其余 → openai 兼容。"""
+    return "anthropic" if provider == "anthropic" else "openai"
 
 
 class LLMConfigNotConfiguredError(InternalError):
@@ -47,6 +53,7 @@ class ResolvedLLMConfig:
 
     config_id: int
     provider: str
+    protocol: LLMProtocol
     base_url: str
     api_key: str
     model_name: str
@@ -77,6 +84,7 @@ class LLMConfigService:
         config = LLMConfig(
             name=data.name,
             provider=data.provider,
+            protocol=data.protocol or infer_protocol(data.provider),
             base_url=data.base_url,
             api_key_encrypted=encrypt_token(data.api_key),
             model_name=data.model_name,
@@ -109,6 +117,8 @@ class LLMConfigService:
             config.name = data.name
         if data.provider is not None:
             config.provider = data.provider
+        if data.protocol is not None:
+            config.protocol = data.protocol
         if data.base_url is not None:
             config.base_url = data.base_url
         if data.model_name is not None:
@@ -181,19 +191,32 @@ class LLMConfigService:
     async def _call_model(
         self, config: LLMConfig, api_key: str
     ) -> tuple[str, str]:
-        """发送轻量 Anthropic 兼容探测请求以验证连通性。"""
-        url = f"{config.base_url.rstrip('/')}/v1/messages"
-        headers = {
-            "x-api-key": api_key,
-            "authorization": f"Bearer {api_key}",
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        }
-        payload = {
-            "model": config.model_name,
-            "max_tokens": 1,
-            "messages": [{"role": "user", "content": "ping"}],
-        }
+        """按配置协议发送轻量探测请求以验证连通性（与实际调用同协议）。"""
+        base = config.base_url.rstrip("/")
+        if config.protocol == "anthropic":
+            url = f"{base}/v1/messages"
+            headers = {
+                "x-api-key": api_key,
+                "authorization": f"Bearer {api_key}",
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            }
+            payload: dict[str, Any] = {
+                "model": config.model_name,
+                "max_tokens": 1,
+                "messages": [{"role": "user", "content": "ping"}],
+            }
+        else:
+            url = f"{base}/chat/completions"
+            headers = {
+                "authorization": f"Bearer {api_key}",
+                "content-type": "application/json",
+            }
+            payload = {
+                "model": config.model_name,
+                "max_tokens": 1,
+                "messages": [{"role": "user", "content": "ping"}],
+            }
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.post(url, headers=headers, json=payload)
@@ -209,6 +232,7 @@ class LLMConfigService:
             id=config.id,
             name=config.name,
             provider=config.provider,
+            protocol=config.protocol,
             base_url=config.base_url,
             model_name=config.model_name,
             api_key_masked=mask_token(decrypt_token(config.api_key_encrypted)),
@@ -234,6 +258,7 @@ async def resolve_default_llm(session: AsyncSession) -> ResolvedLLMConfig:
     return ResolvedLLMConfig(
         config_id=config.id,
         provider=config.provider,
+        protocol=cast(LLMProtocol, config.protocol),
         base_url=config.base_url,
         api_key=decrypt_token(config.api_key_encrypted),
         model_name=config.model_name,
@@ -259,6 +284,7 @@ async def resolve_vision_llm(session: AsyncSession) -> ResolvedLLMConfig:
     return ResolvedLLMConfig(
         config_id=config.id,
         provider=config.provider,
+        protocol=cast(LLMProtocol, config.protocol),
         base_url=config.base_url,
         api_key=decrypt_token(config.api_key_encrypted),
         model_name=config.model_name,
