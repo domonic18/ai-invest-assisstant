@@ -10,6 +10,7 @@ import { useColorScheme, useSettingsStore } from '@/stores/settings'
 import { semanticColors } from '@/theme/colors'
 import { formatDate, formatDateTime } from '@/utils/formatters'
 import { MovingAverageConfigList } from './components/MovingAverageConfigList'
+import { TrackedIndexSettings } from './components/TrackedIndexSettings'
 import {
   MAX_MA_COUNT,
   nextDefaultColor,
@@ -20,6 +21,7 @@ import {
 const SECTIONS = [
   { key: 'profile', label: '基本信息' },
   { key: 'appearance', label: '外观与偏好' },
+  { key: 'indexes', label: '跟踪指数' },
   { key: 'security', label: '账号安全' },
 ] as const
 
@@ -340,6 +342,19 @@ export function Settings() {
               />
               <HintBox>
                 均线配置保存在<b>服务端</b>（随账号漫游），同步应用于每日复盘与个股详情的日 / 周 / 月 K 线图。
+              </HintBox>
+            </Card>
+          </section>
+
+          <section id="sec-indexes" className="scroll-mt-4">
+            <Card
+              variant="borderless"
+              title="跟踪指数"
+              extra={<span className="text-xs text-[#5c616e]">默认显示全部</span>}
+            >
+              <TrackedIndexSettings />
+              <HintBox>
+                控制工作台与宏观指数页「全球指标」区域展示哪些指数，保存在<b>服务端</b>（随账号漫游）；全部勾选即恢复默认。
               </HintBox>
             </Card>
           </section>

@@ -919,6 +919,18 @@ export interface ApiAdminNewsUpdateRequest {
   extra?: Record<string, unknown>
 }
 
+export interface ApiAdminTelegraphResponse {
+  id: number
+  title: string | null
+  content: string | null
+  category: string | null
+  importance: number | null
+  stockCodes: string[] | null
+  publishTime: string
+  aiScore: number | null
+  aiScoredAt: string | null
+}
+
 export interface ApiAdminTaskResponse {
   id: number
   taskName: string
@@ -1001,6 +1013,12 @@ export interface ApiTrackedIndexUpdateRequest {
 export interface ApiTrackedIndexToggleResponse {
   id: number
   isEnabled: boolean
+}
+
+/** 个人设置可勾选的跟踪指数项（启用中的全球指标）。 */
+export interface ApiTrackedIndexOption {
+  indexCode: string
+  indexName: string
 }
 
 export interface ApiAdminAiSkillInfo {

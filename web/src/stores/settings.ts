@@ -41,9 +41,10 @@ interface SettingsState {
   toggleCalendarDetailCollapsed: () => void
   initialize: () => Promise<void>
   updateMaConfigs: (configs: MovingAverageConfig[]) => Promise<void>
+  updateTrackedIndexes: (codes: string[] | null) => Promise<void>
 }
 
-export const useSettingsStore = create<SettingsState>((set) => ({
+export const useSettingsStore = create<SettingsState>((set, get) => ({
   colorScheme: getStoredScheme(),
   calendarDetailCollapsed: getStoredCalendarDetailCollapsed(),
   userSettings: DEFAULT_USER_SETTINGS,
@@ -81,7 +82,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   },
 
   updateMaConfigs: async (configs) => {
-    const next: UserSettings = { maConfigs: configs }
+    const next: UserSettings = { ...get().userSettings, maConfigs: configs }
     set({ userSettings: next })
     if (!getStoredToken()) return
     try {
@@ -90,6 +91,21 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     } catch (error) {
       set({
         settingsError: error instanceof Error ? error.message : '保存均线配置失败',
+      })
+      throw error
+    }
+  },
+
+  updateTrackedIndexes: async (codes) => {
+    const next: UserSettings = { ...get().userSettings, trackedIndexCodes: codes }
+    set({ userSettings: next })
+    if (!getStoredToken()) return
+    try {
+      const saved = await updateUserSettings(next)
+      set({ userSettings: saved, settingsError: null })
+    } catch (error) {
+      set({
+        settingsError: error instanceof Error ? error.message : '保存跟踪指数失败',
       })
       throw error
     }
