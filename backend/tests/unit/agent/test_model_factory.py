@@ -10,6 +10,7 @@ def _cfg(provider: str) -> ResolvedLLMConfig:
     return ResolvedLLMConfig(
         config_id=1,
         provider=provider,
+        protocol="anthropic" if provider == "anthropic" else "openai",
         base_url="https://example.com/api/",
         api_key="test-key",
         model_name="test-model",
