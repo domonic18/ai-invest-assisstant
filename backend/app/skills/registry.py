@@ -17,6 +17,18 @@ from typing import Literal
 
 SkillKind = Literal["executable", "prompt_only", "doc_only"]
 
+# 业务场景分类（技能广场 Tab 的唯一真相源）；custom skill 固定为 'custom'
+SkillScenario = Literal["market", "stock", "chain", "report", "news"]
+
+SCENARIO_LABELS: dict[str, str] = {
+    "market": "大盘与情绪",
+    "stock": "个股分析",
+    "chain": "产业链",
+    "report": "财报与研报",
+    "news": "资讯处理",
+    "custom": "自定义",
+}
+
 
 @dataclass(frozen=True)
 class SkillDescriptor:
@@ -26,6 +38,7 @@ class SkillDescriptor:
     label: str
     kind: SkillKind
     skill_md: bool
+    scenario: SkillScenario
     executor: str | None = None
     task_spec_name: str | None = None
 
@@ -36,6 +49,7 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         label="大盘每日复盘",
         kind="executable",
         skill_md=True,
+        scenario="market",
         executor="app.agent.skills.market_review_agent",
         task_spec_name="market-daily-review",
     ),
@@ -44,6 +58,7 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         label="涨停归因",
         kind="executable",
         skill_md=True,
+        scenario="market",
         executor="app.agent.skills.limit_up_review_agent",
         task_spec_name="limit-up-ai-review",
     ),
@@ -52,6 +67,7 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         label="个股每日分析",
         kind="executable",
         skill_md=True,
+        scenario="stock",
         executor="app.agent.skills.stock_daily_analysis_agent",
         task_spec_name="stock-daily-analysis",
     ),
@@ -60,6 +76,7 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         label="产业链分析",
         kind="executable",
         skill_md=True,
+        scenario="chain",
         executor="app.agent.skills.industry_chain_analysis",
         task_spec_name="chain-refresh",
     ),
@@ -68,6 +85,7 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         label="自选股截图识别",
         kind="executable",
         skill_md=True,
+        scenario="stock",
         executor="app.agent.skills.watchlist_screenshot_recognition",
     ),
     SkillDescriptor(
@@ -75,12 +93,14 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         label="研报观点汇总",
         kind="prompt_only",
         skill_md=True,
+        scenario="report",
     ),
     SkillDescriptor(
         skill_id="news-score",
         label="资讯重要度分级",
         kind="prompt_only",
         skill_md=True,
+        scenario="news",
         task_spec_name="news-score",
     ),
     SkillDescriptor(
@@ -88,6 +108,7 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         label="事件故事线建线",
         kind="prompt_only",
         skill_md=True,
+        scenario="news",
         task_spec_name="news-storyline",
     ),
     SkillDescriptor(
@@ -95,31 +116,36 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         label="热点主题聚类",
         kind="prompt_only",
         skill_md=True,
+        scenario="news",
         task_spec_name="news-topic",
     ),
     SkillDescriptor(
         skill_id="financial-report-summary",
         label="财报结构化摘要",
         kind="prompt_only",
-        skill_md=False,
+        skill_md=True,
+        scenario="report",
     ),
     SkillDescriptor(
         skill_id="chain-breakthrough",
         label="供应链突破检测",
         kind="doc_only",
         skill_md=True,
+        scenario="chain",
     ),
     SkillDescriptor(
         skill_id="financial-health-check",
         label="个股财务体检",
         kind="doc_only",
         skill_md=True,
+        scenario="stock",
     ),
     SkillDescriptor(
         skill_id="hotspot-detection",
         label="市场热点检测",
         kind="doc_only",
         skill_md=True,
+        scenario="market",
     ),
 )
 

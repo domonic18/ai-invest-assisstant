@@ -35,6 +35,10 @@ class Skill(Base):
             "kind IN ('executable', 'prompt_only', 'doc_only', 'custom')",
             name="chk_skill_kind",
         ),
+        CheckConstraint(
+            "scenario IN ('market', 'stock', 'chain', 'report', 'news', 'custom')",
+            name="chk_skill_scenario",
+        ),
         UniqueConstraint("skill_id", name="uq_skill_skill_id"),
     )
 
@@ -42,6 +46,7 @@ class Skill(Base):
     skill_id: Mapped[str] = mapped_column(String(100), nullable=False)
     label: Mapped[str] = mapped_column(String(100), nullable=False)
     kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    scenario: Mapped[str | None] = mapped_column(String(20), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_builtin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     owner_user_id: Mapped[int | None] = mapped_column(

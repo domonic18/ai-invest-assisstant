@@ -166,8 +166,8 @@ class TestListSkills:
         by_id = {s.id: s for s in summaries}
         assert "market-daily-review" in by_id
         assert "research-report-summary" in by_id
-        # financial-report-summary 无 SKILL.md，不进摘要
-        assert "financial-report-summary" not in by_id
+        # financial-report-summary 已补 SKILL.md，进入摘要
+        assert "financial-report-summary" in by_id
         assert all(not s.is_custom for s in summaries)
         assert by_id["market-daily-review"].kind == "executable"
         assert by_id["chain-breakthrough"].kind == "doc_only"

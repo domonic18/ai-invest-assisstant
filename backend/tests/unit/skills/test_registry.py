@@ -48,6 +48,32 @@ class TestRegistryIntegrity:
         assert get_skill("market-daily-review") is not None
         assert get_skill("no-such-skill") is None
 
+    def test_scenario_assigned_and_valid(self) -> None:
+        """全部 builtin 必须赋 scenario 且在枚举内（DB CHECK 同款）。"""
+        valid = {"market", "stock", "chain", "report", "news"}
+        for d in BUILTIN_SKILLS:
+            assert d.scenario in valid, f"{d.skill_id} scenario 非法: {d.scenario}"
+
+    def test_scenario_mapping_pinned(self) -> None:
+        """skill_id → scenario 映射钉死，防 DB 同步与广场 Tab 漂移。"""
+        expected = {
+            "market-daily-review": "market",
+            "limit-up-review": "market",
+            "hotspot-detection": "market",
+            "stock-daily-analysis": "stock",
+            "watchlist-screenshot-recognition": "stock",
+            "financial-health-check": "stock",
+            "industry-chain-analysis": "chain",
+            "chain-breakthrough": "chain",
+            "financial-report-summary": "report",
+            "research-report-summary": "report",
+            "news-score": "news",
+            "news-storyline": "news",
+            "news-topic": "news",
+        }
+        actual = {d.skill_id: d.scenario for d in BUILTIN_SKILLS}
+        assert actual == expected
+
     def test_executor_modules_resolvable(self) -> None:
         """executor 字符串引用必须能解析到真实模块（防改名漂移）。"""
         for d in BUILTIN_SKILLS:
