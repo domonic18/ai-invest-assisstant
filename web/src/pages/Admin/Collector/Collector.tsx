@@ -103,7 +103,6 @@ export function Collector() {
 
   return (
     <Card
-      title="采集任务"
       variant="borderless"
       extra={
         <Space>

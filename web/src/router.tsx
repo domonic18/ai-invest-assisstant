@@ -11,13 +11,9 @@ const Admin = lazy(() => import('./pages/Admin/Admin').then((m) => ({ default: m
 const AdminNews = lazy(() => import('./pages/Admin/News/News').then((m) => ({ default: m.AdminNews })))
 const AdminReports = lazy(() => import('./pages/Admin/Reports/Reports').then((m) => ({ default: m.AdminReports })))
 const AdminStocks = lazy(() => import('./pages/Admin/Stocks/Stocks').then((m) => ({ default: m.AdminStocks })))
-const AdminTasks = lazy(() => import('./pages/Admin/Tasks/Tasks').then((m) => ({ default: m.AdminTasks })))
 const AdminUsers = lazy(() => import('./pages/Admin/Users/Users').then((m) => ({ default: m.AdminUsers })))
-const Collector = lazy(() => import('./pages/Admin/Collector').then((m) => ({ default: m.Collector })))
-const CollectorChannelConfig = lazy(() =>
-  import('./pages/Admin/CollectorChannelConfig/CollectorChannelConfig').then((m) => ({
-    default: m.CollectorChannelConfig,
-  })),
+const CollectorAdmin = lazy(() =>
+  import('./pages/Admin/Collector').then((m) => ({ default: m.CollectorAdmin })),
 )
 const LLMConfig = lazy(() => import('./pages/Admin/LLMConfig/LLMConfig').then((m) => ({ default: m.LLMConfig })))
 const ProxyConfig = lazy(() =>
@@ -27,9 +23,6 @@ const AiResultsAdmin = lazy(() =>
   import('./pages/Admin/AiResults/AiResultsAdmin').then((m) => ({
     default: m.AiResultsAdmin,
   })),
-)
-const TrackedIndex = lazy(() =>
-  import('./pages/Admin/TrackedIndex/TrackedIndex').then((m) => ({ default: m.TrackedIndex })),
 )
 const AuctionReview = lazy(() =>
   import('./pages/AuctionReview/AuctionReview').then((m) => ({ default: m.AuctionReview })),
@@ -98,13 +91,13 @@ export const router = createBrowserRouter([
           { path: 'stocks', element: lazyEl(<AdminStocks />) },
           { path: 'reports', element: lazyEl(<AdminReports />) },
           { path: 'news', element: lazyEl(<AdminNews />) },
-          { path: 'tasks', element: lazyEl(<AdminTasks />) },
+          // 旧路由兜底：任务/渠道配置并入采集管理（tab 直达）
+          { path: 'tasks', element: <Navigate to="/admin/collector?tab=tasks" replace /> },
           { path: 'llm-configs', element: lazyEl(<LLMConfig />) },
           { path: 'proxy-configs', element: lazyEl(<ProxyConfig />) },
           { path: 'ai-results', element: lazyEl(<AiResultsAdmin />) },
-          { path: 'tracked-indexes', element: lazyEl(<TrackedIndex />) },
-          { path: 'collector-channels', element: lazyEl(<CollectorChannelConfig />) },
-          { path: 'collector', element: lazyEl(<Collector />) },
+          { path: 'collector-channels', element: <Navigate to="/admin/collector?tab=channels" replace /> },
+          { path: 'collector', element: lazyEl(<CollectorAdmin />) },
         ],
       },
     ],

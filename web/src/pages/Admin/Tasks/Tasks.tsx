@@ -234,7 +234,6 @@ export function AdminTasks() {
 
   return (
     <Card
-      title="采集任务管理"
       variant="borderless"
       extra={
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
