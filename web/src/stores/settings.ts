@@ -10,7 +10,7 @@ const DEFAULT_MA_CONFIGS: MovingAverageConfig[] = [
   { period: 10, color: '#9d7ff5', enabled: true },
   { period: 20, color: '#3fb6e0', enabled: true },
   { period: 30, color: '#e8833a', enabled: true },
-  { period: 60, color: '#c0c4d0', enabled: false },
+  { period: 60, color: '#c0c4d0', enabled: true },
   { period: 120, color: '#22c55e', enabled: false },
 ]
 
