@@ -1,4 +1,4 @@
-import { CaretDownOutlined, CaretUpOutlined, DeleteOutlined, EllipsisOutlined } from '@ant-design/icons'
+import { CaretDownOutlined, CaretUpOutlined, EllipsisOutlined, MinusCircleOutlined } from '@ant-design/icons'
 import { Button, Dropdown, Empty, Popconfirm, message } from 'antd'
 import type { MenuProps } from 'antd'
 import { useMemo, useState } from 'react'
@@ -64,6 +64,8 @@ export function WatchlistStockList({
   const moveItem = useMoveWatchlistItem()
   const removeItem = useRemoveWatchlistItem()
   const [sort, setSort] = useState<SortState | null>(null)
+  // 删除/移动入口只在编辑管理模式出现，避免浏览时误触
+  const [managing, setManaging] = useState(false)
 
   const items = useMemo(() => {
     const source =
@@ -157,6 +159,15 @@ export function WatchlistStockList({
             {sortIndicator(sort?.field !== 'name' && sort ? sort.field : 'changePct')}
           </button>
         </Dropdown>
+        <span className="ml-2 pl-2 border-l border-gray-800">
+          <button
+            type="button"
+            className={`text-xs ${managing ? 'text-blue-400' : 'hover:text-gray-300'}`}
+            onClick={() => setManaging((v) => !v)}
+          >
+            {managing ? '完成' : '管理'}
+          </button>
+        </span>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -169,15 +180,43 @@ export function WatchlistStockList({
         ) : (
           items.map((item) => {
             const quote = quotesByCode.get(item.code)
-            const selected = item.code === selectedCode
+            const selected = !managing && item.code === selectedCode
             return (
               <div
                 key={item.id}
-                onClick={() => onSelect(item.code)}
-                className={`group flex items-center gap-2 px-3 py-2 cursor-pointer border-b border-gray-800/60 ${
-                  selected ? 'bg-[#1c1f26]' : 'hover:bg-[#15181e]'
+                onClick={() => {
+                  if (!managing) onSelect(item.code)
+                }}
+                className={`flex items-center gap-2 px-3 py-2 border-b border-gray-800/60 ${
+                  managing
+                    ? 'cursor-default'
+                    : `cursor-pointer ${selected ? 'bg-[#1c1f26]' : 'hover:bg-[#15181e]'}`
                 }`}
               >
+                {managing && (
+                  <span className="shrink-0 flex items-center" onClick={(e) => e.stopPropagation()}>
+                    <Popconfirm
+                      title="删除自选股"
+                      description={`确定删除 ${item.code} 吗？`}
+                      okText="删除"
+                      cancelText="取消"
+                      onConfirm={() =>
+                        removeItem.mutate(item.id, {
+                          onSuccess: () => message.success('已删除'),
+                          onError: (err) => message.error(apiErrorMessage(err, '删除失败')),
+                        })
+                      }
+                    >
+                      <Button
+                        type="text"
+                        size="small"
+                        danger
+                        icon={<MinusCircleOutlined />}
+                        aria-label={`删除 ${quote?.name ?? item.code}`}
+                      />
+                    </Popconfirm>
+                  </span>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm text-gray-200">
                     {quote?.name ?? item.name ?? item.code}
@@ -193,30 +232,13 @@ export function WatchlistStockList({
                     {quote?.changePct != null ? formatPercent(quote.changePct) : '-'}
                   </div>
                 </div>
-                <div
-                  className="shrink-0 flex items-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {groups.length > 1 && (
+                {managing && groups.length > 1 && (
+                  <span className="shrink-0 flex items-center" onClick={(e) => e.stopPropagation()}>
                     <Dropdown menu={moveMenu(item)} placement="bottomRight" trigger={['click']}>
                       <Button type="text" size="small" icon={<EllipsisOutlined />} />
                     </Dropdown>
-                  )}
-                  <Popconfirm
-                    title="删除自选股"
-                    description={`确定删除 ${item.code} 吗？`}
-                    okText="删除"
-                    cancelText="取消"
-                    onConfirm={() =>
-                      removeItem.mutate(item.id, {
-                        onSuccess: () => message.success('已删除'),
-                        onError: (err) => message.error(apiErrorMessage(err, '删除失败')),
-                      })
-                    }
-                  >
-                    <Button type="text" size="small" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
-                </div>
+                  </span>
+                )}
               </div>
             )
           })
