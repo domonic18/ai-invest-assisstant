@@ -1,4 +1,4 @@
-import { Button, Drawer, Space } from 'antd'
+import { Drawer, Tooltip } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAssistantSessions } from './hooks/useAssistantSessions'
@@ -21,6 +21,9 @@ import {
   readStoredWidth,
   SIDEBAR_STORAGE_KEY,
 } from './utils'
+
+import './AssistantFab.css'
+import owlImg from '@/assets/owl_3d.png'
 
 export function AssistantPanel() {
   const open = useAssistantStore((state) => state.open)
@@ -188,16 +191,15 @@ export function AssistantPanel() {
 export function AssistantFab() {
   const openPanel = useAssistantStore((state) => state.openPanel)
   return (
-    <Space.Compact className="fixed bottom-20 right-4 z-50 md:bottom-6">
-      <Button
-        type="primary"
-        shape="circle"
-        size="large"
+    <Tooltip title="AI 助手">
+      <button
+        type="button"
         onClick={openPanel}
-        title="AI 投研助手"
+        aria-label="打开 AI 助手"
+        className="assistant-fab fixed bottom-20 right-4 z-50 md:bottom-6"
       >
-        AI
-      </Button>
-    </Space.Compact>
+        <img src={owlImg} alt="" draggable={false} />
+      </button>
+    </Tooltip>
   )
 }

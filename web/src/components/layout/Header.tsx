@@ -1,8 +1,9 @@
-import { LogoutOutlined, MenuOutlined, SettingOutlined, StarOutlined, UserOutlined } from '@ant-design/icons'
+import { LogoutOutlined, MenuOutlined, MessageOutlined, SettingOutlined, StarOutlined, UserOutlined } from '@ant-design/icons'
 import { Avatar, Button, Dropdown, Space, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
 
+import { useAssistantStore } from '@/stores/assistant'
 import { useAuthStore } from '@/stores/auth'
 
 import { StockSearch } from './StockSearch'
@@ -15,6 +16,7 @@ interface HeaderProps {
 export function Header({ onMenuClick }: HeaderProps) {
   const navigate = useNavigate()
   const { user, isAdmin, logout } = useAuthStore()
+  const openPanel = useAssistantStore((state) => state.openPanel)
 
   const handleLogout = () => {
     logout()
@@ -82,6 +84,15 @@ export function Header({ onMenuClick }: HeaderProps) {
             onClick={() => navigate('/watchlist')}
             className="text-gray-300"
             aria-label="我的自选"
+          />
+        </Tooltip>
+        <Tooltip title="AI 助手">
+          <Button
+            type="text"
+            icon={<MessageOutlined />}
+            onClick={() => openPanel()}
+            className="text-gray-300"
+            aria-label="AI 助手"
           />
         </Tooltip>
         {user ? (
