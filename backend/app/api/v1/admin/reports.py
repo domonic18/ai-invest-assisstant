@@ -12,10 +12,20 @@ from app.schemas.file_metadata import (
     FileMetadataResponse,
     FileMetadataUpdate,
 )
+from app.schemas.report_storage import ReportStorageSummary
 from app.schemas.stock import PaginatedResponse
+from app.services.admin.report_storage_service import ReportStorageService
 from app.services.admin.reports import AdminReportService
 
 router = APIRouter(dependencies=[Depends(get_current_admin_user)])
+
+
+@router.get("/storage-summary", response_model=ReportStorageSummary)
+async def get_storage_summary(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> ReportStorageSummary:
+    """统计报告文件（研报/财报/公告）的对象存储占用。"""
+    return await ReportStorageService(session).get_storage_summary()
 
 
 @router.get("/", response_model=PaginatedResponse)
