@@ -93,3 +93,33 @@ def build_assistant_tools() -> list[BaseTool]:
         download_financial_reports,
         summarize_financial_report,
     ]
+
+
+async def build_mcp_tools() -> list[BaseTool]:
+    """后台已启用 MCP 服务的工具清单（Phase 2 接入点）。
+
+    当前仅统计 enabled 配置数并返回空清单；Phase 2 在此用
+    ``langchain-mcp-adapters``（load_mcp_tools）将各 enabled server 的工具
+    适配为 LangChain 工具。注意：助手 agent 是缓存单例，配置变更后须
+    ``reset_assistant_agent()`` 使其重建。
+    """
+    import structlog
+    from sqlalchemy import select
+
+    from app.core.database import AsyncSessionLocal
+    from app.models.mcp_server import McpServerConfig
+
+    logger = structlog.get_logger(__name__)
+    async with AsyncSessionLocal() as session:
+        rows = (
+            await session.execute(
+                select(McpServerConfig).where(McpServerConfig.enabled.is_(True))
+            )
+        ).scalars().all()
+    if rows:
+        logger.info(
+            "mcp_tools_injection_pending",
+            servers=[row.name for row in rows],
+            hint="Phase 2: langchain-mcp-adapters 接入后返回真实工具",
+        )
+    return []
