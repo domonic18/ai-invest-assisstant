@@ -134,6 +134,16 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
     { type: 'group', key: 'group-settings', label: '设置', children: settingsChildren },
   ]
 
+  // 折叠态下 AntD 的 type:'group' 项不可交互（点击分组图标无响应），
+  // 拍平为叶子项让每个图标可点；后台管理是普通子菜单，保留为弹出菜单。
+  const displayItems: MenuItem[] = collapsed
+    ? items.flatMap((item) =>
+        item && 'type' in item && item.type === 'group'
+          ? (item.children as MenuItem[])
+          : [item],
+      )
+    : items
+
   return (
     <div className="h-full flex flex-col bg-[#111318]">
       <div
@@ -163,7 +173,7 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
         selectedKeys={[resolveSelectedKey(location.pathname, leafKeys(items))]}
         openKeys={collapsed ? [] : openKeys}
         onOpenChange={(keys) => setOpenKeys(keys as string[])}
-        items={items}
+        items={displayItems}
         onClick={({ key }) => {
           if (key.startsWith('/')) {
             navigate(key)
