@@ -6,6 +6,7 @@ import type {
   ApiAdminReportResponse,
   ApiAdminStockResponse,
   ApiAdminTaskResponse,
+  ApiAdminTelegraphResponse,
   ApiAdminUserResponse,
   ApiCollectorChannelConfigResponse,
   ApiCollectorLogResponse,
@@ -13,7 +14,6 @@ import type {
   ApiDataTypeChannelsResponse,
   ApiLLMConfigResponse,
   ApiProxyConfigResponse,
-  ApiTrackedIndexResponse,
 } from '@ai-invest/shared'
 import type {
   AdminAiResultDetail,
@@ -23,6 +23,7 @@ import type {
   AdminReport,
   AdminStock,
   AdminTask,
+  AdminTelegraph,
   AdminUser,
   CollectorChannelConfig,
   CollectorDataTypeChannels,
@@ -30,7 +31,6 @@ import type {
   CollectorTaskCatalog,
   LLMConfig,
   ProxyConfig,
-  TrackedIndexConfig,
 } from '@ai-invest/shared'
 
 export function mapLLMConfig(dto: ApiLLMConfigResponse): LLMConfig {
@@ -52,22 +52,6 @@ export function mapLLMConfig(dto: ApiLLMConfigResponse): LLMConfig {
   }
 }
 
-export function mapTrackedIndex(dto: ApiTrackedIndexResponse): TrackedIndexConfig {
-  return {
-    id: dto.id,
-    indexCode: dto.indexCode,
-    indexName: dto.indexName,
-    marketCategory: dto.marketCategory,
-    dataSource: dto.dataSource,
-    sortOrder: dto.sortOrder,
-    isEnabled: dto.isEnabled,
-    latestClose: dto.latestClose,
-    latestChangePct: dto.latestChangePct,
-    latestTradeDate: dto.latestTradeDate,
-    createdAt: dto.createdAt,
-    updatedAt: dto.updatedAt,
-  }
-}
 
 export function mapCollectorChannelConfig(dto: ApiCollectorChannelConfigResponse): CollectorChannelConfig {
   return {
@@ -234,6 +218,20 @@ export function mapAdminAiResultDetail(dto: ApiAdminAiResultDetail): AdminAiResu
     ...mapAdminAiResult(dto),
     errorMsg: dto.errorMsg,
     structuredOutput: dto.structuredOutput,
+  }
+}
+
+export function mapAdminTelegraph(dto: ApiAdminTelegraphResponse): AdminTelegraph {
+  return {
+    id: dto.id,
+    title: dto.title,
+    content: dto.content,
+    category: dto.category,
+    importance: dto.importance,
+    stockCodes: dto.stockCodes,
+    publishTime: dto.publishTime,
+    aiScore: dto.aiScore,
+    aiScoredAt: dto.aiScoredAt,
   }
 }
 

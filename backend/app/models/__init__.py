@@ -2,7 +2,6 @@
 
 from app.models.ai_analysis_result import AiAnalysisResult
 from app.models.assistant_session import AssistantSession
-from app.models.calendar_event import CalendarEvent
 from app.models.capital_fund_flow_sector import SectorFundFlow
 from app.models.capital_fund_flow_stock import FundFlow
 from app.models.chain_alert import ChainAlert
@@ -29,7 +28,8 @@ from app.models.mapping_stock_concept import MappingStockConcept
 from app.models.market_amount import MarketAmount
 from app.models.market_breadth import MarketBreadth
 from app.models.news_ai_score import NewsAiScore
-from app.models.news_announcement import NewsAnnouncement
+from app.models.news_calendar_event import NewsCalendarEvent
+from app.models.news_document import NewsDocument
 from app.models.news_storyline import (
     NewsStoryline,
     NewsStorylineItem,
@@ -55,7 +55,7 @@ __all__ = [
     "AssistantSession",
     "AuctionData",
     "BalanceSheet",
-    "CalendarEvent",
+    "NewsCalendarEvent",
     "CashFlowStatement",
     "ChainAlert",
     "ChainAnalysisVersion",
@@ -83,7 +83,7 @@ __all__ = [
     "MarketAmount",
     "MarketBreadth",
     "NewsAiScore",
-    "NewsAnnouncement",
+    "NewsDocument",
     "NewsStoryline",
     "NewsStorylineItem",
     "NewsSubscriptionHit",

@@ -138,7 +138,9 @@ class TestTopicsEndpoint:
                         {
                             "event": "海外大厂减产",
                             "link": "供给收缩",
-                            "stocks": ["688012"],
+                            "stocks": [
+                                {"name": "中微公司", "code": "688012", "change_pct": 3.2}
+                            ],
                         }
                     ],
                     "item_ids": ["1", "2", "3"],

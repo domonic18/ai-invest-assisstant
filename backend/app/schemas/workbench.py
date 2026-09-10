@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Literal
 
 from app.schemas.base import CamelModel
-from app.schemas.calendar import CalendarEventResponse
+from app.schemas.calendar import NewsCalendarEventResponse
 from app.schemas.market import (
     GlobalIndexQuoteResponse,
     IndexQuoteResponse,
@@ -96,7 +96,7 @@ class CollectorStatusResponse(CamelModel):
 class WorkbenchResponse(CamelModel):
     """工作台聚合数据；单模块降级时对应字段为空态而非整体报错。"""
 
-    calendar: list[CalendarEventResponse] = []
+    calendar: list[NewsCalendarEventResponse] = []
     review: MarketReviewResponse | None = None
     review_status: ReviewStatusResponse | None = None
     telegraph: list[TelegraphResponse] = []

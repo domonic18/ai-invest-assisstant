@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.schemas.news_announcement import NewsAnnouncementCreate, NewsAnnouncementUpdate
+from app.schemas.news_document import NewsDocumentCreate, NewsDocumentUpdate
 from app.services.admin.news import AdminNewsService
 
 
@@ -36,7 +36,7 @@ class TestAdminNewsService:
 
     @pytest.mark.asyncio
     async def test_create_news(self, service: AdminNewsService) -> None:
-        data = NewsAnnouncementCreate(
+        data = NewsDocumentCreate(
             doc_type="news",
             title="Test News",
         )
@@ -50,7 +50,7 @@ class TestAdminNewsService:
         news = MagicMock()
         service.session.get.return_value = news
 
-        result = await service.update_news(1, NewsAnnouncementUpdate(title="Updated"))
+        result = await service.update_news(1, NewsDocumentUpdate(title="Updated"))
 
         assert result == news
         assert news.title == "Updated"

@@ -7,7 +7,9 @@ SPECS: tuple[TaskSpec, ...] = (
         name="news",
         label="新闻",
         data_type="news",
-        collectors={"sina": "collector.spiders.sina_news:SinaNewsCollector"},
+        collectors={
+            "eastmoney": "collector.spiders.eastmoney_flash_news:EastmoneyFlashNewsCollector",
+        },
     ),
     TaskSpec(
         name="news-subscription-match",

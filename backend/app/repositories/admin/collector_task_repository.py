@@ -42,3 +42,15 @@ class CollectorTaskRepository(BaseRepository[CollectorTask]):
         result = await self.execute(stmt)
         row: CollectorTask | None = result.scalars().first()
         return row
+
+    async def get_by_type_and_source(
+        self, task_type: str, source: str
+    ) -> CollectorTask | None:
+        """按渠道身份 (task_type, source) 取任务配置（schedule/is_active）。"""
+        stmt = select(CollectorTask).where(
+            CollectorTask.task_type == task_type,
+            CollectorTask.source == source,
+        )
+        result = await self.execute(stmt)
+        row: CollectorTask | None = result.scalars().first()
+        return row

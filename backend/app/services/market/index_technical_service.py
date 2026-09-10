@@ -41,9 +41,9 @@ Bar = dict[str, Any]
 
 
 def _to_bars(rows: list[KlineDaily]) -> list[Bar]:
-    """ORM 行转升序 dict（倒序查询结果反转），剔除收盘缺失的行。"""
+    """ORM 行转升序 dict（fetch_daily_bars_multi 返回组内升序），剔除收盘缺失的行。"""
     bars: list[Bar] = []
-    for row in reversed(rows):
+    for row in rows:
         if row.close is None:
             continue
         bars.append(

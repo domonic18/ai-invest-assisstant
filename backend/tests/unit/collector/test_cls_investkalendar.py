@@ -200,6 +200,6 @@ class TestCollector:
         collector = ClsInvestkalendarCollector(
             {"source": "cls", "data_type": "invest_calendar"}
         )
-        assert collector.table == "calendar_event"
+        assert collector.table == "news_calendar_event"
         assert collector.conflict_key == "source_hash"
         assert collector.update_columns is None

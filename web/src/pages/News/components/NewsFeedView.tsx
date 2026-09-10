@@ -14,20 +14,22 @@ import {
   Spin,
   Switch,
   Tag,
+  theme,
   Tooltip,
   Typography,
   message,
 } from 'antd'
 import dayjs from 'dayjs'
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 
 import { PAGE_SIZE, type ApiNewsChannel, type TelegraphItem } from '@ai-invest/shared'
 
+import type { NewsFlashItem } from '@/api/mappers/news'
+import { StockLinkTag } from '@/components/common/StockLinkTag'
 import { useCreateNewsStory } from '@/hooks/useNewsFocus'
+import { useNewsFlash } from '@/hooks/useNewsFlash'
 import { useTelegraph } from '@/hooks/useTelegraph'
-import { useColorScheme } from '@/stores/settings'
-import { changeColor, formatDateTime, formatRelativeTime } from '@/utils/formatters'
+import { formatDateTime, formatRelativeTime } from '@/utils/formatters'
 import {
   countNewMessages,
   groupByDay,
@@ -85,23 +87,16 @@ function BadgeNew() {
 
 /** 关联标的 Tag：名称 + 当日涨跌幅（scheme 着色），点击直达个股页。 */
 function StockTags({ item }: { item: TelegraphItem }) {
-  useColorScheme()
   if (item.stocks.length > 0) {
     return (
       <>
         {item.stocks.map((stock) => (
-          <Link key={stock.code} to={`/stock/${stock.code}`} className="!text-xs">
-            <Tag className="!m-0 !text-xs hover:border-[var(--ant-color-primary)]">
-              {stock.name}
-              {stock.changePct != null && (
-                <span className={changeColor(stock.changePct)}>
-                  {' '}
-                  {stock.changePct >= 0 ? '+' : ''}
-                  {stock.changePct.toFixed(2)}%
-                </span>
-              )}
-            </Tag>
-          </Link>
+          <StockLinkTag
+            key={stock.code}
+            code={stock.code}
+            name={stock.name}
+            changePct={stock.changePct ?? null}
+          />
         ))}
       </>
     )
@@ -185,17 +180,42 @@ function NewsEntry({ item, isNewItem }: { item: TelegraphItem; isNewItem: boolea
   )
 }
 
-interface NewsFeedViewProps {
-  /** 渠道 chips 数据源（从 /news/channels 渲染，不写死渠道清单）。 */
-  channels: ApiNewsChannel[]
+/** 快讯条目（基础流：title + summary + 时间 + 原文链接，无 AI 分级/订阅/标的）。 */
+function FlashEntry({ item }: { item: NewsFlashItem }) {
+  const summary = item.summary ?? item.content
+  return (
+    <div className="space-y-1">
+      {item.title && <span className="text-sm font-semibold">{item.title}</span>}
+      {summary && (
+        <Typography.Paragraph
+          className="!mb-0"
+          ellipsis={{ rows: 3, expandable: true, symbol: '展开' }}
+        >
+          {summary}
+        </Typography.Paragraph>
+      )}
+      {item.sourceUrl && (
+        <Tooltip title="查看原文（东财）">
+          <Typography.Link
+            href={item.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="查看原文"
+          >
+            <LinkOutlined />
+          </Typography.Link>
+        </Tooltip>
+      )}
+    </div>
+  )
 }
 
-/** 实时电报视图：AI 分级三档色条 + 分级/渠道筛选 + 新讯息浮条 + 跨日分隔。 */
-export function NewsFeedView({ channels }: NewsFeedViewProps) {
+/** 财联社电报流：AI 分级三档色条 + 分级/订阅筛选 + 新讯息浮条 + 跨日分隔。 */
+function TelegraphFeed() {
+  const { token } = theme.useToken()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(PAGE_SIZE.feed)
   const [minAiScore, setMinAiScore] = useState<number | undefined>(undefined)
-  const [channelKey, setChannelKey] = useState<string>('all')
   const [subscriptionOnly, setSubscriptionOnly] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [seenTopId, setSeenTopId] = useState<number | null>(null)
@@ -245,35 +265,6 @@ export function NewsFeedView({ channels }: NewsFeedViewProps) {
               </Tag.CheckableTag>
             ))}
           </Space>
-          <Space size={[6, 6]} wrap>
-            {/* 渠道 chips 从注册表渲染；已接入数据源的可选中筛选（当前单源，等价全量） */}
-            <Tag.CheckableTag
-              checked={channelKey === 'all'}
-              onChange={() => setChannelKey('all')}
-            >
-              全部渠道
-            </Tag.CheckableTag>
-            {channels.map((channel) =>
-              isChannelWired(channel.key) ? (
-                <Tag.CheckableTag
-                  key={channel.key}
-                  checked={channelKey === channel.key}
-                  onChange={() => setChannelKey(channel.key)}
-                >
-                  {channel.name}
-                </Tag.CheckableTag>
-              ) : (
-                <Tooltip key={channel.key} title="该渠道数据接入中（迭代 4）">
-                  <Tag.CheckableTag
-                    checked={false}
-                    className="!cursor-not-allowed !opacity-40"
-                  >
-                    {channel.name}
-                  </Tag.CheckableTag>
-                </Tooltip>
-              ),
-            )}
-          </Space>
           <Tooltip title="仅显示命中我订阅关键词的电报（页头「我的订阅」管理关键词）">
             <Tag.CheckableTag
               checked={subscriptionOnly}
@@ -314,7 +305,12 @@ export function NewsFeedView({ channels }: NewsFeedViewProps) {
             if (items.length > 0) setSeenTopId(items[0].clsMsgId)
             window.scrollTo({ top: 0, behavior: 'smooth' })
           }}
-          className="flex items-center justify-center gap-2 w-full py-2 text-xs text-[var(--ant-color-primary)] bg-[var(--ant-color-primary-bg)] border border-dashed border-[var(--ant-color-primary-border)] rounded-lg cursor-pointer"
+          className="flex items-center justify-center gap-2 w-full py-2 text-xs border border-dashed rounded-lg cursor-pointer"
+          style={{
+            color: token.colorPrimary,
+            background: token.colorPrimaryBg,
+            borderColor: token.colorPrimaryBorder,
+          }}
         >
           <VerticalAlignTopOutlined />
           <b>{newCount} 条新讯息</b>
@@ -379,6 +375,131 @@ export function NewsFeedView({ channels }: NewsFeedViewProps) {
           }}
         />
       </div>
+    </div>
+  )
+}
+
+/** 东财快讯流：基础流跨日分组 + 分页 + 自动刷新（无 AI 分级/订阅/标的）。 */
+function FlashFeedView() {
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE.feed)
+  const [autoRefresh, setAutoRefresh] = useState(true)
+
+  const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useNewsFlash(
+    page,
+    pageSize,
+    autoRefresh,
+  )
+
+  const items = useMemo(() => data?.items ?? [], [data])
+  const groups = useMemo(() => groupByDay(items), [items])
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-end gap-3 flex-wrap">
+        <span className="text-xs opacity-60">
+          {dataUpdatedAt ? `更新于 ${dayjs(dataUpdatedAt).format('HH:mm:ss')}` : ''}
+          {isFetching ? ' · 拉取中' : ''}
+        </span>
+        <span className="flex items-center gap-1.5 text-sm">
+          <Switch size="small" checked={autoRefresh} onChange={setAutoRefresh} />
+          自动刷新
+        </span>
+        <Button size="small" icon={<ReloadOutlined />} onClick={() => refetch()} />
+      </div>
+
+      <Spin spinning={isLoading}>
+        <Card variant="borderless">
+          {items.length === 0 && !isLoading ? (
+            <Empty description="暂无快讯数据" />
+          ) : (
+            <div>
+              {groups.map((group, groupIndex) => (
+                <Fragment key={group.day}>
+                  {groupIndex > 0 && (
+                    <div className="flex items-center gap-2.5 my-3 text-xs opacity-40">
+                      <span className="flex-1 h-px bg-white/10" />
+                      以下为 {group.label} 资讯
+                      <span className="flex-1 h-px bg-white/10" />
+                    </div>
+                  )}
+                  {group.items.map((item) => (
+                    <div key={item.id} className="flex gap-3 py-3 border-b border-white/5">
+                      <span className="font-mono text-xs opacity-70 whitespace-nowrap pt-0.5">
+                        {dayjs(item.publishTime).format('HH:mm:ss')}
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <FlashEntry item={item} />
+                      </span>
+                    </div>
+                  ))}
+                </Fragment>
+              ))}
+            </div>
+          )}
+        </Card>
+      </Spin>
+
+      <div className="flex justify-end">
+        <Pagination
+          current={page}
+          pageSize={pageSize}
+          total={data?.total ?? 0}
+          showSizeChanger
+          pageSizeOptions={[10, 30, 50, 100]}
+          showTotal={(total) => `共 ${total} 条`}
+          onChange={(next, nextSize) => {
+            setPage(next)
+            setPageSize(nextSize)
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+interface NewsFeedViewProps {
+  /** 渠道 chips 数据源（从 /news/channels 渲染，不写死渠道清单）。 */
+  channels: ApiNewsChannel[]
+}
+
+/** 实时电报容器：共享渠道 chips 行，按选中渠道切换数据源。 */
+export function NewsFeedView({ channels }: NewsFeedViewProps) {
+  const [channelKey, setChannelKey] = useState<string>('all')
+
+  return (
+    <div className="space-y-3">
+      <Space size={[6, 6]} wrap>
+        {/* 渠道 chips 从注册表渲染；已接入数据源的可选中筛选（东财快讯为独立基础流） */}
+        <Tag.CheckableTag
+          checked={channelKey === 'all'}
+          onChange={() => setChannelKey('all')}
+        >
+          全部渠道
+        </Tag.CheckableTag>
+        {channels.map((channel) =>
+          isChannelWired(channel.key) ? (
+            <Tag.CheckableTag
+              key={channel.key}
+              checked={channelKey === channel.key}
+              onChange={() => setChannelKey(channel.key)}
+            >
+              {channel.name}
+            </Tag.CheckableTag>
+          ) : (
+            <Tooltip key={channel.key} title="该渠道数据接入中">
+              <Tag.CheckableTag
+                checked={false}
+                className="!cursor-not-allowed !opacity-40"
+              >
+                {channel.name}
+              </Tag.CheckableTag>
+            </Tooltip>
+          ),
+        )}
+      </Space>
+
+      {channelKey === 'eastmoney_flash_news' ? <FlashFeedView /> : <TelegraphFeed />}
     </div>
   )
 }

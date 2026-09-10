@@ -16,17 +16,19 @@ export function Brand({ size = 'md', centered = false, showVersion = false }: Br
   const styles = SIZE_MAP[size]
   return (
     <div className={`flex items-center gap-2.5 ${centered ? 'justify-center' : ''}`}>
-      <img src="/logo.svg" alt={SITE_NAME_EN} className={styles.logo} />
-      <div className={`flex items-center gap-2 ${centered ? 'text-center' : ''}`}>
-        <div>
-          <div className={`${styles.en} font-bold text-white leading-tight`}>{SITE_NAME_EN}</div>
-          <div className={`${styles.zh} text-gray-400 leading-tight`}>{SITE_NAME_ZH}</div>
+      <img src="/logo.svg" alt={SITE_NAME_EN} className={`${styles.logo} shrink-0`} />
+      <div className={`flex items-center gap-2 min-w-0 ${centered ? 'text-center' : ''}`}>
+        <div className="min-w-0">
+          <div className={`${styles.en} font-bold text-white leading-tight truncate`}>{SITE_NAME_EN}</div>
+          <div className={`flex items-center gap-1.5 ${styles.zh} text-gray-400 leading-tight`}>
+            <span className="truncate">{SITE_NAME_ZH}</span>
+            {showVersion && (
+              <span className="inline-flex shrink-0 items-center rounded border border-blue-800 bg-blue-950/40 px-1 py-px text-[9px] font-medium text-blue-300">
+                v{APP_VERSION}
+              </span>
+            )}
+          </div>
         </div>
-        {showVersion && (
-          <span className="inline-flex items-center rounded border border-blue-800 bg-blue-950/40 px-1.5 py-0.5 text-[10px] font-medium text-blue-300">
-            v{APP_VERSION}
-          </span>
-        )}
       </div>
     </div>
   )

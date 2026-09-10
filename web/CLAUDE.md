@@ -77,6 +77,7 @@ src/
 - Tailwind CSS 用于页面级布局、间距、响应式微调以及 Ant Design 未覆盖的自定义样式。
 - 复杂样式可提取为独立 CSS 文件。
 - 主题颜色通过 Ant Design ConfigProvider + Tailwind 配置统一管理。
+- **禁止使用 `var(--ant-*)` CSS 变量**：ConfigProvider 未启用 `cssVar` 模式，这些变量在运行时不存在，样式会静默失效（曾致重点页评分横条全灰）。需要主题 token 时用 `theme.useToken()` 取 `token.colorPrimary` 等值写内联样式。
 
 ## 5. 任务完成后检查清单
 

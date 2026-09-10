@@ -395,6 +395,18 @@ export interface AdminNewsFormValues {
   extra?: Record<string, unknown>
 }
 
+export interface AdminTelegraph {
+  id: number
+  title: string | null
+  content: string | null
+  category: string | null
+  importance: number | null
+  stockCodes: string[] | null
+  publishTime: string
+  aiScore: number | null
+  aiScoredAt: string | null
+}
+
 export interface AdminTask {
   id: number
   taskName: string

@@ -21,7 +21,7 @@ def main() -> None:
     )
     parser.add_argument("--start-date", default=None, help="开始日期 (YYYY-MM-DD)")
     parser.add_argument("--end-date", default=None, help="结束日期 (YYYY-MM-DD)")
-    parser.add_argument("--sector-type", default="industry", help="板块类型")
+    parser.add_argument("--sector-type", default=None, help="板块类型")
     parser.add_argument(
         "--report-date",
         default=None,

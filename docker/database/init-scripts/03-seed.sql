@@ -48,6 +48,18 @@ FROM collector_channel_config
 WHERE source = 'eastmoney'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
+-- 防御性补齐 eastmoney 渠道的 news 数据类型（东财全球快讯；渠道已存在时）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["news"]'::jsonb
+WHERE source = 'eastmoney'
+  AND NOT supported_data_types @> '["news"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'news', 1
+FROM collector_channel_config
+WHERE source = 'eastmoney'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
 -- 防御性补齐 sina 渠道的 watchlist-kline-daily 数据类型（渠道已存在时）
 UPDATE collector_channel_config
 SET supported_data_types = supported_data_types || '["watchlist-kline-daily"]'::jsonb
@@ -70,7 +82,7 @@ VALUES
     ('sina_index_kline', 'index-kline', 'sina', '0 16,18 * * 1-5', true),
     ('ths_auction', 'auction', 'ths', '15,25 9 * * 1-5', true),
     ('eastmoney_fund_flow', 'fund-flow', 'eastmoney', '0 16 * * 1-5', true),
-    ('sina_news', 'news', 'sina', '0/30 * * * *', true),
+    ('eastmoney_flash_news', 'news', 'eastmoney', '0/30 * * * *', true),
     ('sina_stock_list', 'stock-list', 'sina', '0 2 * * 6', true),
     ('sina_quote', 'quote', 'sina', '*/5 9-15 * * 1-5', true),
     ('sina_market_breadth', 'market-breadth', 'sina', '2-57/5 9-15 * * 1-5', true),

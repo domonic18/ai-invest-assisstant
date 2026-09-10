@@ -44,7 +44,7 @@ class TestResearchService:
         result = await research_service.get_report(session, 1)
 
         assert result == mock_report
-        session.get.assert_awaited_once_with(research_service.NewsAnnouncement, 1)
+        session.get.assert_awaited_once_with(research_service.NewsDocument, 1)
 
     @pytest.mark.asyncio
     async def test_summarize_report_returns_cached_summary(self) -> None:

@@ -5,6 +5,11 @@
 - task-log：collector_task 的 cron + collector_log 当日运行记录；
   轮询型两轮触发间隔内无成功即 delayed，每日批次型当日首个计划
   时刻超宽限仍无成功即 delayed
+
+键空间契约：collector_log.task_name 存 TASK_SPECS 键（task_type），
+渠道身份 = (task_type, source)，与采集运行时（resolver/TaskSpec.collectors）
+同一键空间；task-log 条目据此查询，禁止用 collector_task.task_name
+实例名查 collector_log。一致性由 test_news_channel_service 钉死。
 """
 
 from collections.abc import Awaitable, Callable
@@ -55,14 +60,18 @@ _STATUS_TEXT: dict[NewsChannelStatus, str] = {
 
 @dataclass(frozen=True)
 class NewsChannel:
-    """渠道监控声明：monitor_type 决定判定器，其余为展示与查询参数。"""
+    """渠道监控声明：monitor_type 决定判定器，其余为展示与查询参数。
+
+    task-log 型按渠道身份 (task_type, source) 查询运行记录与计划。
+    """
 
     key: str
     name: str
     monitor_type: str
     poll_desc: str
     heartbeat_key: str | None = None
-    task_name: str | None = None
+    task_type: str | None = None
+    source: str | None = None
     batch_schedule: bool = False
     today_query: TodayQuery | None = None
 
@@ -86,18 +95,20 @@ NEWS_CHANNELS: list[NewsChannel] = [
         today_query=_telegraph_today,
     ),
     NewsChannel(
-        key="sina_news",
-        name="新浪财经",
+        key="eastmoney_flash_news",
+        name="东财快讯",
         monitor_type=MONITOR_TASK_LOG,
         poll_desc="30 分钟轮询",
-        task_name="sina_news",
+        task_type="news",
+        source="eastmoney",
     ),
     NewsChannel(
         key="eastmoney_research_report",
         name="东财研报",
         monitor_type=MONITOR_TASK_LOG,
         poll_desc="每日 2 次（8:00 / 18:00）",
-        task_name="eastmoney_research_report",
+        task_type="research-report",
+        source="eastmoney",
         batch_schedule=True,
     ),
 ]
@@ -223,7 +234,12 @@ async def _status_task_log(
     task_repo: CollectorTaskRepository,
 ) -> NewsChannelResponse:
     log_repo = CollectorLogRepository(session)
-    runs = await log_repo.list_runs_for_task(channel.task_name or "", since=day_start)
+    task = await task_repo.get_by_type_and_source(
+        channel.task_type or "", channel.source or ""
+    )
+    runs = await log_repo.list_runs_for_task(
+        channel.task_type or "", source=channel.source, since=day_start
+    )
     latest_terminal = next((r for r in runs if r.status != "running"), None)
     success_run = next((r for r in runs if r.status == "success"), None)
     today_count = sum(r.records_count or 0 for r in runs)
@@ -232,7 +248,6 @@ async def _status_task_log(
         if latest_terminal is not None
         else None
     )
-    task = await task_repo.get_by_task_name(channel.task_name or "")
     status = _task_log_status(
         channel,
         task.schedule if task is not None else None,

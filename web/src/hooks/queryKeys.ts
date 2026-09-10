@@ -9,6 +9,7 @@
 export const queryKeys = {
   admin: {
     news: ['admin-news'] as const,
+    telegraph: ['admin-telegraph'] as const,
     reports: ['admin-reports'] as const,
     stocks: ['admin-stocks'] as const,
     users: ['admin-users'] as const,
@@ -65,7 +66,7 @@ export const queryKeys = {
   hotspot: ['hotspot'] as const,
   llmConfigs: ['llm-configs'] as const,
   proxyConfigs: ['proxy-configs'] as const,
-  trackedIndexes: ['tracked-indexes'] as const,
+  trackedIndexOptions: ['tracked-index-options'] as const,
   market: {
     all: ['market'] as const,
     indices: (tradeDate?: string) => ['market', 'indices', tradeDate] as const,
@@ -135,6 +136,8 @@ export const queryKeys = {
   news: {
     all: ['news'] as const,
     channels: ['news', 'channels'] as const,
+    flash: (page: number, pageSize: number) =>
+      ['news', 'flash', page, pageSize] as const,
     focus: ['news', 'focus'] as const,
     topics: (sessionKey: string) => ['news', 'topics', sessionKey] as const,
     story: (id: number) => ['news', 'story', id] as const,

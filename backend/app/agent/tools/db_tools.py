@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.financial_balance_sheet import BalanceSheet
 from app.models.financial_income_statement import IncomeStatement
 from app.models.kline import KlineDaily
-from app.models.news_announcement import NewsAnnouncement
+from app.models.news_document import NewsDocument
 from app.models.stock import StockBasic
 from app.utils.numeric import safe_divide
 
@@ -173,23 +173,23 @@ async def search_news(
     """按关键词检索近期新闻/公告/研报标题与摘要。"""
     since = datetime.now(timezone.utc) - timedelta(days=days)
     conditions = [
-        NewsAnnouncement.publish_date >= since,
+        NewsDocument.publish_date >= since,
         or_(
-            NewsAnnouncement.title.ilike(f"%{keyword}%"),
-            NewsAnnouncement.industry_tags.contains([keyword]),
+            NewsDocument.title.ilike(f"%{keyword}%"),
+            NewsDocument.industry_tags.contains([keyword]),
         ),
     ]
     if doc_types:
-        conditions.append(NewsAnnouncement.doc_type.in_(doc_types))
+        conditions.append(NewsDocument.doc_type.in_(doc_types))
     stmt = (
         select(
-            NewsAnnouncement.doc_type,
-            NewsAnnouncement.title,
-            NewsAnnouncement.summary,
-            NewsAnnouncement.publish_date,
+            NewsDocument.doc_type,
+            NewsDocument.title,
+            NewsDocument.summary,
+            NewsDocument.publish_date,
         )
         .where(*conditions)
-        .order_by(NewsAnnouncement.publish_date.desc())
+        .order_by(NewsDocument.publish_date.desc())
         .limit(limit)
     )
     rows = (await session.execute(stmt)).all()
@@ -213,15 +213,15 @@ async def search_news_by_date(
     """按发布日期区间（业务日，含首尾）检索新闻/公告/研报，按时间倒序。"""
     stmt = (
         select(
-            NewsAnnouncement.doc_type,
-            NewsAnnouncement.title,
-            NewsAnnouncement.summary,
-            NewsAnnouncement.publish_date,
+            NewsDocument.doc_type,
+            NewsDocument.title,
+            NewsDocument.summary,
+            NewsDocument.publish_date,
         )
         .where(
-            sa_cast(NewsAnnouncement.publish_date, Date).between(start_date, end_date)
+            sa_cast(NewsDocument.publish_date, Date).between(start_date, end_date)
         )
-        .order_by(NewsAnnouncement.publish_date.desc())
+        .order_by(NewsDocument.publish_date.desc())
         .limit(limit)
     )
     rows = (await session.execute(stmt)).all()
@@ -239,7 +239,7 @@ async def search_news_by_date(
 async def search_vector_kb(
     session: AsyncSession, query: str, limit: int = 5
 ) -> list[dict[str, Any]]:
-    """检索知识库研报片段；ES 不可用时回退 news_announcement 研报记录。"""
+    """检索知识库研报片段；ES 不可用时回退 news_document 研报记录。"""
     try:
         from app.services.common.knowledge_base_service import get_knowledge_base_service
 

@@ -12,10 +12,10 @@ from app.core.clock import utc_now
 from app.core.database import Base
 
 
-class NewsAnnouncement(Base):
+class NewsDocument(Base):
     """新闻、公告与研报元数据表。"""
 
-    __tablename__ = "news_announcement"
+    __tablename__ = "news_document"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     stock_code: Mapped[str | None] = mapped_column(String(10), nullable=True)

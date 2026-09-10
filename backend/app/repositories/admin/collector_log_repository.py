@@ -48,15 +48,27 @@ class CollectorLogRepository(BaseRepository[CollectorLog]):
         return list(result.scalars().all())
 
     async def list_runs_for_task(
-        self, task_name: str, *, since: datetime, limit: int = 500
+        self,
+        task_name: str,
+        *,
+        since: datetime,
+        source: str | None = None,
+        limit: int = 500,
     ) -> list[CollectorLog]:
-        """某任务自 since 起的运行日志，按开始时间倒序。"""
+        """某任务自 since 起的运行日志，按开始时间倒序。
+
+        task_name 语义为 TASK_SPECS 键（task_type），不是 collector_task 的
+        实例名；渠道身份 = (task_type, source)，按渠道查询须传 source。
+        """
+        conditions = [
+            CollectorLog.task_name == task_name,
+            CollectorLog.started_at >= since,
+        ]
+        if source is not None:
+            conditions.append(CollectorLog.source == source)
         stmt = (
             select(CollectorLog)
-            .where(
-                CollectorLog.task_name == task_name,
-                CollectorLog.started_at >= since,
-            )
+            .where(*conditions)
             .order_by(desc(CollectorLog.started_at))
             .limit(limit)
         )

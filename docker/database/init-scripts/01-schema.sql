@@ -179,13 +179,14 @@ CREATE TABLE financial_cash_flow_statement (
 CREATE INDEX idx_financial_cash_flow_statement_code_date ON financial_cash_flow_statement(stock_code, report_date DESC);
 
 -- ============================================================
--- 4. 新闻 / 公告元数据域
+-- 4. 资讯文档元数据域（doc_type 判别：news/announcement/research/financial_report）
 -- ============================================================
 
-CREATE TABLE news_announcement (
+CREATE TABLE news_document (
     id            BIGSERIAL PRIMARY KEY,
     stock_code    VARCHAR(10),
-    doc_type      VARCHAR(20) NOT NULL CHECK (doc_type IN ('news', 'announcement', 'research', 'financial_report')),
+    doc_type      VARCHAR(20) NOT NULL CONSTRAINT chk_news_document_doc_type
+                  CHECK (doc_type IN ('news', 'announcement', 'research', 'financial_report')),
     title         VARCHAR(500) NOT NULL,
     summary       TEXT,
     content       TEXT,
@@ -198,12 +199,12 @@ CREATE TABLE news_announcement (
     elasticsearch_doc_id VARCHAR(50),               -- Elasticsearch 文档 ID
     created_at    TIMESTAMPTZ DEFAULT NOW(),
 
-    UNIQUE (source_url)
+    CONSTRAINT uq_news_document_source_url UNIQUE (source_url)
 );
 
-CREATE INDEX idx_news_code_date ON news_announcement(stock_code, publish_date DESC);
-CREATE INDEX idx_news_doc_type ON news_announcement(doc_type);
-CREATE INDEX idx_news_publish_date ON news_announcement(publish_date DESC);
+CREATE INDEX idx_news_document_code_date ON news_document(stock_code, publish_date DESC);
+CREATE INDEX idx_news_document_doc_type ON news_document(doc_type);
+CREATE INDEX idx_news_document_publish_date ON news_document(publish_date DESC);
 
 -- ============================================================
 -- 5. 产业链关系域
@@ -598,22 +599,22 @@ ALTER TABLE stock_basic
     ADD COLUMN IF NOT EXISTS province VARCHAR(50),
     ADD COLUMN IF NOT EXISTS city VARCHAR(50);
 
-ALTER TABLE news_announcement
+ALTER TABLE news_document
     ADD COLUMN IF NOT EXISTS extra JSONB DEFAULT '{}'::jsonb;
 
 -- 扩展 doc_type 枚举以支持财报采集
 DO $$
 BEGIN
-    ALTER TABLE news_announcement
-        DROP CONSTRAINT IF EXISTS news_announcement_doc_type_check;
+    ALTER TABLE news_document
+        DROP CONSTRAINT IF EXISTS chk_news_document_doc_type;
 
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint
-        WHERE conname = 'news_announcement_doc_type_check'
-          AND conrelid = 'news_announcement'::regclass
+        WHERE conname = 'chk_news_document_doc_type'
+          AND conrelid = 'news_document'::regclass
     ) THEN
-        ALTER TABLE news_announcement
-            ADD CONSTRAINT news_announcement_doc_type_check
+        ALTER TABLE news_document
+            ADD CONSTRAINT chk_news_document_doc_type
             CHECK (doc_type IN ('news', 'announcement', 'research', 'financial_report'));
     END IF;
 END $$;
@@ -834,15 +835,15 @@ CREATE TABLE IF NOT EXISTS tracked_index_config (
 );
 
 -- ============================================================
--- 20. 投资日历事件（FOMC/BLS 官方日程等）
+-- 20. 投资日历事件（财联社投资日历/FOMC/BLS 官方日程等，news_ 家族）
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS calendar_event (
+CREATE TABLE IF NOT EXISTS news_calendar_event (
     id              BIGSERIAL PRIMARY KEY,
     event_time      TIMESTAMPTZ  NOT NULL,
     end_time        TIMESTAMPTZ,
     title           VARCHAR(300) NOT NULL,
-    category        VARCHAR(20)  NOT NULL CONSTRAINT chk_calendar_event_category
+    category        VARCHAR(20)  NOT NULL CONSTRAINT chk_news_calendar_event_category
                     CHECK (category IN ('宏观', '央行动态', '新股', '解禁', '财报', '会议')),
     impact_markets  VARCHAR(50)[],
     source          VARCHAR(50),
@@ -851,11 +852,11 @@ CREATE TABLE IF NOT EXISTS calendar_event (
     source_hash     VARCHAR(32)  NOT NULL,          -- md5(source|event_time|title)，幂等键
     created_at      TIMESTAMPTZ DEFAULT NOW(),
 
-    CONSTRAINT uq_calendar_event_source_hash UNIQUE (source_hash)
+    CONSTRAINT uq_news_calendar_event_source_hash UNIQUE (source_hash)
 );
 
-CREATE INDEX IF NOT EXISTS idx_calendar_event_time ON calendar_event(event_time);
-CREATE INDEX IF NOT EXISTS idx_calendar_event_category_time ON calendar_event(category, event_time);
+CREATE INDEX IF NOT EXISTS idx_news_calendar_event_time ON news_calendar_event(event_time);
+CREATE INDEX IF NOT EXISTS idx_news_calendar_event_category_time ON news_calendar_event(category, event_time);
 
 -- ============================================================
 -- 21. 财联社电报（stream 驻留进程增量轮询，cls_msg_id 幂等）

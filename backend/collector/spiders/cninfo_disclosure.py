@@ -11,9 +11,9 @@ from collector.core.parsing import clean_stock_code, parse_date, to_optional_str
 
 
 class CninfoDisclosureCollector(PostgresCollector):
-    """巨潮资讯公告采集器，写入 news_announcement(doc_type='announcement')。"""
+    """巨潮资讯公告采集器，写入 news_document(doc_type='announcement')。"""
 
-    table = "news_announcement"
+    table = "news_document"
     conflict_key = "source_url"
     key_fields: ClassVar[list[str]] = ["source_url"]
     required_fields: ClassVar[list[str]] = ["stock_code", "title", "publish_date"]

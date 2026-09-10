@@ -2,7 +2,7 @@
 
 拉取东方财富个股研报列表（reportapi），下载原始 PDF，输出包含
 ``file_bytes`` 的标准化条目。``store`` 步骤由
-``collector.stores.research_report_store`` 负责写入 news_announcement、
+``collector.stores.research_report_store`` 负责写入 news_document、
 MinIO 与 file_metadata。
 """
 
@@ -32,7 +32,7 @@ _HEADERS = {
 
 
 class EastMoneyResearchReportCollector(BaseCollector):
-    """东方财富个股研报采集器，写入 news_announcement(doc_type='research')。"""
+    """东方财富个股研报采集器，写入 news_document(doc_type='research')。"""
 
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)

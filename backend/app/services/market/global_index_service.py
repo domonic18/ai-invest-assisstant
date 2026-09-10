@@ -14,6 +14,7 @@ from app.schemas.market import (
     IndexKlineBar,
     IndexKlineResponse,
 )
+from app.schemas.tracked_index import TrackedIndexOption
 
 # 2s10s 利差为衍生指标：US10Y − US2Y 按 trade_date 对齐求差
 _SPREAD_CODE = "US2Y10S"
@@ -30,9 +31,19 @@ _PERIOD_LOOKBACK_DAYS = {
 }
 
 
-async def get_global_index_quotes(session: AsyncSession) -> list[GlobalIndexQuoteResponse]:
-    """启用中的全球指标最新收盘快照（按 sort_order 排序，无数据的代码字段留空）。"""
+async def get_global_index_quotes(
+    session: AsyncSession,
+    tracked_codes: list[str] | None = None,
+) -> list[GlobalIndexQuoteResponse]:
+    """启用中的全球指标最新收盘快照（按 sort_order 排序，无数据的代码字段留空）。
+
+    tracked_codes 为用户个人配置的显示清单：None 显示全部启用指标，
+    空列表表示用户选择全部不显示。
+    """
     configs = await global_index_repository.list_enabled_global_configs(session)
+    if tracked_codes is not None:
+        allowed = set(tracked_codes)
+        configs = [cfg for cfg in configs if cfg.index_code in allowed]
     if not configs:
         return []
 
@@ -56,6 +67,15 @@ async def get_global_index_quotes(session: AsyncSession) -> list[GlobalIndexQuot
             )
         )
     return results
+
+
+async def list_tracked_index_options(session: AsyncSession) -> list[TrackedIndexOption]:
+    """个人设置可勾选的跟踪指数清单（启用中的全球指标，按 sort_order 排序）。"""
+    configs = await global_index_repository.list_enabled_global_configs(session)
+    return [
+        TrackedIndexOption(index_code=cfg.index_code, index_name=cfg.index_name)
+        for cfg in configs
+    ]
 
 
 async def get_index_history(

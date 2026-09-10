@@ -4,7 +4,6 @@ import {
   BlockOutlined,
   CalendarOutlined,
   CloudServerOutlined,
-  ContainerOutlined,
   DashboardOutlined,
   FileTextOutlined,
   FileDoneOutlined,
@@ -22,7 +21,6 @@ import {
   TeamOutlined,
   ThunderboltOutlined,
   UserOutlined,
-  VerticalAlignTopOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { Menu } from 'antd'
@@ -64,15 +62,12 @@ const ADMIN_MENU_ITEMS: MenuItem[] = [
   { key: '/admin', icon: <DashboardOutlined />, label: '管理总览' },
   { key: '/admin/users', icon: <TeamOutlined />, label: '用户管理' },
   { key: '/admin/stocks', icon: <BarChartOutlined />, label: '股票管理' },
-  { key: '/admin/reports', icon: <FileTextOutlined />, label: '研报管理' },
+  { key: '/admin/reports', icon: <FileTextOutlined />, label: '报告管理' },
   { key: '/admin/news', icon: <ReadOutlined />, label: '资讯管理' },
-  { key: '/admin/tasks', icon: <ContainerOutlined />, label: '任务管理' },
   { key: '/admin/llm-configs', icon: <RobotOutlined />, label: 'LLM 配置' },
   { key: '/admin/proxy-configs', icon: <CloudServerOutlined />, label: '代理配置' },
-  { key: '/admin/ai-results', icon: <FileDoneOutlined />, label: 'AI 结果管理' },
-  { key: '/admin/tracked-indexes', icon: <VerticalAlignTopOutlined />, label: '跟踪指数' },
-  { key: '/admin/collector-channels', icon: <SettingOutlined />, label: '采集渠道' },
-  { key: '/admin/collector', icon: <PlayCircleOutlined />, label: '采集任务' },
+  { key: '/admin/ai-results', icon: <FileDoneOutlined />, label: '分析结果' },
+  { key: '/admin/collector', icon: <PlayCircleOutlined />, label: '采集管理' },
 ]
 
 const ADMIN_GROUP_KEY = 'admin-group'
@@ -119,7 +114,7 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
     { key: '/settings', icon: <UserOutlined />, label: '个人设置' },
     { key: '/skills', icon: <BlockOutlined />, label: '技能广场' },
     // 自选股管理不在侧边栏（4.4.0），入口为工作台自选卡「管理分组」
-    { key: '/watchlist', icon: <StarOutlined />, label: '自选股管理' },
+    { key: '/watchlist', icon: <StarOutlined />, label: '我的自选' },
     ...(isAdmin
       ? [
           {

@@ -112,6 +112,38 @@ function pctLabel(v: number): string {
   return '{flat|0.0%}'
 }
 
+/** 默认缩放窗口（dataZoom start:50 / end:100），与 option 中两条 dataZoom 一致。 */
+export const DEFAULT_ZOOM_START = 50
+export const DEFAULT_ZOOM_END = 100
+
+export interface PriceAxisRange {
+  yMin: number
+  yMax: number
+  pctMin: number
+  pctMax: number
+}
+
+/**
+ * 按可见窗口 [startIdx, endIdx] 计算主图右轴（价格）与左轴（相对首根收盘的涨跌幅）范围。
+ * 键盘/滑块缩放后由 datazoom 事件重算，使纵轴随可见区间自适应（对齐同花顺行为）。
+ */
+export function computePriceAxisRange(
+  bars: StockKlineBar[],
+  startIdx: number,
+  endIdx: number,
+): PriceAxisRange {
+  const slice = bars.slice(startIdx, endIdx + 1)
+  const pMin = Math.min(...slice.map((b) => b.low))
+  const pMax = Math.max(...slice.map((b) => b.high))
+  const pad = (pMax - pMin) * 0.05 || 1
+  const yMin = pMin - pad
+  const yMax = pMax + pad
+  const baseClose = bars[0]?.close
+  const toPct = (v: number): number =>
+    baseClose ? (v / baseClose - 1) * 100 : 0
+  return { yMin, yMax, pctMin: toPct(yMin), pctMax: toPct(yMax) }
+}
+
 export function buildKlineOption(
   data: KlineChartData,
   indicators: StockChartViewIndicators,
@@ -149,15 +181,15 @@ export function buildKlineOption(
     max: 'dataMax',
   })
 
-  // 右轴价格：区间随数据显式固定，供左轴涨跌幅同比例映射
-  const pMin = Math.min(...data.lows)
-  const pMax = Math.max(...data.highs)
-  const pad = (pMax - pMin) * 0.05 || 1
-  const yMin = pMin - pad
-  const yMax = pMax + pad
-  const baseClose = bars[0]?.close
-  const toPct = (v: number): number =>
-    baseClose ? (v / baseClose - 1) * 100 : 0
+  // 右轴价格：按默认缩放窗口（后 50%）可见区间定标，缩放后由 datazoom 事件重算
+  const initStartIdx = Math.floor(
+    ((bars.length - 1) * DEFAULT_ZOOM_START) / 100,
+  )
+  const { yMin, yMax, pctMin, pctMax } = computePriceAxisRange(
+    bars,
+    initStartIdx,
+    bars.length - 1,
+  )
 
   yAxes.push({
     position: 'right',
@@ -169,8 +201,8 @@ export function buildKlineOption(
   })
   yAxes.push({
     position: 'left',
-    min: toPct(yMin),
-    max: toPct(yMax),
+    min: pctMin,
+    max: pctMax,
     axisLabel: {
       fontSize: 10,
       formatter: (v: number) => pctLabel(Number(v)),
@@ -496,14 +528,14 @@ export function buildKlineOption(
     xAxis: xAxes,
     yAxis: yAxes,
     dataZoom: [
-      { type: 'inside', xAxisIndex: xAxes.map((_, i) => i), start: 50, end: 100 },
+      { type: 'inside', xAxisIndex: xAxes.map((_, i) => i), start: DEFAULT_ZOOM_START, end: DEFAULT_ZOOM_END },
       {
         show: true,
         xAxisIndex: xAxes.map((_, i) => i),
         type: 'slider',
         top: height - 28,
-        start: 50,
-        end: 100,
+        start: DEFAULT_ZOOM_START,
+        end: DEFAULT_ZOOM_END,
         height: 20,
         borderColor: BORDER_COLOR,
         backgroundColor: 'transparent',

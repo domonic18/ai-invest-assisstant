@@ -247,12 +247,20 @@ class TopicHeatFactorsResponse(CamelModel):
     as_of_trade_date: str | None = None
 
 
+class TopicChainStockResponse(CamelModel):
+    """传导链标的（读取时按 stock_basic + 行情快照富化；无法解析的原文保留、code 为空）。"""
+
+    name: str
+    code: str | None = None
+    change_pct: float | None = None
+
+
 class TopicChainStepResponse(CamelModel):
     """传导链一步。"""
 
     event: str
     link: str
-    stocks: list[str]
+    stocks: list[TopicChainStockResponse]
 
 
 class TopicResponse(CamelModel):
@@ -317,3 +325,15 @@ class SubscriptionUpdateRequest(CamelModel):
     channels: list[str] | None = None
     push_enabled: bool | None = None
     enabled: bool | None = None
+
+
+class NewsFlashItemResponse(CamelModel):
+    """东财快讯条目（news_document，基础流无 AI 分级/订阅/标的）。"""
+
+    id: int
+    source: str
+    title: str | None = None
+    summary: str | None = None
+    content: str | None = None
+    source_url: str | None = None
+    publish_time: datetime

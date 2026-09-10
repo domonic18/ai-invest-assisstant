@@ -141,11 +141,18 @@ export interface ApiTopicHeatFactors {
   asOfTradeDate: string | null
 }
 
+/** 传导链标的：读取时按 stock_basic + 行情快照富化，无法解析为 A 股标的时 code 为 null（不可点击）。 */
+export interface ApiTopicChainStock {
+  name: string
+  code: string | null
+  changePct: number | null
+}
+
 /** 传导链节点：事件 → 环节 → 代表标的。 */
 export interface ApiTopicChainNode {
   event: string
   link: string
-  stocks: string[]
+  stocks: ApiTopicChainStock[]
 }
 
 /** 热点主题卡。 */
@@ -196,4 +203,25 @@ export interface ApiSubscription {
   hitCount: number
   /** 最近命中时间（ISO，从未命中为 null） */
   lastHitAt: string | null
+}
+
+// ============ 东财快讯（实时电报流基础流） ============
+
+/** 东财快讯条目（news_document，基础流无 AI 分级/订阅/标的）。 */
+export interface ApiNewsFlashItem {
+  id: number
+  source: string
+  title: string | null
+  summary: string | null
+  content: string | null
+  sourceUrl: string | null
+  publishTime: string
+}
+
+/** 后端 GET /news/feed 分页响应。 */
+export interface ApiNewsFlashPage {
+  total: number
+  page: number
+  pageSize: number
+  items: ApiNewsFlashItem[]
 }

@@ -8,7 +8,7 @@ from pydantic import Field
 from app.schemas.base import CamelModel
 
 
-class NewsAnnouncementBase(CamelModel):
+class NewsDocumentBase(CamelModel):
     """新闻公告的基础字段。"""
 
     stock_code: str | None = Field(None, max_length=10)
@@ -26,11 +26,11 @@ class NewsAnnouncementBase(CamelModel):
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
-class NewsAnnouncementCreate(NewsAnnouncementBase):
+class NewsDocumentCreate(NewsDocumentBase):
     """创建新闻公告的请求 schema。"""
 
 
-class NewsAnnouncementUpdate(CamelModel):
+class NewsDocumentUpdate(CamelModel):
     """更新新闻公告的请求 schema。"""
 
     stock_code: str | None = Field(None, max_length=10)
@@ -48,7 +48,7 @@ class NewsAnnouncementUpdate(CamelModel):
     extra: dict[str, Any] | None = None
 
 
-class NewsAnnouncementResponse(NewsAnnouncementBase):
+class NewsDocumentResponse(NewsDocumentBase):
     """新闻公告的响应 schema。"""
 
     id: int

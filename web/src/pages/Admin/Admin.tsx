@@ -1,14 +1,11 @@
 import {
   BarChartOutlined,
-  ContainerOutlined,
   FileTextOutlined,
   FileDoneOutlined,
   PlayCircleOutlined,
   ReadOutlined,
   RobotOutlined,
-  SettingOutlined,
   TeamOutlined,
-  VerticalAlignTopOutlined,
 } from '@ant-design/icons'
 import { Card, Col, Row, Space, Table, Tag, Typography } from 'antd'
 import { Link } from 'react-router-dom'
@@ -21,14 +18,11 @@ import { statusTagColor } from '@ai-invest/shared'
 const ADMIN_LINKS = [
   { title: '用户管理', path: '/admin/users', icon: <TeamOutlined />, color: 'bg-blue-500/10 text-blue-400' },
   { title: '股票管理', path: '/admin/stocks', icon: <BarChartOutlined />, color: 'bg-green-500/10 text-green-400' },
-  { title: '研报管理', path: '/admin/reports', icon: <FileTextOutlined />, color: 'bg-purple-500/10 text-purple-400' },
+  { title: '报告管理', path: '/admin/reports', icon: <FileTextOutlined />, color: 'bg-purple-500/10 text-purple-400' },
   { title: '资讯管理', path: '/admin/news', icon: <ReadOutlined />, color: 'bg-orange-500/10 text-orange-400' },
-  { title: '任务管理', path: '/admin/tasks', icon: <ContainerOutlined />, color: 'bg-cyan-500/10 text-cyan-400' },
   { title: 'LLM 配置', path: '/admin/llm-configs', icon: <RobotOutlined />, color: 'bg-pink-500/10 text-pink-400' },
-  { title: 'AI 结果管理', path: '/admin/ai-results', icon: <FileDoneOutlined />, color: 'bg-teal-500/10 text-teal-400' },
-  { title: '跟踪指数', path: '/admin/tracked-indexes', icon: <VerticalAlignTopOutlined />, color: 'bg-amber-500/10 text-amber-400' },
-  { title: '采集渠道', path: '/admin/collector-channels', icon: <SettingOutlined />, color: 'bg-gray-500/10 text-gray-400' },
-  { title: '采集任务', path: '/admin/collector', icon: <PlayCircleOutlined />, color: 'bg-indigo-500/10 text-indigo-400' },
+  { title: '分析结果', path: '/admin/ai-results', icon: <FileDoneOutlined />, color: 'bg-teal-500/10 text-teal-400' },
+  { title: '采集管理', path: '/admin/collector', icon: <PlayCircleOutlined />, color: 'bg-indigo-500/10 text-indigo-400' },
 ]
 
 export function Admin() {

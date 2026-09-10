@@ -222,7 +222,7 @@ export function CollectorChannelConfig() {
   )
 
   return (
-    <Card title="采集渠道配置" variant="borderless">
+    <Card variant="borderless">
       <Tabs
         items={[
           { key: 'channels', label: '渠道配置', children: channelTable },

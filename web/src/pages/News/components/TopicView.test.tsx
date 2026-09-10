@@ -36,7 +36,14 @@ function topicsPayload(
         },
         sectors: [{ name: '半导体', changePct: 5, fundFlow: 5e8 }],
         chain: [
-          { event: '海外大厂减产', link: '供给收缩', stocks: ['688012'] },
+          {
+            event: '海外大厂减产',
+            link: '供给收缩',
+            stocks: [
+              { name: '中微公司', code: '688012', changePct: 3.2 },
+              { name: '无法解析标的', code: null, changePct: null },
+            ],
+          },
         ],
         itemIds: ['1', '2', '3'],
       },
@@ -154,6 +161,12 @@ describe('TopicView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /传导链/ }))
     expect(screen.getByText(/海外大厂减产/)).toBeInTheDocument()
-    expect(screen.getByText('688012')).toBeInTheDocument()
+    // 可解析标的：名称 + scheme 着色涨跌幅，点击直达个股页
+    const stockLink = screen.getByRole('link', { name: /中微公司/ })
+    expect(stockLink).toHaveAttribute('href', '/stock/688012')
+    expect(screen.getByText('+3.20%')).toBeInTheDocument()
+    // 无法解析的原文：纯文本展示，不渲染链接
+    expect(screen.getByText('无法解析标的')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /无法解析标的/ })).toBeNull()
   })
 })

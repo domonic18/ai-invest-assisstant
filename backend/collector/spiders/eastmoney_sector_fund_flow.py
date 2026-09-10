@@ -1,8 +1,9 @@
 """东方财富板块资金流向采集器。
 
-东财 push2 接口要求携带 Referer 头（缺失时直接断开连接），akshare 的请求
-未携带会被拒绝，因此这里直接请求接口，字段口径与
-akshare.stock_sector_fund_flow_rank（indicator="今日"）一致。
+东财 push2 直连在受限主机被 WAF 断连，改用 push2delay 延迟镜像 +
+Chrome TLS 指纹（与 ``eastmoney_sector_quote`` 同套通道；收盘后采集，
+15 分钟延迟无影响）。字段口径与 akshare.stock_sector_fund_flow_rank
+（indicator="今日"）一致。
 """
 
 import math
@@ -12,11 +13,11 @@ from typing import Any, ClassVar
 
 from collector.core.async_helpers import run_in_thread
 from collector.core.calendar import is_trading_day, latest_trading_day
-from collector.core.http_client import eastmoney_get
+from collector.core.http_client import eastmoney_get_chrome
 from collector.core.parsing import parse_cn_amount, to_float, to_optional_str
 from collector.spiders.sector_fund_flow_base import BaseSectorFundFlowCollector
 
-_PUSH2_URL = "https://push2.eastmoney.com/api/qt/clist/get"
+_PUSH2_URL = "https://push2delay.eastmoney.com/api/qt/clist/get"
 _PAGE_SIZE = 100
 # f12 板块代码 f14 名称 f3 涨跌幅 f62 主力净额 f66 超大单 f72 大单
 # f78 中单 f84 小单 f204 主力净流入最大股 f205 最大股代码
@@ -38,7 +39,7 @@ class EastMoneySectorFundFlowCollector(BaseSectorFundFlowCollector):
     }
 
     def _request_page(self, params: dict[str, Any]) -> dict[str, Any]:
-        response = eastmoney_get(_PUSH2_URL, params=params)
+        response = eastmoney_get_chrome(_PUSH2_URL, params=params)
         return response.json().get("data") or {}
 
     def _fetch_rank(self, sector_type: str) -> list[dict[str, Any]]:
@@ -72,16 +73,21 @@ class EastMoneySectorFundFlowCollector(BaseSectorFundFlowCollector):
         trade_date: date | None = None,
         **kwargs: Any,
     ) -> list[dict[str, Any]]:
-        sector_type = sector_type or self.sector_type
-        if trade_date is not None:
-            rows: list[dict[str, Any]] = await run_in_thread(
-                self._collect_history, sector_type, trade_date
-            )
-            return rows
-        rows = await run_in_thread(self._fetch_rank, sector_type)
+        # 未显式指定类型时同时采集行业+概念（每日调度走此路径，一次覆盖两类）
+        types = [sector_type] if sector_type is not None else ["industry", "concept"]
+        raw: list[dict[str, Any]] = []
+        for st in types:
+            if trade_date is not None:
+                raw.extend(await run_in_thread(self._collect_history, st, trade_date))
+            else:
+                raw.extend(await run_in_thread(self._collect_snapshot, st))
+        return raw
+
+    def _collect_snapshot(self, sector_type: str) -> list[dict[str, Any]]:
+        """拉取当日板块资金流排名快照并清洗为落库行。"""
         trade_date = latest_trading_day()
         raw: list[dict[str, Any]] = []
-        for row in rows:
+        for row in self._fetch_rank(sector_type):
             sector_name = to_optional_str(row.get("f14"))
             raw.append(
                 {
@@ -103,7 +109,7 @@ class EastMoneySectorFundFlowCollector(BaseSectorFundFlowCollector):
 
     def _fetch_daykline(self, sector_code: str) -> list[str]:
         """单板块资金流日 K（CSV 行，列序见 _DAYKLINE_FIELDS）。"""
-        response = eastmoney_get(
+        response = eastmoney_get_chrome(
             _DAYKLINE_URL,
             params={
                 "secid": f"90.{sector_code}",

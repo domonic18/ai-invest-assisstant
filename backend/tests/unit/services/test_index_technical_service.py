@@ -18,7 +18,7 @@ def _daily_rows(
     end_date: date = _TRADE_DATE,
     opens: list[float] | None = None,
 ) -> list[SimpleNamespace]:
-    """构造升序 closes/volumes 对应的倒序 ORM 行（fetch_daily_bars 返回倒序）。"""
+    """构造升序 ORM 行（fetch_daily_bars_multi 返回组内升序）。"""
     rows = []
     for i, close in enumerate(closes):
         rows.append(
@@ -31,7 +31,7 @@ def _daily_rows(
                 volume=volumes[i],
             )
         )
-    return list(reversed(rows))
+    return rows
 
 
 def _minute_rows(day: date, count: int = 100, amount: float = 1e8) -> list[SimpleNamespace]:
