@@ -104,9 +104,9 @@ async def get_assistant_agent(
     from deepagents import create_deep_agent
 
     if tools is None:
-        from app.agent.tools import build_assistant_tools
+        from app.agent.tools import build_assistant_tools, build_mcp_tools
 
-        tools = build_assistant_tools()
+        tools = [*build_assistant_tools(), *await build_mcp_tools()]
 
     from app.agent.runtime.assistant_subagents import build_subagents
 

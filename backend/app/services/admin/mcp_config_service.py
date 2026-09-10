@@ -24,6 +24,59 @@ from app.schemas.mcp_config import (
 logger = structlog.get_logger(__name__)
 
 
+def _reset_assistant_agent_cache() -> None:
+    """配置变更后丢弃助手 agent 缓存单例，使 MCP 工具注入即时生效。
+
+    服务层禁止顶层导入 ``app.agent.runtime``，此处延迟导入。
+    """
+    from app.agent.runtime.assistant_agent import reset_assistant_agent
+
+    reset_assistant_agent()
+
+_HTTP_ERROR_HINTS = {
+    401: "鉴权失败，请检查 Authorization 等请求头凭证",
+    403: "无访问权限，请检查请求头凭证或 IP 白名单",
+    404: "路径不存在，请确认 URL",
+    500: "远程服务内部错误",
+}
+
+
+def _flatten_group(exc: BaseException) -> list[BaseException]:
+    """展开异常（组）为叶子异常列表（MCP SDK 基于 anyio，失败以异常组抛出）。"""
+    leaves: list[BaseException] = []
+    stack: list[BaseException] = [exc]
+    while stack:
+        current = stack.pop()
+        # noqa：3.11 内置类型；ruff target 仍钉 py310（升级会激活 160+ 存量 UP 项）
+        if isinstance(current, BaseExceptionGroup):  # noqa: F821
+            stack.extend(current.exceptions)
+        else:
+            leaves.append(current)
+    return leaves
+
+
+def _format_failures(leaves: list[BaseException]) -> str:
+    """叶子异常折叠为可读错误：HTTP 状态错误优先展示并附排查提示。"""
+    http_leaves = [
+        leaf
+        for leaf in leaves
+        if getattr(getattr(leaf, "response", None), "status_code", None) is not None
+    ]
+    chosen = (http_leaves[:2] if http_leaves else leaves[:2]) or []
+    messages: list[str] = []
+    for leaf in chosen:
+        status = getattr(getattr(leaf, "response", None), "status_code", None)
+        if status is not None:
+            hint = _HTTP_ERROR_HINTS.get(status)
+            message = f"远程服务返回 HTTP {status}"
+            messages.append(f"{message}（{hint}）" if hint else message)
+        elif isinstance(leaf, TimeoutError):
+            messages.append("连接超时，请检查网络可达性或增大超时秒数")
+        else:
+            messages.append(f"{type(leaf).__name__}: {leaf}")
+    return "；".join(dict.fromkeys(messages))
+
+
 class McpConfigService:
     """MCP server 配置业务服务（事务边界在本层）。"""
 
@@ -43,6 +96,7 @@ class McpConfigService:
         self.session.add(row)
         await self.session.commit()
         await self.session.refresh(row)
+        _reset_assistant_agent_cache()
         logger.info("mcp_server_created", name=row.name)
         return McpServerResponse.model_validate(row)
 
@@ -62,6 +116,7 @@ class McpConfigService:
         row.last_error = None
         await self.session.commit()
         await self.session.refresh(row)
+        _reset_assistant_agent_cache()
         logger.info("mcp_server_updated", name=row.name)
         return McpServerResponse.model_validate(row)
 
@@ -70,6 +125,7 @@ class McpConfigService:
         row = await self._get(server_id)
         await self.session.delete(row)
         await self.session.commit()
+        _reset_assistant_agent_cache()
         logger.info("mcp_server_deleted", name=row.name)
 
     async def test_server(self, server_id: int) -> McpServerTestResponse:
@@ -114,11 +170,18 @@ def _conn_params(cfg: Any) -> dict[str, Any]:
 
 
 async def _probe(transport: str, params: dict[str, Any], timeout: int) -> McpServerTestResponse:
-    """建立 MCP 客户端连接并列出工具；异常折叠为 ok=False + error。"""
+    """建立 MCP 客户端连接并列出工具；一切异常（含异常组/取消）折叠为 ok=False。
+
+    SDK 传输任务组崩溃后，取消会直接打进本协程的 await 点（``CancelledError``
+    是 ``BaseException``），客户端关闭时任务组还会重抛后台异常，故体与清理
+    两侧都收集叶子，最后统一格式化。
+    """
     from contextlib import AsyncExitStack
 
     from mcp import ClientSession
 
+    failures: list[BaseException] = []
+    ok_result: McpServerTestResponse | None = None
     stack = AsyncExitStack()
     try:
         try:
@@ -147,12 +210,27 @@ async def _probe(transport: str, params: dict[str, Any], timeout: int) -> McpSer
             )
             await session.initialize()
             tools = await session.list_tools()
-        except Exception as exc:  # noqa: BLE001 - 测试通道，异常折叠为失败结果
-            return McpServerTestResponse(ok=False, error=f"{type(exc).__name__}: {exc}")
-        tool_list = [
-            McpToolInfo(name=tool.name, description=tool.description)
-            for tool in tools.tools
-        ]
-        return McpServerTestResponse(ok=True, tool_count=len(tool_list), tools=tool_list)
+        except BaseException as exc:  # noqa: BLE001 - 测试通道，异常折叠为失败结果
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise
+            failures.extend(_flatten_group(exc))
+        else:
+            tool_list = [
+                McpToolInfo(name=tool.name, description=tool.description)
+                for tool in tools.tools
+            ]
+            ok_result = McpServerTestResponse(
+                ok=True, tool_count=len(tool_list), tools=tool_list
+            )
     finally:
-        await stack.aclose()
+        try:
+            await stack.aclose()
+        except BaseException as exc:  # noqa: BLE001 - 清理重抛的后台异常并入失败，不掩盖结果
+            failures.extend(_flatten_group(exc))
+            logger.debug("mcp_probe_cleanup_failed", exc_info=True)
+    if ok_result is not None:
+        return ok_result
+    return McpServerTestResponse(
+        ok=False,
+        error=_format_failures(failures) if failures else "连接测试中断，请重试",
+    )
