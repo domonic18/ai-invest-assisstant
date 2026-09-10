@@ -1,40 +1,49 @@
-"""资讯 spider 契约测试。"""
+"""东财全球快讯 spider 契约测试。"""
 
 
 import datetime
 
 import pytest
 
-from collector.spiders.sina_news import SinaNewsCollector
+from collector.spiders.eastmoney_flash_news import EastmoneyFlashNewsCollector
 
 
 @pytest.mark.unit
-class TestSinaNewsCollector:
+class TestEastmoneyFlashNewsCollector:
     @pytest.mark.asyncio
     async def test_transform_and_validate(self) -> None:
-        collector = SinaNewsCollector({"source": "sina", "data_type": "news"})
+        collector = EastmoneyFlashNewsCollector(
+            {"source": "eastmoney", "data_type": "news"}
+        )
         raw = {
-            "stock_code": "000001",
-            "doc_type": "news",
-            "title": "Test title",
-            "summary": "Test summary",
-            "content": "Test content",
-            "source": "EastMoney",
-            "source_url": "http://example.com/news/1",
-            "publish_date": "2024-01-02 10:00:00",
+            "标题": "Test title",
+            "摘要": "Test summary",
+            "链接": "http://example.com/news/1",
+            "发布时间": "2024-01-02 10:00:00",
         }
         item = await collector.transform(raw)
+        assert item["doc_type"] == "news"
+        assert item["source"] == "eastmoney"
         assert item["title"] == "Test title"
-        assert item["publish_date"] == datetime.datetime(2024, 1, 2, 10, 0, 0)
+        assert item["summary"] == "Test summary"
+        assert item["content"] == "Test summary"
+        assert item["source_url"] == "http://example.com/news/1"
+        # 北京时间 10:00 -> aware UTC 02:00
+        assert item["publish_date"] == datetime.datetime(
+            2024, 1, 2, 2, 0, 0, tzinfo=datetime.timezone.utc
+        )
         assert await collector.validate(item) is True
 
     @pytest.mark.asyncio
     async def test_validate_rejects_empty_title(self) -> None:
-        collector = SinaNewsCollector({"source": "sina", "data_type": "news"})
+        collector = EastmoneyFlashNewsCollector(
+            {"source": "eastmoney", "data_type": "news"}
+        )
         item = {
-            "stock_code": "000001",
             "title": "",
             "source_url": "http://example.com/news/1",
-            "publish_date": datetime.datetime(2024, 1, 2, 10, 0, 0),
+            "publish_date": datetime.datetime(
+                2024, 1, 2, 2, 0, 0, tzinfo=datetime.timezone.utc
+            ),
         }
         assert await collector.validate(item) is False

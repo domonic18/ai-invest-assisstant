@@ -135,6 +135,8 @@ export const queryKeys = {
   news: {
     all: ['news'] as const,
     channels: ['news', 'channels'] as const,
+    flash: (page: number, pageSize: number) =>
+      ['news', 'flash', page, pageSize] as const,
     focus: ['news', 'focus'] as const,
     topics: (sessionKey: string) => ['news', 'topics', sessionKey] as const,
     story: (id: number) => ['news', 'story', id] as const,

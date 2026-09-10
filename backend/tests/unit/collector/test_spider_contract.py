@@ -21,6 +21,7 @@ from collector.spiders.eastmoney_dragon_list import EastMoneyDragonListCollector
 from collector.spiders.eastmoney_financial_statement import (
     EastmoneyFinancialStatementCollector,
 )
+from collector.spiders.eastmoney_flash_news import EastmoneyFlashNewsCollector
 from collector.spiders.eastmoney_fund_flow import EastMoneyFundFlowCollector
 from collector.spiders.eastmoney_fund_holdings import EastMoneyFundHoldingsCollector
 from collector.spiders.eastmoney_global_index import (
@@ -37,7 +38,6 @@ from collector.spiders.sina_index_minute import SinaIndexMinuteCollector
 from collector.spiders.sina_kline import SinaKlineCollector
 from collector.spiders.sina_macro import SinaMacroCollector
 from collector.spiders.sina_market_breadth import SinaMarketBreadthCollector
-from collector.spiders.sina_news import SinaNewsCollector
 from collector.spiders.sina_stock_list import SinaStockListCollector
 from collector.spiders.ths_auction import ThsAuctionCollector
 from collector.spiders.ths_sector_fund_flow import ThsSectorFundFlowCollector
@@ -181,10 +181,10 @@ CONTRACTS: list[SpiderContract] = [
         required_fields=["stock_code", "trade_date", "match_time"],
     ),
     SpiderContract(
-        name="sina_news",
-        cls=SinaNewsCollector,
-        config={"source": "sina", "data_type": "news"},
-        store=StoreContract(table="news_announcement", conflict_key="source_url"),
+        name="eastmoney_flash_news",
+        cls=EastmoneyFlashNewsCollector,
+        config={"source": "eastmoney", "data_type": "news"},
+        store=StoreContract(table="news_document", conflict_key="source_url"),
         has_normalize=False,
         dedup_keys=["source_url"],
         required_fields=["title", "source_url", "publish_date"],
@@ -330,7 +330,7 @@ CONTRACTS: list[SpiderContract] = [
         name="cninfo_disclosure",
         cls=CninfoDisclosureCollector,
         config={"source": "cninfo", "data_type": "disclosure"},
-        store=StoreContract(table="news_announcement", conflict_key="source_url"),
+        store=StoreContract(table="news_document", conflict_key="source_url"),
         has_normalize=True,
         dedup_keys=["source_url"],
         required_fields=["stock_code", "title", "publish_date"],

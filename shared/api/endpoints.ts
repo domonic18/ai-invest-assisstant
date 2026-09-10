@@ -120,6 +120,7 @@ export const ENDPOINTS = {
   },
   news: {
     channels: `${API_BASE}/news/channels`,
+    feed: `${API_BASE}/news/feed`,
     focus: `${API_BASE}/news/focus`,
     stories: `${API_BASE}/news/stories`,
     story: (id: number | string) => `${API_BASE}/news/stories/${id}`,

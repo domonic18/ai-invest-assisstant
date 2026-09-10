@@ -204,3 +204,24 @@ export interface ApiSubscription {
   /** 最近命中时间（ISO，从未命中为 null） */
   lastHitAt: string | null
 }
+
+// ============ 东财快讯（实时电报流基础流） ============
+
+/** 东财快讯条目（news_document，基础流无 AI 分级/订阅/标的）。 */
+export interface ApiNewsFlashItem {
+  id: number
+  source: string
+  title: string | null
+  summary: string | null
+  content: string | null
+  sourceUrl: string | null
+  publishTime: string
+}
+
+/** 后端 GET /news/feed 分页响应。 */
+export interface ApiNewsFlashPage {
+  total: number
+  page: number
+  pageSize: number
+  items: ApiNewsFlashItem[]
+}

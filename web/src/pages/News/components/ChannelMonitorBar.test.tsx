@@ -26,8 +26,8 @@ describe('ChannelMonitorBar', () => {
         channels={[
           channel({}),
           channel({
-            key: 'sina_news',
-            name: '新浪财经',
+            key: 'eastmoney_flash_news',
+            name: '东财快讯',
             status: 'ok',
             statusText: '正常运行',
             pollDesc: '30 分钟轮询',
@@ -45,7 +45,7 @@ describe('ChannelMonitorBar', () => {
       />,
     )
     expect(screen.getByText('财联社电报')).toBeInTheDocument()
-    expect(screen.getByText('新浪财经')).toBeInTheDocument()
+    expect(screen.getByText('东财快讯')).toBeInTheDocument()
     expect(screen.getByText('X 博主')).toBeInTheDocument()
     expect(screen.getByText('LIVE 采集中')).toBeInTheDocument()
     // 滞后分钟数换算（600s -> 10min）

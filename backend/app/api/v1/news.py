@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.news import (
@@ -17,7 +18,9 @@ from app.schemas.news import (
     SubscriptionUpdateRequest,
     TopicsResponse,
 )
+from app.schemas.stock import PaginatedResponse
 from app.services.news import (
+    flash_service,
     news_channel_service,
     storyline_service,
     subscription_service,
@@ -34,6 +37,22 @@ async def list_news_channels(
 ) -> NewsChannelsResponse:
     """渠道监控卡 + 今日统计（注册表驱动，登录态）。"""
     return await news_channel_service.get_channels_status(session)
+
+
+@router.get("/feed", response_model=PaginatedResponse)
+async def list_news_feed(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    page: int = Query(DEFAULT_PAGE, ge=1),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+) -> PaginatedResponse:
+    """分页查询东财快讯（publish_date 降序，基础流无 AI 分级/订阅）。"""
+    items, total = await flash_service.list_flash_news(
+        session, page=page, page_size=page_size
+    )
+    return PaginatedResponse(
+        total=total, page=page, page_size=page_size, items=items
+    )
 
 
 @router.get("/focus", response_model=FocusResponse)

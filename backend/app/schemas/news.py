@@ -325,3 +325,15 @@ class SubscriptionUpdateRequest(CamelModel):
     channels: list[str] | None = None
     push_enabled: bool | None = None
     enabled: bool | None = None
+
+
+class NewsFlashItemResponse(CamelModel):
+    """东财快讯条目（news_document，基础流无 AI 分级/订阅/标的）。"""
+
+    id: int
+    source: str
+    title: str | None = None
+    summary: str | None = None
+    content: str | None = None
+    source_url: str | None = None
+    publish_time: datetime

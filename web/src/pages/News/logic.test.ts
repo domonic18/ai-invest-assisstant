@@ -82,7 +82,7 @@ describe('countNewMessages', () => {
 describe('isChannelWired', () => {
   it('marks only channels with feed data as wired', () => {
     expect(isChannelWired('cls_telegraph')).toBe(true)
-    expect(isChannelWired('sina_news')).toBe(false)
+    expect(isChannelWired('eastmoney_flash_news')).toBe(true)
     expect(isChannelWired('eastmoney_research_report')).toBe(false)
   })
 })
