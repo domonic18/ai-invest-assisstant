@@ -3,7 +3,7 @@
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.calendar import CalendarEventResponse
+from app.schemas.calendar import NewsCalendarEventResponse
 from app.schemas.workbench import WorkbenchResponse
 from app.services.market import (
     calendar_service,
@@ -32,7 +32,7 @@ async def get_workbench(session: AsyncSession, user_id: int) -> WorkbenchRespons
 
     try:
         events = await calendar_service.list_upcoming(session, _CALENDAR_LIMIT)
-        data.calendar = [CalendarEventResponse.model_validate(e) for e in events]
+        data.calendar = [NewsCalendarEventResponse.model_validate(e) for e in events]
     except Exception:
         logger.warning("workbench_calendar_degraded", exc_info=True)
 

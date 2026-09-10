@@ -38,8 +38,8 @@ from app.schemas.llm_config import (
     LLMConfigTestResponse,
     LLMConfigUpdate,
 )
-from app.schemas.news_announcement import (
-    NewsAnnouncementResponse,
+from app.schemas.news_document import (
+    NewsDocumentResponse,
     ResearchReportDetailResponse,
     ResearchReportListRequest,
     ResearchReportResponse,
@@ -111,7 +111,7 @@ __all__ = [
     "LLMConfigUpdate",
     "LLMConfigResponse",
     "LLMConfigTestResponse",
-    "NewsAnnouncementResponse",
+    "NewsDocumentResponse",
     "ResearchReportResponse",
     "ResearchReportDetailResponse",
     "ResearchReportListRequest",

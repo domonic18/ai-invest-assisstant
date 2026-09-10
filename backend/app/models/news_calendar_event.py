@@ -9,10 +9,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
 
-class CalendarEvent(Base):
+class NewsCalendarEvent(Base):
     """投资日历事件（FOMC/BLS 官方日程等，source_hash 幂等）。"""
 
-    __tablename__ = "calendar_event"
+    __tablename__ = "news_calendar_event"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

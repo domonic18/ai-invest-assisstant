@@ -6,17 +6,17 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.news_announcement import NewsAnnouncement
+from app.models.news_document import NewsDocument
 from app.repositories.base import BaseRepository
 
 _FILTER_VALUES_CAP = 500
 
 
-class NewsAnnouncementRepository(BaseRepository[NewsAnnouncement]):
+class NewsDocumentRepository(BaseRepository[NewsDocument]):
     """新闻公告的数据访问。"""
 
     def __init__(self, session: AsyncSession) -> None:
-        super().__init__(session, NewsAnnouncement)
+        super().__init__(session, NewsDocument)
 
     def _apply_filters(
         self,
@@ -24,6 +24,7 @@ class NewsAnnouncementRepository(BaseRepository[NewsAnnouncement]):
         *,
         stock_code: str | None = None,
         doc_type: str | None = None,
+        source: str | None = None,
         q: str | None = None,
         broker: str | None = None,
         industry: str | None = None,
@@ -32,24 +33,26 @@ class NewsAnnouncementRepository(BaseRepository[NewsAnnouncement]):
     ) -> Any:
         """为语句应用通用筛选条件。"""
         if stock_code:
-            stmt = stmt.where(NewsAnnouncement.stock_code == stock_code)
+            stmt = stmt.where(NewsDocument.stock_code == stock_code)
         if doc_type:
-            stmt = stmt.where(NewsAnnouncement.doc_type == doc_type)
+            stmt = stmt.where(NewsDocument.doc_type == doc_type)
+        if source:
+            stmt = stmt.where(NewsDocument.source == source)
         if q:
             pattern = f"%{q}%"
             stmt = stmt.where(
-                NewsAnnouncement.title.ilike(pattern)
-                | NewsAnnouncement.content.ilike(pattern)
+                NewsDocument.title.ilike(pattern)
+                | NewsDocument.content.ilike(pattern)
             )
         if broker:
-            stmt = stmt.where(NewsAnnouncement.extra["broker"].astext == broker)
+            stmt = stmt.where(NewsDocument.extra["broker"].astext == broker)
         if industry:
-            stmt = stmt.where(NewsAnnouncement.industry_tags.contains([industry]))
+            stmt = stmt.where(NewsDocument.industry_tags.contains([industry]))
         if start_date:
-            stmt = stmt.where(NewsAnnouncement.publish_date >= start_date)
+            stmt = stmt.where(NewsDocument.publish_date >= start_date)
         if end_date:
             end_datetime = end_date + timedelta(days=1)
-            stmt = stmt.where(NewsAnnouncement.publish_date < end_datetime)
+            stmt = stmt.where(NewsDocument.publish_date < end_datetime)
         return stmt
 
     async def list_paginated(
@@ -57,6 +60,7 @@ class NewsAnnouncementRepository(BaseRepository[NewsAnnouncement]):
         *,
         stock_code: str | None = None,
         doc_type: str | None = None,
+        source: str | None = None,
         q: str | None = None,
         broker: str | None = None,
         industry: str | None = None,
@@ -65,18 +69,19 @@ class NewsAnnouncementRepository(BaseRepository[NewsAnnouncement]):
         order_by: Any | None = None,
         offset: int = 0,
         limit: int = 20,
-    ) -> tuple[list[NewsAnnouncement], int]:
+    ) -> tuple[list[NewsDocument], int]:
         """返回分页的新闻公告，支持可选筛选条件。"""
-        stmt = select(NewsAnnouncement)
+        stmt = select(NewsDocument)
         if order_by is not None:
             stmt = stmt.order_by(order_by)
         else:
-            stmt = stmt.order_by(NewsAnnouncement.created_at.desc())
-        count_stmt = select(func.count()).select_from(NewsAnnouncement)
+            stmt = stmt.order_by(NewsDocument.created_at.desc())
+        count_stmt = select(func.count()).select_from(NewsDocument)
 
         filters = {
             "stock_code": stock_code,
             "doc_type": doc_type,
+            "source": source,
             "q": q,
             "broker": broker,
             "industry": industry,
@@ -94,15 +99,15 @@ class NewsAnnouncementRepository(BaseRepository[NewsAnnouncement]):
     async def list_research_filters(self) -> tuple[list[str], list[str]]:
         """返回研报中去重后的券商与行业标签列表（distinct 值封顶，防全表膨胀）。"""
         broker_stmt = (
-            select(func.distinct(NewsAnnouncement.extra["broker"].astext))
-            .where(NewsAnnouncement.doc_type == "research")
-            .where(NewsAnnouncement.extra["broker"].astext.isnot(None))
+            select(func.distinct(NewsDocument.extra["broker"].astext))
+            .where(NewsDocument.doc_type == "research")
+            .where(NewsDocument.extra["broker"].astext.isnot(None))
             .limit(_FILTER_VALUES_CAP)
         )
         industry_stmt = (
-            select(func.distinct(NewsAnnouncement.industry_tags[1]))
-            .where(NewsAnnouncement.doc_type == "research")
-            .where(NewsAnnouncement.industry_tags.isnot(None))
+            select(func.distinct(NewsDocument.industry_tags[1]))
+            .where(NewsDocument.doc_type == "research")
+            .where(NewsDocument.industry_tags.isnot(None))
             .limit(_FILTER_VALUES_CAP)
         )
         brokers = (await self.session.execute(broker_stmt)).scalars().all()
@@ -117,7 +122,7 @@ class NewsAnnouncementRepository(BaseRepository[NewsAnnouncement]):
         q: str | None = None,
         offset: int = 0,
         limit: int = 20,
-    ) -> tuple[list[NewsAnnouncement], int]:
+    ) -> tuple[list[NewsDocument], int]:
         """按文档类型筛选并返回分页公告。"""
         return await self.list_paginated(
             stock_code=stock_code,

@@ -11,9 +11,9 @@ from app.agent.core.prompt_renderer import PromptRenderer
 from app.constants.summary import SUMMARY_TEXT_LIMIT
 from app.core.exceptions import NotFoundError
 from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
-from app.models.news_announcement import NewsAnnouncement
-from app.repositories.reports.news_announcement_repository import NewsAnnouncementRepository
-from app.schemas.news_announcement import (
+from app.models.news_document import NewsDocument
+from app.repositories.reports.news_document_repository import NewsDocumentRepository
+from app.schemas.news_document import (
     ResearchReportDetailResponse,
     ResearchReportResponse,
 )
@@ -40,7 +40,7 @@ class ResearchService:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
-        self.repo = NewsAnnouncementRepository(session)
+        self.repo = NewsDocumentRepository(session)
 
     async def list_reports(
         self,
@@ -52,7 +52,7 @@ class ResearchService:
         end_date: date | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> tuple[list[NewsAnnouncement], int]:
+    ) -> tuple[list[NewsDocument], int]:
         """分页查询研报列表。"""
         offset = (page - 1) * page_size
         return await self.repo.list_paginated(
@@ -63,12 +63,12 @@ class ResearchService:
             industry=industry,
             start_date=start_date,
             end_date=end_date,
-            order_by=NewsAnnouncement.publish_date.desc().nullslast(),
+            order_by=NewsDocument.publish_date.desc().nullslast(),
             offset=offset,
             limit=page_size,
         )
 
-    async def get_report(self, report_id: int) -> NewsAnnouncement | None:
+    async def get_report(self, report_id: int) -> NewsDocument | None:
         """按 ID 查询研报详情。"""
         return await self.repo.get(report_id)
 
@@ -92,7 +92,7 @@ class ResearchService:
     async def summarize_report(self, report_id: int) -> dict[str, Any]:
         """获取研报 AI 摘要：已生成则直返缓存，否则抽 PDF 文本调 LLM 懒生成。
 
-        摘要写回 ``news_announcement.summary`` 全局共享，所有租户复用同一份结果。
+        摘要写回 ``news_document.summary`` 全局共享，所有租户复用同一份结果。
         """
         report = await self.get_report(report_id)
         if report is None:
@@ -123,7 +123,7 @@ class ResearchService:
             logger.info("research_report_summary_generated", report_id=report_id)
             return {"summary": summary, "cached": False}
 
-    async def _load_pdf_bytes(self, report: NewsAnnouncement) -> bytes:
+    async def _load_pdf_bytes(self, report: NewsDocument) -> bytes:
         """定位研报 PDF：优先 MinIO 已存文件，否则从来源 URL 下载并补存。"""
         from app.services.common.minio_service import get_minio_service
 
@@ -172,7 +172,7 @@ class ResearchService:
             raise SummaryUnavailableError("PDF 文本抽取失败或内容为空")
         return text[:SUMMARY_TEXT_LIMIT]
 
-    async def _generate_summary(self, report: NewsAnnouncement, text: str) -> str:
+    async def _generate_summary(self, report: NewsDocument, text: str) -> str:
         # 延迟导入：agent 运行时顶层依赖 services，避免 services 聚合时环导入
         from app.agent.runtime.structured import run_structured
 
@@ -218,7 +218,7 @@ def _render_summary_markdown(output: ResearchReportSummaryResult) -> str:
     return "\n\n".join(parts)
 
 
-def _derived_fields(report: NewsAnnouncement) -> dict[str, Any]:
+def _derived_fields(report: NewsDocument) -> dict[str, Any]:
     """从 extra/summary 派生列表展示字段。"""
     extra = report.extra or {}
     tags = report.industry_tags or []
@@ -231,13 +231,13 @@ def _derived_fields(report: NewsAnnouncement) -> dict[str, Any]:
     }
 
 
-def to_report_response(report: NewsAnnouncement) -> ResearchReportResponse:
+def to_report_response(report: NewsDocument) -> ResearchReportResponse:
     return ResearchReportResponse.model_validate(report).model_copy(
         update=_derived_fields(report)
     )
 
 
-def to_report_detail_response(report: NewsAnnouncement) -> ResearchReportDetailResponse:
+def to_report_detail_response(report: NewsDocument) -> ResearchReportDetailResponse:
     return ResearchReportDetailResponse.model_validate(report).model_copy(
         update=_derived_fields(report)
     )
@@ -254,7 +254,7 @@ async def list_reports(
     end_date: date | None = None,
     page: int = 1,
     page_size: int = 20,
-) -> tuple[list[NewsAnnouncement], int]:
+) -> tuple[list[NewsDocument], int]:
     return await ResearchService(session).list_reports(
         stock_code=stock_code,
         q=q,
@@ -267,7 +267,7 @@ async def list_reports(
     )
 
 
-async def get_report(session: AsyncSession, report_id: int) -> NewsAnnouncement | None:
+async def get_report(session: AsyncSession, report_id: int) -> NewsDocument | None:
     return await ResearchService(session).get_report(report_id)
 
 

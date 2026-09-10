@@ -3,12 +3,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.models.news_announcement import NewsAnnouncement
-from app.repositories.reports.news_announcement_repository import NewsAnnouncementRepository
-from app.schemas.news_announcement import (
-    NewsAnnouncementCreate,
-    NewsAnnouncementResponse,
-    NewsAnnouncementUpdate,
+from app.models.news_document import NewsDocument
+from app.repositories.reports.news_document_repository import NewsDocumentRepository
+from app.schemas.news_document import (
+    NewsDocumentCreate,
+    NewsDocumentResponse,
+    NewsDocumentUpdate,
 )
 
 
@@ -17,7 +17,7 @@ class AdminNewsService:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
-        self.repo = NewsAnnouncementRepository(session)
+        self.repo = NewsDocumentRepository(session)
 
     async def list_news(
         self,
@@ -26,7 +26,7 @@ class AdminNewsService:
         q: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> tuple[list[NewsAnnouncement], int]:
+    ) -> tuple[list[NewsDocument], int]:
         """分页查询新闻公告列表。"""
         offset = (page - 1) * page_size
         return await self.repo.list_paginated(
@@ -37,16 +37,16 @@ class AdminNewsService:
             limit=page_size,
         )
 
-    async def get_news(self, news_id: int) -> NewsAnnouncement:
+    async def get_news(self, news_id: int) -> NewsDocument:
         """按 ID 查询新闻公告，缺失时抛 NotFoundError。"""
         news = await self.repo.get(news_id)
         if not news:
             raise NotFoundError(f"News {news_id} not found")
         return news
 
-    async def create_news(self, data: NewsAnnouncementCreate) -> NewsAnnouncement:
+    async def create_news(self, data: NewsDocumentCreate) -> NewsDocument:
         """创建新闻公告。"""
-        news = NewsAnnouncement(
+        news = NewsDocument(
             stock_code=data.stock_code,
             doc_type=data.doc_type,
             title=data.title,
@@ -67,8 +67,8 @@ class AdminNewsService:
         return news
 
     async def update_news(
-        self, news_id: int, data: NewsAnnouncementUpdate
-    ) -> NewsAnnouncement:
+        self, news_id: int, data: NewsDocumentUpdate
+    ) -> NewsDocument:
         """更新新闻公告，缺失时抛 NotFoundError。"""
         news = await self.get_news(news_id)
 
@@ -85,6 +85,6 @@ class AdminNewsService:
         await self.repo.delete(news)
         await self.session.commit()
 
-    def _to_response(self, news: NewsAnnouncement) -> NewsAnnouncementResponse:
+    def _to_response(self, news: NewsDocument) -> NewsDocumentResponse:
         """序列化为新闻公告响应模型。"""
-        return NewsAnnouncementResponse.model_validate(news)
+        return NewsDocumentResponse.model_validate(news)

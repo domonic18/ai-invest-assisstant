@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
 from app.dependencies import get_db
-from app.schemas.news_announcement import (
+from app.schemas.news_document import (
     ResearchReportDetailResponse,
     ResearchReportFiltersResponse,
     ResearchReportListRequest,

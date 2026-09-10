@@ -5,7 +5,7 @@ from datetime import datetime
 from app.schemas.base import CamelModel
 
 
-class CalendarEventResponse(CamelModel):
+class NewsCalendarEventResponse(CamelModel):
     """投资日历事件的响应 schema。"""
 
     id: int

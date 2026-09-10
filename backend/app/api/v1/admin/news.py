@@ -7,10 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.dependencies import get_current_admin_user, get_db
-from app.schemas.news_announcement import (
-    NewsAnnouncementCreate,
-    NewsAnnouncementResponse,
-    NewsAnnouncementUpdate,
+from app.schemas.news_document import (
+    NewsDocumentCreate,
+    NewsDocumentResponse,
+    NewsDocumentUpdate,
 )
 from app.schemas.stock import PaginatedResponse
 from app.services.admin.news import AdminNewsService
@@ -35,43 +35,43 @@ async def list_news(
         total=total,
         page=page,
         page_size=page_size,
-        items=[NewsAnnouncementResponse.model_validate(item) for item in items],
+        items=[NewsDocumentResponse.model_validate(item) for item in items],
     )
 
 
 @router.post(
     "/",
-    response_model=NewsAnnouncementResponse,
+    response_model=NewsDocumentResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_news(
-    data: NewsAnnouncementCreate,
+    data: NewsDocumentCreate,
     session: Annotated[AsyncSession, Depends(get_db)],
-) -> NewsAnnouncementResponse:
+) -> NewsDocumentResponse:
     """创建新闻公告。"""
     news = await AdminNewsService(session).create_news(data)
-    return NewsAnnouncementResponse.model_validate(news)
+    return NewsDocumentResponse.model_validate(news)
 
 
-@router.get("/{news_id}", response_model=NewsAnnouncementResponse)
+@router.get("/{news_id}", response_model=NewsDocumentResponse)
 async def get_news(
     news_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
-) -> NewsAnnouncementResponse:
+) -> NewsDocumentResponse:
     """获取单条新闻公告。"""
     news = await AdminNewsService(session).get_news(news_id)
-    return NewsAnnouncementResponse.model_validate(news)
+    return NewsDocumentResponse.model_validate(news)
 
 
-@router.put("/{news_id}", response_model=NewsAnnouncementResponse)
+@router.put("/{news_id}", response_model=NewsDocumentResponse)
 async def update_news(
     news_id: int,
-    data: NewsAnnouncementUpdate,
+    data: NewsDocumentUpdate,
     session: Annotated[AsyncSession, Depends(get_db)],
-) -> NewsAnnouncementResponse:
+) -> NewsDocumentResponse:
     """更新新闻公告。"""
     news = await AdminNewsService(session).update_news(news_id, data)
-    return NewsAnnouncementResponse.model_validate(news)
+    return NewsDocumentResponse.model_validate(news)
 
 
 @router.delete("/{news_id}", status_code=status.HTTP_204_NO_CONTENT)

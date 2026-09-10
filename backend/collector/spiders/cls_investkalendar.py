@@ -9,7 +9,7 @@ Cookie（复用 :mod:`collector.spiders.cls_telegraph` 的共享会话），签�
 条目映射：``type=1`` 经济数据（economic 载荷）→ ``宏观``；
 ``type=2`` 事件会议（event 载荷）→ ``会议``；其余类型（新股/解禁为
 cls 独立接口）与本轮无关，跳过。``calendar_time`` 为北京时间字符串
-（00:00:00 表示时间未定），统一换算 aware UTC 后写入 ``calendar_event``。
+（00:00:00 表示时间未定），统一换算 aware UTC 后写入 ``news_calendar_event``。
 """
 
 import hashlib
@@ -42,13 +42,13 @@ def _parse_calendar_time(raw: str) -> datetime:
 
 
 def _source_hash(event_time: datetime, title: str) -> str:
-    """幂等键 md5(source|event_time|title)，与 calendar_event 表约定一致。"""
+    """幂等键 md5(source|event_time|title)，与 news_calendar_event 表约定一致。"""
     text = f"cls|{event_time.isoformat()}|{title}"
     return hashlib.md5(text.encode("utf-8")).hexdigest()
 
 
 def _map_item(row: dict[str, Any]) -> dict[str, Any] | None:
-    """单条日历目 → calendar_event 行；非宏观/会议类型返回 None 跳过。"""
+    """单条日历目 → news_calendar_event 行；非宏观/会议类型返回 None 跳过。"""
     category = _TYPE_TO_CATEGORY.get(row.get("type"))
     if category is None:
         return None
@@ -85,13 +85,13 @@ def _extract_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def fetch_calendar(trade_date: int) -> list[dict[str, Any]]:
-    """拉取投资日历前瞻窗口并映射为 calendar_event 行。
+    """拉取投资日历前瞻窗口并映射为 news_calendar_event 行。
 
     Args:
         trade_date: Unix 秒（窗口固定，仅镜像官方客户端参数）。
 
     Returns:
-        calendar_event 行列表。
+        news_calendar_event 行列表。
 
     Raises:
         RuntimeError: 响应 code 非 200（含 WAF 拦截场景）。
@@ -118,13 +118,13 @@ def fetch_calendar(trade_date: int) -> list[dict[str, Any]]:
 
 
 class ClsInvestkalendarCollector(PostgresCollector):
-    """财联社投资日历采集器，写入 calendar_event（source_hash 幂等 DO NOTHING）。
+    """财联社投资日历采集器，写入 news_calendar_event（source_hash 幂等 DO NOTHING）。
 
-    cls 侧的预期值/公布值更新（consensus/actual）不在 calendar_event
+    cls 侧的预期值/公布值更新（consensus/actual）不在 news_calendar_event
     字段内，冲突时保留首见行即可。
     """
 
-    table = "calendar_event"
+    table = "news_calendar_event"
     conflict_key = "source_hash"
     normalize = False
     key_fields: ClassVar[list[str]] = ["source_hash"]
