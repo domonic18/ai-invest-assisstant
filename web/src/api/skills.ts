@@ -2,6 +2,7 @@ import { ENDPOINTS } from '@ai-invest/shared'
 import type {
   ApiCustomSkillCreateRequest,
   ApiCustomSkillUpdateRequest,
+  ApiSkillAnalyzeResponse,
   ApiSkillFilesResponse,
   ApiSkillResponse,
   ApiSkillSquareResponse,
@@ -12,6 +13,17 @@ import { apiClient } from './client'
 
 export async function fetchSkillSquare(): Promise<ApiSkillSquareResponse> {
   const response = await apiClient.get<ApiSkillSquareResponse>(ENDPOINTS.skills.list)
+  return response.data
+}
+
+export async function analyzeSkillArchive(file: File): Promise<ApiSkillAnalyzeResponse> {
+  const formData = new FormData()
+  formData.append('archive', file)
+  const response = await apiClient.post<ApiSkillAnalyzeResponse>(
+    ENDPOINTS.skills.analyze,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  )
   return response.data
 }
 
@@ -28,6 +40,17 @@ export async function fetchSkillFiles(skillId: string): Promise<ApiSkillFilesRes
 export async function installSkill(skillId: string): Promise<ApiUserSkillResponse> {
   const response = await apiClient.post<ApiUserSkillResponse>(
     ENDPOINTS.skills.install(skillId),
+  )
+  return response.data
+}
+
+export async function toggleInstallSkill(
+  skillId: string,
+  enabled: boolean,
+): Promise<ApiUserSkillResponse> {
+  const response = await apiClient.patch<ApiUserSkillResponse>(
+    ENDPOINTS.skills.installToggle(skillId),
+    { enabled },
   )
   return response.data
 }

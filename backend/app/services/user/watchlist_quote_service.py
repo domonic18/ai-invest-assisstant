@@ -7,6 +7,7 @@ from typing import Any, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import get_redis
+from app.core.clock import today_cn
 from app.models.watchlist import UserWatchlist
 from app.repositories.market.kline_repository import (
     fetch_daily_bars,
@@ -34,9 +35,8 @@ async def _load_stock_names(
 async def _load_minute_trend(
     session: AsyncSession, codes: list[str]
 ) -> dict[str, list[float]]:
-    """最近交易日分钟收盘价降采样（≤60 点），无数据返回空数组。"""
-    resolved = await trade_calendar_service.resolve_latest_trade_date(session)
-    bars = await fetch_minute_bars_multi(session, codes, resolved)
+    """当日分钟收盘价降采样（≤60 点）；当日无数据（盘中未落库/非交易日）返回空。"""
+    bars = await fetch_minute_bars_multi(session, codes, today_cn())
     closes_by_code: dict[str, list[float]] = {}
     for bar in bars:
         if bar.close is None:

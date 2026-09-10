@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     # Skill 包文件浏览（GET /skills/{id}/files）：只读文本小文件，超过上限的文件跳过
     skill_file_max_bytes: int = 64 * 1024
     skill_files_max_count: int = 20
+    # 自定义技能压缩包上传（POST /skills/analyze）大小上限
+    skill_upload_max_mb: int = 10
 
     # SPA 静态托管（web 镜像内烘 ENV STATIC_DIR=/app/static；为空则纯 API 模式）
     static_dir: Path | None = None

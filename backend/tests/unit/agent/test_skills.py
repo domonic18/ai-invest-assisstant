@@ -11,6 +11,7 @@ from app.skills.prompt import load_skill_prompt
 EXPECTED_SKILLS = {
     "chain-breakthrough",
     "financial-health-check",
+    "financial-report-summary",
     "hotspot-detection",
     "industry-chain-analysis",
     "limit-up-review",

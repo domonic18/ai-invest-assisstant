@@ -1,6 +1,6 @@
 """文件元数据仓储。"""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +14,18 @@ class FileMetadataRepository(BaseRepository[FileMetadata]):
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, FileMetadata)
+
+    async def list_older_than(
+        self, file_type: str, cutoff: datetime
+    ) -> list[FileMetadata]:
+        """指定类型中 created_at 早于 cutoff 的全部行。"""
+        result = await self.execute(
+            select(FileMetadata)
+            .where(FileMetadata.file_type == file_type)
+            .where(FileMetadata.created_at < cutoff)
+            .order_by(FileMetadata.created_at.asc())
+        )
+        return list(result.scalars().all())
 
     async def list_paginated(
         self,

@@ -1,6 +1,8 @@
-import { Form, Input, Modal, Select, Switch } from 'antd'
+import { ExperimentOutlined } from '@ant-design/icons'
+import { Button, Form, Input, Modal, Select, Switch } from 'antd'
 import { useEffect } from 'react'
 
+import { LLM_PROVIDER_PRESETS } from '@ai-invest/shared'
 import type { LLMConfig, LLMConfigFormValues } from '@ai-invest/shared'
 
 interface LLMConfigModalProps {
@@ -8,18 +10,33 @@ interface LLMConfigModalProps {
   editing: LLMConfig | null
   onCancel: () => void
   onSubmit: (values: LLMConfigFormValues) => void
+  onTest: () => void
+  testing: boolean
   loading: boolean
 }
 
-const PROVIDER_OPTIONS = [
-  { value: 'openai', label: 'OpenAI' },
+const PROTOCOL_OPTIONS = [
+  { value: 'openai', label: 'OpenAI 兼容' },
   { value: 'anthropic', label: 'Anthropic' },
-  { value: 'deepseek', label: 'DeepSeek' },
-  { value: 'zhipu', label: '智谱 GLM' },
+]
+
+const PROVIDER_OPTIONS = [
+  ...Object.entries(LLM_PROVIDER_PRESETS).map(([value, preset]) => ({
+    value,
+    label: preset.label,
+  })),
   { value: 'custom', label: '自定义' },
 ]
 
-export function LLMConfigModal({ open, editing, onCancel, onSubmit, loading }: LLMConfigModalProps) {
+export function LLMConfigModal({
+  open,
+  editing,
+  onCancel,
+  onSubmit,
+  onTest,
+  testing,
+  loading,
+}: LLMConfigModalProps) {
   const [form] = Form.useForm<LLMConfigFormValues>()
 
   useEffect(() => {
@@ -29,6 +46,7 @@ export function LLMConfigModal({ open, editing, onCancel, onSubmit, loading }: L
         form.setFieldsValue({
           name: editing.name,
           provider: editing.provider,
+          protocol: editing.protocol,
           baseUrl: editing.baseUrl,
           modelName: editing.modelName,
           apiKey: '',
@@ -39,7 +57,9 @@ export function LLMConfigModal({ open, editing, onCancel, onSubmit, loading }: L
       } else {
         form.resetFields()
         form.setFieldsValue({
-          provider: 'openai',
+          provider: 'deepseek',
+          protocol: 'openai',
+          baseUrl: LLM_PROVIDER_PRESETS.deepseek.baseUrl,
           isActive: true,
           isDefault: false,
           vision: false,
@@ -47,6 +67,13 @@ export function LLMConfigModal({ open, editing, onCancel, onSubmit, loading }: L
       }
     }
   }, [open, editing, form])
+
+  const handleProviderChange = (provider: string) => {
+    const preset = LLM_PROVIDER_PRESETS[provider]
+    if (preset) {
+      form.setFieldsValue({ baseUrl: preset.baseUrl, protocol: preset.protocol })
+    }
+  }
 
   const handleOk = async () => {
     const values = await form.validateFields()
@@ -61,6 +88,24 @@ export function LLMConfigModal({ open, editing, onCancel, onSubmit, loading }: L
       onCancel={onCancel}
       confirmLoading={loading}
       destroyOnClose
+      footer={[
+        <Button
+          key="test"
+          icon={<ExperimentOutlined />}
+          onClick={onTest}
+          loading={testing}
+          disabled={!editing}
+          title={editing ? '测试已保存的配置' : '请先保存配置后再测试'}
+        >
+          测试连接
+        </Button>,
+        <Button key="cancel" onClick={onCancel}>
+          取消
+        </Button>,
+        <Button key="ok" type="primary" onClick={handleOk} loading={loading}>
+          确定
+        </Button>,
+      ]}
     >
       <Form form={form} layout="vertical" autoComplete="off">
         <Form.Item
@@ -68,7 +113,7 @@ export function LLMConfigModal({ open, editing, onCancel, onSubmit, loading }: L
           name="name"
           rules={[{ required: true, message: '请输入名称' }]}
         >
-          <Input placeholder="如：OpenAI GPT-4o" />
+          <Input placeholder="如：DeepSeek V4" />
         </Form.Item>
 
         <Form.Item
@@ -76,15 +121,25 @@ export function LLMConfigModal({ open, editing, onCancel, onSubmit, loading }: L
           name="provider"
           rules={[{ required: true, message: '请选择供应商' }]}
         >
-          <Select options={PROVIDER_OPTIONS} />
+          <Select options={PROVIDER_OPTIONS} onChange={handleProviderChange} />
+        </Form.Item>
+
+        <Form.Item
+          label="协议类型"
+          name="protocol"
+          rules={[{ required: true, message: '请选择协议类型' }]}
+          extra="决定实际调用的接口协议，测试连接按所选协议探测"
+        >
+          <Select options={PROTOCOL_OPTIONS} />
         </Form.Item>
 
         <Form.Item
           label="API 地址 (Base URL)"
           name="baseUrl"
           rules={[{ required: true, message: '请输入 API 地址' }]}
+          extra="选择供应商后自动预置，可手动修改"
         >
-          <Input placeholder="https://api.openai.com/v1" />
+          <Input placeholder="https://api.deepseek.com" />
         </Form.Item>
 
         <Form.Item
@@ -92,7 +147,7 @@ export function LLMConfigModal({ open, editing, onCancel, onSubmit, loading }: L
           name="modelName"
           rules={[{ required: true, message: '请输入模型名称' }]}
         >
-          <Input placeholder="gpt-4o" />
+          <Input placeholder="deepseek-chat" />
         </Form.Item>
 
         <Form.Item

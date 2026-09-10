@@ -16,6 +16,9 @@ const CollectorAdmin = lazy(() =>
   import('./pages/Admin/Collector').then((m) => ({ default: m.CollectorAdmin })),
 )
 const LLMConfig = lazy(() => import('./pages/Admin/LLMConfig/LLMConfig').then((m) => ({ default: m.LLMConfig })))
+const McpServers = lazy(() =>
+  import('./pages/Admin/McpServers/McpServers').then((m) => ({ default: m.McpServers })),
+)
 const ProxyConfig = lazy(() =>
   import('./pages/Admin/ProxyConfig/ProxyConfig').then((m) => ({ default: m.ProxyConfig })),
 )
@@ -44,6 +47,9 @@ const News = lazy(() => import('./pages/News').then((m) => ({ default: m.News })
 const Register = lazy(() => import('./pages/Register/Register').then((m) => ({ default: m.Register })))
 const Settings = lazy(() => import('./pages/Settings/Settings').then((m) => ({ default: m.Settings })))
 const SkillsPage = lazy(() => import('./pages/Skills/SkillsPage').then((m) => ({ default: m.SkillsPage })))
+const SkillDetailPage = lazy(() =>
+  import('./pages/Skills/SkillDetailPage').then((m) => ({ default: m.SkillDetailPage })),
+)
 const StockDetail = lazy(() => import('./pages/StockDetail/StockDetail').then((m) => ({ default: m.StockDetail })))
 const Watchlist = lazy(() => import('./pages/Watchlist').then((m) => ({ default: m.Watchlist })))
 const Workbench = lazy(() =>
@@ -81,6 +87,7 @@ export const router = createBrowserRouter([
       { path: 'financial/:code', element: lazyEl(<Financial />) },
       { path: 'settings', element: lazyEl(<Settings />) },
       { path: 'skills', element: lazyEl(<SkillsPage />) },
+      { path: 'skills/:skillId', element: lazyEl(<SkillDetailPage />) },
       { path: 'watchlist', element: lazyEl(<Watchlist />) },
       {
         path: 'admin',
@@ -94,6 +101,7 @@ export const router = createBrowserRouter([
           // 旧路由兜底：任务/渠道配置并入采集管理（tab 直达）
           { path: 'tasks', element: <Navigate to="/admin/collector?tab=tasks" replace /> },
           { path: 'llm-configs', element: lazyEl(<LLMConfig />) },
+          { path: 'mcp-servers', element: lazyEl(<McpServers />) },
           { path: 'proxy-configs', element: lazyEl(<ProxyConfig />) },
           { path: 'ai-results', element: lazyEl(<AiResultsAdmin />) },
           { path: 'collector-channels', element: <Navigate to="/admin/collector?tab=channels" replace /> },

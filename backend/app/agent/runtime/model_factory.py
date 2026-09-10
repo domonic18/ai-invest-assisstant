@@ -29,8 +29,8 @@ def build_langchain_model(
             助手循环需要 thinking 块，保持默认 False。
 
     Returns:
-        anthropic 协议（含 Kimi coding 端点）→ ``ChatAnthropic``；
-        其余 provider（deepseek/zhipu/custom 等）按 OpenAI 兼容端点 → ``ChatOpenAI``。
+        protocol=anthropic（Kimi coding 等）→ ``ChatAnthropic``；
+        protocol=openai（deepseek/zhipu/minimax 等兼容端点）→ ``ChatOpenAI``。
     """
     settings = get_settings()
     api_key = SecretStr(cfg.api_key)
@@ -39,7 +39,7 @@ def build_langchain_model(
         "timeout": settings.llm_http_read_timeout,
         "max_retries": settings.llm_max_retries,
     }
-    if cfg.provider == "anthropic":
+    if cfg.protocol == "anthropic":
         # ChatAnthropic 的 max_tokens 字段带 alias，静态签名不含该 kwarg，故解包传入
         params: dict[str, Any] = {
             "model": cfg.model_name,
@@ -51,9 +51,15 @@ def build_langchain_model(
         if disable_thinking:
             params["thinking"] = {"type": "disabled"}
         return ChatAnthropic(**params)
+    # OpenAI 兼容端点的 thinking 开关方言（deepseek v4 等实测）：顶层 thinking 对象。
+    # 结构化输出的强制 tool_choice 与 thinking 模式互斥，须显式关闭。
+    extra_body: dict[str, Any] = (
+        {"thinking": {"type": "disabled"}} if disable_thinking else {}
+    )
     return ChatOpenAI(
         model=cfg.model_name,
         api_key=api_key,
         base_url=base_url,
+        extra_body=extra_body,
         **common,
     )

@@ -513,6 +513,7 @@ CREATE TABLE llm_config (
     id                  BIGSERIAL PRIMARY KEY,
     name                VARCHAR(100) NOT NULL,
     provider            VARCHAR(20)  NOT NULL,
+    protocol            VARCHAR(20)  NOT NULL DEFAULT 'openai',
     base_url            VARCHAR(500) NOT NULL,
     api_key_encrypted   TEXT         NOT NULL,
     model_name          VARCHAR(100) NOT NULL,
@@ -523,13 +524,39 @@ CREATE TABLE llm_config (
     last_test_status    VARCHAR(20),
     last_test_error     TEXT,
     created_at          TIMESTAMPTZ DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ DEFAULT NOW()
+    updated_at          TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT chk_llm_config_protocol CHECK (protocol IN ('openai', 'anthropic'))
 );
 
 CREATE INDEX idx_llm_configs_active ON llm_config(provider) WHERE is_active = TRUE;
 
 CREATE UNIQUE INDEX idx_llm_config_default
     ON llm_config(is_default) WHERE is_default = TRUE;
+
+-- ============================================================
+-- 10a-2. MCP 服务配置（后台管理；工具注入 Phase 2 接入）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS mcp_server_config (
+    id              BIGSERIAL PRIMARY KEY,
+    name            VARCHAR(100) NOT NULL,
+    transport_type  VARCHAR(10)  NOT NULL DEFAULT 'http', -- stdio | http | sse
+    command         VARCHAR(500),                -- stdio：可执行命令
+    args            JSONB NOT NULL DEFAULT '[]', -- stdio：命令参数
+    url             VARCHAR(500),                -- http/sse：端点
+    env             JSONB NOT NULL DEFAULT '{}', -- stdio 环境变量（含密钥）
+    headers         JSONB NOT NULL DEFAULT '{}', -- http/sse 认证头
+    enabled         BOOLEAN NOT NULL DEFAULT FALSE,
+    timeout_seconds INT NOT NULL DEFAULT 30,
+    last_status     VARCHAR(20),                 -- ok | failed | untested
+    last_error      TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_mcp_server_config_name UNIQUE (name),
+    CONSTRAINT chk_mcp_server_config_transport_type
+        CHECK (transport_type IN ('stdio', 'http', 'sse'))
+);
 
 -- ============================================================
 -- 10b. 代理服务器配置（后台管理，采集渠道按需绑定）
@@ -986,6 +1013,8 @@ CREATE TABLE IF NOT EXISTS skill (
     label             VARCHAR(100) NOT NULL,
     kind              VARCHAR(20)  NOT NULL CONSTRAINT chk_skill_kind
                       CHECK (kind IN ('executable', 'prompt_only', 'doc_only', 'custom')),
+    scenario          VARCHAR(20)  CONSTRAINT chk_skill_scenario
+                      CHECK (scenario IN ('market', 'stock', 'chain', 'report', 'news', 'custom')),
     description       TEXT,
     is_builtin        BOOLEAN NOT NULL DEFAULT TRUE,
     owner_user_id     BIGINT REFERENCES "user"(id) ON DELETE CASCADE,

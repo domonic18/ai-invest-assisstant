@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
@@ -12,10 +12,32 @@ from app.schemas.file_metadata import (
     FileMetadataResponse,
     FileMetadataUpdate,
 )
+from app.schemas.report_storage import ReportCleanupResult, ReportStorageSummary
 from app.schemas.stock import PaginatedResponse
+from app.services.admin.report_storage_service import ReportStorageService
 from app.services.admin.reports import AdminReportService
 
 router = APIRouter(dependencies=[Depends(get_current_admin_user)])
+
+
+@router.get("/storage-summary", response_model=ReportStorageSummary)
+async def get_storage_summary(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> ReportStorageSummary:
+    """统计报告文件（研报/财报/公告）的对象存储占用。"""
+    return await ReportStorageService(session).get_storage_summary()
+
+
+@router.post("/cleanup-old", response_model=ReportCleanupResult)
+async def cleanup_old_reports(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    days: int = Query(90, ge=30, le=365),
+) -> ReportCleanupResult:
+    """清理创建时间超过 days 天的报告文件（对象存储 + 元数据）。"""
+    removed_count, size_bytes = await AdminReportService(session).cleanup_old_reports(
+        days=days
+    )
+    return ReportCleanupResult(removed_count=removed_count, size_bytes=size_bytes)
 
 
 @router.get("/", response_model=PaginatedResponse)

@@ -31,6 +31,7 @@ class SkillItem(CamelModel):
     skill_id: str
     label: str
     kind: str
+    scenario: str | None = None
     is_builtin: bool
     published: bool
     installed: bool = False
@@ -74,6 +75,7 @@ class SkillResponse(CamelModel):
     skill_id: str
     label: str
     kind: str
+    scenario: str | None = None
     is_builtin: bool
     published: bool
     description: str | None
@@ -89,6 +91,12 @@ class UserSkillResponse(CamelModel):
 
     skill_id: str
     installed: bool
+    enabled: bool
+
+
+class UserSkillToggleRequest(CamelModel):
+    """启用/停用已安装技能请求。"""
+
     enabled: bool
 
 

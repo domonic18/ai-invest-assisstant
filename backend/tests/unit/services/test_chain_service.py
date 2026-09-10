@@ -29,6 +29,7 @@ def _resolved() -> ResolvedLLMConfig:
     return ResolvedLLMConfig(
         config_id=1,
         provider="openai",
+        protocol="openai",
         base_url="https://api.openai.com/v1",
         api_key="sk-test",
         model_name="gpt-4o",

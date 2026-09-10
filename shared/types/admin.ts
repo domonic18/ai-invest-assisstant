@@ -3,10 +3,14 @@ export interface LLMConfigCapabilities {
   vision?: boolean
 }
 
+/** LLM 接口协议：openai 兼容 / anthropic 原生。 */
+export type LLMProtocol = 'openai' | 'anthropic'
+
 export interface LLMConfig {
   id: number
   name: string
   provider: string
+  protocol: LLMProtocol
   baseUrl: string
   modelName: string
   apiKeyMasked: string
@@ -23,6 +27,7 @@ export interface LLMConfig {
 export interface LLMConfigFormValues {
   name: string
   provider: string
+  protocol: LLMProtocol
   baseUrl: string
   modelName: string
   apiKey: string

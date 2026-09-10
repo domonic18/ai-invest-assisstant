@@ -26,7 +26,7 @@ DEFAULT_MA_CONFIGS: list[MovingAverageConfig] = [
     MovingAverageConfig(period=10, color="#9d7ff5", enabled=True),
     MovingAverageConfig(period=20, color="#3fb6e0", enabled=True),
     MovingAverageConfig(period=30, color="#e8833a", enabled=True),
-    MovingAverageConfig(period=60, color="#c0c4d0", enabled=False),
+    MovingAverageConfig(period=60, color="#c0c4d0", enabled=True),
     MovingAverageConfig(period=120, color="#22c55e", enabled=False),
 ]
 

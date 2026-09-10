@@ -6,6 +6,7 @@ import {
   SettingOutlined,
 } from '@ant-design/icons'
 import { Button, Dropdown, Popover, Radio } from 'antd'
+import { useNavigate } from 'react-router-dom'
 
 import { useSettingsStore } from '@/stores/settings'
 
@@ -42,6 +43,7 @@ export function ChartToolbar({
 }: ChartToolbarProps) {
   const colorScheme = useSettingsStore((s) => s.colorScheme)
   const setColorScheme = useSettingsStore((s) => s.setColorScheme)
+  const navigate = useNavigate()
 
   const indicatorItems = INDICATOR_OPTIONS.map((opt) => ({
     key: opt.key,
@@ -134,6 +136,9 @@ export function ChartToolbar({
               </div>
               <Button size="small" block onClick={onResetZoom}>
                 复位缩放窗口
+              </Button>
+              <Button size="small" block onClick={() => navigate('/settings')}>
+                更多设置
               </Button>
             </div>
           }

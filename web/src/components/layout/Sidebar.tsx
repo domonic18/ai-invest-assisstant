@@ -99,7 +99,7 @@ interface SidebarMenuProps {
 export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, isAdmin } = useAuthStore()
+  const { isAdmin } = useAuthStore()
 
   const isAdminPath = location.pathname.startsWith('/admin')
   const [openKeys, setOpenKeys] = useState<string[]>(isAdminPath ? [ADMIN_GROUP_KEY] : [])
@@ -113,8 +113,6 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
   const settingsChildren: MenuItem[] = [
     { key: '/settings', icon: <UserOutlined />, label: '个人设置' },
     { key: '/skills', icon: <BlockOutlined />, label: '技能广场' },
-    // 自选股管理不在侧边栏（4.4.0），入口为工作台自选卡「管理分组」
-    { key: '/watchlist', icon: <StarOutlined />, label: '我的自选' },
     ...(isAdmin
       ? [
           {
@@ -129,11 +127,22 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
 
   const items: MenuItem[] = [
     { key: '/workbench', icon: <AppstoreOutlined />, label: '工作台' },
+    { key: '/watchlist', icon: <StarOutlined />, label: '我的自选' },
     { type: 'group', key: 'group-monitor', label: '监测', children: MONITOR_MENU_ITEMS },
     { type: 'group', key: 'group-news', label: '资讯', children: NEWS_MENU_ITEMS },
     { type: 'group', key: 'group-analysis', label: '分析', children: ANALYSIS_MENU_ITEMS },
     { type: 'group', key: 'group-settings', label: '设置', children: settingsChildren },
   ]
+
+  // 折叠态下 AntD 的 type:'group' 项不可交互（点击分组图标无响应），
+  // 拍平为叶子项让每个图标可点；后台管理是普通子菜单，保留为弹出菜单。
+  const displayItems: MenuItem[] = collapsed
+    ? items.flatMap((item) =>
+        item && 'type' in item && item.type === 'group'
+          ? (item.children as MenuItem[])
+          : [item],
+      )
+    : items
 
   return (
     <div className="h-full flex flex-col bg-[#111318]">
@@ -164,7 +173,7 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
         selectedKeys={[resolveSelectedKey(location.pathname, leafKeys(items))]}
         openKeys={collapsed ? [] : openKeys}
         onOpenChange={(keys) => setOpenKeys(keys as string[])}
-        items={items}
+        items={displayItems}
         onClick={({ key }) => {
           if (key.startsWith('/')) {
             navigate(key)
@@ -175,11 +184,6 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
         style={{ borderRight: 0 }}
       />
       {!collapsed && <SidebarReviewStatus />}
-      {user && !collapsed && (
-        <div className="p-4 border-t border-gray-800 text-sm text-gray-400 shrink-0">
-          {user.email}
-        </div>
-      )}
     </div>
   )
 }

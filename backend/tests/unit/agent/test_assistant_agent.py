@@ -12,6 +12,7 @@ def _resolved() -> ResolvedLLMConfig:
     return ResolvedLLMConfig(
         config_id=1,
         provider="openai",
+        protocol="openai",
         base_url="https://example.com/api/",
         api_key="test-key",
         model_name="test-model",
@@ -46,6 +47,10 @@ class TestAssistantAgent:
         checkpointer = MemorySaver()
         with (
             patch(
+                "app.agent.tools.build_mcp_tools",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
                 "app.agent.runtime.assistant_agent.resolve_default_llm",
                 AsyncMock(return_value=_resolved()),
             ),
@@ -69,6 +74,10 @@ class TestAssistantAgent:
 
         with (
             patch(
+                "app.agent.tools.build_mcp_tools",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
                 "app.agent.runtime.assistant_agent.resolve_default_llm",
                 AsyncMock(return_value=_resolved()),
             ),
@@ -91,6 +100,10 @@ class TestAssistantAgent:
         from app.agent.runtime import assistant_agent
 
         with (
+            patch(
+                "app.agent.tools.build_mcp_tools",
+                AsyncMock(return_value=[]),
+            ),
             patch(
                 "app.agent.runtime.assistant_agent.resolve_default_llm",
                 AsyncMock(return_value=_resolved()),
