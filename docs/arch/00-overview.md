@@ -3,7 +3,7 @@
 ## 1. 项目定位
 
 面向投资分析场景的**数据采集 → 清洗入库 → 智能分析 → 可视化展示**全链路平台，
-以 Web 端为核心，覆盖工作台、每日复盘、产业链分析、个股研究、资金流向、集合竞价、投资日历、研报与财报中心等场景。
+以 Web 端为核心，覆盖工作台、每日复盘、产业链分析、个股研究、资金流向、宏观监测、资讯、投资日历、技能广场等场景。
 
 - **数据源**：巨潮资讯(cninfo)、同花顺(10jqka)、东方财富、新浪财经、Tushare、上交所/深交所、财联社
 - **采集内容**：行情(K 线/分时/竞价)、财务报表、涨停/跌停池、板块资金流、研报与财报 PDF、公告与新闻（含财联社电报准实时快讯）、市场宽度、宏观指标、投资日历事件、全球跟踪指标（黄金/美债收益率/美元指数）
@@ -128,10 +128,11 @@ ai-invest-assisstant/
 │   │   │   ├── financial_report.py     # 财报中心：列表/采集/AI 摘要
 │   │   │   ├── financial.py            # 财务体检 + 历史趋势
 │   │   │   ├── hotspot.py              # 热点追踪
+│   │   │   ├── skills.py               # 技能广场：市场/详情/文件/安装（启停）/自定义 CRUD/发布/zip 解析
 │   │   │   ├── admin/                  # 后台管理接口
 │   │   │   │   ├── users.py / stocks.py / reports.py / news.py
 │   │   │   │   ├── tasks.py / system.py
-│   │   │   │   ├── llm_config.py
+│   │   │   │   ├── llm_config.py / mcp_configs.py / proxy_configs.py / ai_results.py
 │   │   │   │   ├── collector.py / collector_channels.py / collector_data_types.py
 │   │   │   ├── assistant/              # AI 助手协议接口（threads / runs / skills / page_context）
 │   │   │   └── mcp/                    # MCP Server 接口
@@ -141,20 +142,21 @@ ai-invest-assisstant/
 │   │   │   ├── runtime/                # assistant_agent / assistant_subagents / model_factory / structured / wire
 │   │   │   ├── skills/                 # skill_runtime 骨架 + 各 Skill 执行器（复盘/归因/产业链/摘要/截图识别）
 │   │   │   └── tools/                  # db / chain / market / news / report / stock 内部工具
-│   │   ├── prompts/                    # 提示词配置（YAML）
-│   │   │   ├── agents/                 # assistant / subagent_{fundamental,market,news}
-│   │   │   └── skills/                 # industry-chain-analysis / market-daily-review / limit-up-review /
-│   │   │                               #   stock-daily-analysis / research-report-summary / financial-report-summary /
-│   │   │                               #   watchlist-screenshot-recognition
+│   │   │                               #   + page_event 事件构造；build_assistant_tools / build_mcp_tools
+│   │   ├── skills/                     # Skill 注册表与提示词加载（registry / prompt / skill_sync）
+│   │   ├── prompts/                    # Agent 角色提示词（YAML）
+│   │   │   └── agents/                 # assistant / page_context / subagent_{fundamental,market,news}
+│   │   │                               #   （skill 提示词在根 skills/<id>/prompt.yaml，随分发单元走）
 │   │   ├── core/                       # 配置、安全、连接、异常
 │   │   │   ├── config.py / security.py / database.py / redis.py / logging.py / exceptions.py
 │   │   ├── models/                     # SQLAlchemy ORM：命名遵循 <分类>_<数据类型>_<标的> 约定
 │   │   ├── schemas/                    # Pydantic 数据模型
 │   │   ├── repositories/               # 仓储层（查询构造与执行，禁止管理事务）
-│   │   │                               #   按业务子域分组：admin/ chain/ market/ reports/ review/ user/
+│   │   │                               #   按业务子域分组：admin/ assistant/ chain/ market/ news/
+│   │                               #     reports/ review/ skill/ user/
 │   │   ├── services/                   # 业务逻辑层（事务边界、AI 调用、采集编排）
 │   │   │                               #   按业务子域分组：admin/ assistant/ chain/ collector/ common/
-│   │   │                               #   market/ reports/ review/ user/（根目录仅 __init__ 聚合）
+│   │   │                               #   market/ news/ reports/ review/ skill/ user/ workbench/（根目录仅 __init__ 聚合）
 │   │   ├── utils/                      # crypto 等公共工具
 │   │   ├── dependencies/               # get_db 等依赖注入
 │   │   └── main.py                     # 应用入口
@@ -187,20 +189,22 @@ ai-invest-assisstant/
 │   │   ├── hooks/                      # 自定义 Hooks（TanStack Query 包装）
 │   │   ├── pages/                      # 页面
 │   │   │   ├── Dashboard/              # 每日复盘：指数 K 线 / 行情统计 / 板块 / 涨停复盘 / AI 综述 / 自选股
-│   │   │   ├── Workbench/              # 工作台聚合页（登录默认入口：日历摘要 / 复盘结论 / 要闻 / 自选股概览 / 市场快览）
+│   │   │   ├── Workbench/              # 工作台聚合页（登录默认入口：指数条 / 加息概率 / 电报 / 日历 / 自选 / 采集引擎 / 板块资金流）
+│   │   │   ├── Watchlist/              # 我的自选（分组 + AI 复盘开关 + 行情卡）
 │   │   │   ├── Calendar/               # 投资日历（月历 / 周历 / 事件列表）
+│   │   │   ├── News/                   # 资讯中心（实时电报 / 重点与跟踪 / 热点主题 / 订阅规则）
 │   │   │   ├── ChainAnalysis/          # 产业链版本化分析（G6 图谱 + 版本切换）
-│   │   │   ├── StockDetail/            # 同花顺风格多周期 K 线 + 财务 tab（含历史趋势）
+│   │   │   ├── StockDetail/            # 同花顺风格多周期 K 线 + 右栏 AI/财报/研报/板块 tab
 │   │   │   ├── CapitalFlow/            # 板块河流图 + 排名图（含概念板块）
+│   │   │   ├── MacroMonitor/           # 宏观指数监测（股指/债券/商品/政策概率）
+│   │   │   ├── IndexDetail/            # 指数详情（A 股 K 线 + 全球指标历史线）
 │   │   │   ├── AuctionReview/          # 集合竞价指数成交额趋势
-│   │   │   ├── Research/               # 研报筛选 / PDF 下载 / AI 摘要
-│   │   │   ├── FinancialReport/        # 财报中心：采集 + 列表 + AI 摘要
 │   │   │   ├── Financial/              # 财务体检详情
-│   │   │   ├── Hotspot/
+│   │   │   ├── Skills/                 # 技能广场 + 全页技能详情
 │   │   │   ├── Settings/               # 基本信息 / 配色方案 / K 线均线 / 安全
 │   │   │   ├── Login/ Register/
-│   │   │   └── Admin/                  # 总览 + Users/Stocks/Reports/News/Tasks/LLMConfig/Collector/CollectorChannelConfig/TrackedIndex
-│   │   ├── stores/                     # Zustand 状态（auth / colorScheme / userSettings）
+│   │   │   └── Admin/                  # 总览 + Users/Stocks/Reports/News/LLMConfig/McpServers/AiResults/Collector/ProxyConfig
+│   │   ├── stores/                     # Zustand 状态（auth / colorScheme / userSettings / assistant）
 │   │   ├── test/                       # 测试环境初始化与 mocks
 │   │   ├── types/ utils/ constants/ config/
 │   │   ├── App.tsx / main.tsx / router.tsx
@@ -234,15 +238,20 @@ ai-invest-assisstant/
 │   ├── prototypes/                     # HTML 原型
 │   └── requirement/                    # 需求文档
 │
-├── skills/                             # Skill 业务描述（SKILL.md）
-│   ├── industry-chain-analysis/
-│   ├── market-daily-review/
-│   ├── limit-up-review/
-│   ├── stock-daily-analysis/
-│   ├── research-summary/
-│   ├── financial-health-check/
-│   ├── hotspot-detection/
-│   └── chain-breakthrough/
+├── skills/                             # Skill 分发单元（自包含目录：SKILL.md + prompt.yaml）
+│   ├── industry-chain-analysis/        #   executable · 产业链
+│   ├── market-daily-review/            #   executable · 大盘复盘
+│   ├── limit-up-review/                #   executable · 涨停归因
+│   ├── stock-daily-analysis/           #   executable · 个股每日分析
+│   ├── watchlist-screenshot-recognition/  # executable · 截图识别
+│   ├── research-report-summary/        #   prompt_only · 研报摘要
+│   ├── financial-report-summary/       #   prompt_only · 财报摘要
+│   ├── news-score/                     #   prompt_only · 资讯重要度分级
+│   ├── news-storyline/                 #   prompt_only · 事件故事线
+│   ├── news-topic/                     #   prompt_only · 热点主题聚类
+│   ├── financial-health-check/         #   doc_only · 方法论
+│   ├── hotspot-detection/              #   doc_only · 方法论
+│   └── chain-breakthrough/             #   doc_only · 方法论
 │
 ├── qa/                                 # 黑盒集成/QA 测试（独立 uv 项目）
 │   ├── conftest.py                     # fixtures、环境变量、资源清理
@@ -319,7 +328,7 @@ ai-invest-assisstant/
                                        ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ 前端可视化（React SPA · SCF web-api 同源托管）                             │
-│ 工作台 / 复盘 / 产业链 / 个股 / 资金流 / 竞价 / 日历 / 研报 / 财报 / 后台  │
+│ 工作台 / 复盘 / 产业链 / 个股 / 资金流 / 宏观 / 资讯 / 日历 / 技能 / 后台  │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -331,24 +340,26 @@ ai-invest-assisstant/
 
 | 功能模块 | 桌面 Web | 移动 Web | 实现要点 |
 |----------|----------|----------|----------|
-| 工作台 | ✅ 登录默认页 | ❌ | 卡片化聚合：日历摘要 / 复盘结论 / 要闻 / 自选股概览 / 市场快览；模块可折叠、空态兜底 |
+| 工作台 | ✅ 登录默认页 | ❌ | 卡片化聚合：指数条 / 美联储加息概率 / 财联社电报 / 日历摘要 / 自选股概览 / 采集引擎状态 / 板块资金流；模块可折叠、空态兜底，复盘状态摘要常驻侧边栏 |
 | 每日复盘 | ✅ 完整 | ✅ 卡片 | 指数 K 线 / 涨停复盘（含 AI 归因）/ AI 大盘综述（可模块级编辑）/ 自选股行情卡 |
 | 产业链分析 | ✅ 完整交互 | ✅ 双指缩放 | G6 图谱 + 版本切换 + AI 助手确认；基于经营范围自下而上推导环节 |
-| 个股详情 | ✅ 多周期 K 线 | ✅ 单图 | 同花顺风格多窗口预设（日/周/月）+ 财务 tab 历史趋势 + 板块归属 |
+| 个股详情 | ✅ 多周期 K 线 | ✅ 单图 | 同花顺式行情条 + 双图单元（独立周期/指标，⚙ 图表设置弹层）+ 右栏 AI 分析 / 财务 / 研报 / 板块归属 Tab |
 | 集合竞价 | ✅ 指数成交额趋势 | ✅ | 指数竞价口径走 Tushare `stk_auction` 聚合 |
 | 资金流向 | ✅ 板块河流图 + 排名 | ✅ | 行业板块走东财 / 概念板块钉死同花顺；流入红/流出绿配色 |
 | 财务体检 | ✅ 完整报告 + 历史趋势 | ❌ | 个股详情 Tab，含毛利率/净利率/ROE 等近 8 期趋势 |
-| 研报中心 | ✅ 筛选 + PDF + AI 摘要 | ❌ | 券商/行业/评级多维筛选；PDF 用 curl_cffi 绕 WAF |
-| 财报中心 | ✅ 列表 + 采集 + AI 摘要 | ❌ | 后台触发采集，file_metadata.summary 缓存 AI 摘要 |
-| 热点追踪 | ✅ | ✅ 速览 | 话题云、新闻时间线、热点传导链 |
-| 投资日历 | ✅ 月历/周历/列表 | ❌ | `calendar_event`：财联社日历 + FOMC/BLS 固定日程，`source_hash` 幂等去重，分类筛选 |
-| AI 分析报告 | ✅ 完整 | ✅ 精简 | YAML 声明式分区，产业链/涨停归因/每日综述/自选股每日分析各有独立 prompt |
-| AI 助手 | ✅ 对话面板 | ✅ 底部弹层 | assistant-ui + deepagents，流式 SSE、工具调用折叠、会话持久化 |
-| 自选股管理 | ✅ | ✅ | 分组增删改查（`watchlist_group`，未分组归默认分组）+ AI 复盘分组开关，个股详情一键加入/移除 |
+| 研报 | ✅ 个股详情研报 Tab | ❌ | 研报列表 + PDF 下载（curl_cffi 绕 WAF）+ AI 解读；后台报告管理统一维护 |
+| 财报 | ✅ 个股详情财报 Tab | ❌ | 财报列表 + 采集触发 + AI 摘要（file_metadata.summary 缓存）；独立入口 /financial/:code 财务体检 |
+| 资讯中心 | ✅ | ✅ | 渠道监控 / 实时电报（AI 重要度分级）/ 重点与跟踪 / 热点主题（情绪 + 传导链）/ 订阅规则 |
+| 投资日历 | ✅ 月历/周历/列表 | ❌ | `news_calendar_event`：财联社日历 + FOMC/BLS 固定日程，`source_hash` 幂等去重，分类筛选 |
+| AI 分析报告 | ✅ 完整 | ✅ 精简 | YAML 声明式分区，产业链/涨停归因/每日综述/自选股每日分析各有独立 prompt（skills/<id>/prompt.yaml） |
+| AI 助手 | ✅ 对话面板 | ✅ 底部弹层 | assistant-ui + deepagents，流式 SSE、工具调用折叠、会话持久化；Header 按钮 + 猫头鹰悬浮球全局唤起，注入内部工具与已启用 MCP 服务工具 |
+| 自选股管理 | ✅ | ✅ | 我的自选页分组行情卡；分组增删改查（`user_watchlist_group`，未分组归默认分组）+ AI 复盘分组开关，个股详情一键加入/移除 |
 | 自选股 AI 每日分析 | ✅ 个股 Tab + 列表卡片 | ❌ | 盘后定时批量（heavy 队列），仅遍历开启复盘开关的分组；三段式输出（盘面解读/操作策略/止损线），`input_hash` 幂等缓存 |
-| 跟踪指数 | ✅ 大盘页/工作台动态清单 | ✅ | `tracked_index_config` 全局配置 + `quote_global_index_daily`（黄金/美债收益率/美元指数），后台维护 |
-| 用户设置 | ✅ 完整 | ✅ 基础 | 涨跌配色方案（红涨绿跌 / 绿涨红跌）+ 个人 K 线均线 |
-| 后台管理 | ✅ 10 个子页 | ❌ | 用户/股票/研报/资讯/任务/LLM 配置/采集渠道/跟踪指数/采集任务（目录驱动） |
+| 宏观指数监测 | ✅ 四类分组 | ✅ | 股指 / 债券 / 商品 / 政策概率四分组指标卡 + sparkline（`/macro-monitor`），指标卡点击进指数详情 |
+| 跟踪指数 | ✅ 宏观页/工作台动态清单 | ✅ | `tracked_index_config` 全局配置 + `quote_global_index_daily`（黄金/美债收益率/美元指数）；宏观监测页消费该清单，管理 API 保留 |
+| 技能广场 | ✅ | ✅ | 业务场景 Tab（枚举来自 shared/types/skill.ts）+ 搜索；能力 / 来源徽标；整卡进入 /skills/:id 全页详情；zip 上传自动解析；自定义技能创建 / 发布 |
+| 用户设置 | ✅ 完整 | ✅ 基础 | 涨跌配色方案（红涨绿跌 / 绿涨红跌）+ 个人 K 线均线（新账户默认 MA5 / 10 / 20 / 60） |
+| 后台管理 | ✅ 8 入口 + 代理配置 | ❌ | 用户 / 股票 / 报告（存储统计 + 清理）/ 资讯 / LLM 配置 / MCP 服务（工具注入 AI 助手）/ 分析结果 / 采集管理三合一（执行日志 · 任务 cron · 渠道优先级）；代理配置仅侧边栏子菜单进入 |
 
 ## 8. 后续文档索引
 
