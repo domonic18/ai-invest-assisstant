@@ -1,11 +1,12 @@
 """全球指标历史走势服务单测：US2Y10S 利差对齐求差与参数校验。"""
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.core.clock import today_cn
 from app.core.exceptions import BadRequestError
 from app.services.market.global_index_service import get_index_history
 
@@ -53,4 +54,4 @@ class TestGetIndexHistory:
         assert len(points) == 1
         assert points[0].close == 2650.5
         since = mock_list.call_args.args[2]
-        assert (date(2026, 9, 8) - since).days == pytest.approx(186, abs=2)
+        assert since == today_cn() - timedelta(days=6 * 31)
