@@ -77,3 +77,19 @@ async def avg_amount_by_sector(
         for row in rows
         if row[2] is not None
     }
+
+
+async def latest_sector_quote(
+    session: AsyncSession, sector_type: str, sector_code: str
+) -> SectorQuoteDaily | None:
+    """单板块最新一条收盘快照（板块详情页快照卡）。"""
+    stmt = (
+        select(SectorQuoteDaily)
+        .where(
+            SectorQuoteDaily.sector_type == sector_type,
+            SectorQuoteDaily.sector_code == sector_code,
+        )
+        .order_by(SectorQuoteDaily.trade_date.desc())
+        .limit(1)
+    )
+    return (await session.execute(stmt)).scalars().first()
