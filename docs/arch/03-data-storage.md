@@ -34,14 +34,14 @@
 
 - **表名结构**：`<分类前缀>_<数据类型>_<标的类型>[_<粒度/子类型>]`，市场级数据可省略 `<标的类型>`
 - **分类前缀**
-  - 行情数据：`quote_`（如 `quote_kline_stock_daily`、`quote_auction_index`、`quote_kline_index_daily`）
+  - 行情数据：`quote_`（如 `quote_kline_stock_daily`、`quote_auction_index`、`quote_sector_daily`）
   - 资金流向：`capital_`（如 `capital_fund_flow_stock`、`capital_fund_flow_sector`）
   - 市场情绪：`market_`（如 `market_breadth`、`market_amount`）
   - 股池：`pool_`（如 `pool_limit_up_stock`、`pool_limit_down_stock`、`pool_dragon_tiger_stock`）
   - 财务报表：`financial_`（如 `financial_balance_sheet`、`financial_income_statement`、`financial_cash_flow_statement`）
   - 产业链：`industry_chain_`
   - 成分/映射：`mapping_`（如 `mapping_stock_concept`、`mapping_index_stock`）
-  - 投资日历：`calendar_`（如 `calendar_event`）
+  - 资讯域：`news_`（如 `news_telegraph`、`news_document`、`news_calendar_event`）
   - 跟踪指数配置：`tracked_index_config`（对齐渠道配置表命名风格）；其行情数据走 `quote_` 前缀（`quote_global_index_daily`）
 - **字段名**：完整单词优先，禁用无上下文缩写；同一语义统一用同一单词（涨跌幅一律 `change_pct`）
 - **约束 / 索引命名**：`pk_<table>` / `uq_<table>_<columns>` / `fk_<table>_<ref_table>` / `idx_<table>_<columns>` / `chk_<table>_<column>`
@@ -61,14 +61,11 @@
 
 | 表 | 说明 |
 |----|------|
-| `quote_kline_stock_daily` / `_weekly` / `_monthly` | 个股日 / 周 / 月 K 线 |
-| `quote_kline_index_daily` | 指数日 K（沪深 300 / 上证 50 / 创业板指 / 富时 A50） |
-| `quote_kline_etf_daily` | ETF 日 K（沪深 300 ETF 系列） |
-| `quote_minute_stock` | 个股分钟线 |
-| `quote_minute_index` | 指数分钟线 |
+| `quote_kline_stock_daily` | 个股日 K（超表）；周 / 月 K 由服务层按日线聚合，无专表 |
+| `quote_kline_stock_minute` | 个股分钟线（超表） |
 | `quote_auction_index` | 指数集合竞价成交额（Tushare `stk_auction` 聚合） |
-| `quote_spot_index` | 指数 spot 快照 |
-| `quote` | 个股实时行情快照 |
+| `quote_auction_stock` | 个股集合竞价数据 |
+| `quote_sector_daily` | 行业 / 概念板块指数收盘快照（超表） |
 
 ### 3.3 资金流向域
 
@@ -103,28 +100,33 @@
 
 | 表 | 说明 |
 |----|------|
-| `industry_chain_version` | 产业链分析版本（行业 / 输入快照 / 任务运行 ID / 创建人 / 备注） |
+| `industry_chain_analysis_version` | 产业链分析版本（行业 / 输入快照 / 任务运行 ID / 创建人 / 备注） |
 | `industry_chain_node` | 节点（环节名 / 类型 / 关键公司 / 财务摘要） |
 | `industry_chain_edge` | 边（上下游关系 / 强度） |
 | `industry_chain_company_mapping` | 公司 ↔ 环节映射（基于经营范围自下而上推导） |
+| `chain_alert` | 产业链 AI 提醒 |
 | `ai_analysis_result` | AI 分析结果通用表（含 input_hash，相同输入命中缓存） |
 
 ### 3.7 AI 复盘域
 
 | 表 | 说明 |
 |----|------|
-| `market_review_base` | 共享底稿（系统生成的三段式 AI 大盘综述） |
+| `ai_analysis_result` | AI 大盘综述共享底稿（复用通用表，input_hash 幂等缓存） |
 | `user_market_review` | 用户级覆盖（用户在底稿基础上的编辑，section 级合并） |
 
-> AI 复盘改为 YAML 声明式分区（`prompts/skills/market-daily-review.yaml`），section 级编辑时只重生成被改动的分区，未改动分区直接复用底稿。
+> AI 复盘为 YAML 声明式分区（`skills/market-daily-review/prompt.yaml`），section 级编辑时只重生成被改动的分区，未改动分区直接复用底稿。
 
 ### 3.8 用户 / 系统域
 
 | 表 | 说明 |
 |----|------|
-| `users` | 用户（注册一律 user 角色，管理员经 bootstrap_admin 显式提权） |
-| `user_settings` | 用户级设置（涨跌配色方案 / K 线均线 MA 列表） |
-| `watchlist` | 自选股 |
+| `user` | 用户（注册一律 user 角色，管理员经 bootstrap_admin 显式提权；`settings` JSONB 列存涨跌配色 / K 线均线，新账户默认 MA5 / 10 / 20 / 60） |
+| `user_watchlist` | 自选股（`group_id` 外键，空值归入默认分组） |
+| `user_watchlist_group` | 自选股分组（`ai_review_enabled` AI 复盘开关，默认 false） |
+| `skill` | 技能注册表（builtin + custom：`kind` executable/prompt_only/doc_only/custom、`scenario` 业务场景分类、`custom_definition` JSONB，启动 sync 与代码注册表对齐） |
+| `user_skill` | 用户技能安装（enabled 启停 / sort，user + skill 唯一） |
+| `mcp_server_config` | 外部 MCP 服务配置（transport stdio/http/sse、url 或 command·args·env·headers、timeout_seconds、enabled 启用即注入 AI 助手、last_status/last_error 连接测试结果） |
+| `proxy_config` | 采集出口代理（HTTP / SOCKS5，后台维护，渠道按需绑定） |
 | `assistant_session` | AI 助手会话（LangChain Agent Protocol 线程/运行持久化） |
 | `collector_task` | 采集任务定义（task_type / cron / queue / 启用），**调度唯一真相源** |
 | `collector_channel_config` | 渠道级配置（source / base_url / api_key / extra） |
@@ -133,14 +135,28 @@
 | `collector_dead_letter` | 采集死信（全渠道失败落库，管理端可查看/重放） |
 | `llm_config` | LLM 配置（provider / model / api_key 加密存储） |
 
-### 3.9 日历 / 跟踪指数域
+### 3.9 资讯域
 
 | 表 | 说明 |
 |----|------|
-| `calendar_event` | 投资日历事件（event_time / 标题 / 分类[宏观·央行动态·新股·解禁·财报·会议] / 影响市场 / 来源 / 关联标的），`source_hash` 幂等去重 |
-| `tracked_index_config` | 跟踪指数配置（index_code / name / 市场类别[A股·全球] / 数据源标识 / 排序 / 启用）——大盘页与工作台指标清单的真相源，管理员后台维护 |
+| `news_telegraph` | 财联社电报流（资讯中心实时电报，AI 重要度分级标注） |
+| `news_document` | 新闻 / 公告 / 研报统一文档表（doc_type 区分，同步 Elasticsearch 全文检索） |
+| `news_ai_score` | 资讯 AI 重要度分级（跨源通用标注表） |
+| `news_storyline` / `news_storyline_item` | 事件故事线及条目（全局内容，AI 建线 + 手动建线共用） |
+| `user_news_storyline` | 用户级故事线跟踪状态（停止跟踪只影响本人视图） |
+| `news_topic_snapshot` | 热点主题快照（主题榜 / 情绪 / 传导链） |
+| `news_subscription_hit` | 订阅关键词命中记录 |
+| `user_news_subscription` | 用户订阅规则（关键词命中推送） |
+| `news_calendar_event` | 投资日历事件（event_time / 标题 / 分类[宏观·央行动态·新股·解禁·财报·会议] / 影响市场 / 来源 / 关联标的），`source_hash` 幂等去重 |
+
+### 3.10 宏观监测域
+
+| 表 | 说明 |
+|----|------|
+| `tracked_index_config` | 跟踪指数配置（index_code / name / 市场类别[A股·全球] / 数据源标识 / 排序 / 启用）——宏观监测页与工作台指标清单的真相源（管理 API 保留） |
 | `quote_global_index_daily` | 全球指标日行情（Timescale 超表：index_code / trade_date / OHLC / 涨跌幅），覆盖黄金/美债收益率/美元指数等 |
-| `watchlist_group` | 自选股分组（user_id / name / sort_order / `ai_review_enabled` AI 复盘开关，默认 false）；`watchlist` 增加 `group_id` 外键，空值归入默认分组 |
+| `fed_watch_snapshot` | FedWatch 快照元数据（数据时点 + 当前联邦基金目标区间，每日一行） |
+| `fed_watch_probability` | FedWatch 条件概率分布（各 FOMC 会议后目标区间落位概率，超表；工作台概率卡 / 宏观政策概率分组数据源） |
 
 > 自选股 AI 每日分析复用 `ai_analysis_result`（input_hash = sha256(skill + code + 日期)），三段式结构（盘面解读/操作策略/止损线）以 JSON 存储，无需专表。
 
