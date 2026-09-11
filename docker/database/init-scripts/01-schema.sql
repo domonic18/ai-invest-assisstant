@@ -1099,3 +1099,81 @@ SELECT create_hypertable('quote_sector_daily', 'trade_date', chunk_time_interval
 
 CREATE INDEX IF NOT EXISTS idx_quote_sector_daily_type_date
     ON quote_sector_daily(sector_type, trade_date DESC);
+
+-- 板块指数日 K（同花顺渠道，板块详情页真实 K 线；经板块名与东财体系桥接）
+CREATE TABLE IF NOT EXISTS quote_kline_sector_daily (
+    sector_code VARCHAR(16)  NOT NULL,               -- 同花顺板块代码（881xxx）
+    trade_date  DATE         NOT NULL,
+    sector_type VARCHAR(16)  NOT NULL CONSTRAINT chk_quote_kline_sector_daily_type
+                CHECK (sector_type IN ('industry', 'concept')),
+    sector_name VARCHAR(50)  NOT NULL,               -- 桥接键：与东财板块同名
+    open        DECIMAL(18, 4),
+    high        DECIMAL(18, 4),
+    low         DECIMAL(18, 4),
+    close       DECIMAL(18, 4) NOT NULL,
+    volume      BIGINT,                              -- 成交量（手）
+    amount      DECIMAL(20, 2),                      -- 成交额（元）
+    source      VARCHAR(20) NOT NULL DEFAULT 'ths',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT pk_quote_kline_sector_daily PRIMARY KEY (sector_code, trade_date)
+);
+
+SELECT create_hypertable('quote_kline_sector_daily', 'trade_date', chunk_time_interval => INTERVAL '1 year', if_not_exists => TRUE);
+
+CREATE INDEX IF NOT EXISTS idx_quote_kline_sector_daily_name_date
+    ON quote_kline_sector_daily(sector_name, trade_date DESC);
+
+-- ============================================================
+-- 24. 异动分析（板块 / 个股异动日表，规则检测 + top-N LLM 归因）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS market_anomaly_sector (
+    id                   BIGSERIAL PRIMARY KEY,
+    trade_date           DATE        NOT NULL,
+    sector_type          VARCHAR(10) NOT NULL CONSTRAINT chk_market_anomaly_sector_type
+                         CHECK (sector_type IN ('industry', 'concept')),
+    sector_code          VARCHAR(16) NOT NULL,
+    sector_name          VARCHAR(50) NOT NULL,
+    change_pct           NUMERIC(8, 4),                -- 当日涨跌幅 %
+    amount               NUMERIC(20, 2),               -- 当日成交额（元）
+    amount_ratio         NUMERIC(8, 2),                -- 当日额 / 5 日均额
+    up_count             INT,
+    down_count           INT,
+    anomaly_types        JSONB       NOT NULL DEFAULT '[]',  -- 命中维度列表
+    strength             INT         NOT NULL,          -- 强度 0-100
+    attribution_category VARCHAR(20),                  -- resonance / rotation（归因后回填，可空）
+    attribution_summary  TEXT,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_market_anomaly_sector UNIQUE (trade_date, sector_type, sector_code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_market_anomaly_sector_date
+    ON market_anomaly_sector(trade_date DESC);
+
+CREATE TABLE IF NOT EXISTS market_anomaly_stock (
+    id                   BIGSERIAL PRIMARY KEY,
+    trade_date           DATE        NOT NULL,
+    stock_code           VARCHAR(10) NOT NULL,
+    stock_name           VARCHAR(50) NOT NULL,
+    close                NUMERIC(12, 4),
+    change_pct           NUMERIC(8, 4),                -- 当日涨跌幅 %
+    turnover_rate        NUMERIC(8, 4),                -- 换手率 %
+    volume_ratio         NUMERIC(8, 2),                -- 当日量 / 5 日均量
+    ma60                 NUMERIC(12, 4),               -- 当日 MA60 值
+    is_above_ma60        BOOLEAN     NOT NULL DEFAULT FALSE,
+    ma60_breakout        BOOLEAN     NOT NULL DEFAULT FALSE,  -- 当日有效突破 M60
+    anomaly_types        JSONB       NOT NULL DEFAULT '[]',
+    strength             INT         NOT NULL,
+    attribution_category VARCHAR(20),                  -- breakout / acceleration / pullback（可空）
+    attribution_summary  TEXT,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_market_anomaly_stock UNIQUE (trade_date, stock_code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_market_anomaly_stock_date
+    ON market_anomaly_stock(trade_date DESC);

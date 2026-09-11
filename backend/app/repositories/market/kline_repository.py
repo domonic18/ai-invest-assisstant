@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.core.clock import CN_TZ, today_cn
-from app.models.kline import KlineDaily, KlineMinute
+from app.models.kline import KlineDaily, KlineMinute, SectorKlineDaily
 
 # quote_kline_stock_minute.trade_time 为 TIMESTAMPTZ，按交易时区（Asia/Shanghai）界定自然日
 
@@ -267,3 +267,22 @@ async def has_daily_bar(session: AsyncSession, code: str, day: date) -> bool:
         .where(KlineDaily.stock_code == code, KlineDaily.trade_date == day)
     )
     return (count or 0) > 0
+
+
+async def list_sector_kline_by_name(
+    session: AsyncSession, sector_name: str, limit: int = 250
+) -> list[SectorKlineDaily]:
+    """按板块名取同花顺板块指数日 K（近 N 根升序），板块详情页桥接查询。"""
+    stmt = (
+        select(SectorKlineDaily)
+        .where(SectorKlineDaily.sector_name == sector_name)
+        .order_by(SectorKlineDaily.trade_date.desc())
+        .limit(limit)
+    )
+    return list(reversed((await session.execute(stmt)).scalars().all()))
+
+
+async def list_ths_sector_names(session: AsyncSession) -> list[tuple[str, str]]:
+    """同花顺指数覆盖的 (sector_type, sector_name) 宇宙（板块异动检测池收敛判据）。"""
+    stmt = select(SectorKlineDaily.sector_type, SectorKlineDaily.sector_name).distinct()
+    return [(row[0], row[1]) for row in (await session.execute(stmt)).all()]

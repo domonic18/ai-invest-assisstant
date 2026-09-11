@@ -38,13 +38,15 @@ from app.schemas.market import (
 
 @pytest.mark.unit
 class TestBuildAssistantTools:
-    def test_returns_twenty_three_tools(self) -> None:
+    def test_returns_twenty_seven_tools(self) -> None:
         tools = build_assistant_tools()
         names = [t.name for t in tools]
         assert names == [
             "get_stock_quote",
             "get_stock_kline",
             "query_financial_data",
+            "get_stock_fund_flow",
+            "get_dragon_tiger",
             "search_news",
             "search_news_by_date",
             "search_vector_kb",
@@ -61,6 +63,8 @@ class TestBuildAssistantTools:
             "persist_stock_daily_analysis",
             "persist_market_review",
             "persist_limit_up_attribution",
+            "persist_sector_anomaly_attribution",
+            "persist_stock_anomaly_attribution",
             "collect_market_data",
             "query_financial_reports",
             "download_financial_reports",

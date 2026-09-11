@@ -23,7 +23,7 @@ import {
 } from './utils'
 
 import './AssistantFab.css'
-import owlImg from '@/assets/owl_3d.png'
+import owlImg from '@/assets/assistant-owl.png'
 
 export function AssistantPanel() {
   const open = useAssistantStore((state) => state.open)

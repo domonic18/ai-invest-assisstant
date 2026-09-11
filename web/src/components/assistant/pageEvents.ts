@@ -66,6 +66,24 @@ export const PAGE_EVENT_DEFINITIONS: readonly PageEventDefinition[] = [
       tradeDate: String(e.trade_date ?? ''),
     }),
   },
+  {
+    eventType: PAGE_EVENT_TYPES.sectorAnomaly,
+    actionLabel: '查看板块异动',
+    path: () => '/anomaly/sector',
+    parse: (e) => ({
+      type: PAGE_EVENT_TYPES.sectorAnomaly,
+      tradeDate: String(e.trade_date ?? ''),
+    }),
+  },
+  {
+    eventType: PAGE_EVENT_TYPES.stockAnomaly,
+    actionLabel: '查看个股异动',
+    path: () => '/anomaly/stock',
+    parse: (e) => ({
+      type: PAGE_EVENT_TYPES.stockAnomaly,
+      tradeDate: String(e.trade_date ?? ''),
+    }),
+  },
 ]
 
 const definitionsByType = new Map<string, PageEventDefinition>(

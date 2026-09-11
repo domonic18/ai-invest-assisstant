@@ -19,6 +19,8 @@ interface IndexKlineChartProps {
   maConfigs: MovingAverageConfig[]
   height?: number
   defaultVisibleBars?: number
+  /** 异动日竖线标注（日期须命中横轴，未命中的自动忽略）。 */
+  markers?: { date: string; label?: string }[]
 }
 
 function fmt(v: number | null | undefined, decimals = 2): string {
@@ -35,6 +37,7 @@ export function IndexKlineChart({
   maConfigs,
   height = 360,
   defaultVisibleBars,
+  markers,
 }: IndexKlineChartProps) {
   useColorScheme()
   const { chartRef, wrapperProps, onEvents } = useKlineKeyboardNav(bars.length)
@@ -57,6 +60,21 @@ export function IndexKlineChart({
         bar.close != null && bar.open != null && bar.close < bar.open ? down : up,
     },
   }))
+
+  // 异动日竖线（主图 grid 内），仅渲染命中横轴的日期
+  const anomalyLineData = (markers ?? [])
+    .filter((m) => dates.includes(m.date))
+    .map((m) => ({
+      xAxis: m.date,
+      lineStyle: { color: '#d4a017', type: 'dashed' as const, width: 1, opacity: 0.9 },
+      label: {
+        show: true,
+        position: 'insideEndTop' as const,
+        formatter: m.label ?? m.date,
+        color: '#d4a017',
+        fontSize: 9,
+      },
+    }))
 
   const activeConfigs = maConfigs.filter((cfg) => cfg.enabled)
   const mas = activeConfigs.map((cfg) => ({
@@ -297,26 +315,32 @@ const formatAxisValue = (value: number) =>
               borderColor: up,
               borderColor0: down,
             },
-            markLine: lastBar
-              ? {
-                  silent: true,
-                  symbol: ['none', 'none'],
-                  lineStyle: { color: tagColor, type: 'dashed', width: 1, opacity: 0.7 },
-                  label: {
-                    show: true,
-                    position: 'end',
-                    formatter: fmt(lastBar.close),
-                    backgroundColor: tagColor,
-                    color: '#fff',
-                    borderRadius: 3,
-                    padding: [1, 5],
-                    fontSize: 10,
-                    fontFamily: FONT_MONO,
-                    distance: 2,
-                  },
-                  data: lastBar.close != null ? [{ yAxis: lastBar.close }] : [],
-                }
-              : undefined,
+            markLine:
+              lastBar || anomalyLineData.length
+                ? {
+                    silent: true,
+                    symbol: ['none', 'none'],
+                    lineStyle: { color: tagColor, type: 'dashed', width: 1, opacity: 0.7 },
+                    label: {
+                      show: true,
+                      position: 'end',
+                      formatter: fmt(lastBar?.close),
+                      backgroundColor: tagColor,
+                      color: '#fff',
+                      borderRadius: 3,
+                      padding: [1, 5],
+                      fontSize: 10,
+                      fontFamily: FONT_MONO,
+                      distance: 2,
+                    },
+                    data: [
+                      ...(lastBar && lastBar.close != null
+                        ? [{ yAxis: lastBar.close }]
+                        : []),
+                      ...anomalyLineData,
+                    ],
+                  }
+                : undefined,
           }
         : {
             name: '收盘',
@@ -326,6 +350,13 @@ const formatAxisValue = (value: number) =>
             showSymbol: false,
             lineStyle: { color: '#58a6ff', width: 1.5 },
             z: 2,
+            markLine: anomalyLineData.length
+              ? {
+                  silent: true,
+                  symbol: ['none', 'none'],
+                  data: anomalyLineData,
+                }
+              : undefined,
           },
       ...maSeries,
       ...(hasVolume

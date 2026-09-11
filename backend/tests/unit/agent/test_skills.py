@@ -9,6 +9,7 @@ from app.services.assistant.assistant_service import parse_skill_file
 from app.skills.prompt import load_skill_prompt
 
 EXPECTED_SKILLS = {
+    "anomaly-attribution",
     "chain-breakthrough",
     "financial-health-check",
     "financial-report-summary",

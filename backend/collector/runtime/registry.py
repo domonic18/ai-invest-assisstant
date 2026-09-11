@@ -49,6 +49,12 @@ _QUEUE_OVERRIDES: dict[str, Literal["realtime", "batch", "heavy"]] = {
     "chain-refresh": "heavy",
     # 自愈需串行重跑多个日 K 采集任务（全历史 upsert），耗时分钟级
     "kline-freshness": "heavy",
+    # 异动检测：个股两段式管线对候选逐股拉日 K（分钟级），且须晚于 16:40
+    # 个股 AI 分析批次串行执行，归 heavy
+    "sector-anomaly": "heavy",
+    "stock-anomaly": "heavy",
+    # 板块指数日 K：465 板块逐个限速拉取（分钟级），超出 batch 600s 硬超时
+    "sector-kline": "heavy",
 }
 
 TASK_SPECS = {

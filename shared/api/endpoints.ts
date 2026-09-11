@@ -96,6 +96,14 @@ export const ENDPOINTS = {
     list: `${API_BASE}/fund-flow/`,
     sectorTrend: `${API_BASE}/fund-flow/sector-trend`,
   },
+  anomaly: {
+    sector: `${API_BASE}/anomaly/sector`,
+    stock: `${API_BASE}/anomaly/stock`,
+  },
+  sectorDetail: {
+    get: (sectorType: string, sectorCode: string) =>
+      `${API_BASE}/sectors/${sectorType}/${sectorCode}`,
+  },
   market: {
     indices: `${API_BASE}/market/indices`,
     indexIntraday: `${API_BASE}/market/indices/intraday`,

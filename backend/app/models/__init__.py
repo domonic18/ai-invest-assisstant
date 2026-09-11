@@ -22,10 +22,11 @@ from app.models.industry_chain import (
     ChainNode,
 )
 from app.models.ipo_info import IPOInfo
-from app.models.kline import KlineDaily, KlineMinute
+from app.models.kline import KlineDaily, KlineMinute, SectorKlineDaily
 from app.models.llm_config import LLMConfig
 from app.models.mapping_stock_concept import MappingStockConcept
 from app.models.market_amount import MarketAmount
+from app.models.market_anomaly import SectorAnomaly, StockAnomaly
 from app.models.market_breadth import MarketBreadth
 from app.models.news_ai_score import NewsAiScore
 from app.models.news_calendar_event import NewsCalendarEvent
@@ -37,6 +38,7 @@ from app.models.news_storyline import (
 )
 from app.models.news_telegraph import NewsTelegraph
 from app.models.news_topic_snapshot import NewsTopicSnapshot
+from app.models.pool_dragon_tiger_stock import DragonTigerStock
 from app.models.pool_limit_up_stock import LimitUpPool
 from app.models.quote_auction_index import IndexAuction
 from app.models.quote_auction_stock import AuctionData
@@ -63,6 +65,7 @@ __all__ = [
     "ChainEdge",
     "ChainNode",
     "CollectorChannelConfig",
+    "DragonTigerStock",
     "CollectorChannelDataType",
     "CollectorLog",
     "CollectorTask",
@@ -77,6 +80,7 @@ __all__ = [
     "IPOInfo",
     "KlineDaily",
     "KlineMinute",
+    "SectorKlineDaily",
     "LimitUpPool",
     "LLMConfig",
     "MappingStockConcept",
@@ -91,7 +95,9 @@ __all__ = [
     "NewsTopicSnapshot",
     "SectorFundFlow",
     "SectorQuoteDaily",
+    "SectorAnomaly",
     "Skill",
+    "StockAnomaly",
     "StockBasic",
     "TrackedIndexConfig",
     "User",

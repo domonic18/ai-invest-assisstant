@@ -9,10 +9,15 @@ from typing import Any, cast
 from langchain_core.tools import BaseTool
 
 from app.agent.tools import db_tools
+from app.agent.tools.anomaly_tools import (
+    persist_sector_anomaly_attribution,
+    persist_stock_anomaly_attribution,
+)
 from app.agent.tools.chain_tools import (
     persist_chain_analysis,
     query_industry_companies,
 )
+from app.agent.tools.dragon_tiger_tools import get_dragon_tiger
 from app.agent.tools.market_tools import (
     collect_market_data,
     get_auction_summary,
@@ -33,6 +38,7 @@ from app.agent.tools.report_tools import (
     summarize_financial_report,
 )
 from app.agent.tools.stock_tools import (
+    get_stock_fund_flow,
     get_stock_kline,
     get_stock_quote,
     persist_stock_daily_analysis,
@@ -49,6 +55,10 @@ __all__ = [
     "summarize_financial_report",
     "get_stock_quote",
     "get_stock_kline",
+    "get_stock_fund_flow",
+    "get_dragon_tiger",
+    "persist_sector_anomaly_attribution",
+    "persist_stock_anomaly_attribution",
     "query_financial_data",
     "persist_stock_daily_analysis",
     "search_news",
@@ -74,6 +84,8 @@ def build_assistant_tools() -> list[BaseTool]:
         get_stock_quote,
         get_stock_kline,
         query_financial_data,
+        get_stock_fund_flow,
+        get_dragon_tiger,
         search_news,
         search_news_by_date,
         search_vector_kb,
@@ -90,6 +102,8 @@ def build_assistant_tools() -> list[BaseTool]:
         persist_stock_daily_analysis,
         persist_market_review,
         persist_limit_up_attribution,
+        persist_sector_anomaly_attribution,
+        persist_stock_anomaly_attribution,
         collect_market_data,
         query_financial_reports,
         download_financial_reports,
