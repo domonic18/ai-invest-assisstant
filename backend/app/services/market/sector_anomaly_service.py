@@ -1,8 +1,10 @@
 """板块异动检测服务：三维规则判定（涨跌幅 / 量能 / 齐动性）+ 强度评分 + 幂等落库。
 
-检测数据源自包含（仅板块收盘快照 ``quote_sector_daily``），规则确定性可单测；
-归因字段由 anomaly-attribution skill 异步回填，本服务不触碰
-（docs/arch/08-anomaly-analysis.md §2/§4/§7）。
+检测数据源以板块收盘快照 ``quote_sector_daily`` 为基础，但检测池收敛到
+同花顺指数同名覆盖的板块（一级行业 + 概念，见 ``kline_repository.
+list_ths_sector_names``），保证榜单上每个板块的详情页都有真实指数 K 线；
+规则确定性可单测。归因字段由 anomaly-attribution skill 异步回填，本服务
+不触碰（docs/arch/08-anomaly-analysis.md §2/§4/§7）。
 """
 
 from dataclasses import dataclass
@@ -12,7 +14,11 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.market_anomaly import SectorAnomaly
-from app.repositories.market import anomaly_repository, sector_quote_repository
+from app.repositories.market import (
+    anomaly_repository,
+    kline_repository,
+    sector_quote_repository,
+)
 from app.schemas.anomaly import SectorAnomalyItem, SectorAnomalyResponse
 from app.services.market.anomaly_common import (
     CATEGORY_RESONANCE,
@@ -86,14 +92,25 @@ async def run_sector_detection(
     trade_date: date,
     params: SectorDetectionParams = DEFAULT_SECTOR_PARAMS,
 ) -> list[SectorAnomaly]:
-    """扫描指定交易日的全部板块快照并落库，返回异动行（强度降序）。
+    """扫描指定交易日的板块快照（仅 THS 指数同名覆盖池）并落库，返回异动行（强度降序）。
 
-    快照缺失抛 :class:`AnomalyInputNotReadyError`，由定时任务退避重试；
-    幂等：按 (trade_date, sector_type, sector_code) 覆盖检测字段。
+    快照缺失或 THS 指数宇宙为空（板块指数采集未完成）抛
+    :class:`AnomalyInputNotReadyError`，由定时任务退避重试；
+    幂等：按 (trade_date, sector_type, sector_code) 覆盖检测字段，
+    同日重跑时清理已收敛出池的残留异动行（归因字段仅池内保留）。
     """
     snapshots = await sector_quote_repository.list_all_by_date(session, trade_date)
     if not snapshots:
         raise AnomalyInputNotReadyError
+
+    ths_universe = set(await kline_repository.list_ths_sector_names(session))
+    if not ths_universe:
+        raise AnomalyInputNotReadyError
+    snapshots = [
+        snap
+        for snap in snapshots
+        if (snap.sector_type, snap.sector_name) in ths_universe
+    ]
 
     baseline_dates = await sector_quote_repository.recent_trade_dates(
         session, trade_date, limit=params.baseline_days
@@ -139,6 +156,9 @@ async def run_sector_detection(
         )
 
     rows.sort(key=lambda item: item["strength"], reverse=True)
+    removed = await anomaly_repository.delete_sector_rows_outside_pool(
+        session, trade_date, {(s.sector_type, s.sector_code) for s in snapshots}
+    )
     persisted = await anomaly_repository.upsert_sector_rows(session, trade_date, rows)
     await session.commit()
     logger.info(
@@ -146,6 +166,7 @@ async def run_sector_detection(
         trade_date=trade_date.isoformat(),
         scanned=len(snapshots),
         detected=len(rows),
+        pool_stale_removed=removed,
         baseline_ready=baseline_ready,
     )
     return persisted

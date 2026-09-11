@@ -53,6 +53,26 @@ async def list_sector_anomalies(
     return list((await session.execute(stmt)).scalars().all())
 
 
+async def delete_sector_rows_outside_pool(
+    session: AsyncSession, trade_date: date, eligible: set[tuple[str, str]]
+) -> int:
+    """删除该交易日检测池外的板块异动行（池收敛后同日重跑的残留清理）。
+
+    只按 (sector_type, sector_code) 池内资格判断，不动池内行的检测/归因字段。
+    """
+    existing = (
+        (await session.execute(select(SectorAnomaly).where(SectorAnomaly.trade_date == trade_date)))
+        .scalars()
+        .all()
+    )
+    stale = [
+        row for row in existing if (row.sector_type, row.sector_code) not in eligible
+    ]
+    for row in stale:
+        await session.delete(row)
+    return len(stale)
+
+
 async def latest_sector_trade_date(session: AsyncSession) -> date | None:
     """最新有检测数据的交易日。"""
     stmt = select(func.max(SectorAnomaly.trade_date))
@@ -126,3 +146,19 @@ async def upsert_stock_rows(
                 setattr(row, field, values[field])
         result.append(row)
     return result
+
+
+async def list_sector_anomalies_by_code(
+    session: AsyncSession, sector_type: str, sector_code: str, limit: int = 30
+) -> list[SectorAnomaly]:
+    """单板块最近 N 条异动记录降序（板块详情页异动标注）。"""
+    stmt = (
+        select(SectorAnomaly)
+        .where(
+            SectorAnomaly.sector_type == sector_type,
+            SectorAnomaly.sector_code == sector_code,
+        )
+        .order_by(SectorAnomaly.trade_date.desc())
+        .limit(limit)
+    )
+    return list((await session.execute(stmt)).scalars().all())

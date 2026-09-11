@@ -24,6 +24,9 @@ from app.services.market.sector_anomaly_service import (
 pytestmark = pytest.mark.unit
 
 _REPO = "app.repositories.market.sector_quote_repository"
+_KLINE_REPO = "app.repositories.market.kline_repository"
+_UPSERT = "app.repositories.market.anomaly_repository.upsert_sector_rows"
+_DELETE_OUTSIDE = "app.repositories.market.anomaly_repository.delete_sector_rows_outside_pool"
 
 
 def test_all_three_dims_hit_is_resonance_full_score() -> None:
@@ -120,6 +123,19 @@ async def test_run_sector_detection_raises_not_ready_on_empty_snapshot() -> None
     session.commit.assert_not_awaited()
 
 
+async def test_run_sector_detection_raises_not_ready_on_empty_ths_universe() -> None:
+    """THS 指数宇宙为空（板块指数采集未完成）视为输入未就绪。"""
+    session = AsyncMock()
+    snapshots = [_snap("industry", "BK01")]
+    with (
+        patch(f"{_REPO}.list_all_by_date", AsyncMock(return_value=snapshots)),
+        patch(f"{_KLINE_REPO}.list_ths_sector_names", AsyncMock(return_value=[])),
+    ):
+        with pytest.raises(AnomalyInputNotReadyError):
+            await run_sector_detection(session, date(2026, 9, 11))
+    session.commit.assert_not_awaited()
+
+
 async def test_run_sector_detection_persists_and_commits() -> None:
     session = AsyncMock()
     snapshots = [
@@ -130,6 +146,10 @@ async def test_run_sector_detection_persists_and_commits() -> None:
     with (
         patch(f"{_REPO}.list_all_by_date", AsyncMock(return_value=snapshots)),
         patch(
+            f"{_KLINE_REPO}.list_ths_sector_names",
+            AsyncMock(return_value=[("industry", "板块BK01"), ("industry", "板块BK02")]),
+        ),
+        patch(
             f"{_REPO}.recent_trade_dates",
             AsyncMock(return_value=[date(2026, 9, d) for d in (10, 9, 8, 7, 4)]),
         ),
@@ -138,7 +158,11 @@ async def test_run_sector_detection_persists_and_commits() -> None:
             AsyncMock(return_value={("industry", "BK01"): (5.0e8, 5)}),
         ),
         patch(
-            "app.repositories.market.anomaly_repository.upsert_sector_rows",
+            _DELETE_OUTSIDE,
+            AsyncMock(return_value=0),
+        ),
+        patch(
+            _UPSERT,
             AsyncMock(return_value=persisted),
         ) as mock_upsert,
     ):
@@ -167,12 +191,17 @@ async def test_run_sector_detection_baseline_gap_skips_volume_dim() -> None:
     with (
         patch(f"{_REPO}.list_all_by_date", AsyncMock(return_value=snapshots)),
         patch(
+            f"{_KLINE_REPO}.list_ths_sector_names",
+            AsyncMock(return_value=[("industry", "板块BK01")]),
+        ),
+        patch(
             f"{_REPO}.recent_trade_dates",
             AsyncMock(return_value=[date(2026, 9, 10)]),
         ),
         patch(f"{_REPO}.avg_amount_by_sector", AsyncMock(return_value={})),
+        patch(_DELETE_OUTSIDE, AsyncMock(return_value=0)),
         patch(
-            "app.repositories.market.anomaly_repository.upsert_sector_rows",
+            _UPSERT,
             AsyncMock(return_value=[]),
         ) as mock_upsert,
     ):
@@ -183,6 +212,36 @@ async def test_run_sector_detection_baseline_gap_skips_volume_dim() -> None:
     assert len(rows) == 1
     assert SECTOR_DIM_VOLUME not in rows[0]["anomaly_types"]
     assert set(rows[0]["anomaly_types"]) == {SECTOR_DIM_PRICE, SECTOR_DIM_SYNC}
+
+
+async def test_run_sector_detection_filters_out_boards_without_ths_match() -> None:
+    """检测池收敛：快照中不在 THS 指数宇宙的板块不参与检测，且池外残留被清理。"""
+    session = AsyncMock()
+    snapshots = [
+        _snap("industry", "BK01"),
+        _snap("industry", "BK99", change_pct=5.0),  # 二级板块，无同名 THS 指数
+    ]
+    with (
+        patch(f"{_REPO}.list_all_by_date", AsyncMock(return_value=snapshots)),
+        patch(
+            f"{_KLINE_REPO}.list_ths_sector_names",
+            AsyncMock(return_value=[("industry", "板块BK01")]),
+        ),
+        patch(
+            f"{_REPO}.recent_trade_dates",
+            AsyncMock(return_value=[date(2026, 9, d) for d in (10, 9, 8, 7, 4)]),
+        ),
+        patch(f"{_REPO}.avg_amount_by_sector", AsyncMock(return_value={})),
+        patch(_DELETE_OUTSIDE, AsyncMock(return_value=1)) as mock_delete,
+        patch(_UPSERT, AsyncMock(return_value=[])) as mock_upsert,
+    ):
+        await run_sector_detection(session, date(2026, 9, 11))
+
+    rows = mock_upsert.call_args.args[2]
+    assert [row["sector_code"] for row in rows] == ["BK01"]
+    # 清理资格集为「入池快照」全集（BK99 池外残留被删，BK01 即使当日未命中也保留）
+    assert mock_delete.call_args.args[2] == {("industry", "BK01")}
+    session.commit.assert_awaited_once()
 
 
 def test_default_params_match_doc_thresholds() -> None:
