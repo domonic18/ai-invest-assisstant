@@ -36,6 +36,9 @@ const SectorAnomalyPage = lazy(() =>
 const StockAnomalyPage = lazy(() =>
   import('./pages/Anomaly/StockAnomalyPage').then((m) => ({ default: m.StockAnomalyPage })),
 )
+const SectorDetailPage = lazy(() =>
+  import('./pages/SectorDetail/SectorDetailPage').then((m) => ({ default: m.SectorDetailPage })),
+)
 const Calendar = lazy(() => import('./pages/Calendar').then((m) => ({ default: m.Calendar })))
 const CapitalFlow = lazy(() => import('./pages/CapitalFlow/CapitalFlow').then((m) => ({ default: m.CapitalFlow })))
 const ChainAnalysis = lazy(() =>
@@ -76,6 +79,8 @@ export const router = createBrowserRouter([
       { path: 'review', element: <Dashboard /> },
       { path: 'anomaly/sector', element: lazyEl(<SectorAnomalyPage />) },
       { path: 'anomaly/stock', element: lazyEl(<StockAnomalyPage />) },
+      // 板块详情：同花顺指数 K 线（板块名桥接）+ 资金流 + 异动日标注
+      { path: 'sector/:sectorType/:sectorCode', element: lazyEl(<SectorDetailPage />) },
       { path: 'chain/:industry?', element: lazyEl(<ChainAnalysis />) },
       { path: 'stock/:code', element: lazyEl(<StockDetail />) },
       { path: 'capital-flow', element: lazyEl(<CapitalFlow />) },

@@ -2,6 +2,7 @@ import { ENDPOINTS } from '@ai-invest/shared'
 import type {
   AnomalySectorType,
   ApiSectorAnomalyResponse,
+  ApiSectorDetailResponse,
   ApiStockAnomalyResponse,
 } from '@ai-invest/shared'
 
@@ -26,6 +27,17 @@ export async function fetchStockAnomalyBoard(
   const response = await apiClient.get<ApiStockAnomalyResponse | null>(
     ENDPOINTS.anomaly.stock,
     { params: { trade_date: tradeDate } },
+  )
+  return response.data ?? undefined
+}
+
+/** 板块详情（THS 真实 K 线桥接，无同名回退链式指数）；板块不存在返回 undefined。 */
+export async function fetchSectorDetail(
+  sectorType: AnomalySectorType,
+  sectorCode: string,
+): Promise<ApiSectorDetailResponse | undefined> {
+  const response = await apiClient.get<ApiSectorDetailResponse | null>(
+    ENDPOINTS.sectorDetail.get(sectorType, sectorCode),
   )
   return response.data ?? undefined
 }

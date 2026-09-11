@@ -69,6 +69,8 @@ export const queryKeys = {
       ['anomaly', 'sector', tradeDate ?? null, sectorType ?? null] as const,
     stock: (tradeDate?: string) => ['anomaly', 'stock', tradeDate ?? null] as const,
   },
+  sectorDetail: (sectorType: string, sectorCode: string) =>
+    ['sector-detail', sectorType, sectorCode] as const,
   hotspot: ['hotspot'] as const,
   llmConfigs: ['llm-configs'] as const,
   mcpServers: ['mcp-servers'] as const,

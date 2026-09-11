@@ -6,7 +6,7 @@ import { fallHex, riseHex } from '@/utils/formatters'
 import { calculateMACD, calculateKDJ } from '@/utils/indicators'
 import { deriveAmplitude, deriveBarChange, formatWanShou } from '@/utils/kline'
 import { movingAverage } from '@/utils/movingAverage'
-import type { MovingAverageConfig, StockKline, StockKlineBar } from '@ai-invest/shared'
+import type { MovingAverageConfig, StockKlineBar } from '@ai-invest/shared'
 
 import type { StockChartViewIndicators } from './StockChartView'
 import {
@@ -35,7 +35,7 @@ export interface KlineChartData {
 }
 
 export function prepareKlineData(
-  kline: StockKline,
+  kline: { bars: StockKlineBar[] },
   maConfigs: MovingAverageConfig[],
 ): KlineChartData {
   const bars = kline.bars
@@ -148,6 +148,7 @@ export function buildKlineOption(
   data: KlineChartData,
   indicators: StockChartViewIndicators,
   height: number,
+  markers?: { date: string; label?: string }[],
 ): EChartsOption {
   const upColor = riseHex()
   const downColor = fallHex()
@@ -216,13 +217,27 @@ export function buildKlineOption(
     axisLine: { show: false },
   })
 
-  // 最新价胶囊（右轴端点）
+  // 最新价胶囊（右轴端点）+ 事件日竖线标注（仅渲染命中横轴的日期）
   const lastIdx = bars.length - 1
   const lastBar = bars[lastIdx]
   const lastPrevClose = lastIdx > 0 ? bars[lastIdx - 1].close : null
   const { changePct: lastChangePct } = deriveBarChange(lastBar, lastPrevClose)
   const tagColor =
     lastChangePct == null ? TEXT_MUTED : lastChangePct >= 0 ? upColor : downColor
+
+  const anomalyLineData = (markers ?? [])
+    .filter((m) => data.dates.includes(m.date))
+    .map((m) => ({
+      xAxis: m.date,
+      lineStyle: { color: '#d4a017', type: 'dashed' as const, width: 1, opacity: 0.9 },
+      label: {
+        show: true,
+        position: 'insideEndTop' as const,
+        formatter: m.label ?? m.date,
+        color: '#d4a017',
+        fontSize: 9,
+      },
+    }))
 
   series.push({
     name: 'K线',
@@ -250,7 +265,10 @@ export function buildKlineOption(
         fontFamily: FONT_MONO,
         distance: 2,
       },
-      data: lastBar ? [{ yAxis: lastBar.close }] : [],
+      data: [
+        ...(lastBar ? [{ yAxis: lastBar.close }] : []),
+        ...anomalyLineData,
+      ],
     },
   })
 

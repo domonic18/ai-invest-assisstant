@@ -2,7 +2,11 @@ import { useQuery } from '@tanstack/react-query'
 
 import type { AnomalySectorType } from '@ai-invest/shared'
 
-import { fetchSectorAnomalyBoard, fetchStockAnomalyBoard } from '@/api/anomaly'
+import {
+  fetchSectorAnomalyBoard,
+  fetchSectorDetail,
+  fetchStockAnomalyBoard,
+} from '@/api/anomaly'
 import { queryKeys } from '@/hooks/queryKeys'
 
 /** 板块异动榜（tradeDate 缺省取最新检测日）。 */
@@ -18,5 +22,13 @@ export function useStockAnomalyBoard(tradeDate?: string) {
   return useQuery({
     queryKey: queryKeys.anomaly.stock(tradeDate),
     queryFn: () => fetchStockAnomalyBoard(tradeDate),
+  })
+}
+
+/** 板块详情（K 线走势 + 资金流 + 异动日）。 */
+export function useSectorDetail(sectorType: AnomalySectorType, sectorCode: string) {
+  return useQuery({
+    queryKey: queryKeys.sectorDetail(sectorType, sectorCode),
+    queryFn: () => fetchSectorDetail(sectorType, sectorCode),
   })
 }

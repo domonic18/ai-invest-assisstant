@@ -100,6 +100,10 @@ export const ENDPOINTS = {
     sector: `${API_BASE}/anomaly/sector`,
     stock: `${API_BASE}/anomaly/stock`,
   },
+  sectorDetail: {
+    get: (sectorType: string, sectorCode: string) =>
+      `${API_BASE}/sectors/${sectorType}/${sectorCode}`,
+  },
   market: {
     indices: `${API_BASE}/market/indices`,
     indexIntraday: `${API_BASE}/market/indices/intraday`,

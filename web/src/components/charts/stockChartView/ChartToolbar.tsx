@@ -25,6 +25,8 @@ interface ChartToolbarProps {
   onPeriodChange: (period: string) => void
   indicators: StockChartViewIndicators
   onToggleIndicator: (key: keyof StockChartViewIndicators) => void
+  /** 周期选项子集（缺省展示个股全部周期，如板块仅 日K/周K）。 */
+  periodOptions?: { label: string; value: string }[]
   layoutToggle?: { value: boolean; onChange: (dual: boolean) => void }
   onResetZoom: () => void
   isFullscreen: boolean
@@ -36,6 +38,7 @@ export function ChartToolbar({
   onPeriodChange,
   indicators,
   onToggleIndicator,
+  periodOptions = PERIOD_OPTIONS,
   layoutToggle,
   onResetZoom,
   isFullscreen,
@@ -65,7 +68,7 @@ export function ChartToolbar({
       style={{ height: 36, borderBottom: `1px solid ${BORDER_COLOR}` }}
     >
       <div className="flex items-center gap-0.5 rounded-md p-0.5 bg-[#1c1f26]">
-        {PERIOD_OPTIONS.map((opt) => (
+        {periodOptions.map((opt) => (
           <button
             key={opt.value}
             type="button"
