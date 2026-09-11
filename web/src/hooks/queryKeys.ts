@@ -63,6 +63,12 @@ export const queryKeys = {
     sectorTrend: (sectorType: string, days: number) =>
       ['fund-flow', 'sector-trend', sectorType, days] as const,
   },
+  anomaly: {
+    all: ['anomaly'] as const,
+    sector: (tradeDate?: string, sectorType?: string) =>
+      ['anomaly', 'sector', tradeDate ?? null, sectorType ?? null] as const,
+    stock: (tradeDate?: string) => ['anomaly', 'stock', tradeDate ?? null] as const,
+  },
   hotspot: ['hotspot'] as const,
   llmConfigs: ['llm-configs'] as const,
   mcpServers: ['mcp-servers'] as const,

@@ -1,4 +1,5 @@
 import {
+  AlertOutlined,
   AppstoreOutlined,
   BarChartOutlined,
   BlockOutlined,
@@ -14,6 +15,7 @@ import {
   MenuUnfoldOutlined,
   PlayCircleOutlined,
   ReadOutlined,
+  RiseOutlined,
   RobotOutlined,
   SettingOutlined,
   ShopOutlined,
@@ -39,7 +41,6 @@ import {
 type MenuItem = Required<MenuProps>['items'][number]
 
 // 导航信息架构见需求 4.4.0：监测 → 资讯 → 分析 → 设置。
-// 资讯中心 /news 与异动双页（迭代 3/5）上线后再挂出；
 // 个股监测经顶部搜索进入（/stock/:code 无默认标的，不设静态导航项）。
 const MONITOR_MENU_ITEMS: MenuItem[] = [
   { key: '/macro-monitor', icon: <GlobalOutlined />, label: '宏观指数' },
@@ -55,6 +56,8 @@ const NEWS_MENU_ITEMS: MenuItem[] = [
 
 const ANALYSIS_MENU_ITEMS: MenuItem[] = [
   { key: '/review', icon: <BarChartOutlined />, label: '每日复盘' },
+  { key: '/anomaly/sector', icon: <AlertOutlined />, label: '板块异动' },
+  { key: '/anomaly/stock', icon: <RiseOutlined />, label: '个股异动' },
   { key: '/chain', icon: <HeatMapOutlined />, label: '产业图谱' },
 ]
 

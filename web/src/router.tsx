@@ -30,6 +30,12 @@ const AiResultsAdmin = lazy(() =>
 const AuctionReview = lazy(() =>
   import('./pages/AuctionReview/AuctionReview').then((m) => ({ default: m.AuctionReview })),
 )
+const SectorAnomalyPage = lazy(() =>
+  import('./pages/Anomaly/SectorAnomalyPage').then((m) => ({ default: m.SectorAnomalyPage })),
+)
+const StockAnomalyPage = lazy(() =>
+  import('./pages/Anomaly/StockAnomalyPage').then((m) => ({ default: m.StockAnomalyPage })),
+)
 const Calendar = lazy(() => import('./pages/Calendar').then((m) => ({ default: m.Calendar })))
 const CapitalFlow = lazy(() => import('./pages/CapitalFlow/CapitalFlow').then((m) => ({ default: m.CapitalFlow })))
 const ChainAnalysis = lazy(() =>
@@ -68,6 +74,8 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/workbench" replace /> },
       { path: 'workbench', element: lazyEl(<Workbench />) },
       { path: 'review', element: <Dashboard /> },
+      { path: 'anomaly/sector', element: lazyEl(<SectorAnomalyPage />) },
+      { path: 'anomaly/stock', element: lazyEl(<StockAnomalyPage />) },
       { path: 'chain/:industry?', element: lazyEl(<ChainAnalysis />) },
       { path: 'stock/:code', element: lazyEl(<StockDetail />) },
       { path: 'capital-flow', element: lazyEl(<CapitalFlow />) },

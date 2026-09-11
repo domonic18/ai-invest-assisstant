@@ -14,6 +14,8 @@ export type PageAssistantResult =
   | StockDailyAnalysisResult
   | MarketDailyReviewResult
   | LimitUpAttributionResult
+  | SectorAnomalyResult
+  | StockAnomalyResult
 
 /** 产业链分析完成回写 */
 export interface ChainAnalysisResult {
@@ -40,6 +42,18 @@ export interface MarketDailyReviewResult {
 /** 涨停 AI 归因完成回写 */
 export interface LimitUpAttributionResult {
   type: typeof PAGE_EVENT_TYPES.limitUpAttribution
+  tradeDate: string
+}
+
+/** 板块异动 AI 归因完成回写 */
+export interface SectorAnomalyResult {
+  type: typeof PAGE_EVENT_TYPES.sectorAnomaly
+  tradeDate: string
+}
+
+/** 个股异动 AI 归因完成回写 */
+export interface StockAnomalyResult {
+  type: typeof PAGE_EVENT_TYPES.stockAnomaly
   tradeDate: string
 }
 

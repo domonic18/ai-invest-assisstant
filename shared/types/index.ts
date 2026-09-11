@@ -1,4 +1,5 @@
 export * from './api'
+export * from './anomaly'
 export * from './stock'
 export * from './chain'
 export * from './user'
