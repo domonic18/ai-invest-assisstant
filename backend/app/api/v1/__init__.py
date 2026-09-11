@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    anomaly,
     assistant,
     auction,
     auth,
@@ -62,6 +63,7 @@ api_router.include_router(
 )
 api_router.include_router(telegraph.router, prefix="/telegraph", tags=["telegraph"])
 api_router.include_router(news.router, prefix="/news", tags=["news"])
+api_router.include_router(anomaly.router, prefix="/anomaly", tags=["anomaly"])
 api_router.include_router(workbench.router, prefix="/workbench", tags=["workbench"])
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
