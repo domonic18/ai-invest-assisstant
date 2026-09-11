@@ -1,7 +1,8 @@
-import { Button, Card, DatePicker, Empty, Segmented, Select, Skeleton, Table, Typography } from 'antd'
+import { Button, Card, DatePicker, Empty, Popconfirm, Segmented, Select, Skeleton, Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import {
   PAGE_EVENT_TYPES,
@@ -15,7 +16,7 @@ import { useAssistantStore } from '@/stores/assistant'
 import { useColorScheme } from '@/stores/settings'
 import { changeColor, DATE_FORMAT, formatAmount, formatPercent } from '@/utils/formatters'
 
-import { AttributionCell, AnomalyTypeTags, SECTOR_CATEGORY_LABELS } from './cells'
+import { AttributionAction, AttributionCell, AnomalyTypeTags, SECTOR_CATEGORY_LABELS } from './cells'
 import { ANOMALY_TYPE_LABELS } from './labels'
 import { sectorAttributionPrompt } from './attributionPrompts'
 import { useAnomalyAttribution } from './useAnomalyAttribution'
@@ -54,17 +55,23 @@ export function SectorAnomalyPage() {
     return typeFilter ? rows.filter((it) => it.anomalyTypes.includes(typeFilter)) : rows
   }, [data, typeFilter])
 
-  // 页面级归因：强度榜前 10 条打包为一份目标清单发给助手
-  const handleGenerateAll = () => {
-    const targets = (data?.items ?? []).slice(0, 10)
+  const isAttributed = (it: ApiSectorAnomalyItem) =>
+    Boolean(it.attributionCategory || it.attributionSummary)
+
+  // 页面级归因目标：优先只补「未归因」缺口（强度榜前 10），避免对已有归因的
+  // 条目重复生成；全部已归因时按钮转为显式「重新归因」（带覆盖确认）
+  const missingTargets = useMemo(
+    () => items.filter((it) => !isAttributed(it)).slice(0, 10),
+    [items],
+  )
+  const regenerateTargets = useMemo(
+    () => items.filter((it) => isAttributed(it)).slice(0, 10),
+    [items],
+  )
+
+  const handleGenerate = (targets: ApiSectorAnomalyItem[]) => {
     if (targets.length === 0) return
     useAssistantStore.getState().sendQuestion(sectorAttributionPrompt(data?.tradeDate, targets))
-  }
-
-  const handleGenerateRow = (item: ApiSectorAnomalyItem) => {
-    useAssistantStore
-      .getState()
-      .sendQuestion(sectorAttributionPrompt(data?.tradeDate, [item]))
   }
 
   const columns: ColumnsType<ApiSectorAnomalyItem> = [
@@ -75,7 +82,13 @@ export function SectorAnomalyPage() {
       width: 200,
       render: (_, it) => (
         <div className="flex items-baseline gap-2 min-w-0">
-          <span className="font-medium truncate">{it.sectorName}</span>
+          <Link
+            to={`/sector/${it.sectorType}/${it.sectorCode}`}
+            className="font-medium truncate hover:underline"
+            title="查看板块 K 线详情"
+          >
+            {it.sectorName}
+          </Link>
           <span className="text-xs text-gray-500 font-mono shrink-0">{it.sectorCode}</span>
         </div>
       ),
@@ -159,9 +172,11 @@ export function SectorAnomalyPage() {
       width: 90,
       fixed: 'right',
       render: (_, it) => (
-        <Button type="link" size="small" className="!px-0" onClick={() => handleGenerateRow(it)}>
-          AI 归因
-        </Button>
+        <AttributionAction
+          attributed={isAttributed(it)}
+          disabled={generating}
+          onTrigger={() => handleGenerate([it])}
+        />
       ),
     },
   ]
@@ -201,16 +216,31 @@ export function SectorAnomalyPage() {
               {data?.tradeDate ? `${data.tradeDate} · ` : ''}
               {items.length} 条
             </span>
-            <Button
-              type="primary"
-              ghost
-              size="small"
-              loading={generating}
-              disabled={items.length === 0}
-              onClick={handleGenerateAll}
-            >
-              {generating ? 'AI 归因中，请留意侧边栏助手…' : 'AI 归因 Top10'}
-            </Button>
+            {missingTargets.length > 0 ? (
+              <Button
+                type="primary"
+                ghost
+                size="small"
+                loading={generating}
+                onClick={() => handleGenerate(missingTargets)}
+              >
+                {generating
+                  ? 'AI 归因中，请留意侧边栏助手…'
+                  : `AI 归因（待归因 ${missingTargets.length} 条）`}
+              </Button>
+            ) : (
+              <Popconfirm
+                title="所选条目已全部有归因摘要"
+                description="重新生成将覆盖现有结果，确定继续？"
+                okText="重新归因"
+                cancelText="取消"
+                onConfirm={() => handleGenerate(regenerateTargets)}
+              >
+                <Button size="small" loading={generating} disabled={regenerateTargets.length === 0}>
+                  重新归因 Top10
+                </Button>
+              </Popconfirm>
+            )}
           </span>
         </div>
         {isLoading ? (
@@ -228,7 +258,7 @@ export function SectorAnomalyPage() {
           />
         )}
         <SourceNote>
-          规则检测：MA60 趋势 + 量价维度 · 强度为命中维度加权得分 · AI 归因摘要仅供参考
+          规则检测：MA60 趋势 + 量价维度 · 强度为命中维度加权得分 · 检测任务已自动归因强度榜前 10，页面按钮仅补齐缺失归因或显式重新归因 · 归因摘要仅供参考
         </SourceNote>
       </Card>
     </div>

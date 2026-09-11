@@ -1,4 +1,4 @@
-import { Tag, Tooltip } from 'antd'
+import { Button, Popconfirm, Tag, Tooltip } from 'antd'
 
 import {
   ANOMALY_TYPE_LABELS,
@@ -62,5 +62,46 @@ export function AttributionCell({
         {summary && <span className="text-xs text-gray-400 truncate">{summary}</span>}
       </div>
     </Tooltip>
+  )
+}
+
+/**
+ * 行级归因动作：状态感知——未归因显示「AI 归因」；
+ * 已有归因的重新生成会覆盖现有结果，先弹确认，防止误触重复归因。
+ */
+export function AttributionAction({
+  attributed,
+  disabled,
+  onTrigger,
+}: {
+  attributed: boolean
+  disabled?: boolean
+  onTrigger: () => void
+}) {
+  if (!attributed) {
+    return (
+      <Button
+        type="link"
+        size="small"
+        className="!px-0"
+        disabled={disabled}
+        onClick={onTrigger}
+      >
+        AI 归因
+      </Button>
+    )
+  }
+  return (
+    <Popconfirm
+      title="该标的已有归因摘要"
+      description="重新生成将覆盖现有结果，确定继续？"
+      okText="重新归因"
+      cancelText="取消"
+      onConfirm={onTrigger}
+    >
+      <Button type="link" size="small" className="!px-0" disabled={disabled}>
+        重新归因
+      </Button>
+    </Popconfirm>
   )
 }
