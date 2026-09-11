@@ -53,6 +53,8 @@ _QUEUE_OVERRIDES: dict[str, Literal["realtime", "batch", "heavy"]] = {
     # 个股 AI 分析批次串行执行，归 heavy
     "sector-anomaly": "heavy",
     "stock-anomaly": "heavy",
+    # 板块指数日 K：465 板块逐个限速拉取（分钟级），超出 batch 600s 硬超时
+    "sector-kline": "heavy",
 }
 
 TASK_SPECS = {

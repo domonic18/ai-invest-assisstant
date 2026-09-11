@@ -112,6 +112,8 @@ VALUES
     ('sector_anomaly_detect_1645', 'sector-anomaly', 'internal', '45 16 * * 1-5', true),
     -- 17:00 个股异动两段式检测（全市场快照初筛 + 候选新浪日 K 精算）+ top-20 归因
     ('stock_anomaly_detect_1700', 'stock-anomaly', 'internal', '0 17 * * 1-5', true),
+    -- 同花顺板块指数日 K：17:30 收盘批后增量（默认回看 10 日），历史回填手动调大 lookback_days
+    ('ths_sector_kline_1730', 'sector-kline', 'ths', '30 17 * * 1-5', true),
     -- 周六 06:00 对已有成功版本的产业链重新 AI 分析并落新版本（非交易日运行，无交易日门控）
     ('chain_refresh_weekly', 'chain-refresh', 'internal', '0 6 * * 6', true),
     -- 每日 03:40 清理 90 天前的采集执行日志
@@ -268,6 +270,18 @@ INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, 'sector-quote', 1
 FROM collector_channel_config
 WHERE source = 'eastmoney'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
+-- 防御性补齐 ths 渠道的 sector-kline 数据类型（板块指数日 K，渠道已存在时）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["sector-kline"]'::jsonb
+WHERE source = 'ths'
+  AND NOT supported_data_types @> '["sector-kline"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'sector-kline', 1
+FROM collector_channel_config
+WHERE source = 'ths'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
 INSERT INTO collector_task (task_name, task_type, source, schedule, is_active)

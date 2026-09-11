@@ -1,4 +1,4 @@
-"""K 线家族任务声明：股票/指数/ETF/A50 日 K 与新鲜度自愈。"""
+"""K 线家族任务声明：股票/指数/ETF/A50/板块指数日 K 与新鲜度自愈。"""
 
 from collector.runtime.specs.base import TaskSpec
 
@@ -49,6 +49,16 @@ SPECS: tuple[TaskSpec, ...] = (
         collectors={
             "eastmoney": "collector.spiders.eastmoney_a50_kline:EastmoneyA50KlineCollector",
         },
+    ),
+    TaskSpec(
+        name="sector-kline",
+        label="板块指数日 K",
+        data_type="sector_kline",
+        # 同花顺板块指数（行业/概念），板块详情页真实 K 线；名称桥接东财体系
+        collectors={
+            "ths": "collector.spiders.ths_sector_kline:ThsSectorKlineCollector",
+        },
+        run_params=("lookback_days",),
     ),
     TaskSpec(
         name="kline-freshness",

@@ -1100,6 +1100,30 @@ SELECT create_hypertable('quote_sector_daily', 'trade_date', chunk_time_interval
 CREATE INDEX IF NOT EXISTS idx_quote_sector_daily_type_date
     ON quote_sector_daily(sector_type, trade_date DESC);
 
+-- 板块指数日 K（同花顺渠道，板块详情页真实 K 线；经板块名与东财体系桥接）
+CREATE TABLE IF NOT EXISTS quote_kline_sector_daily (
+    sector_code VARCHAR(16)  NOT NULL,               -- 同花顺板块代码（881xxx）
+    trade_date  DATE         NOT NULL,
+    sector_type VARCHAR(16)  NOT NULL CONSTRAINT chk_quote_kline_sector_daily_type
+                CHECK (sector_type IN ('industry', 'concept')),
+    sector_name VARCHAR(50)  NOT NULL,               -- 桥接键：与东财板块同名
+    open        DECIMAL(18, 4),
+    high        DECIMAL(18, 4),
+    low         DECIMAL(18, 4),
+    close       DECIMAL(18, 4) NOT NULL,
+    volume      BIGINT,                              -- 成交量（手）
+    amount      DECIMAL(20, 2),                      -- 成交额（元）
+    source      VARCHAR(20) NOT NULL DEFAULT 'ths',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT pk_quote_kline_sector_daily PRIMARY KEY (sector_code, trade_date)
+);
+
+SELECT create_hypertable('quote_kline_sector_daily', 'trade_date', chunk_time_interval => INTERVAL '1 year', if_not_exists => TRUE);
+
+CREATE INDEX IF NOT EXISTS idx_quote_kline_sector_daily_name_date
+    ON quote_kline_sector_daily(sector_name, trade_date DESC);
+
 -- ============================================================
 -- 24. 异动分析（板块 / 个股异动日表，规则检测 + top-N LLM 归因）
 -- ============================================================

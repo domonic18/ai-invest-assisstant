@@ -22,7 +22,7 @@ from app.models.industry_chain import (
     ChainNode,
 )
 from app.models.ipo_info import IPOInfo
-from app.models.kline import KlineDaily, KlineMinute
+from app.models.kline import KlineDaily, KlineMinute, SectorKlineDaily
 from app.models.llm_config import LLMConfig
 from app.models.mapping_stock_concept import MappingStockConcept
 from app.models.market_amount import MarketAmount
@@ -80,6 +80,7 @@ __all__ = [
     "IPOInfo",
     "KlineDaily",
     "KlineMinute",
+    "SectorKlineDaily",
     "LimitUpPool",
     "LLMConfig",
     "MappingStockConcept",

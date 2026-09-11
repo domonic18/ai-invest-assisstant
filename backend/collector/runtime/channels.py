@@ -75,7 +75,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "name": "同花顺",
         "base_url": None,
         "is_enabled": True,
-        "supported_data_types": ["kline", "auction", "sector-fund-flow", "concept-constituents"],
+        "supported_data_types": ["kline", "auction", "sector-fund-flow", "concept-constituents", "sector-kline"],
         "extra": {},
     },
     {
