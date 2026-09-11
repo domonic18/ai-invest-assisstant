@@ -310,9 +310,9 @@ tr:hover td { background: var(--bg-hover); }
 
 <!-- Stats -->
 <div class="stats-grid">
-<div class="stat-card"><span class="stat-label">当日异动板块</span><span class="stat-value">12</span><span class="stat-change" style="color:var(--text-tertiary)">阈值：涨跌幅偏离 ±2% / 量能 ×2 / 资金突变</span></div>
-<div class="stat-card"><span class="stat-label">事件驱动</span><span class="stat-value">4</span><span class="stat-change up">政策 / 新闻 / 公告共振</span></div>
-<div class="stat-card"><span class="stat-label">资金驱动</span><span class="stat-value">5</span><span class="stat-change" style="color:var(--text-tertiary)">主力净流入连续性突变</span></div>
+<div class="stat-card"><span class="stat-label">当日异动板块</span><span class="stat-value">12</span><span class="stat-change" style="color:var(--text-tertiary)">阈值：涨跌幅偏离 ±2% / 量能 ×2 / 齐动性 80%</span></div>
+<div class="stat-card"><span class="stat-label">趋势共振</span><span class="stat-value">9</span><span class="stat-change up">涨跌幅 + 量能 + 齐动多维度齐中</span></div>
+<div class="stat-card"><span class="stat-label">量能放大</span><span class="stat-value">10</span><span class="stat-change" style="color:var(--text-tertiary)">成交额 ≥ 5 日均额 × 2</span></div>
 <div class="stat-card"><span class="stat-label">轮动补涨</span><span class="stat-value">3</span><span class="stat-change down">无独立事件，跟涨特征</span></div>
 </div>
 
@@ -320,19 +320,19 @@ tr:hover td { background: var(--bg-hover); }
 <div class="card mb-6">
 <div class="card-header">
 <span class="card-title">异动板块清单（按异动强度排序）</span>
-<div style="display:flex;gap:6px"><span class="tag tag-red">放量突破</span><span class="tag tag-amber">政策催化</span><span class="tag tag-blue">资金驱动</span><span class="tag tag-green">资金撤离</span></div>
+<div style="display:flex;gap:6px"><span class="tag tag-red">趋势共振</span><span class="tag tag-purple">轮动补涨</span><span class="tag tag-blue">量能放大</span><span class="tag tag-green">放量下跌</span></div>
 </div>
 <div class="card-body" style="padding:0">
 <div class="table-wrap">
 <table>
-<thead><tr><th>板块</th><th>异动强度</th><th>涨跌幅</th><th>量能放大</th><th>主力净流入</th><th>涨 : 跌</th><th>涨停</th><th>异动标签</th><th>AI 归因摘要</th><th>关联</th></tr></thead>
+<thead><tr><th>板块</th><th>异动强度</th><th>涨跌幅</th><th>量能放大</th><th>涨 : 跌</th><th>异动标签</th><th>AI 归因摘要</th><th>关联</th></tr></thead>
 <tbody>
-<tr style="cursor:pointer"><td><b style="color:var(--text-primary)">半导体</b></td><td><span class="strength-bar"><span class="strength-fill" style="display:block;width:96%"></span></span>96</td><td class="up">+4.82%</td><td class="text-mono">×2.4</td><td class="up text-mono">+38.6 亿</td><td class="text-mono">412:36</td><td class="text-mono">18</td><td><span class="tag tag-red">放量突破</span> <span class="tag tag-amber">政策催化</span></td><td class="attribution">海外大厂扩产 + 出口管制反制预期，设备材料端领涨，量价资金三重共振</td><td><a href="chain-analysis.html">产业链 →</a></td></tr>
-<tr><td><b style="color:var(--text-primary)">算力</b></td><td><span class="strength-bar"><span class="strength-fill" style="display:block;width:82%"></span></span>82</td><td class="up">+3.15%</td><td class="text-mono">×1.9</td><td class="up text-mono">+24.1 亿</td><td class="text-mono">286:52</td><td class="text-mono">9</td><td><span class="tag tag-blue">资金驱动</span></td><td class="attribution">智算中心二期招标公示，主力资金连续 3 日净流入，跟随半导体走强</td><td><a href="chain-analysis.html">产业链 →</a></td></tr>
-<tr><td><b style="color:var(--text-primary)">军工</b></td><td><span class="strength-bar"><span class="strength-fill" style="display:block;width:68%"></span></span>68</td><td class="up">+2.87%</td><td class="text-mono">×2.1</td><td class="up text-mono">+9.7 亿</td><td class="text-mono">198:64</td><td class="text-mono">5</td><td><span class="tag tag-amber">政策催化</span></td><td class="attribution">地缘局势升温 + 十五五规划预期，板块齐动性显著（涨跌比 3.1:1）</td><td>-</td></tr>
-<tr><td><b style="color:var(--text-primary)">消费电子</b></td><td><span class="strength-bar"><span class="strength-fill" style="display:block;width:54%"></span></span>54</td><td class="up">+2.34%</td><td class="text-mono">×1.6</td><td class="up text-mono">+15.8 亿</td><td class="text-mono">244:71</td><td class="text-mono">4</td><td><span class="tag tag-purple">轮动补涨</span></td><td class="attribution">无独立事件，随科技主线轮动补涨，量能温和放大</td><td>-</td></tr>
-<tr><td><b style="color:var(--text-primary)">煤炭</b></td><td><span class="strength-bar"><span class="strength-fill" style="display:block;width:61%;background:linear-gradient(90deg,#4ade80,#2ea043)"></span></span>61</td><td class="down">-3.24%</td><td class="text-mono">×1.6</td><td class="down text-mono">-12.8 亿</td><td class="text-mono">18:298</td><td class="text-mono">0</td><td><span class="tag tag-green">资金撤离</span></td><td class="attribution">动力煤港口库存累积 + 高股息风格退潮，主力连续 5 日净流出</td><td>-</td></tr>
-<tr><td><b style="color:var(--text-primary)">房地产</b></td><td><span class="strength-bar"><span class="strength-fill" style="display:block;width:47%;background:linear-gradient(90deg,#4ade80,#2ea043)"></span></span>47</td><td class="down">-1.98%</td><td class="text-mono">×1.4</td><td class="down text-mono">-7.6 亿</td><td class="text-mono">31:184</td><td class="text-mono">0</td><td><span class="tag tag-green">资金撤离</span></td><td class="attribution">政策预期兑现后获利了结，板块缩量阴跌</td><td>-</td></tr>
+<tr style="cursor:pointer"><td><b style="color:var(--text-primary)">半导体</b></td><td><span class="strength-bar"><span class="strength-fill" style="display:block;width:96%"></span></span>96</td><td class="up">+4.82%</td><td class="text-mono">×2.4</td><td class="text-mono">412:36</td><td><span class="tag tag-red">趋势共振</span> <span class="tag tag-blue">量能放大</span></td><td class="attribution">海外大厂扩产 + 出口管制反制预期，设备材料端领涨，量价资金三重共振</td><td><a href="chain-analysis.html">产业链 →</a></td></tr>
+<tr><td><b style="color:var(--text-primary)">算力</b></td><td><span class="strength-bar"><span class="strength-fill" style="display:block;width:82%"></span></span>82</td><td class="up">+3.15%</td><td class="text-mono">×1.9</td><td class="text-mono">286:52</td><td><span class="tag tag-red">趋势共振</span></td><td class="attribution">智算中心二期招标公示，主力资金连续 3 日净流入，跟随半导体走强</td><td><a href="chain-analysis.html">产业链 →</a></td></tr>
+<tr><td><b style="color:var(--text-primary)">军工</b></td><td><span class="strength-bar"><span class="strength-fill" style="display:block;width:68%"></span></span>68</td><td class="up">+2.87%</td><td class="text-mono">×2.1</td><td class="text-mono">198:64</td><td><span class="tag tag-red">趋势共振</span> <span class="tag tag-blue">量能放大</span></td><td class="attribution">地缘局势升温 + 十五五规划预期，板块齐动性显著（涨跌比 3.1:1）</td><td>-</td></tr>
+<tr><td><b style="color:var(--text-primary)">消费电子</b></td><td><span class="strength-bar"><span class="strength-fill" style="display:block;width:54%"></span></span>54</td><td class="up">+2.34%</td><td class="text-mono">×1.6</td><td class="text-mono">244:71</td><td><span class="tag tag-purple">轮动补涨</span></td><td class="attribution">无独立事件，随科技主线轮动补涨，量能温和放大</td><td>-</td></tr>
+<tr><td><b style="color:var(--text-primary)">煤炭</b></td><td><span class="strength-bar"><span class="strength-fill" style="display:block;width:61%;background:linear-gradient(90deg,#4ade80,#2ea043)"></span></span>61</td><td class="down">-3.24%</td><td class="text-mono">×1.6</td><td class="text-mono">18:298</td><td><span class="tag tag-green">放量下跌</span></td><td class="attribution">动力煤港口库存累积 + 高股息风格退潮，主力连续 5 日净流出</td><td>-</td></tr>
+<tr><td><b style="color:var(--text-primary)">房地产</b></td><td><span class="strength-bar"><span class="strength-fill" style="display:block;width:47%;background:linear-gradient(90deg,#4ade80,#2ea043)"></span></span>47</td><td class="down">-1.98%</td><td class="text-mono">×1.4</td><td class="text-mono">31:184</td><td><span class="tag tag-green">放量下跌</span></td><td class="attribution">政策预期兑现后获利了结，板块缩量阴跌</td><td>-</td></tr>
 </tbody>
 </table>
 </div>
@@ -365,15 +365,15 @@ tr:hover td { background: var(--bg-hover); }
 <text x="544" y="28" font-size="10" fill="#8a8f98">异动起始日</text>
 </svg>
 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:var(--space-3)">
-<span class="chip">北方华创 +10.01%</span><span class="chip">中微公司 +9.87%</span><span class="chip">拓荆科技 +8.92%</span><span class="chip">沪硅产业 +7.65%</span><span class="chip">中芯国际 +6.21%</span><span class="chip" style="color:var(--text-tertiary)">…18 只涨停</span>
+<span class="chip">北方华创 +10.01%</span><span class="chip">中微公司 +9.87%</span><span class="chip">拓荆科技 +8.92%</span><span class="chip">沪硅产业 +7.65%</span><span class="chip">中芯国际 +6.21%</span><span class="chip" style="color:var(--text-tertiary)">…18 只涨超 6%</span>
 </div>
 </div>
 </div>
 <div style="display:flex;flex-direction:column;gap:var(--space-4)">
 <div class="card">
-<div class="card-header"><span class="card-title">AI 归因结论</span><span class="tag tag-red">事件驱动 + 资金驱动</span></div>
+<div class="card-header"><span class="card-title">AI 归因结论</span><span class="tag tag-red">趋势共振</span></div>
 <div class="card-body card-body-sm" style="font-size:var(--text-sm);color:var(--text-secondary);line-height:1.7">
-<b style="color:var(--text-primary)">驱动逻辑：</b>商务部评估半导体出口管制反制清单（17:32 电报）与海外大厂扩产消息共振；国产替代主线重启，设备材料端弹性最大。主力资金连续 3 日净流入且今日加速（×2.4 量能），齐动性 412:36 为近 20 日最高，属「事件 + 资金」双驱动，持续性取决于政策落地节奏。
+<b style="color:var(--text-primary)">驱动逻辑：</b>商务部评估半导体出口管制反制清单（17:32 电报）与海外大厂扩产消息共振；国产替代主线重启，设备材料端弹性最大。量能 ×2.4 放大、齐动性 412:36 为近 20 日最高，判定趋势共振（归因引用：主力资金连续 3 日净流入且今日加速），持续性取决于政策落地节奏。
 <div style="margin-top:10px"><b style="color:var(--text-primary)">对照：</b>与 08-18 异动同源（出口管制预期），当时持续性 5 个交易日。</div>
 </div>
 </div>
