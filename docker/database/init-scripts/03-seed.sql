@@ -20,19 +20,19 @@ ON CONFLICT (stock_code, market) DO NOTHING;
 -- internal 渠道（内部生成，非外部数据源）
 -- supported_data_types 与 collector_channel_data_type 按任务名登记（渠道解析/beat 派发以任务名为键）
 INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
-VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "news-score", "news-storyline", "news-subscription-match", "news-topic"]'::jsonb)
+VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly"]'::jsonb)
 ON CONFLICT (source) DO NOTHING;
 
 -- 兼容存量环境：internal 渠道已存在时补齐后续新增的数据类型
 UPDATE collector_channel_config
-SET supported_data_types = supported_data_types || '["stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "news-score", "news-storyline", "news-subscription-match", "news-topic"]'::jsonb
+SET supported_data_types = supported_data_types || '["stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly"]'::jsonb
 WHERE source = 'internal'
   AND NOT supported_data_types @> '["chain-refresh"]'::jsonb;
 
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, d.data_type, 1
 FROM collector_channel_config,
-     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic')) AS d(data_type)
+     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic'), ('sector-anomaly'), ('stock-anomaly')) AS d(data_type)
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
@@ -108,6 +108,10 @@ VALUES
     ('limit_up_ai_review_1630', 'limit-up-ai-review', 'internal', '30 16 * * 1-5', true),
     -- 16:40 遍历开启 AI 复盘分组的自选股逐只生成个股分析，晚于大盘复盘
     ('stock_daily_analysis_1640', 'ai_stock_daily_analysis', 'internal', '40 16 * * 1-5', true),
+    -- 16:45 板块收盘快照（sector-quote 16:05 批次）落库后做板块异动检测 + top-10 归因
+    ('sector_anomaly_detect_1645', 'sector-anomaly', 'internal', '45 16 * * 1-5', true),
+    -- 17:00 个股异动两段式检测（全市场快照初筛 + 候选新浪日 K 精算）+ top-20 归因
+    ('stock_anomaly_detect_1700', 'stock-anomaly', 'internal', '0 17 * * 1-5', true),
     -- 周六 06:00 对已有成功版本的产业链重新 AI 分析并落新版本（非交易日运行，无交易日门控）
     ('chain_refresh_weekly', 'chain-refresh', 'internal', '0 6 * * 6', true),
     -- 每日 03:40 清理 90 天前的采集执行日志

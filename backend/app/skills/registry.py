@@ -6,8 +6,9 @@ skill 的能力与运行时绑定，收敛「目录名即 id」的隐式约定�
 
 - ``executor`` 为执行器模块的字符串引用（服务层/采集层各自延迟导入，此处
   不导入 agent 代码，保证 services 与 agent 层均可顶层导入本包）
-- ``task_spec_name`` 记录 collector ``TASK_SPECS`` 任务名映射（历史原因部分
-  任务名与 skill_id 不同名，映射在此显式声明而非改名）
+- ``task_spec_names`` 记录 collector ``TASK_SPECS`` 任务名映射（历史原因部分
+  任务名与 skill_id 不同名，映射在此显式声明而非改名；一个 skill 可对应
+  多个检测任务，如异动归因挂板块/个股两个检测任务）
 - custom skill（用户创建）不走本表，见 DB ``skill`` 表（``is_builtin=False``）
 """
 
@@ -40,7 +41,7 @@ class SkillDescriptor:
     skill_md: bool
     scenario: SkillScenario
     executor: str | None = None
-    task_spec_name: str | None = None
+    task_spec_names: tuple[str, ...] = ()
 
 
 BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
@@ -51,7 +52,7 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         skill_md=True,
         scenario="market",
         executor="app.agent.skills.market_review_agent",
-        task_spec_name="market-daily-review",
+        task_spec_names=("market-daily-review",),
     ),
     SkillDescriptor(
         skill_id="limit-up-review",
@@ -60,7 +61,16 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         skill_md=True,
         scenario="market",
         executor="app.agent.skills.limit_up_review_agent",
-        task_spec_name="limit-up-ai-review",
+        task_spec_names=("limit-up-ai-review",),
+    ),
+    SkillDescriptor(
+        skill_id="anomaly-attribution",
+        label="异动归因",
+        kind="executable",
+        skill_md=True,
+        scenario="market",
+        executor="app.agent.skills.anomaly_attribution_agent",
+        task_spec_names=("sector-anomaly", "stock-anomaly"),
     ),
     SkillDescriptor(
         skill_id="stock-daily-analysis",
@@ -69,7 +79,7 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         skill_md=True,
         scenario="stock",
         executor="app.agent.skills.stock_daily_analysis_agent",
-        task_spec_name="stock-daily-analysis",
+        task_spec_names=("stock-daily-analysis",),
     ),
     SkillDescriptor(
         skill_id="industry-chain-analysis",
@@ -78,7 +88,7 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         skill_md=True,
         scenario="chain",
         executor="app.agent.skills.industry_chain_analysis",
-        task_spec_name="chain-refresh",
+        task_spec_names=("chain-refresh",),
     ),
     SkillDescriptor(
         skill_id="watchlist-screenshot-recognition",
@@ -101,7 +111,7 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         kind="prompt_only",
         skill_md=True,
         scenario="news",
-        task_spec_name="news-score",
+        task_spec_names=("news-score",),
     ),
     SkillDescriptor(
         skill_id="news-storyline",
@@ -109,7 +119,7 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         kind="prompt_only",
         skill_md=True,
         scenario="news",
-        task_spec_name="news-storyline",
+        task_spec_names=("news-storyline",),
     ),
     SkillDescriptor(
         skill_id="news-topic",
@@ -117,7 +127,7 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         kind="prompt_only",
         skill_md=True,
         scenario="news",
-        task_spec_name="news-topic",
+        task_spec_names=("news-topic",),
     ),
     SkillDescriptor(
         skill_id="financial-report-summary",

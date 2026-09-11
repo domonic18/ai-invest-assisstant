@@ -59,6 +59,7 @@ class TestRegistryIntegrity:
         expected = {
             "market-daily-review": "market",
             "limit-up-review": "market",
+            "anomaly-attribution": "market",
             "hotspot-detection": "market",
             "stock-daily-analysis": "stock",
             "watchlist-screenshot-recognition": "stock",
@@ -81,11 +82,11 @@ class TestRegistryIntegrity:
                 assert find_spec(d.executor) is not None, f"{d.skill_id} executor 不存在: {d.executor}"
 
     def test_task_spec_names_match_collector(self) -> None:
-        """task_spec_name 集合 == collector AI 任务声明的全部 TaskSpec name。"""
+        """task_spec_names 并集 == collector AI 任务声明的全部 TaskSpec name。"""
         from collector.runtime.specs.ai import SPECS
 
         spec_names = {spec.name for spec in SPECS}
-        mapped = {d.task_spec_name for d in BUILTIN_SKILLS if d.task_spec_name}
+        mapped = {name for d in BUILTIN_SKILLS for name in d.task_spec_names}
         assert mapped == spec_names
 
 

@@ -13,6 +13,51 @@ from app.services import market as stock_service
 KLINE_MAX_DAYS = 120
 FINANCIAL_MAX_CODES = 5
 FINANCIAL_MAX_PERIODS = 4
+FUND_FLOW_MAX_DAYS = 30
+_YI = 1e8
+
+
+def _to_yi(value: Any) -> float | None:
+    """金额（元）转亿元，两位小数；空值透传。"""
+    return None if value is None else round(float(value) / _YI, 2)
+
+
+@tool
+async def get_stock_fund_flow(stock_code: str, days: int = 10) -> dict[str, Any]:
+    """查询个股主力资金流向（近 N 个交易日，单位亿元）：主力净流入及超大单/大单/中单/小单分档。
+
+    Args:
+        stock_code: 6 位股票代码，如 "000001"。
+        days: 最近交易日数，1-30，默认 10。
+    """
+    from datetime import timedelta
+
+    from app.core.clock import now_cn
+    from app.repositories.market import fund_flow_repository
+
+    days = max(1, min(days, FUND_FLOW_MAX_DAYS))
+    end = now_cn().date()
+    start = end - timedelta(days=days * 2)  # 自然日窗口放宽，覆盖节假与数据滞后
+    async with AsyncSessionLocal() as session:
+        rows, _ = await fund_flow_repository.list_paginated(
+            session, stock_code=stock_code, start_date=start, end_date=end
+        )
+    ordered = sorted(rows, key=lambda r: r.trade_date)[-days:]
+    return {
+        "stock_code": stock_code,
+        "unit": "亿元（净流入为正）",
+        "items": [
+            {
+                "trade_date": row.trade_date.isoformat(),
+                "main_net_inflow_yi": _to_yi(row.main_net_inflow),
+                "super_large_net_yi": _to_yi(row.super_large_net),
+                "large_net_yi": _to_yi(row.large_net),
+                "medium_net_yi": _to_yi(row.medium_net),
+                "small_net_yi": _to_yi(row.small_net),
+            }
+            for row in ordered
+        ],
+    }
 
 
 @tool

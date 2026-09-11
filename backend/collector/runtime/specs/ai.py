@@ -71,4 +71,41 @@ SPECS: tuple[TaskSpec, ...] = (
         run_params=("session_key",),
         defaults={"session_key": None},
     ),
+    TaskSpec(
+        name="sector-anomaly",
+        label="板块异动检测",
+        data_type="ai_sector_anomaly",
+        collectors={
+            "internal": "collector.spiders.sector_anomaly:SectorAnomalyCollector",
+        },
+        run_params=("trade_date",),
+        converters={"trade_date": date.fromisoformat},
+        config_params=(
+            "price_move_pct",
+            "volume_ratio",
+            "sync_ratio",
+            "baseline_days",
+            "attribution_top_n",
+        ),
+    ),
+    TaskSpec(
+        name="stock-anomaly",
+        label="个股异动检测",
+        data_type="ai_stock_anomaly",
+        collectors={
+            "internal": "collector.spiders.stock_anomaly:StockAnomalyCollector",
+        },
+        run_params=("trade_date",),
+        converters={"trade_date": date.fromisoformat},
+        config_params=(
+            "screen_change_pct",
+            "screen_turnover_pct",
+            "screen_candidate_cap",
+            "price_move_pct",
+            "volume_ratio",
+            "turnover_pct",
+            "breakout_volume_ratio",
+            "attribution_top_n",
+        ),
+    ),
 )
