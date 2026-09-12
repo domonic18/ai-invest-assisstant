@@ -55,7 +55,7 @@ collect_market_data = market_dispatch_service.collect_market_data
 
 # 测试中直接调用的私有 API（thin re-export；新代码请直接 import 子服务）。
 _index_spot = index_quotation_service._index_spot
-_db_index_spot = index_quotation_service._db_index_spot
+_bar_synthesized_spot = index_quotation_service._bar_synthesized_spot
 _historical_index_quotes = index_quotation_service._historical_index_quotes
 _amount_pair = market_stats_service._amount_pair
 _live_breadth = market_stats_service._live_breadth

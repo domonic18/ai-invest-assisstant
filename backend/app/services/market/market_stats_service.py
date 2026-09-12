@@ -9,6 +9,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import INDEX_CODES
 from app.models.market_breadth import MarketBreadth
 from app.repositories.market import limit_pool_repository, market_stats_repository
 from app.schemas.market import MarketStatsResponse
@@ -193,7 +194,9 @@ async def get_market_stats(
         # 交易所官方数据盘后发布，盘中回退到指数快照成交额估算
         spot = await index_quotation_service._index_spot()
         if spot is None:
-            spot = await index_quotation_service._db_index_spot(session)
+            spot = await index_quotation_service._bar_synthesized_spot(
+                session, INDEX_CODES
+            )
         amount = sum(
             (item.get("amount") or 0)
             for item in spot

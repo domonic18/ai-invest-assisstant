@@ -22,7 +22,8 @@ KLINE_PERIODS: tuple[str, ...] = (
     "yearly",
 )
 
-# 指数 K 线图扩展标的（仅 K 线展示与 AI 技术分析，不进指数快照/分钟线/顶部行情卡）。
+# 指数 K 线图扩展标的（K 线展示、AI 技术分析与顶部行情卡；无分钟线，
+# 行情卡报价由最近日 K 合成）。
 # sh510300 = 沪深300ETF（新浪 ETF 日 K）；CN00Y = 富时A50期指当月连续（东财日 K）
 KLINE_CHART_EXTRA_CODES: dict[str, str] = {
     "sh510300": "沪深300ETF",
