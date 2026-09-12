@@ -59,6 +59,10 @@ class TestValidateEnable:
             ("sh000001", "A股", "sina", True),
             ("sh000001", "A股", "eastmoney", False),  # A 股非法来源
             ("bk0800", "A股", "sina", False),  # A 股非法代码
+            ("sh000905", "A股", "sina", True),  # 任意指数放开
+            ("sh510500", "A股", "sina", True),  # ETF 放开
+            ("sz159915", "A股", "sina", True),  # 深市 ETF 放开
+            ("sh12345", "A股", "sina", False),  # 数字段不足 6 位
         ],
     )
     def test_matrix(self, code: str, category: str, source: str, ok: bool) -> None:

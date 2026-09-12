@@ -1037,10 +1037,15 @@ export interface ApiTrackedIndexToggleResponse {
   isEnabled: boolean
 }
 
-/** 个人设置可勾选的跟踪指数项（启用中的全球指标）。 */
+/** 个人设置可勾选的跟踪指数项（附分类与最新行情预览）。 */
 export interface ApiTrackedIndexOption {
+  id: number
   indexCode: string
   indexName: string
+  marketCategory: string
+  latestClose: number | null
+  latestChangePct: number | null
+  latestTradeDate: string | null
 }
 
 export interface ApiAdminAiSkillInfo {

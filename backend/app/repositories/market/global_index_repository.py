@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.kline import KlineDaily
 from app.models.quote_global_index import GlobalIndexDaily
 from app.models.tracked_index import TrackedIndexConfig
 
@@ -23,6 +24,84 @@ async def list_enabled_global_configs(
         .order_by(TrackedIndexConfig.sort_order, TrackedIndexConfig.id)
     )
     return list((await session.execute(stmt)).scalars().all())
+
+
+async def list_enabled_tracked_configs(
+    session: AsyncSession,
+    exclude_codes: set[str] | None = None,
+) -> list[TrackedIndexConfig]:
+    """启用中的跟踪指数配置（全分类，按 sort_order 排序）。
+
+    ``exclude_codes`` 用于剔除固定展示、不可勾选的 A 股大盘标的。
+    """
+    stmt = (
+        select(TrackedIndexConfig)
+        .where(TrackedIndexConfig.is_enabled.is_(True))
+        .order_by(TrackedIndexConfig.sort_order, TrackedIndexConfig.id)
+    )
+    rows = list((await session.execute(stmt)).scalars().all())
+    if exclude_codes:
+        rows = [row for row in rows if row.index_code not in exclude_codes]
+    return rows
+
+
+async def map_kline_latest(
+    session: AsyncSession, codes: list[str]
+) -> dict[str, tuple[Decimal | None, Decimal | None, date | None]]:
+    """A 股指数/ETF 最新日 K 快照（quote_kline_stock_daily，close/change_pct/trade_date）。"""
+    if not codes:
+        return {}
+    stmt = (
+        select(
+            KlineDaily.stock_code,
+            KlineDaily.close,
+            KlineDaily.change_pct,
+            KlineDaily.trade_date,
+        )
+        .where(KlineDaily.stock_code.in_(codes))
+        .distinct(KlineDaily.stock_code)
+        .order_by(KlineDaily.stock_code, KlineDaily.trade_date.desc())
+    )
+    return {
+        row[0]: (row[1], row[2], row[3])
+        for row in (await session.execute(stmt)).all()
+    }
+
+
+async def map_kline_recent_closes(
+    session: AsyncSession, codes: list[str], limit: int
+) -> dict[str, list[float]]:
+    """每只代码最近 limit 个日 K 收盘（升序，None 收盘剔除），供趋势缩略图。"""
+    if not codes:
+        return {}
+    rn = (
+        func.row_number()
+        .over(
+            partition_by=KlineDaily.stock_code,
+            order_by=KlineDaily.trade_date.desc(),
+        )
+        .label("rn")
+    )
+    ranked = (
+        select(
+            KlineDaily.stock_code.label("stock_code"),
+            KlineDaily.trade_date.label("trade_date"),
+            KlineDaily.close.label("close"),
+            rn,
+        )
+        .where(KlineDaily.stock_code.in_(codes))
+        .subquery()
+    )
+    rows = await session.execute(
+        select(ranked.c.stock_code, ranked.c.close)
+        .where(ranked.c.rn <= limit)
+        .order_by(ranked.c.stock_code, ranked.c.trade_date)
+    )
+    trends: dict[str, list[float]] = {}
+    for code, close in rows.all():
+        if close is not None:
+            trends.setdefault(code, []).append(float(close))
+    return trends
 
 
 async def map_latest_closes(

@@ -17,12 +17,19 @@ def _scalars_result(rows: list) -> MagicMock:
     )
 
 
-def _config(code: str, name: str, sort_order: int, enabled: bool = True) -> MagicMock:
+def _config(
+    code: str,
+    name: str,
+    sort_order: int,
+    enabled: bool = True,
+    market_category: str = "全球",
+) -> MagicMock:
     cfg = MagicMock()
     cfg.index_code = code
     cfg.index_name = name
     cfg.sort_order = sort_order
     cfg.is_enabled = enabled
+    cfg.market_category = market_category
     return cfg
 
 
@@ -119,6 +126,75 @@ class TestGetGlobalIndexQuotes:
 
         assert quotes[0].close == pytest.approx(3.842)
         assert quotes[0].change_pct == pytest.approx(-1.25)
+
+
+@pytest.mark.unit
+class TestTrackedQuotesWithAShareExtras:
+    """快照/选项清单含用户自加的 A 股标的；固定展示的大盘标的不进选项。"""
+
+    @pytest.mark.asyncio
+    async def test_a_share_extra_uses_kline_quotes(self) -> None:
+        configs = [
+            _config("GC00Y", "COMEX黄金", 1),
+            _config("sh000905", "中证500", 2, market_category="A股"),
+        ]
+        session = AsyncMock()
+        session.execute.side_effect = [
+            _scalars_result(configs),
+            # 全球指标最新收盘（GlobalIndexDaily）
+            MagicMock(
+                all=MagicMock(
+                    return_value=[("GC00Y", 2650.5, 0.83, date(2026, 9, 2))]
+                )
+            ),
+            # A 股标的最新日 K（quote_kline_stock_daily）
+            MagicMock(
+                all=MagicMock(
+                    return_value=[("sh000905", 6850.0, 1.2, date(2026, 9, 2))]
+                )
+            ),
+            # 全球指标近 30 日趋势
+            MagicMock(
+                all=MagicMock(return_value=[("GC00Y", 2649.1), ("GC00Y", 2650.5)])
+            ),
+            # A 股标的近 30 日趋势
+            MagicMock(
+                all=MagicMock(
+                    return_value=[("sh000905", 6800.0), ("sh000905", 6850.0)]
+                )
+            ),
+        ]
+
+        quotes = await global_index_service.get_global_index_quotes(session)
+
+        assert [q.index_code for q in quotes] == ["GC00Y", "sh000905"]
+        assert quotes[1].close == 6850.0
+        assert quotes[1].change_pct == 1.2
+        assert quotes[1].trend == [6800.0, 6850.0]
+
+    @pytest.mark.asyncio
+    async def test_options_exclude_fixed_codes_and_carry_category(self) -> None:
+        configs = [
+            _config("sh000001", "上证指数", 1, market_category="A股"),  # 固定展示，应被剔除
+            _config("sh000905", "中证500", 2, market_category="A股"),
+        ]
+        session = AsyncMock()
+        session.execute.side_effect = [
+            _scalars_result(configs),
+            MagicMock(
+                all=MagicMock(
+                    return_value=[("sh000905", 6850.0, 1.2, date(2026, 9, 2))]
+                )
+            ),
+        ]
+
+        options = await global_index_service.list_tracked_index_options(session)
+
+        assert [o.index_code for o in options] == ["sh000905"]
+        assert options[0].id is not None
+        assert options[0].market_category == "A股"
+        assert options[0].latest_close == 6850.0
+        assert options[0].latest_trade_date == date(2026, 9, 2)
 
 
 def _daily(

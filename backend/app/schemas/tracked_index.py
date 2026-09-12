@@ -53,7 +53,12 @@ class TrackedIndexToggleResponse(CamelModel):
 
 
 class TrackedIndexOption(CamelModel):
-    """个人设置中可勾选的跟踪指数项（启用中的全球指标）。"""
+    """个人设置中可勾选的跟踪指数项（附分类与最新行情预览）。"""
 
+    id: int
     index_code: str
     index_name: str
+    market_category: str
+    latest_close: float | None = None
+    latest_change_pct: float | None = None
+    latest_trade_date: date | None = None
