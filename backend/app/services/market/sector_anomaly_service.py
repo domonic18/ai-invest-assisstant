@@ -112,23 +112,22 @@ async def run_sector_detection(
         if (snap.sector_type, snap.sector_name) in ths_universe
     ]
 
-    baseline_dates = await sector_quote_repository.recent_trade_dates(
-        session, trade_date, limit=params.baseline_days
+    # 量能基线取 THS 板块日 K（检测池本就按 THS 同名收敛，名称键天然匹配；
+    # 快照表上线晚无历史积累，K 线表自带约一年历史，避免冷启动期整列空值）
+    baselines = await kline_repository.avg_amount_by_sector_name(
+        session, before=trade_date, limit_days=params.baseline_days
     )
-    baselines = await sector_quote_repository.avg_amount_by_sector(
-        session, baseline_dates
-    )
-    baseline_ready = len(baseline_dates) >= params.baseline_days
+    baseline_ready = bool(baselines)
 
     rows: list[dict] = []
     for snap in snapshots:
         change_pct = float(snap.change_pct) if snap.change_pct is not None else None
         amount = float(snap.amount) if snap.amount is not None else None
         amount_ratio: float | None = None
-        baseline = baselines.get((snap.sector_type, snap.sector_code))
-        if baseline_ready and baseline is not None and amount is not None:
-            avg_amount, _ = baseline
-            if avg_amount > 0:
+        baseline = baselines.get((snap.sector_type, snap.sector_name))
+        if baseline is not None and amount is not None:
+            avg_amount, days = baseline
+            if days >= params.baseline_days and avg_amount > 0:
                 amount_ratio = round(amount / avg_amount, 2)
         dims, strength, category = evaluate_sector(
             change_pct=change_pct,
@@ -205,3 +204,8 @@ async def get_sector_anomaly_board(
             for row in rows
         ],
     )
+
+
+async def list_sector_anomaly_trade_dates(session: AsyncSession) -> list[date]:
+    """有板块异动检测数据的交易日（升序），日历打点用。"""
+    return await anomaly_repository.list_sector_trade_dates(session)
