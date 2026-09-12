@@ -116,6 +116,8 @@ class StockKlineResponse(CamelModel):
     name: str
     period: str
     bars: list[StockKlineBar]
+    # 最近交易日（交易日历权威），前端据此判定 K 线是否落后并自动补采
+    latest_trade_date: date
 
 
 class StockIntradayPoint(CamelModel):

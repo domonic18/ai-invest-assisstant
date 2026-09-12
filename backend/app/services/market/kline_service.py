@@ -13,6 +13,7 @@ from app.repositories.market.kline_repository import (
     fetch_daily_bars,
     list_daily_paginated,
 )
+from app.services.market import trade_calendar_service
 from app.services.market.stock_service import get_stock_by_code
 
 
@@ -94,4 +95,5 @@ async def get_stock_kline(
         "name": stock.stock_name or stock_code,
         "period": period,
         "bars": bars,
+        "latest_trade_date": await trade_calendar_service.resolve_latest_trade_date(session),
     }
