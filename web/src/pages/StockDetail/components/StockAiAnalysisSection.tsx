@@ -1,8 +1,9 @@
 import { CalendarOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons'
-import { Button, DatePicker, Empty, message } from 'antd'
+import { Button, Empty, message } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
+import { MarkedDatePicker } from '@/components/common/MarkedDatePicker'
 import { MarkdownText } from '@/components/common/MarkdownText'
 import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
 import { useStockAiAnalysis, useStockAiAnalysisDates } from '@/hooks/useStocks'
@@ -26,10 +27,6 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
   )
   const { data: analysisDates, refetch: refetchDates } =
     useStockAiAnalysisDates(stockCode)
-  const recordedDates = useMemo(
-    () => new Set(analysisDates ?? []),
-    [analysisDates],
-  )
   const data = status?.data ?? null
   // 后端把显式非交易日归位到不晚于该日的最近交易日；生成与展示一律以
   // 归位后的有效交易日为准，避免对周末/节假日发起无意义分析
@@ -62,7 +59,7 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
 
   const pickerDate = tradeDate ?? effectiveDate
   const datePicker = (
-    <DatePicker
+    <MarkedDatePicker
       size="small"
       variant="borderless"
       format="MM-DD"
@@ -70,25 +67,7 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
       placeholder="交易日"
       allowClear
       suffixIcon={<CalendarOutlined className="!text-[10px] !text-[#5c616e]" />}
-      disabledDate={(d: Dayjs) =>
-        d.isAfter(dayjs(), 'day') || d.day() === 0 || d.day() === 6
-      }
-      cellRender={(current, info) => {
-        if (info.type !== 'date' || !dayjs.isDayjs(current)) return info.originNode
-        const iso = current.format(DATE_FORMAT)
-        const hasRecord = recordedDates.has(iso)
-        return (
-          <div
-            className="ant-picker-cell-inner relative"
-            title={hasRecord ? `${iso} 已生成分析` : undefined}
-          >
-            {current.date()}
-            {hasRecord && (
-              <span className="absolute bottom-[2px] left-1/2 -translate-x-1/2 w-[4px] h-[4px] rounded-full bg-[#5e6ad2]" />
-            )}
-          </div>
-        )
-      }}
+      markedDates={analysisDates}
       onChange={(d: Dayjs | null) => setTradeDate(d ? d.format(DATE_FORMAT) : undefined)}
     />
   )

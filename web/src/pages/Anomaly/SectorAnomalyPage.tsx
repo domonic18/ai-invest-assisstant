@@ -1,4 +1,4 @@
-import { Button, Card, DatePicker, Empty, Popconfirm, Segmented, Select, Skeleton, Table, Typography } from 'antd'
+import { Button, Card, Empty, Popconfirm, Segmented, Select, Skeleton, Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useMemo, useState } from 'react'
@@ -10,8 +10,9 @@ import {
   type ApiSectorAnomalyItem,
 } from '@ai-invest/shared'
 
+import { MarkedDatePicker } from '@/components/common/MarkedDatePicker'
 import { SourceNote } from '@/components/common/SourceNote'
-import { useSectorAnomalyBoard } from '@/hooks/useAnomaly'
+import { useSectorAnomalyBoard, useSectorAnomalyDates } from '@/hooks/useAnomaly'
 import { useAssistantStore } from '@/stores/assistant'
 import { useColorScheme } from '@/stores/settings'
 import { changeColor, DATE_FORMAT, formatAmount, formatPercent } from '@/utils/formatters'
@@ -39,6 +40,7 @@ export function SectorAnomalyPage() {
     tradeDate,
     sectorType === 'all' ? undefined : sectorType,
   )
+  const { data: detectDates } = useSectorAnomalyDates()
 
   const generating = useAnomalyAttribution(PAGE_EVENT_TYPES.sectorAnomaly)
 
@@ -190,13 +192,14 @@ export function SectorAnomalyPage() {
         }
       >
         <div className="flex flex-wrap items-center gap-2 mb-3">
-          <DatePicker
+          <MarkedDatePicker
             allowClear
             placeholder="最近检测日"
             value={tradeDate ? dayjs(tradeDate) : null}
             onChange={(d: Dayjs | null) => {
               setTradeDate(d ? d.format(DATE_FORMAT) : undefined)
             }}
+            markedDates={detectDates}
           />
           <Segmented
             options={SECTOR_TYPE_OPTIONS}

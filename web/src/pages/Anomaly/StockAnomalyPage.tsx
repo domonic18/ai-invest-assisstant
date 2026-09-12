@@ -1,4 +1,4 @@
-import { Button, Card, DatePicker, Empty, Popconfirm, Select, Skeleton, Table, Tag, Tooltip, Typography } from 'antd'
+import { Button, Card, Empty, Popconfirm, Select, Skeleton, Table, Tag, Tooltip, Typography } from 'antd'
 import { StarFilled } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -7,8 +7,9 @@ import { Link } from 'react-router-dom'
 
 import { PAGE_EVENT_TYPES, type ApiStockAnomalyItem } from '@ai-invest/shared'
 
+import { MarkedDatePicker } from '@/components/common/MarkedDatePicker'
 import { SourceNote } from '@/components/common/SourceNote'
-import { useStockAnomalyBoard } from '@/hooks/useAnomaly'
+import { useStockAnomalyBoard, useStockAnomalyDates } from '@/hooks/useAnomaly'
 import { useAssistantStore } from '@/stores/assistant'
 import { useColorScheme } from '@/stores/settings'
 import { changeColor, DATE_FORMAT, formatNumber, formatPercent } from '@/utils/formatters'
@@ -24,6 +25,7 @@ export function StockAnomalyPage() {
   const [typeFilter, setTypeFilter] = useState<string>()
 
   const { data, isLoading } = useStockAnomalyBoard(tradeDate)
+  const { data: detectDates } = useStockAnomalyDates()
 
   const generating = useAnomalyAttribution(PAGE_EVENT_TYPES.stockAnomaly)
 
@@ -191,13 +193,14 @@ export function StockAnomalyPage() {
         }
       >
         <div className="flex flex-wrap items-center gap-2 mb-3">
-          <DatePicker
+          <MarkedDatePicker
             allowClear
             placeholder="最近检测日"
             value={tradeDate ? dayjs(tradeDate) : null}
             onChange={(d: Dayjs | null) => {
               setTradeDate(d ? d.format(DATE_FORMAT) : undefined)
             }}
+            markedDates={detectDates}
           />
           <Select
             allowClear

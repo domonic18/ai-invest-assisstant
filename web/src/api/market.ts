@@ -11,6 +11,7 @@ import type {
   ApiMarketReviewUpdateRequest,
   ApiMarketStatsResponse,
   ApiSectorOverviewResponse,
+  ApiTradeDatesResponse,
   ApiWatchlistQuoteItem,
   CollectTaskResult,
   FedWatchResponse,
@@ -143,6 +144,14 @@ export async function fetchMarketReview(
     }
     throw error
   }
+}
+
+/** 已成功生成大盘复盘的全部交易日（升序），供日历标记。 */
+export async function fetchMarketReviewDates(): Promise<string[]> {
+  const response = await apiClient.get<ApiTradeDatesResponse>(
+    ENDPOINTS.market.aiReviewDates,
+  )
+  return response.data.tradeDates
 }
 
 /** 按分区保存人工编辑后的复盘内容（sectionKey 为后端 prompt YAML 声明的分区键）。 */

@@ -1,13 +1,15 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Button, DatePicker, message, Typography } from 'antd'
+import { Button, message, Typography } from 'antd'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
 import { useState } from 'react'
 
 import { collectMarketData } from '@/api/market'
+import { MarkedDatePicker } from '@/components/common/MarkedDatePicker'
 import {
   useLimitUp,
   useMarketIndices,
+  useMarketReviewDates,
   useMarketStats,
   useSectorOverview,
 } from '@/hooks/useMarket'
@@ -31,6 +33,7 @@ export function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useMarketStats(tradeDate)
   const { data: limitUp, isLoading: limitUpLoading } = useLimitUp(tradeDate)
   const { data: sectors, isLoading: sectorsLoading } = useSectorOverview(tradeDate)
+  const { data: reviewDates } = useMarketReviewDates()
 
   const handleCollect = async () => {
     if (!tradeDate) return
@@ -59,14 +62,12 @@ export function Dashboard() {
           </Typography.Text>
         </div>
         <div className="flex items-center gap-3">
-          <DatePicker
+          <MarkedDatePicker
             value={selectedDate}
             onChange={setSelectedDate}
             allowClear
             placeholder="选择复盘日期"
-            disabledDate={(d) =>
-              d.isAfter(dayjs(), 'day') || d.day() === 0 || d.day() === 6
-            }
+            markedDates={reviewDates}
           />
           {isPastDate && (
             <Button loading={collecting} onClick={handleCollect}>
