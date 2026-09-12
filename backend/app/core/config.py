@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # Elasticsearch
     elasticsearch_url: str = "http://localhost:9200"
 
+    # 后台服务状态探测（GET /admin/system/status）单服务超时（秒）
+    status_probe_timeout: float = 3.0
+
     # MinIO
     minio_endpoint: str = "localhost:9000"
     minio_public_endpoint: str | None = None
