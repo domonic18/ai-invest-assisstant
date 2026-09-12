@@ -20,7 +20,7 @@ import {
 
 const SECTIONS = [
   { key: 'profile', label: '基本信息' },
-  { key: 'appearance', label: '外观与偏好' },
+  { key: 'appearance', label: '外观偏好' },
   { key: 'indexes', label: '跟踪指数' },
   { key: 'security', label: '账号安全' },
 ] as const
