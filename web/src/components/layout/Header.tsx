@@ -1,4 +1,4 @@
-import { LogoutOutlined, MenuOutlined, MessageOutlined, SettingOutlined, StarOutlined, UserOutlined } from '@ant-design/icons'
+import { LogoutOutlined, MenuOutlined, MessageOutlined, SettingOutlined, StarOutlined, UserOutlined, FilterOutlined } from '@ant-design/icons'
 import { Avatar, Button, Dropdown, Space, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
@@ -84,6 +84,15 @@ export function Header({ onMenuClick }: HeaderProps) {
             onClick={() => navigate('/watchlist')}
             className="text-gray-300"
             aria-label="我的自选"
+          />
+        </Tooltip>
+        <Tooltip title="AI 选股">
+          <Button
+            type="text"
+            icon={<FilterOutlined />}
+            onClick={() => navigate('/screening')}
+            className="text-gray-300"
+            aria-label="AI 选股"
           />
         </Tooltip>
         <Tooltip title="AI 助手">

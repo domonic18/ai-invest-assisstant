@@ -150,12 +150,8 @@ async def test_run_sector_detection_persists_and_commits() -> None:
             AsyncMock(return_value=[("industry", "板块BK01"), ("industry", "板块BK02")]),
         ),
         patch(
-            f"{_REPO}.recent_trade_dates",
-            AsyncMock(return_value=[date(2026, 9, d) for d in (10, 9, 8, 7, 4)]),
-        ),
-        patch(
-            f"{_REPO}.avg_amount_by_sector",
-            AsyncMock(return_value={("industry", "BK01"): (5.0e8, 5)}),
+            f"{_KLINE_REPO}.avg_amount_by_sector_name",
+            AsyncMock(return_value={("industry", "板块BK01"): (5.0e8, 5)}),
         ),
         patch(
             _DELETE_OUTSIDE,
@@ -194,11 +190,7 @@ async def test_run_sector_detection_baseline_gap_skips_volume_dim() -> None:
             f"{_KLINE_REPO}.list_ths_sector_names",
             AsyncMock(return_value=[("industry", "板块BK01")]),
         ),
-        patch(
-            f"{_REPO}.recent_trade_dates",
-            AsyncMock(return_value=[date(2026, 9, 10)]),
-        ),
-        patch(f"{_REPO}.avg_amount_by_sector", AsyncMock(return_value={})),
+        patch(f"{_KLINE_REPO}.avg_amount_by_sector_name", AsyncMock(return_value={})),
         patch(_DELETE_OUTSIDE, AsyncMock(return_value=0)),
         patch(
             _UPSERT,
@@ -214,6 +206,31 @@ async def test_run_sector_detection_baseline_gap_skips_volume_dim() -> None:
     assert set(rows[0]["anomaly_types"]) == {SECTOR_DIM_PRICE, SECTOR_DIM_SYNC}
 
 
+async def test_run_sector_detection_baseline_days_short_of_gate_skips_volume_dim() -> None:
+    """基线有效天数 < baseline_days 时严格门槛拒绝，量能维度跳过（防零星日期误判放量）。"""
+    session = AsyncMock()
+    snapshots = [_snap("industry", "BK01")]
+    with (
+        patch(f"{_REPO}.list_all_by_date", AsyncMock(return_value=snapshots)),
+        patch(
+            f"{_KLINE_REPO}.list_ths_sector_names",
+            AsyncMock(return_value=[("industry", "板块BK01")]),
+        ),
+        patch(
+            f"{_KLINE_REPO}.avg_amount_by_sector_name",
+            AsyncMock(return_value={("industry", "板块BK01"): (4.0e8, 4)}),
+        ),
+        patch(_DELETE_OUTSIDE, AsyncMock(return_value=0)),
+        patch(_UPSERT, AsyncMock(return_value=[])) as mock_upsert,
+    ):
+        await run_sector_detection(session, date(2026, 9, 11))
+
+    rows = mock_upsert.call_args.args[2]
+    assert len(rows) == 1
+    assert rows[0]["amount_ratio"] is None
+    assert SECTOR_DIM_VOLUME not in rows[0]["anomaly_types"]
+
+
 async def test_run_sector_detection_filters_out_boards_without_ths_match() -> None:
     """检测池收敛：快照中不在 THS 指数宇宙的板块不参与检测，且池外残留被清理。"""
     session = AsyncMock()
@@ -227,11 +244,7 @@ async def test_run_sector_detection_filters_out_boards_without_ths_match() -> No
             f"{_KLINE_REPO}.list_ths_sector_names",
             AsyncMock(return_value=[("industry", "板块BK01")]),
         ),
-        patch(
-            f"{_REPO}.recent_trade_dates",
-            AsyncMock(return_value=[date(2026, 9, d) for d in (10, 9, 8, 7, 4)]),
-        ),
-        patch(f"{_REPO}.avg_amount_by_sector", AsyncMock(return_value={})),
+        patch(f"{_KLINE_REPO}.avg_amount_by_sector_name", AsyncMock(return_value={})),
         patch(_DELETE_OUTSIDE, AsyncMock(return_value=1)) as mock_delete,
         patch(_UPSERT, AsyncMock(return_value=[])) as mock_upsert,
     ):

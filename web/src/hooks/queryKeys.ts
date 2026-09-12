@@ -67,7 +67,9 @@ export const queryKeys = {
     all: ['anomaly'] as const,
     sector: (tradeDate?: string, sectorType?: string) =>
       ['anomaly', 'sector', tradeDate ?? null, sectorType ?? null] as const,
+    sectorDates: ['anomaly', 'sector-dates'] as const,
     stock: (tradeDate?: string) => ['anomaly', 'stock', tradeDate ?? null] as const,
+    stockDates: ['anomaly', 'stock-dates'] as const,
   },
   sectorDetail: (sectorType: string, sectorCode: string) =>
     ['sector-detail', sectorType, sectorCode] as const,
@@ -89,6 +91,7 @@ export const queryKeys = {
     sectors: (tradeDate?: string) => ['market', 'sectors', tradeDate] as const,
     watchlistQuotes: ['market', 'watchlist-quotes'] as const,
     aiReview: (tradeDate?: string) => ['market', 'ai-review', tradeDate] as const,
+    aiReviewDates: ['market', 'ai-review-dates'] as const,
     globalIndices: ['market', 'global-indices'] as const,
     globalIndexHistory: (indexCode: string, months: number) =>
       ['market', 'global-index-history', indexCode, months] as const,

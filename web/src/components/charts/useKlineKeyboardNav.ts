@@ -21,6 +21,13 @@ const MIN_SPAN = 5
 const ZOOM_IN_FACTOR = 0.8
 const ZOOM_OUT_FACTOR = 1 / ZOOM_IN_FACTOR
 
+/** 当前被鼠标悬浮的 K 线图数量：其他键盘交互（如自选列表切股）据此让位缩放。 */
+const klineHoverCount = { value: 0 }
+
+export function isKlineHovered(): boolean {
+  return klineHoverCount.value > 0
+}
+
 /**
  * K 线键盘导航（对标同花顺）：鼠标悬浮图表时，
  * ↑/↓ 以十字光标为锚缩放可见区间（无光标时锚定右端最新数据），←/→ 左右平移。
@@ -68,12 +75,22 @@ export function useKlineKeyboardNav(barCount: number) {
   const wrapperProps = {
     onMouseEnter: () => {
       hoverRef.current = true
+      klineHoverCount.value += 1
     },
     onMouseLeave: () => {
       hoverRef.current = false
+      klineHoverCount.value -= 1
       anchorRef.current = null
     },
   }
+
+  // 悬浮中卸载时 mouseleave 不会触发，避免计数泄漏
+  useEffect(
+    () => () => {
+      if (hoverRef.current) klineHoverCount.value -= 1
+    },
+    [],
+  )
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

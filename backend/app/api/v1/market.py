@@ -25,6 +25,7 @@ from app.schemas.market import (
     LimitUpIntradayResponse,
     LimitUpResponse,
     MarketCollectRequest,
+    MarketReviewDatesResponse,
     MarketReviewResponse,
     MarketReviewUpdateRequest,
     MarketStatsResponse,
@@ -197,6 +198,15 @@ async def get_ai_review(
     if review is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     return review
+
+
+@router.get("/ai-review/dates", response_model=MarketReviewDatesResponse)
+async def get_ai_review_dates(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> MarketReviewDatesResponse:
+    """已成功生成大盘复盘的交易日（升序），日历打点用。"""
+    dates = await market_review_service.list_review_trade_dates(session)
+    return MarketReviewDatesResponse(trade_dates=dates)
 
 
 @router.put("/ai-review", response_model=MarketReviewResponse)

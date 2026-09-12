@@ -79,6 +79,19 @@ async def latest_sector_trade_date(session: AsyncSession) -> date | None:
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
+async def list_sector_trade_dates(
+    session: AsyncSession, limit: int = 400
+) -> list[date]:
+    """有板块异动检测数据的交易日去重列表（升序），日历打点用。"""
+    stmt = (
+        select(SectorAnomaly.trade_date)
+        .distinct()
+        .order_by(SectorAnomaly.trade_date.desc())
+        .limit(limit)
+    )
+    return sorted((await session.execute(stmt)).scalars().all())
+
+
 async def upsert_sector_rows(
     session: AsyncSession, trade_date: date, rows: list[dict]
 ) -> list[SectorAnomaly]:
@@ -109,6 +122,19 @@ async def latest_stock_trade_date(session: AsyncSession) -> date | None:
     """最新有检测数据的交易日。"""
     stmt = select(func.max(StockAnomaly.trade_date))
     return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def list_stock_trade_dates(
+    session: AsyncSession, limit: int = 400
+) -> list[date]:
+    """有个股异动检测数据的交易日去重列表（升序），日历打点用。"""
+    stmt = (
+        select(StockAnomaly.trade_date)
+        .distinct()
+        .order_by(StockAnomaly.trade_date.desc())
+        .limit(limit)
+    )
+    return sorted((await session.execute(stmt)).scalars().all())
 
 
 async def list_stock_anomalies(

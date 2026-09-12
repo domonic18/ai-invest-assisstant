@@ -8,7 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
-from app.schemas.anomaly import SectorAnomalyResponse, StockAnomalyResponse
+from app.schemas.anomaly import (
+    AnomalyTradeDatesResponse,
+    SectorAnomalyResponse,
+    StockAnomalyResponse,
+)
 from app.services.market import sector_anomaly_service, stock_anomaly_service
 
 router = APIRouter()
@@ -26,6 +30,15 @@ async def get_sector_anomaly_board(
     )
 
 
+@router.get("/sector/dates", response_model=AnomalyTradeDatesResponse)
+async def get_sector_anomaly_dates(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> AnomalyTradeDatesResponse:
+    """有板块异动检测数据的交易日（升序），日历打点用。"""
+    dates = await sector_anomaly_service.list_sector_anomaly_trade_dates(session)
+    return AnomalyTradeDatesResponse(trade_dates=dates)
+
+
 @router.get("/stock", response_model=StockAnomalyResponse | None)
 async def get_stock_anomaly_board(
     session: Annotated[AsyncSession, Depends(get_db)],
@@ -36,3 +49,12 @@ async def get_stock_anomaly_board(
     return await stock_anomaly_service.get_stock_anomaly_board(
         session, trade_date, current_user.id
     )
+
+
+@router.get("/stock/dates", response_model=AnomalyTradeDatesResponse)
+async def get_stock_anomaly_dates(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> AnomalyTradeDatesResponse:
+    """有个股异动检测数据的交易日（升序），日历打点用。"""
+    dates = await stock_anomaly_service.list_stock_anomaly_trade_dates(session)
+    return AnomalyTradeDatesResponse(trade_dates=dates)

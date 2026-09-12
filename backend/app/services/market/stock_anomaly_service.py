@@ -281,3 +281,8 @@ async def get_stock_anomaly_board(
             for row in rows
         ],
     )
+
+
+async def list_stock_anomaly_trade_dates(session: AsyncSession) -> list[date]:
+    """有个股异动检测数据的交易日（升序），日历打点用。"""
+    return await anomaly_repository.list_stock_trade_dates(session)

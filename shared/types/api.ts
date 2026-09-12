@@ -182,6 +182,11 @@ export interface ApiStockAiAnalysisDatesResponse {
   tradeDates: string[]
 }
 
+/** 已生成分析/检测数据的交易日列表（升序），日历打点用。 */
+export interface ApiTradeDatesResponse {
+  tradeDates: string[]
+}
+
 export interface ApiStockKlineBar {
   date: string
   open: number

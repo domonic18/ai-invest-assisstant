@@ -4,9 +4,26 @@ import type {
   ApiSectorAnomalyResponse,
   ApiSectorDetailResponse,
   ApiStockAnomalyResponse,
+  ApiTradeDatesResponse,
 } from '@ai-invest/shared'
 
 import { apiClient } from './client'
+
+/** 有板块异动检测数据的交易日（升序），日历打点用。 */
+export async function fetchSectorAnomalyDates(): Promise<string[]> {
+  const response = await apiClient.get<ApiTradeDatesResponse>(
+    ENDPOINTS.anomaly.sectorDates,
+  )
+  return response.data.tradeDates
+}
+
+/** 有个股异动检测数据的交易日（升序），日历打点用。 */
+export async function fetchStockAnomalyDates(): Promise<string[]> {
+  const response = await apiClient.get<ApiTradeDatesResponse>(
+    ENDPOINTS.anomaly.stockDates,
+  )
+  return response.data.tradeDates
+}
 
 /** 板块异动榜（强度降序）；未传日期取最新检测日，无数据返回 undefined。 */
 export async function fetchSectorAnomalyBoard(

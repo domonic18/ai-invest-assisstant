@@ -286,3 +286,46 @@ async def list_ths_sector_names(session: AsyncSession) -> list[tuple[str, str]]:
     """同花顺指数覆盖的 (sector_type, sector_name) 宇宙（板块异动检测池收敛判据）。"""
     stmt = select(SectorKlineDaily.sector_type, SectorKlineDaily.sector_name).distinct()
     return [(row[0], row[1]) for row in (await session.execute(stmt)).all()]
+
+
+async def avg_amount_by_sector_name(
+    session: AsyncSession, before: date, limit_days: int = 5
+) -> dict[tuple[str, str], tuple[float, int]]:
+    """THS 板块日 K 的近 N 日均额基线：dict[(sector_type, sector_name)] → (均额, 有效天数)。
+
+    基线窗口取严格早于 ``before`` 的最近 N 个 distinct 交易日（与检测日
+    口径一致）；均额只聚合 amount 非空的行，days 为有效天数，供调用方
+    做严格基线门槛判定（板块异动量能维度，快照表冷启动期无历史可用）。
+    """
+    date_rows = (
+        await session.execute(
+            select(SectorKlineDaily.trade_date)
+            .where(SectorKlineDaily.trade_date < before)
+            .distinct()
+            .order_by(SectorKlineDaily.trade_date.desc())
+            .limit(limit_days)
+        )
+    ).all()
+    dates = [row[0] for row in date_rows]
+    if not dates:
+        return {}
+    rows = (
+        await session.execute(
+            select(
+                SectorKlineDaily.sector_type,
+                SectorKlineDaily.sector_name,
+                func.avg(SectorKlineDaily.amount),
+                func.count(SectorKlineDaily.amount),
+            )
+            .where(
+                SectorKlineDaily.trade_date.in_(dates),
+                SectorKlineDaily.amount.is_not(None),
+            )
+            .group_by(SectorKlineDaily.sector_type, SectorKlineDaily.sector_name)
+        )
+    ).all()
+    return {
+        (row[0], row[1]): (float(row[2]), int(row[3]))
+        for row in rows
+        if row[2] is not None
+    }

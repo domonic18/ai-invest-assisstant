@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { NonTradingDayError, saveMarketReviewSection } from '@/api/market'
 import { MarkdownText } from '@/components/common/MarkdownText'
 import { useMarketReview } from '@/hooks/useMarket'
+import { queryKeys } from '@/hooks/queryKeys'
 import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
 import { useAssistantStore } from '@/stores/assistant'
 import { PAGE_EVENT_TYPES, type MarketReview, type MarketReviewSection } from '@ai-invest/shared'
@@ -117,6 +118,7 @@ export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
   usePageAssistantResult(PAGE_EVENT_TYPES.marketDailyReview, () => {
     setGenerating(false)
     void refetch()
+    void queryClient.invalidateQueries({ queryKey: queryKeys.market.aiReviewDates })
     message.success('复盘已生成，已刷新')
     return true
   })

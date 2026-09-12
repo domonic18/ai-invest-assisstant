@@ -1,10 +1,12 @@
 import { CaretDownOutlined, CaretUpOutlined, EllipsisOutlined, MinusCircleOutlined } from '@ant-design/icons'
 import { Button, Dropdown, Empty, Popconfirm, message } from 'antd'
 import type { MenuProps } from 'antd'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { WatchlistGroup, WatchlistItem, WatchlistQuote } from '@ai-invest/shared'
 
 import { IntradaySpark } from '@/components/charts/IntradaySpark'
+import { isKlineHovered } from '@/components/charts/useKlineKeyboardNav'
 import { useMoveWatchlistItem } from '@/hooks/useWatchlistGroups'
 import { useRemoveWatchlistItem } from '@/hooks/useWatchlist'
 import { useColorScheme } from '@/stores/settings'
@@ -66,6 +68,7 @@ export function WatchlistStockList({
   const [sort, setSort] = useState<SortState | null>(null)
   // 删除/移动入口只在编辑管理模式出现，避免浏览时误触
   const [managing, setManaging] = useState(false)
+  const listRef = useRef<HTMLDivElement | null>(null)
 
   const items = useMemo(() => {
     const source =
@@ -87,6 +90,34 @@ export function WatchlistStockList({
     })
     return sorted
   }, [groups, activeGroupId, quotesByCode, sort])
+
+  const orderedCodes = useMemo(() => items.map((item) => item.code), [items])
+
+  // 列表聚焦时 ↑/↓ 切换个股；鼠标悬浮 K 线图时让位图表缩放（web 无 canvas 焦点，悬浮即"图表焦点"）
+  const handleListKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (managing) return
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+    if (isKlineHovered()) return
+    event.preventDefault()
+    if (!orderedCodes.length) return
+    const current = selectedCode ? orderedCodes.indexOf(selectedCode) : -1
+    const next =
+      event.key === 'ArrowDown'
+        ? current < 0
+          ? 0
+          : Math.min(orderedCodes.length - 1, current + 1)
+        : current < 0
+          ? orderedCodes.length - 1
+          : Math.max(0, current - 1)
+    if (next === current) return
+    const code = orderedCodes[next]
+    onSelect(code)
+    requestAnimationFrame(() => {
+      listRef.current
+        ?.querySelector(`[data-code="${CSS.escape(code)}"]`)
+        ?.scrollIntoView({ block: 'nearest' })
+    })
+  }
 
   const toggleSort = (field: SortField) => {
     setSort((prev) => {
@@ -170,7 +201,14 @@ export function WatchlistStockList({
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div
+        ref={listRef}
+        role="listbox"
+        aria-label="自选股列表"
+        tabIndex={0}
+        onKeyDown={handleListKeyDown}
+        className="flex-1 overflow-y-auto focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#5e6ad2]"
+      >
         {items.length === 0 ? (
           <Empty
             className="mt-10"
@@ -184,6 +222,9 @@ export function WatchlistStockList({
             return (
               <div
                 key={item.id}
+                role="option"
+                aria-selected={selected}
+                data-code={item.code}
                 onClick={() => {
                   if (!managing) onSelect(item.code)
                 }}
