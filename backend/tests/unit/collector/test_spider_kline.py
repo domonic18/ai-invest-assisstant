@@ -79,9 +79,15 @@ class TestSinaIndexKlineCollector:
                 }
             ]
         )
-        with patch(
-            "akshare.stock_zh_index_daily", return_value=mock_df
-        ) as mock_fetch:
+        with (
+            patch(
+                "akshare.stock_zh_index_daily", return_value=mock_df
+            ) as mock_fetch,
+            patch(
+                "collector.spiders.sina_index_kline.fetch_tracked_extra_codes",
+                AsyncMock(return_value=[]),
+            ),
+        ):
             raw = await collector.collect()
 
         assert mock_fetch.call_count == len(INDEX_CODES)
@@ -119,7 +125,15 @@ class TestSinaEtfKlineCollector:
                 }
             ]
         )
-        with patch("akshare.fund_etf_hist_sina", return_value=mock_df) as mock_fetch:
+        with (
+            patch(
+                "akshare.fund_etf_hist_sina", return_value=mock_df
+            ) as mock_fetch,
+            patch(
+                "collector.spiders.sina_etf_kline.fetch_tracked_extra_codes",
+                AsyncMock(return_value=[]),
+            ),
+        ):
             raw = await collector.collect()
 
         mock_fetch.assert_called_once_with(symbol="sh510300")
@@ -133,7 +147,13 @@ class TestSinaEtfKlineCollector:
     @pytest.mark.asyncio
     async def test_collect_empty_returns_empty(self) -> None:
         collector = SinaEtfKlineCollector({"source": "sina", "data_type": "etf-kline"})
-        with patch("akshare.fund_etf_hist_sina", return_value=pd.DataFrame()):
+        with (
+            patch("akshare.fund_etf_hist_sina", return_value=pd.DataFrame()),
+            patch(
+                "collector.spiders.sina_etf_kline.fetch_tracked_extra_codes",
+                AsyncMock(return_value=[]),
+            ),
+        ):
             assert await collector.collect() == []
 
 

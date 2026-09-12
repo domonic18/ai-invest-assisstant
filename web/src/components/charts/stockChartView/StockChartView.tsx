@@ -1,10 +1,10 @@
+import { SyncOutlined } from '@ant-design/icons'
 import ReactECharts from 'echarts-for-react'
-import { Spin } from 'antd'
+import { Button, Spin } from 'antd'
 import { useMemo, useState } from 'react'
 
 import { IntradayChart } from '@/components/charts/IntradayChart'
 import { useKlineKeyboardNav } from '@/components/charts/useKlineKeyboardNav'
-import { useCollectStockKline } from '@/hooks/useCollectStockKline'
 import { useStockIntraday, useStockKline } from '@/hooks/useStocks'
 import { useMaConfigs } from '@/stores/settings'
 import type { IndexIntraday } from '@ai-invest/shared'
@@ -13,6 +13,7 @@ import { BORDER_COLOR, PANEL_BG } from './constants'
 import { ChartToolbar } from './ChartToolbar'
 import { KlineEmptyState } from './KlineEmptyState'
 import { buildKlineOption, computePriceAxisRange, prepareKlineData } from './klineOption'
+import { useAutoCollectKline } from './useAutoCollectKline'
 import { useChartFullscreen } from './useChartFullscreen'
 
 export interface StockChartViewIndicators {
@@ -84,7 +85,6 @@ export function StockChartView({
 
   const { data: klineData, isLoading: klineLoading } = useStockKline(code, klineParams)
   const { data: intradayData, isLoading: intradayLoading } = useStockIntraday(code)
-  const collectKline = useCollectStockKline(code)
   const maConfigs = useMaConfigs()
 
   const isIntraday = period === 'intraday'
@@ -166,6 +166,19 @@ export function StockChartView({
     ? intradayData != null && intradayData.points.length > 0
     : chartData != null && chartData.bars.length > 0
 
+  // K 线缺数据/落后最近交易日时自动补采（仅日 K 视图做落后判定，周/月聚合桶日期不可比）
+  const dailyView = !isIntraday && period === 'daily'
+  const latestTradeDateForDisplay = dailyView ? (klineData?.latestTradeDate ?? '') : ''
+  const { collect: collectKline, behind: klineBehind, suppressed: publishPending } = useAutoCollectKline(
+    code,
+    {
+      ready: !isIntraday && !klineLoading,
+      missing: !isIntraday && !klineLoading && !hasData,
+      lastBarDate: dailyView ? klineData?.bars[klineData.bars.length - 1]?.date : undefined,
+      latestTradeDate: dailyView ? klineData?.latestTradeDate : undefined,
+    },
+  )
+
   return (
     <div
       ref={rootRef}
@@ -182,6 +195,32 @@ export function StockChartView({
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
       />
+
+      {klineBehind && !publishPending && (
+        <div
+          className="flex items-center justify-between gap-2 border-b px-3 py-1.5 text-xs"
+          style={{ borderColor: BORDER_COLOR }}
+        >
+          <span className={collectKline.isError ? 'text-red-400' : 'text-[#8c8c8c]'}>
+            {collectKline.isError
+              ? (collectKline.error as Error).message
+              : `K 线未更新至最近交易日（${latestTradeDateForDisplay}），${
+                  collectKline.isPending ? '正在自动补采，预计 10-30 秒...' : '数据可能滞后'
+                }`}
+          </span>
+
+          {!collectKline.isPending && (
+            <Button
+              type="link"
+              size="small"
+              icon={<SyncOutlined />}
+              onClick={() => collectKline.mutate(latestTradeDateForDisplay)}
+            >
+              立即补采
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Chart area */}
       <div className="relative flex-1 min-h-0">

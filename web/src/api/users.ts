@@ -96,8 +96,13 @@ export async function updateWatchlistGroup(groupId: number, data: ApiWatchlistGr
   return mapWatchlistGroup(response.data)
 }
 
-export async function deleteWatchlistGroup(groupId: number) {
-  await apiClient.delete(ENDPOINTS.users.watchlistGroup(groupId))
+export async function deleteWatchlistGroup(
+  groupId: number,
+  options: { deleteItems?: boolean } = {},
+) {
+  await apiClient.delete(ENDPOINTS.users.watchlistGroup(groupId), {
+    params: { delete_items: options.deleteItems ?? false },
+  })
 }
 
 export async function reorderWatchlistGroups(data: ApiWatchlistGroupReorderRequest) {

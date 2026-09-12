@@ -45,6 +45,11 @@ class TestGetStockKlineFields:
             patch.object(
                 kline_service, "fetch_daily_bars", AsyncMock(return_value=list(reversed(rows)))
             ),
+            patch.object(
+                kline_service.trade_calendar_service,
+                "resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 9, 4)),
+            ),
         ):
             data = await kline_service.get_stock_kline(AsyncMock(), "600519", "daily", 250)
 
@@ -57,3 +62,5 @@ class TestGetStockKlineFields:
         assert second["change_pct"] is None
         assert second["amplitude"] is None
         assert second["turnover_rate"] is None
+        # 最近交易日透出（交易日历权威），前端据此判定数据落后并自动补采
+        assert data["latest_trade_date"] == date(2026, 9, 4)

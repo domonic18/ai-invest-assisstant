@@ -1,11 +1,18 @@
 """全球指标最新快照与历史走势读取服务。"""
 
 from datetime import date, timedelta
+from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import today_cn
-from app.core.constants import GLOBAL_INDEX_CODES, INDEX_TREND_DAYS, KLINE_PERIODS
+from app.core.constants import (
+    GLOBAL_INDEX_CODES,
+    INDEX_CODES,
+    INDEX_TREND_DAYS,
+    KLINE_CHART_EXTRA_CODES,
+    KLINE_PERIODS,
+)
 from app.core.exceptions import BadRequestError
 from app.repositories.market import global_index_repository
 from app.schemas.market import (
@@ -21,6 +28,9 @@ _SPREAD_CODE = "US2Y10S"
 _SPREAD_LEG_CODES = ("US2Y", "US10Y")
 _SPREAD_NAME = "美债10Y-2Y利差"
 
+# 固定展示的 A 股大盘标的（指数快照 + K 线扩展标的），不进用户可勾选的跟踪清单
+_FIXED_A_SHARE_CODES = set(INDEX_CODES) | set(KLINE_CHART_EXTRA_CODES)
+
 # 每根聚合 bar 需回看的基础日历天数（含周末节假日冗余）
 _PERIOD_LOOKBACK_DAYS = {
     "daily": 2,
@@ -35,22 +45,37 @@ async def get_global_index_quotes(
     session: AsyncSession,
     tracked_codes: list[str] | None = None,
 ) -> list[GlobalIndexQuoteResponse]:
-    """启用中的全球指标最新收盘快照（按 sort_order 排序，无数据的代码字段留空）。
+    """启用中的跟踪指标最新收盘快照（按 sort_order 排序，无数据的代码字段留空）。
 
+    含全球指标与用户自加的 A 股指数/ETF（后者读个股日 K 表合成）；
+    固定展示的 A 股大盘标的（四大指数/沪深300ETF/富时A50）不在此列。
     tracked_codes 为用户个人配置的显示清单：None 显示全部启用指标，
     空列表表示用户选择全部不显示。
     """
-    configs = await global_index_repository.list_enabled_global_configs(session)
+    configs = await global_index_repository.list_enabled_tracked_configs(
+        session, exclude_codes=_FIXED_A_SHARE_CODES
+    )
     if tracked_codes is not None:
         allowed = set(tracked_codes)
         configs = [cfg for cfg in configs if cfg.index_code in allowed]
     if not configs:
         return []
 
-    codes = [cfg.index_code for cfg in configs]
-    latest = await global_index_repository.map_latest_closes(session, codes)
+    a_share_codes = [
+        cfg.index_code for cfg in configs if cfg.market_category == "A股"
+    ]
+    global_codes = [
+        cfg.index_code for cfg in configs if cfg.market_category != "A股"
+    ]
+    latest = await global_index_repository.map_latest_closes(session, global_codes)
+    latest.update(await global_index_repository.map_kline_latest(session, a_share_codes))
     trends = await global_index_repository.map_recent_closes(
-        session, codes, INDEX_TREND_DAYS
+        session, global_codes, INDEX_TREND_DAYS
+    )
+    trends.update(
+        await global_index_repository.map_kline_recent_closes(
+            session, a_share_codes, INDEX_TREND_DAYS
+        )
     )
 
     results: list[GlobalIndexQuoteResponse] = []
@@ -70,12 +95,42 @@ async def get_global_index_quotes(
 
 
 async def list_tracked_index_options(session: AsyncSession) -> list[TrackedIndexOption]:
-    """个人设置可勾选的跟踪指数清单（启用中的全球指标，按 sort_order 排序）。"""
-    configs = await global_index_repository.list_enabled_global_configs(session)
-    return [
-        TrackedIndexOption(index_code=cfg.index_code, index_name=cfg.index_name)
-        for cfg in configs
+    """个人设置可勾选的跟踪指数清单（启用中的配置，按 sort_order 排序）。
+
+    含分类与最新行情预览；固定展示的 A 股大盘标的不可勾选，不进清单。
+    """
+    configs = await global_index_repository.list_enabled_tracked_configs(
+        session, exclude_codes=_FIXED_A_SHARE_CODES
+    )
+    if not configs:
+        return []
+    a_share_codes = [
+        cfg.index_code for cfg in configs if cfg.market_category == "A股"
     ]
+    global_codes = [
+        cfg.index_code for cfg in configs if cfg.market_category != "A股"
+    ]
+    latest = await global_index_repository.map_latest_closes(session, global_codes)
+    latest.update(await global_index_repository.map_kline_latest(session, a_share_codes))
+    options: list[TrackedIndexOption] = []
+    for cfg in configs:
+        close: Decimal | None = None
+        change_pct: Decimal | None = None
+        trade_date: date | None = None
+        if (row := latest.get(cfg.index_code)) is not None:
+            close, change_pct, trade_date = row
+        options.append(
+            TrackedIndexOption(
+                id=cfg.id,
+                index_code=cfg.index_code,
+                index_name=cfg.index_name,
+                market_category=cfg.market_category,
+                latest_close=float(close) if close is not None else None,
+                latest_change_pct=float(change_pct) if change_pct is not None else None,
+                latest_trade_date=trade_date,
+            )
+        )
+    return options
 
 
 async def get_index_history(

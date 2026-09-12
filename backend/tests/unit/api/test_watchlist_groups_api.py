@@ -128,6 +128,20 @@ class TestWatchlistGroupsApi:
             resp = auth_client.delete("/api/v1/users/watchlist/groups/8")
 
         assert resp.status_code == 204
+        # 缺省移入默认分组
+        service_cls.return_value.delete_group.assert_awaited_once_with(
+            1, 8, delete_items=False
+        )
+
+    def test_delete_group_delete_items_true(self, auth_client) -> None:
+        with patch("app.api.v1.users.WatchlistService") as service_cls:
+            service_cls.return_value.delete_group = AsyncMock(return_value=None)
+            resp = auth_client.delete("/api/v1/users/watchlist/groups/8?delete_items=true")
+
+        assert resp.status_code == 204
+        service_cls.return_value.delete_group.assert_awaited_once_with(
+            1, 8, delete_items=True
+        )
 
     def test_reorder_mismatch_400(self, auth_client) -> None:
         with patch("app.api.v1.users.WatchlistService") as service_cls:

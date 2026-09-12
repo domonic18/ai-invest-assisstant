@@ -37,6 +37,7 @@ from app.agent.tools.report_tools import (
     query_financial_reports,
     summarize_financial_report,
 )
+from app.agent.tools.screening_tools import screen_stocks
 from app.agent.tools.stock_tools import (
     get_stock_fund_flow,
     get_stock_kline,
@@ -75,6 +76,7 @@ __all__ = [
     "persist_limit_up_attribution",
     "collect_market_data",
     "search_news_by_date",
+    "screen_stocks",
 ]
 
 
@@ -89,6 +91,7 @@ def build_assistant_tools() -> list[BaseTool]:
         search_news,
         search_news_by_date,
         search_vector_kb,
+        screen_stocks,
         get_sector_fund_flow,
         get_sector_overview,
         get_market_overview,

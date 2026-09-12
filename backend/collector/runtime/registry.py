@@ -40,6 +40,8 @@ _QUEUE_OVERRIDES: dict[str, Literal["realtime", "batch", "heavy"]] = {
     "company-profile": "heavy",
     "disclosure": "heavy",
     "financial-report": "heavy",
+    # 财务报表逐股三大报表 3 次接口调用，自选股全量分钟级，超出 batch 600s 硬超时
+    "financial-statement": "heavy",
     "ipo-info": "heavy",
     "market-daily-review": "heavy",
     "limit-up-ai-review": "heavy",

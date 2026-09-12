@@ -8,6 +8,7 @@ import {
   DashboardOutlined,
   FileTextOutlined,
   FileDoneOutlined,
+  FilterOutlined,
   FundOutlined,
   GlobalOutlined,
   HeatMapOutlined,
@@ -59,6 +60,7 @@ const ANALYSIS_MENU_ITEMS: MenuItem[] = [
   { key: '/anomaly/sector', icon: <AlertOutlined />, label: '板块异动' },
   { key: '/anomaly/stock', icon: <RiseOutlined />, label: '个股异动' },
   { key: '/chain', icon: <HeatMapOutlined />, label: '产业图谱' },
+  { key: '/screening', icon: <FilterOutlined />, label: 'AI 选股' },
 ]
 
 const ADMIN_MENU_ITEMS: MenuItem[] = [

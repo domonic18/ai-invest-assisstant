@@ -1,4 +1,4 @@
-"""基本面与基础资料任务声明：清单/概念映射/公司资料/公告/财报/IPO/基金持仓/研报。"""
+"""基本面与基础资料任务声明：清单/股本/概念映射/公司资料/公告/财报/IPO/基金持仓/研报。"""
 
 from collector.runtime.specs.base import TaskSpec
 
@@ -12,6 +12,27 @@ SPECS: tuple[TaskSpec, ...] = (
         },
         queue="heavy",
         soft_time_limit=1800,
+    ),
+    TaskSpec(
+        name="stock-shares",
+        label="股本数据",
+        data_type="stock_shares",
+        collectors={
+            "tushare": "collector.spiders.tushare_stock_basic:TushareStockBasicCollector",
+        },
+        config_params=(),
+    ),
+    TaskSpec(
+        name="financial-statement",
+        label="财务报表",
+        data_type="financial_statement_em",
+        collectors={
+            "eastmoney": (
+                "collector.spiders.eastmoney_financial_statement:"
+                "EastmoneyFinancialStatementCollector"
+            ),
+        },
+        config_params=("report_types",),
     ),
     TaskSpec(
         name="concept-constituents",

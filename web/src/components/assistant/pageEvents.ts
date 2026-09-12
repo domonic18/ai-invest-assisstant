@@ -4,6 +4,7 @@ import type {
   ChainAnalysisResult,
   PageAssistantResult,
   StockDailyAnalysisResult,
+  StockScreeningRow,
 } from '@/stores/assistant'
 
 /**
@@ -23,6 +24,17 @@ export interface PageEventDefinition<T extends PageAssistantResult = PageAssista
   path(result: T): string
   /** 原始事件（snake_case 字段）→ 强类型页面结果 */
   parse(event: Record<string, unknown>): T
+}
+
+/** 问财行：固定字段兜底，中文列键原样保留（服务端固定字段已是 camel） */
+function parseScreeningRow(raw: unknown): StockScreeningRow {
+  if (typeof raw !== 'object' || raw === null) return { stockCode: '', stockName: '' }
+  const row = raw as Record<string, unknown>
+  return {
+    stockCode: String(row.stockCode ?? ''),
+    stockName: String(row.stockName ?? ''),
+    ...row,
+  }
 }
 
 export const PAGE_EVENT_DEFINITIONS: readonly PageEventDefinition[] = [
@@ -82,6 +94,19 @@ export const PAGE_EVENT_DEFINITIONS: readonly PageEventDefinition[] = [
     parse: (e) => ({
       type: PAGE_EVENT_TYPES.stockAnomaly,
       tradeDate: String(e.trade_date ?? ''),
+    }),
+  },
+  {
+    eventType: PAGE_EVENT_TYPES.stockScreening,
+    actionLabel: '查看筛选结果',
+    path: () => '/screening',
+    parse: (e) => ({
+      type: PAGE_EVENT_TYPES.stockScreening,
+      query: String(e.query ?? ''),
+      total: Number(e.total ?? 0),
+      truncated: Boolean(e.truncated),
+      columns: Array.isArray(e.columns) ? e.columns.map(String) : [],
+      stocks: Array.isArray(e.stocks) ? e.stocks.map(parseScreeningRow) : [],
     }),
   },
 ]

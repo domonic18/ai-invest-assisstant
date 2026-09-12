@@ -60,6 +60,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
             "research-report",
             "fund-holdings",
             "financial-report",
+            "financial-statement",
             "limit-up-pool",
             "broken-pool",
             "limit-down-pool",
@@ -91,7 +92,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "name": "Tushare Pro",
         "base_url": "http://api.tushare.pro",
         "is_enabled": True,
-        "supported_data_types": ["index-auction", "global-index"],
+        "supported_data_types": ["index-auction", "global-index", "stock-shares"],
         "extra": {},
     },
     {

@@ -146,6 +146,9 @@ export const ENDPOINTS = {
     base: `${API_BASE}/workbench`,
     reviewStatus: `${API_BASE}/workbench/review-status`,
   },
+  screening: {
+    query: `${API_BASE}/screening/query`,
+  },
   admin: {
     // 集合根路由后端以 "/" 注册，常量保持同形避免依赖 307 重定向
     users: `${API_BASE}/admin/users/`,

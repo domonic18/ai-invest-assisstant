@@ -38,6 +38,11 @@ class TestGetIndexQuotes:
                 "_local_index_closes",
                 AsyncMock(return_value=[1.0, 2.0]),
             ),
+            patch.object(
+                index_quotation_service,
+                "_kline_extra_quotes",
+                AsyncMock(return_value=[]),
+            ),
         ):
             quotes = await market_service.get_index_quotes(AsyncMock())
 
@@ -60,7 +65,44 @@ class TestGetIndexQuotes:
         with (
             patch.object(index_quotation_service, "_index_spot", AsyncMock(return_value=None)),
             patch.object(
-                index_quotation_service, "_db_index_spot", AsyncMock(return_value=db_spot)
+                index_quotation_service,
+                "_bar_synthesized_spot",
+                AsyncMock(return_value=db_spot),
+            ),
+            patch.object(
+                index_quotation_service, "_local_index_closes", AsyncMock(return_value=[1.0])
+            ),
+            patch.object(
+                index_quotation_service,
+                "_kline_extra_quotes",
+                AsyncMock(return_value=[]),
+            ),
+        ):
+            quotes = await market_service.get_index_quotes(AsyncMock())
+
+        assert quotes[0].name == "深证成指"
+        assert quotes[0].price == 10868.24
+
+    @pytest.mark.asyncio
+    async def test_appends_kline_extra_codes(self) -> None:
+        """扩展标的（沪深300ETF/富时A50）无实时通道，行情由日 K 合成并追加在尾部。"""
+
+        async def _spot_by_codes(_session: object, codes: dict) -> list[dict]:
+            return [
+                {
+                    "code": code,
+                    "name": name,
+                    "price": 1.0,
+                    "change": 0.01,
+                    "change_pct": 1.0,
+                    "amount": None,
+                }
+                for code, name in codes.items()
+            ]
+        with (
+            patch.object(index_quotation_service, "_index_spot", AsyncMock(return_value=None)),
+            patch.object(
+                index_quotation_service, "_bar_synthesized_spot", side_effect=_spot_by_codes
             ),
             patch.object(
                 index_quotation_service, "_local_index_closes", AsyncMock(return_value=[1.0])
@@ -68,8 +110,10 @@ class TestGetIndexQuotes:
         ):
             quotes = await market_service.get_index_quotes(AsyncMock())
 
-        assert quotes[0].name == "深证成指"
-        assert quotes[0].price == 10868.24
+        assert len(quotes) == len(market_service.INDEX_CODES) + len(
+            index_quotation_service.KLINE_CHART_EXTRA_CODES
+        )
+        assert [q.code for q in quotes][-2:] == ["sh510300", "CN00Y"]
 
     @pytest.mark.asyncio
     async def test_db_index_spot_synthesizes_from_daily_bars(self) -> None:
@@ -84,7 +128,9 @@ class TestGetIndexQuotes:
         with patch.object(
             index_quotation_service, "fetch_daily_bars", AsyncMock(return_value=bars)
         ):
-            spot = await market_service._db_index_spot(AsyncMock())
+            spot = await index_quotation_service._bar_synthesized_spot(
+                AsyncMock(), market_service.INDEX_CODES
+            )
 
         assert len(spot) == len(market_service.INDEX_CODES)
         assert spot[0]["price"] == 101.0
@@ -210,7 +256,9 @@ class TestHistoricalIndexQuotes:
                 AsyncMock(), date(2026, 7, 16)
             )
 
-        assert len(quotes) == len(market_service.INDEX_CODES)
+        assert len(quotes) == len(market_service.INDEX_CODES) + len(
+            index_quotation_service.KLINE_CHART_EXTRA_CODES
+        )
         assert quotes[0].price == 102.0
         assert quotes[0].change == 2.0
         assert quotes[0].change_pct == 2.0
@@ -325,7 +373,9 @@ class TestGetIndexKline:
 class TestHistoricalIndexQuotesLocal:
     @pytest.mark.asyncio
     async def test_local_daily_bars_drive_quotes(self) -> None:
-        from app.core.constants import INDEX_CODES
+        from app.core.constants import INDEX_CODES, KLINE_CHART_EXTRA_CODES
+
+        all_codes = {**INDEX_CODES, **KLINE_CHART_EXTRA_CODES}
 
         def _bars() -> list[MagicMock]:
             # fetch_daily_bars 返回倒序（最新在前）
@@ -340,13 +390,13 @@ class TestHistoricalIndexQuotesLocal:
         with patch.object(
             index_quotation_service,
             "fetch_daily_bars",
-            AsyncMock(side_effect=[_bars() for _ in INDEX_CODES]),
+            AsyncMock(side_effect=[_bars() for _ in all_codes]),
         ):
             quotes = await market_service._historical_index_quotes(
                 AsyncMock(), date(2026, 7, 17)
             )
 
-        assert len(quotes) == len(INDEX_CODES)
+        assert len(quotes) == len(all_codes)
         assert quotes[0].price == 101.0
         assert quotes[0].change == 1.0
         assert quotes[0].change_pct == 1.0

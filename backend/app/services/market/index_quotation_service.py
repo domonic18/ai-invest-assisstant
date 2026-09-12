@@ -50,10 +50,12 @@ async def _local_index_closes(
     return [float(bar.close) for bar in reversed(bars) if bar.close is not None]
 
 
-async def _db_index_spot(session: AsyncSession) -> list[dict[str, Any]]:
+async def _bar_synthesized_spot(
+    session: AsyncSession, codes: dict[str, str]
+) -> list[dict[str, Any]]:
     """实时快照缺失时的降级：由 ``quote_kline_stock_daily`` 最近两根日 K 合成行情快照。"""
     quotes: list[dict[str, Any]] = []
-    for code, name in INDEX_CODES.items():
+    for code, name in codes.items():
         bars = await fetch_daily_bars(session, code, limit=2)
         bars = [bar for bar in bars if bar.close is not None]
         if not bars:
@@ -78,6 +80,19 @@ async def _db_index_spot(session: AsyncSession) -> list[dict[str, Any]]:
             }
         )
     return quotes
+
+
+async def _kline_extra_quotes(session: AsyncSession) -> list[IndexQuoteResponse]:
+    """K 线扩展标的（沪深300ETF/富时A50）行情：无分钟/快照通道，按最近日 K 合成。"""
+    spot = await _bar_synthesized_spot(session, KLINE_CHART_EXTRA_CODES)
+    trends = [
+        await _local_index_closes(session, item["code"], None, _TREND_DAYS)
+        for item in spot
+    ]
+    return [
+        IndexQuoteResponse(**item, trend=trend)
+        for item, trend in zip(spot, trends, strict=True)
+    ]
 
 
 async def get_index_intraday(
@@ -136,9 +151,10 @@ async def get_index_quotes(
     session: AsyncSession,
     trade_date: date | None = None,
 ) -> list[IndexQuoteResponse]:
-    """四大指数行情（含近 30 日收盘趋势）。
+    """四大指数 + K 线扩展标的行情（含近 30 日收盘趋势）。
 
     默认取采集器写入 Redis 的实时快照（缺失时由日 K 合成）；
+    扩展标的（沪深300ETF/富时A50）无实时通道，恒由日 K 合成；
     指定历史交易日时从本地 ``quote_kline_stock_daily`` 取当日收盘与涨跌。
     """
     if trade_date is not None:
@@ -148,16 +164,18 @@ async def get_index_quotes(
         # 当日盘中日线尚未更新，回退实时快照
     spot = await _index_spot()
     if spot is None:
-        spot = await _db_index_spot(session)
+        spot = await _bar_synthesized_spot(session, INDEX_CODES)
 
     trends = [
         await _local_index_closes(session, item["code"], None, _TREND_DAYS)
         for item in spot
     ]
-    return [
+    quotes = [
         IndexQuoteResponse(**item, trend=trend)
         for item, trend in zip(spot, trends, strict=True)
     ]
+    quotes.extend(await _kline_extra_quotes(session))
+    return quotes
 
 
 def _num(value: Any) -> float | None:
@@ -236,11 +254,12 @@ async def _historical_index_quotes(
 ) -> list[IndexQuoteResponse]:
     """历史交易日的指数收盘行情；当日非交易日时返回空列表。"""
     target = trade_date.isoformat()
+    kline_codes = {**INDEX_CODES, **KLINE_CHART_EXTRA_CODES}
     all_series = await asyncio.gather(
-        *(_index_daily_series(session, code, trade_date) for code in INDEX_CODES)
+        *(_index_daily_series(session, code, trade_date) for code in kline_codes)
     )
     quotes: list[IndexQuoteResponse] = []
-    for (code, name), series in zip(INDEX_CODES.items(), all_series, strict=True):
+    for (code, name), series in zip(kline_codes.items(), all_series, strict=True):
         idx = next(
             (i for i, bar in enumerate(series) if bar["date"] == target), None
         )

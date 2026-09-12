@@ -33,9 +33,11 @@ const GLOBAL_TAB_CODES: Record<string, string[]> = {
 }
 const OTHER_TAB = '其他'
 const TAB_ORDER = [ASHARE_TAB, ...Object.keys(GLOBAL_TAB_CODES), OTHER_TAB]
+/** 无 sh/sz 前缀但归属 A 股 tab 的扩展标的（富时A50 期指）。 */
+const ASHARE_EXTRA_CODES = new Set(['CN00Y'])
 
 function tabOf(tile: Tile): string {
-  if (/^(sh|sz)/.test(tile.key)) return ASHARE_TAB
+  if (/^(sh|sz)/.test(tile.key) || ASHARE_EXTRA_CODES.has(tile.key)) return ASHARE_TAB
   for (const [tab, codes] of Object.entries(GLOBAL_TAB_CODES)) {
     if (codes.includes(tile.key)) return tab
   }

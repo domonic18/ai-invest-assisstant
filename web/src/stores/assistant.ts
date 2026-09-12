@@ -16,6 +16,7 @@ export type PageAssistantResult =
   | LimitUpAttributionResult
   | SectorAnomalyResult
   | StockAnomalyResult
+  | StockScreeningResult
 
 /** 产业链分析完成回写 */
 export interface ChainAnalysisResult {
@@ -55,6 +56,23 @@ export interface SectorAnomalyResult {
 export interface StockAnomalyResult {
   type: typeof PAGE_EVENT_TYPES.stockAnomaly
   tradeDate: string
+}
+
+/** 问财选股结果行：固定两列 + 问财原始中文列（列名即键，动态渲染） */
+export interface StockScreeningRow {
+  stockCode: string
+  stockName: string
+  [column: string]: unknown
+}
+
+/** 问财 AI 选股完成回写（全量行数据搭车，结果为临时内容、不落库） */
+export interface StockScreeningResult {
+  type: typeof PAGE_EVENT_TYPES.stockScreening
+  query: string
+  total: number
+  truncated: boolean
+  columns: string[]
+  stocks: StockScreeningRow[]
 }
 
 interface AssistantState {

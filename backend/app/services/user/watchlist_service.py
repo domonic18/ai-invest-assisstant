@@ -100,16 +100,24 @@ class WatchlistService:
         await self.group_repo.refresh(group)
         return group
 
-    async def delete_group(self, user_id: int, group_id: int) -> None:
-        """删除分组：默认分组拒绝，组内股票移入默认分组。"""
+    async def delete_group(self, user_id: int, group_id: int, *, delete_items: bool) -> None:
+        """删除分组：默认分组拒绝。
+
+        Args:
+            delete_items: True 时组内自选股一并删除；False 时移入默认分组。
+        """
         group = await self._get_owned_group(user_id, group_id)
         if group.is_default:
             raise BadRequestError("Default group cannot be deleted")
-        default = await self.get_or_create_default_group(user_id)
-        if group.id == default.id:  # 理论不可达，防御越权构造
-            raise BadRequestError("Default group cannot be deleted")
-        for item in group.items:
-            item.group_id = default.id
+        if delete_items:
+            for item in group.items:
+                await self.session.delete(item)
+        else:
+            default = await self.get_or_create_default_group(user_id)
+            if group.id == default.id:  # 理论不可达，防御越权构造
+                raise BadRequestError("Default group cannot be deleted")
+            for item in group.items:
+                item.group_id = default.id
         await self.session.delete(group)
         await self.session.commit()
 
