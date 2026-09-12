@@ -12,6 +12,7 @@ export const PAGE_EVENT_TYPES = {
   limitUpAttribution: 'limit_up_attribution.complete',
   sectorAnomaly: 'sector_anomaly.complete',
   stockAnomaly: 'stock_anomaly.complete',
+  stockScreening: 'stock_screening.complete',
 } as const
 
 export type PageEventType = (typeof PAGE_EVENT_TYPES)[keyof typeof PAGE_EVENT_TYPES]

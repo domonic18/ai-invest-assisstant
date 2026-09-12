@@ -54,6 +54,9 @@ const MacroMonitor = lazy(() =>
 )
 const News = lazy(() => import('./pages/News').then((m) => ({ default: m.News })))
 const Register = lazy(() => import('./pages/Register/Register').then((m) => ({ default: m.Register })))
+const ScreeningPage = lazy(() =>
+  import('./pages/Screening/ScreeningPage').then((m) => ({ default: m.ScreeningPage })),
+)
 const Settings = lazy(() => import('./pages/Settings/Settings').then((m) => ({ default: m.Settings })))
 const SkillsPage = lazy(() => import('./pages/Skills/SkillsPage').then((m) => ({ default: m.SkillsPage })))
 const SkillDetailPage = lazy(() =>
@@ -102,6 +105,8 @@ export const router = createBrowserRouter([
       { path: 'skills', element: lazyEl(<SkillsPage />) },
       { path: 'skills/:skillId', element: lazyEl(<SkillDetailPage />) },
       { path: 'watchlist', element: lazyEl(<Watchlist />) },
+      // AI 选股：问财即席筛选，结果为 SPA 会话临时内容（迭代 6）
+      { path: 'screening', element: lazyEl(<ScreeningPage />) },
       {
         path: 'admin',
         element: <ProtectedAdmin />,
