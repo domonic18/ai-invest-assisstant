@@ -26,6 +26,8 @@ class Settings(BaseSettings):
 
     # Redis
     redis_url: RedisDsn = RedisDsn("redis://localhost:6379/0")
+    # 连接/读写超时（秒）：网络不可达时快速失败进入降级路径，避免每请求挂 25s+
+    redis_socket_timeout: float = 2.0
 
     # Celery
     celery_broker_url: str = "redis://localhost:6379/1"
@@ -35,6 +37,9 @@ class Settings(BaseSettings):
 
     # Elasticsearch
     elasticsearch_url: str = "http://localhost:9200"
+
+    # 后台服务状态探测（GET /admin/system/status）单服务超时（秒）
+    status_probe_timeout: float = 3.0
 
     # MinIO
     minio_endpoint: str = "localhost:9000"

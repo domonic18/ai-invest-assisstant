@@ -3,8 +3,9 @@ export interface ApiIndexQuoteResponse {
   code: string
   name: string
   price: number
-  change: number
-  changePct: number
+  /** 日 K 合成且数据停更时无法推算涨跌，可为空 */
+  change: number | null
+  changePct: number | null
   amount: number | null
   trend: number[]
 }
@@ -184,8 +185,8 @@ export interface IndexQuote {
   code: string
   name: string
   price: number
-  change: number
-  changePct: number
+  change: number | null
+  changePct: number | null
   amount: number | null
   trend: number[]
 }

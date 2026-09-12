@@ -20,7 +20,7 @@ import structlog
 from croniter import croniter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.cache import get_redis
+from app.core.cache import cache_exists
 from app.core.clock import CN_TZ, now_cn
 from app.core.constants import (
     NEWS_SOURCE_TELEGRAPH,
@@ -207,7 +207,7 @@ async def _status_stream(
     now: datetime,
     day_start: datetime,
 ) -> NewsChannelResponse:
-    alive = bool(await get_redis().exists(channel.heartbeat_key or ""))
+    alive = await cache_exists(channel.heartbeat_key or "")
     count, last_at = (
         await channel.today_query(session, day_start)
         if channel.today_query is not None

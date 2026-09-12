@@ -22,6 +22,9 @@ const McpServers = lazy(() =>
 const ProxyConfig = lazy(() =>
   import('./pages/Admin/ProxyConfig/ProxyConfig').then((m) => ({ default: m.ProxyConfig })),
 )
+const SystemStatusPage = lazy(() =>
+  import('./pages/Admin/SystemStatus/SystemStatus').then((m) => ({ default: m.SystemStatus })),
+)
 const AiResultsAdmin = lazy(() =>
   import('./pages/Admin/AiResults/AiResultsAdmin').then((m) => ({
     default: m.AiResultsAdmin,
@@ -124,6 +127,7 @@ export const router = createBrowserRouter([
           { path: 'ai-results', element: lazyEl(<AiResultsAdmin />) },
           { path: 'collector-channels', element: <Navigate to="/admin/collector?tab=channels" replace /> },
           { path: 'collector', element: lazyEl(<CollectorAdmin />) },
+          { path: 'system-status', element: lazyEl(<SystemStatusPage />) },
         ],
       },
     ],

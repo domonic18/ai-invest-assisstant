@@ -8,6 +8,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from redis.exceptions import RedisError
 
 from app.core.clock import CN_TZ
 from app.services.news import news_channel_service
@@ -51,6 +52,7 @@ def _service_mocks(
     today: tuple[int, datetime | None] = (120, None),
     stats: tuple[int, int, int] = (100, 80, 12),
     heartbeat: int = 1,
+    redis_raises: Exception | None = None,
 ) -> Iterator[SimpleNamespace]:
     """patch 判定器的外部依赖：Redis 心跳 / 任务日志 / 任务配置 / 源表统计。
 
@@ -62,12 +64,15 @@ def _service_mocks(
         ("research-report", "eastmoney"): REPORT_SCHEDULE,
     }
     fake_redis = AsyncMock()
-    fake_redis.exists.return_value = heartbeat
+    if redis_raises is not None:
+        fake_redis.exists.side_effect = redis_raises
+    else:
+        fake_redis.exists.return_value = heartbeat
     today_mock = AsyncMock(return_value=today)
     stats_mock = AsyncMock(return_value=stats)
     with (
         patch(
-            "app.services.news.news_channel_service.get_redis",
+            "app.core.cache.get_redis",
             return_value=fake_redis,
         ),
         patch(
@@ -129,6 +134,13 @@ class TestStreamChannel:
         ch = _channel_of(result, "cls_telegraph")
         assert ch.status == "delayed"
         assert ch.status_text == "采集延迟"
+
+    async def test_redis_unavailable_degrades_to_delayed(self) -> None:
+        """回归：Redis 不可达（SCF 网络隔离）时端点降级 delayed 而非 500。"""
+        result = await _status(_at(12), redis_raises=RedisError("connection refused"))
+        ch = _channel_of(result, "cls_telegraph")
+        assert ch.status == "delayed"
+        assert ch.today_count == 120  # 源表统计（DB）仍正常返回
 
 
 @pytest.mark.unit

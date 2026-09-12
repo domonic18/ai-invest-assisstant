@@ -16,6 +16,7 @@ export const queryKeys = {
     tasks: ['admin-tasks'] as const,
     aiResults: ['admin-ai-results'] as const,
     aiResultSkills: ['admin-ai-result-skills'] as const,
+    systemStatus: ['admin-system-status'] as const,
   },
   auction: {
     all: ['auction'] as const,

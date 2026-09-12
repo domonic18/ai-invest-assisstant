@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from redis.exceptions import RedisError
 
 from app.schemas.market import WatchlistQuoteItem
 from app.services.user import watchlist_quote_service as wsvc
@@ -30,16 +31,17 @@ class TestGetWatchlistQuotes:
         session = AsyncMock()
         session.execute.return_value = _scalars_result([_watch("000001")])
 
-        redis = AsyncMock()
-        redis.mget.return_value = (
-            b'{"stock_name":"\xe5\xb9\xb3\xe5\xae\x89\xe9\x93\xb6\xe8\xa1\x8c",'
-            b'"price":12.5,"change_pct":1.2,"amount":1e8,"updated_at":"2026-09-02"}',
-            None,
+        mget = AsyncMock(
+            return_value=(
+                b'{"stock_name":"\xe5\xb9\xb3\xe5\xae\x89\xe9\x93\xb6\xe8\xa1\x8c",'
+                b'"price":12.5,"change_pct":1.2,"amount":1e8,"updated_at":"2026-09-02"}',
+                None,
+            )
         )
         bars = [SimpleNamespace(stock_code="000001", close=float(i + 1)) for i in range(30)]
 
         with (
-            patch.object(wsvc, "get_redis", MagicMock(return_value=redis)),
+            patch.object(wsvc, "cache_mget", mget),
             patch.object(
                 wsvc, "_load_stock_names", AsyncMock(return_value={"000001": "基本表名称"})
             ),
@@ -55,8 +57,6 @@ class TestGetWatchlistQuotes:
         assert quotes[0].price == 12.5
         assert quotes[0].change_pct == 1.2
         assert len(quotes[0].trend) == 30
-        # 共享 Redis 客户端复用连接，单次查询后不应关闭
-        redis.close.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_eod_fallback_used_when_live_missing(self) -> None:
@@ -64,16 +64,17 @@ class TestGetWatchlistQuotes:
         session = AsyncMock()
         session.execute.return_value = _scalars_result([_watch("000001")])
 
-        redis = AsyncMock()
-        redis.mget.return_value = (
-            None,
-            b'{"stock_name":"\xe5\xb9\xb3\xe5\xae\x89\xe9\x93\xb6\xe8\xa1\x8c",'
-            b'"price":12.0,"change_pct":0.5,"amount":9e7,"updated_at":"2026-09-04T15:55"}',
+        mget = AsyncMock(
+            return_value=(
+                None,
+                b'{"stock_name":"\xe5\xb9\xb3\xe5\xae\x89\xe9\x93\xb6\xe8\xa1\x8c",'
+                b'"price":12.0,"change_pct":0.5,"amount":9e7,"updated_at":"2026-09-04T15:55"}',
+            )
         )
         bars = [SimpleNamespace(stock_code="000001", close=float(i + 1)) for i in range(30)]
 
         with (
-            patch.object(wsvc, "get_redis", MagicMock(return_value=redis)),
+            patch.object(wsvc, "cache_mget", mget),
             patch.object(
                 wsvc, "_load_stock_names", AsyncMock(return_value={"000001": "基本表名称"})
             ),
@@ -100,11 +101,8 @@ class TestGetWatchlistQuotes:
         session = AsyncMock()
         session.execute.return_value = _scalars_result([_watch("600000")])
 
-        redis = AsyncMock()
-        redis.mget.return_value = (None, None)
-
         with (
-            patch.object(wsvc, "get_redis", MagicMock(return_value=redis)),
+            patch.object(wsvc, "cache_mget", AsyncMock(return_value=(None, None))),
             patch.object(
                 wsvc, "_load_stock_names", AsyncMock(return_value={"600000": "浦发银行"})
             ),
@@ -138,11 +136,8 @@ class TestGetWatchlistQuotes:
         session = AsyncMock()
         session.execute.return_value = _scalars_result([_watch("600000")])
 
-        redis = AsyncMock()
-        redis.mget.return_value = (None, None)
-
         with (
-            patch.object(wsvc, "get_redis", MagicMock(return_value=redis)),
+            patch.object(wsvc, "cache_mget", AsyncMock(return_value=(None, None))),
             patch.object(wsvc, "_load_stock_names", AsyncMock(return_value={})),
             patch.object(
                 wsvc, "today_cn", MagicMock(return_value=date(2026, 9, 2))
@@ -160,12 +155,10 @@ class TestGetWatchlistQuotes:
     async def test_fallback_without_daily_bars_keeps_name_and_trend(self) -> None:
         session = AsyncMock()
         session.execute.return_value = _scalars_result([_watch("600967")])
-        redis = AsyncMock()
-        redis.mget.return_value = (None, None)
         bars = [SimpleNamespace(stock_code="600967", close=float(i + 1)) for i in range(10)]
 
         with (
-            patch.object(wsvc, "get_redis", MagicMock(return_value=redis)),
+            patch.object(wsvc, "cache_mget", AsyncMock(return_value=(None, None))),
             patch.object(
                 wsvc, "_load_stock_names", AsyncMock(return_value={"600967": "内蒙一机"})
             ),
@@ -189,12 +182,10 @@ class TestGetWatchlistQuotes:
     async def test_trend_downsample_preserves_endpoints(self) -> None:
         session = AsyncMock()
         session.execute.return_value = _scalars_result([_watch("600000")])
-        redis = AsyncMock()
-        redis.mget.return_value = (None, None)
         bars = [SimpleNamespace(stock_code="600000", close=float(i + 1)) for i in range(121)]
 
         with (
-            patch.object(wsvc, "get_redis", MagicMock(return_value=redis)),
+            patch.object(wsvc, "cache_mget", AsyncMock(return_value=(None, None))),
             patch.object(wsvc, "_load_stock_names", AsyncMock(return_value={})),
             patch.object(
                 wsvc, "today_cn", MagicMock(return_value=date(2026, 9, 2))
@@ -213,17 +204,46 @@ class TestGetWatchlistQuotes:
     async def test_empty_watchlist_returns_empty(self) -> None:
         session = AsyncMock()
         session.execute.return_value = _scalars_result([])
-        redis = AsyncMock()
         names = AsyncMock()
 
-        with (
-            patch.object(wsvc, "get_redis", MagicMock(return_value=redis)),
-            patch.object(wsvc, "_load_stock_names", names),
-        ):
+        with patch.object(wsvc, "_load_stock_names", names):
             quotes = await wsvc.get_watchlist_quotes(session, user_id=1)
 
         assert quotes == []
         names.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_redis_unavailable_falls_back_to_kline(self) -> None:
+        """回归：Redis 不可达（SCF 网络隔离）时批量快照降级 miss，走日 K 兜底而非 500。"""
+        session = AsyncMock()
+        session.execute.return_value = _scalars_result([_watch("600000")])
+        failing = AsyncMock()
+        failing.mget.side_effect = RedisError("connection refused")
+        latest = SimpleNamespace(
+            close=10.5, change_pct=-0.5, amount=5_000_000.0, trade_date=date(2026, 7, 16)
+        )
+        prev = SimpleNamespace(
+            close=10.0, change_pct=None, amount=1.0, trade_date=date(2026, 7, 15)
+        )
+
+        with (
+            patch("app.core.cache.get_redis", return_value=failing),
+            patch.object(
+                wsvc, "_load_stock_names", AsyncMock(return_value={"600000": "浦发银行"})
+            ),
+            patch.object(
+                wsvc, "today_cn", MagicMock(return_value=date(2026, 9, 2))
+            ),
+            patch.object(wsvc, "fetch_minute_bars_multi", AsyncMock(return_value=[])),
+            patch.object(
+                wsvc, "fetch_daily_bars", AsyncMock(return_value=[latest, prev])
+            ),
+        ):
+            quotes = await wsvc.get_watchlist_quotes(session, user_id=1)
+
+        assert quotes[0].name == "浦发银行"
+        assert quotes[0].price == 10.5
+        assert quotes[0].change_pct == -0.5
 
 
 def _group(gid: int, name: str, *, enabled: bool = False, default: bool = False) -> SimpleNamespace:

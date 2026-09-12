@@ -512,3 +512,20 @@ export interface AdminAiResultListParams {
   page?: number
   pageSize?: number
 }
+
+/** 单个依赖服务的连通性探测结果。 */
+export interface ServiceStatusItem {
+  key: string
+  name: string
+  status: 'up' | 'down'
+  latencyMs: number | null
+  detail: string | null
+  error: string | null
+}
+
+/** 系统服务状态汇总（后台「服务状态」页）。 */
+export interface SystemStatus {
+  overall: 'operational' | 'degraded'
+  items: ServiceStatusItem[]
+  checkedAt: string
+}

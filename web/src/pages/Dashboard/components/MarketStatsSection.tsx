@@ -50,7 +50,7 @@ export function MarketStatsSection({ indices, stats, loading, tradeDate }: Marke
                   {item.price.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-xs" style={{ color: changeHex(item.changePct) }}>
-                  {formatPercent(item.changePct)}
+                  {item.changePct != null ? formatPercent(item.changePct) : '-'}
                 </div>
               </div>
             ))}
