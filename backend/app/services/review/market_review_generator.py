@@ -131,6 +131,13 @@ async def _persist(
     await session.commit()
 
 
+async def list_review_trade_dates(session: AsyncSession) -> list[date]:
+    """已成功生成大盘复盘的全部交易日（升序），供日历打点。"""
+    return await ai_analysis_repository.list_success_trade_dates(
+        session, skill_id=SKILL_ID
+    )
+
+
 async def persist_market_review_result(
     session: AsyncSession,
     *,

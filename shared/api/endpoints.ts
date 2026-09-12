@@ -98,7 +98,9 @@ export const ENDPOINTS = {
   },
   anomaly: {
     sector: `${API_BASE}/anomaly/sector`,
+    sectorDates: `${API_BASE}/anomaly/sector/dates`,
     stock: `${API_BASE}/anomaly/stock`,
+    stockDates: `${API_BASE}/anomaly/stock/dates`,
   },
   sectorDetail: {
     get: (sectorType: string, sectorCode: string) =>
@@ -114,6 +116,7 @@ export const ENDPOINTS = {
     limitUpAiReview: `${API_BASE}/market/limit-up/ai-review`,
     sectors: `${API_BASE}/market/sectors`,
     aiReview: `${API_BASE}/market/ai-review`,
+    aiReviewDates: `${API_BASE}/market/ai-review/dates`,
     globalIndices: `${API_BASE}/market/global-indices`,
     globalIndexHistory: `${API_BASE}/market/global-index-history`,
     globalIndexKline: `${API_BASE}/market/global-indices/kline`,

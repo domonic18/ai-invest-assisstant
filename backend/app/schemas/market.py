@@ -266,6 +266,12 @@ class MarketReviewUpdateRequest(CamelModel):
     content: str = Field(min_length=1)
 
 
+class MarketReviewDatesResponse(CamelModel):
+    """已成功生成大盘复盘的交易日列表（升序），日历打点用。"""
+
+    trade_dates: list[date] = []
+
+
 class MarketCollectRequest(CamelModel):
     """补采指定交易日行情数据请求。"""
 

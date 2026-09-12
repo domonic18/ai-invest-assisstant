@@ -55,3 +55,9 @@ class StockAnomalyResponse(CamelModel):
     trade_date: date
     total: int = 0
     items: list[StockAnomalyItem] = []
+
+
+class AnomalyTradeDatesResponse(CamelModel):
+    """有异动检测数据的交易日列表（升序），日历打点用。"""
+
+    trade_dates: list[date] = []
