@@ -148,11 +148,28 @@ class TestGroupCrud:
         )
         session.delete = AsyncMock()
 
-        await service.delete_group(1, 8)
+        await service.delete_group(1, 8, delete_items=False)
 
         assert item_a.group_id == 7
         assert item_b.group_id == 7
         session.delete.assert_awaited_once_with(target)
+        session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_delete_group_with_items_removes_rows(self) -> None:
+        session = _make_session()
+        service = WatchlistService(session)
+        item_a, item_b = MagicMock(), MagicMock()
+        target = _make_group(8, items=[item_a, item_b])
+        _patch_repo(service, get_by_user_and_id=AsyncMock(return_value=target))
+        session.delete = AsyncMock()
+
+        await service.delete_group(1, 8, delete_items=True)
+
+        # 组内股票逐行删除；不触达默认分组
+        session.delete.assert_any_await(item_a)
+        session.delete.assert_any_await(item_b)
+        session.delete.assert_awaited_with(target)
         session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -163,7 +180,7 @@ class TestGroupCrud:
         _patch_repo(service, get_by_user_and_id=AsyncMock(return_value=default_group))
 
         with pytest.raises(BadRequestError, match="Default group"):
-            await service.delete_group(1, 7)
+            await service.delete_group(1, 7, delete_items=False)
 
     @pytest.mark.asyncio
     async def test_reorder_rejects_mismatched_ids(self) -> None:

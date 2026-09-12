@@ -185,9 +185,12 @@ async def delete_watchlist_group(
     group_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
+    delete_items: bool = False,
 ) -> None:
-    """删除分组（组内股票移入默认分组）。"""
-    await WatchlistService(session).delete_group(current_user.id, group_id)
+    """删除分组；delete_items=true 组内股票一并删除，否则移入默认分组。"""
+    await WatchlistService(session).delete_group(
+        current_user.id, group_id, delete_items=delete_items
+    )
 
 
 @router.put("/watchlist/groups/order", status_code=status.HTTP_204_NO_CONTENT)
