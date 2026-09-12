@@ -10,11 +10,20 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from zoneinfo import ZoneInfo
 
 import pytest
+from redis.exceptions import RedisError
 
 from app.services.market import (
     index_quotation_service,
     market_service,
 )
+
+
+def _bar(day: date, close: float) -> MagicMock:
+    bar = MagicMock()
+    bar.trade_date = day
+    bar.close = close
+    bar.amount = Decimal("5000")
+    return bar
 
 
 @pytest.mark.unit
@@ -137,6 +146,91 @@ class TestGetIndexQuotes:
         assert spot[0]["change"] == 1.0
         assert spot[0]["change_pct"] == 1.0
         assert spot[0]["amount"] == 5000.0
+
+    @pytest.mark.asyncio
+    async def test_synthesized_spot_stale_single_bar_yields_null_change(self) -> None:
+        """窗口内仅一根 bar（数据停更标的）时涨跌为空，合成不报错。"""
+        bars = [_bar(date(2026, 9, 8), 14645.0)]
+        with patch.object(
+            index_quotation_service, "fetch_daily_bars", AsyncMock(return_value=bars)
+        ):
+            spot = await index_quotation_service._bar_synthesized_spot(
+                AsyncMock(), {"CN00Y": "富时A50"}
+            )
+
+        assert len(spot) == 1
+        assert spot[0]["price"] == 14645.0
+        assert spot[0]["change"] is None
+        assert spot[0]["change_pct"] is None
+
+    @pytest.mark.asyncio
+    async def test_get_index_quotes_survives_stale_extra_code(self) -> None:
+        """回归：扩展标的（富时A50）停更只剩 1 根 bar 时整表正常返回而非整体降级。
+
+        曾因 IndexQuoteResponse.change/change_pct 必填，CN00Y 窗口内单 bar
+        合成 change=None 触发 Pydantic 校验失败，工作台 A 股指数全空。
+        """
+        all_codes = {**market_service.INDEX_CODES, **index_quotation_service.KLINE_CHART_EXTRA_CODES}
+
+        def _bars(_session: object, code: str, *_args: object, **_kwargs: object) -> list:
+            if code == "CN00Y":
+                return [_bar(date(2026, 9, 8), 14645.0)]  # 停更：窗口内只剩一根
+            return [_bar(date(2026, 9, 11), 101.0), _bar(date(2026, 9, 10), 100.0)]
+
+        with (
+            patch.object(index_quotation_service, "_index_spot", AsyncMock(return_value=None)),
+            patch.object(
+                index_quotation_service, "fetch_daily_bars", AsyncMock(side_effect=_bars)
+            ),
+        ):
+            quotes = await market_service.get_index_quotes(AsyncMock())
+
+        assert {q.code for q in quotes} == set(all_codes)
+        stale = next(q for q in quotes if q.code == "CN00Y")
+        assert stale.price == 14645.0
+        assert stale.change is None
+        assert stale.change_pct is None
+        fresh = next(q for q in quotes if q.code == "sh000001")
+        assert fresh.change_pct == pytest.approx(1.0)
+
+    @pytest.mark.asyncio
+    async def test_redis_unavailable_falls_back_to_bars(self) -> None:
+        """回归：Redis 不可达（SCF 网络隔离）时快照降级 None，指数走日 K 合成而非 500。"""
+        failing = AsyncMock()
+        failing.get.side_effect = RedisError("connection refused")
+        spot = [
+            {
+                "code": "sh000001",
+                "name": "上证指数",
+                "price": 3352.88,
+                "change": 41.0,
+                "change_pct": 1.24,
+                "amount": 5e11,
+            }
+        ]
+        with (
+            patch("app.core.cache.get_redis", return_value=failing),
+            patch.object(
+                index_quotation_service,
+                "_bar_synthesized_spot",
+                AsyncMock(return_value=spot),
+            ),
+            patch.object(
+                index_quotation_service,
+                "_local_index_closes",
+                AsyncMock(return_value=[1.0, 2.0]),
+            ),
+            patch.object(
+                index_quotation_service,
+                "_kline_extra_quotes",
+                AsyncMock(return_value=[]),
+            ),
+        ):
+            quotes = await market_service.get_index_quotes(AsyncMock())
+
+        assert len(quotes) == 1
+        assert quotes[0].price == 3352.88
+        assert quotes[0].trend == [1.0, 2.0]
 
 
 @pytest.mark.unit

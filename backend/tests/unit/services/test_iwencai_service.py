@@ -1,6 +1,7 @@
 """iwencai_service 单测：query2data 协议、空结果改写重试与 Redis 缓存。"""
 
 import json
+from contextlib import ExitStack
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -41,18 +42,27 @@ def _gateway_payload(datas: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 @pytest.fixture
-def redis_mock() -> AsyncMock:
-    redis = AsyncMock()
-    redis.get.return_value = None
-    return redis
+def cache() -> SimpleNamespace:
+    """cache_get/cache_set 替身：默认无缓存命中、写入成功。"""
+    return SimpleNamespace(
+        get=AsyncMock(return_value=None), set=AsyncMock(return_value=True)
+    )
 
 
-async def test_query2data_happy_path(redis_mock: AsyncMock) -> None:
+def _patch_cache(cache: SimpleNamespace) -> ExitStack:
+    """同时替换 cache_get/cache_set（with 块内单行使用）。"""
+    stack = ExitStack()
+    stack.enter_context(patch.object(isvc, "cache_get", cache.get))
+    stack.enter_context(patch.object(isvc, "cache_set", cache.set))
+    return stack
+
+
+async def test_query2data_happy_path(cache: SimpleNamespace) -> None:
     httpx_mock, client = _http_mock([_gateway_payload([{"股票代码": "000523.SZ"}])])
     with (
         patch.object(isvc, "httpx", httpx_mock),
         patch.object(isvc, "get_settings", lambda: _settings_mock()),
-        patch.object(isvc, "get_redis", MagicMock(return_value=redis_mock)),
+        _patch_cache(cache),
     ):
         result = await isvc.query2data("市盈率<20", limit=30)
 
@@ -70,17 +80,17 @@ async def test_query2data_happy_path(redis_mock: AsyncMock) -> None:
     assert headers["X-Claw-Skill-Id"] == "hithink-zhishu-query"
     assert headers["X-Claw-Skill-Version"] == "2.0.0"
     assert len(headers["X-Claw-Trace-Id"]) == 64
-    redis_mock.set.assert_awaited_once()
+    cache.set.assert_awaited_once()
 
 
-async def test_query2data_cache_hit(redis_mock: AsyncMock) -> None:
+async def test_query2data_cache_hit(cache: SimpleNamespace) -> None:
     cached = _gateway_payload([{"股票代码": "600000.SH"}])
-    redis_mock.get.return_value = json.dumps(cached, ensure_ascii=False).encode()
+    cache.get.return_value = json.dumps(cached, ensure_ascii=False).encode()
     httpx_mock, client = _http_mock([])
     with (
         patch.object(isvc, "httpx", httpx_mock),
         patch.object(isvc, "get_settings", lambda: _settings_mock()),
-        patch.object(isvc, "get_redis", MagicMock(return_value=redis_mock)),
+        _patch_cache(cache),
     ):
         result = await isvc.query2data("市盈率<20", limit=30)
 
@@ -88,14 +98,14 @@ async def test_query2data_cache_hit(redis_mock: AsyncMock) -> None:
     client.post.assert_not_awaited()
 
 
-async def test_query2data_empty_retries_with_rewrite(redis_mock: AsyncMock) -> None:
+async def test_query2data_empty_retries_with_rewrite(cache: SimpleNamespace) -> None:
     httpx_mock, client = _http_mock(
         [_gateway_payload([]), _gateway_payload([{"股票代码": "600000.SH"}])]
     )
     with (
         patch.object(isvc, "httpx", httpx_mock),
         patch.object(isvc, "get_settings", lambda: _settings_mock()),
-        patch.object(isvc, "get_redis", MagicMock(return_value=redis_mock)),
+        _patch_cache(cache),
     ):
         result = await isvc.query2data(
             "原问句", limit=30, rewrite_candidates=["放宽问句"]
@@ -111,12 +121,12 @@ async def test_query2data_empty_retries_with_rewrite(redis_mock: AsyncMock) -> N
     assert second_query["headers"]["X-Claw-Call-Type"] == "retry"
 
 
-async def test_query2data_rewrites_capped_at_two(redis_mock: AsyncMock) -> None:
+async def test_query2data_rewrites_capped_at_two(cache: SimpleNamespace) -> None:
     httpx_mock, client = _http_mock([_gateway_payload([]) for _ in range(4)])
     with (
         patch.object(isvc, "httpx", httpx_mock),
         patch.object(isvc, "get_settings", lambda: _settings_mock()),
-        patch.object(isvc, "get_redis", MagicMock(return_value=redis_mock)),
+        _patch_cache(cache),
     ):
         result = await isvc.query2data(
             "原问句", limit=30, rewrite_candidates=["改写一", "改写二", "改写三"]
@@ -126,24 +136,24 @@ async def test_query2data_rewrites_capped_at_two(redis_mock: AsyncMock) -> None:
     assert client.post.await_count == 3
 
 
-async def test_query2data_gateway_error(redis_mock: AsyncMock) -> None:
+async def test_query2data_gateway_error(cache: SimpleNamespace) -> None:
     httpx_mock, _ = _http_mock([{"status_code": 401, "status_msg": "unauthorized"}])
     with (
         patch.object(isvc, "httpx", httpx_mock),
         patch.object(isvc, "get_settings", lambda: _settings_mock()),
-        patch.object(isvc, "get_redis", MagicMock(return_value=redis_mock)),
+        _patch_cache(cache),
     ):
         with pytest.raises(isvc.IwencaiError, match="unauthorized"):
             await isvc.query2data("市盈率<20")
 
 
-async def test_query2data_requires_api_key(redis_mock: AsyncMock) -> None:
+async def test_query2data_requires_api_key(cache: SimpleNamespace) -> None:
     settings = SimpleNamespace(iwencai_api_key="", iwencai_timeout_seconds=5.0)
     httpx_mock, client = _http_mock([])
     with (
         patch.object(isvc, "httpx", httpx_mock),
         patch.object(isvc, "get_settings", lambda: settings),
-        patch.object(isvc, "get_redis", MagicMock(return_value=redis_mock)),
+        _patch_cache(cache),
     ):
         with pytest.raises(isvc.IwencaiError, match="IWENCAI_API_KEY"):
             await isvc.query2data("市盈率<20")

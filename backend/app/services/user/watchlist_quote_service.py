@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.cache import get_redis
+from app.core.cache import cache_mget
 from app.core.clock import today_cn
 from app.models.watchlist import UserWatchlist
 from app.repositories.market.kline_repository import (
@@ -60,10 +60,9 @@ async def _build_quote_items(
 ) -> list[WatchlistQuoteItem]:
     """为自选记录批量组装行情（Redis 快照 → 日 K 兜底）。"""
     codes = [item.stock_code for item in watch_items]
-    redis = get_redis()
     quotes: dict[str, dict[str, Any]] = {}
     for item in watch_items:
-        live, eod = await redis.mget(
+        live, eod = await cache_mget(
             f"quote:{item.stock_code}", f"quote:eod:{item.stock_code}"
         )
         raw = live or eod

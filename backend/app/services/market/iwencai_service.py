@@ -18,7 +18,7 @@ from typing import Any, cast
 import httpx
 import structlog
 
-from app.core.cache import get_redis
+from app.core.cache import cache_get, cache_set
 from app.core.clock import now_cn
 from app.core.config import get_settings
 
@@ -119,7 +119,7 @@ async def query2data(
     """
     digest = hashlib.sha256(f"{limit}:{page}:{query}".encode()).hexdigest()
     cache_key = f"{_CACHE_KEY_PREFIX}{digest}"
-    raw = await get_redis().get(cache_key)
+    raw = await cache_get(cache_key)
     if raw:
         return cast("dict[str, Any]", json.loads(raw))
 
@@ -139,7 +139,7 @@ async def query2data(
             )
     assert result is not None
 
-    await get_redis().set(cache_key, json.dumps(result, ensure_ascii=False), ex=_cache_ttl_seconds())
+    await cache_set(cache_key, json.dumps(result, ensure_ascii=False), ex=_cache_ttl_seconds())
     logger.info(
         "iwencai_query2data",
         query=query,

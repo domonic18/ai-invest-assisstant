@@ -13,7 +13,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.cache import get_redis
+from app.core.cache import cache_get
 from app.core.clock import CN_TZ, today_cn
 from app.core.constants import INDEX_CODES, INDEX_TREND_DAYS, KLINE_CHART_EXTRA_CODES
 from app.repositories.market.kline_repository import (
@@ -38,7 +38,7 @@ _TREND_DAYS = INDEX_TREND_DAYS
 
 async def _index_spot() -> list[dict[str, Any]] | None:
     """采集器写入的指数实时快照；采集器尚未覆盖时为 None。"""
-    raw = await get_redis().get(_INDEX_SPOT_KEY)
+    raw = await cache_get(_INDEX_SPOT_KEY)
     return json.loads(raw) if raw else None
 
 

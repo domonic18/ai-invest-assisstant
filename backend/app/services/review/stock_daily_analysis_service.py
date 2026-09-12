@@ -295,14 +295,11 @@ async def get_stock_analysis(
 
 async def is_generation_running(stock_code: str, trade_date: date) -> bool:
     """该股当日分析的生成锁是否被持有（异步生成进行中）。"""
-    from app.core.cache import get_redis
+    from app.core.cache import cache_exists
 
-    client = get_redis()
-    lock = client.lock(
-        f"lock:ai:{SKILL_ID}:{stock_code}:{trade_date.isoformat()}",
-        thread_local=False,
+    return await cache_exists(
+        f"lock:ai:{SKILL_ID}:{stock_code}:{trade_date.isoformat()}"
     )
-    return bool(await lock.locked())
 
 
 async def list_analysis_trade_dates(
