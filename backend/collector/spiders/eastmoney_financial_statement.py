@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from collector.core.base import BaseCollector, get_engine
 from collector.core.exporters import PostgresExporter
 from collector.core.parsing import clean_stock_code, parse_date, to_optional_str
+from collector.spiders.sina_kline import _fetch_watchlist_codes
 
 DEFAULT_REPORT_TYPES = ["年报", "半年报", "一季报", "三季报"]
 
@@ -73,11 +74,16 @@ class EastmoneyFinancialStatementCollector(BaseCollector):
     async def collect(
         self,
         symbols: list[str] | None = None,
+        items: list[dict[str, Any]] | None = None,
         **kwargs: Any,
     ) -> list[dict[str, Any]]:
+        # run(items=...) 手动注入已采集数据（测试/回放），跳过真实采集
+        if items is not None:
+            return items
+
         import akshare as ak  # type: ignore[import-untyped]
 
-        symbols = symbols or ["000001"]
+        symbols = symbols or await _fetch_watchlist_codes()
         allowed_report_types = set(self.report_types or DEFAULT_REPORT_TYPES)
         raw: list[dict[str, Any]] = []
 

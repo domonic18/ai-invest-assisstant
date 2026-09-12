@@ -48,6 +48,30 @@ FROM collector_channel_config
 WHERE source = 'eastmoney'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
+-- 防御性补齐 eastmoney 渠道的 financial-statement 数据类型（东财三大报表）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["financial-statement"]'::jsonb
+WHERE source = 'eastmoney'
+  AND NOT supported_data_types @> '["financial-statement"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'financial-statement', 1
+FROM collector_channel_config
+WHERE source = 'eastmoney'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
+-- 防御性补齐 tushare 渠道的 stock-shares 数据类型（全市场股本回写）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["stock-shares"]'::jsonb
+WHERE source = 'tushare'
+  AND NOT supported_data_types @> '["stock-shares"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'stock-shares', 1
+FROM collector_channel_config
+WHERE source = 'tushare'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
 -- 防御性补齐 eastmoney 渠道的 news 数据类型（东财全球快讯；渠道已存在时）
 UPDATE collector_channel_config
 SET supported_data_types = supported_data_types || '["news"]'::jsonb
@@ -120,6 +144,10 @@ VALUES
     ('collector_log_cleanup_daily', 'collector-log-cleanup', 'internal', '40 3 * * *', true),
     -- 研报每日 8 点/18 点采集（东财 reportapi 列表 + PDF 落 MinIO）
     ('eastmoney_research_report', 'research-report', 'eastmoney', '0 8,18 * * *', true),
+    -- 财务报表季更，周六 11:00 全量刷新自选股（缺省 symbols = 全部自选股）
+    ('eastmoney_financial_statement_weekly', 'financial-statement', 'eastmoney', '0 11 * * 6', true),
+    -- 股本随公司行为低频变动，周六 03:00（晚于 sina_stock_list 02:00）全市场刷新
+    ('tushare_stock_shares_weekly', 'stock-shares', 'tushare', '0 3 * * 6', true),
     -- 交易日晚间校验自选股/指数/ETF/A50 日 K 是否覆盖最近交易日，缺失则重跑采集自愈
     -- （新浪当日 bar 收盘后存在发布滞后，18:30/21:00 两档兜底；数据已齐时良性 SKIPPED）
     ('kline_freshness_evening', 'kline-freshness', 'internal', '30 18,21 * * 1-5', true)
