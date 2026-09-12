@@ -7,7 +7,7 @@ import {
   PlusOutlined,
   SettingOutlined,
 } from '@ant-design/icons'
-import { Button, Dropdown, Modal, Space, Switch, Tabs, Tag, message } from 'antd'
+import { Button, Dropdown, Modal, Radio, Space, Switch, Tabs, Tag, message } from 'antd'
 import type { MenuProps } from 'antd'
 import type { WatchlistGroup } from '@ai-invest/shared'
 
@@ -112,15 +112,44 @@ export function GroupTabBar({
         label: '删除分组',
         onClick: () => {
           if (!activeGroup) return
+          const itemCount = activeGroup.items.length
+          // 弹窗单选的落点：默认组内股票一并删除
+          let deleteItems = true
           Modal.confirm({
             title: '删除分组',
-            content: '组内股票将移入默认分组',
+            content:
+              itemCount === 0 ? (
+                '确定删除该分组？'
+              ) : (
+                <div>
+                  <div className="mb-2">
+                    分组下有 {itemCount} 只自选股票，删除分组时：
+                  </div>
+                  <Radio.Group
+                    defaultValue="delete"
+                    onChange={(e) => {
+                      deleteItems = e.target.value === 'delete'
+                    }}
+                  >
+                    <Space direction="vertical" size={4}>
+                      <Radio value="delete">组内股票一并删除</Radio>
+                      <Radio value="move">组内股票移入默认分组</Radio>
+                    </Space>
+                  </Radio.Group>
+                </div>
+              ),
             okText: '删除',
             okButtonProps: { danger: true },
             cancelText: '取消',
             onOk: () =>
-              deleteGroup.mutateAsync(activeGroup.id).then(() => {
-                message.success('分组已删除')
+              deleteGroup.mutateAsync({ groupId: activeGroup.id, deleteItems }).then(() => {
+                message.success(
+                  itemCount === 0
+                    ? '分组已删除'
+                    : deleteItems
+                      ? `分组已删除，${itemCount} 只股票一并删除`
+                      : `分组已删除，${itemCount} 只股票已移入默认分组`,
+                )
                 onChange(null)
               }),
           })

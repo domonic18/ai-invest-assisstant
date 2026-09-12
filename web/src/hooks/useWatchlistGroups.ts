@@ -50,7 +50,13 @@ export function useUpdateWatchlistGroup() {
 export function useDeleteWatchlistGroup() {
   const invalidate = useInvalidateWatchlist()
   return useMutation({
-    mutationFn: (groupId: number) => deleteWatchlistGroup(groupId),
+    mutationFn: ({
+      groupId,
+      deleteItems,
+    }: {
+      groupId: number
+      deleteItems?: boolean
+    }) => deleteWatchlistGroup(groupId, { deleteItems }),
     onSuccess: invalidate,
   })
 }
