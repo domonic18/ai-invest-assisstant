@@ -204,5 +204,6 @@ export const ENDPOINTS = {
     mcpServer: (id: number | string) => `${API_BASE}/admin/mcp/servers/${id}`,
     mcpServerTest: (id: number | string) => `${API_BASE}/admin/mcp/servers/${id}/test`,
     mcpServerTestDraft: `${API_BASE}/admin/mcp/servers/test`,
+    systemStatus: `${API_BASE}/admin/system/status`,
   },
 } as const
