@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     # 自定义技能压缩包上传（POST /skills/analyze）大小上限
     skill_upload_max_mb: int = 10
 
+    # 问财 NL2Data 网关（AI 选股 screen_stocks 工具）
+    iwencai_api_key: str = ""
+    iwencai_timeout_seconds: float = 30.0
+
     # SPA 静态托管（web 镜像内烘 ENV STATIC_DIR=/app/static；为空则纯 API 模式）
     static_dir: Path | None = None
     # SCF 入口 HTTPS 但以 HTTP 转发容器且不带 X-Forwarded-Proto 时置 1，

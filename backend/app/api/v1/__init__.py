@@ -17,6 +17,7 @@ from app.api.v1 import (
     market,
     news,
     research,
+    screening,
     sector_detail,
     skills,
     stocks,
@@ -69,6 +70,7 @@ api_router.include_router(
     sector_detail.router, prefix="/sectors", tags=["sector-detail"]
 )
 api_router.include_router(workbench.router, prefix="/workbench", tags=["workbench"])
+api_router.include_router(screening.router, prefix="/screening", tags=["screening"])
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(admin_users.router, prefix="/users")
