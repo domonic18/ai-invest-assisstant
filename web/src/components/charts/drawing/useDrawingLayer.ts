@@ -4,7 +4,11 @@
  * 设计要点（docs/arch/09-kline-drawing.md §3.2）：
  * - 锚点存数据坐标 (date, price)，像素只在渲染瞬间经 convertToPixel/convertFromPixel 存在；
  * - 按 graphic 元素 id 增量 merge + 失活 remove，禁止整图 setOption（保拖拽帧率）；
- * - 整体拖拽由 zrender 原生移动（position 镜像到 group），锚点拖拽时只重下发形状 group；
+ * - 扁平元素架构：可见形状/命中线/手柄/徽标都是带唯一 id 的顶层元素，不用 group children。
+ *   echarts 父组簿记在「旧 id remove + 新 id replace」组合下会把 id-less 子元素与孤儿条目按
+ *   index 错配（createEl 拿到 undefined 父容器直接抛错），且 replace 移除 group 存在 traverse
+ *   边删边遍历缺陷；扁平 merge + 逐元素 remove 完全绕开这两处；
+ * - 整体拖拽由 zrender 原生移动被抓元素，兄弟元素经 zr.storage 镜像 position；
  * - 画线由 draftMachine 状态机驱动：双锚点工具 mousedown/mouseup 双模（点击两下/按住拖拽），
  *   单锚点工具 click 直接提交；成线后工具保持激活可连续画线，Esc 退出；空点取消选中
  *   只忽略画线图层自有元素，主图元素不拦截；
@@ -56,6 +60,9 @@ function dragMoved(drag: DragSession): boolean {
   return drag.px.some((pt, i) => pt.x !== drag.originPx[i].x || pt.y !== drag.originPx[i].y)
 }
 
+/** 草稿 group id 会话内唯一：固定 id 的孤儿子条目会被下一草稿按 id 复配到已移除的父组上 */
+let draftSeq = 0
+
 export interface DrawingScope {
   targetType: 'stock' | 'index' | 'sector'
   targetCode: string
@@ -93,8 +100,9 @@ interface ZrEvent {
   offsetX: number
   offsetY: number
   target?: {
-    position?: number[]
-    parent?: { position?: number[]; dirty?: () => void } | null
+    id?: string
+    x?: number
+    y?: number
     dirty?: () => void
   } | null
 }
@@ -103,6 +111,8 @@ interface DragSession {
   drawingId: string
   kind: 'anchor' | 'move'
   anchorIndex: number
+  /** move 拖拽：需跟随被抓元素镜像 position 的兄弟元素 id（anchor 拖拽为空） */
+  siblingIds: string[]
   /** 拖拽中的像素锚点（实时） */
   px: Point[]
   /** 拖拽起点像素锚点快照 */
@@ -155,12 +165,15 @@ function dataZoomCount(chart: ECharts): number {
 }
 
 function lineSpec(
+  id: string,
   p1: Point,
   p2: Point,
   style: { color: string; dash: number[]; width: number; opacity?: number },
   extra?: Record<string, unknown>,
 ): GraphicSpec {
   return {
+    id,
+    position: [0, 0],
     type: 'line',
     shape: { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y },
     style: {
@@ -174,13 +187,32 @@ function lineSpec(
 }
 
 /** 透明加粗命中线（覆盖可见线上方，承接 click/drag） */
-function hitLineSpec(p1: Point, p2: Point, extra: Record<string, unknown>): GraphicSpec {
+function hitLineSpec(id: string, p1: Point, p2: Point, extra: Record<string, unknown>): GraphicSpec {
   return {
+    id,
+    position: [0, 0],
     type: 'line',
     shape: { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y },
     style: { stroke: '#000', lineWidth: 10, opacity: 0 },
     ...extra,
   }
+}
+
+/** 单条画线的全部顶层元素 id：`-0` 可见形状、`-1` 命中线（仅线类有） */
+function userElementIds(d: Pick<UserKlineDrawing, 'id' | 'drawingType'>): string[] {
+  const base = `${DRAWING_ROOT_PREFIX}user-${d.id}`
+  const lineLike = d.drawingType === 'hline' || d.drawingType === 'trendline' || d.drawingType === 'ray'
+  return lineLike ? [`${base}-0`, `${base}-1`] : [`${base}-0`]
+}
+
+/** zrender storage 内部 API：按 id 取存活元素（拖拽兄弟镜像与图层擦除探测用） */
+function getZrEl(chart: ECharts, id: string): { x?: number; y?: number; dirty?: () => void } | undefined {
+  const storage = (
+    chart.getZr() as unknown as {
+      storage?: { getDisplayList?: () => ({ id?: unknown; x?: number; y?: number; dirty?: () => void } | undefined)[] }
+    }
+  ).storage
+  return storage?.getDisplayList?.().find((el) => el && el.id === id)
 }
 
 interface DragHooks {
@@ -189,13 +221,13 @@ interface DragHooks {
   onAnchorDragStart: (anchorIndex: number, e: ZrEvent) => void
 }
 
-/** 单条用户画线 → 可见形状 group（不含选中手柄；replace 防合并残留子元素） */
-function userShapeSpec(
+/** 单条用户画线 → 顶层元素 specs（可见形状 + 命中线；merge 更新，删除走逐元素 remove） */
+function userShapeSpecs(
   d: UserKlineDrawing,
   px: Point[],
   grid: GridRect,
   hooks: DragHooks,
-): GraphicSpec {
+): GraphicSpec[] {
   const style = {
     color: d.style.color,
     dash: lineDashArray(d.style.lineStyle),
@@ -207,18 +239,21 @@ function userShapeSpec(
     onclick: hooks.onSelect,
     onmousedown: hooks.onMoveDragStart,
   }
-  const children: GraphicSpec[] = []
+  const base = `${DRAWING_ROOT_PREFIX}user-${d.id}`
+  const specs: GraphicSpec[] = []
 
   if (d.drawingType === 'hline') {
     const y = px[0].y
     const vis = clipSegment({ x: grid.x, y }, { x: grid.x + grid.width, y }, grid)
     if (vis) {
-      children.push(lineSpec(vis[0], vis[1], style), hitLineSpec(vis[0], vis[1], moveProps))
+      specs.push(lineSpec(`${base}-0`, vis[0], vis[1], style), hitLineSpec(`${base}-1`, vis[0], vis[1], moveProps))
     }
   } else if (d.drawingType === 'box') {
     const rect = clipRect(px[0], px[1], grid)
     if (rect) {
-      children.push({
+      specs.push({
+        id: `${base}-0`,
+        position: [0, 0],
         type: 'rect',
         shape: rect,
         style: {
@@ -231,7 +266,9 @@ function userShapeSpec(
       })
     }
   } else if (d.drawingType === 'text') {
-    children.push({
+    specs.push({
+      id: `${base}-0`,
+      position: [0, 0],
       type: 'text',
       x: px[0].x,
       y: px[0].y,
@@ -248,54 +285,48 @@ function userShapeSpec(
       d.drawingType === 'ray' ? extendRay(px[0], px[1], grid, d.direction ?? 'right') : [px[0], px[1]]
     const vis = clipSegment(s, e, grid)
     if (vis) {
-      children.push(lineSpec(vis[0], vis[1], style), hitLineSpec(vis[0], vis[1], moveProps))
+      specs.push(lineSpec(`${base}-0`, vis[0], vis[1], style), hitLineSpec(`${base}-1`, vis[0], vis[1], moveProps))
     }
   }
-  return {
-    id: `${DRAWING_ROOT_PREFIX}user-${d.id}`,
-    type: 'group',
-    $action: 'replace',
+  return specs
+}
+
+/** 选中手柄（顶层元素；锚点拖拽时形状元素可安全重下发） */
+function handleSpecs(d: UserKlineDrawing, px: Point[], hooks: DragHooks): GraphicSpec[] {
+  const base = `${DRAWING_ROOT_PREFIX}user-${d.id}`
+  return px.map((p, i) => ({
+    id: `${base}-h${i}`,
     position: [0, 0],
-    children,
-  }
+    type: 'circle',
+    shape: { cx: p.x, cy: p.y, r: 4.5 },
+    style: { fill: '#16181f', stroke: d.style.color, lineWidth: 1.5 },
+    cursor: 'crosshair',
+    draggable: true,
+    onmousedown: (e: ZrEvent) => hooks.onAnchorDragStart(i, e),
+  }))
 }
 
-/** 选中手柄 group（独立元素：锚点拖拽时形状 group 可安全重下发） */
-function handlesSpec(d: UserKlineDrawing, px: Point[], hooks: DragHooks): GraphicSpec {
-  return {
-    id: `${DRAWING_ROOT_PREFIX}user-${d.id}-handles`,
-    type: 'group',
-    $action: 'replace',
-    children: px.map((p, i) => ({
-      type: 'circle',
-      shape: { cx: p.x, cy: p.y, r: 4.5 },
-      position: [0, 0],
-      style: { fill: '#16181f', stroke: d.style.color, lineWidth: 1.5 },
-      cursor: 'crosshair',
-      draggable: true,
-      onmousedown: (e: ZrEvent) => hooks.onAnchorDragStart(i, e),
-    })),
-  }
-}
-
-/** AI 画线 → 只读 graphic group（虚线锁定样式 + AI 徽标 + hover 回调） */
-function aiGroupSpec(
+/** AI 画线 → 只读顶层元素 specs（虚线锁定样式 + AI 徽标 + hover 回调） */
+function aiSpecs(
   item: AiDrawingItem,
   px: Point[],
   grid: GridRect,
   onHover: (item: AiDrawingItem | null) => void,
-): GraphicSpec {
+): GraphicSpec[] {
   const style = { color: AI_LAYER_COLOR, dash: AI_LAYER_DASH, width: 1.6, opacity: 0.92 }
   const hover = { onmouseover: () => onHover(item), onmouseout: () => onHover(null) }
-  const children: GraphicSpec[] = []
+  const base = `${DRAWING_ROOT_PREFIX}ai-${item.id}`
+  const specs: GraphicSpec[] = []
   if (item.drawingType === 'hline') {
     const y = px[0].y
     const vis = clipSegment({ x: grid.x, y }, { x: grid.x + grid.width, y }, grid)
-    if (vis) children.push(lineSpec(vis[0], vis[1], style, hover))
+    if (vis) specs.push(lineSpec(`${base}-0`, vis[0], vis[1], style, hover))
   } else if (item.drawingType === 'box') {
     const rect = clipRect(px[0], px[1], grid)
     if (rect) {
-      children.push({
+      specs.push({
+        id: `${base}-0`,
+        position: [0, 0],
         type: 'rect',
         shape: rect,
         style: {
@@ -310,7 +341,9 @@ function aiGroupSpec(
       })
     }
   } else if (item.drawingType === 'text') {
-    children.push({
+    specs.push({
+      id: `${base}-0`,
+      position: [0, 0],
       type: 'text',
       x: px[0].x,
       y: px[0].y,
@@ -321,42 +354,44 @@ function aiGroupSpec(
     const [s, e] =
       item.drawingType === 'ray' ? extendRay(px[0], px[1], grid, item.direction ?? 'right') : [px[0], px[1]]
     const vis = clipSegment(s, e, grid)
-    if (vis) children.push(lineSpec(vis[0], vis[1], style, hover))
+    if (vis) specs.push(lineSpec(`${base}-0`, vis[0], vis[1], style, hover))
   }
-  // AI 徽标（首个锚点偏移，与原型一致）
-  children.push({
-    type: 'group',
-    x: px[0].x + 8,
-    y: px[0].y - 20,
-    children: [
-      {
-        type: 'rect',
-        shape: { x: 0, y: 0, width: 20, height: 12, r: 3 },
-        style: { fill: 'rgba(94,106,210,.22)', stroke: '#5e6ad2', lineWidth: 0.8 },
+  // AI 徽标（首个锚点偏移，与原型一致）：绝对坐标平铺为 rect + text 两元素
+  specs.push(
+    {
+      id: `${base}-1`,
+      position: [0, 0],
+      type: 'rect',
+      shape: { x: px[0].x + 8, y: px[0].y - 20, width: 20, height: 12, r: 3 },
+      style: { fill: 'rgba(94,106,210,.22)', stroke: '#5e6ad2', lineWidth: 0.8 },
+      ...hover,
+    },
+    {
+      id: `${base}-2`,
+      position: [0, 0],
+      type: 'text',
+      x: px[0].x + 18,
+      y: px[0].y - 11,
+      style: {
+        text: 'AI',
+        fill: '#8a93ff',
+        fontSize: 8,
+        fontWeight: 700,
+        align: 'center',
+        verticalAlign: 'middle',
       },
-      {
-        type: 'text',
-        x: 10,
-        y: 9,
-        style: {
-          text: 'AI',
-          fill: '#8a93ff',
-          fontSize: 8,
-          fontWeight: 700,
-          align: 'center',
-          verticalAlign: 'middle',
-        },
-      },
-    ],
-    ...hover,
-  })
-  return { id: `${DRAWING_ROOT_PREFIX}ai-${item.id}`, type: 'group', $action: 'replace', children }
+      ...hover,
+    },
+  )
+  return specs
 }
 
 /** 草稿预览（首锚点 + 跟随光标；箱体画矩形预览，其余画虚线段） */
-function draftSpec(id: string, draft: DraftSession, grid: GridRect, color: string): GraphicSpec {
-  const children: GraphicSpec[] = [
+function draftSpecs(id: string, draft: DraftSession, grid: GridRect, color: string): GraphicSpec[] {
+  const specs: GraphicSpec[] = [
     {
+      id: `${id}-0`,
+      position: [0, 0],
       type: 'circle',
       shape: { cx: draft.startPx.x, cy: draft.startPx.y, r: 4 },
       style: { fill: color, stroke: '#16181f', lineWidth: 1 },
@@ -365,7 +400,9 @@ function draftSpec(id: string, draft: DraftSession, grid: GridRect, color: strin
   if (draft.tool === 'box') {
     const rect = clipRect(draft.startPx, draft.cursorPx, grid)
     if (rect) {
-      children.push({
+      specs.push({
+        id: `${id}-1`,
+        position: [0, 0],
         type: 'rect',
         shape: rect,
         style: { fill: color, fillOpacity: 0.08, stroke: color, lineWidth: 1.5, lineDash: [4, 4] },
@@ -373,9 +410,9 @@ function draftSpec(id: string, draft: DraftSession, grid: GridRect, color: strin
     }
   } else {
     const vis = clipSegment(draft.startPx, draft.cursorPx, grid)
-    if (vis) children.push(lineSpec(vis[0], vis[1], { color, dash: [4, 4], width: 1.5 }))
+    if (vis) specs.push(lineSpec(`${id}-1`, vis[0], vis[1], { color, dash: [4, 4], width: 1.5 }))
   }
-  return { id, type: 'group', $action: 'replace', children }
+  return specs
 }
 
 export function useDrawingLayer(params: UseDrawingLayerParams): {
@@ -385,6 +422,8 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
   const p = useRef(params)
   p.current = params
   const draftRef = useRef<DraftSession | null>(null)
+  /** 当前草稿会话的 graphic id 前缀（startDraft 时生成，会话内唯一） */
+  const draftIdRef = useRef('')
   const dragRef = useRef<DragSession | null>(null)
   /** 成线提交后的 click 抑制（mousedown/mouseup 成线仍会派发一次 click，避免误清选中） */
   const suppressClickRef = useRef(false)
@@ -454,15 +493,18 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
     const draft = draftRef.current
     const sig = JSON.stringify([drawings, aiDrawings, selectedId, activeTool, dates.length, grid, draft, drag?.px])
     if (sig === sigRef.current) return
-    sigRef.current = sig
 
     const specs: GraphicSpec[] = []
     const nextIds = new Set<string>()
+    const track = (arr: GraphicSpec[]) => {
+      for (const s of arr) {
+        specs.push(s)
+        nextIds.add(String(s.id))
+      }
+    }
 
     for (const d of drawings) {
       const dragHere = drag?.drawingId === d.id
-      const id = `${DRAWING_ROOT_PREFIX}user-${d.id}`
-      nextIds.add(id)
       const live: DragHooks = {
         onSelect: () => p.current.onSelect(d.id),
         onMoveDragStart: (e) => {
@@ -470,6 +512,7 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
             drawingId: d.id,
             kind: 'move',
             anchorIndex: -1,
+            siblingIds: userElementIds(d).filter((x) => x !== e.target?.id),
             px: drawingPx(chart, p.current.dates, d),
             originPx: drawingPx(chart, p.current.dates, d),
             start: { x: e.offsetX, y: e.offsetY },
@@ -480,29 +523,31 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
             drawingId: d.id,
             kind: 'anchor',
             anchorIndex: i,
+            siblingIds: [],
             px: drawingPx(chart, p.current.dates, d),
             originPx: drawingPx(chart, p.current.dates, d),
             start: { x: e.offsetX, y: e.offsetY },
           }
         },
       }
-      // 锚点拖拽中形状跟随 drag.px 重下发；整体拖拽中形状 group 走 zrender 原生移动，跳过重下发
       const pxNow = dragHere && drag ? drag.px : drawingPx(chart, dates, d)
+      // 锚点拖拽中形状跟随 drag.px 重下发；整体拖拽中形状由 zrender 原生移动 + 兄弟镜像，跳过重下发
       if (!dragHere || drag?.kind === 'anchor') {
-        specs.push(userShapeSpec(d, pxNow, grid, live))
+        track(userShapeSpecs(d, pxNow, grid, live))
+      } else {
+        // 原生移动中的元素保活即可；未渲染过的 id 不虚标（避免对不存在元素发 remove）
+        for (const id of userElementIds(d)) {
+          if (liveIdsRef.current.has(id)) nextIds.add(id)
+        }
       }
-      // 整体拖拽中手柄不随原生移动，需按实时 px 重下发跟随
+      // 整体拖拽中手柄不参与原生移动，按实时 px 重下发跟随
       if (selectedId === d.id && (!dragHere || drag?.kind === 'move')) {
-        const hid = `${DRAWING_ROOT_PREFIX}user-${d.id}-handles`
-        nextIds.add(hid)
-        specs.push(handlesSpec(d, pxNow, live))
+        track(handleSpecs(d, pxNow, live))
       }
     }
     for (const item of aiDrawings) {
-      const id = `${DRAWING_ROOT_PREFIX}ai-${item.id}`
-      nextIds.add(id)
-      specs.push(
-        aiGroupSpec(
+      track(
+        aiSpecs(
           item,
           item.anchors.map((a) => anchorToPx(chart, dates, a)),
           grid,
@@ -511,19 +556,26 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
       )
     }
     if (draft && activeTool) {
-      const id = `${DRAWING_ROOT_PREFIX}draft`
-      nextIds.add(id)
-      specs.push(draftSpec(id, draft, grid, defaultStyle.color))
+      const id = draftIdRef.current || `${DRAWING_ROOT_PREFIX}draft`
+      track(draftSpecs(id, draft, grid, defaultStyle.color))
     }
 
     const removed: GraphicSpec[] = []
     for (const id of liveIdsRef.current) {
       if (!nextIds.has(id)) removed.push({ id, $action: 'remove' })
     }
-    liveIdsRef.current = nextIds
     if (specs.length || removed.length) {
-      chart.setOption({ graphic: [...specs, ...removed] } as unknown as EChartsOption)
+      try {
+        chart.setOption({ graphic: [...specs, ...removed] } as unknown as EChartsOption)
+      } catch (err) {
+        // sig/liveIds 只在 setOption 成功后落地，失败时下一帧重试（否则整层冻结到刷新）
+        console.warn('[drawing] 图层降级', err)
+        sigRef.current = ''
+        return
+      }
     }
+    sigRef.current = sig
+    liveIdsRef.current = nextIds
 
     // armed 与全部 dataZoom 互斥（滚轮/拖动不缩放）；同时隐藏 K 线 tooltip/十字指示器，
     // 避免悬浮数据点压住画线预览（同花顺式编辑态）
@@ -561,25 +613,28 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
     }
   }
 
-  /** zrender 拖拽实时移动：position 镜像 → 像素锚点 */
+  /** zrender 拖拽实时移动：被抓元素原生位移，兄弟元素镜像 + 像素锚点重算 */
   const handleDragMove = (e: ZrEvent) => {
     const drag = dragRef.current
     if (!drag) return
     const target = e.target
     if (drag.kind === 'move') {
-      const dPos = target?.position ?? [0, 0]
-      const parent = target?.parent
-      if (parent) {
-        parent.position = [dPos[0], dPos[1]]
-        parent.dirty?.()
-        if (target) {
-          target.position = [0, 0]
-          target.dirty?.()
+      const dPos = [target?.x ?? 0, target?.y ?? 0]
+      const chart = p.current.chart
+      if (chart) {
+        // 扁平架构：被抓元素由 zrender 原生移动，兄弟元素经 storage 镜像位移
+        for (const sid of drag.siblingIds) {
+          const el = getZrEl(chart, sid)
+          if (el) {
+            el.x = dPos[0]
+            el.y = dPos[1]
+            el.dirty?.()
+          }
         }
       }
       drag.px = drag.originPx.map((pt) => ({ x: pt.x + dPos[0], y: pt.y + dPos[1] }))
     } else {
-      const hPos = target?.position ?? [0, 0]
+      const hPos = [target?.x ?? 0, target?.y ?? 0]
       drag.px = drag.originPx.map((pt, i) =>
         i === drag.anchorIndex ? { x: pt.x + hPos[0], y: pt.y + hPos[1] } : pt,
       )
@@ -598,12 +653,7 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
       try {
         // 主图 notMerge 重建会整层擦除 graphic：探测首个存活元素，被擦除则强制重渲染
         const sample = liveIdsRef.current.values().next().value as string | undefined
-        if (sample) {
-          const storage = (chart.getZr() as unknown as {
-            storage?: { getDisplayById?: (id: string) => unknown }
-          }).storage
-          if (storage?.getDisplayById && !storage.getDisplayById(sample)) sigRef.current = ''
-        }
+        if (sample && !getZrEl(chart, sample)) sigRef.current = ''
         render()
       } catch (err) {
         console.warn('[drawing] 图层降级', err)
@@ -631,6 +681,7 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
       if (!draft && isTwoAnchorTool(activeTool)) {
         dragRef.current = null // 画线模式抢占元素级拖拽
         draftRef.current = startDraft(activeTool, pt)
+        draftIdRef.current = `${DRAWING_ROOT_PREFIX}draft-${++draftSeq}`
         sigRef.current = ''
         render()
       }
