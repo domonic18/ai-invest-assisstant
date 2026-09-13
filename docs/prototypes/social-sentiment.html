@@ -86,6 +86,23 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);font
 .ext{margin-left:auto;border:none;background:transparent;color:var(--text-tertiary);font-size:11px;cursor:pointer;font-family:var(--font);padding:3px 6px;border-radius:5px}
 .ext:hover{color:var(--accent);background:var(--bg-hover)}
 .ai-note{font-size:9px;color:var(--text-tertiary)}
+.p-body{display:flex;gap:12px;margin-top:9px;align-items:flex-start}
+.p-body .txt{flex:1;min-width:0}
+.p-body .txt .summary{margin-top:0}
+.vcover{width:88px;height:157px;border-radius:8px;position:relative;flex-shrink:0;cursor:pointer;overflow:hidden;border:1px solid var(--border);transition:border-color var(--transition)}
+.vcover:hover{border-color:var(--accent)}
+.vcover .bg{position:absolute;inset:0}
+.vcover .vc-play{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px}
+.vcover .vc-pub{position:absolute;left:4px;top:4px;font-size:9px;color:#fff;background:rgba(0,0,0,.55);padding:1px 5px;border-radius:3px}
+.vcover .vc-title{position:absolute;left:0;right:0;bottom:16px;padding:14px 6px 3px;font-size:9px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.72));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vcover .vc-dur{position:absolute;right:4px;bottom:3px;font-size:9px;color:#fff;background:rgba(0,0,0,.6);padding:1px 4px;border-radius:3px}
+.vcover.sm{width:52px;height:92px}
+.vcover.sm .vc-play{width:16px;height:16px;font-size:7px;top:40%}
+.vcover.sm .vc-pub,.vcover.sm .vc-title{display:none}
+.vcover.sm .vc-dur{font-size:8px}
+.acc-upd{font-size:10px;color:var(--text-tertiary)}
+.acc-vp{font-size:11px;color:var(--text-secondary);margin:3px 0 4px}
+.acc-media{display:flex;gap:10px;align-items:flex-start}
 .empty{padding:40px;text-align:center;color:var(--text-tertiary);font-size:12px;border:1px dashed var(--border);border-radius:var(--radius-lg)}
 .temp-row{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12px}
 .temp-row .nm{width:64px;color:var(--text-secondary);flex-shrink:0}
@@ -339,9 +356,9 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
 <footer class="foot">
   <span><b>F-SOC-01</b> 后台追踪清单与渠道配置（X 渠道抽象可切换 · 配额降频）</span>
   <span><b>F-SOC-02</b> X 发文采集（配额感知 · SKIPPED≠FAILED）</span>
-  <span><b>F-SOC-03</b> 抖音采集 + ASR 转写（transcript_missing 降级演示）</span>
+  <span><b>F-SOC-03</b> 抖音采集 + ASR 转写（封面/时长/发布时间 · transcript_missing 降级演示）</span>
   <span><b>F-SOC-04</b> 情绪判断：立场/置信度/论点/影响标的（irrelevant 不入流）</span>
-  <span><b>F-SOC-05</b> 情绪流 / 账号时间线（立场轨迹）/ 温度三层 + 过滤器</span>
+  <span><b>F-SOC-05</b> 情绪流（视频封面缩略图）/ 账号时间线（立场轨迹）/ 温度三层 + 过滤器</span>
   <span><b>F-SOC-06</b>（P2）情绪指数与高冲击提醒</span>
 </footer>
 
@@ -376,42 +393,45 @@ var ACCOUNTS=[
   {id:'trump',plat:'x',handle:'@realDonaldTrump',alias:'特朗普',cat:'宏观政策',hue:'#5865f2',interval:'15 分钟',last:'12 分钟前',traj:['neu','bull','neu','neu','bear','bear','bear']},
   {id:'kobe',plat:'x',handle:'@KobeissiLetter',alias:'Kobeissi Letter',cat:'财经大 V',hue:'#58a6ff',interval:'20 分钟',last:'26 分钟前',traj:['bull','neu','bull','bull','bull','bull']},
   {id:'semi',plat:'x',handle:'@SemiAnalysis_',alias:'SemiAnalysis',cat:'产业人士',hue:'#e3b341',interval:'30 分钟',last:'1 小时前',traj:['bull','bull','neu','neu','neu']},
-  {id:'laozhang',plat:'dy',handle:'sec_uid:MS4wLjAB…9f',alias:'财经老张',cat:'财经大 V',hue:'#f85149',interval:'1 小时',last:'38 分钟前',traj:['bear','bear','neu','bull','bull','bull']},
-  {id:'lijie',plat:'dy',handle:'sec_uid:MS4wLjAB…c2',alias:'盘前训练营·李姐',cat:'财经大 V',hue:'#2ea043',interval:'1 小时',last:'2 小时前',traj:['bull','bull','bull','bear']},
-  {id:'chaguan',plat:'dy',handle:'sec_uid:MS4wLjAB…7a',alias:'宏观茶馆',cat:'宏观政策',hue:'#a371f7',interval:'1 小时',last:'5 小时前',traj:['neu','neu','neu','bull']}
+  {id:'laozhang',plat:'dy',handle:'sec_uid:MS4wLjAB…9f',alias:'财经老张',cat:'财经大 V',hue:'#f85149',interval:'1 小时',last:'38 分钟前',traj:['bear','bear','neu','bull','bull','bull'],
+   vid:{title:'半导体设备国产替代，这轮不一样｜大基金三期详解',dur:'05:42',pub:'今日 10:24',bg:'linear-gradient(155deg,#16205e,#3f6df5 65%,#8ab4ff)'}},
+  {id:'lijie',plat:'dy',handle:'sec_uid:MS4wLjAB…c2',alias:'盘前训练营·李姐',cat:'财经大 V',hue:'#2ea043',interval:'1 小时',last:'2 小时前',traj:['bull','bull','bull','bear'],
+   vid:{title:'高位题材集体炸板，接力要小心',dur:'03:18',pub:'今日 09:01',bg:'linear-gradient(155deg,#4d1b1b,#c25b3f)'}},
+  {id:'chaguan',plat:'dy',handle:'sec_uid:MS4wLjAB…7a',alias:'宏观茶馆',cat:'宏观政策',hue:'#a371f7',interval:'1 小时',last:'5 小时前',traj:['neu','neu','neu','bull'],
+   vid:{title:'美联储决议前瞻：真正的按键在于点阵图',dur:'08:05',pub:'今日 06:14',bg:'linear-gradient(155deg,#2b1b4d,#7a5df0)'}}
 ];
 var POSTS=[
-  {id:1,acc:'trump',mins:12,stance:'bear',conf:92,pin:true,heavy:false,
+  {id:1,acc:'trump',mins:12,pub:'今日 10:50',stance:'bear',conf:92,pin:true,heavy:false,
    summary:'威胁对华加征 60% 关税，称「足够大到让工厂回流美国」。',
    args:['关税或显著推升输入成本，出口链盈利预期承压','2019 年轮次复盘：落地前市场先杀估值、落地后交易实际影响','或加速供应链外迁，东南亚产能布局标的相对受益'],
    targets:[{ty:'index',label:'上证指数'},{ty:'sector',label:'出口链·家电'},{ty:'commodity',label:'离岸人民币'}],
    ia:'转发 12.4w · 点赞 41w · 浏览 2,130w'},
-  {id:2,acc:'kobe',mins:26,stance:'bull',conf:78,pin:false,heavy:true,
+  {id:2,acc:'kobe',mins:26,pub:'今日 10:36',stance:'bull',conf:78,pin:false,heavy:true,
    summary:'美联储 9 月降息 25bp 概率升至 87%，宽松交易重启。',
    args:['点阵图下移叠加就业数据走弱','美债 2Y 收益率回落至 3.6% 附近','流动性宽松利好成长风格与港股弹性'],
    targets:[{ty:'index',label:'恒生科技'},{ty:'sector',label:'券商'},{ty:'commodity',label:'黄金'}],
    ia:'点赞 4,231 · 转发 1,872 · 浏览 182w'},
-  {id:3,acc:'laozhang',mins:38,stance:'bull',conf:85,pin:false,heavy:false,
-   summary:'视频：半导体设备国产替代「这轮不一样」，订单能见度到明年 Q2。',
+  {id:3,acc:'laozhang',mins:38,pub:'今日 10:24',stance:'bull',conf:85,pin:false,heavy:false,
+   summary:'半导体设备国产替代「这轮不一样」，订单能见度到明年 Q2。',
    args:['大基金三期落地，设备采购订单可见性上修','光刻零部件供应商进入验证周期，单点突破'],
    targets:[{ty:'sector',label:'半导体'},{ty:'stock',label:'北方华创',code:'002371'},{ty:'stock',label:'中芯国际',code:'688981'}],
    ia:'赞 3.2w · 评 4,120 · 转 8,900'},
-  {id:4,acc:'lijie',mins:121,stance:'bear',conf:71,pin:false,heavy:false,missing:true,
-   summary:'文案：高位题材股集体炸板，明天小心接力。',
+  {id:4,acc:'lijie',mins:121,pub:'今日 09:01',stance:'bear',conf:71,pin:false,heavy:false,missing:true,
+   summary:'高位题材股集体炸板，明天小心接力。',
    args:['情绪周期进入退潮段，连板高度降至 3 板（自文案推断 · 音频缺失）'],
    targets:[{ty:'sector',label:'券商'},{ty:'index',label:'上证指数'}],
    ia:'赞 1.8w · 评 2,340 · 转 990'},
-  {id:5,acc:'semi',mins:152,stance:'neu',conf:64,pin:false,heavy:false,
+  {id:5,acc:'semi',mins:152,pub:'今日 08:30',stance:'neu',conf:64,pin:false,heavy:false,
    summary:'设备板块估值已计入大部分国产化预期，边际看订单兑现。',
    args:['板块 PE 分位 85%，安全边际收窄','但订单能见度仍在上修，回调即配置窗口'],
    targets:[{ty:'sector',label:'半导体'}],
    ia:'点赞 891 · 转发 302 · 浏览 46w'},
-  {id:6,acc:'chaguan',mins:288,stance:'neu',conf:69,pin:false,heavy:false,
-   summary:'视频：美联储决议前瞻——真正的按键在点阵图而非降息幅度。',
+  {id:6,acc:'chaguan',mins:288,pub:'今日 06:14',stance:'neu',conf:69,pin:false,heavy:false,
+   summary:'美联储决议前瞻——真正的按键在点阵图而非降息幅度。',
    args:['25bp 已充分定价，点阵图远端才是定价锚','若远端上修，黄金短线或有回吐压力'],
    targets:[{ty:'commodity',label:'黄金'},{ty:'index',label:'富时A50'}],
    ia:'赞 9,210 · 评 1,530 · 转 2,070'},
-  {id:7,acc:'trump',mins:320,stance:'bull',conf:74,pin:false,heavy:false,
+  {id:7,acc:'trump',mins:320,pub:'今日 05:38',stance:'bull',conf:74,pin:false,heavy:false,
    summary:'称将与财长「共同研究」减税 2.0，市场解读为宽松信号。',
    args:['减税 2.0 若推进，利好风险偏好与美元资产'],
    targets:[{ty:'index',label:'富时A50'},{ty:'commodity',label:'离岸人民币'}],
@@ -435,6 +455,15 @@ function toast(msg){var t=$('#toast');t.textContent=msg;t.classList.add('show');
 
 function platBadge(p){return p==='x'?'<span class="plat x">𝕏</span>':'<span class="plat dy">抖音</span>'}
 function avaHtml(a){return '<div class="ava" style="background:'+a.hue+'">'+esc(a.alias.slice(0,1))+'</div>'}
+function fmtMins(m){if(m>=1440)return Math.round(m/1440)+' 天前';if(m>=60)return Math.round(m/60)+' 小时前';return m+' 分钟前'}
+function vcoverHtml(v,sm){
+  return '<div class="vcover'+(sm||'')+'" data-vtitle="'+esc(v.title)+'" title="'+esc(v.title)+'">'
+    +'<div class="bg" style="background:'+v.bg+'"></div>'
+    +'<span class="vc-play">▶</span>'
+    +'<span class="vc-pub">'+esc(v.pub)+'</span>'
+    +'<span class="vc-title">'+esc(v.title)+'</span>'
+    +'<span class="vc-dur">'+esc(v.dur)+'</span></div>';
+}
 function chipsHtml(targets){
   var h='';
   targets.forEach(function(t){
@@ -449,12 +478,16 @@ function postCard(p,compact){
   var missTag=p.missing?'<span class="p-tag miss">transcript_missing · 仅文案判断</span>':'';
   var moreBtn='';
   if(p.args.length>1)moreBtn='<button class="args-toggle" data-toggle="'+p.id+'">展开全部 '+p.args.length+' 条论点 ▾</button>';
+  var txt='<p class="summary">'+esc(p.summary)+'</p>'
+    +'<ul class="args">'+p.args.map(function(x,i){return '<li'+(i>0?' class="more"':'')+'>'+esc(x)+'</li>'}).join('')+'</ul>'
+    +moreBtn;
+  var bodyHtml=(a.plat==='dy'&&a.vid)
+    ?'<div class="p-body"><div class="txt">'+txt+'</div>'+vcoverHtml(a.vid,'')+'</div>'
+    :txt;
   return '<article class="p-card'+(p.pin?' pin':'')+(p.heavy?' heavy':'')+'" id="pc'+p.id+'">'
     +'<div class="p-head">'+avaHtml(a)+platBadge(p.plat)+'<span class="alias">'+esc(a.alias)+'</span><span class="handle">'+esc(a.handle)+'</span>'
-    +'<span class="cat-tag">'+esc(a.cat)+'</span>'+pinTag+missTag+'<span class="p-time">'+p.mins+' 分钟前</span></div>'
-    +'<p class="summary">'+esc(p.summary)+'</p>'
-    +'<ul class="args">'+p.args.map(function(x,i){return '<li'+(i>0?' class="more"':'')+'>'+esc(x)+'</li>'}).join('')+'</ul>'
-    +moreBtn
+    +'<span class="cat-tag">'+esc(a.cat)+'</span>'+pinTag+missTag+'<span class="p-time" title="发布于 '+(p.pub||'—')+'">'+fmtMins(p.mins)+'</span></div>'
+    +bodyHtml
     +chipsHtml(p.targets)
     +'<div class="p-foot">'
     +'<span class="stance '+p.stance+'"><i></i>'+STANCE_NAME[p.stance]+'<span class="ai">AI '+p.conf+'%</span></span>'
@@ -521,11 +554,23 @@ function renderAccGrid(){
   ACCOUNTS.forEach(function(a){
     var latest=null;POSTS.forEach(function(p){if(p.acc===a.id&&(!latest||p.mins<latest.mins))latest=p});
     var dots=a.traj.slice(-10).map(function(s){return '<i class="'+s+'"></i>'}).join('');
+    var upd='最近更新 '+(latest?fmtMins(latest.mins)+((a.plat==='dy'&&a.vid)?' · '+esc(a.vid.pub)+' 发布':''):'—');
+    var vp='';
+    if(latest){
+      var vc=latest.stance==='bull'?'var(--up)':(latest.stance==='bear'?'var(--down)':'var(--text-secondary)');
+      vp='<div class="acc-vp">主要观点 <b style="color:'+vc+'">'+STANCE_NAME[latest.stance]+' '+latest.conf+'%</b></div>';
+    }
+    var latestTxt=(latest?esc(latest.summary):'暂无已判断内容');
+    var media=((a.plat==='dy'&&a.vid)
+      ?'<div class="acc-media">'+vcoverHtml(a.vid,' sm')+'<div style="min-width:0"><div class="latest">'+latestTxt+'</div></div></div>'
+      :'<div class="latest">'+latestTxt+'</div>');
     h+='<div class="acc-card" data-acc="'+a.id+'">'
       +'<div class="top"><div class="ava" style="background:'+a.hue+'">'+esc(a.alias.slice(0,1))+'</div>'
       +'<div style="min-width:0"><div class="alias" style="display:flex;gap:5px;align-items:center">'+platBadge(a.plat)+esc(a.alias)+'</div>'
       +'<div class="hnd">'+esc(a.handle)+'</div></div></div>'
-      +'<div class="latest">'+(latest?esc(latest.summary):'暂无已判断内容')+'</div>'
+      +'<div class="acc-upd">'+upd+'</div>'
+      +vp
+      +media
       +'<div class="foot"><span class="cat-tag">'+esc(a.cat)+'</span><span class="mini-dots">'+dots+'</span><span style="margin-left:auto">时间线 →</span></div></div>';
   });
   $('#accGrid').innerHTML=h;
@@ -539,7 +584,8 @@ function openTimeline(id){
   $('#tlName').textContent=a.alias;
   var av=$('#tlAva');av.style.background=a.hue;av.textContent=a.alias.slice(0,1);
   $('#tlAlias').textContent=a.alias+' '+platBadge(a.plat);
-  $('#tlMeta').textContent=a.handle+' · '+a.cat+' · 轮询 '+a.interval+' · 最近采集 '+a.last;
+  var latest=null;POSTS.forEach(function(p){if(p.acc===id&&(!latest||p.mins<latest.mins))latest=p});
+  $('#tlMeta').textContent=a.handle+' · '+a.cat+' · 轮询 '+a.interval+' · 最近更新 '+(latest?fmtMins(latest.mins)+((a.plat==='dy'&&a.vid)?'（'+a.vid.pub+' 发布）':''):'—');
   var traj=a.traj;var streak=1;
   for(var i=traj.length-1;i>0;i--){if(traj[i-1]===traj[i])streak++;else break}
   $('#tlStreak').textContent='近 '+streak+' 条连续'+STANCE_NAME[traj[traj.length-1]];
@@ -660,6 +706,8 @@ document.addEventListener('click',function(e){
   if(tg){var card=document.getElementById('pc'+tg.getAttribute('data-toggle'));if(card)card.classList.toggle('open');tg.textContent=card&&card.classList.contains('open')?'收起论点 ▴':'展开全部论点 ▾';return}
   var ex=t.closest?t.closest('.ext'):null;
   if(ex){toast('跳转原平台：'+ex.getAttribute('data-ext')+'（演示外链）');return}
+  var vc=t.closest?t.closest('.vcover'):null;
+  if(vc){toast('播放/跳转原视频：「'+vc.getAttribute('data-vtitle')+'」（演示）');return}
 });
 
 $('#chClose').onclick=function(){$('#chBanner').style.display='none'};
