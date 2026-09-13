@@ -44,6 +44,26 @@ class Settings(BaseSettings):
     # 渠道调试采集（POST /admin/collector/channels/{id}/debug）单次超时（秒）
     collector_debug_timeout_seconds: float = 30.0
 
+    # 采集健康监测判定阈值（需求 02-monitoring §4.1；检测任务每日一次）
+    # 连续 N 个应成功计划窗口无 success 判 critical
+    health_consecutive_windows_critical: int = 2
+    # 自最近成功起连续失败 N 次判 degraded
+    health_consecutive_failures_degraded: int = 3
+    # 7 天成功率低于该值判 degraded（skipped 剔除口径）
+    health_success_rate_7d_threshold: float = 0.90
+    # 高频任务（单日场次>=48）只看当日成功率，低于该值判 degraded
+    health_high_freq_daily_rate_threshold: float = 0.80
+    # 超过 N 天无成功（含从未成功）判 silent
+    health_silent_days: int = 7
+    # 计划窗口宽限系数：窗口间隔 * 该系数内完成仍算按期
+    health_schedule_grace_factor: float = 1.5
+    # 连续 N 个计划窗口 skipped（且有历史成功）判 degraded（产出停滞）
+    health_skipped_stall_windows: int = 3
+    # 异常候选实例回查的最近运行明细条数（连败/最近错误取数）
+    health_recent_runs_per_instance: int = 20
+    # 快照陈旧判定倍数：checked_at 距今超过 N 倍检测间隔提示"检测延迟"
+    health_stale_after_multiplier: int = 2
+
     # MinIO
     minio_endpoint: str = "localhost:9000"
     minio_public_endpoint: str | None = None
