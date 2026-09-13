@@ -2,9 +2,10 @@
 
 import time
 from datetime import date
-from typing import Any
+from typing import Annotated, Any, get_args
 
-from langchain_core.tools import tool
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import InjectedToolArg, tool
 from pydantic import BaseModel
 
 from app.agent.tools.page_event import page_event
@@ -435,3 +436,37 @@ async def collect_market_data(
             "请稍后重新调用查询工具验证数据，仍缺失时如实告知用户。"
         ),
     }
+
+
+@tool
+async def get_kline_drawings(
+    target_type: str,
+    target_code: str,
+    config: Annotated[RunnableConfig, InjectedToolArg],
+) -> dict[str, Any]:
+    """查询标的 K 线画线（全周期）：用户画线（当前用户）+ AI 画线组，结构化 JSON。
+
+    分析标的趋势/技术形态前先调用本工具：画线的锚点几何代表用户标记的
+    支撑/压力/箱体等关键位置，标注文字（text）代表用户观点——采纳时直接引用，
+    持不同判断须显式说明依据；AI 画线组（ai）是历史 AI 生成结果，可作参考。
+
+    Args:
+        target_type: 标的类型："stock"（个股）/ "index"（指数）/ "sector"（板块）。
+        target_code: 标的代码，如 "600519"、"sh000001"。
+        config: LangGraph 运行时配置，自动注入当前用户 ID。
+    """
+    from app.schemas.drawing import KlineDrawingTargetType
+    from app.services.market import kline_drawing_service
+
+    if target_type not in get_args(KlineDrawingTargetType):
+        return {"error": f"target_type 须为 {get_args(KlineDrawingTargetType)} 之一"}
+    if not target_code.strip():
+        return {"error": "target_code 不能为空"}
+
+    user_id = int(config.get("configurable", {}).get("user_id", 0))
+    async with AsyncSessionLocal() as session:
+        service = kline_drawing_service.KlineDrawingService(session)
+        response = await service.list_drawings(
+            user_id, target_type, target_code.strip()
+        )
+    return response.model_dump(mode="json", by_alias=True, exclude_none=True)

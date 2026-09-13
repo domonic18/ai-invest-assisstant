@@ -38,7 +38,7 @@ from app.schemas.market import (
 
 @pytest.mark.unit
 class TestBuildAssistantTools:
-    def test_returns_twenty_eight_tools(self) -> None:
+    def test_returns_twenty_nine_tools(self) -> None:
         tools = build_assistant_tools()
         names = [t.name for t in tools]
         assert names == [
@@ -57,6 +57,7 @@ class TestBuildAssistantTools:
             "get_limit_up_ladder",
             "get_limit_up_pool",
             "get_index_technical",
+            "get_kline_drawings",
             "get_auction_summary",
             "get_trade_calendar",
             "query_industry_companies",
