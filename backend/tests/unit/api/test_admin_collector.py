@@ -106,7 +106,7 @@ class TestAdminCollectorEndpoints:
         assert response.status_code == 200
         items = response.json()["items"]
         names = {item["name"] for item in items}
-        assert len(items) == 49
+        assert len(items) == 50
         assert "fed-watch" in names
         assert "financial-statement" in names
         assert "stock-shares" in names

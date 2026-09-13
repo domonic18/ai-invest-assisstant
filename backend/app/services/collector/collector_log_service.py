@@ -21,11 +21,17 @@ class CollectorLogService:
         self.repo = CollectorLogRepository(session)
         self.dead_letter_repo = CollectorDeadLetterRepository(session)
 
-    async def list_recent(self, limit: int = 50) -> list[CollectorLog]:
-        """查询最近的采集执行日志，按开始时间倒序。"""
+    async def list_recent(
+        self,
+        limit: int = 50,
+        *,
+        task_name: str | None = None,
+        source: str | None = None,
+    ) -> list[CollectorLog]:
+        """查询最近的采集执行日志，按开始时间倒序（可按任务键/渠道过滤）。"""
         if limit <= 0 or limit > self.MAX_LIMIT:
             raise BadRequestError(f"limit must be between 1 and {self.MAX_LIMIT}")
-        return await self.repo.list_recent(limit)
+        return await self.repo.list_recent(limit, task_name=task_name, source=source)
 
     async def get_by_id(self, log_id: int) -> CollectorLog | None:
         """按主键查询单条采集执行日志。"""

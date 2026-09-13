@@ -29,6 +29,7 @@ from app.api.v1.admin import ai_results as admin_ai_results
 from app.api.v1.admin import collector as admin_collector
 from app.api.v1.admin import collector_channels as admin_collector_channels
 from app.api.v1.admin import collector_data_types as admin_collector_data_types
+from app.api.v1.admin import collector_health as admin_collector_health
 from app.api.v1.admin import llm_config as admin_llm_configs
 from app.api.v1.admin import mcp_configs as admin_mcp_configs
 from app.api.v1.admin import news as admin_news
@@ -81,6 +82,7 @@ admin_router.include_router(admin_telegraph.router, prefix="/telegraph")
 admin_router.include_router(admin_tasks.router, prefix="/tasks")
 admin_router.include_router(admin_system.router, prefix="/system")
 admin_router.include_router(admin_collector.router)
+admin_router.include_router(admin_collector_health.router)
 admin_router.include_router(admin_collector_data_types.router)
 admin_router.include_router(admin_collector_channels.router)
 admin_router.include_router(admin_llm_configs.router)

@@ -15,10 +15,20 @@ class CollectorLogRepository(BaseRepository[CollectorLog]):
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, CollectorLog)
 
-    async def list_recent(self, limit: int = 50) -> list[CollectorLog]:
-        """按开始时间倒序返回最近的采集日志。"""
-        stmt = select(CollectorLog).order_by(desc(CollectorLog.started_at)).limit(limit)
-        result = await self.execute(stmt)
+    async def list_recent(
+        self,
+        limit: int = 50,
+        *,
+        task_name: str | None = None,
+        source: str | None = None,
+    ) -> list[CollectorLog]:
+        """按开始时间倒序返回最近的采集日志（可按任务键/渠道过滤）。"""
+        stmt = select(CollectorLog).order_by(desc(CollectorLog.started_at))
+        if task_name:
+            stmt = stmt.where(CollectorLog.task_name == task_name)
+        if source:
+            stmt = stmt.where(CollectorLog.source == source)
+        result = await self.execute(stmt.limit(limit))
         return list(result.scalars().all())
 
     async def get_latest_running(self, *, max_age: timedelta) -> CollectorLog | None:
