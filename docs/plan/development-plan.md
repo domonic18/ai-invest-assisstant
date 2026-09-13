@@ -32,7 +32,7 @@
 
 | 迭代 | 主题 | 内容概要 | 状态 | 依赖 / 风险 |
 |------|------|----------|------|--------------|
-| 迭代 7 | 采集健康监测 | F-MON（[02-monitoring-requirement.md](../requirement/02-monitoring-requirement.md) + 原型定稿）：`collector_health_check` 每日盘前检测（healthy/degraded/critical/silent 状态机判定 + 错误归因分类）upsert `collector_health_status` 快照表；后台「采集健康」Tab 只读快照（总览/明细/计划核对/渠道视图 + 立即检测 + 侧边栏角标） | 实现中（分支 feature/watchlist-ui-overhaul） | 判定引擎/admin API/前端/单测已实现并通过质量门槛，镜像已重建；待浏览器页面验收；02 文档已修订至 V1.1（定时物化方案） |
+| 迭代 7 | 采集健康监测 | F-MON（[02-monitoring-requirement.md](../requirement/02-monitoring-requirement.md) + 原型定稿）：`collector_health_check` 每日盘前检测（healthy/degraded/critical/silent 状态机判定 + 错误归因分类）upsert `collector_health_status` 快照表；后台「采集健康」Tab 只读快照（总览/明细/计划核对/渠道视图 + 立即检测 + 侧边栏角标） | 实现中（分支 feature/watchlist-ui-overhaul） | 判定引擎/admin API/前端/单测已实现并通过质量门槛；验收反馈轮已完成：快照异常实例逐项评估与数据处置（a50 本地库对齐 seed 切新浪、dragon-list 补定时行、断供任务补跑验证）+ 前端视觉对齐原型（页头/告警条内联明细/统计卡/域分组明细/渠道 timeline/归因分布）；待用户浏览器走查；02 文档已修订至 V1.1（定时物化方案） |
 | 迭代 8 | K 线画线与 AI 智能画线 | 用户画线五类型（趋势线/射线/水平线/箱体/文字，数据坐标锚定，个股/板块/大盘同能力，周期严格隔离）；AI 画线仅对话触发（画线前问题卡确认）+ 人工原位编辑与采纳；Agent 读画线（含文字标识）注入复盘与趋势分析。需求/原型/架构定稿：[03](../requirement/03-kline-drawing-requirement.md)、[arch 09](../arch/09-kline-drawing.md) | 设计定稿，未开工 | ECharts graphic 图层改造两套图表组件；ask_user 问题卡为通用底座先行 |
 | 待立项 | 账号准入与 AI 用量治理 | F-ACCT（[05](../requirement/05-account-quota-requirement.md) 定稿）：注册审批准入、Token 逐次计量与一次性总量配额、自备 API Key（BYOK，失败不回退系统模型） | 需求定稿，原型待制作 | 公网部署前须落地；取代 F-USER-03 回退口径（冲突已在 05 §2 声明） |
 | 待立项 | 温成趋势理论知识库 | F-KB（[04](../requirement/04-knowledge-base-requirement.md) 定稿）：视频课程转结构化知识库（集数+句级时间点溯源、防盗播放）、后台建库管线（转写/知识点审核/索引构建）、Agent 运行时引用与技能自主优化建议 | 需求定稿，原型待制作 | 转写与索引管线工作量为大头；仅内部使用 |
