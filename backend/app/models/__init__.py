@@ -7,8 +7,8 @@ from app.models.capital_fund_flow_stock import FundFlow
 from app.models.chain_alert import ChainAlert
 from app.models.collector_channel_config import CollectorChannelConfig
 from app.models.collector_channel_data_type import CollectorChannelDataType
-from app.models.collector_log import CollectorLog
 from app.models.collector_health_status import CollectorHealthStatus
+from app.models.collector_log import CollectorLog
 from app.models.collector_task import CollectorTask
 from app.models.fed_watch import FedWatchProbability, FedWatchSnapshot
 from app.models.file_metadata import FileMetadata

@@ -2,7 +2,8 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, DateTime, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.clock import utc_now
@@ -38,6 +39,9 @@ class CollectorHealthStatus(Base):
     )
     last_error_summary: Mapped[str | None] = mapped_column(String(500), nullable=True)
     last_error_cause: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    reasons: Mapped[list[str]] = mapped_column(
+        JSONB().with_variant(JSON(), "sqlite"), nullable=False, default=list
+    )
     is_high_frequency: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     last_records_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_records_date: Mapped[date | None] = mapped_column(Date, nullable=True)

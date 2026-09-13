@@ -269,6 +269,26 @@ async def has_daily_bar(session: AsyncSession, code: str, day: date) -> bool:
     return (count or 0) > 0
 
 
+async def fetch_trade_dates_between(
+    session: AsyncSession, start: date, end: date
+) -> set[date]:
+    """区间内 A 股交易日集合（sh000001 日 K 权威口径）。
+
+    采集健康监测用它判定「应跑窗口」与豁免节假日静默，
+    一次区间查询批量预取，避免逐日探测。
+    """
+    rows = await session.execute(
+        select(KlineDaily.trade_date)
+        .where(
+            KlineDaily.stock_code == "sh000001",
+            KlineDaily.trade_date >= start,
+            KlineDaily.trade_date <= end,
+        )
+        .distinct()
+    )
+    return {row[0] for row in rows}
+
+
 async def list_sector_kline_by_name(
     session: AsyncSession, sector_name: str, limit: int = 250
 ) -> list[SectorKlineDaily]:

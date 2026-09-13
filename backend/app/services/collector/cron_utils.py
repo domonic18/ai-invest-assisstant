@@ -42,3 +42,22 @@ def cron_interval(
         return fallback
     gaps = [b - a for a, b in zip(times, times[1:])]
     return max(gaps)
+
+
+def cron_cadence(
+    schedule: str | None,
+    day_start: datetime,
+    fallback: timedelta = DEFAULT_FALLBACK_INTERVAL,
+) -> timedelta:
+    """cron 名义节奏：相邻触发的最小间隔（健康窗口宽限用）。
+
+    用最小间隔剔除日内/跨日最大空档（午休、隔夜）的影响，
+    使「分钟级任务」的宽限窗口反映其真实采集节奏。
+    """
+    if not schedule:
+        return fallback
+    times = expand_cron(schedule, day_base(day_start))
+    if len(times) < 2:
+        return fallback
+    gaps = [b - a for a, b in zip(times, times[1:])]
+    return min(gaps)
