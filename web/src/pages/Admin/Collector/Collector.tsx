@@ -1,6 +1,7 @@
 import { PlayCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import { Alert, Button, Card, Space, Spin, Table, Tag, Typography, message } from 'antd'
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import {
   useCollectorLogs,
@@ -19,7 +20,13 @@ import { CollectorTaskModal } from './CollectorTaskModal'
 import { statusLabel, statusTagColor } from '@ai-invest/shared'
 
 export function Collector() {
-  const { data: logs, isLoading, refetch } = useCollectorLogs(20)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const taskNameFilter = searchParams.get('taskName')
+  const sourceFilter = searchParams.get('source')
+  const { data: logs, isLoading, refetch } = useCollectorLogs(20, {
+    taskName: taskNameFilter,
+    source: sourceFilter,
+  })
   const { data: catalog } = useCollectorTaskCatalog()
   const runMutation = useRunCollectorTask()
 
@@ -32,6 +39,12 @@ export function Collector() {
   const handleOpenModal = (task: CollectorTaskOption) => {
     setSelectedTask(task)
     setModalOpen(true)
+  }
+
+  const removeFilter = (key: 'taskName' | 'source') => {
+    const next = new URLSearchParams(searchParams)
+    next.delete(key)
+    setSearchParams(next, { replace: true })
   }
 
   const handleRun = async (taskName: CollectorTaskName, options: CollectorTaskRunOptions) => {
@@ -118,6 +131,22 @@ export function Collector() {
         showIcon
         className="mb-4"
       />
+
+      {(taskNameFilter || sourceFilter) && (
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-sm text-gray-500">日志过滤：</span>
+          {taskNameFilter && (
+            <Tag closable onClose={() => removeFilter('taskName')}>
+              {getTaskLabel(taskNameFilter)}
+            </Tag>
+          )}
+          {sourceFilter && (
+            <Tag closable onClose={() => removeFilter('source')}>
+              {getSourceLabel(sourceFilter)}
+            </Tag>
+          )}
+        </div>
+      )}
 
       <Space wrap className="mb-6">
         {taskOptions.length === 0 ? (
