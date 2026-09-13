@@ -17,9 +17,16 @@ interface SectorChartAreaProps {
   markers?: { date: string; label?: string }[]
   /** 容器总高（含工具栏）；双图时按权重切分。 */
   height?: number
+  /** 画线归属（板块代码）；不传则不启用画线图层。 */
+  drawingCode?: string
 }
 
-export function SectorChartArea({ bars, markers, height = 640 }: SectorChartAreaProps) {
+export function SectorChartArea({
+  bars,
+  markers,
+  height = 640,
+  drawingCode,
+}: SectorChartAreaProps) {
   const [dual, setDual] = useState(() => {
     try {
       return localStorage.getItem(DUAL_STORAGE_KEY) !== '0'
@@ -93,6 +100,7 @@ export function SectorChartArea({ bars, markers, height = 640 }: SectorChartArea
           height={viewHeights[i] ?? MIN_CHART_HEIGHT}
           defaultPeriod={view.period}
           defaultIndicators={view.indicators}
+          drawingCode={drawingCode}
           layoutToggle={
             i === 0 ? { value: dual, onChange: handleDualChange } : undefined
           }

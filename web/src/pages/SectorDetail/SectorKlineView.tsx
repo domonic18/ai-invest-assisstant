@@ -1,6 +1,8 @@
 import ReactECharts from 'echarts-for-react'
 import { useMemo, useState } from 'react'
+import type { ECharts } from 'echarts'
 
+import { DrawingLayerHost } from '@/components/charts/drawing/DrawingLayerHost'
 import { ChartToolbar } from '@/components/charts/stockChartView/ChartToolbar'
 import { BORDER_COLOR, PANEL_BG } from '@/components/charts/stockChartView/constants'
 import {
@@ -26,6 +28,8 @@ interface SectorKlineViewProps {
   defaultIndicators?: Partial<StockChartViewIndicators>
   /** 单图/双图切换（仅首图工具栏展示）。 */
   layoutToggle?: { value: boolean; onChange: (dual: boolean) => void }
+  /** 画线归属（板块代码）；不传则不启用画线图层。 */
+  drawingCode?: string
 }
 
 export function SectorKlineView({
@@ -35,6 +39,7 @@ export function SectorKlineView({
   defaultPeriod = 'daily',
   defaultIndicators = {},
   layoutToggle,
+  drawingCode,
 }: SectorKlineViewProps) {
   const [period, setPeriod] = useState<'daily' | 'weekly'>(defaultPeriod)
   const [indicators, setIndicators] = useState<StockChartViewIndicators>({
@@ -42,6 +47,9 @@ export function SectorKlineView({
     ...defaultIndicators,
   })
   const maConfigs = useMaConfigs()
+
+  // 画线图层实例（onChartReady 捕获）；未传 drawingCode 时不启用
+  const [drawingChart, setDrawingChart] = useState<ECharts | null>(null)
 
   const { rootRef, isFullscreen, fsHeight, toggleFullscreen } = useChartFullscreen()
   const effectiveHeight = fsHeight ?? height
@@ -151,13 +159,14 @@ export function SectorKlineView({
           setIndicators((prev) => ({ ...prev, [key]: !prev[key] }))
         }
         periodOptions={SECTOR_PERIOD_OPTIONS}
+        drawing={!!drawingCode}
         layoutToggle={layoutToggle}
         onResetZoom={resetZoom}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
       />
       {option ? (
-        <div {...wrapperProps}>
+        <div {...wrapperProps} className="relative">
           <ReactECharts
             ref={chartRef}
             option={option}
@@ -165,7 +174,16 @@ export function SectorKlineView({
             onEvents={onEvents}
             opts={{ renderer: 'canvas' }}
             notMerge
+            onChartReady={setDrawingChart}
           />
+          {drawingCode && (
+            <DrawingLayerHost
+              chart={drawingChart}
+              dates={chartData?.dates ?? []}
+              target={{ targetType: 'sector', targetCode: drawingCode }}
+              period={period}
+            />
+          )}
         </div>
       ) : (
         <div

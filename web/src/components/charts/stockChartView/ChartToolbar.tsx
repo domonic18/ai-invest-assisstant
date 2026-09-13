@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { useSettingsStore } from '@/stores/settings'
 
+import { DrawingToolbar } from '../drawing/DrawingToolbar'
 import { BORDER_COLOR, PERIOD_OPTIONS } from './constants'
 import type { StockChartViewIndicators } from './StockChartView'
 
@@ -28,6 +29,8 @@ interface ChartToolbarProps {
   /** 周期选项子集（缺省展示个股全部周期，如板块仅 日K/周K）。 */
   periodOptions?: { label: string; value: string }[]
   layoutToggle?: { value: boolean; onChange: (dual: boolean) => void }
+  /** 画线工具条（分钟线等不支持画线的视图关闭）。 */
+  drawing?: boolean
   onResetZoom: () => void
   isFullscreen: boolean
   onToggleFullscreen: () => void
@@ -40,6 +43,7 @@ export function ChartToolbar({
   onToggleIndicator,
   periodOptions = PERIOD_OPTIONS,
   layoutToggle,
+  drawing = false,
   onResetZoom,
   isFullscreen,
   onToggleFullscreen,
@@ -84,6 +88,8 @@ export function ChartToolbar({
         ))}
       </div>
       <span className="w-px h-4 bg-[#23262d]" />
+      {drawing && <DrawingToolbar />}
+      {drawing && <span className="w-px h-4 bg-[#23262d]" />}
       <Dropdown
         trigger={['click']}
         menu={{
