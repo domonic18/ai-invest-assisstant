@@ -45,6 +45,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
             "index-minute",
             "stock-minute",
             "etf-kline",
+            "a50-kline",
         ],
         "extra": {},
     },

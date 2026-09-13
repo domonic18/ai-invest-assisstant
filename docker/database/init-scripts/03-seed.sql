@@ -72,6 +72,18 @@ FROM collector_channel_config
 WHERE source = 'tushare'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
+-- 防御性补齐 sina 渠道的 a50-kline 数据类型（东财封禁后的 A50 主渠道）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["a50-kline"]'::jsonb
+WHERE source = 'sina'
+  AND NOT supported_data_types @> '["a50-kline"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'a50-kline', 1
+FROM collector_channel_config
+WHERE source = 'sina'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
 -- 防御性补齐 eastmoney 渠道的 news 数据类型（东财全球快讯；渠道已存在时）
 UPDATE collector_channel_config
 SET supported_data_types = supported_data_types || '["news"]'::jsonb
@@ -124,8 +136,9 @@ VALUES
     ('sina_etf_kline', 'etf-kline', 'sina', '5 16 * * 1-5', true),
     -- 须晚于 eastmoney_limit_up_pool（16:00），个股分钟线供涨停复盘分时缩略图
     ('sina_stock_minute', 'stock-minute', 'sina', '20 16,18 * * 1-5', true),
-    -- A50 期指日盘 16:30 收盘，17:40 取当日日 K，21:40 夜盘修正
-    ('eastmoney_a50_kline', 'a50-kline', 'eastmoney', '40 17,21 * * 1-5', true),
+    -- A50 期指日盘 16:30 收盘，17:40 取当日日 K，21:40 夜盘修正；
+    -- eastmoney 已被 WAF 路径级封死，仅作渠道兜底，不再排期
+    ('sina_a50_kline', 'a50-kline', 'sina', '40 17,21 * * 1-5', true),
     -- 16:30 收盘批数据就绪后生成大盘综述 AI base，避免多租户重复调用 LLM
     ('market_daily_review_1630', 'market-daily-review', 'internal', '30 16 * * 1-5', true),
     -- 16:30 涨停股池（16:00 批次）落库后生成涨停 AI 归因，与复盘同批串行执行
