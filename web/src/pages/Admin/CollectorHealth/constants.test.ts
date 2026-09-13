@@ -6,6 +6,7 @@ import type { ApiCollectorHealthTaskItem } from '@ai-invest/shared'
 import { domainGroupStats, lastSuccessText } from './constants'
 
 describe('lastSuccessText', () => {
+  // 用无时区偏移的本地 wall-clock 字符串，断言与 runner 时区无关
   const now = dayjs('2026-09-13T15:00:00')
 
   it('returns 从未成功 for null', () => {
@@ -13,19 +14,19 @@ describe('lastSuccessText', () => {
   })
 
   it('formats today as 今天 HH:mm', () => {
-    expect(lastSuccessText('2026-09-13T09:25:00+08:00', now)).toBe('今天 09:25')
+    expect(lastSuccessText('2026-09-13T09:25:00', now)).toBe('今天 09:25')
   })
 
   it('formats yesterday as 昨天 HH:mm', () => {
-    expect(lastSuccessText('2026-09-12T21:40:00+08:00', now)).toBe('昨天 21:40')
+    expect(lastSuccessText('2026-09-12T21:40:00', now)).toBe('昨天 21:40')
   })
 
   it('formats within 30 days as N 天前', () => {
-    expect(lastSuccessText('2026-08-31T18:00:00+08:00', now)).toBe('13 天前')
+    expect(lastSuccessText('2026-08-31T18:00:00', now)).toBe('13 天前')
   })
 
   it('falls back to MM-DD at or beyond 30 days', () => {
-    expect(lastSuccessText('2026-08-10T18:00:00+08:00', now)).toBe('08-10')
+    expect(lastSuccessText('2026-08-10T18:00:00', now)).toBe('08-10')
   })
 })
 
@@ -47,8 +48,8 @@ function task(overrides: Partial<ApiCollectorHealthTaskItem>): ApiCollectorHealt
     isHighFrequency: false,
     lastRecordsCount: null,
     lastRecordsDate: null,
-    stateChangedAt: '2026-09-13T00:00:00+08:00',
-    checkedAt: '2026-09-13T00:00:00+08:00',
+    stateChangedAt: '2026-09-13T00:00:00',
+    checkedAt: '2026-09-13T00:00:00',
     schedule: null,
     isActive: true,
     ...overrides,
