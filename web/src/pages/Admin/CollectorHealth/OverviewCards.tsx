@@ -1,95 +1,93 @@
-import { Card, Col, Row, Statistic } from 'antd'
+import type { ReactNode } from 'react'
 
-import type { ApiCollectorHealthOverview } from '@ai-invest/shared'
+import type { ApiCollectorHealthOverview, ApiCollectorHealthTaskItem } from '@ai-invest/shared'
 
-import { domainLabel, rateText, STATUS_META } from './constants'
+import { rateText } from './constants'
 
 interface OverviewCardsProps {
   overview: ApiCollectorHealthOverview
+  tasks: ApiCollectorHealthTaskItem[]
 }
 
-export function OverviewCards({ overview }: OverviewCardsProps) {
+interface StatCardProps {
+  label: string
+  value: ReactNode
+  valueColor?: string
+  dotColor?: string
+  foot?: ReactNode
+}
+
+/** 统计卡：label + 大数字 + foot 上下文行（原型 stat-card 结构）。 */
+export function OverviewCards({ overview, tasks }: OverviewCardsProps) {
   const { healthScore, counts, successRate24h } = overview
+  const overdue = tasks.filter((t) => t.windowsWithoutSuccess > 0)
+  const overdueWindows = overdue.reduce((sum, t) => sum + t.windowsWithoutSuccess, 0)
+  const judgeable = overview.total - counts.paused - counts.unconfigured
+  const scoreColor = healthScore >= 90 ? '#2ea043' : healthScore >= 60 ? '#d29922' : '#f85149'
+  const faultCount = counts.critical + counts.silent
 
   return (
-    <div className="space-y-4">
-      <Row gutter={[16, 16]}>
-        <Col xs={12} md={6}>
-          <Card size="small">
-            <Statistic
-              title="健康分"
-              value={healthScore}
-              precision={0}
-              suffix="/ 100"
-              valueStyle={{
-                color: healthScore >= 90 ? '#2ea043' : healthScore >= 60 ? '#d29922' : '#f85149',
-              }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} md={6}>
-          <Card size="small">
-            <Statistic
-              title="进行中故障"
-              value={counts.critical}
-              valueStyle={{ color: counts.critical > 0 ? '#f85149' : undefined }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} md={6}>
-          <Card size="small">
-            <Statistic
-              title="静默（超 7 天无成功）"
-              value={counts.silent}
-              valueStyle={{ color: counts.silent > 0 ? '#f85149' : undefined }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} md={6}>
-          <Card size="small">
-            <Statistic
-              title="24h 成功率"
-              value={rateText(successRate24h)}
-              valueStyle={{ color: successRate24h != null && successRate24h < 0.8 ? '#d29922' : undefined }}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      <Card size="small" title="按数据域概览">
-        <Row gutter={[12, 12]}>
-          {overview.domains.map((d) => (
-            <Col xs={12} sm={8} md={6} lg={3} key={d.domain}>
-              <div className="rounded border border-gray-200 p-2">
-                <div className="text-sm font-medium mb-1">{domainLabel(d.domain)}</div>
-                <StatusDots domain={d} />
-              </div>
-            </Col>
-          ))}
-        </Row>
-      </Card>
+    <div className="grid grid-cols-2 gap-3.5 md:grid-cols-3 xl:grid-cols-5">
+      <StatCard
+        label="整体健康分"
+        value={healthScore}
+        valueColor={scoreColor}
+        dotColor={scoreColor}
+        foot={
+          <span>
+            {counts.healthy} 健康 · {counts.degraded} 观察 / {judgeable} 可判定
+          </span>
+        }
+      />
+      <StatCard
+        label="进行中故障"
+        value={faultCount}
+        valueColor={faultCount > 0 ? '#f85149' : undefined}
+        dotColor={faultCount > 0 ? '#f85149' : '#2ea043'}
+        foot={
+          <span>
+            critical {counts.critical} · silent {counts.silent}
+          </span>
+        }
+      />
+      <StatCard
+        label="降级观察"
+        value={counts.degraded}
+        valueColor={counts.degraded > 0 ? '#d29922' : undefined}
+        dotColor={counts.degraded > 0 ? '#d29922' : '#2ea043'}
+        foot={<span>成功率 / 连败 / 产出停滞</span>}
+      />
+      <StatCard
+        label="脱期任务"
+        value={overdue.length}
+        valueColor={overdue.length > 0 ? '#f85149' : undefined}
+        dotColor={overdue.length > 0 ? '#f85149' : '#2ea043'}
+        foot={<span>缺口窗口合计 {overdueWindows}</span>}
+      />
+      <StatCard
+        label="24h 成功率"
+        value={rateText(successRate24h)}
+        valueColor={successRate24h != null && successRate24h < 0.8 ? '#d29922' : '#2ea043'}
+        dotColor={successRate24h != null && successRate24h < 0.8 ? '#d29922' : '#2ea043'}
+        foot={<span>skipped 剔除口径</span>}
+      />
     </div>
   )
 }
 
-function StatusDots({ domain }: { domain: ApiCollectorHealthOverview['domains'][number] }) {
-  const entries = [
-    { key: 'healthy', count: domain.healthy },
-    { key: 'degraded', count: domain.degraded },
-    { key: 'critical', count: domain.critical },
-    { key: 'silent', count: domain.silent },
-  ] as const
-  const visible = entries.filter((e) => e.count > 0)
-  if (visible.length === 0) {
-    return <span className="text-xs text-gray-400">无实例</span>
-  }
+function StatCard({ label, value, valueColor, dotColor, foot }: StatCardProps) {
   return (
-    <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs">
-      {visible.map((e) => (
-        <span key={e.key} style={{ color: STATUS_META[e.key as keyof typeof STATUS_META].color }}>
-          {STATUS_META[e.key as keyof typeof STATUS_META].label} {e.count}
-        </span>
-      ))}
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="mb-2 text-xs text-gray-400">{label}</div>
+      <div className="text-[26px] font-bold leading-8 tracking-tight" style={{ color: valueColor }}>
+        {value}
+      </div>
+      <div className="mt-2 flex items-center gap-1.5 text-[11px] text-gray-400">
+        {dotColor && (
+          <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: dotColor }} />
+        )}
+        {foot}
+      </div>
     </div>
   )
 }

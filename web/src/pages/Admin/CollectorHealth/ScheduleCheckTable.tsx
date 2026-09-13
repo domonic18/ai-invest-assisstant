@@ -6,14 +6,14 @@ import { useState } from 'react'
 import { getSourceLabel, getTaskLabel } from '@/utils/collectorTaskLabels'
 import type { ApiCollectorScheduleCheckItem } from '@ai-invest/shared'
 
-import { causeLabel, domainLabel, ROLE_META } from './constants'
+import { causeLabel, ROLE_CHIP } from './constants'
 import { useCollectorHealthScheduleCheck } from '@/hooks/useCollectorHealth'
 
 const WINDOW_COLUMNS = [
-  { key: 'success', label: '按期成功', color: '#2ea043' },
-  { key: 'skipped', label: '豁免跳过', color: '#8a8f98' },
-  { key: 'failed', label: '失败', color: '#f85149' },
-  { key: 'missing', label: '应跑未跑', color: '#f85149' },
+  { key: 'success', label: '成功', full: '按期成功', color: '#2ea043' },
+  { key: 'skipped', label: '跳过', full: '豁免跳过', color: '#8a8f98' },
+  { key: 'failed', label: '失败', full: '失败', color: '#f85149' },
+  { key: 'missing', label: '未跑', full: '应跑未跑', color: '#f85149' },
 ] as const
 
 export function ScheduleCheckTable() {
@@ -25,37 +25,42 @@ export function ScheduleCheckTable() {
       title: '任务实例',
       dataIndex: 'taskType',
       key: 'taskType',
-      render: (_: string, record: ApiCollectorScheduleCheckItem) => (
-        <div>
-          <div>{getTaskLabel(record.taskType)}</div>
-          <Typography.Text type="secondary" className="text-xs">
-            {record.taskType} · {getSourceLabel(record.source)} · {domainLabel(record.domain)}
-          </Typography.Text>
-        </div>
-      ),
-    },
-    {
-      title: '角色',
-      dataIndex: 'role',
-      key: 'role',
-      width: 90,
-      render: (role: string) => {
-        const meta = ROLE_META[role]
-        return meta ? <Tag color={meta.color}>{meta.label}</Tag> : role
+      render: (_: string, record: ApiCollectorScheduleCheckItem) => {
+        const role = ROLE_CHIP[record.role]
+        return (
+          <div className="whitespace-nowrap">
+            <div>{getTaskLabel(record.taskType)}</div>
+            <Typography.Text type="secondary" className="text-xs">
+              {record.taskType} · {getSourceLabel(record.source)}
+              {role && (
+                <span
+                  className="ml-1.5 rounded px-1 text-[10px] leading-4"
+                  style={{ color: role.color, background: role.bg }}
+                >
+                  {role.label}
+                </span>
+              )}
+            </Typography.Text>
+          </div>
+        )
       },
     },
     {
       title: 'cron',
       dataIndex: 'schedule',
       key: 'schedule',
-      width: 130,
+      width: 110,
       responsive: ['xl'],
       render: (value: string | null) => (value ? <code className="text-xs">{value}</code> : '-'),
     },
     ...WINDOW_COLUMNS.map((col) => ({
-      title: col.label,
+      title: (
+        <Tooltip title={col.full}>
+          <span>{col.label}</span>
+        </Tooltip>
+      ),
       key: col.key,
-      width: 90,
+      width: 64,
       align: 'center' as const,
       render: (_: unknown, record: ApiCollectorScheduleCheckItem) => {
         if (record.exempted) return <span className="text-gray-400">-</span>
@@ -71,7 +76,7 @@ export function ScheduleCheckTable() {
       title: '豁免',
       dataIndex: 'exempted',
       key: 'exempted',
-      width: 70,
+      width: 56,
       align: 'center' as const,
       render: (exempted: boolean) => (exempted ? <Tag>豁免</Tag> : '-'),
     },
@@ -79,7 +84,6 @@ export function ScheduleCheckTable() {
       title: '最近错误',
       dataIndex: 'lastErrorSummary',
       key: 'lastErrorSummary',
-      width: 240,
       ellipsis: true,
       render: (_: string | null, record: ApiCollectorScheduleCheckItem) =>
         record.lastErrorSummary ? (
@@ -100,7 +104,7 @@ export function ScheduleCheckTable() {
       size="small"
       title={
         <div className="flex items-center gap-3">
-          <span>计划核对（应跑 vs 实跑）</span>
+          <span>计划核对 · {day}</span>
           <DatePicker
             value={dayjs(day)}
             allowClear={false}
@@ -126,7 +130,6 @@ export function ScheduleCheckTable() {
           rowKey={(record) => `${record.taskType}::${record.source}`}
           loading={isLoading}
           pagination={false}
-          scroll={{ x: 900 }}
         />
       </Tooltip>
     </Card>
