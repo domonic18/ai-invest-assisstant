@@ -1177,3 +1177,38 @@ CREATE TABLE IF NOT EXISTS market_anomaly_stock (
 
 CREATE INDEX IF NOT EXISTS idx_market_anomaly_stock_date
     ON market_anomaly_stock(trade_date DESC);
+
+-- ============================================================
+-- collector_health_status：采集健康快照（collector_health_check 定时任务
+-- upsert；页面只读快照）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS collector_health_status (
+    id                      BIGSERIAL PRIMARY KEY,
+    task_type               VARCHAR(64) NOT NULL,          -- TASK_SPECS 键
+    source                  VARCHAR(50) NOT NULL,          -- 渠道标识
+    status                  VARCHAR(16) NOT NULL,          -- healthy/degraded/critical/silent/paused/unconfigured
+    role                    VARCHAR(8)  NOT NULL,          -- primary/backup/single
+    domain                  VARCHAR(16) NOT NULL,          -- 数据域（TASK_TYPE_DOMAIN）
+    success_rate_24h        NUMERIC(6, 5),                 -- skipped 剔除口径
+    success_rate_7d         NUMERIC(6, 5),
+    consecutive_failures    INT         NOT NULL DEFAULT 0,
+    last_success_at         TIMESTAMPTZ,
+    windows_without_success INT         NOT NULL DEFAULT 0, -- 应成功而未成功的计划窗口数
+    last_error_summary      VARCHAR(500),
+    last_error_cause        VARCHAR(16),                   -- 错误归因分类
+    reasons                 JSONB        NOT NULL DEFAULT '[]'::jsonb, -- 判定依据（why，按序）
+    is_high_frequency       BOOLEAN     NOT NULL DEFAULT FALSE, -- 单日场次>=48
+    last_records_count      INT,                           -- 最近一次入库量
+    last_records_date       DATE,
+    state_changed_at        TIMESTAMPTZ NOT NULL,          -- 状态翻转时间
+    checked_at              TIMESTAMPTZ NOT NULL,          -- 本次检测时间（同批次同值）
+
+    CONSTRAINT uq_collector_health_status UNIQUE (task_type, source),
+    CONSTRAINT chk_collector_health_status_status CHECK (status IN
+        ('healthy', 'degraded', 'critical', 'silent', 'paused', 'unconfigured')),
+    CONSTRAINT chk_collector_health_status_role CHECK (role IN ('primary', 'backup', 'single'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_collector_health_status_status
+    ON collector_health_status(status);

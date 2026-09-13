@@ -16,23 +16,23 @@ VALUES
 ON CONFLICT (stock_code, market) DO NOTHING;
 
 -- market_daily_review_1630 / limit_up_ai_review_1630 / stock_daily_analysis_1640 /
--- chain_refresh_weekly / collector_log_cleanup_daily / kline_freshness_evening 任务的
--- internal 渠道（内部生成，非外部数据源）
+-- chain_refresh_weekly / collector_log_cleanup_daily / kline_freshness_evening /
+-- collector_health_check 任务的 internal 渠道（内部生成，非外部数据源）
 -- supported_data_types 与 collector_channel_data_type 按任务名登记（渠道解析/beat 派发以任务名为键）
 INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
-VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly"]'::jsonb)
+VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "health-check", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly"]'::jsonb)
 ON CONFLICT (source) DO NOTHING;
 
 -- 兼容存量环境：internal 渠道已存在时补齐后续新增的数据类型
 UPDATE collector_channel_config
-SET supported_data_types = supported_data_types || '["stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly"]'::jsonb
+SET supported_data_types = supported_data_types || '["stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "health-check", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly"]'::jsonb
 WHERE source = 'internal'
   AND NOT supported_data_types @> '["chain-refresh"]'::jsonb;
 
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, d.data_type, 1
 FROM collector_channel_config,
-     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic'), ('sector-anomaly'), ('stock-anomaly')) AS d(data_type)
+     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('health-check'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic'), ('sector-anomaly'), ('stock-anomaly')) AS d(data_type)
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
@@ -163,7 +163,10 @@ VALUES
     ('tushare_stock_shares_weekly', 'stock-shares', 'tushare', '0 3 * * 6', true),
     -- 交易日晚间校验自选股/指数/ETF/A50 日 K 是否覆盖最近交易日，缺失则重跑采集自愈
     -- （新浪当日 bar 收盘后存在发布滞后，18:30/21:00 两档兜底；数据已齐时良性 SKIPPED）
-    ('kline_freshness_evening', 'kline-freshness', 'internal', '30 18,21 * * 1-5', true)
+    ('kline_freshness_evening', 'kline-freshness', 'internal', '30 18,21 * * 1-5', true),
+    -- 采集健康检测：每日 08:30 盘前，判定结果 upsert 到 collector_health_status 快照表
+    -- （常驻约 50 行）；频次可在任务配置页调 cron
+    ('collector_health_check', 'health-check', 'internal', '30 8 * * *', true)
 ON CONFLICT (task_name) DO NOTHING;
 
 -- ============================================================

@@ -14,4 +14,12 @@ SPECS: tuple[TaskSpec, ...] = (
             ),
         },
     ),
+    TaskSpec(
+        name="health-check",
+        label="采集健康检测",
+        data_type="health_check",
+        collectors={
+            "internal": "collector.spiders.health_check:HealthCheckCollector",
+        },
+    ),
 )

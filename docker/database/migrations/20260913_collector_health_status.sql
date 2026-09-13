@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS collector_health_status (
     windows_without_success INT         NOT NULL DEFAULT 0, -- 应成功而未成功的计划窗口数
     last_error_summary      VARCHAR(500),
     last_error_cause        VARCHAR(16),                   -- 错误归因分类
+    reasons                 JSONB        NOT NULL DEFAULT '[]'::jsonb, -- 判定依据（why，按序）
     is_high_frequency       BOOLEAN     NOT NULL DEFAULT FALSE, -- 单日场次>=48
     last_records_count      INT,                           -- 最近一次入库量
     last_records_date       DATE,
