@@ -48,6 +48,12 @@ export const queryKeys = {
     taskChannels: (taskName: string) => ['collector-task-channels', taskName] as const,
     channels: ['collector-channel-configs'] as const,
     dataTypes: ['collector-data-type-channels'] as const,
+    healthAll: ['collector-health'] as const,
+    healthOverview: ['collector-health', 'overview'] as const,
+    healthTasks: (domain: string | null, status: string | null) =>
+      ['collector-health', 'tasks', domain, status] as const,
+    healthChannels: ['collector-health', 'channels'] as const,
+    healthScheduleCheck: (date: string) => ['collector-health', 'schedule-check', date] as const,
   },
   financial: {
     all: ['financial'] as const,

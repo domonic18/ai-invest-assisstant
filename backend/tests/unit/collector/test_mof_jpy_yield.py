@@ -73,7 +73,8 @@ class TestMofJpyYieldCollector:
     async def test_collect_parses_csv(self) -> None:
         collector = MofJpyYieldCollector(config={"source": "mof"})
 
-        def _download() -> str:
+        def _download(csv_url: str = "") -> str:
+            assert csv_url == collector.csv_url
             return _CSV_SAMPLE
 
         with patch(

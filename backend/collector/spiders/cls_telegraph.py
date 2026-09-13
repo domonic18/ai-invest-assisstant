@@ -22,8 +22,9 @@ from collector.spiders.cls_sign import DEFAULT_SV, build_cls_sign, extract_sv
 
 logger = structlog.get_logger(__name__)
 
-_TELEGRAPH_PAGE_URL = "https://www.cls.cn/telegraph"
-_ROLL_LIST_URL = "https://www.cls.cn/v1/roll/get_roll_list"
+DEFAULT_BASE_URL = "https://www.cls.cn"
+_TELEGRAPH_PAGE_PATH = "/telegraph"
+_ROLL_LIST_PATH = "/v1/roll/get_roll_list"
 
 _LEVEL_TO_IMPORTANCE = {"A": 3, "B": 2, "C": 1}
 
@@ -42,13 +43,14 @@ def shared_session() -> CffiSession:
     return _session
 
 
-def warm_session() -> str:
+def warm_session(base_url: str | None = None) -> str:
     """首访电报页取 WAF Cookie 并刷新 sv 缓存，返回当前 sv。
 
     失败时抛出原始异常，由调用方决定退避重试节奏。
     """
     global _sv
-    response = shared_session().get(_TELEGRAPH_PAGE_URL, timeout=15)
+    page_url = f"{(base_url or DEFAULT_BASE_URL).rstrip('/')}{_TELEGRAPH_PAGE_PATH}"
+    response = shared_session().get(page_url, timeout=15)
     response.raise_for_status()
     _sv = extract_sv(response.text)
     logger.info("cls_session_warmed", sv=_sv)
@@ -95,12 +97,15 @@ def _extract_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return rows if isinstance(rows, list) else []
 
 
-def fetch_page(last_time: int = 0, rn: int = 20) -> list[dict[str, Any]]:
+def fetch_page(
+    last_time: int = 0, rn: int = 20, base_url: str | None = None
+) -> list[dict[str, Any]]:
     """拉取一页电报并映射为 news_telegraph 行。
 
     Args:
         last_time: 翻页游标（Unix 秒，排他，向旧翻页）；0 表示取最新一页。
         rn: 每页条数（探针实测上限约 20）。
+        base_url: 渠道配置的站点 host；None 用默认。
 
     Returns:
         news_telegraph 行列表（publish_time 为 aware UTC）。
@@ -108,6 +113,7 @@ def fetch_page(last_time: int = 0, rn: int = 20) -> list[dict[str, Any]]:
     Raises:
         RuntimeError: 响应 errno 非 0（含 WAF 拦截场景）。
     """
+    roll_list_url = f"{(base_url or DEFAULT_BASE_URL).rstrip('/')}{_ROLL_LIST_PATH}"
     params = {
         "app": "CailianpressWeb",
         "os": "web",
@@ -118,7 +124,7 @@ def fetch_page(last_time: int = 0, rn: int = 20) -> list[dict[str, Any]]:
     }
     params["sign"] = build_cls_sign(params)
     response: CffiResponse = shared_session().get(
-        _ROLL_LIST_URL, params=params, timeout=15
+        roll_list_url, params=params, timeout=15
     )
     response.raise_for_status()
     payload = response.json()
@@ -158,6 +164,10 @@ class ClsTelegraphCollector(PostgresCollector):
     key_fields: ClassVar[list[str]] = ["cls_msg_id"]
     required_fields: ClassVar[list[str]] = ["cls_msg_id", "publish_time"]
 
+    def __init__(self, config: dict[str, Any]):
+        super().__init__(config)
+        self.base_url = config.get("base_url") or DEFAULT_BASE_URL
+
     async def collect(
         self,
         symbols: list[str] | None = None,
@@ -165,4 +175,4 @@ class ClsTelegraphCollector(PostgresCollector):
         **kwargs: Any,
     ) -> list[dict[str, Any]]:
         del symbols  # 电报为市场级数据，无标的维度
-        return await run_in_thread(fetch_page, 0, rn)
+        return await run_in_thread(fetch_page, 0, rn, self.base_url)

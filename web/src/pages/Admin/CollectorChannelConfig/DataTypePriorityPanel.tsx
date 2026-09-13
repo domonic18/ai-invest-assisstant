@@ -1,155 +1,106 @@
-import {
-  ArrowDownOutlined,
-  ArrowUpOutlined,
-  DeleteOutlined,
-  PlusOutlined,
-} from '@ant-design/icons'
-import {
-  Alert,
-  Button,
-  Popconfirm,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Typography,
-  message,
-} from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { Alert, Collapse, Typography, message } from 'antd'
+import { useMemo, useState } from 'react'
 
 import { useCollectorChannelConfigs } from '@/hooks/useCollectorChannelConfigs'
 import {
   useCollectorDataTypeChannels,
   useReplaceDataTypeChannels,
 } from '@/hooks/useCollectorDataTypeChannels'
-import type { CollectorDataTypeChannel, CollectorTaskName } from '@ai-invest/shared'
+import type { CollectorDataTypeChannel } from '@ai-invest/shared'
 
-import { DATA_TYPE_LABEL } from './constants'
+import { ChannelDebugModal } from './ChannelDebugModal'
+import type { ChannelDebugTarget } from './ChannelDebugModal'
+import { DATA_TYPE_GROUPS } from './constants'
+import { TypePrioritySection } from './TypePrioritySection'
+
+interface DebugState {
+  target: ChannelDebugTarget
+  presetDataType: string
+}
 
 export function DataTypePriorityPanel() {
   const { data: dataTypes, isLoading, error } = useCollectorDataTypeChannels()
   const { data: allChannels } = useCollectorChannelConfigs()
   const replaceMutation = useReplaceDataTypeChannels()
 
-  const [selectedType, setSelectedType] = useState<string | null>(null)
-  const [draft, setDraft] = useState<CollectorDataTypeChannel[]>([])
-  const [dirty, setDirty] = useState(false)
-  const [channelToAdd, setChannelToAdd] = useState<number | null>(null)
+  const [drafts, setDrafts] = useState<Record<string, CollectorDataTypeChannel[]>>({})
+  const [dirtyMap, setDirtyMap] = useState<Record<string, boolean>>({})
+  const [savingType, setSavingType] = useState<string | null>(null)
+  const [debugState, setDebugState] = useState<DebugState | null>(null)
 
-  const current = useMemo(
-    () => dataTypes?.find((item) => item.dataType === selectedType) ?? null,
-    [dataTypes, selectedType],
-  )
+  const getDraft = (dataType: string): CollectorDataTypeChannel[] =>
+    drafts[dataType] ?? dataTypes?.find((item) => item.dataType === dataType)?.channels ?? []
 
-  useEffect(() => {
-    if (!selectedType && dataTypes?.length) {
-      setSelectedType(dataTypes[0].dataType)
-    }
-  }, [dataTypes, selectedType])
-
-  useEffect(() => {
-    setDraft(current?.channels ?? [])
-    setDirty(false)
-    setChannelToAdd(null)
-  }, [current])
-
-  const move = (index: number, offset: number) => {
-    const target = index + offset
-    if (target < 0 || target >= draft.length) return
-    const next = [...draft]
-    ;[next[index], next[target]] = [next[target], next[index]]
-    setDraft(next)
-    setDirty(true)
+  const change = (dataType: string, channels: CollectorDataTypeChannel[]) => {
+    setDrafts((prev) => ({ ...prev, [dataType]: channels }))
+    setDirtyMap((prev) => ({ ...prev, [dataType]: true }))
   }
 
-  const remove = (channelId: number) => {
-    setDraft(draft.filter((item) => item.channelId !== channelId))
-    setDirty(true)
-  }
-
-  const add = () => {
-    if (channelToAdd == null || !allChannels) return
-    const channel = allChannels.find((item) => item.id === channelToAdd)
-    if (!channel) return
-    setDraft([
-      ...draft,
-      {
-        channelId: channel.id,
-        source: channel.source,
-        name: channel.name,
-        isEnabled: channel.isEnabled,
-        priority: draft.length + 1,
-      },
-    ])
-    setChannelToAdd(null)
-    setDirty(true)
-  }
-
-  const save = async () => {
-    if (!selectedType) return
+  const save = async (dataType: string) => {
+    setSavingType(dataType)
     try {
       await replaceMutation.mutateAsync({
-        dataType: selectedType,
-        items: draft.map((item, index) => ({
+        dataType,
+        items: getDraft(dataType).map((item, index) => ({
           channelId: item.channelId,
           priority: index + 1,
         })),
       })
       message.success('渠道优先级已保存')
-      setDirty(false)
+      setDirtyMap((prev) => ({ ...prev, [dataType]: false }))
     } catch (err) {
       message.error(err instanceof Error ? err.message : '保存失败')
+    } finally {
+      setSavingType(null)
     }
   }
 
-  const addableChannels = (allChannels ?? []).filter(
-    (channel) => !draft.some((item) => item.channelId === channel.id),
-  )
+  const openDebug = (dataType: string, channelId: number, channelName: string) => {
+    setDebugState({
+      target: {
+        channelId,
+        channelName,
+        supportedDataTypes:
+          allChannels?.find((item) => item.id === channelId)?.supportedDataTypes ?? [],
+      },
+      presetDataType: dataType,
+    })
+  }
 
-  const columns = [
-    {
-      title: '顺序',
-      key: 'order',
-      width: 70,
-      render: (_: unknown, __: CollectorDataTypeChannel, index: number) => index + 1,
-    },
-    { title: '渠道', dataIndex: 'name', key: 'name' },
-    {
-      title: '标识',
-      dataIndex: 'source',
-      key: 'source',
-    },
-    {
-      title: '状态',
-      dataIndex: 'isEnabled',
-      key: 'isEnabled',
-      render: (value: boolean) =>
-        value ? <Tag color="green">启用</Tag> : <Tag>禁用</Tag>,
-    },
-    {
-      title: '操作',
-      key: 'actions',
-      render: (_: unknown, record: CollectorDataTypeChannel, index: number) => (
-        <Space>
-          <Button
-            size="small"
-            icon={<ArrowUpOutlined />}
-            disabled={index === 0}
-            onClick={() => move(index, -1)}
+  const collapseItems = useMemo(() => {
+    const items = dataTypes ?? []
+    const assigned = new Set<string>()
+    const pick = (label: string, types: string[]) => {
+      const children = items.filter((item) => types.includes(item.dataType))
+      children.forEach((child) => assigned.add(child.dataType))
+      return { label, children }
+    }
+    const groups = DATA_TYPE_GROUPS.map(({ label, types }) => pick(label, types))
+    const rest = items.filter((item) => !assigned.has(item.dataType))
+    if (rest.length > 0) groups.push(pick('其他', rest.map((item) => item.dataType)))
+
+    return groups
+      .filter((group) => group.children.length > 0)
+      .map(({ label, children }) => ({
+        key: label,
+        label: `${label}（${children.length}）`,
+        children: children.map((item) => (
+          <TypePrioritySection
+            key={item.dataType}
+            dataType={item.dataType}
+            channels={getDraft(item.dataType)}
+            dirty={dirtyMap[item.dataType] ?? false}
+            saving={savingType === item.dataType}
+            onChange={(channels) => change(item.dataType, channels)}
+            onSave={() => save(item.dataType)}
+            onDebug={(channel) =>
+              openDebug(item.dataType, channel.channelId, channel.name)
+            }
           />
-          <Button
-            size="small"
-            icon={<ArrowDownOutlined />}
-            disabled={index === draft.length - 1}
-            onClick={() => move(index, 1)}
-          />
-          <Popconfirm title="确认移除？" onConfirm={() => remove(record.channelId)}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ]
+        )),
+      }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataTypes, drafts, dirtyMap, savingType, allChannels])
 
   return (
     <div>
@@ -167,7 +118,7 @@ export function DataTypePriorityPanel() {
         message="说明"
         description={
           <Typography.Text type="secondary">
-            配置每个数据类型可用的采集渠道及优先级。任务执行时按顺序尝试：排第一的渠道失败后自动切换到下一个渠道。
+            展开分组后按数据类型直接配置渠道优先级。任务执行时按顺序尝试：排第一的渠道失败后自动切换到下一个渠道。拖动行或使用上下按钮调整顺序，修改后点击该类型的「保存」。
           </Typography.Text>
         }
         type="info"
@@ -175,51 +126,16 @@ export function DataTypePriorityPanel() {
         className="mb-4"
       />
 
-      <Space className="mb-4" wrap>
-        <Select
-          style={{ minWidth: 220 }}
-          value={selectedType}
-          onChange={setSelectedType}
-          loading={isLoading}
-          options={(dataTypes ?? []).map((item) => ({
-            value: item.dataType,
-            label: DATA_TYPE_LABEL[item.dataType as CollectorTaskName] || item.dataType,
-          }))}
-        />
-        <Select
-          style={{ minWidth: 200 }}
-          placeholder="选择要添加的渠道"
-          value={channelToAdd}
-          onChange={setChannelToAdd}
-          options={addableChannels.map((channel) => ({
-            value: channel.id,
-            label: channel.name,
-          }))}
-        />
-        <Button
-          icon={<PlusOutlined />}
-          onClick={add}
-          disabled={channelToAdd == null}
-        >
-          添加
-        </Button>
-        <Button
-          type="primary"
-          onClick={save}
-          disabled={!dirty}
-          loading={replaceMutation.isPending}
-        >
-          保存
-        </Button>
-      </Space>
+      <Collapse items={collapseItems} />
+      {collapseItems.length === 0 && !isLoading && (
+        <Typography.Text type="secondary">暂无可配置的数据类型。</Typography.Text>
+      )}
 
-      <Table
-        dataSource={draft}
-        columns={columns}
-        rowKey="channelId"
-        loading={isLoading}
-        pagination={false}
-        locale={{ emptyText: '该数据类型暂未配置渠道' }}
+      <ChannelDebugModal
+        open={debugState !== null}
+        target={debugState?.target ?? null}
+        presetDataType={debugState?.presetDataType ?? null}
+        onClose={() => setDebugState(null)}
       />
     </div>
   )

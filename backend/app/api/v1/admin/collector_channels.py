@@ -6,6 +6,10 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_db
+from app.schemas.collector import (
+    CollectorChannelDebugRequest,
+    CollectorChannelDebugResponse,
+)
 from app.schemas.collector_channel_config import (
     CollectorChannelConfigCreate,
     CollectorChannelConfigResponse,
@@ -14,6 +18,7 @@ from app.schemas.collector_channel_config import (
 from app.services.admin.collector_channels import (
     CollectorChannelConfigService,
 )
+from app.services.admin.collector_debug import CollectorDebugService
 
 router = APIRouter(
     prefix="/collector/channels",
@@ -59,6 +64,17 @@ async def update_collector_channel_config(
     """更新已有采集渠道配置。"""
     service = CollectorChannelConfigService(session)
     return await service.update_config(config_id, data)
+
+
+@router.post("/{config_id}/debug", response_model=CollectorChannelDebugResponse)
+async def debug_collector_channel(
+    config_id: int,
+    body: CollectorChannelDebugRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> CollectorChannelDebugResponse:
+    """对单渠道发起指定数据类型的调试采集（只采集不落库）。"""
+    service = CollectorDebugService(session)
+    return await service.debug_channel(config_id, body)
 
 
 @router.delete("/{config_id}", status_code=status.HTTP_204_NO_CONTENT)

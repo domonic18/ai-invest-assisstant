@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K 线画线工具与 AI 智能画线 — 原型</title>
+<style>
+:root{--bg:#0c0e12;--bg-elevated:#111318;--bg-hover:#181b22;--border:#23262d;--text-primary:#f0f1f5;--text-secondary:#8a8f98;--text-tertiary:#5c616e;--accent:#5e6ad2;--accent-hover:#6872e3;--red:#f85149;--green:#2ea043;--yellow:#e3b341;--blue:#58a6ff;--font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;--radius-md:8px;--radius-lg:12px;--transition:200ms ease}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text-primary);font-size:13px;-webkit-font-smoothing:antialiased}
+.ambient{position:fixed;inset:0;pointer-events:none;z-index:0}
+.ambient::before{content:'';position:absolute;top:-20%;left:50%;width:800px;height:500px;transform:translateX(-50%);background:radial-gradient(ellipse,rgba(94,106,210,.07) 0%,transparent 70%)}
+.topbar{position:relative;z-index:2;display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--border);background:rgba(17,19,24,.9)}
+.topbar .title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.topbar .title svg{width:18px;height:18px}
+.seg{display:flex;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);padding:2px;gap:2px}
+.seg button{border:none;background:transparent;color:var(--text-secondary);font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:var(--font);transition:all var(--transition)}
+.seg button:hover{color:var(--text-primary)}
+.seg button.on{background:var(--accent);color:#fff}
+select{background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-primary);border-radius:var(--radius-md);padding:6px 10px;font-size:12px;font-family:var(--font);outline:none;cursor:pointer}
+.badge{font-size:10px;padding:3px 8px;border-radius:5px;background:rgba(94,106,210,.14);color:var(--accent);font-weight:500}
+.badge.warn{background:rgba(227,179,65,.13);color:var(--yellow)}
+.topbar .sp{flex:1}
+.layout{position:relative;z-index:1;display:flex;gap:14px;padding:14px 20px;align-items:flex-start}
+.chart-col{flex:1;min-width:0;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+.chart-head{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.quote{display:flex;align-items:baseline;gap:8px;margin-right:6px}
+.quote b{font-size:15px}
+.quote .px{font-size:15px;color:var(--red);font-weight:600}
+.quote .chg{font-size:11px;color:var(--red)}
+.tools{display:flex;gap:2px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);padding:2px}
+.tools button{display:flex;align-items:center;gap:5px;border:none;background:transparent;color:var(--text-secondary);font-size:11px;padding:5px 9px;border-radius:6px;cursor:pointer;font-family:var(--font);transition:all var(--transition)}
+.tools button:hover{color:var(--text-primary);background:var(--bg-hover)}
+.tools button.on{background:var(--accent);color:#fff}
+.tools button svg{width:13px;height:13px}
+.tgl{display:flex;align-items:center;gap:5px;border:1px solid var(--border);background:var(--bg);color:var(--text-secondary);font-size:11px;padding:5px 10px;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font)}
+.tgl.off{opacity:.45;text-decoration:line-through}
+.tgl.danger:hover{color:var(--red);border-color:var(--red)}
+.hint{margin-left:auto;font-size:11px;color:var(--text-tertiary)}
+.chart-wrap{position:relative}
+.chart-wrap svg{display:block;width:100%;height:auto;user-select:none}
+.chart-wrap svg.drawing{cursor:crosshair}
+#styleBar{position:absolute;display:none;align-items:center;gap:6px;background:#1a1d25;border:1px solid var(--border);border-radius:var(--radius-md);padding:6px 8px;box-shadow:0 6px 24px rgba(0,0,0,.5);z-index:10}
+#styleBar .sw{width:16px;height:16px;border-radius:4px;cursor:pointer;border:2px solid transparent}
+#styleBar .sw.on{border-color:#fff}
+#styleBar .st{border:none;background:var(--bg-hover);color:var(--text-secondary);font-size:11px;padding:4px 7px;border-radius:5px;cursor:pointer;font-family:var(--font)}
+#styleBar .st.on{background:var(--accent);color:#fff}
+#styleBar .sep{width:1px;height:16px;background:var(--border)}
+#styleBar .st.del:hover{background:rgba(248,81,73,.18);color:var(--red)}
+#styleBar .note{font-size:10px;color:var(--text-tertiary);max-width:170px;line-height:1.4}
+#textPop{position:absolute;display:none;background:#1a1d25;border:1px solid var(--accent);border-radius:var(--radius-md);padding:8px;z-index:11;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#textPop input{width:170px;background:var(--bg);border:1px solid var(--border);color:var(--text-primary);border-radius:5px;padding:5px 8px;font-size:12px;outline:none;font-family:var(--font)}
+#textPop .row{display:flex;gap:6px;margin-top:6px;justify-content:flex-end}
+#textPop button{border:none;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:var(--font)}
+#textPop .ok{background:var(--accent);color:#fff}
+#textPop .cancel{background:var(--bg-hover);color:var(--text-secondary)}
+#aiTip{position:absolute;display:none;max-width:250px;background:#1a1d25;border:1px solid var(--accent);border-radius:var(--radius-md);padding:8px 10px;font-size:11px;z-index:12;pointer-events:none;box-shadow:0 6px 24px rgba(0,0,0,.5);line-height:1.5}
+#aiTip b{color:var(--accent);display:flex;align-items:center;gap:5px}
+#aiTip .ai{font-size:8px;padding:1px 4px;border:1px solid var(--accent);border-radius:3px;color:var(--accent)}
+#toast{position:absolute;left:50%;top:14px;transform:translateX(-50%) translateY(-8px);background:#1a1d25;border:1px solid var(--accent);color:var(--text-primary);font-size:12px;padding:7px 14px;border-radius:var(--radius-md);opacity:0;transition:all .25s;z-index:20;pointer-events:none}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.legend{display:flex;gap:16px;padding:8px 14px;border-top:1px solid var(--border);font-size:11px;color:var(--text-secondary);flex-wrap:wrap}
+.legend i{display:inline-block;width:18px;height:0;border-top:2px solid var(--accent);vertical-align:middle;margin-right:5px}
+.legend i.ai{border-top-style:dashed;border-color:#7b85ff}
+.legend .ai-b{display:inline-flex;align-items:center;justify-content:center;width:15px;height:10px;border:1px solid var(--accent);border-radius:2px;font-size:7px;color:var(--accent);vertical-align:middle;margin:0 5px 0 5px}
+.panel{width:296px;flex-shrink:0;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+.card-h{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600}
+.card-h .n{margin-left:auto;font-size:10px;color:var(--text-tertiary);font-weight:400}
+.dlist{padding:6px}
+.dempty{padding:18px 10px;text-align:center;font-size:11px;color:var(--text-tertiary)}
+.ditem{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:var(--radius-md);cursor:pointer;transition:background var(--transition)}
+.ditem:hover{background:var(--bg-hover)}
+.ditem.sel{background:rgba(94,106,210,.12)}
+.ditem .ic{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0}
+.ditem .tx{flex:1;min-width:0}
+.ditem .tx .t1{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ditem .tx .t2{font-size:10px;color:var(--text-tertiary);margin-top:1px}
+.ditem .op{display:flex;gap:2px;opacity:0;transition:opacity var(--transition)}
+.ditem:hover .op{opacity:1}
+.ditem .op button{border:none;background:transparent;color:var(--text-tertiary);font-size:11px;padding:3px 5px;border-radius:4px;cursor:pointer;font-family:var(--font)}
+.ditem .op button:hover{color:var(--text-primary);background:var(--border)}
+.ditem .op button.adopt:hover{color:var(--accent)}
+.src{display:flex;align-items:center;gap:6px;padding:8px 8px 4px;font-size:10px;color:var(--text-tertiary)}
+.src .chip{background:rgba(94,106,210,.12);color:var(--accent);padding:2px 7px;border-radius:4px;font-weight:500}
+.ai-group{border-top:1px dashed var(--border);margin-top:4px}
+.chat .bd{padding:10px;display:flex;flex-direction:column;gap:8px;max-height:430px;overflow-y:auto}
+.msg{max-width:92%;padding:8px 10px;border-radius:10px;font-size:12px;line-height:1.55}
+.msg.u{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:3px}
+.msg.a{align-self:flex-start;background:var(--bg-hover);border:1px solid var(--border);border-bottom-left-radius:3px}
+.msg.a .qcard{margin-top:8px;display:flex;flex-direction:column;gap:5px}
+.msg.a .qcard .qt{font-size:10px;color:var(--text-tertiary);margin-bottom:2px}
+.msg.a .qcard button{text-align:left;border:1px solid var(--border);background:var(--bg);color:var(--text-primary);font-size:11px;padding:6px 9px;border-radius:6px;cursor:pointer;font-family:var(--font);transition:all var(--transition)}
+.msg.a .qcard button:hover{border-color:var(--accent);color:var(--accent)}
+.msg.a .qcard button.def{border-color:var(--accent)}
+.msg.a .qcard button.def::after{content:'（默认建议）';color:var(--text-tertiary);font-size:9px;margin-left:4px}
+.msg.a .ev{margin-top:8px;display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--green);background:rgba(46,160,67,.1);padding:3px 8px;border-radius:4px}
+.chat .start{margin:0 10px 10px}
+.chat .start button{width:100%;border:1px solid var(--accent);background:rgba(94,106,210,.1);color:var(--accent);font-size:12px;padding:8px;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font)}
+.chat .start button:hover{background:rgba(94,106,210,.2)}
+.foot{position:relative;z-index:1;padding:10px 20px 22px;display:flex;gap:8px;flex-wrap:wrap;font-size:10px;color:var(--text-tertiary)}
+.foot span{border:1px solid var(--border);border-radius:5px;padding:3px 8px;background:var(--bg-elevated)}
+.foot b{color:var(--text-secondary);font-weight:500}
+</style>
+</head>
+<body>
+<div class="ambient"></div>
+
+<div class="topbar">
+  <div class="title"><svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#5e6ad2" stroke-width="2.5"/><polyline points="8,20 12,16 16,18 20,12 24,14" stroke="#5e6ad2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>个股详情 · K 线画线原型</div>
+  <select id="targetSel">
+    <option value="600519">贵州茅台 600519（个股）</option>
+    <option value="000001">上证指数 000001（大盘）</option>
+    <option value="BK1036">半导体 BK1036（板块）</option>
+  </select>
+  <div class="seg" id="periodSeg">
+    <button data-p="daily" class="on">日线</button>
+    <button data-p="weekly">周线</button>
+    <button data-p="monthly">月线</button>
+  </div>
+  <span class="badge">周期严格隔离 · F-DRAW-03</span>
+  <span class="badge warn">AI 画线仅对话触发 · 定时复盘不画线</span>
+  <div class="sp"></div>
+  <span style="font-size:11px;color:var(--text-tertiary)">原型 · 需求见 docs/requirement/03-kline-drawing-requirement.md</span>
+</div>
+
+<div class="layout">
+  <div class="chart-col">
+    <div class="chart-head">
+      <div class="quote"><b id="qName">贵州茅台</b><span class="px" id="qPx">1545.00</span><span class="chg" id="qChg">+1.62%</span></div>
+      <div class="tools" id="toolBar">
+        <button data-t="cursor" class="on" title="选择/移动"><svg viewBox="0 0 16 16" fill="none"><path d="M4 2l8 7-4 .5L10 14l-2 1-2-4.5L4 12V2z" fill="currentColor"/></svg>光标</button>
+        <button data-t="trendline" title="两点线段"><svg viewBox="0 0 16 16" fill="none"><path d="M3 13L13 3" stroke="currentColor" stroke-width="1.6"/><circle cx="3" cy="13" r="1.6" fill="currentColor"/><circle cx="13" cy="3" r="1.6" fill="currentColor"/></svg>趋势线</button>
+        <button data-t="ray" title="向右延伸（压力/支撑）"><svg viewBox="0 0 16 16" fill="none"><path d="M2 12l6-5 6 2.5" stroke="currentColor" stroke-width="1.6" stroke-dasharray="0"/><path d="M11 7l3 2.5-3.4 1.2" stroke="currentColor" stroke-width="1.4" fill="none"/><circle cx="2" cy="12" r="1.6" fill="currentColor"/></svg>射线</button>
+        <button data-t="hline" title="全宽水平线"><svg viewBox="0 0 16 16" fill="none"><path d="M1 8h14" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg>水平线</button>
+        <button data-t="box" title="矩形箱体"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="4" width="11" height="8" rx="1" stroke="currentColor" stroke-width="1.5" fill="none" opacity=".9"/></svg>箱体</button>
+        <button data-t="text" title="文字标注"><svg viewBox="0 0 16 16" fill="none"><path d="M3 4h10M8 4v9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>文字</button>
+      </div>
+      <button class="tgl" id="tgUser">👁 用户画线</button>
+      <button class="tgl" id="tgAi">👁 AI 画线</button>
+      <button class="tgl danger" id="btnClearAi">✕ 清除 AI 画线</button>
+      <span class="hint">拖拽绘制 · 单击放置 · 点击画线选中编辑 · Del 删除</span>
+    </div>
+    <div class="chart-wrap" id="chartWrap">
+      <svg id="chart" viewBox="0 0 1180 540"></svg>
+      <div id="styleBar"></div>
+      <div id="textPop"><input id="textInp" placeholder="输入标注文字，回车确认"><div class="row"><button class="cancel" id="textCancel">取消</button><button class="ok" id="textOk">确定</button></div></div>
+      <div id="aiTip"></div>
+      <div id="toast"></div>
+    </div>
+    <div class="legend">
+      <span><i></i>用户画线（实线，可自由配色）</span>
+      <span><i class="ai"></i>AI 画线（虚线锁定样式）<span class="ai-b">AI</span>来源：对话生成 kline-smart-drawing</span>
+      <span style="margin-left:auto">锚点 = 数据坐标 (date, price) · 新增 K 线不漂移 · F-DRAW-08 AI 画线可直接拖拽编辑</span>
+    </div>
+  </div>
+
+  <aside class="panel">
+    <div class="card">
+      <div class="card-h">画线清单<span class="n" id="listScope">贵州茅台 · 日线</span></div>
+      <div class="dlist" id="dlist"></div>
+    </div>
+    <div class="card chat">
+      <div class="card-h">AI 助手 · 画线前确认演示（F-DRAW-07）</div>
+      <div class="bd" id="chatBd"><div class="dempty">点击下方按钮，演示对话触发画线与已有画线的确认流程</div></div>
+      <div class="start"><button id="chatStart">▶ 模拟对话「帮我重新规划压力支撑位」</button></div>
+    </div>
+  </aside>
+</div>
+
+<div class="foot">
+  <span><b>F-DRAW-01/02</b> 画线工具与样式条（选中画线体验）</span>
+  <span><b>F-DRAW-03</b> 切换周期 → 各周期画线集独立</span>
+  <span><b>F-DRAW-04</b> 右侧画线清单（显隐/采纳/删除）</span>
+  <span><b>F-DRAW-05</b> 切换标的 → 个股/大盘/板块同能力</span>
+  <span><b>F-DRAW-06</b> Agent 读画线：复盘/趋势分析注入上下文，文字标识一并获取（见文档 4.4）</span>
+  <span><b>F-DRAW-07</b> 对话画线 + 画线前确认问题卡（右下演示）</span>
+  <span><b>F-DRAW-08</b> AI 画线人工原位编辑 + 采纳（拖拽虚线体验）</span>
+</div>
+
+<script>
+'use strict';
+/* ---------- 工具 ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function genDates(n){var ds=[],d=new Date(Date.UTC(2026,8,11));while(ds.length<n){var w=d.getUTCDay();if(w!==0&&w!==6)ds.push(d.toISOString().slice(0,10));d.setUTCDate(d.getUTCDate()-1)}return ds.reverse()}
+function lerpPath(keys,t){for(var k=1;k<keys.length;k++){if(t<=keys[k][0]){var a=keys[k-1],b=keys[k];return a[1]+(b[1]-a[1])*(t-a[0])/((b[0]-a[0])||1)}}return keys[keys.length-1][1]}
+function genBars(n,seed,base){var rnd=mulberry32(seed),dates=genDates(n),keys=[[0,1.0],[0.22,0.976],[0.45,1.031],[0.62,1.019],[0.76,1.062],[0.86,1.037],[1,1.086]],bars=[],prev=base*0.985;
+  for(var i=0;i<n;i++){var tg=lerpPath(keys,i/(n-1))*base,c=tg+(rnd()-0.5)*base*0.012,o=prev+(rnd()-0.5)*base*0.007,h=Math.max(o,c)+rnd()*base*0.007,l=Math.min(o,c)-rnd()*base*0.007;
+    bars.push({date:dates[i],o:o,h:h,l:l,c:c});prev=c}
+  return bars}
+function sma(vals,p){var out=[];for(var i=0;i<vals.length;i++){if(i<p-1){out.push(null);continue}var s=0;for(var j=i-p+1;j<=i;j++)s+=vals[j];out.push(s/p)}return out}
+function fmtP(v){return v>=1000?v.toFixed(1):v.toFixed(2)}
+function fmtDate(s){return s.slice(5)}
+var PALETTE=['#5e6ad2','#e3b341','#58a6ff','#f85149','#2ea043','#d2a8ff'];
+var AI_COLOR='#7b85ff',AI_DASH='7 5';
+var TYPE_NAME={trendline:'趋势线',ray:'射线',hline:'水平线',box:'箱体',text:'文字'};
+
+/* ---------- 目标数据 ---------- */
+var TARGETS={'600519':{name:'贵州茅台',base:1420,seed:7,digit:2},'000001':{name:'上证指数',base:3180,seed:21,digit:1},'BK1036':{name:'半导体',base:5480,seed:33,digit:1}};
+var PERIOD_N={daily:84,weekly:40,monthly:30};
+var DATA={}; // key target|period -> bars
+Object.keys(TARGETS).forEach(function(tg){Object.keys(PERIOD_N).forEach(function(p){DATA[tg+'|'+p]=genBars(PERIOD_N[p],TARGETS[tg].seed+(p==='weekly'?5:p==='monthly'?9:0),TARGETS[tg].base)})});
+
+/* ---------- 图表几何 ---------- */
+var W=1180,H=540,padL=10,padR=64,padT=18,padB=26,plotW=W-padL-padR,plotH=H-padT-padB;
+var cur={target:'600519',period:'daily',tool:null,sel:null,drag:null,hover:null};
+var userVisible=true,aiVisible=true;
+var stores={}; // key -> {user:[],ai:{items:[],skill,tradeDate}}
+function store(){var k=cur.target+'|'+cur.period;if(!stores[k])stores[k]={user:[],ai:{items:[],skill:'kline-smart-drawing',tradeDate:'2026-09-12'}};return stores[k]}
+function bars(){return DATA[cur.target+'|'+cur.period]}
+var pMin=0,pMax=1,step=1;
+function computeScale(){var mn=Infinity,mx=-Infinity;bars().forEach(function(b){mn=Math.min(mn,b.l);mx=Math.max(mx,b.h)});var pad=(mx-mn)*0.06;pMin=mn-pad;pMax=mx+pad;step=plotW/bars().length}
+function xOf(i){return padL+(i+0.5)*step}
+function yOf(p){return padT+(pMax-p)/(pMax-pMin)*plotH}
+function iAt(x){return (x-padL)/step-0.5}
+function pAt(y){return pMax-(y-padT)/plotH*(pMax-pMin)}
+
+/* ---------- 预置画线（仅 600519 日线） ---------- */
+function idxExtreme(from,to,key,isMax){var n=bars().length,bi=Math.max(0,Math.min(from,n-1)),e=Math.min(to,n-1);
+  for(var i=bi;i<=e;i++){if(isMax?bars()[i][key]>bars()[bi][key]:bars()[i][key]<bars()[bi][key])bi=i}return bi}
+function preseed(){var s=store();
+  var h1=idxExtreme(58,68,'h',true),h2=idxExtreme(70,82,'h',true),l1=idxExtreme(54,62,'l',false),l2=idxExtreme(66,76,'l',false),lo=idxExtreme(16,30,'l',false),tr1=idxExtreme(18,24,'l',false),tr2=idxExtreme(40,46,'l',false);
+  var bLo=Infinity,bHi=-Infinity;for(var i=40;i<=53;i++){bLo=Math.min(bLo,bars()[i].l);bHi=Math.max(bHi,bars()[i].h)}
+  s.user=[
+    {id:uid(),layer:'user',type:'box',a:[{i:40,p:bHi},{i:53,p:bLo}],text:'横盘整理',style:{color:'#5e6ad2',ls:'solid',lw:2}},
+    {id:uid(),layer:'user',type:'ray',a:[{i:h1,p:bars()[h1].h},{i:h2,p:bars()[h2].h}],text:'压力线',style:{color:'#f85149',ls:'solid',lw:2}},
+    {id:uid(),layer:'user',type:'ray',a:[{i:l1,p:bars()[l1].l},{i:l2,p:bars()[l2].l}],text:'支撑线',style:{color:'#2ea043',ls:'solid',lw:2}},
+    {id:uid(),layer:'user',type:'hline',a:[{i:20,p:bars()[lo].l}],text:'前低支撑',style:{color:'#e3b341',ls:'dashed',lw:1}},
+    {id:uid(),layer:'user',type:'trendline',a:[{i:tr1,p:bars()[tr1].l},{i:tr2,p:bars()[tr2].l}],text:'',style:{color:'#58a6ff',ls:'solid',lw:2}},
+    {id:uid(),layer:'user',type:'text',a:[{i:66,p:bars()[66].h*1.004}],text:'放量突破',style:{color:'#d2a8ff',ls:'solid',lw:2}}
+  ];
+  aiSet([
+    {label:'AI 压力线',type:'ray',a:[{i:idxExtreme(50,60,'h',true),p:bars()[idxExtreme(50,60,'h',true)].h},{i:idxExtreme(72,83,'h',true),p:bars()[idxExtreme(72,83,'h',true)].h}],reason:'两次冲高受阻点连线，上方套牢盘密集'},
+    {label:'AI 强支撑',type:'hline',a:[{i:47,p:bars()[idxExtreme(40,55,'l',false)].l}],reason:'近 40 日最低点水平位，多次缩量回踩不破'},
+    {label:'AI 目标箱体',type:'box',a:[{i:76,p:bars()[76].c*1.03},{i:83,p:bars()[83].c*0.99}],reason:'突破整理区后按箱体高度量度的目标区间'}
+  ],false)}
+var _uid=1;function uid(){return 'd'+(_uid++)}
+function aiSet(items,announce){store().ai={items:items.map(function(it){return Object.assign({id:uid(),layer:'ai'},it)}),skill:'kline-smart-drawing',tradeDate:'2026-09-12'}}
+
+/* ---------- SVG 渲染 ---------- */
+var svg=document.getElementById('chart');
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')}
+function renderBase(){computeScale();var b=bars(),s='';
+  for(var g=0;g<6;g++){var p=pMin+(pMax-pMin)*g/5,y=yOf(p);s+='<line x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'" stroke="#23262d" stroke-width="1"/><text x="'+(W-padR+8)+'" y="'+(y+4)+'" fill="#5c616e" font-size="10">'+fmtP(p)+'</text>'}
+  var xEvery=Math.ceil(b.length/10);
+  b.forEach(function(bar,i){if(i%xEvery===0)s+='<text x="'+xOf(i)+'" y="'+(H-8)+'" fill="#5c616e" font-size="10" text-anchor="middle">'+fmtDate(bar.date)+'</text>'});
+  var bw=Math.max(2,step*0.62);
+  b.forEach(function(bar,i){var up=bar.c>=bar.o,col=up?'#f85149':'#2ea043',x=xOf(i),yo=yOf(bar.o),yc=yOf(bar.c),top=Math.min(yo,yc),hh=Math.max(2,Math.abs(yc-yo));
+    s+='<line x1="'+x+'" y1="'+yOf(bar.h)+'" x2="'+x+'" y2="'+yOf(bar.l)+'" stroke="'+col+'" stroke-width="1"/>';
+    s+='<rect x="'+(x-bw/2)+'" y="'+top+'" width="'+bw+'" height="'+hh+'" fill="'+col+'"/>'});
+  [['#e3b341',20],['#58a6ff',60]].forEach(function(ma){var vals=sma(b.map(function(x){return x.c}),ma[1]),pts='';vals.forEach(function(v,i){if(v==null)return;pts+=(pts?' ':'')+xOf(i)+','+yOf(v)});
+    if(pts)s+='<polyline points="'+pts+'" fill="none" stroke="'+ma[0]+'" stroke-width="1.1" opacity=".85"/>'});
+  s+='<text x="'+(padL+8)+'" y="'+(padT+12)+'" fill="#8a8f98" font-size="10">MA20</text><rect x="'+(padL+34)+'" y="'+(padT+4)+'" width="14" height="2" fill="#e3b341"/><text x="'+(padL+54)+'" y="'+(padT+12)+'" fill="#8a8f98" font-size="10">MA60</text><rect x="'+(padL+80)+'" y="'+(padT+4)+'" width="14" height="2" fill="#58a6ff"/>';
+  return s}
+function rayEnds(d){var a=d.a,x1=xOf(a[0].i),y1=yOf(a[0].p),x2=xOf(a[1].i),y2=yOf(a[1].p),dx=x2-x1,dy=y2-y1,dir=d.dir||'right';
+  var L=padL,R=padL+plotW,e1={x:x1,y:y1},e2={x:x2,y:y2};
+  if(Math.abs(dx)<0.001){return dir==='left'?{p1:{x:R,y:y2},p2:{x:L,y:y1}}:{p1:{x:L,y:y1},p2:{x:R,y:y1}}}
+  if(dir!=='left'){var t=(R-x2)/dx;e2={x:R,y:y2+dy*t}}
+  if(dir!=='right'){var t2=(L-x1)/dx;e1={x:L,y:y1+dy*t2}}
+  return {p1:e1,p2:e2}}
+function drawingSvg(d,selected){var col=d.layer==='ai'?AI_COLOR:d.style.color,dash=d.layer==='ai'?AI_DASH:(d.style.ls==='dashed'?'7 5':d.style.ls==='dotted'?'2 5':''),lw=d.layer==='ai'?1.6:d.style.lw,op=d.layer==='ai'?0.92:1;
+  var sel=selected?(' data-sel="1"'):'',s='<g class="dw" data-id="'+d.id+'"'+sel+'>';
+  if(d.type==='hline'){var y=yOf(d.a[0].p);s+='<line x1="'+padL+'" y1="'+y+'" x2="'+(padL+plotW)+'" y2="'+y+'" stroke="'+col+'" stroke-width="'+lw+'"'+(dash?' stroke-dasharray="'+dash+'"':'')+' opacity="'+op+'"/>'}
+  else if(d.type==='trendline'){var x1=xOf(d.a[0].i),y1=yOf(d.a[0].p),x2=xOf(d.a[1].i),y2=yOf(d.a[1].p);s+='<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+col+'" stroke-width="'+lw+'"'+(dash?' stroke-dasharray="'+dash+'"':'')+' opacity="'+op+'"/>'}
+  else if(d.type==='ray'){var r=rayEnds(d);s+='<line x1="'+r.p1.x+'" y1="'+r.p1.y+'" x2="'+r.p2.x+'" y2="'+r.p2.y+'" stroke="'+col+'" stroke-width="'+lw+'"'+(dash?' stroke-dasharray="'+dash+'"':'')+' opacity="'+op+'"/>'}
+  else if(d.type==='box'){var ax=xOf(Math.min(d.a[0].i,d.a[1].i)),bx=xOf(Math.max(d.a[0].i,d.a[1].i)),py=yOf(Math.max(d.a[0].p,d.a[1].p)),qy=yOf(Math.min(d.a[0].p,d.a[1].p));
+    s+='<rect x="'+ax+'" y="'+py+'" width="'+(bx-ax)+'" height="'+(qy-py)+'" fill="'+col+'" fill-opacity="0.08" stroke="'+col+'" stroke-width="'+lw+'"'+(dash?' stroke-dasharray="'+dash+'"':'')+' opacity="'+op+'"/>';
+    if(d.text)s+='<text x="'+(ax+6)+'" y="'+(py+15)+'" fill="'+col+'" font-size="11">'+esc(d.text)+'</text>'}
+  else if(d.type==='text'){var tx=xOf(d.a[0].i),ty=yOf(d.a[0].p);s+='<text x="'+tx+'" y="'+ty+'" fill="'+col+'" font-size="12" font-weight="600">'+esc(d.text||'文字')+'</text>'}
+  if(d.layer==='ai'){var bx0=xOf(d.a[0].i),by0=yOf(d.a[0].p);s+='<g transform="translate('+(bx0+8)+','+(by0-20)+')"><rect width="20" height="12" rx="3" fill="rgba(94,106,210,.22)" stroke="#5e6ad2" stroke-width="0.8"/><text x="10" y="9" fill="#8a93ff" font-size="8" text-anchor="middle" font-weight="700">AI</text></g>'}
+  if(selected){d.a.forEach(function(a){var cx=xOf(a.i),cy=yOf(a.p);s+='<circle cx="'+cx+'" cy="'+cy+'" r="4" fill="#fff" stroke="'+col+'" stroke-width="2"/>'})}
+  return s+'</g>'}
+function renderDrawings(){var st=store(),s='<g id="gAi">'+(aiVisible?st.ai.items.filter(visibleAI).map(function(d){return drawingSvg(d,cur.sel===d.id)}).join(''):'')+'</g>';
+  s+='<g id="gUser">'+(userVisible?st.user.filter(function(d){return d.visible!==false}).map(function(d){return drawingSvg(d,cur.sel===d.id)}).join(''):'')+'</g><g id="gDraft"></g>';
+  svg.innerHTML=renderBase()+s}
+function visibleAI(){return true}
+function renderDraft(d){var g=svg.querySelector('#gDraft');if(!d){g.innerHTML='';return}
+  g.innerHTML=drawingSvg(Object.assign({},d,{layer:'ai',style:{}}),false)}
+function renderAll(){renderDrawings();renderPanel();renderStyleBar();
+  document.getElementById('listScope').textContent=TARGETS[cur.target].name+' · '+({daily:'日线',weekly:'周线',monthly:'月线'}[cur.period])}
+
+/* ---------- 命中检测 ---------- */
+function distSeg(px,py,x1,y1,x2,y2){var dx=x2-x1,dy=y2-y1,L2=dx*dx+dy*dy;var t=L2?((px-x1)*dx+(py-y1)*dy)/L2:0;t=Math.max(0,Math.min(1,t));var qx=x1+t*dx,qy=y1+t*dy;return Math.hypot(px-qx,py-qy)}
+function hit(d,mx,my){if(d.type==='hline')return Math.abs(my-yOf(d.a[0].p))<6;
+  if(d.type==='text'){var tx=xOf(d.a[0].i),ty=yOf(d.a[0].p);return Math.abs(mx-tx)<44&&Math.abs(my-ty)<13}
+  if(d.type==='box'){var ax=xOf(Math.min(d.a[0].i,d.a[1].i)),bx=xOf(Math.max(d.a[0].i,d.a[1].i)),py=yOf(Math.max(d.a[0].p,d.a[1].p)),qy=yOf(Math.min(d.a[0].p,d.a[1].p));
+    var inX=mx>=ax-4&&mx<=bx+4,inY=my>=py-4&&my<=qy+4;return inX&&inY}
+  if(d.type==='ray'){var r=rayEnds(d);return distSeg(mx,my,r.p1.x,r.p1.y,r.p2.x,r.p2.y)<7}
+  return distSeg(mx,my,xOf(d.a[0].i),yOf(d.a[0].p),xOf(d.a[1].i),yOf(d.a[1].p))<7}
+function pick(mx,my){var st=store();
+  if(userVisible)for(var i=st.user.length-1;i>=0;i--){if(st.user[i].visible!==false&&hit(st.user[i],mx,my))return st.user[i]}
+  if(aiVisible)for(var j=st.ai.items.length-1;j>=0;j--){if(hit(st.ai.items[j],mx,my))return st.ai.items[j]}
+  return null}
+function anchorHit(d,mx,my){for(var k=0;k<d.a.length;k++){if(Math.hypot(mx-xOf(d.a[k].i),my-yOf(d.a[k].p))<10)return k}return -1}
+
+/* ---------- 交互 ---------- */
+var toastTimer=null;
+function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.classList.remove('show')},2200)}
+function svgPos(e){var r=svg.getBoundingClientRect();return {x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}}
+var textCb=null;
+function openText(px,py,initial,cb){var pop=document.getElementById('textPop'),inp=document.getElementById('textInp');
+  var wrap=document.getElementById('chartWrap').getBoundingClientRect(),r=svg.getBoundingClientRect();
+  var lx=px/W*r.width,ly=py/H*r.height;
+  pop.style.display='block';pop.style.left=Math.min(Math.max(8,lx-90),wrap.width-200)+'px';pop.style.top=Math.max(8,ly-70)+'px';
+  inp.value=initial||'';setTimeout(function(){inp.focus();inp.select()},30);textCb=cb}
+function closeText(){document.getElementById('textPop').style.display='none';textCb=null}
+document.getElementById('textOk').onclick=function(){if(textCb)textCb(document.getElementById('textInp').value.trim());closeText()};
+document.getElementById('textCancel').onclick=closeText;
+document.getElementById('textInp').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('textOk').click();if(e.key==='Escape')closeText()});
+
+svg.addEventListener('mousedown',function(e){if(textCb)return;var m=svgPos(e),st=store();
+  if(cur.tool==='hline'){var d={id:uid(),layer:'user',type:'hline',a:[{i:20,p:pAt(m.y)}],text:'',style:defStyle()};st.user.push(d);select(d);toast('已创建水平线 · 已保存');return}
+  if(cur.tool==='text'){openText(m.x,m.y,'',function(v){if(!v)return;var d={id:uid(),layer:'user',type:'text',a:[{i:iAt(m.x),p:pAt(m.y)}],text:v,style:defStyle()};st.user.push(d);toast('已添加文字标注 · 已保存')});return}
+  if(cur.tool==='trendline'||cur.tool==='ray'||cur.tool==='box'){cur.drag={mode:'draft',d:{id:uid(),layer:'user',type:cur.tool,a:[{i:iAt(m.x),p:pAt(m.y)},{i:iAt(m.x),p:pAt(m.y)}],text:'',style:defStyle()}};return}
+  var d=pick(m.x,m.y);
+  if(d){select(d);var ai=d.layer==='ai',k=anchorHit(d,m.x,m.y);
+    cur.drag={mode:k>=0?'anchor':'move',d:d,ak:k,sm:m,a0:d.a.map(function(a){return{i:a.i,p:a.p}})}}
+  else select(null)});
+svg.addEventListener('mousemove',function(e){var m=svgPos(e),st=store(),dg=cur.drag;
+  if(dg){if(dg.mode==='draft'){dg.d.a[1]={i:iAt(m.x),p:pAt(m.y)};renderDraft(dg.d)}
+    else if(dg.mode==='anchor'){dg.d.a[dg.ak]={i:iAt(m.x),p:pAt(m.y)};renderDrawings()}
+    else{var di=iAt(m.x)-iAt(dg.sm.x),dp=pAt(m.y)-pAt(dg.sm.y);
+      dg.d.a=dg.a0.map(function(a){return{i:a.i+di,p:a.p+dp}});renderDrawings()}
+    return}
+  var h=pick(m.x,m.y);
+  if(h&&h.layer==='ai'&&h!==cur.hover){cur.hover=h;var tip=document.getElementById('aiTip');
+    tip.innerHTML='<b><span class="ai">AI</span>'+esc(h.label||TYPE_NAME[h.type])+'</b>'+esc(h.reason||'')+'<br><span style="color:#5c616e">'+esc(st.ai.skill)+' · '+esc(st.ai.tradeDate)+' 生成 · 可拖拽调整位置</span>';
+    var wr=document.getElementById('chartWrap').getBoundingClientRect(),r=svg.getBoundingClientRect();
+    tip.style.display='block';tip.style.left=Math.min(m.x/W*r.width+14,wr.width-270)+'px';tip.style.top=(m.y/H*r.height+10)+'px'}
+  else if(!h){cur.hover=null;document.getElementById('aiTip').style.display='none'}
+  svg.style.cursor=cur.tool?'crosshair':(h?'pointer':'default')});
+svg.addEventListener('mouseup',function(e){var dg=cur.drag;if(!dg)return;cur.drag=null;
+  if(dg.mode==='draft'){var d=dg.d,a=d.a;
+    var ok=d.type==='box'?(Math.abs(a[1].i-a[0].i)>1&&Math.abs(a[1].p-a[0].p)>0.001):Math.hypot(xOf(a[1].i)-xOf(a[0].i),yOf(a[1].p)-yOf(a[0].p))>18;
+    if(ok){var st=store();st.user.push(d);select(d);toast(TYPE_NAME[d.type]+'已创建 · 已保存')}
+    renderDraft(null)}
+  else if(dg.mode!=='draft'&&dg.d.layer==='ai'){renderDrawings();renderStyleBar();toast('AI 画线已调整 · 已保存（原位编辑 F-DRAW-08）')}});
+svg.addEventListener('dblclick',function(e){var m=svgPos(e),d=pick(m.x,m.y);if(!d)return;
+  if(d.layer==='ai'){
+    openText(m.x,m.y,d.label||'',function(v){if(!v)return;d.label=v;renderDrawings();renderPanel();toast('AI 画线名称已修改 · 已保存')});
+  }else if(d.type==='box'||d.type==='text'){
+    openText(m.x,m.y,d.text||'',function(v){d.text=v;renderDrawings();renderPanel();toast('标注文字已修改 · 已保存')});
+  }});
+document.addEventListener('keydown',function(e){if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+  if((e.key==='Delete'||e.key==='Backspace')&&cur.sel){var st=store(),d=findD(cur.sel);if(!d)return;
+    if(d.layer==='ai'){st.ai.items=st.ai.items.filter(function(x){return x.id!==d.id});toast('已删除 AI 画线 · 已保存')}
+    else{st.user=st.user.filter(function(x){return x.id!==d.id});toast('已删除画线 · 已保存')}
+    select(null)}});
+function defStyle(){return {color:PALETTE[lastColor],ls:'solid',lw:2}}
+function findD(id){var st=store();return st.user.concat(st.ai.items).find(function(d){return d.id===id})||null}
+function select(d){cur.sel=d?d.id:null;renderDrawings();renderPanel();renderStyleBar()}
+
+/* ---------- 样式条 ---------- */
+var lastColor=0;
+function renderStyleBar(){var bar=document.getElementById('styleBar'),d=cur.sel?findD(cur.sel):null;
+  if(!d||cur.drag){bar.style.display='none';return}
+  var html='';
+  if(d.layer==='user'){
+    html='<span style="font-size:10px;color:#5c616e">'+TYPE_NAME[d.type]+'</span><span class="sep"></span>';
+    PALETTE.forEach(function(c,i){html+='<span class="sw'+(i===lastColor&&d.style.color===c?' on':(d.style.color===c?' on':''))+'" data-c="'+c+'" style="background:'+c+'"></span>'});
+    html+='<span class="sep"></span>';
+    [['solid','实线'],['dashed','虚线'],['dotted','点线']].forEach(function(o){html+='<button class="st'+(d.style.ls===o[0]?' on':'')+'" data-ls="'+o[0]+'">'+o[1]+'</button>'});
+    html+='<span class="sep"></span>';
+    [1,2,3].forEach(function(w){html+='<button class="st'+(d.style.lw===w?' on':'')+'" data-lw="'+w+'" style="width:26px">'+w+'</button>'});
+    if(d.type==='box'||d.type==='text'||d.type==='hline'||d.type==='ray'||d.type==='trendline')html+='<button class="st" data-act="text">文字</button>';
+    html+='<button class="st del" data-act="del">删除</button>';
+  }else{
+    html='<span style="font-size:10px;color:#8a93ff;display:flex;align-items:center;gap:4px"><span class="ai" style="font-size:8px;border:1px solid #5e6ad2;border-radius:3px;padding:0 3px">AI</span>'+esc(d.label||TYPE_NAME[d.type])+'</span><span class="sep"></span>';
+    html+='<span class="note">样式锁定 · 拖拽锚点/整体调整位置 · 双击改名称</span><button class="st" data-act="adopt">采纳</button><button class="st del" data-act="del">删除</button>';
+  }
+  bar.innerHTML=html;bar.style.display='flex';
+  var wr=document.getElementById('chartWrap').getBoundingClientRect(),r=svg.getBoundingClientRect();
+  var lx=xOf(d.a[0].i)/W*r.width,ly=yOf(d.a[0].p)/H*r.height;
+  bar.style.left=Math.min(Math.max(8,lx-40),wr.width-380)+'px';bar.style.top=Math.max(8,ly-52)+'px';
+  bar.querySelectorAll('.sw').forEach(function(el){el.onclick=function(){var d2=findD(cur.sel);lastColor=PALETTE.indexOf(el.dataset.c);d2.style.color=el.dataset.c;renderDrawings();renderStyleBar()}});
+  bar.querySelectorAll('[data-ls]').forEach(function(el){el.onclick=function(){findD(cur.sel).style.ls=el.dataset.ls;renderDrawings();renderStyleBar()}});
+  bar.querySelectorAll('[data-lw]').forEach(function(el){el.onclick=function(){findD(cur.sel).style.lw=+el.dataset.lw;renderDrawings();renderStyleBar()}});
+  var act=bar.querySelector('[data-act="text"]');if(act)act.onclick=function(){var d2=findD(cur.sel);var wr=document.getElementById('chartWrap').getBoundingClientRect();
+    openText(+bar.style.left.replace('px','')+80,+bar.style.top.replace('px','')+40,d2.text||'',function(v){d2.text=v;renderDrawings();renderPanel()})};
+  bar.querySelector('[data-act="del"]').onclick=function(){var st=store(),d2=findD(cur.sel);
+    if(d2.layer==='ai'){st.ai.items=st.ai.items.filter(function(x){return x.id!==d2.id});toast('已删除 AI 画线 · 已保存')}
+    else{st.user=st.user.filter(function(x){return x.id!==d2.id});toast('已删除画线 · 已保存')}
+    select(null)};
+  var ad=bar.querySelector('[data-act="adopt"]');if(ad)ad.onclick=function(){adopt(findD(cur.sel))}}
+function adopt(d){if(!d)return;var st=store();
+  st.user.push({id:uid(),layer:'user',type:d.type,a:d.a.map(function(a){return{i:a.i,p:a.p}}),dir:d.dir,text:d.label||d.text||'',style:defStyle()});
+  toast('已采纳为用户画线，可自由编辑样式');select(null)}
+
+/* ---------- 工具条/顶栏 ---------- */
+document.getElementById('toolBar').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+  var t=b.dataset.t;cur.tool=(cur.tool===t)?null:(t==='cursor'?null:t);
+  document.querySelectorAll('#toolBar button').forEach(function(x){x.classList.toggle('on',x.dataset.t===(cur.tool||'cursor'))});
+  svg.classList.toggle('drawing',!!cur.tool);select(null)});
+document.getElementById('tgUser').onclick=function(){userVisible=!userVisible;this.classList.toggle('off',!userVisible);renderDrawings()};
+document.getElementById('tgAi').onclick=function(){aiVisible=!aiVisible;this.classList.toggle('off',!aiVisible);renderDrawings()};
+document.getElementById('btnClearAi').onclick=function(){store().ai.items=[];select(null);renderDrawings();renderPanel();toast('已清除 AI 画线（对话重新生成即可恢复）')};
+document.getElementById('periodSeg').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+  document.querySelectorAll('#periodSeg button').forEach(function(x){x.classList.remove('on')});b.classList.add('on');
+  cur.period=b.dataset.p;cur.sel=null;renderAll();
+  var st=store();if(st.user.length===0&&st.ai.items.length===0)toast('「'+TARGETS[cur.target].name+' · '+b.textContent+'」画线集独立（严格隔离 F-DRAW-03）')});
+document.getElementById('targetSel').onchange=function(e){cur.target=e.target.value;cur.sel=null;
+  document.getElementById('qName').textContent=TARGETS[cur.target].name;
+  var b=bars();document.getElementById('qPx').textContent=fmtP(b[b.length-1].c);
+  document.getElementById('qChg').textContent=((b[b.length-1].c/b[b.length-2].c-1)*100).toFixed(2)+'%';
+  renderAll();var st=store();if(st.user.length===0&&st.ai.items.length===0)toast('画线按标的隔离（F-DRAW-05）：'+TARGETS[cur.target].name+'暂无画线')};
+
+/* ---------- 右侧清单 ---------- */
+function summary(d){var b=bars();
+  if(d.type==='hline')return '水平线 '+fmtP(d.a[0].p)+(d.text?'「'+d.text+'」':'');
+  if(d.type==='text')return '文字「'+(d.text||'')+'」';
+  if(d.type==='box')return '箱体 '+fmtP(Math.min(d.a[0].p,d.a[1].p))+'~'+fmtP(Math.max(d.a[0].p,d.a[1].p))+'（'+fmtDate(b[Math.max(0,Math.round(Math.min(d.a[0].i,d.a[1].i)))].date)+'~'+fmtDate(b[Math.min(b.length-1,Math.round(Math.max(d.a[0].i,d.a[1].i)))].date)+'）'+(d.text?'「'+d.text+'」':'');
+  if(d.type==='ray')return '射线 '+fmtDate(b[Math.max(0,Math.round(d.a[0].i))].date)+' '+fmtP(d.a[0].p)+' →'+(d.dir==='left'?'左':'右')+(d.text?'「'+d.text+'」':'');
+  return '趋势线 '+fmtP(d.a[0].p)+' → '+fmtP(d.a[1].p)+(d.text?'「'+d.text+'」':'')}
+var ICONS={trendline:'╱',ray:'↗',hline:'─',box:'▭',text:'T'};
+function renderPanel(){var el=document.getElementById('dlist'),st=store(),html='';
+  html+='<div class="src"><span class="chip">用户画线</span>'+st.user.length+' 条 · 仅本人可见</div>';
+  if(st.user.length===0)html+='<div class="dempty">暂无用户画线 — 选择上方工具在图上绘制</div>';
+  st.user.forEach(function(d){html+='<div class="ditem'+(cur.sel===d.id?' sel':'')+'" data-id="'+d.id+'">'+
+    '<span class="ic" style="background:'+d.style.color+'22;color:'+d.style.color+'">'+ICONS[d.type]+'</span>'+
+    '<span class="tx"><span class="t1">'+esc(d.text||TYPE_NAME[d.type])+'</span><span class="t2">'+esc(summary(d))+'</span></span>'+
+    '<span class="op"><button data-op="eye" title="显隐">'+(d.visible===false?'🚫':'👁')+'</button><button data-op="del" title="删除">✕</button></span></div>'});
+  html+='<div class="ai-group"><div class="src"><span class="chip">AI 画线</span><span class="chip" style="background:var(--bg-hover);color:var(--text-tertiary)">'+esc(st.ai.skill)+'</span>'+esc(st.ai.tradeDate)+' 对话生成 · 全局共享</div>';
+  if(st.ai.items.length===0)html+='<div class="dempty">暂无 AI 画线 — 对话触发生成（见下方演示）</div>';
+  st.ai.items.forEach(function(d){html+='<div class="ditem'+(cur.sel===d.id?' sel':'')+'" data-id="'+d.id+'">'+
+    '<span class="ic" style="background:rgba(123,133,255,.14);color:#8a93ff">'+ICONS[d.type]+'</span>'+
+    '<span class="tx"><span class="t1">'+esc(d.label)+'</span><span class="t2">'+esc(d.reason)+'</span></span>'+
+    '<span class="op"><button data-op="adopt" class="adopt" title="采纳为用户画线">采纳</button><button data-op="del" title="删除">✕</button></span></div>'});
+  html+='</div>';el.innerHTML=html;
+  el.querySelectorAll('.ditem').forEach(function(item){
+    item.onclick=function(e){var op=e.target.closest('button'),id=item.dataset.id,d=findD(id);
+      if(op){e.stopPropagation();
+        if(op.dataset.op==='eye'){d.visible=d.visible===false?true:false;renderDrawings();renderPanel()}
+        else if(op.dataset.op==='adopt'){adopt(d)}
+        else{if(d.layer==='ai'){st.ai.items=st.ai.items.filter(function(x){return x.id!==id});toast('已删除 AI 画线 · 已保存')}else{st.user=st.user.filter(function(x){return x.id!==id});toast('已删除画线 · 已保存')}select(null)}
+        return}
+      select(d)}})}
+
+/* ---------- 对话演示（F-DRAW-07 画线前确认） ---------- */
+var chatBd=document.getElementById('chatBd');
+function chatUser(t){var d=document.createElement('div');d.className='msg u';d.textContent=t;chatBd.appendChild(d);chatBd.scrollTop=chatBd.scrollHeight}
+function chatA(html){var d=document.createElement('div');d.className='msg a';d.innerHTML=html;chatBd.appendChild(d);chatBd.scrollTop=chatBd.scrollHeight;return d}
+function evChip(){return '<span class="ev">✓ kline_drawing.complete · 图表已刷新</span>'}
+function demoNewSet(tag){var b=bars(),n=b.length,h=idxExtreme(n-14,n-1,'h',true),l=idxExtreme(n-20,n-1,'l',false);
+  return [
+    {label:'AI 压力线·'+tag,type:'ray',a:[{i:h,p:b[h].h},{i:n-1,p:b[h].h*1.012}],reason:'基于最新 30 日高点结构重估，压力位上移'},
+    {label:'AI 支撑位·'+tag,type:'hline',a:[{i:n-14,p:b[l].l}],reason:'近期回踩低点水平位，量能萎缩确认有效'},
+    {label:'AI 目标箱体·'+tag,type:'box',a:[{i:n-6,p:b[n-1].c*1.035},{i:n-1,p:b[n-1].c*0.995}],reason:'突破后按箱体高度量度的目标区间'}]}
+document.getElementById('chatStart').onclick=function(){chatBd.innerHTML='';
+  var st=store();
+  chatUser('帮我重新规划一下'+TARGETS[cur.target].name+{daily:'日线',weekly:'周线',monthly:'月线'}[cur.period]+'上的压力支撑位');
+  setTimeout(function(){
+    var a=chatA('检测到图上已有 <b>'+st.user.length+'</b> 条用户画线、<b>'+st.ai.items.length+'</b> 条 AI 画线。请选择如何处理已有画线后我再执行：'+
+      '<div class="qcard"><div class="qt">画线前确认 · F-DRAW-07</div>'+
+      '<button class="def" data-c="append">保留并新增 — 已有画线不动，新画线共存</button>'+
+      '<button data-c="replace">变更已有 — 按最新分析重画 AI 画线</button>'+
+      '<button data-c="redraw">删除后重画 — 清除已有（可含用户画线）</button>'+
+      '<button data-c="cancel">取消 — 本次不画线</button></div>');
+    a.querySelectorAll('button').forEach(function(b){b.onclick=function(){
+      var c=b.dataset.c;chatUser(b.textContent.split('—')[0].trim());a.remove();
+      if(c==='append'){var add=demoNewSet('A');aiSet2(st.ai.items.concat(add.map(function(x){return Object.assign({id:uid(),layer:'ai'},x)})),true);
+        chatA('好的，已保留全部已有画线，新增 <b>3</b> 条 AI 画线（虚线）：压力射线、支撑水平位与目标箱体。<br>'+evChip());}
+      else if(c==='replace'){aiSet2(demoNewSet('B').map(function(x){return Object.assign({id:uid(),layer:'ai'},x)}),true);
+        chatA('已按最新量价结构变更 AI 画线组（3 条），用户画线未受影响。<br>'+evChip());}
+      else if(c==='redraw'){var a2=chatA('将删除全部 <b>AI 画线</b>（用户画线保留）后重画，确认？<div class="qcard"><button data-c="yes">确认重画</button><button data-c="no">取消</button></div>');
+        a2.querySelectorAll('button').forEach(function(b2){b2.onclick=function(){chatUser(b2.textContent);a2.remove();
+          if(b2.dataset.c==='yes'){aiSet2(demoNewSet('C').map(function(x){return Object.assign({id:uid(),layer:'ai'},x)}),true);
+            chatA('已清除原 AI 画线并重画完成（3 条）。用户画线仍完整保留。<br>'+evChip());}
+          else chatA('好的，已取消，图上画线保持不变。');renderAll()}});return}
+      else chatA('好的，已取消本次画线，图上画线保持不变。');
+      renderAll()}})},450)}
+function aiSet2(items,now){st_ai(items,now)}
+function st_ai(items,now){store().ai={items:items,skill:'kline-smart-drawing',tradeDate:now?'今日 · 对话生成':'2026-09-12'}}
+
+/* ---------- 启动 ---------- */
+preseed();
+(function init(){var b=bars();document.getElementById('qPx').textContent=fmtP(b[b.length-1].c);
+  document.getElementById('qChg').textContent=((b[b.length-1].c/b[b.length-2].c-1)*100).toFixed(2)+'%';renderAll()})();
+</script>
+</body>
+</html>

@@ -9,8 +9,22 @@ import type {
 
 import { apiClient } from './client'
 
-export async function fetchCollectorLogs(limit = 50): Promise<ApiCollectorLogResponse[]> {
-  const { data } = await apiClient.get(ENDPOINTS.admin.collectorLogs, { params: { limit } })
+export interface CollectorLogFilters {
+  taskName?: string | null
+  source?: string | null
+}
+
+export async function fetchCollectorLogs(
+  limit = 50,
+  filters: CollectorLogFilters = {},
+): Promise<ApiCollectorLogResponse[]> {
+  const { data } = await apiClient.get(ENDPOINTS.admin.collectorLogs, {
+    params: {
+      limit,
+      task_name: filters.taskName || undefined,
+      source: filters.source || undefined,
+    },
+  })
   return data
 }
 

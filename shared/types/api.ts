@@ -577,6 +577,7 @@ export interface ApiCollectorTaskCatalogItem {
   sources: string[]
   configParams: string[]
   runParams: string[]
+  defaults?: Record<string, unknown> | null
 }
 
 export interface ApiCollectorTaskCatalogResponse {
@@ -600,6 +601,126 @@ export interface ApiCollectorLogResponse {
   recordsCount: number
   errorMsg: string | null
   metadata: Record<string, unknown> | null
+}
+
+// ---------------------------------------------------------------------------
+// 采集健康监测（F-MON 一期）
+// ---------------------------------------------------------------------------
+
+export type CollectorHealthStatus =
+  | 'healthy'
+  | 'degraded'
+  | 'critical'
+  | 'silent'
+  | 'paused'
+  | 'unconfigured'
+
+export type CollectorHealthRole = 'primary' | 'backup' | 'single'
+
+export type CollectorErrorCause =
+  | 'waf'
+  | 'network'
+  | 'parse'
+  | 'auth'
+  | 'timeout'
+  | 'not_ready'
+  | 'other'
+
+export interface ApiCollectorHealthCounts {
+  healthy: number
+  degraded: number
+  critical: number
+  silent: number
+  paused: number
+  unconfigured: number
+}
+
+export interface ApiCollectorHealthDomainSummary {
+  domain: string
+  total: number
+  healthy: number
+  degraded: number
+  critical: number
+  silent: number
+}
+
+export interface ApiCollectorHealthOverview {
+  healthScore: number
+  total: number
+  counts: ApiCollectorHealthCounts
+  successRate24h: number | null
+  domains: ApiCollectorHealthDomainSummary[]
+  checkedAt: string | null
+  staleAfter: string | null
+}
+
+export interface ApiCollectorHealthTaskItem {
+  taskType: string
+  source: string
+  status: CollectorHealthStatus
+  role: CollectorHealthRole
+  domain: string
+  successRate24h: number | null
+  successRate7d: number | null
+  consecutiveFailures: number
+  windowsWithoutSuccess: number
+  lastSuccessAt: string | null
+  lastErrorSummary: string | null
+  lastErrorCause: CollectorErrorCause | null
+  /** 判定依据（why，按序）——解释该状态如何得出 */
+  reasons: string[]
+  isHighFrequency: boolean
+  lastRecordsCount: number | null
+  lastRecordsDate: string | null
+  stateChangedAt: string
+  checkedAt: string
+  schedule: string | null
+  isActive: boolean | null
+}
+
+export interface ApiCollectorChannelHealthItem {
+  source: string
+  domainCount: number
+  instanceCount: number
+  successRate7d: number | null
+  faultCount: number
+  causes: Record<string, number>
+}
+
+export interface ApiCollectorScheduleCheckItem {
+  taskType: string
+  source: string
+  domain: string
+  role: CollectorHealthRole
+  isActive: boolean
+  hasTaskRow: boolean
+  schedule: string | null
+  windowTotal: number
+  successWindows: number
+  skippedWindows: number
+  failedWindows: number
+  missingWindows: number
+  exempted: boolean
+  lastErrorSummary: string | null
+  lastErrorCause: CollectorErrorCause | null
+}
+
+export interface ApiCollectorScheduleCheckResponse {
+  date: string
+  isTradeDay: boolean
+  items: ApiCollectorScheduleCheckItem[]
+}
+
+export interface ApiCollectorRunHealthCheckResponse {
+  checkedAt: string
+  total: number
+  failed: number
+  orphaned: number
+  statusCounts: Record<string, number>
+}
+
+export interface ApiCollectorClearSnapshotsResponse {
+  deleted: number
 }
 
 export interface ApiResearchReportResponse {

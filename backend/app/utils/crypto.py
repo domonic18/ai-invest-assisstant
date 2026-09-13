@@ -58,9 +58,9 @@ def decrypt_token(cipher: str) -> str:
 
 
 def mask_token(token: str) -> str:
-    """掩码展示 token，保留前 4 位与后 4 位。"""
+    """掩码展示 token，保留前 4 位与后 4 位，星号封顶 8 个（掩码最长 16 字符）。"""
     if not token:
         return ""
     if len(token) <= 8:
         return "*" * len(token)
-    return f"{token[:4]}{'*' * (len(token) - 8)}{token[-4:]}"
+    return f"{token[:4]}{'*' * min(len(token) - 8, 8)}{token[-4:]}"

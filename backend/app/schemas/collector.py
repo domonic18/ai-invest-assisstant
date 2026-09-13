@@ -1,6 +1,7 @@
 """采集器管理 API 的 Pydantic schemas。"""
 
 from datetime import datetime
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -48,12 +49,33 @@ class CollectorTaskCatalogItem(CamelModel):
     sources: list[str]
     config_params: list[str]
     run_params: list[str]
+    defaults: dict[str, Any] = Field(default_factory=dict)
 
 
 class CollectorTaskCatalogResponse(CamelModel):
     """任务目录：管理端 UI 触发列表的唯一数据源。"""
 
     items: list[CollectorTaskCatalogItem]
+
+
+class CollectorChannelDebugRequest(CamelModel):
+    """单渠道调试采集请求（只采集不落库）。"""
+
+    data_type: str = Field(max_length=50)
+    symbols: list[str] | None = Field(None, max_length=100)
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class CollectorChannelDebugResponse(CamelModel):
+    """单渠道调试采集结果：样例条数上限 3，绝不携带渠道凭据。"""
+
+    ok: bool
+    error_kind: Literal["no_collector", "disabled", "timeout", "error"] | None = None
+    error: str | None = None
+    duration_ms: int = 0
+    collected: int = 0
+    sample_valid: int | None = None
+    sample_items: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class CollectorRunResponse(CamelModel):

@@ -25,10 +25,11 @@ import {
   UserOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
-import { Menu } from 'antd'
+import { Badge, Menu } from 'antd'
 import { useEffect, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
+import { useCollectorHealthBadgeCount } from '@/hooks/useCollectorHealth'
 import { useAuthStore } from '@/stores/auth'
 import { Brand } from '@/components/common/Brand'
 import { SidebarReviewStatus } from '@/components/layout/SidebarReviewStatus'
@@ -93,6 +94,24 @@ function resolveSelectedKey(pathname: string, keys: string[]): string {
   return matched.sort((a, b) => b.length - a.length)[0] ?? '/'
 }
 
+/** 采集管理项挂健康角标（critical+silent 故障数，300s 轮询快照）。 */
+function withCollectorBadge(items: MenuItem[], badgeCount: number): MenuItem[] {
+  return items.map((item) => {
+    if (item && 'key' in item && item.key === '/admin/collector') {
+      return {
+        ...item,
+        label: (
+          <span className="inline-flex items-center gap-2">
+            采集管理
+            {badgeCount > 0 && <Badge count={badgeCount} size="small" />}
+          </span>
+        ),
+      } as MenuItem
+    }
+    return item
+  })
+}
+
 interface SidebarMenuProps {
   /** 导航后回调（移动端抽屉场景用于关闭抽屉）。 */
   onNavigate?: () => void
@@ -106,6 +125,7 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
 
   const isAdminPath = location.pathname.startsWith('/admin')
   const [openKeys, setOpenKeys] = useState<string[]>(isAdminPath ? [ADMIN_GROUP_KEY] : [])
+  const healthBadgeCount = useCollectorHealthBadgeCount(isAdmin)
 
   useEffect(() => {
     if (isAdminPath) {
@@ -122,7 +142,7 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
             key: ADMIN_GROUP_KEY,
             icon: <SettingOutlined />,
             label: '后台管理',
-            children: ADMIN_MENU_ITEMS,
+            children: withCollectorBadge(ADMIN_MENU_ITEMS, healthBadgeCount),
           } as MenuItem,
         ]
       : []),

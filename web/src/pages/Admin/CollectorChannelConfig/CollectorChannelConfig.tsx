@@ -1,4 +1,4 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, ExperimentOutlined, PlusOutlined } from '@ant-design/icons'
 import {
   Alert,
   Button,
@@ -9,6 +9,7 @@ import {
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from 'antd'
@@ -26,6 +27,8 @@ import type {
   CollectorTaskName,
 } from '@ai-invest/shared'
 
+import { ChannelDebugModal } from './ChannelDebugModal'
+import type { ChannelDebugTarget } from './ChannelDebugModal'
 import { CollectorChannelConfigModal } from './CollectorChannelConfigModal'
 import { DATA_TYPE_LABEL, SOURCE_LABEL } from './constants'
 import { DataTypePriorityPanel } from './DataTypePriorityPanel'
@@ -38,6 +41,7 @@ export function CollectorChannelConfig() {
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<CollectorChannelConfig | null>(null)
+  const [debugTarget, setDebugTarget] = useState<ChannelDebugTarget | null>(null)
 
   const openCreate = () => {
     setEditing(null)
@@ -101,41 +105,72 @@ export function CollectorChannelConfig() {
   }
 
   const columns = [
-    { title: '渠道', dataIndex: 'name', key: 'name' },
+    { title: '渠道', dataIndex: 'name', key: 'name', width: 130 },
     {
       title: '标识',
       dataIndex: 'source',
       key: 'source',
+      width: 90,
       render: (value: string) => SOURCE_LABEL[value] || value,
     },
     {
       title: 'API 地址',
       dataIndex: 'baseUrl',
       key: 'baseUrl',
-      render: (value: string | null) => value || '-',
+      width: 220,
+      ellipsis: true,
+      render: (value: string | null) =>
+        value ? (
+          <Typography.Text ellipsis={{ tooltip: value }}>{value}</Typography.Text>
+        ) : (
+          '-'
+        ),
     },
     {
       title: 'API Key',
       dataIndex: 'apiKeyMasked',
       key: 'apiKeyMasked',
-      render: (value: string | null) => value || '-',
+      width: 160,
+      render: (value: string | null) =>
+        value ? (
+          <Typography.Text code ellipsis={{ tooltip: value }}>
+            {value}
+          </Typography.Text>
+        ) : (
+          '-'
+        ),
     },
     {
       title: '支持的数据类型',
       dataIndex: 'supportedDataTypes',
       key: 'supportedDataTypes',
-      render: (value: string[]) => (
-        <Space size="small" wrap>
-          {value.map((type) => (
-            <Tag key={type}>{DATA_TYPE_LABEL[type as CollectorTaskName] || type}</Tag>
-          ))}
-        </Space>
-      ),
+      width: 300,
+      render: (value: string[]) => {
+        const visible = value.slice(0, 3)
+        const rest = value.length - visible.length
+        return (
+          <Space size={[4, 4]} wrap>
+            {visible.map((type) => (
+              <Tag key={type}>{DATA_TYPE_LABEL[type as CollectorTaskName] || type}</Tag>
+            ))}
+            {rest > 0 && (
+              <Tooltip
+                title={value
+                  .map((type) => DATA_TYPE_LABEL[type as CollectorTaskName] || type)
+                  .join('、')}
+              >
+                <Tag style={{ cursor: 'help' }}>+{rest}</Tag>
+              </Tooltip>
+            )}
+          </Space>
+        )
+      },
     },
     {
       title: '启用',
       dataIndex: 'isEnabled',
       key: 'isEnabled',
+      width: 70,
       render: (value: boolean, record: CollectorChannelConfig) => (
         <Switch
           checked={value}
@@ -145,17 +180,25 @@ export function CollectorChannelConfig() {
       ),
     },
     {
-      title: '状态',
-      dataIndex: 'isEnabled',
-      key: 'status',
-      render: (value: boolean) =>
-        value ? <Tag color="green">启用</Tag> : <Tag>禁用</Tag>,
-    },
-    {
       title: '操作',
       key: 'actions',
+      width: 230,
+      fixed: 'right' as const,
       render: (_: unknown, record: CollectorChannelConfig) => (
         <Space>
+          <Button
+            size="small"
+            icon={<ExperimentOutlined />}
+            onClick={() =>
+              setDebugTarget({
+                channelId: record.id,
+                channelName: record.name,
+                supportedDataTypes: record.supportedDataTypes,
+              })
+            }
+          >
+            调试
+          </Button>
           <Button
             size="small"
             icon={<EditOutlined />}
@@ -209,6 +252,7 @@ export function CollectorChannelConfig() {
         rowKey="id"
         loading={isLoading}
         pagination={false}
+        scroll={{ x: 1180 }}
       />
 
       <CollectorChannelConfigModal
@@ -217,6 +261,12 @@ export function CollectorChannelConfig() {
         onCancel={() => setModalOpen(false)}
         onSubmit={handleSubmit}
         loading={createMutation.isPending || updateMutation.isPending}
+      />
+
+      <ChannelDebugModal
+        open={debugTarget !== null}
+        target={debugTarget}
+        onClose={() => setDebugTarget(null)}
       />
     </>
   )

@@ -45,6 +45,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
             "index-minute",
             "stock-minute",
             "etf-kline",
+            "a50-kline",
         ],
         "extra": {},
     },
@@ -122,7 +123,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
     {
         "source": "cme",
         "name": "CME",
-        "base_url": None,
+        "base_url": "https://cmegroup-tools.quikstrike.net",
         "is_enabled": True,
         "supported_data_types": ["fed-watch"],
         "extra": {},
@@ -165,6 +166,11 @@ async def seed_default_channels(session: AsyncSession) -> None:
             merged_types = sorted(current_types | default_types)
             if merged_types != sorted(current_types):
                 config.supported_data_types = merged_types
+                updated += 1
+            # 历史行可能早于种子补 URL：仅回填空值，管理员自定义的非空值保留
+            default_base_url = data.get("base_url")
+            if config.base_url is None and default_base_url:
+                config.base_url = default_base_url
                 updated += 1
             continue
         session.add(

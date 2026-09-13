@@ -77,6 +77,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);min-
 <a class="card core" href="calendar.html" target="_blank"><div class="card-icon" style="background:rgba(210,153,34,.1)">📅</div><div class="card-body"><h3>投资日历</h3><p>月历 / 周历 / 列表三视图 · 分类筛选（宏观 / 央行 / 新股 / 解禁 / 财报 / 会议）· 事件详情 · 自选相关 ★ 标记 · source_hash 幂等去重</p><span class="tag tag-core">核心</span></div></a>
 <a class="card core" href="sector-anomaly.html" target="_blank"><div class="card-icon" style="background:rgba(248,81,73,.1)">⚡</div><div class="card-body"><h3>板块异动分析</h3><p>板块级量价 / 资金异常检测（涨跌幅偏离 / 量能放大 / 资金突变 / 齐动性）· 异动强度排序 · AI 归因（事件驱动 / 资金驱动 / 轮动补涨）· 板块指数回看 + 关联资讯 · 产业链直达</p><span class="tag tag-core">新增</span></div></a>
 <a class="card core" href="stock-anomaly.html" target="_blank"><div class="card-icon" style="background:rgba(46,160,67,.1)">🎯</div><div class="card-body"><h3>个股异动分析</h3><p>个股级异动检测（量比 / 换手 / 大单 / 龙虎榜 / 公告联动）· 尾盘异动与分时急拉标注 · AI 归因（独立异动 vs 板块带动）· 自选股命中高亮 ★ · 个股监测直达</p><span class="tag tag-core">新增</span></div></a>
+<a class="card core" href="kline-drawing.html" target="_blank"><div class="card-icon" style="background:rgba(94,106,210,.12)">✏️</div><div class="card-body"><h3>K 线画线与 AI 智能画线</h3><p>5 类画线（趋势线 / 射线 / 水平线 / 箱体 / 文字）· 周期严格隔离 · AI 画线对话触发（画线前确认问题卡）· AI 虚线图层可直接拖拽编辑与采纳 · Agent 读画线注入复盘。可交互原型：绘制 / 选中 / 拖拽 / 样式条 / 对话演示</p><span class="tag tag-core">新增</span></div></a>
 </div>
 
 <div class="section-title">系统</div>
@@ -84,6 +85,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);min-
 <a class="card" href="settings.html" target="_blank"><div class="card-icon" style="background:rgba(88,166,255,.06)">⚙</div><div class="card-body"><h3>个人设置</h3><p>基本信息 · 涨跌配色方案（红涨绿跌 / 绿涨红跌）· 个人 K 线均线（新账户默认 MA5 / 10 / 20 / 60）· 账号安全</p><span class="tag tag-accent">设置</span></div></a>
 <a class="card" href="skill-square.html" target="_blank"><div class="card-icon" style="background:rgba(94,106,210,.08)">🧩</div><div class="card-body"><h3>技能广场</h3><p>业务场景 Tab（大盘与情绪 / 个股分析 / 产业链 / 财报与研报 / 资讯处理）+ 搜索 · 能力 / 来源徽标 · 点卡片直达全页详情 /skills/:id · zip 上传自动解析 · 我的技能（启用/停用 · 安装/卸载 · 自定义草稿/发布）</p><span class="tag tag-accent">重构</span></div></a>
 <a class="card" href="admin.html" target="_blank"><div class="card-icon" style="background:rgba(248,81,73,.08)">🛡</div><div class="card-body"><h3>后台管理</h3><p>总览（8 入口卡片）· 用户 / 股票 / 报告（存储统计 + 清理）/ 资讯 / LLM 配置 · MCP 服务（工具注入 AI 助手）· 分析结果 · 采集管理三合一（执行日志 / 任务 cron / 渠道与优先级）· 代理配置</p><span class="tag tag-accent">管理</span></div></a>
+<a class="card core" href="collector-monitoring.html" target="_blank"><div class="card-icon" style="background:rgba(248,81,73,.08)">📡</div><div class="card-body"><h3>采集健康监测</h3><p>健康总览仪表盘（健康分 / 故障 / 脱期 / 成功率）· 任务 × 渠道健康明细（cron-aware 状态机）· 计划任务执行核对（应跑 vs 实跑）· 渠道健康视图（错误归因聚合）· 需求见 docs/requirement/02-monitoring-requirement.md</p><span class="tag tag-core">新增</span></div></a>
 </div>
 
 <div class="section-title">移动端</div>

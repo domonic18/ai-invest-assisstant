@@ -46,7 +46,10 @@ SPECS: tuple[TaskSpec, ...] = (
         name="a50-kline",
         label="富时 A50 日 K",
         data_type="a50_kline",
+        # 东财 push2his kline 路径被 WAF 路径级封死，sina（全球期货 CHA50CFD）
+        # 为主渠道；eastmoney 保留为兜底，仅 sina 失败时才会被尝试
         collectors={
+            "sina": "collector.spiders.sina_a50_kline:SinaA50KlineCollector",
             "eastmoney": "collector.spiders.eastmoney_a50_kline:EastmoneyA50KlineCollector",
         },
     ),

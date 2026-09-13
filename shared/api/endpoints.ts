@@ -193,10 +193,18 @@ export const ENDPOINTS = {
     collectorDataTypeChannels: (dataType: string) =>
       `${API_BASE}/admin/collector/data-types/${dataType}/channels`,
     collectorChannel: (id: number | string) => `${API_BASE}/admin/collector/channels/${id}`,
+    collectorChannelDebug: (id: number | string) =>
+      `${API_BASE}/admin/collector/channels/${id}/debug`,
     collectorTaskChannels: (task: string) => `${API_BASE}/admin/collector/tasks/${task}/channels`,
     collectorTaskCatalog: `${API_BASE}/admin/collector/tasks/catalog`,
     collectorLogs: `${API_BASE}/admin/collector/logs`,
     runCollectorTask: (task: string) => `${API_BASE}/admin/collector/tasks/${task}/run`,
+    collectorHealthOverview: `${API_BASE}/admin/collector/health/overview`,
+    collectorHealthTasks: `${API_BASE}/admin/collector/health/tasks`,
+    collectorHealthChannels: `${API_BASE}/admin/collector/health/channels`,
+    collectorHealthScheduleCheck: `${API_BASE}/admin/collector/health/schedule-check`,
+    collectorHealthRun: `${API_BASE}/admin/collector/health/run`,
+    collectorHealthSnapshots: `${API_BASE}/admin/collector/health/snapshots`,
     aiResults: `${API_BASE}/admin/ai-results/`,
     aiResult: (id: number | string) => `${API_BASE}/admin/ai-results/${id}`,
     aiResultSkills: `${API_BASE}/admin/ai-results/skills`,

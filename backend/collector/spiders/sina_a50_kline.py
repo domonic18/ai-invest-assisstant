@@ -41,16 +41,21 @@ class SinaA50KlineCollector(BaseKlineCollector):
         payload = json.loads(match.group(1))
         rows = payload if isinstance(payload, list) else payload.get("data") or []
 
-        return [
-            {
-                "stock_code": _STOCK_CODE,
-                "trade_date": parse_date(row.get("date")),
-                "open": row.get("open"),
-                "close": row.get("close"),
-                "high": row.get("high"),
-                "low": row.get("low"),
-                "volume": row.get("volume"),
-                "amount": None,
-            }
-            for row in rows
-        ]
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            trade_date = parse_date(row.get("date"))
+            if trade_date is None:
+                continue
+            result.append(
+                {
+                    "stock_code": _STOCK_CODE,
+                    "trade_date": trade_date,
+                    "open": row.get("open"),
+                    "close": row.get("close"),
+                    "high": row.get("high"),
+                    "low": row.get("low"),
+                    "volume": row.get("volume"),
+                    "amount": None,
+                }
+            )
+        return result

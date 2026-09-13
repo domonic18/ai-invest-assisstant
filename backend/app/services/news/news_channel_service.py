@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
 
 import structlog
-from croniter import croniter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import cache_exists
@@ -37,6 +36,7 @@ from app.schemas.news import (
     NewsChannelStatus,
     NewsStatsResponse,
 )
+from app.services.collector.cron_utils import cron_interval, day_base, expand_cron
 
 logger = structlog.get_logger(__name__)
 
@@ -132,38 +132,13 @@ def _lag_seconds(now: datetime, last_at: datetime | None) -> int | None:
     return max(0, int((now - last_at).total_seconds()))
 
 
-def _expand_cron(schedule: str, base: datetime) -> list[datetime]:
-    """从 base 起展开连续 4 个触发时刻（naive CN 时间）；非法返回空。"""
-    try:
-        it = croniter(schedule, base)
-        return [it.get_next(datetime) for _ in range(4)]
-    except Exception:
-        return []
-
-
-def _day_base(day_start: datetime) -> datetime:
-    """CN 日界回拨 1 秒作 cron 展开基点（纳入恰落在 00:00 的触发点）。"""
-    return day_start.astimezone(CN_TZ).replace(tzinfo=None) - timedelta(seconds=1)
-
-
-def _cron_interval(schedule: str | None, day_start: datetime) -> timedelta:
-    """cron 相邻触发的最大间隔（轮询型 delayed 阈值用）。"""
-    if not schedule:
-        return _POLL_FALLBACK_INTERVAL
-    times = _expand_cron(schedule, _day_base(day_start))
-    if len(times) < 2:
-        return _POLL_FALLBACK_INTERVAL
-    gaps = [b - a for a, b in zip(times, times[1:])]
-    return max(gaps)
-
-
 def _first_trigger_today(
     schedule: str | None, day_start: datetime, now: datetime
 ) -> datetime | None:
     """CN 日界内第一个 <= now 的计划触发时刻（aware UTC）。"""
     if not schedule:
         return None
-    times = _expand_cron(schedule, _day_base(day_start))
+    times = expand_cron(schedule, day_base(day_start))
     if not times:
         return None
     first = times[0]
@@ -191,7 +166,7 @@ def _task_log_status(
         if first is not None and now - first > _BATCH_GRACE:
             return "delayed"
         return "batch"
-    threshold = _cron_interval(schedule, day_start) * 2
+    threshold = cron_interval(schedule, day_start, _POLL_FALLBACK_INTERVAL) * 2
     last_ok = _success_at(success_run) if success_run is not None else None
     if last_ok is not None:
         return "delayed" if now - last_ok > threshold else "ok"

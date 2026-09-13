@@ -3,12 +3,14 @@
 
 import contextlib
 import datetime
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd
 import pytest
 
 from collector.spiders.eastmoney_a50_kline import EastmoneyA50KlineCollector
+from collector.spiders.sina_a50_kline import SinaA50KlineCollector
 from collector.spiders.sina_etf_kline import SinaEtfKlineCollector
 from collector.spiders.sina_index_kline import SinaIndexKlineCollector
 from collector.spiders.sina_kline import SinaKlineCollector, _fetch_watchlist_codes
@@ -206,3 +208,98 @@ class TestEastmoneyA50KlineCollector:
             return_value=response,
         ):
             assert await collector.collect() == []
+
+
+@pytest.mark.unit
+class TestSinaA50KlineCollector:
+    @staticmethod
+    def _mock_httpx(payload: object) -> MagicMock:
+        response = MagicMock()
+        response.text = f"var _=({json.dumps(payload)});"
+        client = MagicMock()
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        client.get = AsyncMock(return_value=response)
+        fake_httpx = MagicMock()
+        fake_httpx.AsyncClient = MagicMock(return_value=client)
+        return fake_httpx
+
+    @pytest.mark.asyncio
+    async def test_collect_parses_jsonp_daily_kline(self) -> None:
+        collector = SinaA50KlineCollector(
+            {"source": "sina", "data_type": "a50-kline"}
+        )
+        payload = {
+            "data": [
+                {
+                    "date": "2026-07-20",
+                    "open": "14827.0",
+                    "close": "14846.0",
+                    "high": "14860.0",
+                    "low": "14795.0",
+                    "volume": "43201",
+                },
+                {"date": "bad", "open": None},
+            ]
+        }
+        with patch(
+            "collector.spiders.sina_a50_kline.httpx", self._mock_httpx(payload)
+        ):
+            raw = await collector.collect()
+
+        assert len(raw) == 1
+        assert raw[0] == {
+            "stock_code": "CN00Y",
+            "trade_date": datetime.date(2026, 7, 20),
+            "open": "14827.0",
+            "close": "14846.0",
+            "high": "14860.0",
+            "low": "14795.0",
+            "volume": "43201",
+            "amount": None,
+        }
+        item = await collector.transform(raw[0])
+        assert item["close"] == 14846.0
+        assert await collector.validate(item) is True
+
+    @pytest.mark.asyncio
+    async def test_collect_accepts_plain_list_payload(self) -> None:
+        collector = SinaA50KlineCollector(
+            {"source": "sina", "data_type": "a50-kline"}
+        )
+        payload = [
+            {"date": "2026-07-20", "close": "14846.0"},
+        ]
+        with patch(
+            "collector.spiders.sina_a50_kline.httpx", self._mock_httpx(payload)
+        ):
+            raw = await collector.collect()
+
+        assert len(raw) == 1
+        assert raw[0]["stock_code"] == "CN00Y"
+        assert raw[0]["amount"] is None
+
+    @pytest.mark.asyncio
+    async def test_collect_empty_returns_empty(self) -> None:
+        collector = SinaA50KlineCollector(
+            {"source": "sina", "data_type": "a50-kline"}
+        )
+        with patch("collector.spiders.sina_a50_kline.httpx", self._mock_httpx([])):
+            assert await collector.collect() == []
+
+    @pytest.mark.asyncio
+    async def test_collect_non_jsonp_raises(self) -> None:
+        collector = SinaA50KlineCollector(
+            {"source": "sina", "data_type": "a50-kline"}
+        )
+        response = MagicMock()
+        response.text = "<html>blocked</html>"
+        client = MagicMock()
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        client.get = AsyncMock(return_value=response)
+        fake_httpx = MagicMock()
+        fake_httpx.AsyncClient = MagicMock(return_value=client)
+        with patch("collector.spiders.sina_a50_kline.httpx", fake_httpx):
+            with pytest.raises(ValueError, match="JSONP"):
+                await collector.collect()

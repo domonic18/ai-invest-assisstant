@@ -23,7 +23,8 @@ from collector.core.parsing import to_float, to_int
 
 logger = structlog.get_logger(__name__)
 
-_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+_DEFAULT_BASE_URL = "https://query1.finance.yahoo.com"
+_CHART_PATH = "/v8/finance/chart/{symbol}"
 _RANGE = "1y"
 _INTERVAL = "1d"
 _CHART_TIMEOUT_SECONDS = 30  # 代理链路 RTT 高于直连
@@ -46,10 +47,12 @@ YAHOO_SYMBOLS: dict[str, str] = {
 
 
 def _fetch_chart(
-    symbol: str, proxies: dict[str, str] | None = None
+    symbol: str,
+    proxies: dict[str, str] | None = None,
+    base_url: str | None = None,
 ) -> dict[str, Any] | None:
     """拉取单 symbol 的日线索引数据（连接级瞬时错误由 chrome_get 重试）。"""
-    url = _CHART_URL.format(symbol=symbol)
+    url = f"{(base_url or _DEFAULT_BASE_URL).rstrip('/')}{_CHART_PATH.format(symbol=symbol)}"
     response = chrome_get(
         url,
         params={"range": _RANGE, "interval": _INTERVAL},
@@ -78,6 +81,10 @@ class YahooGlobalIndexCollector(PostgresCollector):
     key_fields: ClassVar[list[str]] = ["index_code", "trade_date"]
     required_fields: ClassVar[list[str]] = ["index_code", "trade_date", "close"]
 
+    def __init__(self, config: dict[str, Any]):
+        super().__init__(config)
+        self.base_url = config.get("base_url") or _DEFAULT_BASE_URL
+
     async def collect(
         self,
         symbols: list[str] | None = None,
@@ -99,7 +106,7 @@ class YahooGlobalIndexCollector(PostgresCollector):
         last_error: Exception | None = None
         for code in codes:
             try:
-                result = _fetch_chart(YAHOO_SYMBOLS[code], proxies)
+                result = _fetch_chart(YAHOO_SYMBOLS[code], proxies, self.base_url)
             except (cffi_exceptions.CurlError, ValueError, IndexError) as exc:
                 # Yahoo Edge 限流(429)等单 symbol 异常不拖垮整批：
                 # 部分回填优于整体回退实时快照；全失败才向上抛走渠道 fallback

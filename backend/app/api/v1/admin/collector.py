@@ -50,6 +50,7 @@ async def get_collector_task_catalog() -> CollectorTaskCatalogResponse:
                 sources=list(spec.collectors),
                 config_params=list(spec.config_params),
                 run_params=list(spec.run_params),
+                defaults=dict(spec.defaults),
             )
             for spec in TASK_SPECS.values()
         ]
@@ -129,9 +130,13 @@ async def list_dead_letters(
 async def list_collector_logs(
     session: Annotated[AsyncSession, Depends(get_db)],
     limit: int = 50,
+    task_name: str | None = None,
+    source: str | None = None,
 ) -> list[CollectorLogResponse]:
-    """按最新优先列出最近的采集执行日志。"""
-    rows = await CollectorLogService(session).list_recent(limit)
+    """按最新优先列出最近的采集执行日志（可按任务键/渠道过滤）。"""
+    rows = await CollectorLogService(session).list_recent(
+        limit, task_name=task_name, source=source
+    )
     return [CollectorLogResponse.model_validate(row) for row in rows]
 
 

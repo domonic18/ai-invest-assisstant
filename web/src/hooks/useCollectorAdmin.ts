@@ -5,6 +5,7 @@ import {
   fetchCollectorTaskCatalog,
   fetchCollectorTaskChannels,
   runCollectorTask,
+  type CollectorLogFilters,
 } from '@/api/collectorAdmin'
 import { mapCollectorLog, mapCollectorTaskCatalog } from '@/api/mappers'
 import type {
@@ -27,11 +28,13 @@ export function useCollectorTaskCatalog() {
   })
 }
 
-export function useCollectorLogs(limit = 50) {
+export function useCollectorLogs(limit = 50, filters: CollectorLogFilters = {}) {
+  const taskName = filters.taskName ?? null
+  const source = filters.source ?? null
   return useQuery({
-    queryKey: [...queryKeys.collector.logs, limit],
+    queryKey: [...queryKeys.collector.logs, limit, taskName, source],
     queryFn: async () => {
-      const data = await fetchCollectorLogs(limit)
+      const data = await fetchCollectorLogs(limit, { taskName, source })
       return data.map(mapCollectorLog)
     },
     refetchInterval: (query) =>
