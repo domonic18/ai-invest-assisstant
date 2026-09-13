@@ -89,7 +89,6 @@ export function DataTypePriorityPanel() {
             key={item.dataType}
             dataType={item.dataType}
             channels={getDraft(item.dataType)}
-            allChannels={allChannels ?? []}
             dirty={dirtyMap[item.dataType] ?? false}
             saving={savingType === item.dataType}
             onChange={(channels) => change(item.dataType, channels)}

@@ -1,5 +1,4 @@
-import { PlusOutlined } from '@ant-design/icons'
-import { Button, Space, Tag, Typography } from 'antd'
+import { Button, Space, Typography } from 'antd'
 import {
   DndContext,
   KeyboardSensor,
@@ -11,7 +10,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 
-import type { CollectorChannelConfig, CollectorDataTypeChannel } from '@ai-invest/shared'
+import type { CollectorDataTypeChannel } from '@ai-invest/shared'
 
 import { DATA_TYPE_LABEL } from './constants'
 import { PriorityRow } from './PriorityRow'
@@ -19,7 +18,6 @@ import { PriorityRow } from './PriorityRow'
 export interface TypePrioritySectionProps {
   dataType: string
   channels: CollectorDataTypeChannel[]
-  allChannels: CollectorChannelConfig[]
   dirty: boolean
   saving: boolean
   onChange: (channels: CollectorDataTypeChannel[]) => void
@@ -30,7 +28,6 @@ export interface TypePrioritySectionProps {
 export function TypePrioritySection({
   dataType,
   channels,
-  allChannels,
   dirty,
   saving,
   onChange,
@@ -61,24 +58,6 @@ export function TypePrioritySection({
     onChange(channels.filter((item) => item.channelId !== channelId))
   }
 
-  const add = (channelId: number) => {
-    const channel = allChannels.find((item) => item.id === channelId)
-    if (!channel) return
-    onChange([
-      ...channels,
-      {
-        channelId: channel.id,
-        source: channel.source,
-        name: channel.name,
-        isEnabled: channel.isEnabled,
-        priority: channels.length + 1,
-      },
-    ])
-  }
-
-  const addableChannels = allChannels.filter(
-    (channel) => !channels.some((item) => item.channelId === channel.id),
-  )
   const label = DATA_TYPE_LABEL[dataType] || dataType
 
   return (
@@ -116,27 +95,9 @@ export function TypePrioritySection({
         </SortableContext>
       </DndContext>
       {channels.length === 0 && (
-        <Typography.Text type="secondary">暂未配置渠道，点击下方标签添加。</Typography.Text>
-      )}
-
-      {addableChannels.length > 0 && (
-        <div className="mt-2">
-          <Typography.Text type="secondary" className="mr-2">
-            <PlusOutlined /> 添加渠道：
-          </Typography.Text>
-          <Space size={[0, 8]} wrap>
-            {addableChannels.map((channel) => (
-              <Tag.CheckableTag
-                key={channel.id}
-                checked={false}
-                onChange={() => add(channel.id)}
-                style={{ fontSize: 13, padding: '3px 10px' }}
-              >
-                {channel.name}
-              </Tag.CheckableTag>
-            ))}
-          </Space>
-        </div>
+        <Typography.Text type="secondary">
+          暂未配置渠道，可在渠道列表编辑该渠道「支持的数据类型」后自动加入。
+        </Typography.Text>
       )}
     </div>
   )
