@@ -133,6 +133,8 @@ VALUES
     ('eastmoney_limit_up_pool', 'limit-up-pool', 'eastmoney', '0 16 * * 1-5', true),
     -- 须晚于 sina_market_breadth 最后一次写入（15:57），避免官方池家数被快照估算覆盖
     ('eastmoney_limit_down_pool', 'limit-down-pool', 'eastmoney', '0 16 * * 1-5', true),
+    -- 龙虎榜数据约 17:30 后稳定发布，盘后批次供涨停归因引用证据
+    ('eastmoney_dragon_list', 'dragon-list', 'eastmoney', '0 18 * * 1-5', true),
     ('sina_etf_kline', 'etf-kline', 'sina', '5 16 * * 1-5', true),
     -- 须晚于 eastmoney_limit_up_pool（16:00），个股分钟线供涨停复盘分时缩略图
     ('sina_stock_minute', 'stock-minute', 'sina', '20 16,18 * * 1-5', true),
