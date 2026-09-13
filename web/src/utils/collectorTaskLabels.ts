@@ -7,6 +7,10 @@ export const SOURCE_LABEL: Record<string, string> = {
   exchange: '沪深交易所',
   tushare: 'Tushare Pro',
   internal: '内部生成',
+  cls: '财联社',
+  cme: '芝商所',
+  mof: '日本财务省',
+  yahoo: '雅虎财经',
 }
 
 /** 获取渠道标识的中文显示名；未配置时返回原始 source。 */
