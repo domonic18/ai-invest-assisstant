@@ -1,6 +1,6 @@
 # 采集健康监测 需求文档
 
-> 版本：V1.0（2026-09-13 定稿）　状态：待排期
+> 版本：V1.1（2026-09-13，一期随迭代 6 实现，按「定时物化」方案修订）　状态：一期实现中（迭代 6）
 > 上位文档：[01-requirement.md](./01-requirement.md)（本文档为其「数据采集域」运维监测能力的专项扩展，编号启用新域 `F-MON`，实施时回填 01 文档功能总览表）
 > 原型：[docs/prototypes/collector-monitoring.html](../prototypes/collector-monitoring.html)（2026-09-13 定稿）
 
@@ -82,16 +82,17 @@
 
 | 状态 | 判定规则（cron-aware） | 处置导向 |
 |------|----------------------|----------|
-| `healthy` 绿 | 最近 cron 窗口内 success；或成功率高且无进行中连败 | — |
-| `degraded` 黄 | 仍偶有成功但：7 天成功率 < 阈值（默认 90%）／进行中连败 < 阈值（默认 3 次）／**该实例为主渠道且备渠道已顶上**（数据未断、渠道降级） | 观察、择机修复 |
-| `critical` 红 | 按 cron 本应成功而**连续 ≥2 个计划窗口**无 success；或该 task_type 的**全部渠道**均无 success（数据断供） | 立即处置 |
-| `silent` 红 | `is_active=true` 且超长无成功（默认 >7 天），含"从未成功过"的新任务配置错误 | 立即处置 |
+| `healthy` 绿 | 最近 cron 窗口内 success（skipped 覆盖窗口同属正常）；或成功率高且无进行中连败 | — |
+| `degraded` 黄 | 仍偶有成功但：7 天成功率 < 阈值（默认 90%）／进行中连败 < 阈值（默认 3 次）／**连续 skipped ≥3 个计划窗口**（产出停滞）／高频任务当日成功率 <80%／**该实例为主渠道且备渠道已顶上**（数据未断、渠道降级） | 观察、择机修复 |
+| `critical` 红 | 按 cron 本应成功而**连续 ≥2 个已到期计划窗口**无 success；或**全渠道断供**——该 task_type 有 ≥2 个可判定渠道实例且当期应跑窗口全部未满足（周末脱期不误报；silent 语义优先不覆盖） | 立即处置 |
+| `silent` 红 | `is_active=true` 且超长无成功（默认 >7 个交易日），含"从未成功过"的新任务配置错误 | 立即处置 |
 | `paused` 灰 | `is_active=false`；不参与健康统计与告警 | — |
+| `unconfigured` 灰 | 渠道关联存在但无 `collector_task` 实例行；不参与健康统计与告警 | — |
 
 豁免规则：
 
-- `skipped` 为良性终态：不计入失败率、不打断 healthy 判定（AI 任务的"输入未就绪退避中"属此类）；但**连续 skipped 超过 3 个计划窗口且产生过历史成功**的，降级为 `degraded` 提示（产出停滞预警）
-- 非交易日/节假日：计划窗口按交易日历展开，休市日不产生"应跑未跑"
+- `skipped` 为良性终态：不计入失败率、满足计划窗口（AI 任务的"输入未就绪退避中"属此类）；但**连续 skipped 超过 3 个计划窗口且产生过历史成功**的，降级为 `degraded` 提示（产出停滞预警）
+- 非交易日/节假日：计划窗口按交易日历展开，休市日不产生"应跑未跑"；**非交易日的运行记录（周末重试/人工补跑）仍计入连败/停滞口径**——交易日豁免只作用于"应跑窗口"口径，过滤运行记录会漏计停滞串并使周末人工成功失效
 - 高频任务（分钟级）失败属噪音高发区：以**当日成功率**为主要指标（<80% 才 degraded），单次失败不出状态
 
 ### 4.2 指标口径
@@ -101,9 +102,9 @@
 | 成功率 | success / (success+failed+partial)，分 24h / 7d 两窗口；skipped 剔除 |
 | 连败 | 自最近一次 success 起连续 failed/partial 次数 |
 | 距最近成功 | now − max(success.started_at)，展示按 cron 语义换算（"3 个计划窗口"） |
-| 脱期场次 | 观察窗内应执行场次中，无执行记录或无 success 的场次（计划核对表） |
+| 脱期场次 | 观察窗内应执行场次中，无执行记录或无 success 的场次（计划核对表，按任意历史日期核对） |
 | 入库量 | `records_count`，按 task_type 日汇总；较 7 日均值跌 >70% 判"疑似空采"（P2，先出数不告警） |
-| 健康分 | active 实例中 healthy 占比；按数据域分面板呈现 |
+| 健康分 | 可判定实例（排除 paused/unconfigured）中 `healthy + 0.5×degraded` 占比；按数据域分面板呈现 |
 
 ### 4.3 错误归因分类（启发式，辅助定位）
 
@@ -114,21 +115,22 @@
 ### 5.1 F-MON-01 采集健康总览
 
 - **描述**：后台「采集健康」页顶部仪表盘。整体健康分 + 关键计数（进行中故障 / 脱期任务 / 静默任务 / 24h 成功率），按数据域（K线/行情/股池/资金流/资讯/基本面/AI）分组的健康概览
-- **关键规则**：有 `critical/silent` 存在时页面顶部常驻告警条（不做弹窗打扰）；观察窗切换 24h / 7d / 30d
-- **数据**：聚合 API（见 5.6），实时计算
+- **关键规则**：有 `critical/silent` 存在时页面顶部常驻告警条（不做弹窗打扰）；明细自带 24h / 7d 双口径成功率（快照双列，无 30d）
+- **数据**：读 `collector_health_status` 物化快照（每日 08:30 盘前检测 + 手动「立即检测」，见 5.6），页面标注最近检测时间；快照滞后 >2× 检测间隔显示「检测延迟」提示
 - **原型**：`collector-monitoring.html` 区块 ①
 
 ### 5.2 F-MON-02 任务 × 渠道健康明细
 
-- **描述**：以数据域分组的明细表，每行一个任务实例：任务类型 / 渠道 / 主备角色 / 状态 / 24h·7d 成功率 / 连败 / 距最近成功 / 最近错误摘要（tooltip 全文）/ 操作
-- **操作**：查看执行日志（跳转采集日志 Tab 并过滤该 `(task_type, source)`）、手动补跑（复用既有 run 端点）、渠道调试（复用 ChannelDebugModal）、渠道配置（跳转渠道优先级 Tab）
+- **描述**：以数据域分组的明细表，每行一个任务实例：任务类型 / 渠道 / 主备角色 / 状态 / 24h·7d 成功率 / 连败 / 缺口窗口 / 最近成功 / 最近错误摘要（归因 Tag + tooltip 全文）/ 操作
+- **判定依据**：状态列 tooltip 与行展开（cron、高频标记、最近入库量）展示判定依据 reasons（如「连续 skipped 3 次产出停滞」）
+- **操作**：查看执行日志（跳转采集日志 Tab 并过滤该 `(task_type, source)`）、手动补跑（复用既有 run 端点）、渠道配置（跳转渠道优先级 Tab；ChannelDebugModal 调试不进一期）
 - **排序**：critical/silent > degraded > healthy/paused；支持按数据域、状态过滤
 - **原型**：`collector-monitoring.html` 区块 ③
 
 ### 5.3 F-MON-03 计划任务执行核对
 
-- **描述**：回答"计划任务是否如期执行、是否按实际情况执行"。按 `collector_task` 声明逐实例核对观察窗内**应执行场次 vs 实际结果**：按期成功 / 执行但失败 / 应跑未跑 / 良性豁免（非交易日、skipped）
-- **关键规则**：场次展开用 croniter 按北京时间 + 交易日历；`is_active=true` 但长期无成功的实例在此视图显著标红（静默死亡检测，实证发现 #1 的直接对策）
+- **描述**：回答"计划任务是否如期执行、是否按实际情况执行"。按任意历史日期（默认当日）逐实例核对 `collector_task` 声明的**应执行场次 vs 实际结果**：按期成功 / 良性跳过 / 执行但失败 / 应跑未跑；非交易日的实例行全部标记「豁免」
+- **关键规则**：场次展开用 croniter 按北京时间 + 交易日历；核对当日时未到期的窗口（含宽限）不计入；`is_active=true` 但长期无成功的实例在此视图显著标红（静默死亡检测，实证发现 #1 的直接对策）
 - **原型**：`collector-monitoring.html` 区块 ⑤
 
 ### 5.4 F-MON-04 渠道健康视图
@@ -144,12 +146,16 @@
 - **通知**：一期站内（后台入口角标 + 告警中心）；二期可选 Webhook 外发（企业微信/钉钉/Telegram，格式含实例、状态、错误样本、影响数据域、跳转链接）
 - **验收注**：阈值变更不重启生效
 
-### 5.6 F-MON-06 健康聚合服务与 API
+### 5.6 F-MON-06 健康检测服务与物化快照
 
-- **描述**：新增 `services/collector/health_service.py` 与只读聚合端点（admin 权限）。判定器复用并推广 `NEWS_CHANNELS` 的两类 cron 判定思想（轮询型 K×最大间隔 / 批次型计划时刻+宽限），覆盖全量任务实例
-- **数据**：全部由 `collector_log` / `collector_task` / `collector_channel_data_type` 派生，**零新表**；告警中心二期引入 `collector_alert` 表
-- **性能**：当前库量级（月 ~2 万条日志）单次聚合 < 500ms；预留物化快照升级位
-- **约定**：渠道身份一律 `(task_type, source)` 二元组；`collector_log.task_name` 不与 `collector_task.task_name` 实例名联接
+- **检测链路**（定时物化，页面只读快照）：celery beat 按 `collector_task` 登记行 `collector_health_check`（internal 渠道，cron 默认 `30 8 * * *` 北京时间盘前，任务配置页可调）→ `runtime.run_task` → `health-check` TaskSpec → `collector/spiders/health_check.py` 调 `services/collector/health/` 包
+- **服务包**：`health_snapshot`（取数组装判定输入，唯一 IO 点）→ `health_judge`（纯函数判定，零 IO 可单测）→ `health_service`（diff 状态翻转维护 `state_changed_at`、upsert 快照、读快照组装响应）；`error_classifier` 有序正则归因 7 类（WAF/反爬、网络超时、接口变更解析、认证配额、任务超时、输入未就绪、其他）
+- **快照表** `collector_health_status`（upsert 键 `(task_type, source)`）：status / role / domain / 24h·7d 成功率 / 连败 / 缺口窗口 / 最近成功 / 最近错误+归因 / 高频标记 / 最近入库量 / **reasons 判定依据** / `state_changed_at`（状态翻转时间）/ `checked_at`（检测时间，全表同批次）。实例下线后的孤儿行随检测自动清理；管理端 `DELETE /snapshots` 手动清空（下个检测点重建）
+- **API**（admin）：`GET /overview`（健康分/计数/分域/检测时间/延迟阈值）、`GET /tasks`（快照明细 + join collector_task 取 cron/is_active）、`GET /channels`（按 source 聚合 + 归因分布）、`GET /schedule-check?date=`（按 collector_log 现算，本质上是对运行记录的查询）、`POST /run`（立即检测）、`DELETE /snapshots`
+- **阈值**：`health_*` 配置项进 `app/core/config.py`（连缺窗口数、连败数、7d 成功率、高频当日成功率、静默天数、宽限系数、skipped 停滞窗口数），判定器经 `JudgeThresholds` 装配保持纯净
+- **自指豁免**：`health-check` 不进 `TASK_TYPE_DOMAIN`，不出现在健康统计与页面（监测不监测自己）；检测任务自身失联由前端「检测延迟」提示兜底
+- **性能**：检测每日 1 次单次 <500ms，对库无感；快照按实例 upsert 常驻 ~50 行不增长；页面/角标均为小表 SELECT（角标轮询 300s）
+- **约定**：渠道身份一律 `(task_type, source)` 二元组；`collector_log.task_name` 不与 `collector_task.task_name` 实例名联接；runs 取数不按交易日过滤（周末重试/人工补跑是真实记录）
 
 ### 5.7 F-MON-07 入库量趋势（P2）
 
@@ -178,17 +184,17 @@
 
 | 期 | 内容 | 特征 |
 |----|------|------|
-| 一期 | F-MON-01/02/03/04/06（健康服务 + 总览/明细/核对/渠道视图 + 站内角标） | 零新表、纯只读聚合，最快见效 |
-| 二期 | F-MON-05 完整告警（collector_alert 表 + 认领流 + 阈值配置）+ Webhook 外发 | 引入新表与迁移 |
-| 后置 | F-MON-07 量趋势告警、F-MON-08 日志卫生、快照物化 | 触发条件立项 |
+| 一期 | F-MON-01/02/03/04/06（健康检测定时任务 + 物化快照表 + 总览/明细/核对/渠道视图 + 站内角标） | 定时物化快照（新表 `collector_health_status` + 每日检测），页面读快照毫秒级 |
+| 二期 | F-MON-05 完整告警（collector_alert 表 + 认领流 + 阈值配置）+ Webhook 外发 | 复用一期判定内核，新增通知外发与告警生命周期 |
+| 后置 | F-MON-07 量趋势告警、F-MON-08 日志卫生 | 触发条件立项 |
 
 ## 9. 验收对照（用实证样本验收）
 
-| 样本 | 预期呈现 |
+| 样本 | 预期呈现（2026-09-13 实测） |
 |------|----------|
-| ths_concept_constituents | `silent` 红色 + 告警"49 天无成功" |
-| a50-kline/eastmoney | `degraded`（主渠道 sina 顶上，备渠道连败 3 次）+ 渠道视图 eastmoney 归因 WAF |
-| stock_daily_analysis_1640 | `critical`（连续 3 个交易日窗口无 success） |
-| index-spot/sina | 24h 成功率口径下 healthy（噪音豁免），30d 视图可见 83.9% |
-| news-score/unknown | 不参与健康统计（治理项单列） |
-| 周末打开页面 | 交易日历豁免，无"应跑未跑"误报 |
+| ths_concept_constituents | `silent` 红色，reasons「超过 7 个交易日无成功」✓ |
+| a50-kline/eastmoney | `critical`（本地库 sina 无实例行，单渠道可判定组连缺 3 窗）+ 渠道视图归因 WAF ✓ |
+| stock_daily_analysis_1640 | `degraded`「连续 skipped 3 次产出停滞」（skipped 是良性终态满足窗口，不断供；含 09-13 周六重试）✓ |
+| index-spot/sina | healthy（高频噪音豁免，单次失败不出状态）✓ |
+| news-score/unknown | 不参与健康统计（清单外脏行排除）✓ |
+| 周末打开页面 | 交易日历豁免：周五成功的日频任务距上次成功 >24h 不误报（窗口口径天然豁免）✓ |
