@@ -27,8 +27,9 @@ from collector.core.http_client import chrome_get, chrome_post
 logger = structlog.get_logger(__name__)
 
 _TOOL_PAGE_URL = "https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html"
-_ENTRY_URL = "https://cmegroup-tools.quikstrike.net/User/QuikStrikeTools.aspx"
-_VIEW_URL = "https://cmegroup-tools.quikstrike.net/User/QuikStrikeView.aspx"
+_DEFAULT_DATA_BASE = "https://cmegroup-tools.quikstrike.net"
+_ENTRY_PATH = "/User/QuikStrikeTools.aspx"
+_VIEW_PATH = "/User/QuikStrikeView.aspx"
 _VIEW_PARAMS = {"viewitemid": "IntegratedFedWatchTool", "userId": "lwolf"}
 _PTREE_TARGET = "ctl00$MainContent$ucViewControl_IntegratedFedWatchTool$lbPTree"
 _CHICAGO_TZ = ZoneInfo("America/Chicago")
@@ -185,14 +186,15 @@ class CmeFedWatchCollector(PostgresCollector):
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         self._snapshot: dict[str, Any] | None = None
+        self._data_base = (config.get("base_url") or _DEFAULT_DATA_BASE).rstrip("/")
 
     async def collect(self, **kwargs: object) -> list[dict[str, Any]]:
         return await run_in_thread(self._collect_sync)
 
     def _collect_sync(self) -> list[dict[str, Any]]:
-        entry_url = f"{_ENTRY_URL}?{urlencode(_VIEW_PARAMS)}"
+        entry_url = f"{self._data_base}{_ENTRY_PATH}?{urlencode(_VIEW_PARAMS)}"
         entry_html = chrome_get(entry_url, headers={"Referer": _TOOL_PAGE_URL}).text
-        view_url = f"{_VIEW_URL}?{urlencode(_VIEW_PARAMS)}&{extract_session_cache(entry_html)}"
+        view_url = f"{self._data_base}{_VIEW_PATH}?{urlencode(_VIEW_PARAMS)}&{extract_session_cache(entry_html)}"
         current_html = chrome_get(view_url, headers={"Referer": entry_url}).text
         data_as_at, as_of_date = parse_data_as_at(current_html)
         range_low, range_high = parse_current_range(current_html)

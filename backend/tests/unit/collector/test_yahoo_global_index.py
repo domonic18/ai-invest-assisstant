@@ -69,7 +69,7 @@ class TestYahooGlobalIndex:
     async def test_collect_maps_all_symbols(self) -> None:
         collector = YahooGlobalIndexCollector(config={"source": "yahoo"})
 
-        def fake_fetch(symbol: str, proxies=None) -> dict:
+        def fake_fetch(symbol: str, proxies=None, base_url=None) -> dict:
             return _chart_result([(_TS[0], 100.0, 101.0, 1)])
 
         with patch(
@@ -86,7 +86,9 @@ class TestYahooGlobalIndex:
             mock_fetch.return_value = _chart_result([(_TS[0], 100.0, 101.0, 1)])
             items = await collector.collect(symbols=["SPX"])
         assert [i["index_code"] for i in items] == ["SPX"]
-        mock_fetch.assert_called_once_with("^GSPC", None)
+        mock_fetch.assert_called_once_with(
+            "^GSPC", None, "https://query1.finance.yahoo.com"
+        )
 
     async def test_symbols_registry_subset(self) -> None:
         """回填清单必须都登记在 GLOBAL_INDEX_CODES，避免落库孤儿 code。"""
@@ -113,7 +115,7 @@ class TestYahooGlobalIndex:
         """单 symbol 限流(429)不拖垮整批：其余 code 正常回填。"""
         collector = YahooGlobalIndexCollector(config={"source": "yahoo"})
 
-        def fake_fetch(symbol: str, proxies=None) -> dict:
+        def fake_fetch(symbol: str, proxies=None, base_url=None) -> dict:
             if symbol == "^HSTECH":
                 raise cffi_exceptions.ConnectionError("connection reset")
             return _chart_result([(_TS[0], 100.0, 101.0, 1)])
@@ -146,7 +148,9 @@ class TestYahooGlobalIndex:
             await collector.collect(symbols=["SPX"])
 
         mock_fetch.assert_called_once_with(
-            "^GSPC", {"http": "http://u:p@1.2.3.4:17890", "https": "http://u:p@1.2.3.4:17890"}
+            "^GSPC",
+            {"http": "http://u:p@1.2.3.4:17890", "https": "http://u:p@1.2.3.4:17890"},
+            "https://query1.finance.yahoo.com",
         )
 
     async def test_fetch_chart_passes_proxies_and_timeout(self) -> None:

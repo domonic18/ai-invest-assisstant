@@ -20,7 +20,6 @@ class EastMoneyFundHoldingsCollector(PostgresCollector):
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         self.report_date = config.get("report_date") or DEFAULT_REPORT_DATE
-        self.base_url = config.get("base_url")
         self.api_key = config.get("api_key")
 
     async def collect(self, **kwargs: Any) -> list[dict[str, Any]]:

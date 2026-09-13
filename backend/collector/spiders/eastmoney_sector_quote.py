@@ -17,10 +17,11 @@ from collector.core.base import PostgresCollector
 from collector.core.calendar import latest_trading_day
 from collector.core.http_client import eastmoney_get_chrome
 from collector.core.parsing import to_float, to_int, to_optional_str
+from collector.spiders.eastmoney_common import DEFAULT_PUSH2_BASE_URL, push2_base_url
 
 logger = structlog.get_logger(__name__)
 
-_CLIST_URL = "https://push2delay.eastmoney.com/api/qt/clist/get"
+_CLIST_PATH = "/api/qt/clist/get"
 # f12 代码 f14 名称 f2 最新价 f3 涨跌幅 f6 成交额 f8 换手率
 # f104 上涨家数 f105 下跌家数 f128 领涨股
 _FIELDS = "f12,f14,f2,f3,f6,f8,f104,f105,f128"
@@ -30,10 +31,12 @@ _MAX_ROWS = 2000
 _SECTOR_FS: dict[str, str] = {"industry": "m:90+t:2", "concept": "m:90+t:3"}
 
 
-def fetch_sector_page(fs: str, page: int) -> dict[str, Any]:
+def fetch_sector_page(
+    fs: str, page: int, base_url: str = DEFAULT_PUSH2_BASE_URL
+) -> dict[str, Any]:
     """拉取一页板块 clist（data 节点，含 total/diff）。"""
     response = eastmoney_get_chrome(
-        _CLIST_URL,
+        f"{base_url.rstrip('/')}{_CLIST_PATH}",
         params={
             "pn": str(page),
             "pz": str(_PAGE_SIZE),
@@ -50,13 +53,15 @@ def fetch_sector_page(fs: str, page: int) -> dict[str, Any]:
     return response.json().get("data") or {}
 
 
-def fetch_sector_rows(fs: str) -> list[dict[str, Any]]:
+def fetch_sector_rows(
+    fs: str, base_url: str = DEFAULT_PUSH2_BASE_URL
+) -> list[dict[str, Any]]:
     """分页拉取板块全量记录（短页或 total 覆盖即停）。"""
     rows: list[dict[str, Any]] = []
     total = 0
     page = 1
     while len(rows) < _MAX_ROWS:
-        data = fetch_sector_page(fs, page)
+        data = fetch_sector_page(fs, page, base_url)
         total = int(data.get("total") or total)
         diff = data.get("diff") or []
         rows.extend(diff)
@@ -123,9 +128,10 @@ class EastmoneySectorQuoteCollector(PostgresCollector):
         return await run_in_thread(self._collect_sync, target)
 
     def _collect_sync(self, trade_date: date) -> list[dict[str, Any]]:
+        base_url = push2_base_url(self.config)
         rows: list[dict[str, Any]] = []
         for sector_type, fs in _SECTOR_FS.items():
-            fetched = fetch_sector_rows(fs)
+            fetched = fetch_sector_rows(fs, base_url)
             rows.extend(
                 transformed
                 for row in fetched

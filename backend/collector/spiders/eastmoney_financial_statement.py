@@ -68,7 +68,6 @@ class EastmoneyFinancialStatementCollector(BaseCollector):
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         self.report_types = config.get("report_types") or DEFAULT_REPORT_TYPES
-        self.base_url = config.get("base_url")
         self.api_key = config.get("api_key")
 
     async def collect(

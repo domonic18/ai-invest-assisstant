@@ -15,9 +15,10 @@ from collector.core.async_helpers import run_in_thread
 from collector.core.calendar import is_trading_day, latest_trading_day
 from collector.core.http_client import eastmoney_get_chrome
 from collector.core.parsing import parse_cn_amount, to_float, to_optional_str
+from collector.spiders.eastmoney_common import push2_base_url
 from collector.spiders.sector_fund_flow_base import BaseSectorFundFlowCollector
 
-_PUSH2_URL = "https://push2delay.eastmoney.com/api/qt/clist/get"
+_CLIST_PATH = "/api/qt/clist/get"
 _PAGE_SIZE = 100
 # f12 板块代码 f14 名称 f3 涨跌幅 f62 主力净额 f66 超大单 f72 大单
 # f78 中单 f84 小单 f204 主力净流入最大股 f205 最大股代码
@@ -39,7 +40,8 @@ class EastMoneySectorFundFlowCollector(BaseSectorFundFlowCollector):
     }
 
     def _request_page(self, params: dict[str, Any]) -> dict[str, Any]:
-        response = eastmoney_get_chrome(_PUSH2_URL, params=params)
+        url = f"{push2_base_url(self.config)}{_CLIST_PATH}"
+        response = eastmoney_get_chrome(url, params=params)
         return response.json().get("data") or {}
 
     def _fetch_rank(self, sector_type: str) -> list[dict[str, Any]]:
