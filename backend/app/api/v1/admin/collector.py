@@ -50,6 +50,7 @@ async def get_collector_task_catalog() -> CollectorTaskCatalogResponse:
                 sources=list(spec.collectors),
                 config_params=list(spec.config_params),
                 run_params=list(spec.run_params),
+                defaults=dict(spec.defaults),
             )
             for spec in TASK_SPECS.values()
         ]

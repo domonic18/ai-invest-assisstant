@@ -111,10 +111,29 @@ export interface CollectorTaskCatalogItem {
   sources: string[]
   configParams: string[]
   runParams: string[]
+  defaults: Record<string, unknown>
 }
 
 export interface CollectorTaskCatalog {
   items: CollectorTaskCatalogItem[]
+}
+
+/** 单渠道调试采集请求（只采集不落库）。 */
+export interface CollectorChannelDebugRequest {
+  dataType: string
+  symbols?: string[] | null
+  params?: Record<string, unknown>
+}
+
+/** 单渠道调试采集结果：样例上限 3 条，绝不携带渠道凭据。 */
+export interface CollectorChannelDebugResult {
+  ok: boolean
+  errorKind: 'no_collector' | 'disabled' | 'timeout' | 'error' | null
+  error: string | null
+  durationMs: number
+  collected: number
+  sampleValid: number | null
+  sampleItems: Record<string, unknown>[]
 }
 
 export interface CollectorTaskChannel {

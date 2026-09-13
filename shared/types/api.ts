@@ -577,6 +577,7 @@ export interface ApiCollectorTaskCatalogItem {
   sources: string[]
   configParams: string[]
   runParams: string[]
+  defaults?: Record<string, unknown> | null
 }
 
 export interface ApiCollectorTaskCatalogResponse {

@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     # 后台服务状态探测（GET /admin/system/status）单服务超时（秒）
     status_probe_timeout: float = 3.0
 
+    # 渠道调试采集（POST /admin/collector/channels/{id}/debug）单次超时（秒）
+    collector_debug_timeout_seconds: float = 30.0
+
     # MinIO
     minio_endpoint: str = "localhost:9000"
     minio_public_endpoint: str | None = None
