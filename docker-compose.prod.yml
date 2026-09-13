@@ -180,14 +180,17 @@ services:
     image: elasticsearch:8.13.0
     environment:
       - discovery.type=single-node
-      - xpack.security.enabled=false
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    # ports:
-    #   - "${ELASTICSEARCH_PORT}:9200"
+      - "ELASTIC_PASSWORD=${ELASTIC_PASSWORD}"
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
     volumes:
       - ./workspace/elasticsearch:/usr/share/elasticsearch/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      test: ["CMD-SHELL", "curl -fs -u elastic:\"$$ELASTIC_PASSWORD\" http://localhost:9200/_cluster/health || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
