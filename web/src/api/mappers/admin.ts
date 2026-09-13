@@ -108,6 +108,7 @@ export function mapCollectorTaskCatalog(dto: ApiCollectorTaskCatalogResponse): C
       sources: item.sources,
       configParams: item.configParams,
       runParams: item.runParams,
+      defaults: item.defaults ?? {},
     })),
   }
 }
