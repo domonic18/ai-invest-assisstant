@@ -3,6 +3,7 @@
 import json
 import uuid
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -34,6 +35,13 @@ def assistant_client():
     app.dependency_overrides[get_current_user] = lambda: mock_user
     yield TestClient(app), mock_user
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _skip_quota_precheck():
+    """AI 端点配额预检与被测契约无关，统一打桩放行。"""
+    with patch("app.services.quota.quota_service.precheck", AsyncMock()):
+        yield
 
 
 @pytest.mark.unit
@@ -91,6 +99,15 @@ class TestThreadEndpoints:
                 AsyncMock(return_value=_session_row()),
             ),
             patch(
+                "app.api.v1.assistant.runs.resolve_llm",
+                AsyncMock(
+                    return_value=(
+                        SimpleNamespace(provider="openai", protocol="openai"),
+                        "system",
+                    )
+                ),
+            ),
+            patch(
                 "app.api.v1.assistant.runs.get_assistant_agent",
                 AsyncMock(return_value=agent),
             ),
@@ -114,6 +131,35 @@ class TestThreadEndpoints:
 
 
 @pytest.mark.unit
+class TestRunStreamQuotaRefused:
+    """配额拒绝流契约：合成 AI 提示消息走合法 SSE（sdk 对流前 429 会静默吞）。"""
+
+    def test_quota_refused_emits_notice_message(self, assistant_client) -> None:
+        from app.core.exceptions import QuotaExhaustedError
+
+        client, _ = assistant_client
+        with (
+            patch(
+                "app.services.assistant.assistant_service.AssistantService.custom_skill_index_lines",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.services.quota.quota_service.precheck",
+                AsyncMock(side_effect=QuotaExhaustedError()),
+            ),
+        ):
+            response = client.post(
+                f"/api/v1/assistant/threads/{uuid.uuid4()}/runs/stream",
+                json={"input": {"messages": [{"type": "human", "content": "hi"}]}},
+                headers={"Accept": "text/event-stream"},
+            )
+        assert response.status_code == 200
+        body = response.text
+        assert "event: messages" in body
+        assert "配额已用尽" in body
+        assert "event: end" in body
+
+
 class TestRunStream:
     def test_rejects_non_human_input_message(self, assistant_client) -> None:
         client, _ = assistant_client
@@ -200,6 +246,15 @@ class TestRunStream:
             patch(
                 "app.services.assistant.assistant_service.AssistantService.custom_skill_index_lines",
                 AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.api.v1.assistant.runs.resolve_llm",
+                AsyncMock(
+                    return_value=(
+                        SimpleNamespace(provider="openai", protocol="openai"),
+                        "system",
+                    )
+                ),
             ),
             patch(
                 "app.api.v1.assistant.runs.get_assistant_agent",

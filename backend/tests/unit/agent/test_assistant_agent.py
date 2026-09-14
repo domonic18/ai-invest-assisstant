@@ -51,8 +51,8 @@ class TestAssistantAgent:
                 AsyncMock(return_value=[]),
             ),
             patch(
-                "app.agent.runtime.assistant_agent.resolve_default_llm",
-                AsyncMock(return_value=_resolved()),
+                "app.agent.runtime.assistant_agent.resolve_llm",
+                AsyncMock(return_value=(_resolved(), "system")),
             ),
             patch(
                 "app.agent.runtime.assistant_agent.get_checkpointer",
@@ -67,6 +67,40 @@ class TestAssistantAgent:
         assert get_cp.await_count == 1
 
     @pytest.mark.asyncio
+    async def test_byok_cfg_gets_dedicated_agent(self) -> None:
+        """不同出口指纹（BYOK vs 系统默认）各得独立实例；同指纹命中缓存。"""
+        from langgraph.checkpoint.memory import MemorySaver
+
+        from app.agent.runtime import assistant_agent
+
+        checkpointer = MemorySaver()
+        byok = ResolvedLLMConfig(
+            config_id=-1,
+            provider="byok",
+            protocol="anthropic",
+            base_url="https://byok.example.com/api/",
+            api_key="user-own-key",
+            model_name="user-model",
+            extra={},
+        )
+        with (
+            patch(
+                "app.agent.tools.build_mcp_tools",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.agent.runtime.assistant_agent.get_checkpointer",
+                AsyncMock(return_value=checkpointer),
+            ),
+        ):
+            system_agent = await assistant_agent.get_assistant_agent(cfg=_resolved())
+            byok_agent = await assistant_agent.get_assistant_agent(cfg=byok)
+            byok_again = await assistant_agent.get_assistant_agent(cfg=byok)
+
+        assert byok_agent is not system_agent
+        assert byok_again is byok_agent
+
+    @pytest.mark.asyncio
     async def test_agent_includes_todo_list_middleware(self) -> None:
         from langgraph.checkpoint.memory import MemorySaver
 
@@ -78,8 +112,8 @@ class TestAssistantAgent:
                 AsyncMock(return_value=[]),
             ),
             patch(
-                "app.agent.runtime.assistant_agent.resolve_default_llm",
-                AsyncMock(return_value=_resolved()),
+                "app.agent.runtime.assistant_agent.resolve_llm",
+                AsyncMock(return_value=(_resolved(), "system")),
             ),
             patch(
                 "app.agent.runtime.assistant_agent.get_checkpointer",
@@ -105,8 +139,8 @@ class TestAssistantAgent:
                 AsyncMock(return_value=[]),
             ),
             patch(
-                "app.agent.runtime.assistant_agent.resolve_default_llm",
-                AsyncMock(return_value=_resolved()),
+                "app.agent.runtime.assistant_agent.resolve_llm",
+                AsyncMock(return_value=(_resolved(), "system")),
             ),
             patch(
                 "app.agent.runtime.assistant_agent.get_checkpointer",

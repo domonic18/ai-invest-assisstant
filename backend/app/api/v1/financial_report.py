@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.dependencies import get_db
+from app.dependencies import get_current_user, get_db
+from app.models.user import User
 from app.schemas.file_metadata import (
     FinancialReportCollectLogResponse,
     FinancialReportCollectRequest,
@@ -16,6 +17,9 @@ from app.schemas.file_metadata import (
     FinancialReportResponse,
 )
 from app.schemas.stock import PaginatedResponse
+from app.services.quota import quota_service
+from app.services.quota.constants import FEATURE_PAGE
+from app.services.quota.context import meter_scope
 from app.services.reports import financial_report_service
 
 router = APIRouter()
@@ -133,10 +137,13 @@ async def get_financial_report_pdf_url(
 async def summarize_financial_report(
     report_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, Any]:
     """生成或返回财报 AI 摘要（懒生成，结果全局共享）。
 
     业务异常（NotFoundError/SummaryUnavailableError/SummaryInProgressError）由全局
     AppError handler 统一转换为 JSONResponse ``{detail: message}``。
     """
-    return await financial_report_service.summarize_report(session, report_id)
+    await quota_service.precheck(user.id)
+    with meter_scope(user.id, FEATURE_PAGE):
+        return await financial_report_service.summarize_report(session, report_id)

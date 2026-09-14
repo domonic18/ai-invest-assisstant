@@ -21,6 +21,9 @@ from app.schemas.chain import (
     ChainVersionSummary,
 )
 from app.services.chain import chain_service
+from app.services.quota import quota_service
+from app.services.quota.constants import FEATURE_PAGE
+from app.services.quota.context import meter_scope
 
 router = APIRouter()
 
@@ -52,9 +55,11 @@ async def analyze_chain(
     user: Annotated[User, Depends(get_current_user)],
 ) -> ChainAnalyzeResponse:
     """产业链分析：调用 AI Agent 生成图谱并持久化为新版本。"""
-    return await chain_service.analyze_and_persist(
-        session, request.industry, request.focus, user_id=user.id
-    )
+    await quota_service.precheck(user.id)
+    with meter_scope(user.id, FEATURE_PAGE):
+        return await chain_service.analyze_and_persist(
+            session, request.industry, request.focus, user_id=user.id
+        )
 
 
 @router.get("/versions/compare", response_model=ChainCompareResult)

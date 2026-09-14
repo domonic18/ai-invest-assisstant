@@ -20,7 +20,7 @@ from app.agent.tools import db_tools, search_news, search_vector_kb
 from app.core.database import AsyncSessionLocal
 from app.models.stock import StockBasic
 from app.schemas.chain import ChainAnalysisResult
-from app.services.admin.llm_config_service import resolve_default_llm
+from app.services.quota.user_llm_service import resolve_llm
 from app.skills.prompt import load_skill_prompt
 
 SKILL_ID = "industry-chain-analysis"
@@ -119,9 +119,13 @@ async def analyze_industry_chain(
     industry: str,
     focus: str | None = None,
 ) -> ChainAnalysisResult:
-    """执行产业链分析 Skill（deepagents agent 循环）。"""
+    """执行产业链分析 Skill（deepagents agent 循环）。
+
+    出口随计量上下文分流：页面手动分析（meter_scope 属主）走 BYOK，
+    定时刷新（Celery，无属主）走系统默认模型。
+    """
     prompt_config = load_skill_prompt(SKILL_ID)
-    cfg = await resolve_default_llm(session)
+    cfg, _outlet = await resolve_llm(session)
 
     from deepagents import create_deep_agent
 

@@ -17,11 +17,20 @@ from app.agent.runtime.assistant_agent import get_assistant_agent
 from app.api.v1.assistant.page_context import _with_page_context
 from app.api.v1.assistant.threads import _require_thread
 from app.constants.pagination import DEFAULT_HISTORY_LIMIT, MAX_HISTORY_LIMIT
-from app.core.exceptions import NotFoundError, UnprocessableEntityError
+from app.core.exceptions import (
+    AppError,
+    NotFoundError,
+    QuotaExhaustedError,
+    UnprocessableEntityError,
+)
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.assistant import RunCancelRequest, RunStreamRequest, ThreadStateResponse
 from app.services.assistant.assistant_service import AssistantService, finalize_run
+from app.services.quota import quota_service
+from app.services.quota.constants import FEATURE_ASSISTANT
+from app.services.quota.context import meter_scope
+from app.services.quota.user_llm_service import resolve_llm
 
 logger = structlog.get_logger(__name__)
 
@@ -158,68 +167,107 @@ async def stream_run(
     if data.checkpoint and data.checkpoint.get("checkpoint_id"):
         configurable["checkpoint_id"] = data.checkpoint["checkpoint_id"]
 
-    agent = await get_assistant_agent()
     run_id = uuid_mod.uuid4().hex
+
+    # 配额入口预检（callback 内 raise 会被 LangChain 吞掉，拦截须在入口）。
+    # 拒绝不走 HTTP 429：langgraph-sdk 对流前错误静默结束（界面无任何提示），
+    # 改为合法 SSE 流并合成一条 AI 提示消息，用户在对话框直接看到引导文案。
+    try:
+        await quota_service.precheck(user.id)
+    except QuotaExhaustedError as exc:
+        from langchain_core.messages import AIMessage
+
+        # except 块结束即删除 exc，闭包须捕获普通变量
+        refusal_message = exc.message
+
+        async def quota_refused_stream() -> AsyncIterator[str]:
+            try:
+                yield wire.sse_event(
+                    "metadata", {"run_id": run_id, "thread_id": thread_id}
+                )
+                notice = AIMessage(content=refusal_message, id=f"quota-{run_id}")
+                yield wire.sse_event("messages", [wire.serialize_message(notice), {}])
+                yield wire.sse_event("end", {})
+            finally:
+                await finalize_run(thread_id, messages_in)
+
+        return StreamingResponse(
+            quota_refused_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    # 出口分流：BYOK 用户获得独立 agent 实例（失败不回退，arch/10 §5）
+    cfg, _outlet = await resolve_llm(session, user.id)
+    agent = await get_assistant_agent(cfg=cfg)
 
     async def event_stream() -> AsyncIterator[str]:
         task = asyncio.current_task()
         if task is not None:
             wire.run_registry.register(thread_id, run_id, task)
-        try:
-            yield wire.sse_event(
-                "metadata", {"run_id": run_id, "thread_id": thread_id}
-            )
-            async for namespaces, mode, payload in agent.astream(
-                stream_input,
-                {"configurable": configurable},
-                stream_mode=["messages", "updates", "custom"],
-                subgraphs=True,
-            ):
-                # 根图事件全量透传；子图只透传节点完成快照（updates|ns），
-                # 子代理 token 流不透传以控制事件量
-                if mode == "messages":
-                    if namespaces:
-                        continue
-                    message, meta = cast("tuple[Any, Any]", payload)
-                    serialized = wire.serialize_message(message)
-                    yield wire.sse_event(
-                        "messages",
-                        [serialized, wire.jsonable(meta or {})],
-                    )
-                    if (
-                        isinstance(message, ToolMessage)
-                        and (event_marker := wire.extract_event_marker(message.content))
-                    ):
+        with meter_scope(user.id, FEATURE_ASSISTANT):
+            try:
+                yield wire.sse_event(
+                    "metadata", {"run_id": run_id, "thread_id": thread_id}
+                )
+                async for namespaces, mode, payload in agent.astream(
+                    stream_input,
+                    {"configurable": configurable},
+                    stream_mode=["messages", "updates", "custom"],
+                    subgraphs=True,
+                ):
+                    # 根图事件全量透传；子图只透传节点完成快照（updates|ns），
+                    # 子代理 token 流不透传以控制事件量
+                    if mode == "messages":
+                        if namespaces:
+                            continue
+                        message, meta = cast("tuple[Any, Any]", payload)
+                        serialized = wire.serialize_message(message)
                         yield wire.sse_event(
-                            "custom", wire.jsonable(event_marker)
+                            "messages",
+                            [serialized, wire.jsonable(meta or {})],
                         )
-                    if (
-                        isinstance(message, ToolMessage)
-                        and (question_marker := wire.extract_question_marker(message.content))
-                    ):
-                        yield wire.sse_event(
-                            "custom", wire.jsonable(question_marker)
-                        )
-                elif mode == "updates":
-                    label = wire.namespace_label(cast("tuple[str, ...]", namespaces))
-                    event = "updates" if not label else f"updates|{label}"
-                    yield wire.sse_event(event, wire.jsonable(payload))
-                elif mode == "custom":
-                    if namespaces:
-                        continue
-                    yield wire.sse_event("custom", wire.jsonable(payload))
-            yield wire.sse_event("end", {})
-        except asyncio.CancelledError:
-            logger.info("assistant_run_cancelled", thread_id=thread_id, run_id=run_id)
-            raise
-        except Exception as exc:  # noqa: BLE001
-            logger.error(
-                "assistant_run_failed", thread_id=thread_id, run_id=run_id, error=str(exc)
-            )
-            yield wire.sse_event("error", {"error": str(exc), "status_code": 500})
-        finally:
-            wire.run_registry.unregister(run_id)
-            await finalize_run(thread_id, messages_in)
+                        if (
+                            isinstance(message, ToolMessage)
+                            and (event_marker := wire.extract_event_marker(message.content))
+                        ):
+                            yield wire.sse_event(
+                                "custom", wire.jsonable(event_marker)
+                            )
+                        if (
+                            isinstance(message, ToolMessage)
+                            and (question_marker := wire.extract_question_marker(message.content))
+                        ):
+                            yield wire.sse_event(
+                                "custom", wire.jsonable(question_marker)
+                            )
+                    elif mode == "updates":
+                        label = wire.namespace_label(cast("tuple[str, ...]", namespaces))
+                        event = "updates" if not label else f"updates|{label}"
+                        yield wire.sse_event(event, wire.jsonable(payload))
+                    elif mode == "custom":
+                        if namespaces:
+                            continue
+                        yield wire.sse_event("custom", wire.jsonable(payload))
+                yield wire.sse_event("end", {})
+            except asyncio.CancelledError:
+                logger.info("assistant_run_cancelled", thread_id=thread_id, run_id=run_id)
+                raise
+            except AppError as exc:
+                logger.warning(
+                    "assistant_run_app_error", thread_id=thread_id, run_id=run_id, error=str(exc)
+                )
+                yield wire.sse_event(
+                    "error", {"error": exc.message, "status_code": exc.status_code}
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.error(
+                    "assistant_run_failed", thread_id=thread_id, run_id=run_id, error=str(exc)
+                )
+                yield wire.sse_event("error", {"error": str(exc), "status_code": 500})
+            finally:
+                wire.run_registry.unregister(run_id)
+                await finalize_run(thread_id, messages_in)
 
     return StreamingResponse(
         event_stream(),

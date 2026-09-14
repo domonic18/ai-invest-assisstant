@@ -26,6 +26,9 @@ from app.schemas.user import (
     WatchlistScreenshotRecognitionResponse,
 )
 from app.services.market import market_service
+from app.services.quota import quota_service
+from app.services.quota.constants import FEATURE_PAGE
+from app.services.quota.context import meter_scope
 from app.services.user import UserService, WatchlistService
 from app.services.user.screenshot_recognition_service import (
     recognize_screenshot,
@@ -118,7 +121,9 @@ async def recognize_watchlist_screenshot(
 ) -> WatchlistScreenshotRecognitionResponse:
     """截图识别候选自选股：视觉模型识别 + stock_basic 交叉校验。"""
     data = await file.read()
-    items = await recognize_screenshot(session, data, file.content_type)
+    await quota_service.precheck(current_user.id)
+    with meter_scope(current_user.id, FEATURE_PAGE):
+        items = await recognize_screenshot(session, data, file.content_type)
     return WatchlistScreenshotRecognitionResponse(items=items)
 
 

@@ -194,8 +194,8 @@ class TestAnalyzeIndustryChain:
         )
         with (
             patch(
-                "app.agent.skills.industry_chain_analysis.resolve_default_llm",
-                AsyncMock(return_value=cfg),
+                "app.agent.skills.industry_chain_analysis.resolve_llm",
+                AsyncMock(return_value=(cfg, "system")),
             ),
             patch(
                 "app.agent.skills.industry_chain_analysis.build_langchain_model",

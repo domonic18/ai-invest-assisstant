@@ -56,8 +56,8 @@ def _patch_run_env(structured: _FakeStructured, *, protocol: str = "anthropic"):
     fake_model = _FakeModel(structured)
     return (
         patch(
-            "app.agent.runtime.structured.resolve_default_llm",
-            new=AsyncMock(return_value=SimpleNamespace(protocol=protocol)),
+            "app.agent.runtime.structured.resolve_llm",
+            new=AsyncMock(return_value=(SimpleNamespace(protocol=protocol), "system")),
         ),
         patch(
             "app.agent.runtime.structured.build_langchain_model",
