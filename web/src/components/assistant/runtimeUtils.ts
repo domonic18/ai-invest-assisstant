@@ -62,4 +62,38 @@ export function extractPageResult(updates: unknown): PageAssistantResult | null 
   return null
 }
 
+/** 从工具结果/ToolMessage content（对象或 JSON 字符串）中提取 __question__ 标记。 */
+export function extractQuestionMarker(content: unknown): Record<string, unknown> | null {
+  let raw = content
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+  if (typeof raw !== 'object' || raw === null) return null
+  const question = (raw as Record<string, unknown>).__question__
+  if (typeof question !== 'object' || question === null) return null
+  return question as Record<string, unknown>
+}
+
+/** 从 updates 载荷中提取 ask_user 问题卡标记（与页面事件同款兜底通道）。 */
+export function extractQuestionFromUpdates(updates: unknown): Record<string, unknown> | null {
+  if (typeof updates !== 'object' || updates === null) return null
+  for (const node of Object.values(updates as Record<string, unknown>)) {
+    if (typeof node !== 'object' || node === null) continue
+    const messages = (node as Record<string, unknown>).messages
+    if (!Array.isArray(messages)) continue
+    for (const msg of messages) {
+      if (typeof msg !== 'object' || msg === null) continue
+      const typed = msg as Record<string, unknown>
+      if (typed.type !== 'tool') continue
+      const marker = extractQuestionMarker(typed.content)
+      if (marker) return marker
+    }
+  }
+  return null
+}
+
 export type { StateWithTasks }

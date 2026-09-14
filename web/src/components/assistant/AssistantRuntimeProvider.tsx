@@ -10,7 +10,12 @@ import { createAssistantClient } from '@/api/assistant'
 import { useAssistantStore, type QuestionCard, type QuestionOption } from '@/stores/assistant'
 import { buildPageContext } from '@/utils/pageContext'
 import { parsePageEvent } from './pageEvents'
-import { extractPageResult, extractTodos, type StateWithTasks } from './runtimeUtils'
+import {
+  extractPageResult,
+  extractQuestionFromUpdates,
+  extractTodos,
+  type StateWithTasks,
+} from './runtimeUtils'
 
 const ASSISTANT_ID = 'invest-assistant'
 
@@ -66,13 +71,19 @@ export function AssistantRuntimeProvider({ children }: { children: ReactNode }) 
         if (todos) useAssistantStore.getState().setTodos(todos)
         const pageResult = extractPageResult(updates)
         if (pageResult) useAssistantStore.getState().setPageResult(pageResult)
+        const question = extractQuestionFromUpdates(updates)
+        if (question) {
+          const card = parseQuestionCard(question)
+          if (card) useAssistantStore.getState().setQuestionCard(card)
+        }
       },
-      onCustomEvent: (event) => {
-        if (typeof event === 'object' && event !== null && (event as { type?: unknown }).type === 'question') {
-          useAssistantStore.getState().setQuestionCard(parseQuestionCard(event))
+      // 回调签名是 (eventType, data)：data 才是 custom 事件载荷
+      onCustomEvent: (_eventType, data) => {
+        if (typeof data === 'object' && data !== null && (data as { type?: unknown }).type === 'question') {
+          useAssistantStore.getState().setQuestionCard(parseQuestionCard(data))
           return
         }
-        const parsed = parsePageEvent(event)
+        const parsed = parsePageEvent(data)
         if (parsed) useAssistantStore.getState().setPageResult(parsed.result)
       },
     },
