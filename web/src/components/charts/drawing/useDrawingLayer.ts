@@ -60,7 +60,7 @@ function dragMoved(drag: DragSession): boolean {
   return drag.px.some((pt, i) => pt.x !== drag.originPx[i].x || pt.y !== drag.originPx[i].y)
 }
 
-/** 文字标注输入请求（新建：anchor 预计算；编辑：drawingId + initial） */
+/** 文字标注输入请求（新建：anchor 预计算；编辑：drawingId/aiLabel + initial） */
 export interface DrawingTextEditRequest {
   /** 图表容器内像素位置（输入框定位） */
   px: Point
@@ -68,6 +68,8 @@ export interface DrawingTextEditRequest {
   anchor?: KlineDrawingAnchor
   /** 编辑已有文字标注 */
   drawingId?: string
+  /** 编辑 AI 画线 label（双击改名） */
+  aiLabel?: string
   initial?: string
 }
 
@@ -102,6 +104,9 @@ export interface UseDrawingLayerParams {
   onUpdate: (id: string, patch: UserKlineDrawingUpdateRequest) => void
   onSelect: (id: string | null) => void
   onDelete: (id: string) => void
+  /** AI 画线单条原位编辑（编辑态）：拖拽锚点落表 / Delete 删除（双击改名走 onRequestTextInput） */
+  onUpdateAiItem: (label: string, patch: { anchors: UserKlineDrawingUpdateRequest['anchors'] }) => void
+  onDeleteAiItem: (label: string) => void
   /** Esc 退出画线模式（集成层清空 activeTool） */
   onRequestDisarm: () => void
   /** Esc 最后一级：退出画线编辑态（收起竖排工具栏） */
@@ -134,6 +139,8 @@ interface DragSession {
   originPx: Point[]
   /** 拖拽起点指针位置 */
   start: Point
+  /** AI 画线拖拽（label 即组内唯一键）；用户画线为空 */
+  ai?: { label: string }
 }
 
 /** 命中元素是否属于画线图层（沿 parent 链找命名空间 id；K 线/均线等主图元素不算） */
@@ -344,21 +351,37 @@ function handleSpecs(d: UserKlineDrawing, px: Point[], hooks: DragHooks): Graphi
   }))
 }
 
-/** AI 画线 → 只读顶层元素 specs（虚线锁定样式 + AI 徽标 + hover 回调） */
+/** AI 画线 → 顶层元素 specs（虚线锁定样式 + AI 徽标；编辑态挂选中/拖拽/双击改名） */
 function aiSpecs(
   item: AiDrawingItem,
   px: Point[],
   grid: GridRect,
   onHover: (item: AiDrawingItem | null) => void,
+  interactive = false,
+  hooks?: DragHooks,
 ): GraphicSpec[] {
   const style = { color: AI_LAYER_COLOR, dash: AI_LAYER_DASH, width: 1.6, opacity: 0.92 }
   const hover = { onmouseover: () => onHover(item), onmouseout: () => onHover(null) }
   const base = `${DRAWING_ROOT_PREFIX}ai-${item.id}`
   const specs: GraphicSpec[] = []
+  // 编辑态交互属性（双击改 label）；非编辑态退化为 hover 展示
+  const moveProps: Record<string, unknown> =
+    interactive && hooks
+      ? {
+          cursor: 'move',
+          draggable: true,
+          onclick: hooks.onSelect,
+          onmousedown: hooks.onMoveDragStart,
+          ondblclick: hooks.onEditText,
+        }
+      : {}
   if (item.drawingType === 'hline') {
     const y = px[0].y
     const vis = clipSegment({ x: grid.x, y }, { x: grid.x + grid.width, y }, grid)
-    if (vis) specs.push(lineSpec(`${base}-0`, vis[0], vis[1], style, hover))
+    if (vis) {
+      specs.push(lineSpec(`${base}-0`, vis[0], vis[1], style, hover))
+      if (interactive && hooks) specs.push(hitLineSpec(`${base}-3`, vis[0], vis[1], moveProps))
+    }
   } else if (item.drawingType === 'box') {
     const rect = clipRect(px[0], px[1], grid)
     if (rect) {
@@ -376,6 +399,7 @@ function aiSpecs(
           opacity: 0.92,
         },
         ...hover,
+        ...moveProps,
       })
     }
   } else if (item.drawingType === 'text') {
@@ -387,12 +411,16 @@ function aiSpecs(
       y: px[0].y,
       style: { text: item.label, fill: AI_LAYER_COLOR, fontSize: 12, fontWeight: 600 },
       ...hover,
+      ...moveProps,
     })
   } else {
     const [s, e] =
       item.drawingType === 'ray' ? extendRay(px[0], px[1], grid, item.direction ?? 'right') : [px[0], px[1]]
     const vis = clipSegment(s, e, grid)
-    if (vis) specs.push(lineSpec(`${base}-0`, vis[0], vis[1], style, hover))
+    if (vis) {
+      specs.push(lineSpec(`${base}-0`, vis[0], vis[1], style, hover))
+      if (interactive && hooks) specs.push(hitLineSpec(`${base}-3`, vis[0], vis[1], moveProps))
+    }
   }
   // AI 徽标（首个锚点偏移，与原型一致）：绝对坐标平铺为 rect + text 两元素
   specs.push(
@@ -422,6 +450,29 @@ function aiSpecs(
     },
   )
   return specs
+}
+
+/** AI 画线全部顶层元素 id（-0 可见形状 / -1 -2 徽标 / -3 命中线（lineLike）） */
+function aiElementIds(item: AiDrawingItem): string[] {
+  const base = `${DRAWING_ROOT_PREFIX}ai-${item.id}`
+  const lineLike =
+    item.drawingType === 'hline' || item.drawingType === 'trendline' || item.drawingType === 'ray'
+  return lineLike ? [`${base}-0`, `${base}-1`, `${base}-2`, `${base}-3`] : [`${base}-0`, `${base}-1`, `${base}-2`]
+}
+
+/** AI 画线选中手柄（锚点拖拽；描边取 AI 视觉色） */
+function aiHandleSpecs(item: AiDrawingItem, px: Point[], hooks: DragHooks): GraphicSpec[] {
+  const base = `${DRAWING_ROOT_PREFIX}ai-${item.id}`
+  return px.map((p, i) => ({
+    id: `${base}-ha${i}`,
+    position: [0, 0],
+    type: 'circle',
+    shape: { cx: p.x, cy: p.y, r: 4.5 },
+    style: { fill: '#16181f', stroke: AI_LAYER_COLOR, lineWidth: 1.5 },
+    cursor: 'crosshair',
+    draggable: true,
+    onmousedown: (e: ZrEvent) => hooks.onAnchorDragStart(i, e),
+  }))
 }
 
 /** 草稿预览（首锚点 + 跟随光标；箱体画矩形预览，其余画虚线段） */
@@ -523,8 +574,15 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
     const drag = dragRef.current
     dragRef.current = null
     if (!drag || !dragMoved(drag)) return
-    const { chart, dates, drawings, onUpdate } = p.current
+    const { chart, dates, drawings, onUpdate, onUpdateAiItem } = p.current
     if (!chart) return
+    if (drag.ai) {
+      const item = p.current.aiDrawings.find((it) => it.label === drag.ai?.label)
+      onUpdateAiItem(drag.ai.label, {
+        anchors: drag.px.map((pt) => pxToAnchor(chart, dates, pt, item?.drawingType === 'hline')),
+      })
+      return
+    }
     const omitDate = drawings.find((d) => d.id === drag.drawingId)?.drawingType === 'hline'
     onUpdate(drag.drawingId, {
       anchors: drag.px.map((pt) => pxToAnchor(chart, dates, pt, omitDate)),
@@ -604,14 +662,55 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
       }
     }
     for (const item of aiDrawings) {
-      track(
-        aiSpecs(
-          item,
-          item.anchors.map((a) => anchorToPx(chart, dates, a)),
-          grid,
-          () => {},
-        ),
-      )
+      const aiDrag = drag?.ai?.label === item.label ? drag : null
+      const aiPxNow = aiDrag && aiDrag.kind === 'anchor' ? aiDrag.px : item.anchors.map((a) => anchorToPx(chart, dates, a))
+      const live: DragHooks = {
+        onSelect: () => p.current.onSelect(`ai:${item.id}`),
+        onMoveDragStart: (e) => {
+          dragRef.current = {
+            drawingId: `ai:${item.id}`,
+            kind: 'move',
+            anchorIndex: -1,
+            siblingIds: aiElementIds(item).filter((x) => x !== e.target?.id),
+            px: aiPxNow.map((pt) => ({ ...pt })),
+            originPx: aiPxNow.map((pt) => ({ ...pt })),
+            start: { x: e.offsetX, y: e.offsetY },
+            ai: { label: item.label },
+          }
+        },
+        onAnchorDragStart: (i, e) => {
+          dragRef.current = {
+            drawingId: `ai:${item.id}`,
+            kind: 'anchor',
+            anchorIndex: i,
+            siblingIds: [],
+            px: aiPxNow.map((pt) => ({ ...pt })),
+            originPx: aiPxNow.map((pt) => ({ ...pt })),
+            start: { x: e.offsetX, y: e.offsetY },
+            ai: { label: item.label },
+          }
+        },
+        onEditText: () => {
+          const a = item.anchors[0]
+          if (!a) return
+          p.current.onRequestTextInput({
+            px: anchorToPx(chart, p.current.dates, a),
+            initial: item.label,
+            aiLabel: item.label,
+          })
+        },
+      }
+      // 整体拖拽中元素由 zrender 原生移动 + 兄弟镜像，跳过重下发（同用户画线）
+      if (!aiDrag || aiDrag.kind === 'anchor') {
+        track(aiSpecs(item, aiPxNow, grid, () => {}, interactive && !aiDrag, live))
+      } else {
+        for (const id of aiElementIds(item)) {
+          if (liveIdsRef.current.has(id)) nextIds.add(id)
+        }
+      }
+      if (interactive && selectedId === `ai:${item.id}` && (!aiDrag || aiDrag.kind === 'move')) {
+        track(aiHandleSpecs(item, aiPxNow, live))
+      }
     }
     if (draft && activeTool) {
       const id = draftIdRef.current || `${DRAWING_ROOT_PREFIX}draft`
@@ -837,7 +936,14 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
           p.current.onRequestExit()
         }
       } else if ((ev.key === 'Delete' || ev.key === 'Backspace') && p.current.selectedId) {
-        p.current.onDelete(p.current.selectedId)
+        const selectedId = p.current.selectedId
+        if (selectedId.startsWith('ai:')) {
+          const item = p.current.aiDrawings.find((it) => `ai:${it.id}` === selectedId)
+          if (item) p.current.onDeleteAiItem(item.label)
+          p.current.onSelect(null)
+        } else {
+          p.current.onDelete(selectedId)
+        }
       }
     }
 

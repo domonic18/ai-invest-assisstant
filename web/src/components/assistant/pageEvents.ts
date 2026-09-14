@@ -2,6 +2,7 @@ import { PAGE_EVENT_TYPES, type PageEventType } from '@ai-invest/shared'
 
 import type {
   ChainAnalysisResult,
+  KlineDrawingResult,
   PageAssistantResult,
   StockDailyAnalysisResult,
   StockScreeningRow,
@@ -107,6 +108,26 @@ export const PAGE_EVENT_DEFINITIONS: readonly PageEventDefinition[] = [
       truncated: Boolean(e.truncated),
       columns: Array.isArray(e.columns) ? e.columns.map(String) : [],
       stocks: Array.isArray(e.stocks) ? e.stocks.map(parseScreeningRow) : [],
+    }),
+  },
+  {
+    eventType: PAGE_EVENT_TYPES.klineDrawing,
+    actionLabel: '查看 AI 画线',
+    path: (r: KlineDrawingResult) =>
+      r.targetType === 'stock'
+        ? `/stock/${encodeURIComponent(r.targetCode)}`
+        : r.targetType === 'index'
+          ? `/index/${encodeURIComponent(r.targetCode)}`
+          : `/sector/${r.sectorType || 'industry'}/${encodeURIComponent(r.targetCode)}`,
+    parse: (e) => ({
+      type: PAGE_EVENT_TYPES.klineDrawing,
+      targetType: (['stock', 'index', 'sector'].includes(String(e.target_type))
+        ? String(e.target_type)
+        : 'stock') as KlineDrawingResult['targetType'],
+      targetCode: String(e.target_code ?? ''),
+      period: String(e.period ?? 'daily'),
+      count: Number(e.count ?? 0),
+      sectorType: e.sector_type ? String(e.sector_type) : undefined,
     }),
   },
 ]

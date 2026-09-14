@@ -13,6 +13,7 @@ export const PAGE_EVENT_TYPES = {
   sectorAnomaly: 'sector_anomaly.complete',
   stockAnomaly: 'stock_anomaly.complete',
   stockScreening: 'stock_screening.complete',
+  klineDrawing: 'kline_drawing.complete',
 } as const
 
 export type PageEventType = (typeof PAGE_EVENT_TYPES)[keyof typeof PAGE_EVENT_TYPES]

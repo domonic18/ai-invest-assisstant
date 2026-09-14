@@ -55,6 +55,37 @@ describe('parsePageEvent', () => {
     expect(parsePageEvent(null)).toBeNull()
   })
 
+  it('parses kline drawing events to the target chart page', () => {
+    const stock = parsePageEvent({
+      type: 'kline_drawing.complete',
+      target_type: 'stock',
+      target_code: '600519',
+      period: 'daily',
+      count: 5,
+    })
+    expect(stock?.path).toBe('/stock/600519')
+    expect(stock?.actionLabel).toBe('查看 AI 画线')
+
+    const index = parsePageEvent({
+      type: 'kline_drawing.complete',
+      target_type: 'index',
+      target_code: 'sh000001',
+      period: 'daily',
+      count: 3,
+    })
+    expect(index?.path).toBe('/index/sh000001')
+
+    const sector = parsePageEvent({
+      type: 'kline_drawing.complete',
+      target_type: 'sector',
+      target_code: '881125',
+      period: 'daily',
+      count: 2,
+      sector_type: 'concept',
+    })
+    expect(sector?.path).toBe('/sector/concept/881125')
+  })
+
   it('event types are unique and every definition declares a path', () => {
     const types = PAGE_EVENT_DEFINITIONS.map((d) => d.eventType)
     expect(new Set(types).size).toBe(types.length)

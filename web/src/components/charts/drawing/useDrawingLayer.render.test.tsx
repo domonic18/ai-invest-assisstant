@@ -90,6 +90,8 @@ function setup(chart: ReturnType<typeof makeChart>, drawings: UserKlineDrawing[]
         onUpdate: noop,
         onSelect: noop,
         onDelete: noop,
+        onUpdateAiItem: noop,
+        onDeleteAiItem: noop,
         onRequestDisarm: noop,
         onRequestTextInput: noop,
       }),

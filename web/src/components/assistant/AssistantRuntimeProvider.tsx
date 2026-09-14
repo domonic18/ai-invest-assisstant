@@ -7,12 +7,32 @@ import { useLangGraphRuntime } from '@assistant-ui/react-langgraph'
 import { useLocation } from 'react-router-dom'
 
 import { createAssistantClient } from '@/api/assistant'
-import { useAssistantStore } from '@/stores/assistant'
+import { useAssistantStore, type QuestionCard, type QuestionOption } from '@/stores/assistant'
 import { buildPageContext } from '@/utils/pageContext'
 import { parsePageEvent } from './pageEvents'
 import { extractPageResult, extractTodos, type StateWithTasks } from './runtimeUtils'
 
 const ASSISTANT_ID = 'invest-assistant'
+
+/** ask_user SSE 事件 → 问题卡状态（宽松 parse：字段缺失/畸形不渲染） */
+function parseQuestionCard(event: unknown): QuestionCard | null {
+  const e = event as { question?: unknown; options?: unknown; default?: unknown }
+  const options = Array.isArray(e.options)
+    ? e.options
+        .map((raw) => {
+          const opt = raw as { value?: unknown; label?: unknown }
+          return { value: String(opt.value ?? ''), label: String(opt.label ?? '') } satisfies QuestionOption
+        })
+        .filter((opt) => opt.value && opt.label)
+    : []
+  const question = String(e.question ?? '')
+  if (!question || options.length < 2) return null
+  return {
+    question,
+    options,
+    default: e.default == null ? null : String(e.default),
+  }
+}
 
 // 后端会话即 remote 线程。默认的 InMemory adapter 不认识列表外的线程 id，
 // 切换历史会话时 fetch 会拒绝且被 runtime 静默吞掉（界面无反应），
@@ -48,6 +68,10 @@ export function AssistantRuntimeProvider({ children }: { children: ReactNode }) 
         if (pageResult) useAssistantStore.getState().setPageResult(pageResult)
       },
       onCustomEvent: (event) => {
+        if (typeof event === 'object' && event !== null && (event as { type?: unknown }).type === 'question') {
+          useAssistantStore.getState().setQuestionCard(parseQuestionCard(event))
+          return
+        }
         const parsed = parsePageEvent(event)
         if (parsed) useAssistantStore.getState().setPageResult(parsed.result)
       },

@@ -4,18 +4,27 @@
  */
 
 import type { ECharts } from 'echarts'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { EyeInvisibleOutlined, EyeOutlined } from '@ant-design/icons'
+import { message } from 'antd'
+import { useQueryClient } from '@tanstack/react-query'
+import { PAGE_EVENT_TYPES } from '@ai-invest/shared'
 import type { KlineDrawingPeriod, KlineDrawingTargetType } from '@ai-invest/shared'
 
 import {
   useAdoptAiDrawing,
+  useClearAiDrawings,
   useCreateKlineDrawing,
+  useDeleteAiDrawingItem,
   useDeleteKlineDrawing,
   useKlineDrawings,
+  useUpdateAiDrawingItem,
   useUpdateKlineDrawing,
 } from '@/hooks/useKlineDrawings'
+import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
+import { queryKeys } from '@/hooks/queryKeys'
 import { useDrawingStore } from '@/stores/drawing'
+import type { KlineDrawingResult } from '@/stores/assistant'
 
 import { useDrawingLayer, type DrawingTextEditRequest } from './useDrawingLayer'
 import { DrawingsPanel } from './DrawingsPanel'
@@ -59,6 +68,9 @@ export function DrawingLayerHost({ chart, dates, target, period }: DrawingLayerH
   const update = useUpdateKlineDrawing(targetType, targetCode)
   const remove = useDeleteKlineDrawing(targetType, targetCode)
   const adopt = useAdoptAiDrawing(targetType, targetCode)
+  const updateAi = useUpdateAiDrawingItem(targetType, targetCode)
+  const deleteAi = useDeleteAiDrawingItem(targetType, targetCode)
+  const clearAi = useClearAiDrawings(targetType, targetCode)
 
   /** 文字标注输入框状态（文字工具点击落点弹出 / 双击已有文字进入编辑） */
   const [textEdit, setTextEdit] = useState<DrawingTextEditRequest | null>(null)
@@ -70,7 +82,9 @@ export function DrawingLayerHost({ chart, dates, target, period }: DrawingLayerH
     const text = value.trim()
     setTextEdit(null)
     if (!textEdit || !text) return
-    if (textEdit.drawingId) {
+    if (textEdit.aiLabel) {
+      updateAi.mutate({ targetType, targetCode, period, label: textEdit.aiLabel, newLabel: text })
+    } else if (textEdit.drawingId) {
       update.mutate({ id: textEdit.drawingId, data: { text } })
     } else if (textEdit.anchor) {
       create.mutate({
@@ -115,6 +129,11 @@ export function DrawingLayerHost({ chart, dates, target, period }: DrawingLayerH
       remove.mutate(id)
       if (selectedId === id) select(null)
     },
+    onUpdateAiItem: (label, patch) => updateAi.mutate({ targetType, targetCode, period, label, ...patch }),
+    onDeleteAiItem: (label) => {
+      deleteAi.mutate({ targetType, targetCode, period, label })
+      select(null)
+    },
     onRequestDisarm: () => setActiveTool(null),
     onRequestExit: exitDrawing,
     onRequestTextInput: setTextEdit,
@@ -123,6 +142,19 @@ export function DrawingLayerHost({ chart, dates, target, period }: DrawingLayerH
   // 样式条挂在选中画线首锚点附近（坐标系与图表容器一致）
   const selected = userDrawings.find((d) => d.id === selectedId)
   const anchorPx = selected ? getSelectedPixelPos() : null
+
+  // AI 画线完成事件：标的匹配本页时刷新画线数据（其余标的留给目标页消费）
+  const queryClient = useQueryClient()
+  const onDrawingComplete = useCallback(
+    (result: KlineDrawingResult) => {
+      if (result.targetType !== targetType || result.targetCode !== targetCode) return false
+      void queryClient.invalidateQueries({ queryKey: queryKeys.klineDrawings.target(targetType, targetCode) })
+      void message.success(`AI 已画 ${result.count} 条线，可拖拽调整/双击改名/清单采纳`)
+      return true
+    },
+    [queryClient, targetType, targetCode],
+  )
+  usePageAssistantResult(PAGE_EVENT_TYPES.klineDrawing, onDrawingComplete)
 
   // 清单面板数据（AI 按组展示，含组 summary 与来源）
   const periodAiGroups = useMemo(
@@ -197,6 +229,7 @@ export function DrawingLayerHost({ chart, dates, target, period }: DrawingLayerH
                 style: defaultStyle,
               })
             }
+            onClearAi={(p) => clearAi.mutate({ targetType, targetCode, period: p })}
           />
         </div>
       )}

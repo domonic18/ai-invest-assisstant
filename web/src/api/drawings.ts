@@ -51,3 +51,49 @@ export async function adoptAiDrawing(payload: {
   const response = await apiClient.post<UserKlineDrawing>(ENDPOINTS.klineDrawings.adopt, payload)
   return response.data
 }
+
+/** AI 画线单条原位编辑：拖拽锚点 / 双击改名（F-DRAW-08） */
+export async function updateAiDrawingItem(payload: {
+  targetType: KlineDrawingTargetType
+  targetCode: string
+  period: 'daily' | 'weekly' | 'monthly'
+  label: string
+  anchors?: UserKlineDrawing['anchors']
+  newLabel?: string
+}) {
+  const response = await apiClient.patch<{ label: string }>(
+    ENDPOINTS.klineDrawings.aiItem,
+    payload,
+  )
+  return response.data
+}
+
+/** AI 画线单条删除（Delete 键） */
+export async function deleteAiDrawingItem(payload: {
+  targetType: KlineDrawingTargetType
+  targetCode: string
+  period: 'daily' | 'weekly' | 'monthly'
+  label: string
+}) {
+  const params = {
+    target_type: payload.targetType,
+    target_code: payload.targetCode,
+    period: payload.period,
+    label: payload.label,
+  }
+  await apiClient.delete(ENDPOINTS.klineDrawings.aiItem, { params })
+}
+
+/** 清空指定标的+周期的 AI 画线集（对话重新生成即恢复） */
+export async function clearAiDrawings(payload: {
+  targetType: KlineDrawingTargetType
+  targetCode: string
+  period: 'daily' | 'weekly' | 'monthly'
+}) {
+  const params = {
+    target_type: payload.targetType,
+    target_code: payload.targetCode,
+    period: payload.period,
+  }
+  await apiClient.delete(ENDPOINTS.klineDrawings.aiClear, { params })
+}

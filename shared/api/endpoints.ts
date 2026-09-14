@@ -39,6 +39,8 @@ export const ENDPOINTS = {
     base: `${API_BASE}/kline-drawings`,
     item: (id: number | string) => `${API_BASE}/kline-drawings/${id}`,
     adopt: `${API_BASE}/kline-drawings/ai/adopt`,
+    aiItem: `${API_BASE}/kline-drawings/ai/item`,
+    aiClear: `${API_BASE}/kline-drawings/ai/clear`,
   },
   chain: {
     industries: `${API_BASE}/chain/industries`,

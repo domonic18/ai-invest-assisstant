@@ -14,6 +14,7 @@ import {
 } from './SuggestedQuestionContext'
 import { Composer } from './composer/Composer'
 import { AssistantMessage } from './messages/AssistantMessage'
+import { QuestionCard } from './QuestionCard'
 import { UserMessage } from './messages/UserMessage'
 
 /** 历史会话加载骨架屏 */
@@ -97,6 +98,7 @@ export function AssistantThread() {
             </>
           )}
         </ThreadPrimitive.Viewport>
+        <QuestionCard />
         <Composer />
         <PendingQuestionSender />
       </ThreadPrimitive.Root>
