@@ -243,10 +243,12 @@ function userElementIds(d: Pick<UserKlineDrawing, 'id' | 'drawingType'>): string
   return lineLike ? [`${base}-0`, `${base}-1`] : [`${base}-0`]
 }
 
-/** zrender storage 内部 API：按 id 取存活元素（拖拽兄弟镜像与图层擦除探测用） */
+/** zrender storage 内部 API：按 id 取存活元素（拖拽兄弟镜像与图层擦除探测用）；已销毁实例返回 undefined */
 function getZrEl(chart: ECharts, id: string): { x?: number; y?: number; dirty?: () => void } | undefined {
+  const zr = chart.getZr()
+  if (!zr || chart.isDisposed()) return undefined
   const storage = (
-    chart.getZr() as unknown as {
+    zr as unknown as {
       storage?: { getDisplayList?: () => ({ id?: unknown; x?: number; y?: number; dirty?: () => void } | undefined)[] }
     }
   ).storage
@@ -805,7 +807,10 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
 
   useEffect(() => {
     const chart = params.chart
-    if (!chart) return
+    // 非空但已 dispose 的实例同样不可绑定：切股时宿主图表分支可能闪挂，
+    // onChartReady 触发 setState 后、effect 执行前实例已被销毁（getZr() 为 null），
+    // 仅判 !chart 挡不住——echarts 级 on/off 在已销毁实例上不报错，zr 级绑定会崩
+    if (!chart || chart.isDisposed() || !chart.getZr()) return
     const schedule = () => {
       try {
         // 主图 notMerge 重建会整层擦除 graphic：探测首个存活元素，被擦除则强制重渲染
@@ -958,51 +963,57 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
     zr.on('globalout', onZrGlobalout as never)
     window.addEventListener('keydown', onKeyDown)
     return () => {
-      chart.off('dataZoom', schedule)
-      chart.off('resize', schedule)
-      chart.off('finished', schedule)
-      zr.off('mousedown', onZrMouseDown as never)
-      zr.off('click', onZrClick as never)
-      zr.off('mousemove', onZrMousemove as never)
-      zr.off('mouseup', onZrMouseup as never)
-      zr.off('globalout', onZrGlobalout as never)
-      window.removeEventListener('keydown', onKeyDown)
-      if (zoomDisabledRef.current) {
-        zoomDisabledRef.current = false
-        try {
-          const count = dataZoomCount(chart)
-          if (count > 0) {
-            chart.setOption({
-              dataZoom: Array.from({ length: count }, () => ({ disabled: false })),
-            } as EChartsOption)
+      // 卸载与 dispose 存在竞态（宿主图表分支闪挂时实例先被销毁），
+      // teardown 全程容错：解绑失败不向上抛（此前渲染期崩溃的另一条路径）
+      try {
+        chart.off('dataZoom', schedule)
+        chart.off('resize', schedule)
+        chart.off('finished', schedule)
+        zr.off('mousedown', onZrMouseDown as never)
+        zr.off('click', onZrClick as never)
+        zr.off('mousemove', onZrMousemove as never)
+        zr.off('mouseup', onZrMouseup as never)
+        zr.off('globalout', onZrGlobalout as never)
+        window.removeEventListener('keydown', onKeyDown)
+        if (zoomDisabledRef.current) {
+          zoomDisabledRef.current = false
+          try {
+            const count = dataZoomCount(chart)
+            if (count > 0) {
+              chart.setOption({
+                dataZoom: Array.from({ length: count }, () => ({ disabled: false })),
+              } as EChartsOption)
+            }
+          } catch {
+            /* 实例可能已 dispose */
           }
-        } catch {
-          /* 实例可能已 dispose */
         }
-      }
-      if (savedChromeRef.current) {
-        const saved = savedChromeRef.current
-        savedChromeRef.current = null
+        if (savedChromeRef.current) {
+          const saved = savedChromeRef.current
+          savedChromeRef.current = null
+          try {
+            chart.setOption({
+              tooltip: { show: saved.tooltip },
+              axisPointer: { show: saved.axisPointer },
+            } as EChartsOption)
+          } catch {
+            /* 同上 */
+          }
+        }
+        const ids = [...liveIdsRef.current]
+        liveIdsRef.current = new Set()
+        sigRef.current = ''
+        dragRef.current = null
+        draftRef.current = null
         try {
-          chart.setOption({
-            tooltip: { show: saved.tooltip },
-            axisPointer: { show: saved.axisPointer },
-          } as EChartsOption)
+          if (ids.length && !chart.isDisposed()) {
+            chart.setOption({ graphic: ids.map((id) => ({ id, $action: 'remove' })) } as EChartsOption)
+          }
         } catch {
           /* 同上 */
         }
-      }
-      const ids = [...liveIdsRef.current]
-      liveIdsRef.current = new Set()
-      sigRef.current = ''
-      dragRef.current = null
-      draftRef.current = null
-      try {
-        if (ids.length && !chart.isDisposed()) {
-          chart.setOption({ graphic: ids.map((id) => ({ id, $action: 'remove' })) } as EChartsOption)
-        }
       } catch {
-        /* 同上 */
+        /* 实例已 dispose 的卸载竞态：解绑失败不向上抛 */
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1019,7 +1030,9 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
   return {
     getSelectedPixelPos: () => {
       const { chart, dates, selectedId, drawings } = p.current
-      if (!chart || !selectedId) return null
+      // 宿主在渲染期调用本函数取样式条定位：已 dispose 的实例必须返回 null
+      //（convertToPixel 会抛错，渲染期抛错即整页崩溃页），分支闪挂竞态同绑定守卫
+      if (!chart || !selectedId || chart.isDisposed() || !chart.getZr()) return null
       const d = drawings.find((item) => item.id === selectedId)
       if (!d || d.anchors.length === 0) return null
       return anchorToPx(chart, dates, d.anchors[0])
