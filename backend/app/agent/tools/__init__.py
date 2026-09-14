@@ -18,6 +18,8 @@ from app.agent.tools.chain_tools import (
     query_industry_companies,
 )
 from app.agent.tools.dragon_tiger_tools import get_dragon_tiger
+from app.agent.tools.drawing_tools import persist_ai_kline_drawings
+from app.agent.tools.interaction_tools import ask_user
 from app.agent.tools.market_tools import (
     collect_market_data,
     get_auction_summary,
@@ -78,11 +80,13 @@ __all__ = [
     "collect_market_data",
     "search_news_by_date",
     "screen_stocks",
+    "ask_user",
+    "persist_ai_kline_drawings",
 ]
 
 
 def build_assistant_tools() -> list[BaseTool]:
-    """助手工具清单：只读查询工具 + 产业链分析/个股分析/大盘复盘/涨停归因持久化工具 + 财报工具 + 行情补采。"""
+    """助手工具清单：只读查询工具 + 产业链分析/个股分析/大盘复盘/涨停归因持久化工具 + AI 画线写入 + ask_user 问题卡 + 财报工具 + 行情补采。"""
     return [
         get_stock_quote,
         get_stock_kline,
@@ -103,12 +107,14 @@ def build_assistant_tools() -> list[BaseTool]:
         get_auction_summary,
         get_trade_calendar,
         query_industry_companies,
+        ask_user,
         persist_chain_analysis,
         persist_stock_daily_analysis,
         persist_market_review,
         persist_limit_up_attribution,
         persist_sector_anomaly_attribution,
         persist_stock_anomaly_attribution,
+        persist_ai_kline_drawings,
         collect_market_data,
         query_financial_reports,
         download_financial_reports,

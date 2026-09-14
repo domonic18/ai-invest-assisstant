@@ -193,6 +193,13 @@ async def stream_run(
                         yield wire.sse_event(
                             "custom", wire.jsonable(event_marker)
                         )
+                    if (
+                        isinstance(message, ToolMessage)
+                        and (question_marker := wire.extract_question_marker(message.content))
+                    ):
+                        yield wire.sse_event(
+                            "custom", wire.jsonable(question_marker)
+                        )
                 elif mode == "updates":
                     label = wire.namespace_label(cast("tuple[str, ...]", namespaces))
                     event = "updates" if not label else f"updates|{label}"

@@ -332,6 +332,62 @@ class KlineDrawingService:
             await self.ai_repo.delete(group)
             await self.session.commit()
 
+    # ---------- AI 画线单条编辑（F-DRAW-08 人工原位编辑，全局共享工作区） ----------
+
+    async def update_ai_item(
+        self,
+        target_type: str,
+        target_code: str,
+        period: str,
+        label: str,
+        *,
+        anchors: list[dict[str, Any]] | None = None,
+        new_label: str | None = None,
+    ) -> AiKlineDrawingItemSchema:
+        """按 label 定位单条 AI 画线：改锚点（拖拽）与改名（双击）。
+
+        label 是组内唯一键：改名先腾位（防撞名），锚点按画线类型校验后落表。
+        """
+        group = await self._require_ai_group(target_type, target_code, period)
+        items = [dict(item) for item in group.drawings or []]
+        index = next((i for i, item in enumerate(items) if item.get("label") == label), None)
+        if index is None:
+            raise NotFoundError(f"AI 画线 {label} 不存在")
+        drawing_type = items[index].get("drawing_type", "")
+        if new_label:
+            new_label = new_label.strip()
+            if not new_label or len(new_label) > 100:
+                raise BadRequestError("new_label 必须为 1-100 字符")
+            if any(item.get("label") == new_label for i, item in enumerate(items) if i != index):
+                raise BadRequestError(f"AI 画线组内已存在 label「{new_label}」")
+            items[index]["label"] = new_label
+        if anchors is not None:
+            anchors = [dict(anchor) for anchor in anchors]
+            _validate_anchors(drawing_type, anchors)
+            items[index]["anchors"] = anchors
+        group.drawings = items
+        await self.session.commit()
+        return AiKlineDrawingItemSchema.model_validate(items[index])
+
+    async def delete_ai_item(
+        self, target_type: str, target_code: str, period: str, label: str
+    ) -> None:
+        """按 label 删除单条 AI 画线（Delete 键）。"""
+        group = await self._require_ai_group(target_type, target_code, period)
+        items = [item for item in group.drawings or [] if item.get("label") != label]
+        if len(items) == len(group.drawings or []):
+            raise NotFoundError(f"AI 画线 {label} 不存在")
+        group.drawings = items
+        await self.session.commit()
+
+    async def _require_ai_group(
+        self, target_type: str, target_code: str, period: str
+    ) -> AiKlineDrawing:
+        group = await self.ai_repo.get_group(target_type, target_code, period)
+        if group is None:
+            raise NotFoundError("AI 画线组不存在")
+        return group
+
     # ---------- 采纳 ----------
 
     async def adopt_ai_drawing(

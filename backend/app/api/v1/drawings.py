@@ -3,12 +3,16 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
+from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
+from app.schemas.base import CamelModel
 from app.schemas.drawing import (
     AiKlineDrawingAdoptRequest,
+    AiKlineDrawingItemSchema,
+    KlineDrawingAnchorSchema,
     KlineDrawingsResponse,
     UserKlineDrawingCreateRequest,
     UserKlineDrawingResponse,
@@ -40,6 +44,68 @@ async def create_kline_drawing(
     """创建用户画线（锚点校验失败返回 400）。"""
     service = KlineDrawingService(session)
     return await service.create_user_drawing(current_user.id, request)
+
+
+@router.delete("/ai/clear", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_ai_drawings(
+    target_type: str,
+    target_code: str,
+    period: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> Response:
+    """清空指定标的+周期的 AI 画线集（全局共享工作区，对话重新生成即恢复）。
+
+    注册在 ``/{drawing_id}`` 之前：DELETE /ai/clear 是字面路径，后置会被
+    int 路径参数吞并成 422。
+    """
+    service = KlineDrawingService(session)
+    await service.clear_ai_group(target_type, target_code, period)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+class AiItemUpdateRequest(CamelModel):
+    """AI 画线单条原位编辑（拖拽锚点 / 双击改名）。"""
+
+    target_type: str
+    target_code: str = Field(min_length=1, max_length=16)
+    period: str
+    label: str = Field(min_length=1, max_length=100)
+    anchors: list[KlineDrawingAnchorSchema] | None = None
+    new_label: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+@router.patch("/ai/item", response_model=AiKlineDrawingItemSchema)
+async def update_ai_item(
+    request: AiItemUpdateRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> AiKlineDrawingItemSchema:
+    """单条 AI 画线原位编辑：改锚点（拖拽）与改名（双击）。"""
+    service = KlineDrawingService(session)
+    return await service.update_ai_item(
+        request.target_type,
+        request.target_code,
+        request.period,
+        request.label,
+        anchors=[anchor.model_dump() for anchor in request.anchors] if request.anchors else None,
+        new_label=request.new_label,
+    )
+
+
+@router.delete("/ai/item", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_ai_item(
+    target_type: str,
+    target_code: str,
+    period: str,
+    label: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> Response:
+    """删除单条 AI 画线（Delete 键）。"""
+    service = KlineDrawingService(session)
+    await service.delete_ai_item(target_type, target_code, period, label)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch("/{drawing_id}", response_model=UserKlineDrawingResponse)

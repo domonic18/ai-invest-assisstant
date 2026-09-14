@@ -15,6 +15,7 @@ EXPECTED_SKILLS = {
     "financial-report-summary",
     "hotspot-detection",
     "industry-chain-analysis",
+    "kline-smart-drawing",
     "limit-up-review",
     "market-daily-review",
     "news-score",

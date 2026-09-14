@@ -157,6 +157,13 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         skill_md=True,
         scenario="market",
     ),
+    SkillDescriptor(
+        skill_id="kline-smart-drawing",
+        label="K 线 AI 智能画线",
+        kind="executable",
+        skill_md=True,
+        scenario="stock",
+    ),
 )
 
 _SKILL_INDEX: dict[str, SkillDescriptor] = {d.skill_id: d for d in BUILTIN_SKILLS}
