@@ -45,7 +45,7 @@
 |----------|------|----------------|
 | Elasticsearch 8.13 | 本地与生产均已部署；现有 `kb-documents` 索引仅承载研报关键词检索 | 新建独立 `kb-knowledge` 索引（dense_vector + BM25），不侵入研报索引；**不引入新向量库** |
 | COS 对象存储 | 研报 PDF 已走 COS + `file_metadata` 登记 | 视频素材沿用同一存储与登记模式 |
-| LLM 配置（`llm_config` + 后台页） | 仅 chat 模型概念 | 扩展「用途」维度（chat / embedding）；ASR 渠道在知识库设置内独立配置，密钥复用既有加密实践（AES-256-GCM） |
+| LLM 配置（`llm_config` + 后台页） | 仅 chat 模型概念 | 扩展「用途」维度（chat / embedding）；ASR 渠道在知识库设置内独立配置，密钥复用既有加密实践（Fernet，`app/utils/crypto.py`） |
 | 采集任务体系 | TASK_SPECS internal 渠道、后台手动触发、`collector_log` 日志与健康监测 | 转写/抽取/索引构建等长任务声明为 internal 任务执行，天然获得进度日志与监控 |
 | AI 交互范式 | 长任务禁止阻塞式 HTTP 端点 | 全部建库流水线任务化，后台只做触发与状态查询 |
 | Skill 体系 | `skills/<id>/` 自包含资产（builtin，代码库文件）+ `skill` 表 custom 行（DB 存储，version 机制）+ 技能广场 | 自主优化的应用通道区分 builtin/custom（见 F-KB-07） |
