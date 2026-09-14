@@ -50,6 +50,9 @@ class UserResponse(CamelModel):
     email: str
     role: str
     is_active: bool
+    status: str = "approved"
+    application_note: str | None = None
+    reject_reason: str | None = None
     last_login_at: datetime | None = None
     created_at: datetime
 

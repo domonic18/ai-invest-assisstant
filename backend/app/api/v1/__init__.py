@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    account,
     anomaly,
     assistant,
     auction,
@@ -26,6 +27,7 @@ from app.api.v1 import (
     users,
     workbench,
 )
+from app.api.v1.admin import account as admin_account
 from app.api.v1.admin import ai_results as admin_ai_results
 from app.api.v1.admin import collector as admin_collector
 from app.api.v1.admin import collector_channels as admin_collector_channels
@@ -48,6 +50,7 @@ api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(account.router, prefix="/users", tags=["account"])
 api_router.include_router(stocks.router, prefix="/stocks", tags=["stocks"])
 api_router.include_router(kline.router, prefix="/kline", tags=["kline"])
 api_router.include_router(chain.router, prefix="/chain", tags=["chain"])
@@ -77,6 +80,7 @@ api_router.include_router(screening.router, prefix="/screening", tags=["screenin
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(admin_users.router, prefix="/users")
+admin_router.include_router(admin_account.router)
 admin_router.include_router(admin_stocks.router, prefix="/stocks")
 admin_router.include_router(admin_reports.router, prefix="/reports")
 admin_router.include_router(admin_news.router, prefix="/news")

@@ -35,6 +35,12 @@ def _user_mock() -> MagicMock:
     user.email = "test@example.com"
     user.role = "user"
     user.is_active = True
+    user.status = "approved"
+    user.application_note = None
+    user.reject_reason = None
+    # pydantic from_attributes 按 camel 别名优先读取，Mock 需两种拼写都置值
+    user.applicationNote = None
+    user.rejectReason = None
     user.last_login_at = None
     user.created_at = datetime(2024, 1, 1, 0, 0, 0)
     return user
@@ -121,13 +127,34 @@ def _task_mock() -> SimpleNamespace:
 class TestAdminUserEndpoints:
     @patch("app.api.v1.admin.users.AdminUserService")
     def test_list_users(self, mock_service, admin_client) -> None:
+        user = _user_mock()
         mock_service.return_value.list_users = AsyncMock(
-            return_value=([_user_mock()], 1)
+            return_value=([user], 1)
+        )
+        mock_service.return_value.enrich_rows = AsyncMock(
+            return_value=[
+                {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "role": user.role,
+                    "is_active": user.is_active,
+                    "status": user.status,
+                    "application_note": None,
+                    "reject_reason": None,
+                    "last_login_at": None,
+                    "created_at": user.created_at,
+                    "remaining_quota": 100000,
+                    "total_used": 0,
+                    "byok_enabled": False,
+                }
+            ]
         )
         client, _ = admin_client
         response = client.get("/api/v1/admin/users/")
         assert response.status_code == 200
         assert response.json()["total"] == 1
+        assert response.json()["items"][0]["remainingQuota"] == 100000
 
     @patch("app.api.v1.admin.users.AdminUserService")
     def test_create_user(self, mock_service, admin_client) -> None:
