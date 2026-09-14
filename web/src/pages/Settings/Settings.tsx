@@ -10,6 +10,8 @@ import { useColorScheme, useSettingsStore } from '@/stores/settings'
 import { semanticColors } from '@/theme/colors'
 import { formatDate, formatDateTime } from '@/utils/formatters'
 import { MovingAverageConfigList } from './components/MovingAverageConfigList'
+import { MyModelSection } from './components/MyModelSection'
+import { QuotaSection } from './components/QuotaSection'
 import { TrackedIndexSettings } from './components/TrackedIndexSettings'
 import {
   MAX_MA_COUNT,
@@ -22,6 +24,8 @@ const SECTIONS = [
   { key: 'profile', label: '基本信息' },
   { key: 'appearance', label: '外观偏好' },
   { key: 'indexes', label: '跟踪指数' },
+  { key: 'quota', label: '配额与用量' },
+  { key: 'model', label: '我的模型' },
   { key: 'security', label: '账号安全' },
 ] as const
 
@@ -358,6 +362,14 @@ export function Settings() {
                 支持自定义添加（历史行情自动回填），全球指标暂限内置清单。保存在<b>服务端</b>（随账号漫游）；全部勾选即恢复默认。
               </HintBox>
             </Card>
+          </section>
+
+          <section id="sec-quota" className="scroll-mt-4">
+            <QuotaSection />
+          </section>
+
+          <section id="sec-model" className="scroll-mt-4">
+            <MyModelSection />
           </section>
 
           <section id="sec-security" className="scroll-mt-4 space-y-5">

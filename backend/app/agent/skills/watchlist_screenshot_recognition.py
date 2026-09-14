@@ -48,6 +48,9 @@ async def run_skill(
 ) -> list[RecognizedStock]:
     """调用视觉模型识别截图中的股票列表。
 
+    出口随计量上下文分流：BYOK 用户走自有 Key（模型须支持图片输入，
+    失败不回退），否则走系统视觉配置。
+
     Raises:
         LLMConfigNotConfiguredError: 未配置视觉模型。
         ValidationError: 模型输出不符合 schema（经 langchain 重试后仍失败）。
@@ -59,6 +62,7 @@ async def run_skill(
         result_type=RecognizedStockList,
         user_prompt=user_prompt,
         images=[(data, media_type)],
+        vision=True,
     )
     return _dedupe(result.stocks)[:_MAX_RECOGNIZED]
 

@@ -7,13 +7,17 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.dependencies import get_db
+from app.dependencies import get_current_user, get_db
+from app.models.user import User
 from app.schemas.news_document import (
     ResearchReportDetailResponse,
     ResearchReportFiltersResponse,
     ResearchReportListRequest,
 )
 from app.schemas.stock import PaginatedResponse
+from app.services.quota import quota_service
+from app.services.quota.constants import FEATURE_PAGE
+from app.services.quota.context import meter_scope
 from app.services.reports import research_service
 
 router = APIRouter()
@@ -98,10 +102,13 @@ async def get_research_pdf_url(
 async def summarize_research(
     report_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, Any]:
     """生成或返回研报 AI 摘要（懒生成，结果全局共享）。
 
     业务异常（NotFoundError/SummaryUnavailableError/SummaryInProgressError）由全局
     AppError handler 统一转换为 JSONResponse ``{detail: message}``。
     """
-    return await research_service.summarize_report(session, report_id)
+    await quota_service.precheck(user.id)
+    with meter_scope(user.id, FEATURE_PAGE):
+        return await research_service.summarize_report(session, report_id)

@@ -54,13 +54,13 @@ async def clear_ai_drawings(
     session: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> Response:
-    """清空指定标的+周期的 AI 画线集（全局共享工作区，对话重新生成即恢复）。
+    """清空当前用户在标的+周期的 AI 画线集（per-user 私有，对话重新生成即恢复）。
 
     注册在 ``/{drawing_id}`` 之前：DELETE /ai/clear 是字面路径，后置会被
     int 路径参数吞并成 422。
     """
     service = KlineDrawingService(session)
-    await service.clear_ai_group(target_type, target_code, period)
+    await service.clear_ai_group(current_user.id, target_type, target_code, period)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -81,9 +81,10 @@ async def update_ai_item(
     session: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> AiKlineDrawingItemSchema:
-    """单条 AI 画线原位编辑：改锚点（拖拽）与改名（双击）。"""
+    """单条 AI 画线原位编辑：改锚点（拖拽）与改名（双击），限定本人 AI 画线组。"""
     service = KlineDrawingService(session)
     return await service.update_ai_item(
+        current_user.id,
         request.target_type,
         request.target_code,
         request.period,
@@ -102,9 +103,9 @@ async def delete_ai_item(
     session: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> Response:
-    """删除单条 AI 画线（Delete 键）。"""
+    """删除单条 AI 画线（Delete 键），限定本人 AI 画线组。"""
     service = KlineDrawingService(session)
-    await service.delete_ai_item(target_type, target_code, period, label)
+    await service.delete_ai_item(current_user.id, target_type, target_code, period, label)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

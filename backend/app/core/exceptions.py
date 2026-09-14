@@ -70,3 +70,39 @@ class LoginLockedError(AppError):
     def __init__(self, retry_after: int = 0, message: str | None = None):
         self.retry_after = retry_after
         super().__init__(message or self.default_message)
+
+
+class QuotaExhaustedError(AppError):
+    """系统模型 token 配额耗尽（AI 功能拦截，非 AI 功能不受影响）。"""
+
+    status_code = 429
+    default_message = (
+        "AI 配额已用尽：可在「设置 → 我的模型」配置自有 API Key，或联系管理员追加配额"
+    )
+
+
+class TooManyRequestsError(AppError):
+    """请求频率超限。"""
+
+    status_code = 429
+    default_message = "Too many requests"
+
+
+class AccountPendingError(AppError):
+    """账号待审批（注册申请尚未通过）。"""
+
+    status_code = 403
+    default_message = "账号待审批，请等待管理员开通"
+
+
+class AccountRejectedError(AppError):
+    """注册申请已被驳回（附驳回原因）。"""
+
+    status_code = 403
+    default_message = "注册申请未通过"
+
+    def __init__(self, reason: str | None = None, message: str | None = None):
+        self.reason = reason
+        if message is None and reason:
+            message = f"注册申请未通过：{reason}"
+        super().__init__(message or self.default_message)

@@ -1,5 +1,12 @@
 """SQLAlchemy ORM 模型。"""
 
+from app.models.account_quota import (
+    AdminAuditLog,
+    SystemSetting,
+    UserAiQuota,
+    UserLlmConfig,
+    UserTokenUsage,
+)
 from app.models.ai_analysis_result import AiAnalysisResult
 from app.models.assistant_session import AssistantSession
 from app.models.capital_fund_flow_sector import SectorFundFlow
@@ -55,6 +62,7 @@ from app.models.user_news_subscription import NewsSubscriptionHit, UserNewsSubsc
 from app.models.watchlist import UserWatchlist, UserWatchlistGroup
 
 __all__ = [
+    "AdminAuditLog",
     "AiAnalysisResult",
     "AssistantSession",
     "AuctionData",
@@ -104,11 +112,15 @@ __all__ = [
     "Skill",
     "StockAnomaly",
     "StockBasic",
+    "SystemSetting",
     "TrackedIndexConfig",
     "User",
+    "UserAiQuota",
+    "UserLlmConfig",
     "UserMarketReview",
     "UserNewsStoryline",
     "UserNewsSubscription",
+    "UserTokenUsage",
     "UserWatchlist",
     "UserWatchlistGroup",
     "UserSkill",

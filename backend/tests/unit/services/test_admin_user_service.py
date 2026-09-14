@@ -48,7 +48,8 @@ class TestAdminUserService:
         result = await service.create_user(data)
 
         assert result.username == "tester"
-        service.session.add.assert_called_once()
+        # 建号 + 发默认配额两行
+        assert service.session.add.call_count == 2
         service.session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio

@@ -15,7 +15,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.runtime.model_factory import build_langchain_model
-from app.services.admin.llm_config_service import resolve_default_llm
+from app.services.quota.user_llm_service import resolve_llm
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -34,19 +34,24 @@ async def run_structured(
     result_type: type[T],
     user_prompt: str,
     images: list[tuple[bytes, str]] | None = None,
+    user_id: int | None = None,
+    vision: bool = False,
 ) -> T:
     """执行单次结构化 LLM 调用并返回 pydantic 模型实例。
 
     Args:
-        session: 数据库会话（用于解析默认 LLM 配置）。
+        session: 数据库会话（用于解析 LLM 出口配置）。
         result_type: 输出 pydantic 模型，其 schema 即输出契约。
         user_prompt: 已渲染的任务提示词。
         images: 可选视觉输入 ``(bytes, media_type)`` 列表。
+        user_id: 显式调用属主；缺省取当前计量上下文（页面入口包裹
+            ``meter_scope`` 后自动按属主分流 BYOK，Celery 系统任务走系统默认）。
+        vision: 无 BYOK 时解析视觉能力配置（截图识别路径）。
 
     Raises:
         ValidationError: 模型输出不符合 schema（重试一次后仍失败）。
     """
-    cfg = await resolve_default_llm(session)
+    cfg, _outlet = await resolve_llm(session, user_id, vision=vision)
     model = build_langchain_model(cfg, disable_thinking=True)
     # anthropic 协议端点（kimi coding 等）2026-09-08 起对强制 tool_choice 间歇性忽略，
     # function_calling 法会静默拿到 None；json_schema 走 anthropic 原生结构化输出

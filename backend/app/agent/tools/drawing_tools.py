@@ -135,6 +135,10 @@ async def persist_ai_kline_drawings(
     from app.schemas.drawing import AiKlineDrawingItemSchema
     from app.services.market.kline_drawing_service import KlineDrawingService
 
+    user_id = int(config.get("configurable", {}).get("user_id", 0))
+    if not user_id:
+        return {"error": "无法识别当前用户（缺少会话属主），拒绝写入画线"}
+
     if target_type not in DRAWING_TARGET_TYPES:
         return {"error": f"target_type 须为 {sorted(DRAWING_TARGET_TYPES)} 之一"}
     if period not in KLINE_DRAWING_PERIODS:
@@ -168,6 +172,7 @@ async def persist_ai_kline_drawings(
     async with AsyncSessionLocal() as session:
         service = KlineDrawingService(session)
         group = await service.upsert_ai_group(
+            user_id=user_id,
             target_type=target_type,
             target_code=code,
             period=period,

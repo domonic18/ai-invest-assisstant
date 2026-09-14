@@ -1,11 +1,16 @@
-"""对话助手 deepagents 运行时组装（单例懒加载）。
+"""对话助手 deepagents 运行时组装（按模型出口指纹的 LRU 缓存）。
 
-- 模型：复用 ``llm_config`` 默认配置（``resolve_default_llm``）
+- 模型：``resolve_llm`` 解析出口——BYOK 用户各自独立 agent 实例，
+  系统默认模型全站共享一个；llm_config 变更后指纹变化自然重建
 - 系统提示词：``prompts/agents/assistant.yaml``（PromptLoader 加载）
 - checkpointer：``AsyncPostgresSaver`` 单例，thread_id 兼作会话 id；
   checkpoint 表由 ``setup()`` 幂等创建，不进 Alembic
 """
 
+import asyncio
+import hashlib
+import time
+from collections import OrderedDict
 from collections.abc import Sequence
 from typing import Any, cast
 
@@ -23,12 +28,31 @@ from app.agent.core.prompt_loader import get_prompt_loader
 from app.agent.runtime.model_factory import build_langchain_model
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
-from app.services.admin.llm_config_service import resolve_default_llm
+from app.services.admin.llm_config_service import ResolvedLLMConfig
+from app.services.quota.user_llm_service import resolve_llm
 
 logger = structlog.get_logger(__name__)
 
 _pool: AsyncConnectionPool | None = None
-_agent: CompiledStateGraph | None = None
+# 模型出口指纹 → (agent, last_used)：LRU + 闲置淘汰；MCP 配置变更经 reset 清空
+_agents: OrderedDict[str, tuple[CompiledStateGraph, float]] = OrderedDict()
+_build_lock = asyncio.Lock()
+# 闲置淘汰阈值（秒）
+_IDLE_TTL_SECONDS = 2 * 3600.0
+
+
+def _fingerprint(cfg: ResolvedLLMConfig) -> str:
+    """模型出口指纹（含 api_key 哈希，不含明文）。"""
+    key_digest = hashlib.sha256(cfg.api_key.encode()).hexdigest()
+    raw = "|".join([cfg.protocol, cfg.base_url, cfg.model_name, key_digest])
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _evict_idle() -> None:
+    """淘汰闲置超时条目（在持锁路径调用）。"""
+    cutoff = time.monotonic() - _IDLE_TTL_SECONDS
+    for key in [k for k, (_, used) in _agents.items() if used < cutoff]:
+        _agents.pop(key, None)
 
 
 async def get_checkpointer() -> BaseCheckpointSaver:
@@ -72,8 +96,8 @@ async def setup_assistant_runtime() -> None:
 
 async def close_assistant_runtime() -> None:
     """应用 lifespan 关闭：释放连接池与缓存的 agent 实例。"""
-    global _pool, _agent
-    _agent = None
+    global _pool
+    _agents.clear()
     if _pool is not None:
         await _pool.close()
         _pool = None
@@ -88,19 +112,43 @@ def load_assistant_system_prompt() -> str:
 
 async def get_assistant_agent(
     tools: Sequence[BaseTool] | None = None,
+    cfg: ResolvedLLMConfig | None = None,
 ) -> CompiledStateGraph:
-    """组装并缓存对话助手 deepagents 图。
+    """组装并按出口指纹缓存对话助手 deepagents 图。
 
     Args:
         tools: 注入的数据工具；缺省用 ``app.agent.tools.build_assistant_tools()``。
+            注意：仅影响本次构建；命中缓存时忽略（工具集变更须先 reset）。
+        cfg: 已解析的模型出口（BYOK 用户传入自有配置）；缺省解析系统默认。
 
     Returns:
-        已绑定 checkpointer 的 CompiledStateGraph；后续调用直接返回缓存实例。
+        已绑定 checkpointer 的 CompiledStateGraph；同指纹调用直接返回缓存实例。
     """
-    global _agent
-    if _agent is not None:
-        return _agent
+    if cfg is None:
+        async with AsyncSessionLocal() as session:
+            cfg, _outlet = await resolve_llm(session)
+    fp = _fingerprint(cfg)
 
+    async with _build_lock:
+        _evict_idle()
+        cached = _agents.get(fp)
+        if cached is not None:
+            _agents[fp] = (cached[0], time.monotonic())
+            _agents.move_to_end(fp)
+            return cached[0]
+
+        agent = await _build_agent(tools, cfg)
+        capacity = get_settings().quota_agent_cache_size
+        while len(_agents) >= max(capacity, 1):
+            _agents.popitem(last=False)
+        _agents[fp] = (agent, time.monotonic())
+        return agent
+
+
+async def _build_agent(
+    tools: Sequence[BaseTool] | None, cfg: ResolvedLLMConfig
+) -> CompiledStateGraph:
+    """构建一个助手图实例（仅在缓存 miss 时调用，须持 ``_build_lock``）。"""
     from deepagents import create_deep_agent
 
     if tools is None:
@@ -109,9 +157,6 @@ async def get_assistant_agent(
         tools = [*build_assistant_tools(), *await build_mcp_tools()]
 
     from app.agent.runtime.assistant_subagents import build_subagents
-
-    async with AsyncSessionLocal() as session:
-        cfg = await resolve_default_llm(session)
 
     skills_dir = get_settings().skills_dir
     backend: CompositeBackend | None = None
@@ -130,7 +175,7 @@ async def get_assistant_agent(
                 operations=["write"], paths=["/skills/**"], mode="deny"
             )
         ]
-    _agent = create_deep_agent(
+    agent = create_deep_agent(
         model=build_langchain_model(cfg),
         tools=list(tools),
         system_prompt=load_assistant_system_prompt(),
@@ -149,10 +194,9 @@ async def get_assistant_agent(
         n_tools=len(tools),
         skills_dir=str(skills_dir) if skills_dir.exists() else None,
     )
-    return _agent
+    return agent
 
 
 def reset_assistant_agent() -> None:
-    """丢弃缓存的 agent 实例（后台 LLM 配置变更或测试隔离时调用）。"""
-    global _agent
-    _agent = None
+    """清空 agent 缓存（MCP 配置变更或测试隔离时调用）。"""
+    _agents.clear()

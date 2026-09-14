@@ -206,28 +206,12 @@ async def generate_stock_analysis(
 
         from app.agent.skills.stock_daily_analysis_agent import run_skill
 
-        # 用户画线上下文注入（需求 4.4 读协议）：失败降级为无画线，复盘照常
-        try:
-            from app.services.market import kline_drawing_service
-
-            drawings_context = await kline_drawing_service.build_target_drawings_context(
-                session, "stock", stock_code
-            )
-        except Exception:
-            logger.warning(
-                "stock_daily_analysis 画线上下文注入失败，降级为无画线",
-                stock_code=stock_code,
-                exc_info=True,
-            )
-            drawings_context = "（该标的暂无用户画线）"
-
         contents, model_name, latency_ms = await run_skill(
             session,
             stock_code,
             trade_date=trade_date,
             stock_name=stock_name,
             prompt_config=prompt_config,
-            drawings_context=drawings_context,
         )
 
         await _persist(

@@ -23,6 +23,26 @@ def client():
     app.dependency_overrides.clear()
 
 
+@pytest.fixture
+def user_client(client):
+    """带登录态（get_current_user 覆盖为 stub 用户）的 TestClient。"""
+    from types import SimpleNamespace
+
+    from app.dependencies import get_current_user
+
+    stub_user = SimpleNamespace(
+        id=1,
+        username="tester",
+        email="test@example.com",
+        role="user",
+        is_active=True,
+        status="approved",
+    )
+    app.dependency_overrides[get_current_user] = lambda: stub_user
+    yield client
+    app.dependency_overrides.pop(get_current_user, None)
+
+
 class _MockSession:
     """极简 mock session，用于覆盖 get_db。"""
 

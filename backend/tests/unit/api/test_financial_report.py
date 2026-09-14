@@ -2,11 +2,18 @@
 
 from datetime import date, datetime
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.core.exceptions import NotFoundError
+
+
+@pytest.fixture(autouse=True)
+def _skip_quota_precheck():
+    """AI 端点配额预检与被测契约无关，统一打桩放行。"""
+    with patch("app.services.quota.quota_service.precheck", AsyncMock()):
+        yield
 
 
 @pytest.mark.unit
@@ -93,9 +100,9 @@ class TestFinancialReportEndpoints:
         assert response.status_code == 404
 
     @patch("app.api.v1.financial_report.financial_report_service.summarize_report")
-    def test_summarize_financial_report(self, mock_summarize, client) -> None:
+    def test_summarize_financial_report(self, mock_summarize, user_client) -> None:
         mock_summarize.return_value = {"summary": "great report", "cached": True}
-        response = client.post("/api/v1/financial-reports/1/summarize")
+        response = user_client.post("/api/v1/financial-reports/1/summarize")
         assert response.status_code == 200
         assert response.json()["summary"] == "great report"
 

@@ -1,7 +1,7 @@
 """产业链 API 端点契约测试。"""
 
 from datetime import date, datetime, timezone
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -50,6 +50,13 @@ def _summary(version_id: int = 1, version_no: int = 1) -> ChainVersionSummary:
 
 def _result() -> ChainAnalysisResult:
     return ChainAnalysisResult(nodes=[], edges=[], summary="s")
+
+
+@pytest.fixture(autouse=True)
+def _skip_quota_precheck():
+    """AI 端点配额预检与被测契约无关，统一打桩放行。"""
+    with patch("app.services.quota.quota_service.precheck", AsyncMock()):
+        yield
 
 
 @pytest.mark.unit

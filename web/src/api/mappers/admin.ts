@@ -133,8 +133,14 @@ export function mapAdminUser(dto: ApiAdminUserResponse): AdminUser {
     email: dto.email,
     role: dto.role,
     isActive: dto.isActive,
+    status: dto.status,
+    applicationNote: dto.applicationNote,
+    rejectReason: dto.rejectReason,
     lastLoginAt: dto.lastLoginAt,
     createdAt: dto.createdAt,
+    remainingQuota: dto.remainingQuota,
+    totalUsed: dto.totalUsed,
+    byokEnabled: dto.byokEnabled,
   }
 }
 

@@ -33,7 +33,7 @@ async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
-    """通过 JWT 获取当前用户。"""
+    """通过 JWT 获取当前用户（校验启用与审批状态）。"""
     credentials_exception = UnauthorizedError("Could not validate credentials")
 
     payload = decode_access_token(token)
@@ -47,6 +47,12 @@ async def get_current_user(
     user = await session.get(User, int(user_id))
     if user is None or not user.is_active:
         raise credentials_exception
+    # 审批状态拦截（防御纵深：审批前无凭证，覆盖后续状态回退，arch/10 §6.2）
+    if user.status != "approved":
+        if user.status == "pending":
+            raise UnauthorizedError("账号待审批，请等待管理员开通")
+        if user.status == "rejected":
+            raise UnauthorizedError("注册申请未通过，请重新提交申请")
 
     return user
 

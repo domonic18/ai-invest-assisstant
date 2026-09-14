@@ -54,7 +54,4 @@ user_prompt_template: |
 
   {section_instructions}
 
-  用户画线参考（用户在指数 K 线上标记的关键位置与观点）：
-  {drawings_context}
-
   完成后按系统指令交付：助手对话路径调用 persist_market_review 保存；独立执行器路径最终回复只输出 sections JSON。
