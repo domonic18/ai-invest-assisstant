@@ -1,5 +1,6 @@
 /**
- * 选中画线的浮动样式条：6 色 / 线型 / 线宽 / 文字 / 删除。
+ * 选中画线的浮动样式条：6 色 / 线型图标 / 线宽图标 / 方向图标 / 文字（仅文字标注）/ 删除。
+ * 线型/线宽/方向用图形符号而非文字（行业惯例，避免文字换行撑宽工具条）；
  * 定位由集成层依据选中画线首锚点像素位置计算（getSelectedPixelPos）。
  */
 
@@ -8,7 +9,8 @@ import { DeleteOutlined } from '@ant-design/icons'
 import { Input, Popconfirm, Tooltip } from 'antd'
 
 import { DRAWING_COLORS } from '@/stores/drawing'
-import type { KlineDrawingLineStyle, UserKlineDrawing } from './types'
+import type { KlineDrawingLineStyle } from './types'
+import type { UserKlineDrawing } from './types'
 
 const LINE_STYLES: { value: KlineDrawingLineStyle; label: string }[] = [
   { value: 'solid', label: '实线' },
@@ -17,6 +19,39 @@ const LINE_STYLES: { value: KlineDrawingLineStyle; label: string }[] = [
 ]
 
 const WIDTHS: (1 | 2 | 3)[] = [1, 2, 3]
+
+/** 线型图形符号（16×10 SVG 线段，颜色跟随 chip 文本色） */
+function LineStyleGlyph({ style }: { style: KlineDrawingLineStyle }) {
+  return (
+    <svg width="16" height="10" viewBox="0 0 16 10" aria-hidden>
+      <line
+        x1="1"
+        y1="5"
+        x2="15"
+        y2="5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeDasharray={style === 'dashed' ? '4 3' : style === 'dotted' ? '1.5 2.5' : undefined}
+      />
+    </svg>
+  )
+}
+
+/** 线宽图形符号（同一长度、递增粗细） */
+function LineWidthGlyph({ width }: { width: 1 | 2 | 3 }) {
+  return (
+    <svg width="16" height="10" viewBox="0 0 16 10" aria-hidden>
+      <line x1="1" y1="5" x2="15" y2="5" stroke="currentColor" strokeWidth={width} strokeLinecap="round" />
+    </svg>
+  )
+}
+
+const DIRECTION_GLYPH: Record<'right' | 'both' | 'left', string> = {
+  right: '→',
+  both: '↔',
+  left: '←',
+}
 
 export interface StyleBarProps {
   drawing: UserKlineDrawing
@@ -95,54 +130,65 @@ export function StyleBar({ drawing, position, bounds, onPatch, onDelete }: Style
       ))}
       <span className="h-4 w-px bg-white/10" />
       {LINE_STYLES.map((ls) => (
-        <button
-          key={ls.value}
-          type="button"
-          style={chip(drawing.style.lineStyle === ls.value)}
-          onClick={() => onPatch({ style: { ...drawing.style, lineStyle: ls.value } })}
-        >
-          {ls.label}
-        </button>
+        <Tooltip key={ls.value} title={ls.label}>
+          <button
+            type="button"
+            aria-label={ls.label}
+            style={chip(drawing.style.lineStyle === ls.value)}
+            onClick={() => onPatch({ style: { ...drawing.style, lineStyle: ls.value } })}
+          >
+            <LineStyleGlyph style={ls.value} />
+          </button>
+        </Tooltip>
       ))}
       <span className="h-4 w-px bg-white/10" />
       {WIDTHS.map((w) => (
-        <button
-          key={w}
-          type="button"
-          style={chip(drawing.style.width === w)}
-          onClick={() => onPatch({ style: { ...drawing.style, width: w } })}
-        >
-          {w}px
-        </button>
+        <Tooltip key={w} title={`线宽 ${w}`}>
+          <button
+            type="button"
+            aria-label={`线宽 ${w}`}
+            style={chip(drawing.style.width === w)}
+            onClick={() => onPatch({ style: { ...drawing.style, width: w } })}
+          >
+            <LineWidthGlyph width={w} />
+          </button>
+        </Tooltip>
       ))}
       {drawing.drawingType === 'ray' && (
         <>
           <span className="h-4 w-px bg-white/10" />
           {(['right', 'both', 'left'] as const).map((dir) => (
-            <button
-              key={dir}
-              type="button"
-              style={chip(drawing.direction === dir)}
-              onClick={() => onPatch({ direction: dir })}
-            >
-              {dir === 'right' ? '向右' : dir === 'both' ? '双向' : '向左'}
-            </button>
+            <Tooltip key={dir} title={dir === 'right' ? '向右延伸' : dir === 'both' ? '双向延伸' : '向左延伸'}>
+              <button
+                type="button"
+                aria-label={dir}
+                style={chip(drawing.direction === dir)}
+                onClick={() => onPatch({ direction: dir })}
+              >
+                {DIRECTION_GLYPH[dir]}
+              </button>
+            </Tooltip>
           ))}
         </>
       )}
+      {drawing.drawingType === 'text' && (
+        <>
+          <span className="h-4 w-px bg-white/10" />
+          <Input
+            size="small"
+            variant="filled"
+            placeholder="标注文字"
+            defaultValue={drawing.text ?? ''}
+            style={{ width: 110, fontSize: 11 }}
+            onPressEnter={(e) => onPatch({ text: (e.target as HTMLInputElement).value || null })}
+            onBlur={(e) => {
+              const v = e.target.value
+              if (v !== (drawing.text ?? '')) onPatch({ text: v || null })
+            }}
+          />
+        </>
+      )}
       <span className="h-4 w-px bg-white/10" />
-      <Input
-        size="small"
-        variant="filled"
-        placeholder="标注文字"
-        defaultValue={drawing.text ?? ''}
-        style={{ width: 110, fontSize: 11 }}
-        onPressEnter={(e) => onPatch({ text: (e.target as HTMLInputElement).value || null })}
-        onBlur={(e) => {
-          const v = e.target.value
-          if (v !== (drawing.text ?? '')) onPatch({ text: v || null })
-        }}
-      />
       <Popconfirm title="删除该画线？" okText="删除" cancelText="取消" onConfirm={onDelete}>
         <Tooltip title="删除（Del）">
           <button type="button" style={{ ...chip(false), color: '#e35d6a' }}>

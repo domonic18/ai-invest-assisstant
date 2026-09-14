@@ -455,10 +455,21 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
   /** armed 时被隐藏的主图浮层原状态（tooltip/axisPointer），退出时按原值还原 */
   const savedChromeRef = useRef<{ tooltip: boolean; axisPointer: boolean } | null>(null)
 
-  const anchorToPx = (chart: ECharts, dates: string[], a: KlineDrawingAnchor): Point => ({
-    x: chart.convertToPixel({ xAxisIndex: 0 }, anchorToIndex(a, dates)),
-    y: chart.convertToPixel({ yAxisIndex: 0 }, a.price),
-  })
+  const anchorToPx = (chart: ECharts, dates: string[], a: KlineDrawingAnchor): Point => {
+    // 无 date 锚点（hline 契约）：x 无意义，落到绘图区水平中心（手柄/样式条定位，
+    // 否则 anchorToIndex 会把空 date 对齐到最后一根 bar，钉在图表右缘）
+    if (!a.date) {
+      const grid = getMainGridRect(chart)
+      return {
+        x: (grid?.x ?? 0) + (grid?.width ?? 0) / 2,
+        y: chart.convertToPixel({ yAxisIndex: 0 }, a.price),
+      }
+    }
+    return {
+      x: chart.convertToPixel({ xAxisIndex: 0 }, anchorToIndex(a, dates)),
+      y: chart.convertToPixel({ yAxisIndex: 0 }, a.price),
+    }
+  }
 
   /** 像素 → 数据锚点；hline 只承载价格（后端契约：水平线锚点不带 date） */
   const pxToAnchor = (
@@ -710,6 +721,10 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
         return
       }
       if (!draft && isTwoAnchorTool(activeTool)) {
+        // 元素级交互优先（同花顺式）：点在已有画线/手柄上时不开新草稿，
+        // 让选中/拖拽/锚点调整生效；点空白处才画新线。否则点旧线选不中、
+        // 反而在原地多画一条默认样式的线（用户感知为"样式不生效/换色多线"）
+        if (isDrawingElement(e.target)) return
         dragRef.current = null // 画线模式抢占元素级拖拽
         draftRef.current = startDraft(activeTool, pt)
         draftIdRef.current = `${DRAWING_ROOT_PREFIX}draft-${++draftSeq}`
@@ -726,18 +741,20 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
       const { chart: c, dates, activeTool } = p.current
       if (!c || dates.length === 0) return
       const grid = getMainGridRect(c)
-      if (!grid || !inRect(e.offsetX, e.offsetY, grid)) return
+      if (!grid) return
       if (activeTool) {
-        // 双锚点工具成线由 mousedown/mouseup 状态机驱动；文字工具点击弹出输入框；
-        // 其余单锚点工具单击即成线（忽略主图元素）
+        // 双锚点工具成线由 mousedown/mouseup 状态机驱动；文字工具落点放宽到整个画布
+        //（点击价格轴/时间轴附近也能标注，锚点换算自动吸附最近 bar）；
+        // 其余单锚点工具单击即成线（限绘图区内）
         if (activeTool === 'text') {
           const pt = { x: e.offsetX, y: e.offsetY }
           p.current.onRequestTextInput({ px: pt, anchor: pxToAnchor(c, dates, pt) })
-        } else if (!isTwoAnchorTool(activeTool)) {
+        } else if (inRect(e.offsetX, e.offsetY, grid) && !isTwoAnchorTool(activeTool)) {
           commitDraft([{ x: e.offsetX, y: e.offsetY }])
         }
         return
       }
+      if (!inRect(e.offsetX, e.offsetY, grid)) return
       if (e.target && isDrawingElement(e.target)) return // 元素级 onclick 已处理选中
       p.current.onSelect(null)
     }
