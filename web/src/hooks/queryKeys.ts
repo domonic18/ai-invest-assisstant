@@ -171,4 +171,9 @@ export const queryKeys = {
     overview: ['workbench', 'overview'] as const,
     reviewStatus: ['workbench', 'reviewStatus'] as const,
   },
+  klineDrawings: {
+    /** 全周期画线（period 为归属键，周期切换前端过滤） */
+    target: (targetType: string, targetCode: string) =>
+      ['kline-drawings', targetType, targetCode] as const,
+  },
 } as const

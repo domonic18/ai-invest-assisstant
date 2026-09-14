@@ -1,9 +1,12 @@
 import ReactECharts from 'echarts-for-react'
-import type { EChartsOption, SeriesOption } from 'echarts'
+import type { ECharts, EChartsOption, SeriesOption } from 'echarts'
+import { useState } from 'react'
 
 import dayjs from 'dayjs'
 
-import type { IndexKlineBar, MovingAverageConfig } from '@ai-invest/shared'
+import type { IndexKlineBar, KlineDrawingPeriod, MovingAverageConfig } from '@ai-invest/shared'
+import { DrawingLayerHost } from '@/components/charts/drawing/DrawingLayerHost'
+import { DrawingToolbar } from '@/components/charts/drawing/DrawingToolbar'
 import { useKlineKeyboardNav } from '@/components/charts/useKlineKeyboardNav'
 import { useColorScheme } from '@/stores/settings'
 import { fallHex, formatAmount, riseHex } from '@/utils/formatters'
@@ -21,6 +24,8 @@ interface IndexKlineChartProps {
   defaultVisibleBars?: number
   /** 异动日竖线标注（日期须命中横轴，未命中的自动忽略）。 */
   markers?: { date: string; label?: string }[]
+  /** 画线归属（指数代码 + 周期）；不传或周期不支持（季/年线）则不启用画线图层。 */
+  drawingTarget?: { code: string; period: KlineDrawingPeriod }
 }
 
 function fmt(v: number | null | undefined, decimals = 2): string {
@@ -38,9 +43,12 @@ export function IndexKlineChart({
   height = 360,
   defaultVisibleBars,
   markers,
+  drawingTarget,
 }: IndexKlineChartProps) {
   useColorScheme()
   const { chartRef, wrapperProps, onEvents } = useKlineKeyboardNav(bars.length)
+  // 画线图层实例（onChartReady 捕获）；未传 drawingTarget 时不启用
+  const [drawingChart, setDrawingChart] = useState<ECharts | null>(null)
 
   const up = riseHex()
   const down = fallHex()
@@ -375,14 +383,28 @@ const formatAxisValue = (value: number) =>
   }
 
   return (
-    <div {...wrapperProps}>
+    <div {...wrapperProps} className="relative">
+      {drawingTarget && (
+        <div className="absolute top-1.5 right-3 z-10 rounded-md border border-white/10 bg-[#1a1d24]/90 p-px">
+          <DrawingToolbar />
+        </div>
+      )}
       <ReactECharts
         ref={chartRef}
         option={option}
         style={{ height: `${height}px`, width: '100%' }}
         onEvents={onEvents}
         notMerge
+        onChartReady={setDrawingChart}
       />
+      {drawingTarget && (
+        <DrawingLayerHost
+          chart={drawingChart}
+          dates={dates}
+          target={{ targetType: 'index', targetCode: drawingTarget.code }}
+          period={drawingTarget.period}
+        />
+      )}
     </div>
   )
 }

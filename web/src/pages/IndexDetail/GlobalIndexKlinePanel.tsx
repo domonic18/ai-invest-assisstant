@@ -1,7 +1,7 @@
 import { Segmented, Spin } from 'antd'
 import { useState } from 'react'
 
-import type { IndexKlinePeriod, MovingAverageConfig } from '@ai-invest/shared'
+import type { IndexKlinePeriod, KlineDrawingPeriod, MovingAverageConfig } from '@ai-invest/shared'
 import { IndexKlineChart } from '@/components/charts/IndexKlineChart'
 import { useGlobalIndexKline } from '@/hooks/useMarket'
 import { useColorScheme, useMaConfigs } from '@/stores/settings'
@@ -89,6 +89,11 @@ export function GlobalIndexKlinePanel({ code, decimals = 2 }: GlobalIndexKlinePa
           maConfigs={maConfigs}
           height={340}
           defaultVisibleBars={period === 'daily' ? 120 : undefined}
+          drawingTarget={
+            period === 'quarterly' || period === 'yearly'
+              ? undefined
+              : { code, period: period as KlineDrawingPeriod }
+          }
         />
       ) : (
         <div className="text-gray-500 text-sm py-8 text-center">

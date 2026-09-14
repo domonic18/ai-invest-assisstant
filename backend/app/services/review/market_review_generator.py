@@ -249,8 +249,31 @@ async def generate_market_review(
 
         from app.agent.skills.market_review_agent import run_skill
 
+        # 大盘五标的用户画线上下文注入（需求 4.4 读协议）：失败降级为无画线，复盘照常
+        try:
+            from app.services.market import (
+                index_technical_service,
+                kline_drawing_service,
+            )
+
+            drawings_context = (
+                await kline_drawing_service.build_market_index_drawings_context(
+                    session, index_technical_service.TECH_CODES
+                )
+            )
+        except Exception:
+            logger.warning(
+                "market_daily_review 指数画线上下文注入失败，降级为无画线",
+                trade_date=resolved_date.isoformat(),
+                exc_info=True,
+            )
+            drawings_context = "（五大标的暂无用户画线）"
+
         contents, model_name, latency_ms = await run_skill(
-            session, trade_date=resolved_date, prompt_config=prompt_config
+            session,
+            trade_date=resolved_date,
+            prompt_config=prompt_config,
+            drawings_context=drawings_context,
         )
 
         await _persist(

@@ -160,7 +160,11 @@ export function SectorDetailPage() {
 
       <div className="flex flex-col lg:flex-row gap-3 items-stretch">
         <div className="flex-1 min-w-0 space-y-3">
-          <SectorChartArea bars={klineBars} markers={markers} />
+          <SectorChartArea
+            bars={klineBars}
+            markers={markers}
+            drawingCode={data.sectorCode}
+          />
           {hasFundFlow && (
             <Card
               variant="borderless"

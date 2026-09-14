@@ -24,6 +24,7 @@ from app.models.industry_chain import (
 )
 from app.models.ipo_info import IPOInfo
 from app.models.kline import KlineDaily, KlineMinute, SectorKlineDaily
+from app.models.kline_drawing import AiKlineDrawing, UserKlineDrawing
 from app.models.llm_config import LLMConfig
 from app.models.mapping_stock_concept import MappingStockConcept
 from app.models.market_amount import MarketAmount
@@ -71,6 +72,8 @@ __all__ = [
     "CollectorHealthStatus",
     "CollectorLog",
     "CollectorTask",
+    "AiKlineDrawing",
+    "UserKlineDrawing",
     "FileMetadata",
     "FundFlow",
     "FedWatchProbability",

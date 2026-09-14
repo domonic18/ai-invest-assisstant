@@ -1,13 +1,16 @@
 import { SyncOutlined } from '@ant-design/icons'
 import ReactECharts from 'echarts-for-react'
 import { Button, Spin } from 'antd'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { IntradayChart } from '@/components/charts/IntradayChart'
+import { DrawingLayerHost } from '@/components/charts/drawing/DrawingLayerHost'
+import { useDrawingStore } from '@/stores/drawing'
 import { useKlineKeyboardNav } from '@/components/charts/useKlineKeyboardNav'
 import { useStockIntraday, useStockKline } from '@/hooks/useStocks'
 import { useMaConfigs } from '@/stores/settings'
-import type { IndexIntraday } from '@ai-invest/shared'
+import type { ECharts } from 'echarts'
+import type { IndexIntraday, KlineDrawingPeriod } from '@ai-invest/shared'
 
 import { BORDER_COLOR, PANEL_BG } from './constants'
 import { ChartToolbar } from './ChartToolbar'
@@ -91,6 +94,16 @@ export function StockChartView({
 
   const { rootRef, isFullscreen, fsHeight, toggleFullscreen } = useChartFullscreen()
   const effectiveHeight = fsHeight ?? height
+
+  // 画线图层（分钟线不提供画线）；实例经 onChartReady 捕获
+  const [drawingChart, setDrawingChart] = useState<ECharts | null>(null)
+  const drawingPeriod: KlineDrawingPeriod =
+    period === 'daily' || period === 'weekly' || period === 'monthly' ? period : 'daily'
+  const drawingEnabled = !isIntraday && !!code
+  // 分时等画线不可用周期：Host 卸载，编辑态残留会导致按钮高亮但 Esc 失效，先退出编辑态
+  useEffect(() => {
+    if (!drawingEnabled) useDrawingStore.getState().exitDrawing()
+  }, [drawingEnabled])
 
   const chartData = useMemo(() => {
     if (isIntraday || !klineData || klineData.bars.length === 0) return null
@@ -191,6 +204,7 @@ export function StockChartView({
         indicators={indicators}
         onToggleIndicator={toggleIndicator}
         layoutToggle={layoutToggle}
+        drawing={drawingEnabled}
         onResetZoom={resetZoom}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
@@ -249,7 +263,7 @@ export function StockChartView({
             <IntradayChart data={adaptToIndexIntraday(intradayData)} height={effectiveHeight} />
           )
         ) : option ? (
-          <div {...wrapperProps}>
+          <div {...wrapperProps} className="relative">
             <ReactECharts
               ref={chartRef}
               option={option}
@@ -257,7 +271,16 @@ export function StockChartView({
               onEvents={onEvents}
               opts={{ renderer: 'canvas' }}
               notMerge
+              onChartReady={setDrawingChart}
             />
+            {drawingEnabled && (
+              <DrawingLayerHost
+                chart={drawingChart}
+                dates={chartData?.dates ?? []}
+                target={{ targetType: 'stock', targetCode: code }}
+                period={drawingPeriod}
+              />
+            )}
           </div>
         ) : null}
       </div>
