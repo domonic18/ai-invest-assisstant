@@ -16,6 +16,11 @@ export const queryKeys = {
     tasks: ['admin-tasks'] as const,
     aiResults: ['admin-ai-results'] as const,
     aiResultSkills: ['admin-ai-result-skills'] as const,
+    pendingApplications: ['admin-pending-applications'] as const,
+    pendingCount: ['admin-pending-count'] as const,
+    usageDashboard: (days: number) => ['admin-usage-dashboard', days] as const,
+    usagePerUsers: (days: number) => ['admin-usage-per-users', days] as const,
+    accountSettings: ['admin-account-settings'] as const,
     systemStatus: ['admin-system-status'] as const,
   },
   auction: {
@@ -81,6 +86,12 @@ export const queryKeys = {
   sectorDetail: (sectorType: string, sectorCode: string) =>
     ['sector-detail', sectorType, sectorCode] as const,
   hotspot: ['hotspot'] as const,
+  account: {
+    all: ['account'] as const,
+    quota: ['account', 'quota'] as const,
+    usage: (feature?: string) => ['account', 'usage', feature ?? null] as const,
+    llmConfig: ['account', 'llm-config'] as const,
+  },
   llmConfigs: ['llm-configs'] as const,
   mcpServers: ['mcp-servers'] as const,
   proxyConfigs: ['proxy-configs'] as const,

@@ -13,6 +13,7 @@ import {
   HeatMapOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  PieChartOutlined,
   PlayCircleOutlined,
   ReadOutlined,
   RiseOutlined,
@@ -30,6 +31,7 @@ import { useEffect, useState, type MouseEvent as ReactMouseEvent, type ReactNode
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import { useCollectorHealthBadgeCount } from '@/hooks/useCollectorHealth'
+import { usePendingCount } from '@/hooks/useAdminAccount'
 import { useAuthStore } from '@/stores/auth'
 import { Brand } from '@/components/common/Brand'
 import { SidebarReviewStatus } from '@/components/layout/SidebarReviewStatus'
@@ -65,6 +67,7 @@ const ANALYSIS_MENU_ITEMS: MenuItem[] = [
 const ADMIN_MENU_ITEMS: MenuItem[] = [
   { key: '/admin', icon: <DashboardOutlined />, label: '管理总览' },
   { key: '/admin/users', icon: <TeamOutlined />, label: '用户管理' },
+  { key: '/admin/usage-dashboard', icon: <PieChartOutlined />, label: '用量看板' },
   { key: '/admin/stocks', icon: <BarChartOutlined />, label: '股票管理' },
   { key: '/admin/reports', icon: <FileTextOutlined />, label: '报告管理' },
   { key: '/admin/news', icon: <ReadOutlined />, label: '资讯管理' },
@@ -94,15 +97,20 @@ function resolveSelectedKey(pathname: string, keys: string[]): string {
   return matched.sort((a, b) => b.length - a.length)[0] ?? '/'
 }
 
-/** 采集管理项挂健康角标（critical+silent 故障数，300s 轮询快照）。 */
-function withCollectorBadge(items: MenuItem[], badgeCount: number): MenuItem[] {
+/** 给指定菜单项挂数字角标（采集健康故障数 / 待审批数，均 300s 轮询）。 */
+function withBadge(
+  items: MenuItem[],
+  targetKey: string,
+  label: string,
+  badgeCount: number,
+): MenuItem[] {
   return items.map((item) => {
-    if (item && 'key' in item && item.key === '/admin/collector') {
+    if (item && 'key' in item && item.key === targetKey) {
       return {
         ...item,
         label: (
           <span className="inline-flex items-center gap-2">
-            采集管理
+            {label}
             {badgeCount > 0 && <Badge count={badgeCount} size="small" />}
           </span>
         ),
@@ -126,6 +134,7 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
   const isAdminPath = location.pathname.startsWith('/admin')
   const [openKeys, setOpenKeys] = useState<string[]>(isAdminPath ? [ADMIN_GROUP_KEY] : [])
   const healthBadgeCount = useCollectorHealthBadgeCount(isAdmin)
+  const pendingCount = usePendingCount(isAdmin).data ?? 0
 
   useEffect(() => {
     if (isAdminPath) {
@@ -142,7 +151,17 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
             key: ADMIN_GROUP_KEY,
             icon: <SettingOutlined />,
             label: '后台管理',
-            children: withCollectorBadge(ADMIN_MENU_ITEMS, healthBadgeCount),
+            children: withBadge(
+              withBadge(
+                ADMIN_MENU_ITEMS,
+                '/admin/users',
+                '用户管理',
+                pendingCount,
+              ),
+              '/admin/collector',
+              '采集管理',
+              healthBadgeCount,
+            ),
           } as MenuItem,
         ]
       : []),

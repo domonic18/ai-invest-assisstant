@@ -4,21 +4,24 @@ import {
   CloudServerOutlined,
   FileTextOutlined,
   FileDoneOutlined,
+  PieChartOutlined,
   PlayCircleOutlined,
   ReadOutlined,
   RobotOutlined,
   TeamOutlined,
 } from '@ant-design/icons'
-import { Card, Col, Row, Space, Table, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Col, Row, Space, Table, Tag, Typography } from 'antd'
 import { Link } from 'react-router-dom'
 
 import { useCollectorLogs } from '@/hooks/useCollectorAdmin'
+import { usePendingCount } from '@/hooks/useAdminAccount'
 import { formatDateTime } from '@/utils/formatters'
 import { getSourceLabel, getTaskLabel } from '@/utils/collectorTaskLabels'
 import { statusTagColor } from '@ai-invest/shared'
 
 const ADMIN_LINKS = [
   { title: '用户管理', path: '/admin/users', icon: <TeamOutlined />, color: 'bg-blue-500/10 text-blue-400' },
+  { title: '用量看板', path: '/admin/usage-dashboard', icon: <PieChartOutlined />, color: 'bg-violet-500/10 text-violet-400' },
   { title: '股票管理', path: '/admin/stocks', icon: <BarChartOutlined />, color: 'bg-green-500/10 text-green-400' },
   { title: '报告管理', path: '/admin/reports', icon: <FileTextOutlined />, color: 'bg-purple-500/10 text-purple-400' },
   { title: '资讯管理', path: '/admin/news', icon: <ReadOutlined />, color: 'bg-orange-500/10 text-orange-400' },
@@ -31,6 +34,7 @@ const ADMIN_LINKS = [
 
 export function Admin() {
   const { data: logs, isLoading } = useCollectorLogs(10)
+  const pendingCount = usePendingCount(true).data ?? 0
 
   const logColumns = [
     { title: '任务', dataIndex: 'taskName', key: 'taskName', render: (v: string) => getTaskLabel(v) },
@@ -56,6 +60,22 @@ export function Admin() {
   return (
     <div className="space-y-6">
       <Typography.Title level={4} className="!mb-0">后台管理</Typography.Title>
+
+      {pendingCount > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          message={`有 ${pendingCount} 个注册申请待审批`}
+          description="新用户在审批通过前无法登录；点击右侧按钮直达待审列表处理。"
+          action={
+            <Link to="/admin/users?status=pending">
+              <Button size="small" type="primary" danger>
+                去处理
+              </Button>
+            </Link>
+          }
+        />
+      )}
 
       <Row gutter={[16, 16]}>
         {ADMIN_LINKS.map((link) => (

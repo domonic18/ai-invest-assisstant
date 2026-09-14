@@ -320,8 +320,14 @@ export interface AdminUser {
   email: string
   role: string
   isActive: boolean
+  status: string
+  applicationNote: string | null
+  rejectReason: string | null
   lastLoginAt: string | null
   createdAt: string
+  remainingQuota: number | null
+  totalUsed: number
+  byokEnabled: boolean
 }
 
 export interface AdminUserFormValues {

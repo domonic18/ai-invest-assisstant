@@ -96,6 +96,22 @@ export function createAssistantRuntimeAdapter(
         signal: config.abortSignal,
       })
       for await (const chunk of stream) {
+        // 配额耗尽错误帧追加引导文案（arch/10 §7.2：AI 拦截须指引配 Key/联系管理员）
+        if (chunk.event === 'error') {
+          const data = chunk.data as
+            | { error_code?: string; error?: string }
+            | undefined
+          if (data?.error_code === 'quota_exhausted') {
+            yield {
+              event: chunk.event,
+              data: {
+                ...data,
+                error: `${data.error ?? 'AI 配额已用尽'}（可前往「设置 → 我的模型」配置自有 API Key，或联系管理员追加配额）`,
+              },
+            }
+            continue
+          }
+        }
         yield { event: chunk.event, data: chunk.data }
       }
     },

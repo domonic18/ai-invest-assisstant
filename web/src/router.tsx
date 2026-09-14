@@ -25,6 +25,9 @@ const ProxyConfig = lazy(() =>
 const SystemStatusPage = lazy(() =>
   import('./pages/Admin/SystemStatus/SystemStatus').then((m) => ({ default: m.SystemStatus })),
 )
+const UsageDashboard = lazy(() =>
+  import('./pages/Admin/UsageDashboard/UsageDashboard').then((m) => ({ default: m.UsageDashboard })),
+)
 const AiResultsAdmin = lazy(() =>
   import('./pages/Admin/AiResults/AiResultsAdmin').then((m) => ({
     default: m.AiResultsAdmin,
@@ -116,6 +119,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: lazyEl(<Admin />) },
           { path: 'users', element: lazyEl(<AdminUsers />) },
+          { path: 'usage-dashboard', element: lazyEl(<UsageDashboard />) },
           { path: 'stocks', element: lazyEl(<AdminStocks />) },
           { path: 'reports', element: lazyEl(<AdminReports />) },
           { path: 'news', element: lazyEl(<AdminNews />) },

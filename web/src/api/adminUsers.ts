@@ -13,6 +13,7 @@ import { mapAdminUser, mapPaginatedResponse } from './mappers'
 export interface AdminUserParams {
   page?: number
   pageSize?: number
+  status?: string | null
 }
 
 export async function fetchAdminUsers(params: AdminUserParams = {}) {
@@ -22,6 +23,7 @@ export async function fetchAdminUsers(params: AdminUserParams = {}) {
       params: {
         page: params.page ?? 1,
         page_size: params.pageSize ?? 20,
+        status: params.status ?? undefined,
       },
     },
   )

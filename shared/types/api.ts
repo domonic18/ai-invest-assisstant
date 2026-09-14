@@ -2,6 +2,7 @@ export interface ApiRegisterRequest {
   username: string
   email: string
   password: string
+  applicationNote?: string
 }
 
 export interface ApiMovingAverageConfig {
@@ -24,6 +25,9 @@ export interface ApiUserResponse {
   email: string
   role: string
   isActive: boolean
+  status: string
+  applicationNote: string | null
+  rejectReason: string | null
   lastLoginAt: string | null
   createdAt: string
 }
@@ -904,8 +908,14 @@ export interface ApiAdminUserResponse {
   email: string
   role: string
   isActive: boolean
+  status: string
+  applicationNote: string | null
+  rejectReason: string | null
   lastLoginAt: string | null
   createdAt: string
+  remainingQuota: number | null
+  totalUsed: number
+  byokEnabled: boolean
 }
 
 export interface ApiAdminUserCreateRequest {
