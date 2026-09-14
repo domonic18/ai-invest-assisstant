@@ -1239,6 +1239,7 @@ CREATE INDEX IF NOT EXISTS idx_user_kline_drawing_scope
 
 CREATE TABLE IF NOT EXISTS ai_kline_drawing (
     id          BIGSERIAL PRIMARY KEY,
+    user_id     BIGINT      NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,  -- 多租户：AI 画线为 per-user 私有工作区
     target_type VARCHAR(16) NOT NULL,
     target_code VARCHAR(16) NOT NULL,
     period      VARCHAR(8)  NOT NULL,
@@ -1249,7 +1250,11 @@ CREATE TABLE IF NOT EXISTS ai_kline_drawing (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT uq_ai_kline_drawing UNIQUE (target_type, target_code, period),
+    CONSTRAINT uq_ai_kline_drawing UNIQUE (user_id, target_type, target_code, period),
     CONSTRAINT chk_ai_kline_drawing_target_type CHECK (target_type IN ('stock', 'index', 'sector')),
     CONSTRAINT chk_ai_kline_drawing_period CHECK (period IN ('daily', 'weekly', 'monthly'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_ai_kline_drawing_scope
+    ON ai_kline_drawing(user_id, target_type, target_code, period);
+

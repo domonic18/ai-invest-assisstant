@@ -28,7 +28,6 @@ async def run_skill(
     *,
     trade_date: date,
     prompt_config: PromptConfig,
-    drawings_context: str = "",
 ) -> tuple[dict[str, str], str, int]:
     """执行 deepagents 大盘复盘 skill。
 
@@ -36,7 +35,6 @@ async def run_skill(
         session: 数据库会话（用于解析默认 LLM 配置）。
         trade_date: 交易日。
         prompt_config: YAML 输出契约（system_prompt/sections/任务模板）。
-        drawings_context: 大盘指数用户画线注入文字块（需求 4.4 读协议；空串表示未提供）。
 
     Returns:
         (分区内容, model 标识, 耗时毫秒)。
@@ -72,7 +70,6 @@ async def run_skill(
     user_prompt = prompt_config.user_prompt_template.format(
         trade_date=trade_date.isoformat(),
         section_instructions=render_section_instructions(prompt_config.sections),
-        drawings_context=drawings_context,
     )
 
     started = time.perf_counter()

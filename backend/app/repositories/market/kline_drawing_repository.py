@@ -31,21 +31,6 @@ class UserKlineDrawingRepository(BaseRepository[UserKlineDrawing]):
         result = await self.execute(stmt)
         return list(result.scalars().all())
 
-    async def list_by_target(
-        self, target_type: str, target_code: str
-    ) -> list[UserKlineDrawing]:
-        """该标的全周期全用户的画线（复盘注入读协议；单主人平台惯例与 watchlist 一致）。"""
-        stmt = (
-            select(UserKlineDrawing)
-            .where(
-                UserKlineDrawing.target_type == target_type,
-                UserKlineDrawing.target_code == target_code,
-            )
-            .order_by(UserKlineDrawing.created_at.asc())
-        )
-        result = await self.execute(stmt)
-        return list(result.scalars().all())
-
     async def get_for_user(self, user_id: int, drawing_id: int) -> UserKlineDrawing | None:
         """按 id 取用户画线，校验归属；非本人返回 None。"""
         stmt = select(UserKlineDrawing).where(
@@ -71,16 +56,19 @@ class UserKlineDrawingRepository(BaseRepository[UserKlineDrawing]):
 
 
 class AiKlineDrawingRepository(BaseRepository[AiKlineDrawing]):
-    """AI 画线集的数据访问（每标的每周期一行）。"""
+    """AI 画线集的数据访问（每用户每标的每周期一行，多租户隔离）。"""
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, AiKlineDrawing)
 
-    async def list_by_target(self, target_type: str, target_code: str) -> list[AiKlineDrawing]:
-        """返回该标的全周期的 AI 画线集（按周期升序）。"""
+    async def list_by_user_target(
+        self, user_id: int, target_type: str, target_code: str
+    ) -> list[AiKlineDrawing]:
+        """返回指定用户在该标的全周期的 AI 画线集（按周期升序）。"""
         stmt = (
             select(AiKlineDrawing)
             .where(
+                AiKlineDrawing.user_id == user_id,
                 AiKlineDrawing.target_type == target_type,
                 AiKlineDrawing.target_code == target_code,
             )
@@ -90,10 +78,11 @@ class AiKlineDrawingRepository(BaseRepository[AiKlineDrawing]):
         return list(result.scalars().all())
 
     async def get_group(
-        self, target_type: str, target_code: str, period: str
+        self, user_id: int, target_type: str, target_code: str, period: str
     ) -> AiKlineDrawing | None:
-        """返回指定标的+周期的 AI 画线集。"""
+        """返回指定用户在标的+周期的 AI 画线集。"""
         stmt = select(AiKlineDrawing).where(
+            AiKlineDrawing.user_id == user_id,
             AiKlineDrawing.target_type == target_type,
             AiKlineDrawing.target_code == target_code,
             AiKlineDrawing.period == period,

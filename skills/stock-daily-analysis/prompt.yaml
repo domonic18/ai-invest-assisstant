@@ -53,7 +53,4 @@ user_prompt_template: |
 
   {section_instructions}
 
-  用户画线参考（几何形态 + 标注文字，文字代表用户观点）：
-  {drawings_context}
-
   完成后按系统指令输出最终 JSON。

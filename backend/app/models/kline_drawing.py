@@ -43,14 +43,20 @@ class UserKlineDrawing(Base):
 
 
 class AiKlineDrawing(Base):
-    """AI 画线集（全局共享、可变工作区，每标的每周期一套）。"""
+    """AI 画线集（per-user 私有、可变工作区，每用户每标的每周期一套）。"""
 
     __tablename__ = "ai_kline_drawing"
     __table_args__ = (
-        UniqueConstraint("target_type", "target_code", "period", name="uq_ai_kline_drawing"),
+        UniqueConstraint(
+            "user_id", "target_type", "target_code", "period", name="uq_ai_kline_drawing"
+        ),
+        Index("idx_ai_kline_drawing_scope", "user_id", "target_type", "target_code", "period"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("user.id", ondelete="CASCADE"), nullable=False
+    )
     target_type: Mapped[str] = mapped_column(String(16), nullable=False)
     target_code: Mapped[str] = mapped_column(String(16), nullable=False)
     period: Mapped[str] = mapped_column(String(8), nullable=False)

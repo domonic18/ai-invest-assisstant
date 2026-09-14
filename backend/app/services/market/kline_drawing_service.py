@@ -1,11 +1,10 @@
-"""K 线画线服务（F-DRAW）：用户画线 CRUD、AI 画线集读写与上下文序列化。
+"""K 线画线服务（F-DRAW）：用户画线 CRUD 与 AI 画线集读写（均为 per-user 私有）。
 
 锚点一律数据坐标 (date, price)；payload JSONB 内为 camelCase 结构，
 与 shared/types/drawing.ts 契约同构。事务边界在本层（显式 commit）。
 """
 
 import math
-from collections.abc import Mapping
 from datetime import date
 from typing import Any, Literal, cast
 
@@ -40,10 +39,6 @@ REQUIRED_ANCHORS: dict[str, int] = {
     "hline": 1,
     "text": 1,
 }
-
-PERIOD_ORDER = {"daily": 0, "weekly": 1, "monthly": 2}
-PERIOD_LABEL = {"daily": "日线", "weekly": "周线", "monthly": "月线"}
-
 
 def _format_price(price: float) -> str:
     """价格格式化：最多两位小数，去除尾零。"""
@@ -120,89 +115,6 @@ def _ai_items_from_group(group: AiKlineDrawing) -> AiKlineDrawingGroupResponse:
     )
 
 
-def serialize_user_drawings_context(
-    drawings: list[UserKlineDrawingResponse],
-) -> str:
-    """用户画线 → 紧凑文字块（需求 4.4 读协议，纯函数可单测）。
-
-    文字标注是一等信号：几何形态 + 用户标注语义一并注入；
-    画线为空返回空提示（不阻断复盘链路）。
-    """
-    if not drawings:
-        return "（该标的暂无用户画线）"
-
-    by_period: dict[str, list[UserKlineDrawingResponse]] = {}
-    for drawing in drawings:
-        by_period.setdefault(drawing.period, []).append(drawing)
-
-    lines: list[str] = []
-    for period in sorted(by_period, key=lambda p: PERIOD_ORDER.get(p, 99)):
-        lines.append(f"[用户画线·{PERIOD_LABEL.get(period, period)}]")
-        for drawing in by_period[period]:
-            anchors = drawing.anchors
-            text = f"「{drawing.text}」" if drawing.text else ""
-            if drawing.drawing_type == "hline":
-                body = f"水平线：{_format_price(anchors[0].price)}"
-            elif drawing.drawing_type == "box":
-                body = (
-                    f"箱体：{_format_price(anchors[0].price)}~{_format_price(anchors[1].price)}"
-                    f"（{anchors[0].date} ~ {anchors[1].date}）"
-                )
-            elif drawing.drawing_type == "text":
-                body = f"文字标注：{text} @ {anchors[0].date} {_format_price(anchors[0].price)}"
-                lines.append(f"- {body}")
-                continue
-            elif drawing.drawing_type == "ray":
-                direction_word = {"left": "向左延伸", "both": "双向延伸"}.get(
-                    drawing.direction or "right", "向右延伸"
-                )
-                body = (
-                    f"射线：{anchors[0].date} {_format_price(anchors[0].price)} → "
-                    f"{anchors[1].date} {_format_price(anchors[1].price)} → {direction_word}"
-                )
-            else:  # trendline
-                body = (
-                    f"线段：{anchors[0].date} {_format_price(anchors[0].price)} → "
-                    f"{anchors[1].date} {_format_price(anchors[1].price)}"
-                )
-            lines.append(f"- {body}{text}")
-    return "\n".join(lines)
-
-
-async def build_target_drawings_context(
-    session: AsyncSession, target_type: str, target_code: str
-) -> str:
-    """单标的用户画线 → 复盘注入文字块（需求 4.4 读协议 ①③ 共用）。
-
-    Agent 读取不隔离用户（单主人平台惯例，与定时复盘 watchlist 遍历一致）；
-    注入失败的降级由调用方负责（复盘照常）。
-    """
-    repo = UserKlineDrawingRepository(session)
-    rows = await repo.list_by_target(target_type, target_code)
-    return serialize_user_drawings_context([_drawing_from_row(row) for row in rows])
-
-
-async def build_market_index_drawings_context(
-    session: AsyncSession, codes: Mapping[str, str]
-) -> str:
-    """大盘多标的用户画线 → 复盘注入文字块（需求 4.4 读协议 ②）。
-
-    codes 为 指数代码 → 中文名 映射（复盘技术面覆盖的五标的）；
-    仅有画线的标的进入输出，前置 [指数名] 头；全空时返回空提示。
-    """
-    repo = UserKlineDrawingRepository(session)
-    parts: list[str] = []
-    for code, label in codes.items():
-        rows = await repo.list_by_target("index", code)
-        if not rows:
-            continue
-        serialized = serialize_user_drawings_context(
-            [_drawing_from_row(row) for row in rows]
-        )
-        parts.append(f"[{label}]\n{serialized}")
-    return "\n\n".join(parts) if parts else "（五大标的暂无用户画线）"
-
-
 class KlineDrawingService:
     """画线服务：用户画线 CRUD + AI 画线集读写 + 上下文序列化。"""
 
@@ -218,7 +130,7 @@ class KlineDrawingService:
     ) -> KlineDrawingsResponse:
         """该标的全周期 user + ai 画线（周期切换前端过滤，零请求）。"""
         rows = await self.user_repo.list_by_user_target(user_id, target_type, target_code)
-        groups = await self.ai_repo.list_by_target(target_type, target_code)
+        groups = await self.ai_repo.list_by_user_target(user_id, target_type, target_code)
         return KlineDrawingsResponse(
             user=[_drawing_from_row(row) for row in rows],
             ai=[_ai_items_from_group(group) for group in groups],
@@ -279,11 +191,12 @@ class KlineDrawingService:
         await self.user_repo.delete(row)
         await self.session.commit()
 
-    # ---------- AI 画线集（Agent 工具写路径，无用户归属） ----------
+    # ---------- AI 画线集（Agent 工具写路径，per-user 私有工作区） ----------
 
     async def upsert_ai_group(
         self,
         *,
+        user_id: int,
         target_type: str,
         target_code: str,
         period: str,
@@ -293,14 +206,15 @@ class KlineDrawingService:
         mode: str = "replace",
         summary: str | None = None,
     ) -> AiKlineDrawingGroupResponse:
-        """整组写入 AI 画线集：replace 全量重画 / append 保留并新增。
+        """整组写入当前用户的 AI 画线集：replace 全量重画 / append 保留并新增。
 
         append 时 label 撞名即原位替换（label 组内唯一由本方法维护）。
         """
-        group = await self.ai_repo.get_group(target_type, target_code, period)
+        group = await self.ai_repo.get_group(user_id, target_type, target_code, period)
         new_items = [item.model_dump() for item in drawings]
         if group is None:
             group = AiKlineDrawing(
+                user_id=user_id,
                 target_type=target_type,
                 target_code=target_code,
                 period=period,
@@ -325,17 +239,20 @@ class KlineDrawingService:
         await self.session.commit()
         return _ai_items_from_group(group)
 
-    async def clear_ai_group(self, target_type: str, target_code: str, period: str) -> None:
-        """清空指定标的+周期的 AI 画线集（对话重新生成即可恢复）。"""
-        group = await self.ai_repo.get_group(target_type, target_code, period)
+    async def clear_ai_group(
+        self, user_id: int, target_type: str, target_code: str, period: str
+    ) -> None:
+        """清空当前用户在标的+周期的 AI 画线集（对话重新生成即可恢复）。"""
+        group = await self.ai_repo.get_group(user_id, target_type, target_code, period)
         if group is not None:
             await self.ai_repo.delete(group)
             await self.session.commit()
 
-    # ---------- AI 画线单条编辑（F-DRAW-08 人工原位编辑，全局共享工作区） ----------
+    # ---------- AI 画线单条编辑（F-DRAW-08 人工原位编辑，per-user 工作区） ----------
 
     async def update_ai_item(
         self,
+        user_id: int,
         target_type: str,
         target_code: str,
         period: str,
@@ -348,7 +265,7 @@ class KlineDrawingService:
 
         label 是组内唯一键：改名先腾位（防撞名），锚点按画线类型校验后落表。
         """
-        group = await self._require_ai_group(target_type, target_code, period)
+        group = await self._require_ai_group(user_id, target_type, target_code, period)
         items = [dict(item) for item in group.drawings or []]
         index = next((i for i, item in enumerate(items) if item.get("label") == label), None)
         if index is None:
@@ -370,10 +287,10 @@ class KlineDrawingService:
         return AiKlineDrawingItemSchema.model_validate(items[index])
 
     async def delete_ai_item(
-        self, target_type: str, target_code: str, period: str, label: str
+        self, user_id: int, target_type: str, target_code: str, period: str, label: str
     ) -> None:
         """按 label 删除单条 AI 画线（Delete 键）。"""
-        group = await self._require_ai_group(target_type, target_code, period)
+        group = await self._require_ai_group(user_id, target_type, target_code, period)
         items = [item for item in group.drawings or [] if item.get("label") != label]
         if len(items) == len(group.drawings or []):
             raise NotFoundError(f"AI 画线 {label} 不存在")
@@ -381,9 +298,9 @@ class KlineDrawingService:
         await self.session.commit()
 
     async def _require_ai_group(
-        self, target_type: str, target_code: str, period: str
+        self, user_id: int, target_type: str, target_code: str, period: str
     ) -> AiKlineDrawing:
-        group = await self.ai_repo.get_group(target_type, target_code, period)
+        group = await self.ai_repo.get_group(user_id, target_type, target_code, period)
         if group is None:
             raise NotFoundError("AI 画线组不存在")
         return group
@@ -395,7 +312,7 @@ class KlineDrawingService:
     ) -> UserKlineDrawingResponse:
         """AI 画线单条采纳：按 label 定位，复制为用户画线（原 AI 画线保留）。"""
         group = await self.ai_repo.get_group(
-            request.target_type, request.target_code, request.period
+            user_id, request.target_type, request.target_code, request.period
         )
         if group is None:
             raise NotFoundError("AI 画线组不存在")

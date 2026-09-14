@@ -7,7 +7,7 @@
 
 1. **锚点即契约**：画线锚点一律存数据坐标 `(date, price)`，像素坐标只在渲染瞬间存在。数据坐标使画线在新 K 线追加、缩放、跨周期渲染下语义稳定，也是 Agent 可结构化读写的前提——LLM 输出/读取的是同一套坐标语义，不是屏幕位置。
 2. **图层与主图解耦**：画线层是独立模块（`components/charts/drawing/`），以组合方式接入个股/板块（StockChartView）与大盘指数（IndexKlineChart）两套图表组件；图层任何异常降级为「不渲染画线」，不侵入 K 线主图渲染与既有交互（十字光标/键盘导航/异动 markers）。
-3. **用户画线与 AI 画线物理分表**：用户画线是用户资产（per-user 私有、长期保留）；AI 画线是系统级分析产出（全局共享、可变工作区）。分表使二者的生命周期、权限、备份语义互不牵连。
+3. **用户画线与 AI 画线物理分表，均为 per-user 私有**：用户画线是用户资产（长期保留）；AI 画线是会话属主的私有可变工作区（多租户隔离，A 的 AI 画线对 B 不可见）。分表使二者的生命周期、权限、备份语义互不牵连。
 4. **Agent 双向共用一套 wire 契约**：读（画线上下文序列化 + 查询工具）与写（persist 工具）走同一份 `shared/types` 画线类型，Pydantic schema 镜像同构；文字标识（标注文字 / label / reason）作为一等字段进入契约。
 5. **写路径人工优先**：AI 画线仅由对话触发、画线前必须经问题卡确认；用户画线的删除 Agent 无权静默执行（二次确认）。
 
@@ -75,7 +75,7 @@ interface AiKlineDrawingGroup {
 | 表 | 键与约束 | 说明 |
 |----|----------|------|
 | `user_kline_drawing` | idx `(user_id, target_type, target_code, period)`；每行一条画线 | `payload JSONB`（anchors + direction + style + text）；审计字段 `created_at/updated_at` |
-| `ai_kline_drawing` | uq `(target_type, target_code, period)`；每标的每周期一套画线集 | `drawings JSONB` 数组（label 组内唯一）+ `skill_id`（最近来源）+ `trade_date`（最近生成日）+ `summary`；可变工作区，人工原位编辑直接更新 |
+| `ai_kline_drawing` | uq `(user_id, target_type, target_code, period)`；每用户每标的每周期一套画线集 | `user_id` 归属（多租户隔离）+ `drawings JSONB` 数组（label 组内唯一）+ `skill_id`（最近来源）+ `trade_date`（最近生成日）+ `summary`；可变工作区，人工原位编辑直接更新 |
 
 - 迁移：`docker/database/migrations/<date>_kline_drawing.sql`（幂等）+ `init-scripts/01-schema.sql` 同步。
 - AI 画线读写仅经服务层与 Agent 工具，不暴露创建端点。
@@ -85,11 +85,10 @@ interface AiKlineDrawingGroup {
 ```
 services/market/kline_drawing_service.py
 ├── 用户画线 CRUD（create/update/delete，均校验 user 归属）
-├── AI 画线集读写（replace / append / 单条改 / 单条删 / 清空）
-└── serialize_drawings_context()   # 4.4 文字块序列化，纯函数可单测
+└── AI 画线集读写（replace / append / 单条改 / 单条删 / 清空，均按 user_id 隔离）
 
 api/v1/drawings.py（薄路由，登录态）
-├── GET    /kline-drawings?target_type=&target_code=        # 全周期 user + ai
+├── GET    /kline-drawings?target_type=&target_code=        # 全周期 user + ai（均为当前用户）
 ├── POST   /kline-drawings                                   # 用户画线创建（批量容忍）
 ├── PATCH  /kline-drawings/{id}                              # 形态/样式/文字更新
 ├── DELETE /kline-drawings/{id}
@@ -103,8 +102,8 @@ api/v1/drawings.py（薄路由，登录态）
 
 ### 7.1 读（画线 → 上下文）
 
-- **复盘注入**：`stock_daily_analysis` / `market_daily_review` 服务层在输入就绪数据中追加「用户画线」节（`serialize_drawings_context` 产出，含文字标识）；注入失败降级为无画线上下文，复盘照常。复盘 skill 的输出 schema **不扩展** drawings（定时复盘不画线）。
-- **查询工具**：`get_kline_drawings(target_type, target_code)` 返回全周期结构化 JSON，登记进 `build_assistant_tools()`；SKILL 指引明确「分析标的趋势/技术形态前先取画线」。
+- **查询工具（读协议唯一载体）**：`get_kline_drawings(target_type, target_code)` 按**当前会话属主**返回全周期结构化 JSON（用户画线 + 本人的 AI 画线组），登记进 `build_assistant_tools()`；SKILL 指引明确「分析标的趋势/技术形态前先取画线」。
+- **共享复盘不注入用户画线**：`stock_daily_analysis` / `market_daily_review` 产物是全局共享缓存（按标的+日期一份），注入任何用户的私有画线都会经缓存泄漏给其他用户——多租户口径下画线上下文只经 per-user 的助手工具路径进入分析。
 - **解读指引**：相关 SKILL.md / prompt.yaml 增补——画线文字标注代表用户观点，采纳直接引用，分歧须显式说明依据。
 
 ### 7.2 写（对话 → AI 画线）
@@ -129,7 +128,7 @@ api/v1/drawings.py（薄路由，登录态）
 
 ## 8. 权限与边界
 
-- 用户画线端点登录即可，查改删强校验 `user_id` 归属；AI 画线全局可读，写仅经 Agent 工具/服务层。
+- 用户画线端点登录即可，查改删强校验 `user_id` 归属；AI 画线同样 per-user 隔离（读写均限本人），写仅经 Agent 工具/服务层。
 - 分钟线不提供画线；画线层异常（渲染/换算）静默降级 + 控制台告警，不影响主图。
 - 移动端画线（只读展示）、斐波那契等扩展类型、AI 画线历史版本：见需求文档 §7 功能边界，架构留位不预建。
 
