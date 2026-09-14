@@ -84,15 +84,15 @@ def namespace_label(namespaces: tuple[str, ...]) -> str:
     return namespaces[-1] if namespaces else ""
 
 
-def extract_event_marker(content: Any) -> dict[str, Any] | None:
-    """从 ToolMessage content 中提取 ``__event__`` 标记。
+def _extract_marker(content: Any, key: str) -> dict[str, Any] | None:
+    """从 ToolMessage content 中提取指定 ``__key__`` 标记。
 
     LangChain 可能把工具返回的 dict 序列化为 JSON 字符串或 Python repr，
     因此同时支持 dict、JSON 字符串与 ``ast.literal_eval`` 可解析的字符串。
     """
     raw = content
     if isinstance(raw, dict):
-        marker = raw.get("__event__")
+        marker = raw.get(key)
         return marker if isinstance(marker, dict) else None
     if isinstance(raw, str):
         try:
@@ -103,9 +103,19 @@ def extract_event_marker(content: Any) -> dict[str, Any] | None:
             except Exception:  # noqa: BLE001
                 return None
         if isinstance(parsed, dict):
-            marker = parsed.get("__event__")
+            marker = parsed.get(key)
             return marker if isinstance(marker, dict) else None
     return None
+
+
+def extract_event_marker(content: Any) -> dict[str, Any] | None:
+    """提取页面回写事件标记（``__event__``）。"""
+    return _extract_marker(content, "__event__")
+
+
+def extract_question_marker(content: Any) -> dict[str, Any] | None:
+    """提取 ask_user 问题卡标记（``__question__``，payload 含 type=question）。"""
+    return _extract_marker(content, "__question__")
 
 
 class RunRegistry:

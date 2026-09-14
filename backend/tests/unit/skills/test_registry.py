@@ -64,6 +64,7 @@ class TestRegistryIntegrity:
             "stock-daily-analysis": "stock",
             "watchlist-screenshot-recognition": "stock",
             "financial-health-check": "stock",
+            "kline-smart-drawing": "stock",
             "industry-chain-analysis": "chain",
             "chain-breakthrough": "chain",
             "financial-report-summary": "report",

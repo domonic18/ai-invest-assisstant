@@ -17,6 +17,7 @@ export type PageAssistantResult =
   | SectorAnomalyResult
   | StockAnomalyResult
   | StockScreeningResult
+  | KlineDrawingResult
 
 /** 产业链分析完成回写 */
 export interface ChainAnalysisResult {
@@ -75,6 +76,29 @@ export interface StockScreeningResult {
   stocks: StockScreeningRow[]
 }
 
+/** AI K 线画线完成回写（AI 图层刷新 + 会话内直达标的图表页） */
+export interface KlineDrawingResult {
+  type: typeof PAGE_EVENT_TYPES.klineDrawing
+  targetType: 'stock' | 'index' | 'sector'
+  targetCode: string
+  period: string
+  count: number
+  sectorType?: string
+}
+
+/** ask_user 问题卡选项 */
+export interface QuestionOption {
+  value: string
+  label: string
+}
+
+/** Agent ask_user 下发的结构化问题（选项点击作为新消息续跑对话） */
+export interface QuestionCard {
+  question: string
+  options: QuestionOption[]
+  default?: string | null
+}
+
 interface AssistantState {
   open: boolean
   /** 当前线程 id；undefined 表示新会话 */
@@ -85,15 +109,18 @@ interface AssistantState {
   pendingQuestion: string | undefined
   /** Agent 完成页面级任务后回写的结构化结果 */
   pageResult: PageAssistantResult | null
+  /** ask_user 问题卡（仅最新一张；新问题或用户回复即清空） */
+  questionCard: QuestionCard | null
   openPanel: () => void
   closePanel: () => void
   togglePanel: () => void
   switchThread: (threadId: string | undefined) => void
   setTodos: (todos: TodoStep[] | undefined) => void
-  /** 打开 AI 助手面板并预置一条待发送问题 */
+  /** 打开 AI 助手面板并预置一条待发送问题（同时清空待答问题卡） */
   sendQuestion: (question: string) => void
   clearPendingQuestion: () => void
   setPageResult: (result: PageAssistantResult | null) => void
+  setQuestionCard: (card: QuestionCard | null) => void
 }
 
 export const useAssistantStore = create<AssistantState>((set) => ({
@@ -102,12 +129,14 @@ export const useAssistantStore = create<AssistantState>((set) => ({
   todos: undefined,
   pendingQuestion: undefined,
   pageResult: null,
+  questionCard: null,
   openPanel: () => set({ open: true }),
   closePanel: () => set({ open: false }),
   togglePanel: () => set((state) => ({ open: !state.open })),
-  switchThread: (threadId) => set({ threadId, todos: undefined }),
+  switchThread: (threadId) => set({ threadId, todos: undefined, questionCard: null }),
   setTodos: (todos) => set({ todos }),
-  sendQuestion: (question) => set({ open: true, pendingQuestion: question }),
+  sendQuestion: (question) => set({ open: true, pendingQuestion: question, questionCard: null }),
   clearPendingQuestion: () => set({ pendingQuestion: undefined }),
   setPageResult: (pageResult) => set({ pageResult }),
+  setQuestionCard: (questionCard) => set({ questionCard }),
 }))

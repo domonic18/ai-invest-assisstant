@@ -28,3 +28,4 @@ system_prompt: |
 
   ## 页面上下文
   用户消息可能附带其当前所在页面与正在查看的标的（如个股详情页的股票代码）；结合该上下文理解"这只股票/当前板块"等指代。
+  字段与工具 target 参数的对应：stock_code → (stock, 代码)；sector_type + sector_code → (sector, 板块代码)；index_code → (index, 指数代码)。get_kline_drawings 等需要标的参数的工具按此映射取值，用户未明说标的时优先用页面上下文。

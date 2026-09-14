@@ -6,6 +6,7 @@ import dayjs from 'dayjs'
 
 import type { IndexKlineBar, KlineDrawingPeriod, MovingAverageConfig } from '@ai-invest/shared'
 import { DrawingLayerHost } from '@/components/charts/drawing/DrawingLayerHost'
+import { AiDrawingButton } from '@/components/charts/drawing/AiDrawingButton'
 import { DrawingToolbar } from '@/components/charts/drawing/DrawingToolbar'
 import { useKlineKeyboardNav } from '@/components/charts/useKlineKeyboardNav'
 import { useColorScheme } from '@/stores/settings'
@@ -385,8 +386,9 @@ const formatAxisValue = (value: number) =>
   return (
     <div {...wrapperProps} className="relative">
       {drawingTarget && (
-        <div className="absolute top-1.5 right-3 z-10 rounded-md border border-white/10 bg-[#1a1d24]/90 p-px">
+        <div className="absolute top-1.5 right-3 z-10 flex items-center gap-px rounded-md border border-white/10 bg-[#1a1d24]/90 p-px">
           <DrawingToolbar />
+          <AiDrawingButton />
         </div>
       )}
       <ReactECharts

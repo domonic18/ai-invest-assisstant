@@ -24,6 +24,8 @@ export interface DrawingsPanelProps {
   onSelect: (id: string | null) => void
   onDelete: (id: string) => void
   onAdopt: (item: { label: string; period: AiKlineDrawingGroup['period'] }) => void
+  /** 清空指定周期的 AI 画线集（对话重新生成即恢复） */
+  onClearAi: (period: AiKlineDrawingGroup['period']) => void
 }
 
 function summarize(d: UserKlineDrawing): string {
@@ -41,6 +43,7 @@ export function DrawingsPanel({
   onSelect,
   onDelete,
   onAdopt,
+  onClearAi,
 }: DrawingsPanelProps) {
   if (drawings.length === 0 && aiGroups.length === 0) {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无画线" />
@@ -97,10 +100,18 @@ export function DrawingsPanel({
             <span className="rounded border border-[#5e6ad2] px-1 text-[9px] font-bold text-[#8a93ff]">AI</span>
             <span className="font-medium text-gray-300">AI 画线</span>
             <Tooltip title={`${group.skillId} · ${group.tradeDate ?? ''} 对话生成 · 全局共享`}>
-              <span className="truncate text-[10px] text-gray-500">
+              <span className="flex-1 truncate text-[10px] text-gray-500">
                 {group.skillId} · {group.tradeDate ?? ''}
               </span>
             </Tooltip>
+            <button
+              type="button"
+              className="inline-flex items-center rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-gray-400 hover:border-[#e35d6a]/60 hover:text-[#e35d6a]"
+              title="清空本周期 AI 画线（对话重新生成即恢复）"
+              onClick={() => onClearAi(group.period)}
+            >
+              清除
+            </button>
           </div>
           {group.summary && <p className="mb-1.5 leading-relaxed text-gray-400">{group.summary}</p>}
           <ul className="flex flex-col gap-1">

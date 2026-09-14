@@ -6,6 +6,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { message } from 'antd'
 import type {
+  AiKlineDrawingGroup,
   KlineDrawingTargetType,
   UserKlineDrawing,
   UserKlineDrawingCreateRequest,
@@ -14,9 +15,12 @@ import type {
 
 import {
   adoptAiDrawing,
+  clearAiDrawings,
   createKlineDrawing,
+  deleteAiDrawingItem,
   deleteKlineDrawing,
   fetchKlineDrawings,
+  updateAiDrawingItem,
   updateKlineDrawing,
 } from '@/api/drawings'
 import { queryKeys } from './queryKeys'
@@ -44,10 +48,20 @@ function useDrawingCache(targetType: KlineDrawingTargetType, targetCode: string)
     /** 变更后整 key 失效（user/ai 两块都可能有变化） */
     invalidate: () => queryClient.invalidateQueries({ queryKey: key }),
     rollback: (prev: unknown) => queryClient.setQueryData(key, prev),
+    get: () => queryClient.getQueryData(key),
     patchUser: (fn: (list: UserKlineDrawing[]) => UserKlineDrawing[]) => {
       const prev = queryClient.getQueryData(key)
       queryClient.setQueryData(key, (old: { user: UserKlineDrawing[]; ai: unknown[] } | undefined) =>
         old ? { ...old, user: fn(old.user) } : old,
+      )
+      return prev
+    },
+    patchAi: (fn: (groups: AiKlineDrawingGroup[]) => AiKlineDrawingGroup[]) => {
+      const prev = queryClient.getQueryData(key)
+      queryClient.setQueryData(
+        key,
+        (old: { user: UserKlineDrawing[]; ai: AiKlineDrawingGroup[] } | undefined) =>
+          old ? { ...old, ai: fn(old.ai) } : old,
       )
       return prev
     },
@@ -141,6 +155,87 @@ export function useAdoptAiDrawing(targetType: KlineDrawingTargetType, targetCode
     },
     onError: (err) => {
       message.error(`采纳失败：${(err as Error).message}`)
+    },
+  })
+}
+
+interface AiItemScope {
+  period: 'daily' | 'weekly' | 'monthly'
+  label: string
+}
+
+/** AI 组乐观更新定位器：按 period + label 找到组内单条（找不到返回原数组） */
+function patchAiGroups(
+  groups: AiKlineDrawingGroup[],
+  scope: AiItemScope,
+  patchItem: (item: AiKlineDrawingGroup['drawings'][number]) => AiKlineDrawingGroup['drawings'][number],
+  remove = false,
+): AiKlineDrawingGroup[] {
+  return groups.map((group) => {
+    if (group.period !== scope.period) return group
+    const drawings = remove
+      ? group.drawings.filter((item) => item.label !== scope.label)
+      : group.drawings.map((item) => (item.label === scope.label ? patchItem(item) : item))
+    return { ...group, drawings }
+  })
+}
+
+/** AI 画线单条原位编辑（拖拽锚点 / 双击改名），乐观更新 AI 组避免拖拽回闪 */
+export function useUpdateAiDrawingItem(targetType: KlineDrawingTargetType, targetCode: string) {
+  const cache = useDrawingCache(targetType, targetCode)
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof updateAiDrawingItem>[0]) => updateAiDrawingItem(payload),
+    onMutate: async ({ period, label, anchors, newLabel }) => {
+      await cache.cancel()
+      const prev = cache.get()
+      cache.patchAi((groups) =>
+        patchAiGroups(groups, { period, label }, (item) => ({
+          ...item,
+          ...(anchors ? { anchors } : {}),
+          ...(newLabel ? { label: newLabel } : {}),
+        })),
+      )
+      return { prev } satisfies MutationCtx
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx) cache.rollback(ctx.prev)
+      message.error(`AI 画线更新失败：${(err as Error).message}`)
+    },
+  })
+}
+
+/** AI 画线单条删除（Delete 键） */
+export function useDeleteAiDrawingItem(targetType: KlineDrawingTargetType, targetCode: string) {
+  const cache = useDrawingCache(targetType, targetCode)
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof deleteAiDrawingItem>[0]) => deleteAiDrawingItem(payload),
+    onMutate: async ({ period, label }) => {
+      await cache.cancel()
+      const prev = cache.get()
+      cache.patchAi((groups) => patchAiGroups(groups, { period, label }, (item) => item, true))
+      return { prev } satisfies MutationCtx
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx) cache.rollback(ctx.prev)
+      message.error(`AI 画线删除失败：${(err as Error).message}`)
+    },
+  })
+}
+
+/** 清空指定周期的 AI 画线集 */
+export function useClearAiDrawings(targetType: KlineDrawingTargetType, targetCode: string) {
+  const cache = useDrawingCache(targetType, targetCode)
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof clearAiDrawings>[0]) => clearAiDrawings(payload),
+    onMutate: async ({ period }) => {
+      await cache.cancel()
+      const prev = cache.get()
+      cache.patchAi((groups) => groups.filter((group) => group.period !== period))
+      return { prev } satisfies MutationCtx
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx) cache.rollback(ctx.prev)
+      message.error(`AI 画线清除失败：${(err as Error).message}`)
     },
   })
 }

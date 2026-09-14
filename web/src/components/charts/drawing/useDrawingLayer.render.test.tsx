@@ -90,6 +90,8 @@ function setup(chart: ReturnType<typeof makeChart>, drawings: UserKlineDrawing[]
         onUpdate: noop,
         onSelect: noop,
         onDelete: noop,
+        onUpdateAiItem: noop,
+        onDeleteAiItem: noop,
         onRequestDisarm: noop,
         onRequestTextInput: noop,
       }),
@@ -155,5 +157,14 @@ describe('useDrawingLayer 渲染链路', () => {
     const xAfter = shapeOf(after).x1
     expect(xAfter).toBeLessThan(xBefore)
     hook.unmount()
+  })
+
+  it('已 dispose 的图表实例挂载图层不抛错（切股闪挂竞态回归）', () => {
+    const chart = makeChart()
+    chart.dispose()
+    // 此前：非空守卫放过已销毁实例，getZr() 为 null → zr.on 读取 null 崩溃
+    const hook = setup(chart, [trendline('solid')], '101')
+    // 渲染期取选中定位同样必须安全返回 null（convertToPixel 会抛错）
+    expect(hook.result.current.getSelectedPixelPos()).toBeNull()
   })
 })

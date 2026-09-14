@@ -7,6 +7,7 @@ import { useAssistantStore } from '@/stores/assistant'
 import { AssistantHeader } from './AssistantHeader'
 import { AssistantSidebar } from './AssistantSidebar'
 import { AssistantThread } from './AssistantThread'
+import { AssistantErrorBoundary } from './AssistantErrorBoundary'
 import { AssistantRuntimeProvider } from './AssistantRuntimeProvider'
 import { TodoListBar } from './ui/TodoListBar'
 import {
@@ -178,9 +179,11 @@ export function AssistantPanel() {
             {/* 不能加 key：runtime 原生支持 threadId 受控切换，加 key 会在
                 threads.create 后因 onThreadIdChange 触发整个 runtime 重挂载，
                 销毁乐观消息并中断进行中的流 */}
-            <AssistantRuntimeProvider>
-              <AssistantThread />
-            </AssistantRuntimeProvider>
+            <AssistantErrorBoundary>
+              <AssistantRuntimeProvider>
+                <AssistantThread />
+              </AssistantRuntimeProvider>
+            </AssistantErrorBoundary>
           </div>
         </div>
       </div>

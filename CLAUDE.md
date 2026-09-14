@@ -129,6 +129,8 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 
 约定：事件类型命名 `<domain>.complete`；事件字段 snake_case；SKILL.md 的 allowed-tools 列出两条路径工具的并集（含 persist 工具）；persist 工具只注入助手对话路径，定时路径直接调服务层；服务层禁止顶层导入 `app.agent.tools / skills / runtime`（函数内延迟导入，`app.agent.core` 纯配置叶可顶层导入），工具层可导入服务层。
 
+**ask_user 问题卡**（交互确认底座，arch/09 §7.3）：skill 在写操作前需用户决策时调 `ask_user(question, options, default?)` 工具——返回值携带 `__question__` 标记结束本轮，runs 流端点检测后经 SSE `custom` 事件下发 `{"type":"question",...}`，前端 `QuestionCard` 组件渲染选项按钮，点击即"我选择：{label}"作为新消息续跑线程。定时任务路径无此交互，不使用 ask_user。
+
 ## 5. 任务完成后协议
 
 完成任何编码任务后，遵循此检查清单：

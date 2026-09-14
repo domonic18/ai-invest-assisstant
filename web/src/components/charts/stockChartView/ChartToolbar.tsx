@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { useSettingsStore } from '@/stores/settings'
 
+import { AiDrawingButton } from '../drawing/AiDrawingButton'
 import { DrawingToolbar } from '../drawing/DrawingToolbar'
 import { BORDER_COLOR, PERIOD_OPTIONS } from './constants'
 import type { StockChartViewIndicators } from './StockChartView'
@@ -89,6 +90,7 @@ export function ChartToolbar({
       </div>
       <span className="w-px h-4 bg-[#23262d]" />
       {drawing && <DrawingToolbar />}
+      {drawing && <AiDrawingButton />}
       {drawing && <span className="w-px h-4 bg-[#23262d]" />}
       <Dropdown
         trigger={['click']}
