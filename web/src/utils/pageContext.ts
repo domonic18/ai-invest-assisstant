@@ -5,6 +5,9 @@ export interface PageContext {
   page?: string
   stock_code?: string
   industry?: string
+  sector_type?: string
+  sector_code?: string
+  index_code?: string
 }
 
 export function buildPageContext(pathname: string): PageContext {
@@ -20,6 +23,19 @@ export function buildPageContext(pathname: string): PageContext {
   if (financial) {
     context.page = '财务分析'
     context.stock_code = financial[1]
+    return context
+  }
+  const sector = pathname.match(/^\/sector\/([a-z]+)\/([^/?#]+)/)
+  if (sector) {
+    context.page = '板块详情'
+    context.sector_type = sector[1]
+    context.sector_code = sector[2]
+    return context
+  }
+  const index = pathname.match(/^\/index\/([^/?#]+)/)
+  if (index) {
+    context.page = '指数详情'
+    context.index_code = index[1]
     return context
   }
   const chain = pathname.match(/^\/chain\/([^/?#]+)/)

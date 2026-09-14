@@ -23,6 +23,28 @@ describe('buildPageContext', () => {
     expect(context.industry).toBe('半导体')
   })
 
+  it('解析板块详情页类型与代码（画线 target 同源）', () => {
+    expect(buildPageContext('/sector/industry/881125')).toEqual({
+      route: '/sector/industry/881125',
+      page: '板块详情',
+      sector_type: 'industry',
+      sector_code: '881125',
+    })
+    expect(buildPageContext('/sector/concept/new_ssjj').sector_code).toBe('new_ssjj')
+  })
+
+  it('解析指数详情页指数代码', () => {
+    expect(buildPageContext('/index/sh000001')).toEqual({
+      route: '/index/sh000001',
+      page: '指数详情',
+      index_code: 'sh000001',
+    })
+  })
+
+  it('板块异动页不误判为板块详情', () => {
+    expect(buildPageContext('/anomaly/sector')).not.toHaveProperty('sector_code')
+  })
+
   it('识别工作台与每日复盘页', () => {
     expect(buildPageContext('/workbench').page).toBe('工作台')
     expect(buildPageContext('/review').page).toBe('每日复盘')
