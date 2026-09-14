@@ -169,6 +169,22 @@ function inRect(x: number, y: number, r: GridRect): boolean {
   return x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height
 }
 
+/**
+ * 视图指纹：轴像素探针（首尾下标 + y 轴定点）与日期序列端点。
+ * dataZoom 平移/缩放/周期切换只改变坐标系、不改变 drawings/dates.length，
+ * 签名若不含指纹会短路跳过重定位，画线停留在旧像素坐标（与 K 线错位）。
+ */
+function viewFingerprint(chart: ECharts, dates: string[]): string {
+  try {
+    const x0 = chart.convertToPixel({ xAxisIndex: 0 }, 0)
+    const x1 = chart.convertToPixel({ xAxisIndex: 0 }, dates.length - 1)
+    const y0 = chart.convertToPixel({ yAxisIndex: 0 }, 0)
+    return `${Math.round(x0)}:${Math.round(x1)}:${Math.round(y0)}:${dates[0] ?? ''}:${dates[dates.length - 1] ?? ''}`
+  } catch {
+    return 'n/a'
+  }
+}
+
 /** 当前 option 的 dataZoom 条目数（armed 时需全部禁用，图表可能同时配 inside+slider） */
 function dataZoomCount(chart: ECharts): number {
   try {
@@ -524,7 +540,7 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
 
     const drag = dragRef.current
     const draft = draftRef.current
-    const sig = JSON.stringify([drawings, aiDrawings, selectedId, activeTool, interactive, dates.length, grid, draft, drag?.px])
+    const sig = JSON.stringify([drawings, aiDrawings, selectedId, activeTool, interactive, viewFingerprint(chart, dates), grid, draft, drag?.px])
     if (sig === sigRef.current) return
 
     const specs: GraphicSpec[] = []

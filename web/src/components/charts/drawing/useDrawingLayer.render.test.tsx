@@ -26,6 +26,7 @@ function makeChart() {
     xAxis: { type: 'category', data: ['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04'] },
     yAxis: { min: 0, max: 10 },
     series: [{ type: 'candlestick', data: [[1, 2, 0.5, 2.5], [2, 3, 1, 3.5], [3, 2, 1.5, 3.2], [2, 2.5, 1.8, 2.8]] }],
+    dataZoom: [{ type: 'inside' }],
   })
   return chart
 }
@@ -137,6 +138,22 @@ describe('useDrawingLayer 渲染链路', () => {
     hook.rerender({ drawings: [textDrawing('2026-09-04')], selectedId: '103' })
     expect(svgText()).toContain('标注')
     expect((svgText().match(/标注/g) ?? []).length).toBe(1)
+    hook.unmount()
+  })
+
+  it('dataZoom 平移/缩放后画线跟随坐标系重定位', () => {
+    const chart = makeChart()
+    const hook = setup(chart, [trendline('solid')], '101')
+    const before = findEl(chart, elId('101', '-0'))
+    expect(before).toBeDefined()
+    const shapeOf = (el: unknown) => (el as { shape: { x1: number } }).shape
+    const xBefore = shapeOf(before).x1
+
+    // 可视窗口缩到后 40%：首锚点（idx0）被推出绘图区左侧，画线必须重定位/裁剪
+    chart.dispatchAction({ type: 'dataZoom', start: 60, end: 100 })
+    const after = findEl(chart, elId('101', '-0'))
+    const xAfter = shapeOf(after).x1
+    expect(xAfter).toBeLessThan(xBefore)
     hook.unmount()
   })
 })
