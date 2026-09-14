@@ -40,7 +40,7 @@ export const DRAWING_TOOL_HINTS: Record<KlineDrawingType, string> = {
   ray: '点击起点与终点（或按住拖拽）绘制射线',
   hline: '在图上点击一点放置水平线',
   box: '点击对角两点（或按住拖拽）绘制箱体',
-  text: '点击图上位置放置文字标注',
+  text: '点击图上位置输入文字（Enter 确认），双击已有文字可修改',
 }
 
 /** 射线方向中文名 */

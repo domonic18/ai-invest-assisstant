@@ -60,6 +60,17 @@ function dragMoved(drag: DragSession): boolean {
   return drag.px.some((pt, i) => pt.x !== drag.originPx[i].x || pt.y !== drag.originPx[i].y)
 }
 
+/** 文字标注输入请求（新建：anchor 预计算；编辑：drawingId + initial） */
+export interface DrawingTextEditRequest {
+  /** 图表容器内像素位置（输入框定位） */
+  px: Point
+  /** 新建时点击处的数据锚点 */
+  anchor?: KlineDrawingAnchor
+  /** 编辑已有文字标注 */
+  drawingId?: string
+  initial?: string
+}
+
 /** 草稿 group id 会话内唯一：固定 id 的孤儿子条目会被下一草稿按 id 复配到已移除的父组上 */
 let draftSeq = 0
 
@@ -83,6 +94,8 @@ export interface UseDrawingLayerParams {
   /** 画线工具（null = 未进入画线模式） */
   activeTool: KlineDrawingType | null
   selectedId: string | null
+  /** 编辑态（左缘工具栏可见）：仅编辑态下画线可选中/拖动，退出后纯展示（同花顺式） */
+  interactive: boolean
   /** 新画线默认样式（记忆值） */
   defaultStyle: KlineDrawingStyle
   onCreate: (req: UserKlineDrawingCreateRequest) => void
@@ -93,6 +106,8 @@ export interface UseDrawingLayerParams {
   onRequestDisarm: () => void
   /** Esc 最后一级：退出画线编辑态（收起竖排工具栏） */
   onRequestExit?: () => void
+  /** 文字工具点击落点 / 双击已有文字标注：请求宿主弹出文字输入框 */
+  onRequestTextInput: (req: DrawingTextEditRequest) => void
 }
 
 /** zrender 事件的最小结构面（避免深引 zrender 内部类型） */
@@ -219,6 +234,8 @@ interface DragHooks {
   onSelect: () => void
   onMoveDragStart: (e: ZrEvent) => void
   onAnchorDragStart: (anchorIndex: number, e: ZrEvent) => void
+  /** 双击文字标注进入编辑（仅 interactive 时挂到元素上） */
+  onEditText: () => void
 }
 
 /** 单条用户画线 → 顶层元素 specs（可见形状 + 命中线；merge 更新，删除走逐元素 remove） */
@@ -226,6 +243,7 @@ function userShapeSpecs(
   d: UserKlineDrawing,
   px: Point[],
   grid: GridRect,
+  interactive: boolean,
   hooks: DragHooks,
 ): GraphicSpec[] {
   const style = {
@@ -233,12 +251,15 @@ function userShapeSpecs(
     dash: lineDashArray(d.style.lineStyle),
     width: d.style.width,
   }
-  const moveProps = {
-    cursor: 'move',
-    draggable: true,
-    onclick: hooks.onSelect,
-    onmousedown: hooks.onMoveDragStart,
-  }
+  // 非编辑态不挂任何交互属性（同花顺式：退出画线后图形纯展示，不可选中/拖动）
+  const moveProps: Record<string, unknown> = interactive
+    ? {
+        cursor: 'move',
+        draggable: true,
+        onclick: hooks.onSelect,
+        onmousedown: hooks.onMoveDragStart,
+      }
+    : {}
   const base = `${DRAWING_ROOT_PREFIX}user-${d.id}`
   const specs: GraphicSpec[] = []
 
@@ -279,6 +300,7 @@ function userShapeSpecs(
         fontWeight: 600,
       },
       ...moveProps,
+      ...(interactive ? { ondblclick: () => hooks.onEditText() } : {}),
     })
   } else {
     const [s, e] =
@@ -484,14 +506,14 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
 
   /** 增量渲染：merge-by-id + 失活 remove；被拖拽元素跳过重下发（zrender 原生移动中） */
   const render = () => {
-    const { chart, dates, drawings, aiDrawings, selectedId, activeTool, defaultStyle } = p.current
+    const { chart, dates, drawings, aiDrawings, selectedId, activeTool, defaultStyle, interactive } = p.current
     if (!chart || chart.isDisposed() || dates.length === 0) return
     const grid = getMainGridRect(chart)
     if (!grid) return
 
     const drag = dragRef.current
     const draft = draftRef.current
-    const sig = JSON.stringify([drawings, aiDrawings, selectedId, activeTool, dates.length, grid, draft, drag?.px])
+    const sig = JSON.stringify([drawings, aiDrawings, selectedId, activeTool, interactive, dates.length, grid, draft, drag?.px])
     if (sig === sigRef.current) return
 
     const specs: GraphicSpec[] = []
@@ -529,11 +551,20 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
             start: { x: e.offsetX, y: e.offsetY },
           }
         },
+        onEditText: () => {
+          const a = d.anchors[0]
+          if (!a) return
+          p.current.onRequestTextInput({
+            px: anchorToPx(chart, p.current.dates, a),
+            initial: d.text ?? '',
+            drawingId: d.id,
+          })
+        },
       }
       const pxNow = dragHere && drag ? drag.px : drawingPx(chart, dates, d)
       // 锚点拖拽中形状跟随 drag.px 重下发；整体拖拽中形状由 zrender 原生移动 + 兄弟镜像，跳过重下发
       if (!dragHere || drag?.kind === 'anchor') {
-        track(userShapeSpecs(d, pxNow, grid, live))
+        track(userShapeSpecs(d, pxNow, grid, interactive, live))
       } else {
         // 原生移动中的元素保活即可；未渲染过的 id 不虚标（避免对不存在元素发 remove）
         for (const id of userElementIds(d)) {
@@ -541,7 +572,7 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
         }
       }
       // 整体拖拽中手柄不参与原生移动，按实时 px 重下发跟随
-      if (selectedId === d.id && (!dragHere || drag?.kind === 'move')) {
+      if (interactive && selectedId === d.id && (!dragHere || drag?.kind === 'move')) {
         track(handleSpecs(d, pxNow, live))
       }
     }
@@ -697,8 +728,14 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
       const grid = getMainGridRect(c)
       if (!grid || !inRect(e.offsetX, e.offsetY, grid)) return
       if (activeTool) {
-        // 双锚点工具成线由 mousedown/mouseup 状态机驱动；单锚点工具单击即成线（忽略主图元素）
-        if (!isTwoAnchorTool(activeTool)) commitDraft([{ x: e.offsetX, y: e.offsetY }])
+        // 双锚点工具成线由 mousedown/mouseup 状态机驱动；文字工具点击弹出输入框；
+        // 其余单锚点工具单击即成线（忽略主图元素）
+        if (activeTool === 'text') {
+          const pt = { x: e.offsetX, y: e.offsetY }
+          p.current.onRequestTextInput({ px: pt, anchor: pxToAnchor(c, dates, pt) })
+        } else if (!isTwoAnchorTool(activeTool)) {
+          commitDraft([{ x: e.offsetX, y: e.offsetY }])
+        }
         return
       }
       if (e.target && isDrawingElement(e.target)) return // 元素级 onclick 已处理选中

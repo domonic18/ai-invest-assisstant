@@ -4,7 +4,7 @@
  */
 
 import type { ECharts } from 'echarts'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { EyeInvisibleOutlined, EyeOutlined } from '@ant-design/icons'
 import type { KlineDrawingPeriod, KlineDrawingTargetType } from '@ai-invest/shared'
 
@@ -17,9 +17,10 @@ import {
 } from '@/hooks/useKlineDrawings'
 import { useDrawingStore } from '@/stores/drawing'
 
-import { useDrawingLayer } from './useDrawingLayer'
+import { useDrawingLayer, type DrawingTextEditRequest } from './useDrawingLayer'
 import { DrawingsPanel } from './DrawingsPanel'
 import { DrawingSideBar } from './DrawingSideBar'
+import { DrawingTextInput } from './DrawingTextInput'
 import { StyleBar } from './StyleBar'
 import { DRAWING_TOOL_HINTS, DRAWING_TYPE_LABEL } from './types'
 
@@ -54,13 +55,35 @@ export function DrawingLayerHost({ chart, dates, target, period }: DrawingLayerH
   const select = useDrawingStore((s) => s.select)
   const setDefaultStyle = useDrawingStore((s) => s.setDefaultStyle)
 
-  const create = useCreateKlineDrawing(targetType, targetCode, (created) => {
-    // 文字标注创建后立即选中，样式条就地输入文字
-    if (created.drawingType === 'text') select(created.id)
-  })
+  const create = useCreateKlineDrawing(targetType, targetCode)
   const update = useUpdateKlineDrawing(targetType, targetCode)
   const remove = useDeleteKlineDrawing(targetType, targetCode)
   const adopt = useAdoptAiDrawing(targetType, targetCode)
+
+  /** 文字标注输入框状态（文字工具点击落点弹出 / 双击已有文字进入编辑） */
+  const [textEdit, setTextEdit] = useState<DrawingTextEditRequest | null>(null)
+  useEffect(() => {
+    if (!toolbarOpen) setTextEdit(null)
+  }, [toolbarOpen])
+
+  const submitText = (value: string) => {
+    const text = value.trim()
+    setTextEdit(null)
+    if (!textEdit || !text) return
+    if (textEdit.drawingId) {
+      update.mutate({ id: textEdit.drawingId, data: { text } })
+    } else if (textEdit.anchor) {
+      create.mutate({
+        targetType,
+        targetCode,
+        period,
+        drawingType: 'text',
+        anchors: [textEdit.anchor],
+        style: defaultStyle,
+        text,
+      })
+    }
+  }
 
   const userDrawings = useMemo(
     () => (data?.user ?? []).filter((d) => d.period === period),
@@ -84,6 +107,7 @@ export function DrawingLayerHost({ chart, dates, target, period }: DrawingLayerH
     activeTool,
     selectedId,
     defaultStyle,
+    interactive: toolbarOpen,
     onCreate: (req) => create.mutate(req),
     onUpdate: (id, patch) => update.mutate({ id, data: patch }),
     onSelect: select,
@@ -93,6 +117,7 @@ export function DrawingLayerHost({ chart, dates, target, period }: DrawingLayerH
     },
     onRequestDisarm: () => setActiveTool(null),
     onRequestExit: exitDrawing,
+    onRequestTextInput: setTextEdit,
   })
 
   // 样式条挂在选中画线首锚点附近（坐标系与图表容器一致）
@@ -121,6 +146,15 @@ export function DrawingLayerHost({ chart, dates, target, period }: DrawingLayerH
         <div className="pointer-events-none absolute left-1/2 top-1.5 z-20 -translate-x-1/2 whitespace-nowrap rounded-full border border-[#5e6ad2]/40 bg-[#1a1d24]/90 px-3 py-0.5 text-[11px] leading-[18px] text-[#aeb4ff]">
           画线中 · {DRAWING_TYPE_LABEL[activeTool]}：{DRAWING_TOOL_HINTS[activeTool]} · Esc 退出绘制
         </div>
+      )}
+      {textEdit && (
+        <DrawingTextInput
+          position={{ left: textEdit.px.x, top: textEdit.px.y }}
+          bounds={{ width: chart?.getWidth() ?? 0, height: chart?.getHeight() ?? 0 }}
+          initial={textEdit.initial}
+          onSubmit={submitText}
+          onCancel={() => setTextEdit(null)}
+        />
       )}
       {panelOpen && (
         <div className="absolute top-9 right-2 z-20 max-h-[85%] w-72 overflow-auto rounded-md border border-white/10 bg-[#1a1d24]/95 p-2.5 shadow-lg">
@@ -170,6 +204,7 @@ export function DrawingLayerHost({ chart, dates, target, period }: DrawingLayerH
         <StyleBar
           drawing={selected}
           position={{ left: Math.max(8, anchorPx.x - 24), top: anchorPx.y + 14 }}
+          bounds={{ width: chart?.getWidth() ?? 0, height: chart?.getHeight() ?? 0 }}
           onPatch={(patch) => {
             if (patch.style) setDefaultStyle(patch.style)
             update.mutate({ id: selected.id, data: patch })

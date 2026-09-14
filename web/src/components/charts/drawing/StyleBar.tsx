@@ -3,6 +3,7 @@
  * 定位由集成层依据选中画线首锚点像素位置计算（getSelectedPixelPos）。
  */
 
+import { useLayoutEffect, useRef, useState } from 'react'
 import { DeleteOutlined } from '@ant-design/icons'
 import { Input, Popconfirm, Tooltip } from 'antd'
 
@@ -20,6 +21,8 @@ const WIDTHS: (1 | 2 | 3)[] = [1, 2, 3]
 export interface StyleBarProps {
   drawing: UserKlineDrawing
   position: { left: number; top: number }
+  /** 图表容器尺寸（锚点靠右/靠下时样式条越界回收） */
+  bounds: { width: number; height: number }
   onPatch: (patch: {
     style?: UserKlineDrawing['style']
     text?: string | null
@@ -28,7 +31,24 @@ export interface StyleBarProps {
   onDelete: () => void
 }
 
-export function StyleBar({ drawing, position, onPatch, onDelete }: StyleBarProps) {
+export function StyleBar({ drawing, position, bounds, onPatch, onDelete }: StyleBarProps) {
+  const barRef = useRef<HTMLDivElement>(null)
+  const [barSize, setBarSize] = useState({ width: 0, height: 0 })
+  useLayoutEffect(() => {
+    const el = barRef.current
+    if (el) setBarSize({ width: el.offsetWidth, height: el.offsetHeight })
+  }, [])
+
+  // 首锚点像素 → 样式条左上角；按实测条宽回收右/下越界（宽度未测得前先保底 8px）
+  const left =
+    barSize.width > 0 && bounds.width > 0
+      ? Math.min(Math.max(8, position.left), Math.max(8, bounds.width - barSize.width - 8))
+      : Math.max(8, position.left)
+  const top =
+    barSize.height > 0 && bounds.height > 0
+      ? Math.min(Math.max(8, position.top), Math.max(8, bounds.height - barSize.height - 8))
+      : Math.max(8, position.top)
+
   const chip = (active: boolean, color?: string): React.CSSProperties => ({
     display: 'inline-flex',
     alignItems: 'center',
@@ -46,10 +66,11 @@ export function StyleBar({ drawing, position, onPatch, onDelete }: StyleBarProps
 
   return (
     <div
+      ref={barRef}
       className="absolute z-20 flex items-center gap-1.5 rounded-md border px-2 py-1"
       style={{
-        left: position.left,
-        top: position.top,
+        left,
+        top,
         borderColor: 'rgba(255,255,255,0.1)',
         background: '#1a1d24',
         boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
