@@ -1,125 +1,32 @@
+/**
+ * 助手运行时装配（瘦 Provider）：只订阅 threadId（运行时必需），
+ * 全部 SDK 集成点经 runtimeAdapter（useMemo 稳定引用）注入。
+ * 禁止在此组件订阅业务 store 或内联配置对象——Provider 重渲染 =
+ * 侧边栏全树重渲染，曾因此触发 assistant-ui 运行时渲染期崩溃。
+ */
+
 import type { ReactNode } from 'react'
-import {
-  AssistantRuntimeProvider as AuiRuntimeProvider,
-  InMemoryThreadListAdapter,
-} from '@assistant-ui/react'
+import { AssistantRuntimeProvider as AuiRuntimeProvider } from '@assistant-ui/react'
 import { useLangGraphRuntime } from '@assistant-ui/react-langgraph'
-import { useLocation } from 'react-router-dom'
+import { useMemo } from 'react'
 
-import { createAssistantClient } from '@/api/assistant'
-import { useAssistantStore, type QuestionCard, type QuestionOption } from '@/stores/assistant'
-import { buildPageContext } from '@/utils/pageContext'
-import { parsePageEvent } from './pageEvents'
-import {
-  extractPageResult,
-  extractQuestionFromUpdates,
-  extractTodos,
-  type StateWithTasks,
-} from './runtimeUtils'
+import { useAssistantStore } from '@/stores/assistant'
 
-const ASSISTANT_ID = 'invest-assistant'
-
-/** ask_user SSE 事件 → 问题卡状态（宽松 parse：字段缺失/畸形不渲染） */
-function parseQuestionCard(event: unknown): QuestionCard | null {
-  const e = event as { question?: unknown; options?: unknown; default?: unknown }
-  const options = Array.isArray(e.options)
-    ? e.options
-        .map((raw) => {
-          const opt = raw as { value?: unknown; label?: unknown }
-          return { value: String(opt.value ?? ''), label: String(opt.label ?? '') } satisfies QuestionOption
-        })
-        .filter((opt) => opt.value && opt.label)
-    : []
-  const question = String(e.question ?? '')
-  if (!question || options.length < 2) return null
-  return {
-    question,
-    options,
-    default: e.default == null ? null : String(e.default),
-  }
-}
-
-// 后端会话即 remote 线程。默认的 InMemory adapter 不认识列表外的线程 id，
-// 切换历史会话时 fetch 会拒绝且被 runtime 静默吞掉（界面无反应），
-// 因此覆写 initialize（新会话真实 create）与 fetch（历史会话直接采用传入 id）。
-// SDK client 的 defaultHeaders 在构造时固化，必须每次调用时重建以读取最新 token。
-const threadListAdapter = new InMemoryThreadListAdapter()
-threadListAdapter.initialize = async () => {
-  const client = createAssistantClient()
-  const thread = await client.threads.create()
-  return { remoteId: thread.thread_id, externalId: thread.thread_id }
-}
-threadListAdapter.fetch = async (threadId: string) => ({
-  status: 'regular' as const,
-  remoteId: threadId,
-  externalId: threadId,
-})
+import { createAssistantRuntimeAdapter } from './runtimeAdapter'
 
 export function AssistantRuntimeProvider({ children }: { children: ReactNode }) {
   const threadId = useAssistantStore((state) => state.threadId)
   const onThreadIdChange = useAssistantStore((state) => state.switchThread)
-  const location = useLocation()
+  const adapter = useMemo(() => createAssistantRuntimeAdapter(), [])
 
   const runtime = useLangGraphRuntime({
     threadId,
     onThreadIdChange,
     unstable_allowCancellation: true,
-    unstable_threadListAdapter: threadListAdapter,
-    eventHandlers: {
-      onUpdates: (updates) => {
-        const todos = extractTodos(updates)
-        if (todos) useAssistantStore.getState().setTodos(todos)
-        const pageResult = extractPageResult(updates)
-        if (pageResult) useAssistantStore.getState().setPageResult(pageResult)
-        const question = extractQuestionFromUpdates(updates)
-        if (question) {
-          const card = parseQuestionCard(question)
-          if (card) useAssistantStore.getState().setQuestionCard(card)
-        }
-      },
-      // 回调签名是 (eventType, data)：data 才是 custom 事件载荷
-      onCustomEvent: (_eventType, data) => {
-        if (typeof data === 'object' && data !== null && (data as { type?: unknown }).type === 'question') {
-          useAssistantStore.getState().setQuestionCard(parseQuestionCard(data))
-          return
-        }
-        const parsed = parsePageEvent(data)
-        if (parsed) useAssistantStore.getState().setPageResult(parsed.result)
-      },
-    },
-    load: async (externalId: string) => {
-      const client = createAssistantClient()
-      const state = await client.threads.getState(externalId)
-      const values = (state.values ?? {}) as { messages?: unknown[] }
-      const tasks = (state as unknown as StateWithTasks).tasks
-      const interrupts = tasks?.[0]?.interrupts
-      return {
-        messages: (values.messages ?? []) as never,
-        interrupts: interrupts?.length ? (interrupts as never) : undefined,
-      }
-    },
-    stream: async function* (messages, config) {
-      const { externalId } = await config.initialize()
-      if (!externalId) throw new Error('线程尚未初始化')
-      const client = createAssistantClient()
-      const stream = await client.runs.stream(externalId, ASSISTANT_ID, {
-        input: messages.length ? { messages } : null,
-        command: config.command,
-        metadata: { page_context: buildPageContext(location.pathname) },
-        checkpoint: config.checkpointId
-          ? {
-              checkpoint_id: config.checkpointId,
-              checkpoint_ns: '',
-              checkpoint_map: {},
-            }
-          : undefined,
-        streamMode: ['messages', 'updates', 'custom'],
-        signal: config.abortSignal,
-      })
-      for await (const chunk of stream) {
-        yield { event: chunk.event, data: chunk.data }
-      }
-    },
+    unstable_threadListAdapter: adapter.threadListAdapter,
+    eventHandlers: adapter.eventHandlers,
+    load: adapter.load,
+    stream: adapter.stream,
   })
 
   return <AuiRuntimeProvider runtime={runtime}>{children}</AuiRuntimeProvider>

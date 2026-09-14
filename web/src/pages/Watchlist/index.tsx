@@ -1,5 +1,6 @@
 import { Empty, Spin } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import type { WatchlistGroup } from '@ai-invest/shared'
 
 import { useWatchlistQuotes } from '@/hooks/useMarket'
@@ -15,10 +16,15 @@ export function Watchlist() {
   const { data: groups, isLoading } = useWatchlistGroups()
   const { data: quotes } = useWatchlistQuotes()
   const [activeGroupId, setActiveGroupId] = useState<number | null>(null)
-  const [selectedCode, setSelectedCode] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [editing, setEditing] = useState<WatchlistGroup | null>(null)
+
+  // 选中标的由 URL ?code= 承载（真相源单一化）：刷新/分享保持选中，
+  // 助手 page_context 纯函数解析，无需任何额外全局通道
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedCode = searchParams.get('code')
+  const selectCode = (code: string) => setSearchParams({ code }, { replace: true })
 
   const quotesByCode = useMemo(
     () => new Map((quotes ?? []).map((quote) => [quote.code, quote])),
@@ -33,16 +39,16 @@ export function Watchlist() {
     return source.map((item) => item.code)
   }, [groups, activeGroupId])
 
-  // 分组切换或列表变化后，选中项缺失时回退到当前组第一只
+  // 分组切换或列表变化后，选中项缺失时回退到当前组第一只（仍写回 URL）
   useEffect(() => {
     if (visibleCodes.length === 0) {
-      setSelectedCode(null)
+      if (selectedCode) setSearchParams({}, { replace: true })
       return
     }
     if (!selectedCode || !visibleCodes.includes(selectedCode)) {
-      setSelectedCode(visibleCodes[0])
+      setSearchParams({ code: visibleCodes[0] }, { replace: true })
     }
-  }, [visibleCodes, selectedCode])
+  }, [visibleCodes, selectedCode, setSearchParams])
 
   if (isLoading) {
     return (
@@ -76,7 +82,7 @@ export function Watchlist() {
             activeGroupId={activeGroupId}
             quotesByCode={quotesByCode}
             selectedCode={selectedCode}
-            onSelect={setSelectedCode}
+            onSelect={selectCode}
           />
         </div>
         <div className="flex-1 min-w-0 min-h-0">

@@ -54,4 +54,15 @@ describe('buildPageContext', () => {
     expect(buildPageContext('/capital-flow').page).toBe('资金流向')
     expect(buildPageContext('/').page).toBeUndefined()
   })
+
+  it('自选页从 URL ?code= 解析选中标的（真相源单一化）', () => {
+    expect(buildPageContext({ pathname: '/watchlist', search: '?code=000037' })).toEqual({
+      route: '/watchlist',
+      page: '自选股',
+      stock_code: '000037',
+    })
+    // 无 code 或非法 code 时只带页名，不编造代码
+    expect(buildPageContext('/watchlist')).toEqual({ route: '/watchlist', page: '自选股' })
+    expect(buildPageContext({ pathname: '/watchlist', search: '?code=abc' }).stock_code).toBeUndefined()
+  })
 })
