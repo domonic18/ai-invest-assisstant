@@ -85,7 +85,14 @@ class TestRenderSummaryMarkdown:
         assert "### 未来展望" in markdown
 
     def test_omits_empty_fields(self) -> None:
-        output = FinancialReportSummaryResult(core_performance="- 营收增长")
+        # 字段必填：正文缺失时由 LLM 显式输出空字符串
+        output = FinancialReportSummaryResult(
+            core_performance="- 营收增长",
+            revenue_profit="",
+            business_highlights="",
+            risk_warning="",
+            outlook="",
+        )
         markdown = render_summary_markdown(output)
         assert "### 核心业绩" in markdown
         assert "风险提示" not in markdown
