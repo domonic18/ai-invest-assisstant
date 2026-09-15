@@ -167,10 +167,16 @@ export function AsrConfigModal({
             showIcon
             message={
               testResult.ok
-                ? `连接正常（${testResult.latencyMs}ms），样例转写：${testResult.text ?? '-'}`
+                ? `连接正常（${testResult.latencyMs}ms）`
                 : `连接失败（${testResult.latencyMs}ms）`
             }
-            description={testResult.ok ? undefined : testResult.error ?? '未知错误'}
+            description={
+              testResult.ok
+                ? testResult.text
+                  ? `样例转写：${testResult.text}`
+                  : '样例音频为无人声正弦波，转写为空属正常'
+                : testResult.error ?? '未知错误'
+            }
           />
         )}
         <Typography.Paragraph type="secondary" className="!mb-0 mt-3">

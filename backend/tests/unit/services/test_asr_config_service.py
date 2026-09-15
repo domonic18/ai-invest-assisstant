@@ -192,7 +192,7 @@ class TestTestConnection:
     async def test_success_returns_text_and_latency(self) -> None:
         session = _session()
         config = _config()
-        mock_sample = AsyncMock(return_value="样例转写文本")
+        mock_sample = AsyncMock(return_value={"text": "样例转写文本", "duration": 1000})
         with (
             patch.object(
                 asr_config_service,
@@ -210,7 +210,8 @@ class TestTestConnection:
         assert result.latency_ms >= 0
         mock_sample.assert_awaited_once_with(config, "sk-plain")
 
-    async def test_empty_text_reported_as_failure(self) -> None:
+    async def test_empty_text_is_success_for_silent_sample(self) -> None:
+        """样例为无人声正弦波，接口正常返回空文本（MiniMax 实测形态）应判成功。"""
         session = _session()
         config = _config()
         with (
@@ -222,12 +223,46 @@ class TestTestConnection:
             patch.object(asr_config_service, "record_audit", AsyncMock()),
             patch("app.utils.crypto.decrypt_token", return_value="sk-plain"),
             patch.object(
-                asr_config_service, "_transcribe_sample", AsyncMock(return_value="")
+                asr_config_service,
+                "_transcribe_sample",
+                AsyncMock(return_value={"text": "", "duration": 1}),
+            ),
+        ):
+            result = await asr_config_service.test_connection(session, actor_id=1)
+        assert result.ok is True
+        assert result.error is None
+        assert result.text is None
+
+    async def test_minimax_business_error_surfaced(self) -> None:
+        """HTTP 200 + base_resp 错误形态透出 status_code 与 status_msg。"""
+        session = _session()
+        config = _config()
+        with (
+            patch.object(
+                asr_config_service,
+                "get_or_create_config",
+                AsyncMock(return_value=config),
+            ),
+            patch.object(asr_config_service, "record_audit", AsyncMock()),
+            patch("app.utils.crypto.decrypt_token", return_value="sk-plain"),
+            patch.object(
+                asr_config_service,
+                "_transcribe_sample",
+                AsyncMock(
+                    return_value={
+                        "base_resp": {
+                            "status_code": 1004,
+                            "status_msg": "invalid api key",
+                        }
+                    }
+                ),
             ),
         ):
             result = await asr_config_service.test_connection(session, actor_id=1)
         assert result.ok is False
-        assert result.error == "接口返回空文本"
+        assert "1004" in result.error
+        assert "invalid api key" in result.error
+        assert result.text is None
 
     async def test_transcribe_exception_reported_not_raised(self) -> None:
         session = _session()

@@ -88,7 +88,12 @@ async def update_config(
 async def test_connection(
     session: AsyncSession, *, actor_id: int
 ) -> AsrConfigTestResponse:
-    """连接测试：以当前保存配置（解密密钥）实调转写接口，返回耗时与文本。"""
+    """连接测试：以当前保存配置（解密密钥）实调转写接口，返回耗时与文本。
+
+    成功判据是「HTTP 2xx 且无 base_resp 业务错误」而非转写文本非空——样例音频
+    为无人声正弦波，接口正常时合规返回空文本（2026-09-15 走查误报教训）。
+    """
+    from app.services.social.asr_service import minimax_business_error
     from app.utils.crypto import decrypt_token
 
     config = await get_or_create_config(session)
@@ -101,9 +106,10 @@ async def test_connection(
     else:
         try:
             api_key = decrypt_token(config.api_key_encrypted)
-            text = await _transcribe_sample(config, api_key)
-            if not text:
-                error = "接口返回空文本"
+            payload = await _transcribe_sample(config, api_key)
+            error = minimax_business_error(payload)
+            if error is None:
+                text = (payload.get("text") or "").strip() or None
         except Exception as exc:  # noqa: BLE001 —— 测试不抛异常，失败给原因
             error = str(exc)
 
@@ -121,8 +127,8 @@ async def test_connection(
     return AsrConfigTestResponse(ok=ok, latency_ms=latency_ms, text=text, error=error)
 
 
-async def _transcribe_sample(config: AsrChannelConfig, api_key: str) -> str:
-    """内置样例音频实调 speech_to_text，返回转写文本（异常向上传播）。"""
+async def _transcribe_sample(config: AsrChannelConfig, api_key: str) -> dict[str, Any]:
+    """内置样例音频实调 speech_to_text，返回原始 JSON 响应（异常向上传播）。"""
     base_url = (config.base_url or "").rstrip("/")
     audio = _generate_sample_wav()
     async with httpx.AsyncClient(timeout=_TEST_TIMEOUT_SECONDS) as client:
@@ -134,7 +140,7 @@ async def _transcribe_sample(config: AsrChannelConfig, api_key: str) -> str:
         )
         response.raise_for_status()
         payload: dict[str, Any] = response.json()
-    return payload.get("text") or ""
+    return payload
 
 
 def _generate_sample_wav() -> bytes:

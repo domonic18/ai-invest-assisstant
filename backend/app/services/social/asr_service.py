@@ -148,5 +148,18 @@ async def _call_minimax(config: AsrChannelConfig, api_key: str, mp3: bytes) -> s
     except Exception as exc:  # noqa: BLE001
         logger.warning("social_asr_request_failed", error=str(exc))
         return None
+    error = minimax_business_error(payload)
+    if error:
+        logger.warning("social_asr_business_error", error=error)
+        return None
     text = payload.get("text")
     return text if isinstance(text, str) and text.strip() else None
+
+
+def minimax_business_error(payload: dict[str, Any]) -> str | None:
+    """解析 MiniMax 业务错误：HTTP 200 + base_resp.status_code != 0 是官方错误形态。"""
+    base_resp = payload.get("base_resp")
+    if isinstance(base_resp, dict) and base_resp.get("status_code"):
+        status_msg = base_resp.get("status_msg") or "未知错误"
+        return f"MiniMax 错误 {base_resp['status_code']}: {status_msg}"
+    return None
