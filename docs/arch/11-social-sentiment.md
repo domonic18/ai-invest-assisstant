@@ -59,7 +59,7 @@ seed：`init-scripts/03-seed.sql` 加 `collector_task` 两行（见 §5）；抖
 collector_task: social_video_poll（source=douyin，每小时）
   └─ 遍历启用账号（last_collected_at 早于各自 poll_interval_minutes）
        ├─ 适配层拉账号作品列表（sec_user_id + max_cursor；单页起，has_more 且本地缺视频时续拉，上限 3 页防长尾）
-       ├─ 新视频（video_id 冲突即跳过）→ 无水印播放地址拉流至临时文件 → ffmpeg 抽音轨 → 云端 ASR（热词注入）
+       ├─ 新视频（video_id 冲突即跳过）→ 无水印播放地址拉流至临时文件 → ffmpeg 抽音轨 → 云端 ASR
        │     └─ 音频获取/转写失败 → transcript_status='missing'，仅文案继续（不阻塞）
        └─ social_post 落库（judged_at=NULL 待判）
 ```
@@ -71,7 +71,7 @@ collector_task: social_video_poll（source=douyin，每小时）
 
 云端 ASR API 渠道化配置在本需求独立落地（04 知识库后置排期，届时直接复用同一设施）：
 
-- 单行配置表 `asr_channel_config`：`provider`/`base_url`/`model`/`api_key_encrypted`（Fernet，`app/utils/crypto.py` 同一路径）/`api_key_masked` 冗余脱敏串/`hotwords JSONB`（财经热词表，与 04 共用一份语义）/`enabled`。
+- 单行配置表 `asr_channel_config`：`provider`/`base_url`/`model`/`api_key_encrypted`（Fernet，`app/utils/crypto.py` 同一路径）/`api_key_masked` 冗余脱敏串/`hotwords JSONB`（财经热词表，注入情绪判断 prompt——MiniMax ASR 接口无热词参数）/`enabled`。
 - 转写由采集任务内联执行（媒体到手即转，音轨由 ffmpeg 从无水印播放地址本地提取，音频/视频临时文件即用即删——与「不留存原片」合规一致）；用量记入 `social_post.transcript_meta` 逐条对账；单条音频时长上限截断（超长视频不整条转写）。
 
 ## 4. 情绪判断（F-SOC-04）
@@ -168,8 +168,8 @@ backend/app/adapters/douyin/        # 自研抖音适配层（窄能力面：作
 backend/app/services/social/
 ├── account_service.py     # sec_uid 解析、CRUD、重复校验（管理端）
 ├── collection_service.py  # 采集落地：新视频识别、媒体下载、降级标注、post upsert（spider 调用）
-├── asr_service.py         # ASR 渠道调用：加密凭据、热词注入、时长截断、用量记账
-└── sentiment_service.py   # 判断编排：锁 + 增量扫描 + run_structured + 幻觉过滤 + 判后清稿
+├── asr_service.py         # ASR 渠道调用：加密凭据、时长截断、用量记账
+└── sentiment_service.py   # 判断编排：锁 + 增量扫描 + run_structured + 热词入 prompt + 幻觉过滤 + 判后清稿
 
 backend/app/repositories/social/
 ├── account_repository.py
