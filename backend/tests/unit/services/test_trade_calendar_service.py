@@ -131,3 +131,64 @@ class TestIsTradingDay:
             assert await market_service.is_trading_day(
                 session, date(2026, 7, 20)
             ) is True
+
+
+@pytest.mark.unit
+class TestResolveDefaultViewDate:
+    """复盘视图缺省日：交易日（按放行口径）取当天，非交易日回退最近交易日。"""
+
+    @pytest.mark.asyncio
+    async def test_weekday_before_kline_returns_today(self) -> None:
+        """盘前（日 K 尚无当日行）工作日：取当天，让未就绪区块呈空态。"""
+        session = AsyncMock()
+        with (
+            patch.object(
+                trade_calendar_service, "today_cn", lambda: date(2026, 7, 17)
+            ),
+            patch.object(
+                trade_calendar_service,
+                "fetch_max_daily_date",
+                AsyncMock(return_value=date(2026, 7, 16)),
+            ),
+        ):
+            assert await trade_calendar_service.resolve_default_view_date(session) == (
+                date(2026, 7, 17)
+            )
+
+    @pytest.mark.asyncio
+    async def test_weekend_falls_back_to_latest_trade_date(self) -> None:
+        session = AsyncMock()
+        with (
+            patch.object(
+                trade_calendar_service, "today_cn", lambda: date(2026, 7, 18)
+            ),
+            patch.object(
+                trade_calendar_service,
+                "fetch_max_daily_date_on_or_before",
+                AsyncMock(return_value=date(2026, 7, 17)),
+            ),
+        ):
+            assert await trade_calendar_service.resolve_default_view_date(session) == (
+                date(2026, 7, 17)
+            )
+
+    @pytest.mark.asyncio
+    async def test_today_with_kline_bar_returns_today(self) -> None:
+        """收盘后日 K 已入库：has_daily_bar 命中，仍取当天。"""
+        session = AsyncMock()
+        with (
+            patch.object(
+                trade_calendar_service, "today_cn", lambda: date(2026, 7, 17)
+            ),
+            patch.object(
+                trade_calendar_service,
+                "fetch_max_daily_date",
+                AsyncMock(return_value=date(2026, 7, 17)),
+            ),
+            patch.object(
+                trade_calendar_service, "has_daily_bar", AsyncMock(return_value=True)
+            ),
+        ):
+            assert await trade_calendar_service.resolve_default_view_date(session) == (
+                date(2026, 7, 17)
+            )

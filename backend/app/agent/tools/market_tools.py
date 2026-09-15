@@ -120,7 +120,9 @@ async def get_market_overview(
     """获取大盘概览：四大指数行情 + 全市场涨跌家数、成交额（含环比）、涨停/跌停家数与情绪温度。
 
     Args:
-        trade_date: 可选历史交易日，ISO 格式如 "2026-08-21"；缺省为最新交易日。
+        trade_date: 可选历史交易日，ISO 格式如 "2026-08-21"；缺省为当前视图日
+            （交易日为当天，数据未就绪时相关字段为空）。判断数据日期是否滞后
+            时先用 get_trade_calendar 确认最近交易日，再如实向用户披露。
     """
     _note_review_start(config)
     resolved: date | None = None

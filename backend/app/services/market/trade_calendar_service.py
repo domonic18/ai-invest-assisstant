@@ -41,6 +41,19 @@ async def resolve_latest_trade_date(session: AsyncSession) -> date:
     return kline_max
 
 
+async def resolve_default_view_date(session: AsyncSession) -> date:
+    """复盘视图缺省日：当天按交易日放行口径取当天（数据未就绪由各查询
+    返回空态，不回退旧数据）；非交易日回退最近交易日。
+
+    节假日（日 K 未覆盖的工作日）会被 ``is_trading_day`` 放行为当天，
+    页面呈空态，属已知近似（无权威节假日日历）。
+    """
+    today = today_cn()
+    if await is_trading_day(session, today):
+        return today
+    return await resolve_trade_date_on_or_before(session, today)
+
+
 async def is_trading_day(session: AsyncSession, day: date) -> bool:
     """以指数日 K 为准判断交易日；日 K 未覆盖的近期工作日按交易日放行。"""
     if day.weekday() >= 5:

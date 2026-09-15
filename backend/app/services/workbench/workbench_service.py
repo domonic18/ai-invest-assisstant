@@ -12,6 +12,7 @@ from app.services.market import (
     market_stats_service,
     sector_fund_flow_service,
     telegraph_service,
+    trade_calendar_service,
 )
 from app.services.review import market_review_service
 from app.services.user import watchlist_quote_service
@@ -64,7 +65,10 @@ async def get_workbench(session: AsyncSession, user_id: int) -> WorkbenchRespons
         logger.warning("workbench_indices_degraded", exc_info=True)
 
     try:
-        data.stats = await market_stats_service.get_market_stats(session, None)
+        data.stats = await market_stats_service.get_market_stats(
+            session,
+            await trade_calendar_service.resolve_latest_trade_date(session),
+        )
     except Exception:
         logger.warning("workbench_stats_degraded", exc_info=True)
 
