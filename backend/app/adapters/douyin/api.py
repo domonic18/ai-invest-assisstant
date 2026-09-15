@@ -18,7 +18,9 @@ from app.adapters.douyin.exceptions import (
 from app.adapters.douyin.transport import DouyinTransport
 
 _PROFILE_PATH = "/aweme/v1/web/user/profile/other/"
-_POSTS_PATH = "/aweme/v1/web/user/post/"
+# 2026-09 走查实测：旧 /aweme/v1/web/user/post/ 已下线（404 Unsupported path(Janus)），
+# 作品列表迁移至 /aweme/v1/web/aweme/post/；该端点要求完整浏览器 Cookie（ttwid-only 返回 200 空响应）
+_POSTS_PATH = "/aweme/v1/web/aweme/post/"
 
 POSTS_PAGE_SIZE = 20
 

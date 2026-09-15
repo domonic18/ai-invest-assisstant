@@ -32,6 +32,10 @@ logger = structlog.get_logger(__name__)
 #: Cookie jar 池的 SystemSetting KV 键（管理端 Cookie 导入写，采集侧读）
 COOKIE_SETTING_KEY = "social.douyin.cookie_jars"
 
+#: 完整浏览器 Cookie 的最少键值对数：作品接口对 ttwid-only/双键薄 jar 返回 200 空响应
+#: （2026-09-16 走查实测），完整 Cookie 动辄数十键，3 为宽松下限
+MIN_COOKIE_PAIRS = 3
+
 AUDIT_COOKIE_IMPORT = "social.cookie.import"
 
 
@@ -63,7 +67,8 @@ async def import_cookie(
     """手动导入 Cookie 串（ttwid 必需；按 ttwid 去重合并入 jar 池，Fernet 落库，写审计）。
 
     Raises:
-        BadRequestError: Cookie 缺少 ttwid（快速口径判定不可用）。
+        BadRequestError: Cookie 缺少 ttwid，或键值对数低于完整浏览器 Cookie 下限
+            （薄 jar 过作品接口风控会拿到 200 空响应，混入池会轮换污染采集）。
     """
     cleaned = raw.strip()
     if cleaned.lower().startswith("cookie:"):
@@ -71,6 +76,12 @@ async def import_cookie(
     cleaned = "; ".join(part.strip() for part in cleaned.split(";") if part.strip())
     if not is_cookie_usable(cleaned):
         raise BadRequestError("Cookie 缺少 ttwid，请从已登录浏览器完整复制 Cookie 串")
+    pair_count = len(cleaned.split(";"))
+    if pair_count < MIN_COOKIE_PAIRS:
+        raise BadRequestError(
+            f"Cookie 只有 {pair_count} 组键值——作品接口要求完整浏览器身份，"
+            "请在 douyin.com 页面按 F12 → 网络 → 点首个请求 → 复制请求标头中 Cookie 整串"
+        )
 
     incoming_ttwid = _cookie_value(cleaned, "ttwid")
     jars = [

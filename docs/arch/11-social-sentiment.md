@@ -38,7 +38,7 @@ seed：`init-scripts/03-seed.sql` 加 `collector_task` 两行（见 §5）；抖
   | 端点 | 用途 |
   |------|------|
   | `GET /aweme/v1/web/user/profile/other/` | 作者资料（`sec_user_id`）：登记校验、别名/头像核对、账号失效判定 |
-  | `GET /aweme/v1/web/user/post/` | 账号作品列表：`sec_user_id` + `max_cursor` 游标，`count` ≤20；小时级轮询下单页覆盖增量 |
+  | `GET /aweme/v1/web/aweme/post/` | 账号作品列表：`sec_user_id` + `max_cursor` 游标，`count` ≤20；小时级轮询下单页覆盖增量。要求完整浏览器 Cookie（ttwid-only 返回 200 空响应） |
 
   主页分享短链（v.douyin.com）由适配层自行展开（跟随 302 提取 sec_uid）。
 - **解析容错**：原始 `aweme_list` → 归一化字段搬运（`aweme_id`→video_id、`desc`→title/caption、`create_time`→published_at、`video.duration`→duration_seconds、`video.cover`→cover_url、`statistics.{digg,comment,share}_count`→互动三列、`text_extra` 话题→topic_tags、`author.sec_uid`→归属校验）。aweme 结构随版本漂移：单字段缺失置 null 容错，顶层结构巨变显式报错（结构漂移错误码，见下）。

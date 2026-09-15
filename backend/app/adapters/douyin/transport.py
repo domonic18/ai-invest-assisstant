@@ -145,7 +145,7 @@ class DouyinTransport:
         """签名并请求 GET 接口。
 
         Args:
-            path: 接口路径（如 ``/aweme/v1/web/user/post/``）。
+            path: 接口路径（如 ``/aweme/v1/web/aweme/post/``）。
             params: 原始 query 串（调用方保证已 urlencode）。
 
         Returns:

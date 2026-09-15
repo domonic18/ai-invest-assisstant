@@ -137,6 +137,7 @@ class TestPostsEndpoint:
         assert page.has_more is True
         assert page.max_cursor == 1757879000000
         assert "a_bogus=" in session.requested_urls[0]
+        assert "/aweme/v1/web/aweme/post/?" in session.requested_urls[0]
         assert "sec_user_id=MS4wLjABAAAA" in session.requested_urls[0]
         assert session.requested_headers[0]["Cookie"] == "ttwid=abc; sessionid=xyz"
 
@@ -206,25 +207,25 @@ class TestTransportAttribution:
         transport, session = make_transport([FakeResponse(status_code=403, payload="")])
         assert transport.jars_available == 1
         with pytest.raises(RiskControlError):
-            await transport.get_json("/aweme/v1/web/user/post/", "aid=6383")
+            await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383")
         assert transport.jars_available == 0
 
     async def test_400_is_signature_failure(self) -> None:
         transport, _ = make_transport([FakeResponse(status_code=400, payload="bad")])
         with pytest.raises(SignatureError):
-            await transport.get_json("/aweme/v1/web/user/post/", "aid=6383")
+            await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383")
 
     async def test_non_json_body_is_structure_drift(self) -> None:
         transport, _ = make_transport([FakeResponse(payload="<html>ok</html>")])
         with pytest.raises(StructureDriftError):
-            await transport.get_json("/aweme/v1/web/user/post/", "aid=6383")
+            await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383")
 
     async def test_captcha_marker_is_risk_control(self) -> None:
         transport, _ = make_transport(
             [FakeResponse(status_code=200, payload="<html>请完成安全验证</html>")]
         )
         with pytest.raises(RiskControlError):
-            await transport.get_json("/aweme/v1/web/user/post/", "aid=6383")
+            await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383")
 
     async def test_no_jar_raises_risk_control(self) -> None:
         session = FakeSession([])
@@ -232,7 +233,7 @@ class TestTransportAttribution:
             cookies=[], fingerprint=generate_fingerprint(), session_factory=lambda: session
         )
         with pytest.raises(RiskControlError, match="无可用 Cookie jar"):
-            await transport.get_json("/aweme/v1/web/user/post/", "aid=6383")
+            await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383")
 
     async def test_rotates_to_next_jar_after_risk_control(self) -> None:
         session = FakeSession(

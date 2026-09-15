@@ -288,6 +288,23 @@ class TestImportCookie:
                 session, "sessionid=xyz", actor_id=1
             )
 
+    async def test_thin_cookie_rejected(self) -> None:
+        """ttwid+单键薄 jar 过不了作品接口风控（200 空响应），低于下限直接拒绝。"""
+        from app.core.exceptions import BadRequestError
+
+        session = MagicMock()
+        with (
+            patch.object(
+                collection_service, "encrypt_jar_payload", AsyncMock()
+            ) as mock_enc,
+            patch.object(collection_service, "record_audit", AsyncMock()),
+        ):
+            with pytest.raises(BadRequestError, match="2 组键值"):
+                await collection_service.import_cookie(
+                    session, "ttwid=abc; sessionid=x", actor_id=1
+                )
+        mock_enc.assert_not_called()
+
     async def test_import_encrypts_and_audits(self) -> None:
         session = MagicMock()
         session.get = AsyncMock(return_value=None)
@@ -305,13 +322,13 @@ class TestImportCookie:
             ) as mock_audit,
         ):
             jars = await collection_service.import_cookie(
-                session, "ttwid=abc; sessionid=x", actor_id=1, ip="1.2.3.4"
+                session, "ttwid=abc; sessionid=x; uifid=y", actor_id=1, ip="1.2.3.4"
             )
         assert jars == 1
         setting = session.add.call_args.args[0]
         assert setting.key == collection_service.COOKIE_SETTING_KEY
         assert setting.value == "ENC"
-        mock_enc.assert_called_once_with(["ttwid=abc; sessionid=x"])
+        mock_enc.assert_called_once_with(["ttwid=abc; sessionid=x; uifid=y"])
         kwargs = mock_audit.await_args.kwargs
         assert kwargs["action"] == "social.cookie.import"
         assert kwargs["detail"] == {"cookieJars": 1}
@@ -333,7 +350,7 @@ class TestImportCookie:
             patch.object(collection_service, "record_audit", AsyncMock()),
         ):
             jars = await collection_service.import_cookie(
-                session, "Cookie: ttwid=old; z=3", actor_id=1
+                session, "Cookie: ttwid=old; z=3; w=4", actor_id=1
             )
         assert jars == 2
-        mock_enc.assert_called_once_with(["ttwid=other; y=2", "ttwid=old; z=3"])
+        mock_enc.assert_called_once_with(["ttwid=other; y=2", "ttwid=old; z=3; w=4"])
