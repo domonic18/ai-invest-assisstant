@@ -3,19 +3,7 @@
  * 全部无副作用、不依赖 ECharts 实例（convertToPixel/convertFromPixel 在 hook 层调用后传入）。
  */
 
-import type { KlineDrawingAnchor, KlineDrawingDirection } from './types'
-
-export interface GridRect {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
-export interface Point {
-  x: number
-  y: number
-}
+import type { GridRect, KlineDrawingAnchor, KlineDrawingDirection, Point } from './types'
 
 /** bar 日期 → 精确下标（category x 轴的 O(1) 对齐表） */
 export function buildDateIndex(dates: string[]): Map<string, number> {

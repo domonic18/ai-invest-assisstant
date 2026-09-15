@@ -4,8 +4,7 @@
  * 单锚点工具（水平线/文字）由集成层在 click 直接提交，不经过本状态机。
  */
 
-import type { Point } from './geometry'
-import type { KlineDrawingType } from './types'
+import type { KlineDrawingType, Point } from './types'
 
 /** 拖拽释放成线的最小位移（px）：低于阈值视为纯点击，转入等待第二下 */
 export const DRAG_COMMIT_THRESHOLD = 6

@@ -26,12 +26,12 @@ import { queryKeys } from '@/hooks/queryKeys'
 import { useDrawingStore } from '@/stores/drawing'
 import type { KlineDrawingResult } from '@/stores/assistant'
 
-import { useDrawingLayer, type DrawingTextEditRequest } from './useDrawingLayer'
+import { useDrawingLayer } from './useDrawingLayer'
 import { DrawingsPanel } from './DrawingsPanel'
 import { DrawingSideBar } from './DrawingSideBar'
 import { DrawingTextInput } from './DrawingTextInput'
 import { StyleBar } from './StyleBar'
-import { DRAWING_TOOL_HINTS, DRAWING_TYPE_LABEL } from './types'
+import { DRAWING_TOOL_HINTS, DRAWING_TYPE_LABEL, type DrawingTextEditRequest } from './types'
 
 export interface DrawingTarget {
   targetType: KlineDrawingTargetType
