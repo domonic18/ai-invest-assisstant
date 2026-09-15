@@ -72,6 +72,7 @@ class DouyinVideo:
     caption: str | None
     topic_tags: list[str] = field(default_factory=list)
     cover_url: str | None = None
+    play_url: str | None = None
     duration_seconds: int | None = None
     published_at: datetime | None = None
     digg_count: int | None = None
@@ -120,6 +121,7 @@ def normalize_aweme(raw: dict) -> DouyinVideo | None:
         return None
     video = raw.get("video") or {}
     cover = (video.get("cover") or {}).get("url_list") or []
+    play_addr = (video.get("play_addr") or {}).get("url_list") or []
     statistics = raw.get("statistics") or {}
     create_time = _to_int(raw.get("create_time"))
     duration_ms = _to_int(video.get("duration"))
@@ -137,6 +139,7 @@ def normalize_aweme(raw: dict) -> DouyinVideo | None:
         caption=raw.get("desc") or None,
         topic_tags=topic_tags,
         cover_url=cover[0] if cover else None,
+        play_url=play_addr[0] if play_addr else None,
         duration_seconds=max(duration_ms // 1000, 0) if duration_ms else None,
         published_at=(
             datetime.fromtimestamp(create_time, tz=timezone.utc) if create_time else None

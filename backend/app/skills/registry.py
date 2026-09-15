@@ -130,6 +130,14 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         task_spec_names=("news-topic",),
     ),
     SkillDescriptor(
+        skill_id="social-sentiment",
+        label="社媒大V情绪判断",
+        kind="prompt_only",
+        skill_md=True,
+        scenario="news",
+        task_spec_names=("social-sentiment",),
+    ),
+    SkillDescriptor(
         skill_id="financial-report-summary",
         label="财报结构化摘要",
         kind="prompt_only",

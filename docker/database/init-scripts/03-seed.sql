@@ -20,7 +20,7 @@ ON CONFLICT (stock_code, market) DO NOTHING;
 -- collector_health_check 任务的 internal 渠道（内部生成，非外部数据源）
 -- supported_data_types 与 collector_channel_data_type 按任务名登记（渠道解析/beat 派发以任务名为键）
 INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
-VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "health-check", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly"]'::jsonb)
+VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "health-check", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly", "social-sentiment"]'::jsonb)
 ON CONFLICT (source) DO NOTHING;
 
 -- 兼容存量环境：internal 渠道已存在时补齐后续新增的数据类型
@@ -32,8 +32,37 @@ WHERE source = 'internal'
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, d.data_type, 1
 FROM collector_channel_config,
-     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('health-check'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic'), ('sector-anomaly'), ('stock-anomaly')) AS d(data_type)
+     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('health-check'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic'), ('sector-anomaly'), ('stock-anomaly'), ('social-sentiment')) AS d(data_type)
 WHERE source = 'internal'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
+-- 防御性补齐 internal 渠道的 social-sentiment 数据类型（大V情绪判断，渠道已存在时）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["social-sentiment"]'::jsonb
+WHERE source = 'internal'
+  AND NOT supported_data_types @> '["social-sentiment"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'social-sentiment', 1
+FROM collector_channel_config
+WHERE source = 'internal'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
+-- douyin 渠道（F-SOC 抖音大V视频采集，Cookie 自持无需 api_key）
+INSERT INTO collector_channel_config (source, name, base_url, is_enabled, supported_data_types)
+VALUES ('douyin', '抖音', 'https://www.douyin.com', true, '["social-video"]'::jsonb)
+ON CONFLICT (source) DO NOTHING;
+
+-- 防御性补齐 douyin 渠道的 social-video 数据类型（渠道已存在时）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["social-video"]'::jsonb
+WHERE source = 'douyin'
+  AND NOT supported_data_types @> '["social-video"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'social-video', 1
+FROM collector_channel_config
+WHERE source = 'douyin'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
 -- 防御性补齐 eastmoney 渠道的 research-report 数据类型（渠道已存在时）
@@ -350,6 +379,9 @@ VALUES
     ('news_subscription_match', 'news-subscription-match', 'internal', '*/10 * * * *', true),
     -- 热点主题榜盘中/盘后双跑（盘后 16:35 晚于板块收盘快照 16:05；盘中跑板块因子用 T-1 并标注）
     ('news_topic_intraday', 'news-topic', 'internal', '35 11 * * 1-5', true),
-    ('news_topic_post', 'news-topic', 'internal', '35 16 * * 1-5', true)
+    ('news_topic_post', 'news-topic', 'internal', '35 16 * * 1-5', true),
+    -- F-SOC：抖音大V视频采集（每小时轮询，增量判新）与大V情绪判断（每 10 分钟批量）
+    ('social_video_poll', 'social-video', 'douyin', '0 * * * *', true),
+    ('social_sentiment_judge', 'social-sentiment', 'internal', '*/10 * * * *', true)
 ON CONFLICT (task_name) DO UPDATE
 SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;

@@ -37,6 +37,18 @@ class SocialJudgmentResult(BaseModel):
     summary: str = Field(description="一句话摘要（≤60 字）")
 
 
+class SocialJudgmentBatchItem(SocialJudgmentResult):
+    """批量判断的单条输出（post_id 由输入原样带回，服务层按其回填）。"""
+
+    post_id: int = Field(description="待判条目的 post_id，原样返回")
+
+
+class SocialJudgmentBatch(BaseModel):
+    """批量判断输出契约：与输入条目一一对应，禁止编造输入之外的条目。"""
+
+    items: list[SocialJudgmentBatchItem] = Field(description="判断结果列表")
+
+
 # ============ 用户侧响应（GET /social/*） ============
 
 StanceCount = Literal["bullish", "bearish", "neutral"]

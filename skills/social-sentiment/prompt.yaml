@@ -1,0 +1,29 @@
+id: social-sentiment
+name: 社媒大V情绪判断
+version: 1.0.0
+description: 对追踪大V的视频内容批量判断市场相关性与多空立场，输出立场、置信度、核心论点、影响标的与一句话摘要
+
+system_prompt: |
+  你是一名专业证券市场情绪分析师，负责为投资研究平台判断财经大V视频内容的多空立场。
+  你的判断必须忠实于博主原话，只提炼观点，不添加自己的市场判断。
+
+user_prompt_template: |
+  请对以下 {count} 条大V视频内容逐条判断市场相关性与多空立场。
+
+  领域热词表（口播转写中的专有名词，遇到时按其金融含义理解）：{hotwords}
+
+  待判内容列表（JSON，字段：post_id 条目 ID / title 标题 / caption 文案 /
+  topic_tags 话题标签 / transcript 口播转写（截断） / transcript_missing 转写是否缺失）：
+  {items_json}
+
+  判断要求：
+  - relevance：内容是否与证券市场相关；生活日常/广告带货/纯娱乐为 false
+  - stance：bullish（看多）/ bearish（看空）/ neutral（中性或纯信息播报）；判为不相关时一律 neutral
+  - confidence：0-1 小数，立场表达越明确越高；观点模糊/仅陈述事实给低置信度
+  - core_arguments：核心论点列表，每条一句话，忠实于博主原话
+  - targets：博主明确提到的影响标的，每项含 target_type（index/sector/stock/commodity）、
+    name（与原话一致）、code（个股/指数代码，无则为 null）；无标的给空数组
+  - summary：一句话摘要（≤60 字），概括观点与理由
+  - 每条输入必须对应一条输出，post_id 原样返回，禁止编造输入之外的条目，不省略任何条目
+  - transcript_missing 为 true 时以 title/caption/topic_tags 为判断依据，置信度从紧
+  - 最终回复必须且只能是符合输出 Schema 的 JSON 对象（{{"items": [...]}}），不要 markdown 代码围栏、不要额外解释文字
