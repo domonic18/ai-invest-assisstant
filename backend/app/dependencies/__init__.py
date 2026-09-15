@@ -1,6 +1,6 @@
-"""FastAPI 依赖项：认证与数据库会话。"""
+"""FastAPI 依赖项：认证、数据库会话与 AI 配额闸门。"""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from typing import Annotated
 
 from fastapi import Depends
@@ -11,6 +11,9 @@ from app.core.database import AsyncSessionLocal
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.security import decode_access_token
 from app.models.user import User
+from app.services.quota import quota_service
+from app.services.quota.constants import UsageFeature
+from app.services.quota.context import meter_scope
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -64,3 +67,20 @@ async def get_current_admin_user(
     if user.role != "admin":
         raise ForbiddenError("Admin access required")
     return user
+
+
+def ai_quota_gate(feature: UsageFeature) -> Callable[..., AsyncIterator[User]]:
+    """AI 入口依赖工厂：请求前配额预检（耗尽 429）+ 计量上下文包裹（arch/10 §3）。
+
+    LangChain callback 内抛出的异常会被吞掉，配额拦截必须在入口显式执行；
+    yield 依赖与端点在同一请求任务内执行，meter_scope 的 ContextVar 对端点可见。
+    """
+
+    async def gate(
+        user: Annotated[User, Depends(get_current_user)],
+    ) -> AsyncIterator[User]:
+        await quota_service.precheck(user.id)
+        with meter_scope(user.id, feature):
+            yield user
+
+    return gate

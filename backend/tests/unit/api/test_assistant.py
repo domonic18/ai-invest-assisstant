@@ -37,13 +37,6 @@ def assistant_client():
     app.dependency_overrides.clear()
 
 
-@pytest.fixture(autouse=True)
-def _skip_quota_precheck():
-    """AI 端点配额预检与被测契约无关，统一打桩放行。"""
-    with patch("app.services.quota.quota_service.precheck", AsyncMock()):
-        yield
-
-
 @pytest.mark.unit
 class TestThreadEndpoints:
     def test_create_thread_returns_thread_id(self, assistant_client) -> None:

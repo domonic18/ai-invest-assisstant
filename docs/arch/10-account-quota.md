@@ -13,7 +13,7 @@
 
 ## 2. 数据模型
 
-迁移 `docker/database/migrations/20260915_account_quota.sql` + `init-scripts/01-schema.sql` 双写（幂等；[03-data-storage](./03-data-storage.md) 规范）。SQLAlchemy 模型对应落 `backend/app/models/`。
+迁移 `docker/database/migrations/20260914_account_quota.sql` + `init-scripts/01-schema.sql` 双写（幂等；[03-data-storage](./03-data-storage.md) 规范）。SQLAlchemy 模型对应落 `backend/app/models/`。
 
 | 表/变更 | 键与约束 | 说明 |
 |----|----------|------|

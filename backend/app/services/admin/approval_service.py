@@ -16,6 +16,8 @@ from app.services.quota.constants import (
     AUDIT_QUOTA_ADJUST,
     AUDIT_REGISTER_APPROVE,
     AUDIT_REGISTER_REJECT,
+    AUDIT_SETTING_UPDATE,
+    SETTING_ADMIN_EXEMPT,
 )
 from app.services.user.register_service import RegisterService
 
@@ -185,6 +187,39 @@ class ApprovalService:
         await self.session.commit()
         await quota_service.invalidate(user_id)
         return quota
+
+    async def apply_settings(
+        self, admin: User, updates: dict[str, Any], ip: str | None = None
+    ) -> None:
+        """批量 upsert 全局设置 + 审计（记录新旧值）+ 豁免开关变更后失效全部镜像。
+
+        Raises:
+            KeyError: updates 含未知设置键。
+        """
+        if not updates:
+            return
+        current = await account_settings.list_settings(self.session)
+        changes = {
+            key: {"oldValue": current.get(key), "newValue": value}
+            for key, value in updates.items()
+        }
+        for key, value in updates.items():
+            await account_settings.update_setting(
+                self.session, key, value, updated_by=admin.id
+            )
+        await record_audit(
+            self.session,
+            actor_id=admin.id,
+            action=AUDIT_SETTING_UPDATE,
+            detail=changes,
+            ip=ip,
+        )
+        await self.session.commit()
+        if SETTING_ADMIN_EXEMPT in updates:
+            await quota_service.invalidate_all()
+        logger.info(
+            "account_settings_updated", admin_id=admin.id, keys=sorted(updates)
+        )
 
     async def _get_pending(self, user_id: int) -> User:
         user = await self.session.get(User, user_id)

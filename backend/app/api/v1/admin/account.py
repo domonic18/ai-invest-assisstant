@@ -13,10 +13,9 @@ from app.schemas.account import (
     UsageDashboardResponse,
     UsagePerUserResponse,
 )
-from app.services.admin.audit_service import record_audit
-from app.services.quota import account_settings, quota_service
+from app.services.admin.approval_service import ApprovalService
+from app.services.quota import account_settings
 from app.services.quota.constants import (
-    AUDIT_SETTING_UPDATE,
     SETTING_ADMIN_EXEMPT,
     SETTING_DEFAULT_QUOTA_TOKENS,
     SETTING_PENDING_EXPIRE_DAYS,
@@ -74,7 +73,6 @@ async def update_account_settings(
     admin: Annotated[User, Depends(get_current_admin_user)],
 ) -> AccountSettingsResponse:
     """更新全局设置（入审计；豁免开关变更后失效全部配额镜像）。"""
-    changes: dict[str, tuple[object, object]] = {}
     updates: dict[str, object] = {}
     if data.default_quota_tokens is not None:
         updates[SETTING_DEFAULT_QUOTA_TOKENS] = data.default_quota_tokens
@@ -82,26 +80,7 @@ async def update_account_settings(
         updates[SETTING_PENDING_EXPIRE_DAYS] = data.pending_expire_days
     if data.admin_exempt is not None:
         updates[SETTING_ADMIN_EXEMPT] = data.admin_exempt
-
-    if updates:
-        current = await account_settings.list_settings(session)
-        for key, value in updates.items():
-            changes[key] = (current.get(key), value)
-            await account_settings.update_setting(
-                session, key, value, updated_by=admin.id
-            )
-        await record_audit(
-            session,
-            actor_id=admin.id,
-            action=AUDIT_SETTING_UPDATE,
-            detail={
-                key: {"oldValue": old, "newValue": new}
-                for key, (old, new) in changes.items()
-            },
-            ip=request.client.host if request.client else None,
-        )
-        await session.commit()
-        if SETTING_ADMIN_EXEMPT in updates:
-            await quota_service.invalidate_all()
-
+    await ApprovalService(session).apply_settings(
+        admin, updates, ip=request.client.host if request.client else None
+    )
     return await get_account_settings(session=session)

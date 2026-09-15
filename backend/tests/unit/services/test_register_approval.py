@@ -201,3 +201,39 @@ async def test_adjust_quota_reset_and_audit(session: AsyncSession) -> None:
         await session.execute(select(AdminAuditLog).where(AdminAuditLog.action == "quota.adjust"))
     ).scalars().all()
     assert len(adjust_audits) == 2
+
+
+async def test_apply_settings_upserts_audits_and_invalidates_on_exempt(
+    session: AsyncSession,
+) -> None:
+    """设置 upsert + 审计记录新旧值；仅豁免开关变更触发全局镜像失效；空更新跳过。"""
+    admin = await _admin(session)
+    service = ApprovalService(session)
+
+    invalidated: list[bool] = []
+    with patch(
+        "app.services.admin.approval_service.quota_service.invalidate_all",
+        side_effect=lambda: invalidated.append(True),
+    ):
+        await service.apply_settings(admin, {"account.pending_expire_days": 15})
+        await service.apply_settings(admin, {"quota.admin_exempt": False})
+        await service.apply_settings(admin, {})
+
+    rows = {
+        row.key: row.value
+        for row in (await session.execute(select(SystemSetting))).scalars().all()
+    }
+    assert rows["account.pending_expire_days"] == 15
+    assert rows["quota.admin_exempt"] is False
+    audits = (
+        await session.execute(
+            select(AdminAuditLog).where(
+                AdminAuditLog.action == "account_setting.update"
+            )
+        )
+    ).scalars().all()
+    assert len(audits) == 2  # 空更新不审计
+    assert audits[0].detail == {
+        "account.pending_expire_days": {"oldValue": 30, "newValue": 15}
+    }
+    assert invalidated == [True]  # 仅豁免开关变更触发全局失效

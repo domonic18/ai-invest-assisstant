@@ -32,6 +32,8 @@ logger = structlog.get_logger(__name__)
 RESERVE_DENIED = -1
 # 键缺失需重建（内部信号，不对外）
 _MISS = -2
+# Redis 降级 PG 校验放行（未发生真实预扣，调用方不得对该值结算回补）
+RESERVE_DEGRADED = -3
 # 不限额哨兵返回值（与 Lua 脚本 inf 分支同值）
 _UNLIMITED_PROBE = 9007199254740992
 
@@ -48,13 +50,14 @@ redis.call('EXPIRE', KEYS[1], ARGV[2])
 return remain - est
 """
 
-# 结算脚本：回补 reserved - actual 差额（actual 超预扣照扣，可为负余量）
+# 结算脚本：回补 reserved - actual 差额（actual 超预扣照扣，可为负余量）。
+# 不刷新 TTL：键的存活期锚定最后一次 reserve，悬挂预扣最迟在 TTL 到期后
+# 由 PG 重建吸收；settle 续期会让该自愈上限随活跃使用无限后移。
 _SETTLE_LUA = """
 local val = redis.call('GET', KEYS[1])
 if (not val) or val == 'inf' then return 0 end
 local diff = tonumber(ARGV[1]) - tonumber(ARGV[2])
 if diff ~= 0 then redis.call('INCRBY', KEYS[1], diff) end
-redis.call('EXPIRE', KEYS[1], ARGV[3])
 return 1
 """
 
@@ -99,7 +102,7 @@ async def precheck(user_id: int) -> None:
     handler 转 429。
     """
     remaining = await check_and_reserve(user_id, 0)
-    if remaining <= 0:
+    if remaining != RESERVE_DEGRADED and remaining <= 0:
         raise QuotaExhaustedError()
 
 
@@ -118,8 +121,9 @@ async def rebuild(user_id: int) -> int | None:
 async def check_and_reserve(user_id: int, estimate: int) -> int:
     """预扣配额；返回预扣后余量（RESERVE_DENIED=不足）。
 
-    键缺失时重建一次后重试；Redis 不可达时降级 PG 校验（剩余为正即放行，
-    跳过预扣，容忍并发窗口）。
+    键缺失时重建一次后重试；Redis 不可达时降级 PG 校验：剩余为正返回
+    RESERVE_DEGRADED 放行（跳过预扣，容忍并发窗口，调用方不得结算），
+    不限额返回不限额哨兵。
     """
     try:
         redis = get_redis()
@@ -149,7 +153,9 @@ async def check_and_reserve(user_id: int, estimate: int) -> int:
             except RedisError:
                 pass
             return _UNLIMITED_PROBE
-        return remaining if remaining > 0 else RESERVE_DENIED
+        if remaining > 0:
+            return RESERVE_DEGRADED
+        return RESERVE_DENIED
 
 
 async def settle(user_id: int, reserved: int, actual: int) -> None:
@@ -157,9 +163,7 @@ async def settle(user_id: int, reserved: int, actual: int) -> None:
     if reserved == actual:
         return
     try:
-        await get_redis().eval(
-            _SETTLE_LUA, 1, _key(user_id), reserved, actual, QUOTA_REMAIN_TTL_SECONDS
-        )
+        await get_redis().eval(_SETTLE_LUA, 1, _key(user_id), reserved, actual)
     except RedisError as exc:
         logger.warning("quota_settle_failed", user_id=user_id, error=str(exc))
 

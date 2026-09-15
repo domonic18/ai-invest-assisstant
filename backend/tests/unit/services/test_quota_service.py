@@ -1,6 +1,6 @@
 """配额闸门单测：Redis Lua 预扣/结算语义 + PG 重算口径（不触真实 Redis/PG）。"""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from redis.exceptions import RedisError
@@ -23,7 +23,7 @@ class FakeRedis:
         self.store: dict[str, str] = {}
 
     async def eval(self, script: str, numkeys: int, key: str, *args: object) -> int:
-        if len(args) == 2:  # _RESERVE_LUA: estimate, ttl
+        if "DECRBY" in script:  # _RESERVE_LUA: estimate, ttl
             val = self.store.get(key)
             if val is None:
                 return -2
@@ -34,7 +34,7 @@ class FakeRedis:
                 return -1
             self.store[key] = str(remain - estimate)
             return remain - estimate
-        # _SETTLE_LUA: reserved, actual, ttl
+        # _SETTLE_LUA: reserved, actual（无 EXPIRE，键 TTL 锚定 reserve）
         val = self.store.get(key)
         if val is None or val == "inf":
             return 0
@@ -195,11 +195,30 @@ async def test_redis_down_degrades_to_pg_check(
     monkeypatch.setattr(quota_service, "get_redis", lambda: _RaisingProxy())
     monkeypatch.setattr(quota_service, "AsyncSessionLocal", lambda: _SessionCtx(session))
 
-    assert await quota_service.check_and_reserve(user.id, 50) == 100  # 剩余为正放行并返回余量
+    assert await quota_service.check_and_reserve(user.id, 50) == quota_service.RESERVE_DEGRADED
 
     session.add(UserTokenUsage(user_id=user.id, feature="page", model_name="m", provider="p", outlet=OUTLET_SYSTEM, prompt_tokens=80, completion_tokens=80, total_tokens=160, estimated=False))
     await session.flush()
     assert await quota_service.check_and_reserve(user.id, 50) == RESERVE_DENIED
+
+
+async def test_precheck_degraded_sentinel_passes() -> None:
+    """降级放行哨兵（负值）不得触发 QuotaExhaustedError。"""
+    sentinel = AsyncMock(return_value=quota_service.RESERVE_DEGRADED)
+    with patch.object(quota_service, "check_and_reserve", sentinel):
+        await quota_service.precheck(1)  # 不抛
+        sentinel.assert_awaited_once_with(1, 0)
+
+
+async def test_redis_down_unlimited_degrades_with_probe(
+    monkeypatch: pytest.MonkeyPatch, session: AsyncSession
+) -> None:
+    user = await _add_user(session)
+    session.add(UserAiQuota(user_id=user.id, total_tokens=None))
+    monkeypatch.setattr(quota_service, "get_redis", lambda: _RaisingProxy())
+    monkeypatch.setattr(quota_service, "AsyncSessionLocal", lambda: _SessionCtx(session))
+
+    assert await quota_service.check_and_reserve(user.id, 50) == quota_service._UNLIMITED_PROBE
 
 
 class _RaisingProxy:
