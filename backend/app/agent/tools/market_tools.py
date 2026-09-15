@@ -28,23 +28,35 @@ AUCTION_MAX_DAYS = 30
 # 复盘生成耗时锚点：助手对话路径没有外层计时器（定时路径由 run_skill 计时），
 # 以首次 SKILL 数据工具调用为生成起点，persist_market_review 落库时消耗。
 # 超过 30 分钟的锚点视为与本次生成无关（如日常闲聊触发的取数），重新计时。
+# 按 configurable.thread_id 隔离（同线程单活跃 run）：langchain 工具调用在独立
+# 任务/上下文执行，ContextVar 与 task 键均跨不过该边界，configurable 是唯一
+# 稳定的会话键；无 config（直调）时退化为共享键。
 _REVIEW_GEN_MAX_S = 1800.0
-_review_gen_start: float | None = None
+_REVIEW_GEN_DEFAULT_KEY = ""
+_review_gen_starts: dict[str, float] = {}
 
 
-def _note_review_start() -> None:
-    global _review_gen_start
+def _thread_key(config: RunnableConfig | None) -> str:
+    if not config:
+        return _REVIEW_GEN_DEFAULT_KEY
+    return str(
+        config.get("configurable", {}).get("thread_id") or _REVIEW_GEN_DEFAULT_KEY
+    )
+
+
+def _note_review_start(config: RunnableConfig | None = None) -> None:
     now = time.monotonic()
-    if _review_gen_start is None or (now - _review_gen_start) > _REVIEW_GEN_MAX_S:
-        _review_gen_start = now
+    key = _thread_key(config)
+    start = _review_gen_starts.get(key)
+    if start is None or (now - start) > _REVIEW_GEN_MAX_S:
+        _review_gen_starts[key] = now
 
 
-def _consume_review_latency() -> int:
-    global _review_gen_start
-    if _review_gen_start is None:
+def _consume_review_latency(config: RunnableConfig | None = None) -> int:
+    start = _review_gen_starts.pop(_thread_key(config), None)
+    if start is None:
         return 0
-    elapsed_ms = int((time.monotonic() - _review_gen_start) * 1000)
-    _review_gen_start = None
+    elapsed_ms = int((time.monotonic() - start) * 1000)
     return elapsed_ms if elapsed_ms <= _REVIEW_GEN_MAX_S * 1000 else 0
 
 
@@ -101,13 +113,16 @@ async def get_sector_fund_flow(
 
 
 @tool
-async def get_market_overview(trade_date: str | None = None) -> dict[str, Any]:
+async def get_market_overview(
+    trade_date: str | None = None,
+    config: Annotated[RunnableConfig, InjectedToolArg] | None = None,
+) -> dict[str, Any]:
     """获取大盘概览：四大指数行情 + 全市场涨跌家数、成交额（含环比）、涨停/跌停家数与情绪温度。
 
     Args:
         trade_date: 可选历史交易日，ISO 格式如 "2026-08-21"；缺省为最新交易日。
     """
-    _note_review_start()
+    _note_review_start(config)
     resolved: date | None = None
     if trade_date:
         try:
@@ -173,7 +188,10 @@ async def get_trade_calendar() -> dict[str, Any]:
 
 
 @tool
-async def get_sector_overview(trade_date: str | None = None) -> dict[str, Any]:
+async def get_sector_overview(
+    trade_date: str | None = None,
+    config: Annotated[RunnableConfig, InjectedToolArg] | None = None,
+) -> dict[str, Any]:
     """查询行业板块概览：涨跌幅热力图、主力净流入/净流出 TOP5（含领涨股）、领涨板块（涨跌幅、涨停家数、代表个股）。
 
     Args:
@@ -181,7 +199,7 @@ async def get_sector_overview(trade_date: str | None = None) -> dict[str, Any]:
     """
     from app.services.market import sector_service
 
-    _note_review_start()
+    _note_review_start(config)
     resolved, error = _parse_trade_date(trade_date)
     if error:
         return {"error": error}
@@ -199,7 +217,10 @@ async def get_sector_overview(trade_date: str | None = None) -> dict[str, Any]:
 
 
 @tool
-async def get_limit_up_ladder(trade_date: str | None = None) -> dict[str, Any]:
+async def get_limit_up_ladder(
+    trade_date: str | None = None,
+    config: Annotated[RunnableConfig, InjectedToolArg] | None = None,
+) -> dict[str, Any]:
     """查询涨停池与连板天梯：涨停总数、首板/连板家数、最高连板数与 ≥2 板连板梯队（含个股与所属行业）。
 
     Args:
@@ -207,7 +228,7 @@ async def get_limit_up_ladder(trade_date: str | None = None) -> dict[str, Any]:
     """
     from app.services.market import limit_pool_service
 
-    _note_review_start()
+    _note_review_start(config)
     resolved, error = _parse_trade_date(trade_date)
     if error:
         return {"error": error}
@@ -234,7 +255,10 @@ async def get_limit_up_ladder(trade_date: str | None = None) -> dict[str, Any]:
 
 
 @tool
-async def get_limit_up_pool(trade_date: str | None = None) -> dict[str, Any]:
+async def get_limit_up_pool(
+    trade_date: str | None = None,
+    config: Annotated[RunnableConfig, InjectedToolArg] | None = None,
+) -> dict[str, Any]:
     """查询涨停池全量明细：每只涨停股的代码、名称、所属行业、连板数、封板形态与首次封板时间。
 
     与 get_limit_up_ladder 的区别：本工具返回全部涨停个股明细（涨停归因等按个股
@@ -245,7 +269,7 @@ async def get_limit_up_pool(trade_date: str | None = None) -> dict[str, Any]:
     """
     from app.services.market import limit_pool_service
 
-    _note_review_start()
+    _note_review_start(config)
     resolved, error = _parse_trade_date(trade_date)
     if error:
         return {"error": error}
@@ -261,7 +285,10 @@ async def get_limit_up_pool(trade_date: str | None = None) -> dict[str, Any]:
 
 
 @tool
-async def get_index_technical(trade_date: str | None = None) -> dict[str, Any]:
+async def get_index_technical(
+    trade_date: str | None = None,
+    config: Annotated[RunnableConfig, InjectedToolArg] | None = None,
+) -> dict[str, Any]:
     """获取五大标的（沪指/创业板/科创50/沪深300ETF/富时A50）的预计算技术分析文本：日 K/周 K 形态、均线、新低/地量/放量判断。
 
     Args:
@@ -269,7 +296,7 @@ async def get_index_technical(trade_date: str | None = None) -> dict[str, Any]:
     """
     from app.services.market import index_technical_service
 
-    _note_review_start()
+    _note_review_start(config)
     resolved, error = _parse_trade_date(trade_date)
     if error:
         return {"error": error}
@@ -288,7 +315,9 @@ async def get_index_technical(trade_date: str | None = None) -> dict[str, Any]:
 
 @tool
 async def persist_market_review(
-    trade_date: str, sections: dict[str, str]
+    trade_date: str,
+    sections: dict[str, str],
+    config: Annotated[RunnableConfig, InjectedToolArg] | None = None,
 ) -> dict[str, Any]:
     """持久化大盘每日复盘生成结果到数据库，复盘页卡片会自动刷新展示。
 
@@ -313,7 +342,7 @@ async def persist_market_review(
             trade_date=resolved,
             contents=sections,
             model=f"{cfg.provider}/{cfg.model_name}",
-            latency_ms=_consume_review_latency(),
+            latency_ms=_consume_review_latency(config),
         )
         return {
             "trade_date": response.trade_date.isoformat(),
@@ -338,6 +367,7 @@ async def persist_limit_up_attribution(
     trade_date: str,
     groups: list[LimitUpAttributionGroupArgs],
     stock_themes: dict[str, list[str]] | None = None,
+    config: Annotated[RunnableConfig, InjectedToolArg] | None = None,
 ) -> dict[str, Any]:
     """持久化 AI 涨停归因结果到数据库，涨停页卡片会自动刷新展示。
 
@@ -382,7 +412,7 @@ async def persist_limit_up_attribution(
                 resolved,
                 content,
                 model=f"{cfg.provider}/{cfg.model_name}",
-                latency_ms=_consume_review_latency(),
+                latency_ms=_consume_review_latency(config),
             )
         except (NonTradingDayError, ReviewInputDataNotReadyError) as exc:
             return {"error": str(exc)}

@@ -27,7 +27,7 @@ def _review_persist_mocks() -> tuple[MagicMock, AsyncMock]:
 @pytest.mark.unit
 class TestReviewLatencyAnchor:
     def setup_method(self) -> None:
-        mt._review_gen_start = None
+        mt._review_gen_starts.clear()
 
     @pytest.mark.asyncio
     async def test_latency_measured_from_first_data_tool_to_persist(self) -> None:
@@ -54,9 +54,12 @@ class TestReviewLatencyAnchor:
                 persist_mock,
             ),
         ):
-            await get_market_overview.ainvoke({})
+            await get_market_overview.ainvoke(
+                {}, config={"configurable": {"thread_id": "t1", "user_id": 1}}
+            )
             result = await mt.persist_market_review.ainvoke(
-                {"trade_date": "2026-09-04", "sections": {"overview": "x"}}
+                {"trade_date": "2026-09-04", "sections": {"overview": "x"}},
+                config={"configurable": {"thread_id": "t1", "user_id": 1}},
             )
 
         assert result["trade_date"] == "2026-09-04"
@@ -83,7 +86,7 @@ class TestReviewLatencyAnchor:
 
     @pytest.mark.asyncio
     async def test_stale_anchor_reports_zero_without_fresh_data_call(self) -> None:
-        mt._review_gen_start = -2000.0
+        mt._review_gen_starts[""] = -2000.0
         cfg, persist_mock = _review_persist_mocks()
         fake_time = MagicMock()
         fake_time.monotonic = MagicMock(side_effect=[200.0])
@@ -103,6 +106,22 @@ class TestReviewLatencyAnchor:
             )
 
         assert persist_mock.await_args.kwargs["latency_ms"] == 0
+
+    @pytest.mark.asyncio
+    async def test_anchor_isolated_by_thread(self) -> None:
+        """锚点按 configurable.thread_id 隔离：并发会话互不消费对方锚点。"""
+        fake_time = MagicMock()
+        fake_time.monotonic = MagicMock(side_effect=[100.0, 100.5])
+        with patch.object(mt, "time", fake_time):
+            mt._note_review_start({"configurable": {"thread_id": "tA"}})
+            assert mt._consume_review_latency(
+                {"configurable": {"thread_id": "tB"}}
+            ) == 0
+            assert "tA" in mt._review_gen_starts
+            assert mt._consume_review_latency(
+                {"configurable": {"thread_id": "tA"}}
+            ) == 500
+        assert "tA" not in mt._review_gen_starts
 
 
 @pytest.mark.unit
