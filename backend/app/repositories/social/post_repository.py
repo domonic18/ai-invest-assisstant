@@ -1,13 +1,15 @@
-"""内容与情绪判断仓储（social_post / social_sentiment 数据访问，不含 feed 查询）。"""
+"""内容与情绪判断仓储（social_post / social_sentiment 数据访问与 feed 查询）。"""
 
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
-from app.models.social import SocialPost, SocialSentiment
+from app.constants.social import SOCIAL_STRONG_CONFIDENCE
+from app.models.social import SocialAccount, SocialPost, SocialSentiment
 
 # 库存判新的 video_id 集合上限（单账号小时级增量，500 足够覆盖续拉窗口）
 VIDEO_ID_SCAN_LIMIT = 500
@@ -33,8 +35,6 @@ async def list_pending_posts(
 
     新内容优先使偶发毒丸条目随新内容流入沉出批量窗口，不阻塞管道。
     """
-    from app.models.social import SocialAccount
-
     result = await session.execute(
         select(SocialPost)
         .join(SocialAccount, SocialPost.account_id == SocialAccount.id)
@@ -87,3 +87,199 @@ async def clear_transcripts(session: AsyncSession, post_ids: list[int]) -> None:
     await session.execute(
         update(SocialPost).where(SocialPost.id.in_(post_ids)).values(transcript_text=None)
     )
+
+
+# ============ 用户侧查询（feed / 账号卡 / 时间线 / ASR 记账） ============
+
+
+def _feed_row(row: Any) -> dict[str, Any]:
+    """(post, account, sentiment) 联查行 → feed 卡片字典。"""
+    post, account, sentiment = row
+    return {
+        "post_id": post.id,
+        "video_id": post.video_id,
+        "platform": post.platform,
+        "account_id": account.id,
+        "account_alias": account.alias,
+        "category": account.category,
+        "title": post.title,
+        "caption": post.caption,
+        "topic_tags": post.topic_tags,
+        "cover_url": post.cover_url,
+        "duration_seconds": post.duration_seconds,
+        "published_at": post.published_at,
+        "digg_count": post.digg_count,
+        "comment_count": post.comment_count,
+        "share_count": post.share_count,
+        "transcript_missing": post.transcript_status != "ok",
+        "is_relevant": sentiment.is_relevant,
+        "stance": sentiment.stance,
+        "confidence": sentiment.confidence,
+        "core_arguments": sentiment.core_arguments,
+        "targets": sentiment.targets,
+        "summary": sentiment.summary,
+    }
+
+
+async def list_feed(
+    session: AsyncSession,
+    *,
+    category: str | None = None,
+    stance: str | None = None,
+    hours: int | None = None,
+    strong_only: bool = False,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[dict[str, Any]], int]:
+    """情绪流分页（仅启用账号的相关判断，新内容优先）。"""
+    conditions: list[ColumnElement[bool]] = [
+        SocialSentiment.is_relevant.is_(True),
+        SocialAccount.is_active.is_(True),
+    ]
+    if category:
+        conditions.append(SocialAccount.category == category)
+    if stance:
+        conditions.append(SocialSentiment.stance == stance)
+    if hours:
+        conditions.append(
+            SocialPost.published_at >= datetime.now(timezone.utc) - timedelta(hours=hours)
+        )
+    if strong_only:
+        conditions.append(SocialSentiment.confidence >= SOCIAL_STRONG_CONFIDENCE)
+    base = (
+        select(SocialPost, SocialAccount, SocialSentiment)
+        .join(SocialAccount, SocialPost.account_id == SocialAccount.id)
+        .join(SocialSentiment, SocialSentiment.post_id == SocialPost.id)
+        .where(*conditions)
+    )
+    total = await session.scalar(select(func.count()).select_from(base.subquery()))
+    rows = (
+        await session.execute(
+            base.order_by(SocialPost.published_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).all()
+    return [_feed_row(row) for row in rows], total or 0
+
+
+async def list_account_cards(
+    session: AsyncSession,
+) -> list[dict[str, Any]]:
+    """账号维度卡（近 7 日多空分布 + 最新判断摘要，启用账号）。"""
+    from app.repositories.social import account_repository
+
+    accounts = await account_repository.list_accounts(session, active_only=True)
+    if not accounts:
+        return []
+    ids = [a.id for a in accounts]
+    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+
+    count_rows = (
+        await session.execute(
+            select(SocialPost.account_id, SocialSentiment.stance, func.count())
+            .join(SocialSentiment, SocialSentiment.post_id == SocialPost.id)
+            .where(
+                SocialPost.account_id.in_(ids),
+                SocialPost.published_at >= seven_days_ago,
+                SocialSentiment.is_relevant.is_(True),
+            )
+            .group_by(SocialPost.account_id, SocialSentiment.stance)
+        )
+    ).all()
+    counts: dict[tuple[int, str], int] = {
+        (account_id, stance): n for account_id, stance, n in count_rows
+    }
+
+    latest_rows = (
+        await session.execute(
+            select(SocialPost, SocialSentiment)
+            .join(SocialSentiment, SocialSentiment.post_id == SocialPost.id)
+            .where(
+                SocialPost.account_id.in_(ids),
+                SocialSentiment.is_relevant.is_(True),
+            )
+            .distinct(SocialPost.account_id)
+            .order_by(SocialPost.account_id, SocialPost.published_at.desc())
+        )
+    ).all()
+    latest = {row[0].account_id: row for row in latest_rows}
+
+    cards: list[dict[str, Any]] = []
+    for account in accounts:
+        card: dict[str, Any] = {
+            "id": account.id,
+            "alias": account.alias,
+            "category": account.category,
+            "last_post_at": account.last_post_at,
+            "bullish_count_7d": counts.get((account.id, "bullish"), 0),
+            "bearish_count_7d": counts.get((account.id, "bearish"), 0),
+            "neutral_count_7d": counts.get((account.id, "neutral"), 0),
+        }
+        row = latest.get(account.id)
+        if row is not None:
+            post, sentiment = row
+            card.update(
+                {
+                    "latest_stance": sentiment.stance,
+                    "latest_confidence": sentiment.confidence,
+                    "latest_summary": sentiment.summary,
+                    "latest_cover_url": post.cover_url,
+                }
+            )
+        cards.append(card)
+    return cards
+
+
+async def list_timeline(
+    session: AsyncSession,
+    account_id: int,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[dict[str, Any]], int]:
+    """单账号已判相关内容时间线（新内容优先，立场轨迹由前端派生）。"""
+    base = (
+        select(SocialPost, SocialSentiment)
+        .join(SocialSentiment, SocialSentiment.post_id == SocialPost.id)
+        .where(
+            SocialPost.account_id == account_id,
+            SocialSentiment.is_relevant.is_(True),
+        )
+    )
+    total = await session.scalar(select(func.count()).select_from(base.subquery()))
+    rows = (
+        await session.execute(
+            base.order_by(SocialPost.published_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).all()
+    items = [
+        {
+            "post_id": post.id,
+            "video_id": post.video_id,
+            "title": post.title,
+            "published_at": post.published_at,
+            "stance": sentiment.stance,
+            "confidence": sentiment.confidence,
+            "summary": sentiment.summary,
+            "transcript_missing": post.transcript_status != "ok",
+        }
+        for post, sentiment in rows
+    ]
+    return items, total or 0
+
+
+async def count_transcripts_since(
+    session: AsyncSession, since: datetime
+) -> dict[str, int]:
+    """按转写状态统计 since 之后的入库内容（ASR 今日记账）。"""
+    rows = (
+        await session.execute(
+            select(SocialPost.transcript_status, func.count())
+            .where(SocialPost.created_at >= since)
+            .group_by(SocialPost.transcript_status)
+        )
+    ).all()
+    return {status: n for status, n in rows}

@@ -1,5 +1,6 @@
-"""追踪账号服务单测：sec_uid 四形态解析与 CRUD 校验。"""
+"""追踪账号服务单测：sec_uid 四形态解析、CRUD 校验与审计。"""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -9,6 +10,7 @@ from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.services.social import account_service
 from app.services.social.account_service import (
     create_account,
+    delete_account,
     extract_sec_uid,
     resolve_sec_uid,
     update_account,
@@ -21,6 +23,7 @@ def _session() -> MagicMock:
     session = MagicMock()
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
+    session.delete = AsyncMock()
     session.add = MagicMock()
     return session
 
@@ -146,3 +149,100 @@ class TestUpdateAccount:
         ):
             with pytest.raises(BadRequestError):
                 await update_account(_session(), 1, poll_interval_minutes=1)
+
+
+@pytest.mark.unit
+class TestAccountAudit:
+    async def test_create_writes_audit(self) -> None:
+        session = _session()
+        with (
+            patch.object(
+                account_service.account_repository,
+                "get_by_sec_uid",
+                AsyncMock(return_value=None),
+            ),
+            patch.object(account_service, "record_audit", AsyncMock()) as mock_audit,
+        ):
+            await create_account(
+                session,
+                platform="douyin",
+                sec_uid_or_url=_SEC_UID,
+                alias="财经大V",
+                category="finance_kol",
+                poll_interval_minutes=60,
+                actor_id=1,
+                ip="1.2.3.4",
+            )
+        kwargs = mock_audit.await_args.kwargs
+        assert kwargs["actor_id"] == 1
+        assert kwargs["action"] == "social.account.create"
+        assert kwargs["ip"] == "1.2.3.4"
+        assert kwargs["detail"] == {
+            "alias": "财经大V",
+            "category": "finance_kol",
+            "platform": "douyin",
+        }
+
+    async def test_create_without_actor_skips_audit(self) -> None:
+        session = _session()
+        with (
+            patch.object(
+                account_service.account_repository,
+                "get_by_sec_uid",
+                AsyncMock(return_value=None),
+            ),
+            patch.object(account_service, "record_audit", AsyncMock()) as mock_audit,
+        ):
+            await create_account(
+                session,
+                platform="douyin",
+                sec_uid_or_url=_SEC_UID,
+                alias="财经大V",
+                category="finance_kol",
+                poll_interval_minutes=60,
+            )
+        mock_audit.assert_not_called()
+
+    async def test_update_writes_audit_with_field_list(self) -> None:
+        session = _session()
+        account = SimpleNamespace(
+            alias="旧名",
+            category="finance_kol",
+            poll_interval_minutes=60,
+            is_active=True,
+            remark=None,
+        )
+        with (
+            patch.object(
+                account_service.account_repository,
+                "get",
+                AsyncMock(return_value=account),
+            ),
+            patch.object(account_service, "record_audit", AsyncMock()) as mock_audit,
+        ):
+            await update_account(
+                session, 3, actor_id=1, ip="1.2.3.4", alias="新名", is_active=False
+            )
+        kwargs = mock_audit.await_args.kwargs
+        assert kwargs["action"] == "social.account.update"
+        assert kwargs["detail"]["accountId"] == 3
+        assert kwargs["detail"]["fields"] == ["alias", "is_active"]
+        assert account.alias == "新名"
+        assert account.is_active is False
+
+    async def test_delete_writes_audit(self) -> None:
+        session = _session()
+        account = SimpleNamespace(id=5)
+        with (
+            patch.object(
+                account_service.account_repository,
+                "get",
+                AsyncMock(return_value=account),
+            ),
+            patch.object(account_service, "record_audit", AsyncMock()) as mock_audit,
+        ):
+            await delete_account(session, 5, actor_id=1, ip="1.2.3.4")
+        kwargs = mock_audit.await_args.kwargs
+        assert kwargs["action"] == "social.account.delete"
+        assert kwargs["detail"] == {"accountId": 5}
+        session.delete.assert_called_once_with(account)

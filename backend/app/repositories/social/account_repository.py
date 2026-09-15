@@ -1,6 +1,6 @@
 """追踪账号仓储（social_account 查询；写入由服务层持有事务）。"""
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.social import SocialAccount
@@ -34,3 +34,17 @@ async def list_accounts(
         stmt = stmt.where(SocialAccount.is_active.is_(True))
     result = await session.execute(stmt)
     return list(result.scalars().all())
+
+
+async def list_accounts_paged(
+    session: AsyncSession, *, page: int = 1, page_size: int = 20
+) -> tuple[list[SocialAccount], int]:
+    """管理端分页账号清单（含停用账号，id 序）。"""
+    total = await session.scalar(select(func.count()).select_from(SocialAccount))
+    result = await session.execute(
+        select(SocialAccount)
+        .order_by(SocialAccount.id)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    return list(result.scalars().all()), total or 0

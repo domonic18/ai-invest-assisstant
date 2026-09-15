@@ -18,8 +18,13 @@ from app.constants.social import (
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.models.social import SocialAccount
 from app.repositories.social import account_repository
+from app.services.admin.audit_service import record_audit
 
 logger = structlog.get_logger(__name__)
+
+AUDIT_ACCOUNT_CREATE = "social.account.create"
+AUDIT_ACCOUNT_UPDATE = "social.account.update"
+AUDIT_ACCOUNT_DELETE = "social.account.delete"
 
 #: 抖音 sec_uid 形态：MS4wLjABAAAA 前缀 + base64 变体字符
 _SEC_UID_PATTERN = re.compile(r"MS4wLjABAAAA[A-Za-z0-9_-]{20,}")
@@ -75,8 +80,10 @@ async def create_account(
     category: str,
     poll_interval_minutes: int,
     remark: str | None = None,
+    actor_id: int | None = None,
+    ip: str | None = None,
 ) -> SocialAccount:
-    """登记追踪账号（sec_uid 自动解析，重复登记 409）。
+    """登记追踪账号（sec_uid 自动解析，重复登记 409，写审计）。
 
     Raises:
         BadRequestError: 平台/分类非法或轮询间隔低于下限或解析失败。
@@ -103,15 +110,28 @@ async def create_account(
         remark=remark,
     )
     session.add(account)
+    if actor_id is not None:
+        await record_audit(
+            session,
+            actor_id=actor_id,
+            action=AUDIT_ACCOUNT_CREATE,
+            detail={"alias": alias, "category": category, "platform": platform},
+            ip=ip,
+        )
     await session.commit()
     await session.refresh(account)
     return account
 
 
 async def update_account(
-    session: AsyncSession, account_id: int, **fields: str | bool | int | None
+    session: AsyncSession,
+    account_id: int,
+    *,
+    actor_id: int | None = None,
+    ip: str | None = None,
+    **fields: str | bool | int | None,
 ) -> SocialAccount:
-    """更新账号（alias/category/poll_interval_minutes/is_active/remark）。
+    """更新账号（alias/category/poll_interval_minutes/is_active/remark，写审计）。
 
     Raises:
         NotFoundError: 账号不存在。
@@ -131,13 +151,23 @@ async def update_account(
     for key in ("alias", "category", "poll_interval_minutes", "is_active", "remark"):
         if key in fields:
             setattr(account, key, fields[key])
+    if actor_id is not None:
+        await record_audit(
+            session,
+            actor_id=actor_id,
+            action=AUDIT_ACCOUNT_UPDATE,
+            detail={"accountId": account_id, "fields": sorted(fields.keys())},
+            ip=ip,
+        )
     await session.commit()
     await session.refresh(account)
     return account
 
 
-async def delete_account(session: AsyncSession, account_id: int) -> None:
-    """删除账号（social_post 级联删除；历史判断随 post 级联清除）。
+async def delete_account(
+    session: AsyncSession, account_id: int, *, actor_id: int | None = None, ip: str | None = None
+) -> None:
+    """删除账号（social_post 级联删除，判断历史随删，写审计）。
 
     Raises:
         NotFoundError: 账号不存在。
@@ -146,4 +176,12 @@ async def delete_account(session: AsyncSession, account_id: int) -> None:
     if account is None:
         raise NotFoundError("追踪账号不存在")
     await session.delete(account)
+    if actor_id is not None:
+        await record_audit(
+            session,
+            actor_id=actor_id,
+            action=AUDIT_ACCOUNT_DELETE,
+            detail={"accountId": account_id},
+            ip=ip,
+        )
     await session.commit()

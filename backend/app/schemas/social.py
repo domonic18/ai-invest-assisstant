@@ -54,6 +54,14 @@ class SocialJudgmentBatch(BaseModel):
 StanceCount = Literal["bullish", "bearish", "neutral"]
 
 
+class SocialTargetResponse(CamelModel):
+    """影响标的（wire 视图；与 LLM 契约 SocialTarget 字段一致，camelCase 输出）。"""
+
+    target_type: Literal["index", "sector", "stock", "commodity"]
+    name: str
+    code: str | None = None
+
+
 class SocialFeedItemResponse(CamelModel):
     """情绪流卡片（post + account + sentiment 联查派生）。"""
 
@@ -77,7 +85,7 @@ class SocialFeedItemResponse(CamelModel):
     stance: StanceCount
     confidence: float
     core_arguments: list[str]
-    targets: list[SocialTarget]
+    targets: list[SocialTargetResponse]
     summary: str
 
 
@@ -101,9 +109,10 @@ class SocialAccountCardResponse(CamelModel):
     latest_confidence: float | None = None
     latest_summary: str | None = None
     latest_cover_url: str | None = None
-    bullish_count_7d: int = 0
-    bearish_count_7d: int = 0
-    neutral_count_7d: int = 0
+    # 显式 alias：避免 to_camel 生成 "7D" 的别扭大小写
+    bullish_count_7d: int = Field(default=0, serialization_alias="bullishCount7d")
+    bearish_count_7d: int = Field(default=0, serialization_alias="bearishCount7d")
+    neutral_count_7d: int = Field(default=0, serialization_alias="neutralCount7d")
 
 
 class SocialAccountsResponse(CamelModel):
