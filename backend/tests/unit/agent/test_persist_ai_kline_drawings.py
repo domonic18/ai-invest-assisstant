@@ -67,3 +67,56 @@ class TestValidateItems:
             anchors=[{"date": "2026-09-01", "price": "abc"}, {"date": "2026-09-03", "price": 1.0}]
         )
         assert "有限数值" in (_validate_items([item], TRADE_DATES) or "")
+
+
+@pytest.mark.unit
+class TestPersistAiDrawingAppendMode:
+    @pytest.mark.asyncio
+    async def test_append_mode_passes_through_and_counts_merged_group(self) -> None:
+        """mode="append" 透传给服务层；count 返回合并后组内条数（撞名替换不叠加）。"""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from app.agent.tools import drawing_tools as dt
+
+        saved_group = MagicMock()
+        saved_group.drawings = [MagicMock(), MagicMock(), MagicMock()]  # 2 旧 + 1 新
+        service_instance = MagicMock()
+        service_instance.upsert_ai_group = AsyncMock(return_value=saved_group)
+
+        class _FakeSessionCtx:
+            async def __aenter__(self):
+                return MagicMock()
+
+            async def __aexit__(self, *args: object):
+                return None
+
+        def fake_session():
+            return _FakeSessionCtx()
+
+        with (
+            patch("app.agent.tools.drawing_tools.AsyncSessionLocal", fake_session),
+            patch(
+                "app.services.market.kline_drawing_service.KlineDrawingService",
+                return_value=service_instance,
+            ),
+            patch(
+                "app.agent.tools.drawing_tools._target_trade_dates",
+                AsyncMock(return_value={"2026-09-01", "2026-09-03"}),
+            ),
+        ):
+            result = await dt.persist_ai_kline_drawings.ainvoke(
+                {
+                    "target_type": "stock",
+                    "target_code": "600519",
+                    "period": "daily",
+                    "drawings": [trendline_item(label="压力位")],
+                    "mode": "append",
+                },
+                config={"configurable": {"user_id": 1}},
+            )
+
+        assert "error" not in result
+        kwargs = service_instance.upsert_ai_group.await_args.kwargs
+        assert kwargs["mode"] == "append"
+        assert result["count"] == 3
+        assert result["__event__"]["count"] == 3

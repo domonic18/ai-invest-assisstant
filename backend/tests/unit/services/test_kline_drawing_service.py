@@ -216,3 +216,45 @@ async def test_adopt_scoped_to_owner(session: AsyncSession) -> None:
         ),
     )
     assert adopted.drawing_type == "trendline"
+
+
+@pytest.mark.asyncio
+async def test_append_mode_replaces_label_in_place(session: AsyncSession) -> None:
+    """append 撞名 label 原位替换（顺序不变、不重复追加），新 label 尾部新增。
+
+    label 是组内唯一键：若 append 只会把重复项追加到尾部，前端按 label 定位
+    （拖拽落表/采纳/改名）会命中歧义。
+    """
+    service = KlineDrawingService(session)
+    user_id = await _seed_user(session, "carol")
+    kw = dict(
+        user_id=user_id,
+        target_type="stock",
+        target_code="600519",
+        period="daily",
+        skill_id="kline-smart-drawing",
+        trade_date=date(2026, 9, 10),
+    )
+    await service.upsert_ai_group(
+        **kw, drawings=[_ai_item("压力位"), _ai_item("支撑位")], mode="replace"
+    )
+
+    replaced = AiKlineDrawingItemSchema.model_validate(
+        {
+            "drawingType": "trendline",
+            "anchors": [
+                {"date": "2026-09-02", "price": 11.0},
+                {"date": "2026-09-08", "price": 12.5},
+            ],
+            "label": "压力位",
+            "reason": "调整后的压力位",
+        }
+    )
+    result = await service.upsert_ai_group(
+        **kw, drawings=[replaced, _ai_item("新低量柱")], mode="append"
+    )
+
+    labels = [item.label for item in result.drawings]
+    assert labels == ["压力位", "支撑位", "新低量柱"]
+    assert result.drawings[0].reason == "调整后的压力位"
+    assert result.drawings[0].anchors[0].price == 11.0

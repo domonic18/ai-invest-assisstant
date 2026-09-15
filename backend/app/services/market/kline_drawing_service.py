@@ -10,6 +10,7 @@ from typing import Any, Literal, cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.drawing import DRAWING_LABEL_MAX, REQUIRED_ANCHORS
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.models.kline_drawing import AiKlineDrawing, UserKlineDrawing
 from app.repositories.market.kline_drawing_repository import (
@@ -31,14 +32,6 @@ TargetTypeLiteral = Literal["stock", "index", "sector"]
 PeriodLiteral = Literal["daily", "weekly", "monthly"]
 DrawingTypeLiteral = Literal["trendline", "ray", "hline", "box", "text"]
 
-#: 画线类型 → 锚点数（hline 只有价格锚点，date 存空串）
-REQUIRED_ANCHORS: dict[str, int] = {
-    "trendline": 2,
-    "ray": 2,
-    "box": 2,
-    "hline": 1,
-    "text": 1,
-}
 
 def _format_price(price: float) -> str:
     """价格格式化：最多两位小数，去除尾零。"""
@@ -273,8 +266,10 @@ class KlineDrawingService:
         drawing_type = items[index].get("drawing_type", "")
         if new_label:
             new_label = new_label.strip()
-            if not new_label or len(new_label) > 100:
-                raise BadRequestError("new_label 必须为 1-100 字符")
+            if not new_label or len(new_label) > DRAWING_LABEL_MAX:
+                raise BadRequestError(
+                    f"new_label 必须为 1-{DRAWING_LABEL_MAX} 字符"
+                )
             if any(item.get("label") == new_label for i, item in enumerate(items) if i != index):
                 raise BadRequestError(f"AI 画线组内已存在 label「{new_label}」")
             items[index]["label"] = new_label
