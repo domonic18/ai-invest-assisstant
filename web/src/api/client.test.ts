@@ -2,6 +2,8 @@ import { AxiosError, AxiosHeaders } from 'axios'
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ENDPOINTS, StorageKey } from '@ai-invest/shared'
+
 import { apiClient } from './client'
 
 type Transform = (data: unknown, headers: AxiosHeaders) => unknown
@@ -120,6 +122,50 @@ describe('apiClient 502 容错', () => {
     expect(error.message).toBe('业务错误')
     expect(error.response.status).toBe(400)
     expect(call).toBe(1)
+  })
+})
+
+describe('apiClient 401 处理', () => {
+  afterEach(() => {
+    delete apiClient.defaults.adapter
+    vi.restoreAllMocks()
+    localStorage.removeItem(StorageKey.auth.accessToken)
+  })
+
+  function installStatus(status: number) {
+    apiClient.defaults.adapter = async (config) => {
+      throw new AxiosError(
+        'Request failed',
+        AxiosError.ERR_BAD_REQUEST,
+        config,
+        null,
+        makeResponse(config, status, { detail: '用户名或密码错误' })
+      )
+    }
+  }
+
+  it('登录接口 401 不清 token 不重定向（凭据错误属业务信号）', async () => {
+    localStorage.setItem(StorageKey.auth.accessToken, 'stale-token')
+    installStatus(401)
+    const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem')
+
+    const error = await apiClient.post(ENDPOINTS.auth.login, {}).catch((e) => e)
+
+    expect(error.response.status).toBe(401)
+    expect(error.message).toBe('用户名或密码错误')
+    expect(localStorage.getItem(StorageKey.auth.accessToken)).toBe('stale-token')
+    expect(removeItemSpy).not.toHaveBeenCalled()
+  })
+
+  it('普通接口 401 清 token 并重定向 /login', async () => {
+    localStorage.setItem(StorageKey.auth.accessToken, 'stale-token')
+    installStatus(401)
+    const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem')
+
+    const error = await apiClient.get('/x').catch((e) => e)
+
+    expect(error.response.status).toBe(401)
+    expect(removeItemSpy).toHaveBeenCalledWith(StorageKey.auth.accessToken)
   })
 })
 
