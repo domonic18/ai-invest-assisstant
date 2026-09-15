@@ -94,6 +94,12 @@ export const queryKeys = {
   },
   llmConfigs: ['llm-configs'] as const,
   mcpServers: ['mcp-servers'] as const,
+  socialAdmin: {
+    accounts: (page: number, pageSize: number) =>
+      ['admin-social-accounts', page, pageSize] as const,
+    status: ['admin-social-status'] as const,
+    asrConfig: ['admin-social-asr-config'] as const,
+  },
   proxyConfigs: ['proxy-configs'] as const,
   trackedIndexOptions: ['tracked-index-options'] as const,
   market: {
