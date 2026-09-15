@@ -16,6 +16,21 @@ export function scoreBand(aiScore: number | null): ScoreBand {
   return 'low'
 }
 
+/** AI 分级三档色条（null=未分级灰条；阈值见上）。 */
+export const BAND_BAR_CLASS: Record<ScoreBand, string> = {
+  high: 'bg-red-500',
+  mid: 'bg-amber-500',
+  low: 'bg-white/20',
+  unscored: 'bg-white/10',
+}
+
+const NEW_ITEM_WINDOW_SEC = 120
+
+/** 发布时间距今 < 2 分钟视为「新讯息」（列表 NEW 角标） */
+export function isNew(item: TelegraphItem, now: number): boolean {
+  return now - dayjs(item.publishTime).valueOf() < NEW_ITEM_WINDOW_SEC * 1000
+}
+
 export interface NewsDayGroup<T = TelegraphItem> {
   /** 分组键（本地时区 YYYY-MM-DD）。 */
   day: string
