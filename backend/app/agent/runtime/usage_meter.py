@@ -5,9 +5,10 @@
 因此以 run_id 维护 in-flight 状态，开始时捕获当次计量上下文（并发流各自正确）。
 
 - ``on_chat_model_start``（chat 模型的开始事件；``on_llm_start`` 兜底，run_id 去重）：
-  系统出口且有属主 → Redis 原子预扣，不足仅告警并照常预扣计量——**LangChain
-  callback manager 会吞掉 callback 异常，raise 无法中断调用**，请求级拦截由
-  AI 入口的 ``quota_service.precheck`` 显式承担（REST 429）；
+  系统出口且有属主 → Redis 原子预扣；降级放行（``RESERVE_DEGRADED``）未真实
+  预扣，跳过结算；不足仅告警并照常预扣计量——**LangChain callback manager
+  会吞掉 callback 异常，raise 无法中断调用**，请求级拦截由 AI 入口的
+  ``quota_service.precheck`` 显式承担（REST 429）；
 - ``on_llm_end``：优先 usage_metadata 真实值，缺失走估算并标 ``estimated``；
   结算回补差额 + 明细入队；
 - ``on_llm_error``：全额回补（失败调用不留用量记录）。
@@ -91,20 +92,22 @@ class UsageMeterCallback(AsyncCallbackHandler):
         self.model_name = model_name
         self._inflight: dict[uuid.UUID, _RunMeter] = {}
 
-    def _prune_stale(self) -> None:
+    async def _prune_stale(self) -> None:
         if len(self._inflight) < _MAX_INFLIGHT:
             return
         cutoff = time.monotonic() - _STALE_SECONDS
         for run_id in [k for k, v in self._inflight.items() if v.started_at < cutoff]:
-            # 陈旧项未结算：回补预扣后丢弃（宁紧勿超口径的例外自愈）
-            self._inflight.pop(run_id, None)
+            state = self._inflight.pop(run_id)
+            # 陈旧项未结算：全额回补预扣后丢弃（取消的流不会触发 end 回调）
+            if state.reserved and state.ctx is not None and state.ctx.user_id is not None:
+                await quota_service.settle(state.ctx.user_id, state.reserved, 0)
 
     async def _start(
         self, run_id: uuid.UUID | None, prompt_text: str
     ) -> None:
         if run_id is None or run_id in self._inflight:
             return
-        self._prune_stale()
+        await self._prune_stale()
         raw_ctx = current_meter_context()
         # 未包裹 meter_scope 的调用（Celery 直调服务等）按系统维度记账，绝不漏计
         ctx = raw_ctx if raw_ctx is not None else MeterContext(user_id=None, feature=FEATURE_SYSTEM)
@@ -114,18 +117,27 @@ class UsageMeterCallback(AsyncCallbackHandler):
                 get_settings().quota_completion_reserve_tokens
             )
             remaining = await quota_service.check_and_reserve(ctx.user_id, estimate)
-            if remaining == quota_service.RESERVE_DENIED:
-                # LangChain callback manager 会吞掉 callback 抛出的异常（仅打印
-                # "Error in ... callback"），raise 无法中断调用——此处不抛，照常
-                # 预扣与计量把镜像扣至负值；请求级拦截由入口 quota_service.precheck 承担
-                # （本 run 中途打穿的轮次是有限的放行窗口，下一个请求必被 precheck 拒）。
+            if remaining == quota_service.RESERVE_DEGRADED:
+                # Redis 降级 PG 放行未真实预扣：跳过结算——回补差额会在镜像恢复后虚增余额
                 logger.warning(
-                    "quota_exhausted_run_passthrough",
+                    "quota_gate_degraded_passthrough",
                     user_id=ctx.user_id,
                     feature=ctx.feature,
                     model=self.model_name,
                 )
-            reserved = estimate
+            else:
+                if remaining == quota_service.RESERVE_DENIED:
+                    # LangChain callback manager 会吞掉 callback 抛出的异常（仅打印
+                    # "Error in ... callback"），raise 无法中断调用——此处不抛，照常
+                    # 预扣与计量把镜像扣至负值；请求级拦截由入口 quota_service.precheck 承担
+                    # （本 run 中途打穿的轮次是有限的放行窗口，下一个请求必被 precheck 拒）。
+                    logger.warning(
+                        "quota_exhausted_run_passthrough",
+                        user_id=ctx.user_id,
+                        feature=ctx.feature,
+                        model=self.model_name,
+                    )
+                reserved = estimate
         self._inflight[run_id] = _RunMeter(ctx=ctx, prompt_text=prompt_text, reserved=reserved)
 
     async def on_chat_model_start(

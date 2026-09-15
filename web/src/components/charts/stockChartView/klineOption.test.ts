@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import type { StockKlineBar } from '@ai-invest/shared'
 
-import { buildKlineOption, prepareKlineData } from './klineOption'
+import { prepareKlineData } from './klineData'
+import { buildKlineOption } from './klineOption'
 
 const bar = (
   date: string,

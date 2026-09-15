@@ -94,7 +94,7 @@ async def fetch_kline(
 - 业务逻辑在服务层实现
 - 正确使用 HTTP 状态码
 - 使用一致的 JSON 响应格式
-- 列表端点支持分页
+- 列表端点支持分页；分页参数统一走 `app/constants/pagination.py` 常量 + `Query(ge/le)` 约束，禁止在函数体内手工钳制默认值（Pydantic 模型内构造 query 参数时校验失败变 500，Query 约束才是 422）
 
 ### 数据库分层与事务边界（必须遵守）
 
@@ -181,6 +181,7 @@ collector/
 - 禁止在 Python 代码中硬编码 Prompt
 - 使用 `PromptLoader` 加载配置、`PromptRenderer` 渲染模板
 - 使用 `model_factory.build_langchain_model()` 统一创建模型；多步任务走 `agent/skills/skill_runtime` deepagents 骨架，单轮结构化任务走 `agent/runtime/structured.run_structured`
+- **结构化输出 schema 字段禁带默认值**：带默认值不进 JSON Schema `required`，LLM 会静默省略该字段（news-score reason 全空事故）；无数据的段落由 LLM 显式输出空列表/空串/null；旧快照兼容用 `model_validator(mode="before")` 补缺失键（校验器不影响生成的 schema）
 
 ### 可观测系统与日志标准
 

@@ -66,7 +66,8 @@ SPECS: tuple[TaskSpec, ...] = (
         collectors={
             "cninfo": "collector.spiders.cninfo_financial_report:CninfoFinancialReportCollector",
         },
-        config_params=("report_types", "start_date", "end_date"),
+        config_params=("report_types",),
+        run_params=("start_date", "end_date"),
     ),
     TaskSpec(
         name="ipo-info",

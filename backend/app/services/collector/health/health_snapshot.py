@@ -119,7 +119,9 @@ def build_instance_facts(
                 runs=runs_by_key.get(key, []),
                 last_success_at=success.started_at if success else None,
                 last_records_count=success.records_count if success else None,
-                last_records_date=success.started_at.date() if success else None,
+                last_records_date=success.started_at.astimezone(CN_TZ).date()
+                if success
+                else None,
                 last_error_summary=error.error_summary if error else None,
                 last_error_at=error.started_at if error else None,
             )

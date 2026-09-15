@@ -5,8 +5,8 @@ import { useColorScheme } from '@/stores/settings'
 import { formatAmount } from '@/utils/formatters'
 
 import type { ApiSectorFundFlowPoint } from '@ai-invest/shared'
+import { FONT_MONO } from '@/components/charts/chartShared'
 
-const FONT_MONO = "'SF Mono','Fira Code','Consolas',monospace"
 const CUM_COLOR = '#5e6ad2'
 
 /** 四档单型堆叠柱的身份配色（正负由柱方向表达，不占用涨跌色）。 */

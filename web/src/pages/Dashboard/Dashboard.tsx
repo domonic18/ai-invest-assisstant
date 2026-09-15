@@ -107,7 +107,10 @@ export function Dashboard() {
         </div>
 
         <div className="space-y-6">
-          <AiReviewSection tradeDate={tradeDate} />
+          <AiReviewSection
+            tradeDate={tradeDate}
+            viewDate={tradeDate ?? stats?.tradeDate ?? limitUp?.tradeDate}
+          />
           <WatchlistQuotesCard />
         </div>
       </div>

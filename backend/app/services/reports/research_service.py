@@ -26,13 +26,16 @@ _SUMMARY_SKILL_ID = "research-report-summary"
 
 
 class ResearchReportSummaryResult(BaseModel):
-    """LLM 结构化输出：单篇研报摘要字段（正文缺失时输出空字符串）。"""
+    """LLM 结构化输出：单篇研报摘要字段（正文缺失时输出空字符串）。
 
-    rating: str = ""
-    target_price: str = ""
-    core_logic: str = ""
-    earnings_forecast: str = ""
-    risk_warning: str = ""
+    字段禁带默认值：默认值不进 required，LLM 会静默省略该字段（news-score 事故）。
+    """
+
+    rating: str
+    target_price: str
+    core_logic: str
+    earnings_forecast: str
+    risk_warning: str
 
 
 class ResearchService:

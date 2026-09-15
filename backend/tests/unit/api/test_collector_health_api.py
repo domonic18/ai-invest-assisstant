@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.core.clock import today_cn
 from app.dependencies import get_current_admin_user
 from app.main import app
 
@@ -128,8 +129,9 @@ class TestCollectorHealthEndpoints:
     def test_schedule_check_wire_shape(
         self, mock_schedule: AsyncMock, auth_client
     ) -> None:
+        today = today_cn()
         mock_schedule.return_value = {
-            "date": date(2026, 9, 15),
+            "date": today,
             "is_trade_day": True,
             "items": [
                 {
@@ -143,16 +145,32 @@ class TestCollectorHealthEndpoints:
             ],
         }
         resp = auth_client.get(
-            "/api/v1/admin/collector/health/schedule-check?date=2026-09-15"
+            f"/api/v1/admin/collector/health/schedule-check?date={today.isoformat()}"
         )
 
         assert resp.status_code == 200
         data = resp.json()
-        assert data["date"] == "2026-09-15"
+        assert data["date"] == today.isoformat()
         assert data["isTradeDay"] is True
         assert data["items"][0]["windowTotal"] == 1
         assert data["items"][0]["successWindows"] == 1
         assert data["items"][0]["hasTaskRow"] is True
+
+    def test_schedule_check_rejects_future_date(self, auth_client) -> None:
+        future = (today_cn() + timedelta(days=1)).isoformat()
+        resp = auth_client.get(
+            f"/api/v1/admin/collector/health/schedule-check?date={future}"
+        )
+
+        assert resp.status_code == 422
+
+    def test_schedule_check_rejects_date_older_than_one_year(self, auth_client) -> None:
+        old = (today_cn() - timedelta(days=366)).isoformat()
+        resp = auth_client.get(
+            f"/api/v1/admin/collector/health/schedule-check?date={old}"
+        )
+
+        assert resp.status_code == 422
 
     @patch(
         "app.api.v1.admin.collector_health.health_service.run_check",

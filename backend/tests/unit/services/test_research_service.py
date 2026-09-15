@@ -99,7 +99,14 @@ class TestRenderSummaryMarkdown:
         assert "### 风险提示" in markdown
 
     def test_omits_empty_fields(self) -> None:
-        output = ResearchReportSummaryResult(core_logic="- 逻辑一")
+        # 字段必填：正文缺失时由 LLM 显式输出空字符串
+        output = ResearchReportSummaryResult(
+            rating="",
+            target_price="",
+            core_logic="- 逻辑一",
+            earnings_forecast="",
+            risk_warning="",
+        )
         markdown = _render_summary_markdown(output)
         assert "投资评级" not in markdown
         assert "目标价" not in markdown

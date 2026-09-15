@@ -1,54 +1,30 @@
-import {
-  AimOutlined,
-  LinkOutlined,
-  ReloadOutlined,
-  StarFilled,
-  VerticalAlignTopOutlined,
-} from '@ant-design/icons'
-import {
-  Button,
-  Card,
-  Empty,
-  Pagination,
-  Space,
-  Spin,
-  Switch,
-  Tag,
-  theme,
-  Tooltip,
-  Typography,
-  message,
-} from 'antd'
+/**
+ * 新闻页实时电报容器：渠道 chips 行 + 电报流（AI 分级/订阅筛选）与东财快讯基础流切换。
+ * 条目渲染见 NewsFeedEntry.tsx，分组列表/工具条/分页骨架见 FeedSkeleton.tsx。
+ */
+
+import { VerticalAlignTopOutlined } from '@ant-design/icons'
+import { Space, Tag, Tooltip, theme } from 'antd'
 import dayjs from 'dayjs'
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-import { PAGE_SIZE, type ApiNewsChannel, type TelegraphItem } from '@ai-invest/shared'
+import { PAGE_SIZE, type ApiNewsChannel } from '@ai-invest/shared'
 
-import type { NewsFlashItem } from '@/api/mappers/news'
-import { StockLinkTag } from '@/components/common/StockLinkTag'
-import { useCreateNewsStory } from '@/hooks/useNewsFocus'
+import { formatDateTime, formatRelativeTime } from '@/utils/formatters'
 import { useNewsFlash } from '@/hooks/useNewsFlash'
 import { useTelegraph } from '@/hooks/useTelegraph'
-import { formatDateTime, formatRelativeTime } from '@/utils/formatters'
+import { FlashEntry, NewsEntry } from './NewsFeedEntry'
+import { FeedList, FeedPagination, FeedToolbar } from './FeedSkeleton'
 import {
+  BAND_BAR_CLASS,
   countNewMessages,
   groupByDay,
   isChannelWired,
-  isNoiseCategory,
-  isNoiseImportance,
+  isNew,
   scoreBand,
   SCORE_HIGH_MIN,
   SCORE_MID_MIN,
-  type ScoreBand,
 } from '../logic'
-
-/** AI 分级三档色条（null=未分级灰条；阈值见 logic.ts）。 */
-const BAND_BAR_CLASS: Record<ScoreBand, string> = {
-  high: 'bg-red-500',
-  mid: 'bg-amber-500',
-  low: 'bg-white/20',
-  unscored: 'bg-white/10',
-}
 
 /** 分级筛选：全部=不过滤（含未分级）；低=仅已分级（min_ai_score=0 排除未分级）。 */
 const SCORE_FILTERS: { label: string; value: number | undefined }[] = [
@@ -58,157 +34,8 @@ const SCORE_FILTERS: { label: string; value: number | undefined }[] = [
   { label: '已分级', value: 0 },
 ]
 
-const NEW_ITEM_WINDOW_SEC = 120
 /** 最新电报滞后超过该秒数时提示采集可能断流。 */
 const LAG_WARNING_SEC = 120
-
-function importanceTag(importance: number | null) {
-  if (importance === null || isNoiseImportance(importance)) return null
-  const presets: Record<number, { color: string; label: string }> = {
-    3: { color: 'red', label: '重要' },
-    2: { color: 'orange', label: '关注' },
-  }
-  const preset = presets[importance] ?? { color: 'gold', label: `L${importance}` }
-  return <Tag color={preset.color}>{preset.label}</Tag>
-}
-
-function isNew(item: TelegraphItem, now: number): boolean {
-  return now - dayjs(item.publishTime).valueOf() < NEW_ITEM_WINDOW_SEC * 1000
-}
-
-function BadgeNew() {
-  return (
-    <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500">
-      <span className="inline-block size-1.5 rounded-full bg-red-500 animate-pulse" />
-      NEW
-    </span>
-  )
-}
-
-/** 关联标的 Tag：名称 + 当日涨跌幅（scheme 着色），点击直达个股页。 */
-function StockTags({ item }: { item: TelegraphItem }) {
-  if (item.stocks.length > 0) {
-    return (
-      <>
-        {item.stocks.map((stock) => (
-          <StockLinkTag
-            key={stock.code}
-            code={stock.code}
-            name={stock.name}
-            changePct={stock.changePct ?? null}
-          />
-        ))}
-      </>
-    )
-  }
-  return (
-    <>
-      {item.stockCodes.map((code) => (
-        <Tag key={code} className="font-mono">
-          {code}
-        </Tag>
-      ))}
-    </>
-  )
-}
-
-function NewsEntry({ item, isNewItem }: { item: TelegraphItem; isNewItem: boolean }) {
-  const createStory = useCreateNewsStory()
-  const [messageApi, contextHolder] = message.useMessage()
-
-  return (
-    <div className="space-y-1">
-      {contextHolder}
-      <div className="flex items-center gap-2 flex-wrap">
-        {importanceTag(item.importance)}
-        {!isNoiseCategory(item.category) && item.category && <Tag>{item.category}</Tag>}
-        {item.title && <span className="text-sm font-semibold">{item.title}</span>}
-        {item.subscribed && (
-          <Tooltip title="命中我的订阅关键词">
-            <StarFilled className="text-xs text-amber-400" />
-          </Tooltip>
-        )}
-        {isNewItem && <BadgeNew />}
-      </div>
-      {item.content && (
-        <Typography.Paragraph
-          className="!mb-0"
-          ellipsis={{ rows: 3, expandable: true, symbol: '展开' }}
-        >
-          {item.content}
-        </Typography.Paragraph>
-      )}
-      <div className="flex items-center gap-2 flex-wrap">
-        <StockTags item={item} />
-        {item.sourceUrl && (
-          <Tooltip title="查看原文（cls.cn）">
-            <Typography.Link
-              href={item.sourceUrl}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="查看原文"
-            >
-              <LinkOutlined />
-            </Typography.Link>
-          </Tooltip>
-        )}
-        <Tooltip title="跟踪此事件（手动建线）">
-          <Button
-            type="text"
-            size="small"
-            icon={<AimOutlined />}
-            aria-label="跟踪此事件"
-            loading={
-              createStory.isPending &&
-              createStory.variables?.itemId === String(item.clsMsgId)
-            }
-            onClick={() =>
-              createStory.mutate(
-                { source: 'cls_telegraph', itemId: String(item.clsMsgId) },
-                {
-                  onSuccess: () =>
-                    messageApi.success('已创建跟踪线，见「重点与跟踪」视图'),
-                  onError: (error) =>
-                    messageApi.error(error.message || '创建跟踪线失败'),
-                },
-              )
-            }
-          />
-        </Tooltip>
-      </div>
-    </div>
-  )
-}
-
-/** 快讯条目（基础流：title + summary + 时间 + 原文链接，无 AI 分级/订阅/标的）。 */
-function FlashEntry({ item }: { item: NewsFlashItem }) {
-  const summary = item.summary ?? item.content
-  return (
-    <div className="space-y-1">
-      {item.title && <span className="text-sm font-semibold">{item.title}</span>}
-      {summary && (
-        <Typography.Paragraph
-          className="!mb-0"
-          ellipsis={{ rows: 3, expandable: true, symbol: '展开' }}
-        >
-          {summary}
-        </Typography.Paragraph>
-      )}
-      {item.sourceUrl && (
-        <Tooltip title="查看原文（东财）">
-          <Typography.Link
-            href={item.sourceUrl}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="查看原文"
-          >
-            <LinkOutlined />
-          </Typography.Link>
-        </Tooltip>
-      )}
-    </div>
-  )
-}
 
 /** 财联社电报流：AI 分级三档色条 + 分级/订阅筛选 + 新讯息浮条 + 跨日分隔。 */
 function TelegraphFeed() {
@@ -277,25 +104,23 @@ function TelegraphFeed() {
             </Tag.CheckableTag>
           </Tooltip>
         </div>
-        <Space size="middle" className="items-center">
-          {latest && (
-            <Tooltip title={`最新电报发布于 ${formatDateTime(latest.publishTime)}`}>
-              <Tag color={lagged ? 'warning' : 'success'} className="!m-0">
-                最新 {formatRelativeTime(latest.publishTime)}
-                {lagged && ' · 疑似断流'}
-              </Tag>
-            </Tooltip>
-          )}
-          <span className="text-xs opacity-60">
-            {dataUpdatedAt ? `更新于 ${dayjs(dataUpdatedAt).format('HH:mm:ss')}` : ''}
-            {isFetching ? ' · 拉取中' : ''}
-          </span>
-          <span className="flex items-center gap-1.5 text-sm">
-            <Switch size="small" checked={autoRefresh} onChange={setAutoRefresh} />
-            自动刷新
-          </span>
-          <Button size="small" icon={<ReloadOutlined />} onClick={() => refetch()} />
-        </Space>
+        <FeedToolbar
+          dataUpdatedAt={dataUpdatedAt}
+          isFetching={isFetching}
+          autoRefresh={autoRefresh}
+          onAutoRefreshChange={setAutoRefresh}
+          onRefresh={() => refetch()}
+          leading={
+            latest ? (
+              <Tooltip title={`最新电报发布于 ${formatDateTime(latest.publishTime)}`}>
+                <Tag color={lagged ? 'warning' : 'success'} className="!m-0">
+                  最新 {formatRelativeTime(latest.publishTime)}
+                  {lagged && ' · 疑似断流'}
+                </Tag>
+              </Tooltip>
+            ) : undefined
+          }
+        />
       </div>
 
       {newCount > 0 && (
@@ -318,63 +143,42 @@ function TelegraphFeed() {
         </button>
       )}
 
-      <Spin spinning={isLoading}>
-        <Card variant="borderless">
-          {items.length === 0 && !isLoading ? (
-            <Empty description="暂无电报数据" />
-          ) : (
-            <div>
-              {groups.map((group, groupIndex) => (
-                <Fragment key={group.day}>
-                  {groupIndex > 0 && (
-                    <div className="flex items-center gap-2.5 my-3 text-xs opacity-40">
-                      <span className="flex-1 h-px bg-white/10" />
-                      以下为 {group.label} 资讯
-                      <span className="flex-1 h-px bg-white/10" />
-                    </div>
-                  )}
-                  {group.items.map((item) => (
-                    <div key={item.clsMsgId} className="flex gap-3 py-3 border-b border-white/5">
-                      <Tooltip
-                        title={
-                          item.aiScore === null
-                            ? 'AI 分级待完成'
-                            : `AI 重要度 ${item.aiScore}`
-                        }
-                      >
-                        <span
-                          className={`w-[3px] rounded shrink-0 self-stretch ${BAND_BAR_CLASS[scoreBand(item.aiScore)]}`}
-                        />
-                      </Tooltip>
-                      <span className="font-mono text-xs opacity-70 whitespace-nowrap pt-0.5">
-                        {dayjs(item.publishTime).format('HH:mm:ss')}
-                      </span>
-                      <span className="flex-1 min-w-0">
-                        <NewsEntry item={item} isNewItem={isNew(item, now)} />
-                      </span>
-                    </div>
-                  ))}
-                </Fragment>
-              ))}
-            </div>
-          )}
-        </Card>
-      </Spin>
+      <FeedList
+        groups={groups}
+        isLoading={isLoading}
+        emptyText="暂无电报数据"
+        getKey={(item) => item.clsMsgId}
+      >
+        {(item) => (
+          <div className="flex gap-3 py-3 border-b border-white/5">
+            <Tooltip
+              title={
+                item.aiScore === null ? 'AI 分级待完成' : `AI 重要度 ${item.aiScore}`
+              }
+            >
+              <span
+                className={`w-[3px] rounded shrink-0 self-stretch ${BAND_BAR_CLASS[scoreBand(item.aiScore)]}`}
+              />
+            </Tooltip>
+            <span className="font-mono text-xs opacity-70 whitespace-nowrap pt-0.5">
+              {dayjs(item.publishTime).format('HH:mm:ss')}
+            </span>
+            <span className="flex-1 min-w-0">
+              <NewsEntry item={item} isNewItem={isNew(item, now)} />
+            </span>
+          </div>
+        )}
+      </FeedList>
 
-      <div className="flex justify-end">
-        <Pagination
-          current={page}
-          pageSize={pageSize}
-          total={data?.total ?? 0}
-          showSizeChanger
-          pageSizeOptions={[10, 30, 50, 100]}
-          showTotal={(total) => `共 ${total} 条`}
-          onChange={(next, nextSize) => {
-            setPage(next)
-            setPageSize(nextSize)
-          }}
-        />
-      </div>
+      <FeedPagination
+        page={page}
+        pageSize={pageSize}
+        total={data?.total ?? 0}
+        onChange={(next, nextSize) => {
+          setPage(next)
+          setPageSize(nextSize)
+        }}
+      />
     </div>
   )
 }
@@ -397,63 +201,42 @@ function FlashFeedView() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-end gap-3 flex-wrap">
-        <span className="text-xs opacity-60">
-          {dataUpdatedAt ? `更新于 ${dayjs(dataUpdatedAt).format('HH:mm:ss')}` : ''}
-          {isFetching ? ' · 拉取中' : ''}
-        </span>
-        <span className="flex items-center gap-1.5 text-sm">
-          <Switch size="small" checked={autoRefresh} onChange={setAutoRefresh} />
-          自动刷新
-        </span>
-        <Button size="small" icon={<ReloadOutlined />} onClick={() => refetch()} />
-      </div>
-
-      <Spin spinning={isLoading}>
-        <Card variant="borderless">
-          {items.length === 0 && !isLoading ? (
-            <Empty description="暂无快讯数据" />
-          ) : (
-            <div>
-              {groups.map((group, groupIndex) => (
-                <Fragment key={group.day}>
-                  {groupIndex > 0 && (
-                    <div className="flex items-center gap-2.5 my-3 text-xs opacity-40">
-                      <span className="flex-1 h-px bg-white/10" />
-                      以下为 {group.label} 资讯
-                      <span className="flex-1 h-px bg-white/10" />
-                    </div>
-                  )}
-                  {group.items.map((item) => (
-                    <div key={item.id} className="flex gap-3 py-3 border-b border-white/5">
-                      <span className="font-mono text-xs opacity-70 whitespace-nowrap pt-0.5">
-                        {dayjs(item.publishTime).format('HH:mm:ss')}
-                      </span>
-                      <span className="flex-1 min-w-0">
-                        <FlashEntry item={item} />
-                      </span>
-                    </div>
-                  ))}
-                </Fragment>
-              ))}
-            </div>
-          )}
-        </Card>
-      </Spin>
-
-      <div className="flex justify-end">
-        <Pagination
-          current={page}
-          pageSize={pageSize}
-          total={data?.total ?? 0}
-          showSizeChanger
-          pageSizeOptions={[10, 30, 50, 100]}
-          showTotal={(total) => `共 ${total} 条`}
-          onChange={(next, nextSize) => {
-            setPage(next)
-            setPageSize(nextSize)
-          }}
+        <FeedToolbar
+          dataUpdatedAt={dataUpdatedAt}
+          isFetching={isFetching}
+          autoRefresh={autoRefresh}
+          onAutoRefreshChange={setAutoRefresh}
+          onRefresh={() => refetch()}
         />
       </div>
+
+      <FeedList
+        groups={groups}
+        isLoading={isLoading}
+        emptyText="暂无快讯数据"
+        getKey={(item) => item.id}
+      >
+        {(item) => (
+          <div className="flex gap-3 py-3 border-b border-white/5">
+            <span className="font-mono text-xs opacity-70 whitespace-nowrap pt-0.5">
+              {dayjs(item.publishTime).format('HH:mm:ss')}
+            </span>
+            <span className="flex-1 min-w-0">
+              <FlashEntry item={item} />
+            </span>
+          </div>
+        )}
+      </FeedList>
+
+      <FeedPagination
+        page={page}
+        pageSize={pageSize}
+        total={data?.total ?? 0}
+        onChange={(next, nextSize) => {
+          setPage(next)
+          setPageSize(nextSize)
+        }}
+      />
     </div>
   )
 }

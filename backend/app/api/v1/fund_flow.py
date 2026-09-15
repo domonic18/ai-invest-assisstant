@@ -6,6 +6,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.dependencies import get_db
 from app.schemas.capital_fund_flow_sector import SectorFlowTrendResponse
 from app.schemas.fund_flow import FundFlowResponse
@@ -34,8 +35,8 @@ async def get_fund_flow(
     stock_code: str | None = None,
     start_date: date | None = None,
     end_date: date | None = None,
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(DEFAULT_PAGE, ge=1),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
 ) -> dict[str, Any]:
     """获取资金流向数据。"""
     items, total = await stock_service.get_fund_flow(

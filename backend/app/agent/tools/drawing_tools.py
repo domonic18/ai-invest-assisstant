@@ -17,22 +17,15 @@ from app.agent.tools.page_event import page_event
 from app.constants.drawing import (
     AI_DRAWING_MAX_ITEMS,
     DRAWING_DIRECTIONS,
+    DRAWING_LABEL_MAX,
     DRAWING_TARGET_TYPES,
     DRAWING_TYPES,
     KLINE_DRAWING_PERIODS,
+    REQUIRED_ANCHORS,
 )
 from app.core.database import AsyncSessionLocal
 
 _SKILL_ID = "kline-smart-drawing"
-
-#: 画线类型 → 锚点数（与服务层 REQUIRED_ANCHORS 同值；避免工具层顶层导入服务层成环）
-_ANCHOR_COUNTS: dict[str, int] = {
-    "trendline": 2,
-    "ray": 2,
-    "box": 2,
-    "hline": 1,
-    "text": 1,
-}
 
 
 async def _target_trade_dates(
@@ -69,8 +62,8 @@ def _validate_items(drawings: list[dict[str, Any]], trade_dates: set[str]) -> st
         if dtype not in DRAWING_TYPES:
             return f"第 {i} 条 drawing_type 非法：{dtype}（须为 {sorted(DRAWING_TYPES)}）"
         anchors = item.get("anchors")
-        if not isinstance(anchors, list) or len(anchors) != _ANCHOR_COUNTS[dtype]:
-            return f"第 {i} 条（{dtype}）需要 {_ANCHOR_COUNTS[dtype]} 个锚点"
+        if not isinstance(anchors, list) or len(anchors) != REQUIRED_ANCHORS[dtype]:
+            return f"第 {i} 条（{dtype}）需要 {REQUIRED_ANCHORS[dtype]} 个锚点"
         for j, anchor in enumerate(anchors, start=1):
             price = anchor.get("price")
             if not isinstance(price, (int, float)) or not math.isfinite(price):
@@ -89,8 +82,8 @@ def _validate_items(drawings: list[dict[str, Any]], trade_dates: set[str]) -> st
         if direction is not None and direction not in DRAWING_DIRECTIONS:
             return f"第 {i} 条 direction 非法：{direction}"
         label = str(item.get("label", "")).strip()
-        if not label or len(label) > 50:
-            return f"第 {i} 条 label 必须为 1-50 字符（组内唯一，作为锚点语义标识）"
+        if not label or len(label) > DRAWING_LABEL_MAX:
+            return f"第 {i} 条 label 必须为 1-{DRAWING_LABEL_MAX} 字符（组内唯一，作为锚点语义标识）"
         if label in labels:
             return f"label「{label}」在组内重复（append 模式按 label 原位替换，须唯一）"
         labels.add(label)

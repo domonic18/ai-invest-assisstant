@@ -258,6 +258,74 @@ def _result(source: str, status: CollectStatus, errors: list[str] | None = None)
 
 
 @pytest.mark.unit
+class TestRunParamsWiring:
+    @pytest.mark.asyncio
+    async def test_financial_report_dates_reach_collect_kwargs(self) -> None:
+        """start_date/end_date 是 run_params：任务入口须透传进 collect()，
+        不得错配为 config_params 被静默丢弃（退化为采集器默认近一年窗口）。"""
+        collect_mock = AsyncMock(return_value=[])
+
+        with (
+            patch(
+                "collector.runtime.registry._resolve_task_channels",
+                AsyncMock(return_value=[("cninfo", {"base_url": None, "api_key": None})]),
+            ),
+            patch(
+                "collector.spiders.cninfo_financial_report.CninfoFinancialReportCollector.collect",
+                collect_mock,
+            ),
+        ):
+            await collect_financial_report(
+                start_date="2026-01-01", end_date="2026-06-30"
+            )
+
+        kwargs = collect_mock.await_args.kwargs
+        assert kwargs["start_date"] == "2026-01-01"
+        assert kwargs["end_date"] == "2026-06-30"
+
+    @pytest.mark.asyncio
+    async def test_financial_report_types_stay_in_config(self) -> None:
+        """report_types 是 config_params：经构造器 config 注入而非 collect kwargs。"""
+        init_configs: list[dict] = []
+
+        class FakeCollector:
+            def __init__(self, config):
+                self.config = config
+                init_configs.append(config)
+
+            async def run(self, **kwargs):
+                from datetime import datetime, timezone
+
+                from collector.core.base import CollectResult, CollectStatus
+
+                now = datetime.now(timezone.utc)
+                return CollectResult(
+                    source="cninfo",
+                    data_type="financial_statement",
+                    status=CollectStatus.SUCCESS,
+                    items_collected=0,
+                    items_stored=0,
+                    errors=[],
+                    started_at=now,
+                    finished_at=now,
+                )
+
+        with (
+            patch(
+                "collector.runtime.registry._resolve_task_channels",
+                AsyncMock(return_value=[("cninfo", {"base_url": None, "api_key": None})]),
+            ),
+            patch(
+                "collector.spiders.cninfo_financial_report.CninfoFinancialReportCollector",
+                FakeCollector,
+            ),
+        ):
+            await collect_financial_report(report_types=["年报"])
+
+        assert init_configs[0]["report_types"] == ["年报"]
+
+
+@pytest.mark.unit
 class TestRunCollectorFallback:
     @pytest.fixture
     def collectors(self):

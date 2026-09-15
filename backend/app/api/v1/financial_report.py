@@ -3,11 +3,12 @@
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.core.exceptions import NotFoundError
-from app.dependencies import get_current_user, get_db
+from app.dependencies import ai_quota_gate, get_db
 from app.models.user import User
 from app.schemas.file_metadata import (
     FinancialReportCollectLogResponse,
@@ -17,9 +18,7 @@ from app.schemas.file_metadata import (
     FinancialReportResponse,
 )
 from app.schemas.stock import PaginatedResponse
-from app.services.quota import quota_service
 from app.services.quota.constants import FEATURE_PAGE
-from app.services.quota.context import meter_scope
 from app.services.reports import financial_report_service
 
 router = APIRouter()
@@ -33,8 +32,8 @@ async def list_financial_reports(
     report_type: str | None = None,
     start_date: date | None = None,
     end_date: date | None = None,
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(DEFAULT_PAGE, ge=1),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
 ) -> PaginatedResponse:
     """查询财报列表，支持股票代码、关键词、报告类型和报告期范围筛选。"""
     params = FinancialReportListRequest(
@@ -137,13 +136,11 @@ async def get_financial_report_pdf_url(
 async def summarize_financial_report(
     report_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(ai_quota_gate(FEATURE_PAGE))],
 ) -> dict[str, Any]:
     """生成或返回财报 AI 摘要（懒生成，结果全局共享）。
 
     业务异常（NotFoundError/SummaryUnavailableError/SummaryInProgressError）由全局
     AppError handler 统一转换为 JSONResponse ``{detail: message}``。
     """
-    await quota_service.precheck(user.id)
-    with meter_scope(user.id, FEATURE_PAGE):
-        return await financial_report_service.summarize_report(session, report_id)
+    return await financial_report_service.summarize_report(session, report_id)

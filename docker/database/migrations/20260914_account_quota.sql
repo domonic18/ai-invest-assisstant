@@ -46,13 +46,13 @@ CREATE TABLE IF NOT EXISTS user_token_usage (
     estimated         BOOLEAN NOT NULL DEFAULT FALSE,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT chk_usage_feature CHECK (feature IN ('assistant', 'page', 'api_key', 'system')),
-    CONSTRAINT chk_usage_outlet CHECK (outlet IN ('system', 'byok'))
+    CONSTRAINT chk_user_token_usage_feature CHECK (feature IN ('assistant', 'page', 'api_key', 'system')),
+    CONSTRAINT chk_user_token_usage_outlet CHECK (outlet IN ('system', 'byok'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_usage_user_time ON user_token_usage(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_usage_time ON user_token_usage(created_at);
-CREATE INDEX IF NOT EXISTS idx_usage_feature_time ON user_token_usage(feature, created_at);
+CREATE INDEX IF NOT EXISTS idx_user_token_usage_user_time ON user_token_usage(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_token_usage_time ON user_token_usage(created_at);
+CREATE INDEX IF NOT EXISTS idx_user_token_usage_feature_time ON user_token_usage(feature, created_at);
 
 CREATE TABLE IF NOT EXISTS user_llm_config (
     id                BIGSERIAL PRIMARY KEY,
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS user_llm_config (
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT chk_user_llm_protocol CHECK (protocol IN ('openai', 'anthropic'))
+    CONSTRAINT chk_user_llm_config_protocol CHECK (protocol IN ('openai', 'anthropic'))
 );
 
 CREATE TABLE IF NOT EXISTS admin_audit_log (
@@ -78,8 +78,8 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_audit_actor_time ON admin_audit_log(actor_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_audit_action_time ON admin_audit_log(action, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_actor_time ON admin_audit_log(actor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_action_time ON admin_audit_log(action, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS system_setting (
     key        VARCHAR(50) PRIMARY KEY,                  -- account.default_quota_tokens / account.pending_expire_days / quota.admin_exempt

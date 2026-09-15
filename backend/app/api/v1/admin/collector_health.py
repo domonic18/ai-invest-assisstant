@@ -1,11 +1,14 @@
 """管理后台采集健康监测 API（只读快照 + 手动检测/清空）。"""
 
 from datetime import date as date_type
+from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clock import today_cn
+from app.core.exceptions import UnprocessableEntityError
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.collector_health import (
     ChannelHealthItem,
@@ -58,6 +61,9 @@ async def get_schedule_check(
     date: date_type = Query(description="核对日期（CN 日历日）"),
 ) -> ScheduleCheckResponse:
     """按任意历史日期核对「应跑 vs 实跑」（按运行日志现算）。"""
+    today = today_cn()
+    if date > today or date < today - timedelta(days=365):
+        raise UnprocessableEntityError("date 须为最近一年内、不晚于今日的 CN 日历日")
     data = await health_service.get_schedule_check(session, date)
     return ScheduleCheckResponse.model_validate(data)
 

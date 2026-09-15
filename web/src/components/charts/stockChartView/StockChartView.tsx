@@ -15,9 +15,11 @@ import type { IndexIntraday, KlineDrawingPeriod } from '@ai-invest/shared'
 import { BORDER_COLOR, PANEL_BG } from './constants'
 import { ChartToolbar } from './ChartToolbar'
 import { KlineEmptyState } from './KlineEmptyState'
-import { buildKlineOption, computePriceAxisRange, prepareKlineData } from './klineOption'
+import { prepareKlineData } from './klineData'
+import { buildKlineOption } from './klineOption'
 import { useAutoCollectKline } from './useAutoCollectKline'
 import { useChartFullscreen } from './useChartFullscreen'
+import { useDataZoomYAxisRescale } from '@/components/charts/useDataZoomYAxisRescale'
 
 export interface StockChartViewIndicators {
   volume: boolean
@@ -119,54 +121,7 @@ export function StockChartView({
     chartData?.dates.length ?? 0,
   )
 
-  // 复位缩放到默认窗口（双击图表 / 设置弹层按钮）
-  const resetZoom = () => {
-    chartRef.current
-      ?.getEchartsInstance()
-      .dispatchAction({ type: 'dataZoom', start: 50, end: 100 })
-  }
-
-  // 缩放（键盘 ↑/↓、滚轮、滑块）后按可见窗口重算主图纵轴，对齐同花顺行为
-  const handleDataZoom = () => {
-    const chart = chartRef.current?.getEchartsInstance()
-    if (!chart || !chartData || chartData.bars.length === 0) return
-    const dz = (
-      chart.getOption().dataZoom as
-        | { start?: number; end?: number; startValue?: number | string; endValue?: number | string }[]
-        | undefined
-    )?.[0]
-    if (!dz) return
-    const len = chartData.bars.length
-    const toIndex = (
-      value: number | string | undefined,
-      ratio: number | undefined,
-      fallback: number,
-    ): number => {
-      if (typeof value === 'number') return value
-      if (typeof value === 'string') {
-        const idx = chartData.dates.indexOf(value)
-        if (idx >= 0) return idx
-      }
-      if (typeof ratio === 'number') return Math.round(((len - 1) * ratio) / 100)
-      return fallback
-    }
-    const startIdx = Math.max(0, toIndex(dz.startValue, dz.start, 0))
-    const endIdx = Math.min(
-      len - 1,
-      Math.max(startIdx, toIndex(dz.endValue, dz.end, len - 1)),
-    )
-    const { yMin, yMax, pctMin, pctMax } = computePriceAxisRange(
-      chartData.bars,
-      startIdx,
-      endIdx,
-    )
-    chart.setOption({
-      yAxis: [
-        { min: yMin, max: yMax },
-        { min: pctMin, max: pctMax },
-      ],
-    })
-  }
+  const { resetZoom, handleDataZoom } = useDataZoomYAxisRescale(chartRef, chartData)
 
   const onEvents = {
     ...navEvents,

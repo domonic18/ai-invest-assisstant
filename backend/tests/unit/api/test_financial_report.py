@@ -2,18 +2,11 @@
 
 from datetime import date, datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from app.core.exceptions import NotFoundError
-
-
-@pytest.fixture(autouse=True)
-def _skip_quota_precheck():
-    """AI 端点配额预检与被测契约无关，统一打桩放行。"""
-    with patch("app.services.quota.quota_service.precheck", AsyncMock()):
-        yield
 
 
 @pytest.mark.unit

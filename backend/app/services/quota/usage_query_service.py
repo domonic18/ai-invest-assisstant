@@ -3,13 +3,13 @@
 看板统计周期按北京时间（Asia/Shanghai）聚合，时间戳 aware UTC。
 """
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import ColumnElement, case, func, literal_column, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.clock import utc_now
+from app.core.clock import CN_TZ, utc_now
 from app.models.account_quota import UserAiQuota, UserTokenUsage
 from app.models.user import User
 from app.services.quota.constants import OUTLET_SYSTEM
@@ -17,6 +17,11 @@ from app.services.quota.constants import OUTLET_SYSTEM
 _CN_BUCKET = "(created_at AT TIME ZONE 'Asia/Shanghai')::date"
 # join 了 "user" 表后 created_at 产生歧义，须用表名限定
 _CN_BUCKET_QUALIFIED = "(user_token_usage.created_at AT TIME ZONE 'Asia/Shanghai')::date"
+
+
+def cn_bucket_day(moment: datetime) -> date:
+    """时间戳所属的北京时间日历日（上方 SQL 日分桶的 Python 口径，测试据此对齐）。"""
+    return moment.astimezone(CN_TZ).date()
 
 
 async def get_quota_view(session: AsyncSession, user: User) -> dict[str, Any]:
@@ -50,7 +55,11 @@ async def get_quota_view(session: AsyncSession, user: User) -> dict[str, Any]:
 async def _has_byok_row(session: AsyncSession, user_id: int) -> bool:
     from app.models.account_quota import UserLlmConfig
 
-    return await session.get(UserLlmConfig, user_id) is not None
+    # user_id 是 UNIQUE 列非主键，session.get 会按 id 误配他人行
+    row = await session.scalar(
+        select(UserLlmConfig.id).where(UserLlmConfig.user_id == user_id).limit(1)
+    )
+    return row is not None
 
 
 async def list_usage(

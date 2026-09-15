@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.dependencies import get_current_user, get_db
+from app.dependencies import ai_quota_gate, get_current_user, get_db
 from app.models.user import User
 from app.schemas.chain import (
     ChainAlertResponse,
@@ -21,9 +21,7 @@ from app.schemas.chain import (
     ChainVersionSummary,
 )
 from app.services.chain import chain_service
-from app.services.quota import quota_service
 from app.services.quota.constants import FEATURE_PAGE
-from app.services.quota.context import meter_scope
 
 router = APIRouter()
 
@@ -52,14 +50,12 @@ async def list_alerts(
 async def analyze_chain(
     request: ChainAnalysisRequest,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(ai_quota_gate(FEATURE_PAGE))],
 ) -> ChainAnalyzeResponse:
     """产业链分析：调用 AI Agent 生成图谱并持久化为新版本。"""
-    await quota_service.precheck(user.id)
-    with meter_scope(user.id, FEATURE_PAGE):
-        return await chain_service.analyze_and_persist(
-            session, request.industry, request.focus, user_id=user.id
-        )
+    return await chain_service.analyze_and_persist(
+        session, request.industry, request.focus, user_id=user.id
+    )
 
 
 @router.get("/versions/compare", response_model=ChainCompareResult)

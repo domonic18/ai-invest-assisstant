@@ -12,6 +12,7 @@ from dataclasses import asdict
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +46,8 @@ from app.services.collector.health.health_snapshot import (
 )
 
 HEALTH_CHECK_TASK_TYPE = "health-check"
+
+logger = structlog.get_logger(__name__)
 
 
 def _thresholds() -> JudgeThresholds:
@@ -113,6 +116,11 @@ async def run_check(session: AsyncSession) -> dict[str, Any]:
             verdicts.append(judge_instance(facts, snapshot, th))
         except Exception:  # noqa: BLE001 — 单实例判定失败隔离，不阻断整批
             judge_failures += 1
+            logger.exception(
+                "health_judge_failed",
+                task_type=facts.task_type,
+                source=facts.source,
+            )
     verdicts = apply_group_rules(verdicts, snapshot, th)
 
     existing_rows = await load_health_rows(session)
@@ -312,9 +320,9 @@ async def get_schedule_check(session: AsyncSession, day: date) -> dict[str, Any]
     errors = await fetch_latest_errors(session, until - timedelta(days=30))
     facts: list[InstanceFacts] = build_instance_facts(universe, [], {}, errors)
     day_runs = await fetch_day_runs(session, since, until)
-    today = datetime.now(CN_TZ).date()
+    # 交易日历窗口锚定查询日（非今天）：查更早的历史日期时 is_trade_day 才不会误判为 false。
     trade_dates = await fetch_trade_dates_between(
-        session, today - timedelta(days=45), today + timedelta(days=1)
+        session, day - timedelta(days=45), day + timedelta(days=1)
     )
     rows = build_schedule_rows(
         facts, day_runs, trade_dates, day, th,

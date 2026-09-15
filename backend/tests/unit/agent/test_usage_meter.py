@@ -10,7 +10,7 @@ from langchain_core.outputs import ChatGeneration, LLMResult
 from app.agent.runtime.usage_meter import UsageMeterCallback, _extract_usage
 from app.services.quota.constants import FEATURE_ASSISTANT, FEATURE_PAGE, OUTLET_BYOK, OUTLET_SYSTEM
 from app.services.quota.context import meter_scope
-from app.services.quota.quota_service import RESERVE_DENIED
+from app.services.quota.quota_service import RESERVE_DEGRADED, RESERVE_DENIED
 from app.services.quota.usage_writer import UsageRecord
 
 pytestmark = pytest.mark.unit
@@ -151,6 +151,62 @@ async def test_error_refunds_reserved_without_record() -> None:
     # 失败调用全额回补、不留用量记录
     settle.assert_awaited_once_with(7, reserve.call_args.args[1], 0)
     assert enqueued == []
+
+
+@pytest.mark.asyncio
+async def test_degraded_passthrough_skips_settle_but_records() -> None:
+    """Redis 降级放行未真实预扣：不结算（防镜像恢复后被回补虚增），仍记明细。"""
+    callback = UsageMeterCallback(outlet=OUTLET_SYSTEM, provider="openai", model_name="m1")
+    run_id = uuid.uuid4()
+    enqueued: list[UsageRecord] = []
+    with (
+        patch(
+            "app.agent.runtime.usage_meter.quota_service.check_and_reserve",
+            AsyncMock(return_value=RESERVE_DEGRADED),
+        ),
+        patch(
+            "app.agent.runtime.usage_meter.quota_service.settle", AsyncMock()
+        ) as settle,
+        patch("app.agent.runtime.usage_meter.enqueue", side_effect=enqueued.append),
+    ):
+        with meter_scope(7, FEATURE_ASSISTANT):
+            await callback.on_chat_model_start({}, [[HumanMessage(content="你好")]], run_id=run_id)
+            await callback.on_llm_end(_result_with_usage(3, 2), run_id=run_id)
+
+    settle.assert_not_awaited()
+    assert len(enqueued) == 1
+    assert (enqueued[0].user_id, enqueued[0].total_tokens) == (7, 5)
+
+
+@pytest.mark.asyncio
+async def test_prune_stale_refunds_reserved_entries() -> None:
+    """in-flight 超限清理陈旧项：全额回补预扣后丢弃，未过期项保留。"""
+    from app.agent.runtime.usage_meter import _MAX_INFLIGHT, _STALE_SECONDS, _RunMeter
+    from app.services.quota.context import MeterContext
+
+    callback = UsageMeterCallback(outlet=OUTLET_SYSTEM, provider="openai", model_name="m1")
+    stale = _RunMeter(
+        ctx=MeterContext(user_id=7, feature=FEATURE_PAGE),
+        prompt_text="你好",
+        reserved=30,
+    )
+    stale.started_at -= _STALE_SECONDS + 1
+    fresh = _RunMeter(
+        ctx=MeterContext(user_id=7, feature=FEATURE_PAGE),
+        prompt_text="你好",
+        reserved=10,
+    )
+    callback._inflight = {uuid.uuid4(): stale}
+    callback._inflight.update({uuid.uuid4(): fresh for _ in range(_MAX_INFLIGHT)})
+
+    with patch(
+        "app.agent.runtime.usage_meter.quota_service.settle", AsyncMock()
+    ) as settle:
+        await callback._prune_stale()
+
+    settle.assert_awaited_once_with(7, 30, 0)
+    assert all(state is not stale for state in callback._inflight.values())
+    assert len(callback._inflight) == _MAX_INFLIGHT
 
 
 @pytest.mark.asyncio
