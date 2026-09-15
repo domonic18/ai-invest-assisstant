@@ -78,6 +78,7 @@ src/
 - 复杂样式可提取为独立 CSS 文件。
 - 主题颜色通过 Ant Design ConfigProvider + Tailwind 配置统一管理。
 - **禁止使用 `var(--ant-*)` CSS 变量**：ConfigProvider 未启用 `cssVar` 模式，这些变量在运行时不存在，样式会静默失效（曾致重点页评分横条全灰）。需要主题 token 时用 `theme.useToken()` 取 `token.colorPrimary` 等值写内联样式。
+- **涨跌配色必须走 `utils/formatters` 的 scheme-aware helpers**（`riseColor`/`fallColor`/`changeColor`/`changeHex` 等，红涨绿跌、跟随 colorScheme 切换），禁止硬编码 `text-red-*/text-green-*` 表达涨跌方向或写死涨跌色 hex。
 
 ## 5. 任务完成后检查清单
 
