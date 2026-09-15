@@ -417,7 +417,7 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-5);flex-wrap:wrap;gap:var(--space-3)">
 <div>
 <h1 class="page-title">资讯中心 · 大 V 情绪（F-SOC）</h1>
-<div style="font-size:var(--text-xs);color:var(--text-tertiary)"><span class="stat-dot live"></span>实时采集中 · 抖音自建渠道 → ASR 转写 → LLM 多空判断 —— 本原型演示第四 Tab，其余三视图见 news.html</div>
+<div style="font-size:var(--text-xs);color:var(--text-tertiary)"><span class="stat-dot live"></span>实时采集中 · 抖音自研适配层 → ASR 转写 → LLM 多空判断 —— 本原型演示第四 Tab，其余三视图见 news.html</div>
 </div>
 <div style="display:flex;gap:8px;align-items:center">
 <button class="btn btn-secondary btn-sm" data-toast="我的订阅为资讯中心既有能力（页头抽屉），订阅命中回流电报流（★）">★ 我的订阅<span style="color:var(--amber)">（今日命中 23）</span></button>
@@ -431,7 +431,7 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
 
 <!-- 渠道中断提示（F-SOC-05：渠道故障只影响本 Tab，其余视图不受影响） -->
 <div class="warnbar" id="chBanner">
-⚠ 部分渠道采集中断：抖音自建渠道自今日 10:32 起失败重试中 — 「大 V 情绪」暂缺最新内容，其余资讯视图不受影响（F-MON 已告警）
+⚠ 部分渠道采集中断：抖音适配层自今日 10:32 起失败重试中 — 「大 V 情绪」暂缺最新内容，其余资讯视图不受影响（F-MON 已告警）
 <button class="x" id="chClose" title="关闭">✕</button>
 </div>
 
@@ -464,7 +464,7 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
 </div>
 <div class="chan-card warn">
 <div class="chan-head"><span class="chan-name"><span class="stat-dot warn"></span>抖音·大V视频</span><span class="chan-state" style="color:var(--amber)">延迟</span></div>
-<div class="chan-meta">1 小时/账号 · 自建渠道 · 重试中</div>
+<div class="chan-meta">1 小时/账号 · 自研适配层 · 重试中</div>
 <div class="chan-stat"><span>今日 <b>12</b> 条</span><span class="last">11:52 · 滞后 38min</span></div>
 </div>
 </div>
@@ -540,7 +540,7 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
 <div class="card-h">口径说明</div>
 <div style="padding:10px 14px">
 <div class="note">
-抖音自建开源渠道（docker 自托管）采集新视频 → 云端 ASR 转写（复用 04 知识库渠道配置与金融热词表）→ LLM 结构化判断。<br>
+自研抖音适配层（collector 内置，无独立部署）采集新视频 → 云端 ASR 转写（复用 04 知识库渠道配置与金融热词表）→ LLM 结构化判断。<br>
 立场徽标 = <b style="color:var(--text-secondary)">AI 生成 · 非投资建议</b>；无关内容（生活/广告）判 irrelevant 不入情绪流。<br>
 音频缺失降级「仅文案判断」并标注 transcript_missing；转写文稿仅作判断输入，不存储原片与完整文稿。
 </div>
@@ -597,7 +597,7 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
 <div class="card-h">追踪账号清单（平台级）<span class="n">同标识唯一 · 删除即停止采集，历史数据保留</span></div>
 <div style="padding:12px 14px;display:flex;align-items:center;gap:10px">
 <button class="btn btn-primary btn-sm" id="btnAdd">＋ 登记账号</button>
-<span class="note">登记后自动纳入抖音自建渠道采集任务与 F-MON 健康监测</span>
+<span class="note">登记后自动纳入抖音适配层采集任务与 F-MON 健康监测</span>
 </div>
 <table>
 <thead><tr><th>抖音号</th><th>账号</th><th>分类</th><th>轮询间隔</th><th>最近采集</th><th>ASR 成功率</th><th>启用</th><th></th></tr></thead>
@@ -606,13 +606,13 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
 </div>
 <div class="svc-grid">
 <div class="card">
-<div class="card-h">抖音自建渠道<span class="n">开源方案 · docker 自托管</span></div>
+<div class="card-h">抖音自研适配层<span class="n">collector 内置 · 无独立部署</span></div>
 <div class="svc-body">
-<div class="kv"><span class="k">渠道</span><span class="v">Douyin_TikTok_Download_API（Apache-2.0）</span></div>
-<div class="kv"><span class="k">部署</span><span class="v"><span class="stat-dot ok"></span>容器运行中 · douyin-api:8082（内网）· v0.2.3</span></div>
+<div class="kv"><span class="k">技术路线</span><span class="v">curl_cffi 指纹传输 + a_bogus 请求签名 + Cookie 双轨供给</span></div>
+<div class="kv"><span class="k">Cookie 池</span><span class="v"><span class="stat-dot ok"></span>2/3 可用 · 最近自举今日 08:12（失效时渠道配置粘贴浏览器 Cookie 兜底）</span></div>
 <div class="kv"><span class="k">轮询</span><span class="v">1 小时/账号（可配）· 仅处理新视频（视频 ID 去重）</span></div>
-<div class="kv"><span class="k">今日</span><span class="v">新视频 12 · 失败重试 1（退避 5 分钟，见顶部中断提示）</span></div>
-<div class="note">账号长期无新视频为 SKIPPED 正常态，渠道不可用为 FAILED——两者不混淆；渠道升级走 compose 镜像更新，不改动任务定义。</div>
+<div class="kv"><span class="k">今日</span><span class="v">新视频 12 · 失败重试 1（命中风控退避 5 分钟，见顶部中断提示）</span></div>
+<div class="note">账号长期无新视频为 SKIPPED 正常态，适配层不可用为 FAILED——两者不混淆；故障显式归因（签名失效/命中风控/账号失效）；签名算法升级只改签名模块，不改动任务定义。</div>
 </div>
 </div>
 <div class="card">
@@ -630,11 +630,11 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
 <!-- 信息架构说明 -->
 <div class="type-note">
 <div class="tn-title">信息架构说明（大 V 情绪 = 资讯中心第四视图）</div>
-「大 V 情绪」作为资讯中心第四 Tab，复用页面框架（渠道监控条 + 全局统计条 + 视图 Tab），段内二级导航为<b>情绪流 / 账号维度 / 情绪温度（P2）</b>。原需求中的 X（推特）采集已<b>砍掉</b>（官方 API 配额成本收益不成立），渠道收敛为<b>抖音自建开源渠道</b>（Douyin_TikTok_Download_API，Apache-2.0，docker 自托管），X 采集能力编号 F-SOC-02 移除、不再复用；采集 → ASR 转写（复用 04 知识库渠道）→ LLM 多空判断 → 落库 social_* 三表 → 视图呈现。渠道故障仅影响本 Tab 并由 F-MON 告警；情绪指数时序与高冲击提醒为二期（F-SOC-06）。
+「大 V 情绪」作为资讯中心第四 Tab，复用页面框架（渠道监控条 + 全局统计条 + 视图 Tab），段内二级导航为<b>情绪流 / 账号维度 / 情绪温度（P2）</b>。原需求中的 X（推特）采集已<b>砍掉</b>（官方 API 配额成本收益不成立）；渠道为<b>抖音自研适配层</b>（collector 内置：curl_cffi 指纹传输 + a_bogus 签名移植 + Cookie 自举/手动兜底，无独立部署容器），X 采集能力编号 F-SOC-02 移除、不再复用；采集 → ASR 转写（复用 04 知识库渠道）→ LLM 多空判断 → 落库 social_* 三表 → 视图呈现。渠道故障仅影响本 Tab 并由 F-MON 告警；情绪指数时序与高冲击提醒为二期（F-SOC-06）。
 </div>
 
 <footer class="foot">
-<span><b>F-SOC-01</b> 后台追踪清单与渠道配置（抖音自建渠道）</span>
+<span><b>F-SOC-01</b> 后台追踪清单与渠道配置（抖音自研适配层）</span>
 <span><b>F-SOC-02</b> 已移除（X 采集砍掉 · 编号不复用）</span>
 <span><b>F-SOC-03</b> 抖音采集 + ASR 转写（封面/时长/发布时间 · transcript_missing 降级演示）</span>
 <span><b>F-SOC-04</b> 情绪判断：立场/置信度/论点/影响标的（irrelevant 不入流 · Schema 全 required）</span>
