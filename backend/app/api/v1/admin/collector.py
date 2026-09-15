@@ -3,10 +3,10 @@
 from typing import Annotated, Any
 
 from celery.result import AsyncResult
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.core.exceptions import NotFoundError
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.collector import (
@@ -110,8 +110,8 @@ async def get_collector_log_celery_status(
 @router.get("/dead-letters", response_model=PaginatedResponse)
 async def list_dead_letters(
     session: Annotated[AsyncSession, Depends(get_db)],
-    page: int = DEFAULT_PAGE,
-    page_size: int = DEFAULT_PAGE_SIZE,
+    page: int = Query(DEFAULT_PAGE, ge=1),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
 ) -> PaginatedResponse:
     """按最新优先列出采集死信记录。"""
     total, rows = await CollectorLogService(session).list_dead_letters(page, page_size)
