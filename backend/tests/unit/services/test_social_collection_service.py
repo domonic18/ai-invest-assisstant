@@ -275,3 +275,65 @@ class TestSocialVideoCollector:
             rows = await collector.collect(account_id=None)
         assert rows == [{"video_id": "v1"}]
         mock_collect.assert_awaited_once()
+
+
+@pytest.mark.unit
+class TestImportCookie:
+    async def test_missing_ttwid_raises(self) -> None:
+        from app.core.exceptions import BadRequestError
+
+        session = MagicMock()
+        with pytest.raises(BadRequestError):
+            await collection_service.import_cookie(
+                session, "sessionid=xyz", actor_id=1
+            )
+
+    async def test_import_encrypts_and_audits(self) -> None:
+        session = MagicMock()
+        session.get = AsyncMock(return_value=None)
+        session.commit = AsyncMock()
+        session.add = MagicMock()
+        with (
+            patch.object(
+                collection_service, "encrypt_jar_payload", return_value="ENC"
+            ) as mock_enc,
+            patch.object(
+                collection_service, "load_cookie_jars", AsyncMock(return_value=[])
+            ),
+            patch.object(
+                collection_service, "record_audit", AsyncMock()
+            ) as mock_audit,
+        ):
+            jars = await collection_service.import_cookie(
+                session, "ttwid=abc; sessionid=x", actor_id=1, ip="1.2.3.4"
+            )
+        assert jars == 1
+        setting = session.add.call_args.args[0]
+        assert setting.key == collection_service.COOKIE_SETTING_KEY
+        assert setting.value == "ENC"
+        mock_enc.assert_called_once_with(["ttwid=abc; sessionid=x"])
+        kwargs = mock_audit.await_args.kwargs
+        assert kwargs["action"] == "social.cookie.import"
+        assert kwargs["detail"] == {"cookieJars": 1}
+        session.commit.assert_awaited_once()
+
+    async def test_same_ttwid_replaces_existing_jar(self) -> None:
+        session = MagicMock()
+        session.get = AsyncMock(return_value=MagicMock(value="token"))
+        session.commit = AsyncMock()
+        with (
+            patch.object(
+                collection_service, "encrypt_jar_payload", return_value="ENC"
+            ) as mock_enc,
+            patch.object(
+                collection_service,
+                "load_cookie_jars",
+                AsyncMock(return_value=["ttwid=old; x=1", "ttwid=other; y=2"]),
+            ),
+            patch.object(collection_service, "record_audit", AsyncMock()),
+        ):
+            jars = await collection_service.import_cookie(
+                session, "Cookie: ttwid=old; z=3", actor_id=1
+            )
+        assert jars == 2
+        mock_enc.assert_called_once_with(["ttwid=other; y=2", "ttwid=old; z=3"])

@@ -397,6 +397,37 @@ class TestAdminStatusEndpoint:
 
 
 @pytest.mark.unit
+class TestAdminCookieEndpoint:
+    def test_import_cookie_success(self, admin_client) -> None:
+        client, _mock_session = admin_client
+        with patch(
+            "app.services.social.collection_service.import_cookie",
+            AsyncMock(return_value=3),
+        ) as mock_import:
+            response = client.post(
+                "/api/v1/admin/social/cookies", json={"cookie": "ttwid=abc; x=1"}
+            )
+        assert response.status_code == 200
+        assert response.json() == {"cookieJarsAvailable": 3}
+        kwargs = mock_import.await_args.kwargs
+        assert kwargs["actor_id"] == 1
+        assert kwargs["ip"] == "testclient"
+        assert mock_import.await_args.args[1] == "ttwid=abc; x=1"
+
+    def test_import_cookie_missing_ttwid_maps_400(self, admin_client) -> None:
+        client, _mock_session = admin_client
+        with patch(
+            "app.services.social.collection_service.import_cookie",
+            AsyncMock(side_effect=BadRequestError("Cookie 缺少 ttwid")),
+        ):
+            response = client.post(
+                "/api/v1/admin/social/cookies", json={"cookie": "sessionid=xyz"}
+            )
+        assert response.status_code == 400
+        assert "ttwid" in response.json()["detail"]
+
+
+@pytest.mark.unit
 class TestAdminAsrConfigEndpoints:
     def _asr_config_response(self) -> AsrConfigResponse:
         return AsrConfigResponse(

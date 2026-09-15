@@ -241,6 +241,7 @@ export const ENDPOINTS = {
     socialAccounts: `${API_BASE}/admin/social/accounts`,
     socialAccount: (id: number | string) => `${API_BASE}/admin/social/accounts/${id}`,
     socialStatus: `${API_BASE}/admin/social/status`,
+    socialCookies: `${API_BASE}/admin/social/cookies`,
     socialAsrConfig: `${API_BASE}/admin/social/asr-config`,
     socialAsrConfigTest: `${API_BASE}/admin/social/asr-config/test`,
   },

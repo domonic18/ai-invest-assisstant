@@ -12,19 +12,27 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.douyin import DouyinTransport, DouyinVideo, DouyinWebApi
-from app.adapters.douyin.cookies import decrypt_jar_payload, is_cookie_usable
+from app.adapters.douyin.cookies import (
+    decrypt_jar_payload,
+    encrypt_jar_payload,
+    is_cookie_usable,
+)
 from app.adapters.douyin.exceptions import AccountInvalidError
 from app.constants.social import SOCIAL_MAX_LIST_PAGES
 from app.core.clock import utc_now
+from app.core.exceptions import BadRequestError
 from app.models.account_quota import SystemSetting
 from app.models.social import SocialAccount
 from app.repositories.social import account_repository, post_repository
+from app.services.admin.audit_service import record_audit
 from app.services.social.asr_service import TranscribeOutcome, transcribe_from_url
 
 logger = structlog.get_logger(__name__)
 
 #: Cookie jar 池的 SystemSetting KV 键（管理端 Cookie 导入写，采集侧读）
 COOKIE_SETTING_KEY = "social.douyin.cookie_jars"
+
+AUDIT_COOKIE_IMPORT = "social.cookie.import"
 
 
 async def load_cookie_jars(session: AsyncSession) -> list[str]:
@@ -38,6 +46,54 @@ async def load_cookie_jars(session: AsyncSession) -> list[str]:
         logger.warning("social_cookie_decrypt_failed")
         return []
     return [jar for jar in jars if is_cookie_usable(jar)]
+
+
+def _cookie_value(cookie: str, name: str) -> str | None:
+    """取 cookie 串中指定键的值（无则 None）。"""
+    for part in cookie.split(";"):
+        key, sep, value = part.strip().partition("=")
+        if sep and key == name:
+            return value
+    return None
+
+
+async def import_cookie(
+    session: AsyncSession, raw: str, *, actor_id: int, ip: str | None = None
+) -> int:
+    """手动导入 Cookie 串（ttwid 必需；按 ttwid 去重合并入 jar 池，Fernet 落库，写审计）。
+
+    Raises:
+        BadRequestError: Cookie 缺少 ttwid（快速口径判定不可用）。
+    """
+    cleaned = raw.strip()
+    if cleaned.lower().startswith("cookie:"):
+        cleaned = cleaned[len("Cookie:") :].strip()
+    cleaned = "; ".join(part.strip() for part in cleaned.split(";") if part.strip())
+    if not is_cookie_usable(cleaned):
+        raise BadRequestError("Cookie 缺少 ttwid，请从已登录浏览器完整复制 Cookie 串")
+
+    incoming_ttwid = _cookie_value(cleaned, "ttwid")
+    jars = [
+        jar
+        for jar in await load_cookie_jars(session)
+        if _cookie_value(jar, "ttwid") != incoming_ttwid
+    ]
+    jars.append(cleaned)
+
+    setting = await session.get(SystemSetting, COOKIE_SETTING_KEY)
+    if setting is None:
+        setting = SystemSetting(key=COOKIE_SETTING_KEY, value="")
+        session.add(setting)
+    setting.value = encrypt_jar_payload(jars)
+    await record_audit(
+        session,
+        actor_id=actor_id,
+        action=AUDIT_COOKIE_IMPORT,
+        detail={"cookieJars": len(jars)},
+        ip=ip,
+    )
+    await session.commit()
+    return len(jars)
 
 
 async def collect_all_accounts(

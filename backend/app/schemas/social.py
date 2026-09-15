@@ -254,3 +254,15 @@ class AsrConfigTestResponse(CamelModel):
     latency_ms: int
     text: str | None = None
     error: str | None = None
+
+
+class CookieImportRequest(CamelModel):
+    """POST /admin/social/cookies 请求：粘贴整串 Cookie（ttwid 必需）。"""
+
+    cookie: str = Field(min_length=1, description="浏览器复制的完整 Cookie 串")
+
+
+class CookieImportResponse(CamelModel):
+    """POST /admin/social/cookies 响应：导入后的 jar 池可用数。"""
+
+    cookie_jars_available: int

@@ -186,3 +186,12 @@ export interface ApiAsrConfigTestResult {
   text: string | null
   error: string | null
 }
+
+/** 手动导入抖音 Cookie（ttwid 必需）。 */
+export interface ApiSocialCookieImportRequest {
+  cookie: string
+}
+
+export interface ApiSocialCookieImportResponse {
+  cookieJarsAvailable: number
+}

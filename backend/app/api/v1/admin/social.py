@@ -18,6 +18,8 @@ from app.schemas.social import (
     AsrConfigTestResponse,
     AsrConfigUpdateRequest,
     AsrStatusResponse,
+    CookieImportRequest,
+    CookieImportResponse,
     DouyinStatusResponse,
     SocialAccountAdminResponse,
     SocialAccountCreateRequest,
@@ -114,6 +116,23 @@ async def delete_account(
         actor_id=admin.id,
         ip=request.client.host if request.client else None,
     )
+
+
+@router.post("/cookies", response_model=CookieImportResponse)
+async def import_cookie(
+    payload: CookieImportRequest,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> CookieImportResponse:
+    """手动导入抖音 Cookie（ttwid 必需，合并入 jar 池，写审计）。"""
+    jars = await collection_service.import_cookie(
+        session,
+        payload.cookie,
+        actor_id=admin.id,
+        ip=request.client.host if request.client else None,
+    )
+    return CookieImportResponse(cookie_jars_available=jars)
 
 
 @router.get("/status", response_model=SocialStatusResponse)
