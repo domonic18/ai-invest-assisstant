@@ -173,6 +173,14 @@ export const queryKeys = {
     story: (id: number) => ['news', 'story', id] as const,
     subscriptions: ['news', 'subscriptions'] as const,
   },
+  social: {
+    all: ['social'] as const,
+    feed: (page: number, pageSize: number, filterKey: string) =>
+      ['social', 'feed', page, pageSize, filterKey] as const,
+    accounts: ['social', 'accounts'] as const,
+    timeline: (accountId: number, page: number, pageSize: number) =>
+      ['social', 'timeline', accountId, page, pageSize] as const,
+  },
   users: {
     all: ['users'] as const,
     me: ['users', 'me'] as const,
