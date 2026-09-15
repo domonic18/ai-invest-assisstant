@@ -5,6 +5,7 @@ import { useState } from 'react'
 import dayjs from 'dayjs'
 
 import type { IndexKlineBar, KlineDrawingPeriod, MovingAverageConfig } from '@ai-invest/shared'
+import { fmt, FONT_MONO, lastPriceLabel, signed, WEEKDAYS } from '@/components/charts/chartShared'
 import { DrawingLayerHost } from '@/components/charts/drawing/DrawingLayerHost'
 import { AiDrawingButton } from '@/components/charts/drawing/AiDrawingButton'
 import { DrawingToolbar } from '@/components/charts/drawing/DrawingToolbar'
@@ -14,8 +15,6 @@ import { fallHex, formatAmount, riseHex } from '@/utils/formatters'
 import { deriveAmplitude, deriveBarChange } from '@/utils/kline'
 import { movingAverage } from '@/utils/movingAverage'
 
-const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-const FONT_MONO = "'SF Mono','Fira Code','Consolas',monospace"
 const MUTED = '#5c616e'
 
 interface IndexKlineChartProps {
@@ -27,15 +26,6 @@ interface IndexKlineChartProps {
   markers?: { date: string; label?: string }[]
   /** 画线归属（指数代码 + 周期）；不传或周期不支持（季/年线）则不启用画线图层。 */
   drawingTarget?: { code: string; period: KlineDrawingPeriod }
-}
-
-function fmt(v: number | null | undefined, decimals = 2): string {
-  return v == null ? '--' : v.toFixed(decimals)
-}
-
-function signed(v: number | null | undefined, decimals = 2): string {
-  if (v == null) return '--'
-  return `${v > 0 ? '+' : ''}${v.toFixed(decimals)}`
 }
 
 export function IndexKlineChart({
@@ -330,18 +320,7 @@ const formatAxisValue = (value: number) =>
                     silent: true,
                     symbol: ['none', 'none'],
                     lineStyle: { color: tagColor, type: 'dashed', width: 1, opacity: 0.7 },
-                    label: {
-                      show: true,
-                      position: 'end',
-                      formatter: fmt(lastBar?.close),
-                      backgroundColor: tagColor,
-                      color: '#fff',
-                      borderRadius: 3,
-                      padding: [1, 5],
-                      fontSize: 10,
-                      fontFamily: FONT_MONO,
-                      distance: 2,
-                    },
+                    label: lastPriceLabel(lastBar?.close, tagColor),
                     data: [
                       ...(lastBar && lastBar.close != null
                         ? [{ yAxis: lastBar.close }]
