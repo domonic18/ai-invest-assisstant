@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol, cast
 
+import structlog
+
 from app.adapters.douyin.exceptions import (
     RiskControlError,
     SignatureError,
@@ -21,6 +23,8 @@ from app.adapters.douyin.signing import (
     ABogus,
     generate_fingerprint,
 )
+
+logger = structlog.get_logger(__name__)
 
 DOUYIN_BASE_URL = "https://www.douyin.com"
 
@@ -169,6 +173,14 @@ class DouyinTransport:
 
         status = getattr(response, "status_code", 0)
         text = getattr(response, "text", "") or ""
+        if status < 200 or status >= 300:
+            # 通道级失败的现场记录（url/status/响应头），便于归因风控形态
+            logger.warning(
+                "social_douyin_request_rejected",
+                path=path,
+                status=status,
+                body=text[:160],
+            )
         if status in _RISK_CONTROL_STATUSES:
             jar.cool_down()
             raise RiskControlError(f"HTTP {status}: {text[:200]}")
