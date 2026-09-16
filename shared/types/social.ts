@@ -141,6 +141,7 @@ export interface ApiSocialBackfillResponse {
 export interface ApiSocialPostDebug {
   videoId: string
   title: string | null
+  coverUrl: string | null
   publishedAt: string
   transcriptStatus: string
   transcriptReason: string | null
@@ -168,6 +169,8 @@ export interface ApiAsrStatus {
   configured: boolean
   todayTranscribed: number
   todayDegraded: number
+  /** 已入库待转写（两阶段落库的中间态） */
+  todayPending: number
 }
 
 /** 签名 sidecar 状态（GET /admin/social/status signer 字段）。 */

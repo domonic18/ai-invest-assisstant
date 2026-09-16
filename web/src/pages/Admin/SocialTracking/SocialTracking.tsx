@@ -274,7 +274,7 @@ export function SocialTracking() {
           </Button>
           <Popconfirm
             title="回填采集该账号历史视频？"
-            description="忽略增量水位深拉约 200 条，每条触发 ASR 转写（费时费钱），已入库视频自动跳过"
+            description="忽略增量水位深拉约 200 条，逐条 ASR 转写（费时费钱）；作品即时入库可见，中断后可重新触发续传，已完成部分自动跳过"
             onConfirm={() => handleBackfill(record)}
           >
             <Button
@@ -329,6 +329,7 @@ export function SocialTracking() {
                 value: asr ? (asr.enabled ? (asr.configured ? '正常' : '未配置密钥') : '已关闭') : '-',
               },
               { label: '今日转写', value: asr?.todayTranscribed ?? '-' },
+              { label: '今日排队', value: asr?.todayPending ?? '-' },
               { label: '今日降级', value: asr?.todayDegraded ?? '-' },
             ]}
             warning={

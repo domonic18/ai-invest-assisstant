@@ -73,6 +73,7 @@ const status: ApiSocialStatus = {
     configured: true,
     todayTranscribed: 10,
     todayDegraded: 2,
+    todayPending: 3,
   },
   signer: {
     enabled: true,
@@ -127,9 +128,22 @@ function setupMocks(overrides: {
       {
         videoId: 'v001',
         title: '今日复盘',
+        coverUrl: 'https://p.douyinpic.com/cover.jpg',
         publishedAt: '2026-09-15T01:30:00Z',
         transcriptStatus: 'missing',
         transcriptReason: 'asr_disabled',
+        judgedAt: null,
+        isRelevant: null,
+        stance: null,
+        confidence: null,
+      },
+      {
+        videoId: 'v002',
+        title: '盘中异动点评',
+        coverUrl: null,
+        publishedAt: '2026-09-15T02:10:00Z',
+        transcriptStatus: 'pending',
+        transcriptReason: 'pending',
         judgedAt: null,
         isRelevant: null,
         stance: null,
@@ -211,6 +225,8 @@ describe('SocialTracking 管理页', () => {
     expect(await screen.findByText('作品排查 · 财经大V-A')).toBeInTheDocument()
     expect(screen.getByText('今日复盘')).toBeInTheDocument()
     expect(screen.getByText('降级')).toBeInTheDocument()
-    expect(screen.getByText('未判')).toBeInTheDocument()
+    expect(screen.getByText('转写中')).toBeInTheDocument()
+    expect(screen.getByAltText('今日复盘')).toBeInTheDocument()
+    expect(screen.getAllByText('未判').length).toBeGreaterThan(0)
   })
 })

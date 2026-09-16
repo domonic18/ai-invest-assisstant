@@ -197,6 +197,7 @@ class SocialPostDebugResponse(CamelModel):
 
     video_id: str
     title: str | None = None
+    cover_url: str | None = None
     published_at: datetime
     transcript_status: str
     transcript_reason: str | None = None
@@ -239,6 +240,7 @@ class AsrStatusResponse(CamelModel):
     configured: bool
     today_transcribed: int
     today_degraded: int
+    today_pending: int = 0
 
 
 class SignerStatusResponse(CamelModel):

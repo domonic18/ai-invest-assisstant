@@ -353,6 +353,7 @@ class TestAdminPostsDebug:
         row = {
             "video_id": "v123",
             "title": "今日复盘",
+            "cover_url": "https://p.douyinpic.com/cover.jpeg",
             "published_at": _NOW,
             "transcript_status": "missing",
             "transcript_reason": "asr_disabled",
@@ -375,6 +376,7 @@ class TestAdminPostsDebug:
         assert response.status_code == 200
         item = response.json()["items"][0]
         assert item["videoId"] == "v123"
+        assert item["coverUrl"] == "https://p.douyinpic.com/cover.jpeg"
         assert item["transcriptStatus"] == "missing"
         assert item["transcriptReason"] == "asr_disabled"
         assert item["judgedAt"] is None
@@ -413,7 +415,7 @@ class TestAdminStatusEndpoint:
             ),
             patch(
                 "app.repositories.social.post_repository.count_transcripts_since",
-                AsyncMock(return_value={"ok": 5, "missing": 2}),
+                AsyncMock(return_value={"ok": 5, "missing": 2, "pending": 3}),
             ),
             patch(
                 "app.services.social.asr_config_service.get_or_create_config",
@@ -433,6 +435,7 @@ class TestAdminStatusEndpoint:
         assert data["asr"]["configured"] is True
         assert data["asr"]["todayTranscribed"] == 5
         assert data["asr"]["todayDegraded"] == 2
+        assert data["asr"]["todayPending"] == 3
 
     def test_status_no_signature_warning_without_error(self, admin_client) -> None:
         client, mock_session = admin_client

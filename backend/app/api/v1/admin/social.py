@@ -235,6 +235,7 @@ async def get_status(
             configured=bool(config.api_key_encrypted),
             today_transcribed=transcript_counts.get("ok", 0),
             today_degraded=transcript_counts.get("missing", 0),
+            today_pending=transcript_counts.get("pending", 0),
         ),
         signer=await _probe_signer(),
     )
