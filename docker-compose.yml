@@ -95,7 +95,8 @@ services:
       resources:
         limits:
           cpus: "1.0"
-          memory: 1G
+          # 2G：社媒回填/增量采集含「拉流→ffmpeg 抽音轨→ASR」媒体流水线，1G 曾被 OOM 杀（2026-09-16）
+          memory: 2G
 
   celery-worker-heavy:
     # LLM 分钟级任务（复盘/归因）独占容器，并发=1，不与通用采集池混跑
