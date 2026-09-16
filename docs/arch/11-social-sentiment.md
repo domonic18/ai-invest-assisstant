@@ -80,17 +80,22 @@ seed：`init-scripts/03-seed.sql` 加 `collector_task` 两行（见 §5）；抖
 
 ### 3.2 采集任务 `social-video`（external）
 
-`collector/spiders/social_video.py`：`DouyinVideoCollector(PostgresCollector)`，声明 `table='social_post'`、`conflict_key=(platform, video_id)`——同视频重复采集被 ON CONFLICT 吸收，天然幂等。
+`collector/spiders/social_video.py`：`SocialVideoCollector(BaseCollector)` 薄壳，`run()` 委托 `collection_service` 两阶段落库并映射统计；行写入与账号簿记均在 service 持久化（每条转写即时 commit）。
 
 ```
 collector_task: social_video_poll（source=douyin，每小时）
-  └─ 遍历启用账号（last_collected_at 早于各自 poll_interval_minutes）
-       ├─ 适配层拉账号作品列表（sec_user_id + max_cursor；单页起，has_more 且本地缺视频时续拉，上限 3 页防长尾）
-       ├─ 新视频（video_id 冲突即跳过）→ 无水印播放地址拉流至临时文件 → ffmpeg 抽音轨 → 云端 ASR
+  └─ 遍历启用账号（last_collected_at 早于各自 poll_interval_minutes），两阶段：
+       ├─ 阶段一 listing（秒级）：适配层拉作品列表（sec_user_id + max_cursor 续拉，上限 3 页防长尾）
+       │    └─ 新视频（库存 video_id + last_post_at 地板双保险判新）→ shell 行（含封面/元数据，
+       │       transcript_status='pending'）以 (platform, video_id) DO NOTHING 立即入库 → 推进账号水位
+       ├─ 阶段二 逐条转写：无水印播放地址流式下载落盘（分块写，整段视频不进内存）→ ffmpeg 抽音轨
+       │  → 云端 ASR → 转写结果逐条回写（每条一 commit，进度可观测）
        │     └─ 音频获取/转写失败 → transcript_status='missing'，仅文案继续（不阻塞）
-       └─ social_post 落库（judged_at=NULL 待判）
+       └─ social_post 行（judged_at=NULL 待判；判级任务排除 pending，转写落定后才入批量窗口）
 ```
 
+- **两阶段语义**：shell 行先于水位推进持久化——任务中途被杀（OOM/超时）不丢内容只丢转写进度；库内 pending 行在后续任一次采样的 listing 窗口内恢复播放地址自动续传（断点续传，管理端重复触发安全）。
+- 任务超时 `soft_time_limit=3600`/`hard_time_limit=4200`（媒体流水线单轮可达 200 条，BATCH 默认 300s 不够）。
 - 增量判新以 `social_account.last_post_at` 为地板；`backfill=true` 运行参数（管理端回填触发）忽略地板并放宽翻页上限至 10 页——拉取存量历史视频，幂等由 video_id 冲突吸收保证。
 - 账号级轮询间隔存 `social_account.poll_interval_minutes`（`collector_task` 表无参数列，账号参数不进 spec）；任务小时级心跳 + 账号级间隔过滤，默认 1 小时/账号。
 - 账号失效（profile 404/私密，§3.1 归因表「账号失效」类）：记 `last_error`/`last_error_at` 供管理端提示，连续失败由 F-MON 判定，不自动停用（停用是管理员决策）。
@@ -100,7 +105,7 @@ collector_task: social_video_poll（source=douyin，每小时）
 云端 ASR API 渠道化配置在本需求独立落地（04 知识库后置排期，届时直接复用同一设施）：
 
 - 单行配置表 `asr_channel_config`：`provider`/`base_url`/`model`/`api_key_encrypted`（Fernet，`app/utils/crypto.py` 同一路径）/`api_key_masked` 冗余脱敏串/`hotwords JSONB`（财经热词表，注入情绪判断 prompt——MiniMax ASR 接口无热词参数）/`enabled`。
-- 转写由采集任务内联执行（媒体到手即转，音轨由 ffmpeg 从无水印播放地址本地提取，音频/视频临时文件即用即删——与「不留存原片」合规一致）；用量记入 `social_post.transcript_meta` 逐条对账；单条音频时长上限截断（超长视频不整条转写）。
+- 转写由采集任务内联执行（媒体到手即转，音轨由 ffmpeg 从无水印播放地址本地提取，音视频临时文件即用即删——与「不留存原片」合规一致；视频流式下载分块写盘，峰值内存仅 mp3 音轨体量）；用量记入 `social_post.transcript_meta` 逐条对账；单条音频时长上限截断（超长视频不整条转写）。
 
 ## 4. 情绪判断（F-SOC-04）
 
@@ -159,7 +164,7 @@ collector_task: social_sentiment_judge（source=internal，每 10 分钟）
 | `DELETE /admin/social/accounts/{id}` | 停采集、历史保留、视图隐藏 |
 | `POST /admin/social/accounts/{id}/backfill` | 触发历史视频回填采集：派发 `social-video`（`account_id` + `backfill=true`），忽略增量地板深拉存量作品（上限 10 页），video_id 去重幂等可重跑；审计 `social.account.backfill` |
 | `GET /admin/social/accounts/{id}/posts?limit=` | 作品级排查清单（新内容优先，未判/未入流也在列）：转写状态与降级原因（`transcript_meta.reason`）、判级状态（未判/不入流/立场+置信度）；不含 `transcript_text`（合规边界） |
-| `GET /admin/social/status` | 只读聚合：douyin 适配层健康（Cookie 池可用 jar 数与最近自举时间；签名拒绝连续出现透出「签名算法需更新」警示；今日采集量/失败数源自 collector_log）+ ASR（今日转写数/降级数，源自 transcript_meta）+ signer（短超时探活：`enabled`（URL 是否配置）/`reachable`/`warmSlots`，探测异常降级为 `reachable=false` 不 500） |
+| `GET /admin/social/status` | 只读聚合：douyin 适配层健康（Cookie 池可用 jar 数与最近自举时间；签名拒绝连续出现透出「签名算法需更新」警示；今日采集量/失败数源自 collector_log）+ ASR（今日转写数/降级数/待转写排队数）+ signer（短超时探活：`enabled`（URL 是否配置）/`reachable`/`warmSlots`，探测异常降级为 `reachable=false` 不 500） |
 | `GET/PUT /admin/social/asr-config` | masked 视图；PUT 时 `apiKey` 可选（留空不换），审计 `social.asr_config.update` |
 
 错误码：`SOCIAL_ACCOUNT_DUPLICATE`（409）/ `SOCIAL_ACCOUNT_INVALID`（400，sec_uid 无法解析）。审计动作：`social.account.create/update/delete`。手动补跑复用既有采集管理「按任务手动补跑」通道。
