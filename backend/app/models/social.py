@@ -36,7 +36,7 @@ class SocialAccount(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     platform: Mapped[str] = mapped_column(String(16), nullable=False)
-    sec_uid: Mapped[str] = mapped_column(String(64), nullable=False)
+    sec_uid: Mapped[str] = mapped_column(String(128), nullable=False)
     alias: Mapped[str] = mapped_column(String(64), nullable=False)
     category: Mapped[str] = mapped_column(String(32), nullable=False, default="finance_kol")
     remark: Mapped[str | None] = mapped_column(String(500), nullable=True)

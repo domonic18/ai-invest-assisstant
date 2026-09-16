@@ -1345,7 +1345,7 @@ ON CONFLICT (key) DO NOTHING;
 CREATE TABLE IF NOT EXISTS social_account (
     id                    BIGSERIAL PRIMARY KEY,
     platform              VARCHAR(16)  NOT NULL,
-    sec_uid               VARCHAR(64)  NOT NULL,                   -- 平台内唯一标识（抖音 sec_user_id）
+    sec_uid               VARCHAR(128) NOT NULL,                   -- 平台内唯一标识（抖音 sec_user_id，新账号可超 64 字符）
     alias                 VARCHAR(64)  NOT NULL,                   -- 展示别名
     category              VARCHAR(32)  NOT NULL DEFAULT 'finance_kol',  -- macro_policy / finance_kol / industry
     remark                VARCHAR(500),
@@ -1378,14 +1378,14 @@ CREATE TABLE IF NOT EXISTS social_post (
     digg_count        BIGINT,
     comment_count     BIGINT,
     share_count       BIGINT,
-    transcript_status VARCHAR(16)  NOT NULL DEFAULT 'ok',          -- 采集时刻即定；音频获取失败降级 missing
+    transcript_status VARCHAR(16)  NOT NULL DEFAULT 'ok',          -- 两阶段落库：listing 落 pending，逐条转写回写 ok/降级 missing
     transcript_text   TEXT,                                        -- 临时文稿缓存，判后即清，任何 API 永不透出
     transcript_meta   JSONB,                                       -- ASR 用量对账：音频时长/字符数/provider
     judged_at         TIMESTAMPTZ,                                 -- NULL=待判（判断幂等键）
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_social_post_platform_video UNIQUE (platform, video_id),
-    CONSTRAINT chk_social_post_transcript_status CHECK (transcript_status IN ('ok', 'missing'))
+    CONSTRAINT chk_social_post_transcript_status CHECK (transcript_status IN ('ok', 'missing', 'pending'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_social_post_published ON social_post(published_at DESC);
