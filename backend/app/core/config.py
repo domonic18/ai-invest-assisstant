@@ -107,6 +107,9 @@ class Settings(BaseSettings):
     iwencai_api_key: str = ""
     iwencai_timeout_seconds: float = 30.0
 
+    # 抖音签名 sidecar（compose 服务名；空 = 禁用，回退本地 a_bogus）
+    douyin_signer_url: str = ""
+
     # SPA 静态托管（web 镜像内烘 ENV STATIC_DIR=/app/static；为空则纯 API 模式）
     static_dir: Path | None = None
     # SCF 入口 HTTPS 但以 HTTP 转发容器且不带 X-Forwarded-Proto 时置 1，

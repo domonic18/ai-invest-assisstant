@@ -1,4 +1,5 @@
-"""抖音 Web API 封装测试：aweme 归一化、结构巨变/账号失效/风控/签名归因、jar 轮换。"""
+"""抖音 Web API 封装测试：aweme 归一化、结构巨变/账号失效/风控/签名归因、jar 轮换、
+signer 双轨与限速重试语义。"""
 
 from typing import Any
 
@@ -10,6 +11,10 @@ from app.adapters.douyin.exceptions import (
     RiskControlError,
     SignatureError,
     StructureDriftError,
+)
+from app.adapters.douyin.signer_client import (
+    SignerRejectedError,
+    SignerUnavailableError,
 )
 from app.adapters.douyin.signing import generate_fingerprint
 from app.adapters.douyin.transport import DouyinTransport
@@ -52,12 +57,20 @@ class FakeSession:
         return None
 
 
-def make_transport(responses: "list[FakeResponse]") -> tuple[DouyinTransport, FakeSession]:
+def make_transport(
+    responses: "list[FakeResponse]",
+    *,
+    retry_delays: "tuple[float, ...]" = (0.0,),
+    **transport_kwargs: Any,
+) -> tuple[DouyinTransport, FakeSession]:
+    """测试传输器：默认重试即时（避免真实 sleep），可传 signer 等构造参数。"""
     session = FakeSession(responses)
     transport = DouyinTransport(
         cookies=["ttwid=abc; sessionid=xyz"],
         fingerprint=generate_fingerprint(),
         session_factory=lambda: session,
+        rate_limit_retry_delays=retry_delays,
+        **transport_kwargs,
     )
     return transport, session
 
@@ -205,12 +218,62 @@ class TestProfileEndpoint:
 
 
 class TestTransportAttribution:
-    async def test_403_cools_jar_and_raises_risk_control(self) -> None:
-        transport, session = make_transport([FakeResponse(status_code=403, payload="")])
+    async def test_argus_403_cools_jar_and_raises_without_retry(self) -> None:
+        """Argus 门禁是确定性拒绝：立即终态 + jar 冷却，重试只会加速验证码。"""
+        transport, session = make_transport(
+            [FakeResponse(status_code=403, payload="Uifid Not Found (ArgusSecurityPlugin)")]
+        )
         assert transport.jars_available == 1
         with pytest.raises(RiskControlError):
             await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383")
         assert transport.jars_available == 0
+        assert len(session.requested_urls) == 1
+
+    async def test_rate_limit_403_retries_then_succeeds_without_cooldown(self) -> None:
+        """限速型 403 是瞬时的：重签重发成功，jar 不冷却。"""
+        transport, session = make_transport(
+            [
+                FakeResponse(status_code=403, payload=""),
+                FakeResponse(payload={"status_code": 0, "aweme_list": []}),
+            ],
+            retry_delays=(0.0, 0.0, 0.0),
+        )
+        data = await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383")
+        assert data["status_code"] == 0
+        assert len(session.requested_urls) == 2
+        assert transport.jars_available == 1
+
+    async def test_rate_limit_exhaustion_raises_risk_control_without_cooldown(self) -> None:
+        transport, session = make_transport(
+            [FakeResponse(status_code=403, payload="")] * 4,
+            retry_delays=(0.0, 0.0, 0.0),
+        )
+        with pytest.raises(RiskControlError, match="重试耗尽"):
+            await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383")
+        assert len(session.requested_urls) == 4
+        assert transport.jars_available == 1
+
+    async def test_empty_200_body_retries_then_succeeds(self) -> None:
+        """200 空 body = 反爬扣发：重签重发计入同一预算。"""
+        transport, session = make_transport(
+            [
+                FakeResponse(payload=""),
+                FakeResponse(payload={"status_code": 0, "aweme_list": []}),
+            ],
+            retry_delays=(0.0,),
+        )
+        data = await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383")
+        assert data["status_code"] == 0
+        assert len(session.requested_urls) == 2
+
+    async def test_empty_200_exhaustion_is_risk_control(self) -> None:
+        transport, session = make_transport(
+            [FakeResponse(payload="")] * 4,
+            retry_delays=(0.0, 0.0, 0.0),
+        )
+        with pytest.raises(RiskControlError, match="重试耗尽"):
+            await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383")
+        assert len(session.requested_urls) == 4
 
     async def test_400_is_signature_failure(self) -> None:
         transport, _ = make_transport([FakeResponse(status_code=400, payload="bad")])
@@ -246,7 +309,9 @@ class TestTransportAttribution:
     async def test_rotates_to_next_jar_after_risk_control(self) -> None:
         session = FakeSession(
             [
-                FakeResponse(status_code=403, payload=""),
+                FakeResponse(
+                    status_code=403, payload="Uifid Not Found (ArgusSecurityPlugin)"
+                ),
                 FakeResponse(payload={"status_code": 0, "aweme_list": []}),
                 FakeResponse(payload={"status_code": 0, "aweme_list": []}),
             ]
@@ -284,3 +349,95 @@ class TestShortLink:
         )
         with pytest.raises(StructureDriftError):
             await DouyinWebApi(transport).expand_short_link("https://v.douyin.com/abc/")
+
+
+class FakeSigner:
+    """脚本化 signer：记录调用，按序回参数或抛异常（SEAM 注入）。"""
+
+    def __init__(
+        self,
+        results: "list[dict[str, str] | Exception]",
+        *,
+        user_agent: str | None = None,
+    ) -> None:
+        self._results = list(results)
+        self._user_agent = user_agent
+        self.calls: list[tuple[str, str, str, str]] = []
+
+    async def sign(
+        self, path: str, query: str, user_agent: str, cookies: str
+    ) -> dict[str, str]:
+        self.calls.append((path, query, user_agent, cookies))
+        result = self._results.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+
+_SDK_PARAMS = {"a_bogus": "SDKSIGN", "msToken": "SDKMT", "verifyFp": "VF"}
+
+
+class TestSignerBranch:
+    async def test_sdk_params_appended_verbatim(self) -> None:
+        """SDK 参数原样追加且不掺本地 a_bogus（整条 query 被钉死）。"""
+        signer = FakeSigner([dict(_SDK_PARAMS)])
+        transport, session = make_transport(
+            [FakeResponse(payload={"status_code": 0, "aweme_list": []})],
+            signer=signer,
+        )
+        await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383")
+        url = session.requested_urls[0]
+        assert url.endswith("aid=6383&a_bogus=SDKSIGN&msToken=SDKMT&verifyFp=VF")
+        assert signer.calls == [
+            (
+                "/aweme/v1/web/aweme/post/",
+                "aid=6383",
+                transport.user_agent,
+                "ttwid=abc; sessionid=xyz",
+            )
+        ]
+
+    async def test_signer_failure_falls_back_to_local_signature(self) -> None:
+        for error in (SignerUnavailableError("down"), SignerRejectedError("nope")):
+            signer = FakeSigner([error])
+            transport, session = make_transport(
+                [FakeResponse(payload={"status_code": 0, "aweme_list": []})],
+                signer=signer,
+            )
+            await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383")
+            assert "a_bogus=" in session.requested_urls[0]
+            assert len(signer.calls) == 1
+
+    async def test_retry_resigns_urls_differ(self) -> None:
+        """限速重试必须重签名：状态化 signer 下两次请求 URL 不同。"""
+
+        class CountingSigner:
+            def __init__(self) -> None:
+                self.count = 0
+
+            async def sign(
+                self, path: str, query: str, user_agent: str, cookies: str
+            ) -> dict[str, str]:
+                self.count += 1
+                return {"msToken": f"mt{self.count}"}
+
+        signer = CountingSigner()
+        transport, session = make_transport(
+            [
+                FakeResponse(status_code=403, payload=""),
+                FakeResponse(payload={"status_code": 0, "aweme_list": []}),
+            ],
+            retry_delays=(0.0,),
+            signer=signer,
+        )
+        await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383")
+        assert len(session.requested_urls) == 2
+        assert session.requested_urls[0] != session.requested_urls[1]
+        assert session.requested_urls[1].endswith("msToken=mt2")
+
+    async def test_no_signer_keeps_local_abogus(self) -> None:
+        transport, session = make_transport(
+            [FakeResponse(payload={"status_code": 0, "aweme_list": []})]
+        )
+        await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383")
+        assert "a_bogus=" in session.requested_urls[0]

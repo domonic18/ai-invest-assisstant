@@ -1,6 +1,7 @@
 """采集服务单测：增量判新、续拉上限、ASR 降级、账号级失败记账。"""
 
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -248,6 +249,31 @@ class TestCollectAllAccounts:
                     await collect_all_accounts(session)
         finally:
             api_patch.stop()
+
+
+@pytest.mark.unit
+class TestTransportInjection:
+    async def test_signer_built_from_settings_url(self) -> None:
+        """douyin_signer_url 非空时注入 build_signer 产物；为空时 None（禁用回退）。"""
+        session = MagicMock()
+        session.get = AsyncMock(return_value=None)
+        for url, expected in (("http://douyin-signer:8010", True), ("", False)):
+            with (
+                patch.object(collection_service, "DouyinTransport") as transport_mock,
+                patch.object(collection_service, "DouyinWebApi"),
+                patch.object(
+                    collection_service.account_repository,
+                    "list_accounts",
+                    AsyncMock(return_value=[]),
+                ),
+                patch.object(
+                    collection_service,
+                    "get_settings",
+                    lambda: SimpleNamespace(douyin_signer_url=url),
+                ),
+            ):
+                await collect_all_accounts(session)
+            assert (transport_mock.call_args.kwargs["signer"] is not None) is expected
 
 
 @pytest.mark.unit

@@ -1,15 +1,19 @@
-"""抖音 Web API 传输层：curl_cffi Chrome TLS 指纹 + Cookie jar 轮换 + a_bogus 签名。
+"""抖音 Web API 传输层：curl_cffi Chrome TLS 指纹 + Cookie jar 轮换 + 签名。
 
 东财同款 WAF 生态按 TLS 指纹拦截，必须走 curl_cffi 的 Chrome 指纹
 （先例见 collector/spiders/eastmoney_research_report.py）。
+签名双轨：signer（页面 SDK sidecar）在线用其参数原样透传，失败/未配置
+回退本地 a_bogus（灰度期端点仍可用）。
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol, cast
+from urllib.parse import urlencode
 
 import structlog
 
@@ -17,6 +21,11 @@ from app.adapters.douyin.exceptions import (
     RiskControlError,
     SignatureError,
     StructureDriftError,
+)
+from app.adapters.douyin.signer_client import (
+    DouyinSignerProtocol,
+    SignerRejectedError,
+    SignerUnavailableError,
 )
 from app.adapters.douyin.signing import (
     DEFAULT_USER_AGENT,
@@ -33,6 +42,13 @@ REQUEST_TIMEOUT_SECONDS = 15.0
 # 命中即按风控处置的 HTTP 状态；正文特征只对 2xx 非 JSON（验证页 HTML）检查
 _RISK_CONTROL_STATUSES = {403, 429}
 _RISK_CONTROL_BODY_MARKERS = ("captcha", "verify", "安全验证")
+
+# Argus 门禁确定性拒绝（2026-09-14 起灰度覆盖作品端点）：重试只会加速验证码
+_ARGUS_REJECTION_MARKER = "ArgusSecurityPlugin"
+
+# 限速型 403/429 与 200 空 body 是瞬时的（douyin-downloader 实测同 cookie
+# 秒级恢复）：冷却会杀死秒级重试，sleep 后换 jar 重签重发
+_RATE_LIMIT_RETRY_DELAYS: tuple[float, ...] = (1.0, 2.0, 5.0)
 
 # jar 冷却：指数退避（分钟级），上限 2 小时
 _JAR_COOL_DOWN_BASE_SECONDS = 300
@@ -97,6 +113,8 @@ class DouyinTransport:
         user_agent: str | None = None,
         fingerprint: str | None = None,
         session_factory: Any | None = None,
+        signer: DouyinSignerProtocol | None = None,
+        rate_limit_retry_delays: tuple[float, ...] = _RATE_LIMIT_RETRY_DELAYS,
     ) -> None:
         self._user_agent = user_agent or DEFAULT_USER_AGENT
         self._fingerprint = fingerprint or generate_fingerprint()
@@ -104,6 +122,8 @@ class DouyinTransport:
             user_agent=self._user_agent, fp=self._fingerprint, options=[0, 1, 8]
         )
         self._session_factory = session_factory or _default_session_factory
+        self._signer = signer
+        self._retry_delays = rate_limit_retry_delays
         self._jars: list[_CookieJar] = [_CookieJar(c) for c in (cookies or [])]
         self._cursor = 0
 
@@ -146,7 +166,7 @@ class DouyinTransport:
         }
 
     async def get_json(self, path: str, params: str) -> dict[str, Any]:
-        """签名并请求 GET 接口。
+        """签名并请求 GET 接口（限速瞬时失败重签重试，Argus 门禁立即终态）。
 
         Args:
             path: 接口路径（如 ``/aweme/v1/web/aweme/post/``）。
@@ -156,39 +176,58 @@ class DouyinTransport:
             服务端 JSON 响应。
 
         Raises:
-            RiskControlError: 403/429/captcha/频控。
-            SignatureError: 400 或签名被拒。
+            RiskControlError: Argus 拒绝/captcha/5xx/限速与空 body 重试耗尽。
+            SignatureError: 400（签名被拒）。
             StructureDriftError: 2xx 但响应非 JSON。
         """
-        jar = self._next_available_jar()
-        signed_params = self._abogus.generate_abogus(params)[0]
-        url = f"{DOUYIN_BASE_URL}{path}?{signed_params}"
+        last_body = ""
+        for attempt in range(len(self._retry_delays) + 1):
+            jar = self._next_available_jar()
+            url = f"{DOUYIN_BASE_URL}{path}?{await self._sign(path, params, jar)}"
 
-        async with self._session_factory() as session:
-            response = await session.get(
-                url,
-                headers=self._headers(jar),
-                timeout=REQUEST_TIMEOUT_SECONDS,
-            )
+            async with self._session_factory() as session:
+                response = await session.get(
+                    url,
+                    headers=self._headers(jar),
+                    timeout=REQUEST_TIMEOUT_SECONDS,
+                )
 
-        status = getattr(response, "status_code", 0)
-        text = getattr(response, "text", "") or ""
-        if status < 200 or status >= 300:
-            # 通道级失败的现场记录（url/status/响应头），便于归因风控形态
-            logger.warning(
-                "social_douyin_request_rejected",
-                path=path,
-                status=status,
-                body=text[:160],
-            )
-        if status in _RISK_CONTROL_STATUSES:
-            jar.cool_down()
-            raise RiskControlError(f"HTTP {status}: {text[:200]}")
-        if status == 400:
-            raise SignatureError(f"HTTP 400: {text[:200]}")
-        if status < 200 or status >= 300:
-            jar.cool_down()
-            raise RiskControlError(f"HTTP {status}: {text[:200]}")
+            status = getattr(response, "status_code", 0)
+            text = getattr(response, "text", "") or ""
+            if status < 200 or status >= 300:
+                # 通道级失败的现场记录（url/status/响应头），便于归因风控形态
+                logger.warning(
+                    "social_douyin_request_rejected",
+                    path=path,
+                    status=status,
+                    body=text[:160],
+                )
+            if status == 400:
+                raise SignatureError(f"HTTP 400: {text[:200]}")
+            if status not in _RISK_CONTROL_STATUSES and not 200 <= status < 300:
+                jar.cool_down()
+                raise RiskControlError(f"HTTP {status}: {text[:200]}")
+            if status in _RISK_CONTROL_STATUSES:
+                if _ARGUS_REJECTION_MARKER in text:
+                    jar.cool_down()
+                    raise RiskControlError(f"HTTP {status}: {text[:200]}")
+                # 限速型（body 空或无关）：不冷却，换 jar 重签重发
+                last_body = text
+            elif not text.strip():
+                # 200 空 body = 反爬扣发/身份不一致，重签重发（计入同一预算）
+                last_body = text
+            else:
+                data = self._parse_json(status, text, jar)
+                jar.revive()
+                return data
+            if attempt < len(self._retry_delays):
+                await asyncio.sleep(self._retry_delays[attempt])
+        raise RiskControlError(
+            f"限速/扣发重试耗尽（{len(self._retry_delays) + 1} 次）: {last_body[:200]}"
+        )
+
+    def _parse_json(self, status: int, text: str, jar: _CookieJar) -> dict[str, Any]:
+        """解析 2xx body；验证页 HTML 判风控（jar 冷却），其余非 JSON 判结构漂移。"""
         try:
             data = json.loads(text)
         except json.JSONDecodeError as exc:
@@ -201,6 +240,19 @@ class DouyinTransport:
         if not isinstance(data, dict):
             raise StructureDriftError(f"响应顶层不是对象（HTTP {status}）")
         return data
+
+    async def _sign(self, path: str, params: str, jar: _CookieJar) -> str:
+        """产出最终 query：signer 在线用页面 SDK 参数（原样追加），否则本地 a_bogus。"""
+        if self._signer is None:
+            return self._abogus.generate_abogus(params)[0]
+        try:
+            sdk_params = await self._signer.sign(path, params, self._user_agent, jar.cookie)
+        except (SignerUnavailableError, SignerRejectedError) as exc:
+            # 基础设施问题 ≠ 风控：不冷却 jar，回退本地签名（灰度期端点仍可用）
+            logger.warning("social_douyin_signer_fallback", error=str(exc))
+            return self._abogus.generate_abogus(params)[0]
+        # SDK 参数原样追加，绝不补任何未签参数（msToken 事故：补参 = Sign Invalid）
+        return f"{params}&{urlencode(sdk_params)}"
 
     async def resolve_redirect(self, url: str) -> str:
         """跟随一次 302 取最终地址（分享短链展开用，不带 Cookie 不签名）。"""

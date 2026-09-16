@@ -18,8 +18,10 @@ from app.adapters.douyin.cookies import (
     is_cookie_usable,
 )
 from app.adapters.douyin.exceptions import AccountInvalidError
+from app.adapters.douyin.signer_client import build_signer
 from app.constants.social import SOCIAL_MAX_LIST_PAGES
 from app.core.clock import utc_now
+from app.core.config import get_settings
 from app.core.exceptions import BadRequestError
 from app.models.account_quota import SystemSetting
 from app.models.social import SocialAccount
@@ -119,7 +121,10 @@ async def collect_all_accounts(
     Returns:
         social_post 行字典列表（含 ASR 转写字段）。
     """
-    transport = DouyinTransport(cookies=await load_cookie_jars(session))
+    transport = DouyinTransport(
+        cookies=await load_cookie_jars(session),
+        signer=build_signer(get_settings().douyin_signer_url),
+    )
     accounts = await account_repository.list_accounts(session, active_only=True)
     if account_id is not None:
         accounts = [a for a in accounts if a.id == account_id]
