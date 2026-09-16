@@ -1,12 +1,15 @@
-"""社媒情绪 API 端点契约测试（用户三端点 + 管理端 CRUD/status/ASR 配置）。"""
+"""社媒情绪 API 端点契约测试（用户三端点 + 管理端 CRUD/status/ASR 配置/signer 状态）。"""
 
+from contextlib import contextmanager
 from datetime import datetime
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.adapters.douyin.signer_client import SignerUnavailableError
 from app.core.exceptions import BadRequestError, ConflictError
 from app.dependencies import get_current_admin_user, get_db
 from app.main import app
@@ -394,6 +397,117 @@ class TestAdminStatusEndpoint:
         assert data["douyin"]["cookieJarsAvailable"] == 2
         assert data["douyin"]["signatureWarning"] is False
         assert data["asr"]["configured"] is False
+
+
+@contextmanager
+def _status_aggregates(mock_session: AsyncMock):
+    """status 端点除 signer 外的聚合全部打桩（聚焦 signer 状态块）。"""
+    r_collected, r_failed, r_error = MagicMock(), MagicMock(), MagicMock()
+    r_collected.scalar_one.return_value = 0
+    r_failed.scalar_one.return_value = 0
+    r_error.scalar_one_or_none.return_value = None
+    mock_session.get = AsyncMock(return_value=None)
+    mock_session.execute = AsyncMock(side_effect=[r_collected, r_failed, r_error])
+    with (
+        patch(
+            "app.services.social.collection_service.load_cookie_jars",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.repositories.social.post_repository.count_transcripts_since",
+            AsyncMock(return_value={"ok": 0, "missing": 0}),
+        ),
+        patch(
+            "app.services.social.asr_config_service.get_or_create_config",
+            AsyncMock(
+                return_value=SimpleNamespace(enabled=False, api_key_encrypted=None)
+            ),
+        ),
+    ):
+        yield
+
+
+@pytest.mark.unit
+class TestAdminSignerStatus:
+    """signer 状态块三态：禁用/在线/不可达——探测异常降级为 reachable=False 不 500。"""
+
+    def _get(
+        self,
+        client: TestClient,
+        mock_session: AsyncMock,
+        *,
+        signer_url: str,
+        health: AsyncMock | None,
+    ) -> Any:
+        with (
+            _status_aggregates(mock_session),
+            patch(
+                "app.api.v1.admin.social.get_settings",
+                lambda: SimpleNamespace(douyin_signer_url=signer_url),
+            ),
+            patch("app.api.v1.admin.social.DouyinSignerClient") as client_mock,
+        ):
+            if health is not None:
+                client_mock.return_value.health = health
+            return client.get("/api/v1/admin/social/status")
+
+    def test_disabled_when_url_empty(self, admin_client) -> None:
+        client, mock_session = admin_client
+        response = self._get(client, mock_session, signer_url="", health=None)
+        assert response.status_code == 200
+        assert response.json()["signer"] == {
+            "enabled": False,
+            "reachable": False,
+            "warmSlots": None,
+            "detail": None,
+        }
+
+    def test_enabled_reachable_reports_warm_slots(self, admin_client) -> None:
+        client, mock_session = admin_client
+        response = self._get(
+            client,
+            mock_session,
+            signer_url="http://douyin-signer:8010",
+            health=AsyncMock(
+                return_value={"status": "ok", "driver": "playwright", "warm_slots": 2}
+            ),
+        )
+        assert response.status_code == 200
+        signer = response.json()["signer"]
+        assert signer["enabled"] is True
+        assert signer["reachable"] is True
+        assert signer["warmSlots"] == 2
+        assert signer["detail"] is None
+
+    def test_enabled_unreachable_degrades_not_500(self, admin_client) -> None:
+        client, mock_session = admin_client
+        response = self._get(
+            client,
+            mock_session,
+            signer_url="http://douyin-signer:8010",
+            health=AsyncMock(side_effect=SignerUnavailableError("签名服务不可达")),
+        )
+        assert response.status_code == 200
+        signer = response.json()["signer"]
+        assert signer["enabled"] is True
+        assert signer["reachable"] is False
+        assert "不可达" in signer["detail"]
+
+    def test_online_but_unhealthy_reports_detail(self, admin_client) -> None:
+        client, mock_session = admin_client
+        response = self._get(
+            client,
+            mock_session,
+            signer_url="http://douyin-signer:8010",
+            health=AsyncMock(
+                return_value={"status": "unavailable", "detail": "browser 未启动"}
+            ),
+        )
+        assert response.status_code == 200
+        signer = response.json()["signer"]
+        assert signer["reachable"] is False
+        assert signer["warmSlots"] is None
+        assert signer["detail"] == "browser 未启动"
 
 
 @pytest.mark.unit

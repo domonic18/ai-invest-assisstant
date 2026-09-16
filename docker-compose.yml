@@ -168,6 +168,37 @@ services:
           cpus: "0.5"
           memory: 512M
 
+  douyin-signer:
+    # 抖音页面签名 sidecar：chromium warm 页 SDK 真签（Argus 门禁对抗，见 docs/arch/11）
+    # 不锁 platform：chromium 原生 arm64/amd64 均可用，amd64 模拟会破坏浏览器指纹；
+    # 无 depends_on：独立服务，不可用时采集侧自动回退本地 a_bogus
+    build:
+      context: .
+      dockerfile: docker/signer/Dockerfile
+      # 境内本地构建浏览器二进制经宿主机代理（见 Dockerfile 头注释）；CI 境外直连
+      args:
+        - HTTP_PROXY
+        - HTTPS_PROXY
+    environment:
+      TZ: Asia/Shanghai
+    restart: unless-stopped
+    logging: *logging
+    tmpfs:
+      # chromium 用户Profile写 /tmp；tmpfs 避免容器层 IO 与崩溃残留
+      - /tmp/playwright-profiles
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8010/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+
   postgres:
     image: timescale/timescaledb:latest-pg16
     environment:

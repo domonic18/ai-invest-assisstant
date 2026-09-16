@@ -6,8 +6,10 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.douyin.signer_client import DouyinSignerClient, SignerUnavailableError
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.core.clock import now_cn
+from app.core.config import get_settings
 from app.dependencies import get_current_admin_user, get_db
 from app.models.account_quota import SystemSetting
 from app.models.collector_log import CollectorLog
@@ -21,6 +23,7 @@ from app.schemas.social import (
     CookieImportRequest,
     CookieImportResponse,
     DouyinStatusResponse,
+    SignerStatusResponse,
     SocialAccountAdminResponse,
     SocialAccountCreateRequest,
     SocialAccountsAdminResponse,
@@ -197,6 +200,26 @@ async def get_status(
             today_transcribed=transcript_counts.get("ok", 0),
             today_degraded=transcript_counts.get("missing", 0),
         ),
+        signer=await _probe_signer(),
+    )
+
+
+async def _probe_signer() -> SignerStatusResponse:
+    """探测签名 sidecar（短超时；异常降级为 reachable=False，不影响 status 可用）。"""
+    url = get_settings().douyin_signer_url
+    if not url:
+        return SignerStatusResponse(enabled=False, reachable=False)
+    try:
+        health = await DouyinSignerClient(url).health()
+    except SignerUnavailableError as exc:
+        return SignerStatusResponse(enabled=True, reachable=False, detail=str(exc)[:300])
+    reachable = health.get("status") == "ok"
+    warm_slots = health.get("warm_slots")
+    return SignerStatusResponse(
+        enabled=True,
+        reachable=reachable,
+        warm_slots=warm_slots if reachable and isinstance(warm_slots, int) else None,
+        detail=None if reachable else str(health.get("detail") or health.get("status")),
     )
 
 

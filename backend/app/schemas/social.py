@@ -214,11 +214,21 @@ class AsrStatusResponse(CamelModel):
     today_degraded: int
 
 
+class SignerStatusResponse(CamelModel):
+    """抖音签名 sidecar 状态（未配置 URL 时 enabled=False）。"""
+
+    enabled: bool
+    reachable: bool
+    warm_slots: int | None = None
+    detail: str | None = None
+
+
 class SocialStatusResponse(CamelModel):
     """GET /admin/social/status 响应：只读聚合。"""
 
     douyin: DouyinStatusResponse
     asr: AsrStatusResponse
+    signer: SignerStatusResponse
 
 
 class AsrConfigResponse(CamelModel):
