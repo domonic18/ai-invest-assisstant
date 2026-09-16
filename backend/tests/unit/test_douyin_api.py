@@ -14,6 +14,8 @@ from app.adapters.douyin.exceptions import (
 from app.adapters.douyin.signing import generate_fingerprint
 from app.adapters.douyin.transport import DouyinTransport
 
+pytestmark = pytest.mark.unit
+
 
 class FakeResponse:
     def __init__(
@@ -219,6 +221,12 @@ class TestTransportAttribution:
         transport, _ = make_transport([FakeResponse(payload="<html>ok</html>")])
         with pytest.raises(StructureDriftError):
             await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383")
+
+    async def test_json_body_with_verify_marker_is_parsed_not_risk_control(self) -> None:
+        """成功 JSON 内含 verify 等词（aweme 的 custom_verify 字段）不得误判风控。"""
+        payload = {"status_code": 0, "aweme_list": [], "custom_verify": ""}
+        transport, _ = make_transport([FakeResponse(payload=payload)])
+        assert await transport.get_json("/aweme/v1/web/aweme/post/", "aid=6383") == payload
 
     async def test_captcha_marker_is_risk_control(self) -> None:
         transport, _ = make_transport(

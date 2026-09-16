@@ -26,7 +26,7 @@ DOUYIN_BASE_URL = "https://www.douyin.com"
 
 REQUEST_TIMEOUT_SECONDS = 15.0
 
-# 命中即按风控处置的 HTTP 状态与特征
+# 命中即按风控处置的 HTTP 状态；正文特征只对 2xx 非 JSON（验证页 HTML）检查
 _RISK_CONTROL_STATUSES = {403, 429}
 _RISK_CONTROL_BODY_MARKERS = ("captcha", "verify", "安全验证")
 
@@ -169,9 +169,7 @@ class DouyinTransport:
 
         status = getattr(response, "status_code", 0)
         text = getattr(response, "text", "") or ""
-        if status in _RISK_CONTROL_STATUSES or any(
-            marker in text for marker in _RISK_CONTROL_BODY_MARKERS
-        ):
+        if status in _RISK_CONTROL_STATUSES:
             jar.cool_down()
             raise RiskControlError(f"HTTP {status}: {text[:200]}")
         if status == 400:
@@ -182,6 +180,11 @@ class DouyinTransport:
         try:
             data = json.loads(text)
         except json.JSONDecodeError as exc:
+            # 2xx 非 JSON 才可能是风控验证页；成功 JSON 内含 verify 等词属正常字段
+            # （2026-09-16 走查：aweme 的 custom_verify 撞词致误判 FAILED）
+            if any(marker in text for marker in _RISK_CONTROL_BODY_MARKERS):
+                jar.cool_down()
+                raise RiskControlError(f"HTTP {status}: {text[:200]}") from exc
             raise StructureDriftError(f"响应非 JSON（HTTP {status}）: {text[:200]}") from exc
         if not isinstance(data, dict):
             raise StructureDriftError(f"响应顶层不是对象（HTTP {status}）")

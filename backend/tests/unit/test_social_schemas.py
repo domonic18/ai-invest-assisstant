@@ -14,6 +14,8 @@ from app.schemas.social import (
     SocialTarget,
 )
 
+pytestmark = pytest.mark.unit
+
 
 def _llm_contract_models() -> list[type]:
     """判断契约模型族（铁律约束面）。"""

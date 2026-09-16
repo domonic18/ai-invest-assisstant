@@ -14,6 +14,8 @@ from app.adapters.douyin.cookies import (
 )
 from app.adapters.douyin.exceptions import RiskControlError
 
+pytestmark = pytest.mark.unit
+
 
 class TestSetCookieParsing:
     def test_single_header(self) -> None:

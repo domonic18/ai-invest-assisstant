@@ -12,6 +12,8 @@ import pytest
 from app.adapters.douyin._sm3 import sm3_hash
 from app.adapters.douyin.signing import ABogus, generate_random_bytes
 
+pytestmark = pytest.mark.unit
+
 FIXED_TS = 1757879400.0
 
 USER_AGENT = (
