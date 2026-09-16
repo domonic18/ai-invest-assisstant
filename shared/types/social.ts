@@ -131,6 +131,26 @@ export interface ApiSocialAccountUpdateRequest {
   remark?: string | null
 }
 
+/** 触发历史视频回填采集（POST /admin/social/accounts/{id}/backfill 响应）。 */
+export interface ApiSocialBackfillResponse {
+  logId: number
+  celeryTaskId: string | null
+}
+
+/** 作品级排查行（GET /admin/social/accounts/{id}/posts）。 */
+export interface ApiSocialPostDebug {
+  videoId: string
+  title: string | null
+  publishedAt: string
+  transcriptStatus: string
+  transcriptReason: string | null
+  judgedAt: string | null
+  /** null = 未判；false = 已判不入流 */
+  isRelevant: boolean | null
+  stance: string | null
+  confidence: number | null
+}
+
 /** 抖音适配层健康（GET /admin/social/status douyin 字段）。 */
 export interface ApiDouyinStatus {
   cookieConfigured: boolean
@@ -150,9 +170,18 @@ export interface ApiAsrStatus {
   todayDegraded: number
 }
 
+/** 签名 sidecar 状态（GET /admin/social/status signer 字段）。 */
+export interface ApiSignerStatus {
+  enabled: boolean
+  reachable: boolean
+  warmSlots: number | null
+  detail: string | null
+}
+
 export interface ApiSocialStatus {
   douyin: ApiDouyinStatus
   asr: ApiAsrStatus
+  signer: ApiSignerStatus
 }
 
 /** ASR 渠道配置 masked 视图（密钥只回脱敏串）。 */

@@ -7,9 +7,11 @@ import type {
 } from '@ai-invest/shared'
 
 import {
+  backfillSocialAccount,
   createSocialAccount,
   deleteSocialAccount,
   fetchAsrConfig,
+  fetchSocialAccountPosts,
   fetchSocialAccountsAdmin,
   fetchSocialStatus,
   importSocialCookie,
@@ -34,6 +36,14 @@ export function useSocialAdminStatus() {
   return useQuery({
     queryKey: STATUS_KEY,
     queryFn: fetchSocialStatus,
+  })
+}
+
+export function useSocialAccountPosts(accountId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.socialAdmin.accountPosts(accountId ?? 0),
+    queryFn: () => fetchSocialAccountPosts(accountId as number),
+    enabled: accountId !== null,
   })
 }
 
@@ -66,6 +76,17 @@ export function useDeleteSocialAccount(page: number, pageSize: number) {
     mutationFn: (id: number) => deleteSocialAccount(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ACCOUNTS_KEY(page, pageSize) })
+    },
+  })
+}
+
+export function useBackfillSocialAccount(page: number, pageSize: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => backfillSocialAccount(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ACCOUNTS_KEY(page, pageSize) })
+      queryClient.invalidateQueries({ queryKey: STATUS_KEY })
     },
   })
 }

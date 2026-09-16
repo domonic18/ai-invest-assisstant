@@ -283,3 +283,39 @@ async def count_transcripts_since(
         )
     ).all()
     return {status: n for status, n in rows}
+
+
+# ============ 管理端排查查询 ============
+
+
+async def list_admin_posts(
+    session: AsyncSession, account_id: int, *, limit: int = 30
+) -> list[dict[str, Any]]:
+    """账号最近作品排查行（新内容优先；未判/未入流也在列）。
+
+    返回不含 transcript_text（合规边界：判后即清的临时文稿不出服务层），
+    转写降级原因从 transcript_meta 提取为 transcript_reason。
+    """
+    rows = (
+        await session.execute(
+            select(SocialPost, SocialSentiment)
+            .join(SocialSentiment, SocialSentiment.post_id == SocialPost.id, isouter=True)
+            .where(SocialPost.account_id == account_id)
+            .order_by(SocialPost.published_at.desc())
+            .limit(limit)
+        )
+    ).all()
+    return [
+        {
+            "video_id": post.video_id,
+            "title": post.title,
+            "published_at": post.published_at,
+            "transcript_status": post.transcript_status,
+            "transcript_reason": (post.transcript_meta or {}).get("reason"),
+            "judged_at": post.judged_at,
+            "is_relevant": sentiment.is_relevant if sentiment is not None else None,
+            "stance": sentiment.stance if sentiment is not None else None,
+            "confidence": sentiment.confidence if sentiment is not None else None,
+        }
+        for post, sentiment in rows
+    ]

@@ -2,7 +2,9 @@ import {
   AudioOutlined,
   DeleteOutlined,
   EditOutlined,
+  HistoryOutlined,
   KeyOutlined,
+  PlaySquareOutlined,
   PlusOutlined,
 } from '@ant-design/icons'
 import {
@@ -25,6 +27,7 @@ import { useState } from 'react'
 
 import {
   useAsrConfig,
+  useBackfillSocialAccount,
   useCreateSocialAccount,
   useDeleteSocialAccount,
   useImportSocialCookie,
@@ -37,6 +40,7 @@ import { formatDateTime, formatRelativeTime } from '@/utils/formatters'
 
 import { AsrConfigModal } from './AsrConfigModal'
 import { CookieImportModal } from './CookieImportModal'
+import { PostsDebugDrawer } from './PostsDebugDrawer'
 import { SocialAccountModal } from './SocialAccountModal'
 
 const PAGE_SIZE = 20
@@ -81,6 +85,7 @@ export function SocialTracking() {
   const createMutation = useCreateSocialAccount(page, PAGE_SIZE)
   const updateMutation = useUpdateSocialAccount(page, PAGE_SIZE)
   const deleteMutation = useDeleteSocialAccount(page, PAGE_SIZE)
+  const backfillMutation = useBackfillSocialAccount(page, PAGE_SIZE)
   const importCookieMutation = useImportSocialCookie()
   const updateAsrMutation = useUpdateAsrConfig()
 
@@ -88,6 +93,7 @@ export function SocialTracking() {
   const [editingAccount, setEditingAccount] = useState<ApiSocialAccountAdmin | null>(null)
   const [cookieModalOpen, setCookieModalOpen] = useState(false)
   const [asrModalOpen, setAsrModalOpen] = useState(false)
+  const [postsAccount, setPostsAccount] = useState<ApiSocialAccountAdmin | null>(null)
 
   const douyin = statusQuery.data?.douyin
   const asr = statusQuery.data?.asr
@@ -110,6 +116,15 @@ export function SocialTracking() {
       message.success('账号已删除（判断历史随删）')
     } catch (err) {
       handleError(err, '删除失败')
+    }
+  }
+
+  const handleBackfill = async (record: ApiSocialAccountAdmin) => {
+    try {
+      await backfillMutation.mutateAsync(record.id)
+      message.success(`「${record.alias}」回填采集已派发，进度见采集日志`)
+    } catch (err) {
+      handleError(err, '回填派发失败')
     }
   }
 
@@ -237,7 +252,7 @@ export function SocialTracking() {
     {
       title: '操作',
       key: 'actions',
-      width: 150,
+      width: 300,
       render: (_: unknown, record: ApiSocialAccountAdmin) => (
         <Space>
           <Button
@@ -250,6 +265,26 @@ export function SocialTracking() {
           >
             编辑
           </Button>
+          <Button
+            size="small"
+            icon={<PlaySquareOutlined />}
+            onClick={() => setPostsAccount(record)}
+          >
+            作品
+          </Button>
+          <Popconfirm
+            title="回填采集该账号历史视频？"
+            description="忽略增量水位深拉约 200 条，每条触发 ASR 转写（费时费钱），已入库视频自动跳过"
+            onConfirm={() => handleBackfill(record)}
+          >
+            <Button
+              size="small"
+              icon={<HistoryOutlined />}
+              loading={backfillMutation.isPending && backfillMutation.variables === record.id}
+            >
+              回填
+            </Button>
+          </Popconfirm>
           <Popconfirm
             title="确认删除该账号？"
             description="该账号的判断历史将一并删除"
@@ -368,6 +403,7 @@ export function SocialTracking() {
         onCancel={() => setAsrModalOpen(false)}
         onSubmit={handleSaveAsr}
       />
+      <PostsDebugDrawer account={postsAccount} onClose={() => setPostsAccount(null)} />
     </div>
   )
 }

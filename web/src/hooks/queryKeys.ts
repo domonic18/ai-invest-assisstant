@@ -97,6 +97,8 @@ export const queryKeys = {
   socialAdmin: {
     accounts: (page: number, pageSize: number) =>
       ['admin-social-accounts', page, pageSize] as const,
+    accountPosts: (accountId: number) =>
+      ['admin-social-account-posts', accountId] as const,
     status: ['admin-social-status'] as const,
     asrConfig: ['admin-social-asr-config'] as const,
   },

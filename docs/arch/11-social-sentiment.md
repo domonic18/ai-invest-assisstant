@@ -91,6 +91,7 @@ collector_task: social_video_poll（source=douyin，每小时）
        └─ social_post 落库（judged_at=NULL 待判）
 ```
 
+- 增量判新以 `social_account.last_post_at` 为地板；`backfill=true` 运行参数（管理端回填触发）忽略地板并放宽翻页上限至 10 页——拉取存量历史视频，幂等由 video_id 冲突吸收保证。
 - 账号级轮询间隔存 `social_account.poll_interval_minutes`（`collector_task` 表无参数列，账号参数不进 spec）；任务小时级心跳 + 账号级间隔过滤，默认 1 小时/账号。
 - 账号失效（profile 404/私密，§3.1 归因表「账号失效」类）：记 `last_error`/`last_error_at` 供管理端提示，连续失败由 F-MON 判定，不自动停用（停用是管理员决策）。
 
@@ -156,6 +157,8 @@ collector_task: social_sentiment_judge（source=internal，每 10 分钟）
 | `POST /admin/social/accounts` | 登记：`{platform, secUidOrUrl, alias, category, pollIntervalMinutes?, remark?}`；服务层解析 sec_uid（标准主页链接正则提取，短链由适配层展开）；同 `(platform, sec_uid)` 重复登记 409 |
 | `PATCH /admin/social/accounts/{id}` | 别名/分类/间隔/启停/备注 |
 | `DELETE /admin/social/accounts/{id}` | 停采集、历史保留、视图隐藏 |
+| `POST /admin/social/accounts/{id}/backfill` | 触发历史视频回填采集：派发 `social-video`（`account_id` + `backfill=true`），忽略增量地板深拉存量作品（上限 10 页），video_id 去重幂等可重跑；审计 `social.account.backfill` |
+| `GET /admin/social/accounts/{id}/posts?limit=` | 作品级排查清单（新内容优先，未判/未入流也在列）：转写状态与降级原因（`transcript_meta.reason`）、判级状态（未判/不入流/立场+置信度）；不含 `transcript_text`（合规边界） |
 | `GET /admin/social/status` | 只读聚合：douyin 适配层健康（Cookie 池可用 jar 数与最近自举时间；签名拒绝连续出现透出「签名算法需更新」警示；今日采集量/失败数源自 collector_log）+ ASR（今日转写数/降级数，源自 transcript_meta）+ signer（短超时探活：`enabled`（URL 是否配置）/`reachable`/`warmSlots`，探测异常降级为 `reachable=false` 不 500） |
 | `GET/PUT /admin/social/asr-config` | masked 视图；PUT 时 `apiKey` 可选（留空不换），审计 `social.asr_config.update` |
 

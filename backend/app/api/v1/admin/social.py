@@ -10,6 +10,7 @@ from app.adapters.douyin.signer_client import DouyinSignerClient, SignerUnavaila
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.core.clock import now_cn
 from app.core.config import get_settings
+from app.core.exceptions import NotFoundError
 from app.dependencies import get_current_admin_user, get_db
 from app.models.account_quota import SystemSetting
 from app.models.collector_log import CollectorLog
@@ -28,6 +29,9 @@ from app.schemas.social import (
     SocialAccountCreateRequest,
     SocialAccountsAdminResponse,
     SocialAccountUpdateRequest,
+    SocialBackfillResponse,
+    SocialPostDebugResponse,
+    SocialPostsDebugResponse,
     SocialStatusResponse,
 )
 from app.services.social import (
@@ -118,6 +122,38 @@ async def delete_account(
         account_id,
         actor_id=admin.id,
         ip=request.client.host if request.client else None,
+    )
+
+
+@router.post("/accounts/{account_id}/backfill", response_model=SocialBackfillResponse)
+async def backfill_account(
+    account_id: int,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> SocialBackfillResponse:
+    """触发账号历史视频回填采集（忽略增量地板深拉，幂等可重跑）。"""
+    log = await account_service.trigger_backfill(
+        session,
+        account_id,
+        actor_id=admin.id,
+        ip=request.client.host if request.client else None,
+    )
+    return SocialBackfillResponse(log_id=log.id, celery_task_id=log.celery_task_id)
+
+
+@router.get("/accounts/{account_id}/posts", response_model=SocialPostsDebugResponse)
+async def list_account_posts(
+    account_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    limit: int = Query(30, ge=1, le=100),
+) -> SocialPostsDebugResponse:
+    """账号最近作品排查清单（转写状态/降级原因/判级结果，未判也在列）。"""
+    if await account_repository.get(session, account_id) is None:
+        raise NotFoundError("追踪账号不存在")
+    items = await post_repository.list_admin_posts(session, account_id, limit=limit)
+    return SocialPostsDebugResponse(
+        items=[SocialPostDebugResponse.model_validate(item) for item in items]
     )
 
 

@@ -319,6 +319,79 @@ class TestAdminAccountEndpoints:
 
 
 @pytest.mark.unit
+class TestAdminBackfillEndpoint:
+    def test_backfill_returns_dispatch_log(self, admin_client) -> None:
+        client, _mock_session = admin_client
+        fake_log = SimpleNamespace(id=42, celery_task_id="celery-abc")
+        mock_trigger = AsyncMock(return_value=fake_log)
+        with patch(
+            "app.services.social.account_service.trigger_backfill", mock_trigger
+        ):
+            response = client.post("/api/v1/admin/social/accounts/3/backfill")
+        assert response.status_code == 200
+        assert response.json() == {"logId": 42, "celeryTaskId": "celery-abc"}
+        assert mock_trigger.await_args.args[1] == 3
+        assert mock_trigger.await_args.kwargs["actor_id"] == 1
+        assert mock_trigger.await_args.kwargs["ip"] == "testclient"
+
+    def test_backfill_missing_account_maps_404(self, admin_client) -> None:
+        from app.core.exceptions import NotFoundError
+
+        client, _mock_session = admin_client
+        with patch(
+            "app.services.social.account_service.trigger_backfill",
+            AsyncMock(side_effect=NotFoundError("追踪账号不存在")),
+        ):
+            response = client.post("/api/v1/admin/social/accounts/99/backfill")
+        assert response.status_code == 404
+
+
+@pytest.mark.unit
+class TestAdminPostsDebug:
+    def test_posts_wire_contract(self, admin_client) -> None:
+        client, _mock_session = admin_client
+        row = {
+            "video_id": "v123",
+            "title": "今日复盘",
+            "published_at": _NOW,
+            "transcript_status": "missing",
+            "transcript_reason": "asr_disabled",
+            "judged_at": None,
+            "is_relevant": None,
+            "stance": None,
+            "confidence": None,
+        }
+        with (
+            patch(
+                "app.repositories.social.account_repository.get",
+                AsyncMock(return_value=_account_mock()),
+            ),
+            patch(
+                "app.repositories.social.post_repository.list_admin_posts",
+                AsyncMock(return_value=[row]),
+            ) as mock_list,
+        ):
+            response = client.get("/api/v1/admin/social/accounts/1/posts")
+        assert response.status_code == 200
+        item = response.json()["items"][0]
+        assert item["videoId"] == "v123"
+        assert item["transcriptStatus"] == "missing"
+        assert item["transcriptReason"] == "asr_disabled"
+        assert item["judgedAt"] is None
+        assert item["isRelevant"] is None
+        assert mock_list.await_args.kwargs["limit"] == 30
+
+    def test_posts_missing_account_maps_404(self, admin_client) -> None:
+        client, _mock_session = admin_client
+        with patch(
+            "app.repositories.social.account_repository.get",
+            AsyncMock(return_value=None),
+        ):
+            response = client.get("/api/v1/admin/social/accounts/99/posts")
+        assert response.status_code == 404
+
+
+@pytest.mark.unit
 class TestAdminStatusEndpoint:
     def _patch_status_side(self, config_enabled: bool = True) -> SimpleNamespace:
         return SimpleNamespace(enabled=config_enabled, api_key_encrypted="enc")

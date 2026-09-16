@@ -7,8 +7,10 @@ import type {
   ApiSocialAccountCreateRequest,
   ApiSocialAccountsAdminPage,
   ApiSocialAccountUpdateRequest,
+  ApiSocialBackfillResponse,
   ApiSocialCookieImportRequest,
   ApiSocialCookieImportResponse,
+  ApiSocialPostDebug,
   ApiSocialStatus,
 } from '@ai-invest/shared'
 
@@ -50,9 +52,27 @@ export async function deleteSocialAccount(id: number): Promise<void> {
   await apiClient.delete(ENDPOINTS.admin.socialAccount(id))
 }
 
+export async function backfillSocialAccount(
+  id: number,
+): Promise<ApiSocialBackfillResponse> {
+  const response = await apiClient.post<ApiSocialBackfillResponse>(
+    ENDPOINTS.admin.socialAccountBackfill(id),
+  )
+  return response.data
+}
+
 export async function fetchSocialStatus(): Promise<ApiSocialStatus> {
   const response = await apiClient.get<ApiSocialStatus>(ENDPOINTS.admin.socialStatus)
   return response.data
+}
+
+export async function fetchSocialAccountPosts(
+  id: number,
+): Promise<ApiSocialPostDebug[]> {
+  const response = await apiClient.get<{ items: ApiSocialPostDebug[] }>(
+    ENDPOINTS.admin.socialAccountPosts(id),
+  )
+  return response.data.items
 }
 
 export async function importSocialCookie(

@@ -185,6 +185,33 @@ class SocialAccountAdminResponse(CamelModel):
     created_at: datetime
 
 
+class SocialBackfillResponse(CamelModel):
+    """POST /admin/social/accounts/{id}/backfill 响应：派发日志定位。"""
+
+    log_id: int
+    celery_task_id: str | None = None
+
+
+class SocialPostDebugResponse(CamelModel):
+    """GET /admin/social/accounts/{id}/posts 行：作品级排查（转写/判级状态）。"""
+
+    video_id: str
+    title: str | None = None
+    published_at: datetime
+    transcript_status: str
+    transcript_reason: str | None = None
+    judged_at: datetime | None = None
+    is_relevant: bool | None = None
+    stance: str | None = None
+    confidence: float | None = None
+
+
+class SocialPostsDebugResponse(CamelModel):
+    """GET /admin/social/accounts/{id}/posts 响应：最近作品排查清单。"""
+
+    items: list[SocialPostDebugResponse]
+
+
 class SocialAccountsAdminResponse(CamelModel):
     """GET /admin/social/accounts 响应：分页清单。"""
 
