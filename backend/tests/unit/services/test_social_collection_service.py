@@ -187,6 +187,102 @@ class TestCollectAccount:
 
 
 @pytest.mark.unit
+class TestBackfill:
+    async def test_backfill_ignores_floor(self) -> None:
+        """backfill=True 忽略 last_post_at 地板，早于地板的历史视频也采集。"""
+        session = MagicMock()
+        session.commit = AsyncMock()
+        account = _account(last_post_at=datetime(2026, 9, 10, 12, 0, tzinfo=_T))
+        pages = [
+            _page(
+                [
+                    _video("v_old", datetime(2026, 9, 9, 8, 0, tzinfo=_T)),
+                    _video("v_older", datetime(2026, 8, 1, 8, 0, tzinfo=_T)),
+                ],
+                has_more=False,
+            )
+        ]
+        api_patch, _api_mock = _patch_api(pages)
+        try:
+            with (
+                patch.object(collection_service, "DouyinTransport", MagicMock()),
+                _patch_inventory([]),
+                patch.object(
+                    collection_service,
+                    "transcribe_from_url",
+                    AsyncMock(return_value=_ASR_DOWN),
+                ),
+            ):
+                rows = await collect_account(
+                    session, MagicMock(), account, backfill=True
+                )
+        finally:
+            api_patch.stop()
+
+        assert [row["video_id"] for row in rows] == ["v_old", "v_older"]
+        assert account.last_post_at == datetime(2026, 9, 9, 8, 0, tzinfo=_T)
+
+    async def test_incremental_floor_regression(self) -> None:
+        """backfill=False 回归：同一批历史视频仍被地板过滤。"""
+        session = MagicMock()
+        session.commit = AsyncMock()
+        account = _account(last_post_at=datetime(2026, 9, 10, 12, 0, tzinfo=_T))
+        pages = [
+            _page(
+                [
+                    _video("v_old", datetime(2026, 9, 9, 8, 0, tzinfo=_T)),
+                    _video("v_older", datetime(2026, 8, 1, 8, 0, tzinfo=_T)),
+                ],
+                has_more=False,
+            )
+        ]
+        api_patch, _api_mock = _patch_api(pages)
+        try:
+            with (
+                patch.object(collection_service, "DouyinTransport", MagicMock()),
+                _patch_inventory([]),
+                patch.object(
+                    collection_service,
+                    "transcribe_from_url",
+                    AsyncMock(return_value=_ASR_DOWN),
+                ),
+            ):
+                rows = await collect_account(session, MagicMock(), account)
+        finally:
+            api_patch.stop()
+
+        assert rows == []
+
+    async def test_backfill_deep_page_cap(self) -> None:
+        """has_more 持续为真时，回填模式放宽到 SOCIAL_BACKFILL_MAX_LIST_PAGES 页。"""
+        session = MagicMock()
+        session.commit = AsyncMock()
+        account = _account()
+        endless = _page(
+            [_video("v9", datetime(2026, 9, 11, 8, 0, tzinfo=_T))], has_more=True, cursor=1
+        )
+        api_patch, api_mock = _patch_api([endless] * 12)
+        try:
+            with (
+                patch.object(collection_service, "DouyinTransport", MagicMock()),
+                _patch_inventory([]),
+                patch.object(
+                    collection_service,
+                    "transcribe_from_url",
+                    AsyncMock(return_value=_ASR_DOWN),
+                ),
+            ):
+                await collect_account(session, MagicMock(), account, backfill=True)
+        finally:
+            api_patch.stop()
+
+        assert (
+            api_mock.return_value.get_user_posts.await_count
+            == collection_service.SOCIAL_BACKFILL_MAX_LIST_PAGES
+        )
+
+
+@pytest.mark.unit
 class TestCollectAllAccounts:
     async def test_account_invalid_recorded_and_continues(self) -> None:
         """账号失效记 last_error 不停用，其余账号继续采集。"""
@@ -301,6 +397,21 @@ class TestSocialVideoCollector:
             rows = await collector.collect(account_id=None)
         assert rows == [{"video_id": "v1"}]
         mock_collect.assert_awaited_once()
+
+    async def test_collect_backfill_passthrough(self) -> None:
+        from collector.spiders.social_video import SocialVideoCollector
+
+        collector = SocialVideoCollector(
+            config={"source": "douyin", "data_type": "social_video"}
+        )
+        with patch.object(
+            collection_service,
+            "collect_all_accounts",
+            AsyncMock(return_value=[]),
+        ) as mock_collect:
+            await collector.collect(account_id=3, backfill=True)
+        assert mock_collect.await_args.kwargs["account_id"] == 3
+        assert mock_collect.await_args.kwargs["backfill"] is True
 
 
 @pytest.mark.unit

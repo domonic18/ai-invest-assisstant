@@ -16,6 +16,7 @@ from app.constants.social import (
     SocialPlatform,
 )
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
+from app.models.collector_log import CollectorLog
 from app.models.social import SocialAccount
 from app.repositories.social import account_repository
 from app.services.admin.audit_service import record_audit
@@ -25,6 +26,11 @@ logger = structlog.get_logger(__name__)
 AUDIT_ACCOUNT_CREATE = "social.account.create"
 AUDIT_ACCOUNT_UPDATE = "social.account.update"
 AUDIT_ACCOUNT_DELETE = "social.account.delete"
+AUDIT_ACCOUNT_BACKFILL = "social.account.backfill"
+
+#: 回填采集走 social-video 任务、douyin 渠道（与 /status 的 (task, source) 聚合一致）
+_SOCIAL_TASK_TYPE = "social-video"
+_SOCIAL_SOURCE = "douyin"
 
 #: 抖音 sec_uid 形态：MS4wLjABAAAA 前缀 + base64 变体字符
 _SEC_UID_PATTERN = re.compile(r"MS4wLjABAAAA[A-Za-z0-9_-]{20,}")
@@ -185,3 +191,38 @@ async def delete_account(
             ip=ip,
         )
     await session.commit()
+
+
+async def trigger_backfill(
+    session: AsyncSession, account_id: int, *, actor_id: int, ip: str | None = None
+) -> CollectorLog:
+    """触发账号历史视频回填采集（写审计，派发 celery 任务，返回派发日志行）。
+
+    回填模式忽略增量地板并放宽翻页上限，幂等可重跑（video_id 去重兜底）；
+    审计行随 dispatcher 内部 commit 一并落库，派发失败则整体回滚。
+
+    Raises:
+        NotFoundError: 账号不存在。
+    """
+    account = await account_repository.get(session, account_id)
+    if account is None:
+        raise NotFoundError("追踪账号不存在")
+    await record_audit(
+        session,
+        actor_id=actor_id,
+        action=AUDIT_ACCOUNT_BACKFILL,
+        detail={"accountId": account_id},
+        ip=ip,
+    )
+    from collector.runtime.dispatcher import dispatch_collector_task
+
+    log = await dispatch_collector_task(
+        session,
+        task_name=_SOCIAL_TASK_TYPE,
+        params={
+            "account_id": account_id,
+            "backfill": True,
+            "preferred_source": _SOCIAL_SOURCE,
+        },
+    )
+    return log

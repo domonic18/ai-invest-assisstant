@@ -246,3 +246,52 @@ class TestAccountAudit:
         assert kwargs["action"] == "social.account.delete"
         assert kwargs["detail"] == {"accountId": 5}
         session.delete.assert_called_once_with(account)
+
+
+@pytest.mark.unit
+class TestTriggerBackfill:
+    async def test_dispatches_backfill_with_audit(self) -> None:
+        session = _session()
+        fake_log = SimpleNamespace(id=42, celery_task_id="celery-abc")
+        with (
+            patch.object(
+                account_service.account_repository,
+                "get",
+                AsyncMock(return_value=SimpleNamespace(id=3)),
+            ),
+            patch.object(account_service, "record_audit", AsyncMock()) as mock_audit,
+            patch(
+                "collector.runtime.dispatcher.dispatch_collector_task",
+                AsyncMock(return_value=fake_log),
+            ) as mock_dispatch,
+        ):
+            log = await account_service.trigger_backfill(
+                session, 3, actor_id=1, ip="1.2.3.4"
+            )
+        assert log is fake_log
+        assert mock_dispatch.await_args.args == (session,)
+        assert mock_dispatch.await_args.kwargs["task_name"] == "social-video"
+        assert mock_dispatch.await_args.kwargs["params"] == {
+            "account_id": 3,
+            "backfill": True,
+            "preferred_source": "douyin",
+        }
+        audit_kwargs = mock_audit.await_args.kwargs
+        assert audit_kwargs["action"] == "social.account.backfill"
+        assert audit_kwargs["detail"] == {"accountId": 3}
+        assert audit_kwargs["actor_id"] == 1
+        assert audit_kwargs["ip"] == "1.2.3.4"
+
+    async def test_missing_account_raises(self) -> None:
+        session = _session()
+        with (
+            patch.object(
+                account_service.account_repository,
+                "get",
+                AsyncMock(return_value=None),
+            ),
+            patch.object(account_service, "record_audit", AsyncMock()) as mock_audit,
+        ):
+            with pytest.raises(NotFoundError):
+                await account_service.trigger_backfill(session, 99, actor_id=1)
+        mock_audit.assert_not_called()

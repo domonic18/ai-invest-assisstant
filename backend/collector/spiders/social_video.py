@@ -25,7 +25,8 @@ class SocialVideoCollector(PostgresCollector):
     async def collect(self, **kwargs: Any) -> list[dict[str, Any]]:
         """遍历启用账号采集新视频行（行不入库，由 store 幂等写入）。"""
         account_id = kwargs.get("account_id")
+        backfill = bool(kwargs.get("backfill", False))
         async with AsyncSessionLocal() as session:
             return await collection_service.collect_all_accounts(
-                session, account_id=account_id
+                session, account_id=account_id, backfill=backfill
             )

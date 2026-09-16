@@ -49,5 +49,9 @@ SOCIAL_SENTIMENT_LOCK_KEY = "social-sentiment-judge"
 #: 作品列表最大续拉页数（单页起，has_more 且本地缺视频时续拉，防长尾）
 SOCIAL_MAX_LIST_PAGES = 3
 
+#: 回填采集深翻页上限（每页约 20 条 × 10 页封顶；每条走 ASR 转写，
+#: 成本与时长随深度线性增长，管理端 Popconfirm 已提示）
+SOCIAL_BACKFILL_MAX_LIST_PAGES = 10
+
 #: 账号轮询间隔下限（分钟），管理端登记校验
 SOCIAL_MIN_POLL_INTERVAL_MINUTES = 5

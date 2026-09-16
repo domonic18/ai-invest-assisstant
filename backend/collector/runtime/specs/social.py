@@ -10,8 +10,8 @@ SPECS: tuple[TaskSpec, ...] = (
         collectors={
             "douyin": "collector.spiders.social_video:SocialVideoCollector",
         },
-        run_params=("account_id",),
-        defaults={"account_id": None},
+        run_params=("account_id", "backfill"),
+        defaults={"account_id": None, "backfill": False},
         converters={"account_id": int},
     ),
     TaskSpec(

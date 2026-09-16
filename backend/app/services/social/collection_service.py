@@ -19,7 +19,10 @@ from app.adapters.douyin.cookies import (
 )
 from app.adapters.douyin.exceptions import AccountInvalidError
 from app.adapters.douyin.signer_client import build_signer
-from app.constants.social import SOCIAL_MAX_LIST_PAGES
+from app.constants.social import (
+    SOCIAL_BACKFILL_MAX_LIST_PAGES,
+    SOCIAL_MAX_LIST_PAGES,
+)
 from app.core.clock import utc_now
 from app.core.config import get_settings
 from app.core.exceptions import BadRequestError
@@ -110,13 +113,17 @@ async def import_cookie(
 
 
 async def collect_all_accounts(
-    session: AsyncSession, *, account_id: int | None = None
+    session: AsyncSession,
+    *,
+    account_id: int | None = None,
+    backfill: bool = False,
 ) -> list[dict[str, Any]]:
     """遍历启用账号逐个采集，返回待入库的 post 行（调用方负责入库）。
 
     Args:
         session: 数据库会话。
         account_id: 只采指定账号（手动补跑单账号用），缺省全部启用账号。
+        backfill: 回填模式——忽略增量地板、放宽翻页上限（见 collect_account）。
 
     Returns:
         social_post 行字典列表（含 ASR 转写字段）。
@@ -131,7 +138,9 @@ async def collect_all_accounts(
     rows: list[dict[str, Any]] = []
     for account in accounts:
         try:
-            rows.extend(await collect_account(session, transport, account))
+            rows.extend(
+                await collect_account(session, transport, account, backfill=backfill)
+            )
         except AccountInvalidError as exc:
             await _record_account_error(session, account, str(exc))
     return rows
@@ -141,11 +150,17 @@ async def collect_account(
     session: AsyncSession,
     transport: DouyinTransport,
     account: SocialAccount,
+    *,
+    backfill: bool = False,
 ) -> list[dict[str, Any]]:
     """采集单账号新视频（增量判新 + 上限续拉 + ASR），并提交账号簿记。
 
     库存判新用「已入库 video_id 集合 + last_post_at 地板」双保险；作品按时间
     倒序返回，新内容优先，毒丸与历史内容自然沉出续拉窗口。
+
+    回填模式（backfill=True）忽略地板并放宽翻页上限，拉取存量历史视频；
+    幂等由 video_id 去重保证，可重复触发；成功后地板随 max(published_at)
+    自然推进到最新作品。
 
     Raises:
         RiskControlError / SignatureError / StructureDriftError: 通道级失败，
@@ -154,10 +169,13 @@ async def collect_account(
     """
     api = DouyinWebApi(transport)
     existing = set(await post_repository.list_video_ids(session, account.id))
-    floor = account.last_post_at
+    floor = None if backfill else account.last_post_at
+    max_pages = (
+        SOCIAL_BACKFILL_MAX_LIST_PAGES if backfill else SOCIAL_MAX_LIST_PAGES
+    )
     rows: list[dict[str, Any]] = []
     cursor = 0
-    for _ in range(SOCIAL_MAX_LIST_PAGES):
+    for _ in range(max_pages):
         page = await api.get_user_posts(account.sec_uid, max_cursor=cursor)
         for video in page.videos:
             if video.video_id in existing:
