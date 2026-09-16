@@ -1,9 +1,11 @@
-"""采集服务：遍历启用账号拉取新视频并组装 social_post 行。
+"""采集服务：遍历启用账号拉取新视频，两阶段落库（listing shell 行 → 逐条转写回写）。
 
-职责边界：本服务只做「取数 + 行组装（含 ASR 转写降级）+ 账号簿记」，不写
-social_post——行由 spider 的 PostgresCollector 以 (platform, video_id) 冲突键
-幂等入库；账号 last_* 字段在此提交。通道级失败（风控/签名/结构漂移）向上
-传播使任务置 FAILED（F-MON 告警），账号级失败（AccountInvalid）记账后继续。
+阶段一 listing 秒级完成：新视频 shell 行（含封面/元数据，transcript_status='pending'）
+立即以 (platform, video_id) DO NOTHING 入库并推进账号水位——行已持久后再推进水位，
+任务中途被杀不丢单；阶段二逐条下载/ASR 并即时回写（每条一 commit），进度可在
+采集日志与作品排查面板实时观察，中断后重触发自动续传剩余 pending。
+通道级失败（风控/签名/结构漂移）向上传播使任务置 FAILED（F-MON 告警），
+账号级失败（AccountInvalid）记账后继续。
 """
 
 from typing import Any
@@ -117,8 +119,8 @@ async def collect_all_accounts(
     *,
     account_id: int | None = None,
     backfill: bool = False,
-) -> list[dict[str, Any]]:
-    """遍历启用账号逐个采集，返回待入库的 post 行（调用方负责入库）。
+) -> dict[str, int]:
+    """遍历启用账号逐个采集，返回汇总统计。
 
     Args:
         session: 数据库会话。
@@ -126,7 +128,8 @@ async def collect_all_accounts(
         backfill: 回填模式——忽略增量地板、放宽翻页上限（见 collect_account）。
 
     Returns:
-        social_post 行字典列表（含 ASR 转写字段）。
+        {listed: 新发现条数, resumed: 续传条数, ok: 转写成功条数,
+        degraded: 降级条数}。
     """
     transport = DouyinTransport(
         cookies=await load_cookie_jars(session),
@@ -135,15 +138,18 @@ async def collect_all_accounts(
     accounts = await account_repository.list_accounts(session, active_only=True)
     if account_id is not None:
         accounts = [a for a in accounts if a.id == account_id]
-    rows: list[dict[str, Any]] = []
+    stats = {"listed": 0, "resumed": 0, "ok": 0, "degraded": 0}
     for account in accounts:
         try:
-            rows.extend(
-                await collect_account(session, transport, account, backfill=backfill)
+            result = await collect_account(
+                session, transport, account, backfill=backfill
             )
         except AccountInvalidError as exc:
             await _record_account_error(session, account, str(exc))
-    return rows
+            continue
+        for key in stats:
+            stats[key] += result[key]
+    return stats
 
 
 async def collect_account(
@@ -152,15 +158,20 @@ async def collect_account(
     account: SocialAccount,
     *,
     backfill: bool = False,
-) -> list[dict[str, Any]]:
-    """采集单账号新视频（增量判新 + 上限续拉 + ASR），并提交账号簿记。
+) -> dict[str, int]:
+    """采集单账号（两阶段）：listing shell 行入库 + 逐条 ASR 回写。
 
     库存判新用「已入库 video_id 集合 + last_post_at 地板」双保险；作品按时间
-    倒序返回，新内容优先，毒丸与历史内容自然沉出续拉窗口。
+    倒序返回，新内容优先，毒丸与历史内容自然沉出续拉窗口。阶段一提交后
+    （shell 行已持久），水位推进才安全——任务中途被杀只丢转写进度，不丢内容，
+    重触发时 pending 行经 listing 窗口恢复 play_url 续传。
 
     回填模式（backfill=True）忽略地板并放宽翻页上限，拉取存量历史视频；
     幂等由 video_id 去重保证，可重复触发；成功后地板随 max(published_at)
     自然推进到最新作品。
+
+    Returns:
+        {listed, resumed, ok, degraded}（语义见 collect_all_accounts）。
 
     Raises:
         RiskControlError / SignatureError / StructureDriftError: 通道级失败，
@@ -173,34 +184,95 @@ async def collect_account(
     max_pages = (
         SOCIAL_BACKFILL_MAX_LIST_PAGES if backfill else SOCIAL_MAX_LIST_PAGES
     )
-    rows: list[dict[str, Any]] = []
+    seen: dict[str, DouyinVideo] = {}
+    new_videos: list[DouyinVideo] = []
     cursor = 0
     for _ in range(max_pages):
         page = await api.get_user_posts(account.sec_uid, max_cursor=cursor)
         for video in page.videos:
+            if video.video_id in seen:  # 单轮去重：异常分页下不重复处理同一视频
+                continue
+            seen[video.video_id] = video
             if video.video_id in existing:
                 continue
             if floor is not None and video.published_at and video.published_at <= floor:
                 continue
             if video.published_at is None:
                 continue
-            rows.append(await _build_post_row(session, account, video))
+            new_videos.append(video)
         if not page.has_more:
             break
         cursor = page.max_cursor
-    _touch_account(account, rows)
-    await session.commit()
-    return rows
 
-
-async def _build_post_row(
-    session: AsyncSession, account: SocialAccount, video: DouyinVideo
-) -> dict[str, Any]:
-    """组装单条 post 行（口播转写失败按降级原因记账，不阻塞内容入库）。"""
-    if video.play_url:
-        outcome = await transcribe_from_url(session, video.play_url)
+    # 阶段一：shell 行立即持久化（pending），水位随行落库推进（不丢单的关键次序）
+    if new_videos:
+        await post_repository.insert_posts(
+            session, [_build_shell_row(account, video) for video in new_videos]
+        )
+        _touch_account(
+            account,
+            [{"published_at": video.published_at} for video in new_videos],
+        )
     else:
-        outcome = TranscribeOutcome(None, None, "play_addr_missing")
+        account.last_collected_at = utc_now()
+        account.last_error = None
+        account.last_error_at = None
+    await session.commit()
+
+    # 阶段二：逐条转写回写；库内 pending 行经本次 listing 窗口恢复 play_url 续传
+    pending_ids = set(await post_repository.list_pending_video_ids(session, account.id))
+    new_ids = {video.video_id for video in new_videos}
+    targets = list(new_videos) + [
+        seen[video_id] for video_id in pending_ids if video_id in seen and video_id not in new_ids
+    ]
+    ok = degraded = 0
+    for done, video in enumerate(targets, start=1):
+        if video.play_url:
+            outcome = await transcribe_from_url(session, video.play_url)
+        else:
+            outcome = TranscribeOutcome(None, None, "play_addr_missing")
+        try:
+            await post_repository.update_transcript(
+                session,
+                account.platform,
+                video.video_id,
+                status="ok" if outcome.text else "missing",
+                text=outcome.text,
+                meta=outcome.meta if outcome.text else {"reason": outcome.reason},
+            )
+            await session.commit()
+        except Exception as exc:  # noqa: BLE001 —— 单条回写失败不停轮，下轮续传兜底
+            await session.rollback()
+            degraded += 1
+            logger.warning(
+                "social_transcribe_write_failed",
+                account_id=account.id,
+                video_id=video.video_id,
+                error=str(exc),
+            )
+            continue
+        if outcome.text:
+            ok += 1
+        else:
+            degraded += 1
+        logger.info(
+            "social_transcribe_progress",
+            account_id=account.id,
+            done=done,
+            total=len(targets),
+            video_id=video.video_id,
+            status="ok" if outcome.text else f"degraded:{outcome.reason}",
+        )
+    return {
+        "listed": len(new_videos),
+        "resumed": len(targets) - len(new_videos),
+        "ok": ok,
+        "degraded": degraded,
+    }
+
+
+def _build_shell_row(account: SocialAccount, video: DouyinVideo) -> dict[str, Any]:
+    """组装 listing 阶段 shell 行（元数据齐备，转写置 pending 待阶段二回写）。"""
     return {
         "account_id": account.id,
         "platform": account.platform,
@@ -214,9 +286,9 @@ async def _build_post_row(
         "digg_count": video.digg_count,
         "comment_count": video.comment_count,
         "share_count": video.share_count,
-        "transcript_status": "ok" if outcome.text else "missing",
-        "transcript_text": outcome.text,
-        "transcript_meta": outcome.meta if outcome.text else {"reason": outcome.reason},
+        "transcript_status": "pending",
+        "transcript_text": None,
+        "transcript_meta": {"reason": "pending"},
     }
 
 

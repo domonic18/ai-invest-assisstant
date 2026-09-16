@@ -31,14 +31,20 @@ async def list_video_ids(
 async def list_pending_posts(
     session: AsyncSession, *, limit: int
 ) -> list[SocialPost]:
-    """待判内容（judged_at IS NULL，启用账号，新内容优先）。
+    """待判内容（judged_at IS NULL 且转写已定论，启用账号，新内容优先）。
 
+    排除 transcript_status='pending'：转写进行中的条目仅有标题/文案，
+    抢跑判级会把降级结论钉死（已判永不重判），等转写落定再入批量窗口。
     新内容优先使偶发毒丸条目随新内容流入沉出批量窗口，不阻塞管道。
     """
     result = await session.execute(
         select(SocialPost)
         .join(SocialAccount, SocialPost.account_id == SocialAccount.id)
-        .where(SocialPost.judged_at.is_(None), SocialAccount.is_active.is_(True))
+        .where(
+            SocialPost.judged_at.is_(None),
+            SocialPost.transcript_status != "pending",
+            SocialAccount.is_active.is_(True),
+        )
         .order_by(SocialPost.published_at.desc())
         .limit(limit)
     )
@@ -86,6 +92,58 @@ async def clear_transcripts(session: AsyncSession, post_ids: list[int]) -> None:
         return
     await session.execute(
         update(SocialPost).where(SocialPost.id.in_(post_ids)).values(transcript_text=None)
+    )
+
+
+# ============ 采集写入（两阶段落库） ============
+
+
+async def insert_posts(session: AsyncSession, rows: list[dict[str, Any]]) -> int:
+    """作品 shell 行批量入库（(platform, video_id) DO NOTHING；不 commit）。
+
+    listing 阶段即落库使封面/元数据秒级可见；返回实际新插入行数。
+    """
+    if not rows:
+        return 0
+    stmt = pg_insert(SocialPost).on_conflict_do_nothing(
+        index_elements=["platform", "video_id"]
+    )
+    result = await session.execute(stmt, rows)
+    return int(getattr(result, "rowcount", 0) or 0)
+
+
+async def list_pending_video_ids(session: AsyncSession, account_id: int) -> list[str]:
+    """账号待转写行 video_id（transcript_status='pending'，断点续传候选）。"""
+    result = await session.execute(
+        select(SocialPost.video_id).where(
+            SocialPost.account_id == account_id,
+            SocialPost.transcript_status == "pending",
+        )
+    )
+    return [row for row in result.scalars().all()]
+
+
+async def update_transcript(
+    session: AsyncSession,
+    platform: str,
+    video_id: str,
+    *,
+    status: str,
+    text: str | None,
+    meta: dict[str, Any] | None,
+) -> None:
+    """按 (platform, video_id) 回写单条转写结果（不 commit，进度即时持久）。"""
+    await session.execute(
+        update(SocialPost)
+        .where(
+            SocialPost.platform == platform,
+            SocialPost.video_id == video_id,
+        )
+        .values(
+            transcript_status=status,
+            transcript_text=text,
+            transcript_meta=meta,
+        )
     )
 
 
@@ -309,6 +367,7 @@ async def list_admin_posts(
         {
             "video_id": post.video_id,
             "title": post.title,
+            "cover_url": post.cover_url,
             "published_at": post.published_at,
             "transcript_status": post.transcript_status,
             "transcript_reason": (post.transcript_meta or {}).get("reason"),

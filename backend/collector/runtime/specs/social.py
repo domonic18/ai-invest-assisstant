@@ -13,6 +13,9 @@ SPECS: tuple[TaskSpec, ...] = (
         run_params=("account_id", "backfill"),
         defaults={"account_id": None, "backfill": False},
         converters={"account_id": int},
+        # 媒体流水线（拉流→ffmpeg→ASR）单轮可达 200 条，BATCH 默认 300s 必超
+        soft_time_limit=3600,
+        hard_time_limit=4200,
     ),
     TaskSpec(
         name="social-sentiment",

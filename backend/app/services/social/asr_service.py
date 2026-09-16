@@ -1,11 +1,13 @@
 """ASR 转写服务：asr_channel_config 配置驱动调用 MiniMax speech_to_text。
 
-转写链路：视频 URL 下载 → ffmpeg 抽音轨（mp3 临时文件即用即删）→ MiniMax。
-任一环节失败返回降级原因（不抛异常，调用方落 transcript_status=missing）；
-官方接口无热词参数，热词表由情绪判断 prompt 注入纠偏。
+转写链路：视频 URL 流式下载落盘（分块写，整段视频不进内存）→ ffmpeg 抽音轨
+（16k 单声道 mp3，体量 ~MB 级）→ MiniMax。任一环节失败返回降级原因（不抛
+异常，调用方落 transcript_status=missing）；官方接口无热词参数，热词表由
+情绪判断 prompt 注入纠偏。
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -62,12 +64,13 @@ async def transcribe_from_url(session: AsyncSession, url: str) -> TranscribeOutc
     except Exception:  # noqa: BLE001 —— 密钥解密失败按未配置降级
         return TranscribeOutcome(None, None, "asr_key_invalid")
 
-    audio_bytes = await _download(url)
-    if audio_bytes is None:
-        return TranscribeOutcome(None, None, "audio_download_failed")
-    mp3 = await _extract_audio(audio_bytes)
-    if mp3 is None:
-        return TranscribeOutcome(None, None, "ffmpeg_unavailable")
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="social-asr-") as tmp:
+        mp3_path, reason = await _fetch_audio(url, Path(tmp))
+        if mp3_path is None:
+            return TranscribeOutcome(None, None, reason)
+        mp3 = mp3_path.read_bytes()
 
     text = await _call_minimax(config, api_key, mp3)
     if text is None:
@@ -83,53 +86,54 @@ async def transcribe_from_url(session: AsyncSession, url: str) -> TranscribeOutc
     )
 
 
-async def _download(url: str) -> bytes | None:
+async def _fetch_audio(url: str, tmp_dir: Path) -> tuple[Path | None, str | None]:
+    """流式下载视频到临时目录并抽音轨为 16k 单声道 mp3（分块写盘控内存）。
+
+    Returns:
+        (mp3 路径, None)；失败返回 (None, 降级原因 audio_download_failed /
+        ffmpeg_unavailable)。
+    """
+    import asyncio
+
+    input_path = tmp_dir / "input.mp4"
+    output_path = tmp_dir / "audio.mp3"
     try:
         async with httpx.AsyncClient(
             headers=_DOWNLOAD_HEADERS,
             timeout=_DOWNLOAD_TIMEOUT_SECONDS,
             follow_redirects=True,
         ) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-            return response.content
+            async with client.stream("GET", url) as response:
+                response.raise_for_status()
+                with input_path.open("wb") as fh:
+                    async for chunk in response.aiter_bytes():
+                        fh.write(chunk)
     except Exception as exc:  # noqa: BLE001
         logger.warning("social_asr_download_failed", url=url, error=str(exc))
-        return None
+        return None, "audio_download_failed"
 
-
-async def _extract_audio(video_bytes: bytes) -> bytes | None:
-    """ffmpeg 抽音轨为 16k 单声道 mp3；ffmpeg 不可用或失败返回 None。"""
-    import asyncio
-    import tempfile
-    from pathlib import Path
-
-    with tempfile.TemporaryDirectory(prefix="social-asr-") as tmp:
-        input_path = Path(tmp) / "input.mp4"
-        output_path = Path(tmp) / "audio.mp3"
-        input_path.write_bytes(video_bytes)
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "ffmpeg",
-                "-y",
-                "-i",
-                str(input_path),
-                "-vn",
-                "-ac",
-                "1",
-                "-ar",
-                "16000",
-                str(output_path),
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            returncode = await proc.wait()
-        except FileNotFoundError:
-            logger.warning("social_asr_ffmpeg_missing")
-            return None
-        if returncode != 0 or not output_path.exists():
-            return None
-        return output_path.read_bytes()
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(input_path),
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            str(output_path),
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        returncode = await proc.wait()
+    except FileNotFoundError:
+        logger.warning("social_asr_ffmpeg_missing")
+        return None, "ffmpeg_unavailable"
+    if returncode != 0 or not output_path.exists():
+        return None, "ffmpeg_unavailable"
+    return output_path, None
 
 
 async def _call_minimax(config: AsrChannelConfig, api_key: str, mp3: bytes) -> str | None:

@@ -1,4 +1,4 @@
-"""采集服务单测：增量判新、续拉上限、ASR 降级、账号级失败记账。"""
+"""采集服务单测：两阶段落库、增量判新、续拉上限、ASR 降级、断点续传。"""
 
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -30,7 +30,11 @@ def _account(account_id: int = 1, last_post_at: datetime | None = None) -> Magic
     return account
 
 
-def _video(video_id: str, published_at: datetime, play_url: str | None = "https://v.douyin.com/media.mp4") -> DouyinVideo:
+def _video(
+    video_id: str,
+    published_at: datetime,
+    play_url: str | None = "https://v.douyin.com/media.mp4",
+) -> DouyinVideo:
     return DouyinVideo(
         video_id=video_id,
         caption=f"{video_id} 的口播描述",
@@ -61,6 +65,18 @@ def _patch_inventory(video_ids: list[str]) -> object:
         "list_video_ids",
         AsyncMock(return_value=video_ids),
     )
+
+
+def _patch_pending(video_ids: list[str]) -> object:
+    return patch.object(
+        collection_service.post_repository,
+        "list_pending_video_ids",
+        AsyncMock(return_value=video_ids),
+    )
+
+
+def _patch_insert(rowcount: int = 1) -> AsyncMock:
+    return AsyncMock(return_value=rowcount)
 
 
 _ASR_OK = TranscribeOutcome("文本", {"provider": "minimax"}, None)
@@ -98,62 +114,94 @@ class TestLoadCookieJars:
 
 @pytest.mark.unit
 class TestCollectAccount:
-    async def test_incremental_skip_and_floor(self) -> None:
-        """库存 video_id 与 last_post_at 地板双保险跳过，只留新内容。"""
+    async def test_two_phase_listing_then_transcribe(self) -> None:
+        """阶段一 shell 行（pending）即落库并推进水位；阶段二逐条回写转写结果。"""
         session = MagicMock()
         session.commit = AsyncMock()
+        session.rollback = AsyncMock()
         account = _account(last_post_at=datetime(2026, 9, 10, 12, 0, tzinfo=_T))
+        published = datetime(2026, 9, 11, 8, 0, tzinfo=_T)
         pages = [
             _page(
                 [
-                    _video("v_new", datetime(2026, 9, 11, 8, 0, tzinfo=_T)),
+                    _video("v_new", published),
                     _video("v_old", datetime(2026, 9, 9, 8, 0, tzinfo=_T)),
                     _video("v_floor", datetime(2026, 9, 10, 6, 0, tzinfo=_T)),
                 ],
                 has_more=False,
             )
         ]
-        api_patch, api_mock = _patch_api(pages)
+        insert = _patch_insert()
+        update = AsyncMock()
+        api_patch, _api_mock = _patch_api(pages)
         try:
             with (
                 patch.object(collection_service, "DouyinTransport", MagicMock()),
                 _patch_inventory(["v_old"]),
+                _patch_pending([]),
+                patch.object(
+                    collection_service.post_repository, "insert_posts", insert
+                ),
+                patch.object(
+                    collection_service.post_repository, "update_transcript", update
+                ),
                 patch.object(
                     collection_service,
                     "transcribe_from_url",
                     AsyncMock(return_value=_ASR_OK),
                 ),
             ):
-                rows = await collect_account(session, MagicMock(), account)
+                stats = await collect_account(session, MagicMock(), account)
         finally:
             api_patch.stop()
 
+        # 阶段一：新视频 shell 行落库，pending 无文稿，水位推进
+        rows = insert.await_args.args[1]
         assert [row["video_id"] for row in rows] == ["v_new"]
-        assert rows[0]["transcript_status"] == "ok"
-        assert rows[0]["transcript_text"] == "文本"
-        assert account.last_post_at == datetime(2026, 9, 11, 8, 0, tzinfo=_T)
+        assert rows[0]["transcript_status"] == "pending"
+        assert rows[0]["transcript_text"] is None
+        assert rows[0]["transcript_meta"] == {"reason": "pending"}
+        assert account.last_post_at == published
         assert account.last_error is None
+        # 阶段二：转写结果按 (platform, video_id) 回写
+        assert stats == {"listed": 1, "resumed": 0, "ok": 1, "degraded": 0}
+        kwargs = update.await_args.kwargs
+        assert update.await_args.args[1:] == ("douyin", "v_new")
+        assert kwargs["status"] == "ok"
+        assert kwargs["text"] == "文本"
+        session.commit.assert_awaited()
 
     async def test_max_pages_cap(self) -> None:
-        """has_more 持续为真时最多续拉 SOCIAL_MAX_LIST_PAGES 页。"""
+        """has_more 持续为真时最多续拉 SOCIAL_MAX_LIST_PAGES 页；ASR 降级记账。"""
         session = MagicMock()
         session.commit = AsyncMock()
+        session.rollback = AsyncMock()
         account = _account()
         endless = _page(
             [_video("v9", datetime(2026, 9, 11, 8, 0, tzinfo=_T))], has_more=True, cursor=1
         )
+        update = AsyncMock()
         api_patch, api_mock = _patch_api([endless, endless, endless, endless])
         try:
             with (
                 patch.object(collection_service, "DouyinTransport", MagicMock()),
                 _patch_inventory([]),
+                _patch_pending([]),
+                patch.object(
+                    collection_service.post_repository,
+                    "insert_posts",
+                    _patch_insert(),
+                ),
+                patch.object(
+                    collection_service.post_repository, "update_transcript", update
+                ),
                 patch.object(
                     collection_service,
                     "transcribe_from_url",
                     AsyncMock(return_value=_ASR_DOWN),
                 ),
             ):
-                rows = await collect_account(session, MagicMock(), account)
+                stats = await collect_account(session, MagicMock(), account)
         finally:
             api_patch.stop()
 
@@ -161,29 +209,114 @@ class TestCollectAccount:
             api_mock.return_value.get_user_posts.await_count
             == collection_service.SOCIAL_MAX_LIST_PAGES
         )
-        assert rows and rows[0]["transcript_status"] == "missing"
-        assert rows[0]["transcript_meta"] == {"reason": "asr_disabled"}
+        assert stats["degraded"] == 1
+        kwargs = update.await_args.kwargs
+        assert kwargs["status"] == "missing"
+        assert kwargs["text"] is None
+        assert kwargs["meta"] == {"reason": "asr_disabled"}
 
     async def test_missing_play_addr_skips_asr(self) -> None:
         session = MagicMock()
         session.commit = AsyncMock()
+        session.rollback = AsyncMock()
         account = _account()
         video = _video("v1", datetime(2026, 9, 11, 8, 0, tzinfo=_T), play_url=None)
         transcribe = AsyncMock()
+        update = AsyncMock()
         api_patch, _api_mock = _patch_api([_page([video], has_more=False)])
         try:
             with (
                 patch.object(collection_service, "DouyinTransport", MagicMock()),
                 _patch_inventory([]),
+                _patch_pending([]),
+                patch.object(
+                    collection_service.post_repository,
+                    "insert_posts",
+                    _patch_insert(),
+                ),
+                patch.object(
+                    collection_service.post_repository, "update_transcript", update
+                ),
                 patch.object(collection_service, "transcribe_from_url", transcribe),
             ):
-                rows = await collect_account(session, MagicMock(), account)
+                await collect_account(session, MagicMock(), account)
         finally:
             api_patch.stop()
 
         transcribe.assert_not_awaited()
-        assert rows[0]["transcript_status"] == "missing"
-        assert rows[0]["transcript_meta"] == {"reason": "play_addr_missing"}
+        assert update.await_args.kwargs["meta"] == {"reason": "play_addr_missing"}
+
+    async def test_write_failure_continues_and_rolls_back(self) -> None:
+        """单条回写失败 rollback 后继续本轮（下轮续传兜底），不阻塞其余条目。"""
+        session = MagicMock()
+        session.commit = AsyncMock()
+        session.rollback = AsyncMock()
+        account = _account()
+        published = datetime(2026, 9, 11, 8, 0, tzinfo=_T)
+        videos = [_video("v1", published), _video("v2", published)]
+        update = AsyncMock(side_effect=[RuntimeError("db down"), None])
+        api_patch, _api_mock = _patch_api([_page(videos, has_more=False)])
+        try:
+            with (
+                patch.object(collection_service, "DouyinTransport", MagicMock()),
+                _patch_inventory([]),
+                _patch_pending([]),
+                patch.object(
+                    collection_service.post_repository,
+                    "insert_posts",
+                    _patch_insert(),
+                ),
+                patch.object(
+                    collection_service.post_repository, "update_transcript", update
+                ),
+                patch.object(
+                    collection_service,
+                    "transcribe_from_url",
+                    AsyncMock(return_value=_ASR_OK),
+                ),
+            ):
+                stats = await collect_account(session, MagicMock(), account)
+        finally:
+            api_patch.stop()
+
+        assert stats == {"listed": 2, "resumed": 0, "ok": 1, "degraded": 1}
+        session.rollback.assert_awaited_once()
+
+    async def test_resume_pending_rows_from_listing_window(self) -> None:
+        """断点续传：库内 pending 行在本次 listing 窗口内恢复 play_url 被转写。"""
+        session = MagicMock()
+        session.commit = AsyncMock()
+        session.rollback = AsyncMock()
+        account = _account()
+        published = datetime(2026, 9, 11, 8, 0, tzinfo=_T)
+        resumed_video = _video("v_pending", published)
+        insert = _patch_insert()
+        update = AsyncMock()
+        api_patch, _api_mock = _patch_api([_page([resumed_video], has_more=False)])
+        try:
+            with (
+                patch.object(collection_service, "DouyinTransport", MagicMock()),
+                _patch_inventory(["v_pending"]),  # 已入库（shell 行），不再是新内容
+                _patch_pending(["v_pending"]),  # 但转写仍 pending
+                patch.object(
+                    collection_service.post_repository, "insert_posts", insert
+                ),
+                patch.object(
+                    collection_service.post_repository, "update_transcript", update
+                ),
+                patch.object(
+                    collection_service,
+                    "transcribe_from_url",
+                    AsyncMock(return_value=_ASR_OK),
+                ),
+            ):
+                stats = await collect_account(session, MagicMock(), account)
+        finally:
+            api_patch.stop()
+
+        insert.assert_not_awaited()  # 无新内容，不重复落库
+        assert stats == {"listed": 0, "resumed": 1, "ok": 1, "degraded": 0}
+        assert update.await_args.args[1:] == ("douyin", "v_pending")
 
 
 @pytest.mark.unit
@@ -192,6 +325,7 @@ class TestBackfill:
         """backfill=True 忽略 last_post_at 地板，早于地板的历史视频也采集。"""
         session = MagicMock()
         session.commit = AsyncMock()
+        session.rollback = AsyncMock()
         account = _account(last_post_at=datetime(2026, 9, 10, 12, 0, tzinfo=_T))
         pages = [
             _page(
@@ -202,30 +336,43 @@ class TestBackfill:
                 has_more=False,
             )
         ]
+        insert = _patch_insert()
         api_patch, _api_mock = _patch_api(pages)
         try:
             with (
                 patch.object(collection_service, "DouyinTransport", MagicMock()),
                 _patch_inventory([]),
+                _patch_pending([]),
+                patch.object(
+                    collection_service.post_repository, "insert_posts", insert
+                ),
+                patch.object(
+                    collection_service.post_repository,
+                    "update_transcript",
+                    AsyncMock(),
+                ),
                 patch.object(
                     collection_service,
                     "transcribe_from_url",
                     AsyncMock(return_value=_ASR_DOWN),
                 ),
             ):
-                rows = await collect_account(
+                stats = await collect_account(
                     session, MagicMock(), account, backfill=True
                 )
         finally:
             api_patch.stop()
 
+        rows = insert.await_args.args[1]
         assert [row["video_id"] for row in rows] == ["v_old", "v_older"]
         assert account.last_post_at == datetime(2026, 9, 9, 8, 0, tzinfo=_T)
+        assert stats["listed"] == 2
 
     async def test_incremental_floor_regression(self) -> None:
-        """backfill=False 回归：同一批历史视频仍被地板过滤。"""
+        """backfill=False 回归：同一批历史视频仍被地板过滤，不落库。"""
         session = MagicMock()
         session.commit = AsyncMock()
+        session.rollback = AsyncMock()
         account = _account(last_post_at=datetime(2026, 9, 10, 12, 0, tzinfo=_T))
         pages = [
             _page(
@@ -236,27 +383,39 @@ class TestBackfill:
                 has_more=False,
             )
         ]
+        insert = _patch_insert()
         api_patch, _api_mock = _patch_api(pages)
         try:
             with (
                 patch.object(collection_service, "DouyinTransport", MagicMock()),
                 _patch_inventory([]),
+                _patch_pending([]),
+                patch.object(
+                    collection_service.post_repository, "insert_posts", insert
+                ),
+                patch.object(
+                    collection_service.post_repository,
+                    "update_transcript",
+                    AsyncMock(),
+                ),
                 patch.object(
                     collection_service,
                     "transcribe_from_url",
                     AsyncMock(return_value=_ASR_DOWN),
                 ),
             ):
-                rows = await collect_account(session, MagicMock(), account)
+                stats = await collect_account(session, MagicMock(), account)
         finally:
             api_patch.stop()
 
-        assert rows == []
+        insert.assert_not_awaited()
+        assert stats == {"listed": 0, "resumed": 0, "ok": 0, "degraded": 0}
 
     async def test_backfill_deep_page_cap(self) -> None:
         """has_more 持续为真时，回填模式放宽到 SOCIAL_BACKFILL_MAX_LIST_PAGES 页。"""
         session = MagicMock()
         session.commit = AsyncMock()
+        session.rollback = AsyncMock()
         account = _account()
         endless = _page(
             [_video("v9", datetime(2026, 9, 11, 8, 0, tzinfo=_T))], has_more=True, cursor=1
@@ -266,6 +425,17 @@ class TestBackfill:
             with (
                 patch.object(collection_service, "DouyinTransport", MagicMock()),
                 _patch_inventory([]),
+                _patch_pending([]),
+                patch.object(
+                    collection_service.post_repository,
+                    "insert_posts",
+                    _patch_insert(),
+                ),
+                patch.object(
+                    collection_service.post_repository,
+                    "update_transcript",
+                    AsyncMock(),
+                ),
                 patch.object(
                     collection_service,
                     "transcribe_from_url",
@@ -285,7 +455,7 @@ class TestBackfill:
 @pytest.mark.unit
 class TestCollectAllAccounts:
     async def test_account_invalid_recorded_and_continues(self) -> None:
-        """账号失效记 last_error 不停用，其余账号继续采集。"""
+        """账号失效记 last_error 不停用，其余账号继续采集并汇总统计。"""
         session = MagicMock()
         session.commit = AsyncMock()
         session.get = AsyncMock(return_value=None)
@@ -307,17 +477,28 @@ class TestCollectAllAccounts:
                     AsyncMock(return_value=[bad, good]),
                 ),
                 _patch_inventory([]),
+                _patch_pending([]),
+                patch.object(
+                    collection_service.post_repository,
+                    "insert_posts",
+                    _patch_insert(),
+                ),
+                patch.object(
+                    collection_service.post_repository,
+                    "update_transcript",
+                    AsyncMock(),
+                ),
                 patch.object(
                     collection_service,
                     "transcribe_from_url",
                     AsyncMock(return_value=_ASR_DOWN),
                 ),
             ):
-                rows = await collect_all_accounts(session)
+                stats = await collect_all_accounts(session)
         finally:
             api_patch.stop()
 
-        assert [row["account_id"] for row in rows] == [2]
+        assert stats == {"listed": 1, "resumed": 0, "ok": 0, "degraded": 1}
         assert bad.last_error and "sec_uid" in bad.last_error
         assert bad.last_error_at is not None
 
@@ -374,44 +555,40 @@ class TestTransportInjection:
 
 @pytest.mark.unit
 class TestSocialVideoCollector:
-    def test_storage_declaration(self) -> None:
+    async def test_run_maps_stats_to_result(self) -> None:
         from collector.spiders.social_video import SocialVideoCollector
 
         collector = SocialVideoCollector(
             config={"source": "douyin", "data_type": "social_video"}
         )
-        assert collector.table == "social_post"
-        assert collector.conflict_key == "platform, video_id"
-
-    async def test_collect_delegates_to_service(self) -> None:
-        from collector.spiders.social_video import SocialVideoCollector
-
-        collector = SocialVideoCollector(
-            config={"source": "douyin", "data_type": "social_video"}
-        )
+        stats = {"listed": 2, "resumed": 1, "ok": 2, "degraded": 1}
         with patch.object(
             collection_service,
             "collect_all_accounts",
-            AsyncMock(return_value=[{"video_id": "v1"}]),
+            AsyncMock(return_value=stats),
         ) as mock_collect:
-            rows = await collector.collect(account_id=None)
-        assert rows == [{"video_id": "v1"}]
-        mock_collect.assert_awaited_once()
-
-    async def test_collect_backfill_passthrough(self) -> None:
-        from collector.spiders.social_video import SocialVideoCollector
-
-        collector = SocialVideoCollector(
-            config={"source": "douyin", "data_type": "social_video"}
-        )
-        with patch.object(
-            collection_service,
-            "collect_all_accounts",
-            AsyncMock(return_value=[]),
-        ) as mock_collect:
-            await collector.collect(account_id=3, backfill=True)
+            result = await collector.run(account_id=3, backfill=True)
         assert mock_collect.await_args.kwargs["account_id"] == 3
         assert mock_collect.await_args.kwargs["backfill"] is True
+        assert result.status.value == "success"
+        assert result.items_collected == 3
+        assert result.items_stored == 3
+        assert result.metadata == stats
+
+    async def test_run_channel_failure_failed(self) -> None:
+        from collector.spiders.social_video import SocialVideoCollector
+
+        collector = SocialVideoCollector(
+            config={"source": "douyin", "data_type": "social_video"}
+        )
+        with patch.object(
+            collection_service,
+            "collect_all_accounts",
+            AsyncMock(side_effect=RiskControlError("HTTP 403")),
+        ):
+            result = await collector.run()
+        assert result.status.value == "failed"
+        assert "403" in result.errors[0]
 
 
 @pytest.mark.unit
