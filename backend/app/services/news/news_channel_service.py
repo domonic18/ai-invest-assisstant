@@ -82,7 +82,8 @@ async def _telegraph_today(
     return await telegraph_repository.today_overview(session, day_start=day_start)
 
 
-# 渠道注册表：新渠道在此登记一行即纳入监控（不存在的渠道不登记，不模拟数据）
+# 渠道注册表：新渠道在此登记一行即纳入监控（不存在的渠道不登记，不模拟数据）。
+# 东财研报不进资讯中心（双入口：个股研报页 / 管理端研报库），避免资讯流入口混淆。
 NEWS_CHANNELS: list[NewsChannel] = [
     NewsChannel(
         key=NEWS_SOURCE_TELEGRAPH,
@@ -101,15 +102,6 @@ NEWS_CHANNELS: list[NewsChannel] = [
         poll_desc="30 分钟轮询",
         task_type="news",
         source="eastmoney",
-    ),
-    NewsChannel(
-        key="eastmoney_research_report",
-        name="东财研报",
-        monitor_type=MONITOR_TASK_LOG,
-        poll_desc="每日 2 次（8:00 / 18:00）",
-        task_type="research-report",
-        source="eastmoney",
-        batch_schedule=True,
     ),
     NewsChannel(
         key="social_video",
@@ -215,11 +207,14 @@ async def _status_task_log(
     now: datetime,
     day_start: datetime,
     task_repo: CollectorTaskRepository,
-) -> NewsChannelResponse:
+) -> NewsChannelResponse | None:
     log_repo = CollectorLogRepository(session)
     task = await task_repo.get_by_type_and_source(
         channel.task_type or "", channel.source or ""
     )
+    if task is not None and not task.is_active:
+        # 任务被后台一键开关/暂停时渠道整体隐去（资讯中心不展示不可用渠道）
+        return None
     runs = await log_repo.list_runs_for_task(
         channel.task_type or "", source=channel.source, since=day_start
     )
@@ -259,11 +254,13 @@ async def get_channels_status(
     task_repo = CollectorTaskRepository(session)
     channels: list[NewsChannelResponse] = []
     for channel in NEWS_CHANNELS:
+        item: NewsChannelResponse | None
         if channel.monitor_type == MONITOR_STREAM:
             item = await _status_stream(channel, session, now, day_start)
         else:
             item = await _status_task_log(channel, session, now, day_start, task_repo)
-        channels.append(item)
+        if item is not None:
+            channels.append(item)
     total, scored, high = await ai_score_repository.today_stats(
         session, day_start=day_start
     )

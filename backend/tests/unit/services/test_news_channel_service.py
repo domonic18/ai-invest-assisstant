@@ -49,6 +49,7 @@ def _service_mocks(
     *,
     runs_by_channel: dict[tuple[str, str], list[Any]] | None = None,
     schedules: dict[tuple[str, str], str] | None = None,
+    inactive: set[tuple[str, str]] | None = None,
     today: tuple[int, datetime | None] = (120, None),
     stats: tuple[int, int, int] = (100, 80, 12),
     heartbeat: int = 1,
@@ -56,9 +57,11 @@ def _service_mocks(
 ) -> Iterator[SimpleNamespace]:
     """patch 判定器的外部依赖：Redis 心跳 / 任务日志 / 任务配置 / 源表统计。
 
-    runs_by_channel / schedules 均以渠道身份 (task_type, source) 为键。
+    runs_by_channel / schedules 均以渠道身份 (task_type, source) 为键；
+    inactive 集合内的渠道任务视为已暂停（is_active=False）。
     """
     runs_by_channel = runs_by_channel or {}
+    inactive = inactive or set()
     schedules = schedules or {
         ("news", "eastmoney"): FLASH_SCHEDULE,
         ("research-report", "eastmoney"): REPORT_SCHEDULE,
@@ -97,7 +100,8 @@ def _service_mocks(
         )
         task_cls.return_value.get_by_type_and_source = AsyncMock(
             side_effect=lambda task_type, source: SimpleNamespace(
-                schedule=schedules.get((task_type, source))
+                schedule=schedules.get((task_type, source)),
+                is_active=(task_type, source) not in inactive,
             )
         )
         yield SimpleNamespace(redis=fake_redis, today=today_mock, stats=stats_mock)
@@ -189,30 +193,61 @@ class TestTaskLogPolling:
         assert ch.today_count == 0
         assert ch.last_updated_at == _at(11, 31)
 
+    async def test_paused_task_log_channel_hidden(self) -> None:
+        # 一键开关关闭（任务 is_active=False）→ 渠道整体隐去，其余渠道不受影响
+        result = await _status(_at(12), inactive={("news", "eastmoney")})
+        keys = [ch.key for ch in result.channels]
+        assert "eastmoney_flash_news" not in keys
+        assert "cls_telegraph" in keys
+        assert "social_video" in keys
+
 
 @pytest.mark.unit
 class TestTaskLogBatch:
-    async def test_today_success_batch(self) -> None:
-        runs = [_run("success", _at(18), _at(18, 5), records=40)]
-        result = await _status(
-            _at(23), runs_by_channel={("research-report", "eastmoney"): runs}
+    @contextmanager
+    def _batch_channel(self) -> Iterator[NewsChannel]:
+        """批量批次渠道已不进默认注册表（东财研报走双入口），此处临时登记覆盖批次判定器。"""
+        channel = NewsChannel(
+            key="fake_batch_report",
+            name="批次报表",
+            monitor_type=MONITOR_TASK_LOG,
+            poll_desc="每日 2 次（8:00 / 18:00）",
+            task_type="research-report",
+            source="eastmoney",
+            batch_schedule=True,
         )
-        ch = _channel_of(result, "eastmoney_research_report")
+        register_channel(channel)
+        try:
+            yield channel
+        finally:
+            NEWS_CHANNELS.remove(channel)
+
+    async def test_today_success_batch(self) -> None:
+        with self._batch_channel():
+            runs = [_run("success", _at(18), _at(18, 5), records=40)]
+            result = await _status(
+                _at(23), runs_by_channel={("research-report", "eastmoney"): runs}
+            )
+        ch = _channel_of(result, "fake_batch_report")
         assert ch.status == "batch"
         assert ch.status_text == "每日批次"
         assert ch.today_count == 40
 
     async def test_morning_wait_before_grace(self) -> None:
         # 8:00 批次过后 1 小时无成功，仍在宽限窗口 -> 正常等待
-        result = await _status(_at(9), runs_by_channel={("research-report", "eastmoney"): []})
-        assert _channel_of(result, "eastmoney_research_report").status == "batch"
+        with self._batch_channel():
+            result = await _status(
+                _at(9), runs_by_channel={("research-report", "eastmoney"): []}
+            )
+        assert _channel_of(result, "fake_batch_report").status == "batch"
 
     async def test_overdue_no_success_delayed(self) -> None:
         # 8:00 批次过后 2.5 小时仍无成功 -> delayed
-        result = await _status(
-            _at(10, 30), runs_by_channel={("research-report", "eastmoney"): []}
-        )
-        assert _channel_of(result, "eastmoney_research_report").status == "delayed"
+        with self._batch_channel():
+            result = await _status(
+                _at(10, 30), runs_by_channel={("research-report", "eastmoney"): []}
+            )
+        assert _channel_of(result, "fake_batch_report").status == "delayed"
 
 
 @pytest.mark.unit
@@ -232,10 +267,10 @@ class TestStatsAndRegistry:
 
     async def test_default_registry_three_channels(self) -> None:
         result = await _status(_at(12))
+        # 东财研报已退出资讯中心注册表（双入口：个股研报页 / 管理端研报库）
         assert [ch.key for ch in result.channels] == [
             "cls_telegraph",
             "eastmoney_flash_news",
-            "eastmoney_research_report",
             "social_video",
         ]
 
