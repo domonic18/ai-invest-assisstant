@@ -1,7 +1,8 @@
 """agent 工具装配与跨工具行为守卫单测（mock service，不触网不连库）。"""
 
 
-from datetime import date
+from datetime import date, datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -38,7 +39,7 @@ from app.schemas.market import (
 
 @pytest.mark.unit
 class TestBuildAssistantTools:
-    def test_returns_twenty_nine_tools(self) -> None:
+    def test_returns_thirty_two_tools(self) -> None:
         tools = build_assistant_tools()
         names = [t.name for t in tools]
         assert names == [
@@ -57,6 +58,9 @@ class TestBuildAssistantTools:
             "get_limit_up_ladder",
             "get_limit_up_pool",
             "get_index_technical",
+            "get_important_news",
+            "get_social_sentiment",
+            "get_sector_anomaly",
             "get_kline_drawings",
             "get_auction_summary",
             "get_trade_calendar",
@@ -205,3 +209,117 @@ class TestOutputShaping:
         by_name = {s["name"]: s for s in result["series"]}
         assert by_name["深证成指"]["latest_yi"] == 1.5
         assert by_name["上证指数"]["latest_yi"] == 3.0
+
+
+def _telegraph_row(score: int = 85):
+    telegraph = SimpleNamespace(
+        title="央行降准",
+        content="央行宣布降准 0.5 个百分点，释放长期流动性" + "x" * 200,
+        publish_time=datetime(2026, 9, 17, 10, 0, tzinfo=timezone.utc),
+        stock_codes=["600000"],
+    )
+    return telegraph, score, {"reason": "重大货币政策"}
+
+
+@pytest.mark.unit
+class TestReviewInputTools:
+    @pytest.mark.asyncio
+    async def test_important_news_truncates_and_notes(self) -> None:
+        from app.agent.tools import get_important_news
+
+        with patch.object(
+            nt.telegraph_repository,
+            "list_top_telegraph",
+            AsyncMock(return_value=[_telegraph_row()]),
+        ) as mock_repo:
+            result = await get_important_news.ainvoke({"trade_date": "2026-09-17"})
+
+        mock_repo.assert_awaited_once()
+        assert mock_repo.await_args.args[1] == date(2026, 9, 17)
+        item = result["items"][0]
+        assert item["title"] == "央行降准"
+        assert len(item["content"]) <= 160
+        assert item["score"] == 85
+        assert item["reason"] == "重大货币政策"
+        assert item["stock_codes"] == ["600000"]
+        assert "1 条重点要闻" in result["note"]
+
+    @pytest.mark.asyncio
+    async def test_important_news_empty_notes_honestly(self) -> None:
+        from app.agent.tools import get_important_news
+
+        with patch.object(
+            nt.telegraph_repository,
+            "list_top_telegraph",
+            AsyncMock(return_value=[]),
+        ):
+            result = await get_important_news.ainvoke({"trade_date": "2026-09-17"})
+
+        assert result["items"] == []
+        assert "无评分达标" in result["note"]
+
+    @pytest.mark.asyncio
+    async def test_important_news_rejects_bad_date(self) -> None:
+        from app.agent.tools import get_important_news
+
+        result = await get_important_news.ainvoke({"trade_date": "2026/09/17"})
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_social_sentiment_wraps_feed_service(self) -> None:
+        from app.agent.tools import get_social_sentiment
+        from app.services.social import feed_service
+
+        payload = {"trade_date": "2026-09-17", "net_bullish": 3, "total": 10}
+        with patch.object(
+            feed_service, "get_review_sentiment", AsyncMock(return_value=payload)
+        ) as mock_svc:
+            result = await get_social_sentiment.ainvoke({"trade_date": "2026-09-17"})
+
+        mock_svc.assert_awaited_once()
+        assert mock_svc.await_args.args[1] == date(2026, 9, 17)
+        assert result == payload
+
+    @pytest.mark.asyncio
+    async def test_sector_anomaly_trims_to_top10(self) -> None:
+        from app.agent.tools import get_sector_anomaly
+        from app.services.market import sector_anomaly_service
+
+        items = [
+            SimpleNamespace(
+                sector_name=f"板块{i}",
+                sector_type="industry",
+                change_pct=1.0 + i,
+                amount_ratio=2.0,
+                anomaly_types=["volume_surge"],
+                strength=90 - i,
+                attribution_summary="放量",
+            )
+            for i in range(15)
+        ]
+        response = SimpleNamespace(trade_date=date(2026, 9, 17), total=15, items=items)
+        with patch.object(
+            sector_anomaly_service,
+            "get_sector_anomaly_board",
+            AsyncMock(return_value=response),
+        ):
+            result = await get_sector_anomaly.ainvoke({"trade_date": "2026-09-17"})
+
+        assert result["total"] == 15
+        assert len(result["items"]) == 10
+        assert result["items"][0]["sector_name"] == "板块0"
+
+    @pytest.mark.asyncio
+    async def test_sector_anomaly_empty_notes_honestly(self) -> None:
+        from app.agent.tools import get_sector_anomaly
+        from app.services.market import sector_anomaly_service
+
+        with patch.object(
+            sector_anomaly_service,
+            "get_sector_anomaly_board",
+            AsyncMock(return_value=None),
+        ):
+            result = await get_sector_anomaly.ainvoke({"trade_date": "2026-09-17"})
+
+        assert result["items"] == []
+        assert "无板块异动检测数据" in result["note"]

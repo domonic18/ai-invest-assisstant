@@ -144,7 +144,7 @@ VALUES
     ('ths_kline_daily', 'kline', 'sina', '0 16 * * 1-5', true),
     -- 自选股日 K 自动补采：缺省 symbols = 全部自选股，错开 16:00 收盘批
     ('watchlist_kline_daily', 'watchlist-kline-daily', 'sina', '30 16 * * 1-5', true),
-    ('sina_index_kline', 'index-kline', 'sina', '0 16,18 * * 1-5', true),
+    ('sina_index_kline', 'index-kline', 'sina', '0 18 * * 1-5', true),
     ('ths_auction', 'auction', 'ths', '15,25 9 * * 1-5', true),
     ('eastmoney_fund_flow', 'fund-flow', 'eastmoney', '0 16 * * 1-5', true),
     ('eastmoney_flash_news', 'news', 'eastmoney', '0/30 * * * *', true),
@@ -170,11 +170,11 @@ VALUES
     -- A50 期指日盘 16:30 收盘，17:40 取当日日 K，21:40 夜盘修正；
     -- eastmoney 已被 WAF 路径级封死，仅作渠道兜底，不再排期
     ('sina_a50_kline', 'a50-kline', 'sina', '40 17,21 * * 1-5', true),
-    -- 16:30 收盘批数据就绪后生成大盘综述 AI base，避免多租户重复调用 LLM
-    ('market_daily_review_1630', 'market-daily-review', 'internal', '30 16 * * 1-5', true),
+    -- 指数日 K（18:00 批 + 18:30 freshness 兜底）落库后生成大盘综述 AI base，避免多租户重复调用 LLM
+    ('market_daily_review_1835', 'market-daily-review', 'internal', '35 18 * * 1-5', true),
     -- 16:30 涨停股池（16:00 批次）落库后生成涨停 AI 归因，与复盘同批串行执行
     ('limit_up_ai_review_1630', 'limit-up-ai-review', 'internal', '30 16 * * 1-5', true),
-    -- 16:40 遍历开启 AI 复盘分组的自选股逐只生成个股分析，晚于大盘复盘
+    -- 16:40 遍历开启 AI 复盘分组的自选股逐只生成个股分析（自选股日 K 16:30 批就绪后）
     ('stock_daily_analysis_1640', 'ai_stock_daily_analysis', 'internal', '40 16 * * 1-5', true),
     -- 16:45 板块收盘快照（sector-quote 16:05 批次）落库后做板块异动检测 + top-10 归因
     ('sector_anomaly_detect_1645', 'sector-anomaly', 'internal', '45 16 * * 1-5', true),

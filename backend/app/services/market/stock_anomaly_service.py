@@ -14,9 +14,14 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.market_anomaly import StockAnomaly
-from app.repositories.market import anomaly_repository
+from app.repositories.market import anomaly_repository, sector_quote_repository
+from app.repositories.market.stock_concept_repository import StockConceptRepository
 from app.repositories.user.watchlist_repository import WatchlistRepository
-from app.schemas.anomaly import StockAnomalyItem, StockAnomalyResponse
+from app.schemas.anomaly import (
+    AnomalySectorRef,
+    StockAnomalyItem,
+    StockAnomalyResponse,
+)
 from app.services.market.anomaly_common import (
     CATEGORY_ACCELERATION,
     CATEGORY_BREAKOUT,
@@ -45,6 +50,9 @@ _SCORE_TURNOVER = 20
 _SCORE_PRICE = 15
 _SCORE_TREND_BONUS = 5
 _PULLBACK_FACTOR = 0.7
+
+# 异动条目展示的所属板块上限（按当日涨跌幅绝对值取最相关的前几个）
+SECTOR_REFS_CAP = 3
 
 
 @dataclass(frozen=True)
@@ -254,6 +262,7 @@ async def get_stock_anomaly_board(
                 user_id, [row.stock_code for row in rows]
             )
         )
+    sector_refs = await _build_sector_refs(session, rows, target)
     return StockAnomalyResponse(
         trade_date=target,
         total=len(rows),
@@ -273,6 +282,7 @@ async def get_stock_anomaly_board(
                 is_above_ma60=row.is_above_ma60,
                 ma60_breakout=row.ma60_breakout,
                 anomaly_types=list(row.anomaly_types or []),
+                sectors=sector_refs.get(row.stock_code, []),
                 strength=row.strength,
                 attribution_category=row.attribution_category,
                 attribution_summary=row.attribution_summary,
@@ -281,6 +291,39 @@ async def get_stock_anomaly_board(
             for row in rows
         ],
     )
+
+
+async def _build_sector_refs(
+    session: AsyncSession,
+    rows: list[StockAnomaly],
+    trade_date: date,
+) -> dict[str, list[AnomalySectorRef]]:
+    """各异动股的所属板块引用（概念映射 × 当日板块涨幅），按 |涨幅| 取前 N。"""
+    if not rows:
+        return {}
+    concepts = await StockConceptRepository(session).get_concepts_by_stocks(
+        [row.stock_code for row in rows]
+    )
+    if not concepts:
+        return {}
+    pct_by_name = {
+        sector.sector_name: float(sector.change_pct)
+        for sector in await sector_quote_repository.list_all_by_date(session, trade_date)
+        if sector.change_pct is not None
+    }
+    refs: dict[str, list[AnomalySectorRef]] = {}
+    for stock_code, names in concepts.items():
+        candidates = [
+            AnomalySectorRef(name=name, change_pct=pct_by_name.get(name)) for name in names
+        ]
+        candidates.sort(
+            key=lambda ref: (
+                abs(ref.change_pct) if ref.change_pct is not None else -1.0
+            ),
+            reverse=True,
+        )
+        refs[stock_code] = candidates[:SECTOR_REFS_CAP]
+    return refs
 
 
 async def list_stock_anomaly_trade_dates(session: AsyncSession) -> list[date]:

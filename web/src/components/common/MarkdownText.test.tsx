@@ -8,7 +8,7 @@ describe('MarkdownText', () => {
     render(<MarkdownText content={'关键数据 `2.66万亿` 值得关注'} />)
     const code = screen.getByText('2.66万亿')
     expect(code.tagName).toBe('CODE')
-    expect(code.className).toContain('bg-amber-400/15')
+    expect(code.className).toContain('bg-sky-400/10')
   })
 
   it('colors signed percentages by cn scheme (red up / green down)', () => {
@@ -22,6 +22,7 @@ describe('MarkdownText', () => {
     expect(screen.getByRole('list')).toBeInTheDocument()
     const bold = screen.getByText('重点')
     expect(bold.tagName).toBe('STRONG')
+    expect(bold.className).toContain('text-amber-300')
   })
 
   it('does not color percentages inside inline code', () => {

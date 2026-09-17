@@ -3,7 +3,7 @@
 合规边界：任何响应模型不得包含 transcript_text（临时文稿判后即清）。
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -98,8 +98,17 @@ class SocialFeedResponse(CamelModel):
     page_size: int
 
 
+class SocialDailyStanceResponse(CamelModel):
+    """账号卡按日多空分布行（发布时间转北京时间按日聚合）。"""
+
+    date: date
+    bullish: int = 0
+    bearish: int = 0
+    neutral: int = 0
+
+
 class SocialAccountCardResponse(CamelModel):
-    """账号维度卡（近 7 日多空分布由服务层聚合）。"""
+    """账号维度卡（统计窗口内多空分布与按日时序由服务层聚合）。"""
 
     id: int
     alias: str
@@ -109,10 +118,10 @@ class SocialAccountCardResponse(CamelModel):
     latest_confidence: float | None = None
     latest_summary: str | None = None
     latest_cover_url: str | None = None
-    # 显式 alias：避免 to_camel 生成 "7D" 的别扭大小写
-    bullish_count_7d: int = Field(default=0, serialization_alias="bullishCount7d")
-    bearish_count_7d: int = Field(default=0, serialization_alias="bearishCount7d")
-    neutral_count_7d: int = Field(default=0, serialization_alias="neutralCount7d")
+    bullish_count: int = 0
+    bearish_count: int = 0
+    neutral_count: int = 0
+    daily: list[SocialDailyStanceResponse] = []
 
 
 class SocialAccountsResponse(CamelModel):

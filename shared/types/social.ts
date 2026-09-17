@@ -47,7 +47,16 @@ export interface ApiSocialFeedPage {
   items: ApiSocialFeedItem[]
 }
 
-/** 账号维度卡（GET /social/accounts 列表项，近 7 日多空分布）。 */
+/** 按日多空分布行（发布时间转北京时间按日聚合，账号卡时序用）。 */
+export interface ApiSocialDailyStance {
+  /** 本地日历日 YYYY-MM-DD */
+  date: string
+  bullish: number
+  bearish: number
+  neutral: number
+}
+
+/** 账号维度卡（GET /social/accounts 列表项，统计窗口内多空分布 + 按日时序）。 */
 export interface ApiSocialAccountCard {
   id: number
   alias: string
@@ -57,9 +66,11 @@ export interface ApiSocialAccountCard {
   latestConfidence: number | null
   latestSummary: string | null
   latestCoverUrl: string | null
-  bullishCount7d: number
-  bearishCount7d: number
-  neutralCount7d: number
+  bullishCount: number
+  bearishCount: number
+  neutralCount: number
+  /** 窗口内按日时序（最多近 14 天） */
+  daily: ApiSocialDailyStance[]
 }
 
 /** GET /social/accounts 响应。 */

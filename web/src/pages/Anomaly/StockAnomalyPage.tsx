@@ -5,7 +5,11 @@ import dayjs, { type Dayjs } from 'dayjs'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { PAGE_EVENT_TYPES, type ApiStockAnomalyItem } from '@ai-invest/shared'
+import {
+  PAGE_EVENT_TYPES,
+  type ApiAnomalySectorRef,
+  type ApiStockAnomalyItem,
+} from '@ai-invest/shared'
 
 import { MarkedDatePicker } from '@/components/common/MarkedDatePicker'
 import { SourceNote } from '@/components/common/SourceNote'
@@ -108,6 +112,28 @@ export function StockAnomalyPage() {
       sorter: (a, b) => (a.turnoverRate ?? 0) - (b.turnoverRate ?? 0),
       render: (v: number | null) =>
         v != null ? <span className="font-mono">{v.toFixed(2)}%</span> : '-',
+    },
+    {
+      title: '所属板块',
+      dataIndex: 'sectors',
+      width: 220,
+      render: (sectors: ApiAnomalySectorRef[]) =>
+        sectors.length === 0 ? (
+          '-'
+        ) : (
+          <div className="flex flex-wrap gap-1">
+            {sectors.map((s) => (
+              <Tag key={s.name} className="!mr-0">
+                {s.name}
+                {s.changePct != null && (
+                  <span className={`ml-1 font-mono text-xs ${changeColor(s.changePct)}`}>
+                    {formatPercent(s.changePct)}
+                  </span>
+                )}
+              </Tag>
+            ))}
+          </div>
+        ),
     },
     {
       title: '量比',
@@ -252,7 +278,7 @@ export function StockAnomalyPage() {
             columns={columns}
             dataSource={items}
             size="small"
-            scroll={{ x: 1150 }}
+            scroll={{ x: 1370 }}
             pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false }}
           />
         )}

@@ -43,10 +43,11 @@ export function useSentimentFeed(
   })
 }
 
-export function useSocialAccountCards() {
+/** 账号维度卡；hours 缺省 undefined = 全部历史，计数与按日时序随之变化。 */
+export function useSocialAccountCards(hours?: number) {
   return useQuery({
-    queryKey: queryKeys.social.accounts,
-    queryFn: fetchSocialAccountCards,
+    queryKey: [...queryKeys.social.accounts, hours ?? null],
+    queryFn: () => fetchSocialAccountCards(hours),
   })
 }
 

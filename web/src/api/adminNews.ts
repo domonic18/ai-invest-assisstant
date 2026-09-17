@@ -71,3 +71,22 @@ export async function batchDeleteAdminNews(ids: number[]) {
   )
   return response.data.deleted
 }
+
+export interface FlashNewsDisplayState {
+  enabled: boolean
+}
+
+export async function fetchFlashNewsDisplay() {
+  const response = await apiClient.get<FlashNewsDisplayState>(
+    ENDPOINTS.admin.newsFlashDisplay,
+  )
+  return response.data
+}
+
+export async function updateFlashNewsDisplay(enabled: boolean) {
+  const response = await apiClient.post<FlashNewsDisplayState>(
+    ENDPOINTS.admin.newsFlashDisplay,
+    { enabled },
+  )
+  return response.data
+}

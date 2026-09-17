@@ -51,14 +51,13 @@ export function Login() {
           name="login"
           layout="vertical"
           onFinish={handleSubmit}
-          autoComplete="off"
         >
           <Form.Item
             label="用户名"
             name="username"
             rules={[{ required: true, message: '请输入用户名' }]}
           >
-            <Input prefix={<UserOutlined />} placeholder="用户名" size="large" />
+            <Input prefix={<UserOutlined />} placeholder="用户名" size="large" autoComplete="username" />
           </Form.Item>
 
           <Form.Item
@@ -66,7 +65,7 @@ export function Login() {
             name="password"
             rules={[{ required: true, message: '请输入密码' }]}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="密码" size="large" />
+            <Input.Password prefix={<LockOutlined />} placeholder="密码" size="large" autoComplete="current-password" />
           </Form.Item>
 
           <Form.Item>

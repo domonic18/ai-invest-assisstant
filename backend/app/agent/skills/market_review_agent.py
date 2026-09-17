@@ -47,10 +47,13 @@ async def run_skill(
     from deepagents import create_deep_agent
 
     from app.agent.tools import (
+        get_important_news,
         get_index_technical,
         get_limit_up_ladder,
         get_market_overview,
+        get_sector_anomaly,
         get_sector_overview,
+        get_social_sentiment,
     )
 
     agent = create_deep_agent(
@@ -60,6 +63,9 @@ async def run_skill(
             get_limit_up_ladder,
             get_index_technical,
             get_sector_overview,
+            get_important_news,
+            get_social_sentiment,
+            get_sector_anomaly,
         ],
         system_prompt=(
             f"{prompt_config.system_prompt.strip()}\n\n{load_skill_instructions(SKILL_ID)}"

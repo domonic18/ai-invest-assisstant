@@ -7,10 +7,12 @@ from langchain_core.tools import tool
 from app.agent.tools import db_tools
 from app.agent.tools.market_tools import _parse_trade_date
 from app.core.database import AsyncSessionLocal
+from app.repositories.market import telegraph_repository
 
 NEWS_MAX_DAYS = 180
 NEWS_MAX_ROWS = 30
 KB_MAX_ROWS = 10
+IMPORTANT_NEWS_CONTENT_MAX = 160
 
 
 @tool
@@ -52,6 +54,42 @@ async def search_news_by_date(
     limit = max(1, min(limit, NEWS_MAX_ROWS))
     async with AsyncSessionLocal() as session:
         return await db_tools.search_news_by_date(session, start, end, limit)
+
+
+@tool
+async def get_important_news(trade_date: str) -> dict[str, Any]:
+    """获取当日重点要闻（财联社电报 AI 评分 ≥70，按评分降序），供消息面复盘取数。
+
+    Args:
+        trade_date: 交易日期，ISO 格式如 "2026-09-17"。
+    """
+    day, error = _parse_trade_date(trade_date)
+    if error or day is None:
+        return {"error": "trade_date 须为 YYYY-MM-DD 格式"}
+    async with AsyncSessionLocal() as session:
+        rows = await telegraph_repository.list_top_telegraph(session, day)
+
+    items: list[dict[str, Any]] = []
+    for telegraph, score, score_detail in rows:
+        reason = ""
+        if isinstance(score_detail, dict):
+            reason = str(score_detail.get("reason") or "")
+        items.append(
+            {
+                "title": telegraph.title,
+                "content": (telegraph.content or "")[:IMPORTANT_NEWS_CONTENT_MAX],
+                "score": score,
+                "reason": reason,
+                "publish_time": telegraph.publish_time.isoformat(),
+                "stock_codes": telegraph.stock_codes or [],
+            }
+        )
+    note = (
+        f"共 {len(items)} 条重点要闻（评分≥70）。"
+        if items
+        else "当日无评分达标的重点要闻（≥70 分），消息面应如实说明，不得用普通消息凑数。"
+    )
+    return {"trade_date": day.isoformat(), "items": items, "note": note}
 
 
 @tool

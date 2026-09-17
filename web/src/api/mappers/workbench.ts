@@ -135,8 +135,12 @@ export function mapWorkbench(dto: ApiWorkbenchResponse): WorkbenchOverview {
     stats: dto.stats ? mapMarketStats(dto.stats) : null,
     globalIndices: dto.globalIndices.map(mapGlobalIndexQuote),
     sectorFlow: dto.sectorFlow.map(mapSectorFlowItem),
+    // 异动速览复用异动页 Api 形状（该域无二次视图映射），直接透传
+    anomalyTop: dto.anomalyTop ?? null,
     collectorStatus: dto.collectorStatus
       ? mapCollectorStatus(dto.collectorStatus)
       : null,
+    // SystemStatus 形状前后端一致（camelCase），直接透传
+    systemStatus: dto.systemStatus ?? null,
   }
 }

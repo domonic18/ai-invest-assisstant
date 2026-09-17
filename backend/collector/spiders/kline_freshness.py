@@ -26,6 +26,10 @@ from collector.spiders.sina_etf_kline import SinaEtfKlineCollector
 A50_CODE = "CN00Y"
 # 当日 bar 收盘后存在发布滞后，17:00 前不校验「期望日=今天」的缺口
 _PUBLISH_READY_TIME = time(17, 0)
+# 已知晚到标的：源端当日 bar 常晚于 18:30 运行档落地（沪深300ETF 稳定约
+# 21:30、深成指/创业板指偶发 18:30 后），末档（≥21:00）恢复严格校验
+_LATE_READY_TIME = time(21, 0)
+_KNOWN_LATE_CODES = frozenset({"sh510300", "sz399001", "sz399006"})
 
 _CHECK_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("index-kline", tuple(INDEX_CODES)),
@@ -97,6 +101,17 @@ class KlineFreshnessCollector(BaseCollector):
                 ]
             healed.extend(code for code in missing if code not in unresolved)
             still_missing.extend(unresolved)
+
+        expected_late = [
+            code
+            for code in still_missing
+            if code in _KNOWN_LATE_CODES and now_cn().time() < _LATE_READY_TIME
+        ]
+        if expected_late:
+            metadata["expected_late"] = expected_late
+            still_missing = [
+                code for code in still_missing if code not in expected_late
+            ]
 
         if still_missing:
             status = CollectStatus.PARTIAL

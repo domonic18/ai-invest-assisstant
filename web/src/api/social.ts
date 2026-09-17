@@ -48,8 +48,12 @@ export async function fetchSentimentFeed(
   return response.data
 }
 
-export async function fetchSocialAccountCards(): Promise<ApiSocialAccountsResponse> {
-  const response = await apiClient.get<ApiSocialAccountsResponse>(ENDPOINTS.social.accounts)
+/** 账号维度卡；hours 为统计窗口（小时），缺省=全部历史。 */
+export async function fetchSocialAccountCards(
+  hours?: number,
+): Promise<ApiSocialAccountsResponse> {
+  const url = ENDPOINTS.social.accounts + toQuery({ hours })
+  const response = await apiClient.get<ApiSocialAccountsResponse>(url)
   return response.data
 }
 

@@ -337,3 +337,15 @@ class NewsFlashItemResponse(CamelModel):
     content: str | None = None
     source_url: str | None = None
     publish_time: datetime
+
+
+class FlashNewsDisplayRequest(CamelModel):
+    """东财快讯资讯中心展示开关请求（仅展示；采集启停在采集管理）。"""
+
+    enabled: bool
+
+
+class FlashNewsDisplayResponse(CamelModel):
+    """东财快讯资讯中心展示开关状态（缺省展示）。"""
+
+    enabled: bool

@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.clock import utc_now
 from app.models.ai_analysis_result import AiAnalysisResult
@@ -56,16 +57,33 @@ async def insert_result(
 
 
 async def load_latest_success(
-    session: AsyncSession, *, skill_id: str, input_hash: str
+    session: AsyncSession,
+    *,
+    skill_id: str,
+    input_hash: str | None = None,
+    trade_date: date | None = None,
 ) -> AiAnalysisResult | None:
-    """读取最近一条 success 状态的记录；无缓存返回 None。"""
+    """读取最近一条 success 状态的记录；无缓存返回 None。
+
+    Args:
+        session: 数据库会话。
+        skill_id: skill 标识。
+        input_hash: 精确匹配的契约哈希；None 表示不过滤（读路径跨提示词
+            版本回退同日最新记录用，生成缓存路径必须传）。
+        trade_date: structured_output.trade_date 精确过滤（input_hash 为 None
+            时用于限定日期）。
+    """
+    conditions: list[ColumnElement[bool]] = [AiAnalysisResult.skill_id == skill_id]
+    if input_hash is not None:
+        conditions.append(AiAnalysisResult.input_hash == input_hash)
+    if trade_date is not None:
+        conditions.append(
+            AiAnalysisResult.structured_output["trade_date"].as_string()
+            == trade_date.isoformat()
+        )
     stmt = (
         select(AiAnalysisResult)
-        .where(
-            AiAnalysisResult.skill_id == skill_id,
-            AiAnalysisResult.input_hash == input_hash,
-            AiAnalysisResult.status == "success",
-        )
+        .where(*conditions, AiAnalysisResult.status == "success")
         .order_by(AiAnalysisResult.created_at.desc())
         .limit(1)
     )

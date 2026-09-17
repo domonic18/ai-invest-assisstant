@@ -6,8 +6,8 @@
 import type { RefObject } from 'react'
 import type ReactECharts from 'echarts-for-react'
 
-import { type KlineChartData } from './stockChartView/klineData'
 import {
+  type PriceRangeBar,
   computePriceAxisRange,
   DEFAULT_ZOOM_END,
   DEFAULT_ZOOM_START,
@@ -20,9 +20,15 @@ interface DataZoomRange {
   endValue?: number | string
 }
 
+/** 纵轴重算所需的最小图表数据（个股/板块/指数 K 线共用）。 */
+interface ZoomableChartData {
+  dates: string[]
+  bars: PriceRangeBar[]
+}
+
 export function useDataZoomYAxisRescale(
   chartRef: RefObject<ReactECharts | null>,
-  chartData: KlineChartData | null | undefined,
+  chartData: ZoomableChartData | null | undefined,
 ) {
   /** 复位缩放到默认窗口（双击图表 / 工具栏按钮） */
   const resetZoom = () => {

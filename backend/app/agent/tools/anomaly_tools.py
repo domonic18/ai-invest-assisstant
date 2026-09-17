@@ -1,4 +1,4 @@
-"""异动归因持久化助手工具（仅助手对话路径注入）。"""
+"""异动查询与归因持久化助手工具（归因持久化仅助手对话路径注入）。"""
 
 from datetime import date
 from typing import Any
@@ -37,6 +37,52 @@ class StockAttributionArgs(BaseModel):
     stock_code: str
     category: str
     summary: str
+
+
+@tool
+async def get_sector_anomaly(trade_date: str) -> dict[str, Any]:
+    """获取当日板块异动信号（行业+概念合并，按异动强度降序 TOP10），供资金面与板块异动对照分析。
+
+    Args:
+        trade_date: 交易日期，ISO 格式如 "2026-09-17"。
+    """
+    from app.services.market import sector_anomaly_service
+
+    resolved, error = _parse_trade_date(trade_date)
+    if error or resolved is None:
+        return {"error": "trade_date 须为 YYYY-MM-DD 格式"}
+    async with AsyncSessionLocal() as session:
+        response = await sector_anomaly_service.get_sector_anomaly_board(
+            session, resolved, None
+        )
+
+    if response is None or not response.items:
+        return {
+            "trade_date": resolved.isoformat(),
+            "items": [],
+            "note": "当日无板块异动检测数据，资金面分区应如实说明，不得臆测异动方向。",
+        }
+    items = [
+        {
+            "sector_name": item.sector_name,
+            "sector_type": item.sector_type,
+            "change_pct": item.change_pct,
+            "amount_ratio": item.amount_ratio,
+            "anomaly_types": item.anomaly_types,
+            "strength": item.strength,
+            "attribution_summary": item.attribution_summary,
+        }
+        for item in response.items[:10]
+    ]
+    return {
+        "trade_date": response.trade_date.isoformat(),
+        "total": response.total,
+        "items": items,
+        "note": (
+            f"共 {response.total} 个板块当日触发异动，已按异动强度降序返回前 {len(items)} 个；"
+            "请与主力资金流向对照：净流入∧异动=主线确认，异动∧净流出=冲高回落/诱多风险。"
+        ),
+    }
 
 
 @tool

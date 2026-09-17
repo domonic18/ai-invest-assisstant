@@ -10,7 +10,6 @@ import dayjs from 'dayjs'
 import { fmt, FONT_MONO, lastPriceLabel, signed, WEEKDAYS } from '@/components/charts/chartShared'
 import { fallHex, riseHex } from '@/utils/formatters'
 import { deriveAmplitude, deriveBarChange, formatWanShou } from '@/utils/kline'
-import type { StockKlineBar } from '@ai-invest/shared'
 
 import type { StockChartViewIndicators } from './StockChartView'
 import { BORDER_COLOR, GRID_COLOR, TEXT_MAIN, TEXT_MUTED } from './constants'
@@ -31,18 +30,27 @@ export interface PriceAxisRange {
   pctMax: number
 }
 
+/** computePriceAxisRange 所需的最小 bar 形状（个股/指数 K 线共用）。 */
+export interface PriceRangeBar {
+  low: number | null
+  high: number | null
+  close: number | null
+}
+
 /**
  * 按可见窗口 [startIdx, endIdx] 计算主图右轴（价格）与左轴（相对首根收盘的涨跌幅）范围。
  * 键盘/滑块缩放后由 datazoom 事件重算，使纵轴随可见区间自适应（对齐同花顺行为）。
  */
 export function computePriceAxisRange(
-  bars: StockKlineBar[],
+  bars: PriceRangeBar[],
   startIdx: number,
   endIdx: number,
 ): PriceAxisRange {
   const slice = bars.slice(startIdx, endIdx + 1)
-  const pMin = Math.min(...slice.map((b) => b.low))
-  const pMax = Math.max(...slice.map((b) => b.high))
+  const lows = slice.map((b) => b.low).filter((v): v is number => v != null)
+  const highs = slice.map((b) => b.high).filter((v): v is number => v != null)
+  const pMin = lows.length > 0 ? Math.min(...lows) : 0
+  const pMax = highs.length > 0 ? Math.max(...highs) : 0
   const pad = (pMax - pMin) * 0.05 || 1
   const yMin = pMin - pad
   const yMax = pMax + pad

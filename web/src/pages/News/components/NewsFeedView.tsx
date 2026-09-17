@@ -253,15 +253,16 @@ export function NewsFeedView({ channels }: NewsFeedViewProps) {
   return (
     <div className="space-y-3">
       <Space size={[6, 6]} wrap>
-        {/* 渠道 chips 从注册表渲染；已接入数据源的可选中筛选（东财快讯为独立基础流） */}
+        {/* 渠道 chips 只渲染已接入数据源的渠道；未接入渠道仅在监控条展示健康，不出 chip */}
         <Tag.CheckableTag
           checked={channelKey === 'all'}
           onChange={() => setChannelKey('all')}
         >
           全部渠道
         </Tag.CheckableTag>
-        {channels.map((channel) =>
-          isChannelWired(channel.key) ? (
+        {channels
+          .filter((channel) => isChannelWired(channel.key))
+          .map((channel) => (
             <Tag.CheckableTag
               key={channel.key}
               checked={channelKey === channel.key}
@@ -269,17 +270,7 @@ export function NewsFeedView({ channels }: NewsFeedViewProps) {
             >
               {channel.name}
             </Tag.CheckableTag>
-          ) : (
-            <Tooltip key={channel.key} title="该渠道数据接入中">
-              <Tag.CheckableTag
-                checked={false}
-                className="!cursor-not-allowed !opacity-40"
-              >
-                {channel.name}
-              </Tag.CheckableTag>
-            </Tooltip>
-          ),
-        )}
+          ))}
       </Space>
 
       {channelKey === 'eastmoney_flash_news' ? <FlashFeedView /> : <TelegraphFeed />}

@@ -17,6 +17,7 @@ from app.repositories.chain import (
 )
 from app.schemas.chain import (
     ChainAlertResponse,
+    ChainAlertStockRef,
     ChainAlertType,
     ChainAnalysisResult,
     ChainCompareCompanyChange,
@@ -30,6 +31,7 @@ from app.services.chain.chain_analysis_service import (
     analyze_and_persist,
     persist_analysis_result,
 )
+from app.services.market.stock_service import batch_quote_snapshot
 
 __all__ = [
     "ChainAnalysisFailedError",
@@ -99,8 +101,17 @@ async def list_industries(session: AsyncSession, user_id: int) -> list[str]:
 async def list_alerts(
     session: AsyncSession, industry: str, days: int = 30
 ) -> list[ChainAlertResponse]:
-    """查询指定行业近 N 天 AI 提醒（severity 降序，行业级全局数据）。"""
+    """查询指定行业近 N 天 AI 提醒（severity 降序，行业级全局数据）。
+
+    关联标的经批量快照富化（名称 + 当日涨跌幅），供前端点击跳转个股页。
+    """
     alerts = await chain_alert_repository.list_alerts(session, industry, days)
+    codes = [
+        code
+        for alert in alerts
+        for code in (alert.related_stock_codes or [])
+    ]
+    snapshots = await batch_quote_snapshot(session, codes) if codes else {}
     return [
         ChainAlertResponse(
             industry=alert.industry,
@@ -109,7 +120,14 @@ async def list_alerts(
             title=alert.title,
             description=alert.description,
             affected_segments=alert.affected_segments or [],
-            related_stock_codes=alert.related_stock_codes or [],
+            related_stocks=[
+                ChainAlertStockRef(
+                    code=code,
+                    name=snapshots.get(code, {}).get("name") or code,
+                    change_pct=snapshots.get(code, {}).get("change_pct"),
+                )
+                for code in (alert.related_stock_codes or [])
+            ],
             signal_date=alert.signal_date,
             created_at=alert.created_at,
         )

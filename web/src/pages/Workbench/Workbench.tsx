@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react'
 
 import { useWorkbench } from '@/hooks/useWorkbench'
 
+import { AnomalyTopCard } from './components/AnomalyTopCard'
 import { CalendarSummaryCard } from './components/CalendarSummaryCard'
 import { CollectorEngineCard } from './components/CollectorEngineCard'
 import { FedWatchCard } from './components/FedWatchCard'
 import { IndexStrip } from './components/IndexStrip'
 import { SectorFlowCard } from './components/SectorFlowCard'
+import { SentimentFeedCard } from './components/SentimentFeedCard'
 import { TelegraphCard } from './components/TelegraphCard'
 import { WatchlistOverviewCard } from './components/WatchlistOverviewCard'
 
@@ -49,7 +51,7 @@ export function Workbench() {
         </Typography.Text>
       </div>
 
-      {/* 行对齐网格：行内卡片等高（stretch），行序 指数/加息概率 → 要闻/日历 → 自选/引擎 → 板块（整行）。
+      {/* 行对齐网格：行内卡片等高（stretch）。行序 指数/加息概率 → 要闻/日历 → 大V情绪(宽) | 右列纵排（板块资金 → 异动速览 → 自选(模块内滚动) → 服务器与采集引擎）。
           复盘状态移至左侧导航栏（SidebarReviewStatus）。 */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-5 items-stretch">
         <IndexStrip
@@ -67,19 +69,20 @@ export function Workbench() {
           stretch
         />
         <CalendarSummaryCard events={data?.calendar} loading={isLoading} stretch />
-        <WatchlistOverviewCard
-          groups={data?.watchlistGroups}
-          loading={isLoading}
-          className="xl:col-span-2"
-          stretch
-        />
-        <CollectorEngineCard status={data?.collectorStatus ?? null} loading={isLoading} stretch />
-        <SectorFlowCard
-          items={data?.sectorFlow}
-          loading={isLoading}
-          className="xl:col-span-3"
-          stretch
-        />
+        <SentimentFeedCard className="xl:col-span-2" stretch />
+        <div className="flex flex-col gap-4 md:gap-5 min-h-0">
+          <SectorFlowCard items={data?.sectorFlow} loading={isLoading} />
+          <AnomalyTopCard anomalyTop={data?.anomalyTop} loading={isLoading} />
+          <WatchlistOverviewCard
+            groups={data?.watchlistGroups}
+            loading={isLoading}
+          />
+          <CollectorEngineCard
+            status={data?.collectorStatus ?? null}
+            systemStatus={data?.systemStatus ?? null}
+            loading={isLoading}
+          />
+        </div>
       </div>
     </div>
   )

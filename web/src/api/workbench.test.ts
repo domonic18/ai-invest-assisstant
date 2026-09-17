@@ -261,7 +261,9 @@ describe('mapWorkbench', () => {
       stats: statsDto,
       globalIndices: [globalDto],
       sectorFlow: [sectorFlowDto],
+      anomalyTop: null,
       collectorStatus: collectorStatusDto,
+      systemStatus: null,
     }
 
     const overview = mapWorkbench(dto)
@@ -297,7 +299,9 @@ describe('mapWorkbench', () => {
       stats: null,
       globalIndices: [],
       sectorFlow: [],
+      anomalyTop: null,
       collectorStatus: null,
+      systemStatus: null,
     }
 
     const overview = mapWorkbench(dto)

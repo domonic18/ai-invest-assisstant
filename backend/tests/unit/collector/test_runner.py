@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from collector.core.base import CollectResult, CollectStatus
+from collector.runtime.registry import TASK_MAP
 from collector.runtime.runner import (
     _ERROR_MSG_MAX_LEN,
     _build_task_kwargs,
@@ -67,6 +68,33 @@ class TestBuildTaskKwargs:
     def test_none_values_are_skipped(self) -> None:
         kwargs = _build_task_kwargs("kline", {"period": None, "symbols": None})
         assert kwargs == {}
+
+
+@pytest.mark.unit
+class TestTaskEntryDefaults:
+    @pytest.mark.asyncio
+    async def test_sector_kline_defaults_apply_on_scheduled_path(self) -> None:
+        """定时路径无请求参数：run_params 缺省须由 TaskSpec.defaults 兜底，
+        不得把 None 透传给采集器（曾致 sector-kline 每日 int(None) 崩溃）。"""
+        captured: dict = {}
+
+        async def fake_run(
+            task_name: str,
+            data_type: str,
+            collector_map: dict,
+            preferred_source: str | None,
+            **kwargs: object,
+        ) -> CollectResult:
+            captured.update(kwargs)
+            return _make_result()
+
+        with patch(
+            "collector.runtime.registry._run_collector_for_task",
+            side_effect=fake_run,
+        ):
+            await TASK_MAP["sector-kline"]()
+
+        assert captured["lookback_days"] == 10
 
 
 @pytest.mark.unit

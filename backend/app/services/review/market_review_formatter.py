@@ -24,7 +24,11 @@ def build_response(
     cached: bool,
     edited: bool,
 ) -> MarketReviewResponse:
-    """按 YAML 声明的分区顺序组装响应（未声明的内容键丢弃，缺失分区补空串）。"""
+    """按 YAML 声明的分区顺序组装响应（未声明的内容键丢弃，空内容分区不渲染）。
+
+    历史记录按旧契约（更少的分区）落库，新增分区键无对应内容，跳过以免前端
+    渲染空白卡片；生成路径 persist 已强制全部分区非空，不受影响。
+    """
     return MarketReviewResponse(
         trade_date=trade_date,
         sections=[
@@ -34,6 +38,7 @@ def build_response(
                 content=contents.get(section.key, ""),
             )
             for section in sections
+            if contents.get(section.key, "").strip()
         ],
         model=model,
         generated_at=generated_at,

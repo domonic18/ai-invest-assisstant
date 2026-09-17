@@ -111,9 +111,14 @@ class ThsSectorKlineCollector(PostgresCollector):
         "close",
     ]
 
-    async def collect(self, lookback_days: int = 10, **kwargs: Any) -> list[dict[str, Any]]:
+    async def collect(
+        self, lookback_days: int | None = None, **kwargs: Any
+    ) -> list[dict[str, Any]]:
+        # 定时路径由 TaskSpec.defaults 注入缺省，但入口层历史上曾透传 None——
+        # 签名保持 None 容忍（与 eastmoney_global_index.history_days 同款惯例）
+        days = max(int(lookback_days), 1) if lookback_days else 10
         end = latest_trading_day()
-        start = end - timedelta(days=max(int(lookback_days), 1))
+        start = end - timedelta(days=days)
         rows: list[dict[str, Any]] = await run_in_thread(self._collect_sync, start, end)
         return rows
 

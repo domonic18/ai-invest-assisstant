@@ -126,7 +126,8 @@ async def _build_quote_items(
 
 
 _AI_SUMMARY_SECTION_KEY = "intraday_review"
-_AI_SUMMARY_MAX_CHARS = 120
+# 摘要硬上限兜底（prompt 已要求一句话 ≤60 字，此处截断防超长残留）
+_AI_SUMMARY_MAX_CHARS = 60
 _AiStatus = Literal["off", "pending", "ready"]
 _MD_CHARS = re.compile(r"[#*`>\[\]]")
 _WHITESPACE = re.compile(r"\s+")

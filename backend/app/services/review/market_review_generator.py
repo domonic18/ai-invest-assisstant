@@ -14,6 +14,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptConfig, PromptSection
+from app.core.constants import INDEX_CODES
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
 from app.repositories.review import (
@@ -42,7 +43,7 @@ class ReviewGenerationLockedError(ConflictError):
 
 
 class ReviewInputDataNotReadyError(BadRequestError):
-    """生成所需输入数据（板块资金、涨停池等）尚未就绪。"""
+    """生成所需输入数据（指数行情、板块资金、涨停池等）尚未就绪。"""
 
     default_message = "当日行情数据尚未采集完成，请稍后重试"
 
@@ -66,13 +67,23 @@ def _hash_for(session_date: date, sections: list[PromptSection]) -> str:
 
 
 async def _load_base_review(
-    session: AsyncSession, trade_date: date, sections: list[PromptSection]
+    session: AsyncSession,
+    trade_date: date,
+    sections: list[PromptSection],
+    *,
+    require_hash_match: bool = True,
 ) -> BaseReview | None:
-    """读取共享 base 记录。"""
+    """读取共享 base 记录。
+
+    require_hash_match=True（生成缓存路径）只认当前契约哈希——提示词或分区
+    变更即视为缓存失效；False（用户读路径）跨契约版本回退同日最新 success
+    记录，旧契约缺失的分区由 build_response 跳过，不渲染空白卡片。
+    """
     row = await ai_analysis_repository.load_latest_success(
         session,
         skill_id=SKILL_ID,
-        input_hash=_hash_for(trade_date, sections),
+        input_hash=_hash_for(trade_date, sections) if require_hash_match else None,
+        trade_date=None if require_hash_match else trade_date,
     )
     if row is None or not row.structured_output:
         return None
@@ -206,7 +217,11 @@ async def generate_market_review(
     if trade_date is not None:
         await assert_trading_day(session, trade_date)
 
-    from app.services.market import market_stats_service, sector_service
+    from app.services.market import (
+        index_quotation_service,
+        market_stats_service,
+        sector_service,
+    )
 
     stats = await market_stats_service.get_market_stats(session, trade_date)
     resolved_date = stats.trade_date
@@ -237,14 +252,23 @@ async def generate_market_review(
             if cached is not None:
                 return cached.response
 
-        # 就绪预检：板块资金数据未就绪时抛错，celery 任务依赖该异常做退避重试，
-        # 同时避免在数据缺失时白烧 LLM token（具体取数由 SKILL 工具循环完成）
+        # 就绪预检：输入数据未就绪时抛错，celery 任务依赖该异常做退避重试，
+        # 同时避免在数据缺失时白烧 LLM token 并缓存残缺复盘（具体取数由
+        # SKILL 工具循环完成）。指数行情当日缺口由实时快照兜底（见
+        # index_quotation_service.get_index_quotes），兜底后仍缺说明采集异常。
         sectors = await sector_service.get_sector_overview(session, resolved_date)
         has_flow = bool(sectors.top_inflow) or bool(sectors.top_outflow)
         has_leading = any(item.change_pct is not None for item in sectors.leading)
         if not (has_flow or has_leading):
             raise ReviewInputDataNotReadyError(
                 "板块资金与领涨板块数据尚未就绪，无法生成资金面分析"
+            )
+
+        quotes = await index_quotation_service.get_index_quotes(session, resolved_date)
+        missing_indices = [c for c in INDEX_CODES if c not in {q.code for q in quotes}]
+        if missing_indices:
+            raise ReviewInputDataNotReadyError(
+                "四大指数行情数据尚未就绪（日 K 与实时快照均缺失），无法生成大盘综述"
             )
 
         from app.agent.skills.market_review_agent import run_skill

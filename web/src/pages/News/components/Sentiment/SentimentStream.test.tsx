@@ -73,7 +73,14 @@ describe('SentimentStream', () => {
         feedItem({ postId: 1, publishedAt: '2026-09-15T02:00:00Z' }),
       ]),
     )
-    render(<SentimentStream account={null} onClearAccount={() => undefined} />)
+    render(
+      <SentimentStream
+        hours={undefined}
+        onHoursChange={() => undefined}
+        account={null}
+        onClearAccount={() => undefined}
+      />,
+    )
     expect(screen.getAllByText('财经大V').length).toBeGreaterThan(0)
     expect(screen.getAllByText(/短线承压，控制仓位/).length).toBeGreaterThan(0)
     expect(screen.getByText(/以下为 .* 资讯/)).toBeTruthy()
@@ -81,13 +88,61 @@ describe('SentimentStream', () => {
 
   it('shows transcript missing badge for degraded items', () => {
     mockFeed.mockReturnValue(feedResult([feedItem({ transcriptMissing: true })]))
-    render(<SentimentStream account={null} onClearAccount={() => undefined} />)
+    render(
+      <SentimentStream
+        hours={undefined}
+        onHoursChange={() => undefined}
+        account={null}
+        onClearAccount={() => undefined}
+      />,
+    )
     expect(screen.getByText('未转写')).toBeTruthy()
+  })
+
+  it('renders 9:16 cover thumbnail with duration badge', () => {
+    mockFeed.mockReturnValue(
+      feedResult([feedItem({ coverUrl: 'https://cdn.example.com/c.jpeg' })]),
+    )
+    const { container } = render(
+      <SentimentStream
+        hours={undefined}
+        onHoursChange={() => undefined}
+        account={null}
+        onClearAccount={() => undefined}
+      />,
+    )
+    const img = screen.getByRole('img', { name: '今日复盘' })
+    expect(img.getAttribute('src')).toBe('https://cdn.example.com/c.jpeg')
+    expect(img.getAttribute('referrerpolicy')).toBe('no-referrer')
+    expect(screen.getByText('2:00')).toBeTruthy()
+    // antd Image 预览关闭（封面点击走「原视频」外链）
+    expect(container.querySelector('.ant-image-preview-root')).toBeNull()
+  })
+
+  it('renders cover placeholder without image when cover missing', () => {
+    mockFeed.mockReturnValue(feedResult([feedItem({ coverUrl: null })]))
+    render(
+      <SentimentStream
+        hours={undefined}
+        onHoursChange={() => undefined}
+        account={null}
+        onClearAccount={() => undefined}
+      />,
+    )
+    expect(screen.queryByRole('img', { name: '今日复盘' })).toBeNull()
+    expect(screen.getByText('2:00')).toBeTruthy()
   })
 
   it('passes stance and strongOnly filters to the feed query', () => {
     mockFeed.mockReturnValue(feedResult([]))
-    render(<SentimentStream account={null} onClearAccount={() => undefined} />)
+    render(
+      <SentimentStream
+        hours={undefined}
+        onHoursChange={() => undefined}
+        account={null}
+        onClearAccount={() => undefined}
+      />,
+    )
     fireEvent.click(screen.getByText('看空'))
     const lastCall = mockFeed.mock.calls[mockFeed.mock.calls.length - 1]
     expect(lastCall?.[2]).toMatchObject({ stance: 'bearish' })
@@ -114,6 +169,8 @@ describe('SentimentStream', () => {
     } as unknown as ReturnType<typeof useSocialTimeline>)
     render(
       <SentimentStream
+        hours={undefined}
+        onHoursChange={() => undefined}
         account={{
           id: 7,
           alias: '财经大V',
@@ -123,9 +180,10 @@ describe('SentimentStream', () => {
           latestConfidence: 0.85,
           latestSummary: null,
           latestCoverUrl: null,
-          bullishCount7d: 3,
-          bearishCount7d: 1,
-          neutralCount7d: 0,
+          bullishCount: 3,
+          bearishCount: 1,
+          neutralCount: 0,
+          daily: [],
         }}
         onClearAccount={() => undefined}
       />,

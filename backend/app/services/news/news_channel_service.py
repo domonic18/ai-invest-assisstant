@@ -25,6 +25,7 @@ from app.core.constants import (
     NEWS_SOURCE_TELEGRAPH,
     STREAM_HEARTBEAT_KEY_TEMPLATE,
 )
+from app.models.account_quota import SystemSetting
 from app.models.collector_log import CollectorLog
 from app.repositories.admin.collector_log_repository import CollectorLogRepository
 from app.repositories.admin.collector_task_repository import CollectorTaskRepository
@@ -42,6 +43,31 @@ logger = structlog.get_logger(__name__)
 
 MONITOR_STREAM = "stream-heartbeat"
 MONITOR_TASK_LOG = "task-log"
+
+# 东财快讯渠道键与资讯中心展示开关（SystemSetting KV；缺省展示）
+FLASH_NEWS_CHANNEL_KEY = "eastmoney_flash_news"
+FLASH_NEWS_DISPLAY_KEY = "news.flash_news_display"
+
+
+async def is_flash_news_visible(session: AsyncSession) -> bool:
+    """东财快讯是否在资讯中心展示（开关行缺失视为展示）。
+
+    仅控制展示；采集任务的启停在管理端「采集管理」按任务暂停/恢复，两者互不影响。
+    """
+    row = await session.get(SystemSetting, FLASH_NEWS_DISPLAY_KEY)
+    return bool(row.value) if row is not None else True
+
+
+async def set_flash_news_visible(session: AsyncSession, visible: bool) -> bool:
+    """写入东财快讯展示开关（upsert，服务层负责提交）。"""
+    row = await session.get(SystemSetting, FLASH_NEWS_DISPLAY_KEY)
+    if row is None:
+        row = SystemSetting(key=FLASH_NEWS_DISPLAY_KEY, value=visible)
+        session.add(row)
+    else:
+        row.value = visible
+    await session.commit()
+    return visible
 
 # 批次型渠道当日首个计划时刻过后仍无成功的宽限
 _BATCH_GRACE = timedelta(hours=2)
@@ -82,7 +108,8 @@ async def _telegraph_today(
     return await telegraph_repository.today_overview(session, day_start=day_start)
 
 
-# 渠道注册表：新渠道在此登记一行即纳入监控（不存在的渠道不登记，不模拟数据）
+# 渠道注册表：新渠道在此登记一行即纳入监控（不存在的渠道不登记，不模拟数据）。
+# 东财研报不进资讯中心（双入口：个股研报页 / 管理端研报库），避免资讯流入口混淆。
 NEWS_CHANNELS: list[NewsChannel] = [
     NewsChannel(
         key=NEWS_SOURCE_TELEGRAPH,
@@ -95,21 +122,12 @@ NEWS_CHANNELS: list[NewsChannel] = [
         today_query=_telegraph_today,
     ),
     NewsChannel(
-        key="eastmoney_flash_news",
+        key=FLASH_NEWS_CHANNEL_KEY,
         name="东财快讯",
         monitor_type=MONITOR_TASK_LOG,
         poll_desc="30 分钟轮询",
         task_type="news",
         source="eastmoney",
-    ),
-    NewsChannel(
-        key="eastmoney_research_report",
-        name="东财研报",
-        monitor_type=MONITOR_TASK_LOG,
-        poll_desc="每日 2 次（8:00 / 18:00）",
-        task_type="research-report",
-        source="eastmoney",
-        batch_schedule=True,
     ),
     NewsChannel(
         key="social_video",
@@ -215,11 +233,16 @@ async def _status_task_log(
     now: datetime,
     day_start: datetime,
     task_repo: CollectorTaskRepository,
-) -> NewsChannelResponse:
+) -> NewsChannelResponse | None:
     log_repo = CollectorLogRepository(session)
     task = await task_repo.get_by_type_and_source(
         channel.task_type or "", channel.source or ""
     )
+    if channel.key == FLASH_NEWS_CHANNEL_KEY and not await is_flash_news_visible(
+        session
+    ):
+        # 展示开关关闭时资讯中心隐去该渠道；采集启停在「采集管理」控制，不影响本判定
+        return None
     runs = await log_repo.list_runs_for_task(
         channel.task_type or "", source=channel.source, since=day_start
     )
@@ -259,11 +282,13 @@ async def get_channels_status(
     task_repo = CollectorTaskRepository(session)
     channels: list[NewsChannelResponse] = []
     for channel in NEWS_CHANNELS:
+        item: NewsChannelResponse | None
         if channel.monitor_type == MONITOR_STREAM:
             item = await _status_stream(channel, session, now, day_start)
         else:
             item = await _status_task_log(channel, session, now, day_start, task_repo)
-        channels.append(item)
+        if item is not None:
+            channels.append(item)
     total, scored, high = await ai_score_repository.today_stats(
         session, day_start=day_start
     )

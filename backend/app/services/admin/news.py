@@ -12,6 +12,10 @@ from app.schemas.news_document import (
     NewsDocumentResponse,
     NewsDocumentUpdate,
 )
+from app.services.news.news_channel_service import (
+    is_flash_news_visible,
+    set_flash_news_visible,
+)
 
 
 class AdminNewsService:
@@ -101,6 +105,14 @@ class AdminNewsService:
         deleted = await self.repo.delete_by_ids(ids)
         await self.session.commit()
         return deleted
+
+    async def get_flash_news_display(self) -> bool:
+        """东财快讯资讯中心展示开关状态（缺省展示）。"""
+        return await is_flash_news_visible(self.session)
+
+    async def set_flash_news_display(self, visible: bool) -> bool:
+        """写入东财快讯展示开关；采集启停归「采集管理」，此处不触碰任务状态。"""
+        return await set_flash_news_visible(self.session, visible)
 
     def _to_response(self, news: NewsDocument) -> NewsDocumentResponse:
         """序列化为新闻公告响应模型。"""

@@ -4,13 +4,16 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.calendar import NewsCalendarEventResponse
-from app.schemas.workbench import WorkbenchResponse
+from app.schemas.workbench import WorkbenchAnomalyTop, WorkbenchResponse
+from app.services.admin.system_status_service import SystemStatusService
 from app.services.market import (
     calendar_service,
     global_index_service,
     index_quotation_service,
     market_stats_service,
+    sector_anomaly_service,
     sector_fund_flow_service,
+    stock_anomaly_service,
     telegraph_service,
     trade_calendar_service,
 )
@@ -22,6 +25,7 @@ logger = structlog.get_logger(__name__)
 
 _CALENDAR_LIMIT = 12
 _TELEGRAPH_PAGE_SIZE = 12
+_ANOMALY_TOP = 5
 
 
 async def get_workbench(session: AsyncSession, user_id: int) -> WorkbenchResponse:
@@ -83,6 +87,21 @@ async def get_workbench(session: AsyncSession, user_id: int) -> WorkbenchRespons
         logger.warning("workbench_sector_flow_degraded", exc_info=True)
 
     try:
+        sector_board = await sector_anomaly_service.get_sector_anomaly_board(session)
+        stock_board = await stock_anomaly_service.get_stock_anomaly_board(
+            session, user_id=user_id
+        )
+        boards = [b for b in (sector_board, stock_board) if b is not None]
+        if boards:
+            data.anomaly_top = WorkbenchAnomalyTop(
+                trade_date=boards[0].trade_date,
+                sectors=sector_board.items[:_ANOMALY_TOP] if sector_board else [],
+                stocks=stock_board.items[:_ANOMALY_TOP] if stock_board else [],
+            )
+    except Exception:
+        logger.warning("workbench_anomaly_top_degraded", exc_info=True)
+
+    try:
         data.review_status = await review_status_service.get_review_status(session)
     except Exception:
         logger.warning("workbench_review_status_degraded", exc_info=True)
@@ -91,5 +110,10 @@ async def get_workbench(session: AsyncSession, user_id: int) -> WorkbenchRespons
         data.collector_status = await collector_status_service.get_collector_status(session)
     except Exception:
         logger.warning("workbench_collector_status_degraded", exc_info=True)
+
+    try:
+        data.system_status = await SystemStatusService(session).get_status()
+    except Exception:
+        logger.warning("workbench_system_status_degraded", exc_info=True)
 
     return data

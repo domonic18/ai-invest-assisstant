@@ -372,6 +372,92 @@ class TestHistoricalIndexQuotes:
 
 
 @pytest.mark.unit
+class TestTodayFillFromSpot:
+    """当日日 K 缺 bar 时由实时快照补齐（新浪收盘日 K 约 18:00 才陆续可用）。"""
+
+    def _spot_entry(self, code: str, name: str, price: float, updated_at: str) -> dict:
+        return {
+            "code": code,
+            "name": name,
+            "price": price,
+            "change": -16.0,
+            "change_pct": -0.41,
+            "amount": 8.7e11,
+            "updated_at": updated_at,
+        }
+
+    @pytest.mark.asyncio
+    async def test_today_missing_codes_filled_from_spot(self) -> None:
+        today = date(2026, 9, 17)
+
+        def _bars(_session: object, code: str, **_kwargs: object) -> list:
+            if code == "CN00Y":
+                # 期货 T+1 日期惯例：夜盘 bar 已带"当日"日期
+                return [
+                    _bar(date(2026, 9, 17), 14378.0),
+                    _bar(date(2026, 9, 16), 14319.0),
+                ]
+            # A 股指数/ETF 日 K 尚无当日 bar（最新为 09-16）
+            return [_bar(date(2026, 9, 16), 101.0), _bar(date(2026, 9, 15), 100.0)]
+
+        spot = [
+            self._spot_entry(code, name, 3875.6, "2026-09-17T07:59:00+00:00")
+            for code, name in market_service.INDEX_CODES.items()
+        ]
+        with (
+            patch.object(index_quotation_service, "today_cn", lambda: today),
+            patch.object(
+                index_quotation_service, "fetch_daily_bars", AsyncMock(side_effect=_bars)
+            ),
+            patch.object(
+                index_quotation_service, "_index_spot", AsyncMock(return_value=spot)
+            ),
+            patch.object(
+                index_quotation_service,
+                "_local_index_closes",
+                AsyncMock(return_value=[99.0]),
+            ),
+        ):
+            quotes = await market_service.get_index_quotes(AsyncMock(), today)
+
+        by_code = {q.code: q for q in quotes}
+        # 四大指数由快照补齐 + CN00Y 日 K 命中；sh510300 无快照通道如实缺席
+        assert set(by_code) == set(market_service.INDEX_CODES) | {"CN00Y"}
+        sh = by_code["sh000001"]
+        assert sh.price == 3875.6
+        assert sh.change_pct == pytest.approx(-0.41)
+        assert sh.trend == [99.0]
+        assert by_code["CN00Y"].price == 14378.0
+
+    @pytest.mark.asyncio
+    async def test_stale_spot_entry_not_used_as_today(self) -> None:
+        """快照 updated_at 非当日（过期快照）不采信，不把旧收盘冒充当日行情。"""
+        today = date(2026, 9, 17)
+
+        def _bars(_session: object, code: str, **_kwargs: object) -> list:
+            if code == "CN00Y":
+                return [_bar(date(2026, 9, 17), 14378.0), _bar(date(2026, 9, 16), 14319.0)]
+            return [_bar(date(2026, 9, 16), 101.0), _bar(date(2026, 9, 15), 100.0)]
+
+        spot = [
+            self._spot_entry(code, name, 3875.6, "2026-09-16T07:59:00+00:00")
+            for code, name in market_service.INDEX_CODES.items()
+        ]
+        with (
+            patch.object(index_quotation_service, "today_cn", lambda: today),
+            patch.object(
+                index_quotation_service, "fetch_daily_bars", AsyncMock(side_effect=_bars)
+            ),
+            patch.object(
+                index_quotation_service, "_index_spot", AsyncMock(return_value=spot)
+            ),
+        ):
+            quotes = await market_service.get_index_quotes(AsyncMock(), today)
+
+        assert {q.code for q in quotes} == {"CN00Y"}
+
+
+@pytest.mark.unit
 class TestGetIndexKline:
     @pytest.mark.asyncio
     async def test_rejects_unknown_code(self) -> None:

@@ -1,7 +1,7 @@
-/** 情绪流单条卡片：博主 + 立场徽标 + 判断摘要/论点/标的 chips + 原视频与转写降级标注。 */
+/** 情绪流单条卡片：9:16 封面缩略图（时长角标）+ 博主 + 立场徽标 + 判断摘要/论点/标的 chips + 原视频与转写降级标注。 */
 
 import { MoreOutlined, PlayCircleOutlined } from '@ant-design/icons'
-import { Tooltip } from 'antd'
+import { Image, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 
 import type { ApiSocialFeedItem, ApiSocialTarget } from '@ai-invest/shared'
@@ -12,6 +12,9 @@ import { StanceBadge } from './StanceBadge'
 import { CATEGORY_LABELS, TARGET_TYPE_LABELS } from './labels'
 
 const douyinVideoUrl = (videoId: string) => `https://www.douyin.com/video/${videoId}`
+
+const COVER_FALLBACK =
+  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5IDE2Ij48cmVjdCB3aWR0aD0iOSIgaGVpZ2h0PSIxNiIgZmlsbD0iIzJhMmEyYSIvPjwvc3ZnPg=='
 
 function formatDuration(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
@@ -27,6 +30,42 @@ function TargetChip({ target }: { target: ApiSocialTarget }) {
   )
 }
 
+/** 9:16 竖版封面缩略图（宽度对齐抖音 web 信息流惯例 ~120px），右下角时长角标；点击打开原视频，无封面时占位。 */
+function CoverThumb({ item }: { item: ApiSocialFeedItem }) {
+  return (
+    <a
+      href={douyinVideoUrl(item.videoId)}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={item.title ?? '查看原视频'}
+      className="group relative w-[120px] shrink-0 overflow-hidden rounded"
+      style={{ aspectRatio: '9 / 16' }}
+    >
+      {item.coverUrl ? (
+        <Image
+          src={item.coverUrl}
+          alt={item.title ?? item.videoId}
+          width="100%"
+          height="100%"
+          style={{ objectFit: 'cover' }}
+          referrerPolicy="no-referrer"
+          preview={false}
+          fallback={COVER_FALLBACK}
+        />
+      ) : (
+        <div className="flex size-full items-center justify-center bg-white/[0.04]">
+          <PlayCircleOutlined className="text-lg opacity-30" />
+        </div>
+      )}
+      {item.durationSeconds !== null && (
+        <span className="absolute right-1 bottom-1 rounded bg-black/60 px-1 text-[10px] leading-4 text-white/90">
+          {formatDuration(item.durationSeconds)}
+        </span>
+      )}
+    </a>
+  )
+}
+
 interface SentimentCardProps {
   item: ApiSocialFeedItem
 }
@@ -37,6 +76,7 @@ export function SentimentCard({ item }: SentimentCardProps) {
       <span className="font-mono text-xs opacity-70 whitespace-nowrap pt-0.5">
         {dayjs(item.publishedAt).format('HH:mm')}
       </span>
+      <CoverThumb item={item} />
       <div className="flex-1 min-w-0 space-y-1.5">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium">{item.accountAlias}</span>
@@ -82,9 +122,6 @@ export function SentimentCard({ item }: SentimentCardProps) {
         </div>
 
         <div className="flex items-center gap-3 text-xs opacity-50">
-          {item.durationSeconds !== null && (
-            <span>{formatDuration(item.durationSeconds)}</span>
-          )}
           {item.diggCount !== null && <span>赞 {item.diggCount}</span>}
           {item.commentCount !== null && <span>评 {item.commentCount}</span>}
           <a

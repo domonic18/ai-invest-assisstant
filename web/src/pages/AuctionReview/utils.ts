@@ -9,6 +9,7 @@ export const TRADING_DAY_PRESETS: Array<{ label: string; value: number }> = [
   { label: '近 10 个交易日', value: 10 },
   { label: '近 20 个交易日', value: 20 },
   { label: '近 60 个交易日', value: 60 },
+  { label: '近 120 个交易日', value: 120 },
 ]
 
 export function presetToRange(days: number): [Dayjs, Dayjs] {

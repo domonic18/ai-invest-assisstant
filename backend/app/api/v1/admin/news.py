@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.base import BatchDeleteRequest
+from app.schemas.news import FlashNewsDisplayRequest, FlashNewsDisplayResponse
 from app.schemas.news_document import (
     NewsDocumentCreate,
     NewsDocumentResponse,
@@ -75,6 +76,25 @@ async def create_news(
     """创建新闻公告。"""
     news = await AdminNewsService(session).create_news(data)
     return NewsDocumentResponse.model_validate(news)
+
+
+@router.get("/flash-display", response_model=FlashNewsDisplayResponse)
+async def get_flash_news_display(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> FlashNewsDisplayResponse:
+    """查询东财快讯资讯中心展示开关状态（缺省展示）。"""
+    enabled = await AdminNewsService(session).get_flash_news_display()
+    return FlashNewsDisplayResponse(enabled=enabled)
+
+
+@router.post("/flash-display", response_model=FlashNewsDisplayResponse)
+async def set_flash_news_display(
+    data: FlashNewsDisplayRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> FlashNewsDisplayResponse:
+    """设置东财快讯资讯中心展示开关；采集启停在「采集管理」按任务控制。"""
+    enabled = await AdminNewsService(session).set_flash_news_display(data.enabled)
+    return FlashNewsDisplayResponse(enabled=enabled)
 
 
 @router.get("/{news_id}", response_model=NewsDocumentResponse)

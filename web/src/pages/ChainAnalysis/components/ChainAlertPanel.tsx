@@ -2,6 +2,7 @@ import { Card, Spin, Tag, Typography } from 'antd'
 
 import type { ChainAlert } from '@ai-invest/shared'
 
+import { StockLinkTag } from '@/components/common/StockLinkTag'
 import { useChainAlerts } from '@/hooks/useChain'
 
 const ALERT_TYPE_COLORS: Record<ChainAlert['alertType'], string> = {
@@ -89,15 +90,25 @@ export function ChainAlertPanel({ industry }: { industry: string }) {
                     {alert.description}
                   </Typography.Paragraph>
                 )}
-                {(alert.affectedSegments.length > 0 || alert.relatedStockCodes.length > 0) && (
+                {(alert.affectedSegments.length > 0 || alert.relatedStocks.length > 0) && (
                   <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[11px] text-gray-500">
                     {alert.affectedSegments.map((segment) => (
                       <Tag key={segment} className="!m-0 !text-[11px] !px-1.5 !py-0">
                         {segment}
                       </Tag>
                     ))}
-                    {alert.relatedStockCodes.length > 0 && (
-                      <span>相关标的: {alert.relatedStockCodes.join('、')}</span>
+                    {alert.relatedStocks.length > 0 && (
+                      <span className="inline-flex items-center gap-1 flex-wrap">
+                        <span>相关标的:</span>
+                        {alert.relatedStocks.map((stock) => (
+                          <StockLinkTag
+                            key={stock.code}
+                            code={stock.code}
+                            name={stock.name}
+                            changePct={stock.changePct}
+                          />
+                        ))}
+                      </span>
                     )}
                   </div>
                 )}

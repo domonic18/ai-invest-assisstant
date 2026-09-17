@@ -30,6 +30,13 @@ class SectorAnomalyResponse(CamelModel):
     items: list[SectorAnomalyItem] = []
 
 
+class AnomalySectorRef(CamelModel):
+    """个股异动条目关联的所属板块（名称 + 当日涨跌幅）。"""
+
+    name: str
+    change_pct: float | None = None
+
+
 class StockAnomalyItem(CamelModel):
     """个股异动条目。"""
 
@@ -43,6 +50,7 @@ class StockAnomalyItem(CamelModel):
     is_above_ma60: bool = False
     ma60_breakout: bool = False
     anomaly_types: list[str] = []
+    sectors: list[AnomalySectorRef] = []
     strength: int
     attribution_category: str | None = None
     attribution_summary: str | None = None

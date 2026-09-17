@@ -23,6 +23,12 @@ export interface ApiSectorAnomalyResponse {
   items: ApiSectorAnomalyItem[]
 }
 
+/** 异动条目关联的所属板块（名称 + 当日涨跌幅）。 */
+export interface ApiAnomalySectorRef {
+  name: string
+  changePct: number | null
+}
+
 export interface ApiStockAnomalyItem {
   stockCode: string
   stockName: string
@@ -34,6 +40,7 @@ export interface ApiStockAnomalyItem {
   isAboveMa60: boolean
   ma60Breakout: boolean
   anomalyTypes: string[]
+  sectors: ApiAnomalySectorRef[]
   strength: number
   attributionCategory: string | null
   attributionSummary: string | null

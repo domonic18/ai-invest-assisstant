@@ -177,9 +177,9 @@ class TestUserSocialEndpoints:
                     latest_confidence=0.9,
                     latest_summary="短线承压",
                     latest_cover_url=None,
-                    bullish_count_7d=2,
-                    bearish_count_7d=5,
-                    neutral_count_7d=1,
+                    bullish_count=2,
+                    bearish_count=5,
+                    neutral_count=1,
                 )
             ]
         )
@@ -187,11 +187,11 @@ class TestUserSocialEndpoints:
             "app.services.social.feed_service.get_account_cards",
             AsyncMock(return_value=payload),
         ):
-            response = client.get("/api/v1/social/accounts")
+            response = client.get("/api/v1/social/accounts?hours=72")
         assert response.status_code == 200
         card = response.json()["accounts"][0]
-        assert card["bullishCount7d"] == 2
-        assert card["bearishCount7d"] == 5
+        assert card["bullishCount"] == 2
+        assert card["bearishCount"] == 5
         assert card["latestStance"] == "bearish"
 
     def test_account_timeline(self, client) -> None:

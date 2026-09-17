@@ -9,6 +9,7 @@ from app.dependencies import get_current_user
 from app.main import app
 from app.schemas.chain import (
     ChainAlertResponse,
+    ChainAlertStockRef,
     ChainAnalysisResult,
     ChainAnalyzeResponse,
     ChainCompareResult,
@@ -200,7 +201,9 @@ class TestAlertsEndpoint:
                 title="毛利率异动",
                 description="环节毛利率同比 -6pct",
                 affected_segments=["硅材料"],
-                related_stock_codes=["600703"],
+                related_stocks=[
+                    ChainAlertStockRef(code="600703", name="三安光电", change_pct=2.5)
+                ],
                 signal_date=date(2026, 9, 4),
                 created_at=datetime(2026, 9, 5, tzinfo=timezone.utc),
             )

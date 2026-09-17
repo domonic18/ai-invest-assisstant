@@ -8,6 +8,8 @@ import { useFedWatch } from '@/hooks/useMarket'
 
 import { FoldCard } from './FoldCard'
 
+const FEDWATCH_URL = 'https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html'
+
 const CUT_COLOR = '#5e6ad2'
 const HOLD_COLOR = '#58a6ff'
 const HIKE_COLOR = '#8a8f98'
@@ -74,7 +76,15 @@ export function FedWatchCard({ className, stretch }: FedWatchCardProps) {
           <ProbRow label="加息（累计）" prob={next.probHike} color={HIKE_COLOR} />
         </div>
         <div className="mt-auto pt-2.5 text-[10px] text-gray-600 border-t border-dashed border-gray-800">
-          CME FedWatch · 截至 {dayjs(data.dataAsAt).format('MM-DD HH:mm')} CT · 最可能区间{' '}
+          <a
+            href={FEDWATCH_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-gray-400 hover:underline"
+          >
+            CME FedWatch
+          </a>{' '}
+          · 截至 {dayjs(data.dataAsAt).format('MM-DD HH:mm')} CT · 最可能区间{' '}
           {rangeLabel(next.likelyRangeLow, next.likelyRangeHigh)}
         </div>
       </div>
