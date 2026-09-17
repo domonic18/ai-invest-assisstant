@@ -40,6 +40,42 @@ class TestSinaKlineCollector:
         assert await collector.validate(item) is True
 
     @pytest.mark.asyncio
+    async def test_collect_normalizes_turnover_ratio_to_percent(self) -> None:
+        collector = SinaKlineCollector(
+            {"source": "sina", "data_type": "quote_kline_stock_daily"}
+        )
+        mock_df = pd.DataFrame(
+            [
+                {
+                    "date": "2026-09-14",
+                    "open": 10.5,
+                    "high": 11.0,
+                    "low": 10.2,
+                    "close": 10.8,
+                    "volume": 27233830,
+                    "amount": 2.9e8,
+                    "turnover": 0.147,
+                },
+                {"date": "2026-09-15", "close": 11.0, "turnover": None},
+            ]
+        )
+        with patch("akshare.stock_zh_a_daily", return_value=mock_df):
+            raw = await collector.collect(symbols=["000037"])
+
+        assert raw[0]["turnover_rate"] == 14.7
+        assert raw[1]["turnover_rate"] is None
+        assert collector.update_columns is not None
+        assert "turnover_rate" in collector.update_columns
+
+    @pytest.mark.asyncio
+    async def test_minute_period_update_columns_exclude_daily_only_fields(self) -> None:
+        collector = SinaKlineCollector(
+            {"source": "sina", "data_type": "quote_kline_stock_minute", "period": "minute"}
+        )
+        assert collector.update_columns == ["open", "high", "low", "close", "volume", "amount"]
+        assert collector.table == "quote_kline_stock_minute"
+
+    @pytest.mark.asyncio
     async def test_fetch_watchlist_codes_dedup_sorted(self) -> None:
         result = MagicMock(all=MagicMock(return_value=[("000001",), ("600519",)]))
         session = AsyncMock()

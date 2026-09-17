@@ -80,6 +80,27 @@ _MARKET_BREADTH_UPDATE_COLUMNS = [
     "source",
 ]
 
+_KLINE_DAILY_UPDATE_COLUMNS = [
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "amount",
+    "amplitude",
+    "change_pct",
+    "turnover_rate",
+]
+
+_KLINE_MINUTE_UPDATE_COLUMNS = [
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "amount",
+]
+
 _STOCK_LIST_UPDATE_COLUMNS = [
     "stock_name",
     "full_name",
@@ -133,7 +154,12 @@ CONTRACTS: list[SpiderContract] = [
         name="sina_kline_daily",
         cls=SinaKlineCollector,
         config={"source": "sina", "data_type": "kline"},
-        store=StoreContract(table="quote_kline_stock_daily", conflict_key="stock_code, trade_date"),
+        store=StoreContract(
+            table="quote_kline_stock_daily",
+            conflict_key="stock_code, trade_date",
+            # 盘中半日 bar 由 16:30 全量重采覆盖修正，故声明全列更新
+            update_columns=_KLINE_DAILY_UPDATE_COLUMNS,
+        ),
         has_normalize=False,
         dedup_keys=["stock_code", "trade_date"],
         required_fields=["stock_code", "trade_date", "close"],
@@ -142,7 +168,11 @@ CONTRACTS: list[SpiderContract] = [
         name="sina_index_kline",
         cls=SinaIndexKlineCollector,
         config={"source": "sina", "data_type": "index_kline"},
-        store=StoreContract(table="quote_kline_stock_daily", conflict_key="stock_code, trade_date"),
+        store=StoreContract(
+            table="quote_kline_stock_daily",
+            conflict_key="stock_code, trade_date",
+            update_columns=_KLINE_DAILY_UPDATE_COLUMNS,
+        ),
         has_normalize=False,
         dedup_keys=["stock_code", "trade_date"],
         required_fields=["stock_code", "trade_date", "close"],
@@ -151,7 +181,12 @@ CONTRACTS: list[SpiderContract] = [
         name="sina_kline_minute",
         cls=SinaKlineCollector,
         config={"source": "sina", "data_type": "kline", "period": "minute"},
-        store=StoreContract(table="quote_kline_stock_minute", conflict_key="stock_code, trade_date"),
+        store=StoreContract(
+            table="quote_kline_stock_minute",
+            conflict_key="stock_code, trade_date",
+            # 分钟表无 amplitude/change_pct/turnover_rate 列
+            update_columns=_KLINE_MINUTE_UPDATE_COLUMNS,
+        ),
         has_normalize=False,
         dedup_keys=["stock_code", "trade_date"],
         required_fields=["stock_code", "trade_date", "close"],

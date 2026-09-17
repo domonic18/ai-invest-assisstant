@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.watchlist import UserWatchlist
 from collector.core.base import get_engine
-from collector.core.parsing import clean_stock_code
+from collector.core.parsing import clean_stock_code, to_float
 from collector.spiders.kline_base import BaseKlineCollector
 
 
@@ -48,6 +48,8 @@ class SinaKlineCollector(BaseKlineCollector):
             if df is None or df.empty:
                 continue
             for _, row in df.iterrows():
+                # 新浪 turnover 为 0-1 比率，统一 ×100 归一为百分数口径（与列名一致）
+                turnover = to_float(row.get("turnover"))
                 raw.append(
                     {
                         "stock_code": symbol,
@@ -60,7 +62,7 @@ class SinaKlineCollector(BaseKlineCollector):
                         "amount": row.get("amount"),
                         "amplitude": None,
                         "change_pct": None,
-                        "turnover_rate": row.get("turnover"),
+                        "turnover_rate": turnover * 100 if turnover is not None else None,
                     }
                 )
 
