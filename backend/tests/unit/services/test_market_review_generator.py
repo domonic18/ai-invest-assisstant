@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.agent.core.prompt_loader import PromptSection
+from app.core.constants import INDEX_CODES
 from app.services.review import market_review_generator
 
 _TRADE_DATE = date(2026, 7, 17)
@@ -99,7 +100,13 @@ class TestPersistMarketReviewResult:
 
 @pytest.mark.unit
 class TestGenerateReadiness:
-    def _generate_patches(self, overview: SimpleNamespace):
+    def _generate_patches(
+        self,
+        overview: SimpleNamespace,
+        quotes: list[SimpleNamespace] | None = None,
+    ):
+        if quotes is None:
+            quotes = [SimpleNamespace(code=code) for code in INDEX_CODES]
         return (
             patch(
                 "app.services.market.market_stats_service.get_market_stats",
@@ -116,6 +123,10 @@ class TestGenerateReadiness:
                 "app.services.market.sector_service.get_sector_overview",
                 AsyncMock(return_value=overview),
             ),
+            patch(
+                "app.services.market.index_quotation_service.get_index_quotes",
+                AsyncMock(return_value=quotes),
+            ),
             _patch_redis_lock(),
         )
 
@@ -129,6 +140,7 @@ class TestGenerateReadiness:
             p[2],
             p[3],
             p[4],
+            p[5],
             pytest.raises(market_review_generator.ReviewInputDataNotReadyError),
         ):
             await market_review_generator.generate_market_review(
@@ -147,6 +159,31 @@ class TestGenerateReadiness:
             p[2],
             p[3],
             p[4],
+            p[5],
+            pytest.raises(market_review_generator.ReviewInputDataNotReadyError),
+        ):
+            await market_review_generator.generate_market_review(
+                AsyncMock(), _TRADE_DATE, regenerate=True
+            )
+
+    @pytest.mark.asyncio
+    async def test_raises_not_ready_when_index_quotes_missing(self) -> None:
+        """指数行情缺位（日 K 与快照均无）时预检拦截，避免生成并缓存残缺复盘。"""
+        overview = SimpleNamespace(
+            top_inflow=[SimpleNamespace(sector_name="半导体")],
+            top_outflow=[],
+            leading=[],
+        )
+        # 仅富时A50 命中（期货 T+1 日期惯例），四大 A 股指数缺席
+        partial = [SimpleNamespace(code="CN00Y")]
+        p = self._generate_patches(overview, quotes=partial)
+        with (
+            p[0],
+            p[1],
+            p[2],
+            p[3],
+            p[4],
+            p[5],
             pytest.raises(market_review_generator.ReviewInputDataNotReadyError),
         ):
             await market_review_generator.generate_market_review(
@@ -168,6 +205,7 @@ class TestGenerateReadiness:
             p[2],
             p[3],
             p[4],
+            p[5],
             patch.object(market_review_generator, "_persist", persist_mock),
             patch(
                 "app.agent.skills.market_review_agent.run_skill",

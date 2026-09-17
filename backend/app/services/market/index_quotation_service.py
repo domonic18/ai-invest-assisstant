@@ -6,9 +6,8 @@
 - 日频事实：日 K 写 ``quote_kline_stock_daily``，多周期由 TimescaleDB ``time_bucket`` 聚合。
 """
 
-import asyncio
 import json
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -155,11 +154,16 @@ async def get_index_quotes(
 
     默认取采集器写入 Redis 的实时快照（缺失时由日 K 合成）；
     扩展标的（沪深300ETF/富时A50）无实时通道，恒由日 K 合成；
-    指定历史交易日时从本地 ``quote_kline_stock_daily`` 取当日收盘与涨跌。
+    指定历史交易日时从本地 ``quote_kline_stock_daily`` 取当日收盘与涨跌；
+    指定当日时日 K 缺当日 bar（新浪收盘日 K 约 18:00 后才陆续可用），
+    由实时快照补齐缺失指数（收盘后快照即当日收盘价）。
     """
     if trade_date is not None:
         quotes = await _historical_index_quotes(session, trade_date)
-        if quotes or trade_date < today_cn():
+        if trade_date < today_cn():
+            return quotes
+        quotes = await _fill_today_from_spot(session, quotes, trade_date)
+        if quotes:
             return quotes
         # 当日盘中日线尚未更新，回退实时快照
     spot = await _index_spot()
@@ -180,6 +184,51 @@ async def get_index_quotes(
 
 def _num(value: Any) -> float | None:
     return float(value) if value is not None else None
+
+
+def _parse_spot_updated_at(raw: Any) -> datetime | None:
+    try:
+        return datetime.fromisoformat(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+async def _fill_today_from_spot(
+    session: AsyncSession,
+    quotes: list[IndexQuoteResponse],
+    trade_date: date,
+) -> list[IndexQuoteResponse]:
+    """当日日 K 缺失的指数用实时快照补齐（收盘后快照即当日收盘价）。
+
+    仅采信 ``updated_at`` 落在交易日的快照条目，避免过期快照把旧收盘
+    冒充当日行情；日 K 已命中的标的保持原样（保留日 K 口径的成交额）。
+    扩展标的（无实时通道）与缺失且快照不可用的标的保持缺席，由上层
+    如实披露。
+    """
+    spot = await _index_spot()
+    if spot is None:
+        return quotes
+    covered = {quote.code for quote in quotes}
+    filled = list(quotes)
+    for item in spot:
+        code = item.get("code")
+        if code not in INDEX_CODES or code in covered:
+            continue
+        updated_at = _parse_spot_updated_at(item.get("updated_at"))
+        if updated_at is None or updated_at.astimezone(CN_TZ).date() != trade_date:
+            continue
+        filled.append(
+            IndexQuoteResponse(
+                code=code,
+                name=item.get("name") or INDEX_CODES[code],
+                price=item["price"],
+                change=item.get("change"),
+                change_pct=item.get("change_pct"),
+                amount=item.get("amount"),
+                trend=await _local_index_closes(session, code, None, _TREND_DAYS),
+            )
+        )
+    return filled
 
 
 async def get_index_kline(
@@ -255,9 +304,11 @@ async def _historical_index_quotes(
     """历史交易日的指数收盘行情；当日非交易日时返回空列表。"""
     target = trade_date.isoformat()
     kline_codes = {**INDEX_CODES, **KLINE_CHART_EXTRA_CODES}
-    all_series = await asyncio.gather(
-        *(_index_daily_series(session, code, trade_date) for code in kline_codes)
-    )
+    # 顺序查询：单个 AsyncSession 不允许并发操作，gather 会触发
+    # "concurrent operations are not permitted" 直接崩掉取数工具
+    all_series = [
+        await _index_daily_series(session, code, trade_date) for code in kline_codes
+    ]
     quotes: list[IndexQuoteResponse] = []
     for (code, name), series in zip(kline_codes.items(), all_series, strict=True):
         idx = next(
