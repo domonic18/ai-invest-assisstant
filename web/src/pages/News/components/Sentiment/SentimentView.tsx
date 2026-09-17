@@ -11,8 +11,8 @@ import { SentimentStream } from './SentimentStream'
 
 export function SentimentView() {
   const [selected, setSelected] = useState<ApiSocialAccountCard | null>(null)
-  // 与情绪流一致默认 7 天；undefined = 不限时间（全部历史）
-  const [hours, setHours] = useState<number | undefined>(168)
+  // 账号卡与情绪流共享时间范围，默认 24H；undefined = 不限时间（全部历史）
+  const [hours, setHours] = useState<number | undefined>(24)
   const { data, isLoading } = useSocialAccountCards(hours)
 
   return (

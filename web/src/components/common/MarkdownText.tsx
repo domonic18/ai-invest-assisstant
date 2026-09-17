@@ -9,7 +9,7 @@ interface MarkdownTextProps {
   className?: string
 }
 
-/** 渲染 AI 复盘 Markdown：`` 高亮重点、带符号百分比按涨跌配色（跟随全站配色方案）。 */
+/** 渲染 AI 复盘 Markdown：粗体琥珀强调、`` 天蓝数据高亮、带符号百分比按涨跌配色（跟随全站配色方案）。 */
 export function MarkdownText({ content, className }: MarkdownTextProps) {
   useColorScheme()
 
@@ -26,13 +26,13 @@ export function MarkdownText({ content, className }: MarkdownTextProps) {
     },
     code({ children }) {
       return (
-        <code className="rounded bg-amber-400/15 px-1 py-0.5 text-amber-300">
+        <code className="rounded bg-sky-400/10 px-1 py-0.5 text-sky-300">
           {children}
         </code>
       )
     },
     strong({ children }) {
-      return <strong className="font-semibold text-white">{children}</strong>
+      return <strong className="font-semibold text-amber-300">{children}</strong>
     },
     ol({ children }) {
       return <ol className="list-decimal space-y-1 pl-5">{children}</ol>

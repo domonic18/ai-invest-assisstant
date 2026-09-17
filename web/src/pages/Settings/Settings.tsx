@@ -17,7 +17,7 @@ const SECTIONS = [
   { key: 'profile', label: '基本信息' },
   { key: 'appearance', label: '外观偏好' },
   { key: 'indexes', label: '跟踪指数' },
-  { key: 'quota', label: '配额与用量' },
+  { key: 'quota', label: '配额用量' },
   { key: 'model', label: '我的模型' },
   { key: 'security', label: '账号安全' },
 ] as const
