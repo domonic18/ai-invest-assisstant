@@ -41,15 +41,3 @@ class CollectorTaskResponse(CollectorTaskBase):
     last_error: str | None = None
     created_at: datetime
     updated_at: datetime
-
-
-class FlashNewsSwitchRequest(CamelModel):
-    """东财快讯一键开关请求（开启=恢复采集，关闭=暂停采集）。"""
-
-    enabled: bool
-
-
-class FlashNewsSwitchResponse(CamelModel):
-    """东财快讯一键开关状态（任务行缺失视为关闭）。"""
-
-    enabled: bool

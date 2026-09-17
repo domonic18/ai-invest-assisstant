@@ -25,6 +25,7 @@ from app.core.constants import (
     NEWS_SOURCE_TELEGRAPH,
     STREAM_HEARTBEAT_KEY_TEMPLATE,
 )
+from app.models.account_quota import SystemSetting
 from app.models.collector_log import CollectorLog
 from app.repositories.admin.collector_log_repository import CollectorLogRepository
 from app.repositories.admin.collector_task_repository import CollectorTaskRepository
@@ -42,6 +43,31 @@ logger = structlog.get_logger(__name__)
 
 MONITOR_STREAM = "stream-heartbeat"
 MONITOR_TASK_LOG = "task-log"
+
+# 东财快讯渠道键与资讯中心展示开关（SystemSetting KV；缺省展示）
+FLASH_NEWS_CHANNEL_KEY = "eastmoney_flash_news"
+FLASH_NEWS_DISPLAY_KEY = "news.flash_news_display"
+
+
+async def is_flash_news_visible(session: AsyncSession) -> bool:
+    """东财快讯是否在资讯中心展示（开关行缺失视为展示）。
+
+    仅控制展示；采集任务的启停在管理端「采集管理」按任务暂停/恢复，两者互不影响。
+    """
+    row = await session.get(SystemSetting, FLASH_NEWS_DISPLAY_KEY)
+    return bool(row.value) if row is not None else True
+
+
+async def set_flash_news_visible(session: AsyncSession, visible: bool) -> bool:
+    """写入东财快讯展示开关（upsert，服务层负责提交）。"""
+    row = await session.get(SystemSetting, FLASH_NEWS_DISPLAY_KEY)
+    if row is None:
+        row = SystemSetting(key=FLASH_NEWS_DISPLAY_KEY, value=visible)
+        session.add(row)
+    else:
+        row.value = visible
+    await session.commit()
+    return visible
 
 # 批次型渠道当日首个计划时刻过后仍无成功的宽限
 _BATCH_GRACE = timedelta(hours=2)
@@ -96,7 +122,7 @@ NEWS_CHANNELS: list[NewsChannel] = [
         today_query=_telegraph_today,
     ),
     NewsChannel(
-        key="eastmoney_flash_news",
+        key=FLASH_NEWS_CHANNEL_KEY,
         name="东财快讯",
         monitor_type=MONITOR_TASK_LOG,
         poll_desc="30 分钟轮询",
@@ -212,8 +238,10 @@ async def _status_task_log(
     task = await task_repo.get_by_type_and_source(
         channel.task_type or "", channel.source or ""
     )
-    if task is not None and not task.is_active:
-        # 任务被后台一键开关/暂停时渠道整体隐去（资讯中心不展示不可用渠道）
+    if channel.key == FLASH_NEWS_CHANNEL_KEY and not await is_flash_news_visible(
+        session
+    ):
+        # 展示开关关闭时资讯中心隐去该渠道；采集启停在「采集管理」控制，不影响本判定
         return None
     runs = await log_repo.list_runs_for_task(
         channel.task_type or "", source=channel.source, since=day_start

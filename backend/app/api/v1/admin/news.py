@@ -9,10 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.base import BatchDeleteRequest
-from app.schemas.collector_task import (
-    FlashNewsSwitchRequest,
-    FlashNewsSwitchResponse,
-)
+from app.schemas.news import FlashNewsDisplayRequest, FlashNewsDisplayResponse
 from app.schemas.news_document import (
     NewsDocumentCreate,
     NewsDocumentResponse,
@@ -20,7 +17,6 @@ from app.schemas.news_document import (
 )
 from app.schemas.stock import PaginatedResponse
 from app.services.admin.news import AdminNewsService
-from app.services.admin.tasks import AdminTaskService
 
 router = APIRouter(dependencies=[Depends(get_current_admin_user)])
 
@@ -82,23 +78,23 @@ async def create_news(
     return NewsDocumentResponse.model_validate(news)
 
 
-@router.get("/flash-switch", response_model=FlashNewsSwitchResponse)
-async def get_flash_news_switch(
+@router.get("/flash-display", response_model=FlashNewsDisplayResponse)
+async def get_flash_news_display(
     session: Annotated[AsyncSession, Depends(get_db)],
-) -> FlashNewsSwitchResponse:
-    """查询东财快讯一键开关状态（采集任务 is_active 即真相）。"""
-    enabled = await AdminTaskService(session).get_flash_news_enabled()
-    return FlashNewsSwitchResponse(enabled=enabled)
+) -> FlashNewsDisplayResponse:
+    """查询东财快讯资讯中心展示开关状态（缺省展示）。"""
+    enabled = await AdminNewsService(session).get_flash_news_display()
+    return FlashNewsDisplayResponse(enabled=enabled)
 
 
-@router.post("/flash-switch", response_model=FlashNewsSwitchResponse)
-async def set_flash_news_switch(
-    data: FlashNewsSwitchRequest,
+@router.post("/flash-display", response_model=FlashNewsDisplayResponse)
+async def set_flash_news_display(
+    data: FlashNewsDisplayRequest,
     session: Annotated[AsyncSession, Depends(get_db)],
-) -> FlashNewsSwitchResponse:
-    """一键开关东财快讯：联动采集调度与资讯中心渠道展示。"""
-    enabled = await AdminTaskService(session).set_flash_news_enabled(data.enabled)
-    return FlashNewsSwitchResponse(enabled=enabled)
+) -> FlashNewsDisplayResponse:
+    """设置东财快讯资讯中心展示开关；采集启停在「采集管理」按任务控制。"""
+    enabled = await AdminNewsService(session).set_flash_news_display(data.enabled)
+    return FlashNewsDisplayResponse(enabled=enabled)
 
 
 @router.get("/{news_id}", response_model=NewsDocumentResponse)

@@ -50,6 +50,7 @@ def _service_mocks(
     runs_by_channel: dict[tuple[str, str], list[Any]] | None = None,
     schedules: dict[tuple[str, str], str] | None = None,
     inactive: set[tuple[str, str]] | None = None,
+    flash_visible: bool = True,
     today: tuple[int, datetime | None] = (120, None),
     stats: tuple[int, int, int] = (100, 80, 12),
     heartbeat: int = 1,
@@ -58,7 +59,8 @@ def _service_mocks(
     """patch 判定器的外部依赖：Redis 心跳 / 任务日志 / 任务配置 / 源表统计。
 
     runs_by_channel / schedules 均以渠道身份 (task_type, source) 为键；
-    inactive 集合内的渠道任务视为已暂停（is_active=False）。
+    inactive 集合内的渠道任务视为已暂停（is_active=False）；
+    flash_visible 控制东财快讯资讯中心展示开关。
     """
     runs_by_channel = runs_by_channel or {}
     inactive = inactive or set()
@@ -91,6 +93,10 @@ def _service_mocks(
         patch(
             "app.services.news.news_channel_service.ai_score_repository.today_stats",
             stats_mock,
+        ),
+        patch(
+            "app.services.news.news_channel_service.is_flash_news_visible",
+            AsyncMock(return_value=flash_visible),
         ),
     ):
         log_cls.return_value.list_runs_for_task = AsyncMock(
@@ -193,13 +199,27 @@ class TestTaskLogPolling:
         assert ch.today_count == 0
         assert ch.last_updated_at == _at(11, 31)
 
-    async def test_paused_task_log_channel_hidden(self) -> None:
-        # 一键开关关闭（任务 is_active=False）→ 渠道整体隐去，其余渠道不受影响
+    async def test_paused_task_log_channel_still_listed(self) -> None:
+        # 采集任务暂停（采集管理控制）→ 渠道仍列出并如实判 delayed，展示与采集解耦
         result = await _status(_at(12), inactive={("news", "eastmoney")})
+        ch = _channel_of(result, "eastmoney_flash_news")
+        assert ch.status == "delayed"
+        keys = [c.key for c in result.channels]
+        assert "cls_telegraph" in keys
+        assert "social_video" in keys
+
+    async def test_flash_news_display_off_hides_channel(self) -> None:
+        # 资讯管理「显示东财快讯」关闭 → 渠道整体隐去，其余渠道不受影响
+        result = await _status(_at(12), flash_visible=False)
         keys = [ch.key for ch in result.channels]
         assert "eastmoney_flash_news" not in keys
         assert "cls_telegraph" in keys
         assert "social_video" in keys
+
+    async def test_flash_news_display_on_default_shown(self) -> None:
+        # 开关缺省（无 KV 行）→ 渠道正常展示
+        result = await _status(_at(12), flash_visible=True)
+        assert "eastmoney_flash_news" in [ch.key for ch in result.channels]
 
 
 @pytest.mark.unit

@@ -354,29 +354,29 @@ class TestAdminNewsEndpoints:
         response = client.delete("/api/v1/admin/news/1")
         assert response.status_code == 204
 
-    @patch("app.api.v1.admin.news.AdminTaskService")
-    def test_get_flash_news_switch(self, mock_service, admin_client) -> None:
-        mock_service.return_value.get_flash_news_enabled = AsyncMock(
+    @patch("app.api.v1.admin.news.AdminNewsService")
+    def test_get_flash_news_display(self, mock_service, admin_client) -> None:
+        mock_service.return_value.get_flash_news_display = AsyncMock(
             return_value=True
         )
         client, _ = admin_client
-        response = client.get("/api/v1/admin/news/flash-switch")
+        response = client.get("/api/v1/admin/news/flash-display")
         assert response.status_code == 200
         assert response.json() == {"enabled": True}
 
-    @patch("app.api.v1.admin.news.AdminTaskService")
-    def test_set_flash_news_switch(self, mock_service, admin_client) -> None:
-        mock_service.return_value.set_flash_news_enabled = AsyncMock(
+    @patch("app.api.v1.admin.news.AdminNewsService")
+    def test_set_flash_news_display(self, mock_service, admin_client) -> None:
+        mock_service.return_value.set_flash_news_display = AsyncMock(
             return_value=False
         )
         client, _ = admin_client
         response = client.post(
-            "/api/v1/admin/news/flash-switch",
+            "/api/v1/admin/news/flash-display",
             json={"enabled": False},
         )
         assert response.status_code == 200
         assert response.json() == {"enabled": False}
-        mock_service.return_value.set_flash_news_enabled.assert_awaited_once_with(
+        mock_service.return_value.set_flash_news_display.assert_awaited_once_with(
             False
         )
 
