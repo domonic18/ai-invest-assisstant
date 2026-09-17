@@ -67,13 +67,23 @@ def _hash_for(session_date: date, sections: list[PromptSection]) -> str:
 
 
 async def _load_base_review(
-    session: AsyncSession, trade_date: date, sections: list[PromptSection]
+    session: AsyncSession,
+    trade_date: date,
+    sections: list[PromptSection],
+    *,
+    require_hash_match: bool = True,
 ) -> BaseReview | None:
-    """读取共享 base 记录。"""
+    """读取共享 base 记录。
+
+    require_hash_match=True（生成缓存路径）只认当前契约哈希——提示词或分区
+    变更即视为缓存失效；False（用户读路径）跨契约版本回退同日最新 success
+    记录，旧契约缺失的分区由 build_response 跳过，不渲染空白卡片。
+    """
     row = await ai_analysis_repository.load_latest_success(
         session,
         skill_id=SKILL_ID,
-        input_hash=_hash_for(trade_date, sections),
+        input_hash=_hash_for(trade_date, sections) if require_hash_match else None,
+        trade_date=None if require_hash_match else trade_date,
     )
     if row is None or not row.structured_output:
         return None
