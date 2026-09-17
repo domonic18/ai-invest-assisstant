@@ -73,7 +73,7 @@ export function countNewMessages(
   return items.filter((item) => item.clsMsgId > seenTopId).length
 }
 
-/** 资讯流已接入数据的渠道（渠道注册表见后端 news_channel_service；快讯为东财基础流）。 */
+/** 实时电报渠道 chips 显示口径（已接入数据源）；未列入的渠道仅在监控条展示健康，不出 chip。 */
 const WIRED_FEED_CHANNELS = new Set(['cls_telegraph', 'eastmoney_flash_news'])
 
 /** 渠道 chip 是否可筛选：未接入数据的渠道置灰不可点，避免「选中无效果」的误导。 */

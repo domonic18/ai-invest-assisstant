@@ -83,6 +83,8 @@ describe('isChannelWired', () => {
   it('marks only channels with feed data as wired', () => {
     expect(isChannelWired('cls_telegraph')).toBe(true)
     expect(isChannelWired('eastmoney_flash_news')).toBe(true)
+    // 抖音大V视频不出实时电报 chip（内容入口在大V情绪 tab）
+    expect(isChannelWired('social_video')).toBe(false)
     expect(isChannelWired('eastmoney_research_report')).toBe(false)
   })
 })
