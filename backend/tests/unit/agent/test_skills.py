@@ -22,6 +22,7 @@ EXPECTED_SKILLS = {
     "news-storyline",
     "news-topic",
     "research-report-summary",
+    "social-sentiment",
     "stock-daily-analysis",
     "watchlist-screenshot-recognition",
 }

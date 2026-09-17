@@ -108,6 +108,7 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "news-subscription-match": DOMAIN_NEWS,
     "cls-telegraph-backfill": DOMAIN_NEWS,
     "cls-investkalendar": DOMAIN_NEWS,
+    "social-video": DOMAIN_NEWS,
     # 基本面
     "stock-list": DOMAIN_FUNDAMENTAL,
     "stock-shares": DOMAIN_FUNDAMENTAL,
@@ -129,4 +130,5 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "news-topic": DOMAIN_AI,
     "sector-anomaly": DOMAIN_AI,
     "stock-anomaly": DOMAIN_AI,
+    "social-sentiment": DOMAIN_AI,
 }

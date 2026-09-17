@@ -24,6 +24,7 @@ from collector.runtime.specs.maintenance import SPECS as MAINTENANCE_SPECS
 from collector.runtime.specs.market import SPECS as MARKET_SPECS
 from collector.runtime.specs.news import SPECS as NEWS_SPECS
 from collector.runtime.specs.pool import SPECS as POOL_SPECS
+from collector.runtime.specs.social import SPECS as SOCIAL_SPECS
 
 __all__ = ["ALL_SPECS", "TaskSpec"]
 
@@ -36,4 +37,5 @@ ALL_SPECS: tuple[TaskSpec, ...] = (
     *FUNDAMENTAL_SPECS,
     *AI_SPECS,
     *MAINTENANCE_SPECS,
+    *SOCIAL_SPECS,
 )

@@ -22,6 +22,7 @@ from app.api.v1 import (
     screening,
     sector_detail,
     skills,
+    social,
     stocks,
     telegraph,
     users,
@@ -38,6 +39,7 @@ from app.api.v1.admin import mcp_configs as admin_mcp_configs
 from app.api.v1.admin import news as admin_news
 from app.api.v1.admin import proxy_configs as admin_proxy_configs
 from app.api.v1.admin import reports as admin_reports
+from app.api.v1.admin import social as admin_social
 from app.api.v1.admin import stocks as admin_stocks
 from app.api.v1.admin import system as admin_system
 from app.api.v1.admin import tasks as admin_tasks
@@ -77,6 +79,7 @@ api_router.include_router(
 api_router.include_router(workbench.router, prefix="/workbench", tags=["workbench"])
 api_router.include_router(drawings.router, prefix="/kline-drawings", tags=["drawings"])
 api_router.include_router(screening.router, prefix="/screening", tags=["screening"])
+api_router.include_router(social.router, prefix="/social", tags=["social"])
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(admin_users.router, prefix="/users")
@@ -94,6 +97,7 @@ admin_router.include_router(admin_collector_channels.router)
 admin_router.include_router(admin_llm_configs.router)
 admin_router.include_router(admin_mcp_configs.router, prefix="/mcp")
 admin_router.include_router(admin_proxy_configs.router)
+admin_router.include_router(admin_social.router, prefix="/social")
 admin_router.include_router(admin_tracked_indexes.router)
 admin_router.include_router(admin_ai_results.router, prefix="/ai-results")
 api_router.include_router(admin_router)

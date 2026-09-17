@@ -94,6 +94,14 @@ export const queryKeys = {
   },
   llmConfigs: ['llm-configs'] as const,
   mcpServers: ['mcp-servers'] as const,
+  socialAdmin: {
+    accounts: (page: number, pageSize: number) =>
+      ['admin-social-accounts', page, pageSize] as const,
+    accountPosts: (accountId: number) =>
+      ['admin-social-account-posts', accountId] as const,
+    status: ['admin-social-status'] as const,
+    asrConfig: ['admin-social-asr-config'] as const,
+  },
   proxyConfigs: ['proxy-configs'] as const,
   trackedIndexOptions: ['tracked-index-options'] as const,
   market: {
@@ -172,6 +180,14 @@ export const queryKeys = {
     topics: (sessionKey: string) => ['news', 'topics', sessionKey] as const,
     story: (id: number) => ['news', 'story', id] as const,
     subscriptions: ['news', 'subscriptions'] as const,
+  },
+  social: {
+    all: ['social'] as const,
+    feed: (page: number, pageSize: number, filterKey: string) =>
+      ['social', 'feed', page, pageSize, filterKey] as const,
+    accounts: ['social', 'accounts'] as const,
+    timeline: (accountId: number, page: number, pageSize: number) =>
+      ['social', 'timeline', accountId, page, pageSize] as const,
   },
   users: {
     all: ['users'] as const,

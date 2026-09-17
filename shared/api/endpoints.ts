@@ -160,6 +160,12 @@ export const ENDPOINTS = {
     base: `${API_BASE}/workbench`,
     reviewStatus: `${API_BASE}/workbench/review-status`,
   },
+  social: {
+    sentimentFeed: `${API_BASE}/social/sentiment-feed`,
+    accounts: `${API_BASE}/social/accounts`,
+    accountTimeline: (accountId: number | string) =>
+      `${API_BASE}/social/accounts/${accountId}/timeline`,
+  },
   screening: {
     query: `${API_BASE}/screening/query`,
   },
@@ -232,5 +238,15 @@ export const ENDPOINTS = {
     mcpServerTest: (id: number | string) => `${API_BASE}/admin/mcp/servers/${id}/test`,
     mcpServerTestDraft: `${API_BASE}/admin/mcp/servers/test`,
     systemStatus: `${API_BASE}/admin/system/status`,
+    socialAccounts: `${API_BASE}/admin/social/accounts`,
+    socialAccount: (id: number | string) => `${API_BASE}/admin/social/accounts/${id}`,
+    socialAccountBackfill: (id: number | string) =>
+      `${API_BASE}/admin/social/accounts/${id}/backfill`,
+    socialAccountPosts: (id: number | string) =>
+      `${API_BASE}/admin/social/accounts/${id}/posts`,
+    socialStatus: `${API_BASE}/admin/social/status`,
+    socialCookies: `${API_BASE}/admin/social/cookies`,
+    socialAsrConfig: `${API_BASE}/admin/social/asr-config`,
+    socialAsrConfigTest: `${API_BASE}/admin/social/asr-config/test`,
   },
 } as const

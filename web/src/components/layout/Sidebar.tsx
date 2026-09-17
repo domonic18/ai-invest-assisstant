@@ -24,6 +24,7 @@ import {
   TeamOutlined,
   ThunderboltOutlined,
   UserOutlined,
+  WeiboOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { Badge, Menu } from 'antd'
@@ -75,6 +76,7 @@ const ADMIN_MENU_ITEMS: MenuItem[] = [
   { key: '/admin/proxy-configs', icon: <CloudServerOutlined />, label: '代理配置' },
   { key: '/admin/ai-results', icon: <FileDoneOutlined />, label: '分析结果' },
   { key: '/admin/collector', icon: <PlayCircleOutlined />, label: '采集管理' },
+  { key: '/admin/social-tracking', icon: <WeiboOutlined />, label: '社媒追踪' },
 ]
 
 const ADMIN_GROUP_KEY = 'admin-group'

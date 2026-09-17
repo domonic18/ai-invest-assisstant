@@ -22,6 +22,11 @@ const McpServers = lazy(() =>
 const ProxyConfig = lazy(() =>
   import('./pages/Admin/ProxyConfig/ProxyConfig').then((m) => ({ default: m.ProxyConfig })),
 )
+const SocialTracking = lazy(() =>
+  import('./pages/Admin/SocialTracking/SocialTracking').then((m) => ({
+    default: m.SocialTracking,
+  })),
+)
 const SystemStatusPage = lazy(() =>
   import('./pages/Admin/SystemStatus/SystemStatus').then((m) => ({ default: m.SystemStatus })),
 )
@@ -127,6 +132,7 @@ export const router = createBrowserRouter([
           { path: 'tasks', element: <Navigate to="/admin/collector?tab=tasks" replace /> },
           { path: 'llm-configs', element: lazyEl(<LLMConfig />) },
           { path: 'mcp-servers', element: lazyEl(<McpServers />) },
+          { path: 'social-tracking', element: lazyEl(<SocialTracking />) },
           { path: 'proxy-configs', element: lazyEl(<ProxyConfig />) },
           { path: 'ai-results', element: lazyEl(<AiResultsAdmin />) },
           { path: 'collector-channels', element: <Navigate to="/admin/collector?tab=channels" replace /> },

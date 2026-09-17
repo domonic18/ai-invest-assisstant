@@ -8,10 +8,11 @@ import { ChannelMonitorBar } from './components/ChannelMonitorBar'
 import { FocusView } from './components/FocusView'
 import { GlobalStatsBar } from './components/GlobalStatsBar'
 import { NewsFeedView } from './components/NewsFeedView'
+import { SentimentView } from './components/Sentiment/SentimentView'
 import { SubscriptionDrawer } from './components/SubscriptionDrawer'
 import { TopicView } from './components/TopicView'
 
-/** 资讯中心：渠道监控 + 今日统计 + 三视图（电报/重点跟踪/热点主题）+ 我的订阅。 */
+/** 资讯中心：渠道监控 + 今日统计 + 四视图（电报/重点跟踪/热点主题/大V情绪）+ 我的订阅。 */
 export function News() {
   const { data } = useNewsChannels()
   const [subDrawerOpen, setSubDrawerOpen] = useState(false)
@@ -72,6 +73,11 @@ export function News() {
             key: 'topic',
             label: '热点主题',
             children: <TopicView />,
+          },
+          {
+            key: 'sentiment',
+            label: '大V情绪',
+            children: <SentimentView />,
           },
         ]}
       />

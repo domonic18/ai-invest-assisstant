@@ -111,6 +111,14 @@ NEWS_CHANNELS: list[NewsChannel] = [
         source="eastmoney",
         batch_schedule=True,
     ),
+    NewsChannel(
+        key="social_video",
+        name="抖音大V视频",
+        monitor_type=MONITOR_TASK_LOG,
+        poll_desc="每小时轮询",
+        task_type="social-video",
+        source="douyin",
+    ),
 ]
 
 

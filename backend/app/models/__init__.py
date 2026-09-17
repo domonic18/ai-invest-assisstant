@@ -54,6 +54,7 @@ from app.models.quote_auction_stock import AuctionData
 from app.models.quote_global_index import GlobalIndexDaily
 from app.models.quote_sector import SectorQuoteDaily
 from app.models.skill import Skill, UserSkill
+from app.models.social import AsrChannelConfig, SocialAccount, SocialPost, SocialSentiment
 from app.models.stock import StockBasic
 from app.models.tracked_index import TrackedIndexConfig
 from app.models.user import User
@@ -82,6 +83,10 @@ __all__ = [
     "CollectorTask",
     "AiKlineDrawing",
     "UserKlineDrawing",
+    "AsrChannelConfig",
+    "SocialAccount",
+    "SocialPost",
+    "SocialSentiment",
     "FileMetadata",
     "FundFlow",
     "FedWatchProbability",

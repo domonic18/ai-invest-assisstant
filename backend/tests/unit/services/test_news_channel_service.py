@@ -236,6 +236,7 @@ class TestStatsAndRegistry:
             "cls_telegraph",
             "eastmoney_flash_news",
             "eastmoney_research_report",
+            "social_video",
         ]
 
     async def test_fake_channel_registered_appears(self) -> None:

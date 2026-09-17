@@ -207,8 +207,18 @@ def run_collector_task(self: LogAwareTask, payload: dict[str, Any]) -> dict[str,
             # 延迟导入：避免 celery_tasks 顶层依赖 app.services 聚合包的导入序。
             from app.services.market.anomaly_common import AnomalyInputNotReadyError
             from app.services.review import ReviewInputDataNotReadyError
+            from app.services.social.sentiment_service import (
+                SocialJudgmentNotReadyError,
+            )
 
-            if isinstance(exc, (ReviewInputDataNotReadyError, AnomalyInputNotReadyError)):
+            if isinstance(
+                exc,
+                (
+                    ReviewInputDataNotReadyError,
+                    AnomalyInputNotReadyError,
+                    SocialJudgmentNotReadyError,
+                ),
+            ):
                 # 收盘批数据（板块资金/指数K线/板块与全市场快照）尚未落库：
                 # 10 分钟后重试，最多 3 次；重试耗尽后 exc 原样抛出，走 on_failure 死信。
                 logger.warning(

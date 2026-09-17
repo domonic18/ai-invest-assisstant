@@ -99,6 +99,10 @@ dev = [
     # Development
     "ipython>=8.24.0",
 ]
+signer = [
+    # 抖音签名 sidecar 专用（docker/signer 镜像构建时装；web/collector 镜像不带此组）
+    "playwright>=1.49.0",
+]
 
 [tool.ruff]
 line-length = 100
@@ -131,6 +135,7 @@ module = [
     "jieba.*",
     "kombu.*",
     "pandas.*",
+    "playwright.*",
 ]
 ignore_missing_imports = true
 disallow_untyped_defs = false

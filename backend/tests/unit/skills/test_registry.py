@@ -72,6 +72,7 @@ class TestRegistryIntegrity:
             "news-score": "news",
             "news-storyline": "news",
             "news-topic": "news",
+            "social-sentiment": "news",
         }
         actual = {d.skill_id: d.scenario for d in BUILTIN_SKILLS}
         assert actual == expected
@@ -83,12 +84,15 @@ class TestRegistryIntegrity:
                 assert find_spec(d.executor) is not None, f"{d.skill_id} executor 不存在: {d.executor}"
 
     def test_task_spec_names_match_collector(self) -> None:
-        """task_spec_names 并集 == collector AI 任务声明的全部 TaskSpec name。"""
-        from collector.runtime.specs.ai import SPECS
+        """task_spec_names 并集 == collector LLM 判断类（internal）任务全部 TaskSpec name。"""
+        from collector.runtime.specs.ai import SPECS as AI_SPECS
+        from collector.runtime.specs.social import SPECS as SOCIAL_SPECS
 
-        spec_names = {spec.name for spec in SPECS}
+        llm_task_names = {spec.name for spec in AI_SPECS} | {
+            spec.name for spec in SOCIAL_SPECS if "internal" in spec.collectors
+        }
         mapped = {name for d in BUILTIN_SKILLS for name in d.task_spec_names}
-        assert mapped == spec_names
+        assert mapped == llm_task_names
 
 
 @pytest.mark.unit

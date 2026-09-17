@@ -129,6 +129,14 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "extra": {},
     },
     {
+        "source": "douyin",
+        "name": "抖音",
+        "base_url": "https://www.douyin.com",
+        "is_enabled": True,
+        "supported_data_types": ["social-video"],
+        "extra": {},
+    },
+    {
         "source": "yahoo",
         "name": "Yahoo Finance",
         "base_url": "https://query1.finance.yahoo.com",

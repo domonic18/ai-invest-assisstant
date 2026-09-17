@@ -9,6 +9,7 @@ import {
   ReadOutlined,
   RobotOutlined,
   TeamOutlined,
+  WeiboOutlined,
 } from '@ant-design/icons'
 import { Alert, Button, Card, Col, Row, Space, Table, Tag, Typography } from 'antd'
 import { Link } from 'react-router-dom'
@@ -29,6 +30,7 @@ const ADMIN_LINKS = [
   { title: 'MCP 服务', path: '/admin/mcp-servers', icon: <ApiOutlined />, color: 'bg-cyan-500/10 text-cyan-400' },
   { title: '分析结果', path: '/admin/ai-results', icon: <FileDoneOutlined />, color: 'bg-teal-500/10 text-teal-400' },
   { title: '采集管理', path: '/admin/collector', icon: <PlayCircleOutlined />, color: 'bg-indigo-500/10 text-indigo-400' },
+  { title: '社媒追踪', path: '/admin/social-tracking', icon: <WeiboOutlined />, color: 'bg-rose-500/10 text-rose-400' },
   { title: '服务状态', path: '/admin/system-status', icon: <CloudServerOutlined />, color: 'bg-emerald-500/10 text-emerald-400' },
 ]
 
