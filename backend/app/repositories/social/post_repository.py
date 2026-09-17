@@ -1,6 +1,6 @@
 """内容与情绪判断仓储（social_post / social_sentiment 数据访问与 feed 查询）。"""
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import func, select, update
@@ -13,6 +13,9 @@ from app.models.social import SocialAccount, SocialPost, SocialSentiment
 
 # 库存判新的 video_id 集合上限（单账号小时级增量，500 足够覆盖续拉窗口）
 VIDEO_ID_SCAN_LIMIT = 500
+
+# 账号卡按日时序最多返回的天数（时序趋势看近两周足够，避免无限窗口拉长响应）
+MAX_DAILY_DAYS = 14
 
 
 async def list_video_ids(
@@ -223,15 +226,25 @@ async def list_feed(
 
 async def list_account_cards(
     session: AsyncSession,
+    *,
+    hours: int | None = 168,
 ) -> list[dict[str, Any]]:
-    """账号维度卡（近 7 日多空分布 + 最新判断摘要，启用账号）。"""
+    """账号维度卡（窗口内多空分布与按日时序 + 最新判断摘要，启用账号）。
+
+    Args:
+        session: 异步会话
+        hours: 统计窗口（小时）；None 表示不限（全量历史）。按日序列最多返回最近 14 天。
+    """
     from app.repositories.social import account_repository
 
     accounts = await account_repository.list_accounts(session, active_only=True)
     if not accounts:
         return []
     ids = [a.id for a in accounts]
-    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    since = (
+        datetime.now(timezone.utc) - timedelta(hours=hours) if hours is not None else None
+    )
+    window = [SocialPost.published_at >= since] if since is not None else []
 
     count_rows = (
         await session.execute(
@@ -239,8 +252,8 @@ async def list_account_cards(
             .join(SocialSentiment, SocialSentiment.post_id == SocialPost.id)
             .where(
                 SocialPost.account_id.in_(ids),
-                SocialPost.published_at >= seven_days_ago,
                 SocialSentiment.is_relevant.is_(True),
+                *window,
             )
             .group_by(SocialPost.account_id, SocialSentiment.stance)
         )
@@ -248,6 +261,25 @@ async def list_account_cards(
     counts: dict[tuple[int, str], int] = {
         (account_id, stance): n for account_id, stance, n in count_rows
     }
+
+    # 按日时序：发布时间转北京时间后按日聚合（业务日期口径见 app.core.clock）
+    day_expr = func.date(func.timezone("Asia/Shanghai", SocialPost.published_at))
+    daily_rows = (
+        await session.execute(
+            select(SocialPost.account_id, day_expr, SocialSentiment.stance, func.count())
+            .join(SocialSentiment, SocialSentiment.post_id == SocialPost.id)
+            .where(
+                SocialPost.account_id.in_(ids),
+                SocialSentiment.is_relevant.is_(True),
+                *window,
+            )
+            .group_by(SocialPost.account_id, day_expr, SocialSentiment.stance)
+            .order_by(day_expr)
+        )
+    ).all()
+    daily: dict[int, dict[date, dict[str, int]]] = {}
+    for account_id, day, stance, n in daily_rows:
+        daily.setdefault(account_id, {}).setdefault(day, {})[stance] = n
 
     latest_rows = (
         await session.execute(
@@ -265,14 +297,25 @@ async def list_account_cards(
 
     cards: list[dict[str, Any]] = []
     for account in accounts:
+        account_daily = daily.get(account.id, {})
+        recent_days = sorted(account_daily)[-MAX_DAILY_DAYS:]
         card: dict[str, Any] = {
             "id": account.id,
             "alias": account.alias,
             "category": account.category,
             "last_post_at": account.last_post_at,
-            "bullish_count_7d": counts.get((account.id, "bullish"), 0),
-            "bearish_count_7d": counts.get((account.id, "bearish"), 0),
-            "neutral_count_7d": counts.get((account.id, "neutral"), 0),
+            "bullish_count": counts.get((account.id, "bullish"), 0),
+            "bearish_count": counts.get((account.id, "bearish"), 0),
+            "neutral_count": counts.get((account.id, "neutral"), 0),
+            "daily": [
+                {
+                    "date": day,
+                    "bullish": account_daily[day].get("bullish", 0),
+                    "bearish": account_daily[day].get("bearish", 0),
+                    "neutral": account_daily[day].get("neutral", 0),
+                }
+                for day in recent_days
+            ],
         }
         row = latest.get(account.id)
         if row is not None:

@@ -41,9 +41,11 @@ async def get_feed(
     )
 
 
-async def get_account_cards(session: AsyncSession) -> SocialAccountsResponse:
-    """账号维度卡（近 7 日多空分布 + 最新判断）。"""
-    cards = await post_repository.list_account_cards(session)
+async def get_account_cards(
+    session: AsyncSession, *, hours: int | None = 168
+) -> SocialAccountsResponse:
+    """账号维度卡（统计窗口内多空分布与按日时序 + 最新判断）。"""
+    cards = await post_repository.list_account_cards(session, hours=hours)
     return SocialAccountsResponse(
         accounts=[SocialAccountCardResponse.model_validate(card) for card in cards]
     )

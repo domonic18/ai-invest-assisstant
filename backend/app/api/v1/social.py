@@ -45,9 +45,10 @@ async def get_sentiment_feed(
 @router.get("/accounts", response_model=SocialAccountsResponse)
 async def get_accounts(
     session: Annotated[AsyncSession, Depends(get_db)],
+    hours: int | None = Query(None, ge=1, le=720, description="统计窗口（小时），缺省为全部历史"),
 ) -> SocialAccountsResponse:
-    """账号维度卡（近 7 日多空分布 + 最新判断）。"""
-    return await feed_service.get_account_cards(session)
+    """账号维度卡（统计窗口内多空分布 + 按日时序 + 最新判断）。"""
+    return await feed_service.get_account_cards(session, hours=hours)
 
 
 @router.get("/accounts/{account_id}/timeline", response_model=SocialTimelineResponse)

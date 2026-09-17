@@ -43,18 +43,26 @@ const CATEGORY_FILTERS: { label: string; value: string | undefined }[] = [
 ]
 
 interface SentimentStreamProps {
+  /** 时间范围（小时）由 SentimentView 持有，与账号卡统计窗口联动 */
+  hours: number | undefined
+  onHoursChange: (hours: number | undefined) => void
   /** 选中的账号（非空时渲染单账号时间线） */
   account: ApiSocialAccountCard | null
   onClearAccount: () => void
 }
 
-export function SentimentStream({ account, onClearAccount }: SentimentStreamProps) {
+export function SentimentStream({
+  hours,
+  onHoursChange,
+  account,
+  onClearAccount,
+}: SentimentStreamProps) {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(PAGE_SIZE.feed)
   const [filters, setFilters] = useState<SentimentFilters>({})
   const [autoRefresh, setAutoRefresh] = useState(true)
 
-  const feed = useSentimentFeed(page, pageSize, filters, autoRefresh)
+  const feed = useSentimentFeed(page, pageSize, { ...filters, hours }, autoRefresh)
 
   return (
     <div className="space-y-3">
@@ -74,6 +82,11 @@ export function SentimentStream({ account, onClearAccount }: SentimentStreamProp
         <FeedPanel
           feed={feed}
           filters={filters}
+          hours={hours}
+          onHoursChange={(next) => {
+            onHoursChange(next)
+            setPage(1)
+          }}
           onFiltersChange={(next) => {
             setFilters(next)
             setPage(1)
@@ -94,6 +107,8 @@ export function SentimentStream({ account, onClearAccount }: SentimentStreamProp
 interface FeedPanelProps {
   feed: ReturnType<typeof useSentimentFeed>
   filters: SentimentFilters
+  hours: number | undefined
+  onHoursChange: (hours: number | undefined) => void
   onFiltersChange: (next: SentimentFilters) => void
   autoRefresh: boolean
   onAutoRefreshChange: (checked: boolean) => void
@@ -107,6 +122,8 @@ interface FeedPanelProps {
 function FeedPanel({
   feed,
   filters,
+  hours,
+  onHoursChange,
   onFiltersChange,
   autoRefresh,
   onAutoRefreshChange,
@@ -152,8 +169,8 @@ function FeedPanel({
             {HOUR_FILTERS.map((filter) => (
               <Tag.CheckableTag
                 key={filter.label}
-                checked={filters.hours === filter.value}
-                onChange={() => onFiltersChange({ ...filters, hours: filter.value })}
+                checked={hours === filter.value}
+                onChange={() => onHoursChange(filter.value)}
               >
                 {filter.label}
               </Tag.CheckableTag>
