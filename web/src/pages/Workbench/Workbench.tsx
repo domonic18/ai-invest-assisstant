@@ -9,6 +9,7 @@ import { CollectorEngineCard } from './components/CollectorEngineCard'
 import { FedWatchCard } from './components/FedWatchCard'
 import { IndexStrip } from './components/IndexStrip'
 import { SectorFlowCard } from './components/SectorFlowCard'
+import { SentimentFeedCard } from './components/SentimentFeedCard'
 import { TelegraphCard } from './components/TelegraphCard'
 import { WatchlistOverviewCard } from './components/WatchlistOverviewCard'
 
@@ -74,10 +75,11 @@ export function Workbench() {
           stretch
         />
         <CollectorEngineCard status={data?.collectorStatus ?? null} loading={isLoading} stretch />
+        <SentimentFeedCard />
         <SectorFlowCard
           items={data?.sectorFlow}
           loading={isLoading}
-          className="xl:col-span-3"
+          className="xl:col-span-2"
           stretch
         />
       </div>
