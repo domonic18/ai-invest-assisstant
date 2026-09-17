@@ -20,3 +20,17 @@ class StockConceptRepository:
             .order_by(MappingStockConcept.concept_name)
         )
         return list(result.scalars().all())
+
+    async def get_concepts_by_stocks(self, codes: list[str]) -> dict[str, list[str]]:
+        """批量返回各股票的概念名称列表（按概念名称排序）；无映射的代码不在结果中。"""
+        if not codes:
+            return {}
+        result = await self.session.execute(
+            select(MappingStockConcept.stock_code, MappingStockConcept.concept_name)
+            .where(MappingStockConcept.stock_code.in_(codes))
+            .order_by(MappingStockConcept.stock_code, MappingStockConcept.concept_name)
+        )
+        mapping: dict[str, list[str]] = {}
+        for stock_code, concept_name in result.all():
+            mapping.setdefault(stock_code, []).append(concept_name)
+        return mapping

@@ -20,6 +20,7 @@ from app.services.market.stock_anomaly_service import (
     DEFAULT_STOCK_PARAMS,
     StockDetectionParams,
     evaluate_stock,
+    get_stock_anomaly_board,
     pre_screen_spot,
     run_stock_detection,
 )
@@ -237,3 +238,73 @@ async def test_run_stock_detection_persists_sorted_and_commits() -> None:
     assert [row["stock_code"] for row in rows] == ["000001", "000002"]
     assert rows[0]["strength"] >= rows[1]["strength"]
     session.commit.assert_awaited_once()
+
+
+# ---------- 榜单富化 ----------
+
+
+def _anomaly_row(code: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        stock_code=code,
+        stock_name=f"股票{code}",
+        close=10.0,
+        change_pct=7.0,
+        turnover_rate=9.0,
+        volume_ratio=3.0,
+        ma60=9.8,
+        is_above_ma60=True,
+        ma60_breakout=True,
+        anomaly_types=[STOCK_DIM_MA60_BREAKOUT],
+        strength=90,
+        attribution_category=CATEGORY_BREAKOUT,
+        attribution_summary=None,
+    )
+
+
+async def test_get_board_enriches_sectors_capped_by_change_pct() -> None:
+    session = AsyncMock()
+    rows = [_anomaly_row("000001"), _anomaly_row("000002")]
+    concepts = {"000001": ["融资融券", "算力租赁", "数字经济", "人工智能"]}
+    sectors = [
+        SimpleNamespace(sector_name="算力租赁", change_pct=5.2),
+        SimpleNamespace(sector_name="人工智能", change_pct=-3.0),
+        SimpleNamespace(sector_name="融资融券", change_pct=0.4),
+    ]
+
+    with (
+        patch(
+            "app.repositories.market.anomaly_repository.latest_stock_trade_date",
+            AsyncMock(return_value=date(2026, 9, 16)),
+        ),
+        patch(
+            "app.repositories.market.anomaly_repository.list_stock_anomalies",
+            AsyncMock(return_value=rows),
+        ),
+        patch("app.services.market.stock_anomaly_service.StockConceptRepository") as mock_repo,
+        patch(
+            "app.services.market.stock_anomaly_service.sector_quote_repository.list_all_by_date",
+            AsyncMock(return_value=sectors),
+        ),
+    ):
+        mock_repo.return_value.get_concepts_by_stocks = AsyncMock(return_value=concepts)
+        response = await get_stock_anomaly_board(session, user_id=None)
+
+    assert response is not None
+    first = next(it for it in response.items if it.stock_code == "000001")
+    # 按 |当日涨幅| 取前 3：算力租赁 5.2 > 人工智能 3.0 > 融资融券 0.4；无涨幅的数字经济被裁
+    assert [(s.name, s.change_pct) for s in first.sectors] == [
+        ("算力租赁", 5.2),
+        ("人工智能", -3.0),
+        ("融资融券", 0.4),
+    ]
+    second = next(it for it in response.items if it.stock_code == "000002")
+    assert second.sectors == []
+
+
+async def test_get_board_returns_none_without_data() -> None:
+    session = AsyncMock()
+    with patch(
+        "app.repositories.market.anomaly_repository.latest_stock_trade_date",
+        AsyncMock(return_value=None),
+    ):
+        assert await get_stock_anomaly_board(session) is None
