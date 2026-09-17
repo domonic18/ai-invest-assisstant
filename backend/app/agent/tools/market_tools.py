@@ -326,8 +326,9 @@ async def persist_market_review(
     Args:
         trade_date: 交易日（YYYY-MM-DD）。
         sections: 复盘分区内容字典，键必须与 market-daily-review SKILL 输出 Schema
-            完全一致（overview / technical_analysis / capital_analysis /
-            emotion_analysis / risk_advice），值为对应分区的 Markdown 正文。
+            完全一致（overview / news_analysis / technical_analysis /
+            capital_analysis / emotion_analysis / risk_advice），值为对应分区的
+            Markdown 正文。
     """
     from app.services.admin.llm_config_service import resolve_default_llm
     from app.services.review import market_review_generator

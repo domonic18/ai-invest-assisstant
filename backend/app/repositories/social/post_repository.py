@@ -332,6 +332,106 @@ async def list_account_cards(
     return cards
 
 
+async def daily_stance_overview(
+    session: AsyncSession, end_day: date, *, days: int = 7
+) -> dict[date, dict[str, int]]:
+    """全局按日多空中性计数（启用账号、已判相关内容，CN 日历日聚合）。
+
+    Args:
+        session: 异步会话。
+        end_day: 结束日（含，CN 日历日）。
+        days: 含结束日的回溯统计天数。
+    """
+    day_expr = func.date(func.timezone("Asia/Shanghai", SocialPost.published_at))
+    rows = (
+        await session.execute(
+            select(day_expr, SocialSentiment.stance, func.count())
+            .select_from(SocialPost)
+            .join(SocialSentiment, SocialSentiment.post_id == SocialPost.id)
+            .join(SocialAccount, SocialPost.account_id == SocialAccount.id)
+            .where(
+                SocialAccount.is_active.is_(True),
+                SocialSentiment.is_relevant.is_(True),
+                day_expr <= end_day,
+                day_expr > end_day - timedelta(days=days),
+            )
+            .group_by(day_expr, SocialSentiment.stance)
+            .order_by(day_expr)
+        )
+    ).all()
+    daily: dict[date, dict[str, int]] = {}
+    for day, stance, n in rows:
+        daily.setdefault(day, {})[stance] = n
+    return daily
+
+
+async def count_day_active_accounts(session: AsyncSession, day: date) -> int:
+    """当日发布过已判相关内容的启用账号数（情绪样本量参考）。"""
+    day_expr = func.date(func.timezone("Asia/Shanghai", SocialPost.published_at))
+    stmt = (
+        select(func.count(func.distinct(SocialPost.account_id)))
+        .select_from(SocialPost)
+        .join(SocialSentiment, SocialSentiment.post_id == SocialPost.id)
+        .join(SocialAccount, SocialPost.account_id == SocialAccount.id)
+        .where(
+            SocialAccount.is_active.is_(True),
+            SocialSentiment.is_relevant.is_(True),
+            day_expr == day,
+        )
+    )
+    return int((await session.execute(stmt)).scalar_one() or 0)
+
+
+async def top_stances(
+    session: AsyncSession, day: date, *, per_stance: int = 2
+) -> list[dict[str, Any]]:
+    """当日代表性多空观点（各立场 confidence 降序取前 N 条）。"""
+    day_expr = func.date(func.timezone("Asia/Shanghai", SocialPost.published_at))
+    rows = (
+        await session.execute(
+            select(
+                SocialAccount.alias,
+                SocialAccount.category,
+                SocialSentiment.stance,
+                SocialSentiment.confidence,
+                SocialSentiment.summary,
+                SocialSentiment.core_arguments,
+            )
+            .select_from(SocialPost)
+            .join(SocialSentiment, SocialSentiment.post_id == SocialPost.id)
+            .join(SocialAccount, SocialPost.account_id == SocialAccount.id)
+            .where(
+                SocialAccount.is_active.is_(True),
+                SocialSentiment.is_relevant.is_(True),
+                SocialSentiment.stance.in_(("bullish", "bearish")),
+                day_expr == day,
+            )
+            .order_by(
+                SocialSentiment.stance,
+                SocialSentiment.confidence.desc(),
+                SocialPost.published_at.desc(),
+            )
+        )
+    ).all()
+    picked: dict[str, int] = {}
+    items: list[dict[str, Any]] = []
+    for alias, category, stance, confidence, summary, core_arguments in rows:
+        if picked.get(stance, 0) >= per_stance:
+            continue
+        picked[stance] = picked.get(stance, 0) + 1
+        items.append(
+            {
+                "alias": alias,
+                "category": category,
+                "stance": stance,
+                "confidence": confidence,
+                "summary": summary,
+                "core_arguments": list(core_arguments or [])[:3],
+            }
+        )
+    return items
+
+
 async def list_timeline(
     session: AsyncSession,
     account_id: int,

@@ -10,6 +10,7 @@ from langchain_core.tools import BaseTool
 
 from app.agent.tools import db_tools
 from app.agent.tools.anomaly_tools import (
+    get_sector_anomaly,
     persist_sector_anomaly_attribution,
     persist_stock_anomaly_attribution,
 )
@@ -34,13 +35,19 @@ from app.agent.tools.market_tools import (
     persist_limit_up_attribution,
     persist_market_review,
 )
-from app.agent.tools.news_tools import search_news, search_news_by_date, search_vector_kb
+from app.agent.tools.news_tools import (
+    get_important_news,
+    search_news,
+    search_news_by_date,
+    search_vector_kb,
+)
 from app.agent.tools.report_tools import (
     download_financial_reports,
     query_financial_reports,
     summarize_financial_report,
 )
 from app.agent.tools.screening_tools import screen_stocks
+from app.agent.tools.social_tools import get_social_sentiment
 from app.agent.tools.stock_tools import (
     get_stock_fund_flow,
     get_stock_kline,
@@ -63,6 +70,9 @@ __all__ = [
     "get_dragon_tiger",
     "persist_sector_anomaly_attribution",
     "persist_stock_anomaly_attribution",
+    "get_sector_anomaly",
+    "get_important_news",
+    "get_social_sentiment",
     "query_financial_data",
     "persist_stock_daily_analysis",
     "search_news",
@@ -103,6 +113,9 @@ def build_assistant_tools() -> list[BaseTool]:
         get_limit_up_ladder,
         get_limit_up_pool,
         get_index_technical,
+        get_important_news,
+        get_social_sentiment,
+        get_sector_anomaly,
         get_kline_drawings,
         get_auction_summary,
         get_trade_calendar,

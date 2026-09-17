@@ -7,7 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.services.market import index_technical_service
-from app.services.market.index_technical_service import TECH_CODES, build_technical_context
+from app.services.market.index_technical_service import (
+    TECH_CODES,
+    Bar,
+    _trend_summary,
+    build_technical_context,
+)
 
 _TRADE_DATE = date(2026, 7, 17)  # 周五
 
@@ -172,3 +177,107 @@ class TestBuildTechnicalContextIntraday:
         assert minute_mock.await_count == 2
         for call in minute_mock.await_args_list:
             assert call.args[1] == "sh000001"
+
+
+_N = 70  # 覆盖 MA60 与 60 日支撑窗口
+
+
+def _bars(closes: list[float], volumes: list[float] | None = None) -> list[Bar]:
+    base = date(2026, 6, 1)
+    vols = volumes or [1000.0] * len(closes)
+    return [
+        {
+            "trade_date": base + timedelta(days=i),
+            "open": close,
+            "high": close * 1.02,
+            "low": close * 0.98,
+            "close": close,
+            "volume": vols[i],
+        }
+        for i, close in enumerate(closes)
+    ]
+
+
+def _declining() -> list[float]:
+    return [100 - i * 0.5 for i in range(_N)]
+
+
+def _support_low() -> float:
+    """bars[-60:-5] 窗口内的最低 low（bar 64，60 日前低支撑口径）。"""
+    return (100 - 64 * 0.5) * 0.98
+
+
+@pytest.mark.unit
+class TestTrendSummary:
+    def test_support_turning_point_with_floor_volume(self) -> None:
+        closes = _declining()
+        closes[-1] = _support_low() * 1.01  # 距支撑约 1%
+        volumes = [1000.0] * _N
+        volumes[-1] = 500.0  # 20 日地量
+
+        summary = _trend_summary(_bars(closes, volumes))
+
+        assert summary.startswith("- 趋势概要：下降通道；支撑拐点（触底观察）")
+        assert "20 日地量" in summary
+        assert "支撑+缩量" in summary
+
+    def test_breakthrough_reclaim_ma30_with_volume(self) -> None:
+        closes = _declining()
+        closes[-1] = 74.0  # 前收在 MA30 下方、今收站上，未创 20 日新高
+        volumes = [1000.0] * _N
+        volumes[-1] = 2000.0
+
+        summary = _trend_summary(_bars(closes, volumes))
+
+        assert "突破拐点：带量收复 MA30" in summary
+        assert "2.00 倍" in summary
+
+    def test_breakthrough_new_high_without_volume_confirmation(self) -> None:
+        closes = [100 + i * 0.05 for i in range(_N)]
+
+        summary = _trend_summary(_bars(closes))
+
+        assert "突破拐点：创 20 日新高" in summary
+        assert "留意假突破" in summary
+
+    def test_risk_turning_point_breaks_ma30_with_volume(self) -> None:
+        closes = [50 + i * 0.5 for i in range(_N)]
+        closes[-1] = 60.0  # 单日大跌放量跌破 MA30
+        volumes = [1000.0] * _N
+        volumes[-1] = 2000.0
+
+        summary = _trend_summary(_bars(closes, volumes))
+
+        assert summary.startswith("- 趋势概要：上升通道；风险拐点")
+        assert "放量跌破 MA30" in summary
+
+    def test_no_signal_in_steady_uptrend(self) -> None:
+        closes = [100 + i * 0.2 for i in range(_N)]
+        closes[-1] = closes[-2] - 0.5  # 小幅回落，未创 20 日新高也未破 MA30
+
+        summary = _trend_summary(_bars(closes))
+
+        assert summary == "- 趋势概要：上升通道；暂无拐点信号"
+
+    def test_damped_channel_when_mas_glued(self) -> None:
+        closes = [100.0 + (i % 2) * 0.1 for i in range(_N)]
+
+        summary = _trend_summary(_bars(closes))
+
+        assert summary.startswith("- 趋势概要：阻尼运动（震荡收敛）")
+        assert "暂无拐点信号" in summary
+
+    def test_insufficient_ma_data(self) -> None:
+        summary = _trend_summary(_bars([100.0, 101.0]))
+
+        assert summary.startswith("- 趋势概要：均线数据不足")
+
+    async def test_context_includes_trend_summary_line(self) -> None:
+        """每标的块在日线行之前带「趋势概要」行。"""
+        with _patch_daily(_big_bearish_rows()), patch.object(
+            index_technical_service, "fetch_minute_bars", AsyncMock(return_value=[])
+        ):
+            output = await build_technical_context(MagicMock(), _TRADE_DATE)
+
+        assert output.count("- 趋势概要：") == len(TECH_CODES)
+        assert "- 趋势概要：下降通道" in output

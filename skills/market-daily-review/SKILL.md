@@ -1,25 +1,26 @@
 ---
 name: market-daily-review
-description: 大盘每日复盘综述：工具化获取大盘概览、指数技术面预计算指标、涨停连板天梯与板块资金流向，产出按分区组织的结构化收盘复盘。复盘页触发生成与每日定时任务（market_daily_review_1835）均通过本 Skill 执行。
-allowed-tools: get_market_overview, get_limit_up_ladder, get_index_technical, get_sector_overview, get_trade_calendar, collect_market_data, persist_market_review
+description: 大盘每日复盘综述：工具化获取大盘概览、指数技术面预计算指标、重点要闻、涨停连板天梯、板块资金流向与板块异动、散户社交情绪，产出跨分区相互印证的结构化收盘复盘。复盘页触发生成与每日定时任务（market_daily_review_1835）均通过本 Skill 执行。
+allowed-tools: get_market_overview, get_limit_up_ladder, get_index_technical, get_sector_overview, get_important_news, get_social_sentiment, get_sector_anomaly, get_trade_calendar, collect_market_data, persist_market_review
 ---
 
 # 大盘每日复盘
 
 ## 描述
-以工具实时取数为依据，为整个 A 股市场生成当日收盘复盘：大盘综述、技术面分析、资金面分析、情绪与连板分析、风险提示与策略建议五个分区。分析流程与工具编排由本文件维护，输出分区契约（key 集合与各分区撰写要求）以 `backend/app/prompts/skills/market-daily-review.yaml` 为准。
+以工具实时取数为依据，为整个 A 股市场生成当日收盘复盘：AI 大盘综述、消息面复盘、技术面分析、资金面分析、情绪与连板分析、风险提示与策略建议六个分区。六个分区是同一盘面的不同切面而非孤立清单，撰写时须跨分区相互印证，最终在操作策略分区形成对盘面趋势的整体认知。分析流程与工具编排由本文件维护，输出分区契约（key 集合与各分区撰写要求）以 `skills/market-daily-review/prompt.yaml` 为准。
 
 ## 触发条件
 - 每日复盘页请求生成 AI 大盘综述
 - 每日收盘后的定时任务（market_daily_review_1835，北京时间 18:35）
 
 ## 输出 Schema
-产出统一为五个分区（key 集合以 `backend/app/prompts/skills/market-daily-review.yaml` 为准）：
+产出统一为六个分区（key 集合以 `skills/market-daily-review/prompt.yaml` 为准）：
 
 ```json
 {
   "sections": {
     "overview": "AI 大盘综述（Markdown）",
+    "news_analysis": "消息面复盘（Markdown）",
     "technical_analysis": "技术面分析（Markdown）",
     "capital_analysis": "资金面分析（Markdown）",
     "emotion_analysis": "情绪与连板分析（Markdown）",
@@ -32,24 +33,28 @@ allowed-tools: get_market_overview, get_limit_up_ladder, get_index_technical, ge
 
 各分区撰写要求（与 YAML 契约一致）：
 - **overview（AI 大盘综述）**：固定按两段小标题撰写。1、指数情况：结合沪指分时走势（开盘/盘中跳水/尾盘）与日 K 线形态（阴阳线实体幅度、是否创新低），结合量能变化判断是否杀出恐慌盘（下跌伴随放量）；2、量能情况：两市成交额及环比（放量/缩量多少亿），结合量能分时结构（开盘缩量/下跌放量/尾盘异动）判断量能异动。
-- **technical_analysis（技术面分析）**：逐标的（沪指/创业板/科创50/沪深300ETF/富时A50）分析日线与周线形态——是否跌破支撑位或关键均线、是否突破小平台、是否出现地量；判断趋势时注意：下降拐点 = 趋势支撑线附近 + 地量。均线数值、新低/地量/放量判断、分时量能结构必须引用 `get_index_technical` 工具返回的预计算指标，禁止自行估算。
-- **capital_analysis（资金面分析）**：板块资金轮动方向、主力偏好；流入金额标正号、流出金额标负号（如 `半导体` +102 亿、`银行` -45 亿）。
-- **emotion_analysis（情绪与连板分析）**：情绪温度、涨停结构、高标股表现。
-- **risk_advice（风险提示与策略建议）**：短期风险与仓位思路。
+- **news_analysis（消息面复盘）**：从 `get_important_news` 返回中选取当日最重要的 3-5 条消息（须为 score≥70 的重点要闻），逐条给出影响方向（利好/利空/中性）+ 关联盘面解读——该消息与哪些板块的当日异动/资金流向相互印证或背离、对大盘走势与次日盘面的含义；禁止孤立罗列消息清单。当日无评分达标（≥70 分）条目时，如实说明「今日无评分达标的重点要闻」，不得用普通消息凑数。
+- **technical_analysis（技术面分析）**：逐标的（沪指/创业板/科创50/沪深300ETF/富时A50）用 1-2 句概述，禁止罗列具体点位数值与均线数值清单。①日线/周线关键位状态定性描述（如「逼近 60 日前低支撑」「跌破 30 日线」）；②整体走势定性（通道归属：上升通道/下降通道/阻尼运动）；③工具「趋势概要」行出现支撑拐点/突破拐点/风险拐点时明确指出并说明量能配合情况，拐点结论直接引用工具的「趋势概要」行，禁止自行估算。关键位与新低/地量/放量判断仍须引用 `get_index_technical` 工具返回的预计算指标。
+- **capital_analysis（资金面分析）**：板块资金轮动方向、主力偏好；流入金额标正号、流出金额标负号（如 `半导体` +102 亿、`银行` -45 亿）。结合 `get_sector_anomaly` 做资金×异动对照：主力净流入且量比异动=主线确认；净流入但无异动=潜伏待发酵；板块异动但资金净流出=冲高回落/诱多风险；对照结论与消息面驱动方向一致时点明共振。
+- **emotion_analysis（情绪与连板分析）**：情绪温度、涨停结构、高标股表现。结合 `get_social_sentiment` 的抖音大V（散户代理）情绪作反向指标解读——散户净看多显著且升温=情绪亢奋、风险积聚；散户净看空/冰点=情绪低位、机会大于风险；样本量不足（工具标注）时如实说明不足为凭；须与涨停结构/连板数据、技术面趋势互证，不得单独下结论。
+- **risk_advice（风险提示与策略建议）**：综合全部前述分区信号给出整体研判——指出当日多空信号相互印证之处与分歧之处（如技术面拐点向上且资金×异动共振且散户情绪未亢奋=右侧信号较足；技术面向好但散户情绪亢奋=留意风险积聚），并据此给出短期风险与仓位思路；禁止只基于单一维度下结论。
 
 按运行路径二选一交付：
-- **助手对话路径**（任务指令要求调用 `persist_market_review`）：撰写完五分区后，将其作为 `sections` 参数传入该工具保存，不要在回复中输出 JSON。
+- **助手对话路径**（任务指令要求调用 `persist_market_review`）：撰写完六分区后，将其作为 `sections` 参数传入该工具保存，不要在回复中输出 JSON。
 - **独立执行器路径**（定时任务等直接执行）：最终回复必须且只能是上述 JSON 对象，不要 markdown 代码围栏、不要额外解释文字。
 
 ## 可用工具
-执行器路径固定注入前四个取数工具；后三个仅助手对话路径可用。
+执行器路径固定注入前七个取数工具；后三个仅助手对话路径可用。
 - `get_market_overview(trade_date)`: 四大指数行情（名称、点位、涨跌幅）+ 全市场统计——两市成交额（含环比）、上涨/下跌/平盘家数、涨停/跌停家数、情绪温度（分值与标签）、涨停比、连板率、炸板率。
 - `get_limit_up_ladder(trade_date)`: 涨停池与连板天梯——涨停总数、首板/连板家数、最高连板数、≥2 板连板梯队（个股代码/名称、连板数、所属行业）。
-- `get_index_technical(trade_date)`: 五标的（沪指/创业板/科创50/沪深300ETF/富时A50）预计算技术面文本——日 K/周 K 形态、均线数值、新低/地量/放量判断、分时量能结构；必须直接引用，禁止自行估算。
+- `get_index_technical(trade_date)`: 五标的（沪指/创业板/科创50/沪深300ETF/富时A50）预计算技术面文本——日 K/周 K 形态、关键位、趋势概要（通道归属与拐点信号）、新低/地量/放量判断、分时量能结构；必须直接引用，禁止自行估算。
 - `get_sector_overview(trade_date)`: 行业板块概览——涨跌幅热力图、主力净流入 TOP5 与净流出 TOP5（含金额与领涨股）、领涨板块（涨跌幅、涨停家数、代表个股）。
+- `get_important_news(trade_date)`: 当日重点要闻（AI 评分 ≥70 的财联社电报，按评分降序）——标题、内容摘要、评分与评分理由、发布时间、关联个股；无达标条目时如实说明。
+- `get_social_sentiment(trade_date)`: 抖音大V散户情绪聚合——当日看多/看空/中性分布与净多空、近 7 日净多空走势、代表性观点；样本量不足时工具会标注。
+- `get_sector_anomaly(trade_date)`: 当日板块异动信号（行业+概念合并，按强度降序 TOP10）——板块涨跌幅、量比、异动类型、异动强度、归因摘要。
 - `get_trade_calendar()`: 仅助手对话路径可用——当前北京时间、今天是否交易日、最近（含今日）交易日。
 - `collect_market_data(trade_date, symbols)`: 仅助手对话路径可用——数据自愈补采：异步派发涨停池/炸板池/跌停池/成交额/板块资金流/指数 K 线采集任务，传 `symbols` 时补采个股日 K。涨停池/成交额约 1 分钟入库，板块资金流约 10 分钟；涨跌家数为盘中快照，无法补采。
-- `persist_market_review(trade_date, sections)`: 仅助手对话路径可用——将五分区复盘保存入库，复盘页卡片自动刷新。
+- `persist_market_review(trade_date, sections)`: 仅助手对话路径可用——将六分区复盘保存入库，复盘页卡片自动刷新。
 
 ## 分析流程
 
@@ -62,16 +67,19 @@ allowed-tools: get_market_overview, get_limit_up_ladder, get_index_technical, ge
 调用 `get_market_overview()` 获取：四大指数点位与涨跌幅、两市成交额及环比、上涨/下跌/平盘家数、涨停/跌停家数、情绪温度（分值与标签）、涨停比、连板率、炸板率。
 
 ### 步骤 2：技术面（供技术面分析分区）
-调用 `get_index_technical()` 获取五标的预计算指标文本（日 K/周 K 形态、均线数值、新低/地量/放量、分时量能结构），逐标的直接引用其结论，禁止自行估算。
+调用 `get_index_technical()` 获取五标的预计算指标文本（日 K/周 K 形态、关键位、趋势概要、新低/地量/放量、分时量能结构），逐标的直接引用其结论（含「趋势概要」行的通道归属与拐点信号），禁止自行估算。
 
-### 步骤 3：连板情绪（供情绪与连板分析分区）
-调用 `get_limit_up_ladder()` 获取涨停总数、首板/连板家数、最高连板数与 ≥2 板连板天梯（个股、连板数、所属行业），结合步骤 1 的涨停/跌停/涨停比/连板率/炸板率撰写涨停结构与高标股表现。
+### 步骤 3：消息面（供消息面复盘分区）
+调用 `get_important_news()` 获取当日重点要闻（score≥70，按评分降序）；空结果时消息面分区如实披露「今日无评分达标的重点要闻」，不得用普通消息凑数。
 
-### 步骤 4：资金面（供资金面分析分区）
-调用 `get_sector_overview()` 获取板块涨跌幅热力图、主力净流入 TOP5 与净流出 TOP5（含领涨股）、领涨板块（涨跌幅、涨停家数、代表个股）。金额必须带正负号：净流入为正、净流出为负。
+### 步骤 4：连板情绪与散户情绪（供情绪与连板分析分区）
+调用 `get_limit_up_ladder()` 获取涨停总数、首板/连板家数、最高连板数与 ≥2 板连板天梯（个股、连板数、所属行业），结合步骤 1 的涨停/跌停/涨停比/连板率/炸板率撰写涨停结构与高标股表现；调用 `get_social_sentiment()` 获取抖音大V散户情绪分布与近 7 日净多空走势，作反向指标解读（散户亢奋=风险积聚、冰点=机会大于风险），须与涨停结构、技术面趋势互证。
 
-### 步骤 5：撰写分区并交付
-综合以上数据，按「输出 Schema」中各分区撰写要求撰写五个分区，按任务指令选择交付方式：助手对话路径调用 `persist_market_review(trade_date, sections)` 保存；独立执行器路径按「输出 Schema」输出 JSON。
+### 步骤 5：资金面与板块异动（供资金面分析分区）
+调用 `get_sector_overview()` 获取板块涨跌幅热力图、主力净流入 TOP5 与净流出 TOP5（含领涨股）、领涨板块（涨跌幅、涨停家数、代表个股）；调用 `get_sector_anomaly()` 获取当日板块异动信号（涨跌幅、量比、异动类型、强度、归因）。金额必须带正负号：净流入为正、净流出为负。做资金×异动对照：净流入∧异动=主线确认；净流入无异动=潜伏；异动但净流出=冲高回落/诱多风险。
+
+### 步骤 6：跨维度综合，撰写分区并交付
+先形成当日盘面整体判断：趋势方向（技术面通道与拐点）、多空信号一致性（消息面驱动方向与板块异动/资金流向是否共振、散户情绪与市场位置是否背离）。再按「输出 Schema」中各分区撰写要求撰写六个分区——各分区围绕整体判断展开并相互印证或指出背离，操作策略分区综合全部分区信号给出整体研判；按任务指令选择交付方式：助手对话路径调用 `persist_market_review(trade_date, sections)` 保存；独立执行器路径按「输出 Schema」输出 JSON。
 
 ## 用户画线解读
 任务指令附带的「用户画线参考」是用户在指数 K 线图上手动绘制的技术标注（按标的分组）：
@@ -91,7 +99,8 @@ allowed-tools: get_market_overview, get_limit_up_ladder, get_index_technical, ge
 用户指令："请生成 2026-09-04 的大盘每日复盘……"
 
 1. `get_market_overview(trade_date="2026-09-04")` → 指数行情、成交额及环比、涨跌家数、涨停/跌停家数、情绪温度、涨停比、连板率、炸板率。
-2. `get_index_technical(trade_date="2026-09-04")` → 五标的均线/新低/地量/分时量能预计算指标。
-3. `get_limit_up_ladder(trade_date="2026-09-04")` → 涨停统计与 ≥2 板连板天梯。
-4. `get_sector_overview(trade_date="2026-09-04")` → 板块热力图、主力净流入/净流出 TOP5、领涨板块。（若返回为空：`collect_market_data(trade_date="2026-09-04")` → 等待约 1-10 分钟后重试本步骤）
-5. 最终回复：`{"sections": {"overview": "## 指数情况\n- **沪指缩量调整**……\n## 量能情况\n……", "technical_analysis": "……", "capital_analysis": "……", "emotion_analysis": "……", "risk_advice": "……"}}`（助手对话路径改为调用 `persist_market_review(trade_date, sections)` 保存）
+2. `get_index_technical(trade_date="2026-09-04")` → 五标的趋势概要（通道归属与拐点）、关键位、新低/地量/分时量能预计算指标。
+3. `get_important_news(trade_date="2026-09-04")` → 当日重点要闻（score≥70，标题、评分、理由、关联个股）。
+4. `get_limit_up_ladder(trade_date="2026-09-04")` → 涨停统计与 ≥2 板连板天梯；`get_social_sentiment(trade_date="2026-09-04")` → 散户情绪分布与近 7 日净多空。
+5. `get_sector_overview(trade_date="2026-09-04")` → 板块热力图、主力净流入/净流出 TOP5、领涨板块；`get_sector_anomaly(trade_date="2026-09-04")` → 板块异动 TOP10。（若返回为空：`collect_market_data(trade_date="2026-09-04")` → 等待约 1-10 分钟后重试本步骤）
+6. 跨维度综合后撰写六分区，最终回复：`{"sections": {"overview": "……", "news_analysis": "……", "technical_analysis": "……", "capital_analysis": "……", "emotion_analysis": "……", "risk_advice": "……"}}`（助手对话路径改为调用 `persist_market_review(trade_date, sections)` 保存）
