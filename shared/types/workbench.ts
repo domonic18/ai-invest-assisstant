@@ -15,6 +15,8 @@ import type {
   WatchlistQuote,
 } from './market'
 import type { ApiTelegraphResponse, TelegraphItem } from './telegraph'
+import type { SystemStatus } from './admin'
+import type { ApiSectorAnomalyItem, ApiStockAnomalyItem } from './anomaly'
 
 /** 自选股概览行的 AI 分析状态：分组未开启 off / 已开启未生成 pending / 已生成 ready。 */
 export type WorkbenchAiStatus = 'off' | 'pending' | 'ready'
@@ -165,6 +167,20 @@ export interface CollectorEngineStatus {
   upcoming: CollectorUpcomingItem[]
 }
 
+/** 后端工作台异动速览：最新检测日板块/个股强度 Top5。 */
+export interface ApiWorkbenchAnomalyTop {
+  tradeDate: string
+  sectors: ApiSectorAnomalyItem[]
+  stocks: ApiStockAnomalyItem[]
+}
+
+/** 工作台异动速览。 */
+export interface WorkbenchAnomalyTop {
+  tradeDate: string
+  sectors: ApiSectorAnomalyItem[]
+  stocks: ApiStockAnomalyItem[]
+}
+
 /** GET /workbench 原始聚合响应（camelCase wire）。 */
 export interface ApiWorkbenchResponse {
   calendar: ApiCalendarEventResponse[]
@@ -176,7 +192,9 @@ export interface ApiWorkbenchResponse {
   stats: ApiMarketStatsResponse | null
   globalIndices: ApiGlobalIndexQuoteResponse[]
   sectorFlow: ApiWorkbenchSectorFlowItem[]
+  anomalyTop: ApiWorkbenchAnomalyTop | null
   collectorStatus: ApiCollectorEngineStatus | null
+  systemStatus: SystemStatus | null
 }
 
 /** 工作台聚合的客户端视图模型。 */
@@ -190,5 +208,7 @@ export interface WorkbenchOverview {
   stats: MarketStats | null
   globalIndices: GlobalIndexQuote[]
   sectorFlow: WorkbenchSectorFlowItem[]
+  anomalyTop: WorkbenchAnomalyTop | null
   collectorStatus: CollectorEngineStatus | null
+  systemStatus: SystemStatus | null
 }
