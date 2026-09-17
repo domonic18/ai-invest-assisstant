@@ -78,37 +78,49 @@ export function WatchlistOverviewCard({
           {!active || active.items.length === 0 ? (
             <Empty description="该分组暂无自选股" image={Empty.PRESENTED_IMAGE_SIMPLE} />
           ) : (
-            active.items.map((stock) => (
-              <div
-                key={stock.code}
-                className="flex items-center gap-3 py-2.5 border-b border-gray-800 last:border-b-0"
-              >
-                <span className="w-[130px] shrink-0 text-[13px] truncate">
-                  <Link to={`/stock/${stock.code}`} className="hover:underline">
-                    {stock.name ?? stock.code}
-                  </Link>
-                  <span className="ml-1.5 text-[11px] text-gray-500 font-mono">
-                    {stock.code}
-                  </span>
-                </span>
-                <span className="w-[72px] shrink-0 text-right font-mono text-[13px]">
-                  {stock.price != null ? stock.price.toFixed(2) : '-'}
-                </span>
-                <span
-                  className={`w-[72px] shrink-0 text-right font-mono text-[13px] font-semibold ${changeColor(stock.changePct)}`}
+            <div className="-mr-2 pr-2 max-h-64 overflow-y-auto">
+              {active.items.map((stock) => (
+                <div
+                  key={stock.code}
+                  className="py-2.5 border-b border-gray-800 last:border-b-0"
                 >
-                  {stock.changePct != null ? formatPercent(stock.changePct) : '-'}
-                </span>
-                <span className="flex-1 min-w-0 hidden lg:block text-[11px] text-gray-400 leading-normal line-clamp-2">
-                  {stock.aiSummary ?? ''}
-                </span>
-                <span className="shrink-0">
-                  <Tag color={AI_STATUS_META[stock.aiStatus].color}>
-                    {AI_STATUS_META[stock.aiStatus].label}
-                  </Tag>
-                </span>
-              </div>
-            ))
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="min-w-0 flex-1 truncate text-[13px]"
+                      title={stock.name ?? stock.code}
+                    >
+                      <Link to={`/stock/${stock.code}`} className="hover:underline">
+                        {stock.name ?? stock.code}
+                      </Link>
+                      <span className="ml-1.5 text-[11px] text-gray-500 font-mono">
+                        {stock.code}
+                      </span>
+                    </span>
+                    <span className="w-14 shrink-0 text-right font-mono text-[13px]">
+                      {stock.price != null ? stock.price.toFixed(2) : '-'}
+                    </span>
+                    <span
+                      className={`w-16 shrink-0 text-right font-mono text-[13px] font-semibold ${changeColor(stock.changePct)}`}
+                    >
+                      {stock.changePct != null ? formatPercent(stock.changePct) : '-'}
+                    </span>
+                    <span className="shrink-0">
+                      <Tag color={AI_STATUS_META[stock.aiStatus].color}>
+                        {AI_STATUS_META[stock.aiStatus].label}
+                      </Tag>
+                    </span>
+                  </div>
+                  {stock.aiSummary && (
+                    <div
+                      className="mt-1 text-[11px] text-gray-400 truncate"
+                      title={stock.aiSummary}
+                    >
+                      {stock.aiSummary}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
 
           <div className="flex-1" />
