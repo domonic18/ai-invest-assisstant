@@ -83,7 +83,6 @@ export function Register() {
           name="register"
           layout="vertical"
           onFinish={handleSubmit}
-          autoComplete="off"
         >
           <Form.Item
             label="用户名"
@@ -93,7 +92,7 @@ export function Register() {
               { min: 3, message: '用户名至少 3 个字符' },
             ]}
           >
-            <Input prefix={<UserOutlined />} placeholder="用户名" size="large" />
+            <Input prefix={<UserOutlined />} placeholder="用户名" size="large" autoComplete="username" />
           </Form.Item>
 
           <Form.Item
@@ -115,7 +114,7 @@ export function Register() {
               { min: 6, message: '密码至少 6 个字符' },
             ]}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="密码" size="large" />
+            <Input.Password prefix={<LockOutlined />} placeholder="密码" size="large" autoComplete="new-password" />
           </Form.Item>
 
           <Form.Item
@@ -134,7 +133,7 @@ export function Register() {
               }),
             ]}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="确认密码" size="large" />
+            <Input.Password prefix={<LockOutlined />} placeholder="确认密码" size="large" autoComplete="new-password" />
           </Form.Item>
 
           <Form.Item
