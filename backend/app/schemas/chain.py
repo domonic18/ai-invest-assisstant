@@ -256,6 +256,14 @@ class ChainCompareResult(ChainModel):
     metric_changes: list[ChainCompareMetricChange] = Field(default_factory=list)
 
 
+class ChainAlertStockRef(ChainModel):
+    """产业链提醒关联标的（名称 + 当日涨跌幅，前端可点击跳个股页）。"""
+
+    code: str
+    name: str
+    change_pct: float | None = None
+
+
 class ChainAlertResponse(ChainModel):
     """GET /chain/alerts 列表项。"""
 
@@ -265,6 +273,6 @@ class ChainAlertResponse(ChainModel):
     title: str
     description: str
     affected_segments: list[str] = Field(default_factory=list)
-    related_stock_codes: list[str] = Field(default_factory=list)
+    related_stocks: list[ChainAlertStockRef] = Field(default_factory=list)
     signal_date: date
     created_at: datetime

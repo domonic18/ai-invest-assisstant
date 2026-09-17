@@ -197,7 +197,7 @@ describe('mappers', () => {
       title: '先进制程良率突破',
       description: '头部代工厂 3nm 良率爬坡超预期',
       affectedSegments: ['晶圆制造'],
-      relatedStockCodes: ['688981'],
+      relatedStocks: [{ code: '688981', name: '中芯国际', changePct: 3.2 }],
       signalDate: '2026-08-29',
       createdAt: '2026-08-29T06:05:00+08:00',
     }
@@ -207,7 +207,9 @@ describe('mappers', () => {
     expect(alert.severity).toBe(3)
     expect(alert.title).toBe('先进制程良率突破')
     expect(alert.affectedSegments).toEqual(['晶圆制造'])
-    expect(alert.relatedStockCodes).toEqual(['688981'])
+    expect(alert.relatedStocks).toEqual([
+      { code: '688981', name: '中芯国际', changePct: 3.2 },
+    ])
     expect(alert.signalDate).toBe('2026-08-29')
   })
 
@@ -219,12 +221,12 @@ describe('mappers', () => {
       title: '补贴政策落地',
       description: '',
       affectedSegments: null as unknown as string[],
-      relatedStockCodes: null as unknown as string[],
+      relatedStocks: null as unknown as ApiChainAlert['relatedStocks'],
       signalDate: '2026-08-29',
       createdAt: '2026-08-29T06:05:00+08:00',
     })
     expect(alert.affectedSegments).toEqual([])
-    expect(alert.relatedStockCodes).toEqual([])
+    expect(alert.relatedStocks).toEqual([])
     expect(alert.description).toBe('')
   })
 

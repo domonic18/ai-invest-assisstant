@@ -374,10 +374,19 @@ class TestListAlerts:
             signal_date=date(2026, 9, 4),
             created_at=datetime(2026, 9, 5, tzinfo=timezone.utc),
         )
-        with patch.object(
-            chain_service.chain_alert_repository,
-            "list_alerts",
-            new=AsyncMock(return_value=[alert]),
+        with (
+            patch.object(
+                chain_service.chain_alert_repository,
+                "list_alerts",
+                new=AsyncMock(return_value=[alert]),
+            ),
+            patch.object(
+                chain_service,
+                "batch_quote_snapshot",
+                new=AsyncMock(
+                    return_value={"600703": {"name": "三安光电", "change_pct": 2.5}}
+                ),
+            ),
         ):
             rows = await chain_service.list_alerts(AsyncMock(), "半导体", days=30)
 
@@ -386,3 +395,7 @@ class TestListAlerts:
         assert rows[0].alert_type == "技术突破"
         assert rows[0].affected_segments == ["光刻胶"]
         assert rows[0].signal_date == date(2026, 9, 4)
+        # 标的富化：快照命中的名称/涨跌幅透传
+        assert rows[0].related_stocks[0].code == "600703"
+        assert rows[0].related_stocks[0].name == "三安光电"
+        assert rows[0].related_stocks[0].change_pct == 2.5

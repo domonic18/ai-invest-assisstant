@@ -115,6 +115,13 @@ export type ChainAlertType =
   | '格局变化'
   | '政策催化'
 
+/** 产业链提醒关联标的。 */
+export interface ChainAlertStockRef {
+  code: string
+  name: string
+  changePct: number | null
+}
+
 /** 产业链提醒（客户端视图模型）。 */
 export interface ChainAlert {
   industry: string
@@ -123,7 +130,7 @@ export interface ChainAlert {
   title: string
   description: string
   affectedSegments: string[]
-  relatedStockCodes: string[]
+  relatedStocks: ChainAlertStockRef[]
   signalDate: string
   createdAt: string
 }

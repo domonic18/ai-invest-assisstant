@@ -26,7 +26,11 @@ export function mapChainAlert(dto: ApiChainAlert): ChainAlert {
     title: dto.title,
     description: dto.description || '',
     affectedSegments: dto.affectedSegments || [],
-    relatedStockCodes: dto.relatedStockCodes || [],
+    relatedStocks: (dto.relatedStocks || []).map((item) => ({
+      code: item.code,
+      name: item.name,
+      changePct: item.changePct ?? null,
+    })),
     signalDate: dto.signalDate,
     createdAt: dto.createdAt,
   }

@@ -412,6 +412,13 @@ export interface ApiChainCompareResult {
   metricChanges: ApiChainCompareMetricChange[]
 }
 
+/** 产业链提醒关联标的（名称 + 当日涨跌幅）。 */
+export interface ApiChainAlertStockRef {
+  code: string
+  name: string
+  changePct: number | null
+}
+
 export interface ApiChainAlert {
   industry: string
   alertType: string
@@ -419,7 +426,7 @@ export interface ApiChainAlert {
   title: string
   description: string
   affectedSegments: string[]
-  relatedStockCodes: string[]
+  relatedStocks: ApiChainAlertStockRef[]
   signalDate: string
   createdAt: string
 }
