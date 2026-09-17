@@ -9,6 +9,8 @@ import { fmt, FONT_MONO, lastPriceLabel, signed, WEEKDAYS } from '@/components/c
 import { DrawingLayerHost } from '@/components/charts/drawing/DrawingLayerHost'
 import { AiDrawingButton } from '@/components/charts/drawing/AiDrawingButton'
 import { DrawingToolbar } from '@/components/charts/drawing/DrawingToolbar'
+import { computePriceAxisRange } from '@/components/charts/stockChartView/klineOption'
+import { useDataZoomYAxisRescale } from '@/components/charts/useDataZoomYAxisRescale'
 import { useKlineKeyboardNav } from '@/components/charts/useKlineKeyboardNav'
 import { useColorScheme } from '@/stores/settings'
 import { fallHex, formatAmount, riseHex } from '@/utils/formatters'
@@ -37,7 +39,7 @@ export function IndexKlineChart({
   drawingTarget,
 }: IndexKlineChartProps) {
   useColorScheme()
-  const { chartRef, wrapperProps, onEvents } = useKlineKeyboardNav(bars.length)
+  const { chartRef, wrapperProps, onEvents: navOnEvents } = useKlineKeyboardNav(bars.length)
   // 画线图层实例（onChartReady 捕获）；未传 drawingTarget 时不启用
   const [drawingChart, setDrawingChart] = useState<ECharts | null>(null)
 
@@ -51,6 +53,18 @@ export function IndexKlineChart({
   const hasOhlc =
     bars.length > 0 &&
     bars.every((bar) => bar.open != null && bar.high != null && bar.low != null)
+  // 缩放后按可见窗口重算主图纵轴（无 OHLC 的收盘线由 scale 自适应，无需重算）
+  const { handleDataZoom } = useDataZoomYAxisRescale(
+    chartRef,
+    hasOhlc ? { dates, bars } : null,
+  )
+  const onEvents = {
+    ...navOnEvents,
+    datazoom: () => {
+      navOnEvents.datazoom()
+      handleDataZoom()
+    },
+  }
   const hasVolume = bars.some((bar) => (bar.volume ?? 0) > 0)
   const volumes = bars.map((bar) => ({
     value: bar.volume ?? 0,
@@ -97,15 +111,16 @@ const formatAxisValue = (value: number) =>
     yAxisIndex: 0,
   }))
 
-  // 主图双轴：右轴价格、左轴涨跌幅（相对首根可见 K 线的收盘）
-  const pMin = hasOhlc ? Math.min(...bars.map((b) => b.low as number)) : 0
-  const pMax = hasOhlc ? Math.max(...bars.map((b) => b.high as number)) : 0
-  const pad = (pMax - pMin) * 0.05 || 1
-  const yMin = pMin - pad
-  const yMax = pMax + pad
-  const baseClose = bars[0]?.close
-  const toPct = (v: number): number =>
-    baseClose ? (v / baseClose - 1) * 100 : 0
+  // 主图双轴：右轴价格、左轴涨跌幅（相对首根收盘）；按初始可见窗口定标，缩放后由 datazoom 重算
+  const initialStartIdx =
+    defaultVisibleBars != null && bars.length > defaultVisibleBars
+      ? bars.length - defaultVisibleBars
+      : 0
+  const { yMin, yMax, pctMin, pctMax } = computePriceAxisRange(
+    bars,
+    initialStartIdx,
+    bars.length - 1,
+  )
 
   // 最新价胶囊（右轴端点）
   const lastIdx = bars.length - 1
@@ -133,8 +148,8 @@ const formatAxisValue = (value: number) =>
         },
         {
           position: 'left',
-          min: toPct(yMin),
-          max: toPct(yMax),
+          min: pctMin,
+          max: pctMax,
           axisLabel: {
             fontSize: 10,
             formatter: (value: number) => {
