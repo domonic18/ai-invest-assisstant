@@ -9,6 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.base import BatchDeleteRequest
+from app.schemas.collector_task import (
+    FlashNewsSwitchRequest,
+    FlashNewsSwitchResponse,
+)
 from app.schemas.news_document import (
     NewsDocumentCreate,
     NewsDocumentResponse,
@@ -16,6 +20,7 @@ from app.schemas.news_document import (
 )
 from app.schemas.stock import PaginatedResponse
 from app.services.admin.news import AdminNewsService
+from app.services.admin.tasks import AdminTaskService
 
 router = APIRouter(dependencies=[Depends(get_current_admin_user)])
 
@@ -75,6 +80,25 @@ async def create_news(
     """创建新闻公告。"""
     news = await AdminNewsService(session).create_news(data)
     return NewsDocumentResponse.model_validate(news)
+
+
+@router.get("/flash-switch", response_model=FlashNewsSwitchResponse)
+async def get_flash_news_switch(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> FlashNewsSwitchResponse:
+    """查询东财快讯一键开关状态（采集任务 is_active 即真相）。"""
+    enabled = await AdminTaskService(session).get_flash_news_enabled()
+    return FlashNewsSwitchResponse(enabled=enabled)
+
+
+@router.post("/flash-switch", response_model=FlashNewsSwitchResponse)
+async def set_flash_news_switch(
+    data: FlashNewsSwitchRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> FlashNewsSwitchResponse:
+    """一键开关东财快讯：联动采集调度与资讯中心渠道展示。"""
+    enabled = await AdminTaskService(session).set_flash_news_enabled(data.enabled)
+    return FlashNewsSwitchResponse(enabled=enabled)
 
 
 @router.get("/{news_id}", response_model=NewsDocumentResponse)

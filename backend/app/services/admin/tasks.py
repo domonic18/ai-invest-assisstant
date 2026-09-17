@@ -10,6 +10,9 @@ from app.models.collector_task import CollectorTask
 from app.repositories.admin.collector_task_repository import CollectorTaskRepository
 from app.schemas.collector_task import CollectorTaskCreate, CollectorTaskUpdate
 
+# 东财快讯渠道身份（task_type, source），一键开关的操作对象
+FLASH_NEWS_CHANNEL: tuple[str, str] = ("news", "eastmoney")
+
 
 class AdminTaskService:
     """后台采集任务管理服务。"""
@@ -103,6 +106,21 @@ class AdminTaskService:
         await self.session.commit()
         await self.repo.refresh(task)
         return task
+
+    async def get_flash_news_enabled(self) -> bool:
+        """东财快讯一键开关状态（采集任务 is_active 即单一真相）。"""
+        task = await self.repo.get_by_type_and_source(*FLASH_NEWS_CHANNEL)
+        return task.is_active if task is not None else False
+
+    async def set_flash_news_enabled(self, enabled: bool) -> bool:
+        """一键开关东财快讯：联动采集调度（beat 只扫 is_active）与资讯中心渠道展示。"""
+        task = await self.repo.get_by_type_and_source(*FLASH_NEWS_CHANNEL)
+        if task is None:
+            raise NotFoundError("东财快讯采集任务未配置")
+        task.is_active = enabled
+        task.updated_at = datetime.now(timezone.utc)
+        await self.session.commit()
+        return bool(task.is_active)
 
     def _to_response(self, task: CollectorTask) -> dict[str, Any]:
         """序列化为采集任务响应字典。"""

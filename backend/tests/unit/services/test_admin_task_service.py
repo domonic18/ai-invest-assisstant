@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.core.exceptions import NotFoundError
 from app.schemas.collector_task import CollectorTaskCreate, CollectorTaskUpdate
 from app.services.admin.tasks import AdminTaskService
 
@@ -95,3 +96,30 @@ class TestAdminTaskService:
         await service.delete_task(1)
 
         service.session.delete.assert_awaited_once_with(task)
+
+    @pytest.mark.asyncio
+    async def test_flash_news_switch_roundtrip(self, service: AdminTaskService) -> None:
+        task = MagicMock(is_active=True)
+        service.repo.get_by_type_and_source = AsyncMock(return_value=task)
+
+        assert await service.get_flash_news_enabled() is True
+
+        result = await service.set_flash_news_enabled(False)
+        assert result is False
+        assert task.is_active is False
+        service.session.commit.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_flash_news_missing_task_raises(
+        self, service: AdminTaskService
+    ) -> None:
+        service.repo.get_by_type_and_source = AsyncMock(return_value=None)
+        with pytest.raises(NotFoundError):
+            await service.set_flash_news_enabled(True)
+
+    @pytest.mark.asyncio
+    async def test_flash_news_state_defaults_false_without_task(
+        self, service: AdminTaskService
+    ) -> None:
+        service.repo.get_by_type_and_source = AsyncMock(return_value=None)
+        assert await service.get_flash_news_enabled() is False

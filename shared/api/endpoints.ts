@@ -192,6 +192,7 @@ export const ENDPOINTS = {
     news: `${API_BASE}/admin/news/`,
     newsItem: (id: number | string) => `${API_BASE}/admin/news/${id}`,
     newsBatchDelete: `${API_BASE}/admin/news/batch-delete`,
+    newsFlashSwitch: `${API_BASE}/admin/news/flash-switch`,
     telegraph: `${API_BASE}/admin/telegraph/`,
     telegraphItem: (id: number | string) => `${API_BASE}/admin/telegraph/${id}`,
     telegraphBatchDelete: `${API_BASE}/admin/telegraph/batch-delete`,
