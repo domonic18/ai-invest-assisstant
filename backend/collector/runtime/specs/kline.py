@@ -62,6 +62,9 @@ SPECS: tuple[TaskSpec, ...] = (
             "ths": "collector.spiders.ths_sector_kline:ThsSectorKlineCollector",
         },
         run_params=("lookback_days",),
+        # 定时路径入口对 run_params 键恒显式传参（缺省 None 会覆盖 spider
+        # 签名默认值），缺省必须在声明表兜底
+        defaults={"lookback_days": 10},
     ),
     TaskSpec(
         name="kline-freshness",
