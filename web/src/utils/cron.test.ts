@@ -88,27 +88,22 @@ describe('nextRuns', () => {
   it('returns same-day future run in Beijing wall clock', () => {
     const runs = nextRuns('30 16 * * 1-5', 3, FROM)!
     expect(runs).toHaveLength(3)
-    expect(runs[0].utcOffset(480).format('YYYY-MM-DD HH:mm')).toBe('2026-09-17 16:30')
-    expect(runs[1].utcOffset(480).format('YYYY-MM-DD HH:mm')).toBe('2026-09-18 16:30')
-    expect(runs[2].utcOffset(480).format('YYYY-MM-DD HH:mm')).toBe('2026-09-21 16:30')
+    // 返回对象承诺北京墙钟表示（+480）：直接 format 断言，禁止再套 utcOffset
+    expect(runs[0].utcOffset()).toBe(480)
+    expect(runs[0].format('YYYY-MM-DD HH:mm')).toBe('2026-09-17 16:30')
+    expect(runs[1].format('YYYY-MM-DD HH:mm')).toBe('2026-09-18 16:30')
+    expect(runs[2].format('YYYY-MM-DD HH:mm')).toBe('2026-09-21 16:30')
   })
 
   it('skips weekend and past times for weekday cron', () => {
     // FROM 当日 08:00 已过（FROM=10:00）；09-19 周六 / 09-20 周日跳过
     const runs = nextRuns('0 8 * * 1-5', 3, FROM)!
-    expect(runs.map((t) => t.utcOffset(480).format('MM-DD'))).toEqual([
-      '09-18',
-      '09-21',
-      '09-22',
-    ])
+    expect(runs.map((t) => t.format('MM-DD'))).toEqual(['09-18', '09-21', '09-22'])
   })
 
   it('skips missing day-of-month (month-end boundary)', () => {
     const runs = nextRuns('0 3 31 * *', 2, dayjs('2026-01-30T00:00:00+08:00'))!
-    expect(runs.map((t) => t.utcOffset(480).format('YYYY-MM-DD'))).toEqual([
-      '2026-01-31',
-      '2026-03-31',
-    ])
+    expect(runs.map((t) => t.format('YYYY-MM-DD'))).toEqual(['2026-01-31', '2026-03-31'])
   })
 
   it('returns null for unparseable expression', () => {

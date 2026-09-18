@@ -1,16 +1,13 @@
 /**
  * 5 字段 cron 迷你工具：解析、紧凑中文释义、下次执行、单日 occurrence。
- * cron 小时语义为北京时间（collector_task 约定），因此全部计算固定在
- * UTC+8 墙钟上进行，不受浏览器时区影响；解析失败一律返回 null，
+ * cron 小时语义为北京时间（collector_task 约定），全部计算经 utils/beijing
+ * 固定在 UTC+8 墙钟上，不受浏览器时区影响；解析失败一律返回 null，
  * 调用方优雅回退（cronstrue 长句 / 原始表达式）。
  */
 
-import dayjs, { type Dayjs } from 'dayjs'
-import utc from 'dayjs/plugin/utc'
+import type { Dayjs } from 'dayjs'
 
-dayjs.extend(utc)
-
-const BJ_OFFSET_MIN = 480
+import { bjDayMatches, bjNow, toBeijing } from './beijing'
 
 /** 分钟 occurrence 数超过该阈值视为高频任务（日历视图聚合为带状 chip）。 */
 export const HIGH_FREQ_MINUTES = 6
@@ -103,29 +100,12 @@ export function isHighFreq(p: CronParsed): boolean {
   return p.minutes.length > HIGH_FREQ_MINUTES
 }
 
-/** 标准 cron 语义：dom 与 dow 任一受限时取 OR，否则各自必须命中。 */
-function dayMatches(p: CronParsed, d: Dayjs): boolean {
-  if (p.months && !p.months.includes(d.month() + 1)) return false
-  const domOk = !p.doms || p.doms.includes(d.date())
-  const dowOk = !p.dows || p.dows.includes(d.day())
-  if (p.doms && p.dows) return domOk || dowOk
-  return domOk && dowOk
-}
-
-function toBeijing(d: Dayjs): Dayjs {
-  return d.utcOffset(BJ_OFFSET_MIN)
-}
-
-export function bjNow(): Dayjs {
-  return toBeijing(dayjs())
-}
-
 /** 该日（北京时区）的全部触发分钟数（0-1439，升序）；不命中或解析失败返回空数组/null。 */
 export function runsOnDate(expr: string, date: Dayjs): number[] | null {
   const p = parseCron(expr)
   if (!p) return null
   const d = toBeijing(date)
-  if (!dayMatches(p, d)) return []
+  if (!bjDayMatches(p, d)) return []
   const out: number[] = []
   for (const h of p.hours) {
     for (const m of p.minutes) out.push(h * 60 + m)
@@ -146,7 +126,7 @@ export function nextRuns(expr: string, count: number, from: Dayjs = bjNow()): Da
   }
   for (let d = 1; d < 366 && out.length < count; d++) {
     const day = start.startOf('day').add(d, 'day')
-    if (!dayMatches(p, day)) continue
+    if (!bjDayMatches(p, day)) continue
     for (const h of p.hours) {
       for (const m of p.minutes) {
         if (out.length >= count) break
@@ -205,7 +185,8 @@ export function cronZh(expr: string | null | undefined): string | null {
 
 /** 下次执行标签：「今天 16:30」「明天 09:00」「周四 18:35」。 */
 export function formatNextRunLabel(t: Dayjs, from: Dayjs = bjNow()): string {
-  const dayDiff = toBeijing(t).startOf('day').diff(toBeijing(from).startOf('day'), 'day')
-  const prefix = dayDiff === 0 ? '今天' : dayDiff === 1 ? '明天' : DOW_ZH[t.day()]
-  return `${prefix} ${pad2(t.hour())}:${pad2(t.minute())}`
+  const tBj = toBeijing(t)
+  const dayDiff = tBj.startOf('day').diff(toBeijing(from).startOf('day'), 'day')
+  const prefix = dayDiff === 0 ? '今天' : dayDiff === 1 ? '明天' : DOW_ZH[tBj.day()]
+  return `${prefix} ${pad2(tBj.hour())}:${pad2(tBj.minute())}`
 }

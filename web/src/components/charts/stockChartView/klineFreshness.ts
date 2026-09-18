@@ -1,23 +1,18 @@
 /** 日 K 新鲜度判定（纯函数）。口径与后端 kline_freshness 采集器一致：
  * 当日 bar 收盘后存在发布滞后，17:00 前不认为「期望日=今天」的落后是异常。 */
 
+import dayjs from 'dayjs'
+
+import { toBeijing } from '@/utils/beijing'
+
 const PUBLISH_READY_MINUTES = 17 * 60
 
-/** 上海时区的当前日历日（YYYY-MM-DD）与当日分钟数。 */
+/** 上海时区（北京墙钟）的当前日历日（YYYY-MM-DD）与当日分钟数。 */
 export function shanghaiNow(now: Date = new Date()): { date: string; minutes: number } {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(now)
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '00'
+  const t = toBeijing(dayjs(now))
   return {
-    date: `${get('year')}-${get('month')}-${get('day')}`,
-    minutes: Number(get('hour')) * 60 + Number(get('minute')),
+    date: t.format('YYYY-MM-DD'),
+    minutes: t.hour() * 60 + t.minute(),
   }
 }
 

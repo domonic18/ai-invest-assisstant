@@ -80,6 +80,16 @@ src/
 - **禁止使用 `var(--ant-*)` CSS 变量**：ConfigProvider 未启用 `cssVar` 模式，这些变量在运行时不存在，样式会静默失效（曾致重点页评分横条全灰）。需要主题 token 时用 `theme.useToken()` 取 `token.colorPrimary` 等值写内联样式。
 - **涨跌配色必须走 `utils/formatters` 的 scheme-aware helpers**（`riseColor`/`fallColor`/`changeColor`/`changeHex` 等，红涨绿跌、跟随 colorScheme 切换），禁止硬编码 `text-red-*/text-green-*` 表达涨跌方向或写死涨跌色 hex。
 
+### 时间与时区（必须遵守）
+
+时间语义三分类，先判定属于哪类再写代码（CI runner 为 UTC，环境依赖的时间代码必然在 CI 暴露）：
+
+1. **时间戳渲染**（后端 UTC ISO 字符串，如 `createdAt`/`lastRunAt`）：dayjs 解析后按浏览器本地时区格式化（范本 `utils/formatters.ts`），禁止硬编码 `utcOffset(480)` 或写死 +08:00。
+2. **领域日历语义**（调度 cron、交易日、盘口状态等按"北京墙钟"定义的领域概念）：一律走 `utils/beijing.ts`（`toBeijing`/`bjNow`/`bjDayMatches`，固定 UTC+8），禁止散落 `utcOffset(480)`、Intl 手写转换或环境本地访问器（`hour()/day()` 须先经 `toBeijing`）；dayjs utc 插件仅在 `beijing.ts` 加载一次，其他文件禁止副作用式 `dayjs.extend(utc)`。对已是北京表示的对象重复调 `utcOffset(480)` 会触发 dayjs 二次平移（非 +08 环境墙钟漂移 8h），故转换必须经 `toBeijing` 幂等入口。
+3. **测试断言**：期望值由显式偏移 fixture（`+08:00`/`Z`）推导，与 runner 时区无关；无法两端固定的断言（如按环境日历的"今天/昨天"）改为等价契约（偏移输入 ≡ 等价 naive 输入产出一致）。CI 不固定 TZ——UTC runner 即免费第二时区矩阵。
+
+附注：PostgreSQL 会话保持 UTC 是有意为之（`timestamptz` 存储与时区无关，存 UTC 为行业正解），勿在数据库层设置 TZ。
+
 ## 5. 任务完成后检查清单
 
 完成前端编码任务后：

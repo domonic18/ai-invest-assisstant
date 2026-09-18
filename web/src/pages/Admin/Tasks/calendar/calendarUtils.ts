@@ -1,11 +1,11 @@
 /** 任务日历三视图（周/日/月）共用的任务解析与 occurrence 聚合。 */
 
 import type { Dayjs } from 'dayjs'
-import dayjs from 'dayjs'
 
 import type { AdminTask } from '@ai-invest/shared'
 
 import { getTaskLabel } from '@/utils/collectorTaskLabels'
+import { bjDayMatches, bjNow, toBeijing } from '@/utils/beijing'
 import { cronZh, isHighFreq, parseCron, type CronParsed } from '@/utils/cron'
 import { taskCategoryColor, taskCategoryLabel, taskCategoryOf } from '@/utils/taskCategoryMeta'
 
@@ -69,12 +69,7 @@ export function taskShowsOnDow(task: CalendarTask, jsDow: number): boolean {
 }
 
 export function taskShowsOnDate(task: CalendarTask, date: Dayjs): boolean {
-  const d = date.utcOffset(480)
-  if (task.parsed.months && !task.parsed.months.includes(d.month() + 1)) return false
-  const domOk = !task.parsed.doms || task.parsed.doms.includes(d.date())
-  const dowOk = !task.parsed.dows || task.parsed.dows.includes(d.day())
-  if (task.parsed.doms && task.parsed.dows) return domOk || dowOk
-  return domOk && dowOk
+  return bjDayMatches(task.parsed, toBeijing(date))
 }
 
 function pushEntries(
@@ -193,5 +188,5 @@ export function formatMinute(min: number): string {
 
 /** 当前北京时间的今天（供日视图默认日期）。 */
 export function todayBj(): Dayjs {
-  return dayjs().utcOffset(480)
+  return bjNow()
 }
