@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 后台管理 · 知识库</title>
+<style>
+/* ======================================================
+   AI Invest Assistant — Design System
+   Inspired by SquadSight: dark, professional, tech-driven
+   （与 admin.html 同源；新增知识库域组件）
+   ====================================================== */
+:root {
+  --bg: #0c0e12;
+  --bg-elevated: #111318;
+  --bg-surface: #181a21;
+  --bg-hover: #1c1f26;
+  --border: #23262d;
+  --border-hover: #2e323c;
+  --border-focus: #5e6ad2;
+  --text-primary: #f0f1f5;
+  --text-secondary: #8a8f98;
+  --text-tertiary: #5c616e;
+  --accent: #5e6ad2;
+  --accent-hover: #6872e3;
+  --accent-soft: rgba(94, 106, 210, 0.12);
+  --green: #2ea043;
+  --green-soft: rgba(46, 160, 67, 0.12);
+  --red: #f85149;
+  --red-soft: rgba(248, 81, 73, 0.12);
+  --amber: #d29922;
+  --amber-soft: rgba(210, 153, 34, 0.12);
+  --blue: #58a6ff;
+  --blue-soft: rgba(88, 166, 255, 0.12);
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
+  --sidebar-w: 220px;
+  --header-h: 56px;
+  --transition: 200ms ease;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 14px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font); font-size: 14px; color: var(--text-primary);
+  background: var(--bg); line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
+::selection { background: var(--accent-soft); color: var(--text-primary); }
+a { color: var(--accent); text-decoration: none; transition: color var(--transition); }
+a:hover { color: var(--accent-hover); }
+
+/* ======= Layout ======= */
+.app-layout { display: flex; min-height: 100vh; }
+.app-sidebar {
+  width: var(--sidebar-w); background: var(--bg-elevated);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  flex-shrink: 0; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+.app-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.app-header {
+  height: var(--header-h); background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border); display: flex; align-items: center;
+  justify-content: space-between; padding: 0 20px; flex-shrink: 0;
+  position: sticky; top: 0; z-index: 10;
+}
+.app-content { padding: 24px; max-width: 1440px; width: 100%; margin: 0 auto; }
+
+/* ======= Sidebar ======= */
+.sidebar-brand { padding: 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+.sidebar-logo { width: 34px; height: 34px; background: var(--accent); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.sidebar-logo svg { width: 18px; height: 18px; }
+.sidebar-brand-text { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.sidebar-version { font-size: 10px; color: var(--text-tertiary); margin-left: auto; }
+.sidebar-nav { padding: 8px; flex: 1; }
+.sidebar-section-title { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .08em; padding: 12px 10px 6px; font-weight: 600; }
+.sidebar-item {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px;
+  border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary);
+  cursor: pointer; transition: all var(--transition);
+}
+.sidebar-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sidebar-item.active { background: var(--accent-soft); color: var(--accent); }
+.sidebar-item.sub { padding-left: 34px; font-size: 12px; }
+.sidebar-item-icon { opacity: .5; width: 16px; font-size: 12px; text-align: center; }
+.sidebar-item.active .sidebar-item-icon { opacity: 1; }
+.sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.sidebar-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; flex-shrink: 0; }
+.sidebar-user-info { font-size: 12px; color: var(--text-secondary); }
+.sidebar-user-name { color: var(--text-primary); font-weight: 500; }
+
+/* ======= Header ======= */
+.header-btn {
+  width: 34px; height: 34px; border-radius: var(--radius-sm);
+  background: transparent; border: none; color: var(--text-secondary);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all var(--transition); font-size: 16px;
+}
+.header-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* ======= Cards / Tables / Buttons / Tags ======= */
+.card { background: var(--bg-elevated); border-radius: var(--radius-lg); }
+.card-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.card-title { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+.card-body { padding: 16px 20px; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead { border-bottom: 1px solid var(--border); }
+th { text-align: left; padding: 10px 14px; font-weight: 500; color: var(--text-tertiary); font-size: 11px; white-space: nowrap; }
+td { padding: 10px 14px; color: var(--text-secondary); border-bottom: 1px solid var(--border); white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg-hover); }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+  border: 1px solid transparent; cursor: pointer; transition: all var(--transition);
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-secondary { background: var(--bg-surface); color: var(--text-secondary); border-color: var(--border); }
+.btn-secondary:hover { background: var(--bg-hover); color: var(--text-primary); }
+.btn-ghost { background: transparent; color: var(--text-secondary); }
+.btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-danger { background: transparent; color: var(--red); border-color: rgba(248,81,73,.45); }
+.btn-danger:hover { background: var(--red-soft); }
+.tag { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--bg-surface); color: var(--text-secondary); }
+.tag-green { background: var(--green-soft); color: var(--green); }
+.tag-red { background: var(--red-soft); color: var(--red); }
+.tag-amber { background: var(--amber-soft); color: var(--amber); }
+.tag-blue { background: var(--blue-soft); color: var(--blue); }
+.tag-purple { background: var(--accent-soft); color: var(--accent); }
+
+/* ======= Forms ======= */
+.form-input, .form-select, textarea.form-input {
+  padding: 7px 12px; font-size: 13px; color: var(--text-primary);
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); outline: none; transition: border var(--transition);
+}
+.form-input:focus, .form-select:focus { border-color: var(--border-focus); }
+.form-input::placeholder { color: var(--text-tertiary); }
+.form-row { display: flex; gap: 12px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.form-label { font-size: 12px; color: var(--text-secondary); }
+.form-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235c616e' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; cursor: pointer; }
+
+/* ======= Misc ======= */
+.text-mono { font-family: var(--font-mono); font-size: 12px; }
+.text-danger { color: var(--red); font-size: 12px; }
+.page-title { font-size: 20px; font-weight: 600; letter-spacing: -.01em; margin-bottom: 24px; }
+.page-block { margin-bottom: 48px; scroll-margin-top: 72px; }
+.page-block-label {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+  font-size: 11px; color: var(--text-tertiary); font-weight: 600; letter-spacing: .05em;
+}
+.page-block-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.route-badge {
+  font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary);
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 6px; font-weight: 400; letter-spacing: 0;
+}
+.admin-toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+.info-alert {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--blue-soft); border: 1px solid rgba(88,166,255,.25);
+  border-radius: var(--radius-md); padding: 10px 14px; margin-bottom: 16px;
+  font-size: 12px; color: var(--text-secondary); line-height: 1.6;
+}
+.info-alert .ia-icon { color: var(--blue); flex-shrink: 0; font-size: 14px; line-height: 1.4; }
+.sub-tabs {
+  display: flex; gap: 4px; padding: 4px; background: var(--bg-surface);
+  border: 1px solid var(--border); border-radius: var(--radius-md); width: fit-content;
+  margin-bottom: 16px; flex-wrap: wrap;
+}
+.sub-tab { padding: 5px 14px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary); cursor: pointer; }
+.sub-tab.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+.sub-view { display: none; }
+.sub-view.active { display: block; }
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+.stat-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; }
+.stat-title { font-size: 12px; color: var(--text-tertiary); margin-bottom: 6px; }
+.stat-value { font-size: 22px; font-weight: 600; color: var(--text-primary); letter-spacing: -.01em; }
+.stat-suffix { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+.seg-tabs { display: flex; gap: 2px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px; width: fit-content; }
+.seg-tabs .seg { padding: 3px 12px; border-radius: 5px; font-size: 12px; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
+.seg-tabs .seg.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+.seg-view { display: none; margin-top: 14px; }
+.seg-view.active { display: block; }
+.spin { display: inline-block; animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.type-note {
+  margin-top: 40px; padding: 16px 20px; background: var(--bg-elevated);
+  border: 1px dashed var(--border-hover); border-radius: var(--radius-lg);
+  font-size: 12px; color: var(--text-secondary); line-height: 1.9;
+}
+.type-note b { color: var(--text-primary); font-weight: 600; }
+.modal-mask { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 100; align-items: flex-start; justify-content: center; padding: 72px 20px 20px; }
+.modal-mask.show { display: flex; }
+.modal-box { width: 540px; max-width: 100%; background: var(--bg-elevated); border: 1px solid var(--border-hover); border-radius: var(--radius-lg); box-shadow: 0 10px 25px rgba(0,0,0,.5); max-height: 82vh; overflow: auto; }
+.modal-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.modal-body { padding: 16px 20px; }
+.modal-foot { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+
+/* ======= 知识库域组件 ======= */
+/* 上传拖拽区 */
+.dropzone {
+  border: 2px dashed var(--border-hover); border-radius: var(--radius-lg);
+  padding: 28px 20px; text-align: center; color: var(--text-secondary);
+  cursor: pointer; transition: all var(--transition); margin-bottom: 14px;
+}
+.dropzone:hover, .dropzone.drag { border-color: var(--accent); background: var(--accent-soft); }
+.dropzone .dz-icon { font-size: 26px; margin-bottom: 6px; }
+.dropzone .dz-main { font-size: 13px; color: var(--text-primary); }
+.dropzone .dz-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+.dropzone .dz-btns { margin-top: 12px; display: flex; gap: 8px; justify-content: center; }
+/* 上传队列进度条 */
+.up-prog { display: inline-flex; align-items: center; gap: 8px; }
+.pbar { position: relative; width: 110px; height: 6px; border-radius: 3px; background: var(--bg-hover); overflow: hidden; }
+.pbar-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 3px; transition: width .3s; }
+.pbar-fill.green { background: var(--green); }
+.pbar-fill.amber { background: var(--amber); }
+/* 建库流水线行内条 */
+.pipe-note { font-size: 11px; color: var(--text-tertiary); margin-top: 6px; }
+/* 审核工作台：左章节树右卡片 */
+.review-layout { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.tree-node { padding: 7px 10px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; }
+.tree-node:hover { background: var(--bg-hover); color: var(--text-primary); }
+.tree-node.active { background: var(--accent-soft); color: var(--accent); }
+.tree-node.child { padding-left: 26px; font-size: 12px; }
+.tree-badge { margin-left: auto; font-size: 10px; background: var(--amber-soft); color: var(--amber); border-radius: 8px; padding: 0 7px; }
+.tree-badge.zero { background: transparent; color: var(--text-tertiary); }
+/* 知识卡片 */
+.kp-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 12px; }
+.kp-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.kp-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.kp-summary { font-size: 12px; color: var(--text-secondary); margin: 4px 0 8px; line-height: 1.7; }
+.kp-src { font-size: 11px; color: var(--text-tertiary); font-family: var(--font-mono); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; display: inline-block; }
+.kp-actions { display: flex; gap: 8px; margin-top: 10px; }
+/* 检索结果 */
+.result-row { display: flex; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); align-items: flex-start; }
+.result-row:last-child { border-bottom: none; }
+.result-ico {
+  width: 30px; height: 30px; border-radius: var(--radius-sm); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600;
+}
+.result-main { flex: 1; min-width: 0; }
+.result-title { font-size: 13px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.result-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+.result-quote { font-size: 12px; color: var(--text-secondary); margin-top: 6px; line-height: 1.7; }
+.result-quote mark { background: var(--amber-soft); color: var(--amber); padding: 0 3px; border-radius: 2px; }
+.result-acts { display: flex; gap: 8px; margin-top: 8px; }
+/* 缩略图 mock */
+.thumb-mock {
+  width: 132px; height: 84px; flex-shrink: 0; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-hover); background: linear-gradient(135deg, #1a1e2a, #141721);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+}
+.thumb-mock .tm-cap { font-size: 10px; color: var(--text-tertiary); }
+.thumb-mock .tm-line { width: 70%; height: 2px; background: var(--border-hover); border-radius: 1px; }
+/* 播放器 */
+.player-shell { max-width: 760px; }
+.player-screen {
+  position: relative; aspect-ratio: 16 / 9; border-radius: var(--radius-md); overflow: hidden;
+  background: radial-gradient(ellipse at 50% 40%, #232838 0%, #12141c 70%);
+  border: 1px solid var(--border-hover); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px;
+}
+.player-screen .ps-ep { position: absolute; top: 10px; left: 12px; font-size: 11px; color: var(--text-secondary); }
+.player-screen .ps-kf { font-size: 12px; color: var(--text-tertiary); }
+.player-screen .ps-time { font-family: var(--font-mono); font-size: 30px; color: var(--text-primary); letter-spacing: .04em; }
+.player-screen .ps-watermark {
+  position: absolute; right: 12px; bottom: 10px; font-size: 10px; color: rgba(240,241,245,.35);
+  border: 1px solid rgba(240,241,245,.15); border-radius: 4px; padding: 1px 8px; pointer-events: none;
+}
+.player-ctrl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 2px; }
+.seekbar { position: relative; height: 14px; cursor: pointer; margin: 2px 0 4px; }
+.seekbar .sb-track { position: absolute; left: 0; right: 0; top: 4px; height: 6px; border-radius: 3px; background: var(--bg-hover); }
+.seekbar .sb-fill { position: absolute; left: 0; top: 4px; height: 6px; border-radius: 3px; background: var(--accent); pointer-events: none; }
+.seekbar .sb-seg { position: absolute; top: 2px; height: 10px; border-radius: 3px; background: var(--amber-soft); border: 1px solid rgba(210,153,34,.5); pointer-events: none; }
+.seekbar .sb-mark { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--green); pointer-events: none; }
+.seekbar .sb-mark.b { background: var(--red); }
+.ctrl-btn {
+  min-width: 30px; height: 28px; padding: 0 8px; border-radius: var(--radius-sm);
+  background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-secondary);
+  cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  transition: all var(--transition);
+}
+.ctrl-btn:hover { color: var(--text-primary); border-color: var(--border-hover); }
+.ctrl-btn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.vol { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-tertiary); }
+.vol input[type=range] { width: 80px; accent-color: var(--accent); }
+/* 字幕联动 */
+.subs-box { margin-top: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-surface); max-height: 168px; overflow: auto; }
+.sub-line { display: flex; gap: 10px; padding: 7px 12px; font-size: 12px; color: var(--text-secondary); border-bottom: 1px solid var(--border); cursor: pointer; }
+.sub-line:last-child { border-bottom: none; }
+.sub-line:hover { background: var(--bg-hover); }
+.sub-line .st { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); flex-shrink: 0; width: 44px; }
+.sub-line.cur { background: var(--amber-soft); color: var(--amber); }
+.sub-line.cur .st { color: var(--amber); }
+/* 断点续播 */
+.resume-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--text-tertiary); }
+/* 阅读器 */
+.reader-shell { max-width: 760px; display: none; }
+.reader-shell.show { display: block; }
+.reader-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.reader-page {
+  position: relative; background: #14161d; border: 1px solid var(--border-hover);
+  border-radius: var(--radius-md); padding: 26px 30px; min-height: 420px; overflow: hidden;
+}
+.reader-page .rp-head { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-tertiary); margin-bottom: 18px; }
+.reader-page .rp-line { height: 9px; border-radius: 2px; background: var(--bg-hover); margin-bottom: 11px; }
+.reader-page .rp-line.w90 { width: 90%; } .reader-page .rp-line.w75 { width: 75%; }
+.reader-page .rp-line.w85 { width: 85%; } .reader-page .rp-line.w60 { width: 60%; }
+.reader-page .rp-hl {
+  border: 1px solid rgba(210,153,34,.45); background: var(--amber-soft); border-radius: 4px;
+  padding: 10px 12px; margin: 14px 0; font-size: 12px; color: var(--amber); line-height: 1.8;
+}
+.reader-page .rp-img {
+  border: 1px dashed var(--border-hover); border-radius: var(--radius-sm); background: #10121a;
+  padding: 18px; text-align: center; margin: 14px 0;
+}
+.reader-page .rp-img .ri-box {
+  width: 200px; height: 120px; margin: 0 auto 8px; border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, #1c2130, #141721); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--text-tertiary);
+}
+.reader-page .rp-img .ri-cap { font-size: 11px; color: var(--text-secondary); }
+.reader-page .rp-img .ri-hit { font-size: 11px; color: var(--amber); margin-top: 6px; }
+.reader-page .rp-watermark {
+  position: absolute; inset: 0; pointer-events: none; display: flex; align-items: center; justify-content: center;
+  font-size: 26px; color: rgba(240,241,245,.05); transform: rotate(-18deg); letter-spacing: .3em; user-select: none;
+}
+/* toast */
+#toast {
+  position: fixed; left: 50%; bottom: 34px; transform: translateX(-50%) translateY(16px);
+  background: var(--bg-surface); border: 1px solid var(--border-hover); color: var(--text-primary);
+  border-radius: var(--radius-md); padding: 9px 18px; font-size: 13px; opacity: 0; pointer-events: none;
+  transition: all var(--transition); z-index: 200; box-shadow: 0 8px 24px rgba(0,0,0,.45);
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="app-sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">
+        <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#fff" stroke-width="2.5"/><polyline points="8,20 12,16 16,18 20,12 24,14" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="14" r="2.5" fill="#fff"/></svg>
+      </div>
+      <div class="sidebar-brand-text">AI Invest</div>
+      <div class="sidebar-version">v1.0.0</div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
+      <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
+      <div class="sidebar-section-title">监测</div>
+      <a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
+      <a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
+      <div class="sidebar-section-title">资讯</div>
+      <a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
+      <a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
+      <div class="sidebar-section-title">分析</div>
+      <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+      <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
+      <div class="sidebar-section-title">设置</div>
+      <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+      <a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
+      <a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
+      <a class="sidebar-item sub active" href="knowledge-base.html"><span class="sidebar-item-icon">📚</span><span>知识库</span></a>
+    </nav>
+    <div class="sidebar-footer"><div class="sidebar-avatar">A</div><div class="sidebar-user-info"><div class="sidebar-user-name">管理员</div><div>超级管理员</div></div></div>
+  </aside>
+
+  <div class="app-main">
+    <header class="app-header">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:13px;color:var(--text-tertiary);font-weight:500">后台管理 /</span>
+        <span style="font-size:13px;color:var(--text-primary);font-weight:500">知识库</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="header-btn" title="我的自选">★</button>
+        <button class="header-btn" title="AI 助手">💬</button>
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><div class="sidebar-avatar" style="width:26px;height:26px;font-size:11px">A</div><span>管理员</span>▾</div>
+      </div>
+    </header>
+
+    <div class="app-content">
+      <div class="page-title">知识库</div>
+
+      <div class="page-block">
+        <div class="page-block-label">后台 · 知识库（F-KB 一期） <span class="route-badge">/admin/knowledge-base</span></div>
+
+        <div class="info-alert">
+          <span class="ia-icon">ℹ</span>
+          <span>多知识库实例管理：课程（视频 / 音频，句级转写溯源播放）与电子书（PDF，页级定位 + 书中图片文字搜图）两类知识源；建库流水线 = 转写/解析 → 章节推断 + 知识抽取（人工审核）→ 索引构建。存储大小取 COS 登记字节数聚合（原件 + 转写 + 图片资产 + 索引）。一期仅内部使用，Agent 运行时引用（F-KB-06）与技能自主优化建议（F-KB-07）为二期。</span>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-card"><div class="stat-title">知识库</div><div class="stat-value">2</div><div class="stat-suffix">课程 1 · 电子书 1</div></div>
+          <div class="stat-card"><div class="stat-title">素材规模</div><div class="stat-value">22 <span style="font-size:13px;color:var(--text-tertiary)">件</span></div><div class="stat-suffix">20 集 · 2 册 · 共 12.5 GB</div></div>
+          <div class="stat-card"><div class="stat-title">知识点</div><div class="stat-value">86</div><div class="stat-suffix">待审核 8 · 已通过 76 · 已驳回 2</div></div>
+          <div class="stat-card"><div class="stat-title">索引覆盖</div><div class="stat-value">100%</div><div class="stat-suffix">已通过知识点均已入索引</div></div>
+        </div>
+
+        <div class="sub-tabs">
+          <div class="sub-tab active" data-tab="list">知识库列表</div>
+          <div class="sub-tab" data-tab="ingest">素材与建库</div>
+          <div class="sub-tab" data-tab="review">审核工作台</div>
+          <div class="sub-tab" data-tab="search">知识检索</div>
+          <div class="sub-tab" data-tab="settings">设置</div>
+        </div>
+
+        <!-- ========== Tab 1 知识库列表 ========== -->
+        <div class="sub-view active" id="tab-list">
+          <div class="admin-toolbar">
+            <button class="btn btn-primary btn-sm" onclick="openKbModal()">＋ 新建知识库</button>
+            <span style="font-size:12px;color:var(--text-tertiary)">删除需二次确认（输入库名），级联清理素材、知识点与索引</span>
+          </div>
+          <div class="card">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>名称</th><th>类型</th><th>讲师 / 作者</th><th>素材</th><th>知识点</th><th>存储大小</th><th>状态</th><th>操作</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td style="color:var(--text-primary)">温成·趋势理论</td>
+                    <td><span class="tag tag-purple">课程</span></td>
+                    <td>温成</td>
+                    <td>20 集（视频 + 音频）· 12.4 GB</td>
+                    <td>62</td>
+                    <td class="text-mono">12.4 GB（索引 38 MB）</td>
+                    <td><span class="tag tag-green">已索引</span></td>
+                    <td>
+                      <button class="btn btn-ghost btn-sm" onclick="gotoIngest('course')">管理</button>
+                      <button class="btn btn-ghost btn-sm" onclick="toast('重建索引：按 kb-knowledge 别名重建，检索不中断（原型示意）')">重建索引</button>
+                      <button class="btn btn-danger btn-sm" onclick="toast('需输入库名二次确认后级联删除（原型示意）')">删除</button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="color:var(--text-primary)">温成·趋势理论著作</td>
+                    <td><span class="tag tag-blue">电子书</span></td>
+                    <td>温成</td>
+                    <td>2 册（文字版 + 扫描版 PDF）· 86.2 MB · 图片资产 214 张</td>
+                    <td>24</td>
+                    <td class="text-mono">86.2 MB（索引 12 MB）</td>
+                    <td><span class="tag tag-green">已索引</span></td>
+                    <td>
+                      <button class="btn btn-ghost btn-sm" onclick="gotoIngest('book')">管理</button>
+                      <button class="btn btn-ghost btn-sm" onclick="toast('重建索引：按 kb-knowledge 别名重建，检索不中断（原型示意）')">重建索引</button>
+                      <button class="btn btn-danger btn-sm" onclick="toast('需输入库名二次确认后级联删除（原型示意）')">删除</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="pipe-note">电子书按「书」管理（同名不同版本归为同一书册的多个文件）；课程按「集」管理，目录结构映射章节（如 第02章/第05集.mp4）。</div>
+        </div>
+
+        <!-- ========== Tab 2 素材与建库 ========== -->
+        <div class="sub-view" id="tab-ingest">
+          <div class="seg-tabs">
+            <div class="seg active" data-kb="course" onclick="switchKb('course')">温成·趋势理论（课程）</div>
+            <div class="seg" data-kb="book" onclick="switchKb('book')">温成·趋势理论著作（电子书）</div>
+          </div>
+
+          <!-- 课程：上传 + 流水线 -->
+          <div class="seg-view active" id="kb-course">
+            <div class="dropzone" id="dropZone">
+              <div class="dz-icon">📂</div>
+              <div class="dz-main">将整个文件夹拖拽到此处批量上传（保持目录结构）</div>
+              <div class="dz-sub">支持 mp4 / mov / mp3 / m4a / pdf · 自动按目录映射章节与集数 · 断点续传</div>
+              <div class="dz-btns">
+                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();toast('拉起系统目录选择器（原型示意）')">选择文件夹</button>
+                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();toast('拉起系统文件选择器（原型示意）')">选择文件</button>
+                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();demoDrop()">模拟拖入「第02章」文件夹</button>
+              </div>
+            </div>
+            <div class="card" id="uploadCard" style="display:none;margin-bottom:20px">
+              <div class="card-header"><div class="card-title">上传队列</div><div style="display:flex;gap:8px;align-items:center"><span style="font-size:11px;color:var(--text-tertiary)">4 个文件 · 3.7 GB</span><button class="btn btn-primary btn-sm" onclick="openCostModal()">预估建库费用</button></div></div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>相对路径</th><th>大小</th><th>类型</th><th>状态</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr><td class="text-mono">第02章/第05集.mp4</td><td>1.2 GB</td><td>视频</td><td><span class="tag tag-green">已上传</span></td><td>—</td></tr>
+                    <tr><td class="text-mono">第02章/第06集.mp4</td><td>1.1 GB</td><td>视频</td><td><span class="up-prog"><span class="pbar"><span class="pbar-fill" style="width:64%"></span></span><span style="font-size:11px;color:var(--text-tertiary)">64%</span></span></td><td><button class="btn btn-ghost btn-sm" onclick="toast('已暂停（原型示意）')">暂停</button></td></tr>
+                    <tr><td class="text-mono">第02章/第07集.mp4</td><td>1.3 GB</td><td>视频</td><td><span class="tag">待上传</span></td><td><button class="btn btn-ghost btn-sm" onclick="toast('已开始上传（原型示意）')">上传</button></td></tr>
+                    <tr><td class="text-mono">第03章/第08集.mp3</td><td>96 MB</td><td>音频</td><td><span class="tag tag-red">失败 · 网络中断</span></td><td><button class="btn btn-ghost btn-sm" onclick="toast('断点续传重试（原型示意）')">重试</button></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">建库流水线 · 温成·趋势理论</div>
+                <span style="font-size:11px;color:var(--text-tertiary)">转写（句级时间戳）→ 章节推断 + 知识抽取 → 人工审核 → 索引构建</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>集</th><th>时长</th><th>转写</th><th>知识抽取</th><th>审核</th><th>索引</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr><td>第05集</td><td class="text-mono">62:10</td><td><span class="tag tag-green">已转写 · 286 段</span></td><td><span class="tag tag-green">12 知识点</span></td><td><span class="tag tag-green">已通过</span></td><td><span class="tag tag-green">已索引</span></td><td><button class="btn btn-ghost btn-sm" onclick="toast('查看 collector_log 运行日志（原型示意）')">日志</button></td></tr>
+                    <tr><td>第06集</td><td class="text-mono">58:47</td><td id="pipe06"><span class="up-prog"><span class="pbar"><span class="pbar-fill" style="width:72%"></span></span><span style="font-size:11px;color:var(--text-tertiary)">转写中 72%</span></span></td><td>—</td><td>—</td><td>—</td><td><button class="btn btn-ghost btn-sm" onclick="toast('查看 collector_log 运行日志（原型示意）')">日志</button></td></tr>
+                    <tr><td>第07集</td><td class="text-mono">58:33</td><td><span class="tag" id="pipe07">排队 · 费用已确认</span></td><td>—</td><td>—</td><td>—</td><td><button class="btn btn-ghost btn-sm" onclick="toast('查看 collector_log 运行日志（原型示意）')">日志</button></td></tr>
+                    <tr><td>第08集</td><td class="text-mono">55:12</td><td><span class="tag tag-amber">待确认费用</span></td><td>—</td><td>—</td><td>—</td><td><button class="btn btn-primary btn-sm" onclick="openCostModal()">预估费用</button></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- 电子书：解析 + 图片资产 -->
+          <div class="seg-view" id="kb-book">
+            <div class="dropzone" onclick="toast('拉起系统文件选择器（原型示意）')" style="margin-bottom:20px">
+              <div class="dz-icon">📖</div>
+              <div class="dz-main">上传电子书 PDF（同一本书可同时上传文字版与扫描版）</div>
+              <div class="dz-sub">解析通道自动探测：有文本层 → 文字版抽取；无文本层 → 扫描版 OCR</div>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">书册解析 · 温成·趋势理论著作</div><span style="font-size:11px;color:var(--text-tertiary)">页级分段 · 图片资产抽取（F-KB-10）</span></div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>书册</th><th>页数</th><th>解析通道</th><th>解析进度</th><th>分段</th><th>图片资产</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td style="color:var(--text-primary)">趋势理论（文字版）.pdf</td><td>286</td><td><span class="tag tag-blue">文本层抽取</span></td>
+                      <td><span class="tag tag-green">已解析</span></td><td>214 段</td><td>71 张 · 已入索引</td>
+                      <td><button class="btn btn-ghost btn-sm" onclick="showReader('page');toast('打开阅读器定位 P128（原型示意）')">预览</button></td>
+                    </tr>
+                    <tr>
+                      <td style="color:var(--text-primary)">趋势理论（扫描版）.pdf</td><td>286</td><td><span class="tag tag-amber">OCR（扫描版）</span></td>
+                      <td><span class="up-prog"><span class="pbar"><span class="pbar-fill amber" style="width:45%"></span></span><span style="font-size:11px;color:var(--text-tertiary)">解析中 45%</span></span></td>
+                      <td>103 / 214 段</td><td>143 / 214 张</td>
+                      <td><button class="btn btn-ghost btn-sm" onclick="toast('查看 collector_log 运行日志（原型示意）')">日志</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="info-alert" style="margin-top:16px">
+              <span class="ia-icon">🖼</span>
+              <span>图片资产 = 页内插图抽取 + <b>图内文字 OCR</b> + 图注 + 多模态模型视觉描述，统一入索引 → 支持<b>文字搜图</b>（如搜「背驰示意图」命中 P142 图 5-3）。OCR 费用按页前置预估，实际用量记 metadata 供对账。验收口径为可检索性，不追求排版还原。</span>
+            </div>
+          </div>
+
+          <div class="info-alert" style="margin-top:20px">
+            <span class="ia-icon">⏱</span>
+            <span>建库流水线由 4 类 internal 定时任务驱动（纳入采集健康监测 F-MON）：<span class="text-mono">kb_transcribe</span> 转写 · <span class="text-mono">kb_parse_book</span> 电子书解析 · <span class="text-mono">kb_extract</span> 章节推断与知识抽取 · <span class="text-mono">kb_index</span> 索引构建。任务均支持按集 / 按册断点续跑与失败重试。</span>
+          </div>
+        </div>
+
+        <!-- ========== Tab 3 审核工作台 ========== -->
+        <div class="sub-view" id="tab-review">
+          <div class="admin-toolbar">
+            <span class="tag tag-amber">待审核 8</span>
+            <span class="tag tag-green">已通过 76</span>
+            <span class="tag tag-red">已驳回 2</span>
+            <span style="font-size:11px;color:var(--text-tertiary)">（下方卡片为示例，仅展示待审核与最近通过的 6 条）</span>
+          </div>
+          <div class="review-layout">
+            <div class="card">
+              <div class="card-header"><div class="card-title">章节树</div></div>
+              <div class="card-body" id="chTree" style="padding:10px">
+                <div class="tree-node" data-ch="all">全部章节</div>
+                <div class="tree-node" data-ch="ch1">第1章 趋势的定义 <span class="tree-badge">1</span></div>
+                <div class="tree-node child" data-ch="ch1-1">1.1 趋势与盘整</div>
+                <div class="tree-node child" data-ch="ch1-2">1.2 趋势三段结构</div>
+                <div class="tree-node" data-ch="ch2">第2章 中枢 <span class="tree-badge zero">0</span></div>
+                <div class="tree-node child" data-ch="ch2-1">2.1 中枢的定义</div>
+                <div class="tree-node child" data-ch="ch2-2">2.2 中枢的延伸与扩展</div>
+                <div class="tree-node" data-ch="ch3">第3章 背驰 <span class="tree-badge">5</span></div>
+                <div class="tree-node child" data-ch="ch3-1">3.1 背驰的定义</div>
+                <div class="tree-node child" data-ch="ch3-2">3.2 背驰的确认 <span class="tree-badge">2</span></div>
+                <div class="tree-node child" data-ch="ch3-3">3.3 区间套</div>
+                <div class="tree-node" data-ch="apx">附录 · 实战问答 <span class="tree-badge">2</span></div>
+              </div>
+            </div>
+            <div id="kpList">
+              <div class="kp-card" data-ch="ch3-2" data-id="c1">
+                <div class="kp-head"><span class="kp-title">趋势背驰的三重确认</span><span class="tag tag-purple">概念</span><span class="tag tag-amber status">待审核</span><span style="font-size:11px;color:var(--text-tertiary)">第3章 › 3.2 背驰的确认</span></div>
+                <div class="kp-summary">趋势背驰的确认需同时满足三个条件：本级别趋势动能明显衰减（MACD 黄白线回抽零轴）、次级别出现对应背驰结构（区间套）、量能同步萎缩。三者缺一不可，仅满足其一不构成确认。</div>
+                <span class="kp-src">原文 · 第07集 42:15 – 44:02</span>
+                <div class="kp-actions">
+                  <button class="btn btn-primary btn-sm" onclick="reviewCard('c1','通过')">通过</button>
+                  <button class="btn btn-secondary btn-sm" onclick="reviewCard('c1','修订')">修订后通过</button>
+                  <button class="btn btn-danger btn-sm" onclick="reviewCard('c1','驳回')">驳回</button>
+                  <button class="btn btn-ghost btn-sm" onclick="showPlayer();toast('跳转播放原文片段（原型示意）')">播放片段</button>
+                </div>
+              </div>
+              <div class="kp-card" data-ch="ch3-2" data-id="c2">
+                <div class="kp-head"><span class="kp-title">区间套定位背驰的操作步骤</span><span class="tag tag-purple">方法论</span><span class="tag tag-amber status">待审核</span><span style="font-size:11px;color:var(--text-tertiary)">第3章 › 3.2 背驰的确认</span></div>
+                <div class="kp-summary">从本级别背驰段切入次级别，逐级向下确认背驰结构，直至最小观察级别；次级别确认后本级别背驰才可操作，避免单一级别误判。</div>
+                <span class="kp-src">原文 · 第08集 12:05 – 13:40</span>
+                <div class="kp-actions">
+                  <button class="btn btn-primary btn-sm" onclick="reviewCard('c2','通过')">通过</button>
+                  <button class="btn btn-secondary btn-sm" onclick="reviewCard('c2','修订')">修订后通过</button>
+                  <button class="btn btn-danger btn-sm" onclick="reviewCard('c2','驳回')">驳回</button>
+                  <button class="btn btn-ghost btn-sm" onclick="showPlayer();toast('跳转播放原文片段（原型示意）')">播放片段</button>
+                </div>
+              </div>
+              <div class="kp-card" data-ch="ch3-3" data-id="c3">
+                <div class="kp-head"><span class="kp-title">区间套的结构含义</span><span class="tag tag-purple">概念</span><span class="tag tag-amber status">待审核</span><span style="font-size:11px;color:var(--text-tertiary)">第3章 › 3.3 区间套</span></div>
+                <div class="kp-summary">区间套指本级别与次级别背驰段在时空上的嵌套对应关系，是趋势转折确认的核心结构特征。</div>
+                <span class="kp-src">原文 · 第08集 31:20 – 32:44</span>
+                <div class="kp-actions">
+                  <button class="btn btn-primary btn-sm" onclick="reviewCard('c3','通过')">通过</button>
+                  <button class="btn btn-secondary btn-sm" onclick="reviewCard('c3','修订')">修订后通过</button>
+                  <button class="btn btn-danger btn-sm" onclick="reviewCard('c3','驳回')">驳回</button>
+                  <button class="btn btn-ghost btn-sm" onclick="showPlayer();toast('跳转播放原文片段（原型示意）')">播放片段</button>
+                </div>
+              </div>
+              <div class="kp-card" data-ch="apx" data-id="c4">
+                <div class="kp-head"><span class="kp-title">背驰后的三种演化路径</span><span class="tag tag-purple">方法论</span><span class="tag tag-amber status">待审核</span><span style="font-size:11px;color:var(--text-tertiary)">附录 · 实战问答</span></div>
+                <div class="kp-summary">背驰确认后行情通常演化为：趋势反转、扩展为更大级别盘整、或中继后延续原趋势；应对策略需结合更大级别走势分类。</div>
+                <span class="kp-src">原文 · 第19集 08:12 – 09:47</span>
+                <div class="kp-actions">
+                  <button class="btn btn-primary btn-sm" onclick="reviewCard('c4','通过')">通过</button>
+                  <button class="btn btn-secondary btn-sm" onclick="reviewCard('c4','修订')">修订后通过</button>
+                  <button class="btn btn-danger btn-sm" onclick="reviewCard('c4','驳回')">驳回</button>
+                  <button class="btn btn-ghost btn-sm" onclick="showPlayer();toast('跳转播放原文片段（原型示意）')">播放片段</button>
+                </div>
+              </div>
+              <div class="kp-card" data-ch="ch3-1" data-id="c5">
+                <div class="kp-head"><span class="kp-title">背驰：趋势动能衰竭的量化定义</span><span class="tag tag-purple">概念</span><span class="tag tag-green status">已通过</span><span style="font-size:11px;color:var(--text-tertiary)">第3章 › 3.1 背驰的定义</span></div>
+                <div class="kp-summary">背驰指趋势在延续过程中动能逐步衰竭的结构状态，以趋势段之间的力度对比量化判定。</div>
+                <span class="kp-src">原文 · 《趋势理论》P128 – 130</span>
+              </div>
+              <div class="kp-card" data-ch="ch1-1" data-id="c6">
+                <div class="kp-head"><span class="kp-title">趋势与盘整的判别边界</span><span class="tag tag-purple">概念</span><span class="tag tag-green status">已通过</span><span style="font-size:11px;color:var(--text-tertiary)">第1章 › 1.1 趋势与盘整</span></div>
+                <div class="kp-summary">以中枢是否同向移动区分趋势与盘整：至少两个同向中枢构成趋势，仅一个中枢为盘整。</div>
+                <span class="kp-src">原文 · 第02集 18:22 – 19:05</span>
+              </div>
+            </div>
+          </div>
+          <div class="pipe-note">抽取产出先落「待审核」，人工确认后进入索引待建（<span class="text-mono">kb_index</span> 增量入索引）；「修订后通过」仅允许修改标题 / 类型 / 摘要，原文摘录与定位（集数+时间区间 / 页码）不可改。</div>
+        </div>
+
+        <!-- ========== Tab 4 知识检索 ========== -->
+        <div class="sub-view" id="tab-search">
+          <div class="admin-toolbar">
+            <input class="form-input" id="searchInput" style="width:360px" value="背驰怎么确认" placeholder="自然语言检索知识点 / 原文 / 书页 / 图片">
+            <button class="btn btn-primary btn-sm" id="btnSearch" onclick="doSearch()">搜索</button>
+            <span style="font-size:11px;color:var(--text-tertiary)">混合检索：embedding 语义 + ES BM25 关键词，RRF 融合排序</span>
+          </div>
+          <div id="searchResults" style="display:none;margin-bottom:20px">
+            <div class="card">
+              <div class="result-row">
+                <div class="result-ico" style="background:var(--accent-soft);color:var(--accent)">卡</div>
+                <div class="result-main">
+                  <div class="result-title">趋势背驰的三重确认 <span class="tag tag-purple">概念</span><span class="tag tag-green">已通过</span><span class="tag">命中度 0.93</span></div>
+                  <div class="result-meta">知识卡片 · 第3章 › 3.2 背驰的确认 · 温成·趋势理论</div>
+                  <div class="result-quote">背驰的确认需同时满足：动能衰减、次级别区间套、量能萎缩……<mark>三者缺一不可</mark>。</div>
+                  <div class="result-acts">
+                    <button class="btn btn-primary btn-sm" onclick="showPlayer()">▶ 播放片段 第07集 42:15</button>
+                    <button class="btn btn-secondary btn-sm" onclick="toast('打开知识卡片详情（原型示意）')">查看卡片</button>
+                  </div>
+                </div>
+              </div>
+              <div class="result-row">
+                <div class="result-ico" style="background:var(--blue-soft);color:var(--blue)">文</div>
+                <div class="result-main">
+                  <div class="result-title">第07集 42:15 – 44:02 <span class="tag">原文摘录</span><span class="tag">命中度 0.88</span></div>
+                  <div class="result-meta">转写句级分段 · 温成·趋势理论</div>
+                  <div class="result-quote">「……<mark>只有同时满足动能衰减、次级别背驰、量能萎缩三点，才能确认趋势背驰</mark>，确认之后，才谈得上操作……」</div>
+                  <div class="result-acts"><button class="btn btn-primary btn-sm" onclick="showPlayer()">▶ 播放片段</button></div>
+                </div>
+              </div>
+              <div class="result-row">
+                <div class="result-ico" style="background:var(--green-soft);color:var(--green)">页</div>
+                <div class="result-main">
+                  <div class="result-title">《趋势理论》P128 – 130 <span class="tag">书页命中</span><span class="tag">命中度 0.85</span></div>
+                  <div class="result-meta">电子书 · 温成·趋势理论著作（文字版）</div>
+                  <div class="result-quote">「……<mark>背驰确认的三个要点</mark>：一看动能，二看次级别结构，三看成交量……」</div>
+                  <div class="result-acts"><button class="btn btn-secondary btn-sm" onclick="showReader('page')">打开阅读</button></div>
+                </div>
+              </div>
+              <div class="result-row">
+                <div class="thumb-mock"><div style="font-size:20px">📉</div><div class="tm-line"></div><div class="tm-cap">图 5-3</div></div>
+                <div class="result-main">
+                  <div class="result-title">图 5-3 背驰示意图 <span class="tag tag-amber">图片命中</span><span class="tag">命中度 0.81</span></div>
+                  <div class="result-meta">《趋势理论》P142 · 命中来源：图内文字「背驰 = 动能衰竭」+ 图注 + 视觉描述（文字搜图，F-KB-10）</div>
+                  <div class="result-acts"><button class="btn btn-secondary btn-sm" onclick="showReader('img')">查看图片</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 播放器 -->
+          <div class="card player-shell" id="playerPanel" style="display:none;margin-bottom:20px">
+            <div class="card-header">
+              <div class="card-title">第07集 · 趋势背驰的确认 <span class="tag tag-purple" style="margin-left:6px">温成·趋势理论</span></div>
+              <span style="font-size:11px;color:var(--text-tertiary)">知识片段播放 · 自动定位 42:15 – 44:02</span>
+            </div>
+            <div class="card-body">
+              <div class="player-screen" id="playerScreen" onclick="togglePlay()">
+                <div class="ps-ep">温成·趋势理论 · 第07集</div>
+                <div class="ps-kf">关键帧 · 42:15 趋势动能衰减示意</div>
+                <div class="ps-time" id="playerTime">42:15</div>
+                <div style="font-size:12px;color:var(--text-tertiary)" id="playHint">点击画面播放 / 暂停 · Space · ←→ ±5s · ↑↓ 音量</div>
+                <div class="ps-watermark">测试账号 · 2026-09-18 · 禁止下载录制</div>
+              </div>
+              <div class="seekbar" id="seekbar">
+                <div class="sb-track"></div>
+                <div class="sb-seg" id="sbSeg"></div>
+                <div class="sb-mark" id="sbMarkA" style="display:none"></div>
+                <div class="sb-mark b" id="sbMarkB" style="display:none"></div>
+                <div class="sb-fill" id="sbFill"></div>
+              </div>
+              <div class="player-ctrl">
+                <button class="ctrl-btn" id="btnPlay" onclick="togglePlay()">▶</button>
+                <span class="text-mono" id="timeLabel" style="font-size:12px;color:var(--text-secondary)">42:15 / 58:33</span>
+                <select class="form-select" id="speedSel" style="padding:4px 28px 4px 10px;font-size:12px" onchange="toast('倍速 ×'+this.value)">
+                  <option value="0.75">0.75×</option>
+                  <option value="1" selected>1.0×</option>
+                  <option value="1.25">1.25×</option>
+                  <option value="1.5">1.5×</option>
+                  <option value="2">2.0×</option>
+                </select>
+                <span class="vol">🔊 <input type="range" id="volRange" min="0" max="100" value="70" oninput="document.getElementById('volLabel').textContent=this.value+'%'"><span id="volLabel">70%</span></span>
+                <button class="ctrl-btn" onclick="toast('浏览器全屏（原型示意）')">⛶ 全屏</button>
+                <span style="width:1px;height:18px;background:var(--border)"></span>
+                <button class="ctrl-btn" id="btnA" onclick="setMark('A')">设 A</button>
+                <button class="ctrl-btn" id="btnB" onclick="setMark('B')">设 B</button>
+                <button class="ctrl-btn" id="btnLoop" onclick="toggleLoop()">A-B 循环 · 关</button>
+                <button class="ctrl-btn" onclick="clearMarks()">清除</button>
+              </div>
+              <div class="subs-box" id="subsBox">
+                <div class="sub-line" data-t="2522"><span class="st">42:02</span><span>前面我们讲了背驰的定义，这一集讲怎么确认。</span></div>
+                <div class="sub-line" data-t="2535"><span class="st">42:15</span><span>背驰的确认，不能只看一个条件。</span></div>
+                <div class="sub-line" data-t="2568"><span class="st">42:48</span><span>第一，趋势的动能出现明显衰减，MACD 黄白线回抽零轴。</span></div>
+                <div class="sub-line" data-t="2600"><span class="st">43:20</span><span>第二，次级别出现相应的背驰结构，形成区间套。</span></div>
+                <div class="sub-line" data-t="2631"><span class="st">43:51</span><span>第三，量能同步萎缩，反弹无量，这时才能确认背驰成立。</span></div>
+                <div class="sub-line" data-t="2642"><span class="st">44:02</span><span>确认之后，才谈得上操作。</span></div>
+                <div class="sub-line" data-t="2670"><span class="st">44:30</span><span>下面我们看一个实战案例……</span></div>
+              </div>
+              <div class="resume-row" id="resumeRow" style="display:none">
+                <span>⏱ 上次播放至 <b id="resumeAt" class="text-mono">41:52</b></span>
+                <button class="btn btn-secondary btn-sm" onclick="resumeFrom()">从此继续</button>
+                <span style="font-size:11px">（断点续播，按账号记忆）</span>
+              </div>
+              <div class="info-alert" style="margin-top:14px;margin-bottom:0">
+                <span class="ia-icon">🔒</span>
+                <span>防盗下载（F-KB-09）：代理播放（素材不出私有桶）+ 播放凭证 ≤30min 一次性 + 静态水印（账号 + 时间）+ 异常拉取频控与审计。</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 阅读器 -->
+          <div class="card reader-shell" id="readerPanel">
+            <div class="card-header">
+              <div class="card-title" id="readerTitle">《趋势理论（文字版）》 · P130</div>
+              <span class="tag tag-blue">代理阅读 · 凭证限单本书</span>
+            </div>
+            <div class="card-body">
+              <div class="reader-toolbar">
+                <button class="ctrl-btn" onclick="flipPage(-1)">‹ 上一页</button>
+                <span class="text-mono" id="readerPageNo" style="font-size:12px;color:var(--text-secondary)">P130 / 286</span>
+                <button class="ctrl-btn" onclick="flipPage(1)">下一页 ›</button>
+                <span style="font-size:11px;color:var(--text-tertiary)">翻页按页拉取（拦截批量下载）· 阅读画面带水印</span>
+              </div>
+              <div class="reader-page">
+                <div class="rp-head"><span>趋势理论 · 第5章 背驰</span><span id="rpNo">P130</span></div>
+                <div class="rp-line"></div><div class="rp-line w90"></div><div class="rp-line w85"></div><div class="rp-line w75"></div>
+                <div class="rp-hl" id="rpHighlight">背驰的确认需要三个条件：一看趋势动能是否衰减，二看次级别是否出现对应的背驰结构（区间套），三看量能是否同步萎缩。三者同时满足方可确认。</div>
+                <div class="rp-line w85"></div><div class="rp-line"></div><div class="rp-line w60"></div>
+                <div class="rp-img" id="rpImg" style="display:none">
+                  <div class="ri-box">图 5-3 · 背驰示意图</div>
+                  <div class="ri-cap">图注：趋势段力度对比与动能衰竭示意</div>
+                  <div class="ri-hit">图片命中来源：图内文字「背驰 = 动能衰竭」（OCR）+ 图注 + 视觉描述</div>
+                </div>
+                <div class="rp-watermark">测试账号 · 2026-09-18</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== Tab 5 设置 ========== -->
+        <div class="sub-view" id="tab-settings">
+          <div class="card" style="max-width:760px">
+            <div class="card-header"><div class="card-title">建库与检索配置</div><button class="btn btn-primary btn-sm" onclick="toast('已保存（原型示意）')">保存</button></div>
+            <div class="card-body">
+              <div class="form-row">
+                <div class="form-group" style="flex:1">
+                  <label class="form-label">ASR 转写渠道</label>
+                  <select class="form-select"><option>MiniMax asr-1.0（当前）</option><option>预留渠道</option></select>
+                </div>
+                <div class="form-group" style="flex:1">
+                  <label class="form-label">转写分段长度</label>
+                  <select class="form-select"><option>句级 · 单段上限 30s（默认）</option><option>句级 · 单段上限 15s</option></select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">金融热词表（转写判断 prompt 注入，提升术语识别）</label>
+                <textarea class="form-input" rows="3">背驰，中枢，一买，二买，三买，盘整，趋势级别，区间套，走势分类，MACD 黄白线，动能衰减</textarea>
+              </div>
+              <div class="form-row">
+                <div class="form-group" style="flex:1">
+                  <label class="form-label">Embedding 模型</label>
+                  <select class="form-select"><option>bge-m3（当前）</option><option>预留模型</option></select>
+                </div>
+                <div class="form-group" style="flex:1">
+                  <label class="form-label">检索索引别名</label>
+                  <input class="form-input" value="kb-knowledge" disabled>
+                </div>
+              </div>
+              <div class="info-alert" style="margin-bottom:0">
+                <span class="ia-icon">ℹ</span>
+                <span>切换 Embedding 模型后触发全量重建：按 <span class="text-mono">kb-knowledge</span> 别名双索引写入 → 校验通过后原子切换，检索全程不中断。转写 / OCR / LLM 调用均先做费用前置预估，用量记 metadata 供对账。</span>
+              </div>
+            </div>
+          </div>
+          <div class="info-alert" style="margin-top:16px;max-width:760px">
+            <span class="ia-icon">🚧</span>
+            <span><b>二期（P2）</b>：F-KB-06 Agent 运行时引用（<span class="text-mono">search_knowledge_base</span> 工具 + 权限门控，复盘 / 趋势分析注入知识引用）；F-KB-07 技能自主优化建议（单闭环：引用统计 → 建议队列 → 人工确认后生效）。</span>
+          </div>
+        </div>
+
+        <div class="type-note">
+          <b>实现说明</b>（对照 [04-knowledge-base-requirement.md](../requirement/04-knowledge-base-requirement.md) V1.1）：<br>
+          ① 四表：<span class="text-mono">kb_source / kb_media / kb_transcript_segment（泛化内容分段）/ kb_knowledge_point</span>，迁移走幂等 SQL（migrations/ + init-scripts 同步）；<br>
+          ② 建库流水线 4 类 internal 任务（kb_transcribe / kb_parse_book / kb_extract / kb_index）入 <span class="text-mono">collector_task</span> seed 与 F-MON 健康监测；<br>
+          ③ wire 契约 camelCase（CamelModel + shared/types 单一真相源），query 参数 snake_case；<br>
+          ④ 素材存 COS 私有桶，播放 / 阅读走代理 + 短时效一次性凭证 + 水印（F-KB-09）；<br>
+          ⑤ 检索：ES <span class="text-mono">kb-knowledge</span> 别名（BM25 + dense_vector，RRF 融合），Embedding 模型切换走双索引原子切换；<br>
+          ⑥ 费用治理：ASR / OCR / LLM 均费用前置预估 + 用量 metadata 对账；一期仅内部使用，无多租户与计费。
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新建知识库弹窗 -->
+<div class="modal-mask" id="kbModal">
+  <div class="modal-box">
+    <div class="modal-head"><div class="card-title">新建知识库</div><button class="header-btn" onclick="closeKbModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">名称</label><input class="form-input" placeholder="如：温成·缠论实战"></div>
+      <div class="form-row">
+        <div class="form-group" style="flex:1"><label class="form-label">类型</label><select class="form-select"><option>课程（视频 / 音频）</option><option>电子书（PDF）</option></select></div>
+        <div class="form-group" style="flex:1"><label class="form-label">讲师 / 作者</label><input class="form-input" placeholder="如：温成"></div>
+      </div>
+      <div class="form-group" style="margin-bottom:0"><label class="form-label">描述（可选）</label><input class="form-input" placeholder="知识库用途说明"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeKbModal()">取消</button>
+      <button class="btn btn-primary" onclick="closeKbModal();toast('知识库已创建，可进入「素材与建库」上传素材（原型示意）')">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- 建库费用预估弹窗 -->
+<div class="modal-mask" id="costModal">
+  <div class="modal-box">
+    <div class="modal-head"><div class="card-title">预估建库费用 · 温成·趋势理论（第 06–09 集）</div><button class="header-btn" onclick="closeCostModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="desc-grid" style="padding:0 0 14px">
+        <div class="desc-row"><div class="desc-key">待处理</div><div class="desc-val">4 集 · 总时长 3.9 小时</div></div>
+        <div class="desc-row"><div class="desc-key">ASR 转写</div><div class="desc-val">MiniMax asr-1.0 · 3.9 小时 ≈ <b>¥4.7</b></div></div>
+        <div class="desc-row"><div class="desc-key">知识抽取</div><div class="desc-val">章节推断 + LLM 结构化抽取（4 集）≈ <b>¥2.6</b></div></div>
+        <div class="desc-row"><div class="desc-key">OCR</div><div class="desc-val">—（课程类素材无 OCR；扫描版 PDF 按页另计）</div></div>
+        <div class="desc-row"><div class="desc-key">合计</div><div class="desc-val"><b style="color:var(--amber)">≈ ¥7.3</b>（预估，实际按用量 metadata 对账）</div></div>
+      </div>
+      <div class="info-alert" style="margin-bottom:0">
+        <span class="ia-icon">ℹ</span>
+        <span>费用前置预估，确认后才开始执行；流水线按集推进，失败自动重试并断点续跑。</span>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeCostModal()">取消</button>
+      <button class="btn btn-primary" onclick="confirmCost()">确认并开始建库</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+function $(s){ return document.querySelector(s); }
+function $$(s){ return document.querySelectorAll(s); }
+
+/* ---------- toast ---------- */
+var toastTimer = null;
+function toast(msg){
+  var t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2200);
+}
+
+/* ---------- 子页 Tabs ---------- */
+$$('.sub-tab').forEach(function(tab){
+  tab.onclick = function(){
+    $$('.sub-tab').forEach(function(x){ x.classList.remove('active'); });
+    tab.classList.add('active');
+    $$('.sub-view').forEach(function(v){ v.classList.remove('active'); });
+    $('#tab-' + tab.dataset.tab).classList.add('active');
+  };
+});
+function gotoIngest(kb){
+  $$('.sub-tab').forEach(function(x){ x.classList.remove('active'); });
+  $('[data-tab="ingest"]').classList.add('active');
+  $$('.sub-view').forEach(function(v){ v.classList.remove('active'); });
+  $('#tab-ingest').classList.add('active');
+  switchKb(kb);
+}
+
+/* ---------- 素材与建库 ---------- */
+function switchKb(kb){
+  $$('#tab-ingest .seg').forEach(function(s){ s.classList.toggle('active', s.dataset.kb === kb); });
+  $('#kb-course').classList.toggle('active', kb === 'course');
+  $('#kb-book').classList.toggle('active', kb === 'book');
+}
+function demoDrop(){
+  $('#uploadCard').style.display = 'block';
+  toast('已加入 4 个文件，保持目录结构 第02章/第03章（原型示意）');
+}
+var dragTimer = null;
+var dropZone = $('#dropZone');
+['dragenter','dragover'].forEach(function(ev){
+  dropZone.addEventListener(ev, function(e){ e.preventDefault(); dropZone.classList.add('drag'); });
+});
+['dragleave','drop'].forEach(function(ev){
+  dropZone.addEventListener(ev, function(e){ e.preventDefault(); dropZone.classList.remove('drag'); });
+});
+dropZone.addEventListener('drop', function(e){
+  e.preventDefault();
+  demoDrop();
+});
+
+/* ---------- 费用预估弹窗 ---------- */
+function openCostModal(){ $('#costModal').classList.add('show'); }
+function closeCostModal(){ $('#costModal').classList.remove('show'); }
+function confirmCost(){
+  closeCostModal();
+  toast('已确认费用，第06集转写完成后第07集自动排队（原型示意）');
+  var cell = $('#pipe06');
+  var pct = 72;
+  var timer = setInterval(function(){
+    pct += 4;
+    if (pct >= 100){
+      clearInterval(timer);
+      cell.innerHTML = '<span class="tag tag-green">已转写 · 预计 286 段</span>';
+      $('#pipe07').className = 'tag tag-blue';
+      $('#pipe07').textContent = '转写中 · 3%';
+      toast('第06集转写完成，第07集开始转写（原型示意）');
+      return;
+    }
+    cell.innerHTML = '<span class="up-prog"><span class="pbar"><span class="pbar-fill" style="width:' + pct + '%"></span></span><span style="font-size:11px;color:var(--text-tertiary)">转写中 ' + pct + '%</span></span>';
+  }, 300);
+}
+
+/* ---------- 新建知识库弹窗 ---------- */
+function openKbModal(){ $('#kbModal').classList.add('show'); }
+function closeKbModal(){ $('#kbModal').classList.remove('show'); }
+$$('.modal-mask').forEach(function(m){
+  m.addEventListener('click', function(e){ if (e.target === m) m.classList.remove('show'); });
+});
+
+/* ---------- 审核工作台 ---------- */
+var counts = { pending: 8, approved: 76, rejected: 2 };
+function renderCounts(){
+  var chips = $$('#tab-review .admin-toolbar .tag');
+  chips[0].textContent = '待审核 ' + counts.pending;
+  chips[1].textContent = '已通过 ' + counts.approved;
+  chips[2].textContent = '已驳回 ' + counts.rejected;
+}
+function reviewCard(id, action){
+  var card = $('.kp-card[data-id="' + id + '"]');
+  var tag = card.querySelector('.status');
+  var acts = card.querySelector('.kp-actions');
+  if (action === '通过'){ tag.className = 'tag tag-green status'; tag.textContent = '已通过'; counts.pending--; counts.approved++; toast('已通过，进入索引待建（kb_index 增量入索引）'); }
+  else if (action === '修订'){ tag.className = 'tag tag-blue status'; tag.textContent = '修订后通过'; counts.pending--; counts.approved++; toast('修订表单：仅可改标题 / 类型 / 摘要（原型示意）'); }
+  else { tag.className = 'tag tag-red status'; tag.textContent = '已驳回'; counts.pending--; counts.rejected++; toast('已驳回，不入索引'); }
+  if (acts) acts.remove();
+  renderCounts();
+}
+/* 章节树过滤 */
+$$('#chTree .tree-node').forEach(function(node){
+  node.onclick = function(){
+    $$('#chTree .tree-node').forEach(function(n){ n.classList.remove('active'); });
+    node.classList.add('active');
+    var ch = node.dataset.ch;
+    $$('#kpList .kp-card').forEach(function(card){
+      card.style.display = (ch === 'all' || card.dataset.ch === ch) ? 'block' : 'none';
+    });
+  };
+});
+
+/* ---------- 知识检索 ---------- */
+var SEG_START = 2535, SEG_END = 2642, DURATION = 3513;
+var curT = SEG_START, playing = false, playTimer = null;
+var markA = null, markB = null, loopOn = false;
+
+function doSearch(){
+  var btn = $('#btnSearch');
+  btn.innerHTML = '<span class="spin">◌</span> 检索中';
+  btn.disabled = true;
+  setTimeout(function(){
+    btn.innerHTML = '搜索';
+    btn.disabled = false;
+    $('#searchResults').style.display = 'block';
+    toast('命中 4 条：知识卡片 1 · 原文摘录 1 · 书页 1 · 图片 1（RRF 融合排序）');
+  }, 700);
+}
+
+function fmt(t){
+  t = Math.max(0, Math.round(t));
+  var h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  var mm = (m < 10 ? '0' : '') + m, ss = (s < 10 ? '0' : '') + s;
+  return h > 0 ? h + ':' + mm + ':' + ss : mm + ':' + ss;
+}
+function showPlayer(){
+  $('#readerPanel').classList.remove('show');
+  $('#playerPanel').style.display = 'block';
+  seekTo(SEG_START);
+  if (!playing) togglePlay();
+  $('#playerPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function togglePlay(){
+  playing = !playing;
+  $('#btnPlay').textContent = playing ? '⏸' : '▶';
+  $('#playHint').textContent = playing ? '播放中 · Space 暂停 · ←→ ±5s · ↑↓ 音量' : '已暂停 · 点击画面继续';
+  clearInterval(playTimer);
+  if (playing){
+    playTimer = setInterval(tick, 250);
+  } else {
+    saveResume();
+  }
+}
+function tick(){
+  curT += 0.25 * parseFloat($('#speedSel').value);
+  if (loopOn && markA !== null && markB !== null && curT >= markB){
+    curT = markA;
+  }
+  if (curT >= DURATION){ curT = DURATION; togglePlay(); }
+  renderTime();
+  syncSubs();
+}
+function renderTime(){
+  $('#playerTime').textContent = fmt(curT);
+  $('#timeLabel').textContent = fmt(curT) + ' / ' + fmt(DURATION);
+  $('#sbFill').style.width = (curT / DURATION * 100) + '%';
+}
+function syncSubs(){
+  var lines = $$('#subsBox .sub-line');
+  var cur = null;
+  lines.forEach(function(line){
+    line.classList.remove('cur');
+    var t = parseInt(line.dataset.t, 10);
+    if (curT >= t) cur = line;
+  });
+  if (cur){
+    cur.classList.add('cur');
+    cur.scrollIntoView({ block: 'nearest' });
+  }
+}
+function seekTo(t){
+  curT = t;
+  renderTime();
+  syncSubs();
+  saveResume();
+}
+$('#seekbar').addEventListener('click', function(e){
+  var rect = this.getBoundingClientRect();
+  var ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+  seekTo(ratio * DURATION);
+});
+$$('#subsBox .sub-line').forEach(function(line){
+  line.onclick = function(){ seekTo(parseInt(line.dataset.t, 10)); };
+});
+function setMark(which){
+  var t = Math.round(curT);
+  if (which === 'A'){ markA = t; $('#sbMarkA').style.display = 'block'; $('#sbMarkA').style.left = (t / DURATION * 100) + '%'; $('#btnA').classList.add('on'); }
+  else { markB = t; $('#sbMarkB').style.display = 'block'; $('#sbMarkB').style.left = (t / DURATION * 100) + '%'; $('#btnB').classList.add('on'); }
+  renderSeg();
+}
+function clearMarks(){
+  markA = null; markB = null; loopOn = false;
+  $('#sbMarkA').style.display = 'none';
+  $('#sbMarkB').style.display = 'none';
+  $('#btnA').classList.remove('on');
+  $('#btnB').classList.remove('on');
+  $('#btnLoop').classList.remove('on');
+  $('#btnLoop').textContent = 'A-B 循环 · 关';
+  renderSeg();
+}
+function toggleLoop(){
+  if (markA === null || markB === null){ toast('请先设置 A、B 两点'); return; }
+  loopOn = !loopOn;
+  $('#btnLoop').classList.toggle('on', loopOn);
+  $('#btnLoop').textContent = 'A-B 循环 · ' + (loopOn ? '开' : '关');
+}
+function renderSeg(){
+  var seg = $('#sbSeg');
+  seg.style.display = 'block';
+  seg.style.left = (SEG_START / DURATION * 100) + '%';
+  seg.style.width = ((SEG_END - SEG_START) / DURATION * 100) + '%';
+}
+
+/* ---------- 断点续播 ---------- */
+var RESUME_KEY = 'kb:resume-demo';
+function saveResume(){
+  try { localStorage.setItem(RESUME_KEY, String(Math.round(curT))); } catch (e) {}
+}
+function showResume(){
+  var saved = parseInt(localStorage.getItem(RESUME_KEY) || '', 10);
+  if (saved > 0 && Math.abs(saved - SEG_START) > 3){
+    $('#resumeRow').style.display = 'flex';
+    $('#resumeAt').textContent = fmt(saved);
+  }
+}
+function resumeFrom(){
+  var saved = parseInt(localStorage.getItem(RESUME_KEY) || '0', 10);
+  seekTo(saved);
+  if (!playing) togglePlay();
+}
+showResume();
+
+/* ---------- 阅读器 ---------- */
+var readerMode = 'page', readerPage = 130;
+function showReader(mode){
+  $('#playerPanel').style.display = 'none';
+  if (playing) togglePlay();
+  readerMode = mode || 'page';
+  $('#readerPanel').classList.add('show');
+  renderReader();
+  $('#readerPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function renderReader(){
+  var isImg = readerMode === 'img';
+  $('#readerPageNo').textContent = 'P' + (isImg ? 142 : readerPage) + ' / 286';
+  $('#rpNo').textContent = 'P' + (isImg ? 142 : readerPage);
+  $('#readerTitle').textContent = '《趋势理论（文字版）》 · P' + (isImg ? 142 : readerPage);
+  $('#rpImg').style.display = isImg ? 'block' : 'none';
+  $('#rpHighlight').style.display = isImg ? 'none' : 'block';
+}
+function flipPage(d){
+  readerPage = Math.min(286, Math.max(1, readerPage + d));
+  readerMode = 'page';
+  renderReader();
+}
+
+/* ---------- 键盘快捷键（播放器可见时） ---------- */
+document.addEventListener('keydown', function(e){
+  if ($('#playerPanel').style.display === 'none') return;
+  var tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+  if (e.code === 'Space'){ e.preventDefault(); togglePlay(); }
+  else if (e.key === 'ArrowLeft'){ e.preventDefault(); seekTo(curT - 5); }
+  else if (e.key === 'ArrowRight'){ e.preventDefault(); seekTo(curT + 5); }
+  else if (e.key === 'ArrowUp'){
+    e.preventDefault();
+    var v = Math.min(100, parseInt($('#volRange').value, 10) + 10);
+    $('#volRange').value = v; $('#volLabel').textContent = v + '%';
+  }
+  else if (e.key === 'ArrowDown'){
+    e.preventDefault();
+    var v2 = Math.max(0, parseInt($('#volRange').value, 10) - 10);
+    $('#volRange').value = v2; $('#volLabel').textContent = v2 + '%';
+  }
+});
+
+/* ---------- 初始 ---------- */
+renderSeg();
+renderTime();
+</script>
+</body>
+</html>
