@@ -250,6 +250,7 @@ export function mapAdminTask(dto: ApiAdminTaskResponse): AdminTask {
     taskName: dto.taskName,
     taskType: dto.taskType,
     source: dto.source,
+    remark: dto.remark,
     schedule: dto.schedule,
     isActive: dto.isActive,
     lastRunAt: dto.lastRunAt,

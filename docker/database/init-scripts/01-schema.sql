@@ -462,6 +462,7 @@ CREATE TABLE collector_task (
     task_name       VARCHAR(100) NOT NULL UNIQUE,
     task_type       VARCHAR(50)  NOT NULL,
     source          VARCHAR(50)  NOT NULL,
+    remark          VARCHAR(200),            -- 实例级用途备注（同 task_type 多实例时区分用途）
     schedule        VARCHAR(100),             -- cron 表达式或描述
     is_active       BOOLEAN      DEFAULT true,
     last_run_at     TIMESTAMPTZ,

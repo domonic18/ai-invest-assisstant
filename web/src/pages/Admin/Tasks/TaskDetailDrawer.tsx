@@ -123,8 +123,19 @@ export function TaskDetailDrawer({
               <span className="font-mono text-xs">{task.taskName}</span>
             </Descriptions.Item>
             <Descriptions.Item label="任务类型">{getTaskLabel(task.taskType)}</Descriptions.Item>
-            {description && (
-              <Descriptions.Item label="备注">{description}</Descriptions.Item>
+            {(task.remark || description) && (
+              <Descriptions.Item label="备注">
+                {task.remark ? (
+                  <>
+                    {task.remark}
+                    {description && (
+                      <div className="mt-0.5 text-xs text-[#8a8f98]">{description}</div>
+                    )}
+                  </>
+                ) : (
+                  description
+                )}
+              </Descriptions.Item>
             )}
             <Descriptions.Item label="渠道">
               {getSourceLabel(task.source)}

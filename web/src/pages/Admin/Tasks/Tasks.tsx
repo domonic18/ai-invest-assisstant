@@ -32,6 +32,7 @@ import { TaskListView } from './TaskListView'
 interface TaskFormValues {
   taskName: string
   taskType: string
+  remark?: string
   schedule?: string
   isActive: boolean
 }
@@ -110,6 +111,7 @@ export function AdminTasks() {
     form.setFieldsValue({
       taskName: task.taskName,
       taskType: task.taskType,
+      remark: task.remark ?? undefined,
       schedule: task.schedule || undefined,
       isActive: task.isActive,
     })
@@ -124,6 +126,7 @@ export function AdminTasks() {
       taskName: values.taskName,
       taskType: values.taskType,
       source: nextSource,
+      remark: values.remark?.trim() || null,
       schedule: values.schedule,
       isActive: values.isActive,
     }
@@ -218,6 +221,13 @@ export function AdminTasks() {
           </Form.Item>
           <Form.Item name="taskType" label="任务类型" rules={[{ required: true }]}>
             <Select options={taskTypeOptions} disabled={!!editing} />
+          </Form.Item>
+          <Form.Item
+            name="remark"
+            label="用途备注"
+            tooltip="同一任务类型存在多个调度实例时，用备注区分各实例的采集用途；留空则显示类型默认说明"
+          >
+            <Input maxLength={200} showCount placeholder="例如：盘中半小时级实时快照（COMEX 黄金等外盘指标）" />
           </Form.Item>
           <Form.Item name="schedule" label="执行时间（Cron 表达式）">
             <Input placeholder="例如：0 16 * * 1-5" />

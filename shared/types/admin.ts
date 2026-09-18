@@ -443,6 +443,7 @@ export interface AdminTask {
   taskName: string
   taskType: string
   source: string
+  remark: string | null
   schedule: string | null
   isActive: boolean
   lastRunAt: string | null
@@ -456,6 +457,7 @@ export interface AdminTaskFormValues {
   taskName: string
   taskType: string
   source: string
+  remark?: string
   schedule?: string
   isActive: boolean
 }

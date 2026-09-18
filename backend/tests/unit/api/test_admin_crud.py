@@ -112,6 +112,7 @@ def _task_mock() -> SimpleNamespace:
         task_name="kline",
         task_type="scheduled",
         source="tushare",
+        remark=None,
         schedule="0 9 * * *",
         is_active=True,
         queue=None,

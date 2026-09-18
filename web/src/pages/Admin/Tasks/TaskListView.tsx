@@ -190,8 +190,11 @@ export function TaskListView({
                 {getTaskLabel(record.taskType)}
               </a>
               <div className="font-mono text-[11px] text-[#8a8f98]">{record.taskName}</div>
-              <div className="truncate text-[11px] text-[#5c616e]" title={descByTaskType.get(record.taskType)}>
-                {descByTaskType.get(record.taskType)}
+              <div
+                className="truncate text-[11px] text-[#5c616e]"
+                title={record.remark ?? descByTaskType.get(record.taskType)}
+              >
+                {record.remark ?? descByTaskType.get(record.taskType)}
               </div>
             </div>
           </div>

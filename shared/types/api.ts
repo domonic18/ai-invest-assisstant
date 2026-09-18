@@ -1112,6 +1112,7 @@ export interface ApiAdminTaskResponse {
   taskName: string
   taskType: string
   source: string
+  remark: string | null
   schedule: string | null
   isActive: boolean
   lastRunAt: string | null
@@ -1125,6 +1126,7 @@ export interface ApiAdminTaskCreateRequest {
   taskName: string
   taskType: string
   source: string
+  remark?: string | null
   schedule?: string
   isActive?: boolean
 }
@@ -1132,6 +1134,7 @@ export interface ApiAdminTaskCreateRequest {
 export interface ApiAdminTaskUpdateRequest {
   taskType?: string
   source?: string
+  remark?: string | null
   schedule?: string
   isActive?: boolean
 }
