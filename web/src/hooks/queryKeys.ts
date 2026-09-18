@@ -49,6 +49,7 @@ export const queryKeys = {
   },
   collector: {
     logs: ['collector-logs'] as const,
+    logSummary: ['collector-log-summary'] as const,
     taskCatalog: ['collector-task-catalog'] as const,
     taskChannels: (taskName: string) => ['collector-task-channels', taskName] as const,
     channels: ['collector-channel-configs'] as const,

@@ -13,7 +13,7 @@ function resolveTab(raw: string | null): TabKey {
   return (TAB_KEYS as readonly string[]).includes(raw ?? '') ? (raw as TabKey) : 'run'
 }
 
-/** 采集管理：执行与日志 / 任务配置 / 渠道配置 / 采集健康 四合一（tab 与 ?tab= 同步）。 */
+/** 采集管理：任务日志 / 任务配置 / 渠道配置 / 采集健康 四合一（tab 与 ?tab= 同步）。 */
 export function CollectorAdmin() {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeKey = resolveTab(searchParams.get('tab'))
@@ -23,7 +23,7 @@ export function CollectorAdmin() {
       activeKey={activeKey}
       onChange={(key) => setSearchParams({ tab: key }, { replace: true })}
       items={[
-        { key: 'run', label: '执行与日志', children: <Collector /> },
+        { key: 'run', label: '任务日志', children: <Collector /> },
         { key: 'tasks', label: '任务配置', children: <AdminTasks /> },
         { key: 'channels', label: '渠道配置', children: <CollectorChannelConfig /> },
         { key: 'health', label: '采集健康', children: <CollectorHealth /> },

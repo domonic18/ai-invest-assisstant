@@ -1,49 +1,73 @@
-import { PlayCircleOutlined, SyncOutlined } from '@ant-design/icons'
-import { Alert, Button, Card, Space, Spin, Table, Tag, Typography, message } from 'antd'
+/** 任务日志：左任务目录（业务分类折叠/搜索/常用置顶/手动触发）+ 右执行日志双栏。 */
+
+import { Card, message } from 'antd'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
-import {
-  useCollectorLogs,
-  useCollectorTaskCatalog,
-  useRunCollectorTask,
-} from '@/hooks/useCollectorAdmin'
-import { getSourceLabel, getTaskLabel } from '@/utils/collectorTaskLabels'
-import { formatDateTime } from '@/utils/formatters'
+import { useCollectorTaskCatalog, useRunCollectorTask } from '@/hooks/useCollectorAdmin'
+import { getTaskLabel } from '@/utils/collectorTaskLabels'
+import { TASK_CATEGORY_META } from '@/utils/taskCategoryMeta'
 import type {
+  CollectorTaskCatalogItem,
   CollectorTaskName,
   CollectorTaskOption,
   CollectorTaskRunOptions,
 } from '@ai-invest/shared'
 
+import {
+  getCollapsedGroups,
+  getFrequentTasks,
+  pushFrequentTask,
+  setCollapsedGroups,
+} from './collectorPrefs'
+import { CollectorLogPanel } from './CollectorLogPanel'
+import { CollectorTaskCatalogPanel } from './CollectorTaskCatalogPanel'
 import { CollectorTaskModal } from './CollectorTaskModal'
-import { statusLabel, statusTagColor } from '@ai-invest/shared'
+
+/** 默认全部分类组收起，仅常用组展开。 */
+const DEFAULT_COLLAPSED_GROUPS = Object.keys(TASK_CATEGORY_META)
 
 export function Collector() {
   const [searchParams, setSearchParams] = useSearchParams()
   const taskNameFilter = searchParams.get('taskName')
   const sourceFilter = searchParams.get('source')
-  const { data: logs, isLoading, refetch } = useCollectorLogs(20, {
-    taskName: taskNameFilter,
-    source: sourceFilter,
-  })
   const { data: catalog } = useCollectorTaskCatalog()
   const runMutation = useRunCollectorTask()
 
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<CollectorTaskOption | null>(null)
+  const [frequentTasks, setFrequentTasks] = useState<string[]>(() => getFrequentTasks())
+  const [collapsedGroups, setCollapsedGroupsState] = useState<string[] | null>(() =>
+    getCollapsedGroups(),
+  )
 
-  const taskOptions: CollectorTaskOption[] =
-    catalog?.items.map((item) => ({ key: item.name, label: item.label })) ?? []
+  const catalogItems: CollectorTaskCatalogItem[] = catalog?.items ?? []
+  const taskOptions: CollectorTaskOption[] = catalogItems.map((item) => ({
+    key: item.name,
+    label: item.label,
+  }))
+  const effectiveCollapsed = collapsedGroups ?? DEFAULT_COLLAPSED_GROUPS
 
-  const handleOpenModal = (task: CollectorTaskOption) => {
-    setSelectedTask(task)
+  const handleCollapsedGroupsChange = (keys: string[]) => {
+    setCollapsedGroupsState(keys)
+    setCollapsedGroups(keys)
+  }
+
+  const handleOpenModal = (item: CollectorTaskCatalogItem) => {
+    setSelectedTask({ key: item.name as CollectorTaskName, label: item.label })
     setModalOpen(true)
   }
 
-  const removeFilter = (key: 'taskName' | 'source') => {
+  const handleFilterChange = (patch: { taskName?: string | null; source?: string | null }) => {
     const next = new URLSearchParams(searchParams)
-    next.delete(key)
+    if (patch.taskName !== undefined) {
+      if (patch.taskName) next.set('taskName', patch.taskName)
+      else next.delete('taskName')
+    }
+    if (patch.source !== undefined) {
+      if (patch.source) next.set('source', patch.source)
+      else next.delete('source')
+    }
     setSearchParams(next, { replace: true })
   }
 
@@ -62,117 +86,40 @@ export function Collector() {
         trade_date: options.tradeDate || undefined,
       }
       await runMutation.mutateAsync({ taskName, body })
-      const label = getTaskLabel(taskName)
-      message.info(`「${label}」已派发到采集队列，执行状态见下方日志`)
+      pushFrequentTask(taskName)
+      setFrequentTasks(getFrequentTasks())
+      message.info(`「${getTaskLabel(taskName)}」已派发到采集队列，执行状态见右侧日志`)
       setModalOpen(false)
     } catch (err) {
       message.error(err instanceof Error ? err.message : '触发失败')
     }
   }
 
-  const columns = [
-    { title: '任务', dataIndex: 'taskName', key: 'taskName', render: (value: string) => getTaskLabel(value) },
-    { title: '渠道', dataIndex: 'source', key: 'source', render: (value: string | null) => getSourceLabel(value) },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      render: (value: string) => {
-        const tag = { color: statusTagColor(value), label: statusLabel(value) }
-        return <Tag color={tag.color}>{tag.label}</Tag>
-      },
-    },
-    { title: '入库数', dataIndex: 'recordsCount', key: 'recordsCount' },
-    {
-      title: '开始时间',
-      dataIndex: 'startedAt',
-      key: 'startedAt',
-      width: 170,
-      render: (value: string | null) => (value ? formatDateTime(value) : '-'),
-    },
-    {
-      title: '结束时间',
-      dataIndex: 'finishedAt',
-      key: 'finishedAt',
-      width: 170,
-      render: (value: string | null) => (value ? formatDateTime(value) : '-'),
-    },
-    {
-      title: '错误信息',
-      dataIndex: 'errorMsg',
-      key: 'errorMsg',
-      width: 240,
-      ellipsis: true,
-      render: (value: string | null) =>
-        value ? (
-          <Typography.Text type="danger" ellipsis={{ tooltip: value }}>
-            {value}
-          </Typography.Text>
-        ) : (
-          '-'
-        ),
-    },
-  ]
-
   return (
-    <Card
-      variant="borderless"
-      extra={
-        <Space>
-          <Button icon={<SyncOutlined />} onClick={() => refetch()} loading={isLoading}>
-            刷新日志
-          </Button>
-        </Space>
-      }
-    >
-      <Alert
-        message="点击任务按钮后，会弹出渠道选择与高级选项。系统默认按「支持该任务且已启用」的渠道自动选择，也可手动指定。"
-        type="info"
-        showIcon
-        className="mb-4"
-      />
+    <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+      <Card
+        variant="borderless"
+        title="任务目录"
+        className="w-full xl:w-[40%]"
+        styles={{ body: { paddingTop: 12 } }}
+      >
+        <CollectorTaskCatalogPanel
+          items={catalogItems}
+          frequentTasks={frequentTasks}
+          collapsedGroups={effectiveCollapsed}
+          onCollapsedGroupsChange={handleCollapsedGroupsChange}
+          onOpenTask={handleOpenModal}
+        />
+      </Card>
 
-      {(taskNameFilter || sourceFilter) && (
-        <div className="mb-3 flex items-center gap-2">
-          <span className="text-sm text-gray-500">日志过滤：</span>
-          {taskNameFilter && (
-            <Tag closable onClose={() => removeFilter('taskName')}>
-              {getTaskLabel(taskNameFilter)}
-            </Tag>
-          )}
-          {sourceFilter && (
-            <Tag closable onClose={() => removeFilter('source')}>
-              {getSourceLabel(sourceFilter)}
-            </Tag>
-          )}
-        </div>
-      )}
-
-      <Space wrap className="mb-6">
-        {taskOptions.length === 0 ? (
-          <Spin />
-        ) : (
-          taskOptions.map((task) => (
-            <Button
-              key={task.key}
-              type="primary"
-              icon={<PlayCircleOutlined />}
-              onClick={() => handleOpenModal(task)}
-              loading={runMutation.isPending}
-            >
-              {task.label}
-            </Button>
-          ))
-        )}
-      </Space>
-
-      <Table
-        dataSource={logs || []}
-        columns={columns}
-        rowKey="id"
-        loading={isLoading}
-        pagination={false}
-      />
+      <Card variant="borderless" title="执行日志" className="w-full flex-1">
+        <CollectorLogPanel
+          taskNameFilter={taskNameFilter}
+          sourceFilter={sourceFilter}
+          taskOptions={taskOptions}
+          onFilterChange={handleFilterChange}
+        />
+      </Card>
 
       <CollectorTaskModal
         open={modalOpen}
@@ -181,6 +128,6 @@ export function Collector() {
         onSubmit={handleRun}
         loading={runMutation.isPending}
       />
-    </Card>
+    </div>
   )
 }
