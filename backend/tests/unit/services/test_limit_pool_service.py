@@ -9,7 +9,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core.clock import today_cn
 from app.services.market import (
     limit_pool_service,
     market_service,
@@ -297,33 +296,54 @@ class TestGetLimitUp:
 
     @pytest.mark.asyncio
     async def test_empty_when_no_data(self) -> None:
+        """无日历数据 + 涨停池为空：视图日按交易日放行为当天，返回空响应。
+
+        固定周三 fixture 推导期望，与运行日历无关（周末 CI 也稳定）。
+        """
+        wednesday = date(2026, 9, 16)
         session = AsyncMock()
         session.execute.return_value = _scalars_result([])
-        with patch.object(
-            trade_calendar_service, "fetch_max_daily_date", AsyncMock(return_value=None)
+        with (
+            patch.object(
+                trade_calendar_service, "today_cn", MagicMock(return_value=wednesday)
+            ),
+            patch.object(
+                trade_calendar_service,
+                "fetch_max_daily_date",
+                AsyncMock(return_value=None),
+            ),
         ):
             result = await market_service.get_limit_up(session)
 
         assert result.total == 0
         assert result.ladder == []
-        assert result.trade_date == today_cn()
+        assert result.trade_date == wednesday
 
     @pytest.mark.asyncio
     async def test_intraday_today_does_not_fall_back_to_previous_pool(self) -> None:
-        """盘中（当日已有涨跌统计、涨停池未写入）返回当日空结果，而非旧池。"""
-        today = today_cn()
+        """盘中（日 K 最新为上一日期、涨停池未写入）返回当日空结果，而非旧池。"""
+        wednesday = date(2026, 9, 16)
+        stale_sunday = wednesday - timedelta(days=3)
         session = AsyncMock()
-        session.scalar.return_value = 1  # 当日已有 market_breadth 行
         session.execute.return_value = _scalars_result([])  # 当日涨停池为空
-        with patch.object(
-            trade_calendar_service,
-            "fetch_max_daily_date",
-            AsyncMock(return_value=today - timedelta(days=3)),
+        with (
+            patch.object(
+                trade_calendar_service, "today_cn", MagicMock(return_value=wednesday)
+            ),
+            patch.object(
+                trade_calendar_service,
+                "fetch_max_daily_date",
+                AsyncMock(return_value=stale_sunday),
+            ),
+            patch.object(
+                trade_calendar_service,
+                "has_daily_bar",
+                AsyncMock(return_value=True),
+            ),
         ):
             result = await market_service.get_limit_up(session)
 
-        expected = today if today.weekday() < 5 else today - timedelta(days=3)
-        assert result.trade_date == expected
+        assert result.trade_date == wednesday  # 放行当天，不回退 stale_sunday
         assert result.total == 0
 
 
