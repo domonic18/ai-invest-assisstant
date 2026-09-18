@@ -34,7 +34,7 @@ export function SectorAnomalyPage() {
   useColorScheme()
   const [tradeDate, setTradeDate] = useState<string>()
   const [sectorType, setSectorType] = useState<SectorTypeFilter>('all')
-  const [typeFilter, setTypeFilter] = useState<string>()
+  const [typeFilter, setTypeFilter] = useState<string[]>([])
 
   const { data, isLoading } = useSectorAnomalyBoard(
     tradeDate,
@@ -54,7 +54,9 @@ export function SectorAnomalyPage() {
 
   const items = useMemo(() => {
     const rows = data?.items ?? []
-    return typeFilter ? rows.filter((it) => it.anomalyTypes.includes(typeFilter)) : rows
+    return typeFilter.length === 0
+      ? rows
+      : rows.filter((it) => typeFilter.every((t) => it.anomalyTypes.includes(t)))
   }, [data, typeFilter])
 
   const isAttributed = (it: ApiSectorAnomalyItem) =>
@@ -207,9 +209,11 @@ export function SectorAnomalyPage() {
             onChange={(v) => setSectorType(v as SectorTypeFilter)}
           />
           <Select
+            mode="multiple"
             allowClear
-            placeholder="异动类型"
-            style={{ width: 140 }}
+            maxTagCount="responsive"
+            placeholder="异动类型（可多选）"
+            style={{ width: 220 }}
             options={typeOptions}
             value={typeFilter}
             onChange={(v) => setTypeFilter(v)}
