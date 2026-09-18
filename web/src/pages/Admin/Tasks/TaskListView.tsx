@@ -1,6 +1,6 @@
 /** 任务配置列表视图：树形表格（业务分类为可展开目录行，任务为子行）+ 搜索/分类/状态筛选。 */
 
-import { SearchOutlined } from '@ant-design/icons'
+import { CompressOutlined, ExpandOutlined, SearchOutlined } from '@ant-design/icons'
 import { Button, Input, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography } from 'antd'
 import { useMemo, useState } from 'react'
 
@@ -140,6 +140,15 @@ export function TaskListView({
   const allCategoryKeys = useMemo(() => treeData.map((row) => row.id), [treeData])
   // 搜索时全部展开；无搜索按持久化偏好（默认全展开）
   const effectiveExpanded = keywordExpanded(allCategoryKeys, expandedKeys, search)
+
+  const expandAll = () => {
+    setExpandedKeys(allCategoryKeys)
+    setExpandedGroups(allCategoryKeys)
+  }
+  const collapseAll = () => {
+    setExpandedKeys([])
+    setExpandedGroups([])
+  }
 
   const handleExpandedRowsChange = (keys: readonly React.Key[]) => {
     const next = keys.map(String)
@@ -366,8 +375,28 @@ export function TaskListView({
             setActiveFilter(value ?? null)
           }}
         />
-        <span className="ml-auto text-xs text-[#8a8f98]">
-          {treeData.length} 个分类 · {filtered.length} 个任务
+        <span className="ml-auto flex items-center gap-1">
+          <Tooltip title="展开所有分类目录">
+            <Button
+              size="small"
+              type="text"
+              icon={<ExpandOutlined />}
+              aria-label="展开所有分类目录"
+              onClick={expandAll}
+            />
+          </Tooltip>
+          <Tooltip title="收起所有分类目录">
+            <Button
+              size="small"
+              type="text"
+              icon={<CompressOutlined />}
+              aria-label="收起所有分类目录"
+              onClick={collapseAll}
+            />
+          </Tooltip>
+          <span className="ml-1 text-xs text-[#8a8f98]">
+            {treeData.length} 个分类 · {filtered.length} 个任务
+          </span>
         </span>
       </div>
 
