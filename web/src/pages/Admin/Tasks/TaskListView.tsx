@@ -1,10 +1,10 @@
-/** 任务配置列表视图：紧凑 cron 释义 + 下次执行预览 + 搜索/业务分类/状态筛选。 */
+/** 任务配置列表视图：树形表格（业务分类为可展开目录行，任务为子行）+ 搜索/分类/状态筛选。 */
 
 import { SearchOutlined } from '@ant-design/icons'
 import { Button, Input, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography } from 'antd'
 import { useMemo, useState } from 'react'
 
-import type { AdminTask } from '@ai-invest/shared'
+import type { AdminTask, CollectorDataTypeChannel } from '@ai-invest/shared'
 import { statusTagColor } from '@ai-invest/shared'
 
 import {
@@ -23,13 +23,33 @@ import {
 } from '@/utils/taskCategoryMeta'
 import { formatCronExpression, formatDateTime } from '@/utils/formatters'
 
+import { getExpandedGroups, setExpandedGroups } from './taskPrefs'
+
 interface TaskListViewProps {
   tasks: AdminTask[]
   loading: boolean
   /** taskType → 任务备注说明（来自任务目录）。 */
   descByTaskType: Map<string, string>
+  /** taskType → 渠道优先级列表（priority 升序，来自数据类型渠道配置）。 */
+  channelsByType: Map<string, CollectorDataTypeChannel[]>
   onEdit: (task: AdminTask) => void
   onOpenDetail: (task: AdminTask) => void
+}
+
+/** 分类目录行（树形父行）。 */
+interface CategoryRow {
+  id: string
+  isCategory: true
+  categoryLabel: string
+  categoryColor: string
+  count: number
+  children: AdminTask[]
+}
+
+type TaskTreeRow = CategoryRow | AdminTask
+
+function isCategoryRow(row: TaskTreeRow): row is CategoryRow {
+  return 'isCategory' in row
 }
 
 function NextRunsCell({ schedule }: { schedule: string | null }) {
@@ -47,14 +67,14 @@ export function TaskListView({
   tasks,
   loading,
   descByTaskType,
+  channelsByType,
   onEdit,
   onOpenDetail,
 }: TaskListViewProps) {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [activeFilter, setActiveFilter] = useState<boolean | null>(null)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const [expandedKeys, setExpandedKeys] = useState<string[] | null>(() => getExpandedGroups())
 
   const triggerMutation = useTriggerAdminTask()
   const pauseMutation = usePauseAdminTask()
@@ -92,11 +112,60 @@ export function TaskListView({
     })
   }, [tasks, search, categoryFilter, activeFilter])
 
+  // 业务分类聚合成目录行，任务为其子行
+  const treeData = useMemo(() => {
+    const byCategory = new Map<string, AdminTask[]>()
+    for (const task of filtered) {
+      const cat = taskCategoryOf(task.taskType)
+      const arr = byCategory.get(cat)
+      if (arr) arr.push(task)
+      else byCategory.set(cat, [task])
+    }
+    const rows: CategoryRow[] = []
+    for (const [key, meta] of Object.entries(TASK_CATEGORY_META)) {
+      const items = byCategory.get(key)
+      if (!items?.length) continue
+      rows.push({
+        id: `cat:${key}`,
+        isCategory: true,
+        categoryLabel: meta.label,
+        categoryColor: meta.color,
+        count: items.length,
+        children: items,
+      })
+    }
+    return rows
+  }, [filtered])
+
+  const allCategoryKeys = useMemo(() => treeData.map((row) => row.id), [treeData])
+  // 搜索时全部展开；无搜索按持久化偏好（默认全展开）
+  const effectiveExpanded = keywordExpanded(allCategoryKeys, expandedKeys, search)
+
+  const handleExpandedRowsChange = (keys: readonly React.Key[]) => {
+    const next = keys.map(String)
+    setExpandedKeys(next)
+    setExpandedGroups(next)
+  }
+
   const columns = [
     {
       title: '任务',
       key: 'task',
-      render: (_: unknown, record: AdminTask) => {
+      render: (_: unknown, record: TaskTreeRow) => {
+        if (isCategoryRow(record)) {
+          return (
+            <div className="flex items-center gap-2">
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ background: record.categoryColor }}
+              />
+              <span className="text-sm font-medium">{record.categoryLabel}</span>
+              <span className="rounded-full bg-white/[0.06] px-1.5 text-[11px] text-[#8a8f98]">
+                {record.count}
+              </span>
+            </div>
+          )
+        }
         const cat = taskCategoryOf(record.taskType)
         return (
           <div className="flex items-center gap-2">
@@ -122,18 +191,51 @@ export function TaskListView({
     },
     {
       title: '渠道',
-      dataIndex: 'source',
-      key: 'source',
-      width: 110,
-      render: (value: string | null) => getSourceLabel(value),
+      key: 'channels',
+      width: 180,
+      render: (_: unknown, record: TaskTreeRow) => {
+        if (isCategoryRow(record)) return null
+        const backups = (channelsByType.get(record.taskType) ?? []).filter(
+          (ch) => ch.source !== record.source && ch.isEnabled,
+        )
+        const visible = backups.slice(0, 2)
+        return (
+          <Tooltip
+            title={
+              backups.length > 0
+                ? `备用顺序：${backups.map((ch) => getSourceLabel(ch.source)).join(' → ')}`
+                : undefined
+            }
+          >
+            <span className="flex flex-wrap items-center gap-1">
+              <span className="rounded border border-[#58a6ff]/40 bg-[#58a6ff]/10 px-1.5 py-0.5 text-[11px] text-[#79c0ff]">
+                {getSourceLabel(record.source)}
+              </span>
+              {visible.map((ch) => (
+                <span
+                  key={ch.channelId}
+                  className="rounded border border-white/10 px-1.5 py-0.5 text-[11px] text-[#8a8f98]"
+                >
+                  {getSourceLabel(ch.source)}
+                </span>
+              ))}
+              {backups.length > visible.length && (
+                <span className="text-[11px] text-[#8a8f98]">
+                  +{backups.length - visible.length}
+                </span>
+              )}
+            </span>
+          </Tooltip>
+        )
+      },
     },
     {
       title: '执行时间',
       dataIndex: 'schedule',
       key: 'schedule',
       width: 190,
-      render: (value: string | null, record: AdminTask) => {
-        if (!value) return <span className="text-[#8a8f98]">-</span>
+      render: (value: string | null, record: TaskTreeRow) => {
+        if (isCategoryRow(record) || !value) return <span className="text-[#8a8f98]">-</span>
         const compact = cronZh(value)
         return (
           <Tooltip
@@ -156,22 +258,24 @@ export function TaskListView({
       dataIndex: 'schedule',
       key: 'nextRuns',
       width: 200,
-      render: (value: string | null) => <NextRunsCell schedule={value} />,
+      render: (value: string | null, record: TaskTreeRow) =>
+        isCategoryRow(record) ? null : <NextRunsCell schedule={value} />,
     },
     {
       title: '状态',
       dataIndex: 'isActive',
       key: 'isActive',
       width: 80,
-      render: (value: boolean) =>
-        value ? <Tag color="green">启用</Tag> : <Tag>禁用</Tag>,
+      render: (value: boolean, record: TaskTreeRow) =>
+        isCategoryRow(record) ? null : value ? <Tag color="green">启用</Tag> : <Tag>禁用</Tag>,
     },
     {
       title: '最近运行',
       key: 'lastRun',
       width: 180,
-      render: (_: unknown, record: AdminTask) =>
-        record.lastStatus ? (
+      render: (_: unknown, record: TaskTreeRow) => {
+        if (isCategoryRow(record)) return null
+        return record.lastStatus ? (
           <Space size={4}>
             <Tag color={statusTagColor(record.lastStatus)}>{record.lastStatus}</Tag>
             <Typography.Text type="secondary" className="text-xs" ellipsis={{ tooltip: record.lastError ?? undefined }}>
@@ -180,48 +284,52 @@ export function TaskListView({
           </Space>
         ) : (
           <span className="text-[#8a8f98]">-</span>
-        ),
+        )
+      },
     },
     {
       title: '操作',
       key: 'actions',
       width: 250,
-      render: (_: unknown, record: AdminTask) => (
-        <Space size={4}>
-          <Button
-            size="small"
-            loading={triggerMutation.isPending}
-            onClick={() => triggerMutation.mutateAsync(record.id).catch(() => undefined)}
-          >
-            触发
-          </Button>
-          {record.isActive ? (
+      render: (_: unknown, record: TaskTreeRow) => {
+        if (isCategoryRow(record)) return null
+        return (
+          <Space size={4}>
             <Button
               size="small"
-              loading={pauseMutation.isPending}
-              onClick={() => pauseMutation.mutateAsync(record.id).catch(() => undefined)}
+              loading={triggerMutation.isPending}
+              onClick={() => triggerMutation.mutateAsync(record.id).catch(() => undefined)}
             >
-              暂停
+              触发
             </Button>
-          ) : (
-            <Button
-              size="small"
-              loading={resumeMutation.isPending}
-              onClick={() => resumeMutation.mutateAsync(record.id).catch(() => undefined)}
-            >
-              恢复
+            {record.isActive ? (
+              <Button
+                size="small"
+                loading={pauseMutation.isPending}
+                onClick={() => pauseMutation.mutateAsync(record.id).catch(() => undefined)}
+              >
+                暂停
+              </Button>
+            ) : (
+              <Button
+                size="small"
+                loading={resumeMutation.isPending}
+                onClick={() => resumeMutation.mutateAsync(record.id).catch(() => undefined)}
+              >
+                恢复
+              </Button>
+            )}
+            <Button size="small" onClick={() => onEdit(record)}>
+              编辑
             </Button>
-          )}
-          <Button size="small" onClick={() => onEdit(record)}>
-            编辑
-          </Button>
-          <Popconfirm title="确认删除？" onConfirm={() => deleteMutation.mutateAsync(record.id)}>
-            <Button size="small" danger>
-              删除
-            </Button>
-          </Popconfirm>
-        </Space>
-      ),
+            <Popconfirm title="确认删除？" onConfirm={() => deleteMutation.mutateAsync(record.id)}>
+              <Button size="small" danger>
+                删除
+              </Button>
+            </Popconfirm>
+          </Space>
+        )
+      },
     },
   ]
 
@@ -233,10 +341,7 @@ export function TaskListView({
           prefix={<SearchOutlined className="text-[#8a8f98]" />}
           placeholder="搜索任务 / 渠道"
           className="w-56"
-          onChange={(e) => {
-            setSearch(e.target.value)
-            setPage(1)
-          }}
+          onChange={(e) => setSearch(e.target.value)}
         />
         <Select
           allowClear
@@ -246,7 +351,6 @@ export function TaskListView({
           value={categoryFilter}
           onChange={(value) => {
             setCategoryFilter(value ?? null)
-            setPage(1)
           }}
         />
         <Select
@@ -260,29 +364,35 @@ export function TaskListView({
           ]}
           onChange={(value) => {
             setActiveFilter(value ?? null)
-            setPage(1)
           }}
         />
-        <span className="ml-auto text-xs text-[#8a8f98]">共 {filtered.length} 条</span>
+        <span className="ml-auto text-xs text-[#8a8f98]">
+          {treeData.length} 个分类 · {filtered.length} 个任务
+        </span>
       </div>
 
       <Table
         size="small"
-        dataSource={filtered}
+        dataSource={treeData}
         columns={columns}
         rowKey="id"
         loading={loading}
-        pagination={{
-          current: page,
-          pageSize,
-          showSizeChanger: true,
-          showTotal: (total) => `共 ${total} 条`,
-          onChange: (nextPage, nextSize) => {
-            setPage(nextSize !== pageSize ? 1 : nextPage)
-            setPageSize(nextSize)
-          },
+        pagination={false}
+        expandable={{
+          expandedRowKeys: effectiveExpanded,
+          onExpandedRowsChange: handleExpandedRowsChange,
         }}
       />
     </div>
   )
+}
+
+/** 搜索态强制全展开；否则用持久化偏好，从未设置过默认全展开。 */
+function keywordExpanded(
+  allKeys: string[],
+  stored: string[] | null,
+  search: string,
+): string[] {
+  if (search.trim()) return allKeys
+  return stored ?? allKeys
 }

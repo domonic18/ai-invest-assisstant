@@ -20,6 +20,8 @@ export interface TypePrioritySectionProps {
   channels: CollectorDataTypeChannel[]
   dirty: boolean
   saving: boolean
+  /** 保存按钮交给外层（如编辑弹窗统一保存）时隐藏自带按钮。 */
+  hideSave?: boolean
   onChange: (channels: CollectorDataTypeChannel[]) => void
   onSave: () => void
   onDebug: (channel: CollectorDataTypeChannel) => void
@@ -30,6 +32,7 @@ export function TypePrioritySection({
   channels,
   dirty,
   saving,
+  hideSave = false,
   onChange,
   onSave,
   onDebug,
@@ -71,9 +74,11 @@ export function TypePrioritySection({
             </Typography.Text>
           )}
         </Space>
-        <Button size="small" type="primary" disabled={!dirty} loading={saving} onClick={onSave}>
-          保存
-        </Button>
+        {!hideSave && (
+          <Button size="small" type="primary" disabled={!dirty} loading={saving} onClick={onSave}>
+            保存
+          </Button>
+        )}
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

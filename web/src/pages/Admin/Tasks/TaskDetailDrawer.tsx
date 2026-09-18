@@ -3,7 +3,7 @@
 import { Button, Descriptions, Drawer, Popconfirm, Space, Table, Tag, Typography } from 'antd'
 import dayjs from 'dayjs'
 
-import type { AdminTask } from '@ai-invest/shared'
+import type { AdminTask, CollectorDataTypeChannel } from '@ai-invest/shared'
 import { statusLabel, statusTagColor } from '@ai-invest/shared'
 
 import { useCollectorLogs } from '@/hooks/useCollectorAdmin'
@@ -20,6 +20,8 @@ interface TaskDetailDrawerProps {
   task: AdminTask | null
   /** 任务备注（来自任务目录 TASK_SPECS.description）。 */
   description?: string
+  /** taskType → 渠道优先级列表（priority 升序，来自数据类型渠道配置）。 */
+  channelsByType: Map<string, CollectorDataTypeChannel[]>
   onClose: () => void
   onEdit: (task: AdminTask) => void
   onDelete: (id: number) => void
@@ -60,6 +62,7 @@ function ScheduleSection({ schedule }: { schedule: string | null }) {
 export function TaskDetailDrawer({
   task,
   description,
+  channelsByType,
   onClose,
   onEdit,
   onDelete,
@@ -123,7 +126,17 @@ export function TaskDetailDrawer({
             {description && (
               <Descriptions.Item label="备注">{description}</Descriptions.Item>
             )}
-            <Descriptions.Item label="来源">{getSourceLabel(task.source)}</Descriptions.Item>
+            <Descriptions.Item label="渠道">
+              {getSourceLabel(task.source)}
+              {(channelsByType.get(task.taskType) ?? [])
+                .filter((ch) => ch.source !== task.source)
+                .map((ch, index) => (
+                  <div key={ch.channelId} className="mt-0.5 text-xs text-[#8a8f98]">
+                    备{index + 1} · {getSourceLabel(ch.source)}
+                    {!ch.isEnabled && '（禁用）'}
+                  </div>
+                ))}
+            </Descriptions.Item>
             <Descriptions.Item label="状态">
               {task.isActive ? <Tag color="green">启用</Tag> : <Tag>禁用</Tag>}
             </Descriptions.Item>
