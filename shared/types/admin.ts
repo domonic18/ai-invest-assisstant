@@ -107,6 +107,7 @@ export type CollectorTaskName = string
 export interface CollectorTaskCatalogItem {
   name: CollectorTaskName
   label: string
+  description: string
   dataType: string
   sources: string[]
   configParams: string[]

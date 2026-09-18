@@ -584,6 +584,7 @@ export interface ApiCollectorTaskRunRequest {
 export interface ApiCollectorTaskCatalogItem {
   name: string
   label: string
+  description: string
   dataType: string
   sources: string[]
   configParams: string[]
@@ -612,6 +613,16 @@ export interface ApiCollectorLogResponse {
   recordsCount: number
   errorMsg: string | null
   metadata: Record<string, unknown> | null
+}
+
+export interface ApiCollectorLogSummaryResponse {
+  date: string
+  successCount: number
+  partialCount: number
+  failedCount: number
+  skippedCount: number
+  runningCount: number
+  pendingCount: number
 }
 
 // ---------------------------------------------------------------------------
