@@ -104,6 +104,7 @@ export function mapCollectorTaskCatalog(dto: ApiCollectorTaskCatalogResponse): C
     items: dto.items.map((item) => ({
       name: item.name,
       label: item.label,
+      description: item.description,
       dataType: item.dataType,
       sources: item.sources,
       configParams: item.configParams,
@@ -249,6 +250,7 @@ export function mapAdminTask(dto: ApiAdminTaskResponse): AdminTask {
     taskName: dto.taskName,
     taskType: dto.taskType,
     source: dto.source,
+    remark: dto.remark,
     schedule: dto.schedule,
     isActive: dto.isActive,
     lastRunAt: dto.lastRunAt,

@@ -45,6 +45,7 @@ class CollectorTaskCatalogItem(CamelModel):
 
     name: str
     label: str
+    description: str = ""
     data_type: str
     sources: list[str]
     config_params: list[str]
@@ -104,6 +105,18 @@ class CollectorLogResponse(CamelModel):
     records_count: int
     error_msg: str | None
     metadata: dict | None = Field(default=None, validation_alias="meta")
+
+
+class CollectorLogSummaryResponse(CamelModel):
+    """采集日志当日（Asia/Shanghai 日历日）按状态计数汇总。"""
+
+    date: str
+    success_count: int
+    partial_count: int
+    failed_count: int
+    skipped_count: int
+    running_count: int
+    pending_count: int
 
 
 class CollectorDeadLetterResponse(CamelModel):

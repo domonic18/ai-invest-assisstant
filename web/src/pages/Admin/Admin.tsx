@@ -35,7 +35,7 @@ const ADMIN_LINKS = [
 ]
 
 export function Admin() {
-  const { data: logs, isLoading } = useCollectorLogs(10)
+  const { data: logs, isLoading } = useCollectorLogs({ pageSize: 10 })
   const pendingCount = usePendingCount(true).data ?? 0
 
   const logColumns = [
@@ -99,7 +99,7 @@ export function Admin() {
 
       <Card title="最近采集日志" variant="borderless" extra={<Link to="/admin/collector">查看更多</Link>}>
         <Table
-          dataSource={logs || []}
+          dataSource={logs?.items ?? []}
           columns={logColumns}
           rowKey="id"
           loading={isLoading}

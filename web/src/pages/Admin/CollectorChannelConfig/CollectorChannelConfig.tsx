@@ -7,7 +7,6 @@ import {
   Space,
   Switch,
   Table,
-  Tabs,
   Tag,
   Tooltip,
   Typography,
@@ -31,7 +30,6 @@ import { ChannelDebugModal } from './ChannelDebugModal'
 import type { ChannelDebugTarget } from './ChannelDebugModal'
 import { CollectorChannelConfigModal } from './CollectorChannelConfigModal'
 import { DATA_TYPE_LABEL, SOURCE_LABEL } from './constants'
-import { DataTypePriorityPanel } from './DataTypePriorityPanel'
 
 export function CollectorChannelConfig() {
   const { data: configs, isLoading, error } = useCollectorChannelConfigs()
@@ -232,7 +230,7 @@ export function CollectorChannelConfig() {
         message="说明"
         description={
           <Typography.Text type="secondary">
-            配置每个渠道支持的数据类型。任务触发时，系统只会从支持该任务且已启用的渠道中自动选择；你也可以在任务弹窗中手动指定渠道。
+            配置每个渠道支持的数据类型。任务执行时按渠道优先级降级重试；各任务的主/备优先级请在任务配置页的编辑弹窗中调整。
           </Typography.Text>
         }
         type="info"
@@ -272,13 +270,6 @@ export function CollectorChannelConfig() {
   )
 
   return (
-    <Card variant="borderless">
-      <Tabs
-        items={[
-          { key: 'channels', label: '渠道配置', children: channelTable },
-          { key: 'data-types', label: '数据类型优先级', children: <DataTypePriorityPanel /> },
-        ]}
-      />
-    </Card>
+    <Card variant="borderless">{channelTable}</Card>
   )
 }

@@ -28,6 +28,19 @@ describe('lastSuccessText', () => {
   it('falls back to MM-DD at or beyond 30 days', () => {
     expect(lastSuccessText('2026-08-10T18:00:00', now)).toBe('08-10')
   })
+
+  it('生产形状（+08:00 偏移 ISO）与等价 naive 输入产出一致', () => {
+    // 本地渲染约定：偏移输入不二次转换，行为与本地等价值完全一致
+    const offset = '2026-09-13T09:25:00+08:00'
+    const naive = dayjs(offset).format('YYYY-MM-DDTHH:mm:ss')
+    expect(lastSuccessText(offset, now)).toBe(lastSuccessText(naive, now))
+  })
+
+  it('偏移输入跨 30 天回退 MM-DD 与等价 naive 一致', () => {
+    const offset = '2026-08-10T18:00:00+08:00'
+    const naive = dayjs(offset).format('YYYY-MM-DDTHH:mm:ss')
+    expect(lastSuccessText(offset, now)).toBe(lastSuccessText(naive, now))
+  })
 })
 
 function task(overrides: Partial<ApiCollectorHealthTaskItem>): ApiCollectorHealthTaskItem {

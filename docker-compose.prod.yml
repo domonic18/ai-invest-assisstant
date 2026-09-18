@@ -84,7 +84,8 @@ services:
       resources:
         limits:
           cpus: "1.0"
-          memory: 1G
+          # 2G：社媒回填/增量采集含「拉流→ffmpeg 抽音轨→ASR」媒体流水线，1G 曾被 OOM 杀（2026-09-16）
+          memory: 2G
 
   celery-worker-heavy:
     # LLM 分钟级任务（复盘/归因）独占容器，并发=1，不与通用采集池混跑
@@ -209,7 +210,8 @@ services:
       - xpack.security.http.ssl.enabled=false
       - xpack.security.transport.ssl.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-      - "ELASTIC_PASSWORD=${ELASTIC_PASSWORD}"
+      # 硬必需同 REDIS_PASSWORD：漏配时 ES 8.x 会自动生成随机密码，healthcheck 与应用连接全断且难定位
+      - "ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?ELASTIC_PASSWORD required in .env}"
     ports:
       - "${ELASTICSEARCH_PORT:-9200}:9200"
     volumes:

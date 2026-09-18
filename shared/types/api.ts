@@ -584,6 +584,7 @@ export interface ApiCollectorTaskRunRequest {
 export interface ApiCollectorTaskCatalogItem {
   name: string
   label: string
+  description: string
   dataType: string
   sources: string[]
   configParams: string[]
@@ -612,6 +613,16 @@ export interface ApiCollectorLogResponse {
   recordsCount: number
   errorMsg: string | null
   metadata: Record<string, unknown> | null
+}
+
+export interface ApiCollectorLogSummaryResponse {
+  date: string
+  successCount: number
+  partialCount: number
+  failedCount: number
+  skippedCount: number
+  runningCount: number
+  pendingCount: number
 }
 
 // ---------------------------------------------------------------------------
@@ -1101,6 +1112,7 @@ export interface ApiAdminTaskResponse {
   taskName: string
   taskType: string
   source: string
+  remark: string | null
   schedule: string | null
   isActive: boolean
   lastRunAt: string | null
@@ -1114,6 +1126,7 @@ export interface ApiAdminTaskCreateRequest {
   taskName: string
   taskType: string
   source: string
+  remark?: string | null
   schedule?: string
   isActive?: boolean
 }
@@ -1121,6 +1134,7 @@ export interface ApiAdminTaskCreateRequest {
 export interface ApiAdminTaskUpdateRequest {
   taskType?: string
   source?: string
+  remark?: string | null
   schedule?: string
   isActive?: boolean
 }

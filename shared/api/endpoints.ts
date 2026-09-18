@@ -224,6 +224,7 @@ export const ENDPOINTS = {
     collectorTaskChannels: (task: string) => `${API_BASE}/admin/collector/tasks/${task}/channels`,
     collectorTaskCatalog: `${API_BASE}/admin/collector/tasks/catalog`,
     collectorLogs: `${API_BASE}/admin/collector/logs`,
+    collectorLogSummary: `${API_BASE}/admin/collector/logs/summary`,
     runCollectorTask: (task: string) => `${API_BASE}/admin/collector/tasks/${task}/run`,
     collectorHealthOverview: `${API_BASE}/admin/collector/health/overview`,
     collectorHealthTasks: `${API_BASE}/admin/collector/health/tasks`,

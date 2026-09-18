@@ -27,6 +27,8 @@ COPY skills/ /skills/
 
 ENV PYTHONUNBUFFERED=1
 ENV COLLECT_TASK=default
+# 脱离 compose 单独运行时容器本地时间仍为北京墙钟；compose 注入的同名变量优先级更高
+ENV TZ=Asia/Shanghai
 ENV PATH="/app/.venv/bin:$PATH"
 
 COPY docker/collector/entrypoint-collector.sh /entrypoint.sh

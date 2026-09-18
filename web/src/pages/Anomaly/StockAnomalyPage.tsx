@@ -1,4 +1,16 @@
-import { Button, Card, Empty, Popconfirm, Select, Skeleton, Table, Tag, Tooltip, Typography } from 'antd'
+import {
+  Button,
+  Card,
+  Empty,
+  Popconfirm,
+  Select,
+  Skeleton,
+  Switch,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd'
 import { StarFilled } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -26,7 +38,8 @@ import { useAnomalyAttribution } from './useAnomalyAttribution'
 export function StockAnomalyPage() {
   useColorScheme()
   const [tradeDate, setTradeDate] = useState<string>()
-  const [typeFilter, setTypeFilter] = useState<string>()
+  const [typeFilter, setTypeFilter] = useState<string[]>([])
+  const [watchlistOnly, setWatchlistOnly] = useState(false)
 
   const { data, isLoading } = useStockAnomalyBoard(tradeDate)
   const { data: detectDates } = useStockAnomalyDates()
@@ -43,8 +56,12 @@ export function StockAnomalyPage() {
 
   const items = useMemo(() => {
     const rows = data?.items ?? []
-    return typeFilter ? rows.filter((it) => it.anomalyTypes.includes(typeFilter)) : rows
-  }, [data, typeFilter])
+    return rows.filter(
+      (it) =>
+        (!watchlistOnly || it.isWatchlist) &&
+        (typeFilter.length === 0 || typeFilter.every((t) => it.anomalyTypes.includes(t))),
+    )
+  }, [data, typeFilter, watchlistOnly])
 
   const isAttributed = (it: ApiStockAnomalyItem) =>
     Boolean(it.attributionCategory || it.attributionSummary)
@@ -229,13 +246,19 @@ export function StockAnomalyPage() {
             markedDates={detectDates}
           />
           <Select
+            mode="multiple"
             allowClear
-            placeholder="异动类型"
-            style={{ width: 140 }}
+            maxTagCount="responsive"
+            placeholder="异动类型（可多选）"
+            style={{ width: 220 }}
             options={typeOptions}
             value={typeFilter}
             onChange={(v) => setTypeFilter(v)}
           />
+          <span className="flex items-center gap-1.5 text-xs text-gray-500">
+            <Switch size="small" checked={watchlistOnly} onChange={setWatchlistOnly} />
+            仅看自选
+          </span>
           <span className="ml-auto flex items-center gap-3">
             <span className="text-xs text-gray-500">
               {data?.tradeDate ? `${data.tradeDate} · ` : ''}
@@ -272,6 +295,14 @@ export function StockAnomalyPage() {
           <Skeleton active paragraph={{ rows: 10 }} />
         ) : !data || data.total === 0 ? (
           <Empty description="暂无异动数据，等待盘后检测任务执行" />
+        ) : items.length === 0 ? (
+          <Empty
+            description={
+              watchlistOnly
+                ? '自选股中暂无相关异动'
+                : '当前筛选条件下暂无匹配异动'
+            }
+          />
         ) : (
           <Table
             rowKey="stockCode"

@@ -26,6 +26,10 @@ const getStoredCalendarDetailCollapsed = (): boolean => {
   return localStorage.getItem(StorageKey.settings.calendarDetailCollapsed) === '1'
 }
 
+const getStoredSentimentSummaryCollapsed = (): boolean => {
+  return localStorage.getItem(StorageKey.settings.sentimentSummaryCollapsed) === '1'
+}
+
 const getStoredToken = (): string | null => {
   return localStorage.getItem(StorageKey.auth.accessToken)
 }
@@ -33,12 +37,14 @@ const getStoredToken = (): string | null => {
 interface SettingsState {
   colorScheme: ColorScheme
   calendarDetailCollapsed: boolean
+  sentimentSummaryCollapsed: boolean
   userSettings: UserSettings
   isLoadingSettings: boolean
   settingsError: string | null
 
   setColorScheme: (scheme: ColorScheme) => void
   toggleCalendarDetailCollapsed: () => void
+  toggleSentimentSummaryCollapsed: () => void
   initialize: () => Promise<void>
   updateMaConfigs: (configs: MovingAverageConfig[]) => Promise<void>
   updateTrackedIndexes: (codes: string[] | null) => Promise<void>
@@ -47,6 +53,7 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   colorScheme: getStoredScheme(),
   calendarDetailCollapsed: getStoredCalendarDetailCollapsed(),
+  sentimentSummaryCollapsed: getStoredSentimentSummaryCollapsed(),
   userSettings: DEFAULT_USER_SETTINGS,
   isLoadingSettings: false,
   settingsError: null,
@@ -61,6 +68,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const next = !state.calendarDetailCollapsed
       localStorage.setItem(StorageKey.settings.calendarDetailCollapsed, next ? '1' : '0')
       return { calendarDetailCollapsed: next }
+    }),
+
+  toggleSentimentSummaryCollapsed: () =>
+    set((state) => {
+      const next = !state.sentimentSummaryCollapsed
+      localStorage.setItem(StorageKey.settings.sentimentSummaryCollapsed, next ? '1' : '0')
+      return { sentimentSummaryCollapsed: next }
     }),
 
   initialize: async () => {

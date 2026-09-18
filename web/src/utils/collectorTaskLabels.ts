@@ -11,6 +11,7 @@ export const SOURCE_LABEL: Record<string, string> = {
   cme: '芝商所',
   mof: '日本财务省',
   yahoo: '雅虎财经',
+  douyin: '抖音',
 }
 
 /** 获取渠道标识的中文显示名；未配置时返回原始 source。 */
@@ -54,7 +55,14 @@ export const COLLECTOR_TASK_LABEL: Record<string, string> = {
 }
 
 /** 获取任务/数据类型的中文显示名；未配置时返回原始 key。 */
+const catalogLabels = new Map<string, string>()
+
+/** 用任务目录（TASK_SPECS 派生，唯一真相源）注册中文标签；静态表仅作兜底。 */
+export function registerTaskCatalogLabels(items: readonly { name: string; label: string }[]): void {
+  for (const item of items) catalogLabels.set(item.name, item.label)
+}
+
 export function getTaskLabel(taskName: string | null | undefined): string {
   if (!taskName) return '-'
-  return COLLECTOR_TASK_LABEL[taskName] ?? taskName
+  return catalogLabels.get(taskName) ?? COLLECTOR_TASK_LABEL[taskName] ?? taskName
 }

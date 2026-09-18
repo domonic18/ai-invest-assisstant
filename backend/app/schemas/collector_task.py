@@ -13,6 +13,7 @@ class CollectorTaskBase(CamelModel):
     task_name: str = Field(..., max_length=100)
     task_type: str = Field(..., max_length=50)
     source: str = Field(..., max_length=50)
+    remark: str | None = Field(None, max_length=200)
     schedule: str | None = Field(None, max_length=100)
     queue: str | None = Field(None, max_length=20)
     is_active: bool = True
@@ -27,6 +28,7 @@ class CollectorTaskUpdate(CamelModel):
 
     task_type: str | None = Field(None, max_length=50)
     source: str | None = Field(None, max_length=50)
+    remark: str | None = Field(None, max_length=200)
     schedule: str | None = Field(None, max_length=100)
     queue: str | None = Field(None, max_length=20)
     is_active: bool | None = None
