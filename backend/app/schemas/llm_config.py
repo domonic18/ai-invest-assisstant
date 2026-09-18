@@ -9,6 +9,9 @@ from app.schemas.base import CamelModel
 
 LLMProtocol = Literal["openai", "anthropic"]
 
+#: 配置用途（F-KB 模型角色槽位按 purpose 过滤候选：clean/extract=chat、vision=vision、embedding=embedding）
+LLMPurpose = Literal["chat", "embedding", "vision"]
+
 
 class LLMConfigCreate(CamelModel):
     """创建 LLM 配置的请求 schema。
@@ -24,6 +27,7 @@ class LLMConfigCreate(CamelModel):
     model_name: str = Field(..., min_length=1, max_length=100)
     is_default: bool = False
     is_active: bool = True
+    purpose: LLMPurpose = "chat"
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -41,6 +45,7 @@ class LLMConfigUpdate(CamelModel):
     model_name: str | None = Field(None, min_length=1, max_length=100)
     is_default: bool | None = None
     is_active: bool | None = None
+    purpose: LLMPurpose | None = None
     extra: dict[str, Any] | None = None
 
 
@@ -56,6 +61,7 @@ class LLMConfigResponse(CamelModel):
     api_key_masked: str
     is_default: bool
     is_active: bool
+    purpose: str
     extra: dict[str, Any]
     last_tested_at: datetime | None
     last_test_status: str | None
