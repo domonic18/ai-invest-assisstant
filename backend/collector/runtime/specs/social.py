@@ -6,6 +6,7 @@ SPECS: tuple[TaskSpec, ...] = (
     TaskSpec(
         name="social-video",
         label="抖音大V视频采集",
+        description="采集抖音大 V 视频并转写文案，供社媒追踪分析",
         data_type="social_video",
         collectors={
             "douyin": "collector.spiders.social_video:SocialVideoCollector",
@@ -20,6 +21,7 @@ SPECS: tuple[TaskSpec, ...] = (
     TaskSpec(
         name="social-sentiment",
         label="大V情绪判断",
+        description="AI 判断大 V 观点情绪倾向，生成社媒情绪指标",
         data_type="ai_social_sentiment",
         collectors={
             "internal": "collector.spiders.social_sentiment:SocialSentimentCollector",

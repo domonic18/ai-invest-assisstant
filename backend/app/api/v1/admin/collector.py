@@ -1,5 +1,6 @@
 """管理后台采集任务触发与日志 API 端点。"""
 
+from datetime import date
 from typing import Annotated, Any
 
 from celery.result import AsyncResult
@@ -12,6 +13,7 @@ from app.dependencies import get_current_admin_user, get_db
 from app.schemas.collector import (
     CollectorDeadLetterResponse,
     CollectorLogResponse,
+    CollectorLogSummaryResponse,
     CollectorRunResponse,
     CollectorTaskCatalogItem,
     CollectorTaskCatalogResponse,
@@ -46,6 +48,7 @@ async def get_collector_task_catalog() -> CollectorTaskCatalogResponse:
             CollectorTaskCatalogItem(
                 name=spec.name,
                 label=spec.label,
+                description=spec.description,
                 data_type=spec.data_type,
                 sources=list(spec.collectors),
                 config_params=list(spec.config_params),
@@ -126,18 +129,45 @@ async def list_dead_letters(
     )
 
 
-@router.get("/logs", response_model=list[CollectorLogResponse])
+@router.get("/logs/summary", response_model=CollectorLogSummaryResponse)
+async def get_collector_log_summary(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> CollectorLogSummaryResponse:
+    """今日（Asia/Shanghai 日历日）采集日志按状态计数汇总。"""
+    return await CollectorLogService(session).get_today_summary()
+
+
+@router.get("/logs", response_model=PaginatedResponse)
 async def list_collector_logs(
     session: Annotated[AsyncSession, Depends(get_db)],
-    limit: int = 50,
+    page: int = Query(DEFAULT_PAGE, ge=1),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
     task_name: str | None = None,
     source: str | None = None,
-) -> list[CollectorLogResponse]:
-    """按最新优先列出最近的采集执行日志（可按任务键/渠道过滤）。"""
-    rows = await CollectorLogService(session).list_recent(
-        limit, task_name=task_name, source=source
+    status: str | None = None,
+    start_date: date | None = Query(None),
+    end_date: date | None = Query(None),
+) -> PaginatedResponse:
+    """分页列出采集执行日志（开始时间倒序，可按任务键/渠道/状态/日期区间过滤）。"""
+    total, rows = await CollectorLogService(session).list_recent(
+        page,
+        page_size,
+        task_name=task_name,
+        source=source,
+        status=status,
+        start_date=start_date,
+        end_date=end_date,
     )
-    return [CollectorLogResponse.model_validate(row) for row in rows]
+    items = [
+        CollectorLogResponse.model_validate(row).model_dump(by_alias=True)
+        for row in rows
+    ]
+    return PaginatedResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        items=items,
+    )
 
 
 @router.get(

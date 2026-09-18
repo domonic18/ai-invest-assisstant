@@ -13,6 +13,8 @@ class TaskSpec:
     label: str
     data_type: str
     collectors: dict[str, str]
+    # 一句话中文备注（任务目的与作用），任务目录/配置页展示用
+    description: str = ""
     queue: Literal["realtime", "batch", "heavy"] | None = None
     soft_time_limit: int | None = None
     hard_time_limit: int | None = None
