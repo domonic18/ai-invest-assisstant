@@ -1,3 +1,5 @@
+import type { LlmPurpose } from './api'
+
 /** llm_config.extra.capabilities 约定：视觉等能力标记。 */
 export interface LLMConfigCapabilities {
   vision?: boolean
@@ -16,6 +18,7 @@ export interface LLMConfig {
   apiKeyMasked: string
   isDefault: boolean
   isActive: boolean
+  purpose: LlmPurpose
   extra: Record<string, unknown>
   lastTestedAt: string | null
   lastTestStatus: string | null
@@ -33,6 +36,7 @@ export interface LLMConfigFormValues {
   apiKey: string
   isDefault: boolean
   isActive: boolean
+  purpose: LlmPurpose
   vision?: boolean
 }
 

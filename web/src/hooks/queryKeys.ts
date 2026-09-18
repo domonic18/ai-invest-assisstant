@@ -94,6 +94,10 @@ export const queryKeys = {
     llmConfig: ['account', 'llm-config'] as const,
   },
   llmConfigs: ['llm-configs'] as const,
+  kb: {
+    all: ['kb'] as const,
+    settings: ['kb', 'settings'] as const,
+  },
   mcpServers: ['mcp-servers'] as const,
   socialAdmin: {
     accounts: (page: number, pageSize: number) =>

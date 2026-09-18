@@ -206,6 +206,7 @@ export const ENDPOINTS = {
     testLLMConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}/test`,
     setDefaultLLMConfig: (id: number | string) =>
       `${API_BASE}/admin/llm-configs/${id}/set-default`,
+    kbSettings: `${API_BASE}/admin/kb/settings`,
     proxyConfigs: `${API_BASE}/admin/proxy-configs`,
     proxyConfig: (id: number | string) => `${API_BASE}/admin/proxy-configs/${id}`,
     testProxyConfig: (id: number | string) =>

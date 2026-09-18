@@ -42,6 +42,12 @@ const PROVIDER_LABEL: Record<string, string> = {
   custom: '自定义',
 }
 
+const PURPOSE_LABEL: Record<string, string> = {
+  chat: '对话/分析',
+  embedding: '向量嵌入',
+  vision: '视觉识别',
+}
+
 function getCapabilities(config: LLMConfig | null): LLMConfigCapabilities {
   return (config?.extra?.capabilities ?? {}) as LLMConfigCapabilities
 }
@@ -83,6 +89,7 @@ export function LLMConfig() {
             apiKey: values.apiKey || undefined,
             isDefault: values.isDefault,
             isActive: values.isActive,
+            purpose: values.purpose,
             extra: {
               ...editing.extra,
               capabilities: { ...getCapabilities(editing), vision: values.vision === true },
@@ -100,6 +107,7 @@ export function LLMConfig() {
           apiKey: values.apiKey,
           isDefault: values.isDefault,
           isActive: values.isActive,
+          purpose: values.purpose,
           extra: { capabilities: { vision: values.vision === true } },
         })
         message.success('配置已创建')
@@ -161,6 +169,13 @@ export function LLMConfig() {
         value === 'anthropic' ? <Tag color="purple">Anthropic</Tag> : <Tag color="geekblue">OpenAI 兼容</Tag>,
     },
     { title: '模型', dataIndex: 'modelName', key: 'modelName' },
+    {
+      title: '用途',
+      dataIndex: 'purpose',
+      key: 'purpose',
+      width: 110,
+      render: (value: LLMConfig['purpose']) => PURPOSE_LABEL[value] ?? value,
+    },
     {
       title: 'API Key',
       dataIndex: 'apiKeyMasked',

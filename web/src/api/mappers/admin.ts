@@ -44,6 +44,7 @@ export function mapLLMConfig(dto: ApiLLMConfigResponse): LLMConfig {
     apiKeyMasked: dto.apiKeyMasked,
     isDefault: dto.isDefault,
     isActive: dto.isActive,
+    purpose: dto.purpose,
     extra: dto.extra,
     lastTestedAt: dto.lastTestedAt,
     lastTestStatus: dto.lastTestStatus,
