@@ -1,8 +1,9 @@
-/** 执行页本地偏好：常用任务（最近触发）与目录分组折叠态。 */
+/** 执行页本地偏好：常用任务（最近触发）、目录分组折叠态与目录栏宽度。 */
 
 const FREQ_KEY = 'collector.frequentTasks'
 /** v2：分组键从 dataType 换为业务分类，旧键作废。 */
 const COLLAPSED_KEY = 'collector.collapsedGroups.v2'
+const CATALOG_WIDTH_KEY = 'collector.catalogWidth'
 const FREQ_CAP = 5
 
 function readJson<T>(key: string): T | null {
@@ -42,4 +43,22 @@ export function getCollapsedGroups(): string[] | null {
 
 export function setCollapsedGroups(keys: string[]): void {
   writeJson(COLLAPSED_KEY, keys)
+}
+
+/** 目录栏宽度（px）；从未设置过返回 null。 */
+export function getCatalogWidth(): number | null {
+  const value = readJson<number>(CATALOG_WIDTH_KEY)
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+export function setCatalogWidth(width: number): void {
+  writeJson(CATALOG_WIDTH_KEY, width)
+}
+
+export function clearCatalogWidth(): void {
+  try {
+    localStorage.removeItem(CATALOG_WIDTH_KEY)
+  } catch {
+    // 同上：存储不可用时忽略
+  }
 }
