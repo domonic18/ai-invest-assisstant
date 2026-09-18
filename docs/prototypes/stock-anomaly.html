@@ -258,6 +258,11 @@ tr:hover td { background: var(--bg-hover); }
 .news-item:last-child{border-bottom:none}
 .news-time{font-family:var(--font-mono);color:var(--text-tertiary);font-size:var(--text-xs);flex-shrink:0;width:42px;padding-top:2px}
 .fav-star{color:var(--amber);margin-right:4px}
+.select-pill{display:inline-flex;gap:4px;align-items:center;padding:4px 10px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:var(--text-xs);color:var(--text-secondary)}
+.switch-toggle{width:26px;height:15px;border-radius:8px;background:var(--accent);position:relative;display:inline-block}
+.switch-toggle::after{content:'';position:absolute;top:2px;right:2px;width:11px;height:11px;border-radius:50%;background:#fff}
+.switch-toggle.off{background:var(--border-hover)}
+.switch-toggle.off::after{right:auto;left:2px}
 </style>
 </head>
 <body>
@@ -301,7 +306,7 @@ tr:hover td { background: var(--bg-hover); }
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6);flex-wrap:wrap;gap:var(--space-3)">
 <div>
 <h1 class="page-title" style="margin-bottom:4px">个股异动分析</h1>
-<div style="font-size:var(--text-xs);color:var(--text-tertiary)">个股级量价 / 资金异动检测 + AI 归因 · 交易日盘后自动生成 · ★ = 自选股命中</div>
+<div style="font-size:var(--text-xs);color:var(--text-tertiary)">个股级量价 / 资金异动检测 + AI 归因 · 交易日盘后自动生成 · ★ = 自选股命中 · 异动类型多选为「且」关系 · 开启「仅看自选」无命中时空态提示</div>
 </div>
 <div style="display:flex;gap:var(--space-3);align-items:center">
 <span class="date-pill">◂ 2026-09-04 ▸</span>
@@ -321,7 +326,10 @@ tr:hover td { background: var(--bg-hover); }
 <div class="card mb-6">
 <div class="card-header">
 <span class="card-title">异动个股清单（按异动强度排序）</span>
-<div class="seg-control"><span class="seg-item active">全部</span><span class="seg-item">★ 自选命中</span><span class="seg-item">突破 M60</span><span class="seg-item">下跌反抽</span></div>
+<div style="display:flex;gap:var(--space-3);align-items:center">
+<span class="select-pill"><span class="tag tag-red">趋势突破 ×</span><span class="tag tag-amber">趋势加速 ×</span><span style="color:var(--text-tertiary)">异动类型（可多选 · 且）▾</span></span>
+<label style="display:inline-flex;gap:6px;align-items:center;font-size:var(--text-xs);color:var(--text-secondary);cursor:pointer"><span class="switch-toggle"></span>仅看自选</label>
+</div>
 </div>
 <div class="card-body" style="padding:0">
 <div class="table-wrap">
