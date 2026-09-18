@@ -26,6 +26,7 @@ class LLMConfig(Base):
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     extra: Mapped[dict[str, Any]] = mapped_column(JSONB().with_variant(JSON(), "sqlite"), default=dict, nullable=False)
+    purpose: Mapped[str] = mapped_column(String(16), default="chat", nullable=False)
     last_tested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_test_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     last_test_error: Mapped[str | None] = mapped_column(Text, nullable=True)
