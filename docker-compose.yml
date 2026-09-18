@@ -18,7 +18,8 @@ services:
       - .env
     environment:
       TZ: Asia/Shanghai
-      DEBUG: ${DEBUG}
+      # 默认 0：漏配时 compose 注入空串会令 pydantic bool 校验失败（web 启动崩溃循环）
+      DEBUG: ${DEBUG:-0}
       # SCF 入口 HTTPS 但以 HTTP 转发容器时须置 1（服务器 .env / SCF 控制台），
       # 本地 http 访问必须保持 0，否则响应会被 upgrade-insecure-requests 破坏
       FORCE_FORWARDED_HTTPS: ${FORCE_FORWARDED_HTTPS:-0}
