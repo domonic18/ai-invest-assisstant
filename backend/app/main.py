@@ -23,7 +23,12 @@ from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
 from app.core.exceptions import AppError
 from app.services.skill import sync_builtin_skills
+from collector.core.logging import configure_logging
 from collector.runtime.channels import seed_default_channels
+
+# app 侧与 collector 同一日志管线（structlog JSON、UTC ISO 时间戳）：worker 进程
+# 由 celery_app 统一，web 进程在此接入；两容器内 app/collector 代码日志形状一致
+configure_logging()
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
