@@ -153,6 +153,12 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
             key: ADMIN_GROUP_KEY,
             icon: <SettingOutlined />,
             label: '后台管理',
+            // 点分组标题在展开/收起之外默认进入管理总览（onTitleClick 与
+            // antd 默认 toggle 叠加生效，折叠弹出态同样走此行为）
+            onTitleClick: () => {
+              navigate('/admin')
+              onNavigate?.()
+            },
             children: withBadge(
               withBadge(
                 ADMIN_MENU_ITEMS,
