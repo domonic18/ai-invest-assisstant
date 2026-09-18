@@ -34,6 +34,7 @@ export const StorageKey = {
     colorScheme: 'color_scheme',
     indicators: 'settings:indicators',
     calendarDetailCollapsed: 'settings:calendar-detail-collapsed',
+    sentimentSummaryCollapsed: 'settings:sentiment-summary-collapsed',
   },
   drawing: {
     /** 用户画线默认样式记忆（颜色/线型/线宽） */

@@ -1,9 +1,11 @@
-/** AccountDimension：窗口内计数 + 按日时序条 + 全账号汇总条渲染。 */
+/** AccountDimension：窗口内计数 + 按日时序条 + 全账号汇总条渲染 + 摘要折叠记忆。 */
 
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import type { ApiSocialAccountCard } from '@ai-invest/shared'
+import { StorageKey, type ApiSocialAccountCard } from '@ai-invest/shared'
+
+import { useSettingsStore } from '@/stores/settings'
 
 import { AccountDimension } from './AccountDimension'
 
@@ -41,6 +43,7 @@ describe('AccountDimension', () => {
         onSelect={() => undefined}
       />,
     )
+    expect(screen.getByText('大V情绪摘要')).toBeTruthy()
     expect(screen.getByText('全账号情绪时序')).toBeTruthy()
     // 汇总条与首张卡片同时渲染「多 2」「空 5」（第二张账号无 daily/计数）
     expect(screen.getAllByText('多 2')).toHaveLength(2)
@@ -60,6 +63,39 @@ describe('AccountDimension', () => {
       />,
     )
     expect(screen.getByText('暂无追踪账号数据')).toBeTruthy()
+    expect(screen.queryByText('全账号情绪时序')).toBeNull()
+  })
+
+  it('收起后仅保留标题行，时序条与账号卡隐藏', () => {
+    useSettingsStore.setState({ sentimentSummaryCollapsed: true })
+    render(
+      <AccountDimension
+        accounts={[account({})]}
+        isLoading={false}
+        selectedId={null}
+        onSelect={() => undefined}
+      />,
+    )
+    expect(screen.getByText('大V情绪摘要')).toBeTruthy()
+    expect(screen.queryByText('全账号情绪时序')).toBeNull()
+    expect(screen.queryByText('财经大V')).toBeNull()
+    expect(screen.getByRole('button', { name: '展开大V情绪摘要' })).toBeTruthy()
+  })
+
+  it('点击收起按钮持久化到 localStorage 且即时隐藏摘要', () => {
+    useSettingsStore.setState({ sentimentSummaryCollapsed: false })
+    localStorage.setItem(StorageKey.settings.sentimentSummaryCollapsed, '0')
+    render(
+      <AccountDimension
+        accounts={[account({})]}
+        isLoading={false}
+        selectedId={null}
+        onSelect={() => undefined}
+      />,
+    )
+    expect(screen.getByText('全账号情绪时序')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '收起大V情绪摘要' }))
+    expect(localStorage.getItem(StorageKey.settings.sentimentSummaryCollapsed)).toBe('1')
     expect(screen.queryByText('全账号情绪时序')).toBeNull()
   })
 })
