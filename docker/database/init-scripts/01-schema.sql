@@ -466,7 +466,7 @@ CREATE TABLE collector_task (
     schedule        VARCHAR(100),             -- cron 表达式或描述
     is_active       BOOLEAN      DEFAULT true,
     last_run_at     TIMESTAMPTZ,
-    last_status     VARCHAR(20)  DEFAULT 'pending' CHECK (last_status IN ('pending', 'running', 'success', 'failed')),
+    last_status     VARCHAR(20)  DEFAULT 'pending' CHECK (last_status IN ('pending', 'running', 'success', 'failed', 'skipped')),
     last_error      TEXT,
     created_at      TIMESTAMPTZ  DEFAULT NOW(),
     updated_at      TIMESTAMPTZ  DEFAULT NOW(),
