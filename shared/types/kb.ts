@@ -30,3 +30,168 @@ export interface ApiKbSettingsUpdateRequest {
   visionModelId?: number | null
   authorizedUserIds?: number[]
 }
+
+/** 素材处理状态机：uploaded → awaiting_cost → queued → processing → done/failed。 */
+export type ApiKbProcessStatus =
+  | 'uploaded'
+  | 'awaiting_cost'
+  | 'queued'
+  | 'processing'
+  | 'done'
+  | 'failed'
+
+/** 知识源视图。 */
+export interface ApiKbSourceResponse {
+  id: number
+  sourceType: 'course' | 'book'
+  name: string
+  author: string | null
+  description: string | null
+  enabled: boolean
+  storageBytes: number
+  pendingCleanupBytes: number
+  deletedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** 新建知识源请求。 */
+export interface ApiKbSourceCreateRequest {
+  sourceType: 'course' | 'book'
+  name: string
+  author?: string | null
+  description?: string | null
+  enabled?: boolean
+}
+
+/** 编辑知识源请求（全部可选，仅提交的字段更新）。 */
+export interface ApiKbSourceUpdateRequest {
+  name?: string
+  author?: string | null
+  description?: string | null
+  enabled?: boolean
+}
+
+/** 素材视图。 */
+export interface ApiKbMediaResponse {
+  id: number
+  sourceId: number
+  mediaKind: 'video' | 'audio' | 'book'
+  episodeNo: number | null
+  title: string | null
+  fileName: string
+  fileSize: number | null
+  fileHash: string | null
+  durationSeconds: number | null
+  pageCount: number | null
+  processStatus: ApiKbProcessStatus
+  processError: string | null
+  processMeta: Record<string, unknown>
+  editedAt: string | null
+  deletedAt: string | null
+  pointCount: number
+  dirtyCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** 批量登记的单个文件（目录结构由 relativePath 保留）。 */
+export interface ApiKbMediaInitItem {
+  fileName: string
+  relativePath: string
+  size: number
+  hash: string
+  mediaKind: 'video' | 'audio' | 'book'
+  episodeNo?: number | null
+  title?: string | null
+  durationSeconds?: number | null
+  pageCount?: number | null
+}
+
+/** 批量登记请求。 */
+export interface ApiKbMediaInitRequest {
+  items: ApiKbMediaInitItem[]
+}
+
+/** 批量登记结果（每文件一行 + 预签名 PUT）。 */
+export interface ApiKbMediaInitResult {
+  mediaId: number
+  fileName: string
+  cosKey: string
+  uploadUrl: string
+}
+
+export interface ApiKbMediaInitResponse {
+  items: ApiKbMediaInitResult[]
+}
+
+/** 素材信息修正请求（全部可选）。 */
+export interface ApiKbMediaPatchRequest {
+  episodeNo?: number | null
+  title?: string
+  durationSeconds?: number | null
+  pageCount?: number | null
+}
+
+/** 费用预估请求（素材必须属于该知识库）。 */
+export interface ApiKbCostEstimateRequest {
+  sourceId: number
+  mediaIds: number[]
+}
+
+/** 单素材费用分项（书在批次 C 接入前为 0 项）。 */
+export interface ApiKbCostEstimateItem {
+  mediaId: number
+  title: string
+  mediaKind: string
+  durationSeconds: number | null
+  asrCost: number
+  cleanTokens: number
+  estimatedCost: number
+}
+
+/** 费用预估视图（预估即把 uploaded 素材推进到 awaiting_cost）。 */
+export interface ApiKbCostEstimateResponse {
+  currency: string
+  items: ApiKbCostEstimateItem[]
+  total: number
+}
+
+/** 费用确认请求（awaiting_cost → queued）。 */
+export interface ApiKbConfirmCostRequest {
+  mediaIds: number[]
+}
+
+/** 费用确认结果（本次实际入队的素材）。 */
+export interface ApiKbConfirmCostResponse {
+  queuedIds: number[]
+}
+
+/** 文稿分段视图（时间轴只读，编辑只覆盖 text）。 */
+export interface ApiKbTranscriptSegmentView {
+  seqNo: number
+  text: string
+  startMs: number | null
+  endMs: number | null
+  pageStart: number | null
+  pageEnd: number | null
+}
+
+/** 单集文稿读取。 */
+export interface ApiKbTranscriptResponse {
+  mediaId: number
+  editedAt: string | null
+  segments: ApiKbTranscriptSegmentView[]
+}
+
+/** 文稿批量保存请求（按 seqNo 覆盖文本）。 */
+export interface ApiKbTranscriptUpdateRequest {
+  segments: { seqNo: number; text: string }[]
+}
+
+/** 文稿保存结果（updatedCount>0 即触发脏传播）。 */
+export interface ApiKbTranscriptSaveResponse {
+  mediaId: number
+  editedAt: string | null
+  updatedCount: number
+}

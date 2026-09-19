@@ -207,6 +207,24 @@ export const ENDPOINTS = {
     setDefaultLLMConfig: (id: number | string) =>
       `${API_BASE}/admin/llm-configs/${id}/set-default`,
     kbSettings: `${API_BASE}/admin/kb/settings`,
+    kbSources: `${API_BASE}/admin/kb/sources`,
+    kbSource: (id: number | string) => `${API_BASE}/admin/kb/sources/${id}`,
+    kbSourceRestore: (id: number | string) =>
+      `${API_BASE}/admin/kb/sources/${id}/restore`,
+    kbSourceMedia: (sourceId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/media`,
+    kbSourceMediaInit: (sourceId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/media/init`,
+    kbCostEstimate: `${API_BASE}/admin/kb/cost-estimate`,
+    kbSourceConfirmCost: (sourceId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/confirm-cost`,
+    kbMedia: (id: number | string) => `${API_BASE}/admin/kb/media/${id}`,
+    kbMediaUploaded: (id: number | string) =>
+      `${API_BASE}/admin/kb/media/${id}/uploaded`,
+    kbMediaRestore: (id: number | string) =>
+      `${API_BASE}/admin/kb/media/${id}/restore`,
+    kbSourceTranscript: (sourceId: number | string, mediaId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/transcript/${mediaId}`,
     proxyConfigs: `${API_BASE}/admin/proxy-configs`,
     proxyConfig: (id: number | string) => `${API_BASE}/admin/proxy-configs/${id}`,
     testProxyConfig: (id: number | string) =>
