@@ -121,8 +121,8 @@ export function IngestTab({
       render: (title: string | null, row) => (
         <div>
           <div>{title ?? row.fileName}</div>
-          <Typography.Text type="secondary" className="text-xs">
-            {row.fileName}
+          <Typography.Text type="secondary" className="text-xs" ellipsis={{ tooltip: row.relativePath ?? row.fileName }}>
+            {row.relativePath ?? row.fileName}
           </Typography.Text>
         </div>
       ),

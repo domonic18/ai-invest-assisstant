@@ -1469,6 +1469,7 @@ CREATE TABLE IF NOT EXISTS kb_media (
     episode_no       INT,                                            -- 课程集号（书为 NULL）
     title            VARCHAR(300) NOT NULL,
     file_name        VARCHAR(500) NOT NULL,
+    relative_path    VARCHAR(500),                                   -- 上传时的相对路径（目录结构展示）
     cos_key          VARCHAR(500) NOT NULL,
     file_size        BIGINT       NOT NULL DEFAULT 0,
     file_hash        VARCHAR(64)  NOT NULL,                          -- md5（uploaded 核对与去重）

@@ -66,6 +66,7 @@ def _media_view_mock(**overrides: object) -> MagicMock:
         "episode_no": 1,
         "title": "第 1 集",
         "file_name": "L01.mp4",
+        "relative_path": None,
         "file_size": 100,
         "file_hash": "a" * 32,
         "duration_seconds": 60,

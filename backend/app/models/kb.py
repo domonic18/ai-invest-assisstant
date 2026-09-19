@@ -83,6 +83,7 @@ class KbMedia(Base):
     episode_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     file_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    relative_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     cos_key: Mapped[str] = mapped_column(String(500), nullable=False)
     file_size: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     file_hash: Mapped[str] = mapped_column(String(64), nullable=False)

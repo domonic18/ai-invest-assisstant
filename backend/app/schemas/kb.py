@@ -173,6 +173,7 @@ class KbMediaResponse(CamelModel):
     episode_no: int | None = None
     title: str | None = None
     file_name: str
+    relative_path: str | None = None
     file_size: int | None = None
     file_hash: str | None = None
     duration_seconds: int | None = None

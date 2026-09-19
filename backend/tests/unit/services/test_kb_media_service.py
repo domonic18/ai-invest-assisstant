@@ -202,6 +202,32 @@ async def test_source_actions_record_audit(session: AsyncSession) -> None:
 # ---------- media_service.init_uploads ----------
 
 
+async def test_init_uploads_keeps_chinese_name_and_relative_path(
+    session: AsyncSession,
+) -> None:
+    src = await source_service.create_source(
+        session, KbSourceCreateRequest(sourceType="course", name="课"), actor_id=1
+    )
+    item = KbMediaInitItem(
+        fileName="3.板块效应2.mp4",
+        relativePath="第3章/3.板块效应2.mp4",
+        size=100,
+        hash="d" * 32,
+        mediaKind="video",
+    )
+    cm, _ = _patch_minio()
+    with cm:
+        await media_service.init_uploads(
+            session, src.id, KbMediaInitRequest(items=[item]), actor_id=1
+        )
+    row = (await media_repository_all(session))[0]
+    # 展示名保留原始字符；COS key 收敛为 ASCII；目录结构落库
+    assert row.file_name == "3.板块效应2.mp4"
+    assert row.title == "3.板块效应2"
+    assert row.relative_path == "第3章/3.板块效应2.mp4"
+    assert row.cos_key == f"kb/{src.id}/{row.id}/3._2.mp4"
+
+
 async def test_init_uploads_auto_episode_and_presign(session: AsyncSession) -> None:
     src = await source_service.create_source(
         session, KbSourceCreateRequest(sourceType="course", name="课"), actor_id=1

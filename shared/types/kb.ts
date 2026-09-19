@@ -80,6 +80,7 @@ export interface ApiKbMediaResponse {
   episodeNo: number | null
   title: string | null
   fileName: string
+  relativePath: string | null
   fileSize: number | null
   fileHash: string | null
   durationSeconds: number | null

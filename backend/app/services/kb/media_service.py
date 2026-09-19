@@ -62,8 +62,13 @@ AUDIT_MEDIA_SESSION = "kb.media.upload-session"
 _SESSION_META_KEYS = ("uploadId", "partSize", "partCount", "sessionStartedAt")
 
 
+def _display_file_name(raw: str) -> str:
+    """展示用原始文件名（仅取 basename，不改写字符）。"""
+    return PurePosixPath(raw.replace("\\", "/")).name.strip()[:500]
+
+
 def _sanitize_file_name(raw: str) -> str:
-    """保留 basename 并收敛为安全文件名（COS key 与展示共用）。"""
+    """COS key 用安全文件名（收敛为 ASCII，对象键不含空白/非 ASCII 字符）。"""
     stem = PurePosixPath(raw.replace("\\", "/")).name
     cleaned = _UNSAFE_NAME.sub("_", stem).strip("._") or "file"
     return cleaned[:200]
@@ -84,6 +89,7 @@ def to_view(
         episode_no=row.episode_no,
         title=row.title,
         file_name=row.file_name,
+        relative_path=row.relative_path,
         file_size=row.file_size,
         file_hash=row.file_hash,
         duration_seconds=row.duration_seconds,
@@ -202,10 +208,11 @@ async def init_uploads(
                 orphan.title = (
                     item.title or PurePosixPath(item.file_name.rsplit(".", 1)[0]).name
                 )
-                orphan.file_name = _sanitize_file_name(item.file_name)
+                orphan.file_name = _display_file_name(item.file_name)
+                orphan.relative_path = item.relative_path
                 orphan.duration_seconds = item.duration_seconds
                 orphan.page_count = item.page_count
-                orphan.cos_key = _cos_key(source_id, orphan.id, orphan.file_name)
+                orphan.cos_key = _cos_key(source_id, orphan.id, item.file_name)
                 orphan.process_meta = {
                     **(orphan.process_meta or {}),
                     "declaredSize": item.size,
@@ -227,7 +234,8 @@ async def init_uploads(
                 media_kind=item.media_kind,
                 episode_no=episode_no,
                 title=title,
-                file_name=_sanitize_file_name(item.file_name),
+                file_name=_display_file_name(item.file_name),
+                relative_path=item.relative_path,
                 cos_key=f"kb/{source_id}/pending/{_sanitize_file_name(item.file_name)}",
                 file_size=0,
                 file_hash=item.hash,
