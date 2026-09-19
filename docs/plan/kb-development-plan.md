@@ -55,6 +55,8 @@
 
 验收：抽取字段无缺失（Schema 钉死单测）；三层防线各自负例通过；仅 published 进索引的流转正确（publish 置脏单测）。
 
+> **交付记录（2026-09-19，迭代 13 一期下起点）**：D1/D2/D3 完成——`extract_pipeline.py` 纯函数（开窗/clamp/excerpt 归一化命中/related 回链/去重/位置 id）+ `extract_service.py`（章节两步推断 + 滑窗抽取 + `extractAttempts≥3` 防毒）+ `kb-extract` 任务（batch 1800/2100，`*/10`）+ 审核服务与 8 条 admin 路由 + 前端 `ReviewTab`（章节树编辑发布 / 卡片通过·修订后通过·驳回·合并·人工新增，draft 可勾选合并，needsReview 琥珀标）。偏差：知识点列表挂 `/sources/{id}/points`（与 media 同构，弃草稿期 `/review/points` 字面）；章节树编辑为「改名/增删/上下移」未做拖拽（KISS，两级树拖拽收益低）；needsReview 计数为展示非过滤维度。`embedding_dirty` 置脏流转已钉死单测（approve 必置脏、原 published 驳回置脏），索引构建与消费留批次 E；播放片段按钮留批次 F。端到端验证期修复两处存量集成 bug：① `transcribe_service` 转写 done 误置 `extracted_at`（抽取幂等键，致扫描永空转，已删置位并重置存量）；② `user_token_usage` 特征 CHECK 约束在本库为旧命名 `chk_usage_feature`，KB 迁移按现名 DROP 静默空转致 kb_* 计量被拒——迁移补历史名兼容 DROP（本地已修，`kb_extract` 台账实测入账）。本地实跑 16 集 27 分钟：348 草稿（needsReview 207 / 定位缺失 3 / related 回链 341）、章节树 7 顶层章、调度回归 transcribe/cleanup 正常 SKIPPED。
+
 ## 5. 批次 E · 索引构建与混合检索（F-KB-04，~2 人日）
 
 | # | 任务 | 内容与改法 |
