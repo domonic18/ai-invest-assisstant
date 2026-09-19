@@ -39,16 +39,22 @@
 
 ```
 文件夹拖拽（前端 webkitdirectory / DataTransferItem 保持目录结构）
-  → POST /admin/kb/sources/{id}/media/init   # 批量建 draft 行 + 预签名 PUT（大文件直传 COS，前端并发分片）
-  → 前端逐文件直传（进度入上传队列）→ POST .../media/{mid}/uploaded
-       └─ 服务端 HEAD 对象核对：size/etag(md5=file_hash) → 去重校验（同库同哈希 409）→ 状态 uploaded
+  → POST /admin/kb/sources/{id}/media/init   # 批量建 draft 行 + 单 PUT 预签名（大文件直传 COS）
+  → 前端逐文件直传（进度入上传队列；Web Worker 预算整文件 MD5 供去重）：
+       ≤64MB 单 PUT；>64MB multipart 分片直传（16MB/片、3 片并发、逐片 MD5 对 ETag 核对、刷新页面断点续传）
+         ├─ POST   .../media/{mid}/upload-session   # 建/续会话：uploadId + 仅缺失分片的签名 URL（服务端 list_parts 为续传真相）
+         └─ DELETE .../media/{mid}/upload-session   # 放弃会话（幂等，abort 释放已传分片）
+     → POST .../media/{mid}/uploaded
+          └─ 服务端核对：单 PUT HEAD size/etag；分片 list_parts 汇总 = declaredSize → complete → HEAD size 复核
+             → 去重校验（同库同哈希 409，部分唯一索引仅约束存活行）→ 状态 uploaded
   → 管理员「预估建库费用」→ POST cost-estimate（时长/页数/图片数 × unit_prices）→ 确认 → awaiting_cost → queued
 ```
 
 - 集号：按目录文件名自动编号，PATCH 可调（uq 约束兜底）；电子书按书册登记（同名书多版本 = 同 source 多 media 行）。
 - 外部文稿导入（TXT/SRT）：init 时带 `transcriptOverride`，跳过 ASR 直接入分段（状态直通 done）。
+- **分片会话**：`process_meta` JSONB 存 `{uploadId, partSize, partCount, sessionStartedAt, declaredSize}`，无独立表；超龄（7 天）会话由 `kb-cleanup` abort 释放已传分片。
 - **存储大小**：上传/删除即时增减 `kb_source.storage_bytes`（登记字节数聚合）；异步清理未完成期间叠加 `pending_cleanup_bytes` 展示。
-- **级联删除**：DELETE 为软删（`deleted_at`，列表即隐藏，24h 内可恢复）→ `kb-cleanup` internal 任务扫描过期软删行：COS 批量删（原件 + 派生分片缓存）→ 硬删行 → ES `delete_by_query(source_id)` → 清零 storage。删除知识库/素材/单集均走同一路径。
+- **级联删除**：DELETE 为软删（`deleted_at`，列表即隐藏，24h 内可恢复）→ `kb-cleanup` internal 任务（`*/30` 扫描）清除过窗软删行（素材/知识源级联，含旗下素材）：COS 批量删对象 → 硬删行 → `pending_cleanup_bytes` 清零；deep 孤儿扫描每日一次（Redis 门控）：`kb/` 前缀有对象而无存活行引用（含软删未过窗）即删；ES `delete_by_query(source_id)` 随检索投影接线批次启用。删除知识库/素材/单集均走同一路径。
 
 ## 4. 课程转写（F-KB-02）
 
@@ -215,7 +221,8 @@ web/src/pages/Admin/KnowledgeBase/
 ```
 backend/app/services/kb/
 ├── source_service.py        # 知识库 CRUD、存储聚合、软删级联
-├── media_service.py         # 上传 init/uploaded、哈希去重、集号管理
+├── media_service.py         # 上传 init/uploaded、分片会话（建/续/弃）、哈希去重、集号管理
+├── cleanup_service.py       # kb-cleanup 执行体：过窗软删物理清除、超龄会话 abort、deep 孤儿扫描
 ├── transcribe_service.py    # 分片切分、asr-1.0 调用、断点缓存、清洗（clean_model_id）、用量入 meta
 ├── book_parse_service.py    # PyMuPDF 文本层抽取、段落归并、嵌入图片抽取（无 OCR 通道）
 ├── image_describe_service.py# VLM 图像理解（run_structured vision + vision_model_id）

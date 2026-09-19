@@ -81,7 +81,7 @@
 | # | 任务 | 内容与改法 |
 |---|------|-----------|
 | G1 | 用量聚合 | `usage_service.py` + `GET /admin/kb/usage?sourceId=&from=&to=`：台账 `kb_*` 分项 token × 模型单价 + ASR 时长（process_meta）× asrPerHour，预估 vs 实际对照；SettingsTab 用量面板 |
-| G2 | 清理任务 | `kb-cleanup`（batch）+ spider + seed `*/30` + F-MON 登记：扫过 24h 恢复窗的软删行 → COS 批删 → 硬删 → ES delete_by_query → storage 清零 |
+| G2 | 清理任务 | `kb-cleanup`（batch）+ spider + seed `*/30` + F-MON 登记：扫过 24h 恢复窗的软删行 → COS 批删 → 硬删 → ES delete_by_query → storage 清零（已提前接线 2026-09-19：过窗软删物理清除 + 超龄分片会话 abort + 每日孤儿对象扫描；ES delete_by_query 随检索投影接线批次补齐，维护类任务不参与 F-MON 健康统计） |
 | G3 | 一期收口 | F-MON 五任务判定复核（SKIPPED=正常态）；docker 栈全链路走查（对照需求 §9 验收表逐行）；质量门全绿 |
 
 验收：用量分项与台账一致（抽样对账）；删库级联清理后检索无残留；需求 §9 一期行全部通过。
