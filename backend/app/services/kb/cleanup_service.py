@@ -132,11 +132,16 @@ async def run_cleanup(session: AsyncSession, *, deep: bool = False) -> dict[str,
             stats["abortedSessions"] += 1
 
         # 4) deep 孤儿扫描：有对象而无任何行（含软删未过窗）引用即删
+        #    kb/derived/ 前缀是活素材的转写分片缓存（断点续跑依据），非孤儿
         if deep and await _acquire_daily_deep_slot():
             rows = await session.execute(select(KbMedia.cos_key))
             referenced = {key for (key,) in rows}
             objects = await minio.list_object_names("kb/")
-            orphans = [(name, size) for name, size in objects if name not in referenced]
+            orphans = [
+                (name, size)
+                for name, size in objects
+                if not name.startswith("kb/derived/") and name not in referenced
+            ]
             if orphans:
                 await minio.remove_files([name for name, _ in orphans])
                 stats["orphanObjects"] = len(orphans)

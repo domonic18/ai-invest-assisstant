@@ -207,6 +207,7 @@ async def test_deep_scan_removes_orphan_objects(session: AsyncSession) -> None:
         return_value=[
             ("kb/1/live.mp4", 500),
             ("kb/1/soft.mp4", 300),
+            ("kb/derived/1/chunks/000000000000-000000480000.json", 95),
             ("kb/9/orphan.mp4", 42),
         ]
     )
@@ -214,7 +215,7 @@ async def test_deep_scan_removes_orphan_objects(session: AsyncSession) -> None:
     with cm, _patch_lock(), slot_cm:
         stats = await cleanup_service.run_cleanup(session, deep=True)
 
-    # 软删未过窗的行仍引用对象，不算孤儿
+    # 软删未过窗的行仍引用对象，不算孤儿；kb/derived/ 分片缓存受保护
     assert stats["orphanObjects"] == 1
     assert stats["orphanBytes"] == 42
     minio.remove_files.assert_awaited_once_with(["kb/9/orphan.mp4"])
