@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS kb_media (
     process_meta     JSONB        NOT NULL DEFAULT '{}'::jsonb,      -- 用量对账：provider/model/audio_seconds/est_cost…
     extracted_at     TIMESTAMPTZ,                                    -- 知识抽取完成时刻（抽取任务幂等键）
     edited_at        TIMESTAMPTZ,                                    -- 文稿人工编辑时刻（脏传播源）
+    deleted_at       TIMESTAMPTZ,                                    -- 软删（与 kb_source 同路径，24h 恢复窗）
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_kb_media_source_hash UNIQUE (source_id, file_hash),
@@ -166,3 +167,7 @@ ALTER TABLE user_token_usage DROP CONSTRAINT IF EXISTS chk_user_token_usage_feat
 ALTER TABLE user_token_usage ADD CONSTRAINT chk_user_token_usage_feature
     CHECK (feature IN ('assistant', 'page', 'api_key', 'system',
                        'kb_clean', 'kb_extract', 'kb_vision', 'kb_embed'));
+
+-- kb_media 软删列（素材/单集删除与 kb_source 同走 24h 恢复窗；已建库幂等补列）
+ALTER TABLE kb_media ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_kb_media_deleted ON kb_media(deleted_at) WHERE deleted_at IS NOT NULL;

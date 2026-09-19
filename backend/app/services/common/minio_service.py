@@ -114,6 +114,43 @@ class MinIOService:
         except S3Error:
             return None
 
+    async def presigned_put_url(
+        self,
+        object_name: str,
+        bucket_name: str | None = None,
+        expires: timedelta = timedelta(hours=6),
+    ) -> str:
+        """返回对象的预签名直传 URL（浏览器 PUT，不经后端中转）。"""
+        bucket = bucket_name or self.default_bucket
+        try:
+            return await asyncio.to_thread(
+                self._presign_client.presigned_put_object,
+                bucket,
+                object_name,
+                expires=expires,
+            )
+        except S3Error as exc:
+            raise RuntimeError(f"Failed to presign PUT {object_name}: {exc}") from exc
+
+    async def stat_object(
+        self,
+        object_name: str,
+        bucket_name: str | None = None,
+    ) -> tuple[int, str] | None:
+        """HEAD 对象，返回 ``(size, etag)``；不存在返回 None。
+
+        etag 为 S3 返回的十六进制串（单段 PUT 时即内容 md5，可能带引号）。
+        """
+        bucket = bucket_name or self.default_bucket
+        try:
+            stat = await asyncio.to_thread(self.client.stat_object, bucket, object_name)
+        except S3Error:
+            return None
+        etag = (stat.etag or "").strip('"').lower()
+        if stat.size is None:
+            return None
+        return stat.size, etag
+
     async def download_file(
         self,
         object_name: str,

@@ -80,6 +80,19 @@ class ImageUnderstanding(BaseModel):
     description: str
 
 
+class KbTranscriptCleanItem(BaseModel):
+    """清洗回填的单句（seq 与输入编号一一对应，只改文本不改时间轴）。"""
+
+    seq: int
+    text: str = Field(..., min_length=1)
+
+
+class KbTranscriptCleanResult(BaseModel):
+    """一次清洗批次的完整输出。"""
+
+    items: list[KbTranscriptCleanItem]
+
+
 # ---------------------------------------------------------------------------
 # wire 契约（camelCase，shared/types/kb.ts 单一真相源）
 # ---------------------------------------------------------------------------
@@ -114,3 +127,185 @@ class KbSettingsUpdateRequest(CamelModel):
     extract_model_id: int | None = None
     vision_model_id: int | None = None
     authorized_user_ids: list[int] | None = Field(None, max_length=500)
+
+
+class KbSourceResponse(CamelModel):
+    """知识库（source）视图。"""
+
+    id: int
+    source_type: str
+    name: str
+    author: str | None = None
+    description: str | None = None
+    enabled: bool
+    storage_bytes: int
+    pending_cleanup_bytes: int
+    deleted_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class KbSourceCreateRequest(CamelModel):
+    """新建知识库。"""
+
+    source_type: Literal["course", "book"]
+    name: str = Field(..., min_length=1, max_length=200)
+    author: str | None = Field(None, max_length=100)
+    description: str | None = Field(None, max_length=2000)
+    enabled: bool = True
+
+
+class KbSourceUpdateRequest(CamelModel):
+    """编辑知识库（全部可选）。"""
+
+    name: str | None = Field(None, min_length=1, max_length=200)
+    author: str | None = Field(None, max_length=100)
+    description: str | None = Field(None, max_length=2000)
+    enabled: bool | None = None
+
+
+class KbMediaResponse(CamelModel):
+    """素材（media）视图。"""
+
+    id: int
+    source_id: int
+    media_kind: str
+    episode_no: int | None = None
+    title: str | None = None
+    file_name: str
+    file_size: int | None = None
+    file_hash: str | None = None
+    duration_seconds: int | None = None
+    page_count: int | None = None
+    process_status: str
+    process_error: str | None = None
+    process_meta: dict[str, Any] = Field(default_factory=dict)
+    edited_at: datetime | None = None
+    deleted_at: datetime | None = None
+    point_count: int = 0
+    dirty_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class KbMediaInitItem(CamelModel):
+    """批量登记的单个文件（目录结构由 relativePath 保留）。"""
+
+    file_name: str = Field(..., min_length=1, max_length=500)
+    relative_path: str | None = Field(None, max_length=1000)
+    size: int = Field(..., ge=1)
+    hash: str = Field(..., min_length=8, max_length=64)
+    media_kind: Literal["video", "audio", "book"]
+    episode_no: int | None = Field(None, ge=1)
+    title: str | None = Field(None, max_length=200)
+    duration_seconds: int | None = Field(None, ge=0)
+    page_count: int | None = Field(None, ge=0)
+
+
+class KbMediaInitRequest(CamelModel):
+    """上传初始化：批量建行 + 预签名 PUT。"""
+
+    items: list[KbMediaInitItem] = Field(..., min_length=1, max_length=500)
+
+
+class KbMediaInitResult(CamelModel):
+    """单个文件的初始化结果（mediaId 供 uploaded 回调）。"""
+
+    media_id: int
+    file_name: str
+    cos_key: str
+    upload_url: str
+
+
+class KbMediaInitResponse(CamelModel):
+    """批量初始化结果（与请求 items 等长同序）。"""
+
+    items: list[KbMediaInitResult]
+
+
+class KbMediaPatchRequest(CamelModel):
+    """素材元数据修正（集号/标题/时长/页数）。"""
+
+    episode_no: int | None = Field(None, ge=1)
+    title: str | None = Field(None, max_length=200)
+    duration_seconds: int | None = Field(None, ge=0)
+    page_count: int | None = Field(None, ge=0)
+
+
+class KbCostEstimateRequest(CamelModel):
+    """费用预估请求（素材必须属于该知识库）。"""
+
+    source_id: int
+    media_ids: list[int] = Field(..., min_length=1)
+
+
+class KbCostEstimateItem(CamelModel):
+    """单素材费用分项（书在批次 C 接入前为 0 项）。"""
+
+    media_id: int
+    title: str
+    media_kind: str
+    duration_seconds: int | None = None
+    asr_cost: float = 0
+    clean_tokens: int = 0
+    estimated_cost: float = 0
+
+
+class KbCostEstimateResponse(CamelModel):
+    """费用预估视图（预估即把 uploaded 素材推进到 awaiting_cost）。"""
+
+    currency: str = "CNY"
+    items: list[KbCostEstimateItem]
+    total: float = 0
+
+
+class KbConfirmCostRequest(CamelModel):
+    """费用确认请求（awaiting_cost → queued）。"""
+
+    media_ids: list[int] = Field(..., min_length=1)
+
+
+class KbConfirmCostResponse(CamelModel):
+    """费用确认结果（本次实际入队的素材）。"""
+
+    queued_ids: list[int]
+
+
+class KbTranscriptSegmentView(CamelModel):
+    """文稿编辑器单行。"""
+
+    seq_no: int
+    text: str
+    start_ms: int | None = None
+    end_ms: int | None = None
+    page_start: int | None = None
+    page_end: int | None = None
+
+
+class KbTranscriptResponse(CamelModel):
+    """单集文稿读取。"""
+
+    media_id: int
+    edited_at: datetime | None = None
+    segments: list[KbTranscriptSegmentView]
+
+
+class KbTranscriptSegmentUpdate(CamelModel):
+    """文稿单行修正（只改文本，时间轴只读）。"""
+
+    seq_no: int
+    text: str
+
+
+class KbTranscriptUpdateRequest(CamelModel):
+    """文稿批量保存（按 seqNo 覆盖文本，时间轴不变）。"""
+
+    segments: list[KbTranscriptSegmentUpdate] = Field(..., min_length=1)
+
+
+class KbTranscriptSaveResponse(CamelModel):
+    """文稿保存结果（updatedCount>0 即触发脏传播）。"""
+
+    media_id: int
+    edited_at: datetime | None = None
+    updated_count: int = 0

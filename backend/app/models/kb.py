@@ -62,6 +62,7 @@ class KbMedia(Base):
         # 集号唯一仅约束课程（书的 episode_no 为 NULL；PG 侧为部分唯一索引，见迁移）
         Index("uq_kb_media_source_episode", "source_id", "episode_no", unique=True),
         Index("idx_kb_media_source_status", "source_id", "process_status"),
+        Index("idx_kb_media_deleted", "deleted_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -82,6 +83,7 @@ class KbMedia(Base):
     process_meta: Mapped[dict[str, Any]] = mapped_column(_JSONB, nullable=False, default=dict)
     extracted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )

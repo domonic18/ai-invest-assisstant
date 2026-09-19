@@ -1479,6 +1479,7 @@ CREATE TABLE IF NOT EXISTS kb_media (
     process_meta     JSONB        NOT NULL DEFAULT '{}'::jsonb,      -- 用量对账：provider/model/audio_seconds/est_cost…
     extracted_at     TIMESTAMPTZ,                                    -- 知识抽取完成时刻（抽取任务幂等键）
     edited_at        TIMESTAMPTZ,                                    -- 文稿人工编辑时刻（脏传播源）
+    deleted_at       TIMESTAMPTZ,                                    -- 软删（与 kb_source 同路径，24h 恢复窗）
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_kb_media_source_hash UNIQUE (source_id, file_hash),
@@ -1491,6 +1492,7 @@ CREATE TABLE IF NOT EXISTS kb_media (
 CREATE UNIQUE INDEX IF NOT EXISTS uq_kb_media_source_episode
     ON kb_media(source_id, episode_no) WHERE episode_no IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_kb_media_source_status ON kb_media(source_id, process_status);
+CREATE INDEX IF NOT EXISTS idx_kb_media_deleted ON kb_media(deleted_at) WHERE deleted_at IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS kb_transcript_segment (
     id              BIGSERIAL PRIMARY KEY,
