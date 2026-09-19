@@ -1,5 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ReactNode } from 'react'
 
 vi.mock('@/api/adminKb', () => ({
   initKbMediaUploads: vi.fn(),
@@ -70,11 +72,19 @@ describe('inferMediaKind', () => {
 })
 
 describe('useKbUploadQueue', () => {
+  function renderQueueHook(sourceId: number | null = 1) {
+    const queryClient = new QueryClient()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    return renderHook(() => useKbUploadQueue(sourceId), { wrapper })
+  }
+
   it('runs hash → init → put → confirm and finishes done', async () => {
     mockedInit.mockResolvedValue({
       items: [initItem(5, 'e1.mp4', 'https://cos/put')],
     })
-    const { result } = renderHook(() => useKbUploadQueue(1))
+    const { result } = renderQueueHook()
 
     act(() => {
       result.current.start([makeFile('e1.mp4')])
@@ -121,7 +131,7 @@ describe('useKbUploadQueue', () => {
           })
         })
     )
-    const { result } = renderHook(() => useKbUploadQueue(1))
+    const { result } = renderQueueHook()
 
     act(() => {
       result.current.start(
@@ -144,7 +154,7 @@ describe('useKbUploadQueue', () => {
   })
 
   it('skips later in-batch duplicates and uploads only the first copy', async () => {
-    const { result } = renderHook(() => useKbUploadQueue(1))
+    const { result } = renderQueueHook()
 
     act(() => {
       result.current.start([makeFile('总论1.mp4'), makeFile('总论2.mp4')])
@@ -178,7 +188,7 @@ describe('useKbUploadQueue', () => {
         ],
       })
     )
-    const { result } = renderHook(() => useKbUploadQueue(1))
+    const { result } = renderQueueHook()
 
     act(() => {
       result.current.start([makeFile('e1.mp4'), makeFile('e2.mp4')])
@@ -201,7 +211,7 @@ describe('useKbUploadQueue', () => {
       Promise.resolve(file.name === 'e1.mp4' ? 'a'.repeat(32) : 'b'.repeat(32))
     )
     mockedInit.mockRejectedValue(new Error('该知识库已存在相同内容的素材'))
-    const { result } = renderHook(() => useKbUploadQueue(1))
+    const { result } = renderQueueHook()
 
     act(() => {
       result.current.start([makeFile('e1.mp4'), makeFile('e2.mp4')])
@@ -234,7 +244,7 @@ describe('useKbUploadQueue', () => {
       })
     )
     mockedPut.mockRejectedValueOnce(new Error('网络中断'))
-    const { result } = renderHook(() => useKbUploadQueue(1))
+    const { result } = renderQueueHook()
 
     act(() => {
       result.current.start([makeFile('e1.mp4'), makeFile('e2.mp4')])
@@ -255,7 +265,7 @@ describe('useKbUploadQueue', () => {
     mockedInit.mockResolvedValue({
       items: [initItem(7, 'big.mp4', 'https://cos/put')],
     })
-    const { result } = renderHook(() => useKbUploadQueue(1))
+    const { result } = renderQueueHook()
 
     act(() => {
       result.current.start([makeFile('big.mp4', 200 * 1024 * 1024)])
@@ -281,7 +291,7 @@ describe('useKbUploadQueue', () => {
       items: [initItem(5, 'e1.mp4', 'https://cos/put')],
     })
     mockedPut.mockRejectedValueOnce(new Error('网络中断'))
-    const { result } = renderHook(() => useKbUploadQueue(1))
+    const { result } = renderQueueHook()
 
     act(() => {
       result.current.start([makeFile('e1.mp4')])
@@ -310,7 +320,7 @@ describe('useKbUploadQueue', () => {
       items: [initItem(5, 'e1.mp4', 'https://cos/put')],
     })
     mockedPut.mockRejectedValue(new Error('Network Error'))
-    const { result } = renderHook(() => useKbUploadQueue(1))
+    const { result } = renderQueueHook()
 
     act(() => {
       result.current.start([makeFile('e1.mp4')])
@@ -325,10 +335,10 @@ describe('useKbUploadQueue', () => {
   })
 
   it('ignores unsupported files and requires a source', () => {
-    const { result } = renderHook(() => useKbUploadQueue(1))
+    const { result } = renderQueueHook()
     expect(result.current.start([makeFile('notes.txt')])).toBe(0)
 
-    const { result: noSource } = renderHook(() => useKbUploadQueue(null))
+    const { result: noSource } = renderQueueHook(null)
     expect(noSource.current.start([makeFile('e1.mp4')])).toBe(0)
     expect(mockedInit).not.toHaveBeenCalled()
   })

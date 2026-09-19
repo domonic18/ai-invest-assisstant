@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 
+import { useQueryClient } from '@tanstack/react-query'
+
 import type { ApiKbMediaInitItem } from '@ai-invest/shared'
 import { KB_MULTIPART_THRESHOLD_BYTES } from '@ai-invest/shared'
 
@@ -8,6 +10,7 @@ import {
   initKbMediaUploads,
   putFileToCos,
 } from '@/api/adminKb'
+import { queryKeys } from '@/hooks/queryKeys'
 import { computeFileMd5 } from '@/utils/fileHash'
 import {
   clearStoredSession,
@@ -75,6 +78,14 @@ export function useKbUploadQueue(sourceId: number | null) {
   const progressRef = useRef<Map<string, number>>(new Map())
   const runningRef = useRef(false)
   const entriesRef = useRef<Map<string, QueueEntry>>(new Map())
+  const queryClient = useQueryClient()
+
+  // init 建行 / confirm 入账后失效缓存，素材列表与库存储字节数即时可见
+  const refreshKb = useCallback(() => {
+    if (sourceId == null) return
+    void queryClient.invalidateQueries({ queryKey: queryKeys.kb.media(sourceId) })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.kb.sources })
+  }, [queryClient, sourceId])
 
   const setItemStatus = useCallback(
     (uid: string, patch: Partial<UploadItem>) => {
@@ -114,6 +125,7 @@ export function useKbUploadQueue(sourceId: number | null) {
         setItemStatus(entry.uid, { status: 'failed', error: errText(err) })
         return
       }
+      refreshKb()
       if (!result) {
         setItemStatus(entry.uid, { status: 'failed', error: '服务端返回为空' })
         return
@@ -146,13 +158,14 @@ export function useKbUploadQueue(sourceId: number | null) {
         setItemStatus(entry.uid, { status: 'confirming' })
         await confirmKbMediaUploaded(result.mediaId as number)
         if (entry.hash) clearStoredSession(entry.hash)
+        refreshKb()
         progressRef.current.set(entry.uid, 100)
         setItemStatus(entry.uid, { status: 'done' })
       } catch (err) {
         setItemStatus(entry.uid, { status: 'failed', error: errText(err) })
       }
     },
-    [setItemStatus, sourceId]
+    [refreshKb, setItemStatus, sourceId]
   )
 
   const runEntries = useCallback(
