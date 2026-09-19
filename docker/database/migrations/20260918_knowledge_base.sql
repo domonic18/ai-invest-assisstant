@@ -163,10 +163,17 @@ ALTER TABLE llm_config ADD CONSTRAINT chk_llm_config_purpose
 
 ALTER TABLE user_token_usage ADD COLUMN IF NOT EXISTS detail JSONB;
 
+-- 早期库的约束为旧命名 chk_usage_feature/chk_usage_outlet（迁移文件后曾改名），
+-- 仅按现名 DROP 会在旧名库上静默空转，旧约束残留继续拒绝 kb_* 特征
+ALTER TABLE user_token_usage DROP CONSTRAINT IF EXISTS chk_usage_feature;
+ALTER TABLE user_token_usage DROP CONSTRAINT IF EXISTS chk_usage_outlet;
 ALTER TABLE user_token_usage DROP CONSTRAINT IF EXISTS chk_user_token_usage_feature;
+ALTER TABLE user_token_usage DROP CONSTRAINT IF EXISTS chk_user_token_usage_outlet;
 ALTER TABLE user_token_usage ADD CONSTRAINT chk_user_token_usage_feature
     CHECK (feature IN ('assistant', 'page', 'api_key', 'system',
                        'kb_clean', 'kb_extract', 'kb_vision', 'kb_embed'));
+ALTER TABLE user_token_usage ADD CONSTRAINT chk_user_token_usage_outlet
+    CHECK (outlet IN ('system', 'byok'));
 
 -- kb_media 软删列（素材/单集删除与 kb_source 同走 24h 恢复窗；已建库幂等补列）
 ALTER TABLE kb_media ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
