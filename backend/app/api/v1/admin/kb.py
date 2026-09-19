@@ -4,22 +4,31 @@
 uploaded 回调服务端核对。所有变更动作入审计（audit_log）。
 """
 
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.dependencies import get_current_admin_user, get_db
 from app.models.user import User
 from app.schemas.kb import (
+    KbChaptersPublishRequest,
+    KbChaptersResponse,
     KbConfirmCostRequest,
     KbConfirmCostResponse,
     KbCostEstimateRequest,
     KbCostEstimateResponse,
+    KbKnowledgePointResponse,
     KbMediaInitRequest,
     KbMediaInitResponse,
     KbMediaPatchRequest,
     KbMediaResponse,
+    KbPointCreateRequest,
+    KbPointListResponse,
+    KbPointPatchRequest,
+    KbPointRejectRequest,
+    KbPointsMergeRequest,
     KbSourceCreateRequest,
     KbSourceResponse,
     KbSourceUpdateRequest,
@@ -32,6 +41,7 @@ from app.schemas.kb import (
 from app.services.kb import (
     cost_service,
     media_service,
+    review_service,
     source_service,
     transcript_service,
 )
@@ -285,4 +295,115 @@ async def save_transcript(
         data,
         actor_id=admin.id,
         ip=_client_ip(request),
+    )
+
+
+# ---------------------------------------------------------------------------
+# 知识审核（F-KB-03：章节树 + 知识点工作台）
+# ---------------------------------------------------------------------------
+
+
+@router.get("/sources/{source_id}/chapters", response_model=KbChaptersResponse)
+async def get_chapters(
+    source_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> KbChaptersResponse:
+    """知识源目录树（draft 供编辑，published 为生效版本）。"""
+    return await review_service.get_chapters(session, source_id)
+
+
+@router.post(
+    "/sources/{source_id}/chapters/publish", response_model=KbChaptersResponse
+)
+async def publish_chapters(
+    source_id: int,
+    data: KbChaptersPublishRequest,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> KbChaptersResponse:
+    """整棵发布目录树（审计 kb.chapters.publish）。"""
+    return await review_service.publish_chapters(
+        session, source_id, data, actor_id=admin.id, ip=_client_ip(request)
+    )
+
+
+@router.get("/sources/{source_id}/points", response_model=KbPointListResponse)
+async def list_points(
+    source_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    status: Literal["draft", "published", "rejected"] | None = Query(default=None),
+    page: int = Query(DEFAULT_PAGE, ge=1),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+) -> KbPointListResponse:
+    """知识点分页列表 + 状态计数（审核工作台首屏）。"""
+    return await review_service.list_points(
+        session, source_id, status=status, page=page, page_size=page_size
+    )
+
+
+@router.post("/points/merge", response_model=KbKnowledgePointResponse)
+async def merge_points(
+    data: KbPointsMergeRequest,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> KbKnowledgePointResponse:
+    """重复草稿合并（related 并集进目标，源行硬删；审计 kb.point.merge）。"""
+    return await review_service.merge_points(
+        session, data, actor_id=admin.id, ip=_client_ip(request)
+    )
+
+
+@router.post("/points", response_model=KbKnowledgePointResponse, status_code=201)
+async def create_point(
+    data: KbPointCreateRequest,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> KbKnowledgePointResponse:
+    """人工新增知识卡片（status=draft 走同一审核流；审计 kb.point.create）。"""
+    return await review_service.create_point(
+        session, data, actor_id=admin.id, ip=_client_ip(request)
+    )
+
+
+@router.patch("/points/{point_id}", response_model=KbKnowledgePointResponse)
+async def patch_point(
+    point_id: int,
+    data: KbPointPatchRequest,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> KbKnowledgePointResponse:
+    """白名单修订（excerpt/时间码定位字段不可改，422；审计 kb.point.patch）。"""
+    return await review_service.patch_point(
+        session, point_id, data, actor_id=admin.id, ip=_client_ip(request)
+    )
+
+
+@router.post("/points/{point_id}/approve", response_model=KbKnowledgePointResponse)
+async def approve_point(
+    point_id: int,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> KbKnowledgePointResponse:
+    """通过发布（→ published 并置 embedding_dirty；审计 kb.point.approve）。"""
+    return await review_service.approve_point(
+        session, point_id, actor_id=admin.id, ip=_client_ip(request)
+    )
+
+
+@router.post("/points/{point_id}/reject", response_model=KbKnowledgePointResponse)
+async def reject_point(
+    point_id: int,
+    data: KbPointRejectRequest,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> KbKnowledgePointResponse:
+    """驳回（理由入 review_note；原 published 置脏；审计 kb.point.reject）。"""
+    return await review_service.reject_point(
+        session, point_id, data, actor_id=admin.id, ip=_client_ip(request)
     )
