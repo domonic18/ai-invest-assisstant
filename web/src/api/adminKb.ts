@@ -137,6 +137,13 @@ export async function deleteKbMedia(mediaId: number): Promise<void> {
   await apiClient.delete(ENDPOINTS.admin.kbMedia(mediaId))
 }
 
+export async function requeueKbMedia(mediaId: number): Promise<ApiKbMediaResponse> {
+  const response = await apiClient.post<ApiKbMediaResponse>(
+    ENDPOINTS.admin.kbMediaRequeue(mediaId)
+  )
+  return response.data
+}
+
 // ---- 费用闸门 ----
 
 export async function estimateKbCost(

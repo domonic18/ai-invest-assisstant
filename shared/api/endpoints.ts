@@ -223,6 +223,8 @@ export const ENDPOINTS = {
       `${API_BASE}/admin/kb/media/${id}/upload-session`,
     kbMediaUploaded: (id: number | string) =>
       `${API_BASE}/admin/kb/media/${id}/uploaded`,
+    kbMediaRequeue: (id: number | string) =>
+      `${API_BASE}/admin/kb/media/${id}/requeue`,
     kbMediaRestore: (id: number | string) =>
       `${API_BASE}/admin/kb/media/${id}/restore`,
     kbSourceTranscript: (sourceId: number | string, mediaId: number | string) =>

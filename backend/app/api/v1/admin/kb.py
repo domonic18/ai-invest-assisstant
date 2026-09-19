@@ -213,6 +213,19 @@ async def patch_media(
     )
 
 
+@router.post("/media/{media_id}/requeue", response_model=KbMediaResponse)
+async def requeue_media(
+    media_id: int,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> KbMediaResponse:
+    """失败素材重新入队（failed → queued），转写下轮扫描拾起。"""
+    return await media_service.requeue_failed_media(
+        session, media_id, actor_id=admin.id, ip=_client_ip(request)
+    )
+
+
 @router.delete("/media/{media_id}", status_code=204)
 async def delete_media(
     media_id: int,

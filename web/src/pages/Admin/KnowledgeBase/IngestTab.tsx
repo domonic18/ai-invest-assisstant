@@ -14,7 +14,7 @@ import { useMemo, useRef, useState } from 'react'
 
 import type { ApiKbMediaResponse, ApiKbProcessStatus } from '@ai-invest/shared'
 
-import { useConfirmKbCost, useDeleteKbMedia, useEstimateKbCost, useKbSourceMedia, useKbSources } from '@/hooks/useAdminKb'
+import { useConfirmKbCost, useDeleteKbMedia, useEstimateKbCost, useKbSourceMedia, useKbSources, useRequeueKbMedia } from '@/hooks/useAdminKb'
 import { formatBytes } from '@/utils/formatters'
 
 import { CostEstimateModal } from './CostEstimateModal'
@@ -52,6 +52,7 @@ export function IngestTab({
   const estimateMutation = useEstimateKbCost()
   const confirmCostMutation = useConfirmKbCost()
   const deleteMediaMutation = useDeleteKbMedia()
+  const requeueMediaMutation = useRequeueKbMedia()
 
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [estimateOpen, setEstimateOpen] = useState(false)
@@ -76,8 +77,12 @@ export function IngestTab({
 
   const openEstimate = async () => {
     if (!sourceId || selectedIds.length === 0) return
-    await estimateMutation.mutateAsync({ sourceId, mediaIds: selectedIds })
-    setEstimateOpen(true)
+    try {
+      await estimateMutation.mutateAsync({ sourceId, mediaIds: selectedIds })
+      setEstimateOpen(true)
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '预估失败')
+    }
   }
 
   const handleConfirmCost = async () => {
@@ -104,6 +109,15 @@ export function IngestTab({
       message.success('已删除（24 小时内可恢复）')
     } catch (err) {
       message.error(err instanceof Error ? err.message : '删除失败')
+    }
+  }
+
+  const handleRequeueMedia = async (row: ApiKbMediaResponse) => {
+    try {
+      await requeueMediaMutation.mutateAsync(row.id)
+      message.success('已重新入队，等待转写扫描拾起（已完成分片不重复计费）')
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '重新入队失败')
     }
   }
 
@@ -177,7 +191,7 @@ export function IngestTab({
     {
       title: '操作',
       key: 'actions',
-      width: 140,
+      width: 180,
       render: (_: unknown, row) => (
         <Space size="small">
           {row.processStatus === 'done' && (
@@ -188,6 +202,16 @@ export function IngestTab({
               onClick={() => setEditingMedia(row)}
             >
               文稿
+            </Button>
+          )}
+          {row.processStatus === 'failed' && (
+            <Button
+              size="small"
+              type="link"
+              disabled={requeueMediaMutation.isPending}
+              onClick={() => handleRequeueMedia(row)}
+            >
+              重新转写
             </Button>
           )}
           <Button

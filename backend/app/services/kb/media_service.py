@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.kb import (
     KB_SOFT_DELETE_RECOVERY_HOURS,
+    KbProcessStatus,
 )
 from app.core.clock import utc_now
 from app.core.config import get_settings
@@ -57,6 +58,7 @@ AUDIT_MEDIA_PATCH = "kb.media.patch"
 AUDIT_MEDIA_DELETE = "kb.media.delete"
 AUDIT_MEDIA_RESTORE = "kb.media.restore"
 AUDIT_MEDIA_SESSION = "kb.media.upload-session"
+AUDIT_MEDIA_REQUEUE = "kb.media.requeue"
 
 # process_meta 内分片会话键（confirm 成功或 abort 后清除；declaredSize 保留作审计）
 _SESSION_META_KEYS = ("uploadId", "partSize", "partCount", "sessionStartedAt")
@@ -515,6 +517,27 @@ async def patch_media(
         actor_id=actor_id,
         action=AUDIT_MEDIA_PATCH,
         detail={"mediaId": media_id, **data.model_dump(exclude_unset=True)},
+        ip=ip,
+    )
+    await session.commit()
+    return to_view(row)
+
+
+async def requeue_failed_media(
+    session: AsyncSession, media_id: int, *, actor_id: int, ip: str | None = None
+) -> KbMediaResponse:
+    """失败素材重新入队（failed → queued）：已成功分片有 COS 缓存，重跑只补缺失分片。"""
+    row = await get_media(session, media_id)
+    if row.process_status != KbProcessStatus.FAILED:
+        raise ConflictError(f"仅失败素材可重新转写，当前状态：{row.process_status}")
+    row.process_status = KbProcessStatus.QUEUED
+    previous_error = row.process_error
+    row.process_error = None
+    await record_audit(
+        session,
+        actor_id=actor_id,
+        action=AUDIT_MEDIA_REQUEUE,
+        detail={"mediaId": media_id, "previousError": previous_error},
         ip=ip,
     )
     await session.commit()

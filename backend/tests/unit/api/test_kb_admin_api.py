@@ -239,6 +239,21 @@ def test_media_list_and_patch_routes(admin_client: tuple) -> None:
     assert resp.status_code == 204
 
 
+def test_media_requeue_route(admin_client: tuple) -> None:
+    http, _ = admin_client
+    with patch(
+        "app.services.kb.media_service.requeue_failed_media",
+        new=AsyncMock(
+            return_value=_media_view_mock(process_status="queued", processStatus="queued")
+        ),
+    ) as p_requeue:
+        resp = http.post("/api/v1/admin/kb/media/5/requeue")
+    assert resp.status_code == 200
+    assert resp.json()["processStatus"] == "queued"
+    assert p_requeue.call_args.args[1] == 5
+    assert p_requeue.call_args.kwargs["actor_id"] == 1
+
+
 def test_cost_gate_routes(admin_client: tuple) -> None:
     http, _ = admin_client
     item = MagicMock()

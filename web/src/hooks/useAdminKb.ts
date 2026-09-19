@@ -12,6 +12,7 @@ import {
   fetchKbTranscript,
   initKbMediaUploads,
   patchKbMedia,
+  requeueKbMedia,
   restoreKbSource,
   saveKbTranscript,
   updateKbSource,
@@ -22,6 +23,7 @@ import type {
   ApiKbCostEstimateRequest,
   ApiKbMediaInitRequest,
   ApiKbMediaPatchRequest,
+  ApiKbProcessStatus,
   ApiKbSettingsUpdateRequest,
   ApiKbSourceCreateRequest,
   ApiKbSourceUpdateRequest,
@@ -85,11 +87,18 @@ export function useRestoreKbSource() {
   })
 }
 
+/** 进行中的状态需要轮询观察流转（queued→processing→done/failed）。 */
+const MEDIA_ACTIVE_STATUSES: ApiKbProcessStatus[] = ['queued', 'processing']
+
 export function useKbSourceMedia(sourceId: number | null) {
   return useQuery({
     queryKey: queryKeys.kb.media(sourceId ?? 0),
     queryFn: () => fetchKbSourceMedia(sourceId as number),
     enabled: sourceId != null,
+    refetchInterval: (query) =>
+      query.state.data?.some((m) => MEDIA_ACTIVE_STATUSES.includes(m.processStatus))
+        ? 5_000
+        : false,
   })
 }
 
@@ -126,6 +135,14 @@ export function useDeleteKbMedia() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (mediaId: number) => deleteKbMedia(mediaId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kb.all }),
+  })
+}
+
+export function useRequeueKbMedia() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (mediaId: number) => requeueKbMedia(mediaId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kb.all }),
   })
 }
