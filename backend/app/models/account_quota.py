@@ -58,6 +58,9 @@ class UserTokenUsage(Base):
     completion_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
     total_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
     estimated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    detail: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB().with_variant(JSON(), "sqlite"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )

@@ -15,6 +15,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.runtime.model_factory import build_langchain_model
+from app.services.admin.llm_config_service import resolve_llm_by_id
 from app.services.quota.user_llm_service import resolve_llm
 
 T = TypeVar("T", bound=BaseModel)
@@ -36,6 +37,7 @@ async def run_structured(
     images: list[tuple[bytes, str]] | None = None,
     user_id: int | None = None,
     vision: bool = False,
+    config_id: int | None = None,
 ) -> T:
     """执行单次结构化 LLM 调用并返回 pydantic 模型实例。
 
@@ -47,11 +49,16 @@ async def run_structured(
         user_id: 显式调用属主；缺省取当前计量上下文（页面入口包裹
             ``meter_scope`` 后自动按属主分流 BYOK，Celery 系统任务走系统默认）。
         vision: 无 BYOK 时解析视觉能力配置（截图识别路径）。
+        config_id: 显式指定 llm_config 条目（F-KB 模型角色槽位路径），
+            设置后忽略 ``user_id``/``vision`` 分流，走系统维度计量。
 
     Raises:
         ValidationError: 模型输出不符合 schema（重试一次后仍失败）。
     """
-    cfg, _outlet = await resolve_llm(session, user_id, vision=vision)
+    if config_id is not None:
+        cfg = await resolve_llm_by_id(session, config_id)
+    else:
+        cfg, _outlet = await resolve_llm(session, user_id, vision=vision)
     model = build_langchain_model(cfg, disable_thinking=True)
     # anthropic 协议端点（kimi coding 等）2026-09-08 起对强制 tool_choice 间歇性忽略，
     # function_calling 法会静默拿到 None；json_schema 走 anthropic 原生结构化输出

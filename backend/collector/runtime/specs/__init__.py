@@ -19,6 +19,7 @@ from collector.runtime.specs.ai import SPECS as AI_SPECS
 from collector.runtime.specs.base import TaskSpec
 from collector.runtime.specs.fund_flow import SPECS as FUND_FLOW_SPECS
 from collector.runtime.specs.fundamental import SPECS as FUNDAMENTAL_SPECS
+from collector.runtime.specs.kb import SPECS as KB_SPECS
 from collector.runtime.specs.kline import SPECS as KLINE_SPECS
 from collector.runtime.specs.maintenance import SPECS as MAINTENANCE_SPECS
 from collector.runtime.specs.market import SPECS as MARKET_SPECS
@@ -36,6 +37,7 @@ ALL_SPECS: tuple[TaskSpec, ...] = (
     *NEWS_SPECS,
     *FUNDAMENTAL_SPECS,
     *AI_SPECS,
+    *KB_SPECS,
     *MAINTENANCE_SPECS,
     *SOCIAL_SPECS,
 )

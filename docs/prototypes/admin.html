@@ -302,8 +302,10 @@ tr:hover td { background: var(--bg-hover); }
 .seg-tabs .seg { padding: 3px 12px; border-radius: 5px; font-size: 12px; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
 .seg-tabs .seg.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
 
-/* 执行与日志：左目录右日志双栏 */
-.run-layout { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 9fr); gap: 16px; align-items: start; }
+/* 执行与日志：左目录右日志双栏（目录宽度可拖拽，双击分隔条恢复默认，localStorage 记忆） */
+.run-layout { display: grid; grid-template-columns: minmax(0, 11fr) 6px minmax(0, 9fr); gap: 12px; align-items: stretch; }
+.drag-divider { border-radius: 999px; background: var(--bg-elevated); cursor: col-resize; transition: background var(--transition); }
+.drag-divider:hover { background: var(--text-tertiary); }
 .panel { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); min-width: 0; }
 .panel-head { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-tertiary); }
 .panel-head .form-input { flex: 1; min-width: 0; }
@@ -323,6 +325,10 @@ tr:hover td { background: var(--bg-hover); }
 .cat-row .t-label { font-size: 13px; color: var(--text-primary); white-space: nowrap; }
 .cat-row .t-name { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .src-chip { font-family: var(--font-mono); font-size: 10px; padding: 1px 6px; border-radius: 4px; background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-secondary); flex-shrink: 0; }
+.src-chip.main { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+/* 任务配置列表：任务列 = 类型色点 + 任务名 / task_type / 备注（多实例用途区分，留空回退类型默认说明） */
+.tl-task { min-width: 0; }
+.tl-task .t-desc { font-size: 11px; color: var(--text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cat-row.hide, .cat-group.empty { display: none; }
 .cat-hit { font-size: 11px; color: var(--text-tertiary); padding: 4px 10px 8px 28px; display: none; }
 /* 日志面板 */
@@ -949,8 +955,8 @@ details.adv .form-group { margin-top: 10px; }
            实际代码：CollectorAdmin.tsx — 四合一 Tabs（tab 与
            ?tab= 同步，旧 /admin/tasks、/admin/collector-channels
            301 重定向至对应 tab）：
-           ① 执行与日志（重设计：左任务目录（搜索+数据类型分组）右执行日志双栏）
-           ② 任务配置（重设计：列表为默认视图 + 日/周/月日历总览）
+           ① 执行与日志（重设计：左任务目录（搜索+常用置顶记忆+数据类型分组，宽度可拖拽）右执行日志双栏）
+           ② 任务配置（重设计：列表为默认视图 + 日/周/月日历总览；实例级用途备注全链路）
            ③ 渠道配置（CollectorChannelConfig.tsx：渠道 + 数据类型优先级）
            ④ 采集健康（CollectorHealth.tsx，本页为简版示意，
               完整原型见 collector-monitoring.html）
@@ -968,11 +974,12 @@ details.adv .form-group { margin-top: 10px; }
             </div>
 
             <!-- Tab 1：执行与日志（重设计：52 个任务不再平铺按钮墙，
-                 改为「左任务目录（搜索 + 常用置顶 + 数据类型分组折叠）+
+                 改为「左任务目录（搜索 + 常用置顶（最近触发 localStorage 记忆）+ 数据类型分组折叠，
+                 目录栏宽度拖拽调节、双击分隔条恢复默认）+
                  右执行日志（今日汇总 + 筛选 + 自动刷新）」双栏） -->
             <div id="pane-run">
-              <div class="info-alert"><span class="ia-icon">ℹ</span><span>左侧目录按数据类型分组展示全部 52 个任务，支持搜索定位；点击任务行弹出渠道选择与高级选项——系统默认按「支持该任务且已启用」的渠道自动选择，也可手动指定。右侧为最近执行日志，存在排队 / 运行中任务时每 3 秒自动刷新。</span></div>
-              <div class="run-layout">
+              <div class="info-alert"><span class="ia-icon">ℹ</span><span>左侧目录按数据类型分组展示全部 52 个任务，支持搜索定位；「常用」分组按最近触发本地记忆置顶，目录栏宽度可拖拽调节（双击分隔条恢复默认）。点击任务行弹出渠道选择与高级选项——系统默认按「支持该任务且已启用」的渠道自动选择，也可手动指定。右侧为最近执行日志，存在排队 / 运行中任务时每 3 秒自动刷新。</span></div>
+              <div class="run-layout" id="runLayout">
                 <div class="panel">
                   <div class="panel-head">
                     <input class="form-input" id="catSearch" placeholder="🔍 搜索任务名 / 类型 / 渠道…">
@@ -980,6 +987,7 @@ details.adv .form-group { margin-top: 10px; }
                   </div>
                   <div class="catalog" id="catalogBox"></div>
                 </div>
+                <div class="drag-divider" id="runDivider" title="拖拽调节目录宽度 · 双击恢复默认"></div>
                 <div class="panel">
                   <div class="panel-head">
                     <span>最近执行日志</span>
@@ -1057,6 +1065,7 @@ details.adv .form-group { margin-top: 10px; }
 
             <!-- Tab 2：任务配置（重设计：列表为默认视图；右上切换「日历」后
                  可按 日 / 周 / 月 三档总览全部定时任务的执行时间分布；
+                 实例级用途备注：任务列第三行 备注??类型默认说明，详情抽屉与编辑表单同步；
                  日历数据由下方 JS 内嵌的 38 条 seed cron 实时解析渲染） -->
             <div id="pane-tasks" style="display:none">
               <div class="admin-toolbar" style="justify-content:space-between">
@@ -1077,7 +1086,7 @@ details.adv .form-group { margin-top: 10px; }
                 </div>
                 <div class="table-wrap">
                   <table>
-                    <thead><tr><th>任务</th><th>数据类型</th><th>渠道</th><th>执行时间</th><th>下次执行</th><th>状态</th><th>最近运行</th><th>操作</th></tr></thead>
+                    <thead><tr><th>任务</th><th>渠道</th><th>执行时间</th><th>下次执行</th><th>状态</th><th>最近运行</th><th>操作</th></tr></thead>
                     <tbody id="tlBody"></tbody>
                   </table>
                 </div>
@@ -1112,6 +1121,7 @@ details.adv .form-group { margin-top: 10px; }
                     <button class="mini-btn" onclick="closeModal('taskDrawer')">✕</button>
                   </div>
                   <div class="desc-grid" style="padding:14px 20px 8px" id="tdDesc"></div>
+                  <div style="padding:0 20px 4px;font-size:11px;color:var(--text-tertiary)">「编辑」表单提供<b style="color:var(--text-secondary)">用途备注</b>：同一任务类型存在多个调度实例（如指数集合竞价早/盘后、全球指标盘中/收盘）时区分各实例采集用途；留空显示类型默认说明。</div>
                   <div style="padding:8px 20px 20px">
                     <div class="form-label" style="margin-bottom:6px">未来执行时间（前 5 次）</div>
                     <div id="tdNext" class="json-block" style="margin:0 0 14px"></div>
@@ -1250,7 +1260,7 @@ details.adv .form-group { margin-top: 10px; }
         ③ 报告管理：顶部存储统计卡片来自 GET /admin/reports/storage-summary（file_metadata 按 file_type 聚合 MinIO invest-files 的文件数与字节数）；「清理 3 个月前报告」经 modal.confirm 二次确认后删除报告 PDF 及存储对象；下方研报 / 财报双 Tab（列表筛选与下载 / 删除）。<br>
         ④ MCP 服务：McpServers.tsx — CRUD + 行内连接测试（成功弹工具清单，失败给可读错误）；表单支持从 Claude Desktop / Cursor 标准 mcpServers JSON 导入预填，HTTP(SSE) 与 stdio 双形态表单；启用后工具经 langchain-mcp-adapters 注入 AI 助手，保存 / 修改配置即自动重建 agent。<br>
         ⑤ 分析结果：顶部 Tabs 由后端 skill 注册表驱动（新增 skill 自动出现）；「AI 重新生成」经侧边栏助手 sendQuestion 触发，生成完成事件刷新列表；删除为缓存清除语义（清空该业务键全部历史）。<br>
-        ⑥ 采集管理四合一 Tabs（与 ?tab= 同步）：<b>执行与日志为重设计方案</b>——现状是 52 个 TASK_SPECS 任务平铺按钮墙 + 最近 20 条日志；原型改为左任务目录（搜索框实时过滤、常用置顶、按 9 个数据类型分组折叠、行内渠道标签，点击行弹渠道选择 + 高级选项）+ 右执行日志（今日 ✔/✕/⏳ 汇总、状态/任务筛选、运行中 3s 自动轮询、分页）双栏。<b>任务配置为重设计方案</b>——现状列表 cron 释义难扫读且无全局视图；原型默认列表视图（紧凑中文释义「工作日 16:30」+ 悬停原始 cron + 未来 3 次执行预览，实施需后端 croniter 支持，原型为 demo 值），右上切换日历视图后按 日（24h 时间轴）/ 周（7 天 × 小时网格，默认档）/ 月（月历 + 数据域密度点）三档总览全部定时任务，支持数据域筛选与「仅启用」开关，高频任务（*/5、每分钟）聚合为带状 chip；日历数据由页尾 JS 内嵌 03-seed.sql 的 38 条 seed cron 经 5 字段迷你解析器实时渲染。渠道配置保持现状（渠道 × 数据类型、优先级降级链）；采集健康为简版，完整原型见 collector-monitoring.html。落地迭代时 run 双栏对应 Collector.tsx 重排 + 常用任务 localStorage 记忆；tasks 日历对应 Tasks.tsx 加视图层（后端已有 catalog + collector_task 数据，仅需前端 cron 解析渲染，下次执行预览建议后端 croniter 计算下发）。
+        ⑥ 采集管理四合一 Tabs（与 ?tab= 同步）：<b>执行与日志为重设计方案</b>——现状是 52 个 TASK_SPECS 任务平铺按钮墙 + 最近 20 条日志；原型改为左任务目录（搜索框实时过滤、常用置顶（最近触发 localStorage 记忆，collectorPrefs）、按 9 个数据类型分组折叠、行内渠道标签，目录栏宽度拖拽调节（240–520px 夹取，双击分隔条恢复默认并清除记忆），点击行弹渠道选择 + 高级选项）+ 右执行日志（今日 ✔/✕/⏳ 汇总、状态/任务筛选、运行中 3s 自动轮询、分页）双栏。<b>任务配置为重设计方案</b>——现状列表 cron 释义难扫读且无全局视图；原型默认列表视图（任务列三行：任务名 / task_type / 备注??类型默认说明，紧凑中文释义「工作日 16:30」+ 悬停原始 cron + 未来 3 次执行预览），右上切换日历视图后按 日（24h 时间轴）/ 周（7 天 × 小时网格，默认档）/ 月（月历 + 数据域密度点）三档总览全部定时任务，支持数据域筛选与「仅启用」开关，高频任务（*/5、每分钟）聚合为带状 chip；日历数据由页尾 JS 内嵌 03-seed.sql 的 38 条 seed cron 经 5 字段迷你解析器实时渲染。<b>实例级用途备注全链路</b>：collector_task.remark 在编辑表单录入（同任务类型多调度实例区分采集用途，如指数集合竞价早/盘后、全球指标盘中/收盘）、列表任务列第三行与详情抽屉「备注」行展示，留空回退 TASK_SPECS 类型默认说明。渠道配置保持现状（渠道 × 数据类型、优先级降级链）；采集健康为简版，完整原型见 collector-monitoring.html。落地迭代时 run 双栏对应 Collector.tsx 重排 + 常用任务/目录宽度 localStorage 记忆；tasks 日历对应 Tasks.tsx 加视图层（后端已有 catalog + collector_task 数据，仅需前端 cron 解析渲染，下次执行预览建议后端 croniter 计算下发）。
       </div>
 
     </div>
@@ -1378,9 +1388,10 @@ var CATALOG = [
 ];
 
 // —— 定时任务配置：docker/database/init-scripts/03-seed.sql 全部 seed cron ——
-// {l: label, n: task_type, s: source, c: cron(null=未配置), on: 启用, bad: 最近运行为失败}
+// {l: label, n: task_type, s: source, c: cron(null=未配置), on: 启用, bad: 最近运行为失败,
+//  r: 实例用途备注（多实例区分采集用途，留空回退类型默认说明 d）, d: 类型默认说明}
 var CONFIGS = [
-  { l: '日K线', n: 'kline', s: 'ths', c: '0 16 * * 1-5', on: 1 },
+  { l: '日K线', n: 'kline', s: 'ths', c: '0 16 * * 1-5', on: 1, d: '全市场 A 股日 K 线采集' },
   { l: '自选股日K补采', n: 'watchlist-kline-daily', s: 'sina', c: '30 16 * * 1-5', on: 1 },
   { l: '指数K线', n: 'index-kline', s: 'sina', c: '0 18 * * 1-5', on: 1 },
   { l: '日K新鲜度自愈', n: 'kline-freshness', s: 'internal', c: '30 18,21 * * 1-5', on: 1 },
@@ -1391,14 +1402,14 @@ var CONFIGS = [
   { l: '集合竞价', n: 'auction', s: 'ths', c: '15,25 9 * * 1-5', on: 1 },
   { l: '指数快照', n: 'index-spot', s: 'sina', c: '* 9-15 * * 1-5', on: 1 },
   { l: '指数分钟线', n: 'index-minute', s: 'sina', c: '* 9-15 * * 1-5', on: 1 },
-  { l: '指数集合竞价（早盘）', n: 'index-auction', s: 'tushare', c: '26-29 9 * * 1-5', on: 1 },
-  { l: '指数集合竞价（盘后）', n: 'index-auction', s: 'tushare', c: '35 16 * * 1-5', on: 1 },
+  { l: '指数集合竞价（早盘）', n: 'index-auction', s: 'tushare', c: '26-29 9 * * 1-5', on: 1, r: '早盘竞价快照 09:26-29 逐分钟' },
+  { l: '指数集合竞价（盘后）', n: 'index-auction', s: 'tushare', c: '35 16 * * 1-5', on: 1, r: '盘后全天竞价聚合入库' },
   { l: '个股分钟线', n: 'stock-minute', s: 'sina', c: '20 16,18 * * 1-5', on: 1 },
   { l: '涨跌统计', n: 'market-breadth', s: 'sina', c: '2-57/5 9-15 * * 1-5', on: 1 },
   { l: '市场成交额', n: 'market-amount', s: 'exchange', c: '40 15,16,17 * * 1-5', on: 1 },
-  { l: '全球指标行情（盘中）', n: 'global-index', s: 'eastmoney', c: '*/30 9-17 * * 1-5', on: 1 },
-  { l: '全球指标行情（收盘）', n: 'global-index', s: 'eastmoney', c: '0 6,7 * * 2-6', on: 1 },
-  { l: '美债收益率', n: 'global-index', s: 'tushare', c: '30 6 * * 2-6', on: 1 },
+  { l: '全球指标行情（盘中）', n: 'global-index', s: 'eastmoney', c: '*/30 9-17 * * 1-5', on: 1, r: '盘中黄金/美债/美元指数 30 分钟轮询' },
+  { l: '全球指标行情（收盘）', n: 'global-index', s: 'eastmoney', c: '0 6,7 * * 2-6', on: 1, r: '隔夜收盘指标补齐' },
+  { l: '美债收益率', n: 'global-index', s: 'tushare', c: '30 6 * * 2-6', on: 1, r: '2Y/10Y/30Y 收益率曲线（Tushare）' },
   { l: '涨停股池', n: 'limit-up-pool', s: 'eastmoney', c: '0 16 * * 1-5', on: 1 },
   { l: '跌停股池', n: 'limit-down-pool', s: 'eastmoney', c: '0 16 * * 1-5', on: 1 },
   { l: '炸板统计', n: 'broken-pool', s: 'eastmoney', c: '0 16 * * 1-5', on: 1 },
@@ -1422,6 +1433,8 @@ var CONFIGS = [
   { l: '采集健康检测', n: 'health-check', s: 'internal', c: '30 8 * * *', on: 1 }
 ];
 CONFIGS.forEach(function (c, i) { c.i = i; });
+// 渠道降级链示意（渠道×数据类型优先级配置）：主渠道之外已启用的备用渠道，任务列后展示（+N 折叠）
+var BACKUPS = { kline: ['sina'], news: ['cls'] };
 
 // —— 工具函数 ——
 function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -1597,10 +1610,13 @@ function renderList() {
     count++;
     var pr = c.c ? prevRun(c.c) : null;
     rows += '<tr' + (c.on ? '' : ' style="opacity:.55"') + '>'
-      + '<td style="color:var(--text-primary)">' + c.l
-      + ' <span class="text-mono" style="color:var(--text-tertiary);font-size:11px">' + c.n + '</span></td>'
-      + '<td><span class="cat-dot" style="display:inline-block;background:' + grp.color + '"></span> ' + grp.label + '</td>'
-      + '<td class="text-mono">' + c.s + '</td>'
+      + '<td><div style="display:flex;align-items:flex-start;gap:8px">'
+      + '<span class="cat-dot" style="margin-top:5px;background:' + grp.color + '" title="' + grp.label + '"></span>'
+      + '<div class="tl-task"><div style="color:var(--text-primary);cursor:pointer" onclick="openDrawer(' + c.i + ')">' + c.l + '</div>'
+      + '<div class="text-mono" style="color:var(--text-tertiary);font-size:11px">' + c.n + '</div>'
+      + '<div class="t-desc" title="' + (c.r || c.d || '') + '">' + (c.r || c.d || '—') + '</div></div></div></td>'
+      + '<td style="white-space:nowrap"><span class="src-chip main">' + c.s + '</span>'
+      + (BACKUPS[c.n] ? BACKUPS[c.n].map(function (s) { return ' <span class="src-chip">' + s + '</span>'; }).join('') : '') + '</td>'
       + '<td>' + (c.c ? '<span title="Cron: ' + c.c + '" style="cursor:help;border-bottom:1px dotted var(--text-tertiary)">' + cronZh(c.c) + '</span>' : '—') + '</td>'
       + '<td class="text-mono" style="font-size:11px">' + (c.c ? nextRuns(c.c, 3).map(fmtNext).join(' · ') : '—') + '</td>'
       + '<td>' + (c.on ? '<span class="tag tag-green">启用</span>' : '<span class="tag">已暂停</span>') + '</td>'
@@ -1769,12 +1785,45 @@ function openDrawer(i) {
   document.getElementById('tdTitle').textContent = c.l;
   document.getElementById('tdDesc').innerHTML = descRow('任务类型', c.n) + descRow('数据域', grp.label)
     + descRow('渠道', c.s) + descRow('Cron', c.c || '—') + descRow('中文释义', cronZh(c.c))
+    + descRow('备注', c.r ? '<b style="color:var(--text-primary)">' + c.r + '</b>' : (c.d || '—'))
     + descRow('状态', c.on ? '启用' : '已暂停');
   document.getElementById('tdNext').textContent = c.c ? nextRuns(c.c, 5).map(fmtNext).join('\n') : '（未配置调度，暂停中）';
   var pr = c.c ? prevRun(c.c) : null;
   document.getElementById('tdLast').textContent = c.on ? (pr ? fmtDT(pr) + '  ' + (c.bad ? 'failed' : 'success') : '—') : '—';
   document.getElementById('taskDrawer').classList.add('show');
 }
+
+/* —— 执行页目录栏宽度拖拽（对齐 Collector.tsx / collectorPrefs：拖拽调节 + 双击恢复默认 + localStorage 记忆） —— */
+(function () {
+  var KEY = 'admin:collector-catalog-width';
+  var layout = document.getElementById('runLayout');
+  var divider = document.getElementById('runDivider');
+  var dragging = false;
+  function apply(px) { layout.style.gridTemplateColumns = 'minmax(0,' + px + 'px) 6px minmax(0,1fr)'; }
+  var saved = parseInt(localStorage.getItem(KEY) || '', 10);
+  if (saved >= 240 && saved <= 520) apply(saved);
+  divider.addEventListener('mousedown', function (e) {
+    dragging = true; e.preventDefault();
+    document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none';
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (!dragging) return;
+    var rect = layout.getBoundingClientRect();
+    var w = Math.min(520, Math.max(240, e.clientX - rect.left));
+    layout.dataset.w = w; apply(w);
+  });
+  document.addEventListener('mouseup', function () {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor = ''; document.body.style.userSelect = '';
+    if (layout.dataset.w) localStorage.setItem(KEY, layout.dataset.w);
+  });
+  divider.addEventListener('dblclick', function () {
+    localStorage.removeItem(KEY);
+    layout.style.gridTemplateColumns = '';
+    layout.dataset.w = '';
+  });
+})();
 
 /* —— 弹窗遮罩点击关闭 —— */
 document.querySelectorAll('.modal-mask').forEach(function (m) {

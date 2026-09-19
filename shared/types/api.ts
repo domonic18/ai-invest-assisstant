@@ -431,6 +431,9 @@ export interface ApiChainAlert {
   createdAt: string
 }
 
+/** 配置用途（知识库模型角色槽位按此过滤候选） */
+export type LlmPurpose = 'chat' | 'embedding' | 'vision'
+
 export interface ApiLLMConfigResponse {
   id: number
   name: string
@@ -441,6 +444,7 @@ export interface ApiLLMConfigResponse {
   apiKeyMasked: string
   isDefault: boolean
   isActive: boolean
+  purpose: LlmPurpose
   extra: Record<string, unknown>
   lastTestedAt: string | null
   lastTestStatus: string | null
@@ -458,6 +462,7 @@ export interface ApiLLMConfigCreateRequest {
   modelName: string
   isDefault?: boolean
   isActive?: boolean
+  purpose?: LlmPurpose
   extra?: Record<string, unknown>
 }
 
@@ -470,6 +475,7 @@ export interface ApiLLMConfigUpdateRequest {
   modelName?: string
   isDefault?: boolean
   isActive?: boolean
+  purpose?: LlmPurpose
   extra?: Record<string, unknown>
 }
 

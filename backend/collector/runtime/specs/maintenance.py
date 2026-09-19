@@ -24,4 +24,13 @@ SPECS: tuple[TaskSpec, ...] = (
             "internal": "collector.spiders.health_check:HealthCheckCollector",
         },
     ),
+    TaskSpec(
+        name="kb-cleanup",
+        label="知识库物理清理",
+        description="清除软删过窗的源/素材（COS 对象 + 行）、abort 超龄分片会话，每日扫描孤儿对象",
+        data_type="kb_cleanup",
+        collectors={
+            "internal": "collector.spiders.kb_cleanup:KbCleanupCollector",
+        },
+    ),
 )

@@ -89,6 +89,7 @@ class LLMConfigService:
             api_key_encrypted=encrypt_token(data.api_key),
             model_name=data.model_name,
             is_active=data.is_active,
+            purpose=data.purpose,
             extra=data.extra,
         )
         if data.is_default:
@@ -125,6 +126,8 @@ class LLMConfigService:
             config.model_name = data.model_name
         if data.is_active is not None:
             config.is_active = data.is_active
+        if data.purpose is not None:
+            config.purpose = data.purpose
         if data.extra is not None:
             config.extra = data.extra
         if data.api_key:
@@ -238,6 +241,7 @@ class LLMConfigService:
             api_key_masked=mask_token(decrypt_token(config.api_key_encrypted)),
             is_default=config.is_default,
             is_active=config.is_active,
+            purpose=config.purpose,
             extra=config.extra or {},
             last_tested_at=config.last_tested_at,
             last_test_status=config.last_test_status,
@@ -289,4 +293,24 @@ async def resolve_vision_llm(session: AsyncSession) -> ResolvedLLMConfig:
         api_key=decrypt_token(config.api_key_encrypted),
         model_name=config.model_name,
         extra=config.extra or {},
+    )
+
+
+async def resolve_llm_by_id(session: AsyncSession, config_id: int) -> ResolvedLLMConfig:
+    """按条目 id 解析指定 LLM 配置（F-KB 模型角色槽位等显式引用路径）。
+
+    Raises:
+        LLMConfigNotFoundError: 条目不存在或已停用时抛出。
+    """
+    row = await LLMConfigRepository(session).get(config_id)
+    if row is None or not row.is_active:
+        raise LLMConfigNotFoundError(f"LLM 配置 {config_id} 不存在或已停用")
+    return ResolvedLLMConfig(
+        config_id=row.id,
+        provider=row.provider,
+        protocol=cast(LLMProtocol, row.protocol),
+        base_url=row.base_url,
+        api_key=decrypt_token(row.api_key_encrypted),
+        model_name=row.model_name,
+        extra=row.extra or {},
     )

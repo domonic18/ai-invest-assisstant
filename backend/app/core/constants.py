@@ -72,6 +72,7 @@ DOMAIN_FUND_FLOW = "fund-flow"
 DOMAIN_NEWS = "news"
 DOMAIN_FUNDAMENTAL = "fundamental"
 DOMAIN_AI = "ai"
+DOMAIN_KB = "kb"
 
 TASK_TYPE_DOMAIN: dict[str, str] = {
     # K 线
@@ -131,4 +132,6 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "sector-anomaly": DOMAIN_AI,
     "stock-anomaly": DOMAIN_AI,
     "social-sentiment": DOMAIN_AI,
+    # 知识库
+    "kb-transcribe": DOMAIN_KB,
 }

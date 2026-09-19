@@ -249,6 +249,10 @@ tr:hover td { background: var(--bg-hover); }
 .up{color:var(--red)}
 .down{color:var(--green)}
 .date-pill{padding:6px 14px;font-size:var(--text-sm);background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-secondary);display:inline-flex;align-items:center;gap:8px}
+.seg-control{display:inline-flex;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:2px;gap:2px}
+.seg-item{padding:5px 14px;font-size:var(--text-xs);color:var(--text-secondary);border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap}
+.seg-item.active{background:var(--accent-soft);color:var(--accent);font-weight:500}
+.select-pill{display:inline-flex;gap:4px;align-items:center;padding:4px 10px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:var(--text-xs);color:var(--text-secondary)}
 .attribution{max-width:320px;white-space:normal;line-height:1.5}
 .detail-grid{display:grid;grid-template-columns:3fr 2fr;gap:var(--space-4)}
 .chip{display:inline-flex;padding:3px 10px;font-size:var(--text-xs);background:var(--bg-surface);border:1px solid var(--border);border-radius:999px;color:var(--text-secondary);margin:0 6px 6px 0}
@@ -300,7 +304,7 @@ tr:hover td { background: var(--bg-hover); }
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6);flex-wrap:wrap;gap:var(--space-3)">
 <div>
 <h1 class="page-title" style="margin-bottom:4px">板块异动分析</h1>
-<div style="font-size:var(--text-xs);color:var(--text-tertiary)">板块级量价 / 资金异常检测 + AI 归因 · 交易日盘后自动生成</div>
+<div style="font-size:var(--text-xs);color:var(--text-tertiary)">板块级量价 / 资金异常检测 + AI 归因 · 交易日盘后自动生成 · 异动类型多选为「且」关系</div>
 </div>
 <div style="display:flex;gap:var(--space-3);align-items:center">
 <span class="date-pill">◂ 2026-09-04 ▸</span>
@@ -320,7 +324,10 @@ tr:hover td { background: var(--bg-hover); }
 <div class="card mb-6">
 <div class="card-header">
 <span class="card-title">异动板块清单（按异动强度排序）</span>
-<div style="display:flex;gap:6px"><span class="tag tag-red">趋势共振</span><span class="tag tag-purple">轮动补涨</span><span class="tag tag-blue">量能放大</span><span class="tag tag-green">放量下跌</span></div>
+<div style="display:flex;gap:var(--space-3);align-items:center">
+<div class="seg-control"><span class="seg-item active">全部</span><span class="seg-item">行业</span><span class="seg-item">概念</span></div>
+<span class="select-pill"><span class="tag tag-red">趋势共振 ×</span><span class="tag tag-blue">量能放大 ×</span><span style="color:var(--text-tertiary)">异动类型（可多选 · 且）▾</span></span>
+</div>
 </div>
 <div class="card-body" style="padding:0">
 <div class="table-wrap">

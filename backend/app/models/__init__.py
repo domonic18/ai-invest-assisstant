@@ -30,6 +30,14 @@ from app.models.industry_chain import (
     ChainNode,
 )
 from app.models.ipo_info import IPOInfo
+from app.models.kb import (
+    KbImageAsset,
+    KbKnowledgePoint,
+    KbMedia,
+    KbSettings,
+    KbSource,
+    KbTranscriptSegment,
+)
 from app.models.kline import KlineDaily, KlineMinute, SectorKlineDaily
 from app.models.kline_drawing import AiKlineDrawing, UserKlineDrawing
 from app.models.llm_config import LLMConfig
@@ -96,6 +104,12 @@ __all__ = [
     "IncomeStatement",
     "IndexAuction",
     "IPOInfo",
+    "KbImageAsset",
+    "KbKnowledgePoint",
+    "KbMedia",
+    "KbSettings",
+    "KbSource",
+    "KbTranscriptSegment",
     "KlineDaily",
     "KlineMinute",
     "SectorKlineDaily",

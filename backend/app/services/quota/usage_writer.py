@@ -7,7 +7,8 @@
 """
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 import structlog
 
@@ -21,7 +22,7 @@ _tasks: set[asyncio.Task[None]] = set()
 
 @dataclass(frozen=True)
 class UsageRecord:
-    """单次模型调用的计量明细。"""
+    """单次模型调用的计量明细（detail 为 F-KB 等域上下文，可空）。"""
 
     user_id: int | None
     feature: str
@@ -32,6 +33,7 @@ class UsageRecord:
     completion_tokens: int
     total_tokens: int
     estimated: bool
+    detail: dict[str, Any] | None = field(default=None)
 
 
 def enqueue(record: UsageRecord) -> None:
@@ -61,6 +63,7 @@ async def _write(record: UsageRecord) -> None:
                     completion_tokens=record.completion_tokens,
                     total_tokens=record.total_tokens,
                     estimated=record.estimated,
+                    detail=record.detail,
                 )
             )
             await session.commit()
