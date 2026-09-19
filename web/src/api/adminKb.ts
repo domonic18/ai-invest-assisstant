@@ -16,6 +16,8 @@ import type {
   ApiKbTranscriptResponse,
   ApiKbTranscriptSaveResponse,
   ApiKbTranscriptUpdateRequest,
+  ApiKbUploadSessionRequest,
+  ApiKbUploadSessionResponse,
 } from '@ai-invest/shared'
 import axios from 'axios'
 
@@ -105,6 +107,21 @@ export async function confirmKbMediaUploaded(
   return response.data
 }
 
+export async function createKbUploadSession(
+  mediaId: number,
+  data: ApiKbUploadSessionRequest
+): Promise<ApiKbUploadSessionResponse> {
+  const response = await apiClient.post<ApiKbUploadSessionResponse>(
+    ENDPOINTS.admin.kbMediaUploadSession(mediaId),
+    data
+  )
+  return response.data
+}
+
+export async function abortKbUploadSession(mediaId: number): Promise<void> {
+  await apiClient.delete(ENDPOINTS.admin.kbMediaUploadSession(mediaId))
+}
+
 export async function patchKbMedia(
   mediaId: number,
   data: ApiKbMediaPatchRequest
@@ -182,4 +199,23 @@ export async function putFileToCos(
       if (e.total) onProgress?.(Math.round((e.loaded / e.total) * 100))
     },
   })
+}
+
+/**
+ * 直传单个分片，返回响应 ETag（服务端可能未 expose 时为 null，
+ * 此时跳过客户端逐片核对，服务端 list_parts 汇总仍兜底）。
+ */
+export async function putPartToCos(
+  uploadUrl: string,
+  chunk: Blob,
+  onProgress?: (pct: number) => void
+): Promise<string | null> {
+  const response = await axios.put(uploadUrl, chunk, {
+    headers: { 'Content-Type': 'application/octet-stream' },
+    onUploadProgress: (e) => {
+      if (e.total) onProgress?.(Math.round((e.loaded / e.total) * 100))
+    },
+  })
+  const etag = response.headers['etag']
+  return typeof etag === 'string' ? etag : null
 }

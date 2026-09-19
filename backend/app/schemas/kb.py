@@ -209,18 +209,62 @@ class KbMediaInitRequest(CamelModel):
 
 
 class KbMediaInitResult(CamelModel):
-    """单个文件的初始化结果（mediaId 供 uploaded 回调）。"""
+    """单个文件的初始化结果（mediaId 供 uploaded 回调）。
 
-    media_id: int
-    file_name: str
-    cos_key: str
-    upload_url: str
+    库内同哈希冲突的条目不抛整批 409，而是返回 conflictWith（既有素材标题），
+    mediaId/cosKey/uploadUrl 为 None，由前端标记跳过。
+    """
+
+    media_id: int | None = None
+    file_name: str = ""
+    cos_key: str | None = None
+    upload_url: str | None = None
+    conflict_with: str | None = None
 
 
 class KbMediaInitResponse(CamelModel):
     """批量初始化结果（与请求 items 等长同序）。"""
 
     items: list[KbMediaInitResult]
+
+
+class KbUploadSessionRequest(CamelModel):
+    """分片上传会话创建/续传请求。
+
+    partSize/partCount 由前端按文件大小计算（S3 约束：除末片外每片 >= 5MB，
+    分片数 <= 10000）；resumeUploadId 为本地续传提示，服务端以 process_meta
+    内的 uploadId + list_parts 为唯一真相。
+    """
+
+    part_size: int = Field(ge=5 * 1024 * 1024)
+    part_count: int = Field(ge=1, le=10000)
+    resume_upload_id: str | None = None
+
+
+class KbUploadSessionPart(CamelModel):
+    """已完成分片（服务端 list_parts 视角）。"""
+
+    part_number: int
+    etag: str
+    size: int
+
+
+class KbUploadSessionPartUrl(CamelModel):
+    """待上传分片的预签名 PUT URL。"""
+
+    part_number: int
+    url: str
+
+
+class KbUploadSessionResponse(CamelModel):
+    """分片上传会话视图：completedParts 为已传分片，partUrls 仅覆盖缺失分片。"""
+
+    media_id: int
+    upload_id: str
+    part_size: int
+    part_count: int
+    completed_parts: list[KbUploadSessionPart]
+    part_urls: list[KbUploadSessionPartUrl]
 
 
 class KbMediaPatchRequest(CamelModel):

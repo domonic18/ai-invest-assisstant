@@ -22,6 +22,7 @@ from app.constants.kb import (
     KB_SOFT_DELETE_RECOVERY_HOURS,
 )
 from app.core.clock import utc_now
+from app.core.config import get_settings
 from app.core.exceptions import ConflictError, NotFoundError, UnprocessableEntityError
 from app.models.kb import KbMedia
 from app.repositories.kb import media_repository, source_repository
@@ -31,9 +32,18 @@ from app.schemas.kb import (
     KbMediaInitResult,
     KbMediaPatchRequest,
     KbMediaResponse,
+    KbUploadSessionPart,
+    KbUploadSessionPartUrl,
+    KbUploadSessionRequest,
+    KbUploadSessionResponse,
 )
 from app.services.admin.audit_service import record_audit
-from app.services.common.minio_service import get_minio_service
+from app.services.common.minio_service import (
+    MinIOService,
+    MultipartPart,
+    MultipartSessionNotFoundError,
+    get_minio_service,
+)
 from app.services.kb.source_service import get_source
 
 logger = structlog.get_logger(__name__)
@@ -46,6 +56,10 @@ AUDIT_MEDIA_UPLOADED = "kb.media.uploaded"
 AUDIT_MEDIA_PATCH = "kb.media.patch"
 AUDIT_MEDIA_DELETE = "kb.media.delete"
 AUDIT_MEDIA_RESTORE = "kb.media.restore"
+AUDIT_MEDIA_SESSION = "kb.media.upload-session"
+
+# process_meta 内分片会话键（confirm 成功或 abort 后清除；declaredSize 保留作审计）
+_SESSION_META_KEYS = ("uploadId", "partSize", "partCount", "sessionStartedAt")
 
 
 def _sanitize_file_name(raw: str) -> str:
@@ -123,37 +137,82 @@ async def init_uploads(
     """批量建行 + 预签名 PUT。
 
     集号：course 未显式给 ``episode_no`` 的条目按请求顺序自动编号（max+1 起）；
-    book 一律 None。请求内同哈希或同集号立即拒绝，库内冲突对已建行回滚报 409。
+    book 一律 None。请求内同哈希或同集号立即拒绝（409，整批回滚）。
+    库内同哈希为文件级冲突：不抛 409，该条目返回 conflictWith（既有素材标题），
+    mediaId/cosKey/uploadUrl 为 None，其余条目照常登记——批量重传时已存在的
+    文件只影响自身，不拖垮整批。从未上传成功字节的孤儿行（0 字节）同哈希
+    直接收养复用（保留原集号）。结果与请求 items 等长同序。
 
     Raises:
         NotFoundError: 知识库不存在。
-        ConflictError: 与库内既有素材同哈希 / 集号冲突。
+        ConflictError: 批内同哈希 / 同集号 / 与既有素材集号冲突。
     """
     await get_source(session, source_id)
     minio = get_minio_service()
 
-    seen_hashes: set[str] = set()
+    seen_hashes: dict[str, str] = {}
     seen_episodes: set[int] = set()
     for item in data.items:
-        if item.hash in seen_hashes:
-            raise ConflictError(f"文件 {item.file_name} 与本次批内其他文件哈希重复")
-        seen_hashes.add(item.hash)
+        first = seen_hashes.get(item.hash)
+        if first is not None:
+            raise ConflictError(
+                f"文件 {item.file_name} 与本次批内的 {first} 内容完全相同"
+                "（哈希重复），请删除重复副本后重试"
+            )
+        seen_hashes[item.hash] = item.file_name
         if item.episode_no is not None:
             if item.episode_no in seen_episodes:
                 raise ConflictError(f"文件 {item.file_name} 的集号 {item.episode_no} 批内重复")
             seen_episodes.add(item.episode_no)
 
     existing = await media_repository.list_by_source(session, source_id)
-    existing_hashes = {m.file_hash for m in existing}
-    conflict = sorted(seen_hashes & existing_hashes)
-    if conflict:
-        raise ConflictError(f"该知识库已存在相同内容的素材（哈希 {conflict[0][:8]}…）")
+    orphan_by_hash: dict[str, KbMedia] = {
+        m.file_hash: m
+        for m in existing
+        if m.deleted_at is None
+        and m.process_status == "uploaded"
+        and m.file_size == 0
+    }
+    blocked_by_hash: dict[str, KbMedia] = {
+        m.file_hash: m for m in existing if m.file_hash not in orphan_by_hash
+    }
     next_episode = await media_repository.max_episode_no(session, source_id) + 1
 
-    results: list[KbMediaInitResult] = []
-    created: list[KbMedia] = []
+    pending: list[KbMediaInitResult | KbMedia] = []
+    adopted_ids: list[int] = []
+    skipped_names: list[str] = []
     try:
         for item in data.items:
+            blocked = blocked_by_hash.get(item.hash)
+            if blocked is not None:
+                pending.append(
+                    KbMediaInitResult(
+                        file_name=item.file_name,
+                        conflict_with=(
+                            f"已有素材「{blocked.title}」"
+                            f"（第 {blocked.episode_no or '-'} 集）"
+                        ),
+                    )
+                )
+                skipped_names.append(item.file_name)
+                continue
+            orphan = orphan_by_hash.get(item.hash)
+            if orphan is not None:
+                orphan.media_kind = item.media_kind
+                orphan.title = (
+                    item.title or PurePosixPath(item.file_name.rsplit(".", 1)[0]).name
+                )
+                orphan.file_name = _sanitize_file_name(item.file_name)
+                orphan.duration_seconds = item.duration_seconds
+                orphan.page_count = item.page_count
+                orphan.cos_key = _cos_key(source_id, orphan.id, orphan.file_name)
+                orphan.process_meta = {
+                    **(orphan.process_meta or {}),
+                    "declaredSize": item.size,
+                }
+                pending.append(orphan)
+                adopted_ids.append(orphan.id)
+                continue
             episode_no = item.episode_no
             if episode_no is None and item.media_kind != "book":
                 episode_no = next_episode
@@ -174,19 +233,24 @@ async def init_uploads(
                 file_hash=item.hash,
                 duration_seconds=item.duration_seconds,
                 page_count=item.page_count,
+                process_meta={"declaredSize": item.size},
             )
             session.add(row)
             await session.flush()
             row.cos_key = _cos_key(source_id, row.id, row.file_name)
-            created.append(row)
+            pending.append(row)
         await record_audit(
             session,
             actor_id=actor_id,
             action=AUDIT_MEDIA_INIT,
             detail={
                 "sourceId": source_id,
-                "mediaIds": [m.id for m in created],
-                "fileNames": [m.file_name for m in created],
+                "mediaIds": [m.id for m in pending if isinstance(m, KbMedia)],
+                "fileNames": [
+                    m.file_name for m in pending if isinstance(m, KbMedia)
+                ],
+                "adoptedMediaIds": adopted_ids,
+                "skippedConflicts": skipped_names,
             },
             ip=ip,
         )
@@ -195,20 +259,28 @@ async def init_uploads(
         await session.rollback()
         raise
 
-    for row in created:
-        upload_url = await minio.presigned_put_url(
-            row.cos_key, expires=timedelta(seconds=_PRESIGN_TTL_SECONDS)
-        )
-        results.append(
-            KbMediaInitResult(
-                media_id=row.id,
-                file_name=row.file_name,
-                cos_key=row.cos_key,
-                upload_url=upload_url,
+    results: list[KbMediaInitResult] = []
+    for entry in pending:
+        if isinstance(entry, KbMedia):
+            upload_url = await minio.presigned_put_url(
+                entry.cos_key, expires=timedelta(seconds=_PRESIGN_TTL_SECONDS)
             )
-        )
+            results.append(
+                KbMediaInitResult(
+                    media_id=entry.id,
+                    file_name=entry.file_name,
+                    cos_key=entry.cos_key,
+                    upload_url=upload_url,
+                )
+            )
+        else:
+            results.append(entry)
     logger.info(
-        "kb_media_init", source_id=source_id, count=len(created)
+        "kb_media_init",
+        source_id=source_id,
+        count=len(results) - len(skipped_names),
+        adopted=len(adopted_ids),
+        skipped=len(skipped_names),
     )
     return KbMediaInitResponse(items=results)
 
@@ -216,7 +288,11 @@ async def init_uploads(
 async def confirm_uploaded(
     session: AsyncSession, media_id: int, *, actor_id: int, ip: str | None = None
 ) -> KbMediaResponse:
-    """uploaded 回调：HEAD 核对 + 哈希去重 + 字节入账。
+    """uploaded 回调：multipart 合并或 HEAD 核对 + 哈希去重 + 字节入账。
+
+    单 PUT 路径以 etag(md5) 核对内容；multipart 路径合并前按服务端 list_parts
+    汇总核对 declaredSize（分片 etag 由浏览器逐片核对，合并后 etag 不再是整文件
+    md5，只核对象总大小）。
 
     Raises:
         UnprocessableEntityError: 对象缺失或 size/etag 与登记不符（孤儿对象删除）。
@@ -224,15 +300,13 @@ async def confirm_uploaded(
     """
     row = await get_media(session, media_id)
     minio = get_minio_service()
-    stat = await minio.stat_object(row.cos_key)
-    if stat is None:
-        raise UnprocessableEntityError("对象尚未上传完成或已被清理，请重新上传")
-    size, etag = stat
-    if etag and row.file_hash.lower() not in (etag, etag.replace("-", "")):
-        await minio.remove_files([row.cos_key])
-        raise UnprocessableEntityError(
-            "上传内容校验失败（etag 与登记 md5 不符），已清除孤儿对象，请重试上传"
-        )
+    meta = row.process_meta or {}
+    upload_id = meta.get("uploadId")
+    if upload_id:
+        size = await _complete_multipart(minio, row, str(upload_id))
+    else:
+        size = await _verify_single_put(minio, row)
+
     conflict = await media_repository.find_hash_conflict(
         session, row.source_id, row.file_hash, exclude_id=row.id
     )
@@ -242,6 +316,10 @@ async def confirm_uploaded(
             f"与既有素材「{conflict.title}」（第 {conflict.episode_no or '-'} 集）内容重复"
         )
     row.file_size = size
+    if upload_id:
+        row.process_meta = {
+            k: v for k, v in meta.items() if k not in _SESSION_META_KEYS
+        }
     source = await source_repository.get(session, row.source_id)
     assert source is not None
     source.storage_bytes = (source.storage_bytes or 0) + size
@@ -257,6 +335,148 @@ async def confirm_uploaded(
         "kb_media_uploaded", media_id=row.id, size=size, cos_key=row.cos_key
     )
     return to_view(row)
+
+
+async def _verify_single_put(minio: MinIOService, row: KbMedia) -> int:
+    """单 PUT 路径：HEAD 核对 size/etag(md5)，不符清除孤儿对象并抛 422。"""
+    stat = await minio.stat_object(row.cos_key)
+    if stat is None:
+        raise UnprocessableEntityError("对象尚未上传完成或已被清理，请重新上传")
+    size, etag = stat
+    if etag and row.file_hash.lower() not in (etag, etag.replace("-", "")):
+        await minio.remove_files([row.cos_key])
+        raise UnprocessableEntityError(
+            "上传内容校验失败（etag 与登记 md5 不符），已清除孤儿对象，请重试上传"
+        )
+    return size
+
+
+async def _complete_multipart(minio: MinIOService, row: KbMedia, upload_id: str) -> int:
+    """multipart 路径：服务端 list_parts 汇总核对 declaredSize 后合并。"""
+    meta = row.process_meta or {}
+    declared = int(meta.get("declaredSize") or 0)
+    try:
+        parts = await minio.list_multipart_parts(row.cos_key, upload_id)
+    except MultipartSessionNotFoundError as exc:
+        raise UnprocessableEntityError(
+            "分片会话已失效，请重新发起上传"
+        ) from exc
+    total = sum(p.size for p in parts)
+    if not parts or (declared and total != declared):
+        raise UnprocessableEntityError(
+            "分片尚未传齐（已传大小与登记不符），请续传缺失分片后重试"
+        )
+    await minio.complete_multipart_upload(
+        row.cos_key, upload_id, sorted(parts, key=lambda p: p.part_number)
+    )
+    stat = await minio.stat_object(row.cos_key)
+    if stat is None:
+        raise UnprocessableEntityError("分片合并后对象缺失，请重新上传")
+    return stat[0]
+
+
+async def create_upload_session(
+    session: AsyncSession,
+    media_id: int,
+    data: KbUploadSessionRequest,
+    *,
+    actor_id: int,
+    ip: str | None = None,
+) -> KbUploadSessionResponse:
+    """创建或续传分片上传会话。
+
+    uploadId 真相源在 ``process_meta``：已有会话则 list_parts 返回已完成分片
+    （断点续传），仅对缺失分片签发 URL；会话失效（NoSuchUpload）自动重建。
+    ``resumeUploadId`` 仅作前端提示，与行内不一致时以行内为准。
+    """
+    row = await get_media(session, media_id)
+    if row.process_status != "uploaded" or row.file_size != 0:
+        raise ConflictError("素材已上传完成或不在待上传状态")
+    minio = get_minio_service()
+
+    meta = dict(row.process_meta or {})
+    upload_id = meta.get("uploadId")
+    completed: list[MultipartPart] = []
+    if upload_id:
+        try:
+            completed = await minio.list_multipart_parts(row.cos_key, str(upload_id))
+        except MultipartSessionNotFoundError:
+            upload_id = None
+            completed = []
+    if upload_id is None:
+        upload_id = await minio.create_multipart_upload(row.cos_key)
+        meta["sessionStartedAt"] = utc_now().isoformat()
+    meta.update(
+        {
+            "uploadId": upload_id,
+            "partSize": data.part_size,
+            "partCount": data.part_count,
+        }
+    )
+    row.process_meta = meta
+    await session.commit()
+
+    done_numbers = {p.part_number for p in completed}
+    ttl = timedelta(seconds=get_settings().kb_part_presign_ttl_seconds)
+    part_urls: list[KbUploadSessionPartUrl] = []
+    for number in range(1, data.part_count + 1):
+        if number in done_numbers:
+            continue
+        url = await minio.presigned_part_url(row.cos_key, upload_id, number, ttl)
+        part_urls.append(KbUploadSessionPartUrl(part_number=number, url=url))
+
+    await record_audit(
+        session,
+        actor_id=actor_id,
+        action=AUDIT_MEDIA_SESSION,
+        detail={
+            "mediaId": row.id,
+            "uploadId": upload_id,
+            "resumed": bool(done_numbers),
+            "completedParts": len(done_numbers),
+        },
+        ip=ip,
+    )
+    logger.info(
+        "kb_media_upload_session",
+        media_id=row.id,
+        upload_id=upload_id,
+        completed=len(done_numbers),
+        total=data.part_count,
+    )
+    return KbUploadSessionResponse(
+        media_id=row.id,
+        upload_id=upload_id,
+        part_size=data.part_size,
+        part_count=data.part_count,
+        completed_parts=[
+            KbUploadSessionPart(part_number=p.part_number, etag=p.etag, size=p.size)
+            for p in sorted(completed, key=lambda p: p.part_number)
+        ],
+        part_urls=part_urls,
+    )
+
+
+async def abort_upload_session(
+    session: AsyncSession, media_id: int, *, actor_id: int, ip: str | None = None
+) -> None:
+    """放弃分片会话：abort 释放已传分片存储并清 process_meta 会话键（幂等）。"""
+    row = await get_media(session, media_id)
+    meta = dict(row.process_meta or {})
+    upload_id = meta.get("uploadId")
+    if not upload_id:
+        return
+    await get_minio_service().abort_multipart_upload(row.cos_key, str(upload_id))
+    row.process_meta = {k: v for k, v in meta.items() if k not in _SESSION_META_KEYS}
+    await record_audit(
+        session,
+        actor_id=actor_id,
+        action=AUDIT_MEDIA_SESSION,
+        detail={"mediaId": row.id, "aborted": True},
+        ip=ip,
+    )
+    await session.commit()
+    logger.info("kb_media_upload_session_aborted", media_id=row.id)
 
 
 async def patch_media(
@@ -327,6 +547,15 @@ async def restore_media(
     window = timedelta(hours=KB_SOFT_DELETE_RECOVERY_HOURS)
     if utc_now() - row.deleted_at > window:
         raise NotFoundError("已超过 24 小时恢复窗口，等待清理任务执行")
+    # 存活行哈希唯一（部分索引）：删除期间同内容已重传时恢复会撞键，转为显式冲突
+    conflict = await media_repository.find_hash_conflict(
+        session, row.source_id, row.file_hash, exclude_id=row.id
+    )
+    if conflict is not None:
+        raise ConflictError(
+            f"同内容已重新上传为「{conflict.title}」，无法重复恢复；"
+            "请直接删除本条或保留新素材"
+        )
     row.deleted_at = None
     source = await source_repository.get(session, row.source_id)
     assert source is not None

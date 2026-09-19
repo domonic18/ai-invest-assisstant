@@ -113,16 +113,47 @@ export interface ApiKbMediaInitRequest {
   items: ApiKbMediaInitItem[]
 }
 
-/** 批量登记结果（每文件一行 + 预签名 PUT）。 */
+/** 批量登记结果（每文件一行，与请求 items 等长同序；conflictWith 非空表示该文件与库内已有素材重复、被跳过）。 */
 export interface ApiKbMediaInitResult {
-  mediaId: number
+  mediaId: number | null
   fileName: string
-  cosKey: string
-  uploadUrl: string
+  cosKey: string | null
+  uploadUrl: string | null
+  conflictWith: string | null
 }
 
 export interface ApiKbMediaInitResponse {
   items: ApiKbMediaInitResult[]
+}
+
+/** 分片上传会话创建/续传请求（partSize/partCount 由前端按文件大小计算）。 */
+export interface ApiKbUploadSessionRequest {
+  partSize: number
+  partCount: number
+  resumeUploadId?: string | null
+}
+
+/** 已完成分片（服务端 list_parts 真相）。 */
+export interface ApiKbUploadSessionPart {
+  partNumber: number
+  etag: string
+  size: number
+}
+
+/** 待上传分片的预签名 PUT URL。 */
+export interface ApiKbUploadSessionPartUrl {
+  partNumber: number
+  url: string
+}
+
+/** 分片上传会话视图：completedParts 已传分片，partUrls 仅覆盖缺失分片。 */
+export interface ApiKbUploadSessionResponse {
+  mediaId: number
+  uploadId: string
+  partSize: number
+  partCount: number
+  completedParts: ApiKbUploadSessionPart[]
+  partUrls: ApiKbUploadSessionPartUrl[]
 }
 
 /** 素材信息修正请求（全部可选）。 */

@@ -75,6 +75,11 @@ class Settings(BaseSettings):
     # COS 等强制 virtual-host 寻址的 S3 兼容服务须开启（MinIO 保持关闭）
     minio_virtual_host: bool = False
 
+    # KB 分片直传：超过阈值的文件走 multipart，分片大小与分片 URL 有效期
+    kb_multipart_threshold_bytes: int = 64 * 1024 * 1024
+    kb_part_size_bytes: int = 16 * 1024 * 1024
+    kb_part_presign_ttl_seconds: int = 86400
+
     # JWT
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60 * 24 * 7  # 7 天

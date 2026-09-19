@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.dependencies import get_current_admin_user, get_db
 from app.main import app
+from app.schemas.kb import KbUploadSessionPart, KbUploadSessionPartUrl, KbUploadSessionResponse
 
 _TS = datetime(2026, 9, 18, 12, 0, tzinfo=timezone.utc)
 
@@ -132,6 +133,7 @@ def test_media_init_and_uploaded_routes(admin_client: tuple) -> None:
         "file_name": "L01.mp4",
         "cos_key": "kb/1/5/L01.mp4",
         "upload_url": "https://cos/put",
+        "conflict_with": None,
     }.items():
         _set_both(init_result, snake, value)
     init_resp = MagicMock()
@@ -170,6 +172,42 @@ def test_media_init_and_uploaded_routes(admin_client: tuple) -> None:
     assert resp.status_code == 200
     assert resp.json()["processStatus"] == "uploaded"
     assert p_up.call_args.args[1] == 5
+
+
+def test_media_upload_session_routes(admin_client: tuple) -> None:
+    http, _ = admin_client
+    session_resp = KbUploadSessionResponse(
+        media_id=5,
+        upload_id="uid-1",
+        part_size=16 * 1024 * 1024,
+        part_count=2,
+        completed_parts=[
+            KbUploadSessionPart(part_number=1, etag="aa", size=60),
+        ],
+        part_urls=[KbUploadSessionPartUrl(part_number=2, url="https://cos/part2")],
+    )
+    with patch(
+        "app.services.kb.media_service.create_upload_session",
+        new=AsyncMock(return_value=session_resp),
+    ) as p_session:
+        resp = http.post(
+            "/api/v1/admin/kb/media/5/upload-session",
+            json={"partSize": 16 * 1024 * 1024, "partCount": 2},
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["uploadId"] == "uid-1"
+    assert body["completedParts"][0]["partNumber"] == 1
+    assert body["partUrls"][0]["url"] == "https://cos/part2"
+    assert p_session.call_args.args[1] == 5
+    assert p_session.call_args.args[2].part_count == 2
+
+    with patch(
+        "app.services.kb.media_service.abort_upload_session", new=AsyncMock()
+    ) as p_abort:
+        resp = http.delete("/api/v1/admin/kb/media/5/upload-session")
+    assert resp.status_code == 204
+    assert p_abort.call_args.args[1] == 5
 
 
 def test_media_list_and_patch_routes(admin_client: tuple) -> None:

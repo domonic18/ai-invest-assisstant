@@ -26,6 +26,8 @@ from app.schemas.kb import (
     KbTranscriptResponse,
     KbTranscriptSaveResponse,
     KbTranscriptUpdateRequest,
+    KbUploadSessionRequest,
+    KbUploadSessionResponse,
 )
 from app.services.kb import (
     cost_service,
@@ -157,6 +159,33 @@ async def confirm_cost(
     return KbConfirmCostResponse(queued_ids=queued)
 
 
+@router.post("/media/{media_id}/upload-session", response_model=KbUploadSessionResponse)
+async def create_upload_session(
+    media_id: int,
+    data: KbUploadSessionRequest,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> KbUploadSessionResponse:
+    """创建/续传分片上传会话（已传分片服务端真相，仅缺失分片签 URL）。"""
+    return await media_service.create_upload_session(
+        session, media_id, data, actor_id=admin.id, ip=_client_ip(request)
+    )
+
+
+@router.delete("/media/{media_id}/upload-session", status_code=204)
+async def abort_upload_session(
+    media_id: int,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> None:
+    """放弃分片会话（释放已传分片存储，幂等）。"""
+    await media_service.abort_upload_session(
+        session, media_id, actor_id=admin.id, ip=_client_ip(request)
+    )
+
+
 @router.post("/media/{media_id}/uploaded", response_model=KbMediaResponse)
 async def confirm_uploaded(
     media_id: int,
@@ -164,7 +193,7 @@ async def confirm_uploaded(
     session: Annotated[AsyncSession, Depends(get_db)],
     admin: Annotated[User, Depends(get_current_admin_user)],
 ) -> KbMediaResponse:
-    """上传完成回调：HEAD 核对 + 哈希去重 + 字节入账。"""
+    """上传完成回调：分片合并或 HEAD 核对 + 哈希去重 + 字节入账。"""
     return await media_service.confirm_uploaded(
         session, media_id, actor_id=admin.id, ip=_client_ip(request)
     )

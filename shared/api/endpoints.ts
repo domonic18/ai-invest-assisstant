@@ -219,6 +219,8 @@ export const ENDPOINTS = {
     kbSourceConfirmCost: (sourceId: number | string) =>
       `${API_BASE}/admin/kb/sources/${sourceId}/confirm-cost`,
     kbMedia: (id: number | string) => `${API_BASE}/admin/kb/media/${id}`,
+    kbMediaUploadSession: (id: number | string) =>
+      `${API_BASE}/admin/kb/media/${id}/upload-session`,
     kbMediaUploaded: (id: number | string) =>
       `${API_BASE}/admin/kb/media/${id}/uploaded`,
     kbMediaRestore: (id: number | string) =>

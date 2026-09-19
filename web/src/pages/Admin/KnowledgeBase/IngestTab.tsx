@@ -272,6 +272,7 @@ export function IngestTab({
           items={uploadQueue.items}
           progress={uploadQueue.progress}
           running={uploadQueue.running}
+          onRetry={uploadQueue.retry}
           onClear={uploadQueue.clear}
         />
       )}
