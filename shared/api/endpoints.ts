@@ -229,6 +229,19 @@ export const ENDPOINTS = {
       `${API_BASE}/admin/kb/media/${id}/restore`,
     kbSourceTranscript: (sourceId: number | string, mediaId: number | string) =>
       `${API_BASE}/admin/kb/sources/${sourceId}/transcript/${mediaId}`,
+    kbSourceChapters: (sourceId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/chapters`,
+    kbSourceChaptersPublish: (sourceId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/chapters/publish`,
+    kbSourcePoints: (sourceId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/points`,
+    kbPoints: `${API_BASE}/admin/kb/points`,
+    kbPoint: (id: number | string) => `${API_BASE}/admin/kb/points/${id}`,
+    kbPointApprove: (id: number | string) =>
+      `${API_BASE}/admin/kb/points/${id}/approve`,
+    kbPointReject: (id: number | string) =>
+      `${API_BASE}/admin/kb/points/${id}/reject`,
+    kbPointsMerge: `${API_BASE}/admin/kb/points/merge`,
     proxyConfigs: `${API_BASE}/admin/proxy-configs`,
     proxyConfig: (id: number | string) => `${API_BASE}/admin/proxy-configs/${id}`,
     testProxyConfig: (id: number | string) =>

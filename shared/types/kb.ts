@@ -227,3 +227,110 @@ export interface ApiKbTranscriptSaveResponse {
   editedAt: string | null
   updatedCount: number
 }
+
+// ---------------------------------------------------------------------------
+// 知识审核（F-KB-03）
+// ---------------------------------------------------------------------------
+
+/** 知识点类型。 */
+export type ApiKbPointType = 'concept' | 'theorem' | 'method' | 'discipline' | 'case'
+
+/** 审核状态（仅 published 参与检索）。 */
+export type ApiKbPointStatus = 'draft' | 'published' | 'rejected'
+
+/** 章节树节点（id 服务端按位置生成："1"/"1.2"）。 */
+export interface ApiKbChapterNode {
+  id: string
+  title: string
+  children: ApiKbChapterNode[]
+}
+
+/** 目录树读取（draft 供编辑，published 为生效版本）。 */
+export interface ApiKbChaptersResponse {
+  draft: ApiKbChapterNode[] | null
+  published: ApiKbChapterNode[] | null
+}
+
+/** 目录树整棵发布请求。 */
+export interface ApiKbChaptersPublishRequest {
+  chapters: ApiKbChapterNode[]
+}
+
+/** 知识点卡片视图（episodeNo/mediaTitle 为 join 冗余，供原文脚注展示）。 */
+export interface ApiKbKnowledgePoint {
+  id: number
+  sourceId: number
+  mediaId: number
+  episodeNo: number | null
+  mediaTitle: string | null
+  pointType: ApiKbPointType
+  title: string
+  body: string
+  termDefinition: string | null
+  applicableScene: string | null
+  excerpt: string
+  startMs: number | null
+  endMs: number | null
+  pageStart: number | null
+  pageEnd: number | null
+  relatedIds: number[]
+  chapterPath: string[]
+  status: ApiKbPointStatus
+  needsReview: boolean
+  reviewNote: string | null
+  reviewedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** 审核工作台状态计数。 */
+export interface ApiKbPointCounts {
+  draft: number
+  published: number
+  rejected: number
+  needsReview: number
+}
+
+/** 知识点分页列表。 */
+export interface ApiKbPointListResponse {
+  items: ApiKbKnowledgePoint[]
+  total: number
+  counts: ApiKbPointCounts
+}
+
+/** 白名单修订请求（excerpt/时间码定位字段服务端拒绝为 422）。 */
+export interface ApiKbPointPatchRequest {
+  title?: string
+  pointType?: ApiKbPointType
+  body?: string
+  termDefinition?: string | null
+  applicableScene?: string | null
+  chapterPath?: string[]
+}
+
+/** 人工新增请求（status=draft 走同一审核流）。 */
+export interface ApiKbPointCreateRequest {
+  mediaId: number
+  pointType: ApiKbPointType
+  title: string
+  body: string
+  termDefinition?: string
+  applicableScene?: string
+  excerpt?: string
+  startMs?: number
+  endMs?: number
+  pageStart?: number
+  pageEnd?: number
+  chapterPath?: string[]
+}
+
+/** 驳回请求（理由入 review_note）。 */
+export interface ApiKbPointRejectRequest {
+  reason?: string | null
+}
+
+/** 重复草稿合并请求（source 行硬删，related 并集进目标）。 */
+export interface ApiKbPointsMergeRequest {
+  targetId: number
+  sourceIds: number[]
+}
