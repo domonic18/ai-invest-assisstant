@@ -56,9 +56,12 @@ def plan_chunks(
     *,
     max_chunk: float = MAX_CHUNK_SECONDS,
 ) -> list[tuple[float, float]]:
-    """规划分片：优先在静音中点切割，保证每片 ≤ max_chunk。
+    """规划分片：每片 ≤ max_chunk，仅在跨度将超限时于最近静音中点落刀。
 
-    无静音（或相邻静音间距仍超限）时定长兜底切。
+    逢停顿必切会把自然语流（句间停顿每隔数秒）碎成数百个片，
+    每片一次 ASR 请求——请求放大且任一片抖动即整集失败。
+    静音中点只作为"必须切"时的优选切点，相邻片段合并至接近上限；
+    无静音可用（或相邻静音间距仍超限）时定长兜底切。
     """
     if duration_seconds <= 0:
         return []
@@ -72,19 +75,22 @@ def plan_chunks(
     bounds = [0.0, *mids, duration_seconds]
 
     chunks: list[tuple[float, float]] = []
-    seg_start = bounds[0]
+    seg_start = 0.0
+    prev_bound = 0.0
     for bound in bounds[1:]:
         if bound <= seg_start:
             continue
         if bound - seg_start > max_chunk:
-            cursor = seg_start
-            while bound - cursor > max_chunk:
-                chunks.append((cursor, cursor + max_chunk))
-                cursor += max_chunk
-            chunks.append((cursor, bound))
-        else:
-            chunks.append((seg_start, bound))
-        seg_start = bound
+            if prev_bound > seg_start:
+                chunks.append((seg_start, prev_bound))
+                seg_start = prev_bound
+            while bound - seg_start > max_chunk:
+                chunks.append((seg_start, seg_start + max_chunk))
+                seg_start += max_chunk
+            # 落刀后的余段不立即成片，继续向后累积（尾段由循环后收尾）
+        prev_bound = bound
+    if seg_start < duration_seconds:
+        chunks.append((seg_start, duration_seconds))
     return [(round(a, 3), round(b, 3)) for a, b in chunks if b > a]
 
 

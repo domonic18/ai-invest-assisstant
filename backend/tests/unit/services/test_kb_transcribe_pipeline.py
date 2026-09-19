@@ -56,6 +56,19 @@ def test_plan_chunks_empty_duration() -> None:
     assert pipeline.plan_chunks(0, []) == []
 
 
+def test_plan_chunks_merges_frequent_pauses() -> None:
+    """句间停顿每隔数秒：静音只作超限时落刀点，不得碎成片级请求。"""
+    silences = [
+        (float(start), float(start) + 0.5) for start in range(2, 600, 4)
+    ]
+    chunks = pipeline.plan_chunks(600.0, silences, max_chunk=480.0)
+    assert len(chunks) == 2  # 而非 ~150 个碎片
+    assert all(end - start <= 480.0 for start, end in chunks)
+    assert chunks[-1] == (chunks[0][1], 600.0)
+    span = sum(end - start for start, end in chunks)
+    assert span == pytest.approx(600.0)
+
+
 # ---------- merge / group ----------
 
 

@@ -29,7 +29,12 @@ from app.models.kb import KbMedia, KbTranscriptSegment
 from app.repositories.kb import media_repository
 from app.services.common.minio_service import get_minio_service
 from app.services.kb import transcribe_pipeline as pipeline
-from app.services.kb.asr_client import AsrChannelError, transcribe_chunk
+from app.services.kb.asr_client import (
+    AsrChannelError,
+    AsrEmptyResultError,
+    ChunkTranscript,
+    transcribe_chunk,
+)
 from app.services.kb.settings_service import get_settings_row, resolve_role_model
 from app.services.kb.transcribe_pipeline import Sentence
 from app.services.quota.constants import FEATURE_KB_CLEAN
@@ -44,6 +49,8 @@ _CLEAN_BATCH_SENTENCES = 40
 _SEGMENTS_COMMIT_BATCH = 50
 _ERROR_MAX_LEN = 1000
 _SILENCE_FILTER = "silencedetect=noise=-30dB:d=0.5"
+#: 渠道偶发空返回（观测 HTTP 200 无 text）重试一次的退避
+_ASR_EMPTY_RETRY_SECONDS = 3.0
 
 
 class TranscribeError(Exception):
@@ -158,6 +165,7 @@ async def _run(session: AsyncSession, row: KbMedia) -> None:
         "model": config.model,
         "audio_seconds": round(audio_seconds, 1),
         "chunk_count": len(chunk_results),
+        "empty_chunks": sum(1 for c in chunk_results if not c.sentences),
         "segment_count": len(segments),
         "est_cost": float(est_cost),
     }
@@ -236,7 +244,10 @@ async def _chunk_sentences(
         )
         wav_bytes = chunk_path.read_bytes()
 
-    transcript = await transcribe_chunk(config, api_key, wav_bytes, filename=chunk_path.name)
+    transcript = await _transcribe_with_retry(config, api_key, wav_bytes, chunk_path.name)
+    if not transcript.sentences:
+        # 降级空结果不写缓存：渠道恢复后重跑该分片可拿回内容
+        return []
     payload = {
         "sentences": [
             {"start_ms": s.start_ms, "end_ms": s.end_ms, "text": s.text}
@@ -249,6 +260,25 @@ async def _chunk_sentences(
         content_type="application/json",
     )
     return transcript.sentences
+
+
+async def _transcribe_with_retry(
+    config: Any, api_key: str, wav_bytes: bytes, filename: str
+) -> ChunkTranscript:
+    """单分片转写：偶发空返回退避重试一次，仍空降级为空句（不拖垮整集）。
+
+    其余渠道错误（HTTP/业务错误）照旧向上抛，由 transcribe_media 归因 FAILED。
+    """
+    try:
+        return await transcribe_chunk(config, api_key, wav_bytes, filename=filename)
+    except AsrEmptyResultError:
+        logger.warning("kb_asr_chunk_empty_retry", filename=filename)
+    await asyncio.sleep(_ASR_EMPTY_RETRY_SECONDS)
+    try:
+        return await transcribe_chunk(config, api_key, wav_bytes, filename=filename)
+    except AsrEmptyResultError:
+        logger.warning("kb_asr_chunk_empty_skipped", filename=filename)
+        return ChunkTranscript([])
 
 
 async def _clean_segments(

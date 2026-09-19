@@ -16,7 +16,7 @@ from app.core.locking import redis_lock as real_redis_lock
 from app.models.kb import KbMedia, KbSettings, KbSource, KbTranscriptSegment
 from app.schemas.kb import KbTranscriptCleanItem, KbTranscriptCleanResult
 from app.services.kb import transcribe_service
-from app.services.kb.asr_client import AsrChannelError
+from app.services.kb.asr_client import AsrChannelError, AsrEmptyResultError
 from app.services.kb.transcribe_pipeline import Sentence
 from app.services.social.asr_service import AsrChannelConfig
 
@@ -257,6 +257,71 @@ async def test_transcribe_asr_business_error_marks_failed(session: AsyncSession)
     # 不留半截分段
     segs = (await session.execute(select(KbTranscriptSegment))).scalars().all()
     assert segs == []
+
+
+async def test_transcribe_empty_chunk_retry_recovers(session: AsyncSession, monkeypatch) -> None:
+    """渠道偶发空返回：重试一次成功 → 整集正常完成，不降级。"""
+    media = await _seed(session)
+    monkeypatch.setattr(transcribe_service, "_ASR_EMPTY_RETRY_SECONDS", 0)
+    clean = KbTranscriptCleanResult(
+        items=[KbTranscriptCleanItem(seq=1, text="句壹"), KbTranscriptCleanItem(seq=2, text="句贰")]
+    )
+    minio = _FakeMinio()
+    patches, asr_mock = _patch_pipeline_env(
+        minio,
+        clean_result=clean,
+        asr_side_effect=[AsrEmptyResultError("asr_empty_result"), _asr_result(), _asr_result()],
+    )
+    with patches["lock"], patches["minio"], patches["load_config"], patches["decrypt"], \
+            patches["extract"], patches["slice"], patches["probe"], patches["silences"], \
+            patches["asr"], patches["clean"], patches["resolve_role"]:
+        outcome = await transcribe_service.transcribe_media(session, media.id)
+
+    assert outcome == "done"
+    row = await session.get(KbMedia, media.id)
+    assert row.process_meta["empty_chunks"] == 0
+    assert asr_mock.await_count == 3  # 2 分片 + 1 次空返回重试
+    cached = [k for k in minio.store if k.startswith("kb/derived/")]
+    assert len(cached) == 2
+
+
+async def test_transcribe_persistent_empty_chunk_degrades_to_done(
+    session: AsyncSession, monkeypatch
+) -> None:
+    """重试仍空：该分片降级为空（不写缓存），其余分片照常，整集 done。"""
+    media = await _seed(session)
+    monkeypatch.setattr(transcribe_service, "_ASR_EMPTY_RETRY_SECONDS", 0)
+    clean = KbTranscriptCleanResult(items=[KbTranscriptCleanItem(seq=1, text="句壹")])
+    minio = _FakeMinio()
+    calls = {"n": 0}
+
+    def _flaky(*args: Any, **kwargs: Any) -> Any:
+        calls["n"] += 1
+        if calls["n"] <= 2:  # 分片 1 两次均空
+            raise AsrEmptyResultError("asr_empty_result")
+        return _asr_result()
+
+    patches, asr_mock = _patch_pipeline_env(
+        minio, clean_result=clean, asr_side_effect=_flaky
+    )
+    with patches["lock"], patches["minio"], patches["load_config"], patches["decrypt"], \
+            patches["extract"], patches["slice"], patches["probe"], patches["silences"], \
+            patches["asr"], patches["clean"], patches["resolve_role"]:
+        outcome = await transcribe_service.transcribe_media(session, media.id)
+
+    assert outcome == "done"
+    row = await session.get(KbMedia, media.id)
+    assert row.process_status == KbProcessStatus.DONE
+    assert row.process_meta["empty_chunks"] == 1
+    assert row.process_meta["chunk_count"] == 2
+    assert asr_mock.await_count == 3
+    # 空结果不缓存，渠道恢复后重跑可拿回该分片
+    cached = [k for k in minio.store if k.startswith("kb/derived/")]
+    assert len(cached) == 1
+    segs = (await session.execute(select(KbTranscriptSegment))).scalars().all()
+    # 剩余分片 2 句并 1 段，清洗 items[seq=1] 覆盖整段文本
+    assert [s.text for s in segs] == ["句壹"]
+    assert segs[0].start_ms == 300_000
 
 
 async def test_transcribe_skips_non_queued(session: AsyncSession) -> None:
