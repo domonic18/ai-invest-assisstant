@@ -23,7 +23,6 @@ from app.constants.kb import (
     KB_TRANSCRIBE_LOCK_KEY_TEMPLATE,
     KbProcessStatus,
 )
-from app.core.clock import utc_now
 from app.core.locking import redis_lock
 from app.models.kb import KbMedia, KbTranscriptSegment
 from app.repositories.kb import media_repository
@@ -158,7 +157,7 @@ async def _run(session: AsyncSession, row: KbMedia) -> None:
         if i % _SEGMENTS_COMMIT_BATCH == 0:
             await session.commit()
     row.process_status = KbProcessStatus.DONE
-    row.extracted_at = utc_now()
+    # extracted_at 是抽取任务的幂等键（批次 D），转写完成不得置位
     row.process_meta = {
         **(row.process_meta or {}),
         "provider": config.provider,
