@@ -75,6 +75,13 @@ class KbPurpose(str, Enum):
 #: 软删恢复窗口（过窗后 kb-cleanup 异步清理）
 KB_SOFT_DELETE_RECOVERY_HOURS = 24
 
+#: 分片上传会话最大保留天数（超龄由 kb-cleanup abort 释放已传分片）
+KB_UPLOAD_SESSION_MAX_AGE_DAYS = 7
+
+#: kb-cleanup 互斥锁与 deep 孤儿扫描的每日门控键
+KB_CLEANUP_LOCK_KEY = "kb:cleanup"
+KB_CLEANUP_DEEP_LOCK_KEY = "kb:cleanup:deep"
+
 #: 播放凭证 TTL 上限（秒，需求 ≤30min）
 KB_PLAYBACK_TOKEN_TTL_SECONDS = 1800
 

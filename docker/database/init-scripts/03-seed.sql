@@ -20,7 +20,7 @@ ON CONFLICT (stock_code, market) DO NOTHING;
 -- collector_health_check 任务的 internal 渠道（内部生成，非外部数据源）
 -- supported_data_types 与 collector_channel_data_type 按任务名登记（渠道解析/beat 派发以任务名为键）
 INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
-VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "health-check", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly", "social-sentiment", "kb-transcribe"]'::jsonb)
+VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "health-check", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly", "social-sentiment", "kb-transcribe", "kb-cleanup"]'::jsonb)
 ON CONFLICT (source) DO NOTHING;
 
 -- 兼容存量环境：internal 渠道已存在时补齐后续新增的数据类型
@@ -32,7 +32,7 @@ WHERE source = 'internal'
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, d.data_type, 1
 FROM collector_channel_config,
-     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('health-check'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic'), ('sector-anomaly'), ('stock-anomaly'), ('social-sentiment'), ('kb-transcribe')) AS d(data_type)
+     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('health-check'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic'), ('sector-anomaly'), ('stock-anomaly'), ('social-sentiment'), ('kb-transcribe'), ('kb-cleanup')) AS d(data_type)
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
@@ -384,7 +384,9 @@ VALUES
     ('social_video_poll', 'social-video', 'douyin', '0 * * * *', true),
     ('social_sentiment_judge', 'social-sentiment', 'internal', '*/10 * * * *', true),
     -- F-KB：知识库课程转写（每 5 分钟扫描 queued，状态驱动；无素材即 SKIPPED）
-    ('kb_transcribe_scan', 'kb-transcribe', 'internal', '*/5 * * * *', true)
+    ('kb_transcribe_scan', 'kb-transcribe', 'internal', '*/5 * * * *', true),
+    -- F-KB：知识库物理清理（每 30 分钟清软删过窗/超龄分片会话，deep 孤儿扫描每日一次门控）
+    ('kb_cleanup_0030', 'kb-cleanup', 'internal', '*/30 * * * *', true)
 ON CONFLICT (task_name) DO UPDATE
 SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;
 
