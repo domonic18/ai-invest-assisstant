@@ -18,6 +18,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -61,6 +62,15 @@ class KbMedia(Base):
     __table_args__ = (
         # 集号唯一仅约束课程（书的 episode_no 为 NULL；PG 侧为部分唯一索引，见迁移）
         Index("uq_kb_media_source_episode", "source_id", "episode_no", unique=True),
+        # 哈希去重仅约束存活行（软删行不占哈希位，24h 恢复窗内可重传）
+        Index(
+            "uq_kb_media_source_hash",
+            "source_id",
+            "file_hash",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+            sqlite_where=text("deleted_at IS NULL"),
+        ),
         Index("idx_kb_media_source_status", "source_id", "process_status"),
         Index("idx_kb_media_deleted", "deleted_at"),
     )

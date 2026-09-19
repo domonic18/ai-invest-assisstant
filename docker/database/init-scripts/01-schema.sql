@@ -1482,7 +1482,6 @@ CREATE TABLE IF NOT EXISTS kb_media (
     deleted_at       TIMESTAMPTZ,                                    -- 软删（与 kb_source 同路径，24h 恢复窗）
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_kb_media_source_hash UNIQUE (source_id, file_hash),
     CONSTRAINT chk_kb_media_kind CHECK (media_kind IN ('video', 'audio', 'book')),
     CONSTRAINT chk_kb_media_status CHECK (process_status IN
         ('uploaded', 'awaiting_cost', 'queued', 'processing', 'done', 'failed'))
@@ -1491,6 +1490,9 @@ CREATE TABLE IF NOT EXISTS kb_media (
 -- 集号唯一仅约束课程（书的 episode_no 为 NULL，PG 唯一约束不冲突多个 NULL）
 CREATE UNIQUE INDEX IF NOT EXISTS uq_kb_media_source_episode
     ON kb_media(source_id, episode_no) WHERE episode_no IS NOT NULL;
+-- 哈希去重仅约束存活行（软删行不占哈希位，24h 恢复窗内同内容可重传）
+CREATE UNIQUE INDEX IF NOT EXISTS uq_kb_media_source_hash
+    ON kb_media(source_id, file_hash) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_kb_media_source_status ON kb_media(source_id, process_status);
 CREATE INDEX IF NOT EXISTS idx_kb_media_deleted ON kb_media(deleted_at) WHERE deleted_at IS NOT NULL;
 
