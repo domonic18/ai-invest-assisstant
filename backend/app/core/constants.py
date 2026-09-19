@@ -134,4 +134,5 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "social-sentiment": DOMAIN_AI,
     # 知识库
     "kb-transcribe": DOMAIN_KB,
+    "kb-extract": DOMAIN_KB,
 }

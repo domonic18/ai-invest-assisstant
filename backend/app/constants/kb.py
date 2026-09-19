@@ -96,3 +96,9 @@ KB_EXTRACT_WINDOW_SECONDS = 600
 
 #: 窗口间重叠上下文分段数
 KB_EXTRACT_WINDOW_OVERLAP_SEGMENTS = 1
+
+#: kb-extract 任务级互斥锁键
+KB_EXTRACT_LOCK_KEY = "kb:extract"
+
+#: 单素材连续抽取失败上限（process_meta.extractAttempts 达到后不再扫，需人工排查）
+KB_EXTRACT_MAX_ATTEMPTS = 3

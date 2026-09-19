@@ -14,7 +14,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.base import CamelModel
 
@@ -354,3 +354,117 @@ class KbTranscriptSaveResponse(CamelModel):
     media_id: int
     edited_at: datetime | None = None
     updated_count: int = 0
+
+
+# ---------------------------------------------------------------------------
+# 章节树与知识点审核（arch/12 §6，F-KB-03）
+# ---------------------------------------------------------------------------
+
+
+class KbChapterNode(CamelModel):
+    """目录树节点（id 由服务端按位置生成，发布后被 chapter_path 引用）。"""
+
+    id: str = Field(..., min_length=1, max_length=32)
+    title: str = Field(..., min_length=1, max_length=300)
+    children: list["KbChapterNode"] = []
+
+
+class KbChaptersResponse(CamelModel):
+    """知识源目录树（draft 供编辑发布，published 为生效版本）。"""
+
+    draft: list[KbChapterNode] | None = None
+    published: list[KbChapterNode] | None = None
+
+
+class KbChaptersPublishRequest(CamelModel):
+    """目录树发布（整棵提交，published 覆盖写并同步 draft）。"""
+
+    chapters: list[KbChapterNode] = Field(..., min_length=1, max_length=200)
+
+
+class KbKnowledgePointResponse(CamelModel):
+    """知识点卡片视图（episodeNo/mediaTitle 为 join 冗余，供原文脚注展示）。"""
+
+    id: int
+    source_id: int
+    media_id: int
+    episode_no: int | None = None
+    media_title: str | None = None
+    point_type: str
+    title: str
+    body: str
+    term_definition: str | None = None
+    applicable_scene: str | None = None
+    excerpt: str
+    start_ms: int | None = None
+    end_ms: int | None = None
+    page_start: int | None = None
+    page_end: int | None = None
+    related_ids: list[int] = Field(default_factory=list)
+    chapter_path: list[str] = Field(default_factory=list)
+    status: str
+    needs_review: bool = False
+    review_note: str | None = None
+    reviewed_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class KbPointCounts(CamelModel):
+    """审核工作台状态计数。"""
+
+    draft: int = 0
+    published: int = 0
+    rejected: int = 0
+    needs_review: int = 0
+
+
+class KbPointListResponse(CamelModel):
+    """知识点列表（服务端分页 + 状态计数）。"""
+
+    items: list[KbKnowledgePointResponse]
+    total: int
+    counts: KbPointCounts
+
+
+class KbPointPatchRequest(CamelModel):
+    """知识点修订（excerpt 与时间码/页码定位不可改——溯源锚点，extra 拒绝）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = Field(None, min_length=1, max_length=300)
+    point_type: KbPointTypeLiteral | None = None
+    body: str | None = Field(None, min_length=1)
+    term_definition: str | None = Field(None, max_length=4000)
+    applicable_scene: str | None = Field(None, max_length=4000)
+    chapter_path: list[str] | None = Field(None, max_length=20)
+
+
+class KbPointCreateRequest(CamelModel):
+    """人工新增知识点（excerpt 缺省取 body 前 200 字）。"""
+
+    media_id: int
+    point_type: KbPointTypeLiteral
+    title: str = Field(..., min_length=1, max_length=300)
+    body: str = Field(..., min_length=1)
+    term_definition: str | None = Field(None, max_length=4000)
+    applicable_scene: str | None = Field(None, max_length=4000)
+    excerpt: str | None = Field(None, max_length=2000)
+    start_ms: int | None = Field(None, ge=0)
+    end_ms: int | None = Field(None, ge=0)
+    page_start: int | None = Field(None, ge=1)
+    page_end: int | None = Field(None, ge=1)
+    chapter_path: list[str] = Field(default_factory=list, max_length=20)
+
+
+class KbPointRejectRequest(CamelModel):
+    """驳回理由（写入 review_note）。"""
+
+    reason: str | None = Field(None, max_length=1000)
+
+
+class KbPointsMergeRequest(CamelModel):
+    """重复草稿合并进目标卡（仅 draft 可并入，源行硬删）。"""
+
+    target_id: int
+    source_ids: list[int] = Field(..., min_length=1, max_length=50)
