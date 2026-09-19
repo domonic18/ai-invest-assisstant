@@ -1,28 +1,40 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
+  approveKbPoint,
   confirmKbCost,
   confirmKbMediaUploaded,
+  createKbPoint,
   createKbSource,
   deleteKbMedia,
   deleteKbSource,
   estimateKbCost,
+  fetchKbChapters,
+  fetchKbReviewPoints,
   fetchKbSourceMedia,
   fetchKbSources,
   fetchKbTranscript,
   initKbMediaUploads,
+  mergeKbPoints,
   patchKbMedia,
+  patchKbPoint,
+  rejectKbPoint,
   requeueKbMedia,
   restoreKbSource,
   saveKbTranscript,
   updateKbSource,
 } from '@/api/adminKb'
-import { fetchKbSettings, updateKbSettings } from '@/api/adminKb'
+import { fetchKbSettings, publishKbChapters, updateKbSettings } from '@/api/adminKb'
 import type {
+  ApiKbChaptersPublishRequest,
   ApiKbConfirmCostRequest,
   ApiKbCostEstimateRequest,
   ApiKbMediaInitRequest,
   ApiKbMediaPatchRequest,
+  ApiKbPointCreateRequest,
+  ApiKbPointPatchRequest,
+  ApiKbPointRejectRequest,
+  ApiKbPointsMergeRequest,
   ApiKbProcessStatus,
   ApiKbSettingsUpdateRequest,
   ApiKbSourceCreateRequest,
@@ -192,5 +204,90 @@ export function useSaveKbTranscript(sourceId: number) {
       })
       queryClient.invalidateQueries({ queryKey: queryKeys.kb.media(sourceId) })
     },
+  })
+}
+
+// ---- 知识审核（F-KB-03）----
+
+export function useKbChapters(sourceId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.kb.chapters(sourceId ?? 0),
+    queryFn: () => fetchKbChapters(sourceId as number),
+    enabled: sourceId != null,
+  })
+}
+
+export function usePublishKbChapters(sourceId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: ApiKbChaptersPublishRequest) =>
+      publishKbChapters(sourceId, data),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.kb.chapters(sourceId) }),
+  })
+}
+
+export function useKbReviewPoints(
+  sourceId: number | null,
+  status: string | null,
+  page: number,
+  pageSize: number
+) {
+  return useQuery({
+    queryKey: queryKeys.kb.points(sourceId ?? 0, status, page, pageSize),
+    queryFn: () =>
+      fetchKbReviewPoints(sourceId as number, {
+        status: status ?? undefined,
+        page,
+        pageSize,
+      }),
+    enabled: sourceId != null,
+  })
+}
+
+function useInvalidateKbReview() {
+  const queryClient = useQueryClient()
+  return () => queryClient.invalidateQueries({ queryKey: queryKeys.kb.all })
+}
+
+export function useCreateKbPoint() {
+  const invalidate = useInvalidateKbReview()
+  return useMutation({
+    mutationFn: (data: ApiKbPointCreateRequest) => createKbPoint(data),
+    onSuccess: invalidate,
+  })
+}
+
+export function usePatchKbPoint() {
+  const invalidate = useInvalidateKbReview()
+  return useMutation({
+    mutationFn: ({ pointId, data }: { pointId: number; data: ApiKbPointPatchRequest }) =>
+      patchKbPoint(pointId, data),
+    onSuccess: invalidate,
+  })
+}
+
+export function useApproveKbPoint() {
+  const invalidate = useInvalidateKbReview()
+  return useMutation({
+    mutationFn: (pointId: number) => approveKbPoint(pointId),
+    onSuccess: invalidate,
+  })
+}
+
+export function useRejectKbPoint() {
+  const invalidate = useInvalidateKbReview()
+  return useMutation({
+    mutationFn: ({ pointId, data }: { pointId: number; data: ApiKbPointRejectRequest }) =>
+      rejectKbPoint(pointId, data),
+    onSuccess: invalidate,
+  })
+}
+
+export function useMergeKbPoints() {
+  const invalidate = useInvalidateKbReview()
+  return useMutation({
+    mutationFn: (data: ApiKbPointsMergeRequest) => mergeKbPoints(data),
+    onSuccess: invalidate,
   })
 }

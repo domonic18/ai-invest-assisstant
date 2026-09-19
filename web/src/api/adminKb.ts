@@ -1,13 +1,21 @@
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
+  ApiKbChaptersPublishRequest,
+  ApiKbChaptersResponse,
   ApiKbConfirmCostRequest,
   ApiKbConfirmCostResponse,
   ApiKbCostEstimateRequest,
   ApiKbCostEstimateResponse,
+  ApiKbKnowledgePoint,
   ApiKbMediaInitRequest,
   ApiKbMediaInitResponse,
   ApiKbMediaPatchRequest,
   ApiKbMediaResponse,
+  ApiKbPointCreateRequest,
+  ApiKbPointListResponse,
+  ApiKbPointPatchRequest,
+  ApiKbPointRejectRequest,
+  ApiKbPointsMergeRequest,
   ApiKbSettingsResponse,
   ApiKbSettingsUpdateRequest,
   ApiKbSourceCreateRequest,
@@ -186,6 +194,88 @@ export async function saveKbTranscript(
 ): Promise<ApiKbTranscriptSaveResponse> {
   const response = await apiClient.put<ApiKbTranscriptSaveResponse>(
     ENDPOINTS.admin.kbSourceTranscript(sourceId, mediaId),
+    data
+  )
+  return response.data
+}
+
+// ---- 知识审核（F-KB-03）----
+
+export async function fetchKbChapters(
+  sourceId: number
+): Promise<ApiKbChaptersResponse> {
+  const response = await apiClient.get<ApiKbChaptersResponse>(
+    ENDPOINTS.admin.kbSourceChapters(sourceId)
+  )
+  return response.data
+}
+
+export async function publishKbChapters(
+  sourceId: number,
+  data: ApiKbChaptersPublishRequest
+): Promise<ApiKbChaptersResponse> {
+  const response = await apiClient.post<ApiKbChaptersResponse>(
+    ENDPOINTS.admin.kbSourceChaptersPublish(sourceId),
+    data
+  )
+  return response.data
+}
+
+export async function fetchKbReviewPoints(
+  sourceId: number,
+  params: { status?: string; page?: number; pageSize?: number } = {}
+): Promise<ApiKbPointListResponse> {
+  const response = await apiClient.get<ApiKbPointListResponse>(
+    ENDPOINTS.admin.kbSourcePoints(sourceId),
+    { params }
+  )
+  return response.data
+}
+
+export async function createKbPoint(
+  data: ApiKbPointCreateRequest
+): Promise<ApiKbKnowledgePoint> {
+  const response = await apiClient.post<ApiKbKnowledgePoint>(
+    ENDPOINTS.admin.kbPoints,
+    data
+  )
+  return response.data
+}
+
+export async function patchKbPoint(
+  pointId: number,
+  data: ApiKbPointPatchRequest
+): Promise<ApiKbKnowledgePoint> {
+  const response = await apiClient.patch<ApiKbKnowledgePoint>(
+    ENDPOINTS.admin.kbPoint(pointId),
+    data
+  )
+  return response.data
+}
+
+export async function approveKbPoint(pointId: number): Promise<ApiKbKnowledgePoint> {
+  const response = await apiClient.post<ApiKbKnowledgePoint>(
+    ENDPOINTS.admin.kbPointApprove(pointId)
+  )
+  return response.data
+}
+
+export async function rejectKbPoint(
+  pointId: number,
+  data: ApiKbPointRejectRequest
+): Promise<ApiKbKnowledgePoint> {
+  const response = await apiClient.post<ApiKbKnowledgePoint>(
+    ENDPOINTS.admin.kbPointReject(pointId),
+    data
+  )
+  return response.data
+}
+
+export async function mergeKbPoints(
+  data: ApiKbPointsMergeRequest
+): Promise<ApiKbKnowledgePoint> {
+  const response = await apiClient.post<ApiKbKnowledgePoint>(
+    ENDPOINTS.admin.kbPointsMerge,
     data
   )
   return response.data

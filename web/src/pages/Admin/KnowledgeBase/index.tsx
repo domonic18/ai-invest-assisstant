@@ -2,10 +2,11 @@ import { Card, Tabs, Typography } from 'antd'
 import { useSearchParams } from 'react-router-dom'
 
 import { IngestTab } from './IngestTab'
+import { ReviewTab } from './ReviewTab'
 import { SettingsTab } from './SettingsTab'
 import { SourcesTab } from './SourcesTab'
 
-const TAB_KEYS = ['settings', 'sources', 'ingest'] as const
+const TAB_KEYS = ['settings', 'sources', 'ingest', 'review'] as const
 
 type TabKey = (typeof TAB_KEYS)[number]
 
@@ -44,6 +45,16 @@ export default function KnowledgeBase() {
                 <IngestTab
                   sourceId={sourceId}
                   onSourceChange={(id) => navigate('ingest', id)}
+                />
+              ),
+            },
+            {
+              key: 'review',
+              label: '知识审核',
+              children: (
+                <ReviewTab
+                  sourceId={sourceId}
+                  onSourceChange={(id) => navigate('review', id)}
                 />
               ),
             },
