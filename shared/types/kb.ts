@@ -308,6 +308,38 @@ export interface ApiKbPointPatchRequest {
   chapterPath?: string[]
 }
 
+/** 图片视觉描述状态。 */
+export type ApiKbDescribeStatus = 'pending' | 'processing' | 'done' | 'failed'
+
+/** 图片资产视图（书嵌图 + 课程关键帧；thumbUrl 为短时效签名）。 */
+export interface ApiKbImageAsset {
+  id: number
+  sourceId: number
+  mediaId: number
+  pageNo: number | null
+  startMs: number | null
+  endMs: number | null
+  thumbUrl: string | null
+  describeStatus: ApiKbDescribeStatus
+  describeAttempts: number
+  textInImage: string | null
+  caption: string | null
+  visionDescription: string | null
+  indexExcluded: boolean
+  createdAt: string
+}
+
+/** 图片资产索引排除开关。 */
+export interface ApiKbImageExcludedRequest {
+  indexExcluded: boolean
+}
+
+/** 图片资产分页列表。 */
+export interface ApiKbImageListResponse {
+  items: ApiKbImageAsset[]
+  total: number
+}
+
 /** 人工新增请求（status=draft 走同一审核流）。 */
 export interface ApiKbPointCreateRequest {
   mediaId: number
@@ -333,4 +365,15 @@ export interface ApiKbPointRejectRequest {
 export interface ApiKbPointsMergeRequest {
   targetId: number
   sourceIds: number[]
+}
+
+/** 批量通过请求（已发布/不存在幂等跳过）。 */
+export interface ApiKbPointsBatchApproveRequest {
+  ids: number[]
+}
+
+/** 批量通过结果统计（skipped = 已发布或不存在的卡）。 */
+export interface ApiKbBatchApproveResult {
+  approved: number
+  skipped: number
 }

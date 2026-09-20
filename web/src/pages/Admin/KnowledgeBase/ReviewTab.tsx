@@ -1,10 +1,12 @@
-import { PlusOutlined, SendOutlined } from '@ant-design/icons'
+import { CheckOutlined, PlusOutlined, SendOutlined } from '@ant-design/icons'
 import {
   Badge,
   Button,
+  Checkbox,
   Input,
   Modal,
   Pagination,
+  Popconfirm,
   Radio,
   Select,
   Space,
@@ -18,6 +20,7 @@ import type { ApiKbChapterNode, ApiKbPointType } from '@ai-invest/shared'
 import { useKbSources } from '@/hooks/useAdminKb'
 import {
   useApproveKbPoint,
+  useApproveKbPointsBatch,
   useKbChapters,
   useKbReviewPoints,
   useMergeKbPoints,
@@ -58,10 +61,21 @@ export function ReviewTab({
   const createPoint = useCreateKbPoint()
   const patchPoint = usePatchKbPoint()
   const approvePoint = useApproveKbPoint()
+  const approveBatch = useApproveKbPointsBatch()
   const rejectPoint = useRejectKbPoint()
   const mergePoints = useMergeKbPoints()
 
   const counts = listing?.counts
+
+  // 全选只作用于当前页可勾选（draft）卡片，与单卡勾选同一状态源
+  const selectableIds = (listing?.items ?? [])
+    .filter((p) => p.status === 'draft')
+    .map((p) => p.id)
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.includes(id))
+
+  const handleToggleAll = (checked: boolean) => {
+    setSelectedIds(checked ? selectableIds : [])
+  }
 
   const handleMerge = async () => {
     if (!selectedIds.length) return
@@ -69,6 +83,17 @@ export function ReviewTab({
     await mergePoints.mutateAsync({ targetId: first, sourceIds: rest })
     setSelectedIds([])
     message.success('合并完成')
+  }
+
+  const handleBatchApprove = async () => {
+    if (!selectedIds.length) return
+    const res = await approveBatch.mutateAsync({ ids: selectedIds })
+    setSelectedIds([])
+    message.success(
+      res.skipped > 0
+        ? `已通过 ${res.approved} 张，跳过 ${res.skipped} 张（已发布或不存在）`
+        : `已通过 ${res.approved} 张`
+    )
   }
 
   return (
@@ -108,9 +133,35 @@ export function ReviewTab({
           ))}
         </Space>
         <Space wrap className="ml-auto">
+          {status === 'draft' && (
+            <Checkbox
+              checked={allSelected}
+              indeterminate={!allSelected && selectedIds.length > 0}
+              disabled={selectableIds.length === 0}
+              onChange={(e) => handleToggleAll(e.target.checked)}
+            >
+              全选
+            </Checkbox>
+          )}
           <Button icon={<PlusOutlined />} disabled={!sourceId} onClick={() => setCreating(true)}>
             新增卡片
           </Button>
+          <Popconfirm
+            title={`确认通过所选 ${selectedIds.length} 张卡片？`}
+            description="批量置为已发布，进入检索索引（批次 E）。"
+            okText="批量通过"
+            cancelText="取消"
+            onConfirm={handleBatchApprove}
+            disabled={selectedIds.length === 0}
+          >
+            <Button
+              icon={<CheckOutlined />}
+              disabled={selectedIds.length === 0}
+              loading={approveBatch.isPending}
+            >
+              批量通过（{selectedIds.length}）
+            </Button>
+          </Popconfirm>
           <Button
             icon={<SendOutlined />}
             disabled={selectedIds.length < 2}

@@ -235,6 +235,11 @@ export const ENDPOINTS = {
       `${API_BASE}/admin/kb/sources/${sourceId}/chapters/publish`,
     kbSourcePoints: (sourceId: number | string) =>
       `${API_BASE}/admin/kb/sources/${sourceId}/points`,
+    kbSourceImages: (sourceId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/images`,
+    kbImage: (id: number | string) => `${API_BASE}/admin/kb/images/${id}`,
+    kbImageRedescribe: (id: number | string) =>
+      `${API_BASE}/admin/kb/images/${id}/redescribe`,
     kbPoints: `${API_BASE}/admin/kb/points`,
     kbPoint: (id: number | string) => `${API_BASE}/admin/kb/points/${id}`,
     kbPointApprove: (id: number | string) =>
@@ -242,6 +247,7 @@ export const ENDPOINTS = {
     kbPointReject: (id: number | string) =>
       `${API_BASE}/admin/kb/points/${id}/reject`,
     kbPointsMerge: `${API_BASE}/admin/kb/points/merge`,
+    kbPointsApproveBatch: `${API_BASE}/admin/kb/points/approve-batch`,
     proxyConfigs: `${API_BASE}/admin/proxy-configs`,
     proxyConfig: (id: number | string) => `${API_BASE}/admin/proxy-configs/${id}`,
     testProxyConfig: (id: number | string) =>

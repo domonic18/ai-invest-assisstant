@@ -9,12 +9,14 @@ vi.mock('@/hooks/useAdminKb', () => ({
   useCreateKbPoint: vi.fn(),
   usePatchKbPoint: vi.fn(),
   useApproveKbPoint: vi.fn(),
+  useApproveKbPointsBatch: vi.fn(),
   useRejectKbPoint: vi.fn(),
   useMergeKbPoints: vi.fn(),
 }))
 
 import {
   useApproveKbPoint,
+  useApproveKbPointsBatch,
   useCreateKbPoint,
   useKbChapters,
   useKbReviewPoints,
@@ -29,6 +31,7 @@ import type { ApiKbPointListResponse } from '@ai-invest/shared'
 import { ReviewTab } from './ReviewTab'
 
 const mockedApprove = vi.mocked(useApproveKbPoint)
+const mockedBatchApprove = vi.mocked(useApproveKbPointsBatch)
 const mockedPatch = vi.mocked(usePatchKbPoint)
 const mockedReject = vi.mocked(useRejectKbPoint)
 const mockedMerge = vi.mocked(useMergeKbPoints)
@@ -91,7 +94,14 @@ function setup(points: ApiKbPointListResponse | undefined) {
   mockedPatch.mockReturnValue(patchMock as never)
   mockedReject.mockReturnValue(mutationStub() as never)
   mockedMerge.mockReturnValue(mutationStub() as never)
-  return { approveMock: approveMock.mutateAsync, patchMock: patchMock.mutateAsync }
+  const batchMock = mutationStub()
+  batchMock.mutateAsync.mockResolvedValue({ approved: 2, skipped: 0 })
+  mockedBatchApprove.mockReturnValue(batchMock as never)
+  return {
+    approveMock: approveMock.mutateAsync,
+    patchMock: patchMock.mutateAsync,
+    batchMock: batchMock.mutateAsync,
+  }
 }
 
 describe('ReviewTab', () => {
@@ -138,5 +148,49 @@ describe('ReviewTab', () => {
     setup({ items: [], total: 0, counts: { draft: 0, published: 0, rejected: 0, needsReview: 0 } })
     render(<ReviewTab sourceId={1} onSourceChange={vi.fn()} />)
     expect(screen.getByText('暂无待审核草稿。')).toBeInTheDocument()
+  })
+
+  it('batch approve confirms then posts selected ids', async () => {
+    const { batchMock } = setup(listing)
+    render(<ReviewTab sourceId={1} onSourceChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择 复利' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择 安全边际' }))
+    fireEvent.click(screen.getByText('批量通过（2）'))
+    const ok = await waitFor(() => {
+      const btn = document.querySelector('.ant-popconfirm-buttons .ant-btn-primary')
+      if (!btn) throw new Error('popconfirm not open yet')
+      return btn
+    })
+    fireEvent.click(ok)
+    await waitFor(() => expect(batchMock).toHaveBeenCalledWith({ ids: [5, 6] }))
+  })
+
+  it('select-all checks all listed cards and clears on second click', () => {
+    setup(listing)
+    render(<ReviewTab sourceId={1} onSourceChange={vi.fn()} />)
+    const selectAll = screen.getByRole('checkbox', { name: '全选' })
+
+    fireEvent.click(selectAll)
+    expect(screen.getByRole('checkbox', { name: '选择 复利' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: '选择 安全边际' })).toBeChecked()
+    expect(screen.getByText('批量通过（2）')).toBeInTheDocument()
+    expect(selectAll).toBeChecked()
+
+    fireEvent.click(selectAll)
+    expect(screen.getByRole('checkbox', { name: '选择 复利' })).not.toBeChecked()
+    expect(screen.getByText('批量通过（0）')).toBeInTheDocument()
+  })
+
+  it('select-all picks up partial selection and completes it', () => {
+    setup(listing)
+    render(<ReviewTab sourceId={1} onSourceChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择 复利' }))
+    // antd v5 的 indeterminate 类挂在内层 .ant-checkbox span
+    const inner = screen.getByRole('checkbox', { name: '全选' }).closest('span.ant-checkbox')
+    expect(inner).toHaveClass('ant-checkbox-indeterminate')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+    expect(screen.getByRole('checkbox', { name: '选择 安全边际' })).toBeChecked()
+    expect(screen.getByText('合并所选（2）')).toBeInTheDocument()
   })
 })

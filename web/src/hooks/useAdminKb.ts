@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   approveKbPoint,
+  approveKbPointsBatch,
   confirmKbCost,
   confirmKbMediaUploaded,
   createKbPoint,
@@ -10,14 +11,17 @@ import {
   deleteKbSource,
   estimateKbCost,
   fetchKbChapters,
+  fetchKbImages,
   fetchKbReviewPoints,
   fetchKbSourceMedia,
   fetchKbSources,
   fetchKbTranscript,
   initKbMediaUploads,
   mergeKbPoints,
+  patchKbImage,
   patchKbMedia,
   patchKbPoint,
+  redescribeKbImage,
   rejectKbPoint,
   requeueKbMedia,
   restoreKbSource,
@@ -29,11 +33,13 @@ import type {
   ApiKbChaptersPublishRequest,
   ApiKbConfirmCostRequest,
   ApiKbCostEstimateRequest,
+  ApiKbImageExcludedRequest,
   ApiKbMediaInitRequest,
   ApiKbMediaPatchRequest,
   ApiKbPointCreateRequest,
   ApiKbPointPatchRequest,
   ApiKbPointRejectRequest,
+  ApiKbPointsBatchApproveRequest,
   ApiKbPointsMergeRequest,
   ApiKbProcessStatus,
   ApiKbSettingsUpdateRequest,
@@ -250,6 +256,43 @@ function useInvalidateKbReview() {
   return () => queryClient.invalidateQueries({ queryKey: queryKeys.kb.all })
 }
 
+export function useKbImages(
+  sourceId: number | null,
+  mediaId: number | null,
+  status: string | null,
+  page: number,
+  pageSize: number
+) {
+  return useQuery({
+    queryKey: queryKeys.kb.images(sourceId ?? 0, mediaId, status, page, pageSize),
+    queryFn: () =>
+      fetchKbImages(sourceId as number, {
+        mediaId: mediaId ?? undefined,
+        status: status ?? undefined,
+        page,
+        pageSize,
+      }),
+    enabled: sourceId != null,
+  })
+}
+
+export function useRedescribeKbImage() {
+  const invalidate = useInvalidateKbReview()
+  return useMutation({
+    mutationFn: (imageId: number) => redescribeKbImage(imageId),
+    onSuccess: invalidate,
+  })
+}
+
+export function usePatchKbImage() {
+  const invalidate = useInvalidateKbReview()
+  return useMutation({
+    mutationFn: ({ imageId, data }: { imageId: number; data: ApiKbImageExcludedRequest }) =>
+      patchKbImage(imageId, data),
+    onSuccess: invalidate,
+  })
+}
+
 export function useCreateKbPoint() {
   const invalidate = useInvalidateKbReview()
   return useMutation({
@@ -288,6 +331,14 @@ export function useMergeKbPoints() {
   const invalidate = useInvalidateKbReview()
   return useMutation({
     mutationFn: (data: ApiKbPointsMergeRequest) => mergeKbPoints(data),
+    onSuccess: invalidate,
+  })
+}
+
+export function useApproveKbPointsBatch() {
+  const invalidate = useInvalidateKbReview()
+  return useMutation({
+    mutationFn: (data: ApiKbPointsBatchApproveRequest) => approveKbPointsBatch(data),
     onSuccess: invalidate,
   })
 }

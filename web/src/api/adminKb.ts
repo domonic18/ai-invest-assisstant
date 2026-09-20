@@ -1,11 +1,15 @@
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
+  ApiKbBatchApproveResult,
   ApiKbChaptersPublishRequest,
   ApiKbChaptersResponse,
   ApiKbConfirmCostRequest,
   ApiKbConfirmCostResponse,
   ApiKbCostEstimateRequest,
   ApiKbCostEstimateResponse,
+  ApiKbImageAsset,
+  ApiKbImageExcludedRequest,
+  ApiKbImageListResponse,
   ApiKbKnowledgePoint,
   ApiKbMediaInitRequest,
   ApiKbMediaInitResponse,
@@ -15,6 +19,7 @@ import type {
   ApiKbPointListResponse,
   ApiKbPointPatchRequest,
   ApiKbPointRejectRequest,
+  ApiKbPointsBatchApproveRequest,
   ApiKbPointsMergeRequest,
   ApiKbSettingsResponse,
   ApiKbSettingsUpdateRequest,
@@ -225,9 +230,57 @@ export async function fetchKbReviewPoints(
   sourceId: number,
   params: { status?: string; page?: number; pageSize?: number } = {}
 ): Promise<ApiKbPointListResponse> {
+  // query 参数跟随后端签名 snake_case（page_size），camel 键会被 FastAPI 静默忽略
   const response = await apiClient.get<ApiKbPointListResponse>(
     ENDPOINTS.admin.kbSourcePoints(sourceId),
-    { params }
+    {
+      params: {
+        status: params.status,
+        page: params.page,
+        page_size: params.pageSize,
+      },
+    }
+  )
+  return response.data
+}
+
+export async function fetchKbImages(
+  sourceId: number,
+  params: {
+    mediaId?: number
+    status?: string
+    page?: number
+    pageSize?: number
+  } = {}
+): Promise<ApiKbImageListResponse> {
+  const response = await apiClient.get<ApiKbImageListResponse>(
+    ENDPOINTS.admin.kbSourceImages(sourceId),
+    {
+      params: {
+        media_id: params.mediaId,
+        status: params.status,
+        page: params.page,
+        page_size: params.pageSize,
+      },
+    }
+  )
+  return response.data
+}
+
+export async function redescribeKbImage(imageId: number): Promise<ApiKbImageAsset> {
+  const response = await apiClient.post<ApiKbImageAsset>(
+    ENDPOINTS.admin.kbImageRedescribe(imageId)
+  )
+  return response.data
+}
+
+export async function patchKbImage(
+  imageId: number,
+  data: ApiKbImageExcludedRequest
+): Promise<ApiKbImageAsset> {
+  const response = await apiClient.patch<ApiKbImageAsset>(
+    ENDPOINTS.admin.kbImage(imageId),
+    data
   )
   return response.data
 }
@@ -276,6 +329,16 @@ export async function mergeKbPoints(
 ): Promise<ApiKbKnowledgePoint> {
   const response = await apiClient.post<ApiKbKnowledgePoint>(
     ENDPOINTS.admin.kbPointsMerge,
+    data
+  )
+  return response.data
+}
+
+export async function approveKbPointsBatch(
+  data: ApiKbPointsBatchApproveRequest
+): Promise<ApiKbBatchApproveResult> {
+  const response = await apiClient.post<ApiKbBatchApproveResult>(
+    ENDPOINTS.admin.kbPointsApproveBatch,
     data
   )
   return response.data
