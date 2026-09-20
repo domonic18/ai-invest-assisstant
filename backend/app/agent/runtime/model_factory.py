@@ -16,6 +16,7 @@ from app.agent.runtime.usage_meter import UsageMeterCallback
 from app.core.config import get_settings
 from app.services.admin.llm_config_service import ResolvedLLMConfig
 from app.services.quota.constants import OUTLET_BYOK, OUTLET_SYSTEM
+from app.utils.api_base import normalize_api_base
 
 # 助手回答含 thinking 块与工具结果整理，给足输出空间
 ANTHROPIC_MAX_TOKENS = 8192
@@ -39,7 +40,8 @@ def build_langchain_model(
     """
     settings = get_settings()
     api_key = SecretStr(cfg.api_key)
-    base_url = str(cfg.base_url) if cfg.base_url else None
+    # SDK 会自行拼接端点路径，粘贴了完整端点的 base_url 须先归一化
+    base_url = normalize_api_base(str(cfg.base_url)) if cfg.base_url else None
     common: dict[str, Any] = {
         "timeout": settings.llm_http_read_timeout,
         "max_retries": settings.llm_max_retries,

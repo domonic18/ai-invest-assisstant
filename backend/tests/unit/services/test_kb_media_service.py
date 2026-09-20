@@ -14,7 +14,13 @@ from app.core.clock import utc_now
 from app.core.database import Base
 from app.core.exceptions import ConflictError, NotFoundError, UnprocessableEntityError
 from app.models.account_quota import AdminAuditLog
-from app.models.kb import KbKnowledgePoint, KbMedia, KbSource, KbTranscriptSegment
+from app.models.kb import (
+    KbImageAsset,
+    KbKnowledgePoint,
+    KbMedia,
+    KbSource,
+    KbTranscriptSegment,
+)
 from app.schemas.kb import (
     KbMediaInitItem,
     KbMediaInitRequest,
@@ -40,6 +46,7 @@ async def session():
                 KbMedia.__table__,
                 KbTranscriptSegment.__table__,
                 KbKnowledgePoint.__table__,
+                KbImageAsset.__table__,
                 AdminAuditLog.__table__,
             ],
         )

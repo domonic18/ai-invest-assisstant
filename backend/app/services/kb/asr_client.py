@@ -14,6 +14,7 @@ import structlog
 
 from app.models.social import AsrChannelConfig
 from app.services.kb.transcribe_pipeline import Sentence
+from app.utils.api_base import normalize_asr_base
 
 logger = structlog.get_logger(__name__)
 
@@ -109,7 +110,7 @@ async def transcribe_chunk(
     config: AsrChannelConfig, api_key: str, wav: bytes, *, filename: str
 ) -> ChunkTranscript:
     """转写单个 wav 分片；渠道/业务错误抛 AsrChannelError。"""
-    base_url = (config.base_url or "").rstrip("/")
+    base_url = normalize_asr_base(config.base_url or "")
     payload = await _post_chunk(base_url, config, api_key, wav, filename=filename)
 
     base_resp = payload.get("base_resp")

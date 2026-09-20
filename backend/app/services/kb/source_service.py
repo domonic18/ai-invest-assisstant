@@ -19,6 +19,7 @@ from app.models.kb import KbSource
 from app.repositories.kb import media_repository, source_repository
 from app.schemas.kb import KbSourceCreateRequest, KbSourceResponse, KbSourceUpdateRequest
 from app.services.admin.audit_service import record_audit
+from app.services.kb import index_service
 
 logger = structlog.get_logger(__name__)
 
@@ -107,6 +108,8 @@ async def update_source(
         row.description = data.description
     if data.enabled is not None:
         row.enabled = data.enabled
+        # 启停切换改变子行可索引性，置脏让下轮 kb-index 增删文档
+        await index_service.mark_source_children_dirty(session, source_id)
     await record_audit(
         session,
         actor_id=actor_id,
@@ -136,6 +139,8 @@ async def soft_delete_source(
         row.deleted_at = now
         row.storage_bytes = max(0, (row.storage_bytes or 0) - pending)
         row.pending_cleanup_bytes = (row.pending_cleanup_bytes or 0) + pending
+        # 投影同步：子行置脏，下轮 kb-index 删对应文档
+        await index_service.mark_source_children_dirty(session, source_id)
         await record_audit(
             session,
             actor_id=actor_id,
@@ -170,6 +175,8 @@ async def restore_source(
     )
     for media in medias:
         media.deleted_at = None
+    # 投影同步：软删期间文档可能已被删，置脏让下轮 kb-index 重新入索引
+    await index_service.mark_source_children_dirty(session, source_id)
     await record_audit(
         session,
         actor_id=actor_id,

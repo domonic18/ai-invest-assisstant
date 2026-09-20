@@ -15,6 +15,7 @@ from app.api.v1 import (
     financial_report,
     fund_flow,
     hotspot,
+    kb,
     kline,
     market,
     news,
@@ -82,6 +83,7 @@ api_router.include_router(workbench.router, prefix="/workbench", tags=["workbenc
 api_router.include_router(drawings.router, prefix="/kline-drawings", tags=["drawings"])
 api_router.include_router(screening.router, prefix="/screening", tags=["screening"])
 api_router.include_router(social.router, prefix="/social", tags=["social"])
+api_router.include_router(kb.router, prefix="/kb", tags=["kb"])
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(admin_users.router, prefix="/users")

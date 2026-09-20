@@ -23,6 +23,7 @@ from app.services.admin.llm_config_service import (
 )
 from app.services.quota.constants import BYOK_PROVIDER, OUTLET_BYOK, OUTLET_SYSTEM
 from app.services.quota.context import current_meter_context
+from app.utils.api_base import normalize_api_base
 from app.utils.crypto import encrypt_token, mask_token
 
 logger = structlog.get_logger(__name__)
@@ -113,7 +114,7 @@ async def save_user_llm_config(
         row = UserLlmConfig(user_id=user_id)
         session.add(row)
     row.protocol = protocol
-    row.base_url = base_url.rstrip("/")
+    row.base_url = normalize_api_base(base_url)
     row.model_name = model_name
     row.api_key_encrypted = encrypt_token(api_key)
     row.api_key_masked = mask_token(api_key)
@@ -146,7 +147,7 @@ async def test_user_llm_connection(
     Returns:
         (status, detail)：status ∈ success / failed。
     """
-    base = base_url.rstrip("/")
+    base = normalize_api_base(base_url)
     payload: dict[str, Any] = {
         "model": model_name,
         "max_tokens": 8,

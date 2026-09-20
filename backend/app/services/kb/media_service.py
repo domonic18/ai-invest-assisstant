@@ -45,6 +45,7 @@ from app.services.common.minio_service import (
     MultipartSessionNotFoundError,
     get_minio_service,
 )
+from app.services.kb import index_service
 from app.services.kb.source_service import get_source
 
 logger = structlog.get_logger(__name__)
@@ -557,6 +558,8 @@ async def soft_delete_media(
     source.pending_cleanup_bytes = (source.pending_cleanup_bytes or 0) + (
         row.file_size or 0
     )
+    # 投影同步：子行置脏，下轮 kb-index 删对应文档
+    await index_service.mark_media_children_dirty(session, media_id)
     await record_audit(
         session,
         actor_id=actor_id,
@@ -594,6 +597,8 @@ async def restore_media(
         0, (source.pending_cleanup_bytes or 0) - (row.file_size or 0)
     )
     source.storage_bytes = (source.storage_bytes or 0) + (row.file_size or 0)
+    # 投影同步：软删期间文档可能已被删，置脏让下轮 kb-index 重新入索引
+    await index_service.mark_media_children_dirty(session, media_id)
     await record_audit(
         session,
         actor_id=actor_id,

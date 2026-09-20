@@ -145,7 +145,7 @@ export function LLMConfigModal({
           label="API 地址 (Base URL)"
           name="baseUrl"
           rules={[{ required: true, message: '请输入 API 地址' }]}
-          extra="选择供应商后自动预置，可手动修改"
+          extra="填 API 根地址（如 https://open.bigmodel.cn/api/paas/v4）；粘贴含 /embeddings、/chat/completions 的完整端点会自动归一"
         >
           <Input placeholder="https://api.deepseek.com" />
         </Form.Item>
