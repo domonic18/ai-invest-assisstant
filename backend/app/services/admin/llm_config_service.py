@@ -25,6 +25,7 @@ from app.schemas.llm_config import (
     LLMConfigUpdate,
     LLMProtocol,
 )
+from app.utils.api_base import normalize_api_base
 from app.utils.crypto import decrypt_token, encrypt_token, mask_token
 
 logger = structlog.get_logger()
@@ -194,9 +195,17 @@ class LLMConfigService:
     async def _call_model(
         self, config: LLMConfig, api_key: str
     ) -> tuple[str, str]:
-        """按配置协议发送轻量探测请求以验证连通性（与实际调用同协议）。"""
-        base = config.base_url.rstrip("/")
-        if config.protocol == "anthropic":
+        """按用途与协议发送轻量探测请求以验证连通性（与实际调用同路径）。"""
+        base = normalize_api_base(config.base_url)
+        if config.purpose == "embedding":
+            # embedding 模型没有 chat 端点，按实际调用路径探测并回报维度
+            url = f"{base}/embeddings"
+            headers = {
+                "authorization": f"Bearer {api_key}",
+                "content-type": "application/json",
+            }
+            payload: dict[str, Any] = {"model": config.model_name, "input": ["ping"]}
+        elif config.protocol == "anthropic":
             url = f"{base}/v1/messages"
             headers = {
                 "x-api-key": api_key,
@@ -204,7 +213,7 @@ class LLMConfigService:
                 "anthropic-version": "2023-06-01",
                 "content-type": "application/json",
             }
-            payload: dict[str, Any] = {
+            payload = {
                 "model": config.model_name,
                 "max_tokens": 1,
                 "messages": [{"role": "user", "content": "ping"}],
@@ -223,9 +232,15 @@ class LLMConfigService:
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.post(url, headers=headers, json=payload)
-            if response.status_code == 200:
-                return "success", f"模型 {config.model_name} 连通正常"
-            return "failed", f"HTTP {response.status_code}: {response.text[:200]}"
+            if response.status_code != 200:
+                return "failed", f"HTTP {response.status_code}: {response.text[:200]}"
+            if config.purpose == "embedding":
+                try:
+                    dims = len(response.json()["data"][0]["embedding"])
+                except (ValueError, KeyError, IndexError, TypeError):
+                    return "failed", f"响应缺少向量字段: {response.text[:200]}"
+                return "success", f"模型 {config.model_name} 连通正常（{dims} 维）"
+            return "success", f"模型 {config.model_name} 连通正常"
         except Exception as exc:  # noqa: BLE001
             logger.warning("llm_config_test_failed", config_id=config.id, error=str(exc))
             return "failed", str(exc)
