@@ -175,6 +175,8 @@ def _patch_pipeline_env(minio: _FakeMinio, *, clean_result: Any, asr_side_effect
 
 async def test_transcribe_happy_path_done_with_segments(session: AsyncSession) -> None:
     media = await _seed(session)
+    media.duration_seconds = None  # 登记期缺失（旧数据形态）→ 转写探针应回写
+    await session.commit()
     clean = KbTranscriptCleanResult(
         items=[KbTranscriptCleanItem(seq=1, text="句壹"), KbTranscriptCleanItem(seq=2, text="句贰")]
     )
@@ -189,6 +191,7 @@ async def test_transcribe_happy_path_done_with_segments(session: AsyncSession) -
     row = await session.get(KbMedia, media.id)
     assert row.process_status == KbProcessStatus.DONE
     assert row.process_error is None
+    assert row.duration_seconds == 600  # 探针时长回写（预估费用数据源）
     # 600s、300s 处静音 → 2 分片，各调一次 ASR
     assert asr_mock.await_count == 2
     assert row.process_meta["chunk_count"] == 2

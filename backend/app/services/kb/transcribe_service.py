@@ -192,6 +192,8 @@ async def _transcribe_all_chunks(
         src.write_bytes(original)
         wav = await _extract_audio(src, tmp_dir / "audio.wav")
         duration = await _probe_duration(wav)
+        # 探到即回写：费用预估在转写前发生，登记期缺失时这里是唯一补偿点
+        row.duration_seconds = round(duration)
         silences = await _detect_silences(wav)
         chunks = pipeline.plan_chunks(duration, silences)
         if not chunks:

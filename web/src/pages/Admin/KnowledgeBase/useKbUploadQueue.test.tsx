@@ -21,12 +21,17 @@ vi.mock('@/utils/multipartUpload', () => ({
   KB_MULTIPART_THRESHOLD_BYTES: 64 * 1024 * 1024,
 }))
 
+vi.mock('@/utils/mediaMeta', () => ({
+  probeMediaDuration: vi.fn(),
+}))
+
 import {
   confirmKbMediaUploaded,
   initKbMediaUploads,
   putFileToCos,
 } from '@/api/adminKb'
 import { computeFileMd5 } from '@/utils/fileHash'
+import { probeMediaDuration } from '@/utils/mediaMeta'
 import { uploadMultipartParts } from '@/utils/multipartUpload'
 
 import { inferMediaKind, useKbUploadQueue } from './useKbUploadQueue'
@@ -36,6 +41,7 @@ const mockedPut = vi.mocked(putFileToCos)
 const mockedConfirm = vi.mocked(confirmKbMediaUploaded)
 const mockedHash = vi.mocked(computeFileMd5)
 const mockedMultipart = vi.mocked(uploadMultipartParts)
+const mockedProbe = vi.mocked(probeMediaDuration)
 
 function makeFile(name: string, size = 100): File {
   const file = new File([new Uint8Array(8).fill(65)], name, { type: 'video/mp4' })
@@ -59,6 +65,7 @@ beforeEach(() => {
   mockedHash.mockResolvedValue('a'.repeat(32))
   mockedPut.mockResolvedValue(undefined)
   mockedConfirm.mockResolvedValue({} as never)
+  mockedProbe.mockResolvedValue(600)
 })
 
 describe('inferMediaKind', () => {
@@ -103,6 +110,7 @@ describe('useKbUploadQueue', () => {
           size: 100,
           hash: 'a'.repeat(32),
           mediaKind: 'video',
+          durationSeconds: 600,
         }),
       ],
     })

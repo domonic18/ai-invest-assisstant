@@ -16,6 +16,7 @@ import {
   clearStoredSession,
   uploadMultipartParts,
 } from '@/utils/multipartUpload'
+import { probeMediaDuration } from '@/utils/mediaMeta'
 
 export type UploadItemStatus =
   | 'hashing'
@@ -107,6 +108,9 @@ export function useKbUploadQueue(sourceId: number | null) {
         })
         return
       }
+      // 时长随登记入库（费用预估在转写前发生，事后无来源）；浏览器读不出（如 mkv 容器）留空，由转写探针回写
+      const durationSeconds =
+        mediaKind === 'book' ? null : await probeMediaDuration(entry.file, mediaKind)
       let result
       try {
         const response = await initKbMediaUploads(sourceId as number, {
@@ -117,6 +121,7 @@ export function useKbUploadQueue(sourceId: number | null) {
               size: entry.file.size,
               hash: entry.hash as string,
               mediaKind,
+              durationSeconds,
             },
           ],
         })
