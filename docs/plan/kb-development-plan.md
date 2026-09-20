@@ -1,7 +1,7 @@
 # 知识库（F-KB）开发计划
 
-> 基线：[arch 12](../arch/12-knowledge-base.md)（2026-09-18 定稿，含模型角色配置与 token 台账二次增补）+ [需求 04](../requirement/04-knowledge-base-requirement.md) V1.1 + [原型](../prototypes/knowledge-base.html)。
-> 批次独立开发、独立验收；合计约 18.5 人日（一期 15.5 + 二期 3）。
+> 基线：[arch 12](../arch/12-knowledge-base.md)（2026-09-20 修订定稿：检索去投影化 PG 单库；含模型角色配置与 token 台账二次增补）+ [需求 04](../requirement/04-knowledge-base-requirement.md) V1.1 + [原型](../prototypes/knowledge-base.html)。
+> 批次独立开发、独立验收；合计约 20.5 人日（一期 17.5 + 二期 3）。
 > 跨批次红线（全程有效）：抽取 Schema 全字段 required 禁默认值；wire camelCase + shared/types 单一真相源、query 参数 snake_case；幂等 SQL 迁移 + init-scripts 双写；业务日期走 `app.core.clock`；`services/kb` 不顶层导入 `app.agent.*`（`run_structured` 函数内延迟导入）；模型调用真实 usage 优先入 `user_token_usage` 台账。
 
 ## 0. 迭代映射（排期归 development-plan）
@@ -11,6 +11,7 @@
 | 迭代 12 · F-KB 一期上 | A 底座 → B 素材接入与转写 → C 电子书解析 | 素材进得来（直传/去重/费用闸门）、课程转写与书解析跑得通、文稿与分段可见 | ~5.5 人日 |
 | 迭代 13 · F-KB 一期下（一期验收） | D 抽取审核 → E 索引检索 → F 播放器防盗 → G 用量与收口 | 建库全链路闭环：审核发布→混合检索→精准回看/跳页/搜图→防盗→用量可评估 | ~8.5 人日 |
 | 迭代 13 · 批次 I（D 后中插） | I 视频关键帧通道 | 视频画面信息入知识库：三路信号选帧 → 去重入库 → VLM 描述计费 → 图片资产可见（检索消费留批次 E/F） | ~2 人日 |
+| 迭代 13 · 批次 J（E 后中插） | J 检索去投影化 | PG 单库混合检索（halfvec HNSW + pg_trgm + 服务层 RRF），KB 链路摘除 ES 投影与投影管理机械 | ~2 人日 |
 | 迭代 14 · F-KB 二期 | H Agent 消费 | `search_knowledge_base` 权限注入 + 技能优化建议闭环 | ~3 人日 |
 
 ## 1. 批次 A · 底座：数据模型、迁移、模型角色与设置（~1.5 人日）
@@ -99,7 +100,7 @@
 | # | 任务 | 内容与改法 |
 |---|------|-----------|
 | G1 | 用量聚合 | `usage_service.py` + `GET /admin/kb/usage?sourceId=&from=&to=`：台账 `kb_*` 分项 token × 模型单价 + ASR 时长（process_meta）× asrPerHour，预估 vs 实际对照；SettingsTab 用量面板 |
-| G2 | 清理任务 | `kb-cleanup`（batch）+ spider + seed `*/30` + F-MON 登记：扫过 24h 恢复窗的软删行 → COS 批删 → 硬删 → ES delete_by_query → storage 清零（已提前接线 2026-09-19：过窗软删物理清除 + 超龄分片会话 abort + 每日孤儿对象扫描；ES delete_by_query 随检索投影接线批次补齐，维护类任务不参与 F-MON 健康统计） |
+| G2 | 清理任务 | `kb-cleanup`（batch）+ spider + seed `*/30` + F-MON 登记：扫过 24h 恢复窗的软删行 → COS 批删 → 硬删 → storage 清零（已提前接线 2026-09-19：过窗软删物理清除 + 超龄分片会话 abort + 每日孤儿对象扫描；KB 检索投影已随批次 J 摘除——行硬删即检索消失，无 ES 清理步骤；维护类任务不参与 F-MON 健康统计） |
 | G3 | 一期收口 | F-MON 五任务判定复核（SKIPPED=正常态）；docker 栈全链路走查（对照需求 §9 验收表逐行）；质量门全绿 |
 
 验收：用量分项与台账一致（抽样对账）；删库级联清理后检索无残留；需求 §9 一期行全部通过。
@@ -119,7 +120,24 @@
 
 > **交付记录（2026-09-19）**：I1–I4 完成——迁移 `20260919_kb_vision.sql`（幂等，含 seed 三件套）+ `vision_pipeline.py` 纯函数（场景解析/视觉指涉句中点/时间窗合并/aHash/配额裁剪）+ `vision_service.py` 两阶段（选帧零 LLM → `vision_at` 幂等记账；描述按张计费 `meter_scope(FEATURE_KB_VISION)` + 前后句文稿上下文，`describe_attempts≥3` 终态）+ `kb-vision` 任务（batch 1800/2100，`*/10`）+ `GET /admin/kb/sources/{id}/images`（缩略图 1h 预签名，query snake_case）+ shared 契约；前端零 UI（批次 E 检索消费）。端到端验证期修复两处集成 bug：① `_detect_scenes` 必须加 `-an -sn -dn` 丢非视频流，否则 null muxer 缓冲音轨以 `Too many packets buffered` 整体失败；② `session.rollback()` 使循环携带的 ORM 实例全部过期，属性访问逃出 per-media 容错致整轮 FAILED——vision_service 两阶段与 extract_service `_extract_points`（同型存量）统一改「循环前预捕获纯元组 + 迭代内按 id 重取」。本地实跑 16 集 19 分钟视频：567 帧入库（单集 ~29 帧，远低于 120 配额；aHash 近重复过滤生效；帧图课件文字清晰可读实检通过），描述首批 20/20 成功入台账（kb_vision 25,745 tokens/20 行），存量 547 帧由 `*/10` 调度按 20/轮消化；images 端点未认证 401 门禁实测 + 契约单测钉死；调度回归 transcribe/extract/cleanup 正常 SKIPPED。
 
-## 9. 批次 H · 二期 Agent 消费（F-KB-06/07，~3 人日）
+## 9. 批次 J · 检索去投影化：PG 单库混合检索（~2 人日）
+
+> 2026-09-20 追加（ES 投影两次被外部清空事故后评审拍板，arch 12 §1/§7 修订定稿）：撤销「PG 真相源 + ES 可重建投影」双存储，检索收敛为 PG 单库——`halfvec(2048)` HNSW 向量路 + `pg_trgm` 词面路 + 服务层 RRF。动机：投影同步链是独立故障面（本次 9200 端口暴露 + 弱凭据被外部 `delete_by_query` 清空索引；叠加 best-effort 删除、版本对账、mapping 指纹等约 500 行投影管理机械）；语料 ≤1 万行 PG 双索引余量充足；ES 标准分词对中文 BM25 本就无质量红利。ES 容器保留（存量研报索引 + 健康探针），9200 不再对宿主发布。
+
+| # | 任务 | 内容与改法 |
+|---|------|-----------|
+| J0 | 回滚与备份 | stash 留底 ES 投影实现（含 #188 章节下推 ES 侧），工作树回退；纯 PG 侧成果选择性恢复（章节浏览端点/`20260920e` GIN 迁移/#186 管线健壮化/#187 需求增补） |
+| J1 | 迁移与模型 | `docker/database/migrations/20260920f_kb_search_columns.sql`（幂等）：`CREATE EXTENSION vector`/`pg_trgm`；三表 `embedding halfvec(2048) NULL`；point/image `search_text` 生成列（拼接口径 = 嵌入输入单一真相）；三表 HNSW(`halfvec_cosine_ops`) + GIN(`gin_trgm_ops`)；init-scripts 双写；`uv add pgvector`；`models/kb.py` `Halfvec`/`Computed`（sqlite 测试兼容） |
+| J2 | 嵌入物化器 | `index_service.py` 重写：脏行扫描 → `embed(检索文本)` → UPDATE `embedding` + 清脏（同事务）；`force_rebuild` 全量置脏重灌（行级覆写，无别名/蓝绿）；维度护栏（实测维度 ≠ 列定义 → SKIPPED 显式引导）；删除指纹/别名/对账/tombstone 全部投影管理 |
+| J3 | 检索重写 | `search_service.search`：词面路（ILIKE 候选 + `similarity()` 排序，窗口 50）+ 向量路（`<=>` HNSW，行内 WHERE 过滤与水合口径同源）→ `_rrf_fuse`/kind 分桶截断/水合/响应契约不变；降级语义：embedding 失败仅词面路（`degraded=embedding_unavailable`），无整面失败 |
+| J4 | 依赖摘除 | cleanup/transcribe 删 ES 投影调用（保留 `mark_*_children_dirty`）；`spiders/kb_index.py` stats/SKIPPED 契约同步；compose ES 9200 端口不对宿主发布 |
+| J5 | 回填与验证 | 从 ES v3 一次性回填 3842 条 embedding（`_source.embedding` → UPDATE + 清脏，零重嵌入）；E2E：「什么是支撑拐点」/「支撑」双路命中、章节过滤、浏览端点回归；质量门全绿 |
+
+验收：同 query 集合召回不低于 ES 版基线；物化任务增量/全量跑通且维度护栏生效；KB 链路代码零 ES 连接；素材删除后检索即时消失；9200 不对宿主发布。
+
+> **交付记录（2026-09-20，批次 J 完结）**：J0–J5 完成——J0 stash 留底（`stash@{0}` "backup: pre-OptionB ES projection"），25 个方向无关文件选择性恢复（#186 管线健壮化/章节浏览端点/`20260920d`/`20260920e`/前端审核台等）；J1 迁移 `20260920f` + init 双写 + `models/kb.py` 三表 `embedding`（`HALFVEC(2048)` 带 sqlite JSON variant；pgvector 0.5.0 类名是 `HALFVEC` 非 `Halfvec`）+ `KB_EMBEDDING_DIMS=2048`；**生成列落地偏差**：`concat_ws`/`array_to_string` 均 STABLE 不可入生成列，改 `CASE/COALESCE/||` 显式拼接（空/NULL 段跳过 + 非空段 `\n` 连接，与 Python join 口径逐点一致，tmp 表实测钉死）；`search_text` 刻意不映射 ORM（sqlite 无该函数，词面路由 raw `literal_column`）。J2 `index_service.py` 696→317 行：`_KindSpec`（model+keep_row+text_of）声明式物化，增量单轮各类 500 / `force_rebuild` 全量置脏 drain；不可见行（rejected/排除/软删/停用源）清 `embedding=NULL`——检索可见性由行状态 + 检索行内过滤双保险，无 tombstone；维度护栏 SKIPPED 引导列迁移。J3 `search_service.py`：词面路 ILIKE（`\`/`%`/`_` 转义防通配注入）+ `similarity()` 排序、向量路 `<=>` HNSW，**各类行分别取序后按分数并成跨类全局序**再进 RRF（保持 ES 版「两路各一个全局序」的融合语义）；kind/point_type/章节过滤经 `_leg_active` + `_Scope` 同构透传两路，章节 = JSONB containment 粗筛（WHERE）+ 前缀精筛（水合）；降级收敛为仅 `embedding_unavailable`（PG 故障随请求 500，无 `es_unavailable` 静默空）；`KB_INDEX_ALIAS`/`KB_INDEX_PRUNE_DAYS` 孤儿常量删除。J4 cleanup/transcribe 投影调用摘除（向量随行生存：软删下轮物化清、硬删 FK 级联消失）；spider stats 契约（Embedded/Cleared/dimensionMismatch/forceRebuild）；compose 两文件 ES 端口发布移除（网内可达，研报索引与健康探针不受影响）。J5 回填脚本 `scripts/backfill_kb_embedding_from_es.py`（scroll v3 → `$1::halfvec` 文本参数 + 清脏，asyncpg 免 codec 注册），本地实跑 point 721 / seg 1994 / img 1127 全量入列零重嵌入、脏标全清。质量门：后端 2039 单测 / mypy / ruff 全绿。E2E：`支撑` 双路命中（degraded=None，点 8 + 段 10 + 图 1，案例帧缩略图与 seekMs 齐备）、章节树/浏览清单/章节过滤检索/kind=image 文字搜图全通、`kb-index` 增量空转 SKIPPED 正常（维度探测真实调通智谱）。
+
+## 10. 批次 H · 二期 Agent 消费（F-KB-06/07，~3 人日）
 
 | # | 任务 | 内容与改法 |
 |---|------|-----------|
@@ -129,15 +147,15 @@
 
 验收：普通用户会话无此工具（单测钉死）；未经审核的修改不生效；引用带集数/时间码可溯源。
 
-## 10. 部署前置与运维项（随对应批次落地）
+## 11. 部署前置与运维项（随对应批次落地）
 
-- **依赖**：批次 C 文本层已用 `pypdf`（pyproject 已含）；批次 F 新增 `uv add pypdfium2 Pillow`（书页渲染 + 水印合成）+ **web 镜像补 CJK TTF 字体层**（水印中文渲染）；**collector 镜像补 ffmpeg**（apt 层，批次 B 转写切分依赖）——Dockerfile 变更随批次 B 提交。
+- **依赖**：批次 C 文本层已用 `pypdf`（pyproject 已含）；批次 F 新增 `uv add pypdfium2 Pillow`（书页渲染 + 水印合成）+ **web 镜像补 CJK TTF 字体层**（水印中文渲染）；**collector 镜像补 ffmpeg**（apt 层，批次 B 转写切分依赖）——Dockerfile 变更随批次 B 提交；批次 J 新增 `uv add pgvector`（SQLAlchemy `Halfvec` 类型，纯轮子）。
 - **SCF 路由决策（批次 F 开工前定）**：`/kb/stream` 视频代理仅由轻量服务器域名提供，SCF Web 函数路由排除（2048MB 内存/流式响应红线）；KB 为内部功能，不阻塞开发、阻塞验收。
 - **批次 I 零新增依赖**：ffmpeg 复用 collector 镜像既有层（批次 B 已补）；aHash 纯 Python 实现，不引 Pillow；抽帧走 subprocess。
-- **compose 零新增服务**（零 sidecar）；ES IK 薄镜像为可选部署决策点，不阻塞（标准分词 + dense 路兜底）。
-- **admin 前置配置**（联调前）：`llm_config` 登记 embedding（bge-m3 1024d）与 vision 条目并绑定四槽位；ASR 渠道复用 F-SOC `asr_channel_config`；asr-1.0 控制台试跑 1 集核价并回填 `unit_prices`（单价未公开刊例，预估失真告警项）。
-- 客户端锁定 `elasticsearch[async]>=8.13,<9` 不动；kNN 用 8.13 顶层 `knn` 查询。
+- **compose 零新增服务**（零 sidecar）；ES 容器保留但 KB 不再连接（研报索引 + 健康探针照旧），9200 不对宿主发布。
+- **admin 前置配置**（联调前）：`llm_config` 登记 embedding（智谱 embedding-3 2048d）与 vision 条目并绑定四槽位；ASR 渠道复用 F-SOC `asr_channel_config`；asr-1.0 控制台试跑 1 集核价并回填 `unit_prices`（单价未公开刊例，预估失真告警项）。
+- `elasticsearch[async]>=8.13,<9` 客户端锁定维持（仅存量研报索引 `common/knowledge_base_service` 与健康探针使用）。
 
-## 11. 风险速查（详见 arch 12 §16）
+## 12. 风险速查（详见 arch 12 §16）
 
-asr-1.0 单价未刊例（核价前置 + 渠道可插拔 Paraformer 兜底）｜扫描版混入（解析显式拒收）｜模型角色误配置（保存/启动双校验 + FAILED 归因）｜抽取幻觉（三层防线 + 人工审核）｜ES 8.13 无原生 RRF（客户端融合，升级可平移）｜防盗不承诺防录屏（水印溯源边界）｜关键帧漏采与视觉成本（三路信号互补 + 单集配额 + describe 退避 + 台账对账）。
+asr-1.0 单价未刊例（核价前置 + 渠道可插拔 Paraformer 兜底）｜扫描版混入（解析显式拒收）｜模型角色误配置（保存/启动双校验 + FAILED 归因）｜抽取幻觉（三层防线 + 人工审核）｜检索底座 PG 单库（trgm 无词法权重语义，长自然语言查询靠向量路承载，RRF 双路不落空）｜防盗不承诺防录屏（水印溯源边界）｜关键帧漏采与视觉成本（三路信号互补 + 单集配额 + describe 退避 + 台账对账）。
