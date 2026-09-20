@@ -16,12 +16,16 @@ from app.core.exceptions import InternalError
 from app.services.kb.settings_service import resolve_role_model
 from app.services.quota.constants import FEATURE_KB_EMBED, OUTLET_SYSTEM
 from app.services.quota.usage_writer import UsageRecord, enqueue
+from app.utils.api_base import normalize_api_base
 from app.utils.crypto import decrypt_token
 
 logger = structlog.get_logger(__name__)
 
 _EMBED_BATCH_SIZE = 64
 _DIMS_PROBE_TEXT = "维度探测"
+# 单条文本嵌入截断上限：智谱 embedding-3 实测 ~3072 token 处 400（code 1210），
+# 2048 字符留足余量；BM25 侧 ES text 字段存全文，检索召回不受截断影响
+_EMBED_TEXT_MAX_CHARS = 2048
 
 
 class KbEmbeddingError(InternalError):
@@ -56,7 +60,7 @@ class EmbeddingClient:
     ) -> None:
         self.config_id = config_id
         self.provider = provider
-        self.base_url = base_url.rstrip("/")
+        self.base_url = normalize_api_base(base_url)
         self.api_key = api_key
         self.model_name = model_name
 
@@ -75,13 +79,15 @@ class EmbeddingClient:
         """
         if not texts:
             return []
+        # 超长文本截断（ASR 退化重复 / 截图 OCR 全量等），超出厂商单条上限整批 400
+        payload_texts = [t[:_EMBED_TEXT_MAX_CHARS] for t in texts]
         url = f"{self.base_url}/embeddings"
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(
                     url,
                     headers={"authorization": f"Bearer {self.api_key}"},
-                    json={"model": self.model_name, "input": texts},
+                    json={"model": self.model_name, "input": payload_texts},
                 )
         except httpx.HTTPError as exc:
             raise KbEmbeddingError(f"embedding 请求失败：{exc}") from exc

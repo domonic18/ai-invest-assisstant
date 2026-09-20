@@ -62,6 +62,43 @@ async def test_embed_orders_by_index_and_records_usage() -> None:
     assert record.detail == {"sourceId": 1}
 
 
+async def test_base_url_with_endpoint_suffix_is_normalized() -> None:
+    """用户粘贴 …/embeddings 完整端点时归一化剥离，不拼出双重路径。"""
+    client = EmbeddingClient(
+        config_id=3,
+        provider="custom",
+        base_url="https://open.bigmodel.cn/api/paas/v4/embeddings",
+        api_key="sk-test",
+        model_name="embedding-3",
+    )
+    assert client.base_url == "https://open.bigmodel.cn/api/paas/v4"
+
+    with patch("app.services.kb.embedding_client.httpx.AsyncClient") as mock_client_cls:
+        mock_client_cls.return_value.__aenter__.return_value.post = AsyncMock(
+            return_value=_response(payload=_payload(1))
+        )
+        await client.embed(["ping"])
+
+    posted_url = mock_client_cls.return_value.__aenter__.return_value.post.call_args.args[0]
+    assert posted_url == "https://open.bigmodel.cn/api/paas/v4/embeddings"
+
+
+async def test_embed_truncates_overlong_texts() -> None:
+    """超厂商单条上限的文本截断后发送（ASR 退化重复 / 截图 OCR 全量场景）。"""
+    client = _client()
+    with patch("app.services.kb.embedding_client.httpx.AsyncClient") as mock_client_cls:
+        mock_client_cls.return_value.__aenter__.return_value.post = AsyncMock(
+            return_value=_response(payload=_payload(2))
+        )
+        await client.embed(["长" * 5000, "短"])
+
+    sent = mock_client_cls.return_value.__aenter__.return_value.post.call_args.kwargs["json"][
+        "input"
+    ]
+    assert len(sent[0]) == 2048
+    assert sent[1] == "短"
+
+
 async def test_embed_usage_missing_falls_back_to_chars() -> None:
     client = _client()
     with (
