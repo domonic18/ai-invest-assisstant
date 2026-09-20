@@ -6,6 +6,8 @@
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS vector;      -- 知识库检索：halfvec 向量列（HNSW）
+CREATE EXTENSION IF NOT EXISTS pg_trgm;     -- 知识库检索：词面三元组（GIN trgm）
 
 -- ============================================================
 -- 1. 基础信息域
@@ -1509,7 +1511,8 @@ CREATE TABLE IF NOT EXISTS kb_transcript_segment (
     end_ms          BIGINT,
     page_start      INT,                                                  -- 书：页区间
     page_end        INT,
-    embedding_dirty BOOLEAN     NOT NULL DEFAULT TRUE,                    -- 索引任务增量拾取
+    embedding       halfvec(2048),                                        -- 向量检索列（物化任务写入）
+    embedding_dirty BOOLEAN     NOT NULL DEFAULT TRUE,                    -- 物化任务增量拾取
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_kb_segment_media_seq UNIQUE (media_id, seq_no)
@@ -1517,6 +1520,8 @@ CREATE TABLE IF NOT EXISTS kb_transcript_segment (
 
 CREATE INDEX IF NOT EXISTS idx_kb_segment_dirty ON kb_transcript_segment(embedding_dirty) WHERE embedding_dirty;
 CREATE INDEX IF NOT EXISTS idx_kb_segment_source_dirty ON kb_transcript_segment(source_id, embedding_dirty);
+CREATE INDEX IF NOT EXISTS idx_kb_segment_embedding ON kb_transcript_segment USING hnsw (embedding halfvec_cosine_ops);
+CREATE INDEX IF NOT EXISTS idx_kb_segment_text_trgm ON kb_transcript_segment USING gin (text gin_trgm_ops);
 
 CREATE TABLE IF NOT EXISTS kb_knowledge_point (
     id               BIGSERIAL PRIMARY KEY,
@@ -1539,6 +1544,19 @@ CREATE TABLE IF NOT EXISTS kb_knowledge_point (
     review_note      VARCHAR(1000),
     reviewed_by      BIGINT REFERENCES "user"(id) ON DELETE SET NULL,
     reviewed_at      TIMESTAMPTZ,
+    search_text      TEXT GENERATED ALWAYS AS (                         -- 词面检索列 = 嵌入输入口径
+        -- 生成列只能用不可变函数（concat_ws 为 STABLE）：CASE/COALESCE/|| 拼接，
+        -- 非空段以 \n 连接、空/NULL 段跳过，与 Python join 口径逐点一致
+        COALESCE(nullif(title, ''), '')
+        || CASE WHEN nullif(title, '') IS NOT NULL AND nullif(term_definition, '') IS NOT NULL
+                THEN E'\n' ELSE '' END || COALESCE(nullif(term_definition, ''), '')
+        || CASE WHEN (nullif(title, '') IS NOT NULL OR nullif(term_definition, '') IS NOT NULL)
+                   AND nullif(body, '') IS NOT NULL
+                THEN E'\n' ELSE '' END || COALESCE(nullif(body, ''), '')
+        || CASE WHEN (nullif(title, '') IS NOT NULL OR nullif(term_definition, '') IS NOT NULL
+                      OR nullif(body, '') IS NOT NULL) AND nullif(applicable_scene, '') IS NOT NULL
+                THEN E'\n' ELSE '' END || COALESCE(nullif(applicable_scene, ''), '')) STORED,
+    embedding        halfvec(2048),                                     -- 向量检索列（物化任务写入）
     embedding_dirty  BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -1549,6 +1567,8 @@ CREATE TABLE IF NOT EXISTS kb_knowledge_point (
 CREATE INDEX IF NOT EXISTS idx_kb_point_source_status ON kb_knowledge_point(source_id, status);
 CREATE INDEX IF NOT EXISTS idx_kb_point_dirty ON kb_knowledge_point(embedding_dirty) WHERE embedding_dirty;
 CREATE INDEX IF NOT EXISTS idx_kb_point_chapter_path ON kb_knowledge_point USING GIN (chapter_path jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS idx_kb_point_embedding ON kb_knowledge_point USING hnsw (embedding halfvec_cosine_ops);
+CREATE INDEX IF NOT EXISTS idx_kb_point_search_text_trgm ON kb_knowledge_point USING gin (search_text gin_trgm_ops);
 
 CREATE TABLE IF NOT EXISTS kb_image_asset (
     id                 BIGSERIAL PRIMARY KEY,
@@ -1565,6 +1585,15 @@ CREATE TABLE IF NOT EXISTS kb_image_asset (
     vision_description TEXT,                                         -- 视觉描述
     describe_status    VARCHAR(16)  NOT NULL DEFAULT 'pending',
     describe_attempts  INT          NOT NULL DEFAULT 0,              -- 描述失败退避（≥3 终态 failed）
+    search_text        TEXT GENERATED ALWAYS AS (                    -- 词面检索列 = 嵌入输入口径（三文本合并）
+        -- 同 kb_knowledge_point.search_text：不可变拼接，空/NULL 段跳过
+        COALESCE(nullif(text_in_image, ''), '')
+        || CASE WHEN nullif(text_in_image, '') IS NOT NULL AND nullif(caption, '') IS NOT NULL
+                THEN E'\n' ELSE '' END || COALESCE(nullif(caption, ''), '')
+        || CASE WHEN (nullif(text_in_image, '') IS NOT NULL OR nullif(caption, '') IS NOT NULL)
+                   AND nullif(vision_description, '') IS NOT NULL
+                THEN E'\n' ELSE '' END || COALESCE(nullif(vision_description, ''), '')) STORED,
+    embedding          halfvec(2048),                                -- 向量检索列（物化任务写入）
     embedding_dirty    BOOLEAN      NOT NULL DEFAULT TRUE,
     index_excluded     BOOLEAN      NOT NULL DEFAULT FALSE,          -- 人工排除：不进检索索引
     created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -1573,6 +1602,8 @@ CREATE TABLE IF NOT EXISTS kb_image_asset (
 );
 
 CREATE INDEX IF NOT EXISTS idx_kb_image_source_dirty ON kb_image_asset(source_id, embedding_dirty);
+CREATE INDEX IF NOT EXISTS idx_kb_image_embedding ON kb_image_asset USING hnsw (embedding halfvec_cosine_ops);
+CREATE INDEX IF NOT EXISTS idx_kb_image_search_text_trgm ON kb_image_asset USING gin (search_text gin_trgm_ops);
 
 CREATE TABLE IF NOT EXISTS kb_settings (
     id                  BIGSERIAL PRIMARY KEY CHECK (id = 1),

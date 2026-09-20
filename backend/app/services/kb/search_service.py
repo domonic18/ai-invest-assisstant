@@ -1,32 +1,33 @@
-"""知识库混合检索（arch/12 §7.2）：双路召回 + 客户端 RRF + PG 水合。
+"""知识库混合检索（arch/12 §7.2）：PG 单库双路召回 + 客户端 RRF 融合。
 
-ES 8.13 Basic 无原生 RRF retriever（8.16 GA + Enterprise），融合在服务层实现：
-BM25（bool match，size=50）与 knn（顶层 k=20/candidates=200）两次查询 →
-按名次倒数融合（k=60，窗口 50，只看排名不做分数归一化）→ doc_kind 分组
-→ PG 回表水合（ES 仅存投影，卡片全字段以 PG 为真相源）。
+PG 是唯一存储（无投影层）：词面路走 ``search_text`` 生成列（segment 用
+``text`` 列）ILIKE 命中 + pg_trgm ``similarity()`` 排序（GIN 索引）；向量路
+走行内 ``embedding halfvec`` 余弦距离（``<=>``，HNSW 索引）。两路 WHERE 与
+水合口径同源（published/done/未排除/素材存活/源启用），各类行分别取序后按
+分数合并成跨类全局序 → 名次倒数融合（k=60，窗口 50）→ doc_kind 分组截断
+水合。
 
-降级语义（检索面故障不外溢）：ES 不可用返回空结果 + ``es_unavailable`` 标记；
-embedding 槽位缺失或调用失败退化为 BM25 单路 + ``embedding_unavailable`` 标记。
+降级语义：embedding 槽位缺失或调用失败退化为词面单路 +
+``embedding_unavailable`` 标记；PG 故障随请求异常外溢，不静默降级空结果。
 Agent 工具（批次 H）与本服务共用同一入口。
 """
 
+from collections.abc import Callable
 from datetime import timedelta
-from typing import Any
+from typing import Any, NamedTuple
 
 import structlog
-from elasticsearch import AsyncElasticsearch
-from sqlalchemy import select
+from sqlalchemy import func, literal_column, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.kb import (
-    KB_INDEX_ALIAS,
     KbDescribeStatus,
     KbPointStatus,
+    KbProcessStatus,
 )
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
-from app.core.config import get_settings
 from app.core.exceptions import NotFoundError, UnprocessableEntityError
-from app.models.kb import KbImageAsset, KbKnowledgePoint, KbMedia, KbTranscriptSegment
+from app.models.kb import KbImageAsset, KbKnowledgePoint, KbMedia, KbSource, KbTranscriptSegment
 from app.repositories.kb import point_repository
 from app.schemas.kb import (
     KbBrowsePointItem,
@@ -47,9 +48,8 @@ from app.services.kb.source_service import get_source
 
 logger = structlog.get_logger(__name__)
 
-_BM25_SIZE = 50
+_LEX_SIZE = 50
 _KNN_K = 20
-_KNN_CANDIDATES = 200
 _RRF_K = 60
 _FUSED_WINDOW = 50
 _SEGMENT_HITS = 10
@@ -72,11 +72,10 @@ async def search(
     point_type: str | None = None,
     kind: str | None = None,
 ) -> KbSearchResponse:
-    """混合检索：RRF 融合后按 doc_kind 分组水合（三类命中独立列表）。
+    """混合检索：双路全局序 RRF 融合后按 doc_kind 分组水合。
 
-    chapter_path 前缀过滤下推 ES 查询层（point 文档 chapter_keys 前缀键
-    term 命中，过滤时原文/图片命中不返回）；水合层保留同口径防御过滤，
-    兜住「PG 已改章节、投影尚未增量」的滞后窗口。
+    chapter_path 前缀过滤进两路行内 WHERE（JSONB containment 粗筛 + 水合层
+    前缀精筛），并强制只召回卡片（原文/图片无章节归属）。
     """
     query = q.strip()
     if not query:
@@ -84,25 +83,20 @@ async def search(
     chapter = [seg.strip() for seg in chapter_path or [] if seg.strip()]
     settings = await settings_service.get_settings_row(session)
     point_cap = max(1, settings.top_k or 8)
-    filters = _es_filters(
-        source_id=source_id, point_type=point_type, kind=kind, chapter=chapter or None
+    scope = _Scope(
+        source_id=source_id,
+        point_type=point_type,
+        kind=kind,
+        chapter=tuple(chapter) or None,
     )
 
-    rankings: list[list[str]] = []
     degraded: str | None = None
-    es = AsyncElasticsearch(get_settings().elasticsearch_url)
-    try:
-        rankings.append(await _bm25_ranking(es, query, filters))
-        vector = await _query_vector(session, query)
-        if vector is None:
-            degraded = "embedding_unavailable"
-        else:
-            rankings.append(await _knn_ranking(es, vector, filters))
-    except Exception as exc:  # noqa: BLE001 —— 检索面降级不外溢
-        logger.warning("kb_search_es_unavailable", error=str(exc)[:200])
-        return KbSearchResponse(query=q, degraded="es_unavailable")
-    finally:
-        await es.close()
+    vector = await _query_vector(session, query)
+    if vector is None:
+        degraded = "embedding_unavailable"
+    rankings = [await _lexical_ranking(session, query, scope)]
+    if vector is not None:
+        rankings.append(await _vector_ranking(session, vector, scope))
 
     fused = _rrf_fuse(rankings)
     point_ids: list[int] = []
@@ -123,7 +117,7 @@ async def search(
 
     scores = dict(fused)
     points = await _hydrate_points(
-        session, point_ids, scores, chapter_prefix=chapter or None
+        session, point_ids, scores, chapter_prefix=scope.chapter
     )
     segments = (
         await _hydrate_segments(session, segment_ids, scores) if segment_ids else []
@@ -171,7 +165,7 @@ async def list_chapter_points(
     page: int = DEFAULT_PAGE,
     page_size: int = DEFAULT_PAGE_SIZE,
 ) -> KbChapterPointsResponse:
-    """章节卡片清单（浏览路径）：确定性排序分页，读 PG 真相源而非检索投影。
+    """章节卡片清单（浏览路径）：确定性排序分页，读 PG 真相源。
 
     与 ``search`` 的分工：搜索按相关性截断 top-k，浏览要全集 + 稳定顺序
     （episode_no/start_ms/page_start）+ 分页；章节 id 对发布树校验，未知
@@ -229,77 +223,146 @@ async def list_chapter_points(
 
 
 # ---------------------------------------------------------------------------
-# 双路召回与 RRF 融合
+# 双路召回与 RRF 融合（PG 行内过滤与水合口径同源）
 # ---------------------------------------------------------------------------
 
 
-def _es_filters(
-    *,
-    source_id: int | None,
-    point_type: str | None,
-    kind: str | None,
-    chapter: list[str] | None,
-) -> list[dict[str, Any]]:
-    """过滤器全链路透传（BM25 filter 与 knn filter 同构）。
+class _Scope(NamedTuple):
+    """检索范围（source/type/kind/章节前缀；两路共用）。"""
 
-    章节过滤下推 ES filter context：point 文档 chapter_keys 前缀键 term
-    精确命中，并强制只召回卡片（原文/图片无章节归属）。
+    source_id: int | None
+    point_type: str | None
+    kind: str | None
+    chapter: tuple[str, ...] | None
+
+
+class _LegSpec(NamedTuple):
+    """一类检索行的双路声明：doc 前缀 + 行内过滤 + 词面列。"""
+
+    doc_prefix: str
+    kind_name: str
+    model: Any
+    criteria: Callable[[_Scope], list[Any]]
+    lex_col: Any
+
+
+def _escape_like(value: str) -> str:
+    """转义 ILIKE 通配符（用户输入按字面匹配，不注入 %/_ 语义）。"""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _point_criteria(scope: _Scope) -> list[Any]:
+    """卡片行内过滤：published + 素材存活 + 源启用（口径同 index_service）。"""
+    crits: list[Any] = [
+        KbKnowledgePoint.status == KbPointStatus.PUBLISHED,
+        KbMedia.deleted_at.is_(None),
+        KbSource.enabled.is_(True),
+        KbSource.deleted_at.is_(None),
+    ]
+    if scope.source_id is not None:
+        crits.append(KbKnowledgePoint.source_id == scope.source_id)
+    if scope.point_type is not None:
+        crits.append(KbKnowledgePoint.point_type == scope.point_type)
+    if scope.chapter is not None:
+        crits.append(KbKnowledgePoint.chapter_path.contains(list(scope.chapter)))
+    return crits
+
+
+def _segment_criteria(scope: _Scope) -> list[Any]:
+    """分段行内过滤：done 素材存活 + 源启用。"""
+    crits: list[Any] = [
+        KbMedia.deleted_at.is_(None),
+        KbMedia.process_status == KbProcessStatus.DONE,
+        KbSource.enabled.is_(True),
+        KbSource.deleted_at.is_(None),
+    ]
+    if scope.source_id is not None:
+        crits.append(KbTranscriptSegment.source_id == scope.source_id)
+    return crits
+
+
+def _image_criteria(scope: _Scope) -> list[Any]:
+    """图片行内过滤：描述 done + 未排除 + 素材存活 + 源启用。"""
+    crits: list[Any] = [
+        KbImageAsset.describe_status == KbDescribeStatus.DONE,
+        KbImageAsset.index_excluded.is_(False),
+        KbMedia.deleted_at.is_(None),
+        KbSource.enabled.is_(True),
+        KbSource.deleted_at.is_(None),
+    ]
+    if scope.source_id is not None:
+        crits.append(KbImageAsset.source_id == scope.source_id)
+    return crits
+
+
+def _leg_active(leg: _LegSpec, scope: _Scope) -> bool:
+    """kind 过滤限定行类；point_type/章节过滤无原始/图片归属，强制只查卡片。"""
+    if scope.kind is not None and scope.kind != leg.kind_name:
+        return False
+    if (scope.point_type is not None or scope.chapter is not None) and (
+        leg.kind_name != "point"
+    ):
+        return False
+    return True
+
+
+async def _lexical_ranking(
+    session: AsyncSession, query: str, scope: _Scope
+) -> list[str]:
+    """词面路：ILIKE 字面命中 + similarity 排序，各类行按分并成全局序。
+
+    词面列：卡片/图片走 ``search_text`` 生成列（未映射 ORM，raw 引用），
+    分段直接用 ``text`` 列；均建 pg_trgm GIN 索引。
     """
-    filters: list[dict[str, Any]] = []
-    if kind is not None:
-        filters.append({"term": {"doc_kind": kind}})
-    if source_id is not None:
-        filters.append({"term": {"source_id": source_id}})
-    if point_type is not None:
-        # 分段/图片文档 point_type 为 null，term 不命中即自然排除
-        filters.append({"term": {"point_type": point_type}})
-    if chapter is not None:
-        filters.append({"term": {"doc_kind": "point"}})
-        filters.append({"term": {"chapter_keys": "/".join(chapter)}})
-    return filters
+    pattern = f"%{_escape_like(query)}%"
+    scored: list[tuple[float, str]] = []
+    for leg in _LEGS:
+        if not _leg_active(leg, scope):
+            continue
+        sim = func.similarity(leg.lex_col, query)
+        rows = (
+            await session.execute(
+                select(leg.model.id, sim.label("sim"))
+                .join(KbMedia, leg.model.media_id == KbMedia.id)
+                .join(KbSource, leg.model.source_id == KbSource.id)
+                .where(*leg.criteria(scope), leg.lex_col.ilike(pattern))
+                .order_by(sim.desc())
+                .limit(_LEX_SIZE)
+            )
+        ).all()
+        scored.extend((float(sim_v), f"{leg.doc_prefix}-{row_id}") for row_id, sim_v in rows)
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [doc_id for _score, doc_id in scored[:_LEX_SIZE]]
 
 
-async def _bm25_ranking(
-    es: AsyncElasticsearch, query: str, filters: list[dict[str, Any]]
+async def _vector_ranking(
+    session: AsyncSession, vector: list[float], scope: _Scope
 ) -> list[str]:
-    resp = await es.search(
-        index=KB_INDEX_ALIAS,
-        body={
-            "size": _BM25_SIZE,
-            "query": {
-                "bool": {
-                    "must": [{"match": {"text": {"query": query}}}],
-                    "filter": filters,
-                }
-            },
-            "_source": False,
-        },
-    )
-    return [hit["_id"] for hit in resp["hits"]["hits"]]
-
-
-async def _knn_ranking(
-    es: AsyncElasticsearch, vector: list[float], filters: list[dict[str, Any]]
-) -> list[str]:
-    resp = await es.search(
-        index=KB_INDEX_ALIAS,
-        body={
-            "knn": {
-                "field": "embedding",
-                "query_vector": vector,
-                "k": _KNN_K,
-                "num_candidates": _KNN_CANDIDATES,
-                "filter": {"bool": {"filter": filters}},
-            },
-            "size": _KNN_K,
-            "_source": False,
-        },
-    )
-    return [hit["_id"] for hit in resp["hits"]["hits"]]
+    """向量路：halfvec 余弦距离近邻（HNSW），各类行按距离并成全局序。"""
+    scored: list[tuple[float, str]] = []
+    for leg in _LEGS:
+        if not _leg_active(leg, scope):
+            continue
+        dist = leg.model.embedding.cosine_distance(vector)
+        rows = (
+            await session.execute(
+                select(leg.model.id, dist.label("dist"))
+                .join(KbMedia, leg.model.media_id == KbMedia.id)
+                .join(KbSource, leg.model.source_id == KbSource.id)
+                .where(*leg.criteria(scope), leg.model.embedding.is_not(None))
+                .order_by(dist.asc())
+                .limit(_KNN_K)
+            )
+        ).all()
+        scored.extend(
+            (float(dist_v), f"{leg.doc_prefix}-{row_id}") for row_id, dist_v in rows
+        )
+    scored.sort(key=lambda item: item[0])
+    return [doc_id for _score, doc_id in scored[:_KNN_K]]
 
 
 async def _query_vector(session: AsyncSession, query: str) -> list[float] | None:
-    """查询向量（单条嵌入）；槽位缺失或调用失败返回 None 走 BM25 单路。"""
+    """查询向量（单条嵌入）；槽位缺失或调用失败返回 None 走词面单路。"""
     try:
         embed = await build_embedding_client(session)
         vectors = await embed.embed(
@@ -325,7 +388,7 @@ def _rrf_fuse(rankings: list[list[str]]) -> list[tuple[str, float]]:
 
 
 def _doc_key(doc_id: str) -> tuple[str, int] | None:
-    """``seg-12`` → ("segment", 12)；异形 id 忽略（前缀与索引文档 id 约定一致）。"""
+    """``seg-12`` → ("segment", 12)；异形 id 忽略（前缀与 doc 前缀约定一致）。"""
     prefix, _, raw = doc_id.partition("-")
     kind = {"point": "point", "seg": "segment", "img": "image"}.get(prefix)
     if kind is not None and raw.isdigit():
@@ -333,8 +396,18 @@ def _doc_key(doc_id: str) -> tuple[str, int] | None:
     return None
 
 
+_POINT_LEG = _LegSpec("point", "point", KbKnowledgePoint, _point_criteria,
+                      literal_column("search_text"))
+_SEGMENT_LEG = _LegSpec("seg", "segment", KbTranscriptSegment, _segment_criteria,
+                        KbTranscriptSegment.text)
+_IMAGE_LEG = _LegSpec("img", "image", KbImageAsset, _image_criteria,
+                      literal_column("search_text"))
+
+_LEGS = (_POINT_LEG, _SEGMENT_LEG, _IMAGE_LEG)
+
+
 # ---------------------------------------------------------------------------
-# PG 水合（ES 只回 id，卡片全字段以 PG 为真相源）
+# PG 水合（卡片全字段以 PG 为真相源，行状态防御过滤兜物化间隙）
 # ---------------------------------------------------------------------------
 
 
@@ -352,9 +425,9 @@ async def _hydrate_points(
     ids: list[int],
     scores: dict[str, float],
     *,
-    chapter_prefix: list[str] | None,
+    chapter_prefix: tuple[str, ...] | None,
 ) -> list[KbSearchPointHit]:
-    """卡片水合：published/章节前缀防御过滤（主过滤已下推 ES，兜投影滞后）+ 案例卡关联帧。"""
+    """卡片水合：published/章节前缀精筛（WHERE 是 containment 粗筛）+ 案例卡关联帧。"""
     rows = (
         await session.execute(select(KbKnowledgePoint).where(KbKnowledgePoint.id.in_(ids)))
     ).scalars().all()
@@ -368,7 +441,7 @@ async def _hydrate_points(
         if row is None or row.status != KbPointStatus.PUBLISHED:
             continue
         path = [str(p) for p in row.chapter_path or []]
-        if chapter_prefix and path[: len(chapter_prefix)] != chapter_prefix:
+        if chapter_prefix and tuple(path[: len(chapter_prefix)]) != chapter_prefix:
             continue
         media = medias.get(row.media_id)
         if media is None:

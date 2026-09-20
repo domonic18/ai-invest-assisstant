@@ -238,14 +238,13 @@ services:
     networks:
       - app-network
 
+  # ES 仅服务存量研报索引与容器内健康探测（KB 检索已迁 PG 单库），不对宿主发布端口
   elasticsearch:
     image: elasticsearch:8.13.0
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    ports:
-      - "${ELASTICSEARCH_PORT:-9200}:9200"
     volumes:
       - ./workspace/elasticsearch:/usr/share/elasticsearch/data
     healthcheck:

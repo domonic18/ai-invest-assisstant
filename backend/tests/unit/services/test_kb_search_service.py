@@ -1,4 +1,9 @@
-"""检索服务单测：RRF 融合黄金样本、过滤器透传、降级、前滚与水合防御（全 mock）。"""
+"""检索服务单测：RRF 融合黄金样本、范围透传、降级、前滚与水合防御（双路 mock）。
+
+双路召回（``_lexical_ranking``/``_vector_ranking``）依赖 PG 专属能力
+（``search_text`` 生成列 / ``similarity()`` / halfvec ``<=>``），单测 mock
+两路与查询向量，只钉融合、分桶、水合与降级逻辑。
+"""
 
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
@@ -6,7 +11,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from elasticsearch import TransportError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.database import Base
@@ -20,9 +24,11 @@ from app.models.kb import (
     KbTranscriptSegment,
 )
 from app.services.kb import search_service
-from app.services.kb.embedding_client import EmbeddingClient
+from app.services.kb.embedding_client import KbEmbeddingError
 
 pytestmark = pytest.mark.unit
+
+_QUERY_VEC = [0.1, 0.2, 0.3, 0.4]
 
 
 @pytest.fixture
@@ -48,64 +54,42 @@ async def session():
     await engine.dispose()
 
 
-def _es_mock(*, responses: list[dict[str, Any]] | None = None) -> MagicMock:
-    es = MagicMock()
-    hits = {"hits": {"hits": []}}
-    if responses:
-        es.search = AsyncMock(side_effect=responses)
-    else:
-        es.search = AsyncMock(return_value=hits)
-    es.close = AsyncMock()
-    return es
-
-
-def _hits(*doc_ids: str) -> dict[str, Any]:
-    return {"hits": {"hits": [{"_id": doc_id} for doc_id in doc_ids]}}
-
-
-def _embed_client() -> EmbeddingClient:
-    return EmbeddingClient(
-        config_id=3,
-        provider="custom",
-        base_url="https://gw.example.com/v1",
-        api_key="sk-test",
-        model_name="embedding-3",
-    )
-
-
-def _patches(
-    es: MagicMock,
+@contextmanager
+def _searching(
+    lexical: list[str],
+    vector: list[str] | None = None,
     *,
-    embed_fails: bool = False,
-    presigned: str = "https://cos/thumb?sig=1",
-) -> list[Any]:
-    build = (
-        AsyncMock(side_effect=UnprocessableEntityError("embedding 未配置"))
-        if embed_fails
-        else AsyncMock(return_value=_embed_client())
-    )
-    response = MagicMock()
-    response.status_code = 200
-    response.json.return_value = {
-        "data": [{"index": 0, "embedding": [0.1, 0.2, 0.3, 0.4]}],
-        "usage": {"prompt_tokens": 1, "total_tokens": 1},
-    }
-    response.text = ""
-    post = AsyncMock(return_value=response)
-    http_cls = MagicMock()
-    http_cls.return_value.__aenter__.return_value.post = post
+    query_vec: list[float] | None = _QUERY_VEC,
+) -> Iterator[tuple[AsyncMock, AsyncMock]]:
+    """统一 mock 双路召回与查询向量（minio 签名固定）。"""
     minio = MagicMock()
-    minio.get_presigned_url = AsyncMock(return_value=presigned)
-    return [
-        patch("app.services.kb.search_service.AsyncElasticsearch", return_value=es),
-        patch("app.services.kb.search_service.build_embedding_client", new=build),
-        patch("app.services.kb.embedding_client.httpx.AsyncClient", http_cls),
-        patch("app.services.kb.embedding_client.enqueue", new=MagicMock()),
-        patch(
-            "app.services.kb.search_service.get_minio_service",
-            return_value=minio,
-        ),
-    ]
+    minio.get_presigned_url = AsyncMock(return_value="https://cos/thumb?sig=1")
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch.object(
+                search_service,
+                "_query_vector",
+                new=AsyncMock(return_value=query_vec),
+            )
+        )
+        lex = stack.enter_context(
+            patch.object(
+                search_service, "_lexical_ranking", new=AsyncMock(return_value=lexical)
+            )
+        )
+        vec = stack.enter_context(
+            patch.object(
+                search_service,
+                "_vector_ranking",
+                new=AsyncMock(return_value=vector if vector is not None else []),
+            )
+        )
+        stack.enter_context(
+            patch.object(
+                search_service, "get_minio_service", return_value=minio
+            )
+        )
+        yield lex, vec
 
 
 async def _seed(session: AsyncSession) -> dict[str, Any]:
@@ -206,16 +190,19 @@ async def _seed(session: AsyncSession) -> dict[str, Any]:
 async def test_rrf_golden_sample_and_hydration(session: AsyncSession) -> None:
     """固定两路排名断言融合序：两路叠加者居首，水合字段与关联帧齐全。"""
     seeded = await _seed(session)
-    # BM25: point-1(case), point-2(concept), seg-1；knn: seg-1, point-1, img-1
-    es = _es_mock(
-        responses=[
-            _hits(f"point-{seeded['p_case'].id}", f"point-{seeded['p_concept'].id}",
-                  f"seg-{seeded['seg'].id}"),
-            _hits(f"seg-{seeded['seg'].id}", f"point-{seeded['p_case'].id}",
-                  f"img-{seeded['frame_ok'].id}"),
-        ]
-    )
-    with _mocked(es):
+    # 词面: point-1(case), point-2(concept), seg-1；向量: seg-1, point-1, img-1
+    with _searching(
+        [
+            f"point-{seeded['p_case'].id}",
+            f"point-{seeded['p_concept'].id}",
+            f"seg-{seeded['seg'].id}",
+        ],
+        [
+            f"seg-{seeded['seg'].id}",
+            f"point-{seeded['p_case'].id}",
+            f"img-{seeded['frame_ok'].id}",
+        ],
+    ):
         result = await search_service.search(session, q="头肩顶 支撑位")
 
     # point-1 = 1/61 + 1/62 双路叠加居首 > seg-1 = 1/63 + 1/61 > point-2 > img-1
@@ -240,13 +227,12 @@ async def test_rrf_golden_sample_and_hydration(session: AsyncSession) -> None:
     assert "https://" in result.images[0].thumb_url
 
 
-async def test_rejected_point_doc_hit_is_filtered(session: AsyncSession) -> None:
-    """投影滞后防御：文档命中但 PG 行已驳回/素材软删 → 不出水合。"""
+async def test_rejected_point_hit_is_filtered_at_hydration(
+    session: AsyncSession,
+) -> None:
+    """行状态防御：召回命中但 PG 行已驳回（物化间隙）→ 不出水合。"""
     seeded = await _seed(session)
-    es = _es_mock(
-        responses=[_hits(f"point-{seeded['p_rejected'].id}"), _hits()]
-    )
-    with _mocked(es):
+    with _searching([f"point-{seeded['p_rejected'].id}"]):
         result = await search_service.search(session, q="旧内容")
     assert result.points == []
 
@@ -264,76 +250,76 @@ async def test_seek_rewind_4s(session: AsyncSession) -> None:
     )
     session.add(seg2)
     await session.commit()
-    es = _es_mock(
-        responses=[_hits(f"seg-{seg2.id}", f"seg-{seeded['seg'].id}"), _hits()]
-    )
-    with _mocked(es):
+    with _searching([f"seg-{seg2.id}", f"seg-{seeded['seg'].id}"]):
         result = await search_service.search(session, q="趋势线")
     assert [s.seek_ms for s in result.segments] == [86_000, 5_000]
 
 
-async def test_filters_passthrough_to_both_paths(session: AsyncSession) -> None:
-    """source/kind/point_type 过滤器同构透传 BM25 与 knn 两路。"""
-    es = _es_mock(responses=[_hits(), _hits()])
-    with _mocked(es):
+async def test_scope_passthrough_to_both_legs(session: AsyncSession) -> None:
+    """source/kind/point_type 组装成 _Scope 同构透传词面与向量两路。"""
+    with _searching([], []) as (lex, vec):
         await search_service.search(
             session, q="支撑", source_id=5, point_type="case", kind="point"
         )
-    assert es.search.await_count == 2
-    for call in es.search.await_args_list:
-        body = call.kwargs["body"]
-        blob = str(body)
-        assert "'doc_kind': 'point'" in blob or '"doc_kind": "point"' in blob
-        assert "source_id" in blob and "point_type" in blob
+    for mock in (lex, vec):
+        scope = mock.await_args.args[-1]
+        assert scope.source_id == 5
+        assert scope.point_type == "case"
+        assert scope.kind == "point"
+        assert scope.chapter is None
 
 
-async def test_es_unavailable_degrades_to_empty(session: AsyncSession) -> None:
-    es = _es_mock()
-    es.search = AsyncMock(side_effect=TransportError("N/A", "connection refused"))
-    with _mocked(es):
-        result = await search_service.search(session, q="任意")
-    assert result.degraded == "es_unavailable"
-    assert result.points == [] and result.segments == [] and result.images == []
-
-
-async def test_embedding_unavailable_falls_back_to_bm25(
+async def test_chapter_scope_forces_point_leg_and_prefix_defense(
     session: AsyncSession,
 ) -> None:
-    """embedding 槽位缺失：单路 BM25 继续服务并标记降级。"""
+    """章节过滤：scope 强制只查卡片（_leg_active），水合层前缀精筛兜 containment 粗筛。"""
     seeded = await _seed(session)
-    es = _es_mock(responses=[_hits(f"point-{seeded['p_case'].id}")])
-    with _mocked(es, embed_fails=True):
-        result = await search_service.search(session, q="头肩顶")
-    assert result.degraded == "embedding_unavailable"
-    assert es.search.await_count == 1  # 无 knn 二路
-    assert [p.id for p in result.points] == [seeded["p_case"].id]
-
-
-async def test_chapter_filter_pushed_down_to_es(session: AsyncSession) -> None:
-    """章节过滤下推 ES filter context：两路查询都带前缀键 term 与卡片限定。"""
-    es = _es_mock(responses=[_hits(), _hits()])
-    with _mocked(es):
-        await search_service.search(session, q="形态", chapter_path=["2", "2.5"])
-    assert es.search.await_count == 2
-    for call in es.search.await_args_list:
-        blob = str(call.kwargs["body"])
-        assert "'chapter_keys': '2/2.5'" in blob
-        assert "'doc_kind': 'point'" in blob
-
-
-async def test_chapter_prefix_hydration_defense_filters_stale_projection(
-    session: AsyncSession,
-) -> None:
-    """投影滞后防御：文档命中但 PG chapter_path 已不在请求前缀内 → 不出水合。"""
-    seeded = await _seed(session)
-    es = _es_mock(
-        responses=[_hits(f"point-{seeded['p_concept'].id}"), _hits()]
-    )
-    with _mocked(es):
+    with _searching(
+        [f"point-{seeded['p_concept'].id}"],
+    ) as (lex, _vec):
         result = await search_service.search(
             session, q="支撑", chapter_path=["第一章"]
         )
+    scope = lex.await_args.args[-1]
+    assert scope.chapter == ("第一章",)
+    assert search_service._leg_active(search_service._POINT_LEG, scope)
+    assert not search_service._leg_active(search_service._SEGMENT_LEG, scope)
+    assert not search_service._leg_active(search_service._IMAGE_LEG, scope)
+    # p_concept.chapter_path = ["第二章", ...] 不在请求前缀内 → 不出水合
     assert result.points == []
+
+
+async def test_embedding_unavailable_falls_back_to_lexical(
+    session: AsyncSession,
+) -> None:
+    """embedding 槽位缺失：词面单路继续服务并标记降级，向量路不发起。"""
+    seeded = await _seed(session)
+    with _searching(
+        [f"point-{seeded['p_case'].id}"], query_vec=None
+    ) as (_lex, vec):
+        result = await search_service.search(session, q="头肩顶")
+    assert result.degraded == "embedding_unavailable"
+    vec.assert_not_awaited()
+    assert [p.id for p in result.points] == [seeded["p_case"].id]
+
+
+async def test_query_vector_none_on_missing_slot_or_call_failure(
+    session: AsyncSession,
+) -> None:
+    """查询向量的两条失败路径：槽位缺失与嵌入调用异常均返回 None。"""
+    embed = MagicMock()
+    embed.embed = AsyncMock(side_effect=KbEmbeddingError("gateway 502"))
+    with patch.object(
+        search_service,
+        "build_embedding_client",
+        new=AsyncMock(side_effect=UnprocessableEntityError("embedding 未配置")),
+    ):
+        assert await search_service._query_vector(session, "任意") is None
+    with patch.object(
+        search_service, "build_embedding_client", new=AsyncMock(return_value=embed)
+    ):
+        assert await search_service._query_vector(session, "任意") is None
+    embed.embed.assert_awaited_once()
 
 
 async def test_case_frame_window_and_exclusion(session: AsyncSession) -> None:
@@ -349,8 +335,7 @@ async def test_case_frame_window_and_exclusion(session: AsyncSession) -> None:
     )
     session.add(far_frame)
     await session.commit()
-    es = _es_mock(responses=[_hits(f"point-{seeded['p_case'].id}"), _hits()])
-    with _mocked(es):
+    with _searching([f"point-{seeded['p_case'].id}"]):
         result = await search_service.search(session, q="头肩顶案例")
     frames = result.points[0].frames
     assert [f.caption for f in frames] == ["头肩顶颈线"]  # 排除帧/窗外帧都不在
@@ -359,10 +344,38 @@ async def test_case_frame_window_and_exclusion(session: AsyncSession) -> None:
 async def test_excluded_image_hit_filtered(session: AsyncSession) -> None:
     """图片命中水合排除已排除/未描述行。"""
     seeded = await _seed(session)
-    es = _es_mock(responses=[_hits(), _hits(f"img-{seeded['frame_ex'].id}")])
-    with _mocked(es):
+    with _searching([], [f"img-{seeded['frame_ex'].id}"]):
         result = await search_service.search(session, q="被排除帧")
     assert result.images == []
+
+
+def test_escape_like_treats_input_as_literal() -> None:
+    r"""用户输入的 %/_/\ 按字面匹配，不注入通配语义。"""
+    assert (
+        search_service._escape_like("100%_趋势\\A")
+        == "100\\%\\_趋势\\\\A"
+    )
+
+
+def test_leg_active_rules() -> None:
+    """kind 限定行类；point_type/章节强制卡片单类。"""
+    plain = search_service._Scope(None, None, None, None)
+    assert all(
+        search_service._leg_active(leg, plain)
+        for leg in search_service._LEGS
+    )
+    by_kind = search_service._Scope(None, None, "image", None)
+    assert [search_service._leg_active(leg, by_kind) for leg in search_service._LEGS] == [
+        False,
+        False,
+        True,
+    ]
+    typed = search_service._Scope(None, "case", None, None)
+    assert [search_service._leg_active(leg, typed) for leg in search_service._LEGS] == [
+        True,
+        False,
+        False,
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -484,17 +497,3 @@ async def test_list_chapter_points_assembles_paginated_cards(
         )
     assert result.total == 0 and result.points == []
     repo.list_published_by_chapter.assert_not_awaited()
-
-
-# ---------------------------------------------------------------------------
-# 测试工具
-# ---------------------------------------------------------------------------
-
-
-@contextmanager
-def _mocked(es: MagicMock, *, embed_fails: bool = False) -> Iterator[None]:
-    """统一进出全部 patch（ES/embedding/minio）。"""
-    with ExitStack() as stack:
-        for p in _patches(es, embed_fails=embed_fails):
-            stack.enter_context(p)
-        yield

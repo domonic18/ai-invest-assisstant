@@ -2,12 +2,14 @@
 
 知识源（kb_source）、素材（kb_media）、内容分段（kb_transcript_segment）、
 知识点（kb_knowledge_point）、图片资产（kb_image_asset）与域设置单行
-（kb_settings）。PG 是唯一真相源，ES 只是可重建的检索投影。
+（kb_settings）。PG 是唯一存储，检索列（embedding halfvec 向量 +
+pg_trgm 词面生成列）同库内嵌，无投影层。
 """
 
 from datetime import datetime
 from typing import Any
 
+from pgvector.sqlalchemy import HALFVEC
 from sqlalchemy import (
     JSON,
     BigInteger,
@@ -23,10 +25,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.constants.kb import KB_EMBEDDING_DIMS
 from app.core.clock import utc_now
 from app.core.database import Base
 
 _JSONB = JSONB().with_variant(JSON(), "sqlite")
+# sqlite（单测）侧退化为 JSON 文本存 list，PG 侧走 pgvector 真实类型
+_HALFVEC = HALFVEC(KB_EMBEDDING_DIMS).with_variant(JSON(), "sqlite")
 
 
 class KbSource(Base):
@@ -127,6 +132,7 @@ class KbTranscriptSegment(Base):
     end_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     page_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
     page_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(_HALFVEC, nullable=True)
     embedding_dirty: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
@@ -171,6 +177,7 @@ class KbKnowledgePoint(Base):
         ForeignKey("user.id", ondelete="SET NULL"), nullable=True
     )
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(_HALFVEC, nullable=True)
     embedding_dirty: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
@@ -208,6 +215,7 @@ class KbImageAsset(Base):
         String(16), nullable=False, default="pending"
     )
     describe_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    embedding: Mapped[list[float] | None] = mapped_column(_HALFVEC, nullable=True)
     embedding_dirty: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     index_excluded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(

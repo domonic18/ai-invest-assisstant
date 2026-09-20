@@ -1,8 +1,8 @@
-"""知识库索引采集器（internal 薄壳，实际逻辑在 index_service）。
+"""知识库嵌入物化采集器（internal 薄壳，实际逻辑在 index_service）。
 
-状态驱动：默认增量扫描三类脏行（知识点/分段/图片）向量化入 ES；
-``force_rebuild`` 参数触发蓝绿全量重建（切模型后指纹不符时的人工恢复路径）。
-无工作可做（含模型未配置/任务锁忙/指纹不符）返回 SKIPPED（良性终态）。
+状态驱动：默认增量扫描三类脏行（知识点/分段/图片）向量化写回 PG 行内
+``embedding`` 列；``force_rebuild`` 参数触发全量重嵌（模型切换后的人工恢复路径）。
+无工作可做（含模型未配置/任务锁忙/维度不符）返回 SKIPPED（良性终态）。
 """
 
 from datetime import datetime, timezone
@@ -14,10 +14,10 @@ from collector.core.base import BaseCollector, CollectResult, CollectStatus
 
 
 class KbIndexCollector(BaseCollector):
-    """知识库索引任务（不直接写表，由 service 持久化）。"""
+    """知识库嵌入物化任务（不直接写表，由 service 持久化）。"""
 
     async def collect(self, **kwargs: Any) -> list[dict[str, Any]]:
-        """占位实现：实际索引逻辑在 ``run`` 中委托给 service。"""
+        """占位实现：实际物化逻辑在 ``run`` 中委托给 service。"""
         return []
 
     async def transform(self, raw: dict[str, Any]) -> dict[str, Any]:
@@ -27,7 +27,7 @@ class KbIndexCollector(BaseCollector):
         return True
 
     async def run(self, **kwargs: Any) -> CollectResult:
-        """执行一轮索引构建（增量或蓝绿重建，全局锁互斥）。"""
+        """执行一轮嵌入物化（增量或全量重嵌，全局锁互斥）。"""
         started_at = datetime.now(timezone.utc)
         force_rebuild = str(kwargs.get("force_rebuild", "")).lower() in (
             "1",
@@ -53,7 +53,7 @@ class KbIndexCollector(BaseCollector):
                 source=self.source,
                 data_type=self.data_type,
                 status=CollectStatus.SKIPPED,
-                message="上一轮索引构建仍在进行（锁占用）",
+                message="上一轮嵌入物化仍在进行（锁占用）",
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
                 metadata=stats,
@@ -68,46 +68,49 @@ class KbIndexCollector(BaseCollector):
                 finished_at=datetime.now(timezone.utc),
                 metadata=stats,
             )
-        if stats.get("fingerprintMismatch"):
+        if stats.get("dimensionMismatch"):
             return CollectResult(
                 source=self.source,
                 data_type=self.data_type,
                 status=CollectStatus.SKIPPED,
-                message="索引指纹已变更（模型或索引结构），请在任务参数勾选 force_rebuild 触发全量重建",
+                message=(
+                    f"embedding 实测维度 {stats.get('actualDims')} 与列定义 "
+                    f"{stats.get('expectedDims')} 不符，请先执行列维度迁移"
+                    "（ALTER TYPE halfvec(n) + 索引重建）再勾选 force_rebuild 全量重嵌"
+                ),
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
                 metadata=stats,
             )
-        indexed = sum(
+        materialized = sum(
             stats.get(key, 0)
             for key in (
-                "pointsIndexed",
-                "segmentsIndexed",
-                "imagesIndexed",
-                "pointsDeleted",
-                "segmentsDeleted",
-                "imagesDeleted",
+                "pointsEmbedded",
+                "segmentsEmbedded",
+                "imagesEmbedded",
+                "pointsCleared",
+                "segmentsCleared",
+                "imagesCleared",
             )
         )
-        rebuilt = stats.get("rebuildVersion") is not None
         if stats.get("failedKinds"):
             return CollectResult(
                 source=self.source,
                 data_type=self.data_type,
                 status=CollectStatus.PARTIAL,
-                errors=[f"索引类别失败：{kind}" for kind in stats["failedKinds"]],
-                items_collected=indexed,
-                items_stored=indexed,
+                errors=[f"物化类别失败：{kind}" for kind in stats["failedKinds"]],
+                items_collected=materialized,
+                items_stored=materialized,
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
                 metadata=stats,
             )
-        if not indexed and not rebuilt:
+        if not materialized and not stats.get("forceRebuild"):
             return CollectResult(
                 source=self.source,
                 data_type=self.data_type,
                 status=CollectStatus.SKIPPED,
-                message="没有待索引变更（三类脏行均为空）",
+                message="没有待物化变更（三类脏行均为空）",
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
                 metadata=stats,
@@ -116,8 +119,8 @@ class KbIndexCollector(BaseCollector):
             source=self.source,
             data_type=self.data_type,
             status=CollectStatus.SUCCESS,
-            items_collected=indexed,
-            items_stored=indexed,
+            items_collected=materialized,
+            items_stored=materialized,
             started_at=started_at,
             finished_at=datetime.now(timezone.utc),
             metadata=stats,

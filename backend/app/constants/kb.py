@@ -57,7 +57,7 @@ class KbDescribeStatus(str, Enum):
 
 
 class KbDocKind(str, Enum):
-    """ES kb-knowledge 索引的三类文档。"""
+    """三类检索行（检索接口 kind 过滤值）。"""
 
     POINT = "point"
     SEGMENT = "segment"
@@ -74,6 +74,9 @@ class KbPurpose(str, Enum):
 
 #: 软删恢复窗口（过窗后 kb-cleanup 异步清理）
 KB_SOFT_DELETE_RECOVERY_HOURS = 24
+
+#: 检索列向量维度（halfvec 列类型钉死；换维度 = 列迁移 + 索引重建 + 全量重嵌）
+KB_EMBEDDING_DIMS = 2048
 
 #: 分片上传会话最大保留天数（超龄由 kb-cleanup abort 释放已传分片）
 KB_UPLOAD_SESSION_MAX_AGE_DAYS = 7
@@ -133,17 +136,11 @@ KB_VISION_DESCRIBE_BATCH_SIZE = 20
 #: 关键帧抽帧半窗（秒，取 t±2s 中较清晰的一帧）
 KB_VISION_SEEK_TOLERANCE_SECONDS = 2
 
-#: ES 索引别名（应用代码唯一可见名，物理索引 kb-knowledge-v{N} 蓝绿轮换）
-KB_INDEX_ALIAS = "kb-knowledge"
-
 #: kb-index 任务级互斥锁键
 KB_INDEX_LOCK_KEY = "kb:lock:index"
 
-#: kb-index 单轮各类文档的批量上限（控制单轮时长与嵌入请求节奏，余量下轮续跑）
+#: kb-index 单轮各类行的批量上限（控制单轮时长与嵌入请求节奏，余量下轮续跑）
 KB_INDEX_BATCH_SIZE = 500
-
-#: 蓝绿重建后未挂别名旧索引的保留天数（回退观察窗，过期清理）
-KB_INDEX_PRUNE_DAYS = 7
 
 #: 视觉指涉句正则（文稿引导采样路：命中句取句中点时刻）
 KB_VISION_GUIDE_PATTERNS = (
