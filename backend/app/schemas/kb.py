@@ -513,3 +513,90 @@ class KbImageListResponse(CamelModel):
 
     items: list[KbImageAssetResponse]
     total: int
+
+
+# ---------------------------------------------------------------------------
+# 混合检索（arch/12 §7.2，消费侧 /kb/search）
+# ---------------------------------------------------------------------------
+
+
+class KbSearchFrameHit(CamelModel):
+    """案例卡片关联帧（命中时间窗内就近取帧，缩略图短时效签名）。"""
+
+    id: int
+    start_ms: int | None = None
+    thumb_url: str | None = None
+    caption: str | None = None
+
+
+class KbSearchPointHit(CamelModel):
+    """知识卡片命中（PG 水合全字段；score 为 RRF 融合分）。"""
+
+    id: int
+    source_id: int
+    media_id: int
+    media_kind: str
+    episode_no: int | None = None
+    media_title: str | None = None
+    point_type: str
+    title: str
+    body: str
+    term_definition: str | None = None
+    applicable_scene: str | None = None
+    excerpt: str
+    chapter_path: list[str] = Field(default_factory=list)
+    related_ids: list[int] = Field(default_factory=list)
+    start_ms: int | None = None
+    end_ms: int | None = None
+    page_start: int | None = None
+    page_end: int | None = None
+    score: float
+    frames: list[KbSearchFrameHit] = Field(default_factory=list)
+
+
+class KbSearchSegmentHit(CamelModel):
+    """原文分段命中（seekMs 为前滚后起播点 = max(0, startMs − 4s)）。"""
+
+    id: int
+    source_id: int
+    media_id: int
+    media_kind: str
+    episode_no: int | None = None
+    media_title: str | None = None
+    text: str
+    start_ms: int | None = None
+    end_ms: int | None = None
+    seek_ms: int | None = None
+    score: float
+
+
+class KbSearchImageHit(CamelModel):
+    """图片命中（缩略图短时效签名；课程帧带时间码、书嵌图带页码）。"""
+
+    id: int
+    source_id: int
+    media_id: int
+    media_kind: str
+    episode_no: int | None = None
+    page_no: int | None = None
+    start_ms: int | None = None
+    text_in_image: str | None = None
+    caption: str | None = None
+    thumb_url: str | None = None
+    score: float
+
+
+class KbSearchResponse(CamelModel):
+    """混合检索结果（三类命中独立列表；degraded 标记降级原因）。"""
+
+    query: str
+    degraded: str | None = None
+    points: list[KbSearchPointHit] = Field(default_factory=list)
+    segments: list[KbSearchSegmentHit] = Field(default_factory=list)
+    images: list[KbSearchImageHit] = Field(default_factory=list)
+
+
+class KbPublishedChaptersResponse(CamelModel):
+    """发布态目录树（消费侧导航，不暴露 draft）。"""
+
+    chapters: list[KbChapterNode] = Field(default_factory=list)
