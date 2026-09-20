@@ -20,6 +20,9 @@ from app.utils.crypto import decrypt_token
 
 logger = structlog.get_logger(__name__)
 
+_EMBED_BATCH_SIZE = 64
+_DIMS_PROBE_TEXT = "维度探测"
+
 
 class KbEmbeddingError(InternalError):
     """embedding 调用失败（索引任务显式退避 / 检索页友好报错）。"""
@@ -86,7 +89,13 @@ class EmbeddingClient:
             raise KbEmbeddingError(
                 f"embedding 返回 HTTP {response.status_code}: {response.text[:200]}"
             )
-        payload = response.json()
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            # 网关误配 base_url（缺 /v1 指到前端页）会 200 返回 HTML
+            raise KbEmbeddingError(
+                f"embedding 响应非 JSON（base_url 是否缺 /v1）：{response.text[:120]}"
+            ) from exc
         items = payload.get("data") or []
         vectors: list[list[float]] | None = None
         try:
@@ -100,6 +109,27 @@ class EmbeddingClient:
             )
         self._record_usage(payload.get("usage") or {}, texts, detail)
         return vectors
+
+    async def embed_batched(
+        self,
+        texts: list[str],
+        *,
+        detail: dict[str, Any] | None = None,
+        timeout: float = 30.0,
+    ) -> list[list[float]]:
+        """任意长度批量嵌入：按 64/请求分片顺序调用并拼接（与输入同序）。"""
+        vectors: list[list[float]] = []
+        for start in range(0, len(texts), _EMBED_BATCH_SIZE):
+            chunk = texts[start : start + _EMBED_BATCH_SIZE]
+            vectors.extend(await self.embed(chunk, detail=detail, timeout=timeout))
+        return vectors
+
+    async def discover_dims(self) -> int:
+        """实测模型向量维度（ES mapping 的 dims 与模型指纹绑定，禁止硬编码）。"""
+        vectors = await self.embed([_DIMS_PROBE_TEXT], detail={"purpose": "dims_probe"})
+        if not vectors or not vectors[0]:
+            raise KbEmbeddingError("embedding 维度探测返回空向量")
+        return len(vectors[0])
 
     def _record_usage(
         self, usage: dict[str, Any], texts: list[str], detail: dict[str, Any] | None
