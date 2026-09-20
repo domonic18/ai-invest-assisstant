@@ -99,9 +99,9 @@ class FinancialReportSummarizer:
             ) from exc
 
     async def _extract_text(self, file_bytes: bytes) -> str:
-        from app.services.common.knowledge_base_service import get_knowledge_base_service
+        from app.services.common.pdf_text import extract_pdf_text
 
-        text = await get_knowledge_base_service().extract_text(file_bytes, "pdf")
+        text = await extract_pdf_text(file_bytes)
         if not text:
             raise SummaryUnavailableError("PDF 文本抽取失败或内容为空")
         return text[:SUMMARY_TEXT_LIMIT]

@@ -239,33 +239,39 @@ async def search_news_by_date(
 async def search_vector_kb(
     session: AsyncSession, query: str, limit: int = 5
 ) -> list[dict[str, Any]]:
-    """检索知识库研报片段；ES 不可用时回退 news_document 研报记录。"""
-    try:
-        from app.services.common.knowledge_base_service import get_knowledge_base_service
+    """按关键词检索研报/财报全文（file_metadata.content），空结果回退 news_document 研报记录。"""
+    from app.models.file_metadata import FileMetadata
 
-        service = get_knowledge_base_service()
-        client = await service._get_client()
-        response = await client.search(
-            index=service.index_name,
-            query={"match": {"content": query}},
-            size=limit,
-            source={"includes": ["title", "content", "publish_date"]},
+    stmt = (
+        select(
+            FileMetadata.original_name,
+            FileMetadata.content,
+            FileMetadata.report_date,
         )
-        hits = response.get("hits", {}).get("hits", [])
-        if hits:
-            return [
-                {
-                    "title": hit["_source"].get("title"),
-                    "content": (hit["_source"].get("content") or "")[:300],
-                    "publish_date": hit["_source"].get("publish_date"),
-                }
-                for hit in hits
-            ]
-    except Exception:  # noqa: BLE001
-        logger.warning("vector_kb_search_failed_fallback_news", exc_info=True)
+        .where(
+            FileMetadata.file_type.in_(("research_report", "financial_report")),
+            or_(
+                FileMetadata.original_name.ilike(f"%{query}%"),
+                FileMetadata.content.ilike(f"%{query}%"),
+            ),
+        )
+        .order_by(FileMetadata.report_date.desc().nullslast())
+        .limit(limit)
+    )
+    rows = (await session.execute(stmt)).all()
+    if rows:
+        return [
+            {
+                "title": title,
+                "content": (content or "")[:300],
+                "publish_date": report_date.isoformat() if report_date else None,
+            }
+            for title, content, report_date in rows
+        ]
 
-    rows = await search_news(session, query, days=90, limit=limit, doc_types=["research"])
     return [
         {"title": row["title"], "content": row["summary"], "publish_date": row["publish_date"]}
-        for row in rows
+        for row in await search_news(
+            session, query, days=90, limit=limit, doc_types=["research"]
+        )
     ]

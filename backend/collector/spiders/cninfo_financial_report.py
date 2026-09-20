@@ -1,7 +1,7 @@
 """CNINFO 定期财报文件采集器。
 
 爬取巨潮资讯（cninfo.com.cn）的财报公告并下载原始 PDF 文件。产出的条目
-交给存储层处理：文件持久化到 MinIO、记录元数据并写入知识库索引。
+交给存储层处理：文件持久化到 MinIO、元数据与全文写入 PostgreSQL。
 """
 
 from datetime import date, datetime, timedelta, timezone
@@ -57,8 +57,8 @@ class CninfoFinancialReportCollector(BaseCollector):
     """巨潮资讯个股财报文件采集器。
 
     通过巨潮资讯公开 API 查询定期报告列表，下载原始 PDF 文件，输出包含
-    ``file_bytes`` 的标准化条目。后续 ``store`` 步骤负责写入 MinIO、
-    ``file_metadata`` 表和知识库。
+    ``file_bytes`` 的标准化条目。后续 ``store`` 步骤负责写入 MinIO 与
+    ``file_metadata`` 表（含全文）。
     """
 
     def __init__(self, config: dict[str, Any]):
@@ -201,7 +201,7 @@ class CninfoFinancialReportCollector(BaseCollector):
         )
 
     async def store(self, items: list[dict[str, Any]]) -> int:
-        """把下载的 PDF 持久化到 MinIO、元数据写入数据库并索引到知识库。
+        """把下载的 PDF 持久化到 MinIO、元数据与全文写入数据库。
 
         本方法只是薄编排层；具体 exporter 惰性导入，使采集器在单元测试中
         无需运行 MinIO 集群即可使用。
@@ -215,19 +215,16 @@ class CninfoFinancialReportCollector(BaseCollector):
     async def _save_items(
         self, items: list[dict[str, Any]]
     ) -> tuple[int, list[str]]:
-        from app.services.common.knowledge_base_service import get_knowledge_base_service
         from app.services.common.minio_service import get_minio_service
         from collector.stores.financial_report_store import FinancialReportStore
 
-        minio = get_minio_service()
-        kb = get_knowledge_base_service()
-        store = FinancialReportStore(minio=minio, kb=kb)
+        store = FinancialReportStore(minio=get_minio_service())
         return await store.save_many(items)
 
     async def run(self, **kwargs: Any) -> CollectResult:
         """运行完整的 collect/transform/validate/store 流程。
 
-        覆写基类模板，使存储层警告（如 MinIO 或知识库不可用）体现在结果的
+        覆写基类模板，使存储层警告（如 MinIO 或全文抽取不可用）体现在结果的
         errors 中而不是被静默吞掉。
         """
         started_at = datetime.now(timezone.utc)

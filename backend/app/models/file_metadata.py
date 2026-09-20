@@ -27,6 +27,7 @@ class FileMetadata(Base):
     download_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     download_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )

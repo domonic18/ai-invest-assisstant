@@ -64,7 +64,6 @@ class CninfoDisclosureCollector(PostgresCollector):
                         "sentiment": None,
                         "keywords": None,
                         "industry_tags": None,
-                        "elasticsearch_doc_id": None,
                         "extra": json.dumps(_build_extra(url)),
                     }
                 )
@@ -83,7 +82,6 @@ class CninfoDisclosureCollector(PostgresCollector):
             "sentiment": raw.get("sentiment"),
             "keywords": raw.get("keywords"),
             "industry_tags": raw.get("industry_tags"),
-            "elasticsearch_doc_id": raw.get("elasticsearch_doc_id"),
             "extra": raw.get("extra"),
         }
 

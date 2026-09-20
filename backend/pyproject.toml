@@ -46,8 +46,6 @@ dependencies = [
     "anthropic>=0.28.0",
     # MCP
     "mcp>=1.0.0",
-    # Search & Vector
-    "elasticsearch[async]>=8.13.0,<9",
     # Storage
     "minio>=7.2.0",
     # Data & Finance

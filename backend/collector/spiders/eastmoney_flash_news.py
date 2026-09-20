@@ -78,7 +78,6 @@ class EastmoneyFlashNewsCollector(PostgresCollector):
             "sentiment": None,
             "keywords": None,
             "industry_tags": None,
-            "elasticsearch_doc_id": None,
         }
 
     async def validate(self, item: dict[str, Any]) -> bool:

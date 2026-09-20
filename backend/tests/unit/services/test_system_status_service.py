@@ -20,13 +20,11 @@ def _patch_checks(
     *,
     postgres: str = "PostgreSQL 16.4",
     redis: str = "PONG",
-    elasticsearch: str = "v8.13.0",
     minio: str = "bucket invest-files 可访问",
 ) -> dict[str, AsyncMock]:
     mocks = {
         "_check_postgres": AsyncMock(return_value=postgres),
         "_check_redis": AsyncMock(return_value=redis),
-        "_check_elasticsearch": AsyncMock(return_value=elasticsearch),
         "_check_minio": AsyncMock(return_value=minio),
     }
     return {
@@ -44,15 +42,14 @@ class TestGetStatus:
     async def test_all_up_operational(self) -> None:
         patches = _patch_checks()
         with patches["_check_postgres"], patches["_check_redis"], patches[
-            "_check_elasticsearch"
-        ], patches["_check_minio"]:
+            "_check_minio"
+        ]:
             result = await _service().get_status()
 
         assert result.overall == "operational"
         assert [i.key for i in result.items] == [
             "postgres",
             "redis",
-            "elasticsearch",
             "minio",
         ]
         redis = _item_of(result, "redis")
@@ -68,7 +65,7 @@ class TestGetStatus:
         redis_mock = AsyncMock(side_effect=RedisError("connection refused"))
         with patches["_check_postgres"], patch.object(
             SystemStatusService, "_check_redis", redis_mock
-        ), patches["_check_elasticsearch"], patches["_check_minio"]:
+        ), patches["_check_minio"]:
             result = await _service().get_status()
 
         assert result.overall == "degraded"
@@ -92,7 +89,6 @@ class TestGetStatus:
         with (
             patches["_check_postgres"],
             patch.object(SystemStatusService, "_check_redis", AsyncMock(side_effect=slow_check)),
-            patches["_check_elasticsearch"],
             patches["_check_minio"],
             patch.object(svc_module, "get_settings", return_value=settings),
         ):
@@ -108,7 +104,6 @@ class TestGetStatus:
         with (
             patch.object(SystemStatusService, "_check_postgres", failing),
             patch.object(SystemStatusService, "_check_redis", failing),
-            patch.object(SystemStatusService, "_check_elasticsearch", failing),
             patch.object(SystemStatusService, "_check_minio", failing),
         ):
             result = await _service().get_status()

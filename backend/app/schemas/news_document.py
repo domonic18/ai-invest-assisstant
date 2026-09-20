@@ -22,7 +22,6 @@ class NewsDocumentBase(CamelModel):
     sentiment: float | None = None
     keywords: list[str] | None = None
     industry_tags: list[str] | None = None
-    elasticsearch_doc_id: str | None = Field(None, max_length=50)
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -44,7 +43,6 @@ class NewsDocumentUpdate(CamelModel):
     sentiment: float | None = None
     keywords: list[str] | None = None
     industry_tags: list[str] | None = None
-    elasticsearch_doc_id: str | None = Field(None, max_length=50)
     extra: dict[str, Any] | None = None
 
 

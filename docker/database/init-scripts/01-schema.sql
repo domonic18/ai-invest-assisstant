@@ -198,7 +198,6 @@ CREATE TABLE news_document (
     sentiment     DECIMAL(5,2),              -- 情感得分 -1 ~ 1
     keywords      VARCHAR(100)[],
     industry_tags VARCHAR(50)[],
-    elasticsearch_doc_id VARCHAR(50),               -- Elasticsearch 文档 ID
     created_at    TIMESTAMPTZ DEFAULT NOW(),
 
     CONSTRAINT uq_news_document_source_url UNIQUE (source_url)
@@ -334,6 +333,7 @@ CREATE TABLE file_metadata (
     file_size      BIGINT,
     md5_hash       VARCHAR(32),
     summary        TEXT,
+    content        TEXT,                      -- PDF 全文（pypdf 抽取，检索用）
     download_url   VARCHAR(1000),
     download_count INT DEFAULT 0,
     created_at    TIMESTAMPTZ DEFAULT NOW()
@@ -341,6 +341,7 @@ CREATE TABLE file_metadata (
 
 CREATE INDEX idx_file_type ON file_metadata(file_type);
 CREATE INDEX idx_file_stock_report ON file_metadata(stock_code, report_date);
+CREATE INDEX idx_file_metadata_content_trgm ON file_metadata USING gin (content gin_trgm_ops);
 
 -- ============================================================
 -- 7. 用户 / 系统域
