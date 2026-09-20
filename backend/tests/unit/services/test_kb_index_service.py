@@ -105,12 +105,12 @@ def _es_mock(
     settings_map = dict(versions or {})
     if fingerprint is not None:
         settings_map["kb-knowledge-v1"] = {
-            "settings": {
-                "index": {
-                    "meta": {"kb_fingerprint": fingerprint},
-                    "creation_date": "1000",
-                }
-            }
+            "settings": {"index": {"creation_date": "1000"}}
+        }
+    mapping_map: dict[str, dict[str, Any]] = {}
+    if fingerprint is not None:
+        mapping_map["kb-knowledge-v1"] = {
+            "mappings": {"_meta": {"kb_fingerprint": fingerprint}}
         }
 
     async def _get(index: str) -> dict[str, Any]:
@@ -119,7 +119,11 @@ def _es_mock(
             return settings_map
         return {index: settings_map.get(index, {})}
 
+    async def _get_mapping(index: str) -> dict[str, Any]:
+        return {index: mapping_map.get(index, {"mappings": {}})}
+
     es.indices.get = AsyncMock(side_effect=_get)
+    es.indices.get_mapping = AsyncMock(side_effect=_get_mapping)
     es.indices.refresh = AsyncMock()
     es.count = AsyncMock(return_value={"count": count})
     es.delete_by_query = AsyncMock()
@@ -359,7 +363,7 @@ async def test_incremental_bootstraps_v1(session: AsyncSession) -> None:
     es.indices.create.assert_awaited_once()
     kwargs = es.indices.create.call_args.kwargs
     assert kwargs["index"] == "kb-knowledge-v1"
-    assert kwargs["settings"]["index"]["meta"] == {"kb_fingerprint": "3:embedding-3:4"}
+    assert kwargs["mappings"]["_meta"] == {"kb_fingerprint": "3:embedding-3:4"}
     assert kwargs["mappings"]["properties"]["embedding"]["dims"] == 4
     es.indices.update_aliases.assert_awaited_once_with(
         actions=[{"add": {"index": "kb-knowledge-v1", "alias": "kb-knowledge"}}]

@@ -9,8 +9,9 @@ PG 是唯一真相源，ES 是可重建检索投影：索引 ``kb-knowledge-v{N}
 - **蓝绿重建**（``force_rebuild``，后台手动触发）：新版本索引全量灌入 →
   文档数对账 → 原子切别名 → 按 ``updated_at`` 清开始前的脏行（重建期间的
   新编辑留待下轮增量）→ 清理超龄无别名旧版本（回退观察窗）；
-- **指纹**：索引 settings ``index.meta.kb_fingerprint``（config_id:模型:维度），
-  与当前 embedding 槽位不符时 SKIPPED，需人工触发重建。
+- **指纹**：索引 ``mappings._meta.kb_fingerprint``（config_id:模型:维度；
+  ES 8.x 已移除 ``index.meta.*`` 自定义设置），与当前 embedding 槽位不符时
+  SKIPPED，需人工触发重建。
 
 文档 id 为 ``{kind}-{pg_id}``（确定性，upsert 幂等）。删除类兜底（清理硬删/
 转写重灌）走 best-effort delete_by_query，失败仅记日志——投影可重建，不阻塞主链路。
@@ -447,8 +448,8 @@ async def _resolve_index(es: AsyncElasticsearch, embed: EmbeddingClient) -> str:
         logger.info("kb_index_bootstrapped", index=name, fingerprint=fingerprint)
         return name
     name = current[0]
-    settings = (await es.indices.get(index=name))[name]["settings"]["index"]
-    stored = (settings.get("meta") or {}).get(_FINGERPRINT_KEY)
+    mappings = (await es.indices.get_mapping(index=name))[name]["mappings"]
+    stored = (mappings.get("_meta") or {}).get(_FINGERPRINT_KEY)
     if stored != fingerprint:
         raise _FingerprintMismatchError(
             f"index={name} stored={stored} current={fingerprint}"
@@ -487,16 +488,18 @@ async def _existing_versions(es: AsyncElasticsearch) -> list[tuple[str, int]]:
 async def _create_index(
     es: AsyncElasticsearch, name: str, *, fingerprint: str, dims: int
 ) -> None:
+    # 指纹放 mappings._meta：ES 8.x 已移除 index.meta.* 自定义设置（实测 400）
+    mapping = _mapping(dims)
+    mapping["_meta"] = {_FINGERPRINT_KEY: fingerprint}
     await es.indices.create(
         index=name,
         settings={
             "index": {
                 "number_of_shards": 1,
                 "number_of_replicas": 0,
-                "meta": {_FINGERPRINT_KEY: fingerprint},
             }
         },
-        mappings=_mapping(dims),
+        mappings=mapping,
     )
 
 
