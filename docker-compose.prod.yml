@@ -202,30 +202,6 @@ services:
     networks:
       - app-network
 
-  # ES 仅服务存量研报索引与容器内健康探测（KB 检索已迁 PG 单库），不对宿主发布端口
-  elasticsearch:
-    image: elasticsearch:8.13.0
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=true
-      - xpack.security.http.ssl.enabled=false
-      - xpack.security.transport.ssl.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-      # 硬必需同 REDIS_PASSWORD：漏配时 ES 8.x 会自动生成随机密码，healthcheck 与应用连接全断且难定位
-      - "ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?ELASTIC_PASSWORD required in .env}"
-    volumes:
-      - ./workspace/elasticsearch:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fs -u elastic:\"$$ELASTIC_PASSWORD\" http://localhost:9200/_cluster/health || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
-    restart: unless-stopped
-    logging: *logging
-    networks:
-      - app-network
-
 networks:
   app-network:
     driver: bridge
