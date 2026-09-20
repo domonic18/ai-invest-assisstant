@@ -53,6 +53,7 @@ class CollectResult:
     items_collected: int = 0
     items_stored: int = 0
     errors: list[str] = field(default_factory=list)
+    message: str | None = None
     started_at: datetime = field(default_factory=utc_now)
     finished_at: datetime | None = None
     metadata: dict[str, Any] = field(default_factory=dict)

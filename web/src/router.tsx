@@ -16,6 +16,7 @@ const CollectorAdmin = lazy(() =>
   import('./pages/Admin/Collector').then((m) => ({ default: m.CollectorAdmin })),
 )
 const LLMConfig = lazy(() => import('./pages/Admin/LLMConfig/LLMConfig').then((m) => ({ default: m.LLMConfig })))
+const KnowledgeBase = lazy(() => import('./pages/Admin/KnowledgeBase'))
 const McpServers = lazy(() =>
   import('./pages/Admin/McpServers/McpServers').then((m) => ({ default: m.McpServers })),
 )
@@ -131,6 +132,7 @@ export const router = createBrowserRouter([
           // 旧路由兜底：任务/渠道配置并入采集管理（tab 直达）
           { path: 'tasks', element: <Navigate to="/admin/collector?tab=tasks" replace /> },
           { path: 'llm-configs', element: lazyEl(<LLMConfig />) },
+          { path: 'knowledge-base', element: lazyEl(<KnowledgeBase />) },
           { path: 'mcp-servers', element: lazyEl(<McpServers />) },
           { path: 'social-tracking', element: lazyEl(<SocialTracking />) },
           { path: 'proxy-configs', element: lazyEl(<ProxyConfig />) },

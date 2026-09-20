@@ -143,7 +143,8 @@ class TestKlineFreshnessCollector:
             result = await collector.run()
 
         assert result.status == CollectStatus.SKIPPED
-        assert result.errors
+        assert result.errors == []
+        assert result.message and "尚未发布" in result.message
         rerun.assert_not_called()
 
     @pytest.mark.asyncio

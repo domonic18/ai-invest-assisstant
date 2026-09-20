@@ -41,7 +41,7 @@ class MarketDailyReviewCollector(BaseCollector):
                 source=self.source,
                 data_type=self.data_type,
                 status=CollectStatus.SKIPPED,
-                errors=[f"{trade_date.isoformat()} 不是交易日"],
+                message=f"{trade_date.isoformat()} 不是交易日",
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
             )
@@ -68,6 +68,7 @@ class MarketDailyReviewCollector(BaseCollector):
             source=self.source,
             data_type=self.data_type,
             status=CollectStatus.SUCCESS if not review.cached else CollectStatus.SKIPPED,
+            message="当日已生成（缓存命中）" if review.cached else None,
             items_collected=1,
             items_stored=0 if review.cached else 1,
             started_at=started_at,

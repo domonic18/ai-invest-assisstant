@@ -347,6 +347,7 @@ def _result_to_dict(result: CollectResult) -> dict[str, Any]:
         "items_collected": result.items_collected,
         "items_stored": result.items_stored,
         "errors": result.errors,
+        "message": result.message,
         "started_at": result.started_at.isoformat() if result.started_at else None,
         "finished_at": result.finished_at.isoformat() if result.finished_at else None,
         "metadata": result.metadata or {},

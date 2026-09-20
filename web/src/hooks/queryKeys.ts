@@ -94,6 +94,24 @@ export const queryKeys = {
     llmConfig: ['account', 'llm-config'] as const,
   },
   llmConfigs: ['llm-configs'] as const,
+  kb: {
+    all: ['kb'] as const,
+    settings: ['kb', 'settings'] as const,
+    sources: ['kb', 'sources'] as const,
+    media: (sourceId: number) => ['kb', 'media', sourceId] as const,
+    transcript: (sourceId: number, mediaId: number) =>
+      ['kb', 'transcript', sourceId, mediaId] as const,
+    chapters: (sourceId: number) => ['kb', 'chapters', sourceId] as const,
+    points: (sourceId: number, status: string | null, page: number, pageSize: number) =>
+      ['kb', 'points', sourceId, status, page, pageSize] as const,
+    images: (
+      sourceId: number,
+      mediaId: number | null,
+      status: string | null,
+      page: number,
+      pageSize: number
+    ) => ['kb', 'images', sourceId, mediaId, status, page, pageSize] as const,
+  },
   mcpServers: ['mcp-servers'] as const,
   socialAdmin: {
     accounts: (page: number, pageSize: number) =>

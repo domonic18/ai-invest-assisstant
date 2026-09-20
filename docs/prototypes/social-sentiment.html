@@ -231,9 +231,7 @@ body {
 .warnbar{display:flex;align-items:center;gap:10px;margin-bottom:var(--space-5);padding:9px 14px;border:1px solid rgba(210,153,34,.35);background:var(--amber-soft);border-radius:var(--radius-md);font-size:12px;color:var(--amber)}
 .warnbar .x{margin-left:auto;border:none;background:transparent;color:var(--amber);font-size:14px;cursor:pointer;font-family:var(--font);opacity:.7}
 .warnbar .x:hover{opacity:1}
-.cols{display:flex;gap:14px;align-items:flex-start}
-.stream{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
-.side{width:300px;flex-shrink:0;display:flex;flex-direction:column;gap:12px;position:sticky;top:0}
+.stream{min-width:0;display:flex;flex-direction:column;gap:10px}
 .card-h{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600}
 .card-h .n{margin-left:auto;font-size:10px;color:var(--text-tertiary);font-weight:400}
 .p-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px;transition:border-color var(--transition)}
@@ -292,8 +290,7 @@ body.alt{--up:#2ea043;--down:#f85149}
 .vcover.sm .vc-play{width:16px;height:16px;font-size:7px;top:40%}
 .vcover.sm .vc-pub,.vcover.sm .vc-title{display:none}
 .vcover.sm .vc-dur{font-size:8px}
-.acc-upd{font-size:10px;color:var(--text-tertiary)}
-.acc-vp{font-size:11px;color:var(--text-secondary);margin:3px 0 4px}
+.acc-cnt .mini-dots i{width:6px;height:6px}
 .acc-media{display:flex;gap:10px;align-items:flex-start}
 .empty{padding:40px;text-align:center;color:var(--text-tertiary);font-size:12px;border:1px dashed var(--border);border-radius:var(--radius-lg)}
 .temp-row{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12px}
@@ -320,6 +317,23 @@ body.alt{--up:#2ea043;--down:#f85149}
 .crumbs button{border:none;background:transparent;color:var(--accent);font-size:12px;cursor:pointer;font-family:var(--font);padding:2px 4px}
 .crumbs button:hover{text-decoration:underline}
 .crumbs .sep{color:var(--text-tertiary)}
+/* 大V情绪摘要卡（与实现 AccountDimension 对齐：标题行 + 折叠记忆 + 全账号时序 + 账号卡网格） */
+.sum-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border)}
+.sum-title{font-weight:600;font-size:13px}
+.sum-n{font-size:11px;color:var(--text-tertiary)}
+.sum-toggle{margin-left:auto;background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:12px;font-family:var(--font);padding:2px 8px}
+.sum-toggle:hover{color:var(--text-primary)}
+.sum-timeline{display:flex;align-items:center;gap:10px;padding:9px 14px;flex-wrap:wrap}
+.sum-lab{font-size:11px;font-weight:600;flex-shrink:0}
+.sum-bars{flex:1;min-width:220px;display:flex;gap:10px}
+.sum-day{flex:1;min-width:110px}
+.sum-bar{display:flex;height:10px;border-radius:4px;overflow:hidden;background:var(--bg-surface)}
+.sg{height:100%;display:inline-block}
+.sg.b{background:var(--up)}.sg.s{background:var(--down)}.sg.n{background:var(--text-tertiary);opacity:.45}
+.sum-day-lab{font-size:9px;color:var(--text-tertiary);margin-top:2px;display:block;text-align:center}
+.acc-cnt{display:flex;align-items:center;gap:8px;font-size:10px;margin-top:6px}
+.acc-cnt .up{color:var(--up)}.acc-cnt .down{color:var(--down)}.acc-cnt .mut{color:var(--text-tertiary)}
+.acc-cnt .mini-dots{margin-left:auto}
 .traj{display:flex;align-items:center;gap:0;padding:12px 14px;overflow-x:auto}
 .traj .dt{width:14px;height:14px;border-radius:50%;flex-shrink:0;position:relative;z-index:1;border:2px solid var(--bg-elevated)}
 .traj .dt.bull{background:var(--up)}.traj .dt.bear{background:var(--down)}.traj .dt.neu{background:var(--text-tertiary)}
@@ -369,8 +383,6 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
 .modal .mf{padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
 #toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(8px);background:#1a1d25;border:1px solid var(--accent);color:var(--text-primary);font-size:12px;padding:8px 16px;border-radius:var(--radius-md);opacity:0;transition:all .25s;z-index:40;pointer-events:none;max-width:70vw}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.sub-view{display:none}
-.sub-view.on{display:block}
 .foot{padding:16px 0 4px;display:flex;gap:8px;flex-wrap:wrap;font-size:10px;color:var(--text-tertiary)}
 .foot span{border:1px solid var(--border);border-radius:5px;padding:3px 8px;background:var(--bg-elevated)}
 .foot b{color:var(--text-secondary);font-weight:500}
@@ -495,70 +507,31 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
 <div class="view-pane active" id="pane-sentiment">
 
 <div class="sub-head">
-<div class="seg" id="subSeg">
-<button data-sv="stream" class="on">情绪流</button>
-<button data-sv="accounts">账号维度</button>
-<button data-sv="temp">情绪温度 <span style="font-size:9px;opacity:.8">P2</span></button>
-</div>
-<span class="note">平台级追踪 · 全体用户同一视图 · 数据派生自 social_account / social_post / social_sentiment</span>
+<span class="note">单视图 · 大 V 情绪摘要卡（可收起 · 折叠状态记忆）+ 视频情绪流 · 点击摘要卡账号进入时间线 · 平台级追踪，全体用户同一视图 · 数据派生自 social_account / social_post / social_sentiment</span>
 </div>
 
-<!-- —— 子视图 1：情绪流 —— -->
-<div class="sub-view on" id="sub-stream">
-<div class="filter-bar">
-<div class="fchips" id="fCat">
-<span class="fchip active" data-f="all">全部分类</span>
-<span class="fchip" data-f="宏观政策">宏观政策<span class="n">3</span></span>
-<span class="fchip" data-f="财经大 V">财经大 V<span class="n">2</span></span>
-<span class="fchip" data-f="产业人士">产业人士<span class="n">2</span></span>
+<!-- —— 大 V 情绪摘要卡（标题行折叠按钮 + 全账号情绪时序 + 账号卡网格 · 收起状态 localStorage 记忆） —— -->
+<div class="card" style="margin-bottom:12px">
+<div class="sum-head">
+<span class="sum-title">大 V 情绪摘要</span><span class="sum-n" id="sumN"></span>
+<button class="sum-toggle" id="sumToggle" aria-label="收起大 V 情绪摘要">收起 ▾</button>
 </div>
-<div class="fchips" id="fStance">
-<span class="fchip active" data-f="all">全部立场</span>
-<span class="fchip" data-f="bull">看多<span class="n">3</span></span>
-<span class="fchip" data-f="bear">看空<span class="n">2</span></span>
-<span class="fchip" data-f="neu">中性<span class="n">2</span></span>
+<div id="sumBody">
+<div class="sum-timeline">
+<span class="sum-lab">全账号情绪时序</span>
+<span style="font-size:11px;color:var(--up)">多 <b id="sumBull"></b></span>
+<span style="font-size:11px;color:var(--down)">空 <b id="sumBear"></b></span>
+<span style="font-size:11px;color:var(--text-tertiary)">中 <b id="sumNeu"></b></span>
+<div class="sum-bars" id="sumBars"></div>
 </div>
-<div class="fchips" id="fRange">
-<span class="fchip" data-f="60">近 1 小时</span>
-<span class="fchip active" data-f="1440">今日</span>
-<span class="fchip" data-f="99999">近 3 日</span>
-</div>
-<span class="fswitch" id="fStrong"><span class="toggle"></span>仅看强信号（置信度 ≥80%）</span>
-</div>
-<div class="cols">
-<div class="stream" id="stream"></div>
-<aside class="side">
-<div class="card">
-<div class="card-h">情绪温度速览<span class="n">近 24h · P2</span></div>
-<div id="sideTemp"></div>
-</div>
-<div class="card">
-<div class="card-h">追踪账号<span class="n" id="sideAccN"></span></div>
-<div id="sideAccs"></div>
-</div>
-<div class="card">
-<div class="card-h">口径说明</div>
-<div style="padding:10px 14px">
-<div class="note">
-自研抖音适配层（collector 内置，无独立部署）采集新视频 → 云端 ASR 转写（复用 04 知识库渠道配置与金融热词表）→ LLM 结构化判断。<br>
-立场徽标 = <b style="color:var(--text-secondary)">AI 生成 · 非投资建议</b>；无关内容（生活/广告）判 irrelevant 不入情绪流。<br>
-音频缺失降级「仅文案判断」并标注 transcript_missing；转写文稿仅作判断输入，不存储原片与完整文稿。
-</div>
-</div>
-</div>
-</aside>
-</div>
-</div>
-
-<!-- —— 子视图 2：账号维度 —— -->
-<div class="sub-view" id="sub-accounts">
-<div id="accGridWrap">
-<div class="sec-t">按账号分组 · 进入单账号时间线查看立场轨迹</div>
 <div class="acc-grid" id="accGrid"></div>
 </div>
+</div>
+
+<!-- —— 账号时间线（点击摘要卡账号 · 替换情绪流，TimelinePanel） —— -->
 <div id="accTlWrap" style="display:none">
 <div class="crumbs">
-<button id="backAccs">← 全部账号</button><span class="sep">/</span><b id="tlName"></b>
+<button id="backAccs">← 返回情绪流</button><span class="sep">/</span><b id="tlName"></b>
 </div>
 <div class="card" style="margin-bottom:12px">
 <div style="display:flex;align-items:center;gap:10px;padding:14px">
@@ -577,16 +550,41 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
 </div>
 <div style="display:flex;flex-direction:column;gap:10px" id="tlPosts"></div>
 </div>
-</div>
 
-<!-- —— 子视图 3：情绪温度（P2） —— -->
-<div class="sub-view" id="sub-temp">
-<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-<div class="sec-t" style="margin:0">按分类聚合的净多空概览</div>
-<div class="seg mini" id="tempRange"><button data-t="24" class="on">近 24h</button><button data-t="72">近 3 日</button></div>
-<span class="badge warn">P2 · 情绪指数时序接入工作台卡片见 F-SOC-06</span>
+<!-- —— 情绪流（筛选 chips + FeedList 分页） —— -->
+<div id="streamArea">
+<div class="filter-bar">
+<div class="fchips" id="fCat">
+<span class="fchip active" data-f="all">全部分类</span>
+<span class="fchip" data-f="宏观政策">宏观政策<span class="n">3</span></span>
+<span class="fchip" data-f="财经大 V">财经大 V<span class="n">2</span></span>
+<span class="fchip" data-f="产业人士">产业人士<span class="n">2</span></span>
 </div>
-<div class="temp-cards" id="tempCards"></div>
+<div class="fchips" id="fStance">
+<span class="fchip active" data-f="all">全部立场</span>
+<span class="fchip" data-f="bull">看多<span class="n">3</span></span>
+<span class="fchip" data-f="bear">看空<span class="n">2</span></span>
+<span class="fchip" data-f="neu">中性<span class="n">2</span></span>
+</div>
+<div class="fchips" id="fRange">
+<span class="fchip" data-f="">不限时间</span>
+<span class="fchip active" data-f="24">24 小时</span>
+<span class="fchip" data-f="72">近 3 天</span>
+<span class="fchip" data-f="168">近 7 天</span>
+</div>
+<span class="fswitch" id="fStrong"><span class="toggle"></span>仅看强信号（置信度 ≥80%）</span>
+</div>
+<div class="stream" id="stream"></div>
+<div class="card" style="margin-top:12px">
+<div class="card-h">口径说明</div>
+<div style="padding:10px 14px">
+<div class="note">
+自研抖音适配层（collector 内置，无独立部署）采集新视频 → 云端 ASR 转写（复用 04 知识库渠道配置与金融热词表）→ LLM 结构化判断。<br>
+立场徽标 = <b style="color:var(--text-secondary)">AI 生成 · 非投资建议</b>；无关内容（生活/广告）判 irrelevant 不入情绪流。<br>
+音频缺失降级「仅文案判断」并标注 transcript_missing；转写文稿仅作判断输入，不存储原片与完整文稿。
+</div>
+</div>
+</div>
 </div>
 </div>
 
@@ -629,8 +627,8 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
 
 <!-- 信息架构说明 -->
 <div class="type-note">
-<div class="tn-title">信息架构说明（大 V 情绪 = 资讯中心第四视图）</div>
-「大 V 情绪」作为资讯中心第四 Tab，复用页面框架（渠道监控条 + 全局统计条 + 视图 Tab），段内二级导航为<b>情绪流 / 账号维度 / 情绪温度（P2）</b>。原需求中的 X（推特）采集已<b>砍掉</b>（官方 API 配额成本收益不成立）；渠道为<b>抖音自研适配层</b>（collector 内置：curl_cffi 指纹传输 + a_bogus 签名移植 + Cookie 自举/手动兜底，无独立部署容器），X 采集能力编号 F-SOC-02 移除、不再复用；采集 → ASR 转写（复用 04 知识库渠道）→ LLM 多空判断 → 落库 social_* 三表 → 视图呈现。渠道故障仅影响本 Tab 并由 F-MON 告警；情绪指数时序与高冲击提醒为二期（F-SOC-06）。
+<div class="tn-title">信息架构说明（大 V 情绪 = 资讯中心第四视图 · 单视图）</div>
+「大 V 情绪」作为资讯中心第四 Tab，复用页面框架（渠道监控条 + 全局统计条 + 视图 Tab），段内为<b>单视图</b>：顶部<b>大 V 情绪摘要卡</b>——「大V情绪摘要 · N 位」标题行 + 收起/展开按钮（折叠状态 localStorage 记忆，收起后仅保留标题行），卡内为全账号情绪时序条（多/空/中按日聚合）+ 账号卡网格（最新立场徽标 + 多空中计数 + 最新观点摘要）；点击账号卡进入<b>单账号时间线</b>并替换情绪流，「← 返回情绪流」回列表。筛选 chips 为分类 / 立场 / 时间窗口（不限时间 · 24 小时默认 · 近 3 天 · 近 7 天）/ 仅看强信号（置信度 ≥80%）。原「账号维度」二级视图并入摘要卡，不再单独占导航；「情绪温度」为二期（F-SOC-06）未实现。原需求中的 X（推特）采集已<b>砍掉</b>（官方 API 配额成本收益不成立）；渠道为<b>抖音自研适配层</b>（collector 内置：curl_cffi 指纹传输 + a_bogus 签名移植 + Cookie 自举/手动兜底，无独立部署容器），X 采集能力编号 F-SOC-02 移除、不再复用；采集 → ASR 转写（复用 04 知识库渠道）→ LLM 多空判断 → 落库 social_* 三表 → 视图呈现。渠道故障仅影响本 Tab 并由 F-MON 告警。
 </div>
 
 <footer class="foot">
@@ -638,7 +636,7 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
 <span><b>F-SOC-02</b> 已移除（X 采集砍掉 · 编号不复用）</span>
 <span><b>F-SOC-03</b> 抖音采集 + ASR 转写（封面/时长/发布时间 · transcript_missing 降级演示）</span>
 <span><b>F-SOC-04</b> 情绪判断：立场/置信度/论点/影响标的（irrelevant 不入流 · Schema 全 required）</span>
-<span><b>F-SOC-05</b> 资讯中心第四 Tab：情绪流（视频封面缩略图）/ 账号时间线（立场轨迹）/ 情绪温度</span>
+<span><b>F-SOC-05</b> 资讯中心第四 Tab：大V情绪摘要卡（可收起记忆 + 全账号时序）/ 视频情绪流 / 账号时间线</span>
 <span><b>F-SOC-06</b>（P2）情绪指数与高冲击提醒</span>
 </footer>
 
@@ -727,13 +725,9 @@ var NEW_POST={acc:'lasili',mins:2,stance:'bear',conf:83,pin:false,heavy:false,da
   targets:[{ty:'commodity',label:'黄金'},{ty:'index',label:'创业板指'}],
   ia:'赞 3,210 · 评 512 · 转 706',
   vid:{title:'降息预期回摆：成长风格的短线压力',dur:'04:12',pub:'今日 11:52',bg:'linear-gradient(155deg,#3d1b4d,#a05df0)'}};
-var TEMPS={
-  '24':{'宏观政策':{b:2,s:3,n:1,spark:[2,3,1,2,4,3,3]},'财经大 V':{b:3,s:2,n:2,spark:[1,2,2,3,2,4,1]},'产业人士':{b:2,s:1,n:3,spark:[1,1,2,1,2,2,1]}},
-  '72':{'宏观政策':{b:4,s:5,n:3,spark:[3,2,4,3,5,4,3]},'财经大 V':{b:6,s:4,n:5,spark:[2,3,4,3,5,4,3]},'产业人士':{b:4,s:3,n:7,spark:[1,2,1,2,2,3,2]}}
-};
 var TY_NAME={index:'指数',sector:'板块',stock:'个股',commodity:'商品'};
 var STANCE_NAME={bull:'看多',bear:'看空',neu:'中性'};
-var state={sv:'stream',f:{cat:'all',stance:'all',range:'1440',strong:false},newAdded:false};
+var state={f:{cat:'all',stance:'all',range:'24',strong:false},newAdded:false};
 
 /* ============ 工具 ============ */
 function $(s){return document.querySelector(s)}
@@ -788,8 +782,7 @@ function filteredPosts(){
     var a=accById(p.acc);
     if(state.f.cat!=='all'&&a.cat!==state.f.cat)return false;
     if(state.f.stance!=='all'&&p.stance!==state.f.stance)return false;
-    if(p.mins>Number(state.f.range))return false;
-    if(state.f.range==='1440'&&p.day==='prev')return false;
+    if(state.f.range!==''&&p.mins>Number(state.f.range))return false;
     if(state.f.strong&&p.conf<80)return false;
     return true;
   });
@@ -819,31 +812,37 @@ function renderStream(){
     renderStream();
   };
 }
-function renderSideTemp(){
-  var data=TEMPS['24'];var h='';
-  Object.keys(data).forEach(function(cat){
-    var d=data[cat];var tot=d.b+d.s||1;
-    h+='<div class="temp-row"><span class="nm">'+cat+'</span>'
-      +'<div class="tbar"><span class="b" style="width:'+(d.b/tot*100)+'%"></span><span class="s" style="width:'+(d.s/tot*100)+'%"></span></div>'
-      +'<span class="vs">多 '+d.b+' / 空 '+d.s+'</span>'
-      +'<span class="net '+(d.b>d.s?'up':(d.b<d.s?'down':'flat'))+'">'+(d.b>d.s?'+':(d.b<d.s?'−':'±'))+Math.abs((d.b-d.s)/tot).toFixed(2)+'</span></div>';
-  });
-  $('#sideTemp').innerHTML=h;
-}
-function renderSideAccs(){
-  $('#sideAccN').textContent=ACCOUNTS.length+' 个';
+/* ============ 大V情绪摘要卡（收起状态 localStorage 记忆，对齐 AccountDimension） ============ */
+var SUMMARY_KEY='settings:sentiment-summary-collapsed';
+function renderSummary(){
+  $('#sumN').textContent=ACCOUNTS.length+' 位';
+  var bull=0,bear=0,neu=0;
+  POSTS.forEach(function(p){if(p.stance==='bull')bull++;else if(p.stance==='bear')bear++;else neu++});
+  $('#sumBull').textContent=bull;$('#sumBear').textContent=bear;$('#sumNeu').textContent=neu;
   var h='';
-  ACCOUNTS.forEach(function(a){
-    var dots=a.traj.slice(-8).map(function(s){return '<i class="'+s+'"></i>'}).join('');
-    h+='<div class="ditem" data-acc="'+a.id+'" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer">'
-      +'<div class="ava" style="background:'+a.hue+'">'+esc(a.alias.slice(0,1))+'</div>'
-      +'<div style="flex:1;min-width:0"><div style="font-size:12px">'+esc(a.alias)+'</div>'
-      +'<div class="mini-dots" style="margin-top:3px">'+dots+'</div></div>'
-      +'<span style="font-size:10px;color:var(--text-tertiary)">'+a.last+'</span></div>';
+  [{k:'prev',lab:'昨日'},{k:'today',lab:'今日'}].forEach(function(d){
+    var b=0,s=0,n=0;
+    POSTS.forEach(function(p){if(p.day!==d.k)return;if(p.stance==='bull')b++;else if(p.stance==='bear')s++;else n++});
+    var tot=b+s+n||1;
+    h+='<div class="sum-day"><div class="sum-bar">'
+      +'<span class="sg b" style="width:'+(b/tot*100)+'%"></span>'
+      +'<span class="sg n" style="width:'+(n/tot*100)+'%"></span>'
+      +'<span class="sg s" style="width:'+(s/tot*100)+'%"></span></div>'
+      +'<span class="sum-day-lab">'+d.lab+' 多'+b+' 空'+s+' 中'+n+'</span></div>';
   });
-  var wrap=$('#sideAccs');wrap.innerHTML=h;
-  wrap.querySelectorAll('[data-acc]').forEach(function(n){n.onclick=function(){openTimeline(n.getAttribute('data-acc'))}});
+  $('#sumBars').innerHTML=h;
 }
+function applySumCollapsed(c){
+  $('#sumBody').style.display=c?'none':'block';
+  $('#sumToggle').textContent=c?'展开 ▸':'收起 ▾';
+  $('#sumToggle').setAttribute('aria-label',c?'展开大 V 情绪摘要':'收起大 V 情绪摘要');
+}
+$('#sumToggle').onclick=function(){
+  var next=$('#sumBody').style.display!=='none';
+  localStorage.setItem(SUMMARY_KEY,next?'1':'0');
+  applySumCollapsed(next);
+  toast(next?'已收起大V情绪摘要（刷新后保持）':'已展开大V情绪摘要');
+};
 
 /* ============ 账号维度 ============ */
 function latestPostOf(id){
@@ -855,13 +854,10 @@ function renderAccGrid(){
   var h='';
   ACCOUNTS.forEach(function(a){
     var latest=latestPostOf(a.id);
-    var dots=a.traj.slice(-10).map(function(s){return '<i class="'+s+'"></i>'}).join('');
-    var upd='最近更新 '+(latest?fmtMins(latest.mins)+(latest.vid?' · '+esc(latest.vid.pub)+' 发布':''):'—');
-    var vp='';
-    if(latest){
-      var vc=latest.stance==='bull'?'var(--up)':(latest.stance==='bear'?'var(--down)':'var(--text-secondary)');
-      vp='<div class="acc-vp">主要观点 <b style="color:'+vc+'">'+STANCE_NAME[latest.stance]+' '+latest.conf+'%</b></div>';
-    }
+    var bull=0,bear=0,neu=0;
+    POSTS.forEach(function(p){if(p.acc!==a.id)return;if(p.stance==='bull')bull++;else if(p.stance==='bear')bear++;else neu++});
+    var dots=a.traj.slice(-8).map(function(s){return '<i class="'+s+'"></i>'}).join('');
+    var badge=latest?'<span class="stance '+latest.stance+'"><i></i>'+STANCE_NAME[latest.stance]+'<span class="ai">AI '+latest.conf+'%</span></span>':'';
     var latestTxt=(latest?esc(latest.summary):'暂无已判断内容');
     var media=(latest&&latest.vid)
       ?'<div class="acc-media">'+vcoverHtml(latest.vid,' sm')+'<div style="min-width:0"><div class="latest">'+latestTxt+'</div></div></div>'
@@ -869,18 +865,17 @@ function renderAccGrid(){
     h+='<div class="acc-card" data-acc="'+a.id+'">'
       +'<div class="top"><div class="ava" style="background:'+a.hue+'">'+esc(a.alias.slice(0,1))+'</div>'
       +'<div style="min-width:0"><div class="alias">'+esc(a.alias)+'</div>'
-      +'<div class="hnd">'+esc(a.handle)+'</div></div></div>'
-      +'<div class="acc-upd">'+upd+'</div>'
-      +vp
+      +'<div class="hnd">'+esc(a.handle)+'</div></div>'+badge+'</div>'
+      +'<div class="acc-cnt"><span class="up">多 '+bull+'</span><span class="down">空 '+bear+'</span><span class="mut">中 '+neu+'</span><span class="mini-dots">'+dots+'</span></div>'
       +media
-      +'<div class="foot"><span class="cat-tag">'+esc(a.cat)+'</span><span class="mini-dots">'+dots+'</span><span style="margin-left:auto">时间线 →</span></div></div>';
+      +'<div class="foot"><span class="cat-tag">'+esc(a.cat)+'</span><span style="margin-left:auto">'+(latest?'最新发布 '+fmtMins(latest.mins):'暂无发布')+' · 时间线 →</span></div></div>';
   });
   $('#accGrid').innerHTML=h;
   $('#accGrid').querySelectorAll('[data-acc]').forEach(function(n){n.onclick=function(){openTimeline(n.getAttribute('data-acc'))}});
 }
 function openTimeline(id){
   var a=accById(id);if(!a)return;
-  $('#accGridWrap').style.display='none';
+  $('#streamArea').style.display='none';
   $('#accTlWrap').style.display='block';
   $('#tlName').textContent=a.alias;
   var av=$('#tlAva');av.style.background=a.hue;av.textContent=a.alias.slice(0,1);
@@ -909,31 +904,7 @@ function openTimeline(id){
 }
 function closeTimeline(){
   $('#accTlWrap').style.display='none';
-  $('#accGridWrap').style.display='block';
-}
-
-/* ============ 情绪温度 ============ */
-function sparkSvg(pts,posEnd){
-  var w=240,h=40,mn=Math.min.apply(null,pts),mx=Math.max.apply(null,pts),rg=(mx-mn)||1;
-  var step=w/(pts.length-1);
-  var coords=pts.map(function(v,i){return [i*step,h-4-(v-mn)/rg*(h-8)]});
-  var path=coords.map(function(c,i){return (i?'L':'M')+c[0].toFixed(1)+','+c[1].toFixed(1)}).join('');
-  var last=coords[coords.length-1];
-  var col=posEnd?'var(--up)':'var(--down)';
-  return '<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none"><path d="'+path+'" fill="none" stroke="'+col+'" stroke-width="2" stroke-linecap="round"/><circle cx="'+last[0]+'" cy="'+last[1]+'" r="3" fill="'+col+'"/></svg>';
-}
-function renderTemp(){
-  var data=TEMPS[state.tempRange||'24'];var h='';
-  Object.keys(data).forEach(function(cat){
-    var d=data[cat];var tot=(d.b+d.s)||1;var net=(d.b-d.s)/tot;var up=net>=0;
-    h+='<div class="temp-card"><h4>'+cat+'<span class="badge">'+((state.tempRange||'24')==='24'?'近 24h':'近 3 日')+'</span></h4>'
-      +'<div class="big net '+(up?'up':'down')+'">'+(up?'+':'−')+Math.abs(net).toFixed(2)+'</div>'
-      +'<div class="tbar" style="height:10px"><span class="b" style="width:'+(d.b/tot*100)+'%"></span><span class="s" style="width:'+(d.s/tot*100)+'%"></span></div>'
-      +'<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-tertiary)"><span style="color:var(--up)">看多 '+d.b+'</span><span>中性 '+d.n+'</span><span style="color:var(--down)">看空 '+d.s+'</span></div>'
-      +sparkSvg(d.spark,up)
-      +'<div class="note">净多空 =（看多 − 看空）/ 已判断内容数 · 样本含置信度 ≥60%</div></div>';
-  });
-  $('#tempCards').innerHTML=h;
+  $('#streamArea').style.display='block';
 }
 
 /* ============ 后台 ============ */
@@ -963,19 +934,12 @@ function renderAdmin(){
       var id=n.getAttribute('data-del');
       for(var i=ACCOUNTS.length-1;i>=0;i--){if(ACCOUNTS[i].id===id)ACCOUNTS.splice(i,1)}
       toast('已删除：停止采集，历史数据保留，视图可按需隐藏');
-      renderAdmin();renderSideAccs();renderAccGrid();
+      renderAdmin();renderSummary();renderAccGrid();
     };
   });
 }
 
-/* ============ 子视图切换与事件 ============ */
-function switchSub(v){
-  state.sv=v;
-  document.querySelectorAll('.sub-view').forEach(function(n){n.classList.remove('on')});
-  $('#sub-'+v).classList.add('on');
-  document.querySelectorAll('#subSeg button').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-sv')===v)});
-}
-document.querySelectorAll('#subSeg button').forEach(function(b){b.onclick=function(){switchSub(b.getAttribute('data-sv'))}});
+/* ============ 事件绑定 ============ */
 document.querySelectorAll('[data-toast]').forEach(function(b){b.onclick=function(){toast(b.getAttribute('data-toast'))}});
 
 function bindChips(id,key){
@@ -1018,12 +982,6 @@ document.addEventListener('click',function(e){
 
 $('#chClose').onclick=function(){$('#chBanner').style.display='none'};
 $('#backAccs').onclick=closeTimeline;
-document.querySelectorAll('#tempRange button').forEach(function(b){
-  b.onclick=function(){
-    document.querySelectorAll('#tempRange button').forEach(function(x){x.classList.remove('on')});
-    b.classList.add('on');state.tempRange=b.getAttribute('data-t');renderTemp();
-  };
-});
 
 /* 弹层：登记账号 */
 var modal=$('#accModal');
@@ -1043,11 +1001,12 @@ $('#mOk').onclick=function(){
   var hues=['#5865f2','#2ea043','#e3b341','#a371f7','#58a6ff'];
   ACCOUNTS.push({id:'u'+Date.now(),handle:handle,alias:alias,cat:cat,hue:hues[ACCOUNTS.length%hues.length],interval:'1 小时',last:'刚刚',asr:'—',traj:[]});
   closeModal();toast('已登记并启用 · 自动纳入抖音采集任务与 F-MON 健康监测');
-  renderAdmin();renderSideAccs();renderAccGrid();
+  renderAdmin();renderSummary();renderAccGrid();
 };
 
 /* ============ 初始化 ============ */
-renderStream();renderSideTemp();renderSideAccs();renderAccGrid();renderTemp();renderAdmin();
+renderStream();renderSummary();renderAccGrid();renderAdmin();
+applySumCollapsed(localStorage.getItem(SUMMARY_KEY)==='1');
 setTimeout(function(){var nb=$('#newBar');if(nb)nb.style.display='flex'},5000);
 </script>
 </body>

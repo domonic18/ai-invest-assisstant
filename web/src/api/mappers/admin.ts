@@ -44,6 +44,7 @@ export function mapLLMConfig(dto: ApiLLMConfigResponse): LLMConfig {
     apiKeyMasked: dto.apiKeyMasked,
     isDefault: dto.isDefault,
     isActive: dto.isActive,
+    purpose: dto.purpose,
     extra: dto.extra,
     lastTestedAt: dto.lastTestedAt,
     lastTestStatus: dto.lastTestStatus,
@@ -95,6 +96,7 @@ export function mapCollectorLog(dto: ApiCollectorLogResponse): CollectorLog {
     finishedAt: dto.finishedAt,
     recordsCount: dto.recordsCount,
     errorMsg: dto.errorMsg,
+    message: dto.message ?? null,
     metadata: dto.metadata,
   }
 }

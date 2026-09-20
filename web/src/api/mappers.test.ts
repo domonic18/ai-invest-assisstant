@@ -241,6 +241,7 @@ describe('mappers', () => {
       apiKeyMasked: 'sk-te************************st',
       isDefault: true,
       isActive: true,
+      purpose: 'chat',
       extra: {},
       lastTestedAt: '2024-01-01T00:00:00Z',
       lastTestStatus: 'success',

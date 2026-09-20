@@ -3,7 +3,7 @@ import { Button, Form, Input, Modal, Select, Switch } from 'antd'
 import { useEffect } from 'react'
 
 import { LLM_PROVIDER_PRESETS } from '@ai-invest/shared'
-import type { LLMConfig, LLMConfigFormValues } from '@ai-invest/shared'
+import type { LLMConfig, LLMConfigFormValues, LlmPurpose } from '@ai-invest/shared'
 
 interface LLMConfigModalProps {
   open: boolean
@@ -18,6 +18,12 @@ interface LLMConfigModalProps {
 const PROTOCOL_OPTIONS = [
   { value: 'openai', label: 'OpenAI 兼容' },
   { value: 'anthropic', label: 'Anthropic' },
+]
+
+const PURPOSE_OPTIONS: { value: LlmPurpose; label: string }[] = [
+  { value: 'chat', label: '对话/分析（默认对话与知识库清洗/抽取）' },
+  { value: 'embedding', label: '向量嵌入（知识库检索）' },
+  { value: 'vision', label: '视觉识别（图片理解）' },
 ]
 
 const PROVIDER_OPTIONS = [
@@ -52,6 +58,7 @@ export function LLMConfigModal({
           apiKey: '',
           isDefault: editing.isDefault,
           isActive: editing.isActive,
+          purpose: editing.purpose,
           vision: capabilities.vision === true,
         })
       } else {
@@ -62,6 +69,7 @@ export function LLMConfigModal({
           baseUrl: LLM_PROVIDER_PRESETS.deepseek.baseUrl,
           isActive: true,
           isDefault: false,
+          purpose: 'chat',
           vision: false,
         })
       }
@@ -148,6 +156,15 @@ export function LLMConfigModal({
           rules={[{ required: true, message: '请输入模型名称' }]}
         >
           <Input placeholder="deepseek-chat" />
+        </Form.Item>
+
+        <Form.Item
+          label="用途"
+          name="purpose"
+          rules={[{ required: true, message: '请选择用途' }]}
+          extra="知识库模型角色槽位按用途过滤候选条目，须与槽位要求一致"
+        >
+          <Select options={PURPOSE_OPTIONS} />
         </Form.Item>
 
         <Form.Item

@@ -2,13 +2,20 @@
 
 from typing import Any, Literal
 
-UsageFeature = Literal["assistant", "page", "api_key", "system"]
+UsageFeature = Literal["assistant", "page", "api_key", "system",
+                       "kb_clean", "kb_extract", "kb_vision", "kb_embed"]
 UsageOutlet = Literal["system", "byok"]
 
 FEATURE_ASSISTANT: UsageFeature = "assistant"
 FEATURE_PAGE: UsageFeature = "page"
 FEATURE_API_KEY: UsageFeature = "api_key"
 FEATURE_SYSTEM: UsageFeature = "system"
+
+# F-KB 建库管线特征（系统维度，usage detail 携带 {sourceId, mediaId} 上下文）
+FEATURE_KB_CLEAN: UsageFeature = "kb_clean"
+FEATURE_KB_EXTRACT: UsageFeature = "kb_extract"
+FEATURE_KB_VISION: UsageFeature = "kb_vision"
+FEATURE_KB_EMBED: UsageFeature = "kb_embed"
 
 OUTLET_SYSTEM: UsageOutlet = "system"
 OUTLET_BYOK: UsageOutlet = "byok"

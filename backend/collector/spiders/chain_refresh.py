@@ -44,7 +44,7 @@ class ChainRefreshCollector(BaseCollector):
                         source=self.source,
                         data_type=self.data_type,
                         status=CollectStatus.SKIPPED,
-                        errors=["没有可刷新的产业链（尚无成功分析版本）"],
+                        message="没有可刷新的产业链（尚无成功分析版本）",
                         started_at=started_at,
                         finished_at=datetime.now(timezone.utc),
                     )

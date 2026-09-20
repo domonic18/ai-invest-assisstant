@@ -229,6 +229,26 @@ class TestLogPersistence:
         mock_session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
+    async def test_persist_result_skip_message_not_in_error(self) -> None:
+        """SKIPPED 说明落 message 列，error_msg 保持为空（日志页红字只留错误）。"""
+        result = CollectResult(
+            source="internal",
+            data_type="kb_transcribe",
+            status=CollectStatus.SKIPPED,
+            message="没有待转写素材（队列为空或全部忙）",
+        )
+        mock_log = MagicMock()
+        with patch(
+            "collector.runtime.runner.AsyncSessionLocal",
+            _mock_session(mock_log),
+        ):
+            await _persist_result("kb-transcribe", 1, None, "abcd1234", result)
+
+        assert mock_log.status == "skipped"
+        assert mock_log.message == "没有待转写素材（队列为空或全部忙）"
+        assert mock_log.error_msg is None
+
+    @pytest.mark.asyncio
     async def test_persist_error_records_traceback_truncated(self) -> None:
         mock_log = MagicMock()
         with patch(

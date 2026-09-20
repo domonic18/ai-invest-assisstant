@@ -206,6 +206,48 @@ export const ENDPOINTS = {
     testLLMConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}/test`,
     setDefaultLLMConfig: (id: number | string) =>
       `${API_BASE}/admin/llm-configs/${id}/set-default`,
+    kbSettings: `${API_BASE}/admin/kb/settings`,
+    kbSources: `${API_BASE}/admin/kb/sources`,
+    kbSource: (id: number | string) => `${API_BASE}/admin/kb/sources/${id}`,
+    kbSourceRestore: (id: number | string) =>
+      `${API_BASE}/admin/kb/sources/${id}/restore`,
+    kbSourceMedia: (sourceId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/media`,
+    kbSourceMediaInit: (sourceId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/media/init`,
+    kbCostEstimate: `${API_BASE}/admin/kb/cost-estimate`,
+    kbSourceConfirmCost: (sourceId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/confirm-cost`,
+    kbMedia: (id: number | string) => `${API_BASE}/admin/kb/media/${id}`,
+    kbMediaUploadSession: (id: number | string) =>
+      `${API_BASE}/admin/kb/media/${id}/upload-session`,
+    kbMediaUploaded: (id: number | string) =>
+      `${API_BASE}/admin/kb/media/${id}/uploaded`,
+    kbMediaRequeue: (id: number | string) =>
+      `${API_BASE}/admin/kb/media/${id}/requeue`,
+    kbMediaRestore: (id: number | string) =>
+      `${API_BASE}/admin/kb/media/${id}/restore`,
+    kbSourceTranscript: (sourceId: number | string, mediaId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/transcript/${mediaId}`,
+    kbSourceChapters: (sourceId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/chapters`,
+    kbSourceChaptersPublish: (sourceId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/chapters/publish`,
+    kbSourcePoints: (sourceId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/points`,
+    kbSourceImages: (sourceId: number | string) =>
+      `${API_BASE}/admin/kb/sources/${sourceId}/images`,
+    kbImage: (id: number | string) => `${API_BASE}/admin/kb/images/${id}`,
+    kbImageRedescribe: (id: number | string) =>
+      `${API_BASE}/admin/kb/images/${id}/redescribe`,
+    kbPoints: `${API_BASE}/admin/kb/points`,
+    kbPoint: (id: number | string) => `${API_BASE}/admin/kb/points/${id}`,
+    kbPointApprove: (id: number | string) =>
+      `${API_BASE}/admin/kb/points/${id}/approve`,
+    kbPointReject: (id: number | string) =>
+      `${API_BASE}/admin/kb/points/${id}/reject`,
+    kbPointsMerge: `${API_BASE}/admin/kb/points/merge`,
+    kbPointsApproveBatch: `${API_BASE}/admin/kb/points/approve-batch`,
     proxyConfigs: `${API_BASE}/admin/proxy-configs`,
     proxyConfig: (id: number | string) => `${API_BASE}/admin/proxy-configs/${id}`,
     testProxyConfig: (id: number | string) =>

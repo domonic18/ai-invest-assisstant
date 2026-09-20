@@ -104,6 +104,7 @@ class CollectorLogResponse(CamelModel):
     finished_at: datetime | None
     records_count: int
     error_msg: str | None
+    message: str | None = None
     metadata: dict | None = Field(default=None, validation_alias="meta")
 
 
