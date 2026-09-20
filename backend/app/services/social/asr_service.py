@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.social import AsrChannelConfig
+from app.utils.api_base import normalize_asr_base
 from app.utils.crypto import decrypt_token
 
 logger = structlog.get_logger(__name__)
@@ -138,7 +139,7 @@ async def _fetch_audio(url: str, tmp_dir: Path) -> tuple[Path | None, str | None
 
 async def _call_minimax(config: AsrChannelConfig, api_key: str, mp3: bytes) -> str | None:
     """调用 MiniMax speech_to_text，返回转写文本。"""
-    base_url = (config.base_url or "").rstrip("/")
+    base_url = normalize_asr_base(config.base_url or "")
     try:
         async with httpx.AsyncClient(timeout=_ASR_TIMEOUT_SECONDS) as client:
             response = await client.post(

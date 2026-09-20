@@ -22,6 +22,7 @@ from app.schemas.social import (
     AsrConfigUpdateRequest,
 )
 from app.services.admin.audit_service import record_audit
+from app.utils.api_base import normalize_asr_base
 from app.utils.crypto import encrypt_token, mask_token
 
 logger = structlog.get_logger(__name__)
@@ -129,7 +130,7 @@ async def test_connection(
 
 async def _transcribe_sample(config: AsrChannelConfig, api_key: str) -> dict[str, Any]:
     """内置样例音频实调 speech_to_text，返回原始 JSON 响应（异常向上传播）。"""
-    base_url = (config.base_url or "").rstrip("/")
+    base_url = normalize_asr_base(config.base_url or "")
     audio = _generate_sample_wav()
     async with httpx.AsyncClient(timeout=_TEST_TIMEOUT_SECONDS) as client:
         response = await client.post(
