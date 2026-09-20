@@ -146,6 +146,7 @@ async def _persist_result(
             log.finished_at = result.finished_at or datetime.now(timezone.utc)
             log.records_count = result.items_stored
             log.error_msg = _truncate(error_msg) if error_msg else None
+            log.message = result.message
             if celery_task_id is not None:
                 log.celery_task_id = celery_task_id
             log.meta = {
@@ -164,6 +165,7 @@ async def _persist_result(
                     finished_at=result.finished_at or datetime.now(timezone.utc),
                     records_count=result.items_stored,
                     error_msg=_truncate(error_msg) if error_msg else None,
+                    message=result.message,
                     celery_task_id=celery_task_id,
                     meta={**(result.metadata or {}), "task_run_id": task_run_id, "celery_task_id": celery_task_id},
                 )

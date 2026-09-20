@@ -40,7 +40,7 @@ class StockDailyAnalysisCollector(BaseCollector):
                 source=self.source,
                 data_type=self.data_type,
                 status=CollectStatus.SKIPPED,
-                errors=[f"{trade_date.isoformat()} 不是交易日"],
+                message=f"{trade_date.isoformat()} 不是交易日",
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
             )
@@ -56,7 +56,7 @@ class StockDailyAnalysisCollector(BaseCollector):
                         source=self.source,
                         data_type=self.data_type,
                         status=CollectStatus.SKIPPED,
-                        errors=["没有开启 AI 复盘的自选股分组"],
+                        message="没有开启 AI 复盘的自选股分组",
                         started_at=started_at,
                         finished_at=datetime.now(timezone.utc),
                     )

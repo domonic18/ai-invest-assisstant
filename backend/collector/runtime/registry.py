@@ -75,7 +75,7 @@ def _skipped_result(source: str, data_type: str) -> CollectResult:
         status=CollectStatus.SKIPPED,
         items_collected=0,
         items_stored=0,
-        errors=["没有启用任何可用的采集渠道"],
+        message="没有启用任何可用的采集渠道",
         started_at=now,
         finished_at=now,
     )

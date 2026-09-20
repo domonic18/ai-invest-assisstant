@@ -120,18 +120,27 @@ export function CollectorLogPanel({
       render: (value: string | null) => (value ? formatDateTime(value) : '-'),
     },
     {
-      title: '错误',
-      dataIndex: 'errorMsg',
-      key: 'errorMsg',
+      title: '说明',
+      key: 'note',
       ellipsis: true,
-      render: (value: string | null) =>
-        value ? (
-          <Typography.Text type="danger" ellipsis={{ tooltip: value }}>
-            {value}
+      render: (_: unknown, record: CollectorLog) => {
+        if (record.status === 'failed' || record.status === 'partial') {
+          return record.errorMsg ? (
+            <Typography.Text type="danger" ellipsis={{ tooltip: record.errorMsg }}>
+              {record.errorMsg}
+            </Typography.Text>
+          ) : (
+            '-'
+          )
+        }
+        return record.message ? (
+          <Typography.Text type="secondary" ellipsis={{ tooltip: record.message }}>
+            {record.message}
           </Typography.Text>
         ) : (
           '-'
-        ),
+        )
+      },
     },
   ]
 

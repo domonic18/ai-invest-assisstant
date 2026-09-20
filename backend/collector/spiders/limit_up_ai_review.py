@@ -38,7 +38,7 @@ class LimitUpAiReviewCollector(BaseCollector):
                 source=self.source,
                 data_type=self.data_type,
                 status=CollectStatus.SKIPPED,
-                errors=[f"{trade_date.isoformat()} 不是交易日"],
+                message=f"{trade_date.isoformat()} 不是交易日",
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
             )
@@ -70,6 +70,7 @@ class LimitUpAiReviewCollector(BaseCollector):
             source=self.source,
             data_type=self.data_type,
             status=CollectStatus.SUCCESS if generated else CollectStatus.SKIPPED,
+            message=None if generated else "当日已生成（缓存命中）",
             items_collected=1,
             items_stored=1 if generated else 0,
             started_at=started_at,

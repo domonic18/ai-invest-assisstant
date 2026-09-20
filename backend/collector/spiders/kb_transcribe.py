@@ -45,7 +45,7 @@ class KbTranscribeCollector(BaseCollector):
                 source=self.source,
                 data_type=self.data_type,
                 status=CollectStatus.SKIPPED,
-                errors=["没有待转写素材（队列为空或全部忙）"],
+                message="没有待转写素材（队列为空或全部忙）",
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
             )

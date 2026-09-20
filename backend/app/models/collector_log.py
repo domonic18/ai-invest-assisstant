@@ -25,4 +25,5 @@ class CollectorLog(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     records_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
     meta: Mapped[dict | None] = mapped_column("metadata", JSONB, default=dict, nullable=True)

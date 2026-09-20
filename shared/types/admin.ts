@@ -169,6 +169,7 @@ export interface CollectorLog {
   finishedAt: string | null
   recordsCount: number
   errorMsg: string | null
+  message?: string | null
   metadata: Record<string, unknown> | null
 }
 

@@ -62,7 +62,7 @@ class TestKbCleanupRun:
             result = await _collector().run()
 
         assert result.status == CollectStatus.SKIPPED
-        assert "无可清理积压" in (result.errors or [""])[0]
+        assert "无可清理积压" in (result.message or "")
 
     async def test_busy_lock_is_skipped(self) -> None:
         with (

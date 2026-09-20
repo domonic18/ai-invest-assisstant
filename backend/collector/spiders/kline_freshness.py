@@ -59,9 +59,10 @@ class KlineFreshnessCollector(BaseCollector):
             return self._result(
                 CollectStatus.SKIPPED,
                 trade_date,
-                ["期望日为今天且当前时间早于 17:00，当日 bar 可能尚未发布"],
+                [],
                 {},
                 started_at,
+                message="当日 bar 可能尚未发布（期望日为今天且当前时间早于 17:00）",
             )
 
         watchlist = await self._watchlist_codes()
@@ -147,12 +148,14 @@ class KlineFreshnessCollector(BaseCollector):
         errors: list[str],
         metadata: dict[str, Any],
         started_at: datetime,
+        message: str | None = None,
     ) -> CollectResult:
         return CollectResult(
             source=self.source,
             data_type=self.data_type,
             status=status,
             errors=errors,
+            message=message,
             started_at=started_at,
             finished_at=datetime.now(timezone.utc),
             metadata=metadata,

@@ -96,6 +96,7 @@ export function mapCollectorLog(dto: ApiCollectorLogResponse): CollectorLog {
     finishedAt: dto.finishedAt,
     recordsCount: dto.recordsCount,
     errorMsg: dto.errorMsg,
+    message: dto.message ?? null,
     metadata: dto.metadata,
   }
 }

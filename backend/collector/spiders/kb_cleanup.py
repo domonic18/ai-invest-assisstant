@@ -45,7 +45,7 @@ class KbCleanupCollector(BaseCollector):
                 source=self.source,
                 data_type=self.data_type,
                 status=CollectStatus.SKIPPED,
-                errors=["上一轮清理仍在进行（锁占用）"],
+                message="上一轮清理仍在进行（锁占用）",
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
             )
@@ -54,7 +54,7 @@ class KbCleanupCollector(BaseCollector):
             source=self.source,
             data_type=self.data_type,
             status=CollectStatus.SUCCESS if purged else CollectStatus.SKIPPED,
-            errors=[] if purged else ["本轮无可清理积压"],
+            message=None if purged else "本轮无可清理积压",
             items_collected=purged,
             items_stored=purged,
             metadata=stats,

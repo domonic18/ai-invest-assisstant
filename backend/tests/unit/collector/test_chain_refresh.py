@@ -27,7 +27,7 @@ class TestChainRefreshRun:
             result = await _collector().run()
 
         assert result.status == CollectStatus.SKIPPED
-        assert "没有可刷新的产业链" in (result.errors or [""])[0]
+        assert "没有可刷新的产业链" in (result.message or "")
 
     async def test_generates_per_target_and_counts(self) -> None:
         targets = [("半导体", [3]), ("机器人", [3, 5])]

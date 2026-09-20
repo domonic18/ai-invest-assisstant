@@ -487,6 +487,7 @@ CREATE TABLE collector_log (
     finished_at TIMESTAMPTZ,
     records_count INT DEFAULT 0,
     error_msg   TEXT,
+    message     TEXT,
     metadata    JSONB,
 
     CONSTRAINT uq_collector_log_celery_task_id UNIQUE (celery_task_id)
