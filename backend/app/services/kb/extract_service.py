@@ -195,13 +195,16 @@ async def _extract_points(session: AsyncSession, config: Any) -> dict[str, int]:
         .scalars()
         .all()
     )
-    for media in medias:
-        media_id = media.id
-        meta = dict(media.process_meta or {})
+    # 失败路径的 rollback 会使 ORM 实例过期——循环前捕获字段，迭代内按 id 重取
+    candidates = [(m.id, dict(m.process_meta or {})) for m in medias]
+    for media_id, meta in candidates:
+        media = await session.get(KbMedia, media_id)
+        if media is None:
+            continue
         attempts = int(meta.get("extractAttempts") or 0)
         if attempts >= KB_EXTRACT_MAX_ATTEMPTS:
             continue
-        segments = await media_repository.list_segments(session, media.id)
+        segments = await media_repository.list_segments(session, media_id)
         if not segments:
             continue
         window_segments = [
@@ -241,7 +244,6 @@ async def _extract_points(session: AsyncSession, config: Any) -> dict[str, int]:
             stats["pointsCreated"] += len(validated)
             await session.commit()
         except Exception as exc:  # noqa: BLE001
-            # rollback 已使 media 实例过期，媒体 id 须在循环头预捕获
             await session.rollback()
             stats["failedMedias"] += 1
             await _record_failure(session, media_id, attempts, exc)
