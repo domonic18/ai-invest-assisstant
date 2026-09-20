@@ -9,7 +9,8 @@
 3. deep（每日一次，Redis 门控）：MinIO ``kb/`` 前缀孤儿对象扫描——
    有对象而无对应存活行（含软删未过窗行）即删除。
 
-ES 检索投影尚未接线（可重建投影），接线批次自带删除逻辑。
+ES 检索投影同步（批次 E）：软删子行已由软删入口置脏（kb-index 增量删文档），
+硬删行脏标随行消失，purge 时直接 best-effort 清投影文档。
 """
 
 from datetime import datetime, timedelta
@@ -29,6 +30,7 @@ from app.core.clock import utc_now
 from app.core.locking import redis_lock
 from app.models.kb import KbMedia, KbSource
 from app.services.common.minio_service import get_minio_service
+from app.services.kb import index_service
 
 logger = structlog.get_logger(__name__)
 
@@ -65,6 +67,8 @@ async def run_cleanup(session: AsyncSession, *, deep: bool = False) -> dict[str,
         if medias:
             keys = [m.cos_key for m in medias]
             await minio.remove_files(keys)
+            # 行将硬删（脏标随行消失），直接清投影文档
+            await index_service.delete_docs_for_media([m.id for m in medias])
             pending_by_source: dict[int, int] = {}
             for m in medias:
                 pending_by_source[m.source_id] = (
@@ -87,6 +91,9 @@ async def run_cleanup(session: AsyncSession, *, deep: bool = False) -> dict[str,
             )
         )
         sources = list(result.scalars())
+        if sources:
+            # 行将硬删（脏标随行消失），直接清投影文档
+            await index_service.delete_docs_for_source([s.id for s in sources])
         for source in sources:
             medias_all = (
                 await session.execute(

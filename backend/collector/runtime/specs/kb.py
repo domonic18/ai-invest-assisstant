@@ -1,4 +1,4 @@
-"""知识库任务声明（F-KB）：课程转写（扫描 queued）、知识点抽取（扫描 done）与视频关键帧（两阶段）。"""
+"""知识库任务声明（F-KB）：课程转写、知识点抽取、视频关键帧与 ES 索引构建（增量/蓝绿重建）。"""
 
 from collector.runtime.specs.base import TaskSpec
 
@@ -38,6 +38,20 @@ SPECS: tuple[TaskSpec, ...] = (
             "internal": "collector.spiders.kb_vision:KbVisionCollector",
         },
         # 选帧逐集 ffmpeg 抽帧 + 描述阶段逐张 VLM 调用，长视频可能超 BATCH 默认时限
+        queue="batch",
+        soft_time_limit=1800,
+        hard_time_limit=2100,
+    ),
+    TaskSpec(
+        name="kb-index",
+        label="知识库索引构建",
+        description="三类脏行（知识点/分段/图片）增量向量化入 ES；force_rebuild=true 蓝绿全量重建（切模型后必跑）",
+        data_type="kb_index",
+        collectors={
+            "internal": "collector.spiders.kb_index:KbIndexCollector",
+        },
+        run_params=("force_rebuild",),
+        # 嵌入批量短调用 + ES bulk，正常增量为分钟级；全量重建受各类 500/轮限流
         queue="batch",
         soft_time_limit=1800,
         hard_time_limit=2100,

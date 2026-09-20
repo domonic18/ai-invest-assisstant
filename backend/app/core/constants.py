@@ -136,4 +136,5 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "kb-transcribe": DOMAIN_KB,
     "kb-extract": DOMAIN_KB,
     "kb-vision": DOMAIN_KB,
+    "kb-index": DOMAIN_KB,
 }

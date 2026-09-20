@@ -27,6 +27,7 @@ from app.core.locking import redis_lock
 from app.models.kb import KbMedia, KbTranscriptSegment
 from app.repositories.kb import media_repository
 from app.services.common.minio_service import get_minio_service
+from app.services.kb import index_service
 from app.services.kb import transcribe_pipeline as pipeline
 from app.services.kb.asr_client import (
     AsrChannelError,
@@ -137,6 +138,8 @@ async def _run(session: AsyncSession, row: KbMedia) -> None:
     segments = await _clean_segments(session, segments, list(settings.hotwords or []))
 
     await media_repository.delete_segments(session, row.id)
+    # 旧行将被删除（脏标不会命中），直接清该素材旧分段投影文档
+    await index_service.delete_segment_docs(row.id)
     audio_seconds = sum(
         c.end_seconds - c.start_seconds for c in chunk_results
     )
