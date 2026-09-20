@@ -470,6 +470,19 @@ class KbPointsMergeRequest(CamelModel):
     source_ids: list[int] = Field(..., min_length=1, max_length=50)
 
 
+class KbPointsBatchApproveRequest(CamelModel):
+    """批量通过草稿（单事务逐张审计；已发布/不存在幂等跳过）。"""
+
+    ids: list[int] = Field(..., min_length=1, max_length=50)
+
+
+class KbBatchApproveResult(CamelModel):
+    """批量通过结果统计（skipped = 已发布或不存在的卡）。"""
+
+    approved: int
+    skipped: int
+
+
 class KbImageAssetResponse(CamelModel):
     """图片资产视图（thumbUrl 为短时效签名；书嵌图/课程关键帧共用）。"""
 

@@ -11,6 +11,8 @@ from app.main import app
 from app.schemas.kb import (
     KbChapterNode,
     KbChaptersResponse,
+    KbImageAssetResponse,
+    KbImageListResponse,
     KbKnowledgePointResponse,
     KbPointCounts,
     KbPointListResponse,
@@ -195,3 +197,131 @@ def test_merge_route(admin_client: tuple) -> None:
     assert p_merge.call_args.args[1].target_id == 5
     assert p_merge.call_args.args[1].source_ids == [6, 7]
     assert p_merge.call_args.kwargs["actor_id"] == 1
+
+
+def test_approve_batch_route(admin_client: tuple) -> None:
+    from app.schemas.kb import KbBatchApproveResult
+
+    http, _ = admin_client
+    with patch(
+        "app.services.kb.review_service.approve_points",
+        new=AsyncMock(return_value=KbBatchApproveResult(approved=2, skipped=1)),
+    ) as p_batch:
+        resp = http.post(
+            "/api/v1/admin/kb/points/approve-batch",
+            json={"ids": [5, 6, 7]},
+        )
+    assert resp.status_code == 200
+    assert resp.json() == {"approved": 2, "skipped": 1}
+    assert p_batch.call_args.args[1].ids == [5, 6, 7]
+    assert p_batch.call_args.kwargs["actor_id"] == 1
+
+    # 空 ids → 422
+    resp = http.post("/api/v1/admin/kb/points/approve-batch", json={"ids": []})
+    assert resp.status_code == 422
+
+
+def test_list_images_route(admin_client: tuple) -> None:
+    """图片资产列表契约（关键帧/书嵌图共用；缩略图为服务端签名）。"""
+    http, _ = admin_client
+    listing = KbImageListResponse(
+        items=[
+            KbImageAssetResponse(
+                id=8,
+                source_id=1,
+                media_id=3,
+                page_no=None,
+                start_ms=28_000,
+                end_ms=None,
+                thumb_url="https://signed/thumb.jpg",
+                describe_status="done",
+                describe_attempts=0,
+                text_in_image="MA5",
+                caption="支撑线讲解",
+                vision_description="K 线支撑位画线",
+                created_at=_TS,
+            )
+        ],
+        total=1,
+    )
+    with patch(
+        "app.services.kb.vision_service.list_images",
+        new=AsyncMock(return_value=listing),
+    ) as p_list:
+        resp = http.get(
+            "/api/v1/admin/kb/sources/1/images?media_id=3&page=1&page_size=5"
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["startMs"] == 28_000
+    assert body["items"][0]["thumbUrl"] == "https://signed/thumb.jpg"
+    assert body["items"][0]["describeStatus"] == "done"
+    assert p_list.call_args.kwargs == {
+        "media_id": 3,
+        "status": None,
+        "page": 1,
+        "page_size": 5,
+    }
+
+
+def test_redescribe_image_route(admin_client: tuple) -> None:
+    """关键帧重新描述路由（actor/ip 透传，服务返回即响应）。"""
+    http, _ = admin_client
+    updated = KbImageAssetResponse(
+        id=8,
+        source_id=1,
+        media_id=3,
+        page_no=None,
+        start_ms=28_000,
+        end_ms=None,
+        thumb_url="https://signed/thumb.jpg",
+        describe_status="pending",
+        describe_attempts=0,
+        text_in_image=None,
+        caption=None,
+        vision_description=None,
+        index_excluded=False,
+        created_at=_TS,
+    )
+    with patch(
+        "app.services.kb.vision_service.redescribe_image",
+        new=AsyncMock(return_value=updated),
+    ) as p_redo:
+        resp = http.post("/api/v1/admin/kb/images/8/redescribe")
+    assert resp.status_code == 200
+    assert resp.json()["describeStatus"] == "pending"
+    assert p_redo.call_args.args[1] == 8
+    assert p_redo.call_args.kwargs["actor_id"] == 1
+
+
+def test_patch_image_excluded_route(admin_client: tuple) -> None:
+    """索引排除开关路由（camelCase body 绑定 index_excluded）。"""
+    http, _ = admin_client
+    updated = KbImageAssetResponse(
+        id=8,
+        source_id=1,
+        media_id=3,
+        page_no=None,
+        start_ms=28_000,
+        end_ms=None,
+        thumb_url="https://signed/thumb.jpg",
+        describe_status="done",
+        describe_attempts=0,
+        text_in_image="MA5",
+        caption="支撑线讲解",
+        vision_description="K 线支撑位画线",
+        index_excluded=True,
+        created_at=_TS,
+    )
+    with patch(
+        "app.services.kb.vision_service.set_image_excluded",
+        new=AsyncMock(return_value=updated),
+    ) as p_patch:
+        resp = http.patch(
+            "/api/v1/admin/kb/images/8", json={"indexExcluded": True}
+        )
+    assert resp.status_code == 200
+    assert resp.json()["indexExcluded"] is True
+    assert p_patch.call_args.args[1:] == (8, True)
+    assert p_patch.call_args.kwargs["actor_id"] == 1

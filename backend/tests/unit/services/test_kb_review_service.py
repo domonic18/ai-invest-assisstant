@@ -16,6 +16,7 @@ from app.schemas.kb import (
     KbPointCreateRequest,
     KbPointPatchRequest,
     KbPointRejectRequest,
+    KbPointsBatchApproveRequest,
     KbPointsMergeRequest,
 )
 from app.services.kb import review_service
@@ -202,6 +203,36 @@ async def test_approve_sets_embedding_dirty(session: AsyncSession) -> None:
     n = len((await session.execute(select(AdminAuditLog))).scalars().all())
     await review_service.approve_point(session, row.id, actor_id=7)
     assert len((await session.execute(select(AdminAuditLog))).scalars().all()) == n
+
+
+async def test_approve_points_batch_skips_published_and_missing(session: AsyncSession) -> None:
+    src = await _seed_source(session)
+    d1 = await _seed_point(session, src, title="草稿一")
+    d2 = await _seed_point(session, src, title="草稿二")
+    pub = await _seed_point(session, src, status="published", title="已发布")
+
+    out = await review_service.approve_points(
+        session, KbPointsBatchApproveRequest(ids=[d1.id, d2.id, pub.id, 999_999]), actor_id=7
+    )
+    assert out.approved == 2
+    assert out.skipped == 2  # 已发布 1 + 不存在 1
+
+    stored_d1 = await session.get(KbKnowledgePoint, d1.id)
+    stored_pub = await session.get(KbKnowledgePoint, pub.id)
+    assert stored_d1.status == KbPointStatus.PUBLISHED
+    assert stored_d1.embedding_dirty is True
+    assert stored_pub.reviewed_by is None  # 跳过行未被触碰
+    audits = (await session.execute(select(AdminAuditLog))).scalars().all()
+    assert len(audits) == 2
+    assert all(a.action == review_service.AUDIT_POINT_APPROVE for a in audits)
+    assert {a.detail["pointId"] for a in audits} == {d1.id, d2.id}
+
+    # 重复提交同一批：全部已发布 → 全跳过，不新增审计
+    again = await review_service.approve_points(
+        session, KbPointsBatchApproveRequest(ids=[d1.id, d2.id]), actor_id=7
+    )
+    assert again.approved == 0 and again.skipped == 2
+    assert len((await session.execute(select(AdminAuditLog))).scalars().all()) == 2
 
 
 async def test_reject_records_reason_and_dirty_only_for_published(session: AsyncSession) -> None:

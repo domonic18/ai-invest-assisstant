@@ -13,12 +13,16 @@ from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_S
 from app.dependencies import get_current_admin_user, get_db
 from app.models.user import User
 from app.schemas.kb import (
+    KbBatchApproveResult,
     KbChaptersPublishRequest,
     KbChaptersResponse,
     KbConfirmCostRequest,
     KbConfirmCostResponse,
     KbCostEstimateRequest,
     KbCostEstimateResponse,
+    KbImageAssetResponse,
+    KbImageExcludedRequest,
+    KbImageListResponse,
     KbKnowledgePointResponse,
     KbMediaInitRequest,
     KbMediaInitResponse,
@@ -28,6 +32,7 @@ from app.schemas.kb import (
     KbPointListResponse,
     KbPointPatchRequest,
     KbPointRejectRequest,
+    KbPointsBatchApproveRequest,
     KbPointsMergeRequest,
     KbSourceCreateRequest,
     KbSourceResponse,
@@ -44,6 +49,7 @@ from app.services.kb import (
     review_service,
     source_service,
     transcript_service,
+    vision_service,
 )
 
 router = APIRouter(prefix="/kb", dependencies=[Depends(get_current_admin_user)])
@@ -342,6 +348,50 @@ async def list_points(
     )
 
 
+@router.get("/sources/{source_id}/images", response_model=KbImageListResponse)
+async def list_images(
+    source_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    media_id: int | None = Query(default=None),
+    status: str | None = Query(default=None),
+    page: int = Query(DEFAULT_PAGE, ge=1),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+) -> KbImageListResponse:
+    """图片资产分页列表（书嵌图 + 课程关键帧；缩略图短时效签名）。"""
+    return await vision_service.list_images(
+        session, source_id, media_id=media_id, status=status, page=page,
+        page_size=page_size,
+    )
+
+
+@router.post("/images/{image_id}/redescribe", response_model=KbImageAssetResponse)
+async def redescribe_image(
+    image_id: int,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> KbImageAssetResponse:
+    """关键帧重新描述（置回 pending，下一轮 kb-vision 拾起重跑）。"""
+    return await vision_service.redescribe_image(
+        session, image_id, actor_id=admin.id, ip=_client_ip(request)
+    )
+
+
+@router.patch("/images/{image_id}", response_model=KbImageAssetResponse)
+async def patch_image(
+    image_id: int,
+    data: KbImageExcludedRequest,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> KbImageAssetResponse:
+    """索引排除开关（排除置脏，批次 E 构建索引时过滤并清理）。"""
+    return await vision_service.set_image_excluded(
+        session, image_id, data.index_excluded, actor_id=admin.id,
+        ip=_client_ip(request),
+    )
+
+
 @router.post("/points/merge", response_model=KbKnowledgePointResponse)
 async def merge_points(
     data: KbPointsMergeRequest,
@@ -351,6 +401,19 @@ async def merge_points(
 ) -> KbKnowledgePointResponse:
     """重复草稿合并（related 并集进目标，源行硬删；审计 kb.point.merge）。"""
     return await review_service.merge_points(
+        session, data, actor_id=admin.id, ip=_client_ip(request)
+    )
+
+
+@router.post("/points/approve-batch", response_model=KbBatchApproveResult)
+async def approve_points_batch(
+    data: KbPointsBatchApproveRequest,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> KbBatchApproveResult:
+    """批量通过发布（单事务逐张审计；已发布/不存在幂等跳过）。"""
+    return await review_service.approve_points(
         session, data, actor_id=admin.id, ip=_client_ip(request)
     )
 

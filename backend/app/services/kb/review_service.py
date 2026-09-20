@@ -15,6 +15,7 @@
 from typing import Any
 
 import structlog
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.kb import KbPointStatus
@@ -23,6 +24,7 @@ from app.core.exceptions import ConflictError, NotFoundError, UnprocessableEntit
 from app.models.kb import KbKnowledgePoint
 from app.repositories.kb import media_repository, point_repository
 from app.schemas.kb import (
+    KbBatchApproveResult,
     KbChapterNode,
     KbChaptersPublishRequest,
     KbChaptersResponse,
@@ -32,6 +34,7 @@ from app.schemas.kb import (
     KbPointListResponse,
     KbPointPatchRequest,
     KbPointRejectRequest,
+    KbPointsBatchApproveRequest,
     KbPointsMergeRequest,
 )
 from app.services.admin.audit_service import record_audit
@@ -248,6 +251,52 @@ async def approve_point(
     await session.commit()
     logger.info("kb_point_approved", point_id=point_id, admin_id=actor_id)
     return await _view_with_media(session, row)
+
+
+async def approve_points(
+    session: AsyncSession,
+    data: KbPointsBatchApproveRequest,
+    *,
+    actor_id: int,
+    ip: str | None = None,
+) -> KbBatchApproveResult:
+    """批量通过：单事务逐张置 published 并逐张审计；已发布/不存在幂等跳过。"""
+    rows = (
+        (await session.execute(select(KbKnowledgePoint).where(KbKnowledgePoint.id.in_(data.ids))))
+        .scalars()
+        .all()
+    )
+    by_id = {row.id: row for row in rows}
+    approved = skipped = 0
+    for point_id in data.ids:
+        row = by_id.get(point_id)
+        if row is None or row.status == KbPointStatus.PUBLISHED:
+            skipped += 1
+            continue
+        from_status = row.status
+        row.status = KbPointStatus.PUBLISHED
+        row.needs_review = False
+        row.review_note = None
+        row.reviewed_by = actor_id
+        row.reviewed_at = utc_now()
+        row.embedding_dirty = True
+        await record_audit(
+            session,
+            actor_id=actor_id,
+            action=AUDIT_POINT_APPROVE,
+            detail={"pointId": point_id, "fromStatus": from_status},
+            ip=ip,
+        )
+        approved += 1
+    await session.commit()
+    logger.info(
+        "kb_points_batch_approved",
+        total=len(data.ids),
+        approved=approved,
+        skipped=skipped,
+        admin_id=actor_id,
+    )
+    return KbBatchApproveResult(approved=approved, skipped=skipped)
 
 
 async def reject_point(
