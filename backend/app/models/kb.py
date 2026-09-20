@@ -94,6 +94,7 @@ class KbMedia(Base):
     process_meta: Mapped[dict[str, Any]] = mapped_column(_JSONB, nullable=False, default=dict)
     extracted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    vision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
@@ -180,7 +181,7 @@ class KbKnowledgePoint(Base):
 
 
 class KbImageAsset(Base):
-    """书中图片资产：文字搜图的检索载体。"""
+    """图片资产：书嵌图与课程视频关键帧统一落表（文字搜图的检索载体）。"""
 
     __tablename__ = "kb_image_asset"
     __table_args__ = (
@@ -194,7 +195,9 @@ class KbImageAsset(Base):
     source_id: Mapped[int] = mapped_column(
         ForeignKey("kb_source.id", ondelete="CASCADE"), nullable=False
     )
-    page_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    page_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    start_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    end_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     bbox: Mapped[dict[str, Any] | None] = mapped_column(_JSONB, nullable=True)
     cos_key: Mapped[str] = mapped_column(String(500), nullable=False)
     thumb_cos_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -204,7 +207,9 @@ class KbImageAsset(Base):
     describe_status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="pending"
     )
+    describe_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     embedding_dirty: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    index_excluded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )

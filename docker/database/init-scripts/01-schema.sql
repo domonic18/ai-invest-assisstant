@@ -1481,6 +1481,7 @@ CREATE TABLE IF NOT EXISTS kb_media (
     process_meta     JSONB        NOT NULL DEFAULT '{}'::jsonb,      -- 用量对账：provider/model/audio_seconds/est_cost…
     extracted_at     TIMESTAMPTZ,                                    -- 知识抽取完成时刻（抽取任务幂等键）
     edited_at        TIMESTAMPTZ,                                    -- 文稿人工编辑时刻（脏传播源）
+    vision_at        TIMESTAMPTZ,                                    -- 课程视频关键帧选帧完成时刻（视觉通道幂等键）
     deleted_at       TIMESTAMPTZ,                                    -- 软删（与 kb_source 同路径，24h 恢复窗）
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -1552,7 +1553,9 @@ CREATE TABLE IF NOT EXISTS kb_image_asset (
     id                 BIGSERIAL PRIMARY KEY,
     media_id           BIGINT       NOT NULL REFERENCES kb_media(id) ON DELETE CASCADE,
     source_id          BIGINT       NOT NULL REFERENCES kb_source(id) ON DELETE CASCADE,
-    page_no            INT          NOT NULL,
+    page_no            INT,                                          -- 书页码（关键帧行为空）
+    start_ms           BIGINT,                                       -- 课程关键帧起（毫秒）
+    end_ms             BIGINT,
     bbox               JSONB,                                        -- 页内位置（可空）
     cos_key            VARCHAR(500) NOT NULL,                        -- 原图
     thumb_cos_key      VARCHAR(500),                                 -- 缩略图
@@ -1560,7 +1563,9 @@ CREATE TABLE IF NOT EXISTS kb_image_asset (
     caption            TEXT,                                         -- 图注推断
     vision_description TEXT,                                         -- 视觉描述
     describe_status    VARCHAR(16)  NOT NULL DEFAULT 'pending',
+    describe_attempts  INT          NOT NULL DEFAULT 0,              -- 描述失败退避（≥3 终态 failed）
     embedding_dirty    BOOLEAN      NOT NULL DEFAULT TRUE,
+    index_excluded     BOOLEAN      NOT NULL DEFAULT FALSE,          -- 人工排除：不进检索索引
     created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     CONSTRAINT chk_kb_image_describe_status CHECK (describe_status IN ('pending', 'processing', 'done', 'failed'))

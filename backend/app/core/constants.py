@@ -135,4 +135,5 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     # 知识库
     "kb-transcribe": DOMAIN_KB,
     "kb-extract": DOMAIN_KB,
+    "kb-vision": DOMAIN_KB,
 }

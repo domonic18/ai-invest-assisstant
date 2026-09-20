@@ -1,4 +1,4 @@
-"""知识库任务声明（F-KB）：课程转写（扫描 queued）与知识点抽取（扫描 done）。"""
+"""知识库任务声明（F-KB）：课程转写（扫描 queued）、知识点抽取（扫描 done）与视频关键帧（两阶段）。"""
 
 from collector.runtime.specs.base import TaskSpec
 
@@ -25,6 +25,19 @@ SPECS: tuple[TaskSpec, ...] = (
             "internal": "collector.spiders.kb_extract:KbExtractCollector",
         },
         # 多窗口 LLM 结构化调用，长课程可能整轮超 BATCH 默认时限
+        queue="batch",
+        soft_time_limit=1800,
+        hard_time_limit=2100,
+    ),
+    TaskSpec(
+        name="kb-vision",
+        label="视频关键帧理解",
+        description="扫描 done 视频三路信号选帧入 COS（vision_at 幂等），再对 pending 帧批量 VLM 描述",
+        data_type="kb_vision",
+        collectors={
+            "internal": "collector.spiders.kb_vision:KbVisionCollector",
+        },
+        # 选帧逐集 ffmpeg 抽帧 + 描述阶段逐张 VLM 调用，长视频可能超 BATCH 默认时限
         queue="batch",
         soft_time_limit=1800,
         hard_time_limit=2100,

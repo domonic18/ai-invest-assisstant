@@ -468,3 +468,35 @@ class KbPointsMergeRequest(CamelModel):
 
     target_id: int
     source_ids: list[int] = Field(..., min_length=1, max_length=50)
+
+
+class KbImageAssetResponse(CamelModel):
+    """图片资产视图（thumbUrl 为短时效签名；书嵌图/课程关键帧共用）。"""
+
+    id: int
+    source_id: int
+    media_id: int
+    page_no: int | None = None
+    start_ms: int | None = None
+    end_ms: int | None = None
+    thumb_url: str | None = None
+    describe_status: str
+    describe_attempts: int = 0
+    text_in_image: str | None = None
+    caption: str | None = None
+    vision_description: str | None = None
+    index_excluded: bool = False
+    created_at: datetime
+
+
+class KbImageExcludedRequest(CamelModel):
+    """图片资产索引排除开关。"""
+
+    index_excluded: bool
+
+
+class KbImageListResponse(CamelModel):
+    """图片资产列表（服务端分页；检索消费留批次 E/F）。"""
+
+    items: list[KbImageAssetResponse]
+    total: int

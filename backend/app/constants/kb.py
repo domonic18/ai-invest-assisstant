@@ -102,3 +102,54 @@ KB_EXTRACT_LOCK_KEY = "kb:extract"
 
 #: 单素材连续抽取失败上限（process_meta.extractAttempts 达到后不再扫，需人工排查）
 KB_EXTRACT_MAX_ATTEMPTS = 3
+
+#: kb-vision 任务级互斥锁键
+KB_VISION_LOCK_KEY = "kb:vision"
+
+#: 关键帧选帧场景切换检测阈值（ffmpeg select='gt(scene,T)'）
+KB_VISION_SCENE_THRESHOLD = 0.3
+
+#: 定长兜底采样间隔（秒，画面渐变型课程的保底采样路）
+KB_VISION_FIXED_INTERVAL_SECONDS = 60
+
+#: 多信号时间窗合并阈值（秒，窗口内命中保留 1）
+KB_VISION_MERGE_WINDOW_SECONDS = 5
+
+#: aHash 汉明距离去重阈值（≤ 视为近重复丢弃）
+KB_VISION_PHASH_HAMMING_THRESHOLD = 5
+
+#: 单集关键帧硬上限（超限按信号优先级裁剪）
+KB_VISION_MAX_FRAMES_PER_MEDIA = 120
+
+#: 单帧视觉描述连续失败上限（describe_attempts 达到后终态 failed）
+KB_VISION_MAX_DESCRIBE_ATTEMPTS = 3
+
+#: 单集选帧连续失败上限（process_meta.visionAttempts 达到后不再扫）
+KB_VISION_MAX_MEDIA_ATTEMPTS = 3
+
+#: 单轮描述阶段的 VLM 调用上限（控制任务时长与费用节奏，余量下轮续跑）
+KB_VISION_DESCRIBE_BATCH_SIZE = 20
+
+#: 关键帧抽帧半窗（秒，取 t±2s 中较清晰的一帧）
+KB_VISION_SEEK_TOLERANCE_SECONDS = 2
+
+#: 视觉指涉句正则（文稿引导采样路：命中句取句中点时刻）
+KB_VISION_GUIDE_PATTERNS = (
+    "你看",
+    "如图",
+    "这条线",
+    "这个下降通道",
+    "这个上升通道",
+    "这个中枢",
+    "这个背离",
+    "这个金叉",
+    "这个死叉",
+    "这个买点",
+    "这个卖点",
+    "这个缺口",
+    "这个均线",
+    "这个形态",
+    "这个指标",
+    "这个走势",
+    "这个图形",
+)
