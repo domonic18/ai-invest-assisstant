@@ -23,11 +23,15 @@ from app.constants.kb import (
     KbDescribeStatus,
     KbPointStatus,
 )
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
 from app.core.config import get_settings
 from app.core.exceptions import NotFoundError, UnprocessableEntityError
 from app.models.kb import KbImageAsset, KbKnowledgePoint, KbMedia, KbTranscriptSegment
+from app.repositories.kb import point_repository
 from app.schemas.kb import (
+    KbBrowsePointItem,
     KbChapterNode,
+    KbChapterPointsResponse,
     KbPublishedChaptersResponse,
     KbSearchFrameHit,
     KbSearchImageHit,
@@ -36,6 +40,7 @@ from app.schemas.kb import (
     KbSearchSegmentHit,
 )
 from app.services.common.minio_service import get_minio_service
+from app.services.kb import extract_pipeline as xpipe
 from app.services.kb import settings_service
 from app.services.kb.embedding_client import KbEmbeddingError, build_embedding_client
 from app.services.kb.source_service import get_source
@@ -69,8 +74,9 @@ async def search(
 ) -> KbSearchResponse:
     """混合检索：RRF 融合后按 doc_kind 分组水合（三类命中独立列表）。
 
-    chapter_path 前缀过滤只作用于知识卡片（章节归属仅卡片携带），过滤时
-    原文/图片命中不返回。
+    chapter_path 前缀过滤下推 ES 查询层（point 文档 chapter_keys 前缀键
+    term 命中，过滤时原文/图片命中不返回）；水合层保留同口径防御过滤，
+    兜住「PG 已改章节、投影尚未增量」的滞后窗口。
     """
     query = q.strip()
     if not query:
@@ -78,7 +84,9 @@ async def search(
     chapter = [seg.strip() for seg in chapter_path or [] if seg.strip()]
     settings = await settings_service.get_settings_row(session)
     point_cap = max(1, settings.top_k or 8)
-    filters = _es_filters(source_id=source_id, point_type=point_type, kind=kind)
+    filters = _es_filters(
+        source_id=source_id, point_type=point_type, kind=kind, chapter=chapter or None
+    )
 
     rankings: list[list[str]] = []
     degraded: str | None = None
@@ -108,8 +116,6 @@ async def search(
         if doc_kind == "point":
             if len(point_ids) < point_cap:
                 point_ids.append(db_id)
-        elif chapter:
-            continue  # 章节过滤时原文/图片无章节归属，不返回
         elif doc_kind == "segment" and len(segment_ids) < _SEGMENT_HITS:
             segment_ids.append(db_id)
         elif doc_kind == "image" and len(image_ids) < _IMAGE_HITS:
@@ -157,15 +163,88 @@ def _to_nodes(raw: Any) -> list[KbChapterNode]:
     return nodes
 
 
+async def list_chapter_points(
+    session: AsyncSession,
+    source_id: int,
+    *,
+    chapter_path: list[str],
+    page: int = DEFAULT_PAGE,
+    page_size: int = DEFAULT_PAGE_SIZE,
+) -> KbChapterPointsResponse:
+    """章节卡片清单（浏览路径）：确定性排序分页，读 PG 真相源而非检索投影。
+
+    与 ``search`` 的分工：搜索按相关性截断 top-k，浏览要全集 + 稳定顺序
+    （episode_no/start_ms/page_start）+ 分页；章节 id 对发布树校验，未知
+    章节 422（浏览语义可区分「空章节」与「打错 id」，搜索语义则静默空）。
+    """
+    source = await get_source(session, source_id)
+    if not source.enabled:
+        raise NotFoundError(f"知识库 {source_id} 未启用")
+    if not chapter_path:
+        raise UnprocessableEntityError("chapter_path 不能为空")
+    published = (source.chapter_tree or {}).get("published")
+    if tuple(chapter_path) not in xpipe.chapter_id_paths(published):
+        raise UnprocessableEntityError(
+            f"章节 {'/'.join(chapter_path)} 不在发布目录树中"
+        )
+    offset = (page - 1) * page_size
+    total = await point_repository.count_published_by_chapter(
+        session, source_id, chapter_path
+    )
+    rows = (
+        await point_repository.list_published_by_chapter(
+            session, source_id, chapter_path, offset=offset, limit=page_size
+        )
+        if total
+        else []
+    )
+    return KbChapterPointsResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        points=[
+            KbBrowsePointItem(
+                id=p.id,
+                source_id=p.source_id,
+                media_id=p.media_id,
+                media_kind=media_kind,
+                episode_no=episode_no,
+                media_title=media_title,
+                point_type=p.point_type,
+                title=p.title,
+                body=p.body,
+                term_definition=p.term_definition,
+                applicable_scene=p.applicable_scene,
+                excerpt=p.excerpt,
+                chapter_path=[str(c) for c in p.chapter_path or []],
+                related_ids=[int(r) for r in p.related_ids or []],
+                start_ms=p.start_ms,
+                end_ms=p.end_ms,
+                page_start=p.page_start,
+                page_end=p.page_end,
+            )
+            for p, episode_no, media_title, media_kind in rows
+        ],
+    )
+
+
 # ---------------------------------------------------------------------------
 # 双路召回与 RRF 融合
 # ---------------------------------------------------------------------------
 
 
 def _es_filters(
-    *, source_id: int | None, point_type: str | None, kind: str | None
+    *,
+    source_id: int | None,
+    point_type: str | None,
+    kind: str | None,
+    chapter: list[str] | None,
 ) -> list[dict[str, Any]]:
-    """过滤器全链路透传（BM25 filter 与 knn filter 同构）。"""
+    """过滤器全链路透传（BM25 filter 与 knn filter 同构）。
+
+    章节过滤下推 ES filter context：point 文档 chapter_keys 前缀键 term
+    精确命中，并强制只召回卡片（原文/图片无章节归属）。
+    """
     filters: list[dict[str, Any]] = []
     if kind is not None:
         filters.append({"term": {"doc_kind": kind}})
@@ -174,6 +253,9 @@ def _es_filters(
     if point_type is not None:
         # 分段/图片文档 point_type 为 null，term 不命中即自然排除
         filters.append({"term": {"point_type": point_type}})
+    if chapter is not None:
+        filters.append({"term": {"doc_kind": "point"}})
+        filters.append({"term": {"chapter_keys": "/".join(chapter)}})
     return filters
 
 
@@ -272,7 +354,7 @@ async def _hydrate_points(
     *,
     chapter_prefix: list[str] | None,
 ) -> list[KbSearchPointHit]:
-    """卡片水合：published 防御过滤 + 章节前缀过滤 + 案例卡关联帧。"""
+    """卡片水合：published/章节前缀防御过滤（主过滤已下推 ES，兜投影滞后）+ 案例卡关联帧。"""
     rows = (
         await session.execute(select(KbKnowledgePoint).where(KbKnowledgePoint.id.in_(ids)))
     ).scalars().all()

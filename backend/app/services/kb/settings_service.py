@@ -46,6 +46,7 @@ def _to_view(row: KbSettings) -> KbSettingsResponse:
         segment_max_seconds=row.segment_max_seconds,
         asr_concurrency=row.asr_concurrency,
         top_k=row.top_k,
+        auto_approve_points=row.auto_approve_points,
         unit_prices=dict(row.unit_prices or {}),
         embedding_config_id=row.embedding_config_id,
         clean_model_id=row.clean_model_id,
@@ -102,7 +103,8 @@ async def update_settings(
         setattr(row, field_name, config_id)
 
     for field_name in ("hotwords", "segment_max_seconds", "asr_concurrency",
-                       "top_k", "unit_prices", "authorized_user_ids"):
+                       "top_k", "auto_approve_points", "unit_prices",
+                       "authorized_user_ids"):
         if field_name in payload:
             setattr(row, field_name, payload[field_name])
 

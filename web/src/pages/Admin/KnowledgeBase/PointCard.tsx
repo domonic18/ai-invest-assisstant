@@ -106,6 +106,12 @@ export function PointCard({
         {point.needsReview && <Tag color="warning">需人工复核</Tag>}
       </div>
 
+      {point.needsReview && point.reviewNote && (
+        <Typography.Text type="warning" className="mb-2 block text-xs">
+          升级原因：{point.reviewNote}
+        </Typography.Text>
+      )}
+
       <Typography.Paragraph className="mb-2 whitespace-pre-wrap">{point.body}</Typography.Paragraph>
 
       {(point.termDefinition || point.applicableScene) && !editing && (

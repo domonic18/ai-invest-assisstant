@@ -309,28 +309,31 @@ async def test_embedding_unavailable_falls_back_to_bm25(
     assert [p.id for p in result.points] == [seeded["p_case"].id]
 
 
-async def test_chapter_prefix_filters_points_and_suppresses_context(
+async def test_chapter_filter_pushed_down_to_es(session: AsyncSession) -> None:
+    """章节过滤下推 ES filter context：两路查询都带前缀键 term 与卡片限定。"""
+    es = _es_mock(responses=[_hits(), _hits()])
+    with _mocked(es):
+        await search_service.search(session, q="形态", chapter_path=["2", "2.5"])
+    assert es.search.await_count == 2
+    for call in es.search.await_args_list:
+        blob = str(call.kwargs["body"])
+        assert "'chapter_keys': '2/2.5'" in blob
+        assert "'doc_kind': 'point'" in blob
+
+
+async def test_chapter_prefix_hydration_defense_filters_stale_projection(
     session: AsyncSession,
 ) -> None:
-    """章节前缀过滤只留匹配卡片，原文/图片命中不返回。"""
+    """投影滞后防御：文档命中但 PG chapter_path 已不在请求前缀内 → 不出水合。"""
     seeded = await _seed(session)
     es = _es_mock(
-        responses=[
-            _hits(
-                f"point-{seeded['p_case'].id}",
-                f"point-{seeded['p_concept'].id}",
-                f"seg-{seeded['seg'].id}",
-                f"img-{seeded['frame_ok'].id}",
-            ),
-            _hits(),
-        ]
+        responses=[_hits(f"point-{seeded['p_concept'].id}"), _hits()]
     )
     with _mocked(es):
         result = await search_service.search(
-            session, q="形态", chapter_path=["第一章", "形态"]
+            session, q="支撑", chapter_path=["第一章"]
         )
-    assert [p.id for p in result.points] == [seeded["p_case"].id]
-    assert result.segments == [] and result.images == []
+    assert result.points == []
 
 
 async def test_case_frame_window_and_exclusion(session: AsyncSession) -> None:
@@ -397,6 +400,90 @@ async def test_published_chapters_disabled_source_404(session: AsyncSession) -> 
     await session.commit()
     with pytest.raises(NotFoundError):
         await search_service.get_published_chapters(session, src.id)
+
+
+# ---------------------------------------------------------------------------
+# 章节卡片清单（浏览路径）
+# ---------------------------------------------------------------------------
+
+_TREE = {
+    "published": [
+        {
+            "id": "1",
+            "title": "价值篇",
+            "children": [{"id": "1.1", "title": "复利", "children": []}],
+        },
+        {"id": "2", "title": "估值篇", "children": []},
+    ]
+}
+
+
+async def _seed_tree_source(session: AsyncSession) -> KbSource:
+    src = KbSource(source_type="course", name="课", chapter_tree=_TREE)
+    session.add(src)
+    await session.commit()
+    return src
+
+
+async def test_list_chapter_points_validates_against_published_tree(
+    session: AsyncSession,
+) -> None:
+    """空链/未知根/悬空链均 422；停用知识库 404。"""
+    src = await _seed_tree_source(session)
+    with pytest.raises(UnprocessableEntityError):
+        await search_service.list_chapter_points(session, src.id, chapter_path=[])
+    with pytest.raises(UnprocessableEntityError):
+        await search_service.list_chapter_points(session, src.id, chapter_path=["9"])
+    with pytest.raises(UnprocessableEntityError):
+        await search_service.list_chapter_points(
+            session, src.id, chapter_path=["1", "9.9"]
+        )
+
+    src.enabled = False
+    await session.commit()
+    with pytest.raises(NotFoundError):
+        await search_service.list_chapter_points(
+            session, src.id, chapter_path=["1"]
+        )
+
+
+async def test_list_chapter_points_assembles_paginated_cards(
+    session: AsyncSession,
+) -> None:
+    """合法链透传仓储（含分页偏移），卡片字段齐全；零 total 跳过清单查询。"""
+    seeded = await _seed(session)
+    seeded["source"].chapter_tree = _TREE
+    await session.commit()
+    p = seeded["p_case"]
+    with patch("app.services.kb.search_service.point_repository") as repo:
+        repo.count_published_by_chapter = AsyncMock(return_value=1)
+        repo.list_published_by_chapter = AsyncMock(
+            return_value=[(p, 1, "第 1 集", "video")]
+        )
+        result = await search_service.list_chapter_points(
+            session, seeded["source"].id, chapter_path=["1", "1.1"],
+            page=2, page_size=5,
+        )
+    assert result.total == 1
+    assert result.page == 2 and result.page_size == 5
+    assert [item.id for item in result.points] == [p.id]
+    item = result.points[0]
+    assert item.media_kind == "video"
+    assert item.media_title == "第 1 集"
+    assert item.chapter_path == ["第一章", "形态"]
+    assert item.start_ms == 10_000
+    repo.list_published_by_chapter.assert_awaited_once_with(
+        session, seeded["source"].id, ["1", "1.1"], offset=5, limit=5
+    )
+
+    with patch("app.services.kb.search_service.point_repository") as repo:
+        repo.count_published_by_chapter = AsyncMock(return_value=0)
+        repo.list_published_by_chapter = AsyncMock(return_value=[])
+        result = await search_service.list_chapter_points(
+            session, seeded["source"].id, chapter_path=["2"]
+        )
+    assert result.total == 0 and result.points == []
+    repo.list_published_by_chapter.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

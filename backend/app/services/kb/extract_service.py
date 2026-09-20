@@ -5,10 +5,15 @@
 1. 章节推断：``draft`` 为空且启用的知识源 → 逐集大纲（EpisodeOutline）→
    跨集合并单次调用（ChapterTreeDraft）→ 服务层按位置赋 id 写
    ``chapter_tree.draft``（发布由管理端审核后覆写 published）；
-2. 知识点抽取：``done 且未抽取``的素材按滑窗（≤600s，1 段重叠）调
-   结构化抽取（KbExtractionResult）→ 三层防线（时间码 clamp、excerpt
-   归一化命中、related_titles 回链剔除）→ 跨窗去重 → 草稿落库 →
-   ``extracted_at`` 记账。
+2. 知识点抽取：``done 且未抽取``且所属源已发布目录树的素材按滑窗
+   （≤600s，1 段重叠）调结构化抽取（KbExtractionResult，prompt 携带
+   published 目录树，知识点生而带 chapter_path 与 confidence）→
+   升级门校验（时间码 clamp、摘录锚定替换、章节链修剪、置信度、case 卡）
+   → 跨窗去重 → 自动发布或升级人工 → ``extracted_at`` 记账。
+
+审核语义（HITL）：``kb_settings.auto_approve_points`` 开启时，无任何升级
+理由的卡直接 ``published`` 并置索引脏；有理由的卡落 ``draft`` 且
+``review_note`` 写明理由清单，由人工在工作台定夺。
 
 失败语义：单素材失败回滚后独立写 ``process_meta.extractAttempts/
 extractError``，累计 KB_EXTRACT_MAX_ATTEMPTS 不再扫（防毒素材烧 token）；
@@ -35,7 +40,7 @@ from app.models.kb import KbKnowledgePoint, KbMedia, KbSource
 from app.repositories.kb import media_repository, point_repository
 from app.services.kb import extract_pipeline as xpipe
 from app.services.kb.extract_pipeline import WindowSegment
-from app.services.kb.settings_service import resolve_role_model
+from app.services.kb.settings_service import get_settings_row, resolve_role_model
 from app.services.quota.constants import FEATURE_KB_EXTRACT
 from app.services.quota.context import meter_scope
 
@@ -181,7 +186,16 @@ async def _extract_points(session: AsyncSession, config: Any) -> dict[str, int]:
     from app.agent.runtime.structured import run_structured
     from app.schemas.kb import KbExtractionResult
 
-    stats = {"mediasExtracted": 0, "pointsCreated": 0, "failedMedias": 0}
+    stats = {
+        "mediasExtracted": 0,
+        "pointsCreated": 0,
+        "autoPublished": 0,
+        "escalated": 0,
+        "failedMedias": 0,
+        "awaitingChapterPublish": 0,
+    }
+    settings = await get_settings_row(session)
+    auto_approve = settings.auto_approve_points
     medias = (
         (
             await session.execute(
@@ -195,6 +209,14 @@ async def _extract_points(session: AsyncSession, config: Any) -> dict[str, int]:
         .scalars()
         .all()
     )
+    sources = {
+        s.id: s
+        for s in (
+            await session.execute(
+                select(KbSource).where(KbSource.deleted_at.is_(None))
+            )
+        ).scalars()
+    }
     # 失败路径的 rollback 会使 ORM 实例过期——循环前捕获字段，迭代内按 id 重取
     candidates = [(m.id, dict(m.process_meta or {})) for m in medias]
     for media_id, meta in candidates:
@@ -203,6 +225,12 @@ async def _extract_points(session: AsyncSession, config: Any) -> dict[str, int]:
             continue
         attempts = int(meta.get("extractAttempts") or 0)
         if attempts >= KB_EXTRACT_MAX_ATTEMPTS:
+            continue
+        source = sources.get(media.source_id)
+        published = (source.chapter_tree or {}).get("published") if source else None
+        if not published:
+            # 生而归章：未发布目录树的源不抽取，等人工门 1 发布后一并处理
+            stats["awaitingChapterPublish"] += 1
             continue
         segments = await media_repository.list_segments(session, media_id)
         if not segments:
@@ -223,7 +251,7 @@ async def _extract_points(session: AsyncSession, config: Any) -> dict[str, int]:
                     result = await run_structured(
                         session,
                         result_type=KbExtractionResult,
-                        user_prompt=_window_prompt(media, window),
+                        user_prompt=_window_prompt(media, window, published),
                         config_id=config.id,
                     )
                 raw_points.extend(result.points)
@@ -231,17 +259,26 @@ async def _extract_points(session: AsyncSession, config: Any) -> dict[str, int]:
                 xpipe.validate_points(
                     raw_points, window_segments,
                     media_duration_ms=(media.duration_seconds or 0) * 1000,
+                    valid_chapters=xpipe.chapter_id_paths(published),
                 )
             )
-            await _insert_points(session, media, validated)
+            auto_published = await _insert_points(
+                session, media, validated, auto_approve=auto_approve
+            )
             media.extracted_at = utc_now()
             media.process_meta = {
-                k: v
-                for k, v in meta.items()
-                if k not in ("extractAttempts", "extractError")
+                **{k: v for k, v in meta.items()
+                   if k not in ("extractAttempts", "extractError", "extractSummary")},
+                "extractSummary": {
+                    "points": len(validated),
+                    "autoPublished": auto_published,
+                    "escalated": len(validated) - auto_published,
+                },
             }
             stats["mediasExtracted"] += 1
             stats["pointsCreated"] += len(validated)
+            stats["autoPublished"] += auto_published
+            stats["escalated"] += len(validated) - auto_published
             await session.commit()
         except Exception as exc:  # noqa: BLE001
             await session.rollback()
@@ -251,11 +288,22 @@ async def _extract_points(session: AsyncSession, config: Any) -> dict[str, int]:
 
 
 async def _insert_points(
-    session: AsyncSession, media: KbMedia, points: list[xpipe.ValidatedPoint],
-) -> None:
-    """草稿落库：先 flush 拿 id，再回填 related_ids（同批新点也可互链）。"""
+    session: AsyncSession,
+    media: KbMedia,
+    points: list[xpipe.ValidatedPoint],
+    *,
+    auto_approve: bool,
+) -> int:
+    """落库：全绿卡自动发布（置索引脏），带理由卡升级人工；返回自动发布数。
+
+    先 flush 拿 id，再回填 related_ids（同批新点也可互链）。
+    """
     rows: list[KbKnowledgePoint] = []
+    auto_published = 0
     for point in points:
+        publishable = auto_approve and not point.needs_review
+        if publishable:
+            auto_published += 1
         row = KbKnowledgePoint(
             source_id=media.source_id,
             media_id=media.id,
@@ -268,10 +316,11 @@ async def _insert_points(
             start_ms=point.start_ms,
             end_ms=point.end_ms,
             related_ids=[],
-            chapter_path=[],
-            status="draft",
-            needs_review=point.needs_review,
-            embedding_dirty=False,
+            chapter_path=list(point.chapter_path),
+            status="published" if publishable else "draft",
+            needs_review=not publishable,
+            review_note=None if publishable else "；".join(point.reasons)[:1000],
+            embedding_dirty=publishable,
         )
         session.add(row)
         rows.append(row)
@@ -286,9 +335,14 @@ async def _insert_points(
         title_to_id.setdefault(xpipe.normalize_title(row.title), row.id)
         related = xpipe.resolve_related(point.related_titles, title_to_id)
         row.related_ids = [pid for pid in related if pid != row.id]
+    return auto_published
 
 
-def _window_prompt(media: KbMedia, window: list[WindowSegment]) -> str:
+def _window_prompt(
+    media: KbMedia,
+    window: list[WindowSegment],
+    chapters: list[dict[str, Any]],
+) -> str:
     lines = []
     for seg in window:
         timecode = _fmt_ms(seg.start_ms) if seg.start_ms is not None else "P?"
@@ -297,14 +351,28 @@ def _window_prompt(media: KbMedia, window: list[WindowSegment]) -> str:
         "你是金融课程知识整理员。从下面的文稿片段中抽取可独立成立的知识点卡片。\n"
         "要求：\n"
         "- point_type 取 concept/theorem/method/discipline/case 之一\n"
-        "- excerpt 必须原样摘抄文稿中连续的一句或几句原文\n"
+        "- excerpt 必须原样摘抄文稿中**连续的 1~3 句**原文：不得改写、"
+        "不得删节；确需跳过中间句时用「……」连接，且每个片段也要整句原文\n"
         "- start_ms/end_ms 为该知识点讲解起止毫秒时间码，按各行行首 [mm:ss] "
         "估算；无法判断输出 null\n"
+        "- chapter_path 从下方目录树选择该知识点所属章节，输出根到该节点的"
+        " id 链（如 [\"1\", \"1.2\"]）；确实无法归入任何章节输出空列表\n"
+        "- confidence 为本卡片整体正确性的自评，取 high/medium/low；"
+        "文稿依据不足或需跨段推断时降档\n"
         "- related_titles 填与之相关的其他知识点标题，可为空列表\n"
         "- term_definition/applicable_scene 无内容输出空串\n"
         "- 不编造文稿中没有的内容；本窗口没有新知识点时输出空 points\n\n"
+        f"目录树（缩进表示层级，格式为 id: 标题）：\n{_render_tree(chapters)}\n\n"
         f"课程「{media.title}」文稿（行首为该句起始时间）：\n" + "\n".join(lines)
     )
+
+
+def _render_tree(nodes: list[dict[str, Any]], depth: int = 0) -> str:
+    parts: list[str] = []
+    for node in nodes:
+        parts.append("  " * depth + f"{node['id']}: {node['title']}")
+        parts.extend(_render_tree(node.get("children") or [], depth + 1))
+    return "\n".join(parts)
 
 
 def _fmt_ms(ms: int | None) -> str:

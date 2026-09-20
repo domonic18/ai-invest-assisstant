@@ -1548,6 +1548,7 @@ CREATE TABLE IF NOT EXISTS kb_knowledge_point (
 
 CREATE INDEX IF NOT EXISTS idx_kb_point_source_status ON kb_knowledge_point(source_id, status);
 CREATE INDEX IF NOT EXISTS idx_kb_point_dirty ON kb_knowledge_point(embedding_dirty) WHERE embedding_dirty;
+CREATE INDEX IF NOT EXISTS idx_kb_point_chapter_path ON kb_knowledge_point USING GIN (chapter_path jsonb_path_ops);
 
 CREATE TABLE IF NOT EXISTS kb_image_asset (
     id                 BIGSERIAL PRIMARY KEY,
@@ -1579,6 +1580,7 @@ CREATE TABLE IF NOT EXISTS kb_settings (
     segment_max_seconds INT         NOT NULL DEFAULT 30,
     asr_concurrency     INT         NOT NULL DEFAULT 2,
     top_k               INT         NOT NULL DEFAULT 8,
+    auto_approve_points BOOLEAN     NOT NULL DEFAULT TRUE,           -- 抽取卡自动发布总开关（全绿卡免审直发）
     unit_prices         JSONB       NOT NULL DEFAULT '{}'::jsonb,    -- {asrPerHour, vlmPerImage} 参考单价
     embedding_config_id BIGINT REFERENCES llm_config(id) ON DELETE SET NULL,
     clean_model_id      BIGINT REFERENCES llm_config(id) ON DELETE SET NULL,

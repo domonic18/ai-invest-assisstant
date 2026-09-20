@@ -1,6 +1,7 @@
 """知识库消费侧 API（arch/12 §10.2）：权限 = admin 或 kb_settings 白名单。
 
-E4 范围：混合检索 + 发布态章节树导航；播放凭证/代理流/书页/字幕留批次 F。
+E4 范围：混合检索 + 发布态章节树导航 + 章节卡片清单（浏览路径）；
+播放凭证/代理流/书页/字幕留批次 F。
 """
 
 from typing import Annotated
@@ -9,10 +10,15 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.kb import KbDocKind, KbPointType
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.core.exceptions import ForbiddenError
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
-from app.schemas.kb import KbPublishedChaptersResponse, KbSearchResponse
+from app.schemas.kb import (
+    KbChapterPointsResponse,
+    KbPublishedChaptersResponse,
+    KbSearchResponse,
+)
 from app.services.kb import search_service, settings_service
 
 
@@ -60,3 +66,23 @@ async def get_chapters(
 ) -> KbPublishedChaptersResponse:
     """发布态章节树导航（消费侧不暴露 draft）。"""
     return await search_service.get_published_chapters(session, source_id)
+
+
+@router.get(
+    "/sources/{source_id}/points", response_model=KbChapterPointsResponse
+)
+async def list_chapter_points(
+    source_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    chapter_path: str = Query(..., max_length=600),
+    page: int = Query(default=DEFAULT_PAGE, ge=1),
+    page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+) -> KbChapterPointsResponse:
+    """章节卡片清单（浏览路径）：确定性排序分页，不依赖检索投影。"""
+    return await search_service.list_chapter_points(
+        session,
+        source_id,
+        chapter_path=[seg.strip() for seg in chapter_path.split(",") if seg.strip()],
+        page=page,
+        page_size=page_size,
+    )

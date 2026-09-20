@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from app.dependencies import get_current_user, get_db
 from app.main import app
 from app.schemas.kb import (
+    KbChapterPointsResponse,
     KbPublishedChaptersResponse,
     KbSearchResponse,
 )
@@ -108,3 +109,45 @@ class TestKbConsumerEndpoints:
                 response = client.get("/api/v1/kb/sources/3/chapters")
             assert response.status_code == 200
             assert response.json()["chapters"][0]["title"] == "生效章"
+
+    def test_chapter_points_forwards_path_and_pagination(
+        self, client: TestClient
+    ) -> None:
+        with _as_user("admin", 1, []):
+            payload = KbChapterPointsResponse.model_validate(
+                {"total": 1, "page": 2, "pageSize": 5, "points": []}
+            )
+            with patch(
+                "app.api.v1.kb.search_service.list_chapter_points",
+                new=AsyncMock(return_value=payload),
+            ) as mock_list:
+                response = client.get(
+                    "/api/v1/kb/sources/3/points",
+                    params={"chapter_path": "6, 6.3", "page": 2, "page_size": 5},
+                )
+            assert response.status_code == 200
+            body = response.json()
+            assert body["total"] == 1 and body["pageSize"] == 5
+            kwargs = mock_list.await_args.kwargs
+            assert kwargs["chapter_path"] == ["6", "6.3"]
+            assert kwargs["page"] == 2 and kwargs["page_size"] == 5
+
+    def test_chapter_points_requires_path_and_bounds(self, client: TestClient) -> None:
+        with _as_user("admin", 1, []):
+            assert (
+                client.get("/api/v1/kb/sources/3/points").status_code == 422
+            )
+            assert (
+                client.get(
+                    "/api/v1/kb/sources/3/points",
+                    params={"chapter_path": "6", "page": 0},
+                ).status_code
+                == 422
+            )
+            assert (
+                client.get(
+                    "/api/v1/kb/sources/3/points",
+                    params={"chapter_path": "6", "page_size": 101},
+                ).status_code
+                == 422
+            )

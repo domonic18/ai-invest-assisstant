@@ -23,14 +23,17 @@ from app.schemas.base import CamelModel
 # ---------------------------------------------------------------------------
 
 KbPointTypeLiteral = Literal["concept", "theorem", "method", "discipline", "case"]
+KbConfidenceLiteral = Literal["high", "medium", "low"]
 
 
 class KbPointDraft(BaseModel):
-    """单条知识点草稿（抽取窗口内产出，定位交给服务层校验）。"""
+    """单条知识点草稿（抽取窗口内产出，定位/归章交给服务层校验）。"""
 
     title: str = Field(..., min_length=1)
     body: str = Field(..., min_length=1)
     point_type: KbPointTypeLiteral
+    confidence: KbConfidenceLiteral
+    chapter_path: list[str] | None
     term_definition: str | None
     applicable_scene: str | None
     excerpt: str = Field(..., min_length=1)
@@ -105,6 +108,7 @@ class KbSettingsResponse(CamelModel):
     segment_max_seconds: int
     asr_concurrency: int
     top_k: int
+    auto_approve_points: bool
     unit_prices: dict[str, Any]
     embedding_config_id: int | None
     clean_model_id: int | None
@@ -121,6 +125,7 @@ class KbSettingsUpdateRequest(CamelModel):
     segment_max_seconds: int | None = Field(None, ge=5, le=120)
     asr_concurrency: int | None = Field(None, ge=1, le=8)
     top_k: int | None = Field(None, ge=1, le=50)
+    auto_approve_points: bool | None = None
     unit_prices: dict[str, Any] | None = None
     embedding_config_id: int | None = None
     clean_model_id: int | None = None
@@ -552,6 +557,38 @@ class KbSearchPointHit(CamelModel):
     page_end: int | None = None
     score: float
     frames: list[KbSearchFrameHit] = Field(default_factory=list)
+
+
+class KbBrowsePointItem(CamelModel):
+    """章节浏览卡片（浏览是确定性清单非相关性命中，无 score/frames）。"""
+
+    id: int
+    source_id: int
+    media_id: int
+    media_kind: str
+    episode_no: int | None = None
+    media_title: str | None = None
+    point_type: str
+    title: str
+    body: str
+    term_definition: str | None = None
+    applicable_scene: str | None = None
+    excerpt: str
+    chapter_path: list[str] = Field(default_factory=list)
+    related_ids: list[int] = Field(default_factory=list)
+    start_ms: int | None = None
+    end_ms: int | None = None
+    page_start: int | None = None
+    page_end: int | None = None
+
+
+class KbChapterPointsResponse(CamelModel):
+    """章节卡片清单（浏览路径：total/page/pageSize 分页）。"""
+
+    total: int
+    page: int
+    page_size: int
+    points: list[KbBrowsePointItem] = Field(default_factory=list)
 
 
 class KbSearchSegmentHit(CamelModel):

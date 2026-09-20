@@ -5,6 +5,7 @@
 """
 
 import re
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from typing import Any
 
@@ -31,18 +32,27 @@ class WindowSegment:
 
 @dataclass(slots=True)
 class ValidatedPoint:
-    """通过防线①②的候选知识点（related_titles 留待服务层回链成 id）。"""
+    """通过防线校验的候选知识点（related_titles 留待服务层回链成 id）。
+
+    ``reasons`` 为升级人工的理由清单（空 = 可自动发布）。
+    """
 
     point_type: str
     title: str
     body: str
+    confidence: str
+    chapter_path: list[str]
     term_definition: str | None
     applicable_scene: str | None
     excerpt: str
     start_ms: int | None
     end_ms: int | None
-    needs_review: bool
+    reasons: list[str]
     related_titles: list[str]
+
+    @property
+    def needs_review(self) -> bool:
+        return bool(self.reasons)
 
 
 def normalize_title(title: str) -> str:
@@ -85,15 +95,38 @@ def plan_windows(
     return windows
 
 
-def match_excerpt(excerpt: str, texts: list[str]) -> bool:
-    """归一化包含性判断：excerpt 须命中窗口内原文（防线②）。"""
-    target = _PUNCT_RE.sub("", excerpt)
-    if not target:
-        return False
-    for text in texts:
-        if target in _PUNCT_RE.sub("", text):
-            return True
-    return False
+#: LLM 引用讲课时以省略号删节（「……」/「...」），按段拆开逐段锚定
+_ELLIPSIS_RE = re.compile(r"…+|\.{3,}")
+
+
+def anchor_excerpt(excerpt: str, texts: list[str]) -> str | None:
+    """摘录锚定：在全文归一化拼接中定位，返回覆盖命中的文稿原文段。
+
+    含省略号的摘录按段拆开**逐段顺序锚定**（段间以「……」回接）——删节
+    引用的每一部分仍是逐字原文，溯源不降级。命中片段经字符偏移映射回
+    句级分段区间（长度不限，长引用不升级）；标点/空白差异由归一化吸收；
+    任一段未命中返回 None（幻觉信号）。
+    """
+    chunks = [c for c in _ELLIPSIS_RE.split(excerpt) if _PUNCT_RE.sub("", c)]
+    if not chunks:
+        return None
+    normed = [_PUNCT_RE.sub("", t) for t in texts]
+    offsets = [0]
+    for t in normed:
+        offsets.append(offsets[-1] + len(t))
+    whole = "".join(normed)
+    parts: list[str] = []
+    seg_cursor = 0
+    for chunk in chunks:
+        target = _PUNCT_RE.sub("", chunk)
+        at = whole.find(target, offsets[seg_cursor])
+        if at < 0:
+            return None
+        i = bisect_right(offsets, at) - 1
+        j = bisect_left(offsets, at + len(target))
+        parts.append("".join(texts[i:j]))
+        seg_cursor = j
+    return "……".join(parts)
 
 
 def validate_points(
@@ -101,28 +134,54 @@ def validate_points(
     segments: list[WindowSegment],
     *,
     media_duration_ms: int = 0,
+    valid_chapters: set[tuple[str, ...]] | None = None,
 ) -> list[ValidatedPoint]:
-    """防线①②：时间码越界 clamp（end≤start 时弃定位并标记）、excerpt 未命中标记。
+    """防线校验 + 升级理由收集（reasons 空 = 可自动发布）。
 
-    未过防线的点不丢弃——降级为 needs_review 交人工，避免误杀真实知识点。
+    - 时间码越界 clamp（end≤start 弃定位）；时间码素材无定位升级
+    - 摘录锚定：命中替换为原文，全 miss 升级（幻觉风险）
+    - 章节链校验：悬空引用修剪到合法前缀，空/未归章升级
+    - confidence≠high 升级；case 型任何理由叠加时显式标注
     """
-    texts = [s.text for s in segments]
+    chapters = valid_chapters or set()
+    timed_media = bool(segments) and segments[0].start_ms is not None
     out: list[ValidatedPoint] = []
     for p in raw_points:
         start, end = _clamp_span(p.start_ms, p.end_ms, media_duration_ms)
-        bad_span = p.start_ms is not None and start is None
-        needs_review = bad_span or not match_excerpt(p.excerpt, texts)
+        reasons: list[str] = []
+        if p.start_ms is not None and start is None:
+            reasons.append("时间码无效已弃定位")
+        elif timed_media and start is None:
+            reasons.append("缺少时间码定位")
+        anchored = anchor_excerpt(p.excerpt, [s.text for s in segments])
+        if anchored is None:
+            reasons.append("摘录未命中文稿（幻觉风险）")
+        path: list[str] = []
+        if chapters:
+            path = valid_chapter_prefix(p.chapter_path, chapters)
+            if not p.chapter_path:
+                reasons.append("未归章")
+            elif not path:
+                reasons.append("章节引用无效")
+        elif p.chapter_path:
+            reasons.append("无目录树可归章")
+        if p.confidence != "high":
+            reasons.append(f"模型置信度 {p.confidence}")
+        if p.point_type == "case" and reasons:
+            reasons.append("案例卡需人工复核")
         out.append(
             ValidatedPoint(
                 point_type=p.point_type,
                 title=p.title.strip() or p.title,
                 body=p.body,
+                confidence=p.confidence,
+                chapter_path=path,
                 term_definition=p.term_definition,
                 applicable_scene=p.applicable_scene,
-                excerpt=p.excerpt,
+                excerpt=anchored if anchored is not None else p.excerpt,
                 start_ms=start,
                 end_ms=end,
-                needs_review=needs_review,
+                reasons=reasons,
                 related_titles=list(p.related_titles),
             )
         )
@@ -164,7 +223,7 @@ def dedup_points(points: list[ValidatedPoint]) -> list[ValidatedPoint]:
             seen.end_ms = (
                 point.end_ms if seen.end_ms is None else max(seen.end_ms, point.end_ms)
             )
-        seen.needs_review = seen.needs_review or point.needs_review
+        seen.reasons = list(dict.fromkeys(seen.reasons + point.reasons))
     return out
 
 
@@ -194,3 +253,28 @@ def _node_dict(node: Any, node_id: str) -> dict[str, Any]:
             for j, child in enumerate(node.children, start=1)
         ],
     }
+
+
+def chapter_id_paths(nodes: list[dict[str, Any]] | None) -> set[tuple[str, ...]]:
+    """收集树中全部合法节点 id 链（根到节点，含单 id 顶层链）。"""
+    paths: set[tuple[str, ...]] = set()
+
+    def walk(children: list[dict[str, Any]] | None, prefix: tuple[str, ...]) -> None:
+        for node in children or []:
+            path = (*prefix, str(node["id"]))
+            paths.add(path)
+            walk(node.get("children"), path)
+
+    walk(nodes, ())
+    return paths
+
+
+def valid_chapter_prefix(
+    path: list[str] | None, valid: set[tuple[str, ...]]
+) -> list[str]:
+    """保留最长合法链前缀（树重发布后清理悬空引用 / 归章输出校验共用）。"""
+    ids = [str(p) for p in (path or [])]
+    for size in range(len(ids), 0, -1):
+        if tuple(ids[:size]) in valid:
+            return ids[:size]
+    return []

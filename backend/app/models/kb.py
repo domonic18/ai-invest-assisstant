@@ -228,6 +228,9 @@ class KbSettings(Base):
     segment_max_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
     asr_concurrency: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
     top_k: Mapped[int] = mapped_column(Integer, nullable=False, default=8)
+    auto_approve_points: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
     unit_prices: Mapped[dict[str, Any]] = mapped_column(_JSONB, nullable=False, default=dict)
     embedding_config_id: Mapped[int | None] = mapped_column(
         ForeignKey("llm_config.id", ondelete="SET NULL"), nullable=True

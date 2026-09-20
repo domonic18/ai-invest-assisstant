@@ -8,6 +8,7 @@ export interface ApiKbSettingsResponse {
   segmentMaxSeconds: number
   asrConcurrency: number
   topK: number
+  autoApprovePoints: boolean
   unitPrices: Record<string, number>
   embeddingConfigId: number | null
   cleanModelId: number | null
@@ -23,6 +24,7 @@ export interface ApiKbSettingsUpdateRequest {
   segmentMaxSeconds?: number
   asrConcurrency?: number
   topK?: number
+  autoApprovePoints?: boolean
   unitPrices?: Record<string, number>
   embeddingConfigId?: number | null
   cleanModelId?: number | null
@@ -459,4 +461,34 @@ export interface ApiKbSearchResponse {
 /** 发布态章节树（消费侧导航，不含 draft）。 */
 export interface ApiKbPublishedChaptersResponse {
   chapters: ApiKbChapterNode[]
+}
+
+/** 章节浏览卡片（确定性清单非相关性命中，无 score/frames）。 */
+export interface ApiKbBrowsePointItem {
+  id: number
+  sourceId: number
+  mediaId: number
+  mediaKind: ApiKbMediaKind
+  episodeNo: number | null
+  mediaTitle: string | null
+  pointType: ApiKbPointType
+  title: string
+  body: string
+  termDefinition: string | null
+  applicableScene: string | null
+  excerpt: string
+  chapterPath: string[]
+  relatedIds: number[]
+  startMs: number | null
+  endMs: number | null
+  pageStart: number | null
+  pageEnd: number | null
+}
+
+/** 章节卡片清单（浏览路径：PG 真相源 + episode/startMs 确定性排序分页）。 */
+export interface ApiKbChapterPointsResponse {
+  total: number
+  page: number
+  pageSize: number
+  points: ApiKbBrowsePointItem[]
 }

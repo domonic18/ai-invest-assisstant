@@ -122,6 +122,31 @@ async def test_publish_chapters_writes_draft_and_published(session: AsyncSession
     assert [a.action for a in audits] == [review_service.AUDIT_CHAPTERS_PUBLISH]
 
 
+async def test_republish_prunes_dangling_chapter_refs(session: AsyncSession) -> None:
+    src = await _seed_source(session)
+    point = await _seed_point(session, src, status="published", title="复利")
+    point.chapter_path = ["1", "1.1"]
+    await session.commit()
+
+    first = KbChaptersPublishRequest(
+        chapters=[
+            KbChapterNode(id="1", title="价值篇", children=[KbChapterNode(id="1.1", title="复利", children=[])])
+        ]
+    )
+    await review_service.publish_chapters(session, src.id, first, actor_id=1)
+    assert point.chapter_path == ["1", "1.1"]
+    assert point.embedding_dirty is False
+
+    # 重发布删掉 1.1 → 悬空尾修剪到合法前缀，published 卡置索引脏
+    second = KbChaptersPublishRequest(
+        chapters=[KbChapterNode(id="1", title="价值篇", children=[])]
+    )
+    await review_service.publish_chapters(session, src.id, second, actor_id=1)
+    row = await session.get(KbKnowledgePoint, point.id)
+    assert row.chapter_path == ["1"]
+    assert row.embedding_dirty is True
+
+
 async def test_publish_rejects_duplicate_ids_and_blank_titles(session: AsyncSession) -> None:
     src = await _seed_source(session)
     dup = KbChaptersPublishRequest(

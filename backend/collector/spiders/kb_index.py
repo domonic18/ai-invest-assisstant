@@ -73,7 +73,7 @@ class KbIndexCollector(BaseCollector):
                 source=self.source,
                 data_type=self.data_type,
                 status=CollectStatus.SKIPPED,
-                message="嵌入模型指纹已变更，请在任务参数勾选 force_rebuild 触发全量重建",
+                message="索引指纹已变更（模型或索引结构），请在任务参数勾选 force_rebuild 触发全量重建",
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
                 metadata=stats,
