@@ -9,7 +9,7 @@
 | 迭代 | 批次 | 交付物 | 预估 |
 |------|------|--------|------|
 | 迭代 12 · F-KB 一期上 | A 底座 → B 素材接入与转写 → C 电子书解析 | 素材进得来（直传/去重/费用闸门）、课程转写与书解析跑得通、文稿与分段可见 | ~5.5 人日 |
-| 迭代 13 · F-KB 一期下（一期验收） | D 抽取审核 → E 索引检索 → F 播放器防盗 → G 用量与收口 | 建库全链路闭环：审核发布→混合检索→精准回看/跳页/搜图→防盗→用量可评估 | ~8 人日 |
+| 迭代 13 · F-KB 一期下（一期验收） | D 抽取审核 → E 索引检索 → F 播放器防盗 → G 用量与收口 | 建库全链路闭环：审核发布→混合检索→精准回看/跳页/搜图→防盗→用量可评估 | ~8.5 人日 |
 | 迭代 13 · 批次 I（D 后中插） | I 视频关键帧通道 | 视频画面信息入知识库：三路信号选帧 → 去重入库 → VLM 描述计费 → 图片资产可见（检索消费留批次 E/F） | ~2 人日 |
 | 迭代 14 · F-KB 二期 | H Agent 消费 | `search_knowledge_base` 权限注入 + 技能优化建议闭环 | ~3 人日 |
 
@@ -79,15 +79,16 @@
 
 > **E2E 交付（2026-09-20 下午，批次 E 验收闭环）**：embedding 切换智谱 BigModel（`embedding-3`，2048 维按量）后全链路实测打通——`kb-knowledge-v1` 首建 + 3449 文档（点 348 / 段 1994 / 图 1107），`/kb/search?q=支撑线` 双路无降级返回 8 卡 + 10 段 + 12 图，RRF 分值与 seek 前滚实测正确；章节树发布后消费端点 7 顶层章可见。E2E 期修复四项：① **base_url 归一化**（`app/utils/api_base.py` 单一真相源：剥尾斜杠 + 已知端点后缀 `/embeddings` `/chat/completions` `/speech_to_text` `/v1/messages`，ASR 专用再去 `/v1` 版本段）接入全部七处直连消费点（embedding/测试连接/LangChain 工厂/BYOK 保存与测试/ASR×3），根因是用户按厂商文档粘完整端点而客户端约定根地址自拼路径；② **测试连接 purpose 感知**：embedding 条目改打 `/embeddings` 并回报实测维度（此前一律 `/chat/completions` 致 404 误报），表单帮助文案同步；③ **ES 8.13 指纹机制纠偏**：`index.meta.*` 自定义设置已从 ES 移除（实测 400），改存 `mappings._meta.kb_fingerprint`（mock 单测盲区，真实 ES 才暴露）；④ **嵌入输入截断**：智谱 embedding-3 单条 ~3072 token 上限（实测 3000 字符 OK / 3500 FAIL，code 1210），ASR 退化重复段（4394 字）与截图 OCR 全量图注（5608 字）触发整批 400——`EmbeddingClient.embed()` 统一截断 2048 字符（BM25 侧 ES text 存全文不受影响）。开发态修复（审批置脏逻辑落地前发布的 348 published 点从未置脏，本地一次性 SQL 补齐后索引闭环；生产全新建库走列默认 TRUE + 审批置脏，无此状态——迁移库只承载 schema 演进与配套数据初始化，开发过程态修复不进迁移库，2026-09-20 评审定约）。遗留：348 点卡 `chapter_path` 全空（批次 D 两步推断的章节归属未回填到点，章节过滤暂无实际效果——批次 F 跟进）；1107 图文档中 40 张为排除/停描述后待下轮 tombstone 的余量。单测 +16（归一化 12 + 测试连接 3 + 截断 1），后端 2016 全绿。
 
-## 6. 批次 F · 检索页播放器、阅读器与防盗（F-KB-05/09，~3 人日）
+## 6. 批次 F · 检索页播放器、阅读器与防盗（F-KB-05/09，~3.5 人日，2026-09-20 评审修订 MVP 分层）
 
 | # | 任务 | 内容与改法 |
 |---|------|-----------|
-| F1 | 播放与防盗服务 | `playback_service.py`：`POST /kb/media/{id}/playback-token`（Redis ≤1800s 绑定用户+素材）；`/kb/stream`（token + Range 必须 → 206 透传）；`/kb/books/{id}/pages/{n}`（pypdfium2 144DPI + Pillow 水印，干净页 LRU）；`/kb/media/{id}/subtitles.vtt`；异常拉取审计（`kb.security.denied`）+ 连续异常告警 |
-| F2 | 播放器组件 | `KnowledgePlayer.tsx`：命中区间进度条高亮 + 自动 seek（前滚）、A-B 循环、倍速 0.5–2× 记忆、断点续播、键盘、画中画、上一/下一集、WebVTT 字幕联动（当前句高亮 + 点句 seek） |
-| F3 | 阅读器与集成 | `BookReader.tsx`（按页位图/跳页/缩放/命中高亮/图片原图上下文）；SearchTab 接入播放器与阅读器完成命中直达 |
+| F0 | 遗留回填与消费页归属 | ① chapter_path 回填：审批/章节发布时把章节归属写回点卡（批次 E 遗留：348 published 点全空，章节过滤现为 no-op）；存量开发态数据一次性 SQL 修复，不进迁移库。② 消费页落位：独立路由页 `/kb`（权限同 /kb router：admin ∪ 白名单），SearchTab/播放器/阅读器以消费页为主体（管理台 Tab 保留入口），白名单非 admin 用户全链路可用。③ 需求文档 04 V1.2 增补（关键帧通道入需求，批次 I 挂起决议） |
+| F1 | 播放与防盗服务 | `playback_service.py`：`POST /kb/media/{id}/playback-token`（Redis ≤1800s 绑定用户+素材，**响应携带上一/下一集 id**——消费侧无 media 列表端点，admin 端点不外用）；`/kb/stream`（token + Range 必须 → 206 透传，**MinIOService 新增 ranged 读** offset/length，同步 SDK 走既有 to_thread 模式）；`/kb/books/{id}/pages/{n}`（pypdfium2 144DPI + Pillow 水印「用户名+日期」，**web 镜像补 CJK TTF 字体层**，干净页 LRU 定容量上限）；`/kb/media/{id}/subtitles.vtt`（**fetch 走同源 Cookie 鉴权**，query token 仅留给 `<video>` src）；异常拉取审计（`kb.security.denied`）+ Redis 滑动窗口计数，**管理端告警展示归批次 G**，F 不做 UI |
+| F2 | 播放器组件（MVP） | `KnowledgePlayer.tsx`：命中区间进度条高亮 + 自动 seek（前滚）、倍速 0.5–2× 记忆（localStorage）、断点续播（localStorage 按 mediaId）、键盘（Space/←→/↑↓）、上一/下一集（token 响应相邻集）、WebVTT 字幕联动（当前句高亮 + 点句 seek）、**token 过期前自动刷新**（单集可超 1800s，防中途 401）。增强可延：A-B 循环、画中画 |
+| F3 | 阅读器与集成（MVP） | `BookReader.tsx`（按页位图/跳页/缩放/命中定位：跳页 + 页角命中词标注）；SearchTab 接入播放器与阅读器完成命中直达；消费侧图片原图走 ≤15min 短时效预签名或代理端点（管理台 1h 口径不带入消费页）。增强可延：页内关键词 bbox 高亮（pypdfium2 textpage search） |
 
-验收：凭证矩阵（无 token/过期/错配 401、无 Range 400 + 审计事件）；网络面板无 COS 直链；命中 seek ±2s、字幕联动点句跳转；书页水印可见；对照原型走查。
+验收：凭证矩阵（无 token/过期/错配 401、无 Range 400 + 审计事件）；网络面板无 COS 直链；命中 seek ±2s、字幕联动点句跳转；书页水印可见（中文正常渲染）；长视频 token 刷新不断流；白名单用户（非 admin）消费页全链路实测；批次 E 遗留 40 张余量图片文档经下轮增量 tombstone 自愈复核；对照原型走查。
 
 ## 7. 批次 G · 用量看板、清理与一期收口（~1 人日）
 
@@ -126,7 +127,8 @@
 
 ## 10. 部署前置与运维项（随对应批次落地）
 
-- **依赖**：`uv add pymupdf pypdfium2 Pillow`（批次 C/F）；**collector 镜像补 ffmpeg**（apt 层，批次 B 转写切分依赖）——Dockerfile 变更随批次 B 提交。
+- **依赖**：批次 C 文本层已用 `pypdf`（pyproject 已含）；批次 F 新增 `uv add pypdfium2 Pillow`（书页渲染 + 水印合成）+ **web 镜像补 CJK TTF 字体层**（水印中文渲染）；**collector 镜像补 ffmpeg**（apt 层，批次 B 转写切分依赖）——Dockerfile 变更随批次 B 提交。
+- **SCF 路由决策（批次 F 开工前定）**：`/kb/stream` 视频代理仅由轻量服务器域名提供，SCF Web 函数路由排除（2048MB 内存/流式响应红线）；KB 为内部功能，不阻塞开发、阻塞验收。
 - **批次 I 零新增依赖**：ffmpeg 复用 collector 镜像既有层（批次 B 已补）；aHash 纯 Python 实现，不引 Pillow；抽帧走 subprocess。
 - **compose 零新增服务**（零 sidecar）；ES IK 薄镜像为可选部署决策点，不阻塞（标准分词 + dense 路兜底）。
 - **admin 前置配置**（联调前）：`llm_config` 登记 embedding（bge-m3 1024d）与 vision 条目并绑定四槽位；ASR 渠道复用 F-SOC `asr_channel_config`；asr-1.0 控制台试跑 1 集核价并回填 `unit_prices`（单价未公开刊例，预估失真告警项）。
