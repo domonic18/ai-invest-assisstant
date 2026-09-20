@@ -12,6 +12,7 @@
 | 迭代 13 · F-KB 一期下（一期验收） | D 抽取审核 → E 索引检索 → F 播放器防盗 → G 用量与收口 | 建库全链路闭环：审核发布→混合检索→精准回看/跳页/搜图→防盗→用量可评估 | ~8.5 人日 |
 | 迭代 13 · 批次 I（D 后中插） | I 视频关键帧通道 | 视频画面信息入知识库：三路信号选帧 → 去重入库 → VLM 描述计费 → 图片资产可见（检索消费留批次 E/F） | ~2 人日 |
 | 迭代 13 · 批次 J（E 后中插） | J 检索去投影化 | PG 单库混合检索（halfvec HNSW + pg_trgm + 服务层 RRF），KB 链路摘除 ES 投影与投影管理机械 | ~2 人日 |
+| 迭代 13 · 批次 K（J 后追加） | K 全系统去 ES | 研报/财报全文入 PG（`file_metadata.content` + trgm），`search_vector_kb` 改纯 PG，ES 容器/依赖/探针全退役 | ~1 人日 |
 | 迭代 14 · F-KB 二期 | H Agent 消费 | `search_knowledge_base` 权限注入 + 技能优化建议闭环 | ~3 人日 |
 
 ## 1. 批次 A · 底座：数据模型、迁移、模型角色与设置（~1.5 人日）
@@ -137,6 +138,22 @@
 
 > **交付记录（2026-09-20，批次 J 完结）**：J0–J5 完成——J0 stash 留底（`stash@{0}` "backup: pre-OptionB ES projection"），25 个方向无关文件选择性恢复（#186 管线健壮化/章节浏览端点/`20260920d`/`20260920e`/前端审核台等）；J1 迁移 `20260920f` + init 双写 + `models/kb.py` 三表 `embedding`（`HALFVEC(2048)` 带 sqlite JSON variant；pgvector 0.5.0 类名是 `HALFVEC` 非 `Halfvec`）+ `KB_EMBEDDING_DIMS=2048`；**生成列落地偏差**：`concat_ws`/`array_to_string` 均 STABLE 不可入生成列，改 `CASE/COALESCE/||` 显式拼接（空/NULL 段跳过 + 非空段 `\n` 连接，与 Python join 口径逐点一致，tmp 表实测钉死）；`search_text` 刻意不映射 ORM（sqlite 无该函数，词面路由 raw `literal_column`）。J2 `index_service.py` 696→317 行：`_KindSpec`（model+keep_row+text_of）声明式物化，增量单轮各类 500 / `force_rebuild` 全量置脏 drain；不可见行（rejected/排除/软删/停用源）清 `embedding=NULL`——检索可见性由行状态 + 检索行内过滤双保险，无 tombstone；维度护栏 SKIPPED 引导列迁移。J3 `search_service.py`：词面路 ILIKE（`\`/`%`/`_` 转义防通配注入）+ `similarity()` 排序、向量路 `<=>` HNSW，**各类行分别取序后按分数并成跨类全局序**再进 RRF（保持 ES 版「两路各一个全局序」的融合语义）；kind/point_type/章节过滤经 `_leg_active` + `_Scope` 同构透传两路，章节 = JSONB containment 粗筛（WHERE）+ 前缀精筛（水合）；降级收敛为仅 `embedding_unavailable`（PG 故障随请求 500，无 `es_unavailable` 静默空）；`KB_INDEX_ALIAS`/`KB_INDEX_PRUNE_DAYS` 孤儿常量删除。J4 cleanup/transcribe 投影调用摘除（向量随行生存：软删下轮物化清、硬删 FK 级联消失）；spider stats 契约（Embedded/Cleared/dimensionMismatch/forceRebuild）；compose 两文件 ES 端口发布移除（网内可达，研报索引与健康探针不受影响）。J5 回填脚本 `scripts/backfill_kb_embedding_from_es.py`（scroll v3 → `$1::halfvec` 文本参数 + 清脏，asyncpg 免 codec 注册），本地实跑 point 721 / seg 1994 / img 1127 全量入列零重嵌入、脏标全清。质量门：后端 2039 单测 / mypy / ruff 全绿。E2E：`支撑` 双路命中（degraded=None，点 8 + 段 10 + 图 1，案例帧缩略图与 seekMs 齐备）、章节树/浏览清单/章节过滤检索/kind=image 文字搜图全通、`kb-index` 增量空转 SKIPPED 正常（维度探测真实调通智谱）。
 
+### 批次 K · 全系统去 ES（2026-09-21 追加，~1 人日）
+
+> 2026-09-21 拍板（批次 J 后余量评审）：剩余 ES 使用面仅三处——财报 PDF 全文投影（`kb-documents`，研报从未入 ES）、Agent 工具 `search_vector_kb`（唯一查询消费方，研报搜索一直在走 `news_document` 兜底）、系统状态 ES 探针；加上 `news_document.elasticsearch_doc_id` 死列（全部写 NULL）。**研报+财报全文都进 PG**（`file_metadata.content` + GIN trgm），存量 MinIO 重抽回填（不依赖 ES，退役顺序解耦），ES 容器/依赖/探针全退役。prod 侧唯一前置：`backfill_kb_embedding_from_es.py`（批次 J 的 KB embedding 回填）须在 ES 下线前跑完，否则走 `kb-index` force_rebuild 全量重嵌。
+
+| # | 任务 | 内容与改法 |
+|---|------|-----------|
+| K1 | 迁移 | `20260921_file_content_pg.sql`（幂等）：`file_metadata.content TEXT` + `GIN(content gin_trgm_ops)`；`news_document` 删 `elasticsearch_doc_id` 死列；init-scripts 双写 |
+| K2 | 全文入库 | 新 `app/services/common/pdf_text.py`（`extract_pdf_text`，pypdf 尽力而为）；删 `common/knowledge_base_service.py`（ES 索引服务）；两个 store（financial/research）入库时抽取全文写 `content`（失败不阻塞，保留旧值）；summarizer 懒导入改 pdf_text |
+| K3 | 检索工具 | `search_vector_kb` 改纯 PG：`file_metadata` 标题/全文 ILIKE + `report_date DESC`，空结果兜底 `search_news`（工具名与三处引用不动）；repository 列表查询 `defer(content)` 防 MB 级全文拖带 |
+| K4 | 退役清扫 | 系统状态探针删 ES 项；`config.elasticsearch_url` + `elasticsearch[async]` 依赖 + 5 个传递依赖移除；两个 compose 删 elasticsearch 服务（prod `ELASTIC_PASSWORD` 必填项随之消失）；`.env.example` 清理；死列清扫（schema/admin news/2 spider） |
+| K5 | 回填与文档 | `scripts/backfill_file_content.py`（MinIO 下载 → pypdf → PG，逐条 best-effort，幂等可重跑）；arch 00/01/03/04/06/12、README、CLAUDE.md、需求 04 ES 表述更新 |
+
+验收：`search_vector_kb` 全文命中研报/财报特征词（首次可搜研报全文）；系统状态无 ES 项；`docker compose ps` 无 elasticsearch；列表接口响应体不因 content 变大；单测/mypy/ruff 全绿。
+
+> **交付记录（2026-09-21，批次 K 完结）**：K1–K5 完成——K1 迁移 `20260921_file_content_pg.sql` + init 双写。K2 `pdf_text.py` 抽取函数迁自原 `_extract_pdf_text`；`knowledge_base_service.py` 删除（140 行 ES 索引服务）；financial store ES index 块 → `content` 写入（try/except best-effort，抽取失败保留旧值不置 NULL，可被回填脚本重试），research store MinIO 上传后补全文写入；两个 summarizer `_extract_text` 懒导入改 pdf_text。K3 `search_vector_kb` 改 `file_type IN ('research_report','financial_report')` + 标题/全文 ILIKE + `report_date DESC`，返回契约 `{title, content[:300], publish_date}` 不变，空结果兜底 `search_news`（此前研报搜索一直在走此兜底——ES 内从未有研报全文）；repository 两处 `defer(FileMetadata.content)`。K4 探针删 ES 项（模块 docstring/前端注释同步）；pyproject 删 `elasticsearch[async]`（uv lock 连带清 yarl 等 5 个传递依赖）；compose 两文件删 elasticsearch 服务块；`.env.example` 删 `ELASTICSEARCH_URL`/`ELASTICSEARCH_PORT`/NO_PROXY 项并重排小节；死列清扫（model/schema/admin news/eastmoney_flash_news/cninfo_disclosure）。K5 回填脚本 ES-free（MinIO + PG 直连），`backfill_kb_embedding_from_es.py` 保留（prod KB embedding 回填仍需）。质量门：后端 2043 单测（新增 store content 写入 3 例 + search_vector_kb PG 双路 2 例，ES 探针/死列断言更新）/ mypy / ruff 全绿。
+
 ## 10. 批次 H · 二期 Agent 消费（F-KB-06/07，~3 人日）
 
 | # | 任务 | 内容与改法 |
@@ -152,9 +169,9 @@
 - **依赖**：批次 C 文本层已用 `pypdf`（pyproject 已含）；批次 F 新增 `uv add pypdfium2 Pillow`（书页渲染 + 水印合成）+ **web 镜像补 CJK TTF 字体层**（水印中文渲染）；**collector 镜像补 ffmpeg**（apt 层，批次 B 转写切分依赖）——Dockerfile 变更随批次 B 提交；批次 J 新增 `uv add pgvector`（SQLAlchemy `Halfvec` 类型，纯轮子）。
 - **SCF 路由决策（批次 F 开工前定）**：`/kb/stream` 视频代理仅由轻量服务器域名提供，SCF Web 函数路由排除（2048MB 内存/流式响应红线）；KB 为内部功能，不阻塞开发、阻塞验收。
 - **批次 I 零新增依赖**：ffmpeg 复用 collector 镜像既有层（批次 B 已补）；aHash 纯 Python 实现，不引 Pillow；抽帧走 subprocess。
-- **compose 零新增服务**（零 sidecar）；ES 容器保留但 KB 不再连接（研报索引 + 健康探针照旧），9200 不对宿主发布。
+- **compose 零新增服务**（零 sidecar）；~~ES 容器保留但 KB 不再连接~~ → **ES 容器已全栈退役（2026-09-21 批次 K）**：研报/财报全文入 `file_metadata.content`（pypdf + GIN trgm），`search_vector_kb` 改 PG 词面检索，健康探针摘 ES 项，compose 删 elasticsearch 服务与 9200。
 - **admin 前置配置**（联调前）：`llm_config` 登记 embedding（智谱 embedding-3 2048d）与 vision 条目并绑定四槽位；ASR 渠道复用 F-SOC `asr_channel_config`；asr-1.0 控制台试跑 1 集核价并回填 `unit_prices`（单价未公开刊例，预估失真告警项）。
-- `elasticsearch[async]>=8.13,<9` 客户端锁定维持（仅存量研报索引 `common/knowledge_base_service` 与健康探针使用）。
+- ~~`elasticsearch[async]>=8.13,<9` 客户端锁定维持~~ → 依赖已随批次 K 移除（pyproject + uv.lock）。
 
 ## 12. 风险速查（详见 arch 12 §16）
 

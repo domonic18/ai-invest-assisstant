@@ -1,7 +1,7 @@
 # 温成趋势理论知识库 需求文档
 
 > 版本：V1.2（2026-09-13 定稿；2026-09-18 增补：知识源类型扩展课程/电子书、书中图片文字搜图、文件夹拖拽批量上传、知识库存储大小展示；2026-09-18 二次增补：电子书定稿**文字版 PDF 单通道**（扫描版 OCR 后置）、管线模型角色全部后台可配、建库模型 token 统一台账；2026-09-20 增补：**课程视频关键帧通道入需求**（F-KB-11，批次 I 实现回填）与**抽取生而归章 + 全绿卡自动发布升级门**（F-KB-03 修订，人工只审 agent 不敢定的卡））　状态：待排期
-> 本文档为独立需求，功能域编号 `F-KB`；与平台既有设施（Elasticsearch、COS、采集任务体系、Skill 体系、助手 Agent）的衔接在 §2 逐项说明，不改动既有需求文档
+> 本文档为独立需求，功能域编号 `F-KB`；与平台既有设施（COS、采集任务体系、Skill 体系、助手 Agent）的衔接在 §2 逐项说明，不改动既有需求文档
 > 原型：[docs/prototypes/knowledge-base.html](../prototypes/knowledge-base.html)（后台「知识库」模块，2026-09-18 定稿）　架构：[docs/arch/12-knowledge-base.md](../arch/12-knowledge-base.md)（2026-09-20 修订定稿：检索去投影化——PG 单库 `halfvec` 向量 + `pg_trgm` 词面、服务层 RRF，取代原 ES 投影方案；零新增部署容器）
 
 ## 1. 文档概述
@@ -45,7 +45,7 @@
 
 | 既有设施 | 现状 | 本需求如何衔接 |
 |----------|------|----------------|
-| Elasticsearch 8.13 | 本地与生产均已部署；现有 `kb-documents` 索引仅承载研报关键词检索 | **知识库不依赖 ES**（2026-09-20 拍板检索去投影化）：检索走 PG 同库（pgvector `halfvec` + pg_trgm），研报索引与健康探针照旧使用 ES，且 9200 不对宿主发布 |
+| ~~Elasticsearch 8.13~~ | **已全栈退役（2026-09-21 批次 K）**：研报/财报全文入 `file_metadata.content`（pypdf + GIN trgm），`search_vector_kb` 走 PG 词面检索，容器/依赖/探针移除 | 知识库检索自 2026-09-20 起即走 PG 同库（pgvector `halfvec` + pg_trgm + RRF），零 ES 依赖 |
 | PostgreSQL/TimescaleDB | 已部署；pgvector 0.8.1 + pg_trgm 1.6 镜像内可用 | 知识库 4 张新表落 PG；检索列（`embedding halfvec(2048)` + `search_text`/`text`）与 HNSW/GIN 索引同库，**不引入新向量库** |
 | COS 对象存储 | 研报 PDF 已走 COS + `file_metadata` 登记 | 视频/音频素材与电子书 PDF 沿用同一存储与登记模式；素材字节数按知识源聚合为知识库存储大小 |
 | LLM 配置（`llm_config` + 后台页） | 仅 chat 模型概念 | 扩展「用途」维度（chat / embedding / vision）；建库管线四类模型角色（转写清洗 / 章节与知识抽取 / 图片视觉理解 / 向量嵌入）全部落 `llm_config` 条目并在知识库设置内绑定槽位，后台可随时切换；书中图片检索依托多模态 LLM 生成视觉描述；ASR 渠道复用既有加密实践（Fernet，`app/utils/crypto.py`） |

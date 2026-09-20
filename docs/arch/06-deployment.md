@@ -7,7 +7,7 @@
 | 节点 | 承载内容 | 技术形态 |
 |------|----------|----------|
 | SCF Web 函数 | web-api 一体镜像（`docker/web`：单 uvicorn 进程）：React SPA（FastAPI 静态托管）与 FastAPI API 层**同源同端口**（:9000），SSE 流式输出；助手对话（deepagents）进程内承载 | 内存 2048MB，超时 900s，预置并发 1-2 实例保冷启动；自定义域名 `invest.17aitech.com`（已备案） |
-| 轻量应用服务器 2C4G（ap-beijing） | 数据层（postgres/timescale、redis、elasticsearch）+ 任务层（celery-beat + worker〔realtime+batch〕+ worker-heavy〔并发=1〕） | Docker Compose 编排；采集爬虫与 LLM 归因永久驻留 |
+| 轻量应用服务器 2C4G（ap-beijing） | 数据层（postgres/timescale、redis）+ 任务层（celery-beat + worker〔realtime+batch〕+ worker-heavy〔并发=1〕） | Docker Compose 编排；采集爬虫与 LLM 归因永久驻留 |
 | COS | 研报/财报 PDF、知识库文件（S3 兼容端点）；`pg_dump` 定时备份目标 | 应用经 S3 SDK 读写 |
 | TCR（ccr.ccs.tencentyun.com/domonic18） | 镜像仓库：`web-api` + `collector` 双镜像，linux/amd64 | tag = `latest` + git short sha |
 

@@ -17,8 +17,8 @@
 │  └─────────────────────────────────────────────────────────────┘ │
 │                              │                                     │
 │  ┌───────────────────────────┴─────────────────────────────────┐ │
-│  │              全文检索层 (Elasticsearch)                       │ │
-│  │  公告全文 │ 新闻内容 │ 搜索建议                                │ │
+│  │              全文/向量检索层 (PostgreSQL pg_trgm + pgvector)  │ │
+│  │  新闻公告/研报/财报全文 │ 知识库混合检索                       │ │
 │  └─────────────────────────────────────────────────────────────┘ │
 │                              │                                     │
 │  ┌───────────────────────────┴─────────────────────────────────┐ │
@@ -140,7 +140,7 @@
 | 表 | 说明 |
 |----|------|
 | `news_telegraph` | 财联社电报流（资讯中心实时电报，AI 重要度分级标注） |
-| `news_document` | 新闻 / 公告 / 研报统一文档表（doc_type 区分，同步 Elasticsearch 全文检索） |
+| `news_document` | 新闻 / 公告 / 研报统一文档表（doc_type 区分） |
 | `news_ai_score` | 资讯 AI 重要度分级（跨源通用标注表） |
 | `news_storyline` / `news_storyline_item` | 事件故事线及条目（全局内容，AI 建线 + 手动建线共用） |
 | `user_news_storyline` | 用户级故事线跟踪状态（停止跟踪只影响本人视图） |
@@ -160,36 +160,12 @@
 
 > 自选股 AI 每日分析复用 `ai_analysis_result`（input_hash = sha256(skill + code + 日期)），三段式结构（盘面解读/操作策略/止损线）以 JSON 存储，无需专表。
 
-## 4. Elasticsearch 索引设计
+## 4. 全文与向量检索（PostgreSQL 同库）
 
-```json
-{
-  "settings": {
-    "number_of_shards": 3,
-    "number_of_replicas": 1,
-    "analysis": {
-      "analyzer": {
-        "cn_analyzer": { "type": "custom", "tokenizer": "ik_max_word", "filter": ["lowercase"] }
-      }
-    }
-  },
-  "mappings": {
-    "properties": {
-      "id":            { "type": "keyword" },
-      "stock_code":    { "type": "keyword" },
-      "title":         { "type": "text", "analyzer": "cn_analyzer", "fields": { "keyword": { "type": "keyword" } } },
-      "content":       { "type": "text", "analyzer": "cn_analyzer" },
-      "doc_type":      { "type": "keyword" },
-      "publish_date":  { "type": "date" },
-      "source":        { "type": "keyword" },
-      "url":           { "type": "keyword" },
-      "sentiment":     { "type": "float" },
-      "keywords":      { "type": "keyword" },
-      "industry_tags": { "type": "keyword" }
-    }
-  }
-}
-```
+全文/向量检索不设独立引擎，全部落 PostgreSQL 扩展（ES 已于 2026-09-21 退役）：
+
+- **研报/财报全文**：`file_metadata.content`（pypdf 抽取）+ `GIN(content gin_trgm_ops)`；Agent 工具 `search_vector_kb` 走标题/全文 ILIKE 词面匹配，空结果兜底 `news_document` 研报标题/摘要
+- **知识库混合检索**：三表 `embedding halfvec(2048)` HNSW 向量路 + `search_text`/`text` 的 pg_trgm 词面路 + 服务层 RRF 融合（详见 [12-knowledge-base.md](./12-knowledge-base.md) §7）
 
 ## 5. 对象存储（COS · S3 兼容）
 

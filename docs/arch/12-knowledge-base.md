@@ -33,7 +33,7 @@
 - `llm_config` 增列 `purpose VARCHAR(16) DEFAULT 'chat' CHECK IN ('chat','embedding','vision')`（既有行不动，默认 chat）。管线代码不硬编码模型名，一律经 `kb_settings` 角色槽位解析到 `llm_config` 条目：LLM 三角色（清洗/抽取/视觉）走 `run_structured(..., config_id=<槽位指向的条目>)`（`run_structured` 增可选 `config_id` 参数，缺省回落现有 `resolve_llm`）；embedding 走该条目的 OpenAI 兼容 `/v1/embeddings`（bge-m3 1024 维，cosine），小客户端 `embedding_client.py` 直连，不经 langchain。后台启动/保存校验：四槽位必须已配置且条目 `purpose` 与角色匹配。
 - `user_token_usage`（F-ACCT 已建）增列 `detail JSONB NULL`——建库用量复用这张台账而非新建表：`user_id NULL` = 系统维度（建库管线均为 system），`feature` 取 `kb_clean` / `kb_extract` / `kb_vision` / `kb_embed`，`detail` 存 `{sourceId, mediaId, taskRunId}` 上下文供按知识库聚合。embedding 客户端不经 langchain、无 UsageMeterCallback 回调，自行经 `usage_writer.enqueue` 记账；清洗/抽取/视觉走 `run_structured`，由 `UsageMeterCallback` 自动入账。ASR 时长型用量（非 token）继续落 `kb_media.process_meta`。
 
-**检索列与索引**（同库，扩展 `vector` + `pg_trgm`）：三表 `embedding halfvec(2048) NULL`（`vector` 类型 HNSW 上限 2000 维，2048 维必须 `halfvec`，fp16 存储对余弦排序影响可忽略）；point/image 的 `search_text` 为生成列（拼接口径 = 嵌入输入口径，单一真相），segment 词面列直接用 `text`。检索索引：三表 `HNSW(embedding halfvec_cosine_ops)`、point/image `GIN(search_text gin_trgm_ops)`、segment `GIN(text gin_trgm_ops)`。模型换维度属罕见操作 = 一次性列类型迁移 + 索引重建 + 全量重嵌（§7.3）。ES 容器保留在栈内，仅服务存量研报索引（`common/knowledge_base_service`）与健康探针，KB 链路不再连接。
+**检索列与索引**（同库，扩展 `vector` + `pg_trgm`）：三表 `embedding halfvec(2048) NULL`（`vector` 类型 HNSW 上限 2000 维，2048 维必须 `halfvec`，fp16 存储对余弦排序影响可忽略）；point/image 的 `search_text` 为生成列（拼接口径 = 嵌入输入口径，单一真相），segment 词面列直接用 `text`。检索索引：三表 `HNSW(embedding halfvec_cosine_ops)`、point/image `GIN(search_text gin_trgm_ops)`、segment `GIN(text gin_trgm_ops)`。模型换维度属罕见操作 = 一次性列类型迁移 + 索引重建 + 全量重嵌（§7.3）。ES 已全栈退役（2026-09-21，研报/财报全文入 `file_metadata.content` + pg_trgm），KB 链路零 ES 连接。
 
 ## 3. 素材接入与存储（F-KB-01）
 
@@ -269,8 +269,8 @@ backend/collector/runtime/specs/kb.py + backend/collector/spiders/kb_*.py   # §
 ```
 
 - 依赖方向：services/kb 不顶层导入 `app.agent.tools/skills/runtime`（`run_structured` 函数内延迟导入）；spider 薄壳委托服务层（`kb_transcribe.py` 等）。
-- **新增依赖**：`pymupdf`（文本层抽取 + 嵌入图片对象）、`pypdfium2`（页位图按需渲染，无重依赖）、`Pillow`（水印合成）、`pgvector`（SQLAlchemy `Halfvec` 列类型，纯轮子）。全部为轻量纯轮子，主镜像（web-api/collector）构建只增体积不增容器——**compose 零新增服务**。
-- ES 容器保留但 KB 不再连接：仅存量研报索引（`common/knowledge_base_service`）与健康探针（`system_status_service`）使用；compose 不对宿主发布 9200 端口（曾因 `0.0.0.0:9200` 暴露 + 弱凭据被外部客户端清空索引，2026-09-20 事故后收敛）。
+- **新增依赖**：`pymupdf`（文本层抽取 + 嵌入图片对象）、`pypdfium2`（页位图按需渲染，无重依赖）、`Pillow`（水印合成）、`pgvector`（SQLAlchemy `HALFVEC` 列类型，纯轮子）。全部为轻量纯轮子，主镜像（web-api/collector）构建只增体积不增容器——**compose 零新增服务**。
+- ES 容器已全栈退役（2026-09-21）：研报/财报全文改存 `file_metadata.content`（pypdf 抽取 + GIN trgm），`search_vector_kb` 走 PG 词面检索，健康探针摘除 ES 项；KB 检索此前已迁 PG 单库（halfvec HNSW + pg_trgm + RRF）。es 容器与 9200 端口从 compose 移除（曾因 `0.0.0.0:9200` 暴露 + 弱凭据被外部客户端清空索引，2026-09-20 事故加速退役）。
 
 ## 13. 任务注册与调度（F-MON 全覆盖）
 
