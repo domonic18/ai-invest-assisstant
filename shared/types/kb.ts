@@ -31,6 +31,9 @@ export interface ApiKbSettingsUpdateRequest {
   authorizedUserIds?: number[]
 }
 
+/** 素材类型（书的 episodeNo 恒为 null）。 */
+export type ApiKbMediaKind = 'video' | 'audio' | 'book'
+
 /** 素材处理状态机：uploaded → awaiting_cost → queued → processing → done/failed。 */
 export type ApiKbProcessStatus =
   | 'uploaded'
@@ -376,4 +379,84 @@ export interface ApiKbPointsBatchApproveRequest {
 export interface ApiKbBatchApproveResult {
   approved: number
   skipped: number
+}
+
+// ---------------------------------------------------------------------------
+// 混合检索（消费侧 /kb/search）
+// ---------------------------------------------------------------------------
+
+/** 案例卡片关联帧（命中时间窗内就近取帧，thumbUrl 短时效签名）。 */
+export interface ApiKbSearchFrameHit {
+  id: number
+  startMs: number | null
+  thumbUrl: string | null
+  caption: string | null
+}
+
+/** 知识卡片命中（PG 水合全字段；score 为 RRF 融合分）。 */
+export interface ApiKbSearchPointHit {
+  id: number
+  sourceId: number
+  mediaId: number
+  mediaKind: ApiKbMediaKind
+  episodeNo: number | null
+  mediaTitle: string | null
+  pointType: ApiKbPointType
+  title: string
+  body: string
+  termDefinition: string | null
+  applicableScene: string | null
+  excerpt: string
+  chapterPath: string[]
+  relatedIds: number[]
+  startMs: number | null
+  endMs: number | null
+  pageStart: number | null
+  pageEnd: number | null
+  score: number
+  frames: ApiKbSearchFrameHit[]
+}
+
+/** 原文分段命中（seekMs = max(0, startMs − 4s) 前滚起播点）。 */
+export interface ApiKbSearchSegmentHit {
+  id: number
+  sourceId: number
+  mediaId: number
+  mediaKind: ApiKbMediaKind
+  episodeNo: number | null
+  mediaTitle: string | null
+  text: string
+  startMs: number | null
+  endMs: number | null
+  seekMs: number | null
+  score: number
+}
+
+/** 图片命中（课程帧带时间码、书嵌图带页码）。 */
+export interface ApiKbSearchImageHit {
+  id: number
+  sourceId: number
+  mediaId: number
+  mediaKind: ApiKbMediaKind
+  episodeNo: number | null
+  pageNo: number | null
+  startMs: number | null
+  textInImage: string | null
+  caption: string | null
+  thumbUrl: string | null
+  score: number
+}
+
+/** 混合检索结果（三类命中独立列表；degraded 标记降级原因）。 */
+export interface ApiKbSearchResponse {
+  query: string
+  degraded: string | null
+  points: ApiKbSearchPointHit[]
+  segments: ApiKbSearchSegmentHit[]
+  images: ApiKbSearchImageHit[]
+}
+
+/** 发布态章节树（消费侧导航，不含 draft）。 */
+export interface ApiKbPublishedChaptersResponse {
+  chapters: ApiKbChapterNode[]
 }

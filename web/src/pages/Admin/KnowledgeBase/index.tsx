@@ -4,10 +4,11 @@ import { useSearchParams } from 'react-router-dom'
 import { ImagesTab } from './ImagesTab'
 import { IngestTab } from './IngestTab'
 import { ReviewTab } from './ReviewTab'
+import { SearchTab } from './SearchTab'
 import { SettingsTab } from './SettingsTab'
 import { SourcesTab } from './SourcesTab'
 
-const TAB_KEYS = ['settings', 'sources', 'ingest', 'review', 'images'] as const
+const TAB_KEYS = ['settings', 'sources', 'ingest', 'review', 'images', 'search'] as const
 
 type TabKey = (typeof TAB_KEYS)[number]
 
@@ -66,6 +67,16 @@ export default function KnowledgeBase() {
                 <ImagesTab
                   sourceId={sourceId}
                   onSourceChange={(id) => navigate('images', id)}
+                />
+              ),
+            },
+            {
+              key: 'search',
+              label: '知识检索',
+              children: (
+                <SearchTab
+                  sourceId={sourceId}
+                  onSourceChange={(id) => navigate('search', id)}
                 />
               ),
             },

@@ -169,6 +169,11 @@ export const ENDPOINTS = {
   screening: {
     query: `${API_BASE}/screening/query`,
   },
+  kb: {
+    search: `${API_BASE}/kb/search`,
+    sourceChapters: (sourceId: number | string) =>
+      `${API_BASE}/kb/sources/${sourceId}/chapters`,
+  },
   admin: {
     // 集合根路由后端以 "/" 注册，常量保持同形避免依赖 307 重定向
     users: `${API_BASE}/admin/users/`,

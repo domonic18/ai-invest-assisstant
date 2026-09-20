@@ -111,6 +111,10 @@ export const queryKeys = {
       page: number,
       pageSize: number
     ) => ['kb', 'images', sourceId, mediaId, status, page, pageSize] as const,
+    search: (q: string, sourceId: number | null, chapterPath: string[], kind: string | null) =>
+      ['kb', 'search', q, sourceId, chapterPath, kind] as const,
+    chaptersPublished: (sourceId: number) =>
+      ['kb', 'chapters-published', sourceId] as const,
   },
   mcpServers: ['mcp-servers'] as const,
   socialAdmin: {
