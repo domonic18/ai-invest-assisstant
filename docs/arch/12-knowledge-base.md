@@ -1,6 +1,6 @@
 # 知识库架构设计（温成趋势理论 · F-KB）
 
-> 闭环：后台登记多知识库（课程/电子书）→ 文件夹批量直传 COS → 课程 ASR 分片转写（句级时间戳）/ 电子书文本层解析（PyMuPDF + 嵌入图片资产）→ LLM 章节推断 + 知识点抽取 → 人工审核发布 → ES `kb-knowledge` 混合索引（BM25 + dense_vector，客户端 RRF）→ 内部检索页（片段播放器/阅读器，代理 + 短时效凭证防盗）→ Agent 运行时引用与技能优化建议单（审核后生效）。
+> 闭环：后台登记多知识库（课程/电子书）→ 文件夹批量直传 COS → 课程 ASR 分片转写（句级时间戳）+ 视频关键帧抽取（三路信号选帧 + VLM 描述）/ 电子书文本层解析（PyMuPDF + 嵌入图片资产）→ LLM 章节推断 + 知识点抽取 → 人工审核发布 → ES `kb-knowledge` 混合索引（BM25 + dense_vector，客户端 RRF）→ 内部检索页（片段播放器/阅读器，代理 + 短时效凭证防盗）→ Agent 运行时引用与技能优化建议单（审核后生效）。
 > 需求：[docs/requirement/04-knowledge-base-requirement.md](../requirement/04-knowledge-base-requirement.md)（F-KB V1.1）· 原型：[docs/prototypes/knowledge-base.html](../prototypes/knowledge-base.html)
 > 调研基线（2026-09）：ES 部署为 **8.13 Basic**（原生 RRF retriever 需 8.16 GA + Enterprise 授权）；MiniMax ASR 仅 `asr-1.0`（≤500s/50MB/次，无热词参数，句级时间戳可用，单价未公开刊例）；MiniMax M3 为多模态对话模型、非识别模型，定位在转写后清洗与知识抽取。**电子书确认为文字版 PDF**（2026-09-18 拍板）：单通道文本层解析，扫描版 OCR 后置（出现扫描版素材再立项）。
 
@@ -22,10 +22,10 @@
 | 表 | 键与约束 | 说明 |
 |----|----------|------|
 | `kb_source` | `source_type CHECK ('course','book')`；`deleted_at`（软删） | `name`/`author`（讲师·作者，按类型展示标签）/`description`/`enabled`；`chapter_tree JSONB`（`{draft, published}` 两棵树，节点 `{id, title, children}`，节点 id 稳定）；`storage_bytes BIGINT`（COS 登记字节数聚合）、`pending_cleanup_bytes`（异步清理未完成量） |
-| `kb_media` | uq `(source_id, episode_no)` WHERE episode_no IS NOT NULL；uq `(source_id, file_hash)`（去重）；idx `(source_id, process_status)` | `media_kind CHECK ('video','audio','book')`；`episode_no INT NULL`（课程集号）、`title`、`file_name`、`cos_key`、`file_size`、`file_hash`；`duration_seconds`/`page_count`（按类型）；`process_status CHECK ('uploaded','awaiting_cost','queued','processing','done','failed')` + `process_error`；`process_meta JSONB`（用量对账：provider/model/audio_seconds/chunk_count/est_cost…）；`edited_at TIMESTAMPTZ NULL`（文稿人工编辑时刻，脏传播源） |
+| `kb_media` | uq `(source_id, episode_no)` WHERE episode_no IS NOT NULL；uq `(source_id, file_hash)`（去重）；idx `(source_id, process_status)` | `media_kind CHECK ('video','audio','book')`；`episode_no INT NULL`（课程集号）、`title`、`file_name`、`cos_key`、`file_size`、`file_hash`；`duration_seconds`/`page_count`（按类型）；`process_status CHECK ('uploaded','awaiting_cost','queued','processing','done','failed')` + `process_error`；`process_meta JSONB`（用量对账：provider/model/audio_seconds/chunk_count/est_cost…）；`edited_at TIMESTAMPTZ NULL`（文稿人工编辑时刻，脏传播源）；`vision_at TIMESTAMPTZ NULL`（课程视频关键帧选帧完成时刻，视觉通道幂等键） |
 | `kb_transcript_segment` | uq `(media_id, seq_no)`；idx `(source_id, embedding_dirty)` | 泛化内容分段：课程 `start_ms`/`end_ms`（句级时间码），电子书 `page_start`/`page_end`（跨页段落合并后为页区间）；`text`；`embedding_dirty BOOLEAN DEFAULT true`（新建/编辑即脏，索引任务增量拾取） |
 | `kb_knowledge_point` | idx `(source_id, status)`、`(embedding_dirty)` | `point_type CHECK ('concept','theorem','method','discipline','case')`；`title`/`body`（正文，保留讲师表述）/`term_definition NULL`/`applicable_scene NULL`/`excerpt`（原文摘录）；定位：`media_id FK` + `start_ms`/`end_ms`（课程）或 `page_start`/`page_end`（书）；`related_ids JSONB`；`chapter_path`（发布树节点 id 串）；`status CHECK ('draft','published','rejected')`；`needs_review BOOLEAN`（excerpt 校验未过的显式标记）；`review_note`/`reviewed_by`/`reviewed_at` |
-| `kb_image_asset` | idx `(source_id, embedding_dirty)` | 书中图片资产（需求「随书登记」的落表细化——逐张生命周期与 ES 同步需要独立行）：`media_id FK CASCADE`、`page_no`、`bbox JSONB NULL`、`cos_key`（原图）、`thumb_cos_key`（缩略图）、`text_in_image`/`caption`/`vision_description`、`describe_status CHECK ('pending','processing','done','failed')` |
+| `kb_image_asset` | idx `(source_id, embedding_dirty)` | 图片资产（书嵌图 + 课程视频关键帧统一落表，逐张生命周期与 ES 同步需要独立行）：`media_id FK CASCADE`、`page_no INT NULL`（书页码）、`start_ms`/`end_ms BIGINT NULL`（课程关键帧时间码）、`bbox JSONB NULL`、`cos_key`（原图）、`thumb_cos_key`（缩略图）、`text_in_image`/`caption`/`vision_description`、`describe_status CHECK ('pending','processing','done','failed')` + `describe_attempts INT DEFAULT 0`（失败退避，≥3 终态 failed） |
 | `kb_settings` | 单行 | `hotwords JSONB`（金融热词表，注入清洗 prompt）、`segment_max_seconds INT DEFAULT 30`、`asr_concurrency INT DEFAULT 2`、`top_k INT DEFAULT 8`、`unit_prices JSONB`（`{asrPerHour, vlmPerImage}` 参考单价，费用预估用）、`authorized_user_ids JSONB`（知识库授权白名单；admin 隐含授权）；**模型角色槽位**（均 FK `llm_config.id`，admin 后台可切换）：`embedding_config_id`（用途=embedding）、`clean_model_id`（转写清洗，chat）、`extract_model_id`（章节推断+知识抽取，chat）、`vision_model_id`（图片理解，vision） |
 
 连带两处既有表扩展：
@@ -74,6 +74,27 @@ ffmpeg 抽 16kHz 单声道 wav
 - 清洗模型经 `kb_settings.clean_model_id` 角色槽位解析（`run_structured(config_id=...)`，M2.5/M3 同价位均可，1 集约 1 万 tokens）；调用经 `UsageMeterCallback` 自动计量入台账（feature=kb_clean，system 维度）。
 - **文稿可人工编辑**（质量最后防线）：后台编辑器批量保存 → 更新 `kb_media.edited_at` + 命中分段置 `embedding_dirty`（索引增量同步，知识点正文不受影响——人工审定产物）。
 - ASR 凭据复用 `asr_channel_config`（F-SOC 已建，Fernet 加密 + masked 展示 + test_connection）；知识库域参数（并发/热词/单价/分段上限）在 `kb_settings`，渠道与域参数分离。若 asr-1.0 实测单价显著高于阿里 Paraformer（≈¥0.29/小时），渠道层可配置切换（`asr_channel_config.provider` 预留），管线不变。
+
+### 4.1 课程视频关键帧通道
+
+转写只消费音频，视频画面的盘面讲解（画线/指标/走势）不进知识库。轻量关键帧通道补齐该维度，原则与电子书图片资产同构：**帧图本身是检索产物**（文字搜图 → 缩略图 + 时间码 → 跳播），不是给 LLM 看视频。
+
+**三路信号选帧**（互补盲区）：
+
+1. **场景切换检测**（主讲切 PPT/切屏）：`ffmpeg select='gt(scene,0.3)' + showinfo`，从 stderr 解析 `pts_time`；
+2. **定长兜底**（~60s 间隔）：画面渐变型课程（无切换）的保底采样；
+3. **文稿引导采样**（关键路）：对既有 `kb_transcript_segment` 文本做视觉指涉句正则（「你看 / 如图 / 这条线 / 这个下降通道 / 这个中枢」…），取句中点时刻——盘面讲解类课程的关键帧往往无场景突变，只有此路能命中「画线瞬间」。
+
+**去重与配额**：多信号时间窗合并（<5s 命中保留 1，优先级 ③>①>②）→ aHash 感知哈希（ffmpeg 16×16 灰度 rawvideo 输出，纯 Python 汉明距离，不引 Pillow）滤近重复 → 单集硬上限 ~120 张，超限按信号优先级裁剪。
+
+**两段式成本分层**：
+
+- **选帧阶段零 LLM**：ffmpeg 按时刻抽帧 → aHash 去重 → 原图/缩略图传 COS（`kb/derived/{media_id}/frames/{start_ms:012d}.jpg`）→ `kb_image_asset` 行（`describe_status='pending'`，`start_ms` 定位）→ `kb_media.vision_at=now()`（幂等键，重跑不重抽）；
+- **描述阶段按张计费**：扫 `describe_status='pending'` 行，`run_structured(ImageUnderstanding, images=[帧], vision=True, config_id=kb_settings.vision_model_id)`（复用 §5.1 Schema，三文本全 required），prompt 附该时间码前后句文稿作上下文（§5.1 前后页文本同款技巧）；失败 `describe_attempts+1` 退避，≥3 终态 failed。
+
+任务接线见 §13 `kb-vision`；费用入台账（feature=kb_vision，detail 带 mediaId）。
+
+**边界**：MiniMax M3 原生视频输入（≤30min）记为二期增强备选——整视频喂入 token 成本 ~1fps 等效、远高于按张计费，且帧图已是检索交付物；二期若做片段级时序理解（15–30s 关键操作片段动态描述），经既有 vision 槽位扩展视频 content block 即可，不新增表。
 
 ## 5. 电子书解析与图片资产（F-KB-10）
 
@@ -176,8 +197,9 @@ GET  /kb/media/{id}/subtitles.vtt?token=   # 由 kb_transcript_segment 生成 We
 | `POST /admin/kb/cost-estimate` | `{sourceId, mediaIds, kinds}` → 分项预估（时长/页数/图片数 × unit_prices） |
 | `POST /admin/kb/sources/{id}/confirm-cost` | `{mediaIds, kind}` → `awaiting_cost → queued`（审计 `kb.cost.confirm`） |
 | `GET/PUT /admin/kb/sources/{id}/transcript/{mediaId}` | 文稿编辑器读写（PUT 触发脏传播） |
+| `GET /admin/kb/sources/{id}/images?media_id=&page=&page_size=` | 图片资产列表（书嵌图 + 课程关键帧，缩略图代理签名，§4.1/§5.1） |
 | `GET/POST /admin/kb/sources/{id}/chapters` | 目录树草稿查看 / 发布（`draft → published`，审计） |
-| `GET /admin/kb/review/points?status=&chapterPath=` | 审核队列；`PATCH /admin/kb/points/{id}`（修订）；`POST /admin/kb/points/{id}/approve|reject`；`POST /admin/kb/points/merge` |
+| `GET /admin/kb/sources/{id}/points?status=&page=&pageSize=` | 审核队列（含计数）；`POST /admin/kb/sources/{id}/points`（人工新增）；`PATCH /admin/kb/points/{id}`（修订）；`POST /admin/kb/points/{id}/approve|reject`；`POST /admin/kb/points/merge` |
 | `POST /admin/kb/sources/{id}/reindex` / `POST /admin/kb/index/rebuild-embedding` | 全量重建 / embedding 模型切换蓝绿（审计） |
 | `GET/PUT /admin/kb/settings` | 热词/并发/分段/单价/top_k/白名单 + 四模型角色槽位（`embedding_config_id`/`clean_model_id`/`extract_model_id`/`vision_model_id`，均为 `llm_config` 条目引用；PUT 时校验条目存在且 purpose 匹配） |
 | `GET /admin/kb/usage?sourceId=&from=&to=` | 建库用量聚合：`user_token_usage` 按 `kb_*` feature × source（detail 上下文）汇出 token 明细与估算成本，叠加 ASR 时长（`process_meta`）× `unit_prices.asrPerHour`——预估 vs 实际对照 |
@@ -226,6 +248,8 @@ backend/app/services/kb/
 ├── transcribe_service.py    # 分片切分、asr-1.0 调用、断点缓存、清洗（clean_model_id）、用量入 meta
 ├── book_parse_service.py    # PyMuPDF 文本层抽取、段落归并、嵌入图片抽取（无 OCR 通道）
 ├── image_describe_service.py# VLM 图像理解（run_structured vision + vision_model_id）
+├── vision_pipeline.py       # 关键帧选帧纯函数（showinfo 解析/三路信号融合/时间窗合并/aHash 去重/配额裁剪）
+├── vision_service.py        # 课程关键帧通道（选帧零 LLM 阶段 + 描述计费阶段，vision_at 幂等）
 ├── extract_service.py       # 章节推断 + 知识点抽取（窗口化、三层幻觉防线、extract_model_id）
 ├── index_service.py         # 脏扫描、批量 embedding（kb_embed 记账）、ES 写删、别名蓝绿
 ├── search_service.py        # 双路召回 + 客户端 RRF + PG 水合（唯一检索入口，Agent 工具复用）
@@ -238,7 +262,7 @@ backend/app/models/kb.py    # 5 表 + kb_settings
 backend/app/schemas/kb.py   # LLM 抽取契约（裸 BaseModel 全 required）+ CamelModel wire
 backend/app/constants/kb.py # source_type/point_type/process_status/doc_kind 枚举、Redis 键模板（凭证/锁）
 backend/app/api/v1/admin/kb.py · api/v1/kb.py
-backend/collector/runtime/specs/kb.py + backend/collector/spiders/kb_*.py   # §13 五任务
+backend/collector/runtime/specs/kb.py + backend/collector/spiders/kb_*.py   # §13 六任务
 ```
 
 - 依赖方向：services/kb 不顶层导入 `app.agent.tools/skills/runtime`（`run_structured` 函数内延迟导入）；spider 薄壳委托服务层（`kb_transcribe.py` 等）。
@@ -252,11 +276,12 @@ backend/collector/runtime/specs/kb.py + backend/collector/spiders/kb_*.py   # §
 |----------|-----------|------|--------------|----------------------|----------|
 | `kb-transcribe` | `kb_transcribe` | internal | heavy / 3600s·4200s | `*/5 * * * *` | `kb_media.process_status='queued'` 且 kind video/audio |
 | `kb-book-parse` | `kb_book_parse` | internal | batch | `*/10 * * * *` | queued 且 kind book（文本层解析分钟级，无重算力） |
-| `kb-extract` | `ai_kb_extract` | internal | batch | `*/10 * * * *` | done 且未抽取素材 + 目录树待推断源 |
+| `kb-extract` | `kb_extract` | internal | batch | `*/10 * * * *` | done 且未抽取素材 + 目录树待推断源 |
+| `kb-vision` | `kb_vision` | internal | batch | `*/10 * * * *` | done 且 `vision_at` 空的 video 素材（选帧）+ `pending` 图片行（描述，§4.1 两阶段） |
 | `kb-index` | `kb_index` | internal | batch | `*/5 * * * *` | `embedding_dirty` 三类行 + 删除文档 |
 | `kb-cleanup` | `kb_cleanup` | internal | batch | `*/30 * * * *` | `deleted_at` 过 24h 恢复窗口的源/素材 |
 
-- 无待处理行 = SKIPPED 正常态（F-MON 不误报）；ASR 渠道失败/疑似扫描版素材 = FAILED 显式归因。五条 `(task, internal)` 注册进 F-MON 判定表。
+- 无待处理行 = SKIPPED 正常态（F-MON 不误报）；ASR 渠道失败/疑似扫描版素材 = FAILED 显式归因。六条任务中转写/抽取/视觉/索引按 `(task, internal)` 参与 F-MON 健康判定（cleanup 等维护类不参与健康统计）。
 - 管理端「立即执行」复用采集管理手动补跑通道；admin 触发类操作（费用确认/树发布/重建索引）改状态后可手动 run-now 提速，不另建端点。
 
 ## 14. 成本治理（模型角色可配 + 用量台账统一口径）
@@ -284,6 +309,7 @@ backend/collector/runtime/specs/kb.py + backend/collector/spiders/kb_*.py   # §
 7. **embedding API 外部依赖**：索引任务失败显式退避；检索页友好报错；模型切换走蓝绿不中断检索。
 8. **pgvector 备选**（不落地）：若语料涨至数十万级或未来去 ES 化，PG 侧向量（同库事务、切换原子）是第一备选——当前中文词法必须 ES，双存储纯增负担。
 9. **单渠道 ASR 单点**：与 F-SOC 抖音渠道同理，靠 F-MON 快速告警 + 显式归因，不做静默 fallback。
+10. **关键帧漏采与视觉成本**：场景检测阈值对无切换讲解型课程可能漏帧——文稿引导采样路兜底；VLM 按张计费靠单集配额（~120 张）+ describe 退避（≥3 终态）封顶，费用入台账可对账；帧图为检索交付物，M3 整视频理解仅记二期评估备选。
 
 ## 17. 后续文档索引
 
