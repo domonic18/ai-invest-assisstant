@@ -164,16 +164,17 @@ query ─→ embedding（与槽位模型同维度）─┬─ 词面路：search
 POST /kb/media/{id}/playback-token   # 权限校验（admin / 白名单）→ Redis kb:playback:{token}={userId, mediaId} EX ≤1800
 GET  /kb/stream/{mediaId}?token=     # 校验 token + 必须 Range 头 → MinIO get_object(offset/length) 206 透传（Content-Range/Accept-Ranges）
 GET  /kb/books/{mediaId}/pages/{n}?token=  # pypdfium2 144DPI 按需渲染（干净页进程内 LRU）→ Pillow 叠用户水印 → PNG
-GET  /kb/media/{id}/subtitles.vtt?token=   # 由 kb_transcript_segment 生成 WebVTT（字幕轨 + 点击跳转导航）
+GET  /kb/media/{id}/subtitles.vtt    # apiClient Bearer 鉴权（fetch 可带 header；query token 仅用于 <video> src）
+GET  /kb/images/{id}/original-url    # 图片原图短时效预签名（≤15min，KB_IMAGE_ORIGINAL_URL_TTL_SECONDS）
 ```
 
 - **异常拉取拦截**：无 token / token 过期 / 不绑定 → 401 + 审计事件 `kb.security.denied`；视频流无 Range 头（整文件抓取特征）→ 400 + 审计；连续异常触发账号级告警（管理端可见，封禁为管理员决策）。
-- **前端不接触 COS 直链**：缩略图、页面图、视频流全部经后端代理签名/代理输出；书页位图服务端烧录水印（干净页缓存与水印合成解耦，每请求一次轻量 composite）；播放画面叠加静态角标（用户名 + 日期，前端层，安全不依赖此层）。
+- **前端不接触持久 COS 直链**：视频流与书页位图走代理（token + Range / 服务端水印烧录——干净页缓存与水印合成解耦，每请求一次轻量 composite）；缩略图与原图仅发短时效预签名（≤15min）。播放画面叠加静态角标（用户名 + 日期，前端层，安全不依赖此层）。
 - 播放器禁下载交互（`controlsList=nodownload`、禁右键）为提高门槛的前端手段。
 
 ### 8.2 页面与播放器能力（对照原型 knowledge-base.html）
 
-- 检索 Tab：搜索框 + 章节树导航 + 三类命中（卡片高亮 / 原文摘录 / 图片缩略图+页码）；命中展开显示集数 + `hh:mm:ss–hh:mm:ss` 或页码区间。
+- 消费页 `/kb`（`web/src/pages/KnowledgeSearch/`，权限 = admin ∪ 白名单；侧边栏入口全员可见，未授权用户页面内 403 自解释引导）：搜索框 + 章节树导航 + 三类命中（卡片高亮 / 原文摘录 / 图片缩略图+页码）；命中展开显示集数 + `hh:mm:ss–hh:mm:ss` 或页码区间；管理台「知识检索」Tab 复用同一 SearchTab（双入口）。
 - **KnowledgePlayer**：`<video src=/kb/stream/...?token>` + 自定义控制条——播放/暂停、进度条命中区间高亮（A/B 标记 + 循环）、倍速 0.5–2×（localStorage 记忆）、音量、全屏/画中画、键盘（Space/←→/↑↓）、断点续播（按 media 记忆）、上一集/下一集；**字幕联动**：WebVTT track + 当前端高亮 + 点击字幕句 seek（文稿即导航）；点击命中 → 自动 `seek(startMs − 前滚)`。
 - **BookReader**：按页位图 + 页码跳转/前后页 + 命中页高亮标注 + 缩放；图片命中打开原图视图附页码上下文。
 - 防盗边界声明（需求口径）：目标是抬高直接获取与批量盗取成本，录屏/翻拍以水印溯源震慑，不承诺根除。
@@ -211,12 +212,14 @@ GET  /kb/media/{id}/subtitles.vtt?token=   # 由 kb_transcript_segment 生成 We
 | 端点 | 说明 |
 |------|------|
 | `GET /kb/search?q=&sourceId=&chapterPath=&pointType=&kind=` | 混合检索（§7.2 形状） |
+| `GET /kb/sources` | 消费侧知识库最小投影（enabled + 未软删；403 兼作未授权提示） |
 | `GET /kb/sources/{id}/chapters` | 发布态章节树导航 |
 | `GET /kb/sources/{id}/points?chapterPath=&page=&pageSize=` | 章节卡片清单（浏览路径：全集确定性排序 episode_no/start_ms/page_start + 分页，读 PG 真相源；未知章节 422） |
-| `POST /kb/media/{id}/playback-token` | 一次性短时效凭证（≤30min，绑定用户+素材） |
+| `POST /kb/media/{id}/playback-token` | 一次性短时效凭证（≤30min，绑定用户+素材；携带 prev/next 集 id 与书 pageCount） |
 | `GET /kb/stream/{mediaId}?token=` | 视频代理流（Range 必须，206 透传） |
 | `GET /kb/books/{mediaId}/pages/{no}?token=` | 书页位图（服务端水印烧录） |
-| `GET /kb/media/{id}/subtitles.vtt?token=` | 字幕轨生成 |
+| `GET /kb/media/{id}/subtitles.vtt` | 字幕轨生成（apiClient Bearer） |
+| `GET /kb/images/{id}/original-url` | 图片原图短时效预签名（≤15min） |
 
 二期追加：`POST /admin/kb/optimizations`（触发建议单）、`GET /admin/kb/optimizations`、`POST /admin/kb/optimizations/{id}/apply|reject`。
 
@@ -224,17 +227,20 @@ GET  /kb/media/{id}/subtitles.vtt?token=   # 由 kb_transcript_segment 生成 We
 
 ```
 web/src/pages/Admin/KnowledgeBase/
-├── index.tsx              # antd Tabs 五页签（路由 /admin/knowledge-base）
+├── index.tsx              # antd Tabs 六页签（路由 /admin/knowledge-base）
 ├── SourcesTab.tsx         # 知识库列表 + 新建/编辑弹层 + 存储大小 + 删除（armed 两步，复刻社媒先例）
 ├── IngestTab.tsx          # KB 切换 seg + 文件夹拖拽上传区（webkitdirectory）+ 上传队列（进度/暂停重试）+ 流水线表
 ├── CostEstimateModal.tsx  # 分项预估 + 确认（费用闸门 UI）
 ├── ReviewTab.tsx          # 左章节树（草稿确认/拖拽）右知识卡片队列（通过/修订/驳回/合并）
-├── SearchTab.tsx          # 搜索 + 三类命中 + KnowledgePlayer + BookReader
+├── SearchTab.tsx          # 搜索 + 三类命中 + 命中直达播放器/阅读器（consumerSources 注入兼供消费页复用）
 ├── SettingsTab.tsx        # 热词/并发/分段/单价/白名单 + 模型角色配置（清洗/抽取/视觉/嵌入四槽位，候选项按 llm_config purpose 过滤）+ 建库用量面板（token 分项 + 预估 vs 实际）
-└── components/
-    ├── KnowledgePlayer.tsx # 播放器（区间高亮/倍速记忆/断点续播/A-B/键盘/画中画/字幕联动）
-    ├── BookReader.tsx      # 阅读器（按页位图/跳页/缩放/命中高亮）
-    └── UploadQueue.tsx     # 直传队列（预签名 PUT 并发 + 进度 + 断点重试）
+├── KnowledgePlayer.tsx    # 播放器（区间高亮/倍速记忆/断点续播/键盘/字幕联动/token 自动刷新）
+├── BookReader.tsx         # 阅读器（按页位图/跳页/缩放/命中页标注/断点续读）
+├── playerUtils.ts         # 播放器/阅读器共享纯函数（VTT 解析/时钟格式/token 刷新余量）
+└── UploadQueue.tsx        # 直传队列（预签名 PUT 并发 + 进度 + 断点重试）
+
+web/src/pages/KnowledgeSearch/
+└── index.tsx              # 消费页 /kb（consumer sources + 403 自解释；内嵌 SearchTab）
 ```
 
 - `web/src/api/kb.ts` + `adminKb.ts`（ENDPOINTS + apiClient 惯例）；`shared/types/kb.ts`（`ApiKbSource`/`ApiKbMedia`/`ApiKbPoint`/`ApiKbSearchResult`/`ApiKbPlaybackToken`…）+ `shared/api/endpoints.ts` 注册；`hooks/queryKeys.ts` 加 `kb` namespace。
