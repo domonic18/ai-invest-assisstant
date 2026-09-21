@@ -637,3 +637,34 @@ class KbPublishedChaptersResponse(CamelModel):
     """发布态目录树（消费侧导航，不暴露 draft）。"""
 
     chapters: list[KbChapterNode] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# 播放凭证与消费（arch/12 §8，批次 F）
+# ---------------------------------------------------------------------------
+
+
+class KbPlaybackTokenResponse(CamelModel):
+    """播放凭证（prev/nextMediaId 供播放器切集；书素材携带 pageCount）。"""
+
+    token: str
+    expires_in: int
+    media_id: int
+    prev_media_id: int | None = None
+    next_media_id: int | None = None
+    page_count: int | None = None
+
+
+class KbConsumerSourceResponse(CamelModel):
+    """消费侧知识库条目（启用中库的最小投影，不含管理字段）。"""
+
+    id: int
+    name: str
+    source_type: str
+
+
+class KbImageUrlResponse(CamelModel):
+    """图片原图短时效预签名 URL（≤15min，消费侧点击原图时签发）。"""
+
+    url: str
+    expires_in: int

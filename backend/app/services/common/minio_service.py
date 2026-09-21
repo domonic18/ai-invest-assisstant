@@ -2,7 +2,7 @@
 
 import asyncio
 from datetime import timedelta
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import structlog
 from minio import Minio
@@ -177,6 +177,37 @@ class MinIOService:
             return await asyncio.to_thread(response.read)
         except S3Error as exc:
             raise RuntimeError(f"Failed to download {object_name}: {exc}") from exc
+
+    async def open_object_stream(
+        self,
+        object_name: str,
+        *,
+        offset: int = 0,
+        length: int = 0,
+        bucket_name: str | None = None,
+    ) -> Any:
+        """打开对象的区间读流（视频代理 206 透传用）。
+
+        Args:
+            object_name: 对象名。
+            offset: 起始字节偏移。
+            length: 读取字节数（0 表示读到对象末尾）。
+            bucket_name: 可选 bucket 覆盖。
+
+        Returns:
+            SDK 原生响应对象；调用方须在 ``asyncio.to_thread`` 中
+            ``read(amt)`` 分块消费并在结束时 ``close`` 释放连接。
+
+        Raises:
+            RuntimeError: 打开失败时抛出。
+        """
+        bucket = bucket_name or self.default_bucket
+        try:
+            return await asyncio.to_thread(
+                self.client.get_object, bucket, object_name, offset, length
+            )
+        except S3Error as exc:
+            raise RuntimeError(f"Failed to open object stream {object_name}: {exc}") from exc
 
     async def remove_files(
         self,

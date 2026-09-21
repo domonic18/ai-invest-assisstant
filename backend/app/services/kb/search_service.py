@@ -59,7 +59,7 @@ _SEEK_REWIND_MS = 4000
 #: 案例卡片关联帧：命中区间外扩秒数与取帧上限
 _CASE_FRAME_PAD_MS = 20_000
 _CASE_FRAME_LIMIT = 3
-_THUMB_URL_TTL = timedelta(hours=1)
+_THUMB_URL_TTL = timedelta(minutes=15)
 _QUERY_EMBED_TIMEOUT = 10.0
 
 

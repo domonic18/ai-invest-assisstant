@@ -91,6 +91,26 @@ KB_PLAYBACK_TOKEN_TTL_SECONDS = 1800
 #: 播放凭证 Redis 键模板（值为 {userId, mediaId} JSON）
 KB_PLAYBACK_TOKEN_KEY_TEMPLATE = "kb:playback:{token}"
 
+#: 异常拉取账号级滑动窗口键模板（zset，score=时间戳）
+KB_SECURITY_DENIED_KEY_TEMPLATE = "kb:security:denied:{user_id}"
+
+#: 异常拉取滑动窗口长度（秒）与告警阈值（窗口内拒绝次数达到即告警日志）
+KB_SECURITY_DENIED_WINDOW_SECONDS = 600
+KB_SECURITY_ALERT_THRESHOLD = 10
+
+#: 视频代理流分块大小（字节，代理透传的内存上界）
+KB_PLAYBACK_STREAM_CHUNK_BYTES = 65536
+
+#: 书页渲染缩放（144 DPI / PDF 逻辑 72 DPI）
+KB_BOOK_RENDER_SCALE = 2.0
+
+#: 干净页（未加水印）与 PDF 字节 LRU 容量上限
+KB_BOOK_PAGE_CACHE_PAGES = 24
+KB_BOOK_PDF_CACHE_FILES = 2
+
+#: 消费侧图片原图预签名 URL 时效（秒，需求 ≤15min；管理台 1h 口径不带入消费页）
+KB_IMAGE_ORIGINAL_URL_TTL_SECONDS = 900
+
 #: 知识库转写并发锁键（防多 worker 同时消化同一素材）
 KB_TRANSCRIBE_LOCK_KEY_TEMPLATE = "kb:lock:transcribe:{media_id}"
 

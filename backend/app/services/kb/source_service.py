@@ -17,7 +17,12 @@ from app.core.exceptions import ConflictError, NotFoundError
 from app.core.locking import redis_lock
 from app.models.kb import KbSource
 from app.repositories.kb import media_repository, source_repository
-from app.schemas.kb import KbSourceCreateRequest, KbSourceResponse, KbSourceUpdateRequest
+from app.schemas.kb import (
+    KbConsumerSourceResponse,
+    KbSourceCreateRequest,
+    KbSourceResponse,
+    KbSourceUpdateRequest,
+)
 from app.services.admin.audit_service import record_audit
 from app.services.kb import index_service
 
@@ -50,6 +55,20 @@ async def list_sources(session: AsyncSession) -> list[KbSourceResponse]:
     """知识库列表（隐藏软删行）。"""
     rows = await source_repository.list_sources(session)
     return [to_view(row) for row in rows]
+
+
+async def list_consumer_sources(
+    session: AsyncSession,
+) -> list[KbConsumerSourceResponse]:
+    """消费侧知识库列表：启用中且未软删（最小投影，批次 F0② 消费页）。"""
+    rows = await source_repository.list_sources(session)
+    return [
+        KbConsumerSourceResponse(
+            id=row.id, name=row.name, source_type=row.source_type
+        )
+        for row in rows
+        if row.enabled and row.deleted_at is None
+    ]
 
 
 async def get_source(session: AsyncSession, source_id: int) -> KbSource:

@@ -1,6 +1,6 @@
 """知识库消费侧 API 契约测试：admin/白名单权限门与检索/章节透传。"""
 
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -12,9 +12,11 @@ from app.dependencies import get_current_user, get_db
 from app.main import app
 from app.schemas.kb import (
     KbChapterPointsResponse,
+    KbPlaybackTokenResponse,
     KbPublishedChaptersResponse,
     KbSearchResponse,
 )
+from app.services.kb.playback_service import MediaStream
 
 
 @contextmanager
@@ -151,3 +153,195 @@ class TestKbConsumerEndpoints:
                 ).status_code
                 == 422
             )
+
+    def test_consumer_sources_minimal_projection(self, client: TestClient) -> None:
+        from app.schemas.kb import KbConsumerSourceResponse
+
+        with _as_user("user", 7, [7]):
+            payload = [
+                KbConsumerSourceResponse(id=3, name="课程库", source_type="course")
+            ]
+            with patch(
+                "app.api.v1.kb.source_service.list_consumer_sources",
+                new=AsyncMock(return_value=payload),
+            ):
+                response = client.get("/api/v1/kb/sources")
+        assert response.status_code == 200
+        body = response.json()
+        assert body == [{"id": 3, "name": "课程库", "sourceType": "course"}]
+
+    def test_plain_user_cannot_list_consumer_sources(self, client: TestClient) -> None:
+        with _as_user("user", 8, [7]):
+            response = client.get("/api/v1/kb/sources")
+        assert response.status_code == 403
+
+    def test_image_original_url_endpoint(self, client: TestClient) -> None:
+        from app.schemas.kb import KbImageUrlResponse
+
+        with _as_user("user", 7, [7]):
+            payload = KbImageUrlResponse(url="https://cos/signed", expires_in=900)
+            with patch(
+                "app.api.v1.kb.playback_service.issue_image_url",
+                new=AsyncMock(return_value=payload),
+            ) as mock_issue:
+                response = client.get("/api/v1/kb/images/5/original-url")
+            kwargs = mock_issue.await_args.kwargs
+            assert kwargs["image_id"] == 5
+        assert response.status_code == 200
+        body = response.json()
+        assert body["url"] == "https://cos/signed"
+        assert body["expiresIn"] == 900
+
+
+@pytest.mark.unit
+class TestKbPlaybackEndpoints:
+    """F1 播放凭证/代理流/书页/字幕端点契约。"""
+
+    def test_playback_token_camel_case_and_forwarding(
+        self, client: TestClient
+    ) -> None:
+        with _as_user("user", 7, [7]):
+            payload = KbPlaybackTokenResponse(
+                token="t" * 43,
+                expires_in=1800,
+                media_id=11,
+                prev_media_id=10,
+                next_media_id=12,
+            )
+            with patch(
+                "app.api.v1.kb.playback_service.issue_playback_token",
+                new=AsyncMock(return_value=payload),
+            ) as mock_issue:
+                response = client.post("/api/v1/kb/media/11/playback-token")
+            assert response.status_code == 200
+            body = response.json()
+            assert body["token"] == "t" * 43
+            assert body["expiresIn"] == 1800
+            assert body["prevMediaId"] == 10 and body["nextMediaId"] == 12
+            kwargs = mock_issue.await_args.kwargs
+            assert kwargs["user_id"] == 7 and kwargs["media_id"] == 11
+
+    def test_playback_token_denied_without_whitelist(
+        self, client: TestClient
+    ) -> None:
+        with _as_user("user", 7, []):
+            response = client.post("/api/v1/kb/media/11/playback-token")
+        assert response.status_code == 403
+
+    def test_stream_requires_token_query(self, client: TestClient) -> None:
+        with _as_user("admin", 1, []):
+            response = client.get(
+                "/api/v1/kb/stream/11", headers={"Range": "bytes=0-"}
+            )
+        assert response.status_code == 422
+
+    def test_stream_passthrough_206(self, client: TestClient) -> None:
+        async def _chunks() -> AsyncIterator[bytes]:
+            yield b"video-bytes"
+
+        stream = MediaStream(
+            content_type="video/mp4",
+            start=0,
+            end=10,
+            total=1000,
+            chunks=_chunks(),
+        )
+        with _as_user("admin", 1, []):
+            with patch(
+                "app.api.v1.kb.playback_service.open_media_stream",
+                new=AsyncMock(return_value=stream),
+            ) as mock_open:
+                response = client.get(
+                    "/api/v1/kb/stream/11",
+                    params={"token": "t" * 43},
+                    headers={"Range": "bytes=0-10"},
+                )
+            kwargs = mock_open.await_args.kwargs
+            assert kwargs["token"] == "t" * 43
+            assert kwargs["range_header"] == "bytes=0-10"
+        assert response.status_code == 206
+        assert response.headers["content-range"] == "bytes 0-10/1000"
+        assert response.headers["accept-ranges"] == "bytes"
+        assert response.content == b"video-bytes"
+
+    def test_book_page_png_response(self, client: TestClient) -> None:
+        with _as_user("user", 7, [7]):
+            with patch(
+                "app.api.v1.kb.playback_service.render_book_page",
+                new=AsyncMock(return_value=b"\x89PNG-data"),
+            ) as mock_render:
+                response = client.get(
+                    "/api/v1/kb/books/11/pages/3",
+                    params={"token": "t" * 43},
+                )
+            kwargs = mock_render.await_args.kwargs
+            assert kwargs["page_no"] == 3
+            assert kwargs["media_id"] == 11
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("image/png")
+        assert response.content == b"\x89PNG-data"
+
+    def test_stream_allows_no_bearer(self, client: TestClient) -> None:
+        """凭证即鉴权回归：无 Authorization 头也放行（<video> src 场景）。"""
+        async def _chunks() -> AsyncIterator[bytes]:
+            yield b"video-bytes"
+
+        stream = MediaStream(
+            content_type="video/mp4",
+            start=0,
+            end=10,
+            total=1000,
+            chunks=_chunks(),
+        )
+        mock_session = AsyncMock()
+
+        async def _override_get_db():
+            yield mock_session
+
+        app.dependency_overrides[get_db] = _override_get_db
+        try:
+            with patch(
+                "app.api.v1.kb.playback_service.open_media_stream",
+                new=AsyncMock(return_value=stream),
+            ):
+                response = client.get(
+                    "/api/v1/kb/stream/11",
+                    params={"token": "t" * 43},
+                    headers={"Range": "bytes=0-10"},
+                )
+        finally:
+            app.dependency_overrides.clear()
+        assert response.status_code == 206
+
+    def test_book_page_allows_no_bearer(self, client: TestClient) -> None:
+        """凭证即鉴权回归：书页位图无 Authorization 头也放行（<img> src 场景）。"""
+        mock_session = AsyncMock()
+
+        async def _override_get_db():
+            yield mock_session
+
+        app.dependency_overrides[get_db] = _override_get_db
+        try:
+            with patch(
+                "app.api.v1.kb.playback_service.render_book_page",
+                new=AsyncMock(return_value=b"\x89PNG-data"),
+            ):
+                response = client.get(
+                    "/api/v1/kb/books/11/pages/3",
+                    params={"token": "t" * 43},
+                )
+        finally:
+            app.dependency_overrides.clear()
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("image/png")
+
+    def test_subtitles_vtt_response(self, client: TestClient) -> None:
+        with _as_user("user", 7, [7]):
+            with patch(
+                "app.api.v1.kb.playback_service.build_subtitle_vtt",
+                new=AsyncMock(return_value="WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n支撑位\n"),
+            ):
+                response = client.get("/api/v1/kb/media/11/subtitles.vtt")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/vtt")
+        assert response.text.startswith("WEBVTT")

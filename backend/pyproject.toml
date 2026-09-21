@@ -72,6 +72,8 @@ dependencies = [
     "jieba>=0.42.1",
     "langchain-mcp-adapters>=0.3.2",
     "pgvector>=0.5.0",
+    "pypdfium2>=5.13.0",
+    "pillow>=12.3.0",
 ]
 
 [tool.uv]
@@ -135,6 +137,7 @@ module = [
     "kombu.*",
     "pandas.*",
     "playwright.*",
+    "pypdfium2.*",
 ]
 ignore_missing_imports = true
 disallow_untyped_defs = false
