@@ -183,9 +183,14 @@ async def _write_embeddings(
     """批量嵌入并按行写回 ``embedding``（executemany，随清脏同事务提交）。"""
     if not pairs:
         return 0
+    # 批次可能跨知识库：仅当全部行同源时记 sourceId（用量按库归集；跨源批不归集任何库）
+    source_ids = {media.source_id for _, media in pairs}
+    detail: dict[str, Any] = {"purpose": "kb_index", "phase": phase, "kind": spec.kind}
+    if len(source_ids) == 1:
+        detail["sourceId"] = source_ids.pop()
     vectors = await embed.embed_batched(
         [spec.text_of(entity) for entity, _ in pairs],
-        detail={"purpose": "kb_index", "phase": phase, "kind": spec.kind},
+        detail=detail,
     )
     await session.execute(
         update(spec.model),

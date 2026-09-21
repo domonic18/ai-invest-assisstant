@@ -225,6 +225,7 @@ export const ENDPOINTS = {
     setDefaultLLMConfig: (id: number | string) =>
       `${API_BASE}/admin/llm-configs/${id}/set-default`,
     kbSettings: `${API_BASE}/admin/kb/settings`,
+    kbUsage: `${API_BASE}/admin/kb/usage`,
     kbSources: `${API_BASE}/admin/kb/sources`,
     kbSource: (id: number | string) => `${API_BASE}/admin/kb/sources/${id}`,
     kbSourceRestore: (id: number | string) =>

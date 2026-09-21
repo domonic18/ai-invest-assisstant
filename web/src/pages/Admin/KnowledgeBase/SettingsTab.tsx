@@ -17,6 +17,7 @@ interface KbSettingsFormValues {
   segmentMaxSeconds: number
   asrConcurrency: number
   asrPerHour: number | null
+  vlmPerImage: number | null
   hotwords: string[]
 }
 
@@ -66,6 +67,10 @@ function toFormValues(settings: ApiKbSettingsResponse): KbSettingsFormValues {
       typeof settings.unitPrices?.asrPerHour === 'number'
         ? settings.unitPrices.asrPerHour
         : null,
+    vlmPerImage:
+      typeof settings.unitPrices?.vlmPerImage === 'number'
+        ? settings.unitPrices.vlmPerImage
+        : null,
     hotwords: settings.hotwords,
   }
 }
@@ -108,13 +113,14 @@ export function SettingsTab() {
   }, [settings, form])
 
   const handleSave = async (values: KbSettingsFormValues) => {
-    const { asrPerHour, ...rest } = values
+    const { asrPerHour, vlmPerImage, ...rest } = values
     try {
       await updateMutation.mutateAsync({
         ...rest,
         unitPrices: {
           ...(settings?.unitPrices ?? {}),
           ...(asrPerHour != null ? { asrPerHour } : {}),
+          ...(vlmPerImage != null ? { vlmPerImage } : {}),
         },
       })
       message.success('知识库设置已保存')
@@ -199,16 +205,25 @@ export function SettingsTab() {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="转写单价用于「预估费用」与实际用量核算；未配置时费用预估会显式拒绝"
+          message="转写单价用于「预估费用」与实际用量核算；未配置时费用预估会显式拒绝；视觉单价用于「用量看板 · 建库用量」的费用估算（可选）"
         />
-        <Form.Item
-          label="转写单价（元/小时）"
-          name="asrPerHour"
-          extra="ASR 按音频时长计费的单价，来自渠道刊例（如 asr-1.0）"
-          rules={[{ required: true, message: '请输入转写单价' }]}
-        >
-          <InputNumber min={0.01} step={0.1} style={{ width: 160 }} />
-        </Form.Item>
+        <Space wrap size="large">
+          <Form.Item
+            label="转写单价（元/小时）"
+            name="asrPerHour"
+            extra="ASR 按音频时长计费的单价，来自渠道刊例（如 asr-1.0）"
+            rules={[{ required: true, message: '请输入转写单价' }]}
+          >
+            <InputNumber min={0.01} step={0.1} style={{ width: 160 }} />
+          </Form.Item>
+          <Form.Item
+            label="视觉单价（元/图）"
+            name="vlmPerImage"
+            extra="插图理解按图片张数计费的单价；配置后用量面板展示视觉分项费用"
+          >
+            <InputNumber min={0.0001} step={0.01} style={{ width: 160 }} />
+          </Form.Item>
+        </Space>
       </Card>
 
       <Button type="primary" htmlType="submit" loading={updateMutation.isPending}>

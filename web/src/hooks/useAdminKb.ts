@@ -28,7 +28,7 @@ import {
   saveKbTranscript,
   updateKbSource,
 } from '@/api/adminKb'
-import { fetchKbSettings, publishKbChapters, updateKbSettings } from '@/api/adminKb'
+import { fetchKbSettings, fetchKbUsage, publishKbChapters, updateKbSettings } from '@/api/adminKb'
 import type {
   ApiKbChaptersPublishRequest,
   ApiKbConfirmCostRequest,
@@ -62,6 +62,22 @@ export function useUpdateKbSettings() {
   return useMutation({
     mutationFn: (data: ApiKbSettingsUpdateRequest) => updateKbSettings(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kb.settings }),
+  })
+}
+
+export function useKbUsage(
+  sourceId: number | null,
+  dateFrom: string | null,
+  dateTo: string | null
+) {
+  return useQuery({
+    queryKey: queryKeys.kb.usage(sourceId, dateFrom, dateTo),
+    queryFn: () =>
+      fetchKbUsage({
+        sourceId: sourceId ?? undefined,
+        dateFrom: dateFrom ?? undefined,
+        dateTo: dateTo ?? undefined,
+      }),
   })
 }
 

@@ -133,7 +133,7 @@ async def _infer_chapters(session: AsyncSession, config: Any) -> dict[str, int]:
             f"{json.dumps(outline_payload, ensure_ascii=False, indent=1)}"
         )
         try:
-            with meter_scope(None, FEATURE_KB_EXTRACT):
+            with meter_scope(None, FEATURE_KB_EXTRACT, detail={"sourceId": source.id}):
                 merged = await run_structured(
                     session, result_type=ChapterTreeDraft, user_prompt=prompt,
                     config_id=config.id,
@@ -170,7 +170,11 @@ async def _outline_for_media(
         " summary（一句话概括）。episode_no 固定输出 "
         f"{episode_no}。只依据文稿内容，不要编造。\n\n文稿：\n{numbered}"
     )
-    with meter_scope(None, FEATURE_KB_EXTRACT):
+    with meter_scope(
+        None,
+        FEATURE_KB_EXTRACT,
+        detail={"sourceId": media.source_id, "mediaId": media.id},
+    ):
         return await run_structured(
             session, result_type=EpisodeOutline, user_prompt=prompt,
             config_id=config.id,
@@ -247,7 +251,11 @@ async def _extract_points(session: AsyncSession, config: Any) -> dict[str, int]:
         try:
             raw_points: list[Any] = []
             for window in windows:
-                with meter_scope(None, FEATURE_KB_EXTRACT):
+                with meter_scope(
+                    None,
+                    FEATURE_KB_EXTRACT,
+                    detail={"sourceId": media.source_id, "mediaId": media.id},
+                ):
                     result = await run_structured(
                         session,
                         result_type=KbExtractionResult,

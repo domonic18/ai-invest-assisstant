@@ -108,6 +108,8 @@
 
 验收：用量分项与台账一致（抽样对账）；删库级联清理后检索无残留；需求 §9 一期行全部通过。
 
+> **交付记录（2026-09-21，G1/G1b/G2/G3 一期收口）**：G1 完成——`usage_service.py`（台账 `kb_*` 四分项 × 模型聚合 + ASR `process_meta.audio_seconds` × asrPerHour + 清洗 token 字符折算预估对照）+ `GET /admin/kb/usage`（query snake_case：`source_id/date_from/date_to`，北京日历日闭开区间）+ `cost_service.predict_clean_tokens` 公共化复用。G1b 完成——shared 三契约 + `fetchKbUsage`/`useKbUsage` + `UsagePanel.tsx`（源/日期过滤、分项表、ASR 汇总、预估 vs 实际对照）挂 SettingsTab；计价卡补 `vlmPerImage`（可选，视觉分项费用=调用次数×单价）。**走查发现并修复计量上下文缺口**：台账 `detail` 通道从未写入 `sourceId`（`meter_scope` 无 detail 形参、kb 五处调用点零上下文），按库过滤形同虚设——`MeterContext` 增 `detail` 字段贯通 usage_meter 入账，transcribe/extract/vision 调用点带 `{sourceId, mediaId}`，index 嵌入批次同源时记 sourceId（跨源批不归集）；单测钉死 detail 入账 + 容器内结构化调用实测行落 `{"sourceId":1,"mediaId":…}` 且 `?source_id=1` 命中。G2 复核——kb-cleanup */30 接线在位，SKIPPED 良性语义（锁忙/无积压）与失败归因单测 4 条绿；维护类豁免 F-MON（MAINTENANCE_EXEMPT）由域映射测试钉死；软删入口置脏 + 硬删 FK 级联，检索无投影残留。G3 走查——本地栈重建后 usage 端点全量对账（四分项 tokens/调用数与 SQL 逐一相符：clean 41/155,572、extract 300/1,502,624、vision 1219/1,670,176、embed 555/3,304,281；ASR 38 媒体 49,409.3s ¥34.312）、日期区间/未认证 401/vlmPerImage 视觉估算（1219×0.02=24.38）实测通过；质量门全绿（后端 2090 单测 + mypy + ruff；web 372 单测 + typecheck + lint + build）。偏差：query 参数按项目惯例 snake_case（arch 文档 `?sourceId=&from=&to=` 为示意记法）。遗留待办：浏览器播放器/阅读器黄金路径用户人工验收（批次 F 遗留，本地栈已就绪）；KB 上生产前需评估 SCF 900s/响应限制对 `/kb/stream` 长视频代理流的影响（本期本地栈不涉及）。
+
 ## 8. 批次 I · 课程视频关键帧通道（~2 人日）
 
 > 2026-09-19 追加（批次 D 验收后评审拍板，arch 12 §4.1）：转写仅消费音频，视频画面的盘面讲解（画线/指标/走势）不进知识库。轻量关键帧通道补齐该维度，帧图本身是检索交付物（搜图缩略图 + 时间码跳播）。MiniMax M3 整视频理解 token 成本 ~1fps 等效、远高于按张计费，记为二期评估备选（批次 H 后评估，不预建）。

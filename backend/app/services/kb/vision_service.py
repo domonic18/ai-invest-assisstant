@@ -364,7 +364,9 @@ async def _describe_frames(session: AsyncSession, config: Any) -> dict[str, int]
     )
     # 失败路径的 rollback 会使 ORM 实例过期——预先物化为纯数据，迭代内按 id 重取
     plan = [(row.id, media.id, row.start_ms or 0) for row, media in rows]
-    media_info = {media.id: (media.title, media.episode_no) for _, media in rows}
+    media_info = {
+        media.id: (media.title, media.episode_no, media.source_id) for _, media in rows
+    }
     minio = get_minio_service()
     current_media_id: int | None = None
     segments: list[tuple[int | None, int | None, str]] = []
@@ -378,9 +380,13 @@ async def _describe_frames(session: AsyncSession, config: Any) -> dict[str, int]
             if row is None or row.describe_status != "pending":
                 continue
             image_bytes = await minio.download_file(row.cos_key)
-            title, episode_no = media_info[media_id]
+            title, episode_no, source_id = media_info[media_id]
             prompt = _describe_prompt(title, episode_no, segments, start_ms)
-            with meter_scope(None, FEATURE_KB_VISION):
+            with meter_scope(
+                None,
+                FEATURE_KB_VISION,
+                detail={"sourceId": source_id, "mediaId": media_id},
+            ):
                 result = await run_structured(
                     session,
                     result_type=ImageUnderstanding,

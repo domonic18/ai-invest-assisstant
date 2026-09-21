@@ -188,6 +188,7 @@ class UsageMeterCallback(AsyncCallbackHandler):
                 completion_tokens=completion_tokens,
                 total_tokens=total,
                 estimated=estimated,
+                detail=state.ctx.detail,
             )
         )
 
