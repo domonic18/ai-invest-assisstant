@@ -8,7 +8,13 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, LLMResult
 
 from app.agent.runtime.usage_meter import UsageMeterCallback, _extract_usage
-from app.services.quota.constants import FEATURE_ASSISTANT, FEATURE_PAGE, OUTLET_BYOK, OUTLET_SYSTEM
+from app.services.quota.constants import (
+    FEATURE_ASSISTANT,
+    FEATURE_KB_CLEAN,
+    FEATURE_PAGE,
+    OUTLET_BYOK,
+    OUTLET_SYSTEM,
+)
 from app.services.quota.context import meter_scope
 from app.services.quota.quota_service import RESERVE_DEGRADED, RESERVE_DENIED
 from app.services.quota.usage_writer import UsageRecord
@@ -59,6 +65,27 @@ async def test_real_usage_settles_and_records() -> None:
     assert (record.prompt_tokens, record.completion_tokens, record.total_tokens) == (10, 5, 15)
     assert record.estimated is False
     assert callback._inflight == {}
+
+
+@pytest.mark.asyncio
+async def test_detail_context_lands_in_ledger_record() -> None:
+    """meter_scope 的域上下文（sourceId/mediaId）随台账行入队（用量按库归集）。"""
+    callback = UsageMeterCallback(outlet=OUTLET_SYSTEM, provider="openai", model_name="m1")
+    run_id = uuid.uuid4()
+    enqueued: list[UsageRecord] = []
+    with patch("app.agent.runtime.usage_meter.enqueue", side_effect=enqueued.append):
+        with meter_scope(
+            None, FEATURE_KB_CLEAN, detail={"sourceId": 1, "mediaId": 5}
+        ):
+            await callback.on_chat_model_start(
+                {}, [[HumanMessage(content="清洗文本")]], run_id=run_id
+            )
+            await callback.on_llm_end(_result_with_usage(10, 5), run_id=run_id)
+
+    assert len(enqueued) == 1
+    assert enqueued[0].user_id is None
+    assert enqueued[0].feature == FEATURE_KB_CLEAN
+    assert enqueued[0].detail == {"sourceId": 1, "mediaId": 5}
 
 
 @pytest.mark.asyncio

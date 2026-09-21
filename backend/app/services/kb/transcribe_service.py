@@ -134,7 +134,13 @@ async def _run(session: AsyncSession, row: KbMedia) -> None:
     segments = pipeline.group_sentences(
         merged, max_seconds=float(settings.segment_max_seconds)
     )
-    segments = await _clean_segments(session, segments, list(settings.hotwords or []))
+    segments = await _clean_segments(
+        session,
+        segments,
+        list(settings.hotwords or []),
+        media_id=row.id,
+        source_id=row.source_id,
+    )
 
     await media_repository.delete_segments(session, row.id)
     audio_seconds = sum(
@@ -283,7 +289,12 @@ async def _transcribe_with_retry(
 
 
 async def _clean_segments(
-    session: AsyncSession, segments: list[Sentence], hotwords: list[str]
+    session: AsyncSession,
+    segments: list[Sentence],
+    hotwords: list[str],
+    *,
+    media_id: int,
+    source_id: int,
 ) -> list[Sentence]:
     """LLM 清洗：只改错字/术语/语气词，seq 对应回填，不改时间轴。"""
     if not segments:
@@ -306,7 +317,9 @@ async def _clean_segments(
             "输入为编号句列表，输出 items 与输入等长且 seq 一一对应。\n\n"
             f"{numbered}"
         )
-        with meter_scope(None, FEATURE_KB_CLEAN):
+        with meter_scope(
+            None, FEATURE_KB_CLEAN, detail={"sourceId": source_id, "mediaId": media_id}
+        ):
             result = await run_structured(
                 session, result_type=KbTranscriptCleanResult, user_prompt=prompt,
                 config_id=config.id,
