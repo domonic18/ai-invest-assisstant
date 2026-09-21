@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/useAdminKb', () => ({
@@ -10,6 +10,45 @@ vi.mock('@/hooks/useKbSearch', () => ({
   useKbPublishedChapters: vi.fn(),
 }))
 
+vi.mock('@/api/kb', () => ({
+  fetchKbImageOriginalUrl: vi.fn(),
+}))
+
+vi.mock('./KnowledgePlayer', () => ({
+  KnowledgePlayer: (props: {
+    mediaId: number
+    mediaKind: string
+    title: string | null
+    initialSeekMs: number | null
+    hitIntervals: { startMs: number; endMs: number; label?: string }[]
+  }) => (
+    <div
+      data-testid="player-stub"
+      data-media={props.mediaId}
+      data-kind={props.mediaKind}
+      data-title={props.title ?? ''}
+      data-seek={props.initialSeekMs ?? 'null'}
+      data-intervals={JSON.stringify(props.hitIntervals)}
+    />
+  ),
+}))
+
+vi.mock('./BookReader', () => ({
+  BookReader: (props: {
+    mediaId: number
+    initialPageNo: number | null
+    hitPages: { pageNo: number; label?: string }[]
+  }) => (
+    <div
+      data-testid="reader-stub"
+      data-media={props.mediaId}
+      data-page={props.initialPageNo ?? 'null'}
+      data-pages={JSON.stringify(props.hitPages)}
+    />
+  ),
+}))
+
+import { fetchKbImageOriginalUrl } from '@/api/kb'
 import { useKbSources } from '@/hooks/useAdminKb'
 import { useKbPublishedChapters, useKbSearch } from '@/hooks/useKbSearch'
 import type { ApiKbSearchResponse } from '@ai-invest/shared'
@@ -19,6 +58,7 @@ import { SearchTab } from './SearchTab'
 const mockedSources = vi.mocked(useKbSources)
 const mockedChapters = vi.mocked(useKbPublishedChapters)
 const mockedSearch = vi.mocked(useKbSearch)
+const mockedOriginalUrl = vi.mocked(fetchKbImageOriginalUrl)
 
 const point = {
   id: 1,
@@ -43,6 +83,22 @@ const point = {
   frames: [
     { id: 9, startMs: 15_000, thumbUrl: 'https://signed/frame.jpg', caption: '支撑线画法' },
   ],
+} as ApiKbSearchResponse['points'][number]
+
+const bookPoint = {
+  ...point,
+  id: 2,
+  mediaId: 4,
+  mediaKind: 'book',
+  episodeNo: null,
+  mediaTitle: '蜡烛图技术',
+  pointType: 'concept',
+  title: '头肩顶形态',
+  startMs: null,
+  endMs: null,
+  pageStart: 42,
+  pageEnd: 43,
+  frames: [],
 } as ApiKbSearchResponse['points'][number]
 
 const segment = {
@@ -78,6 +134,14 @@ const fullResult: ApiKbSearchResponse = {
   degraded: null,
   points: [point],
   segments: [segment],
+  images: [image],
+}
+
+const bookResult: ApiKbSearchResponse = {
+  query: '头肩顶',
+  degraded: null,
+  points: [bookPoint],
+  segments: [],
   images: [image],
 }
 
@@ -169,15 +233,9 @@ describe('SearchTab', () => {
     expect(screen.getAllByText('第一章 / 形态')).toHaveLength(2)
   })
 
-  it('degraded alerts explain unavailability', async () => {
-    const { swap } = setup({ ...fullResult, degraded: 'es_unavailable' })
+  it('degraded alert explains embedding fallback', async () => {
+    setup({ ...fullResult, degraded: 'embedding_unavailable' })
     render(<SearchTab sourceId={1} onSourceChange={vi.fn()} />)
-    submitQuery()
-    await waitFor(() =>
-      expect(screen.getByText('检索服务暂不可用，请稍后再试')).toBeInTheDocument()
-    )
-
-    swap({ ...fullResult, degraded: 'embedding_unavailable' })
     submitQuery()
     await waitFor(() =>
       expect(screen.getByText('向量通道暂不可用，已降级为关键词检索')).toBeInTheDocument()
@@ -197,7 +255,89 @@ describe('SearchTab', () => {
     setup(undefined)
     render(<SearchTab sourceId={1} onSourceChange={vi.fn()} />)
     expect(
-      screen.getByText('输入关键词开始混合检索（BM25 + 向量双路召回）')
+      screen.getByText('输入关键词开始混合检索（关键词 + 向量双路召回）')
     ).toBeInTheDocument()
+  })
+
+  it('point locate launches player with pre-roll seek and merged hit intervals', async () => {
+    setup(fullResult)
+    render(<SearchTab sourceId={1} onSourceChange={vi.fn()} />)
+    submitQuery()
+    await waitFor(() => expect(screen.getByText('播放定位')).toBeInTheDocument())
+
+    fireEvent.click(screen.getAllByText('播放定位')[0])
+
+    const stub = screen.getByTestId('player-stub')
+    expect(stub.dataset.media).toBe('3')
+    expect(stub.dataset.kind).toBe('video')
+    expect(stub.dataset.title).toBe('均线入门课')
+    // 卡片前滚 4s（10000 − 4000）
+    expect(stub.dataset.seek).toBe('6000')
+    // 原文分段在前（9000）+ 卡片区间（10000–40000）
+    expect(JSON.parse(stub.dataset.intervals ?? '[]')).toEqual([
+      { startMs: 9000, endMs: 14000, label: undefined },
+      { startMs: 10000, endMs: 40000, label: '支撑线回踩买入' },
+    ])
+  })
+
+  it('segment locate launches player at server seekMs', async () => {
+    setup(fullResult)
+    render(<SearchTab sourceId={1} onSourceChange={vi.fn()} />)
+    submitQuery()
+    await waitFor(() => expect(screen.getByText('播放片段')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByText('播放片段'))
+
+    const stub = screen.getByTestId('player-stub')
+    expect(stub.dataset.media).toBe('3')
+    expect(stub.dataset.seek).toBe('5000')
+  })
+
+  it('book locate launches reader with initial page and hit pages', async () => {
+    setup(bookResult)
+    render(<SearchTab sourceId={1} onSourceChange={vi.fn()} />)
+    submitQuery()
+    await waitFor(() => expect(screen.getByText('阅读定位')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByText('阅读定位'))
+
+    const stub = screen.getByTestId('reader-stub')
+    expect(stub.dataset.media).toBe('4')
+    expect(stub.dataset.page).toBe('42')
+    // 书嵌图 pageNo 8 + 卡片 pageStart 42（按页码排序）
+    expect(JSON.parse(stub.dataset.pages ?? '[]')).toEqual([
+      { pageNo: 8, label: undefined },
+      { pageNo: 42, label: '头肩顶形态' },
+    ])
+  })
+
+  it('image original opens presigned modal', async () => {
+    setup(bookResult)
+    mockedOriginalUrl.mockResolvedValue({ url: 'https://signed/original.png', expiresIn: 900 })
+    render(<SearchTab sourceId={1} onSourceChange={vi.fn()} />)
+    submitQuery()
+    await waitFor(() => expect(screen.getByText('原图')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByText('原图'))
+
+    expect(mockedOriginalUrl).toHaveBeenCalledWith(8)
+    const dialog = await screen.findByRole('dialog')
+    expect(
+      within(dialog).getByAltText('头肩顶图示')
+    ).toHaveAttribute('src', 'https://signed/original.png')
+  })
+
+  it('consumerSources injection skips admin sources query', () => {
+    setup(undefined)
+    mockedSources.mockClear()
+    render(
+      <SearchTab
+        sourceId={1}
+        onSourceChange={vi.fn()}
+        consumerSources={[{ id: 1, name: '课', sourceType: 'course' }]}
+      />
+    )
+    expect(mockedSources).toHaveBeenCalledWith(false)
+    expect(screen.getByText('课（课程）')).toBeInTheDocument()
   })
 })

@@ -98,6 +98,7 @@ export const queryKeys = {
     all: ['kb'] as const,
     settings: ['kb', 'settings'] as const,
     sources: ['kb', 'sources'] as const,
+    consumerSources: ['kb', 'consumer-sources'] as const,
     media: (sourceId: number) => ['kb', 'media', sourceId] as const,
     transcript: (sourceId: number, mediaId: number) =>
       ['kb', 'transcript', sourceId, mediaId] as const,

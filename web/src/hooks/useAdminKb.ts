@@ -65,10 +65,11 @@ export function useUpdateKbSettings() {
   })
 }
 
-export function useKbSources() {
+export function useKbSources(enabled = true) {
   return useQuery({
     queryKey: queryKeys.kb.sources,
     queryFn: fetchKbSources,
+    enabled,
   })
 }
 

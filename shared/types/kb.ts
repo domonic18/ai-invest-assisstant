@@ -492,3 +492,26 @@ export interface ApiKbChapterPointsResponse {
   pageSize: number
   points: ApiKbBrowsePointItem[]
 }
+
+/** 播放凭证（prev/nextMediaId 供播放器切集；书素材携带 pageCount）。 */
+export interface ApiKbPlaybackToken {
+  token: string
+  expiresIn: number
+  mediaId: number
+  prevMediaId: number | null
+  nextMediaId: number | null
+  pageCount: number | null
+}
+
+/** 消费侧知识库条目（启用中库的最小投影）。 */
+export interface ApiKbConsumerSource {
+  id: number
+  name: string
+  sourceType: 'course' | 'book'
+}
+
+/** 图片原图短时效预签名 URL（≤15min，点击原图时签发）。 */
+export interface ApiKbImageUrl {
+  url: string
+  expiresIn: number
+}

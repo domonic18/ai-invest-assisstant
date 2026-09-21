@@ -171,8 +171,21 @@ export const ENDPOINTS = {
   },
   kb: {
     search: `${API_BASE}/kb/search`,
+    sources: `${API_BASE}/kb/sources`,
     sourceChapters: (sourceId: number | string) =>
       `${API_BASE}/kb/sources/${sourceId}/chapters`,
+    chapterPoints: (sourceId: number | string) =>
+      `${API_BASE}/kb/sources/${sourceId}/points`,
+    playbackToken: (mediaId: number | string) =>
+      `${API_BASE}/kb/media/${mediaId}/playback-token`,
+    stream: (mediaId: number | string, token: string) =>
+      `${API_BASE}/kb/stream/${mediaId}?token=${encodeURIComponent(token)}`,
+    bookPage: (mediaId: number | string, pageNo: number, token: string) =>
+      `${API_BASE}/kb/books/${mediaId}/pages/${pageNo}?token=${encodeURIComponent(token)}`,
+    subtitles: (mediaId: number | string) =>
+      `${API_BASE}/kb/media/${mediaId}/subtitles.vtt`,
+    imageOriginalUrl: (imageId: number | string) =>
+      `${API_BASE}/kb/images/${imageId}/original-url`,
   },
   admin: {
     // 集合根路由后端以 "/" 注册，常量保持同形避免依赖 307 重定向
