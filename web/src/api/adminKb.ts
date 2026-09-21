@@ -31,6 +31,7 @@ import type {
   ApiKbTranscriptUpdateRequest,
   ApiKbUploadSessionRequest,
   ApiKbUploadSessionResponse,
+  ApiKbUsageResponse,
 } from '@ai-invest/shared'
 import axios from 'axios'
 
@@ -50,6 +51,24 @@ export async function updateKbSettings(
     ENDPOINTS.admin.kbSettings,
     data
   )
+  return response.data
+}
+
+export async function fetchKbUsage(
+  params: {
+    sourceId?: number
+    dateFrom?: string
+    dateTo?: string
+  } = {}
+): Promise<ApiKbUsageResponse> {
+  // query 参数跟随后端签名 snake_case（source_id/date_from/date_to）
+  const response = await apiClient.get<ApiKbUsageResponse>(ENDPOINTS.admin.kbUsage, {
+    params: {
+      source_id: params.sourceId,
+      date_from: params.dateFrom,
+      date_to: params.dateTo,
+    },
+  })
   return response.data
 }
 

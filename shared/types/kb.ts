@@ -515,3 +515,38 @@ export interface ApiKbImageUrl {
   url: string
   expiresIn: number
 }
+
+/** 用量聚合：kb_* token 分项（feature ∈ kb_clean/kb_extract/kb_vision/kb_embed）。 */
+export interface ApiKbUsageTokenItem {
+  feature: string
+  modelName: string | null
+  calls: number
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  /** 仅视觉分项按 vlmPerImage × 调用次数估算 */
+  estimatedCost: number | null
+}
+
+/** 用量聚合：ASR 时长与费用（按时长计费，不走 token 台账）。 */
+export interface ApiKbUsageAsr {
+  mediaCount: number
+  audioSeconds: number
+  /** duration 登记口径合计（预估对照） */
+  estimatedSeconds: number
+  costPerHour: number | null
+  cost: number | null
+}
+
+/** 建库用量聚合响应（token 分项 + ASR + 预估对照，CNY）。 */
+export interface ApiKbUsageResponse {
+  sourceId: number | null
+  dateFrom: string | null
+  dateTo: string | null
+  currency: string
+  tokenItems: ApiKbUsageTokenItem[]
+  asr: ApiKbUsageAsr
+  cleanTokensPredicted: number
+  cleanTokensActual: number
+  totalCost: number
+}
