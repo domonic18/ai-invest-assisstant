@@ -1,6 +1,6 @@
 """知识库管理端点契约测试（/admin/kb/sources 与 /admin/kb/media）。"""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -8,7 +8,14 @@ from fastapi.testclient import TestClient
 
 from app.dependencies import get_current_admin_user, get_db
 from app.main import app
-from app.schemas.kb import KbUploadSessionPart, KbUploadSessionPartUrl, KbUploadSessionResponse
+from app.schemas.kb import (
+    KbUploadSessionPart,
+    KbUploadSessionPartUrl,
+    KbUploadSessionResponse,
+    KbUsageAsr,
+    KbUsageResponse,
+    KbUsageTokenItem,
+)
 
 _TS = datetime(2026, 9, 18, 12, 0, tzinfo=timezone.utc)
 
@@ -305,6 +312,81 @@ def test_cost_gate_routes(admin_client: tuple) -> None:
     assert p_conf.call_args.kwargs["actor_id"] == 1
 
 
+def test_usage_route(admin_client: tuple) -> None:
+    http, _ = admin_client
+    usage_resp = KbUsageResponse(
+        source_id=1,
+        date_from=date(2026, 9, 1),
+        date_to=date(2026, 9, 21),
+        token_items=[
+            KbUsageTokenItem(
+                feature="kb_clean",
+                model_name="minimax-m3",
+                calls=2,
+                prompt_tokens=1000,
+                completion_tokens=500,
+                total_tokens=4500,
+            ),
+            KbUsageTokenItem(
+                feature="kb_vision",
+                model_name="glm-4v",
+                calls=2,
+                prompt_tokens=1700,
+                completion_tokens=700,
+                total_tokens=2400,
+                estimated_cost=0.04,
+            ),
+        ],
+        asr=KbUsageAsr(
+            media_count=3,
+            audio_seconds=5460.5,
+            estimated_seconds=5400,
+            cost_per_hour=0.3,
+            cost=0.455,
+        ),
+        clean_tokens_predicted=14400,
+        clean_tokens_actual=4500,
+        total_cost=0.495,
+    )
+
+    with patch(
+        "app.services.kb.usage_service.get_usage",
+        new=AsyncMock(return_value=usage_resp),
+    ) as p_get:
+        resp = http.get(
+            "/api/v1/admin/kb/usage",
+            params={
+                "source_id": 1,
+                "date_from": "2026-09-01",
+                "date_to": "2026-09-21",
+            },
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["sourceId"] == 1 and body["dateFrom"] == "2026-09-01"
+    assert body["tokenItems"][0]["feature"] == "kb_clean"
+    assert body["tokenItems"][0]["totalTokens"] == 4500
+    assert body["tokenItems"][1]["estimatedCost"] == 0.04
+    assert body["asr"]["audioSeconds"] == 5460.5
+    assert body["cleanTokensPredicted"] == 14400
+    assert body["cleanTokensActual"] == 4500
+    assert body["totalCost"] == 0.495
+    # query 参数 snake_case 直传 FastAPI 签名，服务层 kwargs 原样转发
+    assert p_get.call_args.args[1:] == ()
+    assert p_get.call_args.kwargs == {
+        "source_id": 1,
+        "date_from": date(2026, 9, 1),
+        "date_to": date(2026, 9, 21),
+    }
+
+    with patch(
+        "app.services.kb.usage_service.get_usage",
+        new=AsyncMock(return_value=usage_resp),
+    ):
+        no_filter = http.get("/api/v1/admin/kb/usage")
+    assert no_filter.status_code == 200
+
+
 def test_transcript_routes(admin_client: tuple) -> None:
     http, _ = admin_client
     seg = MagicMock()
@@ -359,3 +441,4 @@ def test_kb_routes_require_admin(client) -> None:
     assert client.post(
         "/api/v1/admin/kb/cost-estimate", json={"sourceId": 1, "mediaIds": [1]}
     ).status_code in (401, 403)
+    assert client.get("/api/v1/admin/kb/usage").status_code in (401, 403)

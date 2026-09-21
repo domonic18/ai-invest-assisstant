@@ -32,6 +32,11 @@ _SPOKEN_CHARS_PER_SECOND = 4
 _CHARS_PER_TOKEN = 1.5
 
 
+def predict_clean_tokens(seconds: int | float) -> int:
+    """清洗 token 预估（≈4 字/秒、≈1.5 字/token，量级参考；用量对照复用）。"""
+    return math.ceil(seconds * _SPOKEN_CHARS_PER_SECOND / _CHARS_PER_TOKEN)
+
+
 async def _load_source_media(
     session: AsyncSession, source_id: int, media_ids: list[int]
 ) -> list[KbMedia]:
@@ -81,7 +86,7 @@ async def estimate_cost(
             continue
         seconds = row.duration_seconds or 0
         asr_cost = round(seconds / 3600 * asr_per_hour, 4)
-        clean_tokens = math.ceil(seconds * _SPOKEN_CHARS_PER_SECOND / _CHARS_PER_TOKEN)
+        clean_tokens = predict_clean_tokens(seconds)
         items.append(
             KbCostEstimateItem(
                 media_id=row.id,

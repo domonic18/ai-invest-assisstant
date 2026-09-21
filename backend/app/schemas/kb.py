@@ -11,7 +11,7 @@
   单一真相源对齐。
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -668,3 +668,47 @@ class KbImageUrlResponse(CamelModel):
 
     url: str
     expires_in: int
+
+
+# ---------------------------------------------------------------------------
+# 建库用量聚合（批次 G1，arch/12 §10.2）
+# ---------------------------------------------------------------------------
+
+
+class KbUsageTokenItem(CamelModel):
+    """台账 token 分项（feature × 模型聚合）。"""
+
+    feature: str
+    model_name: str | None = None
+    calls: int
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    #: 估算成本（仅视觉分项按 vlmPerImage × 调用次数；其余无单价键为 null）
+    estimated_cost: float | None = None
+
+
+class KbUsageAsr(CamelModel):
+    """ASR 用量（时长实际口径 = process_meta.audio_seconds）。"""
+
+    media_count: int
+    audio_seconds: float
+    #: 预估口径时长（duration_seconds 登记值合计，与实际对照）
+    estimated_seconds: float
+    cost_per_hour: float | None = None
+    cost: float | None = None
+
+
+class KbUsageResponse(CamelModel):
+    """建库用量聚合视图（token 分项 + ASR 时长 × 单价，预估 vs 实际对照）。"""
+
+    source_id: int | None = None
+    date_from: date | None = None
+    date_to: date | None = None
+    currency: str = "CNY"
+    token_items: list[KbUsageTokenItem]
+    asr: KbUsageAsr
+    #: 清洗 token 预估（字符折算公式）vs 实际（台账 kb_clean 合计）
+    clean_tokens_predicted: int
+    clean_tokens_actual: int
+    total_cost: float
