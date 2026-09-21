@@ -9,7 +9,7 @@ vi.mock('@/hooks/useAdminKb', () => ({
 import { useKbSources, useKbUsage } from '@/hooks/useAdminKb'
 import type { ApiKbUsageResponse } from '@ai-invest/shared'
 
-import { UsagePanel } from './UsagePanel'
+import { KbUsagePanel } from './KbUsagePanel'
 
 const mockedSources = vi.mocked(useKbSources)
 const mockedUsage = vi.mocked(useKbUsage)
@@ -51,30 +51,32 @@ const usage: ApiKbUsageResponse = {
   totalCost: 0.495,
 }
 
-describe('UsagePanel', () => {
-  it('渲染 token 分项表与 ASR/对照汇总', () => {
+describe('KbUsagePanel', () => {
+  it('渲染统计卡、分项表与 ASR/对照明细', () => {
     mockedSources.mockReturnValue({ data: [{ id: 1, name: '价值投资课' }] } as never)
     mockedUsage.mockReturnValue({ data: usage, isLoading: false } as never)
 
-    const { container } = render(<UsagePanel />)
+    const { container } = render(<KbUsagePanel />)
 
     expect(mockedUsage).toHaveBeenCalledWith(null, null, null)
-    // 分项表：feature 标签映射 + 数字千分位 + 视觉估算费用
+    // 统计卡：合计费用 / ASR 时长 / 已转写素材 / 清洗 token 预估/实际
+    expect(container.textContent).toContain('0.495')
+    expect(container.textContent).toContain('1.5') // 5460.5s ≈ 1.5 小时
+    expect(container.textContent).toContain('3')
+    expect(container.textContent).toContain('14,400 / 4,500')
+    // 分项表：feature 标签映射 + 千分位 + 视觉估算费用
     expect(screen.getByText('清洗')).toBeInTheDocument()
     expect(screen.getByText('视觉')).toBeInTheDocument()
     expect(screen.getByText('minimax-m3')).toBeInTheDocument()
     expect(screen.getByText('4,500')).toBeInTheDocument()
     expect(screen.getByText('2,400')).toBeInTheDocument()
     expect(screen.getByText('0.0400')).toBeInTheDocument()
-    // ASR 汇总
-    expect(screen.getByText('3 个')).toBeInTheDocument()
+    // ASR 明细
     expect(screen.getByText('0.3 元/小时')).toBeInTheDocument()
     expect(screen.getByText('0.455 元')).toBeInTheDocument()
-    // 预估 vs 实际对照（formatTokens 全文）
+    // 对照
     expect(screen.getByText(/14,400（约 1\.4 万）/)).toBeInTheDocument()
     expect(screen.getByText(/4,500（约 0\.5 万）/)).toBeInTheDocument()
-    // 合计
-    expect(container.textContent).toContain('合计费用：0.495 CNY')
   })
 
   it('单价未配置时费用项降级展示', () => {
@@ -82,18 +84,17 @@ describe('UsagePanel', () => {
     mockedUsage.mockReturnValue({
       data: {
         ...usage,
-        tokenItems: [
-          { ...usage.tokenItems[0], estimatedCost: null },
-        ],
+        tokenItems: [{ ...usage.tokenItems[0], estimatedCost: null }],
         asr: { ...usage.asr, costPerHour: null, cost: null },
         totalCost: 0,
       },
       isLoading: false,
     } as never)
 
-    const { container } = render(<UsagePanel />)
+    const { container } = render(<KbUsagePanel />)
 
     expect(screen.getByText('未配置')).toBeInTheDocument()
-    expect(container.textContent).toContain('合计费用：0 CNY')
+    expect(container.textContent).toContain('0.0000') // Statistic precision=4
+    expect(screen.getByText(/未配置单价/)).toBeInTheDocument()
   })
 })

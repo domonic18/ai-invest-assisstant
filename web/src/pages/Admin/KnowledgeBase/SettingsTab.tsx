@@ -7,8 +7,6 @@ import { useKbSettings, useUpdateKbSettings } from '@/hooks/useAdminKb'
 import { useLLMConfigs } from '@/hooks/useLLMConfigs'
 import type { LLMConfig } from '@ai-invest/shared'
 
-import { UsagePanel } from './UsagePanel'
-
 interface KbSettingsFormValues {
   embeddingConfigId: number | null
   cleanModelId: number | null
@@ -132,7 +130,6 @@ export function SettingsTab() {
   }
 
   return (
-    <>
     <Form
       form={form}
       layout="vertical"
@@ -208,7 +205,7 @@ export function SettingsTab() {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="转写单价用于「预估费用」与实际用量核算；未配置时费用预估会显式拒绝；视觉单价用于用量面板的费用估算（可选）"
+          message="转写单价用于「预估费用」与实际用量核算；未配置时费用预估会显式拒绝；视觉单价用于「用量看板 · 建库用量」的费用估算（可选）"
         />
         <Space wrap size="large">
           <Form.Item
@@ -233,7 +230,5 @@ export function SettingsTab() {
         保存设置
       </Button>
     </Form>
-    <UsagePanel />
-    </>
   )
 }

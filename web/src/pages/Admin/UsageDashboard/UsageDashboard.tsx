@@ -1,5 +1,5 @@
 import { DownOutlined } from '@ant-design/icons'
-import { Card, Col, Row, Segmented, Statistic, Table, Tag, Typography } from 'antd'
+import { Card, Col, Row, Segmented, Statistic, Table, Tabs, Tag, Typography } from 'antd'
 import type { TableColumnsType } from 'antd'
 import dayjs from 'dayjs'
 import ReactECharts from 'echarts-for-react'
@@ -11,6 +11,8 @@ import {
 } from '@ai-invest/shared'
 
 import { useAccountSettings, useUsageDashboard, useUsagePerUsers } from '@/hooks/useAdminAccount'
+
+import { KbUsagePanel } from './KbUsagePanel'
 
 const DAY_OPTIONS = [
   { label: '近 7 天', value: 7 },
@@ -35,6 +37,7 @@ function Sparkline({ daily }: { daily: ApiUsagePerUser['daily'] }) {
 
 export function UsageDashboard() {
   const [days, setDays] = useState(30)
+  const [scope, setScope] = useState<'global' | 'kb'>('global')
   const dashboardQ = useUsageDashboard(days)
   const perUsersQ = useUsagePerUsers(days)
   const settingsQ = useAccountSettings()
@@ -126,17 +129,31 @@ export function UsageDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <Typography.Title level={4} className="!mb-0">
-            用量看板
-          </Typography.Title>
-          <Typography.Paragraph type="secondary" className="!mt-1 !mb-0 text-xs">
-            全站 token 消耗趋势与成员明细（按北京时间聚合）；系统任务与自备 Key 调用计入统计但不占个人配额
-          </Typography.Paragraph>
-        </div>
-        <Segmented options={DAY_OPTIONS} value={days} onChange={(v) => setDays(v as number)} />
+      <div>
+        <Typography.Title level={4} className="!mb-0">
+          用量看板
+        </Typography.Title>
+        <Typography.Paragraph type="secondary" className="!mt-1 !mb-0 text-xs">
+          全站 token 消耗与知识库建库成本统一入口
+        </Typography.Paragraph>
       </div>
+
+      <Tabs
+        activeKey={scope}
+        onChange={(key) => setScope(key as 'global' | 'kb')}
+        items={[{ key: 'global', label: '全站用量' }, { key: 'kb', label: '建库用量' }]}
+      />
+
+      {scope === 'kb' ? (
+        <KbUsagePanel />
+      ) : (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <Typography.Text type="secondary" className="!mt-1 !mb-0 text-xs">
+            token 消耗趋势与成员明细（按北京时间聚合）；系统任务与自备 Key 调用计入统计但不占个人配额
+          </Typography.Text>
+          <Segmented options={DAY_OPTIONS} value={days} onChange={(v) => setDays(v as number)} />
+        </div>
 
       <Row gutter={[12, 12]}>
         <Col xs={12} md={6}>
@@ -233,6 +250,8 @@ export function UsageDashboard() {
           />
         )}
       </Card>
+      </div>
+      )}
     </div>
   )
 }
