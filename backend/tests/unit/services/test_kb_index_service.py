@@ -1,15 +1,13 @@
-"""索引服务单测：三类脏行增量推进、bootstrap/指纹校验、蓝绿重建（ES/embedding 全 mock）。"""
+"""嵌入物化服务单测：三类脏行增量推进、不可见行清向量、全量重嵌与维度护栏。"""
 
 from contextlib import ExitStack, asynccontextmanager
-from datetime import timedelta
-from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from elasticsearch import NotFoundError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.constants.kb import KB_EMBEDDING_DIMS
 from app.core.clock import utc_now
 from app.core.database import Base
 from app.models.kb import (
@@ -20,7 +18,6 @@ from app.models.kb import (
     KbTranscriptSegment,
 )
 from app.services.kb import index_service
-from app.services.kb.embedding_client import EmbeddingClient
 
 pytestmark = pytest.mark.unit
 
@@ -46,113 +43,34 @@ async def session():
 
 
 # ---------------------------------------------------------------------------
-# mock 工具：ES 客户端 / embedding httpx / redis 锁
+# mock 工具：embedding 客户端 stub / redis 锁
 # ---------------------------------------------------------------------------
 
 
-def _response(payload: dict[str, Any]) -> MagicMock:
-    resp = MagicMock()
-    resp.status_code = 200
-    resp.json.return_value = payload
-    resp.text = ""
-    return resp
+def _embed_stub(dims: int = KB_EMBEDDING_DIMS) -> MagicMock:
+    embed = MagicMock()
+    embed.discover_dims = AsyncMock(return_value=dims)
+
+    async def _batched(
+        texts: list[str], detail: dict[str, Any] | None = None, timeout: float | None = None
+    ) -> list[list[float]]:
+        return [[float(len(t) % 7 + 1)] * 8 for t in texts]
+
+    embed.embed_batched = AsyncMock(side_effect=_batched)
+    return embed
 
 
-def _payload(count: int, *, dim: int = 4) -> dict[str, Any]:
-    return {
-        "data": [
-            {"index": i, "embedding": [float(i)] * dim}
-            for i in reversed(range(count))
-        ],
-        "usage": {"prompt_tokens": 1, "total_tokens": 1},
-    }
-
-
-def _embed_client() -> EmbeddingClient:
-    return EmbeddingClient(
-        config_id=3,
-        provider="custom",
-        base_url="https://gw.example.com/v1",
-        api_key="sk-test",
-        model_name="embedding-3",
-    )
-
-
-def _es_mock(
-    *,
-    alias: dict[str, Any] | None = None,
-    alias_missing: bool = False,
-    fingerprint: str | None = None,
-    versions: dict[str, dict[str, Any]] | None = None,
-    count: int = 0,
-) -> MagicMock:
-    es = MagicMock()
-    es.indices = MagicMock()
-    es.indices.create = AsyncMock()
-    es.indices.update_aliases = AsyncMock()
-    es.indices.delete = AsyncMock()
-
-    async def _get_alias(name: str) -> dict[str, Any]:
-        if alias_missing:
-            meta = SimpleNamespace(
-                status=404, http_version="1.1", headers={}, duration=0.0
-            )
-            raise NotFoundError("alias missing", meta, {})
-        return alias or {}
-
-    es.indices.get_alias = AsyncMock(side_effect=_get_alias)
-
-    settings_map = dict(versions or {})
-    if fingerprint is not None:
-        settings_map["kb-knowledge-v1"] = {
-            "settings": {"index": {"creation_date": "1000"}}
-        }
-    mapping_map: dict[str, dict[str, Any]] = {}
-    if fingerprint is not None:
-        mapping_map["kb-knowledge-v1"] = {
-            "mappings": {"_meta": {"kb_fingerprint": fingerprint}}
-        }
-
-    async def _get(index: str) -> dict[str, Any]:
-        # 真实 API 返回 {索引名: body}；模式查询返回全部命中的同名映射
-        if index.endswith("*"):
-            return settings_map
-        return {index: settings_map.get(index, {})}
-
-    async def _get_mapping(index: str) -> dict[str, Any]:
-        return {index: mapping_map.get(index, {"mappings": {}})}
-
-    es.indices.get = AsyncMock(side_effect=_get)
-    es.indices.get_mapping = AsyncMock(side_effect=_get_mapping)
-    es.indices.refresh = AsyncMock()
-    es.count = AsyncMock(return_value={"count": count})
-    es.delete_by_query = AsyncMock()
-    es.close = AsyncMock()
-    return es
-
-
-def _patches(es: MagicMock, bulk: AsyncMock) -> list[Any]:
+def _patches(embed: MagicMock) -> list[Any]:
     @asynccontextmanager
     async def fake_lock(*args: Any, **kwargs: Any):
         yield True
 
-    post = AsyncMock(
-        side_effect=lambda url, **kw: _response(
-            payload=_payload(len(kw["json"]["input"]))
-        )
-    )
-    http_cls = MagicMock()
-    http_cls.return_value.__aenter__.return_value.post = post
     return [
         patch("app.services.kb.index_service.redis_lock", side_effect=fake_lock),
         patch(
             "app.services.kb.index_service.build_embedding_client",
-            new=AsyncMock(return_value=_embed_client()),
+            new=AsyncMock(return_value=embed),
         ),
-        patch("app.services.kb.index_service.AsyncElasticsearch", return_value=es),
-        patch("app.services.kb.index_service.async_bulk", new=bulk),
-        patch("app.services.kb.embedding_client.httpx.AsyncClient", http_cls),
-        patch("app.services.kb.embedding_client.enqueue", new=MagicMock()),
     ]
 
 
@@ -176,22 +94,21 @@ async def _seed_media(session: AsyncSession, *, deleted: bool = False) -> KbMedi
     return media
 
 
-def _bulk_actions(bulk: AsyncMock) -> list[dict[str, Any]]:
-    return [a for call in bulk.call_args_list for a in call.args[1]]
-
-
 # ---------------------------------------------------------------------------
-# 增量：三类脏行
+# 增量：可见行写向量、不可见行清向量
 # ---------------------------------------------------------------------------
 
 
-async def test_incremental_upserts_and_deletes_by_kind(session: AsyncSession) -> None:
+async def test_incremental_embeds_visible_and_clears_invisible(
+    session: AsyncSession,
+) -> None:
     media = await _seed_media(session)
     pub = KbKnowledgePoint(
         source_id=media.source_id,
         media_id=media.id,
         point_type="case",
         title="头肩顶案例",
+        term_definition="形态定义",
         body="颈线突破后的量度目标",
         excerpt="头肩顶",
         status="published",
@@ -236,39 +153,39 @@ async def test_incremental_upserts_and_deletes_by_kind(session: AsyncSession) ->
     session.add_all([pub, rej, seg, img_ok, img_ex])
     await session.commit()
 
-    bulk = AsyncMock(return_value=(0, []))
-    es = _es_mock(alias={"kb-knowledge-v1": {}}, fingerprint="3:embedding-3:4")
+    embed = _embed_stub()
     with ExitStack() as stack:
-        for p in _patches(es, bulk):
+        for p in _patches(embed):
             stack.enter_context(p)
         stats = await index_service.run_index(session)
 
-    assert stats["pointsIndexed"] == 1
-    assert stats["pointsDeleted"] == 1
-    assert stats["segmentsIndexed"] == 1
-    assert stats["imagesIndexed"] == 1
-    assert stats["imagesDeleted"] == 1
+    assert stats["pointsEmbedded"] == 1
+    assert stats["pointsCleared"] == 1
+    assert stats["segmentsEmbedded"] == 1
+    assert stats["imagesEmbedded"] == 1
+    assert stats["imagesCleared"] == 1
 
-    indexed = {
-        a["_id"]: a["_source"] for a in _bulk_actions(bulk) if a["_op_type"] == "index"
-    }
-    deleted = [a["_id"] for a in _bulk_actions(bulk) if a["_op_type"] == "delete"]
-    assert f"point-{pub.id}" in indexed
-    point_doc = indexed[f"point-{pub.id}"]
-    assert point_doc["doc_kind"] == "point"
-    assert point_doc["media_kind"] == "video"
-    assert "头肩顶案例" in point_doc["text"]
-    assert point_doc["embedding"] == [0.0, 0.0, 0.0, 0.0]
-    assert f"seg-{seg.id}" in indexed
-    assert f"img-{img_ok.id}" in indexed
-    assert {f"point-{rej.id}", f"img-{img_ex.id}"} == set(deleted)
+    # 嵌入输入口径：point 四字段拼接 / segment 原文 / image 三文本拼接
+    embedded_texts = [
+        t
+        for call in embed.embed_batched.call_args_list
+        for t in call.args[0]
+    ]
+    assert "头肩顶案例\n形态定义\n颈线突破后的量度目标" in embedded_texts
+    assert "支撑位与压力位互换" in embedded_texts
+    assert "头肩顶\n图注" in embedded_texts
 
     for row in (pub, rej, seg, img_ok, img_ex):
         await session.refresh(row)
         assert row.embedding_dirty is False
+    assert pub.embedding is not None and len(pub.embedding) == 8
+    assert seg.embedding is not None
+    assert img_ok.embedding is not None
+    assert rej.embedding is None
+    assert img_ex.embedding is None
 
 
-async def test_incremental_soft_deleted_media_routes_to_delete(
+async def test_incremental_soft_deleted_media_clears_vector(
     session: AsyncSession,
 ) -> None:
     media = await _seed_media(session, deleted=True)
@@ -285,26 +202,23 @@ async def test_incremental_soft_deleted_media_routes_to_delete(
     session.add(point)
     await session.commit()
 
-    bulk = AsyncMock(return_value=(0, []))
-    es = _es_mock(alias={"kb-knowledge-v1": {}}, fingerprint="3:embedding-3:4")
+    embed = _embed_stub()
     with ExitStack() as stack:
-        for p in _patches(es, bulk):
+        for p in _patches(embed):
             stack.enter_context(p)
         stats = await index_service.run_index(session)
 
-    assert stats["pointsIndexed"] == 0
-    assert stats["pointsDeleted"] == 1
-    actions = _bulk_actions(bulk)
-    assert [a["_id"] for a in actions] == [f"point-{point.id}"]
-    assert actions[0]["_op_type"] == "delete"
+    assert stats["pointsEmbedded"] == 0
+    assert stats["pointsCleared"] == 1
     await session.refresh(point)
     assert point.embedding_dirty is False
+    assert point.embedding is None
 
 
-async def test_incremental_disabled_source_routes_to_delete(
+async def test_incremental_disabled_source_clears_vector(
     session: AsyncSession,
 ) -> None:
-    """停用知识源的 published 点不进索引（arch/12 §7.1 enabled=false 口径）。"""
+    """停用知识源的 published 点不进检索面（arch/12 §7.1 enabled=false 口径）。"""
     media = await _seed_media(session)
     source = await session.get(KbSource, media.source_id)
     assert source is not None
@@ -322,55 +236,35 @@ async def test_incremental_disabled_source_routes_to_delete(
     session.add(point)
     await session.commit()
 
-    bulk = AsyncMock(return_value=(0, []))
-    es = _es_mock(alias={"kb-knowledge-v1": {}}, fingerprint="3:embedding-3:4")
+    embed = _embed_stub()
     with ExitStack() as stack:
-        for p in _patches(es, bulk):
+        for p in _patches(embed):
             stack.enter_context(p)
         stats = await index_service.run_index(session)
 
-    assert stats["pointsIndexed"] == 0
-    assert stats["pointsDeleted"] == 1
-    actions = _bulk_actions(bulk)
-    assert [a["_id"] for a in actions] == [f"point-{point.id}"]
-    assert actions[0]["_op_type"] == "delete"
+    assert stats["pointsEmbedded"] == 0
+    assert stats["pointsCleared"] == 1
 
 
-async def test_incremental_bootstraps_v1(session: AsyncSession) -> None:
-    media = await _seed_media(session)
-    session.add(
-        KbKnowledgePoint(
-            source_id=media.source_id,
-            media_id=media.id,
-            point_type="concept",
-            title="概念",
-            body="内容",
-            excerpt="摘",
-            status="published",
-            embedding_dirty=True,
-        )
-    )
-    await session.commit()
-
-    bulk = AsyncMock(return_value=(0, []))
-    es = _es_mock(alias_missing=True)
+async def test_incremental_nothing_dirty_skips_embed(session: AsyncSession) -> None:
+    embed = _embed_stub()
     with ExitStack() as stack:
-        for p in _patches(es, bulk):
+        for p in _patches(embed):
             stack.enter_context(p)
         stats = await index_service.run_index(session)
 
-    assert stats["pointsIndexed"] == 1
-    es.indices.create.assert_awaited_once()
-    kwargs = es.indices.create.call_args.kwargs
-    assert kwargs["index"] == "kb-knowledge-v1"
-    assert kwargs["mappings"]["_meta"] == {"kb_fingerprint": "3:embedding-3:4"}
-    assert kwargs["mappings"]["properties"]["embedding"]["dims"] == 4
-    es.indices.update_aliases.assert_awaited_once_with(
-        actions=[{"add": {"index": "kb-knowledge-v1", "alias": "kb-knowledge"}}]
-    )
+    assert stats["dirtyPoints"] == 0
+    assert stats["dirtySegments"] == 0
+    assert stats["dirtyImages"] == 0
+    embed.embed_batched.assert_not_awaited()
 
 
-async def test_incremental_fingerprint_mismatch_skips(session: AsyncSession) -> None:
+# ---------------------------------------------------------------------------
+# 维度护栏与全量重嵌
+# ---------------------------------------------------------------------------
+
+
+async def test_dimension_mismatch_skips(session: AsyncSession) -> None:
     media = await _seed_media(session)
     session.add(
         KbTranscriptSegment(
@@ -379,115 +273,59 @@ async def test_incremental_fingerprint_mismatch_skips(session: AsyncSession) -> 
     )
     await session.commit()
 
-    bulk = AsyncMock(return_value=(0, []))
-    es = _es_mock(alias={"kb-knowledge-v1": {}}, fingerprint="3:embedding-3:8")
+    embed = _embed_stub(dims=1024)
     with ExitStack() as stack:
-        for p in _patches(es, bulk):
+        for p in _patches(embed):
             stack.enter_context(p)
         stats = await index_service.run_index(session)
 
-    assert stats["fingerprintMismatch"] == 1
-    bulk.assert_not_awaited()
+    assert stats["dimensionMismatch"] == 1
+    assert stats["expectedDims"] == KB_EMBEDDING_DIMS
+    assert stats["actualDims"] == 1024
+    embed.embed_batched.assert_not_awaited()
     seg = await session.get(KbTranscriptSegment, 1)
     assert seg is not None
     assert seg.embedding_dirty is True
 
 
-async def test_incremental_nothing_dirty_skips_before_es(session: AsyncSession) -> None:
-    bulk = AsyncMock(return_value=(0, []))
-    es = _es_mock(alias_missing=True)
-    with ExitStack() as stack:
-        for p in _patches(es, bulk):
-            stack.enter_context(p)
-        stats = await index_service.run_index(session)
-
-    assert stats["nothingDirty"] == 1
-    bulk.assert_not_awaited()
-    es.indices.get_alias.assert_not_awaited()
-
-
-# ---------------------------------------------------------------------------
-# 蓝绿重建
-# ---------------------------------------------------------------------------
-
-
-async def test_rebuild_switches_alias_and_clears_stale_dirty(
-    session: AsyncSession,
-) -> None:
+async def test_force_rebuild_marks_all_and_drains(session: AsyncSession) -> None:
     media = await _seed_media(session)
-    old_point = KbKnowledgePoint(
+    clean_point = KbKnowledgePoint(
         source_id=media.source_id,
         media_id=media.id,
         point_type="theorem",
-        title="定理",
+        title="已物化卡",
         body="内容",
         excerpt="摘",
         status="published",
-        embedding_dirty=True,
-        updated_at=utc_now() - timedelta(days=1),
+        embedding_dirty=False,
+        embedding=[0.0] * 8,
     )
-    fresh_segment = KbTranscriptSegment(
+    dirty_segment = KbTranscriptSegment(
         source_id=media.source_id,
         media_id=media.id,
         seq_no=1,
-        text="重建期间的新编辑",
+        text="脏分段",
         embedding_dirty=True,
-        updated_at=utc_now() + timedelta(seconds=5),
     )
-    session.add_all([old_point, fresh_segment])
+    session.add_all([clean_point, dirty_segment])
     await session.commit()
 
-    bulk = AsyncMock(return_value=(0, []))
-    es = _es_mock(
-        alias={"kb-knowledge-v1": {}},
-        versions={
-            "kb-knowledge-v1": {"settings": {"index": {"creation_date": "1000"}}}
-        },
-        count=2,
-    )
+    embed = _embed_stub()
     with ExitStack() as stack:
-        for p in _patches(es, bulk):
+        for p in _patches(embed):
             stack.enter_context(p)
         stats = await index_service.run_index(session, force_rebuild=True)
 
-    assert stats["rebuildVersion"] == 2
-    assert stats["pointsIndexed"] == 1
-    assert stats["segmentsIndexed"] == 1
-    es.indices.create.assert_awaited_once()
-    assert es.indices.create.call_args.kwargs["index"] == "kb-knowledge-v2"
-    es.indices.update_aliases.assert_awaited_once_with(
-        actions=[
-            {"remove": {"index": "kb-knowledge-v1", "alias": "kb-knowledge"}},
-            {"add": {"index": "kb-knowledge-v2", "alias": "kb-knowledge"}},
-        ]
-    )
-    await session.refresh(old_point)
-    await session.refresh(fresh_segment)
-    assert old_point.embedding_dirty is False
-    assert fresh_segment.embedding_dirty is True
-
-
-async def test_rebuild_count_mismatch_raises(session: AsyncSession) -> None:
-    media = await _seed_media(session)
-    session.add(
-        KbKnowledgePoint(
-            source_id=media.source_id,
-            media_id=media.id,
-            point_type="concept",
-            title="概念",
-            body="内容",
-            excerpt="摘",
-            status="published",
-            embedding_dirty=True,
-        )
-    )
-    await session.commit()
-
-    bulk = AsyncMock(return_value=(0, []))
-    es = _es_mock(alias={"kb-knowledge-v1": {}}, count=99)
-    with ExitStack() as stack:
-        for p in _patches(es, bulk):
-            stack.enter_context(p)
-        with pytest.raises(index_service.KbIndexError, match="对账不符"):
-            await index_service.run_index(session, force_rebuild=True)
-    es.indices.update_aliases.assert_not_awaited()
+    assert stats["forceRebuild"] == 1
+    assert stats["phase"] == "rebuild"
+    assert stats["pointsEmbedded"] == 1
+    assert stats["segmentsEmbedded"] == 1
+    await session.refresh(clean_point)
+    await session.refresh(dirty_segment)
+    # 已物化行被重嵌覆写（旧 [0.0]*8 → stub 非零向量），脏标全清
+    assert clean_point.embedding is not None
+    assert any(v != 0.0 for v in clean_point.embedding)
+    assert clean_point.embedding_dirty is False
+    assert dirty_segment.embedding is not None
+    assert dirty_segment.embedding_dirty is False

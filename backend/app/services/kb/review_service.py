@@ -38,6 +38,7 @@ from app.schemas.kb import (
     KbPointsMergeRequest,
 )
 from app.services.admin.audit_service import record_audit
+from app.services.kb import extract_pipeline as xpipe
 from app.services.kb.source_service import get_source
 
 logger = structlog.get_logger(__name__)
@@ -75,11 +76,12 @@ async def publish_chapters(
     actor_id: int,
     ip: str | None = None,
 ) -> KbChaptersResponse:
-    """整棵发布：published 覆盖写并同步 draft（后续编辑基于已发布版本）。"""
+    """整棵发布：published 覆盖写并同步 draft，修剪存量卡的悬空章节引用。"""
     source = await get_source(session, source_id)
     _validate_tree(data.chapters)
     published = [node.model_dump() for node in data.chapters]
     source.chapter_tree = {"draft": published, "published": published}
+    pruned = await _prune_dangling_chapters(session, source_id, published)
     await record_audit(
         session,
         actor_id=actor_id,
@@ -87,14 +89,48 @@ async def publish_chapters(
         detail={
             "sourceId": source_id,
             "topLevelCount": len(data.chapters),
+            "prunedPoints": pruned,
         },
         ip=ip,
     )
     await session.commit()
-    logger.info("kb_chapters_published", source_id=source_id, admin_id=actor_id)
+    logger.info(
+        "kb_chapters_published",
+        source_id=source_id, admin_id=actor_id, pruned_points=pruned,
+    )
     return KbChaptersResponse(
         draft=_to_nodes(published), published=_to_nodes(published)
     )
+
+
+async def _prune_dangling_chapters(
+    session: AsyncSession, source_id: int, published: list[dict[str, Any]]
+) -> int:
+    """重发布后清理悬空引用：chapter_path 修剪到最长合法前缀，变更卡置脏。"""
+    valid = xpipe.chapter_id_paths(published)
+    rows = (
+        (
+            await session.execute(
+                select(KbKnowledgePoint).where(
+                    KbKnowledgePoint.source_id == source_id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    pruned = 0
+    for row in rows:
+        old_path = [str(p) for p in row.chapter_path or []]
+        if not old_path:
+            continue
+        new_path = xpipe.valid_chapter_prefix(old_path, valid)
+        if new_path != old_path:
+            row.chapter_path = new_path
+            if row.status == KbPointStatus.PUBLISHED:
+                row.embedding_dirty = True
+            pruned += 1
+    return pruned
 
 
 def _to_nodes(raw: Any) -> list[KbChapterNode] | None:

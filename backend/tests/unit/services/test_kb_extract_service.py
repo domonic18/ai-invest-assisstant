@@ -12,7 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.clock import utc_now
 from app.core.database import Base
 from app.core.exceptions import UnprocessableEntityError
-from app.models.kb import KbKnowledgePoint, KbMedia, KbSource, KbTranscriptSegment
+from app.models.kb import (
+    KbKnowledgePoint,
+    KbMedia,
+    KbSettings,
+    KbSource,
+    KbTranscriptSegment,
+)
 from app.schemas.kb import (
     ChapterNodeDraft,
     ChapterTreeDraft,
@@ -37,6 +43,7 @@ async def session():
                 KbMedia.__table__,
                 KbTranscriptSegment.__table__,
                 KbKnowledgePoint.__table__,
+                KbSettings.__table__,
             ],
         )
     maker = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
@@ -52,6 +59,7 @@ async def _seed_media(
     status: str = "done",
     extracted: bool = False,
     with_draft: bool = False,
+    published: bool = False,
     process_meta: dict[str, Any] | None = None,
 ) -> KbMedia:
     src = KbSource(source_type="course", name="课")
@@ -60,6 +68,15 @@ async def _seed_media(
             "draft": [{"id": "1", "title": "已推章节", "children": []}],
             "published": None,
         }
+    if published:
+        tree = [
+            {
+                "id": "1",
+                "title": "价值篇",
+                "children": [{"id": "1.1", "title": "复利", "children": []}],
+            }
+        ]
+        src.chapter_tree = {"draft": tree, "published": tree}
     db.add(src)
     await db.flush()
     media = KbMedia(
@@ -142,8 +159,10 @@ async def test_infer_chapters_merges_outlines_into_draft(session: AsyncSession) 
     assert structured.await_count == 2
 
 
-async def test_extract_points_creates_draft_rows(session: AsyncSession) -> None:
-    media = await _seed_media(session, with_draft=True)
+async def test_extract_points_auto_publishes_clean_and_escalates_rest(
+    session: AsyncSession,
+) -> None:
+    media = await _seed_media(session, published=True)
     src_id = media.source_id
     existing = KbKnowledgePoint(
         source_id=src_id,
@@ -164,6 +183,8 @@ async def test_extract_points_creates_draft_rows(session: AsyncSession) -> None:
                 title="安全边际",
                 body="正文",
                 point_type="concept",
+                confidence="high",
+                chapter_path=["1", "1.1"],
                 term_definition=None,
                 applicable_scene=None,
                 excerpt="第1句原文",
@@ -175,6 +196,8 @@ async def test_extract_points_creates_draft_rows(session: AsyncSession) -> None:
                 title="幻觉点",
                 body="正文",
                 point_type="case",
+                confidence="low",
+                chapter_path=["9"],
                 term_definition=None,
                 applicable_scene=None,
                 excerpt="文稿中不存在的摘抄",
@@ -191,8 +214,13 @@ async def test_extract_points_creates_draft_rows(session: AsyncSession) -> None:
 
     assert stats["mediasExtracted"] == 1
     assert stats["pointsCreated"] == 2
+    assert stats["autoPublished"] == 1
+    assert stats["escalated"] == 1
     row = await session.get(KbMedia, media.id)
     assert row.extracted_at is not None
+    assert row.process_meta["extractSummary"] == {
+        "points": 2, "autoPublished": 1, "escalated": 1,
+    }
     points = (
         (
             await session.execute(
@@ -204,16 +232,40 @@ async def test_extract_points_creates_draft_rows(session: AsyncSession) -> None:
     )
     by_title = {p.title: p for p in points}
     hit = by_title["安全边际"]
-    assert hit.status == "draft"
+    # 全绿卡（时间码/摘录锚定/归章/置信度全过）自动发布并即刻置索引脏
+    assert hit.status == "published"
     assert hit.needs_review is False
+    assert hit.review_note is None
+    assert hit.embedding_dirty is True
+    assert hit.chapter_path == ["1", "1.1"]
     assert hit.related_ids == [existing.id]
-    assert by_title["幻觉点"].needs_review is True
+    escalated = by_title["幻觉点"]
+    assert escalated.status == "draft"
+    assert escalated.needs_review is True
+    assert escalated.embedding_dirty is False
+    assert "摘录未命中文稿（幻觉风险）" in escalated.review_note
+    assert "模型置信度 low" in escalated.review_note
+    assert "案例卡需人工复核" in escalated.review_note
+    # 悬空章节根被修剪为空并升级
+    assert escalated.chapter_path == []
     # 单窗 180s 只调一次 LLM
     assert structured.await_count == 1
 
 
+async def test_extract_waits_for_published_tree(session: AsyncSession) -> None:
+    await _seed_media(session, with_draft=True)
+    structured = AsyncMock()
+    patches = _patches(structured)
+    with patches["lock"], patches["resolve_role"], patches["structured"]:
+        stats = await extract_service.run_extraction(session)
+
+    assert stats["awaitingChapterPublish"] == 1
+    assert stats["mediasExtracted"] == 0
+    structured.assert_not_awaited()
+
+
 async def test_extract_failure_records_attempts(session: AsyncSession) -> None:
-    media = await _seed_media(session, with_draft=True)
+    media = await _seed_media(session, published=True)
     media_id = media.id
     structured = AsyncMock(side_effect=RuntimeError("模型超时"))
     patches = _patches(structured)
@@ -230,7 +282,7 @@ async def test_extract_failure_records_attempts(session: AsyncSession) -> None:
 async def test_extract_skips_media_after_max_attempts(session: AsyncSession) -> None:
     await _seed_media(
         session,
-        with_draft=True,
+        published=True,
         process_meta={"extractAttempts": 3, "extractError": "旧错"},
     )
     structured = AsyncMock()

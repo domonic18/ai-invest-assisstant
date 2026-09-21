@@ -35,7 +35,6 @@ class NewsDocument(Base):
     industry_tags: Mapped[list[str] | None] = mapped_column(
         ARRAY(String(50)), nullable=True
     )
-    elasticsearch_doc_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     extra: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB().with_variant(JSON(), "sqlite"),
         default=dict,

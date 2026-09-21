@@ -14,7 +14,7 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 
 - **前端**: React 18.3+ + TypeScript 5.4+ + Vite 5.2+ + React Router 6.23+ + TanStack Query + Zustand + ECharts + AntV/G6 + D3 + Tailwind CSS
 - **后端**: Python 3.10+ + FastAPI 0.111+ + SQLAlchemy 2.0+ + Alembic + Pydantic 2.7+ + LangChain/deepagents
-- **数据存储**: PostgreSQL/TimescaleDB + Redis + Elasticsearch + COS（S3 兼容对象存储）
+- **数据存储**: PostgreSQL/TimescaleDB（含 pg_trgm 全文 / pgvector 向量检索）+ Redis + COS（S3 兼容对象存储）
 - **消息队列**: Celery + Redis
 - **部署**: Docker + Docker Compose + 腾讯云 SCF（SPA + API 同源一体镜像）+ 轻量服务器（数据与采集任务）+ COS（文件）
 

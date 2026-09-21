@@ -100,7 +100,6 @@ def _news_mock() -> SimpleNamespace:
         sentiment=None,
         keywords=None,
         industry_tags=None,
-        elasticsearch_doc_id=None,
         extra={},
         created_at=datetime(2024, 1, 1, 0, 0, 0),
     )

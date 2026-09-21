@@ -35,9 +35,6 @@ class Settings(BaseSettings):
     celery_task_default_queue: str = "collector.batch"
     celery_result_expires: int = 3600
 
-    # Elasticsearch
-    elasticsearch_url: str = "http://localhost:9200"
-
     # 后台服务状态探测（GET /admin/system/status）单服务超时（秒）
     status_probe_timeout: float = 3.0
 

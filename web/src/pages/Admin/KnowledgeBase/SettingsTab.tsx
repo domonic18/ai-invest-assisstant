@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Form, InputNumber, Select, Space, message } from 'antd'
+import { Alert, Button, Card, Form, InputNumber, Select, Space, Switch, message } from 'antd'
 import { useEffect } from 'react'
 
 import type { ApiKbSettingsResponse, LlmPurpose } from '@ai-invest/shared'
@@ -13,6 +13,7 @@ interface KbSettingsFormValues {
   extractModelId: number | null
   visionModelId: number | null
   topK: number
+  autoApprovePoints: boolean
   segmentMaxSeconds: number
   asrConcurrency: number
   asrPerHour: number | null
@@ -58,6 +59,7 @@ function toFormValues(settings: ApiKbSettingsResponse): KbSettingsFormValues {
     extractModelId: settings.extractModelId,
     visionModelId: settings.visionModelId,
     topK: settings.topK,
+    autoApprovePoints: settings.autoApprovePoints,
     segmentMaxSeconds: settings.segmentMaxSeconds,
     asrConcurrency: settings.asrConcurrency,
     asrPerHour:
@@ -173,6 +175,14 @@ export function SettingsTab() {
             extra="转写分片并发请求上限"
           >
             <InputNumber min={1} max={8} style={{ width: 120 }} />
+          </Form.Item>
+          <Form.Item
+            label="全绿卡自动发布"
+            name="autoApprovePoints"
+            valuePropName="checked"
+            extra="开启后抽取卡无升级理由（时间码/摘录/归章/置信度全过）时直接发布；关闭则全部进人工审核"
+          >
+            <Switch />
           </Form.Item>
         </Space>
         <Form.Item

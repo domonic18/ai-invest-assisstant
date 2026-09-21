@@ -8,8 +8,8 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.file_metadata import FileMetadata
-from app.services.common.knowledge_base_service import KnowledgeBaseService
 from app.services.common.minio_service import MinIOService
+from app.services.common.pdf_text import extract_pdf_text
 from collector.core.base import get_engine
 
 logger = structlog.get_logger()
@@ -18,19 +18,14 @@ _FILE_CATEGORY = "financial_report"
 
 
 class FinancialReportStore:
-    """把财报 PDF 存入 MinIO、元数据写入数据库并索引到知识库。
+    """把财报 PDF 存入 MinIO、元数据与全文写入 PostgreSQL。
 
     存储过程具备容错性：元数据始终先持久化到 PostgreSQL，管理员可以看到
-    采集到了什么。MinIO 与知识库失败只记录日志，不阻塞数据库记录。
+    采集到了什么。MinIO 与全文抽取失败只记录日志，不阻塞数据库记录。
     """
 
-    def __init__(
-        self,
-        minio: MinIOService,
-        kb: KnowledgeBaseService,
-    ):
+    def __init__(self, minio: MinIOService):
         self.minio = minio
-        self.kb = kb
 
     async def save_many(self, items: list[dict[str, Any]]) -> tuple[int, list[str]]:
         """持久化全部条目，返回保存数量与错误信息列表。"""
@@ -50,7 +45,6 @@ class FinancialReportStore:
                     logger.warning("financial_report_store_item_failed", error=msg)
                     errors.append(msg)
             await session.commit()
-        await self.kb.close()
         return stored, errors
 
     async def _save_one(
@@ -63,7 +57,6 @@ class FinancialReportStore:
         publish_date: date = item["publish_date"]
         report_type: str = item["report_type"]
         file_bytes: bytes = item["file_bytes"]
-        source_url: str = item["source_url"]
         title: str = item["title"]
 
         file_ext = item.get("file_type") or "pdf"
@@ -115,28 +108,12 @@ class FinancialReportStore:
             errors.append(msg)
 
         try:
-            doc_id = hashlib.sha256(source_url.encode()).hexdigest()
-            content = await self.kb.extract_text(file_bytes, file_ext)
-            await self.kb.index_document(
-                doc_id=doc_id,
-                stock_code=stock_code,
-                title=title,
-                source_url=source_url,
-                publish_date=publish_date,
-                report_type=report_type,
-                file_type=file_ext,
-                file_size=file_size,
-                minio_path=object_name,
-                content=content,
-                extra={
-                    "file_metadata_id": file_record.id,
-                    "announcement_id": item.get("announcement_id"),
-                    "org_id": item.get("org_id"),
-                },
-            )
+            content = await extract_pdf_text(file_bytes)
+            if content:
+                file_record.content = content
         except Exception as exc:  # noqa: BLE001
-            msg = f"Knowledge base indexing failed for {object_name}: {exc}"
-            logger.warning("financial_report_kb_index_failed", error=msg)
+            msg = f"PDF text extraction failed for {object_name}: {exc}"
+            logger.warning("financial_report_text_extract_failed", error=msg)
             errors.append(msg)
 
     def _object_name(

@@ -57,7 +57,7 @@ class KbDescribeStatus(str, Enum):
 
 
 class KbDocKind(str, Enum):
-    """ES kb-knowledge 索引的三类文档。"""
+    """三类检索行（检索接口 kind 过滤值）。"""
 
     POINT = "point"
     SEGMENT = "segment"
@@ -75,6 +75,9 @@ class KbPurpose(str, Enum):
 #: 软删恢复窗口（过窗后 kb-cleanup 异步清理）
 KB_SOFT_DELETE_RECOVERY_HOURS = 24
 
+#: 检索列向量维度（halfvec 列类型钉死；换维度 = 列迁移 + 索引重建 + 全量重嵌）
+KB_EMBEDDING_DIMS = 2048
+
 #: 分片上传会话最大保留天数（超龄由 kb-cleanup abort 释放已传分片）
 KB_UPLOAD_SESSION_MAX_AGE_DAYS = 7
 
@@ -87,6 +90,26 @@ KB_PLAYBACK_TOKEN_TTL_SECONDS = 1800
 
 #: 播放凭证 Redis 键模板（值为 {userId, mediaId} JSON）
 KB_PLAYBACK_TOKEN_KEY_TEMPLATE = "kb:playback:{token}"
+
+#: 异常拉取账号级滑动窗口键模板（zset，score=时间戳）
+KB_SECURITY_DENIED_KEY_TEMPLATE = "kb:security:denied:{user_id}"
+
+#: 异常拉取滑动窗口长度（秒）与告警阈值（窗口内拒绝次数达到即告警日志）
+KB_SECURITY_DENIED_WINDOW_SECONDS = 600
+KB_SECURITY_ALERT_THRESHOLD = 10
+
+#: 视频代理流分块大小（字节，代理透传的内存上界）
+KB_PLAYBACK_STREAM_CHUNK_BYTES = 65536
+
+#: 书页渲染缩放（144 DPI / PDF 逻辑 72 DPI）
+KB_BOOK_RENDER_SCALE = 2.0
+
+#: 干净页（未加水印）与 PDF 字节 LRU 容量上限
+KB_BOOK_PAGE_CACHE_PAGES = 24
+KB_BOOK_PDF_CACHE_FILES = 2
+
+#: 消费侧图片原图预签名 URL 时效（秒，需求 ≤15min；管理台 1h 口径不带入消费页）
+KB_IMAGE_ORIGINAL_URL_TTL_SECONDS = 900
 
 #: 知识库转写并发锁键（防多 worker 同时消化同一素材）
 KB_TRANSCRIBE_LOCK_KEY_TEMPLATE = "kb:lock:transcribe:{media_id}"
@@ -133,17 +156,11 @@ KB_VISION_DESCRIBE_BATCH_SIZE = 20
 #: 关键帧抽帧半窗（秒，取 t±2s 中较清晰的一帧）
 KB_VISION_SEEK_TOLERANCE_SECONDS = 2
 
-#: ES 索引别名（应用代码唯一可见名，物理索引 kb-knowledge-v{N} 蓝绿轮换）
-KB_INDEX_ALIAS = "kb-knowledge"
-
 #: kb-index 任务级互斥锁键
 KB_INDEX_LOCK_KEY = "kb:lock:index"
 
-#: kb-index 单轮各类文档的批量上限（控制单轮时长与嵌入请求节奏，余量下轮续跑）
+#: kb-index 单轮各类行的批量上限（控制单轮时长与嵌入请求节奏，余量下轮续跑）
 KB_INDEX_BATCH_SIZE = 500
-
-#: 蓝绿重建后未挂别名旧索引的保留天数（回退观察窗，过期清理）
-KB_INDEX_PRUNE_DAYS = 7
 
 #: 视觉指涉句正则（文稿引导采样路：命中句取句中点时刻）
 KB_VISION_GUIDE_PATTERNS = (

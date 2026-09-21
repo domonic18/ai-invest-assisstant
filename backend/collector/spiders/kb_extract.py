@@ -62,11 +62,17 @@ class KbExtractCollector(BaseCollector):
             )
         done = stats.get("chaptersInferred", 0) + stats.get("mediasExtracted", 0)
         if done == 0:
+            message = "没有可抽取素材（转写未完成或已抽取）"
+            if stats.get("awaitingChapterPublish"):
+                message = (
+                    f"{stats['awaitingChapterPublish']} 个素材等待目录树发布"
+                    "（章节推断完成后请在管理端审核发布）"
+                )
             return CollectResult(
                 source=self.source,
                 data_type=self.data_type,
                 status=CollectStatus.SKIPPED,
-                message="没有可抽取素材（转写未完成或已抽取）",
+                message=message,
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
                 metadata=stats,

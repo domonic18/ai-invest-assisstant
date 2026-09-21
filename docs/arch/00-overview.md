@@ -39,7 +39,7 @@
 
 - **接入层**：SCF Web 函数自定义域名 invest.17aitech.com（已备案），SPA 与 API 同源一体（单 uvicorn 进程一体镜像 :9000），助手对话进程内承载
 - **API 层**：SCF Web 函数（FastAPI 一体镜像），SSE 流式输出；长任务（>900s）与需固定出口 IP 的采集爬虫留置轻量服务器执行
-- **数据与任务层**：轻量服务器承载 postgres/timescale、redis、elasticsearch 与 Celery 采集调度（`collector_task` 表为调度真相源）
+- **数据与任务层**：轻量服务器承载 postgres/timescale、redis 与 Celery 采集调度（`collector_task` 表为调度真相源）
 - **文件存储**：COS（S3 兼容端点），兼作 pg_dump 定时备份目标
 - **镜像发布**：GitHub Actions 构建推送 TCR，服务器/SCF 拉取部署，详见 [06-deployment.md](./06-deployment.md)
 
@@ -82,8 +82,8 @@
                                            ▼
 ┌────────────────────────────────────────────────────────────────────────────────────┐
 │ 数据层                                                                             │
-│ PostgreSQL/Timescale（结构化 + 时序）│ Redis（缓存 / broker / 分布式锁）           │
-│ Elasticsearch（全文检索）│ COS（研报/财报 PDF · 知识库文件）                       │
+│ PostgreSQL/Timescale（结构化 + 时序 + 全文/向量检索）│ Redis（缓存/broker/锁）   │
+│ COS（研报/财报 PDF · 知识库文件）                                                  │
 └────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -97,7 +97,7 @@
 | **数据采集** | 自研 collector runtime + Celery + httpx/akshare/curl_cffi | 轻量服务器 Celery 双 worker（realtime+batch / heavy 并发=1） | 声明式 TaskSpec 注册表（33 任务）+ 多渠道 fallback |
 | **可视化** | ECharts + AntV/G6 v5 + D3.js | 前端打包至 web-api 镜像 | 产业链图谱(G6)、K线/竞价(ECharts)、板块河流/排名(D3/ECharts) |
 | **结构化存储** | PostgreSQL + TimescaleDB | 轻量服务器 Docker | 时序行情数据高效存储 |
-| **搜索引擎** | Elasticsearch | 轻量服务器 Docker | 公告/新闻全文检索 + 知识库 |
+| **全文/向量检索** | PostgreSQL（pg_trgm + pgvector halfvec HNSW） | 轻量服务器 Docker | 研报/财报全文与知识库混合检索同库，零独立搜索引擎运维 |
 | **文件存储** | COS (S3 兼容) | 腾讯云 COS | PDF 财报/研报对象存储，兼作 pg_dump 备份目标 |
 | **缓存/队列** | Redis | 轻量服务器 Docker | 热数据缓存、Session、Celery broker、分布式锁 |
 | **AI Agent** | deepagents (LangChain/LangGraph) + YAML Prompts + Skills + MCP | web-api 进程内 | OpenAI/Anthropic 双协议统一模型工厂 |
@@ -308,8 +308,8 @@ ai-invest-assisstant/
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ 数据存储                                                                   │
 │ PostgreSQL/Timescale：行情 / 股池 / 资金流 / 财务 / 全球指标 /             │
-│ 日历事件 / 调度元数据                                                      │
-│ Elasticsearch：新闻与公告全文索引 · COS：研报/财报 PDF 文件                │
+│ 日历事件 / 调度元数据 / 新闻公告与研报财报全文（pg_trgm）/                  │
+│ 知识库向量（pgvector halfvec HNSW）· COS：研报/财报 PDF 文件               │
 └────────────────────────────────────────────────────────────────────────────┘
                                      查询│
                                        ▼

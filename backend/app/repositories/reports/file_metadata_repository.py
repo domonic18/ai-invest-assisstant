@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from app.models.file_metadata import FileMetadata
 from app.repositories.base import BaseRepository
@@ -21,6 +22,7 @@ class FileMetadataRepository(BaseRepository[FileMetadata]):
         """指定类型中 created_at 早于 cutoff 的全部行。"""
         result = await self.execute(
             select(FileMetadata)
+            .options(defer(FileMetadata.content))
             .where(FileMetadata.file_type == file_type)
             .where(FileMetadata.created_at < cutoff)
             .order_by(FileMetadata.created_at.asc())
@@ -43,9 +45,10 @@ class FileMetadataRepository(BaseRepository[FileMetadata]):
         """返回分页的文件元数据，支持可选筛选条件。
 
         ``q_stock_codes`` 是与关键词同义匹配到的股票代码集合（名称/代码模糊命中），
-        与标题匹配取 OR，使搜索同时覆盖标题、股票名称和代码。
+        与标题匹配取 OR，使搜索同时覆盖标题、股票名称和代码。列表查询 defer
+        ``content``（PDF 全文可达 MB 级，避免列表拖带）。
         """
-        stmt = select(FileMetadata).order_by(
+        stmt = select(FileMetadata).options(defer(FileMetadata.content)).order_by(
             FileMetadata.report_date.desc().nullslast(),
             FileMetadata.created_at.desc(),
         )

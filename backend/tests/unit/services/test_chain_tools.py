@@ -3,7 +3,7 @@
 import inspect
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -144,20 +144,39 @@ class TestQueryFinancialData:
 @pytest.mark.unit
 class TestSearchVectorKb:
     @pytest.mark.asyncio
-    async def test_falls_back_to_research_news_when_es_unavailable(self) -> None:
+    async def test_file_fulltext_hit(self) -> None:
+        """file_metadata 全文命中时直接返回，不落兜底。"""
+        file_result = MagicMock()
+        file_result.all.return_value = [
+            ("2023年年度报告", "营业收入同比增长", date(2024, 3, 31))
+        ]
+        session = AsyncMock()
+        session.execute.return_value = file_result
+
+        rows = await db_tools.search_vector_kb(session, "营业收入")
+
+        assert rows == [
+            {
+                "title": "2023年年度报告",
+                "content": "营业收入同比增长",
+                "publish_date": "2024-03-31",
+            }
+        ]
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_research_news_when_no_files(self) -> None:
+        """全文无命中时回退 news_document 研报标题/摘要。"""
         publish = datetime(2026, 7, 20, tzinfo=timezone.utc)
+        file_result = MagicMock()
+        file_result.all.return_value = []
         news_result = MagicMock()
         news_result.all.return_value = [
             ("research", "半导体行业深度", "国产替代加速", publish)
         ]
         session = AsyncMock()
-        session.execute.return_value = news_result
+        session.execute.side_effect = [file_result, news_result]
 
-        with patch(
-            "app.services.common.knowledge_base_service.get_knowledge_base_service",
-            side_effect=Exception("es down"),
-        ):
-            rows = await db_tools.search_vector_kb(session, "半导体 产业链")
+        rows = await db_tools.search_vector_kb(session, "半导体 产业链")
 
         assert rows == [
             {

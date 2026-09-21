@@ -37,7 +37,7 @@
                                     │
               ┌─────────────────────┴──────────────────────────┐
               │          腾讯云轻量应用服务器                    │
-              │     PostgreSQL + Redis + ES + MinIO + Milvus   │
+              │     PostgreSQL + Redis + MinIO (COS)          │
               └────────────────────────────────────────────────┘
 ```
 
@@ -50,7 +50,7 @@
 | Web 前端 | React 18, TypeScript, Vite |
 | 微信小程序 | Taro 4, React, ec-canvas |
 | 可视化 | ECharts, AntV/G6, D3.js |
-| 存储 | PostgreSQL(TimescaleDB), Elasticsearch, MinIO, Milvus |
+| 存储 | PostgreSQL(TimescaleDB, 含 pg_trgm/pgvector 检索), MinIO |
 | AI Agent | PydanticAI / OpenAI Agents SDK + MCP + Skills |
 | 部署 | 腾讯云 SCF + 轻量应用服务器 |
 | Python 包管理 | uv |
@@ -81,7 +81,7 @@ crawler/
 ├── CLAUDE.md                   # 项目级 AI 上下文
 ├── backend/CLAUDE.md           # 后端 AI 上下文
 ├── web/CLAUDE.md               # 前端 AI 上下文
-├── docker-compose.yml          # 本地开发全栈编排（含 PostgreSQL/Redis/Elasticsearch/MinIO）
+├── docker-compose.yml          # 本地开发全栈编排（含 PostgreSQL/Redis/MinIO）
 ├── docker-compose.prod.yml     # 生产服务器编排（无 MinIO，文件存储走 COS）
 └── Makefile                    # 常用开发命令
 ```
@@ -90,7 +90,7 @@ crawler/
 
 项目根目录提供两个独立的 Docker Compose 文件：
 
-- `docker-compose.yml`：本地开发全栈（含 PostgreSQL、Redis、Elasticsearch、MinIO）
+- `docker-compose.yml`：本地开发全栈（含 PostgreSQL、Redis、MinIO）
 - `docker-compose.prod.yml`：生产服务器（无 MinIO，文件存储使用腾讯云 COS）
 
 ```bash
@@ -118,7 +118,7 @@ docker build -t collector:latest -f docker/collector/Dockerfile .
 # 一键安装依赖（后端 uv sync + 前端 npm install + 创建 .env）
 make setup
 
-# 启动基础设施（PostgreSQL、Redis、Elasticsearch、MinIO）
+# 启动基础设施（PostgreSQL、Redis、MinIO）
 make infra
 
 # 后端（新终端）

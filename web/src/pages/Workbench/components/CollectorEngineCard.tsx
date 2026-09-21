@@ -9,7 +9,7 @@ import { FoldCard } from './FoldCard'
 
 interface CollectorEngineCardProps {
   status?: CollectorEngineStatus | null
-  /** 依赖服务探测结果（PostgreSQL/Redis/Elasticsearch/MinIO），空时隐藏状态条。 */
+  /** 依赖服务探测结果（PostgreSQL/Redis/MinIO），空时隐藏状态条。 */
   systemStatus?: SystemStatus | null
   loading?: boolean
   className?: string

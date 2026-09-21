@@ -238,27 +238,6 @@ services:
     networks:
       - app-network
 
-  elasticsearch:
-    image: elasticsearch:8.13.0
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    ports:
-      - "${ELASTICSEARCH_PORT:-9200}:9200"
-    volumes:
-      - ./workspace/elasticsearch:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
-    restart: unless-stopped
-    logging: *logging
-    networks:
-      - app-network
-
   minio:
     image: minio/minio:RELEASE.2025-10-15T17-29-55Z
     command: server /data --console-address ":9001"

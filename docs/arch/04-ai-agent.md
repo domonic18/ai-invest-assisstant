@@ -304,15 +304,15 @@ result = await skill_runtime.invoke_structured(agent, user_prompt, ChainAnalysis
 
 ## 7. 知识检索
 
-LLM 上下文供给走三类检索，未引入向量库：
+LLM 上下文供给走三类检索：
 
 | 检索路径 | 载体 | 场景 |
 |----------|------|------|
 | 结构化查询 | PostgreSQL（`agent/tools/db_tools`） | 行情/财务/股池/产业链数据注入 prompt |
-| 全文检索 | Elasticsearch | 新闻/公告语义关键词召回 |
+| 全文检索 | PostgreSQL（`news_document` + `file_metadata.content`，pg_trgm；知识库走 halfvec HNSW + trgm 混合检索，见 arch/12 §7） | 新闻/公告/研报/财报关键词召回 |
 | 文档直读 | COS（PDF）+ `file_metadata.summary` 缓存摘要 | 研报/财报摘要 Skill |
 
-> 如未来需要文档级语义检索（Embedding + 向量库），再行评估引入，当前规模下结构化 + 全文检索已满足分析类 Skill 的上下文需求。
+> 独立检索引擎（Elasticsearch）与独立向量库均未引入：检索全部落 PostgreSQL 扩展（pg_trgm + pgvector），当前规模下同库运维面最小。
 
 ## 8. 调用方式
 

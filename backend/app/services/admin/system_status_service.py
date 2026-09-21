@@ -1,4 +1,4 @@
-"""后台服务连接状态探测：并发检查 PostgreSQL / Redis / Elasticsearch / MinIO。
+"""后台服务连接状态探测：并发检查 PostgreSQL / Redis / MinIO。
 
 任一服务探测失败只降级该项（status=down + error），不影响其他项；
 单服务探测超时由 ``settings.status_probe_timeout`` 控制，避免端点被
@@ -12,7 +12,6 @@ from datetime import datetime, timezone
 
 import sqlalchemy as sa
 import structlog
-from elasticsearch import AsyncElasticsearch
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import get_redis
@@ -24,7 +23,7 @@ logger = structlog.get_logger(__name__)
 
 
 class SystemStatusService:
-    """探测 web-api 运行依赖的存储/缓存/搜索/对象存储连通性。"""
+    """探测 web-api 运行依赖的存储/缓存/对象存储连通性。"""
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -34,7 +33,6 @@ class SystemStatusService:
         items = await asyncio.gather(
             self._probe("postgres", "PostgreSQL", self._check_postgres),
             self._probe("redis", "Redis", self._check_redis),
-            self._probe("elasticsearch", "Elasticsearch", self._check_elasticsearch),
             self._probe("minio", "MinIO", self._check_minio),
         )
         overall = "operational" if all(i.status == "up" for i in items) else "degraded"
@@ -76,16 +74,6 @@ class SystemStatusService:
     async def _check_redis(self) -> str:
         """PING 探测（复用容错客户端的连接超时配置）。"""
         return "PONG" if await get_redis().ping() else "no reply"
-
-    async def _check_elasticsearch(self) -> str:
-        """短生命周期客户端探测集群版本，用后即关。"""
-        timeout = get_settings().status_probe_timeout
-        client = AsyncElasticsearch(get_settings().elasticsearch_url)
-        try:
-            info = await client.options(request_timeout=timeout).info()
-            return f"v{info['version']['number']}"
-        finally:
-            await client.close()
 
     async def _check_minio(self) -> str:
         """校验默认 bucket 可达（bucket 缺失在 detail 中标注，不判为连接故障）。"""

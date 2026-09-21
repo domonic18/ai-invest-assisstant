@@ -1,10 +1,11 @@
-import { SearchOutlined } from '@ant-design/icons'
+import { PlayCircleOutlined, ReadOutlined, SearchOutlined } from '@ant-design/icons'
 import {
   Alert,
   Button,
   Card,
   Empty,
   Input,
+  Modal,
   Segmented,
   Select,
   Space,
@@ -12,6 +13,7 @@ import {
   Tooltip,
   Tree,
   Typography,
+  message,
 } from 'antd'
 import type { DataNode } from 'antd/es/tree'
 import { useEffect, useMemo, useState } from 'react'
@@ -19,13 +21,19 @@ import type { ReactNode } from 'react'
 
 import type {
   ApiKbChapterNode,
+  ApiKbConsumerSource,
   ApiKbSearchImageHit,
   ApiKbSearchPointHit,
+  ApiKbSearchResponse,
   ApiKbSearchSegmentHit,
 } from '@ai-invest/shared'
 
+import { fetchKbImageOriginalUrl } from '@/api/kb'
 import { useKbSources } from '@/hooks/useAdminKb'
 import { useKbPublishedChapters, useKbSearch } from '@/hooks/useKbSearch'
+
+import { BookReader, type ReaderHitPage } from './BookReader'
+import { KnowledgePlayer, type PlayerHitInterval } from './KnowledgePlayer'
 
 const POINT_TYPE_LABELS: Record<string, string> = {
   concept: '概念',
@@ -114,7 +122,15 @@ function buildTree(
   })
 }
 
-function PointHitCard({ hit, terms }: { hit: ApiKbSearchPointHit; terms: string[] }) {
+function PointHitCard({
+  hit,
+  terms,
+  onLocate,
+}: {
+  hit: ApiKbSearchPointHit
+  terms: string[]
+  onLocate?: (hit: ApiKbSearchPointHit) => void
+}) {
   return (
     <Card size="small" className="border-white/10 bg-white/[0.03]">
       <div className="flex flex-wrap items-center gap-2">
@@ -150,6 +166,17 @@ function PointHitCard({ hit, terms }: { hit: ApiKbSearchPointHit; terms: string[
           {pointPosition(hit)}
           {hit.mediaTitle ? ` · ${hit.mediaTitle}` : ''}
         </Typography.Text>
+        {onLocate && (
+          <Button
+            size="small"
+            type="primary"
+            ghost
+            icon={hit.mediaKind === 'book' ? <ReadOutlined /> : <PlayCircleOutlined />}
+            onClick={() => onLocate(hit)}
+          >
+            {hit.mediaKind === 'book' ? '阅读定位' : '播放定位'}
+          </Button>
+        )}
         {hit.frames.length > 0 && (
           <div className="ml-auto flex gap-1.5">
             {hit.frames.map((frame) => (
@@ -175,7 +202,15 @@ function PointHitCard({ hit, terms }: { hit: ApiKbSearchPointHit; terms: string[
   )
 }
 
-function SegmentHitRow({ hit, terms }: { hit: ApiKbSearchSegmentHit; terms: string[] }) {
+function SegmentHitRow({
+  hit,
+  terms,
+  onLocate,
+}: {
+  hit: ApiKbSearchSegmentHit
+  terms: string[]
+  onLocate?: (hit: ApiKbSearchSegmentHit) => void
+}) {
   return (
     <div className="rounded border border-white/10 bg-white/[0.03] px-3 py-2">
       <div className="mb-1 flex items-center gap-2">
@@ -184,6 +219,17 @@ function SegmentHitRow({ hit, terms }: { hit: ApiKbSearchSegmentHit; terms: stri
           第 {hit.episodeNo ?? '?'} 集 {fmtClock(hit.startMs)}–{fmtClock(hit.endMs)}
           {hit.mediaTitle ? ` · ${hit.mediaTitle}` : ''}
         </Typography.Text>
+        {onLocate && (
+          <Button
+            size="small"
+            type="primary"
+            ghost
+            icon={<PlayCircleOutlined />}
+            onClick={() => onLocate(hit)}
+          >
+            播放片段
+          </Button>
+        )}
         <span className="ml-auto text-xs text-[#8a8f98]">RRF {hit.score.toFixed(4)}</span>
       </div>
       <Typography.Paragraph className="!mb-0 text-xs">
@@ -193,7 +239,17 @@ function SegmentHitRow({ hit, terms }: { hit: ApiKbSearchSegmentHit; terms: stri
   )
 }
 
-function ImageHitCard({ hit, terms }: { hit: ApiKbSearchImageHit; terms: string[] }) {
+function ImageHitCard({
+  hit,
+  terms,
+  onLocate,
+  onViewOriginal,
+}: {
+  hit: ApiKbSearchImageHit
+  terms: string[]
+  onLocate?: (hit: ApiKbSearchImageHit) => void
+  onViewOriginal?: (hit: ApiKbSearchImageHit) => void
+}) {
   const position =
     hit.mediaKind === 'book'
       ? `第 ${hit.pageNo ?? '?'} 页`
@@ -219,21 +275,103 @@ function ImageHitCard({ hit, terms }: { hit: ApiKbSearchImageHit; terms: string[
       <Typography.Paragraph ellipsis={{ rows: 2 }} className="!mb-1 text-xs">
         {highlight(hit.caption ?? hit.textInImage ?? '（无图注）', terms)}
       </Typography.Paragraph>
-      <Typography.Text type="secondary" className="text-xs">
-        {position}
-      </Typography.Text>
+      <div className="flex items-center justify-between">
+        <Typography.Text type="secondary" className="text-xs">
+          {position}
+        </Typography.Text>
+        <Space size={4}>
+          {onLocate && (
+            <Button
+              size="small"
+              type="link"
+              className="!p-0 !text-xs"
+              icon={hit.mediaKind === 'book' ? <ReadOutlined /> : <PlayCircleOutlined />}
+              onClick={() => onLocate(hit)}
+            >
+              {hit.mediaKind === 'book' ? '阅读此页' : '播放帧'}
+            </Button>
+          )}
+          {onViewOriginal && (
+            <Button
+              size="small"
+              type="link"
+              className="!p-0 !text-xs"
+              onClick={() => onViewOriginal(hit)}
+            >
+              原图
+            </Button>
+          )}
+        </Space>
+      </div>
     </Card>
   )
+}
+
+interface PlayerLaunch {
+  mediaId: number
+  mediaKind: 'video' | 'audio'
+  title: string | null
+  episodeNo: number | null
+  initialSeekMs: number | null
+  hitIntervals: PlayerHitInterval[]
+}
+
+interface ReaderLaunch {
+  mediaId: number
+  title: string | null
+  initialPageNo: number | null
+  hitPages: ReaderHitPage[]
+}
+
+/** 聚合当前结果里同素材的视频/音频命中区间（卡片 + 原文分段），供进度条高亮。 */
+function buildIntervalsFor(result: ApiKbSearchResponse, mediaId: number): PlayerHitInterval[] {
+  const intervals: PlayerHitInterval[] = []
+  for (const point of result.points) {
+    if (point.mediaId === mediaId && point.mediaKind !== 'book' && point.startMs != null) {
+      intervals.push({ startMs: point.startMs, endMs: point.endMs ?? point.startMs, label: point.title })
+    }
+  }
+  for (const segment of result.segments) {
+    if (segment.mediaId === mediaId && segment.startMs != null) {
+      intervals.push({ startMs: segment.startMs, endMs: segment.endMs ?? segment.startMs })
+    }
+  }
+  return intervals.sort((a, b) => a.startMs - b.startMs)
+}
+
+/** 聚合同书命中页（卡片 pageStart + 书嵌图 pageNo），Map 去重保先到标签。 */
+function buildPagesFor(result: ApiKbSearchResponse, mediaId: number): ReaderHitPage[] {
+  const byPage = new Map<number, ReaderHitPage>()
+  for (const point of result.points) {
+    if (point.mediaId === mediaId && point.mediaKind === 'book' && point.pageStart != null) {
+      byPage.set(point.pageStart, { pageNo: point.pageStart, label: point.title })
+    }
+  }
+  for (const image of result.images) {
+    if (
+      image.mediaId === mediaId &&
+      image.mediaKind === 'book' &&
+      image.pageNo != null &&
+      !byPage.has(image.pageNo)
+    ) {
+      byPage.set(image.pageNo, { pageNo: image.pageNo })
+    }
+  }
+  return [...byPage.values()].sort((a, b) => a.pageNo - b.pageNo)
 }
 
 export function SearchTab({
   sourceId,
   onSourceChange,
+  consumerSources,
 }: {
   sourceId: number | null
   onSourceChange: (id: number | null) => void
+  /** 消费页注入白名单可见知识库（跳过管理台全量源查询）。 */
+  consumerSources?: ApiKbConsumerSource[]
 }) {
-  const { data: sources } = useKbSources()
+  const { data: adminSources } = useKbSources(consumerSources == null)
+  const sources = consumerSources ?? adminSources
   const [input, setInput] = useState('')
   const [kind, setKind] = useState<string | null>(null)
   const [selectedChapter, setSelectedChapter] = useState<string[]>([])
@@ -241,6 +379,10 @@ export function SearchTab({
 
   const { data: chaptersData } = useKbPublishedChapters(sourceId)
   const { data: result, isLoading } = useKbSearch(submitted)
+
+  const [player, setPlayer] = useState<PlayerLaunch | null>(null)
+  const [reader, setReader] = useState<ReaderLaunch | null>(null)
+  const [original, setOriginal] = useState<{ url: string; caption: string | null } | null>(null)
 
   const { treeData, keyToPath } = useMemo(() => {
     const map = new Map<string, string[]>()
@@ -267,6 +409,77 @@ export function SearchTab({
     const q = input.trim()
     if (!q) return
     setSubmitted({ q, sourceId, chapterPath: selectedChapter, kind })
+  }
+
+  const openPlayer = (
+    mediaId: number,
+    mediaKind: 'video' | 'audio',
+    title: string | null,
+    episodeNo: number | null,
+    seekMs: number | null
+  ) => {
+    if (!result) return
+    setReader(null)
+    setPlayer({
+      mediaId,
+      mediaKind,
+      title,
+      episodeNo,
+      initialSeekMs: seekMs,
+      hitIntervals: buildIntervalsFor(result, mediaId),
+    })
+  }
+
+  const openReader = (mediaId: number, title: string | null, pageNo: number | null) => {
+    if (!result) return
+    setPlayer(null)
+    setReader({
+      mediaId,
+      title,
+      initialPageNo: pageNo,
+      hitPages: buildPagesFor(result, mediaId),
+    })
+  }
+
+  const locatePoint = (hit: ApiKbSearchPointHit) => {
+    if (hit.mediaKind === 'book') {
+      openReader(hit.mediaId, hit.mediaTitle, hit.pageStart)
+    } else {
+      openPlayer(
+        hit.mediaId,
+        hit.mediaKind === 'audio' ? 'audio' : 'video',
+        hit.mediaTitle,
+        hit.episodeNo,
+        hit.startMs != null ? Math.max(0, hit.startMs - 4000) : null
+      )
+    }
+  }
+
+  const locateSegment = (hit: ApiKbSearchSegmentHit) => {
+    openPlayer(
+      hit.mediaId,
+      hit.mediaKind === 'audio' ? 'audio' : 'video',
+      hit.mediaTitle,
+      hit.episodeNo,
+      hit.seekMs
+    )
+  }
+
+  const locateImage = (hit: ApiKbSearchImageHit) => {
+    if (hit.mediaKind === 'book') {
+      openReader(hit.mediaId, null, hit.pageNo)
+    } else {
+      openPlayer(hit.mediaId, 'video', null, hit.episodeNo, hit.startMs)
+    }
+  }
+
+  const viewOriginal = async (hit: ApiKbSearchImageHit) => {
+    try {
+      const res = await fetchKbImageOriginalUrl(hit.id)
+      setOriginal({ url: res.url, caption: hit.caption ?? hit.textInImage ?? null })
+    } catch {
+      void message.error('原图获取失败，请稍后重试')
+    }
   }
 
   const showPoints = kind !== 'segment' && kind !== 'image'
@@ -335,14 +548,6 @@ export function SearchTab({
           )}
         </div>
 
-        {result?.degraded === 'es_unavailable' && (
-          <Alert
-            className="mb-4"
-            type="warning"
-            showIcon
-            message="检索服务暂不可用，请稍后再试"
-          />
-        )}
         {result?.degraded === 'embedding_unavailable' && (
           <Alert
             className="mb-4"
@@ -352,8 +557,35 @@ export function SearchTab({
           />
         )}
 
+        {player && (
+          <div className="mb-4">
+            <KnowledgePlayer
+              key={player.mediaId}
+              mediaId={player.mediaId}
+              mediaKind={player.mediaKind}
+              title={player.title}
+              episodeNo={player.episodeNo}
+              hitIntervals={player.hitIntervals}
+              initialSeekMs={player.initialSeekMs}
+              onClose={() => setPlayer(null)}
+            />
+          </div>
+        )}
+        {reader && (
+          <div className="mb-4">
+            <BookReader
+              key={reader.mediaId}
+              mediaId={reader.mediaId}
+              title={reader.title}
+              initialPageNo={reader.initialPageNo}
+              hitPages={reader.hitPages}
+              onClose={() => setReader(null)}
+            />
+          </div>
+        )}
+
         {!result ? (
-          <Empty description="输入关键词开始混合检索（BM25 + 向量双路召回）" />
+          <Empty description="输入关键词开始混合检索（关键词 + 向量双路召回）" />
         ) : !hasHits && !result.degraded ? (
           <Empty description={`「${result.query}」未找到命中`} />
         ) : (
@@ -365,7 +597,7 @@ export function SearchTab({
                 </Typography.Title>
                 <Space direction="vertical" size={8} className="w-full">
                   {result.points.map((hit) => (
-                    <PointHitCard key={hit.id} hit={hit} terms={terms} />
+                    <PointHitCard key={hit.id} hit={hit} terms={terms} onLocate={locatePoint} />
                   ))}
                 </Space>
               </section>
@@ -377,7 +609,7 @@ export function SearchTab({
                 </Typography.Title>
                 <Space direction="vertical" size={8} className="w-full">
                   {result.segments.map((hit) => (
-                    <SegmentHitRow key={hit.id} hit={hit} terms={terms} />
+                    <SegmentHitRow key={hit.id} hit={hit} terms={terms} onLocate={locateSegment} />
                   ))}
                 </Space>
               </section>
@@ -389,7 +621,13 @@ export function SearchTab({
                 </Typography.Title>
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
                   {result.images.map((hit) => (
-                    <ImageHitCard key={hit.id} hit={hit} terms={terms} />
+                    <ImageHitCard
+                      key={hit.id}
+                      hit={hit}
+                      terms={terms}
+                      onLocate={locateImage}
+                      onViewOriginal={() => void viewOriginal(hit)}
+                    />
                   ))}
                 </div>
               </section>
@@ -397,6 +635,24 @@ export function SearchTab({
           </Space>
         )}
       </div>
+
+      <Modal
+        open={original != null}
+        title={original?.caption ?? '原图'}
+        footer={null}
+        width={960}
+        onCancel={() => setOriginal(null)}
+      >
+        {original && (
+          <img
+            src={original.url}
+            alt={original.caption ?? ''}
+            draggable={false}
+            onContextMenu={(e) => e.preventDefault()}
+            className="max-h-[75vh] w-full select-none object-contain"
+          />
+        )}
+      </Modal>
     </div>
   )
 }

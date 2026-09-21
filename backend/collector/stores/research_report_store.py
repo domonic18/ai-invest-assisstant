@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.models.file_metadata import FileMetadata
 from app.models.news_document import NewsDocument
 from app.services.common.minio_service import MinIOService
+from app.services.common.pdf_text import extract_pdf_text
 from collector.core.base import get_engine
 
 logger = structlog.get_logger()
@@ -139,3 +140,7 @@ class ResearchReportStore:
             msg = f"MinIO upload failed for {object_name}: {exc}"
             logger.warning("research_report_minio_upload_failed", error=msg)
             errors.append(msg)
+
+        content = await extract_pdf_text(file_bytes)
+        if content:
+            file_record.content = content

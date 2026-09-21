@@ -52,7 +52,8 @@ def test_kb_extraction_schemas_all_required() -> None:
     _assert_all_fields_required(KbPointDraft)
     # 可空字段必须显式输出 null（required 内），而非静默省略
     schema = KbPointDraft.model_json_schema()
-    for field in ("term_definition", "applicable_scene", "start_ms", "end_ms"):
+    for field in ("term_definition", "applicable_scene", "chapter_path",
+                  "start_ms", "end_ms"):
         assert field in schema["required"], f"KbPointDraft.{field} 不在 required"
 
 
