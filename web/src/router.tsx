@@ -17,6 +17,9 @@ const CollectorAdmin = lazy(() =>
 )
 const LLMConfig = lazy(() => import('./pages/Admin/LLMConfig/LLMConfig').then((m) => ({ default: m.LLMConfig })))
 const KnowledgeBase = lazy(() => import('./pages/Admin/KnowledgeBase'))
+const KnowledgeSearchPage = lazy(() =>
+  import('./pages/KnowledgeSearch').then((m) => ({ default: m.KnowledgeSearchPage }))
+)
 const McpServers = lazy(() =>
   import('./pages/Admin/McpServers/McpServers').then((m) => ({ default: m.McpServers })),
 )
@@ -110,6 +113,8 @@ export const router = createBrowserRouter([
       { path: 'financial-reports', element: <Navigate to="/workbench" replace /> },
       { path: 'calendar', element: lazyEl(<Calendar />) },
       { path: 'news', element: lazyEl(<News />) },
+      // 知识检索消费页：admin ∪ 知识库白名单可见（页面内 403 自解释）
+      { path: 'kb', element: lazyEl(<KnowledgeSearchPage />) },
       // 旧路由兜底：电报视图已迁入资讯中心（迭代 3）
       { path: 'telegraph', element: <Navigate to="/news" replace /> },
       { path: 'financial/:code', element: lazyEl(<Financial />) },

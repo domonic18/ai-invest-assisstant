@@ -57,6 +57,7 @@ const NEWS_MENU_ITEMS: MenuItem[] = [
   // 迭代 3：电报视图迁入资讯中心 /news（渠道监控 + AI 分级 + 三视图）
   { key: '/news', icon: <ThunderboltOutlined />, label: '资讯中心' },
   { key: '/calendar', icon: <CalendarOutlined />, label: '投资日历' },
+  // 知识检索消费页：入口暂不开放（功能仅在管理台调试），/kb 路由保留待启用
 ]
 
 const ANALYSIS_MENU_ITEMS: MenuItem[] = [
