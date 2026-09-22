@@ -1,8 +1,8 @@
-"""指数技术分析输入构建（AI 大盘综述）。
+"""指数与个股技术分析输入构建（AI 大盘综述 / 个股每日分析）。
 
 为综述的五标的（沪指/创业板/科创50/沪深300ETF/富时A50）从本地
 quote_kline_stock_daily 预计算日线/周线技术指标，并从 quote_kline_stock_minute 预计算沪指
-分时量能结构，格式化为文本注入复盘 prompt。
+分时量能结构，格式化为文本注入复盘 prompt；个股版见 ``build_stock_technical_context``。
 
 设计原则：Python 预计算指标、LLM 只负责叙述——大模型从原始 OHLCV
 推算均线/新低/地量容易出错，必须在输入侧算好。
@@ -287,6 +287,35 @@ def _format_intraday(
             )
 
     return "- 分时：" + "；".join(parts) if parts else None
+
+
+async def build_stock_technical_context(
+    session: AsyncSession, stock_code: str, trade_date: date
+) -> str:
+    """构建单只个股的日线/周线技术分析文本（个股复盘 prompt 输入）。
+
+    与五标的大盘版同构：通道归属（MA10/30/60）、三类拐点信号（趋势概要行）、
+    新低/地量/放量与 60 日前低支撑；个股无本地分钟线，不含分时段。
+    """
+    bars_by_code = await fetch_daily_bars_multi(
+        session, [stock_code], end_date=trade_date, limit=_DAILY_LIMIT
+    )
+    bars = _to_bars(bars_by_code.get(stock_code, []))
+    if not bars:
+        return f"■ {stock_code}：本地无日 K 数据"
+
+    latest = bars[-1]
+    prev_close = bars[-2]["close"] if len(bars) >= 2 else None
+    change_pct = (latest["close"] / prev_close - 1) * 100 if prev_close else None
+    header = f"■ {stock_code} 收 {latest['close']:.2f}"
+    if change_pct is not None:
+        header += f"（{change_pct:+.2f}%）"
+    if latest["trade_date"] != trade_date:
+        header += f"［数据为最近交易日 {latest['trade_date'].isoformat()}］"
+
+    return "\n".join(
+        [header, _trend_summary(bars), _format_daily(bars), _format_weekly(bars)]
+    )
 
 
 async def build_technical_context(session: AsyncSession, trade_date: date) -> str:
