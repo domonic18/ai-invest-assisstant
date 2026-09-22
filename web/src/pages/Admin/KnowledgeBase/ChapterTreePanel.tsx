@@ -1,5 +1,5 @@
 import { ArrowDownOutlined, ArrowUpOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
-import { Button, Input, Popconfirm, Tree, Typography } from 'antd'
+import { Button, Input, Popconfirm, Switch, Tree, Typography } from 'antd'
 import { useEffect, useState } from 'react'
 
 import type { ApiKbChapterNode } from '@ai-invest/shared'
@@ -36,8 +36,9 @@ export interface ChapterTreePanelProps {
   onPublish: (chapters: ApiKbChapterNode[]) => Promise<unknown>
 }
 
-/** 章节树面板：draft 可编辑（改名/增删/上下移，本地 state），发布整棵提交；published 只读。 */
+/** 章节树面板：默认浏览态（只读树），有草稿时可切编辑态（改名/增删/上下移，本地 state），发布整棵提交。 */
 export function ChapterTreePanel({ draft, published, onPublish }: ChapterTreePanelProps) {
+  const [editing, setEditing] = useState(false)
   const [nodes, setNodes] = useState<EditNode[]>(() => toEditNodes(draft ?? []))
   const [busy, setBusy] = useState(false)
 
@@ -135,69 +136,86 @@ export function ChapterTreePanel({ draft, published, onPublish }: ChapterTreePan
     </div>
   )
 
-  if (draft == null) {
+  if (draft == null && published == null) {
     return (
-      <div className="space-y-3">
-        <Typography.Text type="secondary">
-          {published
-            ? '当前展示已发布目录（无草稿可编辑）。'
-            : '抽取任务完成章节推断后，草稿目录会出现在这里。'}
-        </Typography.Text>
-        {published && (
-          <Tree
-            treeData={published.map((n) => ({ key: n.id, title: n.title, children: n.children.map((c) => ({ key: c.id, title: c.title })) }))}
-            selectable={false}
-            defaultExpandAll
-            blockNode
-          />
-        )}
-      </div>
+      <Typography.Text type="secondary">
+        抽取任务完成章节推断后，草稿目录会出现在这里。
+      </Typography.Text>
     )
   }
+
+  const showEditor = editing && draft != null
 
   return (
     <div className="space-y-3" data-testid="chapter-tree-panel">
       <div className="flex items-center justify-between">
-        <Typography.Text strong>章节树草稿</Typography.Text>
-        <div className="flex gap-1">
-          <Button
+        <Typography.Text strong>章节目录</Typography.Text>
+        {draft != null && (
+          <Switch
             size="small"
-            icon={<PlusOutlined />}
-            onClick={() => update((prev) => [...prev, { key: `new-${Date.now()}`, title: '', children: [] }])}
-          >
-            顶层章节
-          </Button>
-          <Button
-            type="primary"
-            size="small"
-            loading={busy}
-            disabled={nodes.length === 0 || hasEmpty(nodes)}
-            onClick={async () => {
-              setBusy(true)
-              try {
-                await onPublish(toWire(rekey(nodes)))
-              } finally {
-                setBusy(false)
-              }
-            }}
-          >
-            发布
-          </Button>
-        </div>
+            checked={editing}
+            onChange={setEditing}
+            checkedChildren="编辑"
+            unCheckedChildren="浏览"
+          />
+        )}
       </div>
-      {nodes.map((node, i) => (
-        <div key={node.key} className="space-y-1">
-          {renderTitle(node, 0, i, nodes.length)}
-          <div className="ml-4 space-y-1">
-            {node.children.map((child, j) =>
-              renderTitle(child, 1, j, node.children.length)
-            )}
+      {showEditor ? (
+        <>
+          <div className="flex gap-1">
+            <Button
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={() => update((prev) => [...prev, { key: `new-${Date.now()}`, title: '', children: [] }])}
+            >
+              顶层章节
+            </Button>
+            <Button
+              type="primary"
+              size="small"
+              loading={busy}
+              disabled={nodes.length === 0 || hasEmpty(nodes)}
+              onClick={async () => {
+                setBusy(true)
+                try {
+                  await onPublish(toWire(rekey(nodes)))
+                } finally {
+                  setBusy(false)
+                }
+              }}
+            >
+              发布
+            </Button>
           </div>
-        </div>
-      ))}
-      <Typography.Text type="secondary" className="block text-xs">
-        编辑仅保存在本地，「发布」后整棵覆盖写入并同步草稿。
-      </Typography.Text>
+          {nodes.map((node, i) => (
+            <div key={node.key} className="space-y-1">
+              {renderTitle(node, 0, i, nodes.length)}
+              <div className="ml-4 space-y-1">
+                {node.children.map((child, j) =>
+                  renderTitle(child, 1, j, node.children.length)
+                )}
+              </div>
+            </div>
+          ))}
+          <Typography.Text type="secondary" className="block text-xs">
+            编辑仅保存在本地，「发布」后整棵覆盖写入并同步草稿。
+          </Typography.Text>
+        </>
+      ) : (
+        <>
+          <Tree
+            treeData={toEditNodes(draft ?? published ?? [])}
+            selectable={false}
+            defaultExpandAll
+            blockNode
+          />
+          <Typography.Text type="secondary" className="block text-xs">
+            {draft != null
+              ? '当前为草稿目录，打开「编辑」可调整结构后发布。'
+              : '当前为已发布目录。'}
+          </Typography.Text>
+        </>
+      )}
     </div>
   )
 }
