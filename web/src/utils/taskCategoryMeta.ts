@@ -1,6 +1,6 @@
 /** 任务业务分类：目录分组与日历着色的单一真相源。
  * catalog 的 dataType 字段是任务名模板（如 kline_{period}）无分组语义，
- * 故按任务 name 建业务级映射，分类措辞对齐系统导航菜单（监测/资讯/分析/后台）。 */
+ * 故按任务 name 建业务级映射，分类措辞对齐系统导航菜单（检测/分析/设置/后台）。 */
 
 export interface TaskCategoryMeta {
   label: string
@@ -11,15 +11,16 @@ export interface TaskCategoryMeta {
 
 /** 分类定义按展示顺序排列（常用组外置顶）。 */
 export const TASK_CATEGORY_META: Record<string, TaskCategoryMeta> = {
-  monitor: { label: '行情监测', color: '#58a6ff', nav: '导航：监测（K 线 / 行情 / 自选）' },
-  macro: { label: '宏观全球', color: '#f2cc60', nav: '导航：监测 → 宏观指数' },
-  auction: { label: '集合竞价', color: '#2ea043', nav: '导航：监测 → 集合竞价' },
-  sector: { label: '板块资金', color: '#22d3ee', nav: '导航：监测 → 板块监测' },
+  monitor: { label: '行情监测', color: '#58a6ff', nav: '导航：检测（K 线 / 行情 / 自选）' },
+  macro: { label: '宏观全球', color: '#f2cc60', nav: '导航：检测 → 宏观指数' },
+  auction: { label: '集合竞价', color: '#2ea043', nav: '导航：检测 → 集合竞价' },
+  sector: { label: '板块资金', color: '#22d3ee', nav: '导航：检测 → 资金流向' },
   pool: { label: '热点股池', color: '#f85149', nav: '工作台 · 涨停/龙虎榜股池' },
-  news: { label: '资讯电报', color: '#fb923c', nav: '导航：资讯 → 资讯中心 / 投资日历' },
+  news: { label: '资讯电报', color: '#fb923c', nav: '导航：检测 → 资讯中心（投资日历在右上角）' },
   fundamental: { label: '个股资料', color: '#ce9178', nav: '个股页 · 基本面资料' },
   ai: { label: 'AI 自动化', color: '#a78bfa', nav: '定时 AI 自动化（复盘 / 异动 / 资讯分级 / 情绪）' },
   social: { label: '社媒采集', color: '#f472b6', nav: '导航：后台 → 社媒追踪' },
+  kb: { label: '知识库', color: '#2dd4bf', nav: '右上角知识库 / 管理后台 → 知识库' },
   maintenance: { label: '系统维护', color: '#8a8f98' },
   other: { label: '其他', color: '#5c616e' },
 }
@@ -85,6 +86,13 @@ const TASK_CATEGORY_OF: Record<string, string> = {
   'social-sentiment': 'ai',
   // 社媒采集
   'social-video': 'social',
+  // 知识库建库流水线
+  'kb-transcribe': 'kb',
+  'kb-extract': 'kb',
+  'kb-vision': 'kb',
+  'kb-index': 'kb',
+  'kb-suggest': 'kb',
+  'kb-cleanup': 'kb',
   // 系统维护
   'collector-log-cleanup': 'maintenance',
   'health-check': 'maintenance',

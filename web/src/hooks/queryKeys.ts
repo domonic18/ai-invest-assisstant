@@ -103,7 +103,6 @@ export const queryKeys = {
       dateTo: string | null
     ) => ['kb', 'usage', sourceId, dateFrom, dateTo] as const,
     sources: ['kb', 'sources'] as const,
-    consumerSources: ['kb', 'consumer-sources'] as const,
     media: (sourceId: number) => ['kb', 'media', sourceId] as const,
     transcript: (sourceId: number, mediaId: number) =>
       ['kb', 'transcript', sourceId, mediaId] as const,
@@ -121,6 +120,9 @@ export const queryKeys = {
       ['kb', 'search', q, sourceId, chapterPath, kind] as const,
     chaptersPublished: (sourceId: number) =>
       ['kb', 'chapters-published', sourceId] as const,
+    optimizationSuggestions: (status: string | null, page: number, pageSize: number) =>
+      ['kb', 'optimization-suggestions', status, page, pageSize] as const,
+    optimizationSuggestion: (id: number) => ['kb', 'optimization-suggestion', id] as const,
   },
   mcpServers: ['mcp-servers'] as const,
   socialAdmin: {

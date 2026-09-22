@@ -5,6 +5,7 @@ import {
   approveKbPointsBatch,
   confirmKbCost,
   confirmKbMediaUploaded,
+  createKbOptimizationSuggestion,
   createKbPoint,
   createKbSource,
   deleteKbMedia,
@@ -12,6 +13,8 @@ import {
   estimateKbCost,
   fetchKbChapters,
   fetchKbImages,
+  fetchKbOptimizationSuggestion,
+  fetchKbOptimizationSuggestions,
   fetchKbReviewPoints,
   fetchKbSourceMedia,
   fetchKbSources,
@@ -24,6 +27,7 @@ import {
   redescribeKbImage,
   rejectKbPoint,
   requeueKbMedia,
+  reviewKbOptimizationSuggestion,
   restoreKbSource,
   saveKbTranscript,
   updateKbSource,
@@ -36,6 +40,8 @@ import type {
   ApiKbImageExcludedRequest,
   ApiKbMediaInitRequest,
   ApiKbMediaPatchRequest,
+  ApiKbOptimizationCreateRequest,
+  ApiKbOptimizationReviewRequest,
   ApiKbPointCreateRequest,
   ApiKbPointPatchRequest,
   ApiKbPointRejectRequest,
@@ -61,7 +67,11 @@ export function useUpdateKbSettings() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: ApiKbSettingsUpdateRequest) => updateKbSettings(data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kb.settings }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.kb.settings })
+      // 计价变化影响用量面板费用核算，一并失效
+      void queryClient.invalidateQueries({ queryKey: ['kb', 'usage'] })
+    },
   })
 }
 
@@ -357,5 +367,56 @@ export function useApproveKbPointsBatch() {
   return useMutation({
     mutationFn: (data: ApiKbPointsBatchApproveRequest) => approveKbPointsBatch(data),
     onSuccess: invalidate,
+  })
+}
+
+// ---- 技能优化建议（F-KB-07）----
+
+export function useKbOptimizationSuggestions(
+  status: string | null,
+  page: number,
+  pageSize: number
+) {
+  return useQuery({
+    queryKey: queryKeys.kb.optimizationSuggestions(status, page, pageSize),
+    queryFn: () =>
+      fetchKbOptimizationSuggestions({
+        status: status ?? undefined,
+        page,
+        pageSize,
+      }),
+  })
+}
+
+export function useKbOptimizationSuggestion(id: number | null) {
+  return useQuery({
+    queryKey: queryKeys.kb.optimizationSuggestion(id ?? 0),
+    queryFn: () => fetchKbOptimizationSuggestion(id as number),
+    enabled: id != null,
+  })
+}
+
+export function useCreateKbOptimizationSuggestion() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: ApiKbOptimizationCreateRequest) =>
+      createKbOptimizationSuggestion(data),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['kb', 'optimization-suggestions'] }),
+  })
+}
+
+export function useReviewKbOptimizationSuggestion() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: number
+      data: ApiKbOptimizationReviewRequest
+    }) => reviewKbOptimizationSuggestion(id, data),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['kb', 'optimization-suggestions'] }),
   })
 }

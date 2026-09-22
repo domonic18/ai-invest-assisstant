@@ -15,6 +15,10 @@ import type {
   ApiKbMediaInitResponse,
   ApiKbMediaPatchRequest,
   ApiKbMediaResponse,
+  ApiKbOptimizationCreateRequest,
+  ApiKbOptimizationListResponse,
+  ApiKbOptimizationReviewRequest,
+  ApiKbOptimizationSuggestion,
   ApiKbPointCreateRequest,
   ApiKbPointListResponse,
   ApiKbPointPatchRequest,
@@ -358,6 +362,55 @@ export async function approveKbPointsBatch(
 ): Promise<ApiKbBatchApproveResult> {
   const response = await apiClient.post<ApiKbBatchApproveResult>(
     ENDPOINTS.admin.kbPointsApproveBatch,
+    data
+  )
+  return response.data
+}
+
+// ---- 技能优化建议（F-KB-07）----
+
+export async function fetchKbOptimizationSuggestions(
+  params: { status?: string; page?: number; pageSize?: number } = {}
+): Promise<ApiKbOptimizationListResponse> {
+  // query 参数跟随后端签名 snake_case（page_size）
+  const response = await apiClient.get<ApiKbOptimizationListResponse>(
+    ENDPOINTS.admin.kbOptimizationSuggestions,
+    {
+      params: {
+        status: params.status,
+        page: params.page,
+        page_size: params.pageSize,
+      },
+    }
+  )
+  return response.data
+}
+
+export async function createKbOptimizationSuggestion(
+  data: ApiKbOptimizationCreateRequest
+): Promise<ApiKbOptimizationSuggestion> {
+  const response = await apiClient.post<ApiKbOptimizationSuggestion>(
+    ENDPOINTS.admin.kbOptimizationSuggestions,
+    data
+  )
+  return response.data
+}
+
+export async function fetchKbOptimizationSuggestion(
+  id: number
+): Promise<ApiKbOptimizationSuggestion> {
+  const response = await apiClient.get<ApiKbOptimizationSuggestion>(
+    ENDPOINTS.admin.kbOptimizationSuggestion(id)
+  )
+  return response.data
+}
+
+export async function reviewKbOptimizationSuggestion(
+  id: number,
+  data: ApiKbOptimizationReviewRequest
+): Promise<ApiKbOptimizationSuggestion> {
+  const response = await apiClient.post<ApiKbOptimizationSuggestion>(
+    ENDPOINTS.admin.kbOptimizationSuggestionReview(id),
     data
   )
   return response.data

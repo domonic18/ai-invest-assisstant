@@ -1,18 +1,27 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/useAdminKb', () => ({
   useKbSources: vi.fn(),
   useKbUsage: vi.fn(),
+  useKbSettings: vi.fn(),
+  useUpdateKbSettings: vi.fn(),
 }))
 
-import { useKbSources, useKbUsage } from '@/hooks/useAdminKb'
+import {
+  useKbSettings,
+  useKbSources,
+  useKbUsage,
+  useUpdateKbSettings,
+} from '@/hooks/useAdminKb'
 import type { ApiKbUsageResponse } from '@ai-invest/shared'
 
 import { KbUsagePanel } from './KbUsagePanel'
 
 const mockedSources = vi.mocked(useKbSources)
 const mockedUsage = vi.mocked(useKbUsage)
+const mockedSettings = vi.mocked(useKbSettings)
+const mockedUpdate = vi.mocked(useUpdateKbSettings)
 
 const usage: ApiKbUsageResponse = {
   sourceId: null,
@@ -52,6 +61,12 @@ const usage: ApiKbUsageResponse = {
 }
 
 describe('KbUsagePanel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedSettings.mockReturnValue({ data: undefined } as never)
+    mockedUpdate.mockReturnValue({ mutateAsync: vi.fn(), isPending: false } as never)
+  })
+
   it('渲染统计卡、分项表与 ASR/对照明细', () => {
     mockedSources.mockReturnValue({ data: [{ id: 1, name: '价值投资课' }] } as never)
     mockedUsage.mockReturnValue({ data: usage, isLoading: false } as never)
@@ -77,6 +92,38 @@ describe('KbUsagePanel', () => {
     // 对照
     expect(screen.getByText(/14,400（约 1\.4 万）/)).toBeInTheDocument()
     expect(screen.getByText(/4,500（约 0\.5 万）/)).toBeInTheDocument()
+  })
+
+  it('计价设置弹窗回填现值并提交合并后的 unitPrices', async () => {
+    mockedSources.mockReturnValue({ data: [] } as never)
+    mockedUsage.mockReturnValue({ data: usage, isLoading: false } as never)
+    mockedSettings.mockReturnValue({
+      data: { unitPrices: { asrPerHour: 0.3, vlmPerImage: 0.02 } },
+    } as never)
+    const mutateAsync = vi.fn().mockResolvedValue({})
+    mockedUpdate.mockReturnValue({ mutateAsync, isPending: false } as never)
+
+    render(<KbUsagePanel />)
+    fireEvent.click(screen.getByRole('button', { name: /计\s*价\s*设\s*置/ }))
+
+    const modal = await screen.findByRole('dialog')
+    await waitFor(() => {
+      expect((modal.querySelector('input#asrPerHour') as HTMLInputElement)?.value).toBe('0.3')
+    })
+    fireEvent.change(modal.querySelector('input#asrPerHour') as HTMLInputElement, {
+      target: { value: '0.5' },
+    })
+    fireEvent.click(
+      Array.from(modal.querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('保')
+      ) as HTMLButtonElement
+    )
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        unitPrices: { asrPerHour: 0.5, vlmPerImage: 0.02 },
+      })
+    )
   })
 
   it('单价未配置时费用项降级展示', () => {
