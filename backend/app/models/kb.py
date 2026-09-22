@@ -1,8 +1,9 @@
 """知识库域的 SQLAlchemy ORM 模型（arch/12）。
 
 知识源（kb_source）、素材（kb_media）、内容分段（kb_transcript_segment）、
-知识点（kb_knowledge_point）、图片资产（kb_image_asset）与域设置单行
-（kb_settings）。PG 是唯一存储，检索列（embedding halfvec 向量 +
+知识点（kb_knowledge_point）、图片资产（kb_image_asset）、域设置单行
+（kb_settings）与技能优化建议单（kb_optimization_suggestion，快照留档）。
+PG 是唯一存储，检索列（embedding halfvec 向量 +
 pg_trgm 词面生成列）同库内嵌，无投影层。
 """
 
@@ -256,6 +257,46 @@ class KbSettings(Base):
     updated_by: Mapped[int | None] = mapped_column(
         ForeignKey("user.id", ondelete="SET NULL"), nullable=True
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
+class KbOptimizationSuggestion(Base):
+    """技能优化建议单（F-KB-07）：skill/source 均为快照，留档可溯。"""
+
+    __tablename__ = "kb_optimization_suggestion"
+    __table_args__ = (
+        Index(
+            "idx_kb_optimization_skill_status",
+            "skill_id",
+            "status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    skill_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    skill_label: Mapped[str] = mapped_column(String(100), nullable=False)
+    skill_kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    skill_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    source_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    source_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued")
+    skill_definition: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suggestions: Mapped[list[Any] | None] = mapped_column(_JSONB, nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    model_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    apply_result: Mapped[dict[str, Any] | None] = mapped_column(_JSONB, nullable=True)
+    created_by: Mapped[int] = mapped_column(BigInteger, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )

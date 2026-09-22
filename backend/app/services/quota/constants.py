@@ -3,7 +3,8 @@
 from typing import Any, Literal
 
 UsageFeature = Literal["assistant", "page", "api_key", "system",
-                       "kb_clean", "kb_extract", "kb_vision", "kb_embed"]
+                       "kb_clean", "kb_extract", "kb_vision", "kb_embed",
+                       "kb_optimize"]
 UsageOutlet = Literal["system", "byok"]
 
 FEATURE_ASSISTANT: UsageFeature = "assistant"
@@ -16,6 +17,8 @@ FEATURE_KB_CLEAN: UsageFeature = "kb_clean"
 FEATURE_KB_EXTRACT: UsageFeature = "kb_extract"
 FEATURE_KB_VISION: UsageFeature = "kb_vision"
 FEATURE_KB_EMBED: UsageFeature = "kb_embed"
+# 技能优化建议生成（批次 H2，detail 携带 {sourceId, skillId}）
+FEATURE_KB_OPTIMIZE: UsageFeature = "kb_optimize"
 
 OUTLET_SYSTEM: UsageOutlet = "system"
 OUTLET_BYOK: UsageOutlet = "byok"

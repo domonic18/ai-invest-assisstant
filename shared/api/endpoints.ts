@@ -267,6 +267,11 @@ export const ENDPOINTS = {
       `${API_BASE}/admin/kb/points/${id}/reject`,
     kbPointsMerge: `${API_BASE}/admin/kb/points/merge`,
     kbPointsApproveBatch: `${API_BASE}/admin/kb/points/approve-batch`,
+    kbOptimizationSuggestions: `${API_BASE}/admin/kb/optimization-suggestions`,
+    kbOptimizationSuggestion: (id: number | string) =>
+      `${API_BASE}/admin/kb/optimization-suggestions/${id}`,
+    kbOptimizationSuggestionReview: (id: number | string) =>
+      `${API_BASE}/admin/kb/optimization-suggestions/${id}/review`,
     proxyConfigs: `${API_BASE}/admin/proxy-configs`,
     proxyConfig: (id: number | string) => `${API_BASE}/admin/proxy-configs/${id}`,
     testProxyConfig: (id: number | string) =>

@@ -137,4 +137,5 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "kb-extract": DOMAIN_KB,
     "kb-vision": DOMAIN_KB,
     "kb-index": DOMAIN_KB,
+    "kb-suggest": DOMAIN_KB,
 }

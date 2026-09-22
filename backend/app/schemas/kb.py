@@ -712,3 +712,91 @@ class KbUsageResponse(CamelModel):
     clean_tokens_predicted: int
     clean_tokens_actual: int
     total_cost: float
+
+
+# ---------------------------------------------------------------------------
+# 技能优化建议单（F-KB-07，arch/12 §9）
+# ---------------------------------------------------------------------------
+
+
+class KbOptimizationSuggestionItem(CamelModel):
+    """单条修改点（JSONB 存储，snake_case；wire 层 camelCase）。
+
+    作为优化 Agent 的结构化输出 schema 复用时字段全部必填（禁默认值：
+    带默认值不进 JSON Schema required，LLM 会静默省略）。
+    """
+
+    target_file: str = Field(..., description="SKILL.md 或 prompt.yaml")
+    section: str = Field(..., description="所在章节标题，如 分析流程")
+    original_text: str = Field(..., description="技能定义中原文片段（逐字摘录），新增类建议可为空串")
+    suggested_text: str = Field(..., min_length=1, description="建议替换/插入的文本")
+    reason: str = Field(..., description="修改理由")
+    citations: list[str] = Field(..., description="引用定位串（工具返回的 citation，可溯源集数/时间码/页码）")
+
+
+class KbOptimizationAgentOutput(CamelModel):
+    """优化 Agent 最终输出契约（结构化输出 schema，字段全必填）。"""
+
+    summary: str = Field(..., description="整体评估结论（无实质修改点时说明原因）")
+    suggestions: list[KbOptimizationSuggestionItem] = Field(..., description="修改点列表，可为空列表")
+
+
+class KbOptimizationCreateRequest(CamelModel):
+    """发起建议单生成请求（目标技能 × 知识源）。"""
+
+    skill_id: str = Field(..., min_length=1, max_length=100)
+    source_id: int
+
+
+class KbOptimizationRevisionRequest(CamelModel):
+    """修订后应用：按序号覆盖某条修改点的建议文本。"""
+
+    index: int = Field(..., ge=0, description="suggestions 列表下标")
+    suggested_text: str = Field(..., min_length=1, description="修订后的建议文本")
+
+
+class KbOptimizationReviewRequest(CamelModel):
+    """审核请求（通过/修订后应用/驳回）。
+
+    apply 携带 revisions 时为「修订后应用」；reject 必须给 note（驳回理由留档）。
+    """
+
+    action: Literal["apply", "reject"]
+    note: str | None = Field(None, max_length=2000, description="审核备注/驳回理由")
+    revisions: list[KbOptimizationRevisionRequest] = Field(
+        default_factory=list, description="修订项（仅 apply 用）"
+    )
+
+
+class KbOptimizationSuggestionResponse(CamelModel):
+    """建议单响应（含生成产物与审核留档，快照字段可溯）。"""
+
+    id: int
+    skill_id: str
+    skill_label: str
+    skill_kind: str
+    skill_version: int
+    source_id: int
+    source_name: str
+    status: str
+    skill_definition: str | None = None
+    suggestions: list[KbOptimizationSuggestionItem] | None = None
+    summary: str | None = None
+    model_name: str | None = None
+    error: str | None = None
+    reviewed_by: int | None = None
+    reviewed_at: datetime | None = None
+    review_note: str | None = None
+    apply_result: dict[str, Any] | None = None
+    created_by: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class KbOptimizationListResponse(CamelModel):
+    """建议单分页清单（状态过滤可选）。"""
+
+    total: int
+    page: int
+    page_size: int
+    items: list[KbOptimizationSuggestionResponse]

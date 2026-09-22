@@ -516,7 +516,7 @@ export interface ApiKbImageUrl {
   expiresIn: number
 }
 
-/** 用量聚合：kb_* token 分项（feature ∈ kb_clean/kb_extract/kb_vision/kb_embed）。 */
+/** 用量聚合：kb_* token 分项（feature ∈ kb_clean/kb_extract/kb_vision/kb_embed/kb_optimize）。 */
 export interface ApiKbUsageTokenItem {
   feature: string
   modelName: string | null
@@ -549,4 +549,65 @@ export interface ApiKbUsageResponse {
   cleanTokensPredicted: number
   cleanTokensActual: number
   totalCost: number
+}
+
+/** 单条技能优化修改点（Agent 产物；citations 为知识库定位引用集）。 */
+export interface ApiKbOptimizationSuggestionItem {
+  targetFile: string
+  section: string
+  originalText: string
+  suggestedText: string
+  reason: string
+  citations: string[]
+}
+
+/** 技能优化建议单（skill/source 均为落单时快照，留档可溯）。 */
+export interface ApiKbOptimizationSuggestion {
+  id: number
+  skillId: string
+  skillLabel: string
+  skillKind: 'builtin' | 'custom'
+  skillVersion: number
+  sourceId: number
+  sourceName: string
+  status: 'queued' | 'generating' | 'pending_review' | 'applied' | 'rejected' | 'failed'
+  skillDefinition: string | null
+  suggestions: ApiKbOptimizationSuggestionItem[] | null
+  summary: string | null
+  modelName: string | null
+  error: string | null
+  reviewedBy: number | null
+  reviewedAt: string | null
+  reviewNote: string | null
+  applyResult: Record<string, unknown> | null
+  createdBy: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** 建议单分页清单。 */
+export interface ApiKbOptimizationListResponse {
+  total: number
+  page: number
+  pageSize: number
+  items: ApiKbOptimizationSuggestion[]
+}
+
+/** 发起建议单生成（目标技能 × 知识源）。 */
+export interface ApiKbOptimizationCreateRequest {
+  skillId: string
+  sourceId: number
+}
+
+/** 修订后应用：按序号覆盖某条修改点的建议文本。 */
+export interface ApiKbOptimizationRevision {
+  index: number
+  suggestedText: string
+}
+
+/** 审核请求：apply（可带 revisions 修订后应用）/ reject（note 必填）。 */
+export interface ApiKbOptimizationReviewRequest {
+  action: 'apply' | 'reject'
+  note?: string
+  revisions?: ApiKbOptimizationRevision[]
 }

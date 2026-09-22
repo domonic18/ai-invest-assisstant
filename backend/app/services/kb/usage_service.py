@@ -26,6 +26,7 @@ from app.services.quota.constants import (
     FEATURE_KB_CLEAN,
     FEATURE_KB_EMBED,
     FEATURE_KB_EXTRACT,
+    FEATURE_KB_OPTIMIZE,
     FEATURE_KB_VISION,
 )
 
@@ -36,6 +37,7 @@ KB_USAGE_FEATURES: tuple[str, ...] = (
     FEATURE_KB_EXTRACT,
     FEATURE_KB_VISION,
     FEATURE_KB_EMBED,
+    FEATURE_KB_OPTIMIZE,
 )
 
 

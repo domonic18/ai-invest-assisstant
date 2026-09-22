@@ -36,6 +36,7 @@ from app.api.v1.admin import collector_channels as admin_collector_channels
 from app.api.v1.admin import collector_data_types as admin_collector_data_types
 from app.api.v1.admin import collector_health as admin_collector_health
 from app.api.v1.admin import kb as admin_kb
+from app.api.v1.admin import kb_optimization as admin_kb_optimization
 from app.api.v1.admin import kb_settings as admin_kb_settings
 from app.api.v1.admin import kb_usage as admin_kb_usage
 from app.api.v1.admin import llm_config as admin_llm_configs
@@ -103,6 +104,7 @@ admin_router.include_router(admin_llm_configs.router)
 admin_router.include_router(admin_kb.router)
 admin_router.include_router(admin_kb_settings.router)
 admin_router.include_router(admin_kb_usage.router)
+admin_router.include_router(admin_kb_optimization.router)
 admin_router.include_router(admin_mcp_configs.router, prefix="/mcp")
 admin_router.include_router(admin_proxy_configs.router)
 admin_router.include_router(admin_social.router, prefix="/social")
