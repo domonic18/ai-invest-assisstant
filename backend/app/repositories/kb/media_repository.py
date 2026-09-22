@@ -3,6 +3,7 @@
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.kb import KbProcessStatus
 from app.models.kb import KbKnowledgePoint, KbMedia, KbTranscriptSegment
 
 
@@ -100,7 +101,7 @@ async def list_queued_media(session: AsyncSession) -> list[KbMedia]:
     stmt = (
         select(KbMedia)
         .where(
-            KbMedia.process_status == "queued",
+            KbMedia.process_status == KbProcessStatus.QUEUED,
             KbMedia.media_kind.in_(("video", "audio")),
             KbMedia.deleted_at.is_(None),
         )

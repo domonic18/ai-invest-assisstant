@@ -36,6 +36,7 @@ from app.constants.kb import (
     KB_VISION_PHASH_HAMMING_THRESHOLD,
     KB_VISION_SCENE_THRESHOLD,
     KB_VISION_SEEK_TOLERANCE_SECONDS,
+    KbDescribeStatus,
 )
 from app.core.clock import utc_now
 from app.core.exceptions import ConflictError, NotFoundError, UnprocessableEntityError
@@ -351,7 +352,7 @@ async def _describe_frames(session: AsyncSession, config: Any) -> dict[str, int]
                 select(KbImageAsset, KbMedia)
                 .join(KbMedia, KbImageAsset.media_id == KbMedia.id)
                 .where(
-                    KbImageAsset.describe_status == "pending",
+                    KbImageAsset.describe_status == KbDescribeStatus.PENDING,
                     KbImageAsset.describe_attempts < KB_VISION_MAX_DESCRIBE_ATTEMPTS,
                     KbMedia.deleted_at.is_(None),
                     KbMedia.media_kind == "video",
@@ -377,7 +378,7 @@ async def _describe_frames(session: AsyncSession, config: Any) -> dict[str, int]
             segments = [(s.start_ms, s.end_ms, s.text) for s in raw]
         try:
             row = await session.get(KbImageAsset, row_id)
-            if row is None or row.describe_status != "pending":
+            if row is None or row.describe_status != KbDescribeStatus.PENDING:
                 continue
             image_bytes = await minio.download_file(row.cos_key)
             title, episode_no, source_id = media_info[media_id]
@@ -402,7 +403,7 @@ async def _describe_frames(session: AsyncSession, config: Any) -> dict[str, int]
         row.text_in_image = result.text_in_image
         row.caption = result.caption
         row.vision_description = result.description
-        row.describe_status = "done"
+        row.describe_status = KbDescribeStatus.DONE
         row.embedding_dirty = True
         stats["framesDescribed"] += 1
         await session.commit()
@@ -461,7 +462,7 @@ async def _record_describe_failure(
             return
         row.describe_attempts += 1
         if row.describe_attempts >= KB_VISION_MAX_DESCRIBE_ATTEMPTS:
-            row.describe_status = "failed"
+            row.describe_status = KbDescribeStatus.FAILED
         await session.commit()
     except Exception:  # noqa: BLE001
         await session.rollback()
@@ -566,7 +567,7 @@ async def redescribe_image(
         raise ConflictError("所属素材已删除，无法重新描述")
     if media.media_kind != "video":
         raise ConflictError("仅课程视频关键帧支持重新描述")
-    row.describe_status = "pending"
+    row.describe_status = KbDescribeStatus.PENDING
     row.describe_attempts = 0
     row.text_in_image = None
     row.caption = None

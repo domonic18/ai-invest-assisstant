@@ -35,6 +35,7 @@ from app.constants.kb import (
     KB_SECURITY_ALERT_THRESHOLD,
     KB_SECURITY_DENIED_KEY_TEMPLATE,
     KB_SECURITY_DENIED_WINDOW_SECONDS,
+    KbProcessStatus,
 )
 from app.core.cache import get_redis
 from app.core.clock import today_cn
@@ -170,7 +171,7 @@ async def _neighbor_episode_ids(
     playable = [
         m.id
         for m in siblings
-        if m.media_kind in ("video", "audio") and m.process_status == "done"
+        if m.media_kind in ("video", "audio") and m.process_status == KbProcessStatus.DONE
     ]
     if media.id not in playable:
         return None, None
@@ -351,7 +352,7 @@ async def _load_media(
         or not source.enabled
     ):
         raise NotFoundError("素材不存在")
-    if media.process_status != "done":
+    if media.process_status != KbProcessStatus.DONE:
         raise NotFoundError("素材暂不可用")
     if kinds is not None and media.media_kind not in kinds:
         raise BadRequestError("素材类型不支持该操作")

@@ -179,7 +179,7 @@ async def init_uploads(
         m.file_hash: m
         for m in existing
         if m.deleted_at is None
-        and m.process_status == "uploaded"
+        and m.process_status == KbProcessStatus.UPLOADED
         and m.file_size == 0
     }
     blocked_by_hash: dict[str, KbMedia] = {
@@ -401,7 +401,7 @@ async def create_upload_session(
     ``resumeUploadId`` 仅作前端提示，与行内不一致时以行内为准。
     """
     row = await get_media(session, media_id)
-    if row.process_status != "uploaded" or row.file_size != 0:
+    if row.process_status != KbProcessStatus.UPLOADED or row.file_size != 0:
         raise ConflictError("素材已上传完成或不在待上传状态")
     minio = get_minio_service()
 

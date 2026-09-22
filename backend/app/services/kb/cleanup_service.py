@@ -24,6 +24,7 @@ from app.constants.kb import (
     KB_CLEANUP_LOCK_KEY,
     KB_SOFT_DELETE_RECOVERY_HOURS,
     KB_UPLOAD_SESSION_MAX_AGE_DAYS,
+    KbProcessStatus,
 )
 from app.core.cache import get_redis
 from app.core.clock import utc_now
@@ -108,7 +109,7 @@ async def run_cleanup(session: AsyncSession, *, deep: bool = False) -> dict[str,
         result = await session.execute(
             select(KbMedia).where(
                 KbMedia.deleted_at.is_(None),
-                KbMedia.process_status == "uploaded",
+                KbMedia.process_status == KbProcessStatus.UPLOADED,
                 KbMedia.file_size == 0,
             )
         )
