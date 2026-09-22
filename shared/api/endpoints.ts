@@ -219,11 +219,12 @@ export const ENDPOINTS = {
     taskTrigger: (id: number | string) => `${API_BASE}/admin/tasks/${id}/trigger`,
     taskPause: (id: number | string) => `${API_BASE}/admin/tasks/${id}/pause`,
     taskResume: (id: number | string) => `${API_BASE}/admin/tasks/${id}/resume`,
-    llmConfigs: `${API_BASE}/admin/llm-configs`,
-    llmConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}`,
-    testLLMConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}/test`,
+    llmConfigs: `${API_BASE}/admin/model-configs/llm`,
+    llmConfig: (id: number | string) => `${API_BASE}/admin/model-configs/llm/${id}`,
+    testLLMConfig: (id: number | string) =>
+      `${API_BASE}/admin/model-configs/llm/${id}/test`,
     setDefaultLLMConfig: (id: number | string) =>
-      `${API_BASE}/admin/llm-configs/${id}/set-default`,
+      `${API_BASE}/admin/model-configs/llm/${id}/set-default`,
     kbSettings: `${API_BASE}/admin/kb/settings`,
     kbUsage: `${API_BASE}/admin/kb/usage`,
     kbSources: `${API_BASE}/admin/kb/sources`,
@@ -309,7 +310,7 @@ export const ENDPOINTS = {
       `${API_BASE}/admin/social/accounts/${id}/posts`,
     socialStatus: `${API_BASE}/admin/social/status`,
     socialCookies: `${API_BASE}/admin/social/cookies`,
-    socialAsrConfig: `${API_BASE}/admin/social/asr-config`,
-    socialAsrConfigTest: `${API_BASE}/admin/social/asr-config/test`,
+    asrConfig: `${API_BASE}/admin/model-configs/asr`,
+    asrConfigTest: `${API_BASE}/admin/model-configs/asr/test`,
   },
 } as const
