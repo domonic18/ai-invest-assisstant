@@ -39,7 +39,7 @@ from app.schemas.market import (
 
 @pytest.mark.unit
 class TestBuildAssistantTools:
-    def test_returns_thirty_two_tools(self) -> None:
+    def test_returns_thirty_three_tools(self) -> None:
         tools = build_assistant_tools()
         names = [t.name for t in tools]
         assert names == [
@@ -77,7 +77,14 @@ class TestBuildAssistantTools:
             "query_financial_reports",
             "download_financial_reports",
             "summarize_financial_report",
+            "search_knowledge_base",
         ]
+
+    def test_excludes_kb_tool_when_disabled(self) -> None:
+        tools = build_assistant_tools(use_kb=False)
+        names = [t.name for t in tools]
+        assert "search_knowledge_base" not in names
+        assert len(names) == 34
 
 
 @pytest.mark.unit

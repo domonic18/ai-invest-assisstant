@@ -1,4 +1,4 @@
-"""对话助手 deepagents 运行时组装（按模型出口指纹的 LRU 缓存）。
+"""对话助手 deepagents 运行时组装（按模型出口指纹 × 知识库开关的 LRU 缓存）。
 
 - 模型：``resolve_llm`` 解析出口——BYOK 用户各自独立 agent 实例，
   系统默认模型全站共享一个；llm_config 变更后指纹变化自然重建
@@ -41,10 +41,12 @@ _build_lock = asyncio.Lock()
 _IDLE_TTL_SECONDS = 2 * 3600.0
 
 
-def _fingerprint(cfg: ResolvedLLMConfig) -> str:
-    """模型出口指纹（含 api_key 哈希，不含明文）。"""
+def _fingerprint(cfg: ResolvedLLMConfig, use_kb: bool) -> str:
+    """模型出口指纹（含 api_key 哈希，不含明文）；use_kb 纳入维度——
+    开关决定工具集，同出口开/关必须是不同缓存实例。
+    """
     key_digest = hashlib.sha256(cfg.api_key.encode()).hexdigest()
-    raw = "|".join([cfg.protocol, cfg.base_url, cfg.model_name, key_digest])
+    raw = "|".join([cfg.protocol, cfg.base_url, cfg.model_name, key_digest, str(use_kb)])
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -113,13 +115,17 @@ def load_assistant_system_prompt() -> str:
 async def get_assistant_agent(
     tools: Sequence[BaseTool] | None = None,
     cfg: ResolvedLLMConfig | None = None,
+    use_kb: bool = True,
 ) -> CompiledStateGraph:
     """组装并按出口指纹缓存对话助手 deepagents 图。
 
     Args:
-        tools: 注入的数据工具；缺省用 ``app.agent.tools.build_assistant_tools()``。
-            注意：仅影响本次构建；命中缓存时忽略（工具集变更须先 reset）。
+        tools: 注入的数据工具；缺省用
+            ``app.agent.tools.build_assistant_tools()``。
+            注意：仅影响本次构建；命中缓存时忽略（显式传工具集须先 reset）。
         cfg: 已解析的模型出口（BYOK 用户传入自有配置）；缺省解析系统默认。
+        use_kb: 是否注入知识库检索工具（对话「使用知识库」开关），
+            纳入缓存指纹——同出口开/关各自独立 agent 实例。
 
     Returns:
         已绑定 checkpointer 的 CompiledStateGraph；同指纹调用直接返回缓存实例。
@@ -127,7 +133,7 @@ async def get_assistant_agent(
     if cfg is None:
         async with AsyncSessionLocal() as session:
             cfg, _outlet = await resolve_llm(session)
-    fp = _fingerprint(cfg)
+    fp = _fingerprint(cfg, use_kb)
 
     async with _build_lock:
         _evict_idle()
@@ -137,7 +143,7 @@ async def get_assistant_agent(
             _agents.move_to_end(fp)
             return cached[0]
 
-        agent = await _build_agent(tools, cfg)
+        agent = await _build_agent(tools, cfg, use_kb)
         capacity = get_settings().quota_agent_cache_size
         while len(_agents) >= max(capacity, 1):
             _agents.popitem(last=False)
@@ -146,7 +152,7 @@ async def get_assistant_agent(
 
 
 async def _build_agent(
-    tools: Sequence[BaseTool] | None, cfg: ResolvedLLMConfig
+    tools: Sequence[BaseTool] | None, cfg: ResolvedLLMConfig, use_kb: bool
 ) -> CompiledStateGraph:
     """构建一个助手图实例（仅在缓存 miss 时调用，须持 ``_build_lock``）。"""
     from deepagents import create_deep_agent
@@ -154,7 +160,10 @@ async def _build_agent(
     if tools is None:
         from app.agent.tools import build_assistant_tools, build_mcp_tools
 
-        tools = [*build_assistant_tools(), *await build_mcp_tools()]
+        tools = [
+            *build_assistant_tools(use_kb=use_kb),
+            *await build_mcp_tools(),
+        ]
 
     from app.agent.runtime.assistant_subagents import build_subagents
 

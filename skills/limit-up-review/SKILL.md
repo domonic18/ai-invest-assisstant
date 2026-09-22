@@ -1,7 +1,7 @@
 ---
 name: limit-up-review
 description: 涨停 AI 归因：工具化获取涨停池全量明细、领涨板块与近两日新闻，按市场热点题材主线对涨停个股分组并给出涨停原因与个股题材标签。侧边栏助手手动生成与每日定时任务（limit-up-ai-review）均通过本 Skill 执行。
-allowed-tools: get_limit_up_pool, get_sector_overview, search_news_by_date, persist_limit_up_attribution
+allowed-tools: get_limit_up_pool, get_sector_overview, search_news_by_date, persist_limit_up_attribution, search_knowledge_base
 ---
 
 # 涨停 AI 归因
@@ -32,11 +32,12 @@ allowed-tools: get_limit_up_pool, get_sector_overview, search_news_by_date, pers
 - `search_news_by_date(start_date, end_date, limit)`: 按发布日期区间检索新闻/公告/研报标题与摘要（不限关键词，时间倒序）。
 
 - `persist_limit_up_attribution(trade_date, groups, stock_themes)`: 将归因结果落库（仅助手对话路径注入），涨停页卡片自动刷新。
+- `search_knowledge_base(query, source?, chapter?, point_type?, include_media?)`: 助手对话与独立执行器路径均注入——检索投资课程知识库已审核知识卡片（如连板/打板纪律、情绪周期方法论）。引用卡片时必须保留返回的 citation 定位（集数/时间码/章节/页码）使结论可溯源；`include_media` 仅在用户想学习知识点的课程讲解、或明确要求看视频原片/书籍原文时传 true，归因分析中保持 false；未注入本工具时（如对话关闭知识库开关）不得编造知识库引用。
 
-前三个为取数工具（独立执行器与助手路径均注入）；持久化工具仅助手对话路径注入，独立执行器路径由服务层 `limit_up_ai_service` 落库。
+前三个为取数工具，`search_knowledge_base` 双路径均注入；持久化工具仅助手对话路径注入，独立执行器路径由服务层 `limit_up_ai_service` 落库。
 
 ## 独立执行器路径流程
-（定时任务路径）执行器注入前三个取数工具，最终回复输出符合「输出 Schema」的 JSON，服务层校验后落库。
+（定时任务路径）执行器注入前三个取数工具与 `search_knowledge_base`，最终回复输出符合「输出 Schema」的 JSON，服务层校验后落库。
 
 ## 助手对话路径流程
 1-3 步取数同下；归因完成后**不要**在最终回复输出完整 JSON，而是调用

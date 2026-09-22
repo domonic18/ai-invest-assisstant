@@ -21,6 +21,7 @@ from app.agent.tools.chain_tools import (
 from app.agent.tools.dragon_tiger_tools import get_dragon_tiger
 from app.agent.tools.drawing_tools import persist_ai_kline_drawings
 from app.agent.tools.interaction_tools import ask_user
+from app.agent.tools.kb_tools import search_knowledge_base
 from app.agent.tools.market_tools import (
     collect_market_data,
     get_auction_summary,
@@ -92,12 +93,14 @@ __all__ = [
     "screen_stocks",
     "ask_user",
     "persist_ai_kline_drawings",
+    "search_knowledge_base",
 ]
 
 
-def build_assistant_tools() -> list[BaseTool]:
-    """助手工具清单：只读查询工具 + 产业链分析/个股分析/大盘复盘/涨停归因持久化工具 + AI 画线写入 + ask_user 问题卡 + 财报工具 + 行情补采。"""
-    return [
+def build_assistant_tools(use_kb: bool = True) -> list[BaseTool]:
+    """助手工具清单：只读查询工具 + 产业链分析/个股分析/大盘复盘/涨停归因持久化工具 + AI 画线写入 + ask_user 问题卡 + 财报工具 + 行情补采 + 知识库检索（use_kb=False 时剔除，对应对话「使用知识库」开关关闭；视频播放由 playback-token 白名单控制）。
+    """
+    tools = [
         get_stock_quote,
         get_stock_kline,
         query_financial_data,
@@ -133,6 +136,9 @@ def build_assistant_tools() -> list[BaseTool]:
         download_financial_reports,
         summarize_financial_report,
     ]
+    if use_kb:
+        tools.append(search_knowledge_base)
+    return tools
 
 
 def _mcp_client_config(row: Any) -> dict[str, Any]:

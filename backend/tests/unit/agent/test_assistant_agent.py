@@ -101,6 +101,32 @@ class TestAssistantAgent:
         assert byok_again is byok_agent
 
     @pytest.mark.asyncio
+    async def test_use_kb_switch_gets_distinct_agents(self) -> None:
+        """知识库开关纳入缓存指纹：同出口开/关各自独立实例。"""
+        from langgraph.checkpoint.memory import MemorySaver
+
+        from app.agent.runtime import assistant_agent
+
+        with (
+            patch(
+                "app.agent.tools.build_mcp_tools",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.agent.runtime.assistant_agent.get_checkpointer",
+                AsyncMock(return_value=MemorySaver()),
+            ),
+        ):
+            kb_on = await assistant_agent.get_assistant_agent(cfg=_resolved(), use_kb=True)
+            kb_off = await assistant_agent.get_assistant_agent(cfg=_resolved(), use_kb=False)
+            kb_on_again = await assistant_agent.get_assistant_agent(
+                cfg=_resolved(), use_kb=True
+            )
+
+        assert kb_off is not kb_on
+        assert kb_on_again is kb_on
+
+    @pytest.mark.asyncio
     async def test_agent_includes_todo_list_middleware(self) -> None:
         from langgraph.checkpoint.memory import MemorySaver
 

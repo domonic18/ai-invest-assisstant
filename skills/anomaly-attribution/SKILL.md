@@ -1,7 +1,7 @@
 ---
 name: anomaly-attribution
 description: 异动 AI 归因：对规则检测出的板块/个股异动（强度榜 top-N），经新闻、龙虎榜、资金流证据工具取数后给出归因分类与摘要。检测任务尾部定时批量归因与异动页「AI 归因」按钮的手动重分析均通过本 Skill 执行。
-allowed-tools: search_news_by_date, search_news, get_dragon_tiger, get_stock_fund_flow, get_sector_fund_flow, persist_sector_anomaly_attribution, persist_stock_anomaly_attribution
+allowed-tools: search_news_by_date, search_news, get_dragon_tiger, get_stock_fund_flow, get_sector_fund_flow, persist_sector_anomaly_attribution, persist_stock_anomaly_attribution, search_knowledge_base
 ---
 
 # 异动 AI 归因
@@ -32,6 +32,7 @@ allowed-tools: search_news_by_date, search_news, get_dragon_tiger, get_stock_fun
 - `get_stock_fund_flow(stock_code, days)`: 个股主力资金分档净流入——个股证据。
 - `get_sector_fund_flow(sector_type, days, top)`: 板块主力资金净流入排行——板块证据。
 - `persist_sector_anomaly_attribution(trade_date, items)` / `persist_stock_anomaly_attribution(trade_date, items)`: 归因落库（仅助手对话路径注入），异动页自动刷新。
+- `search_knowledge_base(query, source?, chapter?, point_type?, include_media?)`: 助手对话与独立执行器路径均注入——检索投资课程知识库已审核知识卡片，为异动归因补充课程方法论视角。引用卡片时必须保留返回的 citation 定位（集数/时间码/章节/页码）使结论可溯源；`include_media` 仅在用户想学习知识点的课程讲解、或明确要求看视频原片/书籍原文时传 true，归因分析中保持 false；未注入本工具时（如对话关闭知识库开关）不得编造知识库引用。
 
 ## 分析流程
 1. 通读输入清单中每条异动的规则事实（命中维度、强度、趋势状态、分类）。

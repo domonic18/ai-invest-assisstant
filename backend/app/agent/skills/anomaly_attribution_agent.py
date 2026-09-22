@@ -28,12 +28,18 @@ from app.services.market.anomaly_attribution_service import (
 
 # 域 → 证据工具与取数提示（写进 user prompt 的取数建议段）
 _EVIDENCE_TOOLS: dict[str, tuple[str, ...]] = {
-    "sector": ("get_sector_fund_flow", "search_news_by_date", "search_news"),
+    "sector": (
+        "get_sector_fund_flow",
+        "search_news_by_date",
+        "search_news",
+        "search_knowledge_base",
+    ),
     "stock": (
         "get_dragon_tiger",
         "get_stock_fund_flow",
         "search_news_by_date",
         "search_news",
+        "search_knowledge_base",
     ),
 }
 _EVIDENCE_HINTS: dict[str, str] = {
@@ -85,6 +91,7 @@ async def run_skill(
         get_dragon_tiger,
         get_sector_fund_flow,
         get_stock_fund_flow,
+        search_knowledge_base,
         search_news,
         search_news_by_date,
     )
@@ -95,6 +102,7 @@ async def run_skill(
         "get_stock_fund_flow": get_stock_fund_flow,
         "search_news": search_news,
         "search_news_by_date": search_news_by_date,
+        "search_knowledge_base": search_knowledge_base,
     }
     allowed = (
         ",".join(sorted(SECTOR_CATEGORIES))
