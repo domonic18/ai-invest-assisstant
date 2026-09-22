@@ -16,8 +16,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.social import AsrChannelConfig
+from app.utils import ffmpeg
 from app.utils.api_base import normalize_asr_base
 from app.utils.crypto import decrypt_token
+from app.utils.ffmpeg import FFmpegError
 
 logger = structlog.get_logger(__name__)
 
@@ -94,8 +96,6 @@ async def _fetch_audio(url: str, tmp_dir: Path) -> tuple[Path | None, str | None
         (mp3 路径, None)；失败返回 (None, 降级原因 audio_download_failed /
         ffmpeg_unavailable)。
     """
-    import asyncio
-
     input_path = tmp_dir / "input.mp4"
     output_path = tmp_dir / "audio.mp3"
     try:
@@ -114,7 +114,7 @@ async def _fetch_audio(url: str, tmp_dir: Path) -> tuple[Path | None, str | None
         return None, "audio_download_failed"
 
     try:
-        proc = await asyncio.create_subprocess_exec(
+        code, _ = await ffmpeg.run(
             "ffmpeg",
             "-y",
             "-i",
@@ -125,14 +125,11 @@ async def _fetch_audio(url: str, tmp_dir: Path) -> tuple[Path | None, str | None
             "-ar",
             "16000",
             str(output_path),
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
         )
-        returncode = await proc.wait()
-    except FileNotFoundError:
+    except FFmpegError:
         logger.warning("social_asr_ffmpeg_missing")
         return None, "ffmpeg_unavailable"
-    if returncode != 0 or not output_path.exists():
+    if code != 0 or not output_path.exists():
         return None, "ffmpeg_unavailable"
     return output_path, None
 

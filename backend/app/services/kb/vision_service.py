@@ -15,7 +15,6 @@
 visionError``，累计不再扫；单帧描述失败退避重试，不影响其他帧。
 """
 
-import asyncio
 import tempfile
 from datetime import timedelta
 from pathlib import Path
@@ -51,6 +50,8 @@ from app.services.kb.settings_service import resolve_role_model
 from app.services.kb.source_service import get_source
 from app.services.quota.constants import FEATURE_KB_VISION
 from app.services.quota.context import meter_scope
+from app.utils import ffmpeg
+from app.utils.ffmpeg import FFmpegError
 
 logger = structlog.get_logger(__name__)
 
@@ -264,17 +265,15 @@ async def _extract_jpeg(
 async def _frame_phash(src: Path, seek: float) -> int | None:
     """抽 16×16 灰度 rawvideo 计算 aHash（帧缺失返回 None）。"""
     try:
-        proc = await asyncio.create_subprocess_exec(
+        code, _, stdout = await ffmpeg.run(
             "ffmpeg", "-ss", f"{seek:.3f}", "-i", str(src),
             "-frames:v", "1", "-vf", "scale=16:16",
             "-f", "rawvideo", "-pix_fmt", "gray", "-",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
+            capture_stdout=True,
         )
-        stdout, _ = await proc.communicate()
-    except FileNotFoundError as exc:
+    except FFmpegError as exc:
         raise VisionError("ffmpeg_unavailable") from exc
-    if proc.returncode != 0 or len(stdout) < 256:
+    if code != 0 or len(stdout) < 256:
         return None
     return vpipe.ahash(stdout)
 
@@ -282,14 +281,12 @@ async def _frame_phash(src: Path, seek: float) -> int | None:
 async def _probe_duration(src: Path) -> float:
     """ffprobe 读取时长（秒）。"""
     try:
-        proc = await asyncio.create_subprocess_exec(
+        _, _, stdout = await ffmpeg.run(
             "ffprobe", "-v", "error", "-show_entries", "format=duration",
             "-of", "default=noprint_wrappers=1:nokey=1", str(src),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
+            capture_stdout=True,
         )
-        stdout, _ = await proc.communicate()
-    except FileNotFoundError as exc:
+    except FFmpegError as exc:
         raise VisionError("ffmpeg_unavailable") from exc
     try:
         return float(stdout.decode().strip())
@@ -298,17 +295,11 @@ async def _probe_duration(src: Path) -> float:
 
 
 async def _run(*args: str) -> tuple[int, str]:
-    """执行 ffmpeg 子进程，返回 (returncode, stderr)。"""
+    """执行 ffmpeg 子进程（共享执行器 + 域异常翻译），返回 (returncode, stderr)。"""
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *args,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, stderr = await proc.communicate()
-    except FileNotFoundError as exc:
+        return await ffmpeg.run(*args)
+    except FFmpegError as exc:
         raise VisionError("ffmpeg_unavailable") from exc
-    return proc.returncode or 0, stderr.decode(errors="replace")
 
 
 async def _record_failure(
