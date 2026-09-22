@@ -46,6 +46,8 @@ from app.schemas.kb import (
 from app.services.kb import (
     cost_service,
     media_service,
+    media_upload,
+    media_upload_session,
     review_service,
     source_service,
     transcript_service,
@@ -134,7 +136,7 @@ async def init_uploads(
     admin: Annotated[User, Depends(get_current_admin_user)],
 ) -> KbMediaInitResponse:
     """批量建行 + 预签名 PUT（浏览器直传 COS）。"""
-    return await media_service.init_uploads(
+    return await media_upload.init_uploads(
         session, source_id, data, actor_id=admin.id, ip=client_ip(request)
     )
 
@@ -176,7 +178,7 @@ async def create_upload_session(
     admin: Annotated[User, Depends(get_current_admin_user)],
 ) -> KbUploadSessionResponse:
     """创建/续传分片上传会话（已传分片服务端真相，仅缺失分片签 URL）。"""
-    return await media_service.create_upload_session(
+    return await media_upload_session.create_upload_session(
         session, media_id, data, actor_id=admin.id, ip=client_ip(request)
     )
 
@@ -189,7 +191,7 @@ async def abort_upload_session(
     admin: Annotated[User, Depends(get_current_admin_user)],
 ) -> None:
     """放弃分片会话（释放已传分片存储，幂等）。"""
-    await media_service.abort_upload_session(
+    await media_upload_session.abort_upload_session(
         session, media_id, actor_id=admin.id, ip=client_ip(request)
     )
 
@@ -202,7 +204,7 @@ async def confirm_uploaded(
     admin: Annotated[User, Depends(get_current_admin_user)],
 ) -> KbMediaResponse:
     """上传完成回调：分片合并或 HEAD 核对 + 哈希去重 + 字节入账。"""
-    return await media_service.confirm_uploaded(
+    return await media_upload.confirm_uploaded(
         session, media_id, actor_id=admin.id, ip=client_ip(request)
     )
 

@@ -1,6 +1,6 @@
 """视觉通道编排单测：选帧落库、描述计费、失败退避与任务薄壳（ffmpeg/VLM 全 mock）。"""
 
-from contextlib import asynccontextmanager
+from contextlib import ExitStack, asynccontextmanager
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -14,7 +14,7 @@ from app.core.database import Base
 from app.core.exceptions import ConflictError, UnprocessableEntityError
 from app.models.kb import KbImageAsset, KbMedia, KbSource, KbTranscriptSegment
 from app.schemas.kb import ImageUnderstanding
-from app.services.kb import vision_service
+from app.services.kb import vision_extract, vision_service
 
 pytestmark = pytest.mark.unit
 
@@ -107,35 +107,45 @@ def _patches(
 
     return {
         "lock": patch(
-            "app.services.kb.vision_service.redis_lock", side_effect=fake_lock
+            "app.services.kb.vision_extract.redis_lock", side_effect=fake_lock
         ),
         "resolve_role": patch(
-            "app.services.kb.vision_service.resolve_role_model",
+            "app.services.kb.vision_extract.resolve_role_model",
             new=resolve or AsyncMock(return_value=SimpleNamespace(id=99)),
         ),
-        "minio": patch(
-            "app.services.kb.vision_service.get_minio_service", return_value=minio or _minio_mock()
-        ),
+        "minio": _minio_cm(minio),
         "probe": patch(
-            "app.services.kb.vision_service._probe_duration",
+            "app.services.kb.vision_extract._probe_duration",
             new=AsyncMock(return_value=100.0),
         ),
         "scenes": patch(
-            "app.services.kb.vision_service._detect_scenes",
+            "app.services.kb.vision_extract._detect_scenes",
             new=AsyncMock(return_value=[120.0]),
         ),
         "jpeg": patch(
-            "app.services.kb.vision_service._extract_jpeg",
+            "app.services.kb.vision_extract._extract_jpeg",
             new=AsyncMock(return_value=b"jpeg-bytes"),
         ),
         "phash": patch(
-            "app.services.kb.vision_service._frame_phash",
+            "app.services.kb.vision_extract._frame_phash",
             new=AsyncMock(side_effect=[0b1111_0000, 0b1111_0000, 0b0000_1111]),
         ),
         "structured": patch(
             "app.agent.runtime.structured.run_structured", new=structured
         ),
     }
+
+
+def _minio_cm(minio: MagicMock | None) -> Any:
+    """选帧与描述两模块各自取 minio 服务，同一 mock 实例覆盖两条路径。"""
+    stack = ExitStack()
+    chosen = minio or _minio_mock()
+    for target in (
+        "app.services.kb.vision_extract.get_minio_service",
+        "app.services.kb.vision_describe.get_minio_service",
+    ):
+        stack.enter_context(patch(target, return_value=chosen))
+    return stack
 
 
 async def test_frame_and_describe_full_flow(session: AsyncSession) -> None:
@@ -149,7 +159,7 @@ async def test_frame_and_describe_full_flow(session: AsyncSession) -> None:
     with patches["lock"], patches["resolve_role"], patches["minio"], \
          patches["probe"], patches["scenes"], patches["jpeg"], \
          patches["phash"], patches["structured"]:
-        stats = await vision_service.run_vision(session)
+        stats = await vision_extract.run_vision(session)
 
     # 候选：guide 30s + fixed 60s（scene 120s 超出 probe 时长 100s 被丢；
     # 第二段文稿无视觉指涉不引导）→ 第 2 帧 phash 与首帧近重复被滤 → 1 帧入库
@@ -194,7 +204,7 @@ async def test_describe_failure_backoff_then_terminal(session: AsyncSession) -> 
     patches = _patches(structured)
     with patches["lock"], patches["resolve_role"], patches["minio"], \
          patches["structured"]:
-        stats = await vision_service.run_vision(session)
+        stats = await vision_extract.run_vision(session)
 
     assert stats["describeFailed"] == 1
     row = (
@@ -211,12 +221,12 @@ async def test_frame_failure_records_attempts(session: AsyncSession) -> None:
     structured = AsyncMock()
     patches = _patches(structured)
     patches["scenes"] = patch(
-        "app.services.kb.vision_service._detect_scenes",
+        "app.services.kb.vision_extract._detect_scenes",
         new=AsyncMock(side_effect=RuntimeError("ffmpeg_scene_detect_failed")),
     )
     with patches["lock"], patches["resolve_role"], patches["minio"], \
          patches["probe"], patches["scenes"], patches["structured"]:
-        stats = await vision_service.run_vision(session)
+        stats = await vision_extract.run_vision(session)
 
     assert stats["failedMedias"] == 1
     row = await session.get(KbMedia, media_id)
@@ -234,7 +244,7 @@ async def test_skip_media_after_max_attempts(session: AsyncSession) -> None:
     with patches["lock"], patches["resolve_role"], patches["minio"], \
          patches["probe"], patches["scenes"], patches["jpeg"], \
          patches["phash"], patches["structured"]:
-        stats = await vision_service.run_vision(session)
+        stats = await vision_extract.run_vision(session)
 
     assert stats["mediasFramed"] == 0
     assert stats["framesDescribed"] == 0
@@ -246,7 +256,7 @@ async def test_no_model_configured(session: AsyncSession) -> None:
         AsyncMock(), resolve=AsyncMock(side_effect=UnprocessableEntityError("未配置"))
     )
     with patches["lock"], patches["resolve_role"], patches["minio"]:
-        assert await vision_service.run_vision(session) == {"noModelConfigured": 1}
+        assert await vision_extract.run_vision(session) == {"noModelConfigured": 1}
 
 
 async def test_busy_lock(session: AsyncSession) -> None:
@@ -256,8 +266,8 @@ async def test_busy_lock(session: AsyncSession) -> None:
     async def busy_lock(*args: Any, **kwargs: Any):
         yield False
 
-    with patch("app.services.kb.vision_service.redis_lock", side_effect=busy_lock):
-        assert await vision_service.run_vision(session) == {"skippedBusy": 1}
+    with patch("app.services.kb.vision_extract.redis_lock", side_effect=busy_lock):
+        assert await vision_extract.run_vision(session) == {"skippedBusy": 1}
 
 
 async def test_list_images_signs_thumbnails(session: AsyncSession) -> None:
@@ -427,7 +437,7 @@ class TestKbVisionSpider:
         with (
             patch("collector.spiders.kb_vision.AsyncSessionLocal") as mock_factory,
             patch(
-                "app.services.kb.vision_service.run_vision",
+                "app.services.kb.vision_extract.run_vision",
                 new=AsyncMock(return_value=stats),
             ) as p_run,
         ):
@@ -455,7 +465,7 @@ class TestKbVisionSpider:
         with (
             patch("collector.spiders.kb_vision.AsyncSessionLocal") as mock_factory,
             patch(
-                "app.services.kb.vision_service.run_vision",
+                "app.services.kb.vision_extract.run_vision",
                 new=AsyncMock(return_value=stats),
             ),
         ):

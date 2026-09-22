@@ -11,8 +11,8 @@ from PIL import Image
 from app.core.exceptions import BadRequestError, NotFoundError, UnauthorizedError
 from app.models.kb import KbImageAsset, KbSource
 from app.models.user import User
-from app.services.kb import playback_service
-from app.services.kb.playback_service import (
+from app.services.kb import book_render, playback_service, playback_stream
+from app.services.kb.playback_stream import (
     MediaStream,
     RangeNotSatisfiableError,
     parse_range_header,
@@ -246,7 +246,7 @@ class TestTokenValidationMatrix:
             ),
         ):
             with pytest.raises(UnauthorizedError):
-                await playback_service.open_media_stream(
+                await playback_stream.open_media_stream(
                     session,
                     media_id=11,
                     token=token,
@@ -280,7 +280,7 @@ class TestTokenValidationMatrix:
             ),
         ):
             with pytest.raises(UnauthorizedError):
-                await playback_service.open_media_stream(
+                await playback_stream.open_media_stream(
                     session,
                     media_id=11,
                     token="42." + "x" * 41,
@@ -323,7 +323,7 @@ class TestOpenMediaStream:
                 "app.services.kb.playback_service.get_redis", return_value=redis
             ),
             patch(
-                "app.services.kb.playback_service.get_minio_service",
+                "app.services.kb.playback_stream.get_minio_service",
                 return_value=minio,
             ),
             patch(
@@ -331,7 +331,7 @@ class TestOpenMediaStream:
                 new=AsyncMock(return_value=_media()),
             ),
         ):
-            stream = await playback_service.open_media_stream(
+            stream = await playback_stream.open_media_stream(
                 _session(),
                 media_id=11,
                 token="t",
@@ -358,7 +358,7 @@ class TestOpenMediaStream:
                 "app.services.kb.playback_service.get_redis", return_value=redis
             ),
             patch(
-                "app.services.kb.playback_service.get_minio_service",
+                "app.services.kb.playback_stream.get_minio_service",
                 return_value=minio,
             ),
             patch(
@@ -374,7 +374,7 @@ class TestOpenMediaStream:
             ),
         ):
             with pytest.raises(BadRequestError):
-                await playback_service.open_media_stream(
+                await playback_stream.open_media_stream(
                     session,
                     media_id=11,
                     token="t",
@@ -400,7 +400,7 @@ class TestOpenMediaStream:
             ),
         ):
             with pytest.raises(BadRequestError):
-                await playback_service.open_media_stream(
+                await playback_stream.open_media_stream(
                     _session(),
                     media_id=11,
                     token="t",
@@ -434,7 +434,7 @@ class TestBuildSubtitleVtt:
                 new=AsyncMock(return_value=segments),
             ),
         ):
-            vtt = await playback_service.build_subtitle_vtt(
+            vtt = await playback_stream.build_subtitle_vtt(
                 _session(), media_id=11
             )
         lines = vtt.splitlines()
@@ -459,20 +459,20 @@ def _blank_pdf_bytes() -> bytes:
 @pytest.mark.unit
 class TestBookPageRender:
     def test_clean_page_render_png(self) -> None:
-        png = playback_service._render_clean_page(_blank_pdf_bytes(), 1)
+        png = book_render._render_clean_page(_blank_pdf_bytes(), 1)
         assert png[:8] == b"\x89PNG\r\n\x1a\n"
 
     def test_page_out_of_range_404(self) -> None:
         from app.core.exceptions import NotFoundError
 
         with pytest.raises(NotFoundError):
-            playback_service._render_clean_page(_blank_pdf_bytes(), 2)
+            book_render._render_clean_page(_blank_pdf_bytes(), 2)
 
     def test_watermark_modifies_image(self) -> None:
         buffer = BytesIO()
         Image.new("RGB", (400, 600), "white").save(buffer, format="PNG")
         clean = buffer.getvalue()
-        marked = playback_service._composite_watermark(
+        marked = book_render._composite_watermark(
             clean, "测试用户 2026-09-21"
         )
         assert marked[:8] == b"\x89PNG\r\n\x1a\n"
@@ -484,8 +484,8 @@ class TestBookPageRender:
         pdf_bytes = _blank_pdf_bytes()
         minio = MagicMock()
         minio.download_file = AsyncMock(return_value=pdf_bytes)
-        playback_service._PDF_CACHE.clear()
-        playback_service._PAGE_CACHE.clear()
+        book_render._PDF_CACHE.clear()
+        book_render._PAGE_CACHE.clear()
         media = _media(
             media_kind="book", episode_no=None, file_name="book.pdf"
         )
@@ -503,7 +503,7 @@ class TestBookPageRender:
                 "app.services.kb.playback_service.get_redis", return_value=redis
             ),
             patch(
-                "app.services.kb.playback_service.get_minio_service",
+                "app.services.kb.book_render.get_minio_service",
                 return_value=minio,
             ),
             patch(
@@ -511,16 +511,16 @@ class TestBookPageRender:
                 new=AsyncMock(return_value=media),
             ),
         ):
-            first = await playback_service.render_book_page(
+            first = await book_render.render_book_page(
                 session, media_id=11, page_no=1, token="t"
             )
-            second = await playback_service.render_book_page(
+            second = await book_render.render_book_page(
                 session, media_id=11, page_no=1, token="t"
             )
         assert first[:8] == b"\x89PNG\r\n\x1a\n"
         # 第二次命中干净页缓存，MinIO 不再下载
         minio.download_file.assert_awaited_once()
-        assert second != playback_service._PAGE_CACHE.get((11, 1))
+        assert second != book_render._PAGE_CACHE.get((11, 1))
 
     async def test_render_book_page_user_gone_denied(self) -> None:
         redis = _FakeRedis()
@@ -533,6 +533,6 @@ class TestBookPageRender:
             ),
             pytest.raises(UnauthorizedError),
         ):
-            await playback_service.render_book_page(
+            await book_render.render_book_page(
                 session, media_id=11, page_no=1, token="t"
             )

@@ -1,4 +1,4 @@
-"""视频关键帧采集器（internal 薄壳，实际逻辑在 vision_service）。
+"""视频关键帧采集器（internal 薄壳，实际逻辑在 vision_extract/vision_describe）。
 
 状态驱动：每轮先为「转写 done 且未选帧」的视频选帧入库，再对 pending 帧
 批量 VLM 描述；无工作可做（含模型未配置/任务锁忙）返回 SKIPPED（良性终态）。
@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.core.database import AsyncSessionLocal
-from app.services.kb import vision_service
+from app.services.kb import vision_extract
 from collector.core.base import BaseCollector, CollectResult, CollectStatus
 
 
@@ -30,7 +30,7 @@ class KbVisionCollector(BaseCollector):
         started_at = datetime.now(timezone.utc)
         try:
             async with AsyncSessionLocal() as session:
-                stats = await vision_service.run_vision(session)
+                stats = await vision_extract.run_vision(session)
         except Exception as exc:  # noqa: BLE001
             return CollectResult(
                 source=self.source,

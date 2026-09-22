@@ -16,7 +16,7 @@ from app.schemas.kb import (
     KbPublishedChaptersResponse,
     KbSearchResponse,
 )
-from app.services.kb.playback_service import MediaStream
+from app.services.kb.playback_stream import MediaStream
 
 
 @contextmanager
@@ -248,7 +248,7 @@ class TestKbPlaybackEndpoints:
         )
         with _as_user("admin", 1, []):
             with patch(
-                "app.api.v1.kb.playback_service.open_media_stream",
+                "app.api.v1.kb.playback_stream.open_media_stream",
                 new=AsyncMock(return_value=stream),
             ) as mock_open:
                 response = client.get(
@@ -267,7 +267,7 @@ class TestKbPlaybackEndpoints:
     def test_book_page_png_response(self, client: TestClient) -> None:
         with _as_user("user", 7, [7]):
             with patch(
-                "app.api.v1.kb.playback_service.render_book_page",
+                "app.api.v1.kb.book_render.render_book_page",
                 new=AsyncMock(return_value=b"\x89PNG-data"),
             ) as mock_render:
                 response = client.get(
@@ -301,7 +301,7 @@ class TestKbPlaybackEndpoints:
         app.dependency_overrides[get_db] = _override_get_db
         try:
             with patch(
-                "app.api.v1.kb.playback_service.open_media_stream",
+                "app.api.v1.kb.playback_stream.open_media_stream",
                 new=AsyncMock(return_value=stream),
             ):
                 response = client.get(
@@ -323,7 +323,7 @@ class TestKbPlaybackEndpoints:
         app.dependency_overrides[get_db] = _override_get_db
         try:
             with patch(
-                "app.api.v1.kb.playback_service.render_book_page",
+                "app.api.v1.kb.book_render.render_book_page",
                 new=AsyncMock(return_value=b"\x89PNG-data"),
             ):
                 response = client.get(
@@ -338,7 +338,7 @@ class TestKbPlaybackEndpoints:
     def test_subtitles_vtt_response(self, client: TestClient) -> None:
         with _as_user("user", 7, [7]):
             with patch(
-                "app.api.v1.kb.playback_service.build_subtitle_vtt",
+                "app.api.v1.kb.playback_stream.build_subtitle_vtt",
                 new=AsyncMock(return_value="WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n支撑位\n"),
             ):
                 response = client.get("/api/v1/kb/media/11/subtitles.vtt")

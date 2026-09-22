@@ -1,6 +1,6 @@
 """知识库素材接入服务单测：建行/预签名、上传核对、去重、软删与恢复。"""
 
-from contextlib import asynccontextmanager
+from contextlib import ExitStack, asynccontextmanager
 from datetime import timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -30,7 +30,12 @@ from app.schemas.kb import (
     KbUploadSessionRequest,
 )
 from app.services.common.minio_service import MultipartPart
-from app.services.kb import media_service, source_service
+from app.services.kb import (
+    media_service,
+    media_upload,
+    media_upload_session,
+    source_service,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -75,10 +80,13 @@ def _patch_minio(
     minio.presigned_put_url = AsyncMock(return_value="https://cos/put")
     minio.stat_object = AsyncMock(return_value=stat)
     minio.remove_files = AsyncMock(return_value=None)
-    cm = patch(
-        "app.services.kb.media_service.get_minio_service", return_value=minio
-    )
-    return cm, minio
+    stack = ExitStack()
+    for target in (
+        "app.services.kb.media_upload.get_minio_service",
+        "app.services.kb.media_upload_session.get_minio_service",
+    ):
+        stack.enter_context(patch(target, return_value=minio))
+    return stack, minio
 
 
 def _init_item(
@@ -207,7 +215,7 @@ async def test_source_actions_record_audit(session: AsyncSession) -> None:
     assert actions == ["kb.source.create", "kb.source.delete"]
 
 
-# ---------- media_service.init_uploads ----------
+# ---------- media_upload.init_uploads ----------
 
 
 async def test_init_uploads_keeps_chinese_name_and_relative_path(
@@ -225,7 +233,7 @@ async def test_init_uploads_keeps_chinese_name_and_relative_path(
     )
     cm, _ = _patch_minio()
     with cm:
-        await media_service.init_uploads(
+        await media_upload.init_uploads(
             session, src.id, KbMediaInitRequest(items=[item]), actor_id=1
         )
     row = (await media_repository_all(session))[0]
@@ -246,7 +254,7 @@ async def test_init_uploads_auto_episode_and_presign(session: AsyncSession) -> N
     )
     cm, _ = _patch_minio()
     with cm:
-        resp = await media_service.init_uploads(
+        resp = await media_upload.init_uploads(
             session, src.id, data, actor_id=1
         )
     assert [r.media_id for r in resp.items] == [2, 3]
@@ -268,7 +276,7 @@ async def test_init_uploads_book_has_no_episode(session: AsyncSession) -> None:
     data = KbMediaInitRequest(items=[_init_item("a.pdf", media_kind="book")])
     cm, _ = _patch_minio()
     with cm:
-        resp = await media_service.init_uploads(session, src.id, data, actor_id=1)
+        resp = await media_upload.init_uploads(session, src.id, data, actor_id=1)
     assert len(resp.items) == 1
     row = (await media_repository_all(session))[0]
     assert row.episode_no is None
@@ -283,7 +291,7 @@ async def test_init_uploads_rejects_batch_hash_dup(session: AsyncSession) -> Non
         items=[_init_item("a.mp4"), _init_item("b.mp4", episode_no=2)]
     )
     with pytest.raises(ConflictError) as exc_info:
-        await media_service.init_uploads(session, src.id, data, actor_id=1)
+        await media_upload.init_uploads(session, src.id, data, actor_id=1)
     msg = str(exc_info.value)
     assert "哈希重复" in msg
     assert "a.mp4" in msg and "b.mp4" in msg
@@ -298,7 +306,7 @@ async def test_init_uploads_marks_existing_hash_as_conflict(
     await _seed_media(session, src.id, episode_no=1, hash_="a" * 32)
     cm, minio = _patch_minio()
     with cm:
-        resp = await media_service.init_uploads(
+        resp = await media_upload.init_uploads(
             session,
             src.id,
             KbMediaInitRequest(items=[_init_item("dup.mp4", hash_="a" * 32)]),
@@ -324,7 +332,7 @@ async def test_init_uploads_mixed_batch_conflict_and_created(
     )
     cm, minio = _patch_minio()
     with cm:
-        resp = await media_service.init_uploads(session, src.id, data, actor_id=1)
+        resp = await media_upload.init_uploads(session, src.id, data, actor_id=1)
     assert [r.conflict_with is not None for r in resp.items] == [True, False]
     assert resp.items[0].media_id is None
     assert resp.items[1].media_id is not None
@@ -342,7 +350,7 @@ async def test_init_uploads_adopts_orphan_row(session: AsyncSession) -> None:
     data = KbMediaInitRequest(items=[_init_item("reupload.mp4", hash_="a" * 32)])
     cm, minio = _patch_minio()
     with cm:
-        resp = await media_service.init_uploads(session, src.id, data, actor_id=1)
+        resp = await media_upload.init_uploads(session, src.id, data, actor_id=1)
 
     assert [r.media_id for r in resp.items] == [orphan.id]
     rows = await media_repository_all(session)
@@ -373,7 +381,7 @@ async def test_init_uploads_skips_deleted_orphan(session: AsyncSession) -> None:
     data = KbMediaInitRequest(items=[_init_item("dup.mp4", hash_="c" * 32)])
     cm, _ = _patch_minio()
     with cm:
-        resp = await media_service.init_uploads(session, src.id, data, actor_id=1)
+        resp = await media_upload.init_uploads(session, src.id, data, actor_id=1)
 
     rows = await media_repository_all(session)
     assert len(rows) == 2
@@ -391,12 +399,12 @@ async def test_init_uploads_episode_conflict_rolls_back(
         items=[_init_item("new.mp4", hash_="c" * 32, episode_no=1)]
     )
     with pytest.raises(ConflictError, match="集号"):
-        await media_service.init_uploads(session, src.id, data, actor_id=1)
+        await media_upload.init_uploads(session, src.id, data, actor_id=1)
     names = [m.file_name for m in await media_repository_all(session)]
     assert "new.mp4" not in names
 
 
-# ---------- media_service.confirm_uploaded ----------
+# ---------- media_upload.confirm_uploaded ----------
 
 
 async def _uploaded_fixture(session: AsyncSession) -> tuple[KbSource, KbMedia]:
@@ -414,7 +422,7 @@ async def test_confirm_uploaded_success(session: AsyncSession) -> None:
     media = await _seed_media(session, src.id, episode_no=1, hash_="ab" * 16)
     cm, _ = _patch_minio(stat=(1234, "ab" * 16))
     with cm:
-        view = await media_service.confirm_uploaded(session, media.id, actor_id=1)
+        view = await media_upload.confirm_uploaded(session, media.id, actor_id=1)
     assert view.file_size == 1234
     src_row = await session.get(KbSource, src.id)
     assert src_row.storage_bytes == 1234
@@ -428,7 +436,7 @@ async def test_confirm_uploaded_missing_object(session: AsyncSession) -> None:
     media = await _seed_media(session, src.id)
     cm, _ = _patch_minio(stat=None)
     with cm, pytest.raises(UnprocessableEntityError, match="尚未上传"):
-        await media_service.confirm_uploaded(session, media.id, actor_id=1)
+        await media_upload.confirm_uploaded(session, media.id, actor_id=1)
 
 
 async def test_confirm_uploaded_etag_mismatch_removes_object(
@@ -441,7 +449,7 @@ async def test_confirm_uploaded_etag_mismatch_removes_object(
     cm, minio = _patch_minio(stat=(999, "cd" * 16))
     with cm:
         with pytest.raises(UnprocessableEntityError, match="md5"):
-            await media_service.confirm_uploaded(session, media.id, actor_id=1)
+            await media_upload.confirm_uploaded(session, media.id, actor_id=1)
         minio.remove_files.assert_awaited_once()
 
 
@@ -457,11 +465,11 @@ async def test_confirm_uploaded_hash_conflict_removes_object(
     conflict = MagicMock(title="第 1 集", episode_no=1)
     with cm:
         with patch(
-            "app.services.kb.media_service.media_repository.find_hash_conflict",
+            "app.services.kb.media_upload.media_repository.find_hash_conflict",
             new=AsyncMock(return_value=conflict),
         ):
             with pytest.raises(ConflictError, match="内容重复"):
-                await media_service.confirm_uploaded(session, dup.id, actor_id=1)
+                await media_upload.confirm_uploaded(session, dup.id, actor_id=1)
         minio.remove_files.assert_awaited_once()
 
 
@@ -591,7 +599,7 @@ async def test_create_upload_session_fresh_signs_all_parts(
     await session.commit()
     cm, minio = _multipart_minio()
     with cm:
-        resp = await media_service.create_upload_session(
+        resp = await media_upload_session.create_upload_session(
             session,
             media.id,
             KbUploadSessionRequest(partSize=16 * 1024 * 1024, partCount=3),
@@ -620,7 +628,7 @@ async def test_create_upload_session_resumes_and_signs_missing_only(
         return_value=[MultipartPart(part_number=1, etag="aa", size=60)]
     )
     with cm:
-        resp = await media_service.create_upload_session(
+        resp = await media_upload_session.create_upload_session(
             session,
             media.id,
             KbUploadSessionRequest(
@@ -659,7 +667,7 @@ async def test_confirm_uploaded_multipart_completes_and_accounts(
         ]
     )
     with cm:
-        view = await media_service.confirm_uploaded(session, media.id, actor_id=1)
+        view = await media_upload.confirm_uploaded(session, media.id, actor_id=1)
     assert view.file_size == 100
     minio.complete_multipart_upload.assert_awaited_once()
     parts_arg = minio.complete_multipart_upload.await_args.args[2]
@@ -686,7 +694,7 @@ async def test_confirm_uploaded_multipart_incomplete_rejects(
         return_value=[MultipartPart(part_number=1, etag="aa", size=60)]
     )
     with cm, pytest.raises(UnprocessableEntityError, match="尚未传齐"):
-        await media_service.confirm_uploaded(session, media.id, actor_id=1)
+        await media_upload.confirm_uploaded(session, media.id, actor_id=1)
     minio.complete_multipart_upload.assert_not_awaited()
 
 
@@ -701,7 +709,7 @@ async def test_abort_upload_session_releases_and_clears(
     await session.commit()
     cm, minio = _multipart_minio()
     with cm:
-        await media_service.abort_upload_session(session, media.id, actor_id=1)
+        await media_upload_session.abort_upload_session(session, media.id, actor_id=1)
     minio.abort_multipart_upload.assert_awaited_once()
     row = await session.get(KbMedia, media.id)
     assert "uploadId" not in row.process_meta
