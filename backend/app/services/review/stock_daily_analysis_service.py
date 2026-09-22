@@ -39,9 +39,13 @@ def load_prompt_config() -> PromptConfig:
 
 
 def input_hash(stock_code: str, trade_date: date, sections: list[PromptSection]) -> str:
-    """缓存键纳入股票代码与分区键集合：调整分区后旧缓存自动失效。"""
+    """缓存键纳入提示词版本、股票代码与分区键集合：提示词升级或分区调整后旧缓存自动失效。
+
+    版本从 ``load_prompt_config()``（模块级缓存）读取，调用点无需穿透。
+    """
     keys = ",".join(section.key for section in sections)
-    raw = f"{SKILL_ID}:{keys}:{stock_code}:{trade_date.isoformat()}"
+    version = load_prompt_config().version
+    raw = f"{SKILL_ID}:{version}:{keys}:{stock_code}:{trade_date.isoformat()}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 

@@ -26,7 +26,10 @@ _PROMPT_CONFIG = PromptConfig(
     sections=_SECTIONS,
 )
 
-_VALID_JSON = '{"sections": {"overview": "综述内容", "risk_advice": "风险内容"}}'
+_VALID_JSON = (
+    '{"sections": {"overview": "综述内容", '
+    '"risk_advice": "风险内容\\n\\n> 知识库佐证：无适用方法论"}}'
+)
 
 
 class _FakeAgent:
@@ -68,7 +71,7 @@ class TestRunSkill:
             )
 
         assert contents["overview"] == "综述内容"
-        assert contents["risk_advice"] == "风险内容"
+        assert contents["risk_advice"].startswith("风险内容")
         assert model == "openai/gpt-4o"
         assert latency >= 0
         assert len(agent.prompts) == 1
@@ -84,7 +87,7 @@ class TestRunSkill:
                 AsyncMock(), trade_date=_TRADE_DATE, prompt_config=_PROMPT_CONFIG
             )
 
-        assert contents["risk_advice"] == "风险内容"
+        assert contents["risk_advice"].startswith("风险内容")
         assert len(agent.prompts) == 2
         assert "重试" in agent.prompts[1]
 
@@ -98,3 +101,52 @@ class TestRunSkill:
             )
 
         assert len(agent.prompts) == 2
+
+    @pytest.mark.asyncio
+    async def test_citation_gap_retries_then_passes(self) -> None:
+        """缺引用首轮触发补充提示重跑；二轮补上引用后直通。"""
+        no_citation = '{"sections": {"overview": "综述", "risk_advice": "风险"}}'
+        agent = _FakeAgent([no_citation, _VALID_JSON])
+        patches = _patch_run_env(agent)
+        with patches[0], patches[1], patches[2]:
+            contents, _, _ = await run_skill(
+                AsyncMock(), trade_date=_TRADE_DATE, prompt_config=_PROMPT_CONFIG
+            )
+
+        assert len(agent.prompts) == 2
+        assert "补充提示" in agent.prompts[1]
+        assert "risk_advice" in agent.prompts[1]
+        assert contents["risk_advice"].startswith("风险内容")
+
+    @pytest.mark.asyncio
+    async def test_citation_gap_persists_applies_sentinel(self) -> None:
+        """重跑仍缺引用：fail-soft 落弃权声明，不抛错。"""
+        no_citation = '{"sections": {"overview": "综述", "risk_advice": "风险"}}'
+        agent = _FakeAgent([no_citation, no_citation])
+        patches = _patch_run_env(agent)
+        with patches[0], patches[1], patches[2]:
+            contents, _, _ = await run_skill(
+                AsyncMock(), trade_date=_TRADE_DATE, prompt_config=_PROMPT_CONFIG
+            )
+
+        assert len(agent.prompts) == 2
+        assert "补充提示" in agent.prompts[1]
+        assert contents["risk_advice"].endswith("无适用方法论")
+        assert "知识库佐证" in contents["risk_advice"]
+
+    @pytest.mark.asyncio
+    async def test_non_required_section_needs_no_citation(self) -> None:
+        """overview 不在必需集合：无引用也不触发重跑。"""
+        only_overview_cited = (
+            '{"sections": {"overview": "综述", '
+            '"risk_advice": "风险\\n\\n> 知识库佐证：无适用方法论"}}'
+        )
+        agent = _FakeAgent([only_overview_cited])
+        patches = _patch_run_env(agent)
+        with patches[0], patches[1], patches[2]:
+            contents, _, _ = await run_skill(
+                AsyncMock(), trade_date=_TRADE_DATE, prompt_config=_PROMPT_CONFIG
+            )
+
+        assert len(agent.prompts) == 1
+        assert contents["overview"] == "综述"

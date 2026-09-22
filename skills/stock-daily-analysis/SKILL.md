@@ -7,14 +7,14 @@ allowed-tools: get_stock_quote, get_stock_kline, query_financial_data, search_ne
 # 个股每日分析
 
 ## 描述
-以工具实时取数为依据，为单只股票生成当日收盘分析：盘面解读、关键事件、操作策略、风险与止损四个分区。分析流程与工具编排由本文件维护，输出分区契约（key 集合）以 `backend/app/prompts/skills/stock-daily-analysis.yaml` 为准。
+以工具实时取数为依据，为单只股票生成当日收盘分析：盘面解读、关键事件、操作策略、风险与止损四个分区。分析流程与工具编排由本文件维护，输出分区契约（key 集合）以 `skills/stock-daily-analysis/prompt.yaml` 为准。
 
 ## 触发条件
 - 个股详情页请求生成当日 AI 分析
 - 自选股分组开启 AI 复盘后的每日定时任务（stock_daily_analysis_1640）
 
 ## 输出 Schema
-产出统一为四个分区（key 集合以 `backend/app/prompts/skills/stock-daily-analysis.yaml` 为准）：
+产出统一为四个分区（key 集合以 `skills/stock-daily-analysis/prompt.yaml` 为准）：
 
 ```json
 {
@@ -58,6 +58,9 @@ allowed-tools: get_stock_quote, get_stock_kline, query_financial_data, search_ne
 
 ### 步骤 4：消息面检索（可选）
 调用 `search_news(keyword=<股票名称>, days=14, limit=8)` 检索近期消息。仅当检索结果明确与该股相关时才可写入关键事件分区，否则注明"数据范围内未观察到明显事件"。
+
+### 步骤 4.5：方法论对照（供 strategy / risk_lines 分区）
+系统提示已附《趋势理论》方法论手册（关键位与支撑压力、量价关系、止损纪律的分章蒸馏条目，每条带课程 citation）：撰写操作策略与风险止损分区时对照手册条目支撑判断，引用时原样保留「《趋势理论》第N集 MM:SS（章节）」定位；确无适用方法论时在该分区末尾另起一行输出 `> 知识库佐证：无适用方法论`；手册未覆盖的长尾主题可调用 `search_knowledge_base` 补充检索（引用格式一致）；禁止编造引用。
 
 ### 步骤 5：撰写分区并交付
 基于以上数据撰写四个分区，按任务指令选择交付方式：助手对话路径调用 `persist_stock_daily_analysis(stock_code, trade_date, sections)` 保存；独立执行器路径按「输出 Schema」输出 JSON。

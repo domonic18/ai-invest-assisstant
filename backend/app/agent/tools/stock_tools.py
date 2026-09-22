@@ -111,8 +111,15 @@ async def persist_stock_daily_analysis(
         trade_date: 交易日（YYYY-MM-DD）。
         sections: 分析分区内容字典，键必须与 stock-daily-analysis SKILL 输出 Schema
             完全一致（intraday_review / key_events / strategy / risk_lines），
-            值为对应分区的 Markdown 正文。
+            值为对应分区的 Markdown 正文。strategy / risk_lines 须含方法论引用
+            或「无适用方法论」声明，缺失时工具会自动补声明并在 warnings 中提示。
     """
+    from app.agent.skills.kb_grounding import (
+        STOCK_REQUIRED,
+        apply_sentinels,
+        citation_gaps,
+        warning_lines,
+    )
     from app.services.admin.llm_config_service import resolve_default_llm
     from app.services.review import stock_daily_analysis_service
 
@@ -120,6 +127,10 @@ async def persist_stock_daily_analysis(
         resolved = date.fromisoformat(trade_date)
     except ValueError:
         return {"error": f"trade_date 格式应为 YYYY-MM-DD，收到：{trade_date}"}
+
+    gaps = citation_gaps(sections, STOCK_REQUIRED)
+    if gaps:
+        sections = apply_sentinels(sections, gaps)
 
     async with AsyncSessionLocal() as session:
         cfg = await resolve_default_llm(session)
@@ -130,14 +141,17 @@ async def persist_stock_daily_analysis(
             contents=sections,
             model=f"{cfg.provider}/{cfg.model_name}",
         )
-        return {
+        result: dict[str, Any] = {
             "stock_code": analysis.stock_code,
             "stock_name": analysis.stock_name,
             "trade_date": analysis.trade_date.isoformat(),
             "section_titles": [section.title for section in analysis.sections],
-            "__event__": page_event(
-                "stock_daily_analysis.complete",
-                stock_code=analysis.stock_code,
-                trade_date=analysis.trade_date.isoformat(),
-            ),
         }
+        if gaps:
+            result["warnings"] = warning_lines(gaps)
+        result["__event__"] = page_event(
+            "stock_daily_analysis.complete",
+            stock_code=analysis.stock_code,
+            trade_date=analysis.trade_date.isoformat(),
+        )
+        return result

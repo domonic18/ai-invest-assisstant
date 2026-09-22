@@ -328,8 +328,15 @@ async def persist_market_review(
         sections: 复盘分区内容字典，键必须与 market-daily-review SKILL 输出 Schema
             完全一致（overview / news_analysis / technical_analysis /
             capital_analysis / emotion_analysis / risk_advice），值为对应分区的
-            Markdown 正文。
+            Markdown 正文。technical_analysis / risk_advice 须含方法论引用或
+            「无适用方法论」声明，缺失时工具会自动补声明并在 warnings 中提示。
     """
+    from app.agent.skills.kb_grounding import (
+        MARKET_REQUIRED,
+        apply_sentinels,
+        citation_gaps,
+        warning_lines,
+    )
     from app.services.admin.llm_config_service import resolve_default_llm
     from app.services.review import market_review_generator
 
@@ -337,6 +344,10 @@ async def persist_market_review(
     if error:
         return {"error": error}
     assert resolved is not None
+
+    gaps = citation_gaps(sections, MARKET_REQUIRED)
+    if gaps:
+        sections = apply_sentinels(sections, gaps)
 
     async with AsyncSessionLocal() as session:
         cfg = await resolve_default_llm(session)
@@ -347,14 +358,17 @@ async def persist_market_review(
             model=f"{cfg.provider}/{cfg.model_name}",
             latency_ms=_consume_review_latency(config),
         )
-        return {
+        result: dict[str, Any] = {
             "trade_date": response.trade_date.isoformat(),
             "section_titles": [section.title for section in response.sections],
-            "__event__": page_event(
-                "market_daily_review.complete",
-                trade_date=response.trade_date.isoformat(),
-            ),
         }
+        if gaps:
+            result["warnings"] = warning_lines(gaps)
+        result["__event__"] = page_event(
+            "market_daily_review.complete",
+            trade_date=response.trade_date.isoformat(),
+        )
+        return result
 
 
 class LimitUpAttributionGroupArgs(BaseModel):
