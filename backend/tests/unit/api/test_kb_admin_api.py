@@ -249,7 +249,7 @@ def test_media_list_and_patch_routes(admin_client: tuple) -> None:
 def test_media_requeue_route(admin_client: tuple) -> None:
     http, _ = admin_client
     with patch(
-        "app.services.kb.media_service.requeue_failed_media",
+        "app.services.kb.media_service.requeue_media",
         new=AsyncMock(
             return_value=_media_view_mock(process_status="queued", processStatus="queued")
         ),

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.core.security import create_access_token
-from app.dependencies import get_db
+from app.dependencies import client_ip, get_db
 from app.schemas.auth import AuthResponse, RegisterAccepted, RegisterRequest
 from app.schemas.user import UserResponse
 from app.services.user import UserService
@@ -29,8 +29,8 @@ async def register(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> RegisterAccepted:
     """提交注册申请：受理后待管理员审批，不签发登录凭证（arch/10 §6）。"""
-    client_ip = request.client.host if request.client else "-"
-    return await RegisterService(session).submit(data, client_ip)
+    ip = client_ip(request) or "-"
+    return await RegisterService(session).submit(data, ip)
 
 
 @router.post("/login", response_model=AuthResponse)
@@ -41,8 +41,8 @@ async def login(
 ) -> AuthResponse:
     """用户登录（防爆破限流、审批状态拦截与失败审计在服务层）。"""
     user_service = UserService(session)
-    client_ip = request.client.host if request.client else "-"
-    user = await user_service.attempt_login(form_data.username, form_data.password, client_ip)
+    ip = client_ip(request) or "-"
+    user = await user_service.attempt_login(form_data.username, form_data.password, ip)
 
     await user_service.update_last_login(user)
     access_token = create_access_token(

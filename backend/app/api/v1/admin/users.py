@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
-from app.dependencies import get_current_admin_user, get_db
+from app.dependencies import client_ip, get_current_admin_user, get_db
 from app.models.user import User
 from app.schemas.account import (
     AdminUserRowResponse,
@@ -127,7 +127,7 @@ async def approve_user(
     """通过注册申请（可设初始配额，缺省取全局默认；动作入审计）。"""
     service = ApprovalService(session)
     await service.approve(
-        admin, user_id, data.initial_quota_tokens, ip=_client_ip(request)
+        admin, user_id, data.initial_quota_tokens, ip=client_ip(request)
     )
     user = await AdminUserService(session).get_user(user_id)
     return UserResponse.model_validate(user)
@@ -143,7 +143,7 @@ async def reject_user(
 ) -> UserResponse:
     """驳回注册申请（原因必填，入审计；用户名/邮箱不永久占位）。"""
     service = ApprovalService(session)
-    await service.reject(admin, user_id, data.reason, ip=_client_ip(request))
+    await service.reject(admin, user_id, data.reason, ip=client_ip(request))
     user = await AdminUserService(session).get_user(user_id)
     return UserResponse.model_validate(user)
 
@@ -162,7 +162,7 @@ async def adjust_user_quota(
         user_id,
         action=data.action,
         delta_tokens=data.delta_tokens,
-        ip=_client_ip(request),
+        ip=client_ip(request),
     )
     unlimited = quota.total_tokens is None
     return QuotaResponseAdmin(
@@ -173,5 +173,3 @@ async def adjust_user_quota(
     )
 
 
-def _client_ip(request: Request) -> str | None:
-    return request.client.host if request.client else None

@@ -3,7 +3,7 @@
 from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,18 @@ from app.services.quota.constants import UsageFeature
 from app.services.quota.context import meter_scope
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+
+def client_ip(request: Request) -> str | None:
+    """取客户端 IP：反代/frp 场景取 X-Forwarded-For 首跳，缺失回退直连地址。
+
+    审计与限流（登录防爆破、播放拒绝审计等）必须区分真实来源；
+    只读 request.client.host 会把全部用户归并到代理 IP。
+    """
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else None
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

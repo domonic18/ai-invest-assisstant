@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.constants.kb import KbDocKind, KbPointType
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.core.exceptions import ForbiddenError
-from app.dependencies import get_current_user, get_db
+from app.dependencies import client_ip, get_current_user, get_db
 from app.models.user import User
 from app.schemas.kb import (
     KbChapterPointsResponse,
@@ -115,10 +115,6 @@ async def list_chapter_points(
     )
 
 
-def _client_ip(request: Request) -> str | None:
-    return request.client.host if request.client else None
-
-
 @router.post(
     "/media/{media_id}/playback-token", response_model=KbPlaybackTokenResponse
 )
@@ -151,7 +147,7 @@ async def stream_media(
         media_id=media_id,
         token=token,
         range_header=range_header,
-        ip=_client_ip(request),
+        ip=client_ip(request),
     )
     return StreamingResponse(
         stream.chunks,
@@ -184,7 +180,7 @@ async def get_book_page(
         media_id=media_id,
         page_no=page_no,
         token=token,
-        ip=_client_ip(request),
+        ip=client_ip(request),
     )
     return Response(
         content=png, media_type="image/png", headers={"Cache-Control": "no-store"}
