@@ -37,7 +37,7 @@ class _FakeAgent:
         self.replies = list(replies)
         self.prompts: list[str] = []
 
-    async def ainvoke(self, payload: dict) -> dict:
+    async def ainvoke(self, payload: dict, config: dict | None = None) -> dict:
         self.prompts.append(payload["messages"][0].content)
         return {"messages": [SimpleNamespace(content=self.replies.pop(0))]}
 

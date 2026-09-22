@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from structlog.testing import capture_logs
 
 from app.core.database import Base
 from app.core.exceptions import NotFoundError, UnprocessableEntityError
@@ -378,6 +379,49 @@ def test_leg_active_rules() -> None:
         False,
         False,
     ]
+
+
+# ---------------------------------------------------------------------------
+# 检索执行日志（可观测）
+# ---------------------------------------------------------------------------
+
+
+async def test_search_logs_execution_event(session: AsyncSession) -> None:
+    """检索完成落 kb_search_executed：查询词/范围/分桶计数/降级标记齐全。"""
+    seeded = await _seed(session)
+    with _searching([f"point-{seeded['p_case'].id}"], []):
+        with capture_logs() as logs:
+            await search_service.search(
+                session,
+                q="头肩顶",
+                source_id=seeded["source"].id,
+                point_type="case",
+            )
+    event = next(e for e in logs if e["event"] == "kb_search_executed")
+    assert event["q"] == "头肩顶"
+    assert event["source_id"] == seeded["source"].id
+    assert event["point_type"] == "case"
+    assert event["points"] == 1
+    assert event["segments"] == 0
+    assert event["images"] == 0
+    assert event["degraded"] is None
+
+
+async def test_search_logs_degraded_marker(session: AsyncSession) -> None:
+    seeded = await _seed(session)
+    with _searching([f"point-{seeded['p_case'].id}"], query_vec=None):
+        with capture_logs() as logs:
+            await search_service.search(session, q="头肩顶")
+    event = next(e for e in logs if e["event"] == "kb_search_executed")
+    assert event["degraded"] == "embedding_unavailable"
+
+
+async def test_empty_query_skips_execution_log(session: AsyncSession) -> None:
+    """空 q 早退不检索也不打执行日志。"""
+    with capture_logs() as logs:
+        result = await search_service.search(session, q="  ")
+    assert result.points == []
+    assert not [e for e in logs if e["event"] == "kb_search_executed"]
 
 
 # ---------------------------------------------------------------------------

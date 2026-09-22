@@ -9,6 +9,7 @@ WHERE 与水合口径同源。降级语义：embedding 槽位缺失或调用失�
 
 from typing import Any
 
+import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE
@@ -27,6 +28,8 @@ from app.services.kb.source_service import get_source
 
 _SEGMENT_HITS = 10
 _IMAGE_HITS = 12
+
+logger = structlog.get_logger(__name__)
 
 
 async def search(
@@ -94,6 +97,18 @@ async def search(
         await search_hydrate._hydrate_images(session, image_ids, scores)
         if image_ids
         else []
+    )
+    logger.info(
+        "kb_search_executed",
+        q=query,
+        source_id=source_id,
+        chapter_path=chapter,
+        point_type=point_type,
+        kind=kind,
+        points=len(points),
+        segments=len(segments),
+        images=len(images),
+        degraded=degraded,
     )
     return KbSearchResponse(
         query=q,

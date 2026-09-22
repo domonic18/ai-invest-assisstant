@@ -14,6 +14,7 @@ from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, ValidationError
 
 from app.agent.core.prompt_loader import PromptSection
+from app.agent.runtime.tool_trace import TOOL_TRACE
 from app.core.config import get_settings
 from app.skills import get_skill
 
@@ -83,8 +84,14 @@ def parse_sections(text: str, sections: list[PromptSection]) -> dict[str, str]:
 
 
 async def invoke(agent: Any, prompt: str) -> str:
-    """单次调用 deepagents agent 并提取最终回复文本。"""
-    result = await agent.ainvoke({"messages": [HumanMessage(content=prompt)]})
+    """单次调用 deepagents agent 并提取最终回复文本。
+
+    注入共享 ``TOOL_TRACE`` callback：全部技能 agent 的工具循环统一留痕。
+    """
+    result = await agent.ainvoke(
+        {"messages": [HumanMessage(content=prompt)]},
+        config={"callbacks": [TOOL_TRACE]},
+    )
     messages = result.get("messages") if isinstance(result, dict) else None
     if not messages:
         raise SkillOutputError("agent 未返回任何消息")
