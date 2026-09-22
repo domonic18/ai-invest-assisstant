@@ -524,13 +524,21 @@ async def patch_media(
     return to_view(row)
 
 
-async def requeue_failed_media(
+async def requeue_media(
     session: AsyncSession, media_id: int, *, actor_id: int, ip: str | None = None
 ) -> KbMediaResponse:
-    """失败素材重新入队（failed → queued）：已成功分片有 COS 缓存，重跑只补缺失分片。"""
+    """失败/卡死素材重新入队（failed/processing → queued）。
+
+    processing 放行是 worker 崩溃恢复通道：进程中断后素材停在 processing，
+    list_queued_media 只扫 queued，不放行则永久卡死。活worker 正在处理时
+    重排队无副作用——转写互斥锁（blocking=False）使下轮扫描得到 busy，
+    当前运行结束时以终态覆盖。
+    """
     row = await get_media(session, media_id)
-    if row.process_status != KbProcessStatus.FAILED:
-        raise ConflictError(f"仅失败素材可重新转写，当前状态：{row.process_status}")
+    if row.process_status not in (KbProcessStatus.FAILED, KbProcessStatus.PROCESSING):
+        raise ConflictError(
+            f"仅失败或处理中的素材可重新转写，当前状态：{row.process_status}"
+        )
     row.process_status = KbProcessStatus.QUEUED
     previous_error = row.process_error
     row.process_error = None

@@ -480,7 +480,7 @@ async def test_patch_media_episode_conflict(session: AsyncSession) -> None:
         )
 
 
-async def test_requeue_failed_media(session: AsyncSession) -> None:
+async def test_requeue_media(session: AsyncSession) -> None:
     src = await source_service.create_source(
         session, KbSourceCreateRequest(sourceType="course", name="课"), actor_id=1
     )
@@ -489,15 +489,30 @@ async def test_requeue_failed_media(session: AsyncSession) -> None:
     media.process_error = "asr_http_500"
     await session.commit()
 
-    view = await media_service.requeue_failed_media(session, media.id, actor_id=1)
+    view = await media_service.requeue_media(session, media.id, actor_id=1)
     assert view.process_status == KbProcessStatus.QUEUED
     row = await session.get(KbMedia, media.id)
     assert row.process_status == KbProcessStatus.QUEUED
     assert row.process_error is None
 
-    # 非失败状态拒绝重排队
-    with pytest.raises(ConflictError, match="仅失败素材"):
-        await media_service.requeue_failed_media(session, media.id, actor_id=1)
+    # 非失败/处理中状态拒绝重排队
+    with pytest.raises(ConflictError, match="仅失败或处理中的素材"):
+        await media_service.requeue_media(session, media.id, actor_id=1)
+
+
+async def test_requeue_media_from_processing(session: AsyncSession) -> None:
+    """worker 崩溃恢复：卡在 processing 的素材可重新入队。"""
+    src = await source_service.create_source(
+        session, KbSourceCreateRequest(sourceType="course", name="课"), actor_id=1
+    )
+    media = await _seed_media(session, src.id)
+    media.process_status = KbProcessStatus.PROCESSING
+    await session.commit()
+
+    view = await media_service.requeue_media(session, media.id, actor_id=1)
+    assert view.process_status == KbProcessStatus.QUEUED
+    row = await session.get(KbMedia, media.id)
+    assert row.process_status == KbProcessStatus.QUEUED
 
 
 async def test_soft_delete_and_restore_media_accounting(session: AsyncSession) -> None:
