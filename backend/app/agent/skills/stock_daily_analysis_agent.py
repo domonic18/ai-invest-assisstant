@@ -61,8 +61,10 @@ async def run_skill(
     from deepagents import create_deep_agent
 
     from app.agent.tools import (
+        get_stock_emotion_context,
         get_stock_kline,
         get_stock_quote,
+        get_stock_technical,
         query_financial_data,
         search_knowledge_base,
         search_news,
@@ -73,6 +75,8 @@ async def run_skill(
         tools=[
             get_stock_quote,
             get_stock_kline,
+            get_stock_technical,
+            get_stock_emotion_context,
             query_financial_data,
             search_news,
             search_knowledge_base,

@@ -64,7 +64,11 @@ def test_gaps_returns_missing_and_ungrounded_keys_in_order() -> None:
 
 def test_gaps_skip_keys_not_in_contents() -> None:
     """分区整体缺失视为缺口（由 apply_sentinels 兜底为弃权行）。"""
-    assert citation_gaps({}, STOCK_REQUIRED) == ["strategy", "risk_lines"]
+    assert citation_gaps({}, STOCK_REQUIRED) == [
+        "technical_analysis",
+        "strategy",
+        "risk_lines",
+    ]
 
 
 def test_apply_sentinels_appends_only_to_gaps() -> None:

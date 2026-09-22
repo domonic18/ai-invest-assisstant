@@ -50,9 +50,11 @@ from app.agent.tools.report_tools import (
 from app.agent.tools.screening_tools import screen_stocks
 from app.agent.tools.social_tools import get_social_sentiment
 from app.agent.tools.stock_tools import (
+    get_stock_emotion_context,
     get_stock_fund_flow,
     get_stock_kline,
     get_stock_quote,
+    get_stock_technical,
     persist_stock_daily_analysis,
     query_financial_data,
 )
@@ -68,6 +70,8 @@ __all__ = [
     "get_stock_quote",
     "get_stock_kline",
     "get_stock_fund_flow",
+    "get_stock_technical",
+    "get_stock_emotion_context",
     "get_dragon_tiger",
     "persist_sector_anomaly_attribution",
     "persist_stock_anomaly_attribution",
@@ -103,6 +107,8 @@ def build_assistant_tools(use_kb: bool = True) -> list[BaseTool]:
     tools = [
         get_stock_quote,
         get_stock_kline,
+        get_stock_technical,
+        get_stock_emotion_context,
         query_financial_data,
         get_stock_fund_flow,
         get_dragon_tiger,

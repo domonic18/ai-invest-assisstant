@@ -21,7 +21,7 @@ CITATION_RE = re.compile(
 )
 
 MARKET_REQUIRED = ("technical_analysis", "risk_advice")
-STOCK_REQUIRED = ("strategy", "risk_lines")
+STOCK_REQUIRED = ("technical_analysis", "strategy", "risk_lines")
 
 
 def citation_gaps(
