@@ -11,9 +11,9 @@ from typing import Any, Protocol
 import httpx
 import structlog
 
-logger = structlog.get_logger(__name__)
+from app.core.config import get_settings
 
-_DEFAULT_TIMEOUT_SECONDS = 10.0
+logger = structlog.get_logger(__name__)
 
 
 class SignerUnavailableError(RuntimeError):
@@ -39,11 +39,15 @@ class DouyinSignerClient:
         self,
         base_url: str,
         *,
-        timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+        timeout_seconds: float | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
-        self._timeout_seconds = timeout_seconds
+        self._timeout_seconds: float = (
+            timeout_seconds
+            if timeout_seconds is not None
+            else get_settings().douyin_signer_timeout
+        )
         self._transport = transport
 
     async def sign(

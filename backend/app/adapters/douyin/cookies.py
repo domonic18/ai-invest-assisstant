@@ -11,15 +11,13 @@ from typing import Any
 
 from app.adapters.douyin.exceptions import RiskControlError
 from app.adapters.douyin.signing import DEFAULT_USER_AGENT
-from app.adapters.douyin.transport import DOUYIN_BASE_URL
+from app.core.config import get_settings
 from app.utils.crypto import decrypt_token, encrypt_token
 
 # 可用性判定关键 cookie：ttwid 是 Web 接口刚需
 ESSENTIAL_COOKIE_KEY = "ttwid"
 
 JAR_PAYLOAD_VERSION = 1
-
-_BOOTSTRAP_TIMEOUT_SECONDS = 20.0
 
 
 def parse_set_cookie_header(header: str) -> dict[str, str]:
@@ -96,11 +94,12 @@ async def bootstrap_cookies(
         def session_factory() -> Any:
             return AsyncSession(impersonate="chrome")
 
+    settings = get_settings()
     async with session_factory() as session:
         response = await session.get(
-            f"{DOUYIN_BASE_URL}/",
+            f"{settings.douyin_base_url}/",
             headers={"User-Agent": user_agent or DEFAULT_USER_AGENT},
-            timeout=_BOOTSTRAP_TIMEOUT_SECONDS,
+            timeout=settings.douyin_bootstrap_timeout,
         )
     merged: dict[str, str] = {}
     for header in _extract_set_cookies(getattr(response, "headers", {})):
