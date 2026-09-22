@@ -91,7 +91,6 @@ const TASK_CATEGORY_OF: Record<string, string> = {
   'kb-extract': 'kb',
   'kb-vision': 'kb',
   'kb-index': 'kb',
-  'kb-suggest': 'kb',
   'kb-cleanup': 'kb',
   // 系统维护
   'collector-log-cleanup': 'maintenance',

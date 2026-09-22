@@ -27,7 +27,6 @@ const FEATURE_LABELS: Record<string, string> = {
   kb_extract: '抽取',
   kb_vision: '视觉',
   kb_embed: '嵌入',
-  kb_optimize: '技能优化',
 }
 
 const TOKEN_COLUMNS = [
