@@ -1,7 +1,7 @@
 ---
 name: market-daily-review
 description: 大盘每日复盘综述：工具化获取大盘概览、指数技术面预计算指标、重点要闻、涨停连板天梯、板块资金流向与板块异动、散户社交情绪，产出跨分区相互印证的结构化收盘复盘。复盘页触发生成与每日定时任务（market_daily_review_1835）均通过本 Skill 执行。
-allowed-tools: get_market_overview, get_limit_up_ladder, get_index_technical, get_sector_overview, get_important_news, get_social_sentiment, get_sector_anomaly, get_trade_calendar, collect_market_data, persist_market_review
+allowed-tools: get_market_overview, get_limit_up_ladder, get_index_technical, get_sector_overview, get_important_news, get_social_sentiment, get_sector_anomaly, get_trade_calendar, collect_market_data, persist_market_review, search_knowledge_base
 ---
 
 # 大盘每日复盘
@@ -44,7 +44,7 @@ allowed-tools: get_market_overview, get_limit_up_ladder, get_index_technical, ge
 - **独立执行器路径**（定时任务等直接执行）：最终回复必须且只能是上述 JSON 对象，不要 markdown 代码围栏、不要额外解释文字。
 
 ## 可用工具
-执行器路径固定注入前七个取数工具；后三个仅助手对话路径可用。
+执行器路径固定注入前七个取数工具与 `search_knowledge_base`；后三个仅助手对话路径可用。
 - `get_market_overview(trade_date)`: 四大指数行情（名称、点位、涨跌幅）+ 全市场统计——两市成交额（含环比）、上涨/下跌/平盘家数、涨停/跌停家数、情绪温度（分值与标签）、涨停比、连板率、炸板率。
 - `get_limit_up_ladder(trade_date)`: 涨停池与连板天梯——涨停总数、首板/连板家数、最高连板数、≥2 板连板梯队（个股代码/名称、连板数、所属行业）。
 - `get_index_technical(trade_date)`: 五标的（沪指/创业板/科创50/沪深300ETF/富时A50）预计算技术面文本——日 K/周 K 形态、关键位、趋势概要（通道归属与拐点信号）、新低/地量/放量判断、分时量能结构；必须直接引用，禁止自行估算。
@@ -55,6 +55,7 @@ allowed-tools: get_market_overview, get_limit_up_ladder, get_index_technical, ge
 - `get_trade_calendar()`: 仅助手对话路径可用——当前北京时间、今天是否交易日、最近（含今日）交易日。
 - `collect_market_data(trade_date, symbols)`: 仅助手对话路径可用——数据自愈补采：异步派发涨停池/炸板池/跌停池/成交额/板块资金流/指数 K 线采集任务，传 `symbols` 时补采个股日 K。涨停池/成交额约 1 分钟入库，板块资金流约 10 分钟；涨跌家数为盘中快照，无法补采。
 - `persist_market_review(trade_date, sections)`: 仅助手对话路径可用——将六分区复盘保存入库，复盘页卡片自动刷新。
+- `search_knowledge_base(query, source?, chapter?, point_type?, include_media?)`: 助手对话与独立执行器路径均注入——检索投资课程知识库已审核知识卡片（概念/定理/方法/纪律/案例），为复盘提供课程方法论佐证。引用卡片时必须保留返回的 citation 定位（集数/时间码/章节/页码）使结论可溯源；`include_media` 仅在用户想学习知识点的课程讲解、或明确要求看视频原片/书籍原文时传 true，复盘中保持 false；未注入本工具时（如对话关闭知识库开关）不得编造知识库引用。
 
 ## 分析流程
 

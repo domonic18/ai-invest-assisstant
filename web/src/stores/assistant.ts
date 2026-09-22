@@ -2,6 +2,24 @@ import { create } from 'zustand'
 
 import { PAGE_EVENT_TYPES } from '@ai-invest/shared'
 
+const USE_KB_STORAGE_KEY = 'ai-invest.assistant.useKb.v1'
+
+function readUseKb(): boolean {
+  try {
+    return localStorage.getItem(USE_KB_STORAGE_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
+
+function persistUseKb(value: boolean): void {
+  try {
+    localStorage.setItem(USE_KB_STORAGE_KEY, String(value))
+  } catch {
+    // ignore storage errors
+  }
+}
+
 /** deepagents TodoList 步骤 */
 export interface TodoStep {
   content: string
@@ -111,6 +129,8 @@ interface AssistantState {
   pageResult: PageAssistantResult | null
   /** ask_user 问题卡（仅最新一张；新问题或用户回复即清空） */
   questionCard: QuestionCard | null
+  /** 对话「使用知识库」开关（localStorage 持久化，随 run metadata 传后端） */
+  useKb: boolean
   openPanel: () => void
   closePanel: () => void
   togglePanel: () => void
@@ -121,6 +141,7 @@ interface AssistantState {
   clearPendingQuestion: () => void
   setPageResult: (result: PageAssistantResult | null) => void
   setQuestionCard: (card: QuestionCard | null) => void
+  setUseKb: (value: boolean) => void
 }
 
 export const useAssistantStore = create<AssistantState>((set) => ({
@@ -130,6 +151,7 @@ export const useAssistantStore = create<AssistantState>((set) => ({
   pendingQuestion: undefined,
   pageResult: null,
   questionCard: null,
+  useKb: readUseKb(),
   openPanel: () => set({ open: true }),
   closePanel: () => set({ open: false }),
   togglePanel: () => set((state) => ({ open: !state.open })),
@@ -139,4 +161,8 @@ export const useAssistantStore = create<AssistantState>((set) => ({
   clearPendingQuestion: () => set({ pendingQuestion: undefined }),
   setPageResult: (pageResult) => set({ pageResult }),
   setQuestionCard: (questionCard) => set({ questionCard }),
+  setUseKb: (value) => {
+    set({ useKb: value })
+    persistUseKb(value)
+  },
 }))

@@ -45,11 +45,8 @@ const AiResultsAdmin = lazy(() =>
 const AuctionReview = lazy(() =>
   import('./pages/AuctionReview/AuctionReview').then((m) => ({ default: m.AuctionReview })),
 )
-const SectorAnomalyPage = lazy(() =>
-  import('./pages/Anomaly/SectorAnomalyPage').then((m) => ({ default: m.SectorAnomalyPage })),
-)
-const StockAnomalyPage = lazy(() =>
-  import('./pages/Anomaly/StockAnomalyPage').then((m) => ({ default: m.StockAnomalyPage })),
+const AnomalyPage = lazy(() =>
+  import('./pages/Anomaly').then((m) => ({ default: m.AnomalyPage })),
 )
 const SectorDetailPage = lazy(() =>
   import('./pages/SectorDetail/SectorDetailPage').then((m) => ({ default: m.SectorDetailPage })),
@@ -95,8 +92,10 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/workbench" replace /> },
       { path: 'workbench', element: lazyEl(<Workbench />) },
       { path: 'review', element: <Dashboard /> },
-      { path: 'anomaly/sector', element: lazyEl(<SectorAnomalyPage />) },
-      { path: 'anomaly/stock', element: lazyEl(<StockAnomalyPage />) },
+      // 异动检测合并页：板块/个股双 tab；子路径保持（page_event 跳转直达指定 tab）
+      { path: 'anomaly', element: <Navigate to="/anomaly/sector" replace /> },
+      { path: 'anomaly/sector', element: lazyEl(<AnomalyPage />) },
+      { path: 'anomaly/stock', element: lazyEl(<AnomalyPage />) },
       // 板块详情：同花顺指数 K 线（板块名桥接）+ 资金流 + 异动日标注
       { path: 'sector/:sectorType/:sectorCode', element: lazyEl(<SectorDetailPage />) },
       { path: 'chain/:industry?', element: lazyEl(<ChainAnalysis />) },
@@ -113,7 +112,7 @@ export const router = createBrowserRouter([
       { path: 'financial-reports', element: <Navigate to="/workbench" replace /> },
       { path: 'calendar', element: lazyEl(<Calendar />) },
       { path: 'news', element: lazyEl(<News />) },
-      // 知识检索消费页：admin ∪ 知识库白名单可见（页面内 403 自解释）
+      // 知识库搜索入口（搜索引擎式）：全员可问；?mediaId= 承载会话引用播放（凭证白名单校验）
       { path: 'kb', element: lazyEl(<KnowledgeSearchPage />) },
       // 旧路由兜底：电报视图已迁入资讯中心（迭代 3）
       { path: 'telegraph', element: <Navigate to="/news" replace /> },

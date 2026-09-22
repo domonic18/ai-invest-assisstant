@@ -2,7 +2,8 @@
 
 知识源（kb_source）、素材（kb_media）、内容分段（kb_transcript_segment）、
 知识点（kb_knowledge_point）、图片资产（kb_image_asset）与域设置单行
-（kb_settings）。PG 是唯一存储，检索列（embedding halfvec 向量 +
+（kb_settings）。
+PG 是唯一存储，检索列（embedding halfvec 向量 +
 pg_trgm 词面生成列）同库内嵌，无投影层。
 """
 

@@ -21,7 +21,6 @@ import type { ReactNode } from 'react'
 
 import type {
   ApiKbChapterNode,
-  ApiKbConsumerSource,
   ApiKbSearchImageHit,
   ApiKbSearchPointHit,
   ApiKbSearchResponse,
@@ -363,15 +362,11 @@ function buildPagesFor(result: ApiKbSearchResponse, mediaId: number): ReaderHitP
 export function SearchTab({
   sourceId,
   onSourceChange,
-  consumerSources,
 }: {
   sourceId: number | null
   onSourceChange: (id: number | null) => void
-  /** 消费页注入白名单可见知识库（跳过管理台全量源查询）。 */
-  consumerSources?: ApiKbConsumerSource[]
 }) {
-  const { data: adminSources } = useKbSources(consumerSources == null)
-  const sources = consumerSources ?? adminSources
+  const { data: sources } = useKbSources()
   const [input, setInput] = useState('')
   const [kind, setKind] = useState<string | null>(null)
   const [selectedChapter, setSelectedChapter] = useState<string[]>([])
@@ -659,7 +654,7 @@ export function SearchTab({
 
 function findKey(map: Map<string, string[]>, path: string[]): string {
   for (const [key, value] of map.entries()) {
-    if (value.join(' ') === path.join(' ')) return key
+    if (value.join('\u0000') === path.join('\u0000')) return key
   }
   return ''
 }

@@ -46,6 +46,7 @@ export const DOMAIN_META: Record<string, { label: string }> = {
   news: { label: '资讯' },
   fundamental: { label: '基本面' },
   ai: { label: 'AI' },
+  kb: { label: '知识库' },
 }
 
 export const DOMAIN_OPTIONS = Object.entries(DOMAIN_META).map(([value, meta]) => ({

@@ -1,7 +1,7 @@
 ---
 name: kline-smart-drawing
 description: K 线 AI 智能画线：分析当前标的的价格结构，把关键压力/支撑位、趋势边界与箱体整理区间以 AI 画线落到图表上（虚线 + AI 徽标，可原位编辑与采纳）。仅侧边栏对话触发，定时任务不画线。
-allowed-tools: get_kline_drawings, get_stock_kline, get_index_technical, get_stock_quote, ask_user, persist_ai_kline_drawings
+allowed-tools: get_kline_drawings, get_stock_kline, get_index_technical, get_stock_quote, search_knowledge_base, ask_user, persist_ai_kline_drawings
 ---
 
 # K 线 AI 智能画线
@@ -28,6 +28,7 @@ allowed-tools: get_kline_drawings, get_stock_kline, get_index_technical, get_sto
    - 趋势边界：连接同向 swing 高/低点（`trendline`）
    - 箱体整理：区间上下沿（`box`，锚点为区间两角）
    - 精确价位：`hline`（锚点仅 price）
+   - 形态定性存疑时调 `search_knowledge_base(query=<形态/趋势相关关键词>)` 检索课程方法论佐证（`include_media` 保持 false）；引用卡片时保留 citation 定位
 4. **写入**：调 `persist_ai_kline_drawings(target_type, target_code, period, drawings, mode, sector_type?)`
    - 锚点 `date` 必须取自工具返回的真实 K 线日期——校验失败会返回错误，按错误提示修正后重试
    - `label` 组内唯一且语义化（如"近半年压力位"）；`reason` 一句话给出依据（触碰次数/量能特征）

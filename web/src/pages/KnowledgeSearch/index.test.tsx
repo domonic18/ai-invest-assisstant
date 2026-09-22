@@ -1,32 +1,56 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const sendQuestion = vi.fn()
+
 vi.mock('@/api/kb', () => ({
-  fetchKbConsumerSources: vi.fn(),
+  fetchKbPlaybackToken: vi.fn(),
 }))
 
-vi.mock('@/pages/Admin/KnowledgeBase/SearchTab', () => ({
-  SearchTab: (props: { consumerSources?: { id: number; name: string }[] }) => (
-    <div data-testid="search-stub">
-      {(props.consumerSources ?? []).map((s) => s.name).join(',')}
-    </div>
+vi.mock('@/pages/Admin/KnowledgeBase/KnowledgePlayer', () => ({
+  KnowledgePlayer: (props: {
+    mediaId: number
+    mediaKind: string
+    initialSeekMs: number | null
+  }) => (
+    <div
+      data-testid="player-stub"
+      data-media={props.mediaId}
+      data-kind={props.mediaKind}
+      data-seek={props.initialSeekMs ?? 'null'}
+    />
   ),
 }))
 
-import { fetchKbConsumerSources } from '@/api/kb'
+vi.mock('@/pages/Admin/KnowledgeBase/BookReader', () => ({
+  BookReader: (props: { mediaId: number; initialPageNo: number | null }) => (
+    <div
+      data-testid="reader-stub"
+      data-media={props.mediaId}
+      data-page={props.initialPageNo ?? 'null'}
+    />
+  ),
+}))
+
+vi.mock('@/stores/assistant', () => ({
+  useAssistantStore: {
+    getState: () => ({ sendQuestion }),
+  },
+}))
+
+import { fetchKbPlaybackToken } from '@/api/kb'
 
 import { KnowledgeSearchPage } from './index'
 
-const mockedSources = vi.mocked(fetchKbConsumerSources)
+const mockedToken = vi.mocked(fetchKbPlaybackToken)
 
-function renderPage() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+function renderPage(route = '/kb') {
+  return render(
+    <MemoryRouter initialEntries={[route]}>
+      <KnowledgeSearchPage />
+    </MemoryRouter>
   )
-  return render(<KnowledgeSearchPage />, { wrapper })
 }
 
 describe('KnowledgeSearchPage', () => {
@@ -34,34 +58,65 @@ describe('KnowledgeSearchPage', () => {
     vi.clearAllMocks()
   })
 
-  it('renders search tab with whitelist sources', async () => {
-    mockedSources.mockResolvedValue([
-      { id: 1, name: '课程库', sourceType: 'course' },
-      { id: 2, name: '书库', sourceType: 'book' },
-    ])
+  it('search submit and suggestion chip trigger assistant kb question', () => {
     renderPage()
-
-    await waitFor(() => expect(screen.getByTestId('search-stub')).toBeInTheDocument())
-    expect(screen.getByTestId('search-stub')).toHaveTextContent('课程库,书库')
-    expect(screen.getByText('知识检索')).toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText(/输入知识点/), {
+      target: { value: '均线金叉' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /搜\s*索/ }))
+    fireEvent.click(screen.getByText('止损与仓位管理方法'))
+    expect(sendQuestion).toHaveBeenCalledWith('请在知识库中检索并回答：均线金叉')
+    expect(sendQuestion).toHaveBeenCalledWith(
+      '请在知识库中检索并回答：止损与仓位管理方法'
+    )
   })
 
-  it('403 renders authorization guidance', async () => {
-    mockedSources.mockRejectedValue({ response: { status: 403 } })
-    renderPage()
+  it('?mediaId= opens playback modal with player on allowed token', async () => {
+    mockedToken.mockResolvedValue({
+      token: 't',
+      expiresIn: 1800,
+      mediaId: 3,
+      prevMediaId: null,
+      nextMediaId: null,
+      pageCount: null,
+    })
+    renderPage('/kb?mediaId=3&kind=video&seekMs=330000&episodeNo=3&title=均线课')
 
-    await waitFor(() =>
-      expect(screen.getByText('暂无知识库访问权限')).toBeInTheDocument()
-    )
-    expect(screen.queryByTestId('search-stub')).not.toBeInTheDocument()
+    const player = await screen.findByTestId('player-stub')
+    expect(player).toHaveAttribute('data-media', '3')
+    expect(player).toHaveAttribute('data-seek', '330000')
+    expect(mockedToken).toHaveBeenCalledWith(3)
   })
 
-  it('other errors render generic failure', async () => {
-    mockedSources.mockRejectedValue(new Error('boom'))
-    renderPage()
+  it('?kind=book mounts reader at initial page', async () => {
+    mockedToken.mockResolvedValue({
+      token: 't',
+      expiresIn: 1800,
+      mediaId: 5,
+      prevMediaId: null,
+      nextMediaId: null,
+      pageCount: 120,
+    })
+    renderPage('/kb?mediaId=5&kind=book&pageNo=45')
+
+    const reader = await screen.findByTestId('reader-stub')
+    expect(reader).toHaveAttribute('data-media', '5')
+    expect(reader).toHaveAttribute('data-page', '45')
+  })
+
+  it('403 token renders authorization guidance instead of player', async () => {
+    mockedToken.mockRejectedValue({ response: { status: 403 } })
+    renderPage('/kb?mediaId=3')
 
     await waitFor(() =>
-      expect(screen.getByText('知识库加载失败，请稍后重试')).toBeInTheDocument()
+      expect(screen.getByText('暂无知识库播放权限')).toBeInTheDocument()
     )
+    expect(screen.queryByTestId('player-stub')).not.toBeInTheDocument()
+  })
+
+  it('no mediaId renders only the search entry', () => {
+    renderPage()
+    expect(screen.getByText('知识库')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

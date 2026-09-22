@@ -197,9 +197,11 @@ async def stream_run(
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    # 出口分流：BYOK 用户获得独立 agent 实例（失败不回退，arch/10 §5）
+    # 出口分流：BYOK 用户获得独立 agent 实例（失败不回退，arch/10 §5）；
+    # 知识库检索工具随对话「使用知识库」开关注入（metadata.use_kb，缺省开）
     cfg, _outlet = await resolve_llm(session, user.id)
-    agent = await get_assistant_agent(cfg=cfg)
+    use_kb = bool((data.metadata or {}).get("use_kb", True))
+    agent = await get_assistant_agent(cfg=cfg, use_kb=use_kb)
 
     async def event_stream() -> AsyncIterator[str]:
         task = asyncio.current_task()

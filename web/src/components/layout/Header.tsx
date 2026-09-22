@@ -1,4 +1,4 @@
-import { LogoutOutlined, MenuOutlined, MessageOutlined, SettingOutlined, StarOutlined, UserOutlined, FilterOutlined } from '@ant-design/icons'
+import { LogoutOutlined, MenuOutlined, MessageOutlined, SettingOutlined, UserOutlined, FilterOutlined, BookOutlined, CalendarOutlined } from '@ant-design/icons'
 import { Avatar, Button, Dropdown, Space, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
@@ -77,13 +77,13 @@ export function Header({ onMenuClick }: HeaderProps) {
         </div>
       </div>
       <Space size={4}>
-        <Tooltip title="我的自选">
+        <Tooltip title="知识库">
           <Button
             type="text"
-            icon={<StarOutlined />}
-            onClick={() => navigate('/watchlist')}
+            icon={<BookOutlined />}
+            onClick={() => navigate('/kb')}
             className="text-gray-300"
-            aria-label="我的自选"
+            aria-label="知识库"
           />
         </Tooltip>
         <Tooltip title="AI 选股">
@@ -102,6 +102,15 @@ export function Header({ onMenuClick }: HeaderProps) {
             onClick={() => openPanel()}
             className="text-gray-300"
             aria-label="AI 助手"
+          />
+        </Tooltip>
+        <Tooltip title="投资日历">
+          <Button
+            type="text"
+            icon={<CalendarOutlined />}
+            onClick={() => navigate('/calendar')}
+            className="text-gray-300"
+            aria-label="投资日历"
           />
         </Tooltip>
         {user ? (

@@ -1,7 +1,7 @@
 ---
 name: stock-daily-analysis
 description: 个股每日收盘分析：工具化获取个股行情快照、日 K 线、财务指标与近期新闻，产出按分区组织的结构化每日分析。个股详情页触发生成与自选股 AI 复盘定时任务均通过本 Skill 执行。
-allowed-tools: get_stock_quote, get_stock_kline, query_financial_data, search_news, get_trade_calendar, persist_stock_daily_analysis
+allowed-tools: get_stock_quote, get_stock_kline, query_financial_data, search_news, search_knowledge_base, get_trade_calendar, persist_stock_daily_analysis
 ---
 
 # 个股每日分析
@@ -34,11 +34,12 @@ allowed-tools: get_stock_quote, get_stock_kline, query_financial_data, search_ne
 - **独立执行器路径**（定时任务等直接执行）：最终回复必须且只能是上述 JSON 对象，不要 markdown 代码围栏、不要额外解释文字。
 
 ## 可用工具
-执行器路径固定注入前四个取数工具；`get_trade_calendar` 仅助手对话路径可用。
+执行器路径固定注入前四个取数工具与 `search_knowledge_base`；`get_trade_calendar` 仅助手对话路径可用。
 - `get_stock_quote(stock_code)`: 最新行情快照——现价、开高低收、涨跌幅、成交量/额、市值（Redis 实时缺失时回退最近日 K）。
 - `get_stock_kline(stock_code, limit=30)`: 近期日 K（日期、开高低收、量、额、涨跌幅），按交易日倒序；本分析传 `limit=20`。
 - `query_financial_data(stock_codes, periods=3)`: 核心财务指标——最新报告期毛利率、营收同比、研发占比、应收账款周转。
 - `search_news(keyword, days=30, limit=15)`: 按关键词检索近期新闻/公告/研报标题与摘要，用于关键事件分区的消息面佐证。
+- `search_knowledge_base(query, source?, chapter?, point_type?, include_media?)`: 助手对话与独立执行器路径均注入——检索投资课程知识库已审核知识卡片，为走势形态与操作策略补充课程方法论佐证（如形态识别纪律、量价关系方法）。引用卡片时必须保留返回的 citation 定位（集数/时间码/章节/页码）使结论可溯源；`include_media` 仅在用户想学习知识点的课程讲解、或明确要求看视频原片/书籍原文时传 true，分析中保持 false；未注入本工具时（如对话关闭知识库开关）不得编造知识库引用。
 - `get_trade_calendar()`: 仅助手对话路径可用——当前北京时间、今天是否交易日、最近（含今日）交易日。
 
 ## 分析流程
@@ -50,7 +51,7 @@ allowed-tools: get_stock_quote, get_stock_kline, query_financial_data, search_ne
 调用 `get_stock_quote(stock_code=...)` 获取当日盘面数据。若返回为空，后续以 K 线最近一根 bar 为盘面依据。
 
 ### 步骤 2：日 K 走势
-调用 `get_stock_kline(stock_code=..., limit=20)` 获取近 20 个交易日走势，判断区间位置（新高/新低/震荡）、量价配合与形态。
+调用 `get_stock_kline(stock_code=..., limit=20)` 获取近 20 个交易日走势，判断区间位置（新高/新低/震荡）、量价配合与形态。识别出典型形态（如突破、缺口、顶部/底部结构）或对走势定性存在不确定时，调用 `search_knowledge_base(query=<形态/量价相关关键词>)` 检索课程方法论佐证，将纪律与方法要点融入走势判断与策略分区。
 
 ### 步骤 3：财务背景
 调用 `query_financial_data(stock_codes=[stock_code], periods=3)` 获取基本面指标，为策略分区提供基本面佐证。
@@ -83,4 +84,5 @@ allowed-tools: get_stock_quote, get_stock_kline, query_financial_data, search_ne
 2. `get_stock_kline(stock_code="600519", limit=20)` → 近 20 日走势。
 3. `query_financial_data(stock_codes=["600519"], periods=3)` → 毛利率/营收同比。
 4. `search_news(keyword="贵州茅台", days=14, limit=8)` → 消息面（可跳过）。
-5. 最终回复：`{"sections": {"intraday_review": "- **高开回落**……", "key_events": "……", "strategy": "……", "risk_lines": "……"}}`
+5. `search_knowledge_base(query="放量突破 形态 买入纪律")` → 课程方法论佐证（走势存在典型形态时）。
+6. 最终回复：`{"sections": {"intraday_review": "- **高开回落**……", "key_events": "……", "strategy": "……", "risk_lines": "……"}}`

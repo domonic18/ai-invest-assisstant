@@ -4,7 +4,15 @@
 // ---- 账号状态 ----
 
 export type AccountStatus = 'pending' | 'approved' | 'rejected'
-export type UsageFeature = 'assistant' | 'page' | 'api_key' | 'system'
+export type UsageFeature =
+  | 'assistant'
+  | 'page'
+  | 'api_key'
+  | 'system'
+  | 'kb_clean'
+  | 'kb_extract'
+  | 'kb_vision'
+  | 'kb_embed'
 export type UsageOutlet = 'system' | 'byok'
 
 // ---- 个人侧（wire） ----
@@ -187,6 +195,10 @@ export const USAGE_FEATURE_LABELS: Record<UsageFeature, string> = {
   page: '页面生成',
   api_key: 'API-KEY/MCP',
   system: '系统任务',
+  kb_clean: '知识库清洗',
+  kb_extract: '知识库抽取',
+  kb_vision: '知识库视觉',
+  kb_embed: '知识库嵌入',
 }
 
 export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {

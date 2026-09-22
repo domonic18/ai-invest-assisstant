@@ -54,12 +54,19 @@ async def run_skill(
         get_stock_kline,
         get_stock_quote,
         query_financial_data,
+        search_knowledge_base,
         search_news,
     )
 
     agent = create_deep_agent(
         model=build_langchain_model(cfg),
-        tools=[get_stock_quote, get_stock_kline, query_financial_data, search_news],
+        tools=[
+            get_stock_quote,
+            get_stock_kline,
+            query_financial_data,
+            search_news,
+            search_knowledge_base,
+        ],
         system_prompt=(
             f"{prompt_config.system_prompt.strip()}\n\n{load_skill_instructions(SKILL_ID)}"
         ),

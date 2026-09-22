@@ -94,7 +94,7 @@ async def get_important_news(trade_date: str) -> dict[str, Any]:
 
 @tool
 async def search_vector_kb(query: str, limit: int = 5) -> list[dict[str, Any]]:
-    """检索研报知识库（全文检索），返回研报标题与内容片段；ES 不可用时自动回退研报标题检索。
+    """按关键词检索研报/财报 PDF 全文，返回标题与内容片段；无命中时回退研报标题/摘要检索。
 
     Args:
         query: 检索语句，如 "光模块 CPO 产能"。

@@ -45,13 +45,13 @@ SPECS: tuple[TaskSpec, ...] = (
     TaskSpec(
         name="kb-index",
         label="知识库索引构建",
-        description="三类脏行（知识点/分段/图片）增量向量化入 ES；force_rebuild=true 蓝绿全量重建（切模型后必跑）",
+        description="三类脏行（知识点/分段/图片）增量向量化入 PG halfvec 列；force_rebuild=true 蓝绿全量重建（切模型后必跑）",
         data_type="kb_index",
         collectors={
             "internal": "collector.spiders.kb_index:KbIndexCollector",
         },
         run_params=("force_rebuild",),
-        # 嵌入批量短调用 + ES bulk，正常增量为分钟级；全量重建受各类 500/轮限流
+        # 嵌入批量短调用 + 行内 UPDATE，正常增量为分钟级；全量重建受各类 500/轮限流
         queue="batch",
         soft_time_limit=1800,
         hard_time_limit=2100,

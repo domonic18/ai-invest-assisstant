@@ -61,7 +61,11 @@ export function useUpdateKbSettings() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: ApiKbSettingsUpdateRequest) => updateKbSettings(data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kb.settings }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.kb.settings })
+      // 计价变化影响用量面板费用核算，一并失效
+      void queryClient.invalidateQueries({ queryKey: ['kb', 'usage'] })
+    },
   })
 }
 

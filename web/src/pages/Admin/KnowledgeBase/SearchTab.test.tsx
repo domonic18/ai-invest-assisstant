@@ -326,18 +326,4 @@ describe('SearchTab', () => {
       within(dialog).getByAltText('头肩顶图示')
     ).toHaveAttribute('src', 'https://signed/original.png')
   })
-
-  it('consumerSources injection skips admin sources query', () => {
-    setup(undefined)
-    mockedSources.mockClear()
-    render(
-      <SearchTab
-        sourceId={1}
-        onSourceChange={vi.fn()}
-        consumerSources={[{ id: 1, name: '课', sourceType: 'course' }]}
-      />
-    )
-    expect(mockedSources).toHaveBeenCalledWith(false)
-    expect(screen.getByText('课（课程）')).toBeInTheDocument()
-  })
 })

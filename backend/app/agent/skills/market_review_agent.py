@@ -54,6 +54,7 @@ async def run_skill(
         get_sector_anomaly,
         get_sector_overview,
         get_social_sentiment,
+        search_knowledge_base,
     )
 
     agent = create_deep_agent(
@@ -66,6 +67,7 @@ async def run_skill(
             get_important_news,
             get_social_sentiment,
             get_sector_anomaly,
+            search_knowledge_base,
         ],
         system_prompt=(
             f"{prompt_config.system_prompt.strip()}\n\n{load_skill_instructions(SKILL_ID)}"

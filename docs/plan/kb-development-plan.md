@@ -13,7 +13,7 @@
 | 迭代 13 · 批次 I（D 后中插） | I 视频关键帧通道 | 视频画面信息入知识库：三路信号选帧 → 去重入库 → VLM 描述计费 → 图片资产可见（检索消费留批次 E/F） | ~2 人日 |
 | 迭代 13 · 批次 J（E 后中插） | J 检索去投影化 | PG 单库混合检索（halfvec HNSW + pg_trgm + 服务层 RRF），KB 链路摘除 ES 投影与投影管理机械 | ~2 人日 |
 | 迭代 13 · 批次 K（J 后追加） | K 全系统去 ES | 研报/财报全文入 PG（`file_metadata.content` + trgm），`search_vector_kb` 改纯 PG，ES 容器/依赖/探针全退役 | ~1 人日 |
-| 迭代 14 · F-KB 二期 | H Agent 消费 | `search_knowledge_base` 权限注入 + 技能优化建议闭环 | ~3 人日 |
+| 迭代 14 · F-KB 二期 | H Agent 消费 | `search_knowledge_base` 会话开关注入 + 复盘技能默认用 KB + 媒体引用按需返回 | ~2 人日 |
 
 ## 1. 批次 A · 底座：数据模型、迁移、模型角色与设置（~1.5 人日）
 
@@ -167,6 +167,10 @@
 | H3 | 审核与应用 | 建议 API + 审核队列 UI（通过/修订后应用/驳回）；custom 技能 version+1 直写生效；builtin 导出完整文件文本 + 变更说明交开发落库（运行时不改代码库文件）；建议单全量留档 |
 
 验收：普通用户会话无此工具（单测钉死）；未经审核的修改不生效；引用带集数/时间码可溯源。
+
+> **交付记录（2026-09-21，批次 H 完结）**：H1 完成——`kb_tools.py` `search_knowledge_base`（point_type 中文标签校验、未知源列出可用清单、`_locate` 定位串：课程「《源》 第N集 MM:SS-MM:SS（章/节）」/书「《题》 第N-M页（章）」、body>500 截断、降级 note「向量检索不可用仅词面匹配」、空结果引导 hint）；`build_assistant_tools(*, kb_enabled=False)` 追加注入；权限策略 `access_service.can_use_kb_tools`（现 admin 角色，白名单并入 F-KB-08）；`assistant_agent` 变体感知缓存（`_fingerprint` 拼kb/std 后缀，admin 会话独立 agent 缓存）；`runs.py` 按当前用户注入。三个分析技能 SKILL.md allowed-tools 增补 + 引用规范段（保留 citation 定位、未注入不得编造引用）。H2 完成——迁移 `20260921c` + init 双写（表 id 用 SERIAL：BigInteger PK sqlite 单测不自动生成，kb 表惯例本就是 int PK）；`optimization_service.create_suggestion`（skill/source 全快照 + OPEN_STATUSES 互斥 + 审计 + 直派 Celery `kb-suggest`，无 collector_task 行先例 market_dispatch_service）；`run_generation` 状态机（非 queued 幂等跳过 / extract 槽位缺失或 Agent 失败置 failed 留 error 500 截断 / 成功 pending_review）；优化 Agent 走 deepagents + `search_knowledge_base`（工具固定 source 参数按单检索），prompt 落 `app/prompts/agents/kb_optimization.yaml`（JSON 契约双花括号转义），计量 `kb_optimize` 新 feature（shared UsageFeature 补齐 5 个缺失 kb_* 分项——存量漂移顺手修）；spider 薄壳委托 service（SKIPPED/FAILED 语义分离）；`TASK_TYPE_DOMAIN` 补 kb-suggest（域覆盖测试钉死）。admin API 三端点（list 分页状态过滤 / create 201 / detail）。H3 完成——`review_suggestion`：仅 pending_review 可审（终态 ConflictError）；reject note 必填留档；apply 全或无（任一原文在目标文件找不到 → ConflictError 整单不生效 + 技能版本漂移守卫）；修订后应用按 index 覆盖 suggested_text 且应用产物回写留档；custom 直写（SKILL.md→skill_md、prompt.yaml→system_prompt/user_prompt_template 按原文所在字段、新增类仅 SKILL.md 追加，version+1）；builtin 只导出应用后全文进 `apply_result.files`（运行时不改代码库文件，UI Collapse 复制交开发落库）；三审计动作（create/apply/reject）。UI：KnowledgeBase 页「技能优化」Tab（发起表单技能×源选择、状态过滤队列、行展开修改点卡片——待审核态建议文本可修订、应用确认弹窗分 custom/builtin 语义文案、驳回理由弹窗、builtin 已应用行导出全文折叠区）。shared 契约（建议单/清单/发起/审核四类型 + endpoints）+ `adminKb.ts`/`useAdminKb.ts` 接线。质量门：后端 2131 单测（服务 22 + API 6 新增）/ mypy 432 文件 / ruff 全绿；web typecheck / lint / 379 单测全绿。遗留：E2E（需 docker 重建跑真实 Agent 生成一单）随下轮部署；H1 引用规范的实际 Agent 遵循度待会话观察。
+> **交付变更（2026-09-21，功能优化轮）**：H1 检索工具注入范围 admin → **全员**（`build_assistant_tools` 无条件注册，`access_service` 与 `assistant_agent` 变体缓存机制整体移除）；卡片与 segment 附结构化 `media` 引用（id/kind/title/episode_no/seek_ms|page_no）供前端播放跳转；视频/书页播放仍由 playback-token 白名单控制（/kb 页预检 403 出授权引导）。
+> **交付变更（2026-09-22，H2/H3 移除）**：技能优化建议单（F-KB-07）全链路下线——用户拍板该形态与设想不符，能力提升未来改为**结合模拟盘、由 Agent 对模拟盘盈亏复盘驱动**（另行立项）。移除范围：`kb_optimization_suggestion` 表（迁移 20260921c 删除，补 `20260922a` drop 迁移回收已建环境）、`optimization_service`/`kb_optimization.yaml`/admin 三端点/`kb_suggest` spider 与 TaskSpec/`kb_optimize` 计量分项、管理台「技能优化」Tab 与 shared 契约（endpoints + kb 优化类型 + UsageFeature 的 kb_optimize）。H1（检索工具/复盘技能注入/会话开关/按需媒体引用）不受影响。
 
 ## 11. 部署前置与运维项（随对应批次落地）
 

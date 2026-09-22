@@ -3,7 +3,6 @@ import {
   AppstoreOutlined,
   BarChartOutlined,
   BlockOutlined,
-  CalendarOutlined,
   CloudServerOutlined,
   DatabaseOutlined,
   DashboardOutlined,
@@ -17,7 +16,6 @@ import {
   PieChartOutlined,
   PlayCircleOutlined,
   ReadOutlined,
-  RiseOutlined,
   RobotOutlined,
   SettingOutlined,
   ShopOutlined,
@@ -45,25 +43,20 @@ import {
 
 type MenuItem = Required<MenuProps>['items'][number]
 
-// 导航信息架构见需求 4.4.0：监测 → 资讯 → 分析 → 设置。
+// 导航信息架构：检测 → 分析 → 设置；知识库入口在右上角（/kb），投资日历在右上角。
 // 个股监测经顶部搜索进入（/stock/:code 无默认标的，不设静态导航项）。
-const MONITOR_MENU_ITEMS: MenuItem[] = [
+const DETECTION_MENU_ITEMS: MenuItem[] = [
   { key: '/macro-monitor', icon: <GlobalOutlined />, label: '宏观指数' },
-  { key: '/capital-flow', icon: <FundOutlined />, label: '板块监测' },
+  { key: '/capital-flow', icon: <FundOutlined />, label: '资金流向' },
   { key: '/auction-review', icon: <ShopOutlined />, label: '集合竞价' },
-]
-
-const NEWS_MENU_ITEMS: MenuItem[] = [
+  // 板块/个股异动合并为双 tab 页，page_event 跳转直达 /anomaly/sector|stock
+  { key: '/anomaly', icon: <AlertOutlined />, label: '异动检测' },
   // 迭代 3：电报视图迁入资讯中心 /news（渠道监控 + AI 分级 + 三视图）
   { key: '/news', icon: <ThunderboltOutlined />, label: '资讯中心' },
-  { key: '/calendar', icon: <CalendarOutlined />, label: '投资日历' },
-  // 知识检索消费页：入口暂不开放（功能仅在管理台调试），/kb 路由保留待启用
 ]
 
 const ANALYSIS_MENU_ITEMS: MenuItem[] = [
   { key: '/review', icon: <BarChartOutlined />, label: '每日复盘' },
-  { key: '/anomaly/sector', icon: <AlertOutlined />, label: '板块异动' },
-  { key: '/anomaly/stock', icon: <RiseOutlined />, label: '个股异动' },
   { key: '/chain', icon: <HeatMapOutlined />, label: '产业图谱' },
 ]
 
@@ -181,8 +174,7 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
   const items: MenuItem[] = [
     { key: '/workbench', icon: <AppstoreOutlined />, label: '工作台' },
     { key: '/watchlist', icon: <StarOutlined />, label: '我的自选' },
-    { type: 'group', key: 'group-monitor', label: '监测', children: MONITOR_MENU_ITEMS },
-    { type: 'group', key: 'group-news', label: '资讯', children: NEWS_MENU_ITEMS },
+    { type: 'group', key: 'group-detection', label: '检测', children: DETECTION_MENU_ITEMS },
     { type: 'group', key: 'group-analysis', label: '分析', children: ANALYSIS_MENU_ITEMS },
     { type: 'group', key: 'group-settings', label: '设置', children: settingsChildren },
   ]

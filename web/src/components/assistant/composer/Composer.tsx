@@ -3,6 +3,8 @@ import {
   ThreadPrimitive,
 } from '@assistant-ui/react'
 
+import { ComposerActions } from './ComposerActions'
+
 export function Composer() {
   return (
     <ComposerPrimitive.Root className="border-t border-gray-800 bg-[#0c0e12] p-3">
@@ -26,6 +28,7 @@ export function Composer() {
           </ThreadPrimitive.If>
         </div>
       </div>
+      <ComposerActions />
     </ComposerPrimitive.Root>
   )
 }
