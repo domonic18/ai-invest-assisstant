@@ -8,6 +8,8 @@ import { useAssistantStore } from '@/stores/assistant'
 import { parsePageEvent } from '../pageEvents'
 import { extractEventMarker } from '../runtimeUtils'
 
+import { KbMediaChips } from './KbMediaChips'
+
 interface ToolCallBlockProps {
   toolName: string
   args: unknown
@@ -66,6 +68,7 @@ export function ToolCallBlock({ toolName, args, result }: ToolCallBlockProps) {
           </Button>
         </div>
       )}
+      {!isRunning && toolName === 'search_knowledge_base' && <KbMediaChips result={result} />}
       {open && (
         <div className="space-y-2 border-t border-sky-900/40 px-3 py-2 text-xs text-gray-300">
           <div>

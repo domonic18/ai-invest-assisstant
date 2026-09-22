@@ -21,6 +21,8 @@ import type { Client } from '@langchain/langgraph-sdk'
 import { createAssistantClient } from '@/api/assistant'
 import { buildPageContext } from '@/utils/pageContext'
 
+import { useAssistantStore } from '@/stores/assistant'
+
 import { dispatchCustomEvent, dispatchUpdates } from './assistantEventDispatcher'
 import type { StateWithTasks } from './runtimeUtils'
 
@@ -83,8 +85,12 @@ export function createAssistantRuntimeAdapter(
       const stream = await client.runs.stream(externalId, ASSISTANT_ID, {
         input: messages.length ? { messages } : null,
         command: config.command as never,
-        // 发送瞬间读取 window.location（零订阅，实时反映当前页面与 ?code=）
-        metadata: { page_context: buildPageContext(window.location) },
+        // 发送瞬间读取 window.location 与 store 快照（零订阅，实时反映当前
+        // 页面、?code= 与知识库开关；use_kb 缺省由后端按开启处理）
+        metadata: {
+          page_context: buildPageContext(window.location),
+          use_kb: useAssistantStore.getState().useKb,
+        },
         checkpoint: config.checkpointId
           ? {
               checkpoint_id: config.checkpointId,
