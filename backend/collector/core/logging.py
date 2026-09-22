@@ -52,7 +52,11 @@ def configure_logging(level: str | None = None) -> None:
         ],
         foreign_pre_chain=_shared_processors,
     )
-    handler = logging.StreamHandler(sys.stdout)
+    # Celery worker 启动时把 sys.stdout 替换为 LoggingProxy（写它会被递归
+    # 保护静默丢弃），prefork 子进程继承该代理；root handler 若引用代理，
+    # 子进程内全部任务日志（含 celery 自身）都不可见。固定绑定解释器启动
+    # 时的真实 stdout。
+    handler = logging.StreamHandler(sys.__stdout__ or sys.stdout)
     handler.setFormatter(formatter)
 
     root = logging.getLogger()

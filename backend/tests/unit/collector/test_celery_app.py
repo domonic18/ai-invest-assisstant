@@ -1,5 +1,7 @@
 """Celery app 契约测试：队列路由、任务选项解析与 worker 生命周期。"""
 
+import logging
+import sys
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
@@ -11,6 +13,7 @@ from collector.celery_app import (
     resolve_queue,
     resolve_task_options,
 )
+from collector.core.logging import configure_logging
 from collector.runtime.registry import TASK_SPECS
 
 
@@ -85,6 +88,23 @@ class TestResolveTaskOptions:
 
 
 @pytest.mark.unit
+class TestConfigureLogging:
+    def test_binds_handler_to_startup_stdout_not_redirected_proxy(self) -> None:
+        """celery 把 sys.stdout 换成 LoggingProxy 后，handler 仍须绑定真实 stdout。"""
+        startup_stdout = sys.__stdout__
+        proxy = MagicMock()
+        root = logging.getLogger()
+        saved_handlers = root.handlers[:]
+        with patch.object(sys, "stdout", proxy):
+            configure_logging()
+            try:
+                assert root.handlers
+                assert root.handlers[0].stream is startup_stdout
+                assert root.handlers[0].stream is not proxy
+            finally:
+                root.handlers = saved_handlers
+
+
 class TestInitWorkerProcess:
     def test_disposes_and_recreates_app_engine(self) -> None:
         old_engine = MagicMock()
