@@ -1,6 +1,6 @@
 # 知识库架构设计（温成趋势理论 · F-KB）
 
-> 闭环：后台登记多知识库（课程/电子书）→ 文件夹批量直传 COS → 课程 ASR 分片转写（句级时间戳）+ 视频关键帧抽取（三路信号选帧 + VLM 描述）/ 电子书文本层解析（PyMuPDF + 嵌入图片资产）→ LLM 章节推断 + 知识点抽取 → 人工审核发布 → **PG 同库混合检索（`halfvec` 向量 + `pg_trgm` 词面，服务层 RRF）**→ 内部检索页（片段播放器/阅读器，代理 + 短时效凭证防盗）→ Agent 运行时引用与技能优化建议单（审核后生效）。
+> 闭环：后台登记多知识库（课程/电子书）→ 文件夹批量直传 COS → 课程 ASR 分片转写（句级时间戳）+ 视频关键帧抽取（三路信号选帧 + VLM 描述）/ 电子书文本层解析（PyMuPDF + 嵌入图片资产）→ LLM 章节推断 + 知识点抽取 → 人工审核发布 → **PG 同库混合检索（`halfvec` 向量 + `pg_trgm` 词面，服务层 RRF）**→ 内部检索页（片段播放器/阅读器，代理 + 短时效凭证防盗）→ Agent 运行时引用（会话级知识库开关门控）。
 > 需求：[docs/requirement/04-knowledge-base-requirement.md](../requirement/04-knowledge-base-requirement.md)（F-KB V1.1）· 原型：[docs/prototypes/knowledge-base.html](../prototypes/knowledge-base.html)
 > 调研基线（2026-09）：pgvector 0.8.1 + pg_trgm 1.6（TimescaleDB 镜像内可用；2048 维必须用 `halfvec`——`vector` 类型 HNSW 上限 2000 维；en_US.utf8 ctype 下 CJK 三元组正常生成）；MiniMax ASR 仅 `asr-1.0`（≤500s/50MB/次，无热词参数，句级时间戳可用，单价未公开刊例）；MiniMax M3 为多模态对话模型、非识别模型，定位在转写后清洗与知识抽取。**电子书确认为文字版 PDF**（2026-09-18 拍板）：单通道文本层解析，扫描版 OCR 后置（出现扫描版素材再立项）。
 
@@ -179,12 +179,11 @@ GET  /kb/images/{id}/original-url    # 图片原图短时效预签名（≤15min
 - **BookReader**：按页位图 + 页码跳转/前后页 + 命中页高亮标注 + 缩放；图片命中打开原图视图附页码上下文。
 - 防盗边界声明（需求口径）：目标是抬高直接获取与批量盗取成本，录屏/翻拍以水印溯源震慑，不承诺根除。
 
-## 9. Agent 消费（F-KB-06/07）
+## 9. Agent 消费（F-KB-06）
 
-- **`search_knowledge_base(query, source?, chapter?, point_type?)`** 工具（二期）：注册进 `build_assistant_tools()`，**按会话用户权限注入**（admin / `kb_settings.authorized_user_ids` 白名单；普通用户会话不注册，内部知识不外泄）。返回压缩卡片集（标题 + 正文 + 类型 + 定位），token 预算受 top_k 约束；检索服务复用 §7.2（工具层薄封装）。降级：服务不可用返回明确错误文本，Agent 继续分析并声明未引用理论依据。
-- 分析类技能（复盘/异动/涨停）SKILL.md allowed-tools 增补 + 提示词声明「涉及趋势与买卖点判断先检索知识库，结论注明引用知识点（可溯源集数/时间码）」——引用而非全文注入。
+- **`search_knowledge_base(query, source?, chapter?, point_type?, include_media?)`** 工具：注册进 `build_assistant_tools()`，**按会话级知识库开关注入**（前端开关随 run metadata 下发 `use_kb`，纳入 agent 缓存指纹；关闭即不注册工具）。返回压缩卡片集（标题 + 正文 + 类型 + citation 定位：集数/时间码/章节/页码），token 预算受 top_k 约束；检索服务复用 §7.2（工具层薄封装）。`include_media=true` 仅在学习场景返回媒体定位（起播点/页码，前端渲染播放 chip）。降级：向量服务不可用返回明确 note，Agent 声明仅词面匹配。
+- 分析类技能（大盘复盘/涨停复盘/异动归因/个股分析/K线画线）SKILL.md allowed-tools 增补 + 提示词强制「走势/形态/买卖点判断先检索知识库，引用原样保留 citation（可溯源）」——引用而非全文注入；四个独立执行器同样注入工具，未注入时（开关关闭）不得编造引用。
 - 定时 AI 任务经**服务层直调**检索服务（不经工具层，依赖方向既有规范）。
-- **技能优化建议单**（二期，表 `kb_optimization_suggestion`）：后台选「目标技能 × 知识源」手动触发 → 优化 Agent 读技能定义 + 检索知识点 → 产出修改点列表（原文/建议文/diff + 理由 + 引用定位）→ 审核队列「通过/修订后应用/驳回」→ custom 技能 version+1 直写生效；builtin 技能导出完整文件文本 + 变更说明交开发落代码库（运行时不改代码库文件）。同一技能存在未处理建议单时禁止发起新一轮；建议单全量留档可溯。
 
 ## 10. API 面（wire camelCase + shared/types/kb.ts 单一真相源；query snake_case）
 
