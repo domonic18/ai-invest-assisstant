@@ -1,6 +1,6 @@
 id: stock-daily-analysis
 name: 个股每日 AI 分析
-version: 2.1.0
+version: 2.2.0
 description: 基于工具取数（行情快照/日 K/财务/新闻）生成单只股票的每日结构化 AI 分析，分析流程由 skills/stock-daily-analysis/SKILL.md 维护
 
 sections:

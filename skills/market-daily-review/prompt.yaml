@@ -1,6 +1,6 @@
 id: market-daily-review
 name: 大盘每日复盘综述
-version: 1.4.0
+version: 1.5.0
 description: 基于当日指数行情、涨跌统计、涨停连板、板块资金与异动、重点要闻、散户社交情绪数据，生成跨分区相互印证的结构化大盘复盘综述
 
 sections:

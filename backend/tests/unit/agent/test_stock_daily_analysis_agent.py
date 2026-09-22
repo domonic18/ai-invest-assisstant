@@ -7,7 +7,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.agent.core.prompt_loader import PromptConfig, PromptSection
-from app.agent.skills.skill_runtime import SkillOutputError, parse_sections
+from app.agent.skills.skill_runtime import (
+    SkillOutputError,
+    load_skill_methodology,
+    parse_sections,
+)
 from app.agent.skills.stock_daily_analysis_agent import run_skill
 
 _TRADE_DATE = date(2026, 9, 1)
@@ -89,7 +93,37 @@ class TestParseSections:
 
 
 @pytest.mark.unit
+class TestLoadMethodology:
+    def test_loads_and_strips_frontmatter(self) -> None:
+        text = load_skill_methodology("market-daily-review")
+        assert text.startswith("# 趋势理论方法论手册")
+        assert "引用规则" in text
+        assert "distilled_at" not in text
+
+    def test_returns_empty_string_when_absent(self) -> None:
+        assert load_skill_methodology("limit-up-review") == ""
+
+
+@pytest.mark.unit
 class TestRunSkill:
+    @pytest.mark.asyncio
+    async def test_system_prompt_includes_methodology_handbook(self) -> None:
+        """系统提示三段拼装：输出契约 + SKILL.md 指引 + 方法论手册。"""
+        agent = _FakeAgent([_VALID_JSON])
+        patches = _patch_run_env(agent)
+        with patches[0], patches[1], patches[2] as create_mock:
+            await run_skill(
+                AsyncMock(),
+                "600519",
+                trade_date=_TRADE_DATE,
+                stock_name="贵州茅台",
+                prompt_config=_PROMPT_CONFIG,
+            )
+
+        system_prompt = create_mock.call_args.kwargs["system_prompt"]
+        assert "趋势理论方法论手册" in system_prompt
+        assert "个股阶段五划分" in system_prompt
+
     @pytest.mark.asyncio
     async def test_returns_sections_model_and_latency(self) -> None:
         agent = _FakeAgent([_VALID_JSON])

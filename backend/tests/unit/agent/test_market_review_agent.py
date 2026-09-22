@@ -62,6 +62,20 @@ def _patch_run_env(agent: _FakeAgent):
 @pytest.mark.unit
 class TestRunSkill:
     @pytest.mark.asyncio
+    async def test_system_prompt_includes_methodology_handbook(self) -> None:
+        """系统提示三段拼装：输出契约 + SKILL.md 指引 + 方法论手册。"""
+        agent = _FakeAgent([_VALID_JSON])
+        patches = _patch_run_env(agent)
+        with patches[0], patches[1], patches[2] as create_mock:
+            await run_skill(
+                AsyncMock(), trade_date=_TRADE_DATE, prompt_config=_PROMPT_CONFIG
+            )
+
+        system_prompt = create_mock.call_args.kwargs["system_prompt"]
+        assert "趋势理论方法论手册" in system_prompt
+        assert "三元一催化" in system_prompt
+
+    @pytest.mark.asyncio
     async def test_returns_sections_model_and_latency(self) -> None:
         agent = _FakeAgent([_VALID_JSON])
         patches = _patch_run_env(agent)

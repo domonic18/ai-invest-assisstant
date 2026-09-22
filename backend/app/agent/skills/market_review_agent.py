@@ -23,6 +23,7 @@ from app.agent.skills.kb_grounding import (
 from app.agent.skills.skill_runtime import (
     invoke_sections,
     load_skill_instructions,
+    load_skill_methodology,
     render_section_instructions,
 )
 from app.services.admin.llm_config_service import resolve_default_llm
@@ -80,6 +81,7 @@ async def run_skill(
         ],
         system_prompt=(
             f"{prompt_config.system_prompt.strip()}\n\n{load_skill_instructions(SKILL_ID)}"
+            f"\n\n{load_skill_methodology(SKILL_ID)}"
         ),
         name=SKILL_ID,
     )
