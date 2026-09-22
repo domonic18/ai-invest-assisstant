@@ -128,7 +128,9 @@ export const queryKeys = {
     accountPosts: (accountId: number) =>
       ['admin-social-account-posts', accountId] as const,
     status: ['admin-social-status'] as const,
-    asrConfig: ['admin-social-asr-config'] as const,
+  },
+  modelConfig: {
+    asr: ['model-config', 'asr'] as const,
   },
   proxyConfigs: ['proxy-configs'] as const,
   trackedIndexOptions: ['tracked-index-options'] as const,

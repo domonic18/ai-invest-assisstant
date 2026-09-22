@@ -5,7 +5,7 @@ import { useEffect } from 'react'
 import { LLM_PROVIDER_PRESETS } from '@ai-invest/shared'
 import type { LLMConfig, LLMConfigFormValues, LlmPurpose } from '@ai-invest/shared'
 
-interface LLMConfigModalProps {
+interface ModelFormModalProps {
   open: boolean
   editing: LLMConfig | null
   onCancel: () => void
@@ -34,7 +34,7 @@ const PROVIDER_OPTIONS = [
   { value: 'custom', label: '自定义' },
 ]
 
-export function LLMConfigModal({
+export function ModelFormModal({
   open,
   editing,
   onCancel,
@@ -42,7 +42,7 @@ export function LLMConfigModal({
   onTest,
   testing,
   loading,
-}: LLMConfigModalProps) {
+}: ModelFormModalProps) {
   const [form] = Form.useForm<LLMConfigFormValues>()
 
   useEffect(() => {
