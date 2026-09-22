@@ -1,6 +1,5 @@
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
-  ApiKbConsumerSource,
   ApiKbImageUrl,
   ApiKbPlaybackToken,
   ApiKbPublishedChaptersResponse,
@@ -8,12 +7,6 @@ import type {
 } from '@ai-invest/shared'
 
 import { apiClient } from './client'
-
-/** 消费侧知识库列表（启用中最小投影；403 即未授权）。 */
-export async function fetchKbConsumerSources(): Promise<ApiKbConsumerSource[]> {
-  const response = await apiClient.get<ApiKbConsumerSource[]>(ENDPOINTS.kb.sources)
-  return response.data
-}
 
 export interface KbSearchParams {
   q: string
