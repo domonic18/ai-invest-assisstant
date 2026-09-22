@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/api/adminKb', () => ({
+vi.mock('@/api/adminKbMedia', () => ({
   createKbUploadSession: vi.fn(),
   putPartToCos: vi.fn(),
 }))
 
-import { createKbUploadSession, putPartToCos } from '@/api/adminKb'
+import { createKbUploadSession, putPartToCos } from '@/api/adminKbMedia'
 
 import { computeBlobMd5 } from './fileHash'
 import {

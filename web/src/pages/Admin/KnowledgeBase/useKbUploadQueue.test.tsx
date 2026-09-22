@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 
-vi.mock('@/api/adminKb', () => ({
+vi.mock('@/api/adminKbMedia', () => ({
   initKbMediaUploads: vi.fn(),
   confirmKbMediaUploaded: vi.fn(),
   putFileToCos: vi.fn(),
@@ -29,7 +29,7 @@ import {
   confirmKbMediaUploaded,
   initKbMediaUploads,
   putFileToCos,
-} from '@/api/adminKb'
+} from '@/api/adminKbMedia'
 import { computeFileMd5 } from '@/utils/fileHash'
 import { probeMediaDuration } from '@/utils/mediaMeta'
 import { uploadMultipartParts } from '@/utils/multipartUpload'

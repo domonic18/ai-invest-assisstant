@@ -1,34 +1,41 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
-  approveKbPoint,
-  approveKbPointsBatch,
   confirmKbCost,
   confirmKbMediaUploaded,
-  createKbPoint,
-  createKbSource,
   deleteKbMedia,
-  deleteKbSource,
   estimateKbCost,
+  fetchKbSourceMedia,
+  fetchKbTranscript,
+  initKbMediaUploads,
+  patchKbMedia,
+  requeueKbMedia,
+  saveKbTranscript,
+} from '@/api/adminKbMedia'
+import {
+  approveKbPoint,
+  approveKbPointsBatch,
+  createKbPoint,
   fetchKbChapters,
   fetchKbImages,
   fetchKbReviewPoints,
-  fetchKbSourceMedia,
-  fetchKbSources,
-  fetchKbTranscript,
-  initKbMediaUploads,
+  fetchKbUsage,
   mergeKbPoints,
   patchKbImage,
-  patchKbMedia,
   patchKbPoint,
+  publishKbChapters,
   redescribeKbImage,
   rejectKbPoint,
-  requeueKbMedia,
+} from '@/api/adminKbReview'
+import {
+  createKbSource,
+  deleteKbSource,
+  fetchKbSettings,
+  fetchKbSources,
   restoreKbSource,
-  saveKbTranscript,
+  updateKbSettings,
   updateKbSource,
-} from '@/api/adminKb'
-import { fetchKbSettings, fetchKbUsage, publishKbChapters, updateKbSettings } from '@/api/adminKb'
+} from '@/api/adminKbSource'
 import type {
   ApiKbChaptersPublishRequest,
   ApiKbConfirmCostRequest,

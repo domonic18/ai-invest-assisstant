@@ -4,7 +4,7 @@ import { KB_MULTIPART_THRESHOLD_BYTES, KB_PART_SIZE_BYTES } from '@ai-invest/sha
 import {
   createKbUploadSession,
   putPartToCos,
-} from '@/api/adminKb'
+} from '@/api/adminKbMedia'
 import { computeBlobMd5 } from '@/utils/fileHash'
 
 const PART_CONCURRENCY = 3
