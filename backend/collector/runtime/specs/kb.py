@@ -56,18 +56,4 @@ SPECS: tuple[TaskSpec, ...] = (
         soft_time_limit=1800,
         hard_time_limit=2100,
     ),
-    TaskSpec(
-        name="kb-suggest",
-        label="技能优化建议生成",
-        description="按建议单读技能定义 + 检索知识源，优化 Agent 产出修改点列表（后台「目标技能 × 知识源」手动触发）",
-        data_type="kb_suggest",
-        collectors={
-            "internal": "collector.spiders.kb_suggest:KbSuggestCollector",
-        },
-        run_params=("suggestion_id",),
-        # deepagents 工具循环（多轮检索 + 结构化输出），单次生成分钟级
-        queue="batch",
-        soft_time_limit=1800,
-        hard_time_limit=2100,
-    ),
 )

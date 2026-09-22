@@ -109,11 +109,10 @@ class TestAdminCollectorEndpoints:
         assert response.status_code == 200
         items = response.json()["items"]
         names = {item["name"] for item in items}
-        assert len(items) == 58
+        assert len(items) == 57
         assert "fed-watch" in names
         assert "kb-transcribe" in names
         assert "kb-cleanup" in names
-        assert "kb-suggest" in names
         assert "kb-extract" in names
         assert "kb-vision" in names
         assert "kb-index" in names

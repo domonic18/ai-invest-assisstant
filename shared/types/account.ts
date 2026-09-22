@@ -13,7 +13,6 @@ export type UsageFeature =
   | 'kb_extract'
   | 'kb_vision'
   | 'kb_embed'
-  | 'kb_optimize'
 export type UsageOutlet = 'system' | 'byok'
 
 // ---- 个人侧（wire） ----
@@ -200,7 +199,6 @@ export const USAGE_FEATURE_LABELS: Record<UsageFeature, string> = {
   kb_extract: '知识库抽取',
   kb_vision: '知识库视觉',
   kb_embed: '知识库嵌入',
-  kb_optimize: '技能优化',
 }
 
 export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {
