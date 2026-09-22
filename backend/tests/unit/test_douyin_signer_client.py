@@ -75,6 +75,11 @@ class TestSign:
         with pytest.raises(SignerRejectedError, match="空参数"):
             await sign_request(client)
 
+    async def test_200_non_json_is_rejected(self) -> None:
+        client = make_client(lambda _: httpx.Response(200, text="<html>proxy</html>"))
+        with pytest.raises(SignerRejectedError, match="非 JSON"):
+            await sign_request(client)
+
 
 class TestHealth:
     async def test_ok_returns_payload(self) -> None:
@@ -88,6 +93,11 @@ class TestHealth:
 
         client = make_client(handler)
         with pytest.raises(SignerUnavailableError):
+            await client.health()
+
+    async def test_200_non_json_is_unavailable(self) -> None:
+        client = make_client(lambda _: httpx.Response(200, text="<html>proxy</html>"))
+        with pytest.raises(SignerUnavailableError, match="非 JSON"):
             await client.health()
 
 
