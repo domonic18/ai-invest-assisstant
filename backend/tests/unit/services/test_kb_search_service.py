@@ -23,7 +23,7 @@ from app.models.kb import (
     KbSource,
     KbTranscriptSegment,
 )
-from app.services.kb import search_service
+from app.services.kb import search_hydrate, search_ranking, search_service
 from app.services.kb.embedding_client import KbEmbeddingError
 
 pytestmark = pytest.mark.unit
@@ -67,26 +67,28 @@ def _searching(
     with ExitStack() as stack:
         stack.enter_context(
             patch.object(
-                search_service,
+                search_ranking,
                 "_query_vector",
                 new=AsyncMock(return_value=query_vec),
             )
         )
         lex = stack.enter_context(
             patch.object(
-                search_service, "_lexical_ranking", new=AsyncMock(return_value=lexical)
+                search_ranking,
+                "_lexical_ranking",
+                new=AsyncMock(return_value=lexical),
             )
         )
         vec = stack.enter_context(
             patch.object(
-                search_service,
+                search_ranking,
                 "_vector_ranking",
                 new=AsyncMock(return_value=vector if vector is not None else []),
             )
         )
         stack.enter_context(
             patch.object(
-                search_service, "get_minio_service", return_value=minio
+                search_hydrate, "get_minio_service", return_value=minio
             )
         )
         yield lex, vec
@@ -282,9 +284,9 @@ async def test_chapter_scope_forces_point_leg_and_prefix_defense(
         )
     scope = lex.await_args.args[-1]
     assert scope.chapter == ("第一章",)
-    assert search_service._leg_active(search_service._POINT_LEG, scope)
-    assert not search_service._leg_active(search_service._SEGMENT_LEG, scope)
-    assert not search_service._leg_active(search_service._IMAGE_LEG, scope)
+    assert search_ranking._leg_active(search_ranking._POINT_LEG, scope)
+    assert not search_ranking._leg_active(search_ranking._SEGMENT_LEG, scope)
+    assert not search_ranking._leg_active(search_ranking._IMAGE_LEG, scope)
     # p_concept.chapter_path = ["第二章", ...] 不在请求前缀内 → 不出水合
     assert result.points == []
 
@@ -310,15 +312,15 @@ async def test_query_vector_none_on_missing_slot_or_call_failure(
     embed = MagicMock()
     embed.embed = AsyncMock(side_effect=KbEmbeddingError("gateway 502"))
     with patch.object(
-        search_service,
+        search_ranking,
         "build_embedding_client",
         new=AsyncMock(side_effect=UnprocessableEntityError("embedding 未配置")),
     ):
-        assert await search_service._query_vector(session, "任意") is None
+        assert await search_ranking._query_vector(session, "任意") is None
     with patch.object(
-        search_service, "build_embedding_client", new=AsyncMock(return_value=embed)
+        search_ranking, "build_embedding_client", new=AsyncMock(return_value=embed)
     ):
-        assert await search_service._query_vector(session, "任意") is None
+        assert await search_ranking._query_vector(session, "任意") is None
     embed.embed.assert_awaited_once()
 
 
@@ -352,26 +354,26 @@ async def test_excluded_image_hit_filtered(session: AsyncSession) -> None:
 def test_escape_like_treats_input_as_literal() -> None:
     r"""用户输入的 %/_/\ 按字面匹配，不注入通配语义。"""
     assert (
-        search_service._escape_like("100%_趋势\\A")
+        search_ranking._escape_like("100%_趋势\\A")
         == "100\\%\\_趋势\\\\A"
     )
 
 
 def test_leg_active_rules() -> None:
     """kind 限定行类；point_type/章节强制卡片单类。"""
-    plain = search_service._Scope(None, None, None, None)
+    plain = search_ranking._Scope(None, None, None, None)
     assert all(
-        search_service._leg_active(leg, plain)
-        for leg in search_service._LEGS
+        search_ranking._leg_active(leg, plain)
+        for leg in search_ranking._LEGS
     )
-    by_kind = search_service._Scope(None, None, "image", None)
-    assert [search_service._leg_active(leg, by_kind) for leg in search_service._LEGS] == [
+    by_kind = search_ranking._Scope(None, None, "image", None)
+    assert [search_ranking._leg_active(leg, by_kind) for leg in search_ranking._LEGS] == [
         False,
         False,
         True,
     ]
-    typed = search_service._Scope(None, "case", None, None)
-    assert [search_service._leg_active(leg, typed) for leg in search_service._LEGS] == [
+    typed = search_ranking._Scope(None, "case", None, None)
+    assert [search_ranking._leg_active(leg, typed) for leg in search_ranking._LEGS] == [
         True,
         False,
         False,

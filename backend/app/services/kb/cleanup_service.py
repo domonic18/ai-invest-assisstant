@@ -24,6 +24,7 @@ from app.constants.kb import (
     KB_CLEANUP_LOCK_KEY,
     KB_SOFT_DELETE_RECOVERY_HOURS,
     KB_UPLOAD_SESSION_MAX_AGE_DAYS,
+    KbProcessStatus,
 )
 from app.core.cache import get_redis
 from app.core.clock import utc_now
@@ -55,8 +56,9 @@ async def run_cleanup(session: AsyncSession, *, deep: bool = False) -> dict[str,
         }
         minio = get_minio_service()
         cutoff = utc_now() - timedelta(hours=KB_SOFT_DELETE_RECOVERY_HOURS)
+        keys_to_remove: list[str] = []
 
-        # 1) 过窗软删素材：删对象 → 硬删行（FK 级联分段/知识点/图片）
+        # 1) 过窗软删素材：硬删行（FK 级联分段/知识点/图片），对象删除后置
         result = await session.execute(
             select(KbMedia).where(
                 KbMedia.deleted_at.is_not(None), KbMedia.deleted_at < cutoff
@@ -64,8 +66,7 @@ async def run_cleanup(session: AsyncSession, *, deep: bool = False) -> dict[str,
         )
         medias = list(result.scalars())
         if medias:
-            keys = [m.cos_key for m in medias]
-            await minio.remove_files(keys)
+            keys_to_remove.extend(m.cos_key for m in medias)
             pending_by_source: dict[int, int] = {}
             for m in medias:
                 pending_by_source[m.source_id] = (
@@ -95,7 +96,7 @@ async def run_cleanup(session: AsyncSession, *, deep: bool = False) -> dict[str,
                 )
             ).scalars().all()
             if medias_all:
-                await minio.remove_files([m.cos_key for m in medias_all])
+                keys_to_remove.extend(m.cos_key for m in medias_all)
                 stats["purgedBytes"] += sum(m.file_size or 0 for m in medias_all)
                 stats["purgedMedia"] += len(medias_all)
                 for m in medias_all:
@@ -108,7 +109,7 @@ async def run_cleanup(session: AsyncSession, *, deep: bool = False) -> dict[str,
         result = await session.execute(
             select(KbMedia).where(
                 KbMedia.deleted_at.is_(None),
-                KbMedia.process_status == "uploaded",
+                KbMedia.process_status == KbProcessStatus.UPLOADED,
                 KbMedia.file_size == 0,
             )
         )
@@ -132,6 +133,13 @@ async def run_cleanup(session: AsyncSession, *, deep: bool = False) -> dict[str,
             }
             stats["abortedSessions"] += 1
 
+        await session.commit()
+
+        # 行先落定再删对象：删除失败只产生孤儿，deep 扫描次日自愈；
+        # 反过来先删对象则 commit 失败会留下无对象的活行且孤儿扫描永不复删
+        if keys_to_remove:
+            await minio.remove_files(keys_to_remove)
+
         # 4) deep 孤儿扫描：有对象而无任何行（含软删未过窗）引用即删
         #    kb/derived/ 前缀是活素材的转写分片缓存（断点续跑依据），非孤儿
         if deep and await _acquire_daily_deep_slot():
@@ -148,7 +156,6 @@ async def run_cleanup(session: AsyncSession, *, deep: bool = False) -> dict[str,
                 stats["orphanObjects"] = len(orphans)
                 stats["orphanBytes"] = sum(size for _, size in orphans)
 
-        await session.commit()
         logger.info("kb_cleanup_done", deep=deep, **stats)
         return stats
 

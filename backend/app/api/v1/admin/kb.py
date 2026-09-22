@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
-from app.dependencies import get_current_admin_user, get_db
+from app.dependencies import client_ip, get_current_admin_user, get_db
 from app.models.user import User
 from app.schemas.kb import (
     KbBatchApproveResult,
@@ -46,6 +46,8 @@ from app.schemas.kb import (
 from app.services.kb import (
     cost_service,
     media_service,
+    media_upload,
+    media_upload_session,
     review_service,
     source_service,
     transcript_service,
@@ -53,14 +55,6 @@ from app.services.kb import (
 )
 
 router = APIRouter(prefix="/kb", dependencies=[Depends(get_current_admin_user)])
-
-
-def _client_ip(request: Request) -> str | None:
-    """取客户端 IP（代理场景取 X-Forwarded-For 首个）。"""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else None
 
 
 @router.get("/sources", response_model=list[KbSourceResponse])
@@ -80,7 +74,7 @@ async def create_source(
 ) -> KbSourceResponse:
     """新建知识库。"""
     return await source_service.create_source(
-        session, data, actor_id=admin.id, ip=_client_ip(request)
+        session, data, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -94,7 +88,7 @@ async def update_source(
 ) -> KbSourceResponse:
     """编辑知识库基础信息。"""
     return await source_service.update_source(
-        session, source_id, data, actor_id=admin.id, ip=_client_ip(request)
+        session, source_id, data, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -107,7 +101,7 @@ async def delete_source(
 ) -> None:
     """软删知识库（24h 恢复窗）。"""
     await source_service.soft_delete_source(
-        session, source_id, actor_id=admin.id, ip=_client_ip(request)
+        session, source_id, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -120,7 +114,7 @@ async def restore_source(
 ) -> KbSourceResponse:
     """恢复窗内撤销软删。"""
     return await source_service.restore_source(
-        session, source_id, actor_id=admin.id, ip=_client_ip(request)
+        session, source_id, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -142,8 +136,8 @@ async def init_uploads(
     admin: Annotated[User, Depends(get_current_admin_user)],
 ) -> KbMediaInitResponse:
     """批量建行 + 预签名 PUT（浏览器直传 COS）。"""
-    return await media_service.init_uploads(
-        session, source_id, data, actor_id=admin.id, ip=_client_ip(request)
+    return await media_upload.init_uploads(
+        session, source_id, data, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -170,7 +164,7 @@ async def confirm_cost(
 ) -> KbConfirmCostResponse:
     """确认费用入队（awaiting_cost → queued，审计 kb.cost.confirm）。"""
     queued = await cost_service.confirm_cost(
-        session, source_id, data.media_ids, actor_id=admin.id, ip=_client_ip(request)
+        session, source_id, data.media_ids, actor_id=admin.id, ip=client_ip(request)
     )
     return KbConfirmCostResponse(queued_ids=queued)
 
@@ -184,8 +178,8 @@ async def create_upload_session(
     admin: Annotated[User, Depends(get_current_admin_user)],
 ) -> KbUploadSessionResponse:
     """创建/续传分片上传会话（已传分片服务端真相，仅缺失分片签 URL）。"""
-    return await media_service.create_upload_session(
-        session, media_id, data, actor_id=admin.id, ip=_client_ip(request)
+    return await media_upload_session.create_upload_session(
+        session, media_id, data, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -197,8 +191,8 @@ async def abort_upload_session(
     admin: Annotated[User, Depends(get_current_admin_user)],
 ) -> None:
     """放弃分片会话（释放已传分片存储，幂等）。"""
-    await media_service.abort_upload_session(
-        session, media_id, actor_id=admin.id, ip=_client_ip(request)
+    await media_upload_session.abort_upload_session(
+        session, media_id, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -210,8 +204,8 @@ async def confirm_uploaded(
     admin: Annotated[User, Depends(get_current_admin_user)],
 ) -> KbMediaResponse:
     """上传完成回调：分片合并或 HEAD 核对 + 哈希去重 + 字节入账。"""
-    return await media_service.confirm_uploaded(
-        session, media_id, actor_id=admin.id, ip=_client_ip(request)
+    return await media_upload.confirm_uploaded(
+        session, media_id, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -225,7 +219,7 @@ async def patch_media(
 ) -> KbMediaResponse:
     """修正集号/标题/时长/页数。"""
     return await media_service.patch_media(
-        session, media_id, data, actor_id=admin.id, ip=_client_ip(request)
+        session, media_id, data, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -236,9 +230,9 @@ async def requeue_media(
     session: Annotated[AsyncSession, Depends(get_db)],
     admin: Annotated[User, Depends(get_current_admin_user)],
 ) -> KbMediaResponse:
-    """失败素材重新入队（failed → queued），转写下轮扫描拾起。"""
-    return await media_service.requeue_failed_media(
-        session, media_id, actor_id=admin.id, ip=_client_ip(request)
+    """失败/处理中素材重新入队（failed/processing → queued），转写下轮扫描拾起。"""
+    return await media_service.requeue_media(
+        session, media_id, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -251,7 +245,7 @@ async def delete_media(
 ) -> None:
     """单集软删（24h 恢复窗）。"""
     await media_service.soft_delete_media(
-        session, media_id, actor_id=admin.id, ip=_client_ip(request)
+        session, media_id, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -264,7 +258,7 @@ async def restore_media(
 ) -> KbMediaResponse:
     """恢复窗内撤销单集软删。"""
     return await media_service.restore_media(
-        session, media_id, actor_id=admin.id, ip=_client_ip(request)
+        session, media_id, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -300,7 +294,7 @@ async def save_transcript(
         media_id,
         data,
         actor_id=admin.id,
-        ip=_client_ip(request),
+        ip=client_ip(request),
     )
 
 
@@ -330,7 +324,7 @@ async def publish_chapters(
 ) -> KbChaptersResponse:
     """整棵发布目录树（审计 kb.chapters.publish）。"""
     return await review_service.publish_chapters(
-        session, source_id, data, actor_id=admin.id, ip=_client_ip(request)
+        session, source_id, data, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -373,7 +367,7 @@ async def redescribe_image(
 ) -> KbImageAssetResponse:
     """关键帧重新描述（置回 pending，下一轮 kb-vision 拾起重跑）。"""
     return await vision_service.redescribe_image(
-        session, image_id, actor_id=admin.id, ip=_client_ip(request)
+        session, image_id, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -388,7 +382,7 @@ async def patch_image(
     """索引排除开关（排除置脏，批次 E 构建索引时过滤并清理）。"""
     return await vision_service.set_image_excluded(
         session, image_id, data.index_excluded, actor_id=admin.id,
-        ip=_client_ip(request),
+        ip=client_ip(request),
     )
 
 
@@ -401,7 +395,7 @@ async def merge_points(
 ) -> KbKnowledgePointResponse:
     """重复草稿合并（related 并集进目标，源行硬删；审计 kb.point.merge）。"""
     return await review_service.merge_points(
-        session, data, actor_id=admin.id, ip=_client_ip(request)
+        session, data, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -414,7 +408,7 @@ async def approve_points_batch(
 ) -> KbBatchApproveResult:
     """批量通过发布（单事务逐张审计；已发布/不存在幂等跳过）。"""
     return await review_service.approve_points(
-        session, data, actor_id=admin.id, ip=_client_ip(request)
+        session, data, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -427,7 +421,7 @@ async def create_point(
 ) -> KbKnowledgePointResponse:
     """人工新增知识卡片（status=draft 走同一审核流；审计 kb.point.create）。"""
     return await review_service.create_point(
-        session, data, actor_id=admin.id, ip=_client_ip(request)
+        session, data, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -441,7 +435,7 @@ async def patch_point(
 ) -> KbKnowledgePointResponse:
     """白名单修订（excerpt/时间码定位字段不可改，422；审计 kb.point.patch）。"""
     return await review_service.patch_point(
-        session, point_id, data, actor_id=admin.id, ip=_client_ip(request)
+        session, point_id, data, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -454,7 +448,7 @@ async def approve_point(
 ) -> KbKnowledgePointResponse:
     """通过发布（→ published 并置 embedding_dirty；审计 kb.point.approve）。"""
     return await review_service.approve_point(
-        session, point_id, actor_id=admin.id, ip=_client_ip(request)
+        session, point_id, actor_id=admin.id, ip=client_ip(request)
     )
 
 
@@ -468,5 +462,5 @@ async def reject_point(
 ) -> KbKnowledgePointResponse:
     """驳回（理由入 review_note；原 published 置脏；审计 kb.point.reject）。"""
     return await review_service.reject_point(
-        session, point_id, data, actor_id=admin.id, ip=_client_ip(request)
+        session, point_id, data, actor_id=admin.id, ip=client_ip(request)
     )

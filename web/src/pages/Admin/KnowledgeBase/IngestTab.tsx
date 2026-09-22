@@ -204,7 +204,7 @@ export function IngestTab({
               文稿
             </Button>
           )}
-          {row.processStatus === 'failed' && (
+          {(row.processStatus === 'failed' || row.processStatus === 'processing') && (
             <Button
               size="small"
               type="link"

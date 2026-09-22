@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.constants.kb import KbDocKind, KbPointType
 from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.core.exceptions import ForbiddenError
-from app.dependencies import get_current_user, get_db
+from app.dependencies import client_ip, get_current_user, get_db
 from app.models.user import User
 from app.schemas.kb import (
     KbChapterPointsResponse,
@@ -24,7 +24,9 @@ from app.schemas.kb import (
     KbSearchResponse,
 )
 from app.services.kb import (
+    book_render,
     playback_service,
+    playback_stream,
     search_service,
     settings_service,
     source_service,
@@ -115,10 +117,6 @@ async def list_chapter_points(
     )
 
 
-def _client_ip(request: Request) -> str | None:
-    return request.client.host if request.client else None
-
-
 @router.post(
     "/media/{media_id}/playback-token", response_model=KbPlaybackTokenResponse
 )
@@ -146,12 +144,12 @@ async def stream_media(
     凭证即鉴权（无 Bearer）：``<video>`` 元素 src 无法携带 Authorization
     header，短时效凭证绑定用户+素材即身份（arch/12 §8.1）。
     """
-    stream = await playback_service.open_media_stream(
+    stream = await playback_stream.open_media_stream(
         session,
         media_id=media_id,
         token=token,
         range_header=range_header,
-        ip=_client_ip(request),
+        ip=client_ip(request),
     )
     return StreamingResponse(
         stream.chunks,
@@ -179,12 +177,12 @@ async def get_book_page(
     凭证即鉴权（无 Bearer）：``<img>`` 元素 src 无法携带 Authorization
     header，水印用户名按凭证载荷回查（arch/12 §8.1）。
     """
-    png = await playback_service.render_book_page(
+    png = await book_render.render_book_page(
         session,
         media_id=media_id,
         page_no=page_no,
         token=token,
-        ip=_client_ip(request),
+        ip=client_ip(request),
     )
     return Response(
         content=png, media_type="image/png", headers={"Cache-Control": "no-store"}
@@ -201,7 +199,7 @@ async def get_subtitles(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> Response:
     """字幕轨：文稿分段生成 WebVTT（apiClient Bearer 鉴权，query token 留给 video src）。"""
-    vtt = await playback_service.build_subtitle_vtt(session, media_id=media_id)
+    vtt = await playback_stream.build_subtitle_vtt(session, media_id=media_id)
     return Response(
         content=vtt,
         media_type="text/vtt; charset=utf-8",

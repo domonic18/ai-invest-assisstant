@@ -39,7 +39,9 @@ from app.services.kb.transcribe_pipeline import Sentence
 from app.services.quota.constants import FEATURE_KB_CLEAN
 from app.services.quota.context import meter_scope
 from app.services.social.asr_service import load_config
+from app.utils import ffmpeg
 from app.utils.crypto import decrypt_token
+from app.utils.ffmpeg import FFmpegError
 
 logger = structlog.get_logger(__name__)
 
@@ -354,14 +356,12 @@ async def _detect_silences(wav: Path) -> list[tuple[float, float]]:
 async def _probe_duration(wav: Path) -> float:
     """ffprobe 读取时长（秒）。"""
     try:
-        proc = await asyncio.create_subprocess_exec(
+        _, _, stdout = await ffmpeg.run(
             "ffprobe", "-v", "error", "-show_entries", "format=duration",
             "-of", "default=noprint_wrappers=1:nokey=1", str(wav),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
+            capture_stdout=True,
         )
-        stdout, _ = await proc.communicate()
-    except FileNotFoundError as exc:
+    except FFmpegError as exc:
         raise TranscribeError("ffmpeg_unavailable") from exc
     try:
         return float(stdout.decode().strip())
@@ -370,17 +370,11 @@ async def _probe_duration(wav: Path) -> float:
 
 
 async def _run_ffmpeg(*args: str) -> tuple[int, str]:
-    """执行 ffmpeg 子进程，返回 (returncode, stderr)。"""
+    """执行 ffmpeg 子进程（共享执行器 + 域异常翻译）。"""
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *args,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, stderr = await proc.communicate()
-    except FileNotFoundError as exc:
+        return await ffmpeg.run(*args)
+    except FFmpegError as exc:
         raise TranscribeError("ffmpeg_unavailable") from exc
-    return proc.returncode or 0, stderr.decode(errors="replace")
 
 
 async def _mark_failed(session: AsyncSession, media_id: int, reason: str) -> None:

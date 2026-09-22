@@ -11,6 +11,7 @@
 from typing import Any
 
 import structlog
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.douyin import DouyinTransport, DouyinVideo, DouyinWebApi
@@ -20,24 +21,40 @@ from app.adapters.douyin.cookies import (
     is_cookie_usable,
 )
 from app.adapters.douyin.exceptions import AccountInvalidError
-from app.adapters.douyin.signer_client import build_signer
+from app.adapters.douyin.signer_client import (
+    DouyinSignerClient,
+    SignerUnavailableError,
+    build_signer,
+)
 from app.constants.social import (
     SOCIAL_BACKFILL_MAX_LIST_PAGES,
     SOCIAL_MAX_LIST_PAGES,
 )
-from app.core.clock import utc_now
+from app.core.clock import now_cn, utc_now
 from app.core.config import get_settings
 from app.core.exceptions import BadRequestError
 from app.models.account_quota import SystemSetting
+from app.models.collector_log import CollectorLog
 from app.models.social import SocialAccount
 from app.repositories.social import account_repository, post_repository
+from app.schemas.social import (
+    AsrStatusResponse,
+    DouyinStatusResponse,
+    SignerStatusResponse,
+    SocialStatusResponse,
+)
 from app.services.admin.audit_service import record_audit
+from app.services.social import asr_config_service
 from app.services.social.asr_service import TranscribeOutcome, transcribe_from_url
 
 logger = structlog.get_logger(__name__)
 
 #: Cookie jar 池的 SystemSetting KV 键（管理端 Cookie 导入写，采集侧读）
 COOKIE_SETTING_KEY = "social.douyin.cookie_jars"
+
+#: 采集健康聚合的渠道身份（collector_log 按 (task_type, source) 查询）
+_SOCIAL_TASK_TYPE = "social-video"
+_SOCIAL_SOURCE = "douyin"
 
 #: 完整浏览器 Cookie 的最少键值对数：作品接口对 ttwid-only/双键薄 jar 返回 200 空响应
 #: （2026-09-16 走查实测），完整 Cookie 动辄数十键，3 为宽松下限
@@ -311,3 +328,86 @@ async def _record_account_error(
     account.last_error = message[:1000]
     account.last_error_at = utc_now()
     await session.commit()
+
+
+async def get_status_aggregate(session: AsyncSession) -> SocialStatusResponse:
+    """管理端采集健康聚合：Cookie 池 + 今日采集量 + ASR 记账 + signer 探测。"""
+    day_start = now_cn().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    cookie_setting = await session.get(SystemSetting, COOKIE_SETTING_KEY)
+    jars = await load_cookie_jars(session)
+
+    today_collected = (
+        await session.execute(
+            select(func.coalesce(func.sum(CollectorLog.records_count), 0)).where(
+                CollectorLog.task_name == _SOCIAL_TASK_TYPE,
+                CollectorLog.source == _SOCIAL_SOURCE,
+                CollectorLog.status == "success",
+                CollectorLog.started_at >= day_start,
+            )
+        )
+    ).scalar_one()
+    today_failed = (
+        await session.execute(
+            select(func.count())
+            .select_from(CollectorLog)
+            .where(
+                CollectorLog.task_name == _SOCIAL_TASK_TYPE,
+                CollectorLog.source == _SOCIAL_SOURCE,
+                CollectorLog.status == "failed",
+                CollectorLog.started_at >= day_start,
+            )
+        )
+    ).scalar_one()
+    latest_error = (
+        await session.execute(
+            select(CollectorLog.error_msg)
+            .where(
+                CollectorLog.task_name == _SOCIAL_TASK_TYPE,
+                CollectorLog.source == _SOCIAL_SOURCE,
+                CollectorLog.status == "failed",
+            )
+            .order_by(CollectorLog.started_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    transcript_counts = await post_repository.count_transcripts_since(session, day_start)
+
+    config = await asr_config_service.get_or_create_config(session)
+    return SocialStatusResponse(
+        douyin=DouyinStatusResponse(
+            cookie_configured=bool(jars),
+            cookie_jars_available=len(jars),
+            last_bootstrap_at=cookie_setting.updated_at if cookie_setting else None,
+            signature_warning=bool(latest_error and "SignatureError" in str(latest_error)),
+            today_collected=int(today_collected or 0),
+            today_failed=int(today_failed or 0),
+        ),
+        asr=AsrStatusResponse(
+            enabled=config.enabled,
+            configured=bool(config.api_key_encrypted),
+            today_transcribed=transcript_counts.get("ok", 0),
+            today_degraded=transcript_counts.get("missing", 0),
+            today_pending=transcript_counts.get("pending", 0),
+        ),
+        signer=await _probe_signer(),
+    )
+
+
+async def _probe_signer() -> SignerStatusResponse:
+    """探测签名 sidecar（短超时；异常降级为 reachable=False，不影响 status 可用）。"""
+    url = get_settings().douyin_signer_url
+    if not url:
+        return SignerStatusResponse(enabled=False, reachable=False)
+    try:
+        health = await DouyinSignerClient(url).health()
+    except SignerUnavailableError as exc:
+        return SignerStatusResponse(enabled=True, reachable=False, detail=str(exc)[:300])
+    reachable = health.get("status") == "ok"
+    warm_slots = health.get("warm_slots")
+    return SignerStatusResponse(
+        enabled=True,
+        reachable=reachable,
+        warm_slots=warm_slots if reachable and isinstance(warm_slots, int) else None,
+        detail=None if reachable else str(health.get("detail") or health.get("status")),
+    )

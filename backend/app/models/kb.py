@@ -26,7 +26,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.constants.kb import KB_EMBEDDING_DIMS
+from app.constants.kb import KB_EMBEDDING_DIMS, KbDescribeStatus, KbProcessStatus
 from app.core.clock import utc_now
 from app.core.database import Base
 
@@ -95,7 +95,7 @@ class KbMedia(Base):
     file_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    process_status: Mapped[str] = mapped_column(String(16), nullable=False, default="uploaded")
+    process_status: Mapped[str] = mapped_column(String(16), nullable=False, default=KbProcessStatus.UPLOADED)
     process_error: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     process_meta: Mapped[dict[str, Any]] = mapped_column(_JSONB, nullable=False, default=dict)
     extracted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -213,7 +213,7 @@ class KbImageAsset(Base):
     caption: Mapped[str | None] = mapped_column(Text, nullable=True)
     vision_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     describe_status: Mapped[str] = mapped_column(
-        String(16), nullable=False, default="pending"
+        String(16), nullable=False, default=KbDescribeStatus.PENDING
     )
     describe_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     embedding: Mapped[list[float] | None] = mapped_column(_HALFVEC, nullable=True)

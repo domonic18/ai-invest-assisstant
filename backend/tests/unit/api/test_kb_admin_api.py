@@ -148,7 +148,7 @@ def test_media_init_and_uploaded_routes(admin_client: tuple) -> None:
     init_resp.items = [init_result]
 
     with patch(
-        "app.services.kb.media_service.init_uploads", new=AsyncMock(return_value=init_resp)
+        "app.services.kb.media_upload.init_uploads", new=AsyncMock(return_value=init_resp)
     ) as p_init:
         resp = http.post(
             "/api/v1/admin/kb/sources/1/media/init",
@@ -173,7 +173,7 @@ def test_media_init_and_uploaded_routes(admin_client: tuple) -> None:
     assert p_init.call_args.kwargs["actor_id"] == 1
 
     with patch(
-        "app.services.kb.media_service.confirm_uploaded",
+        "app.services.kb.media_upload.confirm_uploaded",
         new=AsyncMock(return_value=_media_view_mock()),
     ) as p_up:
         resp = http.post("/api/v1/admin/kb/media/5/uploaded")
@@ -195,7 +195,7 @@ def test_media_upload_session_routes(admin_client: tuple) -> None:
         part_urls=[KbUploadSessionPartUrl(part_number=2, url="https://cos/part2")],
     )
     with patch(
-        "app.services.kb.media_service.create_upload_session",
+        "app.services.kb.media_upload_session.create_upload_session",
         new=AsyncMock(return_value=session_resp),
     ) as p_session:
         resp = http.post(
@@ -211,7 +211,7 @@ def test_media_upload_session_routes(admin_client: tuple) -> None:
     assert p_session.call_args.args[2].part_count == 2
 
     with patch(
-        "app.services.kb.media_service.abort_upload_session", new=AsyncMock()
+        "app.services.kb.media_upload_session.abort_upload_session", new=AsyncMock()
     ) as p_abort:
         resp = http.delete("/api/v1/admin/kb/media/5/upload-session")
     assert resp.status_code == 204
@@ -249,7 +249,7 @@ def test_media_list_and_patch_routes(admin_client: tuple) -> None:
 def test_media_requeue_route(admin_client: tuple) -> None:
     http, _ = admin_client
     with patch(
-        "app.services.kb.media_service.requeue_failed_media",
+        "app.services.kb.media_service.requeue_media",
         new=AsyncMock(
             return_value=_media_view_mock(process_status="queued", processStatus="queued")
         ),

@@ -15,14 +15,19 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.minimax import asr as minimax_asr
+from app.adapters.minimax.asr import MiniMaxAsrHttpError
 from app.models.social import AsrChannelConfig
-from app.utils.api_base import normalize_asr_base
+from app.utils import ffmpeg
 from app.utils.crypto import decrypt_token
+from app.utils.ffmpeg import FFmpegError
 
 logger = structlog.get_logger(__name__)
 
 _DOWNLOAD_TIMEOUT_SECONDS = 60.0
 _ASR_TIMEOUT_SECONDS = 60.0
+#: 渠道偶发 5xx/429 退避重试（经共享核心获得，短音频单发失败即降级）
+_ASR_RETRY_BACKOFF_SECONDS = (3.0, 6.0)
 _DOWNLOAD_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
@@ -94,8 +99,6 @@ async def _fetch_audio(url: str, tmp_dir: Path) -> tuple[Path | None, str | None
         (mp3 路径, None)；失败返回 (None, 降级原因 audio_download_failed /
         ffmpeg_unavailable)。
     """
-    import asyncio
-
     input_path = tmp_dir / "input.mp4"
     output_path = tmp_dir / "audio.mp3"
     try:
@@ -114,7 +117,7 @@ async def _fetch_audio(url: str, tmp_dir: Path) -> tuple[Path | None, str | None
         return None, "audio_download_failed"
 
     try:
-        proc = await asyncio.create_subprocess_exec(
+        code, _ = await ffmpeg.run(
             "ffmpeg",
             "-y",
             "-i",
@@ -125,46 +128,37 @@ async def _fetch_audio(url: str, tmp_dir: Path) -> tuple[Path | None, str | None
             "-ar",
             "16000",
             str(output_path),
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
         )
-        returncode = await proc.wait()
-    except FileNotFoundError:
+    except FFmpegError:
         logger.warning("social_asr_ffmpeg_missing")
         return None, "ffmpeg_unavailable"
-    if returncode != 0 or not output_path.exists():
+    if code != 0 or not output_path.exists():
         return None, "ffmpeg_unavailable"
     return output_path, None
 
 
 async def _call_minimax(config: AsrChannelConfig, api_key: str, mp3: bytes) -> str | None:
-    """调用 MiniMax speech_to_text，返回转写文本。"""
-    base_url = normalize_asr_base(config.base_url or "")
+    """调用 MiniMax speech_to_text，返回转写文本（任何失败返回 None 降级）。"""
     try:
-        async with httpx.AsyncClient(timeout=_ASR_TIMEOUT_SECONDS) as client:
-            response = await client.post(
-                f"{base_url}/v1/speech_to_text",
-                headers={"Authorization": f"Bearer {api_key}"},
-                data={"model": config.model, "response_format": "json"},
-                files={"file": ("audio.mp3", mp3, "audio/mpeg")},
+        payload = await minimax_asr.speech_to_text(
+            minimax_asr.SpeechToTextRequest(
+                base_url=config.base_url or "",
+                api_key=api_key,
+                model=config.model,
+                filename="audio.mp3",
+                audio=mp3,
+                content_type="audio/mpeg",
+                response_format="json",
+                timeout_seconds=_ASR_TIMEOUT_SECONDS,
+                retry_backoff_seconds=_ASR_RETRY_BACKOFF_SECONDS,
             )
-            response.raise_for_status()
-            payload = response.json()
-    except Exception as exc:  # noqa: BLE001
+        )
+    except MiniMaxAsrHttpError as exc:
         logger.warning("social_asr_request_failed", error=str(exc))
         return None
-    error = minimax_business_error(payload)
-    if error:
-        logger.warning("social_asr_business_error", error=error)
+    business = minimax_asr.parse_business_error(payload)
+    if business is not None:
+        logger.warning("social_asr_business_error", error=business[1])
         return None
     text = payload.get("text")
     return text if isinstance(text, str) and text.strip() else None
-
-
-def minimax_business_error(payload: dict[str, Any]) -> str | None:
-    """解析 MiniMax 业务错误：HTTP 200 + base_resp.status_code != 0 是官方错误形态。"""
-    base_resp = payload.get("base_resp")
-    if isinstance(base_resp, dict) and base_resp.get("status_code"):
-        status_msg = base_resp.get("status_msg") or "未知错误"
-        return f"MiniMax 错误 {base_resp['status_code']}: {status_msg}"
-    return None

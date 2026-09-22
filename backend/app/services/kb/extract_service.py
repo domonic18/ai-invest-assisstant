@@ -32,6 +32,7 @@ from app.constants.kb import (
     KB_EXTRACT_MAX_ATTEMPTS,
     KB_EXTRACT_WINDOW_OVERLAP_SEGMENTS,
     KB_EXTRACT_WINDOW_SECONDS,
+    KbProcessStatus,
 )
 from app.core.clock import utc_now
 from app.core.exceptions import UnprocessableEntityError
@@ -98,7 +99,7 @@ async def _infer_chapters(session: AsyncSession, config: Any) -> dict[str, int]:
         medias = [
             m
             for m in await media_repository.list_by_source(session, source.id)
-            if m.process_status == "done"
+            if m.process_status == KbProcessStatus.DONE
         ]
         outlines: list[EpisodeOutline] = []
         for media in medias:
@@ -205,7 +206,7 @@ async def _extract_points(session: AsyncSession, config: Any) -> dict[str, int]:
             await session.execute(
                 select(KbMedia).where(
                     KbMedia.deleted_at.is_(None),
-                    KbMedia.process_status == "done",
+                    KbMedia.process_status == KbProcessStatus.DONE,
                     KbMedia.extracted_at.is_(None),
                 )
             )

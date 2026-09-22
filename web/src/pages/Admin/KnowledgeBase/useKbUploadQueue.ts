@@ -9,7 +9,7 @@ import {
   confirmKbMediaUploaded,
   initKbMediaUploads,
   putFileToCos,
-} from '@/api/adminKb'
+} from '@/api/adminKbMedia'
 import { queryKeys } from '@/hooks/queryKeys'
 import { computeFileMd5 } from '@/utils/fileHash'
 import {

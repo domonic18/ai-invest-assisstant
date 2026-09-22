@@ -309,7 +309,7 @@ export function TaskListView({
           <Space size={4}>
             <Button
               size="small"
-              loading={triggerMutation.isPending}
+              loading={triggerMutation.isPending && triggerMutation.variables === record.id}
               onClick={() => triggerMutation.mutateAsync(record.id).catch(() => undefined)}
             >
               触发
@@ -317,7 +317,7 @@ export function TaskListView({
             {record.isActive ? (
               <Button
                 size="small"
-                loading={pauseMutation.isPending}
+                loading={pauseMutation.isPending && pauseMutation.variables === record.id}
                 onClick={() => pauseMutation.mutateAsync(record.id).catch(() => undefined)}
               >
                 暂停
@@ -325,7 +325,7 @@ export function TaskListView({
             ) : (
               <Button
                 size="small"
-                loading={resumeMutation.isPending}
+                loading={resumeMutation.isPending && resumeMutation.variables === record.id}
                 onClick={() => resumeMutation.mutateAsync(record.id).catch(() => undefined)}
               >
                 恢复
@@ -335,7 +335,7 @@ export function TaskListView({
               编辑
             </Button>
             <Popconfirm title="确认删除？" onConfirm={() => deleteMutation.mutateAsync(record.id)}>
-              <Button size="small" danger>
+              <Button size="small" danger loading={deleteMutation.isPending && deleteMutation.variables === record.id}>
                 删除
               </Button>
             </Popconfirm>

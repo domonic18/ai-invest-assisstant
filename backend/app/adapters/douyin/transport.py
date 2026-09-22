@@ -32,12 +32,9 @@ from app.adapters.douyin.signing import (
     ABogus,
     generate_fingerprint,
 )
+from app.core.config import get_settings
 
 logger = structlog.get_logger(__name__)
-
-DOUYIN_BASE_URL = "https://www.douyin.com"
-
-REQUEST_TIMEOUT_SECONDS = 15.0
 
 # 命中即按风控处置的 HTTP 状态；正文特征只对 2xx 非 JSON（验证页 HTML）检查
 _RISK_CONTROL_STATUSES = {403, 429}
@@ -45,14 +42,6 @@ _RISK_CONTROL_BODY_MARKERS = ("captcha", "verify", "安全验证")
 
 # Argus 门禁确定性拒绝（2026-09-14 起灰度覆盖作品端点）：重试只会加速验证码
 _ARGUS_REJECTION_MARKER = "ArgusSecurityPlugin"
-
-# 限速型 403/429 与 200 空 body 是瞬时的（douyin-downloader 实测同 cookie
-# 秒级恢复）：冷却会杀死秒级重试，sleep 后换 jar 重签重发
-_RATE_LIMIT_RETRY_DELAYS: tuple[float, ...] = (1.0, 2.0, 5.0)
-
-# jar 冷却：指数退避（分钟级），上限 2 小时
-_JAR_COOL_DOWN_BASE_SECONDS = 300
-_JAR_COOL_DOWN_MAX_SECONDS = 7200
 
 
 class _AsyncHttpSession(Protocol):
@@ -81,9 +70,11 @@ def _default_session_factory() -> _AsyncHttpSession:
 
 @dataclass
 class _CookieJar:
-    """一份 Cookie 身份；命中风控后按指数退避冷却。"""
+    """一份 Cookie 身份；命中风控后按指数退避冷却（基数/上限来自 config）。"""
 
     cookie: str
+    cooldown_base_seconds: int
+    cooldown_max_seconds: int
     cool_until: datetime | None = None
     strikes: int = 0
 
@@ -93,8 +84,8 @@ class _CookieJar:
     def cool_down(self) -> None:
         self.strikes += 1
         seconds = min(
-            _JAR_COOL_DOWN_BASE_SECONDS * (2 ** (self.strikes - 1)),
-            _JAR_COOL_DOWN_MAX_SECONDS,
+            self.cooldown_base_seconds * (2 ** (self.strikes - 1)),
+            self.cooldown_max_seconds,
         )
         self.cool_until = datetime.now(timezone.utc) + timedelta(seconds=seconds)
 
@@ -114,8 +105,13 @@ class DouyinTransport:
         fingerprint: str | None = None,
         session_factory: Any | None = None,
         signer: DouyinSignerProtocol | None = None,
-        rate_limit_retry_delays: tuple[float, ...] = _RATE_LIMIT_RETRY_DELAYS,
+        rate_limit_retry_delays: tuple[float, ...] | None = None,
     ) -> None:
+        settings = get_settings()
+        self._base_url = settings.douyin_base_url
+        self._request_timeout = settings.douyin_request_timeout
+        self._cooldown_base = settings.douyin_jar_cooldown_base_seconds
+        self._cooldown_max = settings.douyin_jar_cooldown_max_seconds
         self._user_agent = user_agent or DEFAULT_USER_AGENT
         self._fingerprint = fingerprint or generate_fingerprint()
         self._abogus = ABogus(
@@ -123,9 +119,25 @@ class DouyinTransport:
         )
         self._session_factory = session_factory or _default_session_factory
         self._signer = signer
-        self._retry_delays = rate_limit_retry_delays
-        self._jars: list[_CookieJar] = [_CookieJar(c) for c in (cookies or [])]
+        # 限速型 403/429 与 200 空 body 是瞬时的（douyin-downloader 实测同
+        # cookie 秒级恢复）：冷却会杀死秒级重试，sleep 后换 jar 重签重发
+        self._retry_delays = (
+            rate_limit_retry_delays
+            if rate_limit_retry_delays is not None
+            else settings.douyin_rate_limit_retry_delays
+        )
+        self._jars: list[_CookieJar] = self._make_jars(cookies or [])
         self._cursor = 0
+
+    def _make_jars(self, cookies: list[str]) -> list[_CookieJar]:
+        return [
+            _CookieJar(
+                c,
+                cooldown_base_seconds=self._cooldown_base,
+                cooldown_max_seconds=self._cooldown_max,
+            )
+            for c in cookies
+        ]
 
     @property
     def user_agent(self) -> str:
@@ -142,7 +154,7 @@ class DouyinTransport:
 
     def replace_jars(self, cookies: list[str]) -> None:
         """整体替换 jar 池（自举/手动导入后调用）。"""
-        self._jars = [_CookieJar(c) for c in cookies]
+        self._jars = self._make_jars(cookies)
         self._cursor = 0
 
     def _next_available_jar(self) -> _CookieJar:
@@ -160,7 +172,7 @@ class DouyinTransport:
     def _headers(self, jar: _CookieJar) -> dict[str, str]:
         return {
             "User-Agent": self._user_agent,
-            "Referer": f"{DOUYIN_BASE_URL}/",
+            "Referer": f"{self._base_url}/",
             "Accept": "application/json, text/plain, */*",
             "Cookie": jar.cookie,
         }
@@ -183,13 +195,13 @@ class DouyinTransport:
         last_body = ""
         for attempt in range(len(self._retry_delays) + 1):
             jar = self._next_available_jar()
-            url = f"{DOUYIN_BASE_URL}{path}?{await self._sign(path, params, jar)}"
+            url = f"{self._base_url}{path}?{await self._sign(path, params, jar)}"
 
             async with self._session_factory() as session:
                 response = await session.get(
                     url,
                     headers=self._headers(jar),
-                    timeout=REQUEST_TIMEOUT_SECONDS,
+                    timeout=self._request_timeout,
                 )
 
             status = getattr(response, "status_code", 0)
@@ -260,7 +272,7 @@ class DouyinTransport:
             response = await session.get(
                 url,
                 headers={"User-Agent": self._user_agent},
-                timeout=REQUEST_TIMEOUT_SECONDS,
+                timeout=self._request_timeout,
                 allow_redirects=False,
             )
         location = response.headers.get("Location") if hasattr(response, "headers") else None

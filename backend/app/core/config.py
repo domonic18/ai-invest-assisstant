@@ -111,6 +111,16 @@ class Settings(BaseSettings):
 
     # 抖音签名 sidecar（compose 服务名；空 = 禁用，回退本地 a_bogus）
     douyin_signer_url: str = ""
+    # 抖音 Web API 传输参数（部署可调；WAF 形态变化时改 env 无需改代码）
+    douyin_base_url: str = "https://www.douyin.com"
+    douyin_request_timeout: float = 15.0
+    douyin_signer_timeout: float = 10.0
+    douyin_bootstrap_timeout: float = 20.0
+    # 限速型 403/429 与 200 空 body 的重签重发间隔（秒；env 传 JSON 数组）
+    douyin_rate_limit_retry_delays: tuple[float, ...] = (1.0, 2.0, 5.0)
+    # Cookie jar 冷却指数退避基数与上限（秒）
+    douyin_jar_cooldown_base_seconds: int = 300
+    douyin_jar_cooldown_max_seconds: int = 7200
 
     # SPA 静态托管（web 镜像内烘 ENV STATIC_DIR=/app/static；为空则纯 API 模式）
     static_dir: Path | None = None

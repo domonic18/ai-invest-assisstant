@@ -518,10 +518,12 @@ class TestAdminSignerStatus:
         with (
             _status_aggregates(mock_session),
             patch(
-                "app.api.v1.admin.social.get_settings",
+                "app.services.social.collection_service.get_settings",
                 lambda: SimpleNamespace(douyin_signer_url=signer_url),
             ),
-            patch("app.api.v1.admin.social.DouyinSignerClient") as client_mock,
+            patch(
+                "app.services.social.collection_service.DouyinSignerClient"
+            ) as client_mock,
         ):
             if health is not None:
                 client_mock.return_value.health = health

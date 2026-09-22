@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_admin_user, get_db
+from app.dependencies import client_ip, get_current_admin_user, get_db
 from app.models.user import User
 from app.schemas.account import (
     AccountSettingsResponse,
@@ -81,6 +81,6 @@ async def update_account_settings(
     if data.admin_exempt is not None:
         updates[SETTING_ADMIN_EXEMPT] = data.admin_exempt
     await ApprovalService(session).apply_settings(
-        admin, updates, ip=request.client.host if request.client else None
+        admin, updates, ip=client_ip(request)
     )
     return await get_account_settings(session=session)

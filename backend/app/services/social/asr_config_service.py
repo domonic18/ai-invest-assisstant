@@ -11,10 +11,10 @@ import time
 import wave
 from typing import Any
 
-import httpx
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.minimax import asr as minimax_asr
 from app.models.social import AsrChannelConfig
 from app.schemas.social import (
     AsrConfigResponse,
@@ -22,7 +22,6 @@ from app.schemas.social import (
     AsrConfigUpdateRequest,
 )
 from app.services.admin.audit_service import record_audit
-from app.utils.api_base import normalize_asr_base
 from app.utils.crypto import encrypt_token, mask_token
 
 logger = structlog.get_logger(__name__)
@@ -94,7 +93,6 @@ async def test_connection(
     成功判据是「HTTP 2xx 且无 base_resp 业务错误」而非转写文本非空——样例音频
     为无人声正弦波，接口正常时合规返回空文本（2026-09-15 走查误报教训）。
     """
-    from app.services.social.asr_service import minimax_business_error
     from app.utils.crypto import decrypt_token
 
     config = await get_or_create_config(session)
@@ -108,7 +106,10 @@ async def test_connection(
         try:
             api_key = decrypt_token(config.api_key_encrypted)
             payload = await _transcribe_sample(config, api_key)
-            error = minimax_business_error(payload)
+            business = minimax_asr.parse_business_error(payload)
+            error = (
+                f"MiniMax 错误 {business[0]}: {business[1]}" if business else None
+            )
             if error is None:
                 text = (payload.get("text") or "").strip() or None
         except Exception as exc:  # noqa: BLE001 —— 测试不抛异常，失败给原因
@@ -130,18 +131,18 @@ async def test_connection(
 
 async def _transcribe_sample(config: AsrChannelConfig, api_key: str) -> dict[str, Any]:
     """内置样例音频实调 speech_to_text，返回原始 JSON 响应（异常向上传播）。"""
-    base_url = normalize_asr_base(config.base_url or "")
-    audio = _generate_sample_wav()
-    async with httpx.AsyncClient(timeout=_TEST_TIMEOUT_SECONDS) as client:
-        response = await client.post(
-            f"{base_url}/v1/speech_to_text",
-            headers={"Authorization": f"Bearer {api_key}"},
-            data={"model": config.model, "response_format": "json"},
-            files={"file": ("sample.wav", audio, "audio/wav")},
+    return await minimax_asr.speech_to_text(
+        minimax_asr.SpeechToTextRequest(
+            base_url=config.base_url or "",
+            api_key=api_key,
+            model=config.model,
+            filename="sample.wav",
+            audio=_generate_sample_wav(),
+            content_type="audio/wav",
+            response_format="json",
+            timeout_seconds=_TEST_TIMEOUT_SECONDS,
         )
-        response.raise_for_status()
-        payload: dict[str, Any] = response.json()
-    return payload
+    )
 
 
 def _generate_sample_wav() -> bytes:

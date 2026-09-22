@@ -11,9 +11,9 @@ from typing import Any, Protocol
 import httpx
 import structlog
 
-logger = structlog.get_logger(__name__)
+from app.core.config import get_settings
 
-_DEFAULT_TIMEOUT_SECONDS = 10.0
+logger = structlog.get_logger(__name__)
 
 
 class SignerUnavailableError(RuntimeError):
@@ -39,11 +39,15 @@ class DouyinSignerClient:
         self,
         base_url: str,
         *,
-        timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+        timeout_seconds: float | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
-        self._timeout_seconds = timeout_seconds
+        self._timeout_seconds: float = (
+            timeout_seconds
+            if timeout_seconds is not None
+            else get_settings().douyin_signer_timeout
+        )
         self._transport = transport
 
     async def sign(
@@ -69,7 +73,12 @@ class DouyinSignerClient:
             raise SignerRejectedError(f"签名页失败: {response.text[:200]}")
         if response.status_code != 200:
             raise SignerRejectedError(f"签名服务拒绝（HTTP {response.status_code}）")
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise SignerRejectedError(
+                f"签名服务返回非 JSON 响应: {response.text[:200]}"
+            ) from exc
         params = data.get("params")
         if not isinstance(params, dict) or not params:
             raise SignerRejectedError("签名服务返回空参数")
@@ -86,7 +95,13 @@ class DouyinSignerClient:
                 response = await client.get(f"{self._base_url}/health")
         except httpx.HTTPError as exc:
             raise SignerUnavailableError(f"签名服务不可达: {exc}") from exc
-        payload: dict[str, Any] = response.json()
+        try:
+            payload: dict[str, Any] = response.json()
+        except ValueError as exc:
+            # 200 但非 JSON（如代理返回 HTML）视同基础设施不可达
+            raise SignerUnavailableError(
+                f"签名服务响应非 JSON: {response.text[:200]}"
+            ) from exc
         return payload
 
 
