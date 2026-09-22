@@ -5,6 +5,7 @@ from typing import Any
 import httpx
 import pytest
 
+from app.adapters.minimax import asr as minimax_asr
 from app.models.social import AsrChannelConfig
 from app.services.kb import asr_client
 from app.services.kb.asr_client import AsrChannelError, AsrEmptyResultError
@@ -59,7 +60,7 @@ class _FakeClient:
 
 def _patch_client(monkeypatch: pytest.MonkeyPatch, effects: list[Any]) -> _FakeClient:
     fake = _FakeClient(effects)
-    monkeypatch.setattr(asr_client.httpx, "AsyncClient", lambda **kwargs: fake)
+    monkeypatch.setattr(minimax_asr.httpx, "AsyncClient", lambda **kwargs: fake)
     monkeypatch.setattr(asr_client, "_HTTP_RETRY_BACKOFF_SECONDS", (0.0, 0.0))
     return fake
 

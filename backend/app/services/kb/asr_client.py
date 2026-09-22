@@ -1,27 +1,26 @@
 """asr-1.0 分片客户端：multipart 上传 wav、verbose_json 句级时间码解析。
 
-与 social/asr_service（电报单音频、纯文本）不同：本模块面向知识库长音频
-分片，要求句级时间戳；业务错误（HTTP 200 + base_resp.status_code != 0）
-抛 :class:`AsrChannelError`，由调用方显式 FAILED 归因，不静默重试烧钱。
+HTTP 往返与 429/5xx 重试经 :mod:`app.adapters.minimax.asr` 共享核心；本模块
+保留知识库长音频分片语义：句级时间码容忍解析、业务错误抛
+:class:`AsrChannelError`（message 直接作为 process_error 归因，不静默重试
+烧钱）。
 """
 
-import asyncio
 from dataclasses import dataclass
 from typing import Any
 
-import httpx
 import structlog
 
+from app.adapters.minimax import asr as minimax_asr
+from app.adapters.minimax.asr import MiniMaxAsrHttpError
 from app.models.social import AsrChannelConfig
 from app.services.kb.transcribe_pipeline import Sentence
-from app.utils.api_base import normalize_asr_base
 
 logger = structlog.get_logger(__name__)
 
 #: 分片 ≤480s，转写耗时上限留一倍余量
 _ASR_CHUNK_TIMEOUT_SECONDS = 600.0
 #: 渠道偶发 5xx/429（观测与 200+空返回同为抖动形态），退避重试
-_RETRYABLE_HTTP_STATUSES = {429, 500, 502, 503, 504}
 _HTTP_RETRY_BACKOFF_SECONDS = (3.0, 6.0)
 
 _TIME_KEYS = ("start_time", "start", "begin", "from")
@@ -71,54 +70,31 @@ def parse_verbose_json(payload: dict[str, Any]) -> list[Sentence]:
     return sentences
 
 
-async def _post_chunk(
-    base_url: str, config: AsrChannelConfig, api_key: str, wav: bytes, *, filename: str
-) -> dict[str, Any]:
-    """发起转写请求，429/5xx 指数退避重试两次，其余错误立即归因。"""
-    for attempt in range(len(_HTTP_RETRY_BACKOFF_SECONDS) + 1):
-        if attempt:
-            await asyncio.sleep(_HTTP_RETRY_BACKOFF_SECONDS[attempt - 1])
-        try:
-            async with httpx.AsyncClient(timeout=_ASR_CHUNK_TIMEOUT_SECONDS) as client:
-                response = await client.post(
-                    f"{base_url}/v1/speech_to_text",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    data={
-                        "model": config.model,
-                        "response_format": "verbose_json",
-                        "timestamp_level": "sentence",
-                    },
-                    files={"file": (filename, wav, "audio/wav")},
-                )
-                response.raise_for_status()
-                payload: dict[str, Any] = response.json()
-                return payload
-        except httpx.HTTPStatusError as exc:
-            status = exc.response.status_code
-            if (
-                status not in _RETRYABLE_HTTP_STATUSES
-                or attempt >= len(_HTTP_RETRY_BACKOFF_SECONDS)
-            ):
-                raise AsrChannelError(f"asr_http_{status}") from exc
-            logger.warning("kb_asr_http_retry", status=status, attempt=attempt + 1)
-        except Exception as exc:  # noqa: BLE001
-            raise AsrChannelError(f"asr_request_failed: {exc}") from exc
-    raise AsrChannelError("asr_http_retry_exhausted")  # pragma: no cover — 逻辑不可达
-
-
 async def transcribe_chunk(
     config: AsrChannelConfig, api_key: str, wav: bytes, *, filename: str
 ) -> ChunkTranscript:
     """转写单个 wav 分片；渠道/业务错误抛 AsrChannelError。"""
-    base_url = normalize_asr_base(config.base_url or "")
-    payload = await _post_chunk(base_url, config, api_key, wav, filename=filename)
-
-    base_resp = payload.get("base_resp")
-    if isinstance(base_resp, dict) and base_resp.get("status_code"):
-        raise AsrChannelError(
-            f"asr_business_{base_resp['status_code']}: "
-            f"{base_resp.get('status_msg') or '未知错误'}"
+    try:
+        payload = await minimax_asr.speech_to_text(
+            minimax_asr.SpeechToTextRequest(
+                base_url=config.base_url or "",
+                api_key=api_key,
+                model=config.model,
+                filename=filename,
+                audio=wav,
+                content_type="audio/wav",
+                response_format="verbose_json",
+                timeout_seconds=_ASR_CHUNK_TIMEOUT_SECONDS,
+                retry_backoff_seconds=_HTTP_RETRY_BACKOFF_SECONDS,
+                extra_data={"timestamp_level": "sentence"},
+            )
         )
+    except MiniMaxAsrHttpError as exc:
+        raise AsrChannelError(str(exc)) from exc
+
+    business = minimax_asr.parse_business_error(payload)
+    if business is not None:
+        raise AsrChannelError(f"asr_business_{business[0]}: {business[1]}")
 
     sentences = parse_verbose_json(payload)
     if not sentences:
