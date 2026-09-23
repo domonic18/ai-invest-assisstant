@@ -89,7 +89,13 @@ class Settings(BaseSettings):
     # 读超时过小会导致长文本、结构化输出或 provider 拥堵时被异常截断；过大则会让
     # Agent 在 provider 偶发慢响应时长时间挂起。默认值兼顾正常响应与快速失败。
     llm_http_read_timeout: float = 300.0  # 等待响应首字节及后续数据的超时（秒）；非流式长文本生成常超 60s
+    llm_http_connect_timeout: float = 10.0  # TCP/TLS 建连超时（秒）；连接黑洞不应拖满读超时
     llm_max_retries: int = 2  # provider 默认重试次数
+
+    # 采集 worker 内第三方 HTTP 库（akshare 等）未显式传 timeout 时的兜底值。
+    # 通过 patch requests.Session.request 注入；2026-09-23 事故中 akshare 的
+    # requests 调用因无超时在 TLS 握手处永久黑洞。
+    http_default_timeout_seconds: float = 30.0
 
     # AI 用量治理（F-ACCT，arch/10）
     # 配额预扣时为 completion 预留的 token 数（结束按实际 usage 结算回补）

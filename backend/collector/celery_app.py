@@ -170,10 +170,15 @@ def _init_worker_process(**kwargs: Any) -> None:  # noqa: ARG001
     import sqlalchemy.ext.asyncio as async_sa
 
     from app.core import database as app_database
+    from collector.core import config as collector_config
     from collector.core.base import dispose_engine
     from collector.core.logging import configure_logging as configure_child_logging
+    from collector.core.net_timeout import patch_requests_default_timeout
 
     configure_child_logging()
+    # 第三方库（akshare 等）的 requests 调用兜默认超时，防连接黑洞挂死线程
+    # （2026-09-23 生产挂死事故根因三）；仅本 prefork 子进程作用域
+    patch_requests_default_timeout(collector_config.http_default_timeout_seconds)
     logger = structlog.get_logger(__name__)
     logger.info("worker_process_init_recreate_engines")
 
