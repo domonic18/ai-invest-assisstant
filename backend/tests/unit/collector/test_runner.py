@@ -109,6 +109,9 @@ class TestRunTask:
                 "collector.runtime.runner.TASK_MAP", {"financial-report": mock_task}
             ),
             patch(
+                "collector.runtime.runner._create_running_row", AsyncMock(return_value=55)
+            ),
+            patch(
                 "collector.runtime.runner._persist_result", AsyncMock()
             ) as mock_persist,
         ):
@@ -124,7 +127,8 @@ class TestRunTask:
             persisted,
         ) = mock_persist.await_args.args
         assert task_name == "financial-report"
-        assert log_id is None
+        # beat/定时路径无预建行：执行前落的 running 行 id 复用给终态更新
+        assert log_id == 55
         assert celery_task_id is None
         assert len(task_run_id) == 8
         assert persisted is result
@@ -140,11 +144,33 @@ class TestRunTask:
             patch(
                 "collector.runtime.runner._mark_running", AsyncMock()
             ) as mock_running,
+            patch(
+                "collector.runtime.runner._create_running_row", AsyncMock()
+            ) as mock_create,
             patch("collector.runtime.runner._persist_result", AsyncMock()),
         ):
             await run_task({"task": "financial-report", "log_id": 7})
 
         mock_running.assert_awaited_once_with(7)
+        mock_create.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_task_creates_running_row_for_beat_path(self) -> None:
+        """无 log_id（beat 派发）时执行前落 running 行——挂死任务在日志页可见。"""
+        result = _make_result()
+        with (
+            patch("collector.runtime.runner.TASK_MAP", {"financial-report": AsyncMock(return_value=result)}),
+            patch(
+                "collector.runtime.runner._create_running_row", AsyncMock(return_value=66)
+            ) as mock_create,
+            patch(
+                "collector.runtime.runner._persist_result", AsyncMock()
+            ) as mock_persist,
+        ):
+            await run_task({"task": "financial-report", "log_id": None})
+
+        mock_create.assert_awaited_once_with("financial-report", None)
+        assert mock_persist.await_args.args[1] == 66
 
     @pytest.mark.asyncio
     async def test_unknown_task_raises_and_persists_error(self) -> None:

@@ -91,6 +91,12 @@ async def run_task(params: dict[str, Any]) -> CollectResult:
 
         if log_id is not None:
             await _mark_running(log_id)
+        else:
+            # beat/定时路径无 dispatcher 预建行：执行前落 running 行，挂死任务
+            # 在日志页立即可见（2026-09-23 事故排查曾因此多花 30+ 分钟）。
+            # 软超时重试的每次尝试各产生一条行；被硬限 SIGKILL 的行停留在
+            # running，正是诊断证据。
+            log_id = await _create_running_row(task_name, celery_task_id)
 
         kwargs = _build_task_kwargs(task_name, params)
         logger.info("collector_task_started", log_id=log_id, kwargs=kwargs)
@@ -116,6 +122,20 @@ async def run_task(params: dict[str, Any]) -> CollectResult:
 
 def _truncate(text: str) -> str:
     return text[:_ERROR_MSG_MAX_LEN]
+
+
+async def _create_running_row(task_name: str, celery_task_id: str | None) -> int:
+    """执行前插入 running 行，返回 id 供终态更新复用。"""
+    async with AsyncSessionLocal() as session:
+        log = CollectorLog(
+            task_name=task_name,
+            status="running",
+            started_at=datetime.now(timezone.utc),
+            celery_task_id=celery_task_id,
+        )
+        session.add(log)
+        await session.commit()
+        return log.id
 
 
 async def _mark_running(log_id: int) -> None:

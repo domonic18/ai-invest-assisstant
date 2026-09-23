@@ -31,6 +31,7 @@ from app.services.kb import transcribe_pipeline as pipeline
 from app.services.kb.asr_client import (
     AsrChannelError,
     AsrEmptyResultError,
+    AsrRateLimitedError,
     ChunkTranscript,
     transcribe_chunk,
 )
@@ -66,14 +67,19 @@ async def process_queued(session: AsyncSession, *, limit: int = 10) -> int:
         outcome = await transcribe_media(session, row.id)
         if outcome in ("done", "failed"):
             done += 1
+        elif outcome == "deferred":
+            # 渠道限流：本轮停止认领新素材，避免火上浇油；剩余留给下轮扫描
+            logger.warning("kb_transcribe_deferred_stop_claim", media_id=row.id)
+            break
     return done
 
 
 async def transcribe_media(session: AsyncSession, media_id: int) -> str:
-    """转写单集素材，返回终态（done/failed/busy/skipped）。
+    """转写单集素材，返回终态（done/failed/deferred/busy/skipped）。
 
     Raises:
-        不会向上抛——所有失败归因为素材 FAILED 状态（定时路径需要）。
+        不会向上抛——失败归因为素材 FAILED 状态、渠道限流回退 QUEUED
+        （deferred，定时路径需要）。
     """
     row = await media_repository.get(session, media_id)
     if (
@@ -100,6 +106,10 @@ async def transcribe_media(session: AsyncSession, media_id: int) -> str:
         try:
             await _run(session, row)
             return "done"
+        except AsrRateLimitedError as exc:
+            # 限流不是素材的错：回退 QUEUED 留给下轮扫描，不打 failed 终态
+            await _defer(session, media_id, str(exc))
+            return "deferred"
         except (TranscribeError, AsrChannelError) as exc:
             await _mark_failed(session, media_id, str(exc))
             return "failed"
@@ -375,6 +385,18 @@ async def _run_ffmpeg(*args: str) -> tuple[int, str]:
         return await ffmpeg.run(*args)
     except FFmpegError as exc:
         raise TranscribeError("ffmpeg_unavailable") from exc
+
+
+async def _defer(session: AsyncSession, media_id: int, reason: str) -> None:
+    """限流暂缓：回退 QUEUED 留给下轮扫描（不打 failed 终态、不烧重试成本）。"""
+    await session.rollback()
+    row = await media_repository.get(session, media_id)
+    if row is None:
+        return
+    row.process_status = KbProcessStatus.QUEUED
+    row.process_error = None
+    await session.commit()
+    logger.warning("kb_transcribe_deferred", media_id=media_id, reason=reason)
 
 
 async def _mark_failed(session: AsyncSession, media_id: int, reason: str) -> None:

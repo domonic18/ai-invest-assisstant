@@ -16,7 +16,11 @@ from app.core.locking import redis_lock as real_redis_lock
 from app.models.kb import KbMedia, KbSettings, KbSource, KbTranscriptSegment
 from app.schemas.kb import KbTranscriptCleanItem, KbTranscriptCleanResult
 from app.services.kb import transcribe_service
-from app.services.kb.asr_client import AsrChannelError, AsrEmptyResultError
+from app.services.kb.asr_client import (
+    AsrChannelError,
+    AsrEmptyResultError,
+    AsrRateLimitedError,
+)
 from app.services.kb.transcribe_pipeline import Sentence
 from app.services.social.asr_service import AsrChannelConfig
 
@@ -260,6 +264,26 @@ async def test_transcribe_asr_business_error_marks_failed(session: AsyncSession)
     # 不留半截分段
     segs = (await session.execute(select(KbTranscriptSegment))).scalars().all()
     assert segs == []
+
+
+async def test_transcribe_rate_limited_defers_to_queued(session: AsyncSession) -> None:
+    """渠道 429 限流不是素材的错：回退 QUEUED 留给下轮，不打 failed 终态。"""
+    media = await _seed(session)
+    minio = _FakeMinio()
+
+    def _boom(*args: Any, **kwargs: Any) -> Any:
+        raise AsrRateLimitedError("asr_http_429")
+
+    patches, _ = _patch_pipeline_env(minio, clean_result=None, asr_side_effect=_boom)
+    with patches["lock"], patches["minio"], patches["load_config"], patches["decrypt"], \
+            patches["extract"], patches["slice"], patches["probe"], patches["silences"], \
+            patches["asr"], patches["clean"], patches["resolve_role"]:
+        outcome = await transcribe_service.transcribe_media(session, media.id)
+
+    assert outcome == "deferred"
+    row = await session.get(KbMedia, media.id)
+    assert row.process_status == KbProcessStatus.QUEUED
+    assert row.process_error is None
 
 
 async def test_transcribe_empty_chunk_retry_recovers(session: AsyncSession, monkeypatch) -> None:

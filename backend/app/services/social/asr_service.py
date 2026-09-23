@@ -26,8 +26,9 @@ logger = structlog.get_logger(__name__)
 
 _DOWNLOAD_TIMEOUT_SECONDS = 60.0
 _ASR_TIMEOUT_SECONDS = 60.0
-#: 渠道偶发 5xx/429 退避重试（经共享核心获得，短音频单发失败即降级）
-_ASR_RETRY_BACKOFF_SECONDS = (3.0, 6.0)
+#: 渠道偶发 5xx/429 退避重试（经共享核心获得，短音频单发失败即降级）；
+#: 429 分钟级退避，与 kb 分片链路一致
+_ASR_RETRY_BACKOFF_SECONDS = (10.0, 30.0, 60.0)
 _DOWNLOAD_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
