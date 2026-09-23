@@ -32,9 +32,9 @@ def patch_requests_default_timeout(seconds: float) -> None:
     if _original_request is None:
         _original_request = requests.Session.request
 
-    def _request_with_default_timeout(session: requests.Session, *args: Any, **kwargs: Any) -> requests.Response:
+    def _request_with_default_timeout(session: requests.Session, *args: Any, **kwargs: Any) -> Any:
         kwargs.setdefault("timeout", seconds)
         return _original_request(session, *args, **kwargs)
 
-    requests.Session.request = _request_with_default_timeout  # type: ignore[method-assign]
+    requests.Session.request = _request_with_default_timeout  # type: ignore[method-assign,assignment]
     logger.info("requests_default_timeout_patched", seconds=seconds)
