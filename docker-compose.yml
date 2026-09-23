@@ -201,6 +201,33 @@ services:
         limits:
           memory: 2g
 
+  paper-trade:
+    # 掘金线上仿真交易 sidecar：REST 网关接 sim.myquant.cn 网页版同款柜台
+    # （gmtrade SDK 云端 TCP 网关已废弃，见 docker/paper-trade/main.py 头注释）。
+    # 依赖纯 Python，不锁 platform；无 ports：仅 compose 内网可达
+    build:
+      context: docker/paper-trade
+    environment:
+      TZ: Asia/Shanghai
+      GMTRADE_TOKEN: ${GMTRADE_TOKEN:-}
+      GMTRADE_ACCOUNT_ID: ${GMTRADE_ACCOUNT_ID:-}
+      # 留空 = 经 discovery.myquant.cn 服务发现柜台地址；柜台漂移时可在 .env 钉死
+      GMTRADE_BROKER_URL: ${GMTRADE_BROKER_URL:-}
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8020/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
   postgres:
     image: timescale/timescaledb:latest-pg16
     environment:
