@@ -19,6 +19,19 @@ from app.repositories.market.kline_repository import (
     fetch_daily_bars_multi,
     fetch_minute_bars,
 )
+from app.services.market.trend_facts import (
+    EXTREME_WINDOW as _EXTREME_WINDOW,
+)
+from app.services.market.trend_facts import (
+    MA_WINDOWS as _MA_WINDOWS,
+)
+from app.services.market.trend_facts import (
+    SUPPORT_WINDOW as _SUPPORT_WINDOW,
+)
+from app.services.market.trend_facts import (
+    compute_trend_facts,
+    trend_facts_summary,
+)
 
 _CN_TZ = ZoneInfo("Asia/Shanghai")
 
@@ -31,16 +44,8 @@ TECH_CODES: dict[str, str] = {
 }
 
 _DAILY_LIMIT = 400  # 覆盖周线 MA60（约 300 个交易日）
-_MA_WINDOWS = (10, 30, 60)
 _BIG_BODY_PCT = 2.0  # 大阴/大阳线实体幅度阈值（%）
-_EXTREME_WINDOW = 20  # 新低/地量判断窗口（交易日）
-_SUPPORT_WINDOW = 60  # 前低支撑位参考窗口
 _INTRADAY_CODE = "sh000001"  # 仅沪指有本地分钟线
-# 趋势概要（温程趋势理论：「量能不变，趋势不变」，拐点确认必须量能配合）
-_CHANNEL_GLUE_PCT = 0.5  # 均线两两差小于该值（%）视为粘合，判阻尼运动
-_SUPPORT_NEAR_PCT = 1.5  # 收盘距 60 日前低支撑不超过该值（%）视为「支撑位附近」
-_VOL_SHRINK = 0.7  # 量 <= 0.7 倍 5 日均量视为缩量
-_VOL_SURGE = 1.3  # 量 >= 1.3 倍 5 日均量视为放量
 
 Bar = dict[str, Any]
 
@@ -147,73 +152,12 @@ def _format_daily(bars: list[Bar]) -> str:
 
 
 def _trend_summary(bars: list[Bar]) -> str:
-    """温程趋势理论概要：通道归属（MA10/30/60 排列）+ 拐点信号（须量能配合）。"""
-    closes = [b["close"] for b in bars]
-    latest = bars[-1]
-    close = latest["close"]
-    ma10 = _ma(closes, 10)
-    ma30 = _ma(closes, 30)
-    ma60 = _ma(closes, 60)
+    """温程趋势理论概要：通道归属（MA10/30/60 排列）+ 拐点信号（须量能配合）。
 
-    channel = "均线数据不足"
-    if ma10 is not None and ma30 is not None and ma60 is not None:
-        mid = (ma10 + ma30 + ma60) / 3
-        glue_pct = (max(ma10, ma30, ma60) - min(ma10, ma30, ma60)) / mid * 100
-        if ma10 > ma30 > ma60:
-            channel = "上升通道"
-        elif ma10 < ma30 < ma60:
-            channel = "下降通道"
-        elif glue_pct < _CHANNEL_GLUE_PCT:
-            channel = "阻尼运动（震荡收敛）"
-        else:
-            channel = "均线交错（方向未明）"
-
-    volumes = [b["volume"] for b in bars if b["volume"] is not None]
-    vol_ratio: float | None = None
-    if len(volumes) > 5 and latest["volume"] is not None:
-        avg5 = sum(volumes[-6:-1]) / 5
-        if avg5 > 0:
-            vol_ratio = latest["volume"] / avg5
-    is_floor = (
-        len(volumes) >= _EXTREME_WINDOW
-        and latest["volume"] is not None
-        and latest["volume"] <= min(volumes[-_EXTREME_WINDOW:])
-    )
-    shrunk = is_floor or (vol_ratio is not None and vol_ratio <= _VOL_SHRINK)
-    surged = vol_ratio is not None and vol_ratio >= _VOL_SURGE
-    vol_note = f"量为 5 日均量的 {vol_ratio:.2f} 倍" if vol_ratio is not None else ""
-
-    signals: list[str] = []
-
-    lows = [b["low"] for b in bars[-_SUPPORT_WINDOW:-5] if b["low"] is not None]
-    if lows and channel in ("下降通道", "阻尼运动（震荡收敛）") and shrunk:
-        support = min(lows)
-        if abs(close - support) / support * 100 <= _SUPPORT_NEAR_PCT:
-            if is_floor or vol_ratio is None:
-                vol_desc = "20 日地量" if is_floor else "量能明显收缩"
-            else:
-                vol_desc = f"量仅为 5 日均量的 {vol_ratio:.2f} 倍"
-            signals.append(
-                "支撑拐点（触底观察）：临近 60 日前低支撑且量能明显收缩"
-                f"（{vol_desc}），符合「支撑+缩量」触底要件"
-            )
-
-    if ma30 is not None and len(closes) >= 2 and closes[-2] < ma30 < close and surged:
-        signals.append(f"突破拐点：带量收复 MA30（{vol_note}）")
-
-    if len(closes) > _EXTREME_WINDOW:
-        prior_high = max(closes[-_EXTREME_WINDOW - 1 : -1])
-        if close > prior_high:
-            vol_part = (
-                f"量能配合（{vol_note}）" if surged else "量能未确认，留意假突破"
-            )
-            signals.append(f"突破拐点：创 {_EXTREME_WINDOW} 日新高（平台突破，{vol_part}）")
-
-    if channel == "上升通道" and ma30 is not None and close < ma30 and surged:
-        signals.append(f"风险拐点：上升通道中放量跌破 MA30（{vol_note}），上升动能衰竭观察")
-
-    parts = [channel, *(signals or ["暂无拐点信号"])]
-    return "- 趋势概要：" + "；".join(parts)
+    事实计算与文本渲染见 ``app.services.market.trend_facts``（结构化事实供
+    异动检测/归因共用），此处仅保留薄壳。
+    """
+    return trend_facts_summary(compute_trend_facts(bars))
 
 
 def _format_weekly(bars: list[Bar]) -> str:
