@@ -116,6 +116,18 @@ class TestGlobalTimeLimitFallback:
         assert app.conf.task_soft_time_limit > max(max_spec_limit, max_queue_limit)
         assert app.conf.task_time_limit > app.conf.task_soft_time_limit
 
+    def test_soft_below_hard_everywhere(self) -> None:
+        """soft < hard 是硬限生效的硬前提：AsynPool 的硬限定时器链在软限
+        之后（call_later(hard - soft)），soft >= hard 时硬限被静默吞掉
+        （2026-09-23 本地栈实测确认），声明表与队列默认都必须守住排序。"""
+        for name, spec in TASK_SPECS.items():
+            if spec.hard_time_limit is not None:
+                soft = spec.soft_time_limit
+                assert soft is not None and soft < spec.hard_time_limit, name
+        for queue, defaults in QUEUE_DEFAULTS.items():
+            assert defaults["soft_time_limit"] < defaults["time_limit"], queue
+        assert app.conf.task_soft_time_limit < app.conf.task_time_limit
+
 
 @pytest.mark.unit
 class TestConfigureLogging:
