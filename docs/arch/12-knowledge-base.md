@@ -220,7 +220,7 @@ GET  /kb/images/{id}/original-url    # 图片原图短时效预签名（≤15min
 | `GET /kb/media/{id}/subtitles.vtt` | 字幕轨生成（apiClient Bearer） |
 | `GET /kb/images/{id}/original-url` | 图片原图短时效预签名（≤15min） |
 
-二期追加：`POST /admin/kb/optimizations`（触发建议单）、`GET /admin/kb/optimizations`、`POST /admin/kb/optimizations/{id}/apply|reject`。
+> ~~二期追加：技能优化建议单端点（`/admin/kb/optimizations` 触发/列表/审核应用）~~ → F-KB-07 已于 2026-09-22 整体下线（`kb_optimization_suggestion` 表经迁移 `20260922a` 回收），能力提升方向并入模拟盘学习闭环（需求 07）。
 
 ## 11. 前端
 
