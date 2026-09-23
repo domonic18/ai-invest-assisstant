@@ -235,7 +235,6 @@ ai-invest-assisstant/
 │   │   └── entrypoint-collector.sh     # COLLECT_TASK 单任务；COLLECTOR_MODE=beat/worker/stream
 │   ├── signer/                         # douyin-signer 镜像（抖音页面签名 sidecar，第三镜像）
 │   │   └── Dockerfile
-│   ├── caddy/                          # Caddyfile：备选自建入口（当前编排未启用，线上入口为 SCF）
 │   └── database/
 │       ├── init-scripts/               # 01-schema / 02-indexes / 03-seed
 │       └── migrations/                 # 增量迁移 SQL（按日期归档，幂等可重复执行）
