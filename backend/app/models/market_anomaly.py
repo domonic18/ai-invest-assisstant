@@ -45,6 +45,7 @@ class SectorAnomaly(Base):
     amount_ratio: Mapped[float | None] = mapped_column(Numeric(8, 2), nullable=True)
     up_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     down_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    trend_facts: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     anomaly_types: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
     strength: Mapped[int] = mapped_column(Integer, nullable=False)
     attribution_category: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -58,7 +59,7 @@ class SectorAnomaly(Base):
 
 
 class StockAnomaly(Base):
-    """个股异动日表，含 MA60 趋势上下文与有效突破标记。"""
+    """个股异动日表，含趋势事实（trend_facts）与存量 MA60 wire 字段。"""
 
     __tablename__ = "market_anomaly_stock"
     __table_args__ = (
@@ -76,6 +77,7 @@ class StockAnomaly(Base):
     ma60: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
     is_above_ma60: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     ma60_breakout: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    trend_facts: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     anomaly_types: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
     strength: Mapped[int] = mapped_column(Integer, nullable=False)
     attribution_category: Mapped[str | None] = mapped_column(String(20), nullable=True)
