@@ -14,6 +14,7 @@ from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, ValidationError
 
 from app.agent.core.prompt_loader import PromptSection
+from app.agent.runtime.tool_trace import TOOL_TRACE
 from app.core.config import get_settings
 from app.skills import get_skill
 
@@ -22,6 +23,15 @@ logger = structlog.get_logger(__name__)
 
 class SkillOutputError(ValueError):
     """skill 最终输出不是合法的 sections JSON（重试后仍失败）。"""
+
+
+def _strip_frontmatter(text: str) -> str:
+    """剥离 YAML frontmatter（``---`` 围挡）并去除首尾空白。"""
+    if text.startswith("---"):
+        end = text.find("\n---", 3)
+        if end != -1:
+            return text[end + 4 :].strip()
+    return text.strip()
 
 
 def load_skill_instructions(skill_id: str) -> str:
@@ -34,12 +44,19 @@ def load_skill_instructions(skill_id: str) -> str:
     if descriptor is None or not descriptor.skill_md:
         raise ValueError(f"skill 未登记或未声明 SKILL.md: {skill_id}")
     path = get_settings().skills_dir / skill_id / "SKILL.md"
-    text = path.read_text(encoding="utf-8")
-    if text.startswith("---"):
-        end = text.find("\n---", 3)
-        if end != -1:
-            return text[end + 4 :].strip()
-    return text.strip()
+    return _strip_frontmatter(path.read_text(encoding="utf-8"))
+
+
+def load_skill_methodology(skill_id: str) -> str:
+    """读取 skill 附属方法论手册（methodology.md）；未随附返回空串。
+
+    手册是知识库的蒸馏版（如「趋势理论」），随系统提示注入，使方法论在
+    每次生成时即在上下文中，无需依赖运行时检索。
+    """
+    path = get_settings().skills_dir / skill_id / "methodology.md"
+    if not path.exists():
+        return ""
+    return _strip_frontmatter(path.read_text(encoding="utf-8"))
 
 
 def render_section_instructions(sections: list[PromptSection]) -> str:
@@ -83,8 +100,14 @@ def parse_sections(text: str, sections: list[PromptSection]) -> dict[str, str]:
 
 
 async def invoke(agent: Any, prompt: str) -> str:
-    """单次调用 deepagents agent 并提取最终回复文本。"""
-    result = await agent.ainvoke({"messages": [HumanMessage(content=prompt)]})
+    """单次调用 deepagents agent 并提取最终回复文本。
+
+    注入共享 ``TOOL_TRACE`` callback：全部技能 agent 的工具循环统一留痕。
+    """
+    result = await agent.ainvoke(
+        {"messages": [HumanMessage(content=prompt)]},
+        config={"callbacks": [TOOL_TRACE]},
+    )
     messages = result.get("messages") if isinstance(result, dict) else None
     if not messages:
         raise SkillOutputError("agent 未返回任何消息")

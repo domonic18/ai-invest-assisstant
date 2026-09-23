@@ -22,7 +22,7 @@ _CONTENTS = {"overview": "综述", "risk_advice": "风险"}
 
 
 def _config() -> SimpleNamespace:
-    return SimpleNamespace(sections=_SECTIONS)
+    return SimpleNamespace(sections=_SECTIONS, version="9.9.9")
 
 
 def _patch_redis_lock(acquired: bool = True):
@@ -31,6 +31,23 @@ def _patch_redis_lock(acquired: bool = True):
         yield acquired
 
     return patch.object(market_review_generator, "redis_lock", _fake_lock)
+
+
+@pytest.mark.unit
+class TestInputHash:
+    async def test_varies_by_prompt_version(self) -> None:
+        """提示词版本入哈希：版本升级后旧缓存自动失效。"""
+        with patch.object(
+            market_review_generator, "load_prompt_config", lambda: _config()
+        ):
+            baseline = market_review_generator.input_hash(_TRADE_DATE, _SECTIONS)
+        with patch.object(
+            market_review_generator,
+            "load_prompt_config",
+            lambda: SimpleNamespace(sections=_SECTIONS, version="9.8.8"),
+        ):
+            bumped = market_review_generator.input_hash(_TRADE_DATE, _SECTIONS)
+        assert bumped != baseline
 
 
 @pytest.mark.unit

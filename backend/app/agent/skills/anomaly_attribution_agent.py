@@ -16,7 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptConfig
 from app.agent.runtime.model_factory import build_langchain_model
-from app.agent.skills.skill_runtime import invoke_structured, load_skill_instructions
+from app.agent.skills.skill_runtime import (
+    invoke_structured,
+    load_skill_instructions,
+    load_skill_methodology,
+)
 from app.services.admin.llm_config_service import resolve_default_llm
 from app.services.market.anomaly_attribution_service import (
     SECTOR_CATEGORIES,
@@ -35,6 +39,7 @@ _EVIDENCE_TOOLS: dict[str, tuple[str, ...]] = {
         "search_knowledge_base",
     ),
     "stock": (
+        "get_stock_technical",
         "get_dragon_tiger",
         "get_stock_fund_flow",
         "search_news_by_date",
@@ -48,9 +53,10 @@ _EVIDENCE_HINTS: dict[str, str] = {
         "核实主力资金流向，再调 search_news_by_date 取近两日新闻"
     ),
     "stock": (
-        "对上榜/高换手个股调 get_dragon_tiger(stock_code=...) 与 "
+        "先调 get_stock_technical(stock_code=...) 交叉核实趋势位置，"
+        "再对上榜/高换手个股调 get_dragon_tiger(stock_code=...) 与 "
         "get_stock_fund_flow(stock_code=..., days=5) 核实龙虎榜与主力资金，"
-        "再调 search_news_by_date 取近两日新闻"
+        "最后调 search_news_by_date 取近两日新闻"
     ),
 }
 
@@ -91,6 +97,7 @@ async def run_skill(
         get_dragon_tiger,
         get_sector_fund_flow,
         get_stock_fund_flow,
+        get_stock_technical,
         search_knowledge_base,
         search_news,
         search_news_by_date,
@@ -100,6 +107,7 @@ async def run_skill(
         "get_dragon_tiger": get_dragon_tiger,
         "get_sector_fund_flow": get_sector_fund_flow,
         "get_stock_fund_flow": get_stock_fund_flow,
+        "get_stock_technical": get_stock_technical,
         "search_news": search_news,
         "search_news_by_date": search_news_by_date,
         "search_knowledge_base": search_knowledge_base,
@@ -114,7 +122,8 @@ async def run_skill(
         model=build_langchain_model(cfg),
         tools=[tool_map[name] for name in _EVIDENCE_TOOLS[domain]],
         system_prompt=(
-            f"{prompt_config.system_prompt.strip()}\n\n{load_skill_instructions(SKILL_ID)}"
+            f"{prompt_config.system_prompt.strip()}\n\n"
+            f"{load_skill_instructions(SKILL_ID)}\n\n{load_skill_methodology(SKILL_ID)}"
         ),
         name=SKILL_ID,
     )

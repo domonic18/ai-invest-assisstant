@@ -11,6 +11,7 @@ from app.services.market.index_technical_service import (
     TECH_CODES,
     Bar,
     _trend_summary,
+    build_stock_technical_context,
     build_technical_context,
 )
 
@@ -281,3 +282,59 @@ class TestTrendSummary:
 
         assert output.count("- 趋势概要：") == len(TECH_CODES)
         assert "- 趋势概要：下降通道" in output
+
+
+@pytest.mark.unit
+class TestBuildStockTechnicalContext:
+    async def test_builds_stock_block_with_trend_summary(self) -> None:
+        """个股版与大盘同构：头部行情 + 趋势概要 + 日线/周线，无分时段。"""
+        with patch.object(
+            index_technical_service,
+            "fetch_daily_bars_multi",
+            AsyncMock(return_value={"600519": _big_bearish_rows()}),
+        ):
+            output = await build_stock_technical_context(
+                MagicMock(), "600519", _TRADE_DATE
+            )
+
+        assert output.startswith("■ 600519 收 95.00（-5.00%）")
+        assert "- 趋势概要：下降通道" in output
+        assert "收大阴线（实体 -5.00%）" in output
+        assert "跌破 MA60" in output
+        assert "周量能环比上周" in output
+        assert "分时" not in output
+
+    async def test_fetches_only_requested_code(self) -> None:
+        fetch_mock = AsyncMock(return_value={"600519": _big_bearish_rows()})
+        with patch.object(
+            index_technical_service, "fetch_daily_bars_multi", fetch_mock
+        ):
+            await build_stock_technical_context(MagicMock(), "600519", _TRADE_DATE)
+
+        fetch_mock.assert_awaited_once()
+        assert fetch_mock.await_args.args[1] == ["600519"]
+
+    async def test_marks_stale_daily_data(self) -> None:
+        rows = _daily_rows([100.0] * 100, [1000] * 100, end_date=date(2026, 7, 16))
+        with patch.object(
+            index_technical_service,
+            "fetch_daily_bars_multi",
+            AsyncMock(return_value={"600519": rows}),
+        ):
+            output = await build_stock_technical_context(
+                MagicMock(), "600519", _TRADE_DATE
+            )
+
+        assert "［数据为最近交易日 2026-07-16］" in output
+
+    async def test_no_daily_data(self) -> None:
+        with patch.object(
+            index_technical_service,
+            "fetch_daily_bars_multi",
+            AsyncMock(return_value={}),
+        ):
+            output = await build_stock_technical_context(
+                MagicMock(), "600519", _TRADE_DATE
+            )
+
+        assert output == "■ 600519：本地无日 K 数据"

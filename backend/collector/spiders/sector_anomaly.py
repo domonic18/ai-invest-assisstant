@@ -1,8 +1,9 @@
 """板块异动检测定时采集器。
 
-16:45 触发（板块收盘快照 sector-quote 16:05 批次落库后），调用
-``sector_anomaly_service`` 跑三维规则判定并落 ``market_anomaly_sector``；
-快照尚未落库抛 :class:`AnomalyInputNotReadyError`，由 Celery 任务按
+17:45 触发（板块收盘快照 sector-quote 16:05 批次 + THS 板块日 K 17:30 批次
+落库后），调用 ``sector_anomaly_service`` 跑四维规则判定（价格/量能/齐动/
+趋势拐点）并落 ``market_anomaly_sector``；快照尚未落库抛
+:class:`AnomalyInputNotReadyError`，由 Celery 任务按
 10 分钟退避重试（docs/arch/08-anomaly-analysis.md §2/§5）。
 """
 

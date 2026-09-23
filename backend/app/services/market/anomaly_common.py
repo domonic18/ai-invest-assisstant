@@ -10,8 +10,12 @@ from app.core.exceptions import BadRequestError
 SECTOR_DIM_PRICE = "price"
 SECTOR_DIM_VOLUME = "volume"
 SECTOR_DIM_SYNC = "sync"
+SECTOR_DIM_TREND = "trend"
 
-# 个股命中维度
+# 个股命中维度（温程趋势理论三类拐点 + 量价证据；ma60_breakout 为存量兼容键）
+STOCK_DIM_BREAKOUT = "breakout"
+STOCK_DIM_RISK_BREAK = "risk_break"
+STOCK_DIM_SUPPORT_TEST = "support_test"
 STOCK_DIM_MA60_BREAKOUT = "ma60_breakout"
 STOCK_DIM_VOLUME = "volume"
 STOCK_DIM_TURNOVER = "turnover"
@@ -21,6 +25,7 @@ STOCK_DIM_PRICE = "price"
 CATEGORY_RESONANCE = "resonance"
 CATEGORY_ROTATION = "rotation"
 CATEGORY_BREAKOUT = "breakout"
+CATEGORY_BREAKDOWN = "breakdown"
 CATEGORY_ACCELERATION = "acceleration"
 CATEGORY_PULLBACK = "pullback"
 

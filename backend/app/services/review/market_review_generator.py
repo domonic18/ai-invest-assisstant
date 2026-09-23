@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.core.prompt_loader import PromptConfig, PromptSection
 from app.core.constants import INDEX_CODES
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
-from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
+from app.core.locking import GENERATION_LOCK_TTL_SECONDS, redis_lock
 from app.repositories.review import (
     ai_analysis_repository,
     user_market_review_repository,
@@ -56,9 +56,13 @@ def load_prompt_config() -> PromptConfig:
 
 
 def input_hash(trade_date: date, sections: list[PromptSection]) -> str:
-    """缓存键纳入分区键集合：新增/调整分区后旧缓存自动失效。"""
+    """缓存键纳入提示词版本与分区键集合：提示词升级或分区调整后旧缓存自动失效。
+
+    版本从 ``load_prompt_config()``（模块级缓存）读取，调用点无需穿透。
+    """
     keys = ",".join(section.key for section in sections)
-    raw = f"{SKILL_ID}:{keys}:{trade_date.isoformat()}"
+    version = load_prompt_config().version
+    raw = f"{SKILL_ID}:{version}:{keys}:{trade_date.isoformat()}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -237,7 +241,7 @@ async def generate_market_review(
 
     async with redis_lock(
         f"market-daily-review:{resolved_date}",
-        ttl=DEFAULT_LOCK_TTL_SECONDS,
+        ttl=GENERATION_LOCK_TTL_SECONDS,
     ) as acquired:
         if not acquired:
             cached = await _load_base_review(session, resolved_date, sections)

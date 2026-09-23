@@ -8,9 +8,17 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import structlog
+from redis.exceptions import LockNotOwnedError
+
 from app.core.cache import get_redis
 
+logger = structlog.get_logger(__name__)
+
 DEFAULT_LOCK_TTL_SECONDS = 300
+# LLM 生成类任务（复盘归因/个股分析）实际耗时可达 10 分钟以上，
+# 锁 TTL 必须覆盖最坏运行时长，否则互斥保护中途失效、并发实例可重复生成。
+GENERATION_LOCK_TTL_SECONDS = 1800
 
 
 @asynccontextmanager
@@ -38,4 +46,9 @@ async def redis_lock(
         yield acquired
     finally:
         if acquired:
-            await lock.release()
+            try:
+                await lock.release()
+            except LockNotOwnedError:
+                # 持锁期间 TTL 过期（如 LLM 生成超过 ttl）：锁的互斥目的已随过期失效，
+                # 释放失败是良性事件，吞掉以免把成功的生成误判为任务失败。
+                logger.warning("redis_lock_expired_before_release", key=key)

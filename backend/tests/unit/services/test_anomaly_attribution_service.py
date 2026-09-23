@@ -1,5 +1,6 @@
 """异动 AI 归因服务单测（mock 仓储与 LLM 执行器，不触网不连库）。"""
 
+import hashlib
 from datetime import date
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -26,6 +27,7 @@ def _stock_row(code: str, strength: int, rule: str | None = None) -> SimpleNames
         is_above_ma60=True,
         ma60_breakout=rule == "breakout",
         anomaly_types=["volume"],
+        trend_facts={"channel": "上升通道", "turning_points": ["breakout"]},
         strength=strength,
         attribution_category=rule,
         attribution_summary=None,
@@ -137,8 +139,12 @@ class TestRunTopNAttribution:
         mock_run.assert_awaited_once()
         # 300750 未在 LLM 输出中：回退规则分类 + 占位摘要
         assert rows[2].attribution_category == "pullback"
-        assert rows[2].attribution_summary == "证据不足，保留规则分类"
+        # 引用契约 fail-soft：无引用摘要自动补弃权声明
+        assert rows[2].attribution_summary == (
+            "证据不足，保留规则分类\n> 知识库佐证：无适用方法论"
+        )
         assert rows[0].attribution_category == "acceleration"
+        assert rows[0].attribution_summary.endswith("\n> 知识库佐证：无适用方法论")
         # 3 条底稿 + commit
         assert insert.await_count == 3
         session.commit.assert_awaited_once()
@@ -208,10 +214,69 @@ class TestPersistManualAttribution:
 
         assert result == {"attributed": 1, "skipped": 2}
         assert rows[0].attribution_category == "breakout"
-        assert rows[0].attribution_summary == "突破"
+        assert rows[0].attribution_summary == (
+            "突破\n> 知识库佐证：无适用方法论"
+        )
         assert rows[1].attribution_category is None
         insert.assert_awaited_once()
         session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_summary_with_citation_left_untouched(self) -> None:
+        rows = [_stock_row("000001", 90)]
+        session = _session()
+        summary = "带量收复 MA30（《趋势理论》第36集 09:48（拐点三型与量价确认））"
+        insert = AsyncMock()
+        with (
+            patch.object(
+                svc.anomaly_repository,
+                "list_stock_anomalies",
+                AsyncMock(return_value=rows),
+            ),
+            patch.object(svc.ai_analysis_repository, "insert_result", insert),
+        ):
+            result = await svc.persist_manual_attribution(
+                session,
+                "stock",
+                _TRADE_DATE,
+                [{"stock_code": "000001", "category": "breakout", "summary": summary}],
+                model="openai/gpt",
+            )
+
+        assert result == {"attributed": 1, "skipped": 0}
+        assert rows[0].attribution_summary == summary
+        insert.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_breakdown_category_is_accepted(self) -> None:
+        rows = [_stock_row("000001", 90, "breakdown")]
+        session = _session()
+        insert = AsyncMock()
+        with (
+            patch.object(
+                svc.anomaly_repository,
+                "list_stock_anomalies",
+                AsyncMock(return_value=rows),
+            ),
+            patch.object(svc.ai_analysis_repository, "insert_result", insert),
+        ):
+            result = await svc.persist_manual_attribution(
+                session,
+                "stock",
+                _TRADE_DATE,
+                [
+                    {
+                        "stock_code": "000001",
+                        "category": "breakdown",
+                        "summary": "放量跌破 MA30，破位下行",
+                    }
+                ],
+                model="openai/gpt",
+            )
+
+        assert result == {"attributed": 1, "skipped": 0}
+        assert rows[0].attribution_category == "breakdown"
+        insert.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_all_invalid_raises_value_error(self) -> None:
@@ -242,3 +307,13 @@ class TestInputHash:
         assert h1 == h2
         assert h1 != h3
         assert h1 != h4
+
+    def test_hash_salt_invalidates_legacy_cache(self) -> None:
+        """prompt 2.1.0 起盐为 v3：v2/无盐缓存键必然失配，防止复用无周线语境摘要。"""
+        assert svc._input_hash("stock", "000001", _TRADE_DATE) == hashlib.sha256(
+            f"anomaly-attribution:v3:stock:000001:{_TRADE_DATE.isoformat()}".encode()
+        ).hexdigest()
+        legacy = hashlib.sha256(
+            f"anomaly-attribution:stock:000001:{_TRADE_DATE.isoformat()}".encode()
+        ).hexdigest()
+        assert svc._input_hash("stock", "000001", _TRADE_DATE) != legacy

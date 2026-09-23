@@ -1,18 +1,20 @@
-"""板块异动检测服务：三维规则判定（涨跌幅 / 量能 / 齐动性）+ 强度评分 + 幂等落库。
+"""板块异动检测服务：四维规则判定（涨跌幅/量能/齐动性/趋势拐点）+ 强度评分 + 幂等落库。
 
 检测数据源以板块收盘快照 ``quote_sector_daily`` 为基础，但检测池收敛到
 同花顺指数同名覆盖的板块（一级行业 + 概念，见 ``kline_repository.
 list_ths_sector_names``），保证榜单上每个板块的详情页都有真实指数 K 线；
-规则确定性可单测。归因字段由 anomaly-attribution skill 异步回填，本服务
-不触碰（docs/arch/08-anomaly-analysis.md §2/§4/§7）。
+趋势维由 THS 板块日 K 经 ``trend_facts`` 计算拐点（量能确认），板块缺 K 线
+时该维跳过不抛错。规则确定性可单测。归因字段由 anomaly-attribution skill
+异步回填，本服务不触碰（docs/arch/08-anomaly-analysis.md §2/§4/§7）。
 """
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.kline import SectorKlineDaily
 from app.models.market_anomaly import SectorAnomaly
 from app.repositories.market import (
     anomaly_repository,
@@ -25,16 +27,19 @@ from app.services.market.anomaly_common import (
     CATEGORY_ROTATION,
     SECTOR_DIM_PRICE,
     SECTOR_DIM_SYNC,
+    SECTOR_DIM_TREND,
     SECTOR_DIM_VOLUME,
     AnomalyInputNotReadyError,
 )
+from app.services.market.trend_facts import Bar, compute_trend_facts
 
 logger = structlog.get_logger(__name__)
 
-# 强度赋分：齐动性 > 涨跌幅 > 量能，多维度齐中 +10
-_SCORE_SYNC = 40
-_SCORE_PRICE = 30
-_SCORE_VOLUME = 20
+# 强度赋分：齐动性 > 涨跌幅 > 趋势拐点 > 量能，多维度齐中 +10（四维齐中 110 封顶 100）
+_SCORE_SYNC = 35
+_SCORE_PRICE = 25
+_SCORE_VOLUME = 15
+_SCORE_TREND = 25
 _SCORE_MULTI_DIM_BONUS = 10
 
 
@@ -58,12 +63,14 @@ def evaluate_sector(
     amount_ratio: float | None,
     up_count: int | None,
     down_count: int | None,
+    trend_hit: bool = False,
     params: SectorDetectionParams = DEFAULT_SECTOR_PARAMS,
 ) -> tuple[list[str], int, str]:
-    """单板块三维判定，返回（命中维度, 强度 0-100, 分类）。
+    """单板块四维判定（价格/量能/齐动/趋势拐点），返回（命中维度, 强度 0-100, 分类）。
 
     分类二分：多维度齐中为趋势共振，单维度命中为轮动补涨。
-    量能基线不足时 amount_ratio 为 None，该维度跳过、其余维度正常判定。
+    量能基线不足时 amount_ratio 为 None，该维度跳过、其余维度正常判定；
+    板块 K 线缺失时 trend_hit=False（趋势维跳过，不作为异常抛出）。
     """
     dims: list[str] = []
     score = 0
@@ -81,10 +88,29 @@ def evaluate_sector(
     ):
         dims.append(SECTOR_DIM_SYNC)
         score += _SCORE_SYNC
+    if trend_hit:
+        dims.append(SECTOR_DIM_TREND)
+        score += _SCORE_TREND
     if len(dims) >= 2:
         score += _SCORE_MULTI_DIM_BONUS
     category = CATEGORY_RESONANCE if len(dims) >= 2 else CATEGORY_ROTATION
     return dims, min(score, 100), category
+
+
+def _sector_bars(rows: list[SectorKlineDaily]) -> list[Bar]:
+    """板块指数 ORM 行转 trend_facts 升序 bar（剔除收盘缺失的行）。"""
+    return [
+        {
+            "trade_date": row.trade_date,
+            "open": float(row.open) if row.open is not None else None,
+            "high": float(row.high) if row.high is not None else None,
+            "low": float(row.low) if row.low is not None else None,
+            "close": float(row.close),
+            "volume": int(row.volume) if row.volume is not None else None,
+        }
+        for row in rows
+        if row.close is not None
+    ]
 
 
 async def run_sector_detection(
@@ -112,8 +138,12 @@ async def run_sector_detection(
         if (snap.sector_type, snap.sector_name) in ths_universe
     ]
 
-    # 量能基线取 THS 板块日 K（检测池本就按 THS 同名收敛，名称键天然匹配；
-    # 快照表上线晚无历史积累，K 线表自带约一年历史，避免冷启动期整列空值）
+    # 量能基线与趋势事实均取 THS 板块日 K（检测池本就按 THS 同名收敛，名称键
+    # 天然匹配；快照表上线晚无历史积累，K 线表自带约一年历史）。17:30 板块日 K
+    # 采集完成后 17:45 检测可取到当日 bar；板块缺 K 线时趋势维跳过不抛错。
+    bars_by_key = await kline_repository.map_sector_kline_by_name(
+        session, sorted({snap.sector_name for snap in snapshots})
+    )
     baselines = await kline_repository.avg_amount_by_sector_name(
         session, before=trade_date, limit_days=params.baseline_days
     )
@@ -129,11 +159,17 @@ async def run_sector_detection(
             avg_amount, days = baseline
             if days >= params.baseline_days and avg_amount > 0:
                 amount_ratio = round(amount / avg_amount, 2)
+        sector_bars = _sector_bars(
+            bars_by_key.get((snap.sector_type, snap.sector_name), [])
+        )
+        facts = compute_trend_facts(sector_bars)
+        trend_hit = bool(facts.turning_points)
         dims, strength, category = evaluate_sector(
             change_pct=change_pct,
             amount_ratio=amount_ratio,
             up_count=snap.up_count,
             down_count=snap.down_count,
+            trend_hit=trend_hit,
             params=params,
         )
         if not dims:
@@ -148,6 +184,7 @@ async def run_sector_detection(
                 "amount_ratio": amount_ratio,
                 "up_count": snap.up_count,
                 "down_count": snap.down_count,
+                "trend_facts": asdict(facts) if sector_bars else None,
                 "anomaly_types": dims,
                 "strength": strength,
                 "attribution_category": category,

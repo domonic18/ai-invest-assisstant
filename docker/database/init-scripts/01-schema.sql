@@ -1153,6 +1153,7 @@ CREATE TABLE IF NOT EXISTS market_anomaly_sector (
     amount_ratio         NUMERIC(8, 2),                -- 当日额 / 5 日均额
     up_count             INT,
     down_count           INT,
+    trend_facts          JSONB,                        -- 趋势事实（通道/量能/拐点，trend_facts 模块产出）
     anomaly_types        JSONB       NOT NULL DEFAULT '[]',  -- 命中维度列表
     strength             INT         NOT NULL,          -- 强度 0-100
     attribution_category VARCHAR(20),                  -- resonance / rotation（归因后回填，可空）
@@ -1177,7 +1178,8 @@ CREATE TABLE IF NOT EXISTS market_anomaly_stock (
     volume_ratio         NUMERIC(8, 2),                -- 当日量 / 5 日均量
     ma60                 NUMERIC(12, 4),               -- 当日 MA60 值
     is_above_ma60        BOOLEAN     NOT NULL DEFAULT FALSE,
-    ma60_breakout        BOOLEAN     NOT NULL DEFAULT FALSE,  -- 当日有效突破 M60
+    ma60_breakout        BOOLEAN     NOT NULL DEFAULT FALSE,  -- 存量 wire 字段（展示兼容，不再计分）
+    trend_facts          JSONB,                        -- 趋势事实（通道/量能/三类拐点，trend_facts 模块产出）
     anomaly_types        JSONB       NOT NULL DEFAULT '[]',
     strength             INT         NOT NULL,
     attribution_category VARCHAR(20),                  -- breakout / acceleration / pullback（可空）
