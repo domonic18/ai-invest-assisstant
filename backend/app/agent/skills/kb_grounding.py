@@ -51,3 +51,16 @@ def apply_sentinels(
 def warning_lines(gaps: list[str]) -> list[str]:
     """落库工具返回值携带的 warning 文案（fail-soft 告知助手补救）。"""
     return [f"分区 {key} 未引用知识库且未声明无适用方法论" for key in gaps]
+
+
+def summary_needs_sentinel(text: str) -> bool:
+    """归因摘要既无 citation 定位也无弃权声明时为 True（需补 sentinel）。"""
+    return not CITATION_RE.search(text) and SENTINEL_LINE not in text
+
+
+def append_sentinel(text: str) -> str:
+    """摘要末尾另起一行补弃权声明（已有则原样返回）。"""
+    if SENTINEL_LINE in text:
+        return text
+    body = text.rstrip()
+    return f"{body}\n{SENTINEL_LINE}"
