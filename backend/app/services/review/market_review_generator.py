@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.core.prompt_loader import PromptConfig, PromptSection
 from app.core.constants import INDEX_CODES
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
-from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
+from app.core.locking import GENERATION_LOCK_TTL_SECONDS, redis_lock
 from app.repositories.review import (
     ai_analysis_repository,
     user_market_review_repository,
@@ -241,7 +241,7 @@ async def generate_market_review(
 
     async with redis_lock(
         f"market-daily-review:{resolved_date}",
-        ttl=DEFAULT_LOCK_TTL_SECONDS,
+        ttl=GENERATION_LOCK_TTL_SECONDS,
     ) as acquired:
         if not acquired:
             cached = await _load_base_review(session, resolved_date, sections)

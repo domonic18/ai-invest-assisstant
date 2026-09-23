@@ -14,7 +14,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptConfig, PromptSection
-from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
+from app.core.locking import GENERATION_LOCK_TTL_SECONDS, redis_lock
 from app.repositories.review import ai_analysis_repository
 from app.repositories.user.watchlist_repository import WatchlistRepository
 from app.schemas.stock import StockAiAnalysisResponse, StockAiAnalysisSection
@@ -181,7 +181,7 @@ async def generate_stock_analysis(
 
     async with redis_lock(
         f"ai:{SKILL_ID}:{stock_code}:{trade_date.isoformat()}",
-        ttl=DEFAULT_LOCK_TTL_SECONDS,
+        ttl=GENERATION_LOCK_TTL_SECONDS,
         blocking=True,
         blocking_timeout=30,
     ) as acquired:
