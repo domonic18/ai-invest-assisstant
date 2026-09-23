@@ -148,7 +148,9 @@ def _make_kline_fetcher(end_date: date) -> Any:
             return bars[-_KLINE_TAIL_BARS:]
 
         try:
-            bars: list[dict[str, Any]] = await run_in_thread(_load)
+            # 单只日 K 一个请求，60s 足够；超时立即失败走渠道 fallback，
+            # 防止线程在无超时的 akshare 请求上挂死（2026-09-23 事故现场）
+            bars: list[dict[str, Any]] = await run_in_thread(_load, timeout=60)
             return bars
         except Exception:  # noqa: BLE001
             logger.warning("stock_anomaly_kline_fetch_failed", symbol=sina_symbol)

@@ -8,7 +8,11 @@ import pytest
 from app.adapters.minimax import asr as minimax_asr
 from app.models.social import AsrChannelConfig
 from app.services.kb import asr_client
-from app.services.kb.asr_client import AsrChannelError, AsrEmptyResultError
+from app.services.kb.asr_client import (
+    AsrChannelError,
+    AsrEmptyResultError,
+    AsrRateLimitedError,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -81,6 +85,16 @@ async def test_retryable_500_exhausts(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(AsrChannelError, match="asr_http_503"):
         await asr_client.transcribe_chunk(_config(), "key", b"wav", filename="c.wav")
     assert fake.calls == 3  # 首次 + 两次重试
+
+
+async def test_429_exhausts_raises_rate_limited(monkeypatch: pytest.MonkeyPatch) -> None:
+    """429 退避耗尽抛 AsrRateLimitedError（调用方据此暂缓而非终态失败）。"""
+    fake = _patch_client(
+        monkeypatch, [_status_error(429), _status_error(429), _status_error(429)]
+    )
+    with pytest.raises(AsrRateLimitedError, match="asr_http_429"):
+        await asr_client.transcribe_chunk(_config(), "key", b"wav", filename="c.wav")
+    assert fake.calls == 3
 
 
 async def test_non_retryable_400_fails_fast(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -20,8 +20,9 @@ logger = structlog.get_logger(__name__)
 
 #: 分片 ≤480s，转写耗时上限留一倍余量
 _ASR_CHUNK_TIMEOUT_SECONDS = 600.0
-#: 渠道偶发 5xx/429（观测与 200+空返回同为抖动形态），退避重试
-_HTTP_RETRY_BACKOFF_SECONDS = (3.0, 6.0)
+#: 渠道偶发 5xx/429（观测与 200+空返回同为抖动形态），退避重试；
+#: 429 须分钟级退避（短退避只会在批量转写时火上浇油——2026-09-23 批量 429 事故）
+_HTTP_RETRY_BACKOFF_SECONDS = (10.0, 30.0, 60.0)
 
 _TIME_KEYS = ("start_time", "start", "begin", "from")
 _END_KEYS = ("end_time", "end", "to")
@@ -30,6 +31,10 @@ _LIST_KEYS = ("sentences", "segments", "utterances")
 
 class AsrChannelError(Exception):
     """ASR 渠道不可用/业务错误（message 直接作为 process_error 归因）。"""
+
+
+class AsrRateLimitedError(AsrChannelError):
+    """渠道限流（429 退避耗尽）：调用方应暂缓而非终态失败。"""
 
 
 class AsrEmptyResultError(AsrChannelError):
@@ -90,6 +95,8 @@ async def transcribe_chunk(
             )
         )
     except MiniMaxAsrHttpError as exc:
+        if exc.status_code == 429:
+            raise AsrRateLimitedError(str(exc)) from exc
         raise AsrChannelError(str(exc)) from exc
 
     business = minimax_asr.parse_business_error(payload)

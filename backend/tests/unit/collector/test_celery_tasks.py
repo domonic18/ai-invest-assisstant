@@ -185,6 +185,57 @@ class TestRunCollectorTask:
         mock_timeout.assert_awaited_once_with(7)
         mock_update.assert_awaited_once()
 
+    def test_soft_timeout_from_loop_frame_still_retries(self) -> None:
+        """软限信号打断事件循环帧（select 空闲期）时异常从 run_until_complete
+        冒出——重试处理挂在外层必须仍然生效（2026-09-23 本地栈实测发现的
+        丢失路径：旧实现挂在协程内，该抛点直接终态失败）。"""
+        from collections.abc import Coroutine
+        from unittest.mock import MagicMock
+
+        task = run_collector_task
+        task.push_request(id="celery-id", retries=0)
+
+        mock_loop = MagicMock()
+        ruc_calls = {"n": 0}
+
+        def _fake_run_until_complete(coro: object) -> object:
+            ruc_calls["n"] += 1
+            if isinstance(coro, Coroutine):
+                coro.close()  # 防 RuntimeWarning: coroutine never awaited
+            if ruc_calls["n"] == 1:  # 第一次 = _execute，被软限信号打断
+                raise SoftTimeLimitExceeded()
+            return None
+
+        mock_loop.run_until_complete.side_effect = _fake_run_until_complete
+
+        retry_kwargs: dict = {}
+
+        def _fake_retry(**kwargs: object) -> None:
+            retry_kwargs.update(kwargs)
+            raise Retry()
+
+        with (
+            patch.object(run_collector_task, "_ensure_loop", return_value=mock_loop),
+            patch.object(run_collector_task, "retry", side_effect=_fake_retry),
+            patch(
+                "collector.celery_tasks._update_task_schedule_state", new=AsyncMock()
+            ) as mock_update,
+            patch(
+                "collector.celery_tasks._mark_log_timeout", new=AsyncMock()
+            ) as mock_timeout,
+        ):
+            with pytest.raises(Retry):
+                task.run({"task": "quote", "log_id": 7})
+
+        task.pop_request()
+
+        assert retry_kwargs["countdown"] == 30
+        assert retry_kwargs["max_retries"] == 3
+        assert ruc_calls["n"] == 3  # _execute(软限) → 清理僵尸协程 → 状态回写
+        # mock loop 不真正跑协程，只断言调度了状态回写
+        mock_update.assert_called_once()
+        mock_timeout.assert_not_called()
+
     @patch("collector.celery_tasks.run_task", new_callable=AsyncMock)
     def test_not_ready_error_schedules_retry(self, mock_run_task: AsyncMock) -> None:
         """输入数据未就绪时按 10 分钟退避重试，而非当天直接失败。"""

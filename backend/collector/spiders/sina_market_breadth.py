@@ -101,7 +101,8 @@ class SinaMarketBreadthCollector(PostgresCollector):
             contextlib.redirect_stdout(io.StringIO()),
             contextlib.redirect_stderr(io.StringIO()),
         ):
-            df = await run_in_thread(ak.stock_zh_a_spot)
+            # 全市场快照单请求大表，120s 上限；防 akshare 无超时请求挂死线程
+            df = await run_in_thread(ak.stock_zh_a_spot, timeout=120)
         if df is None or df.empty:
             return []
 
