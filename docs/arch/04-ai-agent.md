@@ -60,14 +60,17 @@
 | 能力 | 入口 | 提示词 | 备注 |
 |------|------|--------|------|
 | 产业链分析（版本化） | 页面按钮 → AI 助手侧边栏；`POST /api/v1/chain/analyze` 与每周 `chain-refresh` 定时任务 | `skills/industry-chain-analysis/prompt.yaml` | 基于**经营范围自下而上推导环节**，结果以版本形式持久化，支持版本对比 / 详情 / 最新版查询 |
-| 每日 AI 大盘综述 | 页面/管理后台按钮 → AI 助手侧边栏；`GET/PUT /api/v1/market/ai-review` 读写；每交易日 16:30 定时 | `skills/market-daily-review/prompt.yaml` | **YAML 声明式分区**（overview / technical_analysis / capital_analysis / emotion_analysis / risk_advice），section 级编辑时只重生成被改动分区 |
+| 每日 AI 大盘综述 | 页面/管理后台按钮 → AI 助手侧边栏；`GET/PUT /api/v1/market/ai-review` 读写；每交易日 18:35 定时 | `skills/market-daily-review/prompt.yaml` | **YAML 声明式分区**（overview / news_analysis / technical_analysis / capital_analysis / emotion_analysis / risk_advice 六分区，v1.5.0），section 级编辑时只重生成被改动分区；提示注入趋势理论 `methodology.md` 手册 |
 | 涨停 AI 归因 | 页面按钮 → AI 助手侧边栏；每交易日 16:30 定时 | `skills/limit-up-review/prompt.yaml` | 按题材分组 + 一字 / T 字板形态推导；AI 归因结果按 `input_hash` 缓存 |
 | 研报 AI 摘要 | `POST /api/v1/research/{id}/summarize`；助手对话调用 | `skills/research-report-summary/prompt.yaml` | PDF 下载用 `curl_cffi` 绕 WAF；摘要缓存到 `file_metadata.summary` |
 | 财报 AI 摘要 | `POST /api/v1/financial-reports/{id}/summarize`；助手对话调用 | `skills/financial-report-summary/prompt.yaml` | 触发采集后异步生成摘要，回写 `file_metadata.summary` |
 | 资讯重要度分级 | 资讯中心（电报/重点跟踪）；助手对话调用 | `skills/news-score/prompt.yaml` | 对电报 / 资讯打重要度分并给理由，驱动「重点与跟踪」筛选 |
 | 事件故事线建线 | 资讯中心（重点与跟踪）；助手对话调用 | `skills/news-storyline/prompt.yaml` | 从资讯中识别事件并建/续故事线，持续跟踪演进 |
 | 热点主题聚类 | 资讯中心（热点主题）；助手对话调用 | `skills/news-topic/prompt.yaml` | 资讯聚类为热点主题榜（主题 / 情绪 / 传导链） |
-| 自选股 AI 每日分析 | 个股页按钮 → AI 助手侧边栏；每交易日 16:40 批量（heavy 队列） | `skills/stock-daily-analysis/prompt.yaml` | 三段式输出（盘面解读 / 操作策略 / 止损线），按 `input_hash`（skill+code+日期）缓存；展示于个股详情 Tab 与自选股列表卡片 |
+| 自选股 AI 每日分析 | 个股页按钮 → AI 助手侧边栏；每交易日 16:40 批量（heavy 队列） | `skills/stock-daily-analysis/prompt.yaml` | **六分区契约 v3.0.0**（盘中回顾 / 技术面 / 情绪面 / 关键事件 / 策略 / 风险线，禁止罗列点位数值），按 `input_hash`（skill+code+日期+提示词版本）缓存；技术面 / 情绪面经预计算服务取数；展示于个股详情 Tab 与自选股列表卡片 |
+| 板块 / 个股异动 AI 归因 | 检测任务尾部 top-N 自动归因；页面「AI 归因」按钮 → AI 助手侧边栏 | `skills/anomaly-attribution/`（SKILL.md + prompt.yaml + methodology.md） | 归因清单带规则分类供校正；趋势理论方法论注入 + 知识库引用契约（fail-soft 校验），详见 [08](./08-anomaly-analysis.md) §7 |
+| 社媒大 V 情绪判断 | 采集任务后自动；助手对话调用 | `skills/social-sentiment/prompt.yaml` | LLM 对抖音作品逐条情绪标注（prompt_only），见 [11](./11-social-sentiment.md) |
+| AI 智能画线 | 个股 K 线页「AI 画线」按钮 → AI 助手侧边栏 | `skills/kline-smart-drawing/` | ask_user 问题卡澄清意图 → 结构化画线 → 人工编辑采纳，见 [09](./09-kline-drawing.md) |
 | 自选股截图识别 | `POST /api/v1/users/watchlist/recognize-screenshot` | `skills/watchlist-screenshot-recognition/prompt.yaml` | 视觉模型识别截图中的股票列表，与 `stock_basic` 交叉校验后返回 |
 
 > `hotspot-detection`、`chain-breakthrough`、`financial-health-check` 为 `doc_only` 方法论技能（仅 `skills/*/SKILL.md` 业务描述），实现随页面迭代补齐。
@@ -98,10 +101,11 @@ backend/
     │   │   ├── structured.py             # 单轮结构化调用（with_structured_output）
     │   │   └── wire.py                   # 消息序列化（Agent Protocol）
     │   ├── skills/                       # Skill 执行器
-    │   │   ├── skill_runtime.py          # deepagents 执行骨架（invoke/invoke_sections/invoke_structured）
+    │   │   ├── skill_runtime.py          # deepagents 执行骨架（invoke/invoke_sections/invoke_structured，统一 TOOL_TRACE 留痕）
     │   │   ├── market_review_agent.py / stock_daily_analysis_agent.py
     │   │   ├── limit_up_review_agent.py / industry_chain_analysis.py
-    │   │   └── watchlist_screenshot_recognition.py
+    │   │   ├── watchlist_screenshot_recognition.py / anomaly_attribution_agent.py
+    │   │   └── kb_grounding.py           # 知识库引用契约 fail-soft 校验（sentinel 补齐）
     │   └── tools/                        # LangChain @tool 内部工具实现
     │       ├── db_tools.py
     │       ├── chain_tools.py / market_tools.py / news_tools.py
@@ -148,6 +152,10 @@ sections:
     title: AI 大盘综述
     requirements: |
       固定按两段小标题撰写：指数情况 / 量能情况 ...
+  - key: news_analysis
+    title: 消息面复盘
+    requirements: |
+      当日重要资讯 / 电报对盘面的影响梳理（v1.5.0 新增分区）...
   - key: technical_analysis
     title: 技术面分析
     requirements: |
@@ -161,6 +169,9 @@ sections:
   - key: risk_advice
     title: 风险提示与策略建议
 ```
+
+> 复盘技能目录另带 `skills/market-daily-review/methodology.md`（趋势理论 L0 手册），随提示注入；
+> 异动归因 / 自选股分析技能共用同一手册与知识库引用契约（见 [08](./08-anomaly-analysis.md) §7）。
 
 `market_review_service.generate_market_review` 按 `sections` 渲染 `section_instructions`，
 - 用户编辑过某分区 → 只重生成该分区
@@ -199,7 +210,7 @@ class PromptLoader:
 
 ### 4.2 Skill 注册与场景分类
 
-13 个 builtin skill 在 `app/skills/registry.py` 的 `BUILTIN_SKILLS` 声明表登记（id / kind / scenario / skill_md，`tests/unit/skills/test_registry.py` 钉死一致性），启动时 `sync_builtin_skills` 回填 `skill` 表：
+16 个 builtin skill 在 `app/skills/registry.py` 的 `BUILTIN_SKILLS` 声明表登记（id / kind / scenario / skill_md，`tests/unit/skills/test_registry.py` 钉死一致性），启动时 `sync_builtin_skills` 回填 `skill` 表：
 
 - **kind（能力形态）**：`executable`（自动化·定时）/ `prompt_only`（对话调用）/ `doc_only`（方法论）
 - **scenario（业务场景，技能广场 Tab 维度）**：`market` 大盘与情绪 / `stock` 个股分析 / `chain` 产业链 / `report` 财报与研报 / `news` 资讯处理；用户自定义技能固定 `custom`。枚举唯一真相源在 `registry.py` 与 `shared/types/skill.ts` 两侧对齐
@@ -210,10 +221,13 @@ class PromptLoader:
 ```
 skills/
 ├── industry-chain-analysis/        # executable · chain：版本化分析（服务、API、持久化、单测）
-├── market-daily-review/            # executable · market：分区生成、版本对比
+├── market-daily-review/            # executable · market：六分区生成、版本对比 + methodology.md
 ├── limit-up-review/                # executable · market：涨停归因 + input_hash 缓存
-├── stock-daily-analysis/           # executable · stock：自选股盘后批量分析
+├── stock-daily-analysis/           # executable · stock：自选股盘后批量分析（六分区 v3.0.0）
+├── anomaly-attribution/            # executable · market：异动归因（方法论文档 + KB 引用契约）
+├── kline-smart-drawing/            # executable · stock：AI 智能画线（ask_user 问题卡）
 ├── watchlist-screenshot-recognition/  # executable · stock：截图识别（视觉）
+├── social-sentiment/               # prompt_only · news：社媒大 V 情绪判断
 ├── research-report-summary/        # prompt_only · report：研报摘要
 ├── financial-report-summary/       # prompt_only · report：财报摘要
 ├── news-score/                     # prompt_only · news：资讯重要度分级
@@ -312,7 +326,7 @@ LLM 上下文供给走三类检索：
 | 全文检索 | PostgreSQL（`news_document` + `file_metadata.content`，pg_trgm；知识库走 halfvec HNSW + trgm 混合检索，见 arch/12 §7） | 新闻/公告/研报/财报关键词召回 |
 | 文档直读 | COS（PDF）+ `file_metadata.summary` 缓存摘要 | 研报/财报摘要 Skill |
 
-> 独立检索引擎（Elasticsearch）与独立向量库均未引入：检索全部落 PostgreSQL 扩展（pg_trgm + pgvector），当前规模下同库运维面最小。
+> Elasticsearch 已于 2026-09-21 全系统退役：检索全部落 PostgreSQL 扩展（pg_trgm + pgvector），独立检索引擎与独立向量库不再引入。
 
 ## 8. 调用方式
 
@@ -329,13 +343,14 @@ async def analyze_chain(payload: ChainAnalyzeRequest, db: AsyncSession = Depends
 
 ### 8.2 定时任务调用
 
-三个 AI 生成任务由采集调度自动触发（internal 渠道，heavy 队列）：
+internal AI 生成任务由采集调度自动触发（`specs/ai.py` 共 9 个，节奏总表见 [02](./02-data-collection.md) §2.2）：
 
-- **每日复盘综述**：交易日 15:05，`spiders/market_daily_review.py` 汇总当日数据后调用 `market_review_service` 生成共享底稿
+- **每日复盘综述**：交易日 18:35，`spiders/market_daily_review.py` 汇总当日数据后调用 `market_review_service` 生成共享底稿
 - **涨停 AI 归因**：交易日 16:30，`spiders/limit_up_ai_review.py` 调用 `limit_up_ai_service.generate_attribution`（依赖 16:00 涨停股池；未就绪由 Celery 10 分钟退避重试 3 次兜底）
-- **自选股 AI 每日分析**：交易日盘后，`spiders/watchlist_daily_analysis.py` 仅遍历**开启 AI 复盘开关的分组**（`watchlist_group.ai_review_enabled`）逐只生成三段式分析（盘面解读 / 操作策略 / 止损线），单股串行避免并发限流；未开启分组的标的不消耗 LLM
+- **自选股 AI 每日分析**：交易日 16:40，`spiders/watchlist_daily_analysis.py` 仅遍历**开启 AI 复盘开关的分组**（`watchlist_group.ai_review_enabled`）逐只生成六分区分析，单股串行避免并发限流；未开启分组的标的不消耗 LLM
+- **其余 6 个**：板块 / 个股异动检测+归因（17:45 / 17:00，见 [08](./08-anomaly-analysis.md)）、电报重要度分级 / 事件故事线 / 热点主题（高频或定时，见 02 号文档 §2.2）、产业链图谱周度刷新
 
-三者结果均按 `input_hash`（`skill_id` + 业务键：复盘 / 归因为日期，自选股分析为 code+日期）缓存于 `ai_analysis_result`，已生成则 SKIPPED；Redis 分布式锁防止定时任务与手动点击并发双跑 LLM。
+生成类结果均按 `input_hash`（`skill_id` + 业务键 + 提示词版本盐；复盘 / 归因为日期，自选股分析为 code+日期）缓存于 `ai_analysis_result`，已生成则 SKIPPED；Redis 分布式锁（TTL 1800s）防止定时任务与手动点击并发双跑 LLM，锁过期后释放视为良性（仅告警不报错）。
 
 ### 8.3 MCP 外部调用
 
@@ -390,7 +405,7 @@ async def analyze_chain(payload: ChainAnalyzeRequest, db: AsyncSession = Depends
 | 组成 | 实现 |
 |------|------|
 | 运行时组装 | `agent/runtime/assistant_agent.py`：`create_deep_agent(model, tools, system_prompt, skills, subagents, checkpointer)` |
-| 工具层 | `app/agent/tools.build_assistant_tools()`：LangChain `@tool` 包装 `db_tools` 与读服务（行情/K线/财务/新闻/知识库/板块资金/大盘/竞价等只读工具 + 复盘/归因/产业链/个股分析持久化工具 + 财报工具 + 行情补采）；`build_mcp_tools()` 经 `langchain-mcp-adapters` 注入后台已启用的外部 MCP 服务工具（见 6.3） |
+| 工具层 | `app/agent/tools.build_assistant_tools()`：LangChain `@tool` 包装读服务（行情/K线/财务/新闻/板块资金/大盘/竞价 + 问财选股 `screen_stocks` 等只读工具）+ 持久化工具（复盘/归因/产业链/个股分析 + 画线读写 `get_kline_drawings` / `persist_ai_kline_drawings`）+ 财报工具 + 行情补采 + HITL 问题卡 `ask_user` + 知识库检索 `search_knowledge_base`（会话 `use_kb` 开关注入、缺省开，纳入 agent 指纹缓存维度）；`build_mcp_tools()` 经 `langchain-mcp-adapters` 注入后台已启用的外部 MCP 服务工具（见 6.3） |
 | Skill 渐进披露 | 根目录 `skills/*/SKILL.md` 标准 frontmatter 格式（`name`/`description`），启动只加载元数据、按需读全文 |
 | MCP 双向 | 平台经 fastmcp 对外暴露数据工具（`/api/v1/mcp`）；助手经 `langchain-mcp-adapters` 接入外部 MCP Server（后台 `/admin/mcp-servers` 维护配置与连接测试，启用即注入） |
 | 会话持久化 | `assistant_session` 表（会话列表/归属/标题）+ LangGraph `AsyncPostgresSaver`（消息轨迹与 agent 线程状态，`thread_id` 兼作会话 id） |
@@ -398,6 +413,11 @@ async def analyze_chain(payload: ChainAnalyzeRequest, db: AsyncSession = Depends
 | 前端 | assistant-ui 右侧 Drawer 助手面板（流式渲染、思考/工具折叠、中断、HITL 卡片、Generative UI 图表），任意页面右下角唤起 |
 
 > 后续演进方向（领域子代理派发、写操作 + HITL 确认等）按需规划实施；页面上下文注入（`page_context`）已实现。
+
+### 10.3 计量、配额与可观测
+
+- **用量计量**：模型调用统一经 `agent/runtime/usage_meter.py` 预扣 → 结算 → 明细入队（callback 挂在 `model_factory` 唯一出口），调用前配额预检查 `quota_service.precheck`；配额与 BYOK 治理详见 [10-account-quota.md](./10-account-quota.md)。
+- **工具留痕**：`skill_runtime` 挂共享 `TOOL_TRACE` callback，Skill 执行的工具调用链统一留痕；知识库检索执行写 `kb_search_executed` 日志（见 [12](./12-knowledge-base.md)）。
 
 ## 11. 后续文档索引
 

@@ -41,9 +41,9 @@ backend/
 │   │   ├── agent/                    # 运行时组装 / wire 序列化 / subagents / skills
 │   │   ├── api/                      # 协议端点 / admin 接口
 │   │   ├── collector/                # 采集器 / registry / celery 队列
+│   │   ├── core/ cli/ models/ signer/ skills/   # 按域子目录
 │   │   ├── services/                 # 服务层业务逻辑
-│   │   ├── test_crypto.py
-│   │   └── test_llm_config_service.py
+│   │   └── …（根级零散：douyin / api_base / social / crypto / llm_config 等）
 │   └── integration/                  # 集成测试（需中间件）
 ├── pyproject.toml                      # uv 依赖与工具配置
 └── uv.lock                             # 依赖锁定文件
@@ -58,7 +58,7 @@ backend/
 | HTTP 客户端 | httpx / TestClient | API 接口测试 |
 | 数据隔离 | mock session（覆盖 `get_db`） | 单元测试不落库，仓储/服务协作全 mock |
 | 异步 | pytest-asyncio | 协程测试 |
-| Mock | unittest.mock / pytest-mock / respx | 外部 HTTP/ES 模拟 |
+| Mock | unittest.mock / pytest-mock / respx | 外部 HTTP 模拟 |
 | 覆盖率 | pytest-cov | 覆盖率统计 |
 
 ### 3.3 测试标记
@@ -175,19 +175,13 @@ web/
 │   ├── test/
 │   │   └── setup.ts                  # 测试环境初始化
 │   ├── components/
-│   │   └── charts/
-│   │       └── __tests__/
-│   │           └── KlineChart.test.tsx
-│   ├── hooks/
-│   │   └── __tests__/
-│   │       └── useAuth.test.ts
-│   ├── utils/
-│   │   └── __tests__/
-│   │       └── formatters.test.ts
-│   └── pages/
-│       └── Dashboard/
-│           └── __tests__/
-│               └── Dashboard.test.tsx
+│   │   └── charts/drawing/
+│   │       ├── geometry.test.ts          # 测试与被测文件同目录并列（无 __tests__/ 目录）
+│   │       └── useDrawingLayer.render.test.tsx
+│   ├── stores/
+│   │   └── auth.test.tsx
+│   └── utils/
+│       └── formatters.test.ts
 ├── vitest.config.ts
 └── playwright.config.ts
 ```
@@ -262,7 +256,7 @@ export default defineConfig({
 ### 4.5 E2E 核心链路
 
 ```
-登录页 → 仪表盘 → 产业链分析 → 个股详情 → 用户设置
+登录页 → 仪表盘 → 产业链分析 → 个股详情
 ```
 
 ## 5. 集成/QA 测试
@@ -385,7 +379,7 @@ class TestChainSkillOutput:
 |-----|------|------|
 | Backend | push / PR / 手动 | uv 同步依赖 → `ruff check` → `mypy` → `pytest -m unit` |
 | Web | push / PR / 手动 | 构建 shared 包 → npm 安装 → lint → typecheck → 单测 |
-| Docker | push develop / main | buildx 构建 amd64 双镜像（web-api / collector）→ 推送 TCR（secrets：`TCR_NAMESPACE` / `TCR_USERNAME` / `TCR_PASSWORD`） |
+| Docker | push develop / main | buildx 构建 amd64 三镜像（web-api / collector / douyin-signer）→ 推送 TCR（secrets：`TCR_NAMESPACE` / `TCR_USERNAME` / `TCR_PASSWORD`） |
 
 ### 9.2 测试阶段
 
@@ -412,7 +406,7 @@ class TestChainSkillOutput:
 ### 11.1 种子数据
 
 - `docker/database/init-scripts/03-seed.sql` 提供测试用股票、用户、行情数据。
-- 测试环境独立：单元测试使用内存 SQLite；集成测试使用 Docker Compose 启动的测试中间件。
+- 测试环境独立：单元测试以 mock session 为主（不落库），服务层协作测试用内存 SQLite（aiosqlite）；集成测试使用 Docker Compose 启动的测试中间件。
 
 ### 11.2 Mock 数据
 

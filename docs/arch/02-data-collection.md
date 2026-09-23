@@ -3,8 +3,8 @@
 ## 1. 采集引擎总览
 
 采集模块独立于 Web API，位于 `backend/collector/`，是**声明式注册表 + 多渠道 fallback**的 runtime，
-执行载体为 **Celery**（beat 调度 + 3 个队列 worker）。所有任务在 `runtime/registry.py` 的
-`TASK_SPECS` 注册表声明，新增数据源只需扩展声明表与 spider 类，无需改动 runner / 调度 / API。
+执行载体为 **Celery**（beat 调度 + 3 个队列 worker）。任务在 `runtime/specs/` 按业务域声明
+（57 个 TaskSpec，registry.py 聚合导出 `TASK_SPECS`），新增数据源只需扩展声明表与 spider 类，无需改动 runner / 调度 / API。
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
@@ -18,11 +18,14 @@
 │  └── celery_tasks.py  任务投递封装 + NotReady 自动重试（见 §6）              │
 │                                                                            │
 │  runtime/                                                                   │
-│  ├── registry.py     TaskSpec 声明表（33 任务：参数 + 渠道懒加载路径）       │
+│  ├── registry.py     TaskSpec 聚合导出（声明按域拆分于 specs/，57 任务）     │
+│  ├── specs/          按域声明：kline/market/pool/fund_flow/fundamental/      │
+│  │                   news/ai/social/kb/maintenance                          │
 │  ├── resolver.py     按 collector_channel_data_type 优先级解析可用渠道       │
 │  ├── channels.py     渠道配置数据访问                                        │
 │  ├── dispatcher.py   管理后台 API → Celery 队列投递                         │
 │  ├── runner.py       统一执行器 run_task（collector_log 唯一写入点）         │
+│  ├── stream.py       驻留采集进程（财联社电报 10 秒增量轮询）                │
 │  ├── cli.py          CLI 入口（本地调试 / 应急）                             │
 │  └── scf_handler.py  SCF 事件解析（云函数承载时的适配层）                    │
 │                                                                            │
@@ -74,27 +77,52 @@ beat 周期同步，在管理后台改行即生效；下表仅列节奏概况，
 
 | 任务 | 渠道 | 节奏 |
 |------|------|------|
-| kline_{daily,weekly,monthly} | sina（唯一） | 交易日盘后 |
-| index-kline / etf-kline / a50-kline | sina / 东财 | 交易日盘后 |
+| **行情与 K 线** | | |
+| kline（{daily,weekly,monthly} 模板） | sina（唯一） | 交易日盘后 |
+| index-kline / etf-kline | sina | 交易日盘后 |
+| a50-kline（富时 A50） | sina（主）→ 东财 | 交易日盘后 |
+| sector-kline（同花顺板块指数日K） | ths（唯一） | 交易日盘后 |
 | stock-minute / index-minute | sina | 交易日盘后 |
+| watchlist-kline-daily（自选 K 线补采） | sina | 交易日盘后 |
+| kline-freshness（K 线缺数/落后自愈） | internal | 盘后检查，缺数自动触发补采 |
+| quote / stock-list / index-spot | sina | 盘中高频 / 每日 |
 | index-auction（指数集合竞价） | tushare（唯一） | 交易日 9:15 盘前 |
 | auction（个股集合竞价） | sina → ths | 交易日盘前 |
-| market-amount（市场成交额） | exchange（唯一） | 交易日盘中/盘后 |
-| sector-fund-flow（板块资金流） | eastmoney → ths | 交易日盘后 |
+| market-breadth / market-amount（成交额） | sina / exchange（唯一） | 盘中/盘后 |
+| sector-quote（板块行情） | eastmoney | 盘中 |
+| global-index（全球指标） | eastmoney → tushare → yahoo → mof | 交易日盘中低频 + 盘后收盘价落库 |
+| fed-watch（加息概率） | cme（唯一） | 定期 |
+| **资金流与池** | | |
 | fund-flow（个股资金流） | eastmoney | 交易日盘后 |
+| sector-fund-flow（板块资金流） | eastmoney → ths | 交易日盘后 |
 | limit-up-pool / limit-down-pool / broken-pool | eastmoney | 交易日 16:00 盘后 |
 | dragon-list（龙虎榜） | eastmoney | 交易日盘后 |
-| market-breadth / index-spot / quote / stock-list | sina | 盘中高频 / 每日 |
-| concept-constituents（概念成分股） | eastmoney（curl_cffi） | 每日 |
-| news / macro | sina | 每 30 分钟 / 按需 |
-| cls-telegraph（财联社电报快讯） | cls | 驻留进程 10 秒增量轮询（非 beat 调度，见 §2.1 stream 角色），lastTime 游标断点续传 |
+| **基本面** | | |
 | company-profile / disclosure / financial-report / ipo-info | cninfo | 每日 / 公告小时级 / 财报季密集 |
+| stock-shares（股本） | tushare | 按需 |
+| financial-statement（结构化财务） | eastmoney | 财报季 |
+| concept-constituents（概念成分股） | eastmoney（curl_cffi） | 每日 |
 | research-report / fund-holdings | eastmoney | 每日两次 / 每季 |
-| market-daily-review（每日复盘） | internal | 交易日 15:05，LLM 生成 |
-| limit-up-ai-review（涨停AI归因） | internal | 交易日 16:30（依赖 16:00 涨停池），LLM 生成 |
-| watchlist-daily-analysis（自选股AI分析） | internal | 交易日盘后（heavy），仅遍历开启 AI 复盘开关的分组，LLM 生成 |
-| invest-calendar（投资日历） | cls（调研项） | 每日增量；Fed/BLS 固定日程每年初导入 |
-| global-index（全球指标） | eastmoney → tushare | 交易日盘中低频 + 盘后收盘价落库 |
+| **资讯** | | |
+| news（东财快讯） | eastmoney | 每 30 分钟 |
+| cls-telegraph（财联社电报快讯） | cls | 驻留进程 10 秒增量轮询（非 beat 调度，见 §2.1 stream 角色），lastTime 游标断点续传 |
+| cls-telegraph-backfill（电报回补） | cls | 按需 |
+| cls-investkalendar（投资日历） | cls | 每日增量；Fed/BLS 固定日程每年初导入 |
+| news-subscription-match（订阅命中回流） | internal | 定时 |
+| macro（宏观指标） | sina | 按需 |
+| **AI 生成（均 internal，LLM 生成）** | | |
+| market-daily-review（每日复盘） | internal | 交易日 18:35 |
+| limit-up-ai-review（涨停AI归因） | internal | 交易日 16:30（依赖 16:00 涨停池） |
+| stock-daily-analysis（自选股AI分析） | internal | 交易日盘后（heavy），仅遍历开启 AI 复盘开关的分组 |
+| chain-refresh（产业链图谱刷新） | internal | 周度 |
+| news-score（电报 AI 重要度分级） | internal | 高频扫描 |
+| news-storyline / news-topic（事件故事线 / 热点主题榜） | internal | 定时 |
+| sector-anomaly / stock-anomaly（板块/个股异动检测） | internal | 盘中高频 + 盘后 |
+| **社媒与知识库** | | |
+| social-video（抖音作品采集） | douyin（curl_cffi + 签名 sidecar） | 定时（见 [11](./11-social-sentiment.md)） |
+| social-sentiment（大V情绪 LLM 判断） | internal | 采集后逐条 |
+| kb-transcribe / kb-extract / kb-vision / kb-index（建库管线） | internal | */5~*/10 高频扫描（见 [12](./12-knowledge-base.md)） |
+| kb-cleanup / collector-log-cleanup / health-check（维护类） | internal | */30 或每日 |
 
 > internal AI 任务结果按 `input_hash`（skill_id + 业务键：复盘/归因为日期，自选股分析为 code+日期）缓存于 `ai_analysis_result`，已生成则 SKIPPED（良性终态）。
 
@@ -102,7 +130,7 @@ beat 周期同步，在管理后台改行即生效；下表仅列节奏概况，
 
 ### 3.1 TaskSpec 结构
 
-每个任务在 `runtime/registry.py` 声明一条 `TaskSpec`：
+每个任务在 `runtime/specs/` 对应域模块声明一条 `TaskSpec`（`registry.py` 聚合导出）：
 
 ```python
 @dataclass(frozen=True)
@@ -245,3 +273,8 @@ class SinaKlineCollector(PostgresCollector):
 - [03-data-storage.md](./03-data-storage.md) — 数据库设计与命名约定
 - [04-ai-agent.md](./04-ai-agent.md) — AI Agent 体系（采集 → Skill 数据工具）
 - [06-deployment.md](./06-deployment.md) — 部署架构与运维
+- [08-anomaly-analysis.md](./08-anomaly-analysis.md) — 异动分析（检测算子 + AI 归因）
+- [09-kline-drawing.md](./09-kline-drawing.md) — K 线画线
+- [10-account-quota.md](./10-account-quota.md) — 账号准入与 AI 用量治理
+- [11-social-sentiment.md](./11-social-sentiment.md) — 社媒大 V 情绪追踪（douyin 采集与签名）
+- [12-knowledge-base.md](./12-knowledge-base.md) — 知识库建库管线

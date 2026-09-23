@@ -35,7 +35,7 @@
 |------|------|------|
 | 框架 | React 18.3 + TypeScript 5.4 | 主框架 |
 | 构建 | Vite 5.2 | 开发 / 构建（输出至 `dist/`） |
-| 状态管理 | Zustand | auth / colorScheme / userSettings 等全局状态 |
+| 状态管理 | Zustand | auth / settings（配色+用户设置）/ drawing / screening / sidebar / assistant |
 | 路由 | React Router 6.23 | 页面路由 |
 | UI 组件 | Ant Design 5 + Tailwind CSS | 组件库 + 自定义布局微调 |
 | K 线图 | ECharts + echarts-for-react | 行情可视化（含键盘缩放 / 平移） |
@@ -61,16 +61,20 @@
 /auction-review                 # 集合竞价（指数成交额趋势）
 /news                           # 资讯中心（实时电报 / 重点与跟踪 / 热点主题 / 订阅规则）
 /calendar                       # 投资日历（月历 / 周历 / 列表三视图，分类筛选）
+/anomaly/sector | /anomaly/stock # 异动检测（单页双 Tab，Tab 切换走路由、URL 可直达；侧边栏单入口 /anomaly）
+/screening                      # AI 选股（问财自然语言选股）
+/sector/:sectorType/:sectorCode # 板块详情（板块指数 K 线 + 成分 + 资金流）
 /financial/:code                # 财务体检详情（独立入口，也嵌入个股 Tab）
-/settings                       # 个人设置（基本信息 / 配色 / K 线均线 / AI 与模型 / API-KEY / 安全）
+/kb                             # 知识检索消费页（admin ∪ 白名单；侧边栏「知识检索」入口暂撤，见 12 号文档）
+/settings                       # 个人设置（基本信息 / 外观与配色 / 指数 / AI 配额 / 我的模型 / 安全）
 /skills                         # 技能广场（业务场景 Tab + 搜索 + 能力/来源徽标）
 /skills/:skillId                # 技能详情（全页面：元信息 + 文件浏览 + 内容预览）
 
 # 旧路由兜底重定向
 /auction → /auction-review；/hotspot、/research、/financial-reports → /workbench（研报/财报并入个股详情右栏）；/telegraph → /news
 
-/admin                          # 后台管理总览（ADMIN_LINKS 8 入口卡片）
-├── /admin/users                # 用户管理
+/admin                          # 后台管理总览（ADMIN_LINKS 11 入口卡片）
+├── /admin/users                # 用户管理（审批 / 配额调整）
 ├── /admin/stocks               # 股票管理（含列表同步任务入口）
 ├── /admin/reports              # 报告管理（存储统计卡片 + 清理 3 个月前报告 + 研报/财报双 Tab）
 ├── /admin/news                 # 资讯管理
@@ -78,12 +82,16 @@
 ├── /admin/mcp-servers          # MCP 服务（CRUD + 连接测试 + 工具注入开关）
 ├── /admin/ai-results           # 分析结果（skill Tabs + 日期/状态筛选 + 重新生成/删除）
 ├── /admin/collector            # 采集管理三合一 Tabs（执行与日志 / 任务配置 / 渠道配置）
+├── /admin/usage-dashboard      # 用量看板（用户 token 分项 + KB 建库用量）
+├── /admin/knowledge-base       # 知识库管理台（六页签，见 12 号文档）
+├── /admin/social-tracking      # 社媒大 V 追踪管理（见 11 号文档）
+├── /admin/system-status        # 服务状态（F-MON 采集健康）
 ├── /admin/proxy-configs        # 代理配置（仅侧边栏子菜单进入，不占主页卡片）
 ├── /admin/tasks → /admin/collector?tab=tasks            # 旧路由重定向
 └── /admin/collector-channels → /admin/collector?tab=channels  # 旧路由重定向
 ```
 
-> 侧边栏分组：工作台 / 我的自选 / 监测（宏观指数 · 板块监测 · 集合竞价）/ 资讯（资讯中心 · 投资日历）/ 分析（每日复盘 · 产业图谱）/ 设置（个人设置 · 技能广场 · 后台管理子菜单），移动端折叠为底部 Tab Bar。
+> 侧边栏分组：工作台 / 我的自选 / 检测（宏观指数 · 资金流向 · 集合竞价 · 异动检测）/ 资讯（资讯中心 · 投资日历）/ 分析（每日复盘 · 产业图谱）/ 设置（个人设置 · 技能广场 · 后台管理子菜单），移动端折叠为底部 Tab Bar。
 >
 > AI 助手全局入口：Header 右侧「AI 助手」按钮 + 任意页面右下角猫头鹰悬浮按钮（AssistantFab），唤起 assistant-ui 侧边面板。
 
@@ -99,7 +107,7 @@
 | 美联储加息概率 | FOMC 加息 / 降息概率卡 |
 | 财联社电报 | 10s 准实时电报流（AI 重要度分级标记） |
 | 投资日历摘要 | 近 7 日关键事件，点击进入完整日历 |
-| 自选股概览 | 分组行情卡 + 当日 AI 每日分析摘要（三段式） |
+| 自选股概览 | 分组行情卡 + 当日 AI 每日分析摘要（六分区） |
 | 采集引擎状态 | 采集任务运行 / 队列状态概览，跳转后台采集管理 |
 | 板块资金流 | 当日板块净流入 / 流出榜 |
 
@@ -149,7 +157,8 @@
 │     财报列表（查看 PDF + AI 摘要 + 手动触发采集）             │
 │   - 研报 Tab：研报列表（PDF + AI 解读 + 采集触发）            │
 │   - 板块归属 Tab：行业 + 概念板块（基于 mapping_stock_concept）│
-│   - AI 分析 Tab：盘面解读 / 操作策略 / 止损线（盘后定时生成） │
+│   - AI 分析 Tab：六分区每日分析（盘中回顾/技术面/情绪面/      │
+│     关键事件/策略/风险线，盘后 16:40 定时生成）               │
 │     固定附"AI 生成，不构成投资建议"免责声明                    │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -196,14 +205,14 @@
 
 - **基本信息**：用户名 / 邮箱
 - **行情配色**：涨跌配色方案开关（红涨绿跌 / 绿涨红跌），全站通过 `useColorScheme()` + formatters 自动应用；个股详情 ⚙ 图表设置弹层亦可即时切换
-- **K 线均线**：用户级 MA 周期列表（存 `user.settings` JSONB 列），K 线组件订阅生效；**新注册账户默认启用 MA5 / MA10 / MA20 / MA60**
+- **K 线均线**：用户级 MA 周期列表（存 `user.settings` JSONB 列，默认值真相源在 `stores/settings.ts`），K 线组件订阅生效；**新注册账户默认启用 MA5 / MA10 / MA20 / MA30 / MA60**（MA120 关）
 - **账号安全**：修改密码
 
-### 4.11 后台管理（8 入口 + 代理配置）
+### 4.11 后台管理（11 入口 + 代理配置）
 
 | 页面 | 功能 |
 |------|------|
-| 总览 | ADMIN_LINKS 8 入口卡片 + 最近采集日志（「查看更多」跳采集管理） |
+| 总览 | ADMIN_LINKS 11 入口卡片 + 最近采集日志（「查看更多」跳采集管理） |
 | 用户管理 | 列表 / 角色 / 启用 |
 | 股票管理 | 列表 / 字段补全 / **同步任务入口** |
 | 报告管理 | 存储统计卡片（`GET /admin/reports/storage-summary`，按 file_type 聚合 MinIO 文件数与字节数）+ 「清理 3 个月前报告」（二次确认，删 PDF 及存储对象）+ 研报 / 财报双 Tab 列表 |
@@ -213,6 +222,16 @@
 | 分析结果 | skill Tabs（后端注册表驱动）+ 日期 / 状态筛选；「AI 重新生成」经侧边栏助手触发；删除为缓存清除语义（清空该业务键全部历史） |
 | 采集管理 | 三合一 Tabs（与 `?tab=` 同步）：① 执行与日志（TASK_SPECS 目录任务按钮 + 最近日志）② 任务配置（`collector_task` CRUD，cron 中文展示）③ 渠道配置（渠道启用 + 数据类型优先级降级链） |
 | 代理配置 | 采集出口代理 CRUD（HTTP / SOCKS5），仅侧边栏「后台管理」子菜单进入 |
+| 用量看板 | 用户 token 用量分项（模型 / feature 维度）+ KB 建库用量面板（预估 vs 实际） |
+| 知识库管理台 | 六页签（知识库列表 / 素材接入 / 知识审核 / 图片资产 / 知识检索 / 设置），见 12 号文档 |
+| 社媒追踪 | 大 V 账号管理 + 作品与情绪排查（posts 排查抽屉），见 11 号文档 |
+| 服务状态 | F-MON 采集健康监测（任务级状态 / 连败告警），见 02 号文档 |
+
+### 4.12 异动检测 / AI 选股 / 知识检索
+
+- **异动检测（`/anomaly`）**：单页双 Tab（板块 / 个股），Tab 切换走路由（`/anomaly/sector` | `/anomaly/stock`）；交易日切换 + 异动榜（强度排序 / 维度筛选 / 分类徽标 / 趋势事实摘要）+ 行内 AI 归因（侧边栏触发）。检测与归因机制见 [08](./08-anomaly-analysis.md)。
+- **AI 选股（`/screening`）**：问财自然语言选股（助手 `screen_stocks` 工具同源能力）。
+- **知识检索（`/kb`）**：admin ∪ 白名单门控的消费页（搜索三类命中 + 播放器 / 阅读器直达）；管理台入口 `/admin/knowledge-base`。链路见 [12](./12-knowledge-base.md)；侧边栏「知识检索」入口暂撤，启用时点待定。
 
 ## 5. 项目结构
 
@@ -223,13 +242,15 @@ web/
 │   ├── components/
 │   │   ├── layout/             # Header / Sidebar / Layout / MobileTabBar
 │   │   ├── charts/             # KlineChart / IndexKlineChart / IntradayChart / IntradaySpark /
-│   │   │                       #   ChainGraph / FinancialTrendCharts / StockChartView / useKlineKeyboardNav
+│   │   │                       #   ChainGraph / FinancialTrendCharts / useKlineKeyboardNav
+│   │   │   ├── stockChartView/ # 个股双图单元拆分（klineOption / klineData / klinePanes …）
+│   │   │   └── drawing/        # K 线画线（DrawingLayerHost 等，见 09 号文档）
 │   │   ├── assistant/          # assistant-ui 助手面板：RuntimeProvider / Thread / Composer / 会话侧栏
 │   │   ├── common/             # Brand / MarkdownText / SourceNote
 │   │   └── auth/               # ProtectedLayout / ProtectedAdmin / RedirectIfAuthenticated
 │   ├── hooks/                  # TanStack Query 包装的 Hooks
 │   ├── pages/                  # 见 §3 路由
-│   ├── stores/                 # Zustand（auth / colorScheme / userSettings / assistant）
+│   ├── stores/                 # Zustand（auth / settings / drawing / screening / sidebar / assistant）
 │   ├── test/                   # 测试环境初始化与 mocks
 │   ├── types/ utils/ constants/ config/
 │   ├── App.tsx / main.tsx / router.tsx
@@ -257,6 +278,7 @@ shared/                       # 独立 npm 包，被 web 与 backend（uv）共�
 │   └── index.ts
 ├── types/
 │   ├── stock.ts / chain.ts / market.ts / admin.ts / api.ts / user.ts
+│   └── …（account / anomaly / calendar / drawing / kb / mcp / news / skill / social / telegraph / workbench 等，共 17 个域文件 + index.ts）
 └── utils/
     └── ...
 ```

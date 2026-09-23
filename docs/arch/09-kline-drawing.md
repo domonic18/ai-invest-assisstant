@@ -6,7 +6,7 @@
 ## 1. 设计原则
 
 1. **锚点即契约**：画线锚点一律存数据坐标 `(date, price)`，像素坐标只在渲染瞬间存在。数据坐标使画线在新 K 线追加、缩放、跨周期渲染下语义稳定，也是 Agent 可结构化读写的前提——LLM 输出/读取的是同一套坐标语义，不是屏幕位置。
-2. **图层与主图解耦**：画线层是独立模块（`components/charts/drawing/`），以组合方式接入个股/板块（StockChartView）与大盘指数（IndexKlineChart）两套图表组件；图层任何异常降级为「不渲染画线」，不侵入 K 线主图渲染与既有交互（十字光标/键盘导航/异动 markers）。
+2. **图层与主图解耦**：画线层是独立模块（`components/charts/drawing/`），经 `DrawingLayerHost` 以组合方式接入个股/板块（StockChartView）与大盘指数（IndexKlineChart）两套图表组件；图层任何异常降级为「不渲染画线」，不侵入 K 线主图渲染与既有交互（十字光标/键盘导航/异动 markers）。
 3. **用户画线与 AI 画线物理分表，均为 per-user 私有**：用户画线是用户资产（长期保留）；AI 画线是会话属主的私有可变工作区（多租户隔离，A 的 AI 画线对 B 不可见）。分表使二者的生命周期、权限、备份语义互不牵连。
 4. **Agent 双向共用一套 wire 契约**：读（画线上下文序列化 + 查询工具）与写（persist 工具）走同一份 `shared/types` 画线类型，Pydantic schema 镜像同构；文字标识（标注文字 / label / reason）作为一等字段进入契约。
 5. **写路径人工优先**：AI 画线仅由对话触发、画线前必须经问题卡确认；用户画线的删除 Agent 无权静默执行（二次确认）。
@@ -27,16 +27,26 @@
 ```
 web/src/components/charts/drawing/
 ├── types.ts              # re-export shared/types 画线类型（前端单一真相源）
-├── geometry.ts           # 纯函数：数据↔像素换算、射线延伸、bar 日期对齐、裁剪（可单测）
-├── useDrawingLayer.ts    # 图层生命周期 hook：接 chart instance，渲染/重定位/命中托管
+├── coordinates.ts        # 纯函数：数据↔像素换算、bar 日期对齐、越界裁剪
+├── geometry.ts           # 纯函数：射线延伸、锚点几何运算（geometry.test.ts 钉死）
+├── chartInternals.ts     # ECharts 实例内部读取助手（grid / 坐标系）
+├── shapeSpecs.ts         # 5 类型 → ECharts graphic 元素规格
+├── draftMachine.ts       # 交互状态机（idle→armed→drafting→selected→dragging，纯函数测试）
+├── layerEvents.ts        # dataZoom / resize / finished 视图联动与事件绑定
+├── sessions.ts           # 绘制会话（草稿生命周期）
+├── useDrawingLayer.ts    # 图层内部 hook：渲染/重定位/命中托管（render/interaction 测试钉死）
+├── DrawingLayerHost.tsx  # 组合接入收口：两套图表经此挂载图层（对外唯一入口）
 ├── DrawingToolbar.tsx    # 画线模式开关 + 5 类型子工具条 + 图层显隐
+├── DrawingSideBar.tsx    # 画线侧边工具条
 ├── StyleBar.tsx          # 选中浮动样式条（6 色/线型/线宽/文字/删除）
+├── DrawingTextInput.tsx  # 文字标注输入
+├── AiDrawingButton.tsx   # 「AI 画线」入口按钮
 └── DrawingsPanel.tsx     # 画线清单面板（用户组 + AI 组：采纳/删除/来源徽标）
 ```
 
 ### 3.2 接入与坐标换算
 
-- 两套图表组件均经 `echarts-for-react` 持有实例（`chartRef.current.getEchartsInstance()`），`useDrawingLayer(chart, { targetType, targetCode, period })` 组合接入，不复制交互逻辑。
+- 两套图表组件均经 `echarts-for-react` 持有实例（`chartRef.current.getEchartsInstance()`），以 `<DrawingLayerHost>` 组合接入（内部再驱动 `useDrawingLayer` hook），不复制交互逻辑。
 - x 轴为 category（bar 日期）：锚点 date 经 `geometry.buildDateIndex(bars)` 对齐到「≤ 该日期的最后一根 bar」，越界锚点裁剪在绘图区边缘；射线按两端锚点像素求方向向量延伸至 grid 右缘（`direction: left/right/both`）。
 - 视图联动：订阅实例 `dataZoom` / `resize` / `finished` 事件，对每个画线重算像素后以同 id `setOption({graphic})` 增量更新（禁止整图 setOption，保拖拽帧率）。
 - 交互状态机：`idle → armed(选工具) → drafting(拖拽草稿) → selected → dragging(anchor|move)`；armed 状态与 dataZoom 互斥（画线模式下滚轮/拖动不缩放），Delete 键删除选中项。
@@ -92,7 +102,10 @@ api/v1/drawings.py（薄路由，登录态）
 ├── POST   /kline-drawings                                   # 用户画线创建（批量容忍）
 ├── PATCH  /kline-drawings/{id}                              # 形态/样式/文字更新
 ├── DELETE /kline-drawings/{id}
-└── POST   /kline-drawings/ai/adopt                          # AI 单条采纳 → 复制为用户画线
+├── POST   /kline-drawings/ai/adopt                          # AI 单条采纳 → 复制为用户画线
+├── PATCH  /kline-drawings/ai/item                           # AI 画线单条原位编辑（F-DRAW-08）
+├── DELETE /kline-drawings/ai/item                           # AI 画线单条删除
+└── DELETE /kline-drawings/ai/clear                          # AI 画线集清空
 ```
 
 - 性能：单标的画线量为几十行，命中 `(user_id, …)` 前缀索引，GET ≤100ms；不做请求路径聚合计算。

@@ -19,7 +19,7 @@
 |----|----------|------|
 | `"user"` 加列 | `status VARCHAR(16) NOT NULL DEFAULT 'approved'` + CHECK `(pending/approved/rejected)`；部分索引 `WHERE status='pending'` | 另加 `application_note` / `reject_reason` / `reviewed_by` FK / `reviewed_at`。DEFAULT 'approved' 使存量行迁移即达标；新注册由服务层显式写 `pending` |
 | `user_ai_quota` | `user_id PK FK ON DELETE CASCADE` | `total_tokens BIGINT`，**NULL = 不设上限**（豁免）；`updated_by` + 审计字段。迁移内 `INSERT … SELECT 100000 FROM "user" WHERE status='approved' ON CONFLICT DO NOTHING` 回填存量 |
-| `user_token_usage` | idx `(user_id, created_at DESC)`、`(created_at)`、`(feature, created_at)` | 逐次明细：`user_id`（系统维度为 NULL）、`feature CHECK (assistant/page/api_key/system)`、`model_name/provider`、`outlet CHECK (system/byok)`、`prompt/completion/total_tokens`、`estimated BOOLEAN`。累计消耗 = `SUM(total_tokens) WHERE outlet='system'`，是配额已用的可重放来源 |
+| `user_token_usage` | idx `(user_id, created_at DESC)`、`(created_at)`、`(feature, created_at)` | 逐次明细：`user_id`（系统维度为 NULL）、`feature CHECK (assistant/page/api_key/system/kb_clean/kb_extract/kb_vision/kb_embed)`（KB 四枚举随 F-KB 迁移扩充）、`model_name/provider`、`outlet CHECK (system/byok)`、`prompt/completion/total_tokens`、`estimated BOOLEAN`、`detail JSONB`（kb 域存 `{sourceId, mediaId, taskRunId}` 上下文）。累计消耗 = `SUM(total_tokens) WHERE outlet='system'`，是配额已用的可重放来源 |
 | `user_llm_config` | `user_id UNIQUE FK ON DELETE CASCADE` | BYOK 配置：`protocol CHECK (openai/anthropic)`、`base_url`、`model_name`、`api_key_encrypted`（Fernet，复用 `app/utils/crypto.py`，与 llm_config 同一加密路径）、`api_key_masked` 冗余脱敏串（读路径免解密）。UNIQUE 物化「同一时间仅一套生效」，删行即回落 |
 | `admin_audit_log` | idx `(actor_id, created_at DESC)`、`(action, created_at DESC)` | `actor_id` FK、`action`、`target_user_id`、`detail JSONB`、`ip`。全平台首个审计设施，覆盖审批/配额/全局设置动作 |
 | `system_setting` | `key VARCHAR PK` | 运行时可变全局设置 KV：`account.default_quota_tokens`（默认 100,000）/ `account.pending_expire_days`（默认 30）/ `quota.admin_exempt`（默认 true）。管理端可改，故不进 `config.py` |
@@ -37,7 +37,8 @@ backend/app/services/quota/
 ├── quota_service.py        # precheck / check_and_reserve / settle / invalidate / rebuild（Redis Lua）
 ├── usage_writer.py         # 异步落库（每条后台任务直写，任意事件循环环境一致）
 ├── user_llm_service.py     # BYOK CRUD / resolve_user_llm / 连通性测试
-└── usage_query_service.py  # 个人明细 + 看板聚合（Asia/Shanghai 分桶）
+├── usage_query_service.py  # 个人明细 + 看板聚合（Asia/Shanghai 分桶）
+└── account_settings.py     # system_setting 全局设置读写（默认配额/审批过期/admin 豁免）
 
 backend/app/agent/runtime/
 ├── token_estimator.py      # estimate_text_tokens 纯函数
@@ -53,7 +54,8 @@ backend/app/agent/runtime/
 | 入口 | 注入位置 | feature |
 |------|----------|---------|
 | 助手 SSE `POST /assistant/threads/{id}/runs/stream`（`api/v1/assistant/runs.py`） | 路由层 `_require_thread` 后 `meter_scope(user.id, "assistant")` 包住 event_stream | assistant |
-| 页面单轮/skill（chain/analyze、研报摘要、财报摘要、截图识别） | api 路由层调服务前包 `meter_scope(user.id, "page")`，服务层零改动 | page |
+| 页面单轮/skill（chain/analyze、研报摘要、财报摘要、截图识别等） | 收敛为 `ai_quota_gate(feature)` **依赖工厂**（`dependencies/__init__.py`：precheck + meter_scope 一体，路由 Depends 即接入） | page |
+| KB 建库管线 | 服务层包 meter_scope（`services/kb/vision_describe.py` 等，Celery 路径显式带上下文） | kb_clean / kb_extract / kb_vision / kb_embed |
 | Celery internal 定时 AI | 不显式包裹：**未设置计量上下文的调用由 callback 兜底按 system 维度记账**（无属主即不查配额），免去 runner 接线且杜绝漏计 | system |
 
 `api_key` 类别本期无发射方（F-API-01 用户级 API-KEY 未实装）：枚举与 CHECK 已落位，F-API-01 落地时其鉴权中间件处包 `meter_scope(owner_id, "api_key")` 即纳入。
@@ -124,6 +126,7 @@ async def resolve_user_llm(session, user_id: int | None) -> tuple[ResolvedLLMCon
 async def save_user_llm_config(...) / clear_user_llm_config(session, user_id)
 async def test_user_llm_connection(protocol, base_url, model_name, api_key) -> LlmTestResult
     # httpx 按协议手拼极小请求（复刻 llm_config_service._call_model），timeout 5s、max_tokens 8
+    # base_url 归一化统一走 app/utils/api_base.normalize_api_base（六处共用的单一真相源）
 ```
 
 - 加密复用 `app/utils/crypto.py`（`encrypt_token/decrypt_token/mask_token`），落库密文 + 冗余 masked 串；GET 永不回明文；服务层不把 api_key 放进任何日志字段。
@@ -133,7 +136,7 @@ async def test_user_llm_connection(protocol, base_url, model_name, api_key) -> L
 
 `_agent` 全局单例 → **LRU 有界缓存**（`OrderedDict`，容量 `quota_agent_cache_size` 默认 8，闲置 TTL 惰性淘汰）：
 
-- 缓存键 `fingerprint = sha256(protocol | base_url | model_name | sha256(api_key) | mcp_tools_version)`。
+- 缓存键 `fingerprint = sha256(protocol | base_url | model_name | sha256(api_key) | mcp_tools_version | use_kb)`（`use_kb` 为会话级知识库开关维度，见 12 号文档 §9）。
 - `get_assistant_agent(cfg: ResolvedLLMConfig | None = None)`：runs.py 调用前 `resolve_user_llm` 再传入；未传参等价系统默认解析（兼容既有调用点）。BYOK 用户获得独立 agent 实例，LRU 上界防内存膨胀。
 - 顺带修复既有缺陷：llm_config 变更后 fingerprint 变化自然重建（现状仅 MCP 变更触发 reset）。
 - checkpointer 仍全局单例共享；subagents 声明不指定 model、继承主模型，自动同出口。
@@ -183,7 +186,7 @@ async def pending_count(session) -> int                       # 角标，顺带�
 
 ### 7.1 端点清单（wire camelCase；query snake_case）
 
-个人侧（挂 `users.py` 的 `/users/me/*` 命名空间，超行数拆文件）：
+个人侧（`api/v1/account.py`，prefix `/users`——自 `users.py` 拆出，路径不变）：
 
 | 端点 | 说明 |
 |------|------|
@@ -222,9 +225,9 @@ SSE 形态：runs.py except 分支识别 `QuotaExhaustedError` → `sse_event("e
 | `web/src/pages/Register/Register.tsx` | 成功改待审批回执视图（不 authLogin、不跳转） |
 | `web/src/pages/Login/Login.tsx` | 403 code 分支 Alert（待审 / 驳回原因） |
 | `web/src/pages/Settings/Settings.tsx` | SECTIONS 加「配额与用量」「我的模型」两锚点区；`QuotaSection.tsx`（剩余额进度 + 按 feature 消耗）、`MyModelSection.tsx`（协议/base_url/model/api_key 表单，draft-test 范式抄 `Admin/McpServers/McpServerModal.tsx`） |
-| `web/src/pages/Admin/Users/Users.tsx` | 状态/剩余配额/累计消耗/BYOK 列 + `ApproveModal` / `QuotaAdjustModal` / `UsageDrawer` |
+| `web/src/pages/Admin/Users/Users.tsx` | 状态/剩余配额/累计消耗/BYOK 列 + `AccountModals.tsx`（Approve / Reject / QuotaAdjust）+ `PendingPanel.tsx` |
 | `web/src/pages/Admin/UsageDashboard/` | 新页；router.tsx + Sidebar ADMIN_MENU_ITEMS + Admin.tsx ADMIN_LINKS 三处注册 |
-| Sidebar 角标 | `usePendingApprovalBadgeCount`（300s 轮询，复刻 `useCollectorHealthBadgeCount` 范式） |
+| Sidebar 角标 | `usePendingCount`（`hooks/useAdminAccount.ts`，300s 轮询，复刻 `useCollectorHealthBadgeCount` 范式） |
 | shared 契约 | `shared/types/account.ts` 新增（AccountStatus/QuotaInfo/UsageRecord/UserLlmConfig/RegisterAccepted）、`api.ts` 注册响应改型、`shared/api/endpoints.ts` 补端点、`web/src/api/mappers/account.ts` 镜像 |
 
 ## 8. 验证
