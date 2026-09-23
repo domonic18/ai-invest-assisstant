@@ -33,24 +33,26 @@ QUEUE_NAMES = (
 )
 
 # TaskSpec 未覆盖时的默认策略。
+# 注意键名：apply_async 的硬时限键是 ``time_limit``（``hard_time_limit`` 会被
+# celery 静默忽略——2026-09-23 生产挂死事故根因之一），出口键名以此为准。
 QUEUE_DEFAULTS: dict[str, dict[str, Any]] = {
     CollectorQueue.REALTIME: {
         "soft_time_limit": 60,
-        "hard_time_limit": 120,
+        "time_limit": 120,
         "max_retries": 3,
         "retry_backoff": 30,
         "retry_backoff_max": 300,
     },
     CollectorQueue.BATCH: {
         "soft_time_limit": 300,
-        "hard_time_limit": 600,
+        "time_limit": 600,
         "max_retries": 3,
         "retry_backoff": 60,
         "retry_backoff_max": 600,
     },
     CollectorQueue.HEAVY: {
         "soft_time_limit": 1800,
-        "hard_time_limit": 3600,
+        "time_limit": 3600,
         "max_retries": 2,
         "retry_backoff": 300,
         "retry_backoff_max": 1800,
@@ -71,6 +73,10 @@ def make_celery_app() -> Celery:
         task_acks_late=True,
         task_reject_on_worker_lost=True,
         worker_prefetch_multiplier=1,
+        # 全局兜底：任何漏发 per-message 时限的消息仍有最后防线。取值须大于
+        # 最长的合法 per-message 硬限（kb 转写/视觉 4200），per-message 值优先。
+        task_soft_time_limit=4500,
+        task_time_limit=4800,
         result_expires=collector_config.celery_result_expires,
         task_default_queue=collector_config.celery_task_default_queue or DEFAULT_QUEUE,
         task_queues=tuple(
@@ -110,10 +116,11 @@ def resolve_task_options(
 ) -> dict[str, Any]:
     """返回任务的 Celery ``apply_async`` 选项。
 
-    选项包括 ``queue``、``soft_time_limit``、``hard_time_limit``、
-    ``max_retries``、``retry_backoff`` 与 ``retry_backoff_max``。TaskSpec
-    覆盖值优先于队列默认值；显式 ``queue_override``（如来自
-    ``CollectorTask.queue``）优先于一切。
+    选项包括 ``queue``、``soft_time_limit``、``time_limit``（apply_async 的
+    硬时限键，不叫 ``hard_time_limit``）、``max_retries``、``retry_backoff``
+    与 ``retry_backoff_max``（后三者供任务内 ``self.retry`` 消费，非
+    per-message 选项）。TaskSpec 覆盖值优先于队列默认值；显式
+    ``queue_override``（如来自 ``CollectorTask.queue``）优先于一切。
     """
     queue = queue_override or resolve_queue(task_name, preferred_source)
     if queue is not None and not queue.startswith("collector."):
@@ -125,9 +132,9 @@ def resolve_task_options(
         spec.soft_time_limit if spec is not None and spec.soft_time_limit is not None
         else defaults["soft_time_limit"]
     )
-    hard_time_limit = (
+    time_limit = (
         spec.hard_time_limit if spec is not None and spec.hard_time_limit is not None
-        else defaults["hard_time_limit"]
+        else defaults["time_limit"]
     )
     max_retries = (
         spec.max_retries if spec is not None and spec.max_retries is not None
@@ -137,7 +144,7 @@ def resolve_task_options(
     return {
         "queue": queue,
         "soft_time_limit": soft_time_limit,
-        "hard_time_limit": hard_time_limit,
+        "time_limit": time_limit,
         "max_retries": max_retries,
         "retry_backoff": defaults["retry_backoff"],
         "retry_backoff_max": defaults["retry_backoff_max"],
