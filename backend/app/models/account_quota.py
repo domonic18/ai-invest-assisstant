@@ -1,4 +1,4 @@
-"""账号准入与 AI 用量治理域的 SQLAlchemy ORM 模型（arch/10）。
+"""账号准入与 AI 用量治理域的 SQLAlchemy ORM 模型（arch/07）。
 
 配额真相源（user_ai_quota）、逐次计量明细（user_token_usage）、
 用户自备 Key 配置（user_llm_config）、管理审计（admin_audit_log）

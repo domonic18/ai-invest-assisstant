@@ -8,7 +8,7 @@ import pytest
 @pytest.mark.unit
 class TestAuthEndpoints:
     def test_register_success(self, client) -> None:
-        """注册改申请（arch/10 §6.1）：201 返回受理回执，不签发登录凭证。"""
+        """注册改申请（arch/07 §6.1）：201 返回受理回执，不签发登录凭证。"""
         from app.schemas.auth import RegisterAccepted
 
         with patch("app.api.v1.auth.RegisterService") as mock_register_service:

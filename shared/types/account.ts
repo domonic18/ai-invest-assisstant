@@ -1,4 +1,4 @@
-// 账号准入与 AI 用量治理域契约（F-ACCT，arch/10）
+// 账号准入与 AI 用量治理域契约（F-ACCT，arch/07）
 // wire（Api*）与前端域模型同文件维护；wire 字段 camelCase
 
 // ---- 账号状态 ----

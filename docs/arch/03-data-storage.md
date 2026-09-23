@@ -121,8 +121,8 @@
 | `user` | 用户（注册一律 user 角色，管理员经 bootstrap_admin 显式提权；`settings` JSONB 列存涨跌配色 / K 线均线等个人偏好） |
 | `user_watchlist` | 自选股（`group_id` 外键，空值归入默认分组） |
 | `user_watchlist_group` | 自选股分组（`ai_review_enabled` AI 复盘开关，默认 false） |
-| `user_kline_drawing` / `ai_kline_drawing` | K 线画线：人工画线与 AI 画线分表（五类型图形，见 [09-kline-drawing.md](./09-kline-drawing.md)） |
-| `user_llm_config` | 用户 BYOK 模型配置（api_key 加密，见 [10-account-quota.md](./10-account-quota.md)） |
+| `user_kline_drawing` / `ai_kline_drawing` | K 线画线：人工画线与 AI 画线分表（五类型图形，见 05 号文档 §5.3） |
+| `user_llm_config` | 用户 BYOK 模型配置（api_key 加密，见 [07-account-quota.md](./07-account-quota.md)） |
 | `user_ai_quota` / `user_token_usage` | 用户 AI 配额与 token 用量明细（预扣→结算计量链路，见 10 号文档） |
 | `admin_audit_log` | 管理端敏感操作审计 |
 | `system_setting` | 系统级键值设置 |
@@ -168,7 +168,7 @@
 
 | 表 | 说明 |
 |----|------|
-| `market_anomaly_sector` / `market_anomaly_stock` | 板块 / 个股异动日表（检测维度 `anomaly_types` JSONB + `trend_facts` 趋势事实 + 归因字段），见 [08-anomaly-analysis.md](./08-anomaly-analysis.md) |
+| `market_anomaly_sector` / `market_anomaly_stock` | 板块 / 个股异动日表（检测维度 `anomaly_types` JSONB + `trend_facts` 趋势事实 + 归因字段），见 [06-anomaly-analysis.md](./06-anomaly-analysis.md) |
 
 ### 3.12 社媒域
 
@@ -179,7 +179,7 @@
 | `social_sentiment` | 作品情绪标注（LLM 判断结果） |
 | `asr_channel_config` | ASR 渠道配置（社媒转写与知识库转写共用） |
 
-见 [11-social-sentiment.md](./11-social-sentiment.md)。
+见 [08-social-sentiment.md](./08-social-sentiment.md)。
 
 ### 3.13 知识库域
 
@@ -192,14 +192,14 @@
 | `kb_image_asset` | 关键帧图片资产（VLM 描述 / aHash 去重） |
 | `kb_settings` | 知识库设置（检索参数 / 转写时长限额等逐槽位配置） |
 
-见 [12-knowledge-base.md](./12-knowledge-base.md)。
+见 [09-knowledge-base.md](./09-knowledge-base.md)。
 
 ## 4. 全文与向量检索（PostgreSQL 同库）
 
 全文/向量检索不设独立引擎，全部落 PostgreSQL 扩展（ES 已于 2026-09-21 退役）：
 
 - **研报/财报全文**：`file_metadata.content`（pypdf 抽取）+ `GIN(content gin_trgm_ops)`；Agent 工具 `search_vector_kb` 走标题/全文 ILIKE 词面匹配，空结果兜底 `news_document` 研报标题/摘要
-- **知识库混合检索**：三表 `embedding halfvec(2048)` HNSW 向量路 + `search_text`/`text` 的 pg_trgm 词面路 + 服务层 RRF 融合（详见 [12-knowledge-base.md](./12-knowledge-base.md) §7）
+- **知识库混合检索**：三表 `embedding halfvec(2048)` HNSW 向量路 + `search_text`/`text` 的 pg_trgm 词面路 + 服务层 RRF 融合（详见 [09-knowledge-base.md](./09-knowledge-base.md) §7）
 
 ## 5. 对象存储（COS · S3 兼容）
 
@@ -213,7 +213,7 @@
 │       └── {stock_code}_{date}_{title}.pdf
 └── kb/                               # 知识库素材
     └── {source_id}/
-        └── pending/…                 # 上传中分片 → 转写完成后的媒体 / 关键帧资产（详见 12 号文档）
+        └── pending/…                 # 上传中分片 → 转写完成后的媒体 / 关键帧资产（详见 09 号文档）
 ```
 
 > PG 备份入 COS 尚未实施（后置池）；公告 PDF 随财报采集流程落入 `financial-reports/`，无独立前缀。

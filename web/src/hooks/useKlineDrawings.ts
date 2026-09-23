@@ -1,6 +1,6 @@
 /**
  * 画线数据 hooks（F-DRAW）：一次拉取全周期 user+ai，周期切换前端过滤；
- * 写操作乐观更新 + 失败回滚 toast（arch/09 §3.3）。
+ * 写操作乐观更新 + 失败回滚 toast（arch/05 §5.3）。
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'

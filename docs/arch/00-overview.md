@@ -9,7 +9,7 @@
 - **采集内容**：行情(K 线/分时/竞价)、财务报表、涨停/跌停池、板块行情与资金流、研报与财报 PDF、公告与新闻（含财联社电报准实时快讯）、市场宽度、宏观指标、投资日历事件、全球跟踪指标（黄金/美债收益率/美元指数等）、异动检测数据、社媒视频/评论、知识库文档
 - **AI 能力**：产业链分析、研报/财报摘要、涨停归因、每日 AI 大盘综述（六分区 v1.5.0，可模块级编辑）、自选股 AI 每日分析（六分区契约 v3.0.0）、异动归因、社媒情绪解读、AI 智能画线、AI 选股、知识库检索问答
 - **输出形式**：响应式 Web 前端（桌面 + 移动端底部导航）+ AI 助手对话面板
-- **部署方式**：SCF Web 函数（SPA + API 同源一体镜像）+ 轻量服务器（数据与采集任务）+ COS（文件），详见 [06-deployment.md](./06-deployment.md)
+- **部署方式**：SCF Web 函数（SPA + API 同源一体镜像）+ 轻量服务器（数据与采集任务）+ COS（文件），见 §2 部署架构全景图
 
 ## 2. 部署架构全景图
 
@@ -43,7 +43,7 @@
 - **API 层**：SCF Web 函数（FastAPI 一体镜像），SSE 流式输出；长任务（>900s）与需固定出口 IP 的采集爬虫留置轻量服务器执行
 - **数据与任务层**：轻量服务器承载 postgres/timescale、redis 与 Celery 采集调度（`collector_task` 表为调度真相源）
 - **文件存储**：COS（S3 兼容端点），兼作 pg_dump 定时备份目标
-- **镜像发布**：GitHub Actions 构建推送 TCR，服务器/SCF 拉取部署，详见 [06-deployment.md](./06-deployment.md)
+- **镜像发布**：GitHub Actions 构建推送 TCR（web-api / collector / douyin-signer 三镜像），服务器/SCF 拉取部署
 
 > Web 与采集共享同一套 `backend/` 代码：`app/` 是 FastAPI Web 服务，`collector/` 是采集 runtime，通过 Celery 队列（realtime/batch/heavy）执行，亦保留 CLI 单任务入口 `collector.runtime.cli` 与 SCF 事件适配 `collector.runtime.scf_handler`。
 
@@ -372,10 +372,10 @@ ai-invest-assisstant/
 | 跟踪指数 | ✅ 宏观页/工作台动态清单 | ✅ | `tracked_index_config` 全局配置 + `quote_global_index_daily`（黄金/美债收益率/美元指数）；宏观监测页消费该清单，管理 API 保留 |
 | 技能广场 | ✅ | ✅ | 业务场景 Tab（枚举来自 shared/types/skill.ts）+ 搜索；能力 / 来源徽标；整卡进入 /skills/:id 全页详情；zip 上传自动解析；自定义技能创建 / 发布 |
 | 用户设置 | ✅ 完整 | ✅ 基础 | 涨跌配色方案（红涨绿跌 / 绿涨红跌）+ 个人 K 线均线（新账户默认 MA5 / 10 / 20 / 30 / 60，MA120 默认关） |
-| 异动检测 | ✅ 单页双 Tab | ✅ 精简 | 板块（四维赋分）/ 个股（两段式管线 + 拐点计分）异动列表与详情，检测时写规则分类、归因可覆盖（见 [08](./08-anomaly-analysis.md)） |
+| 异动检测 | ✅ 单页双 Tab | ✅ 精简 | 板块（四维赋分）/ 个股（两段式管线 + 拐点计分）异动列表与详情，检测时写规则分类、归因可覆盖（见 [06](./06-anomaly-analysis.md)） |
 | AI 选股 | ✅ | ❌ | 自然语言筛选工作台（/screening），侧边栏 Agent 触发 + page_event 回写 |
-| 知识检索 | ✅ 路由保留 | ✅ | 知识库语义检索 + 电子书阅读器；导航入口暂撤（/kb 路由保留，见 [12](./12-knowledge-base.md)） |
-| AI 智能画线 | ✅ K 线图层 | ❌ | 对话触发 + 问题卡确认，AI 画线图层原位编辑/采纳（见 [09](./09-kline-drawing.md)） |
+| 知识检索 | ✅ 路由保留 | ✅ | 知识库语义检索 + 电子书阅读器；导航入口暂撤（/kb 路由保留，见 [09](./09-knowledge-base.md)） |
+| AI 智能画线 | ✅ K 线图层 | ❌ | 对话触发 + 问题卡确认，AI 画线图层原位编辑/采纳（见 05 号文档 §5.3） |
 | 后台管理 | ✅ 11 入口 + 代理配置 | ❌ | 用户 / 用量看板 / 股票 / 报告（存储统计 + 清理）/ 资讯 / LLM 配置 / MCP 服务（工具注入 AI 助手）/ 分析结果 / 采集管理三合一（执行日志 · 任务 cron · 渠道优先级）/ 社媒追踪 / 服务状态；知识库管理独立子页，代理配置仅侧边栏子菜单进入 |
 
 ## 8. 后续文档索引
@@ -384,11 +384,8 @@ ai-invest-assisstant/
 - [02-data-collection.md](./02-data-collection.md) — 采集引擎架构与 Celery 调度
 - [03-data-storage.md](./03-data-storage.md) — 数据库设计与存储方案
 - [04-ai-agent.md](./04-ai-agent.md) — AI Agent 体系设计（deepagents + YAML 提示词）
-- [05-web-frontend.md](./05-web-frontend.md) — Web 前端架构设计
-- [06-deployment.md](./06-deployment.md) — 部署架构与运维实操
-- [07-testing.md](./07-testing.md) — 测试体系设计（单元/集成/E2E/QA）
-- [08-anomaly-analysis.md](./08-anomaly-analysis.md) — 异动检测与归因（趋势事实层）
-- [09-kline-drawing.md](./09-kline-drawing.md) — K 线画线与 AI 智能画线
-- [10-account-quota.md](./10-account-quota.md) — 账户体系、AI 配额与计量
-- [11-social-sentiment.md](./11-social-sentiment.md) — 社媒情绪（抖音采集与 ASR）
-- [12-knowledge-base.md](./12-knowledge-base.md) — 知识库（上传/转写/检索/阅读器）
+- [05-web-frontend.md](./05-web-frontend.md) — Web 前端架构（组件化封装 + K 线画线图层）
+- [06-anomaly-analysis.md](./06-anomaly-analysis.md) — 异动检测与归因（趋势事实层）
+- [07-account-quota.md](./07-account-quota.md) — 账户体系、AI 配额与计量
+- [08-social-sentiment.md](./08-social-sentiment.md) — 社媒情绪（抖音采集与 ASR）
+- [09-knowledge-base.md](./09-knowledge-base.md) — 知识库（上传/转写/检索/阅读器）

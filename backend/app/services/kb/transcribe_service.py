@@ -1,4 +1,4 @@
-"""课程转写编排（arch/12 §4）：queued → processing → done / failed。
+"""课程转写编排（arch/09 §4）：queued → processing → done / failed。
 
 分片链路：ffmpeg 16kHz 单声道 wav → silencedetect 切分（≤480s）→ 逐片
 asr-1.0（并发 = ``asr_concurrency``，分片结果缓存 COS derived 前缀支持

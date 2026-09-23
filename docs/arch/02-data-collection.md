@@ -119,9 +119,9 @@ beat 周期同步，在管理后台改行即生效；下表仅列节奏概况，
 | news-storyline / news-topic（事件故事线 / 热点主题榜） | internal | 定时 |
 | sector-anomaly / stock-anomaly（板块/个股异动检测） | internal | 盘中高频 + 盘后 |
 | **社媒与知识库** | | |
-| social-video（抖音作品采集） | douyin（curl_cffi + 签名 sidecar） | 定时（见 [11](./11-social-sentiment.md)） |
+| social-video（抖音作品采集） | douyin（curl_cffi + 签名 sidecar） | 定时（见 [08](./08-social-sentiment.md)） |
 | social-sentiment（大V情绪 LLM 判断） | internal | 采集后逐条 |
-| kb-transcribe / kb-extract / kb-vision / kb-index（建库管线） | internal | */5~*/10 高频扫描（见 [12](./12-knowledge-base.md)） |
+| kb-transcribe / kb-extract / kb-vision / kb-index（建库管线） | internal | */5~*/10 高频扫描（见 [09](./09-knowledge-base.md)） |
 | kb-cleanup / collector-log-cleanup / health-check（维护类） | internal | */30 或每日 |
 
 > internal AI 任务结果按 `input_hash`（skill_id + 业务键：复盘/归因为日期，自选股分析为 code+日期）缓存于 `ai_analysis_result`，已生成则 SKIPPED（良性终态）。
@@ -272,9 +272,8 @@ class SinaKlineCollector(PostgresCollector):
 - [01-data-source.md](./01-data-source.md) — 数据源与反爬策略
 - [03-data-storage.md](./03-data-storage.md) — 数据库设计与命名约定
 - [04-ai-agent.md](./04-ai-agent.md) — AI Agent 体系（采集 → Skill 数据工具）
-- [06-deployment.md](./06-deployment.md) — 部署架构与运维
-- [08-anomaly-analysis.md](./08-anomaly-analysis.md) — 异动分析（检测算子 + AI 归因）
-- [09-kline-drawing.md](./09-kline-drawing.md) — K 线画线
-- [10-account-quota.md](./10-account-quota.md) — 账号准入与 AI 用量治理
-- [11-social-sentiment.md](./11-social-sentiment.md) — 社媒大 V 情绪追踪（douyin 采集与签名）
-- [12-knowledge-base.md](./12-knowledge-base.md) — 知识库建库管线
+- [06-anomaly-analysis.md](./06-anomaly-analysis.md) — 异动分析（检测算子 + AI 归因）
+- [05-web-frontend.md](./05-web-frontend.md) — 前端架构（含 K 线画线图层）
+- [07-account-quota.md](./07-account-quota.md) — 账号准入与 AI 用量治理
+- [08-social-sentiment.md](./08-social-sentiment.md) — 社媒大 V 情绪追踪（douyin 采集与签名）
+- [09-knowledge-base.md](./09-knowledge-base.md) — 知识库建库管线

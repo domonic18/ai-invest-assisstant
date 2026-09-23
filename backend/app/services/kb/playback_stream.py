@@ -1,4 +1,4 @@
-"""媒体代理流与字幕轨（arch/12 §8，批次 F1）。
+"""媒体代理流与字幕轨（arch/09 §8，批次 F1）。
 
 视频流必须携带 Range 头（206 分段透传，整文件抓取特征直接 400）；
 字幕轨由 ``kb_transcript_segment`` 生成 WebVTT（fetch 同源 Cookie 鉴权）。

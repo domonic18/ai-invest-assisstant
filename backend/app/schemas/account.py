@@ -1,4 +1,4 @@
-"""账号准入与 AI 用量治理域的 Pydantic schemas（arch/10）。"""
+"""账号准入与 AI 用量治理域的 Pydantic schemas（arch/07）。"""
 
 from datetime import datetime
 from typing import Any

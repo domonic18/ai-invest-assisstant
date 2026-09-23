@@ -91,7 +91,7 @@ class Settings(BaseSettings):
     llm_http_read_timeout: float = 300.0  # 等待响应首字节及后续数据的超时（秒）；非流式长文本生成常超 60s
     llm_max_retries: int = 2  # provider 默认重试次数
 
-    # AI 用量治理（F-ACCT，arch/10）
+    # AI 用量治理（F-ACCT，arch/07）
     # 配额预扣时为 completion 预留的 token 数（结束按实际 usage 结算回补）
     quota_completion_reserve_tokens: int = 1024
     # 助手 agent 按模型出口指纹缓存的实例数上界（BYOK 用户各自独立实例）

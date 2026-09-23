@@ -136,7 +136,7 @@ async def test_user_llm_connection(protocol, base_url, model_name, api_key) -> L
 
 `_agent` 全局单例 → **LRU 有界缓存**（`OrderedDict`，容量 `quota_agent_cache_size` 默认 8，闲置 TTL 惰性淘汰）：
 
-- 缓存键 `fingerprint = sha256(protocol | base_url | model_name | sha256(api_key) | mcp_tools_version | use_kb)`（`use_kb` 为会话级知识库开关维度，见 12 号文档 §9）。
+- 缓存键 `fingerprint = sha256(protocol | base_url | model_name | sha256(api_key) | mcp_tools_version | use_kb)`（`use_kb` 为会话级知识库开关维度，见 09 号文档 §9）。
 - `get_assistant_agent(cfg: ResolvedLLMConfig | None = None)`：runs.py 调用前 `resolve_user_llm` 再传入；未传参等价系统默认解析（兼容既有调用点）。BYOK 用户获得独立 agent 实例，LRU 上界防内存膨胀。
 - 顺带修复既有缺陷：llm_config 变更后 fingerprint 变化自然重建（现状仅 MCP 变更触发 reset）。
 - checkpointer 仍全局单例共享；subagents 声明不指定 model、继承主模型，自动同出口。
@@ -250,4 +250,3 @@ SSE 形态：runs.py except 分支识别 `QuotaExhaustedError` → `sse_event("e
 - [03-data-storage.md](./03-data-storage.md) — 表命名约定与幂等迁移双写规范
 - [04-ai-agent.md](./04-ai-agent.md) — 模型工厂、deepagents runtime 与 SSE 事件链
 - [05-web-frontend.md](./05-web-frontend.md) — 设置页锚点分区与后台管理页组织
-- [06-deployment.md](./06-deployment.md) — 部署拓扑与配置注入

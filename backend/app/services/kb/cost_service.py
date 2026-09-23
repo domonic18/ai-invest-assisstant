@@ -1,4 +1,4 @@
-"""费用闸门服务（arch/12 §10.2）：预估与确认入队。
+"""费用闸门服务（arch/09 §10.2）：预估与确认入队。
 
 状态机门：``uploaded --estimate--> awaiting_cost --confirm--> queued``，
 不经确认不会入队，转写任务只扫 ``queued``。

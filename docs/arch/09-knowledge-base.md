@@ -342,5 +342,4 @@ backend/collector/runtime/specs/kb.py + backend/collector/spiders/kb_*.py   # §
 - [02-data-collection.md](./02-data-collection.md) — internal 任务体系与 F-MON 健康监测
 - [04-ai-agent.md](./04-ai-agent.md) — `run_structured` 结构化输出、skill 资产与工具注入
 - [03-data-storage.md](./03-data-storage.md) — 表命名约定与幂等迁移双写规范
-- [06-deployment.md](./06-deployment.md) — compose 服务组织（本设计零新增容器）
-- [10-account-quota.md](./10-account-quota.md) — `user_token_usage` 台账与 UsageMeter 计量（kb_* feature 复用）
+- [07-account-quota.md](./07-account-quota.md) — `user_token_usage` 台账与 UsageMeter 计量（kb_* feature 复用）

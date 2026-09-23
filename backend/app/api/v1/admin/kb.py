@@ -1,6 +1,6 @@
 """管理后台知识库 API 端点（F-KB：知识源 CRUD + 素材上传链路）。
 
-上传链路（arch/12 §3）：init 批量建行 + 预签名 PUT → 浏览器直传 COS →
+上传链路（arch/09 §3）：init 批量建行 + 预签名 PUT → 浏览器直传 COS →
 uploaded 回调服务端核对。所有变更动作入审计（audit_log）。
 """
 

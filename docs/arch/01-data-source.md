@@ -117,7 +117,7 @@
 
 ### 2.10 抖音 — 社媒情绪采集
 
-视频元数据 / 评论 / ASR 转写（社媒转写与知识库分片转写共用 `adapters/minimax/asr.py` 的 speech_to_text）。抖音页面接口有 Argus 签名门禁：由 `douyin-signer` sidecar 容器（chromium warm 页 SDK 真签）承载签名，独立部署于轻量服务器；不可用时采集侧自动回退本地 a_bogus。任务域与存储详见 [11-social-sentiment.md](./11-social-sentiment.md)。
+视频元数据 / 评论 / ASR 转写（社媒转写与知识库分片转写共用 `adapters/minimax/asr.py` 的 speech_to_text）。抖音页面接口有 Argus 签名门禁：由 `douyin-signer` sidecar 容器（chromium warm 页 SDK 真签）承载签名，独立部署于轻量服务器；不可用时采集侧自动回退本地 a_bogus。任务域与存储详见 [08-social-sentiment.md](./08-social-sentiment.md)。
 
 ## 3. 渠道优先级与故障切换
 
@@ -149,6 +149,6 @@
 | 财报 PDF / 研报 PDF | COS（S3 兼容）+ 全文回填 `file_metadata.content` | 预签名 URL 下载；全文检索走 PG |
 | AI 分析结果（复盘综述/涨停归因/自选股每日分析/异动归因等） | `ai_analysis_result` 表 | 按 `input_hash`（skill_id + 业务键）幂等缓存 |
 | 投资日历事件 | `news_calendar_event` 表 | 按 `source_hash` 幂等去重 |
-| 异动检测结果（板块/个股 + 趋势事实） | `sector_anomaly` / `stock_anomaly`（trend_facts JSONB） | 检测器即时写规则分类，归因可覆盖；见 [08](./08-anomaly-analysis.md) |
-| 社媒账号/帖子/情绪 | `social_account` / `social_post` / `social_sentiment` | 见 [11](./11-social-sentiment.md) |
-| 知识库（来源/媒体/分片/知识点） | kb 域 6 表 + COS `kb/{source_id}/` | 见 [12](./12-knowledge-base.md) |
+| 异动检测结果（板块/个股 + 趋势事实） | `sector_anomaly` / `stock_anomaly`（trend_facts JSONB） | 检测器即时写规则分类，归因可覆盖；见 [06](./06-anomaly-analysis.md) |
+| 社媒账号/帖子/情绪 | `social_account` / `social_post` / `social_sentiment` | 见 [08](./08-social-sentiment.md) |
+| 知识库（来源/媒体/分片/知识点） | kb 域 6 表 + COS `kb/{source_id}/` | 见 [09](./09-knowledge-base.md) |

@@ -6,7 +6,7 @@ x-logging: &logging
 
 services:
   douyin-signer:
-    # 抖音页面签名 sidecar：chromium warm 页 SDK 真签（Argus 门禁对抗，见 docs/arch/11）。
+    # 抖音页面签名 sidecar：chromium warm 页 SDK 真签（Argus 门禁对抗，见 docs/arch/08）。
     # 仅 image 直拉（CI 构建；服务器境内无代理，playwright CDN 构建不了）；
     # 无 depends_on：独立服务，不可用时采集侧自动回退本地 a_bogus
     image: ccr.ccs.tencentyun.com/domonic18/douyin-signer:${APP_TAG:-latest}

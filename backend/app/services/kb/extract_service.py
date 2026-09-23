@@ -1,4 +1,4 @@
-"""知识点抽取服务（kb-extract internal 任务的执行体，arch/12 §6）。
+"""知识点抽取服务（kb-extract internal 任务的执行体，arch/09 §6）。
 
 两步编排：
 

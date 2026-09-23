@@ -158,4 +158,4 @@
 - [03-data-storage.md](./03-data-storage.md) — 命名约定与 `ai_analysis_result` 缓存
 - [04-ai-agent.md](./04-ai-agent.md) — Skill 体系与侧边栏 Agent
 - [05-web-frontend.md](./05-web-frontend.md) — 前端架构与页面范式
-- [12-knowledge-base.md](./12-knowledge-base.md) — 知识库（归因引用契约的检索底座）
+- [09-knowledge-base.md](./09-knowledge-base.md) — 知识库（归因引用契约的检索底座）

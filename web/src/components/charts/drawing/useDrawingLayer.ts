@@ -2,7 +2,7 @@
  * 画线图层生命周期 hook：渲染主循环 + effect 装配；指针/键盘事件处理在 layerEvents.ts，
  * 参数类型在 types.ts（前端单一真相源）。
  *
- * 设计要点（docs/arch/09-kline-drawing.md §3.2）：
+ * 设计要点（docs/arch/05-web-frontend.md §5.3）：
  * - 锚点存数据坐标 (date, price)，像素只在渲染瞬间经 convertToPixel/convertFromPixel 存在；
  * - 按 graphic 元素 id 增量 merge + 失活 remove，禁止整图 setOption（保拖拽帧率）；
  * - 扁平元素架构：可见形状/命中线/手柄/徽标都是带唯一 id 的顶层元素，不用 group children。

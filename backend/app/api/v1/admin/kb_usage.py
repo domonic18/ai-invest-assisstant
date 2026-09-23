@@ -1,4 +1,4 @@
-"""管理后台知识库用量端点（批次 G1，arch/12 §10.2）。"""
+"""管理后台知识库用量端点（批次 G1，arch/09 §10.2）。"""
 
 from datetime import date
 from typing import Annotated

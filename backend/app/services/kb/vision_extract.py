@@ -1,6 +1,6 @@
 """课程视频关键帧：选帧阶段（零 LLM）与视觉通道编排。
 
-选帧（arch/12 §4.1 阶段一）：扫 ``done 且 vision_at 为空`` 的 video 素材 →
+选帧（arch/09 §4.1 阶段一）：扫 ``done 且 vision_at 为空`` 的 video 素材 →
 下载源文件 → 三路信号选帧（vision_pipeline 纯函数）→ ffmpeg 抽帧 +
 aHash 近重复过滤 → 原图/缩略图传 COS derived 前缀 → ``kb_image_asset``
 行（pending）→ ``vision_at`` 记账（幂等键，重跑不重抽）。

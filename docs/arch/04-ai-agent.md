@@ -68,9 +68,9 @@
 | 事件故事线建线 | 资讯中心（重点与跟踪）；助手对话调用 | `skills/news-storyline/prompt.yaml` | 从资讯中识别事件并建/续故事线，持续跟踪演进 |
 | 热点主题聚类 | 资讯中心（热点主题）；助手对话调用 | `skills/news-topic/prompt.yaml` | 资讯聚类为热点主题榜（主题 / 情绪 / 传导链） |
 | 自选股 AI 每日分析 | 个股页按钮 → AI 助手侧边栏；每交易日 16:40 批量（heavy 队列） | `skills/stock-daily-analysis/prompt.yaml` | **六分区契约 v3.0.0**（盘中回顾 / 技术面 / 情绪面 / 关键事件 / 策略 / 风险线，禁止罗列点位数值），按 `input_hash`（skill+code+日期+提示词版本）缓存；技术面 / 情绪面经预计算服务取数；展示于个股详情 Tab 与自选股列表卡片 |
-| 板块 / 个股异动 AI 归因 | 检测任务尾部 top-N 自动归因；页面「AI 归因」按钮 → AI 助手侧边栏 | `skills/anomaly-attribution/`（SKILL.md + prompt.yaml + methodology.md） | 归因清单带规则分类供校正；趋势理论方法论注入 + 知识库引用契约（fail-soft 校验），详见 [08](./08-anomaly-analysis.md) §7 |
-| 社媒大 V 情绪判断 | 采集任务后自动；助手对话调用 | `skills/social-sentiment/prompt.yaml` | LLM 对抖音作品逐条情绪标注（prompt_only），见 [11](./11-social-sentiment.md) |
-| AI 智能画线 | 个股 K 线页「AI 画线」按钮 → AI 助手侧边栏 | `skills/kline-smart-drawing/` | ask_user 问题卡澄清意图 → 结构化画线 → 人工编辑采纳，见 [09](./09-kline-drawing.md) |
+| 板块 / 个股异动 AI 归因 | 检测任务尾部 top-N 自动归因；页面「AI 归因」按钮 → AI 助手侧边栏 | `skills/anomaly-attribution/`（SKILL.md + prompt.yaml + methodology.md） | 归因清单带规则分类供校正；趋势理论方法论注入 + 知识库引用契约（fail-soft 校验），详见 [06](./06-anomaly-analysis.md) §7 |
+| 社媒大 V 情绪判断 | 采集任务后自动；助手对话调用 | `skills/social-sentiment/prompt.yaml` | LLM 对抖音作品逐条情绪标注（prompt_only），见 [08](./08-social-sentiment.md) |
+| AI 智能画线 | 个股 K 线页「AI 画线」按钮 → AI 助手侧边栏 | `skills/kline-smart-drawing/` | ask_user 问题卡澄清意图 → 结构化画线 → 人工编辑采纳，见 05 号文档 §5.3 |
 | 自选股截图识别 | `POST /api/v1/users/watchlist/recognize-screenshot` | `skills/watchlist-screenshot-recognition/prompt.yaml` | 视觉模型识别截图中的股票列表，与 `stock_basic` 交叉校验后返回 |
 
 > `hotspot-detection`、`chain-breakthrough`、`financial-health-check` 为 `doc_only` 方法论技能（仅 `skills/*/SKILL.md` 业务描述），实现随页面迭代补齐。
@@ -171,7 +171,7 @@ sections:
 ```
 
 > 复盘技能目录另带 `skills/market-daily-review/methodology.md`（趋势理论 L0 手册），随提示注入；
-> 异动归因 / 自选股分析技能共用同一手册与知识库引用契约（见 [08](./08-anomaly-analysis.md) §7）。
+> 异动归因 / 自选股分析技能共用同一手册与知识库引用契约（见 [06](./06-anomaly-analysis.md) §7）。
 
 `market_review_service.generate_market_review` 按 `sections` 渲染 `section_instructions`，
 - 用户编辑过某分区 → 只重生成该分区
@@ -348,7 +348,7 @@ internal AI 生成任务由采集调度自动触发（`specs/ai.py` 共 9 个，
 - **每日复盘综述**：交易日 18:35，`spiders/market_daily_review.py` 汇总当日数据后调用 `market_review_service` 生成共享底稿
 - **涨停 AI 归因**：交易日 16:30，`spiders/limit_up_ai_review.py` 调用 `limit_up_ai_service.generate_attribution`（依赖 16:00 涨停股池；未就绪由 Celery 10 分钟退避重试 3 次兜底）
 - **自选股 AI 每日分析**：交易日 16:40，`spiders/watchlist_daily_analysis.py` 仅遍历**开启 AI 复盘开关的分组**（`watchlist_group.ai_review_enabled`）逐只生成六分区分析，单股串行避免并发限流；未开启分组的标的不消耗 LLM
-- **其余 6 个**：板块 / 个股异动检测+归因（17:45 / 17:00，见 [08](./08-anomaly-analysis.md)）、电报重要度分级 / 事件故事线 / 热点主题（高频或定时，见 02 号文档 §2.2）、产业链图谱周度刷新
+- **其余 6 个**：板块 / 个股异动检测+归因（17:45 / 17:00，见 [06](./06-anomaly-analysis.md)）、电报重要度分级 / 事件故事线 / 热点主题（高频或定时，见 02 号文档 §2.2）、产业链图谱周度刷新
 
 生成类结果均按 `input_hash`（`skill_id` + 业务键 + 提示词版本盐；复盘 / 归因为日期，自选股分析为 code+日期）缓存于 `ai_analysis_result`，已生成则 SKIPPED；Redis 分布式锁（TTL 1800s）防止定时任务与手动点击并发双跑 LLM，锁过期后释放视为良性（仅告警不报错）。
 
@@ -416,12 +416,11 @@ internal AI 生成任务由采集调度自动触发（`specs/ai.py` 共 9 个，
 
 ### 10.3 计量、配额与可观测
 
-- **用量计量**：模型调用统一经 `agent/runtime/usage_meter.py` 预扣 → 结算 → 明细入队（callback 挂在 `model_factory` 唯一出口），调用前配额预检查 `quota_service.precheck`；配额与 BYOK 治理详见 [10-account-quota.md](./10-account-quota.md)。
-- **工具留痕**：`skill_runtime` 挂共享 `TOOL_TRACE` callback，Skill 执行的工具调用链统一留痕；知识库检索执行写 `kb_search_executed` 日志（见 [12](./12-knowledge-base.md)）。
+- **用量计量**：模型调用统一经 `agent/runtime/usage_meter.py` 预扣 → 结算 → 明细入队（callback 挂在 `model_factory` 唯一出口），调用前配额预检查 `quota_service.precheck`；配额与 BYOK 治理详见 [07-account-quota.md](./07-account-quota.md)。
+- **工具留痕**：`skill_runtime` 挂共享 `TOOL_TRACE` callback，Skill 执行的工具调用链统一留痕；知识库检索执行写 `kb_search_executed` 日志（见 [09](./09-knowledge-base.md)）。
 
 ## 11. 后续文档索引
 
 - [00-overview.md](./00-overview.md) — 总体架构与目录结构
 - [03-data-storage.md](./03-data-storage.md) — 数据库设计（产业链版本表、AI 复盘多租户表）
 - [05-web-frontend.md](./05-web-frontend.md) — 前端如何展示版本化分析结果
-- [06-deployment.md](./06-deployment.md) — 部署架构（SCF 承载）

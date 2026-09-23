@@ -1,4 +1,4 @@
-"""管理后台用户管理 API 端点（含注册审批与配额治理，arch/10）。"""
+"""管理后台用户管理 API 端点（含注册审批与配额治理，arch/07）。"""
 
 from typing import Annotated
 
