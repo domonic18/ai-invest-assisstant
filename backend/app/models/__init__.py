@@ -56,6 +56,7 @@ from app.models.news_storyline import (
 from app.models.news_telegraph import NewsTelegraph
 from app.models.news_topic_snapshot import NewsTopicSnapshot
 from app.models.paper_trade import (
+    PaperTradeAccount,
     PaperTradeCashSnapshot,
     PaperTradeExecution,
     PaperTradeOrder,
@@ -130,6 +131,7 @@ __all__ = [
     "NewsSubscriptionHit",
     "NewsTelegraph",
     "NewsTopicSnapshot",
+    "PaperTradeAccount",
     "PaperTradeCashSnapshot",
     "PaperTradeExecution",
     "PaperTradeOrder",
