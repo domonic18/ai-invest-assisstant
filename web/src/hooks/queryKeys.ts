@@ -22,6 +22,7 @@ export const queryKeys = {
     usagePerUsers: (days: number) => ['admin-usage-per-users', days] as const,
     accountSettings: ['admin-account-settings'] as const,
     systemStatus: ['admin-system-status'] as const,
+    celeryQueues: ['admin-celery-queues'] as const,
   },
   auction: {
     all: ['auction'] as const,

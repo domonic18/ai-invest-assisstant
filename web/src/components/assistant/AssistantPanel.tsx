@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAssistantSessions } from './hooks/useAssistantSessions'
 import { useAssistantStore } from '@/stores/assistant'
 
+import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
+
 import { AssistantHeader } from './AssistantHeader'
 import { AssistantSidebar } from './AssistantSidebar'
 import { AssistantThread } from './AssistantThread'
@@ -58,6 +60,13 @@ export function AssistantPanel() {
   const [drawerResizing, setDrawerResizing] = useState(false)
   const drawerStartXRef = useRef(0)
   const drawerStartWidthRef = useRef(drawerWidth)
+
+  const isNarrow = useIsNarrowScreen()
+  const [mobileListOpen, setMobileListOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) setMobileListOpen(false)
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -139,41 +148,73 @@ export function AssistantPanel() {
 
   const isResizing = sidebarResizing || drawerResizing
 
+  const sidebarNode = (closeOnSelect: boolean) => (
+    <AssistantSidebar
+      sessions={sessions}
+      activeThreadId={threadId}
+      isLoading={isLoading}
+      width={isNarrow ? 300 : sidebarWidth}
+      onNewThread={() => {
+        switchThread(undefined)
+        if (closeOnSelect) setMobileListOpen(false)
+      }}
+      onSwitchThread={(id) => {
+        switchThread(id)
+        if (closeOnSelect) setMobileListOpen(false)
+      }}
+      onDeleteThread={handleDelete}
+    />
+  )
+
   return (
     <Drawer
       title={null}
       placement="right"
       open={open}
       onClose={closePanel}
-      width={drawerWidth}
+      width={isNarrow ? '100%' : drawerWidth}
       styles={{ body: { padding: 0 } }}
     >
       <div className={`relative flex h-full bg-[#0c0e12] ${isResizing ? 'select-none' : ''}`}>
-        <div
-          role="separator"
-          aria-label="调整对话框宽度"
-          onMouseDown={handleDrawerResizeStart}
-          className="absolute left-0 top-0 bottom-0 z-10 w-1.5 cursor-col-resize bg-transparent hover:bg-blue-500/20 active:bg-blue-500/40"
-        />
-        <AssistantSidebar
-          sessions={sessions}
-          activeThreadId={threadId}
-          isLoading={isLoading}
-          width={sidebarWidth}
-          onNewThread={() => switchThread(undefined)}
-          onSwitchThread={(id) => switchThread(id)}
-          onDeleteThread={handleDelete}
-        />
-        <div
-          role="separator"
-          aria-label="调整侧边栏宽度"
-          onMouseDown={handleSidebarResizeStart}
-          className="group relative z-10 w-1.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/20 active:bg-blue-500/40"
-        >
-          <div className="absolute left-1/2 top-1/2 h-8 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gray-700 transition-colors group-hover:bg-blue-400 group-active:bg-blue-300" />
-        </div>
+        {!isNarrow && (
+          <div
+            role="separator"
+            aria-label="调整对话框宽度"
+            onMouseDown={handleDrawerResizeStart}
+            className="absolute left-0 top-0 bottom-0 z-10 w-1.5 cursor-col-resize bg-transparent hover:bg-blue-500/20 active:bg-blue-500/40"
+          />
+        )}
+        {isNarrow ? (
+          mobileListOpen && (
+            <div className="absolute inset-0 z-20 flex">
+              <div
+                className="absolute inset-0 bg-black/60"
+                onClick={() => setMobileListOpen(false)}
+              />
+              <div className="relative h-full">{sidebarNode(true)}</div>
+            </div>
+          )
+        ) : (
+          sidebarNode(false)
+        )}
+        {!isNarrow && (
+          <div
+            role="separator"
+            aria-label="调整侧边栏宽度"
+            onMouseDown={handleSidebarResizeStart}
+            className="group relative z-10 w-1.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/20 active:bg-blue-500/40"
+          >
+            <div className="absolute left-1/2 top-1/2 h-8 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gray-700 transition-colors group-hover:bg-blue-400 group-active:bg-blue-300" />
+          </div>
+        )}
         <div className="flex min-w-0 flex-1 flex-col">
-          <AssistantHeader title={activeTitle} onClose={closePanel} />
+          <AssistantHeader
+            title={activeTitle}
+            onClose={closePanel}
+            showSessionsToggle={isNarrow}
+            sessionsOpen={mobileListOpen}
+            onToggleSessions={() => setMobileListOpen((v) => !v)}
+          />
           {todos && todos.length > 0 && <TodoListBar todos={todos} />}
           <div className="min-h-0 flex-1">
             {/* 不能加 key：runtime 原生支持 threadId 受控切换，加 key 会在
