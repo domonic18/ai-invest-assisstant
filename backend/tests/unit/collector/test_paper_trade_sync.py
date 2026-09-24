@@ -63,13 +63,16 @@ class TestPaperTradeSyncCollector:
     @pytest.mark.asyncio
     async def test_skips_when_not_configured(self) -> None:
         trading_day, latest, sync = _patches(
-            True, sync_side_effect=PaperTradeNotConfiguredError()
+            True,
+            sync_side_effect=PaperTradeNotConfiguredError(
+                "暂无启用的模拟盘账户，请先在模拟交易页配置"
+            ),
         )
         with trading_day, latest, sync:
             result = await _collector().run()
 
         assert result.status == CollectStatus.SKIPPED
-        assert "paper_trade_url 未配置" in (result.message or "")
+        assert "模拟盘账户" in (result.message or "")
 
     @pytest.mark.asyncio
     async def test_skips_when_lock_held(self) -> None:
