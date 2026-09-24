@@ -1,9 +1,18 @@
 import { ReloadOutlined } from '@ant-design/icons'
 import { Alert, Button, Card, Skeleton, Space, Tag, Typography, theme } from 'antd'
 import type { ServiceStatusItem, SystemStatus } from '@ai-invest/shared'
+import { Link } from 'react-router-dom'
 
 import { useSystemStatus } from '@/hooks/useSystemStatus'
 import { formatDateTime } from '@/utils/formatters'
+
+import { CeleryQueuesCard } from './CeleryQueuesCard'
+
+const CATEGORY_SECTIONS: Array<{ key: ServiceStatusItem['category']; title: string }> = [
+  { key: 'storage', title: '存储服务' },
+  { key: 'compute', title: '调度与计算' },
+  { key: 'external', title: '外部服务' },
+]
 
 function StatusDot({ up, color, size = 'h-2.5 w-2.5' }: { up: boolean; color: string; size?: string }) {
   return (
@@ -81,6 +90,22 @@ function ServiceCard({ item }: { item: ServiceStatusItem }) {
   )
 }
 
+function CategorySection({ title, items }: { title: string; items: ServiceStatusItem[] }) {
+  if (items.length === 0) return null
+  return (
+    <div>
+      <Typography.Title level={5} className="!mb-3">
+        {title}
+      </Typography.Title>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {items.map((item) => (
+          <ServiceCard key={item.key} item={item} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function SystemStatus() {
   const { data, isLoading, error, refetch, isFetching } = useSystemStatus()
 
@@ -90,7 +115,9 @@ export function SystemStatus() {
         <Typography.Title level={4} className="!mb-1">
           服务状态
         </Typography.Title>
-        <Typography.Text type="secondary">系统运行所需依赖服务的实时连接状态</Typography.Text>
+        <Typography.Text type="secondary">
+          系统运行所需依赖服务的实时连接状态与 Celery 任务队列状态
+        </Typography.Text>
       </div>
 
       {isLoading ? (
@@ -112,11 +139,25 @@ export function SystemStatus() {
       ) : (
         <>
           <OverallBanner status={data} onRefresh={() => refetch()} refreshing={isFetching} />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {data.items.map((item) => (
-              <ServiceCard key={item.key} item={item} />
-            ))}
-          </div>
+          {CATEGORY_SECTIONS.map(({ key, title }) => (
+            <CategorySection
+              key={key}
+              title={title}
+              items={data.items.filter((item) => item.category === key)}
+            />
+          ))}
+          <Alert
+            type="info"
+            showIcon
+            message={
+              <span>
+                外部行情数据源（sina / 东财 / tushare / 同花顺）不做连通性主动探测，避免触发对方
+                WAF / 限频；数据新鲜度与渠道健康请查看
+                <Link to="/admin/collector">采集管理</Link>。
+              </span>
+            }
+          />
+          <CeleryQueuesCard />
         </>
       )}
     </div>
