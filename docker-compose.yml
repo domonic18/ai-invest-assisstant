@@ -218,6 +218,8 @@ services:
       # X-Gm-Account-Id 头传入（存库加密，见后台「模拟盘账户」），不落 sidecar 环境
       # 留空 = 经 discovery.myquant.cn 服务发现柜台地址；柜台漂移时可在 .env 钉死
       GMTRADE_BROKER_URL: ${GMTRADE_BROKER_URL:-}
+      # 通道共享密钥（与调用方同值；留空 = 不校验——本地内网部署无需配置）
+      PAPER_TRADE_SHARED_SECRET: ${PAPER_TRADE_SHARED_SECRET:-}
     restart: unless-stopped
     logging: *logging
     healthcheck:

@@ -5,6 +5,7 @@ symbol 用掘金格式 SHSE.600000）。短连接：调用频度低（盘后同�
 页面按需查询），免长连接生命周期管理（同 douyin signer 先例）。
 sidecar 无状态多租户：凭证经 X-Gm-Token / X-Gm-Account-Id 请求头逐请求携带
 （CounterCredentials 由 account_service 解密后传入），本模块不落库、不持状态。
+配置 paper_trade_shared_secret 时附加 X-Shared-Secret 通道门禁头（与 sidecar 同值校验）。
 """
 
 from dataclasses import dataclass
@@ -65,6 +66,14 @@ class PaperTradeClient:
         credentials: CounterCredentials,
         json_body: Any | None = None,
     ) -> Any:
+        headers = {
+            "X-Gm-Token": credentials.token,
+            "X-Gm-Account-Id": credentials.account_id,
+        }
+        # 通道共享密钥：配置了才带（sidecar 同值校验；留空 = 内网部署无门禁）
+        shared_secret = get_settings().paper_trade_shared_secret
+        if shared_secret:
+            headers["X-Shared-Secret"] = shared_secret
         try:
             async with httpx.AsyncClient(
                 timeout=self._timeout_seconds, transport=self._transport
@@ -73,10 +82,7 @@ class PaperTradeClient:
                     method,
                     f"{self._base_url}{path}",
                     json=json_body,
-                    headers={
-                        "X-Gm-Token": credentials.token,
-                        "X-Gm-Account-Id": credentials.account_id,
-                    },
+                    headers=headers,
                 )
         except httpx.HTTPError as exc:
             raise PaperTradeGatewayError(f"模拟盘网关不可达: {exc}") from exc
