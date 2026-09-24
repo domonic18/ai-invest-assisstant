@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { StockChartView } from '@/components/charts/stockChartView'
+import { usePaperTradeTradeMarkers } from '@/hooks/usePaperTrade'
 
 import {
   buildViews,
@@ -30,6 +31,12 @@ export function StockChartArea({ stockCode }: StockChartAreaProps) {
   const [views, setViews] = useState<ChartViewConfig[]>(() => buildViews(true))
   const [dual, setDual] = useState(true)
   const [viewsLoaded, setViewsLoaded] = useState(false)
+
+  // 模拟盘成交回报 → 图表 B/S/T 标记（未登录/无成交为空数组，不影响图表）
+  const markersQuery = usePaperTradeTradeMarkers(
+    /^\d{6}$/.test(stockCode) ? stockCode : undefined,
+  )
+  const tradeMarks = useMemo(() => markersQuery.data?.items ?? [], [markersQuery.data])
 
   const storageKey = useMemo(() => `${STORAGE_KEY}.${stockCode}`, [stockCode])
 
@@ -130,6 +137,7 @@ export function StockChartArea({ stockCode }: StockChartAreaProps) {
           onIndicatorsChange={(indicators) => updateView(view.id, { indicators })}
           height={viewHeights[i] ?? MIN_CHART_HEIGHT}
           layoutToggle={i === 0 ? { value: dual, onChange: handleDualChange } : undefined}
+          tradeMarks={tradeMarks}
         />
       ))}
     </div>

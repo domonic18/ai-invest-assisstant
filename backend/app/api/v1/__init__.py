@@ -19,6 +19,7 @@ from app.api.v1 import (
     kline,
     market,
     news,
+    paper_trade,
     research,
     screening,
     sector_detail,
@@ -41,6 +42,7 @@ from app.api.v1.admin import kb_usage as admin_kb_usage
 from app.api.v1.admin import llm_config as admin_llm_configs
 from app.api.v1.admin import mcp_configs as admin_mcp_configs
 from app.api.v1.admin import news as admin_news
+from app.api.v1.admin import paper_trade as admin_paper_trade
 from app.api.v1.admin import proxy_configs as admin_proxy_configs
 from app.api.v1.admin import reports as admin_reports
 from app.api.v1.admin import social as admin_social
@@ -85,6 +87,9 @@ api_router.include_router(drawings.router, prefix="/kline-drawings", tags=["draw
 api_router.include_router(screening.router, prefix="/screening", tags=["screening"])
 api_router.include_router(social.router, prefix="/social", tags=["social"])
 api_router.include_router(kb.router, prefix="/kb", tags=["kb"])
+api_router.include_router(
+    paper_trade.router, prefix="/paper-trade", tags=["paper-trade"]
+)
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(admin_users.router, prefix="/users")
@@ -92,6 +97,7 @@ admin_router.include_router(admin_account.router)
 admin_router.include_router(admin_stocks.router, prefix="/stocks")
 admin_router.include_router(admin_reports.router, prefix="/reports")
 admin_router.include_router(admin_news.router, prefix="/news")
+admin_router.include_router(admin_paper_trade.router)
 admin_router.include_router(admin_telegraph.router, prefix="/telegraph")
 admin_router.include_router(admin_tasks.router, prefix="/tasks")
 admin_router.include_router(admin_system.router, prefix="/system")

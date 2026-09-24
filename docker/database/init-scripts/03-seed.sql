@@ -392,7 +392,9 @@ VALUES
     -- F-KB：课程视频关键帧（每 10 分钟扫描 done 视频选帧 + pending 图片 VLM 描述，两阶段）
     ('kb_vision_scan', 'kb-vision', 'internal', '*/10 * * * *', true),
     -- F-KB：知识库索引构建（每 5 分钟增量扫描三类脏行向量化入 ES；force_rebuild 蓝绿重建）
-    ('kb_index_scan', 'kb-index', 'internal', '*/5 * * * *', true)
+    ('kb_index_scan', 'kb-index', 'internal', '*/5 * * * *', true),
+    -- 模拟盘盘后同步：16:00 清算稳定且在复盘链之前（掘金仿真当日委托/成交/资金快照幂等落库）
+    ('paper_trade_sync_1600', 'paper-trade-sync', 'internal', '0 16 * * 1-5', true)
 ON CONFLICT (task_name) DO UPDATE
 SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;
 

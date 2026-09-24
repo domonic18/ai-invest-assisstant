@@ -65,6 +65,14 @@ const MacroMonitor = lazy(() =>
   import('./pages/MacroMonitor/MacroMonitor').then((m) => ({ default: m.MacroMonitor })),
 )
 const News = lazy(() => import('./pages/News').then((m) => ({ default: m.News })))
+const PaperTrade = lazy(() =>
+  import('./pages/PaperTrade').then((m) => ({ default: m.PaperTrade })),
+)
+const PaperTradeAccountsAdmin = lazy(() =>
+  import('./pages/Admin/PaperTradeAccounts').then((m) => ({
+    default: m.PaperTradeAccountsAdmin,
+  })),
+)
 const Register = lazy(() => import('./pages/Register/Register').then((m) => ({ default: m.Register })))
 const ScreeningPage = lazy(() =>
   import('./pages/Screening/ScreeningPage').then((m) => ({ default: m.ScreeningPage })),
@@ -121,6 +129,8 @@ export const router = createBrowserRouter([
       { path: 'skills', element: lazyEl(<SkillsPage />) },
       { path: 'skills/:skillId', element: lazyEl(<SkillDetailPage />) },
       { path: 'watchlist', element: lazyEl(<Watchlist />) },
+      // 模拟盘：掘金仿真只读展示（批次 2）；Agent 交易工具在批次 3 接入
+      { path: 'paper-trade', element: lazyEl(<PaperTrade />) },
       // AI 选股：问财即席筛选，结果为 SPA 会话临时内容（迭代 6）
       { path: 'screening', element: lazyEl(<ScreeningPage />) },
       {
@@ -143,6 +153,7 @@ export const router = createBrowserRouter([
           { path: 'ai-results', element: lazyEl(<AiResultsAdmin />) },
           { path: 'collector-channels', element: <Navigate to="/admin/collector?tab=channels" replace /> },
           { path: 'collector', element: lazyEl(<CollectorAdmin />) },
+          { path: 'paper-trade', element: lazyEl(<PaperTradeAccountsAdmin />) },
           { path: 'system-status', element: lazyEl(<SystemStatusPage />) },
         ],
       },
