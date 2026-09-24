@@ -1,4 +1,5 @@
-import { DatePicker, Table, Tabs, Typography } from 'antd'
+import { SyncOutlined } from '@ant-design/icons'
+import { Button, DatePicker, Popconfirm, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { Dayjs } from 'dayjs'
 import { useState } from 'react'
@@ -8,7 +9,12 @@ import type {
   ApiPaperTradeOrder,
 } from '@ai-invest/shared'
 
-import { usePaperTradeExecutions, usePaperTradeOrders } from '@/hooks/usePaperTrade'
+import {
+  useCancelPaperTradeOrder,
+  useDelayedPaperTradeSync,
+  usePaperTradeExecutions,
+  usePaperTradeOrders,
+} from '@/hooks/usePaperTrade'
 import {
   fallColor,
   formatDateTime,
@@ -20,11 +26,22 @@ import {
   paperTradeOrderType,
 } from '@ai-invest/shared'
 
+import { isMarketOpen } from './tradingRules'
+
 const PAGE_SIZE = 20
+
+/** 可撤单状态：已报 / 部分成交。 */
+const CANCELLABLE_STATUSES = new Set([1, 2])
 
 function sideCell(side: number | null | undefined) {
   if (side === 1) return <span style={{ color: riseColor() }}>买入</span>
   if (side === 2) return <span style={{ color: fallColor() }}>卖出</span>
+  return '-'
+}
+
+function sourceCell(source?: string | null) {
+  if (source === 'agent') return <Tag color="gold">Agent</Tag>
+  if (source === 'manual') return <Tag>人工</Tag>
   return '-'
 }
 
@@ -35,7 +52,7 @@ function stockCell(record: { stockCode?: string | null; symbol: string }) {
   return symbol.includes('.') ? symbol.split('.')[1] : symbol
 }
 
-const orderColumns: ColumnsType<ApiPaperTradeOrder> = [
+const baseOrderColumns: ColumnsType<ApiPaperTradeOrder> = [
   {
     title: '时间',
     dataIndex: 'counterCreatedAt',
@@ -78,6 +95,12 @@ const orderColumns: ColumnsType<ApiPaperTradeOrder> = [
     dataIndex: 'status',
     width: 80,
     render: (v: number) => paperTradeOrderStatus(v),
+  },
+  {
+    title: '来源',
+    dataIndex: 'orderSource',
+    width: 80,
+    render: (v: string | undefined) => sourceCell(v),
   },
   {
     title: '拒单原因',
@@ -146,16 +169,76 @@ interface HistoryState {
   page: number
 }
 
-function OrdersTab() {
+/** 同步柜台按钮（配 usePaperTradeSyncAction 的 pending 使用）。 */
+export function SyncButton({
+  pending,
+  onClick,
+}: {
+  pending: boolean
+  onClick: () => void
+}) {
+  return (
+    <Button size="small" icon={<SyncOutlined />} loading={pending} onClick={onClick}>
+      同步柜台
+    </Button>
+  )
+}
+
+/** 委托列表（默认最近交易日 + 可撤单；交易时段 30s 自动推进状态）。 */
+export function PaperTradeOrdersPanel({
+  accountId,
+  onSynced,
+}: {
+  accountId: number
+  onSynced?: () => Promise<unknown>
+}) {
   const [{ tradeDate, page }, setState] = useState<HistoryState>({
     tradeDate: null,
     page: 1,
   })
   const query = usePaperTradeOrders(
+    accountId,
     tradeDate ? tradeDate.format('YYYY-MM-DD') : undefined,
     page,
     PAGE_SIZE,
+    // 交易时段 30s 轮询推进委托状态；refetch 间隙重估，收盘自动停
+    () => (isMarketOpen() ? 30_000 : false),
   )
+  const cancelMutation = useCancelPaperTradeOrder()
+  const scheduleSync = useDelayedPaperTradeSync()
+
+  // 撤单后即时同步柜台，再在 t+3s/t+15s 静默补同步（撤成回报异步到达）
+  const handleCancel = async (clOrdId: string) => {
+    try {
+      await cancelMutation.mutateAsync({ accountId, clOrdId })
+      scheduleSync(accountId)
+      await onSynced?.()
+    } catch {
+      // 柜台拒撤/403 已由 mutation onError 弹窗
+    }
+  }
+
+  const orderColumns: ColumnsType<ApiPaperTradeOrder> = [
+    ...baseOrderColumns,
+    {
+      title: '操作',
+      key: 'action',
+      width: 70,
+      render: (_, record) =>
+        CANCELLABLE_STATUSES.has(record.status) ? (
+          <Popconfirm
+            title="确认撤销该笔委托？"
+            okText="撤单"
+            cancelText="取消"
+            onConfirm={() => void handleCancel(record.clOrdId)}
+          >
+            <Button type="link" size="small" danger disabled={cancelMutation.isPending}>
+              撤单
+            </Button>
+          </Popconfirm>
+        ) : null,
+    },
+  ]
 
   return (
     <div className="space-y-3">
@@ -163,6 +246,7 @@ function OrdersTab() {
         value={tradeDate}
         placeholder="默认最近交易日"
         allowClear
+        size="small"
         onChange={(value) => setState((prev) => ({ ...prev, tradeDate: value, page: 1 }))}
       />
       <Table<ApiPaperTradeOrder>
@@ -180,18 +264,20 @@ function OrdersTab() {
           size: 'small',
           onChange: (next) => setState((prev) => ({ ...prev, page: next })),
         }}
-        scroll={{ x: 860 }}
+        scroll={{ x: 1010 }}
       />
     </div>
   )
 }
 
-function ExecutionsTab() {
+/** 成交列表（默认最近交易日）。 */
+export function PaperTradeExecutionsPanel({ accountId }: { accountId: number }) {
   const [{ tradeDate, page }, setState] = useState<HistoryState>({
     tradeDate: null,
     page: 1,
   })
   const query = usePaperTradeExecutions(
+    accountId,
     tradeDate ? tradeDate.format('YYYY-MM-DD') : undefined,
     page,
     PAGE_SIZE,
@@ -203,6 +289,7 @@ function ExecutionsTab() {
         value={tradeDate}
         placeholder="默认最近交易日"
         allowClear
+        size="small"
         onChange={(value) => setState((prev) => ({ ...prev, tradeDate: value, page: 1 }))}
       />
       <Table<ApiPaperTradeExecution>
@@ -223,17 +310,5 @@ function ExecutionsTab() {
         scroll={{ x: 760 }}
       />
     </div>
-  )
-}
-
-export function PaperTradeOrderHistory() {
-  return (
-    <Tabs
-      defaultActiveKey="orders"
-      items={[
-        { key: 'orders', label: '委托', children: <OrdersTab /> },
-        { key: 'executions', label: '成交', children: <ExecutionsTab /> },
-      ]}
-    />
   )
 }
