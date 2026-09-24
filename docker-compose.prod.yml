@@ -30,6 +30,32 @@ services:
         limits:
           memory: 2G
 
+  paper-trade:
+    # 掘金线上仿真交易 sidecar：REST 网关接 sim.myquant.cn 网页版同款柜台
+    # （gmtrade SDK 云端 TCP 网关已废弃，见 docker/paper-trade/main.py 头注释）。
+    # 仅 image 直拉（CI 构建）；无 ports：仅 compose 内网可达
+    image: ccr.ccs.tencentyun.com/domonic18/paper-trade:${APP_TAG:-latest}
+    environment:
+      TZ: Asia/Shanghai
+      # 无状态多租户：掘金 token/account_id 由 app 服务层逐请求经 X-Gm-Token /
+      # X-Gm-Account-Id 头传入（存库加密，见后台「模拟盘账户」），不落 sidecar 环境。
+      # 留空 = 经 discovery.myquant.cn 服务发现柜台地址；柜台漂移时可在 .env 钉死
+      GMTRADE_BROKER_URL: ${GMTRADE_BROKER_URL:-}
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8020/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
   celery-beat:
     build:
       context: .
@@ -65,6 +91,8 @@ services:
       COLLECTOR_QUEUE: ${CELERY_WORKER_QUEUES:-collector.realtime,collector.batch}
       COLLECTOR_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY:-2}
       COLLECTOR_MAX_TASKS_PER_CHILD: ${CELERY_WORKER_MAX_TASKS_PER_CHILD:-200}
+      # 掘金仿真 sidecar（compose 服务名直连；置空禁用模拟盘功能）
+      PAPER_TRADE_URL: ${PAPER_TRADE_URL:-http://paper-trade:8020}
     depends_on:
       postgres:
         condition: service_healthy
@@ -101,6 +129,7 @@ services:
       COLLECTOR_QUEUE: ${CELERY_HEAVY_QUEUE:-collector.heavy}
       COLLECTOR_CONCURRENCY: ${CELERY_HEAVY_CONCURRENCY:-1}
       COLLECTOR_MAX_TASKS_PER_CHILD: ${CELERY_HEAVY_MAX_TASKS_PER_CHILD:-10}
+      PAPER_TRADE_URL: ${PAPER_TRADE_URL:-http://paper-trade:8020}
     depends_on:
       postgres:
         condition: service_healthy
