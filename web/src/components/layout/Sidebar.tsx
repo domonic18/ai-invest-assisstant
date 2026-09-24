@@ -12,6 +12,7 @@ import {
   GlobalOutlined,
   HeatMapOutlined,
   MenuFoldOutlined,
+  MoneyCollectOutlined,
   MenuUnfoldOutlined,
   PieChartOutlined,
   PlayCircleOutlined,
@@ -174,6 +175,8 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
   const items: MenuItem[] = [
     { key: '/workbench', icon: <AppstoreOutlined />, label: '工作台' },
     { key: '/watchlist', icon: <StarOutlined />, label: '我的自选' },
+    // 模拟盘：掘金仿真账户（资金/持仓/委托/净值，批次 3 起接 Agent 交易）
+    { key: '/paper-trade', icon: <MoneyCollectOutlined />, label: '模拟盘' },
     { type: 'group', key: 'group-detection', label: '检测', children: DETECTION_MENU_ITEMS },
     { type: 'group', key: 'group-analysis', label: '分析', children: ANALYSIS_MENU_ITEMS },
     { type: 'group', key: 'group-settings', label: '设置', children: settingsChildren },

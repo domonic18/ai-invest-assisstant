@@ -226,6 +226,15 @@ export const queryKeys = {
     overview: ['workbench', 'overview'] as const,
     reviewStatus: ['workbench', 'reviewStatus'] as const,
   },
+  paperTrade: {
+    all: ['paper-trade'] as const,
+    overview: ['paper-trade', 'overview'] as const,
+    orders: (tradeDate?: string, page?: number, pageSize?: number) =>
+      ['paper-trade', 'orders', tradeDate ?? null, page ?? 1, pageSize ?? 20] as const,
+    executions: (tradeDate?: string, page?: number, pageSize?: number) =>
+      ['paper-trade', 'executions', tradeDate ?? null, page ?? 1, pageSize ?? 20] as const,
+    nav: (days: number) => ['paper-trade', 'nav', days] as const,
+  },
   klineDrawings: {
     /** 全周期画线（period 为归属键，周期切换前端过滤） */
     target: (targetType: string, targetCode: string) =>
