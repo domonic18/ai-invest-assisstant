@@ -6,9 +6,12 @@ import {
   SettingOutlined,
 } from '@ant-design/icons'
 import { Button, Dropdown, Popover, Radio } from 'antd'
+import { useNavigate } from 'react-router-dom'
 
 import { useSettingsStore } from '@/stores/settings'
 
+import { AiDrawingButton } from '../drawing/AiDrawingButton'
+import { DrawingToolbar } from '../drawing/DrawingToolbar'
 import { BORDER_COLOR, PERIOD_OPTIONS } from './constants'
 import type { StockChartViewIndicators } from './StockChartView'
 
@@ -24,7 +27,11 @@ interface ChartToolbarProps {
   onPeriodChange: (period: string) => void
   indicators: StockChartViewIndicators
   onToggleIndicator: (key: keyof StockChartViewIndicators) => void
+  /** 周期选项子集（缺省展示个股全部周期，如板块仅 日K/周K）。 */
+  periodOptions?: { label: string; value: string }[]
   layoutToggle?: { value: boolean; onChange: (dual: boolean) => void }
+  /** 画线工具条（分钟线等不支持画线的视图关闭）。 */
+  drawing?: boolean
   onResetZoom: () => void
   isFullscreen: boolean
   onToggleFullscreen: () => void
@@ -35,13 +42,16 @@ export function ChartToolbar({
   onPeriodChange,
   indicators,
   onToggleIndicator,
+  periodOptions = PERIOD_OPTIONS,
   layoutToggle,
+  drawing = false,
   onResetZoom,
   isFullscreen,
   onToggleFullscreen,
 }: ChartToolbarProps) {
   const colorScheme = useSettingsStore((s) => s.colorScheme)
   const setColorScheme = useSettingsStore((s) => s.setColorScheme)
+  const navigate = useNavigate()
 
   const indicatorItems = INDICATOR_OPTIONS.map((opt) => ({
     key: opt.key,
@@ -63,7 +73,7 @@ export function ChartToolbar({
       style={{ height: 36, borderBottom: `1px solid ${BORDER_COLOR}` }}
     >
       <div className="flex items-center gap-0.5 rounded-md p-0.5 bg-[#1c1f26]">
-        {PERIOD_OPTIONS.map((opt) => (
+        {periodOptions.map((opt) => (
           <button
             key={opt.value}
             type="button"
@@ -79,6 +89,9 @@ export function ChartToolbar({
         ))}
       </div>
       <span className="w-px h-4 bg-[#23262d]" />
+      {drawing && <DrawingToolbar />}
+      {drawing && <AiDrawingButton />}
+      {drawing && <span className="w-px h-4 bg-[#23262d]" />}
       <Dropdown
         trigger={['click']}
         menu={{
@@ -134,6 +147,9 @@ export function ChartToolbar({
               </div>
               <Button size="small" block onClick={onResetZoom}>
                 复位缩放窗口
+              </Button>
+              <Button size="small" block onClick={() => navigate('/settings')}>
+                更多设置
               </Button>
             </div>
           }

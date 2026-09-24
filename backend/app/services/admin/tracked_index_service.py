@@ -1,9 +1,11 @@
 """跟踪指数配置服务：CRUD + 启用校验 + 最新行情联查。"""
 
+import re
+
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.constants import GLOBAL_INDEX_CODES, INDEX_CODES
+from app.core.constants import GLOBAL_INDEX_CODES
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.models.tracked_index import TrackedIndexConfig
 from app.repositories.admin.tracked_index_repository import TrackedIndexRepository
@@ -17,6 +19,8 @@ logger = structlog.get_logger()
 
 _A_SHARE_SOURCE = "sina"
 _MARKET_CATEGORIES = ("A股", "全球")
+# 任意 A 股指数/ETF 代码（新浪日 K 两类接口均覆盖，写入 quote_kline_stock_daily）
+_A_SHARE_CODE_RE = re.compile(r"^(sh|sz)\d{6}$")
 
 
 class TrackedIndexService:
@@ -127,16 +131,26 @@ class TrackedIndexService:
     def _validate_enable(
         index_code: str, market_category: str, data_source: str
     ) -> None:
-        """启用校验：启用态必须能对应到真实数据源，违者 400。"""
+        """启用校验：启用态必须能对应到真实数据源，违者 400。
+
+        A 股放开到任意 sh/sz 指数/ETF 代码（新浪日 K 全覆盖，采集任务会
+        自动纳入配置清单）；全球仍限 GLOBAL_INDEX_CODES 注册表（逐源
+        secid/字段映射，暂不支持任意代码）。
+        """
         if market_category == "全球":
             meta = GLOBAL_INDEX_CODES.get(index_code)
             supported = meta is not None and meta["data_source"] == data_source
         elif market_category == "A股":
-            supported = index_code in INDEX_CODES and data_source == _A_SHARE_SOURCE
+            supported = (
+                _A_SHARE_CODE_RE.match(index_code) is not None
+                and data_source == _A_SHARE_SOURCE
+            )
         else:
             raise BadRequestError("market_category 仅支持 A股/全球")
         if not supported:
-            raise BadRequestError("无数据源的指标不允许启用")
+            raise BadRequestError(
+                "无数据源的指标不允许启用；A股代码需为 sh/sz + 6 位数字（指数或 ETF）"
+            )
 
     def _to_response(
         self, row: TrackedIndexConfig, quote: dict | None = None

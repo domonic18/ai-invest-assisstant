@@ -1,4 +1,4 @@
-import { Button, Drawer, Space } from 'antd'
+import { Drawer, Tooltip } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAssistantSessions } from './hooks/useAssistantSessions'
@@ -7,6 +7,7 @@ import { useAssistantStore } from '@/stores/assistant'
 import { AssistantHeader } from './AssistantHeader'
 import { AssistantSidebar } from './AssistantSidebar'
 import { AssistantThread } from './AssistantThread'
+import { AssistantErrorBoundary } from './AssistantErrorBoundary'
 import { AssistantRuntimeProvider } from './AssistantRuntimeProvider'
 import { TodoListBar } from './ui/TodoListBar'
 import {
@@ -21,6 +22,9 @@ import {
   readStoredWidth,
   SIDEBAR_STORAGE_KEY,
 } from './utils'
+
+import './AssistantFab.css'
+import owlImg from '@/assets/assistant-owl.png'
 
 export function AssistantPanel() {
   const open = useAssistantStore((state) => state.open)
@@ -175,9 +179,11 @@ export function AssistantPanel() {
             {/* 不能加 key：runtime 原生支持 threadId 受控切换，加 key 会在
                 threads.create 后因 onThreadIdChange 触发整个 runtime 重挂载，
                 销毁乐观消息并中断进行中的流 */}
-            <AssistantRuntimeProvider>
-              <AssistantThread />
-            </AssistantRuntimeProvider>
+            <AssistantErrorBoundary>
+              <AssistantRuntimeProvider>
+                <AssistantThread />
+              </AssistantRuntimeProvider>
+            </AssistantErrorBoundary>
           </div>
         </div>
       </div>
@@ -188,16 +194,15 @@ export function AssistantPanel() {
 export function AssistantFab() {
   const openPanel = useAssistantStore((state) => state.openPanel)
   return (
-    <Space.Compact className="fixed bottom-20 right-4 z-50 md:bottom-6">
-      <Button
-        type="primary"
-        shape="circle"
-        size="large"
+    <Tooltip title="AI 助手">
+      <button
+        type="button"
         onClick={openPanel}
-        title="AI 投研助手"
+        aria-label="打开 AI 助手"
+        className="assistant-fab fixed bottom-20 right-4 z-50 md:bottom-6"
       >
-        AI
-      </Button>
-    </Space.Compact>
+        <img src={owlImg} alt="" draggable={false} />
+      </button>
+    </Tooltip>
   )
 }

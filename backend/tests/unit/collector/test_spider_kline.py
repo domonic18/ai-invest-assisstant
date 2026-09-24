@@ -3,12 +3,14 @@
 
 import contextlib
 import datetime
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd
 import pytest
 
 from collector.spiders.eastmoney_a50_kline import EastmoneyA50KlineCollector
+from collector.spiders.sina_a50_kline import SinaA50KlineCollector
 from collector.spiders.sina_etf_kline import SinaEtfKlineCollector
 from collector.spiders.sina_index_kline import SinaIndexKlineCollector
 from collector.spiders.sina_kline import SinaKlineCollector, _fetch_watchlist_codes
@@ -36,6 +38,42 @@ class TestSinaKlineCollector:
         assert item["close"] == 10.8
         assert item["volume"] == 100000
         assert await collector.validate(item) is True
+
+    @pytest.mark.asyncio
+    async def test_collect_normalizes_turnover_ratio_to_percent(self) -> None:
+        collector = SinaKlineCollector(
+            {"source": "sina", "data_type": "quote_kline_stock_daily"}
+        )
+        mock_df = pd.DataFrame(
+            [
+                {
+                    "date": "2026-09-14",
+                    "open": 10.5,
+                    "high": 11.0,
+                    "low": 10.2,
+                    "close": 10.8,
+                    "volume": 27233830,
+                    "amount": 2.9e8,
+                    "turnover": 0.147,
+                },
+                {"date": "2026-09-15", "close": 11.0, "turnover": None},
+            ]
+        )
+        with patch("akshare.stock_zh_a_daily", return_value=mock_df):
+            raw = await collector.collect(symbols=["000037"])
+
+        assert raw[0]["turnover_rate"] == 14.7
+        assert raw[1]["turnover_rate"] is None
+        assert collector.update_columns is not None
+        assert "turnover_rate" in collector.update_columns
+
+    @pytest.mark.asyncio
+    async def test_minute_period_update_columns_exclude_daily_only_fields(self) -> None:
+        collector = SinaKlineCollector(
+            {"source": "sina", "data_type": "quote_kline_stock_minute", "period": "minute"}
+        )
+        assert collector.update_columns == ["open", "high", "low", "close", "volume", "amount"]
+        assert collector.table == "quote_kline_stock_minute"
 
     @pytest.mark.asyncio
     async def test_fetch_watchlist_codes_dedup_sorted(self) -> None:
@@ -79,9 +117,15 @@ class TestSinaIndexKlineCollector:
                 }
             ]
         )
-        with patch(
-            "akshare.stock_zh_index_daily", return_value=mock_df
-        ) as mock_fetch:
+        with (
+            patch(
+                "akshare.stock_zh_index_daily", return_value=mock_df
+            ) as mock_fetch,
+            patch(
+                "collector.spiders.sina_index_kline.fetch_tracked_extra_codes",
+                AsyncMock(return_value=[]),
+            ),
+        ):
             raw = await collector.collect()
 
         assert mock_fetch.call_count == len(INDEX_CODES)
@@ -119,7 +163,15 @@ class TestSinaEtfKlineCollector:
                 }
             ]
         )
-        with patch("akshare.fund_etf_hist_sina", return_value=mock_df) as mock_fetch:
+        with (
+            patch(
+                "akshare.fund_etf_hist_sina", return_value=mock_df
+            ) as mock_fetch,
+            patch(
+                "collector.spiders.sina_etf_kline.fetch_tracked_extra_codes",
+                AsyncMock(return_value=[]),
+            ),
+        ):
             raw = await collector.collect()
 
         mock_fetch.assert_called_once_with(symbol="sh510300")
@@ -133,7 +185,13 @@ class TestSinaEtfKlineCollector:
     @pytest.mark.asyncio
     async def test_collect_empty_returns_empty(self) -> None:
         collector = SinaEtfKlineCollector({"source": "sina", "data_type": "etf-kline"})
-        with patch("akshare.fund_etf_hist_sina", return_value=pd.DataFrame()):
+        with (
+            patch("akshare.fund_etf_hist_sina", return_value=pd.DataFrame()),
+            patch(
+                "collector.spiders.sina_etf_kline.fetch_tracked_extra_codes",
+                AsyncMock(return_value=[]),
+            ),
+        ):
             assert await collector.collect() == []
 
 
@@ -186,3 +244,98 @@ class TestEastmoneyA50KlineCollector:
             return_value=response,
         ):
             assert await collector.collect() == []
+
+
+@pytest.mark.unit
+class TestSinaA50KlineCollector:
+    @staticmethod
+    def _mock_httpx(payload: object) -> MagicMock:
+        response = MagicMock()
+        response.text = f"var _=({json.dumps(payload)});"
+        client = MagicMock()
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        client.get = AsyncMock(return_value=response)
+        fake_httpx = MagicMock()
+        fake_httpx.AsyncClient = MagicMock(return_value=client)
+        return fake_httpx
+
+    @pytest.mark.asyncio
+    async def test_collect_parses_jsonp_daily_kline(self) -> None:
+        collector = SinaA50KlineCollector(
+            {"source": "sina", "data_type": "a50-kline"}
+        )
+        payload = {
+            "data": [
+                {
+                    "date": "2026-07-20",
+                    "open": "14827.0",
+                    "close": "14846.0",
+                    "high": "14860.0",
+                    "low": "14795.0",
+                    "volume": "43201",
+                },
+                {"date": "bad", "open": None},
+            ]
+        }
+        with patch(
+            "collector.spiders.sina_a50_kline.httpx", self._mock_httpx(payload)
+        ):
+            raw = await collector.collect()
+
+        assert len(raw) == 1
+        assert raw[0] == {
+            "stock_code": "CN00Y",
+            "trade_date": datetime.date(2026, 7, 20),
+            "open": "14827.0",
+            "close": "14846.0",
+            "high": "14860.0",
+            "low": "14795.0",
+            "volume": "43201",
+            "amount": None,
+        }
+        item = await collector.transform(raw[0])
+        assert item["close"] == 14846.0
+        assert await collector.validate(item) is True
+
+    @pytest.mark.asyncio
+    async def test_collect_accepts_plain_list_payload(self) -> None:
+        collector = SinaA50KlineCollector(
+            {"source": "sina", "data_type": "a50-kline"}
+        )
+        payload = [
+            {"date": "2026-07-20", "close": "14846.0"},
+        ]
+        with patch(
+            "collector.spiders.sina_a50_kline.httpx", self._mock_httpx(payload)
+        ):
+            raw = await collector.collect()
+
+        assert len(raw) == 1
+        assert raw[0]["stock_code"] == "CN00Y"
+        assert raw[0]["amount"] is None
+
+    @pytest.mark.asyncio
+    async def test_collect_empty_returns_empty(self) -> None:
+        collector = SinaA50KlineCollector(
+            {"source": "sina", "data_type": "a50-kline"}
+        )
+        with patch("collector.spiders.sina_a50_kline.httpx", self._mock_httpx([])):
+            assert await collector.collect() == []
+
+    @pytest.mark.asyncio
+    async def test_collect_non_jsonp_raises(self) -> None:
+        collector = SinaA50KlineCollector(
+            {"source": "sina", "data_type": "a50-kline"}
+        )
+        response = MagicMock()
+        response.text = "<html>blocked</html>"
+        client = MagicMock()
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        client.get = AsyncMock(return_value=response)
+        fake_httpx = MagicMock()
+        fake_httpx.AsyncClient = MagicMock(return_value=client)
+        with patch("collector.spiders.sina_a50_kline.httpx", fake_httpx):
+            with pytest.raises(ValueError, match="JSONP"):
+                await collector.collect()

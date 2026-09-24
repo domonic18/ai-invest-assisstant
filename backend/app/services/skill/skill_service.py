@@ -185,6 +185,27 @@ class SkillService:
         logger.info("skill_uninstalled", user_id=user_id, skill_id=skill_id)
         return UserSkillResponse(skill_id=skill_id, installed=False, enabled=enabled)
 
+    async def toggle_install_skill(
+        self, user_id: int, skill_id: str, enabled: bool
+    ) -> UserSkillResponse:
+        """启用/停用已安装技能（不改安装关系）。
+
+        Raises:
+            NotFoundError: 未安装。
+        """
+        install = await self.installs.get_install(user_id, skill_id)
+        if install is None:
+            raise NotFoundError(f"技能未安装: {skill_id}")
+        install.enabled = enabled
+        await self.session.commit()
+        logger.info(
+            "skill_install_toggled",
+            user_id=user_id,
+            skill_id=skill_id,
+            enabled=enabled,
+        )
+        return UserSkillResponse(skill_id=skill_id, installed=True, enabled=enabled)
+
     async def create_custom_skill(
         self, user_id: int, payload: CustomSkillCreateRequest
     ) -> SkillResponse:
@@ -202,6 +223,7 @@ class SkillService:
             skill_id=payload.skill_id,
             label=payload.label,
             kind="custom",
+            scenario="custom",
             description=payload.description,
             is_builtin=False,
             owner_user_id=user_id,
@@ -267,6 +289,7 @@ class SkillService:
             skill_id=row.skill_id,
             label=row.label,
             kind=row.kind,
+            scenario=row.scenario,
             is_builtin=row.is_builtin,
             published=row.published,
             installed=install is not None,

@@ -16,13 +16,16 @@ _SUMMARY_SKILL_ID = "financial-report-summary"
 
 
 class FinancialReportSummaryResult(BaseModel):
-    """LLM 结构化输出：单篇财报摘要字段（正文缺失时输出空字符串）。"""
+    """LLM 结构化输出：单篇财报摘要字段（正文缺失时输出空字符串）。
 
-    core_performance: str = ""
-    revenue_profit: str = ""
-    business_highlights: str = ""
-    risk_warning: str = ""
-    outlook: str = ""
+    字段禁带默认值：默认值不进 required，LLM 会静默省略该字段（news-score 事故）。
+    """
+
+    core_performance: str
+    revenue_profit: str
+    business_highlights: str
+    risk_warning: str
+    outlook: str
 
 
 REPORT_TYPE_LABELS = {
@@ -96,9 +99,9 @@ class FinancialReportSummarizer:
             ) from exc
 
     async def _extract_text(self, file_bytes: bytes) -> str:
-        from app.services.common.knowledge_base_service import get_knowledge_base_service
+        from app.services.common.pdf_text import extract_pdf_text
 
-        text = await get_knowledge_base_service().extract_text(file_bytes, "pdf")
+        text = await extract_pdf_text(file_bytes)
         if not text:
             raise SummaryUnavailableError("PDF 文本抽取失败或内容为空")
         return text[:SUMMARY_TEXT_LIMIT]

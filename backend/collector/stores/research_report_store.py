@@ -9,8 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.file_metadata import FileMetadata
-from app.models.news_announcement import NewsAnnouncement
+from app.models.news_document import NewsDocument
 from app.services.common.minio_service import MinIOService
+from app.services.common.pdf_text import extract_pdf_text
 from collector.core.base import get_engine
 
 logger = structlog.get_logger()
@@ -21,7 +22,7 @@ _FILE_CATEGORY = "research_report"
 class ResearchReportStore:
     """把研报元数据写入数据库、PDF 存入 MinIO。
 
-    元数据始终持久化到 ``news_announcement``（按 ``source_url`` upsert），即使
+    元数据始终持久化到 ``news_document``（按 ``source_url`` upsert），即使
     PDF 下载失败研报仍可见。MinIO 失败只记录日志，不阻塞数据库记录。
     """
 
@@ -61,8 +62,8 @@ class ResearchReportStore:
         extra: dict[str, Any] = dict(item.get("extra") or {})
 
         result = await session.execute(
-            select(NewsAnnouncement).where(
-                NewsAnnouncement.source_url == source_url
+            select(NewsDocument).where(
+                NewsDocument.source_url == source_url
             )
         )
         row = result.scalar_one_or_none()
@@ -75,7 +76,7 @@ class ResearchReportStore:
             merged.update(extra)
             row.extra = merged
         else:
-            row = NewsAnnouncement(
+            row = NewsDocument(
                 stock_code=stock_code,
                 doc_type="research",
                 title=title,
@@ -139,3 +140,7 @@ class ResearchReportStore:
             msg = f"MinIO upload failed for {object_name}: {exc}"
             logger.warning("research_report_minio_upload_failed", error=msg)
             errors.append(msg)
+
+        content = await extract_pdf_text(file_bytes)
+        if content:
+            file_record.content = content

@@ -161,38 +161,39 @@ class TestUpdateAiReview:
 
 @pytest.mark.unit
 class TestGlobalIndicesEndpoint:
-    def test_returns_enabled_quotes(self, client) -> None:
-        with patch(
-            "app.api.v1.market.global_index_service.get_global_index_quotes",
-            AsyncMock(
-                return_value=[
-                    {
-                        "index_code": "GC00Y",
-                        "index_name": "COMEX黄金",
-                        "close": 2650.5,
-                        "change_pct": 0.83,
-                        "trade_date": date(2026, 9, 2),
-                    }
-                ]
+    def test_returns_enabled_quotes(self, auth_client) -> None:
+        settings = type("Settings", (object,), {"tracked_index_codes": None})()
+        with (
+            patch(
+                "app.api.v1.market.UserService.get_settings",
+                AsyncMock(return_value=settings),
             ),
-        ) as svc_mock:
-            resp = client.get("/api/v1/market/global-indices")
+            patch(
+                "app.api.v1.market.global_index_service.get_global_index_quotes",
+                AsyncMock(
+                    return_value=[
+                        {
+                            "index_code": "GC00Y",
+                            "index_name": "COMEX黄金",
+                            "close": 2650.5,
+                            "change_pct": 0.83,
+                            "trade_date": date(2026, 9, 2),
+                        }
+                    ]
+                ),
+            ) as svc_mock,
+        ):
+            resp = auth_client.get("/api/v1/market/global-indices")
 
         assert resp.status_code == 200
         body = resp.json()
         assert body[0]["indexCode"] == "GC00Y"
         assert body[0]["close"] == 2650.5
-        svc_mock.assert_awaited_once()
+        svc_mock.assert_awaited_once_with(ANY, None)
 
-    def test_public_no_auth_required(self, client) -> None:
-        with patch(
-            "app.api.v1.market.global_index_service.get_global_index_quotes",
-            AsyncMock(return_value=[]),
-        ):
-            resp = client.get("/api/v1/market/global-indices")
-
-        assert resp.status_code == 200
-        assert resp.json() == []
+    def test_unauthenticated_rejected(self, client) -> None:
+        resp = client.get("/api/v1/market/global-indices")
+        assert resp.status_code == 401
 
 
 @pytest.mark.unit

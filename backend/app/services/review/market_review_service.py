@@ -25,6 +25,7 @@ from app.services.review.market_review_generator import (
     _load_user_edit_row,
     assert_trading_day,
     generate_market_review,
+    list_review_trade_dates,
     load_prompt_config,
 )
 
@@ -36,6 +37,7 @@ __all__ = [
     "UnknownSectionError",
     "generate_market_review",
     "get_market_review",
+    "list_review_trade_dates",
     "update_market_review",
 ]
 
@@ -59,7 +61,9 @@ async def get_market_review(
     resolved_date = stats.trade_date
 
     sections = load_prompt_config().sections
-    base = await _load_base_review(session, resolved_date, sections)
+    base = await _load_base_review(
+        session, resolved_date, sections, require_hash_match=False
+    )
     user_row = await _load_user_edit_row(session, user_id, resolved_date)
     if user_row is None:
         return base.response if base is not None else None

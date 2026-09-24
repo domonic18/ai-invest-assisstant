@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
+  batchDeleteAdminNews,
   createAdminNews,
   deleteAdminNews,
   fetchAdminNews,
@@ -43,6 +44,14 @@ export function useDeleteAdminNews() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => deleteAdminNews(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ADMIN_NEWS_KEY }),
+  })
+}
+
+export function useBatchDeleteAdminNews() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (ids: number[]) => batchDeleteAdminNews(ids),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ADMIN_NEWS_KEY }),
   })
 }

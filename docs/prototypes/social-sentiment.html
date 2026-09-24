@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 资讯中心 · 大 V 情绪（F-SOC 原型）</title>
+<style>
+/* ======================================================
+   AI Invest Assistant — Design System（与 news.html 同源）
+   ====================================================== */
+:root {
+  --bg: #0c0e12;
+  --bg-elevated: #111318;
+  --bg-surface: #181a21;
+  --bg-hover: #1c1f26;
+  --border: #23262d;
+  --border-hover: #2e323c;
+  --border-focus: #5e6ad2;
+  --text-primary: #f0f1f5;
+  --text-secondary: #8a8f98;
+  --text-tertiary: #5c616e;
+  --accent: #5e6ad2;
+  --accent-hover: #6872e3;
+  --accent-soft: rgba(94, 106, 210, 0.12);
+  --green: #2ea043;
+  --green-soft: rgba(46, 160, 67, 0.12);
+  --red: #f85149;
+  --red-soft: rgba(248, 81, 73, 0.12);
+  --amber: #d29922;
+  --amber-soft: rgba(210, 153, 34, 0.12);
+  --blue: #58a6ff;
+  --blue-soft: rgba(88, 166, 255, 0.12);
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-md: 0 4px 6px rgba(0,0,0,.4);
+  --sidebar-w: 220px;
+  --header-h: 56px;
+  --transition: 200ms ease;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --space-3: 12px;
+  --space-5: 20px;
+  --space-6: 24px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font); font-size: 13px; color: var(--text-primary);
+  background: var(--bg); line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
+::selection { background: var(--accent-soft); color: var(--text-primary); }
+
+/* ======= Layout ======= */
+.app-layout { display: flex; height: 100vh; }
+.app-sidebar {
+  width: var(--sidebar-w); background: var(--bg-elevated);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  flex-shrink: 0; overflow-y: auto;
+}
+.app-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.app-header {
+  height: var(--header-h); background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border); display: flex; align-items: center;
+  justify-content: space-between; padding: 0 20px; flex-shrink: 0;
+}
+.app-content { flex: 1; overflow-y: auto; padding: 24px; }
+
+/* ======= Sidebar ======= */
+.sidebar-brand { padding: 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+.sidebar-logo {
+  width: 34px; height: 34px; background: var(--accent); border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.sidebar-logo svg { width: 18px; height: 18px; }
+.sidebar-brand-text { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.sidebar-version { font-size: 10px; color: var(--text-tertiary); margin-left: auto; }
+.sidebar-nav { padding: 8px; flex: 1; overflow-y: auto; }
+.sidebar-section-title {
+  font-size: 10px; color: var(--text-tertiary); text-transform: uppercase;
+  letter-spacing: .08em; padding: 12px 10px 6px; font-weight: 600;
+}
+.sidebar-item {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px;
+  border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary);
+  text-decoration: none; cursor: pointer; transition: all var(--transition);
+}
+.sidebar-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sidebar-item.active { background: var(--accent-soft); color: var(--accent); }
+.sidebar-item-icon { opacity: .5; width: 16px; font-size: 12px; text-align: center; }
+.sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.sidebar-avatar {
+  width: 30px; height: 30px; border-radius: 50%; background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600; color: #fff; flex-shrink: 0;
+}
+.sidebar-user-info { font-size: 12px; color: var(--text-secondary); }
+.sidebar-user-name { color: var(--text-primary); font-weight: 500; }
+
+/* ======= Header / Cards / Buttons / Tags / Forms ======= */
+.header-search {
+  width: 260px; padding: 7px 12px; background: var(--bg-surface);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 13px; color: var(--text-primary); outline: none; transition: border var(--transition);
+}
+.header-search::placeholder { color: var(--text-tertiary); }
+.header-search:focus { border-color: var(--border-focus); }
+.header-actions { display: flex; align-items: center; gap: 8px; }
+.header-btn {
+  width: 34px; height: 34px; border-radius: var(--radius-sm);
+  background: transparent; border: none; color: var(--text-secondary);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all var(--transition); font-size: 16px;
+}
+.header-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.card-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.card-title { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+.card-body { padding: 20px; }
+.card-body-sm { padding: 14px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+  border: 1px solid transparent; cursor: pointer; transition: all var(--transition);
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-secondary { background: var(--bg-surface); color: var(--text-secondary); border-color: var(--border); }
+.btn-secondary:hover { background: var(--bg-hover); border-color: var(--border-hover); color: var(--text-primary); }
+.btn-ghost { background: transparent; color: var(--text-secondary); }
+.btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.tag { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+.tag-green { background: var(--green-soft); color: var(--green); }
+.tag-red { background: var(--red-soft); color: var(--red); }
+.tag-amber { background: var(--amber-soft); color: var(--amber); }
+.tag-blue { background: var(--blue-soft); color: var(--blue); }
+.tag-purple { background: var(--accent-soft); color: var(--accent); }
+.form-input, .form-select {
+  width: 100%; padding: 8px 12px; font-size: 13px; color: var(--text-primary);
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); outline: none; transition: border var(--transition);
+}
+.form-input:focus { border-color: var(--border-focus); }
+.form-input::placeholder { color: var(--text-tertiary); }
+.mb-6 { margin-bottom: 24px; }
+.page-title { font-size: 20px; font-weight: 600; letter-spacing: -.01em; margin-bottom: 4px; }
+.notification-dot { position: absolute; top: 7px; right: 7px; width: 6px; height: 6px; background: var(--red); border-radius: 50%; }
+
+/* ======= 资讯中心共用（渠道监控 / 全局统计 / 视图 tab / 筛选 / 新讯息） ======= */
+.chan-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+.chan-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; }
+.chan-card.warn { border-color: rgba(210,153,34,.4); }
+.chan-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.chan-name { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.stat-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+.stat-dot.live { background: var(--red); animation: pulse 1.5s infinite; }
+.stat-dot.ok { background: var(--green); }
+.stat-dot.warn { background: var(--amber); animation: pulse 1.2s infinite; }
+.stat-dot.batch { background: var(--blue); }
+.chan-state { font-size: 10px; color: var(--text-tertiary); white-space: nowrap; }
+.chan-meta { font-size: 11px; color: var(--text-tertiary); margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chan-stat { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; color: var(--text-secondary); }
+.chan-stat b { font-family: var(--font-mono); font-size: 14px; font-weight: 600; }
+.chan-stat .last { font-family: var(--font-mono); color: var(--text-tertiary); font-size: 10px; white-space: nowrap; }
+.global-stat {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  padding: 10px 16px; font-size: 12px; color: var(--text-secondary);
+  background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+}
+.global-stat b { font-family: var(--font-mono); color: var(--text-primary); font-size: 14px; }
+.global-stat .gs-item { display: flex; align-items: center; gap: 6px; }
+.global-stat .gs-sep { width: 1px; height: 14px; background: var(--border); }
+.view-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: var(--space-5); }
+.vtab {
+  padding: 9px 16px; font-size: 13px; color: var(--text-secondary); cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; background: none;
+  border-top: none; border-left: none; border-right: none; font-family: inherit;
+}
+.vtab:hover { color: var(--text-primary); }
+.vtab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.vtab .cnt { font-size: 10px; color: var(--text-tertiary); margin-left: 4px; }
+.view-pane { display: none; }
+.view-pane.active { display: block; }
+.filter-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: var(--space-3); }
+.fchips { display: flex; gap: 6px; flex-wrap: wrap; }
+.fchip { padding: 3px 11px; font-size: 11px; border-radius: 999px; cursor: pointer; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-secondary); font-family: inherit; }
+.fchip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); font-weight: 500; }
+.fchip .n { color: var(--text-tertiary); margin-left: 3px; }
+.fswitch { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); cursor: pointer; margin-left: auto; user-select: none; }
+.toggle { width: 28px; height: 15px; border-radius: 999px; background: var(--bg-hover); border: 1px solid var(--border); position: relative; transition: all var(--transition); }
+.toggle::after { content: ''; position: absolute; top: 1.5px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--text-tertiary); transition: all var(--transition); }
+.fswitch.on .toggle { background: var(--accent-soft); border-color: var(--accent); }
+.fswitch.on .toggle::after { left: 13px; background: var(--accent); }
+.new-msg-bar {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 8px; margin-bottom: var(--space-3); font-size: 12px; color: var(--accent);
+  background: var(--accent-soft); border: 1px dashed rgba(94,106,210,.4); border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.new-msg-bar .t { font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); }
+.day-sep { display: flex; align-items: center; gap: 10px; margin: 14px 0 2px; font-size: 10px; color: var(--text-tertiary); }
+.day-sep::before, .day-sep::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.load-more { text-align: center; padding: 12px; font-size: 12px; color: var(--text-tertiary); cursor: pointer; }
+.load-more:hover { color: var(--accent); }
+.drawer-mark {
+  display: flex; align-items: center; gap: 8px; margin: var(--space-6) 0 var(--space-3);
+  font-size: 10px; color: var(--text-tertiary); letter-spacing: .04em;
+}
+.drawer-mark::before, .drawer-mark::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.type-note {
+  margin-top: var(--space-6); padding: 14px 16px; border: 1px dashed var(--border);
+  border-radius: var(--radius-md); font-size: 12px; color: var(--text-tertiary); line-height: 1.8;
+}
+.type-note .tn-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ======= 大 V 情绪专属 ======= */
+.seg{display:flex;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:2px;gap:2px}
+.seg button{border:none;background:transparent;color:var(--text-secondary);font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:var(--font);transition:all var(--transition);white-space:nowrap}
+.seg button:hover{color:var(--text-primary)}
+.seg button.on{background:var(--accent);color:#fff}
+.seg.mini button{font-size:11px;padding:4px 9px}
+.sub-head{display:flex;align-items:center;gap:12px;margin-bottom:var(--space-3);flex-wrap:wrap}
+.sub-head .note{font-size:10px;color:var(--text-tertiary)}
+.warnbar{display:flex;align-items:center;gap:10px;margin-bottom:var(--space-5);padding:9px 14px;border:1px solid rgba(210,153,34,.35);background:var(--amber-soft);border-radius:var(--radius-md);font-size:12px;color:var(--amber)}
+.warnbar .x{margin-left:auto;border:none;background:transparent;color:var(--amber);font-size:14px;cursor:pointer;font-family:var(--font);opacity:.7}
+.warnbar .x:hover{opacity:1}
+.stream{min-width:0;display:flex;flex-direction:column;gap:10px}
+.card-h{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600}
+.card-h .n{margin-left:auto;font-size:10px;color:var(--text-tertiary);font-weight:400}
+.p-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px;transition:border-color var(--transition)}
+.p-card:hover{border-color:#31353f}
+.p-card.pin{border-color:rgba(248,81,73,.55);background:linear-gradient(180deg,rgba(248,81,73,.06),rgba(17,19,24,0) 60%),var(--bg-elevated)}
+.p-card.heavy{border-left:3px solid var(--amber)}
+.p-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ava{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;flex-shrink:0}
+.p-head .alias{font-weight:600;font-size:13px}
+.p-head .handle{font-size:11px;color:var(--text-tertiary)}
+.cat-tag{font-size:10px;padding:2px 7px;border-radius:4px;background:var(--blue-soft);color:var(--blue)}
+.p-tag{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;display:inline-flex;align-items:center;gap:3px}
+.p-tag.impact{background:var(--amber-soft);color:var(--amber)}
+.p-tag.miss{background:rgba(138,143,152,.14);color:var(--text-secondary)}
+.p-time{margin-left:auto;font-size:11px;color:var(--text-tertiary)}
+.summary{margin:9px 0 0;font-size:13px;line-height:1.55}
+.args{margin:8px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.args li{font-size:12px;color:var(--text-secondary);line-height:1.5;padding-left:16px;position:relative}
+.args li::before{content:'';position:absolute;left:4px;top:7px;width:5px;height:5px;border-radius:50%;background:var(--text-tertiary)}
+.args .more{display:none}
+.p-card.open .args .more{display:list-item}
+.args-toggle{border:none;background:transparent;color:var(--accent);font-size:11px;padding:4px 0 0;cursor:pointer;font-family:var(--font)}
+.args-toggle:hover{color:var(--accent-hover)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border);background:var(--bg);color:var(--text-secondary);font-size:11px;padding:3px 9px;border-radius:999px;cursor:pointer;font-family:var(--font);transition:all var(--transition)}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip .ty{font-size:8px;padding:1px 4px;border-radius:3px;background:var(--bg-hover);color:var(--text-tertiary);font-weight:600}
+.p-foot{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+.stance{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:5px}
+.stance i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.stance.bull{background:color-mix(in srgb,var(--up) 14%,transparent);color:var(--up)}
+.stance.bull i{background:var(--up)}
+.stance.bear{background:color-mix(in srgb,var(--down) 14%,transparent);color:var(--down)}
+.stance.bear i{background:var(--down)}
+.stance.neu{background:var(--bg-hover);color:var(--text-secondary)}
+.stance.neu i{background:var(--text-tertiary)}
+.stance .ai{font-size:8px;font-weight:500;border:1px solid currentColor;border-radius:3px;padding:0 3px;opacity:.75}
+.ia{font-size:11px;color:var(--text-tertiary)}
+.ext{margin-left:auto;border:none;background:transparent;color:var(--text-tertiary);font-size:11px;cursor:pointer;font-family:var(--font);padding:3px 6px;border-radius:5px}
+.ext:hover{color:var(--accent);background:var(--bg-hover)}
+.ai-note{font-size:9px;color:var(--text-tertiary)}
+/* 立场配色跟随全站涨跌方案（红涨绿跌 / 绿涨红跌） */
+body{--up:#f85149;--down:#2ea043}
+body.alt{--up:#2ea043;--down:#f85149}
+.p-body{display:flex;gap:12px;margin-top:9px;align-items:flex-start}
+.p-body .txt{flex:1;min-width:0}
+.p-body .txt .summary{margin-top:0}
+.vcover{width:88px;height:157px;border-radius:8px;position:relative;flex-shrink:0;cursor:pointer;overflow:hidden;border:1px solid var(--border);transition:border-color var(--transition)}
+.vcover:hover{border-color:var(--accent)}
+.vcover .bg{position:absolute;inset:0}
+.vcover .vc-play{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px}
+.vcover .vc-pub{position:absolute;left:4px;top:4px;font-size:9px;color:#fff;background:rgba(0,0,0,.55);padding:1px 5px;border-radius:3px}
+.vcover .vc-title{position:absolute;left:0;right:0;bottom:16px;padding:14px 6px 3px;font-size:9px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.72));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vcover .vc-dur{position:absolute;right:4px;bottom:3px;font-size:9px;color:#fff;background:rgba(0,0,0,.6);padding:1px 4px;border-radius:3px}
+.vcover.sm{width:52px;height:92px}
+.vcover.sm .vc-play{width:16px;height:16px;font-size:7px;top:40%}
+.vcover.sm .vc-pub,.vcover.sm .vc-title{display:none}
+.vcover.sm .vc-dur{font-size:8px}
+.acc-cnt .mini-dots i{width:6px;height:6px}
+.acc-media{display:flex;gap:10px;align-items:flex-start}
+.empty{padding:40px;text-align:center;color:var(--text-tertiary);font-size:12px;border:1px dashed var(--border);border-radius:var(--radius-lg)}
+.temp-row{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12px}
+.temp-row .nm{width:64px;color:var(--text-secondary);flex-shrink:0}
+.tbar{flex:1;height:8px;border-radius:4px;background:var(--bg-hover);overflow:hidden;display:flex}
+.tbar .b{background:var(--up);height:100%}
+.tbar .s{background:var(--down);height:100%}
+.temp-row .vs{width:86px;text-align:right;font-size:11px;color:var(--text-tertiary);flex-shrink:0}
+.temp-row .net{width:48px;text-align:right;font-weight:600;font-size:12px}
+.net.up{color:var(--up)}.net.down{color:var(--down)}.net.flat{color:var(--text-secondary)}
+.mini-dots{display:inline-flex;gap:3px;align-items:center}
+.mini-dots i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.mini-dots i.bull{background:var(--up)}.mini-dots i.bear{background:var(--down)}.mini-dots i.neu{background:var(--text-tertiary)}
+.acc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.acc-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;cursor:pointer;transition:all var(--transition);display:flex;flex-direction:column;gap:8px}
+.acc-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.acc-card .top{display:flex;align-items:center;gap:8px}
+.acc-card .top .ava{width:32px;height:32px;font-size:13px}
+.acc-card .alias{font-weight:600}
+.acc-card .hnd{font-size:10px;color:var(--text-tertiary);word-break:break-all}
+.acc-card .latest{font-size:11px;color:var(--text-secondary);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:33px}
+.acc-card .foot{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--text-tertiary)}
+.crumbs{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px}
+.crumbs button{border:none;background:transparent;color:var(--accent);font-size:12px;cursor:pointer;font-family:var(--font);padding:2px 4px}
+.crumbs button:hover{text-decoration:underline}
+.crumbs .sep{color:var(--text-tertiary)}
+/* 大V情绪摘要卡（与实现 AccountDimension 对齐：标题行 + 折叠记忆 + 全账号时序 + 账号卡网格） */
+.sum-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border)}
+.sum-title{font-weight:600;font-size:13px}
+.sum-n{font-size:11px;color:var(--text-tertiary)}
+.sum-toggle{margin-left:auto;background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:12px;font-family:var(--font);padding:2px 8px}
+.sum-toggle:hover{color:var(--text-primary)}
+.sum-timeline{display:flex;align-items:center;gap:10px;padding:9px 14px;flex-wrap:wrap}
+.sum-lab{font-size:11px;font-weight:600;flex-shrink:0}
+.sum-bars{flex:1;min-width:220px;display:flex;gap:10px}
+.sum-day{flex:1;min-width:110px}
+.sum-bar{display:flex;height:10px;border-radius:4px;overflow:hidden;background:var(--bg-surface)}
+.sg{height:100%;display:inline-block}
+.sg.b{background:var(--up)}.sg.s{background:var(--down)}.sg.n{background:var(--text-tertiary);opacity:.45}
+.sum-day-lab{font-size:9px;color:var(--text-tertiary);margin-top:2px;display:block;text-align:center}
+.acc-cnt{display:flex;align-items:center;gap:8px;font-size:10px;margin-top:6px}
+.acc-cnt .up{color:var(--up)}.acc-cnt .down{color:var(--down)}.acc-cnt .mut{color:var(--text-tertiary)}
+.acc-cnt .mini-dots{margin-left:auto}
+.traj{display:flex;align-items:center;gap:0;padding:12px 14px;overflow-x:auto}
+.traj .dt{width:14px;height:14px;border-radius:50%;flex-shrink:0;position:relative;z-index:1;border:2px solid var(--bg-elevated)}
+.traj .dt.bull{background:var(--up)}.traj .dt.bear{background:var(--down)}.traj .dt.neu{background:var(--text-tertiary)}
+.traj .ln{height:2px;background:var(--border);flex:0 0 18px}
+.traj-meta{display:flex;gap:8px;padding:0 14px 12px;flex-wrap:wrap}
+.temp-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.temp-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;display:flex;flex-direction:column;gap:10px}
+.temp-card h4{font-size:13px;display:flex;align-items:center;gap:8px}
+.temp-card .big{font-size:22px;font-weight:700}
+.temp-card svg{width:100%;height:44px}
+.svc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.svc-body{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.kv{display:flex;align-items:center;gap:8px;font-size:12px}
+.kv .k{color:var(--text-tertiary);width:84px;flex-shrink:0}
+.kv .v{color:var(--text-secondary)}
+.note{font-size:10px;color:var(--text-tertiary);line-height:1.6}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;font-size:10px;font-weight:500;color:var(--text-tertiary);padding:8px 12px;border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.04em}
+td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr{transition:background var(--transition)}
+tbody tr:hover{background:var(--bg-hover)}
+td .sub{font-size:10px;color:var(--text-tertiary);margin-top:2px;word-break:break-all}
+.sw2{position:relative;width:32px;height:18px;border-radius:9px;background:var(--bg-hover);border:1px solid var(--border);cursor:pointer;transition:all var(--transition);display:inline-block;vertical-align:middle}
+.sw2::after{content:'';position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--text-tertiary);transition:all var(--transition)}
+.sw2.on{background:rgba(94,106,210,.35);border-color:var(--accent)}
+.sw2.on::after{left:16px;background:var(--accent)}
+.rowdel{border:none;background:transparent;color:var(--text-tertiary);font-size:11px;cursor:pointer;font-family:var(--font);padding:4px 8px;border-radius:5px}
+.rowdel:hover{color:var(--down)}
+.rowdel.armed{color:#fff;background:var(--down)}
+select,input[type=text]{background:var(--bg);border:1px solid var(--border);color:var(--text-primary);border-radius:var(--radius-md);padding:5px 9px;font-size:12px;font-family:var(--font);outline:none}
+select:focus,input[type=text]:focus{border-color:var(--accent)}
+.badge{font-size:10px;padding:3px 8px;border-radius:5px;background:var(--accent-soft);color:var(--accent);font-weight:500}
+.badge.warn{background:var(--amber-soft);color:var(--amber)}
+.hintlink{font-size:11px;color:var(--text-tertiary)}
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:30;display:none;align-items:flex-start;justify-content:center;padding-top:12vh}
+.modal-mask.show{display:flex}
+.modal{width:440px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:0 12px 48px rgba(0,0,0,.6)}
+.modal .mh{padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;display:flex;align-items:center}
+.modal .mh .x{margin-left:auto;border:none;background:transparent;color:var(--text-tertiary);font-size:16px;cursor:pointer;font-family:var(--font)}
+.modal .mb{padding:14px 16px;display:flex;flex-direction:column;gap:11px}
+.frow{display:flex;flex-direction:column;gap:5px}
+.frow label{font-size:11px;color:var(--text-secondary)}
+.frow input,.frow select{width:100%}
+.ferr{font-size:11px;color:var(--down);display:none}
+.ferr.show{display:block}
+.modal .mf{padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+#toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(8px);background:#1a1d25;border:1px solid var(--accent);color:var(--text-primary);font-size:12px;padding:8px 16px;border-radius:var(--radius-md);opacity:0;transition:all .25s;z-index:40;pointer-events:none;max-width:70vw}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.foot{padding:16px 0 4px;display:flex;gap:8px;flex-wrap:wrap;font-size:10px;color:var(--text-tertiary)}
+.foot span{border:1px solid var(--border);border-radius:5px;padding:3px 8px;background:var(--bg-elevated)}
+.foot b{color:var(--text-secondary);font-weight:500}
+.sec-t{font-size:12px;font-weight:600;color:var(--text-secondary);margin:2px 0 10px}
+</style>
+</head>
+<body>
+<div class="app-layout">
+<aside class="app-sidebar">
+<div class="sidebar-brand">
+<div class="sidebar-logo">
+<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#fff" stroke-width="2.5"/><polyline points="8,20 12,16 16,18 20,12 24,14" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="14" r="2.5" fill="#fff"/></svg>
+</div>
+<div class="sidebar-brand-text">AI Invest</div>
+<div class="sidebar-version">v1.0.0</div>
+</div>
+<nav class="sidebar-nav">
+<a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
+<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
+<a class="sidebar-item" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
+<a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
+<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item active" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
+<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
+<div class="sidebar-section-title">分析</div>
+<a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+<a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
+<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
+<div class="sidebar-section-title">设置</div>
+<a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+<a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
+<a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
+</nav>
+<div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
+</aside>
+<div class="app-main">
+<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification" style="position:relative"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
+<div class="app-content">
+
+<!-- 页头（与资讯中心同构） -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-5);flex-wrap:wrap;gap:var(--space-3)">
+<div>
+<h1 class="page-title">资讯中心 · 大 V 情绪（F-SOC）</h1>
+<div style="font-size:var(--text-xs);color:var(--text-tertiary)"><span class="stat-dot live"></span>实时采集中 · 抖音自研适配层 → ASR 转写 → LLM 多空判断 —— 本原型演示第四 Tab，其余三视图见 news.html</div>
+</div>
+<div style="display:flex;gap:8px;align-items:center">
+<button class="btn btn-secondary btn-sm" data-toast="我的订阅为资讯中心既有能力（页头抽屉），订阅命中回流电报流（★）">★ 我的订阅<span style="color:var(--amber)">（今日命中 23）</span></button>
+<span style="font-size:11px;color:var(--text-tertiary)">立场配色</span>
+<div class="seg mini" id="schemeSeg">
+<button data-s="cn" class="on">红涨绿跌</button>
+<button data-s="alt">绿涨红跌</button>
+</div>
+</div>
+</div>
+
+<!-- 渠道中断提示（F-SOC-05：渠道故障只影响本 Tab，其余视图不受影响） -->
+<div class="warnbar" id="chBanner">
+⚠ 部分渠道采集中断：抖音适配层自今日 10:32 起失败重试中 — 「大 V 情绪」暂缺最新内容，其余资讯视图不受影响（F-MON 已告警）
+<button class="x" id="chClose" title="关闭">✕</button>
+</div>
+
+<!-- ① 渠道监控：注册表驱动，社媒渠道接入即新增一张卡 -->
+<div class="chan-grid mb-6">
+<div class="chan-card">
+<div class="chan-head"><span class="chan-name"><span class="stat-dot live"></span>财联社电报</span><span class="chan-state" style="color:var(--red)">LIVE</span></div>
+<div class="chan-meta">10s 增量轮询 · 驻留进程</div>
+<div class="chan-stat"><span>今日 <b>328</b> 条</span><span class="last">12:03:45</span></div>
+</div>
+<div class="chan-card">
+<div class="chan-head"><span class="chan-name"><span class="stat-dot ok"></span>新浪财经</span><span class="chan-state">正常</span></div>
+<div class="chan-meta">15 分钟轮询</div>
+<div class="chan-stat"><span>今日 <b>96</b> 条</span><span class="last">11:58</span></div>
+</div>
+<div class="chan-card warn">
+<div class="chan-head"><span class="chan-name"><span class="stat-dot warn"></span>巨潮公告</span><span class="chan-state" style="color:var(--amber)">延迟</span></div>
+<div class="chan-meta">15 分钟轮询 · 重试中（第 2 次）</div>
+<div class="chan-stat"><span>今日 <b>41</b> 条</span><span class="last">11:31 · 滞后 32min</span></div>
+</div>
+<div class="chan-card">
+<div class="chan-head"><span class="chan-name"><span class="stat-dot ok"></span>华尔街见闻</span><span class="chan-state">正常</span></div>
+<div class="chan-meta">10 分钟轮询</div>
+<div class="chan-stat"><span>今日 <b>57</b> 条</span><span class="last">12:01</span></div>
+</div>
+<div class="chan-card">
+<div class="chan-head"><span class="chan-name"><span class="stat-dot batch"></span>东财研报</span><span class="chan-state">每日批次</span></div>
+<div class="chan-meta">每日 08:00 增量</div>
+<div class="chan-stat"><span>今日 <b>12</b> 篇</span><span class="last">08:00 完成</span></div>
+</div>
+<div class="chan-card warn">
+<div class="chan-head"><span class="chan-name"><span class="stat-dot warn"></span>抖音·大V视频</span><span class="chan-state" style="color:var(--amber)">延迟</span></div>
+<div class="chan-meta">1 小时/账号 · 自研适配层 · 重试中</div>
+<div class="chan-stat"><span>今日 <b>12</b> 条</span><span class="last">11:52 · 滞后 38min</span></div>
+</div>
+</div>
+
+<!-- 全局统计条 -->
+<div class="global-stat mb-6">
+<span class="gs-item"><span class="stat-dot live"></span>采集中</span>
+<span class="gs-sep"></span>
+<span class="gs-item">今日入库 <b>546</b> 条</span>
+<span class="gs-item">AI 分级完成 <b>546</b>（延迟 &lt;1s）</span>
+<span class="gs-item">高重要度 <b style="color:var(--red)">38</b></span>
+<span class="gs-item">订阅命中 <b style="color:var(--amber)">23</b></span>
+<span class="gs-item">跟踪中事件 <b style="color:var(--accent)">6</b></span>
+<span class="gs-sep"></span>
+<span class="gs-item">大V判断 <b style="color:var(--accent)">12</b>（看多 <b style="color:var(--up)">5</b> / 看空 <b style="color:var(--down)">4</b> / 中性 <b>3</b>）</span>
+<span class="gs-item" style="margin-left:auto;font-size:11px;color:var(--text-tertiary)">最近页面刷新 12:04:20 · SSE 推送已连接</span>
+</div>
+
+<!-- ② 四视图：本原型聚焦第四 Tab「大 V 情绪」 -->
+<div class="view-tabs">
+<button class="vtab" data-toast="原型聚焦「大 V 情绪」 · 实时电报见 news.html 主原型">实时电报<span class="cnt">534</span></button>
+<button class="vtab" data-toast="原型聚焦「大 V 情绪」 · 重点与跟踪见 news.html 主原型">重点与跟踪<span class="cnt">6</span></button>
+<button class="vtab" data-toast="原型聚焦「大 V 情绪」 · 热点主题见 news.html 主原型">热点主题<span class="cnt">14</span></button>
+<button class="vtab active">大 V 情绪<span class="cnt">12</span></button>
+</div>
+
+<!-- ============ 大 V 情绪（第四 Tab） ============ -->
+<div class="view-pane active" id="pane-sentiment">
+
+<div class="sub-head">
+<span class="note">单视图 · 大 V 情绪摘要卡（可收起 · 折叠状态记忆）+ 视频情绪流 · 点击摘要卡账号进入时间线 · 平台级追踪，全体用户同一视图 · 数据派生自 social_account / social_post / social_sentiment</span>
+</div>
+
+<!-- —— 大 V 情绪摘要卡（标题行折叠按钮 + 全账号情绪时序 + 账号卡网格 · 收起状态 localStorage 记忆） —— -->
+<div class="card" style="margin-bottom:12px">
+<div class="sum-head">
+<span class="sum-title">大 V 情绪摘要</span><span class="sum-n" id="sumN"></span>
+<button class="sum-toggle" id="sumToggle" aria-label="收起大 V 情绪摘要">收起 ▾</button>
+</div>
+<div id="sumBody">
+<div class="sum-timeline">
+<span class="sum-lab">全账号情绪时序</span>
+<span style="font-size:11px;color:var(--up)">多 <b id="sumBull"></b></span>
+<span style="font-size:11px;color:var(--down)">空 <b id="sumBear"></b></span>
+<span style="font-size:11px;color:var(--text-tertiary)">中 <b id="sumNeu"></b></span>
+<div class="sum-bars" id="sumBars"></div>
+</div>
+<div class="acc-grid" id="accGrid"></div>
+</div>
+</div>
+
+<!-- —— 账号时间线（点击摘要卡账号 · 替换情绪流，TimelinePanel） —— -->
+<div id="accTlWrap" style="display:none">
+<div class="crumbs">
+<button id="backAccs">← 返回情绪流</button><span class="sep">/</span><b id="tlName"></b>
+</div>
+<div class="card" style="margin-bottom:12px">
+<div style="display:flex;align-items:center;gap:10px;padding:14px">
+<div class="ava" id="tlAva" style="width:40px;height:40px;font-size:16px"></div>
+<div>
+<div style="font-weight:600" id="tlAlias"></div>
+<div style="font-size:11px;color:var(--text-tertiary)" id="tlMeta"></div>
+</div>
+<div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+<span class="badge" id="tlStreak"></span>
+<span class="badge warn" id="tlTurn" style="display:none"></span>
+</div>
+</div>
+<div class="traj" id="tlTraj"></div>
+<div class="traj-meta"><span class="note">立场轨迹：旧 → 新 · 每点一条已判断视频 · 连续同向连成 streak</span></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px" id="tlPosts"></div>
+</div>
+
+<!-- —— 情绪流（筛选 chips + FeedList 分页） —— -->
+<div id="streamArea">
+<div class="filter-bar">
+<div class="fchips" id="fCat">
+<span class="fchip active" data-f="all">全部分类</span>
+<span class="fchip" data-f="宏观政策">宏观政策<span class="n">3</span></span>
+<span class="fchip" data-f="财经大 V">财经大 V<span class="n">2</span></span>
+<span class="fchip" data-f="产业人士">产业人士<span class="n">2</span></span>
+</div>
+<div class="fchips" id="fStance">
+<span class="fchip active" data-f="all">全部立场</span>
+<span class="fchip" data-f="bull">看多<span class="n">3</span></span>
+<span class="fchip" data-f="bear">看空<span class="n">2</span></span>
+<span class="fchip" data-f="neu">中性<span class="n">2</span></span>
+</div>
+<div class="fchips" id="fRange">
+<span class="fchip" data-f="">不限时间</span>
+<span class="fchip active" data-f="24">24 小时</span>
+<span class="fchip" data-f="72">近 3 天</span>
+<span class="fchip" data-f="168">近 7 天</span>
+</div>
+<span class="fswitch" id="fStrong"><span class="toggle"></span>仅看强信号（置信度 ≥80%）</span>
+</div>
+<div class="stream" id="stream"></div>
+<div class="card" style="margin-top:12px">
+<div class="card-h">口径说明</div>
+<div style="padding:10px 14px">
+<div class="note">
+自研抖音适配层（collector 内置，无独立部署）采集新视频 → 云端 ASR 转写（复用 04 知识库渠道配置与金融热词表）→ LLM 结构化判断。<br>
+立场徽标 = <b style="color:var(--text-secondary)">AI 生成 · 非投资建议</b>；无关内容（生活/广告）判 irrelevant 不入情绪流。<br>
+音频缺失降级「仅文案判断」并标注 transcript_missing；转写文稿仅作判断输入，不存储原片与完整文稿。
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- ============ 后台 · 社媒追踪（管理员，不占浏览视图） ============ -->
+<div class="drawer-mark">后台管理 → 「社媒追踪」Tab（管理员可见）—— 追踪配置是管理能力，不与浏览视图同列；渠道健康由 F-MON 统一监测</div>
+<div id="adminSection">
+<div class="card mb-6">
+<div class="card-h">追踪账号清单（平台级）<span class="n">同标识唯一 · 删除即停止采集，历史数据保留</span></div>
+<div style="padding:12px 14px;display:flex;align-items:center;gap:10px">
+<button class="btn btn-primary btn-sm" id="btnAdd">＋ 登记账号</button>
+<span class="note">登记后自动纳入抖音适配层采集任务与 F-MON 健康监测</span>
+</div>
+<table>
+<thead><tr><th>抖音号</th><th>账号</th><th>分类</th><th>轮询间隔</th><th>最近采集</th><th>ASR 成功率</th><th>启用</th><th></th></tr></thead>
+<tbody id="adminRows"></tbody>
+</table>
+</div>
+<div class="svc-grid">
+<div class="card">
+<div class="card-h">抖音自研适配层<span class="n">collector 内置 · 无独立部署</span></div>
+<div class="svc-body">
+<div class="kv"><span class="k">技术路线</span><span class="v">curl_cffi 指纹传输 + a_bogus 请求签名 + Cookie 双轨供给</span></div>
+<div class="kv"><span class="k">Cookie 池</span><span class="v"><span class="stat-dot ok"></span>2/3 可用 · 最近自举今日 08:12（失效时渠道配置粘贴浏览器 Cookie 兜底）</span></div>
+<div class="kv"><span class="k">轮询</span><span class="v">1 小时/账号（可配）· 仅处理新视频（视频 ID 去重）</span></div>
+<div class="kv"><span class="k">今日</span><span class="v">新视频 12 · 失败重试 1（命中风控退避 5 分钟，见顶部中断提示）</span></div>
+<div class="note">账号长期无新视频为 SKIPPED 正常态，适配层不可用为 FAILED——两者不混淆；故障显式归因（签名失效/命中风控/账号失效）；签名算法升级只改签名模块，不改动任务定义。</div>
+</div>
+</div>
+<div class="card">
+<div class="card-h">ASR 转写服务<span class="n">与 04 知识库共用渠道配置</span></div>
+<div class="svc-body">
+<div class="kv"><span class="k">ASR 渠道</span><span class="v">云端 ASR · 复用 F-KB-02 渠道配置与用量对账（密钥加密存储）</span></div>
+<div class="kv"><span class="k">今日</span><span class="v">转写成功 9 · 降级 1（transcript_missing · 仅文案判断）</span></div>
+<div class="kv"><span class="k">金融热词表</span><span class="v">已注入（与 04 共用一份配置）· 降低口播术语错转率</span></div>
+<div class="note">转写文稿仅作判断输入，不存储、不分发视频原片与完整文稿镜像；视图呈现分析结论 + 摘要 + 原文外链。</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- 信息架构说明 -->
+<div class="type-note">
+<div class="tn-title">信息架构说明（大 V 情绪 = 资讯中心第四视图 · 单视图）</div>
+「大 V 情绪」作为资讯中心第四 Tab，复用页面框架（渠道监控条 + 全局统计条 + 视图 Tab），段内为<b>单视图</b>：顶部<b>大 V 情绪摘要卡</b>——「大V情绪摘要 · N 位」标题行 + 收起/展开按钮（折叠状态 localStorage 记忆，收起后仅保留标题行），卡内为全账号情绪时序条（多/空/中按日聚合）+ 账号卡网格（最新立场徽标 + 多空中计数 + 最新观点摘要）；点击账号卡进入<b>单账号时间线</b>并替换情绪流，「← 返回情绪流」回列表。筛选 chips 为分类 / 立场 / 时间窗口（不限时间 · 24 小时默认 · 近 3 天 · 近 7 天）/ 仅看强信号（置信度 ≥80%）。原「账号维度」二级视图并入摘要卡，不再单独占导航；「情绪温度」为二期（F-SOC-06）未实现。原需求中的 X（推特）采集已<b>砍掉</b>（官方 API 配额成本收益不成立）；渠道为<b>抖音自研适配层</b>（collector 内置：curl_cffi 指纹传输 + a_bogus 签名移植 + Cookie 自举/手动兜底，无独立部署容器），X 采集能力编号 F-SOC-02 移除、不再复用；采集 → ASR 转写（复用 04 知识库渠道）→ LLM 多空判断 → 落库 social_* 三表 → 视图呈现。渠道故障仅影响本 Tab 并由 F-MON 告警。
+</div>
+
+<footer class="foot">
+<span><b>F-SOC-01</b> 后台追踪清单与渠道配置（抖音自研适配层）</span>
+<span><b>F-SOC-02</b> 已移除（X 采集砍掉 · 编号不复用）</span>
+<span><b>F-SOC-03</b> 抖音采集 + ASR 转写（封面/时长/发布时间 · transcript_missing 降级演示）</span>
+<span><b>F-SOC-04</b> 情绪判断：立场/置信度/论点/影响标的（irrelevant 不入流 · Schema 全 required）</span>
+<span><b>F-SOC-05</b> 资讯中心第四 Tab：大V情绪摘要卡（可收起记忆 + 全账号时序）/ 视频情绪流 / 账号时间线</span>
+<span><b>F-SOC-06</b>（P2）情绪指数与高冲击提醒</span>
+</footer>
+
+</div></div></div>
+
+<!-- 弹层：登记追踪账号 -->
+<div class="modal-mask" id="accModal">
+<div class="modal">
+<div class="mh">登记追踪账号<button class="x" id="mClose">✕</button></div>
+<div class="mb">
+<div class="frow"><label>抖音号标识（sec_uid 或主页分享链接）</label>
+<input type="text" id="mHandle" placeholder="如 sec_uid:MS4wLjAB… 或 https://v.douyin.com/…">
+</div>
+<div class="frow"><label>显示别名</label>
+<input type="text" id="mAlias" placeholder="如 财经老张">
+</div>
+<div class="frow"><label>分类标签</label>
+<select id="mCat"><option>宏观政策</option><option>财经大 V</option><option>产业人士</option></select>
+</div>
+<div class="frow"><label>备注（可选）</label><input type="text" id="mNote" placeholder="追踪理由、风险提示等"></div>
+<div class="ferr" id="mErr"></div>
+</div>
+<div class="mf"><button class="btn btn-secondary btn-sm" id="mCancel">取消</button><button class="btn btn-primary btn-sm" id="mOk">登记并启用</button></div>
+</div>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ============ 数据（演示 · 全抖音） ============ */
+var ACCOUNTS=[
+  {id:'laozhang',handle:'sec_uid:MS4wLjAB…9f',alias:'财经老张',cat:'财经大 V',hue:'#f85149',interval:'1 小时',last:'38 分钟前',asr:'100%',traj:['bear','bear','neu','bull','bull','bull']},
+  {id:'lijie',handle:'sec_uid:MS4wLjAB…c2',alias:'盘前训练营·李姐',cat:'财经大 V',hue:'#2ea043',interval:'1 小时',last:'2 小时前',asr:'92%',traj:['bull','bull','bull','bear']},
+  {id:'chaguan',handle:'sec_uid:MS4wLjAB…7a',alias:'宏观茶馆',cat:'宏观政策',hue:'#a371f7',interval:'1 小时',last:'5 小时前',asr:'95%',traj:['neu','neu','neu','bull','neu']},
+  {id:'lasili',handle:'sec_uid:MS4wLjAB…3d',alias:'私募老李',cat:'宏观政策',hue:'#e3b341',interval:'1 小时',last:'18 分钟前',asr:'97%',traj:['neu','bear','bear','bear']},
+  {id:'laowang',handle:'sec_uid:MS4wLjAB…8b',alias:'老王的财经圈',cat:'产业人士',hue:'#58a6ff',interval:'1 小时',last:'1 小时前',asr:'100%',traj:['bull','neu','neu','bull','neu']}
+];
+var POSTS=[
+  {id:1,acc:'lasili',mins:18,pub:'今日 11:34',day:'today',stance:'bear',conf:88,pin:true,heavy:false,
+   summary:'出口管制反制清单评估中：出口链先杀估值、后看订单实质影响。',
+   args:['反制若落地，家电/机械等出口链盈利预期先承压','参考 2019 年轮次：落地前杀估值、落地后交易实际影响','供应链外迁逻辑受益标的（东南亚产能布局）相对抗跌'],
+   targets:[{ty:'index',label:'上证指数'},{ty:'sector',label:'出口链·家电'},{ty:'commodity',label:'离岸人民币'}],
+   ia:'赞 2.1w · 评 3,420 · 转 5,610',
+   vid:{title:'反制清单评估中：出口链的两段式冲击',dur:'06:31',pub:'今日 11:34',bg:'linear-gradient(155deg,#4d1b1b,#c25b3f 70%,#e3b341)'}},
+  {id:2,acc:'laozhang',mins:42,pub:'今日 10:24',day:'today',stance:'bull',conf:85,pin:false,heavy:true,
+   summary:'半导体设备国产替代「这轮不一样」，订单能见度到明年 Q2。',
+   args:['大基金三期落地，设备采购订单可见性上修','光刻零部件供应商进入验证周期，单点突破'],
+   targets:[{ty:'sector',label:'半导体'},{ty:'stock',label:'北方华创',code:'002371'},{ty:'stock',label:'中芯国际',code:'688981'}],
+   ia:'赞 3.2w · 评 4,120 · 转 8,900',
+   vid:{title:'半导体设备国产替代，这轮不一样｜大基金三期详解',dur:'05:42',pub:'今日 10:24',bg:'linear-gradient(155deg,#16205e,#3f6df5 65%,#8ab4ff)'}},
+  {id:3,acc:'laowang',mins:65,pub:'今日 09:47',day:'today',stance:'bull',conf:77,pin:false,heavy:false,
+   summary:'算力链订单能见度到明年 Q1，液冷渗透率超预期。',
+   args:['智算中心二期密集公示，上游光模块/液冷直接受益','液冷在新建项目渗透率已过三成，毛利率结构改善'],
+   targets:[{ty:'sector',label:'算力'},{ty:'stock',label:'中际旭创',code:'300308'},{ty:'stock',label:'沪电股份',code:'002463'}],
+   ia:'赞 1.2w · 评 1,860 · 转 2,240',
+   vid:{title:'算力链调研纪要：液冷渗透率超预期',dur:'04:47',pub:'今日 09:47',bg:'linear-gradient(155deg,#123a3a,#2ea08a 70%,#8ae0c8)'}},
+  {id:4,acc:'lijie',mins:133,pub:'今日 09:01',day:'today',stance:'bear',conf:71,pin:false,heavy:false,missing:true,
+   summary:'高位题材股集体炸板，明天小心接力。',
+   args:['情绪周期进入退潮段，连板高度降至 3 板（自文案推断 · 音频缺失）'],
+   targets:[{ty:'sector',label:'券商'},{ty:'index',label:'上证指数'}],
+   ia:'赞 1.8w · 评 2,340 · 转 990',
+   vid:{title:'高位题材集体炸板，接力要小心',dur:'03:18',pub:'今日 09:01',bg:'linear-gradient(155deg,#3a1626,#a04a6e)'}},
+  {id:5,acc:'chaguan',mins:296,pub:'今日 06:14',day:'today',stance:'neu',conf:69,pin:false,heavy:false,
+   summary:'美联储决议前瞻——真正的按键在点阵图而非降息幅度。',
+   args:['25bp 已充分定价，点阵图远端才是定价锚','若远端上修，黄金短线或有回吐压力'],
+   targets:[{ty:'commodity',label:'黄金'},{ty:'index',label:'富时A50'}],
+   ia:'赞 9,210 · 评 1,530 · 转 2,070',
+   vid:{title:'美联储决议前瞻：真正的按键在于点阵图',dur:'08:05',pub:'今日 06:14',bg:'linear-gradient(155deg,#2b1b4d,#7a5df0)'}},
+  {id:6,acc:'laowang',mins:955,pub:'昨日 20:15',day:'prev',stance:'neu',conf:62,pin:false,heavy:false,
+   summary:'消费电子备货季平淡，AI 端侧是唯一亮点。',
+   args:['安卓链备货同比持平，估值切换缺乏催化','AI 端侧（眼镜/耳机）新品周期是结构性亮点'],
+   targets:[{ty:'sector',label:'消费电子'},{ty:'stock',label:'立讯精密',code:'002475'}],
+   ia:'赞 6,420 · 评 980 · 转 1,110',
+   vid:{title:'消费电子备货季观察：平淡中的 AI 端侧',dur:'05:02',pub:'昨日 20:15',bg:'linear-gradient(155deg,#1b2b4d,#5a7ad0)'}},
+  {id:7,acc:'chaguan',mins:1228,pub:'昨日 15:40',day:'prev',stance:'bull',conf:72,pin:false,heavy:false,
+   summary:'决议落地前黄金多头拥挤，回调即是配置窗口。',
+   args:['ETF 持仓与期货净多均处高位，短线拥挤','实际利率下行趋势未变，中线逻辑完整'],
+   targets:[{ty:'commodity',label:'黄金'}],
+   ia:'赞 7,830 · 评 1,240 · 转 1,890',
+   vid:{title:'决议前的黄金：多头拥挤了吗',dur:'03:56',pub:'昨日 15:40',bg:'linear-gradient(155deg,#4d3a16,#d0a24a)'}}
+];
+var IRRELEVANT_N=2;
+var NEW_POST={acc:'lasili',mins:2,stance:'bear',conf:83,pin:false,heavy:false,day:'today',
+  summary:'美债 2Y 上行叠加美元走强，成长风格短线承压。',
+  args:['2Y 收益率回升至 3.72%，宽松预期小幅回摆','成长/价值风格比价回落，注意高位题材回撤'],
+  targets:[{ty:'commodity',label:'黄金'},{ty:'index',label:'创业板指'}],
+  ia:'赞 3,210 · 评 512 · 转 706',
+  vid:{title:'降息预期回摆：成长风格的短线压力',dur:'04:12',pub:'今日 11:52',bg:'linear-gradient(155deg,#3d1b4d,#a05df0)'}};
+var TY_NAME={index:'指数',sector:'板块',stock:'个股',commodity:'商品'};
+var STANCE_NAME={bull:'看多',bear:'看空',neu:'中性'};
+var state={f:{cat:'all',stance:'all',range:'24',strong:false},newAdded:false};
+
+/* ============ 工具 ============ */
+function $(s){return document.querySelector(s)}
+function accById(id){for(var i=0;i<ACCOUNTS.length;i++){if(ACCOUNTS[i].id===id)return ACCOUNTS[i]}return null}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+var toastTimer=null;
+function toast(msg){var t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.classList.remove('show')},2400)}
+function avaBg(a,extra){return '<div class="ava" style="background:'+a.hue+(extra||'')+'">'+esc(a.alias.slice(0,1))+'</div>'}
+function fmtMins(m){if(m>=1440)return Math.round(m/1440)+' 天前';if(m>=60)return Math.round(m/60)+' 小时前';return m+' 分钟前'}
+function vcoverHtml(v,sm){
+  return '<div class="vcover'+(sm||'')+'" data-vtitle="'+esc(v.title)+'" title="'+esc(v.title)+'">'
+    +'<div class="bg" style="background:'+v.bg+'"></div>'
+    +'<span class="vc-play">▶</span>'
+    +'<span class="vc-pub">'+esc(v.pub)+'</span>'
+    +'<span class="vc-title">'+esc(v.title)+'</span>'
+    +'<span class="vc-dur">'+esc(v.dur)+'</span></div>';
+}
+function chipsHtml(targets){
+  var h='';
+  targets.forEach(function(t){
+    var jump=t.ty==='sector'?'板块监测':(t.ty==='stock'?'个股详情 '+(t.code||''):(t.ty==='index'?'指数监测':'商品监测'));
+    h+='<button class="chip" data-jump="'+esc(jump)+'" data-tgt="'+esc(t.label)+'"><span class="ty">'+TY_NAME[t.ty]+'</span>'+esc(t.label)+(t.code?' '+t.code:'')+'</button>';
+  });
+  return '<div class="chips">'+h+'</div>';
+}
+function postCard(p){
+  var a=accById(p.acc);
+  var pinTag=p.pin?'<span class="p-tag impact">⚡ 高冲击 · 置顶</span>':(p.heavy?'<span class="p-tag impact">⚡ 高冲击</span>':'');
+  var missTag=p.missing?'<span class="p-tag miss">transcript_missing · 仅文案判断</span>':'';
+  var moreBtn='';
+  if(p.args.length>1)moreBtn='<button class="args-toggle" data-toggle="'+p.id+'">展开全部 '+p.args.length+' 条论点 ▾</button>';
+  var txt='<p class="summary">'+esc(p.summary)+'</p>'
+    +'<ul class="args">'+p.args.map(function(x,i){return '<li'+(i>0?' class="more"':'')+'>'+esc(x)+'</li>'}).join('')+'</ul>'
+    +moreBtn;
+  var bodyHtml=p.vid
+    ?'<div class="p-body"><div class="txt">'+txt+'</div>'+vcoverHtml(p.vid,'')+'</div>'
+    :txt;
+  return '<article class="p-card'+(p.pin?' pin':'')+(p.heavy?' heavy':'')+'" id="pc'+p.id+'">'
+    +'<div class="p-head">'+avaBg(a)+'<span class="alias">'+esc(a.alias)+'</span><span class="handle">'+esc(a.handle)+'</span>'
+    +'<span class="cat-tag">'+esc(a.cat)+'</span>'+pinTag+missTag+'<span class="p-time" title="发布于 '+(p.pub||'—')+'">'+fmtMins(p.mins)+'</span></div>'
+    +bodyHtml
+    +chipsHtml(p.targets)
+    +'<div class="p-foot">'
+    +'<span class="stance '+p.stance+'"><i></i>'+STANCE_NAME[p.stance]+'<span class="ai">AI '+p.conf+'%</span></span>'
+    +'<span class="ia">'+esc(p.ia)+'</span>'
+    +'<span class="ai-note">AI 生成 · 非投资建议</span>'
+    +'<button class="ext" data-ext="'+esc(a.alias)+'">原文 ↗</button>'
+    +'</div></article>';
+}
+function filteredPosts(){
+  return POSTS.filter(function(p){
+    var a=accById(p.acc);
+    if(state.f.cat!=='all'&&a.cat!==state.f.cat)return false;
+    if(state.f.stance!=='all'&&p.stance!==state.f.stance)return false;
+    if(state.f.range!==''&&p.mins>Number(state.f.range))return false;
+    if(state.f.strong&&p.conf<80)return false;
+    return true;
+  });
+}
+function renderStream(){
+  var el=$('#stream');
+  var list=filteredPosts();
+  list.sort(function(x,y){return (y.pin?1:0)-(x.pin?1:0)||x.mins-y.mins});
+  var html='<div class="new-msg-bar" id="newBar" style="display:none">↓ <b>3 条新判断</b> · 最新 11:52（私募老李）<span class="t">点击载入，不打断当前浏览位置</span></div>';
+  if(list.length===0){
+    html+='<div class="empty">无匹配内容 · 试试放宽过滤器（分类 / 立场 / 时间 / 强信号）</div>';
+  }else{
+    var prevDrawn=false;
+    list.forEach(function(p){
+      if(p.day==='prev'&&!prevDrawn){html+='<div class="day-sep">以下为上一交易日（09-12）视频</div>';prevDrawn=true}
+      html+=postCard(p);
+    });
+  }
+  html+='<div class="note" style="text-align:center;padding:4px 0 2px">已过滤 '+IRRELEVANT_N+' 条无关内容（生活 / 广告，判 irrelevant 不入流 · F-SOC-04）</div>';
+  el.innerHTML=html;
+  var nb=$('#newBar');
+  if(nb&&state.newAdded)nb.style.display='flex';
+  if(nb)nb.onclick=function(){
+    nb.style.display='none';
+    POSTS.unshift(Object.assign({id:Date.now()},NEW_POST));
+    toast('已载入最新判断（演示插入 1 条）');
+    renderStream();
+  };
+}
+/* ============ 大V情绪摘要卡（收起状态 localStorage 记忆，对齐 AccountDimension） ============ */
+var SUMMARY_KEY='settings:sentiment-summary-collapsed';
+function renderSummary(){
+  $('#sumN').textContent=ACCOUNTS.length+' 位';
+  var bull=0,bear=0,neu=0;
+  POSTS.forEach(function(p){if(p.stance==='bull')bull++;else if(p.stance==='bear')bear++;else neu++});
+  $('#sumBull').textContent=bull;$('#sumBear').textContent=bear;$('#sumNeu').textContent=neu;
+  var h='';
+  [{k:'prev',lab:'昨日'},{k:'today',lab:'今日'}].forEach(function(d){
+    var b=0,s=0,n=0;
+    POSTS.forEach(function(p){if(p.day!==d.k)return;if(p.stance==='bull')b++;else if(p.stance==='bear')s++;else n++});
+    var tot=b+s+n||1;
+    h+='<div class="sum-day"><div class="sum-bar">'
+      +'<span class="sg b" style="width:'+(b/tot*100)+'%"></span>'
+      +'<span class="sg n" style="width:'+(n/tot*100)+'%"></span>'
+      +'<span class="sg s" style="width:'+(s/tot*100)+'%"></span></div>'
+      +'<span class="sum-day-lab">'+d.lab+' 多'+b+' 空'+s+' 中'+n+'</span></div>';
+  });
+  $('#sumBars').innerHTML=h;
+}
+function applySumCollapsed(c){
+  $('#sumBody').style.display=c?'none':'block';
+  $('#sumToggle').textContent=c?'展开 ▸':'收起 ▾';
+  $('#sumToggle').setAttribute('aria-label',c?'展开大 V 情绪摘要':'收起大 V 情绪摘要');
+}
+$('#sumToggle').onclick=function(){
+  var next=$('#sumBody').style.display!=='none';
+  localStorage.setItem(SUMMARY_KEY,next?'1':'0');
+  applySumCollapsed(next);
+  toast(next?'已收起大V情绪摘要（刷新后保持）':'已展开大V情绪摘要');
+};
+
+/* ============ 账号维度 ============ */
+function latestPostOf(id){
+  var latest=null;
+  POSTS.forEach(function(p){if(p.acc===id&&(!latest||p.mins<latest.mins))latest=p});
+  return latest;
+}
+function renderAccGrid(){
+  var h='';
+  ACCOUNTS.forEach(function(a){
+    var latest=latestPostOf(a.id);
+    var bull=0,bear=0,neu=0;
+    POSTS.forEach(function(p){if(p.acc!==a.id)return;if(p.stance==='bull')bull++;else if(p.stance==='bear')bear++;else neu++});
+    var dots=a.traj.slice(-8).map(function(s){return '<i class="'+s+'"></i>'}).join('');
+    var badge=latest?'<span class="stance '+latest.stance+'"><i></i>'+STANCE_NAME[latest.stance]+'<span class="ai">AI '+latest.conf+'%</span></span>':'';
+    var latestTxt=(latest?esc(latest.summary):'暂无已判断内容');
+    var media=(latest&&latest.vid)
+      ?'<div class="acc-media">'+vcoverHtml(latest.vid,' sm')+'<div style="min-width:0"><div class="latest">'+latestTxt+'</div></div></div>'
+      :'<div class="latest">'+latestTxt+'</div>';
+    h+='<div class="acc-card" data-acc="'+a.id+'">'
+      +'<div class="top"><div class="ava" style="background:'+a.hue+'">'+esc(a.alias.slice(0,1))+'</div>'
+      +'<div style="min-width:0"><div class="alias">'+esc(a.alias)+'</div>'
+      +'<div class="hnd">'+esc(a.handle)+'</div></div>'+badge+'</div>'
+      +'<div class="acc-cnt"><span class="up">多 '+bull+'</span><span class="down">空 '+bear+'</span><span class="mut">中 '+neu+'</span><span class="mini-dots">'+dots+'</span></div>'
+      +media
+      +'<div class="foot"><span class="cat-tag">'+esc(a.cat)+'</span><span style="margin-left:auto">'+(latest?'最新发布 '+fmtMins(latest.mins):'暂无发布')+' · 时间线 →</span></div></div>';
+  });
+  $('#accGrid').innerHTML=h;
+  $('#accGrid').querySelectorAll('[data-acc]').forEach(function(n){n.onclick=function(){openTimeline(n.getAttribute('data-acc'))}});
+}
+function openTimeline(id){
+  var a=accById(id);if(!a)return;
+  $('#streamArea').style.display='none';
+  $('#accTlWrap').style.display='block';
+  $('#tlName').textContent=a.alias;
+  var av=$('#tlAva');av.style.background=a.hue;av.textContent=a.alias.slice(0,1);
+  $('#tlAlias').textContent=a.alias;
+  var latest=latestPostOf(id);
+  $('#tlMeta').textContent=a.handle+' · '+a.cat+' · 轮询 '+a.interval+' · 最近更新 '+(latest?fmtMins(latest.mins)+(latest.vid?'（'+latest.vid.pub+' 发布）':''):'—');
+  var traj=a.traj;var streak=1;
+  for(var i=traj.length-1;i>0;i--){if(traj[i-1]===traj[i])streak++;else break}
+  $('#tlStreak').textContent=traj.length?('近 '+streak+' 条连续'+STANCE_NAME[traj[traj.length-1]]):'暂无判断';
+  var turn=$('#tlTurn');
+  if(traj.length>=2&&traj[traj.length-1]!==traj[traj.length-2]){
+    turn.style.display='inline-block';
+    turn.textContent='↓ 转向：由'+STANCE_NAME[traj[traj.length-2]]+'转'+STANCE_NAME[traj[traj.length-1]];
+  }else{turn.style.display='none'}
+  var h='';
+  traj.forEach(function(s,idx){
+    if(idx>0)h+='<span class="ln"></span>';
+    h+='<span class="dt '+s+'" title="'+(traj.length-idx)+' 条前 · '+STANCE_NAME[s]+'"></span>';
+  });
+  $('#tlTraj').innerHTML=h;
+  var posts=POSTS.filter(function(p){return p.acc===id}).sort(function(x,y){return x.mins-y.mins});
+  var ph='';
+  if(posts.length===0)ph='<div class="empty">该账号暂无已判断内容</div>';
+  else posts.forEach(function(p){ph+=postCard(p)});
+  $('#tlPosts').innerHTML=ph;
+}
+function closeTimeline(){
+  $('#accTlWrap').style.display='none';
+  $('#streamArea').style.display='block';
+}
+
+/* ============ 后台 ============ */
+function renderAdmin(){
+  var h='';
+  ACCOUNTS.forEach(function(a){
+    h+='<tr data-row="'+a.id+'">'
+      +'<td><div class="sub">'+esc(a.handle)+'</div></td>'
+      +'<td><div style="display:flex;align-items:center;gap:8px"><div class="ava" style="background:'+a.hue+';width:22px;height:22px;font-size:10px">'+esc(a.alias.slice(0,1))+'</div><div><div>'+esc(a.alias)+'</div></div></div></td>'
+      +'<td><select data-cat="'+a.id+'"><option'+(a.cat==='宏观政策'?' selected':'')+'>宏观政策</option><option'+(a.cat==='财经大 V'?' selected':'')+'>财经大 V</option><option'+(a.cat==='产业人士'?' selected':'')+'>产业人士</option></select></td>'
+      +'<td>'+a.interval+'</td>'
+      +'<td style="color:var(--text-secondary)">'+a.last+'</td>'
+      +'<td style="color:'+(a.asr==='100%'?'var(--text-secondary)':'var(--amber)')+'">'+(a.asr||'—')+'</td>'
+      +'<td><span class="sw2 on" data-sw="'+a.id+'" title="停用即停止采集"></span></td>'
+      +'<td><button class="rowdel" data-del="'+a.id+'">删除</button></td></tr>';
+  });
+  $('#adminRows').innerHTML=h;
+  $('#adminRows').querySelectorAll('[data-sw]').forEach(function(n){
+    n.onclick=function(){n.classList.toggle('on');toast(n.classList.contains('on')?'已启用采集（F-SOC-01）':'已停用：停止采集，历史数据保留')};
+  });
+  $('#adminRows').querySelectorAll('[data-cat]').forEach(function(n){
+    n.onchange=function(){toast('分类已更新为「'+n.value+'」（影响温度聚合分组）')};
+  });
+  $('#adminRows').querySelectorAll('[data-del]').forEach(function(n){
+    n.onclick=function(){
+      if(!n.classList.contains('armed')){n.classList.add('armed');n.textContent='确认删除？';setTimeout(function(){n.classList.remove('armed');n.textContent='删除'},2600);return}
+      var id=n.getAttribute('data-del');
+      for(var i=ACCOUNTS.length-1;i>=0;i--){if(ACCOUNTS[i].id===id)ACCOUNTS.splice(i,1)}
+      toast('已删除：停止采集，历史数据保留，视图可按需隐藏');
+      renderAdmin();renderSummary();renderAccGrid();
+    };
+  });
+}
+
+/* ============ 事件绑定 ============ */
+document.querySelectorAll('[data-toast]').forEach(function(b){b.onclick=function(){toast(b.getAttribute('data-toast'))}});
+
+function bindChips(id,key){
+  document.querySelectorAll('#'+id+' .fchip').forEach(function(c){
+    c.onclick=function(){
+      document.querySelectorAll('#'+id+' .fchip').forEach(function(x){x.classList.remove('active')});
+      c.classList.add('active');state.f[key]=c.getAttribute('data-f');renderStream();
+    };
+  });
+}
+bindChips('fCat','cat');
+bindChips('fStance','stance');
+bindChips('fRange','range');
+$('#fStrong').onclick=function(){
+  this.classList.toggle('on');
+  state.f.strong=this.classList.contains('on');
+  renderStream();
+};
+
+document.querySelectorAll('#schemeSeg button').forEach(function(b){
+  b.onclick=function(){
+    document.querySelectorAll('#schemeSeg button').forEach(function(x){x.classList.remove('on')});
+    b.classList.add('on');
+    document.body.classList.toggle('alt',b.getAttribute('data-s')==='alt');
+    toast('立场配色跟随用户方案切换 · 组件订阅 useColorScheme()');
+  };
+});
+
+document.addEventListener('click',function(e){
+  var t=e.target;
+  var chip=t.closest?t.closest('.chip'):null;
+  if(chip){toast('跳转'+chip.getAttribute('data-jump')+'：'+chip.getAttribute('data-tgt')+'（演示）');return}
+  var tg=t.closest?t.closest('.args-toggle'):null;
+  if(tg){var card=document.getElementById('pc'+tg.getAttribute('data-toggle'));if(card)card.classList.toggle('open');tg.textContent=card&&card.classList.contains('open')?'收起论点 ▴':'展开全部论点 ▾';return}
+  var ex=t.closest?t.closest('.ext'):null;
+  if(ex){toast('跳转抖音原视频：'+ex.getAttribute('data-ext')+'（演示外链）');return}
+  var vc=t.closest?t.closest('.vcover'):null;
+  if(vc){toast('播放/跳转原视频：「'+vc.getAttribute('data-vtitle')+'」（演示）');return}
+});
+
+$('#chClose').onclick=function(){$('#chBanner').style.display='none'};
+$('#backAccs').onclick=closeTimeline;
+
+/* 弹层：登记账号 */
+var modal=$('#accModal');
+function openModal(){modal.classList.add('show');$('#mErr').classList.remove('show');$('#mHandle').value='';$('#mAlias').value='';$('#mNote').value='';$('#mHandle').focus()}
+function closeModal(){modal.classList.remove('show')}
+$('#btnAdd').onclick=openModal;
+$('#mClose').onclick=closeModal;
+$('#mCancel').onclick=closeModal;
+modal.addEventListener('click',function(e){if(e.target===modal)closeModal()});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal()});
+$('#mOk').onclick=function(){
+  var handle=$('#mHandle').value.trim(),alias=$('#mAlias').value.trim(),cat=$('#mCat').value;
+  var err=$('#mErr');
+  if(!handle||!alias){err.textContent='抖音号标识与别名为必填项';err.classList.add('show');return}
+  var dup=ACCOUNTS.some(function(a){return a.handle.toLowerCase()===handle.toLowerCase()});
+  if(dup){err.textContent='同标识已存在（'+handle+'）· 拒绝重复登记（F-SOC-01）';err.classList.add('show');return}
+  var hues=['#5865f2','#2ea043','#e3b341','#a371f7','#58a6ff'];
+  ACCOUNTS.push({id:'u'+Date.now(),handle:handle,alias:alias,cat:cat,hue:hues[ACCOUNTS.length%hues.length],interval:'1 小时',last:'刚刚',asr:'—',traj:[]});
+  closeModal();toast('已登记并启用 · 自动纳入抖音采集任务与 F-MON 健康监测');
+  renderAdmin();renderSummary();renderAccGrid();
+};
+
+/* ============ 初始化 ============ */
+renderStream();renderSummary();renderAccGrid();renderAdmin();
+applySumCollapsed(localStorage.getItem(SUMMARY_KEY)==='1');
+setTimeout(function(){var nb=$('#newBar');if(nb)nb.style.display='flex'},5000);
+</script>
+</body>
+</html>

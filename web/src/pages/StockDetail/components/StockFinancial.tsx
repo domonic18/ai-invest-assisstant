@@ -1,8 +1,9 @@
-import { ReloadOutlined } from '@ant-design/icons'
+import { ReloadOutlined, SyncOutlined } from '@ant-design/icons'
 import { Button, Empty, Skeleton, Spin, Typography } from 'antd'
 
 import { FinancialTrendCharts } from '@/components/charts/FinancialTrendCharts'
 import { FINANCIAL_METRIC_LABELS } from '@/constants/financial'
+import { useAutoCollectFinancial } from '@/hooks/useAutoCollectFinancial'
 import { useFinancial } from '@/hooks/useFinancial'
 import { useFinancialHistory } from '@/hooks/useFinancialHistory'
 
@@ -31,6 +32,13 @@ export function StockFinancial({
   historyError,
   onRetry,
 }: StockFinancialProps) {
+  // 报表缺失时自动补采（对齐 K 线缺数据自动补采），失败后保留手动重试
+  const missing = !data || !data.reportDate
+  const { collect } = useAutoCollectFinancial(stockCode, {
+    ready: !isLoading,
+    missing,
+  })
+
   if (isLoading) {
     return (
       <div className="py-2">
@@ -52,10 +60,37 @@ export function StockFinancial({
     )
   }
 
-  if (!data) {
+  if (missing) {
     return (
       <div>
-        <Empty description="暂无财务数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        <div className="flex flex-col items-center justify-center gap-3 py-4 text-[#8c8c8c]">
+          {collect.isPending ? (
+            <>
+              <Spin size="small" />
+              <Typography.Text type="secondary" className="text-sm">
+                财务数据缺失，正在自动补采，预计 10-30 秒...
+              </Typography.Text>
+            </>
+          ) : (
+            <>
+              <Typography.Text type="secondary" className="text-sm">
+                暂无财务数据
+              </Typography.Text>
+              <Button
+                size="small"
+                icon={<SyncOutlined />}
+                onClick={() => collect.mutate()}
+              >
+                补采财务数据
+              </Button>
+            </>
+          )}
+          {collect.isError && (
+            <Typography.Text type="danger" className="text-xs">
+              {(collect.error as Error).message}
+            </Typography.Text>
+          )}
+        </div>
         <StockFinancialReports stockCode={stockCode} stockName={stockName} />
       </div>
     )

@@ -8,18 +8,20 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from redis.exceptions import RedisError
 
 from app.core.clock import CN_TZ
 from app.services.news import news_channel_service
 from app.services.news.news_channel_service import (
     MONITOR_STREAM,
+    MONITOR_TASK_LOG,
     NEWS_CHANNELS,
     NewsChannel,
     get_channels_status,
     register_channel,
 )
 
-SINA_SCHEDULE = "0/30 * * * *"
+FLASH_SCHEDULE = "0/30 * * * *"
 REPORT_SCHEDULE = "0 8,18 * * *"
 
 
@@ -45,25 +47,37 @@ def _run(
 @contextmanager
 def _service_mocks(
     *,
-    runs_by_task: dict[str, list[Any]] | None = None,
-    schedules: dict[str, str] | None = None,
+    runs_by_channel: dict[tuple[str, str], list[Any]] | None = None,
+    schedules: dict[tuple[str, str], str] | None = None,
+    inactive: set[tuple[str, str]] | None = None,
+    flash_visible: bool = True,
     today: tuple[int, datetime | None] = (120, None),
     stats: tuple[int, int, int] = (100, 80, 12),
     heartbeat: int = 1,
+    redis_raises: Exception | None = None,
 ) -> Iterator[SimpleNamespace]:
-    """patch 判定器的外部依赖：Redis 心跳 / 任务日志 / 任务配置 / 源表统计。"""
-    runs_by_task = runs_by_task or {}
+    """patch 判定器的外部依赖：Redis 心跳 / 任务日志 / 任务配置 / 源表统计。
+
+    runs_by_channel / schedules 均以渠道身份 (task_type, source) 为键；
+    inactive 集合内的渠道任务视为已暂停（is_active=False）；
+    flash_visible 控制东财快讯资讯中心展示开关。
+    """
+    runs_by_channel = runs_by_channel or {}
+    inactive = inactive or set()
     schedules = schedules or {
-        "sina_news": SINA_SCHEDULE,
-        "eastmoney_research_report": REPORT_SCHEDULE,
+        ("news", "eastmoney"): FLASH_SCHEDULE,
+        ("research-report", "eastmoney"): REPORT_SCHEDULE,
     }
     fake_redis = AsyncMock()
-    fake_redis.exists.return_value = heartbeat
+    if redis_raises is not None:
+        fake_redis.exists.side_effect = redis_raises
+    else:
+        fake_redis.exists.return_value = heartbeat
     today_mock = AsyncMock(return_value=today)
     stats_mock = AsyncMock(return_value=stats)
     with (
         patch(
-            "app.services.news.news_channel_service.get_redis",
+            "app.core.cache.get_redis",
             return_value=fake_redis,
         ),
         patch(
@@ -80,13 +94,20 @@ def _service_mocks(
             "app.services.news.news_channel_service.ai_score_repository.today_stats",
             stats_mock,
         ),
+        patch(
+            "app.services.news.news_channel_service.is_flash_news_visible",
+            AsyncMock(return_value=flash_visible),
+        ),
     ):
         log_cls.return_value.list_runs_for_task = AsyncMock(
-            side_effect=lambda task_name, since: runs_by_task.get(task_name, [])
+            side_effect=lambda task_name, since, source=None, limit=500: runs_by_channel.get(
+                (task_name, source), []
+            )
         )
-        task_cls.return_value.get_by_task_name = AsyncMock(
-            side_effect=lambda task_name: SimpleNamespace(
-                schedule=schedules.get(task_name)
+        task_cls.return_value.get_by_type_and_source = AsyncMock(
+            side_effect=lambda task_type, source: SimpleNamespace(
+                schedule=schedules.get((task_type, source)),
+                is_active=(task_type, source) not in inactive,
             )
         )
         yield SimpleNamespace(redis=fake_redis, today=today_mock, stats=stats_mock)
@@ -124,13 +145,20 @@ class TestStreamChannel:
         assert ch.status == "delayed"
         assert ch.status_text == "采集延迟"
 
+    async def test_redis_unavailable_degrades_to_delayed(self) -> None:
+        """回归：Redis 不可达（SCF 网络隔离）时端点降级 delayed 而非 500。"""
+        result = await _status(_at(12), redis_raises=RedisError("connection refused"))
+        ch = _channel_of(result, "cls_telegraph")
+        assert ch.status == "delayed"
+        assert ch.today_count == 120  # 源表统计（DB）仍正常返回
+
 
 @pytest.mark.unit
 class TestTaskLogPolling:
     async def test_recent_success_ok(self) -> None:
         runs = [_run("success", _at(11, 30), _at(11, 32), records=12)]
-        result = await _status(_at(12), runs_by_task={"sina_news": runs})
-        ch = _channel_of(result, "sina_news")
+        result = await _status(_at(12), runs_by_channel={("news", "eastmoney"): runs})
+        ch = _channel_of(result, "eastmoney_flash_news")
         assert ch.status == "ok"
         assert ch.status_text == "正常运行"
         assert ch.today_count == 12
@@ -139,18 +167,18 @@ class TestTaskLogPolling:
     async def test_stale_success_delayed(self) -> None:
         # 最近成功停留在 10:58（覆盖 10:30 轮），12:10 仍无新成功 -> 超两轮窗口
         runs = [_run("success", _at(10, 30), _at(10, 58))]
-        result = await _status(_at(12, 10), runs_by_task={"sina_news": runs})
-        assert _channel_of(result, "sina_news").status == "delayed"
+        result = await _status(_at(12, 10), runs_by_channel={("news", "eastmoney"): runs})
+        assert _channel_of(result, "eastmoney_flash_news").status == "delayed"
 
     async def test_no_runs_early_morning_ok(self) -> None:
         # 跨日后 10 分钟，首轮（00:00）还没跑完 -> 正常等待
-        result = await _status(_at(0, 10), runs_by_task={"sina_news": []})
-        assert _channel_of(result, "sina_news").status == "ok"
+        result = await _status(_at(0, 10), runs_by_channel={("news", "eastmoney"): []})
+        assert _channel_of(result, "eastmoney_flash_news").status == "ok"
 
     async def test_no_runs_beyond_window_delayed(self) -> None:
         # 当日从 00:00 起一轮未成功，超过两轮窗口 -> delayed
-        result = await _status(_at(1, 10), runs_by_task={"sina_news": []})
-        assert _channel_of(result, "sina_news").status == "delayed"
+        result = await _status(_at(1, 10), runs_by_channel={("news", "eastmoney"): []})
+        assert _channel_of(result, "eastmoney_flash_news").status == "delayed"
 
     async def test_running_latest_terminal_falls_back_to_success(self) -> None:
         # 最新 run 在跑不算终态；今日最近成功仍覆盖节奏 -> ok
@@ -158,43 +186,88 @@ class TestTaskLogPolling:
             _run("running", _at(11, 59)),
             _run("success", _at(11, 30), _at(11, 32), records=5),
         ]
-        result = await _status(_at(12), runs_by_task={"sina_news": runs})
-        ch = _channel_of(result, "sina_news")
+        result = await _status(_at(12), runs_by_channel={("news", "eastmoney"): runs})
+        ch = _channel_of(result, "eastmoney_flash_news")
         assert ch.status == "ok"
         assert ch.last_updated_at == _at(11, 32)
 
     async def test_only_failed_runs_delayed(self) -> None:
         runs = [_run("failed", _at(11, 31), _at(11, 31))]
-        result = await _status(_at(11, 40), runs_by_task={"sina_news": runs})
-        ch = _channel_of(result, "sina_news")
+        result = await _status(_at(11, 40), runs_by_channel={("news", "eastmoney"): runs})
+        ch = _channel_of(result, "eastmoney_flash_news")
         assert ch.status == "delayed"
         assert ch.today_count == 0
         assert ch.last_updated_at == _at(11, 31)
 
+    async def test_paused_task_log_channel_still_listed(self) -> None:
+        # 采集任务暂停（采集管理控制）→ 渠道仍列出并如实判 delayed，展示与采集解耦
+        result = await _status(_at(12), inactive={("news", "eastmoney")})
+        ch = _channel_of(result, "eastmoney_flash_news")
+        assert ch.status == "delayed"
+        keys = [c.key for c in result.channels]
+        assert "cls_telegraph" in keys
+        assert "social_video" in keys
+
+    async def test_flash_news_display_off_hides_channel(self) -> None:
+        # 资讯管理「显示东财快讯」关闭 → 渠道整体隐去，其余渠道不受影响
+        result = await _status(_at(12), flash_visible=False)
+        keys = [ch.key for ch in result.channels]
+        assert "eastmoney_flash_news" not in keys
+        assert "cls_telegraph" in keys
+        assert "social_video" in keys
+
+    async def test_flash_news_display_on_default_shown(self) -> None:
+        # 开关缺省（无 KV 行）→ 渠道正常展示
+        result = await _status(_at(12), flash_visible=True)
+        assert "eastmoney_flash_news" in [ch.key for ch in result.channels]
+
 
 @pytest.mark.unit
 class TestTaskLogBatch:
-    async def test_today_success_batch(self) -> None:
-        runs = [_run("success", _at(18), _at(18, 5), records=40)]
-        result = await _status(
-            _at(23), runs_by_task={"eastmoney_research_report": runs}
+    @contextmanager
+    def _batch_channel(self) -> Iterator[NewsChannel]:
+        """批量批次渠道已不进默认注册表（东财研报走双入口），此处临时登记覆盖批次判定器。"""
+        channel = NewsChannel(
+            key="fake_batch_report",
+            name="批次报表",
+            monitor_type=MONITOR_TASK_LOG,
+            poll_desc="每日 2 次（8:00 / 18:00）",
+            task_type="research-report",
+            source="eastmoney",
+            batch_schedule=True,
         )
-        ch = _channel_of(result, "eastmoney_research_report")
+        register_channel(channel)
+        try:
+            yield channel
+        finally:
+            NEWS_CHANNELS.remove(channel)
+
+    async def test_today_success_batch(self) -> None:
+        with self._batch_channel():
+            runs = [_run("success", _at(18), _at(18, 5), records=40)]
+            result = await _status(
+                _at(23), runs_by_channel={("research-report", "eastmoney"): runs}
+            )
+        ch = _channel_of(result, "fake_batch_report")
         assert ch.status == "batch"
         assert ch.status_text == "每日批次"
         assert ch.today_count == 40
 
     async def test_morning_wait_before_grace(self) -> None:
         # 8:00 批次过后 1 小时无成功，仍在宽限窗口 -> 正常等待
-        result = await _status(_at(9), runs_by_task={"eastmoney_research_report": []})
-        assert _channel_of(result, "eastmoney_research_report").status == "batch"
+        with self._batch_channel():
+            result = await _status(
+                _at(9), runs_by_channel={("research-report", "eastmoney"): []}
+            )
+        assert _channel_of(result, "fake_batch_report").status == "batch"
 
     async def test_overdue_no_success_delayed(self) -> None:
         # 8:00 批次过后 2.5 小时仍无成功 -> delayed
-        result = await _status(
-            _at(10, 30), runs_by_task={"eastmoney_research_report": []}
-        )
-        assert _channel_of(result, "eastmoney_research_report").status == "delayed"
+        with self._batch_channel():
+            result = await _status(
+                _at(10, 30), runs_by_channel={("research-report", "eastmoney"): []}
+            )
+        assert _channel_of(result, "fake_batch_report").status == "delayed"
 
 
 @pytest.mark.unit
@@ -214,10 +287,11 @@ class TestStatsAndRegistry:
 
     async def test_default_registry_three_channels(self) -> None:
         result = await _status(_at(12))
+        # 东财研报已退出资讯中心注册表（双入口：个股研报页 / 管理端研报库）
         assert [ch.key for ch in result.channels] == [
             "cls_telegraph",
-            "sina_news",
-            "eastmoney_research_report",
+            "eastmoney_flash_news",
+            "social_video",
         ]
 
     async def test_fake_channel_registered_appears(self) -> None:
@@ -241,3 +315,24 @@ class TestStatsAndRegistry:
 
     def test_module_exports_register(self) -> None:
         assert callable(news_channel_service.register_channel)
+
+
+@pytest.mark.unit
+class TestRegistryConsistency:
+    """钉死监控注册表与采集运行时的键空间契约：新渠道键写错直接红灯。"""
+
+    def test_task_log_channels_match_runtime_registry(self) -> None:
+        from collector.runtime.registry import TASK_SPECS
+
+        task_log_channels = [
+            ch for ch in NEWS_CHANNELS if ch.monitor_type == MONITOR_TASK_LOG
+        ]
+        assert task_log_channels, "注册表至少应有一条 task-log 渠道"
+        for ch in task_log_channels:
+            assert ch.task_type in TASK_SPECS, (
+                f"{ch.key}: task_type={ch.task_type} 不在 TASK_SPECS"
+            )
+            spec = TASK_SPECS[ch.task_type]
+            assert ch.source in spec.collectors, (
+                f"{ch.key}: source={ch.source} 不在 {ch.task_type} 的 collectors"
+            )

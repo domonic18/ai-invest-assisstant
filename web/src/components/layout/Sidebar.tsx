@@ -1,10 +1,10 @@
 import {
+  AlertOutlined,
   AppstoreOutlined,
   BarChartOutlined,
   BlockOutlined,
-  CalendarOutlined,
   CloudServerOutlined,
-  ContainerOutlined,
+  DatabaseOutlined,
   DashboardOutlined,
   FileTextOutlined,
   FileDoneOutlined,
@@ -13,6 +13,7 @@ import {
   HeatMapOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  PieChartOutlined,
   PlayCircleOutlined,
   ReadOutlined,
   RobotOutlined,
@@ -22,13 +23,15 @@ import {
   TeamOutlined,
   ThunderboltOutlined,
   UserOutlined,
-  VerticalAlignTopOutlined,
+  WeiboOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
-import { Menu } from 'antd'
+import { Badge, Menu } from 'antd'
 import { useEffect, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
+import { useCollectorHealthBadgeCount } from '@/hooks/useCollectorHealth'
+import { usePendingCount } from '@/hooks/useAdminAccount'
 import { useAuthStore } from '@/stores/auth'
 import { Brand } from '@/components/common/Brand'
 import { SidebarReviewStatus } from '@/components/layout/SidebarReviewStatus'
@@ -40,19 +43,16 @@ import {
 
 type MenuItem = Required<MenuProps>['items'][number]
 
-// 导航信息架构见需求 4.4.0：监测 → 资讯 → 分析 → 设置。
-// 资讯中心 /news 与异动双页（迭代 3/5）上线后再挂出；
+// 导航信息架构：检测 → 分析 → 设置；知识库入口在右上角（/kb），投资日历在右上角。
 // 个股监测经顶部搜索进入（/stock/:code 无默认标的，不设静态导航项）。
-const MONITOR_MENU_ITEMS: MenuItem[] = [
+const DETECTION_MENU_ITEMS: MenuItem[] = [
   { key: '/macro-monitor', icon: <GlobalOutlined />, label: '宏观指数' },
-  { key: '/capital-flow', icon: <FundOutlined />, label: '板块监测' },
+  { key: '/capital-flow', icon: <FundOutlined />, label: '资金流向' },
   { key: '/auction-review', icon: <ShopOutlined />, label: '集合竞价' },
-]
-
-const NEWS_MENU_ITEMS: MenuItem[] = [
+  // 板块/个股异动合并为双 tab 页，page_event 跳转直达 /anomaly/sector|stock
+  { key: '/anomaly', icon: <AlertOutlined />, label: '异动检测' },
   // 迭代 3：电报视图迁入资讯中心 /news（渠道监控 + AI 分级 + 三视图）
   { key: '/news', icon: <ThunderboltOutlined />, label: '资讯中心' },
-  { key: '/calendar', icon: <CalendarOutlined />, label: '投资日历' },
 ]
 
 const ANALYSIS_MENU_ITEMS: MenuItem[] = [
@@ -63,16 +63,16 @@ const ANALYSIS_MENU_ITEMS: MenuItem[] = [
 const ADMIN_MENU_ITEMS: MenuItem[] = [
   { key: '/admin', icon: <DashboardOutlined />, label: '管理总览' },
   { key: '/admin/users', icon: <TeamOutlined />, label: '用户管理' },
+  { key: '/admin/usage-dashboard', icon: <PieChartOutlined />, label: '用量看板' },
   { key: '/admin/stocks', icon: <BarChartOutlined />, label: '股票管理' },
-  { key: '/admin/reports', icon: <FileTextOutlined />, label: '研报管理' },
+  { key: '/admin/reports', icon: <FileTextOutlined />, label: '报告管理' },
   { key: '/admin/news', icon: <ReadOutlined />, label: '资讯管理' },
-  { key: '/admin/tasks', icon: <ContainerOutlined />, label: '任务管理' },
   { key: '/admin/llm-configs', icon: <RobotOutlined />, label: 'LLM 配置' },
+  { key: '/admin/knowledge-base', icon: <DatabaseOutlined />, label: '知识库' },
   { key: '/admin/proxy-configs', icon: <CloudServerOutlined />, label: '代理配置' },
-  { key: '/admin/ai-results', icon: <FileDoneOutlined />, label: 'AI 结果管理' },
-  { key: '/admin/tracked-indexes', icon: <VerticalAlignTopOutlined />, label: '跟踪指数' },
-  { key: '/admin/collector-channels', icon: <SettingOutlined />, label: '采集渠道' },
-  { key: '/admin/collector', icon: <PlayCircleOutlined />, label: '采集任务' },
+  { key: '/admin/ai-results', icon: <FileDoneOutlined />, label: '分析结果' },
+  { key: '/admin/collector', icon: <PlayCircleOutlined />, label: '采集管理' },
+  { key: '/admin/social-tracking', icon: <WeiboOutlined />, label: '社媒追踪' },
 ]
 
 const ADMIN_GROUP_KEY = 'admin-group'
@@ -95,6 +95,29 @@ function resolveSelectedKey(pathname: string, keys: string[]): string {
   return matched.sort((a, b) => b.length - a.length)[0] ?? '/'
 }
 
+/** 给指定菜单项挂数字角标（采集健康故障数 / 待审批数，均 300s 轮询）。 */
+function withBadge(
+  items: MenuItem[],
+  targetKey: string,
+  label: string,
+  badgeCount: number,
+): MenuItem[] {
+  return items.map((item) => {
+    if (item && 'key' in item && item.key === targetKey) {
+      return {
+        ...item,
+        label: (
+          <span className="inline-flex items-center gap-2">
+            {label}
+            {badgeCount > 0 && <Badge count={badgeCount} size="small" />}
+          </span>
+        ),
+      } as MenuItem
+    }
+    return item
+  })
+}
+
 interface SidebarMenuProps {
   /** 导航后回调（移动端抽屉场景用于关闭抽屉）。 */
   onNavigate?: () => void
@@ -104,10 +127,12 @@ interface SidebarMenuProps {
 export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, isAdmin } = useAuthStore()
+  const { isAdmin } = useAuthStore()
 
   const isAdminPath = location.pathname.startsWith('/admin')
   const [openKeys, setOpenKeys] = useState<string[]>(isAdminPath ? [ADMIN_GROUP_KEY] : [])
+  const healthBadgeCount = useCollectorHealthBadgeCount(isAdmin)
+  const pendingCount = usePendingCount(isAdmin).data ?? 0
 
   useEffect(() => {
     if (isAdminPath) {
@@ -118,15 +143,29 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
   const settingsChildren: MenuItem[] = [
     { key: '/settings', icon: <UserOutlined />, label: '个人设置' },
     { key: '/skills', icon: <BlockOutlined />, label: '技能广场' },
-    // 自选股管理不在侧边栏（4.4.0），入口为工作台自选卡「管理分组」
-    { key: '/watchlist', icon: <StarOutlined />, label: '自选股管理' },
     ...(isAdmin
       ? [
           {
             key: ADMIN_GROUP_KEY,
             icon: <SettingOutlined />,
             label: '后台管理',
-            children: ADMIN_MENU_ITEMS,
+            // 点分组标题在展开/收起之外默认进入管理总览（onTitleClick 与
+            // antd 默认 toggle 叠加生效，折叠弹出态同样走此行为）
+            onTitleClick: () => {
+              navigate('/admin')
+              onNavigate?.()
+            },
+            children: withBadge(
+              withBadge(
+                ADMIN_MENU_ITEMS,
+                '/admin/users',
+                '用户管理',
+                pendingCount,
+              ),
+              '/admin/collector',
+              '采集管理',
+              healthBadgeCount,
+            ),
           } as MenuItem,
         ]
       : []),
@@ -134,11 +173,21 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
 
   const items: MenuItem[] = [
     { key: '/workbench', icon: <AppstoreOutlined />, label: '工作台' },
-    { type: 'group', key: 'group-monitor', label: '监测', children: MONITOR_MENU_ITEMS },
-    { type: 'group', key: 'group-news', label: '资讯', children: NEWS_MENU_ITEMS },
+    { key: '/watchlist', icon: <StarOutlined />, label: '我的自选' },
+    { type: 'group', key: 'group-detection', label: '检测', children: DETECTION_MENU_ITEMS },
     { type: 'group', key: 'group-analysis', label: '分析', children: ANALYSIS_MENU_ITEMS },
     { type: 'group', key: 'group-settings', label: '设置', children: settingsChildren },
   ]
+
+  // 折叠态下 AntD 的 type:'group' 项不可交互（点击分组图标无响应），
+  // 拍平为叶子项让每个图标可点；后台管理是普通子菜单，保留为弹出菜单。
+  const displayItems: MenuItem[] = collapsed
+    ? items.flatMap((item) =>
+        item && 'type' in item && item.type === 'group'
+          ? (item.children as MenuItem[])
+          : [item],
+      )
+    : items
 
   return (
     <div className="h-full flex flex-col bg-[#111318]">
@@ -169,7 +218,7 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
         selectedKeys={[resolveSelectedKey(location.pathname, leafKeys(items))]}
         openKeys={collapsed ? [] : openKeys}
         onOpenChange={(keys) => setOpenKeys(keys as string[])}
-        items={items}
+        items={displayItems}
         onClick={({ key }) => {
           if (key.startsWith('/')) {
             navigate(key)
@@ -180,11 +229,6 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
         style={{ borderRight: 0 }}
       />
       {!collapsed && <SidebarReviewStatus />}
-      {user && !collapsed && (
-        <div className="p-4 border-t border-gray-800 text-sm text-gray-400 shrink-0">
-          {user.email}
-        </div>
-      )}
     </div>
   )
 }

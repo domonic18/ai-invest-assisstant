@@ -24,20 +24,58 @@ def _scalars_result(items):
 
 @pytest.mark.unit
 class TestAmountPair:
-    """官方成交额只读 market_amount：最新两行即当日与前一有数据交易日。"""
+    """官方成交额只读 market_amount：最新两行即当日与前一有数据交易日。
+
+    当日（is_live）官方额未发布时 amount 为 None，prev 回退最近一行作
+    环比基准（供盘中实时估算使用），不用上一交易日收盘额顶替当日。
+    """
 
     @pytest.mark.asyncio
     async def test_returns_latest_two_rows(self) -> None:
         rows = [
-            MagicMock(amount=Decimal("2660000000000")),
-            MagicMock(amount=Decimal("2410000000000")),
+            MagicMock(trade_date=date(2026, 7, 17), amount=Decimal("2660000000000")),
+            MagicMock(trade_date=date(2026, 7, 16), amount=Decimal("2410000000000")),
         ]
         session = AsyncMock()
         session.execute.return_value = _scalars_result(rows)
 
-        amount, prev = await market_service._amount_pair(session, date(2026, 7, 17))
+        amount, prev = await market_service._amount_pair(
+            session, date(2026, 7, 17), is_live=True
+        )
 
         assert amount == 2.66e12
+        assert prev == 2.41e12
+
+    @pytest.mark.asyncio
+    async def test_historical_pair_uses_first_row_as_amount(self) -> None:
+        rows = [
+            MagicMock(trade_date=date(2026, 7, 17), amount=Decimal("2660000000000")),
+            MagicMock(trade_date=date(2026, 7, 16), amount=Decimal("2410000000000")),
+        ]
+        session = AsyncMock()
+        session.execute.return_value = _scalars_result(rows)
+
+        amount, prev = await market_service._amount_pair(
+            session, date(2026, 7, 16), is_live=False
+        )
+
+        assert amount == 2.66e12
+        assert prev == 2.41e12
+
+    @pytest.mark.asyncio
+    async def test_live_without_today_row_takes_prev_as_baseline(self) -> None:
+        rows = [
+            MagicMock(trade_date=date(2026, 7, 16), amount=Decimal("2410000000000")),
+            MagicMock(trade_date=date(2026, 7, 15), amount=Decimal("2300000000000")),
+        ]
+        session = AsyncMock()
+        session.execute.return_value = _scalars_result(rows)
+
+        amount, prev = await market_service._amount_pair(
+            session, date(2026, 7, 17), is_live=True
+        )
+
+        assert amount is None
         assert prev == 2.41e12
 
     @pytest.mark.asyncio
@@ -45,7 +83,9 @@ class TestAmountPair:
         session = AsyncMock()
         session.execute.return_value = _scalars_result([])
 
-        assert await market_service._amount_pair(session, date(2026, 7, 17)) == (
+        assert await market_service._amount_pair(
+            session, date(2026, 7, 17), is_live=True
+        ) == (
             None,
             None,
         )
@@ -227,10 +267,10 @@ class TestEmotionScore:
 
 @pytest.mark.unit
 class TestLiveBreadth:
-    """当日涨跌统计只读 market_breadth 表：最新行直返、无行返回空统计。"""
+    """当日涨跌统计只读 market_breadth 表：当日行直返、无当日行返回空统计。"""
 
     @pytest.mark.asyncio
-    async def test_returns_latest_row(self) -> None:
+    async def test_returns_today_row(self) -> None:
         session = AsyncMock()
         row = MagicMock(
             up_count=2500,
@@ -281,3 +321,96 @@ class TestLiveBreadth:
         assert breadth["down_count"] is None
         assert breadth["limit_up_count"] == 0
         assert breadth["limit_down_count"] == 0
+
+
+@pytest.mark.unit
+class TestDefaultViewDate:
+    """缺省视图日为交易日当天：盘前（数据未就绪）返回空统计，不回退昨日。"""
+
+    @pytest.mark.asyncio
+    async def test_pre_market_returns_empty_stats_for_today(self) -> None:
+        session = AsyncMock()
+        with (
+            patch.object(
+                trade_calendar_service,
+                "resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 7, 16)),
+            ),
+            patch.object(
+                trade_calendar_service,
+                "resolve_default_view_date",
+                AsyncMock(return_value=date(2026, 7, 17)),
+            ),
+            patch.object(
+                market_stats_service,
+                "_limit_up_rates",
+                AsyncMock(return_value=(None, None, None)),
+            ),
+            patch.object(
+                market_stats_service.index_quotation_service,
+                "_index_spot",
+                AsyncMock(),
+            ) as spot_mock,
+        ):
+            # 无当日 breadth 行（_live_breadth 提前返回空，不查涨停池）
+            session.scalar.side_effect = [None]
+            # 官方成交额最近一行是昨日
+            yesterday_row = MagicMock(
+                trade_date=date(2026, 7, 16), amount=Decimal("2410000000000")
+            )
+            session.execute.return_value = _scalars_result([yesterday_row])
+
+            stats = await market_service.get_market_stats(session, None)
+
+        assert stats.trade_date == date(2026, 7, 17)
+        assert stats.up_count is None
+        assert stats.amount is None
+        assert stats.prev_amount == 2.41e12
+        assert stats.emotion_score is None
+        # 盘前无当日 breadth：不拉实时快照估算成交额（避免昨收口径顶当日）
+        spot_mock.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_explicit_date_skips_default_resolution(self) -> None:
+        """显式传历史日时不触发缺省视图日解析，走历史口径。"""
+        session = AsyncMock()
+        with (
+            patch.object(
+                trade_calendar_service,
+                "resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 7, 17)),
+            ),
+            patch.object(
+                trade_calendar_service,
+                "resolve_default_view_date",
+                AsyncMock(),
+            ) as default_mock,
+            patch.object(
+                market_stats_service,
+                "_historical_breadth",
+                AsyncMock(
+                    return_value={
+                        "up_count": 3000,
+                        "down_count": 1800,
+                        "flat_count": 200,
+                        "limit_up_count": 55,
+                        "limit_down_count": 12,
+                    }
+                ),
+            ),
+            patch.object(
+                market_stats_service,
+                "_amount_pair",
+                AsyncMock(return_value=(2.66e12, 2.41e12)),
+            ),
+            patch.object(
+                market_stats_service,
+                "_limit_up_rates",
+                AsyncMock(return_value=(0.3, 0.2, 8)),
+            ),
+        ):
+            stats = await market_service.get_market_stats(session, date(2026, 7, 15))
+
+        default_mock.assert_not_called()
+        assert stats.trade_date == date(2026, 7, 15)
+        assert stats.up_count == 3000

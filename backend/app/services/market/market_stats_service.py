@@ -9,6 +9,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import INDEX_CODES
 from app.models.market_breadth import MarketBreadth
 from app.repositories.market import limit_pool_repository, market_stats_repository
 from app.schemas.market import MarketStatsResponse
@@ -80,18 +81,16 @@ async def _pool_limit_up_count(session: AsyncSession, trade_date: date) -> int |
 
 
 async def _live_breadth(session: AsyncSession, resolved: date) -> dict[str, Any]:
-    """当日涨跌统计：取 ``market_breadth`` 不晚于 resolved 的最新一行。
+    """当日涨跌统计：只取 ``market_breadth`` 当日行。
 
-    盘前/周末时最新一行是上一交易日收盘快照；采集器尚未覆盖时返回空统计。
+    盘前/非交易日无当日行时返回空统计，不用上一交易日收盘快照顶替当日。
     涨停数在东财涨停池入库后覆盖为池计数。
     """
-    row = await market_stats_repository.get_latest_breadth_on_or_before(
-        session, resolved
-    )
+    row = await market_stats_repository.get_breadth_by_date(session, resolved)
     if row is None:
         return dict(_EMPTY_BREADTH)
     breadth = _breadth_dict(row)
-    pool_count = await _pool_limit_up_count(session, row.trade_date)
+    pool_count = await _pool_limit_up_count(session, resolved)
     if pool_count is not None:
         breadth["limit_up_count"] = pool_count
     return breadth
@@ -128,10 +127,18 @@ async def _historical_breadth(
 
 
 async def _amount_pair(
-    session: AsyncSession, resolved: date
+    session: AsyncSession, resolved: date, is_live: bool
 ) -> tuple[float | None, float | None]:
-    """官方成交额（含前一有数据交易日），只读 ``market_amount`` 表。"""
+    """官方成交额（含前一有数据交易日），只读 ``market_amount`` 表。
+
+    当日/历史口径取 rows[0] 为当日额、rows[1] 为前日额；当日（is_live）无
+    当日行时 amount 返回 None（不用上一交易日收盘额顶替当日），prev_amount
+    回退为最近一行（盘中实时估算的环比基准）。
+    """
     rows = await market_stats_repository.list_recent_amounts(session, resolved)
+    if is_live and (not rows or rows[0].trade_date != resolved):
+        prev = float(rows[0].amount) if rows and rows[0].amount is not None else None
+        return None, prev
     amount = float(rows[0].amount) if rows and rows[0].amount is not None else None
     prev = (
         float(rows[1].amount)
@@ -178,9 +185,15 @@ async def _limit_up_rates(
 async def get_market_stats(
     session: AsyncSession, trade_date: date | None = None
 ) -> MarketStatsResponse:
-    """涨跌家数、成交额（含环比）与情绪温度。"""
+    """涨跌家数、成交额（含环比）与情绪温度。
+
+    缺省视图日：交易日取当天（数据未就绪的区块返回空，不回退上一交易日），
+    非交易日回退最近交易日。
+    """
     latest_date = await trade_calendar_service.resolve_latest_trade_date(session)
-    resolved = trade_date or latest_date
+    resolved = trade_date or await trade_calendar_service.resolve_default_view_date(
+        session
+    )
     is_live = resolved >= latest_date
 
     if is_live:
@@ -188,12 +201,14 @@ async def get_market_stats(
     else:
         breadth = await _historical_breadth(session, resolved)
 
-    amount, prev_amount = await _amount_pair(session, resolved)
-    if amount is None and is_live:
+    amount, prev_amount = await _amount_pair(session, resolved, is_live)
+    if amount is None and is_live and breadth["up_count"] is not None:
         # 交易所官方数据盘后发布，盘中回退到指数快照成交额估算
         spot = await index_quotation_service._index_spot()
         if spot is None:
-            spot = await index_quotation_service._db_index_spot(session)
+            spot = await index_quotation_service._bar_synthesized_spot(
+                session, INDEX_CODES
+            )
         amount = sum(
             (item.get("amount") or 0)
             for item in spot

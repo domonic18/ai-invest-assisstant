@@ -1,10 +1,11 @@
 """AdminNewsService 新闻管理契约测试。"""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.schemas.news_announcement import NewsAnnouncementCreate, NewsAnnouncementUpdate
+from app.schemas.news_document import NewsDocumentCreate, NewsDocumentUpdate
 from app.services.admin.news import AdminNewsService
 
 
@@ -36,7 +37,7 @@ class TestAdminNewsService:
 
     @pytest.mark.asyncio
     async def test_create_news(self, service: AdminNewsService) -> None:
-        data = NewsAnnouncementCreate(
+        data = NewsDocumentCreate(
             doc_type="news",
             title="Test News",
         )
@@ -50,7 +51,7 @@ class TestAdminNewsService:
         news = MagicMock()
         service.session.get.return_value = news
 
-        result = await service.update_news(1, NewsAnnouncementUpdate(title="Updated"))
+        result = await service.update_news(1, NewsDocumentUpdate(title="Updated"))
 
         assert result == news
         assert news.title == "Updated"
@@ -63,3 +64,40 @@ class TestAdminNewsService:
         await service.delete_news(1)
 
         service.session.delete.assert_awaited_once_with(news)
+
+    @pytest.mark.asyncio
+    async def test_flash_news_display_defaults_visible(
+        self, service: AdminNewsService
+    ) -> None:
+        service.session.get.return_value = None
+        assert await service.get_flash_news_display() is True
+
+    @pytest.mark.asyncio
+    async def test_flash_news_display_reads_setting(
+        self, service: AdminNewsService
+    ) -> None:
+        service.session.get.return_value = SimpleNamespace(value=False)
+        assert await service.get_flash_news_display() is False
+
+    @pytest.mark.asyncio
+    async def test_set_flash_news_display_inserts_and_commits(
+        self, service: AdminNewsService
+    ) -> None:
+        service.session.get.return_value = None
+
+        assert await service.set_flash_news_display(False) is False
+
+        added = service.session.add.call_args.args[0]
+        assert added.value is False
+        service.session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_set_flash_news_display_updates_existing(
+        self, service: AdminNewsService
+    ) -> None:
+        row = SimpleNamespace(value=True)
+        service.session.get.return_value = row
+
+        assert await service.set_flash_news_display(False) is False
+        assert row.value is False
+        service.session.commit.assert_awaited_once()

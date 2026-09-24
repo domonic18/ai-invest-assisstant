@@ -1,23 +1,33 @@
 """LLM 配置管理的 Pydantic schemas。"""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
 from app.schemas.base import CamelModel
 
+LLMProtocol = Literal["openai", "anthropic"]
+
+#: 配置用途（F-KB 模型角色槽位按 purpose 过滤候选：clean/extract=chat、vision=vision、embedding=embedding）
+LLMPurpose = Literal["chat", "embedding", "vision"]
+
 
 class LLMConfigCreate(CamelModel):
-    """创建 LLM 配置的请求 schema。"""
+    """创建 LLM 配置的请求 schema。
+
+    ``protocol`` 缺省时按 ``provider`` 推断：anthropic 渠道 → anthropic，其余 → openai。
+    """
 
     name: str = Field(..., min_length=1, max_length=100)
     provider: str = Field(..., min_length=1, max_length=20)
+    protocol: LLMProtocol | None = None
     base_url: str = Field(..., min_length=1, max_length=500)
     api_key: str = Field(..., min_length=1)
     model_name: str = Field(..., min_length=1, max_length=100)
     is_default: bool = False
     is_active: bool = True
+    purpose: LLMPurpose = "chat"
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -29,11 +39,13 @@ class LLMConfigUpdate(CamelModel):
 
     name: str | None = Field(None, min_length=1, max_length=100)
     provider: str | None = Field(None, min_length=1, max_length=20)
+    protocol: LLMProtocol | None = None
     base_url: str | None = Field(None, min_length=1, max_length=500)
     api_key: str | None = Field(None, min_length=1)
     model_name: str | None = Field(None, min_length=1, max_length=100)
     is_default: bool | None = None
     is_active: bool | None = None
+    purpose: LLMPurpose | None = None
     extra: dict[str, Any] | None = None
 
 
@@ -43,11 +55,13 @@ class LLMConfigResponse(CamelModel):
     id: int
     name: str
     provider: str
+    protocol: str
     base_url: str
     model_name: str
     api_key_masked: str
     is_default: bool
     is_active: bool
+    purpose: str
     extra: dict[str, Any]
     last_tested_at: datetime | None
     last_test_status: str | None

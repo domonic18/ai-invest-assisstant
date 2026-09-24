@@ -87,7 +87,7 @@ def _patch_trading_day(value: bool = True) -> patch:
 
 
 def _patch_prompt_config() -> patch:
-    config = SimpleNamespace(sections=_SECTIONS)
+    config = SimpleNamespace(sections=_SECTIONS, version="9.9.9")
     return patch.object(
         market_review_service,
         "load_prompt_config",
@@ -96,7 +96,7 @@ def _patch_prompt_config() -> patch:
 
 
 def _patch_prompt_config_for_generate() -> patch:
-    config = SimpleNamespace(sections=_SECTIONS)
+    config = SimpleNamespace(sections=_SECTIONS, version="9.9.9")
     return patch.object(
         market_review_generator,
         "load_prompt_config",

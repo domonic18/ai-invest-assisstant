@@ -14,7 +14,7 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 
 - **前端**: React 18.3+ + TypeScript 5.4+ + Vite 5.2+ + React Router 6.23+ + TanStack Query + Zustand + ECharts + AntV/G6 + D3 + Tailwind CSS
 - **后端**: Python 3.10+ + FastAPI 0.111+ + SQLAlchemy 2.0+ + Alembic + Pydantic 2.7+ + LangChain/deepagents
-- **数据存储**: PostgreSQL/TimescaleDB + Redis + Elasticsearch + COS（S3 兼容对象存储）
+- **数据存储**: PostgreSQL/TimescaleDB（含 pg_trgm 全文 / pgvector 向量检索）+ Redis + COS（S3 兼容对象存储）
 - **消息队列**: Celery + Redis
 - **部署**: Docker + Docker Compose + 腾讯云 SCF（SPA + API 同源一体镜像）+ 轻量服务器（数据与采集任务）+ COS（文件）
 
@@ -128,6 +128,8 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 - 前端：`stores/assistant.ts` 的 `PageAssistantResult` 联合类型加分支 → `pageEvents.ts` 注册表加一条（必填 parse / actionLabel / path 导航目标）→ 页面 `usePageAssistantResult` 订阅
 
 约定：事件类型命名 `<domain>.complete`；事件字段 snake_case；SKILL.md 的 allowed-tools 列出两条路径工具的并集（含 persist 工具）；persist 工具只注入助手对话路径，定时路径直接调服务层；服务层禁止顶层导入 `app.agent.tools / skills / runtime`（函数内延迟导入，`app.agent.core` 纯配置叶可顶层导入），工具层可导入服务层。
+
+**ask_user 问题卡**（交互确认底座，arch/09 §7.3）：skill 在写操作前需用户决策时调 `ask_user(question, options, default?)` 工具——返回值携带 `__question__` 标记结束本轮，runs 流端点检测后经 SSE `custom` 事件下发 `{"type":"question",...}`，前端 `QuestionCard` 组件渲染选项按钮，点击即"我选择：{label}"作为新消息续跑线程。定时任务路径无此交互，不使用 ask_user。
 
 ## 5. 任务完成后协议
 

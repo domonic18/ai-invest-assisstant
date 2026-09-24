@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.calendar_event import CalendarEvent
+from app.models.news_calendar_event import NewsCalendarEvent
 
 
 async def list_events(
@@ -14,7 +14,7 @@ async def list_events(
     end: datetime,
     categories: list[str] | None = None,
     limit: int = 200,
-) -> list[CalendarEvent]:
+) -> list[NewsCalendarEvent]:
     """查询 [start, end) 区间内的事件，按 event_time 升序。
 
     Args:
@@ -27,24 +27,24 @@ async def list_events(
     Returns:
         日历事件列表。
     """
-    stmt = select(CalendarEvent).where(
-        CalendarEvent.event_time >= start,
-        CalendarEvent.event_time < end,
+    stmt = select(NewsCalendarEvent).where(
+        NewsCalendarEvent.event_time >= start,
+        NewsCalendarEvent.event_time < end,
     )
     if categories:
-        stmt = stmt.where(CalendarEvent.category.in_(categories))
-    stmt = stmt.order_by(CalendarEvent.event_time).limit(limit)
+        stmt = stmt.where(NewsCalendarEvent.category.in_(categories))
+    stmt = stmt.order_by(NewsCalendarEvent.event_time).limit(limit)
     return list((await session.execute(stmt)).scalars().all())
 
 
 async def list_upcoming(
     session: AsyncSession, now: datetime, limit: int = 10
-) -> list[CalendarEvent]:
+) -> list[NewsCalendarEvent]:
     """查询 now 起 upcoming 的前 limit 个事件，按临近度升序。"""
     stmt = (
-        select(CalendarEvent)
-        .where(CalendarEvent.event_time >= now)
-        .order_by(CalendarEvent.event_time)
+        select(NewsCalendarEvent)
+        .where(NewsCalendarEvent.event_time >= now)
+        .order_by(NewsCalendarEvent.event_time)
         .limit(limit)
     )
     return list((await session.execute(stmt)).scalars().all())

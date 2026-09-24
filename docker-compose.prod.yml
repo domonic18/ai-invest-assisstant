@@ -5,6 +5,31 @@ x-logging: &logging
     max-file: "3"
 
 services:
+  douyin-signer:
+    # 抖音页面签名 sidecar：chromium warm 页 SDK 真签（Argus 门禁对抗，见 docs/arch/11）。
+    # 仅 image 直拉（CI 构建；服务器境内无代理，playwright CDN 构建不了）；
+    # 无 depends_on：独立服务，不可用时采集侧自动回退本地 a_bogus
+    image: ccr.ccs.tencentyun.com/domonic18/douyin-signer:${APP_TAG:-latest}
+    environment:
+      TZ: Asia/Shanghai
+    tmpfs:
+      # chromium 用户 Profile 写 /tmp；tmpfs 避免容器层 IO 与崩溃残留
+      - /tmp/playwright-profiles
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8010/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
   celery-beat:
     build:
       context: .
@@ -59,7 +84,8 @@ services:
       resources:
         limits:
           cpus: "1.0"
-          memory: 1G
+          # 2G：社媒回填/增量采集含「拉流→ffmpeg 抽音轨→ASR」媒体流水线，1G 曾被 OOM 杀（2026-09-16）
+          memory: 2G
 
   celery-worker-heavy:
     # LLM 分钟级任务（复盘/归因）独占容器，并发=1，不与通用采集池混跑
@@ -171,27 +197,6 @@ services:
       timeout: 3s
       retries: 5
       start_period: 5s
-    restart: unless-stopped
-    logging: *logging
-    networks:
-      - app-network
-
-  elasticsearch:
-    image: elasticsearch:8.13.0
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    # ports:
-    #   - "${ELASTICSEARCH_PORT}:9200"
-    volumes:
-      - ./workspace/elasticsearch:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
     restart: unless-stopped
     logging: *logging
     networks:

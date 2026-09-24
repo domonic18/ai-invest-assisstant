@@ -6,6 +6,7 @@ import type {
   ApiAdminReportResponse,
   ApiAdminStockResponse,
   ApiAdminTaskResponse,
+  ApiAdminTelegraphResponse,
   ApiAdminUserResponse,
   ApiCollectorChannelConfigResponse,
   ApiCollectorLogResponse,
@@ -13,7 +14,6 @@ import type {
   ApiDataTypeChannelsResponse,
   ApiLLMConfigResponse,
   ApiProxyConfigResponse,
-  ApiTrackedIndexResponse,
 } from '@ai-invest/shared'
 import type {
   AdminAiResultDetail,
@@ -23,6 +23,7 @@ import type {
   AdminReport,
   AdminStock,
   AdminTask,
+  AdminTelegraph,
   AdminUser,
   CollectorChannelConfig,
   CollectorDataTypeChannels,
@@ -30,7 +31,6 @@ import type {
   CollectorTaskCatalog,
   LLMConfig,
   ProxyConfig,
-  TrackedIndexConfig,
 } from '@ai-invest/shared'
 
 export function mapLLMConfig(dto: ApiLLMConfigResponse): LLMConfig {
@@ -38,11 +38,13 @@ export function mapLLMConfig(dto: ApiLLMConfigResponse): LLMConfig {
     id: dto.id,
     name: dto.name,
     provider: dto.provider,
+    protocol: dto.protocol === 'anthropic' ? 'anthropic' : 'openai',
     baseUrl: dto.baseUrl,
     modelName: dto.modelName,
     apiKeyMasked: dto.apiKeyMasked,
     isDefault: dto.isDefault,
     isActive: dto.isActive,
+    purpose: dto.purpose,
     extra: dto.extra,
     lastTestedAt: dto.lastTestedAt,
     lastTestStatus: dto.lastTestStatus,
@@ -52,22 +54,6 @@ export function mapLLMConfig(dto: ApiLLMConfigResponse): LLMConfig {
   }
 }
 
-export function mapTrackedIndex(dto: ApiTrackedIndexResponse): TrackedIndexConfig {
-  return {
-    id: dto.id,
-    indexCode: dto.indexCode,
-    indexName: dto.indexName,
-    marketCategory: dto.marketCategory,
-    dataSource: dto.dataSource,
-    sortOrder: dto.sortOrder,
-    isEnabled: dto.isEnabled,
-    latestClose: dto.latestClose,
-    latestChangePct: dto.latestChangePct,
-    latestTradeDate: dto.latestTradeDate,
-    createdAt: dto.createdAt,
-    updatedAt: dto.updatedAt,
-  }
-}
 
 export function mapCollectorChannelConfig(dto: ApiCollectorChannelConfigResponse): CollectorChannelConfig {
   return {
@@ -110,6 +96,7 @@ export function mapCollectorLog(dto: ApiCollectorLogResponse): CollectorLog {
     finishedAt: dto.finishedAt,
     recordsCount: dto.recordsCount,
     errorMsg: dto.errorMsg,
+    message: dto.message ?? null,
     metadata: dto.metadata,
   }
 }
@@ -119,10 +106,12 @@ export function mapCollectorTaskCatalog(dto: ApiCollectorTaskCatalogResponse): C
     items: dto.items.map((item) => ({
       name: item.name,
       label: item.label,
+      description: item.description,
       dataType: item.dataType,
       sources: item.sources,
       configParams: item.configParams,
       runParams: item.runParams,
+      defaults: item.defaults ?? {},
     })),
   }
 }
@@ -147,8 +136,14 @@ export function mapAdminUser(dto: ApiAdminUserResponse): AdminUser {
     email: dto.email,
     role: dto.role,
     isActive: dto.isActive,
+    status: dto.status,
+    applicationNote: dto.applicationNote,
+    rejectReason: dto.rejectReason,
     lastLoginAt: dto.lastLoginAt,
     createdAt: dto.createdAt,
+    remainingQuota: dto.remainingQuota,
+    totalUsed: dto.totalUsed,
+    byokEnabled: dto.byokEnabled,
   }
 }
 
@@ -237,12 +232,27 @@ export function mapAdminAiResultDetail(dto: ApiAdminAiResultDetail): AdminAiResu
   }
 }
 
+export function mapAdminTelegraph(dto: ApiAdminTelegraphResponse): AdminTelegraph {
+  return {
+    id: dto.id,
+    title: dto.title,
+    content: dto.content,
+    category: dto.category,
+    importance: dto.importance,
+    stockCodes: dto.stockCodes,
+    publishTime: dto.publishTime,
+    aiScore: dto.aiScore,
+    aiScoredAt: dto.aiScoredAt,
+  }
+}
+
 export function mapAdminTask(dto: ApiAdminTaskResponse): AdminTask {
   return {
     id: dto.id,
     taskName: dto.taskName,
     taskType: dto.taskType,
     source: dto.source,
+    remark: dto.remark,
     schedule: dto.schedule,
     isActive: dto.isActive,
     lastRunAt: dto.lastRunAt,

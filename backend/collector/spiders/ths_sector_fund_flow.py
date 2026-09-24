@@ -10,6 +10,7 @@ capital_fund_flow_sector 表。
 from decimal import Decimal
 from typing import Any
 
+from collector.core.async_helpers import run_in_thread
 from collector.core.calendar import latest_trading_day
 from collector.core.parsing import is_nan, parse_cn_amount, to_optional_str
 from collector.spiders.sector_fund_flow_base import BaseSectorFundFlowCollector
@@ -21,7 +22,15 @@ class ThsSectorFundFlowCollector(BaseSectorFundFlowCollector):
     async def collect(
         self, sector_type: str | None = None, **kwargs: Any
     ) -> list[dict[str, Any]]:
-        sector_type = sector_type or self.sector_type
+        # 未显式指定类型时同时采集行业+概念（与东财渠道同约定，fallback 不丢概念）
+        types = [sector_type] if sector_type is not None else ["industry", "concept"]
+        raw: list[dict[str, Any]] = []
+        for st in types:
+            # 单类型单请求 60s 上限；防 akshare 无超时请求挂死线程
+            raw.extend(await run_in_thread(self._collect_one, st, timeout=60))
+        return raw
+
+    def _collect_one(self, sector_type: str) -> list[dict[str, Any]]:
         if sector_type not in ("industry", "concept"):
             raise ValueError(f"同花顺渠道仅支持行业/概念板块资金流，不支持: {sector_type}")
 

@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import login_throttle
 from app.core.exceptions import (
+    AccountPendingError,
+    AccountRejectedError,
     BadRequestError,
     ConflictError,
     LoginLockedError,
@@ -26,7 +28,7 @@ DEFAULT_MA_CONFIGS: list[MovingAverageConfig] = [
     MovingAverageConfig(period=10, color="#9d7ff5", enabled=True),
     MovingAverageConfig(period=20, color="#3fb6e0", enabled=True),
     MovingAverageConfig(period=30, color="#e8833a", enabled=True),
-    MovingAverageConfig(period=60, color="#c0c4d0", enabled=False),
+    MovingAverageConfig(period=60, color="#c0c4d0", enabled=True),
     MovingAverageConfig(period=120, color="#22c55e", enabled=False),
 ]
 
@@ -87,11 +89,13 @@ class UserService:
         return user
 
     async def attempt_login(self, username: str, password: str, client_ip: str = "-") -> User:
-        """登录编排：防爆破检查 → 认证 → 失败计数/成功清零 + 审计日志。
+        """登录编排：防爆破检查 → 认证 → 审批状态拦截 → 失败计数/成功清零 + 审计日志。
 
         Raises:
             LoginLockedError: 该 (用户名, IP) 连续失败达阈值，处于锁定窗口。
             UnauthorizedError: 用户名或密码错误（已记失败计数与审计日志）。
+            AccountPendingError: 密码正确但账号待审批（arch/10 §6.2）。
+            AccountRejectedError: 注册申请已被驳回（附原因）。
         """
         lock = await login_throttle.locked_seconds(username, client_ip)
         if lock > 0:
@@ -107,6 +111,14 @@ class UserService:
             await login_throttle.record_failure(username, client_ip)
             logger.warning("login_failed", username=username, client_ip=client_ip)
             raise UnauthorizedError("Incorrect username or password")
+
+        # 密码正确后才暴露审批状态（不向陌生人泄露账号是否存在）
+        if user.status == "pending":
+            logger.info("login_pending_blocked", username=username, client_ip=client_ip)
+            raise AccountPendingError()
+        if user.status == "rejected":
+            logger.info("login_rejected_blocked", username=username, client_ip=client_ip)
+            raise AccountRejectedError(reason=user.reject_reason)
 
         await login_throttle.reset_failures(username, client_ip)
         logger.info("login_succeeded", username=username, client_ip=client_ip)

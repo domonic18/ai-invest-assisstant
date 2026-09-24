@@ -5,7 +5,7 @@ camelCase wire 约定见 ``chain.py`` 先例：Python 侧字段保留 snake_case
 单一真相源对齐。新域 schema 迁移时继承 ``CamelModel``。
 """
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 
@@ -17,3 +17,10 @@ class CamelModel(BaseModel):
         populate_by_name=True,
         from_attributes=True,
     )
+
+
+class BatchDeleteRequest(CamelModel):
+    """后台批量删除请求（按主键 ID 列表）。"""
+
+    ids: list[int] = Field(..., min_length=1, max_length=500)
+

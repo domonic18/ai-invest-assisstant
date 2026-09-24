@@ -40,6 +40,8 @@ _QUEUE_OVERRIDES: dict[str, Literal["realtime", "batch", "heavy"]] = {
     "company-profile": "heavy",
     "disclosure": "heavy",
     "financial-report": "heavy",
+    # 财务报表逐股三大报表 3 次接口调用，自选股全量分钟级，超出 batch 600s 硬超时
+    "financial-statement": "heavy",
     "ipo-info": "heavy",
     "market-daily-review": "heavy",
     "limit-up-ai-review": "heavy",
@@ -49,6 +51,12 @@ _QUEUE_OVERRIDES: dict[str, Literal["realtime", "batch", "heavy"]] = {
     "chain-refresh": "heavy",
     # 自愈需串行重跑多个日 K 采集任务（全历史 upsert），耗时分钟级
     "kline-freshness": "heavy",
+    # 异动检测：个股两段式管线对候选逐股拉日 K（分钟级），且须晚于 16:40
+    # 个股 AI 分析批次串行执行，归 heavy
+    "sector-anomaly": "heavy",
+    "stock-anomaly": "heavy",
+    # 板块指数日 K：465 板块逐个限速拉取（分钟级），超出 batch 600s 硬超时
+    "sector-kline": "heavy",
 }
 
 TASK_SPECS = {
@@ -67,7 +75,7 @@ def _skipped_result(source: str, data_type: str) -> CollectResult:
         status=CollectStatus.SKIPPED,
         items_collected=0,
         items_stored=0,
-        errors=["没有启用任何可用的采集渠道"],
+        message="没有启用任何可用的采集渠道",
         started_at=now,
         finished_at=now,
     )

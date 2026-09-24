@@ -6,7 +6,8 @@ from typing import Any, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.cache import get_redis
+from app.core.cache import cache_mget
+from app.core.clock import today_cn
 from app.models.watchlist import UserWatchlist
 from app.repositories.market.kline_repository import (
     fetch_daily_bars,
@@ -34,9 +35,8 @@ async def _load_stock_names(
 async def _load_minute_trend(
     session: AsyncSession, codes: list[str]
 ) -> dict[str, list[float]]:
-    """最近交易日分钟收盘价降采样（≤60 点），无数据返回空数组。"""
-    resolved = await trade_calendar_service.resolve_latest_trade_date(session)
-    bars = await fetch_minute_bars_multi(session, codes, resolved)
+    """当日分钟收盘价降采样（≤60 点）；当日无数据（盘中未落库/非交易日）返回空。"""
+    bars = await fetch_minute_bars_multi(session, codes, today_cn())
     closes_by_code: dict[str, list[float]] = {}
     for bar in bars:
         if bar.close is None:
@@ -60,10 +60,9 @@ async def _build_quote_items(
 ) -> list[WatchlistQuoteItem]:
     """为自选记录批量组装行情（Redis 快照 → 日 K 兜底）。"""
     codes = [item.stock_code for item in watch_items]
-    redis = get_redis()
     quotes: dict[str, dict[str, Any]] = {}
     for item in watch_items:
-        live, eod = await redis.mget(
+        live, eod = await cache_mget(
             f"quote:{item.stock_code}", f"quote:eod:{item.stock_code}"
         )
         raw = live or eod
@@ -127,7 +126,8 @@ async def _build_quote_items(
 
 
 _AI_SUMMARY_SECTION_KEY = "intraday_review"
-_AI_SUMMARY_MAX_CHARS = 120
+# 摘要硬上限兜底（prompt 已要求一句话 ≤60 字，此处截断防超长残留）
+_AI_SUMMARY_MAX_CHARS = 60
 _AiStatus = Literal["off", "pending", "ready"]
 _MD_CHARS = re.compile(r"[#*`>\[\]]")
 _WHITESPACE = re.compile(r"\s+")

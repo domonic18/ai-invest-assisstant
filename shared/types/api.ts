@@ -2,6 +2,7 @@ export interface ApiRegisterRequest {
   username: string
   email: string
   password: string
+  applicationNote?: string
 }
 
 export interface ApiMovingAverageConfig {
@@ -24,6 +25,9 @@ export interface ApiUserResponse {
   email: string
   role: string
   isActive: boolean
+  status: string
+  applicationNote: string | null
+  rejectReason: string | null
   lastLoginAt: string | null
   createdAt: string
 }
@@ -182,6 +186,11 @@ export interface ApiStockAiAnalysisDatesResponse {
   tradeDates: string[]
 }
 
+/** 已生成分析/检测数据的交易日列表（升序），日历打点用。 */
+export interface ApiTradeDatesResponse {
+  tradeDates: string[]
+}
+
 export interface ApiStockKlineBar {
   date: string
   open: number
@@ -200,6 +209,8 @@ export interface ApiStockKlineResponse {
   name: string
   period: string
   bars: ApiStockKlineBar[]
+  /** 最近交易日（交易日历权威），前端据此判定 K 线落后并自动补采 */
+  latestTradeDate: string
 }
 
 export interface ApiStockIntradayPoint {
@@ -401,6 +412,13 @@ export interface ApiChainCompareResult {
   metricChanges: ApiChainCompareMetricChange[]
 }
 
+/** 产业链提醒关联标的（名称 + 当日涨跌幅）。 */
+export interface ApiChainAlertStockRef {
+  code: string
+  name: string
+  changePct: number | null
+}
+
 export interface ApiChainAlert {
   industry: string
   alertType: string
@@ -408,20 +426,25 @@ export interface ApiChainAlert {
   title: string
   description: string
   affectedSegments: string[]
-  relatedStockCodes: string[]
+  relatedStocks: ApiChainAlertStockRef[]
   signalDate: string
   createdAt: string
 }
+
+/** 配置用途（知识库模型角色槽位按此过滤候选） */
+export type LlmPurpose = 'chat' | 'embedding' | 'vision'
 
 export interface ApiLLMConfigResponse {
   id: number
   name: string
   provider: string
+  protocol: string
   baseUrl: string
   modelName: string
   apiKeyMasked: string
   isDefault: boolean
   isActive: boolean
+  purpose: LlmPurpose
   extra: Record<string, unknown>
   lastTestedAt: string | null
   lastTestStatus: string | null
@@ -433,22 +456,26 @@ export interface ApiLLMConfigResponse {
 export interface ApiLLMConfigCreateRequest {
   name: string
   provider: string
+  protocol?: string
   baseUrl: string
   apiKey: string
   modelName: string
   isDefault?: boolean
   isActive?: boolean
+  purpose?: LlmPurpose
   extra?: Record<string, unknown>
 }
 
 export interface ApiLLMConfigUpdateRequest {
   name?: string
   provider?: string
+  protocol?: string
   baseUrl?: string
   apiKey?: string
   modelName?: string
   isDefault?: boolean
   isActive?: boolean
+  purpose?: LlmPurpose
   extra?: Record<string, unknown>
 }
 
@@ -563,10 +590,12 @@ export interface ApiCollectorTaskRunRequest {
 export interface ApiCollectorTaskCatalogItem {
   name: string
   label: string
+  description: string
   dataType: string
   sources: string[]
   configParams: string[]
   runParams: string[]
+  defaults?: Record<string, unknown> | null
 }
 
 export interface ApiCollectorTaskCatalogResponse {
@@ -589,7 +618,138 @@ export interface ApiCollectorLogResponse {
   finishedAt: string | null
   recordsCount: number
   errorMsg: string | null
+  message?: string | null
   metadata: Record<string, unknown> | null
+}
+
+export interface ApiCollectorLogSummaryResponse {
+  date: string
+  successCount: number
+  partialCount: number
+  failedCount: number
+  skippedCount: number
+  runningCount: number
+  pendingCount: number
+}
+
+// ---------------------------------------------------------------------------
+// 采集健康监测（F-MON 一期）
+// ---------------------------------------------------------------------------
+
+export type CollectorHealthStatus =
+  | 'healthy'
+  | 'degraded'
+  | 'critical'
+  | 'silent'
+  | 'paused'
+  | 'unconfigured'
+
+export type CollectorHealthRole = 'primary' | 'backup' | 'single'
+
+export type CollectorErrorCause =
+  | 'waf'
+  | 'network'
+  | 'parse'
+  | 'auth'
+  | 'timeout'
+  | 'not_ready'
+  | 'other'
+
+export interface ApiCollectorHealthCounts {
+  healthy: number
+  degraded: number
+  critical: number
+  silent: number
+  paused: number
+  unconfigured: number
+}
+
+export interface ApiCollectorHealthDomainSummary {
+  domain: string
+  total: number
+  healthy: number
+  degraded: number
+  critical: number
+  silent: number
+}
+
+export interface ApiCollectorHealthOverview {
+  healthScore: number
+  total: number
+  counts: ApiCollectorHealthCounts
+  successRate24h: number | null
+  domains: ApiCollectorHealthDomainSummary[]
+  checkedAt: string | null
+  staleAfter: string | null
+}
+
+export interface ApiCollectorHealthTaskItem {
+  taskType: string
+  source: string
+  status: CollectorHealthStatus
+  role: CollectorHealthRole
+  domain: string
+  successRate24h: number | null
+  successRate7d: number | null
+  consecutiveFailures: number
+  windowsWithoutSuccess: number
+  lastSuccessAt: string | null
+  lastErrorSummary: string | null
+  lastErrorCause: CollectorErrorCause | null
+  /** 判定依据（why，按序）——解释该状态如何得出 */
+  reasons: string[]
+  isHighFrequency: boolean
+  lastRecordsCount: number | null
+  lastRecordsDate: string | null
+  stateChangedAt: string
+  checkedAt: string
+  schedule: string | null
+  isActive: boolean | null
+}
+
+export interface ApiCollectorChannelHealthItem {
+  source: string
+  domainCount: number
+  instanceCount: number
+  successRate7d: number | null
+  faultCount: number
+  causes: Record<string, number>
+}
+
+export interface ApiCollectorScheduleCheckItem {
+  taskType: string
+  source: string
+  domain: string
+  role: CollectorHealthRole
+  isActive: boolean
+  hasTaskRow: boolean
+  schedule: string | null
+  windowTotal: number
+  successWindows: number
+  skippedWindows: number
+  failedWindows: number
+  missingWindows: number
+  exempted: boolean
+  lastErrorSummary: string | null
+  lastErrorCause: CollectorErrorCause | null
+}
+
+export interface ApiCollectorScheduleCheckResponse {
+  date: string
+  isTradeDay: boolean
+  items: ApiCollectorScheduleCheckItem[]
+}
+
+export interface ApiCollectorRunHealthCheckResponse {
+  checkedAt: string
+  total: number
+  failed: number
+  orphaned: number
+  statusCounts: Record<string, number>
+}
+
+export interface ApiCollectorClearSnapshotsResponse {
+  deleted: number
 }
 
 export interface ApiResearchReportResponse {
@@ -773,8 +933,14 @@ export interface ApiAdminUserResponse {
   email: string
   role: string
   isActive: boolean
+  status: string
+  applicationNote: string | null
+  rejectReason: string | null
   lastLoginAt: string | null
   createdAt: string
+  remainingQuota: number | null
+  totalUsed: number
+  byokEnabled: boolean
 }
 
 export interface ApiAdminUserCreateRequest {
@@ -872,6 +1038,23 @@ export interface ApiAdminReportUpdateRequest {
   downloadUrl?: string
 }
 
+export interface ApiReportStorageTypeSummary {
+  fileType: string
+  fileCount: number
+  sizeBytes: number
+}
+
+export interface ApiReportStorageSummary {
+  items: ApiReportStorageTypeSummary[]
+  totalSizeBytes: number
+  totalFileCount: number
+}
+
+export interface ApiReportCleanupResult {
+  removedCount: number
+  sizeBytes: number
+}
+
 export interface ApiAdminNewsResponse {
   id: number
   stockCode: string | null
@@ -919,11 +1102,24 @@ export interface ApiAdminNewsUpdateRequest {
   extra?: Record<string, unknown>
 }
 
+export interface ApiAdminTelegraphResponse {
+  id: number
+  title: string | null
+  content: string | null
+  category: string | null
+  importance: number | null
+  stockCodes: string[] | null
+  publishTime: string
+  aiScore: number | null
+  aiScoredAt: string | null
+}
+
 export interface ApiAdminTaskResponse {
   id: number
   taskName: string
   taskType: string
   source: string
+  remark: string | null
   schedule: string | null
   isActive: boolean
   lastRunAt: string | null
@@ -937,6 +1133,7 @@ export interface ApiAdminTaskCreateRequest {
   taskName: string
   taskType: string
   source: string
+  remark?: string | null
   schedule?: string
   isActive?: boolean
 }
@@ -944,6 +1141,7 @@ export interface ApiAdminTaskCreateRequest {
 export interface ApiAdminTaskUpdateRequest {
   taskType?: string
   source?: string
+  remark?: string | null
   schedule?: string
   isActive?: boolean
 }
@@ -1001,6 +1199,17 @@ export interface ApiTrackedIndexUpdateRequest {
 export interface ApiTrackedIndexToggleResponse {
   id: number
   isEnabled: boolean
+}
+
+/** 个人设置可勾选的跟踪指数项（附分类与最新行情预览）。 */
+export interface ApiTrackedIndexOption {
+  id: number
+  indexCode: string
+  indexName: string
+  marketCategory: string
+  latestClose: number | null
+  latestChangePct: number | null
+  latestTradeDate: string | null
 }
 
 export interface ApiAdminAiSkillInfo {

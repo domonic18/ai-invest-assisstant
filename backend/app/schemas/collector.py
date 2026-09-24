@@ -1,6 +1,7 @@
 """采集器管理 API 的 Pydantic schemas。"""
 
 from datetime import datetime
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -44,16 +45,38 @@ class CollectorTaskCatalogItem(CamelModel):
 
     name: str
     label: str
+    description: str = ""
     data_type: str
     sources: list[str]
     config_params: list[str]
     run_params: list[str]
+    defaults: dict[str, Any] = Field(default_factory=dict)
 
 
 class CollectorTaskCatalogResponse(CamelModel):
     """任务目录：管理端 UI 触发列表的唯一数据源。"""
 
     items: list[CollectorTaskCatalogItem]
+
+
+class CollectorChannelDebugRequest(CamelModel):
+    """单渠道调试采集请求（只采集不落库）。"""
+
+    data_type: str = Field(max_length=50)
+    symbols: list[str] | None = Field(None, max_length=100)
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class CollectorChannelDebugResponse(CamelModel):
+    """单渠道调试采集结果：样例条数上限 3，绝不携带渠道凭据。"""
+
+    ok: bool
+    error_kind: Literal["no_collector", "disabled", "timeout", "error"] | None = None
+    error: str | None = None
+    duration_ms: int = 0
+    collected: int = 0
+    sample_valid: int | None = None
+    sample_items: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class CollectorRunResponse(CamelModel):
@@ -81,7 +104,20 @@ class CollectorLogResponse(CamelModel):
     finished_at: datetime | None
     records_count: int
     error_msg: str | None
+    message: str | None = None
     metadata: dict | None = Field(default=None, validation_alias="meta")
+
+
+class CollectorLogSummaryResponse(CamelModel):
+    """采集日志当日（Asia/Shanghai 日历日）按状态计数汇总。"""
+
+    date: str
+    success_count: int
+    partial_count: int
+    failed_count: int
+    skipped_count: int
+    running_count: int
+    pending_count: int
 
 
 class CollectorDeadLetterResponse(CamelModel):

@@ -6,10 +6,10 @@ import {
 } from '@ant-design/icons'
 import { Button, Card, Empty, Segmented, Spin, Tag, Tooltip } from 'antd'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 
 import type { ApiNewsTopic, ApiTopicVotes } from '@ai-invest/shared'
 
+import { StockLinkTag } from '@/components/common/StockLinkTag'
 import { useNewsTopics } from '@/hooks/useNewsTopics'
 
 type TopicSession = 'intraday' | 'post'
@@ -161,15 +161,14 @@ function TopicCard({ topic, rank }: { topic: ApiNewsTopic; rank: number }) {
                 <span className="opacity-50">{index === 0 ? '起点' : step.link}：</span>
                 {step.event}
                 {step.stocks.length > 0 && (
-                  <span className="ml-2">
+                  <span className="ml-2 inline-flex gap-1 flex-wrap align-middle">
                     {step.stocks.map((stock) => (
-                      <Link
-                        key={stock}
-                        to={`/stock/${stock}`}
-                        className="!text-xs mr-2"
-                      >
-                        {stock}
-                      </Link>
+                      <StockLinkTag
+                        key={stock.code ?? stock.name}
+                        code={stock.code}
+                        name={stock.name}
+                        changePct={stock.changePct}
+                      />
                     ))}
                   </span>
                 )}

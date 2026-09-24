@@ -40,10 +40,12 @@ class TestAdminTaskService:
             task_name="kline",
             task_type="scheduled",
             source="tushare",
+            remark="实例级用途备注",
         )
         result = await service.create_task(data)
 
         assert result.task_name == "kline"
+        assert result.remark == "实例级用途备注"
         service.session.add.assert_called_once()
 
     @pytest.mark.asyncio
@@ -57,6 +59,18 @@ class TestAdminTaskService:
 
         assert result == task
         assert task.is_active is False
+
+    @pytest.mark.asyncio
+    async def test_update_task_remark(self, service: AdminTaskService) -> None:
+        task = MagicMock()
+        service.session.get.return_value = task
+
+        result = await service.update_task(
+            1, CollectorTaskUpdate(remark="盘后竞价数据补采兜底")
+        )
+
+        assert result == task
+        assert task.remark == "盘后竞价数据补采兜底"
 
     @pytest.mark.asyncio
     async def test_pause_resume_trigger_task(

@@ -392,6 +392,17 @@ tr:hover td { background: var(--bg-hover); }
 /* ===== 实现说明 ===== */
 .type-note { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 18px; font-size: 12px; color: var(--text-tertiary); line-height: 1.8; }
 .type-note .tn-title { font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+
+/* ===== AI 助手 FAB（对齐 AssistantFab：浅紫渐变圆底 + 猫头鹰） ===== */
+.owl-fab {
+  position: fixed; right: 20px; bottom: 24px; width: 56px; height: 56px;
+  border-radius: 50%; border: none; cursor: pointer; font-size: 30px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #eef2ff 0%, #c7d2fe 55%, #a5b4fc 100%);
+  box-shadow: 0 8px 24px rgba(99,102,241,.45), 0 2px 6px rgba(0,0,0,.25);
+  z-index: 50; transition: transform .2s ease;
+}
+.owl-fab:hover { transform: scale(1.08); }
 </style>
 </head>
 <body>
@@ -407,10 +418,10 @@ tr:hover td { background: var(--bg-hover); }
 
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
+<a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
 <div class="sidebar-section-title">监测</div>
 <a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
 <a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
-<a class="sidebar-item" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
 <div class="sidebar-section-title">资讯</div>
 <a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
@@ -418,14 +429,12 @@ tr:hover td { background: var(--bg-hover); }
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
-<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
-<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item active" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
 <a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
 </nav>
-<div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
+<div class="sidebar-footer"><div class="sidebar-avatar">D</div><div class="sidebar-user-info"><div class="sidebar-user-name">Domonic</div><div>普通用户</div></div></div>
 </aside>
 
   <div class="app-main">
@@ -434,7 +443,11 @@ tr:hover td { background: var(--bg-hover); }
         <input class="header-search" type="text" placeholder="搜索股票代码或名称…">
         <button class="btn btn-primary btn-sm">搜索</button>
       </div>
-      <div class="header-right" style="display:flex;gap:8px"><button class="header-btn" style="position:relative">⧂<div class="notification-dot"></div></button><button class="header-btn">⚙</button></div>
+      <div class="header-right" style="display:flex;align-items:center;gap:8px">
+        <button class="header-btn" title="我的自选">★</button>
+        <button class="header-btn" title="AI 助手">💬</button>
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><div class="sidebar-avatar" style="width:26px;height:26px;font-size:11px">D</div><span>Domonic</span>▾</div>
+      </div>
     </header>
 
     <div class="app-content">
@@ -497,7 +510,7 @@ tr:hover td { background: var(--bg-hover); }
             </div>
 
             <div class="card" style="margin-top:20px">
-              <div class="card-header"><span class="card-title">K 线均线配置</span><span class="card-extra">已启用 3 条</span></div>
+              <div class="card-header"><span class="card-title">K 线均线配置</span><span class="card-extra">已启用 4 条</span></div>
               <div class="card-body">
                 <div class="ma-row">
                   <span class="ma-swatch" style="background:#f0b429"></span>
@@ -532,7 +545,7 @@ tr:hover td { background: var(--bg-hover); }
                   <span class="ma-label">MA60</span>
                   <span style="flex:1"></span>
                   <span class="card-extra">显示</span>
-                  <span class="switch"></span>
+                  <span class="switch on"></span>
                   <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
                 </div>
                 <div style="display:flex;gap:8px;margin-top:16px">
@@ -540,7 +553,7 @@ tr:hover td { background: var(--bg-hover); }
                   <span style="flex:1"></span>
                   <button class="btn btn-primary btn-sm">保存配置</button>
                 </div>
-                <div class="hint-box">均线配置保存在<b>服务端</b>（随账号漫游），同步应用于每日复盘与个股详情的日 / 周 / 月 K 线图。</div>
+                <div class="hint-box">均线配置保存在<b>服务端</b>（随账号漫游），同步应用于每日复盘与个股详情的日 / 周 / 月 K 线图。新注册账户默认启用 MA5 / MA10 / MA20 / MA60 四条均线。</div>
               </div>
             </div>
           </section>
@@ -754,6 +767,9 @@ tr:hover td { background: var(--bg-hover); }
     <div style="display:flex;justify-content:flex-end"><button class="btn btn-secondary btn-sm" data-close>完成创建</button></div>
   </div>
 </div>
+
+<!-- AI 助手 FAB（对齐 AssistantFab：浅紫渐变圆底 + 猫头鹰） -->
+<button class="owl-fab" title="AI 助手">🦉</button>
 
 <script>
 /* 锚点导航滚动联动 */

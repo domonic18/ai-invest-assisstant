@@ -104,8 +104,8 @@ class TestResearchEndpoints:
         assert response.status_code == 404
 
     @patch("app.api.v1.research.research_service.summarize_report")
-    def test_summarize_research(self, mock_summarize, client) -> None:
+    def test_summarize_research(self, mock_summarize, user_client) -> None:
         mock_summarize.return_value = {"summary": "great report", "cached": True}
-        response = client.post("/api/v1/research/1/summarize")
+        response = user_client.post("/api/v1/research/1/summarize")
         assert response.status_code == 200
         assert response.json()["summary"] == "great report"

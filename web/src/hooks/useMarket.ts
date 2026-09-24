@@ -12,6 +12,7 @@ import {
   fetchLimitUpIntraday,
   fetchMarketIndices,
   fetchMarketReview,
+  fetchMarketReviewDates,
   fetchMarketStats,
   fetchSectorOverview,
   fetchSectorQuotes,
@@ -97,6 +98,15 @@ export function useMarketReview(tradeDate?: string) {
   return useQuery({
     queryKey: queryKeys.market.aiReview(tradeDate),
     queryFn: () => fetchMarketReview(tradeDate),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/** 已生成大盘复盘的交易日（升序），供日历打点。 */
+export function useMarketReviewDates() {
+  return useQuery({
+    queryKey: queryKeys.market.aiReviewDates,
+    queryFn: fetchMarketReviewDates,
     staleTime: 5 * 60 * 1000,
   })
 }

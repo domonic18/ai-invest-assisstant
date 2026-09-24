@@ -15,6 +15,11 @@ FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
+# 社媒 ASR 流水线依赖 ffmpeg 抽音轨（缺失时全部降级 ffmpeg_unavailable）
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=backend-builder /app/.venv /app/.venv
 COPY --from=backend-builder /app /app
 # 助手 Skills：settings.skills_dir 在容器内解析为 /skills（与 web 镜像一致）
@@ -22,6 +27,8 @@ COPY skills/ /skills/
 
 ENV PYTHONUNBUFFERED=1
 ENV COLLECT_TASK=default
+# 脱离 compose 单独运行时容器本地时间仍为北京墙钟；compose 注入的同名变量优先级更高
+ENV TZ=Asia/Shanghai
 ENV PATH="/app/.venv/bin:$PATH"
 
 COPY docker/collector/entrypoint-collector.sh /entrypoint.sh

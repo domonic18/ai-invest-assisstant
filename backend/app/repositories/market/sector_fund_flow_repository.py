@@ -114,3 +114,36 @@ async def list_latest_day(
         .limit(limit)
     )
     return list((await session.execute(stmt)).scalars().all())
+
+
+async def get_latest_by_code(
+    session: AsyncSession, sector_type: str, sector_code: str
+) -> SectorFundFlow | None:
+    """单板块最新一条资金流行（板块身份/名称来源）。"""
+    stmt = (
+        select(SectorFundFlow)
+        .where(
+            SectorFundFlow.sector_type == sector_type,
+            SectorFundFlow.sector_code == sector_code,
+        )
+        .order_by(SectorFundFlow.trade_date.desc())
+        .limit(1)
+    )
+    return (await session.execute(stmt)).scalars().first()
+
+
+async def list_history_by_code(
+    session: AsyncSession, sector_type: str, sector_code: str, limit: int = 250
+) -> list[SectorFundFlow]:
+    """单板块近 N 个交易日资金流升序（详情页走势/资金序列）。"""
+    stmt = (
+        select(SectorFundFlow)
+        .where(
+            SectorFundFlow.sector_type == sector_type,
+            SectorFundFlow.sector_code == sector_code,
+        )
+        .order_by(SectorFundFlow.trade_date.desc())
+        .limit(limit)
+    )
+    rows = (await session.execute(stmt)).scalars().all()
+    return list(reversed(rows))

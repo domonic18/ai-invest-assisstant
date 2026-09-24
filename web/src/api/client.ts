@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-import { StorageKey } from '@ai-invest/shared'
+import { ENDPOINTS, StorageKey } from '@ai-invest/shared'
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -37,6 +37,10 @@ apiClient.interceptors.request.use((config) => {
 const RETRYABLE_STATUS = new Set([502, 503, 504])
 const MAX_RETRIES = 2
 
+// 登录接口的 401 是「凭据错误」业务信号，不是会话过期：
+// 重定向回 /login 会丢掉表单错误提示并在登录页死循环刷新
+const AUTH_401_EXEMPT_PATHS = new Set<string>([ENDPOINTS.auth.login, ENDPOINTS.auth.wxLogin])
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 apiClient.interceptors.response.use(
@@ -58,7 +62,10 @@ apiClient.interceptors.response.use(
       return apiClient.request(config)
     }
 
-    if (response?.status === 401) {
+    if (
+      response?.status === 401 &&
+      !(config && AUTH_401_EXEMPT_PATHS.has(config.url ?? ''))
+    ) {
       localStorage.removeItem(StorageKey.auth.accessToken)
       window.location.href = '/login'
     }

@@ -46,6 +46,7 @@ RUN set -eux; \
     fi; \
     apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    fonts-wqy-zenhei \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -58,6 +59,9 @@ COPY --from=frontend-builder /web/dist /app/static
 COPY skills/ /skills/
 
 ENV STATIC_DIR=/app/static
+# 脱离 compose 单独运行（SCF/docker run）时容器本地时间仍为北京墙钟；
+# compose 注入的同名变量优先级更高，不受影响
+ENV TZ=Asia/Shanghai
 
 EXPOSE 9000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "9000", "--proxy-headers", "--forwarded-allow-ips=*"]

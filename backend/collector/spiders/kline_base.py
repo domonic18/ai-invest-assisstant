@@ -22,6 +22,24 @@ class BaseKlineCollector(PostgresCollector):
         super().__init__(config)
         self.period = config.get("period", "daily")
         self.table = "quote_kline_stock_minute" if self.period == "minute" else "quote_kline_stock_daily"
+        # 盘中触发的采集会写入半日 bar（成交量/换手率约半日值），声明全列更新让
+        # 16:30 定时全量重采覆盖修正，避免残值永久保留；
+        # 分钟表无 amplitude/change_pct/turnover_rate 列，更新列按 period 收敛
+        self.update_columns = (
+            ["open", "high", "low", "close", "volume", "amount"]
+            if self.period == "minute"
+            else [
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "amount",
+                "amplitude",
+                "change_pct",
+                "turnover_rate",
+            ]
+        )
 
     async def transform(self, raw: dict[str, Any]) -> dict[str, Any]:
         return {

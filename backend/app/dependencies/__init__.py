@@ -1,9 +1,9 @@
-"""FastAPI 依赖项：认证与数据库会话。"""
+"""FastAPI 依赖项：认证、数据库会话与 AI 配额闸门。"""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,8 +11,23 @@ from app.core.database import AsyncSessionLocal
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.security import decode_access_token
 from app.models.user import User
+from app.services.quota import quota_service
+from app.services.quota.constants import UsageFeature
+from app.services.quota.context import meter_scope
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+
+def client_ip(request: Request) -> str | None:
+    """取客户端 IP：反代/frp 场景取 X-Forwarded-For 首跳，缺失回退直连地址。
+
+    审计与限流（登录防爆破、播放拒绝审计等）必须区分真实来源；
+    只读 request.client.host 会把全部用户归并到代理 IP。
+    """
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else None
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -33,7 +48,7 @@ async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
-    """通过 JWT 获取当前用户。"""
+    """通过 JWT 获取当前用户（校验启用与审批状态）。"""
     credentials_exception = UnauthorizedError("Could not validate credentials")
 
     payload = decode_access_token(token)
@@ -47,6 +62,12 @@ async def get_current_user(
     user = await session.get(User, int(user_id))
     if user is None or not user.is_active:
         raise credentials_exception
+    # 审批状态拦截（防御纵深：审批前无凭证，覆盖后续状态回退，arch/10 §6.2）
+    if user.status != "approved":
+        if user.status == "pending":
+            raise UnauthorizedError("账号待审批，请等待管理员开通")
+        if user.status == "rejected":
+            raise UnauthorizedError("注册申请未通过，请重新提交申请")
 
     return user
 
@@ -58,3 +79,20 @@ async def get_current_admin_user(
     if user.role != "admin":
         raise ForbiddenError("Admin access required")
     return user
+
+
+def ai_quota_gate(feature: UsageFeature) -> Callable[..., AsyncIterator[User]]:
+    """AI 入口依赖工厂：请求前配额预检（耗尽 429）+ 计量上下文包裹（arch/10 §3）。
+
+    LangChain callback 内抛出的异常会被吞掉，配额拦截必须在入口显式执行；
+    yield 依赖与端点在同一请求任务内执行，meter_scope 的 ContextVar 对端点可见。
+    """
+
+    async def gate(
+        user: Annotated[User, Depends(get_current_user)],
+    ) -> AsyncIterator[User]:
+        await quota_service.precheck(user.id)
+        with meter_scope(user.id, feature):
+            yield user
+
+    return gate

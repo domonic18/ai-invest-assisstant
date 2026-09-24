@@ -13,6 +13,10 @@ export interface AdminNewsParams {
   stockCode?: string
   docType?: string
   q?: string
+  source?: string
+  broker?: string
+  startDate?: string
+  endDate?: string
   page?: number
   pageSize?: number
 }
@@ -25,6 +29,10 @@ export async function fetchAdminNews(params: AdminNewsParams = {}) {
         stock_code: params.stockCode,
         doc_type: params.docType,
         q: params.q,
+        source: params.source,
+        broker: params.broker,
+        start_date: params.startDate,
+        end_date: params.endDate,
         page: params.page ?? 1,
         page_size: params.pageSize ?? 20,
       },
@@ -54,4 +62,31 @@ export async function updateAdminNews(
 
 export async function deleteAdminNews(id: number) {
   await apiClient.delete(ENDPOINTS.admin.newsItem(id))
+}
+
+export async function batchDeleteAdminNews(ids: number[]) {
+  const response = await apiClient.post<{ deleted: number }>(
+    ENDPOINTS.admin.newsBatchDelete,
+    { ids },
+  )
+  return response.data.deleted
+}
+
+export interface FlashNewsDisplayState {
+  enabled: boolean
+}
+
+export async function fetchFlashNewsDisplay() {
+  const response = await apiClient.get<FlashNewsDisplayState>(
+    ENDPOINTS.admin.newsFlashDisplay,
+  )
+  return response.data
+}
+
+export async function updateFlashNewsDisplay(enabled: boolean) {
+  const response = await apiClient.post<FlashNewsDisplayState>(
+    ENDPOINTS.admin.newsFlashDisplay,
+    { enabled },
+  )
+  return response.data
 }

@@ -50,7 +50,7 @@ export function MarketStatsSection({ indices, stats, loading, tradeDate }: Marke
                   {item.price.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-xs" style={{ color: changeHex(item.changePct) }}>
-                  {formatPercent(item.changePct)}
+                  {item.changePct != null ? formatPercent(item.changePct) : '-'}
                 </div>
               </div>
             ))}
@@ -77,7 +77,15 @@ export function MarketStatsSection({ indices, stats, loading, tradeDate }: Marke
         <SourceNote>新浪财经 · 指数实时行情与分钟级分时数据；多周期 K 线由本地指数日 K 聚合</SourceNote>
       </Card>
 
-      <Card variant="borderless" title="成交量与涨跌统计">
+      <Card
+        variant="borderless"
+        title="成交量与涨跌统计"
+        extra={
+          <span className="text-xs text-gray-500">
+            数据日期 {stats?.tradeDate ?? '-'}
+          </span>
+        }
+      >
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-5 text-center">
           <div>
             <div className="text-xl font-semibold">{formatAmount(stats?.amount)}</div>
@@ -115,7 +123,7 @@ export function MarketStatsSection({ indices, stats, loading, tradeDate }: Marke
         </div>
         {score == null ? (
           <div className="text-gray-500 text-sm py-3 text-center rounded bg-[#1a1d24]">
-            历史日期暂无情绪温度数据（缺少当日涨跌家数）
+            暂无情绪温度数据（当日涨跌家数未生成）
           </div>
         ) : (
           <>

@@ -16,6 +16,7 @@ from app.services.review.market_review_generator import (
 from app.services.review.market_review_service import (
     UnknownSectionError,
     get_market_review,
+    list_review_trade_dates,
     update_market_review,
 )
 
@@ -30,6 +31,7 @@ __all__ = [
     "generate_market_review",
     "get_market_review",
     "input_hash",
+    "list_review_trade_dates",
     "load_prompt_config",
     "update_market_review",
 ]

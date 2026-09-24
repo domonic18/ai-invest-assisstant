@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.schemas.calendar import CalendarEventResponse
+from app.schemas.calendar import NewsCalendarEventResponse
 from app.schemas.market import GlobalIndexQuoteResponse
 from app.schemas.workbench import (
     CollectorStatusResponse,
@@ -21,8 +21,8 @@ from app.services.workbench import workbench_service
 _MODULE = "app.services.workbench.workbench_service"
 
 
-def _event() -> CalendarEventResponse:
-    return CalendarEventResponse(
+def _event() -> NewsCalendarEventResponse:
+    return NewsCalendarEventResponse(
         id=1,
         event_time=date(2026, 9, 10).isoformat(),
         end_time=None,

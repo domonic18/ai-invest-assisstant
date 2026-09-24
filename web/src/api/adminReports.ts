@@ -4,6 +4,8 @@ import type {
   ApiAdminReportResponse,
   ApiAdminReportUpdateRequest,
   ApiPaginatedResponse,
+  ApiReportCleanupResult,
+  ApiReportStorageSummary,
 } from '@ai-invest/shared'
 
 import { apiClient } from './client'
@@ -14,6 +16,20 @@ export interface AdminReportParams {
   fileType?: string
   page?: number
   pageSize?: number
+}
+
+export async function fetchReportStorageSummary() {
+  const response = await apiClient.get<ApiReportStorageSummary>(
+    ENDPOINTS.admin.reportStorageSummary,
+  )
+  return response.data
+}
+
+export async function cleanupOldReports() {
+  const response = await apiClient.post<ApiReportCleanupResult>(
+    ENDPOINTS.admin.reportCleanup,
+  )
+  return response.data
 }
 
 export async function fetchAdminReports(params: AdminReportParams = {}) {

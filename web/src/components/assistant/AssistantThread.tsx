@@ -14,6 +14,7 @@ import {
 } from './SuggestedQuestionContext'
 import { Composer } from './composer/Composer'
 import { AssistantMessage } from './messages/AssistantMessage'
+import { QuestionCard } from './QuestionCard'
 import { UserMessage } from './messages/UserMessage'
 
 /** 历史会话加载骨架屏 */
@@ -68,6 +69,25 @@ function PendingQuestionSender() {
   return null
 }
 
+/** 运行中反馈：三个跳动圆点（与消息正文对齐，跟在末条消息下方） */
+function TypingIndicator() {
+  return (
+    <ThreadPrimitive.If running>
+      <div className="mb-5 pl-10" aria-label="助手正在处理">
+        <div className="flex items-center gap-1.5">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400"
+              style={{ animationDelay: `${i * 160}ms` }}
+            />
+          ))}
+        </div>
+      </div>
+    </ThreadPrimitive.If>
+  )
+}
+
 export function AssistantThread() {
   const isLoading = useAuiState((s) => s.thread.isLoading)
   const aui = useAui()
@@ -94,9 +114,11 @@ export function AssistantThread() {
               <ThreadPrimitive.Messages
                 components={{ UserMessage, AssistantMessage }}
               />
+              <TypingIndicator />
             </>
           )}
         </ThreadPrimitive.Viewport>
+        <QuestionCard />
         <Composer />
         <PendingQuestionSender />
       </ThreadPrimitive.Root>

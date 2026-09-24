@@ -1,14 +1,16 @@
-import { Spin, Tag } from 'antd'
+import { Spin, Tag, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import type { CollectorEngineStatus } from '@ai-invest/shared'
+import type { CollectorEngineStatus, SystemStatus } from '@ai-invest/shared'
 
 import { FoldCard } from './FoldCard'
 
 interface CollectorEngineCardProps {
   status?: CollectorEngineStatus | null
+  /** 依赖服务探测结果（PostgreSQL/Redis/MinIO），空时隐藏状态条。 */
+  systemStatus?: SystemStatus | null
   loading?: boolean
   className?: string
   stretch?: boolean
@@ -38,9 +40,10 @@ function formatElapsed(startedAt: string | null): string {
   return formatDuration(seconds)
 }
 
-/** 采集引擎状态卡：呈现"是否在跑 / 接下来跑什么 / 最近跑得怎样"。 */
+/** 服务器与采集引擎状态卡：依赖服务健康条 + "是否在跑 / 接下来跑什么 / 最近跑得怎样"。 */
 export function CollectorEngineCard({
   status,
+  systemStatus,
   loading,
   className,
   stretch,
@@ -52,11 +55,34 @@ export function CollectorEngineCard({
     return () => clearInterval(timer)
   }, [])
 
+  const depStrip =
+    systemStatus && systemStatus.items.length > 0 ? (
+      <div className="flex items-center gap-x-3 gap-y-1.5 flex-wrap pb-2.5 mb-3 border-b border-dashed border-gray-800">
+        {systemStatus.items.map((item) => (
+          <Tooltip
+            key={item.key}
+            title={item.status === 'up' ? item.detail ?? '运行正常' : item.error ?? '探测失败'}
+          >
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-gray-400 cursor-default">
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${item.status === 'up' ? 'bg-green-500' : 'bg-red-500'}`}
+              />
+              {item.name}
+              {item.status === 'up' && item.latencyMs != null && (
+                <span className="font-mono text-gray-500">{item.latencyMs}ms</span>
+              )}
+              {item.status === 'down' && <span className="text-red-400">不可用</span>}
+            </span>
+          </Tooltip>
+        ))}
+      </div>
+    ) : null
+
   return (
     <FoldCard
       title={
         <span className="inline-flex items-center gap-2">
-          采集引擎
+          服务器与采集引擎
           {status && (
             <Tag color={status.isRunning ? 'success' : 'default'} className="!mr-0">
               {status.isRunning ? '运行中' : '空闲'}
@@ -68,6 +94,7 @@ export function CollectorEngineCard({
       className={className}
       stretch={stretch}
     >
+      {depStrip}
       {loading ? (
         <div className="flex justify-center py-6"><Spin /></div>
       ) : !status ? (

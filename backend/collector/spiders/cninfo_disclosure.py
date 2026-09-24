@@ -11,9 +11,9 @@ from collector.core.parsing import clean_stock_code, parse_date, to_optional_str
 
 
 class CninfoDisclosureCollector(PostgresCollector):
-    """巨潮资讯公告采集器，写入 news_announcement(doc_type='announcement')。"""
+    """巨潮资讯公告采集器，写入 news_document(doc_type='announcement')。"""
 
-    table = "news_announcement"
+    table = "news_document"
     conflict_key = "source_url"
     key_fields: ClassVar[list[str]] = ["source_url"]
     required_fields: ClassVar[list[str]] = ["stock_code", "title", "publish_date"]
@@ -64,7 +64,6 @@ class CninfoDisclosureCollector(PostgresCollector):
                         "sentiment": None,
                         "keywords": None,
                         "industry_tags": None,
-                        "elasticsearch_doc_id": None,
                         "extra": json.dumps(_build_extra(url)),
                     }
                 )
@@ -83,7 +82,6 @@ class CninfoDisclosureCollector(PostgresCollector):
             "sentiment": raw.get("sentiment"),
             "keywords": raw.get("keywords"),
             "industry_tags": raw.get("industry_tags"),
-            "elasticsearch_doc_id": raw.get("elasticsearch_doc_id"),
             "extra": raw.get("extra"),
         }
 

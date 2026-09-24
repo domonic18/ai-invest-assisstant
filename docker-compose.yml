@@ -18,7 +18,8 @@ services:
       - .env
     environment:
       TZ: Asia/Shanghai
-      DEBUG: ${DEBUG}
+      # 默认 0：漏配时 compose 注入空串会令 pydantic bool 校验失败（web 启动崩溃循环）
+      DEBUG: ${DEBUG:-0}
       # SCF 入口 HTTPS 但以 HTTP 转发容器时须置 1（服务器 .env / SCF 控制台），
       # 本地 http 访问必须保持 0，否则响应会被 upgrade-insecure-requests 破坏
       FORCE_FORWARDED_HTTPS: ${FORCE_FORWARDED_HTTPS:-0}
@@ -95,7 +96,8 @@ services:
       resources:
         limits:
           cpus: "1.0"
-          memory: 1G
+          # 2G：社媒回填/增量采集含「拉流→ffmpeg 抽音轨→ASR」媒体流水线，1G 曾被 OOM 杀（2026-09-16）
+          memory: 2G
 
   celery-worker-heavy:
     # LLM 分钟级任务（复盘/归因）独占容器，并发=1，不与通用采集池混跑
@@ -168,6 +170,37 @@ services:
           cpus: "0.5"
           memory: 512M
 
+  douyin-signer:
+    # 抖音页面签名 sidecar：chromium warm 页 SDK 真签（Argus 门禁对抗，见 docs/arch/11）
+    # 不锁 platform：chromium 原生 arm64/amd64 均可用，amd64 模拟会破坏浏览器指纹；
+    # 无 depends_on：独立服务，不可用时采集侧自动回退本地 a_bogus
+    build:
+      context: .
+      dockerfile: docker/signer/Dockerfile
+      # 境内本地构建浏览器二进制经宿主机代理（见 Dockerfile 头注释）；CI 境外直连
+      args:
+        - HTTP_PROXY
+        - HTTPS_PROXY
+    environment:
+      TZ: Asia/Shanghai
+    restart: unless-stopped
+    logging: *logging
+    tmpfs:
+      # chromium 用户Profile写 /tmp；tmpfs 避免容器层 IO 与崩溃残留
+      - /tmp/playwright-profiles
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8010/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+
   postgres:
     image: timescale/timescaledb:latest-pg16
     environment:
@@ -200,27 +233,6 @@ services:
       timeout: 3s
       retries: 5
       start_period: 5s
-    restart: unless-stopped
-    logging: *logging
-    networks:
-      - app-network
-
-  elasticsearch:
-    image: elasticsearch:8.13.0
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    ports:
-      - "${ELASTICSEARCH_PORT:-9200}:9200"
-    volumes:
-      - ./workspace/elasticsearch:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
     restart: unless-stopped
     logging: *logging
     networks:

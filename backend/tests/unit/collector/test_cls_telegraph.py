@@ -182,7 +182,7 @@ class TestCollector:
         ) as mock_fetch:
             items = await collector.collect(rn=10)
         assert items == [{"cls_msg_id": 1}]
-        mock_fetch.assert_called_once_with(0, 10)
+        mock_fetch.assert_called_once_with(0, 10, "https://www.cls.cn")
 
     async def test_store_contract_do_nothing(self) -> None:
         collector = ClsTelegraphCollector(

@@ -1,13 +1,16 @@
 import { RobotOutlined } from '@ant-design/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button, Card, Empty, Input, message, Popconfirm, Tag, Typography } from 'antd'
+import dayjs from 'dayjs'
 import { useEffect, useRef, useState } from 'react'
 
 import { NonTradingDayError, saveMarketReviewSection } from '@/api/market'
 import { MarkdownText } from '@/components/common/MarkdownText'
 import { useMarketReview } from '@/hooks/useMarket'
+import { queryKeys } from '@/hooks/queryKeys'
 import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
 import { useAssistantStore } from '@/stores/assistant'
+import { DATE_FORMAT } from '@/utils/formatters'
 import { PAGE_EVENT_TYPES, type MarketReview, type MarketReviewSection } from '@ai-invest/shared'
 
 interface ReviewCardProps {
@@ -87,10 +90,13 @@ function ReviewCard({
 }
 
 interface AiReviewSectionProps {
+  /** 用户显式选择的复盘日期，作查询参数；未选时由后端解析缺省视图日 */
   tradeDate?: string
+  /** 当前页面语境的复盘日（用户选择日 ?? stats/limitUp 的数据日），驱动生成目标与空态 */
+  viewDate?: string
 }
 
-export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
+export function AiReviewSection({ tradeDate, viewDate }: AiReviewSectionProps) {
   const queryClient = useQueryClient()
   const panelOpen = useAssistantStore((state) => state.open)
   const mountedRef = useRef(true)
@@ -110,13 +116,14 @@ export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
     useAssistantStore
       .getState()
       .sendQuestion(
-        `请${regenerate ? '重新' : ''}生成 ${tradeDate ?? '最近交易日'} 的大盘每日复盘`
+        `请${regenerate ? '重新' : ''}生成 ${viewDate ?? '最近交易日'} 的大盘每日复盘`
       )
   }
 
   usePageAssistantResult(PAGE_EVENT_TYPES.marketDailyReview, () => {
     setGenerating(false)
     void refetch()
+    void queryClient.invalidateQueries({ queryKey: queryKeys.market.aiReviewDates })
     message.success('复盘已生成，已刷新')
     return true
   })
@@ -187,6 +194,10 @@ export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
   }
 
   if (!data) {
+    // 今日且未收盘时不提供手动生成入口：盘前/盘中数据未就绪，避免半成品
+    // 复盘落库占用当日缓存（16:30 定时任务会直接命中缓存跳过重生成）
+    const isToday = viewDate === dayjs().format(DATE_FORMAT)
+    const beforeClose = isToday && dayjs().hour() < 15
     return (
       <Card
         variant="borderless"
@@ -198,22 +209,28 @@ export function AiReviewSection({ tradeDate }: AiReviewSectionProps) {
         }
       >
         <Empty
-          description="基于当日行情、涨停与板块资金数据生成复盘综述"
+          description={
+            isToday
+              ? '今日复盘尚未生成，收盘后约 16:30 自动生成'
+              : '基于当日行情、涨停与板块资金数据生成复盘综述'
+          }
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         >
-          <div className="space-y-2">
-            <Button
-              type="primary"
-              loading={generating}
-              onClick={() => handleGenerate(false)}
-            >
-              {generating ? 'AI 生成中，进展见右侧 AI 助手…' : '生成 AI 复盘'}
-            </Button>
-            <div className="text-xs text-gray-500">
-              点击后将在 AI 助手侧边栏执行分析，完成后自动展示
+          {beforeClose ? null : (
+            <div className="space-y-2">
+              <Button
+                type="primary"
+                loading={generating}
+                onClick={() => handleGenerate(false)}
+              >
+                {generating ? 'AI 生成中，进展见右侧 AI 助手…' : '生成 AI 复盘'}
+              </Button>
+              <div className="text-xs text-gray-500">
+                点击后将在 AI 助手侧边栏执行分析，完成后自动展示
+              </div>
+              <div className="text-xs text-gray-500">每个交易日收盘后由定时任务自动生成</div>
             </div>
-            <div className="text-xs text-gray-500">每个交易日收盘后由定时任务自动生成</div>
-          </div>
+          )}
         </Empty>
       </Card>
     )

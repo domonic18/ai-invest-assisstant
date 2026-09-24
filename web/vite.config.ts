@@ -21,6 +21,8 @@ export default defineConfig({
     },
   },
   build: {
+    // hidden：产物生成 .map 但 HTML 不引用（线上不暴露），排障时用本地 map 还原堆栈
+    sourcemap: 'hidden',
     rollupOptions: {
       output: {
         manualChunks: {

@@ -437,6 +437,57 @@ class TestGetTopics:
         assert payload["wordcloud"] == []
         assert payload["generated_at"] is None
 
+    async def test_chain_stocks_enriched_on_read(self) -> None:
+        """传导链标的读取时富化：代码直连/名称解析/无法解析三档。"""
+        snapshot = MagicMock(
+            topics=[
+                {
+                    "title": "存储芯片涨价",
+                    "heat": 70.0,
+                    "chain": [
+                        {
+                            "event": "海外大厂减产",
+                            "link": "供给收缩",
+                            "stocks": ["sh688012", "中微公司", "无法解析"],
+                        }
+                    ],
+                }
+            ],
+            wordcloud=[],
+            generated_at=None,
+        )
+        with (
+            patch.object(
+                topic_service.topic_repository,
+                "get_snapshot",
+                AsyncMock(return_value=snapshot),
+            ),
+            patch.object(
+                topic_service.StockRepository,
+                "get_codes_by_names",
+                AsyncMock(return_value={"中微公司": "688021"}),
+            ),
+            patch.object(
+                topic_service.stock_service,
+                "batch_quote_snapshot",
+                AsyncMock(
+                    return_value={
+                        "688012": {"name": "中微半导", "change_pct": 3.2},
+                        "688021": {"name": "中微公司", "change_pct": -1.5},
+                    }
+                ),
+            ),
+            _patch_clock(16)[1],
+        ):
+            payload = await topic_service.get_topics(MagicMock(), session_key="post")
+
+        stocks = payload["topics"][0]["chain"][0]["stocks"]
+        assert stocks == [
+            {"name": "中微半导", "code": "688012", "change_pct": 3.2},
+            {"name": "中微公司", "code": "688021", "change_pct": -1.5},
+            {"name": "无法解析", "code": None, "change_pct": None},
+        ]
+
 
 @pytest.mark.unit
 class TestNewsTopicCollector:

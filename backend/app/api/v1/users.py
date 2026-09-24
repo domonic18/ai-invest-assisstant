@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_db
+from app.dependencies import ai_quota_gate, get_current_user, get_db
 from app.models.user import User
 from app.schemas.market import WatchlistQuoteItem
 from app.schemas.user import (
@@ -26,6 +26,7 @@ from app.schemas.user import (
     WatchlistScreenshotRecognitionResponse,
 )
 from app.services.market import market_service
+from app.services.quota.constants import FEATURE_PAGE
 from app.services.user import UserService, WatchlistService
 from app.services.user.screenshot_recognition_service import (
     recognize_screenshot,
@@ -112,7 +113,7 @@ async def add_watchlist(
     response_model=WatchlistScreenshotRecognitionResponse,
 )
 async def recognize_watchlist_screenshot(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(ai_quota_gate(FEATURE_PAGE))],
     session: Annotated[AsyncSession, Depends(get_db)],
     file: Annotated[UploadFile, File(description="股票截图（png/jpeg/webp，≤8MB）")],
 ) -> WatchlistScreenshotRecognitionResponse:
@@ -185,9 +186,12 @@ async def delete_watchlist_group(
     group_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
+    delete_items: bool = False,
 ) -> None:
-    """删除分组（组内股票移入默认分组）。"""
-    await WatchlistService(session).delete_group(current_user.id, group_id)
+    """删除分组；delete_items=true 组内股票一并删除，否则移入默认分组。"""
+    await WatchlistService(session).delete_group(
+        current_user.id, group_id, delete_items=delete_items
+    )
 
 
 @router.put("/watchlist/groups/order", status_code=status.HTTP_204_NO_CONTENT)

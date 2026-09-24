@@ -11,28 +11,45 @@ const Admin = lazy(() => import('./pages/Admin/Admin').then((m) => ({ default: m
 const AdminNews = lazy(() => import('./pages/Admin/News/News').then((m) => ({ default: m.AdminNews })))
 const AdminReports = lazy(() => import('./pages/Admin/Reports/Reports').then((m) => ({ default: m.AdminReports })))
 const AdminStocks = lazy(() => import('./pages/Admin/Stocks/Stocks').then((m) => ({ default: m.AdminStocks })))
-const AdminTasks = lazy(() => import('./pages/Admin/Tasks/Tasks').then((m) => ({ default: m.AdminTasks })))
 const AdminUsers = lazy(() => import('./pages/Admin/Users/Users').then((m) => ({ default: m.AdminUsers })))
-const Collector = lazy(() => import('./pages/Admin/Collector').then((m) => ({ default: m.Collector })))
-const CollectorChannelConfig = lazy(() =>
-  import('./pages/Admin/CollectorChannelConfig/CollectorChannelConfig').then((m) => ({
-    default: m.CollectorChannelConfig,
-  })),
+const CollectorAdmin = lazy(() =>
+  import('./pages/Admin/Collector').then((m) => ({ default: m.CollectorAdmin })),
 )
 const LLMConfig = lazy(() => import('./pages/Admin/LLMConfig/LLMConfig').then((m) => ({ default: m.LLMConfig })))
+const KnowledgeBase = lazy(() => import('./pages/Admin/KnowledgeBase'))
+const KnowledgeSearchPage = lazy(() =>
+  import('./pages/KnowledgeSearch').then((m) => ({ default: m.KnowledgeSearchPage }))
+)
+const McpServers = lazy(() =>
+  import('./pages/Admin/McpServers/McpServers').then((m) => ({ default: m.McpServers })),
+)
 const ProxyConfig = lazy(() =>
   import('./pages/Admin/ProxyConfig/ProxyConfig').then((m) => ({ default: m.ProxyConfig })),
+)
+const SocialTracking = lazy(() =>
+  import('./pages/Admin/SocialTracking/SocialTracking').then((m) => ({
+    default: m.SocialTracking,
+  })),
+)
+const SystemStatusPage = lazy(() =>
+  import('./pages/Admin/SystemStatus/SystemStatus').then((m) => ({ default: m.SystemStatus })),
+)
+const UsageDashboard = lazy(() =>
+  import('./pages/Admin/UsageDashboard/UsageDashboard').then((m) => ({ default: m.UsageDashboard })),
 )
 const AiResultsAdmin = lazy(() =>
   import('./pages/Admin/AiResults/AiResultsAdmin').then((m) => ({
     default: m.AiResultsAdmin,
   })),
 )
-const TrackedIndex = lazy(() =>
-  import('./pages/Admin/TrackedIndex/TrackedIndex').then((m) => ({ default: m.TrackedIndex })),
-)
 const AuctionReview = lazy(() =>
   import('./pages/AuctionReview/AuctionReview').then((m) => ({ default: m.AuctionReview })),
+)
+const AnomalyPage = lazy(() =>
+  import('./pages/Anomaly').then((m) => ({ default: m.AnomalyPage })),
+)
+const SectorDetailPage = lazy(() =>
+  import('./pages/SectorDetail/SectorDetailPage').then((m) => ({ default: m.SectorDetailPage })),
 )
 const Calendar = lazy(() => import('./pages/Calendar').then((m) => ({ default: m.Calendar })))
 const CapitalFlow = lazy(() => import('./pages/CapitalFlow/CapitalFlow').then((m) => ({ default: m.CapitalFlow })))
@@ -49,8 +66,14 @@ const MacroMonitor = lazy(() =>
 )
 const News = lazy(() => import('./pages/News').then((m) => ({ default: m.News })))
 const Register = lazy(() => import('./pages/Register/Register').then((m) => ({ default: m.Register })))
+const ScreeningPage = lazy(() =>
+  import('./pages/Screening/ScreeningPage').then((m) => ({ default: m.ScreeningPage })),
+)
 const Settings = lazy(() => import('./pages/Settings/Settings').then((m) => ({ default: m.Settings })))
 const SkillsPage = lazy(() => import('./pages/Skills/SkillsPage').then((m) => ({ default: m.SkillsPage })))
+const SkillDetailPage = lazy(() =>
+  import('./pages/Skills/SkillDetailPage').then((m) => ({ default: m.SkillDetailPage })),
+)
 const StockDetail = lazy(() => import('./pages/StockDetail/StockDetail').then((m) => ({ default: m.StockDetail })))
 const Watchlist = lazy(() => import('./pages/Watchlist').then((m) => ({ default: m.Watchlist })))
 const Workbench = lazy(() =>
@@ -69,6 +92,12 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/workbench" replace /> },
       { path: 'workbench', element: lazyEl(<Workbench />) },
       { path: 'review', element: <Dashboard /> },
+      // 异动检测合并页：板块/个股双 tab；子路径保持（page_event 跳转直达指定 tab）
+      { path: 'anomaly', element: <Navigate to="/anomaly/sector" replace /> },
+      { path: 'anomaly/sector', element: lazyEl(<AnomalyPage />) },
+      { path: 'anomaly/stock', element: lazyEl(<AnomalyPage />) },
+      // 板块详情：同花顺指数 K 线（板块名桥接）+ 资金流 + 异动日标注
+      { path: 'sector/:sectorType/:sectorCode', element: lazyEl(<SectorDetailPage />) },
       { path: 'chain/:industry?', element: lazyEl(<ChainAnalysis />) },
       { path: 'stock/:code', element: lazyEl(<StockDetail />) },
       { path: 'capital-flow', element: lazyEl(<CapitalFlow />) },
@@ -83,28 +112,38 @@ export const router = createBrowserRouter([
       { path: 'financial-reports', element: <Navigate to="/workbench" replace /> },
       { path: 'calendar', element: lazyEl(<Calendar />) },
       { path: 'news', element: lazyEl(<News />) },
+      // 知识库搜索入口（搜索引擎式）：全员可问；?mediaId= 承载会话引用播放（凭证白名单校验）
+      { path: 'kb', element: lazyEl(<KnowledgeSearchPage />) },
       // 旧路由兜底：电报视图已迁入资讯中心（迭代 3）
       { path: 'telegraph', element: <Navigate to="/news" replace /> },
       { path: 'financial/:code', element: lazyEl(<Financial />) },
       { path: 'settings', element: lazyEl(<Settings />) },
       { path: 'skills', element: lazyEl(<SkillsPage />) },
+      { path: 'skills/:skillId', element: lazyEl(<SkillDetailPage />) },
       { path: 'watchlist', element: lazyEl(<Watchlist />) },
+      // AI 选股：问财即席筛选，结果为 SPA 会话临时内容（迭代 6）
+      { path: 'screening', element: lazyEl(<ScreeningPage />) },
       {
         path: 'admin',
         element: <ProtectedAdmin />,
         children: [
           { index: true, element: lazyEl(<Admin />) },
           { path: 'users', element: lazyEl(<AdminUsers />) },
+          { path: 'usage-dashboard', element: lazyEl(<UsageDashboard />) },
           { path: 'stocks', element: lazyEl(<AdminStocks />) },
           { path: 'reports', element: lazyEl(<AdminReports />) },
           { path: 'news', element: lazyEl(<AdminNews />) },
-          { path: 'tasks', element: lazyEl(<AdminTasks />) },
+          // 旧路由兜底：任务/渠道配置并入采集管理（tab 直达）
+          { path: 'tasks', element: <Navigate to="/admin/collector?tab=tasks" replace /> },
           { path: 'llm-configs', element: lazyEl(<LLMConfig />) },
+          { path: 'knowledge-base', element: lazyEl(<KnowledgeBase />) },
+          { path: 'mcp-servers', element: lazyEl(<McpServers />) },
+          { path: 'social-tracking', element: lazyEl(<SocialTracking />) },
           { path: 'proxy-configs', element: lazyEl(<ProxyConfig />) },
           { path: 'ai-results', element: lazyEl(<AiResultsAdmin />) },
-          { path: 'tracked-indexes', element: lazyEl(<TrackedIndex />) },
-          { path: 'collector-channels', element: lazyEl(<CollectorChannelConfig />) },
-          { path: 'collector', element: lazyEl(<Collector />) },
+          { path: 'collector-channels', element: <Navigate to="/admin/collector?tab=channels" replace /> },
+          { path: 'collector', element: lazyEl(<CollectorAdmin />) },
+          { path: 'system-status', element: lazyEl(<SystemStatusPage />) },
         ],
       },
     ],

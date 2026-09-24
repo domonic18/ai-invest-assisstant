@@ -164,10 +164,10 @@ async def get_limit_up(
 ) -> LimitUpResponse:
     """涨停板与连板天梯（只读 ``pool_limit_up_stock``）。
 
-    默认取最近交易日：盘中未收盘时当日涨停池尚未写入，返回空，
-    不回退展示前一交易日的旧数据。
+    默认取当前视图日（交易日为当天，非交易日回退最近交易日）：
+    当日涨停池尚未写入时返回空，不回退展示前一交易日的旧数据。
     """
-    resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(session)
+    resolved = trade_date or await trade_calendar_service.resolve_default_view_date(session)
 
     rows = await limit_pool_repository.list_by_date(session, resolved)
 
@@ -213,7 +213,7 @@ async def get_limit_up_intraday(
     session: AsyncSession, trade_date: date | None = None
 ) -> LimitUpIntradayResponse:
     """涨停个股全天分时缩略图（每股 ≤60 个收盘价采样点，读 ``quote_kline_stock_minute``）。"""
-    resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(session)
+    resolved = trade_date or await trade_calendar_service.resolve_default_view_date(session)
     codes = await limit_pool_repository.list_codes_by_date(session, resolved)
     bars = await fetch_minute_bars_multi(session, codes, resolved)
     closes_by_code: dict[str, list[float]] = {}

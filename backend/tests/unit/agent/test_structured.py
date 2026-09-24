@@ -52,12 +52,12 @@ class _FakeModel:
         return self._structured
 
 
-def _patch_run_env(structured: _FakeStructured, *, provider: str = "anthropic"):
+def _patch_run_env(structured: _FakeStructured, *, protocol: str = "anthropic"):
     fake_model = _FakeModel(structured)
     return (
         patch(
-            "app.agent.runtime.structured.resolve_default_llm",
-            new=AsyncMock(return_value=SimpleNamespace(provider=provider)),
+            "app.agent.runtime.structured.resolve_llm",
+            new=AsyncMock(return_value=(SimpleNamespace(protocol=protocol), "system")),
         ),
         patch(
             "app.agent.runtime.structured.build_langchain_model",
@@ -133,7 +133,7 @@ class TestRunStructured:
     @pytest.mark.asyncio
     async def test_anthropic_provider_uses_json_schema(self) -> None:
         structured = _FakeStructured([_Out(value="ok")])
-        p_llm, p_model, fake_model = _patch_run_env(structured, provider="anthropic")
+        p_llm, p_model, fake_model = _patch_run_env(structured, protocol="anthropic")
         with p_llm, p_model:
             await run_structured(
                 cast(AsyncSession, object()),
@@ -146,7 +146,7 @@ class TestRunStructured:
     @pytest.mark.asyncio
     async def test_openai_provider_uses_function_calling(self) -> None:
         structured = _FakeStructured([_Out(value="ok")])
-        p_llm, p_model, fake_model = _patch_run_env(structured, provider="openai")
+        p_llm, p_model, fake_model = _patch_run_env(structured, protocol="openai")
         with p_llm, p_model:
             await run_structured(
                 cast(AsyncSession, object()),
@@ -171,3 +171,30 @@ class TestRunStructured:
 
         assert result == _Out(value="ok")
         assert len(structured.prompts) == 2
+
+    @pytest.mark.asyncio
+    async def test_config_id_bypasses_resolve_llm(self) -> None:
+        """config_id 显式指定条目：不查 resolve_llm 分流，按该条目建模型。"""
+        structured = _FakeStructured([_Out(value="ok")])
+        fake_model = _FakeModel(structured)
+        p_by_id = patch(
+            "app.agent.runtime.structured.resolve_llm_by_id",
+            new=AsyncMock(
+                return_value=SimpleNamespace(protocol="openai", model_name="m2.5")
+            ),
+        )
+        p_model = patch(
+            "app.agent.runtime.structured.build_langchain_model",
+            return_value=fake_model,
+        )
+        session = cast(AsyncSession, object())
+        with p_by_id, p_model:
+            result = await run_structured(
+                session,
+                result_type=_Out,
+                user_prompt="hello",
+                config_id=7,
+            )
+
+        assert result == _Out(value="ok")
+        assert fake_model.methods == ["function_calling"]

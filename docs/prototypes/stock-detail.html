@@ -354,6 +354,34 @@ tr:hover td { background: var(--bg-hover); }
 }
 .ct-icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
+/* 图表设置 Popover（对齐 ChartToolbar.tsx ⚙ 弹层：涨跌配色 / 复位缩放窗口 / 更多设置） */
+.chart-block.main { position: relative; }
+.chart-settings-pop {
+  position: absolute; right: 14px; top: 44px; width: 176px; z-index: 30;
+  background: var(--bg-elevated); border: 1px solid var(--border-hover);
+  border-radius: var(--radius-md); box-shadow: 0 10px 25px rgba(0,0,0,.5);
+  padding: 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.csp-label { font-size: 12px; color: var(--text-secondary); }
+.csp-scheme { display: flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.csp-opt {
+  flex: 1; padding: 4px 0; font-size: 12px; background: var(--bg-surface);
+  border: none; color: var(--text-secondary); cursor: pointer;
+}
+.csp-opt.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+.csp-btn { width: 100%; }
+
+/* AI 助手 FAB（对齐 AssistantFab：浅紫渐变圆底 + 猫头鹰） */
+.owl-fab {
+  position: fixed; right: 20px; bottom: 24px; width: 56px; height: 56px;
+  border-radius: 50%; border: none; cursor: pointer; font-size: 30px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #eef2ff 0%, #c7d2fe 55%, #a5b4fc 100%);
+  box-shadow: 0 8px 24px rgba(99,102,241,.45), 0 2px 6px rgba(0,0,0,.25);
+  z-index: 50; transition: transform .2s ease;
+}
+.owl-fab:hover { transform: scale(1.08); }
+
 /* K 线画布（CSS 示意）。窗格配比：日线 52:24:24（K线:VOL:MACD），周线 64:36（K线:VOL） */
 .chart-canvas { flex: 1; min-height: 0; position: relative; background: var(--bg); }
 .chart-canvas.has-sub { flex: 52; }
@@ -644,10 +672,10 @@ tr:hover td { background: var(--bg-hover); }
 </div>
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
+<a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
 <div class="sidebar-section-title">监测</div>
 <a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
 <a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
-<a class="sidebar-item active" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
 <div class="sidebar-section-title">资讯</div>
 <a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
@@ -655,14 +683,12 @@ tr:hover td { background: var(--bg-hover); }
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
-<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
-<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
 <a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
 </nav>
-<div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
+<div class="sidebar-footer"><div class="sidebar-avatar">D</div><div class="sidebar-user-info"><div class="sidebar-user-name">Domonic</div><div>普通用户</div></div></div>
 </aside>
 
   <div class="app-main">
@@ -671,7 +697,11 @@ tr:hover td { background: var(--bg-hover); }
         <input class="header-search" type="text" value="002371 北方华创">
         <button class="btn btn-primary btn-sm">搜索</button>
       </div>
-      <div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div>
+      <div class="header-right" style="display:flex;align-items:center;gap:8px">
+        <button class="header-btn" title="我的自选">★</button>
+        <button class="header-btn" title="AI 助手">💬</button>
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><div class="sidebar-avatar" style="width:26px;height:26px;font-size:11px">D</div><span>Domonic</span>▾</div>
+      </div>
     </header>
 
     <div class="app-content stock-page">
@@ -697,8 +727,6 @@ tr:hover td { background: var(--bg-hover); }
               </div>
               <div class="qs-actions">
                 <button class="btn btn-secondary btn-sm">☆ 加入自选</button>
-                <button class="btn btn-ghost btn-sm" title="导出数据">⤓</button>
-                <button class="btn btn-ghost btn-sm" title="行情设置">⚙</button>
               </div>
             </div>
             <div class="qs-metrics">
@@ -751,9 +779,20 @@ tr:hover td { background: var(--bg-hover); }
                     <button class="seg-btn active">双图</button>
                     <button class="seg-btn">单图</button>
                   </div>
-                  <button class="ct-icon-btn" title="指标参数设置">⚙</button>
+                  <button class="ct-icon-btn" title="图表设置">⚙</button>
                   <button class="ct-icon-btn" title="全屏">⛶</button>
                 </div>
+              </div>
+
+              <!-- ⚙ 图表设置 Popover（点击 ⚙ 弹出：涨跌配色即时生效 / 复位缩放窗口 / 更多设置跳个人设置） -->
+              <div class="chart-settings-pop">
+                <div class="csp-label">涨跌配色</div>
+                <div class="csp-scheme">
+                  <button class="csp-opt active">红涨绿跌</button>
+                  <button class="csp-opt">绿涨红跌</button>
+                </div>
+                <button class="btn btn-secondary btn-sm csp-btn">复位缩放窗口</button>
+                <a class="btn btn-secondary btn-sm csp-btn" href="settings.html">更多设置 →</a>
               </div>
 
               <!-- K 线主图：MA 常驻行 + 左轴涨跌幅% + 右轴价格 + 最新价标签 + 筹码峰 + tooltip 规格示意 -->
@@ -855,7 +894,7 @@ tr:hover td { background: var(--bg-hover); }
                 <span class="ct-divider"></span>
                 <button class="tool-toggle">指标：VOL ▾</button>
                 <div class="ct-right">
-                  <button class="ct-icon-btn" title="指标参数设置">⚙</button>
+                  <button class="ct-icon-btn" title="图表设置">⚙</button>
                   <button class="ct-icon-btn" title="全屏">⛶</button>
                 </div>
               </div>
@@ -1089,6 +1128,9 @@ tr:hover td { background: var(--bg-hover); }
     </div>
   </div>
 </div>
+<!-- AI 助手 FAB（对齐 AssistantFab：浅紫渐变圆底 + 猫头鹰） -->
+<button class="owl-fab" title="AI 助手">🦉</button>
+
 <script>
 /* Tab 切换 */
 document.querySelectorAll('.info-tabs .tab-btn').forEach(function(t){
@@ -1107,6 +1149,13 @@ document.querySelectorAll('.info-tabs .tab-btn').forEach(function(t){
     btn.textContent=hidden?'收起 ⌃':'展开全部 6 个 ⌄';
   });
 })();
+/* 图表设置 Popover：涨跌配色切换（纯示意） */
+document.querySelectorAll('.csp-opt').forEach(function (opt) {
+  opt.addEventListener('click', function () {
+    document.querySelectorAll('.csp-opt').forEach(function (o) { o.classList.remove('active'); });
+    opt.classList.add('active');
+  });
+});
 /* 画线工具竖条 / 筹码峰面板：默认收起，工具栏按钮开合 */
 (function(){
   [['btnDrawToggle','drawToolbar'],['btnChipToggle','chipPanel']].forEach(function(p){

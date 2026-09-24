@@ -5,6 +5,11 @@
 - task-log：collector_task 的 cron + collector_log 当日运行记录；
   轮询型两轮触发间隔内无成功即 delayed，每日批次型当日首个计划
   时刻超宽限仍无成功即 delayed
+
+键空间契约：collector_log.task_name 存 TASK_SPECS 键（task_type），
+渠道身份 = (task_type, source)，与采集运行时（resolver/TaskSpec.collectors）
+同一键空间；task-log 条目据此查询，禁止用 collector_task.task_name
+实例名查 collector_log。一致性由 test_news_channel_service 钉死。
 """
 
 from collections.abc import Awaitable, Callable
@@ -12,15 +17,15 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
 
 import structlog
-from croniter import croniter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.cache import get_redis
+from app.core.cache import cache_exists
 from app.core.clock import CN_TZ, now_cn
 from app.core.constants import (
     NEWS_SOURCE_TELEGRAPH,
     STREAM_HEARTBEAT_KEY_TEMPLATE,
 )
+from app.models.account_quota import SystemSetting
 from app.models.collector_log import CollectorLog
 from app.repositories.admin.collector_log_repository import CollectorLogRepository
 from app.repositories.admin.collector_task_repository import CollectorTaskRepository
@@ -32,11 +37,37 @@ from app.schemas.news import (
     NewsChannelStatus,
     NewsStatsResponse,
 )
+from app.services.collector.cron_utils import cron_interval, day_base, expand_cron
 
 logger = structlog.get_logger(__name__)
 
 MONITOR_STREAM = "stream-heartbeat"
 MONITOR_TASK_LOG = "task-log"
+
+# 东财快讯渠道键与资讯中心展示开关（SystemSetting KV；缺省展示）
+FLASH_NEWS_CHANNEL_KEY = "eastmoney_flash_news"
+FLASH_NEWS_DISPLAY_KEY = "news.flash_news_display"
+
+
+async def is_flash_news_visible(session: AsyncSession) -> bool:
+    """东财快讯是否在资讯中心展示（开关行缺失视为展示）。
+
+    仅控制展示；采集任务的启停在管理端「采集管理」按任务暂停/恢复，两者互不影响。
+    """
+    row = await session.get(SystemSetting, FLASH_NEWS_DISPLAY_KEY)
+    return bool(row.value) if row is not None else True
+
+
+async def set_flash_news_visible(session: AsyncSession, visible: bool) -> bool:
+    """写入东财快讯展示开关（upsert，服务层负责提交）。"""
+    row = await session.get(SystemSetting, FLASH_NEWS_DISPLAY_KEY)
+    if row is None:
+        row = SystemSetting(key=FLASH_NEWS_DISPLAY_KEY, value=visible)
+        session.add(row)
+    else:
+        row.value = visible
+    await session.commit()
+    return visible
 
 # 批次型渠道当日首个计划时刻过后仍无成功的宽限
 _BATCH_GRACE = timedelta(hours=2)
@@ -55,14 +86,18 @@ _STATUS_TEXT: dict[NewsChannelStatus, str] = {
 
 @dataclass(frozen=True)
 class NewsChannel:
-    """渠道监控声明：monitor_type 决定判定器，其余为展示与查询参数。"""
+    """渠道监控声明：monitor_type 决定判定器，其余为展示与查询参数。
+
+    task-log 型按渠道身份 (task_type, source) 查询运行记录与计划。
+    """
 
     key: str
     name: str
     monitor_type: str
     poll_desc: str
     heartbeat_key: str | None = None
-    task_name: str | None = None
+    task_type: str | None = None
+    source: str | None = None
     batch_schedule: bool = False
     today_query: TodayQuery | None = None
 
@@ -73,7 +108,8 @@ async def _telegraph_today(
     return await telegraph_repository.today_overview(session, day_start=day_start)
 
 
-# 渠道注册表：新渠道在此登记一行即纳入监控（不存在的渠道不登记，不模拟数据）
+# 渠道注册表：新渠道在此登记一行即纳入监控（不存在的渠道不登记，不模拟数据）。
+# 东财研报不进资讯中心（双入口：个股研报页 / 管理端研报库），避免资讯流入口混淆。
 NEWS_CHANNELS: list[NewsChannel] = [
     NewsChannel(
         key=NEWS_SOURCE_TELEGRAPH,
@@ -86,19 +122,20 @@ NEWS_CHANNELS: list[NewsChannel] = [
         today_query=_telegraph_today,
     ),
     NewsChannel(
-        key="sina_news",
-        name="新浪财经",
+        key=FLASH_NEWS_CHANNEL_KEY,
+        name="东财快讯",
         monitor_type=MONITOR_TASK_LOG,
         poll_desc="30 分钟轮询",
-        task_name="sina_news",
+        task_type="news",
+        source="eastmoney",
     ),
     NewsChannel(
-        key="eastmoney_research_report",
-        name="东财研报",
+        key="social_video",
+        name="抖音大V视频",
         monitor_type=MONITOR_TASK_LOG,
-        poll_desc="每日 2 次（8:00 / 18:00）",
-        task_name="eastmoney_research_report",
-        batch_schedule=True,
+        poll_desc="每小时轮询",
+        task_type="social-video",
+        source="douyin",
     ),
 ]
 
@@ -121,38 +158,13 @@ def _lag_seconds(now: datetime, last_at: datetime | None) -> int | None:
     return max(0, int((now - last_at).total_seconds()))
 
 
-def _expand_cron(schedule: str, base: datetime) -> list[datetime]:
-    """从 base 起展开连续 4 个触发时刻（naive CN 时间）；非法返回空。"""
-    try:
-        it = croniter(schedule, base)
-        return [it.get_next(datetime) for _ in range(4)]
-    except Exception:
-        return []
-
-
-def _day_base(day_start: datetime) -> datetime:
-    """CN 日界回拨 1 秒作 cron 展开基点（纳入恰落在 00:00 的触发点）。"""
-    return day_start.astimezone(CN_TZ).replace(tzinfo=None) - timedelta(seconds=1)
-
-
-def _cron_interval(schedule: str | None, day_start: datetime) -> timedelta:
-    """cron 相邻触发的最大间隔（轮询型 delayed 阈值用）。"""
-    if not schedule:
-        return _POLL_FALLBACK_INTERVAL
-    times = _expand_cron(schedule, _day_base(day_start))
-    if len(times) < 2:
-        return _POLL_FALLBACK_INTERVAL
-    gaps = [b - a for a, b in zip(times, times[1:])]
-    return max(gaps)
-
-
 def _first_trigger_today(
     schedule: str | None, day_start: datetime, now: datetime
 ) -> datetime | None:
     """CN 日界内第一个 <= now 的计划触发时刻（aware UTC）。"""
     if not schedule:
         return None
-    times = _expand_cron(schedule, _day_base(day_start))
+    times = expand_cron(schedule, day_base(day_start))
     if not times:
         return None
     first = times[0]
@@ -180,7 +192,7 @@ def _task_log_status(
         if first is not None and now - first > _BATCH_GRACE:
             return "delayed"
         return "batch"
-    threshold = _cron_interval(schedule, day_start) * 2
+    threshold = cron_interval(schedule, day_start, _POLL_FALLBACK_INTERVAL) * 2
     last_ok = _success_at(success_run) if success_run is not None else None
     if last_ok is not None:
         return "delayed" if now - last_ok > threshold else "ok"
@@ -196,7 +208,7 @@ async def _status_stream(
     now: datetime,
     day_start: datetime,
 ) -> NewsChannelResponse:
-    alive = bool(await get_redis().exists(channel.heartbeat_key or ""))
+    alive = await cache_exists(channel.heartbeat_key or "")
     count, last_at = (
         await channel.today_query(session, day_start)
         if channel.today_query is not None
@@ -221,9 +233,19 @@ async def _status_task_log(
     now: datetime,
     day_start: datetime,
     task_repo: CollectorTaskRepository,
-) -> NewsChannelResponse:
+) -> NewsChannelResponse | None:
     log_repo = CollectorLogRepository(session)
-    runs = await log_repo.list_runs_for_task(channel.task_name or "", since=day_start)
+    task = await task_repo.get_by_type_and_source(
+        channel.task_type or "", channel.source or ""
+    )
+    if channel.key == FLASH_NEWS_CHANNEL_KEY and not await is_flash_news_visible(
+        session
+    ):
+        # 展示开关关闭时资讯中心隐去该渠道；采集启停在「采集管理」控制，不影响本判定
+        return None
+    runs = await log_repo.list_runs_for_task(
+        channel.task_type or "", source=channel.source, since=day_start
+    )
     latest_terminal = next((r for r in runs if r.status != "running"), None)
     success_run = next((r for r in runs if r.status == "success"), None)
     today_count = sum(r.records_count or 0 for r in runs)
@@ -232,7 +254,6 @@ async def _status_task_log(
         if latest_terminal is not None
         else None
     )
-    task = await task_repo.get_by_task_name(channel.task_name or "")
     status = _task_log_status(
         channel,
         task.schedule if task is not None else None,
@@ -261,11 +282,13 @@ async def get_channels_status(
     task_repo = CollectorTaskRepository(session)
     channels: list[NewsChannelResponse] = []
     for channel in NEWS_CHANNELS:
+        item: NewsChannelResponse | None
         if channel.monitor_type == MONITOR_STREAM:
             item = await _status_stream(channel, session, now, day_start)
         else:
             item = await _status_task_log(channel, session, now, day_start, task_repo)
-        channels.append(item)
+        if item is not None:
+            channels.append(item)
     total, scored, high = await ai_score_repository.today_stats(
         session, day_start=day_start
     )

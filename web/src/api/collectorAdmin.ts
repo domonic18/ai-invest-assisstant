@@ -1,16 +1,51 @@
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
   ApiCollectorLogResponse,
+  ApiCollectorLogSummaryResponse,
   ApiCollectorRunResponse,
   ApiCollectorTaskCatalogResponse,
   ApiCollectorTaskChannelsResponse,
   ApiCollectorTaskRunRequest,
+  ApiPaginatedResponse,
 } from '@ai-invest/shared'
 
 import { apiClient } from './client'
 
-export async function fetchCollectorLogs(limit = 50): Promise<ApiCollectorLogResponse[]> {
-  const { data } = await apiClient.get(ENDPOINTS.admin.collectorLogs, { params: { limit } })
+export interface CollectorLogFilters {
+  page?: number
+  pageSize?: number
+  taskName?: string | null
+  source?: string | null
+  status?: string | null
+  /** 业务日期（YYYY-MM-DD，Asia/Shanghai 日历日），闭区间。 */
+  startDate?: string | null
+  endDate?: string | null
+}
+
+export async function fetchCollectorLogs(
+  filters: CollectorLogFilters = {},
+): Promise<ApiPaginatedResponse<ApiCollectorLogResponse>> {
+  const { data } = await apiClient.get<ApiPaginatedResponse<ApiCollectorLogResponse>>(
+    ENDPOINTS.admin.collectorLogs,
+    {
+      params: {
+        page: filters.page ?? 1,
+        page_size: filters.pageSize ?? 20,
+        task_name: filters.taskName || undefined,
+        source: filters.source || undefined,
+        status: filters.status || undefined,
+        start_date: filters.startDate || undefined,
+        end_date: filters.endDate || undefined,
+      },
+    },
+  )
+  return data
+}
+
+export async function fetchCollectorLogSummary(): Promise<ApiCollectorLogSummaryResponse> {
+  const { data } = await apiClient.get<ApiCollectorLogSummaryResponse>(
+    ENDPOINTS.admin.collectorLogSummary,
+  )
   return data
 }
 

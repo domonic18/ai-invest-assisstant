@@ -80,6 +80,7 @@ export function mapStockKline(dto: ApiStockKlineResponse): StockKline {
     code: dto.code,
     name: dto.name,
     period: dto.period,
+    latestTradeDate: dto.latestTradeDate,
     bars: dto.bars.map((bar) => ({
       date: bar.date,
       open: bar.open,

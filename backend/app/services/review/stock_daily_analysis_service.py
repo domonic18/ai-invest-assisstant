@@ -14,7 +14,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import PromptConfig, PromptSection
-from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
+from app.core.locking import GENERATION_LOCK_TTL_SECONDS, redis_lock
 from app.repositories.review import ai_analysis_repository
 from app.repositories.user.watchlist_repository import WatchlistRepository
 from app.schemas.stock import StockAiAnalysisResponse, StockAiAnalysisSection
@@ -39,9 +39,13 @@ def load_prompt_config() -> PromptConfig:
 
 
 def input_hash(stock_code: str, trade_date: date, sections: list[PromptSection]) -> str:
-    """缓存键纳入股票代码与分区键集合：调整分区后旧缓存自动失效。"""
+    """缓存键纳入提示词版本、股票代码与分区键集合：提示词升级或分区调整后旧缓存自动失效。
+
+    版本从 ``load_prompt_config()``（模块级缓存）读取，调用点无需穿透。
+    """
     keys = ",".join(section.key for section in sections)
-    raw = f"{SKILL_ID}:{keys}:{stock_code}:{trade_date.isoformat()}"
+    version = load_prompt_config().version
+    raw = f"{SKILL_ID}:{version}:{keys}:{stock_code}:{trade_date.isoformat()}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -177,7 +181,7 @@ async def generate_stock_analysis(
 
     async with redis_lock(
         f"ai:{SKILL_ID}:{stock_code}:{trade_date.isoformat()}",
-        ttl=DEFAULT_LOCK_TTL_SECONDS,
+        ttl=GENERATION_LOCK_TTL_SECONDS,
         blocking=True,
         blocking_timeout=30,
     ) as acquired:
@@ -295,14 +299,11 @@ async def get_stock_analysis(
 
 async def is_generation_running(stock_code: str, trade_date: date) -> bool:
     """该股当日分析的生成锁是否被持有（异步生成进行中）。"""
-    from app.core.cache import get_redis
+    from app.core.cache import cache_exists
 
-    client = get_redis()
-    lock = client.lock(
-        f"lock:ai:{SKILL_ID}:{stock_code}:{trade_date.isoformat()}",
-        thread_local=False,
+    return await cache_exists(
+        f"lock:ai:{SKILL_ID}:{stock_code}:{trade_date.isoformat()}"
     )
-    return bool(await lock.locked())
 
 
 async def list_analysis_trade_dates(

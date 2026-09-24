@@ -36,6 +36,19 @@ export function formatAmount(value: number | null | undefined): string {
   return `${sign}${abs.toFixed(0)}`
 }
 
+/** 字节数人性化展示：B/KB/MB/GB/TB，一位小数。 */
+export function formatBytes(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '-'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let size = value
+  let unit = 0
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024
+    unit += 1
+  }
+  return `${unit === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unit]}`
+}
+
 /** 将 ISO 日期格式化为本地日期：YYYY-MM-DD。 */
 export function formatDate(value: string | null | undefined): string {
   if (!value) return '-'

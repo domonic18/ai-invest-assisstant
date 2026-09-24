@@ -1,13 +1,20 @@
 """SQLAlchemy ORM 模型。"""
 
+from app.models.account_quota import (
+    AdminAuditLog,
+    SystemSetting,
+    UserAiQuota,
+    UserLlmConfig,
+    UserTokenUsage,
+)
 from app.models.ai_analysis_result import AiAnalysisResult
 from app.models.assistant_session import AssistantSession
-from app.models.calendar_event import CalendarEvent
 from app.models.capital_fund_flow_sector import SectorFundFlow
 from app.models.capital_fund_flow_stock import FundFlow
 from app.models.chain_alert import ChainAlert
 from app.models.collector_channel_config import CollectorChannelConfig
 from app.models.collector_channel_data_type import CollectorChannelDataType
+from app.models.collector_health_status import CollectorHealthStatus
 from app.models.collector_log import CollectorLog
 from app.models.collector_task import CollectorTask
 from app.models.fed_watch import FedWatchProbability, FedWatchSnapshot
@@ -23,13 +30,24 @@ from app.models.industry_chain import (
     ChainNode,
 )
 from app.models.ipo_info import IPOInfo
-from app.models.kline import KlineDaily, KlineMinute
+from app.models.kb import (
+    KbImageAsset,
+    KbKnowledgePoint,
+    KbMedia,
+    KbSettings,
+    KbSource,
+    KbTranscriptSegment,
+)
+from app.models.kline import KlineDaily, KlineMinute, SectorKlineDaily
+from app.models.kline_drawing import AiKlineDrawing, UserKlineDrawing
 from app.models.llm_config import LLMConfig
 from app.models.mapping_stock_concept import MappingStockConcept
 from app.models.market_amount import MarketAmount
+from app.models.market_anomaly import SectorAnomaly, StockAnomaly
 from app.models.market_breadth import MarketBreadth
 from app.models.news_ai_score import NewsAiScore
-from app.models.news_announcement import NewsAnnouncement
+from app.models.news_calendar_event import NewsCalendarEvent
+from app.models.news_document import NewsDocument
 from app.models.news_storyline import (
     NewsStoryline,
     NewsStorylineItem,
@@ -37,12 +55,14 @@ from app.models.news_storyline import (
 )
 from app.models.news_telegraph import NewsTelegraph
 from app.models.news_topic_snapshot import NewsTopicSnapshot
+from app.models.pool_dragon_tiger_stock import DragonTigerStock
 from app.models.pool_limit_up_stock import LimitUpPool
 from app.models.quote_auction_index import IndexAuction
 from app.models.quote_auction_stock import AuctionData
 from app.models.quote_global_index import GlobalIndexDaily
 from app.models.quote_sector import SectorQuoteDaily
 from app.models.skill import Skill, UserSkill
+from app.models.social import AsrChannelConfig, SocialAccount, SocialPost, SocialSentiment
 from app.models.stock import StockBasic
 from app.models.tracked_index import TrackedIndexConfig
 from app.models.user import User
@@ -51,11 +71,12 @@ from app.models.user_news_subscription import NewsSubscriptionHit, UserNewsSubsc
 from app.models.watchlist import UserWatchlist, UserWatchlistGroup
 
 __all__ = [
+    "AdminAuditLog",
     "AiAnalysisResult",
     "AssistantSession",
     "AuctionData",
     "BalanceSheet",
-    "CalendarEvent",
+    "NewsCalendarEvent",
     "CashFlowStatement",
     "ChainAlert",
     "ChainAnalysisVersion",
@@ -63,9 +84,17 @@ __all__ = [
     "ChainEdge",
     "ChainNode",
     "CollectorChannelConfig",
+    "DragonTigerStock",
     "CollectorChannelDataType",
+    "CollectorHealthStatus",
     "CollectorLog",
     "CollectorTask",
+    "AiKlineDrawing",
+    "UserKlineDrawing",
+    "AsrChannelConfig",
+    "SocialAccount",
+    "SocialPost",
+    "SocialSentiment",
     "FileMetadata",
     "FundFlow",
     "FedWatchProbability",
@@ -75,15 +104,22 @@ __all__ = [
     "IncomeStatement",
     "IndexAuction",
     "IPOInfo",
+    "KbImageAsset",
+    "KbKnowledgePoint",
+    "KbMedia",
+    "KbSettings",
+    "KbSource",
+    "KbTranscriptSegment",
     "KlineDaily",
     "KlineMinute",
+    "SectorKlineDaily",
     "LimitUpPool",
     "LLMConfig",
     "MappingStockConcept",
     "MarketAmount",
     "MarketBreadth",
     "NewsAiScore",
-    "NewsAnnouncement",
+    "NewsDocument",
     "NewsStoryline",
     "NewsStorylineItem",
     "NewsSubscriptionHit",
@@ -91,13 +127,19 @@ __all__ = [
     "NewsTopicSnapshot",
     "SectorFundFlow",
     "SectorQuoteDaily",
+    "SectorAnomaly",
     "Skill",
+    "StockAnomaly",
     "StockBasic",
+    "SystemSetting",
     "TrackedIndexConfig",
     "User",
+    "UserAiQuota",
+    "UserLlmConfig",
     "UserMarketReview",
     "UserNewsStoryline",
     "UserNewsSubscription",
+    "UserTokenUsage",
     "UserWatchlist",
     "UserWatchlistGroup",
     "UserSkill",

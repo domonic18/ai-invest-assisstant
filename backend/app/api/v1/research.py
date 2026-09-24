@@ -3,17 +3,20 @@
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.core.exceptions import NotFoundError
-from app.dependencies import get_db
-from app.schemas.news_announcement import (
+from app.dependencies import ai_quota_gate, get_db
+from app.models.user import User
+from app.schemas.news_document import (
     ResearchReportDetailResponse,
     ResearchReportFiltersResponse,
     ResearchReportListRequest,
 )
 from app.schemas.stock import PaginatedResponse
+from app.services.quota.constants import FEATURE_PAGE
 from app.services.reports import research_service
 
 router = APIRouter()
@@ -28,8 +31,8 @@ async def list_research(
     industry: str | None = None,
     start_date: date | None = None,
     end_date: date | None = None,
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(DEFAULT_PAGE, ge=1),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
 ) -> PaginatedResponse:
     """查询研报列表，支持股票代码、关键词、券商、行业和发布日期范围筛选。"""
     params = ResearchReportListRequest(
@@ -98,6 +101,7 @@ async def get_research_pdf_url(
 async def summarize_research(
     report_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(ai_quota_gate(FEATURE_PAGE))],
 ) -> dict[str, Any]:
     """生成或返回研报 AI 摘要（懒生成，结果全局共享）。
 

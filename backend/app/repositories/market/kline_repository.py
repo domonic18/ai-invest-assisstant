@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.core.clock import CN_TZ, today_cn
-from app.models.kline import KlineDaily, KlineMinute
+from app.models.kline import KlineDaily, KlineMinute, SectorKlineDaily
 
 # quote_kline_stock_minute.trade_time 为 TIMESTAMPTZ，按交易时区（Asia/Shanghai）界定自然日
 
@@ -267,3 +267,122 @@ async def has_daily_bar(session: AsyncSession, code: str, day: date) -> bool:
         .where(KlineDaily.stock_code == code, KlineDaily.trade_date == day)
     )
     return (count or 0) > 0
+
+
+async def fetch_trade_dates_between(
+    session: AsyncSession, start: date, end: date
+) -> set[date]:
+    """区间内 A 股交易日集合（sh000001 日 K 权威口径）。
+
+    采集健康监测用它判定「应跑窗口」与豁免节假日静默，
+    一次区间查询批量预取，避免逐日探测。
+    """
+    rows = await session.execute(
+        select(KlineDaily.trade_date)
+        .where(
+            KlineDaily.stock_code == "sh000001",
+            KlineDaily.trade_date >= start,
+            KlineDaily.trade_date <= end,
+        )
+        .distinct()
+    )
+    return {row[0] for row in rows}
+
+
+async def list_sector_kline_by_name(
+    session: AsyncSession, sector_name: str, limit: int = 250
+) -> list[SectorKlineDaily]:
+    """按板块名取同花顺板块指数日 K（近 N 根升序），板块详情页桥接查询。"""
+    stmt = (
+        select(SectorKlineDaily)
+        .where(SectorKlineDaily.sector_name == sector_name)
+        .order_by(SectorKlineDaily.trade_date.desc())
+        .limit(limit)
+    )
+    return list(reversed((await session.execute(stmt)).scalars().all()))
+
+
+async def map_sector_kline_by_name(
+    session: AsyncSession, names: list[str], limit_bars: int = 80
+) -> dict[tuple[str, str], list[SectorKlineDaily]]:
+    """批量按板块名取同花顺板块指数日 K：dict[(sector_type, sector_name)] → 近 N 根升序。
+
+    单 IN 查询 + row_number 窗口替代逐板块查询，供板块异动检测趋势维
+    一次取全检测池的 K 线（名称键与东财板块同名桥接）。
+    """
+    if not names:
+        return {}
+    rn = (
+        func.row_number()
+        .over(
+            partition_by=SectorKlineDaily.sector_name,
+            order_by=SectorKlineDaily.trade_date.desc(),
+        )
+        .label("rn")
+    )
+    inner = (
+        select(SectorKlineDaily)
+        .where(SectorKlineDaily.sector_name.in_(names))
+        .add_columns(rn)
+        .subquery()
+    )
+    sector_kline = aliased(SectorKlineDaily, inner)
+    stmt = (
+        select(sector_kline)
+        .select_from(inner)
+        .where(inner.c.rn <= limit_bars)
+        .order_by(sector_kline.sector_type, sector_kline.sector_name, sector_kline.trade_date)
+    )
+    bars_by_key: dict[tuple[str, str], list[SectorKlineDaily]] = {}
+    for row in (await session.execute(stmt)).scalars().all():
+        bars_by_key.setdefault((row.sector_type, row.sector_name), []).append(row)
+    return bars_by_key
+
+
+async def list_ths_sector_names(session: AsyncSession) -> list[tuple[str, str]]:
+    """同花顺指数覆盖的 (sector_type, sector_name) 宇宙（板块异动检测池收敛判据）。"""
+    stmt = select(SectorKlineDaily.sector_type, SectorKlineDaily.sector_name).distinct()
+    return [(row[0], row[1]) for row in (await session.execute(stmt)).all()]
+
+
+async def avg_amount_by_sector_name(
+    session: AsyncSession, before: date, limit_days: int = 5
+) -> dict[tuple[str, str], tuple[float, int]]:
+    """THS 板块日 K 的近 N 日均额基线：dict[(sector_type, sector_name)] → (均额, 有效天数)。
+
+    基线窗口取严格早于 ``before`` 的最近 N 个 distinct 交易日（与检测日
+    口径一致）；均额只聚合 amount 非空的行，days 为有效天数，供调用方
+    做严格基线门槛判定（板块异动量能维度，快照表冷启动期无历史可用）。
+    """
+    date_rows = (
+        await session.execute(
+            select(SectorKlineDaily.trade_date)
+            .where(SectorKlineDaily.trade_date < before)
+            .distinct()
+            .order_by(SectorKlineDaily.trade_date.desc())
+            .limit(limit_days)
+        )
+    ).all()
+    dates = [row[0] for row in date_rows]
+    if not dates:
+        return {}
+    rows = (
+        await session.execute(
+            select(
+                SectorKlineDaily.sector_type,
+                SectorKlineDaily.sector_name,
+                func.avg(SectorKlineDaily.amount),
+                func.count(SectorKlineDaily.amount),
+            )
+            .where(
+                SectorKlineDaily.trade_date.in_(dates),
+                SectorKlineDaily.amount.is_not(None),
+            )
+            .group_by(SectorKlineDaily.sector_type, SectorKlineDaily.sector_name)
+        )
+    ).all()
+    return {
+        (row[0], row[1]): (float(row[2]), int(row[3]))
+        for row in rows
+        if row[2] is not None
+    }

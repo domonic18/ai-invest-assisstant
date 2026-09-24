@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   extractPageResult,
   extractPageResultFromMessages,
+  extractQuestionFromUpdates,
 } from './runtimeUtils'
 
 function toolMessage(event: Record<string, unknown>) {
@@ -83,5 +84,35 @@ describe('extractPageResult', () => {
       stockCode: '000001',
       tradeDate: '2026-09-03',
     })
+  })
+})
+
+describe('extractQuestionFromUpdates（ask_user 问题卡兜底通道）', () => {
+  const questionToolMessage = {
+    type: 'tool',
+    content: JSON.stringify({
+      __question__: {
+        type: 'question',
+        question: '检测到已有画线，如何处理？',
+        options: [
+          { value: 'append', label: '保留并新增' },
+          { value: 'replace', label: '覆盖 AI 画线' },
+        ],
+        default: 'append',
+      },
+      note: '问题卡已发送给用户。',
+    }),
+  }
+
+  it('extracts question marker from tool message content in updates', () => {
+    const updates = { tools: { messages: [questionToolMessage] } }
+    const marker = extractQuestionFromUpdates(updates)
+    expect(marker).not.toBeNull()
+    expect(marker?.question).toBe('检测到已有画线，如何处理？')
+  })
+
+  it('returns null for updates without question marker', () => {
+    expect(extractQuestionFromUpdates({ tools: { messages: [{ type: 'tool', content: 'ok' }] } })).toBeNull()
+    expect(extractQuestionFromUpdates(null)).toBeNull()
   })
 })

@@ -143,5 +143,40 @@ class TestKlineFreshnessCollector:
             result = await collector.run()
 
         assert result.status == CollectStatus.SKIPPED
-        assert result.errors
+        assert result.errors == []
+        assert result.message and "尚未发布" in result.message
         rerun.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_known_late_missing_before_21_not_partial(self) -> None:
+        """18:30 档仍缺已知晚到标的（300ETF）：不升 PARTIAL，记 expected_late。"""
+        collector = KlineFreshnessCollector(_CFG)
+
+        with ExitStack() as stack:
+            _enter_common_patches(
+                stack,
+                now_hour=18,
+                fresh=(_BASE_FRESH | {"002900"}) - {"sh510300"},
+            )
+            result = await collector.run()
+
+        assert result.status == CollectStatus.SKIPPED
+        assert result.errors == []
+        assert result.metadata["expected_late"] == ["sh510300"]
+
+    @pytest.mark.asyncio
+    async def test_known_late_missing_strict_after_21(self) -> None:
+        """21:00 起末档恢复严格：已知晚到标的仍缺照旧 PARTIAL。"""
+        collector = KlineFreshnessCollector(_CFG)
+
+        with ExitStack() as stack:
+            _enter_common_patches(
+                stack,
+                now_hour=21,
+                fresh=(_BASE_FRESH | {"002900"}) - {"sh510300"},
+            )
+            result = await collector.run()
+
+        assert result.status == CollectStatus.PARTIAL
+        assert any("sh510300" in err for err in result.errors)
+        assert "expected_late" not in result.metadata

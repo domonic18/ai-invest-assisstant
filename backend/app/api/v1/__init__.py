@@ -3,36 +3,51 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    account,
+    anomaly,
     assistant,
     auction,
     auth,
     calendar,
     chain,
+    drawings,
     financial,
     financial_report,
     fund_flow,
     hotspot,
+    kb,
     kline,
     market,
     news,
     research,
+    screening,
+    sector_detail,
     skills,
+    social,
     stocks,
     telegraph,
     users,
     workbench,
 )
+from app.api.v1.admin import account as admin_account
 from app.api.v1.admin import ai_results as admin_ai_results
 from app.api.v1.admin import collector as admin_collector
 from app.api.v1.admin import collector_channels as admin_collector_channels
 from app.api.v1.admin import collector_data_types as admin_collector_data_types
+from app.api.v1.admin import collector_health as admin_collector_health
+from app.api.v1.admin import kb as admin_kb
+from app.api.v1.admin import kb_settings as admin_kb_settings
+from app.api.v1.admin import kb_usage as admin_kb_usage
 from app.api.v1.admin import llm_config as admin_llm_configs
+from app.api.v1.admin import mcp_configs as admin_mcp_configs
 from app.api.v1.admin import news as admin_news
 from app.api.v1.admin import proxy_configs as admin_proxy_configs
 from app.api.v1.admin import reports as admin_reports
+from app.api.v1.admin import social as admin_social
 from app.api.v1.admin import stocks as admin_stocks
 from app.api.v1.admin import system as admin_system
 from app.api.v1.admin import tasks as admin_tasks
+from app.api.v1.admin import telegraph as admin_telegraph
 from app.api.v1.admin import tracked_index as admin_tracked_indexes
 from app.api.v1.admin import users as admin_users
 from app.api.v1.mcp import server as mcp_server
@@ -41,6 +56,7 @@ api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(account.router, prefix="/users", tags=["account"])
 api_router.include_router(stocks.router, prefix="/stocks", tags=["stocks"])
 api_router.include_router(kline.router, prefix="/kline", tags=["kline"])
 api_router.include_router(chain.router, prefix="/chain", tags=["chain"])
@@ -60,20 +76,36 @@ api_router.include_router(
 )
 api_router.include_router(telegraph.router, prefix="/telegraph", tags=["telegraph"])
 api_router.include_router(news.router, prefix="/news", tags=["news"])
+api_router.include_router(anomaly.router, prefix="/anomaly", tags=["anomaly"])
+api_router.include_router(
+    sector_detail.router, prefix="/sectors", tags=["sector-detail"]
+)
 api_router.include_router(workbench.router, prefix="/workbench", tags=["workbench"])
+api_router.include_router(drawings.router, prefix="/kline-drawings", tags=["drawings"])
+api_router.include_router(screening.router, prefix="/screening", tags=["screening"])
+api_router.include_router(social.router, prefix="/social", tags=["social"])
+api_router.include_router(kb.router, prefix="/kb", tags=["kb"])
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(admin_users.router, prefix="/users")
+admin_router.include_router(admin_account.router)
 admin_router.include_router(admin_stocks.router, prefix="/stocks")
 admin_router.include_router(admin_reports.router, prefix="/reports")
 admin_router.include_router(admin_news.router, prefix="/news")
+admin_router.include_router(admin_telegraph.router, prefix="/telegraph")
 admin_router.include_router(admin_tasks.router, prefix="/tasks")
 admin_router.include_router(admin_system.router, prefix="/system")
 admin_router.include_router(admin_collector.router)
+admin_router.include_router(admin_collector_health.router)
 admin_router.include_router(admin_collector_data_types.router)
 admin_router.include_router(admin_collector_channels.router)
 admin_router.include_router(admin_llm_configs.router)
+admin_router.include_router(admin_kb.router)
+admin_router.include_router(admin_kb_settings.router)
+admin_router.include_router(admin_kb_usage.router)
+admin_router.include_router(admin_mcp_configs.router, prefix="/mcp")
 admin_router.include_router(admin_proxy_configs.router)
+admin_router.include_router(admin_social.router, prefix="/social")
 admin_router.include_router(admin_tracked_indexes.router)
 admin_router.include_router(admin_ai_results.router, prefix="/ai-results")
 api_router.include_router(admin_router)

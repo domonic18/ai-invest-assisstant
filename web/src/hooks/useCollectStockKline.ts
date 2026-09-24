@@ -13,7 +13,8 @@ const POLL_TIMEOUT = 90_000
  *
  * 流程：
  * 1. POST /admin/collector/tasks/kline/run symbols=[code]，触发采集任务
- * 2. 每 3s 拉取一次 /stocks/{code}/kline，命中非空即视为成功并刷新缓存
+ * 2. 每 3s 拉取一次 /stocks/{code}/kline，最后一根 bar 不早于期望日（传
+ *    notBefore 时）且非空即视为成功并刷新缓存；未传 notBefore 则非空即成功
  * 3. 90s 仍未拿到数据则抛错（采集可能仍在后台跑，前端只是放弃等待）
  * 4. 组件卸载时中止轮询与在途请求
  */
@@ -24,7 +25,7 @@ export function useCollectStockKline(code: string) {
   useEffect(() => () => abortRef.current?.abort(), [])
 
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (notBefore: string | undefined) => {
       const controller = new AbortController()
       abortRef.current = controller
 
@@ -39,7 +40,8 @@ export function useCollectStockKline(code: string) {
           limit: 250,
           signal: controller.signal,
         })
-        if (kline.bars.length > 0) {
+        const lastBarDate = kline.bars[kline.bars.length - 1]?.date
+        if (kline.bars.length > 0 && (notBefore === undefined || (lastBarDate ?? '') >= notBefore)) {
           queryClient.setQueryData(queryKeys.stocks.kline(code, 'daily', 250), kline)
           queryClient.invalidateQueries({ queryKey: ['stocks', 'kline', code] })
           return

@@ -16,20 +16,35 @@ export function scoreBand(aiScore: number | null): ScoreBand {
   return 'low'
 }
 
-export interface NewsDayGroup {
+/** AI 分级三档色条（null=未分级灰条；阈值见上）。 */
+export const BAND_BAR_CLASS: Record<ScoreBand, string> = {
+  high: 'bg-red-500',
+  mid: 'bg-amber-500',
+  low: 'bg-white/20',
+  unscored: 'bg-white/10',
+}
+
+const NEW_ITEM_WINDOW_SEC = 120
+
+/** 发布时间距今 < 2 分钟视为「新讯息」（列表 NEW 角标） */
+export function isNew(item: TelegraphItem, now: number): boolean {
+  return now - dayjs(item.publishTime).valueOf() < NEW_ITEM_WINDOW_SEC * 1000
+}
+
+export interface NewsDayGroup<T = TelegraphItem> {
   /** 分组键（本地时区 YYYY-MM-DD）。 */
   day: string
   /** 分隔条文案：今天 / 昨天 / M月D日。 */
   label: string
-  items: TelegraphItem[]
+  items: T[]
 }
 
 /** 按发布日期（本地时区）把降序列表切成连续同日分组。 */
-export function groupByDay(
-  items: TelegraphItem[],
+export function groupByDay<T extends { publishTime: string }>(
+  items: T[],
   now: Dayjs = dayjs(),
-): NewsDayGroup[] {
-  const groups: NewsDayGroup[] = []
+): NewsDayGroup<T>[] {
+  const groups: NewsDayGroup<T>[] = []
   for (const item of items) {
     const day = dayjs(item.publishTime).format('YYYY-MM-DD')
     const last = groups[groups.length - 1]
@@ -58,8 +73,8 @@ export function countNewMessages(
   return items.filter((item) => item.clsMsgId > seenTopId).length
 }
 
-/** 资讯流已接入数据的渠道（渠道注册表见后端 news_channel_service；迭代 4 多源聚合后扩展）。 */
-const WIRED_FEED_CHANNELS = new Set(['cls_telegraph'])
+/** 实时电报渠道 chips 显示口径（已接入数据源）；未列入的渠道仅在监控条展示健康，不出 chip。 */
+const WIRED_FEED_CHANNELS = new Set(['cls_telegraph', 'eastmoney_flash_news'])
 
 /** 渠道 chip 是否可筛选：未接入数据的渠道置灰不可点，避免「选中无效果」的误导。 */
 export function isChannelWired(key: string): boolean {

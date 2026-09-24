@@ -21,21 +21,24 @@ from collector.core.async_helpers import run_in_thread
 from collector.core.base import PostgresCollector
 from collector.core.http_client import eastmoney_get_chrome
 from collector.core.parsing import clean_stock_code, to_optional_str
+from collector.spiders.eastmoney_common import DEFAULT_PUSH2_BASE_URL, push2_base_url
 
 logger = structlog.get_logger(__name__)
 
-_CLIST_URL = "https://push2delay.eastmoney.com/api/qt/clist/get"
+_CLIST_PATH = "/api/qt/clist/get"
 _CONCEPT_FS = "m:90+t:3"  # t:3 = 概念板块
 _PAGE_SIZE = 1000
 
 
-def _fetch_clist(fs: str, fields: str) -> list[dict[str, Any]]:
+def _fetch_clist(
+    fs: str, fields: str, base_url: str = DEFAULT_PUSH2_BASE_URL
+) -> list[dict[str, Any]]:
     """按页拉取 clist 全量记录（单页 pz 足够大时通常仅 1 页）。"""
     rows: list[dict[str, Any]] = []
     page = 1
     while True:
         response = eastmoney_get_chrome(
-            _CLIST_URL,
+            f"{base_url.rstrip('/')}{_CLIST_PATH}",
             params={
                 "pn": str(page),
                 "pz": str(_PAGE_SIZE),
@@ -80,8 +83,9 @@ class EastmoneyConceptConstituentCollector(PostgresCollector):
         return items
 
     def _collect_sync(self) -> list[dict[str, Any]]:
+        base_url = push2_base_url(self.config)
         try:
-            concept_rows = _fetch_clist(_CONCEPT_FS, "f12,f14")
+            concept_rows = _fetch_clist(_CONCEPT_FS, "f12,f14", base_url)
         except Exception as exc:  # noqa: BLE001
             raise RuntimeError(f"获取东方财富概念列表失败: {exc}") from exc
 
@@ -94,7 +98,7 @@ class EastmoneyConceptConstituentCollector(PostgresCollector):
                 continue
 
             try:
-                member_rows = _fetch_clist(f"b:{concept_code}", "f12,f14")
+                member_rows = _fetch_clist(f"b:{concept_code}", "f12,f14", base_url)
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "concept_constituents_fetch_failed",

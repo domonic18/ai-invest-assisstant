@@ -88,7 +88,7 @@
 | 数据 | 接口 | 采集方式 | 存储 |
 |------|------|----------|------|
 | 电报 7×24 快讯 | `www.cls.cn/api/cache`（`name=telegraphList` + `lastTime` 增量游标） | 驻留进程 10 秒增量轮询——官方无推送 API/WebSocket，页面"实时"本身即 10s 轮询，同节奏即准实时且与真实用户行为一致；游标断点续传、失败指数退避、看门狗补漏 | 快讯入 ES 索引，按 cls 消息 id 幂等 |
-| 投资日历事件 | investkalendar nodeapi | 每日增量采集 | `calendar_event`，按 `source_hash` 幂等去重 |
+| 投资日历事件 | investkalendar nodeapi | 每日增量采集 | `news_calendar_event`，按 `source_hash` 幂等去重 |
 
 日历接口两条落地路径：① 逆向签名机制直连接口；② 兜底解析其每月"资本市场大事提醒"栏目文章。
 
@@ -132,7 +132,7 @@
 | 数据 | 存储 | 说明 |
 |------|------|------|
 | 行情/K线/股池/资金流/板块行情/财务结构化字段/调度元数据/全球指标行情（含日债）/加息概率 | PostgreSQL + TimescaleDB | 时序表走 hypertable；板块行情与加息概率为每日快照自积累 |
-| 新闻 / 公告 / 电报快讯全文 | Elasticsearch | 全文检索 |
-| 财报 PDF / 研报 PDF | COS（S3 兼容） | 预签名 URL 下载 |
+| 新闻 / 公告 / 电报快讯 | PostgreSQL（`news_document` 标题/摘要 + `file_metadata.content` 全文） | pg_trgm 词面检索 |
+| 财报 PDF / 研报 PDF | COS（S3 兼容）+ 全文回填 `file_metadata.content` | 预签名 URL 下载；全文检索走 PG |
 | AI 分析结果（复盘综述/涨停归因/自选股每日分析） | `ai_analysis_result` 表 | 按 `input_hash`（skill_id + 业务键）幂等缓存 |
-| 投资日历事件 | `calendar_event` 表 | 按 `source_hash` 幂等去重 |
+| 投资日历事件 | `news_calendar_event` 表 | 按 `source_hash` 幂等去重 |

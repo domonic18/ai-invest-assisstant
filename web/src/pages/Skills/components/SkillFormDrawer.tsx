@@ -1,9 +1,13 @@
-import { App, Button, Drawer, Form, Input } from 'antd'
-import { useEffect } from 'react'
-import type { ApiSkillItem } from '@ai-invest/shared'
+import { InboxOutlined } from '@ant-design/icons'
+import { Alert, App, Button, Drawer, Form, Input, Upload } from 'antd'
+import { useEffect, useState } from 'react'
 
 import { fetchSkillDetail } from '@/api/skills'
-import { useCreateCustomSkill, useUpdateCustomSkill } from '@/hooks/useSkills'
+import {
+  useAnalyzeSkillArchive,
+  useCreateCustomSkill,
+  useUpdateCustomSkill,
+} from '@/hooks/useSkills'
 import { SKILL_MD_PLACEHOLDER, USER_PROMPT_TEMPLATE_HINT } from '../constants'
 
 interface SkillFormValues {
@@ -16,7 +20,7 @@ interface SkillFormValues {
 }
 
 interface SkillFormDrawerProps {
-  target: ApiSkillItem | 'new' | null
+  target: { skillId: string } | 'new' | null
   onClose: () => void
 }
 
@@ -26,13 +30,16 @@ export function SkillFormDrawer({ target, onClose }: SkillFormDrawerProps) {
   const [form] = Form.useForm<SkillFormValues>()
   const createSkill = useCreateCustomSkill()
   const updateSkill = useUpdateCustomSkill()
+  const analyzeArchive = useAnalyzeSkillArchive()
+  const [analyzed, setAnalyzed] = useState(false)
   const isEditing = target != null && target !== 'new'
-  const editingSkillId = isEditing ? (target as ApiSkillItem).skillId : null
+  const editingSkillId = isEditing ? (target as { skillId: string }).skillId : null
 
   useEffect(() => {
     if (target == null) return
     if (target === 'new') {
       form.resetFields()
+      setAnalyzed(false)
       return
     }
     // 编辑态：customDefinition 全文需从详情读取，列表项不带
@@ -90,6 +97,25 @@ export function SkillFormDrawer({ target, onClose }: SkillFormDrawerProps) {
     }
   }
 
+  const handleArchiveUpload = async (file: File) => {
+    try {
+      const suggestion = await analyzeArchive.mutateAsync(file)
+      form.setFieldsValue({
+        skillId: suggestion.skillId,
+        label: suggestion.label,
+        description: suggestion.description ?? undefined,
+        skillMd: suggestion.skillMd,
+        systemPrompt: suggestion.systemPrompt,
+        userPromptTemplate: suggestion.userPromptTemplate ?? undefined,
+      })
+      setAnalyzed(true)
+      message.success('已从压缩包自动解析技能内容')
+    } catch {
+      // 错误提示由 hooks onError 统一处理
+    }
+    return false
+  }
+
   return (
     <Drawer
       title={isEditing ? '编辑自定义技能' : '创建自定义技能'}
@@ -100,6 +126,39 @@ export function SkillFormDrawer({ target, onClose }: SkillFormDrawerProps) {
       destroyOnClose
     >
       <Form form={form} layout="vertical" onFinish={handleSave}>
+        {!isEditing && (
+          <>
+            <Upload.Dragger
+              accept=".zip,.tar.gz,.tgz"
+              showUploadList={false}
+              beforeUpload={(file) => {
+                void handleArchiveUpload(file)
+                return false
+              }}
+              disabled={analyzeArchive.isPending}
+              className="!mb-4"
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text !text-sm">
+                {analyzeArchive.isPending ? '解析中…' : '上传技能压缩包自动填写'}
+              </p>
+              <p className="ant-upload-hint !text-xs">
+                拖入 .zip / .tar.gz（须含 SKILL.md），解析后可在下方修改
+              </p>
+            </Upload.Dragger>
+            {analyzed && (
+              <Alert
+                type="success"
+                showIcon
+                message="已从压缩包自动解析"
+                description="以下字段为解析建议，可继续手动调整后保存。"
+                className="!mb-4"
+              />
+            )}
+          </>
+        )}
         <Form.Item
           name="skillId"
           label="skill_id"

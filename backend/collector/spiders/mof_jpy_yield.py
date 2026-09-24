@@ -7,7 +7,7 @@ Content-Length 与解压后长度不一致，故强制 identity 编码并按 Con
 """
 
 from datetime import date
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import requests
 import structlog
@@ -20,7 +20,9 @@ from collector.core.parsing import to_float
 
 logger = structlog.get_logger(__name__)
 
-_ALL_CSV_URL = "https://www.mof.go.jp/jgbs/reference/interest_rate/data/jgbcm_all.csv"
+_DEFAULT_BASE_URL = "https://www.mof.go.jp"
+_CSV_PATH = "/jgbs/reference/interest_rate/data/jgbcm_all.csv"
+_ALL_CSV_URL = _DEFAULT_BASE_URL + _CSV_PATH
 _TEN_YEAR_HEADER = "10年"
 _ERA_OFFSETS = {"S": 1925, "H": 1988, "R": 2018}
 _TIMEOUT_SECONDS = 60.0
@@ -35,13 +37,13 @@ def wareki_to_date(text: str) -> date:
     return date(_ERA_OFFSETS[era] + year, int(parts[1]), int(parts[2]))
 
 
-def _download_all_csv() -> str:
+def _download_all_csv(csv_url: str = _ALL_CSV_URL) -> str:
     """下载全量 CSV 并按 Content-Length 校验完整性（截断防御）。"""
     headers = {"User-Agent": DEFAULT_USER_AGENT, "Accept-Encoding": "identity"}
-    head = requests.head(_ALL_CSV_URL, headers=headers, timeout=_TIMEOUT_SECONDS)
+    head = requests.head(csv_url, headers=headers, timeout=_TIMEOUT_SECONDS)
     head.raise_for_status()
     expected = int(head.headers["Content-Length"])
-    response = requests.get(_ALL_CSV_URL, headers=headers, timeout=_TIMEOUT_SECONDS)
+    response = requests.get(csv_url, headers=headers, timeout=_TIMEOUT_SECONDS)
     response.raise_for_status()
     if len(response.content) != expected:
         raise OSError(
@@ -70,6 +72,11 @@ class MofJpyYieldCollector(PostgresCollector):
     key_fields: ClassVar[list[str]] = ["index_code", "trade_date"]
     required_fields: ClassVar[list[str]] = ["index_code", "trade_date", "close"]
 
+    def __init__(self, config: dict[str, Any]):
+        super().__init__(config)
+        base = (config.get("base_url") or _DEFAULT_BASE_URL).rstrip("/")
+        self.csv_url = base + _CSV_PATH
+
     async def collect(self, **kwargs: object) -> list[dict[str, object]]:
         index_code = next(
             code
@@ -79,7 +86,7 @@ class MofJpyYieldCollector(PostgresCollector):
         return await run_in_thread(self._collect_sync, index_code)
 
     def _collect_sync(self, index_code: str) -> list[dict[str, object]]:
-        text = _download_all_csv()
+        text = _download_all_csv(self.csv_url)
         rows = parse_jgbcm_all(text, index_code)
         logger.info(
             "mof_jpy_yield_parsed", index_code=index_code, rows=len(rows)

@@ -10,7 +10,7 @@ import asyncio
 import time
 import traceback
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, NoReturn, cast
 
 import structlog
 from celery import Task
@@ -142,6 +142,81 @@ def datetime_now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _drain_interrupted_tasks(loop: asyncio.AbstractEventLoop) -> None:
+    """取消并等待软超时打断时遗留在循环上的未完成协程。
+
+    不清理的话，后续 ``run_until_complete`` 会复跑僵尸 ``_execute``——与本任务
+    的重试尝试并发写库。
+    """
+
+    async def _cancel_all() -> None:
+        pending = [
+            t
+            for t in asyncio.all_tasks(loop)
+            if t is not asyncio.current_task() and not t.done()
+        ]
+        for t in pending:
+            t.cancel()
+        if pending:
+            await asyncio.wait(pending, timeout=5)
+
+    loop.run_until_complete(_cancel_all())
+
+
+def _handle_soft_timeout(
+    task: LogAwareTask, payload: dict[str, Any], exc: SoftTimeLimitExceeded
+) -> NoReturn:
+    """软超时统一出口：按队列退避策略重试，耗尽后落终态。
+
+    必须挂在 ``run_until_complete`` 外层：软限信号无论打断协程字节码还是
+    事件循环帧（select 空闲期），异常都从这里冒出；挂在 ``_execute`` 协程
+    内的 try 接不住后一种抛点。
+    """
+    options = resolve_task_options(payload.get("task", ""))
+    retries = task.request.retries
+    loop = task._ensure_loop()
+    _drain_interrupted_tasks(loop)
+    if retries < options["max_retries"]:
+        # 软超时可能是采集源瞬时不稳：按队列退避策略重试；重试期间不写
+        # 终态日志（dispatcher 预建行由下次尝试复用并覆盖）。
+        logger.warning(
+            "collector_task_soft_timeout_retry",
+            task=payload.get("task"),
+            celery_task_id=task.request.id,
+            retries=retries,
+            countdown=options["retry_backoff"],
+        )
+        loop.run_until_complete(
+            _update_task_schedule_state(
+                payload,
+                None,
+                error=f"SoftTimeLimitExceeded after {retries} retries",
+            )
+        )
+        raise task.retry(
+            countdown=options["retry_backoff"],
+            max_retries=options["max_retries"],
+            exc=exc,
+        ) from exc
+    logger.error(
+        "collector_task_soft_timeout_exhausted",
+        task=payload.get("task"),
+        celery_task_id=task.request.id,
+        retries=retries,
+    )
+    log_id = payload.get("log_id")
+    if log_id is not None:
+        loop.run_until_complete(_mark_log_timeout(log_id))
+    loop.run_until_complete(
+        _update_task_schedule_state(
+            payload,
+            None,
+            error=f"SoftTimeLimitExceeded after {retries} retries",
+        )
+    )
+    raise exc
+
+
 @app.task(
     bind=True,
     base=LogAwareTask,
@@ -165,51 +240,29 @@ def run_collector_task(self: LogAwareTask, payload: dict[str, Any]) -> dict[str,
             result = await run_task(payload)
             await _update_task_schedule_state(payload, result, error=None)
             return _result_to_dict(result)
-        except SoftTimeLimitExceeded as exc:
-            options = resolve_task_options(payload.get("task", ""))
-            retries = self.request.retries
-            if retries < options["max_retries"]:
-                # 软超时可能是采集源瞬时不稳：按队列退避策略重试；重试期间
-                # 不写终态日志（collector_log 由下次尝试复用并覆盖）。
-                logger.warning(
-                    "collector_task_soft_timeout_retry",
-                    task=payload.get("task"),
-                    celery_task_id=self.request.id,
-                    retries=retries,
-                    countdown=options["retry_backoff"],
-                )
-                await _update_task_schedule_state(
-                    payload,
-                    None,
-                    error=f"SoftTimeLimitExceeded after {retries} retries",
-                )
-                raise self.retry(
-                    countdown=options["retry_backoff"],
-                    max_retries=options["max_retries"],
-                    exc=exc,
-                ) from exc
-            logger.error(
-                "collector_task_soft_timeout_exhausted",
-                task=payload.get("task"),
-                celery_task_id=self.request.id,
-                retries=retries,
-            )
-            log_id = payload.get("log_id")
-            if log_id is not None:
-                await _mark_log_timeout(log_id)
-            await _update_task_schedule_state(
-                payload,
-                None,
-                error=f"SoftTimeLimitExceeded after {retries} retries",
-            )
-            raise exc
+        except SoftTimeLimitExceeded:
+            # 处理统一挂在外层 _handle_soft_timeout：软限信号可能在事件循环
+            # 空闲期（select）打断，异常从循环帧冒出，协程内的 try 接不住
+            # （2026-09-23 本地栈实测：重试丢失，任务直接终态失败）。
+            raise
         except Exception as exc:
             # 延迟导入：避免 celery_tasks 顶层依赖 app.services 聚合包的导入序。
+            from app.services.market.anomaly_common import AnomalyInputNotReadyError
             from app.services.review import ReviewInputDataNotReadyError
+            from app.services.social.sentiment_service import (
+                SocialJudgmentNotReadyError,
+            )
 
-            if isinstance(exc, ReviewInputDataNotReadyError):
-                # 收盘批数据（板块资金/指数K线）尚未落库：10 分钟后重试，
-                # 最多 3 次；重试耗尽后 exc 原样抛出，走 on_failure 死信。
+            if isinstance(
+                exc,
+                (
+                    ReviewInputDataNotReadyError,
+                    AnomalyInputNotReadyError,
+                    SocialJudgmentNotReadyError,
+                ),
+            ):
+                # 收盘批数据（板块资金/指数K线/板块与全市场快照）尚未落库：
+                # 10 分钟后重试，最多 3 次；重试耗尽后 exc 原样抛出，走 on_failure 死信。
                 logger.warning(
                     "collector_task_input_not_ready",
                     task=payload.get("task"),
@@ -226,7 +279,10 @@ def run_collector_task(self: LogAwareTask, payload: dict[str, Any]) -> dict[str,
             raise exc
 
     loop = self._ensure_loop()
-    return loop.run_until_complete(_execute())
+    try:
+        return loop.run_until_complete(_execute())
+    except SoftTimeLimitExceeded as exc:
+        _handle_soft_timeout(self, payload, exc)
 
 
 @app.task(name="collector.celery_tasks.run_proxy_test")
@@ -336,6 +392,7 @@ def _result_to_dict(result: CollectResult) -> dict[str, Any]:
         "items_collected": result.items_collected,
         "items_stored": result.items_stored,
         "errors": result.errors,
+        "message": result.message,
         "started_at": result.started_at.isoformat() if result.started_at else None,
         "finished_at": result.finished_at.isoformat() if result.finished_at else None,
         "metadata": result.metadata or {},

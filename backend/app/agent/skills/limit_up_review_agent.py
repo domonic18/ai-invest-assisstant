@@ -48,12 +48,18 @@ async def run_skill(
     from app.agent.tools import (
         get_limit_up_pool,
         get_sector_overview,
+        search_knowledge_base,
         search_news_by_date,
     )
 
     agent = create_deep_agent(
         model=build_langchain_model(cfg),
-        tools=[get_limit_up_pool, get_sector_overview, search_news_by_date],
+        tools=[
+            get_limit_up_pool,
+            get_sector_overview,
+            search_news_by_date,
+            search_knowledge_base,
+        ],
         system_prompt=(
             f"{prompt_config.system_prompt.strip()}\n\n{load_skill_instructions(SKILL_ID)}"
         ),

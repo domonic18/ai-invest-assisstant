@@ -9,7 +9,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import CN_TZ
-from app.models.calendar_event import CalendarEvent
+from app.models.news_calendar_event import NewsCalendarEvent
 from app.repositories.market import calendar_repository
 
 
@@ -26,7 +26,7 @@ async def list_events(
     end: date | None = None,
     categories: list[str] | None = None,
     limit: int = 200,
-) -> list[CalendarEvent]:
+) -> list[NewsCalendarEvent]:
     """查询北京日历日区间内的事件。
 
     Args:
@@ -45,7 +45,7 @@ async def list_events(
     )
 
 
-async def list_upcoming(session: AsyncSession, limit: int = 10) -> list[CalendarEvent]:
+async def list_upcoming(session: AsyncSession, limit: int = 10) -> list[NewsCalendarEvent]:
     """查询即将发生的事件（now 起按临近度升序）。"""
     return await calendar_repository.list_upcoming(
         session, now=datetime.now(timezone.utc), limit=limit

@@ -3,8 +3,9 @@
 from datetime import date, datetime
 from typing import Literal
 
+from app.schemas.anomaly import SectorAnomalyItem, StockAnomalyItem
 from app.schemas.base import CamelModel
-from app.schemas.calendar import CalendarEventResponse
+from app.schemas.calendar import NewsCalendarEventResponse
 from app.schemas.market import (
     GlobalIndexQuoteResponse,
     IndexQuoteResponse,
@@ -12,6 +13,7 @@ from app.schemas.market import (
     MarketStatsResponse,
     WatchlistQuoteItem,
 )
+from app.schemas.system_status import SystemStatusResponse
 from app.schemas.telegraph import TelegraphResponse
 
 
@@ -93,10 +95,18 @@ class CollectorStatusResponse(CamelModel):
     upcoming: list[CollectorUpcomingItem] = []
 
 
+class WorkbenchAnomalyTop(CamelModel):
+    """工作台异动速览：最新检测日板块/个股强度 Top5（个股含自选命中标注）。"""
+
+    trade_date: date
+    sectors: list[SectorAnomalyItem] = []
+    stocks: list[StockAnomalyItem] = []
+
+
 class WorkbenchResponse(CamelModel):
     """工作台聚合数据；单模块降级时对应字段为空态而非整体报错。"""
 
-    calendar: list[CalendarEventResponse] = []
+    calendar: list[NewsCalendarEventResponse] = []
     review: MarketReviewResponse | None = None
     review_status: ReviewStatusResponse | None = None
     telegraph: list[TelegraphResponse] = []
@@ -105,4 +115,6 @@ class WorkbenchResponse(CamelModel):
     stats: MarketStatsResponse | None = None
     global_indices: list[GlobalIndexQuoteResponse] = []
     sector_flow: list[SectorFlowItem] = []
+    anomaly_top: WorkbenchAnomalyTop | None = None
     collector_status: CollectorStatusResponse | None = None
+    system_status: SystemStatusResponse | None = None

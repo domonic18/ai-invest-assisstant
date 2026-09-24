@@ -10,7 +10,7 @@ const DEFAULT_MA_CONFIGS: MovingAverageConfig[] = [
   { period: 10, color: '#9d7ff5', enabled: true },
   { period: 20, color: '#3fb6e0', enabled: true },
   { period: 30, color: '#e8833a', enabled: true },
-  { period: 60, color: '#c0c4d0', enabled: false },
+  { period: 60, color: '#c0c4d0', enabled: true },
   { period: 120, color: '#22c55e', enabled: false },
 ]
 
@@ -26,6 +26,10 @@ const getStoredCalendarDetailCollapsed = (): boolean => {
   return localStorage.getItem(StorageKey.settings.calendarDetailCollapsed) === '1'
 }
 
+const getStoredSentimentSummaryCollapsed = (): boolean => {
+  return localStorage.getItem(StorageKey.settings.sentimentSummaryCollapsed) === '1'
+}
+
 const getStoredToken = (): string | null => {
   return localStorage.getItem(StorageKey.auth.accessToken)
 }
@@ -33,19 +37,23 @@ const getStoredToken = (): string | null => {
 interface SettingsState {
   colorScheme: ColorScheme
   calendarDetailCollapsed: boolean
+  sentimentSummaryCollapsed: boolean
   userSettings: UserSettings
   isLoadingSettings: boolean
   settingsError: string | null
 
   setColorScheme: (scheme: ColorScheme) => void
   toggleCalendarDetailCollapsed: () => void
+  toggleSentimentSummaryCollapsed: () => void
   initialize: () => Promise<void>
   updateMaConfigs: (configs: MovingAverageConfig[]) => Promise<void>
+  updateTrackedIndexes: (codes: string[] | null) => Promise<void>
 }
 
-export const useSettingsStore = create<SettingsState>((set) => ({
+export const useSettingsStore = create<SettingsState>((set, get) => ({
   colorScheme: getStoredScheme(),
   calendarDetailCollapsed: getStoredCalendarDetailCollapsed(),
+  sentimentSummaryCollapsed: getStoredSentimentSummaryCollapsed(),
   userSettings: DEFAULT_USER_SETTINGS,
   isLoadingSettings: false,
   settingsError: null,
@@ -60,6 +68,13 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       const next = !state.calendarDetailCollapsed
       localStorage.setItem(StorageKey.settings.calendarDetailCollapsed, next ? '1' : '0')
       return { calendarDetailCollapsed: next }
+    }),
+
+  toggleSentimentSummaryCollapsed: () =>
+    set((state) => {
+      const next = !state.sentimentSummaryCollapsed
+      localStorage.setItem(StorageKey.settings.sentimentSummaryCollapsed, next ? '1' : '0')
+      return { sentimentSummaryCollapsed: next }
     }),
 
   initialize: async () => {
@@ -81,7 +96,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   },
 
   updateMaConfigs: async (configs) => {
-    const next: UserSettings = { maConfigs: configs }
+    const next: UserSettings = { ...get().userSettings, maConfigs: configs }
     set({ userSettings: next })
     if (!getStoredToken()) return
     try {
@@ -90,6 +105,21 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     } catch (error) {
       set({
         settingsError: error instanceof Error ? error.message : '保存均线配置失败',
+      })
+      throw error
+    }
+  },
+
+  updateTrackedIndexes: async (codes) => {
+    const next: UserSettings = { ...get().userSettings, trackedIndexCodes: codes }
+    set({ userSettings: next })
+    if (!getStoredToken()) return
+    try {
+      const saved = await updateUserSettings(next)
+      set({ userSettings: saved, settingsError: null })
+    } catch (error) {
+      set({
+        settingsError: error instanceof Error ? error.message : '保存跟踪指数失败',
       })
       throw error
     }

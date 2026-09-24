@@ -21,7 +21,12 @@ def main() -> None:
     )
     parser.add_argument("--start-date", default=None, help="开始日期 (YYYY-MM-DD)")
     parser.add_argument("--end-date", default=None, help="结束日期 (YYYY-MM-DD)")
-    parser.add_argument("--sector-type", default="industry", help="板块类型")
+    parser.add_argument("--sector-type", default=None, help="板块类型")
+    parser.add_argument(
+        "--lookback-days",
+        default=None,
+        help="回看自然日数（板块指数日 K 回填用）",
+    )
     parser.add_argument(
         "--report-date",
         default=None,
@@ -51,6 +56,7 @@ def main() -> None:
         "start_date": args.start_date,
         "end_date": args.end_date,
         "sector_type": args.sector_type,
+        "lookback_days": args.lookback_days,
         "report_date": args.report_date,
         "trade_date": args.trade_date,
     }

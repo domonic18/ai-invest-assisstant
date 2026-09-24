@@ -17,7 +17,6 @@ class CninfoIpoCollector(PostgresCollector):
 
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        self.base_url = config.get("base_url")
         self.api_key = config.get("api_key")
 
     async def collect(self, **kwargs: Any) -> list[dict[str, Any]]:

@@ -1,17 +1,24 @@
+import type { LlmPurpose } from './api'
+
 /** llm_config.extra.capabilities 约定：视觉等能力标记。 */
 export interface LLMConfigCapabilities {
   vision?: boolean
 }
 
+/** LLM 接口协议：openai 兼容 / anthropic 原生。 */
+export type LLMProtocol = 'openai' | 'anthropic'
+
 export interface LLMConfig {
   id: number
   name: string
   provider: string
+  protocol: LLMProtocol
   baseUrl: string
   modelName: string
   apiKeyMasked: string
   isDefault: boolean
   isActive: boolean
+  purpose: LlmPurpose
   extra: Record<string, unknown>
   lastTestedAt: string | null
   lastTestStatus: string | null
@@ -23,11 +30,13 @@ export interface LLMConfig {
 export interface LLMConfigFormValues {
   name: string
   provider: string
+  protocol: LLMProtocol
   baseUrl: string
   modelName: string
   apiKey: string
   isDefault: boolean
   isActive: boolean
+  purpose: LlmPurpose
   vision?: boolean
 }
 
@@ -102,14 +111,34 @@ export type CollectorTaskName = string
 export interface CollectorTaskCatalogItem {
   name: CollectorTaskName
   label: string
+  description: string
   dataType: string
   sources: string[]
   configParams: string[]
   runParams: string[]
+  defaults: Record<string, unknown>
 }
 
 export interface CollectorTaskCatalog {
   items: CollectorTaskCatalogItem[]
+}
+
+/** 单渠道调试采集请求（只采集不落库）。 */
+export interface CollectorChannelDebugRequest {
+  dataType: string
+  symbols?: string[] | null
+  params?: Record<string, unknown>
+}
+
+/** 单渠道调试采集结果：样例上限 3 条，绝不携带渠道凭据。 */
+export interface CollectorChannelDebugResult {
+  ok: boolean
+  errorKind: 'no_collector' | 'disabled' | 'timeout' | 'error' | null
+  error: string | null
+  durationMs: number
+  collected: number
+  sampleValid: number | null
+  sampleItems: Record<string, unknown>[]
 }
 
 export interface CollectorTaskChannel {
@@ -140,6 +169,7 @@ export interface CollectorLog {
   finishedAt: string | null
   recordsCount: number
   errorMsg: string | null
+  message?: string | null
   metadata: Record<string, unknown> | null
 }
 
@@ -296,8 +326,14 @@ export interface AdminUser {
   email: string
   role: string
   isActive: boolean
+  status: string
+  applicationNote: string | null
+  rejectReason: string | null
   lastLoginAt: string | null
   createdAt: string
+  remainingQuota: number | null
+  totalUsed: number
+  byokEnabled: boolean
 }
 
 export interface AdminUserFormValues {
@@ -395,11 +431,24 @@ export interface AdminNewsFormValues {
   extra?: Record<string, unknown>
 }
 
+export interface AdminTelegraph {
+  id: number
+  title: string | null
+  content: string | null
+  category: string | null
+  importance: number | null
+  stockCodes: string[] | null
+  publishTime: string
+  aiScore: number | null
+  aiScoredAt: string | null
+}
+
 export interface AdminTask {
   id: number
   taskName: string
   taskType: string
   source: string
+  remark: string | null
   schedule: string | null
   isActive: boolean
   lastRunAt: string | null
@@ -413,6 +462,7 @@ export interface AdminTaskFormValues {
   taskName: string
   taskType: string
   source: string
+  remark?: string
   schedule?: string
   isActive: boolean
 }
@@ -494,4 +544,21 @@ export interface AdminAiResultListParams {
   endDate?: string
   page?: number
   pageSize?: number
+}
+
+/** 单个依赖服务的连通性探测结果。 */
+export interface ServiceStatusItem {
+  key: string
+  name: string
+  status: 'up' | 'down'
+  latencyMs: number | null
+  detail: string | null
+  error: string | null
+}
+
+/** 系统服务状态汇总（后台「服务状态」页）。 */
+export interface SystemStatus {
+  overall: 'operational' | 'degraded'
+  items: ServiceStatusItem[]
+  checkedAt: string
 }

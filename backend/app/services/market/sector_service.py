@@ -26,10 +26,10 @@ async def get_sector_overview(
 ) -> SectorOverviewResponse:
     """板块热力图 + 资金净流入/流出 TOP5 + 领涨板块。
 
-    默认取最近交易日（与涨停池同口径）：盘中未收盘时当日板块资金
-    尚未写入，返回空（前端提示未收盘），不回退展示前一交易日的旧数据。
+    默认取当前视图日（与涨停池同口径）：当日板块资金尚未写入时
+    返回空（前端提示未收盘），不回退展示前一交易日的旧数据。
     """
-    resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(session)
+    resolved = trade_date or await trade_calendar_service.resolve_default_view_date(session)
 
     rows = await sector_fund_flow_repository.list_by_type_and_date(
         session, sector_type, resolved

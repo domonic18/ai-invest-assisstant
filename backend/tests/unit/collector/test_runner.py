@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from collector.core.base import CollectResult, CollectStatus
+from collector.runtime.registry import TASK_MAP
 from collector.runtime.runner import (
     _ERROR_MSG_MAX_LEN,
     _build_task_kwargs,
@@ -70,6 +71,33 @@ class TestBuildTaskKwargs:
 
 
 @pytest.mark.unit
+class TestTaskEntryDefaults:
+    @pytest.mark.asyncio
+    async def test_sector_kline_defaults_apply_on_scheduled_path(self) -> None:
+        """定时路径无请求参数：run_params 缺省须由 TaskSpec.defaults 兜底，
+        不得把 None 透传给采集器（曾致 sector-kline 每日 int(None) 崩溃）。"""
+        captured: dict = {}
+
+        async def fake_run(
+            task_name: str,
+            data_type: str,
+            collector_map: dict,
+            preferred_source: str | None,
+            **kwargs: object,
+        ) -> CollectResult:
+            captured.update(kwargs)
+            return _make_result()
+
+        with patch(
+            "collector.runtime.registry._run_collector_for_task",
+            side_effect=fake_run,
+        ):
+            await TASK_MAP["sector-kline"]()
+
+        assert captured["lookback_days"] == 10
+
+
+@pytest.mark.unit
 class TestRunTask:
     @pytest.mark.asyncio
     async def test_run_task_executes_and_persists(self) -> None:
@@ -79,6 +107,9 @@ class TestRunTask:
         with (
             patch(
                 "collector.runtime.runner.TASK_MAP", {"financial-report": mock_task}
+            ),
+            patch(
+                "collector.runtime.runner._create_running_row", AsyncMock(return_value=55)
             ),
             patch(
                 "collector.runtime.runner._persist_result", AsyncMock()
@@ -96,7 +127,8 @@ class TestRunTask:
             persisted,
         ) = mock_persist.await_args.args
         assert task_name == "financial-report"
-        assert log_id is None
+        # beat/定时路径无预建行：执行前落的 running 行 id 复用给终态更新
+        assert log_id == 55
         assert celery_task_id is None
         assert len(task_run_id) == 8
         assert persisted is result
@@ -112,11 +144,33 @@ class TestRunTask:
             patch(
                 "collector.runtime.runner._mark_running", AsyncMock()
             ) as mock_running,
+            patch(
+                "collector.runtime.runner._create_running_row", AsyncMock()
+            ) as mock_create,
             patch("collector.runtime.runner._persist_result", AsyncMock()),
         ):
             await run_task({"task": "financial-report", "log_id": 7})
 
         mock_running.assert_awaited_once_with(7)
+        mock_create.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_task_creates_running_row_for_beat_path(self) -> None:
+        """无 log_id（beat 派发）时执行前落 running 行——挂死任务在日志页可见。"""
+        result = _make_result()
+        with (
+            patch("collector.runtime.runner.TASK_MAP", {"financial-report": AsyncMock(return_value=result)}),
+            patch(
+                "collector.runtime.runner._create_running_row", AsyncMock(return_value=66)
+            ) as mock_create,
+            patch(
+                "collector.runtime.runner._persist_result", AsyncMock()
+            ) as mock_persist,
+        ):
+            await run_task({"task": "financial-report", "log_id": None})
+
+        mock_create.assert_awaited_once_with("financial-report", None)
+        assert mock_persist.await_args.args[1] == 66
 
     @pytest.mark.asyncio
     async def test_unknown_task_raises_and_persists_error(self) -> None:
@@ -199,6 +253,26 @@ class TestLogPersistence:
         assert added.status == "success"
         assert added.meta["task_run_id"] == "abcd1234"
         mock_session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_persist_result_skip_message_not_in_error(self) -> None:
+        """SKIPPED 说明落 message 列，error_msg 保持为空（日志页红字只留错误）。"""
+        result = CollectResult(
+            source="internal",
+            data_type="kb_transcribe",
+            status=CollectStatus.SKIPPED,
+            message="没有待转写素材（队列为空或全部忙）",
+        )
+        mock_log = MagicMock()
+        with patch(
+            "collector.runtime.runner.AsyncSessionLocal",
+            _mock_session(mock_log),
+        ):
+            await _persist_result("kb-transcribe", 1, None, "abcd1234", result)
+
+        assert mock_log.status == "skipped"
+        assert mock_log.message == "没有待转写素材（队列为空或全部忙）"
+        assert mock_log.error_msg is None
 
     @pytest.mark.asyncio
     async def test_persist_error_records_traceback_truncated(self) -> None:

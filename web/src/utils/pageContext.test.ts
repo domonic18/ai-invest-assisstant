@@ -23,6 +23,28 @@ describe('buildPageContext', () => {
     expect(context.industry).toBe('半导体')
   })
 
+  it('解析板块详情页类型与代码（画线 target 同源）', () => {
+    expect(buildPageContext('/sector/industry/881125')).toEqual({
+      route: '/sector/industry/881125',
+      page: '板块详情',
+      sector_type: 'industry',
+      sector_code: '881125',
+    })
+    expect(buildPageContext('/sector/concept/new_ssjj').sector_code).toBe('new_ssjj')
+  })
+
+  it('解析指数详情页指数代码', () => {
+    expect(buildPageContext('/index/sh000001')).toEqual({
+      route: '/index/sh000001',
+      page: '指数详情',
+      index_code: 'sh000001',
+    })
+  })
+
+  it('板块异动页不误判为板块详情', () => {
+    expect(buildPageContext('/anomaly/sector')).not.toHaveProperty('sector_code')
+  })
+
   it('识别工作台与每日复盘页', () => {
     expect(buildPageContext('/workbench').page).toBe('工作台')
     expect(buildPageContext('/review').page).toBe('每日复盘')
@@ -31,5 +53,16 @@ describe('buildPageContext', () => {
   it('识别无参数的普通页面', () => {
     expect(buildPageContext('/capital-flow').page).toBe('资金流向')
     expect(buildPageContext('/').page).toBeUndefined()
+  })
+
+  it('自选页从 URL ?code= 解析选中标的（真相源单一化）', () => {
+    expect(buildPageContext({ pathname: '/watchlist', search: '?code=000037' })).toEqual({
+      route: '/watchlist',
+      page: '自选股',
+      stock_code: '000037',
+    })
+    // 无 code 或非法 code 时只带页名，不编造代码
+    expect(buildPageContext('/watchlist')).toEqual({ route: '/watchlist', page: '自选股' })
+    expect(buildPageContext({ pathname: '/watchlist', search: '?code=abc' }).stock_code).toBeUndefined()
   })
 })

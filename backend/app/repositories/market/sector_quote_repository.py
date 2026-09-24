@@ -31,3 +31,27 @@ async def list_sector_quotes(
         .order_by(SectorQuoteDaily.change_pct.desc().nulls_last())
     )
     return list((await session.execute(stmt)).scalars().all())
+
+
+async def list_all_by_date(
+    session: AsyncSession, trade_date: date
+) -> list[SectorQuoteDaily]:
+    """指定快照日的全部板块行（行业 + 概念），异动检测扫描用。"""
+    stmt = select(SectorQuoteDaily).where(SectorQuoteDaily.trade_date == trade_date)
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def latest_sector_quote(
+    session: AsyncSession, sector_type: str, sector_code: str
+) -> SectorQuoteDaily | None:
+    """单板块最新一条收盘快照（板块详情页快照卡）。"""
+    stmt = (
+        select(SectorQuoteDaily)
+        .where(
+            SectorQuoteDaily.sector_type == sector_type,
+            SectorQuoteDaily.sector_code == sector_code,
+        )
+        .order_by(SectorQuoteDaily.trade_date.desc())
+        .limit(1)
+    )
+    return (await session.execute(stmt)).scalars().first()

@@ -1,38 +1,42 @@
 import {
+  ApiOutlined,
   BarChartOutlined,
-  ContainerOutlined,
+  CloudServerOutlined,
   FileTextOutlined,
   FileDoneOutlined,
+  PieChartOutlined,
   PlayCircleOutlined,
   ReadOutlined,
   RobotOutlined,
-  SettingOutlined,
   TeamOutlined,
-  VerticalAlignTopOutlined,
+  WeiboOutlined,
 } from '@ant-design/icons'
-import { Card, Col, Row, Space, Table, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Col, Row, Space, Table, Tag, Typography } from 'antd'
 import { Link } from 'react-router-dom'
 
 import { useCollectorLogs } from '@/hooks/useCollectorAdmin'
+import { usePendingCount } from '@/hooks/useAdminAccount'
 import { formatDateTime } from '@/utils/formatters'
 import { getSourceLabel, getTaskLabel } from '@/utils/collectorTaskLabels'
 import { statusTagColor } from '@ai-invest/shared'
 
 const ADMIN_LINKS = [
   { title: '用户管理', path: '/admin/users', icon: <TeamOutlined />, color: 'bg-blue-500/10 text-blue-400' },
+  { title: '用量看板', path: '/admin/usage-dashboard', icon: <PieChartOutlined />, color: 'bg-violet-500/10 text-violet-400' },
   { title: '股票管理', path: '/admin/stocks', icon: <BarChartOutlined />, color: 'bg-green-500/10 text-green-400' },
-  { title: '研报管理', path: '/admin/reports', icon: <FileTextOutlined />, color: 'bg-purple-500/10 text-purple-400' },
+  { title: '报告管理', path: '/admin/reports', icon: <FileTextOutlined />, color: 'bg-purple-500/10 text-purple-400' },
   { title: '资讯管理', path: '/admin/news', icon: <ReadOutlined />, color: 'bg-orange-500/10 text-orange-400' },
-  { title: '任务管理', path: '/admin/tasks', icon: <ContainerOutlined />, color: 'bg-cyan-500/10 text-cyan-400' },
   { title: 'LLM 配置', path: '/admin/llm-configs', icon: <RobotOutlined />, color: 'bg-pink-500/10 text-pink-400' },
-  { title: 'AI 结果管理', path: '/admin/ai-results', icon: <FileDoneOutlined />, color: 'bg-teal-500/10 text-teal-400' },
-  { title: '跟踪指数', path: '/admin/tracked-indexes', icon: <VerticalAlignTopOutlined />, color: 'bg-amber-500/10 text-amber-400' },
-  { title: '采集渠道', path: '/admin/collector-channels', icon: <SettingOutlined />, color: 'bg-gray-500/10 text-gray-400' },
-  { title: '采集任务', path: '/admin/collector', icon: <PlayCircleOutlined />, color: 'bg-indigo-500/10 text-indigo-400' },
+  { title: 'MCP 服务', path: '/admin/mcp-servers', icon: <ApiOutlined />, color: 'bg-cyan-500/10 text-cyan-400' },
+  { title: '分析结果', path: '/admin/ai-results', icon: <FileDoneOutlined />, color: 'bg-teal-500/10 text-teal-400' },
+  { title: '采集管理', path: '/admin/collector', icon: <PlayCircleOutlined />, color: 'bg-indigo-500/10 text-indigo-400' },
+  { title: '社媒追踪', path: '/admin/social-tracking', icon: <WeiboOutlined />, color: 'bg-rose-500/10 text-rose-400' },
+  { title: '服务状态', path: '/admin/system-status', icon: <CloudServerOutlined />, color: 'bg-emerald-500/10 text-emerald-400' },
 ]
 
 export function Admin() {
-  const { data: logs, isLoading } = useCollectorLogs(10)
+  const { data: logs, isLoading } = useCollectorLogs({ pageSize: 10 })
+  const pendingCount = usePendingCount(true).data ?? 0
 
   const logColumns = [
     { title: '任务', dataIndex: 'taskName', key: 'taskName', render: (v: string) => getTaskLabel(v) },
@@ -59,6 +63,22 @@ export function Admin() {
     <div className="space-y-6">
       <Typography.Title level={4} className="!mb-0">后台管理</Typography.Title>
 
+      {pendingCount > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          message={`有 ${pendingCount} 个注册申请待审批`}
+          description="新用户在审批通过前无法登录；点击右侧按钮直达待审列表处理。"
+          action={
+            <Link to="/admin/users?status=pending">
+              <Button size="small" type="primary" danger>
+                去处理
+              </Button>
+            </Link>
+          }
+        />
+      )}
+
       <Row gutter={[16, 16]}>
         {ADMIN_LINKS.map((link) => (
           <Col xs={24} sm={12} lg={6} key={link.path}>
@@ -79,7 +99,7 @@ export function Admin() {
 
       <Card title="最近采集日志" variant="borderless" extra={<Link to="/admin/collector">查看更多</Link>}>
         <Table
-          dataSource={logs || []}
+          dataSource={logs?.items ?? []}
           columns={logColumns}
           rowKey="id"
           loading={isLoading}

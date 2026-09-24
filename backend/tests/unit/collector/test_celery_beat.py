@@ -55,6 +55,9 @@ class TestCollectorDatabaseScheduler:
         assert realtime_entry.task == "collector.celery_tasks.run_collector_task"
         assert isinstance(realtime_entry.schedule, crontab)
         assert realtime_entry.options["queue"] == "collector.realtime"
+        # 定时消息必须携带软/硬时限（与 dispatcher 同源），否则 beat 派发裸奔
+        assert realtime_entry.options["soft_time_limit"] > 0
+        assert realtime_entry.options["time_limit"] > 0
         payload = realtime_entry.args[0]
         assert payload["task"] == "quote"
         assert payload["task_name"] == "quote-daily"
@@ -62,6 +65,8 @@ class TestCollectorDatabaseScheduler:
 
         heavy_entry = schedule["collector-task-financial-report-nightly"]
         assert heavy_entry.options["queue"] == "collector.heavy"
+        assert heavy_entry.options["soft_time_limit"] > 0
+        assert heavy_entry.options["time_limit"] > 0
 
     def test_sync_reuses_persistent_loop(self) -> None:
         """重复 sync 必须复用同一事件循环，避免 asyncpg 连接跨循环复用崩溃。"""

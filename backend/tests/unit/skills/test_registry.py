@@ -48,6 +48,35 @@ class TestRegistryIntegrity:
         assert get_skill("market-daily-review") is not None
         assert get_skill("no-such-skill") is None
 
+    def test_scenario_assigned_and_valid(self) -> None:
+        """全部 builtin 必须赋 scenario 且在枚举内（DB CHECK 同款）。"""
+        valid = {"market", "stock", "chain", "report", "news"}
+        for d in BUILTIN_SKILLS:
+            assert d.scenario in valid, f"{d.skill_id} scenario 非法: {d.scenario}"
+
+    def test_scenario_mapping_pinned(self) -> None:
+        """skill_id → scenario 映射钉死，防 DB 同步与广场 Tab 漂移。"""
+        expected = {
+            "market-daily-review": "market",
+            "limit-up-review": "market",
+            "anomaly-attribution": "market",
+            "hotspot-detection": "market",
+            "stock-daily-analysis": "stock",
+            "watchlist-screenshot-recognition": "stock",
+            "financial-health-check": "stock",
+            "kline-smart-drawing": "stock",
+            "industry-chain-analysis": "chain",
+            "chain-breakthrough": "chain",
+            "financial-report-summary": "report",
+            "research-report-summary": "report",
+            "news-score": "news",
+            "news-storyline": "news",
+            "news-topic": "news",
+            "social-sentiment": "news",
+        }
+        actual = {d.skill_id: d.scenario for d in BUILTIN_SKILLS}
+        assert actual == expected
+
     def test_executor_modules_resolvable(self) -> None:
         """executor 字符串引用必须能解析到真实模块（防改名漂移）。"""
         for d in BUILTIN_SKILLS:
@@ -55,12 +84,15 @@ class TestRegistryIntegrity:
                 assert find_spec(d.executor) is not None, f"{d.skill_id} executor 不存在: {d.executor}"
 
     def test_task_spec_names_match_collector(self) -> None:
-        """task_spec_name 集合 == collector AI 任务声明的全部 TaskSpec name。"""
-        from collector.runtime.specs.ai import SPECS
+        """task_spec_names 并集 == collector LLM 判断类（internal）任务全部 TaskSpec name。"""
+        from collector.runtime.specs.ai import SPECS as AI_SPECS
+        from collector.runtime.specs.social import SPECS as SOCIAL_SPECS
 
-        spec_names = {spec.name for spec in SPECS}
-        mapped = {d.task_spec_name for d in BUILTIN_SKILLS if d.task_spec_name}
-        assert mapped == spec_names
+        llm_task_names = {spec.name for spec in AI_SPECS} | {
+            spec.name for spec in SOCIAL_SPECS if "internal" in spec.collectors
+        }
+        mapped = {name for d in BUILTIN_SKILLS for name in d.task_spec_names}
+        assert mapped == llm_task_names
 
 
 @pytest.mark.unit

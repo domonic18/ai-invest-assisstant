@@ -1,8 +1,8 @@
-"""指数技术分析输入构建（AI 大盘综述）。
+"""指数与个股技术分析输入构建（AI 大盘综述 / 个股每日分析）。
 
 为综述的五标的（沪指/创业板/科创50/沪深300ETF/富时A50）从本地
 quote_kline_stock_daily 预计算日线/周线技术指标，并从 quote_kline_stock_minute 预计算沪指
-分时量能结构，格式化为文本注入复盘 prompt。
+分时量能结构，格式化为文本注入复盘 prompt；个股版见 ``build_stock_technical_context``。
 
 设计原则：Python 预计算指标、LLM 只负责叙述——大模型从原始 OHLCV
 推算均线/新低/地量容易出错，必须在输入侧算好。
@@ -19,6 +19,19 @@ from app.repositories.market.kline_repository import (
     fetch_daily_bars_multi,
     fetch_minute_bars,
 )
+from app.services.market.trend_facts import (
+    EXTREME_WINDOW as _EXTREME_WINDOW,
+)
+from app.services.market.trend_facts import (
+    MA_WINDOWS as _MA_WINDOWS,
+)
+from app.services.market.trend_facts import (
+    SUPPORT_WINDOW as _SUPPORT_WINDOW,
+)
+from app.services.market.trend_facts import (
+    compute_trend_facts,
+    trend_facts_summary,
+)
 
 _CN_TZ = ZoneInfo("Asia/Shanghai")
 
@@ -31,19 +44,16 @@ TECH_CODES: dict[str, str] = {
 }
 
 _DAILY_LIMIT = 400  # 覆盖周线 MA60（约 300 个交易日）
-_MA_WINDOWS = (10, 30, 60)
 _BIG_BODY_PCT = 2.0  # 大阴/大阳线实体幅度阈值（%）
-_EXTREME_WINDOW = 20  # 新低/地量判断窗口（交易日）
-_SUPPORT_WINDOW = 60  # 前低支撑位参考窗口
 _INTRADAY_CODE = "sh000001"  # 仅沪指有本地分钟线
 
 Bar = dict[str, Any]
 
 
 def _to_bars(rows: list[KlineDaily]) -> list[Bar]:
-    """ORM 行转升序 dict（倒序查询结果反转），剔除收盘缺失的行。"""
+    """ORM 行转升序 dict（fetch_daily_bars_multi 返回组内升序），剔除收盘缺失的行。"""
     bars: list[Bar] = []
-    for row in reversed(rows):
+    for row in rows:
         if row.close is None:
             continue
         bars.append(
@@ -141,6 +151,15 @@ def _format_daily(bars: list[Bar]) -> str:
     return "- 日线：" + "；".join(parts)
 
 
+def _trend_summary(bars: list[Bar]) -> str:
+    """温程趋势理论概要：通道归属（MA10/30/60 排列）+ 拐点信号（须量能配合）。
+
+    事实计算与文本渲染见 ``app.services.market.trend_facts``（结构化事实供
+    异动检测/归因共用），此处仅保留薄壳。
+    """
+    return trend_facts_summary(compute_trend_facts(bars))
+
+
 def _format_weekly(bars: list[Bar]) -> str:
     weeks = _weekly_bars(bars)
     latest = weeks[-1]
@@ -214,6 +233,35 @@ def _format_intraday(
     return "- 分时：" + "；".join(parts) if parts else None
 
 
+async def build_stock_technical_context(
+    session: AsyncSession, stock_code: str, trade_date: date
+) -> str:
+    """构建单只个股的日线/周线技术分析文本（个股复盘 prompt 输入）。
+
+    与五标的大盘版同构：通道归属（MA10/30/60）、三类拐点信号（趋势概要行）、
+    新低/地量/放量与 60 日前低支撑；个股无本地分钟线，不含分时段。
+    """
+    bars_by_code = await fetch_daily_bars_multi(
+        session, [stock_code], end_date=trade_date, limit=_DAILY_LIMIT
+    )
+    bars = _to_bars(bars_by_code.get(stock_code, []))
+    if not bars:
+        return f"■ {stock_code}：本地无日 K 数据"
+
+    latest = bars[-1]
+    prev_close = bars[-2]["close"] if len(bars) >= 2 else None
+    change_pct = (latest["close"] / prev_close - 1) * 100 if prev_close else None
+    header = f"■ {stock_code} 收 {latest['close']:.2f}"
+    if change_pct is not None:
+        header += f"（{change_pct:+.2f}%）"
+    if latest["trade_date"] != trade_date:
+        header += f"［数据为最近交易日 {latest['trade_date'].isoformat()}］"
+
+    return "\n".join(
+        [header, _trend_summary(bars), _format_daily(bars), _format_weekly(bars)]
+    )
+
+
 async def build_technical_context(session: AsyncSession, trade_date: date) -> str:
     """构建五标的日线/周线/分时技术分析文本（复盘 prompt 输入）。"""
     bars_by_code = await fetch_daily_bars_multi(
@@ -238,7 +286,7 @@ async def build_technical_context(session: AsyncSession, trade_date: date) -> st
         if latest["trade_date"] != trade_date:
             header += f"［数据为最近交易日 {latest['trade_date'].isoformat()}］"
 
-        lines = [header, _format_daily(bars), _format_weekly(bars)]
+        lines = [header, _trend_summary(bars), _format_daily(bars), _format_weekly(bars)]
         if code == _INTRADAY_CODE:
             today = await fetch_minute_bars(session, code, trade_date)
             prev_day = bars[-2]["trade_date"] if len(bars) >= 2 else None

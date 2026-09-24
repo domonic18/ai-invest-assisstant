@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import BIGINT, DateTime, Numeric, PrimaryKeyConstraint
+from sqlalchemy import BIGINT, Date, DateTime, Numeric, PrimaryKeyConstraint, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.clock import utc_now
@@ -55,3 +55,30 @@ class KlineMinute(Base):
     __table_args__ = (
         PrimaryKeyConstraint("stock_code", "trade_time"),
     )
+
+
+class SectorKlineDaily(Base):
+    """板块指数日 K（同花顺渠道，板块详情页真实 K 线）。
+
+    检测/资金流保持东财体系，经 ``sector_name`` 与东财板块同名桥接；
+    THS 代码 881xxx 全局唯一，主键不含 sector_type（TimescaleDB 超表）。
+    """
+
+    __tablename__ = "quote_kline_sector_daily"
+
+    sector_code: Mapped[str] = mapped_column(String(16))
+    trade_date: Mapped[date] = mapped_column(Date)
+    sector_type: Mapped[str] = mapped_column(String(16))
+    sector_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    open: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    high: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    low: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    close: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    volume: Mapped[int | None] = mapped_column(BIGINT)
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(20, 2))
+    source: Mapped[str | None] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+    __table_args__ = (PrimaryKeyConstraint("sector_code", "trade_date"),)

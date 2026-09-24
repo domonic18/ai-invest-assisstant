@@ -94,7 +94,7 @@ async def fetch_kline(
 - 业务逻辑在服务层实现
 - 正确使用 HTTP 状态码
 - 使用一致的 JSON 响应格式
-- 列表端点支持分页
+- 列表端点支持分页；分页参数统一走 `app/constants/pagination.py` 常量 + `Query(ge/le)` 约束，禁止在函数体内手工钳制默认值（Pydantic 模型内构造 query 参数时校验失败变 500，Query 约束才是 422）
 
 ### 数据库分层与事务边界（必须遵守）
 
@@ -114,7 +114,7 @@ async def fetch_kline(
 
 ### 数据库命名规范
 
-新增或重命名表/字段时遵循以下约定（完整重构计划见 `docs/plan/database-refactoring-plan.md`）：
+新增或重命名表/字段时遵循以下约定：
 
 - **表名**：小写蛇形、单数名词，同一业务分类使用统一前缀。
   - 行情数据：`quote_`（如 `quote_kline_stock_daily`、`quote_auction_index`）
@@ -122,8 +122,11 @@ async def fetch_kline(
   - 市场情绪：`market_`（如 `market_breadth`）
   - 股池：`pool_`（如 `pool_limit_up_stock`）
   - 财务报表：`financial_`（如 `financial_balance_sheet`）
-  - 产业链：`industry_chain_`（如 `industry_chain_company_mapping`）
+  - 产业链：`industry_chain_`（如 `industry_chain_node`、`industry_chain_company_mapping`）
   - 成分/映射：`mapping_`（如 `mapping_index_stock`）
+  - 资讯：`news_`（如 `news_telegraph`、`news_document`、`news_storyline`、`news_topic_snapshot`、`news_calendar_event`）
+  - 用户态：`user_`（如 `user_watchlist`、`user_news_subscription`）
+  - 采集基础设施：`collector_`（如 `collector_task`、`collector_log`、`collector_channel_config`）
 - **表名结构**：`<分类前缀>_<数据类型>_<标的类型>[_<粒度/子类型>]`，无标的类型的市场级数据可省略 `<标的类型>`。
 - **字段名**：完整单词优先，禁用无上下文缩写；同一语义使用同一单词（如涨跌幅统一用 `change_pct`）。
 - **约束与索引命名**：`pk_<table>`、`uq_<table>_<columns>`、`fk_<table>_<ref_table>`、`idx_<table>_<columns>`、`chk_<table>_<column>`。
@@ -164,11 +167,12 @@ collector/
 - **解析函数只用 `core.parsing`**（`to_optional_str`/`to_float`/`parse_cn_amount`/`clean_stock_code`/`parse_date`/`parse_time`），禁止在 spider 里重复定义
 - **akshare 容错约定**：空数据（`df is None or df.empty`）返回 `[]`；异常不要吞——多渠道任务的 fallback 依赖异常向上传播，仅已知"无数据即抛错"的接口（如涨停池/龙虎榜）可 try/except 返回 `[]`
 - **新增采集任务**：在 `runtime/specs/` 对应数据类型模块（kline/market/pool/fund_flow/news/fundamental/ai/maintenance）的 SPECS 增加一条 TaskSpec 声明（data_type/采集器懒加载路径/config_params/run_params），`runtime/registry.py` 聚合为 TASK_SPECS，任务参数只在声明表维护一处，runner 的参数白名单自动派生
-- **任务目录 API 从 TASK_SPECS 派生**（`GET /admin/collector/tasks/catalog`）：API/UI 一律从目录取任务清单，禁止在枚举、shared 类型或前端另行硬编码；SKIPPED 是采集器的良性终态（非交易日/已生成），fallback 只对 FAILED 轮换渠道，不得把 SKIPPED 改写为 FAILED
+- **任务目录 API 从 TASK_SPECS 派生**（`GET /admin/collector/tasks/catalog`）：API/UI 一律从目录取任务清单，禁止在枚举、shared 类型或前端另行硬编码；SKIPPED 是采集器的良性终态（非交易日/已生成），fallback 只对 FAILED 轮换渠道，不得把 SKIPPED 改写为 FAILED。**跳过原因写 `CollectResult.message`**（runner 落 `collector_log.message`，wire 同名字段，前端按状态分色渲染），`errors` 只放真错误（failed/partial）——良性文案进 errors 会被日志页当红字错误展示
 - **日期类参数默认值必须是 `latest_trading_day()`**（股池/龙虎榜/成交额/复盘均如此），禁止 `today_cn()`/`now` 兜底——周末手动补跑会静默空采；仅"天然只有当日"的数据（auction 快照、新浪分钟线）可用当日
 - **执行入口统一走 `runtime.runner.run_task`**（worker/scheduler/CLI/SCF 共享）：生成 `task_run_id` 绑定日志上下文、回写 `collector_log`、失败记录 traceback；`runtime/scf_handler.py` 只做 SCF 事件解析
 - **日志**：入口调用 `core.logging.configure_logging()`，禁止 `logging.basicConfig`；任务日志自动携带 `task_run_id`/`task`/`source`
 - **配置**：用 `core.config`（委托 `app.core.config`），禁止新增环境变量读取点
+- **`collector_log.task_name` 存 TASK_SPECS 键（task_type），渠道身份 = (task_type, source)**：两者是运行时（resolver/TaskSpec.collectors/collector_task 表）共用的键空间。按渠道查日志/监控必须走 (task_type, source) 二元组，禁止用 `collector_task.task_name` 实例名查 `collector_log`。新渠道接入三步：① `runtime/specs/` 对应 TaskSpec.collectors 加 source；② seed/后台加 collector_task 行（task_type+source+cron）；③ 监控注册表登记一条（task_type+source）——一致性由 `tests/unit/services/test_news_channel_service.py` 钉死
 
 ### AI Agent 与 Prompt 管理
 
@@ -177,6 +181,7 @@ collector/
 - 禁止在 Python 代码中硬编码 Prompt
 - 使用 `PromptLoader` 加载配置、`PromptRenderer` 渲染模板
 - 使用 `model_factory.build_langchain_model()` 统一创建模型；多步任务走 `agent/skills/skill_runtime` deepagents 骨架，单轮结构化任务走 `agent/runtime/structured.run_structured`
+- **结构化输出 schema 字段禁带默认值**：带默认值不进 JSON Schema `required`，LLM 会静默省略该字段（news-score reason 全空事故）；无数据的段落由 LLM 显式输出空列表/空串/null；旧快照兼容用 `model_validator(mode="before")` 补缺失键（校验器不影响生成的 schema）
 
 ### 可观测系统与日志标准
 

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Invest Assistant — 技能广场</title>
 <style>
-:root{--bg:#0c0e12;--bg-elevated:#111318;--bg-surface:#181a21;--bg-hover:#1c1f26;--border:#23262d;--border-hover:#2e323c;--border-focus:#5e6ad2;--text-primary:#f0f1f5;--text-secondary:#8a8f98;--text-tertiary:#5c616e;--accent:#5e6ad2;--accent-hover:#6872e3;--accent-soft:rgba(94,106,210,.12);--green:#2ea043;--green-soft:rgba(46,160,67,.12);--red:#f85149;--red-soft:rgba(248,81,73,.12);--amber:#d29922;--amber-soft:rgba(210,153,34,.12);--blue:#58a6ff;--blue-soft:rgba(88,166,255,.12);--font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;--font-mono:'SF Mono','Fira Code','Consolas',monospace;--radius-sm:6px;--radius-md:8px;--radius-lg:12px;--transition:200ms ease;--sidebar-w:220px;--header-h:56px}
+:root{--bg:#0c0e12;--bg-elevated:#111318;--bg-surface:#181a21;--bg-hover:#1c1f26;--border:#23262d;--border-hover:#2e323c;--border-focus:#5e6ad2;--text-primary:#f0f1f5;--text-secondary:#8a8f98;--text-tertiary:#5c616e;--accent:#5e6ad2;--accent-hover:#6872e3;--accent-soft:rgba(94,106,210,.12);--green:#2ea043;--green-soft:rgba(46,160,67,.12);--red:#f85149;--red-soft:rgba(248,81,73,.12);--amber:#d29922;--amber-soft:rgba(210,153,34,.12);--blue:#58a6ff;--blue-soft:rgba(88,166,255,.12);--gold:#e3b341;--gold-soft:rgba(227,179,65,.14);--purple:#a78bfa;--purple-soft:rgba(167,139,250,.14);--orange:#f0883e;--orange-soft:rgba(240,136,62,.14);--font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;--font-mono:'SF Mono','Fira Code','Consolas',monospace;--radius-sm:6px;--radius-md:8px;--radius-lg:12px;--transition:200ms ease;--sidebar-w:220px;--header-h:56px}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--font);font-size:14px;color:var(--text-primary);background:var(--bg);line-height:1.5;-webkit-font-smoothing:antialiased}
 ::-webkit-scrollbar{width:6px;height:6px}
@@ -39,6 +39,15 @@ a{color:var(--accent);text-decoration:none}
 .sidebar-user-info{font-size:12px;color:var(--text-secondary)}
 .sidebar-user-name{color:var(--text-primary);font-weight:500}
 
+/* Header 右侧：我的自选 + AI 助手 + 用户（对齐 Header.tsx） */
+.header-search{display:flex;align-items:center;gap:8px;padding:6px 12px;width:280px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text-tertiary)}
+.header-btn{width:34px;height:34px;border-radius:var(--radius-sm);background:transparent;border:none;color:var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;transition:all var(--transition)}
+.header-btn:hover{background:var(--bg-hover);color:var(--text-primary)}
+
+/* AI 助手 FAB（对齐 AssistantFab：浅紫渐变圆底 + 猫头鹰） */
+.owl-fab{position:fixed;right:20px;bottom:24px;width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:30px;background:linear-gradient(135deg,#eef2ff 0%,#c7d2fe 55%,#a5b4fc 100%);box-shadow:0 8px 24px rgba(99,102,241,.45),0 2px 6px rgba(0,0,0,.25);z-index:50;transition:transform var(--transition)}
+.owl-fab:hover{transform:scale(1.08)}
+
 /* Common */
 .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;border:1px solid transparent;cursor:pointer;transition:all var(--transition)}
 .btn-primary{background:var(--accent);color:#fff}
@@ -47,13 +56,15 @@ a{color:var(--accent);text-decoration:none}
 .btn-secondary:hover{background:var(--bg-hover);color:var(--text-primary)}
 .btn-ghost{background:transparent;color:var(--text-secondary)}
 .btn-ghost:hover{background:var(--bg-hover);color:var(--text-primary)}
+.btn-danger{background:transparent;color:var(--red);border-color:rgba(248,81,73,.4)}
+.btn-danger:hover{background:var(--red-soft)}
 .btn-sm{padding:4px 10px;font-size:12px}
-.btn-block{width:100%;justify-content:center}
 .tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;background:var(--bg-surface);color:var(--text-secondary)}
 .tag-green{background:var(--green-soft);color:var(--green)}
 .tag-blue{background:var(--blue-soft);color:var(--blue)}
-.tag-amber{background:var(--amber-soft);color:var(--amber)}
-.tag-purple{background:var(--accent-soft);color:var(--accent)}
+.tag-orange{background:var(--orange-soft);color:var(--orange)}
+.tag-purple{background:var(--purple-soft);color:var(--purple)}
+.tag-gold{background:var(--gold-soft);color:var(--gold)}
 .text-mono{font-family:var(--font-mono);font-size:12px}
 
 /* Page head */
@@ -61,51 +72,59 @@ a{color:var(--accent);text-decoration:none}
 .page-head h1{font-size:20px;font-weight:600;letter-spacing:-.01em}
 .page-head .sub{font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.6;max-width:640px}
 
-/* Tabs */
-.vtabs{display:flex;gap:4px;padding:4px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);width:fit-content;margin-bottom:18px}
-.vtab{padding:6px 16px;border-radius:var(--radius-sm);font-size:13px;color:var(--text-secondary);cursor:pointer;transition:all var(--transition)}
-.vtab:hover{color:var(--text-primary)}
-.vtab.active{background:var(--accent-soft);color:var(--accent);font-weight:500}
-.vtab .cnt{font-size:11px;color:var(--text-tertiary);margin-left:4px}
-.vtab.active .cnt{color:var(--accent)}
+/* 页面分块标签（详情页） */
+.page-block{margin-top:44px;scroll-margin-top:72px}
+.page-block-label{display:flex;align-items:center;gap:10px;margin-bottom:14px;font-size:11px;color:var(--text-tertiary);font-weight:600;letter-spacing:.05em}
+.page-block-label::after{content:'';flex:1;height:1px;background:var(--border)}
+.route-badge{font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary);background:var(--bg-surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-weight:400;letter-spacing:0}
 
-/* Kind filter chips */
-.kind-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
-.kchip{padding:4px 12px;border-radius:999px;font-size:12px;color:var(--text-secondary);background:var(--bg-surface);border:1px solid var(--border);cursor:pointer;transition:all var(--transition)}
-.kchip:hover{border-color:var(--border-hover);color:var(--text-primary)}
-.kchip.active{background:var(--accent-soft);color:var(--accent);border-color:transparent}
-.kchip .n{color:var(--text-tertiary);margin-left:2px}
+/* AntD 风格线型 Tabs（技能市场 / 我的技能） */
+.tab-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px}
+.atabs{display:flex;gap:28px;border-bottom:1px solid var(--border);margin-bottom:14px}
+.atab{padding:8px 2px;font-size:14px;color:var(--text-secondary);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all var(--transition)}
+.atab:hover{color:var(--text-primary)}
+.atab.active{color:var(--accent);font-weight:500;border-bottom-color:var(--accent)}
 
-/* Skill cards */
+/* 场景 Tabs + 搜索（线型小号 Tabs，对齐 SkillsPage squarePane） */
+.filter-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.stabs{display:flex;gap:20px}
+.stab{padding:4px 2px;font-size:13px;color:var(--text-secondary);cursor:pointer;border-bottom:2px solid transparent;transition:all var(--transition)}
+.stab:hover{color:var(--text-primary)}
+.stab.active{color:var(--accent);font-weight:500;border-bottom-color:var(--accent)}
+.search-input{display:flex;align-items:center;gap:6px;width:224px;padding:5px 11px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text-primary);outline:none}
+.search-input:focus{border-color:var(--border-focus)}
+.search-input span{color:var(--text-tertiary);font-size:13px}
+.search-input input{flex:1;background:none;border:none;outline:none;color:var(--text-primary);font-size:13px}
+.pane-hint{font-size:12px;color:var(--text-secondary);margin-bottom:12px}
+
+/* Section titles（我的技能页） */
+.mine-title{font-size:14px;font-weight:600;color:var(--text-primary);margin:8px 0 4px}
+.mine-hint{font-size:12px;color:var(--text-secondary);margin-bottom:12px}
+
+/* Skill cards（对齐 SkillCard.tsx：整卡可点） */
 .sk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-.sk-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;display:flex;flex-direction:column;gap:10px;transition:border-color var(--transition)}
-.sk-card:hover{border-color:var(--border-hover)}
-.sk-head{display:flex;align-items:center;gap:10px}
-.sk-icon{width:38px;height:38px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
-.sk-title{font-size:14px;font-weight:600;line-height:1.3}
-.sk-id{font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary);margin-top:2px}
-.sk-builtin{margin-left:auto;font-size:10px;color:var(--text-tertiary);border:1px solid var(--border);border-radius:4px;padding:1px 6px;flex-shrink:0}
+.sk-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;display:flex;flex-direction:column;gap:6px;cursor:pointer;transition:all var(--transition)}
+.sk-card:hover{border-color:rgba(94,106,210,.6);background:#1a1e26}
+.sk-title-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sk-title{font-size:14px;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sk-badges{display:flex;gap:6px;flex-wrap:wrap}
 .sk-desc{font-size:12px;color:var(--text-secondary);line-height:1.6;min-height:38px}
-.sk-meta{display:flex;gap:6px;flex-wrap:wrap}
-.sk-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:10px;border-top:1px solid var(--border)}
-.sk-author{font-size:11px;color:var(--text-tertiary)}
-.sk-installed{font-size:12px;color:var(--green);font-weight:500;display:inline-flex;align-items:center;gap:4px}
+.sk-foot{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:8px}
+.installed-tag{font-size:12px;color:var(--green);font-weight:500}
 
-/* My skills pane */
-.mine-section{margin-bottom:28px}
-.mine-title{font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:10px;display:flex;align-items:center;gap:8px}
-.mine-title .hint{font-size:11px;color:var(--text-tertiary);font-weight:400}
+/* 我的自定义技能卡片 */
 .mine-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-.mine-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;display:flex;flex-direction:column;gap:10px}
-.mine-card .draft{border-style:dashed}
-.mine-actions{display:flex;gap:8px;flex-wrap:wrap}
-.inst-row{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md)}
-.inst-row + .inst-row{margin-top:8px}
-.inst-name{font-size:13px;font-weight:500}
-.inst-sub{font-size:11px;color:var(--text-tertiary);margin-top:2px}
-.inst-right{margin-left:auto;display:flex;align-items:center;gap:10px}
-.builtin-note{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--bg-elevated);border:1px dashed var(--border);border-radius:var(--radius-md);font-size:12px;color:var(--text-secondary)}
-.builtin-note .bn-list{color:var(--text-tertiary)}
+.mine-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;display:flex;flex-direction:column;gap:6px;cursor:pointer;transition:all var(--transition)}
+.mine-card:hover{border-color:rgba(94,106,210,.6)}
+
+/* 已安装行（对齐 SkillsPage minePane installed rows） */
+.inst-rows{display:flex;flex-direction:column;gap:8px}
+.inst-row{display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);cursor:pointer;transition:all var(--transition)}
+.inst-row:hover{border-color:rgba(94,106,210,.6)}
+.inst-main{flex:1;min-width:0}
+.inst-name-row{display:flex;align-items:center;gap:8px}
+.inst-name{font-size:14px;font-weight:500}
+.inst-id{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)}
 
 /* Switch */
 .switch{width:32px;height:18px;border-radius:9px;background:var(--border-hover);position:relative;cursor:pointer;transition:background var(--transition);flex-shrink:0}
@@ -113,10 +132,10 @@ a{color:var(--accent);text-decoration:none}
 .switch.on{background:var(--accent)}
 .switch.on::after{left:16px}
 
-/* Drawer */
+/* Drawer（创建自定义技能） */
 .drawer-mask{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40;opacity:0;pointer-events:none;transition:opacity var(--transition)}
 .drawer-mask.open{opacity:1;pointer-events:auto}
-.drawer{position:fixed;top:0;right:-480px;width:480px;max-width:92vw;height:100vh;background:var(--bg-elevated);border-left:1px solid var(--border);z-index:41;transition:right 260ms ease;display:flex;flex-direction:column}
+.drawer{position:fixed;top:0;right:-520px;width:520px;max-width:92vw;height:100vh;background:var(--bg-elevated);border-left:1px solid var(--border);z-index:41;transition:right 260ms ease;display:flex;flex-direction:column}
 .drawer.open{right:0}
 .drawer-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .drawer-title{font-size:15px;font-weight:600}
@@ -132,22 +151,28 @@ a{color:var(--accent);text-decoration:none}
 .form-input:focus,.form-textarea:focus{border-color:var(--border-focus)}
 .form-input::placeholder,.form-textarea::placeholder{color:var(--text-tertiary)}
 .form-hint{font-size:11px;color:var(--text-tertiary);margin-top:4px;line-height:1.6}
-.drawer-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;flex-shrink:0}
+.drawer-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0}
 
-/* Detail drawer */
-.dt-row{display:flex;gap:10px;padding:8px 0;font-size:12px}
-.dt-key{width:88px;color:var(--text-tertiary);flex-shrink:0}
-.dt-val{color:var(--text-primary);line-height:1.7}
-.dt-sec{font-size:12px;font-weight:600;margin:18px 0 8px;color:var(--text-primary)}
-.code-block{background:#0a0c10;border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;font-family:var(--font-mono);font-size:11px;line-height:1.7;color:var(--text-secondary);white-space:pre;overflow-x:auto}
-.code-block .ck{color:var(--blue)}
-.code-block .cs{color:var(--green)}
+/* zip 上传区（对齐 SkillFormDrawer Upload.Dragger） */
+.upload-zone{border:1px dashed var(--border-hover);border-radius:var(--radius-md);padding:18px;text-align:center;font-size:13px;color:var(--text-secondary);cursor:pointer;transition:all var(--transition);margin-bottom:16px}
+.upload-zone:hover{border-color:var(--accent);color:var(--text-primary)}
+.upload-zone .uz-icon{font-size:22px;color:var(--accent);margin-bottom:6px}
+.upload-zone .uz-hint{font-size:12px;color:var(--text-tertiary);margin-top:4px}
+.analyzed-alert{display:flex;gap:10px;background:var(--green-soft);border:1px solid rgba(46,160,67,.3);border-radius:var(--radius-md);padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--text-secondary);line-height:1.6}
+.analyzed-alert b{color:var(--green)}
 
-/* Detail drawer — wide（技能包文件浏览器） */
-.drawer-wide{width:780px;right:-780px}
-.detail-body{padding:0;display:flex;flex-direction:column;overflow:hidden}
-.detail-meta{padding:10px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
-.detail-split{flex:1;display:flex;min-height:0}
+/* 详情页（/skills/:skillId 全页路由，对齐 SkillDetailPage.tsx） */
+.detail-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-lg)}
+.detail-head{padding:16px 20px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.detail-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.detail-title{font-size:20px;font-weight:600}
+.detail-desc{font-size:12px;color:var(--text-secondary);margin-top:8px;line-height:1.7;max-width:640px}
+.desc-grid{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border);margin-top:12px}
+.desc-cell{padding:10px 20px;border-right:1px solid var(--border)}
+.desc-cell:last-child{border-right:none}
+.desc-key{font-size:11px;color:var(--text-tertiary);margin-bottom:2px}
+.desc-val{font-size:12px;color:var(--text-primary)}
+.detail-split{flex:1;display:flex;min-height:0;border-top:1px solid var(--border)}
 .file-pane{width:248px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;padding:12px 10px}
 .fp-title{font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;padding:0 8px 8px}
 .ft-dir{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--text-primary);padding:6px 8px;font-family:var(--font-mono)}
@@ -164,7 +189,7 @@ a{color:var(--accent);text-decoration:none}
 .view-toggle{display:flex;gap:4px;padding:4px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);width:fit-content;margin:10px 18px 0;flex-shrink:0}
 .view-toggle .vt2{padding:3px 12px;border-radius:4px;font-size:11.5px;color:var(--text-secondary);cursor:pointer;transition:all var(--transition);border:none;background:transparent}
 .view-toggle .vt2.active{background:var(--accent-soft);color:var(--accent)}
-.file-content{flex:1;overflow-y:auto;padding:6px 18px 18px}
+.file-content{overflow-y:auto;padding:6px 18px 18px;max-height:520px}
 .md-view{font-size:12.5px}
 .md-view h1{font-size:18px;font-weight:600;margin:8px 0 14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
 .md-view h2{font-size:14px;font-weight:600;margin:20px 0 8px;color:var(--text-primary)}
@@ -178,6 +203,7 @@ a{color:var(--accent);text-decoration:none}
 .md-view strong{color:var(--text-primary)}
 .md-view .frontmatter{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 12px;font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);margin:0 0 12px;line-height:1.8}
 .md-view .frontmatter .ck{color:var(--blue)}
+.code-block{background:#0a0c10;border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;font-family:var(--font-mono);font-size:11px;line-height:1.7;color:var(--text-secondary);white-space:pre;overflow-x:auto}
 
 /* Type note */
 .type-note{margin-top:36px;padding:16px 20px;background:var(--bg-elevated);border:1px dashed var(--border-hover);border-radius:var(--radius-lg);font-size:12px;color:var(--text-secondary);line-height:1.9}
@@ -197,10 +223,10 @@ a{color:var(--accent);text-decoration:none}
 
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
+<a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
 <div class="sidebar-section-title">监测</div>
 <a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
 <a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
-<a class="sidebar-item" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
 <div class="sidebar-section-title">资讯</div>
 <a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
@@ -208,8 +234,6 @@ a{color:var(--accent);text-decoration:none}
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
-<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
-<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item active" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
@@ -220,241 +244,322 @@ a{color:var(--accent);text-decoration:none}
 
   <div class="app-main">
     <header class="app-header">
-      <div style="display:flex;align-items:center;gap:12px">
-        <span style="font-size:13px;color:var(--text-tertiary);font-weight:500">设置 /</span>
-        <span style="font-size:13px;color:var(--text-primary);font-weight:500">技能广场</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px">
-        <span style="font-size:11px;color:var(--text-tertiary)">已安装技能将注入 AI 助手上下文</span>
-        <button style="width:34px;height:34px;border-radius:var(--radius-sm);background:transparent;border:none;color:var(--text-secondary);cursor:pointer;font-size:16px">⚙</button>
+      <div class="header-search">🔍<span>搜索股票代码 / 名称（进入个股详情）</span></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="header-btn" title="我的自选">★</button>
+        <button class="header-btn" title="AI 助手">💬</button>
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><div class="sidebar-avatar" style="width:26px;height:26px;font-size:11px">D</div><span>Domonic</span>▾</div>
       </div>
     </header>
 
     <div class="app-content">
 
+      <!-- ========== 页面 1/2 · 技能广场 /skills ========== -->
       <div class="page-head">
         <div>
           <h1>技能广场</h1>
-          <div class="sub">AI 技能的分发与管理入口：内置技能开箱即用；安装自定义技能后，其索引将注入 AI 助手上下文（渐进披露，按需读取全文）；自己创建的技能默认私有，可发布到广场共享。</div>
+          <div class="sub">浏览与安装 AI 技能；创建自定义技能（配置而非代码）</div>
         </div>
         <button class="btn btn-primary" id="btnCreate">＋ 创建自定义技能</button>
       </div>
 
-      <div class="vtabs" id="vtabs">
-        <div class="vtab active" data-pane="pane-square">技能广场<span class="cnt">11</span></div>
-        <div class="vtab" data-pane="pane-mine">我的技能<span class="cnt">3</span></div>
-      </div>
-
-      <!-- ========== Pane 1：技能广场 ========== -->
-      <div id="pane-square">
-        <div class="kind-chips" id="kindChips">
-          <div class="kchip active" data-kind="all">全部<span class="n">11</span></div>
-          <div class="kchip" data-kind="executable">可执行<span class="n">5</span></div>
-          <div class="kchip" data-kind="prompt_only">提示词<span class="n">3</span></div>
-          <div class="kchip" data-kind="doc_only">方法论<span class="n">2</span></div>
-          <div class="kchip" data-kind="custom">自定义<span class="n">1</span></div>
+      <div class="tab-card">
+        <div class="atabs" id="atabs">
+          <div class="atab active" data-pane="pane-square">技能市场 (14)</div>
+          <div class="atab" data-pane="pane-mine">我的技能 (3)</div>
         </div>
 
-        <div class="sk-grid" id="skGrid">
-
-          <div class="sk-card" data-kind="executable">
-            <div class="sk-head">
-              <div class="sk-icon" style="background:var(--accent-soft);color:var(--accent)">📊</div>
-              <div><div class="sk-title">大盘每日复盘</div><div class="sk-id">market-daily-review</div></div>
-              <span class="sk-builtin">内置</span>
+        <!-- ===== Pane 1：技能市场 ===== -->
+        <div id="pane-square">
+          <div class="filter-row">
+            <div class="stabs" id="scenarioTabs">
+              <div class="stab active" data-scenario="all">全部</div>
+              <div class="stab" data-scenario="market">大盘与情绪</div>
+              <div class="stab" data-scenario="stock">个股分析</div>
+              <div class="stab" data-scenario="chain">产业链</div>
+              <div class="stab" data-scenario="report">财报与研报</div>
+              <div class="stab" data-scenario="news">资讯处理</div>
             </div>
-            <div class="sk-desc">盘后生成大盘综述：指数解读、涨跌统计、情绪研判与次日展望，支持模块级人工编辑。</div>
-            <div class="sk-meta"><span class="tag tag-green">可执行</span><span class="tag">定时 16:30</span><span class="tag">侧边栏触发</span></div>
-            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
+            <div class="search-input">🔍<input id="skSearch" placeholder="搜索技能名称 / ID"></div>
           </div>
+          <div class="pane-hint">内置技能全量挂载给 AI 助手，无需安装；安装语义仅对自定义技能生效</div>
 
-          <div class="sk-card" data-kind="executable">
-            <div class="sk-head">
-              <div class="sk-icon" style="background:var(--red-soft);color:var(--red)">🚀</div>
-              <div><div class="sk-title">涨停复盘归因</div><div class="sk-id">limit-up-review</div></div>
-              <span class="sk-builtin">内置</span>
-            </div>
-            <div class="sk-desc">涨停/连板/炸板股池分组复盘，分时归因与题材聚类，同花顺风格分组展示。</div>
-            <div class="sk-meta"><span class="tag tag-green">可执行</span><span class="tag">定时 16:30</span><span class="tag">侧边栏触发</span></div>
-            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
+          <div class="sk-grid" id="skGrid">
+
+            <a class="sk-card" href="#p-detail" data-scenario="market" data-kind="executable">
+              <div class="sk-title-row"><span class="sk-title">大盘每日复盘</span><span class="tag tag-gold">官方</span></div>
+              <div class="sk-badges"><span class="tag tag-blue">自动化·定时</span><span class="tag">大盘与情绪</span></div>
+              <div class="sk-desc">盘后生成大盘综述：指数解读、涨跌统计、情绪研判与次日展望，支持模块级人工编辑。</div>
+              <div class="sk-foot"><span class="tag">内置 · 助手直接可用</span></div>
+            </a>
+
+            <a class="sk-card" href="#p-detail" data-scenario="market" data-kind="executable">
+              <div class="sk-title-row"><span class="sk-title">涨停归因</span><span class="tag tag-gold">官方</span></div>
+              <div class="sk-badges"><span class="tag tag-blue">自动化·定时</span><span class="tag">大盘与情绪</span></div>
+              <div class="sk-desc">涨停/连板/炸板股池分组复盘，分时归因与题材聚类，同花顺风格分组展示。</div>
+              <div class="sk-foot"><span class="tag">内置 · 助手直接可用</span></div>
+            </a>
+
+            <a class="sk-card" href="#p-detail" data-scenario="market" data-kind="doc_only">
+              <div class="sk-title-row"><span class="sk-title">市场热点检测</span><span class="tag tag-gold">官方</span></div>
+              <div class="sk-badges"><span class="tag tag-orange">方法论</span><span class="tag">大盘与情绪</span></div>
+              <div class="sk-desc">方法论文档：热点主题识别的分析框架（主题聚类 / 情绪判定 / 传导链推导）。</div>
+              <div class="sk-foot"><span class="tag">内置 · 助手直接可用</span></div>
+            </a>
+
+            <a class="sk-card" href="#p-detail" data-scenario="stock" data-kind="executable">
+              <div class="sk-title-row"><span class="sk-title">个股每日分析</span><span class="tag tag-gold">官方</span></div>
+              <div class="sk-badges"><span class="tag tag-blue">自动化·定时</span><span class="tag">个股分析</span></div>
+              <div class="sk-desc">自选股盘面解读 / 关键事件 / 操作策略 / 风险与止损四段式输出，按开启 AI 复盘的分组盘后批量生成。</div>
+              <div class="sk-foot"><span class="tag">内置 · 助手直接可用</span></div>
+            </a>
+
+            <a class="sk-card" href="#p-detail" data-scenario="stock" data-kind="executable">
+              <div class="sk-title-row"><span class="sk-title">自选股截图识别</span><span class="tag tag-gold">官方</span></div>
+              <div class="sk-badges"><span class="tag tag-blue">自动化·定时</span><span class="tag">个股分析</span></div>
+              <div class="sk-desc">上传券商 App 自选股截图，视觉模型识别代码与名称，批量导入自选股（REST 端点触发）。</div>
+              <div class="sk-foot"><span class="tag">内置 · 助手直接可用</span></div>
+            </a>
+
+            <a class="sk-card" href="#p-detail" data-scenario="stock" data-kind="doc_only">
+              <div class="sk-title-row"><span class="sk-title">个股财务体检</span><span class="tag tag-gold">官方</span></div>
+              <div class="sk-badges"><span class="tag tag-orange">方法论</span><span class="tag">个股分析</span></div>
+              <div class="sk-desc">方法论文档：财务健康度评估清单（现金流质量 / 杠杆水平 / 盈利持续性 / 商誉风险）。</div>
+              <div class="sk-foot"><span class="tag">内置 · 助手直接可用</span></div>
+            </a>
+
+            <a class="sk-card" href="#p-detail" data-scenario="chain" data-kind="executable">
+              <div class="sk-title-row"><span class="sk-title">产业链分析</span><span class="tag tag-gold">官方</span></div>
+              <div class="sk-badges"><span class="tag tag-blue">自动化·定时</span><span class="tag">产业链</span></div>
+              <div class="sk-desc">基于经营范围自下而上推导产业链环节，生成图谱 + 矩阵 + 洞察；支持版本管理与周级定时刷新。</div>
+              <div class="sk-foot"><span class="tag">内置 · 助手直接可用</span></div>
+            </a>
+
+            <a class="sk-card" href="#p-detail" data-scenario="chain" data-kind="doc_only">
+              <div class="sk-title-row"><span class="sk-title">供应链突破检测</span><span class="tag tag-gold">官方</span></div>
+              <div class="sk-badges"><span class="tag tag-orange">方法论</span><span class="tag">产业链</span></div>
+              <div class="sk-desc">方法论文档：识别产业链环节技术突破的分析框架（技术壁垒 / 国产化率 / 客户验证三维度）。</div>
+              <div class="sk-foot"><span class="tag">内置 · 助手直接可用</span></div>
+            </a>
+
+            <a class="sk-card" href="#p-detail" data-scenario="report" data-kind="prompt_only">
+              <div class="sk-title-row"><span class="sk-title">财报结构化摘要</span><span class="tag tag-gold">官方</span></div>
+              <div class="sk-badges"><span class="tag tag-green">对话调用</span><span class="tag">财报与研报</span></div>
+              <div class="sk-desc">个股财报的 AI 解读提示词：营收利润拆解 / 同比环比 / 关键科目异动。</div>
+              <div class="sk-foot"><span class="tag">内置 · 助手直接可用</span></div>
+            </a>
+
+            <a class="sk-card" href="#p-detail" data-scenario="report" data-kind="prompt_only">
+              <div class="sk-title-row"><span class="sk-title">研报观点汇总</span><span class="tag tag-gold">官方</span></div>
+              <div class="sk-badges"><span class="tag tag-green">对话调用</span><span class="tag">财报与研报</span></div>
+              <div class="sk-desc">个股研报的 AI 解读提示词：核心观点 / 盈利预测 / 风险提示三段式摘要。</div>
+              <div class="sk-foot"><span class="tag">内置 · 助手直接可用</span></div>
+            </a>
+
+            <a class="sk-card" href="#p-detail" data-scenario="news" data-kind="prompt_only">
+              <div class="sk-title-row"><span class="sk-title">资讯重要度分级</span><span class="tag tag-gold">官方</span></div>
+              <div class="sk-badges"><span class="tag tag-green">对话调用</span><span class="tag">资讯处理</span></div>
+              <div class="sk-desc">资讯流按重要性分级打分的提示词（0-10 分 + 理由），驱动资讯中心 AI 分级视图。</div>
+              <div class="sk-foot"><span class="tag">内置 · 助手直接可用</span></div>
+            </a>
+
+            <a class="sk-card" href="#p-detail" data-scenario="news" data-kind="prompt_only">
+              <div class="sk-title-row"><span class="sk-title">事件故事线建线</span><span class="tag tag-gold">官方</span></div>
+              <div class="sk-badges"><span class="tag tag-green">对话调用</span><span class="tag">资讯处理</span></div>
+              <div class="sk-desc">识别同一事件的连续报道并建立故事线，跟踪事件演化脉络。</div>
+              <div class="sk-foot"><span class="tag">内置 · 助手直接可用</span></div>
+            </a>
+
+            <a class="sk-card" href="#p-detail" data-scenario="news" data-kind="prompt_only">
+              <div class="sk-title-row"><span class="sk-title">热点主题聚类</span><span class="tag tag-gold">官方</span></div>
+              <div class="sk-badges"><span class="tag tag-green">对话调用</span><span class="tag">资讯处理</span></div>
+              <div class="sk-desc">跨源资讯主题聚类，生成热点主题快照（资讯中心「热点主题」视图消费）。</div>
+              <div class="sk-foot"><span class="tag">内置 · 助手直接可用</span></div>
+            </a>
+
+            <a class="sk-card" href="#p-detail" data-scenario="custom" data-kind="custom">
+              <div class="sk-title-row"><span class="sk-title">龙头战法每日复盘</span><span class="tag tag-purple">自定义</span></div>
+              <div class="sk-badges"><span class="tag tag-purple">自定义技能</span><span class="tag">自定义</span></div>
+              <div class="sk-desc">按连板高度与题材梯队复盘当日龙头股：卡位关系 / 断板回封 / 明日晋级推演。</div>
+              <div class="sk-foot"><span style="font-size:11px;color:var(--text-tertiary)">@zhangwei 发布</span><button class="btn btn-primary btn-sm sk-install">安装</button></div>
+            </a>
+
           </div>
-
-          <div class="sk-card" data-kind="executable">
-            <div class="sk-head">
-              <div class="sk-icon" style="background:var(--green-soft);color:var(--green)">🎯</div>
-              <div><div class="sk-title">个股每日分析</div><div class="sk-id">stock-daily-analysis</div></div>
-              <span class="sk-builtin">内置</span>
-            </div>
-            <div class="sk-desc">自选股盘面解读 / 关键事件 / 操作策略 / 风险与止损四段式输出，按开启 AI 复盘的分组盘后批量生成。</div>
-            <div class="sk-meta"><span class="tag tag-green">可执行</span><span class="tag">heavy 队列</span><span class="tag">自选分组开关</span></div>
-            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
-          </div>
-
-          <div class="sk-card" data-kind="executable">
-            <div class="sk-head">
-              <div class="sk-icon" style="background:var(--blue-soft);color:var(--blue)">🔗</div>
-              <div><div class="sk-title">产业链分析</div><div class="sk-id">industry-chain-analysis</div></div>
-              <span class="sk-builtin">内置</span>
-            </div>
-            <div class="sk-desc">基于经营范围自下而上推导产业链环节，生成图谱 + 矩阵 + 洞察；支持版本管理与周级定时刷新。</div>
-            <div class="sk-meta"><span class="tag tag-green">可执行</span><span class="tag">周六 06:00</span><span class="tag">版本管理</span></div>
-            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
-          </div>
-
-          <div class="sk-card" data-kind="executable">
-            <div class="sk-head">
-              <div class="sk-icon" style="background:var(--amber-soft);color:var(--amber)">📸</div>
-              <div><div class="sk-title">自选股截图识别</div><div class="sk-id">watchlist-screenshot-recognition</div></div>
-              <span class="sk-builtin">内置</span>
-            </div>
-            <div class="sk-desc">上传券商 App 自选股截图，视觉模型识别代码与名称，批量导入自选股（REST 端点触发，非对话工具）。</div>
-            <div class="sk-meta"><span class="tag tag-green">可执行</span><span class="tag">视觉模型</span><span class="tag">REST 触发</span></div>
-            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
-          </div>
-
-          <div class="sk-card" data-kind="prompt_only">
-            <div class="sk-head">
-              <div class="sk-icon" style="background:var(--blue-soft);color:var(--blue)">📄</div>
-              <div><div class="sk-title">研报摘要</div><div class="sk-id">research-report-summary</div></div>
-              <span class="sk-builtin">内置</span>
-            </div>
-            <div class="sk-desc">个股详情页研报 tab 的 AI 解读提示词：核心观点 / 盈利预测 / 风险提示三段式摘要。</div>
-            <div class="sk-meta"><span class="tag tag-blue">提示词</span><span class="tag">助手调用</span></div>
-            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
-          </div>
-
-          <div class="sk-card" data-kind="prompt_only">
-            <div class="sk-head">
-              <div class="sk-icon" style="background:var(--green-soft);color:var(--green)">📑</div>
-              <div><div class="sk-title">财报摘要</div><div class="sk-id">financial-report-summary</div></div>
-              <span class="sk-builtin">内置</span>
-            </div>
-            <div class="sk-desc">个股详情页财报 tab 的 AI 解读提示词：营收利润拆解 / 同比环比 / 关键科目异动。</div>
-            <div class="sk-meta"><span class="tag tag-blue">提示词</span><span class="tag">助手调用</span></div>
-            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
-          </div>
-
-          <div class="sk-card" data-kind="doc_only">
-            <div class="sk-head">
-              <div class="sk-icon" style="background:var(--accent-soft);color:var(--accent)">🧩</div>
-              <div><div class="sk-title">产业链突破挖掘</div><div class="sk-id">chain-breakthrough</div></div>
-              <span class="sk-builtin">内置</span>
-            </div>
-            <div class="sk-desc">方法论文档：识别产业链环节技术突破的分析框架（技术壁垒 / 国产化率 / 客户验证三维度）。</div>
-            <div class="sk-meta"><span class="tag tag-amber">方法论</span><span class="tag">分析框架</span></div>
-            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
-          </div>
-
-          <div class="sk-card" data-kind="doc_only">
-            <div class="sk-head">
-              <div class="sk-icon" style="background:var(--red-soft);color:var(--red)">🩺</div>
-              <div><div class="sk-title">财务健康检查</div><div class="sk-id">financial-health-check</div></div>
-              <span class="sk-builtin">内置</span>
-            </div>
-            <div class="sk-desc">方法论文档：财务健康度评估清单（现金流质量 / 杠杆水平 / 盈利持续性 / 商誉风险）。</div>
-            <div class="sk-meta"><span class="tag tag-amber">方法论</span><span class="tag">评估清单</span></div>
-            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
-          </div>
-
-          <div class="sk-card" data-kind="prompt_only">
-            <div class="sk-head">
-              <div class="sk-icon" style="background:var(--amber-soft);color:var(--amber)">🔥</div>
-              <div><div class="sk-title">热点检测</div><div class="sk-id">hotspot-detection</div></div>
-              <span class="sk-builtin">内置</span>
-            </div>
-            <div class="sk-desc">热点主题检测提示词（资讯中心「热点主题」视图消费）：主题聚类 / 情绪判定 / 传导链推导。</div>
-            <div class="sk-meta"><span class="tag tag-blue">提示词</span><span class="tag">资讯中心消费</span></div>
-            <div class="sk-foot"><span class="sk-installed">✓ 内置可用</span><button class="btn btn-ghost btn-sm" data-detail>详情</button></div>
-          </div>
-
-          <div class="sk-card" data-kind="custom">
-            <div class="sk-head">
-              <div class="sk-icon" style="background:rgba(99,102,241,.1);color:#818cf8">🐉</div>
-              <div><div class="sk-title">龙头战法每日复盘</div><div class="sk-id">dragon-head-review</div></div>
-              <span class="sk-builtin" style="color:var(--accent);border-color:transparent;background:var(--accent-soft)">自定义</span>
-            </div>
-            <div class="sk-desc">按连板高度与题材梯队复盘当日龙头股：卡位关系 / 断板回封 / 明日晋级推演。</div>
-            <div class="sk-meta"><span class="tag tag-purple">自定义</span><span class="tag tag-green">v2</span></div>
-            <div class="sk-foot"><span class="sk-author">@zhangwei 发布</span><button class="btn btn-primary btn-sm">安装</button></div>
-          </div>
-
         </div>
-      </div>
 
-      <!-- ========== Pane 2：我的技能 ========== -->
-      <div id="pane-mine" style="display:none">
+        <!-- ===== Pane 2：我的技能 ===== -->
+        <div id="pane-mine" style="display:none">
 
-        <div class="mine-section">
-          <div class="mine-title">我的自定义技能 <span class="hint">默认私有，发布后广场可见；skillId 全局唯一，不可与内置保留字冲突</span></div>
-          <div class="mine-grid">
-            <div class="mine-card">
-              <div class="sk-head">
-                <div class="sk-icon" style="background:var(--accent-soft);color:var(--accent)">🧭</div>
-                <div><div class="sk-title">竞价异动早盘策略</div><div class="sk-id">my-auction-strategy · v3</div></div>
-                <span class="tag tag-green">已发布</span>
-              </div>
+          <div class="mine-title">我的自定义技能</div>
+          <div class="mine-hint">自定义技能是配置（提示词契约），不是代码；发布后对其他用户可见可安装</div>
+          <div class="mine-grid" style="margin-bottom:24px">
+            <a class="mine-card" href="#p-detail">
+              <div class="sk-title-row"><span class="sk-title">竞价异动早盘策略</span><span class="tag tag-green">已发布</span></div>
+              <div class="sk-badges"><span class="tag tag-purple">自定义技能</span><span class="tag">自定义</span></div>
               <div class="sk-desc">集合竞价量价异动 + 昨日涨停表现，推演早盘关注池与回避清单。</div>
-              <div class="sk-meta"><span class="tag tag-blue">提示词</span><span class="tag">含 User Prompt 模板</span></div>
-              <div class="mine-actions">
-                <button class="btn btn-ghost btn-sm">编辑</button>
-                <button class="btn btn-ghost btn-sm">新版本</button>
-                <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
-              </div>
-            </div>
-            <div class="mine-card draft">
-              <div class="sk-head">
-                <div class="sk-icon" style="background:var(--bg-surface);color:var(--text-secondary)">⛏</div>
-                <div><div class="sk-title">北向资金风格跟踪</div><div class="sk-id">my-northbound-style · v2</div></div>
-                <span class="tag tag-amber">草稿</span>
-              </div>
+              <div class="sk-foot"><button class="btn btn-ghost btn-sm">编辑</button></div>
+            </a>
+            <a class="mine-card" href="#p-detail">
+              <div class="sk-title-row"><span class="sk-title">北向资金风格跟踪</span><span class="tag tag-amber">草稿</span></div>
+              <div class="sk-badges"><span class="tag tag-purple">自定义技能</span><span class="tag">自定义</span></div>
               <div class="sk-desc">按周汇总北向净买入行业分布变化，标注风格切换信号（编写中，仅自己可见）。</div>
-              <div class="sk-meta"><span class="tag tag-blue">提示词</span><span class="tag">未发布</span></div>
-              <div class="mine-actions">
-                <button class="btn btn-ghost btn-sm">编辑</button>
-                <button class="btn btn-primary btn-sm">发布</button>
-                <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
+              <div class="sk-foot"><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-primary btn-sm">发布</button></div>
+            </a>
+          </div>
+
+          <div class="mine-title">已安装</div>
+          <div class="mine-hint">关闭开关后不再注入助手上下文；卸载不影响技能本体</div>
+          <div class="inst-rows">
+            <div class="inst-row">
+              <div class="inst-main">
+                <div class="inst-name-row"><span class="inst-name">龙头战法每日复盘</span><span class="tag tag-purple">自定义技能</span></div>
+                <div class="inst-id">dragon-head-review</div>
+              </div>
+              <span class="switch on"></span>
+              <button class="btn btn-danger btn-sm">卸载</button>
+            </div>
+            <div class="inst-row">
+              <div class="inst-main">
+                <div class="inst-name-row"><span class="inst-name">竞价异动早盘策略</span><span class="tag tag-purple">自定义技能</span><span class="tag">已停用</span></div>
+                <div class="inst-id">my-auction-strategy</div>
+              </div>
+              <span class="switch"></span>
+              <button class="btn btn-danger btn-sm">卸载</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ========== 页面 2/2 · 技能详情 /skills/:skillId（全页路由） ========== -->
+      <div class="page-block" id="p-detail">
+        <div class="page-block-label">页面 2/2 · 技能详情 <span class="route-badge">/skills/:skillId</span></div>
+
+        <div class="detail-card">
+          <div class="detail-head">
+            <div style="min-width:0">
+              <div class="detail-title-row">
+                <span style="font-size:12px;color:var(--text-secondary)">技能广场 /</span>
+                <span class="detail-title">大盘每日复盘</span>
+                <span class="tag tag-blue">自动化·定时</span>
+                <span class="tag">大盘与情绪</span>
+                <span class="tag tag-gold">官方</span>
+              </div>
+              <div class="inst-id" style="margin-top:4px">market-daily-review</div>
+              <div class="detail-desc">大盘每日复盘综述：工具化获取大盘概览、指数技术面预计算指标、涨停连板天梯与板块资金流向，产出按分区组织的结构化收盘复盘。</div>
+            </div>
+            <span class="tag" style="margin-top:4px">内置 · 助手直接可用</span>
+          </div>
+          <div class="desc-grid">
+            <div class="desc-cell"><div class="desc-key">版本</div><div class="desc-val">v1.2</div></div>
+            <div class="desc-cell"><div class="desc-key">来源</div><div class="desc-val">内置（随镜像分发）</div></div>
+            <div class="desc-cell"><div class="desc-key">状态</div><div class="desc-val">已发布</div></div>
+            <div class="desc-cell"><div class="desc-key">更新时间</div><div class="desc-val">2026-09-10 16:30</div></div>
+          </div>
+          <div class="detail-split">
+            <aside class="file-pane">
+              <div class="fp-title">技能包结构</div>
+              <div class="ft-dir">📁 market-daily-review</div>
+              <div class="ft-file active" data-file="SKILL.md"><span>📘</span><span class="ft-name">SKILL.md</span><span class="ft-size">8.1 KB</span></div>
+              <div class="ft-file" data-file="prompt.yaml"><span>⚙</span><span class="ft-name">prompt.yaml</span><span class="ft-size">1.9 KB</span></div>
+              <div class="ft-note">内置技能包 = 自包含目录（SKILL.md 方法论 + prompt.yaml 提示词契约），随平台镜像分发；自定义技能的文件由其配置合成（虚拟文件，标注 synthetic）。</div>
+            </aside>
+            <div class="content-pane">
+              <div class="crumb">skills <span>/</span> market-daily-review <span>/</span> <b data-crumb-file>SKILL.md</b></div>
+              <div class="view-toggle" data-view-toggle>
+                <button class="vt2 active" data-view="preview">预览</button>
+                <button class="vt2" data-view="source">源码</button>
+              </div>
+              <div class="file-content">
+
+                <!-- SKILL.md 内容 -->
+                <div data-file-panel="SKILL.md">
+                  <div class="md-view" data-panel-view="preview">
+                    <div class="frontmatter">---
+<span class="ck">name:</span> market-daily-review
+<span class="ck">description:</span> 大盘每日复盘综述：工具化获取大盘概览、指数技术面预计算指标、涨停连板天梯与板块资金流向，产出按分区组织的结构化收盘复盘
+<span class="ck">allowed-tools:</span> get_market_overview, get_limit_up_ladder, get_index_technical, get_sector_overview, get_trade_calendar, collect_market_data, persist_market_review
+---</div>
+                    <h1>大盘每日复盘</h1>
+                    <h2>描述</h2>
+                    <p>以工具实时取数为依据，为整个 A 股市场生成当日收盘复盘：<strong>大盘综述、技术面分析、资金面分析、情绪与连板分析、风险提示与策略建议</strong>五个分区。分析流程与工具编排由本文件维护，输出分区契约以 <code>prompt.yaml</code> 为准。</p>
+                    <h2>触发条件</h2>
+                    <ul>
+                      <li>每日复盘页请求生成 AI 大盘综述</li>
+                      <li>每日收盘后的定时任务（market_daily_review_1630，北京时间 16:30）</li>
+                    </ul>
+                    <h2>输出 Schema</h2>
+                    <pre><code>{
+  "sections": {
+    "overview": "AI 大盘综述（Markdown）",
+    "technical_analysis": "技术面分析（Markdown）",
+    "capital_analysis": "资金面分析（Markdown）",
+    "emotion_analysis": "情绪与连板分析（Markdown）",
+    "risk_advice": "风险提示与策略建议（Markdown）"
+  }
+}</code></pre>
+                    <h2>可用工具</h2>
+                    <p>执行器路径固定注入前四个取数工具；后三个仅助手对话路径可用。</p>
+                    <ul>
+                      <li><code>get_market_overview(trade_date)</code>：四大指数行情 + 全市场统计——两市成交额（含环比）、上涨/下跌/平盘家数、涨停/跌停家数、情绪温度、涨停比、连板率、炸板率</li>
+                      <li><code>get_index_technical(trade_date)</code>：五标的（沪指/创业板/科创50/沪深300ETF/富时A50）预计算技术面文本，必须直接引用，禁止自行估算</li>
+                      <li><code>get_sector_overview(trade_date)</code>：行业板块概览——涨跌幅热力图、主力净流入/净流出 TOP5、领涨板块</li>
+                      <li><code>persist_market_review(trade_date, sections)</code>：仅助手对话路径——将五分区复盘保存入库，复盘页卡片自动刷新</li>
+                    </ul>
+                  </div>
+                  <div class="code-block" data-panel-view="source" style="display:none;white-space:pre-wrap">---
+name: market-daily-review
+description: 大盘每日复盘综述：工具化获取大盘概览、指数技术面预计算指标、涨停连板天梯与板块资金流向，产出按分区组织的结构化收盘复盘。复盘页触发生成与每日定时任务（market_daily_review_1630）均通过本 Skill 执行。
+allowed-tools: get_market_overview, get_limit_up_ladder, get_index_technical, get_sector_overview, get_trade_calendar, collect_market_data, persist_market_review
+---
+
+# 大盘每日复盘
+（完整源码同「预览」……此处为 SKILL.md 原文，随技能包分发，详情视图可完整滚动阅读）</div>
+                </div>
+
+                <!-- prompt.yaml 内容 -->
+                <div data-file-panel="prompt.yaml" style="display:none">
+                  <div class="code-block" data-panel-view="source" style="white-space:pre-wrap">id: market-daily-review
+name: 大盘每日复盘综述
+version: 1.2.0
+description: 基于当日指数行情、涨跌统计、涨停连板与板块资金数据，生成结构化大盘复盘综述
+
+sections:
+  - key: overview
+    title: AI 大盘综述
+    requirements: |
+      固定按两段小标题撰写：指数情况 + 量能情况……
+  - key: technical_analysis
+    title: 技术面分析
+    requirements: |
+      逐标的（沪指/创业板/科创50/沪深300ETF/富时A50）分析日线与周线形态……
+system_prompt: |
+  你是一名专业 A 股复盘分析师，为投资研究平台撰写每日收盘复盘。……
+
+user_prompt_template: |
+  请生成 {trade_date} 的每日大盘复盘综述。……</div>
+                </div>
+
               </div>
             </div>
           </div>
         </div>
-
-        <div class="mine-section">
-          <div class="mine-title">已安装（来自广场） <span class="hint">关闭开关后不再注入助手上下文；卸载不影响技能本体</span></div>
-          <div class="inst-row">
-            <div class="sk-icon" style="width:32px;height:32px;font-size:14px;background:rgba(99,102,241,.1);color:#818cf8">🐉</div>
-            <div><div class="inst-name">龙头战法每日复盘</div><div class="inst-sub">@zhangwei · v2 · 安装于 2026-09-05</div></div>
-            <div class="inst-right">
-              <span style="font-size:11px;color:var(--text-tertiary)">注入助手</span>
-              <span class="switch on"></span>
-              <button class="btn btn-ghost btn-sm">卸载</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="mine-section">
-          <div class="mine-title">内置技能 <span class="hint">随平台版本更新，始终对 AI 助手可用</span></div>
-          <div class="builtin-note">
-            <span>◆</span>
-            <span>大盘每日复盘 · 涨停复盘归因 · 个股每日分析 · 产业链分析 · 自选股截图识别 · 研报摘要 · 财报摘要 · 热点检测 · 产业链突破挖掘 · 财务健康检查<span class="bn-list">（10 项，详见技能广场）</span></span>
-          </div>
-        </div>
-
       </div>
 
       <div class="type-note">
-        <b>实现说明（对齐批次 7 已交付的后端 API + 迭代 1 详情视图增强）</b><br>
-        ① 端点映射：广场列表 = <span class="text-mono">GET /api/v1/skills</span>（返回 available + mine 两组）；详情 = <span class="text-mono">GET /skills/{id}</span>；技能包文件 = <span class="text-mono">GET /skills/{id}/files</span>（返回文件清单 + 全文：builtin 读镜像内 skills/&lt;id&gt;/ 目录，custom 由 DB 配置合成虚拟文件）；安装 = <span class="text-mono">POST /skills/{id}/install</span>（201；重复安装 409）；卸载 = <span class="text-mono">DELETE /skills/{id}/install</span>（204）；创建 = <span class="text-mono">POST /skills</span>（skillId 撞内置保留字或他人技能 409）；编辑 = <span class="text-mono">PATCH /skills/{id}</span>（仅本人，version 自增）；发布 = <span class="text-mono">POST /skills/{id}/publish</span>（仅本人）。<br>
-        ② 详情视图（行业范式：Claude Agent Skills 的「技能 = 自包含目录」+ GitHub 仓库文件浏览器）：抽屉加宽至 780px，上部技能元信息（标识 / 触发方式 / 运行时绑定 executor+collector task / 消费页面），下部左右分栏——左侧技能包目录树（文件 + 大小），右侧文件内容（Markdown 文件提供「预览 / 源码」双视图，yaml 等仅源码）。窄屏（&lt;720px）抽屉回退为全宽、目录树折叠为顶部文件下拉。<br>
-        ③ 内置技能语义：10 个 builtin 随镜像分发、目录全量挂载给助手（开箱即用，无需安装）；「安装 / 启用开关」的注入语义主要作用于自定义技能——安装且 enabled 的 custom skill 以索引行（技能名：描述）注入助手上下文，全文按需读取（渐进披露）。<br>
-        ④ kind 四类：可执行（有执行器，定时 / 页面双路径）/ 提示词（助手按需调用）/ 方法论（知识文档）/ 自定义（用户配置，DB JSONB）。<br>
-        ⑤ 自定义技能 = 配置非代码：无执行沙箱；详情视图的「虚拟文件」= SKILL.md（skill_md 字段）+ prompt.yaml（由 system_prompt / user_prompt_template / sections 合成），标注「由配置合成，非镜像文件」。allowed_tools 约束本批不执法。
+        <b>实现说明（对齐已上线实现：SkillsPage / SkillDetailPage / SkillFormDrawer + shared SKILL_SCENARIOS 常量）</b><br>
+        ① 端点映射：广场列表 = <span class="text-mono">GET /api/v1/skills</span>（返回 available + mine 两组）；详情 = <span class="text-mono">GET /skills/{id}</span>；技能包文件 = <span class="text-mono">GET /skills/{id}/files</span>（返回文件清单 + 全文：builtin 读镜像内 skills/&lt;id&gt;/ 目录，custom 由 DB 配置合成虚拟文件，synthetic 标注）；安装 = <span class="text-mono">POST /skills/{id}/install</span>；启用/停用 = <span class="text-mono">PATCH /skills/{id}/install</span> body <span class="text-mono">{"enabled": bool}</span>（已安装技能的注入开关）；卸载 = <span class="text-mono">DELETE /skills/{id}/install</span>；创建 = <span class="text-mono">POST /skills</span>（skillId 撞内置保留字或他人技能 409）；编辑 = <span class="text-mono">PATCH /skills/{id}</span>（仅本人，version 自增）；发布 = <span class="text-mono">POST /skills/{id}/publish</span>（仅本人）；压缩包解析 = <span class="text-mono">POST /skills/analyze</span>（multipart，.zip / .tar.gz，须含 SKILL.md；magic-byte 校验 + zip-slip 防护 + 密钥扫描，返回表单预填建议）。<br>
+        ② 分类双维度（取代旧版 kind 筛选 chips）：业务场景 Tab = <span class="text-mono">market 大盘与情绪 / stock 个股分析 / chain 产业链 / report 财报与研报 / news 资讯处理</span>（+ custom 自定义，存量 custom 行回填），唯一真相源 <span class="text-mono">shared/types/skill.ts SKILL_SCENARIOS / SKILL_SCENARIO_LABELS</span>，与后端 registry 对齐，测试钉死 13 项 builtin 全赋值；能力徽标按 kind 映射：executable→<span class="tag tag-blue">自动化·定时</span> / prompt_only→<span class="tag tag-green">对话调用</span> / doc_only→<span class="tag tag-orange">方法论</span> / custom→<span class="tag tag-purple">自定义技能</span>；来源徽标：builtin→<span class="tag tag-gold">官方</span> / custom→<span class="tag tag-purple">自定义</span>。<br>
+        ③ 卡片交互：整卡可点进入详情全页路由 <span class="text-mono">/skills/:skillId</span>（Breadcrumb + 徽标行 + 安装/卸载/编辑/发布按钮 + 版本/来源/状态/更新时间 Descriptions + 左目录树右预览/源码文件浏览器，404 走 Result 页）；安装/卸载/编辑等按钮 stopPropagation。<br>
+        ④ 创建/编辑抽屉：新建态顶部 Upload.Dragger（accept .zip/.tar.gz）→ 调 analyze 端点自动解析 frontmatter 预填全部字段 + 成功 Alert「以下字段为解析建议，可继续手动调整后保存」；手动编辑路径完整保留。编辑态 skillId 只读，保存版本 +1。<br>
+        ⑤ 内置技能语义：13 个 builtin 随镜像分发、目录全量挂载给助手（开箱即用，无需安装）；「安装 / 启用开关」的注入语义仅对自定义技能生效——安装且 enabled 的 custom skill 注入助手上下文（渐进披露），停用（已停用徽标）与卸载均停止注入。
       </div>
 
     </div>
   </div>
 </div>
 
-<!-- ========== 创建自定义技能抽屉 ========== -->
+<!-- ========== 创建自定义技能抽屉（zip 上传自动解析 + 表单） ========== -->
 <div class="drawer-mask" id="maskCreate"></div>
 <div class="drawer" id="drawerCreate">
   <div class="drawer-header">
@@ -462,22 +567,27 @@ a{color:var(--accent);text-decoration:none}
     <button class="drawer-close" data-close="drawerCreate">✕</button>
   </div>
   <div class="drawer-body">
+    <div class="upload-zone" id="uploadZone">
+      <div class="uz-icon">⬆</div>
+      <div>上传技能压缩包自动填写</div>
+      <div class="uz-hint">拖入 .zip / .tar.gz（须含 SKILL.md），解析后可在下方修改</div>
+    </div>
+    <div class="analyzed-alert" id="analyzedAlert" style="display:none"><b>✓</b><span><b>已从压缩包自动解析</b>——以下字段为解析建议，可继续手动调整后保存。</span></div>
     <div class="form-group">
-      <label class="form-label">技能标识 <span class="req">*</span></label>
-      <input class="form-input text-mono" placeholder="例如 my-auction-strategy" value="my-auction-strategy">
-      <div class="form-hint">小写字母 / 数字 / 连字符；全局唯一，不可与内置保留字冲突（冲突返回 409）。创建后不可修改。</div>
+      <label class="form-label">skill_id <span class="req">*</span></label>
+      <input class="form-input text-mono" placeholder="dragon-head-review" value="my-auction-strategy">
+      <div class="form-hint">小写字母开头，仅含小写字母、数字与连字符；全局唯一；不可与内置技能或他人自定义技能重名。创建后不可修改。</div>
     </div>
     <div class="form-group">
-      <label class="form-label">技能名称 <span class="req">*</span></label>
+      <label class="form-label">名称 <span class="req">*</span></label>
       <input class="form-input" value="竞价异动早盘策略">
     </div>
     <div class="form-group">
       <label class="form-label">描述</label>
-      <textarea class="form-textarea" rows="2" style="font-family:var(--font)">集合竞价量价异动 + 昨日涨停表现，推演早盘关注池与回避清单</textarea>
-      <div class="form-hint">将作为索引行注入 AI 助手上下文（一行摘要，写清楚"什么时候用这个技能"）。</div>
+      <textarea class="form-textarea" rows="2" style="font-family:var(--font)">一句话说明技能用途，将展示在广场卡片与助手技能索引中</textarea>
     </div>
     <div class="form-group">
-      <label class="form-label">SKILL.md 内容 <span class="req">*</span></label>
+      <label class="form-label">SKILL.md <span class="req">*</span></label>
       <textarea class="form-textarea" rows="8">---
 name: 竞价异动早盘策略
 description: 集合竞价量价异动与昨日涨停表现分析框架
@@ -490,11 +600,10 @@ description: 集合竞价量价异动与昨日涨停表现分析框架
 1. 调用集合竞价数据（竞价成交额、未匹配量）
 2. 对照昨日涨停股池表现
 3. 输出关注池与回避清单</textarea>
-      <div class="form-hint">frontmatter 的 name / description 会同步为技能元信息；正文是助手执行时读取的方法论。</div>
     </div>
     <div class="form-group">
       <label class="form-label">System Prompt <span class="req">*</span></label>
-      <textarea class="form-textarea" rows="5">你是一名 A 股早盘竞价分析专家。基于提供的集合竞价与昨日涨停数据，严格区分事实与推断；不构成投资建议。</textarea>
+      <textarea class="form-textarea" rows="6">你是一名 A 股早盘竞价分析专家。基于提供的集合竞价与昨日涨停数据，严格区分事实与推断；不构成投资建议。</textarea>
     </div>
     <div class="form-group">
       <label class="form-label">User Prompt 模板 <span class="opt">可选</span></label>
@@ -503,245 +612,95 @@ description: 集合竞价量价异动与昨日涨停表现分析框架
     </div>
   </div>
   <div class="drawer-foot">
-    <button class="btn btn-primary" data-close="drawerCreate">保存草稿</button>
-    <button class="btn btn-secondary" data-close="drawerCreate">取消</button>
-    <span style="margin-left:auto;font-size:11px;color:var(--text-tertiary);align-self:center">草稿仅自己可见，发布后进入广场</span>
+    <button class="btn btn-ghost" data-close="drawerCreate">取消</button>
+    <button class="btn btn-primary" data-close="drawerCreate">保存为草稿</button>
   </div>
 </div>
 
-<!-- ========== 技能详情抽屉（技能包文件浏览器） ========== -->
-<div class="drawer-mask" id="maskDetail"></div>
-<div class="drawer drawer-wide" id="drawerDetail">
-  <div class="drawer-header">
-    <span class="drawer-title">大盘每日复盘 <span class="tag tag-green" style="margin-left:8px">可执行</span><span class="tag" style="margin-left:4px">内置</span></span>
-    <button class="drawer-close" data-close="drawerDetail">✕</button>
-  </div>
-  <div class="drawer-body detail-body">
-    <div class="detail-meta">
-      <div class="dt-row"><div class="dt-key">标识</div><div class="dt-val text-mono">market-daily-review</div></div>
-      <div class="dt-row"><div class="dt-key">触发方式</div><div class="dt-val">定时任务（交易日 16:30，heavy 队列）+ 复盘页侧边栏手动触发，双路径共用同一技能包</div></div>
-      <div class="dt-row"><div class="dt-key">运行时绑定</div><div class="dt-val text-mono" style="font-size:11px">executor: app.agent.skills.market_review_agent · collector task: market-daily-review</div></div>
-      <div class="dt-row"><div class="dt-key">消费页面</div><div class="dt-val">每日复盘页（AI 大盘综述模块）· 工作台（复盘状态卡）</div></div>
-    </div>
-    <div class="detail-split">
-      <aside class="file-pane">
-        <div class="fp-title">技能包结构</div>
-        <div class="ft-dir">📁 market-daily-review</div>
-        <div class="ft-file active" data-file="SKILL.md"><span>📘</span><span class="ft-name">SKILL.md</span><span class="ft-size">8.1 KB</span></div>
-        <div class="ft-file" data-file="prompt.yaml"><span>⚙</span><span class="ft-name">prompt.yaml</span><span class="ft-size">1.9 KB</span></div>
-        <div class="ft-note">内置技能包 = 自包含目录（SKILL.md 方法论 + prompt.yaml 提示词契约），随平台镜像分发；自定义技能的文件由其配置合成（虚拟文件）。</div>
-      </aside>
-      <div class="content-pane">
-        <div class="crumb">skills <span>/</span> market-daily-review <span>/</span> <b data-crumb-file>SKILL.md</b></div>
-        <div class="view-toggle" data-view-toggle>
-          <button class="vt2 active" data-view="preview">预览</button>
-          <button class="vt2" data-view="source">源码</button>
-        </div>
-        <div class="file-content">
-
-          <!-- SKILL.md 内容 -->
-          <div data-file-panel="SKILL.md">
-            <div class="md-view" data-panel-view="preview">
-              <div class="frontmatter">---
-<span class="ck">name:</span> market-daily-review
-<span class="ck">description:</span> 大盘每日复盘综述：工具化获取大盘概览、指数技术面预计算指标、涨停连板天梯与板块资金流向，产出按分区组织的结构化收盘复盘
-<span class="ck">allowed-tools:</span> get_market_overview, get_limit_up_ladder, get_index_technical, get_sector_overview, get_trade_calendar, collect_market_data, persist_market_review
----</div>
-              <h1>大盘每日复盘</h1>
-              <h2>描述</h2>
-              <p>以工具实时取数为依据，为整个 A 股市场生成当日收盘复盘：<strong>大盘综述、技术面分析、资金面分析、情绪与连板分析、风险提示与策略建议</strong>五个分区。分析流程与工具编排由本文件维护，输出分区契约以 <code>prompt.yaml</code> 为准。</p>
-              <h2>触发条件</h2>
-              <ul>
-                <li>每日复盘页请求生成 AI 大盘综述</li>
-                <li>每日收盘后的定时任务（market_daily_review_1630，北京时间 16:30）</li>
-              </ul>
-              <h2>输出 Schema</h2>
-              <pre><code>{
-  "sections": {
-    "overview": "AI 大盘综述（Markdown）",
-    "technical_analysis": "技术面分析（Markdown）",
-    "capital_analysis": "资金面分析（Markdown）",
-    "emotion_analysis": "情绪与连板分析（Markdown）",
-    "risk_advice": "风险提示与策略建议（Markdown）"
-  }
-}</code></pre>
-              <h2>可用工具</h2>
-              <p>执行器路径固定注入前四个取数工具；后三个仅助手对话路径可用。</p>
-              <ul>
-                <li><code>get_market_overview(trade_date)</code>：四大指数行情 + 全市场统计——两市成交额（含环比）、上涨/下跌/平盘家数、涨停/跌停家数、情绪温度、涨停比、连板率、炸板率</li>
-                <li><code>get_index_technical(trade_date)</code>：五标的（沪指/创业板/科创50/沪深300ETF/富时A50）预计算技术面文本，必须直接引用，禁止自行估算</li>
-                <li><code>get_sector_overview(trade_date)</code>：行业板块概览——涨跌幅热力图、主力净流入/净流出 TOP5、领涨板块</li>
-                <li><code>persist_market_review(trade_date, sections)</code>：仅助手对话路径——将五分区复盘保存入库，复盘页卡片自动刷新</li>
-              </ul>
-              <h2>分析流程</h2>
-              <h3>步骤 0：交易日确认</h3>
-              <p>助手对话路径先调用 <code>get_trade_calendar</code> 获取最近交易日；独立执行器路径直接使用任务指令给定的 trade_date。数据缺失自愈：任一取数步骤返回空数据时，调用 <code>collect_market_data</code> 派发补采任务（涨停池/成交额约 1 分钟、板块资金流约 10 分钟），重试后仍缺失时如实披露，不得编造。</p>
-              <h3>步骤 1-4：大盘概览 → 技术面 → 连板情绪 → 资金面</h3>
-              <p>依次调用四个取数工具，为对应分区准备数据；金额必须带正负号（净流入为正、净流出为负）。</p>
-              <h3>步骤 5：撰写分区并交付</h3>
-              <p>助手对话路径调用 <code>persist_market_review</code> 保存；独立执行器路径按「输出 Schema」输出 JSON。</p>
-              <h2>规则</h2>
-              <ul>
-                <li>所有数据必须来自工具调用结果，不得编造；工具未覆盖的维度如实说明</li>
-                <li>简体中文 + Markdown；每分区 3-5 个要点、每点一行</li>
-                <li>涨跌幅与资金金额必须带正负号（前端据此自动着色）</li>
-                <li>客观提示风险，不给出确定性涨跌预测，不构成投资建议</li>
-              </ul>
-            </div>
-            <div class="code-block" data-panel-view="source" style="display:none;white-space:pre-wrap">---
-name: market-daily-review
-description: 大盘每日复盘综述：工具化获取大盘概览、指数技术面预计算指标、涨停连板天梯与板块资金流向，产出按分区组织的结构化收盘复盘。复盘页触发生成与每日定时任务（market_daily_review_1630）均通过本 Skill 执行。
-allowed-tools: get_market_overview, get_limit_up_ladder, get_index_technical, get_sector_overview, get_trade_calendar, collect_market_data, persist_market_review
----
-
-# 大盘每日复盘
-
-## 描述
-以工具实时取数为依据，为整个 A 股市场生成当日收盘复盘：大盘综述、技术面分析、资金面分析、情绪与连板分析、风险提示与策略建议五个分区。分析流程与工具编排由本文件维护，输出分区契约（key 集合与各分区撰写要求）以 prompt.yaml 为准。
-
-## 触发条件
-- 每日复盘页请求生成 AI 大盘综述
-- 每日收盘后的定时任务（market_daily_review_1630，北京时间 16:30）
-
-## 输出 Schema
-（完整源码同「预览」……此处为 SKILL.md 原文，随技能包分发，详情视图可完整滚动阅读）</div>
-          </div>
-
-          <!-- prompt.yaml 内容 -->
-          <div data-file-panel="prompt.yaml" style="display:none">
-            <div class="code-block" data-panel-view="source" style="white-space:pre-wrap">id: market-daily-review
-name: 大盘每日复盘综述
-version: 1.2.0
-description: 基于当日指数行情、涨跌统计、涨停连板与板块资金数据，生成结构化大盘复盘综述
-
-sections:
-  - key: overview
-    title: AI 大盘综述
-    requirements: |
-      固定按两段小标题撰写：
-      1、指数情况：结合沪指分时走势（开盘/盘中跳水/尾盘）与日 K 线形态（阴阳线实体幅度、是否创新低），结合量能变化判断是否杀出恐慌盘（下跌伴随放量）
-      2、量能情况：两市成交额及环比（放量/缩量多少亿），结合量能分时结构（开盘缩量/下跌放量/尾盘异动）判断量能异动
-  - key: technical_analysis
-    title: 技术面分析
-    requirements: |
-      逐标的（沪指/创业板/科创50/沪深300ETF/富时A50）分析日线与周线形态——是否跌破支撑位或关键均线、是否突破小平台、是否出现地量；判断趋势时注意：下降拐点 = 趋势支撑线附近 + 地量
-      均线数值、新低/地量/放量判断、分时量能结构必须引用 get_index_technical 工具返回的预计算指标，禁止自行估算
-  - key: capital_analysis
-    title: 资金面分析
-    requirements: |
-      板块资金轮动方向、主力偏好；流入金额标正号、流出金额标负号（如 半导体 +102 亿、银行 -45 亿）
-  - key: emotion_analysis
-    title: 情绪与连板分析
-    requirements: |
-      情绪温度、涨停结构、高标股表现
-  - key: risk_advice
-    title: 风险提示与策略建议
-    requirements: |
-      短期风险与仓位思路
-
-system_prompt: |
-  你是一名专业 A 股复盘分析师，为投资研究平台撰写每日收盘复盘。
-  要求：
-  - 所有数据必须来自工具调用结果，不得编造数据中不存在的个股、数字或事件；工具未覆盖的维度如实说明，不得臆测
-  - 语言简洁专业，使用中文，使用 Markdown 语法输出
-  - 每个部分必须使用列表分点呈现，每点单独一行；禁止整段连排不换行的文字
-  - 每个部分 3-5 个要点，每点一句话
-  - 重点结论用 **加粗** 强调；关键数据、个股名称、板块名称用 行内代码 高亮
-  - 涨跌幅百分比必须带正负号（如 +3.05%、-1.20%），前端会据此自动着涨跌色
-  - 资金流向金额必须带正负号：净流入为正、净流出为负
-  - 数字引用需与工具返回一致（成交额换算为亿元或万亿元）
-  - 客观提示风险，不给出确定性的涨跌预测
-
-user_prompt_template: |
-  请生成 {trade_date} 的每日大盘复盘综述。
-
-  先按系统指令中的分析流程调用工具获取当日市场数据，须覆盖以下维度：
-  指数行情与市场统计（成交额及环比、上涨/下跌/平盘家数、涨停/跌停家数、情绪温度、涨停比、连板率、炸板率）、
-  五标的预计算技术面指标、连板天梯（≥2 板）、板块主力资金净流入/净流出 TOP、领涨板块表现。
-
-  再撰写以下分区：
-
-  {section_instructions}
-
-  完成后按系统指令交付：助手对话路径调用 persist_market_review 保存；独立执行器路径最终回复只输出 sections JSON。</div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="drawer-foot">
-    <button class="btn btn-primary" style="flex:1">在助手中试用</button>
-    <div style="align-self:center;font-size:11px;color:var(--text-tertiary)">打开侧边栏 AI 助手并预置技能调用</div>
-  </div>
-</div>
+<!-- AI 助手 FAB（对齐 AssistantFab：浅紫渐变圆底 + 猫头鹰） -->
+<button class="owl-fab" title="AI 助手">🦉</button>
 
 <script>
-// Tab 切换
-var vtabs = document.getElementById('vtabs');
-vtabs.querySelectorAll('.vtab').forEach(function (tab) {
+// 顶层 Tabs 切换（技能市场 / 我的技能）
+var atabs = document.getElementById('atabs');
+atabs.querySelectorAll('.atab').forEach(function (tab) {
   tab.addEventListener('click', function () {
-    vtabs.querySelectorAll('.vtab').forEach(function (t) { t.classList.remove('active'); });
+    atabs.querySelectorAll('.atab').forEach(function (t) { t.classList.remove('active'); });
     tab.classList.add('active');
     document.getElementById('pane-square').style.display = tab.getAttribute('data-pane') === 'pane-square' ? '' : 'none';
     document.getElementById('pane-mine').style.display = tab.getAttribute('data-pane') === 'pane-mine' ? '' : 'none';
   });
 });
 
-// kind 筛选（样式级切换 + 卡片显隐）
-var chips = document.getElementById('kindChips');
-chips.querySelectorAll('.kchip').forEach(function (chip) {
-  chip.addEventListener('click', function () {
-    chips.querySelectorAll('.kchip').forEach(function (c) { c.classList.remove('active'); });
-    chip.classList.add('active');
-    var kind = chip.getAttribute('data-kind');
-    document.querySelectorAll('#skGrid .sk-card').forEach(function (card) {
-      card.style.display = (kind === 'all' || card.getAttribute('data-kind') === kind) ? '' : 'none';
-    });
-  });
-});
-
-// 抽屉开合
-function bindDrawer(triggerSel, drawerId) {
-  var drawer = document.getElementById(drawerId);
-  var mask = document.getElementById(drawerId === 'drawerCreate' ? 'maskCreate' : 'maskDetail');
-  document.querySelectorAll(triggerSel).forEach(function (btn) {
-    btn.addEventListener('click', function () { drawer.classList.add('open'); mask.classList.add('open'); });
-  });
-  mask.addEventListener('click', function () { drawer.classList.remove('open'); mask.classList.remove('open'); });
-  drawer.querySelectorAll('[data-close]').forEach(function (btn) {
-    btn.addEventListener('click', function () { drawer.classList.remove('open'); mask.classList.remove('open'); });
+// 场景 Tab + 关键字 联合过滤（对齐 matchFilter：scenario + label/skillId 关键字）
+var scenarioTabs = document.getElementById('scenarioTabs');
+var searchInput = document.getElementById('skSearch');
+function applyFilter() {
+  var active = scenarioTabs.querySelector('.stab.active');
+  var scenario = active ? active.getAttribute('data-scenario') : 'all';
+  var kw = (searchInput.value || '').trim().toLowerCase();
+  document.querySelectorAll('#skGrid .sk-card').forEach(function (card) {
+    var okScenario = scenario === 'all' || card.getAttribute('data-scenario') === scenario;
+    var title = card.querySelector('.sk-title').textContent.toLowerCase();
+    var okKw = !kw || title.indexOf(kw) >= 0 || title.indexOf(kw) >= 0;
+    card.style.display = okScenario && okKw ? '' : 'none';
   });
 }
-bindDrawer('#btnCreate', 'drawerCreate');
-bindDrawer('[data-detail]', 'drawerDetail');
+scenarioTabs.querySelectorAll('.stab').forEach(function (stab) {
+  stab.addEventListener('click', function () {
+    scenarioTabs.querySelectorAll('.stab').forEach(function (s) { s.classList.remove('active'); });
+    stab.classList.add('active');
+    applyFilter();
+  });
+});
+searchInput.addEventListener('input', applyFilter);
 
-// 安装按钮 → 已安装态（纯示意）
-document.querySelectorAll('#skGrid .btn-primary').forEach(function (btn) {
-  btn.addEventListener('click', function () {
+// 创建抽屉开合
+var drawerCreate = document.getElementById('drawerCreate');
+var maskCreate = document.getElementById('maskCreate');
+document.getElementById('btnCreate').addEventListener('click', function () {
+  drawerCreate.classList.add('open'); maskCreate.classList.add('open');
+});
+maskCreate.addEventListener('click', closeCreate);
+drawerCreate.querySelectorAll('[data-close]').forEach(function (btn) {
+  btn.addEventListener('click', closeCreate);
+});
+function closeCreate() {
+  drawerCreate.classList.remove('open'); maskCreate.classList.remove('open');
+}
+
+// 上传区点击 → 模拟解析成功提示（对齐 analyze 端点预填行为）
+document.getElementById('uploadZone').addEventListener('click', function () {
+  document.getElementById('analyzedAlert').style.display = '';
+});
+
+// 安装按钮 → 已安装态（纯示意，阻止卡片跳转）
+document.querySelectorAll('#skGrid .sk-install').forEach(function (btn) {
+  btn.addEventListener('click', function (e) {
+    e.preventDefault(); e.stopPropagation();
     var foot = btn.closest('.sk-foot');
     btn.remove();
     var ok = document.createElement('span');
-    ok.className = 'sk-installed';
+    ok.className = 'installed-tag';
     ok.textContent = '✓ 已安装';
-    foot.insertBefore(ok, foot.querySelector('.sk-author').nextSibling);
+    foot.appendChild(ok);
   });
 });
 
 // 开关切换（纯示意）
 document.querySelectorAll('.switch').forEach(function (sw) {
-  sw.addEventListener('click', function () { sw.classList.toggle('on'); });
+  sw.addEventListener('click', function (e) { e.stopPropagation(); sw.classList.toggle('on'); });
 });
 
-// 详情抽屉：文件切换 + 预览/源码切换
-var filePane = document.querySelector('#drawerDetail .file-pane');
+// 详情页文件浏览器：文件切换 + 预览/源码切换
+var filePane = document.querySelector('#p-detail .file-pane');
 filePane.querySelectorAll('.ft-file').forEach(function (row) {
   row.addEventListener('click', function () {
     filePane.querySelectorAll('.ft-file').forEach(function (r) { r.classList.remove('active'); });
     row.classList.add('active');
     var name = row.getAttribute('data-file');
     document.querySelector('[data-crumb-file]').textContent = name;
-    document.querySelectorAll('#drawerDetail [data-file-panel]').forEach(function (panel) {
+    document.querySelectorAll('#p-detail [data-file-panel]').forEach(function (panel) {
       panel.style.display = panel.getAttribute('data-file-panel') === name ? '' : 'none';
     });
     // yaml 无预览视图，强制源码；md 恢复预览
@@ -755,7 +714,7 @@ function setActiveView(view) {
   document.querySelectorAll('[data-view-toggle] .vt2').forEach(function (b) {
     b.classList.toggle('active', b.getAttribute('data-view') === view);
   });
-  document.querySelectorAll('#drawerDetail [data-file-panel]').forEach(function (panel) {
+  document.querySelectorAll('#p-detail [data-file-panel]').forEach(function (panel) {
     if (panel.style.display === 'none') return;
     panel.querySelectorAll('[data-panel-view]').forEach(function (el) {
       el.style.display = el.getAttribute('data-panel-view') === view ? '' : 'none';

@@ -6,6 +6,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.core.exceptions import NotFoundError, UnprocessableEntityError
 from app.dependencies import get_db
 from app.schemas.auction import AuctionDataResponse, IndexAuctionTrendResponse
@@ -39,8 +40,8 @@ async def get_auction(
     code: str,
     session: Annotated[AsyncSession, Depends(get_db)],
     trade_date: date | None = None,
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(DEFAULT_PAGE, ge=1),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
 ) -> dict[str, Any]:
     """获取股票集合竞价数据。"""
     items, total = await stock_service.get_auction_by_code(

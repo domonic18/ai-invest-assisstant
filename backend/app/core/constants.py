@@ -22,7 +22,8 @@ KLINE_PERIODS: tuple[str, ...] = (
     "yearly",
 )
 
-# 指数 K 线图扩展标的（仅 K 线展示与 AI 技术分析，不进指数快照/分钟线/顶部行情卡）。
+# 指数 K 线图扩展标的（K 线展示、AI 技术分析与顶部行情卡；无分钟线，
+# 行情卡报价由最近日 K 合成）。
 # sh510300 = 沪深300ETF（新浪 ETF 日 K）；CN00Y = 富时A50期指当月连续（东财日 K）
 KLINE_CHART_EXTRA_CODES: dict[str, str] = {
     "sh510300": "沪深300ETF",
@@ -59,3 +60,81 @@ NEWS_SOURCE_TELEGRAPH = "cls_telegraph"
 # stream 驻留进程 Redis 键模板（collector/runtime/stream 写入，渠道监控读取）
 STREAM_CURSOR_KEY_TEMPLATE = "collector:stream:{source}:last_time"
 STREAM_HEARTBEAT_KEY_TEMPLATE = "collector:stream:{source}:heartbeat"
+
+# ---- 采集健康监测 ----
+# 任务类型 -> 数据域（7 域，采集健康页分组与健康分统计口径）。
+# 键空间 = TASK_SPECS 键；maintenance/health-check 类内部任务不登记，
+# 不参与健康统计（监测不监测自己）。覆盖完备性由单测对照 TASK_SPECS 钉死。
+DOMAIN_KLINE = "kline"
+DOMAIN_QUOTE = "quote"
+DOMAIN_POOL = "pool"
+DOMAIN_FUND_FLOW = "fund-flow"
+DOMAIN_NEWS = "news"
+DOMAIN_FUNDAMENTAL = "fundamental"
+DOMAIN_AI = "ai"
+DOMAIN_KB = "kb"
+
+TASK_TYPE_DOMAIN: dict[str, str] = {
+    # K 线
+    "kline": DOMAIN_KLINE,
+    "watchlist-kline-daily": DOMAIN_KLINE,
+    "index-kline": DOMAIN_KLINE,
+    "etf-kline": DOMAIN_KLINE,
+    "a50-kline": DOMAIN_KLINE,
+    "sector-kline": DOMAIN_KLINE,
+    "kline-freshness": DOMAIN_KLINE,
+    # 行情
+    "quote": DOMAIN_QUOTE,
+    "auction": DOMAIN_QUOTE,
+    "index-spot": DOMAIN_QUOTE,
+    "index-minute": DOMAIN_QUOTE,
+    "index-auction": DOMAIN_QUOTE,
+    "stock-minute": DOMAIN_QUOTE,
+    "market-breadth": DOMAIN_QUOTE,
+    "market-amount": DOMAIN_QUOTE,
+    "sector-quote": DOMAIN_QUOTE,
+    "global-index": DOMAIN_QUOTE,
+    "fed-watch": DOMAIN_QUOTE,
+    "macro": DOMAIN_QUOTE,
+    # 股池
+    "limit-up-pool": DOMAIN_POOL,
+    "limit-down-pool": DOMAIN_POOL,
+    "broken-pool": DOMAIN_POOL,
+    "dragon-list": DOMAIN_POOL,
+    # 资金流
+    "fund-flow": DOMAIN_FUND_FLOW,
+    "sector-fund-flow": DOMAIN_FUND_FLOW,
+    # 资讯
+    "news": DOMAIN_NEWS,
+    "news-subscription-match": DOMAIN_NEWS,
+    "cls-telegraph-backfill": DOMAIN_NEWS,
+    "cls-investkalendar": DOMAIN_NEWS,
+    "social-video": DOMAIN_NEWS,
+    # 基本面
+    "stock-list": DOMAIN_FUNDAMENTAL,
+    "stock-shares": DOMAIN_FUNDAMENTAL,
+    "financial-statement": DOMAIN_FUNDAMENTAL,
+    "concept-constituents": DOMAIN_FUNDAMENTAL,
+    "company-profile": DOMAIN_FUNDAMENTAL,
+    "disclosure": DOMAIN_FUNDAMENTAL,
+    "financial-report": DOMAIN_FUNDAMENTAL,
+    "ipo-info": DOMAIN_FUNDAMENTAL,
+    "fund-holdings": DOMAIN_FUNDAMENTAL,
+    "research-report": DOMAIN_FUNDAMENTAL,
+    # AI
+    "market-daily-review": DOMAIN_AI,
+    "limit-up-ai-review": DOMAIN_AI,
+    "stock-daily-analysis": DOMAIN_AI,
+    "chain-refresh": DOMAIN_AI,
+    "news-score": DOMAIN_AI,
+    "news-storyline": DOMAIN_AI,
+    "news-topic": DOMAIN_AI,
+    "sector-anomaly": DOMAIN_AI,
+    "stock-anomaly": DOMAIN_AI,
+    "social-sentiment": DOMAIN_AI,
+    # 知识库
+    "kb-transcribe": DOMAIN_KB,
+    "kb-extract": DOMAIN_KB,
+    "kb-vision": DOMAIN_KB,
+    "kb-index": DOMAIN_KB,
+}

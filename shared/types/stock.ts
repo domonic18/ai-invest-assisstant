@@ -44,6 +44,8 @@ export interface StockKline {
   name: string
   period: string
   bars: StockKlineBar[]
+  /** 最近交易日（交易日历权威），前端据此判定 K 线落后并自动补采 */
+  latestTradeDate: string
 }
 
 export interface StockIntradayPoint {

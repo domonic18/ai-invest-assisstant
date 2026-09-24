@@ -168,7 +168,7 @@ class TestAnalyzeIndustryChain:
         """执行器路径：agent 循环输出合法 JSON → 后置校验剔除幻觉代码。"""
 
         class _FakeAgent:
-            async def ainvoke(self, payload: dict) -> dict:
+            async def ainvoke(self, payload: dict, config: dict | None = None) -> dict:
                 return {
                     "messages": [
                         SimpleNamespace(
@@ -194,8 +194,8 @@ class TestAnalyzeIndustryChain:
         )
         with (
             patch(
-                "app.agent.skills.industry_chain_analysis.resolve_default_llm",
-                AsyncMock(return_value=cfg),
+                "app.agent.skills.industry_chain_analysis.resolve_llm",
+                AsyncMock(return_value=(cfg, "system")),
             ),
             patch(
                 "app.agent.skills.industry_chain_analysis.build_langchain_model",

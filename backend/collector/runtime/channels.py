@@ -38,7 +38,6 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
             "index-kline",
             "auction",
             "macro",
-            "news",
             "quote",
             "stock-list",
             "market-breadth",
@@ -46,6 +45,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
             "index-minute",
             "stock-minute",
             "etf-kline",
+            "a50-kline",
         ],
         "extra": {},
     },
@@ -61,12 +61,14 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
             "research-report",
             "fund-holdings",
             "financial-report",
+            "financial-statement",
             "limit-up-pool",
             "broken-pool",
             "limit-down-pool",
             "a50-kline",
             "global-index",
             "sector-quote",
+            "news",
         ],
         "extra": {},
     },
@@ -75,7 +77,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "name": "同花顺",
         "base_url": None,
         "is_enabled": True,
-        "supported_data_types": ["kline", "auction", "sector-fund-flow", "concept-constituents"],
+        "supported_data_types": ["kline", "auction", "sector-fund-flow", "concept-constituents", "sector-kline"],
         "extra": {},
     },
     {
@@ -91,7 +93,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
         "name": "Tushare Pro",
         "base_url": "http://api.tushare.pro",
         "is_enabled": True,
-        "supported_data_types": ["index-auction", "global-index"],
+        "supported_data_types": ["index-auction", "global-index", "stock-shares"],
         "extra": {},
     },
     {
@@ -121,9 +123,17 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
     {
         "source": "cme",
         "name": "CME",
-        "base_url": None,
+        "base_url": "https://cmegroup-tools.quikstrike.net",
         "is_enabled": True,
         "supported_data_types": ["fed-watch"],
+        "extra": {},
+    },
+    {
+        "source": "douyin",
+        "name": "抖音",
+        "base_url": "https://www.douyin.com",
+        "is_enabled": True,
+        "supported_data_types": ["social-video"],
         "extra": {},
     },
     {
@@ -164,6 +174,11 @@ async def seed_default_channels(session: AsyncSession) -> None:
             merged_types = sorted(current_types | default_types)
             if merged_types != sorted(current_types):
                 config.supported_data_types = merged_types
+                updated += 1
+            # 历史行可能早于种子补 URL：仅回填空值，管理员自定义的非空值保留
+            default_base_url = data.get("base_url")
+            if config.base_url is None and default_base_url:
+                config.base_url = default_base_url
                 updated += 1
             continue
         session.add(

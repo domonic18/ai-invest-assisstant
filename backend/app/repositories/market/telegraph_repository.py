@@ -1,11 +1,13 @@
 """财联社电报查询仓储。"""
 
-from datetime import datetime
+from datetime import date, datetime, time, timedelta, timezone
+from typing import Any
 
-from sqlalchemy import String, and_, cast, func, select
+from sqlalchemy import String, and_, cast, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
+from app.core.clock import CN_TZ
 from app.core.constants import NEWS_SOURCE_TELEGRAPH
 from app.models.news_ai_score import NewsAiScore
 from app.models.news_telegraph import NewsTelegraph
@@ -77,6 +79,40 @@ async def list_telegraph(
     return [(row[0], row[1], row[2]) for row in rows], int(total)
 
 
+async def list_top_telegraph(
+    session: AsyncSession,
+    day: date,
+    *,
+    min_score: int = 70,
+    limit: int = 8,
+) -> list[tuple[NewsTelegraph, int, dict[str, Any] | None]]:
+    """当日 CN 日历日的 AI 高分重点电报（score 降序），供复盘消息面取数。
+
+    Args:
+        session: 数据库会话。
+        day: CN 日历日（publish_time 落在该日 00:00-24:00）。
+        min_score: AI 重要度下限（默认 70，重点要闻阈值）。
+        limit: 返回条数上限。
+
+    Returns:
+        (电报行, ai_score, score_detail) 列表。
+    """
+    day_start = datetime.combine(day, time.min, CN_TZ).astimezone(timezone.utc)
+    stmt = (
+        select(NewsTelegraph, NewsAiScore.score, NewsAiScore.score_detail)
+        .join(NewsAiScore, _score_join)
+        .where(
+            NewsTelegraph.publish_time >= day_start,
+            NewsTelegraph.publish_time < day_start + timedelta(days=1),
+            NewsAiScore.score >= min_score,
+        )
+        .order_by(NewsAiScore.score.desc(), NewsTelegraph.publish_time.desc())
+        .limit(limit)
+    )
+    rows = list((await session.execute(stmt)).all())
+    return [(row[0], row[1], row[2]) for row in rows]
+
+
 def _subscription_hit_exists(user_id: int) -> ColumnElement[bool]:
     """「电报被该用户任一启用订阅命中」EXISTS 条件（subscription_only 过滤）。"""
     return (
@@ -111,3 +147,52 @@ async def today_overview(
         await session.execute(select(func.max(NewsTelegraph.publish_time)).where(scope))
     ).scalar_one_or_none()
     return total, latest
+
+
+async def admin_list_telegraph(
+    session: AsyncSession,
+    *,
+    q: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[TelegraphRow], int]:
+    """后台电报查询：关键词（标题/正文）+ 发布日期区间 + 分页，左联 AI 分级。"""
+    conditions: list[ColumnElement[bool]] = []
+    if q:
+        pattern = f"%{q}%"
+        conditions.append(
+            NewsTelegraph.title.ilike(pattern) | NewsTelegraph.content.ilike(pattern)
+        )
+    if start_date:
+        conditions.append(NewsTelegraph.publish_time >= start_date)
+    if end_date:
+        conditions.append(NewsTelegraph.publish_time < end_date + timedelta(days=1))
+
+    stmt = (
+        select(NewsTelegraph, NewsAiScore.score, NewsAiScore.scored_at)
+        .select_from(NewsTelegraph)
+        .outerjoin(NewsAiScore, _score_join)
+    )
+    count_stmt = select(func.count()).select_from(NewsTelegraph)
+    if conditions:
+        stmt = stmt.where(*conditions)
+        count_stmt = count_stmt.where(*conditions)
+
+    total = (await session.execute(count_stmt)).scalar_one()
+    stmt = (
+        stmt.order_by(NewsTelegraph.publish_time.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    rows = list((await session.execute(stmt)).all())
+    return [(row[0], row[1], row[2]) for row in rows], int(total)
+
+
+async def delete_telegraph_by_ids(session: AsyncSession, ids: list[int]) -> int:
+    """按主键批量删除电报，返回删除条数。"""
+    result = await session.execute(
+        delete(NewsTelegraph).where(NewsTelegraph.id.in_(ids))
+    )
+    return int(getattr(result, "rowcount", 0) or 0)

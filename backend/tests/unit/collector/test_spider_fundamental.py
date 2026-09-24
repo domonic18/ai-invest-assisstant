@@ -3,6 +3,7 @@
 
 import datetime
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -286,3 +287,109 @@ class TestEastMoneyFundHoldingsCollector:
         )
         item = {"stock_code": "000001"}
         assert await collector.validate(item) is False
+
+
+@pytest.mark.unit
+class TestTushareStockBasicCollector:
+    """tushare daily_basic 股本采集：万股换算 + 市场后缀映射 + symbols 过滤。"""
+
+    @staticmethod
+    def _patched_fixed_day() -> Any:
+        return patch(
+            "collector.spiders.tushare_stock_basic.latest_trading_day",
+            lambda today=None: datetime.date(2026, 9, 11),
+        )
+
+    @staticmethod
+    def _frames_df() -> Any:
+        import pandas as pd
+
+        return pd.DataFrame(
+            [
+                {
+                    "ts_code": "688322.SH",
+                    "total_share": 40106.0,
+                    "float_share": 8217.0,
+                },
+                {
+                    "ts_code": "000001.SZ",
+                    "total_share": 1940591.8198,
+                    "float_share": None,
+                },
+                {
+                    "ts_code": "999999.XX",
+                    "total_share": 1.0,
+                    "float_share": 1.0,
+                },
+            ]
+        )
+
+    @pytest.mark.asyncio
+    async def test_collect_converts_and_maps_market(self) -> None:
+        import pandas as pd
+
+        from collector.spiders.tushare_stock_basic import TushareStockBasicCollector
+
+        collector = TushareStockBasicCollector(
+            {"source": "tushare", "data_type": "stock_shares", "api_key": "tok"}
+        )
+        pro = MagicMock()
+        pro.daily_basic.side_effect = [self._frames_df(), pd.DataFrame()]
+        with patch("tushare.pro_api", return_value=pro), self._patched_fixed_day():
+            raw = await collector.collect()
+
+        assert len(raw) == 2  # 未知市场后缀被过滤
+        ob = next(item for item in raw if item["stock_code"] == "688322")
+        assert ob["market"] == "sh"
+        assert ob["total_shares"] == 40106.0 * 10000
+        assert ob["circulating_shares"] == 8217.0 * 10000
+        pa = next(item for item in raw if item["stock_code"] == "000001")
+        assert pa["market"] == "sz"
+        assert pa["circulating_shares"] is None
+        assert pro.daily_basic.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_collect_filters_by_symbols(self) -> None:
+        import pandas as pd
+
+        from collector.spiders.tushare_stock_basic import TushareStockBasicCollector
+
+        collector = TushareStockBasicCollector(
+            {"source": "tushare", "data_type": "stock_shares", "api_key": "tok"}
+        )
+        pro = MagicMock()
+        pro.daily_basic.side_effect = [self._frames_df(), pd.DataFrame()]
+        with patch("tushare.pro_api", return_value=pro), self._patched_fixed_day():
+            raw = await collector.collect(symbols=["688322"])
+
+        assert [item["stock_code"] for item in raw] == ["688322"]
+
+    @pytest.mark.asyncio
+    async def test_collect_falls_back_to_previous_trading_day(self) -> None:
+        import pandas as pd
+
+        from collector.spiders.tushare_stock_basic import TushareStockBasicCollector
+
+        collector = TushareStockBasicCollector(
+            {"source": "tushare", "data_type": "stock_shares", "api_key": "tok"}
+        )
+        pro = MagicMock()
+        pro.daily_basic.side_effect = [
+            pd.DataFrame(),
+            self._frames_df(),
+        ]
+        with patch("tushare.pro_api", return_value=pro), self._patched_fixed_day():
+            raw = await collector.collect(symbols=["688322"])
+
+        assert [item["stock_code"] for item in raw] == ["688322"]
+        assert pro.daily_basic.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_collect_requires_api_key(self) -> None:
+        from collector.spiders.tushare_stock_basic import TushareStockBasicCollector
+
+        collector = TushareStockBasicCollector(
+            {"source": "tushare", "data_type": "stock_shares"}
+        )
+        with pytest.raises(ValueError, match="api_key"):
+            await collector.collect()

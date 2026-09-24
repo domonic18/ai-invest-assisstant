@@ -1,109 +1,63 @@
+/**
+ * K 线 option 主装配：主图（蜡烛/MA/最新价胶囊/事件竖线）+ 副图拼装 + tooltip + dataZoom。
+ * 数据准备见 klineData.ts，窗格布局与副图构建见 klinePanes.ts。
+ */
+
 import type { EChartsOption, TitleComponentOption } from 'echarts'
 
 import dayjs from 'dayjs'
 
+import { fmt, FONT_MONO, lastPriceLabel, signed, WEEKDAYS } from '@/components/charts/chartShared'
 import { fallHex, riseHex } from '@/utils/formatters'
-import { calculateMACD, calculateKDJ } from '@/utils/indicators'
 import { deriveAmplitude, deriveBarChange, formatWanShou } from '@/utils/kline'
-import { movingAverage } from '@/utils/movingAverage'
-import type { MovingAverageConfig, StockKline, StockKlineBar } from '@ai-invest/shared'
 
 import type { StockChartViewIndicators } from './StockChartView'
-import {
-  BORDER_COLOR,
-  GRID_COLOR,
-  TEXT_MAIN,
-  TEXT_MUTED,
-} from './constants'
+import { BORDER_COLOR, GRID_COLOR, TEXT_MAIN, TEXT_MUTED } from './constants'
+import type { KlineChartData } from './klineData'
+import { buildSubPane, computePaneLayout } from './klinePanes'
 
 const ACCENT = '#5e6ad2'
 const ACCENT_SOFT = 'rgba(94,106,210,0.18)'
-const FONT_MONO = "'SF Mono','Fira Code','Consolas',monospace"
-const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
-export interface KlineChartData {
-  dates: string[]
-  bars: StockKlineBar[]
-  opens: number[]
-  closes: number[]
-  highs: number[]
-  lows: number[]
-  volumes: number[]
-  mas: { period: number; color: string; values: (number | null)[] }[]
-  macd: ReturnType<typeof calculateMACD>
-  kdj: ReturnType<typeof calculateKDJ>
+/** 默认缩放窗口（dataZoom start:50 / end:100），与 option 中两条 dataZoom 一致。 */
+export const DEFAULT_ZOOM_START = 50
+export const DEFAULT_ZOOM_END = 100
+
+export interface PriceAxisRange {
+  yMin: number
+  yMax: number
+  pctMin: number
+  pctMax: number
 }
 
-export function prepareKlineData(
-  kline: StockKline,
-  maConfigs: MovingAverageConfig[],
-): KlineChartData {
-  const bars = kline.bars
-  const dates = bars.map((b) => b.date)
-  const opens = bars.map((b) => b.open)
-  const closes = bars.map((b) => b.close)
-  const highs = bars.map((b) => b.high)
-  const lows = bars.map((b) => b.low)
-  const volumes = bars.map((b) => b.volume)
-
-  const mas = maConfigs
-    .filter((cfg) => cfg.enabled)
-    .map((cfg) => ({
-      period: cfg.period,
-      color: cfg.color,
-      values: movingAverage(closes, cfg.period),
-    }))
-
-  return {
-    dates,
-    bars,
-    opens,
-    closes,
-    highs,
-    lows,
-    volumes,
-    mas,
-    macd: calculateMACD(closes),
-    kdj: calculateKDJ(highs, lows, closes),
-  }
+/** computePriceAxisRange 所需的最小 bar 形状（个股/指数 K 线共用）。 */
+export interface PriceRangeBar {
+  low: number | null
+  high: number | null
+  close: number | null
 }
 
-interface PaneRect {
-  top: number
-  height: number
-}
-
-/** 按总高与副图数分配窗格：1 副 64/36，2 副 52/24/24，3 副 52/24/24。 */
-function computePaneLayout(height: number, subCount: number): PaneRect[] {
-  const topReserve = 8
-  const bottomReserve = 34
-  const gap = 6
-  const usable = Math.max(height - topReserve - bottomReserve - gap * subCount, 120)
-  const ratios =
-    subCount === 0
-      ? [1]
-      : subCount === 1
-        ? [0.64, 0.36]
-        : subCount === 2
-          ? [0.52, 0.24, 0.24]
-          : [0.52, 0.24, 0.24]
-  const panes: PaneRect[] = []
-  let cursor = topReserve
-  for (const ratio of ratios) {
-    const h = Math.round(usable * ratio)
-    panes.push({ top: cursor, height: h })
-    cursor += h + gap
-  }
-  return panes
-}
-
-function fmt(v: number | null | undefined, decimals = 2): string {
-  return v == null ? '--' : v.toFixed(decimals)
-}
-
-function signed(v: number | null | undefined, decimals = 2): string {
-  if (v == null) return '--'
-  return `${v > 0 ? '+' : ''}${v.toFixed(decimals)}`
+/**
+ * 按可见窗口 [startIdx, endIdx] 计算主图右轴（价格）与左轴（相对首根收盘的涨跌幅）范围。
+ * 键盘/滑块缩放后由 datazoom 事件重算，使纵轴随可见区间自适应（对齐同花顺行为）。
+ */
+export function computePriceAxisRange(
+  bars: PriceRangeBar[],
+  startIdx: number,
+  endIdx: number,
+): PriceAxisRange {
+  const slice = bars.slice(startIdx, endIdx + 1)
+  const lows = slice.map((b) => b.low).filter((v): v is number => v != null)
+  const highs = slice.map((b) => b.high).filter((v): v is number => v != null)
+  const pMin = lows.length > 0 ? Math.min(...lows) : 0
+  const pMax = highs.length > 0 ? Math.max(...highs) : 0
+  const pad = (pMax - pMin) * 0.05 || 1
+  const yMin = pMin - pad
+  const yMax = pMax + pad
+  const baseClose = bars[0]?.close
+  const toPct = (v: number): number =>
+    baseClose ? (v / baseClose - 1) * 100 : 0
+  return { yMin, yMax, pctMin: toPct(yMin), pctMax: toPct(yMax) }
 }
 
 function pctLabel(v: number): string {
@@ -116,6 +70,7 @@ export function buildKlineOption(
   data: KlineChartData,
   indicators: StockChartViewIndicators,
   height: number,
+  markers?: { date: string; label?: string }[],
 ): EChartsOption {
   const upColor = riseHex()
   const downColor = fallHex()
@@ -132,8 +87,8 @@ export function buildKlineOption(
   const xAxes: EChartsOption['xAxis'] = []
   const yAxes: EChartsOption['yAxis'] = []
   const series: EChartsOption['series'] = []
+  const titles: TitleComponentOption[] = []
   // yAxis 0=主图价格(右) 1=主图涨跌幅(左)，随后每个副图一根
-  const subYAxisStart = 2
 
   // 主图
   grids.push({ left: 46, right: 60, top: layout[0].top, height: layout[0].height })
@@ -149,15 +104,15 @@ export function buildKlineOption(
     max: 'dataMax',
   })
 
-  // 右轴价格：区间随数据显式固定，供左轴涨跌幅同比例映射
-  const pMin = Math.min(...data.lows)
-  const pMax = Math.max(...data.highs)
-  const pad = (pMax - pMin) * 0.05 || 1
-  const yMin = pMin - pad
-  const yMax = pMax + pad
-  const baseClose = bars[0]?.close
-  const toPct = (v: number): number =>
-    baseClose ? (v / baseClose - 1) * 100 : 0
+  // 右轴价格：按默认缩放窗口（后 50%）可见区间定标，缩放后由 datazoom 事件重算
+  const initStartIdx = Math.floor(
+    ((bars.length - 1) * DEFAULT_ZOOM_START) / 100,
+  )
+  const { yMin, yMax, pctMin, pctMax } = computePriceAxisRange(
+    bars,
+    initStartIdx,
+    bars.length - 1,
+  )
 
   yAxes.push({
     position: 'right',
@@ -169,8 +124,8 @@ export function buildKlineOption(
   })
   yAxes.push({
     position: 'left',
-    min: toPct(yMin),
-    max: toPct(yMax),
+    min: pctMin,
+    max: pctMax,
     axisLabel: {
       fontSize: 10,
       formatter: (v: number) => pctLabel(Number(v)),
@@ -184,13 +139,27 @@ export function buildKlineOption(
     axisLine: { show: false },
   })
 
-  // 最新价胶囊（右轴端点）
+  // 最新价胶囊（右轴端点）+ 事件日竖线标注（仅渲染命中横轴的日期）
   const lastIdx = bars.length - 1
   const lastBar = bars[lastIdx]
   const lastPrevClose = lastIdx > 0 ? bars[lastIdx - 1].close : null
   const { changePct: lastChangePct } = deriveBarChange(lastBar, lastPrevClose)
   const tagColor =
     lastChangePct == null ? TEXT_MUTED : lastChangePct >= 0 ? upColor : downColor
+
+  const anomalyLineData = (markers ?? [])
+    .filter((m) => data.dates.includes(m.date))
+    .map((m) => ({
+      xAxis: m.date,
+      lineStyle: { color: '#d4a017', type: 'dashed' as const, width: 1, opacity: 0.9 },
+      label: {
+        show: true,
+        position: 'insideEndTop' as const,
+        formatter: m.label ?? m.date,
+        color: '#d4a017',
+        fontSize: 9,
+      },
+    }))
 
   series.push({
     name: 'K线',
@@ -206,19 +175,11 @@ export function buildKlineOption(
       silent: true,
       symbol: ['none', 'none'],
       lineStyle: { color: tagColor, type: 'dashed', width: 1, opacity: 0.7 },
-      label: {
-        show: true,
-        position: 'end',
-        formatter: fmt(lastBar?.close),
-        backgroundColor: tagColor,
-        color: '#fff',
-        borderRadius: 3,
-        padding: [1, 5],
-        fontSize: 10,
-        fontFamily: FONT_MONO,
-        distance: 2,
-      },
-      data: lastBar ? [{ yAxis: lastBar.close }] : [],
+      label: lastPriceLabel(lastBar?.close, tagColor),
+      data: [
+        ...(lastBar ? [{ yAxis: lastBar.close }] : []),
+        ...anomalyLineData,
+      ],
     },
   })
 
@@ -242,184 +203,18 @@ export function buildKlineOption(
     { key: 'kdj' as const, on: indicators.kdj },
   ].filter((d) => d.on)
 
-  // 副图左上角图例（名称 + 最新值），配色与原型一致
-  const lastNum = (arr: (number | null)[]): number | null =>
-    arr.length ? arr[arr.length - 1] : null
-  const fmtNum = (v: number | null, decimals = 2): string =>
-    v == null ? '--' : v.toFixed(decimals)
-  const titles: TitleComponentOption[] = []
-
   subDefs.forEach((sub, i) => {
-    const pane = layout[i + 1]
-    const isLast = i === subDefs.length - 1
-    const yAxisIndex = subYAxisStart + i
-    const legendTop = pane.top + 2
-    if (sub.key === 'volume') {
-      titles.push({
-        text: 'VOL(万手)',
-        left: 50,
-        top: legendTop,
-        textStyle: { fontSize: 11, color: TEXT_MUTED, fontWeight: 600 },
-      })
-    } else if (sub.key === 'macd') {
-      const dif = lastNum(data.macd.dif)
-      const dea = lastNum(data.macd.dea)
-      const bar = lastNum(data.macd.macd)
-      titles.push({
-        left: 50,
-        top: legendTop,
-        text: `MACD(12,26,9) {dif|DIF: ${fmtNum(dif)}} {dea|DEA: ${fmtNum(dea)}} {bar|${bar == null ? '--' : signed(bar)}}`,
-        textStyle: {
-          fontSize: 11,
-          color: TEXT_MUTED,
-          fontWeight: 600,
-          rich: {
-            dif: { color: '#f0f1f5', fontSize: 11, fontFamily: FONT_MONO },
-            dea: { color: '#d29922', fontSize: 11, fontFamily: FONT_MONO },
-            bar: {
-              color: bar != null && bar >= 0 ? upColor : downColor,
-              fontSize: 11,
-              fontFamily: FONT_MONO,
-            },
-          },
-        },
-      })
-    } else {
-      const k = lastNum(data.kdj.k)
-      const d = lastNum(data.kdj.d)
-      const j = lastNum(data.kdj.j)
-      titles.push({
-        left: 50,
-        top: legendTop,
-        text: `KDJ(9,3,3) {k|K: ${fmtNum(k, 1)}} {d|D: ${fmtNum(d, 1)}} {j|J: ${fmtNum(j, 1)}}`,
-        textStyle: {
-          fontSize: 11,
-          color: TEXT_MUTED,
-          fontWeight: 600,
-          rich: {
-            k: { color: '#f0f1f5', fontSize: 11, fontFamily: FONT_MONO },
-            d: { color: '#d29922', fontSize: 11, fontFamily: FONT_MONO },
-            j: { color: '#a855f7', fontSize: 11, fontFamily: FONT_MONO },
-          },
-        },
-      })
-    }
-    grids.push({ left: 46, right: 60, top: pane.top, height: pane.height })
-    xAxes.push({
-      type: 'category',
-      gridIndex: yAxisIndex - 1,
-      data: dates,
-      axisLabel: isLast
-        ? {
-            show: true,
-            color: TEXT_MUTED,
-            fontSize: 10,
-            interval: Math.floor(dates.length / 6),
-          }
-        : { show: false },
-      axisTick: { show: false },
-      axisLine: isLast ? { lineStyle: { color: BORDER_COLOR } } : { show: false },
-    })
-    yAxes.push({
-      gridIndex: yAxisIndex - 1,
-      axisLabel:
-        sub.key === 'volume'
-          ? {
-              show: true,
-              color: TEXT_MUTED,
-              fontSize: 9,
-              formatter: (v: number) => (Number(v) === 0 ? '0' : `${(Number(v) / 1e6).toFixed(0)}`),
-            }
-          : {
-              show: true,
-              color: TEXT_MUTED,
-              fontSize: 9,
-              formatter: (v: number) => Number(v).toFixed(sub.key === 'kdj' ? 1 : 2),
-            },
-      splitLine: { show: false },
-      axisLine: { show: false },
-    })
-
-    if (sub.key === 'volume') {
-      series.push({
-        name: '成交量',
-        type: 'bar',
-        xAxisIndex: yAxisIndex - 1,
-        yAxisIndex,
-        data: data.volumes.map((v, idx) => ({
-          value: v,
-          itemStyle: { color: data.closes[idx] >= data.opens[idx] ? upColor : downColor },
-        })),
-      })
-    } else if (sub.key === 'macd') {
-      series.push(
-        {
-          name: 'MACD',
-          type: 'bar',
-          xAxisIndex: yAxisIndex - 1,
-          yAxisIndex,
-          data: data.macd.macd.map((v) => ({
-            value: v,
-            itemStyle: { color: v != null && v >= 0 ? upColor : downColor },
-          })),
-          markLine: {
-            silent: true,
-            symbol: 'none',
-            label: { show: false },
-            lineStyle: { color: '#2e323c', type: 'dashed', width: 1 },
-            data: [{ yAxis: 0 }],
-          },
-        },
-        {
-          name: 'DIF',
-          type: 'line',
-          xAxisIndex: yAxisIndex - 1,
-          yAxisIndex,
-          data: data.macd.dif,
-          showSymbol: false,
-          lineStyle: { color: '#f0f1f5', width: 1 },
-        },
-        {
-          name: 'DEA',
-          type: 'line',
-          xAxisIndex: yAxisIndex - 1,
-          yAxisIndex,
-          data: data.macd.dea,
-          showSymbol: false,
-          lineStyle: { color: '#d29922', width: 1 },
-        },
-      )
-    } else {
-      series.push(
-        {
-          name: 'K',
-          type: 'line',
-          xAxisIndex: yAxisIndex - 1,
-          yAxisIndex,
-          data: data.kdj.k,
-          showSymbol: false,
-          lineStyle: { color: '#f0f1f5', width: 1 },
-        },
-        {
-          name: 'D',
-          type: 'line',
-          xAxisIndex: yAxisIndex - 1,
-          yAxisIndex,
-          data: data.kdj.d,
-          showSymbol: false,
-          lineStyle: { color: '#d29922', width: 1 },
-        },
-        {
-          name: 'J',
-          type: 'line',
-          xAxisIndex: yAxisIndex - 1,
-          yAxisIndex,
-          data: data.kdj.j,
-          showSymbol: false,
-          lineStyle: { color: '#a855f7', width: 1 },
-        },
-      )
-    }
+    const parts = buildSubPane(
+      sub.key,
+      layout[i + 1],
+      { index: i, isLast: i === subDefs.length - 1, up: upColor, down: downColor },
+      data,
+    )
+    titles.push(parts.title)
+    grids.push(parts.grid)
+    xAxes.push(parts.xAxis)
+    yAxes.push(parts.yAxis)
+    for (const s of parts.series) series.push(s)
   })
 
   return {
@@ -496,14 +291,14 @@ export function buildKlineOption(
     xAxis: xAxes,
     yAxis: yAxes,
     dataZoom: [
-      { type: 'inside', xAxisIndex: xAxes.map((_, i) => i), start: 50, end: 100 },
+      { type: 'inside', xAxisIndex: xAxes.map((_, i) => i), start: DEFAULT_ZOOM_START, end: DEFAULT_ZOOM_END },
       {
         show: true,
         xAxisIndex: xAxes.map((_, i) => i),
         type: 'slider',
         top: height - 28,
-        start: 50,
-        end: 100,
+        start: DEFAULT_ZOOM_START,
+        end: DEFAULT_ZOOM_END,
         height: 20,
         borderColor: BORDER_COLOR,
         backgroundColor: 'transparent',

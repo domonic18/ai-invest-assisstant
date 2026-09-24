@@ -9,12 +9,19 @@
 export const queryKeys = {
   admin: {
     news: ['admin-news'] as const,
+    telegraph: ['admin-telegraph'] as const,
     reports: ['admin-reports'] as const,
     stocks: ['admin-stocks'] as const,
     users: ['admin-users'] as const,
     tasks: ['admin-tasks'] as const,
     aiResults: ['admin-ai-results'] as const,
     aiResultSkills: ['admin-ai-result-skills'] as const,
+    pendingApplications: ['admin-pending-applications'] as const,
+    pendingCount: ['admin-pending-count'] as const,
+    usageDashboard: (days: number) => ['admin-usage-dashboard', days] as const,
+    usagePerUsers: (days: number) => ['admin-usage-per-users', days] as const,
+    accountSettings: ['admin-account-settings'] as const,
+    systemStatus: ['admin-system-status'] as const,
   },
   auction: {
     all: ['auction'] as const,
@@ -42,10 +49,17 @@ export const queryKeys = {
   },
   collector: {
     logs: ['collector-logs'] as const,
+    logSummary: ['collector-log-summary'] as const,
     taskCatalog: ['collector-task-catalog'] as const,
     taskChannels: (taskName: string) => ['collector-task-channels', taskName] as const,
     channels: ['collector-channel-configs'] as const,
     dataTypes: ['collector-data-type-channels'] as const,
+    healthAll: ['collector-health'] as const,
+    healthOverview: ['collector-health', 'overview'] as const,
+    healthTasks: (domain: string | null, status: string | null) =>
+      ['collector-health', 'tasks', domain, status] as const,
+    healthChannels: ['collector-health', 'channels'] as const,
+    healthScheduleCheck: (date: string) => ['collector-health', 'schedule-check', date] as const,
   },
   financial: {
     all: ['financial'] as const,
@@ -62,10 +76,62 @@ export const queryKeys = {
     sectorTrend: (sectorType: string, days: number) =>
       ['fund-flow', 'sector-trend', sectorType, days] as const,
   },
+  anomaly: {
+    all: ['anomaly'] as const,
+    sector: (tradeDate?: string, sectorType?: string) =>
+      ['anomaly', 'sector', tradeDate ?? null, sectorType ?? null] as const,
+    sectorDates: ['anomaly', 'sector-dates'] as const,
+    stock: (tradeDate?: string) => ['anomaly', 'stock', tradeDate ?? null] as const,
+    stockDates: ['anomaly', 'stock-dates'] as const,
+  },
+  sectorDetail: (sectorType: string, sectorCode: string) =>
+    ['sector-detail', sectorType, sectorCode] as const,
   hotspot: ['hotspot'] as const,
+  account: {
+    all: ['account'] as const,
+    quota: ['account', 'quota'] as const,
+    usage: (feature?: string) => ['account', 'usage', feature ?? null] as const,
+    llmConfig: ['account', 'llm-config'] as const,
+  },
   llmConfigs: ['llm-configs'] as const,
+  kb: {
+    all: ['kb'] as const,
+    settings: ['kb', 'settings'] as const,
+    usage: (
+      sourceId: number | null,
+      dateFrom: string | null,
+      dateTo: string | null
+    ) => ['kb', 'usage', sourceId, dateFrom, dateTo] as const,
+    sources: ['kb', 'sources'] as const,
+    media: (sourceId: number) => ['kb', 'media', sourceId] as const,
+    transcript: (sourceId: number, mediaId: number) =>
+      ['kb', 'transcript', sourceId, mediaId] as const,
+    chapters: (sourceId: number) => ['kb', 'chapters', sourceId] as const,
+    points: (sourceId: number, status: string | null, page: number, pageSize: number) =>
+      ['kb', 'points', sourceId, status, page, pageSize] as const,
+    images: (
+      sourceId: number,
+      mediaId: number | null,
+      status: string | null,
+      page: number,
+      pageSize: number
+    ) => ['kb', 'images', sourceId, mediaId, status, page, pageSize] as const,
+    search: (q: string, sourceId: number | null, chapterPath: string[], kind: string | null) =>
+      ['kb', 'search', q, sourceId, chapterPath, kind] as const,
+    chaptersPublished: (sourceId: number) =>
+      ['kb', 'chapters-published', sourceId] as const,
+  },
+  mcpServers: ['mcp-servers'] as const,
+  socialAdmin: {
+    accounts: (page: number, pageSize: number) =>
+      ['admin-social-accounts', page, pageSize] as const,
+    accountPosts: (accountId: number) =>
+      ['admin-social-account-posts', accountId] as const,
+    status: ['admin-social-status'] as const,
+    asrConfig: ['admin-social-asr-config'] as const,
+  },
   proxyConfigs: ['proxy-configs'] as const,
-  trackedIndexes: ['tracked-indexes'] as const,
+  trackedIndexOptions: ['tracked-index-options'] as const,
   market: {
     all: ['market'] as const,
     indices: (tradeDate?: string) => ['market', 'indices', tradeDate] as const,
@@ -79,6 +145,7 @@ export const queryKeys = {
     sectors: (tradeDate?: string) => ['market', 'sectors', tradeDate] as const,
     watchlistQuotes: ['market', 'watchlist-quotes'] as const,
     aiReview: (tradeDate?: string) => ['market', 'ai-review', tradeDate] as const,
+    aiReviewDates: ['market', 'ai-review-dates'] as const,
     globalIndices: ['market', 'global-indices'] as const,
     globalIndexHistory: (indexCode: string, months: number) =>
       ['market', 'global-index-history', indexCode, months] as const,
@@ -135,10 +202,20 @@ export const queryKeys = {
   news: {
     all: ['news'] as const,
     channels: ['news', 'channels'] as const,
+    flash: (page: number, pageSize: number) =>
+      ['news', 'flash', page, pageSize] as const,
     focus: ['news', 'focus'] as const,
     topics: (sessionKey: string) => ['news', 'topics', sessionKey] as const,
     story: (id: number) => ['news', 'story', id] as const,
     subscriptions: ['news', 'subscriptions'] as const,
+  },
+  social: {
+    all: ['social'] as const,
+    feed: (page: number, pageSize: number, filterKey: string) =>
+      ['social', 'feed', page, pageSize, filterKey] as const,
+    accounts: ['social', 'accounts'] as const,
+    timeline: (accountId: number, page: number, pageSize: number) =>
+      ['social', 'timeline', accountId, page, pageSize] as const,
   },
   users: {
     all: ['users'] as const,
@@ -148,5 +225,10 @@ export const queryKeys = {
     all: ['workbench'] as const,
     overview: ['workbench', 'overview'] as const,
     reviewStatus: ['workbench', 'reviewStatus'] as const,
+  },
+  klineDrawings: {
+    /** 全周期画线（period 为归属键，周期切换前端过滤） */
+    target: (targetType: string, targetCode: string) =>
+      ['kline-drawings', targetType, targetCode] as const,
   },
 } as const

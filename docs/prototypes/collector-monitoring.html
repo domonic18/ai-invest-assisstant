@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invest Assistant — 采集健康监测</title>
+<style>
+/* ======================================================
+   AI Invest Assistant — Design System
+   Inspired by SquadSight: dark, professional, tech-driven
+   ====================================================== */
+:root {
+  --bg: #0c0e12;
+  --bg-elevated: #111318;
+  --bg-surface: #181a21;
+  --bg-hover: #1c1f26;
+  --border: #23262d;
+  --border-hover: #2e323c;
+  --border-focus: #5e6ad2;
+  --text-primary: #f0f1f5;
+  --text-secondary: #8a8f98;
+  --text-tertiary: #5c616e;
+  --accent: #5e6ad2;
+  --accent-hover: #6872e3;
+  --accent-soft: rgba(94, 106, 210, 0.12);
+  --green: #2ea043;
+  --green-soft: rgba(46, 160, 67, 0.12);
+  --red: #f85149;
+  --red-soft: rgba(248, 81, 73, 0.12);
+  --amber: #d29922;
+  --amber-soft: rgba(210, 153, 34, 0.12);
+  --blue: #58a6ff;
+  --blue-soft: rgba(88, 166, 255, 0.12);
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
+  --sidebar-w: 220px;
+  --header-h: 56px;
+  --transition: 200ms ease;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 14px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); font-size: 14px; color: var(--text-primary); background: var(--bg); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
+a { color: var(--accent); text-decoration: none; }
+
+/* ======= Layout ======= */
+.app-layout { display: flex; min-height: 100vh; }
+.app-sidebar { width: var(--sidebar-w); background: var(--bg-elevated); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.app-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.app-header { height: var(--header-h); background: var(--bg-elevated); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; flex-shrink: 0; position: sticky; top: 0; z-index: 10; }
+.app-content { padding: 24px; max-width: 1440px; width: 100%; margin: 0 auto; }
+
+/* ======= Sidebar ======= */
+.sidebar-brand { padding: 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+.sidebar-logo { width: 34px; height: 34px; background: var(--accent); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.sidebar-logo svg { width: 18px; height: 18px; }
+.sidebar-brand-text { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.sidebar-version { font-size: 10px; color: var(--text-tertiary); margin-left: auto; }
+.sidebar-nav { padding: 8px; flex: 1; }
+.sidebar-section-title { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .08em; padding: 12px 10px 6px; font-weight: 600; }
+.sidebar-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary); cursor: pointer; transition: all var(--transition); }
+.sidebar-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sidebar-item.active { background: var(--accent-soft); color: var(--accent); }
+.sidebar-item-icon { opacity: .5; width: 16px; font-size: 12px; text-align: center; }
+.sidebar-item.active .sidebar-item-icon { opacity: 1; }
+.sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.sidebar-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; flex-shrink: 0; }
+.sidebar-user-info { font-size: 12px; color: var(--text-secondary); }
+
+/* ======= Cards / Tables / Buttons / Tags ======= */
+.card { background: var(--bg-elevated); border-radius: var(--radius-lg); }
+.card-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.card-title { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead { border-bottom: 1px solid var(--border); }
+th { text-align: left; padding: 10px 14px; font-weight: 500; color: var(--text-tertiary); font-size: 11px; white-space: nowrap; }
+td { padding: 10px 14px; color: var(--text-secondary); border-bottom: 1px solid var(--border); white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg-hover); }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all var(--transition); }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-secondary { background: var(--bg-surface); color: var(--text-secondary); border-color: var(--border); }
+.btn-secondary:hover { color: var(--text-primary); border-color: var(--border-hover); }
+.btn-ghost { background: transparent; color: var(--text-secondary); }
+.btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+.tag-green { background: var(--green-soft); color: #4ec964; }
+.tag-red { background: var(--red-soft); color: var(--red); }
+.tag-amber { background: var(--amber-soft); color: #e2b93b; }
+.tag-blue { background: var(--blue-soft); color: var(--blue); }
+.tag-gray { background: var(--bg-surface); color: var(--text-tertiary); }
+.tag-purple { background: var(--accent-soft); color: #8b93e8; }
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.dot-green { background: var(--green); }
+.dot-red { background: var(--red); }
+.dot-amber { background: var(--amber); }
+.dot-gray { background: var(--text-tertiary); }
+
+/* ======= Page ======= */
+.page-title { font-size: 20px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 4px; }
+.page-subtitle { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; }
+
+/* ① 常驻告警条 */
+.alert-banner { display: flex; align-items: center; gap: 12px; background: var(--red-soft); border: 1px solid rgba(248,81,73,.25); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 20px; font-size: 13px; }
+.alert-banner .alert-icon { font-size: 16px; }
+.alert-banner b { color: var(--text-primary); }
+.alert-banner .spacer { flex: 1; }
+
+/* ② 统计卡 */
+.stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 20px; }
+.stat-card { background: var(--bg-elevated); border-radius: var(--radius-lg); padding: 16px 18px; }
+.stat-label { font-size: 12px; color: var(--text-tertiary); margin-bottom: 8px; }
+.stat-value { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+.stat-value .unit { font-size: 13px; font-weight: 500; color: var(--text-tertiary); margin-left: 2px; }
+.stat-foot { font-size: 11px; margin-top: 8px; display: flex; align-items: center; gap: 6px; }
+.value-green { color: #4ec964; }
+.value-red { color: var(--red); }
+.value-amber { color: #e2b93b; }
+
+/* ③ 分域明细表 */
+.domain-row td { background: var(--bg-surface); color: var(--text-primary); font-weight: 600; font-size: 12px; padding: 8px 14px; }
+.mono { font-family: var(--font-mono); font-size: 12px; }
+.err-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; color: var(--text-tertiary); font-size: 12px; }
+.bar { height: 5px; border-radius: 3px; background: var(--bg-surface); width: 64px; display: inline-block; vertical-align: middle; margin-right: 8px; }
+.bar>i { display: block; height: 100%; border-radius: 3px; }
+.role-tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
+.role-primary { background: var(--blue-soft); color: var(--blue); }
+.role-backup { background: var(--bg-surface); color: var(--text-tertiary); }
+
+/* ④ 渠道卡 */
+.channel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.channel-card { background: var(--bg-elevated); border-radius: var(--radius-lg); padding: 16px 18px; }
+.channel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.channel-name { font-weight: 600; font-size: 14px; }
+.channel-meta { font-size: 12px; color: var(--text-tertiary); margin-bottom: 8px; }
+.cause-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.cause-chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--bg-surface); color: var(--text-secondary); }
+.cause-chip.hot { background: var(--red-soft); color: var(--red); }
+
+/* ⑤ 计划核对 */
+.check-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: start; }
+.timeline-item { display: flex; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--border); font-size: 13px; align-items: flex-start; }
+.timeline-item:last-child { border-bottom: none; }
+.tl-time { font-family: var(--font-mono); font-size: 12px; color: var(--text-tertiary); width: 78px; flex-shrink: 0; padding-top: 1px; }
+.footer-note { margin-top: 28px; padding: 14px 18px; background: var(--bg-surface); border-radius: var(--radius-md); font-size: 11px; color: var(--text-tertiary); line-height: 1.8; }
+.mb20 { margin-bottom: 20px; }
+.section-gap { height: 20px; }
+</style>
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- ======= Sidebar ======= -->
+  <aside class="app-sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="sidebar-brand-text">AI Invest</div>
+      <div class="sidebar-version">v1.3</div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
+      <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
+      <div class="sidebar-section-title">监测</div>
+      <a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
+      <a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
+      <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
+      <div class="sidebar-section-title">资讯</div>
+      <a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
+      <a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
+      <div class="sidebar-section-title">分析</div>
+      <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
+      <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
+      <div class="sidebar-section-title">设置</div>
+      <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
+      <a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
+      <a class="sidebar-item" href="admin.html"><span class="sidebar-item-icon">◈</span><span>后台管理</span></a>
+      <a class="sidebar-item active" href="collector-monitoring.html"><span class="sidebar-item-icon">◈</span><span>采集健康</span><span class="tag tag-red" style="margin-left:auto;padding:0 6px;">2</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-avatar">D</div>
+      <div class="sidebar-user-info"><div class="sidebar-user-name">Domonic</div><div>管理员</div></div>
+    </div>
+  </aside>
+
+  <!-- ======= Main ======= -->
+  <main class="app-main">
+    <header class="app-header">
+      <div style="font-size:14px;font-weight:600;">采集健康监测</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn btn-secondary btn-sm">近 24 小时</button>
+        <button class="btn btn-primary btn-sm">近 7 天</button>
+        <button class="btn btn-secondary btn-sm">近 30 天</button>
+        <button class="btn btn-ghost btn-sm">⟳</button>
+      </div>
+    </header>
+
+    <div class="app-content">
+      <div class="page-title">采集健康监测</div>
+      <div class="page-subtitle">判定时间 2026-09-13 09:30（北京时间）· 下次自动刷新 60s · 数据截至 09-11 收盘</div>
+
+      <!-- ① 常驻告警条（F-MON-01：存在 critical/silent 时常驻） -->
+      <div class="alert-banner">
+        <span class="alert-icon">⛔</span>
+        <span><b>2 项故障</b>：a50-kline 东财渠道连败 3 次（WAF 拦截，sina 主渠道兜底中）·<b>1 项静默</b>：概念成分股（ths）<b>49 天</b>无成功</span>
+        <span class="spacer"></span>
+        <button class="btn btn-secondary btn-sm">进入告警中心</button>
+      </div>
+
+      <!-- ② 健康统计卡（F-MON-01） -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">整体健康分</div>
+          <div class="stat-value value-amber">93<span class="unit">%</span></div>
+          <div class="stat-foot"><span class="dot dot-amber"></span>42/45 实例健康</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">进行中故障</div>
+          <div class="stat-value value-red">3</div>
+          <div class="stat-foot"><span class="dot dot-red"></span>critical 2 · silent 1</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">脱期任务（周五场次）</div>
+          <div class="stat-value value-red">2</div>
+          <div class="stat-foot"><span class="dot dot-amber"></span>执行但未成功</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">24h 采集成功率</div>
+          <div class="stat-value value-green">98.4<span class="unit">%</span></div>
+          <div class="stat-foot"><span class="dot dot-green"></span>较前日 +0.6pt</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">未认领告警</div>
+          <div class="stat-value value-amber">4</div>
+          <div class="stat-foot"><span class="dot dot-amber"></span>最早产生 09-10</div>
+        </div>
+      </div>
+
+      <!-- ③ 任务 × 渠道健康明细（F-MON-02） -->
+      <div class="card mb20">
+        <div class="card-header">
+          <div class="card-title">任务健康明细</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary btn-sm">全部域 ▾</button>
+            <button class="btn btn-secondary btn-sm">仅异常 ▾</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>任务类型</th><th>渠道</th><th>状态</th><th>7 天成功率</th><th>连败</th>
+                <th>距最近成功</th><th>最近错误</th><th style="text-align:right;">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="domain-row"><td colspan="8">K 线 · 7 实例（6 健康 / 1 异常）</td></tr>
+              <tr>
+                <td>a50-kline</td>
+                <td>sina<span class="role-tag role-primary">主</span></td>
+                <td><span class="tag tag-green"><span class="dot dot-green"></span>健康</span></td>
+                <td><span class="bar"><i style="width:100%;background:var(--green);"></i></span>100%</td>
+                <td>0</td><td>2 个计划窗口前</td><td class="err-cell">—</td>
+                <td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button></td>
+              </tr>
+              <tr>
+                <td>a50-kline</td>
+                <td>eastmoney<span class="role-tag role-backup">备</span></td>
+                <td><span class="tag tag-red"><span class="dot dot-red"></span>故障</span></td>
+                <td><span class="bar"><i style="width:23%;background:var(--red);"></i></span>23.1%</td>
+                <td><b style="color:var(--red);">3</b></td><td>1 天前</td>
+                <td class="err-cell">push2his.eastmoney.com Max retries exceeded…</td>
+                <td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button><button class="btn btn-ghost btn-sm">调试</button></td>
+              </tr>
+              <tr><td>kline</td><td>sina<span class="role-tag role-primary">主</span></td><td><span class="tag tag-green"><span class="dot dot-green"></span>健康</span></td><td><span class="bar"><i style="width:100%;background:var(--green);"></i></span>100%</td><td>0</td><td>上一交易日</td><td class="err-cell">—</td><td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button></td></tr>
+              <tr><td>index-kline / etf-kline / sector-kline</td><td>sina / ths</td><td><span class="tag tag-green"><span class="dot dot-green"></span>健康</span></td><td><span class="bar"><i style="width:97%;background:var(--green);"></i></span>96~100%</td><td>0</td><td>上一交易日</td><td class="err-cell">—</td><td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button></td></tr>
+
+              <tr class="domain-row"><td colspan="8">行情 · 12 实例（11 健康 / 1 观察）</td></tr>
+              <tr>
+                <td>quote</td>
+                <td>sina<span class="role-tag role-primary">主</span></td>
+                <td><span class="tag tag-amber"><span class="dot dot-amber"></span>观察</span></td>
+                <td><span class="bar"><i style="width:89%;background:var(--amber);"></i></span>89.0%</td>
+                <td>1</td><td>2 分钟前</td>
+                <td class="err-cell">Can not decode value starting with character '&lt;'（疑似限流）</td>
+                <td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button><button class="btn btn-ghost btn-sm">调试</button></td>
+              </tr>
+              <tr><td>index-spot</td><td>sina<span class="role-tag role-primary">主</span></td><td><span class="tag tag-green"><span class="dot dot-green"></span>健康</span></td><td><span class="bar"><i style="width:84%;background:var(--amber);"></i></span>83.9%*</td><td>0</td><td>上一交易日收盘</td><td class="err-cell">* 分钟级高频任务，按当日成功率豁免（当日 100%）</td><td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button></td></tr>
+              <tr><td>auction</td><td>sina 主 / ths 备</td><td><span class="tag tag-green">健康</span> <span class="tag tag-amber">备渠失效</span></td><td><span class="bar"><i style="width:97%;background:var(--green);"></i></span>97.4%</td><td>0</td><td>上一交易日 09:25</td><td class="err-cell">ths 备渠道 08-31 起无成功</td><td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button></td></tr>
+              <tr><td>global-index</td><td>eastmoney 主 / tushare·yahoo·mof 备</td><td><span class="tag tag-green"><span class="dot dot-green"></span>健康</span></td><td><span class="bar"><i style="width:100%;background:var(--green);"></i></span>100%</td><td>0</td><td>今晨收盘批次</td><td class="err-cell">—</td><td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button></td></tr>
+              <tr><td>index-minute / market-breadth / sector-quote / 其余 8 实例</td><td>sina / eastmoney</td><td><span class="tag tag-green"><span class="dot dot-green"></span>健康</span></td><td><span class="bar"><i style="width:98%;background:var(--green);"></i></span>91~100%</td><td>0</td><td>上一交易日</td><td class="err-cell">—</td><td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button></td></tr>
+
+              <tr class="domain-row"><td colspan="8">股池 / 资金流 · 6 实例（全部健康）</td></tr>
+              <tr><td>limit-up / limit-down / broken / dragon-list / fund-flow / sector-fund-flow</td><td>eastmoney（ths 备）</td><td><span class="tag tag-green"><span class="dot dot-green"></span>健康</span></td><td><span class="bar"><i style="width:97%;background:var(--green);"></i></span>89~100%</td><td>0</td><td>上一交易日收盘</td><td class="err-cell">—</td><td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button></td></tr>
+
+              <tr class="domain-row"><td colspan="8">资讯 · 5 实例 + 实时流（全部健康）</td></tr>
+              <tr><td>电报实时流</td><td>cls<span class="role-tag role-primary">流</span></td><td><span class="tag tag-green"><span class="dot dot-green"></span>live</span></td><td>心跳 12s 前</td><td>—</td><td>—</td><td class="err-cell">—</td><td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button></td></tr>
+              <tr><td>news / news-score / 订阅匹配 / 日历</td><td>eastmoney·sina / internal / cls</td><td><span class="tag tag-green"><span class="dot dot-green"></span>健康</span></td><td><span class="bar"><i style="width:99%;background:var(--green);"></i></span>99%+</td><td>0</td><td>5 分钟内</td><td class="err-cell">news-score 存在 source=unknown 日志 193 条（治理项）</td><td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button></td></tr>
+
+              <tr class="domain-row"><td colspan="8">基本面 · 10 实例（7 健康 / 1 静默 / 2 观察）</td></tr>
+              <tr>
+                <td>concept-constituents</td>
+                <td>ths<span class="role-tag role-primary">主</span></td>
+                <td><span class="tag tag-red"><span class="dot dot-red"></span>静默</span></td>
+                <td><span class="bar"><i style="width:0%;background:var(--red);"></i></span>0%</td>
+                <td><b style="color:var(--red);">49 天</b></td><td><b style="color:var(--red);">07-26</b></td>
+                <td class="err-cell">任务启用中但长期无任何成功记录</td>
+                <td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button><button class="btn btn-secondary btn-sm">补跑</button></td>
+              </tr>
+              <tr>
+                <td>concept-constituents</td>
+                <td>eastmoney<span class="role-tag role-backup">备</span></td>
+                <td><span class="tag tag-amber"><span class="dot dot-amber"></span>降级</span></td>
+                <td><span class="bar"><i style="width:64%;background:var(--amber);"></i></span>64.0%</td>
+                <td>2</td><td>上一交易日</td>
+                <td class="err-cell">解析失败（疑似接口变更）</td>
+                <td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button><button class="btn btn-ghost btn-sm">调试</button></td>
+              </tr>
+              <tr><td>financial-report / disclosure / profile / ipo</td><td>cninfo</td><td><span class="tag tag-green"><span class="dot dot-green"></span>健康</span></td><td><span class="bar"><i style="width:100%;background:var(--green);"></i></span>100%</td><td>0</td><td>本周批次</td><td class="err-cell">—</td><td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button></td></tr>
+              <tr><td>research-report / stock-list / stock-shares / 其余</td><td>eastmoney / sina / tushare</td><td><span class="tag tag-green"><span class="dot dot-green"></span>健康</span></td><td><span class="bar"><i style="width:98%;background:var(--green);"></i></span>97~100%</td><td>0</td><td>今日批次</td><td class="err-cell">—</td><td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button></td></tr>
+
+              <tr class="domain-row"><td colspan="8">AI 产出 · 9 实例（7 健康 / 1 故障 / 1 降级）</td></tr>
+              <tr>
+                <td>stock-daily-analysis</td>
+                <td>internal<span class="role-tag role-primary">定时</span></td>
+                <td><span class="tag tag-red"><span class="dot dot-red"></span>故障</span></td>
+                <td><span class="bar"><i style="width:59%;background:var(--red);"></i></span>59.3%</td>
+                <td><b style="color:var(--red);">3 个交易日</b></td><td><b style="color:var(--red);">09-09</b></td>
+                <td class="err-cell">输入未就绪退避耗尽（自选 K 线缺失）</td>
+                <td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button><button class="btn btn-secondary btn-sm">补跑</button></td>
+              </tr>
+              <tr><td>market-daily-review</td><td>internal</td><td><span class="tag tag-amber"><span class="dot dot-amber"></span>降级</span></td><td><span class="bar"><i style="width:76%;background:var(--amber);"></i></span>76%</td><td>1</td><td>周五 16:30</td><td class="err-cell">偶发输出解析失败（已自动重试）</td><td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button></td></tr>
+              <tr><td>limit-up-review / news-score / storyline / topic / chain-refresh / sector·stock-anomaly</td><td>internal</td><td><span class="tag tag-green"><span class="dot dot-green"></span>健康</span></td><td><span class="bar"><i style="width:100%;background:var(--green);"></i></span>99%+</td><td>0</td><td>周五收盘批次</td><td class="err-cell">skipped 均为良性（无新输入）</td><td style="text-align:right;"><button class="btn btn-ghost btn-sm">日志</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="section-gap"></div>
+
+      <!-- ④ 渠道健康视图（F-MON-04） + ⑤ 计划核对（F-MON-03） -->
+      <div class="check-grid">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">计划任务执行核对 · 2026-09-11（周五）</div>
+            <button class="btn btn-secondary btn-sm">选择日期</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>时间</th><th>任务实例</th><th>计划场次</th><th>实际结果</th><th>判定</th></tr></thead>
+              <tbody>
+                <tr><td class="tl-time">16:40</td><td>stock_daily_analysis_1640</td><td>每日收盘批次</td><td style="color:var(--red);">执行失败（退避 3 次耗尽）</td><td><span class="tag tag-red">失败</span></td></tr>
+                <tr><td class="tl-time">17:40 / 21:40</td><td>eastmoney_a50_kline</td><td>2 场次</td><td style="color:var(--red);">2 场均失败（WAF）</td><td><span class="tag tag-red">失败</span></td></tr>
+                <tr><td class="tl-time">16:30</td><td>market_daily_review_1630 / limit_up_ai_review_1630</td><td>每日收盘批次</td><td>成功产出</td><td><span class="tag tag-green">按期</span></td></tr>
+                <tr><td class="tl-time">16:45 / 17:00</td><td>sector / stock_anomaly_detect</td><td>每日收盘批次</td><td>成功产出</td><td><span class="tag tag-green">按期</span></td></tr>
+                <tr><td class="tl-time">16:00~16:05</td><td>股池四件套 / sector_quote / etf·index_kline / sector-fund-flow</td><td>收盘批次 ×10</td><td>全部成功</td><td><span class="tag tag-green">按期</span></td></tr>
+                <tr><td class="tl-time">09:15~09:29</td><td>ths_auction / tushare_index_auction</td><td>竞价窗口</td><td>sina 竞价成功；ths 场次 08-31 起无成功</td><td><span class="tag tag-amber">按期·备异常</span></td></tr>
+                <tr><td class="tl-time">09-12（周六）</td><td>全部交易日任务</td><td>—</td><td>交易日历豁免</td><td><span class="tag tag-gray">豁免</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <div class="card mb20">
+            <div class="card-header"><div class="card-title">渠道健康（7 天）</div><button class="btn btn-secondary btn-sm">详情</button></div>
+            <div style="padding: 6px 0;">
+              <div class="timeline-item"><span class="dot dot-green" style="margin-top:5px;"></span><div><b style="font-size:13px;">sina</b><div class="channel-meta">支撑 12 域 · 98.2% · 1 次尾盘异常待观察</div></div></div>
+              <div class="timeline-item"><span class="dot dot-red" style="margin-top:5px;"></span><div><b style="font-size:13px;">eastmoney</b><div class="channel-meta">支撑 14 域 · 91.7% · WAF 拦截 2 处</div></div></div>
+              <div class="timeline-item"><span class="dot dot-amber" style="margin-top:5px;"></span><div><b style="font-size:13px;">ths</b><div class="channel-meta">支撑 4 域 · 备渠两处长期失效</div></div></div>
+              <div class="timeline-item"><span class="dot dot-green" style="margin-top:5px;"></span><div><b style="font-size:13px;">cninfo / tushare / cls / internal</b><div class="channel-meta">支撑 12 域 · 99.5%+ · 正常</div></div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">错误归因分布（7 天）</div></div>
+            <div style="padding:14px 18px;">
+              <div class="cause-chips">
+                <span class="cause-chip hot">WAF/反爬 · 2 起故障</span>
+                <span class="cause-chip">限流 · 高频噪音（已豁免）</span>
+                <span class="cause-chip">接口变更/解析 · 2 处</span>
+                <span class="cause-chip">输入未就绪 · 1 起故障</span>
+                <span class="cause-chip">网络/超时 · 0</span>
+                <span class="cause-chip">认证/配额 · 0</span>
+              </div>
+              <div class="channel-meta" style="margin-top:12px;">点击归因类目过滤下方明细；归因规则由 error_msg 模式匹配（详见需求文档 4.3）</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-note">
+        需求对照：F-MON-01 总览仪表盘（告警条 / 统计卡）· F-MON-02 任务×渠道明细（分域表 / 操作闭环）· F-MON-03 计划核对（场次展开 + 豁免）· F-MON-04 渠道视图（错误归因）· F-MON-05 告警（角标 2 = 未认领 critical；阈值配置在告警中心）<br>
+        原型数据取自 2026-09-13 本地库实证（docs/requirement/02-monitoring-requirement.md §2.3），即验收对照样本。实现形态：后台采集管理新增「健康」Tab 或独立子页。
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

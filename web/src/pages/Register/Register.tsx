@@ -1,42 +1,68 @@
-import { LockOutlined, MailOutlined, UserOutlined } from '@ant-design/icons'
+import { CheckCircleFilled, LockOutlined, MailOutlined, UserOutlined } from '@ant-design/icons'
 import { Alert, Button, Card, Form, Input, Spin, Typography } from 'antd'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 import { register } from '@/api/auth'
 import { Brand } from '@/components/common/Brand'
-import { useAuthStore } from '@/stores/auth'
 
 interface RegisterFormValues {
   username: string
   email: string
   password: string
   confirmPassword: string
+  applicationNote?: string
 }
 
 export function Register() {
-  const navigate = useNavigate()
-  const authLogin = useAuthStore((state) => state.login)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [accepted, setAccepted] = useState(false)
 
   const handleSubmit = async (values: RegisterFormValues) => {
     setLoading(true)
     setError(null)
     try {
-      const result = await register({
+      await register({
         username: values.username,
         email: values.email,
         password: values.password,
+        applicationNote: values.applicationNote?.trim() || undefined,
       })
-      authLogin(result.accessToken, result.user)
-      navigate('/workbench')
+      setAccepted(true)
     } catch (err) {
       const message = err instanceof Error ? err.message : '注册失败，请重试'
       setError(message)
     } finally {
       setLoading(false)
     }
+  }
+
+  if (accepted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0c0e12] px-4">
+        <Card className="w-full max-w-md shadow-2xl" variant="borderless">
+          <div className="text-center mb-6">
+            <div className="flex justify-center mb-4">
+              <Brand size="lg" />
+            </div>
+            <CheckCircleFilled className="text-3xl text-[#4ade80] mb-3" />
+            <Typography.Title level={4} className="!mb-2">
+              注册申请已提交
+            </Typography.Title>
+            <Typography.Paragraph type="secondary" className="!text-sm">
+              您的申请已进入待审批状态，管理员审批通过后即可使用该账号登录，
+              审批结果以登录时的提示为准。
+            </Typography.Paragraph>
+          </div>
+          <Link to="/login">
+            <Button type="primary" size="large" block>
+              返回登录
+            </Button>
+          </Link>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -46,7 +72,7 @@ export function Register() {
           <div className="flex justify-center mb-4">
             <Brand size="lg" />
           </div>
-          <Typography.Text type="secondary">创建新账户</Typography.Text>
+          <Typography.Text type="secondary">申请创建新账户</Typography.Text>
         </div>
 
         {error && (
@@ -57,7 +83,6 @@ export function Register() {
           name="register"
           layout="vertical"
           onFinish={handleSubmit}
-          autoComplete="off"
         >
           <Form.Item
             label="用户名"
@@ -67,7 +92,7 @@ export function Register() {
               { min: 3, message: '用户名至少 3 个字符' },
             ]}
           >
-            <Input prefix={<UserOutlined />} placeholder="用户名" size="large" />
+            <Input prefix={<UserOutlined />} placeholder="用户名" size="large" autoComplete="username" />
           </Form.Item>
 
           <Form.Item
@@ -89,7 +114,7 @@ export function Register() {
               { min: 6, message: '密码至少 6 个字符' },
             ]}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="密码" size="large" />
+            <Input.Password prefix={<LockOutlined />} placeholder="密码" size="large" autoComplete="new-password" />
           </Form.Item>
 
           <Form.Item
@@ -108,12 +133,25 @@ export function Register() {
               }),
             ]}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="确认密码" size="large" />
+            <Input.Password prefix={<LockOutlined />} placeholder="确认密码" size="large" autoComplete="new-password" />
+          </Form.Item>
+
+          <Form.Item
+            label="申请说明（可选）"
+            name="applicationNote"
+            rules={[{ max: 500, message: '申请说明不超过 500 字' }]}
+          >
+            <Input.TextArea
+              placeholder="简单介绍自己与用途，帮助管理员审批"
+              rows={3}
+              showCount
+              maxLength={500}
+            />
           </Form.Item>
 
           <Form.Item>
             <Button type="primary" htmlType="submit" size="large" block disabled={loading}>
-              {loading ? <Spin size="small" /> : '注册'}
+              {loading ? <Spin size="small" /> : '提交申请'}
             </Button>
           </Form.Item>
         </Form>

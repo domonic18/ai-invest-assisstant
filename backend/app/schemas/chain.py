@@ -8,7 +8,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.schemas.base import CamelModel
 
@@ -30,8 +30,16 @@ class ChainNode(ChainModel):
     name: str
     type: str = Field(..., pattern="^(upstream|midstream|downstream)$")
     description: str = ""
-    companies: list[ChainCompany] = Field(default_factory=list)
+    companies: list[ChainCompany]
     avg_gross_margin: float | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_missing_companies(cls, data: object) -> object:
+        """旧快照缺 companies 键时补空（LLM 契约仍要求显式输出）。"""
+        if isinstance(data, dict):
+            data.setdefault("companies", [])
+        return data
     revenue_growth: float | None = None
     rd_ratio: float | None = None
     bargaining_power: float | None = None
@@ -101,9 +109,19 @@ class ChainAlertItem(ChainModel):
     alert_type: ChainAlertType
     severity: int
     title: str
-    description: str = ""
-    affected_segments: list[str] = Field(default_factory=list)
-    related_stock_codes: list[str] = Field(default_factory=list)
+    description: str
+    affected_segments: list[str]
+    related_stock_codes: list[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_missing_fields(cls, data: object) -> object:
+        """旧快照缺键时补空（LLM 契约仍要求显式输出全部键）。"""
+        if isinstance(data, dict):
+            data.setdefault("description", "")
+            data.setdefault("affected_segments", [])
+            data.setdefault("related_stock_codes", [])
+        return data
 
 
 class ChainAnalysisRequest(ChainModel):
@@ -114,16 +132,30 @@ class ChainAnalysisRequest(ChainModel):
 
 
 class ChainAnalysisResult(ChainModel):
-    """产业链分析结果，对齐 skills/industry-chain-analysis/SKILL.md 输出。"""
+    """产业链分析结果，对齐 skills/industry-chain-analysis/SKILL.md 输出。
+
+    顶层字段禁带默认值（默认值不进 required，LLM 会静默省略该字段，
+    news-score 空结果事故）；无数据的段落由 LLM 显式输出空列表/null。
+    """
 
     nodes: list[ChainNode]
     edges: list[ChainEdge]
     summary: str
-    value_distribution: ChainValueDistribution | None = None
-    opportunities: list[ChainOpportunity] = Field(default_factory=list)
-    risks: list[ChainRisk] = Field(default_factory=list)
-    key_companies_summary: list[KeyCompanySummary] = Field(default_factory=list)
-    alerts: list[ChainAlertItem] = Field(default_factory=list)
+    value_distribution: ChainValueDistribution | None
+    opportunities: list[ChainOpportunity]
+    risks: list[ChainRisk]
+    key_companies_summary: list[KeyCompanySummary]
+    alerts: list[ChainAlertItem]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_missing_sections(cls, data: object) -> object:
+        """旧快照缺段落键时补空（LLM 契约仍要求模型显式输出全部键）。"""
+        if isinstance(data, dict):
+            for key in ("opportunities", "risks", "key_companies_summary", "alerts"):
+                data.setdefault(key, [])
+            data.setdefault("value_distribution", None)
+        return data
 
     @field_validator("opportunities", mode="before")
     @classmethod
@@ -224,6 +256,14 @@ class ChainCompareResult(ChainModel):
     metric_changes: list[ChainCompareMetricChange] = Field(default_factory=list)
 
 
+class ChainAlertStockRef(ChainModel):
+    """产业链提醒关联标的（名称 + 当日涨跌幅，前端可点击跳个股页）。"""
+
+    code: str
+    name: str
+    change_pct: float | None = None
+
+
 class ChainAlertResponse(ChainModel):
     """GET /chain/alerts 列表项。"""
 
@@ -233,6 +273,6 @@ class ChainAlertResponse(ChainModel):
     title: str
     description: str
     affected_segments: list[str] = Field(default_factory=list)
-    related_stock_codes: list[str] = Field(default_factory=list)
+    related_stocks: list[ChainAlertStockRef] = Field(default_factory=list)
     signal_date: date
     created_at: datetime

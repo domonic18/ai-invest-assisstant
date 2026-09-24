@@ -31,7 +31,7 @@ export function StockSectors({
   isError,
   onRetry,
 }: StockSectorsProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
 
   if (isLoading) {
     return (

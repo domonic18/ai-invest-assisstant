@@ -3,14 +3,20 @@ import { ThunderboltOutlined } from '@ant-design/icons'
 interface SuggestedChipsProps {
   questions: string[]
   onSelect: (question: string) => void
+  /** 居中排布（搜索引擎式页面用；默认左对齐贴合会话流）。 */
+  centered?: boolean
 }
 
 /** 空会话或助手消息底部的建议问题芯片。 */
-export function SuggestedChips({ questions, onSelect }: SuggestedChipsProps) {
+export function SuggestedChips({ questions, onSelect, centered = false }: SuggestedChipsProps) {
   if (!questions.length) return null
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div
+      className={
+        centered ? 'flex w-full flex-wrap justify-center gap-2' : 'flex flex-wrap gap-2'
+      }
+    >
       {questions.map((q) => (
         <button
           key={q}

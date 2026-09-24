@@ -6,6 +6,8 @@ export interface MovingAverageConfig {
 
 export interface UserSettings {
   maConfigs: MovingAverageConfig[]
+  /** 工作台/宏观页展示的跟踪指数代码（全球指标）；undefined/null = 全部显示，[] = 全部不显示 */
+  trackedIndexCodes?: string[] | null
 }
 
 export interface User {

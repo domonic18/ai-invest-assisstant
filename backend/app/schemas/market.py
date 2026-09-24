@@ -8,13 +8,18 @@ from app.schemas.base import CamelModel
 
 
 class IndexQuoteResponse(CamelModel):
-    """大盘指数行情。"""
+    """大盘指数行情。
+
+    ``change``/``change_pct`` 可空：快照缺失由日 K 合成的标的（如富时A50）
+    数据停更时窗口内仅一根 bar，无法推算涨跌；不可空会让单只标的
+    校验失败拖垮整个指数列表（工作台 A 股指数全空事故）。
+    """
 
     code: str
     name: str
     price: float
-    change: float
-    change_pct: float
+    change: float | None = None
+    change_pct: float | None = None
     amount: float | None = None
     trend: list[float] = []
 
@@ -264,6 +269,12 @@ class MarketReviewUpdateRequest(CamelModel):
     trade_date: date
     section_key: str = Field(min_length=1)
     content: str = Field(min_length=1)
+
+
+class MarketReviewDatesResponse(CamelModel):
+    """已成功生成大盘复盘的交易日列表（升序），日历打点用。"""
+
+    trade_dates: list[date] = []
 
 
 class MarketCollectRequest(CamelModel):

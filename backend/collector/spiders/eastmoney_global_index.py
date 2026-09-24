@@ -19,10 +19,11 @@ from collector.core.async_helpers import run_in_thread
 from collector.core.base import PostgresCollector
 from collector.core.http_client import eastmoney_get_chrome
 from collector.core.parsing import parse_date, to_float, to_int
+from collector.spiders.eastmoney_common import push2_base_url
 
 logger = structlog.get_logger(__name__)
 
-_ULIST_URL = "https://push2delay.eastmoney.com/api/qt/ulist.np/get"
+_ULIST_PATH = "/api/qt/ulist.np/get"
 _KLINE_URL = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
 _UT = "f057cbcbce2a86e2866ab8877db1d059"
 
@@ -79,7 +80,7 @@ class EastmoneyGlobalIndexCollector(PostgresCollector):
     def _collect_realtime(self, codes: list[str]) -> list[dict[str, Any]]:
         secid_to_code = {GLOBAL_INDEX_CODES[c]["secid"]: c for c in codes}
         response = eastmoney_get_chrome(
-            _ULIST_URL,
+            f"{push2_base_url(self.config)}{_ULIST_PATH}",
             params={
                 "secids": ",".join(secid_to_code),
                 "fields": "f2,f3,f12,f13,f15,f16,f17,f124",

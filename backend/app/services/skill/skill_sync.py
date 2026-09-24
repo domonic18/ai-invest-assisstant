@@ -51,6 +51,7 @@ async def sync_builtin_skills(session: AsyncSession) -> None:
                     skill_id=descriptor.skill_id,
                     label=descriptor.label,
                     kind=descriptor.kind,
+                    scenario=descriptor.scenario,
                     description=description,
                     is_builtin=True,
                     published=True,
@@ -61,12 +62,21 @@ async def sync_builtin_skills(session: AsyncSession) -> None:
         elif (
             row.label,
             row.kind,
+            row.scenario,
             row.description,
             row.published,
             row.sort,
-        ) != (descriptor.label, descriptor.kind, description, True, index):
+        ) != (
+            descriptor.label,
+            descriptor.kind,
+            descriptor.scenario,
+            description,
+            True,
+            index,
+        ):
             row.label = descriptor.label
             row.kind = descriptor.kind
+            row.scenario = descriptor.scenario
             row.description = description
             row.published = True
             row.sort = index

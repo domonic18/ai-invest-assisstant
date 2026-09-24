@@ -5,7 +5,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.cache import get_redis
+from app.core.cache import cache_mget
 from app.core.clock import today_cn
 from app.models.stock import StockBasic
 from app.repositories.market import sector_fund_flow_repository
@@ -56,7 +56,7 @@ async def get_stock_quote(session: AsyncSession, stock_code: str) -> dict[str, A
     amount: float | None = None
     updated_at: str | None = None
 
-    live, eod = await get_redis().mget(
+    live, eod = await cache_mget(
         f"quote:{stock_code}", f"quote:eod:{stock_code}"
     )
     raw = live or eod
@@ -144,7 +144,7 @@ async def batch_quote_snapshot(
             key = f"{prefix}{code}"
             keys.append(key)
             key_owner.append((key, code))
-    raw_values = await get_redis().mget(*keys)
+    raw_values = await cache_mget(*keys)
     cached: dict[str, dict[str, Any]] = {}
     for (key, code), raw in zip(key_owner, raw_values, strict=True):
         if raw and code not in cached:

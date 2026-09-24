@@ -9,16 +9,20 @@ from app.services.assistant.assistant_service import parse_skill_file
 from app.skills.prompt import load_skill_prompt
 
 EXPECTED_SKILLS = {
+    "anomaly-attribution",
     "chain-breakthrough",
     "financial-health-check",
+    "financial-report-summary",
     "hotspot-detection",
     "industry-chain-analysis",
+    "kline-smart-drawing",
     "limit-up-review",
     "market-daily-review",
     "news-score",
     "news-storyline",
     "news-topic",
     "research-report-summary",
+    "social-sentiment",
     "stock-daily-analysis",
     "watchlist-screenshot-recognition",
 }

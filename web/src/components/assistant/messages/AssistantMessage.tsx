@@ -5,7 +5,7 @@ import {
   LikeOutlined,
   ReloadOutlined,
 } from '@ant-design/icons'
-import { ActionBarPrimitive, MessagePrimitive } from '@assistant-ui/react'
+import { AuiIf, ActionBarPrimitive, MessagePrimitive } from '@assistant-ui/react'
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
 
 import { MarkdownContent } from './MarkdownContent'
@@ -81,6 +81,10 @@ export function AssistantMessage() {
               tools: { Fallback: ToolCall },
             }}
           />
+          {/* 流式生成中的闪烁光标 */}
+          <AuiIf condition={(s) => s.message.status?.type === 'running'}>
+            <span className="ml-0.5 inline-block h-4 w-[7px] translate-y-[3px] animate-pulse rounded-sm bg-blue-400/80" />
+          </AuiIf>
         </div>
         <MessageActions />
       </div>

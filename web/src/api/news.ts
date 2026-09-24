@@ -2,6 +2,7 @@ import { ENDPOINTS } from '@ai-invest/shared'
 import type {
   ApiFocusResponse,
   ApiNewsChannelsResponse,
+  ApiNewsFlashPage,
   ApiStorylineDetail,
   ApiSubscription,
   ApiTopicsResponse,
@@ -14,6 +15,20 @@ export async function fetchNewsChannels(): Promise<ApiNewsChannelsResponse> {
   const response = await apiClient.get<ApiNewsChannelsResponse>(
     ENDPOINTS.news.channels,
   )
+  return response.data
+}
+
+/** 东财快讯分页（基础流：无 AI 分级/订阅）。 */
+export async function fetchNewsFlash(params: {
+  page?: number
+  pageSize?: number
+} = {}): Promise<ApiNewsFlashPage> {
+  const response = await apiClient.get<ApiNewsFlashPage>(ENDPOINTS.news.feed, {
+    params: {
+      page: params.page,
+      page_size: params.pageSize,
+    },
+  })
   return response.data
 }
 
