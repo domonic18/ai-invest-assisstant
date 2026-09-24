@@ -314,6 +314,7 @@ export const ENDPOINTS = {
     mcpServerTest: (id: number | string) => `${API_BASE}/admin/mcp/servers/${id}/test`,
     mcpServerTestDraft: `${API_BASE}/admin/mcp/servers/test`,
     systemStatus: `${API_BASE}/admin/system/status`,
+    celeryQueues: `${API_BASE}/admin/system/celery-queues`,
     socialAccounts: `${API_BASE}/admin/social/accounts`,
     socialAccount: (id: number | string) => `${API_BASE}/admin/social/accounts/${id}`,
     socialAccountBackfill: (id: number | string) =>

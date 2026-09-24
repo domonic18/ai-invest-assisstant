@@ -550,6 +550,7 @@ export interface AdminAiResultListParams {
 export interface ServiceStatusItem {
   key: string
   name: string
+  category: 'storage' | 'compute' | 'external'
   status: 'up' | 'down'
   latencyMs: number | null
   detail: string | null
@@ -560,5 +561,36 @@ export interface ServiceStatusItem {
 export interface SystemStatus {
   overall: 'operational' | 'degraded'
   items: ServiceStatusItem[]
+  checkedAt: string
+}
+
+/** Celery 任务方框状态：排队/执行中/终态。 */
+export type CeleryTaskState = 'pending' | 'running' | 'success' | 'partial' | 'failed' | 'skipped'
+
+/** 方框网格中的单个任务（一框一任务实例）。 */
+export interface CeleryTaskSquare {
+  key: string
+  taskType: string
+  label: string
+  state: CeleryTaskState
+  source: string | null
+  startedAt: string | null
+  finishedAt: string | null
+  durationMs: number | null
+  detail: string | null
+}
+
+/** 单个 Celery 队列的任务方框集合。 */
+export interface CeleryQueueStatus {
+  name: string
+  label: string
+  pendingTotal: number
+  tasks: CeleryTaskSquare[]
+}
+
+/** 三队列任务状态总览；brokerOk=false 表示 broker 不可达（仅 DB 侧数据）。 */
+export interface CeleryQueues {
+  brokerOk: boolean
+  queues: CeleryQueueStatus[]
   checkedAt: string
 }
