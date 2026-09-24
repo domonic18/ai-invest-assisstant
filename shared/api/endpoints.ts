@@ -160,6 +160,12 @@ export const ENDPOINTS = {
     base: `${API_BASE}/workbench`,
     reviewStatus: `${API_BASE}/workbench/review-status`,
   },
+  paperTrade: {
+    overview: `${API_BASE}/paper-trade/overview`,
+    orders: `${API_BASE}/paper-trade/orders`,
+    executions: `${API_BASE}/paper-trade/executions`,
+    nav: `${API_BASE}/paper-trade/nav`,
+  },
   social: {
     sentimentFeed: `${API_BASE}/social/sentiment-feed`,
     accounts: `${API_BASE}/social/accounts`,
