@@ -209,6 +209,7 @@ services:
     # 掘金线上仿真交易 sidecar：REST 网关接 sim.myquant.cn 网页版同款柜台
     # （gmtrade SDK 云端 TCP 网关已废弃，见 docker/paper-trade/main.py 头注释）。
     # 依赖纯 Python，不锁 platform；无 ports：仅 compose 内网可达
+    image: ccr.ccs.tencentyun.com/domonic18/paper-trade:${APP_TAG:-latest}
     build:
       context: docker/paper-trade
     environment:
