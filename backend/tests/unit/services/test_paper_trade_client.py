@@ -1,6 +1,7 @@
-"""paper-trade sidecar 客户端契约测试（透传 / 凭证头 / 异常翻译 / 报文形状）。"""
+"""paper-trade sidecar 客户端契约测试（透传 / 凭证头 / 通道密钥 / 异常翻译 / 报文形状）。"""
 
 import json
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -77,6 +78,36 @@ class TestPaperTradeClient:
 
         with pytest.raises(PaperTradeGatewayError, match="X-Gm-Token"):
             await _client(handler).get_cash(_CRED)
+
+    @pytest.mark.asyncio
+    async def test_shared_secret_header_added_when_configured(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "app.services.trading.client.get_settings",
+            lambda: SimpleNamespace(paper_trade_shared_secret="sec-1"),
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.headers["x-shared-secret"] == "sec-1"
+            return httpx.Response(200, json={"nav": 1.0})
+
+        assert await _client(handler).get_cash(_CRED) == {"nav": 1.0}
+
+    @pytest.mark.asyncio
+    async def test_shared_secret_header_absent_when_unconfigured(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "app.services.trading.client.get_settings",
+            lambda: SimpleNamespace(paper_trade_shared_secret=""),
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert "x-shared-secret" not in request.headers
+            return httpx.Response(200, json={})
+
+        assert await _client(handler).get_cash(_CRED) == {}
 
     @pytest.mark.asyncio
     async def test_503_maps_to_not_configured(self) -> None:

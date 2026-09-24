@@ -8,21 +8,44 @@ gmtrade SDK 的云端 TCP 网关（api.myquant.cn:9000）已废弃（服务端�
 sidecar 无状态多租户：token 与 account_id 由调用方（app 服务层）经请求头
 X-Gm-Token / X-Gm-Account-Id 逐请求传入（凭证只存 app 库，不落 sidecar 环境）。
 symbol 用掘金代码格式（SHSE.600000 / SZSE.000001）；柜台侧报文原样透传。
+通道门禁：PAPER_TRADE_SHARED_SECRET 非空时，业务请求须带同值 X-Shared-Secret
+（/health 豁免；留空 = 不校验，仅限 compose 内网部署）。
 """
 
+import hmac
 import os
 import threading
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 DISCOVERY_URL = "https://discovery.myquant.cn/v1/discovery/services"
 CALL_TIMEOUT = float(os.environ.get("GMTRADE_CALL_TIMEOUT", "10"))
+SHARED_SECRET_HEADER = "X-Shared-Secret"
+_shared_secret = os.environ.get("PAPER_TRADE_SHARED_SECRET", "").strip()
 
-app = FastAPI(title="paper-trade gateway", docs_url=None, redoc_url=None)
+
+async def _require_shared_secret(request: Request) -> None:
+    """通道级门禁：防 sidecar 发布公网后无鉴权裸奔（业务鉴权仍是逐请求 GM token）。
+
+    /health 豁免（容器健康探活）；密钥未配置 = 内网部署，不启用。
+    """
+    if not _shared_secret or request.url.path == "/health":
+        return
+    provided = request.headers.get(SHARED_SECRET_HEADER, "").encode("utf-8")
+    if not hmac.compare_digest(provided, _shared_secret.encode("utf-8")):
+        raise HTTPException(401, f"缺少或错误的 {SHARED_SECRET_HEADER} 请求头")
+
+
+app = FastAPI(
+    title="paper-trade gateway",
+    docs_url=None,
+    redoc_url=None,
+    dependencies=[Depends(_require_shared_secret)],
+)
 
 _client: httpx.AsyncClient | None = None
 _broker_base = os.environ.get("GMTRADE_BROKER_URL", "").strip().rstrip("/")

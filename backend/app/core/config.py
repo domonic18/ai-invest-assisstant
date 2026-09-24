@@ -118,6 +118,8 @@ class Settings(BaseSettings):
     # 掘金仿真 sidecar（compose 服务名直连；留空 = 模拟盘功能整体禁用）
     paper_trade_url: str = ""
     paper_trade_timeout: float = 10.0
+    # 通道共享密钥（X-Shared-Secret；sidecar 与全部调用方同值；留空 = 不校验，仅限内网部署）
+    paper_trade_shared_secret: str = ""
 
     # 抖音签名 sidecar（compose 服务名；空 = 禁用，回退本地 a_bogus）
     douyin_signer_url: str = ""
