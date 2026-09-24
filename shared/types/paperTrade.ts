@@ -37,6 +37,8 @@ export interface ApiPaperTradeOrder {
   price: number
   volume: number
   status: number
+  /** 委托来源：manual 人工 / agent 交易 agent 账户 */
+  orderSource?: string
   ordRejReason?: number | null
   ordRejReasonDetail?: string | null
   counterCreatedAt?: string | null
@@ -89,4 +91,77 @@ export interface ApiPaperTradeExecutionPage {
   pageSize: number
   tradeDate: string
   items: ApiPaperTradeExecution[]
+}
+
+/** 模拟盘账户配置行（token 只回掩码，明文不出库）。 */
+export interface ApiPaperTradeAccount {
+  id: number
+  name: string
+  counterAccountId: string
+  isAgent: boolean
+  isEnabled: boolean
+  tokenMasked: string
+  lastError?: string | null
+  lastSyncedAt?: string | null
+  createdAt?: string | null
+}
+
+export interface ApiPaperTradeAccountList {
+  items: ApiPaperTradeAccount[]
+}
+
+/** 管理端账户行（附带归属用户）。 */
+export interface ApiPaperTradeAdminAccount extends ApiPaperTradeAccount {
+  userId: number
+}
+
+export interface ApiPaperTradeAdminAccountList {
+  items: ApiPaperTradeAdminAccount[]
+}
+
+/** 人工下单请求（限价单必须带价格，柜台校验手数整数倍）。 */
+export interface ApiPaperTradePlaceOrderRequest {
+  accountId: number
+  /** 平台 6 位股票代码；柜台前缀（SHSE./SZSE.）由后端按 stock_basic 主数据解析。 */
+  symbol: string
+  side: 'buy' | 'sell'
+  volume: number
+  orderType?: 'limit' | 'market'
+  price?: number
+}
+
+/** 下单/撤单动作结果。 */
+export interface ApiPaperTradeActionResponse {
+  success: boolean
+  clOrdId: string
+  message: string
+}
+
+/** 单账户即时同步摘要（下单/撤单后调用）。 */
+export interface ApiPaperTradeAccountSyncResponse {
+  tradeDate: string
+  accountId: number
+  orders: number
+  executions: number
+  nav: number | null
+}
+
+/** B/S/T 图表标记单笔成交（当前用户全账户、按标的过滤，tradeDate 升序）。 */
+export interface ApiPaperTradeTradeMarker {
+  tradeDate: string
+  counterCreatedAt?: string | null
+  side: 'buy' | 'sell'
+  price?: number | null
+  volume?: number | null
+}
+
+export interface ApiPaperTradeTradeMarkerResponse {
+  items: ApiPaperTradeTradeMarker[]
+}
+
+/** 账户配置保存请求（新增必填全字段；更新未提供字段不变）。 */
+export interface ApiPaperTradeAccountSaveRequest {
+  name: string
+  token: string
+  counterAccountId: string
 }

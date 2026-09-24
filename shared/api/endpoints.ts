@@ -163,8 +163,15 @@ export const ENDPOINTS = {
   paperTrade: {
     overview: `${API_BASE}/paper-trade/overview`,
     orders: `${API_BASE}/paper-trade/orders`,
+    order: (clOrdId: string) => `${API_BASE}/paper-trade/orders/${encodeURIComponent(clOrdId)}`,
     executions: `${API_BASE}/paper-trade/executions`,
     nav: `${API_BASE}/paper-trade/nav`,
+    tradeMarkers: `${API_BASE}/paper-trade/trade-markers`,
+    accounts: `${API_BASE}/paper-trade/accounts`,
+    account: (accountId: number | string) =>
+      `${API_BASE}/paper-trade/accounts/${accountId}`,
+    accountSync: (accountId: number | string) =>
+      `${API_BASE}/paper-trade/accounts/${accountId}/sync`,
   },
   social: {
     sentimentFeed: `${API_BASE}/social/sentiment-feed`,
@@ -317,5 +324,10 @@ export const ENDPOINTS = {
     socialCookies: `${API_BASE}/admin/social/cookies`,
     socialAsrConfig: `${API_BASE}/admin/social/asr-config`,
     socialAsrConfigTest: `${API_BASE}/admin/social/asr-config/test`,
+    paperTradeAccounts: `${API_BASE}/admin/paper-trade/accounts`,
+    paperTradeAccountAgent: (id: number | string) =>
+      `${API_BASE}/admin/paper-trade/accounts/${id}/agent`,
+    paperTradeAccountEnabled: (id: number | string) =>
+      `${API_BASE}/admin/paper-trade/accounts/${id}/enabled`,
   },
 } as const

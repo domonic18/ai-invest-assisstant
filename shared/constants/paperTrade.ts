@@ -26,6 +26,11 @@ export const PAPER_TRADE_ORDER_TYPE: Record<number, string> = {
   2: '市价',
 }
 
+export const PAPER_TRADE_ORDER_SOURCE: Record<string, string> = {
+  manual: '人工',
+  agent: 'Agent',
+}
+
 export function paperTradeOrderStatus(status?: number | null): string {
   if (status == null) return '-'
   return PAPER_TRADE_ORDER_STATUS[status] ?? `状态${status}`
@@ -39,4 +44,9 @@ export function paperTradeSide(side?: number | null): string {
 export function paperTradeOrderType(orderType?: number | null): string {
   if (orderType == null) return '-'
   return PAPER_TRADE_ORDER_TYPE[orderType] ?? `${orderType}`
+}
+
+export function paperTradeOrderSource(source?: string | null): string {
+  if (!source) return '-'
+  return PAPER_TRADE_ORDER_SOURCE[source] ?? source
 }
