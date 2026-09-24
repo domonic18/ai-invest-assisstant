@@ -2,14 +2,18 @@
 
 两步编排：
 
-1. 章节推断：``draft`` 为空且启用的知识源 → 逐集大纲（EpisodeOutline）→
-   跨集合并单次调用（ChapterTreeDraft）→ 服务层按位置赋 id 写
-   ``chapter_tree.draft``（发布由管理端审核后覆写 published）；
+1. 章节推断：启用的知识源中存在未入树素材（``process_meta.outlineAt``
+   缺失的 done 素材）→ 逐集大纲（EpisodeOutline）→ 与已有 draft 合并
+   （首次为全量合并，ChapterTreeDraft）→ 服务层按位置赋 id 写
+   ``chapter_tree.draft``，并对本次并入素材记 ``outlineAt``（发布由
+   管理端审核后覆写 published；新素材到达即增量重推断）；
 2. 知识点抽取：``done 且未抽取``且所属源已发布目录树的素材按滑窗
    （≤600s，1 段重叠）调结构化抽取（KbExtractionResult，prompt 携带
    published 目录树，知识点生而带 chapter_path 与 confidence）→
    升级门校验（时间码 clamp、摘录锚定替换、章节链修剪、置信度、case 卡）
-   → 跨窗去重 → 自动发布或升级人工 → ``extracted_at`` 记账。
+   → 跨窗去重 → 自动发布或升级人工 → ``extracted_at`` 记账；
+   全窗口 0 点不记账，按 ``extractAttempts`` 重试（防模型空返回永久
+   漏采，达 KB_EXTRACT_MAX_ATTEMPTS 停扫）。
 
 审核语义（HITL）：``kb_settings.auto_approve_points`` 开启时，无任何升级
 理由的卡直接 ``published`` 并置索引脏；有理由的卡落 ``draft`` 且
@@ -94,15 +98,19 @@ async def _infer_chapters(session: AsyncSession, config: Any) -> dict[str, int]:
     )
     for source in sources:
         tree = dict(source.chapter_tree or {})
-        if tree.get("draft") is not None:
-            continue
         medias = [
             m
             for m in await media_repository.list_by_source(session, source.id)
             if m.process_status == KbProcessStatus.DONE
         ]
+        # 增量入树：只对未记 outlineAt 的 done 素材出大纲（首次即全量）
+        pending = [m for m in medias if not (m.process_meta or {}).get("outlineAt")]
+        if not pending:
+            continue
+        base = tree.get("draft")
         outlines: list[EpisodeOutline] = []
-        for media in medias:
+        outlined: list[KbMedia] = []
+        for media in pending:
             segments = await media_repository.list_segments(session, media.id)
             if not segments:
                 continue
@@ -110,6 +118,7 @@ async def _infer_chapters(session: AsyncSession, config: Any) -> dict[str, int]:
                 outlines.append(
                     await _outline_for_media(session, config, media, segments)
                 )
+                outlined.append(media)
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "kb_extract_outline_failed",
@@ -126,13 +135,25 @@ async def _infer_chapters(session: AsyncSession, config: Any) -> dict[str, int]:
             }
             for o in outlines
         ]
-        prompt = (
-            "你是全书目录主编。以下是同一课程各集大纲（JSON 数组），请合并为"
-            "全书目录树：顶层 3~10 个章节，每章 children 为该章下的小节列表"
-            "（可为空数组）。章节/小节标题从大纲条目归纳提升，不要照抄全部条目，"
-            "也不要编造大纲之外的内容。\n\n"
-            f"{json.dumps(outline_payload, ensure_ascii=False, indent=1)}"
-        )
+        if base:
+            prompt = (
+                "你是全书目录主编。下面是本书已有目录树，以及新到各集的大纲"
+                "（JSON 数组）。请把新集内容合并进目录树：顶层 3~10 个章节，"
+                "每章 children 为该章下的小节列表（可为空数组）。只增补新集"
+                "涉及的章节/小节，已有章节标题保持稳定（下游按章节引用），"
+                "不要编造大纲之外的内容。\n\n"
+                f"已有目录树：\n{_render_tree(base)}\n\n"
+                "新到各集大纲：\n"
+                f"{json.dumps(outline_payload, ensure_ascii=False, indent=1)}"
+            )
+        else:
+            prompt = (
+                "你是全书目录主编。以下是同一课程各集大纲（JSON 数组），请合并为"
+                "全书目录树：顶层 3~10 个章节，每章 children 为该章下的小节列表"
+                "（可为空数组）。章节/小节标题从大纲条目归纳提升，不要照抄全部条目，"
+                "也不要编造大纲之外的内容。\n\n"
+                f"{json.dumps(outline_payload, ensure_ascii=False, indent=1)}"
+            )
         try:
             with meter_scope(None, FEATURE_KB_EXTRACT, detail={"sourceId": source.id}):
                 merged = await run_structured(
@@ -149,6 +170,12 @@ async def _infer_chapters(session: AsyncSession, config: Any) -> dict[str, int]:
         tree["draft"] = xpipe.assign_chapter_ids(merged)
         source.chapter_tree = tree
         stats["chaptersInferred"] += 1
+        # 入树标记与树写同事务：合并失败回滚则不记标，下轮重推
+        for media in outlined:
+            media.process_meta = {
+                **(media.process_meta or {}),
+                "outlineAt": utc_now().isoformat(),
+            }
         await session.commit()
     return stats
 
@@ -197,6 +224,7 @@ async def _extract_points(session: AsyncSession, config: Any) -> dict[str, int]:
         "autoPublished": 0,
         "escalated": 0,
         "failedMedias": 0,
+        "emptyMedias": 0,
         "awaitingChapterPublish": 0,
     }
     settings = await get_settings_row(session)
@@ -271,13 +299,19 @@ async def _extract_points(session: AsyncSession, config: Any) -> dict[str, int]:
                     valid_chapters=xpipe.chapter_id_paths(published),
                 )
             )
+            if not validated:
+                # 全窗口 0 点：多为模型空返回，不置 extracted_at，退避重试
+                stats["emptyMedias"] += 1
+                await _record_empty(session, media_id, meta, attempts)
+                continue
             auto_published = await _insert_points(
                 session, media, validated, auto_approve=auto_approve
             )
             media.extracted_at = utc_now()
             media.process_meta = {
                 **{k: v for k, v in meta.items()
-                   if k not in ("extractAttempts", "extractError", "extractSummary")},
+                   if k not in ("extractAttempts", "extractError",
+                                "extractSummary", "extractEmptyAt")},
                 "extractSummary": {
                     "points": len(validated),
                     "autoPublished": auto_published,
@@ -292,7 +326,7 @@ async def _extract_points(session: AsyncSession, config: Any) -> dict[str, int]:
         except Exception as exc:  # noqa: BLE001
             await session.rollback()
             stats["failedMedias"] += 1
-            await _record_failure(session, media_id, attempts, exc)
+            await _record_failure(session, media_id, meta, attempts, exc)
     return stats
 
 
@@ -392,15 +426,21 @@ def _fmt_ms(ms: int | None) -> str:
 
 
 async def _record_failure(
-    session: AsyncSession, media_id: int, attempts: int, exc: Exception
+    session: AsyncSession, media_id: int, meta: dict[str, Any],
+    attempts: int, exc: Exception,
 ) -> None:
-    """独立事务记失败（rollback 后执行，不影响本轮其他素材）。"""
+    """独立事务记失败（rollback 后执行，不影响本轮其他素材）。
+
+    meta 由调用方在循环前捕获传入——rollback 会令 ORM 实例过期；
+    整体覆写会抹掉 audio_seconds 等其他记账键，必须合并保留。
+    """
     try:
         await session.execute(
             update(KbMedia)
             .where(KbMedia.id == media_id)
             .values(
                 process_meta={
+                    **(meta or {}),
                     "extractAttempts": attempts + 1,
                     "extractError": str(exc)[:500],
                 }
@@ -414,3 +454,26 @@ async def _record_failure(
         "kb_extract_media_failed", media_id=media_id, attempts=attempts + 1,
         error=str(exc)[:300],
     )
+
+
+async def _record_empty(
+    session: AsyncSession, media_id: int, meta: dict[str, Any], attempts: int
+) -> None:
+    """全窗口 0 点记账：不置 extracted_at，attempts 累计达上限停扫。"""
+    try:
+        await session.execute(
+            update(KbMedia)
+            .where(KbMedia.id == media_id)
+            .values(
+                process_meta={
+                    **(meta or {}),
+                    "extractAttempts": attempts + 1,
+                    "extractEmptyAt": utc_now().isoformat(),
+                }
+            )
+        )
+        await session.commit()
+    except Exception:  # noqa: BLE001
+        await session.rollback()
+        logger.error("kb_extract_empty_record_failed", media_id=media_id)
+    logger.warning("kb_extract_media_empty", media_id=media_id, attempts=attempts + 1)
