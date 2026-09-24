@@ -11,11 +11,11 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.clock import CN_TZ, utc_now
+from app.core.clock import CN_TZ, today_cn, utc_now
 from app.core.config import get_settings
 from app.core.exceptions import ConflictError
 from app.core.locking import DEFAULT_LOCK_TTL_SECONDS, redis_lock
@@ -89,6 +89,15 @@ def _to_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _first(data: dict[str, Any], *keys: str) -> Any:
+    """持仓字段多候选键提取（柜台真实字段名待首次成交实抓后收敛）。"""
+    for key in keys:
+        value = data.get(key)
+        if value not in (None, ""):
+            return value
+    return None
 
 
 def _normalize_orders(raw: Any, fallback_date: date) -> list[dict[str, Any]]:
@@ -178,6 +187,47 @@ def _normalize_cash(raw: Any, trade_date: date) -> dict[str, Any]:
         "balance": _to_decimal(data.get("balance")),
         "cum_inout": _to_decimal(data.get("cum_inout")),
         "last_inout": _to_decimal(data.get("last_inout")),
+    }
+
+
+def _order_wire_row(item: dict[str, Any], fallback_date: date) -> dict[str, Any]:
+    """柜台委托对象 → wire 行（camelCase 由 schema 层出，此处 snake 键构造）。"""
+    symbol = str(item.get("symbol") or "")
+    created = _counter_datetime(item.get("created_at"))
+    return {
+        "cl_ord_id": str(item.get("cl_ord_id") or ""),
+        "trade_date": _cn_trade_date(created, fallback_date),
+        "symbol": symbol,
+        "stock_code": _stock_code(symbol),
+        "side": _to_int(item.get("side")) or 0,
+        "order_type": _to_int(item.get("order_type")) or 0,
+        "position_effect": _to_int(item.get("position_effect")) or 1,
+        "price": _to_decimal(item.get("price")) or Decimal("0"),
+        "volume": _to_int(item.get("volume")) or 0,
+        "status": _to_int(item.get("status")) or 0,
+        "ord_rej_reason": _to_int(item.get("ord_rej_reason")),
+        "ord_rej_reason_detail": item.get("ord_rej_reason_detail"),
+        "counter_created_at": created,
+        "counter_updated_at": _counter_datetime(item.get("updated_at")),
+    }
+
+
+def _position_wire_row(item: dict[str, Any]) -> dict[str, Any]:
+    """柜台持仓对象 → wire 行（字段名多候选容错，缺失项为 None）。"""
+    symbol = str(item.get("symbol") or "")
+    return {
+        "symbol": symbol,
+        "stock_code": _stock_code(symbol),
+        "side": _to_int(item.get("side")),
+        "volume": _to_int(_first(item, "volume", "total_volume")),
+        "available_volume": _to_int(
+            _first(item, "available_volume", "avail_volume", "available")
+        ),
+        "avg_price": _to_decimal(_first(item, "price", "vwap", "avg_price", "open_price")),
+        "last_price": _to_decimal(_first(item, "last_price", "current_price", "close")),
+        "market_value": _to_decimal(_first(item, "market_value", "position_value")),
+        "profit": _to_decimal(_first(item, "profit", "float_profit", "position_profit")),
+        "profit_rate": _to_decimal(_first(item, "profit_rate", "profit_ratio")),
     }
 
 
@@ -282,28 +332,89 @@ async def sync_daily(
     return summary
 
 
+async def get_overview() -> dict[str, Any]:
+    """实时总览透传（资金 / 持仓 / 未结委托），不落库。
+
+    Raises:
+        PaperTradeNotConfiguredError: paper_trade_url 未配置。
+        PaperTradeGatewayError: sidecar 或柜台错误。
+    """
+    settings = get_settings()
+    if not settings.paper_trade_url:
+        raise PaperTradeNotConfiguredError()
+    client = PaperTradeClient(settings.paper_trade_url)
+    today = today_cn()
+    cash_row = _normalize_cash(await client.get_cash(), today)
+    cash_wire = {
+        key: float(value) if value is not None else None
+        for key, value in cash_row.items()
+        if key != "trade_date"
+    }
+    return {
+        "enabled": True,
+        "cash": cash_wire,
+        "positions": [
+            _position_wire_row(row) for row in _rows(await client.get_positions())
+        ],
+        "unfinished_orders": [
+            _order_wire_row(row, today)
+            for row in _rows(await client.get_unfinished_orders())
+        ],
+    }
+
+
 async def get_orders(
-    session: AsyncSession, trade_date: date
-) -> list[PaperTradeOrder]:
-    """按业务日查本地委托（id 升序 = 落库顺序）。"""
+    session: AsyncSession,
+    trade_date: date | None = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[PaperTradeOrder], date, int]:
+    """按业务日分页查本地委托（id 升序 = 落库顺序）；日期缺省取最近交易日。"""
+    from app.services.market import trade_calendar_service
+
+    resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(
+        session
+    )
+    total = await session.scalar(
+        select(func.count())
+        .select_from(PaperTradeOrder)
+        .where(PaperTradeOrder.trade_date == resolved)
+    )
     result = await session.execute(
         select(PaperTradeOrder)
-        .where(PaperTradeOrder.trade_date == trade_date)
+        .where(PaperTradeOrder.trade_date == resolved)
         .order_by(PaperTradeOrder.id)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
-    return list(result.scalars().all())
+    return list(result.scalars().all()), resolved, int(total or 0)
 
 
 async def get_executions(
-    session: AsyncSession, trade_date: date
-) -> list[PaperTradeExecution]:
-    """按业务日查本地成交回报。"""
+    session: AsyncSession,
+    trade_date: date | None = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[PaperTradeExecution], date, int]:
+    """按业务日分页查本地成交回报；日期缺省取最近交易日。"""
+    from app.services.market import trade_calendar_service
+
+    resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(
+        session
+    )
+    total = await session.scalar(
+        select(func.count())
+        .select_from(PaperTradeExecution)
+        .where(PaperTradeExecution.trade_date == resolved)
+    )
     result = await session.execute(
         select(PaperTradeExecution)
-        .where(PaperTradeExecution.trade_date == trade_date)
+        .where(PaperTradeExecution.trade_date == resolved)
         .order_by(PaperTradeExecution.id)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
-    return list(result.scalars().all())
+    return list(result.scalars().all()), resolved, int(total or 0)
 
 
 async def get_nav_history(

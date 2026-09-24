@@ -121,6 +121,97 @@ def _settings(url: str = "http://paper-trade:8020") -> SimpleNamespace:
     return SimpleNamespace(paper_trade_url=url, paper_trade_timeout=1.0)
 
 
+@pytest.mark.unit
+class TestWireMappers:
+    def test_order_wire_row_maps_counter_payload(self) -> None:
+        row = svc._order_wire_row(
+            {
+                "cl_ord_id": "u1",
+                "symbol": "SHSE.600000",
+                "side": 1,
+                "order_type": 1,
+                "price": "8.5",
+                "volume": 100,
+                "status": 1,
+                "created_at": "2026-09-24T01:15:00Z",
+            },
+            _TRADE_DATE,
+        )
+        assert row["cl_ord_id"] == "u1"
+        assert row["stock_code"] == "600000"
+        assert row["price"] == Decimal("8.5")
+        assert row["trade_date"] == _TRADE_DATE
+
+    def test_position_wire_row_candidate_keys(self) -> None:
+        row = svc._position_wire_row(
+            {
+                "symbol": "SZSE.000001",
+                "side": 1,
+                "volume": 100,
+                "vwap": "12.34",
+                "last_price": 12.5,
+                "float_profit": "-16",
+            }
+        )
+        assert row["stock_code"] == "000001"
+        assert row["avg_price"] == Decimal("12.34")
+        assert row["last_price"] == Decimal("12.5")
+        assert row["profit"] == Decimal("-16")
+        assert row["available_volume"] is None
+        assert row["profit_rate"] is None
+
+
+@pytest.mark.unit
+class TestGetOverview:
+    @pytest.mark.asyncio
+    async def test_raises_when_not_configured(self) -> None:
+        with patch.object(svc, "get_settings", lambda: _settings(url="")):
+            with pytest.raises(PaperTradeNotConfiguredError):
+                await svc.get_overview()
+
+    @pytest.mark.asyncio
+    async def test_transparent_passthrough_normalization(self) -> None:
+        client = MagicMock()
+        client.get_cash = AsyncMock(
+            return_value=[{"nav": 200000, "available": 198000, "balance": 200000}]
+        )
+        client.get_positions = AsyncMock(return_value={})  # 空结果 {}
+        client.get_unfinished_orders = AsyncMock(
+            return_value=[
+                {
+                    "cl_ord_id": "u1",
+                    "symbol": "SZSE.000001",
+                    "side": 2,
+                    "order_type": 1,
+                    "price": 12.0,
+                    "volume": 200,
+                    "status": 1,
+                    "created_at": "2026-09-24T01:15:00Z",
+                }
+            ]
+        )
+
+        with (
+            patch.object(svc, "get_settings", lambda: _settings()),
+            patch.object(svc, "PaperTradeClient", lambda url: client),
+        ):
+            payload = await svc.get_overview()
+
+        assert payload["enabled"] is True
+        assert payload["cash"] == {
+            "nav": 200000.0,
+            "available": 198000.0,
+            "balance": 200000.0,
+            "cum_inout": None,
+            "last_inout": None,
+        }
+        assert payload["positions"] == []
+        row = payload["unfinished_orders"][0]
+        assert row["cl_ord_id"] == "u1"
+        assert row["trade_date"] == _TRADE_DATE
+        assert row["side"] == 2
+
+
 def _client_mock(
     orders: list[dict], executions: list[dict], cash: dict
 ) -> MagicMock:

@@ -19,6 +19,7 @@ from app.api.v1 import (
     kline,
     market,
     news,
+    paper_trade,
     research,
     screening,
     sector_detail,
@@ -85,6 +86,9 @@ api_router.include_router(drawings.router, prefix="/kline-drawings", tags=["draw
 api_router.include_router(screening.router, prefix="/screening", tags=["screening"])
 api_router.include_router(social.router, prefix="/social", tags=["social"])
 api_router.include_router(kb.router, prefix="/kb", tags=["kb"])
+api_router.include_router(
+    paper_trade.router, prefix="/paper-trade", tags=["paper-trade"]
+)
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(admin_users.router, prefix="/users")
