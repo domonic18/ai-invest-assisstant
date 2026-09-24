@@ -15,6 +15,7 @@ import type { StockChartViewIndicators } from './StockChartView'
 import { BORDER_COLOR, GRID_COLOR, TEXT_MAIN, TEXT_MUTED } from './constants'
 import type { KlineChartData } from './klineData'
 import { buildSubPane, computePaneLayout } from './klinePanes'
+import type { KlineTradeMark } from './tradeMarkers'
 
 const ACCENT = '#5e6ad2'
 const ACCENT_SOFT = 'rgba(94,106,210,0.18)'
@@ -71,6 +72,7 @@ export function buildKlineOption(
   indicators: StockChartViewIndicators,
   height: number,
   markers?: { date: string; label?: string }[],
+  tradeMarks?: KlineTradeMark[],
 ): EChartsOption {
   const upColor = riseHex()
   const downColor = fallHex()
@@ -194,6 +196,30 @@ export function buildKlineOption(
         lineStyle: { color: ma.color, width: 1 },
       })
     }
+  }
+
+  // 模拟盘成交 B/S/T 字母标记：落在当日成交量加权均价处（B=买 S=卖 T=同日双向）
+  const tradeMarkHits = (tradeMarks ?? []).filter((m) => data.dates.includes(m.date))
+  if (tradeMarkHits.length) {
+    const tradeMarkColor = { B: riseHex(), S: fallHex(), T: '#d4a017' } as const
+    series.push({
+      name: '模拟盘成交',
+      type: 'scatter',
+      silent: true,
+      symbolSize: 1,
+      data: tradeMarkHits.map((m) => ({
+        value: [m.date, m.price],
+        label: {
+          show: true,
+          formatter: m.label,
+          color: tradeMarkColor[m.label],
+          fontSize: 11,
+          fontWeight: 'bold' as const,
+          fontFamily: FONT_MONO,
+          position: m.label === 'S' ? ('top' as const) : ('bottom' as const),
+        },
+      })),
+    })
   }
 
   // 副图（VOL / MACD / KDJ），右轴显示刻度
