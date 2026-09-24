@@ -14,6 +14,19 @@ class PaperTradeNotConfiguredError(AppError):
     default_message = "模拟盘功能未配置"
 
 
+class PaperTradeTokenInvalidError(PaperTradeNotConfiguredError):
+    """柜台 token 已失效（sidecar 503 且报文含「token 无效」）。
+
+    继承 NotConfigured 以保留前端引导卡/overview enabled:false 行为，
+    仅在前端凭 detail 前缀做定向提示（去账户配置更新 token）。
+    """
+
+    default_message = (
+        "掘金仿真 token 已失效，请在「账户配置」中更新"
+        "（掘金客户端或 sim.myquant.cn 个人中心可重置）"
+    )
+
+
 class PaperTradeGatewayError(AppError):
     """sidecar 在线但柜台请求失败（网络不可达、柜台报错、响应异常）。"""
 

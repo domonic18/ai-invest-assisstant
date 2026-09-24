@@ -1,4 +1,4 @@
-"""模拟盘盘后同步服务测试（规范化 / 幂等 upsert / 锁与未配置语义）。"""
+"""模拟盘盘后同步服务测试（规范化 / 幂等 upsert / 多账户错误隔离 / 锁与未配置语义）。"""
 
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
@@ -8,14 +8,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core.exceptions import ConflictError
+from app.core.exceptions import BadRequestError, ConflictError, ForbiddenError
 from app.services.trading import paper_trade_service as svc
+from app.services.trading.client import CounterCredentials
 from app.services.trading.errors import (
     PaperTradeGatewayError,
     PaperTradeNotConfiguredError,
 )
 
 _TRADE_DATE = date(2026, 9, 24)
+_CRED = CounterCredentials(token="tok", account_id="acc")
 
 
 def _lock(acquired: bool = True):
@@ -24,6 +26,24 @@ def _lock(acquired: bool = True):
         yield acquired
 
     return _fake
+
+
+def _account(
+    account_id: int = 1, is_agent: bool = False, is_enabled: bool = True
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=account_id,
+        name=f"账户{account_id}",
+        is_agent=is_agent,
+        is_enabled=is_enabled,
+    )
+
+
+def _accounts_result(accounts: list) -> MagicMock:
+    # sync_daily 的账户清单是列 Row 查询（.all() 直取，无 scalars）
+    res = MagicMock()
+    res.all.return_value = accounts
+    return res
 
 
 @pytest.mark.unit
@@ -69,10 +89,14 @@ class TestNormalizeHelpers:
             },
             {"symbol": "SHSE.600000"},  # 缺 cl_ord_id → 跳过
         ]
-        rows = svc._normalize_orders(raw, _TRADE_DATE)
+        rows = svc._normalize_orders(
+            raw, _TRADE_DATE, account_id=7, order_source="agent"
+        )
 
         assert len(rows) == 1
         row = rows[0]
+        assert row["paper_trade_account_id"] == 7
+        assert row["order_source"] == "agent"
         assert row["cl_ord_id"] == "o1"
         assert row["trade_date"] == _TRADE_DATE
         assert row["stock_code"] == "600000"
@@ -92,12 +116,38 @@ class TestNormalizeHelpers:
             # 键与回退依据全缺 → 跳过
             {"symbol": "SZSE.000001"},
         ]
-        rows = svc._normalize_executions(raw, _TRADE_DATE)
+        rows = svc._normalize_executions(raw, _TRADE_DATE, account_id=7)
 
         assert len(rows) == 2
+        assert rows[0]["paper_trade_account_id"] == 7
         assert rows[0]["exec_id"] == "e1"
         assert rows[1]["exec_id"] == f"o2:{datetime(2026, 9, 24, 3, 0, tzinfo=timezone.utc).isoformat()}"
         assert rows[1]["trade_date"] == _TRADE_DATE
+
+    def test_normalize_executions_turnover_fallback(self) -> None:
+        """掘金回报不带 turnover：按 价×量 本地补算，柜台给值时透传。"""
+        raw = [
+            {
+                "ex_exec_id": "e1",
+                "cl_ord_id": "o1",
+                "symbol": "SZSE.002520",
+                "side": 1,
+                "price": 6.47,
+                "volume": 4000,
+            },
+            {
+                "ex_exec_id": "e2",
+                "cl_ord_id": "o2",
+                "symbol": "SZSE.002520",
+                "price": 6.47,
+                "volume": 4000,
+                "turnover": 25881.0,
+            },
+        ]
+        rows = svc._normalize_executions(raw, _TRADE_DATE, account_id=7)
+
+        assert rows[0]["turnover"] == Decimal("25880.00")  # 6.47*4000
+        assert rows[1]["turnover"] == Decimal("25881.0")
 
     def test_normalize_cash_ignores_non_dict(self) -> None:
         row = svc._normalize_cash([], _TRADE_DATE)
@@ -158,7 +208,8 @@ class TestWireMappers:
         assert row["last_price"] == Decimal("12.5")
         assert row["profit"] == Decimal("-16")
         assert row["available_volume"] is None
-        assert row["profit_rate"] is None
+        # 柜台给 profit 缺 profit_rate 时本地补算：-16/(12.34*100)*100
+        assert row["profit_rate"] == Decimal("-1.2966")
 
 
 @pytest.mark.unit
@@ -167,7 +218,7 @@ class TestGetOverview:
     async def test_raises_when_not_configured(self) -> None:
         with patch.object(svc, "get_settings", lambda: _settings(url="")):
             with pytest.raises(PaperTradeNotConfiguredError):
-                await svc.get_overview()
+                await svc.get_overview(MagicMock(), _account())
 
     @pytest.mark.asyncio
     async def test_transparent_passthrough_normalization(self) -> None:
@@ -190,12 +241,17 @@ class TestGetOverview:
                 }
             ]
         )
+        session = MagicMock()
+        session.execute = AsyncMock(return_value=MagicMock(all=lambda: []))
 
         with (
             patch.object(svc, "get_settings", lambda: _settings()),
             patch.object(svc, "PaperTradeClient", lambda url: client),
+            patch.object(
+                svc.account_service, "credentials_for", lambda account: _CRED
+            ),
         ):
-            payload = await svc.get_overview()
+            payload = await svc.get_overview(session, _account(account_id=7))
 
         assert payload["enabled"] is True
         assert payload["cash"] == {
@@ -210,6 +266,168 @@ class TestGetOverview:
         assert row["cl_ord_id"] == "u1"
         assert row["trade_date"] == _TRADE_DATE
         assert row["side"] == 2
+        client.get_cash.assert_awaited_once_with(_CRED)
+
+    @pytest.mark.asyncio
+    async def test_t1_available_deducts_today_buys(self) -> None:
+        """掘金 available 含当日买入（T+1 不符），overview 须扣减本地今日成交买入。"""
+        client = MagicMock()
+        client.get_cash = AsyncMock(return_value={})
+        client.get_positions = AsyncMock(
+            return_value=[
+                {
+                    "symbol": "SZSE.002520",
+                    "volume": 4000,
+                    "available_volume": 4000,
+                    "price": 6.45,
+                    "last_price": 6.47,
+                    "market_value": 25800.0,
+                },
+                {
+                    # 昨日持仓无今日买入：可用数保持柜台原值
+                    "symbol": "SHSE.600000",
+                    "volume": 500,
+                    "available_volume": 500,
+                    "price": 10.0,
+                    "last_price": 10.5,
+                },
+            ]
+        )
+        client.get_unfinished_orders = AsyncMock(return_value={})
+        session = MagicMock()
+        session.execute = AsyncMock(
+            return_value=MagicMock(
+                all=lambda: [("SZSE.002520", 4000), ("SHSE.688322", 0)]
+            )
+        )
+
+        with (
+            patch.object(svc, "get_settings", lambda: _settings()),
+            patch.object(svc, "PaperTradeClient", lambda url: client),
+            patch.object(
+                svc.account_service, "credentials_for", lambda account: _CRED
+            ),
+        ):
+            payload = await svc.get_overview(session, _account(account_id=7))
+
+        by_code = {p["stock_code"]: p for p in payload["positions"]}
+        assert by_code["002520"]["available_volume"] == 0
+        assert by_code["600000"]["available_volume"] == 500
+
+    @pytest.mark.asyncio
+    async def test_position_profit_fallback_and_quantize(self) -> None:
+        """柜台缺浮盈本地补算；float32 尾噪声 quantize 收敛。"""
+        client = MagicMock()
+        client.get_cash = AsyncMock(return_value={})
+        client.get_positions = AsyncMock(
+            return_value=[
+                {
+                    "symbol": "SZSE.002520",
+                    "volume": 4000,
+                    "available_volume": 4000,
+                    "price": 6.449999809265137,
+                    "last_price": 6.46999979019165,
+                    "market_value": 25799.999237060547,
+                }
+            ]
+        )
+        client.get_unfinished_orders = AsyncMock(return_value={})
+        session = MagicMock()
+        session.execute = AsyncMock(return_value=MagicMock(all=lambda: []))
+
+        with (
+            patch.object(svc, "get_settings", lambda: _settings()),
+            patch.object(svc, "PaperTradeClient", lambda url: client),
+            patch.object(
+                svc.account_service, "credentials_for", lambda account: _CRED
+            ),
+        ):
+            payload = await svc.get_overview(session, _account(account_id=7))
+
+        row = payload["positions"][0]
+        assert row["avg_price"] == Decimal("6.4500")
+        assert row["last_price"] == Decimal("6.4700")
+        assert row["market_value"] == Decimal("25800.00")
+        assert row["profit"] == Decimal("80.00")  # (6.47-6.45)*4000
+        assert row["profit_rate"] == Decimal("0.3101")  # 80 / (6.45*4000) * 100
+
+
+@pytest.mark.unit
+class TestManualTrading:
+    @pytest.mark.asyncio
+    async def test_place_order_rejects_agent_account(self) -> None:
+        with pytest.raises(ForbiddenError):
+            await svc.place_order(
+                MagicMock(),
+                _account(is_agent=True),
+                symbol="000001",
+                side="buy",
+                volume=100,
+            )
+
+    @pytest.mark.asyncio
+    async def test_place_order_forwards_with_credentials(self) -> None:
+        client = MagicMock()
+        client.place_order = AsyncMock(return_value=[{"cl_ord_id": "n1"}])
+
+        with (
+            patch.object(svc, "get_settings", lambda: _settings()),
+            patch.object(svc, "PaperTradeClient", lambda url: client),
+            patch.object(
+                svc.account_service, "credentials_for", lambda account: _CRED
+            ),
+            patch.object(
+                svc, "resolve_counter_symbol", AsyncMock(return_value="SHSE.600000")
+            ),
+        ):
+            payload = await svc.place_order(
+                MagicMock(),
+                _account(),
+                symbol="600000",
+                side="buy",
+                volume=100,
+                price=8.5,
+            )
+
+        assert payload == [{"cl_ord_id": "n1"}]
+        args, kwargs = client.place_order.await_args
+        assert args[0] == _CRED
+        assert args[1] == "SHSE.600000"
+        assert args[3] == 100
+        assert kwargs["price"] == 8.5
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_rejects_agent_account(self) -> None:
+        with pytest.raises(ForbiddenError):
+            await svc.cancel_order(_account(is_agent=True), "o1")
+
+    @pytest.mark.asyncio
+    async def test_place_order_rejects_disabled_account(self) -> None:
+        """停用账户禁止人工交易（与前端禁用态同契约，仅同步跳过不够）。"""
+        with pytest.raises(ForbiddenError, match="停用"):
+            await svc.place_order(
+                MagicMock(),
+                _account(is_enabled=False),
+                symbol="000001",
+                side="buy",
+                volume=100,
+            )
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_forwards_with_credentials(self) -> None:
+        client = MagicMock()
+        client.cancel_order = AsyncMock(return_value={})
+
+        with (
+            patch.object(svc, "get_settings", lambda: _settings()),
+            patch.object(svc, "PaperTradeClient", lambda url: client),
+            patch.object(
+                svc.account_service, "credentials_for", lambda account: _CRED
+            ),
+        ):
+            await svc.cancel_order(_account(), "o1")
+
+        client.cancel_order.assert_awaited_once_with(_CRED, "o1")
 
 
 def _client_mock(
@@ -233,8 +451,45 @@ class TestSyncDaily:
         session.commit.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_raises_when_no_enabled_accounts(self) -> None:
+        session = AsyncMock()
+        session.execute = AsyncMock(return_value=_accounts_result([]))
+
+        with patch.object(svc, "get_settings", lambda: _settings()):
+            with pytest.raises(PaperTradeNotConfiguredError, match="启用"):
+                await svc.sync_daily(session, _TRADE_DATE)
+        session.commit.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_accounts_query_selects_columns_not_entities(self) -> None:
+        """账户清单必须是列 Row 查询：per-account rollback 会过期 ORM identity map，
+        实体查询会让后续账户的属性访问在 greenlet 外触发隐式 lazy load（生产事故回归）。"""
+        session = AsyncMock()
+        session.execute = AsyncMock(return_value=_accounts_result([]))
+        with patch.object(svc, "get_settings", lambda: _settings()):
+            with pytest.raises(PaperTradeNotConfiguredError):
+                await svc.sync_daily(session, _TRADE_DATE)
+        stmt = session.execute.call_args[0][0]
+        assert set(stmt.selected_columns.keys()) == {
+            "id",
+            "name",
+            "is_agent",
+            "counter_account_id",
+            "token_encrypted",
+        }
+
+    @pytest.mark.asyncio
     async def test_happy_path_upserts_three_tables(self) -> None:
         session = AsyncMock()
+        session.execute = AsyncMock(
+            side_effect=[
+                _accounts_result([_account(account_id=7)]),
+                MagicMock(),  # 委托 upsert
+                MagicMock(),  # 回报插入
+                MagicMock(),  # 资金快照 upsert
+                MagicMock(),  # 账户同步状态 update
+            ]
+        )
         orders = [{"cl_ord_id": "o1", "symbol": "SHSE.600000", "status": 3}]
         executions = [{"ex_exec_id": "e1", "cl_ord_id": "o1"}]
         cash = {"nav": "100000.00"}
@@ -242,61 +497,296 @@ class TestSyncDaily:
         with (
             patch.object(svc, "get_settings", lambda: _settings()),
             patch.object(svc, "redis_lock", _lock(True)),
-            patch.object(svc, "PaperTradeClient", lambda url: _client_mock(orders, executions, cash)),
+            patch.object(
+                svc, "PaperTradeClient", lambda url: _client_mock(orders, executions, cash)
+            ),
+            patch.object(
+                svc.account_service, "credentials_for", lambda account: _CRED
+            ),
         ):
             summary = await svc.sync_daily(session, _TRADE_DATE)
 
-        assert summary == {
-            "trade_date": _TRADE_DATE.isoformat(),
-            "orders": 1,
-            "executions": 1,
-            "nav": 100000.0,
-        }
-        # 委托 upsert + 回报插入 + 资金快照 upsert = 3 次写，随后统一 commit
-        assert session.execute.await_count == 3
+        assert summary["trade_date"] == _TRADE_DATE.isoformat()
+        assert summary["accounts"] == 1
+        assert summary["orders"] == 1
+        assert summary["executions"] == 1
+        assert summary["failed"] == 0
+        assert summary["details"][0]["nav"] == 100000.0
+        assert summary["details"][0]["error"] is None
+        # 账户查询 + 委托 upsert + 回报插入 + 资金快照 upsert + 账户状态 update = 5 次
+        assert session.execute.await_count == 5
         session.commit.assert_awaited_once()
+        session.rollback.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_empty_counter_payloads_commit_snapshot_only(self) -> None:
         session = AsyncMock()
+        session.execute = AsyncMock(
+            side_effect=[
+                _accounts_result([_account()]),
+                MagicMock(),  # 资金快照 upsert
+                MagicMock(),  # 账户同步状态 update
+            ]
+        )
 
         with (
             patch.object(svc, "get_settings", lambda: _settings()),
             patch.object(svc, "redis_lock", _lock(True)),
-            patch.object(svc, "PaperTradeClient", lambda url: _client_mock([], [], {})),
+            patch.object(
+                svc, "PaperTradeClient", lambda url: _client_mock([], [], {})
+            ),
+            patch.object(
+                svc.account_service, "credentials_for", lambda account: _CRED
+            ),
         ):
             summary = await svc.sync_daily(session, _TRADE_DATE)
 
         assert summary["orders"] == 0
         assert summary["executions"] == 0
         # 空委托/回报跳过写库，资金快照仍必须落（净值曲线连续性）
-        assert session.execute.await_count == 1
+        assert session.execute.await_count == 3
         session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_lock_not_acquired_raises_conflict(self) -> None:
+    async def test_agent_account_orders_tagged_agent_source(self) -> None:
+        """agent 账户同步的委托行带 order_source=agent（落库值经 _normalize_orders 钉死）。"""
         session = AsyncMock()
+        session.execute = AsyncMock(
+            side_effect=[
+                _accounts_result([_account(account_id=9, is_agent=True)]),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+            ]
+        )
+
+        orders = [{"cl_ord_id": "a1", "symbol": "SHSE.600000", "status": 2}]
+
         with (
             patch.object(svc, "get_settings", lambda: _settings()),
-            patch.object(svc, "redis_lock", _lock(False)),
+            patch.object(svc, "redis_lock", _lock(True)),
+            patch.object(
+                svc, "PaperTradeClient", lambda url: _client_mock(orders, [], {})
+            ),
+            patch.object(
+                svc.account_service, "credentials_for", lambda account: _CRED
+            ),
         ):
-            with pytest.raises(ConflictError):
-                await svc.sync_daily(session, _TRADE_DATE)
-        session.execute.assert_not_awaited()
+            summary = await svc.sync_daily(session, _TRADE_DATE)
+
+        assert summary["orders"] == 1
+        assert summary["details"][0]["is_agent"] is True
+        assert summary["details"][0]["account_id"] == 9
 
     @pytest.mark.asyncio
-    async def test_gateway_error_propagates_without_commit(self) -> None:
+    async def test_account_error_isolation(self) -> None:
+        """第一个账户柜台报错不阻断第二个账户；失败写 last_error 并 commit。"""
         session = AsyncMock()
-        client = MagicMock()
+        accounts = [_account(account_id=1), _account(account_id=2, is_agent=True)]
+        session.execute = AsyncMock(
+            side_effect=[
+                _accounts_result(accounts),
+                MagicMock(),  # 账户1 失败态 update（last_error）
+                MagicMock(),  # 账户2 委托
+                MagicMock(),  # 账户2 回报
+                MagicMock(),  # 账户2 快照
+                MagicMock(),  # 账户2 同步状态 update
+            ]
+        )
+        client = _client_mock([], [], {})
         client.get_intraday_orders = AsyncMock(
-            side_effect=PaperTradeGatewayError("柜台错误")
+            side_effect=[PaperTradeGatewayError("柜台错误"), []]
         )
 
         with (
             patch.object(svc, "get_settings", lambda: _settings()),
             patch.object(svc, "redis_lock", _lock(True)),
             patch.object(svc, "PaperTradeClient", lambda url: client),
+            patch.object(
+                svc.account_service, "credentials_for", lambda account: _CRED
+            ),
+        ):
+            summary = await svc.sync_daily(session, _TRADE_DATE)
+
+        assert summary["failed"] == 1
+        assert summary["accounts"] == 2
+        assert "柜台错误" in summary["details"][0]["error"]
+        assert summary["details"][1]["error"] is None
+        # 失败账户写 last_error commit + 成功账户 commit
+        assert session.commit.await_count == 2
+        # rollback 仅隔离失败账户的半程写入，不终止循环
+        session.rollback.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_lock_not_acquired_raises_conflict(self) -> None:
+        session = AsyncMock()
+        session.execute = AsyncMock(return_value=_accounts_result([_account()]))
+        with (
+            patch.object(svc, "get_settings", lambda: _settings()),
+            patch.object(svc, "redis_lock", _lock(False)),
+        ):
+            with pytest.raises(ConflictError):
+                await svc.sync_daily(session, _TRADE_DATE)
+        # 账户清单在锁外查询；锁被占时不发生任何写库
+        session.execute.assert_awaited_once()
+        session.commit.assert_not_awaited()
+
+
+def _patch_trade_date() -> "patch":
+    return patch(
+        "app.services.market.trade_calendar_service.resolve_latest_trade_date",
+        AsyncMock(return_value=_TRADE_DATE),
+    )
+
+
+@pytest.mark.unit
+class TestSyncAccountNow:
+    @pytest.mark.asyncio
+    async def test_syncs_upserts_and_commits(self) -> None:
+        session = AsyncMock()
+        session.execute = AsyncMock(
+            side_effect=[
+                MagicMock(),  # 委托 upsert
+                MagicMock(),  # 资金快照 upsert（空回报跳过执行）
+                MagicMock(),  # 账户同步状态 update
+            ]
+        )
+        orders = [{"cl_ord_id": "o1", "symbol": "SHSE.600000", "status": 1}]
+
+        with (
+            patch.object(svc, "get_settings", lambda: _settings()),
+            patch.object(svc, "redis_lock", _lock(True)),
+            patch.object(
+                svc, "PaperTradeClient", lambda url: _client_mock(orders, [], {"nav": "9999.0"})
+            ),
+            patch.object(
+                svc.account_service, "credentials_for", lambda account: _CRED
+            ),
+            _patch_trade_date(),
+        ):
+            summary = await svc.sync_account_now(session, _account(account_id=7))
+
+        assert summary["trade_date"] == _TRADE_DATE.isoformat()
+        assert summary["account_id"] == 7
+        assert summary["orders"] == 1
+        assert summary["nav"] == 9999.0
+        assert session.execute.await_count == 3
+        session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_lock_conflict_raises(self) -> None:
+        session = AsyncMock()
+        with (
+            patch.object(svc, "get_settings", lambda: _settings()),
+            patch.object(svc, "redis_lock", _lock(False)),
+            _patch_trade_date(),
+        ):
+            with pytest.raises(ConflictError):
+                await svc.sync_account_now(session, _account())
+        session.commit.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_counter_error_propagates(self) -> None:
+        """即时同步错误向上传播给用户（与盘后批量的账户间隔离不同）。"""
+        session = AsyncMock()
+        client = _client_mock([], [], {})
+        client.get_intraday_orders = AsyncMock(side_effect=PaperTradeGatewayError("柜台错误"))
+
+        with (
+            patch.object(svc, "get_settings", lambda: _settings()),
+            patch.object(svc, "redis_lock", _lock(True)),
+            patch.object(svc, "PaperTradeClient", lambda url: client),
+            patch.object(
+                svc.account_service, "credentials_for", lambda account: _CRED
+            ),
+            _patch_trade_date(),
         ):
             with pytest.raises(PaperTradeGatewayError):
-                await svc.sync_daily(session, _TRADE_DATE)
+                await svc.sync_account_now(session, _account())
         session.commit.assert_not_awaited()
+
+
+def _stock(market: str) -> SimpleNamespace:
+    return SimpleNamespace(stock_code="000037", market=market)
+
+
+def _patch_master(stock: SimpleNamespace | None):
+    return patch(
+        "app.services.market.stock_service.get_stock_by_code",
+        AsyncMock(return_value=stock),
+    )
+
+
+@pytest.mark.unit
+class TestResolveCounterSymbol:
+    """柜台代码解析：归属以 stock_basic.market 主数据为准（柜台对错误前缀静默受理永不撮合）。"""
+
+    @pytest.mark.asyncio
+    async def test_bare_code_resolved_from_master(self) -> None:
+        session = MagicMock()
+        for market, expected in [("sz", "SZSE.000037"), ("sh", "SHSE.000037"), ("bj", "BJSE.000037")]:
+            with _patch_master(_stock(market)):
+                assert await svc.resolve_counter_symbol(session, "000037") == expected
+
+    @pytest.mark.asyncio
+    async def test_prefixed_consistent_passes(self) -> None:
+        with _patch_master(_stock("sz")):
+            assert (
+                await svc.resolve_counter_symbol(MagicMock(), "SZSE.000037")
+                == "SZSE.000037"
+            )
+
+    @pytest.mark.asyncio
+    async def test_prefixed_mismatched_rejected(self) -> None:
+        with _patch_master(_stock("sz")):
+            with pytest.raises(BadRequestError, match="SZSE.000037"):
+                await svc.resolve_counter_symbol(MagicMock(), "SHSE.000037")
+
+    @pytest.mark.asyncio
+    async def test_unknown_code_rejected(self) -> None:
+        with _patch_master(None):
+            with pytest.raises(BadRequestError, match="主数据"):
+                await svc.resolve_counter_symbol(MagicMock(), "999999")
+
+    @pytest.mark.asyncio
+    async def test_garbage_rejected(self) -> None:
+        with pytest.raises(BadRequestError, match="无法识别"):
+            await svc.resolve_counter_symbol(MagicMock(), "abc")
+
+
+def _marker_row(side: int = 1, price: Decimal | None = Decimal("10.00")) -> SimpleNamespace:
+    return SimpleNamespace(
+        trade_date=date(2026, 9, 21),
+        counter_created_at=datetime(2026, 9, 21, 1, 30, tzinfo=timezone.utc),
+        side=side,
+        price=price,
+        volume=100,
+    )
+
+
+class TestGetTradeMarkers:
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_code_without_db(self) -> None:
+        session = MagicMock()
+        with pytest.raises(BadRequestError, match="6 位"):
+            await svc.get_trade_markers(session, 3, "abc")
+        session.execute.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_returns_rows_from_session(self) -> None:
+        rows = [_marker_row(side=1), _marker_row(side=2)]
+        result = MagicMock()
+        result.scalars.return_value.all.return_value = rows
+        session = MagicMock()
+        session.execute = AsyncMock(return_value=result)
+        got = await svc.get_trade_markers(session, 3, "000037", 120)
+        assert got == rows
+
+    @pytest.mark.asyncio
+    async def test_empty_result(self) -> None:
+        result = MagicMock()
+        result.scalars.return_value.all.return_value = []
+        session = MagicMock()
+        session.execute = AsyncMock(return_value=result)
+        assert await svc.get_trade_markers(session, 3, "600000") == []

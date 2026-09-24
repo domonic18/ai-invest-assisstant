@@ -59,9 +59,10 @@ class PaperTradeSyncCollector(BaseCollector):
         try:
             async with AsyncSessionLocal() as session:
                 summary = await paper_trade_service.sync_daily(session, trade_date)
-        except PaperTradeNotConfiguredError:
+        except PaperTradeNotConfiguredError as exc:
+            # 未配置网关或无启用账户（str(exc) 携带具体原因）
             return _result(
-                CollectStatus.SKIPPED, "paper_trade_url 未配置，模拟盘同步禁用"
+                CollectStatus.SKIPPED, str(exc) or "模拟盘同步未配置，已禁用"
             )
         except ConflictError as exc:
             # 其他实例持有同步锁，本轮执行是冗余的，按良性跳过处理
