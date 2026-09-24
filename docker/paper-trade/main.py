@@ -4,16 +4,19 @@ gmtrade SDK 的云端 TCP 网关（api.myquant.cn:9000）已废弃（服务端�
 2023-10 停更），现行仿真柜台是 sim.myquant.cn 网页版同款 REST API：
   - 网关地址经 discovery.myquant.cn 服务发现（GET /v1/discovery/services?names=broker-rpcgw），
     可用 GMTRADE_BROKER_URL 钉死跳过发现；
-  - 鉴权直接用仿真页 token 作 Bearer（即 gmtrade set_token 同一个 token）。
+  - 鉴权用仿真页 token 作 Bearer（即 gmtrade set_token 同一个 token）。
+sidecar 无状态多租户：token 与 account_id 由调用方（app 服务层）经请求头
+X-Gm-Token / X-Gm-Account-Id 逐请求传入（凭证只存 app 库，不落 sidecar 环境）。
 symbol 用掘金代码格式（SHSE.600000 / SZSE.000001）；柜台侧报文原样透传。
 """
 
 import os
 import threading
-from typing import Any, Literal
+from dataclasses import dataclass
+from typing import Annotated, Any, Literal
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 DISCOVERY_URL = "https://discovery.myquant.cn/v1/discovery/services"
@@ -26,15 +29,23 @@ _broker_base = os.environ.get("GMTRADE_BROKER_URL", "").strip().rstrip("/")
 _lock = threading.Lock()
 
 
-def _require_env(name: str) -> str:
-    value = os.environ.get(name, "").strip()
-    if not value:
-        raise HTTPException(503, f"{name} 未配置")
-    return value
+@dataclass(frozen=True)
+class Credentials:
+    """单次请求的柜台凭证（调用方逐请求携带，sidecar 不落库不缓存）。"""
+
+    token: str
+    account_id: str
 
 
-def _account_id() -> str:
-    return _require_env("GMTRADE_ACCOUNT_ID")
+def credentials(
+    x_gm_token: Annotated[str | None, Header(alias="X-Gm-Token")] = None,
+    x_gm_account_id: Annotated[str | None, Header(alias="X-Gm-Account-Id")] = None,
+) -> Credentials:
+    token = (x_gm_token or "").strip()
+    account_id = (x_gm_account_id or "").strip()
+    if not token or not account_id:
+        raise HTTPException(400, "缺少 X-Gm-Token / X-Gm-Account-Id 请求头")
+    return Credentials(token=token, account_id=account_id)
 
 
 def _get_client() -> httpx.AsyncClient:
@@ -44,7 +55,6 @@ def _get_client() -> httpx.AsyncClient:
             if _client is None:
                 _client = httpx.AsyncClient(
                     timeout=httpx.Timeout(CALL_TIMEOUT, connect=5.0),
-                    headers={"Authorization": f"Bearer {_require_env('GMTRADE_TOKEN')}"},
                 )
     return _client
 
@@ -76,19 +86,30 @@ async def _resolve_broker(force: bool = False) -> str:
 
 
 async def _broker_request(
-    method: str, path: str, *, params: dict | None = None, json_body: Any = None, _retry: bool = True
+    method: str,
+    path: str,
+    *,
+    token: str,
+    params: dict | None = None,
+    json_body: Any = None,
+    _retry: bool = True,
 ) -> Any:
     base = await _resolve_broker()
+    headers = {"Authorization": f"Bearer {token}"}
     try:
-        r = await _get_client().request(method, base + path, params=params, json=json_body)
+        r = await _get_client().request(
+            method, base + path, params=params, json=json_body, headers=headers
+        )
     except httpx.TransportError:
         # 柜台地址会随服务方调度漂移，连接级失败强制重新服务发现再试一次
         if not _retry:
             raise HTTPException(502, "仿真柜台网络不可达")
         await _resolve_broker(force=True)
-        return await _broker_request(method, path, params=params, json_body=json_body, _retry=False)
+        return await _broker_request(
+            method, path, token=token, params=params, json_body=json_body, _retry=False
+        )
     if r.status_code == 401:
-        raise HTTPException(503, "GMTRADE_TOKEN 无效（sim.myquant.cn 个人中心可重置）")
+        raise HTTPException(503, "掘金仿真 token 无效（sim.myquant.cn 个人中心可重置）")
     if r.status_code >= 400:
         try:
             detail = r.json().get("error") or r.text
@@ -112,29 +133,29 @@ def health() -> dict:
 
 
 @app.get("/cash")
-async def cash() -> Any:
-    return _unwrap(await _broker_request("GET", f"/v3/account-trade/cash/{_account_id()}"))
+async def cash(cred: Credentials = Depends(credentials)) -> Any:
+    return _unwrap(await _broker_request("GET", f"/v3/account-trade/cash/{cred.account_id}", token=cred.token))
 
 
 @app.get("/positions")
-async def positions() -> Any:
-    return _unwrap(await _broker_request("GET", f"/v3/account-trade/positions/{_account_id()}"))
+async def positions(cred: Credentials = Depends(credentials)) -> Any:
+    return _unwrap(await _broker_request("GET", f"/v3/account-trade/positions/{cred.account_id}", token=cred.token))
 
 
 @app.get("/orders")
-async def orders() -> Any:
+async def orders(cred: Credentials = Depends(credentials)) -> Any:
     # 当日委托（盘中即可查）；orders/ 为历史委托需日期过滤，盘后同步走这里即可覆盖
-    return _unwrap(await _broker_request("GET", f"/v3/account-trade/intraday-orders/{_account_id()}"))
+    return _unwrap(await _broker_request("GET", f"/v3/account-trade/intraday-orders/{cred.account_id}", token=cred.token))
 
 
 @app.get("/orders/unfinished")
-async def unfinished_orders() -> Any:
-    return _unwrap(await _broker_request("GET", f"/v3/account-trade/unfinished-orders/{_account_id()}"))
+async def unfinished_orders(cred: Credentials = Depends(credentials)) -> Any:
+    return _unwrap(await _broker_request("GET", f"/v3/account-trade/unfinished-orders/{cred.account_id}", token=cred.token))
 
 
 @app.get("/orders/executions")
-async def execution_reports() -> Any:
-    return _unwrap(await _broker_request("GET", f"/v3/account-trade/intraday-execrpts/{_account_id()}"))
+async def execution_reports(cred: Credentials = Depends(credentials)) -> Any:
+    return _unwrap(await _broker_request("GET", f"/v3/account-trade/intraday-execrpts/{cred.account_id}", token=cred.token))
 
 
 class OrderIn(BaseModel):
@@ -150,16 +171,17 @@ _ORDER_TYPE = {"limit": 1, "market": 2}
 
 
 @app.post("/orders")
-async def place_order(req: OrderIn) -> Any:
+async def place_order(req: OrderIn, cred: Credentials = Depends(credentials)) -> Any:
     if req.order_type == "limit" and req.price <= 0:
         raise HTTPException(422, "限价单必须带 price")
     resp = await _broker_request(
         "POST",
         "/v3/account-trade/orders",
+        token=cred.token,
         json_body={
             "data": [
                 {
-                    "accountId": _account_id(),
+                    "accountId": cred.account_id,
                     "symbol": req.symbol,
                     "side": _SIDE[req.side],
                     "orderType": _ORDER_TYPE[req.order_type],
@@ -180,22 +202,24 @@ async def place_order(req: OrderIn) -> Any:
 
 
 @app.delete("/orders/{cl_ord_id}")
-async def cancel_order(cl_ord_id: str) -> Any:
+async def cancel_order(cl_ord_id: str, cred: Credentials = Depends(credentials)) -> Any:
     return _unwrap(
         await _broker_request(
             "POST",
             "/v3/account-trade/cancel-orders",
-            json_body={"data": [{"accountId": _account_id(), "clOrdId": cl_ord_id}]},
+            token=cred.token,
+            json_body={"data": [{"accountId": cred.account_id, "clOrdId": cl_ord_id}]},
         )
     )
 
 
 @app.delete("/orders")
-async def cancel_all_orders() -> Any:
+async def cancel_all_orders(cred: Credentials = Depends(credentials)) -> Any:
     return _unwrap(
         await _broker_request(
             "POST",
             "/v3/account-trade/cancel-all-orders",
-            json_body={"accountIds": [_account_id()]},
+            token=cred.token,
+            json_body={"accountIds": [cred.account_id]},
         )
     )

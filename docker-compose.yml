@@ -213,8 +213,8 @@ services:
       context: docker/paper-trade
     environment:
       TZ: Asia/Shanghai
-      GMTRADE_TOKEN: ${GMTRADE_TOKEN:-}
-      GMTRADE_ACCOUNT_ID: ${GMTRADE_ACCOUNT_ID:-}
+      # 无状态多租户：掘金 token/account_id 由 app 服务层逐请求经 X-Gm-Token /
+      # X-Gm-Account-Id 头传入（存库加密，见后台「模拟盘账户」），不落 sidecar 环境
       # 留空 = 经 discovery.myquant.cn 服务发现柜台地址；柜台漂移时可在 .env 钉死
       GMTRADE_BROKER_URL: ${GMTRADE_BROKER_URL:-}
     restart: unless-stopped
