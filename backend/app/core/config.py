@@ -115,6 +115,10 @@ class Settings(BaseSettings):
     iwencai_api_key: str = ""
     iwencai_timeout_seconds: float = 30.0
 
+    # 掘金仿真 sidecar（compose 服务名直连；留空 = 模拟盘功能整体禁用）
+    paper_trade_url: str = ""
+    paper_trade_timeout: float = 10.0
+
     # 抖音签名 sidecar（compose 服务名；空 = 禁用，回退本地 a_bogus）
     douyin_signer_url: str = ""
     # 抖音 Web API 传输参数（部署可调；WAF 形态变化时改 env 无需改代码）
