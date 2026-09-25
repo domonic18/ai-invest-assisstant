@@ -29,8 +29,9 @@ interface StockChartAreaProps {
 }
 
 export function StockChartArea({ stockCode }: StockChartAreaProps) {
-  const [views, setViews] = useState<ChartViewConfig[]>(() => buildViews(true))
-  const [dual, setDual] = useState(true)
+  // 默认单图（K 线最大化）；双图切换仅会话内生效，不再持久化（持久化会把用户锁在双图）
+  const [views, setViews] = useState<ChartViewConfig[]>(() => buildViews(false))
+  const [dual, setDual] = useState(false)
   const [viewsLoaded, setViewsLoaded] = useState(false)
 
   // 模拟盘成交回报 → 图表 B/S/T 标记（未登录/无成交为空数组，不影响图表）
@@ -53,14 +54,12 @@ export function StockChartArea({ stockCode }: StockChartAreaProps) {
     if (!stockCode) return
     try {
       const rawViews = localStorage.getItem(storageKey)
-      const rawDual = localStorage.getItem(`${storageKey}.dual`)
-      const nextDual = rawDual !== '0'
       const parsed = rawViews ? normalizeViews(JSON.parse(rawViews)) : null
-      setDual(nextDual)
-      setViews(parsed ?? buildViews(nextDual))
+      setDual(false)
+      setViews(parsed ?? buildViews(false))
     } catch {
-      setDual(true)
-      setViews(buildViews(true))
+      setDual(false)
+      setViews(buildViews(false))
     }
     setViewsLoaded(true)
   }, [storageKey, stockCode])
@@ -69,11 +68,10 @@ export function StockChartArea({ stockCode }: StockChartAreaProps) {
     if (!viewsLoaded) return
     try {
       localStorage.setItem(storageKey, JSON.stringify(views))
-      localStorage.setItem(`${storageKey}.dual`, dual ? '1' : '0')
     } catch {
       // ignore storage errors
     }
-  }, [views, dual, viewsLoaded, storageKey])
+  }, [views, viewsLoaded, storageKey])
 
   const handleDualChange = (next: boolean) => {
     setDual(next)
