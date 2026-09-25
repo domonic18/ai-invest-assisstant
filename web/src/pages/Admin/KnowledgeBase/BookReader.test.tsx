@@ -33,6 +33,7 @@ describe('BookReader', () => {
       token: 'read-tok',
       expiresIn: 1800,
       mediaId: 7,
+      streamUrl: null,
       prevMediaId: null,
       nextMediaId: null,
       pageCount: 120,
