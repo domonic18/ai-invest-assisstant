@@ -160,6 +160,19 @@ export const ENDPOINTS = {
     base: `${API_BASE}/workbench`,
     reviewStatus: `${API_BASE}/workbench/review-status`,
   },
+  paperTrade: {
+    overview: `${API_BASE}/paper-trade/overview`,
+    orders: `${API_BASE}/paper-trade/orders`,
+    order: (clOrdId: string) => `${API_BASE}/paper-trade/orders/${encodeURIComponent(clOrdId)}`,
+    executions: `${API_BASE}/paper-trade/executions`,
+    nav: `${API_BASE}/paper-trade/nav`,
+    tradeMarkers: `${API_BASE}/paper-trade/trade-markers`,
+    accounts: `${API_BASE}/paper-trade/accounts`,
+    account: (accountId: number | string) =>
+      `${API_BASE}/paper-trade/accounts/${accountId}`,
+    accountSync: (accountId: number | string) =>
+      `${API_BASE}/paper-trade/accounts/${accountId}/sync`,
+  },
   social: {
     sentimentFeed: `${API_BASE}/social/sentiment-feed`,
     accounts: `${API_BASE}/social/accounts`,
@@ -302,6 +315,7 @@ export const ENDPOINTS = {
     mcpServerTest: (id: number | string) => `${API_BASE}/admin/mcp/servers/${id}/test`,
     mcpServerTestDraft: `${API_BASE}/admin/mcp/servers/test`,
     systemStatus: `${API_BASE}/admin/system/status`,
+    celeryQueues: `${API_BASE}/admin/system/celery-queues`,
     socialAccounts: `${API_BASE}/admin/social/accounts`,
     socialAccount: (id: number | string) => `${API_BASE}/admin/social/accounts/${id}`,
     socialAccountBackfill: (id: number | string) =>
@@ -312,5 +326,10 @@ export const ENDPOINTS = {
     socialCookies: `${API_BASE}/admin/social/cookies`,
     asrConfig: `${API_BASE}/admin/model-configs/asr`,
     asrConfigTest: `${API_BASE}/admin/model-configs/asr/test`,
+    paperTradeAccounts: `${API_BASE}/admin/paper-trade/accounts`,
+    paperTradeAccountAgent: (id: number | string) =>
+      `${API_BASE}/admin/paper-trade/accounts/${id}/agent`,
+    paperTradeAccountEnabled: (id: number | string) =>
+      `${API_BASE}/admin/paper-trade/accounts/${id}/enabled`,
   },
 } as const

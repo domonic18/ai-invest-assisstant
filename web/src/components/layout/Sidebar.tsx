@@ -12,6 +12,7 @@ import {
   GlobalOutlined,
   HeatMapOutlined,
   MenuFoldOutlined,
+  MoneyCollectOutlined,
   MenuUnfoldOutlined,
   PieChartOutlined,
   PlayCircleOutlined,
@@ -50,7 +51,7 @@ const DETECTION_MENU_ITEMS: MenuItem[] = [
   { key: '/capital-flow', icon: <FundOutlined />, label: '资金流向' },
   { key: '/auction-review', icon: <ShopOutlined />, label: '集合竞价' },
   // 板块/个股异动合并为双 tab 页，page_event 跳转直达 /anomaly/sector|stock
-  { key: '/anomaly', icon: <AlertOutlined />, label: '异动检测' },
+  { key: '/anomaly', icon: <AlertOutlined />, label: '异动监测' },
   // 迭代 3：电报视图迁入资讯中心 /news（渠道监控 + AI 分级 + 三视图）
   { key: '/news', icon: <ThunderboltOutlined />, label: '资讯中心' },
 ]
@@ -72,6 +73,7 @@ const ADMIN_MENU_ITEMS: MenuItem[] = [
   { key: '/admin/proxy-configs', icon: <CloudServerOutlined />, label: '代理配置' },
   { key: '/admin/ai-results', icon: <FileDoneOutlined />, label: '分析结果' },
   { key: '/admin/collector', icon: <PlayCircleOutlined />, label: '采集管理' },
+  { key: '/admin/paper-trade', icon: <MoneyCollectOutlined />, label: '模拟盘账户' },
   { key: '/admin/social-tracking', icon: <WeiboOutlined />, label: '社媒追踪' },
 ]
 
@@ -174,7 +176,9 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
   const items: MenuItem[] = [
     { key: '/workbench', icon: <AppstoreOutlined />, label: '工作台' },
     { key: '/watchlist', icon: <StarOutlined />, label: '我的自选' },
-    { type: 'group', key: 'group-detection', label: '检测', children: DETECTION_MENU_ITEMS },
+    // 模拟交易：掘金仿真账户（多租户配置 + 人工交易；agent 交易后续批次接入）
+    { key: '/paper-trade', icon: <MoneyCollectOutlined />, label: '模拟交易' },
+    { type: 'group', key: 'group-detection', label: '监测', children: DETECTION_MENU_ITEMS },
     { type: 'group', key: 'group-analysis', label: '分析', children: ANALYSIS_MENU_ITEMS },
     { type: 'group', key: 'group-settings', label: '设置', children: settingsChildren },
   ]

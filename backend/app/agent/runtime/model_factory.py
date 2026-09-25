@@ -7,7 +7,9 @@ deepagents 助手循环与单轮结构化调用（``app.agent.runtime.structured
 
 from typing import Any
 
+import httpx
 from langchain_anthropic import ChatAnthropic
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
@@ -15,6 +17,7 @@ from pydantic import SecretStr
 from app.agent.runtime.usage_meter import UsageMeterCallback
 from app.core.config import get_settings
 from app.services.admin.llm_config_service import ResolvedLLMConfig
+from app.services.admin.llm_failover import FailoverHealthCallback
 from app.services.quota.constants import OUTLET_BYOK, OUTLET_SYSTEM
 from app.utils.api_base import normalize_api_base
 
@@ -42,27 +45,39 @@ def build_langchain_model(
     api_key = SecretStr(cfg.api_key)
     # SDK 会自行拼接端点路径，粘贴了完整端点的 base_url 须先归一化
     base_url = normalize_api_base(str(cfg.base_url)) if cfg.base_url else None
-    common: dict[str, Any] = {
-        "timeout": settings.llm_http_read_timeout,
-        "max_retries": settings.llm_max_retries,
-    }
+    # connect 与 read 分离：建连黑洞不应拖满读超时
+    openai_timeout = httpx.Timeout(
+        connect=settings.llm_http_connect_timeout,
+        read=settings.llm_http_read_timeout,
+        write=120.0,
+        pool=10.0,
+    )
+    callbacks: list[BaseCallbackHandler] = []
     if meter:
-        common["callbacks"] = [
+        callbacks.append(
             UsageMeterCallback(
                 outlet=OUTLET_BYOK if cfg.provider == "byok" else OUTLET_SYSTEM,
                 provider=cfg.provider,
                 model_name=cfg.model_name,
             )
-        ]
+        )
+        # 主备切换：额度耗尽类错误标记配置进入冷却（BYOK 负数哨兵 id 内部已忽略）
+        if cfg.config_id > 0:
+            callbacks.append(FailoverHealthCallback(cfg.config_id))
     if cfg.protocol == "anthropic":
-        # ChatAnthropic 的 max_tokens 字段带 alias，静态签名不含该 kwarg，故解包传入
+        # ChatAnthropic 的 max_tokens/timeout 字段带 alias，静态签名不含该
+        # kwarg，故解包传入。其 timeout 字段类型仅收 float（httpx.Timeout 会被
+        # pydantic 拒收），connect 分离不可行——读超时兜底 + 任务级软硬限覆盖
         params: dict[str, Any] = {
             "model": cfg.model_name,
             "api_key": api_key,
             "base_url": base_url,
             "max_tokens": ANTHROPIC_MAX_TOKENS,
-            **common,
+            "timeout": settings.llm_http_read_timeout,
+            "max_retries": settings.llm_max_retries,
         }
+        if callbacks:
+            params["callbacks"] = callbacks
         if disable_thinking:
             params["thinking"] = {"type": "disabled"}
         return ChatAnthropic(**params)
@@ -77,5 +92,7 @@ def build_langchain_model(
         base_url=base_url,
         extra_body=extra_body,
         stream_usage=meter,  # 流式拿到真实 usage 的前提（不计量时保持端点默认）
-        **common,
+        timeout=openai_timeout,
+        max_retries=settings.llm_max_retries,
+        callbacks=callbacks,
     )

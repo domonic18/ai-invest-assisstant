@@ -27,10 +27,12 @@ class TestStockDailyAnalysisTool:
         analysis.trade_date = date(2026, 9, 4)
         analysis.sections = [MagicMock(title="操作策略")]
         sections = {
-            "intraday_review": "盘面解读",
+            "intraday_review": "盘面摘要",
+            "technical_analysis": "技术面 —— 《趋势理论》第36集 08:15（关键位与拐点）",
+            "emotion_analysis": "情绪面：行业主力资金净流入",
             "key_events": "关键事件",
-            "strategy": "操作策略",
-            "risk_lines": "风险与止损",
+            "strategy": "策略 —— 《趋势理论》第12集 03:20（趋势判断）",
+            "risk_lines": "风险与止损 —— 《趋势理论》第12集 03:20（趋势判断）",
         }
         with (
             patch(
@@ -57,11 +59,60 @@ class TestStockDailyAnalysisTool:
         assert result["stock_code"] == "600519"
         assert result["stock_name"] == "贵州茅台"
         assert result["section_titles"] == ["操作策略"]
+        assert "warnings" not in result
         assert result["__event__"] == {
             "type": "stock_daily_analysis.complete",
             "stock_code": "600519",
             "trade_date": "2026-09-04",
         }
+
+    @pytest.mark.asyncio
+    async def test_citation_gap_fills_sentinel_and_warns(self) -> None:
+        """必需分区缺引用：落库前补弃权声明，返回值携带 warnings。"""
+        cfg = MagicMock()
+        cfg.provider = "anthropic"
+        cfg.model_name = "kimi"
+        analysis = MagicMock()
+        analysis.stock_code = "600519"
+        analysis.stock_name = "贵州茅台"
+        analysis.trade_date = date(2026, 9, 4)
+        analysis.sections = [MagicMock(title="操作策略")]
+        sections = {
+            "intraday_review": "盘面",
+            "technical_analysis": "技术面",
+            "emotion_analysis": "情绪面",
+            "key_events": "关键事件",
+            "strategy": "策略",
+            "risk_lines": "止损",
+        }
+        with (
+            patch(
+                "app.services.admin.llm_config_service.resolve_default_llm",
+                AsyncMock(return_value=cfg),
+            ),
+            patch(
+                "app.services.review.stock_daily_analysis_service.persist_stock_analysis",
+                AsyncMock(return_value=analysis),
+            ) as persist_mock,
+        ):
+            result = await persist_stock_daily_analysis.ainvoke(
+                {
+                    "stock_code": "600519",
+                    "trade_date": "2026-09-04",
+                    "sections": sections,
+                }
+            )
+
+        contents = persist_mock.await_args.kwargs["contents"]
+        assert contents["strategy"].endswith("无适用方法论")
+        assert contents["risk_lines"].endswith("无适用方法论")
+        assert contents["technical_analysis"].endswith("无适用方法论")
+        assert contents["intraday_review"] == "盘面"
+        assert sorted(result["warnings"]) == [
+            "分区 risk_lines 未引用知识库且未声明无适用方法论",
+            "分区 strategy 未引用知识库且未声明无适用方法论",
+            "分区 technical_analysis 未引用知识库且未声明无适用方法论",
+        ]
 
     @pytest.mark.asyncio
     async def test_rejects_bad_trade_date(self) -> None:

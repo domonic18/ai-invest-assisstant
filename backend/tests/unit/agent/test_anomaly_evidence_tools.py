@@ -165,3 +165,13 @@ class TestGetStockFundFlow:
         assert mock_list.await_args is not None
         kwargs = mock_list.await_args.kwargs
         assert (kwargs["end_date"] - kwargs["start_date"]).days == 30 * 2
+
+
+@pytest.mark.unit
+class TestAttributionAgentWiring:
+    def test_stock_evidence_tools_include_technical(self) -> None:
+        """个股归因证据工具集含技术面预计算工具（趋势位置交叉核实）。"""
+        from app.agent.skills.anomaly_attribution_agent import _EVIDENCE_TOOLS
+
+        assert "get_stock_technical" in _EVIDENCE_TOOLS["stock"]
+        assert "get_sector_fund_flow" in _EVIDENCE_TOOLS["sector"]

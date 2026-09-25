@@ -17,7 +17,7 @@ from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
 from app.models.collector_task import CollectorTask
-from collector.celery_app import resolve_queue
+from collector.celery_app import resolve_task_options
 from collector.core.cron import _normalize_cron_field, _parse_cron
 
 
@@ -74,7 +74,6 @@ class CollectorDatabaseScheduler(Scheduler):
                 continue
 
             entry_id = f"collector-task-{task_name}"
-            queue = resolve_queue(task_type, source)
             new_schedule[entry_id] = ScheduleEntry(
                 name=entry_id,
                 task="collector.celery_tasks.run_collector_task",
@@ -93,7 +92,9 @@ class CollectorDatabaseScheduler(Scheduler):
                     },
                 ),
                 kwargs={},
-                options={"queue": queue},
+                # 与 dispatcher 同源：定时任务同样携带软/硬时限，否则 beat 派发
+                # 的消息裸奔（2026-09-23 生产挂死事故根因之一）
+                options=resolve_task_options(task_type, source),
                 app=celery_app,
             )
 

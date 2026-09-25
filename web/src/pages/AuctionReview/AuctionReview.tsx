@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react'
 
 import { SourceNote } from '@/components/common/SourceNote'
 import { useIndexAuctionTrend } from '@/hooks/useAuction'
+import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 import { ChartColors } from '@/theme/colors'
 import { useColorScheme } from '@/stores/settings'
 
@@ -35,6 +36,7 @@ function formatDateLabel(iso: string): string {
 
 export function AuctionReview() {
   useColorScheme()
+  const isNarrow = useIsNarrowScreen()
   // null = 默认近 30 个交易日（由后端 days 参数决定）
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [pickerValue, setPickerValue] = useState<[Dayjs | null, Dayjs | null] | null>(null)
@@ -100,7 +102,9 @@ export function AuctionReview() {
       connectNulls: false,
       data: s.values,
       label: {
-        show: true,
+        // 窄屏逐点标签会 90 个文本糊成一片（且是全站唯一的逐点标签用法，
+        // 真机浏览器曾出现整块画布不绘制），数值由 tooltip 兜底
+        show: !isNarrow,
         position: 'top',
         fontSize: 10,
         color: 'inherit',

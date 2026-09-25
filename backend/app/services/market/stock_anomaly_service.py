@@ -1,13 +1,14 @@
 """个股异动检测服务：两段式管线（全市场快照初筛 + 候选日 K 精算）。
 
-初筛用新浪全市场快照（涨跌幅 / 换手率），精算逐候选拉新浪日 K 判定
-MA60 趋势状态 / 有效突破 M60 / 量比 / 换手。K 线获取经 ``fetch_kline``
-注入（collector 层负责 IO），规则内核纯函数可离线单测
-（docs/arch/08-anomaly-analysis.md §3/§4）。
+初筛用新浪全市场快照（涨跌幅 / 换手率），精算逐候选拉新浪日 K，按温程趋势
+理论三类拐点（突破/风险/支撑，量能确认）+ 量比 / 换手 / 涨幅判定。K 线获取经
+``fetch_kline`` 注入（collector 层负责 IO），规则内核纯函数可离线单测
+（docs/arch/08-anomaly-analysis.md §3/§4）。趋势事实由 ``trend_facts`` 计算，
+与复盘技术面文本同源。
 """
 
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date
 
 import structlog
@@ -24,13 +25,23 @@ from app.schemas.anomaly import (
 )
 from app.services.market.anomaly_common import (
     CATEGORY_ACCELERATION,
+    CATEGORY_BREAKDOWN,
     CATEGORY_BREAKOUT,
     CATEGORY_PULLBACK,
-    STOCK_DIM_MA60_BREAKOUT,
+    STOCK_DIM_BREAKOUT,
     STOCK_DIM_PRICE,
+    STOCK_DIM_RISK_BREAK,
+    STOCK_DIM_SUPPORT_TEST,
     STOCK_DIM_TURNOVER,
     STOCK_DIM_VOLUME,
     AnomalyInputNotReadyError,
+)
+from app.services.market.trend_facts import (
+    CHANNEL_UP,
+    TURNING_BREAKOUT,
+    TURNING_RISK_BREAK,
+    TURNING_SUPPORT_TEST,
+    compute_trend_facts,
 )
 
 logger = structlog.get_logger(__name__)
@@ -43,9 +54,12 @@ MIN_BARS_FOR_MA60 = MA60_WINDOW + 1
 VOLUME_BASELINE_DAYS = 5
 MIN_BARS_FOR_VOLUME_RATIO = VOLUME_BASELINE_DAYS + 1
 
-# 强度赋分：突破 > 量比 > 换手 > 涨幅；多头背景 +5，下跌反抽 ×0.7
+# 强度赋分（温程趋势理论）：突破拐点 > 风险拐点 > 量比 > 支撑拐点 > 换手 > 涨幅；
+# 上升通道 +5，下跌反抽 ×0.7。拐点维由 trend_facts 量能确认判定。
 _SCORE_BREAKOUT = 40
+_SCORE_RISK_BREAK = 30
 _SCORE_VOLUME = 25
+_SCORE_SUPPORT_TEST = 25
 _SCORE_TURNOVER = 20
 _SCORE_PRICE = 15
 _SCORE_TREND_BONUS = 5
@@ -103,7 +117,7 @@ def evaluate_stock(
     spot: dict,
     params: StockDetectionParams = DEFAULT_STOCK_PARAMS,
 ) -> dict | None:
-    """候选精算：MA60 趋势状态 + 量价维度判定。
+    """候选精算：温程趋势拐点（量能确认）+ 量价维度判定。
 
     Args:
         bars: 日 K（升序），字段 date/open/high/low/close/volume/turnover。
@@ -111,28 +125,38 @@ def evaluate_stock(
         params: 检测阈值。
 
     Returns:
-        命中任一维度时返回落库字段 dict（含分类），未命中返回 None。
-        K 线不足 61 根时 MA60 视为不可判定（is_above_ma60=False、无突破）。
+        命中任一维度时返回落库字段 dict（含分类与 trend_facts），未命中返回
+        None。K 线不足 61 根时 MA60/拐点不可判定（趋势维不命中，量价维照常）；
+        周线 M60 之下突破拐点不成立（trend_facts 带周线位置，次新股不门控），
+        存量 wire 字段 ma60/is_above_ma60/ma60_breakout 仍按旧口径写入。
     """
-    if len(bars) < 2:
+    usable = [bar for bar in bars if bar.get("close") is not None]
+    if len(usable) < 2:
         return None
-    today = bars[-1]
-    yesterday = bars[-2]
+    today = usable[-1]
     close = float(today["close"])
-    prev_close = float(yesterday["close"])
+    prev_close = float(usable[-2]["close"])
 
     volume_ratio: float | None = None
-    if len(bars) >= MIN_BARS_FOR_VOLUME_RATIO:
-        baseline = _mean([float(bar["volume"]) for bar in bars[-6:-1]])
-        if baseline > 0:
-            volume_ratio = round(float(today["volume"]) / baseline, 2)
+    if len(usable) >= MIN_BARS_FOR_VOLUME_RATIO:
+        baseline_vols = [
+            float(bar["volume"]) for bar in usable[-6:-1] if bar.get("volume") is not None
+        ]
+        if len(baseline_vols) == 5:
+            baseline = _mean(baseline_vols)
+            if baseline > 0 and today.get("volume") is not None:
+                volume_ratio = round(float(today["volume"]) / baseline, 2)
 
+    facts = compute_trend_facts(usable)
+    turning = facts.turning_points
+
+    # 存量 wire 字段（前端兼容展示），不再参与计分
     ma60: float | None = None
     is_above_ma60 = False
     ma60_breakout = False
-    if len(bars) >= MIN_BARS_FOR_MA60:
-        closes = [float(bar["close"]) for bar in bars]
-        ma60 = round(_mean(closes[-MA60_WINDOW:]), 4)
+    if len(usable) >= MIN_BARS_FOR_MA60 and facts.ma60 is not None:
+        ma60 = round(facts.ma60, 4)
+        closes = [float(bar["close"]) for bar in usable]
         prev_ma60 = _mean(closes[-(MA60_WINDOW + 1) : -1])
         is_above_ma60 = close > ma60
         ma60_breakout = (
@@ -149,9 +173,15 @@ def evaluate_stock(
 
     dims: list[str] = []
     score: float = 0
-    if ma60_breakout:
-        dims.append(STOCK_DIM_MA60_BREAKOUT)
+    if TURNING_BREAKOUT in turning:
+        dims.append(STOCK_DIM_BREAKOUT)
         score += _SCORE_BREAKOUT
+    if TURNING_RISK_BREAK in turning:
+        dims.append(STOCK_DIM_RISK_BREAK)
+        score += _SCORE_RISK_BREAK
+    if TURNING_SUPPORT_TEST in turning:
+        dims.append(STOCK_DIM_SUPPORT_TEST)
+        score += _SCORE_SUPPORT_TEST
     if volume_ratio is not None and volume_ratio >= params.volume_ratio:
         dims.append(STOCK_DIM_VOLUME)
         score += _SCORE_VOLUME
@@ -164,19 +194,23 @@ def evaluate_stock(
     if not dims:
         return None
 
-    if ma60_breakout:
+    up_day = (change_pct or 0.0) > 0
+    if TURNING_BREAKOUT in turning:
         category = CATEGORY_BREAKOUT
+    elif TURNING_RISK_BREAK in turning:
+        # 风险拐点是独立强信号，不按反抽打折
+        category = CATEGORY_BREAKDOWN
     elif ma60 is None:
         # MA60 不可判定：正向变动按趋势内加速，负向按下跌反抽弱信号
-        category = CATEGORY_ACCELERATION if (change_pct or 0.0) > 0 else CATEGORY_PULLBACK
-    elif is_above_ma60:
+        category = CATEGORY_ACCELERATION if up_day else CATEGORY_PULLBACK
+    elif is_above_ma60 and up_day:
         category = CATEGORY_ACCELERATION
     else:
         category = CATEGORY_PULLBACK
 
     if category == CATEGORY_PULLBACK:
         score *= _PULLBACK_FACTOR
-    elif is_above_ma60:
+    elif facts.channel == CHANNEL_UP:
         score += _SCORE_TREND_BONUS
 
     return {
@@ -189,6 +223,7 @@ def evaluate_stock(
         "ma60": ma60,
         "is_above_ma60": is_above_ma60,
         "ma60_breakout": ma60_breakout,
+        "trend_facts": asdict(facts),
         "anomaly_types": dims,
         "strength": max(0, min(round(score), 100)),
         "attribution_category": category,

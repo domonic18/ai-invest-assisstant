@@ -39,12 +39,14 @@ from app.schemas.market import (
 
 @pytest.mark.unit
 class TestBuildAssistantTools:
-    def test_returns_thirty_three_tools(self) -> None:
+    def test_returns_thirty_seven_tools(self) -> None:
         tools = build_assistant_tools()
         names = [t.name for t in tools]
         assert names == [
             "get_stock_quote",
             "get_stock_kline",
+            "get_stock_technical",
+            "get_stock_emotion_context",
             "query_financial_data",
             "get_stock_fund_flow",
             "get_dragon_tiger",
@@ -84,7 +86,7 @@ class TestBuildAssistantTools:
         tools = build_assistant_tools(use_kb=False)
         names = [t.name for t in tools]
         assert "search_knowledge_base" not in names
-        assert len(names) == 34
+        assert len(names) == 36
 
 
 @pytest.mark.unit
@@ -330,3 +332,95 @@ class TestReviewInputTools:
 
         assert result["items"] == []
         assert "无板块异动检测数据" in result["note"]
+
+
+@pytest.mark.unit
+class TestStockReviewTools:
+    @pytest.mark.asyncio
+    async def test_stock_technical_resolves_latest_trade_date(self) -> None:
+        from app.agent.tools import get_stock_technical
+        from app.services.market import index_technical_service, trade_calendar_service
+
+        with (
+            patch.object(
+                trade_calendar_service,
+                "resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 9, 22)),
+            ),
+            patch.object(
+                index_technical_service,
+                "build_stock_technical_context",
+                AsyncMock(return_value="■ 600519 收 95.00"),
+            ) as mock_svc,
+        ):
+            result = await get_stock_technical.ainvoke({"stock_code": "600519"})
+
+        assert mock_svc.await_args.args[1:] == ("600519", date(2026, 9, 22))
+        assert result == {
+            "trade_date": "2026-09-22",
+            "technical_context": "■ 600519 收 95.00",
+        }
+
+    @pytest.mark.asyncio
+    async def test_stock_technical_explicit_date_skips_calendar(self) -> None:
+        from app.agent.tools import get_stock_technical
+        from app.services.market import index_technical_service, trade_calendar_service
+
+        calendar_mock = AsyncMock()
+        with (
+            patch.object(
+                trade_calendar_service, "resolve_latest_trade_date", calendar_mock
+            ),
+            patch.object(
+                index_technical_service,
+                "build_stock_technical_context",
+                AsyncMock(return_value="ctx"),
+            ),
+        ):
+            result = await get_stock_technical.ainvoke(
+                {"stock_code": "600519", "trade_date": "2026-09-18"}
+            )
+
+        calendar_mock.assert_not_awaited()
+        assert result["trade_date"] == "2026-09-18"
+
+    @pytest.mark.asyncio
+    async def test_stock_technical_rejects_bad_date(self) -> None:
+        from app.agent.tools import get_stock_technical
+
+        result = await get_stock_technical.ainvoke(
+            {"stock_code": "600519", "trade_date": "2026/09/18"}
+        )
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_stock_emotion_context_wraps_service(self) -> None:
+        from app.agent.tools import get_stock_emotion_context
+        from app.services.market import stock_emotion_service, trade_calendar_service
+
+        payload = {"industry": "燃气", "market_emotion": {"total": 50}}
+        with (
+            patch.object(
+                trade_calendar_service,
+                "resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 9, 22)),
+            ),
+            patch.object(
+                stock_emotion_service,
+                "build_stock_emotion_context",
+                AsyncMock(return_value=payload),
+            ) as mock_svc,
+        ):
+            result = await get_stock_emotion_context.ainvoke({"stock_code": "002259"})
+
+        assert mock_svc.await_args.args[1:] == ("002259", date(2026, 9, 22))
+        assert result == payload
+
+    @pytest.mark.asyncio
+    async def test_stock_emotion_context_rejects_bad_date(self) -> None:
+        from app.agent.tools import get_stock_emotion_context
+
+        result = await get_stock_emotion_context.ainvoke(
+            {"stock_code": "002259", "trade_date": "09/18"}
+        )
+        assert "error" in result

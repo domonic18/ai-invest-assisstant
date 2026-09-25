@@ -63,7 +63,9 @@ def _patch_prompt_config() -> None:
     return patch.object(  # type: ignore[return-value]
         stock_daily_analysis_service,
         "load_prompt_config",
-        lambda: SimpleNamespace(sections=_SECTIONS, user_prompt_template=_PROMPT_TEMPLATE),
+        lambda: SimpleNamespace(
+            sections=_SECTIONS, user_prompt_template=_PROMPT_TEMPLATE, version="9.9.9"
+        ),
     )
 
 
@@ -141,6 +143,16 @@ class TestInputHash:
         assert input_hash(_STOCK_CODE, _TRADE_DATE, _SECTIONS) != input_hash(
             _STOCK_CODE, _TRADE_DATE, altered
         )
+
+    def test_varies_by_prompt_version(self) -> None:
+        """提示词版本入哈希：版本升级后旧缓存自动失效。"""
+        baseline = input_hash(_STOCK_CODE, _TRADE_DATE, _SECTIONS)
+        with patch(
+            "app.services.review.stock_daily_analysis_service.load_prompt_config",
+            lambda: SimpleNamespace(sections=_SECTIONS, version="9.8.8"),
+        ):
+            bumped = input_hash(_STOCK_CODE, _TRADE_DATE, _SECTIONS)
+        assert bumped != baseline
 
 
 @pytest.mark.unit

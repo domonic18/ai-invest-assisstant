@@ -19,6 +19,7 @@ _SECTOR_DETECT_FIELDS = (
     "amount_ratio",
     "up_count",
     "down_count",
+    "trend_facts",
     "anomaly_types",
     "strength",
 )
@@ -31,6 +32,7 @@ _STOCK_DETECT_FIELDS = (
     "ma60",
     "is_above_ma60",
     "ma60_breakout",
+    "trend_facts",
     "anomaly_types",
     "strength",
 )

@@ -10,6 +10,10 @@ export const ANOMALY_TYPE_LABELS: Record<string, string> = {
   sync: '普涨',
   ma60_breakout: 'MA60 突破',
   turnover: '高换手',
+  trend: '趋势拐点',
+  breakout: '突破拐点',
+  risk_break: '风险拐点',
+  support_test: '支撑拐点',
 }
 
 /** 板块归因分类 */
@@ -20,7 +24,8 @@ export const SECTOR_CATEGORY_LABELS: Record<string, string> = {
 
 /** 个股归因分类 */
 export const STOCK_CATEGORY_LABELS: Record<string, string> = {
-  breakout: '趋势突破',
+  breakout: '突破拐点',
+  breakdown: '破位下行',
   acceleration: '趋势内加速',
   pullback: '下跌反抽',
 }
@@ -30,6 +35,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   resonance: 'volcano',
   rotation: 'gold',
   breakout: 'red',
+  breakdown: 'green',
   acceleration: 'orange',
   pullback: 'green',
 }

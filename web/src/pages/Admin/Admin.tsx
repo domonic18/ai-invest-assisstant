@@ -16,6 +16,7 @@ import { Link } from 'react-router-dom'
 
 import { useCollectorLogs } from '@/hooks/useCollectorAdmin'
 import { usePendingCount } from '@/hooks/useAdminAccount'
+import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 import { formatDateTime } from '@/utils/formatters'
 import { getSourceLabel, getTaskLabel } from '@/utils/collectorTaskLabels'
 import { statusTagColor } from '@ai-invest/shared'
@@ -37,6 +38,7 @@ const ADMIN_LINKS = [
 export function Admin() {
   const { data: logs, isLoading } = useCollectorLogs({ pageSize: 10 })
   const pendingCount = usePendingCount(true).data ?? 0
+  const isNarrow = useIsNarrowScreen()
 
   const logColumns = [
     { title: '任务', dataIndex: 'taskName', key: 'taskName', render: (v: string) => getTaskLabel(v) },
@@ -58,9 +60,13 @@ export function Admin() {
       render: (v: string | null) => v ? <Typography.Text type="danger" ellipsis={{ tooltip: v }}>{v}</Typography.Text> : '-',
     },
   ]
+  // 窄屏只留任务/状态/开始时间：固定宽列会保宽，自适应列被挤成一字一行竖排
+  const visibleLogColumns = isNarrow
+    ? logColumns.filter((c) => ['taskName', 'status', 'startedAt'].includes(c.key))
+    : logColumns
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <Typography.Title level={4} className="!mb-0">后台管理</Typography.Title>
 
       {pendingCount > 0 && (
@@ -79,18 +85,26 @@ export function Admin() {
         />
       )}
 
-      <Row gutter={[16, 16]}>
+      <Row gutter={[12, 12]}>
         {ADMIN_LINKS.map((link) => (
-          <Col xs={24} sm={12} lg={6} key={link.path}>
+          <Col xs={8} sm={8} md={12} lg={6} key={link.path}>
             <Link to={link.path}>
               <Card
                 variant="borderless"
                 className="h-full hover:opacity-80 transition-opacity"
+                styles={isNarrow ? { body: { padding: '12px 4px' } } : undefined}
               >
-                <Space className="text-lg">
-                  <span className={`p-2 rounded ${link.color}`}>{link.icon}</span>
-                  <span>{link.title}</span>
-                </Space>
+                {isNarrow ? (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <span className={`p-2 rounded-lg text-base ${link.color}`}>{link.icon}</span>
+                    <span className="text-xs whitespace-nowrap">{link.title}</span>
+                  </div>
+                ) : (
+                  <Space className="text-lg">
+                    <span className={`p-2 rounded ${link.color}`}>{link.icon}</span>
+                    <span>{link.title}</span>
+                  </Space>
+                )}
               </Card>
             </Link>
           </Col>
@@ -100,11 +114,12 @@ export function Admin() {
       <Card title="最近采集日志" variant="borderless" extra={<Link to="/admin/collector">查看更多</Link>}>
         <Table
           dataSource={logs?.items ?? []}
-          columns={logColumns}
+          columns={visibleLogColumns}
           rowKey="id"
           loading={isLoading}
           pagination={false}
           size="small"
+          scroll={{ x: 'max-content' }}
         />
       </Card>
     </div>

@@ -1,7 +1,7 @@
 """个股异动检测定时采集器（两段式管线的数据获取端）。
 
 17:00 触发：先直采新浪全市场快照（含换手率，akshare 的 ``stock_zh_a_spot``
-会丢弃该列），初筛候选后逐股拉新浪日 K 供服务层精算 MA60/量价维度，落
+会丢弃该列），初筛候选后逐股拉新浪日 K 供服务层精算趋势拐点/量价维度，落
 ``market_anomaly_stock``。全市场快照缺失抛
 :class:`AnomalyInputNotReadyError` 由 Celery 任务退避重试
 （docs/arch/08-anomaly-analysis.md §3/§5）。
@@ -31,10 +31,10 @@ _MARKET_SPOT_URL = (
 _NODE = "hs_a"
 _PAGE_SIZE = 100
 _MAX_PAGES = 120
-# 精算需 61 根交易日 K 线（≈90 日历天），留足节假日余量
-_KLINE_LOOKBACK_DAYS = 200
-# 精算窗口：MA60 + 昨日对照 + 余量
-_KLINE_TAIL_BARS = 70
+# 周线门控需 60 周收盘（≈300 根交易日，≈440 日历天），留足节假日余量
+_KLINE_LOOKBACK_DAYS = 480
+# 精算窗口：周线 MA60（60 周聚合）+ 日线 MA60/拐点 + 余量
+_KLINE_TAIL_BARS = 330
 _SPOT_TIMEOUT_SECONDS = 15
 
 _FLOAT_PARAMS = (
@@ -137,6 +137,9 @@ def _make_kline_fetcher(end_date: date) -> Any:
                 bars.append(
                     {
                         "date": row.get("date"),
+                        "open": _to_float(row.get("open")),
+                        "high": _to_float(row.get("high")),
+                        "low": _to_float(row.get("low")),
                         "close": _to_float(row.get("close")),
                         "volume": _to_float(row.get("volume")),
                         "turnover": _to_float(row.get("turnover")),
@@ -145,7 +148,9 @@ def _make_kline_fetcher(end_date: date) -> Any:
             return bars[-_KLINE_TAIL_BARS:]
 
         try:
-            bars: list[dict[str, Any]] = await run_in_thread(_load)
+            # 单只日 K 一个请求，60s 足够；超时立即失败走渠道 fallback，
+            # 防止线程在无超时的 akshare 请求上挂死（2026-09-23 事故现场）
+            bars: list[dict[str, Any]] = await run_in_thread(_load, timeout=60)
             return bars
         except Exception:  # noqa: BLE001
             logger.warning("stock_anomaly_kline_fetch_failed", symbol=sina_symbol)

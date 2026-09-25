@@ -8,7 +8,7 @@ import { SearchTab } from './SearchTab'
 import { SettingsTab } from './SettingsTab'
 import { SourcesTab } from './SourcesTab'
 
-const TAB_KEYS = ['settings', 'sources', 'ingest', 'review', 'images', 'search'] as const
+const TAB_KEYS = ['sources', 'ingest', 'review', 'images', 'search', 'settings'] as const
 
 type TabKey = (typeof TAB_KEYS)[number]
 
@@ -16,7 +16,7 @@ export default function KnowledgeBase() {
   const [params, setParams] = useSearchParams()
   const activeKey = (TAB_KEYS as readonly string[]).includes(params.get('tab') ?? '')
     ? (params.get('tab') as TabKey)
-    : 'settings'
+    : 'sources'
   const sourceIdParam = params.get('sourceId')
   const sourceId = sourceIdParam ? Number(sourceIdParam) : null
 
@@ -34,7 +34,6 @@ export default function KnowledgeBase() {
           activeKey={activeKey}
           onChange={(key) => navigate(key as TabKey, sourceId)}
           items={[
-            { key: 'settings', label: '知识库设置', children: <SettingsTab /> },
             {
               key: 'sources',
               label: '知识库列表',
@@ -80,6 +79,7 @@ export default function KnowledgeBase() {
                 />
               ),
             },
+            { key: 'settings', label: '知识库设置', children: <SettingsTab /> },
           ]}
         />
       </Card>

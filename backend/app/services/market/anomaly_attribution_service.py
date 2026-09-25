@@ -31,7 +31,7 @@ SKILL_ID = "anomaly-attribution"
 DOMAINS = ("sector", "stock")
 
 SECTOR_CATEGORIES = frozenset({"resonance", "rotation"})
-STOCK_CATEGORIES = frozenset({"breakout", "acceleration", "pullback"})
+STOCK_CATEGORIES = frozenset({"breakout", "breakdown", "acceleration", "pullback"})
 
 _DOMAIN_LABELS = {"sector": "板块", "stock": "个股"}
 
@@ -66,8 +66,10 @@ class StockAnomalyAttributionContent(BaseModel):
 
 
 def _input_hash(domain: str, code: str, trade_date: date) -> str:
+    # v3 盐：prompt 2.1.0 起 trend_facts 带周线 M60 位置且突破门控生效，
+    # v2 缓存摘要（无周线语境）必须整体失效
     return hashlib.sha256(
-        f"{SKILL_ID}:{domain}:{code}:{trade_date.isoformat()}".encode()
+        f"{SKILL_ID}:v3:{domain}:{code}:{trade_date.isoformat()}".encode()
     ).hexdigest()
 
 
@@ -101,6 +103,7 @@ def _sector_targets(rows: list[Any]) -> list[dict[str, Any]]:
             "up_count": row.up_count,
             "down_count": row.down_count,
             "anomaly_types": list(row.anomaly_types or []),
+            "trend_facts": row.trend_facts,
             "strength": row.strength,
             "rule_category": row.attribution_category,
         }
@@ -123,6 +126,7 @@ def _stock_targets(rows: list[Any]) -> list[dict[str, Any]]:
             "is_above_ma60": row.is_above_ma60,
             "ma60_breakout": row.ma60_breakout,
             "anomaly_types": list(row.anomaly_types or []),
+            "trend_facts": row.trend_facts,
             "strength": row.strength,
             "rule_category": row.attribution_category,
         }
@@ -155,6 +159,21 @@ def _key_of_target(domain: str, target: dict[str, Any]) -> str:
     if domain == "sector":
         return f"{target['sector_type']}:{target['sector_code']}"
     return str(target["stock_code"])
+
+
+def _enforce_kb_citation(
+    domain: str, entries: list[tuple[str, str, str]]
+) -> list[tuple[str, str, str]]:
+    """引用契约 fail-soft：无引用且无弃权声明的摘要补 sentinel，只警告不失败。"""
+    from app.agent.skills.kb_grounding import append_sentinel, summary_needs_sentinel
+
+    enforced: list[tuple[str, str, str]] = []
+    for key, category, summary in entries:
+        if summary_needs_sentinel(summary):
+            logger.warning("attribution_kb_citation_gap", domain=domain, key=key)
+            summary = append_sentinel(summary)
+        enforced.append((key, category, summary))
+    return enforced
 
 
 async def _list_rows(session: AsyncSession, domain: str, trade_date: date) -> list[Any]:
@@ -250,6 +269,7 @@ async def _generate_missing(
             rule = str(target.get("rule_category") or "")
             entries.append((key, rule, "证据不足，保留规则分类"))
 
+    entries = _enforce_kb_citation(domain, entries)
     await _insert_cache_rows(
         session, domain, trade_date, entries, model=model_name, latency_ms=latency_ms
     )
@@ -363,6 +383,11 @@ async def persist_manual_attribution(
 
     if not applied:
         raise ValueError("归因条目全部无效：标的不在检测清单内或分类非法")
+
+    enforced = _enforce_kb_citation(
+        domain, [(key, cat, summary) for key, (cat, summary) in applied.items()]
+    )
+    applied = {key: (cat, summary) for key, cat, summary in enforced}
 
     _apply_to_rows(rows, domain, applied)
     await _insert_cache_rows(

@@ -176,8 +176,8 @@ VALUES
     ('limit_up_ai_review_1630', 'limit-up-ai-review', 'internal', '30 16 * * 1-5', true),
     -- 16:40 遍历开启 AI 复盘分组的自选股逐只生成个股分析（自选股日 K 16:30 批就绪后）
     ('stock_daily_analysis_1640', 'ai_stock_daily_analysis', 'internal', '40 16 * * 1-5', true),
-    -- 16:45 板块收盘快照（sector-quote 16:05 批次）落库后做板块异动检测 + top-10 归因
-    ('sector_anomaly_detect_1645', 'sector-anomaly', 'internal', '45 16 * * 1-5', true),
+    -- 17:45 板块异动检测 + top-10 归因（依赖 17:30 THS 板块日 K 落库供趋势拐点维）
+    ('sector_anomaly_detect_1745', 'sector-anomaly', 'internal', '45 17 * * 1-5', true),
     -- 17:00 个股异动两段式检测（全市场快照初筛 + 候选新浪日 K 精算）+ top-20 归因
     ('stock_anomaly_detect_1700', 'stock-anomaly', 'internal', '0 17 * * 1-5', true),
     -- 同花顺板块指数日 K：17:30 收盘批后增量（默认回看 10 日），历史回填手动调大 lookback_days
@@ -392,7 +392,9 @@ VALUES
     -- F-KB：课程视频关键帧（每 10 分钟扫描 done 视频选帧 + pending 图片 VLM 描述，两阶段）
     ('kb_vision_scan', 'kb-vision', 'internal', '*/10 * * * *', true),
     -- F-KB：知识库索引构建（每 5 分钟增量扫描三类脏行向量化入 ES；force_rebuild 蓝绿重建）
-    ('kb_index_scan', 'kb-index', 'internal', '*/5 * * * *', true)
+    ('kb_index_scan', 'kb-index', 'internal', '*/5 * * * *', true),
+    -- 模拟盘盘后同步：16:00 清算稳定且在复盘链之前（掘金仿真当日委托/成交/资金快照幂等落库）
+    ('paper_trade_sync_1600', 'paper-trade-sync', 'internal', '0 16 * * 1-5', true)
 ON CONFLICT (task_name) DO UPDATE
 SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;
 

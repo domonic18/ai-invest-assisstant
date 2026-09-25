@@ -302,6 +302,43 @@ async def list_sector_kline_by_name(
     return list(reversed((await session.execute(stmt)).scalars().all()))
 
 
+async def map_sector_kline_by_name(
+    session: AsyncSession, names: list[str], limit_bars: int = 80
+) -> dict[tuple[str, str], list[SectorKlineDaily]]:
+    """批量按板块名取同花顺板块指数日 K：dict[(sector_type, sector_name)] → 近 N 根升序。
+
+    单 IN 查询 + row_number 窗口替代逐板块查询，供板块异动检测趋势维
+    一次取全检测池的 K 线（名称键与东财板块同名桥接）。
+    """
+    if not names:
+        return {}
+    rn = (
+        func.row_number()
+        .over(
+            partition_by=SectorKlineDaily.sector_name,
+            order_by=SectorKlineDaily.trade_date.desc(),
+        )
+        .label("rn")
+    )
+    inner = (
+        select(SectorKlineDaily)
+        .where(SectorKlineDaily.sector_name.in_(names))
+        .add_columns(rn)
+        .subquery()
+    )
+    sector_kline = aliased(SectorKlineDaily, inner)
+    stmt = (
+        select(sector_kline)
+        .select_from(inner)
+        .where(inner.c.rn <= limit_bars)
+        .order_by(sector_kline.sector_type, sector_kline.sector_name, sector_kline.trade_date)
+    )
+    bars_by_key: dict[tuple[str, str], list[SectorKlineDaily]] = {}
+    for row in (await session.execute(stmt)).scalars().all():
+        bars_by_key.setdefault((row.sector_type, row.sector_name), []).append(row)
+    return bars_by_key
+
+
 async def list_ths_sector_names(session: AsyncSession) -> list[tuple[str, str]]:
     """同花顺指数覆盖的 (sector_type, sector_name) 宇宙（板块异动检测池收敛判据）。"""
     stmt = select(SectorKlineDaily.sector_type, SectorKlineDaily.sector_name).distinct()

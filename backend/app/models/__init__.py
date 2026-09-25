@@ -55,6 +55,12 @@ from app.models.news_storyline import (
 )
 from app.models.news_telegraph import NewsTelegraph
 from app.models.news_topic_snapshot import NewsTopicSnapshot
+from app.models.paper_trade import (
+    PaperTradeAccount,
+    PaperTradeCashSnapshot,
+    PaperTradeExecution,
+    PaperTradeOrder,
+)
 from app.models.pool_dragon_tiger_stock import DragonTigerStock
 from app.models.pool_limit_up_stock import LimitUpPool
 from app.models.quote_auction_index import IndexAuction
@@ -125,6 +131,10 @@ __all__ = [
     "NewsSubscriptionHit",
     "NewsTelegraph",
     "NewsTopicSnapshot",
+    "PaperTradeAccount",
+    "PaperTradeCashSnapshot",
+    "PaperTradeExecution",
+    "PaperTradeOrder",
     "SectorFundFlow",
     "SectorQuoteDaily",
     "SectorAnomaly",

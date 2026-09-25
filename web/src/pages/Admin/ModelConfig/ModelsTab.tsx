@@ -15,9 +15,11 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from 'antd'
+import dayjs from 'dayjs'
 import { useState } from 'react'
 
 import {
@@ -50,6 +52,17 @@ const PURPOSE_LABEL: Record<string, string> = {
 
 function getCapabilities(config: LLMConfig | null): LLMConfigCapabilities {
   return (config?.extra?.capabilities ?? {}) as LLMConfigCapabilities
+}
+
+function DegradedTag({ degradedUntil }: { degradedUntil: string | null }) {
+  if (!degradedUntil) return null
+  const minutes = dayjs(degradedUntil).diff(dayjs(), 'minute')
+  if (minutes <= 0) return null
+  return (
+    <Tooltip title="主模型限流/额度耗尽，已自动切换备用；约 N 分钟后重试主模型">
+      <Tag color="orange">额度受限 · 约 {minutes} 分钟后重试</Tag>
+    </Tooltip>
+  )
 }
 
 export function ModelsTab() {
@@ -90,6 +103,7 @@ export function ModelsTab() {
             isDefault: values.isDefault,
             isActive: values.isActive,
             purpose: values.purpose,
+            backupConfigId: values.backupConfigId ?? null,
             extra: {
               ...editing.extra,
               capabilities: { ...getCapabilities(editing), vision: values.vision === true },
@@ -108,6 +122,7 @@ export function ModelsTab() {
           isDefault: values.isDefault,
           isActive: values.isActive,
           purpose: values.purpose,
+          backupConfigId: values.backupConfigId ?? null,
           extra: { capabilities: { vision: values.vision === true } },
         })
         message.success('配置已创建')
@@ -153,7 +168,17 @@ export function ModelsTab() {
   }
 
   const columns = [
-    { title: '名称', dataIndex: 'name', key: 'name' },
+    {
+      title: '名称',
+      dataIndex: 'name',
+      key: 'name',
+      render: (value: string, record: LLMConfig) => (
+        <Space>
+          <span>{value}</span>
+          <DegradedTag degradedUntil={record.degradedUntil} />
+        </Space>
+      ),
+    },
     {
       title: '供应商',
       dataIndex: 'provider',
@@ -195,6 +220,21 @@ export function ModelsTab() {
       key: 'capabilities',
       render: (_: unknown, record: LLMConfig) =>
         getCapabilities(record).vision ? <Tag color="geekblue">视觉</Tag> : null,
+    },
+    {
+      title: '备用',
+      dataIndex: 'backupConfigId',
+      key: 'backupConfigId',
+      width: 130,
+      render: (backupId: number | null) => {
+        if (!backupId) return null
+        const backup = configs?.find((c) => c.id === backupId)
+        return (
+          <Tooltip title="主模型限流/额度耗尽时自动切换到该模型">
+            <Tag color="cyan">{backup ? backup.name : `#${backupId}`}</Tag>
+          </Tooltip>
+        )
+      },
     },
     {
       title: '启用',
@@ -298,6 +338,7 @@ export function ModelsTab() {
       <ModelFormModal
         open={modalOpen}
         editing={editing}
+        configs={configs || []}
         onCancel={() => setModalOpen(false)}
         onSubmit={handleSubmit}
         onTest={() => editing && handleTest(editing)}

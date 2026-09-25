@@ -26,7 +26,8 @@ class ThsSectorFundFlowCollector(BaseSectorFundFlowCollector):
         types = [sector_type] if sector_type is not None else ["industry", "concept"]
         raw: list[dict[str, Any]] = []
         for st in types:
-            raw.extend(await run_in_thread(self._collect_one, st))
+            # 单类型单请求 60s 上限；防 akshare 无超时请求挂死线程
+            raw.extend(await run_in_thread(self._collect_one, st, timeout=60))
         return raw
 
     def _collect_one(self, sector_type: str) -> list[dict[str, Any]]:

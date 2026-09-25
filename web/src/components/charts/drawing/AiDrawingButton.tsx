@@ -14,7 +14,7 @@ export function AiDrawingButton() {
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-1 px-2.5 py-[3px] text-xs rounded transition-colors text-[#8a8f98] hover:text-[#8a93ff]"
+      className="inline-flex shrink-0 items-center gap-1 px-2.5 py-[3px] text-xs whitespace-nowrap rounded transition-colors text-[#8a8f98] hover:text-[#8a93ff]"
       title="AI 分析关键压力/支撑与形态边界并画到图上"
       onClick={() => sendQuestion(AI_DRAWING_QUESTION)}
     >

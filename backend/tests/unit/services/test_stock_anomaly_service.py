@@ -1,6 +1,10 @@
-"""个股异动检测服务单测：初筛网 + MA60/量价精算矩阵 + 编排。"""
+"""个股异动检测服务单测：趋势拐点维（量能确认）+ 量价维度 + 编排。
 
-from datetime import date
+拐点维由 trend_facts 判定（与 test_trend_facts.py 的构造同源）；
+存量 wire 字段 ma60/is_above_ma60/ma60_breakout 仍按旧口径写入但不计分。
+"""
+
+from datetime import date, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -8,10 +12,14 @@ import pytest
 
 from app.services.market.anomaly_common import (
     CATEGORY_ACCELERATION,
+    CATEGORY_BREAKDOWN,
     CATEGORY_BREAKOUT,
     CATEGORY_PULLBACK,
+    STOCK_DIM_BREAKOUT,
     STOCK_DIM_MA60_BREAKOUT,
     STOCK_DIM_PRICE,
+    STOCK_DIM_RISK_BREAK,
+    STOCK_DIM_SUPPORT_TEST,
     STOCK_DIM_TURNOVER,
     STOCK_DIM_VOLUME,
     AnomalyInputNotReadyError,
@@ -24,6 +32,7 @@ from app.services.market.stock_anomaly_service import (
     pre_screen_spot,
     run_stock_detection,
 )
+from app.services.market.trend_facts import CHANNEL_UP
 
 pytestmark = pytest.mark.unit
 
@@ -44,12 +53,21 @@ def _bars(
     closes: list[float],
     volumes: list[float] | None = None,
     turnover: float | None = 2.0,
+    low_gap: float = 0.5,
 ) -> list[dict]:
     if volumes is None:
         volumes = [1_000_000.0] * len(closes)
     return [
-        {"date": f"2026-{i:02d}-01", "close": close, "volume": volume, "turnover": turnover}
-        for i, (close, volume) in enumerate(zip(closes, volumes), start=1)
+        {
+            "date": f"2026-{i // 28 + 1:02d}-{i % 28 + 1:02d}",
+            "open": close,
+            "high": close + 0.3,
+            "low": close - low_gap,
+            "close": close,
+            "volume": volume,
+            "turnover": turnover,
+        }
+        for i, (close, volume) in enumerate(zip(closes, volumes))
     ]
 
 
@@ -77,7 +95,7 @@ def test_pre_screen_sorts_by_pre_score_and_caps() -> None:
 # ---------- 精算 ----------
 
 
-def test_insufficient_history_uses_spot_fallback_and_acceleration() -> None:
+def test_insufficient_history_volume_turnover_is_acceleration() -> None:
     closes = [10.0] * 9 + [11.0]
     volumes = [1_000_000.0] * 9 + [3_000_000.0]
     row = evaluate_stock(
@@ -87,6 +105,8 @@ def test_insufficient_history_uses_spot_fallback_and_acceleration() -> None:
     assert row["ma60"] is None
     assert row["is_above_ma60"] is False
     assert row["ma60_breakout"] is False
+    assert row["trend_facts"]["channel"] == "均线数据不足"
+    assert row["trend_facts"]["turning_points"] == ()
     assert set(row["anomaly_types"]) == {STOCK_DIM_VOLUME, STOCK_DIM_TURNOVER}
     # 量比 3.0 → 25 + 换手 9 ≥ 8 → 20；正向变动无 MA60 归入加速
     assert row["strength"] == 45
@@ -105,48 +125,91 @@ def test_insufficient_history_negative_move_is_pullback_downweighted() -> None:
     assert row["strength"] == 10
 
 
-def test_ma60_breakout_happy_path() -> None:
+def test_breakout_turning_full_score_with_up_channel_bonus() -> None:
+    # 前收 9.5 跌破后带量收复 MA30 且创 20 日新高：突破拐点 + 量比 + 换手
     closes = [10.0] * 59 + [9.5, 10.6]
     volumes = [1_000_000.0] * 60 + [3_000_000.0]
     row = evaluate_stock(
         _bars(closes, volumes), _spot("600000", change_pct=2.0, turnover_rate=9.0)
     )
     assert row is not None
+    assert STOCK_DIM_BREAKOUT in row["anomaly_types"]
+    assert row["trend_facts"]["channel"] == CHANNEL_UP
+    assert row["trend_facts"]["turning_points"] == ("breakout",)
+    assert row["volume_ratio"] == 3.0
+    # 存量 wire 字段仍按旧口径写入
     assert row["ma60_breakout"] is True
     assert row["is_above_ma60"] is True
-    assert row["volume_ratio"] == 3.0
-    assert set(row["anomaly_types"]) == {
-        STOCK_DIM_MA60_BREAKOUT,
-        STOCK_DIM_VOLUME,
-        STOCK_DIM_TURNOVER,
-    }
-    # 突破 40 + 量比 25 + 换手 20 + 多头背景加成 5
+    # 突破 40 + 量比 25 + 换手 20 + 上升通道加成 5
     assert row["strength"] == 90
     assert row["attribution_category"] == CATEGORY_BREAKOUT
 
 
-def test_revisit_above_ma60_without_breakout_is_acceleration() -> None:
-    # 昨日已站上 MA60（无首次突破），当日量比放大
-    closes = [10.0] * 59 + [11.0, 11.2]
+def test_risk_break_turning_is_breakdown_not_downweighted() -> None:
+    # 上升通道中放量跌破 MA30：风险拐点 30 + 量比 25 + 换手 20 + 加成 5
+    closes = [10.0] * 31 + [10.0 + 0.1 * i for i in range(1, 30)] + [9.0]
     volumes = [1_000_000.0] * 60 + [3_000_000.0]
+    row = evaluate_stock(
+        _bars(closes, volumes), _spot("600000", change_pct=2.0, turnover_rate=9.0)
+    )
+    assert row is not None
+    assert STOCK_DIM_RISK_BREAK in row["anomaly_types"]
+    assert row["trend_facts"]["channel"] == CHANNEL_UP
+    assert row["trend_facts"]["turning_points"] == ("risk_break",)
+    assert row["is_above_ma60"] is False
+    assert row["ma60_breakout"] is False
+    assert row["strength"] == 80
+    assert row["attribution_category"] == CATEGORY_BREAKDOWN
+
+
+def test_support_test_turning_near_60d_low_with_shrink() -> None:
+    # 下降通道回踩 60 日支撑带 + 20 日地量：支撑拐点 25，反抽弱信号 ×0.7
+    closes = [24.0 - 0.08 * i for i in range(59)] + [19.5, 19.45]
+    volumes = [1_000_000.0] * 60 + [500_000.0]
+    row = evaluate_stock(
+        _bars(closes, volumes, low_gap=0.1),
+        _spot("600000", change_pct=-1.0, turnover_rate=1.0),
+    )
+    assert row is not None
+    assert row["anomaly_types"] == [STOCK_DIM_SUPPORT_TEST]
+    assert row["trend_facts"]["turning_points"] == ("support_test",)
+    assert row["attribution_category"] == CATEGORY_PULLBACK
+    assert row["strength"] == round(25 * 0.7)
+
+
+def test_unconfirmed_new_high_does_not_hit_breakout() -> None:
+    # 创 20 日新高但无量能确认（量比 1.0）：拐点不成立，量价维也未触发
+    closes = [10.0] * 60 + [10.5]
+    assert (
+        evaluate_stock(
+            _bars(closes), _spot("600000", change_pct=0.5, turnover_rate=3.0)
+        )
+        is None
+    )
+
+
+def test_breakout_on_new_high_only_surge_below_volume_gate() -> None:
+    # 量比 2.0：达到拐点量能确认（≥1.3）但未达量比维（≥2.5），仅突破维命中
+    closes = [10.0] * 60 + [10.6]
+    volumes = [1_000_000.0] * 60 + [2_000_000.0]
     row = evaluate_stock(
         _bars(closes, volumes), _spot("600000", change_pct=2.0, turnover_rate=3.0)
     )
     assert row is not None
-    assert row["ma60_breakout"] is False
-    assert set(row["anomaly_types"]) == {STOCK_DIM_VOLUME}
-    # 量比 25 + 多头背景加成 5
-    assert row["strength"] == 30
-    assert row["attribution_category"] == CATEGORY_ACCELERATION
+    assert row["anomaly_types"] == [STOCK_DIM_BREAKOUT]
+    # 突破 40 + 上升通道加成 5
+    assert row["strength"] == 45
+    assert row["attribution_category"] == CATEGORY_BREAKOUT
 
 
-def test_below_ma60_price_move_is_pullback() -> None:
+def test_below_ma60_down_move_is_pullback() -> None:
     closes = [10.0] * 60 + [9.0]
     row = evaluate_stock(
         _bars(closes), _spot("600000", change_pct=7.0, turnover_rate=1.0)
     )
     assert row is not None
     assert row["is_above_ma60"] is False
+    assert row["ma60_breakout"] is False
     assert set(row["anomaly_types"]) == {STOCK_DIM_PRICE}
     assert row["attribution_category"] == CATEGORY_PULLBACK
     assert row["strength"] == 10
@@ -171,6 +234,7 @@ def test_strength_never_exceeds_cap() -> None:
         _bars(closes, volumes), _spot("600000", change_pct=9.0, turnover_rate=12.0)
     )
     assert row is not None
+    # 40 + 25 + 20 + 15 + 加成 5 = 105 → 封顶 100
     assert row["strength"] == 100
 
 
@@ -184,9 +248,9 @@ def test_custom_params_thresholds() -> None:
         params,
     )
     assert row is not None
-    # 量比 3.0 < 4、换手 9 < 15 均不命中；有效突破仍需默认量比 ≥ 2 确认成立
-    assert row["anomaly_types"] == [STOCK_DIM_MA60_BREAKOUT]
-    # 突破 40 + 多头背景加成 5
+    # 量比 3.0 < 4、换手 9 < 15 均不命中；拐点量能确认（≥1.3）独立于量比维
+    assert row["anomaly_types"] == [STOCK_DIM_BREAKOUT]
+    # 突破 40 + 上升通道加成 5
     assert row["strength"] == 45
 
 
@@ -198,6 +262,78 @@ def test_default_params_match_doc_thresholds() -> None:
     assert DEFAULT_STOCK_PARAMS.volume_ratio == 2.5
     assert DEFAULT_STOCK_PARAMS.turnover_pct == 8.0
     assert DEFAULT_STOCK_PARAMS.breakout_volume_ratio == 2.0
+
+
+# ---------- 周线 M60 门控 ----------
+
+
+def _weekdaily_bars(
+    closes: list[float],
+    volumes: list[float] | None = None,
+) -> list[dict]:
+    """周一至周五排布的 bar（i//5 周 + i%5 日），330 根恰为 66 个 ISO 周。"""
+    if volumes is None:
+        volumes = [1_000_000.0] * len(closes)
+    start = date(2025, 1, 6)  # 周一
+    return [
+        {
+            "date": (start + timedelta(weeks=i // 5, days=i % 5)).isoformat(),
+            "open": close,
+            "high": close + 0.3,
+            "low": close - 0.5,
+            "close": close,
+            "volume": volume,
+            "turnover": 2.0,
+        }
+        for i, (close, volume) in enumerate(zip(closes, volumes))
+    ]
+
+
+def test_weekly_below_ma60_gates_breakout_dim() -> None:
+    """周线 M60 之下：日线带量收复 MA30 不判突破，量价维照常、归加速类。"""
+    closes = [20.0] * 269 + [10.0] * 59 + [9.5, 10.6]
+    volumes = [1_000_000.0] * 329 + [3_000_000.0]
+    row = evaluate_stock(
+        _weekdaily_bars(closes, volumes),
+        _spot("600000", change_pct=2.0, turnover_rate=9.0),
+    )
+    assert row is not None
+    assert row["anomaly_types"] == [STOCK_DIM_VOLUME, STOCK_DIM_TURNOVER]
+    assert row["trend_facts"]["above_weekly_ma60"] is False
+    assert row["trend_facts"]["turning_points"] == ()
+    # 量比 25 + 换手 20 + 上升通道加成 5（日线 MA 多头排列仍在）
+    assert row["strength"] == 50
+    assert row["attribution_category"] == CATEGORY_ACCELERATION
+
+
+def test_weekly_above_ma60_keeps_breakout_dim() -> None:
+    closes = [2.0] * 269 + [10.0] * 59 + [9.5, 10.6]
+    volumes = [1_000_000.0] * 329 + [3_000_000.0]
+    row = evaluate_stock(
+        _weekdaily_bars(closes, volumes),
+        _spot("600000", change_pct=2.0, turnover_rate=9.0),
+    )
+    assert row is not None
+    assert row["anomaly_types"] == [
+        STOCK_DIM_BREAKOUT,
+        STOCK_DIM_VOLUME,
+        STOCK_DIM_TURNOVER,
+    ]
+    assert row["trend_facts"]["above_weekly_ma60"] is True
+    # 突破 40 + 量比 25 + 换手 20 + 加成 5
+    assert row["strength"] == 90
+
+
+def test_legacy_ma60_breakout_wire_field_still_written() -> None:
+    # 存量口径：突破日量比 ≥ breakout_volume_ratio 即写 ma60_breakout（不计分）
+    closes = [10.0] * 60 + [10.6]
+    volumes = [1_000_000.0] * 60 + [2_000_000.0]
+    row = evaluate_stock(
+        _bars(closes, volumes), _spot("600000", change_pct=2.0, turnover_rate=3.0)
+    )
+    assert row is not None
+    assert row["ma60_breakout"] is True
+    assert STOCK_DIM_MA60_BREAKOUT not in row["anomaly_types"]
 
 
 # ---------- 编排 ----------
@@ -254,7 +390,7 @@ def _anomaly_row(code: str) -> SimpleNamespace:
         ma60=9.8,
         is_above_ma60=True,
         ma60_breakout=True,
-        anomaly_types=[STOCK_DIM_MA60_BREAKOUT],
+        anomaly_types=[STOCK_DIM_BREAKOUT],
         strength=90,
         attribution_category=CATEGORY_BREAKOUT,
         attribution_summary=None,
