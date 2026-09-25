@@ -37,10 +37,10 @@
   - 行情数据：`quote_`（如 `quote_kline_stock_daily`、`quote_auction_index`、`quote_sector_daily`）
   - 资金流向：`capital_`（如 `capital_fund_flow_stock`、`capital_fund_flow_sector`）
   - 市场情绪：`market_`（如 `market_breadth`、`market_amount`）
-  - 股池：`pool_`（如 `pool_limit_up_stock`、`pool_limit_down_stock`、`pool_dragon_tiger_stock`）
+  - 股池：`pool_`（如 `pool_limit_up_stock`、`pool_dragon_tiger_stock`；跌停 / 炸板家数不设独立池表，作为列共写 `market_breadth`）
   - 财务报表：`financial_`（如 `financial_balance_sheet`、`financial_income_statement`、`financial_cash_flow_statement`）
   - 产业链：`industry_chain_`
-  - 成分/映射：`mapping_`（如 `mapping_stock_concept`、`mapping_index_stock`）
+  - 成分/映射：`mapping_`（如 `mapping_stock_concept`）
   - 资讯域：`news_`（如 `news_telegraph`、`news_document`、`news_calendar_event`）
   - 跟踪指数配置：`tracked_index_config`（对齐渠道配置表命名风格）；其行情数据走 `quote_` 前缀（`quote_global_index_daily`）
 - **字段名**：完整单词优先，禁用无上下文缩写；同一语义统一用同一单词（涨跌幅一律 `change_pct`）
@@ -55,7 +55,6 @@
 |----|------|
 | `stock_basic` | 股票 / 公司基础信息（含申万一二三级行业、上市日期、股本） |
 | `mapping_stock_concept` | 股票 ↔ 概念板块映射（东财概念成分股采集写入） |
-| `mapping_index_stock` | 指数成分股 |
 
 ### 3.2 行情域（TimescaleDB 超表）
 
@@ -66,6 +65,7 @@
 | `quote_auction_index` | 指数集合竞价成交额（Tushare `stk_auction` 聚合） |
 | `quote_auction_stock` | 个股集合竞价数据 |
 | `quote_sector_daily` | 行业 / 概念板块指数收盘快照（超表） |
+| `quote_kline_sector_daily` | 同花顺板块指数日 K（超表，约一年历史）——板块异动量能基线与板块 K 线详情数据源 |
 
 ### 3.3 资金流向域
 
@@ -78,12 +78,10 @@
 
 | 表 | 说明 |
 |----|------|
-| `market_breadth` | 市场宽度（涨家数 / 跌家数 / 涨停 / 跌停） |
+| `market_breadth` | 市场宽度（涨 / 跌 / 平家数 + 涨停 / 跌停 / 炸板家数）；新浪全市场统计与东财跌停池 / 炸板池采集器共写同一行（`limit_down_count` / `broken_limit_count`），不设独立跌停 / 炸板池表 |
 | `market_amount` | 上交所 / 深交所成交流水（用于复盘成交额趋势） |
 | `pool_limit_up_stock` | 涨停股池（东财官方池，含首次封板 / 最后封板时间 / 封板次数 / 一字 T 字推导） |
-| `pool_limit_down_stock` | 跌停股池 |
 | `pool_dragon_tiger_stock` | 龙虎榜 |
-| `pool_broken_stock` | 炸板池 |
 
 ### 3.5 财务域
 
@@ -120,9 +118,15 @@
 
 | 表 | 说明 |
 |----|------|
-| `user` | 用户（注册一律 user 角色，管理员经 bootstrap_admin 显式提权；`settings` JSONB 列存涨跌配色 / K 线均线，新账户默认 MA5 / 10 / 20 / 60） |
+| `user` | 用户（注册一律 user 角色，管理员经 bootstrap_admin 显式提权；`settings` JSONB 列存涨跌配色 / K 线均线等个人偏好） |
 | `user_watchlist` | 自选股（`group_id` 外键，空值归入默认分组） |
 | `user_watchlist_group` | 自选股分组（`ai_review_enabled` AI 复盘开关，默认 false） |
+| `user_kline_drawing` / `ai_kline_drawing` | K 线画线：人工画线与 AI 画线分表（五类型图形，见 05 号文档 §5.3） |
+| `user_llm_config` | 用户 BYOK 模型配置（api_key 加密，见 [07-account-quota.md](./07-account-quota.md)） |
+| `user_ai_quota` / `user_token_usage` | 用户 AI 配额与 token 用量明细（预扣→结算计量链路，见 10 号文档） |
+| `admin_audit_log` | 管理端敏感操作审计 |
+| `system_setting` | 系统级键值设置 |
+| `collector_health_status` | 采集健康监测（F-MON：任务级最近状态 / 连败计数，见 02 号文档） |
 | `skill` | 技能注册表（builtin + custom：`kind` executable/prompt_only/doc_only/custom、`scenario` 业务场景分类、`custom_definition` JSONB，启动 sync 与代码注册表对齐） |
 | `user_skill` | 用户技能安装（enabled 启停 / sort，user + skill 唯一） |
 | `mcp_server_config` | 外部 MCP 服务配置（transport stdio/http/sse、url 或 command·args·env·headers、timeout_seconds、enabled 启用即注入 AI 助手、last_status/last_error 连接测试结果） |
@@ -158,30 +162,61 @@
 | `fed_watch_snapshot` | FedWatch 快照元数据（数据时点 + 当前联邦基金目标区间，每日一行） |
 | `fed_watch_probability` | FedWatch 条件概率分布（各 FOMC 会议后目标区间落位概率，超表；工作台概率卡 / 宏观政策概率分组数据源） |
 
-> 自选股 AI 每日分析复用 `ai_analysis_result`（input_hash = sha256(skill + code + 日期)），三段式结构（盘面解读/操作策略/止损线）以 JSON 存储，无需专表。
+> 自选股 AI 每日分析复用 `ai_analysis_result`（input_hash = sha256(skill + code + 日期)），六分区契约 v3.0.0（盘中回顾/技术面/情绪面/关键事件/策略/风险线）以 JSON 存储，无需专表。
+
+### 3.11 异动域
+
+| 表 | 说明 |
+|----|------|
+| `market_anomaly_sector` / `market_anomaly_stock` | 板块 / 个股异动日表（检测维度 `anomaly_types` JSONB + `trend_facts` 趋势事实 + 归因字段），见 [06-anomaly-analysis.md](./06-anomaly-analysis.md) |
+
+### 3.12 社媒域
+
+| 表 | 说明 |
+|----|------|
+| `social_account` | 大 V 账号追踪配置 |
+| `social_post` | 抖音作品（元数据 / ASR 转写 / 媒体文件引用） |
+| `social_sentiment` | 作品情绪标注（LLM 判断结果） |
+| `asr_channel_config` | ASR 渠道配置（社媒转写与知识库转写共用） |
+
+见 [08-social-sentiment.md](./08-social-sentiment.md)。
+
+### 3.13 知识库域
+
+| 表 | 说明 |
+|----|------|
+| `kb_source` | 知识源（课程 / 书籍，含检索列与用量统计） |
+| `kb_media` | 媒体素材（转写状态机 / 分片上传 / 防盗播放元数据） |
+| `kb_transcript_segment` | 转写分段（时间码 / 全文） |
+| `kb_knowledge_point` | 知识点（章节路径 / 抽取审核 / embedding halfvec(2048)） |
+| `kb_image_asset` | 关键帧图片资产（VLM 描述 / aHash 去重） |
+| `kb_settings` | 知识库设置（检索参数 / 转写时长限额等逐槽位配置） |
+
+见 [09-knowledge-base.md](./09-knowledge-base.md)。
 
 ## 4. 全文与向量检索（PostgreSQL 同库）
 
 全文/向量检索不设独立引擎，全部落 PostgreSQL 扩展（ES 已于 2026-09-21 退役）：
 
 - **研报/财报全文**：`file_metadata.content`（pypdf 抽取）+ `GIN(content gin_trgm_ops)`；Agent 工具 `search_vector_kb` 走标题/全文 ILIKE 词面匹配，空结果兜底 `news_document` 研报标题/摘要
-- **知识库混合检索**：三表 `embedding halfvec(2048)` HNSW 向量路 + `search_text`/`text` 的 pg_trgm 词面路 + 服务层 RRF 融合（详见 [12-knowledge-base.md](./12-knowledge-base.md) §7）
+- **知识库混合检索**：三表 `embedding halfvec(2048)` HNSW 向量路 + `search_text`/`text` 的 pg_trgm 词面路 + 服务层 RRF 融合（详见 [09-knowledge-base.md](./09-knowledge-base.md) §7）
 
 ## 5. 对象存储（COS · S3 兼容）
 
 ```
 {bucket}/                              # invest-files
-├── financial-reports/                # 财报 PDF
+├── financial-reports/                # 财报 PDF（含巨潮公告原文）
 │   └── {stock_code}/
 │       └── {report_date}_{report_type}.pdf
 ├── research-reports/                 # 研报 PDF
-│   └── {broker}/
-│       └── {stock_code}_{date}_{title}.pdf
-├── announcements/                    # 公告 PDF
 │   └── {stock_code}/
-│       └── {date}_{announcement_id}.pdf
-└── backups/                          # pg_dump 定时备份
+│       └── {stock_code}_{date}_{title}.pdf
+└── kb/                               # 知识库素材
+    └── {source_id}/
+        └── pending/…                 # 上传中分片 → 转写完成后的媒体 / 关键帧资产（详见 09 号文档）
 ```
+
+> PG 备份入 COS 尚未实施（后置池）；公告 PDF 随财报采集流程落入 `financial-reports/`，无独立前缀。
 
 - 应用经 S3 兼容 SDK（`minio_service` 封装）读写，仅改 endpoint + 密钥即可在 S3 兼容存储间切换
 - 下载走预签名 URL，前端不直连存储
@@ -192,14 +227,11 @@
 
 | 缓存类型 | Key Pattern | TTL | 说明 |
 |----------|-------------|-----|------|
-| 实时行情 | `quote:{stock_code}` | 5min | 最新成交价 / 涨跌幅 |
-| 行情收盘兜底 | `quote:eod:{stock_code}` | 4d | 最后一份快照的长 TTL 副本，盘后/周末读路径回退 |
-| K 线缓存 | `kline:{stock_code}:{period}:latest` | 1h | 最近 K 线 |
-| 热门股票 | `hot_stocks:daily` | 1d | 当日热门 |
-| 产业链图 | `chain:{industry_l1}` | 24h | 产业链图谱缓存 |
-| Session | `session:{session_id}` | 24h | 用户登录会话 |
-| 限流 | `ratelimit:{user_id}` | 1min | API 限流计数 |
-| AI 生成锁 | `redis_lock`（`app.core.locking`） | 300s | 防止定时任务与手动触发并发双跑 LLM |
+| 实时行情 | `quote:{stock_code}` | 短 TTL | 最新快照（新浪 quote 采集器写入，自选 / 个股详情读路径） |
+| 行情收盘兜底 | `quote:eod:{stock_code}` | 长 TTL | 最后一份快照的长 TTL 副本，盘后/周末读路径回退 |
+| 登录失败节流 | `login:fail:{username}:{ip}` | 短 TTL | 登录失败计数（`core.login_throttle`） |
+| 注册节流 | `auth:register:ip:{ip}` | 短 TTL | 注册 IP 限频（`core.register_throttle`） |
+| AI 生成锁 | `redis_lock`（`app.core.locking`） | 1800s | 防止定时任务与手动触发并发双跑 LLM；锁 TTL 过期后释放视为良性（仅告警） |
 | Celery broker | `collector.realtime` / `batch` / `heavy` | - | kombu List，beat/dispatcher 投递、worker 消费 |
 
 ## 7. 迁移管理

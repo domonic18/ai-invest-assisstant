@@ -1,6 +1,6 @@
 """知识库物理清理服务（kb-cleanup internal 任务的执行体）。
 
-清理三类积压（对齐 arch/12 §清理任务设计）：
+清理三类积压（对齐 arch/09 §清理任务设计）：
 
 1. 软删过恢复窗（24h）的 kb_media / kb_source → 删 COS 对象 → 硬删行
    （segment/point/image FK 级联）→ ``pending_cleanup_bytes`` 记账归零；

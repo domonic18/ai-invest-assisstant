@@ -401,3 +401,55 @@ export interface CollectTaskResult {
   itemsCollected: number
   errors: string[]
 }
+
+export interface ApiIndexAuctionTrendResponse {
+  dates: string[]
+  series: Array<{
+    code: string
+    name: string
+    values: Array<number | null>
+  }>
+}
+
+export interface ApiSectorFundFlowResponse {
+  sectorCode: string
+  sectorName: string
+  sectorType: string
+  tradeDate: string
+  changePct: number | null
+  mainNetInflow: number | null
+  superLargeNet: number | null
+  largeNet: number | null
+  mediumNet: number | null
+  smallNet: number | null
+  topStockCode: string | null
+  topStockName: string | null
+  createdAt: string
+}
+
+export interface ApiHotspotListRequest {
+  sector_type?: string | null
+  trade_date?: string | null
+  page?: number
+  page_size?: number
+}
+
+export interface ApiSectorFlowTrendResponse {
+  dates: string[]
+  sectors: Array<{
+    code: string
+    name: string
+    values: Array<number | null>
+  }>
+}
+
+/** 个人设置可勾选的跟踪指数项（附分类与最新行情预览）。 */
+export interface ApiTrackedIndexOption {
+  id: number
+  indexCode: string
+  indexName: string
+  marketCategory: string
+  latestClose: number | null
+  latestChangePct: number | null
+  latestTradeDate: string | null
+}

@@ -129,16 +129,17 @@ select{background:var(--bg-elevated);border:1px solid var(--border);color:var(--
     <div class="chart-head">
       <div class="quote"><b id="qName">贵州茅台</b><span class="px" id="qPx">1545.00</span><span class="chg" id="qChg">+1.62%</span></div>
       <div class="tools" id="toolBar">
-        <button data-t="cursor" class="on" title="选择/移动"><svg viewBox="0 0 16 16" fill="none"><path d="M4 2l8 7-4 .5L10 14l-2 1-2-4.5L4 12V2z" fill="currentColor"/></svg>光标</button>
-        <button data-t="trendline" title="两点线段"><svg viewBox="0 0 16 16" fill="none"><path d="M3 13L13 3" stroke="currentColor" stroke-width="1.6"/><circle cx="3" cy="13" r="1.6" fill="currentColor"/><circle cx="13" cy="3" r="1.6" fill="currentColor"/></svg>趋势线</button>
-        <button data-t="ray" title="向右延伸（压力/支撑）"><svg viewBox="0 0 16 16" fill="none"><path d="M2 12l6-5 6 2.5" stroke="currentColor" stroke-width="1.6" stroke-dasharray="0"/><path d="M11 7l3 2.5-3.4 1.2" stroke="currentColor" stroke-width="1.4" fill="none"/><circle cx="2" cy="12" r="1.6" fill="currentColor"/></svg>射线</button>
-        <button data-t="hline" title="全宽水平线"><svg viewBox="0 0 16 16" fill="none"><path d="M1 8h14" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg>水平线</button>
-        <button data-t="box" title="矩形箱体"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="4" width="11" height="8" rx="1" stroke="currentColor" stroke-width="1.5" fill="none" opacity=".9"/></svg>箱体</button>
-        <button data-t="text" title="文字标注"><svg viewBox="0 0 16 16" fill="none"><path d="M3 4h10M8 4v9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>文字</button>
+        <button data-t="cursor" class="on" title="选择/移动画线（Esc 退出绘制）"><svg viewBox="0 0 16 16" fill="none"><path d="M4 2l8 7-4 .5L10 14l-2 1-2-4.5L4 12V2z" fill="currentColor"/></svg>光标</button>
+        <button data-t="trendline" title="趋势线：点击起点与终点（或按住拖拽）绘制线段"><svg viewBox="0 0 16 16" fill="none"><path d="M3 13L13 3" stroke="currentColor" stroke-width="1.6"/><circle cx="3" cy="13" r="1.6" fill="currentColor"/><circle cx="13" cy="3" r="1.6" fill="currentColor"/></svg>趋势线</button>
+        <button data-t="ray" title="射线：点击起点与终点（或按住拖拽）绘制射线"><svg viewBox="0 0 16 16" fill="none"><path d="M2 12l6-5 6 2.5" stroke="currentColor" stroke-width="1.6" stroke-dasharray="0"/><path d="M11 7l3 2.5-3.4 1.2" stroke="currentColor" stroke-width="1.4" fill="none"/><circle cx="2" cy="12" r="1.6" fill="currentColor"/></svg>射线</button>
+        <button data-t="hline" title="水平线：在图上点击一点放置水平线"><svg viewBox="0 0 16 16" fill="none"><path d="M1 8h14" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg>水平线</button>
+        <button data-t="box" title="箱体：点击对角两点（或按住拖拽）绘制箱体"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="4" width="11" height="8" rx="1" stroke="currentColor" stroke-width="1.5" fill="none" opacity=".9"/></svg>箱体</button>
+        <button data-t="text" title="文字：点击图上位置输入文字（Enter 确认），双击已有文字可修改"><svg viewBox="0 0 16 16" fill="none"><path d="M3 4h10M8 4v9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>文字</button>
       </div>
       <button class="tgl" id="tgUser">👁 用户画线</button>
       <button class="tgl" id="tgAi">👁 AI 画线</button>
       <button class="tgl danger" id="btnClearAi">✕ 清除 AI 画线</button>
+      <button class="tgl" id="btnAiDraw" title="AI 分析关键压力/支撑与形态边界并画到图上">⚗ AI 画线</button>
       <span class="hint">拖拽绘制 · 单击放置 · 点击画线选中编辑 · Del 删除</span>
     </div>
     <div class="chart-wrap" id="chartWrap">
@@ -163,7 +164,7 @@ select{background:var(--bg-elevated);border:1px solid var(--border);color:var(--
     <div class="card chat">
       <div class="card-h">AI 助手 · 画线前确认演示（F-DRAW-07）</div>
       <div class="bd" id="chatBd"><div class="dempty">点击下方按钮，演示对话触发画线与已有画线的确认流程</div></div>
-      <div class="start"><button id="chatStart">▶ 模拟对话「帮我重新规划压力支撑位」</button></div>
+      <div class="start"><button id="chatStart">▶ 模拟对话「帮我画出当前标的的关键压力/支撑与形态边界（AI 画线）」</button></div>
     </div>
   </aside>
 </div>
@@ -384,7 +385,7 @@ function renderStyleBar(){var bar=document.getElementById('styleBar'),d=cur.sel?
   var ad=bar.querySelector('[data-act="adopt"]');if(ad)ad.onclick=function(){adopt(findD(cur.sel))}}
 function adopt(d){if(!d)return;var st=store();
   st.user.push({id:uid(),layer:'user',type:d.type,a:d.a.map(function(a){return{i:a.i,p:a.p}}),dir:d.dir,text:d.label||d.text||'',style:defStyle()});
-  toast('已采纳为用户画线，可自由编辑样式');select(null)}
+  toast('已采纳 AI 画线「'+(d.label||d.text||'')+'」，可自由编辑样式');select(null)}
 
 /* ---------- 工具条/顶栏 ---------- */
 document.getElementById('toolBar').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
@@ -393,7 +394,8 @@ document.getElementById('toolBar').addEventListener('click',function(e){var b=e.
   svg.classList.toggle('drawing',!!cur.tool);select(null)});
 document.getElementById('tgUser').onclick=function(){userVisible=!userVisible;this.classList.toggle('off',!userVisible);renderDrawings()};
 document.getElementById('tgAi').onclick=function(){aiVisible=!aiVisible;this.classList.toggle('off',!aiVisible);renderDrawings()};
-document.getElementById('btnClearAi').onclick=function(){store().ai.items=[];select(null);renderDrawings();renderPanel();toast('已清除 AI 画线（对话重新生成即可恢复）')};
+document.getElementById('btnClearAi').onclick=function(){store().ai.items=[];select(null);renderDrawings();renderPanel();toast('已清除本周期 AI 画线（对话重新生成即恢复）')};
+document.getElementById('btnAiDraw').onclick=function(){document.getElementById('chatStart').click()};
 document.getElementById('periodSeg').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
   document.querySelectorAll('#periodSeg button').forEach(function(x){x.classList.remove('on')});b.classList.add('on');
   cur.period=b.dataset.p;cur.sel=null;renderAll();
@@ -411,7 +413,7 @@ function summary(d){var b=bars();
   if(d.type==='box')return '箱体 '+fmtP(Math.min(d.a[0].p,d.a[1].p))+'~'+fmtP(Math.max(d.a[0].p,d.a[1].p))+'（'+fmtDate(b[Math.max(0,Math.round(Math.min(d.a[0].i,d.a[1].i)))].date)+'~'+fmtDate(b[Math.min(b.length-1,Math.round(Math.max(d.a[0].i,d.a[1].i)))].date)+'）'+(d.text?'「'+d.text+'」':'');
   if(d.type==='ray')return '射线 '+fmtDate(b[Math.max(0,Math.round(d.a[0].i))].date)+' '+fmtP(d.a[0].p)+' →'+(d.dir==='left'?'左':'右')+(d.text?'「'+d.text+'」':'');
   return '趋势线 '+fmtP(d.a[0].p)+' → '+fmtP(d.a[1].p)+(d.text?'「'+d.text+'」':'')}
-var ICONS={trendline:'╱',ray:'↗',hline:'─',box:'▭',text:'T'};
+var ICONS={trendline:'╱',ray:'→',hline:'─',box:'▭',text:'T'};
 function renderPanel(){var el=document.getElementById('dlist'),st=store(),html='';
   html+='<div class="src"><span class="chip">用户画线</span>'+st.user.length+' 条 · 仅本人可见</div>';
   if(st.user.length===0)html+='<div class="dempty">暂无用户画线 — 选择上方工具在图上绘制</div>';
@@ -439,7 +441,7 @@ function renderPanel(){var el=document.getElementById('dlist'),st=store(),html='
 var chatBd=document.getElementById('chatBd');
 function chatUser(t){var d=document.createElement('div');d.className='msg u';d.textContent=t;chatBd.appendChild(d);chatBd.scrollTop=chatBd.scrollHeight}
 function chatA(html){var d=document.createElement('div');d.className='msg a';d.innerHTML=html;chatBd.appendChild(d);chatBd.scrollTop=chatBd.scrollHeight;return d}
-function evChip(){return '<span class="ev">✓ kline_drawing.complete · 图表已刷新</span>'}
+function evChip(){return '<span class="ev">✓ kline_drawing.complete · AI 已画 3 条线，可拖拽调整/双击改名/清单采纳</span>'}
 function demoNewSet(tag){var b=bars(),n=b.length,h=idxExtreme(n-14,n-1,'h',true),l=idxExtreme(n-20,n-1,'l',false);
   return [
     {label:'AI 压力线·'+tag,type:'ray',a:[{i:h,p:b[h].h},{i:n-1,p:b[h].h*1.012}],reason:'基于最新 30 日高点结构重估，压力位上移'},
@@ -447,25 +449,19 @@ function demoNewSet(tag){var b=bars(),n=b.length,h=idxExtreme(n-14,n-1,'h',true)
     {label:'AI 目标箱体·'+tag,type:'box',a:[{i:n-6,p:b[n-1].c*1.035},{i:n-1,p:b[n-1].c*0.995}],reason:'突破后按箱体高度量度的目标区间'}]}
 document.getElementById('chatStart').onclick=function(){chatBd.innerHTML='';
   var st=store();
-  chatUser('帮我重新规划一下'+TARGETS[cur.target].name+{daily:'日线',weekly:'周线',monthly:'月线'}[cur.period]+'上的压力支撑位');
+  chatUser('帮我画出当前'+TARGETS[cur.target].name+{daily:'日线',weekly:'周线',monthly:'月线'}[cur.period]+'的关键压力/支撑与形态边界（AI 画线）');
   setTimeout(function(){
     var a=chatA('检测到图上已有 <b>'+st.user.length+'</b> 条用户画线、<b>'+st.ai.items.length+'</b> 条 AI 画线。请选择如何处理已有画线后我再执行：'+
       '<div class="qcard"><div class="qt">画线前确认 · F-DRAW-07</div>'+
-      '<button class="def" data-c="append">保留并新增 — 已有画线不动，新画线共存</button>'+
-      '<button data-c="replace">变更已有 — 按最新分析重画 AI 画线</button>'+
-      '<button data-c="redraw">删除后重画 — 清除已有（可含用户画线）</button>'+
-      '<button data-c="cancel">取消 — 本次不画线</button></div>');
+      '<button class="def" data-c="append">保留并新增 — AI 画线叠加，不碰用户画线</button>'+
+      '<button data-c="replace">覆盖 AI 画线 — 仅重画 AI 组，同样不碰用户画线</button>'+
+      '<button data-c="cancel">取消画线</button></div>');
     a.querySelectorAll('button').forEach(function(b){b.onclick=function(){
       var c=b.dataset.c;chatUser(b.textContent.split('—')[0].trim());a.remove();
       if(c==='append'){var add=demoNewSet('A');aiSet2(st.ai.items.concat(add.map(function(x){return Object.assign({id:uid(),layer:'ai'},x)})),true);
         chatA('好的，已保留全部已有画线，新增 <b>3</b> 条 AI 画线（虚线）：压力射线、支撑水平位与目标箱体。<br>'+evChip());}
       else if(c==='replace'){aiSet2(demoNewSet('B').map(function(x){return Object.assign({id:uid(),layer:'ai'},x)}),true);
-        chatA('已按最新量价结构变更 AI 画线组（3 条），用户画线未受影响。<br>'+evChip());}
-      else if(c==='redraw'){var a2=chatA('将删除全部 <b>AI 画线</b>（用户画线保留）后重画，确认？<div class="qcard"><button data-c="yes">确认重画</button><button data-c="no">取消</button></div>');
-        a2.querySelectorAll('button').forEach(function(b2){b2.onclick=function(){chatUser(b2.textContent);a2.remove();
-          if(b2.dataset.c==='yes'){aiSet2(demoNewSet('C').map(function(x){return Object.assign({id:uid(),layer:'ai'},x)}),true);
-            chatA('已清除原 AI 画线并重画完成（3 条）。用户画线仍完整保留。<br>'+evChip());}
-          else chatA('好的，已取消，图上画线保持不变。');renderAll()}});return}
+        chatA('已覆盖重画 AI 画线组（3 条），用户画线未受影响。<br>'+evChip());}
       else chatA('好的，已取消本次画线，图上画线保持不变。');
       renderAll()}})},450)}
 function aiSet2(items,now){st_ai(items,now)}

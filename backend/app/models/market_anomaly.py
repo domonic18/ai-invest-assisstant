@@ -2,7 +2,7 @@
 
 表结构真源是幂等 SQL 迁移（docker/database/migrations/20260911_anomaly_tables.sql）。
 检测数据源自包含（趋势 + 量价）；归因字段由 anomaly-attribution skill 回填，
-证据只在归因文本中，不参与异动判定（docs/arch/08-anomaly-analysis.md）。
+证据只在归因文本中，不参与异动判定（docs/arch/06-anomaly-analysis.md）。
 """
 
 from datetime import date, datetime

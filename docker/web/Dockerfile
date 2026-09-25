@@ -29,7 +29,9 @@ RUN npm run build
 WORKDIR /web
 RUN npm config set registry ${NPM_REGISTRY}
 COPY web/package.json web/package-lock.json ./
-RUN npm ci
+# lockfile 以 --legacy-peer-deps 生成（npm 10.9.4 Arborist edgesOut 崩溃绕过），
+# 严格 ci 会校验 peer 子树报 out of sync，须同模式安装
+RUN npm ci --legacy-peer-deps
 COPY web/ .
 RUN npm run build
 

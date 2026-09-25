@@ -1,6 +1,6 @@
 """异动检测任务的 AI 归因尾部。
 
-检测任务「规则检测 + top-N 归因」串行（docs/arch/08 §5）：检测成功后调用
+检测任务「规则检测 + top-N 归因」串行（docs/arch/06 §5）：检测成功后调用
 ``anomaly_attribution_service.run_top_n_attribution``；归因失败只记日志，
 不改变检测结果（检测数据已落库，归因可由手动路径或次日重跑补齐）。
 """

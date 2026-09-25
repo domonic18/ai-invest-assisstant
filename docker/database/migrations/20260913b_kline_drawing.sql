@@ -1,7 +1,7 @@
 -- K 线画线与 AI 智能画线（F-DRAW）数据底座：用户画线 / AI 画线两表（幂等可重复执行）。
 -- 锚点一律存数据坐标 (date, price)（payload JSONB），像素坐标禁止落库；
 -- 周期（period）是画线归属键的一部分，各周期画线集严格隔离。
--- 架构：docs/arch/09-kline-drawing.md §5；需求：docs/requirement/03-kline-drawing-requirement.md §5.9
+-- 架构：docs/arch/03-data-storage.md §3.8；需求：docs/requirement/03-kline-drawing-requirement.md §5.9
 
 -- ============================================================
 -- 1. user_kline_drawing：用户画线（per-user 私有，每行一条画线）

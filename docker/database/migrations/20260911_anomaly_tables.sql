@@ -1,5 +1,5 @@
 -- 异动分析闭环：板块 / 个股异动日表 + 检测定时任务（幂等可重复执行）
--- 方法论与表结构见 docs/arch/08-anomaly-analysis.md §5/§7：
+-- 方法论与表结构见 docs/arch/06-anomaly-analysis.md §5/§7：
 --   sector-anomaly-detect 交易日 16:45（板块收盘快照落库后）
 --   stock-anomaly-detect  交易日 17:00（收盘日 K 就绪）
 --   均走 internal 渠道 heavy 队列，串行「规则检测 + top-N 归因」

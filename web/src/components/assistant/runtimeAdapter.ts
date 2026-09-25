@@ -102,7 +102,7 @@ export function createAssistantRuntimeAdapter(
         signal: config.abortSignal,
       })
       for await (const chunk of stream) {
-        // 配额耗尽错误帧追加引导文案（arch/10 §7.2：AI 拦截须指引配 Key/联系管理员）
+        // 配额耗尽错误帧追加引导文案（arch/07 §7.2：AI 拦截须指引配 Key/联系管理员）
         if (chunk.event === 'error') {
           const data = chunk.data as
             | { error_code?: string; error?: string }

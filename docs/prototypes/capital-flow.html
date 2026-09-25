@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Invest Assistant — 板块监测</title>
+<title>AI Invest Assistant — 资金流向</title>
 <style>
 /* ======================================================
    AI Invest Assistant — Design System
@@ -327,19 +327,16 @@ tr:hover td { background: var(--bg-hover); }
 
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
-<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="#"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
+<div class="sidebar-section-title">检测</div>
 <a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
-<a class="sidebar-item active" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
-<a class="sidebar-item" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
+<a class="sidebar-item active" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
-<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>异动检测</span></a>
 <a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
-<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
-<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
-<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
@@ -348,13 +345,19 @@ tr:hover td { background: var(--bg-hover); }
 <div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
 </aside>
 <div class="app-main">
-<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
+<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right">
+        <button class="header-btn" title="知识库">📚</button>
+        <button class="header-btn" title="AI 选股">🔽</button>
+        <button class="header-btn" title="AI 助手">💬</button>
+        <button class="header-btn" title="投资日历">📅</button>
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><div class="sidebar-avatar" style="width:26px;height:26px;font-size:11px">U</div><span>用户</span>▾</div>
+      </div>
+    </header>
 <div class="app-content">
 <!-- Header: 标题 + 板块类型 Segmented + 时间范围 Radio -->
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6);flex-wrap:wrap;gap:var(--space-3)">
 <div>
-<h1 class="page-title" style="margin-bottom:4px">板块监测</h1>
-<div style="font-size:var(--text-xs);color:var(--text-tertiary)">投资流程第二站：板块指数表现 + 资金流入流出 · 行情与资金数据联动展示</div>
+<h1 class="page-title" style="margin-bottom:4px">资金流向</h1>
 </div>
 <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap">
 <div class="seg-control"><span class="seg-item active">行业板块</span><span class="seg-item">概念板块</span></div>
@@ -366,7 +369,10 @@ tr:hover td { background: var(--bg-hover); }
 <div class="card mb-6">
 <div class="card-header">
 <span class="card-title">板块指数表现（2026-07-23）</span>
+<div style="display:flex;align-items:center;gap:var(--space-3)">
 <a href="sector-anomaly.html" style="font-size:var(--text-xs)">异动归因 → 板块异动分析</a>
+<div class="seg-control"><span class="seg-item active">文字</span><span class="seg-item">气泡图</span></div>
+</div>
 </div>
 <div class="card-body">
 <div class="heat-grid">
@@ -444,7 +450,7 @@ tr:hover td { background: var(--bg-hover); }
 <div class="card-body">
 <div class="rank-bars">
 <div>
-<div class="rank-group-title" style="color:var(--red)">净流入 TOP 10</div>
+<div class="rank-group-title" style="color:var(--red)">净流入 TOP10</div>
 <div class="rank-bar-row"><span class="rank-bar-label">半导体</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:100%;background:#f85149"></div></div><span class="rank-bar-val" style="color:var(--red)">+38.6</span></div>
 <div class="rank-bar-row"><span class="rank-bar-label">算力</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:62%;background:#f85149"></div></div><span class="rank-bar-val" style="color:var(--red)">+24.1</span></div>
 <div class="rank-bar-row"><span class="rank-bar-label">消费电子</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:41%;background:#f85149"></div></div><span class="rank-bar-val" style="color:var(--red)">+15.8</span></div>
@@ -457,7 +463,7 @@ tr:hover td { background: var(--bg-hover); }
 <div class="rank-bar-row"><span class="rank-bar-label">游戏</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:8%;background:#f85149"></div></div><span class="rank-bar-val" style="color:var(--red)">+3.2</span></div>
 </div>
 <div>
-<div class="rank-group-title" style="color:var(--green)">净流出 TOP 10</div>
+<div class="rank-group-title" style="color:var(--green)">净流出 TOP10</div>
 <div class="rank-bar-row"><span class="rank-bar-label">煤炭</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:100%;background:#2ea043"></div></div><span class="rank-bar-val" style="color:var(--green)">-12.8</span></div>
 <div class="rank-bar-row"><span class="rank-bar-label">银行</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:73%;background:#2ea043"></div></div><span class="rank-bar-val" style="color:var(--green)">-9.4</span></div>
 <div class="rank-bar-row"><span class="rank-bar-label">房地产</span><div class="rank-bar-track"><div class="rank-bar-fill" style="width:59%;background:#2ea043"></div></div><span class="rank-bar-val" style="color:var(--green)">-7.6</span></div>

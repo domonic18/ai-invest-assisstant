@@ -1,6 +1,6 @@
 """文稿（kb_transcript_segment）编辑服务：读取 + 人工保存 + 脏传播。
 
-文稿是质量的最后防线（arch/12 §4）：编辑器按 seqNo 覆盖分段文本，
+文稿是质量的最后防线（arch/09 §4）：编辑器按 seqNo 覆盖分段文本，
 仅命中且文本变化的分段置 ``embedding_dirty``（索引任务增量拾取）；
 有实际修改时更新 ``kb_media.edited_at``（脏传播源）。
 """

@@ -46,7 +46,7 @@ seed：`init-scripts/03-seed.sql` 加 `collector_task` 两行（见 §5）；抖
   | 归因 | 判定 | 处置 |
   |------|------|------|
   | Argus 门禁拒绝（确定性） | 403/429 且 body 含 `ArgusSecurityPlugin` | 立即终态 RiskControlError + jar 冷却；重试只会加速验证码 |
-  | 限速/扣发（瞬时） | 其余 403/429、2xx 空 body | 不冷却，sleep 1/2/5s 换 jar 重签重发（同 cookie 秒级恢复实测，4 次预算耗尽才终态） |
+  | 限速/扣发（瞬时） | 其余 403/429、2xx 空 body | 不冷却，按退避序列 sleep 换 jar 重签重发（`douyin_*_timeout` / `retry_delays` / `cooldown` 等传输参数在 `core/config.py` env 可调；同 cookie 秒级恢复实测，预算耗尽才终态） |
   | 验证码挑战 | 2xx 非 JSON 含 captcha/verify/安全验证（成功 JSON 内 `custom_verify` 等字段不误判） | jar 冷却退避（分钟级指数）、换 jar 重试，连续命中升级告警 |
   | 签名失效 | 400 或一致的签名拒绝特征 | 不重试，F-MON critical「签名算法需更新」，更新 `signing.py` 恢复 |
   | 账号失效 | profile 404 / 私密 / 不存在 | 记 `social_account.last_error`，不重试不停用（停用是管理员决策） |
@@ -102,7 +102,7 @@ collector_task: social_video_poll（source=douyin，每小时）
 
 ### 3.3 ASR 转写服务
 
-云端 ASR API 渠道化配置在本需求独立落地（04 知识库后置排期，届时直接复用同一设施）：
+云端 ASR API 渠道化配置在本需求独立落地；共享核心已交付——`adapters/minimax/asr.py` 的 `speech_to_text` 为社媒转写与知识库分片转写共用（F-KB 复用同一客户端）：
 
 - 单行配置表 `asr_channel_config`：`provider`/`base_url`/`model`/`api_key_encrypted`（Fernet，`app/utils/crypto.py` 同一路径）/`api_key_masked` 冗余脱敏串/`hotwords JSONB`（财经热词表，注入情绪判断 prompt——MiniMax ASR 接口无热词参数）/`enabled`。
 - 转写由采集任务内联执行（媒体到手即转，音轨由 ffmpeg 从无水印播放地址本地提取，音视频临时文件即用即删——与「不留存原片」合规一致；视频流式下载分块写盘，峰值内存仅 mp3 音轨体量）；用量记入 `social_post.transcript_meta` 逐条对账；单条音频时长上限截断（超长视频不整条转写）。
@@ -178,6 +178,7 @@ web/src/pages/News/components/Sentiment/
 ├── SentimentView.tsx      # Tab 容器：二级导航（情绪流/账号维度）+ 渠道中断横幅 + P2 情绪温度占位
 ├── SentimentStream.tsx    # 筛选 chips（分类/立场/时间/仅看强信号 Switch）+ 复用 FeedList/FeedToolbar/FeedPagination
 ├── SentimentCard.tsx      # 9:16 封面缩略图（时长角标）+ 立场徽标 + 摘要 + 论点列表 + 标的 chips + 互动数 + 原文外链
+├── SentimentDailyBars.tsx # 日度情绪条（daily.ts 聚合 + labels.ts 文案）
 ├── AccountDimension.tsx   # 账号卡 grid → 单账号时间线（立场轨迹连续同向/转向徽标）
 └── StanceBadge.tsx        # scheme-aware 立场徽标（changeHex + useColorScheme 订阅）
 ```
@@ -189,7 +190,7 @@ web/src/pages/News/components/Sentiment/
 
 ### 7.2 后台「社媒追踪」（F-SOC-01）
 
-`pages/Admin/SocialTracking/`（页面 + `SocialAccountModal` + `AsrConfigModal` + `CookieImportModal`）：账号表（启停 `Switch` + armed 两步删除，复刻 CollectorChannelConfig 表格 Switch 与画线页 armed 范式）、渠道状态双卡（抖音适配层 / ASR 转写服务，读 `/admin/social/status`，只读，启停走任务管理；抖音卡透出 Cookie 池状态与最近自举时间，连续失效时提示「前往渠道配置粘贴浏览器 Cookie 兜底」并提供粘贴入口）、ASR 配置弹层（密钥 write-only + masked 展示）。注册三处：`router.tsx`、`Sidebar.tsx ADMIN_MENU_ITEMS`、`Admin.tsx ADMIN_LINKS`。
+`pages/Admin/SocialTracking/`（页面 + `SocialAccountModal` + `AsrConfigModal` + `CookieImportModal` + `PostsDebugDrawer`（posts 排查抽屉））：账号表（启停 `Switch` + armed 两步删除，复刻 CollectorChannelConfig 表格 Switch 与画线页 armed 范式）、渠道状态双卡（抖音适配层 / ASR 转写服务，读 `/admin/social/status`，只读，启停走任务管理；抖音卡透出 Cookie 池状态与最近自举时间，连续失效时提示「前往渠道配置粘贴浏览器 Cookie 兜底」并提供粘贴入口）、ASR 配置弹层（密钥 write-only + masked 展示）。注册三处：`router.tsx`、`Sidebar.tsx ADMIN_MENU_ITEMS`、`Admin.tsx ADMIN_LINKS`。
 
 ## 8. 后端模块布局
 
@@ -206,13 +207,17 @@ backend/app/adapters/douyin/        # 自研抖音适配层（窄能力面：作
 ├── transport.py                    # curl_cffi Chrome TLS 指纹会话、Cookie jar 轮换、签名双轨与限速重试语义
 ├── signer_client.py                # sidecar HTTP 客户端：异常归类（Unavailable/Rejected）+ build_signer 工厂
 ├── signing.py                      # a_bogus 签名单点模块（开源实现移植，算法升级只改此处）
+├── _sm3.py                         # SM3 哈希（签名算法依赖）
 ├── cookies.py                      # Cookie 自举/手动兜底（Fernet 加密）、失效检测
+├── exceptions.py                   # 适配层异常类型（结构漂移/风控/签名失效）
 └── api.py                          # aweme web 端点封装 + 归一化解析 + 故障归因
 
 backend/app/services/social/
 ├── account_service.py     # sec_uid 解析、CRUD、重复校验（管理端）
 ├── collection_service.py  # 采集落地：新视频识别、媒体下载、降级标注、post upsert（spider 调用）
 ├── asr_service.py         # ASR 渠道调用：加密凭据、时长截断、用量记账
+├── asr_config_service.py  # asr_channel_config 读写（管理端 masked 视图）
+├── feed_service.py        # 情绪流 / 账号维度查询聚合
 └── sentiment_service.py   # 判断编排：锁 + 增量扫描 + run_structured + 热词入 prompt + 幻觉过滤 + 判后清稿
 
 backend/app/repositories/social/

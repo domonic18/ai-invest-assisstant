@@ -98,7 +98,7 @@ class Settings(BaseSettings):
     # requests 调用因无超时在 TLS 握手处永久黑洞。
     http_default_timeout_seconds: float = 30.0
 
-    # AI 用量治理（F-ACCT，arch/10）
+    # AI 用量治理（F-ACCT，arch/07）
     # 配额预扣时为 completion 预留的 token 数（结束按实际 usage 结算回补）
     quota_completion_reserve_tokens: int = 1024
     # 助手 agent 按模型出口指纹缓存的实例数上界（BYOK 用户各自独立实例）

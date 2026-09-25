@@ -1,4 +1,4 @@
-"""ask_user 问题卡工具单测（arch/09 §7.3）：参数校验、标记形状与 wire 提取。"""
+"""ask_user 问题卡工具单测（arch/05 §5.3）：参数校验、标记形状与 wire 提取。"""
 
 import pytest
 

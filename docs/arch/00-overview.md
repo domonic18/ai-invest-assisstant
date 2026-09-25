@@ -5,11 +5,11 @@
 面向投资分析场景的**数据采集 → 清洗入库 → 智能分析 → 可视化展示**全链路平台，
 以 Web 端为核心，覆盖工作台、每日复盘、产业链分析、个股研究、资金流向、宏观监测、资讯、投资日历、技能广场等场景。
 
-- **数据源**：巨潮资讯(cninfo)、同花顺(10jqka)、东方财富、新浪财经、Tushare、上交所/深交所、财联社
-- **采集内容**：行情(K 线/分时/竞价)、财务报表、涨停/跌停池、板块资金流、研报与财报 PDF、公告与新闻（含财联社电报准实时快讯）、市场宽度、宏观指标、投资日历事件、全球跟踪指标（黄金/美债收益率/美元指数）
-- **AI 能力**：产业链分析、研报/财报摘要、涨停归因、每日 AI 大盘综述（YAML 声明式分区、可模块级编辑）、自选股 AI 每日分析（盘面解读/操作策略/止损线）
+- **数据源**：东方财富、新浪财经、同花顺(10jqka)、巨潮资讯(cninfo)、Tushare、上交所/深交所、财联社、抖音（社媒，经 douyin-signer 签名）、CME / MOF / Fed / BLS（海外宏观）
+- **采集内容**：行情(K 线/分时/竞价)、财务报表、涨停/跌停池、板块行情与资金流、研报与财报 PDF、公告与新闻（含财联社电报准实时快讯）、市场宽度、宏观指标、投资日历事件、全球跟踪指标（黄金/美债收益率/美元指数等）、异动检测数据、社媒视频/评论、知识库文档
+- **AI 能力**：产业链分析、研报/财报摘要、涨停归因、每日 AI 大盘综述（六分区 v1.5.0，可模块级编辑）、自选股 AI 每日分析（六分区契约 v3.0.0）、异动归因、社媒情绪解读、AI 智能画线、AI 选股、知识库检索问答
 - **输出形式**：响应式 Web 前端（桌面 + 移动端底部导航）+ AI 助手对话面板
-- **部署方式**：SCF Web 函数（SPA + API 同源一体镜像）+ 轻量服务器（数据与采集任务）+ COS（文件），详见 [06-deployment.md](./06-deployment.md)
+- **部署方式**：SCF Web 函数（SPA + API 同源一体镜像）+ 轻量服务器（数据与采集任务）+ COS（文件），见 §2 部署架构全景图
 
 ## 2. 部署架构全景图
 
@@ -28,12 +28,14 @@
                         ▼                                        ▼
 ┌────────────────────────────────────────────┐   ┌──────────────────────────────┐
 │ 轻量应用服务器 2C4G（ap-beijing）          │   │ COS 对象存储                 │
-│ 数据层 postgres/timescale · redis · es     │   │ 研报/财报 PDF · 知识库文件   │
+│ 数据层 postgres/timescale · redis          │   │ 研报/财报 PDF · 知识库文件   │
 │ 任务层 celery-beat + 双 worker             │   │ pg_dump 定时备份目标         │
 │   （realtime+batch 合并 · heavy 并发=1）   │   └──────────────────────────────┘
+│   collector-stream（财联社电报 10s 轮询）  │
 │   采集爬虫 + LLM 归因                      │
+│   douyin-signer 抖音签名 sidecar           │
 │   （>900s / WAF 固定出口，永久驻留）       │
-│     ─▶ 东财 / 新浪 / 巨潮 / tushare        │
+│     ─▶ 东财 / 新浪 / 巨潮 / tushare / 抖音 │
 └────────────────────────────────────────────┘
 ```
 
@@ -41,7 +43,7 @@
 - **API 层**：SCF Web 函数（FastAPI 一体镜像），SSE 流式输出；长任务（>900s）与需固定出口 IP 的采集爬虫留置轻量服务器执行
 - **数据与任务层**：轻量服务器承载 postgres/timescale、redis 与 Celery 采集调度（`collector_task` 表为调度真相源）
 - **文件存储**：COS（S3 兼容端点），兼作 pg_dump 定时备份目标
-- **镜像发布**：GitHub Actions 构建推送 TCR，服务器/SCF 拉取部署，详见 [06-deployment.md](./06-deployment.md)
+- **镜像发布**：GitHub Actions 构建推送 TCR（web-api / collector / douyin-signer 三镜像），服务器/SCF 拉取部署
 
 > Web 与采集共享同一套 `backend/` 代码：`app/` 是 FastAPI Web 服务，`collector/` 是采集 runtime，通过 Celery 队列（realtime/batch/heavy）执行，亦保留 CLI 单任务入口 `collector.runtime.cli` 与 SCF 事件适配 `collector.runtime.scf_handler`。
 
@@ -50,7 +52,8 @@
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────┐
 │ 用户层 (User Layer)                                                                │
-│ 工作台 / 复盘 / 产业链 / 个股 / 资金流 / 集合竞价 / 日历 / 研报 / 财报 / 后台管理  │
+│ 工作台 / 复盘 / 产业链 / 个股 / 资金流 / 集合竞价 / 异动检测 / 资讯 / 日历        │
+│ 研报 / 财报 / 知识检索 / AI 选股 / 宏观监测 / 后台管理                            │
 │ 移动 Web：响应式 + 底部 Tab Bar · AI 助手对话面板                                  │
 └────────────────────────────────────────────────────────────────────────────────────┘
                                          HTTPS
@@ -58,14 +61,16 @@
 ┌────────────────────────────────────────────────────────────────────────────────────┐
 │ API 层 (FastAPI · uvicorn :9000)                                                   │
 │ JWT 鉴权 │ REST 路由 │ SSE 流式输出（AI 助手）│ /health /docs │ MCP Server         │
-│ auth/users/stocks/kline/auction/fund_flow/market/chain/research/                   │
-│ financial_report/financial/hotspot/calendar/assistant/admin                        │
+│ auth/users/account/stocks/kline/drawings/auction/fund_flow/market/chain/research/  │
+│ financial_report/financial/hotspot/calendar/news/telegraph/workbench/skills/       │
+│ screening/sector_detail/anomaly/social/kb/assistant/admin/mcp                      │
 └────────────────────────────────────────────────────────────────────────────────────┘
                                            │
                                            ▼
 ┌────────────────────────────────────────────────────────────────────────────────────┐
 │ 应用服务层 (app/services · 事务边界)                                               │
-│ 业务子域服务：admin/assistant/chain/collector/market/reports/review/user           │
+│ 业务子域服务：admin/assistant/chain/collector/common/kb/market/news/quota/         │
+│               reports/review/skill/social/trading/user/workbench                   │
 │ AI Agent 运行时：deepagents（助手 + Skill 执行器）+ YAML Prompts                   │
 │ model_factory 统一模型工厂 · repositories 只构造查询（禁止管理事务）               │
 └────────────────────────────────────────────────────────────────────────────────────┘
@@ -75,7 +80,7 @@
 │ 采集执行层 (collector runtime)                                                     │
 │ celery-beat（collector_task 表同步调度）→ 双 worker（realtime+batch / heavy）      │
 │ 准实时：stream 驻留进程（财联社电报 10s 增量轮询，非 beat 调度）                   │
-│ runner 统一执行（collector_log 唯一写入口）· registry 33 任务 TaskSpec             │
+│ runner 统一执行（collector_log 唯一写入口）· registry 57 任务 TaskSpec             │
 │ 多渠道优先级 + FAILED 自动 fallback · 日期参数默认 latest_trading_day              │
 └────────────────────────────────────────────────────────────────────────────────────┘
                                          读写│
@@ -94,7 +99,7 @@
 | **Web 前端** | React 18 + Vite + TypeScript | SCF web-api 一体镜像（FastAPI 静态托管同源） | 现代前端框架，生态完善 |
 | **后端 API** | FastAPI (Python 3.10+) + SQLAlchemy 2.0 | SCF Web 函数（单 uvicorn 进程一体镜像） | 异步高性能、类型安全 |
 | **AI 助手运行时** | deepagents（LangChain Agent Protocol）+ assistant-ui | SCF web-api 进程内 | 流式对话/工具调用，会话持久化 `assistant_session` |
-| **数据采集** | 自研 collector runtime + Celery + httpx/akshare/curl_cffi | 轻量服务器 Celery 双 worker（realtime+batch / heavy 并发=1） | 声明式 TaskSpec 注册表（33 任务）+ 多渠道 fallback |
+| **数据采集** | 自研 collector runtime + Celery + httpx/akshare/curl_cffi | 轻量服务器 Celery 双 worker（realtime+batch / heavy 并发=1） | 声明式 TaskSpec 注册表（57 任务）+ 多渠道 fallback |
 | **可视化** | ECharts + AntV/G6 v5 + D3.js | 前端打包至 web-api 镜像 | 产业链图谱(G6)、K线/竞价(ECharts)、板块河流/排名(D3/ECharts) |
 | **结构化存储** | PostgreSQL + TimescaleDB | 轻量服务器 Docker | 时序行情数据高效存储 |
 | **全文/向量检索** | PostgreSQL（pg_trgm + pgvector halfvec HNSW） | 轻量服务器 Docker | 研报/财报全文与知识库混合检索同库，零独立搜索引擎运维 |
@@ -115,34 +120,27 @@ ai-invest-assisstant/
 │
 ├── backend/                            # FastAPI 后端 + 采集模块
 │   ├── app/                            # Web API 应用
-│   │   ├── api/v1/                     # API 路由
-│   │   │   ├── auth.py                 # OAuth2 登录/注册（首用户自动管理员）
-│   │   │   ├── users.py                # 用户资料/自选股
-│   │   │   ├── stocks.py               # 股票搜索/详情/板块归属
-│   │   │   ├── kline.py                # K 线数据
-│   │   │   ├── auction.py              # 集合竞价 + 指数竞价成交额趋势
-│   │   │   ├── fund_flow.py            # 资金流向 + 板块资金流趋势
-│   │   │   ├── market.py               # 大盘综述/AI 复盘/涨停复盘/补采
-│   │   │   ├── chain.py                # 产业链版本化分析
-│   │   │   ├── research.py             # 研报筛选/PDF/AI 摘要
-│   │   │   ├── financial_report.py     # 财报中心：列表/采集/AI 摘要
-│   │   │   ├── financial.py            # 财务体检 + 历史趋势
-│   │   │   ├── hotspot.py              # 热点追踪
-│   │   │   ├── skills.py               # 技能广场：市场/详情/文件/安装（启停）/自定义 CRUD/发布/zip 解析
-│   │   │   ├── admin/                  # 后台管理接口
-│   │   │   │   ├── users.py / stocks.py / reports.py / news.py
-│   │   │   │   ├── tasks.py / system.py
-│   │   │   │   ├── llm_config.py / mcp_configs.py / proxy_configs.py / ai_results.py
-│   │   │   │   ├── collector.py / collector_channels.py / collector_data_types.py
+│   │   ├── api/v1/                     # API 路由（薄路由，业务在服务层）
+│   │   │   ├── auth.py / users.py / account.py     # 登录注册（首用户自动管理员）/ 资料自选 / 个人中心（AI 配额·我的模型）
+│   │   │   ├── stocks.py / kline.py / drawings.py  # 股票 / K 线 / K 线画线
+│   │   │   ├── auction.py / fund_flow.py / market.py / chain.py  # 竞价 / 资金流 / 大盘复盘 / 产业链
+│   │   │   ├── research.py / financial_report.py / financial.py / hotspot.py / calendar.py
+│   │   │   ├── news.py / telegraph.py / workbench.py / skills.py   # 资讯 / 电报 / 工作台 / 技能广场
+│   │   │   ├── anomaly.py / screening.py / sector_detail.py / social.py / kb.py
+│   │   │   ├── admin/                  # 后台管理接口（21 模块：users / stocks / reports / news /
+│   │   │   │                           #   model_config / mcp_configs / proxy_configs / ai_results /
+│   │   │   │                           #   collector 三合一 + collector_health / kb 三件 / social /
+│   │   │   │                           #   account / tracked_index / telegraph / system）
 │   │   │   ├── assistant/              # AI 助手协议接口（threads / runs / skills / page_context）
 │   │   │   └── mcp/                    # MCP Server 接口
 │   │   │       └── server.py
 │   │   ├── agent/                      # AI Agent 运行时
 │   │   │   ├── core/                   # prompt_loader / prompt_renderer
 │   │   │   ├── runtime/                # assistant_agent / assistant_subagents / model_factory / structured / wire
-│   │   │   ├── skills/                 # skill_runtime 骨架 + 各 Skill 执行器（复盘/归因/产业链/摘要/截图识别）
-│   │   │   └── tools/                  # db / chain / market / news / report / stock 内部工具
-│   │   │                               #   + page_event 事件构造；build_assistant_tools / build_mcp_tools
+│   │   │   ├── skills/                 # skill_runtime 骨架 + 各 Skill 执行器（复盘/归因/产业链/摘要/截图识别/异动/kb_grounding）
+│   │   │   └── tools/                  # db / chain / market / news / report / stock / anomaly / drawing /
+│   │   │                               #   kb / screening / social / interaction(ask_user) / page_event 事件构造
+│   │   │                               #   build_assistant_tools / build_mcp_tools
 │   │   ├── skills/                     # Skill 注册表与提示词加载（registry / prompt / skill_sync）
 │   │   ├── prompts/                    # Agent 角色提示词（YAML）
 │   │   │   └── agents/                 # assistant / page_context / subagent_{fundamental,market,news}
@@ -152,11 +150,12 @@ ai-invest-assisstant/
 │   │   ├── models/                     # SQLAlchemy ORM：命名遵循 <分类>_<数据类型>_<标的> 约定
 │   │   ├── schemas/                    # Pydantic 数据模型
 │   │   ├── repositories/               # 仓储层（查询构造与执行，禁止管理事务）
-│   │   │                               #   按业务子域分组：admin/ assistant/ chain/ market/ news/
-│   │                               #     reports/ review/ skill/ user/
+│   │   │                               #   按业务子域分组：admin/ assistant/ chain/ kb/ market/ news/
+│   │                               #     reports/ review/ skill/ social/ user/
 │   │   ├── services/                   # 业务逻辑层（事务边界、AI 调用、采集编排）
-│   │   │                               #   按业务子域分组：admin/ assistant/ chain/ collector/ common/
-│   │   │                               #   market/ news/ reports/ review/ skill/ user/ workbench/（根目录仅 __init__ 聚合）
+│   │   │                               #   按业务子域分组：admin/ assistant/ chain/ collector/ common/ kb/
+│   │   │                               #   market/ news/ quota/ reports/ review/ skill/ social/ trading/
+│   │   │                               #   user/ workbench/（根目录仅 __init__ 聚合）
 │   │   ├── utils/                      # crypto 等公共工具
 │   │   ├── dependencies/               # get_db 等依赖注入
 │   │   └── main.py                     # 应用入口
@@ -182,7 +181,7 @@ ai-invest-assisstant/
 │   │   ├── components/
 │   │   │   ├── layout/                 # Header / Sidebar / Layout / MobileTabBar
 │   │   │   ├── charts/                 # KlineChart / IndexKlineChart / IntradayChart / IntradaySpark /
-│   │   │   │                           #   ChainGraph / FinancialTrendCharts / StockChartView / useKlineKeyboardNav
+│   │   │   │                           #   ChainGraph / FinancialTrendCharts / StockChartView / drawing/（K 线画线图层）
 │   │   │   ├── assistant/              # assistant-ui 助手面板：Provider / Thread / Composer / 会话侧栏
 │   │   │   ├── common/                 # Brand / MarkdownText / SourceNote
 │   │   │   └── auth/                   # ProtectedLayout / ProtectedAdmin / RedirectIfAuthenticated
@@ -199,12 +198,19 @@ ai-invest-assisstant/
 │   │   │   ├── MacroMonitor/           # 宏观指数监测（股指/债券/商品/政策概率）
 │   │   │   ├── IndexDetail/            # 指数详情（A 股 K 线 + 全球指标历史线）
 │   │   │   ├── AuctionReview/          # 集合竞价指数成交额趋势
+│   │   │   ├── Anomaly/                # 异动检测（单页双 Tab：板块 / 个股）
+│   │   │   ├── SectorDetail/           # 板块详情（成分股 + 板块 K 线）
+│   │   │   ├── Screening/              # AI 选股工作台
+│   │   │   ├── PaperTrade/             # 模拟盘（掘金仿真：账户 / 订单 / NAV 轨迹 / K 线交易标记）
+│   │   │   ├── KnowledgeSearch/        # 知识检索（导航入口暂撤，路由保留）
 │   │   │   ├── Financial/              # 财务体检详情
 │   │   │   ├── Skills/                 # 技能广场 + 全页技能详情
-│   │   │   ├── Settings/               # 基本信息 / 配色方案 / K 线均线 / 安全
+│   │   │   ├── Settings/               # 基本信息 / 外观与配色 / 指数 / AI 配额 / 我的模型 / 安全
 │   │   │   ├── Login/ Register/
-│   │   │   └── Admin/                  # 总览 + Users/Stocks/Reports/News/LLMConfig/McpServers/AiResults/Collector/ProxyConfig
-│   │   ├── stores/                     # Zustand 状态（auth / colorScheme / userSettings / assistant）
+│   │   │   └── Admin/                  # 总览 + 16 子页（Users/UsageDashboard/Stocks/Reports/News/LLMConfig/
+│   │   │                               #   McpServers/AiResults/Collector 三合一/KnowledgeBase/
+│   │   │                               #   SocialTracking/SystemStatus/ProxyConfig…）
+│   │   ├── stores/                     # Zustand 状态（auth / settings / drawing / screening / sidebar / assistant）
 │   │   ├── test/                       # 测试环境初始化与 mocks
 │   │   ├── types/ utils/ constants/ config/
 │   │   ├── App.tsx / main.tsx / router.tsx
@@ -218,16 +224,20 @@ ai-invest-assisstant/
 │   │   ├── endpoints.ts                # API 端点常量
 │   │   └── index.ts
 │   ├── types/
-│   │   ├── stock.ts / chain.ts / market.ts / admin.ts / api.ts / user.ts
+│   │   ├── 17 个域类型文件 + index.ts：stock / chain / market / drawing / kb / social /
+│   │   │   anomaly / news / telegraph / calendar / workbench / account / admin /
+│   │   │   api / user / skill / mcp
 │   └── utils/
 │   └── package.json
 │
 ├── docker/                             # 容器与编排配置
 │   ├── web/                            # Web 镜像（前后端合一，单 uvicorn 进程）
 │   │   └── Dockerfile                  # SPA 静态托管 + API 同源 :9000（无代理层）
-│   ├── collector/                      # 采集镜像（CLI 单任务 或 Celery beat/worker）
+│   ├── collector/                      # 采集镜像（CLI 单任务 或 Celery beat/worker/stream）
 │   │   ├── Dockerfile
-│   │   └── entrypoint-collector.sh     # COLLECT_TASK 单任务；COLLECTOR_MODE=beat/worker
+│   │   └── entrypoint-collector.sh     # COLLECT_TASK 单任务；COLLECTOR_MODE=beat/worker/stream
+│   ├── signer/                         # douyin-signer 镜像（抖音页面签名 sidecar，第三镜像）
+│   │   └── Dockerfile
 │   └── database/
 │       ├── init-scripts/               # 01-schema / 02-indexes / 03-seed
 │       └── migrations/                 # 增量迁移 SQL（按日期归档，幂等可重复执行）
@@ -244,11 +254,14 @@ ai-invest-assisstant/
 │   ├── limit-up-review/                #   executable · 涨停归因
 │   ├── stock-daily-analysis/           #   executable · 个股每日分析
 │   ├── watchlist-screenshot-recognition/  # executable · 截图识别
+│   ├── anomaly-attribution/            #   executable · 异动归因（板块四维 / 个股拐点）
+│   ├── kline-smart-drawing/            #   executable · AI 智能画线
 │   ├── research-report-summary/        #   prompt_only · 研报摘要
 │   ├── financial-report-summary/       #   prompt_only · 财报摘要
 │   ├── news-score/                     #   prompt_only · 资讯重要度分级
 │   ├── news-storyline/                 #   prompt_only · 事件故事线
 │   ├── news-topic/                     #   prompt_only · 热点主题聚类
+│   ├── social-sentiment/               #   prompt_only · 社媒情绪解读
 │   ├── financial-health-check/         #   doc_only · 方法论
 │   ├── hotspot-detection/              #   doc_only · 方法论
 │   └── chain-breakthrough/             #   doc_only · 方法论
@@ -260,7 +273,8 @@ ai-invest-assisstant/
 │       ├── test_auth.py / test_collector.py / test_health.py
 │
 ├── scripts/                            # 本地与构建脚本
-│   └── setup-local.sh / build-images.sh
+│   ├── setup-local.sh / build-images.sh
+│   └── backfill_file_content.py / backfill_kb_embedding_from_es.py   # 一次性数据回填
 │
 ├── .dockerignore                       # Docker 构建忽略规则
 ├── .env.example                        # 环境变量模板
@@ -288,13 +302,14 @@ ai-invest-assisstant/
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ 外部数据源：东方财富 / 新浪财经 / 巨潮资讯 / tushare / 交易所 / 财联社     │
+│ 外部数据源：东财 / 新浪 / 同花顺 / 巨潮 / tushare / 交易所 / 财联社 /      │
+│ 抖音（signer 签名）/ CME · MOF · Fed · BLS                                 │
 └────────────────────────────────────────────────────────────────────────────┘
                                      拉取│
                                        ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ 采集执行层（Celery worker · realtime/batch/heavy）                         │
-│ registry TaskSpec 声明（33 任务）· 多渠道优先级 · FAILED fallback          │
+│ registry TaskSpec 声明（57 任务）· 多渠道优先级 · FAILED fallback          │
 │ 限流/反爬：curl_cffi 指纹 · push2delay 镜像 · 重试退避                     │
 └────────────────────────────────────────────────────────────────────────────┘
                                      清洗│
@@ -322,7 +337,8 @@ ai-invest-assisstant/
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ AI 分析引擎（YAML Skills + deepagents / LangChain）                        │
 │ 每日复盘综述 · 涨停归因 · 自选股每日分析 · 产业链分析 · 研报/财报摘要      │
-│ 截图识别 · 热点检测 · 突破点追踪 · AI 助手对话                             │
+│ 截图识别 · 异动归因 · 社媒情绪 · AI 智能画线 · AI 选股 · 知识检索问答      │
+│ 热点检测 · 突破点追踪 · AI 助手对话                                        │
 └────────────────────────────────────────────────────────────────────────────┘
                                      展示│
                                        ▼
@@ -333,7 +349,7 @@ ai-invest-assisstant/
 ```
 
 > AI 分析结果按 `input_hash = sha256(skill_id + 业务键)` 缓存于 `ai_analysis_result` 表，
-> 定时任务（交易日 15:05 复盘综述、16:30 涨停归因、盘后自选股批量分析）与手动触发共享幂等缓存。
+> 定时任务（交易日 18:35 复盘综述、16:30 涨停归因、16:40 自选股批量分析等 9 个 internal 任务）与手动触发共享幂等缓存。
 
 
 ## 7. 功能矩阵
@@ -354,12 +370,16 @@ ai-invest-assisstant/
 | AI 分析报告 | ✅ 完整 | ✅ 精简 | YAML 声明式分区，产业链/涨停归因/每日综述/自选股每日分析各有独立 prompt（skills/<id>/prompt.yaml） |
 | AI 助手 | ✅ 对话面板 | ✅ 底部弹层 | assistant-ui + deepagents，流式 SSE、工具调用折叠、会话持久化；Header 按钮 + 猫头鹰悬浮球全局唤起，注入内部工具与已启用 MCP 服务工具 |
 | 自选股管理 | ✅ | ✅ | 我的自选页分组行情卡；分组增删改查（`user_watchlist_group`，未分组归默认分组）+ AI 复盘分组开关，个股详情一键加入/移除 |
-| 自选股 AI 每日分析 | ✅ 个股 Tab + 列表卡片 | ❌ | 盘后定时批量（heavy 队列），仅遍历开启复盘开关的分组；三段式输出（盘面解读/操作策略/止损线），`input_hash` 幂等缓存 |
+| 自选股 AI 每日分析 | ✅ 个股 Tab + 列表卡片 | ❌ | 盘后定时批量（heavy 队列），仅遍历开启复盘开关的分组；六分区输出（盘中回顾/技术面/情绪面/关键事件/策略建议/风险线，契约 v3.0.0），`input_hash` 幂等缓存 |
 | 宏观指数监测 | ✅ 四类分组 | ✅ | 股指 / 债券 / 商品 / 政策概率四分组指标卡 + sparkline（`/macro-monitor`），指标卡点击进指数详情 |
 | 跟踪指数 | ✅ 宏观页/工作台动态清单 | ✅ | `tracked_index_config` 全局配置 + `quote_global_index_daily`（黄金/美债收益率/美元指数）；宏观监测页消费该清单，管理 API 保留 |
 | 技能广场 | ✅ | ✅ | 业务场景 Tab（枚举来自 shared/types/skill.ts）+ 搜索；能力 / 来源徽标；整卡进入 /skills/:id 全页详情；zip 上传自动解析；自定义技能创建 / 发布 |
-| 用户设置 | ✅ 完整 | ✅ 基础 | 涨跌配色方案（红涨绿跌 / 绿涨红跌）+ 个人 K 线均线（新账户默认 MA5 / 10 / 20 / 60） |
-| 后台管理 | ✅ 8 入口 + 代理配置 | ❌ | 用户 / 股票 / 报告（存储统计 + 清理）/ 资讯 / LLM 配置 / MCP 服务（工具注入 AI 助手）/ 分析结果 / 采集管理三合一（执行日志 · 任务 cron · 渠道优先级）；代理配置仅侧边栏子菜单进入 |
+| 用户设置 | ✅ 完整 | ✅ 基础 | 涨跌配色方案（红涨绿跌 / 绿涨红跌）+ 个人 K 线均线（新账户默认 MA5 / 10 / 20 / 30 / 60，MA120 默认关） |
+| 异动检测 | ✅ 单页双 Tab | ✅ 精简 | 板块（四维赋分）/ 个股（两段式管线 + 拐点计分）异动列表与详情，检测时写规则分类、归因可覆盖（见 [06](./06-anomaly-analysis.md)） |
+| AI 选股 | ✅ | ❌ | 自然语言筛选工作台（/screening），侧边栏 Agent 触发 + page_event 回写 |
+| 知识检索 | ✅ 路由保留 | ✅ | 知识库语义检索 + 电子书阅读器；导航入口暂撤（/kb 路由保留，见 [09](./09-knowledge-base.md)） |
+| AI 智能画线 | ✅ K 线图层 | ❌ | 对话触发 + 问题卡确认，AI 画线图层原位编辑/采纳（见 05 号文档 §5.3） |
+| 后台管理 | ✅ 11 入口 + 代理配置 | ❌ | 用户 / 用量看板 / 股票 / 报告（存储统计 + 清理）/ 资讯 / LLM 配置 / MCP 服务（工具注入 AI 助手）/ 分析结果 / 采集管理三合一（执行日志 · 任务 cron · 渠道优先级）/ 社媒追踪 / 服务状态；知识库管理独立子页，代理配置仅侧边栏子菜单进入 |
 
 ## 8. 后续文档索引
 
@@ -367,6 +387,8 @@ ai-invest-assisstant/
 - [02-data-collection.md](./02-data-collection.md) — 采集引擎架构与 Celery 调度
 - [03-data-storage.md](./03-data-storage.md) — 数据库设计与存储方案
 - [04-ai-agent.md](./04-ai-agent.md) — AI Agent 体系设计（deepagents + YAML 提示词）
-- [05-web-frontend.md](./05-web-frontend.md) — Web 前端架构设计
-- [06-deployment.md](./06-deployment.md) — 部署架构与运维实操
-- [07-testing.md](./07-testing.md) — 测试体系设计（单元/集成/E2E/QA）
+- [05-web-frontend.md](./05-web-frontend.md) — Web 前端架构（组件化封装 + K 线画线图层）
+- [06-anomaly-analysis.md](./06-anomaly-analysis.md) — 异动检测与归因（趋势事实层）
+- [07-account-quota.md](./07-account-quota.md) — 账户体系、AI 配额与计量
+- [08-social-sentiment.md](./08-social-sentiment.md) — 社媒情绪（抖音采集与 ASR）
+- [09-knowledge-base.md](./09-knowledge-base.md) — 知识库（上传/转写/检索/阅读器）

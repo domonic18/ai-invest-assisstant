@@ -175,7 +175,7 @@ services:
           memory: 512M
 
   douyin-signer:
-    # 抖音页面签名 sidecar：chromium warm 页 SDK 真签（Argus 门禁对抗，见 docs/arch/11）
+    # 抖音页面签名 sidecar：chromium warm 页 SDK 真签（Argus 门禁对抗，见 docs/arch/08）
     # 不锁 platform：chromium 原生 arm64/amd64 均可用，amd64 模拟会破坏浏览器指纹；
     # 无 depends_on：独立服务，不可用时采集侧自动回退本地 a_bogus
     build:

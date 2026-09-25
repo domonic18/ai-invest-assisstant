@@ -1275,7 +1275,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_kline_drawing_scope
     ON ai_kline_drawing(user_id, target_type, target_code, period);
 
 -- ============================================================
--- 账号准入与 AI 用量治理（F-ACCT，arch/10）
+-- 账号准入与 AI 用量治理（F-ACCT，arch/07）
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS user_ai_quota (
@@ -1448,7 +1448,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
 -- F-KB 温成趋势理论知识库（kb_source / kb_media / kb_transcript_segment /
--- kb_knowledge_point / kb_image_asset / kb_settings；arch/12）
+-- kb_knowledge_point / kb_image_asset / kb_settings；arch/09）
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS kb_source (

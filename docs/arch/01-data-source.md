@@ -24,6 +24,7 @@
 │              │ ● 板块行情   │              │ Fed/BLS：固定日程         │
 │              │              │              │ MOF：日债收益率曲线       │
 │              │              │              │ CME·FRED：加息概率        │
+│              │              │              │ 抖音：视频/评论（signer） │
 └──────────────┴──────────────┴──────────────┴───────────────────────────┘
 ```
 
@@ -38,8 +39,10 @@
 | 行情快照 / 股票列表 | `quote` / `stock-list` | |
 | 涨跌统计 | `market-breadth` | 市场宽度 |
 | 指数/个股分钟线 | `index-minute` / `stock-minute` | 分钟线仅盘前竞价与盘中语义，禁用于指数竞价成交额口径（首根 bar 盘后被修订） |
-| 新闻 / 宏观经济 | `news` / `macro` | 入 ES 索引 |
+| 新闻 / 宏观经济 | `news` / `macro` | 入 PG `news_document`（pg_trgm 检索） |
 | 集合竞价 | `auction`（sina→ths 双渠道） | 个股竞价 |
+| 富时 A50 日线 | `a50-kline`（主渠道） | 新交所富时中国 A50 期指连续 CHA50CFD；东财为备选（见 2.2） |
+| 自选股日 K 补采 | `watchlist-kline-daily` | 缺省 symbols = 全部自选股，保证自选页图表数据完整 |
 
 ### 2.2 东方财富 — 股池/资金流/研报/全球指标
 
@@ -52,7 +55,7 @@
 | 板块行情 | 行业/概念板块涨跌幅 + 成交额 + 换手 + 涨跌家数 + 领涨股 | clist `fs=m:90+t:2`（行业）/ `fs=m:90+t:3`（概念），push2delay 优先；每日快照自积累为历史，不依赖 push2his K 线（封禁前科） |
 | 概念成分股 | `concept-constituents` | 高频连发触发 WAF，走 **push2delay 镜像 + curl_cffi** |
 | 个股研报 / 基金持仓 | `research-report` / `fund-holdings` | 研报 PDF 下载走 curl_cffi Chrome 指纹（pdf.dfcfw.com 按 TLS 指纹拦截 httpx） |
-| 富时 A50 | `a50-kline` | 无替代源 |
+| 富时 A50 | `a50-kline`（备选渠道） | 主渠道为新浪 CHA50CFD（见 2.1），FAILED 才轮换东财 |
 | 全球指数 / 黄金 / 汇率 / 港美股指数 | `global-index`（美元指数 UDI / COMEX 黄金 / 布伦特原油 B00Y / 离岸人民币 USDCNH / 日元 USDJPY / 欧元 USDEUR / 恒生 HSI / 恒生科技 HSTECH / 道琼斯 DJIA / 纳斯达克 NDX / 标普 500 SPX / 日经 225 N225） | 跟踪指数清单（见 03 §3.9）的数据源主渠道；低频采集走 push2delay，港美股 secid `100.HSI` / `124.HSTECH` / `100.DJIA` / `100.NDX` / `100.SPX` / `100.N225`，外汇/商品 secid `133.USDCNH` / `119.USDJPY` / `119.USDEUR` / `112.B00Y`（ulist.np/get 同接口；在岸人民币 USDCNY 无东财源走 Yahoo 每日任务）；akshare `index_global_*` 可作口径参考；上线回填走 2.9 |
 
 **WAF 行为要点**：按 TLS 指纹 + 路径 + 主机限流（非简单 IP 封禁）。`push2` 高频连发按主机封禁→批量拉取用 `push2delay` 镜像；`push2his` kline 路径已封死→K 线一律走新浪。
@@ -61,9 +64,9 @@
 
 公司概况 / 公告披露 / 财报（PDF 入 COS，结构化字段入 PG）/ IPO 信息。更新跟随披露节奏（财报季加密扫描）。
 
-### 2.4 同花顺 — 备选渠道（不独立承担任务）
+### 2.4 同花顺 — 板块 K 线唯一渠道 + 备选 fallback
 
-仅作为 `auction`（sina 之后的第二渠道）与 `sector-fund-flow`（eastmoney 之后的第二渠道）的 fallback，不单独注册任务。
+`sector-kline`（板块 K 线）由 ths 独家承担——东财 push2his K 线路径已封死，板块 K 线仅同花顺可用（17:45 板块异动检测的上游）。另作为 `auction`（sina 之后）与 `sector-fund-flow`（eastmoney 之后）的第二渠道 fallback。
 
 ### 2.5 Tushare / 交易所 — 口径唯一渠道
 
@@ -77,9 +80,13 @@
 
 | 任务 | 说明 |
 |------|------|
-| `market-daily-review` | 每日复盘综述，交易日 15:05 触发，LLM 生成，结果缓存 `ai_analysis_result` |
+| `market-daily-review` | 每日复盘综述，交易日 18:35 触发，六分区输出（v1.5.0），结果缓存 `ai_analysis_result` |
 | `limit-up-ai-review` | 涨停 AI 归因，交易日 16:30 触发（依赖 16:00 涨停股池），同缓存机制 |
-| `watchlist-daily-analysis` | 自选股 AI 每日分析，交易日盘后批量（heavy 队列），仅遍历开启 AI 复盘开关的分组；三段式输出（盘面解读/操作策略/止损线），按 skill+code+日期 缓存 |
+| `stock-daily-analysis` | 自选股 AI 每日分析，交易日 16:40 触发（heavy 队列），仅遍历开启 AI 复盘开关的分组；六分区输出（契约 v3.0.0），按 skill+code+日期 缓存 |
+| `chain-refresh` | 产业链分析周期刷新（每周） |
+| `news-score` / `news-storyline` / `news-topic` | 资讯重要度分级 / 事件故事线 / 热点主题聚类 |
+| `sector-anomaly` | 板块异动检测，交易日 17:45 触发（上游：ths 板块 K 线 + 趋势事实层） |
+| `stock-anomaly` | 个股异动检测，交易日 17:00 触发 |
 
 ### 2.7 财联社 — 电报快讯（准实时）+ 投资日历
 
@@ -87,7 +94,7 @@
 
 | 数据 | 接口 | 采集方式 | 存储 |
 |------|------|----------|------|
-| 电报 7×24 快讯 | `www.cls.cn/api/cache`（`name=telegraphList` + `lastTime` 增量游标） | 驻留进程 10 秒增量轮询——官方无推送 API/WebSocket，页面"实时"本身即 10s 轮询，同节奏即准实时且与真实用户行为一致；游标断点续传、失败指数退避、看门狗补漏 | 快讯入 ES 索引，按 cls 消息 id 幂等 |
+| 电报 7×24 快讯 | `www.cls.cn/api/cache`（`name=telegraphList` + `lastTime` 增量游标） | 驻留进程 10 秒增量轮询——官方无推送 API/WebSocket，页面"实时"本身即 10s 轮询，同节奏即准实时且与真实用户行为一致；游标断点续传、失败指数退避、看门狗补漏 | 快讯入 PG `news_telegraph` 表，按 cls 消息 id 幂等 |
 | 投资日历事件 | investkalendar nodeapi | 每日增量采集 | `news_calendar_event`，按 `source_hash` 幂等去重 |
 
 日历接口两条落地路径：① 逆向签名机制直连接口；② 兜底解析其每月"资本市场大事提醒"栏目文章。
@@ -108,6 +115,10 @@
 | 美联储议息概率（FedWatch） | **CME FedWatch 官网工具（QuikStrike iframe）官方概率表直采** | 官方付费 API（$25/月）与 investing.com 等三方转发站均不采用。抓取链路（2026-09-08 实测，`curl_cffi` Chrome 指纹，httpx 被 Akamai 拦截）：①`GET cmegroup-tools.quikstrike.net/User/QuikStrikeTools.aspx?viewitemid=IntegratedFedWatchTool&userId=lwolf`（Referer=CME 工具页）从 `#global_instanceCache` 取会话参数 → ②View 页取「Data as of … CT」时间戳（America/Chicago）与「<low>-<high> (Current)」当前目标区间 → ③隐藏字段 postback 切 Probabilities 标签，解析「Conditional Meeting Probabilities」表（行=FOMC 会议日美式日期，列=目标区间 bps，值=落位概率%）。服务层派生为纯求和：hike=高于当前区间概率和、hold=当前区间概率、cut=低于区间概率和。每日 3 请求无频控压力；解析函数用 fixture HTML 单测钉死 + 写路径哨兵（每会议概率和≈100、会议数下限），站点改版时显式 FAILED 走死信告警。晨间采集（`30 7 * * 2-6`，美收盘结算后） |
 | 全球指数历史回填 | Yahoo Finance chart API：`query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1y&interval=1d`（`^HSI` / `^NDX` / `^N225` / 外汇 `USDCNY=X` 等 / 布油 `BZ=F`） | 用于新指标上线时的一次性 12 个月日线回填（收盘值与东财一致）+ `yahoo_global_index_daily` 每日幂等续期（USDCNY 无东财源的每日增量）；此后其余指标由每日快照自积累，避免长期双源口径漂移。**注意**：①短时间连续全量请求会触发 Edge 限流（429），spider 对单 symbol 失败容错（其余照常回填，全失败才走渠道 fallback）；②Yahoo 已下线 `^HSTECH`（404 delisted）、`USDCNH=X` 仅返回当日 1 bar 无历史，两者历史均由东财每日快照自积累 |
 
+### 2.10 抖音 — 社媒情绪采集
+
+视频元数据 / 评论 / ASR 转写（社媒转写与知识库分片转写共用 `adapters/minimax/asr.py` 的 speech_to_text）。抖音页面接口有 Argus 签名门禁：由 `douyin-signer` sidecar 容器（chromium warm 页 SDK 真签）承载签名，独立部署于轻量服务器；不可用时采集侧自动回退本地 a_bogus。任务域与存储详见 [08-social-sentiment.md](./08-social-sentiment.md)。
+
 ## 3. 渠道优先级与故障切换
 
 - 每个 TaskSpec 声明 `collectors = {channel: 采集器}`，渠道按声明顺序即优先级，由 `collector.runtime.resolver` 按渠道配置解析
@@ -124,6 +135,7 @@
 | 请求限流 + 退避 | `collector.core.http_client` 统一超时/重试/间隔控制 |
 | 固定出口 IP | 采集 worker 永久驻留轻量服务器，固定出口 IP 对东财 WAF 更友好（SCF 共享出口池风险高） |
 | 随机 User-Agent | http_client 默认注入 |
+| 抖音签名门禁 | `douyin-signer` sidecar（chromium warm 页 SDK 真签，第三 CI 镜像）；不可用时回退本地 a_bogus（见 2.10） |
 
 > 未采用：IP 代理池、验证码打码、多账号 Cookie 池（无必要，当前量级限流退避即可）。
 
@@ -132,7 +144,11 @@
 | 数据 | 存储 | 说明 |
 |------|------|------|
 | 行情/K线/股池/资金流/板块行情/财务结构化字段/调度元数据/全球指标行情（含日债）/加息概率 | PostgreSQL + TimescaleDB | 时序表走 hypertable；板块行情与加息概率为每日快照自积累 |
-| 新闻 / 公告 / 电报快讯 | PostgreSQL（`news_document` 标题/摘要 + `file_metadata.content` 全文） | pg_trgm 词面检索 |
+| 新闻 / 公告 | PostgreSQL（`news_document` 标题/摘要 + `file_metadata.content` 全文） | pg_trgm 词面检索 |
+| 电报快讯 | PostgreSQL（`news_telegraph`） | 按 cls 消息 id 幂等；资讯中心实时电报流 |
 | 财报 PDF / 研报 PDF | COS（S3 兼容）+ 全文回填 `file_metadata.content` | 预签名 URL 下载；全文检索走 PG |
-| AI 分析结果（复盘综述/涨停归因/自选股每日分析） | `ai_analysis_result` 表 | 按 `input_hash`（skill_id + 业务键）幂等缓存 |
+| AI 分析结果（复盘综述/涨停归因/自选股每日分析/异动归因等） | `ai_analysis_result` 表 | 按 `input_hash`（skill_id + 业务键）幂等缓存 |
 | 投资日历事件 | `news_calendar_event` 表 | 按 `source_hash` 幂等去重 |
+| 异动检测结果（板块/个股 + 趋势事实） | `sector_anomaly` / `stock_anomaly`（trend_facts JSONB） | 检测器即时写规则分类，归因可覆盖；见 [06](./06-anomaly-analysis.md) |
+| 社媒账号/帖子/情绪 | `social_account` / `social_post` / `social_sentiment` | 见 [08](./08-social-sentiment.md) |
+| 知识库（来源/媒体/分片/知识点） | kb 域 6 表 + COS `kb/{source_id}/` | 见 [09](./09-knowledge-base.md) |

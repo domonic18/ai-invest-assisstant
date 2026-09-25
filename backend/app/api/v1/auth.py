@@ -28,7 +28,7 @@ async def register(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> RegisterAccepted:
-    """提交注册申请：受理后待管理员审批，不签发登录凭证（arch/10 §6）。"""
+    """提交注册申请：受理后待管理员审批，不签发登录凭证（arch/07 §6）。"""
     ip = client_ip(request) or "-"
     return await RegisterService(session).submit(data, ip)
 

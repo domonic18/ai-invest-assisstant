@@ -1,4 +1,4 @@
-"""知识库消费侧 API（arch/12 §10.2）：权限 = admin 或 kb_settings 白名单。
+"""知识库消费侧 API（arch/09 §10.2）：权限 = admin 或 kb_settings 白名单。
 
 E4：混合检索 + 发布态章节树导航 + 章节卡片清单（浏览路径）；
 F1：播放凭证、视频代理流、书页水印位图、字幕轨（§8 防盗面唯一入口）。
@@ -37,7 +37,7 @@ async def get_kb_authorized_user(
     user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
-    """知识库消费权限：admin 或 authorized_user_ids 白名单（arch/12 §9）。"""
+    """知识库消费权限：admin 或 authorized_user_ids 白名单（arch/09 §9）。"""
     if user.role != "admin":
         settings = await settings_service.get_settings_row(session)
         if user.id not in (settings.authorized_user_ids or []):
@@ -142,7 +142,7 @@ async def stream_media(
     """视频代理流：token + Range 必须，206 分段透传（无 COS 直链暴露）。
 
     凭证即鉴权（无 Bearer）：``<video>`` 元素 src 无法携带 Authorization
-    header，短时效凭证绑定用户+素材即身份（arch/12 §8.1）。
+    header，短时效凭证绑定用户+素材即身份（arch/09 §8.1）。
     """
     stream = await playback_stream.open_media_stream(
         session,
@@ -175,7 +175,7 @@ async def get_book_page(
     """书页位图：pypdfium2 渲染 + 服务端烧录「用户名+日期」水印。
 
     凭证即鉴权（无 Bearer）：``<img>`` 元素 src 无法携带 Authorization
-    header，水印用户名按凭证载荷回查（arch/12 §8.1）。
+    header，水印用户名按凭证载荷回查（arch/09 §8.1）。
     """
     png = await book_render.render_book_page(
         session,
