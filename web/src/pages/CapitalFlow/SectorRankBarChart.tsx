@@ -6,6 +6,7 @@ import type { SectorFlowTrend } from '@/api/fundFlow'
 import { ChartColors } from '@/theme/colors'
 import { fallHex, riseHex } from '@/utils/formatters'
 import { useColorScheme } from '@/stores/settings'
+import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 
 // 每天左榜展示净流入前 10（涨色）、右榜净流出前 10（跌色），对齐原型双栏排行
 const TOP_N = 10
@@ -24,22 +25,22 @@ interface RankItem {
   value: number
 }
 
-function pickInflow(data: SectorFlowTrend, dateIndex: number): RankItem[] {
+function pickInflow(data: SectorFlowTrend, dateIndex: number, topN: number): RankItem[] {
   return data.sectors
     .map((s) => ({ name: s.name, value: s.values[dateIndex] }))
     .filter((it): it is RankItem => it.value !== null && it.value !== undefined)
     .filter((it) => it.value > 0)
     .sort((a, b) => b.value - a.value)
-    .slice(0, TOP_N)
+    .slice(0, topN)
 }
 
-function pickOutflow(data: SectorFlowTrend, dateIndex: number): RankItem[] {
+function pickOutflow(data: SectorFlowTrend, dateIndex: number, topN: number): RankItem[] {
   return data.sectors
     .map((s) => ({ name: s.name, value: s.values[dateIndex] }))
     .filter((it): it is RankItem => it.value !== null && it.value !== undefined)
     .filter((it) => it.value < 0)
     .sort((a, b) => a.value - b.value)
-    .slice(0, TOP_N)
+    .slice(0, topN)
 }
 
 export function SectorRankBarChart({
@@ -48,6 +49,10 @@ export function SectorRankBarChart({
   onSelectDate,
 }: SectorRankBarChartProps) {
   useColorScheme()
+  // 窄屏双栏并排挤成两条细柱没法看：改上下两榜各 TOP5，时间轴标签隐藏（选中日看卡片标题）
+  const isNarrow = useIsNarrowScreen()
+  const topN = isNarrow ? 5 : TOP_N
+
   const currentIndex = useMemo(() => {
     const idx = selectedDate ? data.dates.indexOf(selectedDate) : -1
     return idx >= 0 ? idx : Math.max(data.dates.length - 1, 0)
@@ -73,22 +78,39 @@ export function SectorRankBarChart({
     baseOption: {
       backgroundColor: 'transparent',
       animation: false,
-      title: [
-        {
-          text: `净流入 TOP${TOP_N}`,
-          left: '25%',
-          top: 0,
-          textAlign: 'center',
-          textStyle: { color: riseHex(), fontSize: 12, fontWeight: 600 },
-        },
-        {
-          text: `净流出 TOP${TOP_N}`,
-          left: '75%',
-          top: 0,
-          textAlign: 'center',
-          textStyle: { color: fallHex(), fontSize: 12, fontWeight: 600 },
-        },
-      ],
+      title: isNarrow
+        ? [
+            {
+              text: `净流入 TOP${topN}`,
+              left: '50%',
+              top: 0,
+              textAlign: 'center',
+              textStyle: { color: riseHex(), fontSize: 12, fontWeight: 600 },
+            },
+            {
+              text: `净流出 TOP${topN}`,
+              left: '50%',
+              top: 210,
+              textAlign: 'center',
+              textStyle: { color: fallHex(), fontSize: 12, fontWeight: 600 },
+            },
+          ]
+        : [
+            {
+              text: `净流入 TOP${topN}`,
+              left: '25%',
+              top: 0,
+              textAlign: 'center',
+              textStyle: { color: riseHex(), fontSize: 12, fontWeight: 600 },
+            },
+            {
+              text: `净流出 TOP${topN}`,
+              left: '75%',
+              top: 0,
+              textAlign: 'center',
+              textStyle: { color: fallHex(), fontSize: 12, fontWeight: 600 },
+            },
+          ],
       timeline: {
         axisType: 'category',
         data: data.dates,
@@ -97,6 +119,7 @@ export function SectorRankBarChart({
         playInterval: 1200,
         bottom: 0,
         label: {
+          show: !isNarrow,
           color: muted,
           fontSize: 10,
           formatter: (value: string) => value.slice(5),
@@ -107,10 +130,15 @@ export function SectorRankBarChart({
         controlStyle: { color: muted, borderColor: muted },
         emphasis: { label: { color: ChartColors.textMain } },
       },
-      grid: [
-        { left: 90, right: '55%', top: 30, bottom: 60 },
-        { left: '55%', right: 90, top: 30, bottom: 60 },
-      ],
+      grid: isNarrow
+        ? [
+            { left: 76, right: 40, top: 26, height: 165 },
+            { left: 76, right: 40, top: 236, height: 165 },
+          ]
+        : [
+            { left: 90, right: '55%', top: 30, bottom: 60 },
+            { left: '55%', right: 90, top: 30, bottom: 60 },
+          ],
       xAxis: [
         {
           ...axisValue,
@@ -151,8 +179,8 @@ export function SectorRankBarChart({
       ],
     },
     options: data.dates.map((_, dateIndex) => {
-      const inflow = pickInflow(data, dateIndex)
-      const outflow = pickOutflow(data, dateIndex)
+      const inflow = pickInflow(data, dateIndex, topN)
+      const outflow = pickOutflow(data, dateIndex, topN)
       return {
         yAxis: [
           { data: inflow.map((it) => it.name) },
@@ -181,7 +209,7 @@ export function SectorRankBarChart({
   return (
     <ReactECharts
       option={option as unknown as EChartsOption}
-      style={{ height: '520px', width: '100%' }}
+      style={{ height: isNarrow ? '450px' : '520px', width: '100%' }}
       notMerge
       onEvents={{
         timelinechanged: (params: { currentIndex: number }) => {

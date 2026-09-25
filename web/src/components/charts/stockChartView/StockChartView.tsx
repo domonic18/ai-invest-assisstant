@@ -211,7 +211,7 @@ export function StockChartView({
       <div className="relative flex-1 min-h-0">
         {/* MA 常驻数值行（悬浮于主图左上） */}
         {indicators.ma && !isIntraday && chartData && (
-          <div className="absolute top-1.5 left-[52px] z-10 flex gap-3 font-mono text-[11px] pointer-events-none">
+          <div className="absolute top-1.5 left-[52px] right-2 z-10 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] pointer-events-none">
             {chartData.mas.map((ma) => {
               const latest = ma.values[ma.values.length - 1]
               return (
