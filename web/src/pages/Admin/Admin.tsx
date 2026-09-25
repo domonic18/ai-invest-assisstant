@@ -66,7 +66,7 @@ export function Admin() {
     : logColumns
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <Typography.Title level={4} className="!mb-0">后台管理</Typography.Title>
 
       {pendingCount > 0 && (
@@ -85,18 +85,26 @@ export function Admin() {
         />
       )}
 
-      <Row gutter={[16, 16]}>
+      <Row gutter={[12, 12]}>
         {ADMIN_LINKS.map((link) => (
-          <Col xs={24} sm={12} lg={6} key={link.path}>
+          <Col xs={8} sm={8} md={12} lg={6} key={link.path}>
             <Link to={link.path}>
               <Card
                 variant="borderless"
                 className="h-full hover:opacity-80 transition-opacity"
+                styles={isNarrow ? { body: { padding: '12px 4px' } } : undefined}
               >
-                <Space className="text-lg">
-                  <span className={`p-2 rounded ${link.color}`}>{link.icon}</span>
-                  <span>{link.title}</span>
-                </Space>
+                {isNarrow ? (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <span className={`p-2 rounded-lg text-base ${link.color}`}>{link.icon}</span>
+                    <span className="text-xs whitespace-nowrap">{link.title}</span>
+                  </div>
+                ) : (
+                  <Space className="text-lg">
+                    <span className={`p-2 rounded ${link.color}`}>{link.icon}</span>
+                    <span>{link.title}</span>
+                  </Space>
+                )}
               </Card>
             </Link>
           </Col>
