@@ -63,14 +63,15 @@ function FactorsBar({ factors }: { factors: ApiScoreFactors | null }) {
 /** 今日重点条目：分值 + 构成三维 + 理由。 */
 function HighlightItem({ item }: { item: ApiFocusItem }) {
   return (
-    <div className="flex gap-3 py-3 border-b border-white/5">
+    <div className="flex flex-wrap gap-3 py-3 border-b border-white/5">
       <div className="shrink-0 w-12 text-center">
         <div className="text-xl font-bold font-mono text-red-400">
           {item.score}
         </div>
         <div className="text-[10px] opacity-50">重要度</div>
       </div>
-      <div className="flex-1 min-w-0 space-y-1">
+      {/* basis 下限让窄屏放不下时构成条整体换行，标题列不再被 224px 固定列挤成竖排 */}
+      <div className="flex-1 basis-52 min-w-0 space-y-1">
         <div className="flex items-center gap-2 flex-wrap">
           {item.title && (
             <span className="text-sm font-semibold">{item.title}</span>
