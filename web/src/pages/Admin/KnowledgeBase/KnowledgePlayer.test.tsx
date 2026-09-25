@@ -73,7 +73,8 @@ describe('KnowledgePlayer', () => {
     const { video } = await renderPlayer()
 
     expect(mockedToken).toHaveBeenCalledWith(3)
-    expect(video.getAttribute('src')).toBe(STREAM_SRC)
+    // src 由 streamUrl effect 异步赋值，等待落位（慢 runner 上 video 挂载先于 effect）
+    await waitFor(() => expect(video.getAttribute('src')).toBe(STREAM_SRC))
     expect(video.getAttribute('controlsList')).toContain('nodownload')
     expect(video.hasAttribute('disablepictureinpicture')).toBe(true)
     // 防盗角标：用户名 + 日期
