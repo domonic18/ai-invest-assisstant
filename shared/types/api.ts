@@ -445,6 +445,8 @@ export interface ApiLLMConfigResponse {
   isDefault: boolean
   isActive: boolean
   purpose: LlmPurpose
+  backupConfigId: number | null
+  degradedUntil: string | null
   extra: Record<string, unknown>
   lastTestedAt: string | null
   lastTestStatus: string | null
@@ -463,6 +465,7 @@ export interface ApiLLMConfigCreateRequest {
   isDefault?: boolean
   isActive?: boolean
   purpose?: LlmPurpose
+  backupConfigId?: number | null
   extra?: Record<string, unknown>
 }
 
@@ -476,6 +479,7 @@ export interface ApiLLMConfigUpdateRequest {
   isDefault?: boolean
   isActive?: boolean
   purpose?: LlmPurpose
+  backupConfigId?: number | null
   extra?: Record<string, unknown>
 }
 
