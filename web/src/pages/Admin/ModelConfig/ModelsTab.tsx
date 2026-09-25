@@ -29,10 +29,10 @@ import {
   useSetDefaultLLMConfig,
   useTestLLMConfig,
   useUpdateLLMConfig,
-} from '@/hooks/useLLMConfigs'
+} from '@/hooks/useModelConfig'
 import type { LLMConfig, LLMConfigCapabilities, LLMConfigFormValues } from '@ai-invest/shared'
 
-import { LLMConfigModal } from './LLMConfigModal'
+import { ModelFormModal } from './ModelFormModal'
 
 const PROVIDER_LABEL: Record<string, string> = {
   openai: 'OpenAI',
@@ -65,7 +65,7 @@ function DegradedTag({ degradedUntil }: { degradedUntil: string | null }) {
   )
 }
 
-export function LLMConfig() {
+export function ModelsTab() {
   const { data: configs, isLoading, error } = useLLMConfigs()
   const createMutation = useCreateLLMConfig()
   const updateMutation = useUpdateLLMConfig()
@@ -308,7 +308,7 @@ export function LLMConfig() {
 
   return (
     <Card
-      title="LLM 配置"
+      title="模型条目"
       variant="borderless"
       extra={
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
@@ -335,7 +335,7 @@ export function LLMConfig() {
         scroll={{ x: 'max-content' }}
       />
 
-      <LLMConfigModal
+      <ModelFormModal
         open={modalOpen}
         editing={editing}
         configs={configs || []}

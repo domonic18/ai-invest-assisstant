@@ -15,7 +15,7 @@ const AdminUsers = lazy(() => import('./pages/Admin/Users/Users').then((m) => ({
 const CollectorAdmin = lazy(() =>
   import('./pages/Admin/Collector').then((m) => ({ default: m.CollectorAdmin })),
 )
-const LLMConfig = lazy(() => import('./pages/Admin/LLMConfig/LLMConfig').then((m) => ({ default: m.LLMConfig })))
+const ModelConfig = lazy(() => import('./pages/Admin/ModelConfig'))
 const KnowledgeBase = lazy(() => import('./pages/Admin/KnowledgeBase'))
 const KnowledgeSearchPage = lazy(() =>
   import('./pages/KnowledgeSearch').then((m) => ({ default: m.KnowledgeSearchPage }))
@@ -145,7 +145,8 @@ export const router = createBrowserRouter([
           { path: 'news', element: lazyEl(<AdminNews />) },
           // 旧路由兜底：任务/渠道配置并入采集管理（tab 直达）
           { path: 'tasks', element: <Navigate to="/admin/collector?tab=tasks" replace /> },
-          { path: 'llm-configs', element: lazyEl(<LLMConfig />) },
+          { path: 'model-configs', element: lazyEl(<ModelConfig />) },
+          { path: 'llm-configs', element: <Navigate to="/admin/model-configs" replace /> },
           { path: 'knowledge-base', element: lazyEl(<KnowledgeBase />) },
           { path: 'mcp-servers', element: lazyEl(<McpServers />) },
           { path: 'social-tracking', element: lazyEl(<SocialTracking />) },

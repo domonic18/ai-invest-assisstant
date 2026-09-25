@@ -68,7 +68,7 @@ const ADMIN_MENU_ITEMS: MenuItem[] = [
   { key: '/admin/stocks', icon: <BarChartOutlined />, label: '股票管理' },
   { key: '/admin/reports', icon: <FileTextOutlined />, label: '报告管理' },
   { key: '/admin/news', icon: <ReadOutlined />, label: '资讯管理' },
-  { key: '/admin/llm-configs', icon: <RobotOutlined />, label: 'LLM 配置' },
+  { key: '/admin/model-configs', icon: <RobotOutlined />, label: '模型配置' },
   { key: '/admin/knowledge-base', icon: <DatabaseOutlined />, label: '知识库' },
   { key: '/admin/proxy-configs', icon: <CloudServerOutlined />, label: '代理配置' },
   { key: '/admin/ai-results', icon: <FileDoneOutlined />, label: '分析结果' },

@@ -39,8 +39,8 @@ from app.api.v1.admin import collector_health as admin_collector_health
 from app.api.v1.admin import kb as admin_kb
 from app.api.v1.admin import kb_settings as admin_kb_settings
 from app.api.v1.admin import kb_usage as admin_kb_usage
-from app.api.v1.admin import llm_config as admin_llm_configs
 from app.api.v1.admin import mcp_configs as admin_mcp_configs
+from app.api.v1.admin import model_config as admin_model_configs
 from app.api.v1.admin import news as admin_news
 from app.api.v1.admin import paper_trade as admin_paper_trade
 from app.api.v1.admin import proxy_configs as admin_proxy_configs
@@ -105,7 +105,7 @@ admin_router.include_router(admin_collector.router)
 admin_router.include_router(admin_collector_health.router)
 admin_router.include_router(admin_collector_data_types.router)
 admin_router.include_router(admin_collector_channels.router)
-admin_router.include_router(admin_llm_configs.router)
+admin_router.include_router(admin_model_configs.router)
 admin_router.include_router(admin_kb.router)
 admin_router.include_router(admin_kb_settings.router)
 admin_router.include_router(admin_kb_usage.router)

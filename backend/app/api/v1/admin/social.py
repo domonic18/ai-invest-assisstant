@@ -1,4 +1,4 @@
-"""管理后台社媒追踪 API（账号 CRUD / 采集健康 / ASR 渠道配置）。"""
+"""管理后台社媒追踪 API（账号 CRUD / 采集健康；ASR 渠道配置见 model_config.py）。"""
 
 from typing import Annotated
 
@@ -11,9 +11,6 @@ from app.dependencies import client_ip, get_current_admin_user, get_db
 from app.models.user import User
 from app.repositories.social import account_repository, post_repository
 from app.schemas.social import (
-    AsrConfigResponse,
-    AsrConfigTestResponse,
-    AsrConfigUpdateRequest,
     CookieImportRequest,
     CookieImportResponse,
     SocialAccountAdminResponse,
@@ -27,7 +24,6 @@ from app.schemas.social import (
 )
 from app.services.social import (
     account_service,
-    asr_config_service,
     collection_service,
 )
 
@@ -168,31 +164,3 @@ async def get_status(
 ) -> SocialStatusResponse:
     """采集健康聚合（抖音 Cookie 池 + 今日采集量 + ASR 记账）。"""
     return await collection_service.get_status_aggregate(session)
-
-
-@router.get("/asr-config", response_model=AsrConfigResponse)
-async def get_asr_config(
-    session: Annotated[AsyncSession, Depends(get_db)],
-) -> AsrConfigResponse:
-    """ASR 配置 masked 视图（密钥只回脱敏串）。"""
-    config = await asr_config_service.get_or_create_config(session)
-    return asr_config_service.to_response(config)
-
-
-@router.put("/asr-config", response_model=AsrConfigResponse)
-async def update_asr_config(
-    payload: AsrConfigUpdateRequest,
-    session: Annotated[AsyncSession, Depends(get_db)],
-    admin: Annotated[User, Depends(get_current_admin_user)],
-) -> AsrConfigResponse:
-    """更新 ASR 配置（apiKey write-only：留空不换，写审计）。"""
-    return await asr_config_service.update_config(session, payload, actor_id=admin.id)
-
-
-@router.post("/asr-config/test", response_model=AsrConfigTestResponse)
-async def test_asr_config(
-    session: Annotated[AsyncSession, Depends(get_db)],
-    admin: Annotated[User, Depends(get_current_admin_user)],
-) -> AsrConfigTestResponse:
-    """连接测试：内置样例音频实调转写接口（不抛异常，失败给原因）。"""
-    return await asr_config_service.test_connection(session, actor_id=admin.id)

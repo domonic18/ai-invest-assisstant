@@ -1,4 +1,4 @@
-"""ASR 渠道配置服务（asr_channel_config 单行表，管理端「社媒追踪」维护）。
+"""ASR 渠道配置服务（asr_channel_config 单行表，管理端「模型配置」维护，社媒与知识库共用）。
 
 密钥 write-only：更新请求 apiKey 为 None/空串保留原值，传入即换（Fernet 落库
 + masked 回显）；连接测试用内置正弦波样例音频实调官方接口（~1s，即生成即用）。
@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.minimax import asr as minimax_asr
 from app.models.social import AsrChannelConfig
-from app.schemas.social import (
+from app.schemas.model_config import (
     AsrConfigResponse,
     AsrConfigTestResponse,
     AsrConfigUpdateRequest,
