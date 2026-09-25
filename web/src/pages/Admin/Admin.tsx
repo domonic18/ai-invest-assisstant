@@ -16,6 +16,7 @@ import { Link } from 'react-router-dom'
 
 import { useCollectorLogs } from '@/hooks/useCollectorAdmin'
 import { usePendingCount } from '@/hooks/useAdminAccount'
+import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 import { formatDateTime } from '@/utils/formatters'
 import { getSourceLabel, getTaskLabel } from '@/utils/collectorTaskLabels'
 import { statusTagColor } from '@ai-invest/shared'
@@ -37,6 +38,7 @@ const ADMIN_LINKS = [
 export function Admin() {
   const { data: logs, isLoading } = useCollectorLogs({ pageSize: 10 })
   const pendingCount = usePendingCount(true).data ?? 0
+  const isNarrow = useIsNarrowScreen()
 
   const logColumns = [
     { title: '任务', dataIndex: 'taskName', key: 'taskName', render: (v: string) => getTaskLabel(v) },
@@ -58,6 +60,10 @@ export function Admin() {
       render: (v: string | null) => v ? <Typography.Text type="danger" ellipsis={{ tooltip: v }}>{v}</Typography.Text> : '-',
     },
   ]
+  // 窄屏只留任务/状态/开始时间：固定宽列会保宽，自适应列被挤成一字一行竖排
+  const visibleLogColumns = isNarrow
+    ? logColumns.filter((c) => ['taskName', 'status', 'startedAt'].includes(c.key))
+    : logColumns
 
   return (
     <div className="space-y-6">
@@ -100,11 +106,12 @@ export function Admin() {
       <Card title="最近采集日志" variant="borderless" extra={<Link to="/admin/collector">查看更多</Link>}>
         <Table
           dataSource={logs?.items ?? []}
-          columns={logColumns}
+          columns={visibleLogColumns}
           rowKey="id"
           loading={isLoading}
           pagination={false}
           size="small"
+          scroll={{ x: 'max-content' }}
         />
       </Card>
     </div>
