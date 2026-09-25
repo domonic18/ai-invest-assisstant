@@ -323,7 +323,7 @@ LLM 上下文供给走三类检索：
 | 检索路径 | 载体 | 场景 |
 |----------|------|------|
 | 结构化查询 | PostgreSQL（`agent/tools/db_tools`） | 行情/财务/股池/产业链数据注入 prompt |
-| 全文检索 | PostgreSQL（`news_document` + `file_metadata.content`，pg_trgm；知识库走 halfvec HNSW + trgm 混合检索，见 arch/12 §7） | 新闻/公告/研报/财报关键词召回 |
+| 全文检索 | PostgreSQL（`news_document` + `file_metadata.content`，pg_trgm；知识库走 halfvec HNSW + trgm 混合检索，见 arch/09 §7） | 新闻/公告/研报/财报关键词召回 |
 | 文档直读 | COS（PDF）+ `file_metadata.summary` 缓存摘要 | 研报/财报摘要 Skill |
 
 > Elasticsearch 已于 2026-09-21 全系统退役：检索全部落 PostgreSQL 扩展（pg_trgm + pgvector），独立检索引擎与独立向量库不再引入。

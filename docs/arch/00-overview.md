@@ -69,7 +69,8 @@
                                            ▼
 ┌────────────────────────────────────────────────────────────────────────────────────┐
 │ 应用服务层 (app/services · 事务边界)                                               │
-│ 业务子域服务：admin/assistant/chain/collector/market/reports/review/user           │
+│ 业务子域服务：admin/assistant/chain/collector/common/kb/market/news/quota/         │
+│               reports/review/skill/social/trading/user/workbench                   │
 │ AI Agent 运行时：deepagents（助手 + Skill 执行器）+ YAML Prompts                   │
 │ model_factory 统一模型工厂 · repositories 只构造查询（禁止管理事务）               │
 └────────────────────────────────────────────────────────────────────────────────────┘
@@ -127,7 +128,7 @@ ai-invest-assisstant/
 │   │   │   ├── news.py / telegraph.py / workbench.py / skills.py   # 资讯 / 电报 / 工作台 / 技能广场
 │   │   │   ├── anomaly.py / screening.py / sector_detail.py / social.py / kb.py
 │   │   │   ├── admin/                  # 后台管理接口（21 模块：users / stocks / reports / news /
-│   │   │   │                           #   llm_config / mcp_configs / proxy_configs / ai_results /
+│   │   │   │                           #   model_config / mcp_configs / proxy_configs / ai_results /
 │   │   │   │                           #   collector 三合一 + collector_health / kb 三件 / social /
 │   │   │   │                           #   account / tracked_index / telegraph / system）
 │   │   │   ├── assistant/              # AI 助手协议接口（threads / runs / skills / page_context）
@@ -149,11 +150,12 @@ ai-invest-assisstant/
 │   │   ├── models/                     # SQLAlchemy ORM：命名遵循 <分类>_<数据类型>_<标的> 约定
 │   │   ├── schemas/                    # Pydantic 数据模型
 │   │   ├── repositories/               # 仓储层（查询构造与执行，禁止管理事务）
-│   │   │                               #   按业务子域分组：admin/ assistant/ chain/ market/ news/
-│   │                               #     reports/ review/ skill/ user/
+│   │   │                               #   按业务子域分组：admin/ assistant/ chain/ kb/ market/ news/
+│   │                               #     reports/ review/ skill/ social/ user/
 │   │   ├── services/                   # 业务逻辑层（事务边界、AI 调用、采集编排）
-│   │   │                               #   按业务子域分组：admin/ assistant/ chain/ collector/ common/
-│   │   │                               #   market/ news/ reports/ review/ skill/ user/ workbench/（根目录仅 __init__ 聚合）
+│   │   │                               #   按业务子域分组：admin/ assistant/ chain/ collector/ common/ kb/
+│   │   │                               #   market/ news/ quota/ reports/ review/ skill/ social/ trading/
+│   │   │                               #   user/ workbench/（根目录仅 __init__ 聚合）
 │   │   ├── utils/                      # crypto 等公共工具
 │   │   ├── dependencies/               # get_db 等依赖注入
 │   │   └── main.py                     # 应用入口
@@ -199,6 +201,7 @@ ai-invest-assisstant/
 │   │   │   ├── Anomaly/                # 异动检测（单页双 Tab：板块 / 个股）
 │   │   │   ├── SectorDetail/           # 板块详情（成分股 + 板块 K 线）
 │   │   │   ├── Screening/              # AI 选股工作台
+│   │   │   ├── PaperTrade/             # 模拟盘（掘金仿真：账户 / 订单 / NAV 轨迹 / K 线交易标记）
 │   │   │   ├── KnowledgeSearch/        # 知识检索（导航入口暂撤，路由保留）
 │   │   │   ├── Financial/              # 财务体检详情
 │   │   │   ├── Skills/                 # 技能广场 + 全页技能详情
