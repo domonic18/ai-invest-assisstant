@@ -195,7 +195,7 @@ export function AiReviewSection({ tradeDate, viewDate }: AiReviewSectionProps) {
 
   if (!data) {
     // 今日且未收盘时不提供手动生成入口：盘前/盘中数据未就绪，避免半成品
-    // 复盘落库占用当日缓存（16:30 定时任务会直接命中缓存跳过重生成）
+    // 复盘落库占用当日缓存（18:35 定时任务会直接命中缓存跳过重生成）
     const isToday = viewDate === dayjs().format(DATE_FORMAT)
     const beforeClose = isToday && dayjs().hour() < 15
     return (
@@ -210,8 +210,9 @@ export function AiReviewSection({ tradeDate, viewDate }: AiReviewSectionProps) {
       >
         <Empty
           description={
+            // 时间与 seed 的 market_daily_review_1835（北京时间 18:35）对齐
             isToday
-              ? '今日复盘尚未生成，收盘后约 16:30 自动生成'
+              ? '今日复盘尚未生成，收盘后约 18:35 自动生成'
               : '基于当日行情、涨停与板块资金数据生成复盘综述'
           }
           image={Empty.PRESENTED_IMAGE_SIMPLE}
