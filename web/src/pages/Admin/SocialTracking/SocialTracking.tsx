@@ -1,5 +1,4 @@
 import {
-  AudioOutlined,
   DeleteOutlined,
   EditOutlined,
   HistoryOutlined,
@@ -26,19 +25,16 @@ import type { ApiSocialAccountAdmin } from '@ai-invest/shared'
 import { useState } from 'react'
 
 import {
-  useAsrConfig,
   useBackfillSocialAccount,
   useCreateSocialAccount,
   useDeleteSocialAccount,
   useImportSocialCookie,
   useSocialAccountsAdmin,
   useSocialAdminStatus,
-  useUpdateAsrConfig,
   useUpdateSocialAccount,
 } from '@/hooks/useAdminSocial'
 import { formatDateTime, formatRelativeTime } from '@/utils/formatters'
 
-import { AsrConfigModal } from './AsrConfigModal'
 import { CookieImportModal } from './CookieImportModal'
 import { PostsDebugDrawer } from './PostsDebugDrawer'
 import { SocialAccountModal } from './SocialAccountModal'
@@ -81,18 +77,15 @@ export function SocialTracking() {
   const [page, setPage] = useState(1)
   const accountsQuery = useSocialAccountsAdmin(page, PAGE_SIZE)
   const statusQuery = useSocialAdminStatus()
-  const asrConfigQuery = useAsrConfig()
   const createMutation = useCreateSocialAccount(page, PAGE_SIZE)
   const updateMutation = useUpdateSocialAccount(page, PAGE_SIZE)
   const deleteMutation = useDeleteSocialAccount(page, PAGE_SIZE)
   const backfillMutation = useBackfillSocialAccount(page, PAGE_SIZE)
   const importCookieMutation = useImportSocialCookie()
-  const updateAsrMutation = useUpdateAsrConfig()
 
   const [accountModalOpen, setAccountModalOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<ApiSocialAccountAdmin | null>(null)
   const [cookieModalOpen, setCookieModalOpen] = useState(false)
-  const [asrModalOpen, setAsrModalOpen] = useState(false)
   const [postsAccount, setPostsAccount] = useState<ApiSocialAccountAdmin | null>(null)
 
   const douyin = statusQuery.data?.douyin
@@ -170,23 +163,6 @@ export function SocialTracking() {
       setCookieModalOpen(false)
     } catch (err) {
       handleError(err, '导入失败')
-    }
-  }
-
-  const handleSaveAsr = async (values: {
-    baseUrl?: string
-    model?: string
-    apiKey?: string
-    maxAudioSeconds?: number
-    hotwords?: string[]
-    enabled?: boolean
-  }) => {
-    try {
-      await updateAsrMutation.mutateAsync(values)
-      message.success('ASR 配置已保存，即刻生效')
-      setAsrModalOpen(false)
-    } catch (err) {
-      handleError(err, '保存失败')
     }
   }
 
@@ -352,9 +328,6 @@ export function SocialTracking() {
             >
               导入 Cookie
             </Button>
-            <Button icon={<AudioOutlined />} onClick={() => setAsrModalOpen(true)}>
-              ASR 配置
-            </Button>
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -396,13 +369,6 @@ export function SocialTracking() {
         loading={importCookieMutation.isPending}
         onCancel={() => setCookieModalOpen(false)}
         onSubmit={handleImportCookie}
-      />
-      <AsrConfigModal
-        open={asrModalOpen}
-        config={asrConfigQuery.data ?? null}
-        loading={updateAsrMutation.isPending}
-        onCancel={() => setAsrModalOpen(false)}
-        onSubmit={handleSaveAsr}
       />
       <PostsDebugDrawer account={postsAccount} onClose={() => setPostsAccount(null)} />
     </div>

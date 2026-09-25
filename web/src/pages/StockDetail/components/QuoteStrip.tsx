@@ -155,12 +155,12 @@ export function QuoteStrip({
         </div>
       </div>
 
-      {/* Row2: 8 项快照指标 */}
-      <div className="flex flex-wrap items-center px-5 pt-0.5 pb-2.5">
+      {/* Row2: 8 项快照指标（窄屏单行横向滚动，为 K 线让出高度；桌面换行平铺） */}
+      <div className="flex flex-nowrap items-center overflow-x-auto px-5 pt-0.5 pb-2.5 md:flex-wrap md:overflow-x-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {metrics.map((m, i) => (
           <div
             key={m.label}
-            className={`flex items-baseline gap-1.5 ${i > 0 ? 'border-l border-[#23262d] px-[14px]' : 'pr-[14px]'}`}
+            className={`flex shrink-0 items-baseline gap-1.5 ${i > 0 ? 'border-l border-[#23262d] px-[14px]' : 'pr-[14px]'}`}
           >
             <span className="text-[11px] whitespace-nowrap text-[#5c616e]">{m.label}</span>
             <span

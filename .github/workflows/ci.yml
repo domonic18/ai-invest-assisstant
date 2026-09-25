@@ -29,7 +29,7 @@ env:
   # 解决 "Node.js 20 actions are deprecated" 弃用警告
   # 参考: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
   REGISTRY: ccr.ccs.tencentyun.com
   NAMESPACE: ${{ secrets.TCR_NAMESPACE }}
 
@@ -46,13 +46,13 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install uv / 安装 uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
 
       - name: Set up Python / 安装 Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -334,5 +334,73 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/douyin-signer:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
             ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/douyin-signer:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================================
+  # Stage 5: 模拟盘柜台 sidecar 镜像（掘金 REST 网关；纯 Python 无平台限制，
+  # build context 与 compose 一致取 docker/paper-trade 目录）
+  # ============================================================
+  docker-paper-trade:
+    name: Docker Paper Trade / 模拟盘镜像构建推送
+    runs-on: ubuntu-latest
+    needs: [backend, web]
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')) || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout / 检出代码
+        uses: actions/checkout@v6
+
+      - name: Dockerfile Lint / Dockerfile 检查
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/paper-trade/Dockerfile
+          failure-threshold: error
+
+      - name: Set up Docker Buildx / 配置 Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to TCR / 登录腾讯云容器镜像服务
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
+
+      - name: Resolve tags / 解析标签
+        id: vars
+        run: |
+          {
+            echo "sha_short=$(git rev-parse --short HEAD)"
+            echo "branch=$(echo "${GITHUB_REF#refs/heads/}" | tr '/' '-')"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and Push / 构建并推送（第 1 次尝试）
+        uses: docker/build-push-action@v7
+        timeout-minutes: 25
+        with:
+          context: docker/paper-trade
+          file: docker/paper-trade/Dockerfile
+          push: true
+          provenance: false
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/paper-trade:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/paper-trade:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and Push / 构建并推送（重试）
+        if: failure()
+        uses: docker/build-push-action@v7
+        timeout-minutes: 30
+        with:
+          context: docker/paper-trade
+          file: docker/paper-trade/Dockerfile
+          push: true
+          provenance: false
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/paper-trade:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/paper-trade:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max

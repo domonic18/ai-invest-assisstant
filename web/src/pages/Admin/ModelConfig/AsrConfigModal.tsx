@@ -3,7 +3,7 @@ import { Alert, Button, Form, Input, InputNumber, Modal, Space, Switch, Typograp
 import { useEffect, useState } from 'react'
 import type { ApiAsrConfig, ApiAsrConfigTestResult } from '@ai-invest/shared'
 
-import { useTestAsrConfig } from '@/hooks/useAdminSocial'
+import { useTestAsrConfig } from '@/hooks/useModelConfig'
 
 interface AsrConfigModalProps {
   open: boolean

@@ -23,7 +23,15 @@ _RETRYABLE_HTTP_STATUSES = {429, 500, 502, 503, 504}
 
 
 class MiniMaxAsrHttpError(Exception):
-    """HTTP 层失败（状态码非 2xx 或网络/解析错误）。"""
+    """HTTP 层失败（状态码非 2xx 或网络/解析错误）。
+
+    ``status_code`` 携带可重试状态码耗尽时的最后一次 HTTP 状态
+    （如 429），网络/解析类失败为 None，供调用方区分限流与硬故障。
+    """
+
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 @dataclass(slots=True)
@@ -85,7 +93,9 @@ async def speech_to_text(request: SpeechToTextRequest) -> dict[str, Any]:
                 status not in _RETRYABLE_HTTP_STATUSES
                 or attempt >= len(request.retry_backoff_seconds)
             ):
-                raise MiniMaxAsrHttpError(f"asr_http_{status}") from exc
+                raise MiniMaxAsrHttpError(
+                    f"asr_http_{status}", status_code=status
+                ) from exc
             logger.warning("minimax_asr_http_retry", status=status, attempt=attempt + 1)
         except Exception as exc:  # noqa: BLE001
             raise MiniMaxAsrHttpError(f"asr_request_failed: {exc}") from exc

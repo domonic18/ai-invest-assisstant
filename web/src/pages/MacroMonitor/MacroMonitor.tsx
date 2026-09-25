@@ -1,5 +1,5 @@
-import { Card, Empty, Typography } from 'antd'
-import { Link, useNavigate } from 'react-router-dom'
+import { Typography } from 'antd'
+import { useNavigate } from 'react-router-dom'
 import { useMemo } from 'react'
 
 import type { GlobalIndexQuote, IndexQuote } from '@ai-invest/shared'
@@ -210,35 +210,6 @@ export function MacroMonitor() {
           })}
         </div>
       </section>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4">
-        <Card variant="borderless" title="宏观关联资讯">
-          <Empty
-            className="py-8"
-            description="宏观资讯中心即将上线（迭代 3 接入）"
-          />
-        </Card>
-        <Card variant="borderless" title="决策路径">
-          <div className="flex flex-col gap-2.5 text-[13px] text-gray-400">
-            <div className="flex items-center gap-2">
-              <span className="text-purple-400">① 宏观</span>
-              <span className="text-[#5e6ad2]">当前页</span> — 判断大类环境
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-purple-400">② 板块</span>
-              <Link to="/capital-flow">板块监测</Link> — 定位资金去向
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-purple-400">③ 个股</span>
-              <Link to="/workbench">顶部搜索个股</Link> — 验证标的走势
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-purple-400">④ 分析</span>
-              <Link to="/review">每日复盘</Link> — 形成结论
-            </div>
-          </div>
-        </Card>
-      </div>
     </div>
   )
 }

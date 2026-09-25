@@ -3,13 +3,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createLLMConfig,
   deleteLLMConfig,
+  fetchAsrConfig,
   fetchLLMConfigs,
   setDefaultLLMConfig,
+  testAsrConfig,
   testLLMConfig,
+  updateAsrConfig,
   updateLLMConfig,
-} from '@/api/llmConfig'
+} from '@/api/modelConfig'
 import { mapLLMConfig } from '@/api/mappers'
 import type {
+  ApiAsrConfigUpdateRequest,
   ApiLLMConfigCreateRequest,
   ApiLLMConfigUpdateRequest,
 } from '@ai-invest/shared'
@@ -64,5 +68,30 @@ export function useSetDefaultLLMConfig() {
 export function useTestLLMConfig() {
   return useMutation({
     mutationFn: (id: number) => testLLMConfig(id),
+  })
+}
+
+// ---- ASR 渠道 ----
+
+const ASR_KEY = queryKeys.modelConfig.asr
+
+export function useAsrConfig() {
+  return useQuery({
+    queryKey: ASR_KEY,
+    queryFn: fetchAsrConfig,
+  })
+}
+
+export function useUpdateAsrConfig() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: ApiAsrConfigUpdateRequest) => updateAsrConfig(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ASR_KEY }),
+  })
+}
+
+export function useTestAsrConfig() {
+  return useMutation({
+    mutationFn: () => testAsrConfig(),
   })
 }

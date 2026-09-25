@@ -532,6 +532,7 @@ CREATE TABLE llm_config (
     is_active           BOOLEAN      NOT NULL DEFAULT TRUE,
     extra               JSONB        NOT NULL DEFAULT '{}'::jsonb,
     purpose             VARCHAR(16)  NOT NULL DEFAULT 'chat',   -- 用途维度：chat / embedding / vision（F-KB 模型角色绑定）
+    backup_config_id    INTEGER,                                            -- 备用配置 id：本配置额度耗尽冷却期内解析层自动切换的目标（单级）
     last_tested_at      TIMESTAMPTZ,
     last_test_status    VARCHAR(20),
     last_test_error     TEXT,

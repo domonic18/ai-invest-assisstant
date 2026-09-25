@@ -1,15 +1,26 @@
-"""run_structured 单轮结构化调用契约测试。"""
+"""run_structured 单轮结构化调用契约测试（含额度耗尽主备切换重试）。"""
 
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
+import httpx
+import openai
 import pytest
 from langchain_core.exceptions import OutputParserException
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.runtime.structured import run_structured
+
+
+def _rate_limit_error() -> openai.RateLimitError:
+    request = httpx.Request("POST", "https://api.example.com/v1/chat/completions")
+    return openai.RateLimitError(
+        "quota exceeded",
+        response=httpx.Response(status_code=429, request=request),
+        body=None,
+    )
 
 
 class _Out(BaseModel):
@@ -198,3 +209,102 @@ class TestRunStructured:
 
         assert result == _Out(value="ok")
         assert fake_model.methods == ["function_calling"]
+
+    @pytest.mark.asyncio
+    async def test_failover_retries_with_backup_on_rate_limit(self) -> None:
+        """额度耗尽：主配置进冷却，重解析切备用（含协议 method 重选）当次重试。"""
+        primary = SimpleNamespace(config_id=1, protocol="openai", model_name="m1")
+        backup = SimpleNamespace(config_id=2, protocol="anthropic", model_name="m2")
+        structured = _FakeStructured([_rate_limit_error(), _Out(value="ok")])
+        fake_model = _FakeModel(structured)
+        built: list[Any] = []
+
+        def _fake_build(cfg: Any, **_kw: Any) -> _FakeModel:
+            built.append(cfg)
+            return fake_model
+
+        with (
+            patch(
+                "app.agent.runtime.structured.resolve_llm_by_id",
+                new=AsyncMock(side_effect=[primary, backup]),
+            ),
+            patch(
+                "app.agent.runtime.structured.build_langchain_model",
+                side_effect=_fake_build,
+            ),
+            patch(
+                "app.agent.runtime.structured.mark_unhealthy", new=AsyncMock()
+            ) as p_mark,
+        ):
+            result = await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+                config_id=1,
+            )
+
+        assert result == _Out(value="ok")
+        assert [cfg.config_id for cfg in built] == [1, 2]
+        # method 按备用协议重选：主 openai function_calling → 备用 anthropic json_schema
+        assert fake_model.methods == ["function_calling", "json_schema"]
+        p_mark.assert_awaited_once_with(1)
+
+    @pytest.mark.asyncio
+    async def test_failover_raises_when_no_backup_switch(self) -> None:
+        """无备用可切（门返回同一条目）时原样上抛，不对同一死模型重复调用。"""
+        primary = SimpleNamespace(config_id=1, protocol="openai", model_name="m1")
+        structured = _FakeStructured([_rate_limit_error()])
+        fake_model = _FakeModel(structured)
+        with (
+            patch(
+                "app.agent.runtime.structured.resolve_llm_by_id",
+                new=AsyncMock(return_value=primary),
+            ),
+            patch(
+                "app.agent.runtime.structured.build_langchain_model",
+                return_value=fake_model,
+            ),
+            patch("app.agent.runtime.structured.mark_unhealthy", new=AsyncMock()),
+            pytest.raises(openai.RateLimitError),
+        ):
+            await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+                config_id=1,
+            )
+
+        assert len(structured.prompts) == 1
+
+    @pytest.mark.asyncio
+    async def test_non_classified_error_propagates_without_retry(self) -> None:
+        """非额度类异常（如 5xx/程序错误）不触发主备重试。"""
+        structured = _FakeStructured([RuntimeError("connection reset")])
+        fake_model = _FakeModel(structured)
+        with (
+            patch(
+                "app.agent.runtime.structured.resolve_llm_by_id",
+                new=AsyncMock(
+                    return_value=SimpleNamespace(
+                        config_id=1, protocol="openai", model_name="m1"
+                    )
+                ),
+            ),
+            patch(
+                "app.agent.runtime.structured.build_langchain_model",
+                return_value=fake_model,
+            ),
+            patch(
+                "app.agent.runtime.structured.mark_unhealthy", new=AsyncMock()
+            ) as p_mark,
+            pytest.raises(RuntimeError),
+        ):
+            await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+                config_id=1,
+            )
+
+        assert len(structured.prompts) == 1
+        p_mark.assert_not_awaited()

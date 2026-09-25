@@ -169,6 +169,42 @@ async def test_embed_non_200_raises() -> None:
             await client.embed(["a"])
 
 
+async def test_embed_quota_failure_marks_unhealthy() -> None:
+    """429/额度类失败标记配置进冷却；非额度类失败不标记。"""
+    from app.services.kb.embedding_client import KbEmbeddingError
+
+    client = _client()
+    with (
+        patch(
+            "app.services.kb.embedding_client.mark_unhealthy", new=AsyncMock()
+        ) as p_mark,
+        patch(
+            "app.services.kb.embedding_client.httpx.AsyncClient"
+        ) as mock_client_cls,
+    ):
+        mock_client_cls.return_value.__aenter__.return_value.post = AsyncMock(
+            return_value=_response(status=429)
+        )
+        with pytest.raises(KbEmbeddingError):
+            await client.embed(["a"])
+    p_mark.assert_awaited_once_with(3)
+
+    with (
+        patch(
+            "app.services.kb.embedding_client.mark_unhealthy", new=AsyncMock()
+        ) as p_mark_500,
+        patch(
+            "app.services.kb.embedding_client.httpx.AsyncClient"
+        ) as mock_client_cls,
+    ):
+        mock_client_cls.return_value.__aenter__.return_value.post = AsyncMock(
+            return_value=_response(status=500)
+        )
+        with pytest.raises(KbEmbeddingError):
+            await client.embed(["a"])
+    p_mark_500.assert_not_awaited()
+
+
 async def test_discover_dims() -> None:
     client = _client()
     with (

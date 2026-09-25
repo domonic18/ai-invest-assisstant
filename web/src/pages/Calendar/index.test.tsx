@@ -60,10 +60,21 @@ describe('Calendar', () => {
 
     // 页头副标题：数据来源与 ★ 图例
     expect(screen.getByText(/数据来源：财联社日历/)).toBeInTheDocument()
-    // 详情常驻面板默认展示今天的事件（月历 chip 与面板标题同时命中）
+    // 默认列表视图：行与面板标题同时命中
     expect(screen.getAllByText('今日宏观数据发布').length).toBeGreaterThan(0)
     expect(screen.getByText('事件时间')).toBeInTheDocument()
-    expect(screen.getByText('财联社日历')).toBeInTheDocument()
+    expect(screen.getAllByText('财联社日历').length).toBeGreaterThan(0)
+  })
+
+  it('list view (default) hides past events', () => {
+    const yesterday = dayjs().subtract(1, 'day')
+    setup([
+      event(1, yesterday, { title: '已过去的公告' }),
+      event(2, dayjs(), { title: '今日宏观数据发布' }),
+    ])
+
+    expect(screen.queryByText('已过去的公告')).not.toBeInTheDocument()
+    expect(screen.getAllByText('今日宏观数据发布').length).toBeGreaterThan(0)
   })
 
   it('clicking a day chip switches the detail panel to that day', () => {
@@ -74,6 +85,8 @@ describe('Calendar', () => {
     ])
 
     expect(screen.getAllByText('今日宏观数据发布').length).toBeGreaterThan(0)
+    // 月历视图的日 chip 行为（neighborDay 可能落在过去，列表视图会隐藏）
+    fireEvent.click(screen.getByText('月历'))
     fireEvent.click(screen.getByText((c) => c.includes('华卓精科申购')))
     // 面板头部切到选中日（MM-DD 周X），事件详情出现在面板中
     expect(

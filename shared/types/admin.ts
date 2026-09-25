@@ -19,6 +19,10 @@ export interface LLMConfig {
   isDefault: boolean
   isActive: boolean
   purpose: LlmPurpose
+  /** 备用配置 id：本配置额度耗尽冷却期内自动切换的目标（单级） */
+  backupConfigId: number | null
+  /** 额度耗尽冷却截止时间；null 表示健康 */
+  degradedUntil: string | null
   extra: Record<string, unknown>
   lastTestedAt: string | null
   lastTestStatus: string | null
@@ -37,6 +41,7 @@ export interface LLMConfigFormValues {
   isDefault: boolean
   isActive: boolean
   purpose: LlmPurpose
+  backupConfigId?: number | null
   vision?: boolean
 }
 
@@ -45,6 +50,39 @@ export interface LLMConfigTestResult {
   detail: string
   testedAt: string
 }
+
+/** ASR 渠道配置 masked 视图（密钥只回脱敏串）。 */
+export interface ApiAsrConfig {
+  provider: string
+  baseUrl: string
+  model: string
+  apiKeyMasked: string | null
+  apiKeyConfigured: boolean
+  maxAudioSeconds: number
+  hotwords: string[]
+  enabled: boolean
+  updatedAt: string
+}
+
+/** 更新 ASR 配置（apiKey write-only：留空保留原值）。 */
+export interface ApiAsrConfigUpdateRequest {
+  provider?: string
+  baseUrl?: string
+  model?: string
+  apiKey?: string
+  maxAudioSeconds?: number
+  hotwords?: string[]
+  enabled?: boolean
+}
+
+/** ASR 连接测试结果。 */
+export interface ApiAsrConfigTestResult {
+  ok: boolean
+  latencyMs: number
+  text: string | null
+  error: string | null
+}
+
 
 export interface CollectorChannelConfig {
   id: number
@@ -550,6 +588,7 @@ export interface AdminAiResultListParams {
 export interface ServiceStatusItem {
   key: string
   name: string
+  category: 'storage' | 'compute' | 'external'
   status: 'up' | 'down'
   latencyMs: number | null
   detail: string | null
@@ -560,5 +599,36 @@ export interface ServiceStatusItem {
 export interface SystemStatus {
   overall: 'operational' | 'degraded'
   items: ServiceStatusItem[]
+  checkedAt: string
+}
+
+/** Celery 任务方框状态：排队/执行中/终态。 */
+export type CeleryTaskState = 'pending' | 'running' | 'success' | 'partial' | 'failed' | 'skipped'
+
+/** 方框网格中的单个任务（一框一任务实例）。 */
+export interface CeleryTaskSquare {
+  key: string
+  taskType: string
+  label: string
+  state: CeleryTaskState
+  source: string | null
+  startedAt: string | null
+  finishedAt: string | null
+  durationMs: number | null
+  detail: string | null
+}
+
+/** 单个 Celery 队列的任务方框集合。 */
+export interface CeleryQueueStatus {
+  name: string
+  label: string
+  pendingTotal: number
+  tasks: CeleryTaskSquare[]
+}
+
+/** 三队列任务状态总览；brokerOk=false 表示 broker 不可达（仅 DB 侧数据）。 */
+export interface CeleryQueues {
+  brokerOk: boolean
+  queues: CeleryQueueStatus[]
   checkedAt: string
 }

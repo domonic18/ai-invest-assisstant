@@ -7,6 +7,8 @@ __pycache__/
 .ruff_cache/
 *.env
 .venv/
+# .venv/ 只匹配根级；backend/.venv（~800MB）须 **/ 才能挡住，否则 COPY backend/ 会带入镜像
+**/.venv/
 
 # Node
 node_modules/

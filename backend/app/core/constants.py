@@ -62,7 +62,7 @@ STREAM_CURSOR_KEY_TEMPLATE = "collector:stream:{source}:last_time"
 STREAM_HEARTBEAT_KEY_TEMPLATE = "collector:stream:{source}:heartbeat"
 
 # ---- 采集健康监测 ----
-# 任务类型 -> 数据域（7 域，采集健康页分组与健康分统计口径）。
+# 任务类型 -> 数据域（9 域，采集健康页分组与健康分统计口径）。
 # 键空间 = TASK_SPECS 键；maintenance/health-check 类内部任务不登记，
 # 不参与健康统计（监测不监测自己）。覆盖完备性由单测对照 TASK_SPECS 钉死。
 DOMAIN_KLINE = "kline"
@@ -73,6 +73,7 @@ DOMAIN_NEWS = "news"
 DOMAIN_FUNDAMENTAL = "fundamental"
 DOMAIN_AI = "ai"
 DOMAIN_KB = "kb"
+DOMAIN_TRADING = "trading"
 
 TASK_TYPE_DOMAIN: dict[str, str] = {
     # K 线
@@ -137,4 +138,6 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "kb-extract": DOMAIN_KB,
     "kb-vision": DOMAIN_KB,
     "kb-index": DOMAIN_KB,
+    # 交易（模拟盘）
+    "paper-trade-sync": DOMAIN_TRADING,
 }

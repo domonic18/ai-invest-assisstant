@@ -12,7 +12,7 @@ COPY backend/ .
 RUN uv sync --frozen --no-dev
 
 # frontend-builder
-FROM node:20-alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 ARG VITE_APP_VERSION

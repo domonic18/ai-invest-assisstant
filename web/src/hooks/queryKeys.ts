@@ -22,6 +22,7 @@ export const queryKeys = {
     usagePerUsers: (days: number) => ['admin-usage-per-users', days] as const,
     accountSettings: ['admin-account-settings'] as const,
     systemStatus: ['admin-system-status'] as const,
+    celeryQueues: ['admin-celery-queues'] as const,
   },
   auction: {
     all: ['auction'] as const,
@@ -128,7 +129,9 @@ export const queryKeys = {
     accountPosts: (accountId: number) =>
       ['admin-social-account-posts', accountId] as const,
     status: ['admin-social-status'] as const,
-    asrConfig: ['admin-social-asr-config'] as const,
+  },
+  modelConfig: {
+    asr: ['model-config', 'asr'] as const,
   },
   proxyConfigs: ['proxy-configs'] as const,
   trackedIndexOptions: ['tracked-index-options'] as const,
@@ -225,6 +228,40 @@ export const queryKeys = {
     all: ['workbench'] as const,
     overview: ['workbench', 'overview'] as const,
     reviewStatus: ['workbench', 'reviewStatus'] as const,
+  },
+  paperTrade: {
+    all: ['paper-trade'] as const,
+    accounts: ['paper-trade', 'accounts'] as const,
+    adminAccounts: ['paper-trade', 'admin', 'accounts'] as const,
+    overview: (accountId?: number) =>
+      ['paper-trade', 'overview', accountId ?? null] as const,
+    orders: (accountId?: number, tradeDate?: string, page?: number, pageSize?: number) =>
+      [
+        'paper-trade',
+        'orders',
+        accountId ?? null,
+        tradeDate ?? null,
+        page ?? 1,
+        pageSize ?? 20,
+      ] as const,
+    executions: (
+      accountId?: number,
+      tradeDate?: string,
+      page?: number,
+      pageSize?: number,
+    ) =>
+      [
+        'paper-trade',
+        'executions',
+        accountId ?? null,
+        tradeDate ?? null,
+        page ?? 1,
+        pageSize ?? 20,
+      ] as const,
+    nav: (accountId?: number, days?: number) =>
+      ['paper-trade', 'nav', accountId ?? null, days ?? 30] as const,
+    tradeMarkers: (stockCode?: string, days?: number) =>
+      ['paper-trade', 'trade-markers', stockCode ?? null, days ?? 120] as const,
   },
   klineDrawings: {
     /** 全周期画线（period 为归属键，周期切换前端过滤） */

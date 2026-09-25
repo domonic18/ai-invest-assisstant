@@ -1,17 +1,11 @@
-import { Alert, Button, Card, Form, InputNumber, Select, Space, Switch, message } from 'antd'
+import { Button, Card, Form, InputNumber, Select, Space, Switch, message } from 'antd'
 import { useEffect } from 'react'
 
-import type { ApiKbSettingsResponse, LlmPurpose } from '@ai-invest/shared'
+import type { ApiKbSettingsResponse } from '@ai-invest/shared'
 
 import { useKbSettings, useUpdateKbSettings } from '@/hooks/useAdminKb'
-import { useLLMConfigs } from '@/hooks/useLLMConfigs'
-import type { LLMConfig } from '@ai-invest/shared'
 
 interface KbSettingsFormValues {
-  embeddingConfigId: number | null
-  cleanModelId: number | null
-  extractModelId: number | null
-  visionModelId: number | null
   topK: number
   autoApprovePoints: boolean
   segmentMaxSeconds: number
@@ -19,44 +13,8 @@ interface KbSettingsFormValues {
   hotwords: string[]
 }
 
-const ROLE_FIELDS: {
-  name: keyof KbSettingsFormValues
-  label: string
-  purpose: LlmPurpose
-  extra: string
-}[] = [
-  {
-    name: 'embeddingConfigId',
-    label: '嵌入模型',
-    purpose: 'embedding',
-    extra: '切片向量化（知识库检索召回），须为 embedding 用途条目',
-  },
-  {
-    name: 'cleanModelId',
-    label: '清洗模型',
-    purpose: 'chat',
-    extra: '转写文稿口语清洗（热词纠错/标点/分段），须为 chat 用途条目',
-  },
-  {
-    name: 'extractModelId',
-    label: '抽取模型',
-    purpose: 'chat',
-    extra: '知识卡片抽取与大纲生成，须为 chat 用途条目',
-  },
-  {
-    name: 'visionModelId',
-    label: '视觉模型',
-    purpose: 'vision',
-    extra: '插图/图表理解（图片转文字），须为 vision 用途条目',
-  },
-]
-
 function toFormValues(settings: ApiKbSettingsResponse): KbSettingsFormValues {
   return {
-    embeddingConfigId: settings.embeddingConfigId,
-    cleanModelId: settings.cleanModelId,
-    extractModelId: settings.extractModelId,
-    visionModelId: settings.visionModelId,
     topK: settings.topK,
     autoApprovePoints: settings.autoApprovePoints,
     segmentMaxSeconds: settings.segmentMaxSeconds,
@@ -65,37 +23,9 @@ function toFormValues(settings: ApiKbSettingsResponse): KbSettingsFormValues {
   }
 }
 
-function RoleSlotSelect({
-  config,
-  purpose,
-  value,
-  onChange,
-}: {
-  config: LLMConfig[]
-  purpose: LlmPurpose
-  value: number | null | undefined
-  onChange: (id: number | null) => void
-}) {
-  const options = config
-    .filter((c) => c.purpose === purpose && c.isActive)
-    .map((c) => ({ value: c.id, label: `${c.name}（${c.modelName}）` }))
-  return (
-    <Select
-      value={value ?? undefined}
-      onChange={(id) => onChange(id ?? null)}
-      options={options}
-      allowClear
-      placeholder="未配置"
-      style={{ width: '100%' }}
-      notFoundContent={`暂无「${purpose}」用途的启用条目，请先在「模型配置」中添加`}
-    />
-  )
-}
-
 export function SettingsTab() {
   const [form] = Form.useForm<KbSettingsFormValues>()
   const { data: settings, isLoading } = useKbSettings()
-  const { data: configs } = useLLMConfigs()
   const updateMutation = useUpdateKbSettings()
 
   useEffect(() => {
@@ -119,26 +49,16 @@ export function SettingsTab() {
       disabled={isLoading}
       style={{ maxWidth: 640 }}
     >
-      <Card type="inner" title="模型角色" style={{ marginBottom: 16 }}>
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message="四个角色均指向「模型配置」中的条目，按用途过滤；条目停用或改用途后管线任务会显式报错而非静默走错模型"
-        />
-        {ROLE_FIELDS.map((role) => (
-          <Form.Item key={role.name} label={role.label} name={role.name} extra={role.extra}>
-            <RoleSlotSelect
-              config={configs ?? []}
-              purpose={role.purpose}
-              value={form.getFieldValue(role.name)}
-              onChange={(id) => form.setFieldValue(role.name, id)}
-            />
-          </Form.Item>
-        ))}
-      </Card>
-
-      <Card type="inner" title="域参数" style={{ marginBottom: 16 }}>
+      <Card
+        type="inner"
+        title="域参数"
+        style={{ marginBottom: 16 }}
+        extra={
+          <Button type="primary" htmlType="submit" loading={updateMutation.isPending}>
+            保存设置
+          </Button>
+        }
+      >
         <Space wrap size="large">
           <Form.Item
             label="检索 top K"
@@ -181,10 +101,6 @@ export function SettingsTab() {
           <Select mode="tags" open={false} placeholder="输入后回车添加" style={{ width: '100%' }} />
         </Form.Item>
       </Card>
-
-      <Button type="primary" htmlType="submit" loading={updateMutation.isPending}>
-        保存设置
-      </Button>
     </Form>
   )
 }

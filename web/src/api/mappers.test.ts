@@ -242,6 +242,8 @@ describe('mappers', () => {
       isDefault: true,
       isActive: true,
       purpose: 'chat',
+      backupConfigId: null,
+      degradedUntil: null,
       extra: {},
       lastTestedAt: '2024-01-01T00:00:00Z',
       lastTestStatus: 'success',

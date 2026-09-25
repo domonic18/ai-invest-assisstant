@@ -6,7 +6,12 @@ constants.py 不 import collector.runtime（解环约定），覆盖关系在
 
 import pytest
 
-from app.core.constants import DOMAIN_AI, DOMAIN_KB, TASK_TYPE_DOMAIN
+from app.core.constants import (
+    DOMAIN_AI,
+    DOMAIN_KB,
+    DOMAIN_TRADING,
+    TASK_TYPE_DOMAIN,
+)
 from collector.runtime.registry import TASK_SPECS
 
 pytestmark = pytest.mark.unit
@@ -32,11 +37,11 @@ def test_health_check_self_exempt():
     assert "health-check" not in TASK_TYPE_DOMAIN
 
 
-def test_domains_are_eight():
-    """8 个数据域齐备（K线/行情/股池/资金流/资讯/基本面/AI/知识库）。"""
+def test_domains_are_nine():
+    """9 个数据域齐备（K线/行情/股池/资金流/资讯/基本面/AI/知识库/交易）。"""
     assert set(TASK_TYPE_DOMAIN.values()) == {
         "kline", "quote", "pool", "fund-flow", "news", "fundamental", DOMAIN_AI,
-        DOMAIN_KB,
+        DOMAIN_KB, DOMAIN_TRADING,
     }
 
 
@@ -47,5 +52,5 @@ def test_domains_are_eight():
 def test_domain_values_valid(task_type: str):
     assert TASK_TYPE_DOMAIN[task_type] in {
         "kline", "quote", "pool", "fund-flow", "news", "fundamental", DOMAIN_AI,
-        DOMAIN_KB,
+        DOMAIN_KB, DOMAIN_TRADING,
     }

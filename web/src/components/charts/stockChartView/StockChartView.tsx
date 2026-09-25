@@ -10,13 +10,17 @@ import { useKlineKeyboardNav } from '@/components/charts/useKlineKeyboardNav'
 import { useStockIntraday, useStockKline } from '@/hooks/useStocks'
 import { useMaConfigs } from '@/stores/settings'
 import type { ECharts } from 'echarts'
-import type { IndexIntraday, KlineDrawingPeriod } from '@ai-invest/shared'
+import type { ApiPaperTradeTradeMarker, IndexIntraday, KlineDrawingPeriod } from '@ai-invest/shared'
 
 import { BORDER_COLOR, PANEL_BG } from './constants'
 import { ChartToolbar } from './ChartToolbar'
 import { KlineEmptyState } from './KlineEmptyState'
 import { prepareKlineData } from './klineData'
 import { buildKlineOption } from './klineOption'
+import {
+  toIntradayTradeMarks,
+  toKlineTradeMarks,
+} from './tradeMarkers'
 import { useAutoCollectKline } from './useAutoCollectKline'
 import { useChartFullscreen } from './useChartFullscreen'
 import { useDataZoomYAxisRescale } from '@/components/charts/useDataZoomYAxisRescale'
@@ -37,6 +41,8 @@ export interface StockChartViewProps {
   height?: number
   /** 单图/双图切换（原型仅首图工具栏展示） */
   layoutToggle?: { value: boolean; onChange: (dual: boolean) => void }
+  /** 模拟盘成交回报（当前用户全账户、按 code 过滤），渲染 B/S/T 标记。 */
+  tradeMarks?: ApiPaperTradeTradeMarker[]
 }
 
 /** 工具栏 36 + 底边框 1；MA 数值行悬浮于主图内，不占布局高度。 */
@@ -60,6 +66,7 @@ export function StockChartView({
   onIndicatorsChange,
   height = 460,
   layoutToggle,
+  tradeMarks,
 }: StockChartViewProps) {
   const [period, setPeriod] = useState(defaultPeriod)
   const [indicators, setIndicators] = useState<StockChartViewIndicators>({
@@ -112,10 +119,19 @@ export function StockChartView({
     return prepareKlineData(klineData, maConfigs)
   }, [klineData, isIntraday, maConfigs])
 
+  const klineTradeMarks = useMemo(
+    () => toKlineTradeMarks(tradeMarks ?? []),
+    [tradeMarks],
+  )
+  const intradayTradeMarks = useMemo(
+    () => toIntradayTradeMarks(tradeMarks ?? []),
+    [tradeMarks],
+  )
+
   const option = useMemo(() => {
     if (!chartData) return undefined
-    return buildKlineOption(chartData, indicators, effectiveHeight)
-  }, [chartData, indicators, effectiveHeight])
+    return buildKlineOption(chartData, indicators, effectiveHeight, undefined, klineTradeMarks)
+  }, [chartData, indicators, effectiveHeight, klineTradeMarks])
 
   const { chartRef, wrapperProps, onEvents: navEvents } = useKlineKeyboardNav(
     chartData?.dates.length ?? 0,
@@ -195,7 +211,7 @@ export function StockChartView({
       <div className="relative flex-1 min-h-0">
         {/* MA 常驻数值行（悬浮于主图左上） */}
         {indicators.ma && !isIntraday && chartData && (
-          <div className="absolute top-1.5 left-[52px] z-10 flex gap-3 font-mono text-[11px] pointer-events-none">
+          <div className="absolute top-1.5 left-[52px] right-2 z-10 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] pointer-events-none">
             {chartData.mas.map((ma) => {
               const latest = ma.values[ma.values.length - 1]
               return (
@@ -215,7 +231,11 @@ export function StockChartView({
           <KlineEmptyState isIntraday={isIntraday} height={effectiveHeight} collectKline={collectKline} />
         ) : isIntraday ? (
           intradayData && (
-            <IntradayChart data={adaptToIndexIntraday(intradayData)} height={effectiveHeight} />
+            <IntradayChart
+              data={adaptToIndexIntraday(intradayData)}
+              height={effectiveHeight}
+              markers={intradayTradeMarks}
+            />
           )
         ) : option ? (
           <div {...wrapperProps} className="relative">

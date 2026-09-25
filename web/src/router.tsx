@@ -15,7 +15,7 @@ const AdminUsers = lazy(() => import('./pages/Admin/Users/Users').then((m) => ({
 const CollectorAdmin = lazy(() =>
   import('./pages/Admin/Collector').then((m) => ({ default: m.CollectorAdmin })),
 )
-const LLMConfig = lazy(() => import('./pages/Admin/LLMConfig/LLMConfig').then((m) => ({ default: m.LLMConfig })))
+const ModelConfig = lazy(() => import('./pages/Admin/ModelConfig'))
 const KnowledgeBase = lazy(() => import('./pages/Admin/KnowledgeBase'))
 const KnowledgeSearchPage = lazy(() =>
   import('./pages/KnowledgeSearch').then((m) => ({ default: m.KnowledgeSearchPage }))
@@ -65,6 +65,14 @@ const MacroMonitor = lazy(() =>
   import('./pages/MacroMonitor/MacroMonitor').then((m) => ({ default: m.MacroMonitor })),
 )
 const News = lazy(() => import('./pages/News').then((m) => ({ default: m.News })))
+const PaperTrade = lazy(() =>
+  import('./pages/PaperTrade').then((m) => ({ default: m.PaperTrade })),
+)
+const PaperTradeAccountsAdmin = lazy(() =>
+  import('./pages/Admin/PaperTradeAccounts').then((m) => ({
+    default: m.PaperTradeAccountsAdmin,
+  })),
+)
 const Register = lazy(() => import('./pages/Register/Register').then((m) => ({ default: m.Register })))
 const ScreeningPage = lazy(() =>
   import('./pages/Screening/ScreeningPage').then((m) => ({ default: m.ScreeningPage })),
@@ -121,6 +129,8 @@ export const router = createBrowserRouter([
       { path: 'skills', element: lazyEl(<SkillsPage />) },
       { path: 'skills/:skillId', element: lazyEl(<SkillDetailPage />) },
       { path: 'watchlist', element: lazyEl(<Watchlist />) },
+      // 模拟盘：掘金仿真只读展示（批次 2）；Agent 交易工具在批次 3 接入
+      { path: 'paper-trade', element: lazyEl(<PaperTrade />) },
       // AI 选股：问财即席筛选，结果为 SPA 会话临时内容（迭代 6）
       { path: 'screening', element: lazyEl(<ScreeningPage />) },
       {
@@ -135,7 +145,8 @@ export const router = createBrowserRouter([
           { path: 'news', element: lazyEl(<AdminNews />) },
           // 旧路由兜底：任务/渠道配置并入采集管理（tab 直达）
           { path: 'tasks', element: <Navigate to="/admin/collector?tab=tasks" replace /> },
-          { path: 'llm-configs', element: lazyEl(<LLMConfig />) },
+          { path: 'model-configs', element: lazyEl(<ModelConfig />) },
+          { path: 'llm-configs', element: <Navigate to="/admin/model-configs" replace /> },
           { path: 'knowledge-base', element: lazyEl(<KnowledgeBase />) },
           { path: 'mcp-servers', element: lazyEl(<McpServers />) },
           { path: 'social-tracking', element: lazyEl(<SocialTracking />) },
@@ -143,6 +154,7 @@ export const router = createBrowserRouter([
           { path: 'ai-results', element: lazyEl(<AiResultsAdmin />) },
           { path: 'collector-channels', element: <Navigate to="/admin/collector?tab=channels" replace /> },
           { path: 'collector', element: lazyEl(<CollectorAdmin />) },
+          { path: 'paper-trade', element: lazyEl(<PaperTradeAccountsAdmin />) },
           { path: 'system-status', element: lazyEl(<SystemStatusPage />) },
         ],
       },

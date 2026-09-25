@@ -79,6 +79,10 @@ async def _seed_media(
         src.chapter_tree = {"draft": tree, "published": tree}
     db.add(src)
     await db.flush()
+    # 已有目录树的源默认素材已入树（outlineAt），避免推断阶段消耗 LLM mock
+    meta = dict(process_meta or {})
+    if (with_draft or published) and "outlineAt" not in meta:
+        meta["outlineAt"] = "2026-09-23T12:00:00+00:00"
     media = KbMedia(
         source_id=src.id,
         media_kind="video",
@@ -91,7 +95,7 @@ async def _seed_media(
         duration_seconds=600,
         process_status=status,
         extracted_at=utc_now() if extracted else None,
-        process_meta=process_meta or {},
+        process_meta=meta,
     )
     db.add(media)
     await db.flush()
@@ -152,11 +156,74 @@ async def test_infer_chapters_merges_outlines_into_draft(session: AsyncSession) 
     draft = src.chapter_tree["draft"]
     assert draft[0]["id"] == "1"
     assert draft[0]["children"][0]["id"] == "1.1"
-    # 已有 draft 的源下轮不再扫
+    row = await session.get(KbMedia, media.id)
+    assert row.process_meta["outlineAt"]
+    # 全部素材已入树的源下轮不再扫
     with patches["lock"], patches["resolve_role"], patches["structured"]:
         again = await extract_service.run_extraction(session)
     assert again["chaptersInferred"] == 0
     assert structured.await_count == 2
+
+
+async def test_infer_chapters_incremental_merges_only_new_media(
+    session: AsyncSession,
+) -> None:
+    media_old = await _seed_media(
+        session,
+        episode_no=1,
+        with_draft=True,
+        process_meta={"outlineAt": "2026-09-23T12:00:00+00:00"},
+    )
+    src_id = media_old.source_id
+    media_new = KbMedia(
+        source_id=src_id,
+        media_kind="video",
+        episode_no=2,
+        title="第 2 集",
+        file_name="e2.mp4",
+        cos_key=f"kb/{src_id}/2/e2.mp4",
+        file_size=100,
+        file_hash="b" * 32,
+        duration_seconds=600,
+        process_status="done",
+    )
+    session.add(media_new)
+    await session.flush()
+    for i in range(3):
+        session.add(
+            KbTranscriptSegment(
+                source_id=src_id,
+                media_id=media_new.id,
+                seq_no=i,
+                text=f"新集第{i + 1}句原文",
+                start_ms=i * 60_000,
+                end_ms=(i + 1) * 60_000,
+            )
+        )
+    await session.commit()
+
+    structured = AsyncMock(
+        side_effect=[
+            EpisodeOutline(
+                episode_no=2,
+                points=[EpisodeOutlinePoint(title="止损", summary="保命")],
+            ),
+            ChapterTreeDraft(nodes=[ChapterNodeDraft(title="风控篇", children=[])]),
+        ]
+    )
+    patches = _patches(structured)
+    with patches["lock"], patches["resolve_role"], patches["structured"]:
+        stats = await extract_service.run_extraction(session)
+
+    assert stats["chaptersInferred"] == 1
+    # 只对未入树的新集出大纲（1 次大纲 + 1 次合并），已标记旧集不重出
+    assert structured.await_count == 2
+    src = await session.get(KbSource, src_id)
+    assert src.chapter_tree["draft"][0]["title"] == "风控篇"
+    fresh = await session.get(KbMedia, media_new.id)
+    assert fresh.process_meta["outlineAt"]
+    old = await session.get(KbMedia, media_old.id)
+    assert old.process_meta["outlineAt"] == "2026-09-23T12:00:00+00:00"
 
 
 async def test_extract_points_auto_publishes_clean_and_escalates_rest(
@@ -265,7 +332,9 @@ async def test_extract_waits_for_published_tree(session: AsyncSession) -> None:
 
 
 async def test_extract_failure_records_attempts(session: AsyncSession) -> None:
-    media = await _seed_media(session, published=True)
+    media = await _seed_media(
+        session, published=True, process_meta={"audio_seconds": 1234.5}
+    )
     media_id = media.id
     structured = AsyncMock(side_effect=RuntimeError("模型超时"))
     patches = _patches(structured)
@@ -277,6 +346,41 @@ async def test_extract_failure_records_attempts(session: AsyncSession) -> None:
     assert row.extracted_at is None
     assert row.process_meta["extractAttempts"] == 1
     assert "模型超时" in row.process_meta["extractError"]
+    # 失败记账合并保留其他 meta 键（audio_seconds 是计费依据）
+    assert row.process_meta["audio_seconds"] == 1234.5
+
+
+async def test_extract_empty_retries_then_stops(session: AsyncSession) -> None:
+    media = await _seed_media(session, published=True)
+    media_id = media.id
+    structured = AsyncMock(return_value=KbExtractionResult(points=[]))
+    patches = _patches(structured)
+    with patches["lock"], patches["resolve_role"], patches["structured"]:
+        first = await extract_service.run_extraction(session)
+
+    assert first["emptyMedias"] == 1
+    assert first["mediasExtracted"] == 0
+    # 空产出不置 extracted_at，attempts 累计退避重试
+    session.expire_all()
+    row = await session.get(KbMedia, media_id)
+    assert row.extracted_at is None
+    assert row.process_meta["extractAttempts"] == 1
+    assert row.process_meta["extractEmptyAt"]
+    # 重试至 KB_EXTRACT_MAX_ATTEMPTS(3) 后停扫（expire 模拟每轮新会话）
+    with patches["lock"], patches["resolve_role"], patches["structured"]:
+        for _ in range(2):
+            session.expire_all()
+            retried = await extract_service.run_extraction(session)
+            assert retried["emptyMedias"] == 1
+        assert structured.await_count == 3
+        session.expire_all()
+        fourth = await extract_service.run_extraction(session)
+    assert fourth["emptyMedias"] == 0
+    assert structured.await_count == 3
+    session.expire_all()
+    final = await session.get(KbMedia, media_id)
+    assert final.extracted_at is None
+    assert final.process_meta["extractAttempts"] == 3
 
 
 async def test_extract_skips_media_after_max_attempts(session: AsyncSession) -> None:
