@@ -79,3 +79,25 @@ async def cache_set(key: str, value: str, *, ex: int | None = None) -> bool:
     except RedisError as exc:
         _warn_throttled("set", exc)
         return False
+
+
+async def cache_delete(key: str) -> bool:
+    """容错 DEL；删除失败按缓存未命中处理。"""
+    try:
+        await get_redis().delete(key)
+        return True
+    except RedisError as exc:
+        _warn_throttled("delete", exc)
+        return False
+
+
+async def cache_ttl(key: str) -> int | None:
+    """容错 TTL；键不存在返回 -1 语义原样透传，redis 不可达返回 None。
+
+    返回值约定与 redis TTL 一致：>0 剩余秒数，-2 键不存在，-1 无过期。
+    """
+    try:
+        return int(await get_redis().ttl(key))
+    except RedisError as exc:
+        _warn_throttled("ttl", exc)
+        return None

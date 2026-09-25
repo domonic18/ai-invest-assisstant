@@ -28,6 +28,7 @@ class LLMConfigCreate(CamelModel):
     is_default: bool = False
     is_active: bool = True
     purpose: LLMPurpose = "chat"
+    backup_config_id: int | None = None
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -46,6 +47,7 @@ class LLMConfigUpdate(CamelModel):
     is_default: bool | None = None
     is_active: bool | None = None
     purpose: LLMPurpose | None = None
+    backup_config_id: int | None = None
     extra: dict[str, Any] | None = None
 
 
@@ -62,6 +64,8 @@ class LLMConfigResponse(CamelModel):
     is_default: bool
     is_active: bool
     purpose: str
+    backup_config_id: int | None
+    degraded_until: datetime | None
     extra: dict[str, Any]
     last_tested_at: datetime | None
     last_test_status: str | None

@@ -91,6 +91,7 @@ class Settings(BaseSettings):
     llm_http_read_timeout: float = 300.0  # 等待响应首字节及后续数据的超时（秒）；非流式长文本生成常超 60s
     llm_http_connect_timeout: float = 10.0  # TCP/TLS 建连超时（秒）；连接黑洞不应拖满读超时
     llm_max_retries: int = 2  # provider 默认重试次数
+    llm_failover_cooldown_seconds: int = 600  # 主模型额度耗尽后切备用的冷却时长（秒）；过期自愈式重探主模型
 
     # 采集 worker 内第三方 HTTP 库（akshare 等）未显式传 timeout 时的兜底值。
     # 通过 patch requests.Session.request 注入；2026-09-23 事故中 akshare 的
