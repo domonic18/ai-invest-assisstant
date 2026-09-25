@@ -22,6 +22,7 @@ import {
   useDeleteAdminStock,
   useUpdateAdminStock,
 } from '@/hooks/useAdminStocks'
+import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 import { PAGE_SIZE, type AdminStock } from '@ai-invest/shared'
 import {DATE_FORMAT,  formatDate } from '@/utils/formatters'
 
@@ -51,6 +52,7 @@ export function AdminStocks() {
   const createMutation = useCreateAdminStock()
   const updateMutation = useUpdateAdminStock()
   const deleteMutation = useDeleteAdminStock()
+  const isNarrow = useIsNarrowScreen()
 
   const openCreate = () => {
     setEditing(null)
@@ -133,6 +135,10 @@ export function AdminStocks() {
       ),
     },
   ]
+  // 窄屏只留代码/名称/操作：9 列硬塞会把自适应列挤成一字一行竖排，行业/日期详情进编辑弹窗看
+  const visibleColumns = isNarrow
+    ? columns.filter((c) => ['stockCode', 'stockName', 'actions'].includes(c.key))
+    : columns
 
   return (
     <Card
@@ -154,9 +160,10 @@ export function AdminStocks() {
 
       <Table
         dataSource={data?.items || []}
-        columns={columns}
+        columns={visibleColumns}
         rowKey="id"
         loading={isLoading}
+        scroll={{ x: 'max-content' }}
         pagination={{
           current: data?.page,
           pageSize: data?.pageSize,
