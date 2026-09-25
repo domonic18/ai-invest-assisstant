@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { StockChartView } from '@/components/charts/stockChartView'
 import { usePaperTradeTradeMarkers } from '@/hooks/usePaperTrade'
+import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 
 import {
   buildViews,
@@ -39,6 +40,14 @@ export function StockChartArea({ stockCode }: StockChartAreaProps) {
   const tradeMarks = useMemo(() => markersQuery.data?.items ?? [], [markersQuery.data])
 
   const storageKey = useMemo(() => `${STORAGE_KEY}.${stockCode}`, [stockCode])
+
+  // 窄屏强制单图：双图上下叠每张仅 ~150px 高不可用；双图偏好保留，桌面端仍生效
+  const isNarrow = useIsNarrowScreen()
+  const effectiveDual = dual && !isNarrow
+  const visibleViews = useMemo(
+    () => (effectiveDual ? views : views.filter((v) => v.id === 'daily')),
+    [views, effectiveDual],
+  )
 
   useEffect(() => {
     if (!stockCode) return
@@ -109,17 +118,19 @@ export function StockChartArea({ stockCode }: StockChartAreaProps) {
   }, [])
 
   const viewHeights = useMemo(() => {
-    if (views.length === 2) {
+    // 窄屏工具栏换行为两行（~56px），预留高度相应加大防 x 轴被裁
+    const toolbarH = isNarrow ? 60 : TOOLBAR_HEIGHT
+    if (visibleViews.length === 2) {
       return DUAL_VIEW_WEIGHTS.map(
-        (w) => Math.max(MIN_CHART_HEIGHT, Math.floor(containerHeight * w) - TOOLBAR_HEIGHT),
+        (w) => Math.max(MIN_CHART_HEIGHT, Math.floor(containerHeight * w) - toolbarH),
       )
     }
     const each = Math.max(
       MIN_CHART_HEIGHT,
-      Math.floor(containerHeight / views.length) - TOOLBAR_HEIGHT,
+      Math.floor(containerHeight / visibleViews.length) - toolbarH,
     )
-    return Array.from({ length: views.length }, () => each)
-  }, [containerHeight, views.length])
+    return Array.from({ length: visibleViews.length }, () => each)
+  }, [containerHeight, visibleViews.length, isNarrow])
 
   return (
     <div
@@ -127,7 +138,7 @@ export function StockChartArea({ stockCode }: StockChartAreaProps) {
       className="flex-1 overflow-hidden flex flex-col"
       style={{ backgroundColor: '#050608' }}
     >
-      {views.map((view, i) => (
+      {visibleViews.map((view, i) => (
         <StockChartView
           key={view.id}
           code={stockCode}
@@ -136,7 +147,7 @@ export function StockChartArea({ stockCode }: StockChartAreaProps) {
           onPeriodChange={(period) => updateView(view.id, { period })}
           onIndicatorsChange={(indicators) => updateView(view.id, { indicators })}
           height={viewHeights[i] ?? MIN_CHART_HEIGHT}
-          layoutToggle={i === 0 ? { value: dual, onChange: handleDualChange } : undefined}
+          layoutToggle={i === 0 ? { value: effectiveDual, onChange: handleDualChange } : undefined}
           tradeMarks={tradeMarks}
         />
       ))}
