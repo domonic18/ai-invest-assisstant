@@ -1,8 +1,13 @@
-"""MinIO 对象存储服务：存储研报等文件。"""
+"""MinIO 对象存储服务：存储研报等文件。
+
+基础对象操作（上传/下载/预签名/元信息/批量删除/列举）在本模块；
+multipart 分片上传在 ``minio_multipart``（Mixin 形式混入，异常与分片类型
+经本模块再导出兼容既有消费方）。
+"""
 
 import asyncio
 from datetime import timedelta
-from typing import Any, NamedTuple
+from typing import Any
 
 import structlog
 from minio import Minio
@@ -10,24 +15,17 @@ from minio.deleteobjects import DeleteObject
 from minio.error import S3Error
 
 from app.core.config import get_settings
+from app.services.common.minio_multipart import (
+    MultipartPart,  # noqa: F401 —— 再导出：kb media_upload* 按本模块引用
+    MultipartSessionNotFoundError,  # noqa: F401
+    MultipartUploadMixin,
+    _to_thread_ok,
+)
 
 logger = structlog.get_logger(__name__)
 
 
-class MultipartPart(NamedTuple):
-    """已上传分片信息（etag 已去引号小写）。"""
-
-    part_number: int
-    etag: str
-    size: int
-
-
-class MultipartSessionNotFoundError(RuntimeError):
-    """uploadId 不存在（已 complete/abort 或过期）。"""
-
-
-
-class MinIOService:
+class MinIOService(MultipartUploadMixin):
     """MinIO 文件上传与获取。"""
 
     def __init__(self) -> None:
@@ -92,17 +90,15 @@ class MinIOService:
 
         bucket = bucket_name or self.default_bucket
         await self.ensure_bucket(bucket)
-        try:
-            await asyncio.to_thread(
-                self.client.put_object,
-                bucket,
-                object_name,
-                BytesIO(data),
-                length=len(data),
-                content_type=content_type,
-            )
-        except S3Error as exc:
-            raise RuntimeError(f"Failed to upload {object_name}: {exc}") from exc
+        await _to_thread_ok(
+            self.client.put_object,
+            bucket,
+            object_name,
+            BytesIO(data),
+            length=len(data),
+            content_type=content_type,
+            what=f"Failed to upload {object_name}",
+        )
         return object_name
 
     async def get_presigned_url(
@@ -136,15 +132,13 @@ class MinIOService:
     ) -> str:
         """返回对象的预签名直传 URL（浏览器 PUT，不经后端中转）。"""
         bucket = bucket_name or self.default_bucket
-        try:
-            return await asyncio.to_thread(
-                self._presign_client.presigned_put_object,
-                bucket,
-                object_name,
-                expires=expires,
-            )
-        except S3Error as exc:
-            raise RuntimeError(f"Failed to presign PUT {object_name}: {exc}") from exc
+        return await _to_thread_ok(
+            self._presign_client.presigned_put_object,
+            bucket,
+            object_name,
+            expires=expires,
+            what=f"Failed to presign PUT {object_name}",
+        )
 
     async def stat_object(
         self,
@@ -202,12 +196,14 @@ class MinIOService:
             RuntimeError: 打开失败时抛出。
         """
         bucket = bucket_name or self.default_bucket
-        try:
-            return await asyncio.to_thread(
-                self.client.get_object, bucket, object_name, offset, length
-            )
-        except S3Error as exc:
-            raise RuntimeError(f"Failed to open object stream {object_name}: {exc}") from exc
+        return await _to_thread_ok(
+            self.client.get_object,
+            bucket,
+            object_name,
+            offset,
+            length,
+            what=f"Failed to open object stream {object_name}",
+        )
 
     async def remove_files(
         self,
@@ -237,10 +233,9 @@ class MinIOService:
                 )
             return [err.name for err in errors if err.name]
 
-        try:
-            return await asyncio.to_thread(_remove)
-        except S3Error as exc:
-            raise RuntimeError(f"Failed to remove {len(object_names)} objects: {exc}") from exc
+        return await _to_thread_ok(
+            _remove, what=f"Failed to remove {len(object_names)} objects"
+        )
 
     async def list_object_names(
         self,
@@ -256,133 +251,9 @@ class MinIOService:
                 for obj in self.client.list_objects(bucket, prefix=prefix, recursive=True)
             ]
 
-        try:
-            return await asyncio.to_thread(_list)
-        except S3Error as exc:
-            raise RuntimeError(f"Failed to list objects with prefix {prefix}: {exc}") from exc
-
-    # ---- multipart 分片上传（minio-py 7.2.x 原语为私有方法，薄封装隔离版本风险）----
-    async def create_multipart_upload(
-        self,
-        object_name: str,
-        bucket_name: str | None = None,
-    ) -> str:
-        """初始化分片上传，返回 uploadId。"""
-        bucket = bucket_name or self.default_bucket
-        try:
-            return await asyncio.to_thread(
-                self.client._create_multipart_upload, bucket, object_name, {}
-            )
-        except S3Error as exc:
-            raise RuntimeError(f"Failed to create multipart upload {object_name}: {exc}") from exc
-
-    async def presigned_part_url(
-        self,
-        object_name: str,
-        upload_id: str,
-        part_number: int,
-        expires: timedelta,
-        bucket_name: str | None = None,
-    ) -> str:
-        """返回单个分片的预签名直传 URL（浏览器 PUT，签名含 partNumber/uploadId）。"""
-        bucket = bucket_name or self.default_bucket
-        try:
-            return await asyncio.to_thread(
-                self._presign_client.get_presigned_url,
-                "PUT",
-                bucket,
-                object_name,
-                expires,
-                None,
-                None,
-                None,
-                {"partNumber": str(part_number), "uploadId": upload_id},
-            )
-        except S3Error as exc:
-            raise RuntimeError(
-                f"Failed to presign part {part_number} of {object_name}: {exc}"
-            ) from exc
-
-    async def list_multipart_parts(
-        self,
-        object_name: str,
-        upload_id: str,
-        bucket_name: str | None = None,
-    ) -> list[MultipartPart]:
-        """列出已上传分片（服务端真相，分页拉全）；会话不存在抛 MultipartSessionNotFoundError。"""
-        bucket = bucket_name or self.default_bucket
-
-        def _list() -> list[MultipartPart]:
-            parts: list[MultipartPart] = []
-            marker: str | None = None
-            while True:
-                result = self.client._list_parts(
-                    bucket,
-                    object_name,
-                    upload_id,
-                    max_parts=1000,
-                    part_number_marker=marker,
-                )
-                parts.extend(
-                    MultipartPart(
-                        part_number=p.part_number,
-                        etag=(p.etag or "").strip('"').lower(),
-                        size=p.size or 0,
-                    )
-                    for p in result.parts
-                )
-                if not result.is_truncated:
-                    return parts
-                marker = result.next_part_number_marker
-
-        try:
-            return await asyncio.to_thread(_list)
-        except S3Error as exc:
-            if exc.code == "NoSuchUpload":
-                raise MultipartSessionNotFoundError(upload_id) from exc
-            raise RuntimeError(f"Failed to list parts of {object_name}: {exc}") from exc
-
-    async def complete_multipart_upload(
-        self,
-        object_name: str,
-        upload_id: str,
-        parts: list[MultipartPart],
-        bucket_name: str | None = None,
-    ) -> None:
-        """合并分片成对象（parts 按 part_number 升序，S3 要求）。"""
-        bucket = bucket_name or self.default_bucket
-        from minio.datatypes import Part
-
-        sdk_parts = [Part(part_number=p.part_number, etag=p.etag) for p in parts]
-        try:
-            await asyncio.to_thread(
-                self.client._complete_multipart_upload,
-                bucket,
-                object_name,
-                upload_id,
-                sdk_parts,
-            )
-        except S3Error as exc:
-            if exc.code == "NoSuchUpload":
-                raise MultipartSessionNotFoundError(upload_id) from exc
-            raise RuntimeError(f"Failed to complete multipart upload {object_name}: {exc}") from exc
-
-    async def abort_multipart_upload(
-        self,
-        object_name: str,
-        upload_id: str,
-        bucket_name: str | None = None,
-    ) -> None:
-        """放弃分片上传并释放已传分片的存储；会话不存在视为已清理。"""
-        bucket = bucket_name or self.default_bucket
-        try:
-            await asyncio.to_thread(
-                self.client._abort_multipart_upload, bucket, object_name, upload_id
-            )
-        except S3Error as exc:
-            if exc.code == "NoSuchUpload":
-                return
-            raise RuntimeError(f"Failed to abort multipart upload {object_name}: {exc}") from exc
+        return await _to_thread_ok(
+            _list, what=f"Failed to list objects with prefix {prefix}"
+        )
 
 
 _minio_service: MinIOService | None = None
