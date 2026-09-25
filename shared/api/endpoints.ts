@@ -191,8 +191,6 @@ export const ENDPOINTS = {
       `${API_BASE}/kb/sources/${sourceId}/points`,
     playbackToken: (mediaId: number | string) =>
       `${API_BASE}/kb/media/${mediaId}/playback-token`,
-    stream: (mediaId: number | string, token: string) =>
-      `${API_BASE}/kb/stream/${mediaId}?token=${encodeURIComponent(token)}`,
     bookPage: (mediaId: number | string, pageNo: number, token: string) =>
       `${API_BASE}/kb/books/${mediaId}/pages/${pageNo}?token=${encodeURIComponent(token)}`,
     subtitles: (mediaId: number | string) =>

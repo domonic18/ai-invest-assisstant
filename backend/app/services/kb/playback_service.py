@@ -1,9 +1,10 @@
 """播放凭证签发与鉴权底座（arch/09 §8，批次 F1）。
 
-防盗分层：一次性短时效凭证（Redis ≤30min，绑定用户+素材）→ 视频/书页端点
-凭证即身份（``<video>``/``<img>`` src 无法携带 header）。异常拉取全量审计
-``kb.security.denied`` 并按账号滑动窗口计数（阈值告警日志）；代理流/书页
-渲染/字幕轨见 ``playback_stream`` / ``book_render``。
+防盗分层：一次性短时效凭证（Redis ≤30min，绑定用户+素材）→ 书页端点
+凭证即身份（``<img>`` src 无法携带 header）；视频/音频按需签发同时效
+预签名 GET 直链（字节流不经 SCF，网关 6MB 响应上限不可承载媒体）。
+异常拉取全量审计 ``kb.security.denied`` 并按账号滑动窗口计数（阈值
+告警日志）；书页渲染/字幕轨见 ``book_render`` / ``subtitles``。
 """
 
 import json
@@ -47,10 +48,13 @@ _AUDIT_ACTION_DENIED = "kb.security.denied"
 async def issue_playback_token(
     session: AsyncSession, *, user_id: int, media_id: int
 ) -> KbPlaybackTokenResponse:
-    """签发播放凭证（≤30min 绑定用户+素材，TTL 内多次 Range 复用；携带上/下一集 id）。
+    """签发播放凭证（≤30min 绑定用户+素材；携带上/下一集 id 与预签名直链）。
 
-    凭证值带 ``{userId}.`` 前缀：stream/书页端点无 Bearer 上下文（元素 src
-    无法携带 header），过期/泄露凭证的审计归属靠前缀恢复。
+    凭证值带 ``{userId}.`` 前缀：书页端点无 Bearer 上下文（``<img>`` src
+    无法携带 header），过期/泄露凭证的审计归属靠前缀恢复。视频/音频的
+    播放凭证 = 同时效预签名 GET 直链（字节流直达 MinIO，不经后端代理），
+    直链原生支持 Range/206，seek 秒级；书素材 streamUrl 为 None（书页
+    仍走 token 代理以烧录水印）。
 
     Args:
         session: 数据库会话。
@@ -58,11 +62,11 @@ async def issue_playback_token(
         media_id: 素材 id（课程集或书）。
 
     Returns:
-        凭证视图（token/expiresIn/prevMediaId/nextMediaId）。
+        凭证视图（token/expiresIn/streamUrl/prevMediaId/nextMediaId）。
 
     Raises:
         NotFoundError: 素材不存在/未完成处理/知识库停用。
-        InternalError: Redis 不可用（安全凭证 fail-closed）。
+        InternalError: Redis / 对象存储不可用（安全凭证 fail-closed）。
     """
     media = await _load_media(session, media_id)
     token = f"{user_id}.{secrets.token_urlsafe(32)}"
@@ -78,12 +82,19 @@ async def issue_playback_token(
         raise InternalError("播放凭证服务暂不可用，请稍后重试") from exc
 
     prev_id, next_id = (None, None)
+    stream_url: str | None = None
     if media.media_kind in ("video", "audio"):
         prev_id, next_id = await _neighbor_episode_ids(session, media)
+        stream_url = await get_minio_service().get_presigned_url(
+            media.cos_key, expires=timedelta(seconds=KB_PLAYBACK_TOKEN_TTL_SECONDS)
+        )
+        if stream_url is None:
+            raise InternalError("对象存储暂不可用，请稍后重试")
     return KbPlaybackTokenResponse(
         token=token,
         expires_in=KB_PLAYBACK_TOKEN_TTL_SECONDS,
         media_id=media_id,
+        stream_url=stream_url,
         prev_media_id=prev_id,
         next_media_id=next_id,
         page_count=media.page_count if media.media_kind == "book" else None,

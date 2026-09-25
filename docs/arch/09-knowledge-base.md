@@ -160,24 +160,25 @@ query ─→ embedding（与槽位模型同维度）─┬─ 词面路：search
 
 ## 8. 检索页、播放器与防盗（F-KB-05 + F-KB-09）
 
-### 8.1 播放凭证与代理（安全面唯一入口）
+### 8.1 播放凭证与媒体分发（安全面唯一入口）
 
 ```
 POST /kb/media/{id}/playback-token   # 权限校验（admin / 白名单）→ Redis kb:playback:{token}={userId, mediaId} EX ≤1800
-GET  /kb/stream/{mediaId}?token=     # 校验 token + 必须 Range 头 → MinIO get_object(offset/length) 206 透传（Content-Range/Accept-Ranges）
+                                     # video/audio 附同时效预签名 GET 直链 streamUrl（MinIO 原生 Range/206，seek 秒级）
 GET  /kb/books/{mediaId}/pages/{n}?token=  # pypdfium2 144DPI 按需渲染（干净页进程内 LRU）→ Pillow 叠用户水印 → PNG
-GET  /kb/media/{id}/subtitles.vtt    # apiClient Bearer 鉴权（fetch 可带 header；query token 仅用于 <video> src）
+GET  /kb/media/{id}/subtitles.vtt    # apiClient Bearer 鉴权（fetch 可带 header）
 GET  /kb/images/{id}/original-url    # 图片原图短时效预签名（≤15min，KB_IMAGE_ORIGINAL_URL_TTL_SECONDS）
 ```
 
-- **异常拉取拦截**：无 token / token 过期 / 不绑定 → 401 + 审计事件 `kb.security.denied`；视频流无 Range 头（整文件抓取特征）→ 400 + 审计；连续异常触发账号级告警（管理端可见，封禁为管理员决策）。
-- **前端不接触持久 COS 直链**：视频流与书页位图走代理（token + Range / 服务端水印烧录——干净页缓存与水印合成解耦，每请求一次轻量 composite）；缩略图与原图仅发短时效预签名（≤15min）。播放画面叠加静态角标（用户名 + 日期，前端层，安全不依赖此层）。
+- **媒体分发 = 短时效预签名直链，不经后端代理**：生产 API 承载于 SCF Web 函数（同步调用响应体上限 ~6MB，流式无法绕过），字节级代理在架构上不可行。视频/音频由 `playback-token` 按需签发同时效（≤30min）预签名 GET 直链（与图片原图同一 `get_presigned_url` 基座），浏览器直连 MinIO；前端在到期前（-120s）自动重取并保进度续播，元素报错（403 过期/网络中断）有界重试（重签直链）。
+- **异常拉取拦截**：无 token / token 过期 / 不绑定 → 401 + 审计事件 `kb.security.denied`；连续异常触发账号级告警（管理端可见，封禁为管理员决策）。作用域为凭证签发与书页/字幕端点（直链本身到期即失效，30min 泄露窗口为接受面）。
+- **书页不走直链**：位图必须服务端渲染并烧录「用户名+日期」水印（干净页缓存与水印合成解耦，每请求一次轻量 composite），token 即水印身份（`{userId}.` 前缀回查）；缩略图与原图仅发短时效预签名（≤15min）。播放画面叠加静态角标（用户名 + 日期，前端层，安全不依赖此层）。
 - 播放器禁下载交互（`controlsList=nodownload`、禁右键）为提高门槛的前端手段。
 
 ### 8.2 页面与播放器能力（对照原型 knowledge-base.html）
 
 - 消费页 `/kb`（`web/src/pages/KnowledgeSearch/`，权限 = admin ∪ 白名单；侧边栏入口全员可见，未授权用户页面内 403 自解释引导）：搜索框 + 章节树导航 + 三类命中（卡片高亮 / 原文摘录 / 图片缩略图+页码）；命中展开显示集数 + `hh:mm:ss–hh:mm:ss` 或页码区间；管理台「知识检索」Tab 复用同一 SearchTab（双入口）。
-- **KnowledgePlayer**：`<video src=/kb/stream/...?token>` + 自定义控制条——播放/暂停、进度条命中区间高亮（A/B 标记 + 循环）、倍速 0.5–2×（localStorage 记忆）、音量、全屏（禁画中画，防盗）、键盘（Space/←→/↑↓）、断点续播（按 media 记忆）、上一集/下一集；**字幕联动**：WebVTT track + 当前端高亮 + 点击字幕句 seek（文稿即导航）；点击命中 → 自动 `seek(startMs − 前滚)`。
+- **KnowledgePlayer**：`<video src={预签名直链}>` + 自定义控制条——播放/暂停、进度条命中区间高亮（A/B 标记 + 循环）、倍速 0.5–2×（localStorage 记忆）、音量、全屏（禁画中画，防盗）、键盘（Space/←→/↑↓）、断点续播（按 media 记忆）、上一集/下一集；**字幕联动**：WebVTT track + 当前端高亮 + 点击字幕句 seek（文稿即导航）；点击命中 → 自动 `seek(startMs − 前滚)`。
 - **BookReader**：按页位图 + 页码跳转/前后页 + 命中页高亮标注 + 缩放；图片命中打开原图视图附页码上下文。
 - 防盗边界声明（需求口径）：目标是抬高直接获取与批量盗取成本，录屏/翻拍以水印溯源震慑，不承诺根除。
 
@@ -217,8 +218,7 @@ GET  /kb/images/{id}/original-url    # 图片原图短时效预签名（≤15min
 | `GET /kb/sources` | 消费侧知识库最小投影（enabled + 未软删；403 兼作未授权提示） |
 | `GET /kb/sources/{id}/chapters` | 发布态章节树导航 |
 | `GET /kb/sources/{id}/points?chapter_path=&page=&page_size=` | 章节卡片清单（浏览路径：全集确定性排序 episode_no/start_ms/page_start + 分页，读 PG 真相源；未知章节 422） |
-| `POST /kb/media/{id}/playback-token` | 一次性短时效凭证（≤30min，绑定用户+素材；携带 prev/next 集 id 与书 pageCount） |
-| `GET /kb/stream/{mediaId}?token=` | 视频代理流（Range 必须，206 透传） |
+| `POST /kb/media/{id}/playback-token` | 一次性短时效凭证（≤30min，绑定用户+素材；携带 prev/next 集 id 与书 pageCount；video/audio 附同时效预签名 GET 直链 streamUrl） |
 | `GET /kb/books/{mediaId}/pages/{no}?token=` | 书页位图（服务端水印烧录） |
 | `GET /kb/media/{id}/subtitles.vtt` | 字幕轨生成（apiClient Bearer） |
 | `GET /kb/images/{id}/original-url` | 图片原图短时效预签名（≤15min） |
@@ -278,8 +278,8 @@ backend/app/services/kb/                # 平铺模块（29 个，按管线阶�
 ├── search_service.py        # 检索总入口（Agent 工具复用）
 ├── search_ranking.py        # PG 双路召回（trgm 词面 + halfvec 向量，_KNN_K=20）+ 服务层 RRF
 ├── search_hydrate.py        # 命中水合（媒体定位/缩略图签名/前滚上下文）
-├── playback_service.py      # 播放凭证签发与校验、异常审计
-├── playback_stream.py       # 视频代理流（Range 206 透传）
+├── playback_service.py      # 播放凭证签发与校验、异常审计、预签名直链/原图签发
+├── subtitles.py             # 字幕轨（文稿分段 → WebVTT）
 ├── embedding_client.py      # OpenAI 兼容 /v1/embeddings 小客户端（embedding_config_id）
 ├── cost_service.py          # 前置费用预估
 ├── usage_service.py         # 建库用量聚合（预估 vs 实际对照）

@@ -29,7 +29,7 @@ V1.3 已于 2026-09-12 随异动分析迭代全量发布。截至 2026-09-22，�
 ## 3. 部署前置与遗留项
 
 - **KB 上生产**：39 个增量 SQL 迁移 + `vector` / `pg_trgm` 扩展；prod KB embedding 回填（`backfill_kb_embedding_from_es.py` 须在 ES 下线前跑完，或 `kb-index` force_rebuild 全量重嵌）；ES 容器与依赖已退役可下线
-- **SCF 路由决策复核**：`/kb/stream` 视频代理流受 SCF 900s 限制——仅轻量服务器域名提供，SCF Web 函数路由排除
+- **SCF 路由决策复核**：~~`/kb/stream` 视频代理流受 SCF 900s 限制——仅轻量服务器域名提供，SCF Web 函数路由排除~~ → 代理流已整体退役（2026-09-25）：SCF 同步调用响应体上限 ~6MB 本就不可承载媒体，视频/音频改凭证响应内预签名 GET 直链（`playback-token` 附 `streamUrl`），全路由 SCF 可承载
 - **KB 验收遗留**：浏览器侧播放器 / 阅读器黄金路径人工验收（本地栈已就绪）
 - **KB 产品待定**：侧边栏「知识检索」入口暂撤（`/kb` 页保留，启用时点待定）
 - **admin 配置前置**：`llm_config` 登记 embedding / vision 条目并绑定四槽位；asr-1.0 控制台核价回填 `unit_prices`

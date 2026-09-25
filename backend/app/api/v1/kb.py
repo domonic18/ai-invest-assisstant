@@ -1,13 +1,12 @@
 """知识库消费侧 API（arch/09 §10.2）：权限 = admin 或 kb_settings 白名单。
 
 E4：混合检索 + 发布态章节树导航 + 章节卡片清单（浏览路径）；
-F1：播放凭证、视频代理流、书页水印位图、字幕轨（§8 防盗面唯一入口）。
+F1：播放凭证（视频/音频附预签名直链）、书页水印位图、字幕轨（§8 防盗面唯一入口）。
 """
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Query, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.kb import KbDocKind, KbPointType
@@ -26,10 +25,10 @@ from app.schemas.kb import (
 from app.services.kb import (
     book_render,
     playback_service,
-    playback_stream,
     search_service,
     settings_service,
     source_service,
+    subtitles,
 )
 
 
@@ -131,39 +130,6 @@ async def issue_playback_token(
     )
 
 
-@router.get("/stream/{media_id}")
-async def stream_media(
-    media_id: int,
-    request: Request,
-    session: Annotated[AsyncSession, Depends(get_db)],
-    token: str = Query(..., min_length=8, max_length=128),
-    range_header: Annotated[str | None, Header(alias="Range")] = None,
-) -> StreamingResponse:
-    """视频代理流：token + Range 必须，206 分段透传（无 COS 直链暴露）。
-
-    凭证即鉴权（无 Bearer）：``<video>`` 元素 src 无法携带 Authorization
-    header，短时效凭证绑定用户+素材即身份（arch/09 §8.1）。
-    """
-    stream = await playback_stream.open_media_stream(
-        session,
-        media_id=media_id,
-        token=token,
-        range_header=range_header,
-        ip=client_ip(request),
-    )
-    return StreamingResponse(
-        stream.chunks,
-        status_code=206,
-        media_type=stream.content_type,
-        headers={
-            "Content-Range": f"bytes {stream.start}-{stream.end}/{stream.total}",
-            "Accept-Ranges": "bytes",
-            "Content-Length": str(stream.end - stream.start + 1),
-            "Cache-Control": "no-store",
-        },
-    )
-
-
 @router.get("/books/{media_id}/pages/{page_no}")
 async def get_book_page(
     media_id: int,
@@ -198,8 +164,8 @@ async def get_subtitles(
     user: Annotated[User, Depends(get_kb_authorized_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> Response:
-    """字幕轨：文稿分段生成 WebVTT（apiClient Bearer 鉴权，query token 留给 video src）。"""
-    vtt = await playback_stream.build_subtitle_vtt(session, media_id=media_id)
+    """字幕轨：文稿分段生成 WebVTT（apiClient Bearer 鉴权，媒体流走预签名直链）。"""
+    vtt = await subtitles.build_subtitle_vtt(session, media_id=media_id)
     return Response(
         content=vtt,
         media_type="text/vtt; charset=utf-8",

@@ -4,9 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/api/kb', () => ({
   fetchKbPlaybackToken: vi.fn(),
   fetchKbSubtitles: vi.fn(),
-  kbStreamUrl: vi.fn(
-    (mediaId: number, token: string) => `/api/v1/kb/stream/${mediaId}?token=${token}`
-  ),
 }))
 
 vi.mock('@/stores/auth', () => ({
@@ -22,7 +19,8 @@ import { parseVttCues } from './playerUtils'
 const mockedToken = vi.mocked(fetchKbPlaybackToken)
 const mockedSubtitles = vi.mocked(fetchKbSubtitles)
 
-const STREAM_SRC = '/api/v1/kb/stream/3?token=tok-abc'
+const STREAM_SRC = 'https://minio.local/kb/3/ep02.mp4?X-Amz-Signature=abc'
+const STREAM_SRC_RETRY = 'https://minio.local/kb/3/ep02.mp4?X-Amz-Signature=def'
 
 const VTT = [
   'WEBVTT',
@@ -60,9 +58,10 @@ describe('KnowledgePlayer', () => {
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
     vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {})
     mockedToken.mockResolvedValue({
-      token: 'tok-abc',
+      token: '7.tok-abc',
       expiresIn: 1800,
       mediaId: 3,
+      streamUrl: STREAM_SRC,
       prevMediaId: 2,
       nextMediaId: 4,
       pageCount: null,
@@ -70,7 +69,7 @@ describe('KnowledgePlayer', () => {
     mockedSubtitles.mockResolvedValue(VTT)
   })
 
-  it('loads playback token and wires stream src with anti-download attributes', async () => {
+  it('loads playback token and wires presigned stream url with anti-download attributes', async () => {
     const { video } = await renderPlayer()
 
     expect(mockedToken).toHaveBeenCalledWith(3)
@@ -79,6 +78,30 @@ describe('KnowledgePlayer', () => {
     expect(video.hasAttribute('disablepictureinpicture')).toBe(true)
     // 防盗角标：用户名 + 日期
     expect(screen.getByText(/alice · \d{4}-\d{2}-\d{2}/)).toBeInTheDocument()
+  })
+
+  it('re-issues presigned url on video error and restores progress', async () => {
+    const { video } = await renderPlayer()
+    await screen.findByText('支撑线的画法')
+    video.dispatchEvent(new Event('loadedmetadata'))
+    video.currentTime = 10
+
+    mockedToken.mockResolvedValue({
+      token: '7.tok-abc',
+      expiresIn: 1800,
+      mediaId: 3,
+      streamUrl: STREAM_SRC_RETRY,
+      prevMediaId: 2,
+      nextMediaId: 4,
+      pageCount: null,
+    })
+    video.dispatchEvent(new Event('error'))
+
+    await waitFor(() => expect(mockedToken).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(video.getAttribute('src')).toBe(STREAM_SRC_RETRY))
+    // 换直链后保进度：loadedmetadata 应用错误前进度
+    video.dispatchEvent(new Event('loadedmetadata'))
+    await waitFor(() => expect(video.currentTime).toBe(10))
   })
 
   it('renders transcript from vtt and clicking a line seeks to cue start', async () => {
