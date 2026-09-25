@@ -22,30 +22,28 @@
 失败语义：单素材失败回滚后独立写 ``process_meta.extractAttempts/
 extractError``，累计 KB_EXTRACT_MAX_ATTEMPTS 不再扫（防毒素材烧 token）；
 章节推断失败仅记日志下轮重试。
+
+模块分层：本模块持有并发锁与章节推断编排；知识点抽取编排与失败记账在
+``extract_points``；prompt 构造与 ``run_structured`` 调用封装在 ``extract_llm``；
+滑窗/校验/去重纯逻辑在 ``extract_pipeline``。
 """
 
-import json
 from typing import Any
 
 import structlog
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.kb import (
-    KB_EXTRACT_LOCK_KEY,
-    KB_EXTRACT_MAX_ATTEMPTS,
-    KB_EXTRACT_WINDOW_OVERLAP_SEGMENTS,
-    KB_EXTRACT_WINDOW_SECONDS,
-    KbProcessStatus,
-)
+from app.constants.kb import KB_EXTRACT_LOCK_KEY, KbProcessStatus
 from app.core.clock import utc_now
 from app.core.exceptions import UnprocessableEntityError
 from app.core.locking import redis_lock
-from app.models.kb import KbKnowledgePoint, KbMedia, KbSource
-from app.repositories.kb import media_repository, point_repository
+from app.models.kb import KbMedia, KbSource
+from app.repositories.kb import media_repository
+from app.services.kb import extract_llm
 from app.services.kb import extract_pipeline as xpipe
-from app.services.kb.extract_pipeline import WindowSegment
-from app.services.kb.settings_service import get_settings_row, resolve_role_model
+from app.services.kb.extract_points import run_point_extraction
+from app.services.kb.settings_service import resolve_role_model
 from app.services.quota.constants import FEATURE_KB_EXTRACT
 from app.services.quota.context import meter_scope
 
@@ -70,19 +68,14 @@ async def run_extraction(session: AsyncSession) -> dict[str, int]:
             "failedMedias": 0,
         }
         stats.update(await _infer_chapters(session, config))
-        stats.update(await _extract_points(session, config))
+        stats.update(await run_point_extraction(session, config))
         logger.info("kb_extract_done", **stats)
         return stats
 
 
-# ---------------------------------------------------------------------------
-# 章节推断
-# ---------------------------------------------------------------------------
-
-
 async def _infer_chapters(session: AsyncSession, config: Any) -> dict[str, int]:
     from app.agent.runtime.structured import run_structured
-    from app.schemas.kb import ChapterTreeDraft, EpisodeOutline
+    from app.schemas.kb import ChapterTreeDraft
 
     stats = {"chaptersInferred": 0}
     sources = (
@@ -108,7 +101,7 @@ async def _infer_chapters(session: AsyncSession, config: Any) -> dict[str, int]:
         if not pending:
             continue
         base = tree.get("draft")
-        outlines: list[EpisodeOutline] = []
+        outlines: list[Any] = []
         outlined: list[KbMedia] = []
         for media in pending:
             segments = await media_repository.list_segments(session, media.id)
@@ -116,7 +109,7 @@ async def _infer_chapters(session: AsyncSession, config: Any) -> dict[str, int]:
                 continue
             try:
                 outlines.append(
-                    await _outline_for_media(session, config, media, segments)
+                    await extract_llm.outline_for_media(session, config, media, segments)
                 )
                 outlined.append(media)
             except Exception as exc:  # noqa: BLE001
@@ -135,29 +128,11 @@ async def _infer_chapters(session: AsyncSession, config: Any) -> dict[str, int]:
             }
             for o in outlines
         ]
-        if base:
-            prompt = (
-                "你是全书目录主编。下面是本书已有目录树，以及新到各集的大纲"
-                "（JSON 数组）。请把新集内容合并进目录树：顶层 3~10 个章节，"
-                "每章 children 为该章下的小节列表（可为空数组）。只增补新集"
-                "涉及的章节/小节，已有章节标题保持稳定（下游按章节引用），"
-                "不要编造大纲之外的内容。\n\n"
-                f"已有目录树：\n{_render_tree(base)}\n\n"
-                "新到各集大纲：\n"
-                f"{json.dumps(outline_payload, ensure_ascii=False, indent=1)}"
-            )
-        else:
-            prompt = (
-                "你是全书目录主编。以下是同一课程各集大纲（JSON 数组），请合并为"
-                "全书目录树：顶层 3~10 个章节，每章 children 为该章下的小节列表"
-                "（可为空数组）。章节/小节标题从大纲条目归纳提升，不要照抄全部条目，"
-                "也不要编造大纲之外的内容。\n\n"
-                f"{json.dumps(outline_payload, ensure_ascii=False, indent=1)}"
-            )
         try:
             with meter_scope(None, FEATURE_KB_EXTRACT, detail={"sourceId": source.id}):
                 merged = await run_structured(
-                    session, result_type=ChapterTreeDraft, user_prompt=prompt,
+                    session, result_type=ChapterTreeDraft,
+                    user_prompt=extract_llm.chapter_merge_prompt(base, outline_payload),
                     config_id=config.id,
                 )
         except Exception as exc:  # noqa: BLE001
@@ -178,302 +153,3 @@ async def _infer_chapters(session: AsyncSession, config: Any) -> dict[str, int]:
             }
         await session.commit()
     return stats
-
-
-async def _outline_for_media(
-    session: AsyncSession,
-    config: Any,
-    media: KbMedia,
-    segments: list[Any],
-) -> Any:
-    """单集大纲：全文阅读后输出条目列表（episode_no 由 prompt 固定）。"""
-    from app.agent.runtime.structured import run_structured
-    from app.schemas.kb import EpisodeOutline
-
-    episode_no = media.episode_no or 0
-    numbered = "\n".join(f"{i}. {seg.text}" for i, seg in enumerate(segments, start=1))
-    prompt = (
-        f"你是课程目录编辑。阅读第 {episode_no} 集「{media.title}」的逐句文稿，"
-        "提炼本集知识大纲：3~8 个条目、按讲解顺序，每条含 title（小节标题）与"
-        " summary（一句话概括）。episode_no 固定输出 "
-        f"{episode_no}。只依据文稿内容，不要编造。\n\n文稿：\n{numbered}"
-    )
-    with meter_scope(
-        None,
-        FEATURE_KB_EXTRACT,
-        detail={"sourceId": media.source_id, "mediaId": media.id},
-    ):
-        return await run_structured(
-            session, result_type=EpisodeOutline, user_prompt=prompt,
-            config_id=config.id,
-        )
-
-
-# ---------------------------------------------------------------------------
-# 知识点抽取
-# ---------------------------------------------------------------------------
-
-
-async def _extract_points(session: AsyncSession, config: Any) -> dict[str, int]:
-    from app.agent.runtime.structured import run_structured
-    from app.schemas.kb import KbExtractionResult
-
-    stats = {
-        "mediasExtracted": 0,
-        "pointsCreated": 0,
-        "autoPublished": 0,
-        "escalated": 0,
-        "failedMedias": 0,
-        "emptyMedias": 0,
-        "awaitingChapterPublish": 0,
-    }
-    settings = await get_settings_row(session)
-    auto_approve = settings.auto_approve_points
-    medias = (
-        (
-            await session.execute(
-                select(KbMedia).where(
-                    KbMedia.deleted_at.is_(None),
-                    KbMedia.process_status == KbProcessStatus.DONE,
-                    KbMedia.extracted_at.is_(None),
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    sources = {
-        s.id: s
-        for s in (
-            await session.execute(
-                select(KbSource).where(KbSource.deleted_at.is_(None))
-            )
-        ).scalars()
-    }
-    # 失败路径的 rollback 会使 ORM 实例过期——循环前捕获字段，迭代内按 id 重取
-    candidates = [(m.id, dict(m.process_meta or {})) for m in medias]
-    for media_id, meta in candidates:
-        media = await session.get(KbMedia, media_id)
-        if media is None:
-            continue
-        attempts = int(meta.get("extractAttempts") or 0)
-        if attempts >= KB_EXTRACT_MAX_ATTEMPTS:
-            continue
-        source = sources.get(media.source_id)
-        published = (source.chapter_tree or {}).get("published") if source else None
-        if not published:
-            # 生而归章：未发布目录树的源不抽取，等人工门 1 发布后一并处理
-            stats["awaitingChapterPublish"] += 1
-            continue
-        segments = await media_repository.list_segments(session, media_id)
-        if not segments:
-            continue
-        window_segments = [
-            WindowSegment(text=seg.text, start_ms=seg.start_ms, end_ms=seg.end_ms)
-            for seg in segments
-        ]
-        windows = xpipe.plan_windows(
-            window_segments,
-            max_seconds=KB_EXTRACT_WINDOW_SECONDS,
-            overlap=KB_EXTRACT_WINDOW_OVERLAP_SEGMENTS,
-        )
-        try:
-            raw_points: list[Any] = []
-            for window in windows:
-                with meter_scope(
-                    None,
-                    FEATURE_KB_EXTRACT,
-                    detail={"sourceId": media.source_id, "mediaId": media.id},
-                ):
-                    result = await run_structured(
-                        session,
-                        result_type=KbExtractionResult,
-                        user_prompt=_window_prompt(media, window, published),
-                        config_id=config.id,
-                    )
-                raw_points.extend(result.points)
-            validated = xpipe.dedup_points(
-                xpipe.validate_points(
-                    raw_points, window_segments,
-                    media_duration_ms=(media.duration_seconds or 0) * 1000,
-                    valid_chapters=xpipe.chapter_id_paths(published),
-                )
-            )
-            if not validated:
-                # 全窗口 0 点：多为模型空返回，不置 extracted_at，退避重试
-                stats["emptyMedias"] += 1
-                await _record_empty(session, media_id, meta, attempts)
-                continue
-            auto_published = await _insert_points(
-                session, media, validated, auto_approve=auto_approve
-            )
-            media.extracted_at = utc_now()
-            media.process_meta = {
-                **{k: v for k, v in meta.items()
-                   if k not in ("extractAttempts", "extractError",
-                                "extractSummary", "extractEmptyAt")},
-                "extractSummary": {
-                    "points": len(validated),
-                    "autoPublished": auto_published,
-                    "escalated": len(validated) - auto_published,
-                },
-            }
-            stats["mediasExtracted"] += 1
-            stats["pointsCreated"] += len(validated)
-            stats["autoPublished"] += auto_published
-            stats["escalated"] += len(validated) - auto_published
-            await session.commit()
-        except Exception as exc:  # noqa: BLE001
-            await session.rollback()
-            stats["failedMedias"] += 1
-            await _record_failure(session, media_id, meta, attempts, exc)
-    return stats
-
-
-async def _insert_points(
-    session: AsyncSession,
-    media: KbMedia,
-    points: list[xpipe.ValidatedPoint],
-    *,
-    auto_approve: bool,
-) -> int:
-    """落库：全绿卡自动发布（置索引脏），带理由卡升级人工；返回自动发布数。
-
-    先 flush 拿 id，再回填 related_ids（同批新点也可互链）。
-    """
-    rows: list[KbKnowledgePoint] = []
-    auto_published = 0
-    for point in points:
-        publishable = auto_approve and not point.needs_review
-        if publishable:
-            auto_published += 1
-        row = KbKnowledgePoint(
-            source_id=media.source_id,
-            media_id=media.id,
-            point_type=point.point_type,
-            title=point.title[:300],
-            body=point.body,
-            term_definition=point.term_definition,
-            applicable_scene=point.applicable_scene,
-            excerpt=point.excerpt,
-            start_ms=point.start_ms,
-            end_ms=point.end_ms,
-            related_ids=[],
-            chapter_path=list(point.chapter_path),
-            status="published" if publishable else "draft",
-            needs_review=not publishable,
-            review_note=None if publishable else "；".join(point.reasons)[:1000],
-            embedding_dirty=publishable,
-        )
-        session.add(row)
-        rows.append(row)
-    await session.flush()
-    title_to_id = {
-        xpipe.normalize_title(title): point_id
-        for title, point_id in await point_repository.find_titles(
-            session, media.source_id
-        )
-    }
-    for row, point in zip(rows, points, strict=True):
-        title_to_id.setdefault(xpipe.normalize_title(row.title), row.id)
-        related = xpipe.resolve_related(point.related_titles, title_to_id)
-        row.related_ids = [pid for pid in related if pid != row.id]
-    return auto_published
-
-
-def _window_prompt(
-    media: KbMedia,
-    window: list[WindowSegment],
-    chapters: list[dict[str, Any]],
-) -> str:
-    lines = []
-    for seg in window:
-        timecode = _fmt_ms(seg.start_ms) if seg.start_ms is not None else "P?"
-        lines.append(f"[{timecode}] {seg.text}")
-    return (
-        "你是金融课程知识整理员。从下面的文稿片段中抽取可独立成立的知识点卡片。\n"
-        "要求：\n"
-        "- point_type 取 concept/theorem/method/discipline/case 之一\n"
-        "- excerpt 必须原样摘抄文稿中**连续的 1~3 句**原文：不得改写、"
-        "不得删节；确需跳过中间句时用「……」连接，且每个片段也要整句原文\n"
-        "- start_ms/end_ms 为该知识点讲解起止毫秒时间码，按各行行首 [mm:ss] "
-        "估算；无法判断输出 null\n"
-        "- chapter_path 从下方目录树选择该知识点所属章节，输出根到该节点的"
-        " id 链（如 [\"1\", \"1.2\"]）；确实无法归入任何章节输出空列表\n"
-        "- confidence 为本卡片整体正确性的自评，取 high/medium/low；"
-        "文稿依据不足或需跨段推断时降档\n"
-        "- related_titles 填与之相关的其他知识点标题，可为空列表\n"
-        "- term_definition/applicable_scene 无内容输出空串\n"
-        "- 不编造文稿中没有的内容；本窗口没有新知识点时输出空 points\n\n"
-        f"目录树（缩进表示层级，格式为 id: 标题）：\n{_render_tree(chapters)}\n\n"
-        f"课程「{media.title}」文稿（行首为该句起始时间）：\n" + "\n".join(lines)
-    )
-
-
-def _render_tree(nodes: list[dict[str, Any]], depth: int = 0) -> str:
-    parts: list[str] = []
-    for node in nodes:
-        parts.append("  " * depth + f"{node['id']}: {node['title']}")
-        parts.extend(_render_tree(node.get("children") or [], depth + 1))
-    return "\n".join(parts)
-
-
-def _fmt_ms(ms: int | None) -> str:
-    if ms is None:
-        return "?"
-    total_seconds = ms // 1000
-    return f"{total_seconds // 60:02d}:{total_seconds % 60:02d}"
-
-
-async def _record_failure(
-    session: AsyncSession, media_id: int, meta: dict[str, Any],
-    attempts: int, exc: Exception,
-) -> None:
-    """独立事务记失败（rollback 后执行，不影响本轮其他素材）。
-
-    meta 由调用方在循环前捕获传入——rollback 会令 ORM 实例过期；
-    整体覆写会抹掉 audio_seconds 等其他记账键，必须合并保留。
-    """
-    try:
-        await session.execute(
-            update(KbMedia)
-            .where(KbMedia.id == media_id)
-            .values(
-                process_meta={
-                    **(meta or {}),
-                    "extractAttempts": attempts + 1,
-                    "extractError": str(exc)[:500],
-                }
-            )
-        )
-        await session.commit()
-    except Exception:  # noqa: BLE001
-        await session.rollback()
-        logger.error("kb_extract_failure_record_failed", media_id=media_id)
-    logger.warning(
-        "kb_extract_media_failed", media_id=media_id, attempts=attempts + 1,
-        error=str(exc)[:300],
-    )
-
-
-async def _record_empty(
-    session: AsyncSession, media_id: int, meta: dict[str, Any], attempts: int
-) -> None:
-    """全窗口 0 点记账：不置 extracted_at，attempts 累计达上限停扫。"""
-    try:
-        await session.execute(
-            update(KbMedia)
-            .where(KbMedia.id == media_id)
-            .values(
-                process_meta={
-                    **(meta or {}),
-                    "extractAttempts": attempts + 1,
-                    "extractEmptyAt": utc_now().isoformat(),
-                }
-            )
-        )
-        await session.commit()
-    except Exception:  # noqa: BLE001
-        await session.rollback()
-        logger.error("kb_extract_empty_record_failed", media_id=media_id)
-    logger.warning("kb_extract_media_empty", media_id=media_id, attempts=attempts + 1)
