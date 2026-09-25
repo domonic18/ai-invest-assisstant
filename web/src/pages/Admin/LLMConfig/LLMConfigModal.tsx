@@ -1,6 +1,6 @@
 import { ExperimentOutlined } from '@ant-design/icons'
 import { Button, Form, Input, Modal, Select, Switch } from 'antd'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import { LLM_PROVIDER_PRESETS } from '@ai-invest/shared'
 import type { LLMConfig, LLMConfigFormValues, LlmPurpose } from '@ai-invest/shared'
@@ -8,6 +8,7 @@ import type { LLMConfig, LLMConfigFormValues, LlmPurpose } from '@ai-invest/shar
 interface LLMConfigModalProps {
   open: boolean
   editing: LLMConfig | null
+  configs: LLMConfig[]
   onCancel: () => void
   onSubmit: (values: LLMConfigFormValues) => void
   onTest: () => void
@@ -37,6 +38,7 @@ const PROVIDER_OPTIONS = [
 export function LLMConfigModal({
   open,
   editing,
+  configs,
   onCancel,
   onSubmit,
   onTest,
@@ -44,6 +46,20 @@ export function LLMConfigModal({
   loading,
 }: LLMConfigModalProps) {
   const [form] = Form.useForm<LLMConfigFormValues>()
+  const purpose = Form.useWatch('purpose', form)
+
+  const backupOptions = useMemo(
+    () =>
+      configs
+        .filter(
+          (c) =>
+            c.isActive &&
+            c.purpose === purpose &&
+            c.id !== editing?.id,
+        )
+        .map((c) => ({ value: c.id, label: `${c.name}（${c.modelName}）` })),
+    [configs, purpose, editing?.id],
+  )
 
   useEffect(() => {
     if (open) {
@@ -59,6 +75,7 @@ export function LLMConfigModal({
           isDefault: editing.isDefault,
           isActive: editing.isActive,
           purpose: editing.purpose,
+          backupConfigId: editing.backupConfigId ?? null,
           vision: capabilities.vision === true,
         })
       } else {
@@ -70,6 +87,7 @@ export function LLMConfigModal({
           isActive: true,
           isDefault: false,
           purpose: 'chat',
+          backupConfigId: null,
           vision: false,
         })
       }
@@ -165,6 +183,14 @@ export function LLMConfigModal({
           extra="知识库模型角色槽位按用途过滤候选条目，须与槽位要求一致"
         >
           <Select options={PURPOSE_OPTIONS} />
+        </Form.Item>
+
+        <Form.Item
+          label="备用模型"
+          name="backupConfigId"
+          extra="本模型限流/额度耗尽时自动切换到该备用模型，冷却结束自动切回"
+        >
+          <Select options={backupOptions} allowClear placeholder="不指定备用" />
         </Form.Item>
 
         <Form.Item

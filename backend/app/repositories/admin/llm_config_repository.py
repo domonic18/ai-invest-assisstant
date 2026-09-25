@@ -37,6 +37,15 @@ class LLMConfigRepository(BaseRepository[LLMConfig]):
             stmt = stmt.where(LLMConfig.id != exclude_id)
         await self.execute(stmt)
 
+    async def clear_backup_references(self, config_id: int) -> None:
+        """清除指向给定配置的全部备用引用（删除条目前调用）。"""
+        stmt = (
+            update(LLMConfig)
+            .where(LLMConfig.backup_config_id == config_id)
+            .values(backup_config_id=None)
+        )
+        await self.execute(stmt)
+
     async def get_first_active(self) -> LLMConfig | None:
         """按 id 排序返回第一个启用状态的配置。"""
         stmt = (

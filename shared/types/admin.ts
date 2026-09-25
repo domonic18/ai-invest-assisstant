@@ -19,6 +19,10 @@ export interface LLMConfig {
   isDefault: boolean
   isActive: boolean
   purpose: LlmPurpose
+  /** 备用配置 id：本配置额度耗尽冷却期内自动切换的目标（单级） */
+  backupConfigId: number | null
+  /** 额度耗尽冷却截止时间；null 表示健康 */
+  degradedUntil: string | null
   extra: Record<string, unknown>
   lastTestedAt: string | null
   lastTestStatus: string | null
@@ -37,6 +41,7 @@ export interface LLMConfigFormValues {
   isDefault: boolean
   isActive: boolean
   purpose: LlmPurpose
+  backupConfigId?: number | null
   vision?: boolean
 }
 

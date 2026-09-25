@@ -17,6 +17,7 @@ from pydantic import SecretStr
 from app.agent.runtime.usage_meter import UsageMeterCallback
 from app.core.config import get_settings
 from app.services.admin.llm_config_service import ResolvedLLMConfig
+from app.services.admin.llm_failover import FailoverHealthCallback
 from app.services.quota.constants import OUTLET_BYOK, OUTLET_SYSTEM
 from app.utils.api_base import normalize_api_base
 
@@ -60,6 +61,9 @@ def build_langchain_model(
                 model_name=cfg.model_name,
             )
         )
+        # 主备切换：额度耗尽类错误标记配置进入冷却（BYOK 负数哨兵 id 内部已忽略）
+        if cfg.config_id > 0:
+            callbacks.append(FailoverHealthCallback(cfg.config_id))
     if cfg.protocol == "anthropic":
         # ChatAnthropic 的 max_tokens/timeout 字段带 alias，静态签名不含该
         # kwarg，故解包传入。其 timeout 字段类型仅收 float（httpx.Timeout 会被
