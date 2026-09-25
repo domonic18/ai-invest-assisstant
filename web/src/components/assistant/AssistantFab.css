@@ -11,6 +11,9 @@
   background: transparent;
   box-shadow: 0 8px 24px rgba(99, 102, 241, 0.45), 0 2px 6px rgba(0, 0, 0, 0.25);
   cursor: pointer;
+  /* 长按收起：禁用 iOS 长按呼出菜单/选中 */
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   animation: assistant-fab-breathe 3.2s ease-in-out infinite;
 }
@@ -40,5 +43,48 @@
   }
   50% {
     box-shadow: 0 8px 24px rgba(99, 102, 241, 0.45), 0 0 0 10px rgba(139, 92, 246, 0);
+  }
+}
+
+/* 收起态：右下角贴边半透明小圆徽，点按恢复 */
+.assistant-fab-collapsed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 0;
+  background: rgba(17, 19, 24, 0.85);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  opacity: 0.68;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  animation: assistant-fab-pop 0.22s ease;
+}
+
+.assistant-fab-collapsed img {
+  width: 76%;
+  height: 76%;
+  border-radius: 9999px;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.assistant-fab-collapsed:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+@keyframes assistant-fab-pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
   }
 }
