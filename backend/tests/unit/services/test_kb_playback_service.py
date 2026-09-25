@@ -1,4 +1,4 @@
-"""playback_service 单测：凭证矩阵、Range 解析、代理流、VTT、书页渲染与原图签发。"""
+"""playback_service 单测：凭证签发（含预签名直链）、校验矩阵、VTT、书页渲染与原图签发。"""
 
 from datetime import timedelta
 from io import BytesIO
@@ -8,15 +8,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from PIL import Image
 
-from app.core.exceptions import BadRequestError, NotFoundError, UnauthorizedError
+from app.core.exceptions import NotFoundError, UnauthorizedError
 from app.models.kb import KbImageAsset, KbSource
 from app.models.user import User
-from app.services.kb import book_render, playback_service, playback_stream
-from app.services.kb.playback_stream import (
-    MediaStream,
-    RangeNotSatisfiableError,
-    parse_range_header,
-)
+from app.services.kb import book_render, playback_service, subtitles
 
 
 class _FakeRedis:
@@ -60,56 +55,25 @@ def _source(**overrides: object) -> SimpleNamespace:
 
 
 @pytest.mark.unit
-class TestParseRangeHeader:
-    def test_missing_header_rejected(self) -> None:
-        with pytest.raises(BadRequestError):
-            parse_range_header(None, 1000)
-
-    def test_empty_header_rejected(self) -> None:
-        with pytest.raises(BadRequestError):
-            parse_range_header("  ", 1000)
-
-    def test_open_ended_range(self) -> None:
-        assert parse_range_header("bytes=0-", 1000) == (0, 999)
-
-    def test_bounded_range(self) -> None:
-        assert parse_range_header("bytes=100-199", 1000) == (100, 199)
-
-    def test_end_clamped_to_total(self) -> None:
-        assert parse_range_header("bytes=900-5000", 1000) == (900, 999)
-
-    def test_suffix_range(self) -> None:
-        assert parse_range_header("bytes=-500", 1000) == (500, 999)
-
-    def test_suffix_zero_unsatisfiable(self) -> None:
-        with pytest.raises(RangeNotSatisfiableError):
-            parse_range_header("bytes=-0", 1000)
-
-    def test_start_beyond_total_unsatisfiable(self) -> None:
-        with pytest.raises(RangeNotSatisfiableError):
-            parse_range_header("bytes=1000-", 1000)
-
-    def test_malformed_header_unsatisfiable(self) -> None:
-        with pytest.raises(RangeNotSatisfiableError):
-            parse_range_header("bytes=abc-def", 1000)
-
-    def test_empty_both_bounds_unsatisfiable(self) -> None:
-        with pytest.raises(RangeNotSatisfiableError):
-            parse_range_header("bytes=-", 1000)
-
-
-@pytest.mark.unit
 class TestIssuePlaybackToken:
-    async def test_token_stored_with_ttl_and_neighbors(self) -> None:
+    """凭证签发：视频/音频附同时效预签名直链，书素材 streamUrl 为 None。"""
+
+    async def test_video_media_signed_with_presigned_url(self) -> None:
         redis = _FakeRedis()
         siblings = [
             _media(id=10, episode_no=1),
             _media(id=11, episode_no=2),
             _media(id=12, episode_no=3),
         ]
+        minio = MagicMock()
+        minio.get_presigned_url = AsyncMock(return_value="https://cos/signed")
         with (
             patch(
                 "app.services.kb.playback_service.get_redis", return_value=redis
+            ),
+            patch(
+                "app.services.kb.playback_service.get_minio_service",
+                return_value=minio,
             ),
             patch(
                 "app.services.kb.playback_service.media_repository.get",
@@ -126,15 +90,25 @@ class TestIssuePlaybackToken:
         assert result.prev_media_id == 10
         assert result.next_media_id == 12
         assert result.expires_in == 1800
+        assert result.stream_url == "https://cos/signed"
         assert result.page_count is None
         [stored] = redis.store.values()
         assert '"userId": 7' in stored and '"mediaId": 11' in stored
+        minio.get_presigned_url.assert_awaited_once_with(
+            "kb/3/ep02.mp4", expires=timedelta(seconds=1800)
+        )
 
-    async def test_book_media_has_no_neighbors(self) -> None:
+    async def test_book_media_has_no_neighbors_and_no_stream_url(self) -> None:
         redis = _FakeRedis()
+        minio = MagicMock()
+        minio.get_presigned_url = AsyncMock(return_value="https://cos/signed")
         with (
             patch(
                 "app.services.kb.playback_service.get_redis", return_value=redis
+            ),
+            patch(
+                "app.services.kb.playback_service.get_minio_service",
+                return_value=minio,
             ),
             patch(
                 "app.services.kb.playback_service.media_repository.get",
@@ -154,6 +128,9 @@ class TestIssuePlaybackToken:
         assert result.prev_media_id is None
         assert result.next_media_id is None
         assert result.page_count == 120
+        # 书页仍走 token 代理渲染水印，不签发直链
+        assert result.stream_url is None
+        minio.get_presigned_url.assert_not_awaited()
 
 
 @pytest.mark.unit
@@ -222,7 +199,8 @@ class TestIssueImageUrl:
 
 @pytest.mark.unit
 class TestTokenValidationMatrix:
-    """凭证矩阵：未知/畸形/素材错配 → 401 + kb.security.denied 审计。
+    """凭证矩阵（经书页端点，token 校验的现存消费者）：
+    未知/畸形/素材错配 → 401 + kb.security.denied 审计。
 
     审计归属依赖凭证 ``{userId}.`` 前缀或载荷；无前缀凭证无法归属账号
     （审计表 actor_id 非空约束）→ 仅结构化日志，不落审计表。
@@ -246,11 +224,8 @@ class TestTokenValidationMatrix:
             ),
         ):
             with pytest.raises(UnauthorizedError):
-                await playback_stream.open_media_stream(
-                    session,
-                    media_id=11,
-                    token=token,
-                    range_header="bytes=0-",
+                await book_render.render_book_page(
+                    session, media_id=11, page_no=1, token=token
                 )
         if expected_actor is None:
             assert audit.await_count == 0
@@ -280,11 +255,8 @@ class TestTokenValidationMatrix:
             ),
         ):
             with pytest.raises(UnauthorizedError):
-                await playback_stream.open_media_stream(
-                    session,
-                    media_id=11,
-                    token="42." + "x" * 41,
-                    range_header="bytes=0-",
+                await book_render.render_book_page(
+                    session, media_id=11, page_no=1, token="42." + "x" * 41
                 )
         assert audit.await_count == 0
 
@@ -303,109 +275,6 @@ class TestTokenValidationMatrix:
         redis = _FakeRedis()
         redis.store["kb:playback:t"] = '{"userId": 7, "mediaId": 99}'
         await self._assert_denied(redis, "t", expected_actor=7)
-
-
-@pytest.mark.unit
-class TestOpenMediaStream:
-    async def test_valid_token_streams_requested_range(self) -> None:
-        redis = _FakeRedis()
-        redis.store["kb:playback:t"] = '{"userId": 7, "mediaId": 11}'
-        fake_response = MagicMock()
-        fake_response.read = MagicMock(
-            side_effect=[b"a" * 60, b"b" * 40, b""]
-        )
-        fake_response.close = MagicMock()
-        minio = MagicMock()
-        minio.stat_object = AsyncMock(return_value=(1000, "etag"))
-        minio.open_object_stream = AsyncMock(return_value=fake_response)
-        with (
-            patch(
-                "app.services.kb.playback_service.get_redis", return_value=redis
-            ),
-            patch(
-                "app.services.kb.playback_stream.get_minio_service",
-                return_value=minio,
-            ),
-            patch(
-                "app.services.kb.playback_service.media_repository.get",
-                new=AsyncMock(return_value=_media()),
-            ),
-        ):
-            stream = await playback_stream.open_media_stream(
-                _session(),
-                media_id=11,
-                token="t",
-                range_header="bytes=0-99",
-            )
-        assert isinstance(stream, MediaStream)
-        assert (stream.start, stream.end, stream.total) == (0, 99, 1000)
-        assert stream.content_type == "video/mp4"
-        body = b""
-        async for chunk in stream.chunks:
-            body += chunk
-        assert len(body) == 100
-        fake_response.close.assert_called_once()
-
-    async def test_missing_range_header_denied_with_audit(self) -> None:
-        redis = _FakeRedis()
-        redis.store["kb:playback:t"] = '{"userId": 7, "mediaId": 11}'
-        minio = MagicMock()
-        minio.stat_object = AsyncMock(return_value=(1000, "etag"))
-        audit = AsyncMock()
-        session = _session()
-        with (
-            patch(
-                "app.services.kb.playback_service.get_redis", return_value=redis
-            ),
-            patch(
-                "app.services.kb.playback_stream.get_minio_service",
-                return_value=minio,
-            ),
-            patch(
-                "app.services.kb.playback_service.media_repository.get",
-                new=AsyncMock(return_value=_media()),
-            ),
-            patch(
-                "app.services.kb.playback_service.record_audit", new=audit
-            ),
-            patch(
-                "app.services.kb.playback_service._bump_denial_count",
-                new=AsyncMock(return_value=1),
-            ),
-        ):
-            with pytest.raises(BadRequestError):
-                await playback_stream.open_media_stream(
-                    session,
-                    media_id=11,
-                    token="t",
-                    range_header=None,
-                )
-        audit.assert_awaited_once()
-        session.commit.assert_awaited()
-
-    async def test_unsupported_media_kind_rejected(self) -> None:
-        redis = _FakeRedis()
-        redis.store["kb:playback:t"] = '{"userId": 7, "mediaId": 11}'
-        with (
-            patch(
-                "app.services.kb.playback_service.get_redis", return_value=redis
-            ),
-            patch(
-                "app.services.kb.playback_service.media_repository.get",
-                new=AsyncMock(
-                    return_value=_media(
-                        media_kind="book", file_name="book.pdf"
-                    )
-                ),
-            ),
-        ):
-            with pytest.raises(BadRequestError):
-                await playback_stream.open_media_stream(
-                    _session(),
-                    media_id=11,
-                    token="t",
-                    range_header="bytes=0-",
-                )
 
 
 @pytest.mark.unit
@@ -434,7 +303,7 @@ class TestBuildSubtitleVtt:
                 new=AsyncMock(return_value=segments),
             ),
         ):
-            vtt = await playback_stream.build_subtitle_vtt(
+            vtt = await subtitles.build_subtitle_vtt(
                 _session(), media_id=11
             )
         lines = vtt.splitlines()
