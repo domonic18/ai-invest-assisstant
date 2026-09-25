@@ -10,6 +10,7 @@ import {
   Select,
   Space,
   Table,
+  Tooltip,
   message,
 } from 'antd'
 import type { Dayjs } from 'dayjs'
@@ -121,15 +122,25 @@ export function AdminStocks() {
     {
       title: '操作',
       key: 'actions',
+      width: isNarrow ? 100 : undefined,
       render: (_: unknown, record: AdminStock) => (
-        <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>
-            编辑
-          </Button>
-          <Popconfirm title="确认删除？" onConfirm={() => handleDelete(record.id)}>
-            <Button size="small" danger icon={<DeleteOutlined />}>
-              删除
+        <Space size={isNarrow ? 4 : 8}>
+          <Tooltip title="编辑">
+            <Button
+              size="small"
+              aria-label="编辑"
+              icon={<EditOutlined />}
+              onClick={() => openEdit(record)}
+            >
+              {isNarrow ? null : '编辑'}
             </Button>
+          </Tooltip>
+          <Popconfirm title="确认删除？" onConfirm={() => handleDelete(record.id)}>
+            <Tooltip title="删除">
+              <Button size="small" danger aria-label="删除" icon={<DeleteOutlined />}>
+                {isNarrow ? null : '删除'}
+              </Button>
+            </Tooltip>
           </Popconfirm>
         </Space>
       ),
@@ -149,6 +160,7 @@ export function AdminStocks() {
           新增股票
         </Button>
       }
+      styles={isNarrow ? { header: { padding: '12px 16px' }, body: { padding: 16 } } : undefined}
     >
       <Input.Search
         placeholder="搜索代码或名称"
@@ -178,6 +190,7 @@ export function AdminStocks() {
         onCancel={() => setModalOpen(false)}
         onOk={() => form.submit()}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
+        width={isNarrow ? 'calc(100vw - 24px)' : 520}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Form.Item
