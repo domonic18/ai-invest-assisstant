@@ -161,3 +161,11 @@ class PaperTradeClient:
     async def cancel_all(self, credentials: CounterCredentials) -> Any:
         """撤销全部未结委托。"""
         return await self._request("DELETE", "/orders", credentials=credentials)
+
+
+def get_client() -> PaperTradeClient:
+    """构造 sidecar 客户端（``paper_trade_url`` 未配置时抛未配置异常）。"""
+    settings = get_settings()
+    if not settings.paper_trade_url:
+        raise PaperTradeNotConfiguredError()
+    return PaperTradeClient(settings.paper_trade_url)
