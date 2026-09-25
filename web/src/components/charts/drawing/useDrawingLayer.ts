@@ -1,5 +1,6 @@
 /**
- * 画线图层生命周期 hook：渲染主循环 + effect 装配；指针/键盘事件处理在 layerEvents.ts，
+ * 画线图层生命周期 hook：refs 持有 + effect 装配；重绘调度在 layerRender.ts，
+ * specs 收集与拖拽钩子构造在 specCollector.ts，指针/键盘事件处理在 layerEvents.ts，
  * 参数类型在 types.ts（前端单一真相源）。
  *
  * 设计要点（docs/arch/05-web-frontend.md §5.3）：
@@ -16,36 +17,18 @@
  * - armed 状态与全部 dataZoom 互斥，并隐藏主图 tooltip/十字指示器（编辑态）；图层异常静默降级为不渲染。
  */
 
-import type { EChartsOption } from 'echarts'
 import { useEffect, useRef } from 'react'
 
-import { dataZoomCount, getMainGridRect, getZrEl, safeSetOption, viewFingerprint } from './chartInternals'
-import { anchorToPx, drawingPx, pxToAnchor } from './coordinates'
+import { getZrEl } from './chartInternals'
+import { anchorToPx, pxToAnchor } from './coordinates'
 import type { DraftSession } from './draftMachine'
 import { createLayerHandlers, teardownLayerState } from './layerEvents'
-import {
-  aiElementIds,
-  aiHandleElementIds,
-  aiHandleSpecs,
-  aiSpecs,
-  type DragHooks,
-  type GraphicSpec,
-  draftSpecs,
-  handleElementIds,
-  handleSpecs,
-  userElementIds,
-  userShapeSpecs,
-  type ZrEvent,
-} from './shapeSpecs'
-import {
-  type DragSession,
-  applyDragMove,
-  dragAnchors,
-  dragMoved,
-  startAiDrag,
-  startUserDrag,
-} from './sessions'
-import { DRAWING_ROOT_PREFIX, type Point, type UseDrawingLayerParams } from './types'
+import type { LayerRefs } from './layerRender'
+import { renderLayer } from './layerRender'
+import type { ZrEvent } from './shapeSpecs'
+import type { DragSession } from './sessions'
+import { applyDragMove, dragAnchors, dragMoved } from './sessions'
+import type { Point, UseDrawingLayerParams } from './types'
 
 export function useDrawingLayer(params: UseDrawingLayerParams): {
   /** 选中画线首锚点的像素位置（StyleBar 定位用） */
@@ -64,6 +47,8 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
   const zoomDisabledRef = useRef(false)
   /** armed 时被隐藏的主图浮层原状态（tooltip/axisPointer），退出时按原值还原 */
   const savedChromeRef = useRef<{ tooltip: boolean; axisPointer: boolean } | null>(null)
+
+  const refs: LayerRefs = { draftRef, draftIdRef, dragRef, sigRef, liveIdsRef, zoomDisabledRef, savedChromeRef }
 
   const commitDraft = (pxs: Point[]) => {
     const { chart, dates, scope, activeTool, defaultStyle, onCreate } = p.current
@@ -99,194 +84,13 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
     })
   }
 
-  /** 增量渲染：merge-by-id + 失活 remove；被拖拽元素跳过重下发（zrender 原生移动中） */
-  const render = () => {
-    const { chart, dates, drawings, aiDrawings, selectedId, activeTool, defaultStyle, interactive } = p.current
-    if (!chart || chart.isDisposed() || dates.length === 0) return
-    const grid = getMainGridRect(chart)
-    if (!grid) return
-
-    const drag = dragRef.current
-    const draft = draftRef.current
-    const sig = JSON.stringify([drawings, aiDrawings, selectedId, activeTool, interactive, viewFingerprint(chart, dates), grid, draft, drag?.px])
-    if (sig === sigRef.current) return
-
-    const specs: GraphicSpec[] = []
-    const nextIds = new Set<string>()
-    const track = (arr: GraphicSpec[]) => {
-      for (const s of arr) {
-        specs.push(s)
-        nextIds.add(String(s.id))
-      }
-    }
-
-    for (const d of drawings) {
-      const dragHere = drag?.drawingId === d.id
-      const live: DragHooks = {
-        onSelect: () => p.current.onSelect(d.id),
-        onMoveDragStart: (e) => {
-          dragRef.current = startUserDrag(d, chart, p.current.dates, {
-            drawingId: d.id,
-            kind: 'move',
-            anchorIndex: -1,
-            siblingIds: userElementIds(d).filter((x) => x !== e.target?.id),
-            start: { x: e.offsetX, y: e.offsetY },
-          })
-        },
-        onAnchorDragStart: (i, e) => {
-          dragRef.current = startUserDrag(d, chart, p.current.dates, {
-            drawingId: d.id,
-            kind: 'anchor',
-            anchorIndex: i,
-            siblingIds: [],
-            start: { x: e.offsetX, y: e.offsetY },
-          })
-        },
-        onEditText: () => {
-          const a = d.anchors[0]
-          if (!a) return
-          p.current.onRequestTextInput({
-            px: anchorToPx(chart, p.current.dates, a),
-            initial: d.text ?? '',
-            drawingId: d.id,
-          })
-        },
-      }
-      const pxNow = dragHere && drag ? drag.px : drawingPx(chart, dates, d)
-      // 锚点拖拽中形状跟随 drag.px 重下发；整体拖拽中形状由 zrender 原生移动 + 兄弟镜像，跳过重下发
-      if (!dragHere || drag?.kind === 'anchor') {
-        track(userShapeSpecs(d, pxNow, grid, interactive, live))
-      } else {
-        // 原生移动中的元素保活即可；未渲染过的 id 不虚标（避免对不存在元素发 remove）
-        for (const id of userElementIds(d)) {
-          if (liveIdsRef.current.has(id)) nextIds.add(id)
-        }
-      }
-      // 整体拖拽中手柄不参与原生移动，按实时 px 重下发跟随；锚点拖拽中手柄是原生移动方，
-      // 必须保活——从 storage 移除会让下一帧 hover 落空（target 变主图元素），拖拽即断
-      if (interactive && selectedId === d.id) {
-        if (!dragHere || drag?.kind === 'move') {
-          track(handleSpecs(d, pxNow, live))
-        } else {
-          for (const id of handleElementIds(d)) {
-            if (liveIdsRef.current.has(id)) nextIds.add(id)
-          }
-        }
-      }
-    }
-    for (const item of aiDrawings) {
-      const aiDrag = drag?.ai?.label === item.label ? drag : null
-      const aiPxNow = aiDrag && aiDrag.kind === 'anchor' ? aiDrag.px : item.anchors.map((a) => anchorToPx(chart, dates, a))
-      const live: DragHooks = {
-        onSelect: () => p.current.onSelect(`ai:${item.id}`),
-        onMoveDragStart: (e) => {
-          dragRef.current = startAiDrag(item, aiPxNow, {
-            drawingId: `ai:${item.id}`,
-            kind: 'move',
-            anchorIndex: -1,
-            siblingIds: aiElementIds(item).filter((x) => x !== e.target?.id),
-            start: { x: e.offsetX, y: e.offsetY },
-          })
-        },
-        onAnchorDragStart: (i, e) => {
-          dragRef.current = startAiDrag(item, aiPxNow, {
-            drawingId: `ai:${item.id}`,
-            kind: 'anchor',
-            anchorIndex: i,
-            siblingIds: [],
-            start: { x: e.offsetX, y: e.offsetY },
-          })
-        },
-        onEditText: () => {
-          const a = item.anchors[0]
-          if (!a) return
-          p.current.onRequestTextInput({
-            px: anchorToPx(chart, p.current.dates, a),
-            initial: item.label,
-            aiLabel: item.label,
-          })
-        },
-      }
-      // 整体拖拽中元素由 zrender 原生移动 + 兄弟镜像，跳过重下发（同用户画线）
-      if (!aiDrag || aiDrag.kind === 'anchor') {
-        track(aiSpecs(item, aiPxNow, grid, () => {}, interactive && !aiDrag, live))
-      } else {
-        for (const id of aiElementIds(item)) {
-          if (liveIdsRef.current.has(id)) nextIds.add(id)
-        }
-      }
-      if (interactive && selectedId === `ai:${item.id}`) {
-        if (!aiDrag || aiDrag.kind === 'move') {
-          track(aiHandleSpecs(item, aiPxNow, live))
-        } else {
-          for (const id of aiHandleElementIds(item)) {
-            if (liveIdsRef.current.has(id)) nextIds.add(id)
-          }
-        }
-      }
-    }
-    if (draft && activeTool) {
-      const id = draftIdRef.current || `${DRAWING_ROOT_PREFIX}draft`
-      track(draftSpecs(id, draft, grid, defaultStyle.color))
-    }
-
-    const removed: GraphicSpec[] = []
-    for (const id of liveIdsRef.current) {
-      if (!nextIds.has(id)) removed.push({ id, $action: 'remove' })
-    }
-    if (specs.length || removed.length) {
-      // sig/liveIds 只在 setOption 成功后落地，失败时下一帧重试（否则整层冻结到刷新）
-      if (!safeSetOption(chart, { graphic: [...specs, ...removed] })) {
-        sigRef.current = ''
-        return
-      }
-    }
-    sigRef.current = sig
-    liveIdsRef.current = nextIds
-
-    // armed 与全部 dataZoom 互斥（滚轮/拖动不缩放）；同时隐藏 K 线 tooltip/十字指示器，
-    // 避免悬浮数据点压住画线预览（同花顺式编辑态）
-    const wantDisable = !!activeTool
-    if (wantDisable !== zoomDisabledRef.current) {
-      const count = dataZoomCount(chart)
-      if (count > 0) {
-        chart.setOption({
-          dataZoom: Array.from({ length: count }, () => ({ disabled: wantDisable })),
-        } as EChartsOption)
-      }
-      zoomDisabledRef.current = wantDisable
-      try {
-        if (wantDisable) {
-          const opt = chart.getOption() as {
-            tooltip?: { show?: boolean }
-            axisPointer?: { show?: boolean }
-          }
-          savedChromeRef.current = {
-            tooltip: opt.tooltip?.show !== false,
-            axisPointer: opt.axisPointer?.show !== false,
-          }
-          chart.setOption({ tooltip: { show: false }, axisPointer: { show: false } } as EChartsOption)
-        } else if (savedChromeRef.current) {
-          const saved = savedChromeRef.current
-          savedChromeRef.current = null
-          chart.setOption({
-            tooltip: { show: saved.tooltip },
-            axisPointer: { show: saved.axisPointer },
-          } as EChartsOption)
-        }
-      } catch {
-        /* 图表 option 异常不阻断画线 */
-      }
-    }
-  }
-
   /** zrender 拖拽实时移动：被抓元素原生位移，兄弟元素镜像 + 像素锚点重算 */
   const handleDragMove = (e: ZrEvent) => {
     const drag = dragRef.current
     if (!drag) return
     dragRef.current = applyDragMove(drag, e.target, p.current.chart)
     try {
-      render()
+      renderLayer(p, refs)
     } catch (err) {
       console.warn('[drawing] 图层降级', err)
     }
@@ -303,7 +107,7 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
         // 主图 notMerge 重建会整层擦除 graphic：探测首个存活元素，被擦除则强制重渲染
         const sample = liveIdsRef.current.values().next().value as string | undefined
         if (sample && !getZrEl(chart, sample)) sigRef.current = ''
-        render()
+        renderLayer(p, refs)
       } catch (err) {
         console.warn('[drawing] 图层降级', err)
       }
@@ -316,7 +120,7 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
         dragRef,
         suppressClickRef,
         sigRef,
-        render,
+        render: () => renderLayer(p, refs),
         handleDragMove,
         finishDrag,
         commitDraft,
@@ -362,7 +166,7 @@ export function useDrawingLayer(params: UseDrawingLayerParams): {
 
   useEffect(() => {
     try {
-      render()
+      renderLayer(p, refs)
     } catch (err) {
       console.warn('[drawing] 图层降级', err)
     }
