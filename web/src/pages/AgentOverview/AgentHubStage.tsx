@@ -1,9 +1,10 @@
 /**
- * Agent Hub 舞台（D32）：三层绝对定位共用一份 layoutHub 像素坐标与容器
- * 实测尺寸——① HubBackgroundCanvas（网格 + 扫描线 + 中心脉冲，页面唯一
- * rAF）；② SVG 连线层（真实数据流边，fast 档 dash 流动 + animateMotion
- * 光点，prefers-reduced-motion 停用）；③ HTML 节点层（资源站图标卡 +
- * Agent 单元，运行态徽标后端算真实状态）。右上角图例解释图标与线型。
+ * Agent Hub 分层舞台（D33）：三层自上而下——Agent 运行层 / 资源系统层
+ * （五站同维度同款） / 基建层（状态灯 + Celery 任务方框条）。三层渲染共用
+ * layoutLayers 像素坐标与容器实测尺寸：① HubBackgroundCanvas（网格 + 扫描
+ * 线，页面唯一 rAF）；② SVG 连线层（真实数据流边，fast 档 dash 流动 +
+ * animateMotion 光点，prefers-reduced-motion 停用）；③ HTML 节点层。左缘
+ * 层带标签 + 右上图例。
  */
 import {
   ClockCircleOutlined,
@@ -23,11 +24,15 @@ import { useNavigate } from 'react-router-dom'
 
 import type { AgentOverviewItem } from '@ai-invest/shared'
 
+import { useCeleryQueues } from '@/hooks/useCeleryQueues'
+import { useSystemStatus } from '@/hooks/useSystemStatus'
+
 import { buildHubEdges } from './hubEdges'
 import type { HubEdge } from './hubEdges'
-import { layoutHub } from './hubLayout'
+import { layoutLayers } from './hubLayout'
 import type { Point, StationId } from './hubLayout'
 
+import { InfraLayerNodes } from './InfraLayer'
 import { StateBadge } from './StateBadge'
 
 const STATION_META: Record<StationId, { label: string; desc: string; icon: ReactNode }> = {
@@ -44,6 +49,12 @@ const EDGE_COLOR: Record<HubEdge['kind'], string> = {
   account: '#faad14',
   upstream: '#8c8c8c',
 }
+
+const BAND_LABELS = [
+  { y: 0.16, text: 'AGENT 运行' },
+  { y: 0.46, text: '资源系统' },
+  { y: 0.74, text: '基础设施' },
+] as const
 
 function useElementDims<T extends HTMLElement>() {
   const ref = useRef<T>(null)
@@ -74,7 +85,7 @@ function usePrefersReducedMotion(): boolean {
   return reduced
 }
 
-/** 背景：科技网格 + conic 扫描线 + 中心脉冲（简化自原雷达 Canvas，无节点绘制）。 */
+/** 背景：科技网格 + conic 扫描线（页面唯一 rAF，reduced-motion 时单帧）。 */
 function HubBackgroundCanvas() {
   const { ref, dims } = useElementDims<HTMLDivElement>()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -109,9 +120,18 @@ function HubBackgroundCanvas() {
       }
       ctx.stroke()
 
-      const r = Math.min(width * 0.27, height * 0.38)
+      // 各层带淡横线（分层语义）
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.07)'
+      for (const frac of [0.08, 0.3, 0.62, 0.85]) {
+        ctx.beginPath()
+        ctx.moveTo(0, height * frac)
+        ctx.lineTo(width, height * frac)
+        ctx.stroke()
+      }
+
+      const r = Math.min(width * 0.3, height * 0.45)
       const gradient = ctx.createConicGradient(angle, cx, cy)
-      gradient.addColorStop(0, 'rgba(56, 189, 248, 0.16)')
+      gradient.addColorStop(0, 'rgba(56, 189, 248, 0.1)')
       gradient.addColorStop(0.1, 'rgba(56, 189, 248, 0.02)')
       gradient.addColorStop(0.14, 'rgba(56, 189, 248, 0)')
       gradient.addColorStop(1, 'rgba(56, 189, 248, 0)')
@@ -120,20 +140,9 @@ function HubBackgroundCanvas() {
       ctx.arc(cx, cy, r, 0, Math.PI * 2)
       ctx.fillStyle = gradient
       ctx.fill()
-
-      const pulse = 1 + 0.1 * Math.sin(angle * 2)
-      const glow = ctx.createRadialGradient(cx, cy, 2, cx, cy, 52 * pulse)
-      glow.addColorStop(0, 'rgba(56, 189, 248, 0.4)')
-      glow.addColorStop(0.5, 'rgba(56, 189, 248, 0.1)')
-      glow.addColorStop(1, 'rgba(56, 189, 248, 0)')
-      ctx.beginPath()
-      ctx.arc(cx, cy, 52 * pulse, 0, Math.PI * 2)
-      ctx.fillStyle = glow
-      ctx.fill()
     }
 
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduced) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       drawFrame(0)
       return
     }
@@ -213,26 +222,13 @@ function EdgeLayer({
 
 function ResourceStation({ id, point }: { id: StationId; point: Point }) {
   const meta = STATION_META[id]
-  const isHub = id === 'paper'
   return (
     <div
       className="absolute -translate-x-1/2 -translate-y-1/2"
       style={{ left: point.x, top: point.y }}
     >
-      <div
-        className={`flex items-center gap-2 rounded-xl border backdrop-blur-sm ${
-          isHub
-            ? 'border-sky-400/30 bg-sky-400/10 px-3.5 py-2.5'
-            : 'border-white/10 bg-[#0b1220]/80 px-2.5 py-1.5'
-        }`}
-      >
-        <span
-          className={`inline-flex items-center justify-center rounded-lg ${
-            isHub
-              ? 'size-9 bg-sky-400/20 text-lg text-sky-300'
-              : 'size-6 bg-white/[0.06] text-sm text-sky-300'
-          }`}
-        >
+      <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0b1220]/80 px-2.5 py-1.5 backdrop-blur-sm">
+        <span className="inline-flex size-6 items-center justify-center rounded-lg bg-white/[0.06] text-sm text-sky-300">
           {meta.icon}
         </span>
         <span className="leading-tight">
@@ -301,13 +297,12 @@ function HubLegend() {
         </span>
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-        <span className="text-sky-300">━ 流动 = 近期活跃</span>
-        <span>─ 静态 = 久未活动</span>
+        <span className="text-sky-300">━ 计划输入</span>
         <span className="text-purple-400">━ 方法论注入</span>
         <span className="text-amber-400">━ 账户交易</span>
-        <span>━ 数据汇入复盘</span>
+        <span>━ 汇入复盘</span>
       </div>
-      <div className="mt-1 text-white/40">点击 Agent 卡进详情；连线只画真实数据流</div>
+      <div className="mt-1 text-white/40">基建灯：绿=正常 红=异常 · 方框=Celery 任务</div>
     </div>
   )
 }
@@ -321,10 +316,16 @@ export function AgentHubStage({
 }) {
   const { ref, dims } = useElementDims<HTMLDivElement>()
   const reducedMotion = usePrefersReducedMotion()
-  const layout = useMemo(
-    () => layoutHub(dims.width, dims.height, items.length),
-    [dims, items.length],
-  )
+  const { data: systemStatus } = useSystemStatus()
+  const { data: celeryQueues } = useCeleryQueues()
+
+  const layout = useMemo(() => {
+    const squareCount = (celeryQueues?.queues ?? []).reduce(
+      (total, queue) => total + queue.tasks.length,
+      0,
+    )
+    return layoutLayers(dims.width, dims.height, items.length, squareCount)
+  }, [dims, items.length, celeryQueues])
   const edges = useMemo(() => buildHubEdges(items), [items])
   const agentPoints = useMemo(
     () => new Map(items.map((item, i) => [item.profile.agentKey, layout.agents[i]])),
@@ -344,12 +345,27 @@ export function AgentHubStage({
             animated={!reducedMotion}
           />
           <div className="absolute inset-0">
-            {(Object.keys(STATION_META) as StationId[]).map((id) => (
-              <ResourceStation key={id} id={id} point={layout.stations[id]} />
+            {BAND_LABELS.map(({ y, text }) => (
+              <span
+                key={text}
+                className="absolute text-[10px] tracking-widest text-white/30"
+                style={{ left: 8, top: `${y * 100}%`, transform: 'translateY(-50%)' }}
+              >
+                {text}
+              </span>
             ))}
             {items.map((item, i) => (
               <AgentUnit key={item.profile.agentKey} item={item} point={layout.agents[i]} />
             ))}
+            {(Object.keys(STATION_META) as StationId[]).map((id) => (
+              <ResourceStation key={id} id={id} point={layout.stations[id]} />
+            ))}
+            <InfraLayerNodes
+              systemStatus={systemStatus}
+              celeryQueues={celeryQueues}
+              points={layout.infra}
+              squarePoints={layout.squares}
+            />
           </div>
         </>
       )}

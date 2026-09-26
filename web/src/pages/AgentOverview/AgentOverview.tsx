@@ -30,7 +30,7 @@ export function AgentOverview() {
         </Typography.Text>
       </div>
       <div className="overflow-x-auto">
-        <div className="h-[420px] min-w-[560px] overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] md:h-[500px]">
+        <div className="h-[540px] min-w-[680px] overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] md:h-[620px]">
           <AgentHubStage items={items} isLoading={isLoading} />
         </div>
       </div>

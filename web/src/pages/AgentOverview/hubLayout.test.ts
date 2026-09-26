@@ -1,62 +1,58 @@
 import { describe, expect, it } from 'vitest'
 
-import { RING_STATIONS, layoutHub } from './hubLayout'
+import { INFRA_IDS, RING_STATIONS, SQUARE_CAP, layoutLayers } from './hubLayout'
 
-describe('layoutHub', () => {
-  it('puts paper hub at center and ring stations evenly from top', () => {
-    const { center, stations } = layoutHub(1000, 1000, 3)
-    expect(stations.paper).toEqual(center)
-    expect(center).toEqual({ x: 500, y: 500 })
-    expect(stations.kb.x).toBeCloseTo(500)
-    expect(stations.kb.y).toBeCloseTo(280)
-    expect(stations.review.x).toBeCloseTo(720)
-    expect(stations.review.y).toBeCloseTo(500)
-    expect(stations.news.x).toBeCloseTo(500)
-    expect(stations.news.y).toBeCloseTo(720)
-    expect(stations.sentiment.x).toBeCloseTo(280)
-    expect(stations.sentiment.y).toBeCloseTo(500)
-  })
-
-  it('places up to 8 agents on a single outer radius evenly', () => {
-    const { center, agents } = layoutHub(1000, 1000, 3)
+describe('layoutLayers', () => {
+  it('places agents on a single row evenly inside the agent band', () => {
+    const { agents } = layoutLayers(1000, 1000, 3, 0)
     expect(agents).toHaveLength(3)
-    // 首槽自顶部起
-    expect(agents[0].x).toBeCloseTo(500)
-    expect(agents[0].y).toBeCloseTo(120)
-    // 均匀角度 → 等距圆周
-    const radius = (p: { x: number; y: number }) =>
-      Math.hypot(p.x - center.x, p.y - center.y)
-    expect(radius(agents[1])).toBeCloseTo(radius(agents[0]))
-    expect(radius(agents[2])).toBeCloseTo(radius(agents[0]))
+    expect(agents[0].x).toBeCloseTo(250)
+    expect(agents[1].x).toBeCloseTo(500)
+    expect(agents[2].x).toBeCloseTo(750)
+    for (const p of agents) expect(p.y).toBeCloseTo(160)
   })
 
-  it('alternates dual radii when agents exceed 8 slots', () => {
-    const { center, agents } = layoutHub(1000, 1000, 9)
-    expect(agents).toHaveLength(9)
-    const radius = (p: { x: number; y: number }) =>
-      Math.hypot(p.x - center.x, p.y - center.y)
-    expect(radius(agents[0])).toBeCloseTo(380)
-    expect(radius(agents[1])).toBeCloseTo(380 * 0.84)
-    expect(radius(agents[2])).toBeCloseTo(380)
+  it('lays five stations on the same band at equal width (paper not special)', () => {
+    const { stations } = layoutLayers(1000, 1000, 0, 0)
+    expect(Object.keys(stations)).toHaveLength(RING_STATIONS.length)
+    for (const p of Object.values(stations)) expect(p.y).toBeCloseTo(460)
+    expect(stations.kb.x).toBeCloseTo(1000 / 6)
+    expect(stations.review.x).toBeCloseTo((1000 * 2) / 6)
+    expect(stations.paper.x).toBeCloseTo((1000 * 5) / 6)
+  })
+
+  it('lays five infra boxes on the infra band', () => {
+    const { infra } = layoutLayers(1000, 1000, 0, 0)
+    expect(Object.keys(infra)).toHaveLength(INFRA_IDS.length)
+    for (const p of Object.values(infra)) expect(p.y).toBeCloseTo(740)
+    expect(infra.postgres.x).toBeCloseTo(1000 / 6)
+    expect(infra.minio.x).toBeCloseTo((1000 * 5) / 6)
+  })
+
+  it('caps square anchors at SQUARE_CAP and matches squareCount', () => {
+    const { squares } = layoutLayers(1000, 1000, 0, 5)
+    expect(squares).toHaveLength(5)
+    const capped = layoutLayers(1000, 1000, 0, 40)
+    expect(capped.squares).toHaveLength(SQUARE_CAP)
+    for (const p of capped.squares) expect(p.y).toBeCloseTo(920)
   })
 
   it('keeps all nodes inside the container on small stages', () => {
-    const { stations, agents } = layoutHub(400, 300, 12)
-    for (const p of [...Object.values(stations), ...agents]) {
-      expect(p.x).toBeGreaterThanOrEqual(52)
-      expect(p.x).toBeLessThanOrEqual(348)
-      expect(p.y).toBeGreaterThanOrEqual(52)
-      expect(p.y).toBeLessThanOrEqual(248)
+    const { stations, agents, infra, squares } = layoutLayers(400, 300, 12, 20)
+    for (const p of [...Object.values(stations), ...agents, ...Object.values(infra), ...squares]) {
+      expect(p.x).toBeGreaterThanOrEqual(56)
+      expect(p.x).toBeLessThanOrEqual(344)
+      expect(p.y).toBeGreaterThanOrEqual(56)
+      expect(p.y).toBeLessThanOrEqual(244)
     }
   })
 
   it('returns no agent slots for zero agents', () => {
-    const { agents } = layoutHub(1000, 1000, 0)
+    const { agents } = layoutLayers(1000, 1000, 0, 0)
     expect(agents).toHaveLength(0)
   })
 
-  it('ring order starts with kb', () => {
-    expect(RING_STATIONS[0]).toBe('kb')
-    expect(RING_STATIONS).not.toContain('paper')
+  it('station order keeps paper as an ordinary member of the ring', () => {
+    expect(RING_STATIONS).toEqual(['kb', 'review', 'news', 'sentiment', 'paper'])
   })
 })
