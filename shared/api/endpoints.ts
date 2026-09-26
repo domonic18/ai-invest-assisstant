@@ -24,6 +24,9 @@ export const ENDPOINTS = {
     watchlistGroupOrder: `${API_BASE}/users/watchlist/groups/order`,
     watchlistItem: (itemId: number | string) =>
       `${API_BASE}/users/watchlist/items/${itemId}`,
+    watchlistAgentGroup: `${API_BASE}/users/watchlist/agent-group`,
+    watchlistAgentGroupSelection: (selectionId: number | string) =>
+      `${API_BASE}/users/watchlist/agent-group/selections/${selectionId}`,
   },
   stocks: {
     search: `${API_BASE}/stocks/search`,
@@ -330,6 +333,9 @@ export const ENDPOINTS = {
     paperTradeAccounts: `${API_BASE}/admin/paper-trade/accounts`,
     tradingAgentConfig: `${API_BASE}/admin/trading-agent/config`,
     tradingAgentReview: `${API_BASE}/admin/trading-agent/review`,
+    tradingAgentPlans: `${API_BASE}/admin/trading-agent/plans`,
+    tradingAgentPlanCancel: (planId: number | string) =>
+      `${API_BASE}/admin/trading-agent/plans/${planId}/cancel`,
     paperTradeAccountAgent: (id: number | string) =>
       `${API_BASE}/admin/paper-trade/accounts/${id}/agent`,
     paperTradeAccountEnabled: (id: number | string) =>

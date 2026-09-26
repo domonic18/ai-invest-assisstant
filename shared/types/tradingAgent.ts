@@ -57,3 +57,40 @@ export interface ApiTradingAgentReview {
   suggestion: string
   experiences: ApiTradingAgentReviewExperience[]
 }
+
+/** 计划状态机（active → triggered → executed / expired / cancelled）。 */
+export type TradingAgentPlanStatus = 'active' | 'triggered' | 'executed' | 'expired' | 'cancelled'
+
+/** 交易计划条目（admin GET /trading-agent/plans 与「今日交易计划」区块）。 */
+export interface ApiTradingAgentPlan {
+  id: number
+  planDate: string
+  stockCode: string
+  planType: 'buy' | 'sell'
+  strategy: string
+  buyZoneLow: number | null
+  buyZoneHigh: number | null
+  targetPrice: number | null
+  stopLoss: number
+  positionPct: number
+  status: TradingAgentPlanStatus
+  selectionId: number | null
+  basis: string
+  triggeredClOrdId: string | null
+}
+
+/** agent 选股条目（自选页 agent 分组：AI 依据 + 置信度）。 */
+export interface ApiAgentWatchlistSelectionItem {
+  id: number
+  stockCode: string
+  reason: string
+  confidence: number | null
+  tradeDate: string
+}
+
+/** 自选页 agent 分组（平台级单例，全员可见；null = 尚未生成选股）。 */
+export interface ApiAgentWatchlistGroupResponse {
+  id: number
+  name: string
+  items: ApiAgentWatchlistSelectionItem[]
+}

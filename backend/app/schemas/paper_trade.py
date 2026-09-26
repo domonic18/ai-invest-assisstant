@@ -275,3 +275,40 @@ class TradingAgentReviewResponse(CamelModel):
     bias: str
     suggestion: str
     experiences: list[TradingAgentReviewExperienceItem] = []
+
+
+class TradingAgentPlanResponse(CamelModel):
+    """交易计划条目（「今日交易计划」区块与对话 list 工具共用）。"""
+
+    id: int
+    plan_date: date
+    stock_code: str
+    plan_type: str
+    strategy: str
+    buy_zone_low: float | None = None
+    buy_zone_high: float | None = None
+    target_price: float | None = None
+    stop_loss: float
+    position_pct: float
+    status: str
+    selection_id: int | None = None
+    basis: str
+    triggered_cl_ord_id: str | None = None
+
+
+class AgentSelectionItem(CamelModel):
+    """agent 选股条目（自选页 agent 分组：AI 依据 + 置信度）。"""
+
+    id: int
+    stock_code: str
+    reason: str
+    confidence: float | None = None
+    trade_date: date
+
+
+class AgentWatchlistGroupResponse(CamelModel):
+    """自选页 agent 分组（平台级单例，全员可见；items 为当前 active 选股）。"""
+
+    id: int
+    name: str
+    items: list[AgentSelectionItem] = []
