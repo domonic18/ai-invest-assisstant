@@ -58,6 +58,12 @@ export interface ApiTradingAgentReview {
   experiences: ApiTradingAgentReviewExperience[]
 }
 
+/** 有记录日期清单（日历打点：计划日 + 各周期复盘基准日）。 */
+export interface ApiTradingAgentDates {
+  planDates: string[]
+  reviewDates: Partial<Record<TradingReviewPeriod, string[]>>
+}
+
 /** 计划状态机（active → triggered → executed / expired / cancelled）。 */
 export type TradingAgentPlanStatus = 'active' | 'triggered' | 'executed' | 'expired' | 'cancelled'
 

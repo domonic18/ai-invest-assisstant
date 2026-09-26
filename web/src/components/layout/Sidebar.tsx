@@ -73,7 +73,6 @@ const ADMIN_MENU_ITEMS: MenuItem[] = [
   { key: '/admin/proxy-configs', icon: <CloudServerOutlined />, label: '代理配置' },
   { key: '/admin/ai-results', icon: <FileDoneOutlined />, label: '分析结果' },
   { key: '/admin/collector', icon: <PlayCircleOutlined />, label: '采集管理' },
-  { key: '/trading-agent', icon: <ThunderboltOutlined />, label: '模拟管理' },
   { key: '/admin/social-tracking', icon: <WeiboOutlined />, label: '社媒追踪' },
 ]
 
@@ -178,6 +177,10 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
     { key: '/watchlist', icon: <StarOutlined />, label: '我的自选' },
     // 模拟交易：掘金仿真账户（多租户配置 + 人工交易；agent 交易后续批次接入）
     { key: '/paper-trade', icon: <MoneyCollectOutlined />, label: '模拟交易' },
+    // 模拟管理：交易 Agent 闭环（仅 admin 可见，路由侧 ProtectedAdmin 双保险）
+    ...(isAdmin
+      ? [{ key: '/trading-agent', icon: <ThunderboltOutlined />, label: '模拟管理' } as MenuItem]
+      : []),
     { type: 'group', key: 'group-detection', label: '监测', children: DETECTION_MENU_ITEMS },
     { type: 'group', key: 'group-analysis', label: '分析', children: ANALYSIS_MENU_ITEMS },
     { type: 'group', key: 'group-settings', label: '设置', children: settingsChildren },

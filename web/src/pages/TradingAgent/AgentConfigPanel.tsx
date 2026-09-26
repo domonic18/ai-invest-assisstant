@@ -59,48 +59,51 @@ export function AgentConfigPanel() {
             })
           }
         >
-          <Form.Item
-            name="llmConfigId"
-            label="对话模型"
-            extra="留空使用平台默认 chat 模型；仅列出启用中的 chat 用途配置"
-          >
-            <Select
-              allowClear
-              loading={llmLoading}
-              placeholder="平台默认"
-              options={llmOptions ?? []}
-            />
-          </Form.Item>
-          <Form.Item
-            name="riskMaxPositionPct"
-            label="单票市值上限（占总资产）"
-            rules={[{ required: true, message: '必填' }]}
-          >
-            <InputNumber className="w-full" min={0} max={100} step={1} addonAfter="%" />
-          </Form.Item>
-          <Form.Item
-            name="riskMaxTotalPct"
-            label="总持仓上限（占总资产）"
-            rules={[{ required: true, message: '必填' }]}
-          >
-            <InputNumber className="w-full" min={0} max={100} step={1} addonAfter="%" />
-          </Form.Item>
-          <Form.Item
-            name="riskMaxDailyOrders"
-            label="单日委托笔数上限"
-            rules={[{ required: true, message: '必填' }]}
-          >
-            <InputNumber className="w-full" min={1} step={1} precision={0} />
-          </Form.Item>
-          <Form.Item
-            name="autoExecEnabled"
-            label="盘中自主执行"
-            valuePropName="checked"
-            extra="关闭后盘中不自动执行交易计划（对话内交易不受影响）"
-          >
-            <Switch />
-          </Form.Item>
-          <div className="flex items-center justify-between">
+          <div className="grid gap-x-6 md:grid-cols-2 xl:grid-cols-4">
+            <Form.Item
+              name="llmConfigId"
+              label="对话模型"
+              extra="留空使用平台默认 chat 模型；仅列出启用中的 chat 用途配置"
+              className="xl:col-span-2"
+            >
+              <Select
+                allowClear
+                loading={llmLoading}
+                placeholder="平台默认"
+                options={llmOptions ?? []}
+              />
+            </Form.Item>
+            <Form.Item
+              name="riskMaxPositionPct"
+              label="单票市值上限（占总资产）"
+              rules={[{ required: true, message: '必填' }]}
+            >
+              <InputNumber className="w-full" min={0} max={100} step={1} addonAfter="%" />
+            </Form.Item>
+            <Form.Item
+              name="riskMaxTotalPct"
+              label="总持仓上限（占总资产）"
+              rules={[{ required: true, message: '必填' }]}
+            >
+              <InputNumber className="w-full" min={0} max={100} step={1} addonAfter="%" />
+            </Form.Item>
+            <Form.Item
+              name="riskMaxDailyOrders"
+              label="单日委托笔数上限"
+              rules={[{ required: true, message: '必填' }]}
+            >
+              <InputNumber className="w-full" min={1} step={1} precision={0} />
+            </Form.Item>
+            <Form.Item
+              name="autoExecEnabled"
+              label="盘中自主执行"
+              valuePropName="checked"
+              extra="关闭后盘中不自动执行交易计划（对话内交易不受影响）"
+            >
+              <Switch />
+            </Form.Item>
+          </div>
+          <div className="flex items-center justify-end gap-3">
             <Typography.Text type="secondary" className="text-xs">
               {config.updatedAt
                 ? `更新于 ${dayjs(config.updatedAt).format('YYYY-MM-DD HH:mm')}`

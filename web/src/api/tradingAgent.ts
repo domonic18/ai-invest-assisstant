@@ -4,6 +4,7 @@ import { ENDPOINTS } from '@ai-invest/shared'
 import type {
   ApiTradingAgentConfig,
   ApiTradingAgentConfigUpdateRequest,
+  ApiTradingAgentDates,
   ApiTradingAgentPlan,
   ApiTradingAgentReview,
   TradingReviewPeriod,
@@ -30,10 +31,19 @@ export async function updateTradingAgentConfig(
 
 export async function fetchTradingAgentReview(
   period: TradingReviewPeriod,
+  tradeDate?: string,
 ): Promise<ApiTradingAgentReview> {
   const response = await apiClient.get<ApiTradingAgentReview>(
     ENDPOINTS.admin.tradingAgentReview,
-    { params: { period } },
+    { params: tradeDate ? { period, trade_date: tradeDate } : { period } },
+  )
+  return response.data
+}
+
+/** 有记录日期清单（日历打点：计划日 + 各周期已生成复盘的基准日）。 */
+export async function fetchTradingAgentDates(): Promise<ApiTradingAgentDates> {
+  const response = await apiClient.get<ApiTradingAgentDates>(
+    ENDPOINTS.admin.tradingAgentDates,
   )
   return response.data
 }

@@ -59,9 +59,9 @@ function renderTabPane(key: TabKey) {
       return <ExperiencePanel />
     case 'accounts':
       return (
-        <div className="grid gap-3 lg:grid-cols-2">
-          <AgentConfigPanel />
+        <div className="space-y-3">
           <PaperTradeAccountsAdmin />
+          <AgentConfigPanel />
         </div>
       )
   }

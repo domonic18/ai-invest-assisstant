@@ -2,15 +2,20 @@
  * 今日交易计划卡片（批次 7）：19:00 定时生成 + 对话制定共用的计划清单。
  *
  * 数据源 admin GET /trading-agent/plans（缺省最近交易日，含全部状态）；
+ * 日期选择对齐每日复盘页（MarkedDatePicker，有计划的日期打点）；
  * 状态分色：active 待触发 / triggered 已触发 / executed 已成交 /
  * expired 已失效 / cancelled 已取消；active 计划可人工取消。
  */
 import { Card, Empty, Popconfirm, Space, Spin, Tag, Typography } from 'antd'
 import { StopOutlined } from '@ant-design/icons'
+import dayjs, { type Dayjs } from 'dayjs'
+import { useState } from 'react'
 
 import type { ApiTradingAgentPlan } from '@ai-invest/shared'
 
-import { useCancelTradingAgentPlan, useTradingAgentPlans } from '@/hooks/useTradingAgent'
+import { MarkedDatePicker } from '@/components/common/MarkedDatePicker'
+import { useCancelTradingAgentPlan, useTradingAgentDates, useTradingAgentPlans } from '@/hooks/useTradingAgent'
+import { DATE_FORMAT } from '@/utils/formatters'
 
 const STATUS_META: Record<ApiTradingAgentPlan['status'], { label: string; color: string }> = {
   active: { label: '待触发', color: 'processing' },
@@ -76,10 +81,26 @@ function PlanRow({ plan }: { plan: ApiTradingAgentPlan }) {
 }
 
 export function PlanPanel() {
-  const { data: plans, isLoading } = useTradingAgentPlans()
+  const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null)
+  const tradeDate = selectedDate?.format(DATE_FORMAT)
+  const { data: plans, isLoading } = useTradingAgentPlans(tradeDate)
+  const { data: dates } = useTradingAgentDates()
 
   return (
-    <Card size="small" title="今日交易计划">
+    <Card
+      size="small"
+      title="交易计划"
+      extra={
+        <MarkedDatePicker
+          value={selectedDate}
+          onChange={setSelectedDate}
+          allowClear
+          size="small"
+          placeholder="最近交易日"
+          markedDates={dates?.planDates}
+        />
+      }
+    >
       {isLoading ? (
         <div className="flex justify-center py-8">
           <Spin />
@@ -87,7 +108,11 @@ export function PlanPanel() {
       ) : !plans || plans.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="尚未生成（每交易日 19:00 自动生成，也可在对话中制定）"
+          description={
+            tradeDate && dayjs(tradeDate).isBefore(dayjs(), 'day')
+              ? '该日无计划记录（每日交易日 19:00 自动生成，也可在对话中制定）'
+              : '尚未生成（每交易日 19:00 自动生成，也可在对话中制定）'
+          }
         />
       ) : (
         <Space direction="vertical" size="small" className="w-full">

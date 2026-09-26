@@ -12,6 +12,7 @@ import { fetchLLMConfigs } from '@/api/modelConfig'
 import {
   cancelTradingAgentPlan,
   fetchTradingAgentConfig,
+  fetchTradingAgentDates,
   fetchTradingAgentPlans,
   fetchTradingAgentReview,
   updateTradingAgentConfig,
@@ -26,14 +27,23 @@ export function useTradingAgentConfig() {
 }
 
 /** 已生成的分层复盘（只读缓存，404 视为「尚未生成」由调用方处理）。 */
-export function useTradingAgentReview(period: TradingReviewPeriod) {
+export function useTradingAgentReview(period: TradingReviewPeriod, tradeDate?: string) {
   return useQuery({
-    queryKey: queryKeys.tradingAgent.review(period),
-    queryFn: () => fetchTradingAgentReview(period),
+    queryKey: queryKeys.tradingAgent.review(period, tradeDate),
+    queryFn: () => fetchTradingAgentReview(period, tradeDate),
     retry: (failureCount, error) => {
       const status = (error as { response?: { status?: number } }).response?.status
       return status !== 404 && failureCount < 2
     },
+  })
+}
+
+/** 有记录日期清单（计划/复盘日历打点，5 分钟档）。 */
+export function useTradingAgentDates() {
+  return useQuery({
+    queryKey: queryKeys.tradingAgent.dates,
+    queryFn: fetchTradingAgentDates,
+    staleTime: 5 * 60 * 1000,
   })
 }
 

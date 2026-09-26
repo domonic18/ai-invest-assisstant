@@ -2,9 +2,12 @@
  * AI 复盘卡片（批次 6）：日/周/月分层复盘展示。
  *
  * 数据源为 16:10 定时任务生成的缓存（admin GET /trading-agent/review 只读，
- * 不触发 LLM）；404 表示该周期尚未生成。verdict 三层 = 选股/计划/执行。
+ * 不触发 LLM）；404 表示该周期尚未生成。日期选择对齐每日复盘页
+ * （MarkedDatePicker，已生成该周期复盘的基准日打点）；verdict 三层 =
+ * 选股/计划/执行。
  */
 import { Card, Descriptions, Empty, Segmented, Space, Spin, Table, Tag, Typography } from 'antd'
+import dayjs, { type Dayjs } from 'dayjs'
 import { useState } from 'react'
 
 import type {
@@ -13,7 +16,9 @@ import type {
   TradingReviewPeriod,
 } from '@ai-invest/shared'
 
-import { useTradingAgentReview } from '@/hooks/useTradingAgent'
+import { MarkedDatePicker } from '@/components/common/MarkedDatePicker'
+import { useTradingAgentDates, useTradingAgentReview } from '@/hooks/useTradingAgent'
+import { DATE_FORMAT } from '@/utils/formatters'
 
 const VERDICT_ITEMS: Record<string, { label: string; color: string }> = {
   correct: { label: '对', color: 'success' },
@@ -57,23 +62,42 @@ const verdictColumns = [
 
 export function ReviewPanel() {
   const [period, setPeriod] = useState<TradingReviewPeriod>('day')
-  const { data: review, isLoading } = useTradingAgentReview(period)
+  const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null)
+  const tradeDate = selectedDate?.format(DATE_FORMAT)
+  const { data: review, isLoading } = useTradingAgentReview(period, tradeDate)
+  const { data: dates } = useTradingAgentDates()
+
+  const changePeriod = (next: TradingReviewPeriod) => {
+    setPeriod(next)
+    // 周期切换清日期：旧周期的基准日对新周期通常无对应记录
+    setSelectedDate(null)
+  }
 
   return (
     <Card
       size="small"
       title="AI 复盘"
       extra={
-        <Segmented
-          size="small"
-          value={period}
-          onChange={(v) => setPeriod(v as TradingReviewPeriod)}
-          options={[
-            { label: '日', value: 'day' },
-            { label: '周', value: 'week' },
-            { label: '月', value: 'month' },
-          ]}
-        />
+        <Space size="small" wrap>
+          <Segmented
+            size="small"
+            value={period}
+            onChange={(v) => changePeriod(v as TradingReviewPeriod)}
+            options={[
+              { label: '日', value: 'day' },
+              { label: '周', value: 'week' },
+              { label: '月', value: 'month' },
+            ]}
+          />
+          <MarkedDatePicker
+            value={selectedDate}
+            onChange={setSelectedDate}
+            allowClear
+            size="small"
+            placeholder="最新一期"
+            markedDates={dates?.reviewDates[period]}
+          />
+        </Space>
       }
     >
       {isLoading ? (
@@ -83,7 +107,11 @@ export function ReviewPanel() {
       ) : !review ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="尚未生成（每交易日 16:10 盘后自动生成）"
+          description={
+            tradeDate && dayjs(tradeDate).isBefore(dayjs(), 'day')
+              ? '该日未生成此周期复盘（每交易日 16:10 盘后自动生成）'
+              : '尚未生成（每交易日 16:10 盘后自动生成）'
+          }
         />
       ) : (
         <Space direction="vertical" size="small" className="w-full">

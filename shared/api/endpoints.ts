@@ -333,6 +333,7 @@ export const ENDPOINTS = {
     paperTradeAccounts: `${API_BASE}/admin/paper-trade/accounts`,
     tradingAgentConfig: `${API_BASE}/admin/trading-agent/config`,
     tradingAgentReview: `${API_BASE}/admin/trading-agent/review`,
+    tradingAgentDates: `${API_BASE}/admin/trading-agent/dates`,
     tradingAgentPlans: `${API_BASE}/admin/trading-agent/plans`,
     tradingAgentPlanCancel: (planId: number | string) =>
       `${API_BASE}/admin/trading-agent/plans/${planId}/cancel`,
