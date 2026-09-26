@@ -28,6 +28,8 @@ import {
 } from '@/hooks/useTradingAgent'
 import { useAssistantStore } from '@/stores/assistant'
 
+import { ReviewPanel } from './ReviewPanel'
+
 function TradingChatHeader({ onNewThread }: { onNewThread: () => void }) {
   return (
     <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
@@ -204,8 +206,9 @@ export function TradingAgent() {
           </AssistantErrorBoundary>
         </div>
       </div>
-      <div className="hidden w-[320px] shrink-0 overflow-y-auto lg:block">
+      <div className="hidden w-[320px] shrink-0 space-y-3 overflow-y-auto lg:block">
         <AgentConfigPanel />
+        <ReviewPanel />
       </div>
     </div>
   )

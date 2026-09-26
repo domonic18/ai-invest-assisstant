@@ -26,3 +26,34 @@ export interface ApiTradingAgentConfigUpdateRequest {
   riskMaxDailyOrders?: number
   autoExecEnabled?: boolean
 }
+
+/** 复盘周期。 */
+export type TradingReviewPeriod = 'day' | 'week' | 'month'
+
+/** 单笔委托三层判定（selection=该不该做 / plan=计划 / execution=执行）。 */
+export interface ApiTradingAgentTradeVerdict {
+  clOrdId: string
+  stockCode: string
+  selectionVerdict: 'correct' | 'wrong' | 'neutral'
+  planVerdict: 'correct' | 'wrong' | 'neutral'
+  executionVerdict: 'correct' | 'wrong' | 'neutral'
+  reason: string
+}
+
+/** 复盘提取的经验条目（批次 9 沉淀为 agent_memory 的直接来源）。 */
+export interface ApiTradingAgentReviewExperience {
+  title: string
+  body: string
+  memType: 'discipline' | 'method' | 'lesson'
+}
+
+/** 模拟盘分层复盘（admin GET /trading-agent/review，只读缓存）。 */
+export interface ApiTradingAgentReview {
+  period: TradingReviewPeriod
+  tradeDate: string
+  overall: string
+  trades: ApiTradingAgentTradeVerdict[]
+  bias: string
+  suggestion: string
+  experiences: ApiTradingAgentReviewExperience[]
+}

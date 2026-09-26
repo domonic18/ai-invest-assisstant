@@ -275,5 +275,6 @@ export const queryKeys = {
     all: ['trading-agent'] as const,
     config: ['trading-agent', 'config'] as const,
     llmConfigs: ['trading-agent', 'llm-configs'] as const,
+    review: (period: string) => ['trading-agent', 'review', period] as const,
   },
 } as const

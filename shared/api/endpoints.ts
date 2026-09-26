@@ -329,6 +329,7 @@ export const ENDPOINTS = {
     asrConfigTest: `${API_BASE}/admin/model-configs/asr/test`,
     paperTradeAccounts: `${API_BASE}/admin/paper-trade/accounts`,
     tradingAgentConfig: `${API_BASE}/admin/trading-agent/config`,
+    tradingAgentReview: `${API_BASE}/admin/trading-agent/review`,
     paperTradeAccountAgent: (id: number | string) =>
       `${API_BASE}/admin/paper-trade/accounts/${id}/agent`,
     paperTradeAccountEnabled: (id: number | string) =>

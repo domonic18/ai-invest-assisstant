@@ -1,18 +1,37 @@
-/** 交易 Agent 配置 hooks（admin）。 */
+/** 交易 Agent hooks（admin，配置 + 复盘查询）。 */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { message } from 'antd'
 
-import type { ApiTradingAgentConfigUpdateRequest } from '@ai-invest/shared'
+import type {
+  ApiTradingAgentConfigUpdateRequest,
+  TradingReviewPeriod,
+} from '@ai-invest/shared'
 
 import { fetchLLMConfigs } from '@/api/modelConfig'
-import { fetchTradingAgentConfig, updateTradingAgentConfig } from '@/api/tradingAgent'
+import {
+  fetchTradingAgentConfig,
+  fetchTradingAgentReview,
+  updateTradingAgentConfig,
+} from '@/api/tradingAgent'
 import { queryKeys } from '@/hooks/queryKeys'
 
 export function useTradingAgentConfig() {
   return useQuery({
     queryKey: queryKeys.tradingAgent.config,
     queryFn: fetchTradingAgentConfig,
+  })
+}
+
+/** 已生成的分层复盘（只读缓存，404 视为「尚未生成」由调用方处理）。 */
+export function useTradingAgentReview(period: TradingReviewPeriod) {
+  return useQuery({
+    queryKey: queryKeys.tradingAgent.review(period),
+    queryFn: () => fetchTradingAgentReview(period),
+    retry: (failureCount, error) => {
+      const status = (error as { response?: { status?: number } }).response?.status
+      return status !== 404 && failureCount < 2
+    },
   })
 }
 
