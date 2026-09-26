@@ -32,3 +32,17 @@ class PaperTradeGatewayError(AppError):
 
     status_code = 502
     default_message = "模拟盘网关错误"
+
+
+class AgentAccountNotDesignatedError(AppError):
+    """交易 Agent 无关联专属账户（is_agent 行不存在）。
+
+    管理端先在「模拟交易账户」指定 agent 专属账户后，对话/定时交易才可用；
+    工具层捕获本错误转引导文案（不作为系统异常上抛）。
+    """
+
+    status_code = 400
+    default_message = (
+        "交易 Agent 尚未关联专属模拟盘账户，请联系管理员在后台"
+        "「模拟交易账户」中指定（指定后即可交易）"
+    )

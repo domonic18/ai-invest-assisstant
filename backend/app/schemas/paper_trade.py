@@ -2,6 +2,8 @@
 
 from datetime import date, datetime
 
+from pydantic import Field
+
 from app.schemas.base import CamelModel
 
 
@@ -211,3 +213,29 @@ class PaperTradeAdminAccountListResponse(CamelModel):
     """管理端全平台账户列表。"""
 
     items: list[PaperTradeAdminAccountRow] = []
+
+
+# ============================================================
+# 交易 Agent 配置（单例）
+# ============================================================
+
+
+class TradingAgentConfigResponse(CamelModel):
+    """交易 Agent 全局配置（单例行）。"""
+
+    llm_config_id: int | None = None
+    risk_max_position_pct: float
+    risk_max_total_pct: float
+    risk_max_daily_orders: int
+    auto_exec_enabled: bool
+    updated_at: datetime | None = None
+
+
+class TradingAgentConfigUpdateRequest(CamelModel):
+    """更新交易 Agent 配置（未提供的字段不变；llm_config_id 空 = 平台默认 chat 模型）。"""
+
+    llm_config_id: int | None = None
+    risk_max_position_pct: float | None = Field(default=None, ge=0, le=100)
+    risk_max_total_pct: float | None = Field(default=None, ge=0, le=100)
+    risk_max_daily_orders: int | None = Field(default=None, ge=1)
+    auto_exec_enabled: bool | None = None
