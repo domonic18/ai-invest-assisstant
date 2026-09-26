@@ -17,6 +17,7 @@ import type {
 } from '@ai-invest/shared'
 
 import { MarkedDatePicker } from '@/components/common/MarkedDatePicker'
+import { useAgentKey } from './agentKeyContext'
 import { useTradingAgentDates, useTradingAgentReview } from '@/hooks/useTradingAgent'
 import { DATE_FORMAT } from '@/utils/formatters'
 
@@ -64,8 +65,9 @@ export function ReviewPanel() {
   const [period, setPeriod] = useState<TradingReviewPeriod>('day')
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null)
   const tradeDate = selectedDate?.format(DATE_FORMAT)
-  const { data: review, isLoading } = useTradingAgentReview(period, tradeDate)
-  const { data: dates } = useTradingAgentDates()
+  const agentKey = useAgentKey()
+  const { data: review, isLoading } = useTradingAgentReview(agentKey, period, tradeDate)
+  const { data: dates } = useTradingAgentDates(agentKey)
 
   const changePeriod = (next: TradingReviewPeriod) => {
     setPeriod(next)

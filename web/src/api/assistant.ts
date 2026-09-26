@@ -5,7 +5,8 @@ import { API_BASE, StorageKey } from '@ai-invest/shared'
 import { apiClient } from './client'
 
 // 后端 assistant 协议层对齐 langgraph-sdk 的 snake_case wire，勿改成 camelCase
-export type AssistantAgentType = 'assistant' | 'trading'
+/** 'assistant' = 人工助手；其余值为交易 Agent 的 agent_key（后端注册表校验）。 */
+export type AssistantAgentType = string
 
 export interface AssistantSessionItem {
   thread_id: string

@@ -1,33 +1,77 @@
 /**
  * 交易 Agent wire 类型（与 backend/app/schemas/paper_trade.py 的
- * TradingAgentConfig* camelCase 对齐；docs/plan/paper-trading-plan.md §8）。
+ * TradingAgentProfile / AgentOverview 系列 camelCase 对齐；docs/plan/agent-hub-plan.md）。
  */
 
-/** 交易 Agent 全局配置（单例）。 */
-export interface ApiTradingAgentConfig {
+/** 交易 Agent 注册行视图（身份/介绍/模型绑定/风控/总闸）。 */
+export interface TradingAgentProfile {
+  agentKey: string
+  name: string
+  tagline: string
+  strategyDesc: string
+  styleDesc: string
   /** 绑定的 llm_config 条目 id；null = 平台默认 chat 模型。 */
-  llmConfigId?: number | null
-  /** 方法论知识源（kb_source.id，温程《趋势理论》）；null = 未启用方法论基座注入。 */
-  methodologySourceId?: number | null
+  llmConfigId: number | null
+  /** 方法论知识源（kb_source.id）；null = 未启用方法论基座注入。 */
+  methodologySourceId: number | null
   /** 单票市值 ≤ 总资产 %。 */
   riskMaxPositionPct: number
   /** 总持仓市值 ≤ 总资产 %。 */
   riskMaxTotalPct: number
   /** 单日委托笔数上限。 */
   riskMaxDailyOrders: number
-  /** 盘中自主执行总闸（批次 8 消费）。 */
+  /** 盘中自主执行总闸（盘中执行批次消费）。 */
   autoExecEnabled: boolean
+  status: 'active' | 'planned' | 'disabled'
+  sortOrder: number
+  promptId: string
+  accentColor: string
   updatedAt?: string | null
 }
 
-/** 交易 Agent 配置保存请求（未提供字段不变）。 */
-export interface ApiTradingAgentConfigUpdateRequest {
+/** 交易 Agent 配置保存请求（未提供字段不变；仅 active 可写）。 */
+export interface TradingAgentProfileUpdateRequest {
+  name?: string
+  tagline?: string
+  strategyDesc?: string
+  styleDesc?: string
   llmConfigId?: number | null
   methodologySourceId?: number | null
   riskMaxPositionPct?: number
   riskMaxTotalPct?: number
   riskMaxDailyOrders?: number
   autoExecEnabled?: boolean
+}
+
+/** 总览近期活动条目（计划生成/触发、复盘生成）。 */
+export interface AgentActivityItem {
+  kind: 'plan' | 'review'
+  title: string
+  detail?: string | null
+  occurredAt?: string | null
+}
+
+/** 总览「接下来」条目：后端按 cron + 交易日历算好的下次触发时刻（UTC）。 */
+export interface AgentNextTask {
+  task: string
+  scheduledAt: string
+}
+
+/** 总览页单 Agent 聚合：介绍卡 + 模型 + 当日计数 + 近期活动 + 下次任务。 */
+export interface AgentOverviewItem {
+  profile: TradingAgentProfile
+  llmName: string | null
+  planCount: number
+  selectionCount: number
+  orderCount: number
+  recentActivity: AgentActivityItem[]
+  nextTasks: AgentNextTask[]
+}
+
+/** 总览页聚合载荷（GET /admin/trading-agent/agents）。 */
+export interface AgentOverviewResponse {
+  items: AgentOverviewItem[]
+  generatedAt: string
 }
 
 /** 复盘周期。 */

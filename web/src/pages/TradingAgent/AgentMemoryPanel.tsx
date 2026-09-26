@@ -23,6 +23,7 @@ import { useState } from 'react'
 
 import type { ApiAgentMemory, AgentMemoryType } from '@ai-invest/shared'
 
+import { useAgentKey } from './agentKeyContext'
 import {
   useTradingAgentMemories,
   useUpdateTradingAgentMemory,
@@ -42,7 +43,8 @@ const STATUS_FILTERS = [
 ] as const
 
 function MemoryRow({ memory, onEdit }: { memory: ApiAgentMemory; onEdit: (m: ApiAgentMemory) => void }) {
-  const changeStatus = useUpdateTradingAgentMemoryStatus()
+  const agentKey = useAgentKey()
+  const changeStatus = useUpdateTradingAgentMemoryStatus(agentKey)
   const typeMeta = MEM_TYPE_META[memory.memType] ?? { label: memory.memType, color: 'default' }
   const archived = memory.status === 'archived'
 
@@ -109,7 +111,8 @@ function MemoryEditModal({
   onClose: () => void
 }) {
   const [form] = Form.useForm<EditFormValues>()
-  const update = useUpdateTradingAgentMemory()
+  const agentKey = useAgentKey()
+  const update = useUpdateTradingAgentMemory(agentKey)
 
   const submit = async () => {
     if (!memory) return
@@ -163,7 +166,8 @@ function MemoryEditModal({
 export function AgentMemoryPanel() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'archived'>('all')
   const [editing, setEditing] = useState<ApiAgentMemory | null>(null)
-  const { data: memories, isLoading } = useTradingAgentMemories()
+  const agentKey = useAgentKey()
+  const { data: memories, isLoading } = useTradingAgentMemories(agentKey)
 
   const filtered = (memories ?? []).filter(
     (m) => statusFilter === 'all' || m.status === statusFilter,

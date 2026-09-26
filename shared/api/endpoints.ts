@@ -328,20 +328,27 @@ export const ENDPOINTS = {
     asrConfig: `${API_BASE}/admin/model-configs/asr`,
     asrConfigTest: `${API_BASE}/admin/model-configs/asr/test`,
     paperTradeAccounts: `${API_BASE}/admin/paper-trade/accounts`,
-    tradingAgentConfig: `${API_BASE}/admin/trading-agent/config`,
-    tradingAgentReview: `${API_BASE}/admin/trading-agent/review`,
-    tradingAgentDates: `${API_BASE}/admin/trading-agent/dates`,
-    tradingAgentPlans: `${API_BASE}/admin/trading-agent/plans`,
-    tradingAgentPlanCancel: (planId: number | string) =>
-      `${API_BASE}/admin/trading-agent/plans/${planId}/cancel`,
-    tradingAgentSelections: `${API_BASE}/admin/trading-agent/selections`,
-    tradingAgentSelection: (selectionId: number | string) =>
-      `${API_BASE}/admin/trading-agent/selections/${selectionId}`,
-    tradingAgentMemories: `${API_BASE}/admin/trading-agent/memories`,
-    tradingAgentMemory: (memoryId: number | string) =>
-      `${API_BASE}/admin/trading-agent/memories/${memoryId}`,
-    tradingAgentMemoryStatus: (memoryId: number | string) =>
-      `${API_BASE}/admin/trading-agent/memories/${memoryId}/status`,
+    tradingAgentAgents: `${API_BASE}/admin/trading-agent/agents`,
+    tradingAgentConfig: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/config`,
+    tradingAgentReview: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/review`,
+    tradingAgentDates: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/dates`,
+    tradingAgentPlans: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/plans`,
+    tradingAgentPlanCancel: (agentKey: string, planId: number | string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/plans/${planId}/cancel`,
+    tradingAgentSelections: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/selections`,
+    tradingAgentSelection: (agentKey: string, selectionId: number | string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/selections/${selectionId}`,
+    tradingAgentMemories: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/memories`,
+    tradingAgentMemory: (agentKey: string, memoryId: number | string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/memories/${memoryId}`,
+    tradingAgentMemoryStatus: (agentKey: string, memoryId: number | string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/memories/${memoryId}/status`,
     paperTradeAccountAgent: (id: number | string) =>
       `${API_BASE}/admin/paper-trade/accounts/${id}/agent`,
     paperTradeAccountEnabled: (id: number | string) =>

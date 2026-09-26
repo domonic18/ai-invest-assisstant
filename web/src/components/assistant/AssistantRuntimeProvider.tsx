@@ -11,17 +11,18 @@ import { useLangGraphRuntime } from '@assistant-ui/react-langgraph'
 import { useMemo } from 'react'
 
 import { createAssistantClient } from '@/api/assistant'
+import type { AssistantAgentType } from '@/api/assistant'
 import { useAssistantStore } from '@/stores/assistant'
 
 import { createAssistantRuntimeAdapter } from './runtimeAdapter'
 
 interface AssistantRuntimeProviderProps {
   children: ReactNode
-  /** assistant（默认）：全局抽屉，线程态走全局 store；trading：页内嵌会话，线程态由挂载方持有 */
-  agentType?: 'assistant' | 'trading'
-  /** trading 模式的受控线程 id（assistant 模式忽略） */
+  /** assistant（默认）：全局抽屉，线程态走全局 store；agent_key：页内嵌会话，线程态由挂载方持有 */
+  agentType?: AssistantAgentType
+  /** 交易 Agent 模式的受控线程 id（assistant 模式忽略） */
   threadId?: string
-  /** trading 模式的线程回调（assistant 模式忽略） */
+  /** 交易 Agent 模式的线程回调（assistant 模式忽略） */
   onThreadIdChange?: (threadId: string | undefined) => void
 }
 
@@ -33,7 +34,7 @@ export function AssistantRuntimeProvider({
 }: AssistantRuntimeProviderProps) {
   const storeThreadId = useAssistantStore((state) => state.threadId)
   const storeSwitchThread = useAssistantStore((state) => state.switchThread)
-  const isTrading = agentType === 'trading'
+  const isTrading = agentType !== 'assistant'
   const threadId = isTrading ? externalThreadId : storeThreadId
   const onThreadIdChange = isTrading ? externalOnThreadIdChange : storeSwitchThread
   const adapter = useMemo(

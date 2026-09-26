@@ -1,20 +1,20 @@
 /**
- * 模拟管理页（原交易 Agent 页，仅 admin）：模拟盘闭环统一入口。
+ * Agent 详情页（仅 admin，路由 /trading-agent/:agentKey）：单 Agent 闭环统一入口。
  *
  * 结构 = 运行状态条 + Tabs：工作台（agent 对话，PC 附计划/复盘侧栏）、
  * Agent 自选（选股清单 + 人工移出）、交易计划、交易记录（agent 账户
  * 委托/成交）、复盘记录（日/周/月）、经验总结（分层复盘 + Agent 记忆
- * 管理）、账户与配置（Agent 配置 + 模拟盘账户管理）。tab 态进 URL query（/admin/paper-trade 旧路由重定向
- * 到 ?tab=accounts）；工作台保持挂载（antd Tabs 默认隐藏不卸载），切 tab
- * 不中断会话流。
+ * 管理）、账户与配置（Agent 配置 + 模拟盘账户管理）。tab 态进 URL query；
+ * 工作台保持挂载（antd Tabs 默认隐藏不卸载），切 tab 不中断会话流。
  */
 import { EditOutlined } from '@ant-design/icons'
-import { Button, Tabs, Typography } from 'antd'
+import { Button, Spin, Tabs, Tag, Typography } from 'antd'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 
 import { PAGE_EVENT_TYPES } from '@ai-invest/shared'
+import type { TradingAgentProfile } from '@ai-invest/shared'
 
 import { useAssistantSessions } from '@/components/assistant/hooks/useAssistantSessions'
 import { AssistantErrorBoundary } from '@/components/assistant/AssistantErrorBoundary'
@@ -24,7 +24,10 @@ import { AssistantThread } from '@/components/assistant/AssistantThread'
 import { TodoListBar } from '@/components/assistant/ui/TodoListBar'
 import { queryKeys } from '@/hooks/queryKeys'
 import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
+import { useTradingAgentConfig, useTradingAgentLlmOptions } from '@/hooks/useTradingAgent'
 import { useAssistantStore } from '@/stores/assistant'
+
+import { AgentKeyContext, useAgentKey } from './agentKeyContext'
 
 import { AgentConfigPanel } from './AgentConfigPanel'
 import { AgentMemoryPanel } from './AgentMemoryPanel'
@@ -103,11 +106,12 @@ function TradingChatHeader({ onNewThread }: { onNewThread: () => void }) {
 }
 
 function WorkbenchPane() {
+  const agentKey = useAgentKey()
   const [threadId, setThreadId] = useState<string | undefined>(undefined)
   const lastThreadIdRef = useRef<string | undefined>(undefined)
   const todos = useAssistantStore((state) => state.todos)
   const { sessions, isLoading, deleteSessionById, refresh } = useAssistantSessions({
-    agentType: 'trading',
+    agentType: agentKey,
   })
 
   // 线程变更单点：新会话首条消息发出后线程才真实创建（onThreadIdChange 回填），
@@ -143,7 +147,7 @@ function WorkbenchPane() {
         <div className="min-h-0 flex-1">
           <AssistantErrorBoundary>
             <AssistantRuntimeProvider
-              agentType="trading"
+              agentType={agentKey}
               threadId={threadId}
               onThreadIdChange={changeThread}
             >
@@ -160,7 +164,54 @@ function WorkbenchPane() {
   )
 }
 
+/** Agent 介绍卡：accent_color 点缀 + 策略/风格/模型（注册行直读）。 */
+function AgentIntroCard({ profile }: { profile: TradingAgentProfile }) {
+  const { data: llmOptions } = useTradingAgentLlmOptions()
+  const llmName = profile.llmConfigId
+    ? llmOptions?.find((option) => option.value === profile.llmConfigId)?.label
+    : '平台默认模型'
+
+  return (
+    <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5">
+      <span className="inline-flex items-center gap-2">
+        <span
+          className="inline-block size-2.5 rounded-full"
+          style={{ backgroundColor: profile.accentColor }}
+        />
+        <Typography.Text strong>{profile.name}</Typography.Text>
+        <Typography.Text type="secondary" className="text-xs">
+          {profile.tagline}
+        </Typography.Text>
+      </span>
+      <span className="inline-flex items-center gap-1.5 text-xs">
+        <span className="text-white/60">策略</span>
+        <Typography.Text className="text-xs">{profile.strategyDesc}</Typography.Text>
+      </span>
+      <span className="inline-flex items-center gap-1.5 text-xs">
+        <span className="text-white/60">风格</span>
+        <Tag color="geekblue" className="!mr-0">
+          {profile.styleDesc}
+        </Tag>
+      </span>
+      <span className="inline-flex items-center gap-1.5 text-xs">
+        <span className="text-white/60">模型</span>
+        <Typography.Text className="text-xs">{llmName ?? '…'}</Typography.Text>
+      </span>
+      <span className="inline-flex items-center gap-1.5 text-xs">
+        <span className="text-white/60">风控</span>
+        <Typography.Text className="text-xs">
+          单票 ≤{profile.riskMaxPositionPct}% · 总仓 ≤{profile.riskMaxTotalPct}% · 日委托 ≤
+          {profile.riskMaxDailyOrders}笔
+        </Typography.Text>
+      </span>
+    </div>
+  )
+}
+
 export function TradingAgent() {
+  const { agentKey: routeKey } = useParams()
+  const agentKey = routeKey ?? 'short-line'
+  const { data: profile, isLoading: profileLoading } = useTradingAgentConfig(agentKey)
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
 
@@ -183,18 +234,27 @@ export function TradingAgent() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-5.75rem)] min-h-[480px] flex-col gap-3 md:h-[calc(100dvh-6.5rem)]">
-      <AgentStatusStrip onOpenAccounts={() => changeTab('accounts')} />
-      <div className="min-h-0 flex-1">
-        <Tabs
-          activeKey={activeTab}
-          onChange={changeTab}
-          items={TAB_ITEMS.map((item) => ({ ...item, children: renderTabPane(item.key as TabKey) }))}
-          size="small"
-          className="flex h-full flex-col [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-content-holder]:overflow-y-auto [&_.ant-tabs-nav]:!mb-3 [&_.ant-tabs-nav]:shrink-0 [&_.ant-tabs-tab]:!py-1.5"
-          destroyInactiveTabPane={false}
-        />
+    <AgentKeyContext.Provider value={agentKey}>
+      <div className="flex h-[calc(100dvh-5.75rem)] min-h-[480px] flex-col gap-3 md:h-[calc(100dvh-6.5rem)]">
+        {profile ? (
+          <AgentIntroCard profile={profile} />
+        ) : profileLoading ? (
+          <div className="flex shrink-0 justify-center py-2">
+            <Spin size="small" />
+          </div>
+        ) : null}
+        <AgentStatusStrip onOpenAccounts={() => changeTab('accounts')} />
+        <div className="min-h-0 flex-1">
+          <Tabs
+            activeKey={activeTab}
+            onChange={changeTab}
+            items={TAB_ITEMS.map((item) => ({ ...item, children: renderTabPane(item.key as TabKey) }))}
+            size="small"
+            className="flex h-full flex-col [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-content-holder]:overflow-y-auto [&_.ant-tabs-nav]:!mb-3 [&_.ant-tabs-nav]:shrink-0 [&_.ant-tabs-tab]:!py-1.5"
+            destroyInactiveTabPane={false}
+          />
+        </div>
       </div>
-    </div>
+    </AgentKeyContext.Provider>
   )
 }

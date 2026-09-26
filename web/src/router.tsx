@@ -160,11 +160,15 @@ export const router = createBrowserRouter([
           { path: 'trade-calendar', element: lazyEl(<TradeCalendarAdmin />) },
         ],
       },
-      // 交易 Agent：admin 专属对话与配置（批次 5）
+      // 交易 Agent Hub：admin 专属（总览 + 各 Agent 详情，多 Agent 基座）
       {
         path: 'trading-agent',
         element: <ProtectedAdmin />,
-        children: [{ index: true, element: lazyEl(<TradingAgent />) }],
+        children: [
+          // index 暂跳唯一 active Agent；贾维斯总览页落地后替换
+          { index: true, element: <Navigate to="/trading-agent/short-line" replace /> },
+          { path: ':agentKey', element: lazyEl(<TradingAgent />) },
+        ],
       },
     ],
   },

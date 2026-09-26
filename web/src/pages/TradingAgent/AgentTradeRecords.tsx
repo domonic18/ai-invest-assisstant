@@ -11,6 +11,7 @@ import { formatAmount } from '@/utils/formatters'
 import { PaperTradeExecutionsPanel, PaperTradeOrdersPanel } from '@/pages/PaperTrade/PaperTradeOrderHistory'
 import { useAdminPaperTradeAccounts } from '@/hooks/usePaperTrade'
 import { usePaperTradeOverview } from '@/hooks/usePaperTrade'
+import { useAgentKey } from './agentKeyContext'
 
 function OverviewStats({ accountId }: { accountId: number }) {
   const { data: overview, isLoading } = usePaperTradeOverview(accountId)
@@ -45,8 +46,9 @@ function OverviewStats({ accountId }: { accountId: number }) {
 }
 
 export function AgentTradeRecords() {
+  const agentKey = useAgentKey()
   const { data: accounts, isLoading } = useAdminPaperTradeAccounts()
-  const agentAccount = accounts?.items.find((account) => account.isAgent)
+  const agentAccount = accounts?.items.find((account) => account.agentKey === agentKey)
 
   if (isLoading) {
     return (

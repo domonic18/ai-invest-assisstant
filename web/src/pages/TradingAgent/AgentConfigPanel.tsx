@@ -7,6 +7,7 @@ import { Button, Card, Form, InputNumber, Select, Spin, Switch, Typography } fro
 import dayjs from 'dayjs'
 import { useEffect } from 'react'
 
+import { useAgentKey } from './agentKeyContext'
 import {
   useTradingAgentConfig,
   useTradingAgentLlmOptions,
@@ -23,9 +24,10 @@ interface ConfigFormValues {
 
 export function AgentConfigPanel() {
   const [form] = Form.useForm<ConfigFormValues>()
-  const { data: config, isLoading } = useTradingAgentConfig()
+  const agentKey = useAgentKey()
+  const { data: config, isLoading } = useTradingAgentConfig(agentKey)
   const { data: llmOptions, isLoading: llmLoading } = useTradingAgentLlmOptions()
-  const update = useUpdateTradingAgentConfig()
+  const update = useUpdateTradingAgentConfig(agentKey)
 
   useEffect(() => {
     if (config) {

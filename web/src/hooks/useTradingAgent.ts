@@ -1,17 +1,19 @@
-/** 交易 Agent hooks（admin，配置 + 复盘查询 + 计划查询/取消）。 */
+/** 交易 Agent hooks（admin，总览 + 配置 + 复盘查询 + 计划查询/取消，按 agentKey）。 */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { message } from 'antd'
 
 import type {
+  AgentOverviewResponse,
   ApiAgentMemoryUpdateRequest,
-  ApiTradingAgentConfigUpdateRequest,
+  TradingAgentProfileUpdateRequest,
   TradingReviewPeriod,
 } from '@ai-invest/shared'
 
 import { fetchLLMConfigs } from '@/api/modelConfig'
 import {
   cancelTradingAgentPlan,
+  fetchAgentOverview,
   fetchTradingAgentConfig,
   fetchTradingAgentDates,
   fetchTradingAgentMemories,
@@ -25,18 +27,30 @@ import {
 } from '@/api/tradingAgent'
 import { queryKeys } from '@/hooks/queryKeys'
 
-export function useTradingAgentConfig() {
+/** 全部注册 Agent 的总览聚合（贾维斯总览页，30s 轮询由调用方定）。 */
+export function useAgentOverview() {
   return useQuery({
-    queryKey: queryKeys.tradingAgent.config,
-    queryFn: fetchTradingAgentConfig,
+    queryKey: queryKeys.tradingAgent.agents,
+    queryFn: fetchAgentOverview,
+  })
+}
+
+export function useTradingAgentConfig(agentKey: string) {
+  return useQuery({
+    queryKey: queryKeys.tradingAgent.config(agentKey),
+    queryFn: () => fetchTradingAgentConfig(agentKey),
   })
 }
 
 /** 已生成的分层复盘（只读缓存，404 视为「尚未生成」由调用方处理）。 */
-export function useTradingAgentReview(period: TradingReviewPeriod, tradeDate?: string) {
+export function useTradingAgentReview(
+  agentKey: string,
+  period: TradingReviewPeriod,
+  tradeDate?: string,
+) {
   return useQuery({
-    queryKey: queryKeys.tradingAgent.review(period, tradeDate),
-    queryFn: () => fetchTradingAgentReview(period, tradeDate),
+    queryKey: queryKeys.tradingAgent.review(agentKey, period, tradeDate),
+    queryFn: () => fetchTradingAgentReview(agentKey, period, tradeDate),
     retry: (failureCount, error) => {
       const status = (error as { response?: { status?: number } }).response?.status
       return status !== 404 && failureCount < 2
@@ -45,10 +59,10 @@ export function useTradingAgentReview(period: TradingReviewPeriod, tradeDate?: s
 }
 
 /** 有记录日期清单（计划/复盘日历打点，5 分钟档）。 */
-export function useTradingAgentDates() {
+export function useTradingAgentDates(agentKey: string) {
   return useQuery({
-    queryKey: queryKeys.tradingAgent.dates,
-    queryFn: fetchTradingAgentDates,
+    queryKey: queryKeys.tradingAgent.dates(agentKey),
+    queryFn: () => fetchTradingAgentDates(agentKey),
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -68,11 +82,11 @@ export function useTradingAgentLlmOptions() {
   })
 }
 
-export function useUpdateTradingAgentConfig() {
+export function useUpdateTradingAgentConfig(agentKey: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: ApiTradingAgentConfigUpdateRequest) =>
-      updateTradingAgentConfig(data),
+    mutationFn: (data: TradingAgentProfileUpdateRequest) =>
+      updateTradingAgentConfig(agentKey, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.all })
       message.success('交易 Agent 配置已保存')
@@ -82,18 +96,18 @@ export function useUpdateTradingAgentConfig() {
 }
 
 /** 指定日交易计划（缺省取最近交易日；含全部状态由前端分色）。 */
-export function useTradingAgentPlans(tradeDate?: string) {
+export function useTradingAgentPlans(agentKey: string, tradeDate?: string) {
   return useQuery({
-    queryKey: queryKeys.tradingAgent.plans(tradeDate),
-    queryFn: () => fetchTradingAgentPlans(tradeDate),
+    queryKey: queryKeys.tradingAgent.plans(agentKey, tradeDate),
+    queryFn: () => fetchTradingAgentPlans(agentKey, tradeDate),
   })
 }
 
 /** 人工取消 active 计划（triggered 后端拒绝）。 */
-export function useCancelTradingAgentPlan() {
+export function useCancelTradingAgentPlan(agentKey: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (planId: number) => cancelTradingAgentPlan(planId),
+    mutationFn: (planId: number) => cancelTradingAgentPlan(agentKey, planId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.all })
       message.success('计划已取消')
@@ -103,20 +117,20 @@ export function useCancelTradingAgentPlan() {
 }
 
 /** agent 自选分组（null = 尚未生成选股）。 */
-export function useTradingAgentSelections() {
+export function useTradingAgentSelections(agentKey: string) {
   return useQuery({
-    queryKey: queryKeys.tradingAgent.selections,
-    queryFn: fetchTradingAgentSelections,
+    queryKey: queryKeys.tradingAgent.selections(agentKey),
+    queryFn: () => fetchTradingAgentSelections(agentKey),
   })
 }
 
 /** 人工移出 agent 选股（removed_reason=manual，全局生效次日不重复选入）。 */
-export function useRemoveTradingAgentSelection() {
+export function useRemoveTradingAgentSelection(agentKey: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (selectionId: number) => removeTradingAgentSelection(selectionId),
+    mutationFn: (selectionId: number) => removeTradingAgentSelection(agentKey, selectionId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.selections })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.selections(agentKey) })
       message.success('已移出，次日不再选入')
     },
     onError: (error: Error) => message.error(error.message),
@@ -124,21 +138,21 @@ export function useRemoveTradingAgentSelection() {
 }
 
 /** agent 记忆清单（缺省全部状态，按新近度倒序）。 */
-export function useTradingAgentMemories() {
+export function useTradingAgentMemories(agentKey: string) {
   return useQuery({
-    queryKey: queryKeys.tradingAgent.memories,
-    queryFn: () => fetchTradingAgentMemories(),
+    queryKey: queryKeys.tradingAgent.memories(agentKey),
+    queryFn: () => fetchTradingAgentMemories(agentKey),
   })
 }
 
 /** 编辑记忆（标题/正文/类型）。 */
-export function useUpdateTradingAgentMemory() {
+export function useUpdateTradingAgentMemory(agentKey: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ memoryId, data }: { memoryId: number; data: ApiAgentMemoryUpdateRequest }) =>
-      updateTradingAgentMemory(memoryId, data),
+      updateTradingAgentMemory(agentKey, memoryId, data),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.memories })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.memories(agentKey) })
       message.success('记忆已保存')
     },
     onError: (error: Error) => message.error(error.message),
@@ -146,15 +160,17 @@ export function useUpdateTradingAgentMemory() {
 }
 
 /** 切换记忆 active/archived（停用后次日计划 prompt 不再注入）。 */
-export function useUpdateTradingAgentMemoryStatus() {
+export function useUpdateTradingAgentMemoryStatus(agentKey: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ memoryId, status }: { memoryId: number; status: 'active' | 'archived' }) =>
-      updateTradingAgentMemoryStatus(memoryId, status),
+      updateTradingAgentMemoryStatus(agentKey, memoryId, status),
     onSuccess: (_, vars) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.memories })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.memories(agentKey) })
       message.success(vars.status === 'active' ? '记忆已启用' : '记忆已停用，次日不再注入')
     },
     onError: (error: Error) => message.error(error.message),
   })
 }
+
+export type { AgentOverviewResponse }

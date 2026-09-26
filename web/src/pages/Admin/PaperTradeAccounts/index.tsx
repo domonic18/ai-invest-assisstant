@@ -1,6 +1,7 @@
 import { RobotOutlined } from '@ant-design/icons'
-import { Alert, Button, Card, Popconfirm, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd'
+import { Alert, Button, Card, Popconfirm, Select, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import { useState } from 'react'
 
 import type { ApiPaperTradeAdminAccount } from '@ai-invest/shared'
 
@@ -10,14 +11,20 @@ import {
   useDesignatePaperTradeAgent,
   useSetPaperTradeAccountEnabled,
 } from '@/hooks/usePaperTrade'
+import { useAgentOverview } from '@/hooks/useTradingAgent'
 import { formatDateTime } from '@/utils/formatters'
 
-/** 管理端模拟盘账户：全平台列表 + 启停 + agent 专属账户指定/取消（全局唯一）。 */
+/** 管理端模拟盘账户：全平台列表 + 启停 + agent_key 专属账户指定/取消（每 Agent 唯一）。 */
 export function PaperTradeAccountsAdmin() {
   const accountsQuery = useAdminPaperTradeAccounts()
   const designateMutation = useDesignatePaperTradeAgent()
   const clearMutation = useClearPaperTradeAgent()
   const enabledMutation = useSetPaperTradeAccountEnabled()
+  const { data: overview } = useAgentOverview()
+  const agentOptions = (overview?.items ?? [])
+    .filter((item) => item.profile.status === 'active')
+    .map((item) => ({ value: item.profile.agentKey, label: item.profile.name }))
+  const [pendingAgentKey, setPendingAgentKey] = useState<string | undefined>(agentOptions[0]?.value)
 
   const columns: ColumnsType<ApiPaperTradeAdminAccount> = [
     {
@@ -27,7 +34,7 @@ export function PaperTradeAccountsAdmin() {
       render: (name: string, record) => (
         <Space size={4}>
           {name}
-          {record.isAgent && <Tag color="gold">Agent</Tag>}
+          {record.agentKey && <Tag color="gold">{record.agentKey}</Tag>}
           {!record.isEnabled && <Tag>已停用</Tag>}
         </Space>
       ),
@@ -76,41 +83,64 @@ export function PaperTradeAccountsAdmin() {
     {
       title: '操作',
       key: 'actions',
-      width: 150,
+      width: 230,
       render: (_, record) =>
-        record.isAgent ? (
+        record.agentKey ? (
           <Space size={6}>
             <Typography.Text type="secondary">当前 agent 账户</Typography.Text>
             <Popconfirm
-              title="取消 agent 关联？"
-              description="解除后 agent 暂无关联账户，可随时重新指定。"
-              onConfirm={() => void clearMutation.mutateAsync(record.id).catch(() => {})}
+              title={`取消 ${record.agentKey} 关联？`}
+              description="解除后该 Agent 暂无关联账户，可随时重新指定。"
+              onConfirm={() =>
+                void clearMutation
+                  .mutateAsync({ accountId: record.id, agentKey: record.agentKey as string })
+                  .catch(() => {})
+              }
             >
               <Button
                 size="small"
                 danger
-                loading={clearMutation.isPending && clearMutation.variables === record.id}
+                loading={
+                clearMutation.isPending && clearMutation.variables?.accountId === record.id
+              }
               >
                 取消关联
               </Button>
             </Popconfirm>
           </Space>
         ) : (
-          <Popconfirm
-            title="指定为 agent 专属账户？"
-            description="全局唯一，原 agent 账户自动还原为普通账户。"
-            onConfirm={() => void designateMutation.mutateAsync(record.id).catch(() => {})}
-          >
-            <Button
+          <Space size={6}>
+            <Select
               size="small"
-              icon={<RobotOutlined />}
-              loading={
-                designateMutation.isPending && designateMutation.variables === record.id
-              }
+              style={{ width: 110 }}
+              placeholder="选择 Agent"
+              options={agentOptions}
+              value={pendingAgentKey}
+              onChange={setPendingAgentKey}
+            />
+            <Popconfirm
+              title="指定为 Agent 专属账户？"
+              description={`该 Agent 原绑定账户（如有）自动还原为普通账户。`}
+              onConfirm={() => {
+                if (!pendingAgentKey) return
+                void designateMutation
+                  .mutateAsync({ accountId: record.id, agentKey: pendingAgentKey })
+                  .catch(() => {})
+              }}
             >
-              指定为 Agent
-            </Button>
-          </Popconfirm>
+              <Button
+                size="small"
+                icon={<RobotOutlined />}
+                disabled={!pendingAgentKey}
+                loading={
+                  designateMutation.isPending &&
+                  designateMutation.variables?.accountId === record.id
+                }
+              >
+                指定
+              </Button>
+            </Popconfirm>
+          </Space>
         ),
     },
   ]
