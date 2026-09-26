@@ -403,6 +403,7 @@ CREATE TABLE assistant_session (
     id              UUID PRIMARY KEY,                -- 兼作 Agent Protocol thread_id
     user_id         BIGINT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     title           VARCHAR(128),
+    agent_type      VARCHAR(16) NOT NULL DEFAULT 'assistant',  -- 会话归属 agent：assistant / trading（交易 Agent 线程分流）
     last_message_at TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -1645,3 +1646,33 @@ CREATE TABLE IF NOT EXISTS kb_settings (
 
 -- 缺省设置行（管理端「知识库设置」维护）
 INSERT INTO kb_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================
+-- 25. 交易 Agent 配置（F-SIM 批次 5：单例 LLM 绑定 + 风控阈值 + 自主执行总闸；
+--     paper-trade 三表见 migrations/20260924a_paper_trade_tables.sql）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS trading_agent_config (
+    id                     INTEGER       PRIMARY KEY CHECK (id = 1),  -- 恒为 1 的单例行
+    llm_config_id          BIGINT,                                    -- 关联 llm_config；空 = 默认 chat 模型
+    risk_max_position_pct  NUMERIC(5,2)  NOT NULL DEFAULT 20,         -- 单票市值 ≤ 总资产 %
+    risk_max_total_pct     NUMERIC(5,2)  NOT NULL DEFAULT 80,         -- 总持仓市值 ≤ 总资产 %
+    risk_max_daily_orders  INTEGER       NOT NULL DEFAULT 10,         -- 单日下单笔数上限
+    auto_exec_enabled      BOOLEAN       NOT NULL DEFAULT TRUE,       -- 盘中自主执行总闸（批次 8 轮询入口先检）
+    updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT fk_trading_agent_config_llm_config
+        FOREIGN KEY (llm_config_id) REFERENCES llm_config (id) ON DELETE SET NULL,
+    CONSTRAINT chk_trading_agent_config_position_pct
+        CHECK (risk_max_position_pct >= 0 AND risk_max_position_pct <= 100),
+    CONSTRAINT chk_trading_agent_config_total_pct
+        CHECK (risk_max_total_pct >= 0 AND risk_max_total_pct <= 100),
+    CONSTRAINT chk_trading_agent_config_daily_orders
+        CHECK (risk_max_daily_orders >= 1)
+);
+
+COMMENT ON TABLE trading_agent_config IS
+    '交易 Agent 全局配置（单例 id=1）：LLM 绑定 + 风控阈值 + 自主执行总闸（docs/plan/paper-trading-plan.md §8.5）';
+
+-- 缺省配置行（管理端「交易 Agent 配置」维护）
+INSERT INTO trading_agent_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
