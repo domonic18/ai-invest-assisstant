@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 
 import {
   cancelPaperTradeOrder,
+  clearPaperTradeAgentAccount,
   createPaperTradeAccount,
   deletePaperTradeAccount,
   designatePaperTradeAgentAccount,
@@ -102,6 +103,17 @@ export function useDesignatePaperTradeAgent() {
     onSuccess: (account) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.paperTrade.all })
       message.success(`「${account.name}」已设为 agent 专属账户（全局唯一，原 agent 已还原）`)
+    },
+  })
+}
+
+export function useClearPaperTradeAgent() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (accountId: number) => clearPaperTradeAgentAccount(accountId),
+    onSuccess: (account) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.paperTrade.all })
+      message.success(`「${account.name}」已取消 agent 关联（可随时重新指定）`)
     },
   })
 }

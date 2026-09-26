@@ -64,6 +64,16 @@ async def designate_agent(
     return _admin_row(account)
 
 
+@router.delete("/accounts/{account_id}/agent", response_model=PaperTradeAdminAccountRow)
+async def clear_agent(
+    account_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> PaperTradeAdminAccountRow:
+    """取消 agent 专属账户指定（解除后 agent 无关联账户，可重新指定）。"""
+    account = await account_service.admin_clear_agent(session, account_id)
+    return _admin_row(account)
+
+
 @router.put("/accounts/{account_id}/enabled", response_model=PaperTradeAdminAccountRow)
 async def set_enabled(
     account_id: int,

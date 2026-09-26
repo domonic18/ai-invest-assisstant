@@ -13,7 +13,7 @@ import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.models.paper_trade import (
     PaperTradeAccount,
     PaperTradeCashSnapshot,
@@ -177,6 +177,19 @@ async def admin_designate_agent(
             current.is_agent = False
         account.is_agent = True
         await session.commit()
+    return account
+
+
+async def admin_clear_agent(session: AsyncSession, account_id: int) -> PaperTradeAccount:
+    """取消 agent 专属账户指定：解除后 agent 无关联账户，可随时重新指定。"""
+    account = await session.get(PaperTradeAccount, account_id)
+    if account is None:
+        raise NotFoundError("模拟盘账户不存在")
+    if not account.is_agent:
+        raise BadRequestError("该账户不是 agent 专属账户，无需取消")
+    account.is_agent = False
+    await session.commit()
+    logger.info("paper_trade_agent_cleared", account_id=account_id)
     return account
 
 

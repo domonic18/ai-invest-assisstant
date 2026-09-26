@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.core.exceptions import BadRequestError, ConflictError, ForbiddenError, NotFoundError
 from app.services.trading import account_service as svc
 
 
@@ -181,6 +181,39 @@ class TestAdminDesignateAgent:
         session.get = AsyncMock(return_value=None)
         with pytest.raises(NotFoundError):
             await svc.admin_designate_agent(session, account_id=99)
+
+
+@pytest.mark.unit
+class TestAdminClearAgent:
+    @pytest.mark.asyncio
+    async def test_clears_agent_flag(self) -> None:
+        """解绑后 is_agent 置 False 并提交（agent 恢复无关联账户态）。"""
+        session = _session()
+        account = SimpleNamespace(id=2, is_agent=True)
+        session.get = AsyncMock(return_value=account)
+
+        result = await svc.admin_clear_agent(session, 2)
+
+        assert result is account
+        assert account.is_agent is False
+        session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_non_agent_account_rejected_400(self) -> None:
+        session = _session()
+        account = SimpleNamespace(id=2, is_agent=False)
+        session.get = AsyncMock(return_value=account)
+
+        with pytest.raises(BadRequestError, match="不是 agent"):
+            await svc.admin_clear_agent(session, 2)
+        session.commit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_missing_account_404(self) -> None:
+        session = MagicMock()
+        session.get = AsyncMock(return_value=None)
+        with pytest.raises(NotFoundError):
+            await svc.admin_clear_agent(session, 99)
 
     @pytest.mark.asyncio
     async def test_set_enabled(self) -> None:

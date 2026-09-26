@@ -84,6 +84,15 @@ export async function designatePaperTradeAgentAccount(
   return response.data
 }
 
+export async function clearPaperTradeAgentAccount(
+  accountId: number,
+): Promise<ApiPaperTradeAdminAccount> {
+  const response = await apiClient.delete<ApiPaperTradeAdminAccount>(
+    ENDPOINTS.admin.paperTradeAccountAgent(accountId),
+  )
+  return response.data
+}
+
 export async function setPaperTradeAccountEnabled(
   accountId: number,
   enabled: boolean,

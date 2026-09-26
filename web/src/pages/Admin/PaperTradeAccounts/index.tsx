@@ -6,15 +6,17 @@ import type { ApiPaperTradeAdminAccount } from '@ai-invest/shared'
 
 import {
   useAdminPaperTradeAccounts,
+  useClearPaperTradeAgent,
   useDesignatePaperTradeAgent,
   useSetPaperTradeAccountEnabled,
 } from '@/hooks/usePaperTrade'
 import { formatDateTime } from '@/utils/formatters'
 
-/** 管理端模拟盘账户：全平台列表 + 启停 + 指定 agent 专属账户（全局唯一）。 */
+/** 管理端模拟盘账户：全平台列表 + 启停 + agent 专属账户指定/取消（全局唯一）。 */
 export function PaperTradeAccountsAdmin() {
   const accountsQuery = useAdminPaperTradeAccounts()
   const designateMutation = useDesignatePaperTradeAgent()
+  const clearMutation = useClearPaperTradeAgent()
   const enabledMutation = useSetPaperTradeAccountEnabled()
 
   const columns: ColumnsType<ApiPaperTradeAdminAccount> = [
@@ -77,7 +79,22 @@ export function PaperTradeAccountsAdmin() {
       width: 150,
       render: (_, record) =>
         record.isAgent ? (
-          <Typography.Text type="secondary">当前 agent 账户</Typography.Text>
+          <Space size={6}>
+            <Typography.Text type="secondary">当前 agent 账户</Typography.Text>
+            <Popconfirm
+              title="取消 agent 关联？"
+              description="解除后 agent 暂无关联账户，可随时重新指定。"
+              onConfirm={() => void clearMutation.mutateAsync(record.id).catch(() => {})}
+            >
+              <Button
+                size="small"
+                danger
+                loading={clearMutation.isPending && clearMutation.variables === record.id}
+              >
+                取消关联
+              </Button>
+            </Popconfirm>
+          </Space>
         ) : (
           <Popconfirm
             title="指定为 agent 专属账户？"
