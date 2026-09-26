@@ -1,5 +1,7 @@
-"""交易 Agent admin 端点契约测试（复盘查询：camelCase wire / 404 / 422）。"""
+"""交易 Agent admin 端点契约测试（复盘/交易计划查询：camelCase wire / 404 / 422）。"""
 
+from datetime import date
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -7,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.dependencies import get_current_admin_user, get_db
 from app.main import app
+from app.models.agent_trading import AgentTradePlan
 
 
 @pytest.fixture
@@ -89,3 +92,86 @@ class TestGetTradingAgentReview:
         )
 
         assert resp.status_code == 422
+
+
+def _plan_row(**overrides) -> AgentTradePlan:
+    fields = {
+        "id": 11,
+        "plan_date": date(2026, 7, 17),
+        "stock_code": "600000",
+        "plan_type": "buy",
+        "strategy": "回踩买点区间接回",
+        "buy_zone_low": Decimal("9.9000"),
+        "buy_zone_high": Decimal("10.2000"),
+        "target_price": Decimal("11.0000"),
+        "stop_loss": Decimal("9.5000"),
+        "position_pct": Decimal("10.00"),
+        "status": "active",
+        "selection_id": 5,
+        "basis": "当日复盘解读",
+        "triggered_cl_ord_id": None,
+    }
+    fields.update(overrides)
+    return AgentTradePlan(**fields)
+
+
+@pytest.mark.unit
+class TestTradingAgentPlans:
+    def test_list_returns_camel_case_wire(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with (
+            patch(
+                "app.services.market.trade_calendar_service.resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 7, 17)),
+            ),
+            patch(
+                "app.services.trading.agent_plan_ops.list_plans",
+                AsyncMock(return_value=[_plan_row()]),
+            ),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/plans")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body[0]["planDate"] == "2026-07-17"
+        assert body[0]["planType"] == "buy"
+        assert body[0]["buyZoneLow"] == pytest.approx(9.9)
+        assert body[0]["buyZoneHigh"] == pytest.approx(10.2)
+        assert body[0]["stopLoss"] == pytest.approx(9.5)
+        assert body[0]["positionPct"] == pytest.approx(10.0)
+        assert body[0]["triggeredClOrdId"] is None
+
+    def test_list_accepts_trade_date_query(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with (
+            patch(
+                "app.services.market.trade_calendar_service.resolve_latest_trade_date",
+                AsyncMock(),
+            ) as resolve_mock,
+            patch(
+                "app.services.trading.agent_plan_ops.list_plans",
+                AsyncMock(return_value=[]),
+            ) as list_mock,
+        ):
+            resp = http.get(
+                "/api/v1/admin/trading-agent/plans", params={"trade_date": "2026-07-16"}
+            )
+
+        assert resp.status_code == 200
+        resolve_mock.assert_not_awaited()
+        assert list_mock.await_args.kwargs["plan_date"] == date(2026, 7, 16)
+
+    def test_cancel_returns_updated_plan(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with patch(
+            "app.services.trading.agent_plan_ops.cancel_plan",
+            AsyncMock(return_value=_plan_row(status="cancelled")),
+        ) as cancel_mock:
+            resp = http.post("/api/v1/admin/trading-agent/plans/11/cancel")
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "cancelled"
+        cancel_mock.assert_awaited_once_with(admin_client[1], plan_id=11)
