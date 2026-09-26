@@ -7,6 +7,8 @@
 export interface ApiTradingAgentConfig {
   /** 绑定的 llm_config 条目 id；null = 平台默认 chat 模型。 */
   llmConfigId?: number | null
+  /** 方法论知识源（kb_source.id，温程《趋势理论》）；null = 未启用方法论基座注入。 */
+  methodologySourceId?: number | null
   /** 单票市值 ≤ 总资产 %。 */
   riskMaxPositionPct: number
   /** 总持仓市值 ≤ 总资产 %。 */
@@ -21,6 +23,7 @@ export interface ApiTradingAgentConfig {
 /** 交易 Agent 配置保存请求（未提供字段不变）。 */
 export interface ApiTradingAgentConfigUpdateRequest {
   llmConfigId?: number | null
+  methodologySourceId?: number | null
   riskMaxPositionPct?: number
   riskMaxTotalPct?: number
   riskMaxDailyOrders?: number
@@ -85,7 +88,7 @@ export interface ApiTradingAgentPlan {
   triggeredClOrdId: string | null
 }
 
-/** agent 选股条目（自选页 agent 分组：AI 依据 + 置信度）。 */
+/** agent 选股条目（模拟管理「Agent 自选」：AI 依据 + 置信度）。 */
 export interface ApiAgentWatchlistSelectionItem {
   id: number
   stockCode: string
@@ -94,9 +97,32 @@ export interface ApiAgentWatchlistSelectionItem {
   tradeDate: string
 }
 
-/** 自选页 agent 分组（平台级单例，全员可见；null = 尚未生成选股）。 */
+/** agent 自选分组（admin GET /trading-agent/selections；null = 尚未生成选股）。 */
 export interface ApiAgentWatchlistGroupResponse {
   id: number
   name: string
   items: ApiAgentWatchlistSelectionItem[]
+}
+
+/** agent 记忆类型（discipline 纪律 / method 方法 / lesson 教训）。 */
+export type AgentMemoryType = 'discipline' | 'method' | 'lesson'
+
+/** agent 记忆条目（admin GET /trading-agent/memories；active 条目注入每日计划 prompt）。 */
+export interface ApiAgentMemory {
+  id: number
+  memType: AgentMemoryType
+  title: string
+  body: string
+  source: 'auto' | 'manual'
+  status: 'active' | 'archived'
+  sourceResultId: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** agent 记忆编辑请求（未提供字段不变）。 */
+export interface ApiAgentMemoryUpdateRequest {
+  title?: string
+  body?: string
+  memType?: AgentMemoryType
 }

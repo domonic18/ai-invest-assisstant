@@ -24,9 +24,6 @@ export const ENDPOINTS = {
     watchlistGroupOrder: `${API_BASE}/users/watchlist/groups/order`,
     watchlistItem: (itemId: number | string) =>
       `${API_BASE}/users/watchlist/items/${itemId}`,
-    watchlistAgentGroup: `${API_BASE}/users/watchlist/agent-group`,
-    watchlistAgentGroupSelection: (selectionId: number | string) =>
-      `${API_BASE}/users/watchlist/agent-group/selections/${selectionId}`,
   },
   stocks: {
     search: `${API_BASE}/stocks/search`,
@@ -337,6 +334,14 @@ export const ENDPOINTS = {
     tradingAgentPlans: `${API_BASE}/admin/trading-agent/plans`,
     tradingAgentPlanCancel: (planId: number | string) =>
       `${API_BASE}/admin/trading-agent/plans/${planId}/cancel`,
+    tradingAgentSelections: `${API_BASE}/admin/trading-agent/selections`,
+    tradingAgentSelection: (selectionId: number | string) =>
+      `${API_BASE}/admin/trading-agent/selections/${selectionId}`,
+    tradingAgentMemories: `${API_BASE}/admin/trading-agent/memories`,
+    tradingAgentMemory: (memoryId: number | string) =>
+      `${API_BASE}/admin/trading-agent/memories/${memoryId}`,
+    tradingAgentMemoryStatus: (memoryId: number | string) =>
+      `${API_BASE}/admin/trading-agent/memories/${memoryId}/status`,
     paperTradeAccountAgent: (id: number | string) =>
       `${API_BASE}/admin/paper-trade/accounts/${id}/agent`,
     paperTradeAccountEnabled: (id: number | string) =>

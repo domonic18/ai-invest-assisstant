@@ -185,7 +185,6 @@ export const queryKeys = {
     all: ['watchlist'] as const,
     groups: ['watchlist', 'groups'] as const,
     items: ['watchlist', 'items'] as const,
-    agentGroup: ['watchlist', 'agent-group'] as const,
   },
   telegraph: {
     all: ['telegraph'] as const,
@@ -280,5 +279,7 @@ export const queryKeys = {
     review: (period: string, tradeDate?: string) =>
       ['trading-agent', 'review', period, tradeDate ?? 'latest'] as const,
     plans: (tradeDate?: string) => ['trading-agent', 'plans', tradeDate ?? 'latest'] as const,
+    selections: ['trading-agent', 'selections'] as const,
+    memories: ['trading-agent', 'memories'] as const,
   },
 } as const

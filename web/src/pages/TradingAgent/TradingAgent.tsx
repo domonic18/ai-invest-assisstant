@@ -2,10 +2,11 @@
  * 模拟管理页（原交易 Agent 页，仅 admin）：模拟盘闭环统一入口。
  *
  * 结构 = 运行状态条 + Tabs：工作台（agent 对话，PC 附计划/复盘侧栏）、
- * 交易计划、交易记录（agent 账户委托/成交）、复盘记录（日/周/月）、
- * 经验总结、账户与配置（Agent 配置 + 模拟盘账户管理）。tab 态进 URL
- * query（/admin/paper-trade 旧路由重定向到 ?tab=accounts）；工作台保持
- * 挂载（antd Tabs 默认隐藏不卸载），切 tab 不中断会话流。
+ * Agent 自选（选股清单 + 人工移出）、交易计划、交易记录（agent 账户
+ * 委托/成交）、复盘记录（日/周/月）、经验总结（分层复盘 + Agent 记忆
+ * 管理）、账户与配置（Agent 配置 + 模拟盘账户管理）。tab 态进 URL query（/admin/paper-trade 旧路由重定向
+ * 到 ?tab=accounts）；工作台保持挂载（antd Tabs 默认隐藏不卸载），切 tab
+ * 不中断会话流。
  */
 import { EditOutlined } from '@ant-design/icons'
 import { Button, Tabs, Typography } from 'antd'
@@ -26,6 +27,8 @@ import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
 import { useAssistantStore } from '@/stores/assistant'
 
 import { AgentConfigPanel } from './AgentConfigPanel'
+import { AgentMemoryPanel } from './AgentMemoryPanel'
+import { AgentSelectionsPanel } from './AgentSelectionsPanel'
 import { AgentStatusStrip } from './AgentStatusStrip'
 import { AgentTradeRecords } from './AgentTradeRecords'
 import { ExperiencePanel } from './ExperiencePanel'
@@ -33,11 +36,20 @@ import { PaperTradeAccountsAdmin } from '@/pages/Admin/PaperTradeAccounts'
 import { PlanPanel } from './PlanPanel'
 import { ReviewPanel } from './ReviewPanel'
 
-const TAB_KEYS = ['workbench', 'plans', 'records', 'review', 'experiences', 'accounts'] as const
+const TAB_KEYS = [
+  'workbench',
+  'selections',
+  'plans',
+  'records',
+  'review',
+  'experiences',
+  'accounts',
+] as const
 type TabKey = (typeof TAB_KEYS)[number]
 
 const TAB_ITEMS = [
   { key: 'workbench', label: '工作台' },
+  { key: 'selections', label: 'Agent 自选' },
   { key: 'plans', label: '交易计划' },
   { key: 'records', label: '交易记录' },
   { key: 'review', label: '复盘记录' },
@@ -49,6 +61,8 @@ function renderTabPane(key: TabKey) {
   switch (key) {
     case 'workbench':
       return <WorkbenchPane />
+    case 'selections':
+      return <AgentSelectionsPanel />
     case 'plans':
       return <PlanPanel />
     case 'records':
@@ -56,7 +70,12 @@ function renderTabPane(key: TabKey) {
     case 'review':
       return <ReviewPanel />
     case 'experiences':
-      return <ExperiencePanel />
+      return (
+        <div className="space-y-3">
+          <ExperiencePanel />
+          <AgentMemoryPanel />
+        </div>
+      )
     case 'accounts':
       return (
         <div className="space-y-3">

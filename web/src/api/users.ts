@@ -1,6 +1,5 @@
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
-  ApiAgentWatchlistGroupResponse,
   ApiPasswordChangeRequest,
   ApiUserResponse,
   ApiWatchlistBatchItemCreate,
@@ -108,19 +107,6 @@ export async function deleteWatchlistGroup(
 
 export async function reorderWatchlistGroups(data: ApiWatchlistGroupReorderRequest) {
   await apiClient.put(ENDPOINTS.users.watchlistGroupOrder, data)
-}
-
-/** 平台 agent 自选分组（null = 尚未生成选股，前端隐藏入口）。 */
-export async function fetchAgentWatchlistGroup(): Promise<ApiAgentWatchlistGroupResponse | null> {
-  const response = await apiClient.get<ApiAgentWatchlistGroupResponse | null>(
-    ENDPOINTS.users.watchlistAgentGroup,
-  )
-  return response.data
-}
-
-/** 人工移出 agent 选股（全局生效，次日不重复选入）。 */
-export async function removeAgentSelection(selectionId: number) {
-  await apiClient.delete(ENDPOINTS.users.watchlistAgentGroupSelection(selectionId))
 }
 
 export interface WatchlistRecognizedItem {

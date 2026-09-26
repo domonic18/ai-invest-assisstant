@@ -4,10 +4,8 @@ import type { ApiWatchlistGroupCreate, ApiWatchlistGroupUpdate } from '@ai-inves
 import {
   createWatchlistGroup,
   deleteWatchlistGroup,
-  fetchAgentWatchlistGroup,
   fetchWatchlistGroups,
   moveWatchlistItem,
-  removeAgentSelection,
   reorderWatchlistGroups,
   updateWatchlistGroup,
 } from '@/api/users'
@@ -85,23 +83,6 @@ export function useToggleGroupAiReview() {
   return useMutation({
     mutationFn: ({ groupId, enabled }: { groupId: number; enabled: boolean }) =>
       updateWatchlistGroup(groupId, { aiReviewEnabled: enabled }),
-    onSuccess: invalidate,
-  })
-}
-
-/** 平台 agent 自选分组（null = 尚未生成选股）。 */
-export function useAgentWatchlistGroup() {
-  return useQuery({
-    queryKey: queryKeys.watchlist.agentGroup,
-    queryFn: fetchAgentWatchlistGroup,
-  })
-}
-
-/** 人工移出 agent 选股（removed_reason=manual，全局生效次日不重复选入）。 */
-export function useRemoveAgentSelection() {
-  const invalidate = useInvalidateWatchlist()
-  return useMutation({
-    mutationFn: (selectionId: number) => removeAgentSelection(selectionId),
     onSuccess: invalidate,
   })
 }

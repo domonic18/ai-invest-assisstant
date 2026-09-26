@@ -2,7 +2,9 @@
 
 19:00 定时生成：输入 = 当日复盘解读（market-daily-review，18:35 后就绪——
 缺失即 ``ReviewInputDataNotReadyError`` 退避重试）+ 涨停归因 + 异动归因 +
-agent 账户本地持仓 + 人工移出清单 + agent 记忆（批次 9 供数前自然为空集）。
+agent 账户本地持仓 + 人工移出清单 + 方法论基座（温程《趋势理论》KB 直读
+双层注入，见 ``agent_methodology``）+ agent 经验记忆（``agent_memory``
+active 条目，复盘/手动沉淀）。
 LLM 单轮结构化输出字段全 required（禁默认值铁律）；按
 (skill_id, input_hash=账户+交易日) 缓存 ``ai_analysis_result``，redis 锁防
 重入。落库 upsert 两表并同步 agent 自选分组（选入加入 / 未续选 agent 剔除 /
@@ -34,7 +36,7 @@ from app.services.review.market_review_generator import (
     SKILL_ID as MARKET_REVIEW_SKILL_ID,
 )
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
-from app.services.trading import account_service
+from app.services.trading import account_service, agent_methodology
 from app.services.trading.agent_config import get_config_row
 
 logger = structlog.get_logger(__name__)
@@ -48,7 +50,7 @@ _PROMPT_ID = "agent_daily_plan"
 _ANOMALY_TOP_N = 10
 #: 人工移出清单回看窗口（天）——超过后允许重新候选
 _MANUAL_REMOVED_WINDOW_DAYS = 14
-#: agent 记忆注入条数上限（批次 9 供数）
+#: agent 经验记忆注入条数上限
 _MEMORY_TOP_N = 20
 
 
@@ -225,7 +227,7 @@ async def _local_positions(session: AsyncSession, account_id: int) -> list[dict[
 
 
 async def _active_memories(session: AsyncSession) -> list[dict[str, Any]]:
-    """agent 记忆 active 条目（批次 9 建 agent_memory 表后自然供数，此前空集）。"""
+    """agent 经验记忆 active 条目（复盘沉淀 + 手动沉淀，停用条目不注入）。"""
     from sqlalchemy import text
 
     # SAVEPOINT 隔离：表缺失等失败只回滚到保存点，避免外层事务进入 aborted 态
@@ -254,15 +256,24 @@ async def _collect_plan_input(
 ) -> tuple[dict[str, Any], list[str]]:
     """组装 LLM 输入，返回 (输入 dict, 人工移出代码清单)。"""
     review = await _market_review_sections(session, trade_date)
+    attribution = await _limit_up_attribution(session, trade_date)
+    anomalies = await _stock_anomalies(session, trade_date)
     manual_removed = await _manual_removed_codes(session, trade_date)
+    methodology = await agent_methodology.build_methodology_input(
+        session,
+        query_text=agent_methodology.build_retrieval_query(
+            review.get("sections") or review, attribution, anomalies
+        ),
+    )
     return (
         {
             "trade_date": trade_date.isoformat(),
             "market_review": review.get("sections") or review,
-            "limit_up_attribution": await _limit_up_attribution(session, trade_date),
-            "stock_anomalies": await _stock_anomalies(session, trade_date),
+            "limit_up_attribution": attribution,
+            "stock_anomalies": anomalies,
             "positions": await _local_positions(session, account_id),
             "manual_removed_codes": manual_removed,
+            "methodology": methodology,
             "memories": await _active_memories(session),
         },
         manual_removed,

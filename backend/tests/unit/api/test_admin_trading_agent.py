@@ -1,6 +1,6 @@
 """交易 Agent admin 端点契约测试（复盘/交易计划查询：camelCase wire / 404 / 422）。"""
 
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.dependencies import get_current_admin_user, get_db
 from app.main import app
-from app.models.agent_trading import AgentTradePlan
+from app.models.agent_trading import AgentMemory, AgentTradePlan
 
 
 @pytest.fixture
@@ -220,3 +220,204 @@ class TestGetTradingAgentDates:
 
         assert resp.status_code == 200
         assert resp.json() == {"planDates": [], "reviewDates": {"day": [], "month": [], "week": []}}
+
+
+def _group_view():
+    from app.models.agent_trading import AgentStockSelection
+    from app.models.watchlist import UserWatchlistGroup
+    from app.services.trading.agent_plan_ops import AgentGroupView
+
+    group = UserWatchlistGroup(
+        id=5,
+        user_id=None,
+        owner_type="agent",
+        name="交易 Agent",
+        sort_order=999,
+        is_default=False,
+        ai_review_enabled=False,
+    )
+    selection = AgentStockSelection(
+        id=9,
+        trade_date=date(2026, 9, 25),
+        stock_code="600000",
+        reason="复盘主线延续",
+        confidence=Decimal("0.8000"),
+        status="active",
+    )
+    return AgentGroupView(group=group, selections=[selection])
+
+
+@pytest.mark.unit
+class TestTradingAgentSelections:
+    """agent 自选查询 + 人工移出（自用户自选页迁入模拟管理）。"""
+
+    def test_get_returns_camel_case_wire(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_plan_ops.get_agent_group",
+            AsyncMock(return_value=_group_view()),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/selections")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["name"] == "交易 Agent"
+        assert body["items"][0]["stockCode"] == "600000"
+        assert body["items"][0]["reason"] == "复盘主线延续"
+        assert body["items"][0]["confidence"] == pytest.approx(0.8)
+        assert body["items"][0]["tradeDate"] == "2026-09-25"
+
+    def test_get_returns_null_when_not_generated(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_plan_ops.get_agent_group",
+            AsyncMock(return_value=None),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/selections")
+
+        assert resp.status_code == 200
+        assert resp.json() is None
+
+    def test_get_requires_admin(self, client) -> None:
+        resp = client.get("/api/v1/admin/trading-agent/selections")
+        assert resp.status_code in (401, 403)
+
+    def test_remove_selection_204(self, admin_client) -> None:
+        http, session = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_plan_ops.remove_selection_manual",
+            AsyncMock(return_value=MagicMock()),
+        ) as remove_mock:
+            resp = http.delete("/api/v1/admin/trading-agent/selections/9")
+
+        assert resp.status_code == 204
+        remove_mock.assert_awaited_once_with(session, selection_id=9)
+
+    def test_remove_selection_404(self, admin_client) -> None:
+        from app.core.exceptions import NotFoundError
+
+        http, _ = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_plan_ops.remove_selection_manual",
+            AsyncMock(side_effect=NotFoundError("Selection not found")),
+        ):
+            resp = http.delete("/api/v1/admin/trading-agent/selections/99")
+
+        assert resp.status_code == 404
+
+
+def _memory_row(**overrides) -> AgentMemory:
+    fields = {
+        "id": 3,
+        "mem_type": "discipline",
+        "title": "选股本质是选板块：无板块效应不参与",
+        "body": "选股必须选板块（趋势理论第一原则）",
+        "source": "manual",
+        "status": "active",
+        "source_result_id": None,
+        "created_at": datetime(2026, 9, 26, 8, 0, tzinfo=timezone.utc),
+        "updated_at": datetime(2026, 9, 26, 8, 0, tzinfo=timezone.utc),
+    }
+    fields.update(overrides)
+    return AgentMemory(**fields)
+
+
+@pytest.mark.unit
+class TestTradingAgentMemories:
+    """agent 记忆管理面（方法论纪律种子 + 复盘沉淀；停用不删）。"""
+
+    def test_list_returns_camel_case_wire(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_memory_service.list_memories",
+            AsyncMock(return_value=[_memory_row()]),
+        ) as list_mock:
+            resp = http.get(
+                "/api/v1/admin/trading-agent/memories", params={"status": "archived"}
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body[0]["memType"] == "discipline"
+        assert body[0]["source"] == "manual"
+        assert body[0]["sourceResultId"] is None
+        assert body[0]["createdAt"] is not None
+        list_mock.assert_awaited_once_with(admin_client[1], status="archived")
+
+    def test_list_defaults_to_all_statuses(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_memory_service.list_memories",
+            AsyncMock(return_value=[]),
+        ) as list_mock:
+            resp = http.get("/api/v1/admin/trading-agent/memories")
+
+        assert resp.status_code == 200
+        assert resp.json() == []
+        assert list_mock.await_args.kwargs["status"] is None
+
+    def test_update_returns_edited_memory(self, admin_client) -> None:
+        http, session = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_memory_service.update_memory",
+            AsyncMock(return_value=_memory_row(title="新标题", mem_type="lesson")),
+        ) as update_mock:
+            resp = http.put(
+                "/api/v1/admin/trading-agent/memories/3",
+                json={"title": "新标题", "memType": "lesson"},
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["title"] == "新标题"
+        assert body["memType"] == "lesson"
+        update_mock.assert_awaited_once_with(
+            session, memory_id=3, title="新标题", body=None, mem_type="lesson"
+        )
+
+    def test_update_status_switches_active_archived(self, admin_client) -> None:
+        http, session = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_memory_service.update_memory_status",
+            AsyncMock(return_value=_memory_row(status="archived")),
+        ) as status_mock:
+            resp = http.put(
+                "/api/v1/admin/trading-agent/memories/3/status",
+                json={"status": "archived"},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "archived"
+        status_mock.assert_awaited_once_with(session, memory_id=3, status="archived")
+
+    def test_update_rejects_unknown_mem_type(self, admin_client) -> None:
+        http, _ = admin_client
+
+        resp = http.put(
+            "/api/v1/admin/trading-agent/memories/3", json={"memType": "other"}
+        )
+
+        assert resp.status_code == 422
+
+    def test_update_404_when_missing(self, admin_client) -> None:
+        from app.core.exceptions import NotFoundError
+
+        http, _ = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_memory_service.update_memory",
+            AsyncMock(side_effect=NotFoundError("记忆 99 不存在")),
+        ):
+            resp = http.put(
+                "/api/v1/admin/trading-agent/memories/99", json={"title": "x"}
+            )
+
+        assert resp.status_code == 404

@@ -485,3 +485,4 @@ VALUES ('trade_calendar_seed_weekly', 'trade-calendar-seed', 'internal', '0 6 * 
 ON CONFLICT (task_name) DO UPDATE
 SET schedule = EXCLUDED.schedule, is_active = EXCLUDED.is_active;
 
+
