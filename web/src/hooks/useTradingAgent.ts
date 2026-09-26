@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { message } from 'antd'
 
 import type {
+  ApiAgentMemoryUpdateRequest,
   ApiTradingAgentConfigUpdateRequest,
   TradingReviewPeriod,
 } from '@ai-invest/shared'
@@ -13,11 +14,14 @@ import {
   cancelTradingAgentPlan,
   fetchTradingAgentConfig,
   fetchTradingAgentDates,
+  fetchTradingAgentMemories,
   fetchTradingAgentPlans,
   fetchTradingAgentReview,
   fetchTradingAgentSelections,
   removeTradingAgentSelection,
   updateTradingAgentConfig,
+  updateTradingAgentMemory,
+  updateTradingAgentMemoryStatus,
 } from '@/api/tradingAgent'
 import { queryKeys } from '@/hooks/queryKeys'
 
@@ -114,6 +118,42 @@ export function useRemoveTradingAgentSelection() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.selections })
       message.success('已移出，次日不再选入')
+    },
+    onError: (error: Error) => message.error(error.message),
+  })
+}
+
+/** agent 记忆清单（缺省全部状态，按新近度倒序）。 */
+export function useTradingAgentMemories() {
+  return useQuery({
+    queryKey: queryKeys.tradingAgent.memories,
+    queryFn: () => fetchTradingAgentMemories(),
+  })
+}
+
+/** 编辑记忆（标题/正文/类型）。 */
+export function useUpdateTradingAgentMemory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoryId, data }: { memoryId: number; data: ApiAgentMemoryUpdateRequest }) =>
+      updateTradingAgentMemory(memoryId, data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.memories })
+      message.success('记忆已保存')
+    },
+    onError: (error: Error) => message.error(error.message),
+  })
+}
+
+/** 切换记忆 active/archived（停用后次日计划 prompt 不再注入）。 */
+export function useUpdateTradingAgentMemoryStatus() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoryId, status }: { memoryId: number; status: 'active' | 'archived' }) =>
+      updateTradingAgentMemoryStatus(memoryId, status),
+    onSuccess: (_, vars) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.memories })
+      message.success(vars.status === 'active' ? '记忆已启用' : '记忆已停用，次日不再注入')
     },
     onError: (error: Error) => message.error(error.message),
   })

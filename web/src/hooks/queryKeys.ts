@@ -280,5 +280,6 @@ export const queryKeys = {
       ['trading-agent', 'review', period, tradeDate ?? 'latest'] as const,
     plans: (tradeDate?: string) => ['trading-agent', 'plans', tradeDate ?? 'latest'] as const,
     selections: ['trading-agent', 'selections'] as const,
+    memories: ['trading-agent', 'memories'] as const,
   },
 } as const

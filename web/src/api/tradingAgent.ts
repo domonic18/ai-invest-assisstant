@@ -2,12 +2,15 @@
 
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
+  ApiAgentMemory,
+  ApiAgentMemoryUpdateRequest,
   ApiAgentWatchlistGroupResponse,
   ApiTradingAgentConfig,
   ApiTradingAgentConfigUpdateRequest,
   ApiTradingAgentDates,
   ApiTradingAgentPlan,
   ApiTradingAgentReview,
+  AgentMemoryType,
   TradingReviewPeriod,
 } from '@ai-invest/shared'
 
@@ -78,3 +81,40 @@ export async function fetchTradingAgentSelections(): Promise<ApiAgentWatchlistGr
 export async function removeTradingAgentSelection(selectionId: number): Promise<void> {
   await apiClient.delete(ENDPOINTS.admin.tradingAgentSelection(selectionId))
 }
+
+/** agent 记忆清单（缺省全部状态，按新近度倒序）。 */
+export async function fetchTradingAgentMemories(
+  status?: 'active' | 'archived',
+): Promise<ApiAgentMemory[]> {
+  const response = await apiClient.get<ApiAgentMemory[]>(
+    ENDPOINTS.admin.tradingAgentMemories,
+    { params: status ? { status } : undefined },
+  )
+  return response.data
+}
+
+/** 编辑记忆（标题/正文/类型，未提供字段不变）。 */
+export async function updateTradingAgentMemory(
+  memoryId: number,
+  data: ApiAgentMemoryUpdateRequest,
+): Promise<ApiAgentMemory> {
+  const response = await apiClient.put<ApiAgentMemory>(
+    ENDPOINTS.admin.tradingAgentMemory(memoryId),
+    data,
+  )
+  return response.data
+}
+
+/** 切换记忆 active/archived（停用后次日计划 prompt 不再注入）。 */
+export async function updateTradingAgentMemoryStatus(
+  memoryId: number,
+  status: 'active' | 'archived',
+): Promise<ApiAgentMemory> {
+  const response = await apiClient.put<ApiAgentMemory>(
+    ENDPOINTS.admin.tradingAgentMemoryStatus(memoryId),
+    { status },
+  )
+  return response.data
+}
+
+export type { AgentMemoryType }

@@ -3,8 +3,8 @@
  *
  * 结构 = 运行状态条 + Tabs：工作台（agent 对话，PC 附计划/复盘侧栏）、
  * Agent 自选（选股清单 + 人工移出）、交易计划、交易记录（agent 账户
- * 委托/成交）、复盘记录（日/周/月）、经验总结、账户与配置（Agent 配置 +
- * 模拟盘账户管理）。tab 态进 URL query（/admin/paper-trade 旧路由重定向
+ * 委托/成交）、复盘记录（日/周/月）、经验总结（分层复盘 + Agent 记忆
+ * 管理）、账户与配置（Agent 配置 + 模拟盘账户管理）。tab 态进 URL query（/admin/paper-trade 旧路由重定向
  * 到 ?tab=accounts）；工作台保持挂载（antd Tabs 默认隐藏不卸载），切 tab
  * 不中断会话流。
  */
@@ -27,6 +27,7 @@ import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
 import { useAssistantStore } from '@/stores/assistant'
 
 import { AgentConfigPanel } from './AgentConfigPanel'
+import { AgentMemoryPanel } from './AgentMemoryPanel'
 import { AgentSelectionsPanel } from './AgentSelectionsPanel'
 import { AgentStatusStrip } from './AgentStatusStrip'
 import { AgentTradeRecords } from './AgentTradeRecords'
@@ -69,7 +70,12 @@ function renderTabPane(key: TabKey) {
     case 'review':
       return <ReviewPanel />
     case 'experiences':
-      return <ExperiencePanel />
+      return (
+        <div className="space-y-3">
+          <ExperiencePanel />
+          <AgentMemoryPanel />
+        </div>
+      )
     case 'accounts':
       return (
         <div className="space-y-3">

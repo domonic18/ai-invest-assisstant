@@ -337,6 +337,11 @@ export const ENDPOINTS = {
     tradingAgentSelections: `${API_BASE}/admin/trading-agent/selections`,
     tradingAgentSelection: (selectionId: number | string) =>
       `${API_BASE}/admin/trading-agent/selections/${selectionId}`,
+    tradingAgentMemories: `${API_BASE}/admin/trading-agent/memories`,
+    tradingAgentMemory: (memoryId: number | string) =>
+      `${API_BASE}/admin/trading-agent/memories/${memoryId}`,
+    tradingAgentMemoryStatus: (memoryId: number | string) =>
+      `${API_BASE}/admin/trading-agent/memories/${memoryId}/status`,
     paperTradeAccountAgent: (id: number | string) =>
       `${API_BASE}/admin/paper-trade/accounts/${id}/agent`,
     paperTradeAccountEnabled: (id: number | string) =>

@@ -737,7 +737,7 @@ Agent 的私有资产，自动提取直接生效（无草稿/审核流转），�
 
 ### 12.1 数据底座
 
-迁移 `20260924d_agent_memory.sql`（幂等，同步 init-scripts）：
+迁移 `20260926e_agent_memory.sql`（幂等，同步 init-scripts）：
 
 ```sql
 CREATE TABLE IF NOT EXISTS agent_memory (

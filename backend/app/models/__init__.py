@@ -7,7 +7,7 @@ from app.models.account_quota import (
     UserLlmConfig,
     UserTokenUsage,
 )
-from app.models.agent_trading import AgentStockSelection, AgentTradePlan
+from app.models.agent_trading import AgentMemory, AgentStockSelection, AgentTradePlan
 from app.models.ai_analysis_result import AiAnalysisResult
 from app.models.assistant_session import AssistantSession
 from app.models.capital_fund_flow_sector import SectorFundFlow
@@ -81,6 +81,7 @@ from app.models.watchlist import UserWatchlist, UserWatchlistGroup
 
 __all__ = [
     "AdminAuditLog",
+    "AgentMemory",
     "AgentStockSelection",
     "AgentTradePlan",
     "AiAnalysisResult",

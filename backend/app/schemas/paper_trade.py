@@ -1,6 +1,7 @@
 """模拟盘 API 的 Pydantic schemas（camelCase wire，金额一律 float）。"""
 
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import Field
 
@@ -304,7 +305,7 @@ class TradingAgentDatesResponse(CamelModel):
 
 
 class AgentSelectionItem(CamelModel):
-    """agent 选股条目（自选页 agent 分组：AI 依据 + 置信度）。"""
+    """agent 选股条目（模拟管理「Agent 自选」：AI 依据 + 置信度）。"""
 
     id: int
     stock_code: str
@@ -314,8 +315,36 @@ class AgentSelectionItem(CamelModel):
 
 
 class AgentWatchlistGroupResponse(CamelModel):
-    """自选页 agent 分组（平台级单例，全员可见；items 为当前 active 选股）。"""
+    """agent 自选分组（admin GET /trading-agent/selections；items 为当前 active 选股）。"""
 
     id: int
     name: str
     items: list[AgentSelectionItem] = []
+
+
+class AgentMemoryResponse(CamelModel):
+    """交易 Agent 记忆条目（方法论纪律 + 复盘沉淀）。"""
+
+    id: int
+    mem_type: str
+    title: str
+    body: str
+    source: str
+    status: str
+    source_result_id: int | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AgentMemoryUpdateRequest(CamelModel):
+    """记忆编辑请求（未提供字段不变）。"""
+
+    title: str | None = None
+    body: str | None = None
+    mem_type: Literal["discipline", "method", "lesson"] | None = None
+
+
+class AgentMemoryStatusUpdateRequest(CamelModel):
+    """记忆状态切换请求（archived 停用不删）。"""
+
+    status: Literal["active", "archived"]

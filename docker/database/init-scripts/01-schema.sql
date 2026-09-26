@@ -1735,3 +1735,21 @@ CREATE INDEX IF NOT EXISTS idx_agent_trade_plan_status
 
 COMMENT ON TABLE agent_trade_plan IS
     '交易 Agent 每日交易计划（盘中条件触发执行的真相源，docs/plan/paper-trading-plan.md §10.1）';
+
+CREATE TABLE IF NOT EXISTS agent_memory (
+    id               BIGSERIAL PRIMARY KEY,
+    mem_type         VARCHAR(16)  NOT NULL,      -- discipline 纪律 / method 方法 / lesson 教训
+    title            VARCHAR(128) NOT NULL,
+    body             TEXT         NOT NULL,
+    source           VARCHAR(16)  NOT NULL,      -- auto 复盘自动提取 / manual 人工沉淀
+    status           VARCHAR(16)  NOT NULL DEFAULT 'active',   -- active / archived（停用不删）
+    source_result_id BIGINT,                     -- ai_analysis_result.id（auto 时必填，溯源）
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_agent_memory_source_title UNIQUE (source_result_id, title)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_memory_status ON agent_memory(status, mem_type);
+
+COMMENT ON TABLE agent_memory IS
+    '交易 Agent 自有记忆（方法论纪律 + 复盘沉淀，反哺每日计划，docs/plan/paper-trading-plan.md §12.1）';

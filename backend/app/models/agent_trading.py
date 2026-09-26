@@ -2,7 +2,8 @@
 
 agent_stock_selection 是选股依据真相源（复盘「选股对错」归因输入 +
 人工移出干预记录）；agent_trade_plan 是盘中条件触发执行的真相源
-（批次 8 执行服务读表推进状态机）。
+（批次 8 执行服务读表推进状态机）；agent_memory 是 Agent 自有记忆
+（plan §12：方法论纪律 + 复盘沉淀，反哺每日计划 prompt）。
 """
 
 from datetime import date, datetime
@@ -89,6 +90,35 @@ class AgentTradePlan(Base):
         DateTime(timezone=True), nullable=True
     )
     raw: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
+class AgentMemory(Base):
+    """交易 Agent 自有记忆（不经 KB）：方法论纪律种子 + 复盘沉淀。
+
+    status='active' 条目由每日计划生成服务全量注入 prompt（token 上限截断）；
+    停用 = archived（不物理删除，保留归因链路）；auto 条目按
+    (source_result_id, title) 幂等。
+    """
+
+    __tablename__ = "agent_memory"
+    __table_args__ = (
+        UniqueConstraint("source_result_id", "title", name="uq_agent_memory_source_title"),
+        Index("idx_agent_memory_status", "status", "mem_type"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    mem_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    title: Mapped[str] = mapped_column(String(128), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    source_result_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )

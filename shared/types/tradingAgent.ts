@@ -100,3 +100,26 @@ export interface ApiAgentWatchlistGroupResponse {
   name: string
   items: ApiAgentWatchlistSelectionItem[]
 }
+
+/** agent 记忆类型（discipline 纪律 / method 方法 / lesson 教训）。 */
+export type AgentMemoryType = 'discipline' | 'method' | 'lesson'
+
+/** agent 记忆条目（admin GET /trading-agent/memories；active 条目注入每日计划 prompt）。 */
+export interface ApiAgentMemory {
+  id: number
+  memType: AgentMemoryType
+  title: string
+  body: string
+  source: 'auto' | 'manual'
+  status: 'active' | 'archived'
+  sourceResultId: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** agent 记忆编辑请求（未提供字段不变）。 */
+export interface ApiAgentMemoryUpdateRequest {
+  title?: string
+  body?: string
+  memType?: AgentMemoryType
+}

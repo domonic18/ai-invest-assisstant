@@ -2,7 +2,8 @@
 
 19:00 定时生成：输入 = 当日复盘解读（market-daily-review，18:35 后就绪——
 缺失即 ``ReviewInputDataNotReadyError`` 退避重试）+ 涨停归因 + 异动归因 +
-agent 账户本地持仓 + 人工移出清单 + agent 记忆（批次 9 供数前自然为空集）。
+agent 账户本地持仓 + 人工移出清单 + agent 记忆（温程方法论种子 + 复盘沉淀，
+``agent_memory`` active 条目全量注入）。
 LLM 单轮结构化输出字段全 required（禁默认值铁律）；按
 (skill_id, input_hash=账户+交易日) 缓存 ``ai_analysis_result``，redis 锁防
 重入。落库 upsert 两表并同步 agent 自选分组（选入加入 / 未续选 agent 剔除 /
@@ -48,7 +49,7 @@ _PROMPT_ID = "agent_daily_plan"
 _ANOMALY_TOP_N = 10
 #: 人工移出清单回看窗口（天）——超过后允许重新候选
 _MANUAL_REMOVED_WINDOW_DAYS = 14
-#: agent 记忆注入条数上限（批次 9 供数）
+#: agent 记忆注入条数上限
 _MEMORY_TOP_N = 20
 
 
@@ -225,7 +226,7 @@ async def _local_positions(session: AsyncSession, account_id: int) -> list[dict[
 
 
 async def _active_memories(session: AsyncSession) -> list[dict[str, Any]]:
-    """agent 记忆 active 条目（批次 9 建 agent_memory 表后自然供数，此前空集）。"""
+    """agent 记忆 active 条目（方法论纪律种子 + 复盘沉淀，停用条目不注入）。"""
     from sqlalchemy import text
 
     # SAVEPOINT 隔离：表缺失等失败只回滚到保存点，避免外层事务进入 aborted 态
