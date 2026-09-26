@@ -141,6 +141,14 @@
   加仓单，保留数据不做互斥校验）；update 白名单开放 `prompt_id`（模板清单
   422 校验）；tab 顺序 records 前移；委托/成交改 Tabs；SymbolCell 6 位代码
   可跳详情。
+- **D31 验收反馈四批：配置页账户区改绑定视图**
+  （2026-09-27 追加，分支 `feature/agent-hub-ux-fixes`，无迁移、无后端改动）：
+  「配置」tab 模拟盘账户区弃用全平台列表（`PaperTradeAccountsAdmin` 仍在系统
+  管理页），改 `AgentAccountPanel` 单 Agent 绑定视图——未绑定显示 Empty +
+  「绑定账户」按钮弹 Modal（Select 全平台未占用账户，空置提示先到模拟盘页
+  「账户管理」添加）；已绑定 Descriptions 展示账户名称/柜台 ID/Token 掩码/
+  最近同步/最近错误 + 「解绑账户」Popconfirm。复用既有 designate/clear API
+  （专属账户全局唯一语义不变，绑定时原归属自动还原）。
 
 ## 4. 数据模型
 

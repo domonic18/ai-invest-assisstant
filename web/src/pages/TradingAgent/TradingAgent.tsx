@@ -30,6 +30,7 @@ import { useAssistantStore } from '@/stores/assistant'
 
 import { AgentKeyContext, useAgentKey } from './agentKeyContext'
 
+import { AgentAccountPanel } from './AgentAccountPanel'
 import { AgentConfigPanel } from './AgentConfigPanel'
 import { AgentPersonaPanel } from './AgentPersonaPanel'
 import { AgentSkillPanel } from './AgentSkillPanel'
@@ -39,7 +40,6 @@ import { AgentSelectionsPanel } from './AgentSelectionsPanel'
 import { AgentStatusStrip } from './AgentStatusStrip'
 import { AgentTradeRecords } from './AgentTradeRecords'
 import { ExperiencePanel } from './ExperiencePanel'
-import { PaperTradeAccountsAdmin } from '@/pages/Admin/PaperTradeAccounts'
 import { PlanPanel } from './PlanPanel'
 import { ReviewPanel } from './ReviewPanel'
 
@@ -89,7 +89,7 @@ function renderTabPane(key: TabKey) {
           <AgentConfigPanel />
           <AgentPersonaPanel />
           <AgentSkillPanel />
-          <PaperTradeAccountsAdmin />
+          <AgentAccountPanel />
         </div>
       )
   }
