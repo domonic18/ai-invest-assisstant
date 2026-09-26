@@ -322,3 +322,30 @@ AgentOverviewItem / AgentOverviewResponse`，载荷加 agentKey；queryKeys trad
 - **页面结构**：舞台（min-w 560 横向滚动）→ 活动时间轴 → 「Agent 管理（N 个 ·
   N 启用）」Collapse 默认收起（列表/开关/新建全在面板内）。
 - 删除 `radarLayout.ts` / `AgentNodeLabels.tsx` / `AgentRadarCanvas.tsx`。
+
+## 12. D33 分层拓扑视图：三层舞台 + 基建状态灯 + Celery 任务方框（2026-09-27，同分支续作）
+
+用户验收反馈三项：① 模拟盘交易被渲染成特殊中心，误导用户以为它是凌驾其他系统的中心功能
+（实际只是资源系统之一）；② 希望把服务器基建与 Celery 队列（特别是小方框任务状态）纳入
+总览，一眼看清整个系统运行情况；③ 层次感——从上到下 agent 运行 → 支撑系统（同维度）→
+基建，资讯中心与大V情绪维度不齐应修正。三项决策（AskUserQuestion）：基建五项核心
+（PostgreSQL/Redis/Celery 含队列深度/掘金柜台/MinIO，外部项留系统状态页）；Celery 方框=
+最近运行任务（复用 celery-queues running+最近终态口径）；基建与系统层底座带不画线。
+
+- **布局（hubLayout.ts 重写）**：`layoutLayers(width, height, agentCount, squareCount)`
+  自上而下三带——Agent 层 y≈16%（单行均布）/ 资源系统层 y≈46%（五站 kb/review/news/
+  sentiment/paper 同维度均布，paper 降级普通站）/ 基建层 y≈74%（五盒均布）+ 任务方框条
+  y≈92%（cap `SQUARE_CAP=12` 锚点）；`CLAMP_MARGIN=56` 防越界。层带标签由组件渲染。
+- **基建层（InfraLayer.tsx + infraStatus.ts）**：五盒状态灯映射
+  `mapInfraStatus`（postgres/redis/minio 直取 system status；celery=broker+workers 双
+  up；counter=paper-trade）+ latency 展示；Celery 盒附三队列 pending 计数。任务方框条
+  `mergeTaskSquares`（running 优先 started 倒序 → 最近终态，与后端 `_fetch_log_rows`
+  一致）渲染 104px 小方框：状态色左边框 + label 截断 + 相对时间，running 转
+  LoadingOutlined。纯函数独立文件满足 react-refresh 规则。数据缺失降级「—」不阻塞舞台。
+- **舞台（AgentHubStage.tsx）**：背景 Canvas 保留网格+conic 扫描线，删中心脉冲光晕，增
+  层带淡横线；连线层沿用 `hubEdges`（规则不变，分层后自然变跨层纵向+同层横向）；节点层
+  三类组件共用 `layoutLayers` 像素坐标；图例三行（状态四态/连线四色/基建灯含义）。
+  `useSystemStatus`（30s）+ `useCeleryQueues`（自适应轮询）现成 hooks，本批零后端改动。
+- **容器**：舞台加高 h-[540px] md:h-[620px]，min-w-[680px]（5 站+5 盒横排所需）。
+- 测试：`hubLayout.test.ts` 重写为分层几何断言（三带 y/均布/cap/clamp/空数组/站序含
+  paper）；`hubEdges.test.ts` 不动；431 单测全绿。
