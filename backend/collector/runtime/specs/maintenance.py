@@ -33,4 +33,17 @@ SPECS: tuple[TaskSpec, ...] = (
             "internal": "collector.spiders.kb_cleanup:KbCleanupCollector",
         },
     ),
+    TaskSpec(
+        name="trade-calendar-seed",
+        label="交易日历种子刷新",
+        description="新浪全量交易日历重建 market_trade_calendar 种子行（人工覆盖行不回改），缺省当年+下一年",
+        data_type="trade_calendar_seed",
+        collectors={
+            "internal": (
+                "collector.spiders.trade_calendar_seed:"
+                "TradeCalendarSeedCollector"
+            ),
+        },
+        run_params=("years",),
+    ),
 )

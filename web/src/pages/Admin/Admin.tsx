@@ -1,6 +1,7 @@
 import {
   ApiOutlined,
   BarChartOutlined,
+  CalendarOutlined,
   CloudServerOutlined,
   FileTextOutlined,
   FileDoneOutlined,
@@ -33,6 +34,7 @@ const ADMIN_LINKS = [
   { title: '采集管理', path: '/admin/collector', icon: <PlayCircleOutlined />, color: 'bg-indigo-500/10 text-indigo-400' },
   { title: '社媒追踪', path: '/admin/social-tracking', icon: <WeiboOutlined />, color: 'bg-rose-500/10 text-rose-400' },
   { title: '服务状态', path: '/admin/system-status', icon: <CloudServerOutlined />, color: 'bg-emerald-500/10 text-emerald-400' },
+  { title: '交易日历', path: '/admin/trade-calendar', icon: <CalendarOutlined />, color: 'bg-amber-500/10 text-amber-400' },
 ]
 
 export function Admin() {

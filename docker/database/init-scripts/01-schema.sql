@@ -473,7 +473,8 @@ CREATE TABLE collector_task (
     last_error      TEXT,
     created_at      TIMESTAMPTZ  DEFAULT NOW(),
     updated_at      TIMESTAMPTZ  DEFAULT NOW(),
-    queue           VARCHAR(20)               -- 任务路由队列覆盖（空则按 task_type 解析）
+    queue           VARCHAR(20),              -- 任务路由队列覆盖（空则按 task_type 解析）
+    trade_day_only  BOOLEAN      NOT NULL DEFAULT false  -- 交易日预检：非交易日/日历未覆盖当日 SKIPPED（显式 trade_date 豁免）
 );
 
 CREATE INDEX idx_collector_task_active ON collector_task(is_active);
@@ -784,6 +785,18 @@ CREATE INDEX IF NOT EXISTS idx_pool_limit_up_stock_date ON pool_limit_up_stock(t
 -- ============================================================
 -- 15. 市场涨跌统计（每日收盘快照：涨跌家数 / 涨跌停家数）
 -- ============================================================
+
+CREATE TABLE IF NOT EXISTS market_trade_calendar (
+    calendar_date DATE         PRIMARY KEY,
+    is_trading    BOOLEAN      NOT NULL,
+    source        VARCHAR(20)  NOT NULL DEFAULT 'seed' CHECK (source IN ('seed', 'manual')),
+    remark        TEXT,
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE market_trade_calendar IS
+    'A 股交易日历权威真相源：source=seed 新浪日历自动生成 / manual 后台人工覆盖（调休、临时休市）';
 
 CREATE TABLE IF NOT EXISTS market_breadth (
     id              BIGSERIAL PRIMARY KEY,

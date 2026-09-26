@@ -287,6 +287,9 @@ export const ENDPOINTS = {
     trackedIndex: (id: number | string) => `${API_BASE}/admin/tracked-indexes/${id}`,
     trackedIndexToggle: (id: number | string) =>
       `${API_BASE}/admin/tracked-indexes/${id}/toggle`,
+    tradeCalendar: `${API_BASE}/admin/trade-calendar`,
+    tradeCalendarDay: (day: string) => `${API_BASE}/admin/trade-calendar/${day}`,
+    tradeCalendarSeed: `${API_BASE}/admin/trade-calendar/seed`,
     collectorChannels: `${API_BASE}/admin/collector/channels`,
     collectorDataTypes: `${API_BASE}/admin/collector/data-types`,
     collectorDataTypeChannels: (dataType: string) =>

@@ -45,6 +45,7 @@ from app.models.mapping_stock_concept import MappingStockConcept
 from app.models.market_amount import MarketAmount
 from app.models.market_anomaly import SectorAnomaly, StockAnomaly
 from app.models.market_breadth import MarketBreadth
+from app.models.market_trade_calendar import MarketTradeCalendar
 from app.models.news_ai_score import NewsAiScore
 from app.models.news_calendar_event import NewsCalendarEvent
 from app.models.news_document import NewsDocument
@@ -124,6 +125,7 @@ __all__ = [
     "MappingStockConcept",
     "MarketAmount",
     "MarketBreadth",
+    "MarketTradeCalendar",
     "NewsAiScore",
     "NewsDocument",
     "NewsStoryline",

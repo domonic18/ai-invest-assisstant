@@ -990,3 +990,28 @@ export interface ApiAdminAiResultDetail extends ApiAdminAiResultItem {
   errorMsg: string | null
   structuredOutput: Record<string, unknown> | null
 }
+
+export interface ApiTradeCalendarDay {
+  calendarDate: string
+  isTrading: boolean
+  source: 'seed' | 'manual'
+  remark: string | null
+}
+
+export interface ApiTradeCalendarCoverage {
+  minDate: string | null
+  maxDate: string | null
+  tradingDays: number
+  nonTradingDays: number
+}
+
+export interface ApiTradeCalendarYear {
+  year: number
+  days: ApiTradeCalendarDay[]
+  coverage: ApiTradeCalendarCoverage
+}
+
+export interface ApiTradeCalendarSeedResult {
+  years: number[]
+  written: number
+}
