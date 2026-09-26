@@ -308,6 +308,15 @@ async def get_review(
     return PaperTradeReviewContent.model_validate(structured)
 
 
+async def list_review_dates(
+    session: AsyncSession, *, period: ReviewPeriod
+) -> list[date]:
+    """已生成该周期复盘的基准交易日（升序），日历打点用。"""
+    return await ai_analysis_repository.list_success_trade_dates(
+        session, skill_id=REVIEW_SKILL_ID, structured_filter={"period": period}
+    )
+
+
 async def generate_review(
     session: AsyncSession,
     *,

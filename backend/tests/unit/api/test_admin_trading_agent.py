@@ -175,3 +175,48 @@ class TestTradingAgentPlans:
         assert resp.status_code == 200
         assert resp.json()["status"] == "cancelled"
         cancel_mock.assert_awaited_once_with(admin_client[1], plan_id=11)
+
+
+@pytest.mark.unit
+class TestGetTradingAgentDates:
+    def test_returns_plan_and_review_dates(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with (
+            patch(
+                "app.services.trading.agent_plan_ops.list_plan_dates",
+                AsyncMock(return_value=[date(2026, 7, 16), date(2026, 7, 17)]),
+            ) as plan_dates_mock,
+            patch(
+                "app.services.trading.agent_review_service.list_review_dates",
+                AsyncMock(side_effect=lambda _s, *, period: [date(2026, 7, period == "day" and 17 or 10)]),
+            ) as review_dates_mock,
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/dates")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["planDates"] == ["2026-07-16", "2026-07-17"]
+        assert sorted(body["reviewDates"]) == ["day", "month", "week"]
+        assert body["reviewDates"]["day"] == ["2026-07-17"]
+        assert body["reviewDates"]["week"] == ["2026-07-10"]
+        plan_dates_mock.assert_awaited_once()
+        assert review_dates_mock.await_count == 3
+
+    def test_empty_when_no_records(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with (
+            patch(
+                "app.services.trading.agent_plan_ops.list_plan_dates",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.services.trading.agent_review_service.list_review_dates",
+                AsyncMock(return_value=[]),
+            ),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/dates")
+
+        assert resp.status_code == 200
+        assert resp.json() == {"planDates": [], "reviewDates": {"day": [], "month": [], "week": []}}

@@ -42,6 +42,12 @@ async def list_plans(
     return list(rows.scalars().all())
 
 
+async def list_plan_dates(session: AsyncSession) -> list[date]:
+    """已有交易计划的计划日去重清单（升序），日历打点用。"""
+    rows = await session.execute(select(AgentTradePlan.plan_date).distinct())
+    return sorted(rows.scalars().all())
+
+
 async def cancel_plan(session: AsyncSession, *, plan_id: int) -> AgentTradePlan:
     """人工取消当日 active 计划（triggered 之后不可取消）。"""
     plan = await session.get(AgentTradePlan, plan_id)

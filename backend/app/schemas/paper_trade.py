@@ -296,6 +296,13 @@ class TradingAgentPlanResponse(CamelModel):
     triggered_cl_ord_id: str | None = None
 
 
+class TradingAgentDatesResponse(CamelModel):
+    """有记录日期清单（日历打点：计划日 + 各周期复盘基准日）。"""
+
+    plan_dates: list[date] = []
+    review_dates: dict[str, list[date]] = {}
+
+
 class AgentSelectionItem(CamelModel):
     """agent 选股条目（自选页 agent 分组：AI 依据 + 置信度）。"""
 

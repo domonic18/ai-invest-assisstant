@@ -98,21 +98,28 @@ async def load_latest_success(
 
 
 async def list_success_trade_dates(
-    session: AsyncSession, *, skill_id: str, stock_code: str | None = None
+    session: AsyncSession,
+    *,
+    skill_id: str,
+    stock_code: str | None = None,
+    structured_filter: dict[str, str] | None = None,
 ) -> list[date]:
     """聚合 success 记录中 structured_output.trade_date 的去重列表（升序）。
 
     供日历标记「哪些交易日已生成过分析」。stock_code 缺省时不过滤标的
-    （市场级 skill 如大盘复盘）；trade_date 从 JSONB 解出，脏数据
+    （市场级 skill 如大盘复盘）；structured_filter 语义同 load_latest_success
+    （如模拟盘复盘按 period 分维度打点）；trade_date 从 JSONB 解出，脏数据
     （缺失/非 ISO 格式）跳过而非中断。
     """
-    conditions = [
+    conditions: list[ColumnElement[bool]] = [
         AiAnalysisResult.skill_id == skill_id,
         AiAnalysisResult.status == "success",
         AiAnalysisResult.created_at >= utc_now() - timedelta(days=_TRADE_DATES_WINDOW_DAYS),
     ]
     if stock_code is not None:
         conditions.append(AiAnalysisResult.stock_code == stock_code)
+    for key, value in (structured_filter or {}).items():
+        conditions.append(AiAnalysisResult.structured_output[key].as_string() == value)
     stmt = select(AiAnalysisResult.structured_output).where(*conditions)
     rows = list((await session.execute(stmt)).scalars().all())
     dates: set[date] = set()

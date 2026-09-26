@@ -11,6 +11,7 @@ from app.dependencies import get_current_admin_user, get_db
 from app.schemas.paper_trade import (
     TradingAgentConfigResponse,
     TradingAgentConfigUpdateRequest,
+    TradingAgentDatesResponse,
     TradingAgentPlanResponse,
     TradingAgentReviewResponse,
 )
@@ -56,6 +57,20 @@ async def get_trading_agent_review(
             f"{trade_date.isoformat() if trade_date else '最新'} 的 {period} 复盘尚未生成"
         )
     return TradingAgentReviewResponse.model_validate(content.model_dump(mode="json"))
+
+
+@router.get("/dates", response_model=TradingAgentDatesResponse)
+async def get_trading_agent_dates(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> TradingAgentDatesResponse:
+    """有记录日期清单（日历打点）：已有计划的日期 + 各周期已生成复盘的基准日。"""
+    return TradingAgentDatesResponse(
+        plan_dates=await agent_plan_ops.list_plan_dates(session),
+        review_dates={
+            period: await agent_review_service.list_review_dates(session, period=period)
+            for period in ("day", "week", "month")
+        },
+    )
 
 
 @router.get("/plans", response_model=list[TradingAgentPlanResponse])
