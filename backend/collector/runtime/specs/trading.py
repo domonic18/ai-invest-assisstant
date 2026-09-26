@@ -29,4 +29,16 @@ SPECS: tuple[TaskSpec, ...] = (
         run_params=("trade_date",),
         converters={"trade_date": date.fromisoformat},
     ),
+    TaskSpec(
+        name="agent-daily-plan",
+        label="交易 Agent 每日选股与交易计划",
+        description="盘后 19:00 基于复盘解读/涨停归因/异动/持仓生成选股清单与交易计划，同步 agent 自选分组",
+        data_type="agent-daily-plan",
+        collectors={
+            "internal": "collector.spiders.agent_daily_plan:AgentDailyPlanCollector",
+        },
+        queue="heavy",
+        run_params=("trade_date",),
+        converters={"trade_date": date.fromisoformat},
+    ),
 )
