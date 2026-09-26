@@ -20,7 +20,7 @@
                      │ HTTPS（SPA + /api/* 同源）
                      ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ SCF Web 函数 — web-api 一体镜像（:9000）                                     │
+│ SCF Web 函数 — web 一体镜像（:9000）                                     │
 │ React SPA + FastAPI 单 uvicorn 进程（SPA 静态托管）· SSE 流式输出            │
 │ deepagents 助手对话进程内承载 · 预置并发保冷启动 · 执行上限 900s              │
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -43,7 +43,7 @@
 - **API 层**：SCF Web 函数（FastAPI 一体镜像），SSE 流式输出；长任务（>900s）与需固定出口 IP 的采集爬虫留置轻量服务器执行
 - **数据与任务层**：轻量服务器承载 postgres/timescale、redis 与 Celery 采集调度（`collector_task` 表为调度真相源）
 - **文件存储**：COS（S3 兼容端点），兼作 pg_dump 定时备份目标
-- **镜像发布**：GitHub Actions 构建推送 TCR（web-api / collector / douyin-signer 三镜像），服务器/SCF 拉取部署
+- **镜像发布**：GitHub Actions 构建推送 TCR（web / collector / douyin-signer 三镜像），服务器/SCF 拉取部署
 
 > Web 与采集共享同一套 `backend/` 代码：`app/` 是 FastAPI Web 服务，`collector/` 是采集 runtime，通过 Celery 队列（realtime/batch/heavy）执行，亦保留 CLI 单任务入口 `collector.runtime.cli` 与 SCF 事件适配 `collector.runtime.scf_handler`。
 
@@ -96,16 +96,16 @@
 
 | 层次 | 技术 | 部署位置 | 选型理由 |
 |------|------|----------|----------|
-| **Web 前端** | React 18 + Vite + TypeScript | SCF web-api 一体镜像（FastAPI 静态托管同源） | 现代前端框架，生态完善 |
+| **Web 前端** | React 18 + Vite + TypeScript | SCF web 一体镜像（FastAPI 静态托管同源） | 现代前端框架，生态完善 |
 | **后端 API** | FastAPI (Python 3.10+) + SQLAlchemy 2.0 | SCF Web 函数（单 uvicorn 进程一体镜像） | 异步高性能、类型安全 |
-| **AI 助手运行时** | deepagents（LangChain Agent Protocol）+ assistant-ui | SCF web-api 进程内 | 流式对话/工具调用，会话持久化 `assistant_session` |
+| **AI 助手运行时** | deepagents（LangChain Agent Protocol）+ assistant-ui | SCF web 进程内 | 流式对话/工具调用，会话持久化 `assistant_session` |
 | **数据采集** | 自研 collector runtime + Celery + httpx/akshare/curl_cffi | 轻量服务器 Celery 双 worker（realtime+batch / heavy 并发=1） | 声明式 TaskSpec 注册表（57 任务）+ 多渠道 fallback |
-| **可视化** | ECharts + AntV/G6 v5 + D3.js | 前端打包至 web-api 镜像 | 产业链图谱(G6)、K线/竞价(ECharts)、板块河流/排名(D3/ECharts) |
+| **可视化** | ECharts + AntV/G6 v5 + D3.js | 前端打包至 web 镜像 | 产业链图谱(G6)、K线/竞价(ECharts)、板块河流/排名(D3/ECharts) |
 | **结构化存储** | PostgreSQL + TimescaleDB | 轻量服务器 Docker | 时序行情数据高效存储 |
 | **全文/向量检索** | PostgreSQL（pg_trgm + pgvector halfvec HNSW） | 轻量服务器 Docker | 研报/财报全文与知识库混合检索同库，零独立搜索引擎运维 |
 | **文件存储** | COS (S3 兼容) | 腾讯云 COS | PDF 财报/研报对象存储，兼作 pg_dump 备份目标 |
 | **缓存/队列** | Redis | 轻量服务器 Docker | 热数据缓存、Session、Celery broker、分布式锁 |
-| **AI Agent** | deepagents (LangChain/LangGraph) + YAML Prompts + Skills + MCP | web-api 进程内 | OpenAI/Anthropic 双协议统一模型工厂 |
+| **AI Agent** | deepagents (LangChain/LangGraph) + YAML Prompts + Skills + MCP | web 进程内 | OpenAI/Anthropic 双协议统一模型工厂 |
 | **认证** | JWT (OAuth2 表单) | FastAPI 模块 | 管理员经 `python -m app.cli.bootstrap_admin` 显式提权 |
 | **容器化** | Docker + Docker Compose | 轻量服务器 | 环境统一，一键部署 |
 | **CI/CD** | GitHub Actions → TCR | GitHub | 自动构建推送，服务器/SCF 仅 pull 部署 |
@@ -343,7 +343,7 @@ ai-invest-assisstant/
                                      展示│
                                        ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ 前端可视化（React SPA · SCF web-api 同源托管）                             │
+│ 前端可视化（React SPA · SCF web 同源托管）                             │
 │ 工作台 / 复盘 / 产业链 / 个股 / 资金流 / 宏观 / 资讯 / 日历 / 技能 / 后台  │
 └────────────────────────────────────────────────────────────────────────────┘
 ```

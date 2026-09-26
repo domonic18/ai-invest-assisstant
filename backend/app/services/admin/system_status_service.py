@@ -48,7 +48,7 @@ ServiceCategory = Literal["storage", "compute", "external"]
 
 
 class SystemStatusService:
-    """探测 web-api 运行依赖的存储/调度计算/外部服务连通性。"""
+    """探测 web 运行依赖的存储/调度计算/外部服务连通性。"""
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session

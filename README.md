@@ -23,7 +23,7 @@
                    │ HTTPS（SPA + /api/* 同源）
                    ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│ SCF Web 函数 — web-api 一体镜像（:9000）                         │
+│ SCF Web 函数 — web 一体镜像（:9000）                         │
 │ React SPA + FastAPI 单 uvicorn 进程（SPA 静态托管）· SSE 流式    │
 │ deepagents 助手对话进程内承载 · 预置并发保冷启动 · 上限 900s      │
 └──────────────────────┬──────────────────────┬────────────────────┘
@@ -51,7 +51,7 @@
 | 数据采集 | 自研 collector runtime, Celery, httpx / akshare / curl_cffi |
 | 可视化 | ECharts, AntV/G6 v5, D3.js |
 | 存储 | PostgreSQL (TimescaleDB, pg_trgm + pgvector halfvec 混合检索), Redis, COS (S3 兼容) |
-| 部署 | 腾讯云 SCF（web-api 一体镜像）+ 轻量服务器（采集与数据）+ GitHub Actions → TCR |
+| 部署 | 腾讯云 SCF（web 一体镜像）+ 轻量服务器（采集与数据）+ GitHub Actions → TCR |
 | Python 包管理 | uv |
 
 ## 项目结构
@@ -70,7 +70,7 @@ ai-invest-assisstant/
 ├── shared/                     # 前后端共享契约（独立 npm 包：endpoints + types 17 域）
 ├── skills/                     # Skill 分发单元（SKILL.md + prompt.yaml 自包含目录）
 ├── docker/                     # Docker 镜像与数据库初始化/迁移
-│   ├── web/                    # web-api 一体镜像（单 uvicorn :9000）
+│   ├── web/                    # web 一体镜像（单 uvicorn :9000）
 │   ├── collector/              # 采集镜像（beat/worker/stream/CLI）
 │   ├── signer/                 # douyin-signer 签名 sidecar
 │   ├── paper-trade/            # 掘金仿真 REST 网关 sidecar
@@ -98,7 +98,7 @@ docker compose -f docker-compose.prod.yml up -d --wait --remove-orphans --no-bui
 ### 构建镜像
 
 ```bash
-docker build -t web-api:latest -f docker/web/Dockerfile .
+docker build -t web:latest -f docker/web/Dockerfile .
 docker buildx build --platform linux/amd64 -f docker/collector/Dockerfile -t collector:latest --load .
 ```
 

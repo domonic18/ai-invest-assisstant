@@ -17,7 +17,7 @@ router = APIRouter(dependencies=[Depends(get_current_admin_user)])
 async def system_status(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> SystemStatusResponse:
-    """探测 web-api 运行依赖的存储/缓存/搜索/对象存储连通性。"""
+    """探测 web 运行依赖的存储/缓存/搜索/对象存储连通性。"""
     return await SystemStatusService(session).get_status()
 
 

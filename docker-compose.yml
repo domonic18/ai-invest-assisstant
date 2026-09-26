@@ -11,7 +11,7 @@ services:
       dockerfile: docker/web/Dockerfile
     # image 供服务器 docker compose pull 定位 TCR；build 保留给本地与应急构建；
     # APP_TAG 在服务器 .env 钉版（CI git 短 sha），缺省 latest
-    image: ccr.ccs.tencentyun.com/domonic18/web-api:${APP_TAG:-latest}
+    image: ccr.ccs.tencentyun.com/domonic18/web:${APP_TAG:-latest}
     ports:
       - "${WEB_PORT:-9000}:9000"
     env_file:

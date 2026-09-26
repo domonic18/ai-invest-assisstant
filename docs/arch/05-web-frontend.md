@@ -19,7 +19,7 @@
                      │
                      ▼
 ┌────────────────────────────────────────────┐
-│ SCF Web 函数 — web-api 一体镜像（:9000）   │
+│ SCF Web 函数 — web 一体镜像（:9000）   │
 │ React SPA（FastAPI 静态托管）· /assets/ 长缓存 │
 │ FastAPI /api/* 同源 · SSE 流式输出（LLM）  │
 │ invest.17aitech.com · /docs /health        │
@@ -280,7 +280,7 @@ shared/                       # 独立 npm 包，被 web 与 backend（uv）共�
 ## 7. 构建与托管
 
 - **Vite**：`manualChunks` 三组（vendor：react 系 / charts：echarts+g6+d3 / ui：antd）——图表库变动不影响业务 chunk 缓存；alias `@` → `src`；dev server `/api` 代理 `:8000`
-- **SPA 托管**（FastAPI 内置，web-api 一体镜像单 uvicorn 进程直听 :9000，无代理层）：`/assets/` 长缓存（内容哈希 + immutable），`/index.html` 与 SPA 路由 fallback 禁缓存（发版即生效）；HSTS / CSP 仅 HTTPS 下发，`FORCE_FORWARDED_HTTPS=1`（SCF）强制 scheme=https；API 未匹配路径保持 JSON 404 不落 index.html
+- **SPA 托管**（FastAPI 内置，web 一体镜像单 uvicorn 进程直听 :9000，无代理层）：`/assets/` 长缓存（内容哈希 + immutable），`/index.html` 与 SPA 路由 fallback 禁缓存（发版即生效）；HSTS / CSP 仅 HTTPS 下发，`FORCE_FORWARDED_HTTPS=1`（SCF）强制 scheme=https；API 未匹配路径保持 JSON 404 不落 index.html
 
 ## 8. 后续文档索引
 

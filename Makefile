@@ -24,7 +24,7 @@ test:
 
 # Build Docker images
 build:
-	docker build -t web-api:latest -f docker/web/Dockerfile .
+	docker build -t web:latest -f docker/web/Dockerfile .
 	docker build -t collector:latest -f docker/collector/Dockerfile .
 
 # Local development setup
