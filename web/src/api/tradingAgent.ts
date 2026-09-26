@@ -1,9 +1,10 @@
-/** 交易 Agent API（admin /admin/trading-agent/*，批次 5 配置 + 批次 6 复盘）。 */
+/** 交易 Agent API（admin /admin/trading-agent/*，批次 5 配置 + 批次 6 复盘 + 批次 7 计划）。 */
 
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
   ApiTradingAgentConfig,
   ApiTradingAgentConfigUpdateRequest,
+  ApiTradingAgentPlan,
   ApiTradingAgentReview,
   TradingReviewPeriod,
 } from '@ai-invest/shared'
@@ -33,6 +34,23 @@ export async function fetchTradingAgentReview(
   const response = await apiClient.get<ApiTradingAgentReview>(
     ENDPOINTS.admin.tradingAgentReview,
     { params: { period } },
+  )
+  return response.data
+}
+
+/** 指定日交易计划（缺省 trade_date 时后端取最近交易日；含全部状态）。 */
+export async function fetchTradingAgentPlans(tradeDate?: string): Promise<ApiTradingAgentPlan[]> {
+  const response = await apiClient.get<ApiTradingAgentPlan[]>(
+    ENDPOINTS.admin.tradingAgentPlans,
+    { params: tradeDate ? { trade_date: tradeDate } : undefined },
+  )
+  return response.data
+}
+
+/** 人工取消当日 active 计划（triggered 后不可取消）。 */
+export async function cancelTradingAgentPlan(planId: number): Promise<ApiTradingAgentPlan> {
+  const response = await apiClient.post<ApiTradingAgentPlan>(
+    ENDPOINTS.admin.tradingAgentPlanCancel(planId),
   )
   return response.data
 }

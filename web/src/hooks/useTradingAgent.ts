@@ -1,4 +1,4 @@
-/** 交易 Agent hooks（admin，配置 + 复盘查询）。 */
+/** 交易 Agent hooks（admin，配置 + 复盘查询 + 计划查询/取消）。 */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { message } from 'antd'
@@ -10,7 +10,9 @@ import type {
 
 import { fetchLLMConfigs } from '@/api/modelConfig'
 import {
+  cancelTradingAgentPlan,
   fetchTradingAgentConfig,
+  fetchTradingAgentPlans,
   fetchTradingAgentReview,
   updateTradingAgentConfig,
 } from '@/api/tradingAgent'
@@ -58,6 +60,27 @@ export function useUpdateTradingAgentConfig() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.all })
       message.success('交易 Agent 配置已保存')
+    },
+    onError: (error: Error) => message.error(error.message),
+  })
+}
+
+/** 指定日交易计划（缺省取最近交易日；含全部状态由前端分色）。 */
+export function useTradingAgentPlans(tradeDate?: string) {
+  return useQuery({
+    queryKey: queryKeys.tradingAgent.plans(tradeDate),
+    queryFn: () => fetchTradingAgentPlans(tradeDate),
+  })
+}
+
+/** 人工取消 active 计划（triggered 后端拒绝）。 */
+export function useCancelTradingAgentPlan() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (planId: number) => cancelTradingAgentPlan(planId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.all })
+      message.success('计划已取消')
     },
     onError: (error: Error) => message.error(error.message),
   })

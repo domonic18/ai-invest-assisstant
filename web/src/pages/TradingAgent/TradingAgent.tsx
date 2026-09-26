@@ -28,6 +28,7 @@ import {
 } from '@/hooks/useTradingAgent'
 import { useAssistantStore } from '@/stores/assistant'
 
+import { PlanPanel } from './PlanPanel'
 import { ReviewPanel } from './ReviewPanel'
 
 function TradingChatHeader({ onNewThread }: { onNewThread: () => void }) {
@@ -158,9 +159,10 @@ export function TradingAgent() {
   })
   const queryClient = useQueryClient()
 
-  // Agent 委托成功事件：刷新模拟盘数据（执行动态/持仓），事件即消费
+  // Agent 委托/计划成功事件：刷新模拟盘数据与交易计划，事件即消费
   usePageAssistantResult(PAGE_EVENT_TYPES.paperTrading, () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.paperTrade.all })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.all })
     return true
   })
 
@@ -208,6 +210,7 @@ export function TradingAgent() {
       </div>
       <div className="hidden w-[320px] shrink-0 space-y-3 overflow-y-auto lg:block">
         <AgentConfigPanel />
+        <PlanPanel />
         <ReviewPanel />
       </div>
     </div>

@@ -1,0 +1,101 @@
+/**
+ * 今日交易计划卡片（批次 7）：19:00 定时生成 + 对话制定共用的计划清单。
+ *
+ * 数据源 admin GET /trading-agent/plans（缺省最近交易日，含全部状态）；
+ * 状态分色：active 待触发 / triggered 已触发 / executed 已成交 /
+ * expired 已失效 / cancelled 已取消；active 计划可人工取消。
+ */
+import { Card, Empty, Popconfirm, Space, Spin, Tag, Typography } from 'antd'
+import { StopOutlined } from '@ant-design/icons'
+
+import type { ApiTradingAgentPlan } from '@ai-invest/shared'
+
+import { useCancelTradingAgentPlan, useTradingAgentPlans } from '@/hooks/useTradingAgent'
+
+const STATUS_META: Record<ApiTradingAgentPlan['status'], { label: string; color: string }> = {
+  active: { label: '待触发', color: 'processing' },
+  triggered: { label: '已触发', color: 'warning' },
+  executed: { label: '已成交', color: 'success' },
+  expired: { label: '已失效', color: 'default' },
+  cancelled: { label: '已取消', color: 'default' },
+}
+
+function fmt(value: number | null): string {
+  return value != null ? value.toFixed(2) : '-'
+}
+
+function PlanRow({ plan }: { plan: ApiTradingAgentPlan }) {
+  const cancel = useCancelTradingAgentPlan()
+  const status = STATUS_META[plan.status] ?? STATUS_META.expired
+  const isBuy = plan.planType === 'buy'
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+      <div className="flex items-center gap-2">
+        <Tag color={isBuy ? 'red' : 'green'} className="!mr-0">
+          {isBuy ? '买入' : '卖出'}
+        </Tag>
+        <Typography.Text strong className="font-mono">
+          {plan.stockCode}
+        </Typography.Text>
+        <span className="ml-auto" />
+        <Tag color={status.color}>{status.label}</Tag>
+        {plan.status === 'active' && (
+          <Popconfirm
+            title="取消该计划"
+            description="取消后盘中执行器不再消费此计划。"
+            okText="取消计划"
+            cancelText="返回"
+            onConfirm={() => cancel.mutate(plan.id)}
+          >
+            <StopOutlined className="text-gray-500 hover:text-gray-300" />
+          </Popconfirm>
+        )}
+      </div>
+      <div className="mt-1 text-xs text-gray-300">{plan.strategy}</div>
+      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-500 font-mono">
+        {isBuy && (
+          <span>
+            买点区间 {fmt(plan.buyZoneLow)} ~ {fmt(plan.buyZoneHigh)}
+          </span>
+        )}
+        {!isBuy && <span>止盈 {fmt(plan.targetPrice)}</span>}
+        <span className="text-gray-400">止损 {fmt(plan.stopLoss)}</span>
+        <span>仓位 {plan.positionPct.toFixed(0)}%</span>
+      </div>
+      <Typography.Paragraph type="secondary" className="!mb-0 mt-1 text-xs" ellipsis={{ rows: 2 }}>
+        {plan.basis}
+      </Typography.Paragraph>
+      {plan.triggeredClOrdId && (
+        <div className="mt-1 text-xs text-gray-500 font-mono">
+          委托号 {plan.triggeredClOrdId}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function PlanPanel() {
+  const { data: plans, isLoading } = useTradingAgentPlans()
+
+  return (
+    <Card size="small" title="今日交易计划">
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <Spin />
+        </div>
+      ) : !plans || plans.length === 0 ? (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description="尚未生成（每交易日 19:00 自动生成，也可在对话中制定）"
+        />
+      ) : (
+        <Space direction="vertical" size="small" className="w-full">
+          {plans.map((plan) => (
+            <PlanRow key={plan.id} plan={plan} />
+          ))}
+        </Space>
+      )}
+    </Card>
+  )
+}
