@@ -18,7 +18,12 @@ from app.models.assistant_session import AssistantSession
 def _session_row(title: str | None = None) -> AssistantSession:
     now = datetime.now(timezone.utc)
     return AssistantSession(
-        id=uuid.uuid4(), user_id=1, title=title, created_at=now, updated_at=now
+        id=uuid.uuid4(),
+        user_id=1,
+        title=title,
+        agent_type="assistant",
+        created_at=now,
+        updated_at=now,
     )
 
 
@@ -27,6 +32,14 @@ def assistant_client():
     mock_session = AsyncMock()
     mock_user = MagicMock()
     mock_user.id = 1
+
+    # 未打桩 service 的用例（如配额拒绝流）走真实 repo 链路：
+    # py3.14 AsyncMock await 后返回 AsyncMock 子级，链条属性访问得到 coroutine，
+    # 故预置 execute 返回一条归属当前用户的会话行
+    default_row = _session_row()
+    default_result = MagicMock()
+    default_result.scalar_one_or_none.return_value = default_row
+    mock_session.execute = AsyncMock(return_value=default_result)
 
     async def _override_get_db():
         yield mock_session
@@ -325,3 +338,103 @@ class TestSkillsEndpoint:
         assert body[0]["isCustom"] is False
         assert body[0]["kind"] == "executable"
         assert body[1]["isCustom"] is True
+
+
+@pytest.mark.unit
+class TestTradingThreadGate:
+    """trading 线程分流：admin 门禁 + agent_type 白名单 + 列表过滤（批次 5）。"""
+
+    def test_create_trading_thread_requires_admin(self, assistant_client) -> None:
+        client, user = assistant_client
+        user.role = "user"
+        with patch(
+            "app.services.assistant.assistant_service.AssistantService.create_session",
+            AsyncMock(),
+        ) as create_mock:
+            response = client.post(
+                "/api/v1/assistant/threads", json={"agent_type": "trading"}
+            )
+        assert response.status_code == 403
+        create_mock.assert_not_called()
+
+    def test_create_trading_thread_as_admin(self, assistant_client) -> None:
+        client, user = assistant_client
+        user.role = "admin"
+        row = _session_row()
+        row.agent_type = "trading"
+        with patch(
+            "app.services.assistant.assistant_service.AssistantService.create_session",
+            AsyncMock(return_value=row),
+        ) as create_mock:
+            response = client.post(
+                "/api/v1/assistant/threads", json={"agent_type": "trading"}
+            )
+        assert response.status_code == 201
+        assert response.json()["agent_type"] == "trading"
+        create_mock.assert_awaited_once_with(1, None, "trading")
+
+    def test_create_thread_invalid_agent_type_422(self, assistant_client) -> None:
+        client, user = assistant_client
+        user.role = "admin"
+        response = client.post(
+            "/api/v1/assistant/threads", json={"agent_type": "copilot"}
+        )
+        assert response.status_code == 422
+
+    def test_list_sessions_passes_agent_type_filter(self, assistant_client) -> None:
+        client, _ = assistant_client
+        with patch(
+            "app.services.assistant.assistant_service.AssistantService.list_sessions",
+            AsyncMock(return_value=([], 0)),
+        ) as list_mock:
+            response = client.get(
+                "/api/v1/assistant/sessions", params={"agent_type": "trading"}
+            )
+        assert response.status_code == 200
+        list_mock.assert_awaited_once_with(1, 20, 0, "trading")
+
+    @pytest.mark.asyncio
+    async def test_resolve_agent_trading_requires_admin(self) -> None:
+        from app.api.v1.assistant.runs import _resolve_agent
+        from app.core.exceptions import ForbiddenError
+
+        thread = SimpleNamespace(agent_type="trading")
+        user = SimpleNamespace(id=1, role="user")
+        with pytest.raises(ForbiddenError):
+            await _resolve_agent(MagicMock(), user, thread)  # type: ignore[arg-type]
+
+    @pytest.mark.asyncio
+    async def test_resolve_agent_trading_returns_trading_agent(self) -> None:
+        from app.api.v1.assistant.runs import _resolve_agent
+
+        thread = SimpleNamespace(agent_type="trading")
+        user = SimpleNamespace(id=1, role="admin")
+        sentinel = object()
+        with patch(
+            "app.api.v1.assistant.runs.get_trading_agent", AsyncMock(return_value=sentinel)
+        ) as trading_mock:
+            agent = await _resolve_agent(MagicMock(), user, thread)  # type: ignore[arg-type]
+        assert agent is sentinel
+        # trading 分支不解析 BYOK 出口（无平台默认 LLM 也可用）
+        trading_mock.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_resolve_agent_assistant_branch_uses_byok(self) -> None:
+        from app.api.v1.assistant.runs import _resolve_agent
+
+        thread = SimpleNamespace(agent_type="assistant")
+        user = SimpleNamespace(id=1, role="user")
+        sentinel = object()
+        with (
+            patch(
+                "app.api.v1.assistant.runs.resolve_llm", AsyncMock(return_value=(None, None))
+            ) as resolve_mock,
+            patch(
+                "app.api.v1.assistant.runs.get_assistant_agent",
+                AsyncMock(return_value=sentinel),
+            ) as assistant_mock,
+        ):
+            agent = await _resolve_agent(MagicMock(), user, thread, use_kb=False)  # type: ignore[arg-type]
+        assert agent is sentinel
+        resolve_mock.assert_awaited_once()
+        assistant_mock.assert_awaited_once()

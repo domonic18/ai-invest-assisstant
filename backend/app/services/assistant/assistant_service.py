@@ -27,20 +27,29 @@ class AssistantService:
         self._repo = AssistantSessionRepository(session)
 
     async def create_session(
-        self, user_id: int, title: str | None = None
+        self,
+        user_id: int,
+        title: str | None = None,
+        agent_type: str = "assistant",
     ) -> AssistantSession:
-        """新建会话；id 即 Agent Protocol thread_id。"""
-        row = AssistantSession(id=uuid.uuid4(), user_id=user_id, title=title)
+        """新建会话；id 即 Agent Protocol thread_id（agent_type 区分 assistant/trading）。"""
+        row = AssistantSession(
+            id=uuid.uuid4(), user_id=user_id, title=title, agent_type=agent_type
+        )
         self._repo.add(row)
         await self._session.commit()
         await self._session.refresh(row)
         return row
 
     async def list_sessions(
-        self, user_id: int, limit: int = 20, offset: int = 0
+        self,
+        user_id: int,
+        limit: int = 20,
+        offset: int = 0,
+        agent_type: str | None = None,
     ) -> tuple[list[AssistantSession], int]:
-        """当前用户会话列表（最近活跃优先）与总数。"""
-        return await self._repo.list_by_user(user_id, limit, offset)
+        """当前用户会话列表（最近活跃优先）与总数；agent_type 可选过滤。"""
+        return await self._repo.list_by_user(user_id, limit, offset, agent_type)
 
     async def get_session(
         self, user_id: int, thread_id: str

@@ -14,16 +14,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.runtime import wire
 from app.agent.runtime.assistant_agent import get_assistant_agent
+from app.agent.runtime.trading_agent import get_trading_agent
 from app.api.v1.assistant.page_context import _with_page_context
 from app.api.v1.assistant.threads import _require_thread
 from app.constants.pagination import DEFAULT_HISTORY_LIMIT, MAX_HISTORY_LIMIT
 from app.core.exceptions import (
     AppError,
+    ForbiddenError,
     NotFoundError,
     QuotaExhaustedError,
     UnprocessableEntityError,
 )
 from app.dependencies import get_current_user, get_db
+from app.models.assistant_session import AssistantSession
 from app.models.user import User
 from app.schemas.assistant import RunCancelRequest, RunStreamRequest, ThreadStateResponse
 from app.services.assistant.assistant_service import AssistantService, finalize_run
@@ -39,6 +42,23 @@ router = APIRouter()
 _CUSTOM_SKILL_INDEX_HEADER = "用户已安装以下自定义技能（需使用时说明技能名称）："
 
 
+async def _resolve_agent(
+    session: AsyncSession, user: User, thread: AssistantSession, *, use_kb: bool = True
+) -> Any:
+    """线程 → agent 分流单点（stream/state/history 共用，防漏改）。
+
+    trading 线程：admin 门禁（403）后取交易 Agent 单例（模型由
+    ``trading_agent_config`` 决定，工具集专属）；assistant 线程：BYOK 出口
+    解析 + 知识库开关注入。
+    """
+    if (getattr(thread, "agent_type", None) or "assistant") == "trading":
+        if user.role != "admin":
+            raise ForbiddenError("交易 Agent 会话仅管理员可用")
+        return await get_trading_agent()
+    cfg, _outlet = await resolve_llm(session, user.id)
+    return await get_assistant_agent(cfg=cfg, use_kb=use_kb)
+
+
 @router.get("/threads/{thread_id}/state", response_model=ThreadStateResponse)
 async def get_thread_state(
     thread_id: str,
@@ -46,8 +66,8 @@ async def get_thread_state(
     user: Annotated[User, Depends(get_current_user)],
 ) -> ThreadStateResponse:
     """线程状态快照：values.messages（历史）+ tasks[].interrupts（未完成 HITL）。"""
-    await _require_thread(session, user, thread_id)
-    agent = await get_assistant_agent()
+    thread = await _require_thread(session, user, thread_id)
+    agent = await _resolve_agent(session, user, thread)
     snapshot = await agent.aget_state({"configurable": {"thread_id": thread_id}})
     tasks = [
         {
@@ -73,8 +93,8 @@ async def get_thread_history(
     limit: Annotated[int, Query(ge=1, le=MAX_HISTORY_LIMIT)] = DEFAULT_HISTORY_LIMIT,
 ) -> list[dict[str, Any]]:
     """checkpoint 历史（消息编辑/重新生成定位父节点）。"""
-    await _require_thread(session, user, thread_id)
-    agent = await get_assistant_agent()
+    thread = await _require_thread(session, user, thread_id)
+    agent = await _resolve_agent(session, user, thread)
     history: list[dict[str, Any]] = []
     async for snapshot in agent.aget_state_history(
         {"configurable": {"thread_id": thread_id}}
@@ -123,7 +143,7 @@ async def stream_run(
     """SSE 流式运行：messages/updates/custom 三通道；input（新输入）或
     command（HITL resume）二选一。客户端断开即取消（on_disconnect=cancel）。
     """
-    await _require_thread(session, user, thread_id)
+    thread = await _require_thread(session, user, thread_id)
 
     messages_in = (data.input or {}).get("messages") or []
     if data.input is not None and not messages_in:
@@ -136,7 +156,7 @@ async def stream_run(
     page_context = (data.metadata or {}).get("page_context")
     custom_lines = (
         await AssistantService(session).custom_skill_index_lines(user.id)
-        if messages_in
+        if messages_in and thread.agent_type != "trading"
         else []
     )
     lc_input = (
@@ -197,11 +217,11 @@ async def stream_run(
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    # 出口分流：BYOK 用户获得独立 agent 实例（失败不回退，arch/07 §5）；
-    # 知识库检索工具随对话「使用知识库」开关注入（metadata.use_kb，缺省开）
-    cfg, _outlet = await resolve_llm(session, user.id)
+    # 出口分流单点：trading 线程取交易 Agent（admin 门禁内聚于 _resolve_agent）；
+    # assistant 线程 BYOK 独立实例（失败不回退，arch/07 §5），知识库检索工具
+    # 随对话「使用知识库」开关注入（metadata.use_kb，缺省开）
     use_kb = bool((data.metadata or {}).get("use_kb", True))
-    agent = await get_assistant_agent(cfg=cfg, use_kb=use_kb)
+    agent = await _resolve_agent(session, user, thread, use_kb=use_kb)
 
     async def event_stream() -> AsyncIterator[str]:
         task = asyncio.current_task()

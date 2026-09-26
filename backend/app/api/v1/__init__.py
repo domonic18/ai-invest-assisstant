@@ -52,6 +52,7 @@ from app.api.v1.admin import tasks as admin_tasks
 from app.api.v1.admin import telegraph as admin_telegraph
 from app.api.v1.admin import tracked_index as admin_tracked_indexes
 from app.api.v1.admin import trade_calendar as admin_trade_calendar
+from app.api.v1.admin import trading_agent as admin_trading_agent
 from app.api.v1.admin import users as admin_users
 from app.api.v1.mcp import server as mcp_server
 
@@ -99,6 +100,7 @@ admin_router.include_router(admin_stocks.router, prefix="/stocks")
 admin_router.include_router(admin_reports.router, prefix="/reports")
 admin_router.include_router(admin_news.router, prefix="/news")
 admin_router.include_router(admin_paper_trade.router)
+admin_router.include_router(admin_trading_agent.router)
 admin_router.include_router(admin_telegraph.router, prefix="/telegraph")
 admin_router.include_router(admin_tasks.router, prefix="/tasks")
 admin_router.include_router(admin_system.router, prefix="/system")

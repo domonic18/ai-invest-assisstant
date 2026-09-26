@@ -26,6 +26,9 @@ class AssistantSession(Base):
         BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=False
     )
     title: Mapped[str | None] = mapped_column(String(128))
+    agent_type: Mapped[str] = mapped_column(
+        String(16), default="assistant", nullable=False
+    )
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
