@@ -20,7 +20,7 @@ def _stub_account(**overrides: object) -> SimpleNamespace:
         "user_id": 1,
         "name": "人工盘",
         "counter_account_id": "acc-1",
-        "is_agent": False,
+        "agent_key": None,
         "is_enabled": True,
         "token_encrypted": "gAAAA-encrypted",
         "last_error": None,
@@ -301,10 +301,10 @@ class TestPaperTradeAccountsApi:
         assert row["counterAccountId"] == "acc-1"
         assert row["tokenMasked"].startswith("tok-")
         assert "secret" not in row["tokenMasked"]
-        assert row["isAgent"] is False
+        assert row["agentKey"] is None
 
     def test_create_account_returns_201(self, user_client) -> None:
-        created = _stub_account(id=12, name="agent 盘", is_agent=True)
+        created = _stub_account(id=12, name="agent 盘", agent_key="short-line")
         with (
             patch(
                 "app.api.v1.paper_trade.account_service.create_account",
@@ -376,7 +376,7 @@ class TestPaperTradeManualTradingApi:
         with (
             patch(
                 "app.api.v1.paper_trade.account_service.resolve_for_user",
-                _resolve(_stub_account(is_agent=True)),
+                _resolve(_stub_account(agent_key="short-line")),
             ),
             patch(
                 "app.api.v1.paper_trade.paper_trade_service.place_order",

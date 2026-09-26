@@ -2,6 +2,7 @@
 
 from contextlib import asynccontextmanager
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -20,12 +21,17 @@ from app.services.trading.errors import AgentAccountNotDesignatedError
 _TRADE_DATE = date(2026, 7, 15)  # Wednesday
 
 
+def _agent() -> SimpleNamespace:
+    """注册行替身（generate_review 消费的字段）。"""
+    return SimpleNamespace(agent_key="short-line", llm_config_id=None)
+
+
 def _cached_row(structured: dict | None):
     """构造 ai_analysis_repository.load_latest_success 的返回值。"""
     if structured is None:
         return None
     row = MagicMock()
-    row.structured_output = structured
+    row.structured_output = {"agent_key": "short-line", **structured}
     return row
 
 
@@ -72,44 +78,66 @@ class TestResolveWindow:
 class TestGetReview:
     @pytest.mark.asyncio
     async def test_returns_none_when_not_generated(self) -> None:
-        with patch(
-            "app.repositories.review.ai_analysis_repository.load_latest_success",
-            AsyncMock(return_value=None),
+        with (
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=None),
+            ),
         ):
             assert (
                 await agent_review_service.get_review(
-                    AsyncMock(), period="day", trade_date=_TRADE_DATE
+                    AsyncMock(), "short-line", period="day", trade_date=_TRADE_DATE
                 )
                 is None
             )
 
     @pytest.mark.asyncio
-    async def test_filters_by_period_at_query_level(self) -> None:
-        """同 trade_date 会并存 day/week/month 行：period 过滤必须下推到
-        SQL（structured_filter），否则最新一条他维记录会遮蔽请求维度。"""
+    async def test_reads_by_computed_input_hash(self) -> None:
+        """同 trade_date 会并存 day/week/month 行：读取按 input_hash
+        （agent_key+账户+周期+窗口确定性派生）定位，周期维度不得互串。"""
         mock_load = AsyncMock(return_value=_cached_row(_content_dict(period="day")))
-        with patch(
-            "app.repositories.review.ai_analysis_repository.load_latest_success",
-            mock_load,
+        hashes: dict[str, str] = {}
+        with (
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                mock_load,
+            ),
         ):
-            await agent_review_service.get_review(
-                AsyncMock(), period="week", trade_date=_TRADE_DATE
-            )
+            for period in ("day", "week"):
+                await agent_review_service.get_review(
+                    AsyncMock(), "short-line", period=period, trade_date=_TRADE_DATE
+                )
+                hashes[period] = mock_load.await_args.kwargs["input_hash"]
 
-        assert mock_load.await_args.kwargs["structured_filter"] == {"period": "week"}
+        assert hashes["day"] != hashes["week"]
         assert mock_load.await_args.kwargs["trade_date"] == _TRADE_DATE
 
     @pytest.mark.asyncio
     async def test_returns_parsed_content(self) -> None:
-        with patch(
-            "app.repositories.review.ai_analysis_repository.load_latest_success",
-            AsyncMock(return_value=_cached_row(_content_dict())),
+        with (
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=_cached_row(_content_dict())),
+            ),
         ):
             content = await agent_review_service.get_review(
-                AsyncMock(), period="day", trade_date=_TRADE_DATE
+                AsyncMock(), "short-line", period="day", trade_date=_TRADE_DATE
             )
 
         assert content is not None
+        assert content.agent_key == "short-line"
         assert content.trades[0].cl_ord_id == "A"
         assert content.experiences[0].mem_type == "discipline"
 
@@ -126,7 +154,7 @@ class TestGenerateReview:
             pytest.raises(NonTradingDayError),
         ):
             await agent_review_service.generate_review(
-                AsyncMock(), period="day", trade_date=_TRADE_DATE
+                AsyncMock(), _agent(), period="day", trade_date=_TRADE_DATE
             )
 
     @pytest.mark.asyncio
@@ -146,7 +174,7 @@ class TestGenerateReview:
             ),
             pytest.raises(AgentAccountNotDesignatedError),
         ):
-            await agent_review_service.generate_review(AsyncMock(), period="day")
+            await agent_review_service.generate_review(AsyncMock(), _agent(), period="day")
 
     @pytest.mark.asyncio
     async def test_returns_cached_before_readiness_check(self) -> None:
@@ -166,7 +194,7 @@ class TestGenerateReview:
             ),
         ):
             result = await agent_review_service.generate_review(
-                AsyncMock(), period="day", trade_date=_TRADE_DATE
+                AsyncMock(), _agent(), period="day", trade_date=_TRADE_DATE
             )
 
         assert result.cached is True
@@ -194,7 +222,7 @@ class TestGenerateReview:
             pytest.raises(ReviewInputDataNotReadyError, match="尚未落库"),
         ):
             await agent_review_service.generate_review(
-                AsyncMock(), period="day", trade_date=_TRADE_DATE
+                AsyncMock(), _agent(), period="day", trade_date=_TRADE_DATE
             )
 
     @pytest.mark.asyncio
@@ -223,7 +251,7 @@ class TestGenerateReview:
             pytest.raises(NoReviewTargetError, match="无交易且无持仓"),
         ):
             await agent_review_service.generate_review(
-                AsyncMock(), period="day", trade_date=_TRADE_DATE
+                AsyncMock(), _agent(), period="day", trade_date=_TRADE_DATE
             )
 
     @pytest.mark.asyncio
@@ -257,7 +285,7 @@ class TestGenerateReview:
             pytest.raises(PaperTradeReviewLockedError, match="正在生成"),
         ):
             await agent_review_service.generate_review(
-                AsyncMock(), period="day", trade_date=_TRADE_DATE, regenerate=True
+                AsyncMock(), _agent(), period="day", trade_date=_TRADE_DATE, regenerate=True
             )
 
     @pytest.mark.asyncio
@@ -314,7 +342,7 @@ class TestGenerateReview:
         ):
             session = AsyncMock()
             result = await agent_review_service.generate_review(
-                session, period="day", trade_date=_TRADE_DATE, regenerate=True
+                session, _agent(), period="day", trade_date=_TRADE_DATE, regenerate=True
             )
 
         assert result.cached is False

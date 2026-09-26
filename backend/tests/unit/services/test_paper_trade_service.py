@@ -33,12 +33,12 @@ def _lock(acquired: bool = True):
 
 
 def _account(
-    account_id: int = 1, is_agent: bool = False, is_enabled: bool = True
+    account_id: int = 1, agent_key: str | None = None, is_enabled: bool = True
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=account_id,
         name=f"账户{account_id}",
-        is_agent=is_agent,
+        agent_key=agent_key,
         is_enabled=is_enabled,
     )
 
@@ -363,7 +363,7 @@ class TestManualTrading:
         with pytest.raises(ForbiddenError):
             await svc.place_order(
                 MagicMock(),
-                _account(is_agent=True),
+                _account(agent_key="short-line"),
                 symbol="000001",
                 side="buy",
                 volume=100,
@@ -403,7 +403,7 @@ class TestManualTrading:
     @pytest.mark.asyncio
     async def test_cancel_order_rejects_agent_account(self) -> None:
         with pytest.raises(ForbiddenError):
-            await svc.cancel_order(_account(is_agent=True), "o1")
+            await svc.cancel_order(_account(agent_key="short-line"), "o1")
 
     @pytest.mark.asyncio
     async def test_place_order_rejects_disabled_account(self) -> None:
@@ -477,7 +477,7 @@ class TestSyncDaily:
         assert set(stmt.selected_columns.keys()) == {
             "id",
             "name",
-            "is_agent",
+            "agent_key",
             "counter_account_id",
             "token_encrypted",
         }
@@ -557,7 +557,7 @@ class TestSyncDaily:
         session = AsyncMock()
         session.execute = AsyncMock(
             side_effect=[
-                _accounts_result([_account(account_id=9, is_agent=True)]),
+                _accounts_result([_account(account_id=9, agent_key="short-line")]),
                 MagicMock(),
                 MagicMock(),
                 MagicMock(),
@@ -580,14 +580,14 @@ class TestSyncDaily:
             summary = await svc.sync_daily(session, _TRADE_DATE)
 
         assert summary["orders"] == 1
-        assert summary["details"][0]["is_agent"] is True
+        assert summary["details"][0]["agent_key"] == "short-line"
         assert summary["details"][0]["account_id"] == 9
 
     @pytest.mark.asyncio
     async def test_account_error_isolation(self) -> None:
         """第一个账户柜台报错不阻断第二个账户；失败写 last_error 并 commit。"""
         session = AsyncMock()
-        accounts = [_account(account_id=1), _account(account_id=2, is_agent=True)]
+        accounts = [_account(account_id=1), _account(account_id=2, agent_key="short-line")]
         session.execute = AsyncMock(
             side_effect=[
                 _accounts_result(accounts),

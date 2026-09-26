@@ -1,10 +1,11 @@
-"""模拟盘交易域 ORM 模型（账户 / 委托 / 成交回报 / 资金日快照 / 交易 Agent 配置）。
+"""模拟盘交易域 ORM 模型（账户 / 委托 / 成交回报 / 资金日快照 / 交易 Agent 注册表）。
 
 表结构真源是幂等 SQL 迁移（docker/database/migrations/20260924a_paper_trade_tables.sql
-与 20260926b_trading_agent_config.sql）。
+与 20260926g_trading_agent_registry.sql）。
 柜台（掘金仿真，经 paper-trade sidecar）是交易状态真相源，本地表是复盘分析与
 计划执行的真相源；16:00 盘后同步任务幂等 upsert（docs/plan/paper-trading-plan.md §4/§6）。
-多租户：每用户自有掘金仿真账户（token Fernet 加密），三表账户维度，agent 账户全局唯一。
+多租户：每用户自有掘金仿真账户（token Fernet 加密），三表账户维度；
+agent 账户经 agent_key 与 trading_agent 注册表一一绑定（docs/plan/agent-hub-plan.md D22）。
 """
 
 from datetime import date, datetime
@@ -33,16 +34,16 @@ from app.core.database import Base
 
 
 class PaperTradeAccount(Base):
-    """掘金仿真账户配置：每用户自有凭证（token Fernet 加密），agent 账户全局唯一。"""
+    """掘金仿真账户配置：每用户自有凭证（token Fernet 加密），agent 账户按 agent_key 唯一。"""
 
     __tablename__ = "paper_trade_account"
     __table_args__ = (
         UniqueConstraint("counter_account_id", name="uq_paper_trade_account_counter"),
         Index(
-            "uq_paper_trade_account_agent",
-            "is_agent",
+            "uq_paper_trade_account_agent_key",
+            "agent_key",
             unique=True,
-            postgresql_where=text("is_agent"),
+            postgresql_where=text("agent_key IS NOT NULL"),
         ),
         Index("idx_paper_trade_account_user", "user_id"),
     )
@@ -52,7 +53,9 @@ class PaperTradeAccount(Base):
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     token_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     counter_account_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    is_agent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    agent_key: Mapped[str | None] = mapped_column(
+        String(32), nullable=True
+    )  # 归属交易 Agent；NULL = 用户账户。FK 见迁移（ON DELETE RESTRICT）
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_synced_at: Mapped[datetime | None] = mapped_column(
@@ -113,22 +116,32 @@ class PaperTradeOrder(Base):
     )
 
 
-class TradingAgentConfig(Base):
-    """交易 Agent 全局配置（单例 id=1）：LLM 绑定 + 风控阈值 + 自主执行总闸。"""
+class TradingAgent(Base):
+    """交易 Agent 注册表：身份/介绍/模型绑定/风控/总闸（docs/plan/agent-hub-plan.md D21）。
 
-    __tablename__ = "trading_agent_config"
+    status='active' 参与执行与调度；'planned' 总览幽灵节点展示；'disabled' 停用。
+    种子-only：新 Agent 手工 SQL 注册，管理端不做 CRUD。
+    """
+
+    __tablename__ = "trading_agent"
     __table_args__ = (
-        CheckConstraint("id = 1", name="chk_trading_agent_config_singleton"),
+        CheckConstraint(
+            "status IN ('active', 'planned', 'disabled')", name="chk_trading_agent_status"
+        ),
         {
-            "comment": "交易 Agent 全局配置（单例 id=1）：LLM 绑定 + 风控阈值 + 自主执行总闸"
-            "（docs/plan/paper-trading-plan.md §8.5）"
+            "comment": "交易 Agent 注册表：身份/介绍/模型绑定/风控/总闸"
+            "（docs/plan/agent-hub-plan.md D21）"
         },
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    agent_key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    tagline: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    strategy_desc: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    style_desc: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     llm_config_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True
-    )  # FK 见迁移（ON DELETE SET NULL）
+    )  # 对话/结构化输出模型；FK 见迁移（ON DELETE SET NULL），空 = 默认 chat
     methodology_source_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # 方法论知识源 kb_source.id；FK 见迁移（ON DELETE SET NULL），空 = 未启用
@@ -140,6 +153,15 @@ class TradingAgentConfig(Base):
     )
     risk_max_daily_orders: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
     auto_exec_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    prompt_id: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="trading_agent"
+    )  # prompts/agents/<prompt_id>.yaml
+    accent_color: Mapped[str] = mapped_column(String(16), nullable=False, default="#3b82f6")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )

@@ -1,10 +1,11 @@
-"""交易 Agent deepagents 运行时（系统级单例，批次 5）。
+"""交易 Agent deepagents 运行时（每 Agent 一实例，多 Agent 基座 D24）。
 
-与人工助手平行的独立会话体（D16：系统级单例，非多租户）：
-- 模型：``trading_agent_config.llm_config_id`` 指定出口（空 = 平台默认 chat），
-  每次构建时现读配置，改选即时生效；缓存键 = 出口指纹 × 工具集版本
-- 工具：专属交易工具集（账户/下单/撤单），与人工助手工具完全隔离（D18）
-- 系统提示词：``prompts/agents/trading_agent.yaml``（交易员人格与纪律）
+与人工助手平行的独立会话体（D16：系统级，非多租户）：
+- 模型：``trading_agent.llm_config_id`` 指定出口（空 = 平台默认 chat），
+  每次构建时现读注册行，改选即时生效；缓存键 = agent_key × 出口指纹 × 工具集版本
+- 工具：专属交易工具集（账户/下单/撤单），按 agent_key 闭包绑定，与人工
+  助手工具完全隔离（D18）
+- 系统提示词：``prompts/agents/<prompt_id>.yaml``（注册行 prompt_id 指定）
 - checkpointer：与助手共享 ``AsyncPostgresSaver`` 单例（thread_id 兼作会话 id）
 
 无 subagents / skills / MCP 挂载——交易 Agent 是窄域执行体，不读技能文件。
@@ -33,35 +34,35 @@ from app.services.admin.llm_config_service import (
 
 logger = structlog.get_logger(__name__)
 
-# 出口指纹 × 工具集版本 → (agent, last_used)：LRU + 闲置淘汰
+# agent_key × 出口指纹 × 工具集版本 → (agent, last_used)：LRU + 闲置淘汰
 _agents: OrderedDict[str, tuple[CompiledStateGraph, float]] = OrderedDict()
 _build_lock = asyncio.Lock()
 
 
-def load_trading_system_prompt() -> str:
-    """加载交易 Agent 系统提示词（prompts/agents/trading_agent.yaml）。"""
-    config = get_prompt_loader().load("agents", "trading_agent")
+def load_trading_system_prompt(prompt_id: str) -> str:
+    """加载交易 Agent 系统提示词（prompts/agents/<prompt_id>.yaml）。"""
+    config = get_prompt_loader().load("agents", prompt_id)
     return config.system_prompt
 
 
-async def resolve_trading_llm() -> ResolvedLLMConfig:
-    """解析交易 Agent 的模型出口：配置绑定优先，空则平台默认 chat 模型。"""
-    from app.services.trading.agent_config import get_config_row
-
+async def resolve_trading_llm(
+    llm_config_id: int | None,
+) -> ResolvedLLMConfig:
+    """解析交易 Agent 的模型出口：注册行绑定优先，空则平台默认 chat 模型。"""
     async with AsyncSessionLocal() as session:
-        config = await get_config_row(session)
-        if config.llm_config_id is not None:
-            return await resolve_llm_by_id(session, config.llm_config_id)
+        if llm_config_id is not None:
+            return await resolve_llm_by_id(session, llm_config_id)
         return await resolve_default_llm(session)
 
 
-def _fingerprint(cfg: ResolvedLLMConfig) -> str:
-    """出口指纹 × 工具集版本（api_key 只入哈希；换工具集须 bump 版本号重建）。"""
+def _fingerprint(agent_key: str, prompt_id: str, cfg: ResolvedLLMConfig) -> str:
+    """agent_key × prompt_id × 出口指纹 × 工具集版本（api_key 只入哈希；
+    换工具集须 bump 版本号重建）。"""
     from app.agent.tools.trading import TOOLS_VERSION
 
     key_digest = hashlib.sha256(cfg.api_key.encode()).hexdigest()
     raw = "|".join(
-        ["trading", cfg.protocol, cfg.base_url, cfg.model_name, key_digest, str(TOOLS_VERSION)]
+        [agent_key, prompt_id, cfg.protocol, cfg.base_url, cfg.model_name, key_digest, str(TOOLS_VERSION)]
     )
     return hashlib.sha256(raw.encode()).hexdigest()
 
@@ -74,22 +75,31 @@ def _evict_idle() -> None:
 
 
 async def get_trading_agent(
+    agent_key: str,
     tools: Sequence[BaseTool] | None = None,
     cfg: ResolvedLLMConfig | None = None,
 ) -> CompiledStateGraph:
-    """组装并缓存交易 Agent deepagents 图（系统级单例语义）。
+    """组装并缓存指定 Agent 的 deepagents 图（每 Agent 一实例）。
 
     Args:
-        tools: 注入工具集；缺省 ``build_trading_tools()``。
+        agent_key: 注册表自然键（trading_agent.agent_key）。
+        tools: 注入工具集；缺省 ``build_trading_tools(agent_key)``。
             命中缓存时忽略（显式传工具集须先 reset）。
-        cfg: 已解析模型出口；缺省按 trading_agent_config 解析。
+        cfg: 已解析模型出口；缺省按注册行 llm_config_id 解析。
 
     Returns:
         已绑定共享 checkpointer 的 CompiledStateGraph。
     """
+    from app.services.trading.agent_registry import get_agent
+
+    async with AsyncSessionLocal() as session:
+        row = await get_agent(session, agent_key)
+        prompt_id = row.prompt_id
+        llm_config_id = row.llm_config_id
+
     if cfg is None:
-        cfg = await resolve_trading_llm()
-    fp = _fingerprint(cfg)
+        cfg = await resolve_trading_llm(llm_config_id)
+    fp = _fingerprint(agent_key, prompt_id, cfg)
 
     async with _build_lock:
         _evict_idle()
@@ -99,7 +109,7 @@ async def get_trading_agent(
             _agents.move_to_end(fp)
             return cached[0]
 
-        agent = await _build_agent(tools, cfg)
+        agent = await _build_agent(agent_key, prompt_id, tools, cfg)
         capacity = max(get_settings().quota_agent_cache_size, 1)
         while len(_agents) >= capacity:
             _agents.popitem(last=False)
@@ -108,7 +118,10 @@ async def get_trading_agent(
 
 
 async def _build_agent(
-    tools: Sequence[BaseTool] | None, cfg: ResolvedLLMConfig
+    agent_key: str,
+    prompt_id: str,
+    tools: Sequence[BaseTool] | None,
+    cfg: ResolvedLLMConfig,
 ) -> CompiledStateGraph:
     """构建一个交易 Agent 图实例（仅缓存 miss 时调用，须持 ``_build_lock``）。"""
     from deepagents import create_deep_agent
@@ -117,18 +130,20 @@ async def _build_agent(
     if tools is None:
         from app.agent.tools.trading import build_trading_tools
 
-        tools = build_trading_tools()
+        tools = build_trading_tools(agent_key)
 
     agent = create_deep_agent(
         model=build_langchain_model(cfg),
         tools=list(tools),
-        system_prompt=load_trading_system_prompt(),
+        system_prompt=load_trading_system_prompt(prompt_id),
         middleware=[TodoListMiddleware()],
         checkpointer=await get_checkpointer(),
-        name="trading-agent",
+        name=f"trading-agent-{agent_key}",
     )
     logger.info(
         "trading_agent_created",
+        agent_key=agent_key,
+        prompt_id=prompt_id,
         provider=cfg.provider,
         model=cfg.model_name,
         n_tools=len(tools),

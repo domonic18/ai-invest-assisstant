@@ -11,6 +11,7 @@ import type {
   TradingReviewPeriod,
 } from '@ai-invest/shared'
 
+import { useAgentKey } from './agentKeyContext'
 import { useTradingAgentReview } from '@/hooks/useTradingAgent'
 
 const MEM_TYPE_META: Record<
@@ -34,9 +35,10 @@ interface ExperienceEntry extends ApiTradingAgentReviewExperience {
 }
 
 function useAllExperiences() {
-  const day = useTradingAgentReview('day')
-  const week = useTradingAgentReview('week')
-  const month = useTradingAgentReview('month')
+  const agentKey = useAgentKey()
+  const day = useTradingAgentReview(agentKey, 'day')
+  const week = useTradingAgentReview(agentKey, 'week')
+  const month = useTradingAgentReview(agentKey, 'month')
   const queries = [
     { period: 'day' as const, query: day },
     { period: 'week' as const, query: week },

@@ -1,10 +1,11 @@
-"""交易 Agent 选股与交易计划 ORM 模型（批次 7，plan §10.1）。
+"""交易 Agent 选股与交易计划 ORM 模型（批次 7，plan §10.1；多 Agent 基座 D23）。
 
 agent_stock_selection 是选股依据真相源（复盘「选股对错」归因输入 +
 人工移出干预记录）；agent_trade_plan 是盘中条件触发执行的真相源
 （批次 8 执行服务读表推进状态机）；agent_memory 是 Agent 自有迭代
 经验（复盘沉淀 + 手动沉淀，反哺每日计划 prompt；方法论基座由 KB
 直读注入，见 ``agent_methodology``，方案 A 分层定版）。
+三表均以 agent_key 维度隔离（trading_agent.agent_key，FK 见迁移）。
 """
 
 from datetime import date, datetime
@@ -34,12 +35,16 @@ class AgentStockSelection(Base):
     __tablename__ = "agent_stock_selection"
     __table_args__ = (
         UniqueConstraint(
-            "trade_date", "stock_code", name="uq_agent_stock_selection_date_code"
+            "agent_key",
+            "trade_date",
+            "stock_code",
+            name="uq_agent_stock_selection_agent_date_code",
         ),
         Index("idx_agent_stock_selection_code", "stock_code", "trade_date"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    agent_key: Mapped[str] = mapped_column(String(32), nullable=False)  # 归属 Agent，FK 见迁移
     trade_date: Mapped[date] = mapped_column(Date, nullable=False)
     stock_code: Mapped[str] = mapped_column(String(10), nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
@@ -68,12 +73,17 @@ class AgentTradePlan(Base):
     __tablename__ = "agent_trade_plan"
     __table_args__ = (
         UniqueConstraint(
-            "plan_date", "stock_code", "plan_type", name="uq_agent_trade_plan_date_code_type"
+            "agent_key",
+            "plan_date",
+            "stock_code",
+            "plan_type",
+            name="uq_agent_trade_plan_agent_date_code_type",
         ),
         Index("idx_agent_trade_plan_status", "status", "plan_date"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    agent_key: Mapped[str] = mapped_column(String(32), nullable=False)  # 归属 Agent，FK 见迁移
     plan_date: Mapped[date] = mapped_column(Date, nullable=False)
     stock_code: Mapped[str] = mapped_column(String(10), nullable=False)
     plan_type: Mapped[str] = mapped_column(String(8), nullable=False)
@@ -110,11 +120,14 @@ class AgentMemory(Base):
 
     __tablename__ = "agent_memory"
     __table_args__ = (
-        UniqueConstraint("source_result_id", "title", name="uq_agent_memory_source_title"),
+        UniqueConstraint(
+            "agent_key", "source_result_id", "title", name="uq_agent_memory_agent_source_title"
+        ),
         Index("idx_agent_memory_status", "status", "mem_type"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    agent_key: Mapped[str] = mapped_column(String(32), nullable=False)  # 归属 Agent，FK 见迁移
     mem_type: Mapped[str] = mapped_column(String(16), nullable=False)
     title: Mapped[str] = mapped_column(String(128), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)

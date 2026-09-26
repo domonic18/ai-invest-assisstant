@@ -122,7 +122,7 @@ export function PaperTrade() {
           label: (
             <span className="flex items-center gap-2">
               {a.name}
-              {a.isAgent && <Tag color="gold">Agent</Tag>}
+              {a.agentKey && <Tag color="gold">Agent</Tag>}
               {!a.isEnabled && <Tag>已停用</Tag>}
             </span>
           ),

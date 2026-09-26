@@ -2,6 +2,7 @@
 
 from contextlib import asynccontextmanager
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,6 +17,13 @@ from app.services.trading.agent_plan_schemas import (
 )
 
 _TRADE_DATE = date(2026, 7, 15)  # Wednesday
+
+
+def _agent() -> SimpleNamespace:
+    """注册行替身（generate_daily_plan 消费的字段）。"""
+    return SimpleNamespace(
+        agent_key="short-line", llm_config_id=None, methodology_source_id=None
+    )
 
 
 def _content_dict() -> dict:
@@ -83,7 +91,7 @@ class TestGenerateDailyPlan:
             from app.services.trading.errors import PaperTradeNotConfiguredError
 
             with pytest.raises(PaperTradeNotConfiguredError):
-                await agent_plan_service.generate_daily_plan(AsyncMock())
+                await agent_plan_service.generate_daily_plan(AsyncMock(), _agent())
 
     @pytest.mark.asyncio
     async def test_rejects_non_trading_day(self) -> None:
@@ -99,7 +107,7 @@ class TestGenerateDailyPlan:
             pytest.raises(NonTradingDayError),
         ):
             await agent_plan_service.generate_daily_plan(
-                AsyncMock(), trade_date=_TRADE_DATE
+                AsyncMock(), _agent(), trade_date=_TRADE_DATE
             )
 
     @pytest.mark.asyncio
@@ -125,7 +133,7 @@ class TestGenerateDailyPlan:
             pytest.raises(ReviewInputDataNotReadyError, match="尚未生成"),
         ):
             await agent_plan_service.generate_daily_plan(
-                AsyncMock(), trade_date=_TRADE_DATE, regenerate=True
+                AsyncMock(), _agent(), trade_date=_TRADE_DATE, regenerate=True
             )
 
     @pytest.mark.asyncio
@@ -151,7 +159,7 @@ class TestGenerateDailyPlan:
             ) as load_mock,
         ):
             result = await agent_plan_service.generate_daily_plan(
-                AsyncMock(), trade_date=_TRADE_DATE
+                AsyncMock(), _agent(), trade_date=_TRADE_DATE
             )
 
         assert result.cached is True
@@ -210,7 +218,7 @@ class TestGenerateDailyPlan:
             ) as persist_mock,
         ):
             result = await agent_plan_service.generate_daily_plan(
-                AsyncMock(), trade_date=_TRADE_DATE, regenerate=True
+                AsyncMock(), _agent(), trade_date=_TRADE_DATE, regenerate=True
             )
 
         assert result.cached is False
@@ -219,6 +227,7 @@ class TestGenerateDailyPlan:
         insert_mock.assert_awaited_once()
         assert insert_mock.await_args.kwargs["skill_id"] == agent_plan_service.PLAN_SKILL_ID
         persist_mock.assert_awaited_once()
+        assert persist_mock.await_args.kwargs["agent_key"] == "short-line"
         assert persist_mock.await_args.kwargs["source_result_id"] == 42
         assert persist_mock.await_args.kwargs["trade_date"] == _TRADE_DATE
 
@@ -253,7 +262,7 @@ class TestGenerateDailyPlan:
             pytest.raises(agent_plan_service.PlanGenerationLockedError, match="正在生成"),
         ):
             await agent_plan_service.generate_daily_plan(
-                AsyncMock(), trade_date=_TRADE_DATE, regenerate=True
+                AsyncMock(), _agent(), trade_date=_TRADE_DATE, regenerate=True
             )
 
 
@@ -277,7 +286,7 @@ class TestActiveMemories:
             )
         )
 
-        assert await agent_plan_input._active_memories(session) == []
+        assert await agent_plan_input._active_memories(session, "short-line") == []
         # SAVEPOINT 已退出（回滚），外层事务保持可用
         nested.__aexit__.assert_awaited_once()
 
@@ -321,7 +330,7 @@ class TestCollectPlanInput:
             ) as build_mock,
         ):
             plan_input, _ = await agent_plan_input.collect_plan_input(
-                AsyncMock(), 7, _TRADE_DATE
+                AsyncMock(), _agent(), 7, _TRADE_DATE
             )
 
         assert plan_input["methodology"] == {"disciplines": [{"id": 2086}]}
@@ -363,7 +372,7 @@ class TestCollectPlanInput:
             ),
         ):
             plan_input, _ = await agent_plan_input.collect_plan_input(
-                AsyncMock(), 7, _TRADE_DATE
+                AsyncMock(), _agent(), 7, _TRADE_DATE
             )
 
         assert plan_input["methodology"] is None

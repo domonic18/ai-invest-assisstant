@@ -10,6 +10,7 @@ import { Button, Spin, Tag, Tooltip, Typography } from 'antd'
 
 import { useAdminPaperTradeAccounts } from '@/hooks/usePaperTrade'
 import { useCollectorLogs } from '@/hooks/useCollectorAdmin'
+import { useAgentKey } from './agentKeyContext'
 import { useTradingAgentConfig } from '@/hooks/useTradingAgent'
 import { formatRelativeTime } from '@/utils/formatters'
 
@@ -57,8 +58,9 @@ function TaskStatus({ taskName, label }: { taskName: string; label: string }) {
 
 export function AgentStatusStrip({ onOpenAccounts }: { onOpenAccounts: () => void }) {
   const { data: accounts } = useAdminPaperTradeAccounts()
-  const { data: config } = useTradingAgentConfig()
-  const agentAccount = accounts?.items.find((account) => account.isAgent)
+  const agentKey = useAgentKey()
+  const { data: config } = useTradingAgentConfig(agentKey)
+  const agentAccount = accounts?.items.find((account) => account.agentKey === agentKey)
 
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5">

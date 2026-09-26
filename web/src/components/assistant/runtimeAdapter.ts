@@ -19,6 +19,7 @@ import type {
 import type { Client } from '@langchain/langgraph-sdk'
 
 import { createAssistantClient, createThread } from '@/api/assistant'
+import type { AssistantAgentType } from '@/api/assistant'
 import { buildPageContext } from '@/utils/pageContext'
 
 import { useAssistantStore } from '@/stores/assistant'
@@ -30,7 +31,7 @@ const ASSISTANT_ID = 'invest-assistant'
 
 export interface AssistantAdapterOptions {
   /** trading：新线程经自有端点创建并携带 agent_type（SDK threads.create 白名单序列化带不上扩展字段），由后端分流至交易 Agent 运行时 */
-  agentType?: 'assistant' | 'trading'
+  agentType?: AssistantAgentType
 }
 
 export interface AssistantRuntimeAdapter {
@@ -61,8 +62,8 @@ export function createAssistantRuntimeAdapter(
   // SDK client 的 defaultHeaders 在构造时固化，必须每次调用时重建以读取最新 token。
   const threadListAdapter = new InMemoryThreadListAdapter()
   threadListAdapter.initialize = async () => {
-    if (options.agentType === 'trading') {
-      const thread = await createThread({ agent_type: 'trading' })
+    if (options.agentType && options.agentType !== 'assistant') {
+      const thread = await createThread({ agent_type: options.agentType })
       return { remoteId: thread.thread_id, externalId: thread.thread_id }
     }
     const client = createClient()

@@ -1,6 +1,6 @@
 """交易 Agent 下单风控硬校验（对话与定时执行共用的确定性代码，D18）。
 
-规则集（docs/plan/paper-trading-plan.md §11.3，参数读 ``trading_agent_config``）：
+规则集（docs/plan/paper-trading-plan.md §11.3，参数读 ``trading_agent`` 注册行）：
 禁 ST 买入、单票市值上限、总持仓上限、单日委托笔数、T+1、整手与科创板最低
 200 股、限价单涨跌停区间。判定逻辑为纯函数 ``evaluate_order_risk``（表驱动
 单测钉死全分支）；``check_order_risk`` 负责汇聚行情/柜台/本地表输入。
@@ -37,7 +37,7 @@ LOT_SIZE = 100
 
 @dataclass(slots=True)
 class RiskConfig:
-    """风控阈值（来源 trading_agent_config，批次 8 定时执行同源消费）。"""
+    """风控阈值（来源 trading_agent 注册行，批次 8 定时执行同源消费）。"""
 
     max_position_pct: float
     max_total_pct: float

@@ -161,7 +161,7 @@ export function TradingPanel({
   const maxSell =
     side === 'sell' ? maxSellVolume(position?.availableVolume ?? 0) : null
 
-  const tradable = !account.isAgent && account.isEnabled
+  const tradable = !account.agentKey && account.isEnabled
 
   const validatePrice = (_rule: unknown, value: number | undefined) => {
     if (orderType !== 'limit') return Promise.resolve()
@@ -277,11 +277,11 @@ export function TradingPanel({
     >
       {!tradable ? (
         <Alert
-          type={account.isAgent ? 'info' : 'warning'}
+          type={account.agentKey ? 'info' : 'warning'}
           showIcon
-          message={account.isAgent ? 'Agent 专属账户' : '账户已停用'}
+          message={account.agentKey ? 'Agent 专属账户' : '账户已停用'}
           description={
-            account.isAgent
+            account.agentKey
               ? '该账户由交易 agent 自动交易，不支持人工下单。'
               : '启用该账户后即可在此下单。'
           }

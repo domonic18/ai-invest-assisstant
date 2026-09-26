@@ -77,18 +77,22 @@ export async function fetchAdminPaperTradeAccounts(): Promise<ApiPaperTradeAdmin
 
 export async function designatePaperTradeAgentAccount(
   accountId: number,
+  agentKey: string,
 ): Promise<ApiPaperTradeAdminAccount> {
   const response = await apiClient.put<ApiPaperTradeAdminAccount>(
     ENDPOINTS.admin.paperTradeAccountAgent(accountId),
+    { agent_key: agentKey },
   )
   return response.data
 }
 
 export async function clearPaperTradeAgentAccount(
   accountId: number,
+  agentKey: string,
 ): Promise<ApiPaperTradeAdminAccount> {
   const response = await apiClient.delete<ApiPaperTradeAdminAccount>(
     ENDPOINTS.admin.paperTradeAccountAgent(accountId),
+    { params: { agent_key: agentKey } },
   )
   return response.data
 }

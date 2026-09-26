@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom'
 
 import type { ApiAgentWatchlistSelectionItem } from '@ai-invest/shared'
 
+import { useAgentKey } from './agentKeyContext'
 import {
   useRemoveTradingAgentSelection,
   useTradingAgentSelections,
@@ -16,7 +17,8 @@ import {
 
 function SelectionRow({ item }: { item: ApiAgentWatchlistSelectionItem }) {
   const navigate = useNavigate()
-  const remove = useRemoveTradingAgentSelection()
+  const agentKey = useAgentKey()
+  const remove = useRemoveTradingAgentSelection(agentKey)
 
   return (
     <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
@@ -64,7 +66,8 @@ function SelectionRow({ item }: { item: ApiAgentWatchlistSelectionItem }) {
 }
 
 export function AgentSelectionsPanel() {
-  const { data: group, isLoading } = useTradingAgentSelections()
+  const agentKey = useAgentKey()
+  const { data: group, isLoading } = useTradingAgentSelections(agentKey)
   const selections = group?.items ?? []
 
   return (

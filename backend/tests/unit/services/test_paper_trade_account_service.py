@@ -44,7 +44,7 @@ class TestResolveForUser:
         """他人账户与不存在同样 404（不泄露存在性）。"""
         session = MagicMock()
         session.get = AsyncMock(
-            return_value=SimpleNamespace(id=5, user_id=2, is_agent=False)
+            return_value=SimpleNamespace(id=5, user_id=2)
         )
         with pytest.raises(NotFoundError):
             await svc.resolve_for_user(session, user_id=1, account_id=5)
@@ -137,7 +137,7 @@ class TestDeleteAccount:
     async def test_rejects_when_has_orders(self) -> None:
         session = MagicMock()
         session.get = AsyncMock(
-            return_value=SimpleNamespace(id=5, user_id=1, is_agent=False)
+            return_value=SimpleNamespace(id=5, user_id=1)
         )
         session.scalar = AsyncMock(side_effect=[7, None, None])  # 委托表命中
 
@@ -162,50 +162,78 @@ class TestAdminDesignateAgent:
     @pytest.mark.asyncio
     async def test_switches_agent_clearing_previous(self) -> None:
         session = _session()
-        current_agent = SimpleNamespace(id=1, is_agent=True)
-        target = SimpleNamespace(id=2, is_agent=False)
-        session.get = AsyncMock(return_value=target)
+        current_agent = SimpleNamespace(id=1, agent_key="short-line")
+        target = SimpleNamespace(id=2, agent_key=None)
+        # 先后查询：账户行 + 注册行（agent_key 校验）
+        session.get = AsyncMock(side_effect=[target, SimpleNamespace(agent_key="short-line")])
         session.scalar = AsyncMock(return_value=current_agent)
         session.refresh = AsyncMock()
 
-        result = await svc.admin_designate_agent(session, account_id=2)
+        result = await svc.admin_designate_agent(
+            session, account_id=2, agent_key="short-line"
+        )
 
         assert result is target
-        assert current_agent.is_agent is False
-        assert target.is_agent is True
+        assert current_agent.agent_key is None
+        assert target.agent_key == "short-line"
         session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_designate_same_agent_is_idempotent(self) -> None:
+        """重复指定同一 Agent 不清自身绑定、不提交。"""
+        session = _session()
+        target = SimpleNamespace(id=2, agent_key="short-line")
+        session.get = AsyncMock(side_effect=[target, SimpleNamespace(agent_key="short-line")])
+
+        result = await svc.admin_designate_agent(
+            session, account_id=2, agent_key="short-line"
+        )
+
+        assert result is target
+        session.scalar.assert_not_called()
+        session.commit.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_designate_unknown_agent_raises_404(self) -> None:
+        session = _session()
+        target = SimpleNamespace(id=2, agent_key=None)
+        # 第二次 get（注册表）返回 None → 404
+        session.get = AsyncMock(side_effect=[target, None])
+
+        with pytest.raises(NotFoundError, match="ghost"):
+            await svc.admin_designate_agent(session, account_id=2, agent_key="ghost")
 
     @pytest.mark.asyncio
     async def test_designate_missing_account_404(self) -> None:
         session = MagicMock()
         session.get = AsyncMock(return_value=None)
         with pytest.raises(NotFoundError):
-            await svc.admin_designate_agent(session, account_id=99)
+            await svc.admin_designate_agent(session, account_id=99, agent_key="short-line")
 
 
 @pytest.mark.unit
 class TestAdminClearAgent:
     @pytest.mark.asyncio
-    async def test_clears_agent_flag(self) -> None:
-        """解绑后 is_agent 置 False 并提交（agent 恢复无关联账户态）。"""
+    async def test_clears_agent_key(self) -> None:
+        """解绑后 agent_key 置 None 并提交（agent 恢复无关联账户态）。"""
         session = _session()
-        account = SimpleNamespace(id=2, is_agent=True)
+        account = SimpleNamespace(id=2, agent_key="short-line")
         session.get = AsyncMock(return_value=account)
 
-        result = await svc.admin_clear_agent(session, 2)
+        result = await svc.admin_clear_agent(session, 2, "short-line")
 
         assert result is account
-        assert account.is_agent is False
+        assert account.agent_key is None
         session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_non_agent_account_rejected_400(self) -> None:
+    async def test_mismatched_agent_rejected_400(self) -> None:
         session = _session()
-        account = SimpleNamespace(id=2, is_agent=False)
+        account = SimpleNamespace(id=2, agent_key=None)
         session.get = AsyncMock(return_value=account)
 
-        with pytest.raises(BadRequestError, match="不是 agent"):
-            await svc.admin_clear_agent(session, 2)
+        with pytest.raises(BadRequestError, match="无需解除"):
+            await svc.admin_clear_agent(session, 2, "short-line")
         session.commit.assert_not_called()
 
     @pytest.mark.asyncio
@@ -213,7 +241,7 @@ class TestAdminClearAgent:
         session = MagicMock()
         session.get = AsyncMock(return_value=None)
         with pytest.raises(NotFoundError):
-            await svc.admin_clear_agent(session, 99)
+            await svc.admin_clear_agent(session, 99, "short-line")
 
     @pytest.mark.asyncio
     async def test_set_enabled(self) -> None:

@@ -114,7 +114,7 @@ async def _sync_one_account(
         account_id=account.id,
         order_source=(
             account_service.ORDER_SOURCE_AGENT
-            if account.is_agent
+            if account.agent_key is not None
             else account_service.ORDER_SOURCE_MANUAL
         ),
     )
@@ -178,7 +178,7 @@ async def sync_daily(
         select(
             PaperTradeAccount.id,
             PaperTradeAccount.name,
-            PaperTradeAccount.is_agent,
+            PaperTradeAccount.agent_key,
             PaperTradeAccount.counter_account_id,
             PaperTradeAccount.token_encrypted,
         )
@@ -200,7 +200,7 @@ async def sync_daily(
             outcome: dict[str, Any] = {
                 "account_id": account.id,
                 "name": account.name,
-                "is_agent": account.is_agent,
+                "agent_key": account.agent_key,
             }
             try:
                 result = await _sync_one_account(session, client, account, resolved)

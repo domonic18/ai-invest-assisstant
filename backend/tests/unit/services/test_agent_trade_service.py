@@ -40,13 +40,23 @@ def _agent_account(**overrides: object) -> SimpleNamespace:
     base: dict[str, object] = {
         "id": 5,
         "name": "agent 专属",
-        "is_agent": True,
+        "agent_key": "short-line",
         "is_enabled": True,
         "token_encrypted": "cipher",
         "counter_account_id": "acc-1",
     }
     base.update(overrides)
     return SimpleNamespace(**base)
+
+
+def _agent() -> SimpleNamespace:
+    """注册行替身（风控阈值读 risk_max_*，账户解析读 agent_key）。"""
+    return SimpleNamespace(
+        agent_key="short-line",
+        risk_max_position_pct=20,
+        risk_max_total_pct=80,
+        risk_max_daily_orders=10,
+    )
 
 
 def _patch_chain(account: SimpleNamespace | None, risk_passed: bool = True):
@@ -59,16 +69,6 @@ def _patch_chain(account: SimpleNamespace | None, risk_passed: bool = True):
             account_service, "resolve_agent_account", AsyncMock(return_value=account)
         ),
         patch.object(account_service, "credentials_for", lambda _a: SimpleNamespace()),
-        patch(
-            "app.services.trading.agent_trade_service.agent_config.get_config_row",
-            AsyncMock(
-                return_value=SimpleNamespace(
-                    risk_max_position_pct=20,
-                    risk_max_total_pct=80,
-                    risk_max_daily_orders=10,
-                )
-            ),
-        ),
         patch(
             "app.services.trading.agent_trade_service.resolve_counter_symbol",
             AsyncMock(return_value="SHSE.600000"),
@@ -99,7 +99,7 @@ class TestExecuteAgentOrder:
             p.start()
         try:
             result = await execute_agent_order(
-                session, symbol="600000", side="buy", volume=100, price=10.5
+                session, _agent(), symbol="600000", side="buy", volume=100, price=10.5
             )
         finally:
             for p in patches:
@@ -128,7 +128,7 @@ class TestExecuteAgentOrder:
         try:
             with pytest.raises(RiskRejectedError, match="单票市值超上限"):
                 await execute_agent_order(
-                    session, symbol="600000", side="buy", volume=100, price=10.5
+                    session, _agent(), symbol="600000", side="buy", volume=100, price=10.5
                 )
         finally:
             for p in patches:
@@ -150,7 +150,7 @@ class TestExecuteAgentOrder:
         try:
             with pytest.raises(AgentAccountNotDesignatedError):
                 await execute_agent_order(
-                    session, symbol="600000", side="buy", volume=100
+                    session, _agent(), symbol="600000", side="buy", volume=100
                 )
         finally:
             for p in patches:
@@ -160,13 +160,13 @@ class TestExecuteAgentOrder:
     @pytest.mark.asyncio
     async def test_non_agent_account_rejected(self) -> None:
         session = _session()
-        patches, client, _ = _patch_chain(_agent_account(is_agent=False))
+        patches, client, _ = _patch_chain(_agent_account(agent_key=None))
         for p in patches:
             p.start()
         try:
-            with pytest.raises(BadRequestError, match="不是 agent 专属账户"):
+            with pytest.raises(BadRequestError, match="不是该 Agent 的专属账户"):
                 await execute_agent_order(
-                    session, symbol="600000", side="buy", volume=100
+                    session, _agent(), symbol="600000", side="buy", volume=100
                 )
         finally:
             for p in patches:
@@ -182,7 +182,7 @@ class TestExecuteAgentOrder:
         try:
             with pytest.raises(BadRequestError, match="停用"):
                 await execute_agent_order(
-                    session, symbol="600000", side="buy", volume=100
+                    session, _agent(), symbol="600000", side="buy", volume=100
                 )
         finally:
             for p in patches:
@@ -198,10 +198,10 @@ class TestExecuteAgentOrder:
         try:
             with pytest.raises(BadRequestError, match="side"):
                 await execute_agent_order(
-                    session, symbol="600000", side="hold", volume=100
+                    session, _agent(), symbol="600000", side="hold", volume=100
                 )
             with pytest.raises(BadRequestError, match="正数"):
-                await execute_agent_order(session, symbol="600000", side="buy", volume=0)
+                await execute_agent_order(session, _agent(), symbol="600000", side="buy", volume=0)
         finally:
             for p in patches:
                 p.stop()
@@ -221,7 +221,7 @@ class TestExecuteAgentOrder:
             p.start()
         try:
             result = await execute_agent_order(
-                session, symbol="600000", side="buy", volume=100, price=10.5
+                session, _agent(), symbol="600000", side="buy", volume=100, price=10.5
             )
         finally:
             for p in patches:
@@ -257,7 +257,7 @@ class TestHelpers:
             AsyncMock(return_value=_agent_account(is_enabled=False)),
         ):
             with pytest.raises(BadRequestError, match="停用"):
-                await ensure_agent_account(session)
+                await ensure_agent_account(session, "short-line")
 
     @pytest.mark.asyncio
     async def test_ensure_agent_account_ok(self) -> None:
@@ -266,4 +266,4 @@ class TestHelpers:
         with patch.object(
             account_service, "resolve_agent_account", AsyncMock(return_value=account)
         ):
-            assert await ensure_agent_account(session) is account
+            assert await ensure_agent_account(session, "short-line") is account

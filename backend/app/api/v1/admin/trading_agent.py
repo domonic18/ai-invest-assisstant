@@ -1,5 +1,8 @@
-"""管理后台交易 Agent API 端点（批次 5 配置面 + 批次 6 复盘查询 + 批次 7
-交易计划查询/人工取消 + agent 自选查询/人工移出 + 记忆管理面）。"""
+"""管理后台交易 Agent API 端点（多 Agent 基座，路径参数 agent_key）。
+
+profile/config 读写 + 复盘/计划/自选/记忆管理面。读端点 planned Agent 可读，
+写端点（配置保存/取消计划/移出自选/记忆编辑）仅 active Agent 可写。
+"""
 
 from datetime import date
 from typing import Annotated, Literal
@@ -12,17 +15,23 @@ from app.schemas.paper_trade import (
     AgentMemoryResponse,
     AgentMemoryStatusUpdateRequest,
     AgentMemoryUpdateRequest,
+    AgentOverviewResponse,
     AgentSelectionItem,
     AgentWatchlistGroupResponse,
-    TradingAgentConfigResponse,
-    TradingAgentConfigUpdateRequest,
     TradingAgentDatesResponse,
     TradingAgentPlanResponse,
+    TradingAgentProfileResponse,
+    TradingAgentProfileUpdateRequest,
     TradingAgentReviewResponse,
 )
 from app.services.market import trade_calendar_service
-from app.services.trading import agent_memory_service, agent_plan_ops, agent_review_service
-from app.services.trading.agent_config import get_config_view, update_config
+from app.services.trading import (
+    agent_memory_service,
+    agent_overview_service,
+    agent_plan_ops,
+    agent_registry,
+    agent_review_service,
+)
 
 router = APIRouter(
     prefix="/trading-agent",
@@ -30,32 +39,43 @@ router = APIRouter(
 )
 
 
-@router.get("/config", response_model=TradingAgentConfigResponse)
+@router.get("/agents", response_model=AgentOverviewResponse)
+async def list_trading_agents(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> AgentOverviewResponse:
+    """全部注册 Agent 的总览聚合（介绍卡 + 计数 + 近期活动 + 下次任务）。"""
+    return await agent_overview_service.get_overview(session)
+
+
+@router.get("/{agent_key}/config", response_model=TradingAgentProfileResponse)
 async def get_trading_agent_config(
+    agent_key: str,
     session: Annotated[AsyncSession, Depends(get_db)],
-) -> TradingAgentConfigResponse:
-    """读取交易 Agent 配置（LLM 绑定 + 风控阈值 + 自主执行总闸）。"""
-    return await get_config_view(session)
+) -> TradingAgentProfileResponse:
+    """读取单个 Agent 配置（LLM/方法论绑定 + 风控阈值 + 自主执行总闸）。"""
+    return await agent_registry.get_agent_view(session, agent_key)
 
 
-@router.put("/config", response_model=TradingAgentConfigResponse)
+@router.put("/{agent_key}/config", response_model=TradingAgentProfileResponse)
 async def update_trading_agent_config(
-    data: TradingAgentConfigUpdateRequest,
+    agent_key: str,
+    data: TradingAgentProfileUpdateRequest,
     session: Annotated[AsyncSession, Depends(get_db)],
-) -> TradingAgentConfigResponse:
-    """保存交易 Agent 配置；llm_config_id 校验存在、启用且用途为 chat。"""
-    return await update_config(session, data=data)
+) -> TradingAgentProfileResponse:
+    """保存 Agent 信息/配置；仅 active 可写，llm_config_id 校验用途为 chat。"""
+    return await agent_registry.update_agent(session, agent_key, data=data)
 
 
-@router.get("/review", response_model=TradingAgentReviewResponse)
+@router.get("/{agent_key}/review", response_model=TradingAgentReviewResponse)
 async def get_trading_agent_review(
+    agent_key: str,
     session: Annotated[AsyncSession, Depends(get_db)],
     period: Literal["day", "week", "month"] = Query(..., description="复盘周期"),
     trade_date: date | None = Query(None, description="基准交易日（缺省取该周期最新一条）"),
 ) -> TradingAgentReviewResponse:
     """读取已生成的模拟盘分层复盘（只读，不触发 LLM）。"""
     content = await agent_review_service.get_review(
-        session, period=period, trade_date=trade_date
+        session, agent_key, period=period, trade_date=trade_date
     )
     if content is None:
         raise agent_review_service.TradingReviewNotFoundError(
@@ -64,22 +84,26 @@ async def get_trading_agent_review(
     return TradingAgentReviewResponse.model_validate(content.model_dump(mode="json"))
 
 
-@router.get("/dates", response_model=TradingAgentDatesResponse)
+@router.get("/{agent_key}/dates", response_model=TradingAgentDatesResponse)
 async def get_trading_agent_dates(
+    agent_key: str,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> TradingAgentDatesResponse:
     """有记录日期清单（日历打点）：已有计划的日期 + 各周期已生成复盘的基准日。"""
     return TradingAgentDatesResponse(
-        plan_dates=await agent_plan_ops.list_plan_dates(session),
+        plan_dates=await agent_plan_ops.list_plan_dates(session, agent_key),
         review_dates={
-            period: await agent_review_service.list_review_dates(session, period=period)
+            period: await agent_review_service.list_review_dates(
+                session, agent_key, period=period
+            )
             for period in ("day", "week", "month")
         },
     )
 
 
-@router.get("/plans", response_model=list[TradingAgentPlanResponse])
+@router.get("/{agent_key}/plans", response_model=list[TradingAgentPlanResponse])
 async def list_trading_agent_plans(
+    agent_key: str,
     session: Annotated[AsyncSession, Depends(get_db)],
     trade_date: date | None = Query(None, description="计划日（缺省取最近交易日）"),
 ) -> list[TradingAgentPlanResponse]:
@@ -87,26 +111,30 @@ async def list_trading_agent_plans(
     resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(
         session
     )
-    plans = await agent_plan_ops.list_plans(session, plan_date=resolved)
+    plans = await agent_plan_ops.list_plans(session, agent_key, plan_date=resolved)
     return [TradingAgentPlanResponse.model_validate(p) for p in plans]
 
 
-@router.post("/plans/{plan_id}/cancel", response_model=TradingAgentPlanResponse)
+@router.post(
+    "/{agent_key}/plans/{plan_id}/cancel", response_model=TradingAgentPlanResponse
+)
 async def cancel_trading_agent_plan(
+    agent_key: str,
     plan_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> TradingAgentPlanResponse:
     """人工取消当日 active 计划（干预手段之一，triggered 后不可取消）。"""
-    plan = await agent_plan_ops.cancel_plan(session, plan_id=plan_id)
+    plan = await agent_plan_ops.cancel_plan(session, agent_key, plan_id=plan_id)
     return TradingAgentPlanResponse.model_validate(plan)
 
 
-@router.get("/selections", response_model=AgentWatchlistGroupResponse | None)
+@router.get("/{agent_key}/selections", response_model=AgentWatchlistGroupResponse | None)
 async def get_trading_agent_selections(
+    agent_key: str,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> AgentWatchlistGroupResponse | None:
-    """读取 agent 自选分组（平台级单例；尚未生成选股时返回 null）。"""
-    view = await agent_plan_ops.get_agent_group(session)
+    """读取 agent 自选分组（每 Agent 一组；尚未生成选股时返回 null）。"""
+    view = await agent_plan_ops.get_agent_group(session, agent_key)
     if view is None:
         return None
     return AgentWatchlistGroupResponse(
@@ -117,49 +145,62 @@ async def get_trading_agent_selections(
 
 
 @router.delete(
-    "/selections/{selection_id}", status_code=status.HTTP_204_NO_CONTENT
+    "/{agent_key}/selections/{selection_id}", status_code=status.HTTP_204_NO_CONTENT
 )
 async def remove_trading_agent_selection(
+    agent_key: str,
     selection_id: int,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
-    """人工移出 agent 选股（全局生效：当日清单移除，次日不重复选入）。"""
-    await agent_plan_ops.remove_selection_manual(session, selection_id=selection_id)
+    """人工移出 agent 选股（按 Agent 生效：当日清单移除，次日不重复选入）。"""
+    await agent_plan_ops.remove_selection_manual(
+        session, agent_key, selection_id=selection_id
+    )
 
 
-@router.get("/memories", response_model=list[AgentMemoryResponse])
+@router.get("/{agent_key}/memories", response_model=list[AgentMemoryResponse])
 async def list_trading_agent_memories(
+    agent_key: str,
     session: Annotated[AsyncSession, Depends(get_db)],
     status_filter: Literal["active", "archived"] | None = Query(
         None, alias="status", description="状态过滤（缺省全部）"
     ),
 ) -> list[AgentMemoryResponse]:
     """Agent 记忆清单（复盘沉淀 + 手动沉淀，按新近度倒序）。"""
-    rows = await agent_memory_service.list_memories(session, status=status_filter)
+    rows = await agent_memory_service.list_memories(session, agent_key, status=status_filter)
     return [AgentMemoryResponse.model_validate(row) for row in rows]
 
 
-@router.put("/memories/{memory_id}", response_model=AgentMemoryResponse)
+@router.put("/{agent_key}/memories/{memory_id}", response_model=AgentMemoryResponse)
 async def update_trading_agent_memory(
+    agent_key: str,
     memory_id: int,
     data: AgentMemoryUpdateRequest,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> AgentMemoryResponse:
     """编辑记忆（标题/正文/类型，未提供字段不变）。"""
     row = await agent_memory_service.update_memory(
-        session, memory_id=memory_id, title=data.title, body=data.body, mem_type=data.mem_type
+        session,
+        agent_key,
+        memory_id=memory_id,
+        title=data.title,
+        body=data.body,
+        mem_type=data.mem_type,
     )
     return AgentMemoryResponse.model_validate(row)
 
 
-@router.put("/memories/{memory_id}/status", response_model=AgentMemoryResponse)
+@router.put(
+    "/{agent_key}/memories/{memory_id}/status", response_model=AgentMemoryResponse
+)
 async def update_trading_agent_memory_status(
+    agent_key: str,
     memory_id: int,
     data: AgentMemoryStatusUpdateRequest,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> AgentMemoryResponse:
     """切换记忆 active/archived（停用后次日计划 prompt 不再注入）。"""
     row = await agent_memory_service.update_memory_status(
-        session, memory_id=memory_id, status=data.status
+        session, agent_key, memory_id=memory_id, status=data.status
     )
     return AgentMemoryResponse.model_validate(row)

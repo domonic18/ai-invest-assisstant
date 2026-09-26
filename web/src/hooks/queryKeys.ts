@@ -273,13 +273,16 @@ export const queryKeys = {
   },
   tradingAgent: {
     all: ['trading-agent'] as const,
-    config: ['trading-agent', 'config'] as const,
+    /** 总览页聚合（全部注册 Agent）。 */
+    agents: ['trading-agent', 'agents'] as const,
     llmConfigs: ['trading-agent', 'llm-configs'] as const,
-    dates: ['trading-agent', 'dates'] as const,
-    review: (period: string, tradeDate?: string) =>
-      ['trading-agent', 'review', period, tradeDate ?? 'latest'] as const,
-    plans: (tradeDate?: string) => ['trading-agent', 'plans', tradeDate ?? 'latest'] as const,
-    selections: ['trading-agent', 'selections'] as const,
-    memories: ['trading-agent', 'memories'] as const,
+    config: (agentKey: string) => ['trading-agent', agentKey, 'config'] as const,
+    dates: (agentKey: string) => ['trading-agent', agentKey, 'dates'] as const,
+    review: (agentKey: string, period: string, tradeDate?: string) =>
+      ['trading-agent', agentKey, 'review', period, tradeDate ?? 'latest'] as const,
+    plans: (agentKey: string, tradeDate?: string) =>
+      ['trading-agent', agentKey, 'plans', tradeDate ?? 'latest'] as const,
+    selections: (agentKey: string) => ['trading-agent', agentKey, 'selections'] as const,
+    memories: (agentKey: string) => ['trading-agent', agentKey, 'memories'] as const,
   },
 } as const

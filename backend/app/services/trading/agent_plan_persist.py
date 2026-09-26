@@ -3,7 +3,7 @@
 由 ``agent_plan_service`` 在 LLM 校验后调用：``persist_cache_row`` 写
 ``ai_analysis_result`` 缓存行（同日重跑命中即不再调 LLM），``persist_plan``
 upsert 两表并同步 agent 自选分组（选入加入 / 未续选 agent 剔除 / 人工移出
-全局生效不重复选入）。状态机字段（cancelled / triggered）不回改。
+按 Agent 生效不重复选入）。状态机字段（cancelled / triggered）不回改。
 """
 
 from datetime import date
@@ -18,19 +18,23 @@ from app.repositories.review import ai_analysis_repository
 from app.services.trading.agent_plan_schemas import AgentDailyPlanContent
 
 
-async def _ensure_agent_group(session: AsyncSession) -> Any:
-    """平台级 agent 自选分组单例（owner_type='agent'，user_id=NULL）。"""
+async def _ensure_agent_group(session: AsyncSession, agent_key: str) -> Any:
+    """agent 自选分组（owner_type='agent'，每 Agent 一组，user_id=NULL）。"""
     from app.models.watchlist import UserWatchlistGroup
 
     row = await session.scalar(
-        select(UserWatchlistGroup).where(UserWatchlistGroup.owner_type == "agent")
+        select(UserWatchlistGroup).where(
+            UserWatchlistGroup.owner_type == "agent",
+            UserWatchlistGroup.agent_key == agent_key,
+        )
     )
     if row is not None:
         return row
     row = UserWatchlistGroup(
         user_id=None,
         owner_type="agent",
-        name="交易 Agent",
+        agent_key=agent_key,
+        name="交易 Agent 自选",
         sort_order=999,
         is_default=False,
         ai_review_enabled=False,
@@ -43,23 +47,26 @@ async def _ensure_agent_group(session: AsyncSession) -> Any:
 async def persist_plan(
     session: AsyncSession,
     *,
+    agent_key: str,
     trade_date: date,
     content: AgentDailyPlanContent,
     source_result_id: int,
 ) -> None:
     """upsert 选股/计划两表 + agent 分组同步（人工移出不覆盖）。"""
-    await _ensure_agent_group(session)
+    await _ensure_agent_group(session, agent_key)
 
     selection_ids: dict[str, int] = {}
     for item in content.selections:
         row = await session.scalar(
             select(AgentStockSelection).where(
+                AgentStockSelection.agent_key == agent_key,
                 AgentStockSelection.trade_date == trade_date,
                 AgentStockSelection.stock_code == item.stock_code,
             )
         )
         if row is None:
             row = AgentStockSelection(
+                agent_key=agent_key,
                 trade_date=trade_date,
                 stock_code=item.stock_code,
                 reason=item.reason,
@@ -84,6 +91,7 @@ async def persist_plan(
         (
             await session.execute(
                 select(AgentStockSelection).where(
+                    AgentStockSelection.agent_key == agent_key,
                     AgentStockSelection.status == "active",
                     AgentStockSelection.trade_date < trade_date,
                 )
@@ -105,6 +113,7 @@ async def persist_plan(
     for plan_item in content.plans:
         plan_row = await session.scalar(
             select(AgentTradePlan).where(
+                AgentTradePlan.agent_key == agent_key,
                 AgentTradePlan.plan_date == trade_date,
                 AgentTradePlan.stock_code == plan_item.stock_code,
                 AgentTradePlan.plan_type == plan_item.plan_type,
@@ -112,6 +121,7 @@ async def persist_plan(
         )
         if plan_row is None:
             plan_row = AgentTradePlan(
+                agent_key=agent_key,
                 plan_date=trade_date,
                 stock_code=plan_item.stock_code,
                 plan_type=plan_item.plan_type,

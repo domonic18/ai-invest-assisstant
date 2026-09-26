@@ -14,6 +14,7 @@ import { useState } from 'react'
 import type { ApiTradingAgentPlan } from '@ai-invest/shared'
 
 import { MarkedDatePicker } from '@/components/common/MarkedDatePicker'
+import { useAgentKey } from './agentKeyContext'
 import { useCancelTradingAgentPlan, useTradingAgentDates, useTradingAgentPlans } from '@/hooks/useTradingAgent'
 import { DATE_FORMAT } from '@/utils/formatters'
 
@@ -30,7 +31,8 @@ function fmt(value: number | null): string {
 }
 
 function PlanRow({ plan }: { plan: ApiTradingAgentPlan }) {
-  const cancel = useCancelTradingAgentPlan()
+  const agentKey = useAgentKey()
+  const cancel = useCancelTradingAgentPlan(agentKey)
   const status = STATUS_META[plan.status] ?? STATUS_META.expired
   const isBuy = plan.planType === 'buy'
 
@@ -81,10 +83,11 @@ function PlanRow({ plan }: { plan: ApiTradingAgentPlan }) {
 }
 
 export function PlanPanel() {
+  const agentKey = useAgentKey()
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null)
   const tradeDate = selectedDate?.format(DATE_FORMAT)
-  const { data: plans, isLoading } = useTradingAgentPlans(tradeDate)
-  const { data: dates } = useTradingAgentDates()
+  const { data: plans, isLoading } = useTradingAgentPlans(agentKey, tradeDate)
+  const { data: dates } = useTradingAgentDates(agentKey)
 
   return (
     <Card

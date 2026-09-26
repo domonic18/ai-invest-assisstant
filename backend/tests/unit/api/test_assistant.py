@@ -347,12 +347,18 @@ class TestTradingThreadGate:
     def test_create_trading_thread_requires_admin(self, assistant_client) -> None:
         client, user = assistant_client
         user.role = "user"
-        with patch(
-            "app.services.assistant.assistant_service.AssistantService.create_session",
-            AsyncMock(),
-        ) as create_mock:
+        with (
+            patch(
+                "app.services.trading.agent_registry.get_active_agent",
+                AsyncMock(return_value=SimpleNamespace(agent_key="short-line")),
+            ),
+            patch(
+                "app.services.assistant.assistant_service.AssistantService.create_session",
+                AsyncMock(),
+            ) as create_mock,
+        ):
             response = client.post(
-                "/api/v1/assistant/threads", json={"agent_type": "trading"}
+                "/api/v1/assistant/threads", json={"agent_type": "short-line"}
             )
         assert response.status_code == 403
         create_mock.assert_not_called()
@@ -361,17 +367,23 @@ class TestTradingThreadGate:
         client, user = assistant_client
         user.role = "admin"
         row = _session_row()
-        row.agent_type = "trading"
-        with patch(
-            "app.services.assistant.assistant_service.AssistantService.create_session",
-            AsyncMock(return_value=row),
-        ) as create_mock:
+        row.agent_type = "short-line"
+        with (
+            patch(
+                "app.services.trading.agent_registry.get_active_agent",
+                AsyncMock(return_value=SimpleNamespace(agent_key="short-line")),
+            ),
+            patch(
+                "app.services.assistant.assistant_service.AssistantService.create_session",
+                AsyncMock(return_value=row),
+            ) as create_mock,
+        ):
             response = client.post(
-                "/api/v1/assistant/threads", json={"agent_type": "trading"}
+                "/api/v1/assistant/threads", json={"agent_type": "short-line"}
             )
         assert response.status_code == 201
-        assert response.json()["agent_type"] == "trading"
-        create_mock.assert_awaited_once_with(1, None, "trading")
+        assert response.json()["agent_type"] == "short-line"
+        create_mock.assert_awaited_once_with(1, None, "short-line")
 
     def test_create_thread_invalid_agent_type_422(self, assistant_client) -> None:
         client, user = assistant_client
@@ -388,17 +400,17 @@ class TestTradingThreadGate:
             AsyncMock(return_value=([], 0)),
         ) as list_mock:
             response = client.get(
-                "/api/v1/assistant/sessions", params={"agent_type": "trading"}
+                "/api/v1/assistant/sessions", params={"agent_type": "short-line"}
             )
         assert response.status_code == 200
-        list_mock.assert_awaited_once_with(1, 20, 0, "trading")
+        list_mock.assert_awaited_once_with(1, 20, 0, "short-line")
 
     @pytest.mark.asyncio
     async def test_resolve_agent_trading_requires_admin(self) -> None:
         from app.api.v1.assistant.runs import _resolve_agent
         from app.core.exceptions import ForbiddenError
 
-        thread = SimpleNamespace(agent_type="trading")
+        thread = SimpleNamespace(agent_type="short-line")
         user = SimpleNamespace(id=1, role="user")
         with pytest.raises(ForbiddenError):
             await _resolve_agent(MagicMock(), user, thread)  # type: ignore[arg-type]
@@ -407,7 +419,7 @@ class TestTradingThreadGate:
     async def test_resolve_agent_trading_returns_trading_agent(self) -> None:
         from app.api.v1.assistant.runs import _resolve_agent
 
-        thread = SimpleNamespace(agent_type="trading")
+        thread = SimpleNamespace(agent_type="short-line")
         user = SimpleNamespace(id=1, role="admin")
         sentinel = object()
         with patch(

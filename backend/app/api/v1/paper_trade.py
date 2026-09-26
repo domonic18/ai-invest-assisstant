@@ -46,7 +46,7 @@ def _account_row(account: PaperTradeAccount) -> PaperTradeAccountRow:
         id=account.id,
         name=account.name,
         counter_account_id=account.counter_account_id,
-        is_agent=account.is_agent,
+        agent_key=account.agent_key,
         is_enabled=account.is_enabled,
         token_masked=mask_token(decrypt_token(account.token_encrypted)),
         last_error=account.last_error,

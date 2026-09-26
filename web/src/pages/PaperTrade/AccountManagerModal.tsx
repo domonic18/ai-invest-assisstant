@@ -75,7 +75,7 @@ export function AccountManagerModal({
       render: (name: string, record) => (
         <Space size={4}>
           {name}
-          {record.isAgent && <Tag color="gold">Agent</Tag>}
+          {record.agentKey && <Tag color="gold">Agent</Tag>}
           {!record.isEnabled && <Tag>已停用</Tag>}
         </Space>
       ),

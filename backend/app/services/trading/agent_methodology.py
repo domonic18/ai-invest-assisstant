@@ -23,7 +23,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.constants.kb import KbPointStatus
 from app.models.kb import KbKnowledgePoint, KbMedia, KbSource
 from app.services.kb import search_service
-from app.services.trading.agent_config import get_config_row
 
 logger = structlog.get_logger(__name__)
 
@@ -35,17 +34,11 @@ _RETRIEVAL_POINT_TYPES = ("method", "theorem", "concept", "case")
 _QUERY_MAX_CHARS = 1200
 
 
-async def get_methodology_source_id(session: AsyncSession) -> int | None:
-    """方法论知识源绑定（``trading_agent_config.methodology_source_id``；空 = 未启用）。"""
-    config = await get_config_row(session)
-    return config.methodology_source_id
-
-
 async def build_methodology_input(
-    session: AsyncSession, *, query_text: str | None
+    session: AsyncSession, *, source_id: int | None, query_text: str | None
 ) -> dict[str, Any] | None:
-    """装配方法论基座输入（未配置/知识源不可用时 None，计划生成照常进行）。"""
-    source_id = await get_methodology_source_id(session)
+    """装配方法论基座输入（调用方传注册行 ``methodology_source_id``；
+    未配置/知识源不可用时 None，计划生成照常进行）。"""
     if source_id is None:
         return None
     source = await session.get(KbSource, source_id)

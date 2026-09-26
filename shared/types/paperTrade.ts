@@ -98,7 +98,8 @@ export interface ApiPaperTradeAccount {
   id: number
   name: string
   counterAccountId: string
-  isAgent: boolean
+  /** 归属交易 Agent；null = 用户账户（agent 专属账户禁止人工下单）。 */
+  agentKey: string | null
   isEnabled: boolean
   tokenMasked: string
   lastError?: string | null

@@ -75,6 +75,9 @@ const Register = lazy(() => import('./pages/Register/Register').then((m) => ({ d
 const TradingAgent = lazy(() =>
   import('./pages/TradingAgent').then((m) => ({ default: m.TradingAgent })),
 )
+const AgentOverview = lazy(() =>
+  import('./pages/AgentOverview/AgentOverview').then((m) => ({ default: m.AgentOverview })),
+)
 const ScreeningPage = lazy(() =>
   import('./pages/Screening/ScreeningPage').then((m) => ({ default: m.ScreeningPage })),
 )
@@ -160,11 +163,14 @@ export const router = createBrowserRouter([
           { path: 'trade-calendar', element: lazyEl(<TradeCalendarAdmin />) },
         ],
       },
-      // 交易 Agent：admin 专属对话与配置（批次 5）
+      // 交易 Agent Hub：admin 专属（总览 + 各 Agent 详情，多 Agent 基座）
       {
         path: 'trading-agent',
         element: <ProtectedAdmin />,
-        children: [{ index: true, element: lazyEl(<TradingAgent />) }],
+        children: [
+          { index: true, element: lazyEl(<AgentOverview />) },
+          { path: ':agentKey', element: lazyEl(<TradingAgent />) },
+        ],
       },
     ],
   },
