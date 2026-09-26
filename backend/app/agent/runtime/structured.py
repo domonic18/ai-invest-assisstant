@@ -74,19 +74,40 @@ async def run_structured(
         ]
     message = HumanMessage(content=content)
 
-    async def _invoke(current: ResolvedLLMConfig) -> T:
+    def _output_methods(protocol: str) -> tuple[str, ...]:
+        """按协议给出结构化输出法（首选 + 兜底）。
+
+        anthropic 协议端点（kimi coding 等）2026-09-08 起对强制 tool_choice
+        间歇性忽略，function_calling 法会静默拿到 None，故 json_schema（原生
+        output_format）优先；但 MiniMax 等兼容端点不实现 output_format，会
+        忽略并返回纯文本（OutputParserException），tool calling 反而可靠
+        （批次 5 对话实测）——json_schema 失败后换 function_calling 兜底。
+        openai 协议一律 function_calling。
+        """
+        if protocol == "anthropic":
+            return ("json_schema", "function_calling")
+        return ("function_calling",)
+
+    async def _invoke_method(current: ResolvedLLMConfig, method: str) -> T:
         model = build_langchain_model(current, disable_thinking=True)
-        # anthropic 协议端点（kimi coding 等）2026-09-08 起对强制 tool_choice
-        # 间歇性忽略，function_calling 法会静默拿到 None；json_schema 走
-        # anthropic 原生结构化输出（method 须按备用配置的协议重选）
-        method = "json_schema" if current.protocol == "anthropic" else "function_calling"
         structured = model.with_structured_output(result_type, method=method)
-        return cast(T, await structured.ainvoke([message]))
+        result = await structured.ainvoke([message])
+        if result is None:
+            # tool_choice 被端点忽略时静默拿 None（kimi/MiniMax 实测），
+            # 转为解析失败以触发兜底法重试，而非把 None 当合法结果上抛
+            raise OutputParserException("模型未返回结构化输出（tool call 缺失）")
+        return cast(T, result)
+
+    async def _invoke(current: ResolvedLLMConfig) -> T:
+        methods = _output_methods(current.protocol)
+        # 首选法解析失败时按兜底序换法重试一次；无兜底法则同法重试
+        fallback = methods[1] if len(methods) > 1 else methods[0]
+        try:
+            return await _invoke_method(current, methods[0])
+        except (ValidationError, OutputParserException):
+            return await _invoke_method(current, fallback)
 
     try:
-        return await _invoke(cfg)
-    except (ValidationError, OutputParserException):
-        # 输出不符合 schema 时重试一次（json_schema 法解析失败抛 OutputParserException）
         return await _invoke(cfg)
     except Exception as exc:
         if not classify_llm_error(exc):
