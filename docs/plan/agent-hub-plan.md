@@ -92,6 +92,27 @@
   时 fallback `skills/trading-default/`（共享作业程序）；prompt_id 可指向任意既有
   人设模板；前端 `short-line` 默认值兜底全部清除（缺路由参数跳回总览），
   名称/策略/频率后续均 UI 配置，零代码新增。
+- **D29 验收反馈二批：能力视图 + Agent CRUD + 工作台重构 + 持仓与交易**
+  （2026-09-26 追加，分支 `feature/agent-hub-ux-fixes`，无迁移）：
+  ① **能力端点** `GET /{agentKey}/status`（`AgentCapabilityResponse`）：profile +
+  llmName + methodologySourceName（kb_source 名）+ 作业技能（`plan_skill_id` 的
+  `trading-<key>`→`trading-default` fallback + `get_skill().label`，标 shared 默认）+
+  活跃记忆计数（纪律/方法/教训）+ 自动化任务视图（计划/复盘/sync 三任务：cron +
+  cadence + CollectorTask 启用态 + croniter 下次执行 + collector_log 最近运行）+
+  近期活动——工作台右栏改「能力与技能 / 自动化任务 / 近期活动」三卡，取代原
+  计划/复盘侧栏（两 tab 内仍可达）；② **Agent CRUD**：`POST /agents`（创建即
+  active；agent_key 正则 422 / 重复 409 / prompt_id 限 `trading_agent_*.yaml` 模板
+  清单；风控保守默认 20/60/10、auto_exec False、sort_order=max+1）、
+  `DELETE /{agentKey}`（级联清理：core UPDATE 解绑账户（账户保留）→ bulk 删
+  计划/选股/记忆 → assistant_session 逐条 `checkpointer.adelete_thread` 后删行 →
+  删注册行；自选分组 DB CASCADE）、`GET /prompt-templates`（glob + yaml label）——
+  总览管理列表加「新建 Agent」弹窗（创建即启用，提示绑定账户后才实际下单）与
+  行级删除 Popconfirm；③ plans 响应加 `stockName`（StockBasic 批量名），计划行
+  显示名称+代号；④ 交易记录 tab 重构为「持仓与交易」：资金五指标（总资产 /
+  持仓市值 ΣmarketValue / 可用资金 / 累计盈亏 nav−cumInout / 当日盈亏 实时
+  nav−最近快照 nav 前端算）+ 当前持仓（复用 `PaperTradePositions`，不传 onTrade）+
+  委托/成交（日期选择即历史查询）；`SymbolCell`（名称+代号+当日涨幅）自
+  PaperTradePositions 导出，委托/成交表同步复用；⑤ 介绍卡加方法论 Tag。
 
 ## 4. 数据模型
 
@@ -165,8 +186,12 @@
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/agents` | 总览聚合（新，见 §6） |
+| POST | `/agents` | 新建 Agent（创建即 active，校验见 D29；D29） |
+| GET | `/prompt-templates` | 人设模板清单（新建 Agent 下拉，D29） |
+| GET | `/{agentKey}/status` | 能力/状态视图（技能/记忆计数/自动化任务/活动，D29） |
+| DELETE | `/{agentKey}` | 删除 Agent 并级联清理（解绑账户保留账户本体，D29） |
 | GET/PUT | `/{agentKey}/config` | 任意状态可写（D28）；PUT 可携 status/name/人设/频率 |
-| GET | `/{agentKey}/review · /dates · /plans · /selections · /memories` | planned 可读；plans 返回 `{tradeDate, nextTradeDate, plans}`（D28） |
+| GET | `/{agentKey}/review · /dates · /plans · /selections · /memories` | planned 可读；plans 返回 `{tradeDate, nextTradeDate, plans}`（D28），行含 `stockName`（D29） |
 | POST | `/{agentKey}/plans/{id}/cancel` | active |
 | DELETE | `/{agentKey}/selections/{id}` | active |
 | PUT | `/{agentKey}/memories/{id} · /memories/{id}/status` | active |
