@@ -2,8 +2,9 @@
 
 agent_stock_selection 是选股依据真相源（复盘「选股对错」归因输入 +
 人工移出干预记录）；agent_trade_plan 是盘中条件触发执行的真相源
-（批次 8 执行服务读表推进状态机）；agent_memory 是 Agent 自有记忆
-（plan §12：方法论纪律 + 复盘沉淀，反哺每日计划 prompt）。
+（批次 8 执行服务读表推进状态机）；agent_memory 是 Agent 自有迭代
+经验（复盘沉淀 + 手动沉淀，反哺每日计划 prompt；方法论基座由 KB
+直读注入，见 ``agent_methodology``，方案 A 分层定版）。
 """
 
 from datetime import date, datetime
@@ -99,10 +100,11 @@ class AgentTradePlan(Base):
 
 
 class AgentMemory(Base):
-    """交易 Agent 自有记忆（不经 KB）：方法论纪律种子 + 复盘沉淀。
+    """交易 Agent 自有迭代经验（不经 KB）：复盘沉淀 + 手动沉淀。
 
-    status='active' 条目由每日计划生成服务全量注入 prompt（token 上限截断）；
-    停用 = archived（不物理删除，保留归因链路）；auto 条目按
+    方法论基座由 KB 直读注入（``agent_methodology``），本表只装经验层。
+    status='active' 条目由每日计划生成服务注入 prompt（条数上限截断）；
+    停用 = archived（不物理删除，保留归因链路）；复盘沉淀条目按
     (source_result_id, title) 幂等。
     """
 

@@ -1,7 +1,7 @@
 """交易 Agent 记忆管理服务（plan §12.3：查看 / 编辑 / 停用）。
 
 记忆是 Agent 私有资产（不经 KB）：status='active' 条目由每日计划生成服务
-全量注入 prompt（``agent_plan_service._active_memories``）；停用 = archived
+注入 prompt（``agent_plan_input._active_memories``）；停用 = archived
 （不物理删除，保留归因链路）。手动沉淀（POST）与复盘自动提取随批次 9 接入。
 """
 

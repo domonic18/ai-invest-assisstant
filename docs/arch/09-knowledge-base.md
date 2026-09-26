@@ -293,7 +293,7 @@ backend/collector/runtime/specs/kb.py + backend/collector/spiders/kb_*.py   # §
 ```
 
 - 依赖方向：services/kb 不顶层导入 `app.agent.tools/skills/runtime`（`run_structured` 函数内延迟导入）；spider 薄壳委托服务层（`kb_transcribe.py` 等）。
-- **新增依赖**：`pymupdf`（文本层抽取 + 嵌入图片对象）、`pypdfium2`（页位图按需渲染，无重依赖）、`Pillow`（水印合成）、`pgvector`（SQLAlchemy `HALFVEC` 列类型，纯轮子）。全部为轻量纯轮子，主镜像（web-api/collector）构建只增体积不增容器——**compose 零新增服务**。
+- **新增依赖**：`pymupdf`（文本层抽取 + 嵌入图片对象）、`pypdfium2`（页位图按需渲染，无重依赖）、`Pillow`（水印合成）、`pgvector`（SQLAlchemy `HALFVEC` 列类型，纯轮子）。全部为轻量纯轮子，主镜像（web/collector）构建只增体积不增容器——**compose 零新增服务**。
 - ES 容器已全栈退役（2026-09-21）：研报/财报全文改存 `file_metadata.content`（pypdf 抽取 + GIN trgm），`search_vector_kb` 走 PG 词面检索，健康探针摘除 ES 项；KB 检索此前已迁 PG 单库（halfvec HNSW + pg_trgm + RRF）。es 容器与 9200 端口从 compose 移除（曾因 `0.0.0.0:9200` 暴露 + 弱凭据被外部客户端清空索引，2026-09-20 事故加速退役）。
 
 ## 13. 任务注册与调度（F-MON 全覆盖）

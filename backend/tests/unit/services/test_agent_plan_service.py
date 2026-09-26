@@ -8,9 +8,10 @@ import pytest
 
 from app.services.market.trade_calendar_service import NonTradingDayError
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
-from app.services.trading import agent_plan_service
-from app.services.trading.agent_plan_service import (
+from app.services.trading import agent_plan_input, agent_plan_service
+from app.services.trading.agent_plan_schemas import (
     AgentDailyPlanContent,
+    PlanSelectionItem,
     PlanTradePlanItem,
 )
 
@@ -187,7 +188,7 @@ class TestGenerateDailyPlan:
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.services.trading.agent_plan_service._collect_plan_input",
+                "app.services.trading.agent_plan_input.collect_plan_input",
                 AsyncMock(return_value=({}, [])),
             ),
             patch.object(agent_plan_service, "redis_lock", _locked),
@@ -204,7 +205,7 @@ class TestGenerateDailyPlan:
                 AsyncMock(return_value=42),
             ) as insert_mock,
             patch(
-                "app.services.trading.agent_plan_service._persist",
+                "app.services.trading.agent_plan_persist.persist_plan",
                 AsyncMock(),
             ) as persist_mock,
         ):
@@ -245,7 +246,7 @@ class TestGenerateDailyPlan:
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.services.trading.agent_plan_service._collect_plan_input",
+                "app.services.trading.agent_plan_input.collect_plan_input",
                 AsyncMock(return_value=({}, [])),
             ),
             patch.object(agent_plan_service, "redis_lock", _locked),
@@ -276,7 +277,7 @@ class TestActiveMemories:
             )
         )
 
-        assert await agent_plan_service._active_memories(session) == []
+        assert await agent_plan_input._active_memories(session) == []
         # SAVEPOINT 已退出（回滚），外层事务保持可用
         nested.__aexit__.assert_awaited_once()
 
@@ -298,28 +299,28 @@ class TestCollectPlanInput:
                 AsyncMock(return_value=None),
             ),
             patch.object(
-                agent_plan_service, "_stock_anomalies", AsyncMock(return_value=[])
+                agent_plan_input, "_stock_anomalies", AsyncMock(return_value=[])
             ),
             patch.object(
-                agent_plan_service,
+                agent_plan_input,
                 "_manual_removed_codes",
                 AsyncMock(return_value=[]),
             ),
             patch.object(
-                agent_plan_service, "_local_positions", AsyncMock(return_value=[])
+                agent_plan_input, "_local_positions", AsyncMock(return_value=[])
             ),
             patch.object(
-                agent_plan_service,
+                agent_plan_input,
                 "_active_memories",
                 AsyncMock(return_value=[{"title": "禁追高"}]),
             ),
             patch(
-                "app.services.trading.agent_plan_service.agent_methodology"
+                "app.services.trading.agent_plan_input.agent_methodology"
                 ".build_methodology_input",
                 AsyncMock(return_value={"disciplines": [{"id": 2086}]}),
             ) as build_mock,
         ):
-            plan_input, _ = await agent_plan_service._collect_plan_input(
+            plan_input, _ = await agent_plan_input.collect_plan_input(
                 AsyncMock(), 7, _TRADE_DATE
             )
 
@@ -342,26 +343,26 @@ class TestCollectPlanInput:
                 AsyncMock(return_value=None),
             ),
             patch.object(
-                agent_plan_service, "_stock_anomalies", AsyncMock(return_value=[])
+                agent_plan_input, "_stock_anomalies", AsyncMock(return_value=[])
             ),
             patch.object(
-                agent_plan_service,
+                agent_plan_input,
                 "_manual_removed_codes",
                 AsyncMock(return_value=[]),
             ),
             patch.object(
-                agent_plan_service, "_local_positions", AsyncMock(return_value=[])
+                agent_plan_input, "_local_positions", AsyncMock(return_value=[])
             ),
             patch.object(
-                agent_plan_service, "_active_memories", AsyncMock(return_value=[])
+                agent_plan_input, "_active_memories", AsyncMock(return_value=[])
             ),
             patch(
-                "app.services.trading.agent_plan_service.agent_methodology"
+                "app.services.trading.agent_plan_input.agent_methodology"
                 ".build_methodology_input",
                 AsyncMock(return_value=None),
             ),
         ):
-            plan_input, _ = await agent_plan_service._collect_plan_input(
+            plan_input, _ = await agent_plan_input.collect_plan_input(
                 AsyncMock(), 7, _TRADE_DATE
             )
 
@@ -376,7 +377,7 @@ class TestValidateCodes:
             update={
                 "selections": _content().selections
                 + [
-                    agent_plan_service.PlanSelectionItem(
+                    PlanSelectionItem(
                         stock_code="999999", reason="幻觉代码", confidence=None
                     )
                 ],
@@ -401,7 +402,7 @@ class TestValidateCodes:
             update={
                 "selections": _content().selections
                 + [
-                    agent_plan_service.PlanSelectionItem(
+                    PlanSelectionItem(
                         stock_code="600519", reason="再次候选", confidence=0.7
                     )
                 ],

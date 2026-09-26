@@ -231,7 +231,7 @@ backend/app/api/v1/social.py · api/v1/admin/social.py
 
 依赖方向遵守既有分层：adapters 是纯下游叶子（只被 collector spider 与 app services 导入，自身不反向导入 app 层，不构成 services↔collector 解环）；services 不顶层导入 `app.agent.tools/skills/runtime`（`run_structured` 经函数内延迟导入）；浏览器 Cookie 兜底与 ASR 凭据均走加密配置行（Fernet），不入 `config.py`/env。
 
-适配层无独立部署：`curl_cffi` 依赖进 `backend/pyproject.toml`（镜像随之构建）；`signing.py` 随版本发布维护（抖音升级签名算法时更新移植实现，黄金样本单测回归）；生产服务器须能直连 douyin.com（国内云满足），代理配置复用既有 `proxy_config` 渠道绑定能力。唯一新增容器是签名 sidecar（compose `douyin-signer`）：playwright 依赖收 uv `signer` 组、web-api/collector 镜像零改动（dev 环境不装该组）；不锁 platform（chromium 原生 arm64/amd64 均可用，amd64 模拟反而破坏浏览器指纹）；境内构建浏览器二进制经构建代理走宿主机出口（Dockerfile 头注释）。
+适配层无独立部署：`curl_cffi` 依赖进 `backend/pyproject.toml`（镜像随之构建）；`signing.py` 随版本发布维护（抖音升级签名算法时更新移植实现，黄金样本单测回归）；生产服务器须能直连 douyin.com（国内云满足），代理配置复用既有 `proxy_config` 渠道绑定能力。唯一新增容器是签名 sidecar（compose `douyin-signer`）：playwright 依赖收 uv `signer` 组、web/collector 镜像零改动（dev 环境不装该组）；不锁 platform（chromium 原生 arm64/amd64 均可用，amd64 模拟反而破坏浏览器指纹）；境内构建浏览器二进制经构建代理走宿主机出口（Dockerfile 头注释）。
 
 ## 9. 验证
 

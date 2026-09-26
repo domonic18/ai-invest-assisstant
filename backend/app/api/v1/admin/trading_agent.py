@@ -134,7 +134,7 @@ async def list_trading_agent_memories(
         None, alias="status", description="状态过滤（缺省全部）"
     ),
 ) -> list[AgentMemoryResponse]:
-    """Agent 记忆清单（方法论纪律种子 + 复盘沉淀，按新近度倒序）。"""
+    """Agent 记忆清单（复盘沉淀 + 手动沉淀，按新近度倒序）。"""
     rows = await agent_memory_service.list_memories(session, status=status_filter)
     return [AgentMemoryResponse.model_validate(row) for row in rows]
 
