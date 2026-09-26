@@ -369,7 +369,8 @@ CREATE INDEX idx_user_status_pending ON "user"(status) WHERE status = 'pending';
 
 CREATE TABLE user_watchlist_group (
     id                BIGSERIAL PRIMARY KEY,
-    user_id           BIGINT       NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    user_id           BIGINT       REFERENCES "user"(id) ON DELETE CASCADE,  -- NULL = 平台级分组（owner_type='agent'）
+    owner_type        VARCHAR(16)  NOT NULL DEFAULT 'user',
     name              VARCHAR(50)  NOT NULL,
     sort_order        INT          NOT NULL DEFAULT 0,
     is_default        BOOLEAN      NOT NULL DEFAULT FALSE,
@@ -378,6 +379,9 @@ CREATE TABLE user_watchlist_group (
 
     UNIQUE (user_id, name)
 );
+
+CREATE UNIQUE INDEX uq_user_watchlist_group_agent
+    ON user_watchlist_group (owner_type) WHERE owner_type = 'agent';
 
 CREATE INDEX idx_user_watchlist_group_user ON user_watchlist_group(user_id);
 
@@ -1676,3 +1680,58 @@ COMMENT ON TABLE trading_agent_config IS
 
 -- 缺省配置行（管理端「交易 Agent 配置」维护）
 INSERT INTO trading_agent_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================
+-- 26. 交易 Agent 选股与交易计划（批次 7，docs/plan/paper-trading-plan.md §10.1；
+--     选股 = 复盘归因输入 + 人工移出干预记录；计划 = 盘中条件触发真相源）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS agent_stock_selection (
+    id               BIGSERIAL PRIMARY KEY,
+    trade_date       DATE         NOT NULL,      -- 选入日
+    stock_code       VARCHAR(10)  NOT NULL,
+    reason           TEXT         NOT NULL,      -- 选股依据（引用复盘结论）
+    source_result_id BIGINT,                     -- ai_analysis_result.id（当日计划生成记录）
+    confidence       NUMERIC(5,4),               -- LLM 置信度（可空）
+    status           VARCHAR(16)  NOT NULL DEFAULT 'active',   -- active / removed
+    removed_at       TIMESTAMPTZ,
+    removed_reason   TEXT,                       -- agent 剔除 / manual 人工移出
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_agent_stock_selection_date_code UNIQUE (trade_date, stock_code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_stock_selection_code
+    ON agent_stock_selection(stock_code, trade_date DESC);
+
+COMMENT ON TABLE agent_stock_selection IS
+    '交易 Agent 每日选股清单（选入/移出与依据的真相源，docs/plan/paper-trading-plan.md §10.1）';
+
+CREATE TABLE IF NOT EXISTS agent_trade_plan (
+    id                  BIGSERIAL PRIMARY KEY,
+    plan_date           DATE          NOT NULL,  -- 计划日（默认当日有效）
+    stock_code          VARCHAR(10)   NOT NULL,
+    plan_type           VARCHAR(8)    NOT NULL,  -- buy 开仓 / sell 持仓管理
+    strategy            TEXT          NOT NULL,  -- 策略描述
+    buy_zone_low        NUMERIC(12,4),           -- 买点区间（buy 必填）
+    buy_zone_high       NUMERIC(12,4),
+    target_price        NUMERIC(12,4),           -- 止盈目标价（sell 必填）
+    stop_loss           NUMERIC(12,4) NOT NULL,  -- 止损价（两类计划均必填，纪律）
+    position_pct        NUMERIC(5,2)  NOT NULL,  -- 目标仓位（占总资产 %）
+    status              VARCHAR(16)   NOT NULL DEFAULT 'active',
+    -- 状态机：active → triggered（已触发下单）→ executed / expired（当日未触发）/ cancelled（人工取消）
+    selection_id        BIGINT,                  -- 依据 agent_stock_selection（sell 计划可空）
+    basis               TEXT          NOT NULL,  -- 计划依据（复盘结论/经验卡片引用）
+    triggered_cl_ord_id VARCHAR(64),             -- 触发的委托（关联 paper_trade_order）
+    triggered_at        TIMESTAMPTZ,
+    raw                 JSONB,                   -- LLM 完整输出兜底
+    created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_agent_trade_plan_date_code_type UNIQUE (plan_date, stock_code, plan_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_trade_plan_status
+    ON agent_trade_plan(status, plan_date DESC);
+
+COMMENT ON TABLE agent_trade_plan IS
+    '交易 Agent 每日交易计划（盘中条件触发执行的真相源，docs/plan/paper-trading-plan.md §10.1）';
