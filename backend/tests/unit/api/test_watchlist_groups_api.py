@@ -1,8 +1,7 @@
-"""自选股分组端点契约测试（鉴权 / CRUD / 错误码 / agent 分组）。"""
+"""自选股分组端点契约测试（鉴权 / CRUD / 错误码）。"""
 
-from datetime import date, datetime, timezone
-from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -178,81 +177,3 @@ class TestWatchlistGroupsApi:
     def test_requires_auth(self, client) -> None:
         resp = client.get("/api/v1/users/watchlist/groups")
         assert resp.status_code in (401, 403)
-
-
-@pytest.mark.unit
-class TestAgentWatchlistGroupApi:
-    """平台 agent 分组（全员可见）+ 人工移出（全局生效）端点。"""
-
-    def _group_view(self):
-        from app.models.agent_trading import AgentStockSelection
-        from app.models.watchlist import UserWatchlistGroup
-        from app.services.trading.agent_plan_ops import AgentGroupView
-
-        group = UserWatchlistGroup(
-            id=5,
-            user_id=None,
-            owner_type="agent",
-            name="交易 Agent",
-            sort_order=999,
-            is_default=False,
-            ai_review_enabled=False,
-        )
-        selection = AgentStockSelection(
-            id=9,
-            trade_date=date(2026, 9, 25),
-            stock_code="600000",
-            reason="复盘主线延续",
-            confidence=Decimal("0.8000"),
-            status="active",
-        )
-        return AgentGroupView(group=group, selections=[selection])
-
-    def test_returns_group_with_selections(self, auth_client) -> None:
-        from app.services.trading.agent_plan_ops import AgentGroupView
-
-        view: AgentGroupView = self._group_view()
-        with patch(
-            "app.api.v1.users.agent_plan_ops.get_agent_group",
-            AsyncMock(return_value=view),
-        ):
-            resp = auth_client.get("/api/v1/users/watchlist/agent-group")
-
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["name"] == "交易 Agent"
-        assert body["items"][0]["stockCode"] == "600000"
-        assert body["items"][0]["reason"] == "复盘主线延续"
-        assert body["items"][0]["confidence"] == pytest.approx(0.8)
-        assert body["items"][0]["tradeDate"] == "2026-09-25"
-
-    def test_returns_null_when_not_generated(self, auth_client) -> None:
-        with patch(
-            "app.api.v1.users.agent_plan_ops.get_agent_group",
-            AsyncMock(return_value=None),
-        ):
-            resp = auth_client.get("/api/v1/users/watchlist/agent-group")
-
-        assert resp.status_code == 200
-        assert resp.json() is None
-
-    def test_remove_selection_204(self, auth_client) -> None:
-        with patch(
-            "app.api.v1.users.agent_plan_ops.remove_selection_manual",
-            AsyncMock(return_value=MagicMock()),
-        ) as remove_mock:
-            resp = auth_client.delete("/api/v1/users/watchlist/agent-group/selections/9")
-
-        assert resp.status_code == 204
-        remove_mock.assert_awaited_once()
-
-    def test_remove_selection_404(self, auth_client) -> None:
-        from app.core.exceptions import NotFoundError
-
-        with patch(
-            "app.api.v1.users.agent_plan_ops.remove_selection_manual",
-            AsyncMock(side_effect=NotFoundError("Selection not found")),
-        ):
-            resp = auth_client.delete("/api/v1/users/watchlist/agent-group/selections/99")
-
-        assert resp.status_code == 404

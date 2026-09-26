@@ -2,6 +2,7 @@
 
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
+  ApiAgentWatchlistGroupResponse,
   ApiTradingAgentConfig,
   ApiTradingAgentConfigUpdateRequest,
   ApiTradingAgentDates,
@@ -63,4 +64,17 @@ export async function cancelTradingAgentPlan(planId: number): Promise<ApiTrading
     ENDPOINTS.admin.tradingAgentPlanCancel(planId),
   )
   return response.data
+}
+
+/** agent 自选分组（null = 尚未生成选股）。 */
+export async function fetchTradingAgentSelections(): Promise<ApiAgentWatchlistGroupResponse | null> {
+  const response = await apiClient.get<ApiAgentWatchlistGroupResponse | null>(
+    ENDPOINTS.admin.tradingAgentSelections,
+  )
+  return response.data
+}
+
+/** 人工移出 agent 选股（全局生效，次日不重复选入）。 */
+export async function removeTradingAgentSelection(selectionId: number): Promise<void> {
+  await apiClient.delete(ENDPOINTS.admin.tradingAgentSelection(selectionId))
 }

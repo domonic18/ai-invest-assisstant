@@ -220,3 +220,91 @@ class TestGetTradingAgentDates:
 
         assert resp.status_code == 200
         assert resp.json() == {"planDates": [], "reviewDates": {"day": [], "month": [], "week": []}}
+
+
+def _group_view():
+    from app.models.agent_trading import AgentStockSelection
+    from app.models.watchlist import UserWatchlistGroup
+    from app.services.trading.agent_plan_ops import AgentGroupView
+
+    group = UserWatchlistGroup(
+        id=5,
+        user_id=None,
+        owner_type="agent",
+        name="交易 Agent",
+        sort_order=999,
+        is_default=False,
+        ai_review_enabled=False,
+    )
+    selection = AgentStockSelection(
+        id=9,
+        trade_date=date(2026, 9, 25),
+        stock_code="600000",
+        reason="复盘主线延续",
+        confidence=Decimal("0.8000"),
+        status="active",
+    )
+    return AgentGroupView(group=group, selections=[selection])
+
+
+@pytest.mark.unit
+class TestTradingAgentSelections:
+    """agent 自选查询 + 人工移出（自用户自选页迁入模拟管理）。"""
+
+    def test_get_returns_camel_case_wire(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_plan_ops.get_agent_group",
+            AsyncMock(return_value=_group_view()),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/selections")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["name"] == "交易 Agent"
+        assert body["items"][0]["stockCode"] == "600000"
+        assert body["items"][0]["reason"] == "复盘主线延续"
+        assert body["items"][0]["confidence"] == pytest.approx(0.8)
+        assert body["items"][0]["tradeDate"] == "2026-09-25"
+
+    def test_get_returns_null_when_not_generated(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_plan_ops.get_agent_group",
+            AsyncMock(return_value=None),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/selections")
+
+        assert resp.status_code == 200
+        assert resp.json() is None
+
+    def test_get_requires_admin(self, client) -> None:
+        resp = client.get("/api/v1/admin/trading-agent/selections")
+        assert resp.status_code in (401, 403)
+
+    def test_remove_selection_204(self, admin_client) -> None:
+        http, session = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_plan_ops.remove_selection_manual",
+            AsyncMock(return_value=MagicMock()),
+        ) as remove_mock:
+            resp = http.delete("/api/v1/admin/trading-agent/selections/9")
+
+        assert resp.status_code == 204
+        remove_mock.assert_awaited_once_with(session, selection_id=9)
+
+    def test_remove_selection_404(self, admin_client) -> None:
+        from app.core.exceptions import NotFoundError
+
+        http, _ = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_plan_ops.remove_selection_manual",
+            AsyncMock(side_effect=NotFoundError("Selection not found")),
+        ):
+            resp = http.delete("/api/v1/admin/trading-agent/selections/99")
+
+        assert resp.status_code == 404

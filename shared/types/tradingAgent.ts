@@ -85,7 +85,7 @@ export interface ApiTradingAgentPlan {
   triggeredClOrdId: string | null
 }
 
-/** agent 选股条目（自选页 agent 分组：AI 依据 + 置信度）。 */
+/** agent 选股条目（模拟管理「Agent 自选」：AI 依据 + 置信度）。 */
 export interface ApiAgentWatchlistSelectionItem {
   id: number
   stockCode: string
@@ -94,7 +94,7 @@ export interface ApiAgentWatchlistSelectionItem {
   tradeDate: string
 }
 
-/** 自选页 agent 分组（平台级单例，全员可见；null = 尚未生成选股）。 */
+/** agent 自选分组（admin GET /trading-agent/selections；null = 尚未生成选股）。 */
 export interface ApiAgentWatchlistGroupResponse {
   id: number
   name: string

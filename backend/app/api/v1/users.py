@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import ai_quota_gate, get_current_user, get_db
 from app.models.user import User
 from app.schemas.market import WatchlistQuoteItem
-from app.schemas.paper_trade import AgentSelectionItem, AgentWatchlistGroupResponse
 from app.schemas.user import (
     PasswordChangeRequest,
     UserResponse,
@@ -28,7 +27,6 @@ from app.schemas.user import (
 )
 from app.services.market import market_service
 from app.services.quota.constants import FEATURE_PAGE
-from app.services.trading import agent_plan_ops
 from app.services.user import UserService, WatchlistService
 from app.services.user.screenshot_recognition_service import (
     recognize_screenshot,
@@ -144,36 +142,6 @@ async def get_watchlist_quotes(
 ) -> list[WatchlistQuoteItem]:
     """获取当前用户自选股实时行情（Redis 快照，缺失时回退最近收盘价）。"""
     return await market_service.get_watchlist_quotes(session, current_user.id)
-
-
-@router.get("/watchlist/agent-group", response_model=AgentWatchlistGroupResponse | None)
-async def get_agent_watchlist_group(
-    current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
-) -> AgentWatchlistGroupResponse | None:
-    """获取平台 agent 自选分组（全员可见；尚未生成选股时返回 null）。"""
-    view = await agent_plan_ops.get_agent_group(session)
-    if view is None:
-        return None
-    return AgentWatchlistGroupResponse(
-        id=view.group.id,
-        name=view.group.name,
-        items=[
-            AgentSelectionItem.model_validate(row) for row in view.selections
-        ],
-    )
-
-
-@router.delete(
-    "/watchlist/agent-group/selections/{selection_id}", status_code=status.HTTP_204_NO_CONTENT
-)
-async def remove_agent_watchlist_selection(
-    selection_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
-) -> None:
-    """人工移出 agent 选股（全局生效：当日清单移除，次日不重复选入）。"""
-    await agent_plan_ops.remove_selection_manual(session, selection_id=selection_id)
 
 
 @router.get("/watchlist/groups", response_model=list[WatchlistGroupWithItemsResponse])

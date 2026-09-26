@@ -1,14 +1,16 @@
 """管理后台交易 Agent API 端点（批次 5 配置面 + 批次 6 复盘查询 + 批次 7
-交易计划查询/人工取消；批次 9 追加记忆端点）。"""
+交易计划查询/人工取消 + agent 自选查询/人工移出；批次 9 追加记忆端点）。"""
 
 from datetime import date
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.paper_trade import (
+    AgentSelectionItem,
+    AgentWatchlistGroupResponse,
     TradingAgentConfigResponse,
     TradingAgentConfigUpdateRequest,
     TradingAgentDatesResponse,
@@ -94,3 +96,29 @@ async def cancel_trading_agent_plan(
     """人工取消当日 active 计划（干预手段之一，triggered 后不可取消）。"""
     plan = await agent_plan_ops.cancel_plan(session, plan_id=plan_id)
     return TradingAgentPlanResponse.model_validate(plan)
+
+
+@router.get("/selections", response_model=AgentWatchlistGroupResponse | None)
+async def get_trading_agent_selections(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> AgentWatchlistGroupResponse | None:
+    """读取 agent 自选分组（平台级单例；尚未生成选股时返回 null）。"""
+    view = await agent_plan_ops.get_agent_group(session)
+    if view is None:
+        return None
+    return AgentWatchlistGroupResponse(
+        id=view.group.id,
+        name=view.group.name,
+        items=[AgentSelectionItem.model_validate(row) for row in view.selections],
+    )
+
+
+@router.delete(
+    "/selections/{selection_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def remove_trading_agent_selection(
+    selection_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    """人工移出 agent 选股（全局生效：当日清单移除，次日不重复选入）。"""
+    await agent_plan_ops.remove_selection_manual(session, selection_id=selection_id)

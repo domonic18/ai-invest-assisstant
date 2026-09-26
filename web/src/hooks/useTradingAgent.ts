@@ -15,6 +15,8 @@ import {
   fetchTradingAgentDates,
   fetchTradingAgentPlans,
   fetchTradingAgentReview,
+  fetchTradingAgentSelections,
+  removeTradingAgentSelection,
   updateTradingAgentConfig,
 } from '@/api/tradingAgent'
 import { queryKeys } from '@/hooks/queryKeys'
@@ -91,6 +93,27 @@ export function useCancelTradingAgentPlan() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.all })
       message.success('计划已取消')
+    },
+    onError: (error: Error) => message.error(error.message),
+  })
+}
+
+/** agent 自选分组（null = 尚未生成选股）。 */
+export function useTradingAgentSelections() {
+  return useQuery({
+    queryKey: queryKeys.tradingAgent.selections,
+    queryFn: fetchTradingAgentSelections,
+  })
+}
+
+/** 人工移出 agent 选股（removed_reason=manual，全局生效次日不重复选入）。 */
+export function useRemoveTradingAgentSelection() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (selectionId: number) => removeTradingAgentSelection(selectionId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.selections })
+      message.success('已移出，次日不再选入')
     },
     onError: (error: Error) => message.error(error.message),
   })
