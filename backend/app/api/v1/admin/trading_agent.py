@@ -1,7 +1,8 @@
 """管理后台交易 Agent API 端点（多 Agent 基座，路径参数 agent_key）。
 
-profile/config 读写 + 复盘/计划/自选/记忆管理面。读端点 planned Agent 可读，
-写端点（配置保存/取消计划/移出自选/记忆编辑）仅 active Agent 可写。
+profile/config 读写 + 复盘/计划/自选/记忆管理面。读端点任意状态可读；
+干预类写端点（取消计划/移出自选/记忆编辑）仅 active Agent 可写，
+配置保存任意状态可写（未上线/停用的 Agent 也可先配置，D28）。
 """
 
 from datetime import date
@@ -20,6 +21,7 @@ from app.schemas.paper_trade import (
     AgentWatchlistGroupResponse,
     TradingAgentDatesResponse,
     TradingAgentPlanResponse,
+    TradingAgentPlansResponse,
     TradingAgentProfileResponse,
     TradingAgentProfileUpdateRequest,
     TradingAgentReviewResponse,
@@ -62,7 +64,7 @@ async def update_trading_agent_config(
     data: TradingAgentProfileUpdateRequest,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> TradingAgentProfileResponse:
-    """保存 Agent 信息/配置；仅 active 可写，llm_config_id 校验用途为 chat。"""
+    """保存 Agent 信息/配置（任意状态可写，D28）；llm_config_id 校验用途为 chat。"""
     return await agent_registry.update_agent(session, agent_key, data=data)
 
 
@@ -101,18 +103,22 @@ async def get_trading_agent_dates(
     )
 
 
-@router.get("/{agent_key}/plans", response_model=list[TradingAgentPlanResponse])
+@router.get("/{agent_key}/plans", response_model=TradingAgentPlansResponse)
 async def list_trading_agent_plans(
     agent_key: str,
     session: Annotated[AsyncSession, Depends(get_db)],
     trade_date: date | None = Query(None, description="计划日（缺省取最近交易日）"),
-) -> list[TradingAgentPlanResponse]:
-    """读取指定日的交易计划（含全部状态，前端按状态分色）。"""
+) -> TradingAgentPlansResponse:
+    """读取指定日的交易计划（含全部状态，前端按状态分色）+ 下一交易日（次日语义）。"""
     resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(
         session
     )
     plans = await agent_plan_ops.list_plans(session, agent_key, plan_date=resolved)
-    return [TradingAgentPlanResponse.model_validate(p) for p in plans]
+    return TradingAgentPlansResponse(
+        trade_date=resolved,
+        next_trade_date=await trade_calendar_service.next_trading_day(session, resolved),
+        plans=[TradingAgentPlanResponse.model_validate(p) for p in plans],
+    )
 
 
 @router.post(

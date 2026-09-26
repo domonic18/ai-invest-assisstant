@@ -7,7 +7,9 @@
 + 两表 upsert（``agent_plan_persist``）。按 (skill_id, input_hash=Agent+
 账户+交易日) 缓存 ``ai_analysis_result``，redis 锁防重入；多 Agent 各自
 独立生成（agent-hub-plan.md D23）。计划 prompt 装载 per-agent 技能包
-``skills/trading-<agent_key>/prompt.yaml``（D27）。
+``skills/trading-<agent_key>/prompt.yaml``（D27），未建目录回退共享
+``trading-default``（D28 扩展性：新 Agent 免建技能目录）；user_prompt 头部
+注入注册表人设段（D28 全链路）。
 """
 
 import hashlib
@@ -34,8 +36,12 @@ logger = structlog.get_logger(__name__)
 
 
 def plan_skill_id(agent_key: str) -> str:
-    """Agent 每日计划技能 ID（skills/trading-<agent_key>/ 作业程序，D27）。"""
-    return f"trading-{agent_key}"
+    """Agent 每日计划技能 ID：``skills/trading-<agent_key>/`` 专属作业程序，
+    未建目录时回退共享 ``trading-default``（D28 扩展性：新 Agent 免建目录）。"""
+    from app.skills import get_skill
+
+    specific = f"trading-{agent_key}"
+    return specific if get_skill(specific) is not None else "trading-default"
 
 
 class PlanGenerationLockedError(ConflictError):
@@ -72,6 +78,10 @@ async def _run_llm(
     config = load_skill_prompt(plan_skill_id(agent.agent_key))
     user_prompt = (
         f"{config.system_prompt}\n\n"
+        f"## 计划人设（注册表行，D27/D28）\n"
+        f"- 你是{agent.name}（{agent.tagline}）；策略风格：{agent.style_desc}"
+        f"——{agent.strategy_desc}\n"
+        f"- 以该人设的视角与风格生成选股与交易计划\n\n"
         f"## 计划任务\n"
         f"- 基准交易日 trade_date：{trade_date.isoformat()}（输出字段须原样带回）\n\n"
         f"## 计划输入数据（JSON）\n"

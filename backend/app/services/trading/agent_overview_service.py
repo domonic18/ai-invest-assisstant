@@ -2,7 +2,8 @@
 
 每 Agent 聚合：注册行 profile + 模型显示名（join llm_config）+ 当日计划/
 自选/订单计数 + 近期活动（计划生成/触发、复盘生成）+ 下次定时任务时刻
-（cron 展开 × 交易日历过滤）。时刻在后端算好（aware UTC），前端纯渲染。
+（cron 展开 × 交易日历 × 注册行 plan/review_cadence 门控，D28）。
+时刻在后端算好（aware UTC），前端纯渲染。
 """
 
 from datetime import date, datetime, time
@@ -26,18 +27,21 @@ from app.schemas.paper_trade import (
     TradingAgentProfileResponse,
 )
 from app.services.market import trade_calendar_service
-from app.services.trading import agent_registry
+from app.services.trading import agent_registry, agent_review_service
 from app.services.trading.account_service import resolve_agent_account
 from app.services.trading.agent_review_service import REVIEW_SKILL_ID
 from app.services.trading.errors import AgentAccountNotDesignatedError
 
 logger = structlog.get_logger(__name__)
 
-# 总览「接下来」消费的 Agent 定时任务（task_name → 显示名，seed 03-seed.sql）
-_OVERVIEW_TASKS: dict[str, str] = {
-    "agent_daily_plan_1900": "每日选股与交易计划",
-    "paper_trade_review_1610": "模拟盘分层复盘",
-}
+# 总览「接下来」消费的 Agent 定时任务（task_name, 显示名, cadence 注册列）
+_OVERVIEW_TASKS: tuple[tuple[str, str, str], ...] = (
+    ("agent_daily_plan_1900", "每日选股与交易计划", "plan_cadence"),
+    ("paper_trade_review_1610", "模拟盘分层复盘", "review_cadence"),
+)
+
+# cadence 门控下 cron 候选扫描上限（月频最坏 ~23 个工作日候选）
+_CRON_MAX_CANDIDATES = 40
 
 _PLAN_STATUS_TITLE = {
     "active": "待触发",
@@ -60,35 +64,61 @@ async def _llm_name_map(
     return {int(r[0]): str(r[1]) for r in result.all()}
 
 
-async def _next_task_times(session: AsyncSession) -> list[AgentNextTask]:
-    """Agent 定时任务的下次触发时刻（cron 展开 + 交易日历过滤，aware UTC）。"""
-    from app.services.collector.cron_utils import expand_cron
+async def _next_task_times(session: AsyncSession, row: TradingAgent) -> list[AgentNextTask]:
+    """单 Agent 定时任务的下次触发时刻（cron 展开 × 交易日历 × cadence 门控，aware UTC）。
 
-    rows = (
-        await session.scalars(
-            select(CollectorTask).where(
-                CollectorTask.task_name.in_(_OVERVIEW_TASKS),
-                CollectorTask.is_active.is_(True),
+    与 spider 生成门控同语义：daily=下一交易日、weekly=周期末交易日、
+    monthly=月末交易日（复用 agent_review_service 的日历判定）。
+    """
+    from croniter import croniter
+
+    schedules: dict[str, str] = {
+        r.task_name: r.schedule
+        for r in (
+            await session.scalars(
+                select(CollectorTask).where(
+                    CollectorTask.task_name.in_([t[0] for t in _OVERVIEW_TASKS]),
+                    CollectorTask.is_active.is_(True),
+                )
             )
-        )
-    ).all()
+        ).all()
+        if r.schedule
+    }
     base = utc_now().astimezone(CN_TZ).replace(tzinfo=None)
     tasks: list[AgentNextTask] = []
-    for row in rows:
-        if not row.schedule:
+    for task_name, label, cadence_field in _OVERVIEW_TASKS:
+        schedule = schedules.get(task_name)
+        if schedule is None:
             continue
-        candidates = expand_cron(row.schedule, base)
-        if not candidates:
+        try:
+            it = croniter(schedule, base)
+            chosen: datetime | None = None
+            for _ in range(_CRON_MAX_CANDIDATES):
+                cand = it.get_next(datetime)
+                if await _cadence_due(session, getattr(row, cadence_field), cand.date()):
+                    chosen = cand
+                    break
+        except Exception:  # noqa: BLE001 - cron 非法/日历查询异常不阻塞总览
             continue
-        chosen = candidates[0]
-        for cand in candidates:
-            if await trade_calendar_service.is_trading_day(session, cand.date()):
-                chosen = cand
-                break
+        if chosen is None:
+            continue
         scheduled = chosen.replace(tzinfo=CN_TZ).astimezone(dt_timezone.utc)
-        tasks.append(AgentNextTask(task=_OVERVIEW_TASKS[row.task_name], scheduled_at=scheduled))
+        tasks.append(AgentNextTask(task=label, scheduled_at=scheduled))
     tasks.sort(key=lambda t: t.scheduled_at)
     return tasks
+
+
+async def _cadence_due(
+    session: AsyncSession, cadence: str, day: date
+) -> bool:
+    """cadence 门控的单日判定（与 spider 生成门控同语义）。"""
+    if not await trade_calendar_service.is_trading_day(session, day):
+        return False
+    if cadence == "weekly":
+        return await agent_review_service.is_last_trading_day_of_week(session, day)
+    if cadence == "monthly":
+        return await agent_review_service.is_last_trading_day_of_month(session, day)
+    return True
 
 
 async def _plan_activity(
@@ -170,7 +200,6 @@ async def _build_item(
     profile: TradingAgentProfileResponse,
     llm_names: dict[int, str],
     latest_trade_date: date,
-    next_tasks: list[AgentNextTask],
 ) -> AgentOverviewItem:
     """聚合单个 Agent 的总览载荷（planned 仅 profile + 模型名）。"""
     if row.status != agent_registry.AGENT_STATUS_ACTIVE:
@@ -214,20 +243,19 @@ async def _build_item(
         selection_count=selection_count,
         order_count=await _order_count_today(session, row.agent_key, day_start_cn),
         recent_activity=activity[:5],
-        next_tasks=next_tasks,
+        next_tasks=await _next_task_times(session, row),
     )
 
 
 async def get_overview(session: AsyncSession) -> AgentOverviewResponse:
-    """总览页聚合：全部注册 Agent 的介绍卡 + 活动状态。"""
+    """总览页聚合：全部注册 Agent 的介绍卡 + 活动状态（前端按 status 过滤雷达）。"""
     rows = await agent_registry.list_agents(session)
     profiles = {r.agent_key: agent_registry.to_view(r) for r in rows}
     llm_names = await _llm_name_map(session, rows)
     latest_trade_date = await trade_calendar_service.resolve_latest_trade_date(session)
-    next_tasks = await _next_task_times(session)
 
     items = [
-        await _build_item(session, row, profiles[row.agent_key], llm_names, latest_trade_date, next_tasks)
+        await _build_item(session, row, profiles[row.agent_key], llm_names, latest_trade_date)
         for row in rows
     ]
     return AgentOverviewResponse(items=items, generated_at=utc_now())

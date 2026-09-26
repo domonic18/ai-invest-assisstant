@@ -223,7 +223,7 @@ class PaperTradeAdminAccountListResponse(CamelModel):
 
 
 class TradingAgentProfileResponse(CamelModel):
-    """交易 Agent 注册行视图：身份/介绍/模型绑定/风控/总闸。"""
+    """交易 Agent 注册行视图：身份/介绍/模型绑定/风控/总闸/频率。"""
 
     agent_key: str
     name: str
@@ -237,6 +237,8 @@ class TradingAgentProfileResponse(CamelModel):
     risk_max_daily_orders: int
     auto_exec_enabled: bool
     status: str
+    plan_cadence: str = "daily"
+    review_cadence: str = "daily"
     sort_order: int
     prompt_id: str
     accent_color: str
@@ -285,10 +287,12 @@ class AgentOverviewResponse(CamelModel):
 
 
 class TradingAgentProfileUpdateRequest(CamelModel):
-    """更新交易 Agent 注册信息（未提供的字段不变；仅 status='active' 可写）。
+    """更新交易 Agent 注册信息（未提供的字段不变；任意状态可写，D28）。
 
     llm_config_id 空 = 平台默认 chat 模型，methodology_source_id 空 = 未启用
-    方法论基座注入。身份字段（agent_key/prompt_id/status/sort_order）不开放更新。
+    方法论基座注入。status 开放 active/disabled 切换（停用 = 总览隐藏 + 不参与
+    调度）；'planned' 仅为种子初始态，API 不可设置。身份字段（agent_key/
+    prompt_id/sort_order）不开放更新。
     """
 
     name: str | None = None
@@ -302,6 +306,9 @@ class TradingAgentProfileUpdateRequest(CamelModel):
     risk_max_daily_orders: int | None = Field(default=None, ge=1)
     auto_exec_enabled: bool | None = None
     accent_color: str | None = None
+    status: Literal["active", "disabled"] | None = None
+    plan_cadence: Literal["daily", "weekly", "monthly"] | None = None
+    review_cadence: Literal["daily", "weekly", "monthly"] | None = None
 
 
 # ============================================================
@@ -357,6 +364,14 @@ class TradingAgentPlanResponse(CamelModel):
     selection_id: int | None = None
     basis: str
     triggered_cl_ord_id: str | None = None
+
+
+class TradingAgentPlansResponse(CamelModel):
+    """指定日交易计划载荷：计划日 + 下一交易日（次日语义，D28）+ 计划列表。"""
+
+    trade_date: date
+    next_trade_date: date | None = None
+    plans: list[TradingAgentPlanResponse] = []
 
 
 class TradingAgentDatesResponse(CamelModel):

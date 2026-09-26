@@ -84,6 +84,8 @@ def to_view(row: TradingAgent) -> TradingAgentProfileResponse:
         risk_max_daily_orders=row.risk_max_daily_orders,
         auto_exec_enabled=row.auto_exec_enabled,
         status=row.status,
+        plan_cadence=row.plan_cadence,
+        review_cadence=row.review_cadence,
         sort_order=row.sort_order,
         prompt_id=row.prompt_id,
         accent_color=row.accent_color,
@@ -106,14 +108,17 @@ async def list_agent_views(
 async def update_agent(
     session: AsyncSession, agent_key: str, *, data: TradingAgentProfileUpdateRequest
 ) -> TradingAgentProfileResponse:
-    """保存 Agent 信息/配置；提交的 llm_config_id 校验存在、启用且用途为 chat，
-    methodology_source_id 校验存在且启用。仅 active Agent 可写。
+    """保存 Agent 信息/配置（D28：任意状态可写——未上线/停用的 Agent 也可先配置）。
+
+    提交的 llm_config_id 校验存在、启用且用途为 chat，methodology_source_id
+    校验存在且启用；status 仅接受 active/disabled（'planned' 为种子初始态，
+    API 不可设置——启用即置 active）。
 
     Raises:
         NotFoundError: agent_key 或关联条目不存在。
-        UnprocessableEntityError: Agent 未激活，或关联条目停用/用途不符。
+        UnprocessableEntityError: 关联条目停用/用途不符。
     """
-    row = await get_active_agent(session, agent_key)
+    row = await get_agent(session, agent_key)
     payload = data.model_dump(exclude_unset=True)
 
     if "llm_config_id" in payload:
@@ -151,11 +156,19 @@ async def update_agent(
         "risk_max_daily_orders",
         "auto_exec_enabled",
         "accent_color",
+        "status",
+        "plan_cadence",
+        "review_cadence",
     ):
         if field in payload:
             setattr(row, field, payload[field])
 
     row.updated_at = utc_now()
     await session.commit()
-    logger.info("trading_agent_updated", agent_key=agent_key, fields=sorted(payload.keys()))
+    logger.info(
+        "trading_agent_updated",
+        agent_key=agent_key,
+        fields=sorted(payload.keys()),
+        status=row.status,
+    )
     return to_view(row)

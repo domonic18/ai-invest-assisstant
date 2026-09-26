@@ -199,6 +199,13 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         skill_md=True,
         scenario="trading",
     ),
+    SkillDescriptor(
+        skill_id="trading-default",
+        label="交易 Agent 共享作业程序",
+        kind="prompt_only",
+        skill_md=True,
+        scenario="trading",
+    ),
 )
 
 _SKILL_INDEX: dict[str, SkillDescriptor] = {d.skill_id: d for d in BUILTIN_SKILLS}

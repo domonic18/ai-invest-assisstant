@@ -26,7 +26,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.core.prompt_loader import get_prompt_loader
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.locking import GENERATION_LOCK_TTL_SECONDS, redis_lock
-from app.models.market_trade_calendar import MarketTradeCalendar
 from app.models.paper_trade import (
     PaperTradeCashSnapshot,
     PaperTradeExecution,
@@ -35,7 +34,7 @@ from app.models.paper_trade import (
 )
 from app.models.stock import StockBasic
 from app.repositories.review import ai_analysis_repository
-from app.services.market.trade_calendar_service import NonTradingDayError
+from app.services.market.trade_calendar_service import NonTradingDayError, next_trading_day
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
 
 logger = structlog.get_logger(__name__)
@@ -491,26 +490,13 @@ async def _persist(session: AsyncSession, *, input_hash: str, content: Any) -> N
     await session.commit()
 
 
-async def _next_trading_day(session: AsyncSession, day: date) -> date | None:
-    row = await session.scalar(
-        select(MarketTradeCalendar.calendar_date)
-        .where(
-            MarketTradeCalendar.calendar_date > day,
-            MarketTradeCalendar.is_trading.is_(True),
-        )
-        .order_by(MarketTradeCalendar.calendar_date.asc())
-        .limit(1)
-    )
-    return row
-
-
 async def is_last_trading_day_of_week(session: AsyncSession, day: date) -> bool:
     """day 之后最近的交易日是否已跨入下一周（ISO 周）——周五遇休市时周四即为周期末。"""
-    nxt = await _next_trading_day(session, day)
+    nxt = await next_trading_day(session, day)
     return nxt is None or nxt.isocalendar()[:2] != day.isocalendar()[:2]
 
 
 async def is_last_trading_day_of_month(session: AsyncSession, day: date) -> bool:
     """day 之后最近的交易日是否已跨入下一月。"""
-    nxt = await _next_trading_day(session, day)
+    nxt = await next_trading_day(session, day)
     return nxt is None or (nxt.year, nxt.month) != (day.year, day.month)

@@ -76,6 +76,7 @@ class TestRegistryIntegrity:
             "trading-short-line": "trading",
             "trading-long-line": "trading",
             "trading-m60": "trading",
+            "trading-default": "trading",
         }
         actual = {d.skill_id: d.scenario for d in BUILTIN_SKILLS}
         assert actual == expected

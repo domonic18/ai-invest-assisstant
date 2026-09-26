@@ -5,7 +5,9 @@
   每次构建时现读注册行，改选即时生效；缓存键 = agent_key × 出口指纹 × 工具集版本
 - 工具：专属交易工具集（账户/下单/撤单），按 agent_key 闭包绑定，与人工
   助手工具完全隔离（D18）
-- 系统提示词：``prompts/agents/<prompt_id>.yaml``（注册行 prompt_id 指定）
+- 系统提示词：``prompts/agents/<prompt_id>.yaml``（注册行 prompt_id 指定，
+  只承载硬纪律与工作流骨架）+ 注册表人设身份段运行时注入（D28：name/
+  tagline/style_desc/strategy_desc 编辑即时生效，人设摘要入缓存指纹自动重建）
 - checkpointer：与助手共享 ``AsyncPostgresSaver`` 单例（thread_id 兼作会话 id）
 
 无 subagents / skills / MCP 挂载——交易 Agent 是窄域执行体，不读技能文件。
@@ -40,9 +42,22 @@ _build_lock = asyncio.Lock()
 
 
 def load_trading_system_prompt(prompt_id: str) -> str:
-    """加载交易 Agent 系统提示词（prompts/agents/<prompt_id>.yaml）。"""
+    """加载交易 Agent 系统提示词（prompts/agents/<prompt_id>.yaml，硬纪律+工作流骨架）。"""
     config = get_prompt_loader().load("agents", prompt_id)
     return config.system_prompt
+
+
+def _persona_section(
+    name: str, tagline: str, style_desc: str, strategy_desc: str
+) -> str:
+    """注册表人设 → 系统提示词头部身份段（YAML 只留硬纪律+工作流骨架）。"""
+    return "\n".join(
+        [
+            "## 你的身份（注册表维护，编辑后即时生效）",
+            f"- 你是 **{name}**（{tagline}）。",
+            f"- 策略风格：{style_desc}——{strategy_desc}",
+        ]
+    )
 
 
 async def resolve_trading_llm(
@@ -55,14 +70,17 @@ async def resolve_trading_llm(
         return await resolve_default_llm(session)
 
 
-def _fingerprint(agent_key: str, prompt_id: str, cfg: ResolvedLLMConfig) -> str:
-    """agent_key × prompt_id × 出口指纹 × 工具集版本（api_key 只入哈希；
-    换工具集须 bump 版本号重建）。"""
+def _fingerprint(
+    agent_key: str, prompt_id: str, persona: tuple[str, str, str, str], cfg: ResolvedLLMConfig
+) -> str:
+    """agent_key × prompt_id × 人设摘要 × 出口指纹 × 工具集版本（api_key 只入哈希；
+    人设/出口变更即失效重建，换工具集须 bump 版本号）。"""
     from app.agent.tools.trading import TOOLS_VERSION
 
     key_digest = hashlib.sha256(cfg.api_key.encode()).hexdigest()
+    persona_digest = hashlib.sha256("|".join(persona).encode()).hexdigest()
     raw = "|".join(
-        [agent_key, prompt_id, cfg.protocol, cfg.base_url, cfg.model_name, key_digest, str(TOOLS_VERSION)]
+        [agent_key, prompt_id, persona_digest, cfg.protocol, cfg.base_url, cfg.model_name, key_digest, str(TOOLS_VERSION)]
     )
     return hashlib.sha256(raw.encode()).hexdigest()
 
@@ -96,10 +114,11 @@ async def get_trading_agent(
         row = await get_agent(session, agent_key)
         prompt_id = row.prompt_id
         llm_config_id = row.llm_config_id
+        persona = (row.name, row.tagline, row.style_desc, row.strategy_desc)
 
     if cfg is None:
         cfg = await resolve_trading_llm(llm_config_id)
-    fp = _fingerprint(agent_key, prompt_id, cfg)
+    fp = _fingerprint(agent_key, prompt_id, persona, cfg)
 
     async with _build_lock:
         _evict_idle()
@@ -109,7 +128,7 @@ async def get_trading_agent(
             _agents.move_to_end(fp)
             return cached[0]
 
-        agent = await _build_agent(agent_key, prompt_id, tools, cfg)
+        agent = await _build_agent(agent_key, prompt_id, persona, tools, cfg)
         capacity = max(get_settings().quota_agent_cache_size, 1)
         while len(_agents) >= capacity:
             _agents.popitem(last=False)
@@ -120,6 +139,7 @@ async def get_trading_agent(
 async def _build_agent(
     agent_key: str,
     prompt_id: str,
+    persona: tuple[str, str, str, str],
     tools: Sequence[BaseTool] | None,
     cfg: ResolvedLLMConfig,
 ) -> CompiledStateGraph:
@@ -132,10 +152,13 @@ async def _build_agent(
 
         tools = build_trading_tools(agent_key)
 
+    system_prompt = "\n\n".join(
+        [_persona_section(*persona), load_trading_system_prompt(prompt_id)]
+    )
     agent = create_deep_agent(
         model=build_langchain_model(cfg),
         tools=list(tools),
-        system_prompt=load_trading_system_prompt(prompt_id),
+        system_prompt=system_prompt,
         middleware=[TodoListMiddleware()],
         checkpointer=await get_checkpointer(),
         name=f"trading-agent-{agent_key}",

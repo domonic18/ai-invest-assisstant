@@ -138,6 +138,10 @@ class TestTradingAgentPlans:
                 AsyncMock(return_value=date(2026, 7, 17)),
             ),
             patch(
+                "app.services.market.trade_calendar_service.next_trading_day",
+                AsyncMock(return_value=date(2026, 7, 20)),
+            ),
+            patch(
                 "app.services.trading.agent_plan_ops.list_plans",
                 AsyncMock(return_value=[_plan_row()]),
             ),
@@ -146,13 +150,16 @@ class TestTradingAgentPlans:
 
         assert resp.status_code == 200
         body = resp.json()
-        assert body[0]["planDate"] == "2026-07-17"
-        assert body[0]["planType"] == "buy"
-        assert body[0]["buyZoneLow"] == pytest.approx(9.9)
-        assert body[0]["buyZoneHigh"] == pytest.approx(10.2)
-        assert body[0]["stopLoss"] == pytest.approx(9.5)
-        assert body[0]["positionPct"] == pytest.approx(10.0)
-        assert body[0]["triggeredClOrdId"] is None
+        assert body["tradeDate"] == "2026-07-17"
+        assert body["nextTradeDate"] == "2026-07-20"
+        plan = body["plans"][0]
+        assert plan["planDate"] == "2026-07-17"
+        assert plan["planType"] == "buy"
+        assert plan["buyZoneLow"] == pytest.approx(9.9)
+        assert plan["buyZoneHigh"] == pytest.approx(10.2)
+        assert plan["stopLoss"] == pytest.approx(9.5)
+        assert plan["positionPct"] == pytest.approx(10.0)
+        assert plan["triggeredClOrdId"] is None
 
     def test_list_accepts_trade_date_query(self, admin_client) -> None:
         http, _ = admin_client
@@ -162,6 +169,10 @@ class TestTradingAgentPlans:
                 "app.services.market.trade_calendar_service.resolve_latest_trade_date",
                 AsyncMock(),
             ) as resolve_mock,
+            patch(
+                "app.services.market.trade_calendar_service.next_trading_day",
+                AsyncMock(return_value=date(2026, 7, 17)),
+            ),
             patch(
                 "app.services.trading.agent_plan_ops.list_plans",
                 AsyncMock(return_value=[]),
@@ -174,6 +185,8 @@ class TestTradingAgentPlans:
         assert resp.status_code == 200
         resolve_mock.assert_not_awaited()
         assert list_mock.await_args.kwargs["plan_date"] == date(2026, 7, 16)
+        body = resp.json()
+        assert body["tradeDate"] == "2026-07-16"
 
     def test_cancel_returns_updated_plan(self, admin_client) -> None:
         http, _ = admin_client

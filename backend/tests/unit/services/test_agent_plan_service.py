@@ -20,9 +20,16 @@ _TRADE_DATE = date(2026, 7, 15)  # Wednesday
 
 
 def _agent() -> SimpleNamespace:
-    """注册行替身（generate_daily_plan 消费的字段）。"""
+    """注册行替身（generate_daily_plan 消费的字段，含人设四字段）。"""
     return SimpleNamespace(
-        agent_key="short-line", llm_config_id=None, methodology_source_id=None
+        agent_key="short-line",
+        llm_config_id=None,
+        methodology_source_id=None,
+        name="短线猎手",
+        tagline="趋势短线：顺势而为，快进快出",
+        style_desc="进取",
+        strategy_desc="主线板块选股，回踩接回，破位止损",
+        plan_cadence="daily",
     )
 
 
@@ -233,7 +240,7 @@ class TestGenerateDailyPlan:
 
     @pytest.mark.asyncio
     async def test_run_llm_loads_agent_skill_prompt(self) -> None:
-        """计划 prompt 按 agent_key 装载专属技能包 skills/trading-<agent_key>/（D27）。"""
+        """计划 prompt 按 agent_key 装载专属技能包 + 头部注入注册表人设段（D27/D28）。"""
 
         class _Cfg:
             system_prompt = "你是短线猎手的选股与计划官"
@@ -255,7 +262,38 @@ class TestGenerateDailyPlan:
         load_mock.assert_called_once_with("trading-short-line")
         user_prompt = run_mock.await_args.kwargs["user_prompt"]
         assert "短线猎手的选股与计划官" in user_prompt
+        assert "## 计划人设" in user_prompt
+        assert "短线猎手" in user_prompt
+        assert "主线板块选股" in user_prompt
         assert run_mock.await_args.kwargs["config_id"] is None
+
+    @pytest.mark.asyncio
+    async def test_run_llm_falls_back_to_shared_skill(self) -> None:
+        """未建专属技能目录的 agent_key 回退共享 trading-default（D28 扩展性）。"""
+
+        class _Cfg:
+            system_prompt = "共享作业程序"
+
+        agent = _agent()
+        agent.agent_key = "test-agent"
+        assert agent_plan_service.plan_skill_id("test-agent") == "trading-default"
+        assert agent_plan_service.plan_skill_id("short-line") == "trading-short-line"
+
+        # 装载路径同样命中 fallback
+        with (
+            patch(
+                "app.services.trading.agent_plan_service.load_skill_prompt",
+                return_value=_Cfg(),
+            ) as load_mock,
+            patch(
+                "app.agent.runtime.structured.run_structured",
+                AsyncMock(return_value=_content()),
+            ),
+        ):
+            await agent_plan_service._run_llm(
+                AsyncMock(), agent, _TRADE_DATE, {"trade_date": "2026-07-15"}
+            )
+        load_mock.assert_called_once_with("trading-default")
 
     @pytest.mark.asyncio
     async def test_raises_locked_when_lock_not_acquired(self) -> None:

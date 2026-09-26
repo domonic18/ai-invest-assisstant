@@ -1,7 +1,8 @@
-"""交易 Agent 注册表服务测试（agent-hub-plan.md D21）。
+"""交易 Agent 注册表服务测试（agent-hub-plan.md D21/D28）。
 
 覆盖：agent_key 读取 404 / active 门禁 / wire 视图映射 / 局部更新 /
-LLM 绑定校验（404/停用/非 chat）/ 方法论知识源校验 / planned 不可写。
+LLM 绑定校验（404/停用/非 chat）/ 方法论知识源校验 / 任意状态可写 +
+status/cadence 开关（D28）。
 """
 
 from datetime import datetime, timezone
@@ -38,6 +39,8 @@ def _row(**overrides: object) -> SimpleNamespace:
         "risk_max_daily_orders": 10,
         "auto_exec_enabled": True,
         "status": "active",
+        "plan_cadence": "daily",
+        "review_cadence": "daily",
         "sort_order": 1,
         "prompt_id": "trading_agent",
         "accent_color": "#3b82f6",
@@ -90,6 +93,8 @@ class TestToView:
         assert view.agent_key == "short-line"
         assert view.risk_max_position_pct == 20.0
         assert view.status == "active"
+        assert view.plan_cadence == "daily"
+        assert view.review_cadence == "daily"
         assert view.accent_color == "#3b82f6"
 
 
@@ -110,13 +115,36 @@ class TestUpdateAgent:
         session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_planned_agent_not_writable(self) -> None:
+    async def test_planned_agent_writable_for_config(self) -> None:
+        """D28：任意状态可写（未上线/停用的 Agent 也可先配置）。"""
         session = _session()
         session.get = AsyncMock(return_value=_row(status="planned"))
-        with pytest.raises(UnprocessableEntityError, match="未激活"):
-            await svc.update_agent(
-                session, "short-line", data=TradingAgentProfileUpdateRequest(name="改名")
-            )
+        result = await svc.update_agent(
+            session, "short-line", data=TradingAgentProfileUpdateRequest(name="改名")
+        )
+        assert result.name == "改名"
+
+    @pytest.mark.asyncio
+    async def test_planned_agent_status_flips_to_active(self) -> None:
+        """启用未上线 Agent：status 置 active + 可同步改频率。"""
+        session = _session()
+        session.get = AsyncMock(return_value=_row(status="planned"))
+        result = await svc.update_agent(
+            session,
+            "short-line",
+            data=TradingAgentProfileUpdateRequest(
+                status="active", plan_cadence="weekly"
+            ),
+        )
+        assert result.status == "active"
+        assert result.plan_cadence == "weekly"
+
+    def test_status_planned_rejected_by_schema(self) -> None:
+        """'planned' 仅为种子初始态，API 不可设置（请求体校验直接拒绝）。"""
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            TradingAgentProfileUpdateRequest(status="planned")  # type: ignore[arg-type]
 
     @pytest.mark.asyncio
     async def test_llm_config_none_clears_binding_without_lookup(self) -> None:

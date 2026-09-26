@@ -88,6 +88,12 @@ async def classify_schedule_day(session: AsyncSession, day: date) -> str:
     return SCHEDULE_TRADING if row.is_trading else SCHEDULE_NON_TRADING
 
 
+async def next_trading_day(session: AsyncSession, day: date) -> date | None:
+    """day 之后最近的下一个交易日（按 DB 日历行权威）；无覆盖返回 None。"""
+    row = await trade_calendar_repository.get_next_trading_day(session, day)
+    return row.calendar_date if row is not None else None
+
+
 async def regenerate_from_sina(
     session: AsyncSession, years: list[int] | None = None
 ) -> int:

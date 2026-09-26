@@ -117,16 +117,27 @@ class PaperTradeOrder(Base):
 
 
 class TradingAgent(Base):
-    """交易 Agent 注册表：身份/介绍/模型绑定/风控/总闸（docs/plan/agent-hub-plan.md D21）。
+    """交易 Agent 注册表：身份/介绍/模型绑定/风控/总闸/频率（D21 + D28）。
 
-    status='active' 参与执行与调度；'planned' 总览幽灵节点展示；'disabled' 停用。
-    种子-only：新 Agent 手工 SQL 注册，管理端不做 CRUD。
+    status='active' 参与执行与调度且总览可见；'planned' 种子初始态（隐藏不跑，
+    启用时置 active）；'disabled' 停用（隐藏不跑）。plan/review_cadence 决定
+    计划与复盘的生成频率（daily 每交易日 / weekly 周末 / monthly 月末）。
+    种子-only：新 Agent 手工 SQL 注册（INSERT 本表一行即可，技能/人设模板可选），
+    管理端不做 CRUD。
     """
 
     __tablename__ = "trading_agent"
     __table_args__ = (
         CheckConstraint(
             "status IN ('active', 'planned', 'disabled')", name="chk_trading_agent_status"
+        ),
+        CheckConstraint(
+            "plan_cadence IN ('daily', 'weekly', 'monthly')",
+            name="chk_trading_agent_plan_cadence",
+        ),
+        CheckConstraint(
+            "review_cadence IN ('daily', 'weekly', 'monthly')",
+            name="chk_trading_agent_review_cadence",
         ),
         {
             "comment": "交易 Agent 注册表：身份/介绍/模型绑定/风控/总闸"
@@ -154,10 +165,12 @@ class TradingAgent(Base):
     risk_max_daily_orders: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
     auto_exec_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    plan_cadence: Mapped[str] = mapped_column(String(16), nullable=False, default="daily")
+    review_cadence: Mapped[str] = mapped_column(String(16), nullable=False, default="daily")
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     prompt_id: Mapped[str] = mapped_column(
-        String(64), nullable=False, default="trading_agent"
-    )  # prompts/agents/<prompt_id>.yaml
+        String(64), nullable=False
+    )  # prompts/agents/<prompt_id>.yaml；人设身份段经注册表运行时注入（D28）
     accent_color: Mapped[str] = mapped_column(String(16), nullable=False, default="#3b82f6")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False

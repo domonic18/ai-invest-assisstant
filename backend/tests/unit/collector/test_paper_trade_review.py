@@ -1,4 +1,4 @@
-"""模拟盘复盘采集器契约测试（多 Agent 循环隔离/跳过口径/加发/未就绪传播）。"""
+"""模拟盘复盘采集器契约测试（多 Agent 循环隔离/跳过口径/加发/cadence 门控/未就绪传播）。"""
 
 from contextlib import ExitStack
 from datetime import date
@@ -21,8 +21,8 @@ from collector.spiders.paper_trade_review import (
 _TRADE_DATE = date(2026, 7, 17)  # Friday
 
 
-def _agent(key: str = "short-line") -> SimpleNamespace:
-    return SimpleNamespace(agent_key=key)
+def _agent(key: str = "short-line", cadence: str = "daily") -> SimpleNamespace:
+    return SimpleNamespace(agent_key=key, review_cadence=cadence)
 
 
 def _collector() -> PaperTradeReviewCollector:
@@ -41,6 +41,7 @@ def _patch_env(
 ):
     """统一打桩：日历/会话工厂/注册表/生成服务/周期末判定。"""
     agent_rows = agents if agents is not None else [_agent()]
+    cadence_by_key = {a.agent_key: a.review_cadence for a in agent_rows}
     return (
         patch(
             "collector.spiders.paper_trade_review.is_trading_day",
@@ -57,7 +58,11 @@ def _patch_env(
         ),
         patch(
             "collector.spiders.paper_trade_review.agent_registry.get_agent",
-            AsyncMock(side_effect=lambda _s, key: _agent(key)),
+            AsyncMock(
+                side_effect=lambda _s, key: _agent(
+                    key, cadence_by_key.get(key, "daily")
+                )
+            ),
         ),
         patch(
             "collector.spiders.paper_trade_review.agent_review_service.generate_review",
@@ -251,3 +256,63 @@ class TestPaperTradeReviewCollector:
         assert result.items_collected == 1
         assert result.errors == ["m60: boom"]
         assert result.metadata["agents"]["short-line"]["day"] == {"cached": False}
+
+    @pytest.mark.asyncio
+    async def test_weekly_agent_skips_midweek(self) -> None:
+        """D28：周频 Agent 非周期日跳过（记明细不生成）。"""
+        patches = _patch_env(agents=[_agent("long-line", "weekly")], week_end=False)
+        with _activate(patches):
+            result = await _collector().run()
+
+        assert result.status == CollectStatus.SKIPPED
+        assert "weekly 频复盘未到生成日" in (result.message or "")
+
+    @pytest.mark.asyncio
+    async def test_weekly_agent_generates_only_week_on_period_end(self) -> None:
+        """D28：周频 Agent 周期末只生成 week（无 day）。"""
+        generate = AsyncMock(return_value=MagicMock(cached=False))
+        patches = _patch_env(
+            agents=[_agent("long-line", "weekly")], generate=generate, week_end=True
+        )
+        with _activate(patches):
+            result = await _collector().run()
+
+        assert result.status == CollectStatus.SUCCESS
+        periods = [c.kwargs["period"] for c in generate.await_args_list]
+        assert periods == ["week"]
+        assert result.metadata["agents"]["long-line"] == {"week": {"cached": False}}
+        assert result.items_stored == 1
+
+    @pytest.mark.asyncio
+    async def test_monthly_agent_generates_only_month_on_month_end(self) -> None:
+        """D28：月频 Agent 月末只生成 month；非月末跳过。"""
+        generate = AsyncMock(return_value=MagicMock(cached=False))
+        patches = _patch_env(
+            agents=[_agent("long-line", "monthly")], generate=generate, month_end=True
+        )
+        with _activate(patches):
+            result = await _collector().run()
+
+        assert result.status == CollectStatus.SUCCESS
+        periods = [c.kwargs["period"] for c in generate.await_args_list]
+        assert periods == ["month"]
+
+        patches = _patch_env(agents=[_agent("long-line", "monthly")], month_end=False)
+        with _activate(patches):
+            result = await _collector().run()
+        assert result.status == CollectStatus.SKIPPED
+        assert "monthly 频复盘未到生成日" in (result.message or "")
+
+    @pytest.mark.asyncio
+    async def test_mixed_cadences_partial_detail(self) -> None:
+        """D28：daily 正常生成 + weekly 非周期跳过 → SUCCESS，明细含两行。"""
+        patches = _patch_env(
+            agents=[_agent("short-line"), _agent("long-line", "weekly")],
+            week_end=False,
+        )
+        with _activate(patches):
+            result = await _collector().run()
+
+        assert result.status == CollectStatus.SUCCESS
+        assert "long-line: weekly 频复盘未到生成日" in (result.message or "")
+        assert result.metadata["agents"]["short-line"] == {"day": {"cached": False}}

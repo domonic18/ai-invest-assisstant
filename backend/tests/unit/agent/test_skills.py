@@ -28,6 +28,7 @@ EXPECTED_SKILLS = {
     "trading-short-line",
     "trading-long-line",
     "trading-m60",
+    "trading-default",
 }
 
 
