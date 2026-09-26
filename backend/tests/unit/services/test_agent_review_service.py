@@ -358,6 +358,43 @@ class TestGenerateReview:
 
 
 @pytest.mark.unit
+class TestRunLlmPersona:
+    @pytest.mark.asyncio
+    async def test_injects_registry_persona_into_user_prompt(self) -> None:
+        """复盘 user_prompt 注入注册行人设段（D27：共享复盘契约 + per-agent 视角）。"""
+        agent = SimpleNamespace(
+            agent_key="short-line",
+            llm_config_id=None,
+            name="短线猎手",
+            tagline="趋势短线：顺势而为，快进快出",
+            style_desc="进取",
+            strategy_desc="主线板块选股，回踩买点区间接回，破位止损。",
+        )
+        loader = MagicMock()
+        loader.load.return_value = MagicMock(system_prompt="你是模拟盘分层复盘官")
+        structured = AsyncMock(return_value=_content())
+        with (
+            patch(
+                "app.services.trading.agent_review_service.get_prompt_loader",
+                return_value=loader,
+            ),
+            patch(
+                "app.agent.runtime.structured.run_structured", structured
+            ) as run_mock,
+        ):
+            await agent_review_service._run_llm(
+                AsyncMock(), agent, "day", _TRADE_DATE, {"orders": []}
+            )
+
+        user_prompt = run_mock.await_args.kwargs["user_prompt"]
+        assert "你是模拟盘分层复盘官" in user_prompt
+        assert "短线猎手" in user_prompt
+        assert "趋势短线：顺势而为，快进快出" in user_prompt
+        assert "主线板块选股" in user_prompt
+        assert run_mock.await_args.kwargs["config_id"] is None
+
+
+@pytest.mark.unit
 class TestValidate:
     def test_filters_hallucinated_cl_ord_ids(self) -> None:
         content = _content()

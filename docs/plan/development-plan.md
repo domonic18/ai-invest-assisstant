@@ -20,7 +20,8 @@ V1.3 已于 2026-09-12 随异动分析迭代全量发布。截至 2026-09-26，�
 
 | 迭代 | 主题 | 内容概要 | 状态 | 依赖 / 风险 |
 |------|------|----------|------|--------------|
-| 迭代 19 | Agent Hub · 多 Agent 基座与贾维斯总览 | [agent-hub-plan.md](agent-hub-plan.md)（D21-D26）：`trading_agent` 注册表取代单例 config、`is_agent`→`agent_key`、三表+自选分组加 agent 维度，服务/工具/运行时/spider/API 全链路参数化（本批仅 short-line 激活，长线/M60 planned）；`/trading-agent` 总览页（Canvas 雷达 HUD + 活动时间轴）+ 详情页 agentKey 参数化 + 介绍卡 | 未实现 | 六表迁移较大；先于批次 8 落地，批次 8/9 直接建在多 Agent 基座上 |
+| 迭代 19 | Agent Hub · 多 Agent 基座与贾维斯总览 | [agent-hub-plan.md](agent-hub-plan.md)（D21-D26）：`trading_agent` 注册表取代单例 config、`is_agent`→`agent_key`、三表+自选分组加 agent 维度，服务/工具/运行时/spider/API 全链路参数化（本批仅 short-line 激活，长线/M60 planned）；`/trading-agent` 总览页（Canvas 雷达 HUD + 活动时间轴）+ 详情页 agentKey 参数化 + 介绍卡 | 已交付（2026-09-26 PR #85） | 六表迁移较大；先于批次 8 落地，批次 8/9 直接建在多 Agent 基座上 |
+| 迭代 19.5 | Agent 人设与专属 Skill | [agent-hub-plan.md](agent-hub-plan.md)（D27）：三个会话人设 YAML（prompt_id 分流）+ `skills/trading-<agent_key>/` 作业程序包（BUILTIN_SKILLS 新增 trading 场景，计划生成按 agent_key 装载，广场不展示）+ 复盘 user_prompt 注入注册行人设段 | 已交付（2026-09-26） | 长线/M60 数据源（财务/估值/M60 分钟线）接入后再激活；激活=置 status + 指定账户 |
 | 迭代 20 | F-SIM 批次 8 · 盘中自主执行 | §11：`agent-trade-exec` */5 轮询执行交易计划 + 14:50 尾盘强检；风控硬校验（仓位/日内笔数，确定性代码）；auto_exec_enabled 总门控 | 未实现 | 依赖迭代 19 多 Agent 基座；下单出口 `execute_agent_order` 与纯函数风控 `evaluate_order_risk` 已内聚共用，仅缺 `evaluate_plan` 触发判定与执行任务 |
 | 迭代 21 | F-SIM 批次 9 · 经验沉淀与反哺 | §12：复盘 experiences 自动沉淀 `agent_memory`（表已建；方案 A 定版后只装经验层，方法论基座已 KB 直读）+ 对话记忆工具 + 反哺每日计划 | 未实现 | 依赖批次 6-8 真实运行数据积累（建议 ≥4 周后评估反哺效果） |
 

@@ -402,9 +402,7 @@ async def generate_review(
                 return ReviewGenerateResult(content=cached, cached=True)
 
         window_input = await _collect_window_input(session, account.id, start, end)
-        content = await _run_llm(
-            session, agent.llm_config_id, period, resolved, window_input
-        )
+        content = await _run_llm(session, agent, period, resolved, window_input)
         content = _validate(content, {o["cl_ord_id"] for o in window_input["orders"]})
         record = PaperTradeReviewRecord(
             **content.model_dump(), agent_key=agent.agent_key
@@ -443,7 +441,7 @@ async def _load_cached(
 
 async def _run_llm(
     session: AsyncSession,
-    llm_config_id: int | None,
+    agent: TradingAgent,
     period: str,
     trade_date: date,
     window_input: dict[str, Any],
@@ -451,6 +449,10 @@ async def _run_llm(
     config = get_prompt_loader().load(_PROMPT_SCOPE, _PROMPT_ID)
     user_prompt = (
         f"{config.system_prompt}\n\n"
+        f"## 复盘人设（注册表行，D27）\n"
+        f"- 你是{agent.name}（{agent.tagline}）；策略风格：{agent.style_desc}"
+        f"——{agent.strategy_desc}\n"
+        f"- 以该人设的视角与风格生成分层复盘结论\n\n"
         f"## 复盘任务\n"
         f"- 周期 period：{period}\n"
         f"- 基准交易日 trade_date：{trade_date.isoformat()}（输出字段须原样带回）\n\n"
@@ -463,7 +465,7 @@ async def _run_llm(
         session,
         result_type=PaperTradeReviewContent,
         user_prompt=user_prompt,
-        config_id=llm_config_id,
+        config_id=agent.llm_config_id,
     )
 
 

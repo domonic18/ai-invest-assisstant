@@ -65,6 +65,16 @@
 - **D26 贾维斯视觉**：中心核心 + 轨道雷达形态（Canvas 2D 自绘，requestAnimationFrame），
   弃 ECharts/G6（图表达场景不适合 HUD 动效）；未上线 Agent 幽灵节点 + 预告卡
   （点击弹简介，不可进入）。
+- **D27 人设与专属 Skill**（2026-09-26 追加）：每 Agent 三层个性化——
+  ① 会话人设：`prompts/agents/trading_agent_<agent_key 转下划线>.yaml`，
+  注册表 `prompt_id` 分流（机制 D21 已备），共享 `trading_agent.yaml` 删除；
+  ② 计划作业 Skill：`skills/trading-<agent_key>/`（SKILL.md 作业方法论 +
+  prompt.yaml 计划契约），登记 BUILTIN_SKILLS 新增 `trading` 场景，
+  `agent_plan_service` 按 agent_key 装载（共享 `agent_daily_plan.yaml` 删除，
+  缓存 skill_id 随之 per-agent）；③ 复盘人设：共享 `trading_review.yaml` 契约
+  不动，user_prompt 注入注册行人设段。平台硬纪律（ask_user 确认/风控转述等）
+  三份人设保持一致。trading 技能不出现在助手技能广场（`list_skills` 与
+  `skill_sync` 过滤）——它们是 Agent 内部作业程序，助手对话不可调用。
 
 ## 4. 数据模型
 
@@ -83,7 +93,7 @@
 | auto_exec_enabled | BOOLEAN | 自主执行总闸 |
 | status | VARCHAR(16) chk | active / planned / disabled |
 | sort_order | INT | 总览排布 |
-| prompt_id | VARCHAR(64) | `prompts/agents/<prompt_id>.yaml`，短线沿用 `trading_agent` |
+| prompt_id | VARCHAR(64) | `prompts/agents/<prompt_id>.yaml`，per-agent 人设（D27：short/long/m60 三份） |
 | accent_color | VARCHAR(16) | 总览节点主色 |
 | created_at / updated_at | timestamptz | 审计 |
 
