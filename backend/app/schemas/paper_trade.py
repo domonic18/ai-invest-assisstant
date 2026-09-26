@@ -225,6 +225,7 @@ class TradingAgentConfigResponse(CamelModel):
     """交易 Agent 全局配置（单例行）。"""
 
     llm_config_id: int | None = None
+    methodology_source_id: int | None = None
     risk_max_position_pct: float
     risk_max_total_pct: float
     risk_max_daily_orders: int
@@ -233,9 +234,11 @@ class TradingAgentConfigResponse(CamelModel):
 
 
 class TradingAgentConfigUpdateRequest(CamelModel):
-    """更新交易 Agent 配置（未提供的字段不变；llm_config_id 空 = 平台默认 chat 模型）。"""
+    """更新交易 Agent 配置（未提供的字段不变；llm_config_id 空 = 平台默认 chat 模型，
+    methodology_source_id 空 = 未启用方法论基座注入）。"""
 
     llm_config_id: int | None = None
+    methodology_source_id: int | None = None
     risk_max_position_pct: float | None = Field(default=None, ge=0, le=100)
     risk_max_total_pct: float | None = Field(default=None, ge=0, le=100)
     risk_max_daily_orders: int | None = Field(default=None, ge=1)

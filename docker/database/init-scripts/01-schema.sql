@@ -1659,6 +1659,7 @@ INSERT INTO kb_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 CREATE TABLE IF NOT EXISTS trading_agent_config (
     id                     INTEGER       PRIMARY KEY CHECK (id = 1),  -- 恒为 1 的单例行
     llm_config_id          BIGINT,                                    -- 关联 llm_config；空 = 默认 chat 模型
+    methodology_source_id  BIGINT,                                    -- 方法论知识源（kb_source.id）；空 = 未启用方法论基座注入
     risk_max_position_pct  NUMERIC(5,2)  NOT NULL DEFAULT 20,         -- 单票市值 ≤ 总资产 %
     risk_max_total_pct     NUMERIC(5,2)  NOT NULL DEFAULT 80,         -- 总持仓市值 ≤ 总资产 %
     risk_max_daily_orders  INTEGER       NOT NULL DEFAULT 10,         -- 单日下单笔数上限
@@ -1667,6 +1668,8 @@ CREATE TABLE IF NOT EXISTS trading_agent_config (
 
     CONSTRAINT fk_trading_agent_config_llm_config
         FOREIGN KEY (llm_config_id) REFERENCES llm_config (id) ON DELETE SET NULL,
+    CONSTRAINT fk_trading_agent_config_methodology_source
+        FOREIGN KEY (methodology_source_id) REFERENCES kb_source (id) ON DELETE SET NULL,
     CONSTRAINT chk_trading_agent_config_position_pct
         CHECK (risk_max_position_pct >= 0 AND risk_max_position_pct <= 100),
     CONSTRAINT chk_trading_agent_config_total_pct
@@ -1752,4 +1755,4 @@ CREATE TABLE IF NOT EXISTS agent_memory (
 CREATE INDEX IF NOT EXISTS idx_agent_memory_status ON agent_memory(status, mem_type);
 
 COMMENT ON TABLE agent_memory IS
-    '交易 Agent 自有记忆（方法论纪律 + 复盘沉淀，反哺每日计划，docs/plan/paper-trading-plan.md §12.1）';
+    '交易 Agent 自有迭代经验（复盘沉淀 + 手动沉淀，反哺每日计划，docs/plan/paper-trading-plan.md §12.1）';

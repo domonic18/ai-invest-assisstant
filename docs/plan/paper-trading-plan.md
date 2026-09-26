@@ -637,8 +637,12 @@ CREATE INDEX IF NOT EXISTS idx_agent_trade_plan_status ON agent_trade_plan(statu
      涨停归因 groups/stock_codes + 异动归因 top-N + 当前模拟交易持仓
      （本地表，**agent 账户**行）+
      **人工移出历史**（`agent_stock_selection.removed_reason='manual'` 近期清单，
-     prompt 显式声明避免重复选入）+ Agent 记忆检索（`agent_memory` 中 `status='active'`
-     条目，按相关性与新近度注入并做 token 上限截断；批次 9 之前该输入自然为空集，
+     prompt 显式声明避免重复选入）+ **方法论基座**（2026-09-26 方案 A 定版：
+     温程《趋势理论》KB 直读双层注入——`point_type='discipline'` 全量条目 +
+     发布目录树总纲 + 当日盘面文本按 method/theorem/concept/case 四类 RRF 检索，
+     见 `agent_methodology`；`trading_agent_config.methodology_source_id` 指定
+     知识源，空则降级无基座）+ Agent 经验记忆（`agent_memory` 中 `status='active'`
+     条目，按新近度注入并做 token 上限截断；批次 9 之前该输入自然为空集，
      链路先行不阻塞）。
   2. **LLM 结构化输出**（`run_structured`，字段禁默认值）：
      `{selections: [{stock_code, reason, confidence}],
@@ -734,6 +738,14 @@ CREATE INDEX IF NOT EXISTS idx_agent_trade_plan_status ON agent_trade_plan(statu
 记忆落 **Agent 自有记忆系统**（新表 `agent_memory`），不经 KB 知识库——记忆是
 Agent 的私有资产，自动提取直接生效（无草稿/审核流转），人只做查看、停用与手动
 补充三类干预。
+
+> **2026-09-26 方案 A 定版——方法论与经验分层**：交易的方法论基座（温程
+> 《趋势理论》整套体系）**不经 `agent_memory`，以 KB 为单一真相源直读注入**
+> （纪律全量 + 目录树总纲 + 当日盘面 RRF 检索，`trading_agent_config.
+> methodology_source_id` 绑定知识源，见 §10.2）；`agent_memory` 回归本职只装
+> **迭代经验**（复盘沉淀 + 手动沉淀），经验可修正方法应用、不得违反纪律硬约束。
+> 曾以 13 条蒸馏种子落 `agent_memory`（方案 C 试行），已由迁移
+> `20260926f_agent_methodology_kb.sql` 下架。
 
 ### 12.1 数据底座
 

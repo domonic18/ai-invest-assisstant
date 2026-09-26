@@ -7,6 +7,8 @@
 export interface ApiTradingAgentConfig {
   /** 绑定的 llm_config 条目 id；null = 平台默认 chat 模型。 */
   llmConfigId?: number | null
+  /** 方法论知识源（kb_source.id，温程《趋势理论》）；null = 未启用方法论基座注入。 */
+  methodologySourceId?: number | null
   /** 单票市值 ≤ 总资产 %。 */
   riskMaxPositionPct: number
   /** 总持仓市值 ≤ 总资产 %。 */
@@ -21,6 +23,7 @@ export interface ApiTradingAgentConfig {
 /** 交易 Agent 配置保存请求（未提供字段不变）。 */
 export interface ApiTradingAgentConfigUpdateRequest {
   llmConfigId?: number | null
+  methodologySourceId?: number | null
   riskMaxPositionPct?: number
   riskMaxTotalPct?: number
   riskMaxDailyOrders?: number

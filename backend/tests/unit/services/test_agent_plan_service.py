@@ -282,6 +282,93 @@ class TestActiveMemories:
 
 
 @pytest.mark.unit
+class TestCollectPlanInput:
+    @pytest.mark.asyncio
+    async def test_includes_methodology_and_memories(self) -> None:
+        """输入组装含方法论基座（方案 A KB 直读）与经验记忆，检索 query 取自盘面输入。"""
+        review_row = MagicMock()
+        review_row.structured_output = {"sections": {"overall": "主线高位分歧"}}
+        with (
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=review_row),
+            ),
+            patch(
+                "app.services.review.limit_up_ai_service.get_cached_attribution",
+                AsyncMock(return_value=None),
+            ),
+            patch.object(
+                agent_plan_service, "_stock_anomalies", AsyncMock(return_value=[])
+            ),
+            patch.object(
+                agent_plan_service,
+                "_manual_removed_codes",
+                AsyncMock(return_value=[]),
+            ),
+            patch.object(
+                agent_plan_service, "_local_positions", AsyncMock(return_value=[])
+            ),
+            patch.object(
+                agent_plan_service,
+                "_active_memories",
+                AsyncMock(return_value=[{"title": "禁追高"}]),
+            ),
+            patch(
+                "app.services.trading.agent_plan_service.agent_methodology"
+                ".build_methodology_input",
+                AsyncMock(return_value={"disciplines": [{"id": 2086}]}),
+            ) as build_mock,
+        ):
+            plan_input, _ = await agent_plan_service._collect_plan_input(
+                AsyncMock(), 7, _TRADE_DATE
+            )
+
+        assert plan_input["methodology"] == {"disciplines": [{"id": 2086}]}
+        assert plan_input["memories"] == [{"title": "禁追高"}]
+        assert "主线高位分歧" in build_mock.await_args.kwargs["query_text"]
+
+    @pytest.mark.asyncio
+    async def test_methodology_degrades_to_none(self) -> None:
+        """未配置方法论知识源 → methodology 键为 None，其余输入不受影响。"""
+        review_row = MagicMock()
+        review_row.structured_output = {"sections": {"overall": "缩量整理"}}
+        with (
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=review_row),
+            ),
+            patch(
+                "app.services.review.limit_up_ai_service.get_cached_attribution",
+                AsyncMock(return_value=None),
+            ),
+            patch.object(
+                agent_plan_service, "_stock_anomalies", AsyncMock(return_value=[])
+            ),
+            patch.object(
+                agent_plan_service,
+                "_manual_removed_codes",
+                AsyncMock(return_value=[]),
+            ),
+            patch.object(
+                agent_plan_service, "_local_positions", AsyncMock(return_value=[])
+            ),
+            patch.object(
+                agent_plan_service, "_active_memories", AsyncMock(return_value=[])
+            ),
+            patch(
+                "app.services.trading.agent_plan_service.agent_methodology"
+                ".build_methodology_input",
+                AsyncMock(return_value=None),
+            ),
+        ):
+            plan_input, _ = await agent_plan_service._collect_plan_input(
+                AsyncMock(), 7, _TRADE_DATE
+            )
+
+        assert plan_input["methodology"] is None
+
+
+@pytest.mark.unit
 class TestValidateCodes:
     @pytest.mark.asyncio
     async def test_drops_hallucinated_and_manual_removed(self) -> None:

@@ -129,6 +129,9 @@ class TradingAgentConfig(Base):
     llm_config_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # FK 见迁移（ON DELETE SET NULL）
+    methodology_source_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # 方法论知识源 kb_source.id；FK 见迁移（ON DELETE SET NULL），空 = 未启用
     risk_max_position_pct: Mapped[Decimal] = mapped_column(
         Numeric(5, 2), nullable=False, default=Decimal("20")
     )

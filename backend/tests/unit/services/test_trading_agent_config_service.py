@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.core.exceptions import NotFoundError, UnprocessableEntityError
+from app.models.kb import KbSource
 from app.schemas.paper_trade import TradingAgentConfigUpdateRequest
 from app.services.trading import agent_config as svc
 
@@ -22,6 +23,7 @@ def _row(**overrides: object) -> SimpleNamespace:
     base: dict[str, object] = {
         "id": 1,
         "llm_config_id": None,
+        "methodology_source_id": None,
         "risk_max_position_pct": 20.0,
         "risk_max_total_pct": 80.0,
         "risk_max_daily_orders": 10,
@@ -138,3 +140,60 @@ class TestUpdateConfig:
             session, data=TradingAgentConfigUpdateRequest(llm_config_id=7)
         )
         assert result.llm_config_id == 7
+
+    @pytest.mark.asyncio
+    async def test_methodology_source_none_clears_without_lookup(self) -> None:
+        """置空 = 未启用方法论基座注入（不做知识源查询）。"""
+        session = _session()
+        row = _row(methodology_source_id=1)
+        session.get = AsyncMock(return_value=row)
+        result = await svc.update_config(
+            session, data=TradingAgentConfigUpdateRequest(methodology_source_id=None)
+        )
+        assert result.methodology_source_id is None
+        assert session.get.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_methodology_source_missing_raises_404(self) -> None:
+        session = _session()
+
+        async def _get(_type, key):
+            return None if key == 99 else _row()
+
+        session.get = AsyncMock(side_effect=_get)
+        with pytest.raises(NotFoundError, match="99"):
+            await svc.update_config(
+                session,
+                data=TradingAgentConfigUpdateRequest(methodology_source_id=99),
+            )
+
+    @pytest.mark.asyncio
+    async def test_methodology_source_disabled_raises_422(self) -> None:
+        session = _session()
+
+        async def _get(_type, key):
+            if _type is KbSource:
+                return SimpleNamespace(id=key, name="旧书", enabled=False)
+            return _row()
+
+        session.get = AsyncMock(side_effect=_get)
+        with pytest.raises(UnprocessableEntityError, match="停用"):
+            await svc.update_config(
+                session,
+                data=TradingAgentConfigUpdateRequest(methodology_source_id=2),
+            )
+
+    @pytest.mark.asyncio
+    async def test_methodology_source_valid_assigns(self) -> None:
+        session = _session()
+
+        async def _get(_type, key):
+            if _type is KbSource:
+                return SimpleNamespace(id=key, name="趋势理论", enabled=True)
+            return _row()
+
+        session.get = AsyncMock(side_effect=_get)
+        result = await svc.update_config(
+            session, data=TradingAgentConfigUpdateRequest(methodology_source_id=1)
+        )
+        assert result.methodology_source_id == 1
