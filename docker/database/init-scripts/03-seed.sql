@@ -20,7 +20,7 @@ ON CONFLICT (stock_code, market) DO NOTHING;
 -- collector_health_check 任务的 internal 渠道（内部生成，非外部数据源）
 -- supported_data_types 与 collector_channel_data_type 按任务名登记（渠道解析/beat 派发以任务名为键）
 INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
-VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "health-check", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly", "social-sentiment", "kb-transcribe", "kb-cleanup", "kb-extract", "kb-vision", "kb-index", "trade-calendar-seed"]'::jsonb)
+VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "health-check", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly", "social-sentiment", "kb-transcribe", "kb-cleanup", "kb-extract", "kb-vision", "kb-index", "trade-calendar-seed", "paper-trade-sync", "paper-trade-review"]'::jsonb)
 ON CONFLICT (source) DO NOTHING;
 
 -- 兼容存量环境：internal 渠道已存在时补齐后续新增的数据类型
@@ -32,7 +32,7 @@ WHERE source = 'internal'
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, d.data_type, 1
 FROM collector_channel_config,
-     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('health-check'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic'), ('sector-anomaly'), ('stock-anomaly'), ('social-sentiment'), ('kb-transcribe'), ('kb-cleanup'), ('kb-extract'), ('kb-vision'), ('kb-index'), ('trade-calendar-seed')) AS d(data_type)
+     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('health-check'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic'), ('sector-anomaly'), ('stock-anomaly'), ('social-sentiment'), ('kb-transcribe'), ('kb-cleanup'), ('kb-extract'), ('kb-vision'), ('kb-index'), ('trade-calendar-seed'), ('paper-trade-sync'), ('paper-trade-review')) AS d(data_type)
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
@@ -57,6 +57,19 @@ WHERE source = 'internal'
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, 'trade-calendar-seed', 1
 FROM collector_channel_config
+WHERE source = 'internal'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
+-- 防御性补齐 internal 渠道的模拟盘任务数据类型（盘后同步 + AI 分层复盘，渠道已存在时）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["paper-trade-sync", "paper-trade-review"]'::jsonb
+WHERE source = 'internal'
+  AND NOT supported_data_types @> '["paper-trade-review"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, d.data_type, 1
+FROM collector_channel_config,
+     (VALUES ('paper-trade-sync'), ('paper-trade-review')) AS d(data_type)
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
@@ -406,7 +419,9 @@ VALUES
     -- F-KB：知识库索引构建（每 5 分钟增量扫描三类脏行向量化入 ES；force_rebuild 蓝绿重建）
     ('kb_index_scan', 'kb-index', 'internal', '*/5 * * * *', true),
     -- 模拟盘盘后同步：16:00 清算稳定且在复盘链之前（掘金仿真当日委托/成交/资金快照幂等落库）
-    ('paper_trade_sync_1600', 'paper-trade-sync', 'internal', '0 16 * * 1-5', true)
+    ('paper_trade_sync_1600', 'paper-trade-sync', 'internal', '0 16 * * 1-5', true),
+    -- 模拟盘 AI 分层复盘：16:10 串行同步之后（日/周/月分层归因 + 经验提取，周期末任务内加发）
+    ('paper_trade_review_1610', 'paper-trade-review', 'internal', '10 16 * * 1-5', true)
 ON CONFLICT (task_name) DO UPDATE
 SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;
 
@@ -458,7 +473,7 @@ WHERE task_name IN (
     'sina_etf_kline', 'sina_stock_minute', 'sina_a50_kline', 'eastmoney_sector_quote',
     'market_daily_review_1835', 'limit_up_ai_review_1630', 'stock_daily_analysis_1640',
     'sector_anomaly_detect_1745', 'stock_anomaly_detect_1700', 'ths_sector_kline_1730',
-    'kline_freshness_evening', 'paper_trade_sync_1600'
+    'kline_freshness_evening', 'paper_trade_sync_1600', 'paper_trade_review_1610'
 );
 
 INSERT INTO collector_task (task_name, task_type, source, schedule, is_active, trade_day_only, remark)
