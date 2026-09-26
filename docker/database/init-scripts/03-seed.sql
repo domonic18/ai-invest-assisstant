@@ -20,7 +20,7 @@ ON CONFLICT (stock_code, market) DO NOTHING;
 -- collector_health_check 任务的 internal 渠道（内部生成，非外部数据源）
 -- supported_data_types 与 collector_channel_data_type 按任务名登记（渠道解析/beat 派发以任务名为键）
 INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
-VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "health-check", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly", "social-sentiment", "kb-transcribe", "kb-cleanup", "kb-extract", "kb-vision", "kb-index"]'::jsonb)
+VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "health-check", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly", "social-sentiment", "kb-transcribe", "kb-cleanup", "kb-extract", "kb-vision", "kb-index", "trade-calendar-seed"]'::jsonb)
 ON CONFLICT (source) DO NOTHING;
 
 -- 兼容存量环境：internal 渠道已存在时补齐后续新增的数据类型
@@ -32,7 +32,7 @@ WHERE source = 'internal'
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, d.data_type, 1
 FROM collector_channel_config,
-     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('health-check'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic'), ('sector-anomaly'), ('stock-anomaly'), ('social-sentiment'), ('kb-transcribe'), ('kb-cleanup'), ('kb-extract'), ('kb-vision'), ('kb-index')) AS d(data_type)
+     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('health-check'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic'), ('sector-anomaly'), ('stock-anomaly'), ('social-sentiment'), ('kb-transcribe'), ('kb-cleanup'), ('kb-extract'), ('kb-vision'), ('kb-index'), ('trade-calendar-seed')) AS d(data_type)
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
@@ -44,6 +44,18 @@ WHERE source = 'internal'
 
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, 'social-sentiment', 1
+FROM collector_channel_config
+WHERE source = 'internal'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
+-- 防御性补齐 internal 渠道的 trade-calendar-seed 数据类型（交易日历种子刷新，渠道已存在时）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["trade-calendar-seed"]'::jsonb
+WHERE source = 'internal'
+  AND NOT supported_data_types @> '["trade-calendar-seed"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'trade-calendar-seed', 1
 FROM collector_channel_config
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
@@ -428,3 +440,30 @@ UPDATE collector_task SET remark = '早盘集合竞价快照（9:26–9:29 采�
  WHERE task_name = 'tushare_index_auction';
 UPDATE collector_task SET remark = '盘后竞价数据补采兜底'
  WHERE task_name = 'tushare_index_auction_pm';
+
+-- ============================================================
+-- 交易日历管理（与 migrations/20260926a_trade_calendar.sql 保持同步，幂等，可全量重放）
+-- 行情类任务开启交易日预检（新闻/全球市场/AI 记分/KB/维护类保持 false）；
+-- 日历种子刷新任务每周一 06:00（北京时间）。
+-- ============================================================
+
+UPDATE collector_task
+SET trade_day_only = true
+WHERE task_name IN (
+    'ths_kline_daily', 'watchlist_kline_daily', 'sina_index_kline', 'ths_auction',
+    'eastmoney_fund_flow', 'sina_stock_list', 'sina_quote', 'sina_market_breadth',
+    'sina_index_spot', 'sina_index_minute', 'tushare_index_auction', 'tushare_index_auction_pm',
+    'exchange_market_amount', 'eastmoney_broken_pool', 'eastmoney_sector_fund_flow',
+    'eastmoney_limit_up_pool', 'eastmoney_limit_down_pool', 'eastmoney_dragon_list',
+    'sina_etf_kline', 'sina_stock_minute', 'sina_a50_kline', 'eastmoney_sector_quote',
+    'market_daily_review_1835', 'limit_up_ai_review_1630', 'stock_daily_analysis_1640',
+    'sector_anomaly_detect_1745', 'stock_anomaly_detect_1700', 'ths_sector_kline_1730',
+    'kline_freshness_evening', 'paper_trade_sync_1600'
+);
+
+INSERT INTO collector_task (task_name, task_type, source, schedule, is_active, trade_day_only, remark)
+VALUES ('trade_calendar_seed_weekly', 'trade-calendar-seed', 'internal', '0 6 * * 1', true, false,
+        '新浪日历刷新 market_trade_calendar（人工覆盖行不回改）')
+ON CONFLICT (task_name) DO UPDATE
+SET schedule = EXCLUDED.schedule, is_active = EXCLUDED.is_active;
+
