@@ -13,15 +13,16 @@ V1.3 已于 2026-09-12 随异动分析迭代全量发布。截至 2026-09-26，�
 - **K 线**：画线一期（五类型 + Agent 读画线）、AI 智能画线（ask_user 问题卡 + 人工编辑采纳）
 - **资讯与社媒**：资讯中心（渠道监控 / AI 分级 / 事件故事线 / 订阅 / 热点主题榜）、大 V 情绪追踪（抖音自研适配 + ASR 转写）
 - **知识库 F-KB**：一期全链路（素材转写 / 关键帧 / 抽取审核 / PG 单库混合检索 / 播放阅读防盗 / 用量看板）+ 全系统去 ES；二期 Agent 检索工具注入与媒体引用；技能优化建议链路已下线，能力提升方向并入模拟盘学习闭环（paper-trading 批次 9）
-- **模拟交易 F-SIM**：平台层已交付（掘金仿真柜台 REST sidecar、多租户账户管理、人工交易面板——下单/撤单/持仓/委托成交/净值/盘后同步、agent 专属账户指定与解绑，2026-09-24 PR #65 + 2026-09-26 agent 解绑）；交易 Agent 闭环批次 5-7 已交付（独立会话/专属工具/配置面，盘后日周月分层复盘，每日选股与交易计划 + agent 自选分组 + 方法论基座 KB 直读双层注入，2026-09-26 PR #80-#83）；方案与批次拆分见 [paper-trading-plan.md](paper-trading-plan.md)（D1-D20 已拍板）
+- **模拟交易 F-SIM**：平台层已交付（掘金仿真柜台 REST sidecar、多租户账户管理、人工交易面板——下单/撤单/持仓/委托成交/净值/盘后同步、agent 专属账户指定与解绑，2026-09-24 PR #65 + 2026-09-26 agent 解绑）；交易 Agent 闭环批次 5-7 已交付（独立会话/专属工具/配置面，盘后日周月分层复盘，每日选股与交易计划 + agent 自选分组 + 方法论基座 KB 直读双层注入，2026-09-26 PR #80-#83）；方案与批次拆分见 [paper-trading-plan.md](paper-trading-plan.md)（D1-D20 已拍板）；多 Agent 基座与贾维斯总览立项见 [agent-hub-plan.md](agent-hub-plan.md)（D21-D26 已拍板）
 - **平台**：账号准入与 AI 用量治理（审批 / BYOK / 配额计量）、技能广场、MCP 服务管理、个人设置
 
 ## 2. 待开发（单人节奏约 1~2 周/迭代）
 
 | 迭代 | 主题 | 内容概要 | 状态 | 依赖 / 风险 |
 |------|------|----------|------|--------------|
-| 迭代 19 | F-SIM 批次 8 · 盘中自主执行 | §11：`agent-trade-exec` */5 轮询执行交易计划 + 14:50 尾盘强检；风控硬校验（仓位/日内笔数，确定性代码）；auto_exec_enabled 总门控 | 未实现 | 依赖批次 7（已交付）；下单出口 `execute_agent_order` 与纯函数风控 `evaluate_order_risk` 已内聚共用，仅缺 `evaluate_plan` 触发判定与执行任务 |
-| 迭代 20 | F-SIM 批次 9 · 经验沉淀与反哺 | §12：复盘 experiences 自动沉淀 `agent_memory`（表已建；方案 A 定版后只装经验层，方法论基座已 KB 直读）+ 对话记忆工具 + 反哺每日计划 | 未实现 | 依赖批次 6-8 真实运行数据积累（建议 ≥4 周后评估反哺效果） |
+| 迭代 19 | Agent Hub · 多 Agent 基座与贾维斯总览 | [agent-hub-plan.md](agent-hub-plan.md)（D21-D26）：`trading_agent` 注册表取代单例 config、`is_agent`→`agent_key`、三表+自选分组加 agent 维度，服务/工具/运行时/spider/API 全链路参数化（本批仅 short-line 激活，长线/M60 planned）；`/trading-agent` 总览页（Canvas 雷达 HUD + 活动时间轴）+ 详情页 agentKey 参数化 + 介绍卡 | 未实现 | 六表迁移较大；先于批次 8 落地，批次 8/9 直接建在多 Agent 基座上 |
+| 迭代 20 | F-SIM 批次 8 · 盘中自主执行 | §11：`agent-trade-exec` */5 轮询执行交易计划 + 14:50 尾盘强检；风控硬校验（仓位/日内笔数，确定性代码）；auto_exec_enabled 总门控 | 未实现 | 依赖迭代 19 多 Agent 基座；下单出口 `execute_agent_order` 与纯函数风控 `evaluate_order_risk` 已内聚共用，仅缺 `evaluate_plan` 触发判定与执行任务 |
+| 迭代 21 | F-SIM 批次 9 · 经验沉淀与反哺 | §12：复盘 experiences 自动沉淀 `agent_memory`（表已建；方案 A 定版后只装经验层，方法论基座已 KB 直读）+ 对话记忆工具 + 反哺每日计划 | 未实现 | 依赖批次 6-8 真实运行数据积累（建议 ≥4 周后评估反哺效果） |
 
 **发布门槛**：验收全绿（backend pytest / mypy / ruff，web typecheck / lint / test / build）；新页对照原型走查；develop → main 同步后发布。
 
