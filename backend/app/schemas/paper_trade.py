@@ -239,3 +239,39 @@ class TradingAgentConfigUpdateRequest(CamelModel):
     risk_max_total_pct: float | None = Field(default=None, ge=0, le=100)
     risk_max_daily_orders: int | None = Field(default=None, ge=1)
     auto_exec_enabled: bool | None = None
+
+
+# ============================================================
+# 交易 Agent 复盘（批次 6）
+# ============================================================
+
+
+class TradingAgentTradeVerdictItem(CamelModel):
+    """单笔委托三层判定。"""
+
+    cl_ord_id: str
+    stock_code: str
+    selection_verdict: str
+    plan_verdict: str
+    execution_verdict: str
+    reason: str
+
+
+class TradingAgentReviewExperienceItem(CamelModel):
+    """复盘提取经验条目。"""
+
+    title: str
+    body: str
+    mem_type: str
+
+
+class TradingAgentReviewResponse(CamelModel):
+    """模拟盘分层复盘（ai_analysis_result.structured_output 契约镜像）。"""
+
+    period: str
+    trade_date: str
+    overall: str
+    trades: list[TradingAgentTradeVerdictItem] = []
+    bias: str
+    suggestion: str
+    experiences: list[TradingAgentReviewExperienceItem] = []
