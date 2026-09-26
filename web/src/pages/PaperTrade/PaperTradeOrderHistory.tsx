@@ -27,6 +27,7 @@ import {
 } from '@ai-invest/shared'
 
 import { isMarketOpen } from './tradingRules'
+import { SymbolCell } from './PaperTradePositions'
 
 const PAGE_SIZE = 20
 
@@ -46,7 +47,7 @@ function sourceCell(source?: string | null) {
 }
 
 /** 6 位代码优先；回报 wire 无 stockCode 时从掘金 symbol 取点号后段。 */
-function stockCell(record: { stockCode?: string | null; symbol: string }) {
+function stockCodeOf(record: { stockCode?: string | null; symbol: string }) {
   if (record.stockCode) return record.stockCode
   const symbol = record.symbol || ''
   return symbol.includes('.') ? symbol.split('.')[1] : symbol
@@ -62,8 +63,8 @@ const baseOrderColumns: ColumnsType<ApiPaperTradeOrder> = [
   {
     title: '标的',
     key: 'stock',
-    width: 90,
-    render: (_, record) => stockCell(record),
+    width: 130,
+    render: (_, record) => <SymbolCell code={stockCodeOf(record)} />,
   },
   {
     title: '方向',
@@ -126,8 +127,8 @@ const executionColumns: ColumnsType<ApiPaperTradeExecution> = [
   {
     title: '标的',
     key: 'stock',
-    width: 90,
-    render: (_, record) => stockCell(record),
+    width: 130,
+    render: (_, record) => <SymbolCell code={stockCodeOf(record)} />,
   },
   {
     title: '方向',
@@ -264,7 +265,7 @@ export function PaperTradeOrdersPanel({
           size: 'small',
           onChange: (next) => setState((prev) => ({ ...prev, page: next })),
         }}
-        scroll={{ x: 1010 }}
+        scroll={{ x: 1050 }}
       />
     </div>
   )
@@ -307,7 +308,7 @@ export function PaperTradeExecutionsPanel({ accountId }: { accountId: number }) 
           size: 'small',
           onChange: (next) => setState((prev) => ({ ...prev, page: next })),
         }}
-        scroll={{ x: 760 }}
+        scroll={{ x: 800 }}
       />
     </div>
   )

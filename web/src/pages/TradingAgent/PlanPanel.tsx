@@ -43,9 +43,12 @@ function PlanRow({ plan }: { plan: ApiTradingAgentPlan }) {
         <Tag color={isBuy ? 'red' : 'green'} className="!mr-0">
           {isBuy ? '买入' : '卖出'}
         </Tag>
-        <Typography.Text strong className="font-mono">
-          {plan.stockCode}
-        </Typography.Text>
+        <div className="min-w-0 leading-tight">
+          <Typography.Text strong className="block truncate text-xs">
+            {plan.stockName ?? plan.stockCode}
+          </Typography.Text>
+          <span className="font-mono text-xs text-white/50">{plan.stockCode}</span>
+        </div>
         <span className="ml-auto" />
         <Tag color={status.color}>{status.label}</Tag>
         {plan.status === 'active' && (

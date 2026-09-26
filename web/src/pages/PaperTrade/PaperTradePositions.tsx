@@ -16,7 +16,7 @@ import {
 import type { OrderPrefill } from './TradingPanel'
 
 /** 标的单元格：名称 + 6 位代码 + 当日涨幅（行情 30s 轮询）。 */
-function SymbolCell({ code }: { code: string }) {
+export function SymbolCell({ code }: { code: string }) {
   const { data: quote } = useStockQuote(/^\d{6}$/.test(code) ? code : '')
   return (
     <div className="leading-tight">

@@ -1,10 +1,11 @@
 /**
  * Agent 详情页（仅 admin，路由 /trading-agent/:agentKey）：单 Agent 闭环统一入口。
  *
- * 结构 = 运行状态条 + Tabs：工作台（agent 对话，PC 附计划/复盘侧栏）、
- * Agent 自选（选股清单 + 人工移出）、交易计划、交易记录（agent 账户
- * 委托/成交）、复盘记录（日/周/月）、经验总结（分层复盘 + Agent 记忆
- * 管理）、账户与配置（Agent 配置 + 模拟盘账户管理）。tab 态进 URL query；
+ * 结构 = 运行状态条 + Tabs：工作台（agent 对话，PC 附工作状态侧栏）、
+ * Agent 自选（选股清单 + 人工移出）、交易计划、持仓与交易（agent 账户
+ * 资金/持仓/委托/成交）、复盘记录（日/周/月）、经验总结（分层复盘 +
+ * Agent 记忆管理）、账户与配置（Agent 配置 + 模拟盘账户管理）。tab 态进
+ * URL query；
  * 工作台保持挂载（antd Tabs 默认隐藏不卸载），切 tab 不中断会话流。
  */
 import { EditOutlined } from '@ant-design/icons'
@@ -24,12 +25,13 @@ import { AssistantThread } from '@/components/assistant/AssistantThread'
 import { TodoListBar } from '@/components/assistant/ui/TodoListBar'
 import { queryKeys } from '@/hooks/queryKeys'
 import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
-import { useTradingAgentConfig, useTradingAgentLlmOptions } from '@/hooks/useTradingAgent'
+import { useTradingAgentConfig, useTradingAgentLlmOptions, useTradingAgentStatus } from '@/hooks/useTradingAgent'
 import { useAssistantStore } from '@/stores/assistant'
 
 import { AgentKeyContext, useAgentKey } from './agentKeyContext'
 
 import { AgentConfigPanel } from './AgentConfigPanel'
+import { AgentWorkStatusPanel } from './AgentWorkStatusPanel'
 import { AgentMemoryPanel } from './AgentMemoryPanel'
 import { AgentSelectionsPanel } from './AgentSelectionsPanel'
 import { AgentStatusStrip } from './AgentStatusStrip'
@@ -54,7 +56,7 @@ const TAB_ITEMS = [
   { key: 'workbench', label: '工作台' },
   { key: 'selections', label: 'Agent 自选' },
   { key: 'plans', label: '交易计划' },
-  { key: 'records', label: '交易记录' },
+  { key: 'records', label: '持仓与交易' },
   { key: 'review', label: '复盘记录' },
   { key: 'experiences', label: '经验总结' },
   { key: 'accounts', label: '账户与配置' },
@@ -157,16 +159,16 @@ function WorkbenchPane() {
         </div>
       </div>
       <div className="hidden w-[320px] shrink-0 space-y-3 overflow-y-auto lg:block">
-        <PlanPanel />
-        <ReviewPanel />
+        <AgentWorkStatusPanel />
       </div>
     </div>
   )
 }
 
-/** Agent 介绍卡：accent_color 点缀 + 策略/风格/模型（注册行直读）。 */
+/** Agent 介绍卡：accent_color 点缀 + 策略/风格/方法论/模型（注册行 + 能力视图）。 */
 function AgentIntroCard({ profile }: { profile: TradingAgentProfile }) {
   const { data: llmOptions } = useTradingAgentLlmOptions()
+  const { data: capability } = useTradingAgentStatus(profile.agentKey)
   const llmName = profile.llmConfigId
     ? llmOptions?.find((option) => option.value === profile.llmConfigId)?.label
     : '平台默认模型'
@@ -191,6 +193,12 @@ function AgentIntroCard({ profile }: { profile: TradingAgentProfile }) {
         <span className="text-white/60">风格</span>
         <Tag color="geekblue" className="!mr-0">
           {profile.styleDesc}
+        </Tag>
+      </span>
+      <span className="inline-flex items-center gap-1.5 text-xs">
+        <span className="text-white/60">方法论</span>
+        <Tag color="purple" className="!mr-0">
+          {capability?.methodologySourceName ?? '未绑定'}
         </Tag>
       </span>
       <span className="inline-flex items-center gap-1.5 text-xs">
