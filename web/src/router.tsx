@@ -77,6 +77,9 @@ const PaperTradeAccountsAdmin = lazy(() =>
   })),
 )
 const Register = lazy(() => import('./pages/Register/Register').then((m) => ({ default: m.Register })))
+const TradingAgent = lazy(() =>
+  import('./pages/TradingAgent').then((m) => ({ default: m.TradingAgent })),
+)
 const ScreeningPage = lazy(() =>
   import('./pages/Screening/ScreeningPage').then((m) => ({ default: m.ScreeningPage })),
 )
@@ -161,6 +164,12 @@ export const router = createBrowserRouter([
           { path: 'system-status', element: lazyEl(<SystemStatusPage />) },
           { path: 'trade-calendar', element: lazyEl(<TradeCalendarAdmin />) },
         ],
+      },
+      // 交易 Agent：admin 专属对话与配置（批次 5）
+      {
+        path: 'trading-agent',
+        element: <ProtectedAdmin />,
+        children: [{ index: true, element: lazyEl(<TradingAgent />) }],
       },
     ],
   },

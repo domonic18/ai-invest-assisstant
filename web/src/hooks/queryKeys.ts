@@ -271,4 +271,9 @@ export const queryKeys = {
     target: (targetType: string, targetCode: string) =>
       ['kline-drawings', targetType, targetCode] as const,
   },
+  tradingAgent: {
+    all: ['trading-agent'] as const,
+    config: ['trading-agent', 'config'] as const,
+    llmConfigs: ['trading-agent', 'llm-configs'] as const,
+  },
 } as const

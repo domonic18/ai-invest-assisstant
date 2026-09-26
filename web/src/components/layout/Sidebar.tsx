@@ -74,6 +74,7 @@ const ADMIN_MENU_ITEMS: MenuItem[] = [
   { key: '/admin/ai-results', icon: <FileDoneOutlined />, label: '分析结果' },
   { key: '/admin/collector', icon: <PlayCircleOutlined />, label: '采集管理' },
   { key: '/admin/paper-trade', icon: <MoneyCollectOutlined />, label: '模拟盘账户' },
+  { key: '/trading-agent', icon: <ThunderboltOutlined />, label: '交易 Agent' },
   { key: '/admin/social-tracking', icon: <WeiboOutlined />, label: '社媒追踪' },
 ]
 

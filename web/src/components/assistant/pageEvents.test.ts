@@ -86,6 +86,26 @@ describe('parsePageEvent', () => {
     expect(sector?.path).toBe('/sector/concept/881125')
   })
 
+  it('parses paper trading order events to the trading agent page', () => {
+    const parsed = parsePageEvent({
+      type: 'paper_trading.complete',
+      action: 'order',
+      cl_ord_id: 'abc123',
+      symbol: '600000',
+      side: 'buy',
+      volume: 100,
+    })
+    expect(parsed?.result).toEqual({
+      type: 'paper_trading.complete',
+      action: 'order',
+      clOrdId: 'abc123',
+      symbol: '600000',
+      side: 'buy',
+      volume: 100,
+    })
+    expect(parsed?.path).toBe('/trading-agent')
+  })
+
   it('event types are unique and every definition declares a path', () => {
     const types = PAGE_EVENT_DEFINITIONS.map((d) => d.eventType)
     expect(new Set(types).size).toBe(types.length)
