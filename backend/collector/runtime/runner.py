@@ -16,16 +16,28 @@ from datetime import datetime, timezone
 from typing import Any, cast
 
 import structlog
+from sqlalchemy import or_, select
 
+from app.core.clock import today_cn
 from app.core.database import AsyncSessionLocal
 from app.models.collector_log import CollectorLog
-from collector.core.base import CollectResult
+from app.models.collector_task import CollectorTask
+from app.services.market.trade_calendar_service import (
+    SCHEDULE_NON_TRADING,
+    SCHEDULE_TRADING,
+    classify_schedule_day,
+)
+from collector.core.base import CollectResult, CollectStatus
 from collector.core.logging import bind_task_context, clear_task_context
 from collector.runtime.registry import TASK_MAP, TASK_SPECS
+from collector.runtime.specs.base import TaskSpec
 
 logger = structlog.get_logger(__name__)
 
 _ERROR_MSG_MAX_LEN = 4000
+
+# 显式日期参数 = 手动补跑意图，豁免交易日预检（保留周末/节假日手动补跑能力）
+_EXPLICIT_DATE_PARAM_KEYS = frozenset({"trade_date", "start_date", "end_date"})
 
 
 def _build_task_kwargs(task_name: str, params: dict[str, Any]) -> dict[str, Any]:
@@ -99,6 +111,20 @@ async def run_task(params: dict[str, Any]) -> CollectResult:
             log_id = await _create_running_row(task_name, celery_task_id)
 
         kwargs = _build_task_kwargs(task_name, params)
+        spec = TASK_SPECS.get(task_name)
+        skipped = await _precheck_trade_day(params, kwargs, spec, task_name)
+        if skipped is not None:
+            await _persist_result(
+                task_name, log_id, celery_task_id, task_run_id, skipped
+            )
+            logger.info(
+                "collector_task_finished",
+                status=skipped.status.value,
+                collected=0,
+                stored=0,
+                errors=0,
+            )
+            return skipped
         logger.info("collector_task_started", log_id=log_id, kwargs=kwargs)
         result = await coro(**kwargs)
 
@@ -122,6 +148,57 @@ async def run_task(params: dict[str, Any]) -> CollectResult:
 
 def _truncate(text: str) -> str:
     return text[:_ERROR_MSG_MAX_LEN]
+
+
+async def _precheck_trade_day(
+    params: dict[str, Any],
+    kwargs: dict[str, Any],
+    spec: TaskSpec | None,
+    task_name: str,
+) -> CollectResult | None:
+    """trade_day_only 任务的交易日预检：非交易日/日历未覆盖 → SKIPPED（不出网络）。
+
+    - 预检开关按 collector_task 实例行读取（后台可改，无需重启）；
+      beat 传实例名（task_name），手动路径传任务类型名（task），两者都按行匹配；
+    - 显式日期参数（trade_date/start_date/end_date）= 手动补跑，豁免；
+    - 日历未覆盖当日（unknown）同样拒绝并注明（D5：不静默回退周末启发）。
+    """
+    if _EXPLICIT_DATE_PARAM_KEYS.intersection(kwargs):
+        return None
+    lookup_name = params.get("task_name") or task_name
+    async with AsyncSessionLocal() as session:
+        trade_day_only = (
+            await session.execute(
+                select(CollectorTask.trade_day_only)
+                .where(
+                    or_(
+                        CollectorTask.task_name == lookup_name,
+                        CollectorTask.task_type == lookup_name,
+                    )
+                )
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if not trade_day_only:
+            return None
+        verdict = await classify_schedule_day(session, today_cn())
+    if verdict == SCHEDULE_TRADING:
+        return None
+    message = (
+        "非交易日，按 trade_day_only 预检跳过"
+        if verdict == SCHEDULE_NON_TRADING
+        else "交易日历未覆盖当日，拒绝调度（请在后台重新生成交易日历）"
+    )
+    logger.warning(
+        "collector_task_precheck_skipped", task=task_name, verdict=verdict
+    )
+    return CollectResult(
+        source=params.get("preferred_source") or "internal",
+        data_type=spec.data_type if spec is not None else "unknown",
+        status=CollectStatus.SKIPPED,
+        message=message,
+        metadata={"precheck": "trade_day_only"},
+    )
 
 
 async def _create_running_row(task_name: str, celery_task_id: str | None) -> int:
