@@ -10,8 +10,8 @@
 import { EditOutlined } from '@ant-design/icons'
 import { Button, Spin, Tabs, Tag, Typography } from 'antd'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { PAGE_EVENT_TYPES } from '@ai-invest/shared'
 import type { TradingAgentProfile } from '@ai-invest/shared'
@@ -209,9 +209,15 @@ function AgentIntroCard({ profile }: { profile: TradingAgentProfile }) {
 }
 
 export function TradingAgent() {
-  const { agentKey: routeKey } = useParams()
-  const agentKey = routeKey ?? 'short-line'
-  const { data: profile, isLoading: profileLoading } = useTradingAgentConfig(agentKey)
+  const { agentKey } = useParams()
+  const navigate = useNavigate()
+
+  // 注册表驱动路由参数；缺参（/trading-agent/）回总览页，不做键名兜底
+  useEffect(() => {
+    if (!agentKey) navigate('/trading-agent', { replace: true })
+  }, [agentKey, navigate])
+
+  const { data: profile, isLoading: profileLoading } = useTradingAgentConfig(agentKey ?? '')
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
 
@@ -234,7 +240,7 @@ export function TradingAgent() {
   }
 
   return (
-    <AgentKeyContext.Provider value={agentKey}>
+    <AgentKeyContext.Provider value={agentKey ?? null}>
       <div className="flex h-[calc(100dvh-5.75rem)] min-h-[480px] flex-col gap-3 md:h-[calc(100dvh-6.5rem)]">
         {profile ? (
           <AgentIntroCard profile={profile} />

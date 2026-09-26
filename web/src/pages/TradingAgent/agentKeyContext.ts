@@ -5,9 +5,14 @@
  */
 import { createContext, useContext } from 'react'
 
-export const AgentKeyContext = createContext<string>('short-line')
+/** 详情页 agentKey 上下文：Provider 必传（TradingAgent 页内路由参数注入）。 */
+export const AgentKeyContext = createContext<string | null>(null)
 
-/** 当前详情页的 Agent 键（未包 Provider 时回落短线默认 Agent）。 */
+/** 当前详情页的 Agent 键。 */
 export function useAgentKey(): string {
-  return useContext(AgentKeyContext)
+  const agentKey = useContext(AgentKeyContext)
+  if (!agentKey) {
+    throw new Error('useAgentKey 必须在 AgentKeyContext.Provider 内使用')
+  }
+  return agentKey
 }

@@ -11,6 +11,7 @@ import type {
   TradingAgentProfileUpdateRequest,
   ApiTradingAgentDates,
   ApiTradingAgentPlan,
+  ApiTradingAgentPlansResponse,
   ApiTradingAgentReview,
   TradingReviewPeriod,
 } from '@ai-invest/shared'
@@ -63,12 +64,12 @@ export async function fetchTradingAgentDates(agentKey: string): Promise<ApiTradi
   return response.data
 }
 
-/** 指定日交易计划（缺省 trade_date 时后端取最近交易日；含全部状态）。 */
+/** 指定日交易计划（缺省 trade_date 时后端取最近交易日；含下一交易日执行语义）。 */
 export async function fetchTradingAgentPlans(
   agentKey: string,
   tradeDate?: string,
-): Promise<ApiTradingAgentPlan[]> {
-  const response = await apiClient.get<ApiTradingAgentPlan[]>(
+): Promise<ApiTradingAgentPlansResponse> {
+  const response = await apiClient.get<ApiTradingAgentPlansResponse>(
     ENDPOINTS.admin.tradingAgentPlans(agentKey),
     { params: tradeDate ? { trade_date: tradeDate } : undefined },
   )

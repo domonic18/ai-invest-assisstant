@@ -143,6 +143,14 @@ export interface ApiTradingAgentPlan {
   triggeredClOrdId: string | null
 }
 
+/** 指定日交易计划包装响应（D28：计划日 + 下一交易日执行语义 + 计划列表）。 */
+export interface ApiTradingAgentPlansResponse {
+  tradeDate: string
+  /** tradeDate 的下一交易日（计划于此日盘中执行）；日历未覆盖为 null。 */
+  nextTradeDate: string | null
+  plans: ApiTradingAgentPlan[]
+}
+
 /** agent 选股条目（模拟管理「Agent 自选」：AI 依据 + 置信度）。 */
 export interface ApiAgentWatchlistSelectionItem {
   id: number
