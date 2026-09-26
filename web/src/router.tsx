@@ -75,6 +75,9 @@ const Register = lazy(() => import('./pages/Register/Register').then((m) => ({ d
 const TradingAgent = lazy(() =>
   import('./pages/TradingAgent').then((m) => ({ default: m.TradingAgent })),
 )
+const AgentOverview = lazy(() =>
+  import('./pages/AgentOverview/AgentOverview').then((m) => ({ default: m.AgentOverview })),
+)
 const ScreeningPage = lazy(() =>
   import('./pages/Screening/ScreeningPage').then((m) => ({ default: m.ScreeningPage })),
 )
@@ -165,8 +168,7 @@ export const router = createBrowserRouter([
         path: 'trading-agent',
         element: <ProtectedAdmin />,
         children: [
-          // index 暂跳唯一 active Agent；贾维斯总览页落地后替换
-          { index: true, element: <Navigate to="/trading-agent/short-line" replace /> },
+          { index: true, element: lazyEl(<AgentOverview />) },
           { path: ':agentKey', element: lazyEl(<TradingAgent />) },
         ],
       },

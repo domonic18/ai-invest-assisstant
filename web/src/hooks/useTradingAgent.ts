@@ -27,11 +27,12 @@ import {
 } from '@/api/tradingAgent'
 import { queryKeys } from '@/hooks/queryKeys'
 
-/** 全部注册 Agent 的总览聚合（贾维斯总览页，30s 轮询由调用方定）。 */
-export function useAgentOverview() {
+/** 全部注册 Agent 的总览聚合（贾维斯总览页传 refetchInterval 轮询）。 */
+export function useAgentOverview(options?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: queryKeys.tradingAgent.agents,
     queryFn: fetchAgentOverview,
+    refetchInterval: options?.refetchInterval,
   })
 }
 
