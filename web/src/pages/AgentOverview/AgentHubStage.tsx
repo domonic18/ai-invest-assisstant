@@ -1,10 +1,10 @@
 /**
  * Agent Hub 分层舞台（D33）：三层自上而下——Agent 运行层 / 资源系统层
- * （五站同维度同款） / 基建层（状态灯 + Celery 任务方框条）。三层渲染共用
- * layoutLayers 像素坐标与容器实测尺寸：① HubBackgroundCanvas（网格 + 扫描
- * 线，页面唯一 rAF）；② SVG 连线层（真实数据流边，fast 档 dash 流动 +
- * animateMotion 光点，prefers-reduced-motion 停用）；③ HTML 节点层。左缘
- * 层带标签 + 右上图例。
+ * （五站同维度同款） / 基建层（状态灯五盒 + Celery 队列分组任务方框，
+ * hover 看任务内容）。三层渲染共用 layoutLayers 像素坐标与容器实测尺寸：
+ * ① HubBackgroundCanvas（网格 + 扫描线，页面唯一 rAF）；② SVG 连线层
+ * （真实数据流边，fast 档 dash 流动 + animateMotion 光点，
+ * prefers-reduced-motion 停用）；③ HTML 节点层。左缘层带标签 + 右上图例。
  */
 import {
   ClockCircleOutlined,
@@ -302,7 +302,7 @@ function HubLegend() {
         <span className="text-amber-400">━ 账户交易</span>
         <span>━ 汇入复盘</span>
       </div>
-      <div className="mt-1 text-white/40">基建灯：绿=正常 红=异常 · 方框=Celery 任务</div>
+      <div className="mt-1 text-white/40">基建灯：绿=正常 红=异常 · 小方框=Celery 任务（hover 看详情）</div>
     </div>
   )
 }
@@ -320,11 +320,8 @@ export function AgentHubStage({
   const { data: celeryQueues } = useCeleryQueues()
 
   const layout = useMemo(() => {
-    const squareCount = (celeryQueues?.queues ?? []).reduce(
-      (total, queue) => total + queue.tasks.length,
-      0,
-    )
-    return layoutLayers(dims.width, dims.height, items.length, squareCount)
+    const queueCount = (celeryQueues?.queues ?? []).length
+    return layoutLayers(dims.width, dims.height, items.length, queueCount)
   }, [dims, items.length, celeryQueues])
   const edges = useMemo(() => buildHubEdges(items), [items])
   const agentPoints = useMemo(
@@ -364,7 +361,7 @@ export function AgentHubStage({
               systemStatus={systemStatus}
               celeryQueues={celeryQueues}
               points={layout.infra}
-              squarePoints={layout.squares}
+              queuePoints={layout.queues}
             />
           </div>
         </>

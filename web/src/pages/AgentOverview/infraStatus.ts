@@ -1,9 +1,8 @@
 /**
  * 基建层状态映射纯函数（D33）：system status items → 五盒状态
- * （celery 取 broker+workers 双 up）+ Celery 任务方框合并口径
- * （running 优先 + 最近终态，与后端 _fetch_log_rows 一致）。
+ * （celery 取 broker+workers 双 up）。任务方框状态色沿用系统状态页口径。
  */
-import type { CeleryQueues, CeleryTaskSquare, CeleryTaskState, ServiceStatusItem } from '@ai-invest/shared'
+import type { CeleryTaskState, ServiceStatusItem } from '@ai-invest/shared'
 
 import type { InfraId } from './hubLayout'
 
@@ -42,17 +41,4 @@ export function mapInfraStatus(
     counter: byKey.get('paper-trade') ?? null,
     minio: byKey.get('minio') ?? null,
   }
-}
-
-/** 三队列任务合并为方框流：running 优先（started 倒序）→ 最近终态。 */
-export function mergeTaskSquares(queues: CeleryQueues | undefined): CeleryTaskSquare[] {
-  const running = (queues?.queues ?? []).flatMap((q) => q.tasks.filter((t) => t.state === 'running'))
-  const terminal = (queues?.queues ?? []).flatMap(
-    (q) => q.tasks.filter((t) => t.state !== 'running'),
-  )
-  const byTime = (a: CeleryTaskSquare, b: CeleryTaskSquare) =>
-    (b.finishedAt ?? b.startedAt ?? '').localeCompare(a.finishedAt ?? a.startedAt ?? '')
-  running.sort((a, b) => (b.startedAt ?? '').localeCompare(a.startedAt ?? ''))
-  terminal.sort(byTime)
-  return [...running, ...terminal]
 }

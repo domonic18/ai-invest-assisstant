@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { INFRA_IDS, RING_STATIONS, SQUARE_CAP, layoutLayers } from './hubLayout'
+import { INFRA_IDS, RING_STATIONS, layoutLayers } from './hubLayout'
 
 describe('layoutLayers', () => {
   it('places agents on a single row evenly inside the agent band', () => {
@@ -29,17 +29,18 @@ describe('layoutLayers', () => {
     expect(infra.minio.x).toBeCloseTo((1000 * 5) / 6)
   })
 
-  it('caps square anchors at SQUARE_CAP and matches squareCount', () => {
-    const { squares } = layoutLayers(1000, 1000, 0, 5)
-    expect(squares).toHaveLength(5)
-    const capped = layoutLayers(1000, 1000, 0, 40)
-    expect(capped.squares).toHaveLength(SQUARE_CAP)
-    for (const p of capped.squares) expect(p.y).toBeCloseTo(920)
+  it('places one anchor per celery queue on the bottom band', () => {
+    const { queues } = layoutLayers(1000, 1000, 0, 3)
+    expect(queues).toHaveLength(3)
+    for (const p of queues) expect(p.y).toBeCloseTo(920)
+    expect(queues[0].x).toBeCloseTo(250)
+    expect(queues[1].x).toBeCloseTo(500)
+    expect(queues[2].x).toBeCloseTo(750)
   })
 
   it('keeps all nodes inside the container on small stages', () => {
-    const { stations, agents, infra, squares } = layoutLayers(400, 300, 12, 20)
-    for (const p of [...Object.values(stations), ...agents, ...Object.values(infra), ...squares]) {
+    const { stations, agents, infra, queues } = layoutLayers(400, 300, 12, 3)
+    for (const p of [...Object.values(stations), ...agents, ...Object.values(infra), ...queues]) {
       expect(p.x).toBeGreaterThanOrEqual(56)
       expect(p.x).toBeLessThanOrEqual(344)
       expect(p.y).toBeGreaterThanOrEqual(56)
