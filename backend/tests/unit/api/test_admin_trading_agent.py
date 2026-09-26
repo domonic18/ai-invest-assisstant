@@ -636,3 +636,116 @@ class TestGetTradingAgentStatus:
         assert body["automation"][0]["taskActive"] is True
         assert body["automation"][0]["cadence"] == "daily"
         status_mock.assert_awaited_once_with(session, "short-line")
+
+
+@pytest.mark.unit
+class TestTradingAgentPromptAndSkillFiles:
+    """D30 可视化端点：会话人设 YAML 原文 + 作业技能包文件与方法论。"""
+
+    def test_prompt_returns_yaml_content(self, admin_client) -> None:
+        from app.schemas.paper_trade import TradingAgentPromptContent
+
+        http, session = admin_client
+        with (
+            patch(
+                "app.api.v1.admin.trading_agent.agent_registry.get_agent",
+                AsyncMock(return_value=MagicMock(prompt_id="trading_agent_short_line")),
+            ) as get_mock,
+            patch(
+                "app.api.v1.admin.trading_agent.agent_registry.get_prompt_content",
+                MagicMock(
+                    return_value=TradingAgentPromptContent(
+                        prompt_id="trading_agent_short_line",
+                        label="短线猎手",
+                        content="system_prompt: 打板纪律",
+                    )
+                ),
+            ) as content_mock,
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/short-line/prompt")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["promptId"] == "trading_agent_short_line"
+        assert body["label"] == "短线猎手"
+        assert "system_prompt" in body["content"]
+        get_mock.assert_awaited_once_with(session, "short-line")
+        content_mock.assert_called_once_with("trading_agent_short_line")
+
+    def test_prompt_unknown_template_surfaces_404(self, admin_client) -> None:
+        from app.core.exceptions import NotFoundError
+
+        http, _ = admin_client
+        with (
+            patch(
+                "app.api.v1.admin.trading_agent.agent_registry.get_agent",
+                AsyncMock(return_value=MagicMock(prompt_id="ghost")),
+            ),
+            patch(
+                "app.api.v1.admin.trading_agent.agent_registry.get_prompt_content",
+                MagicMock(side_effect=NotFoundError("人设模板 ghost 不存在")),
+            ),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/short-line/prompt")
+
+        assert resp.status_code == 404
+
+    def test_skill_files_returns_camel_case_wire(self, admin_client) -> None:
+        from app.schemas.paper_trade import AgentSkillFilesResponse
+        from app.schemas.skill import SkillFile
+
+        http, session = admin_client
+        payload = AgentSkillFilesResponse(
+            skill_id="trading-short-line",
+            skill_label="短线猎手作业程序",
+            skill_is_shared_default=False,
+            files=[SkillFile(path="SKILL.md", size=5, content="# 作业程序")],
+            methodology=None,
+        )
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_overview_service.get_agent_skill_files",
+            AsyncMock(return_value=payload),
+        ) as files_mock:
+            resp = http.get("/api/v1/admin/trading-agent/short-line/skill/files")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["skillId"] == "trading-short-line"
+        assert body["skillLabel"] == "短线猎手作业程序"
+        assert body["skillIsSharedDefault"] is False
+        assert body["files"][0]["path"] == "SKILL.md"
+        assert body["methodology"] is None
+        files_mock.assert_awaited_once_with(session, "short-line")
+
+    def test_skill_files_with_methodology_wire(self, admin_client) -> None:
+        from app.schemas.paper_trade import (
+            AgentMethodologyView,
+            AgentSkillFilesResponse,
+        )
+
+        http, _ = admin_client
+        payload = AgentSkillFilesResponse(
+            skill_id="trading-default",
+            skill_label="trading-default",
+            skill_is_shared_default=True,
+            files=[],
+            methodology=AgentMethodologyView(
+                source_id=1,
+                source_name="趋势交易理论",
+                outline="- 第一章 体系",
+                disciplines=[{"title": "不追高", "body": "偏离 3% 不追"}],
+                points=[{"title": "回踩接回", "point_type": "method", "body": "…"}],
+            ),
+        )
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_overview_service.get_agent_skill_files",
+            AsyncMock(return_value=payload),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/short-line/skill/files")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["skillIsSharedDefault"] is True
+        assert body["methodology"]["sourceName"] == "趋势交易理论"
+        assert body["methodology"]["disciplines"][0]["title"] == "不追高"
+        assert body["methodology"]["points"][0]["pointType"] == "method"

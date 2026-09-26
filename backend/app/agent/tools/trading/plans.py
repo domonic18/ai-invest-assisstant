@@ -1,6 +1,6 @@
 """交易 Agent 交易计划工具（批次 7）：对话内制定 / 查询 / 取消当日计划。
 
-计划行与 19:00 定时生成同表同状态机（active → triggered → executed /
+计划行与 19:30 定时生成同表同状态机（active → triggered → executed /
 expired / cancelled）；对话制定的计划同样受批次 8 盘中执行器消费。
 工具经 ``make_*`` 工厂按 agent_key 闭包绑定（多 Agent 基座 D24）。
 """

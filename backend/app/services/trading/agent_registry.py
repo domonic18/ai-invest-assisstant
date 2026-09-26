@@ -27,6 +27,7 @@ from app.schemas.paper_trade import (
     TradingAgentCreateRequest,
     TradingAgentProfileResponse,
     TradingAgentProfileUpdateRequest,
+    TradingAgentPromptContent,
     TradingAgentPromptTemplate,
 )
 
@@ -130,15 +131,20 @@ async def update_agent(
     """保存 Agent 信息/配置（D28：任意状态可写——未上线/停用的 Agent 也可先配置）。
 
     提交的 llm_config_id 校验存在、启用且用途为 chat，methodology_source_id
-    校验存在且启用；status 仅接受 active/disabled（'planned' 为种子初始态，
-    API 不可设置——启用即置 active）。
+    校验存在且启用；prompt_id 须在模板清单内（D30 开放换绑）；status 仅接受
+    active/disabled（'planned' 为种子初始态，API 不可设置——启用即置 active）。
 
     Raises:
         NotFoundError: agent_key 或关联条目不存在。
-        UnprocessableEntityError: 关联条目停用/用途不符。
+        UnprocessableEntityError: 关联条目停用/用途不符/人设模板不存在。
     """
     row = await get_agent(session, agent_key)
     payload = data.model_dump(exclude_unset=True)
+
+    if "prompt_id" in payload and payload["prompt_id"] not in {
+        t.prompt_id for t in list_prompt_templates()
+    }:
+        raise UnprocessableEntityError(f"人设模板 {payload['prompt_id']} 不存在")
 
     if "llm_config_id" in payload:
         if payload["llm_config_id"] is not None:
@@ -155,6 +161,7 @@ async def update_agent(
         "tagline",
         "strategy_desc",
         "style_desc",
+        "prompt_id",
         "risk_max_position_pct",
         "risk_max_total_pct",
         "risk_max_daily_orders",
@@ -229,6 +236,30 @@ def list_prompt_templates() -> list[TradingAgentPromptTemplate]:
     return templates
 
 
+def get_prompt_content(prompt_id: str) -> TradingAgentPromptContent:
+    """读取会话人设 YAML 原文（配置页只读浏览，D30）。
+
+    prompt_id 经模板清单白名单校验（glob stem，不含路径分隔符），天然免疫
+    路径穿越；YAML 缺失/不可读按模板不存在处理。
+
+    Raises:
+        NotFoundError: prompt_id 不在模板清单内或 YAML 不可读。
+    """
+    template = next(
+        (t for t in list_prompt_templates() if t.prompt_id == prompt_id), None
+    )
+    if template is None:
+        raise NotFoundError(f"人设模板 {prompt_id} 不存在")
+    path = _PROMPTS_DIR / f"{prompt_id}.yaml"
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise NotFoundError(f"人设模板 {prompt_id} 文件不可读") from exc
+    return TradingAgentPromptContent(
+        prompt_id=prompt_id, label=template.label, content=content
+    )
+
+
 async def create_agent(
     session: AsyncSession, *, data: TradingAgentCreateRequest
 ) -> TradingAgentProfileResponse:
@@ -262,7 +293,7 @@ async def create_agent(
     row = TradingAgent(
         agent_key=data.agent_key,
         name=data.name,
-        tagline=data.tagline,
+        tagline=data.tagline or "",
         strategy_desc=data.strategy_desc or "",
         style_desc=data.style_desc or "",
         llm_config_id=data.llm_config_id,

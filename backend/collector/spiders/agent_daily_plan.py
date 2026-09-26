@@ -1,7 +1,8 @@
 """交易 Agent 每日选股与交易计划生成采集器（internal 渠道，heavy 队列）。
 
-19:00 串行在 16:00 sync / 16:10 复盘 / 16:30 涨停归因 / ≥17:45 异动之后；
-核心输入「当日复盘解读」18:35 才生成。循环全部 active Agent（planned 天然
+19:30 串行在 16:00 sync / 19:00 agent 复盘（D30 重排，晚于大盘复盘 18:35）
+/ 16:30 涨停归因 / ≥17:45 异动之后；核心输入「当日复盘解读」18:35 才生成。
+循环全部 active Agent（planned 天然
 跳过），按注册行 plan_cadence 门控生成日（D28：daily 每交易日 / weekly
 周期末 / monthly 月末，非 due 记跳过明细）；单 Agent 异常隔离记入明细，
 聚合成一条 CollectResult：全跳过 → SKIPPED、部分成功 → PARTIAL、全失败 →

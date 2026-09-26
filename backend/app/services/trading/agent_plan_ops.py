@@ -10,14 +10,18 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
+import structlog
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.models.agent_trading import AgentStockSelection, AgentTradePlan
+from app.models.paper_trade import PaperTradeExecution
 from app.models.stock import StockBasic
 from app.models.watchlist import UserWatchlistGroup
 from app.schemas.paper_trade import TradingAgentPlanResponse
+
+logger = structlog.get_logger(__name__)
 
 AGENT_GROUP_NAME = "交易 Agent 自选"
 
@@ -44,11 +48,58 @@ async def list_plans(
     return list(rows.scalars().all())
 
 
+async def _held_volumes(
+    session: AsyncSession, agent_key: str, plan_date: date, codes: list[str]
+) -> dict[str, int]:
+    """截至计划日按成交聚合的持仓股数（side 加减，净持有 > 0 才计入）。
+
+    execution.symbol 带柜台前缀（SHSE.600000），按 6 位代码后缀映射回
+    stock_code；未绑定专属账户返回空映射（wire 为 None，前端显示 -）。
+    """
+    from app.services.trading.account_service import resolve_agent_account
+    from app.services.trading.errors import AgentAccountNotDesignatedError
+
+    try:
+        account = await resolve_agent_account(session, agent_key)
+    except AgentAccountNotDesignatedError:
+        return {}
+    wanted = set(codes)
+    rows = await session.execute(
+        select(
+            PaperTradeExecution.symbol,
+            PaperTradeExecution.side,
+            func.sum(PaperTradeExecution.volume),
+        )
+        .where(
+            PaperTradeExecution.paper_trade_account_id == account.id,
+            PaperTradeExecution.trade_date <= plan_date,
+        )
+        .group_by(PaperTradeExecution.symbol, PaperTradeExecution.side)
+    )
+    agg: dict[str, int] = {}
+    for symbol, side, volume in rows.all():
+        code = str(symbol).split(".")[-1]
+        if code not in wanted:
+            continue
+        delta = int(volume or 0)
+        if side == 1:
+            agg[code] = agg.get(code, 0) + delta
+        elif side == 2:
+            agg[code] = agg.get(code, 0) - delta
+    return {code: volume for code, volume in agg.items() if volume > 0}
+
+
 async def list_plan_views(
     session: AsyncSession, agent_key: str, *, plan_date: date
 ) -> list[TradingAgentPlanResponse]:
-    """指定日计划视图（批量解析股票名称；主数据缺失为 None，前端回退代号）。"""
+    """指定日计划视图（批量解析股票名称 + 截至计划日持仓股数标注，D30）。
+
+    主数据缺失为 None，前端回退代号；held_volume 标注「截至计划日持仓」，
+    历史计划页不因后续成交失真。
+    """
     plans = await list_plans(session, agent_key, plan_date=plan_date)
+    if not plans:
+        return []
     names: dict[str, str] = {}
     codes = sorted({p.stock_code for p in plans})
     if codes:
@@ -58,10 +109,12 @@ async def list_plan_views(
             )
         )
         names = {code: name for code, name in rows.all()}
+    held = await _held_volumes(session, agent_key, plan_date, codes)
     views: list[TradingAgentPlanResponse] = []
     for plan in plans:
         view = TradingAgentPlanResponse.model_validate(plan)
         view.stock_name = names.get(plan.stock_code)
+        view.held_volume = held.get(plan.stock_code)
         views.append(view)
     return views
 
@@ -108,7 +161,7 @@ async def create_plan(
     buy_zone_high: float | None = None,
     target_price: float | None = None,
 ) -> AgentTradePlan:
-    """对话内制定交易计划（与 19:00 定时计划同表同状态机，批次 8 共同执行）。
+    """对话内制定交易计划（与 19:30 定时计划同表同状态机，批次 8 共同执行）。
 
     语义对齐定时 upsert：active 行覆写字段；expired 复活；cancelled /
     triggered 拒绝改写。buy 必须带买点区间，sell 必须带止盈价。

@@ -8,6 +8,7 @@
 - 系统提示词：``prompts/agents/<prompt_id>.yaml``（注册行 prompt_id 指定，
   只承载硬纪律与工作流骨架）+ 注册表人设身份段运行时注入（D28：name/
   tagline/style_desc/strategy_desc 编辑即时生效，人设摘要入缓存指纹自动重建）
+  + 方法论基座静态层（D30：KB 总纲 + 纪律全量，绑定知识源后注入会话）
 - checkpointer：与助手共享 ``AsyncPostgresSaver`` 单例（thread_id 兼作会话 id）
 
 无 subagents / skills / MCP 挂载——交易 Agent 是窄域执行体，不读技能文件。
@@ -22,6 +23,7 @@ from collections.abc import Sequence
 import structlog
 from langchain_core.tools import BaseTool
 from langgraph.graph.state import CompiledStateGraph
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.prompt_loader import get_prompt_loader
 from app.agent.runtime.assistant_agent import _IDLE_TTL_SECONDS, get_checkpointer
@@ -50,14 +52,42 @@ def load_trading_system_prompt(prompt_id: str) -> str:
 def _persona_section(
     name: str, tagline: str, style_desc: str, strategy_desc: str
 ) -> str:
-    """注册表人设 → 系统提示词头部身份段（YAML 只留硬纪律+工作流骨架）。"""
-    return "\n".join(
-        [
-            "## 你的身份（注册表维护，编辑后即时生效）",
-            f"- 你是 **{name}**（{tagline}）。",
-            f"- 策略风格：{style_desc}——{strategy_desc}",
-        ]
-    )
+    """注册表人设 → 系统提示词头部身份段（YAML 只留硬纪律+工作流骨架）。
+
+    tagline/style/strategy 可为空（D30 新建精简），空值行不输出。
+    """
+    identity = f"- 你是 **{name}**"
+    if tagline:
+        identity += f"（{tagline}）"
+    lines = ["## 你的身份（注册表维护，编辑后即时生效）", identity + "。"]
+    if style_desc or strategy_desc:
+        lines.append(f"- 策略风格：{style_desc}——{strategy_desc}")
+    return "\n".join(lines)
+
+
+async def _methodology_section(
+    session: AsyncSession, source_id: int | None
+) -> tuple[int | None, str]:
+    """方法论基座静态层文本段（总纲 + 纪律全量，D30）。
+
+    会话与计划注入同源（``build_methodology_input``），query_text 传 None
+    跳过当日盘面检索层；未绑定/源不可用返回 ``(None, "")`` 不注入。
+    """
+    if source_id is None:
+        return None, ""
+    from app.services.trading.agent_methodology import build_methodology_input
+
+    data = await build_methodology_input(session, source_id=source_id, query_text=None)
+    if data is None:
+        return None, ""
+    lines = ["## 方法论基座（KB 知识源静态层，选股与交易的体系依据）"]
+    if data["outline"]:
+        lines += ["### 体系总纲", str(data["outline"])]
+    disciplines = data["disciplines"]
+    if disciplines:
+        lines.append("### 硬纪律（必须遵守）")
+        lines += [f"- {item['title']}：{item['body']}" for item in disciplines]
+    return int(source_id), "\n".join(lines)
 
 
 async def resolve_trading_llm(
@@ -71,16 +101,21 @@ async def resolve_trading_llm(
 
 
 def _fingerprint(
-    agent_key: str, prompt_id: str, persona: tuple[str, str, str, str], cfg: ResolvedLLMConfig
+    agent_key: str,
+    prompt_id: str,
+    persona: tuple[str, str, str, str],
+    cfg: ResolvedLLMConfig,
+    methodology_source_id: int | None = None,
 ) -> str:
-    """agent_key × prompt_id × 人设摘要 × 出口指纹 × 工具集版本（api_key 只入哈希；
-    人设/出口变更即失效重建，换工具集须 bump 版本号）。"""
+    """agent_key × prompt_id × 人设摘要 × 出口指纹 × 方法论源 × 工具集版本
+    （api_key 只入哈希；人设/出口/方法论绑定变更即失效重建，换工具集须 bump
+    版本号；方法论内容更新靠闲置淘汰自然刷新）。"""
     from app.agent.tools.trading import TOOLS_VERSION
 
     key_digest = hashlib.sha256(cfg.api_key.encode()).hexdigest()
     persona_digest = hashlib.sha256("|".join(persona).encode()).hexdigest()
     raw = "|".join(
-        [agent_key, prompt_id, persona_digest, cfg.protocol, cfg.base_url, cfg.model_name, key_digest, str(TOOLS_VERSION)]
+        [agent_key, prompt_id, persona_digest, cfg.protocol, cfg.base_url, cfg.model_name, key_digest, str(TOOLS_VERSION), str(methodology_source_id)]
     )
     return hashlib.sha256(raw.encode()).hexdigest()
 
@@ -115,10 +150,13 @@ async def get_trading_agent(
         prompt_id = row.prompt_id
         llm_config_id = row.llm_config_id
         persona = (row.name, row.tagline, row.style_desc, row.strategy_desc)
+        methodology_source_id, methodology_text = await _methodology_section(
+            session, row.methodology_source_id
+        )
 
     if cfg is None:
         cfg = await resolve_trading_llm(llm_config_id)
-    fp = _fingerprint(agent_key, prompt_id, persona, cfg)
+    fp = _fingerprint(agent_key, prompt_id, persona, cfg, methodology_source_id)
 
     async with _build_lock:
         _evict_idle()
@@ -128,7 +166,9 @@ async def get_trading_agent(
             _agents.move_to_end(fp)
             return cached[0]
 
-        agent = await _build_agent(agent_key, prompt_id, persona, tools, cfg)
+        agent = await _build_agent(
+            agent_key, prompt_id, persona, methodology_text, tools, cfg
+        )
         capacity = max(get_settings().quota_agent_cache_size, 1)
         while len(_agents) >= capacity:
             _agents.popitem(last=False)
@@ -140,6 +180,7 @@ async def _build_agent(
     agent_key: str,
     prompt_id: str,
     persona: tuple[str, str, str, str],
+    methodology_text: str,
     tools: Sequence[BaseTool] | None,
     cfg: ResolvedLLMConfig,
 ) -> CompiledStateGraph:
@@ -152,9 +193,12 @@ async def _build_agent(
 
         tools = build_trading_tools(agent_key)
 
-    system_prompt = "\n\n".join(
-        [_persona_section(*persona), load_trading_system_prompt(prompt_id)]
-    )
+    sections = [
+        _persona_section(*persona),
+        load_trading_system_prompt(prompt_id),
+        methodology_text,
+    ]
+    system_prompt = "\n\n".join(section for section in sections if section)
     agent = create_deep_agent(
         model=build_langchain_model(cfg),
         tools=list(tools),

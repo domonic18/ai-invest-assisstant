@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import CN_TZ, today_cn, utc_now
+from app.core.config import get_settings
 from app.models.agent_trading import (
     AgentMemory,
     AgentStockSelection,
@@ -25,19 +26,25 @@ from app.models.collector_task import CollectorTask
 from app.models.kb import KbSource
 from app.models.llm_config import LLMConfig
 from app.models.paper_trade import PaperTradeOrder, TradingAgent
+from app.repositories.market.stock_repository import StockRepository
 from app.schemas.paper_trade import (
     AgentActivityItem,
     AgentAutomationTask,
     AgentCapabilityResponse,
     AgentMemoryCounts,
+    AgentMethodologyView,
     AgentNextTask,
     AgentOverviewItem,
     AgentOverviewResponse,
+    AgentSkillFilesResponse,
     TradingAgentProfileResponse,
 )
+from app.schemas.skill import SkillFile
 from app.services.market import trade_calendar_service
+from app.services.skill.skill_service import SKILL_TEXT_SUFFIXES
 from app.services.trading import agent_registry, agent_review_service
 from app.services.trading.account_service import resolve_agent_account
+from app.services.trading.agent_methodology import build_methodology_view
 from app.services.trading.agent_plan_service import plan_skill_id
 from app.services.trading.agent_review_service import REVIEW_SKILL_ID
 from app.services.trading.errors import AgentAccountNotDesignatedError
@@ -52,11 +59,11 @@ _OVERVIEW_TASKS: tuple[tuple[str, str, str], ...] = (
 )
 
 # Agent 能力视图「自动化任务」清单（collector_task 实例名, collector_log 键,
-# 显示名, cadence 注册列；sync 为全局任务无 cadence）
+# 显示名（含北京时间排程时刻）, cadence 注册列；sync 为全局任务无 cadence）
 _AUTOMATION_TASKS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("agent_daily_plan_1900", "agent-daily-plan", "每日选股与交易计划", "plan_cadence"),
-    ("paper_trade_review_1610", "paper-trade-review", "模拟盘分层复盘", "review_cadence"),
-    ("paper_trade_sync_1600", "paper-trade-sync", "模拟盘盘后同步", None),
+    ("agent_daily_plan_1900", "agent-daily-plan", "每日选股与交易计划（19:30）", "plan_cadence"),
+    ("paper_trade_review_1610", "paper-trade-review", "模拟盘分层复盘（19:00）", "review_cadence"),
+    ("paper_trade_sync_1600", "paper-trade-sync", "模拟盘盘后同步（16:00）", None),
 )
 
 # cadence 门控下 cron 候选扫描上限（月频最坏 ~23 个工作日候选）
@@ -67,6 +74,11 @@ _PLAN_STATUS_TITLE = {
     "triggered": "已触发下单",
     "cancelled": "已人工取消",
     "expired": "已过期",
+}
+
+_PLAN_TYPE_TITLE = {
+    "buy": "买入计划",
+    "sell": "卖出计划",
 }
 
 
@@ -148,7 +160,8 @@ async def _cadence_due(
 async def _plan_activity(
     session: AsyncSession, agent_key: str
 ) -> list[AgentActivityItem]:
-    """近期计划活动（生成 + 触发/取消，created_at 倒序取 5）。"""
+    """近期计划活动（生成 + 触发/取消，created_at 倒序取 5；条目结构化
+    携带 stock_code，股票名称由 ``_fill_stock_names`` 批量回填，D30）。"""
     rows = (
         await session.scalars(
             select(AgentTradePlan)
@@ -160,12 +173,27 @@ async def _plan_activity(
     return [
         AgentActivityItem(
             kind="plan",
-            title=f"{row.stock_code} {row.plan_type} 计划",
+            title=_PLAN_TYPE_TITLE.get(row.plan_type, f"{row.plan_type} 计划"),
             detail=_PLAN_STATUS_TITLE.get(row.status, row.status),
+            stock_code=row.stock_code,
             occurred_at=row.triggered_at or row.created_at,
         )
         for row in rows
     ]
+
+
+async def _fill_stock_names(
+    session: AsyncSession, items: list[AgentActivityItem]
+) -> list[AgentActivityItem]:
+    """活动条目按 stock_code 批量回填股票名称（主数据缺失保持 None）。"""
+    codes = sorted({item.stock_code for item in items if item.stock_code})
+    if not codes:
+        return items
+    names = await StockRepository(session).get_names_by_codes(codes)
+    for item in items:
+        if item.stock_code:
+            item.stock_name = names.get(item.stock_code)
+    return items
 
 
 async def _review_activity(
@@ -260,6 +288,7 @@ async def _build_item(
         *(await _review_activity(session, row.agent_key)),
     ]
     activity.sort(key=lambda a: a.occurred_at or utc_now(), reverse=True)
+    await _fill_stock_names(session, activity)
     return AgentOverviewItem(
         profile=profile,
         llm_name=llm_names.get(row.llm_config_id or -1),
@@ -376,6 +405,7 @@ async def get_agent_status(
         *(await _review_activity(session, agent_key)),
     ]
     activity.sort(key=lambda a: a.occurred_at or utc_now(), reverse=True)
+    await _fill_stock_names(session, activity)
 
     return AgentCapabilityResponse(
         profile=agent_registry.to_view(row),
@@ -387,4 +417,56 @@ async def get_agent_status(
         memory_counts=await _memory_counts(session, agent_key),
         automation=await _automation_tasks(session, row),
         recent_activity=activity[:5],
+    )
+
+
+async def get_agent_skill_files(
+    session: AsyncSession, agent_key: str
+) -> AgentSkillFilesResponse:
+    """作业技能包可视化（配置页只读，D30）。
+
+    trading 技能不进 skill 表（skill_sync 跳过，广场 API 按可见性 404），
+    故直读镜像 ``skills/<skill_id>/`` 目录（读取口径与 ``_builtin_files``
+    一致：文本后缀 + 数量/大小上限）；方法论区挂载 KB 知识源可视化。
+    """
+    row = await agent_registry.get_agent(session, agent_key)
+    skill_id = plan_skill_id(agent_key)
+    descriptor = get_skill(skill_id)
+
+    settings = get_settings()
+    base = settings.skills_dir.resolve()
+    root = (base / skill_id).resolve()
+    files: list[SkillFile] = []
+    if root.is_relative_to(base) and root.is_dir():
+        for path in sorted(root.rglob("*")):
+            if len(files) >= settings.skill_files_max_count:
+                break
+            if (
+                not path.is_file()
+                or path.name.startswith(".")
+                or path.suffix.lower() not in SKILL_TEXT_SUFFIXES
+            ):
+                continue
+            data = path.read_bytes()
+            if len(data) > settings.skill_file_max_bytes:
+                continue
+            files.append(
+                SkillFile(
+                    path=path.relative_to(root).as_posix(),
+                    size=len(data),
+                    content=data.decode("utf-8", errors="replace"),
+                )
+            )
+
+    methodology = await build_methodology_view(
+        session, source_id=row.methodology_source_id
+    )
+    return AgentSkillFilesResponse(
+        skill_id=skill_id,
+        skill_label=descriptor.label if descriptor else skill_id,
+        skill_is_shared_default=skill_id == "trading-default",
+        files=files,
+        methodology=(
+            AgentMethodologyView.model_validate(methodology) if methodology else None
+        ),
     )

@@ -19,6 +19,7 @@ from app.schemas.paper_trade import (
     AgentMemoryUpdateRequest,
     AgentOverviewResponse,
     AgentSelectionItem,
+    AgentSkillFilesResponse,
     AgentWatchlistGroupResponse,
     TradingAgentCreateRequest,
     TradingAgentDatesResponse,
@@ -26,6 +27,7 @@ from app.schemas.paper_trade import (
     TradingAgentPlansResponse,
     TradingAgentProfileResponse,
     TradingAgentProfileUpdateRequest,
+    TradingAgentPromptContent,
     TradingAgentPromptTemplate,
     TradingAgentReviewResponse,
 )
@@ -99,6 +101,28 @@ async def get_trading_agent_config(
 ) -> TradingAgentProfileResponse:
     """读取单个 Agent 配置（LLM/方法论绑定 + 风控阈值 + 自主执行总闸）。"""
     return await agent_registry.get_agent_view(session, agent_key)
+
+
+@router.get("/{agent_key}/prompt", response_model=TradingAgentPromptContent)
+async def get_trading_agent_prompt(
+    agent_key: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> TradingAgentPromptContent:
+    """会话人设 YAML 原文（配置页只读浏览；prompt_id 经模板白名单校验，D30）。"""
+    row = await agent_registry.get_agent(session, agent_key)
+    return agent_registry.get_prompt_content(row.prompt_id)
+
+
+@router.get("/{agent_key}/skill/files", response_model=AgentSkillFilesResponse)
+async def get_trading_agent_skill_files(
+    agent_key: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> AgentSkillFilesResponse:
+    """作业技能包文件与方法论基座可视化（配置页只读，D30）。
+
+    trading 技能不进 skill 表（广场不可见），直读镜像 ``skills/<id>/`` 目录。
+    """
+    return await agent_overview_service.get_agent_skill_files(session, agent_key)
 
 
 @router.put("/{agent_key}/config", response_model=TradingAgentProfileResponse)

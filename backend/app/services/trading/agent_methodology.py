@@ -83,6 +83,49 @@ def build_retrieval_query(
     return " ".join(parts)[:_QUERY_MAX_CHARS] or None
 
 
+async def build_methodology_view(
+    session: AsyncSession, *, source_id: int | None
+) -> dict[str, Any] | None:
+    """方法论基座可视化载荷（配置页只读浏览，D30）。
+
+    章节大纲 + 纪律全量 + 方法/定理/概念/案例全量（不做检索裁剪）。
+    未绑定或知识源缺失/停用时 None（与注入降级语义一致）。
+    """
+    if source_id is None:
+        return None
+    source = await session.get(KbSource, source_id)
+    if source is None or not source.enabled:
+        return None
+    return {
+        "source_id": source_id,
+        "source_name": source.name,
+        "outline": _flatten_outline((source.chapter_tree or {}).get("published")),
+        "disciplines": await _list_disciplines(session, source_id),
+        "points": await _list_points(session, source_id, _RETRIEVAL_POINT_TYPES),
+    }
+
+
+async def _list_points(
+    session: AsyncSession, source_id: int, point_types: tuple[str, ...]
+) -> list[dict[str, Any]]:
+    """指定类型 published 全量条目（可视化层用，与检索无关）。"""
+    rows = await session.execute(
+        select(KbKnowledgePoint.point_type, KbKnowledgePoint.title, KbKnowledgePoint.body)
+        .join(KbMedia, KbKnowledgePoint.media_id == KbMedia.id)
+        .where(
+            KbKnowledgePoint.source_id == source_id,
+            KbKnowledgePoint.status == KbPointStatus.PUBLISHED,
+            KbKnowledgePoint.point_type.in_(point_types),
+            KbMedia.deleted_at.is_(None),
+        )
+        .order_by(KbKnowledgePoint.point_type.asc(), KbKnowledgePoint.id.asc())
+    )
+    return [
+        {"point_type": row.point_type, "title": row.title, "body": row.body}
+        for row in rows.all()
+    ]
+
+
 async def _list_disciplines(
     session: AsyncSession, source_id: int
 ) -> list[dict[str, Any]]:

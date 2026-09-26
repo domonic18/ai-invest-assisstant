@@ -34,7 +34,7 @@ def make_get_review_tool(agent_key: str) -> BaseTool:
         if content is None:
             return {
                 "not_ready": True,
-                "note": f"{period} 复盘尚未生成（日度约 16:10 生成，周五/月末自动加发周/月复盘）。",
+                "note": f"{period} 复盘尚未生成（日度约 19:00 生成，周五/月末自动加发周/月复盘）。",
             }
         return content.model_dump()
 

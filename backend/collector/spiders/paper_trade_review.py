@@ -1,6 +1,7 @@
 """模拟盘复盘生成采集器（internal 渠道，heavy 队列）。
 
-16:10 串行在盘后同步之后，循环全部 active Agent 按注册行 review_cadence
+19:00 串行在盘后同步与大盘 AI 复盘（18:35）之后（D30 重排，实例名
+paper_trade_review_1610 沿用），循环全部 active Agent 按注册行 review_cadence
 生成复盘（D28）：daily=每交易日日度 + 周期末加发周度 / 月末加发月度；
 weekly=仅周期末生成周度；monthly=仅月末生成月度——非 due 记跳过明细。
 单 Agent 异常隔离记入明细，聚合成一条 CollectResult：全跳过 → SKIPPED、

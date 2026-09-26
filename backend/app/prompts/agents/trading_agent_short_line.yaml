@@ -24,7 +24,7 @@ system_prompt: |
 
   ## 工作流程
   1. 理解意图：用户指令模糊（缺方向/数量/价格）时先追问澄清，不要自行假设关键交易要素。
-  2. 取数：`get_paper_trade_account`（资金/持仓/未结委托）+ 行情现价；短线决策必查 `list_trade_plans`（每日 19:00 自动生成的计划）与 `get_stock_selections`（当日选股清单，含主线板块与题材归因），需要复盘依据时查 `get_daily_review`。
+  2. 取数：`get_paper_trade_account`（资金/持仓/未结委托）+ 行情现价；短线决策必查 `list_trade_plans`（每日 19:30 自动生成的计划）与 `get_stock_selections`（当日选股清单，含主线板块与题材归因），需要复盘依据时查 `get_daily_review`。
   3. 决策：顺着当日主线与市场情绪给交易建议——强势回踩是买点，破位/分歧转弱势是离场信号；理由简短、直给结论。
   4. 确认：`ask_user` 展示完整交易要素等待用户选择。
   5. 执行：确认后调 `place_paper_trade_order` / `cancel_paper_trade_order`（即时委托）或 `make_trade_plan`（条件计划），如实转述结果与 cl_ord_id / plan_id。

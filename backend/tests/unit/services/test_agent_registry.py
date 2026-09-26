@@ -27,6 +27,13 @@ from app.schemas.paper_trade import (
 from app.services.trading import agent_registry as svc
 
 
+def _templates() -> list[SimpleNamespace]:
+    return [
+        SimpleNamespace(prompt_id="trading_agent_short_line", label="短线猎手"),
+        SimpleNamespace(prompt_id="trading_agent_long_line", label="长线价值派"),
+    ]
+
+
 def _session() -> MagicMock:
     session = MagicMock()
     session.commit = AsyncMock()
@@ -280,6 +287,31 @@ class TestUpdateAgent:
         )
         assert result.methodology_source_id == 1
 
+    @pytest.mark.asyncio
+    async def test_prompt_id_swap_assigns_when_in_templates(self) -> None:
+        """D30：prompt_id 开放换绑（配置页人设模板 Select）。"""
+        session = _session()
+        session.get = AsyncMock(return_value=_row(prompt_id="trading_agent_short_line"))
+        with patch.object(svc, "list_prompt_templates", lambda: _templates()):
+            result = await svc.update_agent(
+                session,
+                "short-line",
+                data=TradingAgentProfileUpdateRequest(prompt_id="trading_agent_long_line"),
+            )
+        assert result.prompt_id == "trading_agent_long_line"
+
+    @pytest.mark.asyncio
+    async def test_prompt_id_swap_rejects_unknown_template(self) -> None:
+        session = _session()
+        session.get = AsyncMock(return_value=_row())
+        with patch.object(svc, "list_prompt_templates", lambda: _templates()):
+            with pytest.raises(UnprocessableEntityError, match="人设模板"):
+                await svc.update_agent(
+                    session,
+                    "short-line",
+                    data=TradingAgentProfileUpdateRequest(prompt_id="trading_agent_nope"),
+                )
+
 
 def _create_data(**overrides: object) -> TradingAgentCreateRequest:
     fields: dict[str, object] = {
@@ -345,6 +377,19 @@ class TestCreateAgent:
             await svc.create_agent(
                 session, data=_create_data(prompt_id="trading_agent_nope")
             )
+
+    @pytest.mark.asyncio
+    async def test_tagline_optional_defaults_empty(self) -> None:
+        """D30：新建表单精简，标语可不填（落库空串）。"""
+        session = _session()
+        session.get = AsyncMock(return_value=None)
+        session.scalar = AsyncMock(return_value=0)
+        session.add = MagicMock()
+        result = await svc.create_agent(
+            session,
+            data=_create_data(tagline=None),  # type: ignore[arg-type]
+        )
+        assert result.tagline == ""
 
     @pytest.mark.asyncio
     async def test_llm_binding_validated_on_create(self) -> None:
@@ -427,3 +472,27 @@ class TestDeleteAgent:
         session.get = AsyncMock(return_value=None)
         with pytest.raises(NotFoundError, match="ghost"):
             await svc.delete_agent(session, "ghost")
+
+
+@pytest.mark.unit
+class TestGetPromptContent:
+    """D30：人设 YAML 原文只读浏览（白名单校验防路径穿越）。"""
+
+    def test_returns_yaml_original_text_with_label(self) -> None:
+        with patch.object(svc, "list_prompt_templates", lambda: _templates()):
+            content = svc.get_prompt_content("trading_agent_short_line")
+        assert content.prompt_id == "trading_agent_short_line"
+        assert content.label == "短线猎手"
+        assert content.content.startswith("#") or "system_prompt" in content.content
+
+    def test_unknown_template_raises_404(self) -> None:
+        with pytest.raises(NotFoundError, match="人设模板"):
+            svc.get_prompt_content("../../.env")
+
+    def test_unreadable_file_raises_404(self) -> None:
+        with (
+            patch.object(svc, "list_prompt_templates", lambda: _templates()),
+            patch("pathlib.Path.read_text", side_effect=OSError("boom")),
+        ):
+            with pytest.raises(NotFoundError, match="不可读"):
+                svc.get_prompt_content("trading_agent_short_line")

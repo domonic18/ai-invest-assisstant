@@ -78,10 +78,10 @@ class TestNextTaskTimes:
         session = _session(
             [
                 SimpleNamespace(
-                    task_name="agent_daily_plan_1900", schedule="0 19 * * 1-5"
+                    task_name="agent_daily_plan_1900", schedule="30 19 * * 1-5"
                 ),
                 SimpleNamespace(
-                    task_name="paper_trade_review_1610", schedule="0 16 * * 1-5"
+                    task_name="paper_trade_review_1610", schedule="0 19 * * 1-5"
                 ),
             ]
         )
@@ -96,9 +96,9 @@ class TestNextTaskTimes:
 
     @pytest.mark.asyncio
     async def test_weekly_agent_waits_for_due_candidate(self) -> None:
-        """weekly 门控：非周期日候选被跳过，直到命中 due 候选（下周五 19:00）。"""
+        """weekly 门控：非周期日候选被跳过，直到命中 due 候选（下周五 19:30）。"""
         session = _session(
-            [SimpleNamespace(task_name="agent_daily_plan_1900", schedule="0 19 * * 1-5")]
+            [SimpleNamespace(task_name="agent_daily_plan_1900", schedule="30 19 * * 1-5")]
         )
         row = _row(plan_cadence="weekly")
 
@@ -115,8 +115,8 @@ class TestNextTaskTimes:
     async def test_never_due_task_is_omitted(self) -> None:
         session = _session(
             [
-                SimpleNamespace(task_name="agent_daily_plan_1900", schedule="0 19 * * 1-5"),
-                SimpleNamespace(task_name="paper_trade_review_1610", schedule="0 16 * * 1-5"),
+                SimpleNamespace(task_name="agent_daily_plan_1900", schedule="30 19 * * 1-5"),
+                SimpleNamespace(task_name="paper_trade_review_1610", schedule="0 19 * * 1-5"),
             ]
         )
         row = _row()
@@ -165,8 +165,8 @@ def _agent_row(**overrides: object) -> SimpleNamespace:
 
 def _collector_task(task_name: str, is_active: bool = True) -> SimpleNamespace:
     schedules = {
-        "agent_daily_plan_1900": "0 19 * * 1-5",
-        "paper_trade_review_1610": "10 16 * * 1-5",
+        "agent_daily_plan_1900": "30 19 * * 1-5",
+        "paper_trade_review_1610": "0 19 * * 1-5",
         "paper_trade_sync_1600": "0 16 * * 1-5",
     }
     return SimpleNamespace(
@@ -205,10 +205,10 @@ class TestAutomationTasks:
             "paper_trade_sync_1600",
         ]
         plan_task = items[0]
-        assert plan_task.label == "每日选股与交易计划"
+        assert plan_task.label == "每日选股与交易计划（19:30）"
         assert plan_task.task_active is True
         assert plan_task.cadence == "daily"
-        assert plan_task.cron == "0 19 * * 1-5"
+        assert plan_task.cron == "30 19 * * 1-5"
         assert plan_task.next_run_at is not None
         assert plan_task.next_run_at.tzinfo == timezone.utc
         assert plan_task.last_status == "success"
@@ -329,3 +329,159 @@ class TestGetAgentStatus:
         assert view.skill_label == "trading-default"
         assert view.methodology_source_name is None
         assert view.memory_counts.active_total == 0
+
+
+@pytest.mark.unit
+class TestPlanActivityStructured:
+    """D30：活动条目结构化（title 买入/卖出计划 + stock_code + 名称回填）。"""
+
+    @pytest.mark.asyncio
+    async def test_plan_rows_render_semantic_title_with_code(self) -> None:
+        session = _session(
+            [
+                SimpleNamespace(
+                    stock_code="600000",
+                    plan_type="buy",
+                    status="active",
+                    triggered_at=None,
+                    created_at=datetime(2026, 9, 25, 8, 0, tzinfo=timezone.utc),
+                ),
+                SimpleNamespace(
+                    stock_code="000001",
+                    plan_type="sell",
+                    status="triggered",
+                    triggered_at=datetime(2026, 9, 25, 1, 0, tzinfo=timezone.utc),
+                    created_at=datetime(2026, 9, 25, 8, 0, tzinfo=timezone.utc),
+                ),
+            ]
+        )
+        items = await svc._plan_activity(session, "short-line")
+        assert [i.title for i in items] == ["买入计划", "卖出计划"]
+        assert [i.stock_code for i in items] == ["600000", "000001"]
+        assert items[1].detail == "已触发下单"
+        assert items[1].occurred_at == datetime(2026, 9, 25, 1, 0, tzinfo=timezone.utc)
+
+    @pytest.mark.asyncio
+    async def test_fill_stock_names_batches_missing_codes_only(self) -> None:
+        session = MagicMock()
+        repo_ret = {"600000": "浦发银行"}
+        with patch(
+            "app.services.trading.agent_overview_service.StockRepository"
+        ) as repo_cls:
+            repo_cls.return_value.get_names_by_codes = AsyncMock(return_value=repo_ret)
+            items = await svc._fill_stock_names(
+                session,
+                [
+                    svc.AgentActivityItem(
+                        kind="plan", title="买入计划", stock_code="600000"
+                    ),
+                    svc.AgentActivityItem(kind="plan", title="卖出计划"),
+                ],
+            )
+        assert items[0].stock_name == "浦发银行"
+        assert items[1].stock_name is None
+        repo_cls.return_value.get_names_by_codes.assert_awaited_once_with(["600000"])
+
+    @pytest.mark.asyncio
+    async def test_fill_stock_names_skips_query_when_no_codes(self) -> None:
+        session = MagicMock()
+        with patch(
+            "app.services.trading.agent_overview_service.StockRepository"
+        ) as repo_cls:
+            items = await svc._fill_stock_names(
+                session, [svc.AgentActivityItem(kind="review", title="day 复盘已生成")]
+            )
+        assert items[0].stock_name is None
+        repo_cls.assert_not_called()
+
+
+@pytest.mark.unit
+class TestGetAgentSkillFiles:
+    """D30：作业技能包可视化（镜像目录直读 + 方法论挂载）。"""
+
+    @pytest.mark.asyncio
+    async def test_reads_skill_dir_files_and_null_methodology(
+        self, tmp_path
+    ) -> None:
+        skill_dir = tmp_path / "trading-short-line"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("# 短线作业程序", encoding="utf-8")
+        (skill_dir / "prompt.yaml").write_text("id: trading-short-line\n", encoding="utf-8")
+        (skill_dir / "junk.pyc").write_bytes(b"\x00")
+        settings = SimpleNamespace(
+            skills_dir=tmp_path, skill_files_max_count=20, skill_file_max_bytes=100_000
+        )
+
+        session = MagicMock()
+        session.get = AsyncMock(return_value=_agent_row(methodology_source_id=None))
+        with (
+            patch(
+                "app.services.trading.agent_overview_service.get_settings",
+                MagicMock(return_value=settings),
+            ),
+            patch(
+                "app.services.trading.agent_overview_service.plan_skill_id",
+                MagicMock(return_value="trading-short-line"),
+            ),
+            patch(
+                "app.services.trading.agent_overview_service.get_skill",
+                MagicMock(return_value=SimpleNamespace(label="短线猎手作业程序")),
+            ),
+            patch(
+                "app.services.trading.agent_overview_service.build_methodology_view",
+                AsyncMock(return_value=None),
+            ),
+        ):
+            view = await svc.get_agent_skill_files(session, "short-line")
+
+        assert view.skill_id == "trading-short-line"
+        assert view.skill_label == "短线猎手作业程序"
+        assert view.skill_is_shared_default is False
+        assert [f.path for f in view.files] == ["SKILL.md", "prompt.yaml"]
+        assert view.files[0].content == "# 短线作业程序"
+        assert view.methodology is None
+
+    @pytest.mark.asyncio
+    async def test_missing_dir_falls_back_empty_files_with_methodology(
+        self, tmp_path
+    ) -> None:
+        settings = SimpleNamespace(
+            skills_dir=tmp_path, skill_files_max_count=20, skill_file_max_bytes=100_000
+        )
+        session = MagicMock()
+        session.get = AsyncMock(return_value=_agent_row(methodology_source_id=1))
+        methodology = {
+            "source_id": 1,
+            "source_name": "趋势交易理论",
+            "outline": "- 第一章 体系",
+            "disciplines": [{"id": 1, "title": "不追高", "body": "偏离 3% 不追"}],
+            "points": [{"point_type": "method", "title": "回踩接回", "body": "…"}],
+        }
+        with (
+            patch(
+                "app.services.trading.agent_overview_service.get_settings",
+                MagicMock(return_value=settings),
+            ),
+            patch(
+                "app.services.trading.agent_overview_service.plan_skill_id",
+                MagicMock(return_value="trading-default"),
+            ),
+            patch(
+                "app.services.trading.agent_overview_service.get_skill",
+                MagicMock(return_value=None),
+            ),
+            patch(
+                "app.services.trading.agent_overview_service.build_methodology_view",
+                AsyncMock(return_value=methodology),
+            ),
+        ):
+            view = await svc.get_agent_skill_files(session, "short-line")
+
+        assert view.skill_id == "trading-default"
+        assert view.skill_label == "trading-default"
+        assert view.skill_is_shared_default is True
+        assert view.files == []
+        assert view.methodology is not None
+        assert view.methodology.source_name == "趋势交易理论"
+        assert view.methodology.disciplines[0].title == "不追高"
+        assert view.methodology.points[0].point_type == "method"

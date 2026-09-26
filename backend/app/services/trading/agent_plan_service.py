@@ -1,6 +1,7 @@
 """交易 Agent 每日选股与交易计划生成服务（批次 7，plan §10.2 编排层）。
 
-19:00 定时生成：输入 = 当日复盘解读（18:35 后就绪，缺失即退避重试）+
+19:30 定时生成（D30 重排：晚于 agent 复盘 19:00，先复盘后选股）：输入 =
+当日复盘解读（18:35 后就绪，缺失即退避重试）+
 涨停归因 + 异动归因 + agent 持仓 + 人工移出清单 + 方法论基座（KB 直读）+
 经验记忆（``agent_plan_input.collect_plan_input`` 组装）→ LLM 单轮结构化
 输出（契约见 ``agent_plan_schemas``）→ 幻觉/人工移出代码后置校验 → 缓存行
@@ -76,12 +77,19 @@ async def _run_llm(
     plan_input: dict,
 ) -> AgentDailyPlanContent:
     config = load_skill_prompt(plan_skill_id(agent.agent_key))
+    # 人设段空值行跳过（D30：新建 Agent 仅填名称即可）
+    identity = f"- 你是{agent.name}" + (f"（{agent.tagline}）" if agent.tagline else "")
+    persona_lines = [identity]
+    if agent.style_desc or agent.strategy_desc:
+        persona_lines.append(
+            f"- 策略风格：{agent.style_desc}——{agent.strategy_desc}"
+        )
+    persona_lines.append("- 以该人设的视角与风格生成选股与交易计划")
     user_prompt = (
         f"{config.system_prompt}\n\n"
         f"## 计划人设（注册表行，D27/D28）\n"
-        f"- 你是{agent.name}（{agent.tagline}）；策略风格：{agent.style_desc}"
-        f"——{agent.strategy_desc}\n"
-        f"- 以该人设的视角与风格生成选股与交易计划\n\n"
+        + "\n".join(persona_lines)
+        + "\n\n"
         f"## 计划任务\n"
         f"- 基准交易日 trade_date：{trade_date.isoformat()}（输出字段须原样带回）\n\n"
         f"## 计划输入数据（JSON）\n"

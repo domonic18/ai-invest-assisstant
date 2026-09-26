@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import Field
 
 from app.schemas.base import CamelModel
+from app.schemas.skill import SkillFile
 
 
 class PaperTradeCashInfo(CamelModel):
@@ -257,6 +258,8 @@ class AgentActivityItem(CamelModel):
     kind: str
     title: str
     detail: str | None = None
+    stock_code: str | None = None
+    stock_name: str | None = None
     occurred_at: datetime | None = None
 
 
@@ -295,7 +298,7 @@ class TradingAgentCreateRequest(CamelModel):
 
     agent_key: str = Field(min_length=2, max_length=32)
     name: str = Field(min_length=1, max_length=64)
-    tagline: str = Field(min_length=1, max_length=128)
+    tagline: str | None = Field(default=None, max_length=128)
     prompt_id: str = Field(min_length=1, max_length=64)
     strategy_desc: str | None = None
     style_desc: str | None = None
@@ -353,19 +356,67 @@ class AgentCapabilityResponse(CamelModel):
     recent_activity: list[AgentActivityItem] = []
 
 
+class TradingAgentPromptContent(CamelModel):
+    """会话人设 YAML 原文（配置页只读浏览，D30）。"""
+
+    prompt_id: str
+    label: str
+    content: str
+
+
+class AgentMethodologyDiscipline(CamelModel):
+    """方法论纪律条目（KB published，全量展示）。"""
+
+    title: str
+    body: str
+
+
+class AgentMethodologyPoint(CamelModel):
+    """方法论知识卡片条目（method/theorem/concept/case）。"""
+
+    title: str
+    point_type: str
+    body: str
+
+
+class AgentMethodologyView(CamelModel):
+    """方法论基座可视化载荷（配置页只读；未绑定源为 null，D30）。"""
+
+    source_id: int
+    source_name: str
+    outline: str
+    disciplines: list[AgentMethodologyDiscipline] = []
+    points: list[AgentMethodologyPoint] = []
+
+
+class AgentSkillFilesResponse(CamelModel):
+    """Agent 作业技能包可视化载荷（配置页「作业技能」区，D30）。
+
+    trading 技能不进 skill 表（广场不可见），本端点直读镜像 ``skills/<id>/``
+    目录返回文件清单；``skill_is_shared_default`` 提示共享兜底（专属目录未建）。
+    """
+
+    skill_id: str
+    skill_label: str
+    skill_is_shared_default: bool = False
+    files: list[SkillFile] = []
+    methodology: AgentMethodologyView | None = None
+
+
 class TradingAgentProfileUpdateRequest(CamelModel):
     """更新交易 Agent 注册信息（未提供的字段不变；任意状态可写，D28）。
 
     llm_config_id 空 = 平台默认 chat 模型，methodology_source_id 空 = 未启用
     方法论基座注入。status 开放 active/disabled 切换（停用 = 总览隐藏 + 不参与
-    调度）；'planned' 仅为种子初始态，API 不可设置。身份字段（agent_key/
-    prompt_id/sort_order）不开放更新。
+    调度）；'planned' 仅为种子初始态，API 不可设置。prompt_id 开放换绑（D30，
+    须在模板清单内）；agent_key/sort_order 不开放更新。
     """
 
     name: str | None = None
     tagline: str | None = None
     strategy_desc: str | None = None
     style_desc: str | None = None
+    prompt_id: str | None = None
     llm_config_id: int | None = None
     methodology_source_id: int | None = None
     risk_max_position_pct: float | None = Field(default=None, ge=0, le=100)
@@ -430,6 +481,8 @@ class TradingAgentPlanResponse(CamelModel):
     position_pct: float
     status: str
     selection_id: int | None = None
+    held_volume: int | None = None
+    """截至计划日按成交聚合的持仓股数（未绑定账户/无成交为 None）。"""
     basis: str
     triggered_cl_ord_id: str | None = None
 
