@@ -299,3 +299,26 @@ AgentOverviewItem / AgentOverviewResponse`，载荷加 agentKey；queryKeys trad
 - `assistant_session.agent_type` 数据迁移须与新代码同窗口上线（旧代码拒绝 'short-line'）；
 - 迁移后 asyncpg 预编译语句失效一次 → 先迁移后换镜像并重启；
 - watchlist 前端/查询对 owner_type='agent' 单例的隐含假设需 grep 清理。
+
+## 11. D32 总览页舞台重设计（2026-09-27，分支 `feature/agent-hub-stage-redesign`）
+
+用户验收反馈四项：管理区可收起；雷达联想不到 agent 在工作（改科技风舞台 +
+真实状态动效 + 资源交互）；多 agent 含未启用占位；图例/图标替代纯圆点。
+
+- **运行态判定（后端真相源）**：`AgentOverviewItem` 增 `runtime_state`
+  （working=collector_log 最新一条 running/pending 且该 agent cadence 今日命中
+  `_cadence_due`；produced_today=当日已产出计划/复盘；idle=待命（label 带下次
+  HH:MM）；off=未启用占位）+ `state_label` + `account_name`（批量
+  `resolve_agent_accounts`）。已知近似：两 spider 串行多 Agent 循环只落全局
+  一条 collector_log（无 agent 粒度），未来 meta 写 agent_key 可精确。
+- **舞台（前端）**：`AgentHubStage` 三层共用 `layoutHub` 像素坐标——中心枢纽
+  模拟盘交易 + 中环 4 资源站（知识库/复盘数据/资讯中心/大V情绪，图标卡）+
+  外环 Agent 单元（accentColor 光点 + 名称 + `StateBadge` 四态徽标 + 计划/
+  自选 chip，off 位置灰占位不可点）。`hubEdges` 只画真实连线：复盘数据→agent
+  （计划输入）、知识库→agent（methodologySourceId 绑定）、模拟盘→agent
+  （accountName 绑定）、资讯/大V情绪→复盘数据（上游汇入）；活跃度按 agent
+  最近活动衰减三档（<30min 流光 / <6h 慢速 / 更久静态）。fast 档 dash 流动 +
+  animateMotion 光点，`prefers-reduced-motion` 全停。
+- **页面结构**：舞台（min-w 560 横向滚动）→ 活动时间轴 → 「Agent 管理（N 个 ·
+  N 启用）」Collapse 默认收起（列表/开关/新建全在面板内）。
+- 删除 `radarLayout.ts` / `AgentNodeLabels.tsx` / `AgentRadarCanvas.tsx`。
