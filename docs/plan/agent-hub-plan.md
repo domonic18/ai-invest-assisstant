@@ -75,6 +75,23 @@
   不动，user_prompt 注入注册行人设段。平台硬纪律（ask_user 确认/风控转述等）
   三份人设保持一致。trading 技能不出现在助手技能广场（`list_skills` 与
   `skill_sync` 过滤）——它们是 Agent 内部作业程序，助手对话不可调用。
+- **D28 验收修复与扩展性定版**（2026-09-26 追加，分支 `feature/agent-hub-ux-fixes`）：
+  ① 注册表加 `plan_cadence` / `review_cadence`（daily/weekly/monthly）——spider 与
+  总览「接下来」同语义门控（daily 每交易日；weekly/monthly 仅周期末，复用
+  `is_last_trading_day_of_week/month`）；② **任意状态可编辑**：`update_agent` 白名单
+  开放 `status`（仅 active/disabled，planned 为种子初始态不可回置）与人设四字段，
+  停用 = 雷达隐藏 + 不参与调度；③ 雷达仅画 active 节点，planned 幽灵节点删除，
+  管理入口改总览页「Agent 管理列表」（含启用 Switch）；布局改实测容器像素椭圆
+  （Canvas 与 HTML 标签层共用，修复单节点越界裁剪与双层错位）；④ **人设运行时
+  注入**：会话 system_prompt 头部拼「你的身份（注册表）」段并入 fingerprint——
+  编辑名称/标语/风格/策略即时生效（YAML 人设文件降级为硬纪律+工作流骨架，
+  与注册表不再重复）；计划 user_prompt 同步注入；⑤ plans 端点包装
+  `{tradeDate, nextTradeDate, plans}` 次日语义 + 标题显示所选日期与交易时段；
+  ⑥ agent 自选行复用「我的自选」样式（名称/代号/分时缩略图/现价涨跌幅）；
+  ⑦ **扩展性定版：新 Agent = INSERT 注册表一行**——计划技能 `trading-<key>` 不存在
+  时 fallback `skills/trading-default/`（共享作业程序）；prompt_id 可指向任意既有
+  人设模板；前端 `short-line` 默认值兜底全部清除（缺路由参数跳回总览），
+  名称/策略/频率后续均 UI 配置，零代码新增。
 
 ## 4. 数据模型
 
@@ -92,6 +109,7 @@
 | risk_max_position_pct / risk_max_total_pct / risk_max_daily_orders | NUMERIC/INT | 风控三参数（原 config 迁移） |
 | auto_exec_enabled | BOOLEAN | 自主执行总闸 |
 | status | VARCHAR(16) chk | active / planned / disabled |
+| plan_cadence / review_cadence | VARCHAR(16) chk | daily / weekly / monthly（D28，计划与复盘生成频率） |
 | sort_order | INT | 总览排布 |
 | prompt_id | VARCHAR(64) | `prompts/agents/<prompt_id>.yaml`，per-agent 人设（D27：short/long/m60 三份） |
 | accent_color | VARCHAR(16) | 总览节点主色 |
@@ -147,8 +165,8 @@
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/agents` | 总览聚合（新，见 §6） |
-| GET/PUT | `/{agentKey}/config` | active 才可写，planned 只读 |
-| GET | `/{agentKey}/review · /dates · /plans · /selections · /memories` | planned 可读 |
+| GET/PUT | `/{agentKey}/config` | 任意状态可写（D28）；PUT 可携 status/name/人设/频率 |
+| GET | `/{agentKey}/review · /dates · /plans · /selections · /memories` | planned 可读；plans 返回 `{tradeDate, nextTradeDate, plans}`（D28） |
 | POST | `/{agentKey}/plans/{id}/cancel` | active |
 | DELETE | `/{agentKey}/selections/{id}` | active |
 | PUT | `/{agentKey}/memories/{id} · /memories/{id}/status` | active |
