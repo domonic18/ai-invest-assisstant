@@ -1,7 +1,8 @@
 /**
  * 贾维斯雷达画布（rAF Canvas2D）：科技网格底 + 雷达扫描线 + 中心市场核心 +
- * 轨道 Agent 节点（busy 脉冲光环 / 幽灵暗色半透明）+ 核心↔节点数据粒子流。
- * DPR 适配 + ResizeObserver；几何来自 radarLayout（与 HTML 标签层共用）。
+ * 椭圆轨道上的 active Agent 节点（脉冲光环）+ 核心↔节点数据粒子流。
+ * DPR 适配 + ResizeObserver；节点几何来自 radarLayout（像素坐标，
+ * 与 HTML 标签层共用同一份容器尺寸，D28 修复双层错位与越界裁剪）。
  */
 import { useEffect, useRef } from 'react'
 
@@ -10,6 +11,9 @@ import type { RadarNode } from './radarLayout'
 const CORE_COLOR = '#38bdf8'
 const GRID_GAP = 48
 const SWEEP_SECONDS = 6
+const ORBIT_RX = 0.36
+const ORBIT_RY = 0.32
+const SWEEP_R = 0.42
 
 /** hex → rgba 字符串（profile.accentColor 形如 #3b82f6）。 */
 function rgba(hex: string, alpha: number): string {
@@ -53,6 +57,13 @@ function drawCore(ctx: CanvasRenderingContext2D, cx: number, cy: number, t: numb
   ctx.font = '11px system-ui, sans-serif'
   ctx.textAlign = 'center'
   ctx.fillText('市场核心', cx, cy + 32)
+}
+
+function drawOrbit(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: number, ry: number, alpha: number) {
+  ctx.beginPath()
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
+  ctx.strokeStyle = `rgba(148, 163, 184, ${alpha})`
+  ctx.stroke()
 }
 
 export function AgentRadarCanvas({ nodes }: { nodes: RadarNode[] }) {
@@ -107,67 +118,51 @@ export function AgentRadarCanvas({ nodes }: { nodes: RadarNode[] }) {
 
       const cx = width / 2
       const cy = height / 2
-      const unit = Math.min(width, height) / 2
 
-      // 轨道环（外环 active、内环 ghost）+ 最外淡环
-      for (const [radius, alpha] of [
-        [0.62, 0.1],
-        [0.34, 0.08],
-        [0.78, 0.05],
-      ] as const) {
-        ctx.beginPath()
-        ctx.arc(cx, cy, unit * radius, 0, Math.PI * 2)
-        ctx.strokeStyle = `rgba(148, 163, 184, ${alpha})`
-        ctx.stroke()
-      }
+      // 椭圆轨道（与 radarLayout 同比例）+ 最外淡环
+      drawOrbit(ctx, cx, cy, ORBIT_RX * width, ORBIT_RY * height, 0.1)
+      drawOrbit(ctx, cx, cy, SWEEP_R * width, SWEEP_R * height, 0.05)
 
-      drawSweep(ctx, cx, cy, unit * 0.78, (t / SWEEP_SECONDS) * Math.PI * 2)
+      drawSweep(
+        ctx,
+        cx,
+        cy,
+        Math.min(SWEEP_R * width, SWEEP_R * height),
+        (t / SWEEP_SECONDS) * Math.PI * 2,
+      )
       drawCore(ctx, cx, cy, t)
 
       for (const node of nodesRef.current) {
-        const nx = cx + (node.x - 0.5) * 2 * unit
-        const ny = cy + (node.y - 0.5) * 2 * unit
+        const { x: nx, y: ny } = node
 
-        // 核心↔节点连线 + 数据粒子流（仅 busy）
+        // 核心↔节点连线 + 数据粒子流
         ctx.beginPath()
         ctx.moveTo(cx, cy)
         ctx.lineTo(nx, ny)
-        ctx.strokeStyle = rgba(node.ghost ? '#64748b' : node.accentColor, node.ghost ? 0.06 : 0.14)
+        ctx.strokeStyle = rgba(node.accentColor, 0.14)
         ctx.stroke()
 
-        if (node.busy) {
-          for (let i = 0; i < 2; i++) {
-            const p = (t * 0.5 + i * 0.5) % 1
-            const px = cx + (nx - cx) * p
-            const py = cy + (ny - cy) * p
-            ctx.beginPath()
-            ctx.arc(px, py, 2.2, 0, Math.PI * 2)
-            ctx.fillStyle = rgba(node.accentColor, 0.8 * (1 - Math.abs(p - 0.5)))
-            ctx.fill()
-          }
+        for (let i = 0; i < 2; i++) {
+          const p = (t * 0.5 + i * 0.5) % 1
+          const px = cx + (nx - cx) * p
+          const py = cy + (ny - cy) * p
+          ctx.beginPath()
+          ctx.arc(px, py, 2.2, 0, Math.PI * 2)
+          ctx.fillStyle = rgba(node.accentColor, 0.8 * (1 - Math.abs(p - 0.5)))
+          ctx.fill()
         }
 
-        // 节点本体
+        // 节点本体 + busy 脉冲光环
         ctx.beginPath()
-        ctx.arc(nx, ny, node.ghost ? 7 : 9, 0, Math.PI * 2)
-        ctx.fillStyle = node.ghost ? 'rgba(100, 116, 139, 0.35)' : rgba(node.accentColor, 0.9)
+        ctx.arc(nx, ny, 9, 0, Math.PI * 2)
+        ctx.fillStyle = rgba(node.accentColor, 0.9)
         ctx.fill()
 
-        if (node.ghost) {
-          ctx.beginPath()
-          ctx.arc(nx, ny, 11, 0, Math.PI * 2)
-          ctx.setLineDash([3, 4])
-          ctx.strokeStyle = 'rgba(100, 116, 139, 0.5)'
-          ctx.stroke()
-          ctx.setLineDash([])
-        } else {
-          // busy 脉冲光环
-          const ring = 12 + 5 * Math.sin(t * 3 + nx)
-          ctx.beginPath()
-          ctx.arc(nx, ny, ring, 0, Math.PI * 2)
-          ctx.strokeStyle = rgba(node.accentColor, 0.35)
-          ctx.stroke()
-        }
+        const ring = 12 + 5 * Math.sin(t * 3 + nx)
+        ctx.beginPath()
+        ctx.arc(nx, ny, ring, 0, Math.PI * 2)
+        ctx.strokeStyle = rgba(node.accentColor, 0.35)
+        ctx.stroke()
       }
 
       raf = requestAnimationFrame(render)

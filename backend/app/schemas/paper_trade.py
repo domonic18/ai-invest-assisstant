@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import Field
 
 from app.schemas.base import CamelModel
+from app.schemas.skill import SkillFile
 
 
 class PaperTradeCashInfo(CamelModel):
@@ -223,7 +224,7 @@ class PaperTradeAdminAccountListResponse(CamelModel):
 
 
 class TradingAgentProfileResponse(CamelModel):
-    """交易 Agent 注册行视图：身份/介绍/模型绑定/风控/总闸。"""
+    """交易 Agent 注册行视图：身份/介绍/模型绑定/风控/总闸/频率。"""
 
     agent_key: str
     name: str
@@ -237,6 +238,8 @@ class TradingAgentProfileResponse(CamelModel):
     risk_max_daily_orders: int
     auto_exec_enabled: bool
     status: str
+    plan_cadence: str = "daily"
+    review_cadence: str = "daily"
     sort_order: int
     prompt_id: str
     accent_color: str
@@ -255,6 +258,8 @@ class AgentActivityItem(CamelModel):
     kind: str
     title: str
     detail: str | None = None
+    stock_code: str | None = None
+    stock_name: str | None = None
     occurred_at: datetime | None = None
 
 
@@ -284,17 +289,134 @@ class AgentOverviewResponse(CamelModel):
     generated_at: datetime
 
 
+class TradingAgentCreateRequest(CamelModel):
+    """新建交易 Agent（D29：注册表开放 CRUD，创建即 active 参与调度）。
+
+    技能目录与人设 YAML 均可不建——计划技能走 trading-default 共享兜底，
+    prompt_id 指向任意既有模板即可。
+    """
+
+    agent_key: str = Field(min_length=2, max_length=32)
+    name: str = Field(min_length=1, max_length=64)
+    tagline: str | None = Field(default=None, max_length=128)
+    prompt_id: str = Field(min_length=1, max_length=64)
+    strategy_desc: str | None = None
+    style_desc: str | None = None
+    accent_color: str | None = Field(default=None, max_length=16)
+    plan_cadence: Literal["daily", "weekly", "monthly"] | None = None
+    review_cadence: Literal["daily", "weekly", "monthly"] | None = None
+    llm_config_id: int | None = None
+    methodology_source_id: int | None = None
+
+
+class TradingAgentPromptTemplate(CamelModel):
+    """可用会话人设模板（prompts/agents/trading_agent_*.yaml 扫描）。"""
+
+    prompt_id: str
+    label: str
+
+
+class AgentAutomationTask(CamelModel):
+    """Agent 自动化任务视图（cron + 状态 + 下次/最近执行）。"""
+
+    key: str
+    label: str
+    cron: str | None = None
+    task_active: bool = False
+    cadence: Literal["daily", "weekly", "monthly"] | None = None
+    next_run_at: datetime | None = None
+    last_run_at: datetime | None = None
+    last_status: str | None = None
+
+
+class AgentMemoryCounts(CamelModel):
+    """Agent 活跃记忆按类型计数（能力视图消费）。"""
+
+    discipline: int = 0
+    method: int = 0
+    lesson: int = 0
+    active_total: int = 0
+
+
+class AgentCapabilityResponse(CamelModel):
+    """Agent 能力/状态视图（详情页工作台右栏，D29）。
+
+    一屏回答「agent 靠什么工作」：人设 + 方法论知识源（趋势理论等 KB 源）
+    + 作业技能（选股→交易→复盘程序）+ 模型 + 活跃记忆 + 自动化任务与近期活动。
+    """
+
+    profile: TradingAgentProfileResponse
+    llm_name: str | None = None
+    methodology_source_name: str | None = None
+    skill_id: str
+    skill_label: str
+    skill_is_shared_default: bool = False
+    memory_counts: AgentMemoryCounts = AgentMemoryCounts()
+    automation: list[AgentAutomationTask] = []
+    recent_activity: list[AgentActivityItem] = []
+
+
+class TradingAgentPromptContent(CamelModel):
+    """会话人设 YAML 原文（配置页只读浏览，D30）。"""
+
+    prompt_id: str
+    label: str
+    content: str
+
+
+class AgentMethodologyDiscipline(CamelModel):
+    """方法论纪律条目（KB published，全量展示）。"""
+
+    title: str
+    body: str
+
+
+class AgentMethodologyPoint(CamelModel):
+    """方法论知识卡片条目（method/theorem/concept/case）。"""
+
+    title: str
+    point_type: str
+    body: str
+
+
+class AgentMethodologyView(CamelModel):
+    """方法论基座可视化载荷（配置页只读；未绑定源为 null，D30）。"""
+
+    source_id: int
+    source_name: str
+    outline: str
+    disciplines: list[AgentMethodologyDiscipline] = []
+    points: list[AgentMethodologyPoint] = []
+
+
+class AgentSkillFilesResponse(CamelModel):
+    """Agent 作业技能包可视化载荷（配置页「作业技能」区，D30）。
+
+    trading 技能不进 skill 表（广场不可见），本端点直读镜像 ``skills/<id>/``
+    目录返回文件清单；``skill_is_shared_default`` 提示共享兜底（专属目录未建）。
+    """
+
+    skill_id: str
+    skill_label: str
+    skill_is_shared_default: bool = False
+    files: list[SkillFile] = []
+    methodology: AgentMethodologyView | None = None
+
+
 class TradingAgentProfileUpdateRequest(CamelModel):
-    """更新交易 Agent 注册信息（未提供的字段不变；仅 status='active' 可写）。
+    """更新交易 Agent 注册信息（未提供的字段不变；任意状态可写，D28）。
 
     llm_config_id 空 = 平台默认 chat 模型，methodology_source_id 空 = 未启用
-    方法论基座注入。身份字段（agent_key/prompt_id/status/sort_order）不开放更新。
+    方法论基座注入。status 开放 active/disabled 切换（停用 = 总览隐藏 + 不参与
+    调度）；'planned' 仅为种子初始态，API 不可设置。prompt_id 开放换绑（D30，
+    须在模板清单内）；agent_key/sort_order 不开放更新。
     """
 
     name: str | None = None
     tagline: str | None = None
     strategy_desc: str | None = None
     style_desc: str | None = None
+    prompt_id: str | None = None
     llm_config_id: int | None = None
     methodology_source_id: int | None = None
     risk_max_position_pct: float | None = Field(default=None, ge=0, le=100)
@@ -302,6 +424,9 @@ class TradingAgentProfileUpdateRequest(CamelModel):
     risk_max_daily_orders: int | None = Field(default=None, ge=1)
     auto_exec_enabled: bool | None = None
     accent_color: str | None = None
+    status: Literal["active", "disabled"] | None = None
+    plan_cadence: Literal["daily", "weekly", "monthly"] | None = None
+    review_cadence: Literal["daily", "weekly", "monthly"] | None = None
 
 
 # ============================================================
@@ -346,6 +471,7 @@ class TradingAgentPlanResponse(CamelModel):
     id: int
     plan_date: date
     stock_code: str
+    stock_name: str | None = None
     plan_type: str
     strategy: str
     buy_zone_low: float | None = None
@@ -355,8 +481,18 @@ class TradingAgentPlanResponse(CamelModel):
     position_pct: float
     status: str
     selection_id: int | None = None
+    held_volume: int | None = None
+    """截至计划日按成交聚合的持仓股数（未绑定账户/无成交为 None）。"""
     basis: str
     triggered_cl_ord_id: str | None = None
+
+
+class TradingAgentPlansResponse(CamelModel):
+    """指定日交易计划载荷：计划日 + 下一交易日（次日语义，D28）+ 计划列表。"""
+
+    trade_date: date
+    next_trade_date: date | None = None
+    plans: list[TradingAgentPlanResponse] = []
 
 
 class TradingAgentDatesResponse(CamelModel):

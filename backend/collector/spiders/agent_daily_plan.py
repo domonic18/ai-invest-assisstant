@@ -1,18 +1,24 @@
 """交易 Agent 每日选股与交易计划生成采集器（internal 渠道，heavy 队列）。
 
-19:00 串行在 16:00 sync / 16:10 复盘 / 16:30 涨停归因 / ≥17:45 异动之后；
-核心输入「当日复盘解读」18:35 才生成。循环全部 active Agent（planned 天然
-跳过），单 Agent 异常隔离记入明细，聚合成一条 CollectResult：全跳过 →
-SKIPPED、部分成功 → PARTIAL、全失败 → FAILED；全部 Agent 输入未就绪
-（``ReviewInputDataNotReadyError``）不吞掉，交由 Celery 退避重试。
+19:30 串行在 16:00 sync / 19:00 agent 复盘（D30 重排，晚于大盘复盘 18:35）
+/ 16:30 涨停归因 / ≥17:45 异动之后；核心输入「当日复盘解读」18:35 才生成。
+循环全部 active Agent（planned 天然
+跳过），按注册行 plan_cadence 门控生成日（D28：daily 每交易日 / weekly
+周期末 / monthly 月末，非 due 记跳过明细）；单 Agent 异常隔离记入明细，
+聚合成一条 CollectResult：全跳过 → SKIPPED、部分成功 → PARTIAL、全失败 →
+FAILED；全部 Agent 输入未就绪（``ReviewInputDataNotReadyError``）不吞掉，
+交由 Celery 退避重试。
 """
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.database import AsyncSessionLocal
+from app.models.paper_trade import TradingAgent
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
-from app.services.trading import agent_plan_service, agent_registry
+from app.services.trading import agent_plan_service, agent_registry, agent_review_service
 from app.services.trading.agent_plan_service import PlanGenerationLockedError
 from app.services.trading.errors import (
     AgentAccountNotDesignatedError,
@@ -26,6 +32,19 @@ _PER_AGENT_SKIPPABLE = (
     PaperTradeNotConfiguredError,
     PlanGenerationLockedError,
 )
+
+
+async def _plan_due(session: AsyncSession, agent: TradingAgent, trade_date: date) -> bool:
+    """按注册行 plan_cadence 判定 trade_date 是否为计划生成日（D28）。"""
+    if agent.plan_cadence == "weekly":
+        return await agent_review_service.is_last_trading_day_of_week(
+            session, trade_date
+        )
+    if agent.plan_cadence == "monthly":
+        return await agent_review_service.is_last_trading_day_of_month(
+            session, trade_date
+        )
+    return True
 
 
 class AgentDailyPlanCollector(BaseCollector):
@@ -78,6 +97,10 @@ class AgentDailyPlanCollector(BaseCollector):
 
         async with AsyncSessionLocal() as session:
             agents = await agent_registry.get_active_agents(session)
+            plan_due = {
+                agent.agent_key: await _plan_due(session, agent, trade_date)
+                for agent in agents
+            }
         if not agents:
             return CollectResult(
                 source=self.source,
@@ -93,6 +116,11 @@ class AgentDailyPlanCollector(BaseCollector):
         details: dict[str, dict[str, Any]] = {}
         not_ready = 0
         for agent in agents:
+            if not plan_due[agent.agent_key]:
+                lines.append(
+                    f"{agent.agent_key}: {agent.plan_cadence} 频计划未到生成日，跳过"
+                )
+                continue
             try:
                 details[agent.agent_key] = await self._run_one(
                     agent.agent_key, trade_date

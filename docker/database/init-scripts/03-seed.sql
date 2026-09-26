@@ -420,10 +420,10 @@ VALUES
     ('kb_index_scan', 'kb-index', 'internal', '*/5 * * * *', true),
     -- 模拟盘盘后同步：16:00 清算稳定且在复盘链之前（掘金仿真当日委托/成交/资金快照幂等落库）
     ('paper_trade_sync_1600', 'paper-trade-sync', 'internal', '0 16 * * 1-5', true),
-    -- 模拟盘 AI 分层复盘：16:10 串行同步之后（日/周/月分层归因 + 经验提取，周期末任务内加发）
-    ('paper_trade_review_1610', 'paper-trade-review', 'internal', '10 16 * * 1-5', true),
-    -- 交易 Agent 每日选股与交易计划：19:00（核心输入当日复盘解读 18:35 才生成）
-    ('agent_daily_plan_1900', 'agent-daily-plan', 'internal', '0 19 * * 1-5', true)
+    -- 模拟盘 AI 分层复盘：19:00，串行大盘 AI 复盘（18:35）之后（日/周/月分层归因 + 经验提取，周期末任务内加发；D30 重排，实例名沿用 paper_trade_review_1610）
+    ('paper_trade_review_1610', 'paper-trade-review', 'internal', '0 19 * * 1-5', true),
+    -- 交易 Agent 每日选股与交易计划：19:30（晚于 agent 复盘 19:00，先复盘后选股；核心输入当日复盘解读 18:35 才生成）
+    ('agent_daily_plan_1900', 'agent-daily-plan', 'internal', '30 19 * * 1-5', true)
 ON CONFLICT (task_name) DO UPDATE
 SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;
 

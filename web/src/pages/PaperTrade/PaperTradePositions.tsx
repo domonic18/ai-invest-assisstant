@@ -1,5 +1,6 @@
 import { Button, Space, Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import { useNavigate } from 'react-router-dom'
 
 import type { ApiPaperTradePosition } from '@ai-invest/shared'
 
@@ -15,11 +16,18 @@ import {
 
 import type { OrderPrefill } from './TradingPanel'
 
-/** 标的单元格：名称 + 6 位代码 + 当日涨幅（行情 30s 轮询）。 */
-function SymbolCell({ code }: { code: string }) {
-  const { data: quote } = useStockQuote(/^\d{6}$/.test(code) ? code : '')
+/** 标的单元格：名称 + 6 位代码 + 当日涨幅（行情 30s 轮询）；6 位代码可点跳个股详情。 */
+export function SymbolCell({ code }: { code: string }) {
+  const navigate = useNavigate()
+  const isBareCode = /^\d{6}$/.test(code)
+  const { data: quote } = useStockQuote(isBareCode ? code : '')
   return (
-    <div className="leading-tight">
+    <button
+      type="button"
+      disabled={!isBareCode}
+      onClick={() => isBareCode && void navigate(`/stock/${code}`)}
+      className={`cursor-pointer text-left leading-tight ${isBareCode ? '' : 'cursor-default'}`}
+    >
       <div className="text-white/90">{quote?.name ?? code}</div>
       <div className="flex items-baseline gap-2">
         <span className="font-mono text-xs text-white/50">{code}</span>
@@ -32,7 +40,7 @@ function SymbolCell({ code }: { code: string }) {
           </span>
         )}
       </div>
-    </div>
+    </button>
   )
 }
 

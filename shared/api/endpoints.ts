@@ -329,8 +329,17 @@ export const ENDPOINTS = {
     asrConfigTest: `${API_BASE}/admin/model-configs/asr/test`,
     paperTradeAccounts: `${API_BASE}/admin/paper-trade/accounts`,
     tradingAgentAgents: `${API_BASE}/admin/trading-agent/agents`,
+    tradingAgentPromptTemplates: `${API_BASE}/admin/trading-agent/prompt-templates`,
+    tradingAgentStatus: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/status`,
+    tradingAgentAgent: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}`,
     tradingAgentConfig: (agentKey: string) =>
       `${API_BASE}/admin/trading-agent/${agentKey}/config`,
+    tradingAgentPrompt: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/prompt`,
+    tradingAgentSkillFiles: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/skill/files`,
     tradingAgentReview: (agentKey: string) =>
       `${API_BASE}/admin/trading-agent/${agentKey}/review`,
     tradingAgentDates: (agentKey: string) =>

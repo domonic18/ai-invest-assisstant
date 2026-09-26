@@ -1,66 +1,50 @@
 /**
- * 雷达节点布局（纯函数）：active Agent 均布外轨道，planned 幽灵节点内轨道。
- * 归一化坐标 (0..1)，画布与 HTML 标签覆盖层共用同一份几何。
+ * 雷达节点布局（纯函数）：仅 active Agent（D28——planned/disabled 一律隐藏，
+ * 管理入口在总览页「Agent 管理列表」）。像素坐标椭圆轨道（rx=0.36W、
+ * ry=0.32H），Canvas 与 HTML 标签覆盖层共用同一份几何，节点位置 clamp 在
+ * 容器内边距内，杜绝越界裁剪（修复单节点 -90° 出界与宽画布双层错位）。
  */
 import type { AgentOverviewItem } from '@ai-invest/shared'
 
 export interface RadarNode {
   agentKey: string
   name: string
-  tagline: string
-  strategyDesc: string
   accentColor: string
-  /** planned 等未激活注册行：暗色幽灵节点，点击只弹简介卡。 */
-  ghost: boolean
-  /** active Agent：脉冲光环 + 数据粒子流。 */
   busy: boolean
-  /** 轨道半径（0..1，相对画布短边半径）。 */
-  radius: number
-  /** 归一化画布坐标。 */
+  /** 像素坐标（相对容器左上角，Canvas CSS 像素与 HTML absolute 同基准）。 */
   x: number
   y: number
 }
 
-const ACTIVE_ORBIT = 0.62
-const GHOST_ORBIT = 0.34
+/** 椭圆轨道半径（相对容器宽/高）。 */
+const ORBIT_RX = 0.36
+const ORBIT_RY = 0.32
+/** 节点卡半宽余量：clamp 保证锚点不贴边（节点卡 translate(-50%,-50%)）。 */
+const EDGE_PAD = 72
 
-function polar(cx: number, cy: number, radius: number, angleDeg: number): { x: number; y: number } {
-  const rad = (angleDeg * Math.PI) / 180
-  return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) }
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
 }
 
-export function layoutRadarNodes(items: AgentOverviewItem[]): RadarNode[] {
-  const cx = 0.5
-  const cy = 0.5
+export function layoutRadarNodes(
+  items: AgentOverviewItem[],
+  width: number,
+  height: number,
+): RadarNode[] {
+  if (width <= 0 || height <= 0) return []
   const active = items.filter((item) => item.profile.status === 'active')
-  const planned = items.filter((item) => item.profile.status !== 'active')
+  const cx = width / 2
+  const cy = height / 2
 
-  const toNode = (item: AgentOverviewItem, radius: number, angle: number): RadarNode => {
-    const { x, y } = polar(cx, cy, radius, angle)
+  return active.map((item, i) => {
+    const angle = -Math.PI / 2 + (2 * Math.PI * i) / active.length
     return {
       agentKey: item.profile.agentKey,
       name: item.profile.name,
-      tagline: item.profile.tagline,
-      strategyDesc: item.profile.strategyDesc,
       accentColor: item.profile.accentColor,
-      ghost: item.profile.status !== 'active',
-      busy: item.profile.status === 'active',
-      radius,
-      x,
-      y,
+      busy: true,
+      x: clamp(cx + ORBIT_RX * width * Math.cos(angle), EDGE_PAD, width - EDGE_PAD),
+      y: clamp(cy + ORBIT_RY * height * Math.sin(angle), EDGE_PAD, height - EDGE_PAD),
     }
-  }
-
-  // active 从正上方起均布；ghost 错开半个步长避免与 active 同角
-  const activeNodes = active.map((item, i) =>
-    toNode(item, ACTIVE_ORBIT, -90 + (360 / Math.max(active.length, 1)) * i),
-  )
-  const ghostNodes = planned.map((item, i) =>
-    toNode(
-      item,
-      GHOST_ORBIT,
-      -90 + (360 / Math.max(planned.length, 1)) * i + 180 / Math.max(planned.length, 1),
-    ),
-  )
-  return [...activeNodes, ...ghostNodes]
+  })
 }

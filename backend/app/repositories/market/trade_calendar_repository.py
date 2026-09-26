@@ -34,6 +34,22 @@ async def get_range(
     return list((await session.execute(stmt)).scalars().all())
 
 
+async def get_next_trading_day(
+    session: AsyncSession, day: date
+) -> MarketTradeCalendar | None:
+    """查询 day 之后最近的下一个交易日行，无覆盖返回 None。"""
+    stmt = (
+        select(MarketTradeCalendar)
+        .where(
+            MarketTradeCalendar.calendar_date > day,
+            MarketTradeCalendar.is_trading.is_(True),
+        )
+        .order_by(MarketTradeCalendar.calendar_date.asc())
+        .limit(1)
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
 async def get_one(
     session: AsyncSession, day: date
 ) -> MarketTradeCalendar | None:

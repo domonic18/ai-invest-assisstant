@@ -1,15 +1,20 @@
 /**
- * 今日交易计划卡片（批次 7）：19:00 定时生成 + 对话制定共用的计划清单。
+ * 交易计划卡片（批次 7 + D28 日期语义 + D30 语义标注）：19:30 定时生成 +
+ * 对话制定共用。
  *
- * 数据源 admin GET /trading-agent/plans（缺省最近交易日，含全部状态）；
- * 日期选择对齐每日复盘页（MarkedDatePicker，有计划的日期打点）；
- * 状态分色：active 待触发 / triggered 已触发 / executed 已成交 /
- * expired 已失效 / cancelled 已取消；active 计划可人工取消。
+ * 数据源 admin GET /trading-agent/plans（包装响应：tradeDate + nextTradeDate
+ * + plans）；标题显示所选日期，徽标注明计划于下一交易日盘中执行与交易时段；
+ * 日期选择对齐每日复盘页（MarkedDatePicker，有计划的日期打点）；状态分色：
+ * active 待触发 / triggered 已触发 / executed 已成交 / expired 已失效 /
+ * cancelled 已取消；active 计划可人工取消。标的可点跳个股详情；sell 为
+ * 持仓止损/止盈条件单（同股可与买入计划并存），buy 按截至计划日持仓标注
+ * 建仓/增持（heldVolume）。
  */
 import { Card, Empty, Popconfirm, Space, Spin, Tag, Typography } from 'antd'
 import { StopOutlined } from '@ant-design/icons'
-import dayjs, { type Dayjs } from 'dayjs'
+import type { Dayjs } from 'dayjs'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import type { ApiTradingAgentPlan } from '@ai-invest/shared'
 
@@ -32,19 +37,38 @@ function fmt(value: number | null): string {
 
 function PlanRow({ plan }: { plan: ApiTradingAgentPlan }) {
   const agentKey = useAgentKey()
+  const navigate = useNavigate()
   const cancel = useCancelTradingAgentPlan(agentKey)
   const status = STATUS_META[plan.status] ?? STATUS_META.expired
   const isBuy = plan.planType === 'buy'
+  const held = plan.heldVolume != null && plan.heldVolume > 0
 
   return (
     <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
       <div className="flex items-center gap-2">
         <Tag color={isBuy ? 'red' : 'green'} className="!mr-0">
-          {isBuy ? '买入' : '卖出'}
+          {isBuy ? '买入' : '止损/止盈卖出'}
         </Tag>
-        <Typography.Text strong className="font-mono">
-          {plan.stockCode}
-        </Typography.Text>
+        <button
+          type="button"
+          className="min-w-0 cursor-pointer text-left leading-tight"
+          onClick={() => void navigate(`/stock/${plan.stockCode}`)}
+        >
+          <Typography.Text strong className="block truncate text-xs">
+            {plan.stockName ?? plan.stockCode}
+          </Typography.Text>
+          <span className="font-mono text-xs text-white/50">{plan.stockCode}</span>
+        </button>
+        {isBuy ? (
+          <Tag color="gold" className="!mr-0">
+            {held ? '增持' : '建仓'}
+            {held ? ` · 持仓 ${plan.heldVolume} 股` : ''}
+          </Tag>
+        ) : held ? (
+          <Tag color="gold" className="!mr-0">
+            持仓 {plan.heldVolume} 股
+          </Tag>
+        ) : null}
         <span className="ml-auto" />
         <Tag color={status.color}>{status.label}</Tag>
         {plan.status === 'active' && (
@@ -86,13 +110,16 @@ export function PlanPanel() {
   const agentKey = useAgentKey()
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null)
   const tradeDate = selectedDate?.format(DATE_FORMAT)
-  const { data: plans, isLoading } = useTradingAgentPlans(agentKey, tradeDate)
+  const { data, isLoading } = useTradingAgentPlans(agentKey, tradeDate)
   const { data: dates } = useTradingAgentDates(agentKey)
+
+  const shownDate = tradeDate ?? data?.tradeDate
+  const title = shownDate ? `${shownDate} 交易计划` : '交易计划'
 
   return (
     <Card
       size="small"
-      title="交易计划"
+      title={title}
       extra={
         <MarkedDatePicker
           value={selectedDate}
@@ -108,18 +135,21 @@ export function PlanPanel() {
         <div className="flex justify-center py-8">
           <Spin />
         </div>
-      ) : !plans || plans.length === 0 ? (
+      ) : !data || data.plans.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={
-            tradeDate && dayjs(tradeDate).isBefore(dayjs(), 'day')
-              ? '该日无计划记录（每日交易日 19:00 自动生成，也可在对话中制定）'
-              : '尚未生成（每交易日 19:00 自动生成，也可在对话中制定）'
-          }
+          description="该日无计划（休市或未生成；每交易日 19:30 自动生成，也可在对话中制定）"
         />
       ) : (
         <Space direction="vertical" size="small" className="w-full">
-          {plans.map((plan) => (
+          {data.nextTradeDate && (
+            <div>
+              <Tag color="geekblue">
+                下一交易日 {data.nextTradeDate} 盘中执行 · 09:30–11:30 / 13:00–15:00
+              </Tag>
+            </div>
+          )}
+          {data.plans.map((plan) => (
             <PlanRow key={plan.id} plan={plan} />
           ))}
         </Space>

@@ -358,6 +358,43 @@ class TestGenerateReview:
 
 
 @pytest.mark.unit
+class TestRunLlmPersona:
+    @pytest.mark.asyncio
+    async def test_injects_registry_persona_into_user_prompt(self) -> None:
+        """复盘 user_prompt 注入注册行人设段（D27：共享复盘契约 + per-agent 视角）。"""
+        agent = SimpleNamespace(
+            agent_key="short-line",
+            llm_config_id=None,
+            name="短线猎手",
+            tagline="趋势短线：顺势而为，快进快出",
+            style_desc="进取",
+            strategy_desc="主线板块选股，回踩买点区间接回，破位止损。",
+        )
+        loader = MagicMock()
+        loader.load.return_value = MagicMock(system_prompt="你是模拟盘分层复盘官")
+        structured = AsyncMock(return_value=_content())
+        with (
+            patch(
+                "app.services.trading.agent_review_service.get_prompt_loader",
+                return_value=loader,
+            ),
+            patch(
+                "app.agent.runtime.structured.run_structured", structured
+            ) as run_mock,
+        ):
+            await agent_review_service._run_llm(
+                AsyncMock(), agent, "day", _TRADE_DATE, {"orders": []}
+            )
+
+        user_prompt = run_mock.await_args.kwargs["user_prompt"]
+        assert "你是模拟盘分层复盘官" in user_prompt
+        assert "短线猎手" in user_prompt
+        assert "趋势短线：顺势而为，快进快出" in user_prompt
+        assert "主线板块选股" in user_prompt
+        assert run_mock.await_args.kwargs["config_id"] is None
+
+
+@pytest.mark.unit
 class TestValidate:
     def test_filters_hallucinated_cl_ord_ids(self) -> None:
         content = _content()
@@ -377,43 +414,61 @@ class TestValidate:
 
 @pytest.mark.unit
 class TestPeriodEndChecks:
-    def _session(self, next_day: date | None) -> AsyncMock:
-        session = AsyncMock()
-        session.scalar = AsyncMock(return_value=next_day)
-        return session
+    def _patch_next(
+        self, monkeypatch: pytest.MonkeyPatch, next_day: date | None
+    ) -> AsyncMock:
+        async def fake_next_trading_day(
+            session: AsyncMock, day: date
+        ) -> date | None:
+            return next_day
+
+        monkeypatch.setattr(
+            agent_review_service, "next_trading_day", fake_next_trading_day
+        )
+        return AsyncMock()
 
     @pytest.mark.asyncio
-    async def test_week_false_when_next_day_same_iso_week(self) -> None:
+    async def test_week_false_when_next_day_same_iso_week(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # 周三之后周四是交易日 → 未到周期末
-        session = self._session(date(2026, 7, 16))
+        session = self._patch_next(monkeypatch, date(2026, 7, 16))
         assert await agent_review_service.is_last_trading_day_of_week(
             session, _TRADE_DATE
         ) is False
 
     @pytest.mark.asyncio
-    async def test_week_true_when_next_day_crosses_week(self) -> None:
+    async def test_week_true_when_next_day_crosses_week(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # 周五之后下一交易日是下周一 → 周期末
-        session = self._session(date(2026, 7, 20))
+        session = self._patch_next(monkeypatch, date(2026, 7, 20))
         assert await agent_review_service.is_last_trading_day_of_week(
             session, date(2026, 7, 17)
         ) is True
 
     @pytest.mark.asyncio
-    async def test_week_true_when_no_next_trading_day(self) -> None:
+    async def test_week_true_when_no_next_trading_day(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         assert await agent_review_service.is_last_trading_day_of_week(
-            self._session(None), date(2026, 7, 17)
+            self._patch_next(monkeypatch, None), date(2026, 7, 17)
         ) is True
 
     @pytest.mark.asyncio
-    async def test_month_false_when_next_day_same_month(self) -> None:
-        session = self._session(date(2026, 7, 30))
+    async def test_month_false_when_next_day_same_month(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        session = self._patch_next(monkeypatch, date(2026, 7, 30))
         assert await agent_review_service.is_last_trading_day_of_month(
             session, date(2026, 7, 29)
         ) is False
 
     @pytest.mark.asyncio
-    async def test_month_true_when_next_day_crosses_month(self) -> None:
-        session = self._session(date(2026, 8, 3))
+    async def test_month_true_when_next_day_crosses_month(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        session = self._patch_next(monkeypatch, date(2026, 8, 3))
         assert await agent_review_service.is_last_trading_day_of_month(
             session, date(2026, 7, 31)
         ) is True

@@ -1,5 +1,6 @@
 """方法论基座装配契约测试（方案 A：KB 直读双层注入——纪律全量 + 总纲 + RRF 检索）。"""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -174,3 +175,62 @@ class TestBuildMethodologyInput:
         assert result is not None
         assert len(result["relevant"]) == agent_methodology._RELEVANT_TOP_N
         assert {item["id"] for item in result["relevant"]} == set(range(40))
+
+
+@pytest.mark.unit
+class TestBuildMethodologyView:
+    """D30：配置页方法论可视化（大纲 + 纪律/知识卡片全量，无检索）。"""
+
+    @pytest.mark.asyncio
+    async def test_none_when_not_configured(self) -> None:
+        assert await agent_methodology.build_methodology_view(AsyncMock(), source_id=None) is None
+
+    @pytest.mark.asyncio
+    async def test_none_when_source_disabled(self) -> None:
+        session = AsyncMock()
+        session.get = AsyncMock(return_value=_source(enabled=False))
+        assert await agent_methodology.build_methodology_view(session, source_id=1) is None
+
+    @pytest.mark.asyncio
+    async def test_builds_full_view_without_retrieval(self) -> None:
+        session = AsyncMock()
+        # MagicMock 的 name 是特殊属性，source_name 断言需 SimpleNamespace
+        source = SimpleNamespace(
+            id=1,
+            name="温程《趋势理论》",
+            enabled=True,
+            chapter_tree={
+                "published": [
+                    {"title": "第1章 趋势", "children": [{"title": "1.1 三元", "children": []}]},
+                    {"title": "第2章 买卖点", "children": []},
+                ]
+            },
+        )
+        session.get = AsyncMock(return_value=source)
+        # 首次 execute = 纪律层，第二次 = 知识卡片全量
+        disc_exec = MagicMock()
+        disc_exec.all.return_value = [
+            MagicMock(id=1, title="选板块", body="板块效应成立才参与")
+        ]
+        points_exec = MagicMock()
+        points_exec.all.return_value = [
+            MagicMock(point_type="method", title="回踩接回", body="…"),
+            MagicMock(point_type="case", title="23 年 AI 行情", body="…"),
+        ]
+        session.execute = AsyncMock(side_effect=[disc_exec, points_exec])
+        with patch(
+            "app.services.kb.search_service.search", AsyncMock()
+        ) as search_mock:
+            view = await agent_methodology.build_methodology_view(session, source_id=1)
+
+        assert view is not None
+        assert view["source_name"] == "温程《趋势理论》"
+        assert view["outline"] == "- 第1章 趋势\n  - 1.1 三元\n- 第2章 买卖点"
+        assert view["disciplines"] == [
+            {"id": 1, "title": "选板块", "body": "板块效应成立才参与"}
+        ]
+        assert view["points"] == [
+            {"point_type": "method", "title": "回踩接回", "body": "…"},
+            {"point_type": "case", "title": "23 年 AI 行情", "body": "…"},
+        ]
+        search_mock.assert_not_awaited()

@@ -65,6 +65,90 @@
 - **D26 贾维斯视觉**：中心核心 + 轨道雷达形态（Canvas 2D 自绘，requestAnimationFrame），
   弃 ECharts/G6（图表达场景不适合 HUD 动效）；未上线 Agent 幽灵节点 + 预告卡
   （点击弹简介，不可进入）。
+- **D27 人设与专属 Skill**（2026-09-26 追加）：每 Agent 三层个性化——
+  ① 会话人设：`prompts/agents/trading_agent_<agent_key 转下划线>.yaml`，
+  注册表 `prompt_id` 分流（机制 D21 已备），共享 `trading_agent.yaml` 删除；
+  ② 计划作业 Skill：`skills/trading-<agent_key>/`（SKILL.md 作业方法论 +
+  prompt.yaml 计划契约），登记 BUILTIN_SKILLS 新增 `trading` 场景，
+  `agent_plan_service` 按 agent_key 装载（共享 `agent_daily_plan.yaml` 删除，
+  缓存 skill_id 随之 per-agent）；③ 复盘人设：共享 `trading_review.yaml` 契约
+  不动，user_prompt 注入注册行人设段。平台硬纪律（ask_user 确认/风控转述等）
+  三份人设保持一致。trading 技能不出现在助手技能广场（`list_skills` 与
+  `skill_sync` 过滤）——它们是 Agent 内部作业程序，助手对话不可调用。
+- **D28 验收修复与扩展性定版**（2026-09-26 追加，分支 `feature/agent-hub-ux-fixes`）：
+  ① 注册表加 `plan_cadence` / `review_cadence`（daily/weekly/monthly）——spider 与
+  总览「接下来」同语义门控（daily 每交易日；weekly/monthly 仅周期末，复用
+  `is_last_trading_day_of_week/month`）；② **任意状态可编辑**：`update_agent` 白名单
+  开放 `status`（仅 active/disabled，planned 为种子初始态不可回置）与人设四字段，
+  停用 = 雷达隐藏 + 不参与调度；③ 雷达仅画 active 节点，planned 幽灵节点删除，
+  管理入口改总览页「Agent 管理列表」（含启用 Switch）；布局改实测容器像素椭圆
+  （Canvas 与 HTML 标签层共用，修复单节点越界裁剪与双层错位）；④ **人设运行时
+  注入**：会话 system_prompt 头部拼「你的身份（注册表）」段并入 fingerprint——
+  编辑名称/标语/风格/策略即时生效（YAML 人设文件降级为硬纪律+工作流骨架，
+  与注册表不再重复）；计划 user_prompt 同步注入；⑤ plans 端点包装
+  `{tradeDate, nextTradeDate, plans}` 次日语义 + 标题显示所选日期与交易时段；
+  ⑥ agent 自选行复用「我的自选」样式（名称/代号/分时缩略图/现价涨跌幅）；
+  ⑦ **扩展性定版：新 Agent = INSERT 注册表一行**——计划技能 `trading-<key>` 不存在
+  时 fallback `skills/trading-default/`（共享作业程序）；prompt_id 可指向任意既有
+  人设模板；前端 `short-line` 默认值兜底全部清除（缺路由参数跳回总览），
+  名称/策略/频率后续均 UI 配置，零代码新增。
+- **D29 验收反馈二批：能力视图 + Agent CRUD + 工作台重构 + 持仓与交易**
+  （2026-09-26 追加，分支 `feature/agent-hub-ux-fixes`，无迁移）：
+  ① **能力端点** `GET /{agentKey}/status`（`AgentCapabilityResponse`）：profile +
+  llmName + methodologySourceName（kb_source 名）+ 作业技能（`plan_skill_id` 的
+  `trading-<key>`→`trading-default` fallback + `get_skill().label`，标 shared 默认）+
+  活跃记忆计数（纪律/方法/教训）+ 自动化任务视图（计划/复盘/sync 三任务：cron +
+  cadence + CollectorTask 启用态 + croniter 下次执行 + collector_log 最近运行）+
+  近期活动——工作台右栏改「能力与技能 / 自动化任务 / 近期活动」三卡，取代原
+  计划/复盘侧栏（两 tab 内仍可达）；② **Agent CRUD**：`POST /agents`（创建即
+  active；agent_key 正则 422 / 重复 409 / prompt_id 限 `trading_agent_*.yaml` 模板
+  清单；风控保守默认 20/60/10、auto_exec False、sort_order=max+1）、
+  `DELETE /{agentKey}`（级联清理：core UPDATE 解绑账户（账户保留）→ bulk 删
+  计划/选股/记忆 → assistant_session 逐条 `checkpointer.adelete_thread` 后删行 →
+  删注册行；自选分组 DB CASCADE）、`GET /prompt-templates`（glob + yaml label）——
+  总览管理列表加「新建 Agent」弹窗（创建即启用，提示绑定账户后才实际下单）与
+  行级删除 Popconfirm；③ plans 响应加 `stockName`（StockBasic 批量名），计划行
+  显示名称+代号；④ 交易记录 tab 重构为「持仓与交易」：资金五指标（总资产 /
+  持仓市值 ΣmarketValue / 可用资金 / 累计盈亏 nav−cumInout / 当日盈亏 实时
+  nav−最近快照 nav 前端算）+ 当前持仓（复用 `PaperTradePositions`，不传 onTrade）+
+  委托/成交（日期选择即历史查询）；`SymbolCell`（名称+代号+当日涨幅）自
+  PaperTradePositions 导出，委托/成交表同步复用；⑤ 介绍卡加方法论 Tag。
+- **D30 验收反馈三批：配置页四区 + 人设/技能可视化 + 排程重排 + 语义标注**
+  （2026-09-27 追加，分支 `feature/agent-hub-ux-fixes`，无迁移）：
+  ① **配置页重构**：「账户与配置」→「配置」四区——基本配置（表单删标语/风格/
+  策略三字段，剩 名称/状态/双频率/模型/自动交易/风控三参）→ 会话人设（模板
+  Select 换绑 PUT config.promptId + YAML 原文只读浏览）→ 作业技能（镜像目录
+  文件浏览 + 方法论大纲/纪律/知识卡片）→ 模拟盘账户；新建 Agent 弹窗同步精简
+  （tagline 改 Optional 兜底空串，展示点全部空值收敛）；② **人设/技能可视化
+  端点**：`GET /{agentKey}/prompt`（`TradingAgentPromptContent`，读
+  `prompts/agents/<prompt_id>.yaml` 原文，白名单防路径穿越）、
+  `GET /{agentKey}/skill/files`（`AgentSkillFilesResponse`，trading 技能不进
+  skill 表故直读 `skills/<skill_id>/` 镜像目录，读取口径复刻
+  `_builtin_files`；methodology=KB 绑定源全量可视化 `build_methodology_view`）；
+  前端 `SkillFileBrowserView` 展示层抽取（广场与配置页各包数据 wrapper）；
+  ③ **会话方法论注入**：`get_trading_agent` 静态层（outline + disciplines
+  全量，query_text=None 跳过 RRF 检索层）注入 system prompt
+  「## 方法论基座」段；`methodology_source_id` 入 agent 缓存指纹第五维，
+  换绑即重建；④ **排程重排**（只改 cron 不改 task_name）：大盘复盘 18:35 →
+  `paper_trade_review_1610` 19:00（`0 19 * * 1-5`）→ `agent_daily_plan_1900`
+  19:30（`30 19 * * 1-5`）——agent 复盘串行在大盘复盘之后、选股消费复盘结论；
+  本地库 UPDATE collector_task 即生效（beat 动态 sync ~3min），生产部署需手动
+  执行（记入部署注意）；⑤ **语义标注**：`AgentActivityItem` 结构化
+  stockCode/stockName（`_fill_stock_names` 批量回填，活动条目股票可点跳
+  `/stock/:code`）；plans 行加 `heldVolume`（截至计划日按 execution side
+  加减聚合，语义与 `_local_positions` 一致）——计划行 sell 标「止损/止盈卖出 +
+  持仓 N 股」、buy 标「增持/建仓」（同股买卖双挂为合法形态：止损单 + 回踩
+  加仓单，保留数据不做互斥校验）；update 白名单开放 `prompt_id`（模板清单
+  422 校验）；tab 顺序 records 前移；委托/成交改 Tabs；SymbolCell 6 位代码
+  可跳详情。
+- **D31 验收反馈四批：配置页账户区改绑定视图**
+  （2026-09-27 追加，分支 `feature/agent-hub-ux-fixes`，无迁移、无后端改动）：
+  「配置」tab 模拟盘账户区弃用全平台列表（`PaperTradeAccountsAdmin` 仍在系统
+  管理页），改 `AgentAccountPanel` 单 Agent 绑定视图——未绑定显示 Empty +
+  「绑定账户」按钮弹 Modal（Select 全平台未占用账户，空置提示先到模拟盘页
+  「账户管理」添加）；已绑定 Descriptions 展示账户名称/柜台 ID/Token 掩码/
+  最近同步/最近错误 + 「解绑账户」Popconfirm。复用既有 designate/clear API
+  （专属账户全局唯一语义不变，绑定时原归属自动还原）。
 
 ## 4. 数据模型
 
@@ -82,8 +166,9 @@
 | risk_max_position_pct / risk_max_total_pct / risk_max_daily_orders | NUMERIC/INT | 风控三参数（原 config 迁移） |
 | auto_exec_enabled | BOOLEAN | 自主执行总闸 |
 | status | VARCHAR(16) chk | active / planned / disabled |
+| plan_cadence / review_cadence | VARCHAR(16) chk | daily / weekly / monthly（D28，计划与复盘生成频率） |
 | sort_order | INT | 总览排布 |
-| prompt_id | VARCHAR(64) | `prompts/agents/<prompt_id>.yaml`，短线沿用 `trading_agent` |
+| prompt_id | VARCHAR(64) | `prompts/agents/<prompt_id>.yaml`，per-agent 人设（D27：short/long/m60 三份） |
 | accent_color | VARCHAR(16) | 总览节点主色 |
 | created_at / updated_at | timestamptz | 审计 |
 
@@ -137,8 +222,14 @@
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/agents` | 总览聚合（新，见 §6） |
-| GET/PUT | `/{agentKey}/config` | active 才可写，planned 只读 |
-| GET | `/{agentKey}/review · /dates · /plans · /selections · /memories` | planned 可读 |
+| POST | `/agents` | 新建 Agent（创建即 active，校验见 D29；D29） |
+| GET | `/prompt-templates` | 人设模板清单（新建 Agent 下拉，D29） |
+| GET | `/{agentKey}/status` | 能力/状态视图（技能/记忆计数/自动化任务/活动，D29） |
+| DELETE | `/{agentKey}` | 删除 Agent 并级联清理（解绑账户保留账户本体，D29） |
+| GET/PUT | `/{agentKey}/config` | 任意状态可写（D28）；PUT 可携 status/name/人设/频率/promptId（D30） |
+| GET | `/{agentKey}/prompt` | 会话人设 YAML 原文（只读浏览，D30） |
+| GET | `/{agentKey}/skill/files` | 作业技能包可视化（镜像文件 + 方法论轮廓，D30） |
+| GET | `/{agentKey}/review · /dates · /plans · /selections · /memories` | planned 可读；plans 返回 `{tradeDate, nextTradeDate, plans}`（D28），行含 `stockName`（D29） |
 | POST | `/{agentKey}/plans/{id}/cancel` | active |
 | DELETE | `/{agentKey}/selections/{id}` | active |
 | PUT | `/{agentKey}/memories/{id} · /memories/{id}/status` | active |

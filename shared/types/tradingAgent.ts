@@ -23,31 +23,46 @@ export interface TradingAgentProfile {
   /** 盘中自主执行总闸（盘中执行批次消费）。 */
   autoExecEnabled: boolean
   status: 'active' | 'planned' | 'disabled'
+  /** 计划生成频率（daily 每交易日 / weekly 周期末 / monthly 月末，D28）。 */
+  planCadence: 'daily' | 'weekly' | 'monthly'
+  /** 复盘生成频率（同上）。 */
+  reviewCadence: 'daily' | 'weekly' | 'monthly'
   sortOrder: number
   promptId: string
   accentColor: string
   updatedAt?: string | null
 }
 
-/** 交易 Agent 配置保存请求（未提供字段不变；仅 active 可写）。 */
+/** Agent 计划/复盘生成频率（D28：daily 每交易日 / weekly 周期末 / monthly 月末）。 */
+export type AgentCadence = 'daily' | 'weekly' | 'monthly'
+
+/** 交易 Agent 配置保存请求（未提供字段不变；任意状态可写，D28）。
+ * status 仅接受 active/disabled——'planned' 为种子初始态，启用即置 active。 */
 export interface TradingAgentProfileUpdateRequest {
   name?: string
   tagline?: string
   strategyDesc?: string
   styleDesc?: string
+  /** 会话人设模板换绑（D30 开放更新；须在模板清单内）。 */
+  promptId?: string
   llmConfigId?: number | null
   methodologySourceId?: number | null
   riskMaxPositionPct?: number
   riskMaxTotalPct?: number
   riskMaxDailyOrders?: number
   autoExecEnabled?: boolean
+  status?: 'active' | 'disabled'
+  planCadence?: AgentCadence
+  reviewCadence?: AgentCadence
 }
 
-/** 总览近期活动条目（计划生成/触发、复盘生成）。 */
+/** 总览近期活动条目（计划生成/触发、复盘生成；D30 计划条目携带标的可跳转）。 */
 export interface AgentActivityItem {
   kind: 'plan' | 'review'
   title: string
   detail?: string | null
+  stockCode?: string | null
+  stockName?: string | null
   occurredAt?: string | null
 }
 
@@ -119,6 +134,8 @@ export interface ApiTradingAgentPlan {
   id: number
   planDate: string
   stockCode: string
+  /** 股票名称（stock_basic 批量解析；主数据缺失为 null，前端回退代号）。 */
+  stockName: string | null
   planType: 'buy' | 'sell'
   strategy: string
   buyZoneLow: number | null
@@ -128,8 +145,18 @@ export interface ApiTradingAgentPlan {
   positionPct: number
   status: TradingAgentPlanStatus
   selectionId: number | null
+  /** 截至计划日按成交聚合的持仓股数（未绑定账户/无成交为 null）。 */
+  heldVolume: number | null
   basis: string
   triggeredClOrdId: string | null
+}
+
+/** 指定日交易计划包装响应（D28：计划日 + 下一交易日执行语义 + 计划列表）。 */
+export interface ApiTradingAgentPlansResponse {
+  tradeDate: string
+  /** tradeDate 的下一交易日（计划于此日盘中执行）；日历未覆盖为 null。 */
+  nextTradeDate: string | null
+  plans: ApiTradingAgentPlan[]
 }
 
 /** agent 选股条目（模拟管理「Agent 自选」：AI 依据 + 置信度）。 */
@@ -169,4 +196,97 @@ export interface ApiAgentMemoryUpdateRequest {
   title?: string
   body?: string
   memType?: AgentMemoryType
+}
+
+/** 新建交易 Agent 请求（D29 创建即 active；D30 精简：标语/风格/策略可不填）。 */
+export interface TradingAgentCreateRequest {
+  agentKey: string
+  name: string
+  tagline?: string | null
+  promptId: string
+  strategyDesc?: string | null
+  styleDesc?: string | null
+  accentColor?: string | null
+  planCadence?: AgentCadence | null
+  reviewCadence?: AgentCadence | null
+  llmConfigId?: number | null
+  methodologySourceId?: number | null
+}
+
+/** 可用会话人设模板（prompts/agents/trading_agent_*.yaml 扫描）。 */
+export interface ApiTradingAgentPromptTemplate {
+  promptId: string
+  label: string
+}
+
+/** Agent 自动化任务视图（cron + 状态 + 下次/最近执行）。 */
+export interface ApiAgentAutomationTask {
+  key: string
+  label: string
+  cron: string | null
+  taskActive: boolean
+  cadence: AgentCadence | null
+  nextRunAt: string | null
+  lastRunAt: string | null
+  lastStatus: string | null
+}
+
+/** Agent 活跃记忆按类型计数。 */
+export interface ApiAgentMemoryCounts {
+  discipline: number
+  method: number
+  lesson: number
+  activeTotal: number
+}
+
+/** Agent 能力/状态视图（工作台右栏，一屏回答「agent 靠什么工作」）。 */
+export interface ApiAgentCapabilityResponse {
+  profile: TradingAgentProfile
+  llmName: string | null
+  methodologySourceName: string | null
+  skillId: string
+  skillLabel: string
+  skillIsSharedDefault: boolean
+  memoryCounts: ApiAgentMemoryCounts
+  automation: ApiAgentAutomationTask[]
+  recentActivity: AgentActivityItem[]
+}
+
+/** 会话人设 YAML 原文（配置页只读浏览，D30）。 */
+export interface ApiTradingAgentPromptContent {
+  promptId: string
+  label: string
+  content: string
+}
+
+/** 方法论纪律条目（KB published 全量）。 */
+export interface ApiAgentMethodologyDiscipline {
+  title: string
+  body: string
+}
+
+/** 方法论知识卡片条目（method/theorem/concept/case）。 */
+export interface ApiAgentMethodologyPoint {
+  title: string
+  pointType: 'method' | 'theorem' | 'concept' | 'case' | string
+  body: string
+}
+
+/** 方法论基座可视化载荷（配置页只读；null = 未绑定知识源）。 */
+export interface ApiAgentMethodologyView {
+  sourceId: number
+  sourceName: string
+  outline: string
+  disciplines: ApiAgentMethodologyDiscipline[]
+  points: ApiAgentMethodologyPoint[]
+}
+
+/** Agent 作业技能包可视化（配置页「作业技能」区，D30）。
+ * trading 技能不进 skill 表（广场不可见），后端直读镜像 skills/<id>/ 目录。 */
+export interface ApiAgentSkillFilesResponse {
+  skillId: string
+  skillLabel: string
+  skillIsSharedDefault: boolean
+  files: import('./skill').ApiSkillFile[]
+  methodology: ApiAgentMethodologyView | null
 }

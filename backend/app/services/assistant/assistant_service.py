@@ -97,7 +97,8 @@ class AssistantService:
         skills_dir = get_settings().skills_dir
         summaries: list[SkillSummary] = []
         for descriptor in iter_skills():
-            if not descriptor.skill_md:
+            if not descriptor.skill_md or descriptor.scenario == "trading":
+                # trading 场景是交易 Agent 内部作业技能，助手对话不可调用，不进广场
                 continue
             path = skills_dir / descriptor.skill_id / "SKILL.md"
             if not path.exists():

@@ -1,7 +1,8 @@
 """管理后台交易 Agent API 端点（多 Agent 基座，路径参数 agent_key）。
 
-profile/config 读写 + 复盘/计划/自选/记忆管理面。读端点 planned Agent 可读，
-写端点（配置保存/取消计划/移出自选/记忆编辑）仅 active Agent 可写。
+profile/config 读写 + 复盘/计划/自选/记忆管理面。读端点任意状态可读；
+干预类写端点（取消计划/移出自选/记忆编辑）仅 active Agent 可写，
+配置保存任意状态可写（未上线/停用的 Agent 也可先配置，D28）。
 """
 
 from datetime import date
@@ -12,16 +13,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.paper_trade import (
+    AgentCapabilityResponse,
     AgentMemoryResponse,
     AgentMemoryStatusUpdateRequest,
     AgentMemoryUpdateRequest,
     AgentOverviewResponse,
     AgentSelectionItem,
+    AgentSkillFilesResponse,
     AgentWatchlistGroupResponse,
+    TradingAgentCreateRequest,
     TradingAgentDatesResponse,
     TradingAgentPlanResponse,
+    TradingAgentPlansResponse,
     TradingAgentProfileResponse,
     TradingAgentProfileUpdateRequest,
+    TradingAgentPromptContent,
+    TradingAgentPromptTemplate,
     TradingAgentReviewResponse,
 )
 from app.services.market import trade_calendar_service
@@ -47,6 +54,46 @@ async def list_trading_agents(
     return await agent_overview_service.get_overview(session)
 
 
+@router.get(
+    "/prompt-templates", response_model=list[TradingAgentPromptTemplate]
+)
+async def list_trading_agent_prompt_templates(
+) -> list[TradingAgentPromptTemplate]:
+    """可用会话人设模板（prompts/agents/trading_agent_*.yaml 扫描，新建 Agent 下拉）。"""
+    return agent_registry.list_prompt_templates()
+
+
+@router.post(
+    "/agents",
+    response_model=TradingAgentProfileResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_trading_agent(
+    data: TradingAgentCreateRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> TradingAgentProfileResponse:
+    """新建 Agent（D29：创建即 active 参与调度；技能走共享兜底，绑定账户后才实际下单）。"""
+    return await agent_registry.create_agent(session, data=data)
+
+
+@router.delete("/{agent_key}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_trading_agent(
+    agent_key: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    """删除 Agent 并级联清理（解绑模拟盘账户、删计划/选股/记忆/会话，D29）。"""
+    await agent_registry.delete_agent(session, agent_key)
+
+
+@router.get("/{agent_key}/status", response_model=AgentCapabilityResponse)
+async def get_trading_agent_status(
+    agent_key: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> AgentCapabilityResponse:
+    """Agent 能力/状态视图（人设/方法论/作业技能/模型/记忆/自动化任务/近期活动）。"""
+    return await agent_overview_service.get_agent_status(session, agent_key)
+
+
 @router.get("/{agent_key}/config", response_model=TradingAgentProfileResponse)
 async def get_trading_agent_config(
     agent_key: str,
@@ -56,13 +103,35 @@ async def get_trading_agent_config(
     return await agent_registry.get_agent_view(session, agent_key)
 
 
+@router.get("/{agent_key}/prompt", response_model=TradingAgentPromptContent)
+async def get_trading_agent_prompt(
+    agent_key: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> TradingAgentPromptContent:
+    """会话人设 YAML 原文（配置页只读浏览；prompt_id 经模板白名单校验，D30）。"""
+    row = await agent_registry.get_agent(session, agent_key)
+    return agent_registry.get_prompt_content(row.prompt_id)
+
+
+@router.get("/{agent_key}/skill/files", response_model=AgentSkillFilesResponse)
+async def get_trading_agent_skill_files(
+    agent_key: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> AgentSkillFilesResponse:
+    """作业技能包文件与方法论基座可视化（配置页只读，D30）。
+
+    trading 技能不进 skill 表（广场不可见），直读镜像 ``skills/<id>/`` 目录。
+    """
+    return await agent_overview_service.get_agent_skill_files(session, agent_key)
+
+
 @router.put("/{agent_key}/config", response_model=TradingAgentProfileResponse)
 async def update_trading_agent_config(
     agent_key: str,
     data: TradingAgentProfileUpdateRequest,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> TradingAgentProfileResponse:
-    """保存 Agent 信息/配置；仅 active 可写，llm_config_id 校验用途为 chat。"""
+    """保存 Agent 信息/配置（任意状态可写，D28）；llm_config_id 校验用途为 chat。"""
     return await agent_registry.update_agent(session, agent_key, data=data)
 
 
@@ -101,18 +170,21 @@ async def get_trading_agent_dates(
     )
 
 
-@router.get("/{agent_key}/plans", response_model=list[TradingAgentPlanResponse])
+@router.get("/{agent_key}/plans", response_model=TradingAgentPlansResponse)
 async def list_trading_agent_plans(
     agent_key: str,
     session: Annotated[AsyncSession, Depends(get_db)],
     trade_date: date | None = Query(None, description="计划日（缺省取最近交易日）"),
-) -> list[TradingAgentPlanResponse]:
-    """读取指定日的交易计划（含全部状态，前端按状态分色）。"""
+) -> TradingAgentPlansResponse:
+    """读取指定日的交易计划（含全部状态，前端按状态分色）+ 下一交易日（次日语义）。"""
     resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(
         session
     )
-    plans = await agent_plan_ops.list_plans(session, agent_key, plan_date=resolved)
-    return [TradingAgentPlanResponse.model_validate(p) for p in plans]
+    return TradingAgentPlansResponse(
+        trade_date=resolved,
+        next_trade_date=await trade_calendar_service.next_trading_day(session, resolved),
+        plans=await agent_plan_ops.list_plan_views(session, agent_key, plan_date=resolved),
+    )
 
 
 @router.post(

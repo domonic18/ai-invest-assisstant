@@ -1,11 +1,13 @@
-"""交易 Agent 计划/选股干预服务契约测试（批次 7：create/cancel/移出）。"""
+"""交易 Agent 计划/选股干预服务契约测试（批次 7：create/cancel/移出；D29 计划视图）。"""
 
 from datetime import date
-from unittest.mock import AsyncMock, MagicMock
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.models.agent_trading import AgentTradePlan
 from app.services.trading import agent_plan_ops
 
 _PLAN_DATE = date(2026, 7, 15)
@@ -219,3 +221,130 @@ class TestRemoveSelectionManual:
         result = await agent_plan_ops.remove_selection_manual(session, _AK, selection_id=1)
         assert result.status == "removed"
         session.commit.assert_not_awaited()
+
+
+def _orm_plan(stock_code: str = "600000") -> AgentTradePlan:
+    return AgentTradePlan(
+        id=11,
+        agent_key=_AK,
+        plan_date=_PLAN_DATE,
+        stock_code=stock_code,
+        plan_type="buy",
+        strategy="回踩买点区间接回",
+        buy_zone_low=Decimal("9.9000"),
+        buy_zone_high=Decimal("10.2000"),
+        target_price=None,
+        stop_loss=Decimal("9.5000"),
+        position_pct=Decimal("10.00"),
+        status="active",
+        selection_id=None,
+        basis="依据",
+        triggered_cl_ord_id=None,
+    )
+
+
+def _rows_result(rows: list) -> MagicMock:
+    ret = MagicMock()
+    ret.all.return_value = rows
+    return ret
+
+
+_ACCOUNT = "app.services.trading.account_service.resolve_agent_account"
+
+
+@pytest.mark.unit
+class TestListPlanViews:
+    @pytest.mark.asyncio
+    async def test_fills_stock_name_and_held_volume(self) -> None:
+        """D30：名称回填 + 截至计划日持仓股数（execution side 加减）。"""
+        session = AsyncMock()
+        session.execute = AsyncMock(
+            side_effect=[
+                _rows_result([("600000", "浦发银行")]),
+                _rows_result([("SHSE.600000", 1, 500), ("SHSE.600000", 2, 100)]),
+            ]
+        )
+        with (
+            patch.object(
+                agent_plan_ops, "list_plans", AsyncMock(return_value=[_orm_plan()])
+            ),
+            patch(_ACCOUNT, AsyncMock(return_value=MagicMock(id=7))),
+        ):
+            views = await agent_plan_ops.list_plan_views(session, _AK, plan_date=_PLAN_DATE)
+        assert len(views) == 1
+        assert views[0].stock_code == "600000"
+        assert views[0].stock_name == "浦发银行"
+        assert views[0].held_volume == 400
+        assert views[0].plan_type == "buy"
+
+    @pytest.mark.asyncio
+    async def test_held_volume_none_without_account(self) -> None:
+        from app.services.trading.errors import AgentAccountNotDesignatedError
+
+        session = AsyncMock()
+        session.execute = AsyncMock(
+            side_effect=[_rows_result([("600000", "浦发银行")])]
+        )
+        with (
+            patch.object(
+                agent_plan_ops, "list_plans", AsyncMock(return_value=[_orm_plan()])
+            ),
+            patch(
+                _ACCOUNT, AsyncMock(side_effect=AgentAccountNotDesignatedError("未绑定"))
+            ),
+        ):
+            views = await agent_plan_ops.list_plan_views(session, _AK, plan_date=_PLAN_DATE)
+        assert views[0].stock_name == "浦发银行"
+        assert views[0].held_volume is None
+
+    @pytest.mark.asyncio
+    async def test_held_volume_excludes_flat_and_negative(self) -> None:
+        """净持有 0（买卖相抵）与净卖出不标注持仓。"""
+        session = AsyncMock()
+        session.execute = AsyncMock(
+            side_effect=[
+                _rows_result([("600000", "浦发银行")]),
+                _rows_result(
+                    [
+                        ("SHSE.600000", 1, 100),
+                        ("SHSE.600000", 2, 100),
+                        ("SZSE.000001", 2, 50),
+                    ]
+                ),
+            ]
+        )
+        with (
+            patch.object(
+                agent_plan_ops, "list_plans", AsyncMock(return_value=[_orm_plan()])
+            ),
+            patch(_ACCOUNT, AsyncMock(return_value=MagicMock(id=7))),
+        ):
+            views = await agent_plan_ops.list_plan_views(session, _AK, plan_date=_PLAN_DATE)
+        assert views[0].held_volume is None
+
+    @pytest.mark.asyncio
+    async def test_missing_master_code_yields_none_name(self) -> None:
+        session = AsyncMock()
+        session.execute = AsyncMock(
+            side_effect=[_rows_result([]), _rows_result([])]
+        )
+        with (
+            patch.object(
+                agent_plan_ops, "list_plans", AsyncMock(return_value=[_orm_plan("999999")])
+            ),
+            patch(_ACCOUNT, AsyncMock(return_value=MagicMock(id=7))),
+        ):
+            views = await agent_plan_ops.list_plan_views(session, _AK, plan_date=_PLAN_DATE)
+        assert views[0].stock_name is None
+        assert views[0].held_volume is None
+
+    @pytest.mark.asyncio
+    async def test_no_plans_skips_name_query(self) -> None:
+
+        session = AsyncMock()
+        with patch.object(
+            agent_plan_ops, "list_plans", AsyncMock(return_value=[])
+        ):
+            views = await agent_plan_ops.list_plan_views(session, _AK, plan_date=_PLAN_DATE)
+        assert views == []
+        session.execute.assert_not_awaited()

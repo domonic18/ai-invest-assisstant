@@ -26,7 +26,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.core.prompt_loader import get_prompt_loader
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.locking import GENERATION_LOCK_TTL_SECONDS, redis_lock
-from app.models.market_trade_calendar import MarketTradeCalendar
 from app.models.paper_trade import (
     PaperTradeCashSnapshot,
     PaperTradeExecution,
@@ -35,7 +34,7 @@ from app.models.paper_trade import (
 )
 from app.models.stock import StockBasic
 from app.repositories.review import ai_analysis_repository
-from app.services.market.trade_calendar_service import NonTradingDayError
+from app.services.market.trade_calendar_service import NonTradingDayError, next_trading_day
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
 
 logger = structlog.get_logger(__name__)
@@ -402,9 +401,7 @@ async def generate_review(
                 return ReviewGenerateResult(content=cached, cached=True)
 
         window_input = await _collect_window_input(session, account.id, start, end)
-        content = await _run_llm(
-            session, agent.llm_config_id, period, resolved, window_input
-        )
+        content = await _run_llm(session, agent, period, resolved, window_input)
         content = _validate(content, {o["cl_ord_id"] for o in window_input["orders"]})
         record = PaperTradeReviewRecord(
             **content.model_dump(), agent_key=agent.agent_key
@@ -443,7 +440,7 @@ async def _load_cached(
 
 async def _run_llm(
     session: AsyncSession,
-    llm_config_id: int | None,
+    agent: TradingAgent,
     period: str,
     trade_date: date,
     window_input: dict[str, Any],
@@ -451,6 +448,10 @@ async def _run_llm(
     config = get_prompt_loader().load(_PROMPT_SCOPE, _PROMPT_ID)
     user_prompt = (
         f"{config.system_prompt}\n\n"
+        f"## 复盘人设（注册表行，D27）\n"
+        f"- 你是{agent.name}（{agent.tagline}）；策略风格：{agent.style_desc}"
+        f"——{agent.strategy_desc}\n"
+        f"- 以该人设的视角与风格生成分层复盘结论\n\n"
         f"## 复盘任务\n"
         f"- 周期 period：{period}\n"
         f"- 基准交易日 trade_date：{trade_date.isoformat()}（输出字段须原样带回）\n\n"
@@ -463,7 +464,7 @@ async def _run_llm(
         session,
         result_type=PaperTradeReviewContent,
         user_prompt=user_prompt,
-        config_id=llm_config_id,
+        config_id=agent.llm_config_id,
     )
 
 
@@ -489,26 +490,13 @@ async def _persist(session: AsyncSession, *, input_hash: str, content: Any) -> N
     await session.commit()
 
 
-async def _next_trading_day(session: AsyncSession, day: date) -> date | None:
-    row = await session.scalar(
-        select(MarketTradeCalendar.calendar_date)
-        .where(
-            MarketTradeCalendar.calendar_date > day,
-            MarketTradeCalendar.is_trading.is_(True),
-        )
-        .order_by(MarketTradeCalendar.calendar_date.asc())
-        .limit(1)
-    )
-    return row
-
-
 async def is_last_trading_day_of_week(session: AsyncSession, day: date) -> bool:
     """day 之后最近的交易日是否已跨入下一周（ISO 周）——周五遇休市时周四即为周期末。"""
-    nxt = await _next_trading_day(session, day)
+    nxt = await next_trading_day(session, day)
     return nxt is None or nxt.isocalendar()[:2] != day.isocalendar()[:2]
 
 
 async def is_last_trading_day_of_month(session: AsyncSession, day: date) -> bool:
     """day 之后最近的交易日是否已跨入下一月。"""
-    nxt = await _next_trading_day(session, day)
+    nxt = await next_trading_day(session, day)
     return nxt is None or (nxt.year, nxt.month) != (day.year, day.month)
