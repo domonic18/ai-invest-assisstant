@@ -23,13 +23,21 @@ export interface TradingAgentProfile {
   /** 盘中自主执行总闸（盘中执行批次消费）。 */
   autoExecEnabled: boolean
   status: 'active' | 'planned' | 'disabled'
+  /** 计划生成频率（daily 每交易日 / weekly 周期末 / monthly 月末，D28）。 */
+  planCadence: 'daily' | 'weekly' | 'monthly'
+  /** 复盘生成频率（同上）。 */
+  reviewCadence: 'daily' | 'weekly' | 'monthly'
   sortOrder: number
   promptId: string
   accentColor: string
   updatedAt?: string | null
 }
 
-/** 交易 Agent 配置保存请求（未提供字段不变；仅 active 可写）。 */
+/** Agent 计划/复盘生成频率（D28：daily 每交易日 / weekly 周期末 / monthly 月末）。 */
+export type AgentCadence = 'daily' | 'weekly' | 'monthly'
+
+/** 交易 Agent 配置保存请求（未提供字段不变；任意状态可写，D28）。
+ * status 仅接受 active/disabled——'planned' 为种子初始态，启用即置 active。 */
 export interface TradingAgentProfileUpdateRequest {
   name?: string
   tagline?: string
@@ -41,6 +49,9 @@ export interface TradingAgentProfileUpdateRequest {
   riskMaxTotalPct?: number
   riskMaxDailyOrders?: number
   autoExecEnabled?: boolean
+  status?: 'active' | 'disabled'
+  planCadence?: AgentCadence
+  reviewCadence?: AgentCadence
 }
 
 /** 总览近期活动条目（计划生成/触发、复盘生成）。 */

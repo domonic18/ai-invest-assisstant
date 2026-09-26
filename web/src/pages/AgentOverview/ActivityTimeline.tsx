@@ -2,14 +2,16 @@
  * 底部时间轴：每个 Agent 一行——「正在做」近期活动（计划/复盘）与
  * 「接下来」下次任务时刻（后端按 cron + 交易日历算好的 UTC 时刻）。
  */
-import { Card, Empty, Spin, Typography } from 'antd'
+import { Button, Card, Empty, Spin, Typography } from 'antd'
 import dayjs from 'dayjs'
+import { useNavigate } from 'react-router-dom'
 
 import type { AgentOverviewItem } from '@ai-invest/shared'
 
 import { formatRelativeTime } from '@/utils/formatters'
 
 function AgentTimelineRow({ item }: { item: AgentOverviewItem }) {
+  const navigate = useNavigate()
   const latest = item.recentActivity[0]
   const done = item.recentActivity.slice(0, 3)
 
@@ -20,9 +22,14 @@ function AgentTimelineRow({ item }: { item: AgentOverviewItem }) {
           className="inline-block size-2 rounded-full"
           style={{ backgroundColor: item.profile.accentColor }}
         />
-        <Typography.Text strong className="text-xs">
+        <Button
+          type="link"
+          size="small"
+          className="!px-0 text-xs"
+          onClick={() => void navigate(`/trading-agent/${item.profile.agentKey}`)}
+        >
           {item.profile.name}
-        </Typography.Text>
+        </Button>
       </div>
       <div className="min-w-0">
         <Typography.Text type="secondary" className="text-xs">
