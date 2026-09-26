@@ -270,11 +270,21 @@ class AgentNextTask(CamelModel):
     scheduled_at: datetime
 
 
+AgentRuntimeState = Literal["working", "produced_today", "idle", "off"]
+
+
 class AgentOverviewItem(CamelModel):
-    """总览页单 Agent 聚合：介绍卡 + 模型 + 当日计数 + 近期活动 + 下次任务。"""
+    """总览页单 Agent 聚合：介绍卡 + 模型 + 当日计数 + 近期活动 + 下次任务。
+
+    runtime_state（D32）：working=collector_log 运行中且 cadence 今日命中；
+    produced_today=当日已产出计划/复盘；idle=待命；off=未启用（占位）。
+    """
 
     profile: TradingAgentProfileResponse
     llm_name: str | None = None
+    runtime_state: AgentRuntimeState = "off"
+    state_label: str | None = None
+    account_name: str | None = None
     plan_count: int = 0
     selection_count: int = 0
     order_count: int = 0

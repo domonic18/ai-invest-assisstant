@@ -72,10 +72,16 @@ export interface AgentNextTask {
   scheduledAt: string
 }
 
-/** 总览页单 Agent 聚合：介绍卡 + 模型 + 当日计数 + 近期活动 + 下次任务。 */
+/** 总览运行态（D32）：working=定时任务运行中且 cadence 今日命中；produced_today=当日已产出；idle=待命；off=未启用占位。 */
+export type AgentRuntimeState = 'working' | 'produced_today' | 'idle' | 'off'
+
+/** 总览页单 Agent 聚合：介绍卡 + 模型 + 运行态 + 当日计数 + 近期活动 + 下次任务。 */
 export interface AgentOverviewItem {
   profile: TradingAgentProfile
   llmName: string | null
+  runtimeState: AgentRuntimeState
+  stateLabel: string | null
+  accountName: string | null
   planCount: number
   selectionCount: number
   orderCount: number

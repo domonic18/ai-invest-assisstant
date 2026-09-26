@@ -1,4 +1,5 @@
-"""交易 Agent 总览聚合服务测试（D28：next_tasks 按 plan/review_cadence 门控）。"""
+"""交易 Agent 总览聚合服务测试（D28：next_tasks 按 plan/review_cadence 门控；
+D32：runtime_state 四态判定链）。"""
 
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -8,7 +9,13 @@ import pytest
 
 from app.models.kb import KbSource
 from app.models.paper_trade import TradingAgent
+from app.schemas.paper_trade import (
+    AgentNextTask,
+    AgentOverviewItem,
+    TradingAgentProfileResponse,
+)
 from app.services.trading import agent_overview_service as svc
+from app.services.trading.account_service import resolve_agent_accounts
 
 
 def _session(schedules: list[SimpleNamespace]) -> MagicMock:
@@ -485,3 +492,150 @@ class TestGetAgentSkillFiles:
         assert view.methodology.source_name == "趋势交易理论"
         assert view.methodology.disciplines[0].title == "不追高"
         assert view.methodology.points[0].point_type == "method"
+
+
+@pytest.mark.unit
+class TestRuntimeState:
+    """总览运行态判定链（D32）：off → working → produced_today → idle。"""
+
+    def _profile(self) -> TradingAgentProfileResponse:
+        return TradingAgentProfileResponse(**vars(_agent_row()))
+
+    def _ctx(self, **overrides: object) -> svc._OverviewCtx:
+        base: dict[str, object] = {
+            "llm_names": {7: "Kimi"},
+            "latest_trade_date": datetime(2026, 9, 28).date(),
+            "day_start_cn": datetime(2026, 9, 28),
+            "accounts": {"short-line": "agent模拟盘"},
+            "running_tasks": set(),
+            "review_done_keys": set(),
+        }
+        base.update(overrides)
+        return svc._OverviewCtx(**base)  # type: ignore[arg-type]
+
+    def _item_session(self) -> MagicMock:
+        session = MagicMock()
+        # scalar 调用序：plan_count → selection_count（订单查询已 patch 掉）
+        session.scalar = AsyncMock(side_effect=[3, 2])
+        ret = MagicMock()
+        ret.all.return_value = []
+        session.scalars = AsyncMock(return_value=ret)
+        session.execute = AsyncMock(
+            return_value=SimpleNamespace(all=MagicMock(return_value=[]))
+        )
+        return session
+
+    async def _build(
+        self,
+        row: SimpleNamespace | None = None,
+        ctx: svc._OverviewCtx | None = None,
+        *,
+        cadence_due: bool = True,
+        next_tasks: list[AgentNextTask] | None = None,
+        plans_created: bool = False,
+    ) -> AgentOverviewItem:
+        if next_tasks is None:
+            next_tasks = [
+                AgentNextTask(
+                    task="每日选股与交易计划",
+                    scheduled_at=datetime(2026, 9, 28, 11, 30, tzinfo=timezone.utc),
+                )
+            ]
+        with (
+            patch.object(svc, "_plan_activity", AsyncMock(return_value=[])),
+            patch.object(svc, "_review_activity", AsyncMock(return_value=[])),
+            patch.object(
+                svc, "_fill_stock_names", AsyncMock(side_effect=lambda _s, a: a)
+            ),
+            patch.object(svc, "_next_task_times", AsyncMock(return_value=next_tasks)),
+            patch.object(svc, "_order_count_today", AsyncMock(return_value=5)),
+            patch.object(svc, "_cadence_due", AsyncMock(return_value=cadence_due)),
+            patch.object(
+                svc, "_plans_created_today", AsyncMock(return_value=plans_created)
+            ),
+        ):
+            return await svc._build_item(
+                self._item_session(),
+                row or _agent_row(),
+                self._profile(),
+                ctx or self._ctx(),
+            )
+
+    @pytest.mark.asyncio
+    async def test_planned_is_off_placeholder_with_account(self) -> None:
+        item = await self._build(row=_agent_row(status="planned"))
+        assert item.runtime_state == "off"
+        assert item.state_label == "未启用 · 规划中"
+        assert item.plan_count == 0
+        assert item.next_tasks == []
+        assert item.account_name == "agent模拟盘"
+
+    @pytest.mark.asyncio
+    async def test_disabled_is_off_plain_label(self) -> None:
+        item = await self._build(row=_agent_row(status="disabled"))
+        assert item.runtime_state == "off"
+        assert item.state_label == "未启用"
+
+    @pytest.mark.asyncio
+    async def test_working_plan_log_running_and_due(self) -> None:
+        ctx = self._ctx(running_tasks={"agent-daily-plan"})
+        item = await self._build(ctx=ctx)
+        assert item.runtime_state == "working"
+        assert item.state_label == "作业中 · 每日选股计划"
+        assert item.plan_count == 3
+        assert item.order_count == 5
+
+    @pytest.mark.asyncio
+    async def test_working_review_log_label(self) -> None:
+        ctx = self._ctx(running_tasks={"paper-trade-review"})
+        item = await self._build(ctx=ctx)
+        assert item.runtime_state == "working"
+        assert item.state_label == "作业中 · 盘后复盘"
+
+    @pytest.mark.asyncio
+    async def test_cadence_miss_falls_to_idle_not_working(self) -> None:
+        """log 运行中但 cadence 今日未命中（weekly 非周期日）不得判 working。"""
+        ctx = self._ctx(
+            running_tasks={"agent-daily-plan", "paper-trade-review"}
+        )
+        item = await self._build(ctx=ctx, cadence_due=False)
+        assert item.runtime_state == "idle"
+        assert item.state_label == "待命 · 下次 19:30"
+
+    @pytest.mark.asyncio
+    async def test_produced_today_from_review_done(self) -> None:
+        ctx = self._ctx(review_done_keys={"short-line"})
+        item = await self._build(ctx=ctx, cadence_due=False)
+        assert item.runtime_state == "produced_today"
+        assert item.state_label == "今日已产出"
+
+    @pytest.mark.asyncio
+    async def test_produced_today_from_plans_created(self) -> None:
+        item = await self._build(cadence_due=False, plans_created=True)
+        assert item.runtime_state == "produced_today"
+
+    @pytest.mark.asyncio
+    async def test_idle_without_next_task(self) -> None:
+        item = await self._build(cadence_due=False, next_tasks=[])
+        assert item.runtime_state == "idle"
+        assert item.state_label == "待命"
+
+
+@pytest.mark.unit
+class TestResolveAgentAccounts:
+    @pytest.mark.asyncio
+    async def test_maps_bound_rows_and_skips_null_key(self) -> None:
+        session = MagicMock()
+        ret = SimpleNamespace(
+            all=MagicMock(return_value=[("short-line", "agent盘"), (None, "人工盘")])
+        )
+        session.execute = AsyncMock(return_value=ret)
+        mapping = await resolve_agent_accounts(session, ["short-line", "m60"])
+        assert mapping == {"short-line": "agent盘"}
+
+    @pytest.mark.asyncio
+    async def test_empty_keys_skips_query(self) -> None:
+        session = MagicMock()
+        session.execute = AsyncMock()
+        assert await resolve_agent_accounts(session, []) == {}
+        session.execute.assert_not_awaited()

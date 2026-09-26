@@ -6,6 +6,7 @@
 时刻在后端算好（aware UTC），前端纯渲染。
 """
 
+from dataclasses import dataclass
 from datetime import date, datetime, time
 from datetime import timezone as dt_timezone
 
@@ -36,6 +37,7 @@ from app.schemas.paper_trade import (
     AgentNextTask,
     AgentOverviewItem,
     AgentOverviewResponse,
+    AgentRuntimeState,
     AgentSkillFilesResponse,
     TradingAgentProfileResponse,
 )
@@ -43,7 +45,10 @@ from app.schemas.skill import SkillFile
 from app.services.market import trade_calendar_service
 from app.services.skill.skill_service import SKILL_TEXT_SUFFIXES
 from app.services.trading import agent_registry, agent_review_service
-from app.services.trading.account_service import resolve_agent_account
+from app.services.trading.account_service import (
+    resolve_agent_account,
+    resolve_agent_accounts,
+)
 from app.services.trading.agent_methodology import build_methodology_view
 from app.services.trading.agent_plan_service import plan_skill_id
 from app.services.trading.agent_review_service import REVIEW_SKILL_ID
@@ -68,6 +73,10 @@ _AUTOMATION_TASKS: tuple[tuple[str, str, str, str | None], ...] = (
 
 # cadence 门控下 cron 候选扫描上限（月频最坏 ~23 个工作日候选）
 _CRON_MAX_CANDIDATES = 40
+
+# 总览运行态判定的两个 agent 定时任务 collector_log 键（与 _AUTOMATION_TASKS log 键一致；
+# spider 串行多 Agent 循环只落全局一条 log，working 判定为近似——未来写 meta.agent_key 可精确）
+_RUNNING_LOG_KEYS: tuple[str, ...] = ("agent-daily-plan", "paper-trade-review")
 
 _PLAN_STATUS_TITLE = {
     "active": "待触发",
@@ -155,6 +164,65 @@ async def _cadence_due(
     if cadence == "monthly":
         return await agent_review_service.is_last_trading_day_of_month(session, day)
     return True
+
+
+async def _running_log_tasks(session: AsyncSession) -> set[str]:
+    """collector_log 最新一条处于 running/pending 的任务键集（按 task_name 分组取最新 id）。"""
+    latest_ids = (
+        (
+            await session.execute(
+                select(func.max(CollectorLog.id))
+                .where(CollectorLog.task_name.in_(_RUNNING_LOG_KEYS))
+                .group_by(CollectorLog.task_name)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not latest_ids:
+        return set()
+    rows = (
+        await session.execute(
+            select(CollectorLog.task_name).where(
+                CollectorLog.id.in_(latest_ids),
+                CollectorLog.status.in_(("running", "pending")),
+            )
+        )
+    ).all()
+    return {str(r[0]) for r in rows}
+
+
+async def _review_done_keys(session: AsyncSession, day_start_cn: datetime) -> set[str]:
+    """今日（北京墙钟）已生成分层复盘的 agent_key 集合。"""
+    rows = (
+        await session.scalars(
+            select(AiAnalysisResult.structured_output["agent_key"].astext)
+            .where(
+                AiAnalysisResult.skill_id == REVIEW_SKILL_ID,
+                AiAnalysisResult.status == "success",
+                AiAnalysisResult.created_at >= day_start_cn,
+                AiAnalysisResult.structured_output["agent_key"].astext.isnot(None),
+            )
+            .distinct()
+        )
+    ).all()
+    return {str(r) for r in rows}
+
+
+async def _plans_created_today(
+    session: AsyncSession, agent_key: str, day_start_cn: datetime
+) -> bool:
+    """今日（北京墙钟）生成过交易计划（按计划行创建时刻计）。"""
+    return bool(
+        await session.scalar(
+            select(func.count())
+            .select_from(AgentTradePlan)
+            .where(
+                AgentTradePlan.agent_key == agent_key,
+                AgentTradePlan.created_at >= day_start_cn,
+            )
+        )
+    )
 
 
 async def _plan_activity(
@@ -246,71 +314,136 @@ async def _order_count_today(
     )
 
 
+@dataclass
+class _OverviewCtx:
+    """总览聚合预取上下文（get_overview 一次查询、_build_item 逐行消费）。"""
+
+    llm_names: dict[int, str]
+    latest_trade_date: date
+    day_start_cn: datetime
+    accounts: dict[str, str]
+    running_tasks: set[str]
+    review_done_keys: set[str]
+
+
 async def _build_item(
     session: AsyncSession,
     row: TradingAgent,
     profile: TradingAgentProfileResponse,
-    llm_names: dict[int, str],
-    latest_trade_date: date,
+    ctx: _OverviewCtx,
 ) -> AgentOverviewItem:
-    """聚合单个 Agent 的总览载荷（planned 仅 profile + 模型名）。"""
+    """聚合单个 Agent 总览载荷。
+
+    运行态判定链（D32，顺序短路）：off（未启用，仅占位）→ working（log 运行中
+    且 cadence 今日命中）→ produced_today（当日已产出计划/复盘）→ idle（待命）。
+    """
+    plan_count = 0
+    selection_count = 0
+    order_count = 0
+    activity: list[AgentActivityItem] = []
+    next_tasks: list[AgentNextTask] = []
+    state: AgentRuntimeState = "off"
+
     if row.status != agent_registry.AGENT_STATUS_ACTIVE:
-        return AgentOverviewItem(
-            profile=profile,
-            llm_name=llm_names.get(row.llm_config_id or -1),
+        label = (
+            "未启用 · 规划中"
+            if row.status == agent_registry.AGENT_STATUS_PLANNED
+            else "未启用"
+        )
+    else:
+        plan_count = int(
+            await session.scalar(
+                select(func.count())
+                .select_from(AgentTradePlan)
+                .where(
+                    AgentTradePlan.agent_key == row.agent_key,
+                    AgentTradePlan.plan_date == ctx.latest_trade_date,
+                )
+            )
+            or 0
+        )
+        selection_count = int(
+            await session.scalar(
+                select(func.count())
+                .select_from(AgentStockSelection)
+                .where(
+                    AgentStockSelection.agent_key == row.agent_key,
+                    AgentStockSelection.status == "active",
+                )
+            )
+            or 0
+        )
+        activity = [
+            *(await _plan_activity(session, row.agent_key)),
+            *(await _review_activity(session, row.agent_key)),
+        ]
+        activity.sort(key=lambda a: a.occurred_at or utc_now(), reverse=True)
+        await _fill_stock_names(session, activity)
+        next_tasks = await _next_task_times(session, row)
+        order_count = await _order_count_today(
+            session, row.agent_key, ctx.day_start_cn
         )
 
-    plan_count = int(
-        await session.scalar(
-            select(func.count())
-            .select_from(AgentTradePlan)
-            .where(
-                AgentTradePlan.agent_key == row.agent_key,
-                AgentTradePlan.plan_date == latest_trade_date,
-            )
+        today = ctx.day_start_cn.date()
+        plan_running = (
+            "agent-daily-plan" in ctx.running_tasks
+            and row.plan_cadence is not None
+            and await _cadence_due(session, row.plan_cadence, today)
         )
-        or 0
-    )
-    selection_count = int(
-        await session.scalar(
-            select(func.count())
-            .select_from(AgentStockSelection)
-            .where(
-                AgentStockSelection.agent_key == row.agent_key,
-                AgentStockSelection.status == "active",
-            )
+        review_running = (
+            "paper-trade-review" in ctx.running_tasks
+            and row.review_cadence is not None
+            and await _cadence_due(session, row.review_cadence, today)
         )
-        or 0
-    )
-    day_start_cn = datetime.combine(today_cn(), time.min).replace(tzinfo=CN_TZ)
-    activity = [
-        *(await _plan_activity(session, row.agent_key)),
-        *(await _review_activity(session, row.agent_key)),
-    ]
-    activity.sort(key=lambda a: a.occurred_at or utc_now(), reverse=True)
-    await _fill_stock_names(session, activity)
+        produced = row.agent_key in ctx.review_done_keys or await _plans_created_today(
+            session, row.agent_key, ctx.day_start_cn
+        )
+        if plan_running:
+            state, label = "working", "作业中 · 每日选股计划"
+        elif review_running:
+            state, label = "working", "作业中 · 盘后复盘"
+        elif produced:
+            state, label = "produced_today", "今日已产出"
+        elif next_tasks:
+            hhmm = next_tasks[0].scheduled_at.astimezone(CN_TZ).strftime("%H:%M")
+            state, label = "idle", f"待命 · 下次 {hhmm}"
+        else:
+            state, label = "idle", "待命"
+
     return AgentOverviewItem(
         profile=profile,
-        llm_name=llm_names.get(row.llm_config_id or -1),
+        llm_name=ctx.llm_names.get(row.llm_config_id or -1),
+        runtime_state=state,
+        state_label=label,
+        account_name=ctx.accounts.get(row.agent_key),
         plan_count=plan_count,
         selection_count=selection_count,
-        order_count=await _order_count_today(session, row.agent_key, day_start_cn),
+        order_count=order_count,
         recent_activity=activity[:5],
-        next_tasks=await _next_task_times(session, row),
+        next_tasks=next_tasks,
     )
 
 
 async def get_overview(session: AsyncSession) -> AgentOverviewResponse:
-    """总览页聚合：全部注册 Agent 的介绍卡 + 活动状态（前端按 status 过滤雷达）。"""
+    """总览页聚合：全部注册 Agent 的介绍卡 + 活动状态 + 运行态。
+
+    运行态预取一次查询（绑定账户名 / collector_log 运行中任务 / 今日复盘
+    完成集合），_build_item 逐行消费判定链（D32）。
+    """
     rows = await agent_registry.list_agents(session)
     profiles = {r.agent_key: agent_registry.to_view(r) for r in rows}
     llm_names = await _llm_name_map(session, rows)
     latest_trade_date = await trade_calendar_service.resolve_latest_trade_date(session)
-
-    items = [
-        await _build_item(session, row, profiles[row.agent_key], llm_names, latest_trade_date)
-        for row in rows
-    ]
+    day_start_cn = datetime.combine(today_cn(), time.min).replace(tzinfo=CN_TZ)
+    ctx = _OverviewCtx(
+        llm_names=llm_names,
+        latest_trade_date=latest_trade_date,
+        day_start_cn=day_start_cn,
+        accounts=await resolve_agent_accounts(session, list(profiles)),
+        running_tasks=await _running_log_tasks(session),
+        review_done_keys=await _review_done_keys(session, day_start_cn),
+    )
+    items = [await _build_item(session, row, profiles[row.agent_key], ctx) for row in rows]
     return AgentOverviewResponse(items=items, generated_at=utc_now())
 
 
