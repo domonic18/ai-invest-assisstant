@@ -50,7 +50,7 @@ class TestRegistryIntegrity:
 
     def test_scenario_assigned_and_valid(self) -> None:
         """全部 builtin 必须赋 scenario 且在枚举内（DB CHECK 同款）。"""
-        valid = {"market", "stock", "chain", "report", "news"}
+        valid = {"market", "stock", "chain", "report", "news", "trading"}
         for d in BUILTIN_SKILLS:
             assert d.scenario in valid, f"{d.skill_id} scenario 非法: {d.scenario}"
 
@@ -73,6 +73,9 @@ class TestRegistryIntegrity:
             "news-storyline": "news",
             "news-topic": "news",
             "social-sentiment": "news",
+            "trading-short-line": "trading",
+            "trading-long-line": "trading",
+            "trading-m60": "trading",
         }
         actual = {d.skill_id: d.scenario for d in BUILTIN_SKILLS}
         assert actual == expected

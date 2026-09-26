@@ -18,8 +18,10 @@ from typing import Literal
 
 SkillKind = Literal["executable", "prompt_only", "doc_only"]
 
-# 业务场景分类（技能广场 Tab 的唯一真相源）；custom skill 固定为 'custom'
-SkillScenario = Literal["market", "stock", "chain", "report", "news"]
+# 业务场景分类（技能广场 Tab 的唯一真相源）；custom skill 固定为 'custom'。
+# trading 场景是交易 Agent 的内部作业技能：不在助手技能广场展示（list_skills/
+# skill_sync 过滤），仅供 agent_plan_service 按注册表 agent_key 装载作业程序。
+SkillScenario = Literal["market", "stock", "chain", "report", "news", "trading"]
 
 SCENARIO_LABELS: dict[str, str] = {
     "market": "大盘与情绪",
@@ -27,6 +29,7 @@ SCENARIO_LABELS: dict[str, str] = {
     "chain": "产业链",
     "report": "财报与研报",
     "news": "资讯处理",
+    "trading": "交易 Agent",
     "custom": "自定义",
 }
 
@@ -171,6 +174,30 @@ BUILTIN_SKILLS: tuple[SkillDescriptor, ...] = (
         kind="executable",
         skill_md=True,
         scenario="stock",
+    ),
+    # 交易 Agent 作业技能（prompt.yaml 由 agent_plan_service 按注册表 agent_key
+    # 装载为每日计划 prompt；task_spec_names 留空——agent_daily_plan_1900 循环
+    # 全部 active Agent，多对多动态映射不进静态列）
+    SkillDescriptor(
+        skill_id="trading-short-line",
+        label="短线猎手作业程序",
+        kind="prompt_only",
+        skill_md=True,
+        scenario="trading",
+    ),
+    SkillDescriptor(
+        skill_id="trading-long-line",
+        label="长线舵手作业程序",
+        kind="prompt_only",
+        skill_md=True,
+        scenario="trading",
+    ),
+    SkillDescriptor(
+        skill_id="trading-m60",
+        label="60分钟波段作业程序",
+        kind="prompt_only",
+        skill_md=True,
+        scenario="trading",
     ),
 )
 

@@ -166,7 +166,7 @@ class TestGenerateDailyPlan:
         assert result.dropped_codes == []
         assert result.content.selections[0].stock_code == "600000"
         kwargs = load_mock.await_args.kwargs
-        assert kwargs["skill_id"] == agent_plan_service.PLAN_SKILL_ID
+        assert kwargs["skill_id"] == "trading-short-line"
         assert "input_hash" in kwargs
 
     @pytest.mark.asyncio
@@ -225,11 +225,37 @@ class TestGenerateDailyPlan:
         assert result.dropped_codes == ["999999"]
         llm_mock.assert_awaited_once()
         insert_mock.assert_awaited_once()
-        assert insert_mock.await_args.kwargs["skill_id"] == agent_plan_service.PLAN_SKILL_ID
+        assert insert_mock.await_args.kwargs["skill_id"] == "trading-short-line"
         persist_mock.assert_awaited_once()
         assert persist_mock.await_args.kwargs["agent_key"] == "short-line"
         assert persist_mock.await_args.kwargs["source_result_id"] == 42
         assert persist_mock.await_args.kwargs["trade_date"] == _TRADE_DATE
+
+    @pytest.mark.asyncio
+    async def test_run_llm_loads_agent_skill_prompt(self) -> None:
+        """计划 prompt 按 agent_key 装载专属技能包 skills/trading-<agent_key>/（D27）。"""
+
+        class _Cfg:
+            system_prompt = "你是短线猎手的选股与计划官"
+
+        structured = AsyncMock(return_value=_content())
+        with (
+            patch(
+                "app.services.trading.agent_plan_service.load_skill_prompt",
+                return_value=_Cfg(),
+            ) as load_mock,
+            patch(
+                "app.agent.runtime.structured.run_structured", structured
+            ) as run_mock,
+        ):
+            await agent_plan_service._run_llm(
+                AsyncMock(), _agent(), _TRADE_DATE, {"trade_date": "2026-07-15"}
+            )
+
+        load_mock.assert_called_once_with("trading-short-line")
+        user_prompt = run_mock.await_args.kwargs["user_prompt"]
+        assert "短线猎手的选股与计划官" in user_prompt
+        assert run_mock.await_args.kwargs["config_id"] is None
 
     @pytest.mark.asyncio
     async def test_raises_locked_when_lock_not_acquired(self) -> None:

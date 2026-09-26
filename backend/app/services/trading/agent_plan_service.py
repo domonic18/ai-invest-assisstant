@@ -6,7 +6,8 @@
 输出（契约见 ``agent_plan_schemas``）→ 幻觉/人工移出代码后置校验 → 缓存行
 + 两表 upsert（``agent_plan_persist``）。按 (skill_id, input_hash=Agent+
 账户+交易日) 缓存 ``ai_analysis_result``，redis 锁防重入；多 Agent 各自
-独立生成（agent-hub-plan.md D23）。
+独立生成（agent-hub-plan.md D23）。计划 prompt 装载 per-agent 技能包
+``skills/trading-<agent_key>/prompt.yaml``（D27）。
 """
 
 import hashlib
@@ -17,7 +18,6 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.core.prompt_loader import get_prompt_loader
 from app.core.exceptions import ConflictError
 from app.core.locking import GENERATION_LOCK_TTL_SECONDS, redis_lock
 from app.models.paper_trade import TradingAgent
@@ -28,13 +28,14 @@ from app.services.trading.agent_plan_schemas import (
     AgentDailyPlanContent,
     PlanGenerateResult,
 )
+from app.skills import load_skill_prompt
 
 logger = structlog.get_logger(__name__)
 
-PLAN_SKILL_ID = "agent-daily-plan"
 
-_PROMPT_SCOPE = "agents"
-_PROMPT_ID = "agent_daily_plan"
+def plan_skill_id(agent_key: str) -> str:
+    """Agent 每日计划技能 ID（skills/trading-<agent_key>/ 作业程序，D27）。"""
+    return f"trading-{agent_key}"
 
 
 class PlanGenerationLockedError(ConflictError):
@@ -44,15 +45,18 @@ class PlanGenerationLockedError(ConflictError):
 
 
 def _input_hash(agent_key: str, account_id: int, trade_date: date) -> str:
-    raw = f"{PLAN_SKILL_ID}:{agent_key}:{account_id}:{trade_date.isoformat()}"
+    raw = (
+        f"{plan_skill_id(agent_key)}:{agent_key}:{account_id}:"
+        f"{trade_date.isoformat()}"
+    )
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
 async def _load_cached(
-    session: AsyncSession, input_hash: str
+    session: AsyncSession, skill_id: str, input_hash: str
 ) -> AgentDailyPlanContent | None:
     row = await ai_analysis_repository.load_latest_success(
-        session, skill_id=PLAN_SKILL_ID, input_hash=input_hash
+        session, skill_id=skill_id, input_hash=input_hash
     )
     if row is None or not row.structured_output:
         return None
@@ -61,11 +65,11 @@ async def _load_cached(
 
 async def _run_llm(
     session: AsyncSession,
-    llm_config_id: int | None,
+    agent: TradingAgent,
     trade_date: date,
     plan_input: dict,
 ) -> AgentDailyPlanContent:
-    config = get_prompt_loader().load(_PROMPT_SCOPE, _PROMPT_ID)
+    config = load_skill_prompt(plan_skill_id(agent.agent_key))
     user_prompt = (
         f"{config.system_prompt}\n\n"
         f"## 计划任务\n"
@@ -79,7 +83,7 @@ async def _run_llm(
         session,
         result_type=AgentDailyPlanContent,
         user_prompt=user_prompt,
-        config_id=llm_config_id,
+        config_id=agent.llm_config_id,
     )
 
 
@@ -139,10 +143,11 @@ async def generate_daily_plan(
         session
     )
     account = await account_service.resolve_agent_account(session, agent.agent_key)
+    skill_id = plan_skill_id(agent.agent_key)
     input_hash = _input_hash(agent.agent_key, account.id, resolved)
 
     if not regenerate:
-        cached = await _load_cached(session, input_hash)
+        cached = await _load_cached(session, skill_id, input_hash)
         if cached:
             return PlanGenerateResult(
                 content=cached, cached=True, dropped_codes=[]
@@ -154,11 +159,11 @@ async def generate_daily_plan(
     )
 
     async with redis_lock(
-        f"{PLAN_SKILL_ID}:{agent.agent_key}:{account.id}:{resolved.isoformat()}",
+        f"{skill_id}:{agent.agent_key}:{account.id}:{resolved.isoformat()}",
         ttl=GENERATION_LOCK_TTL_SECONDS,
     ) as acquired:
         if not acquired:
-            cached = await _load_cached(session, input_hash)
+            cached = await _load_cached(session, skill_id, input_hash)
             if cached:
                 return PlanGenerateResult(content=cached, cached=True, dropped_codes=[])
             raise PlanGenerationLockedError(
@@ -166,14 +171,14 @@ async def generate_daily_plan(
             )
 
         if not regenerate:
-            cached = await _load_cached(session, input_hash)
+            cached = await _load_cached(session, skill_id, input_hash)
             if cached:
                 return PlanGenerateResult(content=cached, cached=True, dropped_codes=[])
 
-        content = await _run_llm(session, agent.llm_config_id, resolved, plan_input)
+        content = await _run_llm(session, agent, resolved, plan_input)
         content, dropped = await _validate_codes(session, content, manual_removed)
         cache_row_id = await agent_plan_persist.persist_cache_row(
-            session, skill_id=PLAN_SKILL_ID, input_hash=input_hash, content=content
+            session, skill_id=skill_id, input_hash=input_hash, content=content
         )
         await agent_plan_persist.persist_plan(
             session,

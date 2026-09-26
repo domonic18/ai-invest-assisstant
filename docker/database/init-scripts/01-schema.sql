@@ -1672,7 +1672,7 @@ CREATE TABLE IF NOT EXISTS trading_agent (
     auto_exec_enabled      BOOLEAN       NOT NULL DEFAULT TRUE,        -- 盘中自主执行总闸
     status                 VARCHAR(16)   NOT NULL DEFAULT 'active',    -- active / planned / disabled
     sort_order             INTEGER       NOT NULL DEFAULT 0,           -- 总览排布
-    prompt_id              VARCHAR(64)   NOT NULL DEFAULT 'trading_agent',  -- prompts/agents/<prompt_id>.yaml
+    prompt_id              VARCHAR(64)   NOT NULL,                     -- prompts/agents/<prompt_id>.yaml（per-agent 人设，D27）
     accent_color           VARCHAR(16)   NOT NULL DEFAULT '#3b82f6',   -- 总览节点主色
     created_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
@@ -1695,15 +1695,15 @@ COMMENT ON TABLE trading_agent IS
     '交易 Agent 注册表：身份/介绍/模型绑定/风控/总闸（docs/plan/agent-hub-plan.md D21）';
 
 -- 种子 Agent 行（短线激活；长线/M60 planned 幽灵节点；新 Agent 手工 SQL 注册，不做 CRUD）
-INSERT INTO trading_agent (agent_key, name, tagline, strategy_desc, style_desc, status, sort_order, accent_color)
+INSERT INTO trading_agent (agent_key, name, tagline, strategy_desc, style_desc, status, sort_order, prompt_id, accent_color)
 VALUES
     ('short-line', '短线猎手', '趋势短线：顺势而为，快进快出',
      '基于当日复盘解读与涨停归因的趋势短线策略：主线板块选股，回踩买点区间接回，破位止损。', '进取',
-     'active', 1, '#3b82f6'),
+     'active', 1, 'trading_agent_short_line', '#3b82f6'),
     ('long-line', '长线舵手', '基本面长线：低频布局，穿越周期',
-     '基本面与产业趋势驱动的长线布局策略（规划中，未激活）。', '稳健', 'planned', 2, '#10b981'),
+     '基本面与产业趋势驱动的长线布局策略（规划中，未激活）。', '稳健', 'planned', 2, 'trading_agent_long_line', '#10b981'),
     ('m60', '60分钟波段', 'M60 结构波段：形态驱动，波段进退',
-     '60 分钟级别结构形态驱动的波段策略（规划中，未激活）。', '灵活', 'planned', 3, '#f59e0b')
+     '60 分钟级别结构形态驱动的波段策略（规划中，未激活）。', '灵活', 'planned', 3, 'trading_agent_m60', '#f59e0b')
 ON CONFLICT (agent_key) DO NOTHING;
 
 -- agent 自选分组的 agent_key FK（user_watchlist_group 定义于 §7，先于本表，故在此补建）

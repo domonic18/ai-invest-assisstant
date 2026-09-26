@@ -25,6 +25,9 @@ EXPECTED_SKILLS = {
     "social-sentiment",
     "stock-daily-analysis",
     "watchlist-screenshot-recognition",
+    "trading-short-line",
+    "trading-long-line",
+    "trading-m60",
 }
 
 
