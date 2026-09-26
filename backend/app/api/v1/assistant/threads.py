@@ -20,7 +20,7 @@ from app.services.assistant.assistant_service import AssistantService
 router = APIRouter(prefix="/threads")
 sessions_router = APIRouter()
 
-AGENT_TYPES = ("assistant", "trading")
+ASSISTANT_TYPE = "assistant"
 
 
 def _to_response(row: AssistantSession) -> ThreadResponse:
@@ -53,15 +53,21 @@ async def create_thread(
 ) -> ThreadResponse:
     """新建助手线程（同步建 assistant_session，id 即 thread_id）。
 
-    ``agent_type=trading`` 仅 admin 可建（交易 Agent 页）；其余值一律 422。
+    ``agent_type`` 为交易 Agent 的 agent_key 时仅 admin 可建（交易 Agent 页，
+    注册表校验）；'assistant' 之外未注册的值一律 422。
     """
-    agent_type = data.agent_type or "assistant"
-    if agent_type not in AGENT_TYPES:
-        raise UnprocessableEntityError(
-            f"agent_type 须为 {'/'.join(AGENT_TYPES)}（当前 {agent_type}）"
-        )
-    if agent_type == "trading" and user.role != "admin":
-        raise ForbiddenError("交易 Agent 会话仅管理员可用")
+    agent_type = data.agent_type or ASSISTANT_TYPE
+    if agent_type != ASSISTANT_TYPE:
+        from app.services.trading.agent_registry import get_active_agent
+
+        try:
+            await get_active_agent(session, agent_type)
+        except NotFoundError:
+            raise UnprocessableEntityError(
+                f"agent_type 须为 assistant 或已注册的交易 Agent（当前 {agent_type}）"
+            ) from None
+        if user.role != "admin":
+            raise ForbiddenError("交易 Agent 会话仅管理员可用")
     row = await AssistantService(session).create_session(user.id, data.title, agent_type)
     return _to_response(row)
 

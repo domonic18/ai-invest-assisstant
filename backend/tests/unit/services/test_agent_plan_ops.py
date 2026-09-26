@@ -9,6 +9,7 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.services.trading import agent_plan_ops
 
 _PLAN_DATE = date(2026, 7, 15)
+_AK = "short-line"
 
 
 def _session_with_scalars(results: list) -> AsyncMock:
@@ -21,6 +22,7 @@ def _session_with_scalars(results: list) -> AsyncMock:
 def _plan_row(status: str = "active") -> MagicMock:
     row = MagicMock()
     row.status = status
+    row.agent_key = _AK
     return row
 
 
@@ -31,6 +33,7 @@ class TestCreatePlan:
         with pytest.raises(BadRequestError, match="plan_type"):
             await agent_plan_ops.create_plan(
                 AsyncMock(),
+                _AK,
                 plan_date=_PLAN_DATE,
                 stock_code="600000",
                 plan_type="hold",
@@ -45,6 +48,7 @@ class TestCreatePlan:
         with pytest.raises(BadRequestError, match="买点区间"):
             await agent_plan_ops.create_plan(
                 AsyncMock(),
+                _AK,
                 plan_date=_PLAN_DATE,
                 stock_code="600000",
                 plan_type="buy",
@@ -59,6 +63,7 @@ class TestCreatePlan:
         with pytest.raises(BadRequestError, match="止盈"):
             await agent_plan_ops.create_plan(
                 AsyncMock(),
+                _AK,
                 plan_date=_PLAN_DATE,
                 stock_code="600000",
                 plan_type="sell",
@@ -74,6 +79,7 @@ class TestCreatePlan:
         with pytest.raises(NotFoundError, match="主数据"):
             await agent_plan_ops.create_plan(
                 session,
+                _AK,
                 plan_date=_PLAN_DATE,
                 stock_code="999999",
                 plan_type="sell",
@@ -89,6 +95,7 @@ class TestCreatePlan:
         session = _session_with_scalars(["600000", None])
         plan = await agent_plan_ops.create_plan(
             session,
+            _AK,
             plan_date=_PLAN_DATE,
             stock_code="600000",
             plan_type="buy",
@@ -109,6 +116,7 @@ class TestCreatePlan:
         session = _session_with_scalars(["600000", existing])
         plan = await agent_plan_ops.create_plan(
             session,
+            _AK,
             plan_date=_PLAN_DATE,
             stock_code="600000",
             plan_type="sell",
@@ -128,6 +136,7 @@ class TestCreatePlan:
         with pytest.raises(BadRequestError, match="cancelled"):
             await agent_plan_ops.create_plan(
                 session,
+                _AK,
                 plan_date=_PLAN_DATE,
                 stock_code="600000",
                 plan_type="sell",
@@ -144,6 +153,7 @@ class TestCreatePlan:
         with pytest.raises(BadRequestError, match="triggered"):
             await agent_plan_ops.create_plan(
                 session,
+                _AK,
                 plan_date=_PLAN_DATE,
                 stock_code="600000",
                 plan_type="sell",
@@ -162,14 +172,14 @@ class TestCancelPlan:
         session = AsyncMock()
         session.get = AsyncMock(return_value=None)
         with pytest.raises(NotFoundError):
-            await agent_plan_ops.cancel_plan(session, plan_id=1)
+            await agent_plan_ops.cancel_plan(session, _AK, plan_id=1)
 
     @pytest.mark.asyncio
     async def test_cancels_active_plan(self) -> None:
         session = AsyncMock()
         row = _plan_row("active")
         session.get = AsyncMock(return_value=row)
-        plan = await agent_plan_ops.cancel_plan(session, plan_id=1)
+        plan = await agent_plan_ops.cancel_plan(session, _AK, plan_id=1)
         assert plan.status == "cancelled"
         session.commit.assert_awaited_once()
 
@@ -178,14 +188,14 @@ class TestCancelPlan:
         session = AsyncMock()
         session.get = AsyncMock(return_value=_plan_row("triggered"))
         with pytest.raises(BadRequestError, match="不可取消"):
-            await agent_plan_ops.cancel_plan(session, plan_id=1)
+            await agent_plan_ops.cancel_plan(session, _AK, plan_id=1)
 
     @pytest.mark.asyncio
     async def test_cancelled_plan_idempotent(self) -> None:
         session = AsyncMock()
         row = _plan_row("cancelled")
         session.get = AsyncMock(return_value=row)
-        plan = await agent_plan_ops.cancel_plan(session, plan_id=1)
+        plan = await agent_plan_ops.cancel_plan(session, _AK, plan_id=1)
         assert plan.status == "cancelled"
         session.commit.assert_not_awaited()
 
@@ -197,14 +207,15 @@ class TestRemoveSelectionManual:
         session = AsyncMock()
         session.get = AsyncMock(return_value=None)
         with pytest.raises(NotFoundError):
-            await agent_plan_ops.remove_selection_manual(session, selection_id=1)
+            await agent_plan_ops.remove_selection_manual(session, _AK, selection_id=1)
 
     @pytest.mark.asyncio
     async def test_removed_row_idempotent(self) -> None:
         session = AsyncMock()
         row = MagicMock()
         row.status = "removed"
+        row.agent_key = _AK
         session.get = AsyncMock(return_value=row)
-        result = await agent_plan_ops.remove_selection_manual(session, selection_id=1)
+        result = await agent_plan_ops.remove_selection_manual(session, _AK, selection_id=1)
         assert result.status == "removed"
         session.commit.assert_not_awaited()

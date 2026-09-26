@@ -16,8 +16,9 @@ if TYPE_CHECKING:
 class UserWatchlistGroup(Base):
     """用户自选股分组表。
 
-    owner_type='agent' 为平台级交易 Agent 分组单例（user_id=NULL，不命中
-    既有 user_id 过滤、不受用户删除级联——D17 干预面）。
+    owner_type='agent' 为交易 Agent 自选分组（user_id=NULL，不命中
+    既有 user_id 过滤、不受用户删除级联——D17 干预面）；每 Agent 一组，
+    agent_key 指向 trading_agent（每 Agent 一组，唯一约束见迁移）。
     """
 
     __tablename__ = "user_watchlist_group"
@@ -27,6 +28,7 @@ class UserWatchlistGroup(Base):
         BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=True
     )
     owner_type: Mapped[str] = mapped_column(String(16), default="user", nullable=False)
+    agent_key: Mapped[str | None] = mapped_column(String(32), nullable=True)  # owner_type='agent' 时必填，FK 见迁移
     name: Mapped[str] = mapped_column(String(50), nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

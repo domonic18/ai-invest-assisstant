@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent_trading import AgentStockSelection
 from app.models.market_anomaly import StockAnomaly
-from app.models.paper_trade import PaperTradeExecution
+from app.models.paper_trade import PaperTradeExecution, TradingAgent
 from app.repositories.review import ai_analysis_repository
 from app.services.review.market_review_generator import (
     SKILL_ID as MARKET_REVIEW_SKILL_ID,
@@ -83,12 +83,15 @@ async def _stock_anomalies(
     ]
 
 
-async def _manual_removed_codes(session: AsyncSession, trade_date: date) -> list[str]:
-    """近期人工移出清单（全局生效：prompt 声明禁止选入 + 服务层兜底过滤）。"""
+async def _manual_removed_codes(
+    session: AsyncSession, agent_key: str, trade_date: date
+) -> list[str]:
+    """近期人工移出清单（按 Agent 生效：prompt 声明禁止选入 + 服务层兜底过滤）。"""
     since = trade_date.toordinal() - _MANUAL_REMOVED_WINDOW_DAYS
     rows = await session.execute(
         select(AgentStockSelection.stock_code)
         .where(
+            AgentStockSelection.agent_key == agent_key,
             AgentStockSelection.removed_reason == "manual",
             AgentStockSelection.trade_date >= date.fromordinal(since),
         )
@@ -134,7 +137,9 @@ async def _local_positions(session: AsyncSession, account_id: int) -> list[dict[
     ]
 
 
-async def _active_memories(session: AsyncSession) -> list[dict[str, Any]]:
+async def _active_memories(
+    session: AsyncSession, agent_key: str
+) -> list[dict[str, Any]]:
     """agent 经验记忆 active 条目（复盘沉淀 + 手动沉淀，停用条目不注入）。"""
     from sqlalchemy import text
 
@@ -144,9 +149,10 @@ async def _active_memories(session: AsyncSession) -> list[dict[str, Any]]:
             rows = await session.execute(
                 text(
                     "SELECT title, body, mem_type FROM agent_memory "
-                    "WHERE status = 'active' ORDER BY updated_at DESC LIMIT :n"
+                    "WHERE agent_key = :agent_key AND status = 'active' "
+                    "ORDER BY updated_at DESC LIMIT :n"
                 ),
-                {"n": _MEMORY_TOP_N},
+                {"agent_key": agent_key, "n": _MEMORY_TOP_N},
             )
             items = [
                 {"title": r.title, "body": r.body, "mem_type": r.mem_type}
@@ -160,15 +166,16 @@ async def _active_memories(session: AsyncSession) -> list[dict[str, Any]]:
 
 
 async def collect_plan_input(
-    session: AsyncSession, account_id: int, trade_date: date
+    session: AsyncSession, agent: TradingAgent, account_id: int, trade_date: date
 ) -> tuple[dict[str, Any], list[str]]:
-    """组装 LLM 输入，返回 (输入 dict, 人工移出代码清单)。"""
+    """组装指定 Agent 的 LLM 输入，返回 (输入 dict, 人工移出代码清单)。"""
     review = await _market_review_sections(session, trade_date)
     attribution = await _limit_up_attribution(session, trade_date)
     anomalies = await _stock_anomalies(session, trade_date)
-    manual_removed = await _manual_removed_codes(session, trade_date)
+    manual_removed = await _manual_removed_codes(session, agent.agent_key, trade_date)
     methodology = await agent_methodology.build_methodology_input(
         session,
+        source_id=agent.methodology_source_id,
         query_text=agent_methodology.build_retrieval_query(
             review.get("sections") or review, attribution, anomalies
         ),
@@ -182,7 +189,7 @@ async def collect_plan_input(
             "positions": await _local_positions(session, account_id),
             "manual_removed_codes": manual_removed,
             "methodology": methodology,
-            "memories": await _active_memories(session),
+            "memories": await _active_memories(session, agent.agent_key),
         },
         manual_removed,
     )

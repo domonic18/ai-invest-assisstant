@@ -35,9 +35,9 @@ class PaperTradeGatewayError(AppError):
 
 
 class AgentAccountNotDesignatedError(AppError):
-    """交易 Agent 无关联专属账户（is_agent 行不存在）。
+    """交易 Agent 无关联专属账户（agent_key 未绑定账户，D22）。
 
-    管理端先在「模拟交易账户」指定 agent 专属账户后，对话/定时交易才可用；
+    管理端先在「模拟交易账户」为该 Agent 绑定专属账户后，对话/定时交易才可用；
     工具层捕获本错误转引导文案（不作为系统异常上抛）。
     """
 
@@ -46,3 +46,7 @@ class AgentAccountNotDesignatedError(AppError):
         "交易 Agent 尚未关联专属模拟盘账户，请联系管理员在后台"
         "「模拟交易账户」中指定（指定后即可交易）"
     )
+
+    def __init__(self, agent_key: str | None = None) -> None:
+        super().__init__(self.default_message)
+        self.agent_key = agent_key

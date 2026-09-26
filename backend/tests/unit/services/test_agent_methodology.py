@@ -62,45 +62,34 @@ class TestBuildMethodologyInput:
     @pytest.mark.asyncio
     async def test_none_when_not_configured(self) -> None:
         """methodology_source_id 未配置 → None（计划照常生成，仅无基座）。"""
-        with patch.object(
-            agent_methodology,
-            "get_config_row",
-            AsyncMock(return_value=MagicMock(methodology_source_id=None)),
-        ):
-            assert (
-                await agent_methodology.build_methodology_input(
-                    AsyncMock(), query_text="盘面"
-                )
-                is None
+        assert (
+            await agent_methodology.build_methodology_input(
+                AsyncMock(), source_id=None, query_text="盘面"
             )
+            is None
+        )
 
     @pytest.mark.asyncio
     async def test_none_when_source_missing(self) -> None:
         session = AsyncMock()
         session.get = AsyncMock(return_value=None)
-        with patch.object(
-            agent_methodology,
-            "get_config_row",
-            AsyncMock(return_value=MagicMock(methodology_source_id=1)),
-        ):
-            assert (
-                await agent_methodology.build_methodology_input(session, query_text="盘面")
-                is None
+        assert (
+            await agent_methodology.build_methodology_input(
+                session, source_id=1, query_text="盘面"
             )
+            is None
+        )
 
     @pytest.mark.asyncio
     async def test_none_when_source_disabled(self) -> None:
         session = AsyncMock()
         session.get = AsyncMock(return_value=_source(enabled=False))
-        with patch.object(
-            agent_methodology,
-            "get_config_row",
-            AsyncMock(return_value=MagicMock(methodology_source_id=1)),
-        ):
-            assert (
-                await agent_methodology.build_methodology_input(session, query_text="盘面")
-                is None
+        assert (
+            await agent_methodology.build_methodology_input(
+                session, source_id=1, query_text="盘面"
             )
+            is None
+        )
 
     @pytest.mark.asyncio
     async def test_builds_full_input(self) -> None:
@@ -115,19 +104,12 @@ class TestBuildMethodologyInput:
             points=[MagicMock(id=1953, point_type="method", title="M60 定位", body="回踩企稳")]
         )
 
-        with (
-            patch.object(
-                agent_methodology,
-                "get_config_row",
-                AsyncMock(return_value=MagicMock(methodology_source_id=1)),
-            ),
-            patch(
-                "app.services.kb.search_service.search",
-                AsyncMock(return_value=search_resp),
-            ) as search_mock,
-        ):
+        with patch(
+            "app.services.kb.search_service.search",
+            AsyncMock(return_value=search_resp),
+        ) as search_mock:
             result = await agent_methodology.build_methodology_input(
-                session, query_text="当日盘面"
+                session, source_id=1, query_text="当日盘面"
             )
 
         assert result is not None
@@ -152,17 +134,12 @@ class TestBuildMethodologyInput:
         executed.all.return_value = []
         session.execute = AsyncMock(return_value=executed)
 
-        with (
-            patch.object(
-                agent_methodology,
-                "get_config_row",
-                AsyncMock(return_value=MagicMock(methodology_source_id=1)),
-            ),
-            patch(
-                "app.services.kb.search_service.search", AsyncMock()
-            ) as search_mock,
-        ):
-            result = await agent_methodology.build_methodology_input(session, query_text=None)
+        with patch(
+            "app.services.kb.search_service.search", AsyncMock()
+        ) as search_mock:
+            result = await agent_methodology.build_methodology_input(
+                session, source_id=1, query_text=None
+            )
 
         assert result is not None
         assert result["relevant"] == []
@@ -186,19 +163,12 @@ class TestBuildMethodologyInput:
             for base in (0, 15, 30, 45)
         ]
 
-        with (
-            patch.object(
-                agent_methodology,
-                "get_config_row",
-                AsyncMock(return_value=MagicMock(methodology_source_id=1)),
-            ),
-            patch(
-                "app.services.kb.search_service.search",
-                AsyncMock(side_effect=responses),
-            ),
+        with patch(
+            "app.services.kb.search_service.search",
+            AsyncMock(side_effect=responses),
         ):
             result = await agent_methodology.build_methodology_input(
-                session, query_text="盘面"
+                session, source_id=1, query_text="盘面"
             )
 
         assert result is not None

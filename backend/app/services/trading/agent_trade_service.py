@@ -1,8 +1,8 @@
 """交易 Agent 下单出口（对话路径与批次 8 定时执行共用的唯一写入口，D18）。
 
-链路：解析 agent 专属账户 → 主数据解析柜台代码 → 风控硬校验（risk_control，
-参数读 trading_agent_config）→ 柜台下单（order_source='agent'）→ 轻量 upsert
-本地委托行（盘中日笔数风控可数，不依赖 16:00 盘后同步）。
+链路：按 agent_key 解析专属账户 → 主数据解析柜台代码 → 风控硬校验
+（risk_control，参数读 trading_agent 注册行）→ 柜台下单（order_source='agent'）
+→ 轻量 upsert 本地委托行（盘中日笔数风控可数，不依赖 16:00 盘后同步）。
 
 批次 8 定时执行传 ``context='scheduled'`` 并携带 ``plan_id``（推进计划状态机）；
 对话路径 context='conversation'。工具层捕获 ``AgentAccountNotDesignatedError``
@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import today_cn
 from app.core.exceptions import BadRequestError
-from app.models.paper_trade import PaperTradeAccount
-from app.services.trading import account_service, agent_config
+from app.models.paper_trade import PaperTradeAccount, TradingAgent
+from app.services.trading import account_service
 from app.services.trading.client import get_client
 from app.services.trading.errors import AgentAccountNotDesignatedError
 from app.services.trading.paper_trade_mappers import normalize_order_rows
@@ -43,6 +43,7 @@ class RiskRejectedError(BadRequestError):
 
 async def execute_agent_order(
     session: AsyncSession,
+    agent: TradingAgent,
     *,
     symbol: str,
     side: str,
@@ -56,6 +57,7 @@ async def execute_agent_order(
     """Agent 下单唯一出口：风控硬校验 → 柜台下单 → 本地委托行即时 upsert。
 
     Args:
+        agent: 归属 Agent 注册行（解析专属账户，风控阈值读其 risk_max_*）。
         symbol: 平台 6 位代码（或带柜台前缀完整代码，服务层按主数据解析）。
         side: ``buy`` / ``sell``（sidecar 契约，人工路径同源）。
         context: 调用来源（对话 / 定时执行），仅入日志与事件标记。
@@ -66,28 +68,28 @@ async def execute_agent_order(
         ``{"cl_ord_id", "status", "risk": RiskCheckResult, "raw": 柜台响应}``。
 
     Raises:
-        AgentAccountNotDesignatedError: 未指定 agent 专属账户（工具层转引导文案）。
+        AgentAccountNotDesignatedError: 该 Agent 未绑定专属账户（工具层转引导文案）。
         BadRequestError: 代码无法识别、主数据无此代码或账户已停用。
         RiskRejectedError: 风控硬校验未通过（reasons 附于 detail）。
         PaperTradeNotConfiguredError / PaperTradeGatewayError: sidecar/柜台异常。
     """
+    agent_key = agent.agent_key
     if side not in ("buy", "sell"):
         raise BadRequestError(f"side 必须为 buy/sell（当前 {side}）")
     if volume <= 0:
         raise BadRequestError(f"下单数量必须为正数（当前 {volume}）")
 
     if account is None:
-        account = await account_service.resolve_agent_account(session)
-    if not account.is_agent:
-        raise BadRequestError("目标账户不是 agent 专属账户")
+        account = await account_service.resolve_agent_account(session, agent_key)
+    if account.agent_key != agent_key:
+        raise BadRequestError("目标账户不是该 Agent 的专属账户")
     if not account.is_enabled:
         raise BadRequestError("agent 专属账户已停用，禁止交易")
 
-    config_row = await agent_config.get_config_row(session)
     risk_config = risk_config_from_row(
-        max_position_pct=config_row.risk_max_position_pct,
-        max_total_pct=config_row.risk_max_total_pct,
-        max_daily_orders=config_row.risk_max_daily_orders,
+        max_position_pct=agent.risk_max_position_pct,
+        max_total_pct=agent.risk_max_total_pct,
+        max_daily_orders=agent.risk_max_daily_orders,
     )
 
     counter_symbol = await resolve_counter_symbol(session, symbol)
@@ -129,6 +131,7 @@ async def execute_agent_order(
     first = today_rows[0] if today_rows else {}
     logger.info(
         "trading_agent_order_placed",
+        agent_key=agent_key,
         account_id=account.id,
         cl_ord_id=first.get("cl_ord_id"),
         symbol=counter_symbol,
@@ -155,9 +158,11 @@ async def cancel_agent_order(account: PaperTradeAccount, cl_ord_id: str) -> Any:
     return await client.cancel_order(account_service.credentials_for(account), cl_ord_id)
 
 
-async def ensure_agent_account(session: AsyncSession) -> PaperTradeAccount:
-    """工具层入口：解析 agent 账户并校验启用态（未指定转引导文案由调用方捕获）。"""
-    account = await account_service.resolve_agent_account(session)
+async def ensure_agent_account(
+    session: AsyncSession, agent_key: str
+) -> PaperTradeAccount:
+    """工具层入口：按 agent_key 解析专属账户并校验启用态（未绑定转引导文案由调用方捕获）。"""
+    account = await account_service.resolve_agent_account(session, agent_key)
     if not account.is_enabled:
         raise BadRequestError("agent 专属账户已停用，请联系管理员在后台启用")
     return account

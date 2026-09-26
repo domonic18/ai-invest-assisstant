@@ -134,7 +134,7 @@ async def _bought_today_by_code(
 
 def _ensure_manual_tradable(account: PaperTradeAccount) -> None:
     """人工交易守卫：agent 专属账户与停用账户一律 403（与前端禁用态同契约）。"""
-    if account.is_agent:
+    if account.agent_key is not None:
         raise ForbiddenError("agent 专属账户禁止人工操作")
     if not account.is_enabled:
         raise ForbiddenError("账户已停用，请先在管理后台或账户配置中启用")

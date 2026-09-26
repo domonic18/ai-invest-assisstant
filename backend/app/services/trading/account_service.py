@@ -1,9 +1,9 @@
 """模拟盘账户配置服务（多租户：每用户自有掘金仿真凭证）。
 
 token Fernet 加密落库（utils/crypto 同源，proxy_configs 先例）；
-counter_account_id 全平台唯一（防 token 共享/多头配置）；agent 账户全局唯一
-（服务层先清后设，部分唯一索引兜底并发）；每用户账户数上限防滥用。
-账户删除仅在无交易数据时允许（数据保留以供复盘）。
+counter_account_id 全平台唯一（防 token 共享/多头配置）；每 Agent 至多绑定
+一个专属账户（部分唯一索引兜底并发，agent-hub-plan.md D22）；每用户账户数
+上限防滥用。账户删除仅在无交易数据时允许（数据保留以供复盘）。
 查询恒按账户过滤，NULL 账户维度的存量行不可见（docs/plan/paper-trading-plan.md §6）。
 """
 
@@ -38,7 +38,7 @@ class AccountRef(Protocol):
 
     id: int
     name: str
-    is_agent: bool
+    agent_key: str | None
     token_encrypted: str
     counter_account_id: str
 
@@ -73,17 +73,19 @@ async def resolve_for_user(
     return account
 
 
-async def resolve_agent_account(session: AsyncSession) -> PaperTradeAccount:
-    """解析 agent 专属账户（全局唯一 ``is_agent`` 行）。
+async def resolve_agent_account(
+    session: AsyncSession, agent_key: str
+) -> PaperTradeAccount:
+    """解析指定 Agent 的专属账户（``agent_key`` 唯一绑定，D22）。
 
-    对话交易工具与定时执行（批次 6-8）共用此入口；未指定时抛
+    对话交易工具与定时执行（批次 6-8）共用此入口；未绑定时抛
     ``AgentAccountNotDesignatedError``（工具层捕获转引导文案）。
     """
     account = await session.scalar(
-        select(PaperTradeAccount).where(PaperTradeAccount.is_agent.is_(True))
+        select(PaperTradeAccount).where(PaperTradeAccount.agent_key == agent_key)
     )
     if account is None:
-        raise AgentAccountNotDesignatedError()
+        raise AgentAccountNotDesignatedError(agent_key)
     return account
 
 
@@ -178,33 +180,44 @@ async def admin_list_accounts(session: AsyncSession) -> list[PaperTradeAccount]:
 
 
 async def admin_designate_agent(
-    session: AsyncSession, account_id: int
+    session: AsyncSession, account_id: int, agent_key: str
 ) -> PaperTradeAccount:
-    """指定 agent 专属账户：先清后设（部分唯一索引兜底并发）。"""
+    """为指定 Agent 绑定专属账户：先清后设（部分唯一索引兜底并发）。
+
+    Raises:
+        NotFoundError: 账户或 Agent 不存在。
+    """
     account = await session.get(PaperTradeAccount, account_id)
     if account is None:
         raise NotFoundError("模拟盘账户不存在")
-    if not account.is_agent:
+    from app.services.trading.agent_registry import get_agent
+
+    await get_agent(session, agent_key)
+    if account.agent_key != agent_key:
         current = await session.scalar(
-            select(PaperTradeAccount).where(PaperTradeAccount.is_agent.is_(True))
+            select(PaperTradeAccount).where(PaperTradeAccount.agent_key == agent_key)
         )
         if current is not None:
-            current.is_agent = False
-        account.is_agent = True
+            current.agent_key = None
+        account.agent_key = agent_key
         await session.commit()
     return account
 
 
-async def admin_clear_agent(session: AsyncSession, account_id: int) -> PaperTradeAccount:
-    """取消 agent 专属账户指定：解除后 agent 无关联账户，可随时重新指定。"""
+async def admin_clear_agent(
+    session: AsyncSession, account_id: int, agent_key: str
+) -> PaperTradeAccount:
+    """解除 Agent 专属账户绑定：解除后该 Agent 无关联账户，可随时重新指定。"""
     account = await session.get(PaperTradeAccount, account_id)
     if account is None:
         raise NotFoundError("模拟盘账户不存在")
-    if not account.is_agent:
-        raise BadRequestError("该账户不是 agent 专属账户，无需取消")
-    account.is_agent = False
+    if account.agent_key != agent_key:
+        raise BadRequestError("该账户未绑定此 Agent，无需解除")
+    account.agent_key = None
     await session.commit()
-    logger.info("paper_trade_agent_cleared", account_id=account_id)
+    logger.info(
+        "paper_trade_agent_cleared", account_id=account_id, agent_key=agent_key
+    )
     return account
 
 

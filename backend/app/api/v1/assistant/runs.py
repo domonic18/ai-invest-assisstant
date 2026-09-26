@@ -47,14 +47,15 @@ async def _resolve_agent(
 ) -> Any:
     """线程 → agent 分流单点（stream/state/history 共用，防漏改）。
 
-    trading 线程：admin 门禁（403）后取交易 Agent 单例（模型由
-    ``trading_agent_config`` 决定，工具集专属）；assistant 线程：BYOK 出口
-    解析 + 知识库开关注入。
+    交易 Agent 线程（agent_type=agent_key）：admin 门禁（403）后按注册表
+    构建（模型由 ``trading_agent`` 注册行决定，工具集按 agent_key 闭包绑定）；
+    assistant 线程：BYOK 出口解析 + 知识库开关注入。
     """
-    if (getattr(thread, "agent_type", None) or "assistant") == "trading":
+    agent_type = getattr(thread, "agent_type", None) or "assistant"
+    if agent_type != "assistant":
         if user.role != "admin":
             raise ForbiddenError("交易 Agent 会话仅管理员可用")
-        return await get_trading_agent()
+        return await get_trading_agent(agent_type)
     cfg, _outlet = await resolve_llm(session, user.id)
     return await get_assistant_agent(cfg=cfg, use_kb=use_kb)
 
@@ -156,7 +157,7 @@ async def stream_run(
     page_context = (data.metadata or {}).get("page_context")
     custom_lines = (
         await AssistantService(session).custom_skill_index_lines(user.id)
-        if messages_in and thread.agent_type != "trading"
+        if messages_in and (thread.agent_type or "assistant") == "assistant"
         else []
     )
     lc_input = (

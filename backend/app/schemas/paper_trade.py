@@ -139,7 +139,8 @@ class PaperTradeAccountRow(CamelModel):
     id: int
     name: str
     counter_account_id: str
-    is_agent: bool = False
+    agent_key: str | None = None
+    """归属交易 Agent；NULL = 用户账户。"""
     is_enabled: bool = True
     token_masked: str = ""
     last_error: str | None = None
@@ -217,32 +218,90 @@ class PaperTradeAdminAccountListResponse(CamelModel):
 
 
 # ============================================================
-# 交易 Agent 配置（单例）
+# 交易 Agent 注册表（Agent Hub 多 Agent 基座，agent-hub-plan.md D21）
 # ============================================================
 
 
-class TradingAgentConfigResponse(CamelModel):
-    """交易 Agent 全局配置（单例行）。"""
+class TradingAgentProfileResponse(CamelModel):
+    """交易 Agent 注册行视图：身份/介绍/模型绑定/风控/总闸。"""
 
+    agent_key: str
+    name: str
+    tagline: str
+    strategy_desc: str
+    style_desc: str
     llm_config_id: int | None = None
     methodology_source_id: int | None = None
     risk_max_position_pct: float
     risk_max_total_pct: float
     risk_max_daily_orders: int
     auto_exec_enabled: bool
+    status: str
+    sort_order: int
+    prompt_id: str
+    accent_color: str
     updated_at: datetime | None = None
 
 
-class TradingAgentConfigUpdateRequest(CamelModel):
-    """更新交易 Agent 配置（未提供的字段不变；llm_config_id 空 = 平台默认 chat 模型，
-    methodology_source_id 空 = 未启用方法论基座注入）。"""
+class TradingAgentListResponse(CamelModel):
+    """交易 Agent 注册行列表（总览/下拉）。"""
 
+    items: list[TradingAgentProfileResponse] = []
+
+
+class AgentActivityItem(CamelModel):
+    """总览近期活动条目（计划生成/触发、复盘生成）。"""
+
+    kind: str
+    title: str
+    detail: str | None = None
+    occurred_at: datetime | None = None
+
+
+class AgentNextTask(CamelModel):
+    """总览「接下来」条目：后端按 cron + 交易日历算好的下次触发时刻（UTC）。"""
+
+    task: str
+    scheduled_at: datetime
+
+
+class AgentOverviewItem(CamelModel):
+    """总览页单 Agent 聚合：介绍卡 + 模型 + 当日计数 + 近期活动 + 下次任务。"""
+
+    profile: TradingAgentProfileResponse
+    llm_name: str | None = None
+    plan_count: int = 0
+    selection_count: int = 0
+    order_count: int = 0
+    recent_activity: list[AgentActivityItem] = []
+    next_tasks: list[AgentNextTask] = []
+
+
+class AgentOverviewResponse(CamelModel):
+    """总览页聚合载荷（/trading-agent/agents）。"""
+
+    items: list[AgentOverviewItem] = []
+    generated_at: datetime
+
+
+class TradingAgentProfileUpdateRequest(CamelModel):
+    """更新交易 Agent 注册信息（未提供的字段不变；仅 status='active' 可写）。
+
+    llm_config_id 空 = 平台默认 chat 模型，methodology_source_id 空 = 未启用
+    方法论基座注入。身份字段（agent_key/prompt_id/status/sort_order）不开放更新。
+    """
+
+    name: str | None = None
+    tagline: str | None = None
+    strategy_desc: str | None = None
+    style_desc: str | None = None
     llm_config_id: int | None = None
     methodology_source_id: int | None = None
     risk_max_position_pct: float | None = Field(default=None, ge=0, le=100)
     risk_max_total_pct: float | None = Field(default=None, ge=0, le=100)
     risk_max_daily_orders: int | None = Field(default=None, ge=1)
     auto_exec_enabled: bool | None = None
+    accent_color: str | None = None
 
 
 # ============================================================

@@ -4,8 +4,9 @@
 涨停归因 + 异动归因 + agent 持仓 + 人工移出清单 + 方法论基座（KB 直读）+
 经验记忆（``agent_plan_input.collect_plan_input`` 组装）→ LLM 单轮结构化
 输出（契约见 ``agent_plan_schemas``）→ 幻觉/人工移出代码后置校验 → 缓存行
-+ 两表 upsert（``agent_plan_persist``）。按 (skill_id, input_hash=账户+
-交易日) 缓存 ``ai_analysis_result``，redis 锁防重入。
++ 两表 upsert（``agent_plan_persist``）。按 (skill_id, input_hash=Agent+
+账户+交易日) 缓存 ``ai_analysis_result``，redis 锁防重入；多 Agent 各自
+独立生成（agent-hub-plan.md D23）。
 """
 
 import hashlib
@@ -19,10 +20,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.core.prompt_loader import get_prompt_loader
 from app.core.exceptions import ConflictError
 from app.core.locking import GENERATION_LOCK_TTL_SECONDS, redis_lock
+from app.models.paper_trade import TradingAgent
 from app.models.stock import StockBasic
 from app.repositories.review import ai_analysis_repository
 from app.services.trading import account_service, agent_plan_input, agent_plan_persist
-from app.services.trading.agent_config import get_config_row
 from app.services.trading.agent_plan_schemas import (
     AgentDailyPlanContent,
     PlanGenerateResult,
@@ -42,8 +43,8 @@ class PlanGenerationLockedError(ConflictError):
     default_message = "交易计划正在生成中，请稍后重试"
 
 
-def _input_hash(account_id: int, trade_date: date) -> str:
-    raw = f"{PLAN_SKILL_ID}:{account_id}:{trade_date.isoformat()}"
+def _input_hash(agent_key: str, account_id: int, trade_date: date) -> str:
+    raw = f"{PLAN_SKILL_ID}:{agent_key}:{account_id}:{trade_date.isoformat()}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -59,10 +60,12 @@ async def _load_cached(
 
 
 async def _run_llm(
-    session: AsyncSession, trade_date: date, plan_input: dict
+    session: AsyncSession,
+    llm_config_id: int | None,
+    trade_date: date,
+    plan_input: dict,
 ) -> AgentDailyPlanContent:
     config = get_prompt_loader().load(_PROMPT_SCOPE, _PROMPT_ID)
-    config_row = await get_config_row(session)
     user_prompt = (
         f"{config.system_prompt}\n\n"
         f"## 计划任务\n"
@@ -76,7 +79,7 @@ async def _run_llm(
         session,
         result_type=AgentDailyPlanContent,
         user_prompt=user_prompt,
-        config_id=config_row.llm_config_id,
+        config_id=llm_config_id,
     )
 
 
@@ -106,15 +109,16 @@ async def _validate_codes(
 
 async def generate_daily_plan(
     session: AsyncSession,
+    agent: TradingAgent,
     *,
     trade_date: date | None = None,
     regenerate: bool = False,
 ) -> PlanGenerateResult:
-    """生成（或读取缓存的）当日选股与交易计划。
+    """生成（或读取缓存的）指定 Agent 当日选股与交易计划。
 
     Raises:
         NonTradingDayError: 指定日期不是交易日
-        AgentAccountNotDesignatedError: 未指定 agent 专属账户
+        AgentAccountNotDesignatedError: 该 Agent 未绑定专属账户
         PaperTradeNotConfiguredError: paper_trade_url 未配置（模拟盘整体未启用）
         ReviewInputDataNotReadyError: 当日复盘解读尚未生成（Celery 退避重试）
         PlanGenerationLockedError: 其他实例正在生成
@@ -134,8 +138,8 @@ async def generate_daily_plan(
     resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(
         session
     )
-    account = await account_service.resolve_agent_account(session)
-    input_hash = _input_hash(account.id, resolved)
+    account = await account_service.resolve_agent_account(session, agent.agent_key)
+    input_hash = _input_hash(agent.agent_key, account.id, resolved)
 
     if not regenerate:
         cached = await _load_cached(session, input_hash)
@@ -146,11 +150,11 @@ async def generate_daily_plan(
 
     # 输入组装（内含就绪预检：复盘解读缺失即抛未就绪）
     plan_input, manual_removed = await agent_plan_input.collect_plan_input(
-        session, account.id, resolved
+        session, agent, account.id, resolved
     )
 
     async with redis_lock(
-        f"{PLAN_SKILL_ID}:{account.id}:{resolved.isoformat()}",
+        f"{PLAN_SKILL_ID}:{agent.agent_key}:{account.id}:{resolved.isoformat()}",
         ttl=GENERATION_LOCK_TTL_SECONDS,
     ) as acquired:
         if not acquired:
@@ -166,19 +170,23 @@ async def generate_daily_plan(
             if cached:
                 return PlanGenerateResult(content=cached, cached=True, dropped_codes=[])
 
-        content = await _run_llm(session, resolved, plan_input)
+        content = await _run_llm(session, agent.llm_config_id, resolved, plan_input)
         content, dropped = await _validate_codes(session, content, manual_removed)
         cache_row_id = await agent_plan_persist.persist_cache_row(
             session, skill_id=PLAN_SKILL_ID, input_hash=input_hash, content=content
         )
         await agent_plan_persist.persist_plan(
             session,
+            agent_key=agent.agent_key,
             trade_date=resolved,
             content=content,
             source_result_id=cache_row_id,
         )
         if dropped:
             logger.warning(
-                "agent_daily_plan_codes_dropped", codes=dropped, trade_date=resolved.isoformat()
+                "agent_daily_plan_codes_dropped",
+                agent_key=agent.agent_key,
+                codes=dropped,
+                trade_date=resolved.isoformat(),
             )
         return PlanGenerateResult(content=content, cached=False, dropped_codes=dropped)

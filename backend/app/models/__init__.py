@@ -62,7 +62,7 @@ from app.models.paper_trade import (
     PaperTradeCashSnapshot,
     PaperTradeExecution,
     PaperTradeOrder,
-    TradingAgentConfig,
+    TradingAgent,
 )
 from app.models.pool_dragon_tiger_stock import DragonTigerStock
 from app.models.pool_limit_up_stock import LimitUpPool
@@ -142,7 +142,7 @@ __all__ = [
     "PaperTradeCashSnapshot",
     "PaperTradeExecution",
     "PaperTradeOrder",
-    "TradingAgentConfig",
+    "TradingAgent",
     "SectorFundFlow",
     "SectorQuoteDaily",
     "SectorAnomaly",

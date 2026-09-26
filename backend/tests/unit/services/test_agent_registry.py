@@ -1,4 +1,8 @@
-"""交易 Agent 配置服务测试（单例读取/兜底创建/局部更新/LLM 绑定校验）。"""
+"""交易 Agent 注册表服务测试（agent-hub-plan.md D21）。
+
+覆盖：agent_key 读取 404 / active 门禁 / wire 视图映射 / 局部更新 /
+LLM 绑定校验（404/停用/非 chat）/ 方法论知识源校验 / planned 不可写。
+"""
 
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -8,8 +12,9 @@ import pytest
 
 from app.core.exceptions import NotFoundError, UnprocessableEntityError
 from app.models.kb import KbSource
-from app.schemas.paper_trade import TradingAgentConfigUpdateRequest
-from app.services.trading import agent_config as svc
+from app.models.paper_trade import TradingAgent
+from app.schemas.paper_trade import TradingAgentProfileUpdateRequest
+from app.services.trading import agent_registry as svc
 
 
 def _session() -> MagicMock:
@@ -21,13 +26,21 @@ def _session() -> MagicMock:
 
 def _row(**overrides: object) -> SimpleNamespace:
     base: dict[str, object] = {
-        "id": 1,
+        "agent_key": "short-line",
+        "name": "短线猎手",
+        "tagline": "日内强势股猎手",
+        "strategy_desc": "打板/低吸",
+        "style_desc": "激进",
         "llm_config_id": None,
         "methodology_source_id": None,
         "risk_max_position_pct": 20.0,
         "risk_max_total_pct": 80.0,
         "risk_max_daily_orders": 10,
         "auto_exec_enabled": True,
+        "status": "active",
+        "sort_order": 1,
+        "prompt_id": "trading_agent",
+        "accent_color": "#3b82f6",
         "updated_at": datetime(2026, 9, 25, tzinfo=timezone.utc),
     }
     base.update(overrides)
@@ -41,35 +54,54 @@ def _llm(**overrides: object) -> SimpleNamespace:
 
 
 @pytest.mark.unit
-class TestGetConfigRow:
+class TestGetAgent:
     @pytest.mark.asyncio
-    async def test_returns_existing_row(self) -> None:
+    async def test_returns_registered_row(self) -> None:
         session = _session()
         row = _row()
         session.get = AsyncMock(return_value=row)
-        assert await svc.get_config_row(session) is row
-        session.add.assert_not_called()
+        assert await svc.get_agent(session, "short-line") is row
 
     @pytest.mark.asyncio
-    async def test_missing_row_creates_singleton_fallback(self) -> None:
-        """迁移 seed 缺失时兜底创建 id=1（kb_settings 先例）。"""
+    async def test_unknown_key_raises_404(self) -> None:
         session = _session()
         session.get = AsyncMock(return_value=None)
-        row = await svc.get_config_row(session)
-        assert row.id == svc.CONFIG_ID
-        session.add.assert_called_once_with(row)
-        session.commit.assert_awaited_once()
+        with pytest.raises(NotFoundError, match="long-line"):
+            await svc.get_agent(session, "long-line")
+
+    @pytest.mark.asyncio
+    async def test_active_gate_passes_for_active(self) -> None:
+        session = _session()
+        session.get = AsyncMock(return_value=_row())
+        assert (await svc.get_active_agent(session, "short-line")).agent_key == "short-line"
+
+    @pytest.mark.asyncio
+    async def test_active_gate_rejects_planned(self) -> None:
+        session = _session()
+        session.get = AsyncMock(return_value=_row(agent_key="long-line", status="planned"))
+        with pytest.raises(UnprocessableEntityError, match="planned"):
+            await svc.get_active_agent(session, "long-line")
 
 
 @pytest.mark.unit
-class TestUpdateConfig:
+class TestToView:
+    def test_maps_all_registry_fields(self) -> None:
+        view = svc.to_view(_row(risk_max_position_pct="20.00"))
+        assert view.agent_key == "short-line"
+        assert view.risk_max_position_pct == 20.0
+        assert view.status == "active"
+        assert view.accent_color == "#3b82f6"
+
+
+@pytest.mark.unit
+class TestUpdateAgent:
     @pytest.mark.asyncio
     async def test_partial_update_touches_only_submitted_fields(self) -> None:
         session = _session()
         row = _row()
         session.get = AsyncMock(return_value=row)
-        result = await svc.update_config(
-            session, data=TradingAgentConfigUpdateRequest(auto_exec_enabled=False)
+        result = await svc.update_agent(
+            session, "short-line", data=TradingAgentProfileUpdateRequest(auto_exec_enabled=False)
         )
         assert result.auto_exec_enabled is False
         assert row.risk_max_position_pct == 20.0
@@ -78,15 +110,24 @@ class TestUpdateConfig:
         session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
+    async def test_planned_agent_not_writable(self) -> None:
+        session = _session()
+        session.get = AsyncMock(return_value=_row(status="planned"))
+        with pytest.raises(UnprocessableEntityError, match="未激活"):
+            await svc.update_agent(
+                session, "short-line", data=TradingAgentProfileUpdateRequest(name="改名")
+            )
+
+    @pytest.mark.asyncio
     async def test_llm_config_none_clears_binding_without_lookup(self) -> None:
         session = _session()
         row = _row(llm_config_id=7)
         session.get = AsyncMock(return_value=row)
-        await svc.update_config(
-            session, data=TradingAgentConfigUpdateRequest(llm_config_id=None)
+        await svc.update_agent(
+            session, "short-line", data=TradingAgentProfileUpdateRequest(llm_config_id=None)
         )
         assert row.llm_config_id is None
-        # session.get 只被调了一次（config 行本身），未查 LLMConfig
+        # session.get 只被调了一次（注册行本身），未查 LLMConfig
         assert session.get.await_count == 1
 
     @pytest.mark.asyncio
@@ -98,8 +139,8 @@ class TestUpdateConfig:
 
         session.get = AsyncMock(side_effect=_get)
         with pytest.raises(NotFoundError, match="99"):
-            await svc.update_config(
-                session, data=TradingAgentConfigUpdateRequest(llm_config_id=99)
+            await svc.update_agent(
+                session, "short-line", data=TradingAgentProfileUpdateRequest(llm_config_id=99)
             )
 
     @pytest.mark.asyncio
@@ -107,12 +148,12 @@ class TestUpdateConfig:
         session = _session()
 
         async def _get(_type, key):
-            return _row() if key == 1 else _llm(is_active=False)
+            return _row() if _type is TradingAgent else _llm(is_active=False)
 
         session.get = AsyncMock(side_effect=_get)
         with pytest.raises(UnprocessableEntityError, match="停用"):
-            await svc.update_config(
-                session, data=TradingAgentConfigUpdateRequest(llm_config_id=7)
+            await svc.update_agent(
+                session, "short-line", data=TradingAgentProfileUpdateRequest(llm_config_id=7)
             )
 
     @pytest.mark.asyncio
@@ -120,12 +161,12 @@ class TestUpdateConfig:
         session = _session()
 
         async def _get(_type, key):
-            return _row() if key == 1 else _llm(purpose="embedding")
+            return _row() if _type is TradingAgent else _llm(purpose="embedding")
 
         session.get = AsyncMock(side_effect=_get)
         with pytest.raises(UnprocessableEntityError, match="chat"):
-            await svc.update_config(
-                session, data=TradingAgentConfigUpdateRequest(llm_config_id=7)
+            await svc.update_agent(
+                session, "short-line", data=TradingAgentProfileUpdateRequest(llm_config_id=7)
             )
 
     @pytest.mark.asyncio
@@ -133,11 +174,11 @@ class TestUpdateConfig:
         session = _session()
 
         async def _get(_type, key):
-            return _row() if key == 1 else _llm()
+            return _row() if _type is TradingAgent else _llm()
 
         session.get = AsyncMock(side_effect=_get)
-        result = await svc.update_config(
-            session, data=TradingAgentConfigUpdateRequest(llm_config_id=7)
+        result = await svc.update_agent(
+            session, "short-line", data=TradingAgentProfileUpdateRequest(llm_config_id=7)
         )
         assert result.llm_config_id == 7
 
@@ -147,8 +188,8 @@ class TestUpdateConfig:
         session = _session()
         row = _row(methodology_source_id=1)
         session.get = AsyncMock(return_value=row)
-        result = await svc.update_config(
-            session, data=TradingAgentConfigUpdateRequest(methodology_source_id=None)
+        result = await svc.update_agent(
+            session, "short-line", data=TradingAgentProfileUpdateRequest(methodology_source_id=None)
         )
         assert result.methodology_source_id is None
         assert session.get.await_count == 1
@@ -162,9 +203,10 @@ class TestUpdateConfig:
 
         session.get = AsyncMock(side_effect=_get)
         with pytest.raises(NotFoundError, match="99"):
-            await svc.update_config(
+            await svc.update_agent(
                 session,
-                data=TradingAgentConfigUpdateRequest(methodology_source_id=99),
+                "short-line",
+                data=TradingAgentProfileUpdateRequest(methodology_source_id=99),
             )
 
     @pytest.mark.asyncio
@@ -178,9 +220,10 @@ class TestUpdateConfig:
 
         session.get = AsyncMock(side_effect=_get)
         with pytest.raises(UnprocessableEntityError, match="停用"):
-            await svc.update_config(
+            await svc.update_agent(
                 session,
-                data=TradingAgentConfigUpdateRequest(methodology_source_id=2),
+                "short-line",
+                data=TradingAgentProfileUpdateRequest(methodology_source_id=2),
             )
 
     @pytest.mark.asyncio
@@ -193,7 +236,9 @@ class TestUpdateConfig:
             return _row()
 
         session.get = AsyncMock(side_effect=_get)
-        result = await svc.update_config(
-            session, data=TradingAgentConfigUpdateRequest(methodology_source_id=1)
+        result = await svc.update_agent(
+            session,
+            "short-line",
+            data=TradingAgentProfileUpdateRequest(methodology_source_id=1),
         )
         assert result.methodology_source_id == 1

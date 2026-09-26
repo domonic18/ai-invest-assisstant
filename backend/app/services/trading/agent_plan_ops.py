@@ -1,8 +1,9 @@
-"""交易 Agent 计划与选股的查询/人工干预服务（批次 7，D17 干预面）。
+"""交易 Agent 计划与选股的查询/人工干预服务（批次 7，D17 干预面；多 Agent D23）。
 
 admin 端点与对话工具共用：当日计划查询（TradingAgent 页「今日交易计划」
 区块）、计划人工取消、选股查询（自选页 agent 分组合并视图）与人工移出
-（removed_reason='manual'，全局生效、次日不重复选入）。
+（removed_reason='manual'，按 Agent 生效、次日不重复选入）。
+全部查询按 agent_key 维度过滤。
 """
 
 from dataclasses import dataclass
@@ -17,7 +18,7 @@ from app.models.agent_trading import AgentStockSelection, AgentTradePlan
 from app.models.stock import StockBasic
 from app.models.watchlist import UserWatchlistGroup
 
-AGENT_GROUP_NAME = "交易 Agent"
+AGENT_GROUP_NAME = "交易 Agent 自选"
 
 PLAN_TYPES: tuple[str, ...] = ("buy", "sell")
 
@@ -31,27 +32,33 @@ class AgentGroupView:
 
 
 async def list_plans(
-    session: AsyncSession, *, plan_date: date
+    session: AsyncSession, agent_key: str, *, plan_date: date
 ) -> list[AgentTradePlan]:
-    """指定计划日的全部计划（前端按状态分色渲染）。"""
+    """指定 Agent 在计划日的全部计划（前端按状态分色渲染）。"""
     rows = await session.execute(
         select(AgentTradePlan)
-        .where(AgentTradePlan.plan_date == plan_date)
+        .where(AgentTradePlan.agent_key == agent_key, AgentTradePlan.plan_date == plan_date)
         .order_by(AgentTradePlan.id.asc())
     )
     return list(rows.scalars().all())
 
 
-async def list_plan_dates(session: AsyncSession) -> list[date]:
-    """已有交易计划的计划日去重清单（升序），日历打点用。"""
-    rows = await session.execute(select(AgentTradePlan.plan_date).distinct())
+async def list_plan_dates(session: AsyncSession, agent_key: str) -> list[date]:
+    """指定 Agent 已有交易计划的计划日去重清单（升序），日历打点用。"""
+    rows = await session.execute(
+        select(AgentTradePlan.plan_date)
+        .where(AgentTradePlan.agent_key == agent_key)
+        .distinct()
+    )
     return sorted(rows.scalars().all())
 
 
-async def cancel_plan(session: AsyncSession, *, plan_id: int) -> AgentTradePlan:
+async def cancel_plan(
+    session: AsyncSession, agent_key: str, *, plan_id: int
+) -> AgentTradePlan:
     """人工取消当日 active 计划（triggered 之后不可取消）。"""
     plan = await session.get(AgentTradePlan, plan_id)
-    if plan is None:
+    if plan is None or plan.agent_key != agent_key:
         raise NotFoundError("Trade plan not found")
     if plan.status == "cancelled":
         return plan
@@ -65,6 +72,7 @@ async def cancel_plan(session: AsyncSession, *, plan_id: int) -> AgentTradePlan:
 
 async def create_plan(
     session: AsyncSession,
+    agent_key: str,
     *,
     plan_date: date,
     stock_code: str,
@@ -98,6 +106,7 @@ async def create_plan(
 
     plan = await session.scalar(
         select(AgentTradePlan).where(
+            AgentTradePlan.agent_key == agent_key,
             AgentTradePlan.plan_date == plan_date,
             AgentTradePlan.stock_code == code,
             AgentTradePlan.plan_type == plan_type,
@@ -108,6 +117,7 @@ async def create_plan(
 
     if plan is None:
         plan = AgentTradePlan(
+            agent_key=agent_key,
             plan_date=plan_date,
             stock_code=code,
             plan_type=plan_type,
@@ -129,33 +139,43 @@ async def create_plan(
 
 
 async def list_active_selections(
-    session: AsyncSession,
+    session: AsyncSession, agent_key: str
 ) -> list[AgentStockSelection]:
-    """当前 active 选股清单（最新选入日优先），自选页 agent 分组条目。"""
+    """指定 Agent 当前 active 选股清单（最新选入日优先），自选页 agent 分组条目。"""
     rows = await session.execute(
         select(AgentStockSelection)
-        .where(AgentStockSelection.status == "active")
+        .where(
+            AgentStockSelection.agent_key == agent_key,
+            AgentStockSelection.status == "active",
+        )
         .order_by(AgentStockSelection.trade_date.desc(), AgentStockSelection.id.asc())
     )
     return list(rows.scalars().all())
 
 
-async def get_agent_group(session: AsyncSession) -> AgentGroupView | None:
+async def get_agent_group(
+    session: AsyncSession, agent_key: str
+) -> AgentGroupView | None:
     """agent 自选分组视图（未生成分组返回 None，由读路径惰性兜底）。"""
     group = await session.scalar(
-        select(UserWatchlistGroup).where(UserWatchlistGroup.owner_type == "agent")
+        select(UserWatchlistGroup).where(
+            UserWatchlistGroup.owner_type == "agent",
+            UserWatchlistGroup.agent_key == agent_key,
+        )
     )
     if group is None:
         return None
-    return AgentGroupView(group=group, selections=await list_active_selections(session))
+    return AgentGroupView(
+        group=group, selections=await list_active_selections(session, agent_key)
+    )
 
 
 async def remove_selection_manual(
-    session: AsyncSession, *, selection_id: int
+    session: AsyncSession, agent_key: str, *, selection_id: int
 ) -> AgentStockSelection:
-    """人工移出选股（仅 active 行可移出；全局生效，次日不重复选入）。"""
+    """人工移出选股（仅 active 行可移出；按 Agent 生效，次日不重复选入）。"""
     row = await session.get(AgentStockSelection, selection_id)
-    if row is None:
+    if row is None or row.agent_key != agent_key:
         raise NotFoundError("Selection not found")
     if row.status == "removed":
         return row

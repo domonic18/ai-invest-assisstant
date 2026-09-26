@@ -1,8 +1,9 @@
 """交易 Agent 每日选股与交易计划生成采集器（internal 渠道，heavy 队列）。
 
 19:00 串行在 16:00 sync / 16:10 复盘 / 16:30 涨停归因 / ≥17:45 异动之后；
-核心输入「当日复盘解读」18:35 才生成。非交易日 / 未指定 agent 账户 /
-paper_trade_url 未配置 → SKIPPED（原因写 ``message``）；输入未就绪
+核心输入「当日复盘解读」18:35 才生成。循环全部 active Agent（planned 天然
+跳过），单 Agent 异常隔离记入明细，聚合成一条 CollectResult：全跳过 →
+SKIPPED、部分成功 → PARTIAL、全失败 → FAILED；全部 Agent 输入未就绪
 （``ReviewInputDataNotReadyError``）不吞掉，交由 Celery 退避重试。
 """
 
@@ -11,7 +12,7 @@ from typing import Any
 
 from app.core.database import AsyncSessionLocal
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
-from app.services.trading import agent_plan_service
+from app.services.trading import agent_plan_service, agent_registry
 from app.services.trading.agent_plan_service import PlanGenerationLockedError
 from app.services.trading.errors import (
     AgentAccountNotDesignatedError,
@@ -19,6 +20,12 @@ from app.services.trading.errors import (
 )
 from collector.core.base import BaseCollector, CollectResult, CollectStatus
 from collector.core.calendar import is_trading_day, latest_trading_day
+
+_PER_AGENT_SKIPPABLE = (
+    AgentAccountNotDesignatedError,
+    PaperTradeNotConfiguredError,
+    PlanGenerationLockedError,
+)
 
 
 class AgentDailyPlanCollector(BaseCollector):
@@ -34,8 +41,28 @@ class AgentDailyPlanCollector(BaseCollector):
     async def validate(self, item: dict[str, Any]) -> bool:
         return True
 
+    async def _run_one(self, agent_key: str, trade_date: Any) -> dict[str, Any]:
+        """单 Agent 生成（独立 session，失败不污染其他 Agent）。
+
+        agent 注册行为外层批量读取的行（列属性已加载，跨 session 访问安全）。
+        """
+        async with AsyncSessionLocal() as session:
+            result = await agent_plan_service.generate_daily_plan(
+                session,
+                await agent_registry.get_agent(session, agent_key),
+                trade_date=trade_date,
+                regenerate=False,
+            )
+        dropped = result.dropped_codes
+        return {
+            "cached": result.cached,
+            "selections": len(result.content.selections),
+            "plans": len(result.content.plans),
+            **({"dropped_codes": dropped} if dropped else {}),
+        }
+
     async def run(self, **kwargs: Any) -> CollectResult:
-        """生成或复用当日选股与交易计划。"""
+        """循环 active Agent 生成或复用当日选股与交易计划。"""
         started_at = datetime.now(timezone.utc)
         trade_date = kwargs.get("trade_date") or latest_trading_day()
 
@@ -49,66 +76,62 @@ class AgentDailyPlanCollector(BaseCollector):
                 finished_at=datetime.now(timezone.utc),
             )
 
-        try:
-            async with AsyncSessionLocal() as session:
-                result = await agent_plan_service.generate_daily_plan(
-                    session, trade_date=trade_date, regenerate=False
-                )
-        except ReviewInputDataNotReadyError:
-            # 不吞掉：交给 Celery 任务退避重试，等待复盘解读落库。
-            raise
-        except AgentAccountNotDesignatedError as exc:
+        async with AsyncSessionLocal() as session:
+            agents = await agent_registry.get_active_agents(session)
+        if not agents:
             return CollectResult(
                 source=self.source,
                 data_type=self.data_type,
                 status=CollectStatus.SKIPPED,
-                message=str(exc) or "未指定 agent 专属账户，每日计划未启用",
-                started_at=started_at,
-                finished_at=datetime.now(timezone.utc),
-            )
-        except PaperTradeNotConfiguredError as exc:
-            return CollectResult(
-                source=self.source,
-                data_type=self.data_type,
-                status=CollectStatus.SKIPPED,
-                message=str(exc) or "paper_trade_url 未配置，每日计划未启用",
-                started_at=started_at,
-                finished_at=datetime.now(timezone.utc),
-            )
-        except PlanGenerationLockedError as exc:
-            return CollectResult(
-                source=self.source,
-                data_type=self.data_type,
-                status=CollectStatus.SKIPPED,
-                message=str(exc),
-                started_at=started_at,
-                finished_at=datetime.now(timezone.utc),
-            )
-        except Exception as exc:  # noqa: BLE001
-            return CollectResult(
-                source=self.source,
-                data_type=self.data_type,
-                status=CollectStatus.FAILED,
-                errors=[str(exc)],
+                message="无 active 状态的交易 Agent，每日计划未启用",
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
             )
 
-        dropped = result.dropped_codes
+        lines: list[str] = []
+        errors: list[str] = []
+        details: dict[str, dict[str, Any]] = {}
+        not_ready = 0
+        for agent in agents:
+            try:
+                details[agent.agent_key] = await self._run_one(
+                    agent.agent_key, trade_date
+                )
+            except ReviewInputDataNotReadyError:
+                # 不吞掉：全部 Agent 未就绪时向 Celery 退避重试抛出。
+                not_ready += 1
+                lines.append(f"{agent.agent_key}: 输入未就绪，等待重试")
+            except _PER_AGENT_SKIPPABLE as exc:
+                lines.append(f"{agent.agent_key}: {exc}")
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"{agent.agent_key}: {exc}")
+
+        stored = sum(1 for d in details.values() if not d["cached"])
+        if details and not errors and not_ready == 0:
+            status = CollectStatus.SUCCESS
+        elif details:
+            status = CollectStatus.PARTIAL
+        elif errors:
+            status = CollectStatus.FAILED
+        elif not_ready == len(agents):
+            raise ReviewInputDataNotReadyError(
+                f"全部 {len(agents)} 个交易 Agent 的计划输入未就绪"
+            )
+        else:
+            status = CollectStatus.SKIPPED
+
+        message = "；".join(lines) or (
+            "当日已生成（缓存命中）" if details and not stored else None
+        )
         return CollectResult(
             source=self.source,
             data_type=self.data_type,
-            status=CollectStatus.SUCCESS,
-            items_collected=1,
-            items_stored=0 if result.cached else 1,
+            status=status,
+            items_collected=len(details),
+            items_stored=stored,
+            errors=errors,
             started_at=started_at,
             finished_at=datetime.now(timezone.utc),
-            message="当日已生成（缓存命中）" if result.cached else None,
-            metadata={
-                "trade_date": trade_date.isoformat(),
-                "cached": result.cached,
-                "selections": len(result.content.selections),
-                "plans": len(result.content.plans),
-                **({"dropped_codes": dropped} if dropped else {}),
-            },
+            message=message,
+            metadata={"trade_date": trade_date.isoformat(), "agents": details},
         )

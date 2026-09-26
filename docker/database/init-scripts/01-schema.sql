@@ -371,6 +371,7 @@ CREATE TABLE user_watchlist_group (
     id                BIGSERIAL PRIMARY KEY,
     user_id           BIGINT       REFERENCES "user"(id) ON DELETE CASCADE,  -- NULL = 平台级分组（owner_type='agent'）
     owner_type        VARCHAR(16)  NOT NULL DEFAULT 'user',
+    agent_key         VARCHAR(32),  -- owner_type='agent' 时必填：归属 Agent（FK 见 §25 trading_agent 之后补建）
     name              VARCHAR(50)  NOT NULL,
     sort_order        INT          NOT NULL DEFAULT 0,
     is_default        BOOLEAN      NOT NULL DEFAULT FALSE,
@@ -380,8 +381,9 @@ CREATE TABLE user_watchlist_group (
     UNIQUE (user_id, name)
 );
 
-CREATE UNIQUE INDEX uq_user_watchlist_group_agent
-    ON user_watchlist_group (owner_type) WHERE owner_type = 'agent';
+CREATE UNIQUE INDEX uq_user_watchlist_group_agent_key
+    ON user_watchlist_group (owner_type, agent_key)
+    WHERE owner_type = 'agent' AND agent_key IS NOT NULL;
 
 CREATE INDEX idx_user_watchlist_group_user ON user_watchlist_group(user_id);
 
@@ -407,7 +409,7 @@ CREATE TABLE assistant_session (
     id              UUID PRIMARY KEY,                -- 兼作 Agent Protocol thread_id
     user_id         BIGINT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     title           VARCHAR(128),
-    agent_type      VARCHAR(16) NOT NULL DEFAULT 'assistant',  -- 会话归属 agent：assistant / trading（交易 Agent 线程分流）
+    agent_type      VARCHAR(32) NOT NULL DEFAULT 'assistant',  -- 会话归属：assistant / 交易 Agent 的 agent_key（trading_agent.agent_key，如 short-line）
     last_message_at TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -1652,37 +1654,63 @@ CREATE TABLE IF NOT EXISTS kb_settings (
 INSERT INTO kb_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
--- 25. 交易 Agent 配置（F-SIM 批次 5：单例 LLM 绑定 + 风控阈值 + 自主执行总闸；
+-- 25. 交易 Agent 注册表（Agent Hub 多 Agent 基座，docs/plan/agent-hub-plan.md D21；
 --     paper-trade 三表见 migrations/20260924a_paper_trade_tables.sql）
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS trading_agent_config (
-    id                     INTEGER       PRIMARY KEY CHECK (id = 1),  -- 恒为 1 的单例行
-    llm_config_id          BIGINT,                                    -- 关联 llm_config；空 = 默认 chat 模型
-    methodology_source_id  BIGINT,                                    -- 方法论知识源（kb_source.id）；空 = 未启用方法论基座注入
-    risk_max_position_pct  NUMERIC(5,2)  NOT NULL DEFAULT 20,         -- 单票市值 ≤ 总资产 %
-    risk_max_total_pct     NUMERIC(5,2)  NOT NULL DEFAULT 80,         -- 总持仓市值 ≤ 总资产 %
-    risk_max_daily_orders  INTEGER       NOT NULL DEFAULT 10,         -- 单日下单笔数上限
-    auto_exec_enabled      BOOLEAN       NOT NULL DEFAULT TRUE,       -- 盘中自主执行总闸（批次 8 轮询入口先检）
+CREATE TABLE IF NOT EXISTS trading_agent (
+    agent_key              VARCHAR(32)   PRIMARY KEY,                  -- URL 安全自然键
+    name                   VARCHAR(64)   NOT NULL,                     -- 展示名
+    tagline                VARCHAR(128)  NOT NULL DEFAULT '',          -- 一句话定位
+    strategy_desc          TEXT          NOT NULL DEFAULT '',          -- 策略介绍（介绍卡/预告卡）
+    style_desc             VARCHAR(64)   NOT NULL DEFAULT '',          -- 风格标签
+    llm_config_id          BIGINT,                                     -- 对话/结构化输出模型；空 = 默认 chat
+    methodology_source_id  BIGINT,                                     -- 方法论知识源（kb_source.id）；空 = 未启用
+    risk_max_position_pct  NUMERIC(5,2)  NOT NULL DEFAULT 20,          -- 单票市值 ≤ 总资产 %
+    risk_max_total_pct     NUMERIC(5,2)  NOT NULL DEFAULT 80,          -- 总持仓市值 ≤ 总资产 %
+    risk_max_daily_orders  INTEGER       NOT NULL DEFAULT 10,          -- 单日下单笔数上限
+    auto_exec_enabled      BOOLEAN       NOT NULL DEFAULT TRUE,        -- 盘中自主执行总闸
+    status                 VARCHAR(16)   NOT NULL DEFAULT 'active',    -- active / planned / disabled
+    sort_order             INTEGER       NOT NULL DEFAULT 0,           -- 总览排布
+    prompt_id              VARCHAR(64)   NOT NULL DEFAULT 'trading_agent',  -- prompts/agents/<prompt_id>.yaml
+    accent_color           VARCHAR(16)   NOT NULL DEFAULT '#3b82f6',   -- 总览节点主色
+    created_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT fk_trading_agent_config_llm_config
+    CONSTRAINT fk_trading_agent_llm_config
         FOREIGN KEY (llm_config_id) REFERENCES llm_config (id) ON DELETE SET NULL,
-    CONSTRAINT fk_trading_agent_config_methodology_source
+    CONSTRAINT fk_trading_agent_methodology_source
         FOREIGN KEY (methodology_source_id) REFERENCES kb_source (id) ON DELETE SET NULL,
-    CONSTRAINT chk_trading_agent_config_position_pct
+    CONSTRAINT chk_trading_agent_status
+        CHECK (status IN ('active', 'planned', 'disabled')),
+    CONSTRAINT chk_trading_agent_position_pct
         CHECK (risk_max_position_pct >= 0 AND risk_max_position_pct <= 100),
-    CONSTRAINT chk_trading_agent_config_total_pct
+    CONSTRAINT chk_trading_agent_total_pct
         CHECK (risk_max_total_pct >= 0 AND risk_max_total_pct <= 100),
-    CONSTRAINT chk_trading_agent_config_daily_orders
+    CONSTRAINT chk_trading_agent_daily_orders
         CHECK (risk_max_daily_orders >= 1)
 );
 
-COMMENT ON TABLE trading_agent_config IS
-    '交易 Agent 全局配置（单例 id=1）：LLM 绑定 + 风控阈值 + 自主执行总闸（docs/plan/paper-trading-plan.md §8.5）';
+COMMENT ON TABLE trading_agent IS
+    '交易 Agent 注册表：身份/介绍/模型绑定/风控/总闸（docs/plan/agent-hub-plan.md D21）';
 
--- 缺省配置行（管理端「交易 Agent 配置」维护）
-INSERT INTO trading_agent_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+-- 种子 Agent 行（短线激活；长线/M60 planned 幽灵节点；新 Agent 手工 SQL 注册，不做 CRUD）
+INSERT INTO trading_agent (agent_key, name, tagline, strategy_desc, style_desc, status, sort_order, accent_color)
+VALUES
+    ('short-line', '短线猎手', '趋势短线：顺势而为，快进快出',
+     '基于当日复盘解读与涨停归因的趋势短线策略：主线板块选股，回踩买点区间接回，破位止损。', '进取',
+     'active', 1, '#3b82f6'),
+    ('long-line', '长线舵手', '基本面长线：低频布局，穿越周期',
+     '基本面与产业趋势驱动的长线布局策略（规划中，未激活）。', '稳健', 'planned', 2, '#10b981'),
+    ('m60', '60分钟波段', 'M60 结构波段：形态驱动，波段进退',
+     '60 分钟级别结构形态驱动的波段策略（规划中，未激活）。', '灵活', 'planned', 3, '#f59e0b')
+ON CONFLICT (agent_key) DO NOTHING;
+
+-- agent 自选分组的 agent_key FK（user_watchlist_group 定义于 §7，先于本表，故在此补建）
+ALTER TABLE user_watchlist_group DROP CONSTRAINT IF EXISTS fk_user_watchlist_group_agent;
+ALTER TABLE user_watchlist_group
+    ADD CONSTRAINT fk_user_watchlist_group_agent
+    FOREIGN KEY (agent_key) REFERENCES trading_agent (agent_key) ON DELETE CASCADE;
 
 -- ============================================================
 -- 26. 交易 Agent 选股与交易计划（批次 7，docs/plan/paper-trading-plan.md §10.1；
@@ -1691,6 +1719,7 @@ INSERT INTO trading_agent_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS agent_stock_selection (
     id               BIGSERIAL PRIMARY KEY,
+    agent_key        VARCHAR(32)  NOT NULL REFERENCES trading_agent (agent_key) ON DELETE RESTRICT,  -- 归属 Agent
     trade_date       DATE         NOT NULL,      -- 选入日
     stock_code       VARCHAR(10)  NOT NULL,
     reason           TEXT         NOT NULL,      -- 选股依据（引用复盘结论）
@@ -1701,7 +1730,7 @@ CREATE TABLE IF NOT EXISTS agent_stock_selection (
     removed_reason   TEXT,                       -- agent 剔除 / manual 人工移出
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_agent_stock_selection_date_code UNIQUE (trade_date, stock_code)
+    CONSTRAINT uq_agent_stock_selection_agent_date_code UNIQUE (agent_key, trade_date, stock_code)
 );
 
 CREATE INDEX IF NOT EXISTS idx_agent_stock_selection_code
@@ -1712,6 +1741,7 @@ COMMENT ON TABLE agent_stock_selection IS
 
 CREATE TABLE IF NOT EXISTS agent_trade_plan (
     id                  BIGSERIAL PRIMARY KEY,
+    agent_key           VARCHAR(32)   NOT NULL REFERENCES trading_agent (agent_key) ON DELETE RESTRICT,  -- 归属 Agent
     plan_date           DATE          NOT NULL,  -- 计划日（默认当日有效）
     stock_code          VARCHAR(10)   NOT NULL,
     plan_type           VARCHAR(8)    NOT NULL,  -- buy 开仓 / sell 持仓管理
@@ -1730,7 +1760,7 @@ CREATE TABLE IF NOT EXISTS agent_trade_plan (
     raw                 JSONB,                   -- LLM 完整输出兜底
     created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_agent_trade_plan_date_code_type UNIQUE (plan_date, stock_code, plan_type)
+    CONSTRAINT uq_agent_trade_plan_agent_date_code_type UNIQUE (agent_key, plan_date, stock_code, plan_type)
 );
 
 CREATE INDEX IF NOT EXISTS idx_agent_trade_plan_status
@@ -1741,6 +1771,7 @@ COMMENT ON TABLE agent_trade_plan IS
 
 CREATE TABLE IF NOT EXISTS agent_memory (
     id               BIGSERIAL PRIMARY KEY,
+    agent_key        VARCHAR(32)  NOT NULL REFERENCES trading_agent (agent_key) ON DELETE RESTRICT,  -- 归属 Agent
     mem_type         VARCHAR(16)  NOT NULL,      -- discipline 纪律 / method 方法 / lesson 教训
     title            VARCHAR(128) NOT NULL,
     body             TEXT         NOT NULL,
@@ -1749,7 +1780,7 @@ CREATE TABLE IF NOT EXISTS agent_memory (
     source_result_id BIGINT,                     -- ai_analysis_result.id（auto 时必填，溯源）
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_agent_memory_source_title UNIQUE (source_result_id, title)
+    CONSTRAINT uq_agent_memory_agent_source_title UNIQUE (agent_key, source_result_id, title)
 );
 
 CREATE INDEX IF NOT EXISTS idx_agent_memory_status ON agent_memory(status, mem_type);

@@ -57,13 +57,19 @@ class TestGetTradingAgentReview:
     def test_returns_camel_case_wire(self, admin_client) -> None:
         http, _ = admin_client
         row = MagicMock()
-        row.structured_output = _content()
+        row.structured_output = {"agent_key": "short-line", **_content()}
 
-        with patch(
-            "app.repositories.review.ai_analysis_repository.load_latest_success",
-            AsyncMock(return_value=row),
+        with (
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=row),
+            ),
         ):
-            resp = http.get("/api/v1/admin/trading-agent/review", params={"period": "day"})
+            resp = http.get("/api/v1/admin/trading-agent/short-line/review", params={"period": "day"})
 
         assert resp.status_code == 200
         body = resp.json()
@@ -75,11 +81,17 @@ class TestGetTradingAgentReview:
     def test_404_when_not_generated(self, admin_client) -> None:
         http, _ = admin_client
 
-        with patch(
-            "app.repositories.review.ai_analysis_repository.load_latest_success",
-            AsyncMock(return_value=None),
+        with (
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=None),
+            ),
         ):
-            resp = http.get("/api/v1/admin/trading-agent/review", params={"period": "day"})
+            resp = http.get("/api/v1/admin/trading-agent/short-line/review", params={"period": "day"})
 
         assert resp.status_code == 404
         assert "尚未生成" in resp.json()["detail"]
@@ -88,7 +100,7 @@ class TestGetTradingAgentReview:
         http, _ = admin_client
 
         resp = http.get(
-            "/api/v1/admin/trading-agent/review", params={"period": "year"}
+            "/api/v1/admin/trading-agent/short-line/review", params={"period": "year"}
         )
 
         assert resp.status_code == 422
@@ -130,7 +142,7 @@ class TestTradingAgentPlans:
                 AsyncMock(return_value=[_plan_row()]),
             ),
         ):
-            resp = http.get("/api/v1/admin/trading-agent/plans")
+            resp = http.get("/api/v1/admin/trading-agent/short-line/plans")
 
         assert resp.status_code == 200
         body = resp.json()
@@ -156,7 +168,7 @@ class TestTradingAgentPlans:
             ) as list_mock,
         ):
             resp = http.get(
-                "/api/v1/admin/trading-agent/plans", params={"trade_date": "2026-07-16"}
+                "/api/v1/admin/trading-agent/short-line/plans", params={"trade_date": "2026-07-16"}
             )
 
         assert resp.status_code == 200
@@ -170,11 +182,11 @@ class TestTradingAgentPlans:
             "app.services.trading.agent_plan_ops.cancel_plan",
             AsyncMock(return_value=_plan_row(status="cancelled")),
         ) as cancel_mock:
-            resp = http.post("/api/v1/admin/trading-agent/plans/11/cancel")
+            resp = http.post("/api/v1/admin/trading-agent/short-line/plans/11/cancel")
 
         assert resp.status_code == 200
         assert resp.json()["status"] == "cancelled"
-        cancel_mock.assert_awaited_once_with(admin_client[1], plan_id=11)
+        cancel_mock.assert_awaited_once_with(admin_client[1], "short-line", plan_id=11)
 
 
 @pytest.mark.unit
@@ -189,10 +201,10 @@ class TestGetTradingAgentDates:
             ) as plan_dates_mock,
             patch(
                 "app.services.trading.agent_review_service.list_review_dates",
-                AsyncMock(side_effect=lambda _s, *, period: [date(2026, 7, period == "day" and 17 or 10)]),
+                AsyncMock(side_effect=lambda _s, _k, *, period: [date(2026, 7, period == "day" and 17 or 10)]),
             ) as review_dates_mock,
         ):
-            resp = http.get("/api/v1/admin/trading-agent/dates")
+            resp = http.get("/api/v1/admin/trading-agent/short-line/dates")
 
         assert resp.status_code == 200
         body = resp.json()
@@ -216,7 +228,7 @@ class TestGetTradingAgentDates:
                 AsyncMock(return_value=[]),
             ),
         ):
-            resp = http.get("/api/v1/admin/trading-agent/dates")
+            resp = http.get("/api/v1/admin/trading-agent/short-line/dates")
 
         assert resp.status_code == 200
         assert resp.json() == {"planDates": [], "reviewDates": {"day": [], "month": [], "week": []}}
@@ -258,7 +270,7 @@ class TestTradingAgentSelections:
             "app.api.v1.admin.trading_agent.agent_plan_ops.get_agent_group",
             AsyncMock(return_value=_group_view()),
         ):
-            resp = http.get("/api/v1/admin/trading-agent/selections")
+            resp = http.get("/api/v1/admin/trading-agent/short-line/selections")
 
         assert resp.status_code == 200
         body = resp.json()
@@ -275,13 +287,13 @@ class TestTradingAgentSelections:
             "app.api.v1.admin.trading_agent.agent_plan_ops.get_agent_group",
             AsyncMock(return_value=None),
         ):
-            resp = http.get("/api/v1/admin/trading-agent/selections")
+            resp = http.get("/api/v1/admin/trading-agent/short-line/selections")
 
         assert resp.status_code == 200
         assert resp.json() is None
 
     def test_get_requires_admin(self, client) -> None:
-        resp = client.get("/api/v1/admin/trading-agent/selections")
+        resp = client.get("/api/v1/admin/trading-agent/short-line/selections")
         assert resp.status_code in (401, 403)
 
     def test_remove_selection_204(self, admin_client) -> None:
@@ -291,10 +303,10 @@ class TestTradingAgentSelections:
             "app.api.v1.admin.trading_agent.agent_plan_ops.remove_selection_manual",
             AsyncMock(return_value=MagicMock()),
         ) as remove_mock:
-            resp = http.delete("/api/v1/admin/trading-agent/selections/9")
+            resp = http.delete("/api/v1/admin/trading-agent/short-line/selections/9")
 
         assert resp.status_code == 204
-        remove_mock.assert_awaited_once_with(session, selection_id=9)
+        remove_mock.assert_awaited_once_with(session, "short-line", selection_id=9)
 
     def test_remove_selection_404(self, admin_client) -> None:
         from app.core.exceptions import NotFoundError
@@ -305,7 +317,7 @@ class TestTradingAgentSelections:
             "app.api.v1.admin.trading_agent.agent_plan_ops.remove_selection_manual",
             AsyncMock(side_effect=NotFoundError("Selection not found")),
         ):
-            resp = http.delete("/api/v1/admin/trading-agent/selections/99")
+            resp = http.delete("/api/v1/admin/trading-agent/short-line/selections/99")
 
         assert resp.status_code == 404
 
@@ -338,7 +350,7 @@ class TestTradingAgentMemories:
             AsyncMock(return_value=[_memory_row()]),
         ) as list_mock:
             resp = http.get(
-                "/api/v1/admin/trading-agent/memories", params={"status": "archived"}
+                "/api/v1/admin/trading-agent/short-line/memories", params={"status": "archived"}
             )
 
         assert resp.status_code == 200
@@ -347,7 +359,7 @@ class TestTradingAgentMemories:
         assert body[0]["source"] == "manual"
         assert body[0]["sourceResultId"] is None
         assert body[0]["createdAt"] is not None
-        list_mock.assert_awaited_once_with(admin_client[1], status="archived")
+        list_mock.assert_awaited_once_with(admin_client[1], "short-line", status="archived")
 
     def test_list_defaults_to_all_statuses(self, admin_client) -> None:
         http, _ = admin_client
@@ -356,7 +368,7 @@ class TestTradingAgentMemories:
             "app.api.v1.admin.trading_agent.agent_memory_service.list_memories",
             AsyncMock(return_value=[]),
         ) as list_mock:
-            resp = http.get("/api/v1/admin/trading-agent/memories")
+            resp = http.get("/api/v1/admin/trading-agent/short-line/memories")
 
         assert resp.status_code == 200
         assert resp.json() == []
@@ -370,7 +382,7 @@ class TestTradingAgentMemories:
             AsyncMock(return_value=_memory_row(title="新标题", mem_type="lesson")),
         ) as update_mock:
             resp = http.put(
-                "/api/v1/admin/trading-agent/memories/3",
+                "/api/v1/admin/trading-agent/short-line/memories/3",
                 json={"title": "新标题", "memType": "lesson"},
             )
 
@@ -379,7 +391,7 @@ class TestTradingAgentMemories:
         assert body["title"] == "新标题"
         assert body["memType"] == "lesson"
         update_mock.assert_awaited_once_with(
-            session, memory_id=3, title="新标题", body=None, mem_type="lesson"
+            session, "short-line", memory_id=3, title="新标题", body=None, mem_type="lesson"
         )
 
     def test_update_status_switches_active_archived(self, admin_client) -> None:
@@ -390,19 +402,19 @@ class TestTradingAgentMemories:
             AsyncMock(return_value=_memory_row(status="archived")),
         ) as status_mock:
             resp = http.put(
-                "/api/v1/admin/trading-agent/memories/3/status",
+                "/api/v1/admin/trading-agent/short-line/memories/3/status",
                 json={"status": "archived"},
             )
 
         assert resp.status_code == 200
         assert resp.json()["status"] == "archived"
-        status_mock.assert_awaited_once_with(session, memory_id=3, status="archived")
+        status_mock.assert_awaited_once_with(session, "short-line", memory_id=3, status="archived")
 
     def test_update_rejects_unknown_mem_type(self, admin_client) -> None:
         http, _ = admin_client
 
         resp = http.put(
-            "/api/v1/admin/trading-agent/memories/3", json={"memType": "other"}
+            "/api/v1/admin/trading-agent/short-line/memories/3", json={"memType": "other"}
         )
 
         assert resp.status_code == 422
@@ -417,7 +429,7 @@ class TestTradingAgentMemories:
             AsyncMock(side_effect=NotFoundError("记忆 99 不存在")),
         ):
             resp = http.put(
-                "/api/v1/admin/trading-agent/memories/99", json={"title": "x"}
+                "/api/v1/admin/trading-agent/short-line/memories/99", json={"title": "x"}
             )
 
         assert resp.status_code == 404

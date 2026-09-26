@@ -1,14 +1,15 @@
 """交易 Agent 盘后分层复盘服务（日/周/月）。
 
-复盘对象固定为 agent 专属账户（本地三表按 ``resolve_agent_account()`` 过滤）；
-结果按 (skill_id, input_hash=账户+周期+窗口) 缓存在 ``ai_analysis_result``
+复盘对象为指定 Agent 的专属账户（本地三表按 ``resolve_agent_account()`` 过滤）；
+结果按 (skill_id, input_hash=Agent+账户+周期+窗口) 缓存在 ``ai_analysis_result``
 （skill_id='paper-trade-review'），生成路径 redis 锁防重入。LLM 单轮结构化输出
 字段全 required（禁默认值铁律），一次输出三层 verdict + experiences——分层是
-批次 9 记忆精准反哺的前提（docs/plan/paper-trading-plan.md §9）。
+批次 9 记忆精准反哺的前提（docs/plan/paper-trading-plan.md §9）；持久化读模型
+``PaperTradeReviewRecord`` 附带 agent_key（落库时注入，读取按 Agent 过滤）。
 
-定时任务 ``paper_trade_review_1610``（heavy）生成日度；周五/月末最后一个交易日
-由任务内日历判定加发周/月度（cron 表达不了「最后交易日」）。输入未就绪抛
-``ReviewInputDataNotReadyError`` 由 Celery 退避重试。
+定时任务 ``paper_trade_review_1610``（heavy）循环 active Agent 生成日度；
+周五/月末最后一个交易日由任务内日历判定加发周/月度（cron 表达不了
+「最后交易日」）。输入未就绪抛 ``ReviewInputDataNotReadyError`` 由 Celery 退避重试。
 """
 
 import hashlib
@@ -30,12 +31,12 @@ from app.models.paper_trade import (
     PaperTradeCashSnapshot,
     PaperTradeExecution,
     PaperTradeOrder,
+    TradingAgent,
 )
 from app.models.stock import StockBasic
 from app.repositories.review import ai_analysis_repository
 from app.services.market.trade_calendar_service import NonTradingDayError
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
-from app.services.trading.agent_config import get_config_row
 
 logger = structlog.get_logger(__name__)
 
@@ -84,7 +85,7 @@ class ReviewExperience(BaseModel):
 
 
 class PaperTradeReviewContent(BaseModel):
-    """复盘结构化输出契约（ai_analysis_result.structured_output 形状）。"""
+    """复盘 LLM 结构化输出契约（字段禁默认值，进 JSON Schema required）。"""
 
     period: ReviewPeriod
     trade_date: str
@@ -123,6 +124,13 @@ class PaperTradeReviewContent(BaseModel):
         return value
 
 
+class PaperTradeReviewRecord(PaperTradeReviewContent):
+    """复盘持久化读模型（structured_output 实际形状）：LLM 契约 + 落库时
+    注入的 agent_key（读取按 Agent 过滤；不进 LLM schema）。"""
+
+    agent_key: str
+
+
 @dataclass(slots=True)
 class ReviewGenerateResult:
     """生成结果：内容 + 是否缓存命中（任务 metadata 用）。"""
@@ -140,8 +148,11 @@ def resolve_window(period: ReviewPeriod, trade_date: date) -> tuple[date, date]:
     return trade_date.replace(day=1), trade_date
 
 
-def _input_hash(account_id: int, period: str, start: date, end: date) -> str:
-    raw = f"{REVIEW_SKILL_ID}:{account_id}:{period}:{start.isoformat()}:{end.isoformat()}"
+def _input_hash(agent_key: str, account_id: int, period: str, start: date, end: date) -> str:
+    raw = (
+        f"{REVIEW_SKILL_ID}:{agent_key}:{account_id}:"
+        f"{period}:{start.isoformat()}:{end.isoformat()}"
+    )
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -288,47 +299,56 @@ async def _has_review_target(
 
 
 async def get_review(
-    session: AsyncSession, *, period: ReviewPeriod, trade_date: date | None = None
-) -> PaperTradeReviewContent | None:
-    """读取已生成的复盘（不触发 LLM）；trade_date 缺省取该周期最新一条。"""
+    session: AsyncSession,
+    agent_key: str,
+    *,
+    period: ReviewPeriod,
+    trade_date: date | None = None,
+) -> PaperTradeReviewRecord | None:
+    """读取指定 Agent 已生成的复盘（不触发 LLM）；trade_date 缺省取最新交易日。"""
     from app.services.market import trade_calendar_service
+    from app.services.trading import account_service
 
     resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(
         session
     )
+    account = await account_service.resolve_agent_account(session, agent_key)
+    start, end = resolve_window(period, resolved)
     row = await ai_analysis_repository.load_latest_success(
         session,
         skill_id=REVIEW_SKILL_ID,
         trade_date=resolved,
-        structured_filter={"period": period},
+        input_hash=_input_hash(agent_key, account.id, period, start, end),
     )
     if row is None or not row.structured_output:
         return None
-    structured = row.structured_output
-    return PaperTradeReviewContent.model_validate(structured)
+    return PaperTradeReviewRecord.model_validate(row.structured_output)
 
 
 async def list_review_dates(
-    session: AsyncSession, *, period: ReviewPeriod
+    session: AsyncSession, agent_key: str, *, period: ReviewPeriod
 ) -> list[date]:
-    """已生成该周期复盘的基准交易日（升序），日历打点用。"""
+    """指定 Agent 已生成该周期复盘的基准交易日（升序），日历打点用。"""
     return await ai_analysis_repository.list_success_trade_dates(
-        session, skill_id=REVIEW_SKILL_ID, structured_filter={"period": period}
+        session,
+        skill_id=REVIEW_SKILL_ID,
+        structured_filter={"period": period, "agent_key": agent_key},
     )
 
 
 async def generate_review(
     session: AsyncSession,
+    agent: TradingAgent,
     *,
     period: ReviewPeriod,
     trade_date: date | None = None,
     regenerate: bool = False,
 ) -> ReviewGenerateResult:
-    """生成（或读取缓存的）模拟盘分层复盘。
+    """生成（或读取缓存的）指定 Agent 的模拟盘分层复盘。
 
     Raises:
         NonTradingDayError: 指定日期不是交易日
-        AgentAccountNotDesignatedError: 未指定 agent 专属账户
+        AgentAccountNotDesignatedError: 该 Agent 未绑定专属账户
         NoReviewTargetError: 窗口内无交易且无持仓
         ReviewInputDataNotReadyError: 盘后同步尚未落库（Celery 退避重试）
         PaperTradeReviewLockedError: 其他实例正在生成
@@ -345,9 +365,9 @@ async def generate_review(
     resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(
         session
     )
-    account = await account_service.resolve_agent_account(session)
+    account = await account_service.resolve_agent_account(session, agent.agent_key)
     start, end = resolve_window(period, resolved)
-    input_hash = _input_hash(account.id, period, start, end)
+    input_hash = _input_hash(agent.agent_key, account.id, period, start, end)
 
     if not regenerate:
         cached = await _load_cached(session, input_hash)
@@ -365,7 +385,7 @@ async def generate_review(
         )
 
     async with redis_lock(
-        f"{REVIEW_SKILL_ID}:{account.id}:{period}:{resolved.isoformat()}",
+        f"{REVIEW_SKILL_ID}:{agent.agent_key}:{account.id}:{period}:{resolved.isoformat()}",
         ttl=GENERATION_LOCK_TTL_SECONDS,
     ) as acquired:
         if not acquired:
@@ -382,11 +402,16 @@ async def generate_review(
                 return ReviewGenerateResult(content=cached, cached=True)
 
         window_input = await _collect_window_input(session, account.id, start, end)
-        content = await _run_llm(session, period, resolved, window_input)
+        content = await _run_llm(
+            session, agent.llm_config_id, period, resolved, window_input
+        )
         content = _validate(content, {o["cl_ord_id"] for o in window_input["orders"]})
+        record = PaperTradeReviewRecord(
+            **content.model_dump(), agent_key=agent.agent_key
+        )
 
-        await _persist(session, input_hash=input_hash, content=content)
-        return ReviewGenerateResult(content=content, cached=False)
+        await _persist(session, input_hash=input_hash, content=record)
+        return ReviewGenerateResult(content=record, cached=False)
 
 
 async def _sync_landed(session: AsyncSession, account_id: int, day: date) -> bool:
@@ -407,20 +432,23 @@ async def _sync_landed(session: AsyncSession, account_id: int, day: date) -> boo
 
 async def _load_cached(
     session: AsyncSession, input_hash: str
-) -> PaperTradeReviewContent | None:
+) -> PaperTradeReviewRecord | None:
     row = await ai_analysis_repository.load_latest_success(
         session, skill_id=REVIEW_SKILL_ID, input_hash=input_hash
     )
     if row is None or not row.structured_output:
         return None
-    return PaperTradeReviewContent.model_validate(row.structured_output)
+    return PaperTradeReviewRecord.model_validate(row.structured_output)
 
 
 async def _run_llm(
-    session: AsyncSession, period: str, trade_date: date, window_input: dict[str, Any]
+    session: AsyncSession,
+    llm_config_id: int | None,
+    period: str,
+    trade_date: date,
+    window_input: dict[str, Any],
 ) -> PaperTradeReviewContent:
     config = get_prompt_loader().load(_PROMPT_SCOPE, _PROMPT_ID)
-    config_row = await get_config_row(session)
     user_prompt = (
         f"{config.system_prompt}\n\n"
         f"## 复盘任务\n"
@@ -435,7 +463,7 @@ async def _run_llm(
         session,
         result_type=PaperTradeReviewContent,
         user_prompt=user_prompt,
-        config_id=config_row.llm_config_id,
+        config_id=llm_config_id,
     )
 
 
