@@ -1,15 +1,17 @@
 /**
- * 交易 Agent 页（批次 5，仅 admin）：专属对话区 + 配置区。
+ * 模拟管理页（原交易 Agent 页，仅 admin）：模拟盘闭环统一入口。
  *
- * 对话区复用 components/assistant 会话组件（agentType='trading'，线程态由本页
- * 持有，新线程创建携带 agent_type 由后端分流至交易 Agent 运行时）；配置区
- * 绑定对话模型与风控阈值、盘中自主执行总闸。
+ * 结构 = 运行状态条 + Tabs：工作台（agent 对话，PC 附计划/复盘侧栏）、
+ * 交易计划、交易记录（agent 账户委托/成交）、复盘记录（日/周/月）、
+ * 经验总结、账户与配置（Agent 配置 + 模拟盘账户管理）。tab 态进 URL
+ * query（/admin/paper-trade 旧路由重定向到 ?tab=accounts）；工作台保持
+ * 挂载（antd Tabs 默认隐藏不卸载），切 tab 不中断会话流。
  */
 import { EditOutlined } from '@ant-design/icons'
-import { Button, Card, Form, InputNumber, Select, Spin, Switch, Typography } from 'antd'
-import dayjs from 'dayjs'
-import { useEffect, useRef, useState } from 'react'
+import { Button, Tabs, Typography } from 'antd'
 import { useQueryClient } from '@tanstack/react-query'
+import { useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { PAGE_EVENT_TYPES } from '@ai-invest/shared'
 
@@ -21,15 +23,49 @@ import { AssistantThread } from '@/components/assistant/AssistantThread'
 import { TodoListBar } from '@/components/assistant/ui/TodoListBar'
 import { queryKeys } from '@/hooks/queryKeys'
 import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
-import {
-  useTradingAgentConfig,
-  useTradingAgentLlmOptions,
-  useUpdateTradingAgentConfig,
-} from '@/hooks/useTradingAgent'
 import { useAssistantStore } from '@/stores/assistant'
 
+import { AgentConfigPanel } from './AgentConfigPanel'
+import { AgentStatusStrip } from './AgentStatusStrip'
+import { AgentTradeRecords } from './AgentTradeRecords'
+import { ExperiencePanel } from './ExperiencePanel'
+import { PaperTradeAccountsAdmin } from '@/pages/Admin/PaperTradeAccounts'
 import { PlanPanel } from './PlanPanel'
 import { ReviewPanel } from './ReviewPanel'
+
+const TAB_KEYS = ['workbench', 'plans', 'records', 'review', 'experiences', 'accounts'] as const
+type TabKey = (typeof TAB_KEYS)[number]
+
+const TAB_ITEMS = [
+  { key: 'workbench', label: '工作台' },
+  { key: 'plans', label: '交易计划' },
+  { key: 'records', label: '交易记录' },
+  { key: 'review', label: '复盘记录' },
+  { key: 'experiences', label: '经验总结' },
+  { key: 'accounts', label: '账户与配置' },
+]
+
+function renderTabPane(key: TabKey) {
+  switch (key) {
+    case 'workbench':
+      return <WorkbenchPane />
+    case 'plans':
+      return <PlanPanel />
+    case 'records':
+      return <AgentTradeRecords />
+    case 'review':
+      return <ReviewPanel />
+    case 'experiences':
+      return <ExperiencePanel />
+    case 'accounts':
+      return (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <AgentConfigPanel />
+          <PaperTradeAccountsAdmin />
+        </div>
+      )
+  }
+}
 
 function TradingChatHeader({ onNewThread }: { onNewThread: () => void }) {
   return (
@@ -47,123 +83,12 @@ function TradingChatHeader({ onNewThread }: { onNewThread: () => void }) {
   )
 }
 
-interface ConfigFormValues {
-  llmConfigId?: number | null
-  riskMaxPositionPct: number
-  riskMaxTotalPct: number
-  riskMaxDailyOrders: number
-  autoExecEnabled: boolean
-}
-
-function AgentConfigPanel() {
-  const [form] = Form.useForm<ConfigFormValues>()
-  const { data: config, isLoading } = useTradingAgentConfig()
-  const { data: llmOptions, isLoading: llmLoading } = useTradingAgentLlmOptions()
-  const update = useUpdateTradingAgentConfig()
-
-  useEffect(() => {
-    if (config) {
-      form.setFieldsValue({
-        llmConfigId: config.llmConfigId ?? null,
-        riskMaxPositionPct: config.riskMaxPositionPct,
-        riskMaxTotalPct: config.riskMaxTotalPct,
-        riskMaxDailyOrders: config.riskMaxDailyOrders,
-        autoExecEnabled: config.autoExecEnabled,
-      })
-    }
-  }, [config, form])
-
-  return (
-    <Card size="small" title="Agent 配置">
-      {isLoading || !config ? (
-        <div className="flex justify-center py-8">
-          <Spin />
-        </div>
-      ) : (
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={(values) =>
-            update.mutate({
-              llmConfigId: values.llmConfigId ?? null,
-              riskMaxPositionPct: values.riskMaxPositionPct,
-              riskMaxTotalPct: values.riskMaxTotalPct,
-              riskMaxDailyOrders: values.riskMaxDailyOrders,
-              autoExecEnabled: values.autoExecEnabled,
-            })
-          }
-        >
-          <Form.Item
-            name="llmConfigId"
-            label="对话模型"
-            extra="留空使用平台默认 chat 模型；仅列出启用中的 chat 用途配置"
-          >
-            <Select
-              allowClear
-              loading={llmLoading}
-              placeholder="平台默认"
-              options={llmOptions ?? []}
-            />
-          </Form.Item>
-          <Form.Item
-            name="riskMaxPositionPct"
-            label="单票市值上限（占总资产）"
-            rules={[{ required: true, message: '必填' }]}
-          >
-            <InputNumber className="w-full" min={0} max={100} step={1} addonAfter="%" />
-          </Form.Item>
-          <Form.Item
-            name="riskMaxTotalPct"
-            label="总持仓上限（占总资产）"
-            rules={[{ required: true, message: '必填' }]}
-          >
-            <InputNumber className="w-full" min={0} max={100} step={1} addonAfter="%" />
-          </Form.Item>
-          <Form.Item
-            name="riskMaxDailyOrders"
-            label="单日委托笔数上限"
-            rules={[{ required: true, message: '必填' }]}
-          >
-            <InputNumber className="w-full" min={1} step={1} precision={0} />
-          </Form.Item>
-          <Form.Item
-            name="autoExecEnabled"
-            label="盘中自主执行"
-            valuePropName="checked"
-            extra="关闭后盘中不自动执行交易计划（对话内交易不受影响）"
-          >
-            <Switch />
-          </Form.Item>
-          <div className="flex items-center justify-between">
-            <Typography.Text type="secondary" className="text-xs">
-              {config.updatedAt
-                ? `更新于 ${dayjs(config.updatedAt).format('YYYY-MM-DD HH:mm')}`
-                : null}
-            </Typography.Text>
-            <Button type="primary" htmlType="submit" loading={update.isPending}>
-              保存
-            </Button>
-          </div>
-        </Form>
-      )}
-    </Card>
-  )
-}
-
-export function TradingAgent() {
+function WorkbenchPane() {
   const [threadId, setThreadId] = useState<string | undefined>(undefined)
   const lastThreadIdRef = useRef<string | undefined>(undefined)
   const todos = useAssistantStore((state) => state.todos)
   const { sessions, isLoading, deleteSessionById, refresh } = useAssistantSessions({
     agentType: 'trading',
-  })
-  const queryClient = useQueryClient()
-
-  // Agent 委托/计划成功事件：刷新模拟盘数据与交易计划，事件即消费
-  usePageAssistantResult(PAGE_EVENT_TYPES.paperTrading, () => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.paperTrade.all })
-    void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.all })
-    return true
   })
 
   // 线程变更单点：新会话首条消息发出后线程才真实创建（onThreadIdChange 回填），
@@ -181,7 +106,7 @@ export function TradingAgent() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-5.75rem)] min-h-[480px] gap-3 md:h-[calc(100dvh-6.5rem)]">
+    <div className="flex h-[calc(100dvh-13.5rem)] min-h-[420px] gap-3">
       <div className="hidden shrink-0 md:block">
         <AssistantSidebar
           sessions={sessions}
@@ -209,9 +134,47 @@ export function TradingAgent() {
         </div>
       </div>
       <div className="hidden w-[320px] shrink-0 space-y-3 overflow-y-auto lg:block">
-        <AgentConfigPanel />
         <PlanPanel />
         <ReviewPanel />
+      </div>
+    </div>
+  )
+}
+
+export function TradingAgent() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const queryClient = useQueryClient()
+
+  // Agent 委托/计划成功事件：刷新模拟盘数据与交易计划，事件即消费
+  usePageAssistantResult(PAGE_EVENT_TYPES.paperTrading, () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.paperTrade.all })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.all })
+    return true
+  })
+
+  const rawTab = searchParams.get('tab') ?? 'workbench'
+  const activeTab: TabKey = (TAB_KEYS as readonly string[]).includes(rawTab)
+    ? (rawTab as TabKey)
+    : 'workbench'
+  const changeTab = (key: string) => {
+    setSearchParams((prev) => {
+      prev.set('tab', key)
+      return prev
+    }, { replace: true })
+  }
+
+  return (
+    <div className="flex h-[calc(100dvh-5.75rem)] min-h-[480px] flex-col gap-3 md:h-[calc(100dvh-6.5rem)]">
+      <AgentStatusStrip onOpenAccounts={() => changeTab('accounts')} />
+      <div className="min-h-0 flex-1">
+        <Tabs
+          activeKey={activeTab}
+          onChange={changeTab}
+          items={TAB_ITEMS.map((item) => ({ ...item, children: renderTabPane(item.key as TabKey) }))}
+          size="small"
+          className="flex h-full flex-col [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-content-holder]:overflow-y-auto [&_.ant-tabs-nav]:!mb-3 [&_.ant-tabs-nav]:shrink-0 [&_.ant-tabs-tab]:!py-1.5"
+          destroyInactiveTabPane={false}
+        />
       </div>
     </div>
   )

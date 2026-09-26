@@ -103,6 +103,7 @@ export function ReviewPanel() {
               columns={verdictColumns}
               dataSource={review.trades}
               pagination={false}
+              scroll={{ x: 520 }}
             />
           )}
 
