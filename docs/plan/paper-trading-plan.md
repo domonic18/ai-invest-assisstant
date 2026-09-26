@@ -101,7 +101,7 @@
       │                      │                          │                         │
       └──────────────────────┴────────────┬─────────────┴─────────────────────────┘
                                            │    盘后 heavy LLM 链（北京时序）
-  既有复盘解读(六分区) + 涨停/异动归因 →(只读消费) agent-daily-plan（17:00：选股+计划+分组同步）
+  既有复盘解读(六分区) + 涨停/异动归因 →(只读消费) agent-daily-plan（19:00：选股+计划+分组同步）
   agent 账户本地三表交易记录（16:00 同步）→ paper-trade-review（16:10：日/周/月分层复盘）
   复盘 experiences 自动提取 → Agent 记忆库 →（人工可停用）→ 反哺 agent-daily-plan 输入（批次 9 闭合）
 ```
@@ -626,8 +626,9 @@ CREATE INDEX IF NOT EXISTS idx_agent_trade_plan_status ON agent_trade_plan(statu
 
 ### 10.2 生成任务 `agent-daily-plan`（heavy 队列）
 
-- seed：`('agent_daily_plan_1700', 'agent-daily-plan', 'internal', '0 17 * * 1-5', true)`
-  ——北京 17:00，串行在 16:00 sync / 16:10 复盘 / 16:30 涨停归因之后；输入未就绪走
+- seed：`('agent_daily_plan_1900', 'agent-daily-plan', 'internal', '0 19 * * 1-5', true)`
+  ——北京 19:00（核心输入「当日复盘解读」18:35 才生成，早于该时点不存在），串行在
+  16:00 sync / 16:10 复盘 / 16:30 涨停归因 / ≥17:45 异动之后；输入未就绪走
   `ReviewInputDataNotReadyError` 退避重试。
 - spider：`backend/collector/spiders/agent_daily_plan.py`（internal，同先例）；TaskSpec
   追加进 `runtime/specs/trading.py`。
@@ -659,7 +660,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_trade_plan_status ON agent_trade_plan(statu
   仓位 / 状态 / 依据），当日计划可人工 `cancelled`（干预手段之一）；
   对话路径的 `make_trade_plan` 等工具（§8.2 批次 7 行）同批注册。
 
-**验收**：盘后 17:00 自动产出选股清单 + 计划；agent 分组与依据可见；人工移出后
+**验收**：盘后 19:00 自动产出选股清单 + 计划；agent 分组与依据可见；人工移出后
 次日不重复选入；重跑命中缓存；非交易日 SKIPPED。
 
 ## 11. 批次 8：盘中自主执行（闭环第二步）
