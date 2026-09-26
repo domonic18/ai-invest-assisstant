@@ -286,6 +286,73 @@ class AgentOverviewResponse(CamelModel):
     generated_at: datetime
 
 
+class TradingAgentCreateRequest(CamelModel):
+    """新建交易 Agent（D29：注册表开放 CRUD，创建即 active 参与调度）。
+
+    技能目录与人设 YAML 均可不建——计划技能走 trading-default 共享兜底，
+    prompt_id 指向任意既有模板即可。
+    """
+
+    agent_key: str = Field(min_length=2, max_length=32)
+    name: str = Field(min_length=1, max_length=64)
+    tagline: str = Field(min_length=1, max_length=128)
+    prompt_id: str = Field(min_length=1, max_length=64)
+    strategy_desc: str | None = None
+    style_desc: str | None = None
+    accent_color: str | None = Field(default=None, max_length=16)
+    plan_cadence: Literal["daily", "weekly", "monthly"] | None = None
+    review_cadence: Literal["daily", "weekly", "monthly"] | None = None
+    llm_config_id: int | None = None
+    methodology_source_id: int | None = None
+
+
+class TradingAgentPromptTemplate(CamelModel):
+    """可用会话人设模板（prompts/agents/trading_agent_*.yaml 扫描）。"""
+
+    prompt_id: str
+    label: str
+
+
+class AgentAutomationTask(CamelModel):
+    """Agent 自动化任务视图（cron + 状态 + 下次/最近执行）。"""
+
+    key: str
+    label: str
+    cron: str | None = None
+    task_active: bool = False
+    cadence: Literal["daily", "weekly", "monthly"] | None = None
+    next_run_at: datetime | None = None
+    last_run_at: datetime | None = None
+    last_status: str | None = None
+
+
+class AgentMemoryCounts(CamelModel):
+    """Agent 活跃记忆按类型计数（能力视图消费）。"""
+
+    discipline: int = 0
+    method: int = 0
+    lesson: int = 0
+    active_total: int = 0
+
+
+class AgentCapabilityResponse(CamelModel):
+    """Agent 能力/状态视图（详情页工作台右栏，D29）。
+
+    一屏回答「agent 靠什么工作」：人设 + 方法论知识源（趋势理论等 KB 源）
+    + 作业技能（选股→交易→复盘程序）+ 模型 + 活跃记忆 + 自动化任务与近期活动。
+    """
+
+    profile: TradingAgentProfileResponse
+    llm_name: str | None = None
+    methodology_source_name: str | None = None
+    skill_id: str
+    skill_label: str
+    skill_is_shared_default: bool = False
+    memory_counts: AgentMemoryCounts = AgentMemoryCounts()
+    automation: list[AgentAutomationTask] = []
+    recent_activity: list[AgentActivityItem] = []
+
+
 class TradingAgentProfileUpdateRequest(CamelModel):
     """更新交易 Agent 注册信息（未提供的字段不变；任意状态可写，D28）。
 
@@ -353,6 +420,7 @@ class TradingAgentPlanResponse(CamelModel):
     id: int
     plan_date: date
     stock_code: str
+    stock_name: str | None = None
     plan_type: str
     strategy: str
     buy_zone_low: float | None = None

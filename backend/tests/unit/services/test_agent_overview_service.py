@@ -6,6 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.models.kb import KbSource
+from app.models.paper_trade import TradingAgent
 from app.services.trading import agent_overview_service as svc
 
 
@@ -134,3 +136,196 @@ class TestNextTaskTimes:
         )
         tasks = await svc._next_task_times(session, _row())
         assert tasks == []
+
+
+def _agent_row(**overrides: object) -> SimpleNamespace:
+    base: dict[str, object] = {
+        "agent_key": "short-line",
+        "name": "短线猎手",
+        "tagline": "日内强势股猎手",
+        "strategy_desc": "打板/低吸",
+        "style_desc": "激进",
+        "llm_config_id": None,
+        "methodology_source_id": 1,
+        "risk_max_position_pct": 20.0,
+        "risk_max_total_pct": 80.0,
+        "risk_max_daily_orders": 10,
+        "auto_exec_enabled": True,
+        "status": "active",
+        "plan_cadence": "daily",
+        "review_cadence": "daily",
+        "sort_order": 1,
+        "prompt_id": "trading_agent_short_line",
+        "accent_color": "#3b82f6",
+        "updated_at": datetime(2026, 9, 25, tzinfo=timezone.utc),
+    }
+    base.update(overrides)
+    return SimpleNamespace(**base)
+
+
+def _collector_task(task_name: str, is_active: bool = True) -> SimpleNamespace:
+    schedules = {
+        "agent_daily_plan_1900": "0 19 * * 1-5",
+        "paper_trade_review_1610": "10 16 * * 1-5",
+        "paper_trade_sync_1600": "0 16 * * 1-5",
+    }
+    return SimpleNamespace(
+        task_name=task_name, schedule=schedules[task_name], is_active=is_active
+    )
+
+
+@pytest.mark.unit
+class TestAutomationTasks:
+    @pytest.mark.asyncio
+    async def test_three_tasks_with_cron_next_and_last(self) -> None:
+        session = MagicMock()
+        ret = MagicMock()
+        ret.all.return_value = [
+            _collector_task("agent_daily_plan_1900"),
+            _collector_task("paper_trade_review_1610", is_active=False),
+            _collector_task("paper_trade_sync_1600"),
+        ]
+        session.scalars = AsyncMock(return_value=ret)
+        last_log = SimpleNamespace(
+            started_at=datetime(2026, 9, 25, 8, 0, tzinfo=timezone.utc),
+            finished_at=None,
+            status="success",
+        )
+        session.scalar = AsyncMock(return_value=last_log)
+
+        with patch(
+            "app.services.market.trade_calendar_service.is_trading_day",
+            AsyncMock(return_value=True),
+        ):
+            items = await svc._automation_tasks(session, _agent_row())
+
+        assert [i.key for i in items] == [
+            "agent_daily_plan_1900",
+            "paper_trade_review_1610",
+            "paper_trade_sync_1600",
+        ]
+        plan_task = items[0]
+        assert plan_task.label == "每日选股与交易计划"
+        assert plan_task.task_active is True
+        assert plan_task.cadence == "daily"
+        assert plan_task.cron == "0 19 * * 1-5"
+        assert plan_task.next_run_at is not None
+        assert plan_task.next_run_at.tzinfo == timezone.utc
+        assert plan_task.last_status == "success"
+        assert plan_task.last_run_at == datetime(2026, 9, 25, 8, 0, tzinfo=timezone.utc)
+        # 停用任务不计算下次触发
+        assert items[1].task_active is False
+        assert items[1].next_run_at is None
+        # sync 为全局任务，无 cadence
+        assert items[2].cadence is None
+
+    @pytest.mark.asyncio
+    async def test_missing_task_row_renders_inactive_placeholder(self) -> None:
+        session = MagicMock()
+        ret = MagicMock()
+        ret.all.return_value = []
+        session.scalars = AsyncMock(return_value=ret)
+        session.scalar = AsyncMock(return_value=None)
+        items = await svc._automation_tasks(session, _agent_row())
+        assert len(items) == 3
+        assert all(i.task_active is False and i.next_run_at is None for i in items)
+        assert all(i.last_status is None for i in items)
+
+
+@pytest.mark.unit
+class TestGetAgentStatus:
+    @pytest.mark.asyncio
+    async def test_capability_view_assembles_all_sections(self) -> None:
+        session = MagicMock()
+
+        async def _get(_type, key):
+            if _type is TradingAgent:
+                return _agent_row(llm_config_id=None)
+            if _type is KbSource:
+                return SimpleNamespace(id=1, name="趋势交易理论", enabled=True)
+            return None
+
+        session.get = AsyncMock(side_effect=_get)
+        counts_ret = MagicMock()
+        counts_ret.all.return_value = [("discipline", 2), ("method", 1), ("lesson", 3)]
+        session.execute = AsyncMock(return_value=counts_ret)
+        tasks_ret = MagicMock()
+        tasks_ret.all.return_value = [_collector_task("agent_daily_plan_1900")]
+        session.scalars = AsyncMock(return_value=tasks_ret)
+        session.scalar = AsyncMock(return_value=None)
+        activity = svc.AgentActivityItem(
+            kind="plan", title="600000 buy 计划", occurred_at=None
+        )
+
+        with (
+            patch(
+                "app.services.trading.agent_overview_service.plan_skill_id",
+                MagicMock(return_value="trading-short-line"),
+            ),
+            patch(
+                "app.services.trading.agent_overview_service.get_skill",
+                MagicMock(return_value=SimpleNamespace(label="短线猎手作业程序")),
+            ),
+            patch.object(svc, "_plan_activity", AsyncMock(return_value=[activity])),
+            patch.object(svc, "_review_activity", AsyncMock(return_value=[])),
+            patch(
+                "app.services.market.trade_calendar_service.is_trading_day",
+                AsyncMock(return_value=True),
+            ),
+        ):
+            view = await svc.get_agent_status(session, "short-line")
+
+        assert view.profile.agent_key == "short-line"
+        assert view.llm_name is None
+        assert view.methodology_source_name == "趋势交易理论"
+        assert view.skill_id == "trading-short-line"
+        assert view.skill_label == "短线猎手作业程序"
+        assert view.skill_is_shared_default is False
+        assert view.memory_counts.discipline == 2
+        assert view.memory_counts.method == 1
+        assert view.memory_counts.lesson == 3
+        assert view.memory_counts.active_total == 6
+        assert len(view.automation) == 3
+        assert view.recent_activity == [activity]
+
+    @pytest.mark.asyncio
+    async def test_shared_default_skill_falls_back_label_to_id(self) -> None:
+        session = MagicMock()
+
+        async def _get(_type, key):
+            if _type is TradingAgent:
+                return _agent_row(methodology_source_id=None)
+            return None
+
+        session.get = AsyncMock(side_effect=_get)
+        counts_ret = MagicMock()
+        counts_ret.all.return_value = []
+        session.execute = AsyncMock(return_value=counts_ret)
+        tasks_ret = MagicMock()
+        tasks_ret.all.return_value = []
+        session.scalars = AsyncMock(return_value=tasks_ret)
+        session.scalar = AsyncMock(return_value=None)
+
+        with (
+            patch(
+                "app.services.trading.agent_overview_service.plan_skill_id",
+                MagicMock(return_value="trading-default"),
+            ),
+            patch(
+                "app.services.trading.agent_overview_service.get_skill",
+                MagicMock(return_value=None),
+            ),
+            patch.object(svc, "_plan_activity", AsyncMock(return_value=[])),
+            patch.object(svc, "_review_activity", AsyncMock(return_value=[])),
+            patch(
+                "app.services.market.trade_calendar_service.is_trading_day",
+                AsyncMock(return_value=True),
+            ),
+        ):
+            view = await svc.get_agent_status(session, "short-line")
+
+        assert view.skill_id == "trading-default"
+        assert view.skill_is_shared_default is True
+        assert view.skill_label == "trading-default"
+        assert view.methodology_source_name is None
+        assert view.memory_counts.active_total == 0

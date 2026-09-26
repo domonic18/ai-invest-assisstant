@@ -1,11 +1,13 @@
-"""交易 Agent 计划/选股干预服务契约测试（批次 7：create/cancel/移出）。"""
+"""交易 Agent 计划/选股干预服务契约测试（批次 7：create/cancel/移出；D29 计划视图）。"""
 
 from datetime import date
-from unittest.mock import AsyncMock, MagicMock
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.models.agent_trading import AgentTradePlan
 from app.services.trading import agent_plan_ops
 
 _PLAN_DATE = date(2026, 7, 15)
@@ -219,3 +221,66 @@ class TestRemoveSelectionManual:
         result = await agent_plan_ops.remove_selection_manual(session, _AK, selection_id=1)
         assert result.status == "removed"
         session.commit.assert_not_awaited()
+
+
+def _orm_plan(stock_code: str = "600000") -> AgentTradePlan:
+    return AgentTradePlan(
+        id=11,
+        agent_key=_AK,
+        plan_date=_PLAN_DATE,
+        stock_code=stock_code,
+        plan_type="buy",
+        strategy="回踩买点区间接回",
+        buy_zone_low=Decimal("9.9000"),
+        buy_zone_high=Decimal("10.2000"),
+        target_price=None,
+        stop_loss=Decimal("9.5000"),
+        position_pct=Decimal("10.00"),
+        status="active",
+        selection_id=None,
+        basis="依据",
+        triggered_cl_ord_id=None,
+    )
+
+
+@pytest.mark.unit
+class TestListPlanViews:
+    @pytest.mark.asyncio
+    async def test_fills_stock_name_from_master(self) -> None:
+
+        session = AsyncMock()
+        names_ret = MagicMock()
+        names_ret.all.return_value = [("600000", "浦发银行")]
+        session.execute = AsyncMock(return_value=names_ret)
+        with patch.object(
+            agent_plan_ops, "list_plans", AsyncMock(return_value=[_orm_plan()])
+        ):
+            views = await agent_plan_ops.list_plan_views(session, _AK, plan_date=_PLAN_DATE)
+        assert len(views) == 1
+        assert views[0].stock_code == "600000"
+        assert views[0].stock_name == "浦发银行"
+        assert views[0].plan_type == "buy"
+
+    @pytest.mark.asyncio
+    async def test_missing_master_code_yields_none_name(self) -> None:
+
+        session = AsyncMock()
+        names_ret = MagicMock()
+        names_ret.all.return_value = []
+        session.execute = AsyncMock(return_value=names_ret)
+        with patch.object(
+            agent_plan_ops, "list_plans", AsyncMock(return_value=[_orm_plan("999999")])
+        ):
+            views = await agent_plan_ops.list_plan_views(session, _AK, plan_date=_PLAN_DATE)
+        assert views[0].stock_name is None
+
+    @pytest.mark.asyncio
+    async def test_no_plans_skips_name_query(self) -> None:
+
+        session = AsyncMock()
+        with patch.object(
+            agent_plan_ops, "list_plans", AsyncMock(return_value=[])
+        ):
+            views = await agent_plan_ops.list_plan_views(session, _AK, plan_date=_PLAN_DATE)
+        assert views == []
+        session.execute.assert_not_awaited()

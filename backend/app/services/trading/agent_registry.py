@@ -1,23 +1,33 @@
-"""交易 Agent 注册表服务（``trading_agent``，agent-hub-plan.md D21）。
+"""交易 Agent 注册表服务（``trading_agent``，agent-hub-plan.md D21/D29）。
 
 身份/介绍/模型绑定（空 = 平台默认 chat 模型）、方法论知识源绑定（空 = 未启用
 方法论基座注入）、风控阈值（批次 8 盘中执行消费）、auto_exec_enabled 总闸全部
 按 agent_key 维度维护，改选即时生效（每次构建 agent / 生成计划时现读）。
-注册行 seed-only：新 Agent 手工 SQL 注册，管理端只开放信息/配置更新，不做 CRUD。
+D29 开放 CRUD：create（创建即 active，技能/人设走共享兜底）、delete（级联清理
+其计划/选股/记忆/会话并解绑模拟盘账户）。
 """
 
+import re
+from decimal import Decimal
+from pathlib import Path
+
 import structlog
-from sqlalchemy import select
+import yaml
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import utc_now
-from app.core.exceptions import NotFoundError, UnprocessableEntityError
+from app.core.exceptions import ConflictError, NotFoundError, UnprocessableEntityError
+from app.models.agent_trading import AgentMemory, AgentStockSelection, AgentTradePlan
+from app.models.assistant_session import AssistantSession
 from app.models.kb import KbSource
 from app.models.llm_config import LLMConfig
-from app.models.paper_trade import TradingAgent
+from app.models.paper_trade import PaperTradeAccount, TradingAgent
 from app.schemas.paper_trade import (
+    TradingAgentCreateRequest,
     TradingAgentProfileResponse,
     TradingAgentProfileUpdateRequest,
+    TradingAgentPromptTemplate,
 )
 
 logger = structlog.get_logger(__name__)
@@ -25,6 +35,15 @@ logger = structlog.get_logger(__name__)
 AGENT_STATUS_ACTIVE = "active"
 AGENT_STATUS_PLANNED = "planned"
 AGENT_STATUS_DISABLED = "disabled"
+
+AGENT_KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{1,31}$")
+
+# 新建 Agent 的保守默认（plan：风控 20/60/10、不开盘中自主执行，绑定账户后再开）
+_CREATE_RISK_POSITION_PCT = Decimal("20")
+_CREATE_RISK_TOTAL_PCT = Decimal("60")
+_CREATE_RISK_DAILY_ORDERS = 10
+
+_PROMPTS_DIR = Path(__file__).resolve().parents[2] / "prompts" / "agents"
 
 
 async def get_agent(session: AsyncSession, agent_key: str) -> TradingAgent:
@@ -122,29 +141,14 @@ async def update_agent(
     payload = data.model_dump(exclude_unset=True)
 
     if "llm_config_id" in payload:
-        config_id = payload["llm_config_id"]
-        if config_id is not None:
-            llm = await session.get(LLMConfig, config_id)
-            if llm is None:
-                raise NotFoundError(f"LLM 配置 {config_id} 不存在")
-            if not llm.is_active:
-                raise UnprocessableEntityError(f"LLM 配置 {config_id}（{llm.name}）已停用")
-            if llm.purpose != "chat":
-                raise UnprocessableEntityError(
-                    f"交易 Agent 要求用途为 chat 的模型条目，"
-                    f"配置 {config_id}（{llm.name}）用途为 {llm.purpose}"
-                )
-        row.llm_config_id = config_id
+        if payload["llm_config_id"] is not None:
+            await _validate_llm_config(session, payload["llm_config_id"])
+        row.llm_config_id = payload["llm_config_id"]
 
     if "methodology_source_id" in payload:
-        source_id = payload["methodology_source_id"]
-        if source_id is not None:
-            source = await session.get(KbSource, source_id)
-            if source is None:
-                raise NotFoundError(f"知识库 {source_id} 不存在")
-            if not source.enabled:
-                raise UnprocessableEntityError(f"知识库 {source_id}（{source.name}）已停用")
-        row.methodology_source_id = source_id
+        if payload["methodology_source_id"] is not None:
+            await _validate_methodology_source(session, payload["methodology_source_id"])
+        row.methodology_source_id = payload["methodology_source_id"]
 
     for field in (
         "name",
@@ -172,3 +176,152 @@ async def update_agent(
         status=row.status,
     )
     return to_view(row)
+
+
+async def _validate_llm_config(session: AsyncSession, llm_config_id: int) -> None:
+    """模型绑定校验：存在、启用且用途为 chat。
+
+    Raises:
+        NotFoundError: 配置不存在。
+        UnprocessableEntityError: 停用或用途不符。
+    """
+    row = await session.get(LLMConfig, llm_config_id)
+    if row is None:
+        raise NotFoundError(f"模型配置 {llm_config_id} 不存在")
+    if not row.is_active or row.purpose != "chat":
+        raise UnprocessableEntityError(
+            f"模型配置 {llm_config_id}（{row.name}）已停用或用途不是 chat"
+        )
+
+
+async def _validate_methodology_source(
+    session: AsyncSession, source_id: int
+) -> None:
+    """方法论知识源校验：存在且启用。
+
+    Raises:
+        NotFoundError: 源不存在。
+        UnprocessableEntityError: 源已停用。
+    """
+    row = await session.get(KbSource, source_id)
+    if row is None:
+        raise NotFoundError(f"知识库源 {source_id} 不存在")
+    if not row.enabled:
+        raise UnprocessableEntityError(f"知识库源 {source_id}（{row.name}）已停用")
+
+
+def list_prompt_templates() -> list[TradingAgentPromptTemplate]:
+    """可用会话人设模板清单（prompts/agents/trading_agent_*.yaml 扫描）。
+
+    label 取 YAML name（人设名，如「短线猎手」），缺失时回退 description。
+    """
+    templates: list[TradingAgentPromptTemplate] = []
+    for path in sorted(_PROMPTS_DIR.glob("trading_agent_*.yaml")):
+        try:
+            meta = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
+            logger.warning("trading_agent_prompt_template_unreadable", path=str(path))
+            continue
+        if not isinstance(meta, dict):
+            continue
+        label = str(meta.get("name") or meta.get("description") or path.stem)
+        templates.append(TradingAgentPromptTemplate(prompt_id=path.stem, label=label))
+    return templates
+
+
+async def create_agent(
+    session: AsyncSession, *, data: TradingAgentCreateRequest
+) -> TradingAgentProfileResponse:
+    """新建 Agent（D29：创建即 active 参与调度；技能走 trading-default 共享兜底）。
+
+    agent_key 须匹配 URL 安全约定；重复注册 409；prompt_id 必须在模板清单内；
+    模型/方法论绑定校验同 update_agent。风控取保守默认（20/60/10）、不开
+    自主执行，绑定账户后再开。
+
+    Raises:
+        UnprocessableEntityError: agent_key 非法 / prompt_id 不在模板清单 /
+            模型或方法论绑定停用。
+        ConflictError: agent_key 已注册。
+    """
+    if not AGENT_KEY_PATTERN.fullmatch(data.agent_key):
+        raise UnprocessableEntityError(
+            "agent_key 须为 2-32 位小写字母/数字/连字符，且以字母或数字开头"
+        )
+    if await session.get(TradingAgent, data.agent_key) is not None:
+        raise ConflictError(f"交易 Agent {data.agent_key} 已存在")
+    if data.prompt_id not in {t.prompt_id for t in list_prompt_templates()}:
+        raise UnprocessableEntityError(f"人设模板 {data.prompt_id} 不存在")
+    if data.llm_config_id is not None:
+        await _validate_llm_config(session, data.llm_config_id)
+    if data.methodology_source_id is not None:
+        await _validate_methodology_source(session, data.methodology_source_id)
+
+    max_sort = int(
+        await session.scalar(select(func.max(TradingAgent.sort_order))) or 0
+    )
+    row = TradingAgent(
+        agent_key=data.agent_key,
+        name=data.name,
+        tagline=data.tagline,
+        strategy_desc=data.strategy_desc or "",
+        style_desc=data.style_desc or "",
+        llm_config_id=data.llm_config_id,
+        methodology_source_id=data.methodology_source_id,
+        prompt_id=data.prompt_id,
+        accent_color=data.accent_color or "#38bdf8",
+        plan_cadence=data.plan_cadence or "daily",
+        review_cadence=data.review_cadence or "daily",
+        risk_max_position_pct=_CREATE_RISK_POSITION_PCT,
+        risk_max_total_pct=_CREATE_RISK_TOTAL_PCT,
+        risk_max_daily_orders=_CREATE_RISK_DAILY_ORDERS,
+        auto_exec_enabled=False,
+        status=AGENT_STATUS_ACTIVE,
+        sort_order=max_sort + 1,
+    )
+    session.add(row)
+    await session.commit()
+    logger.info("trading_agent_created", agent_key=row.agent_key, prompt_id=row.prompt_id)
+    return to_view(row)
+
+
+async def delete_agent(session: AsyncSession, agent_key: str) -> int:
+    """删除 Agent 并级联清理其数据（D29；注册行本身 last）。
+
+    顺序：解绑模拟盘账户（保留账户本体）→ 删计划/选股/记忆 → 删会话
+    （先逐条删 LangGraph checkpoint 线程再删业务行，user_watchlist_group 由
+    DB CASCADE）→ 删注册行。
+
+    Raises:
+        NotFoundError: agent_key 未注册。
+    """
+    row = await get_agent(session, agent_key)
+
+    await session.execute(
+        update(PaperTradeAccount)
+        .where(PaperTradeAccount.agent_key == agent_key)
+        .values(agent_key=None)
+    )
+    for model in (AgentStockSelection, AgentTradePlan, AgentMemory):
+        await session.execute(delete(model).where(model.agent_key == agent_key))
+
+    from app.agent.runtime.assistant_agent import get_checkpointer
+
+    thread_ids = list(
+        await session.scalars(
+            select(AssistantSession.id).where(AssistantSession.agent_type == agent_key)
+        )
+    )
+    if thread_ids:
+        checkpointer = await get_checkpointer()
+        for thread_id in thread_ids:
+            await checkpointer.adelete_thread(str(thread_id))
+        await session.execute(
+            delete(AssistantSession).where(AssistantSession.agent_type == agent_key)
+        )
+
+    await session.delete(row)
+    await session.commit()
+    logger.info(
+        "trading_agent_deleted", agent_key=agent_key, name=row.name, sessions=len(thread_ids)
+    )
+    return len(thread_ids)

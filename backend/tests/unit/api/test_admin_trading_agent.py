@@ -10,6 +10,10 @@ from fastapi.testclient import TestClient
 from app.dependencies import get_current_admin_user, get_db
 from app.main import app
 from app.models.agent_trading import AgentMemory, AgentTradePlan
+from app.schemas.paper_trade import (
+    AgentCapabilityResponse,
+    TradingAgentPlanResponse,
+)
 
 
 @pytest.fixture
@@ -127,10 +131,17 @@ def _plan_row(**overrides) -> AgentTradePlan:
     return AgentTradePlan(**fields)
 
 
+def _plan_view(**overrides: object) -> TradingAgentPlanResponse:
+    view = TradingAgentPlanResponse.model_validate(_plan_row(**overrides))
+    return view
+
+
 @pytest.mark.unit
 class TestTradingAgentPlans:
     def test_list_returns_camel_case_wire(self, admin_client) -> None:
         http, _ = admin_client
+        view = _plan_view()
+        view.stock_name = "浦发银行"
 
         with (
             patch(
@@ -142,8 +153,8 @@ class TestTradingAgentPlans:
                 AsyncMock(return_value=date(2026, 7, 20)),
             ),
             patch(
-                "app.services.trading.agent_plan_ops.list_plans",
-                AsyncMock(return_value=[_plan_row()]),
+                "app.services.trading.agent_plan_ops.list_plan_views",
+                AsyncMock(return_value=[view]),
             ),
         ):
             resp = http.get("/api/v1/admin/trading-agent/short-line/plans")
@@ -153,6 +164,8 @@ class TestTradingAgentPlans:
         assert body["tradeDate"] == "2026-07-17"
         assert body["nextTradeDate"] == "2026-07-20"
         plan = body["plans"][0]
+        assert plan["stockCode"] == "600000"
+        assert plan["stockName"] == "浦发银行"
         assert plan["planDate"] == "2026-07-17"
         assert plan["planType"] == "buy"
         assert plan["buyZoneLow"] == pytest.approx(9.9)
@@ -174,7 +187,7 @@ class TestTradingAgentPlans:
                 AsyncMock(return_value=date(2026, 7, 17)),
             ),
             patch(
-                "app.services.trading.agent_plan_ops.list_plans",
+                "app.services.trading.agent_plan_ops.list_plan_views",
                 AsyncMock(return_value=[]),
             ) as list_mock,
         ):
@@ -446,3 +459,180 @@ class TestTradingAgentMemories:
             )
 
         assert resp.status_code == 404
+
+
+@pytest.mark.unit
+class TestTradingAgentCrud:
+    """D29：Agent CRUD 端点（新建 201 / 删除 204 / 人设模板清单）。"""
+
+    def test_prompt_templates_wire(self, admin_client) -> None:
+        from app.schemas.paper_trade import TradingAgentPromptTemplate
+
+        http, _ = admin_client
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_registry.list_prompt_templates",
+            MagicMock(
+                return_value=[
+                    TradingAgentPromptTemplate(
+                        prompt_id="trading_agent_short_line", label="短线猎手"
+                    )
+                ]
+            ),
+        ) as templates_mock:
+            resp = http.get("/api/v1/admin/trading-agent/prompt-templates")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body[0]["promptId"] == "trading_agent_short_line"
+        assert body[0]["label"] == "短线猎手"
+        templates_mock.assert_called_once_with()
+
+    def test_create_agent_returns_201_profile(self, admin_client) -> None:
+        from app.schemas.paper_trade import TradingAgentProfileResponse
+
+        http, session = admin_client
+        profile = TradingAgentProfileResponse(
+            agent_key="test-agent",
+            name="测试 Agent",
+            tagline="一句话",
+            strategy_desc="",
+            style_desc="",
+            risk_max_position_pct=20.0,
+            risk_max_total_pct=60.0,
+            risk_max_daily_orders=10,
+            auto_exec_enabled=False,
+            status="active",
+            sort_order=4,
+            prompt_id="trading_agent_short_line",
+            accent_color="#38bdf8",
+        )
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_registry.create_agent",
+            AsyncMock(return_value=profile),
+        ) as create_mock:
+            resp = http.post(
+                "/api/v1/admin/trading-agent/agents",
+                json={
+                    "agentKey": "test-agent",
+                    "name": "测试 Agent",
+                    "tagline": "一句话",
+                    "promptId": "trading_agent_short_line",
+                },
+            )
+
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["agentKey"] == "test-agent"
+        assert body["status"] == "active"
+        assert body["autoExecEnabled"] is False
+        create_mock.assert_awaited_once_with(session, data=create_mock.await_args.kwargs["data"])
+
+    def test_create_agent_validation_error_surfaces_422(self, admin_client) -> None:
+        from app.core.exceptions import UnprocessableEntityError
+
+        http, _ = admin_client
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_registry.create_agent",
+            AsyncMock(side_effect=UnprocessableEntityError("人设模板 trading_agent_nope 不存在")),
+        ):
+            resp = http.post(
+                "/api/v1/admin/trading-agent/agents",
+                json={
+                    "agentKey": "test-agent",
+                    "name": "测试",
+                    "tagline": "一句话",
+                    "promptId": "trading_agent_nope",
+                },
+            )
+        assert resp.status_code == 422
+
+    def test_delete_agent_returns_204(self, admin_client) -> None:
+        http, session = admin_client
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_registry.delete_agent",
+            AsyncMock(return_value=2),
+        ) as delete_mock:
+            resp = http.delete("/api/v1/admin/trading-agent/m60")
+
+        assert resp.status_code == 204
+        delete_mock.assert_awaited_once_with(session, "m60")
+
+    def test_delete_agent_404(self, admin_client) -> None:
+        from app.core.exceptions import NotFoundError
+
+        http, _ = admin_client
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_registry.delete_agent",
+            AsyncMock(side_effect=NotFoundError("交易 Agent ghost 不存在")),
+        ):
+            resp = http.delete("/api/v1/admin/trading-agent/ghost")
+        assert resp.status_code == 404
+
+
+@pytest.mark.unit
+class TestGetTradingAgentStatus:
+    """D29 能力/状态端点：一屏回答 agent 靠什么工作。"""
+
+    def _capability(self) -> AgentCapabilityResponse:
+        from app.schemas.paper_trade import (
+            AgentAutomationTask,
+            AgentMemoryCounts,
+            TradingAgentProfileResponse,
+        )
+
+        profile = TradingAgentProfileResponse(
+            agent_key="short-line",
+            name="短线猎手",
+            tagline="日内强势股猎手",
+            strategy_desc="打板/低吸",
+            style_desc="激进",
+            risk_max_position_pct=20.0,
+            risk_max_total_pct=80.0,
+            risk_max_daily_orders=10,
+            auto_exec_enabled=True,
+            status="active",
+            sort_order=1,
+            prompt_id="trading_agent_short_line",
+            accent_color="#3b82f6",
+        )
+        return AgentCapabilityResponse(
+            profile=profile,
+            llm_name=None,
+            methodology_source_name="趋势交易理论",
+            skill_id="trading-short-line",
+            skill_label="短线猎手作业程序",
+            skill_is_shared_default=False,
+            memory_counts=AgentMemoryCounts(discipline=2, method=1, lesson=3, active_total=6),
+            automation=[
+                AgentAutomationTask(
+                    key="agent_daily_plan_1900",
+                    label="每日选股与交易计划",
+                    cron="0 19 * * 1-5",
+                    task_active=True,
+                    cadence="daily",
+                )
+            ],
+            recent_activity=[],
+        )
+
+    def test_returns_camel_case_capability_wire(self, admin_client) -> None:
+        from app.schemas.paper_trade import AgentCapabilityResponse
+
+        http, session = admin_client
+        capability: AgentCapabilityResponse = self._capability()
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_overview_service.get_agent_status",
+            AsyncMock(return_value=capability),
+        ) as status_mock:
+            resp = http.get("/api/v1/admin/trading-agent/short-line/status")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["profile"]["agentKey"] == "short-line"
+        assert body["methodologySourceName"] == "趋势交易理论"
+        assert body["skillId"] == "trading-short-line"
+        assert body["skillIsSharedDefault"] is False
+        assert body["memoryCounts"]["activeTotal"] == 6
+        assert body["automation"][0]["taskActive"] is True
+        assert body["automation"][0]["cadence"] == "daily"
+        status_mock.assert_awaited_once_with(session, "short-line")

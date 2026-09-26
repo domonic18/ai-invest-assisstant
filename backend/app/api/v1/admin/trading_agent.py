@@ -13,17 +13,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.paper_trade import (
+    AgentCapabilityResponse,
     AgentMemoryResponse,
     AgentMemoryStatusUpdateRequest,
     AgentMemoryUpdateRequest,
     AgentOverviewResponse,
     AgentSelectionItem,
     AgentWatchlistGroupResponse,
+    TradingAgentCreateRequest,
     TradingAgentDatesResponse,
     TradingAgentPlanResponse,
     TradingAgentPlansResponse,
     TradingAgentProfileResponse,
     TradingAgentProfileUpdateRequest,
+    TradingAgentPromptTemplate,
     TradingAgentReviewResponse,
 )
 from app.services.market import trade_calendar_service
@@ -47,6 +50,46 @@ async def list_trading_agents(
 ) -> AgentOverviewResponse:
     """全部注册 Agent 的总览聚合（介绍卡 + 计数 + 近期活动 + 下次任务）。"""
     return await agent_overview_service.get_overview(session)
+
+
+@router.get(
+    "/prompt-templates", response_model=list[TradingAgentPromptTemplate]
+)
+async def list_trading_agent_prompt_templates(
+) -> list[TradingAgentPromptTemplate]:
+    """可用会话人设模板（prompts/agents/trading_agent_*.yaml 扫描，新建 Agent 下拉）。"""
+    return agent_registry.list_prompt_templates()
+
+
+@router.post(
+    "/agents",
+    response_model=TradingAgentProfileResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_trading_agent(
+    data: TradingAgentCreateRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> TradingAgentProfileResponse:
+    """新建 Agent（D29：创建即 active 参与调度；技能走共享兜底，绑定账户后才实际下单）。"""
+    return await agent_registry.create_agent(session, data=data)
+
+
+@router.delete("/{agent_key}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_trading_agent(
+    agent_key: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    """删除 Agent 并级联清理（解绑模拟盘账户、删计划/选股/记忆/会话，D29）。"""
+    await agent_registry.delete_agent(session, agent_key)
+
+
+@router.get("/{agent_key}/status", response_model=AgentCapabilityResponse)
+async def get_trading_agent_status(
+    agent_key: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> AgentCapabilityResponse:
+    """Agent 能力/状态视图（人设/方法论/作业技能/模型/记忆/自动化任务/近期活动）。"""
+    return await agent_overview_service.get_agent_status(session, agent_key)
 
 
 @router.get("/{agent_key}/config", response_model=TradingAgentProfileResponse)
@@ -113,11 +156,10 @@ async def list_trading_agent_plans(
     resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(
         session
     )
-    plans = await agent_plan_ops.list_plans(session, agent_key, plan_date=resolved)
     return TradingAgentPlansResponse(
         trade_date=resolved,
         next_trade_date=await trade_calendar_service.next_trading_day(session, resolved),
-        plans=[TradingAgentPlanResponse.model_validate(p) for p in plans],
+        plans=await agent_plan_ops.list_plan_views(session, agent_key, plan_date=resolved),
     )
 
 

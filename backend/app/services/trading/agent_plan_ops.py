@@ -17,6 +17,7 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.models.agent_trading import AgentStockSelection, AgentTradePlan
 from app.models.stock import StockBasic
 from app.models.watchlist import UserWatchlistGroup
+from app.schemas.paper_trade import TradingAgentPlanResponse
 
 AGENT_GROUP_NAME = "交易 Agent 自选"
 
@@ -41,6 +42,28 @@ async def list_plans(
         .order_by(AgentTradePlan.id.asc())
     )
     return list(rows.scalars().all())
+
+
+async def list_plan_views(
+    session: AsyncSession, agent_key: str, *, plan_date: date
+) -> list[TradingAgentPlanResponse]:
+    """指定日计划视图（批量解析股票名称；主数据缺失为 None，前端回退代号）。"""
+    plans = await list_plans(session, agent_key, plan_date=plan_date)
+    names: dict[str, str] = {}
+    codes = sorted({p.stock_code for p in plans})
+    if codes:
+        rows = await session.execute(
+            select(StockBasic.stock_code, StockBasic.stock_name).where(
+                StockBasic.stock_code.in_(codes)
+            )
+        )
+        names = {code: name for code, name in rows.all()}
+    views: list[TradingAgentPlanResponse] = []
+    for plan in plans:
+        view = TradingAgentPlanResponse.model_validate(plan)
+        view.stock_name = names.get(plan.stock_code)
+        views.append(view)
+    return views
 
 
 async def list_plan_dates(session: AsyncSession, agent_key: str) -> list[date]:
