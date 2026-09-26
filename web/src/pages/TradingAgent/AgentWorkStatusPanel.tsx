@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons'
 import { Card, Skeleton, Tag, Tooltip, Typography } from 'antd'
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
 import type {
   AgentActivityItem,
@@ -166,7 +167,16 @@ function ActivityCard({ items }: { items: AgentActivityItem[] }) {
               key={`${item.kind}-${item.occurredAt ?? ''}-${idx}`}
               className="flex items-baseline gap-2 text-xs"
             >
-              <span className="min-w-0 flex-1 truncate text-white/85">{item.title}</span>
+              <span className="shrink-0 text-white/85">{item.title}</span>
+              {item.stockCode && (
+                <Link to={`/stock/${item.stockCode}`} className="min-w-0 flex-1 truncate">
+                  <Tag className="!m-0 !text-xs">
+                    {item.stockName ?? item.stockCode}
+                    <span className="ml-1 font-mono text-white/40">{item.stockCode}</span>
+                  </Tag>
+                </Link>
+              )}
+              {!item.stockCode && <span className="min-w-0 flex-1 truncate text-white/50">{item.detail}</span>}
               {item.occurredAt && (
                 <span className="shrink-0 text-white/40">{formatRelativeTime(item.occurredAt)}</span>
               )}

@@ -1,8 +1,9 @@
 /**
- * Agent 配置卡片（批次 5 + D28）：基本信息人设（名称/标语/风格/策略）+
- * 启用状态 + 计划/复盘频率 + 对话模型 + 风控阈值 + 盘中自主执行总闸。
+ * Agent 基本配置卡片（D30 精简）：名称 + 启用状态 + 计划/复盘频率 +
+ * 对话模型 + 风控阈值 + 盘中自主执行总闸。人设标语/策略文案不在表单编辑
+ * （展示空值收敛），会话人设与作业技能分属配置页独立区块。
  *
- * 模拟管理页「账户与配置」tab 内使用；数据源 admin GET/PUT /trading-agent/config
+ * Agent 详情页「配置」tab 首区块；数据源 admin GET/PUT /trading-agent/config
  *（D28 起任意状态可编辑；停用 = 雷达隐藏且不参与调度）。
  */
 import { Button, Card, Form, Input, InputNumber, Select, Spin, Switch, Typography } from 'antd'
@@ -26,9 +27,6 @@ const CADENCE_OPTIONS: { value: AgentCadence; label: string }[] = [
 
 interface ConfigFormValues {
   name: string
-  tagline: string
-  styleDesc: string
-  strategyDesc: string
   statusEnabled: boolean
   planCadence: AgentCadence
   reviewCadence: AgentCadence
@@ -50,9 +48,6 @@ export function AgentConfigPanel() {
     if (config) {
       form.setFieldsValue({
         name: config.name,
-        tagline: config.tagline,
-        styleDesc: config.styleDesc,
-        strategyDesc: config.strategyDesc,
         statusEnabled: config.status === 'active',
         planCadence: config.planCadence,
         reviewCadence: config.reviewCadence,
@@ -66,7 +61,7 @@ export function AgentConfigPanel() {
   }, [config, form])
 
   return (
-    <Card size="small" title="Agent 配置">
+    <Card size="small" title="基本配置">
       {isLoading || !config ? (
         <div className="flex justify-center py-8">
           <Spin />
@@ -78,9 +73,6 @@ export function AgentConfigPanel() {
           onFinish={(values) =>
             update.mutate({
               name: values.name,
-              tagline: values.tagline,
-              styleDesc: values.styleDesc,
-              strategyDesc: values.strategyDesc,
               status: values.statusEnabled ? 'active' : 'disabled',
               planCadence: values.planCadence,
               reviewCadence: values.reviewCadence,
@@ -93,31 +85,12 @@ export function AgentConfigPanel() {
           }
         >
           <Typography.Text type="secondary" className="text-xs">
-            基本信息（人设编辑保存后即时生效于总览、会话与计划/复盘生成）
+            状态与频率（停用后总览雷达不再显示，且不参与计划/复盘调度）
           </Typography.Text>
-          <div className="mt-2 grid gap-x-6 md:grid-cols-2">
+          <div className="mt-2 grid gap-x-6 md:grid-cols-2 xl:grid-cols-4">
             <Form.Item name="name" label="名称" rules={[{ required: true, message: '必填' }]}>
               <Input placeholder="如：短线猎手" />
             </Form.Item>
-            <Form.Item name="tagline" label="标语" rules={[{ required: true, message: '必填' }]}>
-              <Input placeholder="一句话介绍该 Agent" />
-            </Form.Item>
-            <Form.Item name="styleDesc" label="策略风格">
-              <Input placeholder="如：趋势短线" />
-            </Form.Item>
-            <Form.Item name="strategyDesc" label="策略描述">
-              <Input.TextArea
-                rows={1}
-                autoSize={{ minRows: 1, maxRows: 4 }}
-                placeholder="该 Agent 的选股与交易策略要点"
-              />
-            </Form.Item>
-          </div>
-
-          <Typography.Text type="secondary" className="text-xs">
-            状态与频率（停用后总览雷达不再显示，且不参与计划/复盘调度）
-          </Typography.Text>
-          <div className="mt-2 grid gap-x-6 md:grid-cols-2 xl:grid-cols-3">
             <Form.Item name="statusEnabled" label="启用" valuePropName="checked">
               <Switch checkedChildren="启用" unCheckedChildren="停用" />
             </Form.Item>

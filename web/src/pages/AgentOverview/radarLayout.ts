@@ -9,8 +9,6 @@ import type { AgentOverviewItem } from '@ai-invest/shared'
 export interface RadarNode {
   agentKey: string
   name: string
-  tagline: string
-  strategyDesc: string
   accentColor: string
   busy: boolean
   /** 像素坐标（相对容器左上角，Canvas CSS 像素与 HTML absolute 同基准）。 */
@@ -43,8 +41,6 @@ export function layoutRadarNodes(
     return {
       agentKey: item.profile.agentKey,
       name: item.profile.name,
-      tagline: item.profile.tagline,
-      strategyDesc: item.profile.strategyDesc,
       accentColor: item.profile.accentColor,
       busy: true,
       x: clamp(cx + ORBIT_RX * width * Math.cos(angle), EDGE_PAD, width - EDGE_PAD),

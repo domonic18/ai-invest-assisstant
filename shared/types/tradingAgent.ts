@@ -43,6 +43,8 @@ export interface TradingAgentProfileUpdateRequest {
   tagline?: string
   strategyDesc?: string
   styleDesc?: string
+  /** 会话人设模板换绑（D30 开放更新；须在模板清单内）。 */
+  promptId?: string
   llmConfigId?: number | null
   methodologySourceId?: number | null
   riskMaxPositionPct?: number
@@ -54,11 +56,13 @@ export interface TradingAgentProfileUpdateRequest {
   reviewCadence?: AgentCadence
 }
 
-/** 总览近期活动条目（计划生成/触发、复盘生成）。 */
+/** 总览近期活动条目（计划生成/触发、复盘生成；D30 计划条目携带标的可跳转）。 */
 export interface AgentActivityItem {
   kind: 'plan' | 'review'
   title: string
   detail?: string | null
+  stockCode?: string | null
+  stockName?: string | null
   occurredAt?: string | null
 }
 
@@ -141,6 +145,8 @@ export interface ApiTradingAgentPlan {
   positionPct: number
   status: TradingAgentPlanStatus
   selectionId: number | null
+  /** 截至计划日按成交聚合的持仓股数（未绑定账户/无成交为 null）。 */
+  heldVolume: number | null
   basis: string
   triggeredClOrdId: string | null
 }
@@ -192,11 +198,11 @@ export interface ApiAgentMemoryUpdateRequest {
   memType?: AgentMemoryType
 }
 
-/** 新建交易 Agent 请求（D29：创建即 active 参与调度；技能走共享兜底）。 */
+/** 新建交易 Agent 请求（D29 创建即 active；D30 精简：标语/风格/策略可不填）。 */
 export interface TradingAgentCreateRequest {
   agentKey: string
   name: string
-  tagline: string
+  tagline?: string | null
   promptId: string
   strategyDesc?: string | null
   styleDesc?: string | null
@@ -244,4 +250,43 @@ export interface ApiAgentCapabilityResponse {
   memoryCounts: ApiAgentMemoryCounts
   automation: ApiAgentAutomationTask[]
   recentActivity: AgentActivityItem[]
+}
+
+/** 会话人设 YAML 原文（配置页只读浏览，D30）。 */
+export interface ApiTradingAgentPromptContent {
+  promptId: string
+  label: string
+  content: string
+}
+
+/** 方法论纪律条目（KB published 全量）。 */
+export interface ApiAgentMethodologyDiscipline {
+  title: string
+  body: string
+}
+
+/** 方法论知识卡片条目（method/theorem/concept/case）。 */
+export interface ApiAgentMethodologyPoint {
+  title: string
+  pointType: 'method' | 'theorem' | 'concept' | 'case' | string
+  body: string
+}
+
+/** 方法论基座可视化载荷（配置页只读；null = 未绑定知识源）。 */
+export interface ApiAgentMethodologyView {
+  sourceId: number
+  sourceName: string
+  outline: string
+  disciplines: ApiAgentMethodologyDiscipline[]
+  points: ApiAgentMethodologyPoint[]
+}
+
+/** Agent 作业技能包可视化（配置页「作业技能」区，D30）。
+ * trading 技能不进 skill 表（广场不可见），后端直读镜像 skills/<id>/ 目录。 */
+export interface ApiAgentSkillFilesResponse {
+  skillId: string
+  skillLabel: string
+  skillIsSharedDefault: boolean
+  files: import('./skill').ApiSkillFile[]
+  methodology: ApiAgentMethodologyView | null
 }

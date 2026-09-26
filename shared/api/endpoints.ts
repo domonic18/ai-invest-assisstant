@@ -336,6 +336,10 @@ export const ENDPOINTS = {
       `${API_BASE}/admin/trading-agent/${agentKey}`,
     tradingAgentConfig: (agentKey: string) =>
       `${API_BASE}/admin/trading-agent/${agentKey}/config`,
+    tradingAgentPrompt: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/prompt`,
+    tradingAgentSkillFiles: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/skill/files`,
     tradingAgentReview: (agentKey: string) =>
       `${API_BASE}/admin/trading-agent/${agentKey}/review`,
     tradingAgentDates: (agentKey: string) =>

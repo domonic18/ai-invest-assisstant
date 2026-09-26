@@ -21,10 +21,7 @@ const CADENCE_OPTIONS: { value: AgentCadence; label: string }[] = [
 interface AgentCreateFormValues {
   agentKey: string
   name: string
-  tagline: string
   promptId: string
-  styleDesc?: string
-  strategyDesc?: string
   accentColor?: { toHexString: () => string } | string
   planCadence?: AgentCadence
   reviewCadence?: AgentCadence
@@ -49,10 +46,7 @@ export function AgentCreateModal({ open, onCancel }: { open: boolean; onCancel: 
       {
         agentKey: values.agentKey,
         name: values.name,
-        tagline: values.tagline,
         promptId: values.promptId,
-        styleDesc: values.styleDesc || null,
-        strategyDesc: values.strategyDesc || null,
         accentColor: typeof accent === 'string' ? accent : (accent?.toHexString() ?? null),
         planCadence: values.planCadence ?? null,
         reviewCadence: values.reviewCadence ?? null,
@@ -99,35 +93,15 @@ export function AgentCreateModal({ open, onCancel }: { open: boolean; onCancel: 
         </Form.Item>
 
         <Form.Item
-          label="一句话定位"
-          name="tagline"
-          rules={[{ required: true, message: '请输入一句话定位' }]}
-        >
-          <Input placeholder="总览介绍卡展示" maxLength={128} />
-        </Form.Item>
-
-        <Form.Item
           label="会话人设模板"
           name="promptId"
           rules={[{ required: true, message: '请选择人设模板' }]}
-          extra="决定对话身份与硬纪律骨架；名字/策略由注册表运行时注入"
+          extra="决定对话身份与硬纪律骨架；创建后可在配置页浏览与换绑"
         >
           <Select
             loading={templates.isLoading}
             options={(templates.data ?? []).map((t) => ({ value: t.promptId, label: t.label }))}
             placeholder="选择人设模板"
-          />
-        </Form.Item>
-
-        <Form.Item label="风格标签" name="styleDesc">
-          <Input placeholder="如：稳健 / 激进" maxLength={64} />
-        </Form.Item>
-
-        <Form.Item label="策略介绍" name="strategyDesc">
-          <Input.TextArea
-            rows={3}
-            placeholder="策略思路与适用市况，介绍卡与预告卡展示"
-            maxLength={2000}
           />
         </Form.Item>
 

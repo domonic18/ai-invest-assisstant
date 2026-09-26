@@ -279,6 +279,8 @@ export const queryKeys = {
     templates: ['trading-agent', 'prompt-templates'] as const,
     status: (agentKey: string) => ['trading-agent', agentKey, 'status'] as const,
     config: (agentKey: string) => ['trading-agent', agentKey, 'config'] as const,
+    prompt: (agentKey: string) => ['trading-agent', agentKey, 'prompt'] as const,
+    skillFiles: (agentKey: string) => ['trading-agent', agentKey, 'skill-files'] as const,
     dates: (agentKey: string) => ['trading-agent', agentKey, 'dates'] as const,
     review: (agentKey: string, period: string, tradeDate?: string) =>
       ['trading-agent', agentKey, 'review', period, tradeDate ?? 'latest'] as const,

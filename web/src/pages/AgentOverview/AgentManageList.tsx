@@ -43,9 +43,11 @@ function ManageRow({ item }: { item: AgentOverviewItem }) {
             {profile.agentKey}
           </Typography.Text>
         </div>
-        <Typography.Paragraph type="secondary" className="!mb-0 truncate text-xs">
-          {profile.tagline}
-        </Typography.Paragraph>
+        {profile.tagline ? (
+          <Typography.Paragraph type="secondary" className="!mb-0 truncate text-xs">
+            {profile.tagline}
+          </Typography.Paragraph>
+        ) : null}
       </div>
       <Space size="small">
         <Popconfirm

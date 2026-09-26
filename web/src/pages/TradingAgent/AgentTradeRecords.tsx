@@ -8,7 +8,7 @@
  * 累计盈亏 = nav − cumInout，当日盈亏 = 实时 nav − 最近快照 nav（前端算，
  * 缺快照显示 -）。
  */
-import { Card, Empty, Space, Spin, Statistic, Typography } from 'antd'
+import { Card, Empty, Space, Spin, Statistic, Tabs } from 'antd'
 
 import { PaperTradeExecutionsPanel, PaperTradeOrdersPanel } from '@/pages/PaperTrade/PaperTradeOrderHistory'
 import { PaperTradePositions } from '@/pages/PaperTrade/PaperTradePositions'
@@ -94,7 +94,7 @@ export function AgentTradeRecords() {
       <Card size="small">
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="尚未绑定 Agent 专属账户，请在「账户与配置」中指定"
+          description="尚未绑定 Agent 专属账户，请在「配置」中指定"
         />
       </Card>
     )
@@ -120,21 +120,18 @@ function AgentAccountRecords({ accountId, accountName }: { accountId: number; ac
           nav={overview?.cash?.nav}
         />
       </Card>
-      <Card size="small" title="交易记录">
-        <Space direction="vertical" size="large" className="w-full">
-          <section className="space-y-3">
-            <Typography.Text strong className="text-sm">
-              委托
-            </Typography.Text>
-            <PaperTradeOrdersPanel accountId={accountId} />
-          </section>
-          <section className="space-y-3">
-            <Typography.Text strong className="text-sm">
-              成交
-            </Typography.Text>
-            <PaperTradeExecutionsPanel accountId={accountId} />
-          </section>
-        </Space>
+      <Card size="small" title="交易记录" styles={{ body: { paddingTop: 4 } }}>
+        <Tabs
+          size="small"
+          items={[
+            { key: 'orders', label: '委托', children: <PaperTradeOrdersPanel accountId={accountId} /> },
+            {
+              key: 'executions',
+              label: '成交',
+              children: <PaperTradeExecutionsPanel accountId={accountId} />,
+            },
+          ]}
+        />
       </Card>
     </Space>
   )

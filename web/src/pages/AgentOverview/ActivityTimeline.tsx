@@ -2,9 +2,9 @@
  * 底部时间轴：每个 Agent 一行——「正在做」近期活动（计划/复盘）与
  * 「接下来」下次任务时刻（后端按 cron + 交易日历算好的 UTC 时刻）。
  */
-import { Button, Card, Empty, Spin, Typography } from 'antd'
+import { Button, Card, Empty, Spin, Tag, Typography } from 'antd'
 import dayjs from 'dayjs'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import type { AgentOverviewItem } from '@ai-invest/shared'
 
@@ -37,9 +37,17 @@ function AgentTimelineRow({ item }: { item: AgentOverviewItem }) {
         </Typography.Text>
         {latest ? (
           <div className="flex min-w-0 items-baseline gap-2">
-            <Typography.Text className="truncate text-xs">{latest.title}</Typography.Text>
+            <Typography.Text className="shrink-0 text-xs">{latest.title}</Typography.Text>
+            {latest.stockCode && (
+              <Link to={`/stock/${latest.stockCode}`} className="min-w-0">
+                <Tag className="!m-0 truncate !text-xs">
+                  {latest.stockName ?? latest.stockCode}
+                  <span className="ml-1 font-mono text-white/40">{latest.stockCode}</span>
+                </Tag>
+              </Link>
+            )}
             {latest.occurredAt && (
-              <Typography.Text type="secondary" className="shrink-0 text-xs">
+              <Typography.Text type="secondary" className="ml-auto shrink-0 text-xs">
                 {formatRelativeTime(latest.occurredAt)}
               </Typography.Text>
             )}
@@ -53,7 +61,11 @@ function AgentTimelineRow({ item }: { item: AgentOverviewItem }) {
           <Typography.Paragraph type="secondary" className="!mb-0 truncate text-xs !mt-0.5">
             {done
               .slice(1)
-              .map((activity) => activity.title)
+              .map((activity) =>
+                activity.stockName
+                  ? `${activity.title} ${activity.stockName}`
+                  : activity.title,
+              )
               .join(' · ')}
           </Typography.Paragraph>
         )}

@@ -2,10 +2,10 @@
  * Agent 详情页（仅 admin，路由 /trading-agent/:agentKey）：单 Agent 闭环统一入口。
  *
  * 结构 = 运行状态条 + Tabs：工作台（agent 对话，PC 附工作状态侧栏）、
- * Agent 自选（选股清单 + 人工移出）、交易计划、持仓与交易（agent 账户
- * 资金/持仓/委托/成交）、复盘记录（日/周/月）、经验总结（分层复盘 +
- * Agent 记忆管理）、账户与配置（Agent 配置 + 模拟盘账户管理）。tab 态进
- * URL query；
+ * Agent 自选（选股清单 + 人工移出）、持仓与交易（agent 账户资金/持仓/
+ * 委托/成交）、交易计划、复盘记录（日/周/月）、经验总结（分层复盘 +
+ * Agent 记忆管理）、配置（基本配置 + 会话人设 + 作业技能 + 模拟盘账户，
+ * D30 四区）。tab 态进 URL query；
  * 工作台保持挂载（antd Tabs 默认隐藏不卸载），切 tab 不中断会话流。
  */
 import { EditOutlined } from '@ant-design/icons'
@@ -31,6 +31,8 @@ import { useAssistantStore } from '@/stores/assistant'
 import { AgentKeyContext, useAgentKey } from './agentKeyContext'
 
 import { AgentConfigPanel } from './AgentConfigPanel'
+import { AgentPersonaPanel } from './AgentPersonaPanel'
+import { AgentSkillPanel } from './AgentSkillPanel'
 import { AgentWorkStatusPanel } from './AgentWorkStatusPanel'
 import { AgentMemoryPanel } from './AgentMemoryPanel'
 import { AgentSelectionsPanel } from './AgentSelectionsPanel'
@@ -44,22 +46,22 @@ import { ReviewPanel } from './ReviewPanel'
 const TAB_KEYS = [
   'workbench',
   'selections',
-  'plans',
   'records',
+  'plans',
   'review',
   'experiences',
-  'accounts',
+  'config',
 ] as const
 type TabKey = (typeof TAB_KEYS)[number]
 
 const TAB_ITEMS = [
   { key: 'workbench', label: '工作台' },
   { key: 'selections', label: 'Agent 自选' },
-  { key: 'plans', label: '交易计划' },
   { key: 'records', label: '持仓与交易' },
+  { key: 'plans', label: '交易计划' },
   { key: 'review', label: '复盘记录' },
   { key: 'experiences', label: '经验总结' },
-  { key: 'accounts', label: '账户与配置' },
+  { key: 'config', label: '配置' },
 ]
 
 function renderTabPane(key: TabKey) {
@@ -68,10 +70,10 @@ function renderTabPane(key: TabKey) {
       return <WorkbenchPane />
     case 'selections':
       return <AgentSelectionsPanel />
-    case 'plans':
-      return <PlanPanel />
     case 'records':
       return <AgentTradeRecords />
+    case 'plans':
+      return <PlanPanel />
     case 'review':
       return <ReviewPanel />
     case 'experiences':
@@ -81,11 +83,13 @@ function renderTabPane(key: TabKey) {
           <AgentMemoryPanel />
         </div>
       )
-    case 'accounts':
+    case 'config':
       return (
         <div className="space-y-3">
-          <PaperTradeAccountsAdmin />
           <AgentConfigPanel />
+          <AgentPersonaPanel />
+          <AgentSkillPanel />
+          <PaperTradeAccountsAdmin />
         </div>
       )
   }
@@ -181,20 +185,26 @@ function AgentIntroCard({ profile }: { profile: TradingAgentProfile }) {
           style={{ backgroundColor: profile.accentColor }}
         />
         <Typography.Text strong>{profile.name}</Typography.Text>
-        <Typography.Text type="secondary" className="text-xs">
-          {profile.tagline}
-        </Typography.Text>
+        {profile.tagline ? (
+          <Typography.Text type="secondary" className="text-xs">
+            {profile.tagline}
+          </Typography.Text>
+        ) : null}
       </span>
-      <span className="inline-flex items-center gap-1.5 text-xs">
-        <span className="text-white/60">策略</span>
-        <Typography.Text className="text-xs">{profile.strategyDesc}</Typography.Text>
-      </span>
-      <span className="inline-flex items-center gap-1.5 text-xs">
-        <span className="text-white/60">风格</span>
-        <Tag color="geekblue" className="!mr-0">
-          {profile.styleDesc}
-        </Tag>
-      </span>
+      {profile.strategyDesc ? (
+        <span className="inline-flex items-center gap-1.5 text-xs">
+          <span className="text-white/60">策略</span>
+          <Typography.Text className="text-xs">{profile.strategyDesc}</Typography.Text>
+        </span>
+      ) : null}
+      {profile.styleDesc ? (
+        <span className="inline-flex items-center gap-1.5 text-xs">
+          <span className="text-white/60">风格</span>
+          <Tag color="geekblue" className="!mr-0">
+            {profile.styleDesc}
+          </Tag>
+        </span>
+      ) : null}
       <span className="inline-flex items-center gap-1.5 text-xs">
         <span className="text-white/60">方法论</span>
         <Tag color="purple" className="!mr-0">
@@ -257,7 +267,7 @@ export function TradingAgent() {
             <Spin size="small" />
           </div>
         ) : null}
-        <AgentStatusStrip onOpenAccounts={() => changeTab('accounts')} />
+        <AgentStatusStrip onOpenAccounts={() => changeTab('config')} />
         <div className="min-h-0 flex-1">
           <Tabs
             activeKey={activeTab}

@@ -7,10 +7,12 @@ import type {
   ApiAgentCapabilityResponse,
   ApiAgentMemory,
   ApiAgentMemoryUpdateRequest,
+  ApiAgentSkillFilesResponse,
   ApiAgentWatchlistGroupResponse,
   ApiTradingAgentDates,
   ApiTradingAgentPlan,
   ApiTradingAgentPlansResponse,
+  ApiTradingAgentPromptContent,
   ApiTradingAgentPromptTemplate,
   ApiTradingAgentReview,
   TradingAgentCreateRequest,
@@ -45,6 +47,26 @@ export async function fetchTradingAgentPromptTemplates(): Promise<
 > {
   const response = await apiClient.get<ApiTradingAgentPromptTemplate[]>(
     ENDPOINTS.admin.tradingAgentPromptTemplates,
+  )
+  return response.data
+}
+
+/** 会话人设 YAML 原文（配置页只读浏览）。 */
+export async function fetchTradingAgentPrompt(
+  agentKey: string,
+): Promise<ApiTradingAgentPromptContent> {
+  const response = await apiClient.get<ApiTradingAgentPromptContent>(
+    ENDPOINTS.admin.tradingAgentPrompt(agentKey),
+  )
+  return response.data
+}
+
+/** 作业技能包可视化（trading 技能镜像目录文件 + 方法论知识源轮廓）。 */
+export async function fetchTradingAgentSkillFiles(
+  agentKey: string,
+): Promise<ApiAgentSkillFilesResponse> {
+  const response = await apiClient.get<ApiAgentSkillFilesResponse>(
+    ENDPOINTS.admin.tradingAgentSkillFiles(agentKey),
   )
   return response.data
 }

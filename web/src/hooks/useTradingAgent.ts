@@ -21,9 +21,11 @@ import {
   fetchTradingAgentDates,
   fetchTradingAgentMemories,
   fetchTradingAgentPlans,
+  fetchTradingAgentPrompt,
   fetchTradingAgentPromptTemplates,
   fetchTradingAgentReview,
   fetchTradingAgentSelections,
+  fetchTradingAgentSkillFiles,
   fetchTradingAgentStatus,
   removeTradingAgentSelection,
   updateTradingAgentConfig,
@@ -92,6 +94,24 @@ export function useTradingAgentConfig(agentKey: string) {
   return useQuery({
     queryKey: queryKeys.tradingAgent.config(agentKey),
     queryFn: () => fetchTradingAgentConfig(agentKey),
+  })
+}
+
+/** 会话人设 YAML 原文（配置页只读浏览）。 */
+export function useTradingAgentPrompt(agentKey: string) {
+  return useQuery({
+    queryKey: queryKeys.tradingAgent.prompt(agentKey),
+    queryFn: () => fetchTradingAgentPrompt(agentKey),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/** 作业技能包可视化（镜像目录文件 + 方法论知识源轮廓）。 */
+export function useTradingAgentSkillFiles(agentKey: string) {
+  return useQuery({
+    queryKey: queryKeys.tradingAgent.skillFiles(agentKey),
+    queryFn: () => fetchTradingAgentSkillFiles(agentKey),
+    staleTime: 5 * 60 * 1000,
   })
 }
 
