@@ -4,15 +4,18 @@ import { ENDPOINTS } from '@ai-invest/shared'
 import type {
   AgentMemoryType,
   AgentOverviewResponse,
+  ApiAgentCapabilityResponse,
   ApiAgentMemory,
   ApiAgentMemoryUpdateRequest,
   ApiAgentWatchlistGroupResponse,
-  TradingAgentProfile,
-  TradingAgentProfileUpdateRequest,
   ApiTradingAgentDates,
   ApiTradingAgentPlan,
   ApiTradingAgentPlansResponse,
+  ApiTradingAgentPromptTemplate,
   ApiTradingAgentReview,
+  TradingAgentCreateRequest,
+  TradingAgentProfile,
+  TradingAgentProfileUpdateRequest,
   TradingReviewPeriod,
 } from '@ai-invest/shared'
 
@@ -24,6 +27,42 @@ export async function fetchAgentOverview(): Promise<AgentOverviewResponse> {
     ENDPOINTS.admin.tradingAgentAgents,
   )
   return response.data
+}
+
+/** Agent 能力/状态视图（人设/方法论/作业技能/模型/记忆/自动化任务/近期活动）。 */
+export async function fetchTradingAgentStatus(
+  agentKey: string,
+): Promise<ApiAgentCapabilityResponse> {
+  const response = await apiClient.get<ApiAgentCapabilityResponse>(
+    ENDPOINTS.admin.tradingAgentStatus(agentKey),
+  )
+  return response.data
+}
+
+/** 可用会话人设模板清单（新建 Agent 下拉）。 */
+export async function fetchTradingAgentPromptTemplates(): Promise<
+  ApiTradingAgentPromptTemplate[]
+> {
+  const response = await apiClient.get<ApiTradingAgentPromptTemplate[]>(
+    ENDPOINTS.admin.tradingAgentPromptTemplates,
+  )
+  return response.data
+}
+
+/** 新建 Agent（创建即 active 参与调度；绑定账户后才实际下单）。 */
+export async function createTradingAgent(
+  data: TradingAgentCreateRequest,
+): Promise<TradingAgentProfile> {
+  const response = await apiClient.post<TradingAgentProfile>(
+    ENDPOINTS.admin.tradingAgentAgents,
+    data,
+  )
+  return response.data
+}
+
+/** 删除 Agent 并级联清理（解绑模拟盘账户、删计划/选股/记忆/会话）。 */
+export async function deleteTradingAgent(agentKey: string): Promise<void> {
+  await apiClient.delete(ENDPOINTS.admin.tradingAgentAgent(agentKey))
 }
 
 export async function fetchTradingAgentConfig(agentKey: string): Promise<TradingAgentProfile> {

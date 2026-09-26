@@ -1,14 +1,18 @@
 /**
- * Agent 管理列表（总览页底部，D28）：列出全部注册 Agent（含
- * planned/disabled），状态 Badge + 启用 Switch（停用 = 雷达隐藏且不参与
- * 调度）+「详情」入口；任意状态可进配置页编辑人设/频率/风控。
+ * Agent 管理列表（总览页底部，D28 + D29）：列出全部注册 Agent（含
+ * planned/disabled），状态 Badge + 启用 Switch +「详情」入口 + 删除；
+ * D29 新增「新建 Agent」入口（创建即 active）与行级删除（级联清理）。
  */
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { Badge, Button, Card, Popconfirm, Space, Spin, Switch, Typography } from 'antd'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import type { AgentOverviewItem } from '@ai-invest/shared'
 
-import { useUpdateTradingAgentConfig } from '@/hooks/useTradingAgent'
+import { useDeleteTradingAgent, useUpdateTradingAgentConfig } from '@/hooks/useTradingAgent'
+
+import { AgentCreateModal } from './AgentCreateModal'
 
 const STATUS_META = {
   active: { text: '启用中', color: 'processing' },
@@ -20,6 +24,7 @@ function ManageRow({ item }: { item: AgentOverviewItem }) {
   const navigate = useNavigate()
   const { profile } = item
   const update = useUpdateTradingAgentConfig(profile.agentKey)
+  const remove = useDeleteTradingAgent()
   const meta = STATUS_META[profile.status]
 
   const toggle = (next: boolean) => {
@@ -51,7 +56,7 @@ function ManageRow({ item }: { item: AgentOverviewItem }) {
               : '启用后出现在总览雷达并按计划/复盘频率参与调度。'
           }
           okText={profile.status === 'active' ? '停用' : '启用'}
-          cancelText="取消"
+          cancelText="返回"
           onConfirm={() => toggle(profile.status !== 'active')}
         >
           <Switch
@@ -65,6 +70,22 @@ function ManageRow({ item }: { item: AgentOverviewItem }) {
         <Button size="small" onClick={() => void navigate(`/trading-agent/${profile.agentKey}`)}>
           详情
         </Button>
+        <Popconfirm
+          title={`删除 ${profile.name}？`}
+          description="将解绑其模拟盘账户（账户保留），并删除该 Agent 的交易计划、选股、记忆与全部会话，不可恢复。"
+          okText="删除"
+          okButtonProps={{ danger: true }}
+          cancelText="返回"
+          onConfirm={() => remove.mutate(profile.agentKey)}
+        >
+          <Button
+            size="small"
+            type="text"
+            danger
+            icon={<DeleteOutlined />}
+            loading={remove.isPending && remove.variables === profile.agentKey}
+          />
+        </Popconfirm>
       </Space>
     </div>
   )
@@ -77,8 +98,18 @@ export function AgentManageList({
   items: AgentOverviewItem[]
   isLoading: boolean
 }) {
+  const [createOpen, setCreateOpen] = useState(false)
   return (
-    <Card size="small" title="Agent 管理列表" className="shrink-0">
+    <Card
+      size="small"
+      title="Agent 管理列表"
+      className="shrink-0"
+      extra={
+        <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+          新建 Agent
+        </Button>
+      }
+    >
       {isLoading ? (
         <div className="flex justify-center py-4">
           <Spin size="small" />
@@ -90,6 +121,7 @@ export function AgentManageList({
           ))}
         </div>
       )}
+      <AgentCreateModal open={createOpen} onCancel={() => setCreateOpen(false)} />
     </Card>
   )
 }

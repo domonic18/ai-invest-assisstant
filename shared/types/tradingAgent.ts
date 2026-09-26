@@ -130,6 +130,8 @@ export interface ApiTradingAgentPlan {
   id: number
   planDate: string
   stockCode: string
+  /** 股票名称（stock_basic 批量解析；主数据缺失为 null，前端回退代号）。 */
+  stockName: string | null
   planType: 'buy' | 'sell'
   strategy: string
   buyZoneLow: number | null
@@ -188,4 +190,58 @@ export interface ApiAgentMemoryUpdateRequest {
   title?: string
   body?: string
   memType?: AgentMemoryType
+}
+
+/** 新建交易 Agent 请求（D29：创建即 active 参与调度；技能走共享兜底）。 */
+export interface TradingAgentCreateRequest {
+  agentKey: string
+  name: string
+  tagline: string
+  promptId: string
+  strategyDesc?: string | null
+  styleDesc?: string | null
+  accentColor?: string | null
+  planCadence?: AgentCadence | null
+  reviewCadence?: AgentCadence | null
+  llmConfigId?: number | null
+  methodologySourceId?: number | null
+}
+
+/** 可用会话人设模板（prompts/agents/trading_agent_*.yaml 扫描）。 */
+export interface ApiTradingAgentPromptTemplate {
+  promptId: string
+  label: string
+}
+
+/** Agent 自动化任务视图（cron + 状态 + 下次/最近执行）。 */
+export interface ApiAgentAutomationTask {
+  key: string
+  label: string
+  cron: string | null
+  taskActive: boolean
+  cadence: AgentCadence | null
+  nextRunAt: string | null
+  lastRunAt: string | null
+  lastStatus: string | null
+}
+
+/** Agent 活跃记忆按类型计数。 */
+export interface ApiAgentMemoryCounts {
+  discipline: number
+  method: number
+  lesson: number
+  activeTotal: number
+}
+
+/** Agent 能力/状态视图（工作台右栏，一屏回答「agent 靠什么工作」）。 */
+export interface ApiAgentCapabilityResponse {
+  profile: TradingAgentProfile
+  llmName: string | null
+  methodologySourceName: string | null
+  skillId: string
+  skillLabel: string
+  skillIsSharedDefault: boolean
+  memoryCounts: ApiAgentMemoryCounts
+  automation: ApiAgentAutomationTask[]
+  recentActivity: AgentActivityItem[]
 }

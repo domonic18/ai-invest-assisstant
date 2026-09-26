@@ -6,6 +6,7 @@ import { message } from 'antd'
 import type {
   AgentOverviewResponse,
   ApiAgentMemoryUpdateRequest,
+  TradingAgentCreateRequest,
   TradingAgentProfileUpdateRequest,
   TradingReviewPeriod,
 } from '@ai-invest/shared'
@@ -13,13 +14,17 @@ import type {
 import { fetchLLMConfigs } from '@/api/modelConfig'
 import {
   cancelTradingAgentPlan,
+  createTradingAgent,
+  deleteTradingAgent,
   fetchAgentOverview,
   fetchTradingAgentConfig,
   fetchTradingAgentDates,
   fetchTradingAgentMemories,
   fetchTradingAgentPlans,
+  fetchTradingAgentPromptTemplates,
   fetchTradingAgentReview,
   fetchTradingAgentSelections,
+  fetchTradingAgentStatus,
   removeTradingAgentSelection,
   updateTradingAgentConfig,
   updateTradingAgentMemory,
@@ -33,6 +38,53 @@ export function useAgentOverview(options?: { refetchInterval?: number | false })
     queryKey: queryKeys.tradingAgent.agents,
     queryFn: fetchAgentOverview,
     refetchInterval: options?.refetchInterval,
+  })
+}
+
+/** Agent 能力/状态视图（工作台右栏，30s 轮询保持活动/任务新鲜）。 */
+export function useTradingAgentStatus(
+  agentKey: string,
+  options?: { refetchInterval?: number | false },
+) {
+  return useQuery({
+    queryKey: queryKeys.tradingAgent.status(agentKey),
+    queryFn: () => fetchTradingAgentStatus(agentKey),
+    refetchInterval: options?.refetchInterval,
+  })
+}
+
+/** 可用会话人设模板清单（新建 Agent 下拉）。 */
+export function useTradingAgentPromptTemplates() {
+  return useQuery({
+    queryKey: queryKeys.tradingAgent.templates,
+    queryFn: fetchTradingAgentPromptTemplates,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/** 新建 Agent（创建即 active；成功后整体刷新注册表/总览/雷达）。 */
+export function useCreateTradingAgent() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: TradingAgentCreateRequest) => createTradingAgent(data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.all })
+      message.success('Agent 已创建并启用（绑定模拟盘账户后才会实际下单）')
+    },
+    onError: (error: Error) => message.error(error.message),
+  })
+}
+
+/** 删除 Agent（级联清理其计划/选股/记忆/会话并解绑账户）。 */
+export function useDeleteTradingAgent() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (agentKey: string) => deleteTradingAgent(agentKey),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.all })
+      message.success('Agent 已删除')
+    },
+    onError: (error: Error) => message.error(error.message),
   })
 }
 
