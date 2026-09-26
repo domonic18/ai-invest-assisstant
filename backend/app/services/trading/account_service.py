@@ -21,6 +21,7 @@ from app.models.paper_trade import (
     PaperTradeOrder,
 )
 from app.services.trading.client import CounterCredentials
+from app.services.trading.errors import AgentAccountNotDesignatedError
 from app.utils.crypto import decrypt_token, encrypt_token
 
 logger = structlog.get_logger(__name__)
@@ -69,6 +70,20 @@ async def resolve_for_user(
     account = await session.get(PaperTradeAccount, account_id)
     if account is None or account.user_id != user_id:
         raise NotFoundError("模拟盘账户不存在")
+    return account
+
+
+async def resolve_agent_account(session: AsyncSession) -> PaperTradeAccount:
+    """解析 agent 专属账户（全局唯一 ``is_agent`` 行）。
+
+    对话交易工具与定时执行（批次 6-8）共用此入口；未指定时抛
+    ``AgentAccountNotDesignatedError``（工具层捕获转引导文案）。
+    """
+    account = await session.scalar(
+        select(PaperTradeAccount).where(PaperTradeAccount.is_agent.is_(True))
+    )
+    if account is None:
+        raise AgentAccountNotDesignatedError()
     return account
 
 

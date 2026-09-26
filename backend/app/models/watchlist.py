@@ -14,12 +14,19 @@ if TYPE_CHECKING:
 
 
 class UserWatchlistGroup(Base):
-    """用户自选股分组表。"""
+    """用户自选股分组表。
+
+    owner_type='agent' 为平台级交易 Agent 分组单例（user_id=NULL，不命中
+    既有 user_id 过滤、不受用户删除级联——D17 干预面）。
+    """
 
     __tablename__ = "user_watchlist_group"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=True
+    )
+    owner_type: Mapped[str] = mapped_column(String(16), default="user", nullable=False)
     name: Mapped[str] = mapped_column(String(50), nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

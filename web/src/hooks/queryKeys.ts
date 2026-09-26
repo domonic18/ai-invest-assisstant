@@ -185,6 +185,7 @@ export const queryKeys = {
     all: ['watchlist'] as const,
     groups: ['watchlist', 'groups'] as const,
     items: ['watchlist', 'items'] as const,
+    agentGroup: ['watchlist', 'agent-group'] as const,
   },
   telegraph: {
     all: ['telegraph'] as const,
@@ -270,5 +271,14 @@ export const queryKeys = {
     /** 全周期画线（period 为归属键，周期切换前端过滤） */
     target: (targetType: string, targetCode: string) =>
       ['kline-drawings', targetType, targetCode] as const,
+  },
+  tradingAgent: {
+    all: ['trading-agent'] as const,
+    config: ['trading-agent', 'config'] as const,
+    llmConfigs: ['trading-agent', 'llm-configs'] as const,
+    dates: ['trading-agent', 'dates'] as const,
+    review: (period: string, tradeDate?: string) =>
+      ['trading-agent', 'review', period, tradeDate ?? 'latest'] as const,
+    plans: (tradeDate?: string) => ['trading-agent', 'plans', tradeDate ?? 'latest'] as const,
   },
 } as const

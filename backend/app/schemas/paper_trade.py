@@ -2,6 +2,8 @@
 
 from datetime import date, datetime
 
+from pydantic import Field
+
 from app.schemas.base import CamelModel
 
 
@@ -211,3 +213,109 @@ class PaperTradeAdminAccountListResponse(CamelModel):
     """管理端全平台账户列表。"""
 
     items: list[PaperTradeAdminAccountRow] = []
+
+
+# ============================================================
+# 交易 Agent 配置（单例）
+# ============================================================
+
+
+class TradingAgentConfigResponse(CamelModel):
+    """交易 Agent 全局配置（单例行）。"""
+
+    llm_config_id: int | None = None
+    risk_max_position_pct: float
+    risk_max_total_pct: float
+    risk_max_daily_orders: int
+    auto_exec_enabled: bool
+    updated_at: datetime | None = None
+
+
+class TradingAgentConfigUpdateRequest(CamelModel):
+    """更新交易 Agent 配置（未提供的字段不变；llm_config_id 空 = 平台默认 chat 模型）。"""
+
+    llm_config_id: int | None = None
+    risk_max_position_pct: float | None = Field(default=None, ge=0, le=100)
+    risk_max_total_pct: float | None = Field(default=None, ge=0, le=100)
+    risk_max_daily_orders: int | None = Field(default=None, ge=1)
+    auto_exec_enabled: bool | None = None
+
+
+# ============================================================
+# 交易 Agent 复盘（批次 6）
+# ============================================================
+
+
+class TradingAgentTradeVerdictItem(CamelModel):
+    """单笔委托三层判定。"""
+
+    cl_ord_id: str
+    stock_code: str
+    selection_verdict: str
+    plan_verdict: str
+    execution_verdict: str
+    reason: str
+
+
+class TradingAgentReviewExperienceItem(CamelModel):
+    """复盘提取经验条目。"""
+
+    title: str
+    body: str
+    mem_type: str
+
+
+class TradingAgentReviewResponse(CamelModel):
+    """模拟盘分层复盘（ai_analysis_result.structured_output 契约镜像）。"""
+
+    period: str
+    trade_date: str
+    overall: str
+    trades: list[TradingAgentTradeVerdictItem] = []
+    bias: str
+    suggestion: str
+    experiences: list[TradingAgentReviewExperienceItem] = []
+
+
+class TradingAgentPlanResponse(CamelModel):
+    """交易计划条目（「今日交易计划」区块与对话 list 工具共用）。"""
+
+    id: int
+    plan_date: date
+    stock_code: str
+    plan_type: str
+    strategy: str
+    buy_zone_low: float | None = None
+    buy_zone_high: float | None = None
+    target_price: float | None = None
+    stop_loss: float
+    position_pct: float
+    status: str
+    selection_id: int | None = None
+    basis: str
+    triggered_cl_ord_id: str | None = None
+
+
+class TradingAgentDatesResponse(CamelModel):
+    """有记录日期清单（日历打点：计划日 + 各周期复盘基准日）。"""
+
+    plan_dates: list[date] = []
+    review_dates: dict[str, list[date]] = {}
+
+
+class AgentSelectionItem(CamelModel):
+    """agent 选股条目（自选页 agent 分组：AI 依据 + 置信度）。"""
+
+    id: int
+    stock_code: str
+    reason: str
+    confidence: float | None = None
+    trade_date: date
+
+
+class AgentWatchlistGroupResponse(CamelModel):
+    """自选页 agent 分组（平台级单例，全员可见；items 为当前 active 选股）。"""
+
+    id: int
+    name: str
+    items: list[AgentSelectionItem] = []

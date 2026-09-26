@@ -71,12 +71,10 @@ const News = lazy(() => import('./pages/News').then((m) => ({ default: m.News })
 const PaperTrade = lazy(() =>
   import('./pages/PaperTrade').then((m) => ({ default: m.PaperTrade })),
 )
-const PaperTradeAccountsAdmin = lazy(() =>
-  import('./pages/Admin/PaperTradeAccounts').then((m) => ({
-    default: m.PaperTradeAccountsAdmin,
-  })),
-)
 const Register = lazy(() => import('./pages/Register/Register').then((m) => ({ default: m.Register })))
+const TradingAgent = lazy(() =>
+  import('./pages/TradingAgent').then((m) => ({ default: m.TradingAgent })),
+)
 const ScreeningPage = lazy(() =>
   import('./pages/Screening/ScreeningPage').then((m) => ({ default: m.ScreeningPage })),
 )
@@ -157,10 +155,16 @@ export const router = createBrowserRouter([
           { path: 'ai-results', element: lazyEl(<AiResultsAdmin />) },
           { path: 'collector-channels', element: <Navigate to="/admin/collector?tab=channels" replace /> },
           { path: 'collector', element: lazyEl(<CollectorAdmin />) },
-          { path: 'paper-trade', element: lazyEl(<PaperTradeAccountsAdmin />) },
+          { path: 'paper-trade', element: <Navigate to="/trading-agent?tab=accounts" replace /> },
           { path: 'system-status', element: lazyEl(<SystemStatusPage />) },
           { path: 'trade-calendar', element: lazyEl(<TradeCalendarAdmin />) },
         ],
+      },
+      // 交易 Agent：admin 专属对话与配置（批次 5）
+      {
+        path: 'trading-agent',
+        element: <ProtectedAdmin />,
+        children: [{ index: true, element: lazyEl(<TradingAgent />) }],
       },
     ],
   },

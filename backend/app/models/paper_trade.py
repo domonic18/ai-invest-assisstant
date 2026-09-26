@@ -1,6 +1,7 @@
-"""模拟盘交易域 ORM 模型（账户 / 委托 / 成交回报 / 资金日快照）。
+"""模拟盘交易域 ORM 模型（账户 / 委托 / 成交回报 / 资金日快照 / 交易 Agent 配置）。
 
-表结构真源是幂等 SQL 迁移（docker/database/migrations/20260924a_paper_trade_tables.sql）。
+表结构真源是幂等 SQL 迁移（docker/database/migrations/20260924a_paper_trade_tables.sql
+与 20260926b_trading_agent_config.sql）。
 柜台（掘金仿真，经 paper-trade sidecar）是交易状态真相源，本地表是复盘分析与
 计划执行的真相源；16:00 盘后同步任务幂等 upsert（docs/plan/paper-trading-plan.md §4/§6）。
 多租户：每用户自有掘金仿真账户（token Fernet 加密），三表账户维度，agent 账户全局唯一。
@@ -12,6 +13,7 @@ from typing import Any
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Index,
@@ -106,6 +108,35 @@ class PaperTradeOrder(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
+class TradingAgentConfig(Base):
+    """交易 Agent 全局配置（单例 id=1）：LLM 绑定 + 风控阈值 + 自主执行总闸。"""
+
+    __tablename__ = "trading_agent_config"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="chk_trading_agent_config_singleton"),
+        {
+            "comment": "交易 Agent 全局配置（单例 id=1）：LLM 绑定 + 风控阈值 + 自主执行总闸"
+            "（docs/plan/paper-trading-plan.md §8.5）"
+        },
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    llm_config_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # FK 见迁移（ON DELETE SET NULL）
+    risk_max_position_pct: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2), nullable=False, default=Decimal("20")
+    )
+    risk_max_total_pct: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2), nullable=False, default=Decimal("80")
+    )
+    risk_max_daily_orders: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
+    auto_exec_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )

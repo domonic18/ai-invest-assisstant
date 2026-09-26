@@ -155,6 +155,22 @@ class TestRunStructured:
         assert fake_model.methods == ["json_schema"]
 
     @pytest.mark.asyncio
+    async def test_anthropic_json_schema_failure_falls_back_to_function_calling(self) -> None:
+        """MiniMax 等 anthropic 兼容端点不实现 output_format（返回纯文本）：
+        json_schema 解析失败后换 function_calling 兜底重试，而非同法空烧。"""
+        structured = _FakeStructured([OutputParserException("Invalid json output"), _Out(value="ok")])
+        p_llm, p_model, fake_model = _patch_run_env(structured, protocol="anthropic")
+        with p_llm, p_model:
+            result = await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+            )
+
+        assert result == _Out(value="ok")
+        assert fake_model.methods == ["json_schema", "function_calling"]
+
+    @pytest.mark.asyncio
     async def test_openai_provider_uses_function_calling(self) -> None:
         structured = _FakeStructured([_Out(value="ok")])
         p_llm, p_model, fake_model = _patch_run_env(structured, protocol="openai")

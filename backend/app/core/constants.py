@@ -140,4 +140,6 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "kb-index": DOMAIN_KB,
     # 交易（模拟盘）
     "paper-trade-sync": DOMAIN_TRADING,
+    "paper-trade-review": DOMAIN_TRADING,
+    "agent-daily-plan": DOMAIN_TRADING,
 }

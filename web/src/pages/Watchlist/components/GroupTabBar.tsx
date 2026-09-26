@@ -5,6 +5,7 @@ import {
   EditOutlined,
   PictureOutlined,
   PlusOutlined,
+  RobotOutlined,
   SettingOutlined,
 } from '@ant-design/icons'
 import { Button, Dropdown, Modal, Radio, Space, Switch, Tabs, Tag, Tooltip, message } from 'antd'
@@ -21,6 +22,7 @@ import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 import { apiErrorMessage } from '@/utils/errorMessage'
 
 const ALL_KEY = 'all'
+const AGENT_KEY = 'agent'
 
 interface GroupTabBarProps {
   groups: WatchlistGroup[]
@@ -30,6 +32,10 @@ interface GroupTabBarProps {
   onNewGroup: () => void
   onEditGroup: (group: WatchlistGroup) => void
   onImport: () => void
+  /** 平台 agent 分组（null/undefined = 尚未生成选股，不展示 Tab）。 */
+  agentGroup?: { name: string; count: number } | null
+  agentActive?: boolean
+  onAgentChange?: (active: boolean) => void
 }
 
 /** 分组 Tab 栏（可横向滚动、长名截断）+ 分组管理操作区。 */
@@ -40,6 +46,9 @@ export function GroupTabBar({
   onNewGroup,
   onEditGroup,
   onImport,
+  agentGroup = null,
+  agentActive = false,
+  onAgentChange,
 }: GroupTabBarProps) {
   const deleteGroup = useDeleteWatchlistGroup()
   const reorder = useReorderWatchlistGroups()
@@ -50,7 +59,9 @@ export function GroupTabBar({
   const withTip = (node: ReactNode, tip: string) =>
     isNarrow ? <Tooltip title={tip}>{node}</Tooltip> : node
 
-  const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null
+  const activeGroup = agentActive
+    ? null
+    : (groups.find((g) => g.id === activeGroupId) ?? null)
   const activeIndex = activeGroup ? groups.findIndex((g) => g.id === activeGroup.id) : -1
 
   const swap = (otherIndex: number) => {
@@ -169,8 +180,11 @@ export function GroupTabBar({
     <div className="shrink-0 border-b border-gray-800 px-3">
       <Tabs
         size="small"
-        activeKey={activeGroupId === null ? ALL_KEY : String(activeGroupId)}
-        onChange={(key) => onChange(key === ALL_KEY ? null : Number(key))}
+        activeKey={agentActive ? AGENT_KEY : activeGroupId === null ? ALL_KEY : String(activeGroupId)}
+        onChange={(key) => {
+          onAgentChange?.(key === AGENT_KEY)
+          if (key !== AGENT_KEY) onChange(key === ALL_KEY ? null : Number(key))
+        }}
         className="[&_.ant-tabs-nav]:!mb-0"
         items={[
           {
@@ -184,6 +198,21 @@ export function GroupTabBar({
               </span>
             ),
           },
+          ...(agentGroup
+            ? [
+                {
+                  key: AGENT_KEY,
+                  label: (
+                    <span className="inline-flex items-center max-w-[120px]">
+                      <RobotOutlined className="mr-1 text-[11px] text-gray-400" />
+                      <span className="truncate">{agentGroup.name}</span>
+                      <Tag className="ml-1 !mr-0 !text-[10px]">AI</Tag>
+                      <span className="ml-1 text-xs text-gray-500">{agentGroup.count}</span>
+                    </span>
+                  ),
+                },
+              ]
+            : []),
           ...groups.map((g) => ({
             key: String(g.id),
             label: (

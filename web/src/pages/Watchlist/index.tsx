@@ -5,10 +5,11 @@ import { useSearchParams } from 'react-router-dom'
 import type { WatchlistGroup } from '@ai-invest/shared'
 
 import { useWatchlistQuotes } from '@/hooks/useMarket'
-import { useWatchlistGroups } from '@/hooks/useWatchlistGroups'
+import { useAgentWatchlistGroup, useWatchlistGroups } from '@/hooks/useWatchlistGroups'
 import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 import { StockDetailContent } from '@/pages/StockDetail/StockDetailContent'
 
+import { AgentGroupPanel } from './components/AgentGroupPanel'
 import { GroupFormModal } from './components/GroupFormModal'
 import { GroupTabBar } from './components/GroupTabBar'
 import { ScreenshotImportModal } from './components/ScreenshotImportModal'
@@ -16,9 +17,11 @@ import { WatchlistStockList } from './components/WatchlistStockList'
 
 export function Watchlist() {
   const { data: groups, isLoading } = useWatchlistGroups()
+  const { data: agentGroup } = useAgentWatchlistGroup()
   const { data: quotes } = useWatchlistQuotes()
   const isNarrow = useIsNarrowScreen()
   const [activeGroupId, setActiveGroupId] = useState<number | null>(null)
+  const [agentActive, setAgentActive] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [editing, setEditing] = useState<WatchlistGroup | null>(null)
@@ -35,12 +38,15 @@ export function Watchlist() {
   )
 
   const visibleCodes = useMemo(() => {
+    if (agentActive) {
+      return (agentGroup?.items ?? []).map((item) => item.stockCode)
+    }
     const source =
       activeGroupId === null
         ? (groups ?? []).flatMap((g) => g.items)
         : (groups ?? []).find((g) => g.id === activeGroupId)?.items ?? []
     return source.map((item) => item.code)
-  }, [groups, activeGroupId])
+  }, [groups, agentActive, agentGroup, activeGroupId])
 
   // 分组切换或列表变化后，选中项缺失时回退到当前组第一只（仍写回 URL）。
   // 窄屏单栏交互不自动选中（详情会整屏替换列表），仅清掉已失效的选中项
@@ -77,7 +83,15 @@ export function Watchlist() {
       <GroupTabBar
         groups={groups ?? []}
         activeGroupId={activeGroupId}
-        onChange={setActiveGroupId}
+        onChange={(groupId) => {
+          setAgentActive(false)
+          setActiveGroupId(groupId)
+        }}
+        agentGroup={
+          agentGroup ? { name: agentGroup.name, count: agentGroup.items.length } : null
+        }
+        agentActive={agentActive}
+        onAgentChange={setAgentActive}
         onNewGroup={() => {
           setEditing(null)
           setFormOpen(true)
@@ -96,13 +110,23 @@ export function Watchlist() {
               listOnly ? 'flex-1' : 'max-h-64 lg:max-h-none'
             }`}
           >
-            <WatchlistStockList
-              groups={groups ?? []}
-              activeGroupId={activeGroupId}
-              quotesByCode={quotesByCode}
-              selectedCode={selectedCode}
-              onSelect={selectCode}
-            />
+            {agentActive ? (
+              <AgentGroupPanel
+                groupName={agentGroup?.name ?? '交易 Agent'}
+                selections={agentGroup?.items ?? []}
+                quotesByCode={quotesByCode}
+                selectedCode={selectedCode}
+                onSelect={selectCode}
+              />
+            ) : (
+              <WatchlistStockList
+                groups={groups ?? []}
+                activeGroupId={activeGroupId}
+                quotesByCode={quotesByCode}
+                selectedCode={selectedCode}
+                onSelect={selectCode}
+              />
+            )}
           </div>
         )}
         {!listOnly && (

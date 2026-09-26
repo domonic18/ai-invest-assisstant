@@ -7,6 +7,7 @@ from app.models.account_quota import (
     UserLlmConfig,
     UserTokenUsage,
 )
+from app.models.agent_trading import AgentStockSelection, AgentTradePlan
 from app.models.ai_analysis_result import AiAnalysisResult
 from app.models.assistant_session import AssistantSession
 from app.models.capital_fund_flow_sector import SectorFundFlow
@@ -61,6 +62,7 @@ from app.models.paper_trade import (
     PaperTradeCashSnapshot,
     PaperTradeExecution,
     PaperTradeOrder,
+    TradingAgentConfig,
 )
 from app.models.pool_dragon_tiger_stock import DragonTigerStock
 from app.models.pool_limit_up_stock import LimitUpPool
@@ -79,6 +81,8 @@ from app.models.watchlist import UserWatchlist, UserWatchlistGroup
 
 __all__ = [
     "AdminAuditLog",
+    "AgentStockSelection",
+    "AgentTradePlan",
     "AiAnalysisResult",
     "AssistantSession",
     "AuctionData",
@@ -137,6 +141,7 @@ __all__ = [
     "PaperTradeCashSnapshot",
     "PaperTradeExecution",
     "PaperTradeOrder",
+    "TradingAgentConfig",
     "SectorFundFlow",
     "SectorQuoteDaily",
     "SectorAnomaly",
