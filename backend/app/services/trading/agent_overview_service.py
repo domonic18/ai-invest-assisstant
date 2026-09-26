@@ -157,7 +157,7 @@ async def _order_count_today(
             select(func.count())
             .select_from(PaperTradeOrder)
             .where(
-                PaperTradeOrder.account_id == account.id,
+                PaperTradeOrder.paper_trade_account_id == account.id,
                 PaperTradeOrder.created_at >= day_start_cn,
             )
         )
