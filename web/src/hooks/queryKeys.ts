@@ -135,6 +135,9 @@ export const queryKeys = {
   },
   proxyConfigs: ['proxy-configs'] as const,
   trackedIndexOptions: ['tracked-index-options'] as const,
+  tradeCalendar: {
+    year: (year: number) => ['trade-calendar', year] as const,
+  },
   market: {
     all: ['market'] as const,
     indices: (tradeDate?: string) => ['market', 'indices', tradeDate] as const,

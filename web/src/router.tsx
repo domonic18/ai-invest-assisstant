@@ -34,6 +34,9 @@ const SocialTracking = lazy(() =>
 const SystemStatusPage = lazy(() =>
   import('./pages/Admin/SystemStatus/SystemStatus').then((m) => ({ default: m.SystemStatus })),
 )
+const TradeCalendarAdmin = lazy(() =>
+  import('./pages/Admin/TradeCalendar/TradeCalendar').then((m) => ({ default: m.TradeCalendar })),
+)
 const UsageDashboard = lazy(() =>
   import('./pages/Admin/UsageDashboard/UsageDashboard').then((m) => ({ default: m.UsageDashboard })),
 )
@@ -156,6 +159,7 @@ export const router = createBrowserRouter([
           { path: 'collector', element: lazyEl(<CollectorAdmin />) },
           { path: 'paper-trade', element: lazyEl(<PaperTradeAccountsAdmin />) },
           { path: 'system-status', element: lazyEl(<SystemStatusPage />) },
+          { path: 'trade-calendar', element: lazyEl(<TradeCalendarAdmin />) },
         ],
       },
     ],
