@@ -18,6 +18,7 @@ import {
   createTradingAgent,
   createTradingAgentMemory,
   deleteTradingAgent,
+  deleteTradingAgentMemory,
   fetchAgentOverview,
   fetchTradingAgentConfig,
   fetchTradingAgentDates,
@@ -227,7 +228,7 @@ export function useCreateTradingAgentMemory(agentKey: string) {
     mutationFn: (data: ApiAgentMemoryCreateRequest) => createTradingAgentMemory(agentKey, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.memories(agentKey) })
-      message.success('记忆已沉淀，将在次日计划生成时注入')
+      message.success('经验已沉淀，将在次日计划生成时注入')
     },
     onError: (error: Error) => message.error(error.message),
   })
@@ -241,7 +242,20 @@ export function useUpdateTradingAgentMemory(agentKey: string) {
       updateTradingAgentMemory(agentKey, memoryId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.memories(agentKey) })
-      message.success('记忆已保存')
+      message.success('经验已保存')
+    },
+    onError: (error: Error) => message.error(error.message),
+  })
+}
+
+/** 删除记忆（物理删除；复盘沉淀条目若同标题经验再现会重新生成）。 */
+export function useDeleteTradingAgentMemory(agentKey: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (memoryId: number) => deleteTradingAgentMemory(agentKey, memoryId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.memories(agentKey) })
+      message.success('经验已删除')
     },
     onError: (error: Error) => message.error(error.message),
   })
@@ -255,7 +269,7 @@ export function useUpdateTradingAgentMemoryStatus(agentKey: string) {
       updateTradingAgentMemoryStatus(agentKey, memoryId, status),
     onSuccess: (_, vars) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.memories(agentKey) })
-      message.success(vars.status === 'active' ? '记忆已启用' : '记忆已停用，次日不再注入')
+      message.success(vars.status === 'active' ? '经验已启用' : '经验已停用，次日不再注入')
     },
     onError: (error: Error) => message.error(error.message),
   })

@@ -136,6 +136,21 @@ async def update_memory(
     return row
 
 
+async def delete_memory(
+    session: AsyncSession, agent_key: str, *, memory_id: int
+) -> None:
+    """物理删除一条记忆（管理面手动清理；复盘同标题经验下次沉淀会重新生成）。
+
+    Raises:
+        NotFoundError: 记忆不存在
+    """
+    row = await session.get(AgentMemory, memory_id)
+    if row is None or row.agent_key != agent_key:
+        raise NotFoundError(f"记忆 {memory_id} 不存在")
+    await session.delete(row)
+    await session.commit()
+
+
 async def update_memory_status(
     session: AsyncSession, agent_key: str, *, memory_id: int, status: str
 ) -> AgentMemory:

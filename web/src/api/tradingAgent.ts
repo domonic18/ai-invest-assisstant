@@ -204,6 +204,14 @@ export async function updateTradingAgentMemory(
   return response.data
 }
 
+/** 删除记忆（物理删除；复盘同标题经验下次沉淀会重新生成）。 */
+export async function deleteTradingAgentMemory(
+  agentKey: string,
+  memoryId: number,
+): Promise<void> {
+  await apiClient.delete(ENDPOINTS.admin.tradingAgentMemory(agentKey, memoryId))
+}
+
 /** 切换记忆 active/archived（停用后次日计划 prompt 不再注入）。 */
 export async function updateTradingAgentMemoryStatus(
   agentKey: string,
