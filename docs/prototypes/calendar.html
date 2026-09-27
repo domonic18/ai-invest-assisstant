@@ -354,19 +354,16 @@ tr:hover td { background: var(--bg-hover); }
 </div>
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
-<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="#"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
+<div class="sidebar-section-title">检测</div>
 <a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
-<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
-<a class="sidebar-item" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
-<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>异动检测</span></a>
 <a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
-<a class="sidebar-item active" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
-<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
-<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
@@ -375,7 +372,14 @@ tr:hover td { background: var(--bg-hover); }
 <div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
 </aside>
 <div class="app-main">
-<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
+<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right">
+        <button class="header-btn" title="知识库">📚</button>
+        <button class="header-btn" title="AI 选股">🔽</button>
+        <button class="header-btn" title="AI 助手">💬</button>
+        <button class="header-btn" title="投资日历">📅</button>
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><div class="sidebar-avatar" style="width:26px;height:26px;font-size:11px">U</div><span>用户</span>▾</div>
+      </div>
+    </header>
 <div class="app-content">
 <h1 class="page-title">投资日历</h1>
 <div class="cal-sub">2026-09-02 周三 · 数据来源：财联社日历 + Fed/BLS 固定日程 · <span class="cal-star">★</span> = 关联标的在自选股中</div>
@@ -398,7 +402,7 @@ tr:hover td { background: var(--bg-hover); }
 <!-- 分类筛选 -->
 <div class="grp-chips">
 <span class="grp-chip active" data-cat="all">全部 <b>10</b></span>
-<span class="grp-chip" data-cat="macro">宏观数据 <b>4</b></span>
+<span class="grp-chip" data-cat="macro">宏观 <b>4</b></span>
 <span class="grp-chip" data-cat="central">央行动态 <b>2</b></span>
 <span class="grp-chip" data-cat="ipo">新股 <b>1</b></span>
 <span class="grp-chip" data-cat="unlock">解禁 <b>1</b></span>
@@ -473,12 +477,12 @@ tr:hover td { background: var(--bg-hover); }
 <table>
 <thead><tr><th>日期 / 时间</th><th>事件</th><th>分类</th><th>影响市场</th><th>关联标的</th><th>来源</th></tr></thead>
 <tbody>
-<tr data-cat="macro"><td class="text-mono">09-02 22:00</td><td>美国 8 月 ISM 制造业 PMI</td><td><span class="tag tag-blue">宏观数据</span></td><td>美国 · 全球</td><td>—</td><td>财联社日历</td></tr>
+<tr data-cat="macro"><td class="text-mono">09-02 22:00</td><td>美国 8 月 ISM 制造业 PMI</td><td><span class="tag tag-blue">宏观</span></td><td>美国 · 全球</td><td>—</td><td>财联社日历</td></tr>
 <tr data-cat="ipo"><td class="text-mono">09-03</td><td>华卓精科 科创板申购</td><td><span class="tag tag-green">新股</span></td><td>A股</td><td>—</td><td>财联社日历</td></tr>
-<tr data-cat="macro"><td class="text-mono">09-04 20:30</td><td>美国 8 月非农就业报告（NFP）</td><td><span class="tag tag-blue">宏观数据</span></td><td>美国 · 全球</td><td>—</td><td>固定日程（BLS）</td></tr>
+<tr data-cat="macro"><td class="text-mono">09-04 20:30</td><td>美国 8 月非农就业报告（NFP）</td><td><span class="tag tag-blue">宏观</span></td><td>美国 · 全球</td><td>—</td><td>固定日程（BLS）</td></tr>
 <tr data-cat="unlock"><td class="text-mono">09-09</td><td>宁德时代 4.2 亿股限售解禁 <span class="cal-star">★自选相关</span></td><td><span class="tag tag-amber">解禁</span></td><td>A股</td><td>宁德时代 300750（自选）</td><td>财联社日历</td></tr>
-<tr data-cat="macro"><td class="text-mono">09-11 09:30</td><td>中国 8 月 CPI / PPI</td><td><span class="tag tag-blue">宏观数据</span></td><td>中国</td><td>—</td><td>固定日程（统计局）</td></tr>
-<tr data-cat="macro"><td class="text-mono">09-15 09:30</td><td>中国 8 月社零 / 规模以上工业增加值</td><td><span class="tag tag-blue">宏观数据</span></td><td>中国</td><td>—</td><td>固定日程（统计局）</td></tr>
+<tr data-cat="macro"><td class="text-mono">09-11 09:30</td><td>中国 8 月 CPI / PPI</td><td><span class="tag tag-blue">宏观</span></td><td>中国</td><td>—</td><td>固定日程（统计局）</td></tr>
+<tr data-cat="macro"><td class="text-mono">09-15 09:30</td><td>中国 8 月社零 / 规模以上工业增加值</td><td><span class="tag tag-blue">宏观</span></td><td>中国</td><td>—</td><td>固定日程（统计局）</td></tr>
 <tr data-cat="central"><td class="text-mono">09-15 ~ 09-16</td><td>美联储 FOMC 议息会议（两日）</td><td><span class="tag tag-purple">央行动态</span></td><td>全球</td><td>—</td><td>固定日程（Fed）</td></tr>
 <tr data-cat="earn"><td class="text-mono">09-17 盘后</td><td>博通 2026 财年 Q3 财报</td><td><span class="tag tag-red">财报</span></td><td>美股</td><td>—</td><td>财联社日历</td></tr>
 <tr data-cat="meet"><td class="text-mono">09-25</td><td>贵州茅台 2026 年第一次临时股东大会</td><td><span class="tag">会议</span></td><td>A股</td><td>贵州茅台 600519</td><td>财联社日历</td></tr>
@@ -492,7 +496,7 @@ tr:hover td { background: var(--bg-hover); }
 
 <!-- 事件详情面板 -->
 <div class="card">
-<div class="card-header"><span class="card-title">事件详情</span><span style="font-size:11px;color:var(--text-tertiary)">09-02 · 今天</span></div>
+<div class="card-header"><span class="card-title">事件详情</span><span style="font-size:11px;color:var(--text-tertiary)">09-02 周三 · 今天</span></div>
 <div class="card-body" id="evt-detail"></div>
 </div>
 
@@ -501,7 +505,7 @@ tr:hover td { background: var(--bg-hover); }
 <div class="card-header"><span class="card-title">数据说明</span></div>
 <div class="card-body note-sm">
 事件由采集任务每日增量写入：<code>calendar_event</code> 表，财联社日历 + Fed/BLS 固定日程两路来源，按 <code>source_hash</code> 幂等去重。<br>
-分类：宏观数据 / 央行动态 / 新股 / 解禁 / 财报 / 会议；<span class="cal-star">★</span> 标记表示事件关联标的命中自选股，工作台日历摘要卡仅展示近 7 日事件。
+分类：宏观 / 央行动态 / 新股 / 解禁 / 财报 / 会议；<span class="cal-star">★</span> 标记表示事件关联标的命中自选股，工作台日历摘要卡仅展示近 7 日事件。
 </div>
 </div>
 
@@ -513,12 +517,12 @@ tr:hover td { background: var(--bg-hover); }
 </div>
 <script>
 var DETAILS={
-'2':{t:'美国 8 月 ISM 制造业 PMI',time:'2026-09-02（周三）22:00',tags:'<span class="tag tag-blue">宏观数据</span>',mkt:'美国 · 全球',rel:'—',src:'财联社日历',hash:'cls:evt-20260902-ism',desc:'市场预期 48.9，前值 48.0。若重回扩张或显著回升，将强化美国经济软着陆预期，利好风险资产与出口链。'},
+'2':{t:'美国 8 月 ISM 制造业 PMI',time:'2026-09-02（周三）22:00',tags:'<span class="tag tag-blue">宏观</span>',mkt:'美国 · 全球',rel:'—',src:'财联社日历',hash:'cls:evt-20260902-ism',desc:'市场预期 48.9，前值 48.0。若重回扩张或显著回升，将强化美国经济软着陆预期，利好风险资产与出口链。'},
 '3':{t:'华卓精科 科创板申购',time:'2026-09-03（周四）申购日',tags:'<span class="tag tag-green">新股</span>',mkt:'A股',rel:'—',src:'财联社日历',hash:'cls:evt-20260903-ipo',desc:'半导体超声键合设备供应商，科创板 IPO 申购。关注首日涨幅对半导体设备板块情绪的映射。'},
-'4':{t:'美国 8 月非农就业报告（NFP）',time:'2026-09-04（周五）20:30（北京时间）',tags:'<span class="tag tag-blue">宏观数据</span>',mkt:'美国 · 全球',rel:'—',src:'固定日程（BLS）',hash:'bls:nfp-2026-09',desc:'非农与失业率、时薪增速联合定价 9 月 FOMC 降息概率，是本月最重要的宏观数据节点。'},
+'4':{t:'美国 8 月非农就业报告（NFP）',time:'2026-09-04（周五）20:30（北京时间）',tags:'<span class="tag tag-blue">宏观</span>',mkt:'美国 · 全球',rel:'—',src:'固定日程（BLS）',hash:'bls:nfp-2026-09',desc:'非农与失业率、时薪增速联合定价 9 月 FOMC 降息概率，是本月最重要的宏观数据节点。'},
 '9':{t:'宁德时代 4.2 亿股限售解禁',time:'2026-09-09（周三）开盘生效',tags:'<span class="tag tag-amber">解禁</span>',mkt:'A股',rel:'宁德时代 300750（自选）',src:'财联社日历',hash:'cls:evt-20260909-300750',desc:'本次解禁占总股本约 0.95%，解禁市值约 938 亿元。<span class="cal-star">★</span> 关联标的命中自选股，自选分组 AI 复盘会在事件前后提示承接压力。'},
-'11':{t:'中国 8 月 CPI / PPI',time:'2026-09-11（周五）09:30',tags:'<span class="tag tag-blue">宏观数据</span>',mkt:'中国',rel:'—',src:'固定日程（统计局）',hash:'stats:cpi-2026-08',desc:'关注 PPI 同比降幅是否收敛：若上游价格修复，利好资源与顺周期板块。'},
-'15':{t:'美联储 FOMC 议息会议（第 1 日）+ 中国 8 月经济数据',time:'2026-09-15（周二）',tags:'<span class="tag tag-purple">央行动态</span> <span class="tag tag-blue">宏观数据</span>',mkt:'全球',rel:'—',src:'固定日程（Fed / 统计局）',hash:'fed:fomc-2026-09;stats:pm-2026-08',desc:'社零与工业增加值定调内需成色；FOMC 首日无决议，关注市场对 9 月点阵图的博弈。'},
+'11':{t:'中国 8 月 CPI / PPI',time:'2026-09-11（周五）09:30',tags:'<span class="tag tag-blue">宏观</span>',mkt:'中国',rel:'—',src:'固定日程（统计局）',hash:'stats:cpi-2026-08',desc:'关注 PPI 同比降幅是否收敛：若上游价格修复，利好资源与顺周期板块。'},
+'15':{t:'美联储 FOMC 议息会议（第 1 日）+ 中国 8 月经济数据',time:'2026-09-15（周二）',tags:'<span class="tag tag-purple">央行动态</span> <span class="tag tag-blue">宏观</span>',mkt:'全球',rel:'—',src:'固定日程（Fed / 统计局）',hash:'fed:fomc-2026-09;stats:pm-2026-08',desc:'社零与工业增加值定调内需成色；FOMC 首日无决议，关注市场对 9 月点阵图的博弈。'},
 '16':{t:'美联储 FOMC 利率决议',time:'2026-09-16（周三）02:00（北京时间）',tags:'<span class="tag tag-purple">央行动态</span>',mkt:'全球',rel:'—',src:'固定日程（Fed）',hash:'fed:fomc-2026-09',desc:'决议声明 + 经济预测摘要 + 点阵图；02:30 鲍威尔新闻发布会。决议公布前后全球风险资产波动放大。'},
 '17':{t:'博通 2026 财年 Q3 财报',time:'2026-09-17（周四）美股盘后',tags:'<span class="tag tag-red">财报</span>',mkt:'美股',rel:'—',src:'财联社日历',hash:'cls:evt-20260917-avgo',desc:'AI ASIC 与网络芯片指引是核心变量，直接影响 A 股算力硬件链（光模块/PCB）次日开盘情绪。'},
 '25':{t:'贵州茅台 2026 年第一次临时股东大会',time:'2026-09-25（周五）',tags:'<span class="tag">会议</span>',mkt:'A股',rel:'贵州茅台 600519',src:'财联社日历',hash:'cls:evt-20260925-600519',desc:'关注分红与渠道政策相关议案的表决结果。'}
@@ -531,7 +535,7 @@ document.getElementById('evt-detail').innerHTML=
 '<div class="detail-row"><span class="detail-key">事件时间</span><span class="detail-val">'+d.time+'</span></div>'+
 '<div class="detail-row"><span class="detail-key">影响市场</span><span class="detail-val">'+d.mkt+'</span></div>'+
 '<div class="detail-row"><span class="detail-key">关联标的</span><span class="detail-val">'+d.rel+'</span></div>'+
-'<div class="detail-row"><span class="detail-key">数据来源</span><span class="detail-val">'+d.src+'</span></div>'+
+'<div class="detail-row"><span class="detail-key">来源</span><span class="detail-val">'+d.src+'</span></div>'+
 '<div class="detail-row"><span class="detail-key">source_hash</span><span class="detail-val" style="font-family:var(--font-mono);font-size:11px">'+d.hash+'</span></div>'+
 '<div class="detail-desc">'+d.desc+'</div>';
 }

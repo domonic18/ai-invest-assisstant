@@ -2,17 +2,15 @@ import { useQueryClient } from '@tanstack/react-query'
 import { message } from 'antd'
 import { useEffect, useState } from 'react'
 
-import type { PageEventType } from '@ai-invest/shared'
-
 import { queryKeys } from '@/hooks/queryKeys'
 import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
-import { useAssistantStore } from '@/stores/assistant'
+import { useAssistantStore, type PageAssistantResult } from '@/stores/assistant'
 
 /**
  * 异动页 AI 归因触发的公共状态：订阅归因完成事件刷新榜单，
  * 侧边栏关闭（含 agent 中途被放弃）时复位进行中态。
  */
-export function useAnomalyAttribution(eventType: PageEventType) {
+export function useAnomalyAttribution(eventType: PageAssistantResult['type']) {
   const queryClient = useQueryClient()
   const [generating, setGenerating] = useState(false)
   const panelOpen = useAssistantStore((s) => s.open)

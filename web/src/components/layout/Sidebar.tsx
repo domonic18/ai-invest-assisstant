@@ -12,6 +12,8 @@ import {
   GlobalOutlined,
   HeatMapOutlined,
   MenuFoldOutlined,
+  MessageOutlined,
+  MoneyCollectOutlined,
   MenuUnfoldOutlined,
   PieChartOutlined,
   PlayCircleOutlined,
@@ -50,7 +52,7 @@ const DETECTION_MENU_ITEMS: MenuItem[] = [
   { key: '/capital-flow', icon: <FundOutlined />, label: '资金流向' },
   { key: '/auction-review', icon: <ShopOutlined />, label: '集合竞价' },
   // 板块/个股异动合并为双 tab 页，page_event 跳转直达 /anomaly/sector|stock
-  { key: '/anomaly', icon: <AlertOutlined />, label: '异动检测' },
+  { key: '/anomaly', icon: <AlertOutlined />, label: '异动监测' },
   // 迭代 3：电报视图迁入资讯中心 /news（渠道监控 + AI 分级 + 三视图）
   { key: '/news', icon: <ThunderboltOutlined />, label: '资讯中心' },
 ]
@@ -67,11 +69,13 @@ const ADMIN_MENU_ITEMS: MenuItem[] = [
   { key: '/admin/stocks', icon: <BarChartOutlined />, label: '股票管理' },
   { key: '/admin/reports', icon: <FileTextOutlined />, label: '报告管理' },
   { key: '/admin/news', icon: <ReadOutlined />, label: '资讯管理' },
-  { key: '/admin/llm-configs', icon: <RobotOutlined />, label: 'LLM 配置' },
+  { key: '/admin/model-configs', icon: <RobotOutlined />, label: '模型配置' },
   { key: '/admin/knowledge-base', icon: <DatabaseOutlined />, label: '知识库' },
   { key: '/admin/proxy-configs', icon: <CloudServerOutlined />, label: '代理配置' },
   { key: '/admin/ai-results', icon: <FileDoneOutlined />, label: '分析结果' },
   { key: '/admin/collector', icon: <PlayCircleOutlined />, label: '采集管理' },
+  // 会话管理（D35）：交易 Agent 自动化任务执行轨迹（输入/KB/LLM/落库全过程）
+  { key: '/admin/agent-runs', icon: <MessageOutlined />, label: '会话管理' },
   { key: '/admin/social-tracking', icon: <WeiboOutlined />, label: '社媒追踪' },
 ]
 
@@ -174,7 +178,13 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
   const items: MenuItem[] = [
     { key: '/workbench', icon: <AppstoreOutlined />, label: '工作台' },
     { key: '/watchlist', icon: <StarOutlined />, label: '我的自选' },
-    { type: 'group', key: 'group-detection', label: '检测', children: DETECTION_MENU_ITEMS },
+    // 模拟交易：掘金仿真账户（多租户配置 + 人工交易；agent 交易后续批次接入）
+    { key: '/paper-trade', icon: <MoneyCollectOutlined />, label: '模拟交易' },
+    // 智体中枢：交易 Agent 闭环（仅 admin 可见，路由侧 ProtectedAdmin 双保险）
+    ...(isAdmin
+      ? [{ key: '/trading-agent', icon: <ThunderboltOutlined />, label: '智体中枢' } as MenuItem]
+      : []),
+    { type: 'group', key: 'group-detection', label: '监测', children: DETECTION_MENU_ITEMS },
     { type: 'group', key: 'group-analysis', label: '分析', children: ANALYSIS_MENU_ITEMS },
     { type: 'group', key: 'group-settings', label: '设置', children: settingsChildren },
   ]

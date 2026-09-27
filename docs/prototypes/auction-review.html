@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Invest Assistant — 集合竞价复盘</title>
+<title>AI Invest Assistant — 集合竞价</title>
 <style>
 /* ======================================================
    AI Invest Assistant — Design System
@@ -332,19 +332,16 @@ tr:hover td { background: var(--bg-hover); }
 
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
-<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="#"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
+<div class="sidebar-section-title">检测</div>
 <a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
-<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
-<a class="sidebar-item" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
 <a class="sidebar-item active" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
-<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>异动检测</span></a>
 <a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
-<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
-<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
-<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
@@ -353,18 +350,26 @@ tr:hover td { background: var(--bg-hover); }
 <div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
 </aside>
 <div class="app-main">
-<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
+<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right">
+        <button class="header-btn" title="知识库">📚</button>
+        <button class="header-btn" title="AI 选股">🔽</button>
+        <button class="header-btn" title="AI 助手">💬</button>
+        <button class="header-btn" title="投资日历">📅</button>
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><div class="sidebar-avatar" style="width:26px;height:26px;font-size:11px">U</div><span>用户</span>▾</div>
+      </div>
+    </header>
 <div class="app-content">
-<h1 class="page-title">集合竞价复盘</h1>
+<h1 class="page-title">集合竞价</h1>
 
 <!-- Date Range Selector -->
 <div class="date-range-bar">
 <span style="font-size:var(--text-sm);color:var(--text-secondary);font-weight:500">时间范围:</span>
 <div class="date-preset">
-<button class="date-preset-btn active">近 5 日</button>
-<button class="date-preset-btn">近 10 日</button>
-<button class="date-preset-btn">近 20 日</button>
-<button class="date-preset-btn">近 60 日</button>
+<button class="date-preset-btn active">近 5 个交易日</button>
+<button class="date-preset-btn">近 10 个交易日</button>
+<button class="date-preset-btn">近 20 个交易日</button>
+<button class="date-preset-btn">近 60 个交易日</button>
+<button class="date-preset-btn">近 120 个交易日</button>
 </div>
 <input type="date" class="form-input" style="width:130px;font-size:var(--text-xs)" value="2026-06-25">
 <span style="color:var(--text-tertiary)">至</span>
@@ -375,9 +380,9 @@ tr:hover td { background: var(--bg-hover); }
 
 <!-- Summary Stats -->
 <div class="auction-summary-grid">
-<div class="auction-summary-card"><div class="auc-sum-label">统计交易日数</div><div class="auc-sum-value">5</div><div class="auc-sum-sub">2026-06-28 — 07-04</div></div>
-<div class="auction-summary-card"><div class="auc-sum-label">放量竞价日</div><div class="auc-sum-value" style="color:var(--red)">2</div><div class="auc-sum-sub">量比 > 1.5</div></div>
-<div class="auction-summary-card"><div class="auc-sum-label">缩量竞价日</div><div class="auc-sum-value" style="color:var(--green)">2</div><div class="auc-sum-sub">量比 < 0.8</div></div>
+<div class="auction-summary-card"><div class="auc-sum-label">交易日数</div><div class="auc-sum-value">5</div><div class="auc-sum-sub">查询区间内有竞价数据</div></div>
+<div class="auction-summary-card"><div class="auc-sum-label">放量日</div><div class="auc-sum-value" style="color:var(--red)">2</div><div class="auc-sum-sub">量比 ≥ 1.2</div></div>
+<div class="auction-summary-card"><div class="auc-sum-label">缩量日</div><div class="auc-sum-value" style="color:var(--green)">1</div><div class="auc-sum-sub">量比 ≤ 0.8</div></div>
 <div class="auction-summary-card"><div class="auc-sum-label">尾段异动日</div><div class="auc-sum-value" style="color:var(--amber)">1</div><div class="auc-sum-sub">9:20后价格大幅波动</div></div>
 <div class="auction-summary-card"><div class="auc-sum-label">竞价量能异动个股</div><div class="auc-sum-value">12</div><div class="auc-sum-sub">5日累计</div></div>
 </div>
@@ -411,20 +416,44 @@ tr:hover td { background: var(--bg-hover); }
 </div>
 </div>
 
+<!-- Index Auction Turnover Chart（已实现：指数 9:25 竞价成交额趋势） -->
+<div class="card mb-6">
+<div class="card-header"><span class="card-title">指数集合竞价成交额</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">单位：亿元 · 按 9:25 撮合口径按日统计</span></div>
+<div class="card-body">
+<div class="auc-chart-area">
+<svg width="100%" height="280" style="position:absolute;top:0;left:0">
+<line x1="50" y1="260" x2="50" y2="20" stroke="var(--border)" stroke-width="1"/>
+<line x1="50" y1="260" x2="680" y2="260" stroke="var(--border)" stroke-width="1"/>
+<polyline points="50,120 145,128 240,110 335,138 430,100 525,92 620,84" fill="none" stroke="#ED7D31" stroke-width="2" opacity="0.9"/>
+<polyline points="50,185 145,180 240,192 335,172 430,162 525,152 620,144" fill="none" stroke="#4472C4" stroke-width="2" opacity="0.9"/>
+<polyline points="50,152 145,160 240,146 335,168 430,138 525,130 620,120" fill="none" stroke="#70AD47" stroke-width="2" opacity="0.9"/>
+<text x="50" y="275" font-size="11" fill="var(--text-secondary)">06-30</text>
+<text x="620" y="275" font-size="11" fill="var(--text-secondary)">07-04</text>
+</svg>
+</div>
+<div class="auc-chart-legend">
+<div class="auc-chart-legend-item"><span class="auc-chart-legend-dot" style="background:#ED7D31"></span>上证指数</div>
+<div class="auc-chart-legend-item"><span class="auc-chart-legend-dot" style="background:#4472C4"></span>科创50</div>
+<div class="auc-chart-legend-item"><span class="auc-chart-legend-dot" style="background:#70AD47"></span>创业板指</div>
+</div>
+<div style="text-align:center;font-size:var(--text-xs);color:var(--text-tertiary);margin-top:var(--space-2)">指数 9:25 集合竞价成交额由 tushare stk_auction 聚合成分股 9:25 撮合数据计算</div>
+</div>
+</div>
+
 <!-- Auction Stats Table -->
 <div class="grid-2 mb-6">
 <div class="card">
-<div class="card-header"><span class="card-title">各交易日竞价统计</span></div>
+<div class="card-header"><span class="card-title">各交易日竞价统计</span><span style="font-size:var(--text-xs);color:var(--text-tertiary)">量比 = 当日合计 / 前 5 日合计均值</span></div>
 <div class="card-body-sm">
 <div class="table-wrap">
 <table class="compact-table">
-<thead><tr><th>日期</th><th>竞价开盘价</th><th>前收价</th><th>竞价量(万手)</th><th>量比</th><th>特征</th></tr></thead>
+<thead><tr><th>日期</th><th>上证指数</th><th>科创50</th><th>创业板指</th><th>合计</th><th>量比</th><th>特征</th></tr></thead>
 <tbody>
-<tr><td>07-04 (五)</td><td class="text-mono">3,354.28</td><td class="text-mono">3,335.12</td><td>1,248</td><td style="color:var(--red);font-weight:500">1.82</td><td><span class="tag-outline high-vol">放量竞价</span></td></tr>
-<tr><td>07-03 (四)</td><td class="text-mono">3,330.80</td><td class="text-mono">3,325.46</td><td>892</td><td>1.05</td><td><span class="tag-outline steady">平稳竞价</span></td></tr>
-<tr><td>07-02 (三)</td><td class="text-mono">3,318.45</td><td class="text-mono">3,340.12</td><td>752</td><td style="color:var(--green)">0.72</td><td><span class="tag-outline low-vol">缩量竞价</span></td></tr>
-<tr><td>07-01 (二)</td><td class="text-mono">3,345.60</td><td class="text-mono">3,328.90</td><td>1,156</td><td style="color:var(--red);font-weight:500">1.65</td><td><span class="tag-outline high-vol">放量竞价</span></td></tr>
-<tr><td>06-30 (一)</td><td class="text-mono">3,342.15</td><td class="text-mono">3,346.28</td><td>986</td><td>0.95</td><td><span class="tag-outline tail-move">尾段异动</span></td></tr>
+<tr><td>07-04 (五)</td><td class="text-mono">28.46</td><td class="text-mono">8.72</td><td class="text-mono">15.33</td><td class="text-mono">52.51</td><td style="color:var(--red);font-weight:500">1.82</td><td><span class="tag-outline high-vol">放量</span></td></tr>
+<tr><td>07-03 (四)</td><td class="text-mono">24.18</td><td class="text-mono">7.05</td><td class="text-mono">12.86</td><td class="text-mono">44.09</td><td>1.05</td><td><span class="tag-outline steady">常态</span></td></tr>
+<tr><td>07-02 (三)</td><td class="text-mono">21.65</td><td class="text-mono">6.34</td><td class="text-mono">11.42</td><td class="text-mono">39.41</td><td style="color:var(--green)">0.72</td><td><span class="tag-outline low-vol">缩量</span></td></tr>
+<tr><td>07-01 (二)</td><td class="text-mono">26.02</td><td class="text-mono">7.58</td><td class="text-mono">13.75</td><td class="text-mono">47.35</td><td style="color:var(--red);font-weight:500">1.65</td><td><span class="tag-outline high-vol">放量</span></td></tr>
+<tr><td>06-30 (一)</td><td class="text-mono">23.44</td><td class="text-mono">6.81</td><td class="text-mono">12.07</td><td class="text-mono">42.32</td><td>0.95</td><td><span class="tag-outline steady">常态</span></td></tr>
 </tbody>
 </table>
 </div>

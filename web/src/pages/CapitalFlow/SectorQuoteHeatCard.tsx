@@ -30,6 +30,7 @@ export function SectorQuoteHeatCard({ sectorType }: { sectorType: SectorType }) 
   return (
     <Card
       variant="borderless"
+      className="[&_.ant-card-head-wrapper]:flex-wrap [&_.ant-card-head-wrapper]:gap-y-1 [&_.ant-card-head-title]:whitespace-normal"
       title={`板块指数表现${data?.tradeDate ? `（${data.tradeDate}）` : ''}`}
       extra={
         <Segmented

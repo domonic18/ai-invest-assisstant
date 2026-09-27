@@ -2,6 +2,7 @@
 
 import re
 from datetime import date, datetime, time
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 _AMOUNT_UNITS = {
@@ -48,6 +49,17 @@ def to_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def to_decimal(value: Any) -> Decimal | None:
+    """容错转 Decimal（金额列需要精确保留），无法解析或 NaN 返回 None。"""
+    if value is None or is_nan(value):
+        return None
+    try:
+        number = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    return None if number != number else number  # noqa: PLR0124
 
 
 def parse_cn_amount(value: Any) -> float | None:

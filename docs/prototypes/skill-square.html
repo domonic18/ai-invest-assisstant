@@ -223,14 +223,13 @@ a{color:var(--accent);text-decoration:none}
 
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
-<a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
-<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="#"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
+<div class="sidebar-section-title">检测</div>
 <a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
-<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
-<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>异动检测</span></a>
 <a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
-<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
@@ -246,8 +245,10 @@ a{color:var(--accent);text-decoration:none}
     <header class="app-header">
       <div class="header-search">🔍<span>搜索股票代码 / 名称（进入个股详情）</span></div>
       <div style="display:flex;align-items:center;gap:8px">
-        <button class="header-btn" title="我的自选">★</button>
+        <button class="header-btn" title="知识库">📚</button>
+        <button class="header-btn" title="AI 选股">🔽</button>
         <button class="header-btn" title="AI 助手">💬</button>
+        <button class="header-btn" title="投资日历">📅</button>
         <div style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><div class="sidebar-avatar" style="width:26px;height:26px;font-size:11px">D</div><span>Domonic</span>▾</div>
       </div>
     </header>
@@ -394,13 +395,13 @@ a{color:var(--accent);text-decoration:none}
           <div class="mine-hint">自定义技能是配置（提示词契约），不是代码；发布后对其他用户可见可安装</div>
           <div class="mine-grid" style="margin-bottom:24px">
             <a class="mine-card" href="#p-detail">
-              <div class="sk-title-row"><span class="sk-title">竞价异动早盘策略</span><span class="tag tag-green">已发布</span></div>
+              <div class="sk-title-row"><span class="sk-title">竞价异动早盘策略</span><span class="tag">已发布</span></div>
               <div class="sk-badges"><span class="tag tag-purple">自定义技能</span><span class="tag">自定义</span></div>
               <div class="sk-desc">集合竞价量价异动 + 昨日涨停表现，推演早盘关注池与回避清单。</div>
               <div class="sk-foot"><button class="btn btn-ghost btn-sm">编辑</button></div>
             </a>
             <a class="mine-card" href="#p-detail">
-              <div class="sk-title-row"><span class="sk-title">北向资金风格跟踪</span><span class="tag tag-amber">草稿</span></div>
+              <div class="sk-title-row"><span class="sk-title">北向资金风格跟踪</span><span class="tag">草稿</span></div>
               <div class="sk-badges"><span class="tag tag-purple">自定义技能</span><span class="tag">自定义</span></div>
               <div class="sk-desc">按周汇总北向净买入行业分布变化，标注风格切换信号（编写中，仅自己可见）。</div>
               <div class="sk-foot"><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-primary btn-sm">发布</button></div>
@@ -608,7 +609,7 @@ description: 集合竞价量价异动与昨日涨停表现分析框架
     <div class="form-group">
       <label class="form-label">User Prompt 模板 <span class="opt">可选</span></label>
       <textarea class="form-textarea" rows="4">请分析 {trade_date} 的集合竞价情况：\n- 竞价成交额异动板块：{sectors}\n- 昨日涨停今日竞价表现：{limit_up_pool}</textarea>
-      <div class="form-hint">支持 {"{placeholder}"} 占位符，调用时替换；留空则直接透传用户问题。</div>
+      <div class="form-hint">支持 {"{stock_code}"}、{"{trade_date}"} 等占位符，执行时以实际值替换</div>
     </div>
   </div>
   <div class="drawer-foot">
@@ -682,7 +683,7 @@ document.querySelectorAll('#skGrid .sk-install').forEach(function (btn) {
     btn.remove();
     var ok = document.createElement('span');
     ok.className = 'installed-tag';
-    ok.textContent = '✓ 已安装';
+    ok.textContent = '已安装';
     foot.appendChild(ok);
   });
 });

@@ -198,38 +198,6 @@ export interface ApiSocialStatus {
   signer: ApiSignerStatus
 }
 
-/** ASR 渠道配置 masked 视图（密钥只回脱敏串）。 */
-export interface ApiAsrConfig {
-  provider: string
-  baseUrl: string
-  model: string
-  apiKeyMasked: string | null
-  apiKeyConfigured: boolean
-  maxAudioSeconds: number
-  hotwords: string[]
-  enabled: boolean
-  updatedAt: string
-}
-
-/** 更新 ASR 配置（apiKey write-only：留空保留原值）。 */
-export interface ApiAsrConfigUpdateRequest {
-  provider?: string
-  baseUrl?: string
-  model?: string
-  apiKey?: string
-  maxAudioSeconds?: number
-  hotwords?: string[]
-  enabled?: boolean
-}
-
-/** ASR 连接测试结果。 */
-export interface ApiAsrConfigTestResult {
-  ok: boolean
-  latencyMs: number
-  text: string | null
-  error: string | null
-}
-
 /** 手动导入抖音 Cookie（ttwid 必需）。 */
 export interface ApiSocialCookieImportRequest {
   cookie: string

@@ -1,4 +1,4 @@
-"""社媒情绪 API 端点契约测试（用户三端点 + 管理端 CRUD/status/ASR 配置/signer 状态）。"""
+"""社媒情绪 API 端点契约测试（用户三端点 + 管理端 CRUD/status/signer 状态）。"""
 
 from contextlib import contextmanager
 from datetime import datetime
@@ -14,8 +14,6 @@ from app.core.exceptions import BadRequestError, ConflictError
 from app.dependencies import get_current_admin_user, get_db
 from app.main import app
 from app.schemas.social import (
-    AsrConfigResponse,
-    AsrConfigTestResponse,
     SocialAccountCardResponse,
     SocialAccountsResponse,
     SocialFeedItemResponse,
@@ -418,7 +416,7 @@ class TestAdminStatusEndpoint:
                 AsyncMock(return_value={"ok": 5, "missing": 2, "pending": 3}),
             ),
             patch(
-                "app.services.social.asr_config_service.get_or_create_config",
+                "app.services.admin.asr_config_service.get_or_create_config",
                 AsyncMock(return_value=self._patch_status_side()),
             ),
         ):
@@ -457,7 +455,7 @@ class TestAdminStatusEndpoint:
                 AsyncMock(return_value={"ok": 0, "missing": 0}),
             ),
             patch(
-                "app.services.social.asr_config_service.get_or_create_config",
+                "app.services.admin.asr_config_service.get_or_create_config",
                 AsyncMock(
                     return_value=SimpleNamespace(
                         enabled=False, api_key_encrypted=None
@@ -494,7 +492,7 @@ def _status_aggregates(mock_session: AsyncMock):
             AsyncMock(return_value={"ok": 0, "missing": 0}),
         ),
         patch(
-            "app.services.social.asr_config_service.get_or_create_config",
+            "app.services.admin.asr_config_service.get_or_create_config",
             AsyncMock(
                 return_value=SimpleNamespace(enabled=False, api_key_encrypted=None)
             ),
@@ -617,73 +615,3 @@ class TestAdminCookieEndpoint:
             )
         assert response.status_code == 400
         assert "ttwid" in response.json()["detail"]
-
-
-@pytest.mark.unit
-class TestAdminAsrConfigEndpoints:
-    def _asr_config_response(self) -> AsrConfigResponse:
-        return AsrConfigResponse(
-            provider="minimax",
-            base_url="https://api.minimaxi.com",
-            model="asr-1.0",
-            api_key_masked="sk-1****abcd",
-            api_key_configured=True,
-            max_audio_seconds=600,
-            hotwords=["美联储"],
-            enabled=True,
-            updated_at=_NOW,
-        )
-
-    def test_get_asr_config_masked(self, admin_client) -> None:
-        client, mock_session = admin_client
-        config = SimpleNamespace(
-            provider="minimax",
-            base_url="https://api.minimaxi.com",
-            model="asr-1.0",
-            api_key_encrypted="enc",
-            api_key_masked="sk-1****abcd",
-            max_audio_seconds=600,
-            hotwords=["美联储"],
-            enabled=True,
-            updated_at=_NOW,
-        )
-        with patch(
-            "app.services.social.asr_config_service.get_or_create_config",
-            AsyncMock(return_value=config),
-        ):
-            response = client.get("/api/v1/admin/social/asr-config")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["apiKeyConfigured"] is True
-        assert data["apiKeyMasked"] == "sk-1****abcd"
-        assert "apiKey" not in data
-
-    def test_update_asr_config_passes_actor(self, admin_client) -> None:
-        client, mock_session = admin_client
-        mock_update = AsyncMock(return_value=self._asr_config_response())
-        with patch(
-            "app.services.social.asr_config_service.update_config", mock_update
-        ):
-            response = client.put(
-                "/api/v1/admin/social/asr-config",
-                json={"model": "asr-1.0", "apiKey": "sk-new", "enabled": True},
-            )
-        assert response.status_code == 200
-        payload = mock_update.await_args.args[1]
-        assert payload.api_key == "sk-new"
-        assert mock_update.await_args.kwargs["actor_id"] == 1
-
-    def test_test_asr_config_passes_actor(self, admin_client) -> None:
-        client, mock_session = admin_client
-        mock_test = AsyncMock(
-            return_value=AsrConfigTestResponse(
-                ok=True, latency_ms=123, text="样例", error=None
-            )
-        )
-        with patch(
-            "app.services.social.asr_config_service.test_connection", mock_test
-        ):
-            response = client.post("/api/v1/admin/social/asr-config/test")
-        assert response.status_code == 200
-        assert response.json()["ok"] is True
-        assert mock_test.await_args.kwargs["actor_id"] == 1

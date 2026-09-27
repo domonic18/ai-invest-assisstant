@@ -4,6 +4,7 @@ import type {
   ChainAnalysisResult,
   KlineDrawingResult,
   PageAssistantResult,
+  PaperTradingResult,
   StockDailyAnalysisResult,
   StockScreeningRow,
 } from '@/stores/assistant'
@@ -128,6 +129,19 @@ export const PAGE_EVENT_DEFINITIONS: readonly PageEventDefinition[] = [
       period: String(e.period ?? 'daily'),
       count: Number(e.count ?? 0),
       sectorType: e.sector_type ? String(e.sector_type) : undefined,
+    }),
+  },
+  {
+    eventType: PAGE_EVENT_TYPES.paperTrading,
+    actionLabel: '前往交易 Agent',
+    path: () => '/trading-agent',
+    parse: (e): PaperTradingResult => ({
+      type: PAGE_EVENT_TYPES.paperTrading,
+      action: String(e.action ?? ''),
+      clOrdId: e.cl_ord_id != null ? String(e.cl_ord_id) : undefined,
+      symbol: e.symbol != null ? String(e.symbol) : undefined,
+      side: e.side != null ? String(e.side) : undefined,
+      volume: e.volume != null ? Number(e.volume) : undefined,
     }),
   },
 ]

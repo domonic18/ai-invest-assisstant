@@ -9,7 +9,7 @@ import { usePendingApplications } from '@/hooks/useAdminAccount'
 
 import { ApproveModal, RejectModal } from './AccountModals'
 
-/** 待审批置顶面板：进页面即见待办、行内一键通过/驳回（arch/10 §6.3）。 */
+/** 待审批置顶面板：进页面即见待办、行内一键通过/驳回（arch/07 §6.3）。 */
 export function PendingPanel() {
   const pendingQ = usePendingApplications()
   const [approving, setApproving] = useState<PendingApplication | null>(null)

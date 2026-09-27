@@ -5,7 +5,7 @@
 list_ths_sector_names``），保证榜单上每个板块的详情页都有真实指数 K 线；
 趋势维由 THS 板块日 K 经 ``trend_facts`` 计算拐点（量能确认），板块缺 K 线
 时该维跳过不抛错。规则确定性可单测。归因字段由 anomaly-attribution skill
-异步回填，本服务不触碰（docs/arch/08-anomaly-analysis.md §2/§4/§7）。
+异步回填，本服务不触碰（docs/arch/06-anomaly-analysis.md §2/§4/§7）。
 """
 
 from dataclasses import asdict, dataclass

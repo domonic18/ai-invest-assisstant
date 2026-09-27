@@ -1,4 +1,4 @@
-"""知识库域的 SQLAlchemy ORM 模型（arch/12）。
+"""知识库域的 SQLAlchemy ORM 模型（arch/09）。
 
 知识源（kb_source）、素材（kb_media）、内容分段（kb_transcript_segment）、
 知识点（kb_knowledge_point）、图片资产（kb_image_asset）与域设置单行

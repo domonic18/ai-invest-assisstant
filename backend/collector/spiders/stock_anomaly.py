@@ -4,7 +4,7 @@
 会丢弃该列），初筛候选后逐股拉新浪日 K 供服务层精算趋势拐点/量价维度，落
 ``market_anomaly_stock``。全市场快照缺失抛
 :class:`AnomalyInputNotReadyError` 由 Celery 任务退避重试
-（docs/arch/08-anomaly-analysis.md §3/§5）。
+（docs/arch/06-anomaly-analysis.md §3/§5）。
 """
 
 from dataclasses import replace

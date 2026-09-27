@@ -3,7 +3,7 @@
 初筛用新浪全市场快照（涨跌幅 / 换手率），精算逐候选拉新浪日 K，按温程趋势
 理论三类拐点（突破/风险/支撑，量能确认）+ 量比 / 换手 / 涨幅判定。K 线获取经
 ``fetch_kline`` 注入（collector 层负责 IO），规则内核纯函数可离线单测
-（docs/arch/08-anomaly-analysis.md §3/§4）。趋势事实由 ``trend_facts`` 计算，
+（docs/arch/06-anomaly-analysis.md §3/§4）。趋势事实由 ``trend_facts`` 计算，
 与复盘技术面文本同源。
 """
 

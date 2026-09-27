@@ -369,7 +369,9 @@ CREATE INDEX idx_user_status_pending ON "user"(status) WHERE status = 'pending';
 
 CREATE TABLE user_watchlist_group (
     id                BIGSERIAL PRIMARY KEY,
-    user_id           BIGINT       NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    user_id           BIGINT       REFERENCES "user"(id) ON DELETE CASCADE,  -- NULL = 平台级分组（owner_type='agent'）
+    owner_type        VARCHAR(16)  NOT NULL DEFAULT 'user',
+    agent_key         VARCHAR(32),  -- owner_type='agent' 时必填：归属 Agent（FK 见 §25 trading_agent 之后补建）
     name              VARCHAR(50)  NOT NULL,
     sort_order        INT          NOT NULL DEFAULT 0,
     is_default        BOOLEAN      NOT NULL DEFAULT FALSE,
@@ -378,6 +380,10 @@ CREATE TABLE user_watchlist_group (
 
     UNIQUE (user_id, name)
 );
+
+CREATE UNIQUE INDEX uq_user_watchlist_group_agent_key
+    ON user_watchlist_group (owner_type, agent_key)
+    WHERE owner_type = 'agent' AND agent_key IS NOT NULL;
 
 CREATE INDEX idx_user_watchlist_group_user ON user_watchlist_group(user_id);
 
@@ -403,6 +409,7 @@ CREATE TABLE assistant_session (
     id              UUID PRIMARY KEY,                -- 兼作 Agent Protocol thread_id
     user_id         BIGINT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     title           VARCHAR(128),
+    agent_type      VARCHAR(32) NOT NULL DEFAULT 'assistant',  -- 会话归属：assistant / 交易 Agent 的 agent_key（trading_agent.agent_key，如 short-line）
     last_message_at TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -453,7 +460,6 @@ CREATE TABLE user_market_review (
     UNIQUE (user_id, trade_date)
 );
 
-CREATE INDEX idx_user_market_review_user_date ON user_market_review(user_id, trade_date);
 CREATE INDEX idx_user_market_review_trade_date ON user_market_review(trade_date);
 
 -- ============================================================
@@ -473,7 +479,8 @@ CREATE TABLE collector_task (
     last_error      TEXT,
     created_at      TIMESTAMPTZ  DEFAULT NOW(),
     updated_at      TIMESTAMPTZ  DEFAULT NOW(),
-    queue           VARCHAR(20)               -- 任务路由队列覆盖（空则按 task_type 解析）
+    queue           VARCHAR(20),              -- 任务路由队列覆盖（空则按 task_type 解析）
+    trade_day_only  BOOLEAN      NOT NULL DEFAULT false  -- 交易日预检：非交易日/日历未覆盖当日 SKIPPED（显式 trade_date 豁免）
 );
 
 CREATE INDEX idx_collector_task_active ON collector_task(is_active);
@@ -497,7 +504,6 @@ CREATE TABLE collector_log (
 );
 
 CREATE INDEX idx_collector_log_started ON collector_log(started_at DESC);
-CREATE INDEX idx_collector_log_celery_task_id ON collector_log(celery_task_id);
 CREATE INDEX idx_collector_log_status_started_at ON collector_log(status, started_at DESC);
 CREATE INDEX idx_collector_log_task_started ON collector_log(task_name, started_at DESC);
 
@@ -532,6 +538,7 @@ CREATE TABLE llm_config (
     is_active           BOOLEAN      NOT NULL DEFAULT TRUE,
     extra               JSONB        NOT NULL DEFAULT '{}'::jsonb,
     purpose             VARCHAR(16)  NOT NULL DEFAULT 'chat',   -- 用途维度：chat / embedding / vision（F-KB 模型角色绑定）
+    backup_config_id    INTEGER,                                            -- 备用配置 id：本配置额度耗尽冷却期内解析层自动切换的目标（单级）
     last_tested_at      TIMESTAMPTZ,
     last_test_status    VARCHAR(20),
     last_test_error     TEXT,
@@ -784,6 +791,18 @@ CREATE INDEX IF NOT EXISTS idx_pool_limit_up_stock_date ON pool_limit_up_stock(t
 -- 15. 市场涨跌统计（每日收盘快照：涨跌家数 / 涨跌停家数）
 -- ============================================================
 
+CREATE TABLE IF NOT EXISTS market_trade_calendar (
+    calendar_date DATE         PRIMARY KEY,
+    is_trading    BOOLEAN      NOT NULL,
+    source        VARCHAR(20)  NOT NULL DEFAULT 'seed' CHECK (source IN ('seed', 'manual')),
+    remark        TEXT,
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE market_trade_calendar IS
+    'A 股交易日历权威真相源：source=seed 新浪日历自动生成 / manual 后台人工覆盖（调休、临时休市）';
+
 CREATE TABLE IF NOT EXISTS market_breadth (
     id              BIGSERIAL PRIMARY KEY,
     trade_date      DATE         NOT NULL,
@@ -852,8 +871,6 @@ CREATE TABLE IF NOT EXISTS quote_global_index_daily (
 );
 
 SELECT create_hypertable('quote_global_index_daily', 'trade_date', chunk_time_interval => INTERVAL '1 year', if_not_exists => TRUE);
-CREATE INDEX IF NOT EXISTS idx_quote_global_index_daily_code_date
-    ON quote_global_index_daily(index_code, trade_date DESC);
 
 -- ============================================================
 -- 19. 跟踪指数配置（工作台/行情卡展示清单，Admin CRUD 管理）
@@ -1270,11 +1287,8 @@ CREATE TABLE IF NOT EXISTS ai_kline_drawing (
     CONSTRAINT chk_ai_kline_drawing_period CHECK (period IN ('daily', 'weekly', 'monthly'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_ai_kline_drawing_scope
-    ON ai_kline_drawing(user_id, target_type, target_code, period);
-
 -- ============================================================
--- 账号准入与 AI 用量治理（F-ACCT，arch/10）
+-- 账号准入与 AI 用量治理（F-ACCT，arch/07）
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS user_ai_quota (
@@ -1447,7 +1461,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
 -- F-KB 温成趋势理论知识库（kb_source / kb_media / kb_transcript_segment /
--- kb_knowledge_point / kb_image_asset / kb_settings；arch/12）
+-- kb_knowledge_point / kb_image_asset / kb_settings；arch/09）
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS kb_source (
@@ -1631,3 +1645,186 @@ CREATE TABLE IF NOT EXISTS kb_settings (
 
 -- 缺省设置行（管理端「知识库设置」维护）
 INSERT INTO kb_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================
+-- 25. 交易 Agent 注册表（Agent Hub 多 Agent 基座，docs/plan/agent-hub-plan.md D21；
+--     paper-trade 三表见 migrations/20260924a_paper_trade_tables.sql）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS trading_agent (
+    agent_key              VARCHAR(32)   PRIMARY KEY,                  -- URL 安全自然键
+    name                   VARCHAR(64)   NOT NULL,                     -- 展示名
+    tagline                VARCHAR(128)  NOT NULL DEFAULT '',          -- 一句话定位
+    llm_config_id          BIGINT,                                     -- 对话/结构化输出模型；空 = 默认 chat
+    methodology_source_id  BIGINT,                                     -- 方法论知识源（kb_source.id）；空 = 未启用
+    risk_max_position_pct  NUMERIC(5,2)  NOT NULL DEFAULT 20,          -- 单票市值 ≤ 总资产 %
+    risk_max_total_pct     NUMERIC(5,2)  NOT NULL DEFAULT 80,          -- 总持仓市值 ≤ 总资产 %
+    risk_max_daily_orders  INTEGER       NOT NULL DEFAULT 10,          -- 单日下单笔数上限
+    auto_exec_enabled      BOOLEAN       NOT NULL DEFAULT TRUE,        -- 盘中自主执行总闸
+    status                 VARCHAR(16)   NOT NULL DEFAULT 'active',    -- active / planned / disabled
+    plan_cadence           VARCHAR(16)   NOT NULL DEFAULT 'daily',     -- 计划生成频率：daily / weekly / monthly（D28）
+    review_cadence         VARCHAR(16)   NOT NULL DEFAULT 'daily',     -- 复盘生成频率：daily / weekly / monthly（D28）
+    sort_order             INTEGER       NOT NULL DEFAULT 0,           -- 总览排布
+    prompt_id              VARCHAR(64)   NOT NULL,                     -- prompts/agents/<prompt_id>.yaml（per-agent 人设，D27）
+    accent_color           VARCHAR(16)   NOT NULL DEFAULT '#3b82f6',   -- 总览节点主色
+    created_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at             TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT fk_trading_agent_llm_config
+        FOREIGN KEY (llm_config_id) REFERENCES llm_config (id) ON DELETE SET NULL,
+    CONSTRAINT fk_trading_agent_methodology_source
+        FOREIGN KEY (methodology_source_id) REFERENCES kb_source (id) ON DELETE SET NULL,
+    CONSTRAINT chk_trading_agent_status
+        CHECK (status IN ('active', 'planned', 'disabled')),
+    CONSTRAINT chk_trading_agent_plan_cadence
+        CHECK (plan_cadence IN ('daily', 'weekly', 'monthly')),
+    CONSTRAINT chk_trading_agent_review_cadence
+        CHECK (review_cadence IN ('daily', 'weekly', 'monthly')),
+    CONSTRAINT chk_trading_agent_position_pct
+        CHECK (risk_max_position_pct >= 0 AND risk_max_position_pct <= 100),
+    CONSTRAINT chk_trading_agent_total_pct
+        CHECK (risk_max_total_pct >= 0 AND risk_max_total_pct <= 100),
+    CONSTRAINT chk_trading_agent_daily_orders
+        CHECK (risk_max_daily_orders >= 1)
+);
+
+COMMENT ON TABLE trading_agent IS
+    '交易 Agent 注册表：身份/介绍/模型绑定/风控/总闸（docs/plan/agent-hub-plan.md D21）';
+
+-- 种子 Agent 行（短线激活；长线/M60 未上线隐藏；新 Agent 手工 SQL 注册，不做 CRUD）。
+-- methodology_source_id 不硬编码：纯 init 新库无 kb_source 数据，启用后经配置面选择。
+INSERT INTO trading_agent (agent_key, name, tagline, status, plan_cadence, review_cadence, sort_order, prompt_id, accent_color)
+VALUES
+    ('short-line', '短线猎手', '趋势短线：顺势而为，快进快出',
+     'active', 'daily', 'daily', 1, 'trading_agent_short_line', '#3b82f6'),
+    ('long-line', '长线舵手', '基本面长线：低频布局，穿越周期',
+     'planned', 'weekly', 'weekly', 2, 'trading_agent_long_line', '#10b981'),
+    ('m60', '60分钟波段', 'M60 结构波段：形态驱动，波段进退',
+     'planned', 'daily', 'daily', 3, 'trading_agent_m60', '#f59e0b')
+ON CONFLICT (agent_key) DO NOTHING;
+
+-- agent 自选分组的 agent_key FK（user_watchlist_group 定义于 §7，先于本表，故在此补建）
+ALTER TABLE user_watchlist_group DROP CONSTRAINT IF EXISTS fk_user_watchlist_group_agent;
+ALTER TABLE user_watchlist_group
+    ADD CONSTRAINT fk_user_watchlist_group_agent
+    FOREIGN KEY (agent_key) REFERENCES trading_agent (agent_key) ON DELETE CASCADE;
+
+-- ============================================================
+-- 26. 交易 Agent 选股与交易计划（批次 7，docs/plan/paper-trading-plan.md §10.1；
+--     选股 = 复盘归因输入 + 人工移出干预记录；计划 = 盘中条件触发真相源）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS agent_stock_selection (
+    id               BIGSERIAL PRIMARY KEY,
+    agent_key        VARCHAR(32)  NOT NULL REFERENCES trading_agent (agent_key) ON DELETE RESTRICT,  -- 归属 Agent
+    trade_date       DATE         NOT NULL,      -- 选入日
+    stock_code       VARCHAR(10)  NOT NULL,
+    reason           TEXT         NOT NULL,      -- 选股依据（引用复盘结论）
+    source_result_id BIGINT,                     -- ai_analysis_result.id（当日计划生成记录）
+    confidence       NUMERIC(5,4),               -- LLM 置信度（可空）
+    status           VARCHAR(16)  NOT NULL DEFAULT 'active',   -- active / removed
+    removed_at       TIMESTAMPTZ,
+    removed_reason   TEXT,                       -- agent 剔除 / manual 人工移出
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_agent_stock_selection_agent_date_code UNIQUE (agent_key, trade_date, stock_code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_stock_selection_code
+    ON agent_stock_selection(stock_code, trade_date DESC);
+
+COMMENT ON TABLE agent_stock_selection IS
+    '交易 Agent 每日选股清单（选入/移出与依据的真相源，docs/plan/paper-trading-plan.md §10.1）';
+
+CREATE TABLE IF NOT EXISTS agent_trade_plan (
+    id                  BIGSERIAL PRIMARY KEY,
+    agent_key           VARCHAR(32)   NOT NULL REFERENCES trading_agent (agent_key) ON DELETE RESTRICT,  -- 归属 Agent
+    plan_date           DATE          NOT NULL,  -- 计划日（默认当日有效）
+    stock_code          VARCHAR(10)   NOT NULL,
+    plan_type           VARCHAR(8)    NOT NULL,  -- buy 开仓 / sell 持仓管理
+    strategy            TEXT          NOT NULL,  -- 策略描述
+    buy_zone_low        NUMERIC(12,4),           -- 买点区间（buy 必填）
+    buy_zone_high       NUMERIC(12,4),
+    target_price        NUMERIC(12,4),           -- 止盈目标价（sell 必填）
+    stop_loss           NUMERIC(12,4) NOT NULL,  -- 止损价（两类计划均必填，纪律）
+    position_pct        NUMERIC(5,2)  NOT NULL,  -- 目标仓位（占总资产 %）
+    status              VARCHAR(16)   NOT NULL DEFAULT 'active',
+    -- 状态机：active → triggered（已触发下单）→ executed / expired（当日未触发）/ cancelled（人工取消）
+    selection_id        BIGINT,                  -- 依据 agent_stock_selection（sell 计划可空）
+    basis               TEXT          NOT NULL,  -- 计划依据（复盘结论/经验卡片引用）
+    triggered_cl_ord_id VARCHAR(64),             -- 触发的委托（关联 paper_trade_order）
+    triggered_at        TIMESTAMPTZ,
+    raw                 JSONB,                   -- LLM 完整输出兜底
+    created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_agent_trade_plan_agent_date_code_type UNIQUE (agent_key, plan_date, stock_code, plan_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_trade_plan_status
+    ON agent_trade_plan(status, plan_date DESC);
+
+COMMENT ON TABLE agent_trade_plan IS
+    '交易 Agent 每日交易计划（盘中条件触发执行的真相源，docs/plan/paper-trading-plan.md §10.1）';
+
+CREATE TABLE IF NOT EXISTS agent_memory (
+    id               BIGSERIAL PRIMARY KEY,
+    agent_key        VARCHAR(32)  NOT NULL REFERENCES trading_agent (agent_key) ON DELETE RESTRICT,  -- 归属 Agent
+    mem_type         VARCHAR(16)  NOT NULL,      -- discipline 纪律 / method 方法 / lesson 教训
+    title            VARCHAR(128) NOT NULL,
+    body             TEXT         NOT NULL,
+    source           VARCHAR(16)  NOT NULL,      -- auto 复盘自动提取 / manual 人工沉淀
+    status           VARCHAR(16)  NOT NULL DEFAULT 'active',   -- active / archived（停用不删）
+    source_result_id BIGINT,                     -- ai_analysis_result.id（auto 时必填，溯源）
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_agent_memory_agent_source_title UNIQUE (agent_key, source_result_id, title)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_memory_status ON agent_memory(status, mem_type);
+
+COMMENT ON TABLE agent_memory IS
+    '交易 Agent 自有迭代经验（复盘沉淀 + 手动沉淀，反哺每日计划，docs/plan/paper-trading-plan.md §12.1）';
+
+CREATE TABLE IF NOT EXISTS agent_run (
+    id               BIGSERIAL PRIMARY KEY,
+    agent_key        VARCHAR(32)  NOT NULL REFERENCES trading_agent (agent_key) ON DELETE CASCADE,  -- 归属 Agent
+    kind             VARCHAR(16)  NOT NULL,      -- plan 每日计划 / review 分层复盘
+    period           VARCHAR(16),                -- day / week / month（review 必填；plan 存 cadence 映射）
+    trigger_type     VARCHAR(16)  NOT NULL DEFAULT 'scheduled',  -- scheduled 定时 / manual 手动
+    trade_date       DATE,                       -- 基准交易日
+    status           VARCHAR(16)  NOT NULL,      -- running / success / failed / skipped（缓存命中等）
+    started_at       TIMESTAMPTZ NOT NULL,
+    finished_at      TIMESTAMPTZ,
+    duration_ms      INT,
+    error_msg        TEXT,
+    summary          JSONB,                      -- 结果摘要：cache_hit / kb_used / selections / plans / dropped_codes 等
+    collector_log_id BIGINT,                     -- collector_log.id（定时链路溯源）
+    CONSTRAINT chk_agent_run_kind CHECK (kind IN ('plan', 'review')),
+    CONSTRAINT chk_agent_run_trigger CHECK (trigger_type IN ('scheduled', 'manual')),
+    CONSTRAINT chk_agent_run_status CHECK (status IN ('running', 'success', 'failed', 'skipped'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_run_key_time
+    ON agent_run(agent_key, started_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_agent_run_status_running
+    ON agent_run(status) WHERE status = 'running';
+
+COMMENT ON TABLE agent_run IS
+    '交易 Agent 自动化任务执行会话（会话管理真相源，docs/plan/agent-hub-plan.md D35）';
+
+CREATE TABLE IF NOT EXISTS agent_run_step (
+    id          BIGSERIAL PRIMARY KEY,
+    run_id      BIGINT      NOT NULL REFERENCES agent_run (id) ON DELETE CASCADE,
+    seq         INT         NOT NULL,          -- 步骤序号（从 1 递增）
+    step_key    VARCHAR(64) NOT NULL,          -- 步骤标识：precheck / input.market_review / llm / validate / persist 等
+    title       VARCHAR(128),                  -- 展示标题
+    status      VARCHAR(16) NOT NULL,          -- success / failed
+    started_at  TIMESTAMPTZ,
+    duration_ms INT,
+    payload     JSONB,                         -- 步骤完整输入输出（代码层 8KB/段截断）
+    CONSTRAINT uq_agent_run_step_seq UNIQUE (run_id, seq)
+);
+
+COMMENT ON TABLE agent_run_step IS
+    '交易 Agent 会话执行步骤明细（工具调用/KB 检索/LLM 全文，D35）';

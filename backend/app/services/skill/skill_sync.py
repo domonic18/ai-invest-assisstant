@@ -29,7 +29,11 @@ def _frontmatter_description(descriptor: SkillDescriptor) -> str | None:
 
 
 async def sync_builtin_skills(session: AsyncSession) -> None:
-    """按注册表顺序幂等 upsert builtin 行；无变更不产生写事务。"""
+    """按注册表顺序幂等 upsert builtin 行；无变更不产生写事务。
+
+    trading 场景（交易 Agent 内部作业技能）不投影进 DB：不进技能广场，
+    仅由 agent_plan_service 按注册表 agent_key 从 skills/ 目录直读。
+    """
     stmt = select(Skill).where(Skill.is_builtin.is_(True))
     existing = {
         row.skill_id: row for row in (await session.execute(stmt)).scalars().all()
@@ -37,7 +41,11 @@ async def sync_builtin_skills(session: AsyncSession) -> None:
 
     inserted = 0
     updated = 0
-    for index, descriptor in enumerate(iter_skills(), start=1):
+    index = 0
+    for descriptor in iter_skills():
+        if descriptor.scenario == "trading":
+            continue
+        index += 1
         description = _frontmatter_description(descriptor)
         row = existing.get(descriptor.skill_id)
         if row is not None and not row.is_builtin:

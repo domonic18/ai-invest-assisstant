@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.models.social import AsrChannelConfig
-from app.schemas.social import AsrConfigUpdateRequest
-from app.services.social import asr_config_service
+from app.schemas.model_config import AsrConfigUpdateRequest
+from app.services.admin import asr_config_service
 
 
 def _session() -> MagicMock:

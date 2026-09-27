@@ -273,19 +273,16 @@ a:hover { color: var(--accent-hover); }
 
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
-<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="#"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
+<div class="sidebar-section-title">检测</div>
 <a class="sidebar-item active" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
-<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
-<a class="sidebar-item" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
-<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>异动检测</span></a>
 <a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
-<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
-<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
-<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
@@ -294,14 +291,21 @@ a:hover { color: var(--accent-hover); }
 <div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
 </aside>
 <div class="app-main">
-<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
+<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right">
+        <button class="header-btn" title="知识库">📚</button>
+        <button class="header-btn" title="AI 选股">🔽</button>
+        <button class="header-btn" title="AI 助手">💬</button>
+        <button class="header-btn" title="投资日历">📅</button>
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><div class="sidebar-avatar" style="width:26px;height:26px;font-size:11px">U</div><span>用户</span>▾</div>
+      </div>
+    </header>
 <div class="app-content">
 
 <!-- Header: 标题 + 分组筛选 + 更新时间 -->
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-6);flex-wrap:wrap;gap:var(--space-3)">
 <div>
 <h1 class="page-title" style="margin-bottom:4px">宏观指数监测</h1>
-<div style="font-size:var(--text-xs);color:var(--text-tertiary)">投资流程第一站：宏观 → 板块 → 个股 · 2026-09-05 17:32 更新 · 指标清单由后台「跟踪指数管理」配置</div>
+<div style="font-size:var(--text-xs);color:var(--text-tertiary)">投资流程第一站：宏观 → 板块 → 个股 · 指标清单由后台「跟踪指数管理」配置 · 数据源：新浪 / 东方财富 / Tushare / Yahoo / 日本财务省 / CME · 点击卡片查看指数详情</div>
 </div>
 <div class="radio-pills"><span class="radio-pill active">全部</span><span class="radio-pill">股指</span><span class="radio-pill">债券</span><span class="radio-pill">商品</span><span class="radio-pill">政策概率</span></div>
 </div>
@@ -310,14 +314,14 @@ a:hover { color: var(--accent-hover); }
 <div class="macro-section">
 <div class="macro-section-head"><span class="macro-section-name">股指</span><span class="macro-section-sub">A 股实时 · 港股收盘 · 美股隔夜</span></div>
 <div class="macro-grid">
-<div class="macro-card"><div class="macro-name-row"><span class="macro-name">上证指数</span><span class="tag tag-red">A股</span></div><div class="macro-val-row"><span class="macro-val">3,845.21</span><span class="macro-chg up">+0.62%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,22 15,20 30,23 45,17 60,18 75,13 90,14 105,9 120,7" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>sina · 15:00</span><span>日K</span></div></div>
-<div class="macro-card"><div class="macro-name-row"><span class="macro-name">深证成指</span><span class="tag tag-red">A股</span></div><div class="macro-val-row"><span class="macro-val">12,804.66</span><span class="macro-chg up">+0.88%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,24 15,22 30,19 45,20 60,15 75,16 90,10 105,11 120,6" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>sina · 15:00</span><span>日K</span></div></div>
-<div class="macro-card"><div class="macro-name-row"><span class="macro-name">创业板指</span><span class="tag tag-red">A股</span></div><div class="macro-val-row"><span class="macro-val">2,672.05</span><span class="macro-chg up">+1.24%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,25 15,23 30,21 45,22 60,17 75,13 90,14 105,8 120,5" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>sina · 15:00</span><span>日K</span></div></div>
-<div class="macro-card"><div class="macro-name-row"><span class="macro-name">恒生指数</span><span class="tag tag-amber">港股</span></div><div class="macro-val-row"><span class="macro-val">26,412.87</span><span class="macro-chg up">+1.35%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,26 15,24 30,25 45,20 60,21 75,15 90,16 105,10 120,8" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>eastmoney · 16:08 收盘</span><span>日K</span></div></div>
-<div class="macro-card"><div class="macro-name-row"><span class="macro-name">恒生科技</span><span class="tag tag-amber">港股</span></div><div class="macro-val-row"><span class="macro-val">5,834.12</span><span class="macro-chg up">+2.10%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,27 15,25 30,22 45,23 60,18 75,14 90,12 105,9 120,4" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>eastmoney · 16:08 收盘</span><span>日K</span></div></div>
-<div class="macro-card"><div class="macro-name-row"><span class="macro-name">道琼斯</span><span class="tag tag-blue">美股</span></div><div class="macro-val-row"><span class="macro-val">44,182.15</span><span class="macro-chg down">-0.31%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,10 15,12 30,9 45,13 60,11 75,15 90,14 105,16 120,17" fill="none" stroke="#2ea043" stroke-width="1.6"/></svg><div class="macro-foot"><span>eastmoney · 隔夜收盘</span><span>日K</span></div></div>
-<div class="macro-card"><div class="macro-name-row"><span class="macro-name">纳斯达克</span><span class="tag tag-blue">美股</span></div><div class="macro-val-row"><span class="macro-val">19,012.34</span><span class="macro-chg up">+0.42%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,14 15,15 30,12 45,14 60,10 75,12 90,8 105,9 120,6" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>eastmoney · 隔夜收盘</span><span>日K</span></div></div>
-<div class="macro-card"><div class="macro-name-row"><span class="macro-name">标普 500</span><span class="tag tag-blue">美股</span></div><div class="macro-val-row"><span class="macro-val">6,108.62</span><span class="macro-chg up">+0.05%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,13 15,13 30,14 45,12 60,13 75,12 90,13 105,12 120,12" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>eastmoney · 隔夜收盘</span><span>日K</span></div></div>
+<div class="macro-card"><div class="macro-name-row"><span class="macro-name">上证指数</span><span class="tag tag-red">A股</span></div><div class="macro-val-row"><span class="macro-val">3,845.21</span><span class="macro-chg up">+0.62%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,22 15,20 30,23 45,17 60,18 75,13 90,14 105,9 120,7" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>sina · 15:00</span><span>近 30 日</span></div></div>
+<div class="macro-card"><div class="macro-name-row"><span class="macro-name">深证成指</span><span class="tag tag-red">A股</span></div><div class="macro-val-row"><span class="macro-val">12,804.66</span><span class="macro-chg up">+0.88%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,24 15,22 30,19 45,20 60,15 75,16 90,10 105,11 120,6" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>sina · 15:00</span><span>近 30 日</span></div></div>
+<div class="macro-card"><div class="macro-name-row"><span class="macro-name">创业板指</span><span class="tag tag-red">A股</span></div><div class="macro-val-row"><span class="macro-val">2,672.05</span><span class="macro-chg up">+1.24%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,25 15,23 30,21 45,22 60,17 75,13 90,14 105,8 120,5" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>sina · 15:00</span><span>近 30 日</span></div></div>
+<div class="macro-card"><div class="macro-name-row"><span class="macro-name">恒生指数</span><span class="tag tag-amber">港股</span></div><div class="macro-val-row"><span class="macro-val">26,412.87</span><span class="macro-chg up">+1.35%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,26 15,24 30,25 45,20 60,21 75,15 90,16 105,10 120,8" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>eastmoney · 16:08 收盘</span><span>近 30 日</span></div></div>
+<div class="macro-card"><div class="macro-name-row"><span class="macro-name">恒生科技</span><span class="tag tag-amber">港股</span></div><div class="macro-val-row"><span class="macro-val">5,834.12</span><span class="macro-chg up">+2.10%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,27 15,25 30,22 45,23 60,18 75,14 90,12 105,9 120,4" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>eastmoney · 16:08 收盘</span><span>近 30 日</span></div></div>
+<div class="macro-card"><div class="macro-name-row"><span class="macro-name">道琼斯</span><span class="tag tag-blue">美股</span></div><div class="macro-val-row"><span class="macro-val">44,182.15</span><span class="macro-chg down">-0.31%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,10 15,12 30,9 45,13 60,11 75,15 90,14 105,16 120,17" fill="none" stroke="#2ea043" stroke-width="1.6"/></svg><div class="macro-foot"><span>eastmoney · 隔夜收盘</span><span>近 30 日</span></div></div>
+<div class="macro-card"><div class="macro-name-row"><span class="macro-name">纳斯达克</span><span class="tag tag-blue">美股</span></div><div class="macro-val-row"><span class="macro-val">19,012.34</span><span class="macro-chg up">+0.42%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,14 15,15 30,12 45,14 60,10 75,12 90,8 105,9 120,6" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>eastmoney · 隔夜收盘</span><span>近 30 日</span></div></div>
+<div class="macro-card"><div class="macro-name-row"><span class="macro-name">标普 500</span><span class="tag tag-blue">美股</span></div><div class="macro-val-row"><span class="macro-val">6,108.62</span><span class="macro-chg up">+0.05%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,13 15,13 30,14 45,12 60,13 75,12 90,13 105,12 120,12" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>eastmoney · 隔夜收盘</span><span>近 30 日</span></div></div>
 </div>
 </div>
 
@@ -325,21 +329,28 @@ a:hover { color: var(--accent-hover); }
 <div class="macro-section">
 <div class="macro-section-head"><span class="macro-section-name">债券</span><span class="macro-section-sub">收益率变动以基点（bp）计 · 利差为衍生指标</span></div>
 <div class="macro-grid">
-<div class="macro-card"><div class="macro-name-row"><span class="macro-name">美债 2Y</span><span class="tag tag-blue">美债</span></div><div class="macro-val-row"><span class="macro-val">3.654%</span><span class="macro-chg down">-1.8bp</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,8 15,10 30,9 45,13 60,12 75,16 90,18 105,20 120,21" fill="none" stroke="#2ea043" stroke-width="1.6"/></svg><div class="macro-foot"><span>tushare · 15:30</span><span>日K</span></div></div>
+<div class="macro-card"><div class="macro-name-row"><span class="macro-name">美债 2Y</span><span class="tag tag-blue">美债</span></div><div class="macro-val-row"><span class="macro-val">3.654%</span><span class="macro-chg down">-1.8bp</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,8 15,10 30,9 45,13 60,12 75,16 90,18 105,20 120,21" fill="none" stroke="#2ea043" stroke-width="1.6"/></svg><div class="macro-foot"><span>tushare · 15:30</span><span>近 30 日</span></div></div>
 <div class="macro-card active"><div class="macro-name-row"><span class="macro-name">美债 10Y</span><span class="tag tag-blue">美债</span></div><div class="macro-val-row"><span class="macro-val">4.118%</span><span class="macro-chg down">-2.3bp</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,6 15,8 30,7 45,11 60,10 75,14 90,17 105,18 120,20" fill="none" stroke="#2ea043" stroke-width="1.6"/></svg><div class="macro-foot"><span>tushare · 15:30</span><span>选中</span></div></div>
-<div class="macro-card"><div class="macro-name-row"><span class="macro-name">美债 2s10s 利差</span><span class="tag tag-purple">衍生</span></div><div class="macro-val-row"><span class="macro-val">+46.4bp</span><span class="macro-chg up">+0.5bp</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,18 15,17 30,18 45,16 60,17 75,15 90,14 105,15 120,14" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>由 2Y/10Y 推算</span><span>日K</span></div></div>
-<div class="macro-card"><div class="macro-name-row"><span class="macro-name">日债 10Y</span><span class="tag tag-amber">日债</span></div><div class="macro-val-row"><span class="macro-val">1.842%</span><span class="macro-chg up">+1.2bp</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,16 15,15 30,16 45,14 60,15 75,13 90,14 105,12 120,11" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>yahoo · 15:30 · 数据源调研项</span><span>日K</span></div></div>
+<div class="macro-card"><div class="macro-name-row"><span class="macro-name">美债 2s10s 利差</span><span class="tag tag-purple">衍生</span></div><div class="macro-val-row"><span class="macro-val">+46.4bp</span><span class="macro-chg up">+0.5bp</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,18 15,17 30,18 45,16 60,17 75,15 90,14 105,15 120,14" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>由 2Y/10Y 推算</span><span>近 12 月</span></div></div>
+<div class="macro-card"><div class="macro-name-row"><span class="macro-name">日债 10Y</span><span class="tag tag-amber">日债</span></div><div class="macro-val-row"><span class="macro-val">1.842%</span><span class="macro-chg up">+1.2bp</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,16 15,15 30,16 45,14 60,15 75,13 90,14 105,12 120,11" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>yahoo · 15:30</span><span>近 30 日</span></div></div>
 </div>
 </div>
 
 <!-- Section 3: 商品 + 扩展位 -->
 <div class="macro-section">
-<div class="macro-section-head"><span class="macro-section-name">商品与其他</span><span class="macro-section-sub">贵金属 / 美元指数 / 能源（规划中）</span></div>
+<div class="macro-section-head"><span class="macro-section-name">商品</span><span class="macro-section-sub">贵金属 / 能源</span></div>
 <div class="macro-grid">
-<div class="macro-card"><div class="macro-name-row"><span class="macro-name">COMEX 黄金</span><span class="tag tag-amber">商品</span></div><div class="macro-val-row"><span class="macro-val">3,912.5</span><span class="macro-chg up">+0.41%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,18 15,17 30,19 45,15 60,16 75,12 90,13 105,10 120,8" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>eastmoney · 15:30</span><span>日K</span></div></div>
-<div class="macro-card"><div class="macro-name-row"><span class="macro-name">美元指数</span><span class="tag tag-amber">汇率</span></div><div class="macro-val-row"><span class="macro-val">98.35</span><span class="macro-chg down">-0.22%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,10 15,11 30,9 45,12 60,14 75,13 90,15 105,16 120,17" fill="none" stroke="#2ea043" stroke-width="1.6"/></svg><div class="macro-foot"><span>eastmoney · 15:30</span><span>日K</span></div></div>
-<div class="macro-card ghost-card"><div style="text-align:center"><div style="font-size:18px;margin-bottom:4px">＋</div><div style="font-size:var(--text-xs)">布伦特原油 · 规划中</div><div style="font-size:10px;margin-top:2px">后台登记 + Spider 支持后启用</div></div></div>
-<div class="macro-card ghost-card"><div style="text-align:center"><div style="font-size:18px;margin-bottom:4px">＋</div><div style="font-size:var(--text-xs)">白银 / 原油 / 更多</div><div style="font-size:10px;margin-top:2px">依托跟踪指数管理扩展</div></div></div>
+<div class="macro-card"><div class="macro-name-row"><span class="macro-name">COMEX 黄金</span><span class="tag tag-amber">商品</span></div><div class="macro-val-row"><span class="macro-val">3,912.5</span><span class="macro-chg up">+0.41%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,18 15,17 30,19 45,15 60,16 75,12 90,13 105,10 120,8" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>eastmoney · 15:30</span><span>近 30 日</span></div></div>
+<div class="macro-card"><div class="macro-name-row"><span class="macro-name">布伦特原油</span><span class="tag tag-amber">能源</span></div><div class="macro-val-row"><span class="macro-val">67.85</span><span class="macro-chg up">+1.12%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,20 15,19 30,21 45,16 60,17 75,13 90,14 105,10 120,8" fill="none" stroke="#f85149" stroke-width="1.6"/></svg><div class="macro-foot"><span>eastmoney · 15:30</span><span>近 30 日</span></div></div>
+<div class="macro-card ghost-card"><div style="text-align:center"><div style="font-size:18px;margin-bottom:4px">＋</div><div style="font-size:var(--text-xs)">白银 / 更多指标</div><div style="font-size:10px;margin-top:2px">依托跟踪指数管理扩展</div></div></div>
+</div>
+</div>
+
+<!-- Section 4: 汇率 -->
+<div class="macro-section">
+<div class="macro-section-head"><span class="macro-section-name">汇率</span><span class="macro-section-sub">美元指数 / 主要货币对</span></div>
+<div class="macro-grid">
+<div class="macro-card"><div class="macro-name-row"><span class="macro-name">美元指数</span><span class="tag tag-amber">汇率</span></div><div class="macro-val-row"><span class="macro-val">98.35</span><span class="macro-chg down">-0.22%</span></div><svg class="macro-spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,10 15,11 30,9 45,12 60,14 75,13 90,15 105,16 120,17" fill="none" stroke="#2ea043" stroke-width="1.6"/></svg><div class="macro-foot"><span>eastmoney · 15:30</span><span>近 30 日</span></div></div>
 </div>
 </div>
 
@@ -402,21 +413,18 @@ a:hover { color: var(--accent-hover); }
 <!-- 关联资讯 -->
 <div class="detail-grid">
 <div class="card">
-<div class="card-header"><span class="card-title">宏观关联资讯</span><button class="btn btn-secondary btn-sm">进入资讯中心</button></div>
+<div class="card-header"><span class="card-title">宏观关联资讯</span></div>
 <div class="card-body card-body-sm">
-<div class="news-item"><span class="news-time">16:02</span><span><span class="tag tag-blue" style="margin-right:6px">财经</span>美国 8 月非农低于预期，9 月降息 25bp 概率升至 68%</span></div>
-<div class="news-item"><span class="news-time">14:35</span><span><span class="tag tag-amber" style="margin-right:6px">政治</span>日央行官员讲话偏鹰，日债 10Y 收益率创年内新高</span></div>
-<div class="news-item"><span class="news-time">11:20</span><span><span class="tag tag-blue" style="margin-right:6px">财经</span>COMEX 黄金站上 3,900 美元，避险需求持续</span></div>
-<div class="news-item"><span class="news-time">09:47</span><span><span class="tag tag-red" style="margin-right:6px">产业</span>港股恒生科技指数高开，南向资金净流入超 60 亿港元</span></div>
+<div style="text-align:center;padding:36px 0;font-size:var(--text-sm);color:var(--text-tertiary)">宏观资讯中心即将上线（迭代 3 接入）</div>
 </div>
 </div>
 <div class="card">
 <div class="card-header"><span class="card-title">决策路径</span></div>
 <div class="card-body card-body-sm" style="font-size:var(--text-sm);color:var(--text-secondary);display:flex;flex-direction:column;gap:10px">
 <div style="display:flex;align-items:center;gap:8px"><span class="tag tag-purple">① 宏观</span><span style="color:var(--accent)">当前页</span> — 判断大类环境</div>
-<div style="display:flex;align-items:center;gap:8px"><span class="tag tag-purple">② 板块</span><a href="capital-flow.html">板块监测</a> — 定位资金去向</div>
-<div style="display:flex;align-items:center;gap:8px"><span class="tag tag-purple">③ 个股</span><a href="stock-detail.html">个股监测</a> — 验证标的走势</div>
-<div style="display:flex;align-items:center;gap:8px"><span class="tag tag-purple">④ 分析</span><a href="dashboard.html">每日复盘 / 异动归因</a> — 形成结论</div>
+<div style="display:flex;align-items:center;gap:8px"><span class="tag tag-purple">② 板块</span><a href="capital-flow.html">资金流向</a> — 定位资金去向</div>
+<div style="display:flex;align-items:center;gap:8px"><span class="tag tag-purple">③ 个股</span><a href="workbench.html">顶部搜索个股</a> — 验证标的走势</div>
+<div style="display:flex;align-items:center;gap:8px"><span class="tag tag-purple">④ 分析</span><a href="dashboard.html">每日复盘</a> — 形成结论</div>
 </div>
 </div>
 </div>

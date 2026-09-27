@@ -45,6 +45,7 @@
   --ma5: #f85149;
   --ma10: #d29922;
   --ma20: #58a6ff;
+  --ma30: #e8833a;
   --ma60: #a371f7;
 
   /* Typography */
@@ -413,6 +414,7 @@ tr:hover td { background: var(--bg-hover); }
 .ma-legend .ma5 { color: var(--ma5); }
 .ma-legend .ma10 { color: var(--ma10); }
 .ma-legend .ma20 { color: var(--ma20); }
+.ma-legend .ma30 { color: var(--ma30); }
 .ma-legend .ma60 { color: var(--ma60); }
 
 /* 双侧刻度：右=价格，左=涨跌幅% */
@@ -672,14 +674,13 @@ tr:hover td { background: var(--bg-hover); }
 </div>
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
-<a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
-<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="#"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
+<div class="sidebar-section-title">检测</div>
 <a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
-<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
-<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>异动检测</span></a>
 <a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
-<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
@@ -698,8 +699,10 @@ tr:hover td { background: var(--bg-hover); }
         <button class="btn btn-primary btn-sm">搜索</button>
       </div>
       <div class="header-right" style="display:flex;align-items:center;gap:8px">
-        <button class="header-btn" title="我的自选">★</button>
+        <button class="header-btn" title="知识库">📚</button>
+        <button class="header-btn" title="AI 选股">🔽</button>
         <button class="header-btn" title="AI 助手">💬</button>
+        <button class="header-btn" title="投资日历">📅</button>
         <div style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><div class="sidebar-avatar" style="width:26px;height:26px;font-size:11px">D</div><span>Domonic</span>▾</div>
       </div>
     </header>
@@ -751,7 +754,7 @@ tr:hover td { background: var(--bg-hover); }
             <button class="draw-tool" title="水平线">―</button>
             <button class="draw-tool" title="平行线">∥</button>
             <button class="draw-tool" title="斐波那契回撤">ƒ</button>
-            <button class="draw-tool" title="矩形">▭</button>
+            <button class="draw-tool" title="箱体">▭</button>
             <button class="draw-tool" title="文字">T</button>
             <button class="draw-tool" title="橡皮擦">⌫</button>
             <button class="draw-tool" title="测量">⊞</button>
@@ -773,7 +776,7 @@ tr:hover td { background: var(--bg-hover); }
                 <button class="tool-toggle active">前复权</button>
                 <button class="tool-toggle" id="btnDrawToggle" title="展开/收起画线工具">✎ 画线</button>
                 <button class="tool-toggle" id="btnChipToggle" title="展开/收起筹码峰分布">筹 · 筹码峰</button>
-                <button class="tool-toggle">指标：VOL · MACD ▾</button>
+                <button class="tool-toggle">指标：VOL · MA · MACD ▾</button>
                 <div class="ct-right">
                   <div class="seg-group">
                     <button class="seg-btn active">双图</button>
@@ -792,7 +795,7 @@ tr:hover td { background: var(--bg-hover); }
                   <button class="csp-opt">绿涨红跌</button>
                 </div>
                 <button class="btn btn-secondary btn-sm csp-btn">复位缩放窗口</button>
-                <a class="btn btn-secondary btn-sm csp-btn" href="settings.html">更多设置 →</a>
+                <a class="btn btn-secondary btn-sm csp-btn" href="settings.html">更多设置</a>
               </div>
 
               <!-- K 线主图：MA 常驻行 + 左轴涨跌幅% + 右轴价格 + 最新价标签 + 筹码峰 + tooltip 规格示意 -->
@@ -801,6 +804,7 @@ tr:hover td { background: var(--bg-hover); }
                   <span class="ma5">MA5: 309.86</span>
                   <span class="ma10">MA10: 303.42</span>
                   <span class="ma20">MA20: 297.15</span>
+                  <span class="ma30">MA30: 291.08</span>
                   <span class="ma60">MA60: 285.63</span>
                 </div>
                 <div class="plot-grid"></div>
@@ -848,6 +852,8 @@ tr:hover td { background: var(--bg-hover); }
                     <span style="color:var(--ma5)">MA5 309.86</span>
                     <span style="color:var(--ma10)">MA10 303.42</span>
                     <span style="color:var(--ma20)">MA20 297.15</span>
+                    <span style="color:var(--ma30)">MA30 291.08</span>
+                    <span style="color:var(--ma60)">MA60 285.63</span>
                   </div>
                 </div>
               </div>
@@ -862,7 +868,7 @@ tr:hover td { background: var(--bg-hover); }
                 <div class="sub-axis-right"><span>12.4</span><span>8.3</span><span>4.2</span><span>0</span></div>
               </div>
 
-              <!-- MACD 副图：DIF/DEA 双线 + 红绿柱，零轴虚线；工具栏「指标 ▾」可换成 KDJ/BOLL 等 -->
+              <!-- MACD 副图：DIF/DEA 双线 + 红绿柱，零轴虚线；工具栏「指标 ▾」可换成 KDJ 等 -->
               <div class="chart-canvas sub">
                 <div class="sub-legend">
                   <span style="color:var(--text-secondary);font-weight:600">MACD(12,26,9)</span>
@@ -903,6 +909,8 @@ tr:hover td { background: var(--bg-hover); }
                   <span class="ma5">MA5: 296.24</span>
                   <span class="ma10">MA10: 281.07</span>
                   <span class="ma20">MA20: 272.90</span>
+                  <span class="ma30">MA30: 266.35</span>
+                  <span class="ma60">MA60: 251.20</span>
                 </div>
                 <div class="plot-grid"></div>
                 <div class="plot-area">
@@ -948,7 +956,7 @@ tr:hover td { background: var(--bg-hover); }
         <aside class="info-panel card">
           <div class="info-tabs">
             <button class="tab-btn active" data-tab="pane-ai">AI 分析</button>
-            <button class="tab-btn" data-tab="pane-fin">财报</button>
+            <button class="tab-btn" data-tab="pane-fin">财务</button>
             <button class="tab-btn" data-tab="pane-research">研报</button>
             <button class="tab-btn" data-tab="pane-sector">板块</button>
           </div>
@@ -977,17 +985,17 @@ tr:hover td { background: var(--bg-hover); }
             <!-- 财报：披露列表（查看 + AI 解读 + 触发采集）+ 核心指标 -->
             <div class="tab-pane" id="pane-fin">
               <div class="card">
-                <div class="card-header" style="padding:10px 14px"><span class="card-title" style="font-size:13px">财报披露</span><span style="font-size:11px;color:var(--text-tertiary)">巨潮资讯源</span></div>
+                <div class="card-header" style="padding:10px 14px"><span class="card-title" style="font-size:13px">财报文件</span><span style="font-size:11px;color:var(--text-tertiary)">巨潮资讯源</span></div>
                 <div class="card-pad" style="padding-top:4px">
                   <div class="report-row">
                     <span class="report-name">2026 中期报告</span>
                     <span class="report-meta">07-28 · 86 页</span>
                     <span style="flex:1"></span>
-                    <a class="r-link">查看 PDF</a>
+                    <a class="r-link">PDF</a>
                     <a class="r-link">AI 解读</a>
                   </div>
                   <div class="ai-interpret">
-                    <div class="ai-tag-row"><span class="tag tag-green" style="font-size:10px">AI 解读</span><span class="tag tag-purple" style="font-size:10px">2026 中报</span></div>
+                    <div class="ai-tag-row"><span class="tag tag-green" style="font-size:10px">AI 解读要点</span><span class="tag tag-purple" style="font-size:10px">2026 中报</span></div>
                     <b>业绩概览：</b>营收 149.6 亿（<span class="up">+31.5%</span>），归母净利 32.6 亿（<span class="up">+48.2%</span>），盈利增速显著快于收入，规模效应与产品结构升级驱动毛利率提升 2.1pct 至 46.2%。<br>
                     <b>核心看点：</b>合同负债 58.3 亿创历史新高，预收设备款充足，在手订单能见度延伸至 2027；先进制程刻蚀/薄膜设备收入占比首破 40%。<br>
                     <b>风险提示：</b>存货中发出商品占比偏高，若下游晶圆厂验收节奏放缓，存在减值计提风险。
@@ -997,24 +1005,24 @@ tr:hover td { background: var(--bg-hover); }
                     <span class="report-name">2026 一季度报告</span>
                     <span class="report-meta">04-26 · 42 页</span>
                     <span style="flex:1"></span>
-                    <a class="r-link">查看 PDF</a>
+                    <a class="r-link">PDF</a>
                     <a class="r-link">AI 解读</a>
                   </div>
                   <div class="report-row">
                     <span class="report-name">2025 年度报告</span>
                     <span class="report-meta">2026-03-18 · 214 页</span>
                     <span style="flex:1"></span>
-                    <a class="r-link">查看 PDF</a>
+                    <a class="r-link">PDF</a>
                     <a class="r-link">AI 解读</a>
                   </div>
                 </div>
-                <div class="fetch-row"><span>披露即自动采集 · 更新于 07-28</span><a class="r-link">⟳ 获取最新财报</a></div>
+                <div class="fetch-row"><span>披露即自动采集 · 更新于 07-28</span><a class="r-link">⟳ 补采该股财报</a></div>
               </div>
               <div class="card">
                 <div class="card-header" style="padding:10px 14px"><span class="card-title" style="font-size:13px">核心财务指标</span><span class="tag tag-green">2026 中报</span></div>
                 <div class="card-pad">
                   <div class="fin-grid">
-                    <div class="fin-item"><span class="fin-label">ROE</span><span class="fin-value" style="color:var(--green)">22.8%</span></div>
+                    <div class="fin-item"><span class="fin-label">净资产收益率 (ROE)</span><span class="fin-value" style="color:var(--green)">22.8%</span></div>
                     <div class="fin-item"><span class="fin-label">毛利率</span><span class="fin-value">46.2%</span></div>
                     <div class="fin-item"><span class="fin-label">净利率</span><span class="fin-value">21.8%</span></div>
                     <div class="fin-item"><span class="fin-label">营收同比</span><span class="fin-value" style="color:var(--red)">+31.5%</span></div>
@@ -1041,9 +1049,9 @@ tr:hover td { background: var(--bg-hover); }
                     <div class="research-item-header"><span class="r-title">刻蚀设备出货超预期，5nm 刻蚀机通过验证</span><span class="r-date">07-02</span></div>
                     <div class="research-src">中信证券</div>
                     <p class="research-abs">刻蚀设备出货量超预期，5nm 刻蚀机通过中芯国际认证，有望在 2026H2 放量。</p>
-                    <div class="r-actions"><span class="spacer"></span><a class="r-link">查看 PDF</a><a class="r-link">AI 解读</a></div>
+                    <div class="r-actions"><span class="spacer"></span><a class="r-link">PDF</a><a class="r-link">AI 解读</a></div>
                     <div class="ai-interpret">
-                      <div class="ai-tag-row"><span class="tag tag-green" style="font-size:10px">AI 解读</span><span class="tag tag-purple" style="font-size:10px">中信证券 07-02</span></div>
+                      <div class="ai-tag-row"><span class="tag tag-green" style="font-size:10px">AI 解读要点</span><span class="tag tag-purple" style="font-size:10px">中信证券 07-02</span></div>
                       <b>评级：</b>买入（维持）　<b>目标价：</b><span class="text-mono">365.00</span>（现价 318.40，空间 +14.6%）<br>
                       <b>核心逻辑：</b>5nm 刻蚀机通过中芯国际产线验证是国产先进制程设备的里程碑，2026H2 放量后刻蚀收入占比有望达 35%；平台化布局摊薄研发费用，净利率仍有上行空间。<br>
                       <b>与市场分歧：</b>报告对 2027 年刻蚀 TAM 的测算高于卖方共识约 12%，若下游扩产不及预期，目标价存在下修风险。
@@ -1054,13 +1062,13 @@ tr:hover td { background: var(--bg-hover); }
                     <div class="research-item-header"><span class="r-title">平台型设备龙头，国产替代核心受益</span><span class="r-date">06-28</span></div>
                     <div class="research-src">华泰证券</div>
                     <p class="research-abs">半导体设备国产替代加速，ICP 刻蚀和 PVD 设备市场份额持续提升。</p>
-                    <div class="r-actions"><span class="spacer"></span><a class="r-link">查看 PDF</a><a class="r-link">AI 解读</a></div>
+                    <div class="r-actions"><span class="spacer"></span><a class="r-link">PDF</a><a class="r-link">AI 解读</a></div>
                   </div>
                   <div class="research-item">
                     <div class="research-item-header"><span class="r-title">估值已反映乐观预期，关注资本开支节奏</span><span class="r-date">06-25</span></div>
                     <div class="research-src">国泰君安</div>
                     <p class="research-abs">关注地缘政治风险与下游晶圆厂资本开支节奏变化。</p>
-                    <div class="r-actions"><span class="spacer"></span><a class="r-link">查看 PDF</a><a class="r-link">AI 解读</a></div>
+                    <div class="r-actions"><span class="spacer"></span><a class="r-link">PDF</a><a class="r-link">AI 解读</a></div>
                   </div>
                 </div>
                 <div class="fetch-row"><span>东财研报源 · 每日增量采集</span><a class="r-link">⟳ 获取最新研报</a></div>

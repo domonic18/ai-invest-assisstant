@@ -17,13 +17,20 @@ class AssistantSessionRepository(BaseRepository[AssistantSession]):
         super().__init__(session, AssistantSession)
 
     async def list_by_user(
-        self, user_id: int, limit: int = 20, offset: int = 0
+        self,
+        user_id: int,
+        limit: int = 20,
+        offset: int = 0,
+        agent_type: str | None = None,
     ) -> tuple[list[AssistantSession], int]:
-        """当前用户会话列表（最近活跃优先）与总数。"""
+        """当前用户会话列表（最近活跃优先）与总数；agent_type 可选过滤。"""
+        conditions = [AssistantSession.user_id == user_id]
+        if agent_type is not None:
+            conditions.append(AssistantSession.agent_type == agent_type)
         rows = (
             await self.execute(
                 select(AssistantSession)
-                .where(AssistantSession.user_id == user_id)
+                .where(*conditions)
                 .order_by(
                     AssistantSession.last_message_at.desc().nulls_last(),
                     AssistantSession.created_at.desc(),
@@ -36,7 +43,7 @@ class AssistantSessionRepository(BaseRepository[AssistantSession]):
             await self.scalar(
                 select(func.count())
                 .select_from(AssistantSession)
-                .where(AssistantSession.user_id == user_id)
+                .where(*conditions)
             )
         )
         return list(rows), int(total or 0)

@@ -160,6 +160,19 @@ export const ENDPOINTS = {
     base: `${API_BASE}/workbench`,
     reviewStatus: `${API_BASE}/workbench/review-status`,
   },
+  paperTrade: {
+    overview: `${API_BASE}/paper-trade/overview`,
+    orders: `${API_BASE}/paper-trade/orders`,
+    order: (clOrdId: string) => `${API_BASE}/paper-trade/orders/${encodeURIComponent(clOrdId)}`,
+    executions: `${API_BASE}/paper-trade/executions`,
+    nav: `${API_BASE}/paper-trade/nav`,
+    tradeMarkers: `${API_BASE}/paper-trade/trade-markers`,
+    accounts: `${API_BASE}/paper-trade/accounts`,
+    account: (accountId: number | string) =>
+      `${API_BASE}/paper-trade/accounts/${accountId}`,
+    accountSync: (accountId: number | string) =>
+      `${API_BASE}/paper-trade/accounts/${accountId}/sync`,
+  },
   social: {
     sentimentFeed: `${API_BASE}/social/sentiment-feed`,
     accounts: `${API_BASE}/social/accounts`,
@@ -178,8 +191,6 @@ export const ENDPOINTS = {
       `${API_BASE}/kb/sources/${sourceId}/points`,
     playbackToken: (mediaId: number | string) =>
       `${API_BASE}/kb/media/${mediaId}/playback-token`,
-    stream: (mediaId: number | string, token: string) =>
-      `${API_BASE}/kb/stream/${mediaId}?token=${encodeURIComponent(token)}`,
     bookPage: (mediaId: number | string, pageNo: number, token: string) =>
       `${API_BASE}/kb/books/${mediaId}/pages/${pageNo}?token=${encodeURIComponent(token)}`,
     subtitles: (mediaId: number | string) =>
@@ -200,6 +211,7 @@ export const ENDPOINTS = {
     userQuota: (id: number | string) => `${API_BASE}/admin/users/${id}/quota`,
     usageDashboard: (days = 30) => `${API_BASE}/admin/usage/dashboard?days=${days}`,
     usagePerUsers: (days = 30) => `${API_BASE}/admin/usage/users?days=${days}`,
+    usageCleanup: `${API_BASE}/admin/usage/cleanup`,
     accountSettings: `${API_BASE}/admin/settings/account`,
     stocks: `${API_BASE}/admin/stocks/`,
     stock: (id: number | string) => `${API_BASE}/admin/stocks/${id}`,
@@ -219,11 +231,12 @@ export const ENDPOINTS = {
     taskTrigger: (id: number | string) => `${API_BASE}/admin/tasks/${id}/trigger`,
     taskPause: (id: number | string) => `${API_BASE}/admin/tasks/${id}/pause`,
     taskResume: (id: number | string) => `${API_BASE}/admin/tasks/${id}/resume`,
-    llmConfigs: `${API_BASE}/admin/llm-configs`,
-    llmConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}`,
-    testLLMConfig: (id: number | string) => `${API_BASE}/admin/llm-configs/${id}/test`,
+    llmConfigs: `${API_BASE}/admin/model-configs/llm`,
+    llmConfig: (id: number | string) => `${API_BASE}/admin/model-configs/llm/${id}`,
+    testLLMConfig: (id: number | string) =>
+      `${API_BASE}/admin/model-configs/llm/${id}/test`,
     setDefaultLLMConfig: (id: number | string) =>
-      `${API_BASE}/admin/llm-configs/${id}/set-default`,
+      `${API_BASE}/admin/model-configs/llm/${id}/set-default`,
     kbSettings: `${API_BASE}/admin/kb/settings`,
     kbUsage: `${API_BASE}/admin/kb/usage`,
     kbSources: `${API_BASE}/admin/kb/sources`,
@@ -275,6 +288,9 @@ export const ENDPOINTS = {
     trackedIndex: (id: number | string) => `${API_BASE}/admin/tracked-indexes/${id}`,
     trackedIndexToggle: (id: number | string) =>
       `${API_BASE}/admin/tracked-indexes/${id}/toggle`,
+    tradeCalendar: `${API_BASE}/admin/trade-calendar`,
+    tradeCalendarDay: (day: string) => `${API_BASE}/admin/trade-calendar/${day}`,
+    tradeCalendarSeed: `${API_BASE}/admin/trade-calendar/seed`,
     collectorChannels: `${API_BASE}/admin/collector/channels`,
     collectorDataTypes: `${API_BASE}/admin/collector/data-types`,
     collectorDataTypeChannels: (dataType: string) =>
@@ -301,6 +317,7 @@ export const ENDPOINTS = {
     mcpServerTest: (id: number | string) => `${API_BASE}/admin/mcp/servers/${id}/test`,
     mcpServerTestDraft: `${API_BASE}/admin/mcp/servers/test`,
     systemStatus: `${API_BASE}/admin/system/status`,
+    celeryQueues: `${API_BASE}/admin/system/celery-queues`,
     socialAccounts: `${API_BASE}/admin/social/accounts`,
     socialAccount: (id: number | string) => `${API_BASE}/admin/social/accounts/${id}`,
     socialAccountBackfill: (id: number | string) =>
@@ -309,7 +326,44 @@ export const ENDPOINTS = {
       `${API_BASE}/admin/social/accounts/${id}/posts`,
     socialStatus: `${API_BASE}/admin/social/status`,
     socialCookies: `${API_BASE}/admin/social/cookies`,
-    socialAsrConfig: `${API_BASE}/admin/social/asr-config`,
-    socialAsrConfigTest: `${API_BASE}/admin/social/asr-config/test`,
+    asrConfig: `${API_BASE}/admin/model-configs/asr`,
+    asrConfigTest: `${API_BASE}/admin/model-configs/asr/test`,
+    paperTradeAccounts: `${API_BASE}/admin/paper-trade/accounts`,
+    tradingAgentAgents: `${API_BASE}/admin/trading-agent/agents`,
+    tradingAgentPromptTemplates: `${API_BASE}/admin/trading-agent/prompt-templates`,
+    tradingAgentStatus: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/status`,
+    tradingAgentAgent: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}`,
+    tradingAgentConfig: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/config`,
+    tradingAgentPrompt: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/prompt`,
+    tradingAgentSkillFiles: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/skill/files`,
+    tradingAgentReview: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/review`,
+    tradingAgentDates: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/dates`,
+    tradingAgentPlans: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/plans`,
+    tradingAgentPlanCancel: (agentKey: string, planId: number | string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/plans/${planId}/cancel`,
+    tradingAgentSelections: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/selections`,
+    tradingAgentSelection: (agentKey: string, selectionId: number | string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/selections/${selectionId}`,
+    tradingAgentMemories: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/memories`,
+    tradingAgentMemory: (agentKey: string, memoryId: number | string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/memories/${memoryId}`,
+    tradingAgentMemoryStatus: (agentKey: string, memoryId: number | string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/memories/${memoryId}/status`,
+    paperTradeAccountAgent: (id: number | string) =>
+      `${API_BASE}/admin/paper-trade/accounts/${id}/agent`,
+    paperTradeAccountEnabled: (id: number | string) =>
+      `${API_BASE}/admin/paper-trade/accounts/${id}/enabled`,
+    agentRuns: `${API_BASE}/admin/agent-runs`,
+    agentRun: (id: number | string) => `${API_BASE}/admin/agent-runs/${id}`,
   },
 } as const

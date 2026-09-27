@@ -24,10 +24,11 @@ SPECS: tuple[TaskSpec, ...] = (
         collectors={
             "internal": "collector.spiders.kb_extract:KbExtractCollector",
         },
-        # 多窗口 LLM 结构化调用，长课程可能整轮超 BATCH 默认时限
-        queue="batch",
-        soft_time_limit=1800,
-        hard_time_limit=2100,
+        # 多窗口 LLM 结构化调用：整课回填实测 40 分钟+（68 集约 1 集/分钟），
+        # 与转写同级长任务——走 heavy 专用 worker，避免占满主 worker 槽位饿死实时采集
+        queue="heavy",
+        soft_time_limit=3600,
+        hard_time_limit=4200,
     ),
     TaskSpec(
         name="kb-vision",
@@ -37,10 +38,11 @@ SPECS: tuple[TaskSpec, ...] = (
         collectors={
             "internal": "collector.spiders.kb_vision:KbVisionCollector",
         },
-        # 选帧逐集 ffmpeg 抽帧 + 描述阶段逐张 VLM 调用，长视频可能超 BATCH 默认时限
-        queue="batch",
-        soft_time_limit=1800,
-        hard_time_limit=2100,
+        # 选帧逐集 ffmpeg 抽帧 + 描述阶段逐张 VLM 调用：大批量回填可达小时级，
+        # 走 heavy 专用 worker；单轮超限被杀后按 vision_at/pending 帧增量续跑
+        queue="heavy",
+        soft_time_limit=3600,
+        hard_time_limit=4200,
     ),
     TaskSpec(
         name="kb-index",

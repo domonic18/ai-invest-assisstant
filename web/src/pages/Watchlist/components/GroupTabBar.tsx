@@ -7,8 +7,9 @@ import {
   PlusOutlined,
   SettingOutlined,
 } from '@ant-design/icons'
-import { Button, Dropdown, Modal, Radio, Space, Switch, Tabs, Tag, message } from 'antd'
+import { Button, Dropdown, Modal, Radio, Space, Switch, Tabs, Tag, Tooltip, message } from 'antd'
 import type { MenuProps } from 'antd'
+import type { ReactNode } from 'react'
 import type { WatchlistGroup } from '@ai-invest/shared'
 
 import {
@@ -16,6 +17,7 @@ import {
   useReorderWatchlistGroups,
   useToggleGroupAiReview,
 } from '@/hooks/useWatchlistGroups'
+import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 import { apiErrorMessage } from '@/utils/errorMessage'
 
 const ALL_KEY = 'all'
@@ -42,6 +44,11 @@ export function GroupTabBar({
   const deleteGroup = useDeleteWatchlistGroup()
   const reorder = useReorderWatchlistGroups()
   const toggleAi = useToggleGroupAiReview()
+  const isNarrow = useIsNarrowScreen()
+
+  // 窄屏收成纯图标按钮（Tooltip 补语义），给分组 Tab 让出横向空间
+  const withTip = (node: ReactNode, tip: string) =>
+    isNarrow ? <Tooltip title={tip}>{node}</Tooltip> : node
 
   const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null
   const activeIndex = activeGroup ? groups.findIndex((g) => g.id === activeGroup.id) : -1
@@ -189,17 +196,37 @@ export function GroupTabBar({
           })),
         ]}
         tabBarExtraContent={
-          <Space size={4}>
-            <Button size="small" icon={<PictureOutlined />} onClick={onImport}>
-              截图导入
-            </Button>
-            <Button size="small" type="primary" icon={<PlusOutlined />} onClick={onNewGroup}>
-              新建分组
-            </Button>
+          <Space size={isNarrow ? 2 : 4}>
+            {withTip(
+              <Button
+                size="small"
+                icon={<PictureOutlined />}
+                onClick={onImport}
+                aria-label="截图导入"
+              >
+                {isNarrow ? undefined : '截图导入'}
+              </Button>,
+              '截图导入',
+            )}
+            {withTip(
+              <Button
+                size="small"
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={onNewGroup}
+                aria-label="新建分组"
+              >
+                {isNarrow ? undefined : '新建分组'}
+              </Button>,
+              '新建分组',
+            )}
             <Dropdown menu={manageMenu} placement="bottomRight" trigger={['click']}>
-              <Button size="small" icon={<SettingOutlined />}>
-                分组管理
-              </Button>
+              {withTip(
+                <Button size="small" icon={<SettingOutlined />} aria-label="分组管理">
+                  {isNarrow ? undefined : '分组管理'}
+                </Button>,
+                '分组管理',
+              )}
             </Dropdown>
           </Space>
         }

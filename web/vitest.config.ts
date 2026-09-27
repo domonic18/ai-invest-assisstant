@@ -15,6 +15,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     css: true,
+    // vitest 3 起 pool 默认 threads→forks：并行争抢下 antd Popconfirm 等重渲染
+    // 用例实测可到 5-6s，压过默认 5s 线（本机实测，串行仅 2.5s），放宽到 15s
+    testTimeout: 15000,
     exclude: ['node_modules', 'dist', 'e2e', '**/*.e2e.{ts,tsx}'],
     coverage: {
       provider: 'v8',

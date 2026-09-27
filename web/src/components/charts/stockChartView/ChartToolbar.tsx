@@ -9,6 +9,7 @@ import { Button, Dropdown, Popover, Radio } from 'antd'
 import { useNavigate } from 'react-router-dom'
 
 import { useSettingsStore } from '@/stores/settings'
+import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 
 import { AiDrawingButton } from '../drawing/AiDrawingButton'
 import { DrawingToolbar } from '../drawing/DrawingToolbar'
@@ -52,6 +53,9 @@ export function ChartToolbar({
   const colorScheme = useSettingsStore((s) => s.colorScheme)
   const setColorScheme = useSettingsStore((s) => s.setColorScheme)
   const navigate = useNavigate()
+  // 窄屏：单行放不下（周期组+画线+指标≈600px），换行为两行；指标按钮只留短标签，
+  // 双图切换隐藏（手机上双图上下叠每张仅 ~150px 高，不可用）
+  const isNarrow = useIsNarrowScreen()
 
   const indicatorItems = INDICATOR_OPTIONS.map((opt) => ({
     key: opt.key,
@@ -69,16 +73,16 @@ export function ChartToolbar({
 
   return (
     <div
-      className="flex items-center gap-2 px-2.5 shrink-0"
-      style={{ height: 36, borderBottom: `1px solid ${BORDER_COLOR}` }}
+      className="flex flex-wrap items-center gap-y-1 gap-2 px-2.5 shrink-0"
+      style={{ minHeight: 36, borderBottom: `1px solid ${BORDER_COLOR}` }}
     >
-      <div className="flex items-center gap-0.5 rounded-md p-0.5 bg-[#1c1f26]">
+      <div className="flex items-center gap-0.5 rounded-md p-0.5 bg-[#1c1f26] shrink-0">
         {periodOptions.map((opt) => (
           <button
             key={opt.value}
             type="button"
             onClick={() => onPeriodChange(opt.value)}
-            className={`px-2.5 py-[3px] text-xs rounded transition-colors ${
+            className={`px-2.5 py-[3px] text-xs whitespace-nowrap rounded transition-colors ${
               period === opt.value
                 ? 'font-medium bg-[rgba(94,106,210,0.12)] text-[#5e6ad2]'
                 : 'text-[#8a8f98] hover:text-[#f0f1f5]'
@@ -88,10 +92,10 @@ export function ChartToolbar({
           </button>
         ))}
       </div>
-      <span className="w-px h-4 bg-[#23262d]" />
-      {drawing && <DrawingToolbar />}
+      <span className="w-px h-4 bg-[#23262d] shrink-0" />
+      {drawing && <DrawingToolbar className="shrink-0" />}
       {drawing && <AiDrawingButton />}
-      {drawing && <span className="w-px h-4 bg-[#23262d]" />}
+      {drawing && <span className="w-px h-4 bg-[#23262d] shrink-0" />}
       <Dropdown
         trigger={['click']}
         menu={{
@@ -101,17 +105,19 @@ export function ChartToolbar({
       >
         <button
           type="button"
-          className="flex items-center gap-1 px-2 py-[3px] text-xs text-[#8a8f98] border border-[#23262d] rounded transition-colors hover:text-[#f0f1f5] hover:border-[#2e323c]"
+          className="flex items-center gap-1 px-2 py-[3px] text-xs whitespace-nowrap text-[#8a8f98] border border-[#23262d] rounded transition-colors hover:text-[#f0f1f5] hover:border-[#2e323c]"
         >
-          {activeIndicatorLabels.length > 0
-            ? `指标：${activeIndicatorLabels.join(' · ')}`
-            : '指标'}
+          {isNarrow
+            ? '指标'
+            : activeIndicatorLabels.length > 0
+              ? `指标：${activeIndicatorLabels.join(' · ')}`
+              : '指标'}
           <DownOutlined className="!text-[9px]" />
         </button>
       </Dropdown>
 
       <div className="ml-auto flex items-center gap-1.5">
-        {layoutToggle && (
+        {layoutToggle && !isNarrow && (
           <div className="flex items-center gap-0.5 rounded-md p-0.5 bg-[#1c1f26]">
             {([true, false] as const).map((v) => (
               <button

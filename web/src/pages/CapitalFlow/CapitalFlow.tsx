@@ -22,6 +22,10 @@ const SECTOR_TYPE_OPTIONS = [
   { label: '概念板块', value: 'concept' },
 ]
 
+/** 窄屏卡片头允许换行：标题不省略截断，extra 落到标题下方（head 是 minHeight 不裁剪）。 */
+const CARD_HEAD_WRAP_CLS =
+  '[&_.ant-card-head-wrapper]:flex-wrap [&_.ant-card-head-wrapper]:gap-y-1 [&_.ant-card-head-title]:whitespace-normal'
+
 export function CapitalFlow() {
   useColorScheme()
   const [sectorType, setSectorType] = useState<SectorType>('industry')
@@ -46,11 +50,11 @@ export function CapitalFlow() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <Typography.Title level={4} className="!mb-0">
           资金流向
         </Typography.Title>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Segmented
             options={SECTOR_TYPE_OPTIONS}
             value={sectorType}
@@ -84,6 +88,7 @@ export function CapitalFlow() {
         <>
           <Card
             variant="borderless"
+            className={CARD_HEAD_WRAP_CLS}
             title="板块资金流向（上=净流入 / 下=净流出，单位：亿元）"
           >
             {data.dates.length < 2 ? (
@@ -108,6 +113,7 @@ export function CapitalFlow() {
           </Card>
           <Card
             variant="borderless"
+            className={CARD_HEAD_WRAP_CLS}
             title={`当日板块排名${selectedDate ? `（${selectedDate}）` : ''}（单位：亿元）`}
           >
             <SectorRankBarChart

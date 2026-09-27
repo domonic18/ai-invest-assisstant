@@ -15,7 +15,7 @@ import httpx
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import InternalError, NotFoundError
+from app.core.exceptions import InternalError, NotFoundError, UnprocessableEntityError
 from app.models.llm_config import LLMConfig
 from app.repositories.admin.llm_config_repository import LLMConfigRepository
 from app.schemas.llm_config import (
@@ -25,6 +25,7 @@ from app.schemas.llm_config import (
     LLMConfigUpdate,
     LLMProtocol,
 )
+from app.services.admin.llm_failover import clear_unhealthy, degraded_until, resolve_healthy
 from app.utils.api_base import normalize_api_base
 from app.utils.crypto import decrypt_token, encrypt_token, mask_token
 
@@ -71,17 +72,18 @@ class LLMConfigService:
     async def list_configs(self) -> list[LLMConfigResponse]:
         """列出全部配置，默认模型排在最前。"""
         rows = await self.repo.list_ordered()
-        return [self._to_response(row) for row in rows]
+        return [await self._to_response(row) for row in rows]
 
     async def get_config(self, config_id: int) -> LLMConfigResponse:
         """按 ID 查询 LLM 配置，缺失时抛 LLMConfigNotFoundError。"""
         config = await self.repo.get(config_id)
         if not config:
             raise LLMConfigNotFoundError(f"LLM config {config_id} not found")
-        return self._to_response(config)
+        return await self._to_response(config)
 
     async def create_config(self, data: LLMConfigCreate) -> LLMConfigResponse:
         """创建新配置。"""
+        await self._validate_backup(data.backup_config_id, data.purpose)
         config = LLMConfig(
             name=data.name,
             provider=data.provider,
@@ -91,6 +93,7 @@ class LLMConfigService:
             model_name=data.model_name,
             is_active=data.is_active,
             purpose=data.purpose,
+            backup_config_id=data.backup_config_id,
             extra=data.extra,
         )
         if data.is_default:
@@ -105,7 +108,7 @@ class LLMConfigService:
             name=config.name,
             is_default=config.is_default,
         )
-        return self._to_response(config)
+        return await self._to_response(config)
 
     async def update_config(
         self, config_id: int, data: LLMConfigUpdate
@@ -137,10 +140,17 @@ class LLMConfigService:
             await self.repo.clear_other_defaults(exclude_id=config_id)
             config.is_default = True
             config.is_active = True
+        # backup_config_id 允许显式置 null 清除（model_fields_set 区分未提供）
+        if "backup_config_id" in data.model_fields_set:
+            await self._validate_backup(data.backup_config_id, config.purpose, self_id=config_id)
+            config.backup_config_id = data.backup_config_id
+        elif data.purpose is not None and config.backup_config_id is not None:
+            # purpose 变更后存量备用可能不再匹配，提前校验而非静默失效
+            await self._validate_backup(config.backup_config_id, config.purpose, self_id=config_id)
 
         await self.session.commit()
         await self.repo.refresh(config)
-        return self._to_response(config)
+        return await self._to_response(config)
 
     async def delete_config(self, config_id: int) -> None:
         """删除配置，必要时重新指定默认模型。"""
@@ -148,12 +158,14 @@ class LLMConfigService:
         if not config:
             raise LLMConfigNotFoundError(f"LLM config {config_id} not found")
         was_default = config.is_default
+        await self.repo.clear_backup_references(config_id)
         await self.repo.delete(config)
         if was_default:
             nxt = await self.repo.get_first_active()
             if nxt:
                 nxt.is_default = True
         await self.session.commit()
+        await clear_unhealthy(config_id)
 
     async def set_default_config(self, config_id: int) -> LLMConfigResponse:
         """将某配置设为全局默认。"""
@@ -166,7 +178,7 @@ class LLMConfigService:
         await self.session.commit()
         await self.repo.refresh(config)
         logger.info("llm_config_set_default", config_id=config.id, name=config.name)
-        return self._to_response(config)
+        return await self._to_response(config)
 
     async def test_config_connection(self, config_id: int) -> LLMConfigTestResponse:
         """测试连通性并持久化结果。"""
@@ -181,6 +193,9 @@ class LLMConfigService:
         config.last_test_status = test_status
         config.last_test_error = None if test_status == "success" else detail
         await self.session.commit()
+        # 连通正常即视为恢复：清除额度耗尽冷却标记，解析层切回主模型
+        if test_status == "success":
+            await clear_unhealthy(config_id)
         return LLMConfigTestResponse(status=test_status, detail=detail, tested_at=now)
 
     async def get_default_config(self) -> LLMConfig:
@@ -245,7 +260,23 @@ class LLMConfigService:
             logger.warning("llm_config_test_failed", config_id=config.id, error=str(exc))
             return "failed", str(exc)
 
-    def _to_response(self, config: LLMConfig) -> LLMConfigResponse:
+    async def _validate_backup(
+        self, backup_config_id: int | None, purpose: str, *, self_id: int | None = None
+    ) -> None:
+        """校验备用引用：存在、启用、同 purpose、非自身（None 表示不指定）。"""
+        if backup_config_id is None:
+            return
+        if self_id is not None and backup_config_id == self_id:
+            raise UnprocessableEntityError("备用模型不能是配置自身")
+        backup = await self.repo.get(backup_config_id)
+        if backup is None or not backup.is_active:
+            raise UnprocessableEntityError("备用模型不存在或已停用")
+        if backup.purpose != purpose:
+            raise UnprocessableEntityError(
+                f"备用模型用途须与本配置一致（{purpose}）"
+            )
+
+    async def _to_response(self, config: LLMConfig) -> LLMConfigResponse:
         return LLMConfigResponse(
             id=config.id,
             name=config.name,
@@ -257,6 +288,8 @@ class LLMConfigService:
             is_default=config.is_default,
             is_active=config.is_active,
             purpose=config.purpose,
+            backup_config_id=config.backup_config_id,
+            degraded_until=await degraded_until(config.id),
             extra=config.extra or {},
             last_tested_at=config.last_tested_at,
             last_test_status=config.last_test_status,
@@ -274,6 +307,7 @@ async def resolve_default_llm(session: AsyncSession) -> ResolvedLLMConfig:
     """
     service = LLMConfigService(session)
     config = await service.get_default_config()
+    config = await resolve_healthy(session, config)
     return ResolvedLLMConfig(
         config_id=config.id,
         provider=config.provider,
@@ -299,7 +333,7 @@ async def resolve_vision_llm(session: AsyncSession) -> ResolvedLLMConfig:
         raise LLMConfigNotConfiguredError(
             "未配置视觉模型，请联系管理员在后台「LLM 配置」中勾选「视觉能力」"
         )
-    config = configs[0]
+    config = await resolve_healthy(session, configs[0])
     return ResolvedLLMConfig(
         config_id=config.id,
         provider=config.provider,
@@ -320,6 +354,7 @@ async def resolve_llm_by_id(session: AsyncSession, config_id: int) -> ResolvedLL
     row = await LLMConfigRepository(session).get(config_id)
     if row is None or not row.is_active:
         raise LLMConfigNotFoundError(f"LLM 配置 {config_id} 不存在或已停用")
+    row = await resolve_healthy(session, row)
     return ResolvedLLMConfig(
         config_id=row.id,
         provider=row.provider,

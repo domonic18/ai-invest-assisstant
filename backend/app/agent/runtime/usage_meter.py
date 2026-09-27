@@ -1,4 +1,4 @@
-"""模型调用计量 callback：预扣 → 结算 → 明细入队（arch/10 §3）。
+"""模型调用计量 callback：预扣 → 结算 → 明细入队（arch/07 §3）。
 
 挂在 ``build_langchain_model`` 的唯一出口上，助手多轮/单轮结构化/系统任务
 全部覆盖；助手 agent 按用户缓存模型实例，同一 callback 实例会被并发共享，

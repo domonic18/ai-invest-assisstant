@@ -13,6 +13,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import InternalError
+from app.services.admin.llm_failover import classify_llm_failure, mark_unhealthy, resolve_healthy
 from app.services.kb.settings_service import resolve_role_model
 from app.services.quota.constants import FEATURE_KB_EMBED, OUTLET_SYSTEM
 from app.services.quota.usage_writer import UsageRecord, enqueue
@@ -35,8 +36,12 @@ class KbEmbeddingError(InternalError):
 
 
 async def build_embedding_client(session: AsyncSession) -> "EmbeddingClient":
-    """按知识库设置解析 embedding 角色槽位并构造客户端。"""
-    config = await resolve_role_model(session, "embedding")
+    """按知识库设置解析 embedding 角色槽位并构造客户端。
+
+    槽位配置处于额度耗尽冷却期时经 ``resolve_healthy`` 切到其备用条目
+    （索引任务下轮重建客户端时生效）。
+    """
+    config = await resolve_healthy(session, await resolve_role_model(session, "embedding"))
     return EmbeddingClient(
         config_id=config.id,
         provider=config.provider,
@@ -90,10 +95,15 @@ class EmbeddingClient:
                     json={"model": self.model_name, "input": payload_texts},
                 )
         except httpx.HTTPError as exc:
+            if classify_llm_failure(None, str(exc)):
+                await mark_unhealthy(self.config_id)
             raise KbEmbeddingError(f"embedding 请求失败：{exc}") from exc
         if response.status_code != 200:
+            body = response.text[:200]
+            if classify_llm_failure(response.status_code, body):
+                await mark_unhealthy(self.config_id)
             raise KbEmbeddingError(
-                f"embedding 返回 HTTP {response.status_code}: {response.text[:200]}"
+                f"embedding 返回 HTTP {response.status_code}: {body}"
             )
         try:
             payload = response.json()

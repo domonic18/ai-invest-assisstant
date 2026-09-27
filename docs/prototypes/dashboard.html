@@ -315,6 +315,16 @@ tr:hover td { background: rgba(255,255,255,.02); }
 @media (max-width: 1200px) {
   .dash-layout { grid-template-columns: 1fr; }
 }
+.header-btn {
+  display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+  border-radius:6px;border:1px solid transparent;background:transparent;color:var(--text-secondary);
+  font-size:14px;cursor:pointer;transition:background .15s,color .15s;
+}
+.header-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sidebar-avatar {
+  width:26px;height:26px;border-radius:50%;background:var(--accent-soft,var(--bg-hover));color:var(--accent);
+  display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;
+}
 </style>
 </head>
 <body>
@@ -329,19 +339,16 @@ tr:hover td { background: rgba(255,255,255,.02); }
     </div>
     <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
-<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="#"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
+<div class="sidebar-section-title">检测</div>
 <a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
-<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
-<a class="sidebar-item" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
-<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>异动检测</span></a>
 <a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
-<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item active" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
-<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
-<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
@@ -363,11 +370,11 @@ tr:hover td { background: rgba(255,255,255,.02); }
         <button class="btn btn-primary btn-sm">搜索</button>
       </div>
       <div class="header-right">
-        <div class="header-badge notification">
-          <div class="notification-dot"></div>
-          ⧂
-        </div>
-        <div class="header-badge">⚙</div>
+        <button class="header-btn" title="知识库">📚</button>
+        <button class="header-btn" title="AI 选股">🔽</button>
+        <button class="header-btn" title="AI 助手">💬</button>
+        <button class="header-btn" title="投资日历">📅</button>
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><div class="sidebar-avatar" style="width:26px;height:26px;font-size:11px">U</div><span>用户</span>▾</div>
       </div>
     </header>
 
@@ -375,15 +382,15 @@ tr:hover td { background: rgba(255,255,255,.02); }
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
         <h1 class="page-title">每日复盘</h1>
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:var(--text-sm);color:var(--text-secondary)">交易日:</span>
           <select style="background:var(--bg-surface);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);padding:5px 8px;font-size:12px">
             <option>2026-07-04 (周五)</option>
             <option>2026-07-03 (周四)</option>
             <option>2026-07-02 (周三)</option>
           </select>
+          <button class="btn btn-secondary btn-sm">补采数据</button>
         </div>
       </div>
-      <div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:20px">AI 复盘报告 · 数据覆盖沪深京三市 · 更新时间 15:32</div>
+      <div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:20px">AI 复盘报告 · 数据交易日 2026-07-04</div>
 
       <div class="dash-layout">
         <!-- ========== LEFT COLUMN: 复盘统计 ========== -->
@@ -393,15 +400,19 @@ tr:hover td { background: rgba(255,255,255,.02); }
           <section>
             <div class="section-label">情绪面</div>
 
-            <!-- 上证指数 -->
+            <!-- 指数行情 -->
             <div class="card mb-4">
               <div class="card-header">
-                <span class="card-title">上证指数</span>
-                <span style="font-size:var(--text-sm);font-family:var(--font-mono);color:var(--green)">3,352.88 <span style="font-size:var(--text-xs)">+1.24%</span></span>
+                <span class="card-title">指数行情</span>
               </div>
               <div class="card-body" style="padding:0">
-                <div style="padding:12px 16px 8px">
-                  <div class="index-grid">
+                <div style="padding:12px 16px 0">
+                  <div class="index-grid" style="grid-template-columns:repeat(4,1fr)">
+                    <div class="index-card">
+                      <div class="index-name">上证指数</div>
+                      <div class="index-val" style="color:var(--green)">3,352.88</div>
+                      <div class="index-change" style="color:var(--green)">+1.24%</div>
+                    </div>
                     <div class="index-card">
                       <div class="index-name">深证成指</div>
                       <div class="index-val" style="color:var(--green)">10,868.24</div>
@@ -418,6 +429,21 @@ tr:hover td { background: rgba(255,255,255,.02); }
                       <div class="index-change" style="color:var(--green)">+3.12%</div>
                     </div>
                   </div>
+                  <div style="display:flex;align-items:center;gap:14px;font-size:13px;margin:4px 0 10px;flex-wrap:wrap">
+                    <span style="color:var(--accent);font-weight:600;border-bottom:2px solid var(--accent);padding-bottom:2px">上证指数</span>
+                    <span style="color:var(--text-secondary);cursor:pointer">创业板指</span>
+                    <span style="color:var(--text-secondary);cursor:pointer">科创50</span>
+                    <span style="color:var(--text-secondary);cursor:pointer">沪深300ETF</span>
+                    <span style="color:var(--text-secondary);cursor:pointer">富时A50</span>
+                    <span style="margin-left:auto;display:inline-flex;gap:4px">
+                      <span style="background:var(--accent-soft);color:var(--accent);border-radius:4px;padding:2px 8px;font-size:11px">分时</span>
+                      <span style="color:var(--text-secondary);padding:2px 8px;font-size:11px;cursor:pointer">日线</span>
+                      <span style="color:var(--text-secondary);padding:2px 8px;font-size:11px;cursor:pointer">周线</span>
+                      <span style="color:var(--text-secondary);padding:2px 8px;font-size:11px;cursor:pointer">月线</span>
+                      <span style="color:var(--text-secondary);padding:2px 8px;font-size:11px;cursor:pointer">季线</span>
+                      <span style="color:var(--text-secondary);padding:2px 8px;font-size:11px;cursor:pointer">年线</span>
+                    </span>
+                  </div>
                 </div>
                 <div class="kline-mini" style="height:180px;margin:0 12px 12px">
                   <svg width="100%" height="180" style="display:block">
@@ -433,7 +459,10 @@ tr:hover td { background: rgba(255,255,255,.02); }
 
             <!-- 成交量与涨跌统计 -->
             <div class="card mb-4">
-              <div class="card-header"><span class="card-title">成交量与涨跌统计</span></div>
+              <div class="card-header">
+                <span class="card-title">成交量与涨跌统计</span>
+                <span style="font-size:11px;color:var(--text-tertiary)">数据日期 2026-07-04</span>
+              </div>
               <div class="card-body">
                 <div class="stat-row" style="margin-bottom:16px">
                   <div class="stat-box">
@@ -466,7 +495,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
                   <span>冰点</span><span>偏冷</span><span>温和</span><span style="color:var(--amber);font-weight:600">偏热</span><span>过热</span>
                 </div>
                 <div style="margin-top:12px;padding:10px;background:rgba(210,153,34,.08);border-radius:6px;font-size:12px;color:var(--amber)">
-                  ⚡ 情绪温度 <strong>68°</strong> · 偏热区间 · 涨停比 2.8% · 连板率 36% · 炸板率 18% · 建议控制追高仓位
+                  ⚡ 情绪温度 <strong>68°</strong> · 偏热 · 涨停比 2.8% · 连板率 36% · 炸板率 18% · 建议控制追高仓位
                 </div>
               </div>
             </div>
@@ -480,7 +509,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
             <div class="card mb-4">
               <div class="card-header">
                 <span class="card-title">板块热力图</span>
-                <span style="font-size:11px;color:var(--text-tertiary)">今日板块涨跌分布</span>
+                <span style="font-size:11px;color:var(--text-tertiary)">行业板块涨跌分布</span>
               </div>
               <div class="card-body-sm">
                 <div class="sector-heat-grid">
@@ -535,11 +564,33 @@ tr:hover td { background: rgba(255,255,255,.02); }
               </div>
             </div>
 
+            <!-- 领涨板块 -->
+            <div class="card mb-4">
+              <div class="card-header">
+                <span class="card-title">领涨板块</span>
+                <span class="tag tag-green">AI算力主线</span>
+              </div>
+              <div class="card-body-sm">
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>板块</th><th class="text-right">涨幅</th><th class="text-right">涨停数</th><th class="text-right">资金净流入</th><th>领涨龙头</th></tr></thead>
+                    <tbody>
+                      <tr><td><span class="tag tag-red">AI芯片</span></td><td class="text-right" style="color:var(--green);font-weight:600">+5.8%</td><td class="text-right">12</td><td class="text-right" style="color:var(--green)">+48.2亿</td><td>寒武纪 · 奥普光电</td></tr>
+                      <tr><td><span class="tag tag-blue">半导体设备</span></td><td class="text-right" style="color:var(--green);font-weight:600">+4.2%</td><td class="text-right">8</td><td class="text-right" style="color:var(--green)">+22.6亿</td><td>北方华创 · 精测电子</td></tr>
+                      <tr><td><span class="tag tag-purple">固态电池</span></td><td class="text-right" style="color:var(--green);font-weight:600">+3.6%</td><td class="text-right">5</td><td class="text-right" style="color:var(--green)">+18.4亿</td><td>宁德时代 · 星源材质</td></tr>
+                      <tr><td>机器人</td><td class="text-right" style="color:var(--green);font-weight:500">+2.8%</td><td class="text-right">4</td><td class="text-right" style="color:var(--green)">+12.8亿</td><td>汇川技术</td></tr>
+                      <tr><td>低空经济</td><td class="text-right" style="color:var(--green);font-weight:500">+2.1%</td><td class="text-right">3</td><td class="text-right" style="color:var(--green)">+9.5亿</td><td>亿航智能</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
             <!-- 连板天梯 -->
             <div class="card mb-4">
               <div class="card-header">
                 <span class="card-title">连板天梯</span>
-                <span style="font-size:11px;color:var(--text-tertiary)">今日最高 6 板</span>
+                <span style="font-size:11px;color:var(--text-tertiary)">当日最高 6 板</span>
               </div>
               <div class="card-body-sm">
                 <div class="ladder-list">
@@ -594,16 +645,20 @@ tr:hover td { background: rgba(255,255,255,.02); }
                   </div>
                 </div>
                 <div style="margin-top:12px;text-align:center;font-size:11px;color:var(--text-tertiary)">
-                  数据来源: 同花顺 · 仅展示 ≥2 板个股 · 统计: 6板×1 · 5板×2 · 4板×1 · 3板×2 · 2板×8
+                  数据来源: 东方财富 · 仅展示 ≥2 板个股 · 涨停 128 家 · 首板 96 · 连板 32
                 </div>
               </div>
             </div>
 
-            <!-- 今日涨停板 -->
+            <!-- 涨停复盘 -->
             <div class="card mb-4">
               <div class="card-header">
-                <span class="card-title">今日涨停板</span>
-                <span style="font-size:11px;color:var(--text-secondary)">共 128 只涨停 · 首板 96 · 连板 32</span>
+                <span class="card-title">涨停复盘</span>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <span style="font-size:11px;color:var(--text-secondary)">共 128 只涨停 · 首板 96 · 连板 32</span>
+                  <span class="tag tag-purple">AI</span>
+                  <button class="btn btn-ghost btn-sm">重新归因</button>
+                </div>
               </div>
               <div class="card-body-sm">
                 <div class="limit-grid">
@@ -620,35 +675,15 @@ tr:hover td { background: rgba(255,255,255,.02); }
               </div>
             </div>
           </section>
-
-          <!-- Section 3: 板块分析 -->
-          <section>
-            <div class="section-label">板块分析</div>
-            <div class="card">
-              <div class="card-header">
-                <span class="card-title">领涨板块</span>
-                <span class="tag tag-green">AI算力主线</span>
-              </div>
-              <div class="card-body-sm">
-                <div class="table-wrap">
-                  <table>
-                    <thead><tr><th>板块</th><th class="text-right">涨幅</th><th class="text-right">涨停数</th><th class="text-right">资金净流入</th><th>领涨龙头</th></tr></thead>
-                    <tbody>
-                      <tr><td><span class="tag tag-red">AI芯片</span></td><td class="text-right" style="color:var(--green);font-weight:600">+5.8%</td><td class="text-right">12</td><td class="text-right" style="color:var(--green)">+48.2亿</td><td>寒武纪 · 奥普光电</td></tr>
-                      <tr><td><span class="tag tag-blue">半导体设备</span></td><td class="text-right" style="color:var(--green);font-weight:600">+4.2%</td><td class="text-right">8</td><td class="text-right" style="color:var(--green)">+22.6亿</td><td>北方华创 · 精测电子</td></tr>
-                      <tr><td><span class="tag tag-purple">固态电池</span></td><td class="text-right" style="color:var(--green);font-weight:600">+3.6%</td><td class="text-right">5</td><td class="text-right" style="color:var(--green)">+18.4亿</td><td>宁德时代 · 星源材质</td></tr>
-                      <tr><td>机器人</td><td class="text-right" style="color:var(--green);font-weight:500">+2.8%</td><td class="text-right">4</td><td class="text-right" style="color:var(--green)">+12.8亿</td><td>汇川技术</td></tr>
-                      <tr><td>低空经济</td><td class="text-right" style="color:var(--green);font-weight:500">+2.1%</td><td class="text-right">3</td><td class="text-right" style="color:var(--green)">+9.5亿</td><td>亿航智能</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </section>
         </div><!-- END dash-left -->
 
-        <!-- ========== RIGHT COLUMN: 指标解读分析 ========== -->
+        <!-- ========== RIGHT COLUMN: AI 复盘解读 ========== -->
         <div class="dash-right">
+
+          <div class="section-label" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0">
+            <span>AI 复盘解读</span>
+            <button class="btn btn-ghost btn-sm">🔄 重新生成</button>
+          </div>
 
           <!-- AI 大盘综述 -->
           <div class="card">
@@ -656,8 +691,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
               <span class="card-title">🤖 AI 大盘综述</span>
               <div style="display:flex;gap:6px;align-items:center">
                 <span class="tag tag-purple">AI 生成</span>
-                <button class="btn btn-ghost btn-sm" onclick="resetSection('overview')" title="重置为 AI 生成内容">↺ 重置</button>
-                <button class="btn btn-ghost btn-sm" onclick="regenerateSection('overview')" title="重新 AI 生成">🔄 重新生成</button>
+                <button class="btn btn-ghost btn-sm">编辑</button>
               </div>
             </div>
             <div class="card-body">
@@ -675,9 +709,26 @@ tr:hover td { background: rgba(255,255,255,.02); }
                 <p style="margin-top:12px"><strong>板块面：</strong>连板天梯最高达到 <strong style="color:var(--red)">6板（奥普光电）</strong>，AI算力主线持续发酵。涨停板以 AI芯片/半导体/固态电池为主要分布。
                 跌停家数仅 12 只，市场风险情绪可控。建议关注 <strong>AI算力→半导体设备→固态电池</strong>轮动脉络的延续性。</p>
               </div>
-              <div class="editable-footer">
-                <span style="font-size:11px;color:var(--text-tertiary)">AI 模型: AI Skill · 生成时间: 2026-07-04 15:35 · 数据源: 同花顺/Wind/东方财富</span>
-                <button class="btn btn-ghost btn-sm" onclick="saveSection('overview')">💾 保存修改</button>
+            </div>
+          </div>
+
+          <!-- 消息面复盘 -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">📰 消息面复盘</span>
+              <div style="display:flex;gap:6px;align-items:center">
+                <span class="tag tag-purple">AI 生成</span>
+                <button class="btn btn-ghost btn-sm">编辑</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="editable-section" contenteditable="true" id="editable-news">
+                <p><strong style="color:var(--text-primary)">今日消息面呈「产业催化密集、政策预期升温」格局。</strong>
+                盘前工信部半导体设备三年行动计划落地，设备板块高开高走；盘中英伟达发布新一代 GPU，AI 算力链全线走强，寒武纪、中科曙光先后封板。</p>
+
+                <p style="margin-top:12px"><strong>政策与资金共振：</strong>发改委表态一批稳增长政策将于近期出台，聚焦扩内需与提振民营经济；北向资金连续 3 日净流入，与消息面催化形成共振，科技成长方向风险偏好持续回暖。</p>
+
+                <p style="margin-top:12px"><strong>盘后关注：</strong>宁德时代固态电池量产进展获多家媒体跟进，注意涨幅较大题材的利好兑现风险；白酒板块并无实质性利空，回调更多源于资金切换。</p>
               </div>
             </div>
           </div>
@@ -688,8 +739,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
               <span class="card-title">📊 技术面分析</span>
               <div style="display:flex;gap:6px;align-items:center">
                 <span class="tag tag-purple">AI 生成</span>
-                <button class="btn btn-ghost btn-sm" onclick="resetSection('tech')">↺ 重置</button>
-                <button class="btn btn-ghost btn-sm" onclick="regenerateSection('tech')">🔄 重新生成</button>
+                <button class="btn btn-ghost btn-sm">编辑</button>
               </div>
             </div>
             <div class="card-body">
@@ -711,10 +761,6 @@ tr:hover td { background: rgba(255,255,255,.02); }
                   <li>• <strong>结论：</strong>突破有效，短期偏多，关注 1,050 压力测试</li>
                 </ul>
               </div>
-              <div class="editable-footer">
-                <span style="font-size:11px;color:var(--text-tertiary)">AI 模型: AI Skill · 生成时间: 2026-07-04 15:35</span>
-                <button class="btn btn-ghost btn-sm" onclick="saveSection('tech')">💾 保存修改</button>
-              </div>
             </div>
           </div>
 
@@ -724,8 +770,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
               <span class="card-title">💰 资金面分析</span>
               <div style="display:flex;gap:6px;align-items:center">
                 <span class="tag tag-purple">AI 生成</span>
-                <button class="btn btn-ghost btn-sm" onclick="resetSection('capital')">↺ 重置</button>
-                <button class="btn btn-ghost btn-sm" onclick="regenerateSection('capital')">🔄 重新生成</button>
+                <button class="btn btn-ghost btn-sm">编辑</button>
               </div>
             </div>
             <div class="card-body">
@@ -743,10 +788,6 @@ tr:hover td { background: rgba(255,255,255,.02); }
 
                 <p style="margin-top:12px"><strong style="color:var(--amber)">资金轮动信号：</strong>白酒→AI芯片的资金迁移已持续 5 个交易日，银行→半导体设备的切换也在加速。沪股通买入集中在半导体和高端制造，深股通集中在新能源和 AI，方向上高度一致。市场风险偏好已从防御转向进攻。</p>
               </div>
-              <div class="editable-footer">
-                <span style="font-size:11px;color:var(--text-tertiary)">AI 模型: AI Skill · 生成时间: 2026-07-04 15:35</span>
-                <button class="btn btn-ghost btn-sm" onclick="saveSection('capital')">💾 保存修改</button>
-              </div>
             </div>
           </div>
 
@@ -756,8 +797,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
               <span class="card-title">🎯 情绪与连板分析</span>
               <div style="display:flex;gap:6px;align-items:center">
                 <span class="tag tag-purple">AI 生成</span>
-                <button class="btn btn-ghost btn-sm" onclick="resetSection('emotion')">↺ 重置</button>
-                <button class="btn btn-ghost btn-sm" onclick="regenerateSection('emotion')">🔄 重新生成</button>
+                <button class="btn btn-ghost btn-sm">编辑</button>
               </div>
             </div>
             <div class="card-body">
@@ -774,10 +814,6 @@ tr:hover td { background: rgba(255,255,255,.02); }
 
                 <p style="margin-top:12px"><strong style="color:var(--amber)">策略建议：</strong>情绪温度 68° 不宜过度追高。但涨停方向高度集中在科技主线（AI芯片 + 半导体 + 固态电池占比 78%），主线清晰。若明日高标股（奥普光电）继续晋级，预计情绪将进一步扩散至更多半导体细分方向（EDA、材料、封测）。建议关注低位首板和 2 板补涨机会。</p>
               </div>
-              <div class="editable-footer">
-                <span style="font-size:11px;color:var(--text-tertiary)">AI 模型: AI Skill · 生成时间: 2026-07-04 15:35</span>
-                <button class="btn btn-ghost btn-sm" onclick="saveSection('emotion')">💾 保存修改</button>
-              </div>
             </div>
           </div>
 
@@ -787,8 +823,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
               <span class="card-title">⚠️ 风险提示与策略建议</span>
               <div style="display:flex;gap:6px;align-items:center">
                 <span class="tag tag-purple">AI 生成</span>
-                <button class="btn btn-ghost btn-sm" onclick="resetSection('risk')">↺ 重置</button>
-                <button class="btn btn-ghost btn-sm" onclick="regenerateSection('risk')">🔄 重新生成</button>
+                <button class="btn btn-ghost btn-sm">编辑</button>
               </div>
             </div>
             <div class="card-body">
@@ -814,12 +849,10 @@ tr:hover td { background: rgba(255,255,255,.02); }
                   <li>• <strong style="color:var(--accent)">防御配置：</strong>适当配置银行（高股息）对冲科技板块波动，等待消费板块企稳信号</li>
                 </ul>
               </div>
-              <div class="editable-footer">
-                <span style="font-size:11px;color:var(--text-tertiary)">AI 模型: AI Skill · 生成时间: 2026-07-04 15:35</span>
-                <button class="btn btn-ghost btn-sm" onclick="saveSection('risk')">💾 保存修改</button>
-              </div>
             </div>
           </div>
+          <div style="font-size:11px;color:var(--text-tertiary)">模型: AI Skill · 生成时间: 2026-07-04 15:35</div>
+
           <!-- 自选股分组（AI 每日分析按分组开关批量生成） -->
           <div class="card">
             <div class="card-header">

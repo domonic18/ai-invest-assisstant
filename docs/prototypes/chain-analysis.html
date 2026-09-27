@@ -341,6 +341,16 @@ tr:last-child td { border-bottom: none; }
   border-radius: var(--radius-md); font-size: 12px; color: var(--text-tertiary); line-height: 1.8;
 }
 .type-note .tn-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+.header-btn {
+  display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+  border-radius:6px;border:1px solid transparent;background:transparent;color:var(--text-secondary);
+  font-size:14px;cursor:pointer;transition:background .15s,color .15s;
+}
+.header-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sidebar-avatar {
+  width:26px;height:26px;border-radius:50%;background:var(--accent-soft,var(--bg-hover));color:var(--accent);
+  display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;
+}
 </style>
 </head>
 <body>
@@ -356,19 +366,16 @@ tr:last-child td { border-bottom: none; }
 
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
-<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="#"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
+<div class="sidebar-section-title">检测</div>
 <a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
-<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
-<a class="sidebar-item" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
-<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>异动检测</span></a>
 <a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
-<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item active" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
-<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
-<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
@@ -377,7 +384,14 @@ tr:last-child td { border-bottom: none; }
 <div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
 </aside>
 <div class="app-main">
-<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
+<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right">
+        <button class="header-btn" title="知识库">📚</button>
+        <button class="header-btn" title="AI 选股">🔽</button>
+        <button class="header-btn" title="AI 助手">💬</button>
+        <button class="header-btn" title="投资日历">📅</button>
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><div class="sidebar-avatar" style="width:26px;height:26px;font-size:11px">U</div><span>用户</span>▾</div>
+      </div>
+    </header>
 <div class="app-content">
 
 <!-- 页头：行业名 + AI 生成版本 tag + 行业切换 + 重新分析（AI 助手）+ 新建分析 -->
@@ -394,7 +408,7 @@ tr:last-child td { border-bottom: none; }
 <option>人工智能</option>
 <option>固态电池</option>
 </select>
-<button class="btn btn-primary btn-sm">🤖 重新分析</button>
+<button class="btn btn-primary btn-sm" title="使用 AI 助手重新分析当前产业链">🤖 重新分析</button>
 <button class="btn btn-secondary btn-sm">＋ 新建分析</button>
 </div>
 </div>
@@ -463,9 +477,9 @@ tr:last-child td { border-bottom: none; }
 <rect x="0" y="14" width="1060" height="118" fill="rgba(88,166,255,.05)"/>
 <rect x="0" y="150" width="1060" height="118" fill="rgba(94,106,210,.06)"/>
 <rect x="0" y="286" width="1060" height="130" fill="rgba(46,160,67,.05)"/>
-<text class="band-label" x="14" y="40">上游 · 材料</text>
-<text class="band-label" x="14" y="176">中游 · 制造</text>
-<text class="band-label" x="14" y="312">下游 · 应用</text>
+<text class="band-label" x="14" y="40">◆ 上游 — 原材料与零部件</text>
+<text class="band-label" x="14" y="176">◆ 中游 — 制造与集成</text>
+<text class="band-label" x="14" y="312">◆ 下游 — 应用与终端</text>
 
 <!-- 边（上游 → 中游） -->
 <path class="gedge" d="M185,106 C185,140 260,150 260,182" marker-end="url(#arr)"/>
@@ -518,16 +532,16 @@ tr:last-child td { border-bottom: none; }
 <div class="nd-metric"><span class="k">国产化率</span><span class="v" style="color:var(--amber)">14%</span></div>
 </div>
 <div class="nd-sec">
-<span class="k">瓶颈因素</span>
+<span class="k">瓶颈因素：</span>
 <span><span class="tag tag-amber" style="margin:0 4px 4px 0">树脂单体进口依赖</span><span class="tag tag-amber">验证周期长</span></span>
 </div>
 <div class="nd-sec">
-<span class="k">近期突破</span>
+<span class="k">近期突破：</span>
 <div class="nd-li up">ArF 光刻胶通过存储客户验证，批量供货在即</div>
 <div class="nd-li up">KrF 高分辨率品类导入 Logic 产线</div>
 </div>
 <div class="nd-sec">
-<span class="k">代表公司</span>
+<span class="k">代表公司：</span>
 <div class="nd-li">南大光电 (300346)</div>
 <div class="nd-li">彤程新材 (603650)</div>
 <div class="nd-li">晶瑞电材 (300655)</div>
@@ -547,7 +561,7 @@ tr:last-child td { border-bottom: none; }
 <div class="graph-ctl">
 <button class="btn btn-sm">＋</button>
 <button class="btn btn-sm">－</button>
-<button class="btn btn-sm">⤢ 适应画布</button>
+<button class="btn btn-sm">⤢ 适配画布</button>
 </div>
 </div>
 </div>
@@ -627,15 +641,15 @@ tr:last-child td { border-bottom: none; }
 <span class="itab">瓶颈 (5)</span>
 </div>
 <div class="insight-card opp">
-<div class="ic-head"><span class="ic-title">高端光刻胶国产替代窗口开启</span><span class="tag tag-green">置信 高</span><span class="tag">光刻胶</span></div>
+<div class="ic-head"><span class="ic-title">高端光刻胶国产替代窗口开启</span><span class="tag tag-red">高置信</span><span class="tag">光刻胶</span></div>
 <div class="ic-desc">ArF 品类通过存储客户验证 + 大基金三期注资，2 年内国产化率有望从 14% 提升至 30%，弹性最大环节。</div>
 </div>
 <div class="insight-card opp">
-<div class="ic-head"><span class="ic-title">设备零部件受益晶圆厂扩产</span><span class="tag tag-green">置信 高</span><span class="tag">设备零部件</span></div>
+<div class="ic-head"><span class="ic-title">设备零部件受益晶圆厂扩产</span><span class="tag tag-red">高置信</span><span class="tag">设备零部件</span></div>
 <div class="ic-desc">下游扩产周期延续至 2027，零部件作为后周期品类接力放量，且不受先进制程出口管制直接约束。</div>
 </div>
 <div class="insight-card opp">
-<div class="ic-head"><span class="ic-title">算力需求拉动先进封装</span><span class="tag tag-amber">置信 中</span><span class="tag">封装测试</span></div>
+<div class="ic-head"><span class="ic-title">算力需求拉动先进封装</span><span class="tag tag-amber">中置信</span><span class="tag">封装测试</span></div>
 <div class="ic-desc">AI 芯片对 2.5D/3D 封装需求激增，先进封装产能稀缺性上升，关注中游封测龙头扩产节奏。</div>
 </div>
 </div>
@@ -659,7 +673,7 @@ tr:last-child td { border-bottom: none; }
 <!-- 实现说明 -->
 <div class="type-note">
 <div class="tn-title">实现说明（对齐 web 实际代码 ChainAnalysis.tsx）</div>
-「重新分析 / 新建分析」经 AI 助手侧边栏执行（sendQuestion），可观察 Agent 读取资料与调工具全过程，完成后经 chain_analysis.complete 事件自动刷新图谱与版本列表；「版本对比」为抽屉式双版本 diff；节点详情浮层可收起（收起后画布右上出现「节点详情」恢复按钮）与关闭；产业链提醒空态折叠为单行细条；矩阵象限分界为各维度均值。
+「重新分析 / 新建分析」经 AI 助手侧边栏执行（sendQuestion），可观察 Agent 读取资料与调工具全过程，完成后经 industry_chain.analysis.complete 事件自动刷新图谱与版本列表；「版本对比」为抽屉式双版本 diff；节点详情浮层可收起（收起后画布右上出现「节点详情」恢复按钮）与关闭；产业链提醒空态折叠为单行细条；矩阵象限分界为各维度均值。
 </div>
 
 </div></div></div>

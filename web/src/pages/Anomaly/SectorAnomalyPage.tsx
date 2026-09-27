@@ -13,9 +13,11 @@ import {
 import { MarkedDatePicker } from '@/components/common/MarkedDatePicker'
 import { SourceNote } from '@/components/common/SourceNote'
 import { useSectorAnomalyBoard, useSectorAnomalyDates } from '@/hooks/useAnomaly'
+import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 import { useAssistantStore } from '@/stores/assistant'
 import { useColorScheme } from '@/stores/settings'
 import { changeColor, DATE_FORMAT, formatAmount, formatPercent } from '@/utils/formatters'
+import { narrowColumns } from '@/utils/responsiveColumns'
 
 import { AttributionAction, AttributionCell, AnomalyTypeTags, SECTOR_CATEGORY_LABELS } from './cells'
 import { ANOMALY_TYPE_LABELS } from './labels'
@@ -30,8 +32,13 @@ const SECTOR_TYPE_OPTIONS = [
   { label: '概念', value: 'concept' },
 ]
 
+// 窄屏（移动端）视口放不下全列：只保留关键列并去掉固定锚，
+// 否则左右固定列把可滚动中间区夹到几乎为零（列被截断）
+const NARROW_COLUMN_KEYS = ['sector', 'changePct', 'strength', 'attribution', 'action']
+
 export function SectorAnomalyPage() {
   useColorScheme()
+  const isNarrow = useIsNarrowScreen()
   const [tradeDate, setTradeDate] = useState<string>()
   const [sectorType, setSectorType] = useState<SectorTypeFilter>('all')
   const [typeFilter, setTypeFilter] = useState<string[]>([])
@@ -257,10 +264,10 @@ export function SectorAnomalyPage() {
         ) : (
           <Table
             rowKey={(it) => `${it.sectorType}:${it.sectorCode}`}
-            columns={columns}
+            columns={isNarrow ? narrowColumns(columns, NARROW_COLUMN_KEYS) : columns}
             dataSource={items}
             size="small"
-            scroll={{ x: 1100 }}
+            scroll={{ x: isNarrow ? 680 : 1100 }}
             pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false }}
           />
         )}

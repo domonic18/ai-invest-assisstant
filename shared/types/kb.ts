@@ -498,6 +498,8 @@ export interface ApiKbPlaybackToken {
   token: string
   expiresIn: number
   mediaId: number
+  /** 同时效预签名 GET 直链（video/audio）；book 为 None（书页走 token 代理渲染水印）。 */
+  streamUrl: string | null
   prevMediaId: number | null
   nextMediaId: number | null
   pageCount: number | null

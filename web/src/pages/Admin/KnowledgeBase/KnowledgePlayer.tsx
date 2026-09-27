@@ -13,7 +13,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   fetchKbPlaybackToken,
   fetchKbSubtitles,
-  kbStreamUrl,
 } from '@/api/kb'
 import { useAuthStore } from '@/stores/auth'
 
@@ -24,6 +23,8 @@ const RATE_STORAGE_KEY = 'kb-player-rate'
 const POSITION_KEY_PREFIX = 'kb-player-pos:'
 const SEEK_STEP_SECONDS = 5
 const POSITION_SAVE_INTERVAL_MS = 5000
+/** 视频元素连续报错的重试上限（每次重试刷新凭证并保进度续播），防无限循环 */
+const MAX_STREAM_RETRIES = 2
 
 export interface PlayerHitInterval {
   startMs: number
@@ -70,13 +71,16 @@ export function KnowledgePlayer({
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const activeCueRef = useRef<HTMLDivElement>(null)
-  /** loadedmetadata 后待应用的起播点（秒；token 刷新续播也走这里） */
+  /** loadedmetadata 后待应用的起播点（秒；直链刷新续播也走这里） */
   const pendingSeekRef = useRef<number | null>(null)
   const wasPlayingRef = useRef(false)
   const lastSaveRef = useRef(0)
   const refreshedRef = useRef(false)
+  const streamRetriesRef = useRef(0)
 
-  const [token, setToken] = useState<string | null>(null)
+  const [streamUrl, setStreamUrl] = useState<string | null>(null)
+  const [reloadNonce, setReloadNonce] = useState(0)
+  const [buffering, setBuffering] = useState(false)
   const [prevMediaId, setPrevMediaId] = useState<number | null>(null)
   const [nextMediaId, setNextMediaId] = useState<number | null>(null)
   const [cues, setCues] = useState<VttCue[]>([])
@@ -86,7 +90,7 @@ export function KnowledgePlayer({
   const [rate, setRate] = useState(readSavedRate)
   const [volume, setVolume] = useState(1)
 
-  // ---- 播放凭证：加载 + 到期前自动刷新（单集可超 30min，防中途 401） ----
+  // ---- 播放直链：签发 + 到期前自动重取（单集可超 30min，防 URL 中途过期） ----
   useEffect(() => {
     let cancelled = false
     let timer: number | undefined
@@ -101,7 +105,7 @@ export function KnowledgePlayer({
           wasPlayingRef.current = !video.paused
         }
         refreshedRef.current = true
-        setToken(next.token)
+        setStreamUrl(next.streamUrl)
         setPrevMediaId(next.prevMediaId)
         setNextMediaId(next.nextMediaId)
         timer = window.setTimeout(
@@ -117,6 +121,11 @@ export function KnowledgePlayer({
       cancelled = true
       if (timer != null) window.clearTimeout(timer)
     }
+  }, [mediaId, reloadNonce])
+
+  // 换集重置重试计数（成功加载元数据同样归零，见 handleLoadedMetadata）
+  useEffect(() => {
+    streamRetriesRef.current = 0
   }, [mediaId])
 
   // ---- 字幕轨 ----
@@ -135,11 +144,11 @@ export function KnowledgePlayer({
     }
   }, [mediaId])
 
-  // ---- src 装载（token 变化重指，loadedmetadata 后恢复进度） ----
+  // ---- src 装载（直链变化重指，loadedmetadata 后恢复进度；MinIO 原生 Range，seek 秒级） ----
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !token) return
-    video.src = kbStreamUrl(mediaId, token)
+    if (!video || !streamUrl) return
+    video.src = streamUrl
     video.load()
     if (pendingSeekRef.current == null) {
       pendingSeekRef.current =
@@ -147,13 +156,13 @@ export function KnowledgePlayer({
           ? initialSeekMs / 1000
           : readSavedPosition(mediaId)
     }
-  }, [token, mediaId, initialSeekMs])
+  }, [streamUrl, mediaId, initialSeekMs])
 
-  // load()/换 src 会把 playbackRate 重置为 1，token 刷新后须重挂倍速
+  // load()/换 src 会把 playbackRate 重置为 1，直链刷新后须重挂倍速
   useEffect(() => {
     const video = videoRef.current
     if (video) video.playbackRate = rate
-  }, [rate, token])
+  }, [rate, streamUrl])
 
   const savePosition = useCallback(() => {
     const video = videoRef.current
@@ -229,9 +238,24 @@ export function KnowledgePlayer({
   const progressRatio = durationMs > 0 ? currentMs / durationMs : 0
   const todayLabel = dayjs().format('YYYY-MM-DD')
 
+  /** 视频元素报错（直链 403 过期/网络中断）：立即重取直链并保进度重载，
+   * 有界重试防循环；超出上限后如实提示，不再谎称"正在自动刷新" */
+  const handleVideoError = useCallback(() => {
+    setBuffering(false)
+    if (streamRetriesRef.current >= MAX_STREAM_RETRIES) {
+      void message.error('播放失败，请刷新页面后重试')
+      return
+    }
+    streamRetriesRef.current += 1
+    void message.warning('播放中断，正在自动刷新凭证重试')
+    setReloadNonce((n) => n + 1)
+  }, [])
+
   const handleLoadedMetadata = () => {
     const video = videoRef.current
     if (!video) return
+    streamRetriesRef.current = 0
+    setBuffering(false)
     setDurationMs(Number.isFinite(video.duration) ? video.duration * 1000 : 0)
     const pending = pendingSeekRef.current
     pendingSeekRef.current = null
@@ -274,7 +298,7 @@ export function KnowledgePlayer({
       </div>
 
       <div className="relative flex justify-center rounded bg-black/60" style={{ minHeight: mediaKind === 'audio' ? 96 : 200 }}>
-        {!token ? (
+        {!streamUrl ? (
           <Spin className="self-center" />
         ) : (
           <video
@@ -285,14 +309,23 @@ export function KnowledgePlayer({
             onContextMenu={(e) => e.preventDefault()}
             onLoadedMetadata={handleLoadedMetadata}
             onTimeUpdate={handleTimeUpdate}
+            onWaiting={() => setBuffering(true)}
+            onPlaying={() => setBuffering(false)}
+            onCanPlay={() => setBuffering(false)}
             onPlay={() => setPlaying(true)}
             onPause={() => {
               setPlaying(false)
               savePosition()
             }}
             onEnded={() => setPlaying(false)}
-            onError={() => void message.error('播放失败：凭证可能已过期，正在自动刷新重试')}
+            onError={handleVideoError}
           />
+        )}
+        {/* 缓冲中反馈：首包拉取/seek 拉取期间给出加载态，替代此前的无反馈黑屏 */}
+        {streamUrl && buffering && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <Spin />
+          </div>
         )}
         {/* 防盗角标：用户名+日期（安全不依赖此层，服务端水印为主） */}
         <div className="pointer-events-none absolute right-2 top-2 rounded bg-black/50 px-2 py-0.5 text-xs text-white/70">

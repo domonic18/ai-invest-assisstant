@@ -19,9 +19,15 @@ export const queryKeys = {
     pendingApplications: ['admin-pending-applications'] as const,
     pendingCount: ['admin-pending-count'] as const,
     usageDashboard: (days: number) => ['admin-usage-dashboard', days] as const,
+    usageDashboardAll: ['admin-usage-dashboard'] as const,
     usagePerUsers: (days: number) => ['admin-usage-per-users', days] as const,
+    usagePerUsersAll: ['admin-usage-per-users'] as const,
     accountSettings: ['admin-account-settings'] as const,
     systemStatus: ['admin-system-status'] as const,
+    celeryQueues: ['admin-celery-queues'] as const,
+    agentRuns: (filters?: Record<string, unknown>) =>
+      ['admin-agent-runs', filters ?? {}] as const,
+    agentRunDetail: (id: number) => ['admin-agent-run', id] as const,
   },
   auction: {
     all: ['auction'] as const,
@@ -128,10 +134,15 @@ export const queryKeys = {
     accountPosts: (accountId: number) =>
       ['admin-social-account-posts', accountId] as const,
     status: ['admin-social-status'] as const,
-    asrConfig: ['admin-social-asr-config'] as const,
+  },
+  modelConfig: {
+    asr: ['model-config', 'asr'] as const,
   },
   proxyConfigs: ['proxy-configs'] as const,
   trackedIndexOptions: ['tracked-index-options'] as const,
+  tradeCalendar: {
+    year: (year: number) => ['trade-calendar', year] as const,
+  },
   market: {
     all: ['market'] as const,
     indices: (tradeDate?: string) => ['market', 'indices', tradeDate] as const,
@@ -226,9 +237,61 @@ export const queryKeys = {
     overview: ['workbench', 'overview'] as const,
     reviewStatus: ['workbench', 'reviewStatus'] as const,
   },
+  paperTrade: {
+    all: ['paper-trade'] as const,
+    accounts: ['paper-trade', 'accounts'] as const,
+    adminAccounts: ['paper-trade', 'admin', 'accounts'] as const,
+    overview: (accountId?: number) =>
+      ['paper-trade', 'overview', accountId ?? null] as const,
+    orders: (accountId?: number, tradeDate?: string, page?: number, pageSize?: number) =>
+      [
+        'paper-trade',
+        'orders',
+        accountId ?? null,
+        tradeDate ?? null,
+        page ?? 1,
+        pageSize ?? 20,
+      ] as const,
+    executions: (
+      accountId?: number,
+      tradeDate?: string,
+      page?: number,
+      pageSize?: number,
+    ) =>
+      [
+        'paper-trade',
+        'executions',
+        accountId ?? null,
+        tradeDate ?? null,
+        page ?? 1,
+        pageSize ?? 20,
+      ] as const,
+    nav: (accountId?: number, days?: number) =>
+      ['paper-trade', 'nav', accountId ?? null, days ?? 30] as const,
+    tradeMarkers: (stockCode?: string, days?: number) =>
+      ['paper-trade', 'trade-markers', stockCode ?? null, days ?? 120] as const,
+  },
   klineDrawings: {
     /** 全周期画线（period 为归属键，周期切换前端过滤） */
     target: (targetType: string, targetCode: string) =>
       ['kline-drawings', targetType, targetCode] as const,
+  },
+  tradingAgent: {
+    all: ['trading-agent'] as const,
+    /** 总览页聚合（全部注册 Agent）。 */
+    agents: ['trading-agent', 'agents'] as const,
+    llmConfigs: ['trading-agent', 'llm-configs'] as const,
+    templates: ['trading-agent', 'prompt-templates'] as const,
+    status: (agentKey: string) => ['trading-agent', agentKey, 'status'] as const,
+    config: (agentKey: string) => ['trading-agent', agentKey, 'config'] as const,
+    prompt: (agentKey: string) => ['trading-agent', agentKey, 'prompt'] as const,
+    skillFiles: (agentKey: string) => ['trading-agent', agentKey, 'skill-files'] as const,
+    dates: (agentKey: string) => ['trading-agent', agentKey, 'dates'] as const,
+    review: (agentKey: string, period: string, tradeDate?: string) =>
+      ['trading-agent', agentKey, 'review', period, tradeDate ?? 'latest'] as const,
+    plans: (agentKey: string, tradeDate?: string) =>
+      ['trading-agent', agentKey, 'plans', tradeDate ?? 'latest'] as const,
+    selections: (agentKey: string) => ['trading-agent', agentKey, 'selections'] as const,
+    memories: (agentKey: string) => ['trading-agent', agentKey, 'memories'] as const,
   },
 } as const

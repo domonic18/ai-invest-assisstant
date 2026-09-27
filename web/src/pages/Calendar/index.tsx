@@ -28,7 +28,7 @@ const VIEW_OPTIONS = [
 ]
 
 export function Calendar() {
-  const [view, setView] = useState<CalendarView>('month')
+  const [view, setView] = useState<CalendarView>('list')
   const [month, setMonth] = useState<Dayjs>(() => dayjs().startOf('month'))
   const [weekAnchor, setWeekAnchor] = useState<Dayjs>(() => dayjs())
   const [selectedDay, setSelectedDay] = useState<Dayjs>(() => dayjs())
@@ -59,6 +59,12 @@ export function Calendar() {
         : events ?? [],
     [events, selectedCategories],
   )
+
+  // 列表视图隐藏已过去的事件（今天 0 点前）
+  const upcomingEvents = useMemo(() => {
+    const today = dayjs().startOf('day')
+    return filteredEvents.filter((e) => !dayjs(e.eventTime).isBefore(today, 'day'))
+  }, [filteredEvents])
 
   const selectedDayEvents = useMemo(
     () =>
@@ -196,7 +202,7 @@ export function Calendar() {
             {view === 'list' && (
               <ListView
                 month={month}
-                events={filteredEvents}
+                events={upcomingEvents}
                 onSelectDay={setSelectedDay}
                 watchlistCodes={watchlistCodes}
               />

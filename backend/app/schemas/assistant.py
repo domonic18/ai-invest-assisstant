@@ -20,11 +20,13 @@ class ThreadCreateRequest(BaseModel):
     title: str | None = None
     metadata: dict[str, Any] | None = None
     thread_id: str | None = None
+    agent_type: str | None = None  # assistant（默认）/ trading（仅 admin）
 
 
 class ThreadResponse(BaseModel):
     thread_id: str
     title: str | None = None
+    agent_type: str = "assistant"
     last_message_at: datetime | None = None
     created_at: datetime
     updated_at: datetime

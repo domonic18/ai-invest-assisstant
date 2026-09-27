@@ -43,8 +43,8 @@ from app.schemas.social import (
     SignerStatusResponse,
     SocialStatusResponse,
 )
+from app.services.admin import asr_config_service
 from app.services.admin.audit_service import record_audit
-from app.services.social import asr_config_service
 from app.services.social.asr_service import TranscribeOutcome, transcribe_from_url
 
 logger = structlog.get_logger(__name__)

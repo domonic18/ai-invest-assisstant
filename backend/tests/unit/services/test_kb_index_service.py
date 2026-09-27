@@ -218,7 +218,7 @@ async def test_incremental_soft_deleted_media_clears_vector(
 async def test_incremental_disabled_source_clears_vector(
     session: AsyncSession,
 ) -> None:
-    """停用知识源的 published 点不进检索面（arch/12 §7.1 enabled=false 口径）。"""
+    """停用知识源的 published 点不进检索面（arch/09 §7.1 enabled=false 口径）。"""
     media = await _seed_media(session)
     source = await session.get(KbSource, media.source_id)
     assert source is not None

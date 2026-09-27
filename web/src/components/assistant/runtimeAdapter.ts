@@ -18,7 +18,8 @@ import type {
 } from '@assistant-ui/react-langgraph'
 import type { Client } from '@langchain/langgraph-sdk'
 
-import { createAssistantClient } from '@/api/assistant'
+import { createAssistantClient, createThread } from '@/api/assistant'
+import type { AssistantAgentType } from '@/api/assistant'
 import { buildPageContext } from '@/utils/pageContext'
 
 import { useAssistantStore } from '@/stores/assistant'
@@ -27,6 +28,11 @@ import { dispatchCustomEvent, dispatchUpdates } from './assistantEventDispatcher
 import type { StateWithTasks } from './runtimeUtils'
 
 const ASSISTANT_ID = 'invest-assistant'
+
+export interface AssistantAdapterOptions {
+  /** trading：新线程经自有端点创建并携带 agent_type（SDK threads.create 白名单序列化带不上扩展字段），由后端分流至交易 Agent 运行时 */
+  agentType?: AssistantAgentType
+}
 
 export interface AssistantRuntimeAdapter {
   threadListAdapter: InMemoryThreadListAdapter
@@ -48,6 +54,7 @@ export interface AssistantRuntimeAdapter {
 
 export function createAssistantRuntimeAdapter(
   createClient: () => Client = createAssistantClient,
+  options: AssistantAdapterOptions = {},
 ): AssistantRuntimeAdapter {
   // 后端会话即 remote 线程。默认的 InMemory adapter 不认识列表外的线程 id，
   // 切换历史会话时 fetch 会拒绝且被 runtime 静默吞掉（界面无反应），
@@ -55,6 +62,10 @@ export function createAssistantRuntimeAdapter(
   // SDK client 的 defaultHeaders 在构造时固化，必须每次调用时重建以读取最新 token。
   const threadListAdapter = new InMemoryThreadListAdapter()
   threadListAdapter.initialize = async () => {
+    if (options.agentType && options.agentType !== 'assistant') {
+      const thread = await createThread({ agent_type: options.agentType })
+      return { remoteId: thread.thread_id, externalId: thread.thread_id }
+    }
     const client = createClient()
     const thread = await client.threads.create()
     return { remoteId: thread.thread_id, externalId: thread.thread_id }
@@ -102,7 +113,7 @@ export function createAssistantRuntimeAdapter(
         signal: config.abortSignal,
       })
       for await (const chunk of stream) {
-        // 配额耗尽错误帧追加引导文案（arch/10 §7.2：AI 拦截须指引配 Key/联系管理员）
+        // 配额耗尽错误帧追加引导文案（arch/07 §7.2：AI 拦截须指引配 Key/联系管理员）
         if (chunk.event === 'error') {
           const data = chunk.data as
             | { error_code?: string; error?: string }

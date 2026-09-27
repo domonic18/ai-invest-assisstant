@@ -1,6 +1,6 @@
 /**
  * 画线图层类型（前端单一真相源：shared/types/drawing.ts re-export + 前端专属渲染态）。
- * 架构：docs/arch/09-kline-drawing.md §3
+ * 架构：docs/arch/05-web-frontend.md §5.3
  */
 
 import type { ECharts } from 'echarts'

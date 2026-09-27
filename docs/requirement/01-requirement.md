@@ -352,7 +352,7 @@
 
 #### F-AI-09 板块异动分析
 
-- **描述**：对 A 股板块级别的量价异常波动进行检测和归因分析，输出当日异动板块清单及驱动逻辑，是「异动检测」页（监测分组）板块 Tab 的专项复盘工具（与个股异动同页 Tab 切换）。检测范式（趋势 + 量价自包含、检测/归因分层）以 [docs/arch/08-anomaly-analysis.md](../arch/08-anomaly-analysis.md) 为准
+- **描述**：对 A 股板块级别的量价异常波动进行检测和归因分析，输出当日异动板块清单及驱动逻辑，是「异动检测」页（监测分组）板块 Tab 的专项复盘工具（与个股异动同页 Tab 切换）。检测范式（趋势 + 量价自包含、检测/归因分层）以 [docs/arch/06-anomaly-analysis.md](../arch/06-anomaly-analysis.md) 为准
 - **触发方式**：交易日盘后自动执行；用户可按交易日手动查看/重算
 - **检测维度**（检测数据源自包含，资金流/涨停池/龙虎榜/公告/新闻一律不进检测链路）：
   - 涨跌幅异动：板块指数单日涨跌幅超阈值（|涨跌幅| ≥ 2%）
@@ -367,7 +367,7 @@
 
 #### F-AI-10 个股异动分析
 
-- **描述**：对个股级别的异常波动进行检测和归因分析，按交易日输出异动个股清单，帮助用户从市场噪声中定位值得关注的标的，是「异动检测」页（监测分组）个股 Tab 的专项复盘工具（与板块异动同页 Tab 切换）。检测范式（趋势理论 M60 生命线 + 量价）以 [docs/arch/08-anomaly-analysis.md](../arch/08-anomaly-analysis.md) 为准
+- **描述**：对个股级别的异常波动进行检测和归因分析，按交易日输出异动个股清单，帮助用户从市场噪声中定位值得关注的标的，是「异动检测」页（监测分组）个股 Tab 的专项复盘工具（与板块异动同页 Tab 切换）。检测范式（趋势理论 M60 生命线 + 量价）以 [docs/arch/06-anomaly-analysis.md](../arch/06-anomaly-analysis.md) 为准
 - **触发方式**：交易日盘后自动执行；用户可按交易日手动查看/重算
 - **检测维度**（趋势 + 量价自包含，全市场快照初筛 → 候选拉日 K 精算两段式）：
   - 趋势状态：收盘价相对 MA60（M60 生命线）判定多头 / 空头背景
@@ -789,6 +789,9 @@
 - [数据源分析](../arch/01-data-source.md)
 - [数据采集设计](../arch/02-data-collection.md)
 - [数据存储设计](../arch/03-data-storage.md)
-- [AI Agent Skill 方案](../arch/04-ai-agent-skill-based.md)
+- [AI Agent 体系设计](../arch/04-ai-agent.md)
 - [Web 前端设计](../arch/05-web-frontend.md)
-- [部署方案](../arch/06-deployment.md)
+- [异动检测与归因](../arch/06-anomaly-analysis.md)
+- [账户体系与 AI 配额](../arch/07-account-quota.md)
+- [社媒情绪](../arch/08-social-sentiment.md)
+- [知识库](../arch/09-knowledge-base.md)

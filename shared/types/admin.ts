@@ -1,5 +1,3 @@
-import type { LlmPurpose } from './api'
-
 /** llm_config.extra.capabilities 约定：视觉等能力标记。 */
 export interface LLMConfigCapabilities {
   vision?: boolean
@@ -19,6 +17,10 @@ export interface LLMConfig {
   isDefault: boolean
   isActive: boolean
   purpose: LlmPurpose
+  /** 备用配置 id：本配置额度耗尽冷却期内自动切换的目标（单级） */
+  backupConfigId: number | null
+  /** 额度耗尽冷却截止时间；null 表示健康 */
+  degradedUntil: string | null
   extra: Record<string, unknown>
   lastTestedAt: string | null
   lastTestStatus: string | null
@@ -37,6 +39,7 @@ export interface LLMConfigFormValues {
   isDefault: boolean
   isActive: boolean
   purpose: LlmPurpose
+  backupConfigId?: number | null
   vision?: boolean
 }
 
@@ -44,6 +47,96 @@ export interface LLMConfigTestResult {
   status: string
   detail: string
   testedAt: string
+}
+
+/** 配置用途（知识库模型角色槽位按此过滤候选） */
+export type LlmPurpose = 'chat' | 'embedding' | 'vision'
+
+export interface ApiLLMConfigResponse {
+  id: number
+  name: string
+  provider: string
+  protocol: string
+  baseUrl: string
+  modelName: string
+  apiKeyMasked: string
+  isDefault: boolean
+  isActive: boolean
+  purpose: LlmPurpose
+  backupConfigId: number | null
+  degradedUntil: string | null
+  extra: Record<string, unknown>
+  lastTestedAt: string | null
+  lastTestStatus: string | null
+  lastTestError: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ApiLLMConfigCreateRequest {
+  name: string
+  provider: string
+  protocol?: string
+  baseUrl: string
+  apiKey: string
+  modelName: string
+  isDefault?: boolean
+  isActive?: boolean
+  purpose?: LlmPurpose
+  backupConfigId?: number | null
+  extra?: Record<string, unknown>
+}
+
+export interface ApiLLMConfigUpdateRequest {
+  name?: string
+  provider?: string
+  protocol?: string
+  baseUrl?: string
+  apiKey?: string
+  modelName?: string
+  isDefault?: boolean
+  isActive?: boolean
+  purpose?: LlmPurpose
+  backupConfigId?: number | null
+  extra?: Record<string, unknown>
+}
+
+export interface ApiLLMConfigTestResponse {
+  status: string
+  detail: string
+  testedAt: string
+}
+
+/** ASR 渠道配置 masked 视图（密钥只回脱敏串）。 */
+export interface ApiAsrConfig {
+  provider: string
+  baseUrl: string
+  model: string
+  apiKeyMasked: string | null
+  apiKeyConfigured: boolean
+  maxAudioSeconds: number
+  hotwords: string[]
+  enabled: boolean
+  updatedAt: string
+}
+
+/** 更新 ASR 配置（apiKey write-only：留空保留原值）。 */
+export interface ApiAsrConfigUpdateRequest {
+  provider?: string
+  baseUrl?: string
+  model?: string
+  apiKey?: string
+  maxAudioSeconds?: number
+  hotwords?: string[]
+  enabled?: boolean
+}
+
+/** ASR 连接测试结果。 */
+export interface ApiAsrConfigTestResult {
+  ok: boolean
+  latencyMs: number
+  text: string | null
+  error: string | null
 }
 
 export interface CollectorChannelConfig {
@@ -550,6 +643,7 @@ export interface AdminAiResultListParams {
 export interface ServiceStatusItem {
   key: string
   name: string
+  category: 'storage' | 'compute' | 'external'
   status: 'up' | 'down'
   latencyMs: number | null
   detail: string | null
@@ -561,4 +655,363 @@ export interface SystemStatus {
   overall: 'operational' | 'degraded'
   items: ServiceStatusItem[]
   checkedAt: string
+}
+
+/** Celery 任务方框状态：排队/执行中/终态。 */
+export type CeleryTaskState = 'pending' | 'running' | 'success' | 'partial' | 'failed' | 'skipped'
+
+/** 方框网格中的单个任务（一框一任务实例）。 */
+export interface CeleryTaskSquare {
+  key: string
+  taskType: string
+  label: string
+  state: CeleryTaskState
+  source: string | null
+  startedAt: string | null
+  finishedAt: string | null
+  durationMs: number | null
+  detail: string | null
+}
+
+/** 单个 Celery 队列的任务方框集合。 */
+export interface CeleryQueueStatus {
+  name: string
+  label: string
+  pendingTotal: number
+  tasks: CeleryTaskSquare[]
+}
+
+/** 三队列任务状态总览；brokerOk=false 表示 broker 不可达（仅 DB 侧数据）。 */
+export interface CeleryQueues {
+  brokerOk: boolean
+  queues: CeleryQueueStatus[]
+  checkedAt: string
+}
+
+export interface ApiAdminUserResponse {
+  id: number
+  username: string
+  email: string
+  role: string
+  isActive: boolean
+  status: string
+  applicationNote: string | null
+  rejectReason: string | null
+  lastLoginAt: string | null
+  createdAt: string
+  remainingQuota: number | null
+  totalUsed: number
+  byokEnabled: boolean
+}
+
+export interface ApiAdminUserCreateRequest {
+  username: string
+  email: string
+  password: string
+  role?: string
+  isActive?: boolean
+}
+
+export interface ApiAdminUserUpdateRequest {
+  username?: string
+  email?: string
+  role?: string
+  isActive?: boolean
+}
+
+export interface ApiAdminUserResetPasswordRequest {
+  password: string
+}
+
+export interface ApiAdminStockResponse {
+  id: number
+  stockCode: string
+  stockName: string
+  market: string
+  industryLevel1: string | null
+  industryLevel2: string | null
+  industryLevel3: string | null
+  listingDate: string | null
+  totalShares: number | null
+  circulatingShares: number | null
+  fullName: string | null
+  createdAt: string
+}
+
+export interface ApiAdminStockCreateRequest {
+  stockCode: string
+  stockName: string
+  market: string
+  industryLevel1?: string
+  industryLevel2?: string
+  industryLevel3?: string
+  listingDate?: string
+}
+
+export interface ApiAdminStockUpdateRequest {
+  stockName?: string
+  market?: string
+  industryLevel1?: string
+  industryLevel2?: string
+  industryLevel3?: string
+  listingDate?: string
+}
+
+export interface ApiAdminReportResponse {
+  id: number
+  filePath: string
+  originalName: string | null
+  fileType: string
+  stockCode: string | null
+  stockName: string | null
+  reportDate: string | null
+  reportType: string | null
+  broker: string | null
+  fileSize: number | null
+  md5Hash: string | null
+  downloadUrl: string | null
+  downloadCount: number
+  createdAt: string
+}
+
+export interface ApiAdminReportCreateRequest {
+  filePath: string
+  originalName?: string
+  fileType: string
+  stockCode?: string
+  reportDate?: string
+  reportType?: string
+  broker?: string
+  fileSize?: number
+  md5Hash?: string
+  downloadUrl?: string
+}
+
+export interface ApiAdminReportUpdateRequest {
+  originalName?: string
+  fileType?: string
+  stockCode?: string
+  reportDate?: string
+  reportType?: string
+  broker?: string
+  fileSize?: number
+  md5Hash?: string
+  downloadUrl?: string
+}
+
+export interface ApiReportStorageTypeSummary {
+  fileType: string
+  fileCount: number
+  sizeBytes: number
+}
+
+export interface ApiReportStorageSummary {
+  items: ApiReportStorageTypeSummary[]
+  totalSizeBytes: number
+  totalFileCount: number
+}
+
+export interface ApiReportCleanupResult {
+  removedCount: number
+  sizeBytes: number
+}
+
+export interface ApiAdminNewsResponse {
+  id: number
+  stockCode: string | null
+  docType: string
+  title: string
+  summary: string | null
+  content: string | null
+  source: string | null
+  sourceUrl: string | null
+  publishDate: string | null
+  sentiment: number | null
+  keywords: string[] | null
+  industryTags: string[] | null
+  extra: Record<string, unknown>
+  createdAt: string
+}
+
+export interface ApiAdminNewsCreateRequest {
+  stockCode?: string
+  docType: string
+  title: string
+  summary?: string
+  content?: string
+  source?: string
+  sourceUrl?: string
+  publishDate?: string
+  sentiment?: number
+  keywords?: string[]
+  industryTags?: string[]
+  extra?: Record<string, unknown>
+}
+
+export interface ApiAdminNewsUpdateRequest {
+  stockCode?: string
+  docType?: string
+  title?: string
+  summary?: string
+  content?: string
+  source?: string
+  sourceUrl?: string
+  publishDate?: string
+  sentiment?: number
+  keywords?: string[]
+  industryTags?: string[]
+  extra?: Record<string, unknown>
+}
+
+export interface ApiAdminTelegraphResponse {
+  id: number
+  title: string | null
+  content: string | null
+  category: string | null
+  importance: number | null
+  stockCodes: string[] | null
+  publishTime: string
+  aiScore: number | null
+  aiScoredAt: string | null
+}
+
+export interface ApiAdminTaskResponse {
+  id: number
+  taskName: string
+  taskType: string
+  source: string
+  remark: string | null
+  schedule: string | null
+  isActive: boolean
+  lastRunAt: string | null
+  lastStatus: string
+  lastError: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ApiAdminTaskCreateRequest {
+  taskName: string
+  taskType: string
+  source: string
+  remark?: string | null
+  schedule?: string
+  isActive?: boolean
+}
+
+export interface ApiAdminTaskUpdateRequest {
+  taskType?: string
+  source?: string
+  remark?: string | null
+  schedule?: string
+  isActive?: boolean
+}
+
+export interface ApiDataTypeChannelItem {
+  channelId: number
+  source: string
+  name: string
+  isEnabled: boolean
+  priority: number
+}
+
+export interface ApiDataTypeChannelsResponse {
+  dataType: string
+  channels: ApiDataTypeChannelItem[]
+}
+
+export interface ApiDataTypeChannelPriorityInput {
+  channelId: number
+  priority: number
+}
+
+export interface ApiTrackedIndexResponse {
+  id: number
+  indexCode: string
+  indexName: string
+  marketCategory: string
+  dataSource: string
+  sortOrder: number
+  isEnabled: boolean
+  latestClose: number | null
+  latestChangePct: number | null
+  latestTradeDate: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ApiTrackedIndexCreateRequest {
+  indexCode: string
+  indexName: string
+  marketCategory: string
+  dataSource: string
+  sortOrder?: number
+  isEnabled?: boolean
+}
+
+export interface ApiTrackedIndexUpdateRequest {
+  indexName?: string
+  marketCategory?: string
+  dataSource?: string
+  sortOrder?: number
+  isEnabled?: boolean
+}
+
+export interface ApiTrackedIndexToggleResponse {
+  id: number
+  isEnabled: boolean
+}
+
+export interface ApiAdminAiSkillInfo {
+  skillId: string
+  label: string
+  eventType: string | null
+}
+
+export interface ApiAdminAiResultKeyField {
+  name: string
+  label: string
+  value: string
+}
+
+export interface ApiAdminAiResultItem {
+  id: number
+  skillId: string
+  keyFields: ApiAdminAiResultKeyField[]
+  model: string | null
+  latencyMs: number | null
+  status: string
+  createdAt: string
+  historyCount: number
+  regeneratePrompt: string | null
+}
+
+export interface ApiAdminAiResultDetail extends ApiAdminAiResultItem {
+  errorMsg: string | null
+  structuredOutput: Record<string, unknown> | null
+}
+
+export interface ApiTradeCalendarDay {
+  calendarDate: string
+  isTrading: boolean
+  source: 'seed' | 'manual'
+  remark: string | null
+}
+
+export interface ApiTradeCalendarCoverage {
+  minDate: string | null
+  maxDate: string | null
+  tradingDays: number
+  nonTradingDays: number
+}
+
+export interface ApiTradeCalendarYear {
+  year: number
+  days: ApiTradeCalendarDay[]
+  coverage: ApiTradeCalendarCoverage
+}
+
+export interface ApiTradeCalendarSeedResult {
+  years: number[]
+  written: number
 }

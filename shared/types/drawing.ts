@@ -2,7 +2,7 @@
  * K 线画线 wire 契约（F-DRAW）。
  * 锚点一律为数据坐标 (date, price)——画线可被 Agent 结构化读写的前提，
  * 像素坐标只在渲染瞬间存在，禁止落库。
- * 架构：docs/arch/09-kline-drawing.md §4；需求：docs/requirement/03-kline-drawing-requirement.md §4/§5.9
+ * 架构：docs/arch/05-web-frontend.md §5.3；需求：docs/requirement/03-kline-drawing-requirement.md §4/§5.9
  */
 
 export type KlineDrawingTargetType = 'stock' | 'index' | 'sector'

@@ -1,6 +1,6 @@
 /**
  * 画线图层集成宿主：组合数据 hooks + drawingStore + useDrawingLayer + StyleBar。
- * 图表组件以声明式接入（arch/09 §3.2「组合方式接入」），本身不渲染主图。
+ * 图表组件以声明式接入（arch/05 §5.3「组合方式接入」），本身不渲染主图。
  */
 
 import type { ECharts } from 'echarts'

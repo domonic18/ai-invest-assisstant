@@ -1,10 +1,10 @@
 import {
   AppstoreOutlined,
+  BarChartOutlined,
   BlockOutlined,
-  FundOutlined,
   LogoutOutlined,
   SettingOutlined,
-  ShopOutlined,
+  ThunderboltOutlined,
   UserOutlined,
 } from '@ant-design/icons'
 import { Avatar, Drawer } from 'antd'
@@ -15,8 +15,8 @@ import { useAuthStore } from '@/stores/auth'
 
 const TAB_ITEMS = [
   { key: '/workbench', icon: <AppstoreOutlined />, label: '工作台' },
-  { key: '/auction-review', icon: <ShopOutlined />, label: '竞价' },
-  { key: '/capital-flow', icon: <FundOutlined />, label: '板块' },
+  { key: '/news', icon: <ThunderboltOutlined />, label: '资讯' },
+  { key: '/review', icon: <BarChartOutlined />, label: '复盘' },
 ]
 
 export function MobileTabBar() {

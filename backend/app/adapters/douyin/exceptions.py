@@ -1,6 +1,6 @@
 """抖音适配层归因异常（F-MON 故障归因与重试策略依赖此分类，禁止合并为泛型错误）。
 
-处置约定（见 docs/arch/11-social-sentiment.md）：
+处置约定（见 docs/arch/08-social-sentiment.md）：
 - SignatureError / StructureDriftError：签名过时或页面结构巨变，直接 FAILED 告警跟版；
 - RiskControlError：cookie 失效/频控，jar 冷却换 jar 退避重试；
 - AccountInvalidError：单个账号问题，记 last_error 不停用账号。

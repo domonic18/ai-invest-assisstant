@@ -1,4 +1,4 @@
-"""配额闸门：PG 是账本、Redis 是闸门（arch/10 §4）。
+"""配额闸门：PG 是账本、Redis 是闸门（arch/07 §4）。
 
 - 剩余额镜像 ``quota:remain:{user_id}``：整数为剩余 tokens，哨兵 ``inf`` 为不限额；
 - 预扣/结算用 Lua 单脚本保证原子（读-比-扣一次 EVAL）；

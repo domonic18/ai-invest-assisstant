@@ -1,6 +1,6 @@
 """热点主题服务单测：session 判定、缓存跳过、热度归一、T-1 标注、幻觉过滤。"""
 
-from contextlib import asynccontextmanager
+from contextlib import ExitStack, asynccontextmanager
 from datetime import date, datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -13,7 +13,7 @@ from app.schemas.news import (
     TopicDraft,
     TopicVotes,
 )
-from app.services.news import topic_service
+from app.services.news import topic_assembly, topic_query, topic_service
 
 _PUBLISH = datetime(2026, 9, 8, 3, 0, tzinfo=timezone.utc)
 _TRADE_DATE = date(2026, 9, 8)
@@ -102,30 +102,35 @@ def _repo_patches(
 
 
 def _patch_clock(hour: int = 10):
+    """now_cn 供 topic_assembly.resolve_session 判盘前盘后；today_cn 同时覆盖
+    topic_service（build_topics）与 topic_query（get_topics）的业务日来源。"""
     now = datetime(2026, 9, 8, hour, 0, tzinfo=timezone.utc)
-    return (
+    stack = ExitStack()
+    stack.enter_context(
         patch(
-            "app.services.news.topic_service.now_cn",
+            "app.services.news.topic_assembly.now_cn",
             MagicMock(return_value=now),
-        ),
-        patch(
-            "app.services.news.topic_service.today_cn",
-            MagicMock(return_value=_TRADE_DATE),
-        ),
+        )
     )
+    for target in (
+        "app.services.news.topic_service.today_cn",
+        "app.services.news.topic_query.today_cn",
+    ):
+        stack.enter_context(patch(target, MagicMock(return_value=_TRADE_DATE)))
+    return stack
 
 
 @pytest.mark.unit
 class TestResolveSession:
     def test_explicit_value_passthrough(self) -> None:
-        assert topic_service._resolve_session("post") == "post"
-        assert topic_service._resolve_session("intraday") == "intraday"
+        assert topic_assembly.resolve_session("post") == "post"
+        assert topic_assembly.resolve_session("intraday") == "intraday"
 
     def test_auto_by_beijing_hour(self) -> None:
-        with _patch_clock(hour=10)[0]:
-            assert topic_service._resolve_session(None) == "intraday"
-        with _patch_clock(hour=16)[0]:
-            assert topic_service._resolve_session(None) == "post"
+        with _patch_clock(hour=10):
+            assert topic_assembly.resolve_session(None) == "intraday"
+        with _patch_clock(hour=16):
+            assert topic_assembly.resolve_session(None) == "post"
 
 
 @pytest.mark.unit
@@ -140,7 +145,7 @@ class TestBuildTopics:
         patches = _repo_patches([])
         with patches[0], patches[1], patches[2], patches[3], patches[4]:
             clock = _patch_clock(16)
-            with _patch_lock(True), clock[0], clock[1]:
+            with _patch_lock(True), clock:
                 result = await topic_service.build_topics(MagicMock())
         assert result["skipped"] is True
         assert result["session"] == "post"
@@ -155,7 +160,7 @@ class TestBuildTopics:
         with patches[0], patches[1], patches[2], patches[3], patches[4]:
             with (
                 _patch_lock(True),
-                _patch_clock(16)[1],
+                _patch_clock(16),
                 patch(
                     "app.agent.runtime.structured.run_structured",
                     AsyncMock(),
@@ -175,7 +180,7 @@ class TestBuildTopics:
         with patches[0], patches[1], patches[2], patches[3], patches[4] as mock_upsert:
             with (
                 _patch_lock(True),
-                _patch_clock(16)[1],
+                _patch_clock(16),
                 patch(
                     "app.agent.runtime.structured.run_structured",
                     AsyncMock(return_value=output),
@@ -198,7 +203,7 @@ class TestBuildTopics:
         with patches[0], patches[1], patches[2], patches[3], patches[4] as mock_upsert:
             with (
                 _patch_lock(True),
-                _patch_clock(16)[1],
+                _patch_clock(16),
                 patch(
                     "app.agent.runtime.structured.run_structured",
                     AsyncMock(return_value=output),
@@ -246,7 +251,7 @@ class TestBuildTopics:
         with patches[0], patches[1], patches[2], patches[3], patches[4] as mock_upsert:
             with (
                 _patch_lock(True),
-                _patch_clock(16)[1],
+                _patch_clock(16),
                 patch(
                     "app.agent.runtime.structured.run_structured",
                     AsyncMock(return_value=output),
@@ -271,7 +276,7 @@ class TestBuildTopics:
         with patches[0], patches[1], patches[2], patches[3], patches[4] as mock_upsert:
             with (
                 _patch_lock(True),
-                _patch_clock(16)[1],
+                _patch_clock(16),
                 patch(
                     "app.agent.runtime.structured.run_structured",
                     AsyncMock(return_value=output),
@@ -305,7 +310,7 @@ class TestBuildTopics:
         with patches[0], patches[1], patches[2], patches[3], patches[4] as mock_upsert:
             with (
                 _patch_lock(True),
-                _patch_clock(16)[1],
+                _patch_clock(16),
                 patch(
                     "app.agent.runtime.structured.run_structured",
                     AsyncMock(return_value=output),
@@ -329,7 +334,7 @@ class TestBuildTopics:
         with patches[0], patches[1], patches[2], patches[3], patches[4] as mock_upsert:
             with (
                 _patch_lock(True),
-                _patch_clock(16)[1],
+                _patch_clock(16),
                 patch(
                     "app.agent.runtime.structured.run_structured",
                     AsyncMock(return_value=output),
@@ -349,7 +354,7 @@ class TestBuildTopics:
         with patches[0], patches[1], patches[2], patches[3], patches[4] as mock_upsert:
             with (
                 _patch_lock(True),
-                _patch_clock(16)[1],
+                _patch_clock(16),
                 patch(
                     "app.agent.runtime.structured.run_structured",
                     AsyncMock(side_effect=ValueError("LLM 输出不符 schema")),
@@ -369,7 +374,7 @@ class TestWordcloud:
             "存储芯片产能扩张",
             "某公司发布公告称数据超预期",
         ]
-        cloud = topic_service._build_wordcloud(titles)
+        cloud = topic_assembly.build_wordcloud(titles)
         words = {item["word"]: item["count"] for item in cloud}
         # 真分词后领域词计数成立（jieba 将「存储芯片」切为整词）
         assert words.get("存储芯片") == 2
@@ -383,13 +388,13 @@ class TestWordcloud:
         assert counts == sorted(counts, reverse=True)
 
     def test_empty_titles(self) -> None:
-        assert topic_service._build_wordcloud([None, ""]) == []
+        assert topic_assembly.build_wordcloud([None, ""]) == []
 
 
 @pytest.mark.unit
 class TestHeatScore:
     def test_full_parts_capped_at_100(self) -> None:
-        heat = topic_service._heat_score(
+        heat = topic_assembly.heat_score(
             news_count=6,
             max_news_count=6,
             sector_change_pct=50.0,
@@ -398,7 +403,7 @@ class TestHeatScore:
         assert heat == 100.0
 
     def test_all_null_returns_news_part_only(self) -> None:
-        heat = topic_service._heat_score(
+        heat = topic_assembly.heat_score(
             news_count=3, max_news_count=6, sector_change_pct=None, fund_flow_net=None
         )
         assert heat == 20.0
@@ -416,7 +421,7 @@ class TestGetTopics:
             topic_service.topic_repository,
             "get_snapshot",
             AsyncMock(return_value=snapshot),
-        ), _patch_clock(16)[1]:
+        ), _patch_clock(16):
             payload = await topic_service.get_topics(MagicMock(), session_key="post")
 
         assert payload["trade_date"] == "2026-09-08"
@@ -430,7 +435,7 @@ class TestGetTopics:
             topic_service.topic_repository,
             "get_snapshot",
             AsyncMock(return_value=None),
-        ), _patch_clock(16)[1]:
+        ), _patch_clock(16):
             payload = await topic_service.get_topics(MagicMock(), session_key="post")
 
         assert payload["topics"] == []
@@ -463,12 +468,12 @@ class TestGetTopics:
                 AsyncMock(return_value=snapshot),
             ),
             patch.object(
-                topic_service.StockRepository,
+                topic_query.StockRepository,
                 "get_codes_by_names",
                 AsyncMock(return_value={"中微公司": "688021"}),
             ),
             patch.object(
-                topic_service.stock_service,
+                topic_query.stock_service,
                 "batch_quote_snapshot",
                 AsyncMock(
                     return_value={
@@ -477,7 +482,7 @@ class TestGetTopics:
                     }
                 ),
             ),
-            _patch_clock(16)[1],
+            _patch_clock(16),
         ):
             payload = await topic_service.get_topics(MagicMock(), session_key="post")
 

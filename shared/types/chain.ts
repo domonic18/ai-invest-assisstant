@@ -134,3 +134,143 @@ export interface ChainAlert {
   signalDate: string
   createdAt: string
 }
+
+export interface ApiChainAnalysisRequest {
+  industry: string
+  focus?: string | null
+}
+
+export interface ApiChainCompany {
+  code: string
+  name: string
+}
+
+export interface ApiChainNode {
+  name: string
+  type: 'upstream' | 'midstream' | 'downstream'
+  description: string
+  companies: ApiChainCompany[]
+  avgGrossMargin: number | null
+  revenueGrowth: number | null
+  rdRatio: number | null
+  bargainingPower: number | null
+  localizationRate: number | null
+  techBarrier: string | null
+  bottleneckIndicators: string[]
+  recentBreakthroughs: string[]
+}
+
+export interface ApiChainEdge {
+  source: string
+  target: string
+  relation: string
+  strength: number
+  description?: string
+  criticality: string | null
+}
+
+export interface ApiChainOpportunity {
+  title: string
+  description: string
+  relatedSegment: string | null
+  confidence: string | null
+}
+
+export interface ApiChainRisk {
+  title: string
+  description: string
+  relatedSegment: string | null
+  severity: string | null
+}
+
+export interface ApiChainValueDistribution {
+  highestMarginSegment: string | null
+  highestMarginValue: number | null
+  lowestMarginSegment: string | null
+  lowestMarginValue: number | null
+}
+
+export interface ApiKeyCompanySummary {
+  code: string
+  name: string
+  chainPosition: string | null
+  score: number | null
+}
+
+export interface ApiChainAnalysisResult {
+  nodes: ApiChainNode[]
+  edges: ApiChainEdge[]
+  summary: string
+  valueDistribution: ApiChainValueDistribution | null
+  opportunities: ApiChainOpportunity[]
+  risks: ApiChainRisk[]
+  keyCompaniesSummary: ApiKeyCompanySummary[]
+}
+
+export interface ApiChainAnalyzeResponse {
+  versionId: number
+  versionNo: number
+  status: string
+  result: ApiChainAnalysisResult | null
+}
+
+export interface ApiChainVersionSummary {
+  id: number
+  industry: string
+  versionNo: number
+  label: string | null
+  status: string
+  model: string | null
+  nodeCount: number | null
+  companyCount: number | null
+  createdBy: string
+  createdAt: string
+}
+
+export interface ApiChainVersionDetail {
+  version: ApiChainVersionSummary
+  result: ApiChainAnalysisResult | null
+  errorMsg: string | null
+}
+
+export interface ApiChainCompareCompanyChange {
+  code: string
+  name: string
+  nodeName: string
+}
+
+export interface ApiChainCompareMetricChange {
+  nodeName: string
+  field: string
+  baseValue: number | null
+  targetValue: number | null
+}
+
+export interface ApiChainCompareResult {
+  baseVersion: ApiChainVersionSummary
+  targetVersion: ApiChainVersionSummary
+  addedNodes: string[]
+  removedNodes: string[]
+  addedCompanies: ApiChainCompareCompanyChange[]
+  removedCompanies: ApiChainCompareCompanyChange[]
+  metricChanges: ApiChainCompareMetricChange[]
+}
+
+/** 产业链提醒关联标的（名称 + 当日涨跌幅）。 */
+export interface ApiChainAlertStockRef {
+  code: string
+  name: string
+  changePct: number | null
+}
+
+export interface ApiChainAlert {
+  industry: string
+  alertType: string
+  severity: number
+  title: string
+  description: string
+  affectedSegments: string[]
+  relatedStocks: ApiChainAlertStockRef[]
+  signalDate: string
+  createdAt: string
+}

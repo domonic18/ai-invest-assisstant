@@ -137,3 +137,146 @@ export interface StockAiAnalysis {
   cached: boolean
   sections: StockAiAnalysisSection[]
 }
+
+export interface ApiStockBasicResponse {
+  stockCode: string
+  stockName: string
+  market: string
+  fullName: string | null
+  industryLevel1: string | null
+  industryLevel2: string | null
+  industryLevel3: string | null
+  listingDate: string | null
+  totalShares: number | null
+  circulatingShares: number | null
+}
+
+export interface ApiStockQuoteResponse {
+  code: string
+  name: string
+  price: number | null
+  prevClose: number | null
+  change: number | null
+  changePct: number | null
+  open: number | null
+  high: number | null
+  low: number | null
+  volume: number | null
+  amount: number | null
+  marketCap: number | null
+  circulatingMarketCap: number | null
+  updatedAt: string | null
+}
+
+export interface ApiStockAiAnalysisSection {
+  key: string
+  title: string
+  content: string
+}
+
+export interface ApiStockAiAnalysisResponse {
+  stockCode: string
+  stockName: string
+  tradeDate: string
+  model: string | null
+  generatedAt: string
+  cached: boolean
+  sections: ApiStockAiAnalysisSection[]
+}
+
+export type ApiStockAiAnalysisStatus = 'running' | 'ready' | 'none'
+
+export interface ApiStockAiAnalysisStatusResponse {
+  status: ApiStockAiAnalysisStatus
+  data: ApiStockAiAnalysisResponse | null
+  tradeDate: string
+}
+
+export interface ApiStockAiAnalysisDatesResponse {
+  code: string
+  tradeDates: string[]
+}
+
+export interface ApiStockKlineBar {
+  date: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+  amount: number
+  changePct: number | null
+  amplitude: number | null
+  turnoverRate: number | null
+}
+
+export interface ApiStockKlineResponse {
+  code: string
+  name: string
+  period: string
+  bars: ApiStockKlineBar[]
+  /** 最近交易日（交易日历权威），前端据此判定 K 线落后并自动补采 */
+  latestTradeDate: string
+}
+
+export interface ApiStockIntradayPoint {
+  time: string
+  price: number
+  volume: number
+  amount: number
+}
+
+export interface ApiStockIntradayResponse {
+  code: string
+  name: string
+  tradeDate: string
+  prevClose: number
+  points: ApiStockIntradayPoint[]
+}
+
+export interface ApiStockSectorItem {
+  name: string
+  type: 'industry' | 'concept'
+  changePct: number | null
+  mainNetInflow: number | null
+}
+
+export interface ApiStockSectorsResponse {
+  code: string
+  name: string
+  sectors: ApiStockSectorItem[]
+}
+
+export interface ApiKlineDataResponse {
+  tradeDate: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+  amount: number
+  amplitude: number
+  changePct: number
+  turnoverRate: number
+}
+
+export interface ApiAuctionDataResponse {
+  tradeDate: string
+  matchTime: string
+  price: number
+  volume: number
+  bidPrices: number[]
+  bidVolumes: number[]
+  askPrices: number[]
+  askVolumes: number[]
+}
+
+export interface ApiFundFlowResponse {
+  stockCode: string
+  tradeDate: string
+  mainNetInflow: number
+  superLargeNet: number
+  largeNet: number
+  mediumNet: number
+  smallNet: number
+}

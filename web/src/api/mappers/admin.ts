@@ -45,6 +45,8 @@ export function mapLLMConfig(dto: ApiLLMConfigResponse): LLMConfig {
     isDefault: dto.isDefault,
     isActive: dto.isActive,
     purpose: dto.purpose,
+    backupConfigId: dto.backupConfigId,
+    degradedUntil: dto.degradedUntil,
     extra: dto.extra,
     lastTestedAt: dto.lastTestedAt,
     lastTestStatus: dto.lastTestStatus,

@@ -5,6 +5,7 @@ import { useMemo } from 'react'
 import type { SectorQuoteItem, SectorQuoteResponse } from '@ai-invest/shared'
 
 import { useColorScheme } from '@/stores/settings'
+import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 import { ChartColors } from '@/theme/colors'
 import { fallHex, formatAmount, riseHex } from '@/utils/formatters'
 
@@ -18,6 +19,8 @@ type Quote = SectorQuoteItem & { changePct: number }
 
 export function SectorBubbleChart({ data }: { data: SectorQuoteResponse }) {
   useColorScheme()
+  // 窄屏 20 个双行标签必然重叠：减到 10 个并缩小气泡
+  const isNarrow = useIsNarrowScreen()
 
   const option = useMemo(() => {
     const items: Quote[] = data.items.filter(
@@ -25,7 +28,7 @@ export function SectorBubbleChart({ data }: { data: SectorQuoteResponse }) {
     )
     const selected = [...items]
       .sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0))
-      .slice(0, TOP_N)
+      .slice(0, isNarrow ? 10 : TOP_N)
     const rises = selected
       .filter((it) => it.changePct >= 0)
       .sort((a, b) => b.changePct - a.changePct)
@@ -42,7 +45,9 @@ export function SectorBubbleChart({ data }: { data: SectorQuoteResponse }) {
     return {
       backgroundColor: 'transparent',
       animation: false,
-      grid: { left: 16, right: 16, top: 40, bottom: 40 },
+      grid: isNarrow
+        ? { left: 8, right: 8, top: 36, bottom: 36 }
+        : { left: 16, right: 16, top: 40, bottom: 40 },
       tooltip: {
         trigger: 'item',
         formatter: (params: { dataIndex: number }) => {
@@ -70,7 +75,7 @@ export function SectorBubbleChart({ data }: { data: SectorQuoteResponse }) {
           type: 'scatter',
           data: ordered.map((it) => ({
             value: [it.sectorName, it.changePct >= 0 ? RISE_LANE : FALL_LANE],
-            symbolSize: 14 + (Math.abs(it.changePct) / maxAbs) * 30,
+            symbolSize: 10 + (Math.abs(it.changePct) / maxAbs) * (isNarrow ? 16 : 30),
             itemStyle: {
               color: it.changePct >= 0 ? riseHex() : fallHex(),
               opacity: 0.75,
@@ -93,12 +98,12 @@ export function SectorBubbleChart({ data }: { data: SectorQuoteResponse }) {
         },
       ],
     }
-  }, [data])
+  }, [data, isNarrow])
 
   return (
     <ReactECharts
       option={option as unknown as EChartsOption}
-      style={{ height: '320px', width: '100%' }}
+      style={{ height: isNarrow ? '280px' : '320px', width: '100%' }}
       notMerge
     />
   )

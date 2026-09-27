@@ -36,6 +36,7 @@ export type PageAssistantResult =
   | StockAnomalyResult
   | StockScreeningResult
   | KlineDrawingResult
+  | PaperTradingResult
 
 /** 产业链分析完成回写 */
 export interface ChainAnalysisResult {
@@ -102,6 +103,16 @@ export interface KlineDrawingResult {
   period: string
   count: number
   sectorType?: string
+}
+
+/** 交易 Agent 委托回写（下单成功事件，订阅页刷新模拟盘数据） */
+export interface PaperTradingResult {
+  type: typeof PAGE_EVENT_TYPES.paperTrading
+  action: string
+  clOrdId?: string
+  symbol?: string
+  side?: string
+  volume?: number
 }
 
 /** ask_user 问题卡选项 */

@@ -1,4 +1,4 @@
-"""建库用量聚合（批次 G1，arch/12 §10.2）。
+"""建库用量聚合（批次 G1，arch/09 §10.2）。
 
 台账侧：``user_token_usage`` 按 ``kb_*`` feature × 模型汇出 token 明细
 （source 过滤走 ``detail.sourceId`` 上下文，Python 侧归集——行量千级，

@@ -5,12 +5,17 @@ import type { IndexIntraday } from '@ai-invest/shared'
 import { useColorScheme } from '@/stores/settings'
 import { fallHex, formatAmount, riseHex } from '@/utils/formatters'
 
+import type { IntradayTradeMark } from './stockChartView/tradeMarkers'
+import { FONT_MONO } from './chartShared'
+
 interface IntradayChartProps {
   data: IndexIntraday
   height?: number
+  /** 模拟盘成交 B/S 标记（北京墙钟 HH:mm 与 points[].time 同轴）。 */
+  markers?: IntradayTradeMark[]
 }
 
-export function IntradayChart({ data, height = 320 }: IntradayChartProps) {
+export function IntradayChart({ data, height = 320, markers }: IntradayChartProps) {
   useColorScheme()
 
   const points = data.points
@@ -136,6 +141,31 @@ export function IntradayChart({ data, height = 320 }: IntradayChartProps) {
         data: volumes,
         barWidth: '60%',
       },
+      // 模拟盘成交 B/S 字母标记（B=买在下、S=卖在上；时刻不在分时轴上的自动落空）
+      ...(markers?.length
+        ? [
+            {
+              name: '模拟盘成交',
+              type: 'scatter' as const,
+              silent: true,
+              symbolSize: 1,
+              data: markers
+                .filter((m) => times.includes(m.time))
+                .map((m) => ({
+                  value: [m.time, m.price],
+                  label: {
+                    show: true,
+                    formatter: m.side === 'buy' ? 'B' : 'S',
+                    color: m.side === 'buy' ? up : down,
+                    fontSize: 11,
+                    fontWeight: 'bold' as const,
+                    fontFamily: FONT_MONO,
+                    position: m.side === 'buy' ? ('bottom' as const) : ('top' as const),
+                  },
+                })),
+            },
+          ]
+        : []),
     ],
   }
 

@@ -7,6 +7,8 @@ from app.models.account_quota import (
     UserLlmConfig,
     UserTokenUsage,
 )
+from app.models.agent_run import AgentRun, AgentRunStep
+from app.models.agent_trading import AgentMemory, AgentStockSelection, AgentTradePlan
 from app.models.ai_analysis_result import AiAnalysisResult
 from app.models.assistant_session import AssistantSession
 from app.models.capital_fund_flow_sector import SectorFundFlow
@@ -45,6 +47,7 @@ from app.models.mapping_stock_concept import MappingStockConcept
 from app.models.market_amount import MarketAmount
 from app.models.market_anomaly import SectorAnomaly, StockAnomaly
 from app.models.market_breadth import MarketBreadth
+from app.models.market_trade_calendar import MarketTradeCalendar
 from app.models.news_ai_score import NewsAiScore
 from app.models.news_calendar_event import NewsCalendarEvent
 from app.models.news_document import NewsDocument
@@ -55,6 +58,13 @@ from app.models.news_storyline import (
 )
 from app.models.news_telegraph import NewsTelegraph
 from app.models.news_topic_snapshot import NewsTopicSnapshot
+from app.models.paper_trade import (
+    PaperTradeAccount,
+    PaperTradeCashSnapshot,
+    PaperTradeExecution,
+    PaperTradeOrder,
+    TradingAgent,
+)
 from app.models.pool_dragon_tiger_stock import DragonTigerStock
 from app.models.pool_limit_up_stock import LimitUpPool
 from app.models.quote_auction_index import IndexAuction
@@ -72,6 +82,11 @@ from app.models.watchlist import UserWatchlist, UserWatchlistGroup
 
 __all__ = [
     "AdminAuditLog",
+    "AgentMemory",
+    "AgentRun",
+    "AgentRunStep",
+    "AgentStockSelection",
+    "AgentTradePlan",
     "AiAnalysisResult",
     "AssistantSession",
     "AuctionData",
@@ -118,6 +133,7 @@ __all__ = [
     "MappingStockConcept",
     "MarketAmount",
     "MarketBreadth",
+    "MarketTradeCalendar",
     "NewsAiScore",
     "NewsDocument",
     "NewsStoryline",
@@ -125,6 +141,11 @@ __all__ = [
     "NewsSubscriptionHit",
     "NewsTelegraph",
     "NewsTopicSnapshot",
+    "PaperTradeAccount",
+    "PaperTradeCashSnapshot",
+    "PaperTradeExecution",
+    "PaperTradeOrder",
+    "TradingAgent",
     "SectorFundFlow",
     "SectorQuoteDaily",
     "SectorAnomaly",

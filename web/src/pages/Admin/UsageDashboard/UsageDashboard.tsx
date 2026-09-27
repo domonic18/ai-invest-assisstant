@@ -1,5 +1,5 @@
-import { DownOutlined } from '@ant-design/icons'
-import { Card, Col, Row, Segmented, Statistic, Table, Tabs, Tag, Typography } from 'antd'
+import { ClearOutlined, DownOutlined } from '@ant-design/icons'
+import { App, Button, Card, Col, Row, Segmented, Statistic, Table, Tabs, Tag, Typography } from 'antd'
 import type { TableColumnsType } from 'antd'
 import dayjs from 'dayjs'
 import ReactECharts from 'echarts-for-react'
@@ -10,7 +10,13 @@ import {
   type UsageFeature,
 } from '@ai-invest/shared'
 
-import { useAccountSettings, useUsageDashboard, useUsagePerUsers } from '@/hooks/useAdminAccount'
+import {
+  useAccountSettings,
+  useCleanupTokenUsage,
+  useUsageDashboard,
+  useUsagePerUsers,
+} from '@/hooks/useAdminAccount'
+import { apiErrorMessage } from '@/utils/errorMessage'
 
 import { KbUsagePanel } from './KbUsagePanel'
 
@@ -41,8 +47,29 @@ export function UsageDashboard() {
   const dashboardQ = useUsageDashboard(days)
   const perUsersQ = useUsagePerUsers(days)
   const settingsQ = useAccountSettings()
+  const cleanupMutation = useCleanupTokenUsage()
+  const { message, modal } = App.useApp()
   const data = dashboardQ.data
   const perUsers = perUsersQ.data ?? []
+
+  const confirmCleanup = () => {
+    modal.confirm({
+      title: '清理 180 天前的用量记录',
+      content:
+        '将永久删除 180 天前的 token 用量明细行（看板聚合窗口最长 90 天，展示不受影响），操作记入审计日志。确定继续吗？',
+      okText: '清理',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          const result = await cleanupMutation.mutateAsync()
+          message.success(`已清理 ${result.removedCount} 条用量记录`)
+        } catch (err) {
+          message.error(apiErrorMessage(err, '清理失败'))
+        }
+      },
+    })
+  }
 
   const trendOption = {
     backgroundColor: 'transparent',
@@ -152,7 +179,17 @@ export function UsageDashboard() {
           <Typography.Text type="secondary" className="!mt-1 !mb-0 text-xs">
             token 消耗趋势与成员明细（按北京时间聚合）；系统任务与自备 Key 调用计入统计但不占个人配额
           </Typography.Text>
-          <Segmented options={DAY_OPTIONS} value={days} onChange={(v) => setDays(v as number)} />
+          <div className="flex items-center gap-2">
+            <Segmented options={DAY_OPTIONS} value={days} onChange={(v) => setDays(v as number)} />
+            <Button
+              danger
+              icon={<ClearOutlined />}
+              loading={cleanupMutation.isPending}
+              onClick={confirmCleanup}
+            >
+              清理 180 天前记录
+            </Button>
+          </div>
         </div>
 
       <Row gutter={[12, 12]}>

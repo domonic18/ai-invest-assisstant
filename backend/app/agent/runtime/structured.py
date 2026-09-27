@@ -3,10 +3,13 @@
 财报/研报摘要与截图识别等单轮任务的公共路径：解析默认 LLM 配置 →
 ``build_langchain_model`` → ``with_structured_output``。输出 schema 即契约
 （pydantic 模型），校验失败自动重试一次；仍失败则上抛 ``ValidationError``。
-多步任务走 deepagents 执行器（``app/agent/skills/*_agent.py``），不要用本模块。
+额度/限流类失败触发主备切换：主配置进冷却后重新解析（健康门切备用）
+当次重试一次。多步任务走 deepagents 执行器（``app/agent/skills/*_agent.py``），
+不要用本模块。
 """
 
 import base64
+import time
 from typing import Any, TypeVar, cast
 
 from langchain_core.exceptions import OutputParserException
@@ -15,7 +18,11 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.runtime.model_factory import build_langchain_model
-from app.services.admin.llm_config_service import resolve_llm_by_id
+from app.services.admin.llm_config_service import (
+    ResolvedLLMConfig,
+    resolve_llm_by_id,
+)
+from app.services.admin.llm_failover import classify_llm_error, mark_unhealthy
 from app.services.quota.user_llm_service import resolve_llm
 
 T = TypeVar("T", bound=BaseModel)
@@ -38,6 +45,7 @@ async def run_structured(
     user_id: int | None = None,
     vision: bool = False,
     config_id: int | None = None,
+    meta_out: dict[str, Any] | None = None,
 ) -> T:
     """执行单次结构化 LLM 调用并返回 pydantic 模型实例。
 
@@ -51,6 +59,9 @@ async def run_structured(
         vision: 无 BYOK 时解析视觉能力配置（截图识别路径）。
         config_id: 显式指定 llm_config 条目（F-KB 模型角色槽位路径），
             设置后忽略 ``user_id``/``vision`` 分流，走系统维度计量。
+        meta_out: 调用元信息回填容器（可选）。成功后写入
+            ``latency_ms``/``model_name``/``method``/``failover``，供调用方
+            落观测（agent_run llm step、ai_analysis_result 补全等）。
 
     Raises:
         ValidationError: 模型输出不符合 schema（重试一次后仍失败）。
@@ -59,11 +70,6 @@ async def run_structured(
         cfg = await resolve_llm_by_id(session, config_id)
     else:
         cfg, _outlet = await resolve_llm(session, user_id, vision=vision)
-    model = build_langchain_model(cfg, disable_thinking=True)
-    # anthropic 协议端点（kimi coding 等）2026-09-08 起对强制 tool_choice 间歇性忽略，
-    # function_calling 法会静默拿到 None；json_schema 走 anthropic 原生结构化输出
-    method = "json_schema" if cfg.protocol == "anthropic" else "function_calling"
-    structured = model.with_structured_output(result_type, method=method)
 
     content: Any = user_prompt
     if images:
@@ -73,8 +79,69 @@ async def run_structured(
         ]
     message = HumanMessage(content=content)
 
+    def _output_methods(protocol: str) -> tuple[str, ...]:
+        """按协议给出结构化输出法（首选 + 兜底）。
+
+        anthropic 协议端点（kimi coding 等）2026-09-08 起对强制 tool_choice
+        间歇性忽略，function_calling 法会静默拿到 None，故 json_schema（原生
+        output_format）优先；但 MiniMax 等兼容端点不实现 output_format，会
+        忽略并返回纯文本（OutputParserException），tool calling 反而可靠
+        （批次 5 对话实测）——json_schema 失败后换 function_calling 兜底。
+        openai 协议一律 function_calling。
+        """
+        if protocol == "anthropic":
+            return ("json_schema", "function_calling")
+        return ("function_calling",)
+
+    async def _invoke_method(current: ResolvedLLMConfig, method: str) -> T:
+        model = build_langchain_model(current, disable_thinking=True)
+        structured = model.with_structured_output(result_type, method=method)
+        result = await structured.ainvoke([message])
+        if result is None:
+            # tool_choice 被端点忽略时静默拿 None（kimi/MiniMax 实测），
+            # 转为解析失败以触发兜底法重试，而非把 None 当合法结果上抛
+            raise OutputParserException("模型未返回结构化输出（tool call 缺失）")
+        return cast(T, result)
+
+    async def _invoke(current: ResolvedLLMConfig) -> T:
+        methods = _output_methods(current.protocol)
+        # 首选法解析失败时按兜底序换法重试一次；无兜底法则同法重试
+        fallback = methods[1] if len(methods) > 1 else methods[0]
+        try:
+            result = await _invoke_method(current, methods[0])
+            _meta["method"] = methods[0]
+            return result
+        except (ValidationError, OutputParserException):
+            result = await _invoke_method(current, fallback)
+            _meta["method"] = "fallback"
+            return result
+
+    _meta: dict[str, str] = {}
+    t0 = time.monotonic()
+    failover = False
     try:
-        return cast(T, await structured.ainvoke([message]))
-    except (ValidationError, OutputParserException):
-        # 输出不符合 schema 时重试一次（json_schema 法解析失败抛 OutputParserException）
-        return cast(T, await structured.ainvoke([message]))
+        result = await _invoke(cfg)
+    except Exception as exc:
+        if not classify_llm_error(exc):
+            raise
+        # 额度/限流类失败：主配置进冷却（callback 已标记，此处确定性补一次），
+        # 重新解析过健康门切备用后当次重试；无备用可切则原样上抛，
+        # 避免对同一死模型重复烧 SDK 退避时间
+        await mark_unhealthy(cfg.config_id)
+        if config_id is not None:
+            retried = await resolve_llm_by_id(session, config_id)
+        else:
+            retried, _outlet = await resolve_llm(session, user_id, vision=vision)
+        if retried.config_id == cfg.config_id:
+            raise
+        failover = True
+        final_cfg = retried
+        result = await _invoke(retried)
+    else:
+        final_cfg = cfg
+    if meta_out is not None:
+        meta_out["latency_ms"] = int((time.monotonic() - t0) * 1000)
+        meta_out["model_name"] = final_cfg.model_name
+        meta_out["method"] = _meta.get("method")
+        meta_out["failover"] = failover
+    return result

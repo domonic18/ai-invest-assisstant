@@ -2,7 +2,7 @@
 
 收编各 service 中重复的 ``_redis()`` 单例逻辑（连接池复用，避免每次读写都新建连接）。
 
-容错约定：对 web-api 而言 Redis 是加速/实时增强层，不可达时 ``cache_*`` 助手
+容错约定：对 web 而言 Redis 是加速/实时增强层，不可达时 ``cache_*`` 助手
 记限频告警并返回中性值，调用方走 DB 降级路径；缓存基础设施故障不允许把
 接口打挂（与 login_throttle 的 fail-open 同一原则）。
 """
@@ -79,3 +79,25 @@ async def cache_set(key: str, value: str, *, ex: int | None = None) -> bool:
     except RedisError as exc:
         _warn_throttled("set", exc)
         return False
+
+
+async def cache_delete(key: str) -> bool:
+    """容错 DEL；删除失败按缓存未命中处理。"""
+    try:
+        await get_redis().delete(key)
+        return True
+    except RedisError as exc:
+        _warn_throttled("delete", exc)
+        return False
+
+
+async def cache_ttl(key: str) -> int | None:
+    """容错 TTL；键不存在返回 -1 语义原样透传，redis 不可达返回 None。
+
+    返回值约定与 redis TTL 一致：>0 剩余秒数，-2 键不存在，-1 无过期。
+    """
+    try:
+        return int(await get_redis().ttl(key))
+    except RedisError as exc:
+        _warn_throttled("ttl", exc)
+        return None

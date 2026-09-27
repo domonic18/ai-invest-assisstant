@@ -94,3 +94,4 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 .claude/
+.cc-connect

@@ -26,17 +26,24 @@ import {
 import { MarkedDatePicker } from '@/components/common/MarkedDatePicker'
 import { SourceNote } from '@/components/common/SourceNote'
 import { useStockAnomalyBoard, useStockAnomalyDates } from '@/hooks/useAnomaly'
+import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 import { useAssistantStore } from '@/stores/assistant'
 import { useColorScheme } from '@/stores/settings'
 import { changeColor, DATE_FORMAT, formatNumber, formatPercent } from '@/utils/formatters'
+import { narrowColumns } from '@/utils/responsiveColumns'
 
 import { AttributionAction, AttributionCell, AnomalyTypeTags, STOCK_CATEGORY_LABELS } from './cells'
 import { ANOMALY_TYPE_LABELS } from './labels'
 import { stockAttributionPrompt } from './attributionPrompts'
 import { useAnomalyAttribution } from './useAnomalyAttribution'
 
+// 窄屏（移动端）视口放不下全列：只保留关键列并去掉固定锚，
+// 否则左右固定列把可滚动中间区夹到几乎为零（列被截断）
+const NARROW_COLUMN_KEYS = ['stockName', 'changePct', 'strength', 'attribution', 'action']
+
 export function StockAnomalyPage() {
   useColorScheme()
+  const isNarrow = useIsNarrowScreen()
   const [tradeDate, setTradeDate] = useState<string>()
   const [typeFilter, setTypeFilter] = useState<string[]>([])
   const [watchlistOnly, setWatchlistOnly] = useState(false)
@@ -306,10 +313,10 @@ export function StockAnomalyPage() {
         ) : (
           <Table
             rowKey="stockCode"
-            columns={columns}
+            columns={isNarrow ? narrowColumns(columns, NARROW_COLUMN_KEYS) : columns}
             dataSource={items}
             size="small"
-            scroll={{ x: 1370 }}
+            scroll={{ x: isNarrow ? 620 : 1370 }}
             pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false }}
           />
         )}

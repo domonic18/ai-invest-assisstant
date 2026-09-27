@@ -17,7 +17,14 @@ class TestBackfillTradeDate:
     @pytest.mark.asyncio
     async def test_rejects_non_trading_day(self) -> None:
         session = AsyncMock()
-        with pytest.raises(market_service.NonTradingDayError):
+        with (
+            patch.object(
+                trade_calendar_service.trade_calendar_repository,
+                "get_one",
+                AsyncMock(return_value=None),
+            ),
+            pytest.raises(market_service.NonTradingDayError),
+        ):
             await market_service.backfill_trade_date(session, date(2026, 7, 19))
 
     @pytest.mark.asyncio
@@ -134,7 +141,14 @@ class TestCollectMarketData:
     @pytest.mark.asyncio
     async def test_rejects_non_trading_day(self) -> None:
         session = AsyncMock()
-        with pytest.raises(market_service.NonTradingDayError):
+        with (
+            patch.object(
+                trade_calendar_service.trade_calendar_repository,
+                "get_one",
+                AsyncMock(return_value=None),
+            ),
+            pytest.raises(market_service.NonTradingDayError),
+        ):
             await market_service.collect_market_data(
                 session, date(2026, 7, 19), ["000001"]
             )

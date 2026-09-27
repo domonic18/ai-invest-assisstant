@@ -6,7 +6,7 @@
 
 归因底稿按 (skill_id, input_hash=skill+域+代码+日期) 缓存在
 ``ai_analysis_result``，已生成直接复用；归因回写只覆盖检测行的
-``attribution_category`` / ``attribution_summary``（docs/arch/08 §5/§6）。
+``attribution_category`` / ``attribution_summary``（docs/arch/06 §5/§6）。
 本模块顶层不导入 agent 层，执行器在生成路径内延迟导入。
 """
 

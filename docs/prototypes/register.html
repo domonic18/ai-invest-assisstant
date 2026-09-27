@@ -48,22 +48,20 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);min-
     </div>
     <div class="logo-text"><span>AI Invest Assistant</span><span>v1.0.0</span></div>
   </div>
-  <div class="title">创建您的智能投研账户</div>
+  <div class="title">申请创建新账户</div>
   <form onsubmit="event.preventDefault()">
-    <div class="row">
-      <div class="fg"><label class="fl">用户名</label><input class="fi" placeholder="请输入用户名" value="zhangsan"></div>
-      <div class="fg"><label class="fl">手机号</label><input class="fi" placeholder="选填"></div>
-    </div>
+    <div class="fg"><label class="fl">用户名</label><input class="fi" placeholder="请输入用户名" value="zhangsan"></div>
     <div class="fg"><label class="fl">邮箱</label><input class="fi" type="email" placeholder="请输入邮箱地址" value="zhangsan@example.com"></div>
     <div class="fg">
       <label class="fl">密码</label>
-      <input class="fi" type="password" placeholder="至少8位，包含字母和数字" value="••••••••••">
+      <input class="fi" type="password" placeholder="至少 6 位" value="••••••••••">
       <div class="strength"><div class="strength-bar active"></div><div class="strength-bar active"></div><div class="strength-bar active"></div><div class="strength-bar"></div></div>
     </div>
     <div class="fg"><label class="fl">确认密码</label><input class="fi" type="password" placeholder="再次输入密码" value="••••••••••"></div>
-    <div class="fg"><label class="fl">投资角色</label><select class="fi" style="appearance:none"><option>个人投资者</option><option>投资分析师</option><option>投资决策者</option></select></div>
+    <div class="fg"><label class="fl">申请说明（可选）</label><textarea class="fi" rows="3" maxlength="500" placeholder="简单介绍自己与用途，帮助管理员审批"></textarea></div>
     <div class="agree">注册即表示您同意 <a href="#">服务条款</a> 和 <a href="#">隐私政策</a><br>我们不会将您的数据用于任何未授权的用途</div>
-    <button class="btn btn-primary" onclick="location.href='dashboard.html'">创建账户</button>
+    <button class="btn btn-primary">提交申请</button>
+    <div class="agree" style="margin:14px 0 0">提交后进入待审批状态，管理员审批通过后即可使用该账号登录，审批结果以登录时的提示为准。</div>
   </form>
   <div class="footer">已有账户？<a href="login.html">立即登录</a></div>
 </div>

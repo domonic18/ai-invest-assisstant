@@ -22,6 +22,9 @@ class CollectorTask(Base):
     schedule: Mapped[str | None] = mapped_column(String(100), nullable=True)
     queue: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    trade_day_only: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
     last_run_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

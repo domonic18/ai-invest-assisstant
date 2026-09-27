@@ -94,7 +94,7 @@ class UserService:
         Raises:
             LoginLockedError: 该 (用户名, IP) 连续失败达阈值，处于锁定窗口。
             UnauthorizedError: 用户名或密码错误（已记失败计数与审计日志）。
-            AccountPendingError: 密码正确但账号待审批（arch/10 §6.2）。
+            AccountPendingError: 密码正确但账号待审批（arch/07 §6.2）。
             AccountRejectedError: 注册申请已被驳回（附原因）。
         """
         lock = await login_throttle.locked_seconds(username, client_ip)

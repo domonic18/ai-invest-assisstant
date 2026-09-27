@@ -62,6 +62,7 @@ async def load_latest_success(
     skill_id: str,
     input_hash: str | None = None,
     trade_date: date | None = None,
+    structured_filter: dict[str, str] | None = None,
 ) -> AiAnalysisResult | None:
     """读取最近一条 success 状态的记录；无缓存返回 None。
 
@@ -72,6 +73,10 @@ async def load_latest_success(
             版本回退同日最新记录用，生成缓存路径必须传）。
         trade_date: structured_output.trade_date 精确过滤（input_hash 为 None
             时用于限定日期）。
+        structured_filter: structured_output 顶层键的等值过滤（如
+            ``{"period": "day"}``）——同一 trade_date 会落多条不同维度的
+            记录（日/周/月复盘），只在 SQL 层先收敛再取最新，避免拿最新
+            一条后因维度不符整批 miss。
     """
     conditions: list[ColumnElement[bool]] = [AiAnalysisResult.skill_id == skill_id]
     if input_hash is not None:
@@ -81,6 +86,8 @@ async def load_latest_success(
             AiAnalysisResult.structured_output["trade_date"].as_string()
             == trade_date.isoformat()
         )
+    for key, value in (structured_filter or {}).items():
+        conditions.append(AiAnalysisResult.structured_output[key].as_string() == value)
     stmt = (
         select(AiAnalysisResult)
         .where(*conditions, AiAnalysisResult.status == "success")
@@ -91,21 +98,28 @@ async def load_latest_success(
 
 
 async def list_success_trade_dates(
-    session: AsyncSession, *, skill_id: str, stock_code: str | None = None
+    session: AsyncSession,
+    *,
+    skill_id: str,
+    stock_code: str | None = None,
+    structured_filter: dict[str, str] | None = None,
 ) -> list[date]:
     """聚合 success 记录中 structured_output.trade_date 的去重列表（升序）。
 
     供日历标记「哪些交易日已生成过分析」。stock_code 缺省时不过滤标的
-    （市场级 skill 如大盘复盘）；trade_date 从 JSONB 解出，脏数据
+    （市场级 skill 如大盘复盘）；structured_filter 语义同 load_latest_success
+    （如模拟盘复盘按 period 分维度打点）；trade_date 从 JSONB 解出，脏数据
     （缺失/非 ISO 格式）跳过而非中断。
     """
-    conditions = [
+    conditions: list[ColumnElement[bool]] = [
         AiAnalysisResult.skill_id == skill_id,
         AiAnalysisResult.status == "success",
         AiAnalysisResult.created_at >= utc_now() - timedelta(days=_TRADE_DATES_WINDOW_DAYS),
     ]
     if stock_code is not None:
         conditions.append(AiAnalysisResult.stock_code == stock_code)
+    for key, value in (structured_filter or {}).items():
+        conditions.append(AiAnalysisResult.structured_output[key].as_string() == value)
     stmt = select(AiAnalysisResult.structured_output).where(*conditions)
     rows = list((await session.execute(stmt)).scalars().all())
     dates: set[date] = set()

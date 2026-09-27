@@ -16,6 +16,18 @@ SPECS: tuple[TaskSpec, ...] = (
         },
     ),
     TaskSpec(
+        name="news-telegraph-cleanup",
+        label="电报保留清理",
+        description="定期清理过期财联社电报行与 AI 分级孤儿标注，控制表体积",
+        data_type="news_telegraph_cleanup",
+        collectors={
+            "internal": (
+                "collector.spiders.news_telegraph_cleanup:"
+                "NewsTelegraphCleanupCollector"
+            ),
+        },
+    ),
+    TaskSpec(
         name="health-check",
         label="采集健康检测",
         description="定时巡检各采集任务成功率与数据新鲜度，输出健康报告",
@@ -32,5 +44,18 @@ SPECS: tuple[TaskSpec, ...] = (
         collectors={
             "internal": "collector.spiders.kb_cleanup:KbCleanupCollector",
         },
+    ),
+    TaskSpec(
+        name="trade-calendar-seed",
+        label="交易日历种子刷新",
+        description="新浪全量交易日历重建 market_trade_calendar 种子行（人工覆盖行不回改），缺省当年+下一年",
+        data_type="trade_calendar_seed",
+        collectors={
+            "internal": (
+                "collector.spiders.trade_calendar_seed:"
+                "TradeCalendarSeedCollector"
+            ),
+        },
+        run_params=("years",),
     ),
 )

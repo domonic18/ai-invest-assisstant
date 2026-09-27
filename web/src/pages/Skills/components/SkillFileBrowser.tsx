@@ -2,6 +2,8 @@ import { FileOutlined, FileTextOutlined, FolderOutlined } from '@ant-design/icon
 import { Segmented, Skeleton, Typography } from 'antd'
 import { useEffect, useState } from 'react'
 
+import type { ApiSkillFile } from '@ai-invest/shared'
+
 import { MarkdownText } from '@/components/common/MarkdownText'
 import { useSkillFiles } from '@/hooks/useSkills'
 
@@ -13,17 +15,27 @@ function isMarkdown(path: string): boolean {
   return path.toLowerCase().endsWith('.md')
 }
 
-interface SkillFileBrowserProps {
-  skillId: string
+interface SkillFileBrowserViewProps {
+  /** 目录树与面包屑展示的根目录名（技能 id）。 */
+  rootLabel: string
+  files: ApiSkillFile[] | undefined
+  isLoading: boolean
+  isError?: boolean
+  /** 虚拟合成文件提示（技能广场合成口径，镜像直读不传）。 */
+  synthetic?: boolean
 }
 
-/** 技能包文件浏览器：左侧文件列表 + 右侧 预览/源码 内容区。 */
-export function SkillFileBrowser({ skillId }: SkillFileBrowserProps) {
-  const filesQ = useSkillFiles(skillId)
+/** 技能包文件浏览器展示层：左侧文件列表 + 右侧 预览/源码 内容区。
+ * 数据获取由调用方包装（技能广场走 useSkillFiles；Agent 配置页走镜像直读 API）。 */
+export function SkillFileBrowserView({
+  rootLabel,
+  files,
+  isLoading,
+  isError = false,
+  synthetic = false,
+}: SkillFileBrowserViewProps) {
   const [activePath, setActivePath] = useState<string | null>(null)
   const [view, setView] = useState<'preview' | 'source'>('preview')
-
-  const files = filesQ.data?.files
 
   useEffect(() => {
     if (files == null || !files.length) return
@@ -44,9 +56,9 @@ export function SkillFileBrowser({ skillId }: SkillFileBrowserProps) {
         </div>
         <div className="flex items-center gap-1.5 px-2 py-1 font-mono text-xs font-semibold text-[#f0f1f5]">
           <FolderOutlined className="text-[#5c616e]" />
-          <span className="truncate">{skillId}</span>
+          <span className="truncate">{rootLabel}</span>
         </div>
-        {filesQ.isLoading ? (
+        {isLoading ? (
           <div className="px-2 pt-2">
             <Skeleton active title={false} paragraph={{ rows: 2 }} />
           </div>
@@ -79,7 +91,7 @@ export function SkillFileBrowser({ skillId }: SkillFileBrowserProps) {
             )
           })
         )}
-        {filesQ.data?.synthetic && (
+        {synthetic && (
           <div className="mt-3 border-t border-[#23262d] px-2 pt-2 text-[10.5px] leading-relaxed text-[#5c616e]">
             文件由技能配置合成（虚拟文件），非镜像内真实路径。
           </div>
@@ -90,7 +102,7 @@ export function SkillFileBrowser({ skillId }: SkillFileBrowserProps) {
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-[#23262d] px-4 py-2 font-mono text-[11.5px] text-[#5c616e]">
           <span>skills</span>
           <span>/</span>
-          <span className="truncate">{skillId}</span>
+          <span className="truncate">{rootLabel}</span>
           {activeFile && (
             <>
               <span>/</span>
@@ -115,7 +127,7 @@ export function SkillFileBrowser({ skillId }: SkillFileBrowserProps) {
         )}
         <div className="flex-1 overflow-y-auto px-4 pb-4 pt-2">
           {!activeFile ? (
-            filesQ.isError ? (
+            isError ? (
               <Typography.Text type="secondary" className="text-xs">
                 技能包文件加载失败
               </Typography.Text>
@@ -137,5 +149,23 @@ export function SkillFileBrowser({ skillId }: SkillFileBrowserProps) {
         </div>
       </div>
     </div>
+  )
+}
+
+interface SkillFileBrowserProps {
+  skillId: string
+}
+
+/** 技能广场文件浏览器（数据包装：useSkillFiles → 展示层）。 */
+export function SkillFileBrowser({ skillId }: SkillFileBrowserProps) {
+  const filesQ = useSkillFiles(skillId)
+  return (
+    <SkillFileBrowserView
+      rootLabel={skillId}
+      files={filesQ.data?.files}
+      isLoading={filesQ.isLoading}
+      isError={filesQ.isError}
+      synthetic={filesQ.data?.synthetic}
+    />
   )
 }

@@ -5,6 +5,7 @@ import { useMemo } from 'react'
 import type { SectorFlowTrend } from '@/api/fundFlow'
 import { ChartColors } from '@/theme/colors'
 import { useColorScheme } from '@/stores/settings'
+import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 
 // 只画累计 |净流入| 前 8 的板块，其余合并为「其他」
 const TOP_SECTORS = 8
@@ -32,6 +33,8 @@ export function SectorFlowAreaChart({
   onSelectDate,
 }: SectorFlowAreaChartProps) {
   const scheme = useColorScheme()
+  // 窄屏减条数缩边距：8 条图例与 60px 左边距在 360px 宽下没有绘图区
+  const isNarrow = useIsNarrowScreen()
 
   const series = useMemo(() => {
     const ranked = data.sectors
@@ -41,7 +44,7 @@ export function SectorFlowAreaChart({
         netTotal: s.values.reduce<number>((acc, v) => acc + (v ?? 0), 0),
       }))
       .sort((a, b) => b.absTotal - a.absTotal)
-    const top = ranked.slice(0, TOP_SECTORS)
+    const top = ranked.slice(0, isNarrow ? 5 : TOP_SECTORS)
 
     const riseColors = RISE_FAMILY[scheme]
     const fallColors = FALL_FAMILY[scheme]
@@ -82,7 +85,7 @@ export function SectorFlowAreaChart({
       }
     }
     return list
-  }, [data, scheme, selectedDate])
+  }, [data, scheme, selectedDate, isNarrow])
 
   const option: EChartsOption = {
     backgroundColor: 'transparent',
@@ -95,12 +98,15 @@ export function SectorFlowAreaChart({
     },
     legend: {
       bottom: 0,
+      type: isNarrow ? 'scroll' : 'plain',
       textStyle: { color: ChartColors.textMuted, fontSize: 10 },
       itemWidth: 14,
       itemHeight: 2,
       icon: 'rect',
     },
-    grid: { left: 60, right: 30, top: 30, bottom: 60 },
+    grid: isNarrow
+      ? { left: 44, right: 16, top: 20, bottom: 60 }
+      : { left: 60, right: 30, top: 30, bottom: 60 },
     xAxis: {
       type: 'category',
       data: data.dates,
@@ -127,7 +133,7 @@ export function SectorFlowAreaChart({
   return (
     <ReactECharts
       option={option}
-      style={{ height: '360px', width: '100%' }}
+      style={{ height: isNarrow ? '300px' : '360px', width: '100%' }}
       notMerge
       onEvents={{
         click: (params: { componentType?: string; name?: string }) => {

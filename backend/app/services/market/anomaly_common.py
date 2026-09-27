@@ -1,7 +1,7 @@
 """异动检测域共享原语：输入未就绪异常与命中维度/分类键。
 
 维度键落 ``anomaly_types`` JSONB、分类键落 ``attribution_category``，
-前端标签映射在 ``shared/types``（docs/arch/08-anomaly-analysis.md §2-§4）。
+前端标签映射在 ``shared/types``（docs/arch/06-anomaly-analysis.md §2-§4）。
 """
 
 from app.core.exceptions import BadRequestError

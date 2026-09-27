@@ -50,7 +50,7 @@ export async function fetchKbPlaybackToken(mediaId: number): Promise<ApiKbPlayba
   return response.data
 }
 
-/** 字幕轨（WebVTT 文本；经 apiClient 同源鉴权，仅 `<video>` src 用 query token）。 */
+/** 字幕轨（WebVTT 文本；经 apiClient 同源鉴权，媒体流本身走预签名直链）。 */
 export async function fetchKbSubtitles(mediaId: number): Promise<string> {
   const response = await apiClient.get<string>(ENDPOINTS.kb.subtitles(mediaId), {
     responseType: 'text',
@@ -58,12 +58,7 @@ export async function fetchKbSubtitles(mediaId: number): Promise<string> {
   return response.data
 }
 
-/** 视频代理流 URL（element src 无法携带 Authorization 头，凭证走 query token）。 */
-export function kbStreamUrl(mediaId: number, token: string): string {
-  return ENDPOINTS.kb.stream(mediaId, token)
-}
-
-/** 书页位图 URL（同上，token 走 query）。 */
+/** 书页位图 URL（element src 无法携带 Authorization 头，token 走 query）。 */
 export function kbBookPageUrl(mediaId: number, pageNo: number, token: string): string {
   return ENDPOINTS.kb.bookPage(mediaId, pageNo, token)
 }

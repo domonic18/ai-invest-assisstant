@@ -10,18 +10,14 @@ vi.mock('@/hooks/useAdminSocial', () => ({
   useSocialAccountsAdmin: vi.fn(),
   useSocialAccountPosts: vi.fn(),
   useSocialAdminStatus: vi.fn(),
-  useAsrConfig: vi.fn(),
   useCreateSocialAccount: vi.fn(),
   useUpdateSocialAccount: vi.fn(),
   useDeleteSocialAccount: vi.fn(),
   useBackfillSocialAccount: vi.fn(),
   useImportSocialCookie: vi.fn(),
-  useUpdateAsrConfig: vi.fn(),
-  useTestAsrConfig: vi.fn(),
 }))
 
 import {
-  useAsrConfig,
   useBackfillSocialAccount,
   useCreateSocialAccount,
   useDeleteSocialAccount,
@@ -29,8 +25,6 @@ import {
   useSocialAccountPosts,
   useSocialAccountsAdmin,
   useSocialAdminStatus,
-  useTestAsrConfig,
-  useUpdateAsrConfig,
   useUpdateSocialAccount,
 } from '@/hooks/useAdminSocial'
 
@@ -104,10 +98,6 @@ function setupMocks(overrides: {
     data: status,
     isLoading: false,
   } as unknown as ReturnType<typeof useSocialAdminStatus>)
-  vi.mocked(useAsrConfig).mockReturnValue({
-    data: null,
-    isLoading: false,
-  } as unknown as ReturnType<typeof useAsrConfig>)
   vi.mocked(useCreateSocialAccount).mockReturnValue(
     mutation(vi.fn().mockResolvedValue(account)) as unknown as ReturnType<
       typeof useCreateSocialAccount
@@ -160,16 +150,6 @@ function setupMocks(overrides: {
   vi.mocked(useImportSocialCookie).mockReturnValue(
     mutation(vi.fn().mockResolvedValue({ cookieJarsAvailable: 3 })) as unknown as ReturnType<
       typeof useImportSocialCookie
-    >,
-  )
-  vi.mocked(useUpdateAsrConfig).mockReturnValue(
-    mutation(vi.fn().mockResolvedValue({})) as unknown as ReturnType<
-      typeof useUpdateAsrConfig
-    >,
-  )
-  vi.mocked(useTestAsrConfig).mockReturnValue(
-    mutation(vi.fn().mockResolvedValue({ ok: true, latencyMs: 120, text: 'ok', error: null })) as unknown as ReturnType<
-      typeof useTestAsrConfig
     >,
   )
   return {

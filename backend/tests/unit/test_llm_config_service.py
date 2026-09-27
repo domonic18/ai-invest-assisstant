@@ -1,12 +1,14 @@
-"""LLM 配置服务契约测试（默认配置唯一性、凭证脱敏与连通性探测路径）。"""
+"""LLM 配置服务契约测试（默认配置唯一性、凭证脱敏、连通性探测与主备引用）。"""
 
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.database import Base
+from app.core.exceptions import UnprocessableEntityError
 from app.models.llm_config import LLMConfig
 from app.schemas.llm_config import LLMConfigCreate, LLMConfigUpdate
 from app.services.admin import llm_config_service as llm_config_service_module
@@ -331,3 +333,78 @@ async def test_embedding_config_missing_vector_marks_failed(
 
     assert result.status == "failed"
     assert "缺少向量字段" in result.detail
+
+
+async def _create_chat(session: AsyncSession, name: str, **kw: Any):
+    return await LLMConfigService(session).create_config(
+        LLMConfigCreate(
+            name=name,
+            provider="custom",
+            base_url="https://api.example.com/v1",
+            api_key=f"sk-{name}",
+            model_name="m1",
+            **kw,
+        )
+    )
+
+
+async def test_backup_config_validation(session: AsyncSession) -> None:
+    """备用引用校验：同 purpose、非自身；显式置 null 可清除。"""
+    primary = await _create_chat(session, "Primary")
+    embed = await _create_chat(session, "Embed", purpose="embedding")
+    backup = await _create_chat(session, "Backup")
+    service = LLMConfigService(session)
+
+    with pytest.raises(UnprocessableEntityError):
+        await service.update_config(
+            primary.id, LLMConfigUpdate(backup_config_id=embed.id)
+        )
+    with pytest.raises(UnprocessableEntityError):
+        await service.update_config(
+            primary.id, LLMConfigUpdate(backup_config_id=primary.id)
+        )
+
+    updated = await service.update_config(
+        primary.id, LLMConfigUpdate(backup_config_id=backup.id)
+    )
+    assert updated.backup_config_id == backup.id
+
+    cleared = await service.update_config(
+        primary.id, LLMConfigUpdate(backup_config_id=None)
+    )
+    assert cleared.backup_config_id is None
+
+
+async def test_delete_clears_backup_references(session: AsyncSession) -> None:
+    """删除被引用的备用条目时清空反向引用，不留悬空 id。"""
+    primary = await _create_chat(session, "Primary")
+    backup = await _create_chat(session, "Backup")
+    service = LLMConfigService(session)
+    await service.update_config(primary.id, LLMConfigUpdate(backup_config_id=backup.id))
+
+    await service.delete_config(backup.id)
+
+    refreshed = await service.get_config(primary.id)
+    assert refreshed.backup_config_id is None
+
+
+async def test_resolve_default_switches_to_backup_when_unhealthy(
+    session: AsyncSession,
+) -> None:
+    """主配置处于冷却期时解析出口自动切到其备用条目。"""
+    primary = await _create_chat(session, "Primary", is_default=True)
+    backup = await _create_chat(session, "Backup")
+    await LLMConfigService(session).update_config(
+        primary.id, LLMConfigUpdate(backup_config_id=backup.id)
+    )
+
+    with patch(
+        "app.services.admin.llm_failover.is_unhealthy",
+        new=AsyncMock(return_value=True),
+    ):
+        resolved = await resolve_default_llm(session)
+
+    assert resolved.config_id == backup.id
+
+    resolved_healthy = await resolve_default_llm(session)
+    assert resolved_healthy.config_id == primary.id

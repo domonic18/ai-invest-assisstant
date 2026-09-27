@@ -442,19 +442,16 @@ a:hover { color: var(--accent-hover); }
 
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
-<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="#"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
+<div class="sidebar-section-title">检测</div>
 <a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
-<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
-<a class="sidebar-item" href="stock-detail.html"><span class="sidebar-item-icon">◈</span><span>个股监测</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
-<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>异动检测</span></a>
 <a class="sidebar-item active" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
-<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
-<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>板块异动</span></a>
-<a class="sidebar-item" href="stock-anomaly.html"><span class="sidebar-item-icon">◈</span><span>个股异动</span></a>
 <div class="sidebar-section-title">设置</div>
 <a class="sidebar-item" href="settings.html"><span class="sidebar-item-icon">◈</span><span>个人设置</span></a>
 <a class="sidebar-item" href="skill-square.html"><span class="sidebar-item-icon">◈</span><span>技能广场</span></a>
@@ -463,14 +460,21 @@ a:hover { color: var(--accent-hover); }
 <div class="sidebar-footer"><div class="sidebar-avatar">U</div><div class="sidebar-user-info"><div class="sidebar-user-name">用户</div><div>投资分析师</div></div></div>
 </aside>
 <div class="app-main">
-<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right"><div class="header-badge notification"><div class="notification-dot"></div>⧂</div><div class="header-badge">⚙</div></div></header>
+<header class="app-header"><div class="header-left"><input class="header-search" placeholder="搜索股票代码或名称…"><button class="btn btn-primary btn-sm">搜索</button></div><div class="header-right">
+        <button class="header-btn" title="知识库">📚</button>
+        <button class="header-btn" title="AI 选股">🔽</button>
+        <button class="header-btn" title="AI 助手">💬</button>
+        <button class="header-btn" title="投资日历">📅</button>
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><div class="sidebar-avatar" style="width:26px;height:26px;font-size:11px">U</div><span>用户</span>▾</div>
+      </div>
+    </header>
 <div class="app-content">
 
 <!-- 页头：全局实时状态 -->
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-5);flex-wrap:wrap;gap:var(--space-3)">
 <div>
 <h1 class="page-title" style="margin-bottom:4px">资讯中心</h1>
-<div style="font-size:var(--text-xs);color:var(--text-tertiary)"><span class="stat-dot live"></span>实时采集中 · 全渠道聚合 / AI 分级 / 订阅检测 / 事件跟踪 —— 原「热点追踪」已并入本页「热点主题」视图</div>
+<div style="font-size:var(--text-xs);color:var(--text-tertiary)"><span class="stat-dot live"></span>实时采集中 · 全渠道聚合 / AI 重要度分级 / 订阅检测 / 事件跟踪 —— 原「热点追踪」已并入本页「热点主题」视图</div>
 </div>
 <div style="display:flex;gap:8px">
 <button class="btn btn-secondary btn-sm" id="btnSubDrawer">★ 我的订阅<span style="color:var(--amber)">（今日命中 23）</span></button>
@@ -481,22 +485,22 @@ a:hover { color: var(--accent-hover); }
 <!-- ① 渠道监控：有哪些渠道 · 获取状态 · 是否持续采集（回答问题 1 / 3） -->
 <div class="chan-grid mb-6">
 <div class="chan-card">
-<div class="chan-head"><span class="chan-name"><span class="stat-dot live"></span>财联社电报</span><span class="chan-state" style="color:var(--red)">LIVE</span></div>
+<div class="chan-head"><span class="chan-name"><span class="stat-dot live"></span>财联社电报</span><span class="chan-state" style="color:var(--red)">LIVE 采集中</span></div>
 <div class="chan-meta">10s 增量轮询 · 驻留进程</div>
 <div class="chan-stat"><span>今日 <b>328</b> 条</span><span class="last">12:03:45</span></div>
 </div>
 <div class="chan-card">
-<div class="chan-head"><span class="chan-name"><span class="stat-dot ok"></span>新浪财经</span><span class="chan-state">正常</span></div>
+<div class="chan-head"><span class="chan-name"><span class="stat-dot ok"></span>新浪财经</span><span class="chan-state">正常运行</span></div>
 <div class="chan-meta">15 分钟轮询</div>
 <div class="chan-stat"><span>今日 <b>96</b> 条</span><span class="last">11:58</span></div>
 </div>
 <div class="chan-card warn">
-<div class="chan-head"><span class="chan-name"><span class="stat-dot warn"></span>巨潮公告</span><span class="chan-state" style="color:var(--amber)">延迟</span></div>
+<div class="chan-head"><span class="chan-name"><span class="stat-dot warn"></span>巨潮公告</span><span class="chan-state" style="color:var(--amber)">采集延迟</span></div>
 <div class="chan-meta">15 分钟轮询 · 重试中（第 2 次）</div>
 <div class="chan-stat"><span>今日 <b>41</b> 条</span><span class="last">11:31 · 滞后 32min</span></div>
 </div>
 <div class="chan-card">
-<div class="chan-head"><span class="chan-name"><span class="stat-dot ok"></span>华尔街见闻</span><span class="chan-state">正常</span></div>
+<div class="chan-head"><span class="chan-name"><span class="stat-dot ok"></span>华尔街见闻</span><span class="chan-state">正常运行</span></div>
 <div class="chan-meta">10 分钟轮询</div>
 <div class="chan-stat"><span>今日 <b>57</b> 条</span><span class="last">12:01</span></div>
 </div>
@@ -512,7 +516,7 @@ a:hover { color: var(--accent-hover); }
 <span class="gs-item"><span class="stat-dot live"></span>采集中</span>
 <span class="gs-sep"></span>
 <span class="gs-item">今日入库 <b>534</b> 条</span>
-<span class="gs-item">AI 分级完成 <b>534</b>（延迟 &lt;1s）</span>
+<span class="gs-item">AI 分级 <b>534/534</b>（100%）</span>
 <span class="gs-sep"></span>
 <span class="gs-item">高重要度 <b style="color:var(--red)">38</b></span>
 <span class="gs-item">订阅命中 <b style="color:var(--amber)">23</b></span>
@@ -526,6 +530,7 @@ a:hover { color: var(--accent-hover); }
 <button class="vtab active" data-view="pane-live">实时电报<span class="cnt">534</span></button>
 <button class="vtab" data-view="pane-focus">重点与跟踪<span class="cnt">6</span></button>
 <button class="vtab" data-view="pane-topic">热点主题<span class="cnt">14</span></button>
+<a class="vtab" href="social-sentiment.html" style="text-decoration:none">大V情绪<span class="cnt">→</span></a>
 </div>
 
 <!-- 视图一：实时电报（回答问题 2：时效性） -->
@@ -533,20 +538,21 @@ a:hover { color: var(--accent-hover); }
 <div class="filter-bar">
 <div class="fchips">
 <span class="fchip active">全部<span class="n">534</span></span>
-<span class="fchip">高<span class="n">38</span></span>
-<span class="fchip">中<span class="n">121</span></span>
+<span class="fchip">高 ≥70<span class="n">38</span></span>
+<span class="fchip">中 ≥40<span class="n">121</span></span>
 <span class="fchip">低<span class="n">375</span></span>
 </div>
 <div class="fchips">
 <span class="fchip active">全部渠道</span>
-<span class="fchip">财联社</span>
+<span class="fchip">财联社电报</span>
+<span class="fchip">东财快讯</span>
 <span class="fchip">新浪</span>
 <span class="fchip">巨潮</span>
 <span class="fchip">见闻</span>
 </div>
-<span class="fswitch on"><span class="toggle"></span>仅看订阅命中 ★</span>
+<span class="fswitch on"><span class="toggle"></span>★ 仅看订阅命中</span>
 </div>
-<div class="new-msg-bar">↓ <b>6 条新讯息</b> · 最新 12:03:45（财联社）<span class="t">点击载入，不打断当前浏览位置</span></div>
+<div class="new-msg-bar">↓ <b>6 条新讯息</b> · 最新 12:03:45（财联社）<span class="t">点击回到顶部载入，不打断当前浏览位置</span></div>
 <div class="card">
 <div class="card-body card-body-sm">
 
@@ -559,7 +565,7 @@ a:hover { color: var(--accent-hover); }
 <span class="tg-star">★ 订阅命中「半导体出口管制」</span>
 <span class="rel-chip up">#半导体 +4.82%</span>
 <span class="rel-chip up">#北方华创 +5.02%</span>
-<span class="tg-act">加入跟踪</span>
+<span class="tg-act">跟踪此事件</span>
 </div>
 </div>
 </div>
@@ -621,7 +627,7 @@ a:hover { color: var(--accent-hover); }
 </div>
 </div>
 
-<div class="day-sep">以下为上一交易日（09-04）资讯</div>
+<div class="day-sep">以下为 9月4日 资讯</div>
 
 <div class="tg-item">
 <span class="tg-imp high"></span>
@@ -649,12 +655,12 @@ a:hover { color: var(--accent-hover); }
 <span class="how-arrow">→</span>
 <div class="how-step"><div class="hs-t">② 事件如何聚合成线</div><div class="hs-d">AI 将<b>同一事件的多篇报道自动聚类</b>为故事线（如「大基金三期」23 篇报道一条线）；报道 ≥5 篇自动建线并持续跟踪新进展。</div></div>
 <span class="how-arrow">→</span>
-<div class="how-step"><div class="hs-t">③ 你怎么用</div><div class="hs-d">在电报流对任意资讯点<b>「加入跟踪」</b>，或订阅关键词命中后一键转跟踪；被跟踪事件有新报道时<b>自动续接到故事线并提醒</b>，可随时停止。</div></div>
+<div class="how-step"><div class="hs-t">③ 你怎么用</div><div class="hs-d">在电报流对任意资讯点<b>「跟踪此事件」</b>，或订阅关键词命中后一键转跟踪；被跟踪事件有新报道时<b>自动续接到故事线并提醒</b>，可随时停止。</div></div>
 </div>
 
 <div class="grid-2col">
 <div class="card">
-<div class="card-header"><span class="card-title">今日重点（AI 重要度评分）</span><span style="font-size:11px;color:var(--text-tertiary)">高重要度 38 条 · 展示 TOP 5</span></div>
+<div class="card-header"><span class="card-title">今日重点（≥70 分 · 5 条）</span><span style="font-size:11px;color:var(--text-tertiary)">高重要度 38 条 · 展示 TOP 5</span></div>
 <div class="card-body card-body-sm">
 <div class="score-item">
 <div class="score-top"><span class="score-val">94</span><span class="score-title">半导体出口管制反制清单评估中</span></div>
@@ -691,7 +697,7 @@ a:hover { color: var(--accent-hover); }
 
 <div class="flex flex-col">
 <div class="card mb-6" style="margin-bottom:12px">
-<div class="card-header"><span class="card-title">跟踪中的事件</span><span style="font-size:11px;color:var(--text-tertiary)">同一事件的多篇报道聚合为故事线</span></div>
+<div class="card-header"><span class="card-title">事件故事线（2 条）</span><span style="font-size:11px;color:var(--text-tertiary)">同一事件的多篇报道聚合为故事线</span></div>
 <div class="card-body card-body-sm">
 <div class="story-card">
 <div class="story-head"><span class="story-name">国家大基金三期投资</span><span class="story-from">AI 自动建线 · 报道 ≥5 篇</span><span class="tag tag-red">跟踪中</span></div>
@@ -706,7 +712,7 @@ a:hover { color: var(--accent-hover); }
 <div class="story-foot"><a>停止跟踪</a><a>查看全部 23 篇报道</a></div>
 </div>
 <div class="story-card">
-<div class="story-head"><span class="story-name">美联储 9 月议息</span><span class="story-from">我手动跟踪 · 来自订阅「美联储降息」</span><span class="tag tag-amber">临近</span></div>
+<div class="story-head"><span class="story-name">美联储 9 月议息</span><span class="story-from">手动跟踪 · 来自订阅「美联储降息」</span><span class="tag tag-amber">临近尾声</span></div>
 <div class="story-meta">报道 41 篇 · 距议息 8 天 · 概率：降息 68% / 不变 28%</div>
 <div class="story-latest"><b>最新进展（09-07）：</b>非农数据后降息概率由 52% 上修至 68%；会前关注 09-17 CPI。</div>
 <div class="story-foot"><a>停止跟踪</a><a>日历标记 09-18 决议</a></div>
@@ -726,8 +732,15 @@ a:hover { color: var(--accent-hover); }
 
 <!-- 视图三：热点主题（原热点追踪页并入，F-AI-03 能力） -->
 <div class="view-pane" id="pane-topic">
+<div class="filter-bar">
+<div class="fchips">
+<span class="fchip">盘中 11:35</span>
+<span class="fchip active">盘后 16:35</span>
+</div>
+<span style="font-size:11px;color:var(--text-tertiary)">生成于 09-04 16:35 · 数据日期 2026-09-04</span>
+</div>
 <div class="card mb-6">
-<div class="card-header"><span class="card-title">今日热点词云</span><span style="font-size:11px;color:var(--text-tertiary)">词频窗口近 24h · 点击词条下钻主题详情</span></div>
+<div class="card-header"><span class="card-title">今日热词</span><span style="font-size:11px;color:var(--text-tertiary)">词频窗口近 24h · 点击词条下钻主题详情</span></div>
 <div class="topic-cloud">
 <span class="cloud-tag" style="font-size:1.4rem;background:rgba(248,81,73,.12);color:var(--red);font-weight:700">半导体出口管制</span>
 <span class="cloud-tag" style="font-size:1.3rem;background:rgba(248,81,73,.12);color:var(--red);font-weight:700">大基金三期</span>
@@ -764,7 +777,7 @@ a:hover { color: var(--accent-hover); }
 <span class="chg-note">主力净流入 <span class="up text-mono">+48.2亿</span></span>
 </div>
 </div>
-<div class="tc-formula">热度构成（96/100）：资讯量 <b>32</b> × 板块涨幅 <b>+4.82%</b> × 资金验证 <b>+48.2亿</b> · 交叉信源 <b>3 渠道</b> · 数据来自当日资讯聚类 + 板块行情 / 资金流接口</div>
+<div class="tc-formula">热度构成（96/100）：资讯量 <b>32</b> × 板块涨幅 <b>+4.82%</b> × 主力净流入 <b>+48.2亿</b> · 交叉信源 <b>3 渠道</b> · 数据来自当日资讯聚类 + 板块行情 / 资金流接口</div>
 <div class="tc-expand">
 <div class="chain-flow">
 <div class="chain-node"><div class="cn-t">事件</div><div class="cn-v">管制反制清单</div></div>
@@ -796,7 +809,7 @@ a:hover { color: var(--accent-hover); }
 <span class="chg-note">主力净流入 <span class="up text-mono">+22.6亿</span></span>
 </div>
 </div>
-<div class="tc-formula">热度构成（88/100）：资讯量 <b>23</b> × 板块涨幅 <b>+5.8%</b> × 资金验证 <b>+22.6亿</b> · 数据来自当日资讯聚类 + 板块行情 / 资金流接口</div>
+<div class="tc-formula">热度构成（88/100）：资讯量 <b>23</b> × 板块涨幅 <b>+5.8%</b> × 主力净流入 <b>+22.6亿</b> · 数据来自当日资讯聚类 + 板块行情 / 资金流接口</div>
 </div>
 
 <div class="topic-card">
@@ -836,7 +849,7 @@ a:hover { color: var(--accent-hover); }
 <span class="chg-note">主力净流入 <span class="up text-mono">+9.8亿</span></span>
 </div>
 </div>
-<div class="tc-formula">热度构成（61/100）：资讯量 <b>14</b> × 板块涨幅 <b>+2.3%</b> × 资金验证 <b>+9.8亿</b> · 公告类信源占比高（确定性加权）</div>
+<div class="tc-formula">热度构成（61/100）：资讯量 <b>14</b> × 板块涨幅 <b>+2.3%</b> × 主力净流入 <b>+9.8亿</b> · 公告类信源占比高（确定性加权）</div>
 </div>
 
 <div class="load-more">↓ 展开全部 14 个主题</div>
@@ -858,7 +871,7 @@ a:hover { color: var(--accent-hover); }
 <input class="form-input" placeholder="订阅关键词，如：半导体出口管制">
 <select class="form-select"><option>范围：全部渠道</option><option>仅财联社</option><option>仅公告</option></select>
 <select class="form-select"><option>类型：全部</option><option>财经</option><option>政治</option><option>产业</option><option>军事</option></select>
-<button class="btn btn-primary btn-sm">添加订阅</button>
+<button class="btn btn-primary btn-sm">订阅</button>
 </div>
 <div class="table-wrap">
 <table>
@@ -936,14 +949,14 @@ a:hover { color: var(--accent-hover); }
 <!-- 规划说明：边界与远期 -->
 <div class="type-note">
 <div class="tn-title">信息架构说明（原「热点追踪」已并入本页）</div>
-① <b>渠道监控</b>回答「有哪些渠道 / 获取状态 / 是否持续采集」；② <b>实时电报</b>回答「最新资讯与时效」（时间精确到秒 + 相对时间 + 新讯息到达不打断浏览）；③ <b>重点与跟踪</b>回答「哪些是重点、是否持续跟踪」（信息来自全渠道资讯的 AI 重要度评分与事件聚类；用户可在电报流「加入跟踪」，新报道自动续接故事线）；④ <b>热点主题</b>为原热点追踪能力（F-AI-03：事件→概念→标的），数据来自当日资讯聚类 + 板块行情/资金流验证，与板块异动分析（F-AI-09）互通归因。<b>订阅</b>为配置能力（页头抽屉），命中结果回流电报流（★ 标注 + 筛选开关），不与浏览视图同列。远期扩展：世界地图热区视图、大屏词云、订阅规则正则与推送渠道（站内 / 小程序）。
+① <b>渠道监控</b>回答「有哪些渠道 / 获取状态 / 是否持续采集」；② <b>实时电报</b>回答「最新资讯与时效」（时间精确到秒 + 相对时间 + 新讯息到达不打断浏览）；③ <b>重点与跟踪</b>回答「哪些是重点、是否持续跟踪」（信息来自全渠道资讯的 AI 重要度评分与事件聚类；用户可在电报流「跟踪此事件」，新报道自动续接故事线）；④ <b>热点主题</b>为原热点追踪能力（F-AI-03：事件→概念→标的），数据来自当日资讯聚类 + 板块行情/资金流验证，与板块异动分析（F-AI-09）互通归因；⑤ <b>大 V 情绪</b>为大 V 立场与情绪流视图（单独原型见 social-sentiment.html）。<b>订阅</b>为配置能力（页头抽屉），命中结果回流电报流（★ 标注 + 筛选开关），不与浏览视图同列。远期扩展：世界地图热区视图、大屏词云、订阅规则正则与推送渠道（站内 / 小程序）。
 </div>
 
 </div></div></div>
 
 <script>
 /* 视图切换（同个股详情右栏 tab 范式） */
-document.querySelectorAll('.view-tabs .vtab').forEach(function(t){
+document.querySelectorAll('.view-tabs button.vtab').forEach(function(t){
   t.addEventListener('click',function(){
     document.querySelectorAll('.view-tabs .vtab').forEach(function(x){x.classList.toggle('active',x===t)});
     document.querySelectorAll('.view-pane').forEach(function(p){p.classList.toggle('active',p.id===t.dataset.view)});

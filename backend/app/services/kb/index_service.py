@@ -1,4 +1,4 @@
-"""知识库嵌入物化服务（kb-index internal 任务的执行体，arch/12 §7.1）。
+"""知识库嵌入物化服务（kb-index internal 任务的执行体，arch/09 §7.1）。
 
 PG 是唯一存储，检索面同库内嵌（无投影层）：本服务把三类 ``embedding_dirty``
 行的检索文本（point/image 按各自拼接口径、segment 用 ``text``，与
@@ -219,7 +219,7 @@ async def _clear_dirty(
 
 
 def _source_indexable(src: KbSource) -> bool:
-    """知识源可检索条件（arch/12 §7.1：enabled=false 或软删不进检索面）。"""
+    """知识源可检索条件（arch/09 §7.1：enabled=false 或软删不进检索面）。"""
     return src.enabled and src.deleted_at is None
 
 

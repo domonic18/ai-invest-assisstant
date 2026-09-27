@@ -68,6 +68,11 @@ class KbExtractCollector(BaseCollector):
                     f"{stats['awaitingChapterPublish']} 个素材等待目录树发布"
                     "（章节推断完成后请在管理端审核发布）"
                 )
+            elif stats.get("emptyMedias"):
+                message = (
+                    f"{stats['emptyMedias']} 个素材全窗口 0 知识点"
+                    "（疑似模型空返回，下轮重试，达上限停扫）"
+                )
             return CollectResult(
                 source=self.source,
                 data_type=self.data_type,

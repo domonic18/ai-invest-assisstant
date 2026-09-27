@@ -418,14 +418,13 @@ tr:hover td { background: var(--bg-hover); }
 
 <nav class="sidebar-nav">
 <a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">◈</span><span>工作台</span></a>
-<a class="sidebar-item" href="workbench.html"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
-<div class="sidebar-section-title">监测</div>
+<a class="sidebar-item" href="#"><span class="sidebar-item-icon">★</span><span>我的自选</span></a>
+<div class="sidebar-section-title">检测</div>
 <a class="sidebar-item" href="macro-monitor.html"><span class="sidebar-item-icon">◈</span><span>宏观指数</span></a>
-<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>板块监测</span></a>
+<a class="sidebar-item" href="capital-flow.html"><span class="sidebar-item-icon">◈</span><span>资金流向</span></a>
 <a class="sidebar-item" href="auction-review.html"><span class="sidebar-item-icon">◈</span><span>集合竞价</span></a>
-<div class="sidebar-section-title">资讯</div>
+<a class="sidebar-item" href="sector-anomaly.html"><span class="sidebar-item-icon">◈</span><span>异动检测</span></a>
 <a class="sidebar-item" href="news.html"><span class="sidebar-item-icon">◈</span><span>资讯中心</span></a>
-<a class="sidebar-item" href="calendar.html"><span class="sidebar-item-icon">◈</span><span>投资日历</span></a>
 <div class="sidebar-section-title">分析</div>
 <a class="sidebar-item" href="dashboard.html"><span class="sidebar-item-icon">◈</span><span>每日复盘</span></a>
 <a class="sidebar-item" href="chain-analysis.html"><span class="sidebar-item-icon">◈</span><span>产业图谱</span></a>
@@ -444,8 +443,10 @@ tr:hover td { background: var(--bg-hover); }
         <button class="btn btn-primary btn-sm">搜索</button>
       </div>
       <div class="header-right" style="display:flex;align-items:center;gap:8px">
-        <button class="header-btn" title="我的自选">★</button>
+        <button class="header-btn" title="知识库">📚</button>
+        <button class="header-btn" title="AI 选股">🔽</button>
         <button class="header-btn" title="AI 助手">💬</button>
+        <button class="header-btn" title="投资日历">📅</button>
         <div style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><div class="sidebar-avatar" style="width:26px;height:26px;font-size:11px">D</div><span>Domonic</span>▾</div>
       </div>
     </header>
@@ -460,7 +461,10 @@ tr:hover td { background: var(--bg-hover); }
         <nav class="settings-nav">
           <div class="settings-nav-label">设置</div>
           <a href="#sec-profile" class="active">基本信息</a>
-          <a href="#sec-appearance">外观与偏好</a>
+          <a href="#sec-appearance">外观偏好</a>
+          <a href="#sec-indexes">跟踪指数</a>
+          <a href="#sec-quota">配额用量</a>
+          <a href="#sec-model">我的模型</a>
           <a href="#sec-models">AI 与模型</a>
           <a href="#sec-apikeys">API-KEY 与 MCP</a>
           <a href="#sec-security">账号安全</a>
@@ -490,7 +494,7 @@ tr:hover td { background: var(--bg-hover); }
             </div>
           </section>
 
-          <!-- ② 外观与偏好 -->
+          <!-- ② 外观偏好 -->
           <section id="sec-appearance">
             <div class="card">
               <div class="card-header"><span class="card-title">行情配色</span><span class="card-extra">全站即时生效</span></div>
@@ -510,7 +514,7 @@ tr:hover td { background: var(--bg-hover); }
             </div>
 
             <div class="card" style="margin-top:20px">
-              <div class="card-header"><span class="card-title">K 线均线配置</span><span class="card-extra">已启用 4 条</span></div>
+              <div class="card-header"><span class="card-title">K 线均线配置</span><span class="card-extra">已启用 5 条</span></div>
               <div class="card-body">
                 <div class="ma-row">
                   <span class="ma-swatch" style="background:#f0b429"></span>
@@ -541,6 +545,15 @@ tr:hover td { background: var(--bg-hover); }
                 </div>
                 <div class="ma-row">
                   <span class="ma-swatch" style="background:#e8833a"></span>
+                  <input class="ma-period-input" type="number" value="30">
+                  <span class="ma-label">MA30</span>
+                  <span style="flex:1"></span>
+                  <span class="card-extra">显示</span>
+                  <span class="switch on"></span>
+                  <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
+                </div>
+                <div class="ma-row">
+                  <span class="ma-swatch" style="background:#c0c4d0"></span>
                   <input class="ma-period-input" type="number" value="60">
                   <span class="ma-label">MA60</span>
                   <span style="flex:1"></span>
@@ -548,17 +561,151 @@ tr:hover td { background: var(--bg-hover); }
                   <span class="switch on"></span>
                   <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
                 </div>
+                <div class="ma-row">
+                  <span class="ma-swatch" style="background:#22c55e"></span>
+                  <input class="ma-period-input" type="number" value="120">
+                  <span class="ma-label">MA120</span>
+                  <span style="flex:1"></span>
+                  <span class="card-extra">隐藏</span>
+                  <span class="switch"></span>
+                  <button class="btn btn-ghost btn-sm" style="color:var(--red)">删除</button>
+                </div>
                 <div style="display:flex;gap:8px;margin-top:16px">
                   <button class="btn btn-secondary btn-sm">+ 添加均线（最多 6 条）</button>
                   <span style="flex:1"></span>
                   <button class="btn btn-primary btn-sm">保存配置</button>
                 </div>
-                <div class="hint-box">均线配置保存在<b>服务端</b>（随账号漫游），同步应用于每日复盘与个股详情的日 / 周 / 月 K 线图。新注册账户默认启用 MA5 / MA10 / MA20 / MA60 四条均线。</div>
+                <div class="hint-box">均线配置保存在<b>服务端</b>（随账号漫游），同步应用于每日复盘与个股详情的日 / 周 / 月 K 线图。新注册账户默认启用 MA5 / MA10 / MA20 / MA30 / MA60 五条均线，MA120 默认隐藏。</div>
               </div>
             </div>
           </section>
 
-          <!-- ③ AI 与模型 -->
+          <!-- 跟踪指数 -->
+          <section id="sec-indexes">
+            <div class="card">
+              <div class="card-header"><span class="card-title">跟踪指数</span><span class="card-extra">默认显示全部</span></div>
+              <div class="card-body">
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+                  <input class="header-search" style="width:180px" placeholder="搜索名称或代码">
+                  <span style="flex:1"></span>
+                  <input class="header-search" style="width:170px" placeholder="代码：sh/sz + 6 位数字">
+                  <input class="header-search" style="width:150px" placeholder="显示名称">
+                  <button class="btn btn-secondary btn-sm">+ 添加自定义标的</button>
+                </div>
+                <div class="subsection-title">A股指数 / ETF</div>
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">
+                  <div class="desc-row" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px"><span style="display:flex;align-items:center;gap:8px"><input type="checkbox" checked> <span><span style="font-size:13px;color:var(--text-primary)">上证指数</span><span style="font-family:monospace;font-size:11px;color:var(--text-tertiary);margin-left:6px">sh000001</span></span></span><span class="desc-value" style="text-align:right"><span style="font-family:monospace;font-size:13px;font-weight:600">3,845.21</span><br><span style="font-family:monospace;font-size:11px;color:var(--red)">+0.62%</span></span></div>
+                  <div class="desc-row" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px"><span style="display:flex;align-items:center;gap:8px"><input type="checkbox" checked> <span><span style="font-size:13px;color:var(--text-primary)">中证 500</span><span style="font-family:monospace;font-size:11px;color:var(--text-tertiary);margin-left:6px">sh000905</span></span></span><span class="desc-value" style="text-align:right"><span style="font-family:monospace;font-size:13px;font-weight:600">6,214.73</span><br><span style="font-family:monospace;font-size:11px;color:var(--green)">-0.31%</span></span></div>
+                  <div class="desc-row" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px"><span style="display:flex;align-items:center;gap:8px"><input type="checkbox" checked> <span><span style="font-size:13px;color:var(--text-primary)">沪深 300 ETF</span><span style="font-family:monospace;font-size:11px;color:var(--text-tertiary);margin-left:6px">sh510300</span></span></span><span class="desc-value" style="text-align:right"><span style="font-family:monospace;font-size:13px;font-weight:600">4.102</span><br><span style="font-family:monospace;font-size:11px;color:var(--red)">+0.49%</span></span></div>
+                </div>
+                <div class="subsection-title">全球指标</div>
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+                  <div class="desc-row" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px"><span style="display:flex;align-items:center;gap:8px"><input type="checkbox" checked> <span><span style="font-size:13px;color:var(--text-primary)">COMEX 黄金</span><span style="font-family:monospace;font-size:11px;color:var(--text-tertiary);margin-left:6px">GC00Y</span></span></span><span class="desc-value" style="text-align:right"><span style="font-family:monospace;font-size:13px;font-weight:600">3,912.5</span><br><span style="font-family:monospace;font-size:11px;color:var(--red)">+0.41%</span></span></div>
+                  <div class="desc-row" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px"><span style="display:flex;align-items:center;gap:8px"><input type="checkbox" checked> <span><span style="font-size:13px;color:var(--text-primary)">美债 10Y</span><span style="font-family:monospace;font-size:11px;color:var(--text-tertiary);margin-left:6px">US10Y</span></span></span><span class="desc-value" style="text-align:right"><span style="font-family:monospace;font-size:13px;font-weight:600">4.118%</span><br><span style="font-family:monospace;font-size:11px;color:var(--green)">-2.3bp</span></span></div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:16px">
+                  <span style="flex:1"></span>
+                  <button class="btn btn-primary btn-sm">保存配置</button>
+                </div>
+                <div class="hint-box">控制工作台「市场指数」与宏观指数页展示哪些指标；A 股指数 / ETF 支持自定义添加（历史行情自动回填），全球指标暂限内置清单。保存在<b>服务端</b>（随账号漫游）；全部勾选即恢复默认。</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ③ 配额用量 -->
+          <section id="sec-quota">
+            <div class="card">
+              <div class="card-header"><span class="card-title">AI 配额与用量</span></div>
+              <div class="card-body">
+                <div style="display:flex;align-items:center;gap:28px;flex-wrap:wrap">
+                  <svg width="96" height="96" viewBox="0 0 96 96" style="flex-shrink:0">
+                    <circle cx="48" cy="48" r="40" fill="none" stroke="var(--border)" stroke-width="8"/>
+                    <circle cx="48" cy="48" r="40" fill="none" stroke="var(--accent)" stroke-width="8" stroke-linecap="round" stroke-dasharray="156 251.3" transform="rotate(-90 48 48)"/>
+                    <text x="48" y="54" text-anchor="middle" fill="var(--text-primary)" font-size="15" font-weight="600">62%</text>
+                  </svg>
+                  <div style="flex:1;min-width:240px">
+                    <div class="desc-row"><span class="desc-label">一次性总量</span><span class="desc-value">200,000 tokens</span></div>
+                    <div class="desc-row"><span class="desc-label" style="width:auto;min-width:110px">已消耗（系统模型）</span><span class="desc-value">123,456 tokens</span></div>
+                    <div class="desc-row"><span class="desc-label">剩余</span><span class="desc-value">76,544 tokens</span></div>
+                  </div>
+                </div>
+
+                <div class="divider" style="margin:18px 0 12px"></div>
+                <div class="subsection-title">按功能消耗</div>
+                <div style="display:flex;align-items:center;gap:12px;padding:7px 0;font-size:var(--text-sm)">
+                  <span style="width:96px;flex-shrink:0;color:var(--text-tertiary)">助手对话</span>
+                  <div style="flex:1;height:6px;border-radius:3px;background:var(--bg-surface);overflow:hidden"><div style="width:63%;height:100%;border-radius:3px;background:var(--accent)"></div></div>
+                  <span style="width:110px;text-align:right;font-family:var(--font-mono);color:var(--text-secondary)">78,210</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;padding:7px 0;font-size:var(--text-sm)">
+                  <span style="width:96px;flex-shrink:0;color:var(--text-tertiary)">页面生成</span>
+                  <div style="flex:1;height:6px;border-radius:3px;background:var(--bg-surface);overflow:hidden"><div style="width:26%;height:100%;border-radius:3px;background:var(--accent)"></div></div>
+                  <span style="width:110px;text-align:right;font-family:var(--font-mono);color:var(--text-secondary)">32,456</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;padding:7px 0;font-size:var(--text-sm)">
+                  <span style="width:96px;flex-shrink:0;color:var(--text-tertiary)">系统任务</span>
+                  <div style="flex:1;height:6px;border-radius:3px;background:var(--bg-surface);overflow:hidden"><div style="width:10%;height:100%;border-radius:3px;background:var(--accent)"></div></div>
+                  <span style="width:110px;text-align:right;font-family:var(--font-mono);color:var(--text-secondary)">12,790</span>
+                </div>
+
+                <div class="divider" style="margin:18px 0 12px"></div>
+                <div class="subsection-title">最近消耗明细</div>
+                <table class="key-table">
+                  <thead>
+                    <tr><th>时间</th><th>功能</th><th>模型</th><th style="text-align:right">Tokens</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>2026-09-23 09:41</td>
+                      <td>助手对话</td>
+                      <td class="key-mono">deepseek-chat</td>
+                      <td class="key-mono" style="text-align:right">12,480</td>
+                    </tr>
+                    <tr>
+                      <td>2026-09-23 08:12</td>
+                      <td>页面生成</td>
+                      <td class="key-mono">deepseek-chat</td>
+                      <td class="key-mono" style="text-align:right">8,930</td>
+                    </tr>
+                    <tr>
+                      <td>2026-09-22 16:30</td>
+                      <td>系统任务</td>
+                      <td class="key-mono">gpt-4o-mini</td>
+                      <td class="key-mono" style="text-align:right">21,075</td>
+                    </tr>
+                    <tr>
+                      <td>2026-09-22 16:02</td>
+                      <td>助手对话</td>
+                      <td class="key-mono">deepseek-chat</td>
+                      <td class="key-mono" style="text-align:right">9,860</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- ④ 我的模型 -->
+          <section id="sec-model">
+            <div class="card">
+              <div class="card-header"><span class="card-title">我的模型（自备 API Key）</span><span class="tag">未配置</span></div>
+              <div class="card-body">
+                <div style="max-width:480px">
+                  <div class="form-group"><label class="form-label">协议</label><select class="form-select" style="width:100%"><option>OpenAI 兼容（DeepSeek / 智谱 / Minimax 等）</option><option>Anthropic 协议（Claude / Kimi coding 等）</option></select></div>
+                  <div class="form-group"><label class="form-label">Base URL</label><input class="form-input" type="text" placeholder="https://api.example.com/v1"></div>
+                  <div class="form-group"><label class="form-label">模型名</label><input class="form-input" type="text" placeholder="deepseek-chat / kimi-k2 ..."></div>
+                  <div class="form-group"><label class="form-label">API Key</label><input class="form-input" type="password" placeholder="sk-..."><div class="form-hint">仅用于本人 AI 调用；Fernet 加密存储、脱敏展示，不会出现在日志中</div></div>
+                  <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px">
+                    <button class="btn btn-secondary btn-sm">连通性测试</button>
+                    <button class="btn btn-primary btn-sm">保存并启用</button>
+                  </div>
+                </div>
+                <div class="hint-box">配置生效后，<b>助手对话、页面 AI 生成</b>等全部 AI 功能走自有 Key（不占配额、不计系统成本）；调用失败（无效 / 欠费 / 限流）<b>不回退系统模型</b>，直接报错请检查配置。建议保存前先做连通性测试。</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ⑤ AI 与模型 -->
           <section id="sec-models">
             <div class="card">
               <div class="card-header">
@@ -633,7 +780,7 @@ tr:hover td { background: var(--bg-hover); }
             </div>
           </section>
 
-          <!-- ④ API-KEY 与 MCP -->
+          <!-- ⑥ API-KEY 与 MCP -->
           <section id="sec-apikeys">
             <div class="card">
               <div class="card-header">
@@ -694,13 +841,13 @@ tr:hover td { background: var(--bg-hover); }
             </div>
           </section>
 
-          <!-- ⑤ 账号安全 -->
+          <!-- ⑦ 账号安全 -->
           <section id="sec-security">
             <div class="card">
               <div class="card-header"><span class="card-title">修改密码</span></div>
               <div class="card-body">
                 <div class="form-group"><label class="form-label">当前密码</label><input class="form-input" type="password" placeholder="输入当前密码"></div>
-                <div class="form-group"><label class="form-label">新密码</label><input class="form-input" type="password" placeholder="至少 8 位，含字母与数字"><div class="form-hint">修改后其他设备的登录状态将全部失效</div></div>
+                <div class="form-group"><label class="form-label">新密码</label><input class="form-input" type="password" placeholder="至少 6 位"><div class="form-hint">修改成功后将自动退出当前登录，需使用新密码重新登录。</div></div>
                 <div class="form-group"><label class="form-label">确认新密码</label><input class="form-input" type="password" placeholder="再次输入新密码"></div>
                 <div style="display:flex;justify-content:flex-end;margin-top:4px"><button class="btn btn-primary btn-sm">修改密码</button></div>
               </div>
@@ -724,10 +871,10 @@ tr:hover td { background: var(--bg-hover); }
           <div class="type-note">
             <div class="tn-title">实现说明</div>
             ① 布局采用设置页标准范式：左侧锚点导航（sticky，滚动联动高亮）+ 右侧分区卡片，窄屏折叠为顶部横滑导航（对齐 GitHub / Linear 设置页）。<br>
-            ② 既有能力对齐 web 实际代码（Settings.tsx）：基本信息 / 行情配色 / K 线均线。配色存浏览器 localStorage（不随账号漫游），均线存服务端（GET / PUT <b>users/me/settings</b>，登录账号漫游）。<br>
-            ③ 「AI 与模型」= 需求 F-USER-03（P1，后置池未实现）：多模型连接 + 场景级分配 + 测试连接 + AES-256-GCM 加密脱敏 + 失败回退系统默认模型。<br>
+            ② 既有能力对齐 web 实际代码（Settings.tsx）：基本信息 / 行情配色 / K 线均线 / 配额用量 / 我的模型（BYOK 自备 Key）。配色存浏览器 localStorage（不随账号漫游），均线存服务端（GET / PUT <b>users/me/settings</b>，登录账号漫游）。<br>
+            ③ 「AI 与模型」= 需求 F-USER-03（P1，后置池未实现）：多模型连接 + 场景级分配 + 测试连接 + AES-256-GCM 加密脱敏 + 失败回退系统默认模型；已实现的单模型 BYOK 自备 Key 配置见「我的模型」分区。<br>
             ④ 「API-KEY 与 MCP」= 需求 F-API-01（P1，后置池）：5 个上限 / 一次性展示 / 前缀掩码 / 60 次/分钟频控 / X-API-Key 认证；后端已有 /mcp/tools、/mcp/invoke 骨架路由，KEY 生命周期管理与 SSE 传输未实现。<br>
-            ⑤ 「修改密码」为账号设置行业标配的补充项，需求未单列，落地时需后端新增端点。<br>
+            ⑤ 「修改密码」已实现（POST <b>users/me/password</b>），修改成功后自动退出当前登录，需用新密码重新登录。<br>
             ⑥ 就近配置不重复入口：「我的订阅」在资讯中心页头抽屉（F-VIS-10）、「分组 AI 复盘开关」在自选页（F-USER-01）、「技能启用」在技能广场（F-USER-04）。
           </div>
 

@@ -6,8 +6,8 @@ import pytest
 from pydantic import BaseModel, ValidationError
 from pydantic_core import PydanticUndefined
 
+from app.schemas.model_config import AsrConfigResponse
 from app.schemas.social import (
-    AsrConfigResponse,
     SocialAccountCreateRequest,
     SocialFeedItemResponse,
     SocialJudgmentResult,

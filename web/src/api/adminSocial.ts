@@ -1,8 +1,5 @@
 import { ENDPOINTS } from '@ai-invest/shared'
 import type {
-  ApiAsrConfig,
-  ApiAsrConfigTestResult,
-  ApiAsrConfigUpdateRequest,
   ApiSocialAccountAdmin,
   ApiSocialAccountCreateRequest,
   ApiSocialAccountsAdminPage,
@@ -85,24 +82,3 @@ export async function importSocialCookie(
   return response.data
 }
 
-export async function fetchAsrConfig(): Promise<ApiAsrConfig> {
-  const response = await apiClient.get<ApiAsrConfig>(ENDPOINTS.admin.socialAsrConfig)
-  return response.data
-}
-
-export async function updateAsrConfig(
-  data: ApiAsrConfigUpdateRequest,
-): Promise<ApiAsrConfig> {
-  const response = await apiClient.put<ApiAsrConfig>(
-    ENDPOINTS.admin.socialAsrConfig,
-    data,
-  )
-  return response.data
-}
-
-export async function testAsrConfig(): Promise<ApiAsrConfigTestResult> {
-  const response = await apiClient.post<ApiAsrConfigTestResult>(
-    ENDPOINTS.admin.socialAsrConfigTest,
-  )
-  return response.data
-}

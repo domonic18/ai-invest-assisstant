@@ -62,7 +62,7 @@ async def get_current_user(
     user = await session.get(User, int(user_id))
     if user is None or not user.is_active:
         raise credentials_exception
-    # 审批状态拦截（防御纵深：审批前无凭证，覆盖后续状态回退，arch/10 §6.2）
+    # 审批状态拦截（防御纵深：审批前无凭证，覆盖后续状态回退，arch/07 §6.2）
     if user.status != "approved":
         if user.status == "pending":
             raise UnauthorizedError("账号待审批，请等待管理员开通")
@@ -82,7 +82,7 @@ async def get_current_admin_user(
 
 
 def ai_quota_gate(feature: UsageFeature) -> Callable[..., AsyncIterator[User]]:
-    """AI 入口依赖工厂：请求前配额预检（耗尽 429）+ 计量上下文包裹（arch/10 §3）。
+    """AI 入口依赖工厂：请求前配额预检（耗尽 429）+ 计量上下文包裹（arch/07 §3）。
 
     LangChain callback 内抛出的异常会被吞掉，配额拦截必须在入口显式执行；
     yield 依赖与端点在同一请求任务内执行，meter_scope 的 ContextVar 对端点可见。

@@ -1,4 +1,4 @@
-"""检索双路召回与 RRF 融合（arch/12 §7.2 下半）。
+"""检索双路召回与 RRF 融合（arch/09 §7.2 下半）。
 
 词面路走 ``search_text`` 生成列 ILIKE 命中 + pg_trgm ``similarity()`` 排序
 （GIN 索引），向量路走行内 ``embedding halfvec`` 余弦距离（``<=>``，HNSW

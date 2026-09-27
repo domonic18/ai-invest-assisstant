@@ -21,7 +21,7 @@ class SignerSettings(BaseSettings):
     headless: bool = True
     log_level: str = "info"
 
-    # 生命周期（实测参数来源见 docs/arch/11-social-sentiment.md）
+    # 生命周期（实测参数来源见 docs/arch/08-social-sentiment.md）
     warm_slots: int = 2
     warm_refresh_seconds: float = 1800.0
     max_concurrent_signs: int = 2

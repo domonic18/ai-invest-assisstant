@@ -362,7 +362,7 @@ class KbTranscriptSaveResponse(CamelModel):
 
 
 # ---------------------------------------------------------------------------
-# 章节树与知识点审核（arch/12 §6，F-KB-03）
+# 章节树与知识点审核（arch/09 §6，F-KB-03）
 # ---------------------------------------------------------------------------
 
 
@@ -521,7 +521,7 @@ class KbImageListResponse(CamelModel):
 
 
 # ---------------------------------------------------------------------------
-# 混合检索（arch/12 §7.2，消费侧 /kb/search）
+# 混合检索（arch/09 §7.2，消费侧 /kb/search）
 # ---------------------------------------------------------------------------
 
 
@@ -640,16 +640,21 @@ class KbPublishedChaptersResponse(CamelModel):
 
 
 # ---------------------------------------------------------------------------
-# 播放凭证与消费（arch/12 §8，批次 F）
+# 播放凭证与消费（arch/09 §8，批次 F）
 # ---------------------------------------------------------------------------
 
 
 class KbPlaybackTokenResponse(CamelModel):
-    """播放凭证（prev/nextMediaId 供播放器切集；书素材携带 pageCount）。"""
+    """播放凭证（prev/nextMediaId 供播放器切集；书素材携带 pageCount）。
+
+    streamUrl 为同时效预签名 GET 直链（仅 video/audio；book 为 None，
+    书页仍走 token 代理渲染水印）。
+    """
 
     token: str
     expires_in: int
     media_id: int
+    stream_url: str | None = None
     prev_media_id: int | None = None
     next_media_id: int | None = None
     page_count: int | None = None
@@ -671,7 +676,7 @@ class KbImageUrlResponse(CamelModel):
 
 
 # ---------------------------------------------------------------------------
-# 建库用量聚合（批次 G1，arch/12 §10.2）
+# 建库用量聚合（批次 G1，arch/09 §10.2）
 # ---------------------------------------------------------------------------
 
 

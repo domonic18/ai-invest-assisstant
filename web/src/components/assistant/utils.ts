@@ -8,6 +8,8 @@ export const MAX_DRAWER_WIDTH = 960
 export const DEFAULT_DRAWER_WIDTH = 760
 export const DRAWER_STORAGE_KEY = 'assistant-drawer-width'
 
+export const FAB_COLLAPSED_KEY = 'assistant-fab-collapsed'
+
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
