@@ -1,9 +1,14 @@
 /**
  * 「Agent 记忆」卡片（plan §12.3 管理面）：方法论纪律 + 复盘沉淀的清单、
- * 编辑与停用（archived 不删）。active 条目每日计划生成时全量注入 prompt，
- * 停用即次日不再注入——人工干预记忆的唯一入口（手动沉淀随批次 9 接入）。
+ * 手动沉淀、编辑与停用（archived 不删）。active 条目每日计划生成时全量注入
+ * prompt，停用即次日不再注入；自动沉淀由复盘任务写入（同标题去重+刷时间）。
  */
-import { EditOutlined, StopOutlined, PlayCircleOutlined } from '@ant-design/icons'
+import {
+  EditOutlined,
+  PlusOutlined,
+  StopOutlined,
+  PlayCircleOutlined,
+} from '@ant-design/icons'
 import {
   Button,
   Card,
@@ -25,6 +30,7 @@ import type { ApiAgentMemory, AgentMemoryType } from '@ai-invest/shared'
 
 import { useAgentKey } from './agentKeyContext'
 import {
+  useCreateTradingAgentMemory,
   useTradingAgentMemories,
   useUpdateTradingAgentMemory,
   useUpdateTradingAgentMemoryStatus,
@@ -103,44 +109,49 @@ interface EditFormValues {
   body: string
 }
 
-function MemoryEditModal({
-  memory,
+/** target: null=关闭，'new'=新建（手动沉淀），行对象=编辑。 */
+function MemoryFormModal({
+  target,
   onClose,
 }: {
-  memory: ApiAgentMemory | null
+  target: ApiAgentMemory | 'new' | null
   onClose: () => void
 }) {
   const [form] = Form.useForm<EditFormValues>()
   const agentKey = useAgentKey()
+  const create = useCreateTradingAgentMemory(agentKey)
   const update = useUpdateTradingAgentMemory(agentKey)
+  const isCreate = target === 'new'
 
   const submit = async () => {
-    if (!memory) return
     const values = await form.validateFields()
-    update.mutate(
-      { memoryId: memory.id, data: values },
-      { onSuccess: onClose },
-    )
+    if (isCreate) {
+      create.mutate(values, { onSuccess: onClose })
+    } else if (target) {
+      update.mutate({ memoryId: target.id, data: values }, { onSuccess: onClose })
+    }
   }
 
   return (
     <Modal
-      title="编辑记忆"
-      open={memory !== null}
+      title={isCreate ? '沉淀记忆' : '编辑记忆'}
+      open={target !== null}
       onOk={submit}
       onCancel={onClose}
-      okText="保存"
+      okText={isCreate ? '沉淀' : '保存'}
       cancelText="取消"
-      confirmLoading={update.isPending}
+      confirmLoading={create.isPending || update.isPending}
       destroyOnHidden
     >
       <Form
         form={form}
         layout="vertical"
         initialValues={
-          memory
-            ? { memType: memory.memType, title: memory.title, body: memory.body }
-            : undefined
+          isCreate
+            ? { memType: 'lesson' as AgentMemoryType }
+            : target
+              ? { memType: target.memType, title: target.title, body: target.body }
+              : undefined
         }
       >
         <Form.Item name="memType" label="类型" rules={[{ required: true }]}>
@@ -165,7 +176,7 @@ function MemoryEditModal({
 
 export function AgentMemoryPanel() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'archived'>('all')
-  const [editing, setEditing] = useState<ApiAgentMemory | null>(null)
+  const [formTarget, setFormTarget] = useState<ApiAgentMemory | 'new' | null>(null)
   const agentKey = useAgentKey()
   const { data: memories, isLoading } = useTradingAgentMemories(agentKey)
 
@@ -188,6 +199,14 @@ export function AgentMemoryPanel() {
             onChange={(v) => setStatusFilter(v as 'all' | 'active' | 'archived')}
             options={STATUS_FILTERS.map((f) => ({ label: f.label, value: f.value }))}
           />
+          <Button
+            type="primary"
+            size="small"
+            icon={<PlusOutlined />}
+            onClick={() => setFormTarget('new')}
+          >
+            沉淀记忆
+          </Button>
         </Space>
       }
     >
@@ -198,16 +217,16 @@ export function AgentMemoryPanel() {
       ) : filtered.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="暂无记忆（复盘沉淀与手动沉淀随批次 9 接入）"
+          description="暂无记忆（复盘自动沉淀 + 「沉淀记忆」手动添加）"
         />
       ) : (
         <div className="space-y-2">
           {filtered.map((memory) => (
-            <MemoryRow key={memory.id} memory={memory} onEdit={setEditing} />
+            <MemoryRow key={memory.id} memory={memory} onEdit={setFormTarget} />
           ))}
         </div>
       )}
-      <MemoryEditModal memory={editing} onClose={() => setEditing(null)} />
+      <MemoryFormModal target={formTarget} onClose={() => setFormTarget(null)} />
     </Card>
   )
 }
