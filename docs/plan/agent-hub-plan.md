@@ -350,3 +350,43 @@ AgentOverviewItem / AgentOverviewResponse`，载荷加 agentKey；queryKeys trad
 - **容器**：舞台加高 h-[540px] md:h-[620px]，min-w-[680px]（5 站+5 盒横排所需）。
 - 测试：`hubLayout.test.ts` 重写为分层几何断言（三带 y/均布/队列锚点/clamp/空数组/站序
   含 paper）；`hubEdges.test.ts` 不动；431 单测全绿。
+
+## 13. D34 验收反馈四批：字段清零 + 人设自主化 + 复盘 skill 化（2026-09-27，同分支续作）
+
+用户验收反馈四项：① 工作台仍显示风格/策略字段（D30 只删了设置表单，DB 列/介绍卡/
+能力卡/三处提示词注入/shared 类型全链路残留）；② 持仓与交易页委托/成交 Tabs 默认落
+「委托」，应默认「成交」；③ 会话人设 YAML 是「用户-facing 交易助手」写法（理解意图/
+追问澄清/回答风格），与交易 Agent 自主作业体定位冲突，且工作流与技能包五步不一致；
+④ 复盘无 skill（prompt 藏在 prompts/agents 配置页不可见），缺当日盘面语境与 KB 方法论
+验证。三项决策（AskUserQuestion）：会话=自主为主+过渡代执行（批次 8 前用户明确指示
+可代执行且须 ask_user 确认）；复盘 skill 并入每 Agent 技能包；风格/策略全链路删除含
+DB 列。
+
+- **字段全链路删除**：迁移 `20260927a`（DROP COLUMN strategy_desc/style_desc，幂等）+
+  init-scripts 建表与 seed 同步；ORM/schema（视图/update/create 三 payload）/
+  registry（to_view/白名单/create）；提示词注入三处收窄为 (name, tagline)
+  （runtime `_persona_section` + fingerprint persona tuple、plan/review user_prompt
+  人设段）；shared `TradingAgentProfile` 删 styleDesc/strategyDesc；web 介绍卡/能力卡
+  删两段。
+- **成交默认 Tab**：`AgentTradeRecords.tsx` Tabs `defaultActiveKey="executions"`。
+- **人设自主化重写（v1.2.0）**：三 YAML 统一骨架+风格差异——使命（自主作业体：
+  复盘→计划→执行→复盘闭环，会话是观察窗口不是指令来源）/ 身份与边界（保留）/
+  作业循环（对齐技能包五步：输入就绪→盘面定位→选股→计划→复盘沉淀）/ 交易纪律
+  （去用户化：风控拦截不绕过、如实转述、止损铁律、计划即承诺）/ 人工协同（过渡期
+  代执行必须 ask_user 确认完整交易要素）/ 汇报规范（替代回答风格）。
+- **复盘 skill 化**：`skills/prompt.py` 增 `load_named_skill_prompt(skill_id, filename)`
+  （缓存键 `skill_id:filename`；filename 调用方硬编码无穿越面），四个 trading 技能包
+  各增 `REVIEW.md`（复盘作业程序五步）+ `review_prompt.yaml`（原共享契约迁移 + 盘面
+  语境 + 方法论验证段 + 新输出字段说明），装载 specific → trading-default 兜底
+  （镜像 plan_skill_id）；删 `prompts/agents/trading_review.yaml`。
+  `agent_review_service`：输入增补 `market_review`（`_market_review_optional` 复用
+  agent_plan_input 采集器，缺失降级 None 不阻塞——补跑历史窗口容错）+ `methodology`
+  （`build_methodology_input` query_text=None 静态层，未绑定 None）；契约
+  `PaperTradeReviewContent` 加 `market_context` + `methodology_check`
+  （title/verdict 三态/note，禁默认值进 required），before-validator 补旧缓存行缺失键
+  （skill_id/input_hash 未变，旧复盘可读）；wire `TradingAgentReviewResponse` +
+  shared + ReviewPanel（盘面语境行 + 方法论验证列表 verdict Tag）。
+- 测试：runtime persona/fingerprint 收窄、registry/plan/review/overview/api 去
+  style-strategy、plan 测试去策略文案断言、review 服务增 per-agent 装载/降级/旧缓存
+  兼容用例、skills 增 named loader 两用例；backend 2607 + web 431 全绿。
+- 部署纪律：迁移先于镜像，DDL 后重启 web/worker（asyncpg 语句缓存）。
