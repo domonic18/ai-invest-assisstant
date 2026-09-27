@@ -123,6 +123,7 @@ function AgentAccountRecords({ accountId, accountName }: { accountId: number; ac
       <Card size="small" title="交易记录" styles={{ body: { paddingTop: 4 } }}>
         <Tabs
           size="small"
+          defaultActiveKey="executions"
           items={[
             { key: 'orders', label: '委托', children: <PaperTradeOrdersPanel accountId={accountId} /> },
             {
