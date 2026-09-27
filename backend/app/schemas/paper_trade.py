@@ -548,6 +548,14 @@ class AgentMemoryResponse(CamelModel):
     updated_at: datetime
 
 
+class AgentMemoryCreateRequest(CamelModel):
+    """手动沉淀记忆请求（source='manual'，立即 active 注入次日计划）。"""
+
+    title: str = Field(max_length=128)
+    body: str
+    mem_type: Literal["discipline", "method", "lesson"]
+
+
 class AgentMemoryUpdateRequest(CamelModel):
     """记忆编辑请求（未提供字段不变）。"""
 

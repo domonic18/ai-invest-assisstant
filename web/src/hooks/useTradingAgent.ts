@@ -5,6 +5,7 @@ import { message } from 'antd'
 
 import type {
   AgentOverviewResponse,
+  ApiAgentMemoryCreateRequest,
   ApiAgentMemoryUpdateRequest,
   TradingAgentCreateRequest,
   TradingAgentProfileUpdateRequest,
@@ -15,6 +16,7 @@ import { fetchLLMConfigs } from '@/api/modelConfig'
 import {
   cancelTradingAgentPlan,
   createTradingAgent,
+  createTradingAgentMemory,
   deleteTradingAgent,
   fetchAgentOverview,
   fetchTradingAgentConfig,
@@ -215,6 +217,19 @@ export function useTradingAgentMemories(agentKey: string) {
   return useQuery({
     queryKey: queryKeys.tradingAgent.memories(agentKey),
     queryFn: () => fetchTradingAgentMemories(agentKey),
+  })
+}
+
+/** 手动沉淀记忆（source='manual'，立即 active 注入次日计划）。 */
+export function useCreateTradingAgentMemory(agentKey: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: ApiAgentMemoryCreateRequest) => createTradingAgentMemory(agentKey, data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.memories(agentKey) })
+      message.success('记忆已沉淀，将在次日计划生成时注入')
+    },
+    onError: (error: Error) => message.error(error.message),
   })
 }
 

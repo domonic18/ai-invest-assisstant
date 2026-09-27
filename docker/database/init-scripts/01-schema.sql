@@ -1782,6 +1782,10 @@ CREATE TABLE IF NOT EXISTS agent_memory (
 
 CREATE INDEX IF NOT EXISTS idx_agent_memory_status ON agent_memory(status, mem_type);
 
+-- 批次 9 同标题去重：仅约束自动沉淀行（冲突刷 updated_at 浮头强化，不覆盖人工 body）
+CREATE UNIQUE INDEX IF NOT EXISTS uq_agent_memory_agent_title_auto
+    ON agent_memory (agent_key, title) WHERE source = 'auto';
+
 COMMENT ON TABLE agent_memory IS
     '交易 Agent 自有迭代经验（复盘沉淀 + 手动沉淀，反哺每日计划，docs/plan/paper-trading-plan.md §12.1）';
 

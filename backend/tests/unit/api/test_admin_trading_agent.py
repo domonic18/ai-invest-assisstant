@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.exceptions import NotFoundError
 from app.dependencies import get_current_admin_user, get_db
 from app.main import app
 from app.models.agent_trading import AgentMemory, AgentTradePlan
@@ -745,3 +746,62 @@ class TestTradingAgentPromptAndSkillFiles:
         assert body["methodology"]["sourceName"] == "趋势交易理论"
         assert body["methodology"]["disciplines"][0]["title"] == "不追高"
         assert body["methodology"]["points"][0]["pointType"] == "method"
+
+
+@pytest.mark.unit
+class TestCreateTradingAgentMemory:
+    """手动沉淀记忆 POST（批次 9）：camelCase wire / 404 / 422。"""
+
+    def _row(self) -> AgentMemory:
+        return AgentMemory(
+            id=9,
+            agent_key="short-line",
+            mem_type="lesson",
+            title="不追高",
+            body="偏离买点 3% 以上不追",
+            source="manual",
+            status="active",
+            source_result_id=None,
+            created_at=datetime(2026, 9, 27, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 9, 27, tzinfo=timezone.utc),
+        )
+
+    def test_returns_201_camel_case(self, admin_client) -> None:
+        http, _ = admin_client
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_memory_service.create_memory",
+            AsyncMock(return_value=self._row()),
+        ):
+            resp = http.post(
+                "/api/v1/admin/trading-agent/short-line/memories",
+                json={"title": "不追高", "body": "偏离买点 3% 以上不追", "memType": "lesson"},
+            )
+
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["id"] == 9
+        assert body["source"] == "manual"
+        assert body["memType"] == "lesson"
+        assert body["sourceResultId"] is None
+
+    def test_404_when_agent_unknown(self, admin_client) -> None:
+        http, _ = admin_client
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_memory_service.create_memory",
+            AsyncMock(side_effect=NotFoundError("交易 Agent nope 不存在")),
+        ):
+            resp = http.post(
+                "/api/v1/admin/trading-agent/nope/memories",
+                json={"title": "t", "body": "b", "memType": "method"},
+            )
+
+        assert resp.status_code == 404
+
+    def test_422_on_unknown_mem_type(self, admin_client) -> None:
+        http, _ = admin_client
+        resp = http.post(
+            "/api/v1/admin/trading-agent/short-line/memories",
+            json={"title": "t", "body": "b", "memType": "habit"},
+        )
+
+        assert resp.status_code == 422

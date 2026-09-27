@@ -38,7 +38,7 @@ from app.models.stock import StockBasic
 from app.repositories.review import ai_analysis_repository
 from app.services.market.trade_calendar_service import NonTradingDayError, next_trading_day
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
-from app.services.trading import agent_methodology
+from app.services.trading import agent_memory_service, agent_methodology
 from app.services.trading.agent_run_recorder import AgentRunRecorder
 
 logger = structlog.get_logger(__name__)
@@ -569,6 +569,7 @@ async def generate_review(
                 **content.model_dump(), agent_key=agent.agent_key
             )
 
+            cache_row_id = 0
             async with recorder.step(
                 "persist",
                 "落库（ai_analysis_result 缓存行）",
@@ -576,11 +577,30 @@ async def generate_review(
                     "trades": len(record.trades),
                     "experiences": len(record.experiences),
                     "methodology_check": len(record.methodology_check),
+                    "cache_row_id": cache_row_id,
                 },
             ):
-                await _persist(
+                cache_row_id = await _persist(
                     session, input_hash=input_hash, content=record, meta=llm_meta
                 )
+
+            sedimented = 0
+            async with recorder.step(
+                "memory",
+                "经验沉淀 agent_memory（批次 9）",
+                payload_builder=lambda: {
+                    "source_result_id": cache_row_id,
+                    "sedimented": sedimented,
+                },
+            ):
+                # 与缓存行同一事务原子提交：沉淀失败整体回滚，重试重新生成重新沉淀
+                sedimented = await agent_memory_service.sediment_experiences(
+                    session,
+                    agent.agent_key,
+                    experiences=record.experiences,
+                    source_result_id=cache_row_id,
+                )
+                await session.commit()
 
         await recorder.finish(
             "success",
@@ -591,6 +611,7 @@ async def generate_review(
                 "trades": len(record.trades),
                 "experiences": len(record.experiences),
                 "methodology_check": len(record.methodology_check),
+                "sedimented_experiences": sedimented,
                 "model": llm_meta.get("model_name"),
                 "latency_ms": llm_meta.get("latency_ms"),
             },
@@ -697,10 +718,13 @@ async def _persist(
     input_hash: str,
     content: Any,
     meta: dict[str, Any] | None = None,
-) -> None:
-    """落缓存行；meta 携带 run_structured 的 model_name/latency_ms（D35 补全）。"""
+) -> int:
+    """落缓存行（不 commit，与经验沉淀同一事务提交）；返回行 id 作记忆溯源。
+
+    meta 携带 run_structured 的 model_name/latency_ms（D35 补全）。
+    """
     meta = meta or {}
-    await ai_analysis_repository.insert_result(
+    return await ai_analysis_repository.insert_result(
         session,
         skill_id=REVIEW_SKILL_ID,
         input_hash=input_hash,
@@ -710,7 +734,6 @@ async def _persist(
         latency_ms=int(meta.get("latency_ms") or 0),
         status="success",
     )
-    await session.commit()
 
 
 async def is_last_trading_day_of_week(session: AsyncSession, day: date) -> bool:

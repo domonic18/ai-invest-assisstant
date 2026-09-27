@@ -353,6 +353,10 @@ class TestGenerateReview:
                 "app.repositories.review.ai_analysis_repository.insert_result",
                 AsyncMock(),
             ) as insert_mock,
+            patch(
+                "app.services.trading.agent_memory_service.sediment_experiences",
+                AsyncMock(return_value=1),
+            ) as sediment_mock,
         ):
             session = AsyncMock()
             result = await agent_review_service.generate_review(
@@ -368,6 +372,9 @@ class TestGenerateReview:
         assert kwargs["skill_id"] == agent_review_service.REVIEW_SKILL_ID
         assert kwargs["model"] is None
         assert kwargs["status"] == "success"
+        # 批次 9：经验以缓存行 id 溯源沉淀，与缓存行同一事务提交
+        sediment_mock.assert_awaited_once()
+        assert sediment_mock.await_args.kwargs["source_result_id"] == insert_mock.return_value
         session.commit.assert_awaited_once()
 
 

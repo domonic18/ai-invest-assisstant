@@ -6,6 +6,7 @@ import type {
   AgentOverviewResponse,
   ApiAgentCapabilityResponse,
   ApiAgentMemory,
+  ApiAgentMemoryCreateRequest,
   ApiAgentMemoryUpdateRequest,
   ApiAgentSkillFilesResponse,
   ApiAgentWatchlistGroupResponse,
@@ -174,6 +175,18 @@ export async function fetchTradingAgentMemories(
   const response = await apiClient.get<ApiAgentMemory[]>(
     ENDPOINTS.admin.tradingAgentMemories(agentKey),
     { params: status ? { status } : undefined },
+  )
+  return response.data
+}
+
+/** 手动沉淀记忆（source='manual'，立即 active 注入次日计划）。 */
+export async function createTradingAgentMemory(
+  agentKey: string,
+  data: ApiAgentMemoryCreateRequest,
+): Promise<ApiAgentMemory> {
+  const response = await apiClient.post<ApiAgentMemory>(
+    ENDPOINTS.admin.tradingAgentMemories(agentKey),
+    data,
   )
   return response.data
 }

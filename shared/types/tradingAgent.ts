@@ -211,6 +211,13 @@ export interface ApiAgentMemoryUpdateRequest {
   memType?: AgentMemoryType
 }
 
+/** 手动沉淀记忆请求（source='manual'，立即 active 注入次日计划）。 */
+export interface ApiAgentMemoryCreateRequest {
+  title: string
+  body: string
+  memType: AgentMemoryType
+}
+
 /** 新建交易 Agent 请求（D29 创建即 active；D34 精简：标语可不填）。 */
 export interface TradingAgentCreateRequest {
   agentKey: string
