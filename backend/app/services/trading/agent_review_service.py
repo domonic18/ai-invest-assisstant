@@ -3,9 +3,12 @@
 复盘对象为指定 Agent 的专属账户（本地三表按 ``resolve_agent_account()`` 过滤）；
 结果按 (skill_id, input_hash=Agent+账户+周期+窗口) 缓存在 ``ai_analysis_result``
 （skill_id='paper-trade-review'），生成路径 redis 锁防重入。LLM 单轮结构化输出
-字段全 required（禁默认值铁律），一次输出三层 verdict + experiences——分层是
-批次 9 记忆精准反哺的前提（docs/plan/paper-trading-plan.md §9）；持久化读模型
-``PaperTradeReviewRecord`` 附带 agent_key（落库时注入，读取按 Agent 过滤）。
+字段全 required（禁默认值铁律），一次输出三层 verdict + 盘面语境 + 方法论验证 +
+experiences——分层是批次 9 记忆精准反哺的前提（docs/plan/paper-trading-plan.md
+§9）；持久化读模型 ``PaperTradeReviewRecord`` 附带 agent_key（落库时注入，读取按
+Agent 过滤）。复盘契约 prompt 装载 per-agent 技能包
+``skills/trading-<agent_key>/review_prompt.yaml``（D34 skill 化，配置页可见），
+未建目录回退共享 ``trading-default``（镜像 plan_skill_id 模式）。
 
 定时任务 ``paper_trade_review_1610``（heavy）循环 active Agent 生成日度；
 周五/月末最后一个交易日由任务内日历判定加发周/月度（cron 表达不了
@@ -19,11 +22,10 @@ from datetime import date, timedelta
 from typing import Any, Literal
 
 import structlog
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.core.prompt_loader import get_prompt_loader
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.locking import GENERATION_LOCK_TTL_SECONDS, redis_lock
 from app.models.paper_trade import (
@@ -36,6 +38,7 @@ from app.models.stock import StockBasic
 from app.repositories.review import ai_analysis_repository
 from app.services.market.trade_calendar_service import NonTradingDayError, next_trading_day
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
+from app.services.trading import agent_methodology
 
 logger = structlog.get_logger(__name__)
 
@@ -44,8 +47,17 @@ ReviewPeriod = Literal["day", "week", "month"]
 #: Literal 在运行时不可迭代，白名单单独维护（API 入参校验用）
 REVIEW_PERIODS: tuple[str, ...] = ("day", "week", "month")
 
-_PROMPT_SCOPE = "agents"
-_PROMPT_ID = "trading_review"
+#: per-agent 技能包复盘契约文件名（D34 skill 化）
+_REVIEW_PROMPT_FILE = "review_prompt.yaml"
+
+
+def review_prompt_skill_id(agent_key: str) -> str:
+    """Agent 复盘契约技能包：``skills/trading-<agent_key>/review_prompt.yaml``
+    专属作业程序，未建目录时回退共享 ``trading-default``（镜像 plan_skill_id）。"""
+    from app.skills import get_skill
+
+    specific = f"trading-{agent_key}"
+    return specific if get_skill(specific) is not None else "trading-default"
 
 
 class PaperTradeReviewLockedError(ConflictError):
@@ -83,8 +95,20 @@ class ReviewExperience(BaseModel):
     mem_type: Literal["discipline", "method", "lesson"]
 
 
+class MethodologyCheckItem(BaseModel):
+    """单条 KB 纪律的方法论验证结论（逐条表态，禁默认值——LLM 必须对每条显式判定）。"""
+
+    title: str
+    verdict: Literal["followed", "violated", "not_applicable"]
+    note: str
+
+
 class PaperTradeReviewContent(BaseModel):
-    """复盘 LLM 结构化输出契约（字段禁默认值，进 JSON Schema required）。"""
+    """复盘 LLM 结构化输出契约（字段禁默认值，进 JSON Schema required）。
+
+    D34 新增 market_context（盘面语境归纳）与 methodology_check（KB 纪律
+    逐条验证）；旧缓存行缺这两键由 before-validator 补空值兼容读取。
+    """
 
     period: ReviewPeriod
     trade_date: str
@@ -92,7 +116,20 @@ class PaperTradeReviewContent(BaseModel):
     trades: list[TradeVerdict]
     bias: str
     suggestion: str
+    market_context: str
+    methodology_check: list[MethodologyCheckItem]
     experiences: list[ReviewExperience]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _backfill_d34_keys(cls, value: Any) -> Any:
+        """D34 前生成的缓存行缺 market_context/methodology_check：补空值兼容
+        （skill_id/input_hash 未变，旧复盘必须可读；校验器不影响 LLM schema）。"""
+        if isinstance(value, dict):
+            value = {**value}
+            value.setdefault("market_context", "")
+            value.setdefault("methodology_check", [])
+        return value
 
     @field_validator("suggestion", mode="before")
     @classmethod
@@ -401,6 +438,10 @@ async def generate_review(
                 return ReviewGenerateResult(content=cached, cached=True)
 
         window_input = await _collect_window_input(session, account.id, start, end)
+        window_input["market_review"] = await _market_review_optional(session, resolved)
+        window_input["methodology"] = await agent_methodology.build_methodology_input(
+            session, source_id=agent.methodology_source_id, query_text=None
+        )
         content = await _run_llm(session, agent, period, resolved, window_input)
         content = _validate(content, {o["cl_ord_id"] for o in window_input["orders"]})
         record = PaperTradeReviewRecord(
@@ -427,6 +468,18 @@ async def _sync_landed(session: AsyncSession, account_id: int, day: date) -> boo
     )
 
 
+async def _market_review_optional(session: AsyncSession, trade_date: date) -> dict[str, Any] | None:
+    """基准交易日全市场复盘解读（D34 盘面语境输入）；缺失降级 None 不阻塞——
+    常态 18:35 已就绪早于复盘 19:00，补跑历史窗口时才可能缺失。"""
+    from app.services.trading.agent_plan_input import _market_review_sections
+
+    try:
+        review = await _market_review_sections(session, trade_date)
+    except ReviewInputDataNotReadyError:
+        return None
+    return review.get("sections") or review
+
+
 async def _load_cached(
     session: AsyncSession, input_hash: str
 ) -> PaperTradeReviewRecord | None:
@@ -445,17 +498,24 @@ async def _run_llm(
     trade_date: date,
     window_input: dict[str, Any],
 ) -> PaperTradeReviewContent:
-    config = get_prompt_loader().load(_PROMPT_SCOPE, _PROMPT_ID)
+    from app.skills import load_named_skill_prompt
+
+    config = load_named_skill_prompt(
+        review_prompt_skill_id(agent.agent_key), _REVIEW_PROMPT_FILE
+    )
+    # 人设段空值行跳过（D30：新建 Agent 仅填名称即可）
+    identity = f"- 你是{agent.name}" + (f"（{agent.tagline}）" if agent.tagline else "")
+    persona_lines = [identity, "- 以该人设的视角与风格生成分层复盘结论"]
     user_prompt = (
         f"{config.system_prompt}\n\n"
-        f"## 复盘人设（注册表行，D27）\n"
-        f"- 你是{agent.name}（{agent.tagline}）；策略风格：{agent.style_desc}"
-        f"——{agent.strategy_desc}\n"
-        f"- 以该人设的视角与风格生成分层复盘结论\n\n"
+        f"## 复盘人设（注册表行，D27/D34）\n"
+        + "\n".join(persona_lines)
+        + "\n\n"
         f"## 复盘任务\n"
         f"- 周期 period：{period}\n"
         f"- 基准交易日 trade_date：{trade_date.isoformat()}（输出字段须原样带回）\n\n"
-        f"## 复盘输入数据（JSON，来源为 agent 账户本地委托/成交/资金快照）\n"
+        f"## 复盘输入数据（JSON：agent 账户本地委托/成交/资金快照 + market_review "
+        f"盘面语境 + methodology 方法论基座）\n"
         f"{json.dumps(window_input, ensure_ascii=False, default=str)}"
     )
     from app.agent.runtime.structured import run_structured

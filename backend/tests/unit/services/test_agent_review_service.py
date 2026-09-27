@@ -23,7 +23,9 @@ _TRADE_DATE = date(2026, 7, 15)  # Wednesday
 
 def _agent() -> SimpleNamespace:
     """注册行替身（generate_review 消费的字段）。"""
-    return SimpleNamespace(agent_key="short-line", llm_config_id=None)
+    return SimpleNamespace(
+        agent_key="short-line", llm_config_id=None, methodology_source_id=None
+    )
 
 
 def _cached_row(structured: dict | None):
@@ -52,6 +54,10 @@ def _content_dict(period: str = "day") -> dict:
         ],
         "bias": "偏乐观",
         "suggestion": "严格执行买点纪律",
+        "market_context": "主线板块发酵期，情绪偏进攻",
+        "methodology_check": [
+            {"title": "不追高", "verdict": "violated", "note": "A 笔偏离买点 3% 追高"}
+        ],
         "experiences": [
             {"title": "禁止追高", "body": "偏离买点 3% 以上不追", "mem_type": "discipline"}
         ],
@@ -332,6 +338,14 @@ class TestGenerateReview:
                 ),
             ),
             patch(
+                "app.services.trading.agent_review_service._market_review_optional",
+                AsyncMock(return_value={"overall": "主线发酵"}),
+            ),
+            patch(
+                "app.services.trading.agent_methodology.build_methodology_input",
+                AsyncMock(return_value=None),
+            ),
+            patch(
                 "app.services.trading.agent_review_service._run_llm",
                 AsyncMock(return_value=llm_content),
             ) as llm_mock,
@@ -361,37 +375,90 @@ class TestGenerateReview:
 class TestRunLlmPersona:
     @pytest.mark.asyncio
     async def test_injects_registry_persona_into_user_prompt(self) -> None:
-        """复盘 user_prompt 注入注册行人设段（D27：共享复盘契约 + per-agent 视角）。"""
+        """复盘 user_prompt 装载 per-agent 技能包契约（D34 skill 化）+ 注册行人设段。"""
         agent = SimpleNamespace(
             agent_key="short-line",
             llm_config_id=None,
             name="短线猎手",
             tagline="趋势短线：顺势而为，快进快出",
-            style_desc="进取",
-            strategy_desc="主线板块选股，回踩买点区间接回，破位止损。",
         )
-        loader = MagicMock()
-        loader.load.return_value = MagicMock(system_prompt="你是模拟盘分层复盘官")
         structured = AsyncMock(return_value=_content())
-        with (
-            patch(
-                "app.services.trading.agent_review_service.get_prompt_loader",
-                return_value=loader,
-            ),
-            patch(
-                "app.agent.runtime.structured.run_structured", structured
-            ) as run_mock,
-        ):
+        with patch(
+            "app.agent.runtime.structured.run_structured", structured
+        ) as run_mock:
             await agent_review_service._run_llm(
                 AsyncMock(), agent, "day", _TRADE_DATE, {"orders": []}
             )
 
         user_prompt = run_mock.await_args.kwargs["user_prompt"]
-        assert "你是模拟盘分层复盘官" in user_prompt
+        # 契约来自 skills/trading-short-line/review_prompt.yaml（真实文件装载）
+        assert "复盘官" in user_prompt
+        assert "盘面语境" in user_prompt
+        assert "方法论验证" in user_prompt
         assert "短线猎手" in user_prompt
         assert "趋势短线：顺势而为，快进快出" in user_prompt
-        assert "主线板块选股" in user_prompt
         assert run_mock.await_args.kwargs["config_id"] is None
+
+
+@pytest.mark.unit
+class TestReviewPromptSkillId:
+    def test_specific_package_when_registered(self) -> None:
+        assert agent_review_service.review_prompt_skill_id("short-line") == (
+            "trading-short-line"
+        )
+
+    def test_shared_default_fallback_for_unregistered_agent(self) -> None:
+        """未建专属技能目录的新 Agent 回退 trading-default（D28 扩展性镜像）。"""
+        assert agent_review_service.review_prompt_skill_id("no-such-agent") == (
+            "trading-default"
+        )
+
+
+@pytest.mark.unit
+class TestMarketReviewOptional:
+    @pytest.mark.asyncio
+    async def test_returns_sections_when_ready(self) -> None:
+        review = {"sections": {"emotion": "主线发酵"}, "date": "2026-07-15"}
+        with patch(
+            "app.services.trading.agent_plan_input._market_review_sections",
+            AsyncMock(return_value=review),
+        ):
+            result = await agent_review_service._market_review_optional(
+                AsyncMock(), _TRADE_DATE
+            )
+        assert result == {"emotion": "主线发酵"}
+
+    @pytest.mark.asyncio
+    async def test_degrades_to_none_when_missing(self) -> None:
+        """补跑历史窗口时当日解读缺失：降级 None 不阻塞复盘。"""
+        with patch(
+            "app.services.trading.agent_plan_input._market_review_sections",
+            AsyncMock(side_effect=ReviewInputDataNotReadyError("缺失")),
+        ):
+            result = await agent_review_service._market_review_optional(
+                AsyncMock(), _TRADE_DATE
+            )
+        assert result is None
+
+
+@pytest.mark.unit
+class TestLegacyCacheCompat:
+    def test_backfills_missing_d34_keys(self) -> None:
+        """D34 前缓存行缺 market_context/methodology_check：补空值可读。"""
+        legacy = {
+            k: v
+            for k, v in _content_dict().items()
+            if k not in ("market_context", "methodology_check")
+        }
+        content = PaperTradeReviewContent.model_validate(legacy)
+        assert content.market_context == ""
+        assert content.methodology_check == []
+        assert content.overall == "整体执行纪律良好"
+
+    def test_generated_content_carries_new_fields(self) -> None:
+        content = _content()
+        assert content.market_context == "主线板块发酵期，情绪偏进攻"
+        assert content.methodology_check[0].verdict == "violated"
 
 
 @pytest.mark.unit

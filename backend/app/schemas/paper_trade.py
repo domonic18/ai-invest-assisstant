@@ -457,6 +457,14 @@ class TradingAgentReviewExperienceItem(CamelModel):
     mem_type: str
 
 
+class TradingAgentMethodologyCheckItem(CamelModel):
+    """单条方法论纪律验证结论（D34：KB 纪律逐条 followed/violated/not_applicable）。"""
+
+    title: str
+    verdict: str
+    note: str
+
+
 class TradingAgentReviewResponse(CamelModel):
     """模拟盘分层复盘（ai_analysis_result.structured_output 契约镜像）。"""
 
@@ -466,6 +474,8 @@ class TradingAgentReviewResponse(CamelModel):
     trades: list[TradingAgentTradeVerdictItem] = []
     bias: str
     suggestion: str
+    market_context: str = ""
+    methodology_check: list[TradingAgentMethodologyCheckItem] = []
     experiences: list[TradingAgentReviewExperienceItem] = []
 
 

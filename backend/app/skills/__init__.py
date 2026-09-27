@@ -3,7 +3,11 @@
 纯数据与文件 IO，不导入 agent 执行代码；services 与 agent 层均可顶层导入。
 """
 
-from app.skills.prompt import load_skill_prompt, reload_skill_prompt
+from app.skills.prompt import (
+    load_named_skill_prompt,
+    load_skill_prompt,
+    reload_skill_prompt,
+)
 from app.skills.registry import (
     BUILTIN_SKILLS,
     SkillDescriptor,
@@ -18,6 +22,7 @@ __all__ = [
     "builtin_skill_ids",
     "get_skill",
     "iter_skills",
+    "load_named_skill_prompt",
     "load_skill_prompt",
     "reload_skill_prompt",
 ]

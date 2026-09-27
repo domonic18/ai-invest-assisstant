@@ -111,6 +111,13 @@ export interface ApiTradingAgentReviewExperience {
   memType: 'discipline' | 'method' | 'lesson'
 }
 
+/** 方法论纪律验证条目（D34：KB 纪律逐条 followed/violated/not_applicable）。 */
+export interface ApiTradingAgentMethodologyCheck {
+  title: string
+  verdict: 'followed' | 'violated' | 'not_applicable'
+  note: string
+}
+
 /** 模拟盘分层复盘（admin GET /trading-agent/review，只读缓存）。 */
 export interface ApiTradingAgentReview {
   period: TradingReviewPeriod
@@ -119,6 +126,10 @@ export interface ApiTradingAgentReview {
   trades: ApiTradingAgentTradeVerdict[]
   bias: string
   suggestion: string
+  /** 盘面语境归纳（D34：基准日大盘/主线板块/情绪位置及对本周期操作的定性影响）。 */
+  marketContext: string
+  /** 方法论验证（D34：KB 纪律逐条结论；未绑定知识源为空数组）。 */
+  methodologyCheck: ApiTradingAgentMethodologyCheck[]
   experiences: ApiTradingAgentReviewExperience[]
 }
 

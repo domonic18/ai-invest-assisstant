@@ -11,6 +11,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 import { useState } from 'react'
 
 import type {
+  ApiTradingAgentMethodologyCheck,
   ApiTradingAgentReviewExperience,
   ApiTradingAgentTradeVerdict,
   TradingReviewPeriod,
@@ -31,6 +32,12 @@ const MEM_TYPE_LABELS: Record<ApiTradingAgentReviewExperience['memType'], string
   discipline: '纪律',
   method: '方法',
   lesson: '教训',
+}
+
+const CHECK_VERDICT_ITEMS: Record<ApiTradingAgentMethodologyCheck['verdict'], { label: string; color: string }> = {
+  followed: { label: '遵守', color: 'success' },
+  violated: { label: '违反', color: 'error' },
+  not_applicable: { label: '不适用', color: 'default' },
 }
 
 function VerdictTag({ value }: { value: string }) {
@@ -122,9 +129,39 @@ export function ReviewPanel() {
             <Descriptions.Item label="整体">
               <Typography.Text>{review.overall}</Typography.Text>
             </Descriptions.Item>
+            <Descriptions.Item label="盘面语境">
+              {review.marketContext || <span className="text-white/40">无</span>}
+            </Descriptions.Item>
             <Descriptions.Item label="偏差">{review.bias}</Descriptions.Item>
             <Descriptions.Item label="建议">{review.suggestion}</Descriptions.Item>
           </Descriptions>
+
+          {review.methodologyCheck.length > 0 && (
+            <div>
+              <Typography.Text type="secondary" className="text-xs">
+                方法论验证
+              </Typography.Text>
+              <ul className="mt-1 space-y-1 pl-4">
+                {review.methodologyCheck.map((check) => {
+                  const verdict = CHECK_VERDICT_ITEMS[check.verdict] ?? {
+                    label: check.verdict,
+                    color: 'default',
+                  }
+                  return (
+                    <li key={check.title}>
+                      <Tag color={verdict.color}>{verdict.label}</Tag>
+                      <Typography.Text strong className="text-xs">
+                        {check.title}
+                      </Typography.Text>
+                      <Typography.Paragraph className="mb-0 text-xs" type="secondary">
+                        {check.note}
+                      </Typography.Paragraph>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
 
           {review.trades.length > 0 && (
             <Table<ApiTradingAgentTradeVerdict>

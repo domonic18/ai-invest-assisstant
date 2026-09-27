@@ -127,6 +127,20 @@ class TestSkillPromptLoading:
         with pytest.raises(FileNotFoundError):
             load_skill_prompt("no-such-skill")
 
+    def test_named_prompt_loads_review_contract(self) -> None:
+        """同一技能包可承载多份 prompt（D34 复盘 review_prompt.yaml）。"""
+        from app.skills import load_named_skill_prompt
+
+        config = load_named_skill_prompt("trading-short-line", "review_prompt.yaml")
+        assert config.id == "trading-short-line-review"
+        assert config.system_prompt.strip()
+
+    def test_named_prompt_missing_raises(self) -> None:
+        from app.skills import load_named_skill_prompt
+
+        with pytest.raises(FileNotFoundError):
+            load_named_skill_prompt("market-daily-review", "review_prompt.yaml")
+
     def test_module_cache_effective(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """同 id 二次 load 命中模块缓存，不再触碰文件系统。"""
         from app.skills import prompt as prompt_module
