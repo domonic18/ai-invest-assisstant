@@ -122,6 +122,10 @@ export interface ApiUsagePerUser {
   daily: ApiUsagePerUserDailyPoint[]
 }
 
+export interface ApiUsageCleanupResult {
+  removedCount: number
+}
+
 export interface ApiAccountSettings {
   defaultQuotaTokens: number
   pendingExpireDays: number

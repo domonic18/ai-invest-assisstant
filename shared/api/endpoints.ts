@@ -211,6 +211,7 @@ export const ENDPOINTS = {
     userQuota: (id: number | string) => `${API_BASE}/admin/users/${id}/quota`,
     usageDashboard: (days = 30) => `${API_BASE}/admin/usage/dashboard?days=${days}`,
     usagePerUsers: (days = 30) => `${API_BASE}/admin/usage/users?days=${days}`,
+    usageCleanup: `${API_BASE}/admin/usage/cleanup`,
     accountSettings: `${API_BASE}/admin/settings/account`,
     stocks: `${API_BASE}/admin/stocks/`,
     stock: (id: number | string) => `${API_BASE}/admin/stocks/${id}`,

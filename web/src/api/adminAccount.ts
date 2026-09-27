@@ -6,6 +6,7 @@ import type {
   ApiPendingApplication,
   ApiQuotaAdjustRequest,
   ApiRejectRequest,
+  ApiUsageCleanupResult,
   ApiUsageDashboardResponse,
   ApiUsagePerUser,
   PendingApplication,
@@ -51,6 +52,13 @@ export async function fetchUsageDashboard(days = 30): Promise<ApiUsageDashboardR
 export async function fetchUsagePerUsers(days = 30): Promise<ApiUsagePerUser[]> {
   const response = await apiClient.get<ApiUsagePerUser[]>(
     ENDPOINTS.admin.usagePerUsers(days),
+  )
+  return response.data
+}
+
+export async function cleanupTokenUsage(): Promise<ApiUsageCleanupResult> {
+  const response = await apiClient.post<ApiUsageCleanupResult>(
+    ENDPOINTS.admin.usageCleanup,
   )
   return response.data
 }

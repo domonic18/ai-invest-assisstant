@@ -9,6 +9,7 @@ import type {
 import {
   adjustUserQuota,
   approveUser,
+  cleanupTokenUsage,
   fetchAccountSettings,
   fetchPendingApplications,
   fetchPendingCount,
@@ -83,6 +84,17 @@ export function useUsagePerUsers(days = 30) {
   return useQuery({
     queryKey: queryKeys.admin.usagePerUsers(days),
     queryFn: () => fetchUsagePerUsers(days),
+  })
+}
+
+export function useCleanupTokenUsage() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: cleanupTokenUsage,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.usageDashboardAll })
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.usagePerUsersAll })
+    },
   })
 }
 
