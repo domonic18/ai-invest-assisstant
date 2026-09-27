@@ -1,9 +1,11 @@
 /**
- * 「Agent 记忆」卡片（plan §12.3 管理面）：方法论纪律 + 复盘沉淀的清单、
- * 手动沉淀、编辑与停用（archived 不删）。active 条目每日计划生成时全量注入
- * prompt，停用即次日不再注入；自动沉淀由复盘任务写入（同标题去重+刷时间）。
+ * 「经验总结」卡片（tab 唯一管理面，批次 9 后合并原只读浏览视图）：
+ * 记忆库清单（复盘自动沉淀 + 手动沉淀）、手动沉淀、编辑、删除（物理删除）
+ * 与停用/启用（archived 可逆，次日计划不再注入）。active 条目每日计划
+ * 生成时全量注入 prompt；自动沉淀同标题去重 + 刷时间。
  */
 import {
+  DeleteOutlined,
   EditOutlined,
   PlusOutlined,
   StopOutlined,
@@ -29,8 +31,10 @@ import { useState } from 'react'
 import type { ApiAgentMemory, AgentMemoryType } from '@ai-invest/shared'
 
 import { useAgentKey } from './agentKeyContext'
+import { formatDateTime } from '@/utils/formatters'
 import {
   useCreateTradingAgentMemory,
+  useDeleteTradingAgentMemory,
   useTradingAgentMemories,
   useUpdateTradingAgentMemory,
   useUpdateTradingAgentMemoryStatus,
@@ -51,6 +55,7 @@ const STATUS_FILTERS = [
 function MemoryRow({ memory, onEdit }: { memory: ApiAgentMemory; onEdit: (m: ApiAgentMemory) => void }) {
   const agentKey = useAgentKey()
   const changeStatus = useUpdateTradingAgentMemoryStatus(agentKey)
+  const remove = useDeleteTradingAgentMemory(agentKey)
   const typeMeta = MEM_TYPE_META[memory.memType] ?? { label: memory.memType, color: 'default' }
   const archived = memory.status === 'archived'
 
@@ -73,10 +78,11 @@ function MemoryRow({ memory, onEdit }: { memory: ApiAgentMemory; onEdit: (m: Api
           <Tag className="!mr-0 !text-[10px]">复盘</Tag>
         )}
         {archived && <Tag className="!mr-0 !text-[10px]">已停用</Tag>}
+        <span className="hidden text-xs text-white/40 xl:inline">{formatDateTime(memory.updatedAt)}</span>
         <Button type="text" size="small" icon={<EditOutlined />} onClick={() => onEdit(memory)} aria-label={`编辑 ${memory.title}`} />
         {archived ? (
           <Popconfirm
-            title="启用该记忆"
+            title="启用该经验"
             description="启用后次日计划生成将重新注入此条。"
             okText="启用"
             cancelText="取消"
@@ -86,8 +92,8 @@ function MemoryRow({ memory, onEdit }: { memory: ApiAgentMemory; onEdit: (m: Api
           </Popconfirm>
         ) : (
           <Popconfirm
-            title="停用该记忆"
-            description="停用后次日计划生成不再注入此条（不删除，可随时启用）。"
+            title="停用该经验"
+            description="停用后次日计划生成不再注入此条（可随时重新启用）。"
             okText="停用"
             cancelText="取消"
             onConfirm={() => changeStatus.mutate({ memoryId: memory.id, status: 'archived' })}
@@ -95,6 +101,20 @@ function MemoryRow({ memory, onEdit }: { memory: ApiAgentMemory; onEdit: (m: Api
             <Button type="text" size="small" danger icon={<StopOutlined />} aria-label={`停用 ${memory.title}`} />
           </Popconfirm>
         )}
+        <Popconfirm
+          title="删除该经验"
+          description={
+            memory.source === 'auto'
+              ? '物理删除且不可恢复；下次复盘若再产出同标题经验会重新沉淀。'
+              : '物理删除且不可恢复。'
+          }
+          okText="删除"
+          okButtonProps={{ danger: true }}
+          cancelText="取消"
+          onConfirm={() => remove.mutate(memory.id)}
+        >
+          <Button type="text" size="small" danger icon={<DeleteOutlined />} aria-label={`删除 ${memory.title}`} />
+        </Popconfirm>
       </div>
       <Typography.Paragraph type="secondary" className="!mb-0 mt-1 text-xs" ellipsis={{ rows: 2 }}>
         {memory.body}
@@ -134,7 +154,7 @@ function MemoryFormModal({
 
   return (
     <Modal
-      title={isCreate ? '沉淀记忆' : '编辑记忆'}
+      title={isCreate ? '沉淀经验' : '编辑经验'}
       open={target !== null}
       onOk={submit}
       onCancel={onClose}
@@ -187,11 +207,11 @@ export function AgentMemoryPanel() {
   return (
     <Card
       size="small"
-      title="Agent 记忆"
+      title="经验总结"
       extra={
         <Space size={8}>
           <Typography.Text type="secondary" className="text-xs hidden xl:inline">
-            启用中的记忆每日计划生成时注入（含温程《趋势理论》纪律）
+            启用中的经验每日计划生成时注入 Agent
           </Typography.Text>
           <Segmented
             size="small"
@@ -205,7 +225,7 @@ export function AgentMemoryPanel() {
             icon={<PlusOutlined />}
             onClick={() => setFormTarget('new')}
           >
-            沉淀记忆
+            沉淀经验
           </Button>
         </Space>
       }
@@ -217,7 +237,7 @@ export function AgentMemoryPanel() {
       ) : filtered.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="暂无记忆（复盘自动沉淀 + 「沉淀记忆」手动添加）"
+          description="暂无经验总结（复盘自动沉淀 + 「沉淀经验」手动添加）"
         />
       ) : (
         <div className="space-y-2">
