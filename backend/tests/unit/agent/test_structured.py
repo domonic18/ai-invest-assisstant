@@ -324,3 +324,105 @@ class TestRunStructured:
 
         assert len(structured.prompts) == 1
         p_mark.assert_not_awaited()
+
+
+@pytest.mark.unit
+class TestMetaOut:
+    """meta_out 观测回填容器（D35 会话管理/持久化补全消费）。"""
+
+    @pytest.mark.asyncio
+    async def test_meta_filled_on_success(self) -> None:
+        structured = _FakeStructured([_Out(value="ok")])
+        fake_model = _FakeModel(structured)
+        meta: dict[str, Any] = {}
+        with (
+            patch(
+                "app.agent.runtime.structured.resolve_llm",
+                new=AsyncMock(
+                    return_value=(
+                        SimpleNamespace(protocol="anthropic", model_name="kimi"),
+                        "system",
+                    )
+                ),
+            ),
+            patch(
+                "app.agent.runtime.structured.build_langchain_model",
+                return_value=fake_model,
+            ),
+        ):
+            await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+                meta_out=meta,
+            )
+
+        assert meta["model_name"] == "kimi"
+        assert meta["method"] == "json_schema"
+        assert meta["failover"] is False
+        assert isinstance(meta["latency_ms"], int)
+
+    @pytest.mark.asyncio
+    async def test_meta_method_fallback_after_parser_failure(self) -> None:
+        """json_schema 解析失败换 function_calling 兜底：method 记 fallback（非换模型）。"""
+        structured = _FakeStructured(
+            [OutputParserException("bad json"), _Out(value="ok")]
+        )
+        fake_model = _FakeModel(structured)
+        meta: dict[str, Any] = {}
+        with (
+            patch(
+                "app.agent.runtime.structured.resolve_llm",
+                new=AsyncMock(
+                    return_value=(
+                        SimpleNamespace(protocol="anthropic", model_name="kimi"),
+                        "system",
+                    )
+                ),
+            ),
+            patch(
+                "app.agent.runtime.structured.build_langchain_model",
+                return_value=fake_model,
+            ),
+        ):
+            await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+                meta_out=meta,
+            )
+
+        assert meta["model_name"] == "kimi"
+        assert meta["method"] == "fallback"
+        assert meta["failover"] is False
+
+    @pytest.mark.asyncio
+    async def test_meta_failover_reports_backup_model(self) -> None:
+        """额度耗尽主备切换：model_name 记备用配置，method 按备用协议重选。"""
+        primary = SimpleNamespace(config_id=1, protocol="openai", model_name="m1")
+        backup = SimpleNamespace(config_id=2, protocol="anthropic", model_name="m2")
+        structured = _FakeStructured([_rate_limit_error(), _Out(value="ok")])
+        fake_model = _FakeModel(structured)
+        meta: dict[str, Any] = {}
+        with (
+            patch(
+                "app.agent.runtime.structured.resolve_llm_by_id",
+                new=AsyncMock(side_effect=[primary, backup]),
+            ),
+            patch(
+                "app.agent.runtime.structured.build_langchain_model",
+                return_value=fake_model,
+            ),
+            patch("app.agent.runtime.structured.mark_unhealthy", new=AsyncMock()),
+        ):
+            await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+                config_id=1,
+                meta_out=meta,
+            )
+
+        assert meta["failover"] is True
+        assert meta["model_name"] == "m2"
+        assert meta["method"] == "json_schema"

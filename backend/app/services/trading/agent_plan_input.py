@@ -7,6 +7,7 @@ agent 经验记忆（``agent_memory`` active 条目）。仅取数，不做 LLM 
 各采集函数可独立 mock 测试。
 """
 
+from contextlib import nullcontext
 from datetime import date
 from typing import Any
 
@@ -23,6 +24,7 @@ from app.services.review.market_review_generator import (
 )
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
 from app.services.trading import agent_methodology
+from app.services.trading.agent_run_recorder import AgentRunRecorder
 
 #: 异动归因注入 prompt 的条数上限（按 strength 降序）
 _ANOMALY_TOP_N = 10
@@ -166,30 +168,105 @@ async def _active_memories(
 
 
 async def collect_plan_input(
-    session: AsyncSession, agent: TradingAgent, account_id: int, trade_date: date
+    session: AsyncSession,
+    agent: TradingAgent,
+    account_id: int,
+    trade_date: date,
+    recorder: AgentRunRecorder | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
-    """组装指定 Agent 的 LLM 输入，返回 (输入 dict, 人工移出代码清单)。"""
-    review = await _market_review_sections(session, trade_date)
-    attribution = await _limit_up_attribution(session, trade_date)
+    """组装指定 Agent 的 LLM 输入，返回 (输入 dict, 人工移出代码清单)。
+
+    传入 recorder 时按三步记录输入组装轨迹（D35 会话管理）：
+    ``input.market_review``（复盘解读+涨停归因）→ ``input.kb_methodology``
+    （方法论基座检索）→ ``input.context``（持仓/异动/记忆/人工移出）。
+    """
+    review: dict[str, Any] | None = None
+    attribution: dict[str, Any] | None = None
+    async with (
+        recorder.step(
+            "input.market_review",
+            "大盘复盘解读",
+            payload_builder=lambda: {
+                "sections": (review or {}).get("sections") or review,
+                "limit_up_attribution": attribution,
+            },
+        )
+        if recorder
+        else nullcontext()
+    ):
+        review = await _market_review_sections(session, trade_date)
+        attribution = await _limit_up_attribution(session, trade_date)
+
     anomalies = await _stock_anomalies(session, trade_date)
     manual_removed = await _manual_removed_codes(session, agent.agent_key, trade_date)
-    methodology = await agent_methodology.build_methodology_input(
-        session,
-        source_id=agent.methodology_source_id,
-        query_text=agent_methodology.build_retrieval_query(
-            review.get("sections") or review, attribution, anomalies
-        ),
+    query_text = agent_methodology.build_retrieval_query(
+        review.get("sections") or review, attribution, anomalies
     )
+    methodology: dict[str, Any] | None = None
+    async with (
+        recorder.step(
+            "input.kb_methodology",
+            "方法论基座检索（KB 直读）",
+            payload_builder=lambda: {
+                "source_id": agent.methodology_source_id,
+                "query": query_text,
+                "relevant_counts": _relevant_counts(methodology),
+                "methodology": methodology,
+            },
+        )
+        if recorder
+        else nullcontext()
+    ):
+        methodology = await agent_methodology.build_methodology_input(
+            session,
+            source_id=agent.methodology_source_id,
+            query_text=query_text,
+        )
+
+    positions: list[dict[str, Any]] = []
+    memories: list[dict[str, Any]] = []
+    async with (
+        recorder.step(
+            "input.context",
+            "持仓/异动/记忆/人工移出合并",
+            payload_builder=lambda: {
+                "stock_anomalies": anomalies,
+                "positions": positions,
+                "memories": memories,
+                "manual_removed_codes": manual_removed,
+            },
+        )
+        if recorder
+        else nullcontext()
+    ):
+        positions = await _local_positions(session, account_id)
+        memories = await _active_memories(session, agent.agent_key)
+
     return (
         {
             "trade_date": trade_date.isoformat(),
             "market_review": review.get("sections") or review,
             "limit_up_attribution": attribution,
             "stock_anomalies": anomalies,
-            "positions": await _local_positions(session, account_id),
+            "positions": positions,
             "manual_removed_codes": manual_removed,
             "methodology": methodology,
-            "memories": await _active_memories(session, agent.agent_key),
+            "memories": memories,
         },
         manual_removed,
     )
+
+
+def _relevant_counts(methodology: dict[str, Any] | None) -> dict[str, int]:
+    """四类检索命中数（method/theorem/concept/case），relevant 为合流 list 按
+    point_type 分组计数；无命中返回空表。"""
+    if not methodology:
+        return {}
+    relevant = methodology.get("relevant") or []
+    if not isinstance(relevant, list):
+        return {}
+    counts: dict[str, int] = {}
+    for item in relevant:
+        if isinstance(item, dict) and isinstance(item.get("point_type"), str):
+            counts[item["point_type"]] = counts.get(item["point_type"], 0) + 1
+    return counts

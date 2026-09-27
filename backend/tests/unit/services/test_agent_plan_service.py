@@ -55,6 +55,12 @@ def _content() -> AgentDailyPlanContent:
     return AgentDailyPlanContent.model_validate(_content_dict())
 
 
+@asynccontextmanager
+async def _locked_true(*args, **kwargs):
+    """redis_lock 替身：恒获取成功。"""
+    yield True
+
+
 @pytest.mark.unit
 class TestSchemaContract:
     def test_content_fields_all_required(self) -> None:
@@ -325,6 +331,172 @@ class TestGenerateDailyPlan:
             await agent_plan_service.generate_daily_plan(
                 AsyncMock(), _agent(), trade_date=_TRADE_DATE, regenerate=True
             )
+
+
+@pytest.mark.unit
+class TestRecorderWiring:
+    """D35 会话管理：generate_daily_plan 全程经 AgentRunRecorder 落执行轨迹。"""
+
+    def _recorder(self) -> MagicMock:
+        rec = MagicMock()
+        rec.start = AsyncMock()
+        rec.finish = AsyncMock()
+
+        @asynccontextmanager
+        async def _step(*args, **kwargs):
+            yield
+
+        rec.step = MagicMock(side_effect=_step)
+        return rec
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_finishes_skipped_without_steps(self) -> None:
+        rec = self._recorder()
+        row = MagicMock()
+        row.structured_output = _content_dict()
+        with (
+            patch(
+                "app.core.config.get_settings",
+                return_value=MagicMock(paper_trade_url="http://sidecar"),
+            ),
+            patch(
+                "app.services.market.trade_calendar_service.is_trading_day",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=row),
+            ),
+            patch(
+                "app.services.trading.agent_plan_service.AgentRunRecorder",
+                return_value=rec,
+            ),
+        ):
+            result = await agent_plan_service.generate_daily_plan(
+                AsyncMock(), _agent(), trade_date=_TRADE_DATE
+            )
+
+        assert result.cached is True
+        rec.start.assert_awaited_once()
+        rec.finish.assert_awaited_once_with(
+            "skipped", summary={"cache_hit": True, "stage": "pre_lock"}
+        )
+        rec.step.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_lock_not_acquired_finishes_failed_then_raises(self) -> None:
+        rec = self._recorder()
+
+        @asynccontextmanager
+        async def _locked(*args, **kwargs):
+            yield False
+
+        with (
+            patch(
+                "app.core.config.get_settings",
+                return_value=MagicMock(paper_trade_url="http://sidecar"),
+            ),
+            patch(
+                "app.services.market.trade_calendar_service.is_trading_day",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.trading.agent_plan_input.collect_plan_input",
+                AsyncMock(return_value=({}, [])),
+            ),
+            patch.object(agent_plan_service, "redis_lock", _locked),
+            patch(
+                "app.services.trading.agent_plan_service.AgentRunRecorder",
+                return_value=rec,
+            ),
+            pytest.raises(agent_plan_service.PlanGenerationLockedError),
+        ):
+            await agent_plan_service.generate_daily_plan(
+                AsyncMock(), _agent(), trade_date=_TRADE_DATE, regenerate=True
+            )
+
+        # 锁分支显式收口（友好文案）+ 外层异常兜底再收口（异常文本），均为 failed
+        assert rec.finish.await_count == 2
+        first_args, first_kwargs = rec.finish.await_args_list[0]
+        assert first_args[0] == "failed"
+        assert "其他实例正在生成" in first_kwargs["error_msg"]
+
+    @pytest.mark.asyncio
+    async def test_success_finishes_with_summary_and_step_sequence(self) -> None:
+        rec = self._recorder()
+        content = _content()
+        collect_mock = AsyncMock(return_value=({}, []))
+        with (
+            patch(
+                "app.core.config.get_settings",
+                return_value=MagicMock(paper_trade_url="http://sidecar"),
+            ),
+            patch(
+                "app.services.market.trade_calendar_service.is_trading_day",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.trading.agent_plan_input.collect_plan_input",
+                collect_mock,
+            ),
+            patch.object(agent_plan_service, "redis_lock", _locked_true),
+            patch(
+                "app.services.trading.agent_plan_service._run_llm",
+                AsyncMock(return_value=content),
+            ),
+            patch(
+                "app.services.trading.agent_plan_service._validate_codes",
+                AsyncMock(return_value=(content, ["999999"])),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.insert_result",
+                AsyncMock(return_value=42),
+            ),
+            patch(
+                "app.services.trading.agent_plan_persist.persist_plan",
+                AsyncMock(),
+            ),
+            patch(
+                "app.services.trading.agent_plan_service.AgentRunRecorder",
+                return_value=rec,
+            ),
+        ):
+            result = await agent_plan_service.generate_daily_plan(
+                AsyncMock(), _agent(), trade_date=_TRADE_DATE, regenerate=True
+            )
+
+        assert result.cached is False
+        args, kwargs = rec.finish.await_args
+        assert args[0] == "success"
+        summary = kwargs["summary"]
+        assert summary["cache_hit"] is False
+        assert summary["dropped_codes"] == ["999999"]
+        assert summary["selections"] == 1
+        assert summary["plans"] == 1
+        # input.* 步骤由 collect_plan_input 记录：recorder 透传
+        assert collect_mock.await_args.kwargs["recorder"] is rec
+        step_keys = [call.args[0] for call in rec.step.call_args_list]
+        assert step_keys == ["precheck", "llm", "validate", "persist"]
 
 
 @pytest.mark.unit

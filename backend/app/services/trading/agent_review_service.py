@@ -39,6 +39,7 @@ from app.repositories.review import ai_analysis_repository
 from app.services.market.trade_calendar_service import NonTradingDayError, next_trading_day
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
 from app.services.trading import agent_methodology
+from app.services.trading.agent_run_recorder import AgentRunRecorder
 
 logger = structlog.get_logger(__name__)
 
@@ -46,6 +47,11 @@ REVIEW_SKILL_ID = "paper-trade-review"
 ReviewPeriod = Literal["day", "week", "month"]
 #: Literal 在运行时不可迭代，白名单单独维护（API 入参校验用）
 REVIEW_PERIODS: tuple[str, ...] = ("day", "week", "month")
+
+
+def _error_text(exc: BaseException) -> str:
+    """异常转 agent_run.error_msg 文本（类型名 + 消息，截断 2000 字符）。"""
+    return f"{type(exc).__name__}: {exc}"[:2000]
 
 #: per-agent 技能包复盘契约文件名（D34 skill 化）
 _REVIEW_PROMPT_FILE = "review_prompt.yaml"
@@ -379,8 +385,13 @@ async def generate_review(
     period: ReviewPeriod,
     trade_date: date | None = None,
     regenerate: bool = False,
+    trigger: str = "scheduled",
+    collector_log_id: int | None = None,
 ) -> ReviewGenerateResult:
     """生成（或读取缓存的）指定 Agent 的模拟盘分层复盘。
+
+    全程经 ``AgentRunRecorder`` 记录执行轨迹（D35 会话管理）：缓存命中落
+    skipped + cache_hit，异常落 failed 后原样上抛。
 
     Raises:
         NonTradingDayError: 指定日期不是交易日
@@ -405,51 +416,189 @@ async def generate_review(
     start, end = resolve_window(period, resolved)
     input_hash = _input_hash(agent.agent_key, account.id, period, start, end)
 
-    if not regenerate:
-        cached = await _load_cached(session, input_hash)
-        if cached:
-            return ReviewGenerateResult(content=cached, cached=True)
-
-    if not await _sync_landed(session, account.id, resolved):
-        raise ReviewInputDataNotReadyError(
-            f"{resolved.isoformat()} 盘后同步尚未落库，模拟盘复盘输入未就绪"
-        )
-
-    if not await _has_review_target(session, account.id, start, end):
-        raise NoReviewTargetError(
-            f"agent 账户在 {start.isoformat()}~{end.isoformat()} 无交易且无持仓"
-        )
-
-    async with redis_lock(
-        f"{REVIEW_SKILL_ID}:{agent.agent_key}:{account.id}:{period}:{resolved.isoformat()}",
-        ttl=GENERATION_LOCK_TTL_SECONDS,
-    ) as acquired:
-        if not acquired:
-            cached = await _load_cached(session, input_hash)
-            if cached:
-                return ReviewGenerateResult(content=cached, cached=True)
-            raise PaperTradeReviewLockedError(
-                f"其他实例正在生成 {resolved.isoformat()} 的 {period} 复盘"
-            )
-
+    recorder = AgentRunRecorder(
+        agent_key=agent.agent_key,
+        kind="review",
+        period=period,
+        trigger=trigger,
+        trade_date=resolved,
+        collector_log_id=collector_log_id,
+    )
+    await recorder.start()
+    try:
         if not regenerate:
             cached = await _load_cached(session, input_hash)
             if cached:
+                await recorder.finish(
+                    "skipped", summary={"cache_hit": True, "stage": "pre_lock"}
+                )
                 return ReviewGenerateResult(content=cached, cached=True)
 
-        window_input = await _collect_window_input(session, account.id, start, end)
-        window_input["market_review"] = await _market_review_optional(session, resolved)
-        window_input["methodology"] = await agent_methodology.build_methodology_input(
-            session, source_id=agent.methodology_source_id, query_text=None
-        )
-        content = await _run_llm(session, agent, period, resolved, window_input)
-        content = _validate(content, {o["cl_ord_id"] for o in window_input["orders"]})
-        record = PaperTradeReviewRecord(
-            **content.model_dump(), agent_key=agent.agent_key
-        )
+        sync_landed = False
+        has_target = False
+        async with recorder.step(
+            "precheck",
+            "执行预检（盘后同步/复盘对象）",
+            payload_builder=lambda: {
+                "trade_date": resolved.isoformat(),
+                "window": [start.isoformat(), end.isoformat()],
+                "account_id": account.id,
+                "sync_landed": sync_landed,
+                "has_review_target": has_target,
+            },
+        ):
+            sync_landed = await _sync_landed(session, account.id, resolved)
+            if not sync_landed:
+                raise ReviewInputDataNotReadyError(
+                    f"{resolved.isoformat()} 盘后同步尚未落库，模拟盘复盘输入未就绪"
+                )
+            has_target = await _has_review_target(session, account.id, start, end)
+            if not has_target:
+                raise NoReviewTargetError(
+                    f"agent 账户在 {start.isoformat()}~{end.isoformat()} 无交易且无持仓"
+                )
 
-        await _persist(session, input_hash=input_hash, content=record)
+        async with redis_lock(
+            f"{REVIEW_SKILL_ID}:{agent.agent_key}:{account.id}:{period}:{resolved.isoformat()}",
+            ttl=GENERATION_LOCK_TTL_SECONDS,
+        ) as acquired:
+            if not acquired:
+                cached = await _load_cached(session, input_hash)
+                if cached:
+                    await recorder.finish(
+                        "skipped",
+                        summary={"cache_hit": True, "stage": "lock_unavailable"},
+                    )
+                    return ReviewGenerateResult(content=cached, cached=True)
+                await recorder.finish(
+                    "failed",
+                    error_msg=(
+                        f"其他实例正在生成 {resolved.isoformat()} 的 {period} 复盘"
+                    ),
+                )
+                raise PaperTradeReviewLockedError(
+                    f"其他实例正在生成 {resolved.isoformat()} 的 {period} 复盘"
+                )
+
+            if not regenerate:
+                cached = await _load_cached(session, input_hash)
+                if cached:
+                    await recorder.finish(
+                        "skipped", summary={"cache_hit": True, "stage": "in_lock"}
+                    )
+                    return ReviewGenerateResult(content=cached, cached=True)
+
+            window_input: dict[str, Any] = {}
+            async with recorder.step(
+                "input.window",
+                "复盘窗口取数（委托/成交/净值）",
+                payload_builder=lambda: window_input or None,
+            ):
+                window_input = await _collect_window_input(
+                    session, account.id, start, end
+                )
+
+            market_review: dict[str, Any] | None = None
+            async with recorder.step(
+                "input.market_review",
+                "大盘复盘解读（盘面语境）",
+                payload_builder=lambda: {"sections": market_review},
+            ):
+                market_review = await _market_review_optional(session, resolved)
+            window_input["market_review"] = market_review
+
+            methodology: dict[str, Any] | None = None
+            async with recorder.step(
+                "input.methodology",
+                "方法论基座检索（KB 直读）",
+                payload_builder=lambda: {
+                    "source_id": agent.methodology_source_id,
+                    "methodology": methodology,
+                },
+            ):
+                methodology = await agent_methodology.build_methodology_input(
+                    session, source_id=agent.methodology_source_id, query_text=None
+                )
+            window_input["methodology"] = methodology
+
+            llm_meta: dict[str, Any] = {}
+            prompt_holder: dict[str, str] = {}
+            output_holder: dict[str, Any] = {}
+            async with recorder.step(
+                "llm",
+                "LLM 结构化生成",
+                payload_builder=lambda: {
+                    "prompt": prompt_holder.get("prompt"),
+                    "meta": llm_meta,
+                    "output": output_holder.get("output"),
+                },
+            ):
+                content = await _run_llm(
+                    session,
+                    agent,
+                    period,
+                    resolved,
+                    window_input,
+                    meta_out=llm_meta,
+                    prompt_out=prompt_holder,
+                )
+                output_holder["output"] = content.model_dump(mode="json")
+
+            dropped_cl: list[str] = []
+            async with recorder.step(
+                "validate",
+                "后置校验（幻觉委托剔除）",
+                payload_builder=lambda: {
+                    "dropped_cl_ord_ids": dropped_cl,
+                    "trades": len(content.trades),
+                },
+            ):
+                content = _validate(
+                    content, {o["cl_ord_id"] for o in window_input["orders"]}
+                )
+                dropped_cl = sorted(
+                    {
+                        t["cl_ord_id"]
+                        for t in output_holder["output"].get("trades", [])
+                        if isinstance(t, dict) and "cl_ord_id" in t
+                    }
+                    - {t.cl_ord_id for t in content.trades}
+                )
+
+            record = PaperTradeReviewRecord(
+                **content.model_dump(), agent_key=agent.agent_key
+            )
+
+            async with recorder.step(
+                "persist",
+                "落库（ai_analysis_result 缓存行）",
+                payload_builder=lambda: {
+                    "trades": len(record.trades),
+                    "experiences": len(record.experiences),
+                    "methodology_check": len(record.methodology_check),
+                },
+            ):
+                await _persist(
+                    session, input_hash=input_hash, content=record, meta=llm_meta
+                )
+
+        await recorder.finish(
+            "success",
+            summary={
+                "cache_hit": False,
+                "regenerate": regenerate,
+                "kb_used": bool(methodology),
+                "trades": len(record.trades),
+                "experiences": len(record.experiences),
+                "methodology_check": len(record.methodology_check),
+                "model": llm_meta.get("model_name"),
+                "latency_ms": llm_meta.get("latency_ms"),
+            },
+        )
         return ReviewGenerateResult(content=record, cached=False)
+    except Exception as exc:
+        await recorder.finish("failed", error_msg=_error_text(exc))
+        raise
 
 
 async def _sync_landed(session: AsyncSession, account_id: int, day: date) -> bool:
@@ -497,6 +646,9 @@ async def _run_llm(
     period: str,
     trade_date: date,
     window_input: dict[str, Any],
+    *,
+    meta_out: dict[str, Any] | None = None,
+    prompt_out: dict[str, str] | None = None,
 ) -> PaperTradeReviewContent:
     from app.skills import load_named_skill_prompt
 
@@ -518,6 +670,8 @@ async def _run_llm(
         f"盘面语境 + methodology 方法论基座）\n"
         f"{json.dumps(window_input, ensure_ascii=False, default=str)}"
     )
+    if prompt_out is not None:
+        prompt_out["prompt"] = user_prompt
     from app.agent.runtime.structured import run_structured
 
     return await run_structured(
@@ -525,6 +679,7 @@ async def _run_llm(
         result_type=PaperTradeReviewContent,
         user_prompt=user_prompt,
         config_id=agent.llm_config_id,
+        meta_out=meta_out,
     )
 
 
@@ -536,15 +691,23 @@ def _validate(
     return content.model_copy(update={"trades": trades})
 
 
-async def _persist(session: AsyncSession, *, input_hash: str, content: Any) -> None:
+async def _persist(
+    session: AsyncSession,
+    *,
+    input_hash: str,
+    content: Any,
+    meta: dict[str, Any] | None = None,
+) -> None:
+    """落缓存行；meta 携带 run_structured 的 model_name/latency_ms（D35 补全）。"""
+    meta = meta or {}
     await ai_analysis_repository.insert_result(
         session,
         skill_id=REVIEW_SKILL_ID,
         input_hash=input_hash,
         prompt_id=REVIEW_SKILL_ID,
-        model=None,
+        model=meta.get("model_name"),
         structured=content.model_dump(mode="json"),
-        latency_ms=0,
+        latency_ms=int(meta.get("latency_ms") or 0),
         status="success",
     )
     await session.commit()

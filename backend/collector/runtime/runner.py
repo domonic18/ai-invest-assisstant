@@ -111,6 +111,9 @@ async def run_task(params: dict[str, Any]) -> CollectResult:
             log_id = await _create_running_row(task_name, celery_task_id)
 
         kwargs = _build_task_kwargs(task_name, params)
+        # 观测溯源管道参数（非任务业务参数，registry 剥离后透传 spider）：
+        # internal 渠道服务层据此把 agent_run.collector_log_id 关联本次任务日志
+        kwargs.setdefault("collector_log_id", log_id)
         spec = TASK_SPECS.get(task_name)
         skipped = await _precheck_trade_day(params, kwargs, spec, task_name)
         if skipped is not None:

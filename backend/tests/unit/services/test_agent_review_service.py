@@ -539,3 +539,87 @@ class TestPeriodEndChecks:
         assert await agent_review_service.is_last_trading_day_of_month(
             session, date(2026, 7, 31)
         ) is True
+
+
+@pytest.mark.unit
+class TestRecorderWiring:
+    """D35 会话管理：generate_review 全程经 AgentRunRecorder 落执行轨迹。"""
+
+    def _recorder(self) -> MagicMock:
+        rec = MagicMock()
+        rec.start = AsyncMock()
+        rec.finish = AsyncMock()
+
+        @asynccontextmanager
+        async def _step(*args, **kwargs):
+            yield
+
+        rec.step = MagicMock(side_effect=_step)
+        return rec
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_finishes_skipped_without_steps(self) -> None:
+        rec = self._recorder()
+        with (
+            patch(
+                "app.services.market.trade_calendar_service.is_trading_day",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=_cached_row(_content_dict())),
+            ),
+            patch(
+                "app.services.trading.agent_review_service.AgentRunRecorder",
+                return_value=rec,
+            ),
+        ):
+            result = await agent_review_service.generate_review(
+                AsyncMock(), _agent(), period="day", trade_date=_TRADE_DATE
+            )
+
+        assert result.cached is True
+        rec.start.assert_awaited_once()
+        rec.finish.assert_awaited_once_with(
+            "skipped", summary={"cache_hit": True, "stage": "pre_lock"}
+        )
+        rec.step.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_not_ready_finishes_failed_then_raises(self) -> None:
+        rec = self._recorder()
+        with (
+            patch(
+                "app.services.market.trade_calendar_service.is_trading_day",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.trading.agent_review_service._sync_landed",
+                AsyncMock(return_value=False),
+            ),
+            patch(
+                "app.services.trading.agent_review_service.AgentRunRecorder",
+                return_value=rec,
+            ),
+            pytest.raises(ReviewInputDataNotReadyError, match="尚未落库"),
+        ):
+            await agent_review_service.generate_review(
+                AsyncMock(), _agent(), period="day", trade_date=_TRADE_DATE
+            )
+
+        rec.finish.assert_awaited_once()
+        args, kwargs = rec.finish.await_args
+        assert args[0] == "failed"
+        assert "尚未落库" in kwargs["error_msg"]
