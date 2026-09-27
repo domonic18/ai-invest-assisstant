@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.paper_trade import (
     AgentCapabilityResponse,
+    AgentMemoryCreateRequest,
     AgentMemoryResponse,
     AgentMemoryStatusUpdateRequest,
     AgentMemoryUpdateRequest,
@@ -241,6 +242,23 @@ async def list_trading_agent_memories(
     """Agent 记忆清单（复盘沉淀 + 手动沉淀，按新近度倒序）。"""
     rows = await agent_memory_service.list_memories(session, agent_key, status=status_filter)
     return [AgentMemoryResponse.model_validate(row) for row in rows]
+
+
+@router.post(
+    "/{agent_key}/memories",
+    response_model=AgentMemoryResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_trading_agent_memory(
+    agent_key: str,
+    data: AgentMemoryCreateRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> AgentMemoryResponse:
+    """手动沉淀记忆（source='manual'，立即 active 注入次日计划）。"""
+    row = await agent_memory_service.create_memory(
+        session, agent_key, title=data.title, body=data.body, mem_type=data.mem_type
+    )
+    return AgentMemoryResponse.model_validate(row)
 
 
 @router.put("/{agent_key}/memories/{memory_id}", response_model=AgentMemoryResponse)
