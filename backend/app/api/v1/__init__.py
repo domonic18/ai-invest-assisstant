@@ -31,6 +31,7 @@ from app.api.v1 import (
     workbench,
 )
 from app.api.v1.admin import account as admin_account
+from app.api.v1.admin import agent_runs as admin_agent_runs
 from app.api.v1.admin import ai_results as admin_ai_results
 from app.api.v1.admin import collector as admin_collector
 from app.api.v1.admin import collector_channels as admin_collector_channels
@@ -101,6 +102,7 @@ admin_router.include_router(admin_reports.router, prefix="/reports")
 admin_router.include_router(admin_news.router, prefix="/news")
 admin_router.include_router(admin_paper_trade.router)
 admin_router.include_router(admin_trading_agent.router)
+admin_router.include_router(admin_agent_runs.router)
 admin_router.include_router(admin_telegraph.router, prefix="/telegraph")
 admin_router.include_router(admin_tasks.router, prefix="/tasks")
 admin_router.include_router(admin_system.router, prefix="/system")
