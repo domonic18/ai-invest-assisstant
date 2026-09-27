@@ -461,6 +461,31 @@ class TestTradingAgentMemories:
 
         assert resp.status_code == 404
 
+    def test_delete_returns_204(self, admin_client) -> None:
+        http, session = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_memory_service.delete_memory",
+            AsyncMock(return_value=None),
+        ) as delete_mock:
+            resp = http.delete("/api/v1/admin/trading-agent/short-line/memories/3")
+
+        assert resp.status_code == 204
+        delete_mock.assert_awaited_once_with(session, "short-line", memory_id=3)
+
+    def test_delete_404_when_missing(self, admin_client) -> None:
+        from app.core.exceptions import NotFoundError
+
+        http, _ = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_memory_service.delete_memory",
+            AsyncMock(side_effect=NotFoundError("记忆 99 不存在")),
+        ):
+            resp = http.delete("/api/v1/admin/trading-agent/short-line/memories/99")
+
+        assert resp.status_code == 404
+
 
 @pytest.mark.unit
 class TestTradingAgentCrud:

@@ -45,6 +45,31 @@ async def test_create_memory_unknown_agent_raises() -> None:
 
 
 @pytest.mark.asyncio
+async def test_delete_memory_removes_row() -> None:
+    session = AsyncMock()
+    session.get = AsyncMock(return_value=MagicMock(agent_key="short-line"))
+
+    await agent_memory_service.delete_memory(session, "short-line", memory_id=3)
+
+    session.delete.assert_awaited_once()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_memory_missing_or_wrong_agent_raises() -> None:
+    session = AsyncMock()
+    session.get = AsyncMock(return_value=None)
+    with pytest.raises(NotFoundError):
+        await agent_memory_service.delete_memory(session, "short-line", memory_id=99)
+    session.delete.assert_not_awaited()
+
+    session.get = AsyncMock(return_value=MagicMock(agent_key="other"))
+    with pytest.raises(NotFoundError):
+        await agent_memory_service.delete_memory(session, "short-line", memory_id=3)
+    session.delete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_sediment_empty_returns_zero() -> None:
     session = AsyncMock()
     assert (

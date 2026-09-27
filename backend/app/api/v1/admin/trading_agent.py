@@ -280,6 +280,18 @@ async def update_trading_agent_memory(
     return AgentMemoryResponse.model_validate(row)
 
 
+@router.delete(
+    "/{agent_key}/memories/{memory_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_trading_agent_memory(
+    agent_key: str,
+    memory_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    """删除记忆（物理删除；复盘同标题经验下次沉淀会重新生成）。"""
+    await agent_memory_service.delete_memory(session, agent_key, memory_id=memory_id)
+
+
 @router.put(
     "/{agent_key}/memories/{memory_id}/status", response_model=AgentMemoryResponse
 )
