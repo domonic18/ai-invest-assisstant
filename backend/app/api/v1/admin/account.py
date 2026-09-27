@@ -10,6 +10,7 @@ from app.models.user import User
 from app.schemas.account import (
     AccountSettingsResponse,
     AccountSettingsUpdateRequest,
+    UsageCleanupResponse,
     UsageDashboardResponse,
     UsagePerUserResponse,
 )
@@ -19,6 +20,9 @@ from app.services.quota.constants import (
     SETTING_ADMIN_EXEMPT,
     SETTING_DEFAULT_QUOTA_TOKENS,
     SETTING_PENDING_EXPIRE_DAYS,
+)
+from app.services.quota.usage_cleanup_service import (
+    cleanup_token_usage as usage_cleanup,
 )
 from app.services.quota.usage_query_service import (
     dashboard as usage_dashboard,
@@ -50,6 +54,17 @@ async def get_usage_per_users(
     days = max(1, min(days, 365))
     rows = await per_user_usage(session, days=days)
     return [UsagePerUserResponse.model_validate(row) for row in rows]
+
+
+@router.post("/usage/cleanup", response_model=UsageCleanupResponse)
+async def cleanup_usage_records(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> UsageCleanupResponse:
+    """手动清理 180 天前的 token 用量记录（入审计；看板聚合窗口最长 90 天不受影响）。"""
+    removed = await usage_cleanup(session, actor_id=admin.id, ip=client_ip(request))
+    return UsageCleanupResponse(removed_count=removed)
 
 
 @router.get("/settings/account", response_model=AccountSettingsResponse)
