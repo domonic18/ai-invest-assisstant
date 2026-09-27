@@ -229,8 +229,6 @@ class TradingAgentProfileResponse(CamelModel):
     agent_key: str
     name: str
     tagline: str
-    strategy_desc: str
-    style_desc: str
     llm_config_id: int | None = None
     methodology_source_id: int | None = None
     risk_max_position_pct: float
@@ -310,8 +308,6 @@ class TradingAgentCreateRequest(CamelModel):
     name: str = Field(min_length=1, max_length=64)
     tagline: str | None = Field(default=None, max_length=128)
     prompt_id: str = Field(min_length=1, max_length=64)
-    strategy_desc: str | None = None
-    style_desc: str | None = None
     accent_color: str | None = Field(default=None, max_length=16)
     plan_cadence: Literal["daily", "weekly", "monthly"] | None = None
     review_cadence: Literal["daily", "weekly", "monthly"] | None = None
@@ -424,8 +420,6 @@ class TradingAgentProfileUpdateRequest(CamelModel):
 
     name: str | None = None
     tagline: str | None = None
-    strategy_desc: str | None = None
-    style_desc: str | None = None
     prompt_id: str | None = None
     llm_config_id: int | None = None
     methodology_source_id: int | None = None

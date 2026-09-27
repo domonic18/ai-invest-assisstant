@@ -80,10 +80,6 @@ async def _run_llm(
     # 人设段空值行跳过（D30：新建 Agent 仅填名称即可）
     identity = f"- 你是{agent.name}" + (f"（{agent.tagline}）" if agent.tagline else "")
     persona_lines = [identity]
-    if agent.style_desc or agent.strategy_desc:
-        persona_lines.append(
-            f"- 策略风格：{agent.style_desc}——{agent.strategy_desc}"
-        )
     persona_lines.append("- 以该人设的视角与风格生成选股与交易计划")
     user_prompt = (
         f"{config.system_prompt}\n\n"

@@ -10,8 +10,6 @@ function makeProfile(overrides: Partial<TradingAgentProfile> = {}): TradingAgent
     agentKey: 'short-line',
     name: '短线猎手',
     tagline: '',
-    strategyDesc: '',
-    styleDesc: '',
     llmConfigId: null,
     methodologySourceId: null,
     riskMaxPositionPct: 20,

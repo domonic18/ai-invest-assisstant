@@ -1662,8 +1662,6 @@ CREATE TABLE IF NOT EXISTS trading_agent (
     agent_key              VARCHAR(32)   PRIMARY KEY,                  -- URL 安全自然键
     name                   VARCHAR(64)   NOT NULL,                     -- 展示名
     tagline                VARCHAR(128)  NOT NULL DEFAULT '',          -- 一句话定位
-    strategy_desc          TEXT          NOT NULL DEFAULT '',          -- 策略介绍（介绍卡/预告卡）
-    style_desc             VARCHAR(64)   NOT NULL DEFAULT '',          -- 风格标签
     llm_config_id          BIGINT,                                     -- 对话/结构化输出模型；空 = 默认 chat
     methodology_source_id  BIGINT,                                     -- 方法论知识源（kb_source.id）；空 = 未启用
     risk_max_position_pct  NUMERIC(5,2)  NOT NULL DEFAULT 20,          -- 单票市值 ≤ 总资产 %
@@ -1702,16 +1700,13 @@ COMMENT ON TABLE trading_agent IS
 
 -- 种子 Agent 行（短线激活；长线/M60 未上线隐藏；新 Agent 手工 SQL 注册，不做 CRUD）。
 -- methodology_source_id 不硬编码：纯 init 新库无 kb_source 数据，启用后经配置面选择。
-INSERT INTO trading_agent (agent_key, name, tagline, strategy_desc, style_desc, status, plan_cadence, review_cadence, sort_order, prompt_id, accent_color)
+INSERT INTO trading_agent (agent_key, name, tagline, status, plan_cadence, review_cadence, sort_order, prompt_id, accent_color)
 VALUES
     ('short-line', '短线猎手', '趋势短线：顺势而为，快进快出',
-     '基于当日复盘解读与涨停归因的趋势短线策略：主线板块选股，回踩买点区间接回，破位止损。', '进取',
      'active', 'daily', 'daily', 1, 'trading_agent_short_line', '#3b82f6'),
     ('long-line', '长线舵手', '基本面长线：低频布局，穿越周期',
-     '基本面与产业趋势驱动的长线布局策略（规划中，未激活）。', '稳健',
      'planned', 'weekly', 'weekly', 2, 'trading_agent_long_line', '#10b981'),
     ('m60', '60分钟波段', 'M60 结构波段：形态驱动，波段进退',
-     '60 分钟级别结构形态驱动的波段策略（规划中，未激活）。', '灵活',
      'planned', 'daily', 'daily', 3, 'trading_agent_m60', '#f59e0b')
 ON CONFLICT (agent_key) DO NOTHING;
 

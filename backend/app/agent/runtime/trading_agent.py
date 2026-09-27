@@ -7,7 +7,7 @@
   助手工具完全隔离（D18）
 - 系统提示词：``prompts/agents/<prompt_id>.yaml``（注册行 prompt_id 指定，
   只承载硬纪律与工作流骨架）+ 注册表人设身份段运行时注入（D28：name/
-  tagline/style_desc/strategy_desc 编辑即时生效，人设摘要入缓存指纹自动重建）
+  tagline 编辑即时生效，人设摘要入缓存指纹自动重建）
   + 方法论基座静态层（D30：KB 总纲 + 纪律全量，绑定知识源后注入会话）
 - checkpointer：与助手共享 ``AsyncPostgresSaver`` 单例（thread_id 兼作会话 id）
 
@@ -49,20 +49,15 @@ def load_trading_system_prompt(prompt_id: str) -> str:
     return config.system_prompt
 
 
-def _persona_section(
-    name: str, tagline: str, style_desc: str, strategy_desc: str
-) -> str:
+def _persona_section(name: str, tagline: str) -> str:
     """注册表人设 → 系统提示词头部身份段（YAML 只留硬纪律+工作流骨架）。
 
-    tagline/style/strategy 可为空（D30 新建精简），空值行不输出。
+    tagline 可为空（D30 新建精简），空值不输出。
     """
     identity = f"- 你是 **{name}**"
     if tagline:
         identity += f"（{tagline}）"
-    lines = ["## 你的身份（注册表维护，编辑后即时生效）", identity + "。"]
-    if style_desc or strategy_desc:
-        lines.append(f"- 策略风格：{style_desc}——{strategy_desc}")
-    return "\n".join(lines)
+    return "\n".join(["## 你的身份（注册表维护，编辑后即时生效）", identity + "。"])
 
 
 async def _methodology_section(
@@ -103,7 +98,7 @@ async def resolve_trading_llm(
 def _fingerprint(
     agent_key: str,
     prompt_id: str,
-    persona: tuple[str, str, str, str],
+    persona: tuple[str, str],
     cfg: ResolvedLLMConfig,
     methodology_source_id: int | None = None,
 ) -> str:
@@ -149,7 +144,7 @@ async def get_trading_agent(
         row = await get_agent(session, agent_key)
         prompt_id = row.prompt_id
         llm_config_id = row.llm_config_id
-        persona = (row.name, row.tagline, row.style_desc, row.strategy_desc)
+        persona = (row.name, row.tagline)
         methodology_source_id, methodology_text = await _methodology_section(
             session, row.methodology_source_id
         )
@@ -179,7 +174,7 @@ async def get_trading_agent(
 async def _build_agent(
     agent_key: str,
     prompt_id: str,
-    persona: tuple[str, str, str, str],
+    persona: tuple[str, str],
     methodology_text: str,
     tools: Sequence[BaseTool] | None,
     cfg: ResolvedLLMConfig,

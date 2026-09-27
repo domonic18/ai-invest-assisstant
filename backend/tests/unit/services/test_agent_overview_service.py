@@ -150,8 +150,6 @@ def _agent_row(**overrides: object) -> SimpleNamespace:
         "agent_key": "short-line",
         "name": "短线猎手",
         "tagline": "日内强势股猎手",
-        "strategy_desc": "打板/低吸",
-        "style_desc": "激进",
         "llm_config_id": None,
         "methodology_source_id": 1,
         "risk_max_position_pct": 20.0,

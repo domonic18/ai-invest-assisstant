@@ -20,15 +20,13 @@ _TRADE_DATE = date(2026, 7, 15)  # Wednesday
 
 
 def _agent() -> SimpleNamespace:
-    """注册行替身（generate_daily_plan 消费的字段，含人设四字段）。"""
+    """注册行替身（generate_daily_plan 消费的字段，含人设两字段）。"""
     return SimpleNamespace(
         agent_key="short-line",
         llm_config_id=None,
         methodology_source_id=None,
         name="短线猎手",
         tagline="趋势短线：顺势而为，快进快出",
-        style_desc="进取",
-        strategy_desc="主线板块选股，回踩接回，破位止损",
         plan_cadence="daily",
     )
 
@@ -264,7 +262,6 @@ class TestGenerateDailyPlan:
         assert "短线猎手的选股与计划官" in user_prompt
         assert "## 计划人设" in user_prompt
         assert "短线猎手" in user_prompt
-        assert "主线板块选股" in user_prompt
         assert run_mock.await_args.kwargs["config_id"] is None
 
     @pytest.mark.asyncio

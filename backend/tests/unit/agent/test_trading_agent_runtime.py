@@ -11,7 +11,7 @@ from app.agent.runtime.trading_agent import (
 )
 from app.services.admin.llm_config_service import ResolvedLLMConfig
 
-_PERSONA = ("短线猎手", "趋势短线：顺势而为", "进取", "主线板块选股，回踩接回")
+_PERSONA = ("短线猎手", "趋势短线：顺势而为")
 
 
 def _cfg(**overrides: object) -> ResolvedLLMConfig:
@@ -34,16 +34,13 @@ class TestPersonaSection:
         section = _persona_section(*_PERSONA)
         assert "短线猎手" in section
         assert "趋势短线：顺势而为" in section
-        assert "进取" in section
-        assert "主线板块选股" in section
         assert section.startswith("## 你的身份")
 
-    def test_skips_empty_tagline_and_style(self) -> None:
+    def test_skips_empty_tagline(self) -> None:
         """D30：新建精简（仅名称），空值行不输出、不出现空括号。"""
-        section = _persona_section("新 Agent", "", "", "")
+        section = _persona_section("新 Agent", "")
         assert "新 Agent" in section
         assert "（）" not in section
-        assert "策略风格" not in section
 
 
 @pytest.mark.unit
