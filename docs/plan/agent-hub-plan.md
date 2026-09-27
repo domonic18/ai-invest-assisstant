@@ -390,3 +390,52 @@ DB 列。
   style-strategy、plan 测试去策略文案断言、review 服务增 per-agent 装载/降级/旧缓存
   兼容用例、skills 增 named loader 两用例；backend 2607 + web 431 全绿。
 - 部署纪律：迁移先于镜像，DDL 后重启 web/worker（asyncpg 语句缓存）。
+
+## 14. D35 会话管理：自动化任务执行轨迹观测（2026-09-27，分支 `feature/agent-hub-stage-redesign`）
+
+用户验收反馈四项：① agent 执行会话是黑盒子——管理员不知道自动化任务调了哪些工具、
+是否使用知识库，只能看最终结论；② 后台管理加「会话管理」看执行过程；③ 前端对话会话
+记录不纳入（LangGraph checkpoint），自动化任务多要能快速筛选；④ 展示形态类前端与
+agent 对话的工作流，思考过程有记录可展开看。三项决策（AskUserQuestion）：详情=独立
+路由页；记录=完整输入输出+单段 8KB 截断；菜单名=「会话管理」。现状核实：自动化链路
+仅落最终产物 `ai_analysis_result`（且 latency_ms=0、model=None 丢失），KB 检索/输入
+组装无持久化痕迹（仅 structlog 事件），`run_structured` 零日志。
+
+- **双表（迁移 `20260928a` + init-scripts 同步）**：`agent_run` 会话头
+  （agent_key FK CASCADE / kind=plan|review / period / trigger_type / trade_date /
+  status=running|success|failed|skipped / summary JSONB / collector_log_id 溯源）+
+  `agent_run_step`（run_id / seq UNIQUE / step_key / status / payload JSONB）。
+- **recorder（`agent_run_recorder.py`，唯一写入方）**：独立 `AsyncSessionLocal`
+  即写即 commit（业务回滚不丢观测，failed run 也留轨迹）；内部异常全吞 + warning
+  （观测永不拖垮业务，无库环境静默降级——存量服务测试零改动即过）；payload 单段
+  8KB 截断加标记，prompt/结构化输出全文段（key∈{prompt,output}）放大到 64KB；
+  `step()` body 抛错记 failed 后原样上抛，payload_builder 失败落 None。
+- **服务层接入**：plan 步骤序列 precheck → input.market_review →
+  input.kb_methodology（source_id/四类检索 query+命中数，summary.kb_used）→
+  input.context → llm（prompt 全文 + meta + 输出全文）→ validate（dropped_codes）→
+  persist（cache_row_id）；review 序列 precheck（sync_landed/has_review_target）→
+  input.window → input.market_review → input.methodology → llm → validate
+  （dropped_cl_ord_ids）→ persist。缓存命中三分支（锁前/抢锁失败/锁内）落 skipped +
+  summary.cache_hit（「为什么没跑」不再黑盒）；异常 finish failed（error_msg=类型名+
+  消息截 2000）后原样上抛。签名加 trigger/collector_log_id（spider 默认 scheduled）。
+- **meta 回填**：`run_structured` 加 keyword-only `meta_out`（latency_ms/model_name/
+  method=json_schema|function_calling|fallback/failover；failover 时 model_name 取
+  备用配置）；`persist_cache_row`/review `_persist` 落 latency_ms/model 修复历史丢失。
+- **collector 溯源**：runner `kwargs.setdefault("collector_log_id", log_id)` →
+  registry entry `params.pop` 显式穿透 `_run_collector_for_task` → `collector.run`
+  （BaseCollector.run 均 `**kwargs` 安全吸收），两个 spider 透传服务层；不经 spec
+  声明表（观测参数非业务参数，任务目录不暴露）。
+- **admin API**：`GET /admin/agent-runs`（page/page_size/agent_key/kind/period/
+  status/trigger_type/trade_date_start/end，query 走 FastAPI 签名 snake_case）+
+  `GET /admin/agent-runs/{id}`（含 steps 按 seq 升序）；repository 只读不 commit。
+- **web（/admin/agent-runs）**：列表页（Agent/类型 Segmented/周期/状态/触发/日期
+  范围筛选 + 摘要要点列，running 存在时 5s 轮询）+ 详情路由页聊天式时间线（步骤
+  卡片：图标/标题/状态/耗时，失败自动展开；llm 步 Markdown 渲染复盘契约四段 +
+  元信息 tags + Prompt 折叠 + JsonView 全量；ReasoningBlock 预留——structured 路径
+  disable_thinking 无 reasoning 数据源，payload.reasoning 存在才渲染）；侧边栏后台
+  管理组加「会话管理」。shared 加 `types/agentRun.ts` + admin.agentRuns 端点。
+- 测试：recorder 契约（FakeSession 替身：落行/计时/截断标记/异常吞/noop 降级）、
+  plan/review 服务 recorder 接线（cache→skipped、锁失败 failed 后上抛、成功
+  summary+步骤序列）、structured meta_out 三分支、admin API（camelCase wire/snake
+  筛选映射/404）、web StepPayload 渲染 8 例；backend 2628 + web 439 全绿。
+- 部署纪律：迁移先于镜像（纯新表，无存量 DDL 风险）。
