@@ -177,9 +177,9 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
     { key: '/watchlist', icon: <StarOutlined />, label: '我的自选' },
     // 模拟交易：掘金仿真账户（多租户配置 + 人工交易；agent 交易后续批次接入）
     { key: '/paper-trade', icon: <MoneyCollectOutlined />, label: '模拟交易' },
-    // 模拟管理：交易 Agent 闭环（仅 admin 可见，路由侧 ProtectedAdmin 双保险）
+    // 智体中枢：交易 Agent 闭环（仅 admin 可见，路由侧 ProtectedAdmin 双保险）
     ...(isAdmin
-      ? [{ key: '/trading-agent', icon: <ThunderboltOutlined />, label: '模拟管理' } as MenuItem]
+      ? [{ key: '/trading-agent', icon: <ThunderboltOutlined />, label: '智体中枢' } as MenuItem]
       : []),
     { type: 'group', key: 'group-detection', label: '监测', children: DETECTION_MENU_ITEMS },
     { type: 'group', key: 'group-analysis', label: '分析', children: ANALYSIS_MENU_ITEMS },
