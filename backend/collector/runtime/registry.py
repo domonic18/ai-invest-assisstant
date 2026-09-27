@@ -116,6 +116,7 @@ async def _run_collector_for_task(
     preferred_source: str | None,
     symbols: list[str] | None = None,
     extra_config: dict[str, Any] | None = None,
+    collector_log_id: int | None = None,
     **run_kwargs: Any,
 ) -> CollectResult:
     """解析渠道候选并带 fallback 地运行采集器。
@@ -149,7 +150,9 @@ async def _run_collector_for_task(
             **(extra_config or {}),
         }
         collector = collector_class(config)
-        result = await collector.run(symbols=symbols, **run_kwargs)
+        result = await collector.run(
+            symbols=symbols, collector_log_id=collector_log_id, **run_kwargs
+        )
 
         if result.status != CollectStatus.FAILED:
             if last_result is not None or attempt_errors:
@@ -191,6 +194,9 @@ def _make_task_entry(
         preferred_source: str | None = None,
         **params: Any,
     ) -> CollectResult:
+        # runner 注入的观测溯源参数（collector_log 行 id），非任务业务参数，
+        # 不进声明表/任务目录；统一透传给 spider.run(**kwargs)，无需方忽略
+        collector_log_id = params.pop("collector_log_id", None)
         resolved = {
             **spec.defaults,
             **{key: value for key, value in params.items() if value is not None},
@@ -217,6 +223,7 @@ def _make_task_entry(
             preferred_source,
             symbols=symbols,
             extra_config=extra_config,
+            collector_log_id=collector_log_id,
             **run_kwargs,
         )
 

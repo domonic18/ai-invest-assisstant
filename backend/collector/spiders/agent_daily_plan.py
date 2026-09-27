@@ -60,10 +60,13 @@ class AgentDailyPlanCollector(BaseCollector):
     async def validate(self, item: dict[str, Any]) -> bool:
         return True
 
-    async def _run_one(self, agent_key: str, trade_date: Any) -> dict[str, Any]:
+    async def _run_one(
+        self, agent_key: str, trade_date: Any, collector_log_id: Any = None
+    ) -> dict[str, Any]:
         """单 Agent 生成（独立 session，失败不污染其他 Agent）。
 
-        agent 注册行为外层批量读取的行（列属性已加载，跨 session 访问安全）。
+        agent 注册行为外层批量读取的行（列属性已加载，跨 session 访问安全）；
+        collector_log_id 透传服务层做 agent_run 溯源关联（D35 会话管理）。
         """
         async with AsyncSessionLocal() as session:
             result = await agent_plan_service.generate_daily_plan(
@@ -71,6 +74,8 @@ class AgentDailyPlanCollector(BaseCollector):
                 await agent_registry.get_agent(session, agent_key),
                 trade_date=trade_date,
                 regenerate=False,
+                trigger="scheduled",
+                collector_log_id=collector_log_id,
             )
         dropped = result.dropped_codes
         return {
@@ -123,7 +128,9 @@ class AgentDailyPlanCollector(BaseCollector):
                 continue
             try:
                 details[agent.agent_key] = await self._run_one(
-                    agent.agent_key, trade_date
+                    agent.agent_key,
+                    trade_date,
+                    collector_log_id=kwargs.get("collector_log_id"),
                 )
             except ReviewInputDataNotReadyError:
                 # 不吞掉：全部 Agent 未就绪时向 Celery 退避重试抛出。

@@ -229,8 +229,6 @@ class TradingAgentProfileResponse(CamelModel):
     agent_key: str
     name: str
     tagline: str
-    strategy_desc: str
-    style_desc: str
     llm_config_id: int | None = None
     methodology_source_id: int | None = None
     risk_max_position_pct: float
@@ -270,11 +268,21 @@ class AgentNextTask(CamelModel):
     scheduled_at: datetime
 
 
+AgentRuntimeState = Literal["working", "produced_today", "idle", "off"]
+
+
 class AgentOverviewItem(CamelModel):
-    """总览页单 Agent 聚合：介绍卡 + 模型 + 当日计数 + 近期活动 + 下次任务。"""
+    """总览页单 Agent 聚合：介绍卡 + 模型 + 当日计数 + 近期活动 + 下次任务。
+
+    runtime_state（D32）：working=collector_log 运行中且 cadence 今日命中；
+    produced_today=当日已产出计划/复盘；idle=待命；off=未启用（占位）。
+    """
 
     profile: TradingAgentProfileResponse
     llm_name: str | None = None
+    runtime_state: AgentRuntimeState = "off"
+    state_label: str | None = None
+    account_name: str | None = None
     plan_count: int = 0
     selection_count: int = 0
     order_count: int = 0
@@ -300,8 +308,6 @@ class TradingAgentCreateRequest(CamelModel):
     name: str = Field(min_length=1, max_length=64)
     tagline: str | None = Field(default=None, max_length=128)
     prompt_id: str = Field(min_length=1, max_length=64)
-    strategy_desc: str | None = None
-    style_desc: str | None = None
     accent_color: str | None = Field(default=None, max_length=16)
     plan_cadence: Literal["daily", "weekly", "monthly"] | None = None
     review_cadence: Literal["daily", "weekly", "monthly"] | None = None
@@ -414,8 +420,6 @@ class TradingAgentProfileUpdateRequest(CamelModel):
 
     name: str | None = None
     tagline: str | None = None
-    strategy_desc: str | None = None
-    style_desc: str | None = None
     prompt_id: str | None = None
     llm_config_id: int | None = None
     methodology_source_id: int | None = None
@@ -453,6 +457,14 @@ class TradingAgentReviewExperienceItem(CamelModel):
     mem_type: str
 
 
+class TradingAgentMethodologyCheckItem(CamelModel):
+    """单条方法论纪律验证结论（D34：KB 纪律逐条 followed/violated/not_applicable）。"""
+
+    title: str
+    verdict: str
+    note: str
+
+
 class TradingAgentReviewResponse(CamelModel):
     """模拟盘分层复盘（ai_analysis_result.structured_output 契约镜像）。"""
 
@@ -462,6 +474,8 @@ class TradingAgentReviewResponse(CamelModel):
     trades: list[TradingAgentTradeVerdictItem] = []
     bias: str
     suggestion: str
+    market_context: str = ""
+    methodology_check: list[TradingAgentMethodologyCheckItem] = []
     experiences: list[TradingAgentReviewExperienceItem] = []
 
 

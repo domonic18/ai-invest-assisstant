@@ -89,6 +89,22 @@ async def resolve_agent_account(
     return account
 
 
+async def resolve_agent_accounts(
+    session: AsyncSession, agent_keys: list[str]
+) -> dict[str, str]:
+    """批量解析多个 Agent 的专属账户名（agent_key → name；未绑定不进字典）。"""
+    if not agent_keys:
+        return {}
+    rows = (
+        await session.execute(
+            select(PaperTradeAccount.agent_key, PaperTradeAccount.name).where(
+                PaperTradeAccount.agent_key.in_(agent_keys)
+            )
+        )
+    ).all()
+    return {str(key): str(name) for key, name in rows if key is not None}
+
+
 async def create_account(
     session: AsyncSession,
     user_id: int,

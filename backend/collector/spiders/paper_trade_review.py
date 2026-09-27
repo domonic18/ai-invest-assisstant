@@ -38,9 +38,11 @@ class PaperTradeReviewCollector(BaseCollector):
         return True
 
     async def _run_one(
-        self, agent_key: str, trade_date: Any
+        self, agent_key: str, trade_date: Any, collector_log_id: Any = None
     ) -> dict[str, Any] | None:
         """单 Agent 按 review_cadence 生成复盘（独立 session，失败不污染其他 Agent）。
+
+        collector_log_id 透传服务层做 agent_run 溯源关联（D35 会话管理）。
 
         Returns:
             各周期生成明细；非生成日返回 None（调用方记跳过明细）。
@@ -89,6 +91,8 @@ class PaperTradeReviewCollector(BaseCollector):
                         period=period,  # type: ignore[arg-type]
                         trade_date=trade_date,
                         regenerate=False,
+                        trigger="scheduled",
+                        collector_log_id=collector_log_id,
                     )
                     metadata[period] = {"cached": result.cached}
                 except (NoReviewTargetError, PaperTradeReviewLockedError) as exc:
@@ -130,7 +134,11 @@ class PaperTradeReviewCollector(BaseCollector):
         not_ready = 0
         for agent in agents:
             try:
-                result = await self._run_one(agent.agent_key, trade_date)
+                result = await self._run_one(
+                    agent.agent_key,
+                    trade_date,
+                    collector_log_id=kwargs.get("collector_log_id"),
+                )
                 if result is None:
                     lines.append(
                         f"{agent.agent_key}: {agent.review_cadence} 频复盘未到生成日，跳过"

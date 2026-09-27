@@ -299,3 +299,143 @@ AgentOverviewItem / AgentOverviewResponse`，载荷加 agentKey；queryKeys trad
 - `assistant_session.agent_type` 数据迁移须与新代码同窗口上线（旧代码拒绝 'short-line'）；
 - 迁移后 asyncpg 预编译语句失效一次 → 先迁移后换镜像并重启；
 - watchlist 前端/查询对 owner_type='agent' 单例的隐含假设需 grep 清理。
+
+## 11. D32 总览页舞台重设计（2026-09-27，分支 `feature/agent-hub-stage-redesign`）
+
+用户验收反馈四项：管理区可收起；雷达联想不到 agent 在工作（改科技风舞台 +
+真实状态动效 + 资源交互）；多 agent 含未启用占位；图例/图标替代纯圆点。
+
+- **运行态判定（后端真相源）**：`AgentOverviewItem` 增 `runtime_state`
+  （working=collector_log 最新一条 running/pending 且该 agent cadence 今日命中
+  `_cadence_due`；produced_today=当日已产出计划/复盘；idle=待命（label 带下次
+  HH:MM）；off=未启用占位）+ `state_label` + `account_name`（批量
+  `resolve_agent_accounts`）。已知近似：两 spider 串行多 Agent 循环只落全局
+  一条 collector_log（无 agent 粒度），未来 meta 写 agent_key 可精确。
+- **舞台（前端）**：`AgentHubStage` 三层共用 `layoutHub` 像素坐标——中心枢纽
+  模拟盘交易 + 中环 4 资源站（知识库/复盘数据/资讯中心/大V情绪，图标卡）+
+  外环 Agent 单元（accentColor 光点 + 名称 + `StateBadge` 四态徽标 + 计划/
+  自选 chip，off 位置灰占位不可点）。`hubEdges` 只画真实连线：复盘数据→agent
+  （计划输入）、知识库→agent（methodologySourceId 绑定）、模拟盘→agent
+  （accountName 绑定）、资讯/大V情绪→复盘数据（上游汇入）；活跃度按 agent
+  最近活动衰减三档（<30min 流光 / <6h 慢速 / 更久静态）。fast 档 dash 流动 +
+  animateMotion 光点，`prefers-reduced-motion` 全停。
+- **页面结构**：舞台（min-w 560 横向滚动）→ 活动时间轴 → 「Agent 管理（N 个 ·
+  N 启用）」Collapse 默认收起（列表/开关/新建全在面板内）。
+- 删除 `radarLayout.ts` / `AgentNodeLabels.tsx` / `AgentRadarCanvas.tsx`。
+
+## 12. D33 分层拓扑视图：三层舞台 + 基建状态灯 + Celery 队列任务方框（2026-09-27，同分支续作）
+
+用户验收反馈三项：① 模拟盘交易被渲染成特殊中心，误导用户以为它是凌驾其他系统的中心功能
+（实际只是资源系统之一）；② 希望把服务器基建与 Celery 队列（特别是小方框任务状态）纳入
+总览，一眼看清整个系统运行情况；③ 层次感——从上到下 agent 运行 → 支撑系统（同维度）→
+基建，资讯中心与大V情绪维度不齐应修正。三项决策（AskUserQuestion）：基建五项核心
+（PostgreSQL/Redis/Celery 含队列深度/掘金柜台/MinIO，外部项留系统状态页）；Celery
+显示=队列分组任务小方框（每队列一行，hover 看任务内容，验收后定版口径）；基建与系统层
+底座带不画线。
+
+- **布局（hubLayout.ts 重写）**：`layoutLayers(width, height, agentCount, queueCount)`
+  自上而下三带——Agent 层 y≈16%（单行均布）/ 资源系统层 y≈46%（五站 kb/review/news/
+  sentiment/paper 同维度均布，paper 降级普通站）/ 基建层 y≈74%（五盒均布）+ 队列分组带
+  y≈92%（每队列一个锚点）；`CLAMP_MARGIN=56` 防越界。层带标签由组件渲染。
+- **基建层（InfraLayer.tsx + infraStatus.ts）**：五盒状态灯映射
+  `mapInfraStatus`（postgres/redis/minio 直取 system status；celery=broker+workers 双
+  up；counter=paper-trade）+ latency 展示；Celery 盒附三队列 pending 计数。底带
+  `QueueGroup` 与系统状态页 CeleryQueuesCard 同口径：每队列一行（label + 执行中/排队
+  计数 + 任务小方框着状态色，running CSS 转圈，hover Tooltip 显示任务名/状态/耗时/
+  起止时间/detail）。纯函数独立文件满足 react-refresh 规则。数据缺失降级不阻塞舞台。
+- **舞台（AgentHubStage.tsx）**：背景 Canvas 保留网格+conic 扫描线，删中心脉冲光晕，增
+  层带淡横线；连线层沿用 `hubEdges`（规则不变，分层后自然变跨层纵向+同层横向）；节点层
+  三类组件共用 `layoutLayers` 像素坐标；图例三行（状态四态/连线四色/基建灯与小方框含义）。
+  `useSystemStatus`（30s）+ `useCeleryQueues`（自适应轮询）现成 hooks，本批零后端改动。
+- **容器**：舞台加高 h-[540px] md:h-[620px]，min-w-[680px]（5 站+5 盒横排所需）。
+- 测试：`hubLayout.test.ts` 重写为分层几何断言（三带 y/均布/队列锚点/clamp/空数组/站序
+  含 paper）；`hubEdges.test.ts` 不动；431 单测全绿。
+
+## 13. D34 验收反馈四批：字段清零 + 人设自主化 + 复盘 skill 化（2026-09-27，同分支续作）
+
+用户验收反馈四项：① 工作台仍显示风格/策略字段（D30 只删了设置表单，DB 列/介绍卡/
+能力卡/三处提示词注入/shared 类型全链路残留）；② 持仓与交易页委托/成交 Tabs 默认落
+「委托」，应默认「成交」；③ 会话人设 YAML 是「用户-facing 交易助手」写法（理解意图/
+追问澄清/回答风格），与交易 Agent 自主作业体定位冲突，且工作流与技能包五步不一致；
+④ 复盘无 skill（prompt 藏在 prompts/agents 配置页不可见），缺当日盘面语境与 KB 方法论
+验证。三项决策（AskUserQuestion）：会话=自主为主+过渡代执行（批次 8 前用户明确指示
+可代执行且须 ask_user 确认）；复盘 skill 并入每 Agent 技能包；风格/策略全链路删除含
+DB 列。
+
+- **字段全链路删除**：迁移 `20260927a`（DROP COLUMN strategy_desc/style_desc，幂等）+
+  init-scripts 建表与 seed 同步；ORM/schema（视图/update/create 三 payload）/
+  registry（to_view/白名单/create）；提示词注入三处收窄为 (name, tagline)
+  （runtime `_persona_section` + fingerprint persona tuple、plan/review user_prompt
+  人设段）；shared `TradingAgentProfile` 删 styleDesc/strategyDesc；web 介绍卡/能力卡
+  删两段。
+- **成交默认 Tab**：`AgentTradeRecords.tsx` Tabs `defaultActiveKey="executions"`。
+- **人设自主化重写（v1.2.0）**：三 YAML 统一骨架+风格差异——使命（自主作业体：
+  复盘→计划→执行→复盘闭环，会话是观察窗口不是指令来源）/ 身份与边界（保留）/
+  作业循环（对齐技能包五步：输入就绪→盘面定位→选股→计划→复盘沉淀）/ 交易纪律
+  （去用户化：风控拦截不绕过、如实转述、止损铁律、计划即承诺）/ 人工协同（过渡期
+  代执行必须 ask_user 确认完整交易要素）/ 汇报规范（替代回答风格）。
+- **复盘 skill 化**：`skills/prompt.py` 增 `load_named_skill_prompt(skill_id, filename)`
+  （缓存键 `skill_id:filename`；filename 调用方硬编码无穿越面），四个 trading 技能包
+  各增 `REVIEW.md`（复盘作业程序五步）+ `review_prompt.yaml`（原共享契约迁移 + 盘面
+  语境 + 方法论验证段 + 新输出字段说明），装载 specific → trading-default 兜底
+  （镜像 plan_skill_id）；删 `prompts/agents/trading_review.yaml`。
+  `agent_review_service`：输入增补 `market_review`（`_market_review_optional` 复用
+  agent_plan_input 采集器，缺失降级 None 不阻塞——补跑历史窗口容错）+ `methodology`
+  （`build_methodology_input` query_text=None 静态层，未绑定 None）；契约
+  `PaperTradeReviewContent` 加 `market_context` + `methodology_check`
+  （title/verdict 三态/note，禁默认值进 required），before-validator 补旧缓存行缺失键
+  （skill_id/input_hash 未变，旧复盘可读）；wire `TradingAgentReviewResponse` +
+  shared + ReviewPanel（盘面语境行 + 方法论验证列表 verdict Tag）。
+- 测试：runtime persona/fingerprint 收窄、registry/plan/review/overview/api 去
+  style-strategy、plan 测试去策略文案断言、review 服务增 per-agent 装载/降级/旧缓存
+  兼容用例、skills 增 named loader 两用例；backend 2607 + web 431 全绿。
+- 部署纪律：迁移先于镜像，DDL 后重启 web/worker（asyncpg 语句缓存）。
+
+## 14. D35 会话管理：自动化任务执行轨迹观测（2026-09-27，分支 `feature/agent-hub-stage-redesign`）
+
+用户验收反馈四项：① agent 执行会话是黑盒子——管理员不知道自动化任务调了哪些工具、
+是否使用知识库，只能看最终结论；② 后台管理加「会话管理」看执行过程；③ 前端对话会话
+记录不纳入（LangGraph checkpoint），自动化任务多要能快速筛选；④ 展示形态类前端与
+agent 对话的工作流，思考过程有记录可展开看。三项决策（AskUserQuestion）：详情=独立
+路由页；记录=完整输入输出+单段 8KB 截断；菜单名=「会话管理」。现状核实：自动化链路
+仅落最终产物 `ai_analysis_result`（且 latency_ms=0、model=None 丢失），KB 检索/输入
+组装无持久化痕迹（仅 structlog 事件），`run_structured` 零日志。
+
+- **双表（迁移 `20260928a` + init-scripts 同步）**：`agent_run` 会话头
+  （agent_key FK CASCADE / kind=plan|review / period / trigger_type / trade_date /
+  status=running|success|failed|skipped / summary JSONB / collector_log_id 溯源）+
+  `agent_run_step`（run_id / seq UNIQUE / step_key / status / payload JSONB）。
+- **recorder（`agent_run_recorder.py`，唯一写入方）**：独立 `AsyncSessionLocal`
+  即写即 commit（业务回滚不丢观测，failed run 也留轨迹）；内部异常全吞 + warning
+  （观测永不拖垮业务，无库环境静默降级——存量服务测试零改动即过）；payload 单段
+  8KB 截断加标记，prompt/结构化输出全文段（key∈{prompt,output}）放大到 64KB；
+  `step()` body 抛错记 failed 后原样上抛，payload_builder 失败落 None。
+- **服务层接入**：plan 步骤序列 precheck → input.market_review →
+  input.kb_methodology（source_id/四类检索 query+命中数，summary.kb_used）→
+  input.context → llm（prompt 全文 + meta + 输出全文）→ validate（dropped_codes）→
+  persist（cache_row_id）；review 序列 precheck（sync_landed/has_review_target）→
+  input.window → input.market_review → input.methodology → llm → validate
+  （dropped_cl_ord_ids）→ persist。缓存命中三分支（锁前/抢锁失败/锁内）落 skipped +
+  summary.cache_hit（「为什么没跑」不再黑盒）；异常 finish failed（error_msg=类型名+
+  消息截 2000）后原样上抛。签名加 trigger/collector_log_id（spider 默认 scheduled）。
+- **meta 回填**：`run_structured` 加 keyword-only `meta_out`（latency_ms/model_name/
+  method=json_schema|function_calling|fallback/failover；failover 时 model_name 取
+  备用配置）；`persist_cache_row`/review `_persist` 落 latency_ms/model 修复历史丢失。
+- **collector 溯源**：runner `kwargs.setdefault("collector_log_id", log_id)` →
+  registry entry `params.pop` 显式穿透 `_run_collector_for_task` → `collector.run`
+  （BaseCollector.run 均 `**kwargs` 安全吸收），两个 spider 透传服务层；不经 spec
+  声明表（观测参数非业务参数，任务目录不暴露）。
+- **admin API**：`GET /admin/agent-runs`（page/page_size/agent_key/kind/period/
+  status/trigger_type/trade_date_start/end，query 走 FastAPI 签名 snake_case）+
+  `GET /admin/agent-runs/{id}`（含 steps 按 seq 升序）；repository 只读不 commit。
+- **web（/admin/agent-runs）**：列表页（Agent/类型 Segmented/周期/状态/触发/日期
+  范围筛选 + 摘要要点列，running 存在时 5s 轮询）+ 详情路由页聊天式时间线（步骤
+  卡片：图标/标题/状态/耗时，失败自动展开；llm 步 Markdown 渲染复盘契约四段 +
+  元信息 tags + Prompt 折叠 + JsonView 全量；ReasoningBlock 预留——structured 路径
+  disable_thinking 无 reasoning 数据源，payload.reasoning 存在才渲染）；侧边栏后台
+  管理组加「会话管理」。shared 加 `types/agentRun.ts` + admin.agentRuns 端点。
+- 测试：recorder 契约（FakeSession 替身：落行/计时/截断标记/异常吞/noop 降级）、
+  plan/review 服务 recorder 接线（cache→skipped、锁失败 failed 后上抛、成功
+  summary+步骤序列）、structured meta_out 三分支、admin API（camelCase wire/snake
+  筛选映射/404）、web StepPayload 渲染 8 例；backend 2628 + web 439 全绿。
+- 部署纪律：迁移先于镜像（纯新表，无存量 DDL 风险）。

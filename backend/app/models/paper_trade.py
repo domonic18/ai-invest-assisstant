@@ -148,8 +148,6 @@ class TradingAgent(Base):
     agent_key: Mapped[str] = mapped_column(String(32), primary_key=True)
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     tagline: Mapped[str] = mapped_column(String(128), nullable=False, default="")
-    strategy_desc: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    style_desc: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     llm_config_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # 对话/结构化输出模型；FK 见迁移（ON DELETE SET NULL），空 = 默认 chat

@@ -362,5 +362,7 @@ export const ENDPOINTS = {
       `${API_BASE}/admin/paper-trade/accounts/${id}/agent`,
     paperTradeAccountEnabled: (id: number | string) =>
       `${API_BASE}/admin/paper-trade/accounts/${id}/enabled`,
+    agentRuns: `${API_BASE}/admin/agent-runs`,
+    agentRun: (id: number | string) => `${API_BASE}/admin/agent-runs/${id}`,
   },
 } as const

@@ -23,6 +23,9 @@ export const queryKeys = {
     accountSettings: ['admin-account-settings'] as const,
     systemStatus: ['admin-system-status'] as const,
     celeryQueues: ['admin-celery-queues'] as const,
+    agentRuns: (filters?: Record<string, unknown>) =>
+      ['admin-agent-runs', filters ?? {}] as const,
+    agentRunDetail: (id: number) => ['admin-agent-run', id] as const,
   },
   auction: {
     all: ['auction'] as const,

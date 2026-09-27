@@ -169,7 +169,7 @@ function WorkbenchPane() {
   )
 }
 
-/** Agent 介绍卡：accent_color 点缀 + 策略/风格/方法论/模型（注册行 + 能力视图）。 */
+/** Agent 介绍卡：accent_color 点缀 + 方法论/模型（注册行 + 能力视图）。 */
 function AgentIntroCard({ profile }: { profile: TradingAgentProfile }) {
   const { data: llmOptions } = useTradingAgentLlmOptions()
   const { data: capability } = useTradingAgentStatus(profile.agentKey)
@@ -191,20 +191,6 @@ function AgentIntroCard({ profile }: { profile: TradingAgentProfile }) {
           </Typography.Text>
         ) : null}
       </span>
-      {profile.strategyDesc ? (
-        <span className="inline-flex items-center gap-1.5 text-xs">
-          <span className="text-white/60">策略</span>
-          <Typography.Text className="text-xs">{profile.strategyDesc}</Typography.Text>
-        </span>
-      ) : null}
-      {profile.styleDesc ? (
-        <span className="inline-flex items-center gap-1.5 text-xs">
-          <span className="text-white/60">风格</span>
-          <Tag color="geekblue" className="!mr-0">
-            {profile.styleDesc}
-          </Tag>
-        </span>
-      ) : null}
       <span className="inline-flex items-center gap-1.5 text-xs">
         <span className="text-white/60">方法论</span>
         <Tag color="purple" className="!mr-0">

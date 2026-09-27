@@ -8,8 +8,6 @@ export interface TradingAgentProfile {
   agentKey: string
   name: string
   tagline: string
-  strategyDesc: string
-  styleDesc: string
   /** 绑定的 llm_config 条目 id；null = 平台默认 chat 模型。 */
   llmConfigId: number | null
   /** 方法论知识源（kb_source.id）；null = 未启用方法论基座注入。 */
@@ -41,8 +39,6 @@ export type AgentCadence = 'daily' | 'weekly' | 'monthly'
 export interface TradingAgentProfileUpdateRequest {
   name?: string
   tagline?: string
-  strategyDesc?: string
-  styleDesc?: string
   /** 会话人设模板换绑（D30 开放更新；须在模板清单内）。 */
   promptId?: string
   llmConfigId?: number | null
@@ -72,10 +68,16 @@ export interface AgentNextTask {
   scheduledAt: string
 }
 
-/** 总览页单 Agent 聚合：介绍卡 + 模型 + 当日计数 + 近期活动 + 下次任务。 */
+/** 总览运行态（D32）：working=定时任务运行中且 cadence 今日命中；produced_today=当日已产出；idle=待命；off=未启用占位。 */
+export type AgentRuntimeState = 'working' | 'produced_today' | 'idle' | 'off'
+
+/** 总览页单 Agent 聚合：介绍卡 + 模型 + 运行态 + 当日计数 + 近期活动 + 下次任务。 */
 export interface AgentOverviewItem {
   profile: TradingAgentProfile
   llmName: string | null
+  runtimeState: AgentRuntimeState
+  stateLabel: string | null
+  accountName: string | null
   planCount: number
   selectionCount: number
   orderCount: number
@@ -109,6 +111,13 @@ export interface ApiTradingAgentReviewExperience {
   memType: 'discipline' | 'method' | 'lesson'
 }
 
+/** 方法论纪律验证条目（D34：KB 纪律逐条 followed/violated/not_applicable）。 */
+export interface ApiTradingAgentMethodologyCheck {
+  title: string
+  verdict: 'followed' | 'violated' | 'not_applicable'
+  note: string
+}
+
 /** 模拟盘分层复盘（admin GET /trading-agent/review，只读缓存）。 */
 export interface ApiTradingAgentReview {
   period: TradingReviewPeriod
@@ -117,6 +126,10 @@ export interface ApiTradingAgentReview {
   trades: ApiTradingAgentTradeVerdict[]
   bias: string
   suggestion: string
+  /** 盘面语境归纳（D34：基准日大盘/主线板块/情绪位置及对本周期操作的定性影响）。 */
+  marketContext: string
+  /** 方法论验证（D34：KB 纪律逐条结论；未绑定知识源为空数组）。 */
+  methodologyCheck: ApiTradingAgentMethodologyCheck[]
   experiences: ApiTradingAgentReviewExperience[]
 }
 
@@ -198,14 +211,12 @@ export interface ApiAgentMemoryUpdateRequest {
   memType?: AgentMemoryType
 }
 
-/** 新建交易 Agent 请求（D29 创建即 active；D30 精简：标语/风格/策略可不填）。 */
+/** 新建交易 Agent 请求（D29 创建即 active；D34 精简：标语可不填）。 */
 export interface TradingAgentCreateRequest {
   agentKey: string
   name: string
   tagline?: string | null
   promptId: string
-  strategyDesc?: string | null
-  styleDesc?: string | null
   accentColor?: string | null
   planCadence?: AgentCadence | null
   reviewCadence?: AgentCadence | null

@@ -158,15 +158,21 @@ async def persist_cache_row(
     skill_id: str,
     input_hash: str,
     content: AgentDailyPlanContent,
+    meta: dict[str, Any] | None = None,
 ) -> int:
-    """写入 LLM 结果缓存行（``ai_analysis_result``），返回行 id 供选股回填。"""
+    """写入 LLM 结果缓存行（``ai_analysis_result``），返回行 id 供选股回填。
+
+    meta 携带 run_structured 回填的 model_name/latency_ms（D35 修复历史
+    model=None/latency_ms=0 丢失），缺失时回退 None/0。
+    """
+    meta = meta or {}
     return await ai_analysis_repository.insert_result(
         session,
         skill_id=skill_id,
         input_hash=input_hash,
         prompt_id=skill_id,
-        model=None,
+        model=meta.get("model_name"),
         structured=content.model_dump(mode="json"),
-        latency_ms=0,
+        latency_ms=int(meta.get("latency_ms") or 0),
         status="success",
     )

@@ -1,5 +1,5 @@
 /**
- * Agent 持仓与交易（模拟管理页 tab，D29 重构）：agent 专属账户的资金
+ * Agent 持仓与交易（智体中枢页 tab，D29 重构）：agent 专属账户的资金
  * 五指标（总资产/持仓市值/可用资金/累计盈亏/当日盈亏）+ 当前持仓 +
  * 委托/成交记录（日期选择即历史查询）。
  *
@@ -123,6 +123,7 @@ function AgentAccountRecords({ accountId, accountName }: { accountId: number; ac
       <Card size="small" title="交易记录" styles={{ body: { paddingTop: 4 } }}>
         <Tabs
           size="small"
+          defaultActiveKey="executions"
           items={[
             { key: 'orders', label: '委托', children: <PaperTradeOrdersPanel accountId={accountId} /> },
             {

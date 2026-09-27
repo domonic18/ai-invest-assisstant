@@ -9,6 +9,7 @@
 """
 
 import base64
+import time
 from typing import Any, TypeVar, cast
 
 from langchain_core.exceptions import OutputParserException
@@ -44,6 +45,7 @@ async def run_structured(
     user_id: int | None = None,
     vision: bool = False,
     config_id: int | None = None,
+    meta_out: dict[str, Any] | None = None,
 ) -> T:
     """执行单次结构化 LLM 调用并返回 pydantic 模型实例。
 
@@ -57,6 +59,9 @@ async def run_structured(
         vision: 无 BYOK 时解析视觉能力配置（截图识别路径）。
         config_id: 显式指定 llm_config 条目（F-KB 模型角色槽位路径），
             设置后忽略 ``user_id``/``vision`` 分流，走系统维度计量。
+        meta_out: 调用元信息回填容器（可选）。成功后写入
+            ``latency_ms``/``model_name``/``method``/``failover``，供调用方
+            落观测（agent_run llm step、ai_analysis_result 补全等）。
 
     Raises:
         ValidationError: 模型输出不符合 schema（重试一次后仍失败）。
@@ -103,12 +108,19 @@ async def run_structured(
         # 首选法解析失败时按兜底序换法重试一次；无兜底法则同法重试
         fallback = methods[1] if len(methods) > 1 else methods[0]
         try:
-            return await _invoke_method(current, methods[0])
+            result = await _invoke_method(current, methods[0])
+            _meta["method"] = methods[0]
+            return result
         except (ValidationError, OutputParserException):
-            return await _invoke_method(current, fallback)
+            result = await _invoke_method(current, fallback)
+            _meta["method"] = "fallback"
+            return result
 
+    _meta: dict[str, str] = {}
+    t0 = time.monotonic()
+    failover = False
     try:
-        return await _invoke(cfg)
+        result = await _invoke(cfg)
     except Exception as exc:
         if not classify_llm_error(exc):
             raise
@@ -122,4 +134,14 @@ async def run_structured(
             retried, _outlet = await resolve_llm(session, user_id, vision=vision)
         if retried.config_id == cfg.config_id:
             raise
-        return await _invoke(retried)
+        failover = True
+        final_cfg = retried
+        result = await _invoke(retried)
+    else:
+        final_cfg = cfg
+    if meta_out is not None:
+        meta_out["latency_ms"] = int((time.monotonic() - t0) * 1000)
+        meta_out["model_name"] = final_cfg.model_name
+        meta_out["method"] = _meta.get("method")
+        meta_out["failover"] = failover
+    return result

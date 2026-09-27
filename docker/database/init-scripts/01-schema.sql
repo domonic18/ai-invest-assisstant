@@ -1662,8 +1662,6 @@ CREATE TABLE IF NOT EXISTS trading_agent (
     agent_key              VARCHAR(32)   PRIMARY KEY,                  -- URL 安全自然键
     name                   VARCHAR(64)   NOT NULL,                     -- 展示名
     tagline                VARCHAR(128)  NOT NULL DEFAULT '',          -- 一句话定位
-    strategy_desc          TEXT          NOT NULL DEFAULT '',          -- 策略介绍（介绍卡/预告卡）
-    style_desc             VARCHAR(64)   NOT NULL DEFAULT '',          -- 风格标签
     llm_config_id          BIGINT,                                     -- 对话/结构化输出模型；空 = 默认 chat
     methodology_source_id  BIGINT,                                     -- 方法论知识源（kb_source.id）；空 = 未启用
     risk_max_position_pct  NUMERIC(5,2)  NOT NULL DEFAULT 20,          -- 单票市值 ≤ 总资产 %
@@ -1702,16 +1700,13 @@ COMMENT ON TABLE trading_agent IS
 
 -- 种子 Agent 行（短线激活；长线/M60 未上线隐藏；新 Agent 手工 SQL 注册，不做 CRUD）。
 -- methodology_source_id 不硬编码：纯 init 新库无 kb_source 数据，启用后经配置面选择。
-INSERT INTO trading_agent (agent_key, name, tagline, strategy_desc, style_desc, status, plan_cadence, review_cadence, sort_order, prompt_id, accent_color)
+INSERT INTO trading_agent (agent_key, name, tagline, status, plan_cadence, review_cadence, sort_order, prompt_id, accent_color)
 VALUES
     ('short-line', '短线猎手', '趋势短线：顺势而为，快进快出',
-     '基于当日复盘解读与涨停归因的趋势短线策略：主线板块选股，回踩买点区间接回，破位止损。', '进取',
      'active', 'daily', 'daily', 1, 'trading_agent_short_line', '#3b82f6'),
     ('long-line', '长线舵手', '基本面长线：低频布局，穿越周期',
-     '基本面与产业趋势驱动的长线布局策略（规划中，未激活）。', '稳健',
      'planned', 'weekly', 'weekly', 2, 'trading_agent_long_line', '#10b981'),
     ('m60', '60分钟波段', 'M60 结构波段：形态驱动，波段进退',
-     '60 分钟级别结构形态驱动的波段策略（规划中，未激活）。', '灵活',
      'planned', 'daily', 'daily', 3, 'trading_agent_m60', '#f59e0b')
 ON CONFLICT (agent_key) DO NOTHING;
 
@@ -1796,3 +1791,47 @@ CREATE INDEX IF NOT EXISTS idx_agent_memory_status ON agent_memory(status, mem_t
 
 COMMENT ON TABLE agent_memory IS
     '交易 Agent 自有迭代经验（复盘沉淀 + 手动沉淀，反哺每日计划，docs/plan/paper-trading-plan.md §12.1）';
+
+CREATE TABLE IF NOT EXISTS agent_run (
+    id               BIGSERIAL PRIMARY KEY,
+    agent_key        VARCHAR(32)  NOT NULL REFERENCES trading_agent (agent_key) ON DELETE CASCADE,  -- 归属 Agent
+    kind             VARCHAR(16)  NOT NULL,      -- plan 每日计划 / review 分层复盘
+    period           VARCHAR(16),                -- day / week / month（review 必填；plan 存 cadence 映射）
+    trigger_type     VARCHAR(16)  NOT NULL DEFAULT 'scheduled',  -- scheduled 定时 / manual 手动
+    trade_date       DATE,                       -- 基准交易日
+    status           VARCHAR(16)  NOT NULL,      -- running / success / failed / skipped（缓存命中等）
+    started_at       TIMESTAMPTZ NOT NULL,
+    finished_at      TIMESTAMPTZ,
+    duration_ms      INT,
+    error_msg        TEXT,
+    summary          JSONB,                      -- 结果摘要：cache_hit / kb_used / selections / plans / dropped_codes 等
+    collector_log_id BIGINT,                     -- collector_log.id（定时链路溯源）
+    CONSTRAINT chk_agent_run_kind CHECK (kind IN ('plan', 'review')),
+    CONSTRAINT chk_agent_run_trigger CHECK (trigger_type IN ('scheduled', 'manual')),
+    CONSTRAINT chk_agent_run_status CHECK (status IN ('running', 'success', 'failed', 'skipped'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_run_key_time
+    ON agent_run(agent_key, started_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_agent_run_status_running
+    ON agent_run(status) WHERE status = 'running';
+
+COMMENT ON TABLE agent_run IS
+    '交易 Agent 自动化任务执行会话（会话管理真相源，docs/plan/agent-hub-plan.md D35）';
+
+CREATE TABLE IF NOT EXISTS agent_run_step (
+    id          BIGSERIAL PRIMARY KEY,
+    run_id      BIGINT      NOT NULL REFERENCES agent_run (id) ON DELETE CASCADE,
+    seq         INT         NOT NULL,          -- 步骤序号（从 1 递增）
+    step_key    VARCHAR(64) NOT NULL,          -- 步骤标识：precheck / input.market_review / llm / validate / persist 等
+    title       VARCHAR(128),                  -- 展示标题
+    status      VARCHAR(16) NOT NULL,          -- success / failed
+    started_at  TIMESTAMPTZ,
+    duration_ms INT,
+    payload     JSONB,                         -- 步骤完整输入输出（代码层 8KB/段截断）
+    CONSTRAINT uq_agent_run_step_seq UNIQUE (run_id, seq)
+);
+
+COMMENT ON TABLE agent_run_step IS
+    '交易 Agent 会话执行步骤明细（工具调用/KB 检索/LLM 全文，D35）';

@@ -40,6 +40,10 @@ const TradeCalendarAdmin = lazy(() =>
 const UsageDashboard = lazy(() =>
   import('./pages/Admin/UsageDashboard/UsageDashboard').then((m) => ({ default: m.UsageDashboard })),
 )
+const AgentRuns = lazy(() => import('./pages/Admin/AgentRuns/AgentRuns').then((m) => ({ default: m.AgentRuns })))
+const AgentRunDetail = lazy(() =>
+  import('./pages/Admin/AgentRuns/AgentRunDetail').then((m) => ({ default: m.AgentRunDetail })),
+)
 const AiResultsAdmin = lazy(() =>
   import('./pages/Admin/AiResults/AiResultsAdmin').then((m) => ({
     default: m.AiResultsAdmin,
@@ -156,6 +160,9 @@ export const router = createBrowserRouter([
           { path: 'social-tracking', element: lazyEl(<SocialTracking />) },
           { path: 'proxy-configs', element: lazyEl(<ProxyConfig />) },
           { path: 'ai-results', element: lazyEl(<AiResultsAdmin />) },
+          // 会话管理（D35）：Agent 自动化任务执行轨迹列表 + 详情时间线
+          { path: 'agent-runs', element: lazyEl(<AgentRuns />) },
+          { path: 'agent-runs/:id', element: lazyEl(<AgentRunDetail />) },
           { path: 'collector-channels', element: <Navigate to="/admin/collector?tab=channels" replace /> },
           { path: 'collector', element: lazyEl(<CollectorAdmin />) },
           { path: 'paper-trade', element: <Navigate to="/trading-agent?tab=accounts" replace /> },

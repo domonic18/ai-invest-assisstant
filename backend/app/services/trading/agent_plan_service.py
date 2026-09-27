@@ -16,6 +16,7 @@
 import hashlib
 import json
 from datetime import date
+from typing import Any
 
 import structlog
 from sqlalchemy import select
@@ -31,9 +32,13 @@ from app.services.trading.agent_plan_schemas import (
     AgentDailyPlanContent,
     PlanGenerateResult,
 )
+from app.services.trading.agent_run_recorder import AgentRunRecorder
 from app.skills import load_skill_prompt
 
 logger = structlog.get_logger(__name__)
+
+#: plan_cadence（注册行）→ agent_run.period 列映射（day/week/month）
+_CADENCE_PERIODS = {"daily": "day", "weekly": "week", "monthly": "month"}
 
 
 def plan_skill_id(agent_key: str) -> str:
@@ -49,6 +54,11 @@ class PlanGenerationLockedError(ConflictError):
     """其他实例正在生成同日交易计划。"""
 
     default_message = "交易计划正在生成中，请稍后重试"
+
+
+def _error_text(exc: BaseException) -> str:
+    """异常转 agent_run.error_msg 文本（类型名 + 消息，截断 2000 字符）。"""
+    return f"{type(exc).__name__}: {exc}"[:2000]
 
 
 def _input_hash(agent_key: str, account_id: int, trade_date: date) -> str:
@@ -75,15 +85,14 @@ async def _run_llm(
     agent: TradingAgent,
     trade_date: date,
     plan_input: dict,
+    *,
+    meta_out: dict[str, Any] | None = None,
+    prompt_out: dict[str, str] | None = None,
 ) -> AgentDailyPlanContent:
     config = load_skill_prompt(plan_skill_id(agent.agent_key))
     # 人设段空值行跳过（D30：新建 Agent 仅填名称即可）
     identity = f"- 你是{agent.name}" + (f"（{agent.tagline}）" if agent.tagline else "")
     persona_lines = [identity]
-    if agent.style_desc or agent.strategy_desc:
-        persona_lines.append(
-            f"- 策略风格：{agent.style_desc}——{agent.strategy_desc}"
-        )
     persona_lines.append("- 以该人设的视角与风格生成选股与交易计划")
     user_prompt = (
         f"{config.system_prompt}\n\n"
@@ -95,6 +104,8 @@ async def _run_llm(
         f"## 计划输入数据（JSON）\n"
         f"{json.dumps(plan_input, ensure_ascii=False, default=str)}"
     )
+    if prompt_out is not None:
+        prompt_out["prompt"] = user_prompt
     from app.agent.runtime.structured import run_structured
 
     return await run_structured(
@@ -102,6 +113,7 @@ async def _run_llm(
         result_type=AgentDailyPlanContent,
         user_prompt=user_prompt,
         config_id=agent.llm_config_id,
+        meta_out=meta_out,
     )
 
 
@@ -135,8 +147,13 @@ async def generate_daily_plan(
     *,
     trade_date: date | None = None,
     regenerate: bool = False,
+    trigger: str = "scheduled",
+    collector_log_id: int | None = None,
 ) -> PlanGenerateResult:
     """生成（或读取缓存的）指定 Agent 当日选股与交易计划。
+
+    全程经 ``AgentRunRecorder`` 记录执行轨迹（D35 会话管理）：缓存命中落
+    skipped + cache_hit，异常落 failed 后原样上抛。
 
     Raises:
         NonTradingDayError: 指定日期不是交易日
@@ -164,47 +181,136 @@ async def generate_daily_plan(
     skill_id = plan_skill_id(agent.agent_key)
     input_hash = _input_hash(agent.agent_key, account.id, resolved)
 
-    if not regenerate:
-        cached = await _load_cached(session, skill_id, input_hash)
-        if cached:
-            return PlanGenerateResult(
-                content=cached, cached=True, dropped_codes=[]
-            )
-
-    # 输入组装（内含就绪预检：复盘解读缺失即抛未就绪）
-    plan_input, manual_removed = await agent_plan_input.collect_plan_input(
-        session, agent, account.id, resolved
+    recorder = AgentRunRecorder(
+        agent_key=agent.agent_key,
+        kind="plan",
+        period=_CADENCE_PERIODS.get(agent.plan_cadence),
+        trigger=trigger,
+        trade_date=resolved,
+        collector_log_id=collector_log_id,
     )
-
-    async with redis_lock(
-        f"{skill_id}:{agent.agent_key}:{account.id}:{resolved.isoformat()}",
-        ttl=GENERATION_LOCK_TTL_SECONDS,
-    ) as acquired:
-        if not acquired:
-            cached = await _load_cached(session, skill_id, input_hash)
-            if cached:
-                return PlanGenerateResult(content=cached, cached=True, dropped_codes=[])
-            raise PlanGenerationLockedError(
-                f"其他实例正在生成 {resolved.isoformat()} 的每日计划"
-            )
-
+    await recorder.start()
+    try:
         if not regenerate:
             cached = await _load_cached(session, skill_id, input_hash)
             if cached:
-                return PlanGenerateResult(content=cached, cached=True, dropped_codes=[])
+                await recorder.finish(
+                    "skipped", summary={"cache_hit": True, "stage": "pre_lock"}
+                )
+                return PlanGenerateResult(
+                    content=cached, cached=True, dropped_codes=[]
+                )
 
-        content = await _run_llm(session, agent, resolved, plan_input)
-        content, dropped = await _validate_codes(session, content, manual_removed)
-        cache_row_id = await agent_plan_persist.persist_cache_row(
-            session, skill_id=skill_id, input_hash=input_hash, content=content
+        async with recorder.step(
+            "precheck",
+            "执行预检",
+            payload_builder=lambda: {
+                "trade_date": resolved.isoformat(),
+                "account_id": account.id,
+                "skill_id": skill_id,
+                "regenerate": regenerate,
+            },
+        ):
+            pass
+
+        # 输入组装（内含就绪预检：复盘解读缺失即抛未就绪）
+        plan_input, manual_removed = await agent_plan_input.collect_plan_input(
+            session, agent, account.id, resolved, recorder=recorder
         )
-        await agent_plan_persist.persist_plan(
-            session,
-            agent_key=agent.agent_key,
-            trade_date=resolved,
-            content=content,
-            source_result_id=cache_row_id,
-        )
+
+        async with redis_lock(
+            f"{skill_id}:{agent.agent_key}:{account.id}:{resolved.isoformat()}",
+            ttl=GENERATION_LOCK_TTL_SECONDS,
+        ) as acquired:
+            if not acquired:
+                cached = await _load_cached(session, skill_id, input_hash)
+                if cached:
+                    await recorder.finish(
+                        "skipped",
+                        summary={"cache_hit": True, "stage": "lock_unavailable"},
+                    )
+                    return PlanGenerateResult(
+                        content=cached, cached=True, dropped_codes=[]
+                    )
+                await recorder.finish(
+                    "failed",
+                    error_msg=f"其他实例正在生成 {resolved.isoformat()} 的每日计划",
+                )
+                raise PlanGenerationLockedError(
+                    f"其他实例正在生成 {resolved.isoformat()} 的每日计划"
+                )
+
+            if not regenerate:
+                cached = await _load_cached(session, skill_id, input_hash)
+                if cached:
+                    await recorder.finish(
+                        "skipped", summary={"cache_hit": True, "stage": "in_lock"}
+                    )
+                    return PlanGenerateResult(
+                        content=cached, cached=True, dropped_codes=[]
+                    )
+
+            llm_meta: dict[str, Any] = {}
+            prompt_holder: dict[str, str] = {}
+            output_holder: dict[str, Any] = {}
+            async with recorder.step(
+                "llm",
+                "LLM 结构化生成",
+                payload_builder=lambda: {
+                    "prompt": prompt_holder.get("prompt"),
+                    "meta": llm_meta,
+                    "output": output_holder.get("output"),
+                },
+            ):
+                content = await _run_llm(
+                    session,
+                    agent,
+                    resolved,
+                    plan_input,
+                    meta_out=llm_meta,
+                    prompt_out=prompt_holder,
+                )
+                output_holder["output"] = content.model_dump(mode="json")
+
+            dropped: list[str] = []
+            async with recorder.step(
+                "validate",
+                "后置校验（幻觉/人工移出剔除）",
+                payload_builder=lambda: {
+                    "dropped_codes": dropped,
+                    "selections": len(content.selections),
+                    "plans": len(content.plans),
+                },
+            ):
+                content, dropped = await _validate_codes(
+                    session, content, manual_removed
+                )
+
+            cache_row_id: int | None = None
+            async with recorder.step(
+                "persist",
+                "落库（缓存行 + 选股/计划两表）",
+                payload_builder=lambda: {
+                    "cache_row_id": cache_row_id,
+                    "selections": len(content.selections),
+                    "plans": len(content.plans),
+                },
+            ):
+                cache_row_id = await agent_plan_persist.persist_cache_row(
+                    session,
+                    skill_id=skill_id,
+                    input_hash=input_hash,
+                    content=content,
+                    meta=llm_meta,
+                )
+                await agent_plan_persist.persist_plan(
+                    session,
+                    agent_key=agent.agent_key,
+                    trade_date=resolved,
+                    content=content,
+                    source_result_id=cache_row_id,
+                )
+
         if dropped:
             logger.warning(
                 "agent_daily_plan_codes_dropped",
@@ -212,4 +318,20 @@ async def generate_daily_plan(
                 codes=dropped,
                 trade_date=resolved.isoformat(),
             )
+        await recorder.finish(
+            "success",
+            summary={
+                "cache_hit": False,
+                "regenerate": regenerate,
+                "kb_used": bool(plan_input.get("methodology")),
+                "selections": len(content.selections),
+                "plans": len(content.plans),
+                "dropped_codes": dropped,
+                "model": llm_meta.get("model_name"),
+                "latency_ms": llm_meta.get("latency_ms"),
+            },
+        )
         return PlanGenerateResult(content=content, cached=False, dropped_codes=dropped)
+    except Exception as exc:
+        await recorder.finish("failed", error_msg=_error_text(exc))
+        raise

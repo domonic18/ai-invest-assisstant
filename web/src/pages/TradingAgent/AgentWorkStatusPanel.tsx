@@ -1,7 +1,7 @@
 /**
  * 工作台右栏状态面板（D29）：一屏回答「agent 靠什么工作、什么时候干活、
- * 最近干了什么」。三卡——能力与技能（风格/策略/方法论基座/作业技能/模型/
- * 记忆计数）、自动化任务（cron + 频率 + 下次执行 + 最近运行）、近期活动。
+ * 最近干了什么」。三卡——能力与技能（方法论基座/作业技能/模型/记忆计数）、
+ * 自动化任务（cron + 频率 + 下次执行 + 最近运行）、近期活动。
  */
 import {
   CheckCircleFilled,
@@ -50,29 +50,11 @@ function CapabilityRow({ label, children }: { label: string; children: ReactNode
 }
 
 function CapabilityCard({ status }: { status: ApiAgentCapabilityResponse }) {
-  const { profile, llmName, methodologySourceName, skillLabel, skillIsSharedDefault, memoryCounts } =
+  const { llmName, methodologySourceName, skillLabel, skillIsSharedDefault, memoryCounts } =
     status
   return (
     <Card size="small" title="能力与技能">
       <div className="space-y-2.5">
-        {profile.styleDesc && (
-          <CapabilityRow label="风格">
-            <Tag color="geekblue" className="!mr-0">
-              {profile.styleDesc}
-            </Tag>
-          </CapabilityRow>
-        )}
-        {profile.strategyDesc && (
-          <CapabilityRow label="策略">
-            <Typography.Paragraph
-              type="secondary"
-              className="!mb-0 text-xs"
-              ellipsis={{ rows: 3, tooltip: profile.strategyDesc }}
-            >
-              {profile.strategyDesc}
-            </Typography.Paragraph>
-          </CapabilityRow>
-        )}
         <CapabilityRow label="方法论基座">
           {methodologySourceName ?? (
             <span className="text-white/40">未绑定（可在账户与配置中选择知识库源）</span>
