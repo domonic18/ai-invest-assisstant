@@ -12,6 +12,7 @@ import {
   GlobalOutlined,
   HeatMapOutlined,
   MenuFoldOutlined,
+  MessageOutlined,
   MoneyCollectOutlined,
   MenuUnfoldOutlined,
   PieChartOutlined,
@@ -73,6 +74,8 @@ const ADMIN_MENU_ITEMS: MenuItem[] = [
   { key: '/admin/proxy-configs', icon: <CloudServerOutlined />, label: '代理配置' },
   { key: '/admin/ai-results', icon: <FileDoneOutlined />, label: '分析结果' },
   { key: '/admin/collector', icon: <PlayCircleOutlined />, label: '采集管理' },
+  // 会话管理（D35）：交易 Agent 自动化任务执行轨迹（输入/KB/LLM/落库全过程）
+  { key: '/admin/agent-runs', icon: <MessageOutlined />, label: '会话管理' },
   { key: '/admin/social-tracking', icon: <WeiboOutlined />, label: '社媒追踪' },
 ]
 
