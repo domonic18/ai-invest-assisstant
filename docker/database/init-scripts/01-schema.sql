@@ -460,7 +460,6 @@ CREATE TABLE user_market_review (
     UNIQUE (user_id, trade_date)
 );
 
-CREATE INDEX idx_user_market_review_user_date ON user_market_review(user_id, trade_date);
 CREATE INDEX idx_user_market_review_trade_date ON user_market_review(trade_date);
 
 -- ============================================================
@@ -505,7 +504,6 @@ CREATE TABLE collector_log (
 );
 
 CREATE INDEX idx_collector_log_started ON collector_log(started_at DESC);
-CREATE INDEX idx_collector_log_celery_task_id ON collector_log(celery_task_id);
 CREATE INDEX idx_collector_log_status_started_at ON collector_log(status, started_at DESC);
 CREATE INDEX idx_collector_log_task_started ON collector_log(task_name, started_at DESC);
 
@@ -873,8 +871,6 @@ CREATE TABLE IF NOT EXISTS quote_global_index_daily (
 );
 
 SELECT create_hypertable('quote_global_index_daily', 'trade_date', chunk_time_interval => INTERVAL '1 year', if_not_exists => TRUE);
-CREATE INDEX IF NOT EXISTS idx_quote_global_index_daily_code_date
-    ON quote_global_index_daily(index_code, trade_date DESC);
 
 -- ============================================================
 -- 19. 跟踪指数配置（工作台/行情卡展示清单，Admin CRUD 管理）
@@ -1290,9 +1286,6 @@ CREATE TABLE IF NOT EXISTS ai_kline_drawing (
     CONSTRAINT chk_ai_kline_drawing_target_type CHECK (target_type IN ('stock', 'index', 'sector')),
     CONSTRAINT chk_ai_kline_drawing_period CHECK (period IN ('daily', 'weekly', 'monthly'))
 );
-
-CREATE INDEX IF NOT EXISTS idx_ai_kline_drawing_scope
-    ON ai_kline_drawing(user_id, target_type, target_code, period);
 
 -- ============================================================
 -- 账号准入与 AI 用量治理（F-ACCT，arch/07）

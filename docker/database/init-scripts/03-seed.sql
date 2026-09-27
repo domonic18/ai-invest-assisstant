@@ -20,7 +20,7 @@ ON CONFLICT (stock_code, market) DO NOTHING;
 -- collector_health_check 任务的 internal 渠道（内部生成，非外部数据源）
 -- supported_data_types 与 collector_channel_data_type 按任务名登记（渠道解析/beat 派发以任务名为键）
 INSERT INTO collector_channel_config (source, name, is_enabled, supported_data_types)
-VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "kline-freshness", "health-check", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly", "social-sentiment", "kb-transcribe", "kb-cleanup", "kb-extract", "kb-vision", "kb-index", "trade-calendar-seed", "paper-trade-sync", "paper-trade-review", "agent-daily-plan"]'::jsonb)
+VALUES ('internal', '内部生成', true, '["market-daily-review", "limit-up-ai-review", "stock-daily-analysis", "chain-refresh", "collector-log-cleanup", "news-telegraph-cleanup", "kline-freshness", "health-check", "news-score", "news-storyline", "news-subscription-match", "news-topic", "sector-anomaly", "stock-anomaly", "social-sentiment", "kb-transcribe", "kb-cleanup", "kb-extract", "kb-vision", "kb-index", "trade-calendar-seed", "paper-trade-sync", "paper-trade-review", "agent-daily-plan"]'::jsonb)
 ON CONFLICT (source) DO NOTHING;
 
 -- 兼容存量环境：internal 渠道已存在时补齐后续新增的数据类型
@@ -32,7 +32,7 @@ WHERE source = 'internal'
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, d.data_type, 1
 FROM collector_channel_config,
-     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('kline-freshness'), ('health-check'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic'), ('sector-anomaly'), ('stock-anomaly'), ('social-sentiment'), ('kb-transcribe'), ('kb-cleanup'), ('kb-extract'), ('kb-vision'), ('kb-index'), ('trade-calendar-seed'), ('paper-trade-sync'), ('paper-trade-review'), ('agent-daily-plan')) AS d(data_type)
+     (VALUES ('market-daily-review'), ('limit-up-ai-review'), ('stock-daily-analysis'), ('chain-refresh'), ('collector-log-cleanup'), ('news-telegraph-cleanup'), ('kline-freshness'), ('health-check'), ('news-score'), ('news-storyline'), ('news-subscription-match'), ('news-topic'), ('sector-anomaly'), ('stock-anomaly'), ('social-sentiment'), ('kb-transcribe'), ('kb-cleanup'), ('kb-extract'), ('kb-vision'), ('kb-index'), ('trade-calendar-seed'), ('paper-trade-sync'), ('paper-trade-review'), ('agent-daily-plan')) AS d(data_type)
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
@@ -211,6 +211,8 @@ VALUES
     ('chain_refresh_weekly', 'chain-refresh', 'internal', '0 6 * * 6', true),
     -- 每日 03:40 清理 90 天前的采集执行日志
     ('collector_log_cleanup_daily', 'collector-log-cleanup', 'internal', '40 3 * * *', true),
+    -- 每日 04:10 清理 180 天前的财联社电报行与 AI 分级孤儿标注
+    ('news_telegraph_cleanup_daily', 'news-telegraph-cleanup', 'internal', '10 4 * * *', true),
     -- 研报每日 8 点/18 点采集（东财 reportapi 列表 + PDF 落 MinIO）
     ('eastmoney_research_report', 'research-report', 'eastmoney', '0 8,18 * * *', true),
     -- 财务报表季更，周六 11:00 全量刷新自选股（缺省 symbols = 全部自选股）

@@ -192,3 +192,9 @@ class GenericResult(CamelModel):
 
     ok: bool = True
     detail: Any = None
+
+
+class UsageCleanupResponse(CamelModel):
+    """用量记录手动清理回执。"""
+
+    removed_count: int = Field(0, description="删除的记录行数")
