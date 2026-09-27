@@ -16,10 +16,11 @@ from collector.runtime.registry import TASK_SPECS
 
 pytestmark = pytest.mark.unit
 
-# 维护类任务自指豁免：监测不监测自己（health-check）、日志/知识库清理/日历种子非数据域
+# 维护类任务自指豁免：监测不监测自己（health-check）、日志/知识库/电报清理/日历种子非数据域
 MAINTENANCE_EXEMPT = {
     "health-check",
     "collector-log-cleanup",
+    "news-telegraph-cleanup",
     "kb-cleanup",
     "trade-calendar-seed",
 }

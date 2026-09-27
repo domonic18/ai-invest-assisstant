@@ -16,6 +16,18 @@ SPECS: tuple[TaskSpec, ...] = (
         },
     ),
     TaskSpec(
+        name="news-telegraph-cleanup",
+        label="电报保留清理",
+        description="定期清理过期财联社电报行与 AI 分级孤儿标注，控制表体积",
+        data_type="news_telegraph_cleanup",
+        collectors={
+            "internal": (
+                "collector.spiders.news_telegraph_cleanup:"
+                "NewsTelegraphCleanupCollector"
+            ),
+        },
+    ),
+    TaskSpec(
         name="health-check",
         label="采集健康检测",
         description="定时巡检各采集任务成功率与数据新鲜度，输出健康报告",
