@@ -1,3 +1,10 @@
+-- ============================================================
+-- 0002_seed: 全量幂等种子（collector_task 排程 / 通道配置 / 日历事件 / 任务注册）
+-- 来源：原 init-scripts/03-seed.sql（2026-09-28 方案A 基线压缩）
+-- 规则：INSERT 必须带 ON CONFLICT DO NOTHING；UPDATE 天然幂等可保留；
+--       存量库的数据修订（时刻改排等）走 forward-only 增量迁移，不回改本文件
+-- ============================================================
+
 -- Development seed data
 
 -- Sample stocks
@@ -288,7 +295,7 @@ SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;
 -- FOMC/BLS 2026 官方日程种子（federalreserve.gov / bls.gov 实抓；
 -- FOMC 决议 = 议程第 2 日 14:00 ET，CPI/非农 = 08:30 ET，UTC 时刻已按美夏/冬令时换算）
 -- 后续年度：每年 1 月新增迁移续写，ON CONFLICT (source_hash) DO NOTHING 幂等
-INSERT INTO calendar_event (event_time, title, category, impact_markets, source, source_url, related_symbols, source_hash) VALUES
+INSERT INTO news_calendar_event (event_time, title, category, impact_markets, source, source_url, related_symbols, source_hash) VALUES
 ('2026-01-09 13:30:00+00', '美国非农就业数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/emp.htm', ARRAY['US10Y','DXY','GC00Y'], '5ada86512ff88920540d48f0c8d68410'),
 ('2026-01-13 13:30:00+00', '美国 CPI 通胀数据发布', '宏观', ARRAY['美股','美债','美元','黄金'], 'bls', 'https://www.bls.gov/schedule/news_release/cpi.htm', ARRAY['US10Y','DXY','GC00Y'], '310717f1cfcdbbfb1773a648b67810f0'),
 ('2026-01-28 19:00:00+00', '美联储 FOMC 利率决议', '央行动态', ARRAY['美股','美债','美元','黄金'], 'fomc', 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm', ARRAY['US10Y','US2Y','DXY','GC00Y'], '7d9ab859a6d92df63158fc388746463e'),
