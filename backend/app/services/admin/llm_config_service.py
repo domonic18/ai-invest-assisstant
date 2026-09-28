@@ -84,10 +84,14 @@ class LLMConfigService:
     async def create_config(self, data: LLMConfigCreate) -> LLMConfigResponse:
         """创建新配置。"""
         await self._validate_backup(data.backup_config_id, data.purpose)
+        protocol: str = data.protocol or infer_protocol(data.provider)
+        if data.purpose == "decision":
+            # 判断模型走 systemone wire 协议（D23），表单误选其他协议也归一
+            protocol = "systemone"
         config = LLMConfig(
             name=data.name,
             provider=data.provider,
-            protocol=data.protocol or infer_protocol(data.provider),
+            protocol=protocol,
             base_url=data.base_url,
             api_key_encrypted=encrypt_token(data.api_key),
             model_name=data.model_name,
@@ -136,6 +140,9 @@ class LLMConfigService:
             config.extra = data.extra
         if data.api_key:
             config.api_key_encrypted = encrypt_token(data.api_key)
+        if (data.purpose or config.purpose) == "decision":
+            # 判断模型协议恒为 systemone（D23），create 与 update 同一归一规则
+            config.protocol = "systemone"
         if data.is_default:
             await self.repo.clear_other_defaults(exclude_id=config_id)
             config.is_default = True
@@ -220,6 +227,28 @@ class LLMConfigService:
                 "content-type": "application/json",
             }
             payload: dict[str, Any] = {"model": config.model_name, "input": ["ping"]}
+        elif config.protocol == "systemone":
+            # 判断模型（System One，D23）：按实际 wire 路径发最小 noul 探针，
+            # 即 adapter 真实调用形状（「测试连接」= 真实冒烟）
+            url = f"{base}/v1/systemone"
+            headers = {
+                "authorization": f"Bearer {api_key}",
+                "content-type": "application/json",
+            }
+            payload = {
+                "model": config.model_name,
+                "state": {"ping": "连通性测试"},
+                "questions": {
+                    "connected": {
+                        "type": "noul",
+                        "instructions": "这是一次系统连通性测试。",
+                        "criteria": {
+                            "true": "本次调用正常送达",
+                            "false": "本次调用异常",
+                        },
+                    }
+                },
+            }
         elif config.protocol == "anthropic":
             url = f"{base}/v1/messages"
             headers = {

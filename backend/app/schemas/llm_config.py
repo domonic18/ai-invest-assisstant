@@ -7,10 +7,12 @@ from pydantic import Field
 
 from app.schemas.base import CamelModel
 
-LLMProtocol = Literal["openai", "anthropic"]
+LLMProtocol = Literal["openai", "anthropic", "systemone"]
 
-#: 配置用途（F-KB 模型角色槽位按 purpose 过滤候选：clean/extract=chat、vision=vision、embedding=embedding）
-LLMPurpose = Literal["chat", "embedding", "vision"]
+#: 配置用途（F-KB 模型角色槽位按 purpose 过滤候选：clean/extract=chat、vision=vision、
+#: embedding=embedding）。``decision`` 为判断模型（System One，D23）——不进任何
+#: F-KB 槽位候选，也不参与默认对话解析（仓储层 get_default_active 按 purpose 过滤）
+LLMPurpose = Literal["chat", "embedding", "vision", "decision"]
 
 
 class LLMConfigCreate(CamelModel):
