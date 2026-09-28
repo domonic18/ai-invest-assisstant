@@ -41,7 +41,7 @@ function TaskStatus({ taskName, label }: { taskName: string; label: string }) {
           : '暂无运行记录'
       }
     >
-      <span className="inline-flex cursor-default items-center gap-1 text-xs">
+      <span className="inline-flex cursor-default items-center gap-1 whitespace-nowrap text-xs">
         {meta ? (
           <span style={{ color: meta.color, fontSize: 12 }}>{meta.icon}</span>
         ) : (
@@ -104,7 +104,7 @@ export function AgentStatusStrip({ onOpenAccounts }: { onOpenAccounts: () => voi
           <Spin size="small" />
         )}
       </span>
-      <span className="inline-flex items-center gap-4">
+      <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
         {TASKS.map((task) => (
           <TaskStatus key={task.taskName} {...task} />
         ))}
