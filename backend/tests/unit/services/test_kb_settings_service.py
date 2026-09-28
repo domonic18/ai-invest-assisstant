@@ -31,7 +31,13 @@ async def session():
     await engine.dispose()
 
 
-def _config(purpose: str, *, name: str = "cfg", is_active: bool = True) -> LLMConfig:
+def _config(
+    purpose: str,
+    *,
+    name: str = "cfg",
+    is_active: bool = True,
+    extra: dict | None = None,
+) -> LLMConfig:
     return LLMConfig(
         name=name,
         provider="openai",
@@ -41,6 +47,7 @@ def _config(purpose: str, *, name: str = "cfg", is_active: bool = True) -> LLMCo
         model_name="m",
         is_active=is_active,
         purpose=purpose,
+        extra=extra,
     )
 
 
@@ -143,6 +150,59 @@ async def test_resolve_role_model_revalidates_after_deactivation(
     await session.commit()
     with pytest.raises(UnprocessableEntityError, match="不可用"):
         await resolve_role_model(session, "embedding")
+
+
+async def test_vision_slot_accepts_capability_marked_chat(session: AsyncSession) -> None:
+    """视觉槽放宽：chat 条目勾选「视觉能力」（extra.capabilities.vision）可绑定并解析。"""
+    cfg = _config("chat", extra={"capabilities": {"vision": True}})
+    session.add(cfg)
+    await session.flush()
+
+    view = await update_settings(
+        session,
+        admin_id=1,
+        data=KbSettingsUpdateRequest(vision_model_id=cfg.id),
+    )
+    assert view.vision_model_id == cfg.id
+    resolved = await resolve_role_model(session, "vision")
+    assert resolved.id == cfg.id
+
+
+async def test_vision_slot_rejects_capability_marked_embedding(session: AsyncSession) -> None:
+    """视觉槽放宽仅限能力语义：非 vision/embedding 之外的用途不因能力标记放行。
+
+    embedding 条目即使带 capabilities.vision 也不是合法视觉候选（嵌入端点无图片
+    通道），只有 chat/vision 用途 + 能力标记的组合成立——此处钉死 embedding 不放行。
+    """
+    cfg = _config("embedding", extra={"capabilities": {"vision": True}})
+    session.add(cfg)
+    await session.flush()
+
+    with pytest.raises(UnprocessableEntityError, match="视觉能力"):
+        await update_settings(
+            session,
+            admin_id=1,
+            data=KbSettingsUpdateRequest(vision_model_id=cfg.id),
+        )
+
+
+async def test_vision_slot_revalidates_after_capability_removed(
+    session: AsyncSession,
+) -> None:
+    """保存后再去掉视觉能力标记：读侧二次校验显式失败而非静默走错模型。"""
+    cfg = _config("chat", extra={"capabilities": {"vision": True}})
+    session.add(cfg)
+    await session.flush()
+    await update_settings(
+        session,
+        admin_id=1,
+        data=KbSettingsUpdateRequest(vision_model_id=cfg.id),
+    )
+
+    cfg.extra = {}
+    await session.commit()
+    with pytest.raises(UnprocessableEntityError, match="不可用"):
+        await resolve_role_model(session, "vision")
 
 
 async def test_get_settings_view_defaults(session: AsyncSession) -> None:

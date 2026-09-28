@@ -49,8 +49,10 @@ export interface LLMConfigTestResult {
   testedAt: string
 }
 
-/** 配置用途（知识库模型角色槽位按此过滤候选）。decision 为判断模型（盘中执行 L1），
- *  不进任何 F-KB 槽位候选，也不参与默认对话解析。 */
+/** 配置用途（知识库模型角色槽位按此过滤候选；视觉槽例外——vision 用途，或
+ *  勾选「视觉能力」的 chat 用途，见 KbBindingTab/KB settings_service）。
+ *  decision 为判断模型（盘中执行 L1），不进任何 F-KB 槽位候选，也不参与
+ *  默认对话解析。 */
 export type LlmPurpose = 'chat' | 'embedding' | 'vision' | 'decision'
 
 export interface ApiLLMConfigResponse {
@@ -108,9 +110,13 @@ export interface ApiLLMConfigTestResponse {
   testedAt: string
 }
 
+/** ASR wire 协议：minimax 专有 | openai 兼容转写（whisper 事实标准）。 */
+export type AsrProtocol = 'minimax' | 'openai'
+
 /** ASR 渠道配置 masked 视图（密钥只回脱敏串）。 */
 export interface ApiAsrConfig {
   provider: string
+  protocol: AsrProtocol
   baseUrl: string
   model: string
   apiKeyMasked: string | null
@@ -124,6 +130,7 @@ export interface ApiAsrConfig {
 /** 更新 ASR 配置（apiKey write-only：留空保留原值）。 */
 export interface ApiAsrConfigUpdateRequest {
   provider?: string
+  protocol?: AsrProtocol
   baseUrl?: string
   model?: string
   apiKey?: string

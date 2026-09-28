@@ -7,7 +7,7 @@
 import re
 from dataclasses import dataclass
 
-#: asr-1.0 硬限 500s，留余量
+#: 保守默认 480s（各厂商单请求音频上限不同，MiniMax asr-1.0 为 500s）
 MAX_CHUNK_SECONDS = 480.0
 _SILENCE_START_RE = re.compile(r"silence_start:\s*([0-9.]+)")
 _SILENCE_END_RE = re.compile(r"silence_end:\s*([0-9.]+)")

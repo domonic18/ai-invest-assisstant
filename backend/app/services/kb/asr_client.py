@@ -1,7 +1,7 @@
-"""asr-1.0 分片客户端：multipart 上传 wav、verbose_json 句级时间码解析。
+"""ASR 分片客户端：multipart 上传 wav、verbose_json 句级时间码解析。
 
-HTTP 往返与 429/5xx 重试经 :mod:`app.adapters.minimax.asr` 共享核心；本模块
-保留知识库长音频分片语义：句级时间码容忍解析、业务错误抛
+HTTP 往返、协议分派与 429/5xx 重试经 :mod:`app.adapters.asr` 共享核心；本
+模块保留知识库长音频分片语义：句级时间码容忍解析、业务错误抛
 :class:`AsrChannelError`（message 直接作为 process_error 归因，不静默重试
 烧钱）。
 """
@@ -11,8 +11,8 @@ from typing import Any
 
 import structlog
 
-from app.adapters.minimax import asr as minimax_asr
-from app.adapters.minimax.asr import MiniMaxAsrHttpError
+from app.adapters import asr as asr_adapter
+from app.adapters.asr import AsrHttpError
 from app.models.social import AsrChannelConfig
 from app.services.kb.transcribe_pipeline import Sentence
 
@@ -79,9 +79,10 @@ async def transcribe_chunk(
     config: AsrChannelConfig, api_key: str, wav: bytes, *, filename: str
 ) -> ChunkTranscript:
     """转写单个 wav 分片；渠道/业务错误抛 AsrChannelError。"""
+    protocol = config.protocol or "minimax"
     try:
-        payload = await minimax_asr.speech_to_text(
-            minimax_asr.SpeechToTextRequest(
+        payload = await asr_adapter.speech_to_text(
+            asr_adapter.SpeechToTextRequest(
                 base_url=config.base_url or "",
                 api_key=api_key,
                 model=config.model,
@@ -91,15 +92,17 @@ async def transcribe_chunk(
                 response_format="verbose_json",
                 timeout_seconds=_ASR_CHUNK_TIMEOUT_SECONDS,
                 retry_backoff_seconds=_HTTP_RETRY_BACKOFF_SECONDS,
-                extra_data={"timestamp_level": "sentence"},
+                protocol=protocol,
+                # timestamp_level 为 MiniMax 专有参数，openai 兼容端点不认识
+                extra_data={"timestamp_level": "sentence"} if protocol == "minimax" else {},
             )
         )
-    except MiniMaxAsrHttpError as exc:
+    except AsrHttpError as exc:
         if exc.status_code == 429:
             raise AsrRateLimitedError(str(exc)) from exc
         raise AsrChannelError(str(exc)) from exc
 
-    business = minimax_asr.parse_business_error(payload)
+    business = asr_adapter.parse_business_error(payload)
     if business is not None:
         raise AsrChannelError(f"asr_business_{business[0]}: {business[1]}")
 

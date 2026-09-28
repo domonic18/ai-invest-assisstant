@@ -1,10 +1,14 @@
-"""MiniMax speech_to_text 共享核心：kb 分片转写与社媒单音频/样例测试共用。
+"""转写（ASR）共享 HTTP 核心：kb 分片转写、社媒单音频与连通性测试共用。
 
-职责止于传输：URL 归一（``normalize_asr_base``）+ Bearer + multipart 上传 +
-429/5xx 退避重试（backoff 可配置，空元组即不重试）。base_resp 业务错误的
-识别提供 :func:`parse_business_error`，错误消息策略（归因码/降级文案）由
-调用方按各自契约决定；响应形态解析（verbose_json 句级时间码 / 纯 text）
-同样归调用方。
+职责止于传输：按 ``protocol`` 分派端点——
+``minimax``：MiniMax 专有 ``POST {base}/v1/speech_to_text``，业务错误为
+HTTP 200 + ``base_resp.status_code != 0``（:func:`parse_business_error`）；
+``openai``：OpenAI 兼容转写 ``POST {base}/audio/transcriptions``（whisper API
+事实标准：OpenAI/硅基流动/Groq/本地 OpenAI 形转写服务通用），无业务错误
+形态，HTTP 状态码即错误。
+共用 Bearer 鉴权 + multipart 上传 + 429/5xx 退避重试（backoff 可配置，
+空元组即不重试）。错误消息策略（归因码/降级文案）与响应形态解析
+（verbose_json 句级时间码 / 纯 text）归调用方按各自契约决定。
 """
 
 import asyncio
@@ -14,7 +18,7 @@ from typing import Any
 import httpx
 import structlog
 
-from app.utils.api_base import normalize_asr_base
+from app.utils.api_base import normalize_asr_base, normalize_openai_asr_base
 
 logger = structlog.get_logger(__name__)
 
@@ -22,7 +26,7 @@ logger = structlog.get_logger(__name__)
 _RETRYABLE_HTTP_STATUSES = {429, 500, 502, 503, 504}
 
 
-class MiniMaxAsrHttpError(Exception):
+class AsrHttpError(Exception):
     """HTTP 层失败（状态码非 2xx 或网络/解析错误）。
 
     ``status_code`` 携带可重试状态码耗尽时的最后一次 HTTP 状态
@@ -47,11 +51,24 @@ class SpeechToTextRequest:
     response_format: str
     timeout_seconds: float
     retry_backoff_seconds: tuple[float, ...] = ()
+    #: wire 协议：minimax 专有 | openai 兼容转写；决定端点路径
+    protocol: str = "minimax"
     extra_data: dict[str, str] = field(default_factory=dict)
 
 
+def asr_endpoint(base_url: str, protocol: str) -> str:
+    """按协议解析转写端点；未知协议显式报错（防脏数据静默走错端点）。"""
+    if protocol == "minimax":
+        return f"{normalize_asr_base(base_url)}/v1/speech_to_text"
+    if protocol == "openai":
+        return f"{normalize_openai_asr_base(base_url)}/audio/transcriptions"
+    raise ValueError(f"未知 ASR 协议: {protocol!r}（支持 minimax/openai）")
+
+
 def parse_business_error(payload: dict[str, Any]) -> tuple[int, str] | None:
-    """识别业务错误形态（HTTP 200 + base_resp.status_code != 0）。
+    """识别业务错误形态（HTTP 200 + base_resp.status_code != 0，MiniMax 专有）。
+
+    OpenAI 兼容响应无 base_resp 形态，天然返回 None。
 
     Returns:
         (status_code, status_msg)；无业务错误返回 None。
@@ -64,8 +81,8 @@ def parse_business_error(payload: dict[str, Any]) -> tuple[int, str] | None:
 
 
 async def speech_to_text(request: SpeechToTextRequest) -> dict[str, Any]:
-    """发起转写请求；可重试状态码按 backoff 退避，最终失败抛 MiniMaxAsrHttpError。"""
-    url = f"{normalize_asr_base(request.base_url)}/v1/speech_to_text"
+    """发起转写请求；可重试状态码按 backoff 退避，最终失败抛 AsrHttpError。"""
+    url = asr_endpoint(request.base_url, request.protocol)
     data = {
         "model": request.model,
         "response_format": request.response_format,
@@ -93,10 +110,8 @@ async def speech_to_text(request: SpeechToTextRequest) -> dict[str, Any]:
                 status not in _RETRYABLE_HTTP_STATUSES
                 or attempt >= len(request.retry_backoff_seconds)
             ):
-                raise MiniMaxAsrHttpError(
-                    f"asr_http_{status}", status_code=status
-                ) from exc
-            logger.warning("minimax_asr_http_retry", status=status, attempt=attempt + 1)
+                raise AsrHttpError(f"asr_http_{status}", status_code=status) from exc
+            logger.warning("asr_http_retry", status=status, attempt=attempt + 1)
         except Exception as exc:  # noqa: BLE001
-            raise MiniMaxAsrHttpError(f"asr_request_failed: {exc}") from exc
-    raise MiniMaxAsrHttpError("asr_http_retry_exhausted")  # pragma: no cover — 逻辑不可达
+            raise AsrHttpError(f"asr_request_failed: {exc}") from exc
+    raise AsrHttpError("asr_http_retry_exhausted")  # pragma: no cover — 逻辑不可达

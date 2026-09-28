@@ -464,3 +464,74 @@ async def test_default_resolution_filters_non_chat_purpose(session: AsyncSession
     assert len(decision_rows) == 1
     assert decision_rows[0].purpose == "decision"
     assert decision_rows[0].model_name == "jev-latest"
+
+
+async def test_purpose_protocol_normalization_on_create(session: AsyncSession) -> None:
+    """systemone 协议 + 非 decision 用途 → 归一为 decision（对偶不变量，双向防毒）。"""
+    service = LLMConfigService(session)
+    created = await service.create_config(
+        LLMConfigCreate(
+            name="误选用途的判断模型",
+            provider="codiv",
+            protocol="systemone",
+            base_url="https://api.codiv.ai",
+            api_key="sk-codiv",
+            model_name="openjev-0.1",
+            purpose="chat",
+        )
+    )
+    assert created.purpose == "decision"
+    assert created.protocol == "systemone"
+
+
+async def test_purpose_protocol_normalization_on_update(session: AsyncSession) -> None:
+    """update 把 chat 条目协议改为 systemone → 用途随之归一为 decision。"""
+    service = LLMConfigService(session)
+    created = await service.create_config(
+        LLMConfigCreate(
+            name="Chat",
+            provider="openai",
+            base_url="https://api.openai.com/v1",
+            api_key="sk-openai",
+            model_name="gpt-4o",
+        )
+    )
+    updated = await service.update_config(created.id, LLMConfigUpdate(protocol="systemone"))
+    assert updated.purpose == "decision"
+    assert updated.protocol == "systemone"
+
+
+async def test_embedding_purpose_forces_openai_protocol(session: AsyncSession) -> None:
+    """嵌入端点为 OpenAI 形状，误选 anthropic 协议归一为 openai。"""
+    service = LLMConfigService(session)
+    created = await service.create_config(
+        LLMConfigCreate(
+            name="Embedding",
+            provider="custom",
+            base_url="https://gw.example.com/v1",
+            api_key="sk-embed",
+            model_name="embedding-3",
+            purpose="embedding",
+            protocol="anthropic",
+        )
+    )
+    assert created.purpose == "embedding"
+    assert created.protocol == "openai"
+
+
+async def test_set_default_rejects_non_chat(session: AsyncSession) -> None:
+    """set_default API 守卫：仅 chat 用途可设默认（get_default_active 只解析 chat）。"""
+    service = LLMConfigService(session)
+    created = await service.create_config(
+        LLMConfigCreate(
+            name="Decision",
+            provider="openrouter",
+            protocol="systemone",
+            base_url="https://openrouter.ai/api",
+            api_key="sk-or",
+            model_name="jev-latest",
+            purpose="decision",
+        )
+    )
+    with pytest.raises(UnprocessableEntityError, match="对话/分析"):
+        await service.set_default_config(created.id)
