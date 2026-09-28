@@ -170,6 +170,8 @@ export interface ApiTradingAgentPlansResponse {
   /** tradeDate 的下一交易日（计划于此日盘中执行）；日历未覆盖为 null。 */
   nextTradeDate: string | null
   plans: ApiTradingAgentPlan[]
+  /** 空仓观望原因：plans 空且非空 = 已生成但空仓观望；null = 该日未生成。 */
+  standAsideReason: string | null
 }
 
 /** agent 选股条目（模拟管理「Agent 自选」：AI 依据 + 置信度）。 */

@@ -103,7 +103,11 @@ export function AgentSelectionsPanel() {
       ) : selections.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="暂无选股（每个交易日 19:00 自动生成，也可在对话中制定）"
+          description={
+            group
+              ? '当前无选股（空仓观望日 Agent 不选股，理由见「交易计划」tab）'
+              : '尚未生成选股（每个交易日 19:30 自动生成，也可在对话中制定）'
+          }
         />
       ) : (
         <div className="space-y-2">

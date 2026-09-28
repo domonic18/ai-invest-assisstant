@@ -41,10 +41,12 @@ allowed-tools: []
     {"stock_code": "600XXX", "plan_type": "buy", "strategy": "分批建仓：…",
      "buy_zone_low": 10.0, "buy_zone_high": 11.0, "target_price": null,
      "stop_loss": 9.0, "position_pct": 8}
-  ]
+  ],
+  "stand_aside_reason": null
 }
 ```
-字段契约由服务层 `AgentDailyPlanContent` 钉死；无可选标的输出空数组，禁止编造输入外代码。
+字段契约由服务层 `AgentDailyPlanContent` 钉死；无可选标的输出空数组，禁止编造输入外代码；
+selections 与 plans 均为空（空仓观望）时 `stand_aside_reason` 必填简明原因，任一非空时为 null。
 
 ## 已知边界
 - 当前计划输入以盘面证据为主（复盘解读/涨停归因/异动）；财务与估值数据源接入后，

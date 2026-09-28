@@ -48,6 +48,7 @@ def _content_dict() -> dict:
                 "basis": "当日复盘解读 + 涨停归因",
             }
         ],
+        "stand_aside_reason": None,
     }
 
 
@@ -66,7 +67,7 @@ class TestSchemaContract:
     def test_content_fields_all_required(self) -> None:
         """LLM 结构化输出契约铁律：字段禁默认值（默认值不进 required）。"""
         required = set(AgentDailyPlanContent.model_json_schema()["required"])
-        assert {"trade_date", "selections", "plans"} <= required
+        assert {"trade_date", "selections", "plans", "stand_aside_reason"} <= required
 
     def test_plan_item_fields_all_required(self) -> None:
         required = set(PlanTradePlanItem.model_json_schema()["required"])
@@ -81,6 +82,23 @@ class TestSchemaContract:
             "position_pct",
             "basis",
         } <= required
+
+    def test_stand_aside_reason_required_when_both_empty(self) -> None:
+        """空仓必答约束：双空且原因空白即违约（ValidationError 触发结构化输出重试）。"""
+        base = {"trade_date": _TRADE_DATE.isoformat(), "selections": [], "plans": []}
+        with pytest.raises(ValueError, match="stand_aside_reason"):
+            AgentDailyPlanContent.model_validate(base)
+        with pytest.raises(ValueError, match="stand_aside_reason"):
+            AgentDailyPlanContent.model_validate({**base, "stand_aside_reason": "   "})
+        content = AgentDailyPlanContent.model_validate(
+            {**base, "stand_aside_reason": "大盘系统性风险，空仓观望"}
+        )
+        assert content.stand_aside_reason == "大盘系统性风险，空仓观望"
+
+    def test_stand_aside_reason_null_allowed_with_selections(self) -> None:
+        """有任一选股/计划时原因为 null 是合法输出（不强校验冗余文本）。"""
+        content = AgentDailyPlanContent.model_validate(_content_dict())
+        assert content.stand_aside_reason is None
 
     def test_normalizes_chinese_plan_type(self) -> None:
         item = PlanTradePlanItem(**{**_content_dict()["plans"][0], "plan_type": "买入"})
@@ -660,3 +678,148 @@ class TestValidateCodes:
         )
         assert [s.stock_code for s in validated.selections] == ["600000"]
         assert dropped == ["600519"]
+
+    @pytest.mark.asyncio
+    async def test_backfills_stand_aside_reason_when_all_dropped(self) -> None:
+        """剔除后转为双空时回填空仓原因（展示层区分「空仓观望」与「未生成」）。"""
+        content = _content().model_copy(
+            update={
+                "selections": [
+                    PlanSelectionItem(stock_code="999999", reason="幻觉代码", confidence=None)
+                ],
+                "plans": [],
+            }
+        )
+        session = AsyncMock()
+        executed = MagicMock()
+        executed.scalars.return_value.all.return_value = []
+        session.execute = AsyncMock(return_value=executed)
+
+        validated, dropped = await agent_plan_service._validate_codes(
+            session, content, manual_removed=[]
+        )
+        assert validated.selections == []
+        assert validated.plans == []
+        assert validated.stand_aside_reason is not None
+        assert "999999" in validated.stand_aside_reason
+        assert dropped == ["999999"]
+
+
+@pytest.mark.unit
+class TestPlanReadPaths:
+    """计划缓存读路径：旧快照补键兼容 + 空仓日回查（展示层三态区分）。"""
+
+    @pytest.mark.asyncio
+    async def test_load_cached_backfills_legacy_key(self) -> None:
+        """新增字段前的旧缓存快照（缺 stand_aside_reason 键）补 None 兼容加载。"""
+        legacy = _content_dict()
+        legacy.pop("stand_aside_reason")
+        row = MagicMock()
+        row.structured_output = legacy
+        with patch(
+            "app.repositories.review.ai_analysis_repository.load_latest_success",
+            AsyncMock(return_value=row),
+        ):
+            content = await agent_plan_service._load_cached(
+                AsyncMock(), "trading-short-line", "hash"
+            )
+
+        assert content is not None
+        assert content.stand_aside_reason is None
+        assert content.selections[0].stock_code == "600000"
+
+    @pytest.mark.asyncio
+    async def test_load_plan_content_for_date_unbound_account_returns_none(self) -> None:
+        from app.services.trading.errors import AgentAccountNotDesignatedError
+
+        with patch(
+            "app.services.trading.account_service.resolve_agent_account",
+            AsyncMock(side_effect=AgentAccountNotDesignatedError("short-line")),
+        ):
+            content = await agent_plan_service.load_plan_content_for_date(
+                AsyncMock(), "short-line", _TRADE_DATE
+            )
+
+        assert content is None
+
+    @pytest.mark.asyncio
+    async def test_load_plan_content_for_date_reads_cache(self) -> None:
+        row = MagicMock()
+        row.structured_output = _content_dict()
+        with (
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=row),
+            ) as load_mock,
+        ):
+            content = await agent_plan_service.load_plan_content_for_date(
+                AsyncMock(), "short-line", _TRADE_DATE
+            )
+
+        assert content is not None
+        assert content.selections[0].stock_code == "600000"
+        assert load_mock.await_args.kwargs["skill_id"] == "trading-short-line"
+
+    @pytest.mark.asyncio
+    async def test_list_stand_aside_dates_shared_skill_returns_empty(self) -> None:
+        """共享 trading-default 技能多 Agent 无法从哈希反解账户维度，直接返回空。"""
+        assert await agent_plan_service.list_stand_aside_dates(AsyncMock(), "new-agent") == []
+
+    @pytest.mark.asyncio
+    async def test_list_stand_aside_dates_filters_empty_outputs(self) -> None:
+        """按哈希回查缓存行，仅双空输出计入空仓日；绑定账户缺失行（哈希不符）排除。"""
+        from app.repositories.review import ai_analysis_repository
+
+        d_stand_aside = date(2026, 7, 14)
+        d_with_plans = _TRADE_DATE
+        d_rebound = date(2026, 7, 16)  # 账户重绑前的旧行，哈希不符应排除
+
+        def _hash_for(agent_key: str, account_id: int, d: date) -> str:
+            return agent_plan_service._input_hash(agent_key, account_id, d)
+
+        rows = [
+            MagicMock(
+                input_hash=_hash_for("short-line", 7, d_stand_aside),
+                structured_output={
+                    "trade_date": d_stand_aside.isoformat(),
+                    "selections": [],
+                    "plans": [],
+                    "stand_aside_reason": "空仓",
+                },
+            ),
+            MagicMock(
+                input_hash=_hash_for("short-line", 7, d_with_plans),
+                structured_output=_content_dict(),
+            ),
+            MagicMock(
+                input_hash=_hash_for("short-line", 8, d_rebound),
+                structured_output={"trade_date": d_rebound.isoformat(), "selections": [], "plans": []},
+            ),
+        ]
+        with (
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch.object(
+                ai_analysis_repository,
+                "list_success_trade_dates",
+                AsyncMock(return_value=[d_stand_aside, d_with_plans, d_rebound]),
+            ),
+            patch.object(
+                ai_analysis_repository,
+                "load_success_by_hashes",
+                AsyncMock(return_value=rows),
+            ) as load_mock,
+        ):
+            dates = await agent_plan_service.list_stand_aside_dates(
+                AsyncMock(), "short-line"
+            )
+
+        assert dates == [d_stand_aside]
+        assert load_mock.await_args.kwargs["skill_id"] == "trading-short-line"
+        assert len(load_mock.await_args.kwargs["input_hashes"]) == 3

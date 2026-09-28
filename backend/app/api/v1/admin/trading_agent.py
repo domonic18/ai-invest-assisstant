@@ -37,6 +37,7 @@ from app.services.trading import (
     agent_memory_service,
     agent_overview_service,
     agent_plan_ops,
+    agent_plan_service,
     agent_registry,
     agent_review_service,
 )
@@ -159,9 +160,11 @@ async def get_trading_agent_dates(
     agent_key: str,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> TradingAgentDatesResponse:
-    """有记录日期清单（日历打点）：已有计划的日期 + 各周期已生成复盘的基准日。"""
+    """有记录日期清单（日历打点）：已有计划的日期（含空仓观望日）+ 各周期复盘基准日。"""
+    plan_dates = await agent_plan_ops.list_plan_dates(session, agent_key)
+    stand_aside = await agent_plan_service.list_stand_aside_dates(session, agent_key)
     return TradingAgentDatesResponse(
-        plan_dates=await agent_plan_ops.list_plan_dates(session, agent_key),
+        plan_dates=sorted({*plan_dates, *stand_aside}),
         review_dates={
             period: await agent_review_service.list_review_dates(
                 session, agent_key, period=period
@@ -177,14 +180,21 @@ async def list_trading_agent_plans(
     session: Annotated[AsyncSession, Depends(get_db)],
     trade_date: date | None = Query(None, description="计划日（缺省取最近交易日）"),
 ) -> TradingAgentPlansResponse:
-    """读取指定日的交易计划（含全部状态，前端按状态分色）+ 下一交易日（次日语义）。"""
+    """读取指定日的交易计划（含全部状态，前端按状态分色）+ 下一交易日（次日语义）。
+
+    ``standAsideReason`` 非空表示当日已生成但空仓观望，供前端与「未生成」区分。
+    """
     resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(
         session
+    )
+    content = await agent_plan_service.load_plan_content_for_date(
+        session, agent_key, resolved
     )
     return TradingAgentPlansResponse(
         trade_date=resolved,
         next_trade_date=await trade_calendar_service.next_trading_day(session, resolved),
         plans=await agent_plan_ops.list_plan_views(session, agent_key, plan_date=resolved),
+        stand_aside_reason=content.stand_aside_reason if content else None,
     )
 
 

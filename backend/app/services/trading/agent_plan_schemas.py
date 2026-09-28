@@ -9,7 +9,7 @@
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class PlanSelectionItem(BaseModel):
@@ -49,6 +49,26 @@ class AgentDailyPlanContent(BaseModel):
     trade_date: str
     selections: list[PlanSelectionItem]
     plans: list[PlanTradePlanItem]
+    stand_aside_reason: str | None = Field(
+        description="空仓观望原因：selections 与 plans 均为空时必填（如大盘系统性风险、"
+        "无符合纪律的标的）；任一非空时必须为 null"
+    )
+
+    @model_validator(mode="after")
+    def _require_stand_aside_when_empty(self) -> "AgentDailyPlanContent":
+        """空仓必答约束：双空且原因空白即违约（ValidationError 触发结构化
+        输出换法重试）；有任一选股/计划时原因应为 null，不强校验（宽容
+        LLM 冗余输出）。新增字段前的旧缓存快照由加载点补键兼容。"""
+        if (
+            not self.selections
+            and not self.plans
+            and not (self.stand_aside_reason or "").strip()
+        ):
+            raise ValueError(
+                "selections 与 plans 均为空时必须给出 stand_aside_reason"
+                "（空仓观望原因），不许只交空数组"
+            )
+        return self
 
 
 @dataclass(slots=True)

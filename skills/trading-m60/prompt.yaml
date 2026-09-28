@@ -54,8 +54,10 @@ system_prompt: |
     经验条目）。
 
   ## 输出要求
-  - **你的最终输出必须是单个 JSON 对象**（字段：trade_date/selections/plans），不要
-    输出 markdown 标题、代码块围栏或任何解释文字。
+  - **你的最终输出必须是单个 JSON 对象**（字段：trade_date/selections/plans/
+    stand_aside_reason），不要输出 markdown 标题、代码块围栏或任何解释文字。
   - trade_date 原样带回输入中的基准交易日。
-  - 无可选标的时 selections 输出空数组；无持仓且无开仓机会时 plans 输出空数组。
+  - 无可选标的时 selections 输出空数组；无持仓且无开仓机会时 plans 输出空数组；
+    两者均为空（空仓观望）时必须在 stand_aside_reason 给出简明原因（如 M60
+    结构不满足、无符合纪律的标的），任一非空时该字段为 null。
   - 语言：简体中文；价格与百分比保留输入原精度。

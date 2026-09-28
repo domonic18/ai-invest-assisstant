@@ -37,7 +37,7 @@ function TaskStatus({ taskName, label }: { taskName: string; label: string }) {
     <Tooltip
       title={
         log
-          ? `${log.status === 'skipped' && log.message ? log.message : meta?.text}${log.finishedAt ? ` · ${formatRelativeTime(log.finishedAt)}` : ''}`
+          ? `${log.message || meta?.text}${log.finishedAt ? ` · ${formatRelativeTime(log.finishedAt)}` : ''}`
           : '暂无运行记录'
       }
     >

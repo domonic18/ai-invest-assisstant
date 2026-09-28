@@ -157,6 +157,10 @@ class TestTradingAgentPlans:
                 "app.services.trading.agent_plan_ops.list_plan_views",
                 AsyncMock(return_value=[view]),
             ),
+            patch(
+                "app.services.trading.agent_plan_service.load_plan_content_for_date",
+                AsyncMock(return_value=MagicMock(stand_aside_reason=None)),
+            ),
         ):
             resp = http.get("/api/v1/admin/trading-agent/short-line/plans")
 
@@ -164,6 +168,7 @@ class TestTradingAgentPlans:
         body = resp.json()
         assert body["tradeDate"] == "2026-07-17"
         assert body["nextTradeDate"] == "2026-07-20"
+        assert body["standAsideReason"] is None
         plan = body["plans"][0]
         assert plan["stockCode"] == "600000"
         assert plan["stockName"] == "浦发银行"
@@ -174,6 +179,35 @@ class TestTradingAgentPlans:
         assert plan["stopLoss"] == pytest.approx(9.5)
         assert plan["positionPct"] == pytest.approx(10.0)
         assert plan["triggeredClOrdId"] is None
+
+    def test_list_returns_stand_aside_reason_when_no_plans(self, admin_client) -> None:
+        """三态契约：plans 空 + 原因非空 = 已生成但空仓观望（区别于未生成）。"""
+        http, _ = admin_client
+
+        with (
+            patch(
+                "app.services.market.trade_calendar_service.resolve_latest_trade_date",
+                AsyncMock(return_value=date(2026, 7, 17)),
+            ),
+            patch(
+                "app.services.market.trade_calendar_service.next_trading_day",
+                AsyncMock(return_value=date(2026, 7, 20)),
+            ),
+            patch(
+                "app.services.trading.agent_plan_ops.list_plan_views",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.services.trading.agent_plan_service.load_plan_content_for_date",
+                AsyncMock(return_value=MagicMock(stand_aside_reason="大盘系统性风险，空仓观望")),
+            ),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/short-line/plans")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["plans"] == []
+        assert body["standAsideReason"] == "大盘系统性风险，空仓观望"
 
     def test_list_accepts_trade_date_query(self, admin_client) -> None:
         http, _ = admin_client
@@ -191,6 +225,10 @@ class TestTradingAgentPlans:
                 "app.services.trading.agent_plan_ops.list_plan_views",
                 AsyncMock(return_value=[]),
             ) as list_mock,
+            patch(
+                "app.services.trading.agent_plan_service.load_plan_content_for_date",
+                AsyncMock(return_value=None),
+            ),
         ):
             resp = http.get(
                 "/api/v1/admin/trading-agent/short-line/plans", params={"trade_date": "2026-07-16"}
@@ -201,6 +239,7 @@ class TestTradingAgentPlans:
         assert list_mock.await_args.kwargs["plan_date"] == date(2026, 7, 16)
         body = resp.json()
         assert body["tradeDate"] == "2026-07-16"
+        assert body["standAsideReason"] is None
 
     def test_cancel_returns_updated_plan(self, admin_client) -> None:
         http, _ = admin_client
@@ -227,6 +266,10 @@ class TestGetTradingAgentDates:
                 AsyncMock(return_value=[date(2026, 7, 16), date(2026, 7, 17)]),
             ) as plan_dates_mock,
             patch(
+                "app.services.trading.agent_plan_service.list_stand_aside_dates",
+                AsyncMock(return_value=[date(2026, 7, 15)]),
+            ) as stand_aside_mock,
+            patch(
                 "app.services.trading.agent_review_service.list_review_dates",
                 AsyncMock(side_effect=lambda _s, _k, *, period: [date(2026, 7, period == "day" and 17 or 10)]),
             ) as review_dates_mock,
@@ -235,11 +278,13 @@ class TestGetTradingAgentDates:
 
         assert resp.status_code == 200
         body = resp.json()
-        assert body["planDates"] == ["2026-07-16", "2026-07-17"]
+        # 空仓观望日（无计划行）并入日历打点
+        assert body["planDates"] == ["2026-07-15", "2026-07-16", "2026-07-17"]
         assert sorted(body["reviewDates"]) == ["day", "month", "week"]
         assert body["reviewDates"]["day"] == ["2026-07-17"]
         assert body["reviewDates"]["week"] == ["2026-07-10"]
         plan_dates_mock.assert_awaited_once()
+        stand_aside_mock.assert_awaited_once()
         assert review_dates_mock.await_count == 3
 
     def test_empty_when_no_records(self, admin_client) -> None:
@@ -248,6 +293,10 @@ class TestGetTradingAgentDates:
         with (
             patch(
                 "app.services.trading.agent_plan_ops.list_plan_dates",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.services.trading.agent_plan_service.list_stand_aside_dates",
                 AsyncMock(return_value=[]),
             ),
             patch(
