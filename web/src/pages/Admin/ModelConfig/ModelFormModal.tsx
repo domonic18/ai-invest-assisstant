@@ -19,12 +19,14 @@ interface ModelFormModalProps {
 const PROTOCOL_OPTIONS = [
   { value: 'openai', label: 'OpenAI 兼容' },
   { value: 'anthropic', label: 'Anthropic' },
+  { value: 'systemone', label: 'System One（结构化判断）' },
 ]
 
 const PURPOSE_OPTIONS: { value: LlmPurpose; label: string }[] = [
   { value: 'chat', label: '对话/分析（默认对话与知识库清洗/抽取）' },
   { value: 'embedding', label: '向量嵌入（知识库检索）' },
   { value: 'vision', label: '视觉识别（图片理解）' },
+  { value: 'decision', label: '结构化判断（盘中执行 L1）' },
 ]
 
 const PROVIDER_OPTIONS = [
@@ -47,6 +49,7 @@ export function ModelFormModal({
 }: ModelFormModalProps) {
   const [form] = Form.useForm<LLMConfigFormValues>()
   const purpose = Form.useWatch('purpose', form)
+  const isDecision = purpose === 'decision'
 
   const backupOptions = useMemo(
     () =>
@@ -98,6 +101,13 @@ export function ModelFormModal({
     const preset = LLM_PROVIDER_PRESETS[provider]
     if (preset) {
       form.setFieldsValue({ baseUrl: preset.baseUrl, protocol: preset.protocol })
+    }
+  }
+
+  const handlePurposeChange = (value: LlmPurpose) => {
+    // 判断模型恒为 systemone 协议（与后端 create/update 归一规则一致）
+    if (value === 'decision') {
+      form.setFieldsValue({ protocol: 'systemone' })
     }
   }
 
@@ -163,7 +173,11 @@ export function ModelFormModal({
           label="API 地址 (Base URL)"
           name="baseUrl"
           rules={[{ required: true, message: '请输入 API 地址' }]}
-          extra="填 API 根地址（如 https://open.bigmodel.cn/api/paas/v4）；粘贴含 /embeddings、/chat/completions 的完整端点会自动归一"
+          extra={
+            isDecision
+              ? '填 API 根地址：OpenRouter https://openrouter.ai/api 或 Codiv https://api.codiv.ai'
+              : '填 API 根地址（如 https://open.bigmodel.cn/api/paas/v4）；粘贴含 /embeddings、/chat/completions 的完整端点会自动归一'
+          }
         >
           <Input placeholder="https://api.deepseek.com" />
         </Form.Item>
@@ -172,17 +186,26 @@ export function ModelFormModal({
           label="模型名称"
           name="modelName"
           rules={[{ required: true, message: '请输入模型名称' }]}
+          extra={
+            isDecision
+              ? '固定版本 pin：OpenRouter 填 jev-latest 或 typesafe/jev-1.13；Codiv 填 openjev-0.1；直连 TypeSafe 填 jev-1.13.0'
+              : undefined
+          }
         >
-          <Input placeholder="deepseek-chat" />
+          <Input placeholder={isDecision ? 'jev-latest' : 'deepseek-chat'} />
         </Form.Item>
 
         <Form.Item
           label="用途"
           name="purpose"
           rules={[{ required: true, message: '请选择用途' }]}
-          extra="知识库模型角色槽位按用途过滤候选条目，须与槽位要求一致"
+          extra={
+            isDecision
+              ? undefined
+              : '知识库模型角色槽位按用途过滤候选条目，须与槽位要求一致'
+          }
         >
-          <Select options={PURPOSE_OPTIONS} />
+          <Select options={PURPOSE_OPTIONS} onChange={handlePurposeChange} />
         </Form.Item>
 
         <Form.Item
@@ -201,22 +224,26 @@ export function ModelFormModal({
           <Input.Password placeholder={editing ? '留空表示不修改' : 'sk-...'} />
         </Form.Item>
 
-        <Form.Item label="设为默认" name="isDefault" valuePropName="checked">
-          <Switch />
-        </Form.Item>
+        {!isDecision && (
+          <Form.Item label="设为默认" name="isDefault" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+        )}
 
         <Form.Item label="启用" name="isActive" valuePropName="checked">
           <Switch />
         </Form.Item>
 
-        <Form.Item
-          label="视觉能力"
-          name="vision"
-          valuePropName="checked"
-          extra="开启后该模型可用于图片识别（如自选股截图导入），须为支持图片输入的模型"
-        >
-          <Switch />
-        </Form.Item>
+        {!isDecision && (
+          <Form.Item
+            label="视觉能力"
+            name="vision"
+            valuePropName="checked"
+            extra="开启后该模型可用于图片识别（如自选股截图导入），须为支持图片输入的模型"
+          >
+            <Switch />
+          </Form.Item>
+        )}
       </Form>
     </Modal>
   )

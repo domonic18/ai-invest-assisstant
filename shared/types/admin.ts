@@ -3,8 +3,8 @@ export interface LLMConfigCapabilities {
   vision?: boolean
 }
 
-/** LLM 接口协议：openai 兼容 / anthropic 原生。 */
-export type LLMProtocol = 'openai' | 'anthropic'
+/** LLM 接口协议：openai 兼容 / anthropic 原生 / System One 结构化判断（D23）。 */
+export type LLMProtocol = 'openai' | 'anthropic' | 'systemone'
 
 export interface LLMConfig {
   id: number
@@ -49,8 +49,9 @@ export interface LLMConfigTestResult {
   testedAt: string
 }
 
-/** 配置用途（知识库模型角色槽位按此过滤候选） */
-export type LlmPurpose = 'chat' | 'embedding' | 'vision'
+/** 配置用途（知识库模型角色槽位按此过滤候选）。decision 为判断模型（盘中执行 L1），
+ *  不进任何 F-KB 槽位候选，也不参与默认对话解析。 */
+export type LlmPurpose = 'chat' | 'embedding' | 'vision' | 'decision'
 
 export interface ApiLLMConfigResponse {
   id: number
