@@ -116,6 +116,10 @@ class Settings(BaseSettings):
     iwencai_api_key: str = ""
     iwencai_timeout_seconds: float = 30.0
 
+    # 判断模型（System One，D23）单次调用默认超时（秒）；llm_config.extra.timeout_seconds
+    # 可按条目覆盖。Jev 实测延迟 70-500ms，10s 为网络抖动裕量
+    decision_model_timeout_seconds: float = 10.0
+
     # 掘金仿真 sidecar（compose 服务名直连；留空 = 模拟盘功能整体禁用）
     paper_trade_url: str = ""
     paper_trade_timeout: float = 10.0

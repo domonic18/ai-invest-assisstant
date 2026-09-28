@@ -11,6 +11,7 @@ _ENDPOINT_SUFFIXES = (
     "/embeddings",
     "/speech_to_text",
     "/v1/messages",
+    "/v1/systemone",
 )
 
 
