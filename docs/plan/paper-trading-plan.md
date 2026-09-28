@@ -1049,6 +1049,16 @@ MLX Apple Silicon ~16GB（读串行，官方明示不用于 serving，仅本地�
 （OpenRouter 的 chat 形状给不了的实验设计）；③ 备链顺序 = 主 Jev 直连 → 备
 openjev/Codiv → OpenRouter 降为实验线（透传保真仍需探针验证）；本期不自托管。
 
+**外部依赖相位（2026-09-28 补，用户拍板）**：现有 OpenRouter 免费账号**不能替代
+Jev 验证位**——chat 形状 ≠ systemone，透传保真未证，测出的置信校准不可迁移到
+Jev 直连。据此：开发期（8.0/8a）以 **Codiv 代位**（同 systemone 形状、100M 免费
+tokens、无卡注册），`SystemOneAdapter` 开发/冒烟/联调全流程够用；OpenRouter 免费
+额度先行完成 `typesafe/jev-router` **透传保真探针**实验（D23 挂起项，结果决定其
+实验线去留）；**Jev（TypeSafe）注册押后至影子期开始前**——校准主臂必须是生产同款
+（主 Jev 直连），影子期 A/B 相位为「openjev 臂先行，Jev 臂就位后 A/B」，1-2 周
+校准窗自 Jev 臂就位起算（影子期总时长约多一周）。Jev 成本 $0.042/MTok 仅输入计费，
+影子期全程预估 <$5，押后无代价。
+
 ## 12. 批次 9：经验沉淀闭环（复盘 → Agent 自有记忆 → 反哺）
 
 记忆落 **Agent 自有记忆系统**（新表 `agent_memory`），不经 KB 知识库——记忆是
@@ -1127,8 +1137,10 @@ prompt 不再引用；手动沉淀一键 active（manual 标记）；重跑不�
 
 ## 14. 部署与验收纪律
 
-- 迁移先于代码滚动（新表无热表 DDL 风险，仍按纪律先跑迁移再换镜像；批次 7 的
-  `ALTER TABLE user_watchlist_group` 后重启 worker——asyncpg 语句缓存失效纪律）。
+- 迁移先于代码滚动（2026-09-28 起 migrate.sh 台账制三步时序：`docker compose up -d postgres`
+  等健康 → `bash docker/database/migrate.sh` → 换镜像起应用；存量库首跑 `applied=2`
+  幂等 no-op。批次 7 的 `ALTER TABLE user_watchlist_group` 后重启 worker——
+  asyncpg 语句缓存失效纪律）。
 - 生产 `.env`：`PAPER_TRADE_URL` 保留；`GMTRADE_TOKEN` / `GMTRADE_ACCOUNT_ID`
   **退役不部署**（D12）；确认 `credential_encryption_key` 已设置（proxy 密码加密
   同源，token 解密依赖）。
@@ -1169,4 +1181,4 @@ prompt 不再引用；手动沉淀一键 active（manual 标记）；重跑不�
 | D21 | 批次 8 执行架构（2026-09-28） | **慢思考 + 快反应双模型机制**——慢思考 = 既有 Celery 定时链（盘前计划 / 盘中校准 / 盘后复盘，定期唤醒零新增基建）；快反应 = 盘中常驻服务四层栈：L0 确定性风控与价格穿越判定 + L1 Jev 执行概率判断 + L2 低置信升级慢模型 + L3 人工干预面；柜台条件单路径**出局**（用户拍板：非期望方案，存档 §11.4）；Jev 由「暂缓」反转为「快判断层采用」（§11.3，三条硬约束：版本 pin / 分档置信门控 / 判断全留痕）；落地 8a 影子模式（1-2 周校准）→ 8b active（§11.1/§11.4） |
 | D22 | 盘中慢快交互（2026-09-28） | **早盘/午盘各一次计划校准**（10:20 / 13:20，Celery heavy 派发两实例）——快反应供「盘中观察报告」（observation 表当日聚合），慢模型出结构化「计划修正单」（maintain/adjust/cancel/add，schema 校验落库新版本），修正单过 L0 风控硬校验后生效；校准动作在盘后复盘 verdict 中可归因（§11.5） |
 | D23 | 判断模型封装（2026-09-28） | **接口契约 vendor 无关**——Jev 是 System One 品类首发者非终局（openjev 已复刻接口模式），押注接口（state + 类型化问题 → 概率答案 + confidence）不押注厂商：内部契约 `app/core/decision_model`（三题型 + `ask()`，版本/用量随响应返回），adapter 隔离厂商（TypeSafe 直连首发 / OpenRouter 实验备链 / 未来厂商 = 新 adapter）；配置接入「模型配置」admin（`llm_config` purpose 扩展 `decision`，DB 真相源无新增 env），主备复用 LLM 主备模式；双路失败**降级纯 L0**（advisory 语义，禁止用阈值近似替代判断）（§11.6） |
-| D24 | 影子期对照臂与备链（2026-09-28） | **影子模式加 openjev 对照臂，走 Codiv 免费托管**（`api.codiv.ai/v1/systemone`，100M input tokens）——同 wire API、同 state 同题面、只换 base_url 的严格 A/B，实测中文盘面 state 校准曲线（Jev 官方确认 CJK 偏弱，全生态无中文校准数据）；备链顺序 = 主 Jev 直连 → 备 openjev/Codiv（切换成本 = base_url + pin `openjev-0.1`）→ OpenRouter 降为实验线；**门控阈值是 per-vendor 资产**（openjev confidence = `1−H(p)/ln K` 纯熵形状，0.6/0.85 分档不可跨模型移植，decision 阈值组按 model_version 键控）；本期不自托管（§11.7） |
+| D24 | 影子期对照臂与备链（2026-09-28） | **影子模式加 openjev 对照臂，走 Codiv 免费托管**（`api.codiv.ai/v1/systemone`，100M input tokens）——同 wire API、同 state 同题面、只换 base_url 的严格 A/B，实测中文盘面 state 校准曲线（Jev 官方确认 CJK 偏弱，全生态无中文校准数据）；备链顺序 = 主 Jev 直连 → 备 openjev/Codiv（切换成本 = base_url + pin `openjev-0.1`）→ OpenRouter 降为实验线；**门控阈值是 per-vendor 资产**（openjev confidence = `1−H(p)/ln K` 纯熵形状，0.6/0.85 分档不可跨模型移植，decision 阈值组按 model_version 键控）；本期不自托管；**外部依赖相位**：Jev 注册押后至影子期前（开发期 Codiv 代位，OpenRouter 免费额度做透传保真探针，校准窗自 Jev 臂就位起算）（§11.7） |
