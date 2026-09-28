@@ -10,6 +10,7 @@ _ENDPOINT_SUFFIXES = (
     "/chat/completions",
     "/embeddings",
     "/speech_to_text",
+    "/audio/transcriptions",
     "/v1/messages",
     "/v1/systemone",
 )
@@ -30,8 +31,23 @@ def normalize_api_base(base_url: str) -> str:
 
 
 def normalize_asr_base(base_url: str) -> str:
-    """ASR 通道专用：客户端自拼 ``/v1/speech_to_text``，根地址不含版本段。"""
+    """ASR 通道专用（MiniMax 协议）：客户端自拼 ``/v1/speech_to_text``，
+    根地址不含版本段。"""
     base = normalize_api_base(base_url)
     if base.endswith("/v1"):
         return base[: -len("/v1")].rstrip("/")
+    return base
+
+
+def normalize_openai_asr_base(base_url: str) -> str:
+    """OpenAI 兼容转写专用：客户端自拼 ``/audio/transcriptions``。
+
+    裸主机地址补 ``/v1``（OpenAI 路径约定，适配本地部署如
+    ``http://localhost:8080``）；带路径的地址原样保留——网关自定义挂载点
+    由用户显式给出。
+    """
+    base = normalize_api_base(base_url)
+    # scheme://host 之外无路径段（split 后 ≤3 段）即视为裸主机
+    if len(base.split("/")) <= 3:
+        return f"{base}/v1"
     return base

@@ -136,6 +136,10 @@ class AsrChannelConfig(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     provider: Mapped[str] = mapped_column(String(32), nullable=False, default="minimax")
+    #: wire 协议（决定端点路径与请求/错误形态）：minimax 专有 | openai 兼容转写
+    protocol: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="minimax", server_default="minimax"
+    )
     base_url: Mapped[str] = mapped_column(String(200), nullable=False, default="https://api.minimaxi.com")
     model: Mapped[str] = mapped_column(String(64), nullable=False, default="asr-1.0")
     api_key_encrypted: Mapped[str | None] = mapped_column(nullable=True)

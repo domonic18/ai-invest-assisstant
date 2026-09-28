@@ -36,6 +36,7 @@ class TestAdminAsrConfigEndpoints:
     def _asr_config_response(self) -> AsrConfigResponse:
         return AsrConfigResponse(
             provider="minimax",
+            protocol="minimax",
             base_url="https://api.minimaxi.com",
             model="asr-1.0",
             api_key_masked="sk-1****abcd",
@@ -50,6 +51,7 @@ class TestAdminAsrConfigEndpoints:
         client, mock_session = admin_client
         config = SimpleNamespace(
             provider="minimax",
+            protocol="minimax",
             base_url="https://api.minimaxi.com",
             model="asr-1.0",
             api_key_encrypted="enc",

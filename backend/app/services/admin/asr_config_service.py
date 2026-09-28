@@ -1,7 +1,7 @@
 """ASR 渠道配置服务（asr_channel_config 单行表，管理端「模型配置」维护，社媒与知识库共用）。
 
 密钥 write-only：更新请求 apiKey 为 None/空串保留原值，传入即换（Fernet 落库
-+ masked 回显）；连接测试用内置正弦波样例音频实调官方接口（~1s，即生成即用）。
++ masked 回显）；连接测试用内置正弦波样例音频实调转写接口（~1s，即生成即用）。
 """
 
 import io
@@ -14,7 +14,7 @@ from typing import Any
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.minimax import asr as minimax_asr
+from app.adapters import asr as asr_adapter
 from app.models.social import AsrChannelConfig
 from app.schemas.model_config import (
     AsrConfigResponse,
@@ -50,6 +50,7 @@ def to_response(config: AsrChannelConfig) -> AsrConfigResponse:
     """masked 视图（密钥只回脱敏串与是否已配置）。"""
     return AsrConfigResponse(
         provider=config.provider,
+        protocol=config.protocol,
         base_url=config.base_url,
         model=config.model,
         api_key_masked=config.api_key_masked,
@@ -106,9 +107,10 @@ async def test_connection(
         try:
             api_key = decrypt_token(config.api_key_encrypted)
             payload = await _transcribe_sample(config, api_key)
-            business = minimax_asr.parse_business_error(payload)
+            # base_resp 业务错误形态仅 MiniMax 协议存在；openai 兼容响应天然 None
+            business = asr_adapter.parse_business_error(payload)
             error = (
-                f"MiniMax 错误 {business[0]}: {business[1]}" if business else None
+                f"转写接口业务错误 {business[0]}: {business[1]}" if business else None
             )
             if error is None:
                 text = (payload.get("text") or "").strip() or None
@@ -130,9 +132,9 @@ async def test_connection(
 
 
 async def _transcribe_sample(config: AsrChannelConfig, api_key: str) -> dict[str, Any]:
-    """内置样例音频实调 speech_to_text，返回原始 JSON 响应（异常向上传播）。"""
-    return await minimax_asr.speech_to_text(
-        minimax_asr.SpeechToTextRequest(
+    """内置样例音频实调转写接口，返回原始 JSON 响应（异常向上传播）。"""
+    return await asr_adapter.speech_to_text(
+        asr_adapter.SpeechToTextRequest(
             base_url=config.base_url or "",
             api_key=api_key,
             model=config.model,
@@ -141,6 +143,7 @@ async def _transcribe_sample(config: AsrChannelConfig, api_key: str) -> dict[str
             content_type="audio/wav",
             response_format="json",
             timeout_seconds=_TEST_TIMEOUT_SECONDS,
+            protocol=config.protocol or "minimax",
         )
     )
 

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from app.models.social import AsrChannelConfig
 from app.schemas.model_config import AsrConfigUpdateRequest
@@ -23,6 +24,7 @@ def _config() -> SimpleNamespace:
     return SimpleNamespace(
         id=1,
         provider="minimax",
+        protocol="minimax",
         base_url="https://api.minimaxi.com",
         model="asr-1.0",
         api_key_encrypted="gAAAA-cipher",
@@ -165,6 +167,33 @@ class TestUpdateConfig:
         assert config.base_url == "https://api.example.com/"
         assert config.hotwords == ["降息", "北向资金"]
         assert config.max_audio_seconds == 300
+
+    async def test_protocol_round_trip(self) -> None:
+        """protocol 合法值落库并回显（切换到 openai 兼容渠道的场景）。"""
+        session = _session()
+        config = _config()
+        with (
+            patch.object(
+                asr_config_service,
+                "get_or_create_config",
+                AsyncMock(return_value=config),
+            ),
+            patch.object(asr_config_service, "record_audit", AsyncMock()),
+        ):
+            await asr_config_service.update_config(
+                session,
+                AsrConfigUpdateRequest(protocol="openai", provider="groq"),
+                actor_id=7,
+            )
+        assert config.protocol == "openai"
+        assert config.provider == "groq"
+        response = asr_config_service.to_response(config)
+        assert response.protocol == "openai"
+
+    async def test_protocol_rejects_unknown_value(self) -> None:
+        """未知协议在 schema 边界拒绝（Pydantic Literal），不落库。"""
+        with pytest.raises(ValidationError, match="protocol"):
+            AsrConfigUpdateRequest(protocol="weird")
 
 
 @pytest.mark.unit

@@ -1,9 +1,9 @@
-"""ASR 转写服务：asr_channel_config 配置驱动调用 MiniMax speech_to_text。
+"""ASR 转写服务：asr_channel_config 配置驱动调用多厂商转写接口。
 
 转写链路：视频 URL 流式下载落盘（分块写，整段视频不进内存）→ ffmpeg 抽音轨
-（16k 单声道 mp3，体量 ~MB 级）→ MiniMax。任一环节失败返回降级原因（不抛
-异常，调用方落 transcript_status=missing）；官方接口无热词参数，热词表由
-情绪判断 prompt 注入纠偏。
+（16k 单声道 mp3，体量 ~MB 级）→ ASR 渠道（协议分派见 ``app.adapters.asr``）。
+任一环节失败返回降级原因（不抛异常，调用方落 transcript_status=missing）；
+转写接口无热词参数，热词表由情绪判断 prompt 注入纠偏。
 """
 
 from dataclasses import dataclass
@@ -15,8 +15,8 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.minimax import asr as minimax_asr
-from app.adapters.minimax.asr import MiniMaxAsrHttpError
+from app.adapters import asr as asr_adapter
+from app.adapters.asr import AsrHttpError
 from app.models.social import AsrChannelConfig
 from app.utils import ffmpeg
 from app.utils.crypto import decrypt_token
@@ -79,13 +79,14 @@ async def transcribe_from_url(session: AsyncSession, url: str) -> TranscribeOutc
             return TranscribeOutcome(None, None, reason)
         mp3 = mp3_path.read_bytes()
 
-    text = await _call_minimax(config, api_key, mp3)
+    text = await _call_asr(config, api_key, mp3)
     if text is None:
         return TranscribeOutcome(None, None, "asr_request_failed")
     return TranscribeOutcome(
         text,
         {
             "provider": config.provider,
+            "protocol": config.protocol,
             "model": config.model,
             "char_count": len(text),
         },
@@ -138,11 +139,11 @@ async def _fetch_audio(url: str, tmp_dir: Path) -> tuple[Path | None, str | None
     return output_path, None
 
 
-async def _call_minimax(config: AsrChannelConfig, api_key: str, mp3: bytes) -> str | None:
-    """调用 MiniMax speech_to_text，返回转写文本（任何失败返回 None 降级）。"""
+async def _call_asr(config: AsrChannelConfig, api_key: str, mp3: bytes) -> str | None:
+    """调用 ASR 渠道转写，返回转写文本（任何失败返回 None 降级）。"""
     try:
-        payload = await minimax_asr.speech_to_text(
-            minimax_asr.SpeechToTextRequest(
+        payload = await asr_adapter.speech_to_text(
+            asr_adapter.SpeechToTextRequest(
                 base_url=config.base_url or "",
                 api_key=api_key,
                 model=config.model,
@@ -152,12 +153,13 @@ async def _call_minimax(config: AsrChannelConfig, api_key: str, mp3: bytes) -> s
                 response_format="json",
                 timeout_seconds=_ASR_TIMEOUT_SECONDS,
                 retry_backoff_seconds=_ASR_RETRY_BACKOFF_SECONDS,
+                protocol=config.protocol or "minimax",
             )
         )
-    except MiniMaxAsrHttpError as exc:
+    except AsrHttpError as exc:
         logger.warning("social_asr_request_failed", error=str(exc))
         return None
-    business = minimax_asr.parse_business_error(payload)
+    business = asr_adapter.parse_business_error(payload)
     if business is not None:
         logger.warning("social_asr_business_error", error=business[1])
         return None
