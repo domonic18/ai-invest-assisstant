@@ -88,10 +88,14 @@ ai-invest-assisstant/
 ```bash
 # 本地全栈（docker compose）
 cp .env.example .env
-docker compose up -d          # web :9000，健康检查 /health
+docker compose up -d postgres     # 先起库，等健康
+bash docker/database/migrate.sh   # 建库/迁移（台账制，宿主机无 psql 自动走容器内执行）
+docker compose up -d              # web :9000，健康检查 /health
 
 # 生产服务器（显式 prod 叠加，服务器不构建）
 docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d postgres --wait
+bash docker/database/migrate.sh
 docker compose -f docker-compose.prod.yml up -d --wait --remove-orphans --no-build
 ```
 
