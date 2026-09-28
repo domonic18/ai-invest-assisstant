@@ -25,6 +25,12 @@ const CADENCE_OPTIONS: { value: AgentCadence; label: string }[] = [
   { value: 'monthly', label: '每月最后一个交易日' },
 ]
 
+const EXEC_MODE_OPTIONS: { value: 'off' | 'shadow' | 'active'; label: string }[] = [
+  { value: 'off', label: '停用' },
+  { value: 'shadow', label: '影子（只判断不下单）' },
+  { value: 'active', label: '执行（真实下单）' },
+]
+
 interface ConfigFormValues {
   name: string
   statusEnabled: boolean
@@ -34,7 +40,7 @@ interface ConfigFormValues {
   riskMaxPositionPct: number
   riskMaxTotalPct: number
   riskMaxDailyOrders: number
-  autoExecEnabled: boolean
+  intradayExecMode: 'off' | 'shadow' | 'active'
 }
 
 export function AgentConfigPanel() {
@@ -55,7 +61,7 @@ export function AgentConfigPanel() {
         riskMaxPositionPct: config.riskMaxPositionPct,
         riskMaxTotalPct: config.riskMaxTotalPct,
         riskMaxDailyOrders: config.riskMaxDailyOrders,
-        autoExecEnabled: config.autoExecEnabled,
+        intradayExecMode: config.intradayExecMode,
       })
     }
   }, [config, form])
@@ -80,7 +86,7 @@ export function AgentConfigPanel() {
               riskMaxPositionPct: values.riskMaxPositionPct,
               riskMaxTotalPct: values.riskMaxTotalPct,
               riskMaxDailyOrders: values.riskMaxDailyOrders,
-              autoExecEnabled: values.autoExecEnabled,
+              intradayExecMode: values.intradayExecMode,
             })
           }
         >
@@ -141,12 +147,11 @@ export function AgentConfigPanel() {
               <InputNumber className="w-full" min={1} step={1} precision={0} />
             </Form.Item>
             <Form.Item
-              name="autoExecEnabled"
+              name="intradayExecMode"
               label="盘中自主执行"
-              valuePropName="checked"
-              extra="关闭后盘中不自动执行交易计划（对话内交易不受影响）"
+              extra="影子=全链路判断留痕不下单；执行=触达计划价位真实下单（对话内交易不受影响）"
             >
-              <Switch />
+              <Select options={EXEC_MODE_OPTIONS} />
             </Form.Item>
           </div>
           <div className="flex items-center justify-end gap-3">

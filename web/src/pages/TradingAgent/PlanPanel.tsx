@@ -45,19 +45,19 @@ function PlanRow({ plan }: { plan: ApiTradingAgentPlan }) {
 
   return (
     <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <Tag color={isBuy ? 'red' : 'green'} className="!mr-0">
           {isBuy ? '买入' : '止损/止盈卖出'}
         </Tag>
         <button
           type="button"
-          className="min-w-0 cursor-pointer text-left leading-tight"
+          className="min-w-0 cursor-pointer overflow-hidden text-left leading-tight"
           onClick={() => void navigate(`/stock/${plan.stockCode}`)}
         >
           <Typography.Text strong className="block truncate text-xs">
             {plan.stockName ?? plan.stockCode}
           </Typography.Text>
-          <span className="font-mono text-xs text-white/50">{plan.stockCode}</span>
+          <span className="block truncate font-mono text-xs text-white/50">{plan.stockCode}</span>
         </button>
         {isBuy ? (
           <Tag color="gold" className="!mr-0">
@@ -69,8 +69,9 @@ function PlanRow({ plan }: { plan: ApiTradingAgentPlan }) {
             持仓 {plan.heldVolume} 股
           </Tag>
         ) : null}
-        <span className="ml-auto" />
-        <Tag color={status.color}>{status.label}</Tag>
+        <Tag color={status.color} className="ml-auto">
+          {status.label}
+        </Tag>
         {plan.status === 'active' && (
           <Popconfirm
             title="取消该计划"

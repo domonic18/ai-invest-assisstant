@@ -11,6 +11,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.paper_trade import (
     AgentCapabilityResponse,
@@ -24,6 +25,7 @@ from app.schemas.paper_trade import (
     AgentWatchlistGroupResponse,
     TradingAgentCreateRequest,
     TradingAgentDatesResponse,
+    TradingAgentObservationPage,
     TradingAgentPlanResponse,
     TradingAgentPlansResponse,
     TradingAgentProfileResponse,
@@ -34,6 +36,7 @@ from app.schemas.paper_trade import (
 )
 from app.services.market import trade_calendar_service
 from app.services.trading import (
+    agent_exec_observation_service,
     agent_memory_service,
     agent_overview_service,
     agent_plan_ops,
@@ -197,6 +200,32 @@ async def list_trading_agent_plans(
         next_trade_date=await trade_calendar_service.next_trading_day(session, resolved),
         plans=await agent_plan_ops.list_plan_views(session, agent_key, plan_date=resolved),
         stand_aside_reason=content.stand_aside_reason if content else None,
+    )
+
+
+@router.get(
+    "/{agent_key}/observations", response_model=TradingAgentObservationPage
+)
+async def list_trading_agent_observations(
+    agent_key: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    trade_date: date | None = Query(
+        None, description="交易日（缺省取最近有观测日；无观测回退当日）"
+    ),
+    significant: bool = Query(
+        True, description="仅显著事件（L0 非无动作或存在抑制原因）"
+    ),
+    page: int = Query(DEFAULT_PAGE, ge=1),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+) -> TradingAgentObservationPage:
+    """盘中执行观测分页（执行动态 Tab）：items 按 significant 过滤，summary 恒全天口径。"""
+    return await agent_exec_observation_service.list_agent_observations(
+        session,
+        agent_key,
+        trade_date=trade_date,
+        significant_only=significant,
+        page=page,
+        page_size=page_size,
     )
 
 

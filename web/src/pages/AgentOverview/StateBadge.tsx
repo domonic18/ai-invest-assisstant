@@ -31,7 +31,8 @@ export function StateBadge({
   const meta = STATE_META[state]
   const text = label ?? meta.text
   return (
-    <Tooltip title={state === 'working' ? '定时任务运行中，作业内容见活动时间轴' : text}>
+    <Tooltip title={text}>
+
       <span
         className="inline-flex max-w-full items-center gap-1 text-xs"
         style={{ color: meta.color, opacity: state === 'off' ? 0.75 : 1 }}

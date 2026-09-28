@@ -174,6 +174,41 @@ services:
           cpus: "0.5"
           memory: 512M
 
+  agent-intraday-exec:
+    # 交易 Agent 盘中自主执行驻留进程（批次 8，D21/D24）：60s tick 驱动
+    # L0→L1 判断链，shadow 全链路留痕不下单；心跳键 TTL 120s 判活
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: docker/collector/Dockerfile
+    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+      COLLECTOR_MODE: intraday
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      # 心跳键由 runner 每 ≤60s 续期（TTL 120s），TTL>0 即进程存活（含非交易时段）
+      test: ["CMD-SHELL", "python -c \"import os, redis; exit(0 if redis.from_url(os.environ['REDIS_URL']).ttl('collector:stream:intraday_exec:heartbeat') > 0 else 1)\""]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
   douyin-signer:
     # 抖音页面签名 sidecar：chromium warm 页 SDK 真签（Argus 门禁对抗，见 docs/arch/08）
     # 不锁 platform：chromium 原生 arm64/amd64 均可用，amd64 模拟会破坏浏览器指纹；

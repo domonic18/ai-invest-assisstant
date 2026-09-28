@@ -18,8 +18,8 @@ export interface TradingAgentProfile {
   riskMaxTotalPct: number
   /** 单日委托笔数上限。 */
   riskMaxDailyOrders: number
-  /** 盘中自主执行总闸（盘中执行批次消费）。 */
-  autoExecEnabled: boolean
+  /** 盘中自主执行三态（D21，批次 8）：off 停用 / shadow 判断不下单 / active 真实执行。 */
+  intradayExecMode: 'off' | 'shadow' | 'active'
   status: 'active' | 'planned' | 'disabled'
   /** 计划生成频率（daily 每交易日 / weekly 周期末 / monthly 月末，D28）。 */
   planCadence: 'daily' | 'weekly' | 'monthly'
@@ -46,7 +46,8 @@ export interface TradingAgentProfileUpdateRequest {
   riskMaxPositionPct?: number
   riskMaxTotalPct?: number
   riskMaxDailyOrders?: number
-  autoExecEnabled?: boolean
+  /** 盘中自主执行三态（D21，批次 8）。 */
+  intradayExecMode?: 'off' | 'shadow' | 'active'
   status?: 'active' | 'disabled'
   planCadence?: AgentCadence
   reviewCadence?: AgentCadence
@@ -190,6 +191,63 @@ export interface ApiAgentWatchlistGroupResponse {
   id: number
   name: string
   items: ApiAgentWatchlistSelectionItem[]
+}
+
+/** 单行观测的判断上下文（后端解析 JSONB 产物，键缺失为 null）。 */
+export interface ApiTradingAgentObservationDecision {
+  /** L1 served model 版本（判断主备切换时区分实际应答臂）。 */
+  servedModel: string | null
+  /** Choice 答案选中项（execute_now/wait_pullback/give_up）。 */
+  choice: string | null
+  confidence: number | null
+  /** Noul 答案（分时形态/止损有效性，布尔）。 */
+  noul: boolean | null
+  /** Score 答案（盘面支持度 0-1）。 */
+  score: number | null
+  /** 观测窗口标记；'tail_check' = 尾盘强检行（planId 恒空）。 */
+  window: string | null
+}
+
+/** 盘中执行观测条目（执行动态 Tab 行卡片，一次 tick 对一个标的的判定）。 */
+export interface ApiTradingAgentObservationItem {
+  id: number
+  tickTime: string
+  tradeDate: string
+  agentKey: string
+  planId: number | null
+  stockCode: string
+  stockName: string | null
+  planType: 'buy' | 'sell' | null
+  price: number | null
+  changePct: number | null
+  l0Verdict: 'no_action' | 'near_trigger' | 'triggered' | 'degraded' | string
+  triggerReason: 'buy_zone' | 'target' | 'stop_loss' | null
+  decision: ApiTradingAgentObservationDecision | null
+  /** no_action 行无动作（null）；execute/wait/abandon/suppress。 */
+  action: 'execute' | 'wait' | 'abandon' | 'suppress' | null
+  suppressionReason: string | null
+  isShadow: boolean
+  clOrdId: string | null
+  orderVolume: number | null
+}
+
+/** 全天口径计数（不受 significant 过滤影响，顶部统计条数据源）。 */
+export interface ApiTradingAgentObservationSummary {
+  totalTicks: number
+  significantTicks: number
+  l0VerdictCounts: Record<string, number>
+  actionCounts: Record<string, number>
+  suppressionCounts: Record<string, number>
+}
+
+/** 执行观测分页载荷（items 按 significant 过滤，summary 恒全天口径）。 */
+export interface ApiTradingAgentObservationPage {
+  tradeDate: string
+  total: number
+  page: number
+  pageSize: number
+  items: ApiTradingAgentObservationItem[]
+  summary: ApiTradingAgentObservationSummary
 }
 
 /** agent 记忆类型（discipline 纪律 / method 方法 / lesson 教训）。 */

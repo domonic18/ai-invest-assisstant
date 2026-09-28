@@ -7,6 +7,7 @@
  * prefers-reduced-motion 停用）；③ HTML 节点层。左缘层带标签 + 右上图例。
  */
 import {
+  ArrowRightOutlined,
   ClockCircleOutlined,
   DatabaseOutlined,
   FundOutlined,
@@ -25,6 +26,7 @@ import { useNavigate } from 'react-router-dom'
 import type { AgentOverviewItem } from '@ai-invest/shared'
 
 import { useCeleryQueues } from '@/hooks/useCeleryQueues'
+import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion'
 import { useSystemStatus } from '@/hooks/useSystemStatus'
 
 import { buildHubEdges } from './hubEdges'
@@ -70,19 +72,6 @@ function useElementDims<T extends HTMLElement>() {
     return () => observer.disconnect()
   }, [])
   return { ref, dims }
-}
-
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(
-    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const onChange = () => setReduced(mq.matches)
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [])
-  return reduced
 }
 
 /** 背景：科技网格 + conic 扫描线（页面唯一 rAF，reduced-motion 时单帧）。 */
@@ -242,40 +231,62 @@ function ResourceStation({ id, point }: { id: StationId; point: Point }) {
   )
 }
 
-function AgentUnit({ item, point }: { item: AgentOverviewItem; point: Point }) {
+function AgentUnit({
+  item,
+  point,
+  selected,
+  onSelect,
+}: {
+  item: AgentOverviewItem
+  point: Point
+  selected: boolean
+  onSelect?: (agentKey: string) => void
+}) {
   const navigate = useNavigate()
   const { profile } = item
   const off = item.runtimeState === 'off'
   return (
-    <button
-      type="button"
-      onClick={() => !off && void navigate(`/trading-agent/${profile.agentKey}`)}
-      className={`absolute min-w-[136px] -translate-x-1/2 -translate-y-1/2 rounded-xl border px-3 py-2 text-left transition-colors ${
-        off
-          ? 'cursor-default border-white/5 bg-white/[0.02] opacity-55'
-          : 'cursor-pointer border-white/10 bg-white/[0.04] hover:border-white/30'
-      }`}
-      style={{ left: point.x, top: point.y }}
-    >
-      <span className="flex items-center gap-2">
-        <span
-          className={`inline-block size-2.5 rounded-full ${item.runtimeState === 'working' ? 'animate-pulse' : ''}`}
-          style={{ backgroundColor: profile.accentColor, boxShadow: `0 0 8px ${profile.accentColor}` }}
-        />
-        <Typography.Text strong className="text-xs">
-          {profile.name}
-        </Typography.Text>
-      </span>
-      <span className="mt-1 block">
-        <StateBadge state={item.runtimeState} label={item.stateLabel} />
-      </span>
-      {!off && (
-        <span className="mt-1 flex gap-1">
-          <Tag className="!m-0 !px-1.5 !text-[10px] !leading-4">计划 {item.planCount}</Tag>
-          <Tag className="!m-0 !px-1.5 !text-[10px] !leading-4">自选 {item.selectionCount}</Tag>
+    <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: point.x, top: point.y }}>
+      <button
+        type="button"
+        onClick={() => !off && onSelect?.(profile.agentKey)}
+        className={`min-w-[136px] rounded-xl border px-3 py-2 text-left transition-colors ${
+          off
+            ? 'cursor-default border-white/5 bg-white/[0.02] opacity-55'
+            : selected
+              ? 'cursor-pointer border-sky-400/60 bg-white/[0.05] shadow-[0_0_14px_rgba(56,189,248,0.2)]'
+              : 'cursor-pointer border-white/10 bg-white/[0.04] hover:border-white/30'
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          <span
+            className={`inline-block size-2.5 rounded-full ${item.runtimeState === 'working' ? 'animate-pulse' : ''}`}
+            style={{ backgroundColor: profile.accentColor, boxShadow: `0 0 8px ${profile.accentColor}` }}
+          />
+          <Typography.Text strong className="text-xs">
+            {profile.name}
+          </Typography.Text>
         </span>
+        <span className="mt-1 block">
+          <StateBadge state={item.runtimeState} label={item.stateLabel} />
+        </span>
+        {!off && (
+          <span className="mt-1 flex gap-1">
+            <Tag className="!m-0 !px-1.5 !text-[10px] !leading-4">计划 {item.planCount}</Tag>
+            <Tag className="!m-0 !px-1.5 !text-[10px] !leading-4">自选 {item.selectionCount}</Tag>
+          </span>
+        )}
+      </button>
+      {!off && (
+        <button
+          type="button"
+          onClick={() => void navigate(`/trading-agent/${profile.agentKey}`)}
+          className="mt-1 flex w-full items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] text-sky-300/80 transition-colors hover:border-sky-400/40 hover:text-sky-200"
+        >
+          进入工作台 <ArrowRightOutlined className="text-[9px]" />
+        </button>
       )}
-    </button>
+    </div>
   )
 }
 
@@ -303,6 +314,7 @@ function HubLegend() {
         <span>━ 汇入复盘</span>
       </div>
       <div className="mt-1 text-white/40">基建灯：绿=正常 红=异常 · 小方框=Celery 任务（hover 看详情）</div>
+      <div className="mt-0.5 text-white/40">点击 Agent 切换决策流 · 「进入工作台」打开详情</div>
     </div>
   )
 }
@@ -310,9 +322,15 @@ function HubLegend() {
 export function AgentHubStage({
   items,
   isLoading,
+  selectedKey,
+  onSelectAgent,
 }: {
   items: AgentOverviewItem[]
   isLoading: boolean
+  /** 当前决策流展示的 agent（舞台单元高亮）。 */
+  selectedKey?: string | null
+  /** 点击非 off 的 Agent 单元时回调（切换决策流，不再跳转详情）。 */
+  onSelectAgent?: (agentKey: string) => void
 }) {
   const { ref, dims } = useElementDims<HTMLDivElement>()
   const reducedMotion = usePrefersReducedMotion()
@@ -352,7 +370,13 @@ export function AgentHubStage({
               </span>
             ))}
             {items.map((item, i) => (
-              <AgentUnit key={item.profile.agentKey} item={item} point={layout.agents[i]} />
+              <AgentUnit
+                key={item.profile.agentKey}
+                item={item}
+                point={layout.agents[i]}
+                selected={item.profile.agentKey === selectedKey}
+                onSelect={onSelectAgent}
+              />
             ))}
             {(Object.keys(STATION_META) as StationId[]).map((id) => (
               <ResourceStation key={id} id={id} point={layout.stations[id]} />

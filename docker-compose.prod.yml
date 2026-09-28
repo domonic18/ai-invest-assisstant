@@ -191,6 +191,41 @@ services:
           cpus: "0.5"
           memory: 512M
 
+  agent-intraday-exec:
+    # 交易 Agent 盘中自主执行驻留进程（批次 8，D21/D24）：60s tick 驱动
+    # L0→L1 判断链，shadow 全链路留痕不下单；心跳键 TTL 120s 判活
+    build:
+      context: .
+      dockerfile: docker/collector/Dockerfile
+    image: ccr.ccs.tencentyun.com/domonic18/collector:${APP_TAG:-latest}
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+      COLLECTOR_MODE: intraday
+      PAPER_TRADE_URL: ${PAPER_TRADE_URL:-http://paper-trade:8020}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      # 心跳键由 runner 每 ≤60s 续期（TTL 120s），TTL>0 即进程存活（含非交易时段）
+      test: ["CMD-SHELL", "python -c \"import os, redis; exit(0 if redis.from_url(os.environ['REDIS_URL']).ttl('collector:stream:intraday_exec:heartbeat') > 0 else 1)\""]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
   postgres:
     image: timescale/timescaledb:latest-pg16
     environment:

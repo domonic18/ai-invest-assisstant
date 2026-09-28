@@ -3,10 +3,11 @@
  *
  * 结构 = 运行状态条 + Tabs：工作台（agent 对话，PC 附工作状态侧栏）、
  * Agent 自选（选股清单 + 人工移出）、持仓与交易（agent 账户资金/持仓/
- * 委托/成交）、交易计划、复盘记录（日/周/月）、经验总结（记忆库唯一
- * 管理面：复盘沉淀 + 手动沉淀，可编辑/删除/停用/启用）、配置（基本配置 +
- * 会话人设 + 作业技能 + 模拟盘账户，D30 四区）。tab 态进 URL query；
- * 工作台保持挂载（antd Tabs 默认隐藏不卸载），切 tab 不中断会话流。
+ * 委托/成交）、交易计划、执行动态（盘中逐 tick 观测留痕，批次 8 PR-3）、
+ * 复盘记录（日/周/月）、经验总结（记忆库唯一管理面：复盘沉淀 + 手动沉淀，
+ * 可编辑/删除/停用/启用）、配置（基本配置 + 会话人设 + 作业技能 + 模拟盘
+ * 账户，D30 四区）。tab 态进 URL query；工作台保持挂载（antd Tabs 默认
+ * 隐藏不卸载），切 tab 不中断会话流。
  */
 import { EditOutlined } from '@ant-design/icons'
 import { Button, Spin, Tabs, Tag, Typography } from 'antd'
@@ -39,6 +40,7 @@ import { AgentMemoryPanel } from './AgentMemoryPanel'
 import { AgentSelectionsPanel } from './AgentSelectionsPanel'
 import { AgentStatusStrip } from './AgentStatusStrip'
 import { AgentTradeRecords } from './AgentTradeRecords'
+import { ExecutionTab } from './ExecutionTab'
 import { PlanPanel } from './PlanPanel'
 import { ReviewPanel } from './ReviewPanel'
 
@@ -47,6 +49,7 @@ const TAB_KEYS = [
   'selections',
   'records',
   'plans',
+  'execution',
   'review',
   'experiences',
   'config',
@@ -58,6 +61,7 @@ const TAB_ITEMS = [
   { key: 'selections', label: 'Agent 自选' },
   { key: 'records', label: '持仓与交易' },
   { key: 'plans', label: '交易计划' },
+  { key: 'execution', label: '执行动态' },
   { key: 'review', label: '复盘记录' },
   { key: 'experiences', label: '经验总结' },
   { key: 'config', label: '配置' },
@@ -73,6 +77,8 @@ function renderTabPane(key: TabKey) {
       return <AgentTradeRecords />
     case 'plans':
       return <PlanPanel />
+    case 'execution':
+      return <ExecutionTab />
     case 'review':
       return <ReviewPanel />
     case 'experiences':

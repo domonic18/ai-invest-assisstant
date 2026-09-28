@@ -51,7 +51,7 @@ def _row(**overrides: object) -> SimpleNamespace:
         "risk_max_position_pct": 20.0,
         "risk_max_total_pct": 80.0,
         "risk_max_daily_orders": 10,
-        "auto_exec_enabled": True,
+        "intraday_exec_mode": "shadow",
         "status": "active",
         "plan_cadence": "daily",
         "review_cadence": "daily",
@@ -120,9 +120,11 @@ class TestUpdateAgent:
         row = _row()
         session.get = AsyncMock(return_value=row)
         result = await svc.update_agent(
-            session, "short-line", data=TradingAgentProfileUpdateRequest(auto_exec_enabled=False)
+            session,
+            "short-line",
+            data=TradingAgentProfileUpdateRequest(intraday_exec_mode="off"),
         )
-        assert result.auto_exec_enabled is False
+        assert result.intraday_exec_mode == "off"
         assert row.risk_max_position_pct == 20.0
         assert row.llm_config_id is None
         assert row.updated_at is not None
@@ -346,7 +348,7 @@ class TestCreateAgent:
         assert result.risk_max_position_pct == 20.0
         assert result.risk_max_total_pct == 60.0
         assert result.risk_max_daily_orders == 10
-        assert result.auto_exec_enabled is False
+        assert result.intraday_exec_mode == "off"
         assert result.plan_cadence == "daily"
         assert result.review_cadence == "daily"
         assert result.accent_color == "#38bdf8"

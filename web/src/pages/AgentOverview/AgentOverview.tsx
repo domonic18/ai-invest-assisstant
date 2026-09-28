@@ -1,16 +1,18 @@
 /**
  * Agent Hub 贾维斯总览页（仅 admin，路由 /trading-agent index）：
  * 中心枢纽舞台（AgentHubStage——资源站 + Agent 单元 + 真实数据流连线，
- * 运行态由后端 runtime_state 判定）30s 轮询 /agents 聚合；底部活动时间轴；
- * Agent 管理（含新建）收进默认折叠的 Collapse 面板（D32）。
+ * 运行态由后端 runtime_state 判定）30s 轮询 /agents 聚合；点击 Agent 单元
+ * 切换下方实时决策流，「进入工作台」才跳详情页；Agent 管理（含新建）收进
+ * 默认折叠的 Collapse 面板（D32）。
  */
 import { Collapse, Typography } from 'antd'
+import { useState } from 'react'
 
 import { useAgentOverview } from '@/hooks/useTradingAgent'
 
-import { ActivityTimeline } from './ActivityTimeline'
 import { AgentHubStage } from './AgentHubStage'
 import { AgentManageList } from './AgentManageList'
+import { LiveDecisionFeed } from './LiveDecisionFeed'
 
 const REFRESH_INTERVAL_MS = 30_000
 
@@ -18,6 +20,7 @@ export function AgentOverview() {
   const { data, isLoading } = useAgentOverview({ refetchInterval: REFRESH_INTERVAL_MS })
   const items = data?.items ?? []
   const activeCount = items.filter((item) => item.profile.status === 'active').length
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
   return (
     <div className="flex flex-col gap-3">
@@ -31,10 +34,15 @@ export function AgentOverview() {
       </div>
       <div className="overflow-x-auto">
         <div className="h-[540px] min-w-[680px] overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] md:h-[620px]">
-          <AgentHubStage items={items} isLoading={isLoading} />
+          <AgentHubStage
+            items={items}
+            isLoading={isLoading}
+            selectedKey={selectedKey}
+            onSelectAgent={setSelectedKey}
+          />
         </div>
       </div>
-      <ActivityTimeline items={items} isLoading={isLoading} generatedAt={data?.generatedAt} />
+      <LiveDecisionFeed items={items} isLoading={isLoading} selectedKey={selectedKey} />
       <Collapse
         ghost
         size="small"

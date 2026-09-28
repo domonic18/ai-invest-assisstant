@@ -11,6 +11,7 @@ import type {
   ApiAgentSkillFilesResponse,
   ApiAgentWatchlistGroupResponse,
   ApiTradingAgentDates,
+  ApiTradingAgentObservationPage,
   ApiTradingAgentPlan,
   ApiTradingAgentPlansResponse,
   ApiTradingAgentPromptContent,
@@ -134,6 +135,28 @@ export async function fetchTradingAgentPlans(
   const response = await apiClient.get<ApiTradingAgentPlansResponse>(
     ENDPOINTS.admin.tradingAgentPlans(agentKey),
     { params: tradeDate ? { trade_date: tradeDate } : undefined },
+  )
+  return response.data
+}
+
+/** 盘中执行观测分页（执行动态 Tab；query 参数 snake_case 对齐 FastAPI 签名）。 */
+export async function fetchTradingAgentObservations(
+  agentKey: string,
+  params: {
+    tradeDate?: string
+    significant?: boolean
+    page?: number
+    pageSize?: number
+  } = {},
+): Promise<ApiTradingAgentObservationPage> {
+  const query: Record<string, string | number | boolean> = {}
+  if (params.tradeDate) query.trade_date = params.tradeDate
+  if (params.significant !== undefined) query.significant = params.significant
+  if (params.page !== undefined) query.page = params.page
+  if (params.pageSize !== undefined) query.page_size = params.pageSize
+  const response = await apiClient.get<ApiTradingAgentObservationPage>(
+    ENDPOINTS.admin.tradingAgentObservations(agentKey),
+    { params: Object.keys(query).length > 0 ? query : undefined },
   )
   return response.data
 }

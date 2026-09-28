@@ -41,7 +41,7 @@ function TaskStatus({ taskName, label }: { taskName: string; label: string }) {
           : '暂无运行记录'
       }
     >
-      <span className="inline-flex cursor-default items-center gap-1 text-xs">
+      <span className="inline-flex cursor-default items-center gap-1 whitespace-nowrap text-xs">
         {meta ? (
           <span style={{ color: meta.color, fontSize: 12 }}>{meta.icon}</span>
         ) : (
@@ -84,14 +84,27 @@ export function AgentStatusStrip({ onOpenAccounts }: { onOpenAccounts: () => voi
       <span className="inline-flex items-center gap-1.5 text-xs">
         <span className="text-white/60">盘中自主执行</span>
         {config ? (
-          <Tag color={config.autoExecEnabled ? 'processing' : 'default'} className="!mr-0">
-            {config.autoExecEnabled ? '开' : '关'}
+          <Tag
+            color={
+              config.intradayExecMode === 'active'
+                ? 'processing'
+                : config.intradayExecMode === 'shadow'
+                  ? 'gold'
+                  : 'default'
+            }
+            className="!mr-0"
+          >
+            {config.intradayExecMode === 'active'
+              ? '执行'
+              : config.intradayExecMode === 'shadow'
+                ? '影子'
+                : '关'}
           </Tag>
         ) : (
           <Spin size="small" />
         )}
       </span>
-      <span className="inline-flex items-center gap-4">
+      <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
         {TASKS.map((task) => (
           <TaskStatus key={task.taskName} {...task} />
         ))}

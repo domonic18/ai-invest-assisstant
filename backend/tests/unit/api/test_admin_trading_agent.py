@@ -13,6 +13,10 @@ from app.main import app
 from app.models.agent_trading import AgentMemory, AgentTradePlan
 from app.schemas.paper_trade import (
     AgentCapabilityResponse,
+    TradingAgentObservationDecision,
+    TradingAgentObservationItem,
+    TradingAgentObservationPage,
+    TradingAgentObservationSummary,
     TradingAgentPlanResponse,
 )
 
@@ -287,6 +291,138 @@ class TestTradingAgentPlans:
         assert resp.status_code == 200
         assert resp.json()["status"] == "cancelled"
         cancel_mock.assert_awaited_once_with(admin_client[1], "short-line", plan_id=11)
+
+
+def _observation_page() -> TradingAgentObservationPage:
+    return TradingAgentObservationPage(
+        trade_date=date(2026, 9, 29),
+        total=1,
+        page=1,
+        page_size=20,
+        items=[
+            TradingAgentObservationItem(
+                id=1,
+                tick_time=datetime(2026, 9, 29, 1, 30, tzinfo=timezone.utc),
+                trade_date=date(2026, 9, 29),
+                agent_key="short-line",
+                plan_id=11,
+                stock_code="600000",
+                stock_name="浦发银行",
+                plan_type="buy",
+                price=10.0,
+                change_pct=1.01,
+                l0_verdict="triggered",
+                trigger_reason="buy_zone",
+                decision=TradingAgentObservationDecision(
+                    served_model="openjev-0.1",
+                    choice="立即执行",
+                    confidence=0.52,
+                    noul=True,
+                    score=3.0,
+                    window=None,
+                ),
+                action="suppress",
+                suppression_reason="below_threshold",
+                is_shadow=True,
+            )
+        ],
+        summary=TradingAgentObservationSummary(
+            total_ticks=7,
+            significant_ticks=1,
+            l0_verdict_counts={"triggered": 1, "no_action": 6},
+            action_counts={"suppress": 1},
+            suppression_counts={"below_threshold": 1},
+        ),
+    )
+
+
+@pytest.mark.unit
+class TestTradingAgentObservations:
+    def test_returns_camel_case_wire_with_default_filters(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with patch(
+            "app.services.trading.agent_exec_observation_service.list_agent_observations",
+            AsyncMock(return_value=_observation_page()),
+        ) as list_mock:
+            resp = http.get("/api/v1/admin/trading-agent/short-line/observations")
+
+        assert resp.status_code == 200
+        list_mock.assert_awaited_once_with(
+            admin_client[1],
+            "short-line",
+            trade_date=None,
+            significant_only=True,
+            page=1,
+            page_size=20,
+        )
+        body = resp.json()
+        item = body["items"][0]
+        assert item["tickTime"].startswith("2026-09-29")
+        assert item["l0Verdict"] == "triggered"
+        assert item["triggerReason"] == "buy_zone"
+        assert item["action"] == "suppress"
+        assert item["suppressionReason"] == "below_threshold"
+        assert item["isShadow"] is True
+        assert item["decision"]["servedModel"] == "openjev-0.1"
+        assert item["decision"]["confidence"] == pytest.approx(0.52)
+        summary = body["summary"]
+        assert summary["totalTicks"] == 7
+        assert summary["significantTicks"] == 1
+        assert summary["l0VerdictCounts"]["no_action"] == 6
+
+    def test_query_params_pass_through(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with patch(
+            "app.services.trading.agent_exec_observation_service.list_agent_observations",
+            AsyncMock(return_value=_observation_page()),
+        ) as list_mock:
+            resp = http.get(
+                "/api/v1/admin/trading-agent/short-line/observations",
+                params={
+                    "trade_date": "2026-09-25",
+                    "significant": "false",
+                    "page": 2,
+                    "page_size": 50,
+                },
+            )
+
+        assert resp.status_code == 200
+        list_mock.assert_awaited_once_with(
+            admin_client[1],
+            "short-line",
+            trade_date=date(2026, 9, 25),
+            significant_only=False,
+            page=2,
+            page_size=50,
+        )
+
+    def test_404_when_agent_unknown(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with patch(
+            "app.services.trading.agent_exec_observation_service.list_agent_observations",
+            AsyncMock(side_effect=NotFoundError("交易 Agent ghost 不存在")),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/ghost/observations")
+
+        assert resp.status_code == 404
+
+    def test_422_on_out_of_range_pagination(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with patch(
+            "app.services.trading.agent_exec_observation_service.list_agent_observations",
+            AsyncMock(return_value=_observation_page()),
+        ) as list_mock:
+            resp = http.get(
+                "/api/v1/admin/trading-agent/short-line/observations",
+                params={"page": 0},
+            )
+
+        assert resp.status_code == 422
+        list_mock.assert_not_awaited()
 
 
 @pytest.mark.unit
@@ -607,7 +743,7 @@ class TestTradingAgentCrud:
             risk_max_position_pct=20.0,
             risk_max_total_pct=60.0,
             risk_max_daily_orders=10,
-            auto_exec_enabled=False,
+            intraday_exec_mode="off",
             status="active",
             sort_order=4,
             prompt_id="trading_agent_short_line",
@@ -631,7 +767,7 @@ class TestTradingAgentCrud:
         body = resp.json()
         assert body["agentKey"] == "test-agent"
         assert body["status"] == "active"
-        assert body["autoExecEnabled"] is False
+        assert body["intradayExecMode"] == "off"
         create_mock.assert_awaited_once_with(session, data=create_mock.await_args.kwargs["data"])
 
     def test_create_agent_validation_error_surfaces_422(self, admin_client) -> None:
@@ -694,7 +830,7 @@ class TestGetTradingAgentStatus:
             risk_max_position_pct=20.0,
             risk_max_total_pct=80.0,
             risk_max_daily_orders=10,
-            auto_exec_enabled=True,
+            intraday_exec_mode="shadow",
             status="active",
             sort_order=1,
             prompt_id="trading_agent_short_line",
