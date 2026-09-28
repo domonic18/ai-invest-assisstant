@@ -14,7 +14,7 @@
 
 ## 2. 数据模型
 
-迁移 `docker/database/migrations/20260915_social_sentiment.sql`（幂等）+ `init-scripts/01-schema.sql` 双写（[03-data-storage](./03-data-storage.md) 规范）；SQLAlchemy 模型落 `backend/app/models/social_*.py`（单数表名 + `social_` 前缀，`Mapped` 2.0 风格，审计字段用 `app.core.clock.utc_now`）。
+迁移 `docker/database/migrations/20260915_social_sentiment.sql`（幂等，效果已收编进 `0001_baseline.sql`；[03-data-storage](./03-data-storage.md) 规范）；SQLAlchemy 模型落 `backend/app/models/social_*.py`（单数表名 + `social_` 前缀，`Mapped` 2.0 风格，审计字段用 `app.core.clock.utc_now`）。
 
 | 表 | 键与约束 | 说明 |
 |----|----------|------|
@@ -22,7 +22,7 @@
 | `social_post` | uq `(platform, video_id)`；idx `(published_at DESC)`、`(account_id, published_at DESC)`、`(judged_at)` | `account_id FK CASCADE`、`video_id`、`title`/`caption`/`topic_tags JSONB`/`cover_url`/`duration_seconds`、`published_at`（发布时刻，aware UTC）；互动 `digg_count`/`comment_count`/`share_count`；`transcript_status CHECK ('ok','missing')`（采集时刻即定，音频获取失败降级 `missing`）；`transcript_text TEXT NULL`——**临时文稿缓存，判后即清**；`transcript_meta JSONB`（ASR 用量对账：音频时长/字符数/渠道标识）；`judged_at TIMESTAMPTZ NULL`（NULL=待判，判断幂等键） |
 | `social_sentiment` | uq `(post_id)`（1:1，判断按内容缓存）；idx `(created_at DESC)`、`(stance, created_at)` | `post_id FK CASCADE`；`is_relevant BOOLEAN`（无关内容不入视图）；`stance CHECK ('bullish','bearish','neutral')`；`confidence REAL CHECK (0~1)`；`core_arguments JSONB`（一句话论点数组）；`targets JSONB`（`[{type: index/sector/stock/commodity, name, code?}]`）；`summary`；`model_name`（判断对账/审计） |
 
-seed：`init-scripts/03-seed.sql` 加 `collector_task` 两行（见 §5）；抖音渠道行由 `collector/runtime/channels.py` 的 `DEFAULT_CHANNELS` 幂等 seed。
+seed：`migrations/0002_seed.sql` 含 `collector_task` 两行（见 §5）；抖音渠道行由 `collector/runtime/channels.py` 的 `DEFAULT_CHANNELS` 幂等 seed。
 
 ## 3. 采集与转写（F-SOC-03）
 

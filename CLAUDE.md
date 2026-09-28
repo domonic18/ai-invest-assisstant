@@ -91,6 +91,13 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 - 让状态变更明确且可追踪
 - 缓存失效策略要明确
 
+### 数据库迁移规范
+
+- **schema 单一真相源是 `docker/database/migrations/`**：`0001_baseline.sql`（全量基线，幂等）→ `0002_seed.sql`（幂等种子）→ 按日期命名的增量迁移（如 `20261001_xxx.sql`）；`legacy/` 为历史归档，永不执行。**不设 init-scripts 双写**（目录已删除，postgres 不再挂 `docker-entrypoint-initdb.d`）——新变更只加一个迁移文件，新环境重放全部迁移得到相同 schema
+- **执行走 `bash docker/database/migrate.sh`**（台账表 `schema_migrations` exactly-once，每迁移与登记同事务提交；宿主机无 psql 自动经 `docker compose exec postgres` 执行）。纯手动脚本、无自动迁移钩子：起库健康后、起应用前必须执行一次，漏跑应用会因缺表报错
+- **迁移 forward-only**：文件合并后禁止修改（CI 从零重放守卫兜底）；破坏性变更走 expand-contract，先加后删分两批
+- 新迁移必须幂等（`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`），禁止依赖其在本文件之前不存在的历史状态
+
 ### API 设计原则
 
 - 薄路由、重服务的分层架构
@@ -117,7 +124,7 @@ AI Invest Assistant 遵循前后端分离的现代 Web 应用架构。完整的�
 
 ### 路径二：定时自动化（Celery 定时任务）
 
-- cron 声明在 `collector_task` 表（seed：`docker/database/init-scripts/03-seed.sql`，小时均为北京时间，如 `limit_up_ai_review_1630` = `30 16 * * 1-5`）
+- cron 声明在 `collector_task` 表（seed：`docker/database/migrations/0002_seed.sql`，小时均为北京时间，如 `limit_up_ai_review_1630` = `30 16 * * 1-5`）
 - 链路：celery beat → collector runtime `run_task` → `TASK_SPECS` 该任务的 `internal` 渠道（`backend/collector/runtime/registry.py`）→ `backend/collector/spiders/<skill>_*.py` 调服务层生成函数（如 `limit_up_ai_service.generate_attribution`）
 - 服务层负责 redis 并发锁 + 缓存优先（已生成直接返回）；输入数据未就绪抛 `ReviewInputDataNotReadyError` 由定时任务退避重试
 - 两条路径共用同一 SKILL.md 与服务层，落库同 skill_id（新行即最新），手动与定时结果互不冲突
