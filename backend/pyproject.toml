@@ -32,7 +32,6 @@ dependencies = [
     # Database
     "sqlalchemy[asyncio]>=2.0.30",
     "asyncpg>=0.29.0",
-    "alembic>=1.13.0",
     # Cache & Queue
     "redis>=5.0.0",
     "celery>=5.4.0",
