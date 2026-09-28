@@ -42,6 +42,10 @@ case "$MODE" in
     echo "Starting cls telegraph stream resident collector"
     exec python -m collector.runtime.stream
     ;;
+  intraday)
+    echo "Starting trading agent intraday execution runner"
+    exec python -m collector.runtime.intraday
+    ;;
   *)
     echo "Unknown COLLECTOR_MODE: $MODE" >&2
     exit 1
