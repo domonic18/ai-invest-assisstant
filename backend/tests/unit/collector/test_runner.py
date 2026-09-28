@@ -10,6 +10,7 @@ from collector.runtime.registry import TASK_MAP
 from collector.runtime.runner import (
     _ERROR_MSG_MAX_LEN,
     _build_task_kwargs,
+    _create_running_row,
     _mark_running,
     _persist_error,
     _persist_result,
@@ -201,6 +202,57 @@ class TestRunTask:
     async def test_missing_task_raises(self) -> None:
         with pytest.raises(ValueError, match="Missing required field"):
             await run_task({})
+
+
+@pytest.mark.unit
+class TestCreateRunningRow:
+    """beat 路径 running 行：同 celery_task_id 重试（self.retry 沿用 id）必须
+    接管复用既有行——唯一键下重复 INSERT 会炸掉整个重试尝试。"""
+
+    @pytest.mark.asyncio
+    async def test_inserts_new_row_when_task_id_absent(self) -> None:
+        mock_session = AsyncMock()
+        mock_session.scalar.return_value = None
+        factory = MagicMock(
+            return_value=AsyncMock(
+                __aenter__=AsyncMock(return_value=mock_session),
+                __aexit__=AsyncMock(return_value=None),
+            )
+        )
+        with patch(
+            "collector.runtime.runner.AsyncSessionLocal", factory
+        ):
+            await _create_running_row("sector-anomaly", None)
+
+        mock_session.add.assert_called_once()
+        added = mock_session.add.call_args.args[0]
+        assert added.task_name == "sector-anomaly"
+        assert added.status == "running"
+        mock_session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_adopts_existing_row_on_same_celery_task_id(self) -> None:
+        existing = MagicMock()
+        mock_session = AsyncMock()
+        mock_session.scalar.return_value = 42
+        mock_session.get.return_value = existing
+        factory = MagicMock(
+            return_value=AsyncMock(
+                __aenter__=AsyncMock(return_value=mock_session),
+                __aexit__=AsyncMock(return_value=None),
+            )
+        )
+        with patch(
+            "collector.runtime.runner.AsyncSessionLocal", factory
+        ):
+            log_id = await _create_running_row("sector-anomaly", "abc-123")
+
+        assert log_id == 42
+        assert existing.status == "running"
+        assert existing.error_msg is None
+        assert isinstance(existing.started_at, datetime)
+        mock_session.add.assert_not_called()
+        mock_session.commit.assert_awaited_once()
 
 
 @pytest.mark.unit

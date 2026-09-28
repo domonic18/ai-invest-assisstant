@@ -106,8 +106,9 @@ async def run_task(params: dict[str, Any]) -> CollectResult:
         else:
             # beat/定时路径无 dispatcher 预建行：执行前落 running 行，挂死任务
             # 在日志页立即可见（2026-09-23 事故排查曾因此多花 30+ 分钟）。
-            # 软超时重试的每次尝试各产生一条行；被硬限 SIGKILL 的行停留在
-            # running，正是诊断证据。
+            # self.retry 的重试沿用同一 celery_task_id，由 _create_running_row
+            # 接管复用该行（唯一键约束，禁止重复插入）；被硬限 SIGKILL 的行
+            # 停留在 running，正是诊断证据。
             log_id = await _create_running_row(task_name, celery_task_id)
 
         kwargs = _build_task_kwargs(task_name, params)
@@ -205,8 +206,27 @@ async def _precheck_trade_day(
 
 
 async def _create_running_row(task_name: str, celery_task_id: str | None) -> int:
-    """执行前插入 running 行，返回 id 供终态更新复用。"""
+    """执行前插入 running 行，返回 id 供终态更新复用。
+
+    self.retry 的重试沿用同一 celery_task_id（``uq_collector_log_celery_task_id``
+    唯一键）——同 id 已有行时接管续写（复位 running、清上次错误），重复
+    INSERT 会直接炸掉重试尝试（2026-09-25/28 板块异动输入未就绪重试因此连败）。
+    """
     async with AsyncSessionLocal() as session:
+        if celery_task_id is not None:
+            existing_id = await session.scalar(
+                select(CollectorLog.id).where(
+                    CollectorLog.celery_task_id == celery_task_id
+                )
+            )
+            if existing_id is not None:
+                log = await session.get(CollectorLog, existing_id)
+                if log is not None:
+                    log.status = "running"
+                    log.started_at = datetime.now(timezone.utc)
+                    log.error_msg = None
+                    await session.commit()
+                    return existing_id
         log = CollectorLog(
             task_name=task_name,
             status="running",
