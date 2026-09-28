@@ -120,6 +120,9 @@ class Settings(BaseSettings):
     # 可按条目覆盖。Jev 实测延迟 70-500ms，10s 为网络抖动裕量
     decision_model_timeout_seconds: float = 10.0
 
+    # 盘中自主执行驻留进程（批次 8）：tick 间隔（秒）；60s 对影子判断密度足够
+    intraday_tick_interval: float = 60.0
+
     # 掘金仿真 sidecar（compose 服务名直连；留空 = 模拟盘功能整体禁用）
     paper_trade_url: str = ""
     paper_trade_timeout: float = 10.0
