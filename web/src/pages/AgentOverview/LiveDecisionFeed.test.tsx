@@ -113,11 +113,13 @@ function setup({
   items = [agentItem()],
   isLoading = false,
   session = 'open',
+  selectedKey,
   data,
 }: {
   items?: AgentOverviewItem[]
   isLoading?: boolean
   session?: 'open' | 'break' | 'pre' | 'closed'
+  selectedKey?: string | null
   data?: ApiTradingAgentObservationPage
 }) {
   mockSession.mockReturnValue(session)
@@ -127,7 +129,7 @@ function setup({
   } as unknown as ReturnType<typeof useLiveAgentObservations>)
   return render(
     <MemoryRouter>
-      <LiveDecisionFeed items={items} isLoading={isLoading} />
+      <LiveDecisionFeed items={items} isLoading={isLoading} selectedKey={selectedKey} />
     </MemoryRouter>,
   )
 }
@@ -231,5 +233,43 @@ describe('LiveDecisionFeed', () => {
   it('renders empty hint when feed has no rows', () => {
     setup({ data: page({ items: [], total: 0 }) })
     expect(screen.getByText('暂无观测留痕')).toBeInTheDocument()
+  })
+
+  it('falls back to first active agent when selection is absent or unknown', () => {
+    setup({ selectedKey: null, data: page() })
+    expect(mockLive).toHaveBeenLastCalledWith('short-line')
+
+    setup({ selectedKey: 'ghost', data: page() })
+    expect(mockLive).toHaveBeenLastCalledWith('short-line')
+  })
+
+  it('switches to the stage-selected agent', () => {
+    setup({
+      items: [
+        agentItem(),
+        agentItem({
+          profile: profile({ agentKey: 'long-line', name: '长线 agent' }),
+          runtimeState: 'idle',
+        }),
+      ],
+      selectedKey: 'long-line',
+      data: page(),
+    })
+    expect(mockLive).toHaveBeenLastCalledWith('long-line')
+  })
+
+  it('ignores selecting an off agent and keeps the fallback feed', () => {
+    setup({
+      items: [
+        agentItem(),
+        agentItem({
+          profile: profile({ agentKey: 'm60', name: 'M60 agent', status: 'planned' }),
+          runtimeState: 'off',
+        }),
+      ],
+      selectedKey: 'm60',
+      data: page(),
+    })
+    expect(mockLive).toHaveBeenLastCalledWith('short-line')
   })
 })

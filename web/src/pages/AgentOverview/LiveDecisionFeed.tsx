@@ -1,9 +1,10 @@
 /**
  * 实时决策流面板（Agent Hub 总览页）：盘中逐 tick 观测滚动流，mission-control
- * 风格。取第一个 active agent 的全部逐 tick 观测（含无动作心跳行，弱化显示；
- * 显著事件高亮）。盘中（marketSession open）15s 快轮询，新行以 item.id 为
- * React key 挂载触发滑入动画；非盘中降为 60s 慢轮询并显示「回顾」badge
- * （badge 求值在渲染期，切换滞后 ≤1 轮询周期）。无 active agent 时整体隐藏。
+ * 风格。展示舞台点选的 agent（selectedKey），未选中时回退首个 active agent。
+ * 全部逐 tick（含无动作心跳行，弱化显示；显著事件高亮）。盘中
+ * （marketSession open）15s 快轮询，新行以 item.id 为 React key 挂载触发
+ * 滑入动画；非盘中降为 60s 慢轮询并显示「回顾」badge（badge 求值在渲染期，
+ * 切换滞后 ≤1 轮询周期）。无 agent 可展示时整体隐藏。
  */
 import { Empty, Spin, Tag } from 'antd'
 import dayjs from 'dayjs'
@@ -121,14 +122,16 @@ function FeedRow({ item, animate }: { item: ApiTradingAgentObservationItem; anim
             )}
             <button
               type="button"
-              className="min-w-0 cursor-pointer text-left leading-tight"
+              className="min-w-0 cursor-pointer overflow-hidden text-left leading-tight"
               onClick={() => void navigate(`/stock/${item.stockCode}`)}
             >
               <span className="block truncate text-[11px] text-white/85">
                 {item.stockName ?? item.stockCode}
               </span>
+              <span className="block truncate font-mono text-[11px] text-white/40">
+                {item.stockCode}
+              </span>
             </button>
-            <span className="font-mono text-[11px] text-white/40">{item.stockCode}</span>
           </>
         )}
         {item.price != null && (
@@ -178,12 +181,20 @@ function StatsChip({ summary }: { summary: ApiTradingAgentObservationSummary }) 
 export function LiveDecisionFeed({
   items,
   isLoading,
+  selectedKey,
 }: {
   items: AgentOverviewItem[]
   isLoading: boolean
+  /** 舞台点选的 agentKey；空/未知时回退首个 active agent。 */
+  selectedKey?: string | null
 }) {
   const reducedMotion = usePrefersReducedMotion()
-  const agent = items.find((item) => item.profile.status === 'active') ?? null
+  const agent =
+    items.find(
+      (item) => item.profile.agentKey === selectedKey && item.runtimeState !== 'off',
+    ) ??
+    items.find((item) => item.profile.status === 'active') ??
+    null
   const { data, isLoading: feedLoading } = useLiveAgentObservations(
     agent?.profile.agentKey ?? null,
   )
