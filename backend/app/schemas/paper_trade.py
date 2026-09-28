@@ -466,7 +466,9 @@ class TradingAgentMethodologyCheckItem(CamelModel):
 
 
 class TradingAgentReviewResponse(CamelModel):
-    """模拟盘分层复盘（ai_analysis_result.structured_output 契约镜像）。"""
+    """模拟盘分层复盘（ai_analysis_result.structured_output 契约镜像）。
+
+    ``noTargetReason`` 非空 = 已执行但无复盘对象（空仓），前端与「未生成」区分。"""
 
     period: str
     trade_date: str
@@ -477,6 +479,7 @@ class TradingAgentReviewResponse(CamelModel):
     market_context: str = ""
     methodology_check: list[TradingAgentMethodologyCheckItem] = []
     experiences: list[TradingAgentReviewExperienceItem] = []
+    no_target_reason: str | None = None
 
 
 class TradingAgentPlanResponse(CamelModel):

@@ -131,6 +131,8 @@ export interface ApiTradingAgentReview {
   /** 方法论验证（D34：KB 纪律逐条结论；未绑定知识源为空数组）。 */
   methodologyCheck: ApiTradingAgentMethodologyCheck[]
   experiences: ApiTradingAgentReviewExperience[]
+  /** 非空 = 已执行但空仓无复盘对象（窗口内无交易且无持仓）；null = 正常复盘。 */
+  noTargetReason: string | null
 }
 
 /** 有记录日期清单（日历打点：计划日 + 各周期复盘基准日）。 */

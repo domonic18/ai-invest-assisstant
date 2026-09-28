@@ -54,6 +54,7 @@ def _content() -> dict:
         "experiences": [
             {"title": "禁止追高", "body": "偏离买点 3% 以上不追", "mem_type": "discipline"}
         ],
+        "no_target_reason": None,
     }
 
 
@@ -82,6 +83,39 @@ class TestGetTradingAgentReview:
         assert body["trades"][0]["clOrdId"] == "A"
         assert body["trades"][0]["selectionVerdict"] == "correct"
         assert body["experiences"][0]["memType"] == "discipline"
+        assert body["noTargetReason"] is None
+
+    def test_returns_no_target_reason_for_idle_review(self, admin_client) -> None:
+        """空仓无复盘对象标记行：noTargetReason 透出供前端与「未生成」区分。"""
+        http, _ = admin_client
+        row = MagicMock()
+        row.structured_output = {
+            "agent_key": "short-line",
+            **_content(),
+            "overall": "",
+            "trades": [],
+            "bias": "",
+            "suggestion": "",
+            "no_target_reason": "复盘窗口内无委托成交，账户亦无历史持仓（空仓无复盘对象）",
+        }
+
+        with (
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=row),
+            ),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/short-line/review", params={"period": "day"})
+
+        assert resp.status_code == 200
+        assert (
+            resp.json()["noTargetReason"]
+            == "复盘窗口内无委托成交，账户亦无历史持仓（空仓无复盘对象）"
+        )
 
     def test_404_when_not_generated(self, admin_client) -> None:
         http, _ = admin_client

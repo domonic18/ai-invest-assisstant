@@ -144,7 +144,9 @@ async def get_trading_agent_review(
     period: Literal["day", "week", "month"] = Query(..., description="复盘周期"),
     trade_date: date | None = Query(None, description="基准交易日（缺省取该周期最新一条）"),
 ) -> TradingAgentReviewResponse:
-    """读取已生成的模拟盘分层复盘（只读，不触发 LLM）。"""
+    """读取已生成的模拟盘分层复盘（只读，不触发 LLM）。
+
+    ``noTargetReason`` 非空表示已执行但空仓无复盘对象，供前端与「未生成」区分。"""
     content = await agent_review_service.get_review(
         session, agent_key, period=period, trade_date=trade_date
     )

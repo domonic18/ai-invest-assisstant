@@ -3,14 +3,11 @@
 from contextlib import ExitStack
 from datetime import date
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.services.trading.agent_review_service import (
-    NoReviewTargetError,
-    PaperTradeReviewLockedError,
-)
+from app.services.trading.agent_review_service import PaperTradeReviewLockedError
 from app.services.trading.errors import AgentAccountNotDesignatedError
 from collector.core.base import CollectStatus
 from collector.spiders.paper_trade_review import (
@@ -23,6 +20,16 @@ _TRADE_DATE = date(2026, 7, 17)  # Friday
 
 def _agent(key: str = "short-line", cadence: str = "daily") -> SimpleNamespace:
     return SimpleNamespace(agent_key=key, review_cadence=cadence)
+
+
+def _result(cached: bool = False, no_target: bool = False) -> SimpleNamespace:
+    """generate_review 返回值替身（spider 消费 cached 与 content.no_target_reason）。"""
+    return SimpleNamespace(
+        cached=cached,
+        content=SimpleNamespace(
+            no_target_reason="复盘窗口内无委托成交" if no_target else None
+        ),
+    )
 
 
 def _collector() -> PaperTradeReviewCollector:
@@ -66,7 +73,7 @@ def _patch_env(
         ),
         patch(
             "collector.spiders.paper_trade_review.agent_review_service.generate_review",
-            generate or AsyncMock(return_value=MagicMock(cached=False)),
+            generate or AsyncMock(return_value=_result()),
         ),
         patch(
             "collector.spiders.paper_trade_review.agent_review_service.is_last_trading_day_of_week",
@@ -108,20 +115,23 @@ class TestPaperTradeReviewCollector:
 
     @pytest.mark.asyncio
     async def test_success_generates_day_review(self) -> None:
-        generate = AsyncMock(return_value=MagicMock(cached=False))
+        generate = AsyncMock(return_value=_result())
         with _activate(_patch_env(generate=generate)):
             result = await _collector().run()
 
         assert result.status == CollectStatus.SUCCESS
         assert result.items_stored == 1
-        assert result.metadata["agents"]["short-line"]["day"] == {"cached": False}
+        assert result.metadata["agents"]["short-line"]["day"] == {
+            "cached": False,
+            "no_target": False,
+        }
         generate.assert_awaited_once()
         assert generate.await_args.args[1].agent_key == "short-line"
         assert generate.await_args.kwargs["period"] == "day"
 
     @pytest.mark.asyncio
     async def test_cache_hit_reports_message_without_storing(self) -> None:
-        patches = _patch_env(generate=AsyncMock(return_value=MagicMock(cached=True)))
+        patches = _patch_env(generate=AsyncMock(return_value=_result(cached=True)))
         with _activate(patches):
             result = await _collector().run()
 
@@ -132,7 +142,7 @@ class TestPaperTradeReviewCollector:
     @pytest.mark.asyncio
     async def test_week_and_month_boost_on_period_end(self) -> None:
         """周五（且为月末最后交易日）：同任务内加发 week + month。"""
-        generate = AsyncMock(return_value=MagicMock(cached=False))
+        generate = AsyncMock(return_value=_result())
         patches = _patch_env(generate=generate, week_end=True, month_end=True)
         with _activate(patches):
             result = await _collector().run()
@@ -141,33 +151,30 @@ class TestPaperTradeReviewCollector:
         periods = [c.kwargs["period"] for c in generate.await_args_list]
         assert periods == ["day", "week", "month"]
         agent_meta = result.metadata["agents"]["short-line"]
-        assert agent_meta["week"] == {"cached": False}
-        assert agent_meta["month"] == {"cached": False}
+        assert agent_meta["week"] == {"cached": False, "no_target": False}
+        assert agent_meta["month"] == {"cached": False, "no_target": False}
 
     @pytest.mark.asyncio
-    async def test_boost_failure_does_not_fail_day_result(self) -> None:
-        """加发（week）失败只记 metadata，不拖垮已成功的日度结果。"""
-
-        async def _generate(_session, _agent, *, period, **kwargs):
-            if period == "week":
-                raise NoReviewTargetError("窗口内无交易")
-            return MagicMock(cached=False)
-
-        patches = _patch_env(generate=AsyncMock(side_effect=_generate), week_end=True)
+    async def test_no_target_agent_records_marker_and_message(self) -> None:
+        """空仓无复盘对象：标记行照常入库（SUCCESS），消息行与未执行可区分。"""
+        patches = _patch_env(generate=AsyncMock(return_value=_result(no_target=True)))
         with _activate(patches):
             result = await _collector().run()
 
         assert result.status == CollectStatus.SUCCESS
-        agent_meta = result.metadata["agents"]["short-line"]
-        assert agent_meta["week"] == {"skipped": "窗口内无交易"}
-        assert agent_meta["day"] == {"cached": False}
+        assert result.items_stored == 1
+        assert result.metadata["agents"]["short-line"]["day"] == {
+            "cached": False,
+            "no_target": True,
+        }
+        assert "已执行复盘但无对象" in (result.message or "")
 
     @pytest.mark.asyncio
     async def test_boost_locked_is_recorded_not_raised(self) -> None:
         async def _generate(_session, _agent, *, period, **kwargs):
             if period == "month":
                 raise PaperTradeReviewLockedError("正在生成")
-            return MagicMock(cached=False)
+            return _result()
 
         patches = _patch_env(generate=AsyncMock(side_effect=_generate), month_end=True)
         with _activate(patches):
@@ -193,7 +200,7 @@ class TestPaperTradeReviewCollector:
         async def _generate(_session, agent, **kwargs):
             if agent.agent_key == "m60":
                 raise ReviewInputDataNotReadyError("未就绪")
-            return MagicMock(cached=False)
+            return _result()
 
         patches = _patch_env(
             agents=[_agent("short-line"), _agent("m60")],
@@ -217,17 +224,6 @@ class TestPaperTradeReviewCollector:
         assert "尚未关联专属模拟盘账户" in (result.message or "")
 
     @pytest.mark.asyncio
-    async def test_skips_when_no_review_target(self) -> None:
-        patches = _patch_env(
-            generate=AsyncMock(side_effect=NoReviewTargetError("无交易且无持仓"))
-        )
-        with _activate(patches):
-            result = await _collector().run()
-
-        assert result.status == CollectStatus.SKIPPED
-        assert "无交易" in (result.message or "")
-
-    @pytest.mark.asyncio
     async def test_unexpected_error_fails_with_errors_list(self) -> None:
         patches = _patch_env(generate=AsyncMock(side_effect=RuntimeError("boom")))
         with _activate(patches):
@@ -243,7 +239,7 @@ class TestPaperTradeReviewCollector:
             agents=[_agent("short-line"), _agent("m60")],
             generate=AsyncMock(
                 side_effect=lambda _s, a, **kw: (
-                    MagicMock(cached=False)
+                    _result()
                     if a.agent_key == "short-line"
                     else (_ for _ in ()).throw(RuntimeError("boom"))
                 )
@@ -255,7 +251,10 @@ class TestPaperTradeReviewCollector:
         assert result.status == CollectStatus.PARTIAL
         assert result.items_collected == 1
         assert result.errors == ["m60: boom"]
-        assert result.metadata["agents"]["short-line"]["day"] == {"cached": False}
+        assert result.metadata["agents"]["short-line"]["day"] == {
+            "cached": False,
+            "no_target": False,
+        }
 
     @pytest.mark.asyncio
     async def test_weekly_agent_skips_midweek(self) -> None:
@@ -270,7 +269,7 @@ class TestPaperTradeReviewCollector:
     @pytest.mark.asyncio
     async def test_weekly_agent_generates_only_week_on_period_end(self) -> None:
         """D28：周频 Agent 周期末只生成 week（无 day）。"""
-        generate = AsyncMock(return_value=MagicMock(cached=False))
+        generate = AsyncMock(return_value=_result())
         patches = _patch_env(
             agents=[_agent("long-line", "weekly")], generate=generate, week_end=True
         )
@@ -280,13 +279,15 @@ class TestPaperTradeReviewCollector:
         assert result.status == CollectStatus.SUCCESS
         periods = [c.kwargs["period"] for c in generate.await_args_list]
         assert periods == ["week"]
-        assert result.metadata["agents"]["long-line"] == {"week": {"cached": False}}
+        assert result.metadata["agents"]["long-line"] == {
+            "week": {"cached": False, "no_target": False}
+        }
         assert result.items_stored == 1
 
     @pytest.mark.asyncio
     async def test_monthly_agent_generates_only_month_on_month_end(self) -> None:
         """D28：月频 Agent 月末只生成 month；非月末跳过。"""
-        generate = AsyncMock(return_value=MagicMock(cached=False))
+        generate = AsyncMock(return_value=_result())
         patches = _patch_env(
             agents=[_agent("long-line", "monthly")], generate=generate, month_end=True
         )
@@ -315,4 +316,6 @@ class TestPaperTradeReviewCollector:
 
         assert result.status == CollectStatus.SUCCESS
         assert "long-line: weekly 频复盘未到生成日" in (result.message or "")
-        assert result.metadata["agents"]["short-line"] == {"day": {"cached": False}}
+        assert result.metadata["agents"]["short-line"] == {
+            "day": {"cached": False, "no_target": False}
+        }

@@ -1,8 +1,9 @@
 /**
- * AI 复盘卡片（批次 6）：日/周/月分层复盘展示。
+ * AI 复盘卡片（批次 6 + 空仓标记）：日/周/月分层复盘展示。
  *
  * 数据源为 16:10 定时任务生成的缓存（admin GET /trading-agent/review 只读，
- * 不触发 LLM）；404 表示该周期尚未生成。日期选择对齐每日复盘页
+ * 不触发 LLM）；404 表示该周期尚未生成，noTargetReason 非空 = 已执行但空仓
+ * 无复盘对象（与「未生成」区分）。日期选择对齐每日复盘页
  * （MarkedDatePicker，已生成该周期复盘的基准日打点）；verdict 三层 =
  * 选股/计划/执行。
  */
@@ -122,6 +123,18 @@ export function ReviewPanel() {
               : '尚未生成（每交易日 16:10 盘后自动生成）'
           }
         />
+      ) : review.noTargetReason ? (
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-3">
+          <div className="flex items-center gap-2">
+            <Tag color="gold" className="!mr-0">
+              已执行 · 无复盘对象
+            </Tag>
+            <span className="text-xs text-white/40">{review.tradeDate}</span>
+          </div>
+          <Typography.Paragraph type="secondary" className="!mb-0 mt-2 text-xs whitespace-pre-wrap">
+            {review.noTargetReason}
+          </Typography.Paragraph>
+        </div>
       ) : (
         <Space direction="vertical" size="small" className="w-full">
           <Descriptions size="small" column={1}>

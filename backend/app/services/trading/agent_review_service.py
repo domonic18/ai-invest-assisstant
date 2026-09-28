@@ -22,11 +22,11 @@ from datetime import date, timedelta
 from typing import Any, Literal
 
 import structlog
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.core.locking import GENERATION_LOCK_TTL_SECONDS, redis_lock
 from app.models.paper_trade import (
     PaperTradeCashSnapshot,
@@ -47,6 +47,9 @@ REVIEW_SKILL_ID = "paper-trade-review"
 ReviewPeriod = Literal["day", "week", "month"]
 #: Literal 在运行时不可迭代，白名单单独维护（API 入参校验用）
 REVIEW_PERIODS: tuple[str, ...] = ("day", "week", "month")
+
+#: 预检无复盘对象时落缓存行的系统标记原因（展示层据此与「未执行」区分）
+_NO_TARGET_REASON = "复盘窗口内无委托成交，账户亦无历史持仓（空仓无复盘对象）"
 
 
 def _error_text(exc: BaseException) -> str:
@@ -70,12 +73,6 @@ class PaperTradeReviewLockedError(ConflictError):
     """其他实例正在生成同周期的模拟盘复盘。"""
 
     default_message = "模拟盘复盘正在生成中，请稍后重试"
-
-
-class NoReviewTargetError(BadRequestError):
-    """agent 账户在复盘窗口内无交易且历史从未成交（无持仓），无复盘对象。"""
-
-    default_message = "agent 账户窗口内无交易且无持仓，无需复盘"
 
 
 class TradingReviewNotFoundError(NotFoundError):
@@ -114,6 +111,8 @@ class PaperTradeReviewContent(BaseModel):
 
     D34 新增 market_context（盘面语境归纳）与 methodology_check（KB 纪律
     逐条验证）；旧缓存行缺这两键由 before-validator 补空值兼容读取。
+    no_target_reason：预检无复盘对象（空仓）时由系统填入的标记（LLM 恒为
+    null）；全空内容且无标记视为 LLM 偷懒输出，校验失败触发重试。
     """
 
     period: ReviewPeriod
@@ -125,17 +124,40 @@ class PaperTradeReviewContent(BaseModel):
     market_context: str
     methodology_check: list[MethodologyCheckItem]
     experiences: list[ReviewExperience]
+    no_target_reason: str | None = Field(
+        description="无复盘对象标记：预检发现窗口内无交易且无持仓时由系统填入；"
+        "正常复盘必须为 null，内容字段不可全空"
+    )
 
     @model_validator(mode="before")
     @classmethod
     def _backfill_d34_keys(cls, value: Any) -> Any:
-        """D34 前生成的缓存行缺 market_context/methodology_check：补空值兼容
-        （skill_id/input_hash 未变，旧复盘必须可读；校验器不影响 LLM schema）。"""
+        """D34 前生成的缓存行缺 market_context/methodology_check、本字段新增前
+        缓存行缺 no_target_reason：补空值兼容（skill_id/input_hash 未变，旧复盘
+        必须可读；校验器不影响 LLM schema）。"""
         if isinstance(value, dict):
             value = {**value}
             value.setdefault("market_context", "")
             value.setdefault("methodology_check", [])
+            value.setdefault("no_target_reason", None)
         return value
+
+    @model_validator(mode="after")
+    def _require_content_when_target_exists(self) -> "PaperTradeReviewContent":
+        """复盘只在有对象时进入 LLM：全空内容且无无对象标记 = 偷懒输出，
+        抛错交由结构化输出重试机制。"""
+        if (
+            self.no_target_reason is None
+            and not self.trades
+            and not self.overall.strip()
+            and not self.bias.strip()
+            and not self.suggestion.strip()
+        ):
+            raise ValueError(
+                "复盘内容全空（overall/bias/suggestion/trades 均空）且无 "
+                "no_target_reason：窗口内存在复盘对象时必须输出实质复盘内容"
+            )
+        return self
 
     @field_validator("suggestion", mode="before")
     @classmethod
@@ -347,7 +369,9 @@ async def get_review(
     period: ReviewPeriod,
     trade_date: date | None = None,
 ) -> PaperTradeReviewRecord | None:
-    """读取指定 Agent 已生成的复盘（不触发 LLM）；trade_date 缺省取最新交易日。"""
+    """读取指定 Agent 已生成的复盘（不触发 LLM）；trade_date 缺省取最新交易日。
+
+    空仓无复盘对象的标记行（no_target_reason 非空）同样返回，由展示层区分。"""
     from app.services.market import trade_calendar_service
     from app.services.trading import account_service
 
@@ -396,9 +420,11 @@ async def generate_review(
     Raises:
         NonTradingDayError: 指定日期不是交易日
         AgentAccountNotDesignatedError: 该 Agent 未绑定专属账户
-        NoReviewTargetError: 窗口内无交易且无持仓
         ReviewInputDataNotReadyError: 盘后同步尚未落库（Celery 退避重试）
         PaperTradeReviewLockedError: 其他实例正在生成
+
+    窗口内无交易且无持仓（空仓）不视为失败：落「无复盘对象」标记行（success，
+    no_target_reason 非空），展示层据此与「未执行」区分。
     """
     from app.services.market import trade_calendar_service
     from app.services.trading import account_service
@@ -453,10 +479,32 @@ async def generate_review(
                     f"{resolved.isoformat()} 盘后同步尚未落库，模拟盘复盘输入未就绪"
                 )
             has_target = await _has_review_target(session, account.id, start, end)
-            if not has_target:
-                raise NoReviewTargetError(
-                    f"agent 账户在 {start.isoformat()}~{end.isoformat()} 无交易且无持仓"
-                )
+
+        if not has_target:
+            # 空仓无复盘对象：落「无对象」标记行（success，不进 LLM、不沉淀经验），
+            # 镜像计划空仓观望语义——执行过但无内容，与「未执行」可区分
+            record = PaperTradeReviewRecord(
+                **PaperTradeReviewContent(
+                    period=period,
+                    trade_date=resolved.isoformat(),
+                    overall="",
+                    trades=[],
+                    bias="",
+                    suggestion="",
+                    market_context="",
+                    methodology_check=[],
+                    experiences=[],
+                    no_target_reason=_NO_TARGET_REASON,
+                ).model_dump(),
+                agent_key=agent.agent_key,
+            )
+            await _persist(session, input_hash=input_hash, content=record, meta={})
+            await session.commit()
+            await recorder.finish(
+                "success",
+                summary={"no_target": True, "reason": _NO_TARGET_REASON},
+            )
+            return ReviewGenerateResult(content=record, cached=False)
 
         async with redis_lock(
             f"{REVIEW_SKILL_ID}:{agent.agent_key}:{account.id}:{period}:{resolved.isoformat()}",
