@@ -37,10 +37,12 @@ allowed-tools: []
   "plans": [
     {"stock_code": "600815", "plan_type": "buy", "strategy": "…", "buy_zone_low": 10.2,
      "buy_zone_high": 10.8, "target_price": null, "stop_loss": 9.8, "position_pct": 10}
-  ]
+  ],
+  "stand_aside_reason": null
 }
 ```
-字段契约由服务层 `AgentDailyPlanContent` 钉死；无可选标的输出空数组，禁止编造输入外代码。
+字段契约由服务层 `AgentDailyPlanContent` 钉死；无可选标的输出空数组，禁止编造输入外代码；
+selections 与 plans 均为空（空仓观望）时 `stand_aside_reason` 必填简明原因，任一非空时为 null。
 
 ## 方法论基座
 温程《趋势理论》知识库（kb_source 经注册表 methodology_source_id 绑定）：

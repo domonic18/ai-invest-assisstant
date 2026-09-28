@@ -466,7 +466,9 @@ class TradingAgentMethodologyCheckItem(CamelModel):
 
 
 class TradingAgentReviewResponse(CamelModel):
-    """模拟盘分层复盘（ai_analysis_result.structured_output 契约镜像）。"""
+    """模拟盘分层复盘（ai_analysis_result.structured_output 契约镜像）。
+
+    ``noTargetReason`` 非空 = 已执行但无复盘对象（空仓），前端与「未生成」区分。"""
 
     period: str
     trade_date: str
@@ -477,6 +479,7 @@ class TradingAgentReviewResponse(CamelModel):
     market_context: str = ""
     methodology_check: list[TradingAgentMethodologyCheckItem] = []
     experiences: list[TradingAgentReviewExperienceItem] = []
+    no_target_reason: str | None = None
 
 
 class TradingAgentPlanResponse(CamelModel):
@@ -502,11 +505,16 @@ class TradingAgentPlanResponse(CamelModel):
 
 
 class TradingAgentPlansResponse(CamelModel):
-    """指定日交易计划载荷：计划日 + 下一交易日（次日语义，D28）+ 计划列表。"""
+    """指定日交易计划载荷：计划日 + 下一交易日（次日语义，D28）+ 计划列表。
+
+    ``stand_aside_reason`` 供前端三态区分：plans 非空为计划列表；plans 空
+    且原因非空 = 已生成·空仓观望；plans 空且原因为 null = 该日未生成。
+    """
 
     trade_date: date
     next_trade_date: date | None = None
     plans: list[TradingAgentPlanResponse] = []
+    stand_aside_reason: str | None = None
 
 
 class TradingAgentDatesResponse(CamelModel):

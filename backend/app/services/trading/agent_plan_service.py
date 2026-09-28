@@ -77,7 +77,11 @@ async def _load_cached(
     )
     if row is None or not row.structured_output:
         return None
-    return AgentDailyPlanContent.model_validate(row.structured_output)
+    structured = row.structured_output
+    if isinstance(structured, dict) and "stand_aside_reason" not in structured:
+        # 新增字段前的旧缓存快照：补键兼容（模型契约本身要求该键存在）
+        structured = {**structured, "stand_aside_reason": None}
+    return AgentDailyPlanContent.model_validate(structured)
 
 
 async def _run_llm(
@@ -100,7 +104,10 @@ async def _run_llm(
         + "\n".join(persona_lines)
         + "\n\n"
         f"## 计划任务\n"
-        f"- 基准交易日 trade_date：{trade_date.isoformat()}（输出字段须原样带回）\n\n"
+        f"- 基准交易日 trade_date：{trade_date.isoformat()}（输出字段须原样带回）\n"
+        f"- 若当日确实无可选标的、无开仓机会且无需持仓管理（如系统性风险、无符合\n"
+        f"  纪律的买点），selections 与 plans 输出空数组，并必须在\n"
+        f"  stand_aside_reason 给出简明的空仓观望原因；任一数组非空时该字段为 null。\n\n"
         f"## 计划输入数据（JSON）\n"
         f"{json.dumps(plan_input, ensure_ascii=False, default=str)}"
     )
@@ -120,7 +127,11 @@ async def _run_llm(
 async def _validate_codes(
     session: AsyncSession, content: AgentDailyPlanContent, manual_removed: list[str]
 ) -> tuple[AgentDailyPlanContent, list[str]]:
-    """后置校验：剔除 stock_basic 不存在的幻觉代码与人工移出代码。"""
+    """后置校验：剔除 stock_basic 不存在的幻觉代码与人工移出代码。
+
+    剔除后若转为双空（原输出有标的但全被剔），回填空仓原因——契约要求
+    双空必有 stand_aside_reason，且展示层据此区分「空仓观望」与「未生成」。
+    """
     codes = {s.stock_code for s in content.selections} | {
         p.stock_code for p in content.plans
     }
@@ -132,12 +143,19 @@ async def _validate_codes(
         code for code in manual_removed if code in codes
     ]
     keep = valid - set(manual_removed)
-    content = content.model_copy(
-        update={
-            "selections": [s for s in content.selections if s.stock_code in keep],
-            "plans": [p for p in content.plans if p.stock_code in keep],
-        }
-    )
+    selections = [s for s in content.selections if s.stock_code in keep]
+    plans = [p for p in content.plans if p.stock_code in keep]
+    update: dict[str, Any] = {"selections": selections, "plans": plans}
+    if (
+        not selections
+        and not plans
+        and not (content.stand_aside_reason or "").strip()
+        and dropped
+    ):
+        update["stand_aside_reason"] = (
+            f"后置校验剔除无效代码：{'、'.join(dropped)}，当日转为空仓观望"
+        )
+    content = content.model_copy(update=update)
     return content, dropped
 
 
@@ -326,6 +344,7 @@ async def generate_daily_plan(
                 "kb_used": bool(plan_input.get("methodology")),
                 "selections": len(content.selections),
                 "plans": len(content.plans),
+                "stand_aside_reason": (content.stand_aside_reason or "")[:100] or None,
                 "dropped_codes": dropped,
                 "model": llm_meta.get("model_name"),
                 "latency_ms": llm_meta.get("latency_ms"),
@@ -335,3 +354,58 @@ async def generate_daily_plan(
     except Exception as exc:
         await recorder.finish("failed", error_msg=_error_text(exc))
         raise
+
+
+async def load_plan_content_for_date(
+    session: AsyncSession, agent_key: str, trade_date: date
+) -> AgentDailyPlanContent | None:
+    """读取指定日已生成的计划内容缓存（含空仓观望日，供展示层区分空仓/未生成）。
+
+    Agent 未绑定专属账户或该日无成功缓存行返回 None。
+    """
+    from app.services.trading.errors import AgentAccountNotDesignatedError
+
+    try:
+        account = await account_service.resolve_agent_account(session, agent_key)
+    except AgentAccountNotDesignatedError:
+        return None
+    return await _load_cached(
+        session,
+        plan_skill_id(agent_key),
+        _input_hash(agent_key, account.id, trade_date),
+    )
+
+
+async def list_stand_aside_dates(session: AsyncSession, agent_key: str) -> list[date]:
+    """空仓观望日清单（已生成计划但选股/计划双空的日期，日历打点补全）。
+
+    plan_dates 源自 AgentTradePlan 行，空仓日两表无行天然缺失，由此按缓存
+    行回查。仅专属技能 Agent 支持：input_hash 绑定 account_id，共享
+    ``trading-default`` 技能被多 Agent 共用，无法从哈希安全反解账户维度；
+    未绑定账户返回 []。
+    """
+    from app.services.trading.errors import AgentAccountNotDesignatedError
+
+    skill_id = plan_skill_id(agent_key)
+    if skill_id == "trading-default":
+        return []
+    try:
+        account = await account_service.resolve_agent_account(session, agent_key)
+    except AgentAccountNotDesignatedError:
+        return []
+    trade_dates = await ai_analysis_repository.list_success_trade_dates(
+        session, skill_id=skill_id
+    )
+    hashes = {d: _input_hash(agent_key, account.id, d) for d in trade_dates}
+    rows = await ai_analysis_repository.load_success_by_hashes(
+        session, skill_id=skill_id, input_hashes=list(hashes.values())
+    )
+    by_hash = {h: d for d, h in hashes.items()}
+    dates = {
+        by_hash[row.input_hash]
+        for row in rows
+        if row.input_hash in by_hash
+        and not (row.structured_output or {}).get("selections")
+        and not (row.structured_output or {}).get("plans")
+    }
+    return sorted(dates)

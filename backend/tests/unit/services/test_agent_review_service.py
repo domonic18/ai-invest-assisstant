@@ -6,12 +6,12 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from app.services.market.trade_calendar_service import NonTradingDayError
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
 from app.services.trading import agent_review_service
 from app.services.trading.agent_review_service import (
-    NoReviewTargetError,
     PaperTradeReviewContent,
     PaperTradeReviewLockedError,
     resolve_window,
@@ -61,6 +61,7 @@ def _content_dict(period: str = "day") -> dict:
         "experiences": [
             {"title": "禁止追高", "body": "偏离买点 3% 以上不追", "mem_type": "discipline"}
         ],
+        "no_target_reason": None,
     }
 
 
@@ -232,7 +233,10 @@ class TestGenerateReview:
             )
 
     @pytest.mark.asyncio
-    async def test_raises_no_target_when_idle_account(self) -> None:
+    async def test_persists_no_target_marker_when_idle_account(self) -> None:
+        """空仓无复盘对象：落「无对象」标记行（success）而非失败，展示层据此
+        与「未执行」区分；不进 LLM、不沉淀经验。"""
+        session = AsyncMock()
         with (
             patch(
                 "app.services.market.trade_calendar_service.is_trading_day",
@@ -254,11 +258,22 @@ class TestGenerateReview:
                 "app.services.trading.agent_review_service._has_review_target",
                 AsyncMock(return_value=False),
             ),
-            pytest.raises(NoReviewTargetError, match="无交易且无持仓"),
+            patch(
+                "app.repositories.review.ai_analysis_repository.insert_result",
+                AsyncMock(),
+            ) as insert_mock,
         ):
-            await agent_review_service.generate_review(
-                AsyncMock(), _agent(), period="day", trade_date=_TRADE_DATE
+            result = await agent_review_service.generate_review(
+                session, _agent(), period="day", trade_date=_TRADE_DATE, regenerate=True
             )
+
+        assert result.cached is False
+        assert result.content.no_target_reason is not None
+        assert result.content.trades == []
+        assert result.content.agent_key == "short-line"
+        insert_mock.assert_awaited_once()
+        assert insert_mock.await_args.kwargs["status"] == "success"
+        session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_raises_locked_when_lock_not_acquired(self) -> None:
@@ -451,21 +466,56 @@ class TestMarketReviewOptional:
 @pytest.mark.unit
 class TestLegacyCacheCompat:
     def test_backfills_missing_d34_keys(self) -> None:
-        """D34 前缓存行缺 market_context/methodology_check：补空值可读。"""
+        """D34 前缓存行缺 market_context/methodology_check/no_target_reason：补空值可读。"""
         legacy = {
             k: v
             for k, v in _content_dict().items()
-            if k not in ("market_context", "methodology_check")
+            if k not in ("market_context", "methodology_check", "no_target_reason")
         }
         content = PaperTradeReviewContent.model_validate(legacy)
         assert content.market_context == ""
         assert content.methodology_check == []
+        assert content.no_target_reason is None
         assert content.overall == "整体执行纪律良好"
 
     def test_generated_content_carries_new_fields(self) -> None:
         content = _content()
         assert content.market_context == "主线板块发酵期，情绪偏进攻"
         assert content.methodology_check[0].verdict == "violated"
+        assert content.no_target_reason is None
+
+
+@pytest.mark.unit
+class TestContentContract:
+    """全空内容必须有 no_target_reason 标记：防 LLM 偷懒交空复盘（触发重试）。"""
+
+    def _lazy_dict(self) -> dict:
+        return {
+            "period": "day",
+            "trade_date": _TRADE_DATE.isoformat(),
+            "overall": "",
+            "trades": [],
+            "bias": "",
+            "suggestion": "",
+            "market_context": "",
+            "methodology_check": [],
+            "experiences": [],
+            "no_target_reason": None,
+        }
+
+    def test_empty_content_without_marker_raises(self) -> None:
+        with pytest.raises(ValidationError, match="复盘内容全空"):
+            PaperTradeReviewContent.model_validate(self._lazy_dict())
+
+    def test_marker_allows_empty_content(self) -> None:
+        lazy = {**self._lazy_dict(), "no_target_reason": "复盘窗口内无委托成交"}
+        content = PaperTradeReviewContent.model_validate(lazy)
+        assert content.no_target_reason == "复盘窗口内无委托成交"
+
+    def test_any_text_field_saves_all_blank_content(self) -> None:
+        """无交易窗口的持仓复盘（trades 空、overall 空）只要 suggestion 有内容即合法。"""
+        lazy = {**self._lazy_dict(), "suggestion": "下周期维持观望纪律"}
+        assert PaperTradeReviewContent.model_validate(lazy).suggestion.endswith("纪律")
 
 
 @pytest.mark.unit

@@ -42,7 +42,9 @@ allowed-tools: []
     {"stock_code": "000XXX", "plan_type": "buy", "strategy": "突破介入：…",
      "buy_zone_low": 10.2, "buy_zone_high": 10.6, "target_price": null,
      "stop_loss": 9.7, "position_pct": 10}
-  ]
+  ],
+  "stand_aside_reason": null
 }
 ```
-字段契约由服务层 `AgentDailyPlanContent` 钉死；无可选标的输出空数组，禁止编造输入外代码。
+字段契约由服务层 `AgentDailyPlanContent` 钉死；无可选标的输出空数组，禁止编造输入外代码；
+selections 与 plans 均为空（空仓观望）时 `stand_aside_reason` 必填简明原因，任一非空时为 null。

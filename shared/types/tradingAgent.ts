@@ -131,6 +131,8 @@ export interface ApiTradingAgentReview {
   /** 方法论验证（D34：KB 纪律逐条结论；未绑定知识源为空数组）。 */
   methodologyCheck: ApiTradingAgentMethodologyCheck[]
   experiences: ApiTradingAgentReviewExperience[]
+  /** 非空 = 已执行但空仓无复盘对象（窗口内无交易且无持仓）；null = 正常复盘。 */
+  noTargetReason: string | null
 }
 
 /** 有记录日期清单（日历打点：计划日 + 各周期复盘基准日）。 */
@@ -170,6 +172,8 @@ export interface ApiTradingAgentPlansResponse {
   /** tradeDate 的下一交易日（计划于此日盘中执行）；日历未覆盖为 null。 */
   nextTradeDate: string | null
   plans: ApiTradingAgentPlan[]
+  /** 空仓观望原因：plans 空且非空 = 已生成但空仓观望；null = 该日未生成。 */
+  standAsideReason: string | null
 }
 
 /** agent 选股条目（模拟管理「Agent 自选」：AI 依据 + 置信度）。 */

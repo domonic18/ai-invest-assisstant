@@ -135,10 +135,27 @@ export function PlanPanel() {
         <div className="flex justify-center py-8">
           <Spin />
         </div>
-      ) : !data || data.plans.length === 0 ? (
+      ) : !data ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           description="该日无计划（休市或未生成；每交易日 19:30 自动生成，也可在对话中制定）"
+        />
+      ) : data.plans.length === 0 && data.standAsideReason ? (
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-3">
+          <div className="flex items-center gap-2">
+            <Tag color="gold" className="!mr-0">
+              已生成 · 空仓观望
+            </Tag>
+            <span className="text-xs text-white/40">{data.tradeDate}</span>
+          </div>
+          <Typography.Paragraph type="secondary" className="!mb-0 mt-2 text-xs whitespace-pre-wrap">
+            {data.standAsideReason}
+          </Typography.Paragraph>
+        </div>
+      ) : data.plans.length === 0 ? (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description="该日未生成计划（每交易日 19:30 自动生成，也可在对话中制定）"
         />
       ) : (
         <Space direction="vertical" size="small" className="w-full">
