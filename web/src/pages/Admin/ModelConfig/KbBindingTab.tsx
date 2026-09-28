@@ -4,7 +4,7 @@ import type { LlmPurpose } from '@ai-invest/shared'
 
 import { useKbSettings, useUpdateKbSettings } from '@/hooks/useAdminKb'
 import { useLLMConfigs } from '@/hooks/useModelConfig'
-import type { ApiKbSettingsResponse, LLMConfig } from '@ai-invest/shared'
+import type { ApiKbSettingsResponse, LLMConfig, LLMConfigCapabilities } from '@ai-invest/shared'
 
 interface KbBindingFormValues {
   embeddingConfigId: number | null
@@ -13,35 +13,53 @@ interface KbBindingFormValues {
   visionModelId: number | null
 }
 
+// 候选过滤谓词（与后端 settings_service._role_accepts 同规则）
+function purposeIs(purpose: LlmPurpose) {
+  return (c: LLMConfig) => c.purpose === purpose
+}
+
+// 视觉槽按「视觉能力」而非「vision 用途」判定（与后端 _role_accepts 同规则）：
+// vision 用途条目，或勾选「视觉能力」的对话条目
+function acceptsVision(c: LLMConfig) {
+  if (c.purpose === 'vision') return true
+  const capabilities = (c.extra?.capabilities ?? {}) as LLMConfigCapabilities
+  return c.purpose === 'chat' && capabilities.vision === true
+}
+
 const ROLE_FIELDS: {
   name: keyof KbBindingFormValues
   label: string
-  purpose: LlmPurpose
+  accepts: (c: LLMConfig) => boolean
   extra: string
+  notFound: string
 }[] = [
   {
     name: 'embeddingConfigId',
     label: '嵌入模型',
-    purpose: 'embedding',
+    accepts: purposeIs('embedding'),
     extra: '切片向量化（知识库检索召回），须为 embedding 用途条目',
+    notFound: '暂无「embedding」用途的启用条目，请先在「模型条目」中添加',
   },
   {
     name: 'cleanModelId',
     label: '清洗模型',
-    purpose: 'chat',
+    accepts: purposeIs('chat'),
     extra: '转写文稿口语清洗（热词纠错/标点/分段），须为 chat 用途条目',
+    notFound: '暂无「chat」用途的启用条目，请先在「模型条目」中添加',
   },
   {
     name: 'extractModelId',
     label: '抽取模型',
-    purpose: 'chat',
+    accepts: purposeIs('chat'),
     extra: '知识卡片抽取与大纲生成，须为 chat 用途条目',
+    notFound: '暂无「chat」用途的启用条目，请先在「模型条目」中添加',
   },
   {
     name: 'visionModelId',
     label: '视觉模型',
-    purpose: 'vision',
-    extra: '插图/图表理解（图片转文字），须为 vision 用途条目',
+    accepts: acceptsVision,
+    extra: '插图/图表理解（图片转文字），vision 用途或勾选「视觉能力」的对话条目均可',
+    notFound: '暂无开启视觉能力的启用条目（vision 用途，或对话条目勾选「视觉能力」）',
   },
 ]
 
@@ -56,17 +74,19 @@ function toFormValues(settings: ApiKbSettingsResponse): KbBindingFormValues {
 
 function RoleSlotSelect({
   config,
-  purpose,
+  accepts,
+  notFound,
   value,
   onChange,
 }: {
   config: LLMConfig[]
-  purpose: LlmPurpose
+  accepts: (c: LLMConfig) => boolean
+  notFound: string
   value: number | null | undefined
   onChange: (id: number | null) => void
 }) {
   const options = config
-    .filter((c) => c.purpose === purpose && c.isActive)
+    .filter((c) => accepts(c) && c.isActive)
     .map((c) => ({ value: c.id, label: `${c.name}（${c.modelName}）` }))
   return (
     <Select
@@ -76,7 +96,7 @@ function RoleSlotSelect({
       allowClear
       placeholder="未配置"
       style={{ width: '100%' }}
-      notFoundContent={`暂无「${purpose}」用途的启用条目，请先在「模型条目」中添加`}
+      notFoundContent={notFound}
     />
   )
 }
@@ -113,13 +133,14 @@ export function KbBindingTab() {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="四个角色均指向「模型条目」，按用途过滤；条目停用或改用途后管线任务会显式报错而非静默走错模型"
+          message="四个角色均指向「模型条目」，按用途过滤（视觉模型按「视觉能力」判定：vision 用途或勾选视觉能力的对话条目）；条目停用或不满足要求后管线任务会显式报错而非静默走错模型"
         />
         {ROLE_FIELDS.map((role) => (
           <Form.Item key={role.name} label={role.label} name={role.name} extra={role.extra}>
             <RoleSlotSelect
               config={configs ?? []}
-              purpose={role.purpose}
+              accepts={role.accepts}
+              notFound={role.notFound}
               value={form.getFieldValue(role.name)}
               onChange={(id) => form.setFieldValue(role.name, id)}
             />
