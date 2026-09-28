@@ -1,8 +1,9 @@
 /**
  * Agent Hub 贾维斯总览页（仅 admin，路由 /trading-agent index）：
  * 中心枢纽舞台（AgentHubStage——资源站 + Agent 单元 + 真实数据流连线，
- * 运行态由后端 runtime_state 判定）30s 轮询 /agents 聚合；底部活动时间轴；
- * Agent 管理（含新建）收进默认折叠的 Collapse 面板（D32）。
+ * 运行态由后端 runtime_state 判定）30s 轮询 /agents 聚合；实时决策流面板
+ * （盘中逐 tick 观测滚动流）；底部活动时间轴；Agent 管理（含新建）收进
+ * 默认折叠的 Collapse 面板（D32）。
  */
 import { Collapse, Typography } from 'antd'
 
@@ -11,6 +12,7 @@ import { useAgentOverview } from '@/hooks/useTradingAgent'
 import { ActivityTimeline } from './ActivityTimeline'
 import { AgentHubStage } from './AgentHubStage'
 import { AgentManageList } from './AgentManageList'
+import { LiveDecisionFeed } from './LiveDecisionFeed'
 
 const REFRESH_INTERVAL_MS = 30_000
 
@@ -34,6 +36,7 @@ export function AgentOverview() {
           <AgentHubStage items={items} isLoading={isLoading} />
         </div>
       </div>
+      <LiveDecisionFeed items={items} isLoading={isLoading} />
       <ActivityTimeline items={items} isLoading={isLoading} generatedAt={data?.generatedAt} />
       <Collapse
         ghost

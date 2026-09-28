@@ -25,6 +25,7 @@ import { useNavigate } from 'react-router-dom'
 import type { AgentOverviewItem } from '@ai-invest/shared'
 
 import { useCeleryQueues } from '@/hooks/useCeleryQueues'
+import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion'
 import { useSystemStatus } from '@/hooks/useSystemStatus'
 
 import { buildHubEdges } from './hubEdges'
@@ -70,19 +71,6 @@ function useElementDims<T extends HTMLElement>() {
     return () => observer.disconnect()
   }, [])
   return { ref, dims }
-}
-
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(
-    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const onChange = () => setReduced(mq.matches)
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [])
-  return reduced
 }
 
 /** 背景：科技网格 + conic 扫描线（页面唯一 rAF，reduced-motion 时单帧）。 */
