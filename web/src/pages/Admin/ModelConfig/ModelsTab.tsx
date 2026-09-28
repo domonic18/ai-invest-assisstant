@@ -1,4 +1,5 @@
 import {
+  ApartmentOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   DeleteOutlined,
@@ -30,24 +31,23 @@ import {
   useTestLLMConfig,
   useUpdateLLMConfig,
 } from '@/hooks/useModelConfig'
+import { LLM_PROVIDER_PRESETS } from '@ai-invest/shared'
 import type { LLMConfig, LLMConfigCapabilities, LLMConfigFormValues } from '@ai-invest/shared'
 
+import { BackupModal } from './BackupModal'
 import { ModelFormModal } from './ModelFormModal'
 
-const PROVIDER_LABEL: Record<string, string> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  deepseek: 'DeepSeek',
-  zhipu: '智谱 GLM',
-  kimi: 'Kimi',
-  minimax: 'MiniMax',
-  custom: '自定义',
+const PROTOCOL_META: Record<string, { label: string; color: string }> = {
+  openai: { label: 'OpenAI 兼容', color: 'geekblue' },
+  anthropic: { label: 'Anthropic', color: 'purple' },
+  systemone: { label: 'System One', color: 'cyan' },
 }
 
 const PURPOSE_LABEL: Record<string, string> = {
   chat: '对话/分析',
   embedding: '向量嵌入',
   vision: '视觉识别',
+  decision: '结构化判断',
 }
 
 function getCapabilities(config: LLMConfig | null): LLMConfigCapabilities {
@@ -76,6 +76,8 @@ export function ModelsTab() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<LLMConfig | null>(null)
   const [testingId, setTestingId] = useState<number | null>(null)
+  const [backupTarget, setBackupTarget] = useState<LLMConfig | null>(null)
+  const [backupOpen, setBackupOpen] = useState(false)
 
   const openCreate = () => {
     setEditing(null)
@@ -87,8 +89,20 @@ export function ModelsTab() {
     setModalOpen(true)
   }
 
+  const openBackup = (config: LLMConfig) => {
+    setBackupTarget(config)
+    setBackupOpen(true)
+  }
+
   const handleSubmit = async (values: LLMConfigFormValues) => {
     try {
+      // 载荷收敛：isDefault 仅 chat 参与、vision 能力仅 chat/vision 携带，
+      // 防隐藏开关的历史脏值入库；backupConfigId 不在条目表单（主备走行操作），
+      // 载荷不含该键 → 后端 model_fields_set 守卫保留存量备用
+      const capabilitiesVision =
+        values.purpose === 'chat' || values.purpose === 'vision'
+          ? values.vision === true
+          : false
       if (editing) {
         // extra 整体覆盖写，须保留已有键仅更新 capabilities.vision
         await updateMutation.mutateAsync({
@@ -100,13 +114,12 @@ export function ModelsTab() {
             baseUrl: values.baseUrl,
             modelName: values.modelName,
             apiKey: values.apiKey || undefined,
-            isDefault: values.isDefault,
+            isDefault: values.purpose === 'chat' ? values.isDefault : false,
             isActive: values.isActive,
             purpose: values.purpose,
-            backupConfigId: values.backupConfigId ?? null,
             extra: {
               ...editing.extra,
-              capabilities: { ...getCapabilities(editing), vision: values.vision === true },
+              capabilities: { ...getCapabilities(editing), vision: capabilitiesVision },
             },
           },
         })
@@ -119,15 +132,24 @@ export function ModelsTab() {
           baseUrl: values.baseUrl,
           modelName: values.modelName,
           apiKey: values.apiKey,
-          isDefault: values.isDefault,
+          isDefault: values.purpose === 'chat' ? values.isDefault : false,
           isActive: values.isActive,
           purpose: values.purpose,
-          backupConfigId: values.backupConfigId ?? null,
-          extra: { capabilities: { vision: values.vision === true } },
+          extra: { capabilities: { vision: capabilitiesVision } },
         })
         message.success('配置已创建')
       }
       setModalOpen(false)
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '操作失败')
+    }
+  }
+
+  const handleBackupSubmit = async (configId: number, backupConfigId: number | null) => {
+    try {
+      await updateMutation.mutateAsync({ id: configId, data: { backupConfigId } })
+      message.success(backupConfigId ? '备用模型已设置' : '备用模型已清除')
+      setBackupOpen(false)
     } catch (err) {
       message.error(err instanceof Error ? err.message : '操作失败')
     }
@@ -183,15 +205,18 @@ export function ModelsTab() {
       title: '供应商',
       dataIndex: 'provider',
       key: 'provider',
-      render: (value: string) => PROVIDER_LABEL[value] || value,
+      render: (value: string) =>
+        LLM_PROVIDER_PRESETS[value]?.label ?? (value === 'custom' ? '自定义' : value),
     },
     {
       title: '协议',
       dataIndex: 'protocol',
       key: 'protocol',
       width: 110,
-      render: (value: string) =>
-        value === 'anthropic' ? <Tag color="purple">Anthropic</Tag> : <Tag color="geekblue">OpenAI 兼容</Tag>,
+      render: (value: string) => {
+        const meta = PROTOCOL_META[value]
+        return <Tag color={meta?.color ?? 'default'}>{meta?.label ?? value}</Tag>
+      },
     },
     { title: '模型', dataIndex: 'modelName', key: 'modelName' },
     {
@@ -276,7 +301,14 @@ export function ModelsTab() {
           >
             测试
           </Button>
-          {!record.isDefault && (
+          <Button
+            size="small"
+            icon={<ApartmentOutlined />}
+            onClick={() => openBackup(record)}
+          >
+            主备
+          </Button>
+          {!record.isDefault && record.purpose === 'chat' && (
             <Button
               size="small"
               icon={<StarOutlined />}
@@ -338,12 +370,20 @@ export function ModelsTab() {
       <ModelFormModal
         open={modalOpen}
         editing={editing}
-        configs={configs || []}
         onCancel={() => setModalOpen(false)}
         onSubmit={handleSubmit}
         onTest={() => editing && handleTest(editing)}
         testing={testMutation.isPending}
         loading={createMutation.isPending || updateMutation.isPending}
+      />
+
+      <BackupModal
+        open={backupOpen}
+        config={backupTarget}
+        configs={configs || []}
+        onCancel={() => setBackupOpen(false)}
+        onSubmit={handleBackupSubmit}
+        loading={updateMutation.isPending}
       />
     </Card>
   )
