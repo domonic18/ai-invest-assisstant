@@ -23,6 +23,7 @@ import {
   fetchTradingAgentConfig,
   fetchTradingAgentDates,
   fetchTradingAgentMemories,
+  fetchTradingAgentObservations,
   fetchTradingAgentPlans,
   fetchTradingAgentPrompt,
   fetchTradingAgentPromptTemplates,
@@ -36,6 +37,7 @@ import {
   updateTradingAgentMemoryStatus,
 } from '@/api/tradingAgent'
 import { queryKeys } from '@/hooks/queryKeys'
+import { isMarketOpen } from '@/pages/PaperTrade/tradingRules'
 
 /** 全部注册 Agent 的总览聚合（贾维斯总览页传 refetchInterval 轮询）。 */
 export function useAgentOverview(options?: { refetchInterval?: number | false }) {
@@ -176,6 +178,45 @@ export function useTradingAgentPlans(agentKey: string, tradeDate?: string) {
   return useQuery({
     queryKey: queryKeys.tradingAgent.plans(agentKey, tradeDate),
     queryFn: () => fetchTradingAgentPlans(agentKey, tradeDate),
+  })
+}
+
+/** 盘中执行观测分页（执行动态 Tab；isLatest 时 60s 轮询，历史日期不轮询）。 */
+export function useTradingAgentObservations(
+  agentKey: string,
+  params: {
+    tradeDate?: string
+    significant?: boolean
+    page?: number
+    pageSize?: number
+    isLatest?: boolean
+  } = {},
+) {
+  const { tradeDate, significant = true, page = 1, pageSize = 20, isLatest = false } = params
+  return useQuery({
+    queryKey: queryKeys.tradingAgent.observations(agentKey, tradeDate, significant, page),
+    queryFn: () =>
+      fetchTradingAgentObservations(agentKey, { tradeDate, significant, page, pageSize }),
+    staleTime: 30 * 1000,
+    refetchInterval: isLatest ? 60 * 1000 : false,
+  })
+}
+
+/**
+ * 总览页实时决策流：全部逐 tick（含无动作心跳行）。
+ * 盘中 15s 快轮询；非盘中 60s 慢轮询——恒 truthy 让每个周期重估 isMarketOpen()，
+ * 否则返回 false 停表后开盘（9:30）无法自动恢复轮询。
+ */
+export function useLiveAgentObservations(agentKey: string | null) {
+  return useQuery({
+    queryKey: agentKey
+      ? queryKeys.tradingAgent.observations(agentKey, undefined, false, 1, 25)
+      : ['trading-agent', 'observations', 'disabled'],
+    queryFn: () =>
+      fetchTradingAgentObservations(agentKey!, { significant: false, page: 1, pageSize: 25 }),
+    enabled: !!agentKey,
+    staleTime: 10 * 1000,
+    refetchInterval: () => (isMarketOpen() ? 15 * 1000 : 60 * 1000),
   })
 }
 

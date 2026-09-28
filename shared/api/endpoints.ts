@@ -347,6 +347,8 @@ export const ENDPOINTS = {
       `${API_BASE}/admin/trading-agent/${agentKey}/dates`,
     tradingAgentPlans: (agentKey: string) =>
       `${API_BASE}/admin/trading-agent/${agentKey}/plans`,
+    tradingAgentObservations: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/observations`,
     tradingAgentPlanCancel: (agentKey: string, planId: number | string) =>
       `${API_BASE}/admin/trading-agent/${agentKey}/plans/${planId}/cancel`,
     tradingAgentSelections: (agentKey: string) =>
