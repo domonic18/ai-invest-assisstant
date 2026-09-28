@@ -974,8 +974,9 @@ T    16:00 sync → 19:00 复盘（校准动作参与分层归因）→ 19:30 �
 
 **动机（用户 2026-09-28）**：Jev 是「决策模型 / System One」品类的**首发者而非
 终局**——$40M 融资 + 品类命名本身就在邀请跟进者；生态已现接口复刻先例
-（openjev：4B 开源模型 logits 单次前向读出类型化选项概率，明确声明复刻的是
-接口模式而非模型本身，166★）。因此**押注接口契约（state + 类型化问题 →
+（openjev：开源决策服务器，同 wire API 复刻 noul/choice/score 三题型，
+typesafe-sdk 换 base_url 直用，465★；旧画像「4B 模型 / 166★」已按 2026-09-28
+实测修正，深度调研见 §11.7）。因此**押注接口契约（state + 类型化问题 →
 类型化概率答案 + confidence），不押注厂商**：L1 调用面与厂商客户端之间加一层
 薄封装，未来厂商跟进时切换成本 = 一个 adapter。
 
@@ -1006,6 +1007,47 @@ T    16:00 sync → 19:00 复盘（校准动作参与分层归因）→ 19:30 �
   KB 相关性过滤、news guardrail、复盘快速归因等未来场景可直接复用 `ask()`；
   本期只接 L1 一个消费方，抽象范围收敛在 client + adapter + 配置，不做多消费方
   路由等提前设计。
+
+### 11.7 openjev 生态实测调研（2026-09-28：接口复刻实证，影子期对照臂采纳）
+
+> **消歧**：openjev 是重名集合。本节指 `razorback16/openjev`——开源决策服务器
+> （465★，2026-09-18 创建，Apache-2.0 代码与全部权重），同 wire API 复刻并路由
+> 多个开源模型。HF 上的 `openjev/openjev`（Qwen3.5 微调 27.4B，CC-BY-NC-4.0）是
+> **另一重名项目**，非商业许可不入选。§11.6 旧画像「4B 模型 / 166★」据此修正
+> （4B 是底座激活参数，总量 ~26B）。
+
+**接口复刻实证（D23 零改动）**：错误形状（422/400/429/529）对照线上 Jev API 逐条
+校验，`typesafe-sdk` 只换 `TYPESAFE_BASE_URL` 即用——「任意 systemone 形状端点配
+base_url 直用」被完全证实。两处纪律修正：
+
+- 版本 pin 用 `openjev-0.1`（当前 `openjev-latest` 的指向）：服务器接受 `jev-latest`
+  别名，但 Jev 的 pin 名（如 `jev-1.13.0`）会被 400 拒绝；pin 纪律同 §11.3 ①
+- usage 语义：DiffusionGemma 主模型下自动重读不加 token；小模型路由（Laya/JevK5）
+  **每题重复计 state token**——跨 vendor 的 usage 不可直接比较，observation 对比
+  只用概率与 confidence
+
+**confidence 公式不同 → 门控阈值是 per-vendor 资产**：openjev = `1 − H(p)/ln K`
+（归一化熵，纯形状，无结果校准承诺）vs Jev 的 RLCD 校准统计量——§11.3 的 0.6/0.85
+分档**不可跨模型移植**；且 openjev 对熵 >0.1 的槽位自动重读 3 次取平均
+（`samples:1` 可关），影子期对照需意识此延迟混杂变量。落地：`llm_config` decision
+purpose 配置阈值组按 `model_version` 键控，影子期产出各自校准值（D24）。
+
+**模型底座与中文**：DiffusionGemma 26B-A4B（Google DeepMind，Gemma 4 MoE，
+总 25.2B / 激活 3.8B，256K 上下文，35+ 语言，multimodal）——中文底子远好于 Jev 的
+「非英语更弱」，但「多语推理」≠「中文概率判断的置信校准」：**全生态（含 Jev 官方）
+均无中文校准数据**，影子期实测中文盘面 state 校准曲线的核心目标不变（§11.3 风险项）。
+
+**部署矩阵**：vLLM Docker（`razorback16/openjev:0.5.0`，NVIDIA ≥24GB，权重 18GB）；
+MLX Apple Silicon ~16GB（读串行，官方明示不用于 serving，仅本地实验）；**Codiv 免费
+托管 `https://api.codiv.ai/v1/systemone`（100M input tokens）**；小编码器路由
+（Verdict 151M / 512 tok、Laya 421M / 1024 tok，CPU 可跑）state 上限塞不下盘面题面，
+不入选。依赖的 vLLM PR #57250 已于 2026-09-22 合入上游（早期「依赖未合入扩展」的
+部署风险解除）。
+
+**结论三条（D24）**：① D23 封装零改动——openjev 是「押注接口契约」的首个完全实证；
+② 影子期加 openjev 对照臂、走 Codiv 托管：同 state 同题面只换 base_url 的严格 A/B
+（OpenRouter 的 chat 形状给不了的实验设计）；③ 备链顺序 = 主 Jev 直连 → 备
+openjev/Codiv → OpenRouter 降为实验线（透传保真仍需探针验证）；本期不自托管。
 
 ## 12. 批次 9：经验沉淀闭环（复盘 → Agent 自有记忆 → 反哺）
 
@@ -1127,3 +1169,4 @@ prompt 不再引用；手动沉淀一键 active（manual 标记）；重跑不�
 | D21 | 批次 8 执行架构（2026-09-28） | **慢思考 + 快反应双模型机制**——慢思考 = 既有 Celery 定时链（盘前计划 / 盘中校准 / 盘后复盘，定期唤醒零新增基建）；快反应 = 盘中常驻服务四层栈：L0 确定性风控与价格穿越判定 + L1 Jev 执行概率判断 + L2 低置信升级慢模型 + L3 人工干预面；柜台条件单路径**出局**（用户拍板：非期望方案，存档 §11.4）；Jev 由「暂缓」反转为「快判断层采用」（§11.3，三条硬约束：版本 pin / 分档置信门控 / 判断全留痕）；落地 8a 影子模式（1-2 周校准）→ 8b active（§11.1/§11.4） |
 | D22 | 盘中慢快交互（2026-09-28） | **早盘/午盘各一次计划校准**（10:20 / 13:20，Celery heavy 派发两实例）——快反应供「盘中观察报告」（observation 表当日聚合），慢模型出结构化「计划修正单」（maintain/adjust/cancel/add，schema 校验落库新版本），修正单过 L0 风控硬校验后生效；校准动作在盘后复盘 verdict 中可归因（§11.5） |
 | D23 | 判断模型封装（2026-09-28） | **接口契约 vendor 无关**——Jev 是 System One 品类首发者非终局（openjev 已复刻接口模式），押注接口（state + 类型化问题 → 概率答案 + confidence）不押注厂商：内部契约 `app/core/decision_model`（三题型 + `ask()`，版本/用量随响应返回），adapter 隔离厂商（TypeSafe 直连首发 / OpenRouter 实验备链 / 未来厂商 = 新 adapter）；配置接入「模型配置」admin（`llm_config` purpose 扩展 `decision`，DB 真相源无新增 env），主备复用 LLM 主备模式；双路失败**降级纯 L0**（advisory 语义，禁止用阈值近似替代判断）（§11.6） |
+| D24 | 影子期对照臂与备链（2026-09-28） | **影子模式加 openjev 对照臂，走 Codiv 免费托管**（`api.codiv.ai/v1/systemone`，100M input tokens）——同 wire API、同 state 同题面、只换 base_url 的严格 A/B，实测中文盘面 state 校准曲线（Jev 官方确认 CJK 偏弱，全生态无中文校准数据）；备链顺序 = 主 Jev 直连 → 备 openjev/Codiv（切换成本 = base_url + pin `openjev-0.1`）→ OpenRouter 降为实验线；**门控阈值是 per-vendor 资产**（openjev confidence = `1−H(p)/ln K` 纯熵形状，0.6/0.85 分档不可跨模型移植，decision 阈值组按 model_version 键控）；本期不自托管（§11.7） |
