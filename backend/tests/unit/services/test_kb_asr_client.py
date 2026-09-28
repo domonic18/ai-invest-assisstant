@@ -5,7 +5,6 @@ from typing import Any
 import httpx
 import pytest
 
-from app.adapters import asr as asr_adapter
 from app.adapters.asr import asr_endpoint
 from app.adapters.asr.core import httpx as asr_httpx
 from app.models.social import AsrChannelConfig
