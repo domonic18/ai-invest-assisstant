@@ -25,6 +25,17 @@ from app.services.user.user_service import UserService
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_redis(monkeypatch: pytest.MonkeyPatch) -> None:
+    """隔离 redis：注册限流写桩。
+
+    本地 redis 常驻时全局连接池跨事件循环复用会炸（RuntimeError: Future
+    attached to a different loop）；CI 无 redis 走 fail-open 故绿——unit
+    单测不应携带此环境依赖。
+    """
+    monkeypatch.setattr("app.core.register_throttle.record_submission", AsyncMock())
+
+
 @pytest.fixture
 async def session():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", future=True)

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.database import Base
 from app.core.exceptions import UnprocessableEntityError
 from app.models.llm_config import LLMConfig
+from app.repositories.admin.llm_config_repository import LLMConfigRepository
 from app.schemas.llm_config import LLMConfigCreate, LLMConfigUpdate
 from app.services.admin import llm_config_service as llm_config_service_module
 from app.services.admin.llm_config_service import (
@@ -18,6 +19,7 @@ from app.services.admin.llm_config_service import (
     resolve_default_llm,
     resolve_vision_llm,
 )
+from app.utils.crypto import encrypt_token
 
 pytestmark = pytest.mark.unit
 
@@ -25,6 +27,27 @@ pytestmark = pytest.mark.unit
 @pytest.fixture(autouse=True)
 def _encryption_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CREDENTIAL_ENCRYPTION_KEY", "a-32-byte-secret-key-for-tests!")
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_redis(monkeypatch: pytest.MonkeyPatch) -> None:
+    """隔离 redis：健康门/冷却查询打桩。
+
+    unit 单测不打外部依赖；且本地 redis 常驻时（CI 无 redis 走 fail-open 不暴露），
+    共享连接池跨事件循环复用会炸（RuntimeError: Future attached to a different loop）。
+    """
+    monkeypatch.setattr(
+        "app.services.admin.llm_failover.is_unhealthy",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr(
+        "app.services.admin.llm_config_service.degraded_until",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "app.services.admin.llm_config_service.clear_unhealthy",
+        AsyncMock(),
+    )
 
 
 @pytest.fixture
@@ -408,3 +431,36 @@ async def test_resolve_default_switches_to_backup_when_unhealthy(
 
     resolved_healthy = await resolve_default_llm(session)
     assert resolved_healthy.config_id == primary.id
+
+
+async def test_default_resolution_filters_non_chat_purpose(session: AsyncSession) -> None:
+    """decision 条目被置默认不得劫持 chat 解析（build_langchain_model 收到
+    systemone 协议会直接失败）——仓储层三入口的 purpose 边界钉死。"""
+    repo = LLMConfigRepository(session)
+    session.add(
+        LLMConfig(
+            name="Decision default",
+            provider="openrouter",
+            protocol="systemone",
+            base_url="https://openrouter.ai/api",
+            api_key_encrypted=encrypt_token("sk-decision"),
+            model_name="jev-latest",
+            is_default=True,
+            is_active=True,
+            purpose="decision",
+        )
+    )
+    await _create_chat(session, "Chat fallback")
+    await session.commit()
+
+    default = await repo.get_default_active()
+    assert default is None  # 唯一 default 行是 decision——chat 解析显式无配置而非被劫持
+
+    first_active = await repo.get_first_active()
+    assert first_active is not None
+    assert first_active.purpose == "chat"  # 默认删除兜底只回指 chat
+
+    decision_rows = await repo.list_decision_active()
+    assert len(decision_rows) == 1
+    assert decision_rows[0].purpose == "decision"
+    assert decision_rows[0].model_name == "jev-latest"
