@@ -131,6 +131,57 @@ jobs:
         run: npm run build
 
   # ============================================================
+  # Stage 2.5: 数据库迁移守卫——空库从零重放全部迁移 + 幂等重放断言。
+  # migrations/ 是 schema 单一真相源（CLAUDE.md「数据库迁移规范」）；
+  # 手动脚本制下无应用启动兜底，此 job 是 baseline 与增量漂移的唯一自动防线
+  # ============================================================
+  db-migration-guard:
+    name: DB Migration / 从零迁移守卫
+    runs-on: ubuntu-latest
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: invest
+
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: invest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d invest"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout / 检出代码
+        uses: actions/checkout@v6
+
+      - name: Apply all migrations / 从零应用全部迁移
+        run: bash docker/database/migrate.sh
+
+      - name: Assert schema / 断言基线表与种子齐全
+        run: |
+          table_count="$(psql -qAt -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")"
+          echo "public tables: $table_count"
+          [ "$table_count" -ge 80 ] || { echo "ERROR: 基线表数量异常（预期 ≥80）" >&2; exit 1; }
+          seed_rows="$(psql -qAt -c "SELECT count(*) FROM collector_task")"
+          echo "collector_task rows: $seed_rows"
+          [ "$seed_rows" -ge 1 ] || { echo "ERROR: seed 未生效（collector_task 为空）" >&2; exit 1; }
+
+      - name: Replay idempotency / 幂等重放（应全量跳过）
+        run: |
+          out="$(bash docker/database/migrate.sh)"
+          echo "$out"
+          grep -q "applied=0" <<<"$out" || { echo "ERROR: 重放产生了新 applied，迁移不幂等" >&2; exit 1; }
+
+  # ============================================================
   # Stage 3: Docker 镜像构建与推送（双镜像并行 job，互不拖累）
   # 跨境推送（美国 runner → 北京 TCR）偶发 stall：单次尝试步骤级超时 25 分钟兜底，
   # 失败后构建走 GHA cache 秒级重建、立即重推一次；再失败可 re-run failed jobs 单镜像重试
