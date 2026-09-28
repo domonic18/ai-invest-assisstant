@@ -199,7 +199,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - ./workspace/postgres:/var/lib/postgresql/data
-      - ./docker/database/init-scripts:/docker-entrypoint-initdb.d
+    # schema 不走镜像 initdb 钩子：起库健康后手动执行 bash docker/database/migrate.sh
+    # （台账制，见 CLAUDE.md「数据库迁移规范」），再启动应用容器
     # 发布到宿主机供 SCF 经轻量公网 IP 直连（不走云联网/VPC）；
     # 公网可达性由轻量控制台防火墙管控，放行 5432 前确认 POSTGRES_PASSWORD 足够强
     ports:

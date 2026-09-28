@@ -243,7 +243,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - ./workspace/postgres:/var/lib/postgresql/data
-      - ./docker/database/init-scripts:/docker-entrypoint-initdb.d
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:

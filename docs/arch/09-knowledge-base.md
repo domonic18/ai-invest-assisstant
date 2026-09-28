@@ -17,7 +17,7 @@
 
 ## 2. 数据模型
 
-迁移 `docker/database/migrations/20260918_knowledge_base.sql`（幂等）+ `init-scripts/01-schema.sql` 双写（[03-data-storage](./03-data-storage.md) 规范）；SQLAlchemy 模型落 `backend/app/models/kb.py`（单数表名 + `kb_` 前缀，`Mapped` 2.0 风格，审计字段走 `app.core.clock.utc_now`）。
+迁移 `docker/database/migrations/20260918_knowledge_base.sql`（幂等，效果已收编进 `0001_baseline.sql`；[03-data-storage](./03-data-storage.md) 规范）；SQLAlchemy 模型落 `backend/app/models/kb.py`（单数表名 + `kb_` 前缀，`Mapped` 2.0 风格，审计字段走 `app.core.clock.utc_now`）。
 
 | 表 | 键与约束 | 说明 |
 |----|----------|------|

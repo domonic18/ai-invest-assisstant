@@ -1,4 +1,11 @@
 -- ============================================================
+-- 0001_baseline: 全量基线 schema（extensions + 表 + 索引 + 种子行）
+-- 来源：原 init-scripts/01-schema.sql 幂等化（2026-09-28 方案A 基线压缩）
+-- 规则：全幂等（IF NOT EXISTS / ON CONFLICT DO NOTHING），可对存量库安全重放；
+--       新迁移一律 forward-only 增量，禁止再维护任何全量 schema 副本
+-- ============================================================
+
+-- ============================================================
 -- AI Invest Assistant - PostgreSQL / TimescaleDB Schema
 -- Version: 0.1.0
 -- ============================================================
@@ -13,7 +20,7 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;     -- 知识库检索：词面三元组
 -- 1. 基础信息域
 -- ============================================================
 
-CREATE TABLE stock_basic (
+CREATE TABLE IF NOT EXISTS stock_basic (
     id                 BIGSERIAL PRIMARY KEY,
     stock_code         VARCHAR(10)  NOT NULL,
     stock_name         VARCHAR(50)  NOT NULL,
@@ -30,15 +37,15 @@ CREATE TABLE stock_basic (
     UNIQUE (stock_code, market)
 );
 
-CREATE INDEX idx_stock_code ON stock_basic(stock_code);
-CREATE INDEX idx_stock_industry_level_1 ON stock_basic(industry_level_1);
-CREATE INDEX idx_stock_industry_level_2 ON stock_basic(industry_level_2);
+CREATE INDEX IF NOT EXISTS idx_stock_code ON stock_basic(stock_code);
+CREATE INDEX IF NOT EXISTS idx_stock_industry_level_1 ON stock_basic(industry_level_1);
+CREATE INDEX IF NOT EXISTS idx_stock_industry_level_2 ON stock_basic(industry_level_2);
 
 -- ============================================================
 -- 2. 交易行情域（TimescaleDB 超表）
 -- ============================================================
 
-CREATE TABLE quote_kline_stock_daily (
+CREATE TABLE IF NOT EXISTS quote_kline_stock_daily (
     stock_code    VARCHAR(10)   NOT NULL,
     trade_date    DATE          NOT NULL,
     open          DECIMAL(12,3),
@@ -56,9 +63,9 @@ CREATE TABLE quote_kline_stock_daily (
 );
 
 SELECT create_hypertable('quote_kline_stock_daily', 'trade_date', chunk_time_interval => INTERVAL '1 year', if_not_exists => TRUE);
-CREATE INDEX idx_quote_kline_stock_daily_code_date ON quote_kline_stock_daily(stock_code, trade_date DESC);
+CREATE INDEX IF NOT EXISTS idx_quote_kline_stock_daily_code_date ON quote_kline_stock_daily(stock_code, trade_date DESC);
 
-CREATE TABLE quote_kline_stock_minute (
+CREATE TABLE IF NOT EXISTS quote_kline_stock_minute (
     stock_code VARCHAR(10)   NOT NULL,
     trade_time TIMESTAMPTZ   NOT NULL,
     open       DECIMAL(12,3),
@@ -73,10 +80,10 @@ CREATE TABLE quote_kline_stock_minute (
 );
 
 SELECT create_hypertable('quote_kline_stock_minute', 'trade_time', if_not_exists => TRUE);
-CREATE INDEX idx_quote_kline_stock_minute_code_time ON quote_kline_stock_minute(stock_code, trade_time DESC);
+CREATE INDEX IF NOT EXISTS idx_quote_kline_stock_minute_code_time ON quote_kline_stock_minute(stock_code, trade_time DESC);
 
 -- 集合竞价数据（盘前 9:15-9:25）
-CREATE TABLE quote_auction_stock (
+CREATE TABLE IF NOT EXISTS quote_auction_stock (
     id          BIGSERIAL PRIMARY KEY,
     stock_code  VARCHAR(10)    NOT NULL,
     trade_date  DATE           NOT NULL,
@@ -92,10 +99,10 @@ CREATE TABLE quote_auction_stock (
     UNIQUE (stock_code, trade_date, match_time)
 );
 
-CREATE INDEX idx_quote_auction_stock_code_date_time ON quote_auction_stock(stock_code, trade_date, match_time);
+CREATE INDEX IF NOT EXISTS idx_quote_auction_stock_code_date_time ON quote_auction_stock(stock_code, trade_date, match_time);
 
 -- 资金流向
-CREATE TABLE capital_fund_flow_stock (
+CREATE TABLE IF NOT EXISTS capital_fund_flow_stock (
     stock_code       VARCHAR(10)   NOT NULL,
     trade_date       DATE          NOT NULL,
     main_net_inflow  DECIMAL(20,2),
@@ -109,13 +116,13 @@ CREATE TABLE capital_fund_flow_stock (
 );
 
 SELECT create_hypertable('capital_fund_flow_stock', 'trade_date', if_not_exists => TRUE);
-CREATE INDEX idx_capital_fund_flow_stock_code_date ON capital_fund_flow_stock(stock_code, trade_date DESC);
+CREATE INDEX IF NOT EXISTS idx_capital_fund_flow_stock_code_date ON capital_fund_flow_stock(stock_code, trade_date DESC);
 
 -- ============================================================
 -- 3. 财务数据域
 -- ============================================================
 
-CREATE TABLE financial_balance_sheet (
+CREATE TABLE IF NOT EXISTS financial_balance_sheet (
     id                  BIGSERIAL PRIMARY KEY,
     stock_code          VARCHAR(10)  NOT NULL,
     report_date         DATE         NOT NULL,
@@ -139,9 +146,9 @@ CREATE TABLE financial_balance_sheet (
     UNIQUE (stock_code, report_date)
 );
 
-CREATE INDEX idx_financial_balance_sheet_code_date ON financial_balance_sheet(stock_code, report_date DESC);
+CREATE INDEX IF NOT EXISTS idx_financial_balance_sheet_code_date ON financial_balance_sheet(stock_code, report_date DESC);
 
-CREATE TABLE financial_income_statement (
+CREATE TABLE IF NOT EXISTS financial_income_statement (
     id                  BIGSERIAL PRIMARY KEY,
     stock_code          VARCHAR(10)  NOT NULL,
     report_date         DATE         NOT NULL,
@@ -161,9 +168,9 @@ CREATE TABLE financial_income_statement (
     UNIQUE (stock_code, report_date)
 );
 
-CREATE INDEX idx_financial_income_statement_code_date ON financial_income_statement(stock_code, report_date DESC);
+CREATE INDEX IF NOT EXISTS idx_financial_income_statement_code_date ON financial_income_statement(stock_code, report_date DESC);
 
-CREATE TABLE financial_cash_flow_statement (
+CREATE TABLE IF NOT EXISTS financial_cash_flow_statement (
     id              BIGSERIAL PRIMARY KEY,
     stock_code      VARCHAR(10)  NOT NULL,
     report_date     DATE         NOT NULL,
@@ -178,13 +185,13 @@ CREATE TABLE financial_cash_flow_statement (
     UNIQUE (stock_code, report_date)
 );
 
-CREATE INDEX idx_financial_cash_flow_statement_code_date ON financial_cash_flow_statement(stock_code, report_date DESC);
+CREATE INDEX IF NOT EXISTS idx_financial_cash_flow_statement_code_date ON financial_cash_flow_statement(stock_code, report_date DESC);
 
 -- ============================================================
 -- 4. 资讯文档元数据域（doc_type 判别：news/announcement/research/financial_report）
 -- ============================================================
 
-CREATE TABLE news_document (
+CREATE TABLE IF NOT EXISTS news_document (
     id            BIGSERIAL PRIMARY KEY,
     stock_code    VARCHAR(10),
     doc_type      VARCHAR(20) NOT NULL CONSTRAINT chk_news_document_doc_type
@@ -203,15 +210,15 @@ CREATE TABLE news_document (
     CONSTRAINT uq_news_document_source_url UNIQUE (source_url)
 );
 
-CREATE INDEX idx_news_document_code_date ON news_document(stock_code, publish_date DESC);
-CREATE INDEX idx_news_document_doc_type ON news_document(doc_type);
-CREATE INDEX idx_news_document_publish_date ON news_document(publish_date DESC);
+CREATE INDEX IF NOT EXISTS idx_news_document_code_date ON news_document(stock_code, publish_date DESC);
+CREATE INDEX IF NOT EXISTS idx_news_document_doc_type ON news_document(doc_type);
+CREATE INDEX IF NOT EXISTS idx_news_document_publish_date ON news_document(publish_date DESC);
 
 -- ============================================================
 -- 5. 产业链关系域
 -- ============================================================
 
-CREATE TABLE industry_chain_analysis_version (
+CREATE TABLE IF NOT EXISTS industry_chain_analysis_version (
     id               BIGSERIAL PRIMARY KEY,
     industry         VARCHAR(50)  NOT NULL,
     version_number   INT          NOT NULL,
@@ -234,12 +241,12 @@ CREATE TABLE industry_chain_analysis_version (
         UNIQUE (user_id, industry, version_number)
 );
 
-CREATE INDEX idx_industry_chain_analysis_version_industry
+CREATE INDEX IF NOT EXISTS idx_industry_chain_analysis_version_industry
     ON industry_chain_analysis_version(industry, created_at DESC);
-CREATE INDEX idx_industry_chain_analysis_version_user_industry
+CREATE INDEX IF NOT EXISTS idx_industry_chain_analysis_version_user_industry
     ON industry_chain_analysis_version(user_id, industry, created_at DESC);
 
-CREATE TABLE industry_chain_node (
+CREATE TABLE IF NOT EXISTS industry_chain_node (
     id          BIGSERIAL PRIMARY KEY,
     node_name   VARCHAR(100) NOT NULL,
     industry    VARCHAR(50),
@@ -258,11 +265,11 @@ CREATE TABLE industry_chain_node (
     updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_chain_node_industry ON industry_chain_node(industry);
-CREATE INDEX idx_chain_node_type ON industry_chain_node(node_type);
-CREATE INDEX idx_industry_chain_node_version ON industry_chain_node(version_id);
+CREATE INDEX IF NOT EXISTS idx_chain_node_industry ON industry_chain_node(industry);
+CREATE INDEX IF NOT EXISTS idx_chain_node_type ON industry_chain_node(node_type);
+CREATE INDEX IF NOT EXISTS idx_industry_chain_node_version ON industry_chain_node(version_id);
 
-CREATE TABLE industry_chain_edge (
+CREATE TABLE IF NOT EXISTS industry_chain_edge (
     id              BIGSERIAL PRIMARY KEY,
     source_node_id  BIGINT NOT NULL REFERENCES industry_chain_node(id) ON DELETE CASCADE,
     target_node_id  BIGINT NOT NULL REFERENCES industry_chain_node(id) ON DELETE CASCADE,
@@ -277,11 +284,11 @@ CREATE TABLE industry_chain_edge (
     UNIQUE (source_node_id, target_node_id, relation_type)
 );
 
-CREATE INDEX idx_chain_edge_source ON industry_chain_edge(source_node_id);
-CREATE INDEX idx_chain_edge_target ON industry_chain_edge(target_node_id);
-CREATE INDEX idx_industry_chain_edge_version ON industry_chain_edge(version_id);
+CREATE INDEX IF NOT EXISTS idx_chain_edge_source ON industry_chain_edge(source_node_id);
+CREATE INDEX IF NOT EXISTS idx_chain_edge_target ON industry_chain_edge(target_node_id);
+CREATE INDEX IF NOT EXISTS idx_industry_chain_edge_version ON industry_chain_edge(version_id);
 
-CREATE TABLE industry_chain_company_mapping (
+CREATE TABLE IF NOT EXISTS industry_chain_company_mapping (
     id            BIGSERIAL PRIMARY KEY,
     stock_code    VARCHAR(10) NOT NULL,
     chain_node_id BIGINT NOT NULL REFERENCES industry_chain_node(id) ON DELETE CASCADE,
@@ -294,13 +301,13 @@ CREATE TABLE industry_chain_company_mapping (
     UNIQUE (stock_code, chain_node_id)
 );
 
-CREATE INDEX idx_company_chain_code ON industry_chain_company_mapping(stock_code);
-CREATE INDEX idx_company_chain_node ON industry_chain_company_mapping(chain_node_id);
-CREATE INDEX idx_industry_chain_company_mapping_version
+CREATE INDEX IF NOT EXISTS idx_company_chain_code ON industry_chain_company_mapping(stock_code);
+CREATE INDEX IF NOT EXISTS idx_company_chain_node ON industry_chain_company_mapping(chain_node_id);
+CREATE INDEX IF NOT EXISTS idx_industry_chain_company_mapping_version
     ON industry_chain_company_mapping(version_id);
 
 -- 股票-概念映射表（同花顺概念成分股）
-CREATE TABLE mapping_stock_concept (
+CREATE TABLE IF NOT EXISTS mapping_stock_concept (
     id            BIGSERIAL PRIMARY KEY,
     stock_code    VARCHAR(10)  NOT NULL,
     concept_code  VARCHAR(20)  NOT NULL,
@@ -312,16 +319,16 @@ CREATE TABLE mapping_stock_concept (
         UNIQUE (stock_code, concept_code)
 );
 
-CREATE INDEX idx_mapping_stock_concept_stock_code
+CREATE INDEX IF NOT EXISTS idx_mapping_stock_concept_stock_code
     ON mapping_stock_concept(stock_code);
-CREATE INDEX idx_mapping_stock_concept_concept_code
+CREATE INDEX IF NOT EXISTS idx_mapping_stock_concept_concept_code
     ON mapping_stock_concept(concept_code);
 
 -- ============================================================
 -- 6. 文件元数据域
 -- ============================================================
 
-CREATE TABLE file_metadata (
+CREATE TABLE IF NOT EXISTS file_metadata (
     id             BIGSERIAL PRIMARY KEY,
     file_path      VARCHAR(500) NOT NULL UNIQUE,
     original_name  VARCHAR(500),
@@ -339,15 +346,15 @@ CREATE TABLE file_metadata (
     created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_file_type ON file_metadata(file_type);
-CREATE INDEX idx_file_stock_report ON file_metadata(stock_code, report_date);
-CREATE INDEX idx_file_metadata_content_trgm ON file_metadata USING gin (content gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_file_type ON file_metadata(file_type);
+CREATE INDEX IF NOT EXISTS idx_file_stock_report ON file_metadata(stock_code, report_date);
+CREATE INDEX IF NOT EXISTS idx_file_metadata_content_trgm ON file_metadata USING gin (content gin_trgm_ops);
 
 -- ============================================================
 -- 7. 用户 / 系统域
 -- ============================================================
 
-CREATE TABLE "user" (
+CREATE TABLE IF NOT EXISTS "user" (
     id            BIGSERIAL PRIMARY KEY,
     username      VARCHAR(50)  UNIQUE NOT NULL,
     email         VARCHAR(100) UNIQUE NOT NULL,
@@ -364,10 +371,10 @@ CREATE TABLE "user" (
     created_at    TIMESTAMPTZ  DEFAULT NOW()
 );
 
-CREATE INDEX idx_user_email ON "user"(email);
-CREATE INDEX idx_user_status_pending ON "user"(status) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_user_email ON "user"(email);
+CREATE INDEX IF NOT EXISTS idx_user_status_pending ON "user"(status) WHERE status = 'pending';
 
-CREATE TABLE user_watchlist_group (
+CREATE TABLE IF NOT EXISTS user_watchlist_group (
     id                BIGSERIAL PRIMARY KEY,
     user_id           BIGINT       REFERENCES "user"(id) ON DELETE CASCADE,  -- NULL = 平台级分组（owner_type='agent'）
     owner_type        VARCHAR(16)  NOT NULL DEFAULT 'user',
@@ -381,13 +388,13 @@ CREATE TABLE user_watchlist_group (
     UNIQUE (user_id, name)
 );
 
-CREATE UNIQUE INDEX uq_user_watchlist_group_agent_key
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_watchlist_group_agent_key
     ON user_watchlist_group (owner_type, agent_key)
     WHERE owner_type = 'agent' AND agent_key IS NOT NULL;
 
-CREATE INDEX idx_user_watchlist_group_user ON user_watchlist_group(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_watchlist_group_user ON user_watchlist_group(user_id);
 
-CREATE TABLE user_watchlist (
+CREATE TABLE IF NOT EXISTS user_watchlist (
     id         BIGSERIAL PRIMARY KEY,
     user_id    BIGINT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     stock_code VARCHAR(10) NOT NULL,
@@ -398,14 +405,14 @@ CREATE TABLE user_watchlist (
     UNIQUE (user_id, stock_code)
 );
 
-CREATE INDEX idx_watchlist_user ON user_watchlist(user_id);
-CREATE INDEX idx_user_watchlist_group_id ON user_watchlist(group_id);
+CREATE INDEX IF NOT EXISTS idx_watchlist_user ON user_watchlist(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_watchlist_group_id ON user_watchlist(group_id);
 
 -- ============================================================
 -- 7.5 对话助手域
 -- ============================================================
 
-CREATE TABLE assistant_session (
+CREATE TABLE IF NOT EXISTS assistant_session (
     id              UUID PRIMARY KEY,                -- 兼作 Agent Protocol thread_id
     user_id         BIGINT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     title           VARCHAR(128),
@@ -415,13 +422,13 @@ CREATE TABLE assistant_session (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_assistant_session_user ON assistant_session (user_id, last_message_at DESC);
+CREATE INDEX IF NOT EXISTS idx_assistant_session_user ON assistant_session (user_id, last_message_at DESC);
 
 -- ============================================================
 -- 8. AI 分析结果域
 -- ============================================================
 
-CREATE TABLE ai_analysis_result (
+CREATE TABLE IF NOT EXISTS ai_analysis_result (
     id           BIGSERIAL PRIMARY KEY,
     analysis_id  UUID DEFAULT uuid_generate_v4(),
     skill_id     VARCHAR(50) NOT NULL,
@@ -438,15 +445,16 @@ CREATE TABLE ai_analysis_result (
     created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_ai_skill_stock_status ON ai_analysis_result(skill_id, stock_code, status, created_at DESC);
-CREATE INDEX idx_ai_skill_hash_status ON ai_analysis_result(skill_id, input_hash, status, created_at DESC);
-CREATE INDEX idx_ai_created_at ON ai_analysis_result(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_skill_stock_status ON ai_analysis_result(skill_id, stock_code, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_skill_hash_status ON ai_analysis_result(skill_id, input_hash, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_created_at ON ai_analysis_result(created_at DESC);
 
+ALTER TABLE industry_chain_analysis_version DROP CONSTRAINT IF EXISTS fk_industry_chain_analysis_version_ai_result;
 ALTER TABLE industry_chain_analysis_version
     ADD CONSTRAINT fk_industry_chain_analysis_version_ai_result
     FOREIGN KEY (ai_result_id) REFERENCES ai_analysis_result(id) ON DELETE SET NULL;
 
-CREATE TABLE user_market_review (
+CREATE TABLE IF NOT EXISTS user_market_review (
     id                BIGSERIAL PRIMARY KEY,
     user_id           BIGINT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     trade_date        DATE NOT NULL,
@@ -460,13 +468,13 @@ CREATE TABLE user_market_review (
     UNIQUE (user_id, trade_date)
 );
 
-CREATE INDEX idx_user_market_review_trade_date ON user_market_review(trade_date);
+CREATE INDEX IF NOT EXISTS idx_user_market_review_trade_date ON user_market_review(trade_date);
 
 -- ============================================================
 -- 9. 采集任务域
 -- ============================================================
 
-CREATE TABLE collector_task (
+CREATE TABLE IF NOT EXISTS collector_task (
     id              BIGSERIAL PRIMARY KEY,
     task_name       VARCHAR(100) NOT NULL UNIQUE,
     task_type       VARCHAR(50)  NOT NULL,
@@ -483,10 +491,10 @@ CREATE TABLE collector_task (
     trade_day_only  BOOLEAN      NOT NULL DEFAULT false  -- 交易日预检：非交易日/日历未覆盖当日 SKIPPED（显式 trade_date 豁免）
 );
 
-CREATE INDEX idx_collector_task_active ON collector_task(is_active);
-CREATE INDEX idx_collector_task_active_schedule ON collector_task(is_active, schedule) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_collector_task_active ON collector_task(is_active);
+CREATE INDEX IF NOT EXISTS idx_collector_task_active_schedule ON collector_task(is_active, schedule) WHERE is_active = TRUE;
 
-CREATE TABLE collector_log (
+CREATE TABLE IF NOT EXISTS collector_log (
     id          BIGSERIAL PRIMARY KEY,
     task_id     BIGINT REFERENCES collector_task(id) ON DELETE SET NULL,
     task_name   VARCHAR(100),
@@ -503,11 +511,11 @@ CREATE TABLE collector_log (
     CONSTRAINT uq_collector_log_celery_task_id UNIQUE (celery_task_id)
 );
 
-CREATE INDEX idx_collector_log_started ON collector_log(started_at DESC);
-CREATE INDEX idx_collector_log_status_started_at ON collector_log(status, started_at DESC);
-CREATE INDEX idx_collector_log_task_started ON collector_log(task_name, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_collector_log_started ON collector_log(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_collector_log_status_started_at ON collector_log(status, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_collector_log_task_started ON collector_log(task_name, started_at DESC);
 
-CREATE TABLE collector_dead_letter (
+CREATE TABLE IF NOT EXISTS collector_dead_letter (
     id            SERIAL PRIMARY KEY,
     task_name     VARCHAR(100) NOT NULL,
     source        VARCHAR(50),
@@ -519,14 +527,14 @@ CREATE TABLE collector_dead_letter (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_collector_dead_letter_task_name ON collector_dead_letter(task_name);
-CREATE INDEX idx_collector_dead_letter_created_at ON collector_dead_letter(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_collector_dead_letter_task_name ON collector_dead_letter(task_name);
+CREATE INDEX IF NOT EXISTS idx_collector_dead_letter_created_at ON collector_dead_letter(created_at DESC);
 
 -- ============================================================
 -- 10. LLM 配置域（后台管理）
 -- ============================================================
 
-CREATE TABLE llm_config (
+CREATE TABLE IF NOT EXISTS llm_config (
     id                  BIGSERIAL PRIMARY KEY,
     name                VARCHAR(100) NOT NULL,
     provider            VARCHAR(20)  NOT NULL,
@@ -548,9 +556,9 @@ CREATE TABLE llm_config (
     CONSTRAINT chk_llm_config_purpose CHECK (purpose IN ('chat', 'embedding', 'vision'))
 );
 
-CREATE INDEX idx_llm_configs_active ON llm_config(provider) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_llm_configs_active ON llm_config(provider) WHERE is_active = TRUE;
 
-CREATE UNIQUE INDEX idx_llm_config_default
+CREATE UNIQUE INDEX IF NOT EXISTS idx_llm_config_default
     ON llm_config(is_default) WHERE is_default = TRUE;
 
 -- ============================================================
@@ -582,7 +590,7 @@ CREATE TABLE IF NOT EXISTS mcp_server_config (
 -- 10b. 代理服务器配置（后台管理，采集渠道按需绑定）
 -- ============================================================
 
-CREATE TABLE proxy_config (
+CREATE TABLE IF NOT EXISTS proxy_config (
     id                  BIGSERIAL PRIMARY KEY,
     name                VARCHAR(128) NOT NULL,
     protocol            VARCHAR(16)  NOT NULL DEFAULT 'http',
@@ -602,7 +610,7 @@ CREATE TABLE proxy_config (
 -- 11. 采集渠道配置域（后台管理）
 -- ============================================================
 
-CREATE TABLE collector_channel_config (
+CREATE TABLE IF NOT EXISTS collector_channel_config (
     id                  BIGSERIAL PRIMARY KEY,
     source              VARCHAR(50)  NOT NULL UNIQUE,
     name                VARCHAR(100) NOT NULL,
@@ -618,12 +626,12 @@ CREATE TABLE collector_channel_config (
         FOREIGN KEY (proxy_config_id) REFERENCES proxy_config(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_collector_channel_enabled ON collector_channel_config(is_enabled);
-CREATE INDEX idx_collector_channel_supported_types ON collector_channel_config USING GIN(supported_data_types);
-CREATE INDEX idx_collector_channel_config_proxy_config_id ON collector_channel_config(proxy_config_id);
+CREATE INDEX IF NOT EXISTS idx_collector_channel_enabled ON collector_channel_config(is_enabled);
+CREATE INDEX IF NOT EXISTS idx_collector_channel_supported_types ON collector_channel_config USING GIN(supported_data_types);
+CREATE INDEX IF NOT EXISTS idx_collector_channel_config_proxy_config_id ON collector_channel_config(proxy_config_id);
 
 -- 渠道-数据类型关联及优先级（同 data_type 下 priority 越小越优先）
-CREATE TABLE collector_channel_data_type (
+CREATE TABLE IF NOT EXISTS collector_channel_data_type (
     id          BIGSERIAL PRIMARY KEY,
     channel_id  BIGINT      NOT NULL REFERENCES collector_channel_config(id) ON DELETE CASCADE,
     data_type   VARCHAR(50) NOT NULL,
@@ -631,7 +639,7 @@ CREATE TABLE collector_channel_data_type (
     CONSTRAINT uq_collector_channel_data_type_channel_data_type UNIQUE (channel_id, data_type)
 );
 
-CREATE INDEX idx_collector_channel_data_type_data_type_priority ON collector_channel_data_type(data_type, priority);
+CREATE INDEX IF NOT EXISTS idx_collector_channel_data_type_data_type_priority ON collector_channel_data_type(data_type, priority);
 
 -- ============================================================
 -- 12. 扩展：公司概况、公告/研报扩展字段、板块资金、龙虎榜、宏观经济

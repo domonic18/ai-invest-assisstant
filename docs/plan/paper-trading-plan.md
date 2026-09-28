@@ -121,7 +121,7 @@
 ### 4.1 迁移 `docker/database/migrations/20260924a_paper_trade_tables.sql`
 
 新业务域启用 `paper_trade_` 前缀（对齐 `<分类前缀>_<数据类型>` 约定），三表均幂等
-`CREATE TABLE IF NOT EXISTS`，同步进 `init-scripts`。批次 3 直接在该迁移文件上演进
+`CREATE TABLE IF NOT EXISTS`（效果已收编进 `0001_baseline.sql`）。批次 3 直接在该迁移文件上演进
 （分支未合并，不产生增量迁移），终态见 §6.1。
 
 ```sql
@@ -321,7 +321,7 @@ ALTER TABLE paper_trade_order
 - `order_source`：`manual`（页面人工）/ `agent`（Agent 工具与定时执行）——人机分账户
   之外再留数据层来源标记，复盘归因可过滤（D14）。
 - DB 层不建 FK 约束（对齐域内现状），引用完整性由服务层保证。
-- 同步 `init-scripts`；compose 移除 sidecar 的 `GMTRADE_TOKEN`/`GMTRADE_ACCOUNT_ID`。
+- compose 移除 sidecar 的 `GMTRADE_TOKEN`/`GMTRADE_ACCOUNT_ID`。
 
 ### 6.2 sidecar 无状态化（`docker/paper-trade/main.py`）
 
@@ -518,7 +518,7 @@ cancel_paper_trade_order, get_stock_quote, ask_user`（批次 7/9 工具就绪�
 
 ### 8.5 配置面（`trading_agent_config` 单例表）
 
-迁移 `20260924b_trading_agent_config.sql`（幂等，同步 init-scripts，seed 默认行）：
+迁移 `20260924b_trading_agent_config.sql`（幂等，seed 默认行）：
 
 ```sql
 CREATE TABLE IF NOT EXISTS trading_agent_config (
@@ -582,7 +582,7 @@ CREATE TABLE IF NOT EXISTS trading_agent_config (
 
 ### 10.1 数据底座
 
-迁移 `20260924c_agent_trading_tables.sql`（幂等，同步 init-scripts）：
+迁移 `20260924c_agent_trading_tables.sql`（幂等）：
 
 ```sql
 -- agent 自选分组归属：现有分组表加归属标记（迁移，非新表）
@@ -1023,7 +1023,7 @@ Agent 的私有资产，自动提取直接生效（无草稿/审核流转），�
 
 ### 12.1 数据底座
 
-迁移 `20260926e_agent_memory.sql`（幂等，同步 init-scripts）：
+迁移 `20260926e_agent_memory.sql`（幂等）：
 
 ```sql
 CREATE TABLE IF NOT EXISTS agent_memory (

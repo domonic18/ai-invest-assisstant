@@ -239,8 +239,8 @@ ai-invest-assisstant/
 │   ├── signer/                         # douyin-signer 镜像（抖音页面签名 sidecar，第三镜像）
 │   │   └── Dockerfile
 │   └── database/
-│       ├── init-scripts/               # 01-schema / 02-indexes / 03-seed
-│       └── migrations/                 # 增量迁移 SQL（按日期归档，幂等可重复执行）
+│       ├── migrate.sh                  # 迁移 runner（台账制 exactly-once，手动执行）
+│       └── migrations/                 # schema 单一真相源：0001_baseline + 0002_seed + 日期增量；legacy/ 归档
 │
 ├── docs/                               # 项目文档
 │   ├── arch/                           # 架构设计

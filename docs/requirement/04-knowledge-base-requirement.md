@@ -140,7 +140,7 @@
   - **章节过滤在行内 WHERE 下推**（`chapter_path @> 前缀链`，过滤不影响召回完整性——禁止取回 top-k 后再过滤）；**浏览与搜索分离**：点章节树看「该章节全部卡片」走 PG 结构化清单端点 `GET /kb/sources/{id}/points`（章节链 containment + 确定性排序 + 分页，未知章节 422）
   - 新发布知识点自动进待物化队列，由任务增量拾取（最终一致，非实时）
   - 知识点删除/驳回改行状态即检索失效（单一存储，无投影同步）；性能目标检索 P95 < 500ms，top_k 可配（默认 8）；embedding API 失败时词面路独立可用（响应携带降级标记）
-- **数据**：新表 `kb_source` / `kb_media` / `kb_transcript_segment` / `kb_knowledge_point`（幂等 SQL 迁移规范，同步 init-scripts）
+- **数据**：新表 `kb_source` / `kb_media` / `kb_transcript_segment` / `kb_knowledge_point`（幂等 SQL 迁移规范）
 
 ### 5.5 F-KB-05 内部知识检索页与视频回看播放器（后台内）
 

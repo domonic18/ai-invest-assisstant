@@ -74,7 +74,7 @@ ai-invest-assisstant/
 │   ├── collector/              # 采集镜像（beat/worker/stream/CLI）
 │   ├── signer/                 # douyin-signer 签名 sidecar
 │   ├── paper-trade/            # 掘金仿真 REST 网关 sidecar
-│   └── database/               # init-scripts + migrations（幂等 SQL）
+│   └── database/               # migrations（schema 单一真相源）+ migrate.sh（迁移 runner）
 ├── docs/                       # arch（终态架构）/ plan（计划）/ requirement / prototypes
 ├── qa/                         # 黑盒集成 QA 测试（独立 uv 项目）
 ├── CLAUDE.md / backend/CLAUDE.md / web/CLAUDE.md   # AI 上下文

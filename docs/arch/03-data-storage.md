@@ -30,7 +30,7 @@
 
 ## 2. 命名约定（关键）
 
-后端数据库已完成统一命名重构，新增 / 重命名表与字段必须遵循以下约定（`docker/database/init-scripts/01-schema.sql` + `migrations/20260722_schema_refactor.sql`）：
+后端数据库已完成统一命名重构，新增 / 重命名表与字段必须遵循以下约定（基线见 `docker/database/migrations/0001_baseline.sql`）：
 
 - **表名结构**：`<分类前缀>_<数据类型>_<标的类型>[_<粒度/子类型>]`，市场级数据可省略 `<标的类型>`
 - **分类前缀**
@@ -236,9 +236,12 @@
 
 ## 7. 迁移管理
 
-- 全量初始化脚本：`docker/database/init-scripts/`（`01-schema.sql` / `02-indexes.sql` / `03-seed.sql`）
-- 增量迁移：`docker/database/migrations/` 下按日期归档的 SQL（如 `20260722_schema_refactor.sql`、`20260829_limit_up_ai_review_task.sql`），幂等可重复执行
-- 新增字段时**同时**更新 init-scripts（新部署）+ 写一条带日期前缀的 migration（已部署环境），历史上已四例漂移，须严守
+单一真相源：`docker/database/migrations/`，新装 / 存量 / 升级共用一条路径。
+
+- `0001_baseline.sql` — 全量 schema 基线（幂等），`0002_seed.sql` — 幂等种子（调度、渠道等默认行）；其后为按日期命名的增量迁移（如 `20260722_schema_refactor.sql`）
+- `legacy/` — 历史日期迁移归档，永不执行（其效果已收编进 baseline）
+- 执行方式：**手动脚本** `bash docker/database/migrate.sh`（台账表 `schema_migrations` exactly-once，每迁移与登记同事务；宿主机无 psql 时自动经 `docker compose exec postgres` 执行）。时序约定：`docker compose up -d postgres` 健康后、起应用前执行
+- 约定：迁移 forward-only，合并后禁止修改既有文件；破坏性变更走 expand-contract（先加后删，分两批）；**不设** init-scripts 双写——新变更只加一个迁移文件，新环境重放全部迁移得到相同 schema（CI 有从零迁移守卫）
 
 ## 8. 后续文档索引
 
