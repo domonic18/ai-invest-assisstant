@@ -155,7 +155,7 @@ def _agent_row(**overrides: object) -> SimpleNamespace:
         "risk_max_position_pct": 20.0,
         "risk_max_total_pct": 80.0,
         "risk_max_daily_orders": 10,
-        "auto_exec_enabled": True,
+        "intraday_exec_mode": "shadow",
         "status": "active",
         "plan_cadence": "daily",
         "review_cadence": "daily",

@@ -1,8 +1,9 @@
 """交易 Agent 注册表服务（``trading_agent``，agent-hub-plan.md D21/D29）。
 
 身份/介绍/模型绑定（空 = 平台默认 chat 模型）、方法论知识源绑定（空 = 未启用
-方法论基座注入）、风控阈值（批次 8 盘中执行消费）、auto_exec_enabled 总闸全部
-按 agent_key 维度维护，改选即时生效（每次构建 agent / 生成计划时现读）。
+方法论基座注入）、风控阈值（批次 8 盘中执行消费）、intraday_exec_mode 执行三态
+（off/shadow/active）全部按 agent_key 维度维护，改选即时生效（每次构建 agent /
+生成计划时现读）。
 D29 开放 CRUD：create（创建即 active，技能/人设走共享兜底）、delete（级联清理
 其计划/选股/记忆/会话并解绑模拟盘账户）。
 """
@@ -10,6 +11,7 @@ D29 开放 CRUD：create（创建即 active，技能/人设走共享兜底）、
 import re
 from decimal import Decimal
 from pathlib import Path
+from typing import cast
 
 import structlog
 import yaml
@@ -24,6 +26,7 @@ from app.models.kb import KbSource
 from app.models.llm_config import LLMConfig
 from app.models.paper_trade import PaperTradeAccount, TradingAgent
 from app.schemas.paper_trade import (
+    IntradayExecMode,
     TradingAgentCreateRequest,
     TradingAgentProfileResponse,
     TradingAgentProfileUpdateRequest,
@@ -100,7 +103,7 @@ def to_view(row: TradingAgent) -> TradingAgentProfileResponse:
         risk_max_position_pct=float(row.risk_max_position_pct),
         risk_max_total_pct=float(row.risk_max_total_pct),
         risk_max_daily_orders=row.risk_max_daily_orders,
-        auto_exec_enabled=row.auto_exec_enabled,
+        intraday_exec_mode=cast(IntradayExecMode, row.intraday_exec_mode),
         status=row.status,
         plan_cadence=row.plan_cadence,
         review_cadence=row.review_cadence,
@@ -161,7 +164,7 @@ async def update_agent(
         "risk_max_position_pct",
         "risk_max_total_pct",
         "risk_max_daily_orders",
-        "auto_exec_enabled",
+        "intraday_exec_mode",
         "accent_color",
         "status",
         "plan_cadence",
@@ -299,7 +302,7 @@ async def create_agent(
         risk_max_position_pct=_CREATE_RISK_POSITION_PCT,
         risk_max_total_pct=_CREATE_RISK_TOTAL_PCT,
         risk_max_daily_orders=_CREATE_RISK_DAILY_ORDERS,
-        auto_exec_enabled=False,
+        intraday_exec_mode="off",
         status=AGENT_STATUS_ACTIVE,
         sort_order=max_sort + 1,
     )

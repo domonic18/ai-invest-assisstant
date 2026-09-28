@@ -18,8 +18,8 @@ export interface TradingAgentProfile {
   riskMaxTotalPct: number
   /** 单日委托笔数上限。 */
   riskMaxDailyOrders: number
-  /** 盘中自主执行总闸（盘中执行批次消费）。 */
-  autoExecEnabled: boolean
+  /** 盘中自主执行三态（D21，批次 8）：off 停用 / shadow 判断不下单 / active 真实执行。 */
+  intradayExecMode: 'off' | 'shadow' | 'active'
   status: 'active' | 'planned' | 'disabled'
   /** 计划生成频率（daily 每交易日 / weekly 周期末 / monthly 月末，D28）。 */
   planCadence: 'daily' | 'weekly' | 'monthly'
@@ -46,7 +46,8 @@ export interface TradingAgentProfileUpdateRequest {
   riskMaxPositionPct?: number
   riskMaxTotalPct?: number
   riskMaxDailyOrders?: number
-  autoExecEnabled?: boolean
+  /** 盘中自主执行三态（D21，批次 8）。 */
+  intradayExecMode?: 'off' | 'shadow' | 'active'
   status?: 'active' | 'disabled'
   planCadence?: AgentCadence
   reviewCadence?: AgentCadence

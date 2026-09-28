@@ -607,7 +607,7 @@ class TestTradingAgentCrud:
             risk_max_position_pct=20.0,
             risk_max_total_pct=60.0,
             risk_max_daily_orders=10,
-            auto_exec_enabled=False,
+            intraday_exec_mode="off",
             status="active",
             sort_order=4,
             prompt_id="trading_agent_short_line",
@@ -631,7 +631,7 @@ class TestTradingAgentCrud:
         body = resp.json()
         assert body["agentKey"] == "test-agent"
         assert body["status"] == "active"
-        assert body["autoExecEnabled"] is False
+        assert body["intradayExecMode"] == "off"
         create_mock.assert_awaited_once_with(session, data=create_mock.await_args.kwargs["data"])
 
     def test_create_agent_validation_error_surfaces_422(self, admin_client) -> None:
@@ -694,7 +694,7 @@ class TestGetTradingAgentStatus:
             risk_max_position_pct=20.0,
             risk_max_total_pct=80.0,
             risk_max_daily_orders=10,
-            auto_exec_enabled=True,
+            intraday_exec_mode="shadow",
             status="active",
             sort_order=1,
             prompt_id="trading_agent_short_line",

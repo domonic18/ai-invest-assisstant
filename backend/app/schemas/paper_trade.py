@@ -222,6 +222,9 @@ class PaperTradeAdminAccountListResponse(CamelModel):
 # 交易 Agent 注册表（Agent Hub 多 Agent 基座，agent-hub-plan.md D21）
 # ============================================================
 
+#: 盘中自主执行三态（D21，批次 8）：off 停用 / shadow 判断不下单 / active 真实执行
+IntradayExecMode = Literal["off", "shadow", "active"]
+
 
 class TradingAgentProfileResponse(CamelModel):
     """交易 Agent 注册行视图：身份/介绍/模型绑定/风控/总闸/频率。"""
@@ -234,7 +237,8 @@ class TradingAgentProfileResponse(CamelModel):
     risk_max_position_pct: float
     risk_max_total_pct: float
     risk_max_daily_orders: int
-    auto_exec_enabled: bool
+    #: 盘中自主执行三态（D21，批次 8）
+    intraday_exec_mode: IntradayExecMode
     status: str
     plan_cadence: str = "daily"
     review_cadence: str = "daily"
@@ -426,7 +430,8 @@ class TradingAgentProfileUpdateRequest(CamelModel):
     risk_max_position_pct: float | None = Field(default=None, ge=0, le=100)
     risk_max_total_pct: float | None = Field(default=None, ge=0, le=100)
     risk_max_daily_orders: int | None = Field(default=None, ge=1)
-    auto_exec_enabled: bool | None = None
+    #: 盘中自主执行三态（D21，批次 8）
+    intraday_exec_mode: IntradayExecMode | None = None
     accent_color: str | None = None
     status: Literal["active", "disabled"] | None = None
     plan_cadence: Literal["daily", "weekly", "monthly"] | None = None
