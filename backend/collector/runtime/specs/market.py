@@ -89,10 +89,13 @@ SPECS: tuple[TaskSpec, ...] = (
     TaskSpec(
         name="sector-quote",
         label="板块行情快照",
-        description="采集东财板块行情快照，供板块监测页涨跌排行",
+        description=(
+            "采集板块行情快照（东财为主、同花顺 fallback），供板块监测页涨跌排行与异动检测"
+        ),
         data_type="sector_quote",
         collectors={
             "eastmoney": "collector.spiders.eastmoney_sector_quote:EastmoneySectorQuoteCollector",
+            "ths": "collector.spiders.ths_sector_quote:ThsSectorQuoteCollector",
         },
         run_params=("trade_date",),
         converters={"trade_date": date.fromisoformat},
