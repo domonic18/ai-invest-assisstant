@@ -10,6 +10,15 @@ from app.services.kb.embedding_client import EmbeddingClient
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_redis(monkeypatch: pytest.MonkeyPatch) -> None:
+    """隔离 redis：错误路径的 mark_unhealthy 打桩——本地 redis 常驻时全局连接池
+    跨事件循环复用会炸（RuntimeError: Future attached to a different loop）。"""
+    monkeypatch.setattr(
+        "app.services.kb.embedding_client.mark_unhealthy", AsyncMock()
+    )
+
+
 def _client() -> EmbeddingClient:
     return EmbeddingClient(
         config_id=3,

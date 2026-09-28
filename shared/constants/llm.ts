@@ -14,4 +14,7 @@ export const LLM_PROVIDER_PRESETS: Record<string, LLMProviderPreset> = {
   minimax: { label: 'MiniMax', baseUrl: 'https://api.minimaxi.com/v1', protocol: 'openai' },
   openai: { label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', protocol: 'openai' },
   anthropic: { label: 'Anthropic', baseUrl: 'https://api.anthropic.com', protocol: 'anthropic' },
+  // 判断模型渠道（System One wire 协议，D23）：openrouter 为探针实证的生产 Jev 通道
+  openrouter: { label: 'OpenRouter', baseUrl: 'https://openrouter.ai/api', protocol: 'systemone' },
+  codiv: { label: 'Codiv', baseUrl: 'https://api.codiv.ai', protocol: 'systemone' },
 }
