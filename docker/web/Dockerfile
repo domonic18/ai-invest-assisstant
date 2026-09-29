@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # backend-builder
 FROM python:3.11-slim-bookworm AS backend-builder
 WORKDIR /app
@@ -11,6 +10,11 @@ RUN pip install --no-cache-dir uv \
     && uv sync --frozen --no-dev --no-install-project
 COPY backend/ .
 RUN uv sync --frozen --no-dev
+
+# 剪枝 stage：供运行时 COPY 源码用（不用 COPY --exclude——CI 的 buildx
+# 内建 frontend 不认该 flag，本地新 frontend 才支持，曾致流水线确定性失败）
+FROM backend-builder AS backend-pruned
+RUN rm -rf /app/.venv /app/tests
 
 # frontend-builder
 FROM node:22-alpine AS frontend-builder
@@ -36,6 +40,10 @@ RUN npm ci --legacy-peer-deps
 COPY web/ .
 RUN npm run build
 
+# sourcemap（hidden：HTML 不引用）只留本地排障，不入运行时镜像
+FROM frontend-builder AS frontend-dist
+RUN find /web/dist -name '*.map' -delete
+
 # runtime — 单 uvicorn 进程直听 9000：API + SPA 静态托管一体，
 # 无 nginx/supervisord 启动竞态（端口监听即完整服务，消除冷启动 502 窗口）
 FROM python:3.11-slim-bookworm
@@ -56,11 +64,10 @@ WORKDIR /app
 
 ENV PATH="/app/.venv/bin:$PATH"
 # venv 单独成层：源码变更不重写 venv 层，SCF 按层增量拉取只取小层；
-# 第二条 COPY 须排除 .venv/tests，否则 venv 双份入镜像（曾致镜像虚胖）
+# 源码经 backend-pruned stage（已 rm .venv/tests），venv 不会双份入镜像
 COPY --from=backend-builder /app/.venv /app/.venv
-COPY --from=backend-builder --exclude=.venv --exclude=tests /app /app
-# sourcemap（hidden：HTML 不引用）只留本地排障，不入运行时镜像
-COPY --from=frontend-builder --exclude=**/*.map /web/dist /app/static
+COPY --from=backend-pruned /app /app
+COPY --from=frontend-dist /web/dist /app/static
 # 助手 Skills：settings.skills_dir 在容器内解析为 /skills（/app 的上四级）
 COPY skills/ /skills/
 

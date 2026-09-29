@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 FROM python:3.11-slim-bookworm AS backend-builder
 
 WORKDIR /app
@@ -12,6 +11,11 @@ RUN pip install --no-cache-dir uv \
 COPY backend/ .
 RUN uv sync --frozen --no-dev
 
+# 剪枝 stage：供运行时 COPY 源码用（不用 COPY --exclude——CI 的 buildx
+# 内建 frontend 不认该 flag，本地新 frontend 才支持，曾致流水线确定性失败）
+FROM backend-builder AS backend-pruned
+RUN rm -rf /app/.venv /app/tests
+
 FROM python:3.11-slim-bookworm
 
 WORKDIR /app
@@ -22,8 +26,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=backend-builder /app/.venv /app/.venv
-# 与 web 镜像同约定：第二条 COPY 排除 .venv/tests，避免 venv 双份与测试代码入运行时
-COPY --from=backend-builder --exclude=.venv --exclude=tests /app /app
+# 与 web 镜像同约定：源码经 backend-pruned stage（已 rm .venv/tests），
+# 避免 venv 双份与测试代码入运行时
+COPY --from=backend-pruned /app /app
 # 助手 Skills：settings.skills_dir 在容器内解析为 /skills（与 web 镜像一致）
 COPY skills/ /skills/
 
