@@ -202,7 +202,7 @@ export interface ApiTradingAgentObservationDecision {
   confidence: number | null
   /** Noul 答案（分时形态/止损有效性，布尔）。 */
   noul: boolean | null
-  /** Score 答案（盘面支持度 0-1）。 */
+  /** Score 答案（盘面支持度 1-5）。 */
   score: number | null
   /** 观测窗口标记；'tail_check' = 尾盘强检行（planId 恒空）。 */
   window: string | null
@@ -222,6 +222,8 @@ export interface ApiTradingAgentObservationItem {
   changePct: number | null
   l0Verdict: 'no_action' | 'near_trigger' | 'triggered' | 'degraded' | string
   triggerReason: 'buy_zone' | 'target' | 'stop_loss' | null
+  /** L0 比价细节文案（心跳/拒绝行的人话原因；触发行通常为 null）。 */
+  l0Detail: string | null
   decision: ApiTradingAgentObservationDecision | null
   /** no_action 行无动作（null）；execute/wait/abandon/suppress。 */
   action: 'execute' | 'wait' | 'abandon' | 'suppress' | null

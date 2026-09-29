@@ -88,6 +88,7 @@ def _to_item(
         change_pct=_num("change_pct", snapshot),
         l0_verdict=row.l0_verdict,
         trigger_reason=row.trigger_reason,
+        l0_detail=snapshot.get("l0_detail"),
         decision=decision,
         action=row.action,
         suppression_reason=row.suppression_reason,

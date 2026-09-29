@@ -22,11 +22,14 @@ import { marketSession } from '@/pages/PaperTrade/tradingRules'
 import type { MarketSession } from '@/pages/PaperTrade/tradingRules'
 import {
   ACTION_META,
+  fmtConfidence,
   fmtPct,
+  fmtScore,
+  noulLabel,
+  observationSummary,
   SUPPRESSION_META,
-  TRIGGER_REASON_LABELS,
-  VERDICT_META,
 } from '@/pages/TradingAgent/observationMeta'
+import { ObservationLegend } from '@/pages/TradingAgent/observationLegend'
 import { changeColor } from '@/utils/formatters'
 
 const FEED_ROW_KEYFRAMES = `
@@ -64,18 +67,17 @@ function SessionBadge({ session, reviewDate }: { session: MarketSession; reviewD
   )
 }
 
-/** 判断摘要片段（L1 答案键缺失项不展示）。 */
-function DecisionParts({ item }: { item: ApiTradingAgentObservationItem }) {
+/** 依据行（模型三题答案 + 模型版本；心跳行无 choice 不渲染）。 */
+function EvidenceLine({ item }: { item: ApiTradingAgentObservationItem }) {
   const decision = item.decision
-  if (!decision) return null
+  if (!decision?.choice) return null
   const parts: string[] = []
-  if (decision.choice) parts.push(`动作判断：${decision.choice}`)
-  if (decision.confidence != null) parts.push(`置信 ${(decision.confidence * 100).toFixed(0)}%`)
-  if (decision.noul != null) parts.push(decision.noul ? '分时支持' : '分时不支持')
-  if (decision.score != null) parts.push(`盘面支持 ${decision.score}/5`)
-  if (parts.length === 0 && !decision.servedModel) return null
+  if (decision.confidence != null) parts.push(fmtConfidence(decision.confidence))
+  if (decision.score != null) parts.push(`盘面 ${fmtScore(decision.score)}`)
+  if (decision.noul != null) parts.push(noulLabel(decision.noul, item.planType))
   return (
     <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 text-[11px] text-white/35">
+      <span className="text-white/30">依据</span>
       {parts.map((part) => (
         <span key={part}>{part}</span>
       ))}
@@ -89,7 +91,6 @@ function DecisionParts({ item }: { item: ApiTradingAgentObservationItem }) {
 function FeedRow({ item, animate }: { item: ApiTradingAgentObservationItem; animate: boolean }) {
   const navigate = useNavigate()
   const isTail = item.decision?.window === 'tail_check'
-  const verdict = VERDICT_META[item.l0Verdict] ?? { label: item.l0Verdict, color: 'default' }
   const action = item.action ? (ACTION_META[item.action] ?? null) : null
   const suppression = item.suppressionReason
     ? SUPPRESSION_META[item.suppressionReason] ?? item.suppressionReason
@@ -140,21 +141,18 @@ function FeedRow({ item, animate }: { item: ApiTradingAgentObservationItem; anim
             <span className={changeColor(item.changePct)}>{fmtPct(item.changePct)}</span>
           </span>
         )}
-        {item.triggerReason && (
-          <span className="text-[11px] text-white/30">
-            {TRIGGER_REASON_LABELS[item.triggerReason] ?? item.triggerReason}
-          </span>
-        )}
         <span className="ml-auto" />
         {item.isShadow && (
           <Tag color="gold" className="!mr-0">
             影子
           </Tag>
         )}
-        <Tag color={verdict.color}>{verdict.label}</Tag>
         {action && <Tag color={action.color}>{action.label}</Tag>}
       </div>
-      <DecisionParts item={item} />
+      <div className={`mt-0.5 text-[11px] ${heartbeat ? 'text-white/40' : 'text-white/75'}`}>
+        {observationSummary(item)}
+      </div>
+      <EvidenceLine item={item} />
       {(suppression || item.clOrdId || item.orderVolume != null) && (
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 text-[11px]">
           {suppression && <Tag color="warning">{suppression}</Tag>}
@@ -217,6 +215,7 @@ export function LiveDecisionFeed({
           {agent.profile.name}
         </Link>
         {data && <StatsChip summary={data.summary} />}
+        <ObservationLegend />
       </div>
       <div className="h-[280px] overflow-y-auto px-4 pb-3 pt-2">
         {feedLoading && !data ? (

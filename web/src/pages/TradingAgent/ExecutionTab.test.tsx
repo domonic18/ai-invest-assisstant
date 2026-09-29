@@ -36,6 +36,7 @@ function item(overrides: Partial<ApiTradingAgentObservationItem> = {}): ApiTradi
     changePct: 1.01,
     l0Verdict: 'triggered',
     triggerReason: 'buy_zone',
+    l0Detail: null,
     decision: {
       servedModel: 'openjev-0.1',
       choice: '立即执行',
@@ -96,12 +97,35 @@ describe('ExecutionTab', () => {
     expect(screen.getByText('浦发银行')).toBeInTheDocument()
     expect(screen.getByText('600000')).toBeInTheDocument()
     expect(screen.getByText(dayjs(TICK_TIME).format('HH:mm:ss'))).toBeInTheDocument()
-    expect(screen.getByText('已触发')).toBeInTheDocument()
     expect(screen.getByText('抑制')).toBeInTheDocument()
     expect(screen.getByText('影子')).toBeInTheDocument()
-    expect(screen.getByText('动作判断：立即执行')).toBeInTheDocument()
-    expect(screen.getByText('置信 52%')).toBeInTheDocument()
-    expect(screen.getByText('盘面支持 3/5')).toBeInTheDocument()
+    expect(screen.getByText('进入买点区间，置信不足未执行')).toBeInTheDocument()
+    expect(screen.getByText('依据')).toBeInTheDocument()
+    expect(screen.getByText('置信 52%（低）')).toBeInTheDocument()
+    expect(screen.getByText('盘面 3.0/5 · 中性')).toBeInTheDocument()
+    expect(screen.getByText('分时：支持买入')).toBeInTheDocument()
+    expect(screen.getByText('openjev-0.1')).toBeInTheDocument()
+  })
+
+  it('renders heartbeat conclusion without evidence line in all view', () => {
+    setup(
+      page({
+        items: [
+          item({
+            l0Verdict: 'no_action',
+            triggerReason: null,
+            l0Detail: '未触达止盈/止损价',
+            decision: { servedModel: 'openjev-0.1', choice: null, confidence: null, noul: null, score: null, window: null },
+            action: null,
+            suppressionReason: null,
+          }),
+        ],
+      }),
+    )
+
+    expect(screen.getByText('巡检正常 · 未触达止盈/止损价')).toBeInTheDocument()
+    expect(screen.queryByText('依据')).not.toBeInTheDocument()
+    expect(screen.queryByText('openjev-0.1')).not.toBeInTheDocument()
   })
 
   it('hides tail-check stock link and marks the row', () => {
@@ -123,6 +147,7 @@ describe('ExecutionTab', () => {
     expect(screen.getByText('尾盘强检')).toBeInTheDocument()
     expect(screen.queryByText('浦发银行')).not.toBeInTheDocument()
     expect(screen.getByText('600000')).toBeInTheDocument()
+    expect(screen.getByText('尾盘强检：跌破止损，仅记录')).toBeInTheDocument()
   })
 
   it('switching to all resets to unfiltered query', () => {

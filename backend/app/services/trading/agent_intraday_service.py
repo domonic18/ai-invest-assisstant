@@ -16,7 +16,7 @@ from datetime import date, datetime
 from typing import Any
 
 import structlog
-from sqlalchemy import select, update
+from sqlalchemy import func, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import today_cn, utc_now
@@ -341,7 +341,7 @@ async def run_tick(
     index_snapshot: dict[str, Any] | None = None,
     recorders: dict[str, AgentRunRecorder] | None = None,
 ) -> dict[str, int]:
-    """执行一次盘中 tick：active Agent 全部当日 active 计划过 L0→L1→L2→观测。
+    """执行一次盘中 tick：active Agent 生效计划集（最近一份 ≤ 当日）过 L0→L1→L2→观测。
 
     判断模型对全部触发计划只发起一次批量 ``ask_decision``；shadow 模式
     不下单，active 模式经 ``execute_agent_order`` 下单并推进计划状态机。
@@ -356,13 +356,17 @@ async def run_tick(
         "degraded": 0,
     }
     agents = await agent_registry.get_active_agents(session)
+    plan_dates = await _effective_plan_dates(session, trade_date)
     for agent in agents:
         recorder = (recorders or {}).get(agent.agent_key)
+        effective_date = plan_dates.get(agent.agent_key)
+        if effective_date is None:
+            continue
         plans = list(
             await session.scalars(
                 select(AgentTradePlan).where(
                     AgentTradePlan.agent_key == agent.agent_key,
-                    AgentTradePlan.plan_date == trade_date,
+                    AgentTradePlan.plan_date == effective_date,
                     AgentTradePlan.status == "active",
                 )
             )
@@ -488,20 +492,26 @@ async def run_tail_check(
     quotes: dict[str, dict[str, Any]],
     recorders: dict[str, AgentRunRecorder] | None = None,
 ) -> dict[str, int]:
-    """尾盘强检（14:50-15:00，纯 L0）：未触发计划置 expired + 持仓对止损。
+    """尾盘强检（14:50-15:00，纯 L0）：生效计划集未触发行置 expired + 持仓对止损。
 
-    状态短路幂等（仅 active 行推进 expired）；持仓止损强检覆盖当日有
-    计划的持仓标的（stop_loss 取当日计划值），shadow 只落观测。
+    消费对象与 run_tick 同源（各 Agent 最近一份 ≤ 当日的计划集）；状态
+    短路幂等（仅 active 行推进 expired，保证一份计划集只喂一个会话）；
+    持仓止损强检覆盖该计划集内有计划的持仓标的（stop_loss 取计划值），
+    shadow 只落观测。
     """
     counters = {"expired": 0, "checked": 0, "triggered": 0, "executed": 0}
     agents = await agent_registry.get_active_agents(session)
+    plan_dates = await _effective_plan_dates(session, trade_date)
     for agent in agents:
         recorder = (recorders or {}).get(agent.agent_key)
+        effective_date = plan_dates.get(agent.agent_key)
+        if effective_date is None:
+            continue
         result = await session.execute(
             update(AgentTradePlan)
             .where(
                 AgentTradePlan.agent_key == agent.agent_key,
-                AgentTradePlan.plan_date == trade_date,
+                AgentTradePlan.plan_date == effective_date,
                 AgentTradePlan.status == "active",
             )
             .values(status="expired", updated_at=utc_now())
@@ -516,7 +526,7 @@ async def run_tail_check(
             await session.scalars(
                 select(AgentTradePlan).where(
                     AgentTradePlan.agent_key == agent.agent_key,
-                    AgentTradePlan.plan_date == trade_date,
+                    AgentTradePlan.plan_date == effective_date,
                 )
             )
         )
@@ -593,11 +603,38 @@ async def run_tail_check(
     return counters
 
 
-async def plan_stock_codes(session: AsyncSession, *, trade_date: date) -> set[str]:
-    """当日 active Agent 全部计划标的集合（驻留壳按 tick 拉行情的取数范围）。"""
-    rows = await session.scalars(
-        select(AgentTradePlan.stock_code)
+async def _effective_plan_dates(
+    session: AsyncSession, trade_date: date
+) -> dict[str, date]:
+    """各 active Agent「≤ trade_date 的最新一份」计划日期。
+
+    计划于 T 日盘后生成（plan_date=T），实际供 T+1 起的盘中会话消费，
+    故消费按各 Agent 最近一份而非精确当日匹配；当日尾盘强检会把消费过
+    的计划推进 expired，保证一份计划集只喂一个会话、不会跨日复用。
+    """
+    rows = await session.execute(
+        select(AgentTradePlan.agent_key, func.max(AgentTradePlan.plan_date))
         .join(TradingAgent, TradingAgent.agent_key == AgentTradePlan.agent_key)
-        .where(TradingAgent.status == "active", AgentTradePlan.plan_date == trade_date)
+        .where(TradingAgent.status == "active", AgentTradePlan.plan_date <= trade_date)
+        .group_by(AgentTradePlan.agent_key)
+    )
+    return {str(agent_key): plan_date for agent_key, plan_date in rows.all()}
+
+
+async def plan_stock_codes(session: AsyncSession, *, trade_date: date) -> set[str]:
+    """active Agent 生效计划集（各 agent 最近一份 ≤ 当日）标的集合。
+
+    驻留壳按 tick 拉行情的取数范围；不含 status 过滤（与尾盘强检的
+    持仓止损口径一致，已触发/已过期行仍在取数范围内）。
+    """
+    dates = await _effective_plan_dates(session, trade_date)
+    if not dates:
+        return set()
+    rows = await session.scalars(
+        select(AgentTradePlan.stock_code).where(
+            tuple_(AgentTradePlan.agent_key, AgentTradePlan.plan_date).in_(
+                list(dates.items())
+            )
+        )
     )
     return {str(code) for code in rows}

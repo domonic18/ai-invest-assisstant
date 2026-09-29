@@ -205,6 +205,7 @@ class TestListAgentObservations:
         assert item.order_volume == 300
         assert item.action == "execute"
         assert item.suppression_reason is None
+        assert item.l0_detail == "触及买点区间"
 
     async def test_missing_jsonb_keys_tolerated(self) -> None:
         row = _obs(market_snapshot={}, decision_answers={})
@@ -221,6 +222,7 @@ class TestListAgentObservations:
         assert item.change_pct is None
         assert item.decision is None
         assert item.order_volume is None
+        assert item.l0_detail is None
 
     async def test_agent_not_found_404(
         self, monkeypatch: pytest.MonkeyPatch

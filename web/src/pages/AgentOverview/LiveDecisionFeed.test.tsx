@@ -81,6 +81,7 @@ function item(overrides: Partial<ApiTradingAgentObservationItem> = {}): ApiTradi
     changePct: 0.7,
     l0Verdict: 'no_action',
     triggerReason: null,
+    l0Detail: null,
     decision: null,
     action: null,
     suppressionReason: null,
@@ -178,10 +179,12 @@ describe('LiveDecisionFeed', () => {
     expect(screen.getByText('600000')).toBeInTheDocument()
     expect(screen.getByText('10.05')).toBeInTheDocument()
     expect(screen.getByText('+0.70%')).toBeInTheDocument()
-    expect(screen.getByText('已触发')).toBeInTheDocument()
     expect(screen.getByText('抑制')).toBeInTheDocument()
-    expect(screen.getByText('动作判断：等待回踩')).toBeInTheDocument()
-    expect(screen.getByText('置信 41%')).toBeInTheDocument()
+    expect(screen.getByText('进入买点区间，置信不足未执行')).toBeInTheDocument()
+    expect(screen.getByText('依据')).toBeInTheDocument()
+    expect(screen.getByText('置信 41%（低）')).toBeInTheDocument()
+    expect(screen.getByText('盘面 3.0/5 · 中性')).toBeInTheDocument()
+    expect(screen.getByText('分时：不支持离场')).toBeInTheDocument()
     expect(screen.getByText('影子')).toBeInTheDocument()
     expect(screen.getByText('低于阈值')).toBeInTheDocument()
   })
@@ -197,14 +200,16 @@ describe('LiveDecisionFeed', () => {
     const { container } = setup({
       data: page({
         items: [
-          item({ id: 1 }),
+          item({ id: 1, l0Detail: '未触达止盈/止损价' }),
           item({ id: 2, l0Verdict: 'triggered', action: 'suppress', suppressionReason: 'below_threshold' }),
         ],
       }),
     })
     const rows = container.querySelectorAll('.opacity-40')
     expect(rows).toHaveLength(1)
-    expect(rows[0].textContent).toContain('无动作')
+    expect(rows[0].textContent).toContain('巡检正常 · 未触达止盈/止损价')
+    expect(rows[0].textContent).not.toContain('openjev-0.1')
+    expect(rows[0].textContent).not.toContain('依据')
   })
 
   it('marks tail-check rows without stock link', () => {
