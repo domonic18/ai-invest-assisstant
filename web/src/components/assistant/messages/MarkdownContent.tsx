@@ -12,7 +12,7 @@ import remarkGfm from 'remark-gfm'
 
 import { useColorScheme } from '@/stores/settings'
 import { rehypeRiseFall } from '@/utils/rehypeRiseFall'
-import { fallColorSoft, riseColorSoft } from '@/utils/formatters'
+import { fallHexSoft, riseHexSoft } from '@/utils/formatters'
 
 interface MarkdownContentProps {
   content: string
@@ -92,10 +92,10 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
       const rf = (node as { properties?: { dataRf?: unknown } } | undefined)
         ?.properties?.dataRf
       if (rf === 'up') {
-        return <span className={riseColorSoft()}>{children}</span>
+        return <span style={{ color: riseHexSoft() }}>{children}</span>
       }
       if (rf === 'down') {
-        return <span className={fallColorSoft()}>{children}</span>
+        return <span style={{ color: fallHexSoft() }}>{children}</span>
       }
       return <span {...props}>{children}</span>
     },

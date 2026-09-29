@@ -10,7 +10,7 @@ import {
 import { PaperTradeOverview } from './PaperTradeOverview'
 import { PaperTradePositions } from './PaperTradePositions'
 import { TradingPanel } from './TradingPanel'
-import type { OrderPrefill } from './TradingPanel'
+import type { OrderPrefill } from './orderForm'
 import { AccountManagerModal } from './AccountManagerModal'
 import { NavChart } from './NavChart'
 import {
@@ -19,8 +19,7 @@ import {
   usePaperTradeOverview,
   usePaperTradeSyncAction,
 } from '@/hooks/usePaperTrade'
-import { bjNow } from '@/utils/beijing'
-import { DATE_FORMAT } from '@/utils/formatters'
+import { dailyPnl } from '@/utils/paperTradeMetrics'
 
 /** 未配置引导卡：无账户配置或服务端未启用模拟盘网关时展示使用方法。 */
 function GuideCard({ onManage }: { onManage: () => void }) {
@@ -100,23 +99,8 @@ export function PaperTrade() {
   const overview = overviewQuery.data
   const pageReady = account != null && overview != null && overview.enabled
 
-  // 当日盈亏 = 实时 nav − 前一快照 nav − 两快照间出入金增量（lastInout 是
-  // 账户最后一笔出入金而非当日，误用会把历史入金全数计成亏损）
-  const todayStr = bjNow().format(DATE_FORMAT)
-  const prevPoint = [...(navQuery.data?.items ?? [])]
-    .reverse()
-    .find((p) => p.tradeDate < todayStr)
-  const liveCumInout = overview?.cash?.cumInout != null ? Number(overview.cash.cumInout) : 0
-  const dayBase =
-    prevPoint?.nav != null
-      ? prevPoint.nav + liveCumInout - (prevPoint.cumInout ?? 0)
-      : null
-  const dayPnl =
-    overview?.cash?.nav != null && dayBase != null ? overview.cash.nav - dayBase : null
-  const dayPnlPct =
-    dayPnl != null && dayBase != null && Math.abs(dayBase) > 0
-      ? (dayPnl / dayBase) * 100
-      : null
+  // 当日盈亏与净值曲线共用同一份 nav 快照（口径见 utils/paperTradeMetrics）
+  const { dayPnl, dayPnlPct } = dailyPnl(navQuery.data?.items, overview?.cash)
 
   const unfinished = overview?.unfinishedOrders.length ?? 0
   const accountBar = (

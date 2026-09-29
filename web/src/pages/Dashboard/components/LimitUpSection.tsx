@@ -11,13 +11,12 @@ import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
 import { useAssistantStore } from '@/stores/assistant'
 import { useColorScheme } from '@/stores/settings'
 import {
-  changeColor,
   changeHex,
   formatAmount,
   formatPercent,
   formatSealTime,
-  riseColorSoft,
   riseHex,
+  riseHexSoft,
 } from '@/utils/formatters'
 
 interface LimitUpSectionProps {
@@ -166,7 +165,7 @@ export function LimitUpSection({
                 </Link>
                 <span className="hidden sm:inline font-mono text-xs text-gray-500">{item.stockCode}</span>
                 <Tag color="default" className="hidden sm:inline-block">{item.industry ?? '未分类'}</Tag>
-                <span className={`text-sm font-medium ${changeColor(item.changePct)}`}>
+                <span className="text-sm font-medium" style={{ color: changeHex(item.changePct) }}>
                   {item.changePct != null ? formatPercent(item.changePct) : '-'}
                 </span>
               </div>
@@ -221,7 +220,7 @@ export function LimitUpSection({
                 style={{ backgroundColor: `${riseHex()}1a` }}
               >
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className={`text-sm font-semibold ${riseColorSoft()}`}>{group.name}</span>
+                  <span className="text-sm font-semibold" style={{ color: riseHexSoft() }}>{group.name}</span>
                   {group.changePct != null && (
                     <span
                       className="text-xs font-medium"

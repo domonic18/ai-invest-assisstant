@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import type { WorkbenchSectorFlowItem } from '@ai-invest/shared'
 
 import { useColorScheme } from '@/stores/settings'
-import { changeColor } from '@/utils/formatters'
+import { changeHex } from '@/utils/formatters'
 
 import { FoldCard } from './FoldCard'
 
@@ -53,12 +53,12 @@ export function SectorFlowCard({ items, loading, className, stretch }: SectorFlo
               )}
             </div>
             <span
-              className={`w-16 shrink-0 text-right font-mono ${changeColor(item.changePct)}`}
+              className="w-16 shrink-0 text-right font-mono" style={{ color: changeHex(item.changePct) }}
             >
               {formatPct(item.changePct)}
             </span>
             <span
-              className={`w-20 shrink-0 text-right font-mono ${changeColor(item.mainNetInflow)}`}
+              className="w-20 shrink-0 text-right font-mono" style={{ color: changeHex(item.mainNetInflow) }}
             >
               {formatInflow(item.mainNetInflow)}
             </span>

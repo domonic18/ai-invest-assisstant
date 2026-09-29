@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 
 import type { WorkbenchAnomalyTop } from '@ai-invest/shared'
 
-import { changeColor, formatPercent } from '@/utils/formatters'
+import { changeHex, formatPercent } from '@/utils/formatters'
 
 import { ANOMALY_TYPE_LABELS } from '@/pages/Anomaly/labels'
 
@@ -75,7 +75,7 @@ export function AnomalyTopCard({
                       </span>
                     </span>
                   </Tooltip>
-                  <span className={`shrink-0 font-mono font-semibold ${changeColor(it.changePct)}`}>
+                  <span className="shrink-0 font-mono font-semibold" style={{ color: changeHex(it.changePct) }}>
                     {it.changePct != null ? formatPercent(it.changePct) : '-'}
                   </span>
                 </div>
@@ -110,7 +110,7 @@ export function AnomalyTopCard({
                       </span>
                     </span>
                   </Tooltip>
-                  <span className={`shrink-0 font-mono font-semibold ${changeColor(it.changePct)}`}>
+                  <span className="shrink-0 font-mono font-semibold" style={{ color: changeHex(it.changePct) }}>
                     {it.changePct != null ? formatPercent(it.changePct) : '-'}
                   </span>
                 </div>

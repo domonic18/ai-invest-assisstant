@@ -25,6 +25,7 @@ from app.services.trading import account_service
 from app.services.trading.client import get_client
 from app.services.trading.paper_trade_converters import (
     BARE_CODE_RE,
+    SIDE_BUY,
     bare_stock_code,
     unwrap_rows,
 )
@@ -128,7 +129,7 @@ async def _bought_today_by_code(
         ).where(
             PaperTradeExecution.paper_trade_account_id == account_id,
             PaperTradeExecution.trade_date == trade_date,
-            PaperTradeExecution.side == 1,
+            PaperTradeExecution.side == SIDE_BUY,
         )
         .group_by(PaperTradeExecution.symbol)
     )

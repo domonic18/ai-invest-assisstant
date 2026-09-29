@@ -15,11 +15,10 @@ import { PaperTradeExecutionsPanel, PaperTradeOrdersPanel } from '@/pages/PaperT
 import { PaperTradePositions } from '@/pages/PaperTrade/PaperTradePositions'
 import {
   useAdminPaperTradeAccounts,
-  usePaperTradeNav,
+  useDailyPnl,
   usePaperTradeOverview,
 } from '@/hooks/usePaperTrade'
-import { bjNow } from '@/utils/beijing'
-import { changeHex, DATE_FORMAT, formatAmount, formatNumber, formatPercent } from '@/utils/formatters'
+import { changeHex, formatAmount, formatNumber, formatPercent } from '@/utils/formatters'
 
 import { useAgentKey } from './agentKeyContext'
 
@@ -47,7 +46,7 @@ function PnlStatistic({
 
 function OverviewStats({ accountId }: { accountId: number }) {
   const { data: overview, isLoading } = usePaperTradeOverview(accountId)
-  const { data: navData } = usePaperTradeNav(accountId, 10)
+  const { dayPnl, dayPnlPct: dayPct } = useDailyPnl(accountId, overview?.cash)
   if (isLoading) {
     return (
       <div className="flex justify-center py-4">
@@ -66,21 +65,6 @@ function OverviewStats({ accountId }: { accountId: number }) {
   const cumPct =
     cumPnl != null && cumInout != null && Math.abs(cumInout) > 0
       ? (cumPnl / cumInout) * 100
-      : null
-  // 当日盈亏 = 实时 nav − 前一快照 nav − 两快照间出入金增量（lastInout 是
-  // 账户最后一笔出入金而非当日，误用会把历史入金全数计成亏损）
-  const todayStr = bjNow().format(DATE_FORMAT)
-  const prevPoint = [...(navData?.items ?? [])]
-    .reverse()
-    .find((p) => p.tradeDate < todayStr)
-  const dayBase =
-    prevPoint?.nav != null
-      ? prevPoint.nav + (cumInout ?? 0) - (prevPoint.cumInout ?? 0)
-      : null
-  const dayPnl = nav != null && dayBase != null ? Number(nav) - dayBase : null
-  const dayPct =
-    dayPnl != null && dayBase != null && Math.abs(dayBase) > 0
-      ? (dayPnl / dayBase) * 100
       : null
 
   return (

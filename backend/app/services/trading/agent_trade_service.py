@@ -20,12 +20,11 @@ from app.models.paper_trade import PaperTradeAccount, TradingAgent
 from app.services.trading import account_service
 from app.services.trading.client import get_client
 from app.services.trading.errors import AgentAccountNotDesignatedError
+from app.services.trading.paper_trade_converters import SIDE_BUY, SIDE_SELL
 from app.services.trading.paper_trade_mappers import normalize_order_rows
 from app.services.trading.paper_trade_service import resolve_counter_symbol
 from app.services.trading.paper_trade_sync import _upsert_orders
 from app.services.trading.risk_control import (
-    SIDE_BUY,
-    SIDE_SELL,
     check_order_risk,
     risk_config_from_row,
 )

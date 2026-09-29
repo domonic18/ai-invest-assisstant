@@ -11,7 +11,7 @@ import { useMoveWatchlistItem } from '@/hooks/useWatchlistGroups'
 import { useRemoveWatchlistItem } from '@/hooks/useWatchlist'
 import { useColorScheme } from '@/stores/settings'
 import { apiErrorMessage } from '@/utils/errorMessage'
-import { changeColor, formatPercent } from '@/utils/formatters'
+import { changeHex, formatPercent } from '@/utils/formatters'
 
 type SortField = 'changePct' | 'price' | 'amount' | 'name'
 type SortOrder = 'asc' | 'desc'
@@ -269,7 +269,7 @@ export function WatchlistStockList({
                   <div className="font-mono text-sm text-gray-200">
                     {quote?.price != null ? quote.price.toFixed(2) : '-'}
                   </div>
-                  <div className={`text-xs font-mono ${changeColor(quote?.changePct)}`}>
+                  <div className="text-xs font-mono" style={{ color: changeHex(quote?.changePct) }}>
                     {quote?.changePct != null ? formatPercent(quote.changePct) : '-'}
                   </div>
                 </div>

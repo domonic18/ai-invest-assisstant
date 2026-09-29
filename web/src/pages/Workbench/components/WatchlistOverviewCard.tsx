@@ -7,7 +7,7 @@ import type {
   WorkbenchWatchlistGroup,
 } from '@ai-invest/shared'
 import { useColorScheme } from '@/stores/settings'
-import { changeColor, formatPercent } from '@/utils/formatters'
+import { changeHex, formatPercent } from '@/utils/formatters'
 
 import { FoldCard } from './FoldCard'
 
@@ -100,7 +100,7 @@ export function WatchlistOverviewCard({
                       {stock.price != null ? stock.price.toFixed(2) : '-'}
                     </span>
                     <span
-                      className={`w-16 shrink-0 text-right font-mono text-[13px] font-semibold ${changeColor(stock.changePct)}`}
+                      className="w-16 shrink-0 text-right font-mono text-[13px] font-semibold" style={{ color: changeHex(stock.changePct) }}
                     >
                       {stock.changePct != null ? formatPercent(stock.changePct) : '-'}
                     </span>

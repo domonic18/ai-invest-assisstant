@@ -6,7 +6,7 @@ import pytest
 
 from app.core.exceptions import NotFoundError
 from app.services.trading import agent_memory_service
-from app.services.trading.agent_review_service import ReviewExperience
+from app.services.trading.agent_review_content import ReviewExperience
 
 pytestmark = pytest.mark.unit
 

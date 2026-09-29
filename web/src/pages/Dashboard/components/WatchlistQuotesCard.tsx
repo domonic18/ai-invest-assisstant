@@ -5,7 +5,7 @@ import { useWatchlistQuotes } from '@/hooks/useMarket'
 import { SourceNote } from '@/components/common/SourceNote'
 import { IntradaySpark } from '@/components/charts/IntradaySpark'
 import { useColorScheme } from '@/stores/settings'
-import { changeColor, formatPercent } from '@/utils/formatters'
+import { changeHex, formatPercent } from '@/utils/formatters'
 
 export function WatchlistQuotesCard() {
   useColorScheme()
@@ -37,7 +37,7 @@ export function WatchlistQuotesCard() {
                     <div className="font-mono text-sm">
                       {item.price != null ? item.price.toFixed(2) : '-'}
                     </div>
-                    <div className={`text-xs ${changeColor(item.changePct)}`}>
+                    <div className="text-xs" style={{ color: changeHex(item.changePct) }}>
                       {item.changePct != null ? formatPercent(item.changePct) : '-'}
                     </div>
                   </div>

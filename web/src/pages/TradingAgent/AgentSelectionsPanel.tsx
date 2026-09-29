@@ -17,7 +17,7 @@ import {
 } from '@/hooks/useTradingAgent'
 import { useStockIntraday, useStockQuote } from '@/hooks/useStocks'
 import { useColorScheme } from '@/stores/settings'
-import { changeColor, formatPercent } from '@/utils/formatters'
+import { changeHex, formatPercent } from '@/utils/formatters'
 
 import { useAgentKey } from './agentKeyContext'
 
@@ -49,7 +49,7 @@ function SelectionRow({ item }: { item: ApiAgentWatchlistSelectionItem }) {
           <div className="font-mono text-sm text-gray-200">
             {quote?.price != null ? quote.price.toFixed(2) : '-'}
           </div>
-          <div className={`text-xs font-mono ${changeColor(quote?.changePct)}`}>
+          <div className="text-xs font-mono" style={{ color: changeHex(quote?.changePct) }}>
             {quote?.changePct != null ? formatPercent(quote.changePct) : '-'}
           </div>
         </div>

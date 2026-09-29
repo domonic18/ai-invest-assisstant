@@ -11,6 +11,7 @@ import type { ApiNewsTopic, ApiTopicVotes } from '@ai-invest/shared'
 
 import { StockLinkTag } from '@/components/common/StockLinkTag'
 import { useNewsTopics } from '@/hooks/useNewsTopics'
+import { changeHex, riseHex } from '@/utils/formatters'
 
 type TopicSession = 'intraday' | 'post'
 
@@ -128,7 +129,7 @@ function TopicCard({ topic, rank }: { topic: ApiNewsTopic; rank: number }) {
             <Tag key={sector.name} className="!m-0 !text-xs">
               {sector.name}
               {sector.changePct !== null && (
-                <span className={sector.changePct >= 0 ? 'text-red-400' : 'text-green-400'}>
+                <span style={{ color: changeHex(sector.changePct) }}>
                   {' '}
                   {sector.changePct >= 0 ? '+' : ''}
                   {sector.changePct.toFixed(2)}%
@@ -194,10 +195,8 @@ function Wordcloud({ words }: { words: { word: string; count: number }[] }) {
         return (
           <span
             key={item.word}
-            style={{ fontSize: size }}
-            className={
-              ratio > 0.66 ? 'text-red-400 font-semibold' : 'text-white/80'
-            }
+            style={{ fontSize: size, ...(ratio > 0.66 ? { color: riseHex() } : {}) }}
+            className={ratio > 0.66 ? 'font-semibold' : 'text-white/80'}
           >
             {item.word}
           </span>

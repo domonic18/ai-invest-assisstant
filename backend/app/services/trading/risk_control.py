@@ -22,13 +22,15 @@ from app.core.clock import today_cn
 from app.models.paper_trade import PaperTradeAccount, PaperTradeOrder
 from app.services.trading import account_service
 from app.services.trading.client import get_client
-from app.services.trading.paper_trade_converters import row_stock_code, unwrap_rows
+from app.services.trading.paper_trade_converters import (
+    ORDER_STATUS_REJECTED,
+    SIDE_BUY,
+    row_stock_code,
+    unwrap_rows,
+)
 from app.services.trading.paper_trade_mappers import normalize_cash_row
 
 logger = structlog.get_logger(__name__)
-
-SIDE_BUY = 1
-SIDE_SELL = 2
 
 #: 科创板最低申报 200 股、1 股递增（创业板仍 100 股整手）
 STAR_MIN_VOLUME = 200
@@ -217,7 +219,7 @@ async def check_order_risk(
             .where(
                 PaperTradeOrder.paper_trade_account_id == account.id,
                 PaperTradeOrder.trade_date == today,
-                PaperTradeOrder.status != 8,  # 已拒委托未进市场，不计笔数
+                PaperTradeOrder.status != ORDER_STATUS_REJECTED,  # 已拒委托未进市场，不计笔数
             )
         )
         or 0

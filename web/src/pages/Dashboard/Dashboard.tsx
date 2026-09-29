@@ -20,6 +20,7 @@ import { MarketStatsSection } from './components/MarketStatsSection'
 import { SectorSection } from './components/SectorSection'
 import { WatchlistQuotesCard } from './components/WatchlistQuotesCard'
 
+import { bjNow } from '@/utils/beijing'
 import { DATE_FORMAT } from '@/utils/formatters'
 
 export function Dashboard() {
@@ -27,7 +28,7 @@ export function Dashboard() {
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null)
   const [collecting, setCollecting] = useState(false)
   const tradeDate = selectedDate?.format(DATE_FORMAT)
-  const isPastDate = Boolean(tradeDate && dayjs(tradeDate).isBefore(dayjs(), 'day'))
+  const isPastDate = Boolean(tradeDate && dayjs(tradeDate).isBefore(bjNow(), 'day'))
 
   const { data: indices, isLoading: indicesLoading } = useMarketIndices(tradeDate)
   const { data: stats, isLoading: statsLoading } = useMarketStats(tradeDate)
@@ -89,8 +90,8 @@ export function Dashboard() {
             data={sectors}
             loading={sectorsLoading}
             pendingClose={
-              sectors?.tradeDate === dayjs().format(DATE_FORMAT) &&
-              dayjs().hour() < 15
+              sectors?.tradeDate === bjNow().format(DATE_FORMAT) &&
+              bjNow().hour() < 15
             }
             canBackfill={isPastDate}
           />
@@ -98,8 +99,8 @@ export function Dashboard() {
             data={limitUp}
             loading={limitUpLoading}
             pendingClose={
-              limitUp?.tradeDate === dayjs().format(DATE_FORMAT) &&
-              dayjs().hour() < 15
+              limitUp?.tradeDate === bjNow().format(DATE_FORMAT) &&
+              bjNow().hour() < 15
             }
             canBackfill={isPastDate}
             tradeDate={tradeDate}
