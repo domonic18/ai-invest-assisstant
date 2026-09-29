@@ -187,6 +187,7 @@ services:
     environment:
       TZ: Asia/Shanghai
       COLLECTOR_MODE: intraday
+      PAPER_TRADE_URL: ${PAPER_TRADE_URL:-http://paper-trade:8020}
     depends_on:
       postgres:
         condition: service_healthy
