@@ -25,10 +25,21 @@ export default defineConfig({
     sourcemap: 'hidden',
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          ui: ['antd', '@ant-design/icons'],
-          charts: ['echarts', 'echarts-for-react', '@antv/g6'],
+        // 函数式按包路由（object 形式对仅经动态导入可达的 g6 不生效）：
+        // g6 独立分包（v4 单体不可摇树，~1.5MB）仅产业链图消费，其余图表页
+        // 不必连带下载；@antv/* 全家桶仅 g6 使用，可整族归并
+        manualChunks(id: string) {
+          if (id.includes('node_modules/@antv/')) return 'g6'
+          if (id.includes('node_modules/echarts') || id.includes('node_modules/zrender')) return 'charts'
+          if (id.includes('node_modules/antd') || id.includes('node_modules/@ant-design/')) return 'ui'
+          if (
+            id.includes('node_modules/react/')
+            || id.includes('node_modules/react-dom/')
+            || id.includes('node_modules/react-router')
+          ) {
+            return 'vendor'
+          }
+          return undefined
         },
       },
     },

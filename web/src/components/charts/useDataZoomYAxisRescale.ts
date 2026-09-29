@@ -4,7 +4,7 @@
  */
 
 import type { RefObject } from 'react'
-import type ReactECharts from 'echarts-for-react'
+import type EChartsReactCore from 'echarts-for-react/lib/core'
 
 import {
   type PriceRangeBar,
@@ -27,7 +27,7 @@ interface ZoomableChartData {
 }
 
 export function useDataZoomYAxisRescale(
-  chartRef: RefObject<ReactECharts | null>,
+  chartRef: RefObject<EChartsReactCore | null>,
   chartData: ZoomableChartData | null | undefined,
 ) {
   /** 复位缩放到默认窗口（双击图表 / 工具栏按钮） */

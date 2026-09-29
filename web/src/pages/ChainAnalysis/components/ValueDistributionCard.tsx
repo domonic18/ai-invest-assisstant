@@ -1,5 +1,5 @@
 import { Col, Row, Statistic } from 'antd'
-import ReactECharts from 'echarts-for-react'
+import ReactECharts from '@/components/charts/ReactECharts'
 
 import type { ChainNode, ChainValueDistribution } from '@ai-invest/shared'
 

@@ -1,5 +1,5 @@
 import { SyncOutlined } from '@ant-design/icons'
-import ReactECharts from 'echarts-for-react'
+import ReactECharts from '@/components/charts/ReactECharts'
 import { Button, Spin } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 
