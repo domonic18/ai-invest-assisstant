@@ -324,6 +324,32 @@ CREATE INDEX IF NOT EXISTS idx_mapping_stock_concept_stock_code
 CREATE INDEX IF NOT EXISTS idx_mapping_stock_concept_concept_code
     ON mapping_stock_concept(concept_code);
 
+-- 产业链 AI 提醒（F-AI-01）：分析任务产出的具名告警，同链同类型同日唯一；
+-- sources 为引用信源条目数组（标题/来源/发布日期），支持前端溯源展示
+CREATE TABLE IF NOT EXISTS chain_alert (
+    id                   BIGSERIAL PRIMARY KEY,
+    industry             VARCHAR(50)  NOT NULL,
+    alert_type           VARCHAR(20)  NOT NULL,
+    severity             INT          NOT NULL,
+    title                VARCHAR(200) NOT NULL,
+    description          TEXT         NOT NULL,
+    affected_segments    TEXT[],
+    related_stock_codes  TEXT[],
+    sources              JSONB,
+    signal_date          DATE         NOT NULL,
+    version_id           BIGINT REFERENCES industry_chain_analysis_version(id) ON DELETE SET NULL,
+    created_at           TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_chain_alert_industry_type_date UNIQUE (industry, alert_type, signal_date),
+    CONSTRAINT chk_chain_alert_type CHECK (
+        alert_type IN ('财报异动', '评级调整', '技术突破', '格局变化', '政策催化')
+    ),
+    CONSTRAINT chk_chain_alert_severity CHECK (severity BETWEEN 1 AND 3)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chain_alert_industry_signal
+    ON chain_alert(industry, signal_date DESC);
+
 -- ============================================================
 -- 6. 文件元数据域
 -- ============================================================
@@ -552,8 +578,8 @@ CREATE TABLE IF NOT EXISTS llm_config (
     last_test_error     TEXT,
     created_at          TIMESTAMPTZ DEFAULT NOW(),
     updated_at          TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT chk_llm_config_protocol CHECK (protocol IN ('openai', 'anthropic')),
-    CONSTRAINT chk_llm_config_purpose CHECK (purpose IN ('chat', 'embedding', 'vision'))
+    CONSTRAINT chk_llm_config_protocol CHECK (protocol IN ('openai', 'anthropic', 'systemone')),
+    CONSTRAINT chk_llm_config_purpose CHECK (purpose IN ('chat', 'embedding', 'vision', 'decision'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_llm_configs_active ON llm_config(provider) WHERE is_active = TRUE;
@@ -1449,6 +1475,7 @@ CREATE INDEX IF NOT EXISTS idx_social_sentiment_stance_created ON social_sentime
 CREATE TABLE IF NOT EXISTS asr_channel_config (
     id                BIGSERIAL PRIMARY KEY CHECK (id = 1),
     provider          VARCHAR(32)  NOT NULL DEFAULT 'minimax',
+    protocol          TEXT         NOT NULL DEFAULT 'minimax',   -- wire 协议：决定端点与请求/错误形态（minimax/openai）
     base_url          VARCHAR(200) NOT NULL DEFAULT 'https://api.minimaxi.com',
     model             VARCHAR(64)  NOT NULL DEFAULT 'asr-1.0',
     api_key_encrypted TEXT,                                        -- Fernet 认证加密
@@ -1459,7 +1486,9 @@ CREATE TABLE IF NOT EXISTS asr_channel_config (
     enabled           BOOLEAN      NOT NULL DEFAULT false,
     updated_by        BIGINT REFERENCES "user"(id) ON DELETE SET NULL,
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT chk_asr_channel_config_protocol CHECK (protocol IN ('minimax', 'openai'))
 );
 
 -- 缺省配置行（管理端「ASR 配置」维护；enabled 默认关，配好密钥再开）
@@ -1668,7 +1697,7 @@ CREATE TABLE IF NOT EXISTS trading_agent (
     risk_max_position_pct  NUMERIC(5,2)  NOT NULL DEFAULT 20,          -- 单票市值 ≤ 总资产 %
     risk_max_total_pct     NUMERIC(5,2)  NOT NULL DEFAULT 80,          -- 总持仓市值 ≤ 总资产 %
     risk_max_daily_orders  INTEGER       NOT NULL DEFAULT 10,          -- 单日下单笔数上限
-    auto_exec_enabled      BOOLEAN       NOT NULL DEFAULT TRUE,        -- 盘中自主执行总闸
+    intraday_exec_mode     VARCHAR(10)   NOT NULL DEFAULT 'shadow',    -- 盘中执行模式：off / shadow / active（三态，shadow 先行）
     status                 VARCHAR(16)   NOT NULL DEFAULT 'active',    -- active / planned / disabled
     plan_cadence           VARCHAR(16)   NOT NULL DEFAULT 'daily',     -- 计划生成频率：daily / weekly / monthly（D28）
     review_cadence         VARCHAR(16)   NOT NULL DEFAULT 'daily',     -- 复盘生成频率：daily / weekly / monthly（D28）
@@ -1693,11 +1722,13 @@ CREATE TABLE IF NOT EXISTS trading_agent (
     CONSTRAINT chk_trading_agent_total_pct
         CHECK (risk_max_total_pct >= 0 AND risk_max_total_pct <= 100),
     CONSTRAINT chk_trading_agent_daily_orders
-        CHECK (risk_max_daily_orders >= 1)
+        CHECK (risk_max_daily_orders >= 1),
+    CONSTRAINT chk_trading_agent_intraday_exec_mode
+        CHECK (intraday_exec_mode IN ('off', 'shadow', 'active'))
 );
 
 COMMENT ON TABLE trading_agent IS
-    '交易 Agent 注册表：身份/介绍/模型绑定/风控/总闸（docs/plan/agent-hub-plan.md D21）';
+    '交易 Agent 注册表：身份/介绍/模型绑定/风控/盘中执行模式（docs/plan/agent-hub-plan.md D21）';
 
 -- 种子 Agent 行（短线激活；长线/M60 未上线隐藏；新 Agent 手工 SQL 注册，不做 CRUD）。
 -- methodology_source_id 不硬编码：纯 init 新库无 kb_source 数据，启用后经配置面选择。
@@ -1811,7 +1842,7 @@ CREATE TABLE IF NOT EXISTS agent_run (
     error_msg        TEXT,
     summary          JSONB,                      -- 结果摘要：cache_hit / kb_used / selections / plans / dropped_codes 等
     collector_log_id BIGINT,                     -- collector_log.id（定时链路溯源）
-    CONSTRAINT chk_agent_run_kind CHECK (kind IN ('plan', 'review')),
+    CONSTRAINT chk_agent_run_kind CHECK (kind IN ('plan', 'review', 'intraday_tick')),
     CONSTRAINT chk_agent_run_trigger CHECK (trigger_type IN ('scheduled', 'manual')),
     CONSTRAINT chk_agent_run_status CHECK (status IN ('running', 'success', 'failed', 'skipped'))
 );
@@ -1840,3 +1871,137 @@ CREATE TABLE IF NOT EXISTS agent_run_step (
 
 COMMENT ON TABLE agent_run_step IS
     '交易 Agent 会话执行步骤明细（工具调用/KB 检索/LLM 全文，D35）';
+
+-- ============================================================
+-- 27. 模拟盘账户与执行底座（掘金仿真柜台同步；柜台是交易状态真相源，
+--     本地表是复盘分析与计划执行的真相源，docs/plan/paper-trading-plan.md §4/§6。
+--     多租户：账户维度可空 = 单账户时代存量行，查询恒按账户过滤不可见）
+-- ============================================================
+
+-- 掘金仿真账户配置：每用户自有凭证（token Fernet 加密）；
+-- agent 账户经 agent_key 与 trading_agent 注册表一一绑定（D22），NULL = 人工盘
+CREATE TABLE IF NOT EXISTS paper_trade_account (
+    id                  BIGSERIAL PRIMARY KEY,
+    user_id             INTEGER      NOT NULL,     -- 归属租户（users.id）
+    name                VARCHAR(64)  NOT NULL,     -- 展示名（如「人工盘」「agent 盘」）
+    token_encrypted     TEXT         NOT NULL,     -- 掘金仿真 token（Fernet，utils/crypto 同源）
+    counter_account_id  VARCHAR(64)  NOT NULL,     -- 掘金仿真 account_id
+    agent_key           VARCHAR(32)  REFERENCES trading_agent (agent_key) ON DELETE RESTRICT,
+    is_enabled          BOOLEAN      NOT NULL DEFAULT TRUE,
+    last_error          TEXT,                      -- 最近一次同步/调用错误（诊断）
+    last_synced_at      TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+
+    -- 同一柜台账户全平台仅允许配置一次（防 token 共享/多头配置）
+    CONSTRAINT uq_paper_trade_account_counter UNIQUE (counter_account_id)
+);
+
+-- agent 绑定全局唯一（部分唯一索引；服务层先清后设，此处兜底并发）
+CREATE UNIQUE INDEX IF NOT EXISTS uq_paper_trade_account_agent_key
+    ON paper_trade_account (agent_key) WHERE agent_key IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_paper_trade_account_user
+    ON paper_trade_account (user_id);
+
+-- 委托表（幂等键 = 账户 + 柜台客户端委托号）
+CREATE TABLE IF NOT EXISTS paper_trade_order (
+    id                    BIGSERIAL PRIMARY KEY,
+    paper_trade_account_id INTEGER,
+    cl_ord_id             VARCHAR(64)  NOT NULL,      -- 柜台 cl_ord_id（幂等键）
+    trade_date            DATE         NOT NULL,      -- 业务日（柜台时间的 CN 日历日）
+    symbol                VARCHAR(32)  NOT NULL,      -- 掘金格式 SHSE.600000
+    stock_code            VARCHAR(10)  NOT NULL,      -- 6 位代码（关联自家行情）
+    side                  SMALLINT     NOT NULL,      -- 1 买 / 2 卖
+    order_type            SMALLINT     NOT NULL,      -- 1 限价 / 2 市价
+    position_effect       SMALLINT     NOT NULL DEFAULT 1,
+    price                 NUMERIC(12,4) NOT NULL DEFAULT 0,
+    volume                INT          NOT NULL,
+    status                SMALLINT     NOT NULL,      -- 柜台状态原值
+    order_source          VARCHAR(8)   NOT NULL DEFAULT 'manual',  -- manual 人工 / agent 计划委托
+    ord_rej_reason        SMALLINT,
+    ord_rej_reason_detail TEXT,
+    counter_created_at    TIMESTAMPTZ,
+    counter_updated_at    TIMESTAMPTZ,
+    raw                   JSONB,                      -- 柜台原始委托（字段演进安全网）
+    created_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_paper_trade_order_account_cl_ord_id UNIQUE (paper_trade_account_id, cl_ord_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_paper_trade_order_date
+    ON paper_trade_order(trade_date DESC);
+CREATE INDEX IF NOT EXISTS idx_paper_trade_order_account_date
+    ON paper_trade_order(paper_trade_account_id, trade_date DESC);
+
+-- 成交回报表（幂等键 = 账户 + 柜台回报唯一标识）
+CREATE TABLE IF NOT EXISTS paper_trade_execution (
+    id                    BIGSERIAL PRIMARY KEY,
+    paper_trade_account_id INTEGER,
+    exec_id               VARCHAR(64)  NOT NULL,      -- 柜台回报 ID（幂等键）
+    cl_ord_id             VARCHAR(64)  NOT NULL,
+    trade_date            DATE         NOT NULL,      -- 业务日（回报时间的 CN 日历日）
+    symbol                VARCHAR(32)  NOT NULL,
+    side                  SMALLINT,
+    exec_type             SMALLINT,                   -- 成交/撤单等回报类型原值
+    price                 NUMERIC(12,4),
+    volume                INT,
+    turnover              NUMERIC(18,2),              -- 成交金额
+    commission            NUMERIC(12,4),
+    counter_created_at    TIMESTAMPTZ,
+    raw                   JSONB,
+    created_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_paper_trade_execution_account_exec_id UNIQUE (paper_trade_account_id, exec_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_paper_trade_execution_date
+    ON paper_trade_execution(trade_date DESC);
+CREATE INDEX IF NOT EXISTS idx_paper_trade_execution_cl_ord_id
+    ON paper_trade_execution(cl_ord_id);
+CREATE INDEX IF NOT EXISTS idx_paper_trade_execution_account_date
+    ON paper_trade_execution(paper_trade_account_id, trade_date DESC);
+
+-- 资金日快照表（账户 + 一日一行，净值曲线与当日盈亏的唯一来源）
+CREATE TABLE IF NOT EXISTS paper_trade_cash_snapshot (
+    id                    BIGSERIAL PRIMARY KEY,
+    paper_trade_account_id INTEGER,
+    trade_date            DATE         NOT NULL,
+    nav                   NUMERIC(18,2),
+    available             NUMERIC(18,2),
+    balance               NUMERIC(18,2),
+    cum_inout             NUMERIC(18,2),
+    last_inout            NUMERIC(18,2),              -- 当日出入金（当日盈亏同花顺口径修正项）
+    created_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_paper_trade_cash_snapshot_account_date UNIQUE (paper_trade_account_id, trade_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_paper_trade_cash_snapshot_account_date
+    ON paper_trade_cash_snapshot(paper_trade_account_id, trade_date DESC);
+
+-- 盘中逐 tick 判断留痕（L0 判定 + L1 原始概率答案 + 动作/抑制原因）；
+-- 同时是盘中校准观察报告与影子期评测数据集的数据源（paper-trading-plan §11.5）
+CREATE TABLE IF NOT EXISTS paper_trade_exec_observation (
+    id                 BIGSERIAL PRIMARY KEY,
+    tick_time          TIMESTAMPTZ  NOT NULL,
+    trade_date         DATE         NOT NULL,
+    agent_key          VARCHAR(32)  NOT NULL REFERENCES trading_agent (agent_key) ON DELETE CASCADE,
+    plan_id            BIGINT       REFERENCES agent_trade_plan (id) ON DELETE SET NULL,
+    stock_code         VARCHAR(12)  NOT NULL,
+    market_snapshot    JSONB,
+    l0_verdict         VARCHAR(16)  NOT NULL,
+    trigger_reason     VARCHAR(16),
+    decision_answers   JSONB,
+    action             VARCHAR(16),
+    suppression_reason VARCHAR(32),
+    is_shadow          BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_paper_trade_exec_observation_agent_date
+    ON paper_trade_exec_observation (agent_key, trade_date);
+CREATE INDEX IF NOT EXISTS idx_paper_trade_exec_observation_plan
+    ON paper_trade_exec_observation (plan_id);

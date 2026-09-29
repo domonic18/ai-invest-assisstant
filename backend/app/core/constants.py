@@ -97,6 +97,7 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "market-amount": DOMAIN_QUOTE,
     "sector-quote": DOMAIN_QUOTE,
     "global-index": DOMAIN_QUOTE,
+    "global-index-history": DOMAIN_QUOTE,
     "fed-watch": DOMAIN_QUOTE,
     "macro": DOMAIN_QUOTE,
     # 股池

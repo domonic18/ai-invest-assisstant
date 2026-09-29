@@ -82,6 +82,7 @@ allowed-tools: query_industry_companies, query_financial_reports, download_finan
 - `title`: str，一句话概括；`description`: str，触发依据
 - `affected_segments`: list[str]，环节名（须存在于 nodes）
 - `related_stock_codes`: list[str]，公司清单中的 6 位代码（可为空）
+- `sources`: list of { `title`: str 原文标题, `source`: str 来源标识, `publish_date`: str（无确切日期填空串） }，引用支撑该提醒的信源（取自 search_news 返回），可为空
 
 ## 可用工具
 ### 仅独立执行器路径注入

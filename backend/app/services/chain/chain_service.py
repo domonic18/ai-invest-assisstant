@@ -17,6 +17,7 @@ from app.repositories.chain import (
 )
 from app.schemas.chain import (
     ChainAlertResponse,
+    ChainAlertSource,
     ChainAlertStockRef,
     ChainAlertType,
     ChainAnalysisResult,
@@ -127,6 +128,9 @@ async def list_alerts(
                     change_pct=snapshots.get(code, {}).get("change_pct"),
                 )
                 for code in (alert.related_stock_codes or [])
+            ],
+            sources=[
+                ChainAlertSource.model_validate(s) for s in (alert.sources or [])
             ],
             signal_date=alert.signal_date,
             created_at=alert.created_at,

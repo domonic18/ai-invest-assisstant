@@ -67,6 +67,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
             "limit-down-pool",
             "a50-kline",
             "global-index",
+            "global-index-history",
             "sector-quote",
             "news",
         ],

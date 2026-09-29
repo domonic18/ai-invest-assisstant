@@ -393,6 +393,18 @@ FROM collector_channel_config
 WHERE source = 'ths'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
+-- 防御性补齐 eastmoney 渠道的 global-index-history 数据类型（渠道已存在时）
+UPDATE collector_channel_config
+SET supported_data_types = supported_data_types || '["global-index-history"]'::jsonb
+WHERE source = 'eastmoney'
+  AND NOT supported_data_types @> '["global-index-history"]'::jsonb;
+
+INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
+SELECT id, 'global-index-history', 1
+FROM collector_channel_config
+WHERE source = 'eastmoney'
+ON CONFLICT (channel_id, data_type) DO NOTHING;
+
 INSERT INTO collector_task (task_name, task_type, source, schedule, is_active)
 VALUES
     -- 日债收益率日度（MOF 全量 CSV upsert 幂等）
@@ -405,6 +417,8 @@ VALUES
     ('yahoo_global_index_backfill', 'global-index', 'yahoo', NULL, false),
     -- Yahoo 全球指标每日幂等续期（USDCNY 每日增量 + HSTECH 404 自愈重试）
     ('yahoo_global_index_daily', 'global-index', 'yahoo', '40 7 * * *', true),
+    -- COMEX 黄金/美元指数日 K 历史回补（晨间定盘后 5 日幂等续期；大跨度回填走 CLI --history-days）
+    ('eastmoney_global_index_history', 'global-index-history', 'eastmoney', '30 7 * * 2-6', true),
     -- 资讯 AI 重要度分级（每 5 分钟批量，internal 直调服务层）
     ('news_ai_score', 'news-score', 'internal', '*/5 * * * *', true),
     -- 迭代 4：故事线建线/续接（盘中每 30 分钟，候选=近 48h 高分未入线）
@@ -456,6 +470,8 @@ UPDATE collector_task SET remark = '港美股指数历史回补（手动触发�
  WHERE task_name = 'yahoo_global_index_backfill';
 UPDATE collector_task SET remark = 'Yahoo 全球指标每日幂等续期（USDCNY 增量 + HSTECH 自愈重试）'
  WHERE task_name = 'yahoo_global_index_daily';
+UPDATE collector_task SET remark = 'COMEX 黄金/美元指数日 K 历史回补（默认 5 日幂等续期）'
+ WHERE task_name = 'eastmoney_global_index_history';
 
 UPDATE collector_task SET remark = '盘中热点主题榜（11:35，板块因子用 T-1 并标注）'
  WHERE task_name = 'news_topic_intraday';

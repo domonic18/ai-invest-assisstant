@@ -765,6 +765,39 @@ export interface ApiAdminStockUpdateRequest {
   listingDate?: string
 }
 
+/** 题材（股票-概念）映射管理项（stockName 由 stock_basic 左联富化，未知代码为 null）。 */
+export interface AdminStockConcept {
+  id: number
+  stockCode: string
+  stockName: string | null
+  conceptCode: string
+  conceptName: string
+  source: string
+  updatedAt: string
+}
+
+export interface ApiAdminStockConceptResponse {
+  id: number
+  stockCode: string
+  stockName: string | null
+  conceptCode: string
+  conceptName: string
+  source: string
+  updatedAt: string
+}
+
+export interface ApiAdminStockConceptCreateRequest {
+  stockCode: string
+  conceptCode: string
+  conceptName: string
+}
+
+export interface ApiAdminStockConceptUpdateRequest {
+  stockCode?: string
+  conceptCode?: string
+  conceptName?: string
+}
+
 export interface ApiAdminReportResponse {
   id: number
   filePath: string

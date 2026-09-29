@@ -14,12 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
-from app.models.paper_trade import (
-    PaperTradeAccount,
-    PaperTradeCashSnapshot,
-    PaperTradeExecution,
-    PaperTradeOrder,
-)
+from app.models.paper_trade import PaperTradeAccount
 from app.services.trading.client import CounterCredentials
 from app.services.trading.errors import AgentAccountNotDesignatedError
 from app.utils.crypto import decrypt_token, encrypt_token
@@ -170,16 +165,15 @@ async def update_account(
 
 
 async def delete_account(session: AsyncSession, user_id: int, account_id: int) -> None:
-    """删除账户配置；已有交易数据（委托/回报/快照）时拒绝。"""
+    """删除账户配置。
+
+    历史交易数据（委托/回报/快照）保留在库：三表对账户无外键，孤儿行按
+    account_id 过滤后自然不可见（迁移设计如此），柜台侧已销户的账户可随之清理。
+    绑定交易 Agent 的账户仍拒绝删除——会断掉 Agent 交易循环，须先解绑。
+    """
     account = await resolve_for_user(session, user_id, account_id)
-    for model in (PaperTradeOrder, PaperTradeExecution, PaperTradeCashSnapshot):
-        existing = await session.scalar(
-            select(model.id)
-            .where(model.paper_trade_account_id == account_id)  # type: ignore[attr-defined]
-            .limit(1)
-        )
-        if existing is not None:
-            raise ConflictError("该账户已有交易数据，禁止删除（数据保留以供复盘）")
+    if account.agent_key is not None:
+        raise ConflictError("该账户已绑定交易 Agent，请先解除绑定后再删除")
     await session.delete(account)
     await session.commit()
     logger.info("paper_trade_account_deleted", account_id=account_id, user_id=user_id)

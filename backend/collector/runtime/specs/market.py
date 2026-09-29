@@ -114,6 +114,19 @@ SPECS: tuple[TaskSpec, ...] = (
         run_params=("history_days",),
     ),
     TaskSpec(
+        name="global-index-history",
+        label="全球指标历史回补",
+        description="回补 COMEX 黄金/美元指数日 K 历史（东财 push2his + akshare 双路），修复实时链路缺口",
+        data_type="global_index_history",
+        collectors={
+            "eastmoney": "collector.spiders.eastmoney_global_index:EastmoneyGlobalIndexCollector",
+        },
+        # 独立任务类型而非 global-index 默认参数：spider 的 history_days 是
+        # either-or 分支（带值即只跑历史），挂到常态实时任务会把盘中快照顶掉
+        run_params=("history_days",),
+        defaults={"history_days": 5},
+    ),
+    TaskSpec(
         name="fed-watch",
         label="FedWatch 加息概率",
         description="采集 CME FedWatch 加息概率，跟踪美联储政策预期",
