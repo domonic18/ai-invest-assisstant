@@ -20,6 +20,7 @@ from app.models.paper_trade import PaperTradeExecution
 from app.models.stock import StockBasic
 from app.models.watchlist import UserWatchlistGroup
 from app.schemas.paper_trade import TradingAgentPlanResponse
+from app.services.trading.paper_trade_converters import SIDE_BUY, SIDE_SELL
 
 logger = structlog.get_logger(__name__)
 
@@ -82,9 +83,9 @@ async def _held_volumes(
         if code not in wanted:
             continue
         delta = int(volume or 0)
-        if side == 1:
+        if side == SIDE_BUY:
             agg[code] = agg.get(code, 0) + delta
-        elif side == 2:
+        elif side == SIDE_SELL:
             agg[code] = agg.get(code, 0) - delta
     return {code: volume for code, volume in agg.items() if volume > 0}
 

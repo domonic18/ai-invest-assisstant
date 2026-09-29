@@ -25,6 +25,7 @@ from app.services.review.market_review_generator import (
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
 from app.services.trading import agent_methodology
 from app.services.trading.agent_run_recorder import AgentRunRecorder
+from app.services.trading.paper_trade_converters import SIDE_BUY, SIDE_SELL
 
 #: 异动归因注入 prompt 的条数上限（按 strength 降序）
 _ANOMALY_TOP_N = 10
@@ -121,10 +122,10 @@ async def _local_positions(session: AsyncSession, account_id: int) -> list[dict[
         volume = float(row.volume or 0)
         price = float(row.price or 0)
         entry = agg.setdefault(code, {"volume": 0.0, "cost": 0.0})
-        if row.side == 1:
+        if row.side == SIDE_BUY:
             entry["volume"] += volume
             entry["cost"] += volume * price
-        elif row.side == 2:
+        elif row.side == SIDE_SELL:
             entry["volume"] -= volume
     return [
         {
