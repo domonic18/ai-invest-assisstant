@@ -17,7 +17,10 @@ CHOICE_ACTION_EXECUTE = "立即执行"
 CHOICE_ACTION_WAIT = "等待回踩"
 CHOICE_ACTION_ABANDON = "放弃本档"
 
-CHOICE_INTRADAY_ACTION = JudgeChoice(
+#: 动作 Choice 按计划方向分变体（选项值不变，observation.action 语义与
+#: 校准数据连续；sell 原共用 buy 题面致止损/止盈触发被"破位即放弃"误杀，
+#: 2026-09-29 拆分）。criteria 键即答案值。
+CHOICE_INTRADAY_ACTION_BUY = JudgeChoice(
     instructions=(
         "你是 A 股盘中交易执行器。结合行情状态中的分时与大盘环境，"
         "对给定交易计划选出此刻最合理的唯一动作。"
@@ -26,6 +29,22 @@ CHOICE_INTRADAY_ACTION = JudgeChoice(
         CHOICE_ACTION_EXECUTE: "正处计划触发区，分时与盘面不反对立即成交",
         CHOICE_ACTION_WAIT: "方向成立但时机未到（偏离买点/分时过热），等待更好价位",
         CHOICE_ACTION_ABANDON: "触发前提失效（破位/逻辑破坏/环境恶化），放弃本档",
+    },
+)
+
+CHOICE_INTRADAY_ACTION_SELL = JudgeChoice(
+    instructions=(
+        "你是 A 股盘中交易执行器。该计划为离场计划（止盈或止损卖出），"
+        "结合行情状态中的分时与大盘环境，选出此刻最合理的唯一动作。"
+    ),
+    criteria={
+        CHOICE_ACTION_EXECUTE: "已触达止盈/止损位，分时与盘面不反对立即卖出离场",
+        CHOICE_ACTION_WAIT: (
+            "倾向离场但此刻价位明显不利（放量急跌/急拉中卖出价差损大），等待更优离场点"
+        ),
+        CHOICE_ACTION_ABANDON: (
+            "止盈/止损触发依据不成立（瞬时假摔/假突破已收复，非有效跌破），保留仓位"
+        ),
     },
 )
 

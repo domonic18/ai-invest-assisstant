@@ -37,7 +37,8 @@ from app.services.trading import account_service, agent_registry
 from app.services.trading.agent_intraday_questions import (
     CHOICE_ACTION_ABANDON,
     CHOICE_ACTION_EXECUTE,
-    CHOICE_INTRADAY_ACTION,
+    CHOICE_INTRADAY_ACTION_BUY,
+    CHOICE_INTRADAY_ACTION_SELL,
     NOUL_BUY_TIMING,
     NOUL_EXIT_TIMING,
     SCORE_MARKET_SUPPORT,
@@ -134,12 +135,47 @@ def evaluate_l0(
     return L0Result(L0_NO_ACTION, detail="未触达止盈/止损价")
 
 
+# L0 触发原因 → state 计划上下文的人话标签（供判断模型直读）
+_TRIGGER_LABELS = {
+    REASON_BUY_ZONE: "进入买点区间",
+    REASON_TARGET: "触及止盈目标",
+    REASON_STOP_LOSS: "击穿止损线",
+}
+
+
 def _state(
-    *, trade_date: date, quotes: dict[str, dict[str, Any]], index_snapshot: dict[str, Any] | None
+    *,
+    trade_date: date,
+    quotes: dict[str, dict[str, Any]],
+    index_snapshot: dict[str, Any] | None,
+    candidates: list[tuple[AgentTradePlan, dict[str, Any], L0Result]],
 ) -> dict[str, Any]:
-    """L1 判断的行情状态上下文（state 自由形状，随调用透传给判断模型）。"""
+    """L1 判断的行情状态上下文（state 自由形状，随调用透传给判断模型）。
+
+    state 只放题面需要的字段：``plans`` 逐触发计划给方向/触发原因/触发位
+    与现价对比，判断模型不再对着纯行情盲答（§11.3 state 纪律）。
+    """
+    plans: dict[str, dict[str, Any]] = {}
+    for plan, quote, l0 in candidates:
+        levels: dict[str, Any] = {"stop_loss": float(plan.stop_loss)}
+        if plan.plan_type == "buy":
+            if plan.buy_zone_low is not None:
+                levels["buy_zone_low"] = float(plan.buy_zone_low)
+            if plan.buy_zone_high is not None:
+                levels["buy_zone_high"] = float(plan.buy_zone_high)
+        elif plan.target_price is not None:
+            levels["target_price"] = float(plan.target_price)
+        plans[str(plan.id)] = {
+            "stock_code": plan.stock_code,
+            "direction": "买入" if plan.plan_type == "buy" else "卖出",
+            "trigger": _TRIGGER_LABELS.get(l0.trigger_reason or "", l0.trigger_reason),
+            "levels": levels,
+            "price": quote.get("price"),
+            "change_pct": quote.get("change_pct"),
+        }
     return {
         "trade_date": trade_date.isoformat(),
+        "plans": plans,
         "quotes": {
             code: {
                 "price": q.get("price"),
@@ -155,11 +191,15 @@ def _state(
 def _questions(
     candidates: list[tuple[AgentTradePlan, dict[str, Any], L0Result]],
 ) -> dict[str, JudgeQuestion]:
-    """触发计划的批量题面：每计划三题（动作 Choice + 分时 Noul + 大盘 Score）。"""
+    """触发计划的批量题面：每计划三题（动作 Choice 按方向分变体 + 分时 Noul + 大盘 Score）。"""
     questions: dict[str, JudgeQuestion] = {}
     for plan, _quote, _l0 in candidates:
         key = str(plan.id)
-        questions[f"{key}:action"] = CHOICE_INTRADAY_ACTION
+        questions[f"{key}:action"] = (
+            CHOICE_INTRADAY_ACTION_BUY
+            if plan.plan_type == "buy"
+            else CHOICE_INTRADAY_ACTION_SELL
+        )
         questions[f"{key}:noul"] = NOUL_BUY_TIMING if plan.plan_type == "buy" else NOUL_EXIT_TIMING
         questions[f"{key}:score"] = SCORE_MARKET_SUPPORT
     return questions
@@ -403,7 +443,10 @@ async def run_tick(
                 response = await ask_decision(
                     session,
                     state=_state(
-                        trade_date=trade_date, quotes=quotes, index_snapshot=index_snapshot
+                        trade_date=trade_date,
+                        quotes=quotes,
+                        index_snapshot=index_snapshot,
+                        candidates=candidates,
                     ),
                     questions=_questions(candidates),
                 )
