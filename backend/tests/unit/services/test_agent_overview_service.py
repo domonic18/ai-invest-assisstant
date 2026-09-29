@@ -14,6 +14,8 @@ from app.schemas.paper_trade import (
     AgentOverviewItem,
     TradingAgentProfileResponse,
 )
+from app.services.trading import agent_overview_activity as act
+from app.services.trading import agent_overview_schedule as sched
 from app.services.trading import agent_overview_service as svc
 from app.services.trading.account_service import resolve_agent_accounts
 
@@ -45,7 +47,7 @@ class TestCadenceDue:
             AsyncMock(return_value=True),
         ):
             assert (
-                await svc._cadence_due(MagicMock(), "daily", datetime(2026, 9, 28).date())
+                await sched._cadence_due(MagicMock(), "daily", datetime(2026, 9, 28).date())
                 is True
             )
 
@@ -56,7 +58,7 @@ class TestCadenceDue:
             AsyncMock(return_value=False),
         ):
             assert (
-                await svc._cadence_due(MagicMock(), "daily", datetime(2026, 9, 26).date())
+                await sched._cadence_due(MagicMock(), "daily", datetime(2026, 9, 26).date())
                 is False
             )
 
@@ -73,7 +75,7 @@ class TestCadenceDue:
             ),
         ):
             assert (
-                await svc._cadence_due(MagicMock(), "weekly", datetime(2026, 9, 28).date())
+                await sched._cadence_due(MagicMock(), "weekly", datetime(2026, 9, 28).date())
                 is False
             )
 
@@ -97,7 +99,7 @@ class TestNextTaskTimes:
             "app.services.market.trade_calendar_service.is_trading_day",
             AsyncMock(return_value=True),
         ):
-            tasks = await svc._next_task_times(session, row)
+            tasks = await sched._next_task_times(session, row)
         assert [t.task for t in tasks] == ["模拟盘分层复盘", "每日选股与交易计划"]
         assert all(t.scheduled_at.tzinfo == timezone.utc for t in tasks)
 
@@ -112,8 +114,8 @@ class TestNextTaskTimes:
         async def _due(_s: object, cadence: str, day: object) -> bool:
             return cadence == "weekly" and day.isoweekday() == 5
 
-        with patch.object(svc, "_cadence_due", _due):
-            tasks = await svc._next_task_times(session, row)
+        with patch.object(sched, "_cadence_due", _due):
+            tasks = await sched._next_task_times(session, row)
 
         assert len(tasks) == 1
         assert tasks[0].scheduled_at.isoweekday() == 5
@@ -131,8 +133,8 @@ class TestNextTaskTimes:
         async def _never_due(_s: object, cadence: str, day: object) -> bool:
             return False
 
-        with patch.object(svc, "_cadence_due", _never_due):
-            tasks = await svc._next_task_times(session, row)
+        with patch.object(sched, "_cadence_due", _never_due):
+            tasks = await sched._next_task_times(session, row)
 
         assert tasks == []
 
@@ -141,7 +143,7 @@ class TestNextTaskTimes:
         session = _session(
             [SimpleNamespace(task_name="agent_daily_plan_1900", schedule="")]
         )
-        tasks = await svc._next_task_times(session, _row())
+        tasks = await sched._next_task_times(session, _row())
         assert tasks == []
 
 
@@ -360,7 +362,7 @@ class TestPlanActivityStructured:
                 ),
             ]
         )
-        items = await svc._plan_activity(session, "short-line")
+        items = await act._plan_activity(session, "short-line")
         assert [i.title for i in items] == ["买入计划", "卖出计划"]
         assert [i.stock_code for i in items] == ["600000", "000001"]
         assert items[1].detail == "已触发下单"
@@ -371,10 +373,10 @@ class TestPlanActivityStructured:
         session = MagicMock()
         repo_ret = {"600000": "浦发银行"}
         with patch(
-            "app.services.trading.agent_overview_service.StockRepository"
+            "app.services.trading.agent_overview_activity.StockRepository"
         ) as repo_cls:
             repo_cls.return_value.get_names_by_codes = AsyncMock(return_value=repo_ret)
-            items = await svc._fill_stock_names(
+            items = await act._fill_stock_names(
                 session,
                 [
                     svc.AgentActivityItem(
@@ -391,9 +393,9 @@ class TestPlanActivityStructured:
     async def test_fill_stock_names_skips_query_when_no_codes(self) -> None:
         session = MagicMock()
         with patch(
-            "app.services.trading.agent_overview_service.StockRepository"
+            "app.services.trading.agent_overview_activity.StockRepository"
         ) as repo_cls:
-            items = await svc._fill_stock_names(
+            items = await act._fill_stock_names(
                 session, [svc.AgentActivityItem(kind="review", title="day 复盘已生成")]
             )
         assert items[0].stock_name is None
