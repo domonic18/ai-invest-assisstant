@@ -5,9 +5,9 @@ import { ProtectedAdmin } from './components/auth/ProtectedAdmin'
 import { ProtectedLayout } from './components/auth/ProtectedLayout'
 import { RedirectIfAuthenticated } from './components/auth/RedirectIfAuthenticated'
 import { PageSkeleton } from './components/common/PageSkeleton'
-import { Dashboard } from './pages/Dashboard/Dashboard'
 
 const Admin = lazy(() => import('./pages/Admin/Admin').then((m) => ({ default: m.Admin })))
+const Dashboard = lazy(() => import('./pages/Dashboard/Dashboard').then((m) => ({ default: m.Dashboard })))
 const AdminNews = lazy(() => import('./pages/Admin/News/News').then((m) => ({ default: m.AdminNews })))
 const AdminReports = lazy(() => import('./pages/Admin/Reports/Reports').then((m) => ({ default: m.AdminReports })))
 const AdminStocks = lazy(() => import('./pages/Admin/Stocks/Stocks').then((m) => ({ default: m.AdminStocks })))
