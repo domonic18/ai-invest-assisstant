@@ -105,9 +105,13 @@ export function PaperTrade() {
   const prevPoint = [...(navQuery.data?.items ?? [])]
     .reverse()
     .find((p) => p.tradeDate < todayStr)
+  const dayBase =
+    prevPoint?.nav != null ? prevPoint.nav + (overview?.cash?.lastInout ?? 0) : null
   const dayPnl =
-    overview?.cash?.nav != null && prevPoint?.nav != null
-      ? overview.cash.nav - prevPoint.nav - (overview.cash.lastInout ?? 0)
+    overview?.cash?.nav != null && dayBase != null ? overview.cash.nav - dayBase : null
+  const dayPnlPct =
+    dayPnl != null && dayBase != null && Math.abs(dayBase) > 0
+      ? (dayPnl / dayBase) * 100
       : null
 
   const unfinished = overview?.unfinishedOrders.length ?? 0
@@ -151,7 +155,7 @@ export function PaperTrade() {
         )
       ) : (
         <>
-          <PaperTradeOverview cash={overview.cash} dayPnl={dayPnl}>
+          <PaperTradeOverview cash={overview.cash} dayPnl={dayPnl} dayPnlPct={dayPnlPct}>
             {accountBar}
           </PaperTradeOverview>
           <Row gutter={[16, 16]}>

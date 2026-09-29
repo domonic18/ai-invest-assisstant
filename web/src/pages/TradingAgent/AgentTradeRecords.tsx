@@ -5,8 +5,9 @@
  *
  * 账户 id 从 admin 账户列表取 agentKey 绑定行；持仓表复用模拟盘页导出的
  * PaperTradePositions（不传 onTrade，agent 账户人工不在此直接下单）；
- * 累计盈亏 = nav − cumInout，当日盈亏 = 实时 nav − 最近快照 nav（前端算，
- * 缺快照显示 -）。
+ * 累计盈亏 = nav − cumInout（百分比分母 cumInout）；当日盈亏 = 实时 nav −
+ * 「今日之前最近快照」nav − 当日出入金（与模拟盘页同口径，前端算，缺快照
+ * 显示 -）。盈亏红涨绿跌 + 括号百分比（同花顺口径）。
  */
 import { Card, Empty, Space, Spin, Statistic, Tabs } from 'antd'
 
@@ -17,15 +18,28 @@ import {
   usePaperTradeNav,
   usePaperTradeOverview,
 } from '@/hooks/usePaperTrade'
-import { changeColor, formatAmount } from '@/utils/formatters'
+import { bjNow } from '@/utils/beijing'
+import { changeColor, DATE_FORMAT, formatAmount, formatNumber, formatPercent } from '@/utils/formatters'
 
 import { useAgentKey } from './agentKeyContext'
 
-function PnlStatistic({ title, pnl }: { title: string; pnl: number | null }) {
+function PnlStatistic({
+  title,
+  pnl,
+  pct,
+}: {
+  title: string
+  pnl: number | null
+  pct: number | null
+}) {
+  const text =
+    pnl == null
+      ? '-'
+      : `${pnl >= 0 ? '+' : ''}${formatNumber(pnl)}${pct != null ? ` (${formatPercent(pct)})` : ''}`
   return (
     <Statistic
       title={title}
-      value={pnl == null ? '-' : `${pnl >= 0 ? '+' : ''}${formatAmount(pnl)}`}
+      value={text}
       valueStyle={{ fontSize: 18, ...(pnl != null ? { color: changeColor(pnl) } : {}) }}
     />
   )
@@ -47,12 +61,24 @@ function OverviewStats({ accountId }: { accountId: number }) {
     (sum, p) => sum + Number(p.marketValue ?? 0),
     0,
   )
-  const cumPnl =
-    nav != null && cash?.cumInout != null ? Number(nav) - Number(cash.cumInout) : null
-  // 当日盈亏 = 实时 nav − 最近一次快照 nav（当日 16:00 同步前，最近快照即昨收）
-  const navPoints = navData?.items ?? []
-  const prevNav = navPoints.length > 0 ? navPoints[navPoints.length - 1].nav : null
-  const dayPnl = nav != null && prevNav != null ? Number(nav) - Number(prevNav) : null
+  const cumInout = cash?.cumInout != null ? Number(cash.cumInout) : null
+  const cumPnl = nav != null && cumInout != null ? Number(nav) - cumInout : null
+  const cumPct =
+    cumPnl != null && cumInout != null && Math.abs(cumInout) > 0
+      ? (cumPnl / cumInout) * 100
+      : null
+  // 当日盈亏 = 实时 nav − 「今日之前」最近快照 nav − 当日出入金（16:00 同步
+  // 前快照即昨收；出入金修正避免入金被计成盈利）
+  const todayStr = bjNow().format(DATE_FORMAT)
+  const prevPoint = [...(navData?.items ?? [])]
+    .reverse()
+    .find((p) => p.tradeDate < todayStr)
+  const dayBase = prevPoint?.nav != null ? prevPoint.nav + Number(cash?.lastInout ?? 0) : null
+  const dayPnl = nav != null && dayBase != null ? Number(nav) - dayBase : null
+  const dayPct =
+    dayPnl != null && dayBase != null && Math.abs(dayBase) > 0
+      ? (dayPnl / dayBase) * 100
+      : null
 
   return (
     <div className="flex flex-wrap gap-x-10 gap-y-3">
@@ -71,8 +97,8 @@ function OverviewStats({ accountId }: { accountId: number }) {
         value={cash?.available == null ? '-' : formatAmount(Number(cash.available))}
         valueStyle={{ fontSize: 18 }}
       />
-      <PnlStatistic title="累计盈亏" pnl={cumPnl} />
-      <PnlStatistic title="当日盈亏" pnl={dayPnl} />
+      <PnlStatistic title="累计盈亏" pnl={cumPnl} pct={cumPct} />
+      <PnlStatistic title="当日盈亏" pnl={dayPnl} pct={dayPct} />
     </div>
   )
 }
