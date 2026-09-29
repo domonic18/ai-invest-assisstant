@@ -23,26 +23,29 @@ import { MarkedDatePicker } from '@/components/common/MarkedDatePicker'
 import { useAgentKey } from './agentKeyContext'
 import {
   ACTION_META,
+  fmtConfidence,
   fmtPct,
+  fmtScore,
+  noulLabel,
+  observationSummary,
   SUPPRESSION_META,
-  TRIGGER_REASON_LABELS,
   VERDICT_META,
 } from './observationMeta'
+import { ObservationLegend } from './observationLegend'
 import { useTradingAgentObservations } from '@/hooks/useTradingAgent'
 import { changeColor, DATE_FORMAT } from '@/utils/formatters'
 
-/** 判断摘要行（L1 答案键缺失项不展示）。 */
-function DecisionLine({ item }: { item: ApiTradingAgentObservationItem }) {
+/** 依据行（模型三题答案 + 模型版本；心跳行无 choice 不渲染）。 */
+function EvidenceLine({ item }: { item: ApiTradingAgentObservationItem }) {
   const decision = item.decision
-  if (!decision) return null
+  if (!decision?.choice) return null
   const parts: string[] = []
-  if (decision.choice) parts.push(`动作判断：${decision.choice}`)
-  if (decision.confidence != null) parts.push(`置信 ${(decision.confidence * 100).toFixed(0)}%`)
-  if (decision.noul != null) parts.push(decision.noul ? '分时支持' : '分时不支持')
-  if (decision.score != null) parts.push(`盘面支持 ${decision.score}/5`)
-  if (parts.length === 0 && !decision.servedModel) return null
+  if (decision.confidence != null) parts.push(fmtConfidence(decision.confidence))
+  if (decision.score != null) parts.push(`盘面 ${fmtScore(decision.score)}`)
+  if (decision.noul != null) parts.push(noulLabel(decision.noul, item.planType))
   return (
     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-400">
+      <span className="text-gray-500">依据</span>
       {parts.map((part) => (
         <span key={part}>{part}</span>
       ))}
@@ -56,12 +59,16 @@ function DecisionLine({ item }: { item: ApiTradingAgentObservationItem }) {
 function ObservationRow({ item }: { item: ApiTradingAgentObservationItem }) {
   const navigate = useNavigate()
   const isTail = item.decision?.window === 'tail_check'
-  const verdict = VERDICT_META[item.l0Verdict] ?? { label: item.l0Verdict, color: 'default' }
   const action = item.action ? (ACTION_META[item.action] ?? null) : null
   const suppression = item.suppressionReason ? SUPPRESSION_META[item.suppressionReason] ?? item.suppressionReason : null
+  const heartbeat = item.l0Verdict === 'no_action' && !item.action
 
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+    <div
+      className={`rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 ${
+        heartbeat ? 'opacity-40' : ''
+      }`}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-xs text-white/50">
           {dayjs(item.tickTime).format('HH:mm:ss')}
@@ -98,19 +105,18 @@ function ObservationRow({ item }: { item: ApiTradingAgentObservationItem }) {
             <span className={changeColor(item.changePct)}>{fmtPct(item.changePct)}</span>
           </span>
         )}
-        {item.triggerReason && (
-          <span className="text-xs text-white/40">{TRIGGER_REASON_LABELS[item.triggerReason] ?? item.triggerReason}</span>
-        )}
         <span className="ml-auto" />
         {item.isShadow && (
           <Tag color="gold" className="!mr-0">
             影子
           </Tag>
         )}
-        <Tag color={verdict.color}>{verdict.label}</Tag>
         {action && <Tag color={action.color}>{action.label}</Tag>}
       </div>
-      <DecisionLine item={item} />
+      <div className={`mt-0.5 text-xs ${heartbeat ? 'text-white/40' : 'text-white/75'}`}>
+        {observationSummary(item)}
+      </div>
+      <EvidenceLine item={item} />
       {(suppression || item.clOrdId || item.orderVolume != null) && (
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
           {suppression && <Tag color="warning">{suppression}</Tag>}
@@ -182,6 +188,7 @@ export function ExecutionTab() {
       title={data ? `${data.tradeDate} 执行动态` : '执行动态'}
       extra={
         <div className="flex items-center gap-2">
+          <ObservationLegend />
           <Segmented
             size="small"
             value={significant ? 'significant' : 'all'}

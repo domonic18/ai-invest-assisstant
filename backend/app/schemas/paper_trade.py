@@ -544,7 +544,7 @@ class TradingAgentObservationDecision(CamelModel):
     confidence: float | None = None
     #: Noul 答案（分时形态/止损有效性，布尔）
     noul: bool | None = None
-    #: Score 答案（盘面支持度 0-1）
+    #: Score 答案（盘面支持度 1-5）
     score: float | None = None
     #: 观测窗口标记；'tail_check' = 尾盘强检行（plan_id 恒空）
     window: str | None = None
@@ -565,6 +565,8 @@ class TradingAgentObservationItem(CamelModel):
     change_pct: float | None = None
     l0_verdict: str
     trigger_reason: str | None = None
+    #: L0 比价细节文案（心跳/拒绝行的人话原因；触发行通常为 None）
+    l0_detail: str | None = None
     decision: TradingAgentObservationDecision | None = None
     #: no_action 行无动作（None）；execute/wait/abandon/suppress
     action: str | None = None
