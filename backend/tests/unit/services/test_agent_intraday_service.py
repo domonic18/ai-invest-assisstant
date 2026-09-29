@@ -88,10 +88,20 @@ def _response(answers: dict) -> JudgeResponse:
     )
 
 
-def _session(scalars_result: list | None = None, rowcount: int = 1) -> MagicMock:
+def _session(
+    scalars_result: list | None = None,
+    rowcount: int = 1,
+    plan_dates: list[tuple[str, date]] | None = None,
+) -> MagicMock:
+    """Mock 会话：execute 兼顾两种消费——生效计划日期查询（rows.all()）
+    与计划状态推进 UPDATE（rowcount）。"""
     session = MagicMock()
     session.scalars = AsyncMock(return_value=scalars_result or [])
-    session.execute = AsyncMock(return_value=MagicMock(rowcount=rowcount))
+    exec_result = MagicMock(rowcount=rowcount)
+    exec_result.all.return_value = (
+        plan_dates if plan_dates is not None else [("short-line", _DATE)]
+    )
+    session.execute = AsyncMock(return_value=exec_result)
     session.add = MagicMock()
     session.commit = AsyncMock()
     return session
@@ -313,6 +323,7 @@ class TestRunTick:
         order_result = {"cl_ord_id": "CL1"}
         with (
             patch.object(svc.agent_registry, "get_active_agents", new=AsyncMock(return_value=[_agent("active")])),
+            patch.object(svc, "_effective_plan_dates", AsyncMock(return_value={"short-line": _DATE})),
             patch.object(svc, "ask_decision", AsyncMock(return_value=_response({"1:action": _choice(1, CHOICE_ACTION_EXECUTE, 0.90)}))),
             patch.object(svc.account_service, "resolve_agent_account", AsyncMock(return_value=account)),
             patch.object(svc, "_buy_volume", AsyncMock(return_value=100)),
@@ -393,7 +404,21 @@ class TestRunTailCheck:
     async def test_state_short_circuit_idempotent(self) -> None:
         """二次尾盘跑批已无 active 行：expired 计数归零（状态短路幂等）。"""
         session = _session(scalars_result=[], rowcount=0)
-        session.execute = AsyncMock(side_effect=[MagicMock(rowcount=2), MagicMock(rowcount=0)])
+
+        def _dates_result() -> MagicMock:
+            result = MagicMock()
+            result.all.return_value = [("short-line", _DATE)]
+            return result
+
+        # 每轮 run_tail_check 两次 execute：生效日期查询 + 计划状态 UPDATE
+        session.execute = AsyncMock(
+            side_effect=[
+                _dates_result(),
+                MagicMock(rowcount=2),
+                _dates_result(),
+                MagicMock(rowcount=0),
+            ]
+        )
         with (
             patch.object(svc.agent_registry, "get_active_agents", new=AsyncMock(return_value=[_agent("shadow")])),
             patch.object(svc.account_service, "resolve_agent_account", AsyncMock(return_value=SimpleNamespace())),
@@ -456,3 +481,9 @@ class TestPlanStockCodes:
         session = _session(scalars_result=["600000", "000001", "600000"])
         codes = await svc.plan_stock_codes(session, trade_date=_DATE)
         assert codes == {"600000", "000001"}
+
+    async def test_no_effective_plan_set_returns_empty(self) -> None:
+        session = _session(plan_dates=[])
+        codes = await svc.plan_stock_codes(session, trade_date=_DATE)
+        assert codes == set()
+        session.scalars.assert_not_awaited()
