@@ -647,3 +647,67 @@ class TestHeldVolume:
             patch.object(svc.account_service, "credentials_for", return_value=object()),
         ):
             assert await svc._held_volume(MagicMock(), "000504") == 0
+
+
+@pytest.mark.unit
+class TestReconcilePendingOrders:
+    async def test_triggers_sync_when_pending(self) -> None:
+        """当日有未结 agent 委托 → 触发单账户即时同步回填成交终态。"""
+        agent = SimpleNamespace(agent_key="short-line")
+        account = SimpleNamespace(id=4)
+        session = _session()
+        session.scalar = AsyncMock(return_value=1)
+        with (
+            patch.object(svc, "_account_or_none", AsyncMock(return_value=account)),
+            patch(
+                "app.services.trading.paper_trade_sync.sync_account_now",
+                new_callable=AsyncMock,
+            ) as sync_mock,
+        ):
+            await svc._reconcile_pending_orders(session, agent)
+        sync_mock.assert_awaited_once_with(session, account)
+
+    async def test_skips_without_pending(self) -> None:
+        """全部委托已终态 → 不触发同步（省锁与柜台往返）。"""
+        session = _session()
+        session.scalar = AsyncMock(return_value=0)
+        with (
+            patch.object(svc, "_account_or_none", AsyncMock(return_value=SimpleNamespace(id=4))),
+            patch(
+                "app.services.trading.paper_trade_sync.sync_account_now",
+                new_callable=AsyncMock,
+            ) as sync_mock,
+        ):
+            await svc._reconcile_pending_orders(session, SimpleNamespace(agent_key="short-line"))
+        sync_mock.assert_not_awaited()
+
+    async def test_skips_without_account(self) -> None:
+        """未绑定账户 → 不查询不触发。"""
+        session = _session()
+        session.scalar = AsyncMock()
+        with (
+            patch.object(svc, "_account_or_none", AsyncMock(return_value=None)),
+            patch(
+                "app.services.trading.paper_trade_sync.sync_account_now",
+                new_callable=AsyncMock,
+            ) as sync_mock,
+        ):
+            await svc._reconcile_pending_orders(session, SimpleNamespace(agent_key="short-line"))
+        sync_mock.assert_not_awaited()
+        session.scalar.assert_not_awaited()
+
+    async def test_sync_error_swallowed(self) -> None:
+        """同步异常（含 16:00 批量同步锁冲突）不冒泡，下一拍重试。"""
+        from app.core.exceptions import ConflictError
+
+        session = _session()
+        session.scalar = AsyncMock(return_value=1)
+        with (
+            patch.object(svc, "_account_or_none", AsyncMock(return_value=SimpleNamespace(id=4))),
+            patch(
+                "app.services.trading.paper_trade_sync.sync_account_now",
+                new_callable=AsyncMock,
+                side_effect=ConflictError("模拟盘同步正在执行，请稍后重试"),
+            ),
+        ):
+            await svc._reconcile_pending_orders(session, SimpleNamespace(agent_key="short-line"))

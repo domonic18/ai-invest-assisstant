@@ -30,7 +30,12 @@ from app.core.decision_model.contracts import (
 from app.core.decision_model.errors import DecisionModelError
 from app.models.agent_trading import AgentTradePlan
 from app.models.llm_config import LLMConfig
-from app.models.paper_trade import PaperTradeAccount, PaperTradeExecObservation, TradingAgent
+from app.models.paper_trade import (
+    PaperTradeAccount,
+    PaperTradeExecObservation,
+    PaperTradeOrder,
+    TradingAgent,
+)
 from app.services.admin.decision_model_service import ask_decision
 from app.services.admin.llm_config_service import LLMConfigNotConfiguredError
 from app.services.trading import account_service, agent_registry
@@ -380,6 +385,48 @@ async def _account_or_none(
         return None
 
 
+#: 柜台委托终态（已成/部撤/已撤/已拒，对齐 shared/constants/paperTrade.ts
+#: 状态字典）；不在终态集（含未知码）即视为未结，需盘中回填
+_ORDER_TERMINAL_STATUSES = (3, 4, 5, 8)
+
+
+async def _has_pending_orders(session: AsyncSession, account: PaperTradeAccount) -> bool:
+    """当日 agent 来源委托是否仍有未结（非终态）——盘中回填的触发条件。"""
+    pending = await session.scalar(
+        select(func.count())
+        .select_from(PaperTradeOrder)
+        .where(
+            PaperTradeOrder.paper_trade_account_id == account.id,
+            PaperTradeOrder.trade_date == today_cn(),
+            PaperTradeOrder.order_source == account_service.ORDER_SOURCE_AGENT,
+            PaperTradeOrder.status.not_in(_ORDER_TERMINAL_STATUSES),
+        )
+    )
+    return bool(pending)
+
+
+async def _reconcile_pending_orders(session: AsyncSession, agent: TradingAgent) -> None:
+    """未结委托盘中回填：触发既有单账户即时同步，成交终态 ≤ 一拍 tick。
+
+    下单走轻量落库（只写已报），成交终态原依赖 16:00 盘后全量同步——
+    盘中用户最长 2 小时看到「已报」未成交。当日仍有未结的 agent 委托时
+    调 ``sync_account_now`` 回填委托/成交/资金；16:00 全量 sync 仍是
+    权威对账。同步异常（含 16:00 批量同步并发锁冲突）吞掉记日志，
+    下一拍重试，绝不影响 tick 主链路。
+    """
+    try:
+        account = await _account_or_none(session, agent.agent_key)
+        if account is None or not await _has_pending_orders(session, account):
+            return
+        from app.services.trading.paper_trade_sync import sync_account_now
+
+        await sync_account_now(session, account)
+    except Exception as exc:  # noqa: BLE001 —— 尽力而为，失败下一拍重试
+        logger.warning(
+            "agent_order_backfill_failed", agent_key=agent.agent_key, error=str(exc)
+        )
+
+
 async def run_tick(
     session: AsyncSession,
     *,
@@ -532,6 +579,7 @@ async def run_tick(
                 )
             )
         await session.commit()
+        await _reconcile_pending_orders(session, agent)
     return counters
 
 
@@ -651,6 +699,7 @@ async def run_tail_check(
                 )
             )
         await session.commit()
+        await _reconcile_pending_orders(session, agent)
     return counters
 
 
