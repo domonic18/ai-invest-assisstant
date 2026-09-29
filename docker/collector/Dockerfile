@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM python:3.11-slim-bookworm AS backend-builder
 
 WORKDIR /app
@@ -21,7 +22,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=backend-builder /app/.venv /app/.venv
-COPY --from=backend-builder /app /app
+# 与 web 镜像同约定：第二条 COPY 排除 .venv/tests，避免 venv 双份与测试代码入运行时
+COPY --from=backend-builder --exclude=.venv --exclude=tests /app /app
 # 助手 Skills：settings.skills_dir 在容器内解析为 /skills（与 web 镜像一致）
 COPY skills/ /skills/
 
