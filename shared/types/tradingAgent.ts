@@ -20,6 +20,8 @@ export interface TradingAgentProfile {
   riskMaxDailyOrders: number
   /** 盘中自主执行三态（D21，批次 8）：off 停用 / shadow 判断不下单 / active 真实执行。 */
   intradayExecMode: 'off' | 'shadow' | 'active'
+  /** 盘中执行人工暂停：true 时 tick/尾盘强检完全短路（计划/复盘不受影响）。 */
+  intradayPaused: boolean
   status: 'active' | 'planned' | 'disabled'
   /** 计划生成频率（daily 每交易日 / weekly 周期末 / monthly 月末，D28）。 */
   planCadence: 'daily' | 'weekly' | 'monthly'
@@ -48,6 +50,8 @@ export interface TradingAgentProfileUpdateRequest {
   riskMaxDailyOrders?: number
   /** 盘中自主执行三态（D21，批次 8）。 */
   intradayExecMode?: 'off' | 'shadow' | 'active'
+  /** 盘中执行人工暂停开关（true = 冻结 tick/尾盘强检）。 */
+  intradayPaused?: boolean
   status?: 'active' | 'disabled'
   planCadence?: AgentCadence
   reviewCadence?: AgentCadence
@@ -69,8 +73,8 @@ export interface AgentNextTask {
   scheduledAt: string
 }
 
-/** 总览运行态（D32）：working=定时任务运行中且 cadence 今日命中；produced_today=当日已产出；idle=待命；off=未启用占位。 */
-export type AgentRuntimeState = 'working' | 'produced_today' | 'idle' | 'off'
+/** 总览运行态（D32）：working=定时任务运行中且 cadence 今日命中；produced_today=当日已产出；idle=待命；paused=盘中执行人工冻结；off=未启用占位。 */
+export type AgentRuntimeState = 'working' | 'produced_today' | 'idle' | 'paused' | 'off'
 
 /** 总览页单 Agent 聚合：介绍卡 + 模型 + 运行态 + 当日计数 + 近期活动 + 下次任务。 */
 export interface AgentOverviewItem {

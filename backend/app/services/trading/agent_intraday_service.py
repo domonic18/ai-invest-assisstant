@@ -66,9 +66,10 @@ async def run_tick(
 ) -> dict[str, int]:
     """执行一次盘中 tick：active Agent 生效计划集（最近一份 ≤ 当日）过 L0→L1→L2→观测。
 
-    判断模型对全部触发计划只发起一次批量 ``ask_decision``；shadow 模式
-    不下单，active 模式经 ``execute_agent_order`` 下单并推进计划状态机。
-    返回计数器（evaluated/candidates/executed/suppressed/degraded）。
+    消费集经 ``get_intraday_agents``（``intraday_paused`` 冻结的 Agent 本 tick
+    完全短路：不评判、不下单、不写观测）。判断模型对全部触发计划只发起一次
+    批量 ``ask_decision``；shadow 模式不下单，active 模式经 ``execute_agent_order``
+    下单并推进计划状态机。返回计数器（evaluated/candidates/executed/suppressed/degraded）。
     """
     counters = {
         "evaluated": 0,
@@ -78,7 +79,7 @@ async def run_tick(
         "suppressed": 0,
         "degraded": 0,
     }
-    agents = await agent_registry.get_active_agents(session)
+    agents = await agent_registry.get_intraday_agents(session)
     plan_dates = await _effective_plan_dates(session, trade_date)
     for agent in agents:
         recorder = (recorders or {}).get(agent.agent_key)
@@ -221,13 +222,14 @@ async def run_tail_check(
 ) -> dict[str, int]:
     """尾盘强检（14:50-15:00，纯 L0）：生效计划集未触发行置 expired + 持仓对止损。
 
-    消费对象与 run_tick 同源（各 Agent 最近一份 ≤ 当日的计划集）；状态
+    消费对象与 run_tick 同源（``get_intraday_agents``，``intraday_paused`` 冻结
+    的 Agent 跳过——其计划集不推进 expired、持仓不做止损强检）；状态
     短路幂等（仅 active 行推进 expired，保证一份计划集只喂一个会话）；
     持仓止损强检覆盖该计划集内有计划的持仓标的（stop_loss 取计划值），
     shadow 只落观测。
     """
     counters = {"expired": 0, "checked": 0, "triggered": 0, "executed": 0}
-    agents = await agent_registry.get_active_agents(session)
+    agents = await agent_registry.get_intraday_agents(session)
     plan_dates = await _effective_plan_dates(session, trade_date)
     for agent in agents:
         recorder = (recorders or {}).get(agent.agent_key)

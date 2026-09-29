@@ -240,6 +240,8 @@ class TradingAgentProfileResponse(CamelModel):
     risk_max_daily_orders: int
     #: 盘中自主执行三态（D21，批次 8）
     intraday_exec_mode: IntradayExecMode
+    #: 盘中执行人工暂停（true = tick/尾盘强检短路，计划/复盘不受影响）
+    intraday_paused: bool = False
     status: str
     plan_cadence: str = "daily"
     review_cadence: str = "daily"
@@ -273,7 +275,7 @@ class AgentNextTask(CamelModel):
     scheduled_at: datetime
 
 
-AgentRuntimeState = Literal["working", "produced_today", "idle", "off"]
+AgentRuntimeState = Literal["working", "produced_today", "idle", "paused", "off"]
 
 
 class AgentOverviewItem(CamelModel):
@@ -433,6 +435,8 @@ class TradingAgentProfileUpdateRequest(CamelModel):
     risk_max_daily_orders: int | None = Field(default=None, ge=1)
     #: 盘中自主执行三态（D21，批次 8）
     intraday_exec_mode: IntradayExecMode | None = None
+    #: 盘中执行人工暂停开关（true = 冻结 tick/尾盘强检）
+    intraday_paused: bool | None = None
     accent_color: str | None = None
     status: Literal["active", "disabled"] | None = None
     plan_cadence: Literal["daily", "weekly", "monthly"] | None = None

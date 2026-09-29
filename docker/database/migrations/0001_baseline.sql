@@ -1698,6 +1698,7 @@ CREATE TABLE IF NOT EXISTS trading_agent (
     risk_max_total_pct     NUMERIC(5,2)  NOT NULL DEFAULT 80,          -- 总持仓市值 ≤ 总资产 %
     risk_max_daily_orders  INTEGER       NOT NULL DEFAULT 10,          -- 单日下单笔数上限
     intraday_exec_mode     VARCHAR(10)   NOT NULL DEFAULT 'shadow',    -- 盘中执行模式：off / shadow / active（三态，shadow 先行）
+    intraday_paused        BOOLEAN       NOT NULL DEFAULT FALSE,       -- 盘中执行人工暂停：true 时 tick/尾盘强检完全短路
     status                 VARCHAR(16)   NOT NULL DEFAULT 'active',    -- active / planned / disabled
     plan_cadence           VARCHAR(16)   NOT NULL DEFAULT 'daily',     -- 计划生成频率：daily / weekly / monthly（D28）
     review_cadence         VARCHAR(16)   NOT NULL DEFAULT 'daily',     -- 复盘生成频率：daily / weekly / monthly（D28）

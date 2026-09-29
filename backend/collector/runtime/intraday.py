@@ -144,7 +144,7 @@ class IntradayRunner:
             return
         for recorder in self._recorders.values():
             await recorder.finish(status="success", summary={"window": "day_complete"})
-        agents = await agent_registry.get_active_agents(session)
+        agents = await agent_registry.get_intraday_agents(session)
         self._recorders = {
             agent.agent_key: AgentRunRecorder(
                 agent_key=agent.agent_key,

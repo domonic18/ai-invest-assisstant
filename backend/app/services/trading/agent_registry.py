@@ -92,6 +92,16 @@ async def get_active_agents(session: AsyncSession) -> list[TradingAgent]:
     return await list_agents(session, statuses=[AGENT_STATUS_ACTIVE])
 
 
+async def get_intraday_agents(session: AsyncSession) -> list[TradingAgent]:
+    """盘中执行链消费集：active 且未被人工暂停（``intraday_paused``）。
+
+    暂停是临时人工冻结（区别于 status 停用）：不进 L1 判断模型、不下单、
+    不尾盘强检、不写观测行；计划/复盘生成仍按 cadence 继续，恢复后下一拍
+    自动回全流程。盘中 runner（tick/尾盘强检/AgentRun 开会话）统一从此取集。
+    """
+    return [row for row in await get_active_agents(session) if not row.intraday_paused]
+
+
 def to_view(row: TradingAgent) -> TradingAgentProfileResponse:
     """注册行 → wire 视图（camelCase）。"""
     return TradingAgentProfileResponse(
@@ -104,6 +114,7 @@ def to_view(row: TradingAgent) -> TradingAgentProfileResponse:
         risk_max_total_pct=float(row.risk_max_total_pct),
         risk_max_daily_orders=row.risk_max_daily_orders,
         intraday_exec_mode=cast(IntradayExecMode, row.intraday_exec_mode),
+        intraday_paused=row.intraday_paused,
         status=row.status,
         plan_cadence=row.plan_cadence,
         review_cadence=row.review_cadence,
@@ -165,6 +176,7 @@ async def update_agent(
         "risk_max_total_pct",
         "risk_max_daily_orders",
         "intraday_exec_mode",
+        "intraday_paused",
         "accent_color",
         "status",
         "plan_cadence",
@@ -303,6 +315,7 @@ async def create_agent(
         risk_max_total_pct=_CREATE_RISK_TOTAL_PCT,
         risk_max_daily_orders=_CREATE_RISK_DAILY_ORDERS,
         intraday_exec_mode="off",
+        intraday_paused=False,
         status=AGENT_STATUS_ACTIVE,
         sort_order=max_sort + 1,
     )

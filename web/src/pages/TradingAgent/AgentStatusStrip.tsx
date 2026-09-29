@@ -84,22 +84,29 @@ export function AgentStatusStrip({ onOpenAccounts }: { onOpenAccounts: () => voi
       <span className="inline-flex items-center gap-1.5 text-xs">
         <span className="text-white/60">盘中自主执行</span>
         {config ? (
-          <Tag
-            color={
-              config.intradayExecMode === 'active'
-                ? 'processing'
+          <>
+            <Tag
+              color={
+                config.intradayExecMode === 'active'
+                  ? 'processing'
+                  : config.intradayExecMode === 'shadow'
+                    ? 'gold'
+                    : 'default'
+              }
+              className="!mr-0"
+            >
+              {config.intradayExecMode === 'active'
+                ? '执行'
                 : config.intradayExecMode === 'shadow'
-                  ? 'gold'
-                  : 'default'
-            }
-            className="!mr-0"
-          >
-            {config.intradayExecMode === 'active'
-              ? '执行'
-              : config.intradayExecMode === 'shadow'
-                ? '影子'
-                : '关'}
-          </Tag>
+                  ? '影子'
+                  : '关'}
+            </Tag>
+            {config.intradayPaused && (
+              <Tag color="warning" className="!mr-0">
+                已暂停
+              </Tag>
+            )}
+          </>
         ) : (
           <Spin size="small" />
         )}

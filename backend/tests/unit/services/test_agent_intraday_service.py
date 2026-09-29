@@ -351,7 +351,7 @@ class TestQuestionAssembly:
         session = _session(scalars_result=plans)
         with (
             patch.object(
-                svc.agent_registry, "get_active_agents", new=AsyncMock(return_value=[_agent("shadow")])
+                svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[_agent("shadow")])
             ),
             patch.object(svc, "ask_decision", AsyncMock(return_value=_response({}))) as ask_mock,
             patch.object(
@@ -381,7 +381,7 @@ class TestRunTick:
         """shadow 语义 run_tick：判断/账户/下单全部 mock，返回 (counters, order_mock)。"""
         with (
             patch.object(
-                svc.agent_registry, "get_active_agents", new=AsyncMock(return_value=[agent])
+                svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[agent])
             ),
             patch.object(
                 svc,
@@ -458,7 +458,7 @@ class TestRunTick:
         account = SimpleNamespace()
         order_result = {"cl_ord_id": "CL1"}
         with (
-            patch.object(svc.agent_registry, "get_active_agents", new=AsyncMock(return_value=[_agent("active")])),
+            patch.object(svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[_agent("active")])),
             patch.object(svc, "_effective_plan_dates", AsyncMock(return_value={"short-line": _DATE})),
             patch.object(svc, "ask_decision", AsyncMock(return_value=_response({"1:action": _choice(1, CHOICE_ACTION_EXECUTE, 0.90)}))),
             patch.object(exe.account_service, "resolve_agent_account", AsyncMock(return_value=account)),
@@ -488,7 +488,7 @@ class TestRunTick:
         plans = [_plan(id=1)]
         session = _session(scalars_result=plans)
         with (
-            patch.object(svc.agent_registry, "get_active_agents", new=AsyncMock(return_value=[_agent("active")])),
+            patch.object(svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[_agent("active")])),
             patch.object(svc, "ask_decision", AsyncMock(return_value=_response({"1:action": _choice(1, CHOICE_ACTION_EXECUTE, 0.90)}))),
             patch.object(exe.account_service, "resolve_agent_account", AsyncMock(return_value=SimpleNamespace())),
             patch.object(exe, "_buy_volume", AsyncMock(return_value=100)),
@@ -516,7 +516,7 @@ class TestRunTailCheck:
         """尾盘强检跌破止损：shadow 落观测不下单；当日未触发计划批量置 expired。"""
         session = _session(scalars_result=[_plan(id=1, stop_loss=Decimal("9.50"))], rowcount=2)
         with (
-            patch.object(svc.agent_registry, "get_active_agents", new=AsyncMock(return_value=[_agent("shadow")])),
+            patch.object(svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[_agent("shadow")])),
             patch.object(exe.account_service, "resolve_agent_account", AsyncMock(return_value=SimpleNamespace())),
             patch.object(exe, "execute_agent_order", AsyncMock()) as order_mock,
         ):
@@ -556,7 +556,7 @@ class TestRunTailCheck:
             ]
         )
         with (
-            patch.object(svc.agent_registry, "get_active_agents", new=AsyncMock(return_value=[_agent("shadow")])),
+            patch.object(svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[_agent("shadow")])),
             patch.object(exe.account_service, "resolve_agent_account", AsyncMock(return_value=SimpleNamespace())),
         ):
             first = await svc.run_tail_check(session, trade_date=_DATE, now=_NOW, quotes={})
@@ -567,7 +567,7 @@ class TestRunTailCheck:
     async def test_active_tail_stop_sells_holding(self) -> None:
         session = _session(scalars_result=[_plan(id=1, stop_loss=Decimal("9.50"))], rowcount=1)
         with (
-            patch.object(svc.agent_registry, "get_active_agents", new=AsyncMock(return_value=[_agent("active")])),
+            patch.object(svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[_agent("active")])),
             patch.object(exe.account_service, "resolve_agent_account", AsyncMock(return_value=SimpleNamespace())),
             patch.object(exe, "_held_volume", AsyncMock(return_value=100)),
             patch.object(exe, "execute_agent_order", AsyncMock(return_value={"cl_ord_id": "CL9"})) as order_mock,
@@ -586,7 +586,7 @@ class TestRunTailCheck:
     async def test_price_above_stop_skipped(self) -> None:
         session = _session(scalars_result=[_plan(id=1, stop_loss=Decimal("9.50"))], rowcount=1)
         with (
-            patch.object(svc.agent_registry, "get_active_agents", new=AsyncMock(return_value=[_agent("shadow")])),
+            patch.object(svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[_agent("shadow")])),
             patch.object(exe.account_service, "resolve_agent_account", AsyncMock(return_value=SimpleNamespace())),
         ):
             counters = await svc.run_tail_check(
@@ -599,7 +599,7 @@ class TestRunTailCheck:
     async def test_missing_account_skips_holdings_check(self) -> None:
         session = _session(scalars_result=[], rowcount=1)
         with (
-            patch.object(svc.agent_registry, "get_active_agents", new=AsyncMock(return_value=[_agent("shadow")])),
+            patch.object(svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[_agent("shadow")])),
             patch.object(
                 exe.account_service,
                 "resolve_agent_account",

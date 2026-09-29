@@ -97,8 +97,9 @@ async def _build_item(
 ) -> AgentOverviewItem:
     """聚合单个 Agent 总览载荷。
 
-    运行态判定链（D32，顺序短路）：off（未启用，仅占位）→ working（log 运行中
-    且 cadence 今日命中）→ produced_today（当日已产出计划/复盘）→ idle（待命）。
+    运行态判定链（D32，顺序短路）：off（未启用，仅占位）→ paused（intraday_paused
+    人工冻结，盘中执行短路）→ working（log 运行中且 cadence 今日命中）→
+    produced_today（当日已产出计划/复盘）→ idle（待命）。
     """
     plan_count = 0
     selection_count = 0
@@ -161,7 +162,9 @@ async def _build_item(
         produced = row.agent_key in ctx.review_done_keys or await _plans_created_today(
             session, row.agent_key, ctx.day_start_cn
         )
-        if plan_running:
+        if row.intraday_paused:
+            state, label = "paused", "已暂停 · 盘中执行关闭"
+        elif plan_running:
             state, label = "working", "作业中 · 每日选股计划"
         elif review_running:
             state, label = "working", "作业中 · 盘后复盘"

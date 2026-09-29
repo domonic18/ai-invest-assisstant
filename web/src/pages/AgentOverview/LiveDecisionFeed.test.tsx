@@ -40,6 +40,7 @@ function profile(overrides: Partial<TradingAgentProfile> = {}): TradingAgentProf
     riskMaxTotalPct: 60,
     riskMaxDailyOrders: 6,
     intradayExecMode: 'shadow',
+    intradayPaused: false,
     status: 'active',
     planCadence: 'daily',
     reviewCadence: 'daily',
