@@ -3,7 +3,7 @@ import { Card, Skeleton, Tabs, Typography } from 'antd'
 import type { IndexQuote, MarketStats } from '@ai-invest/shared'
 import { SourceNote } from '@/components/common/SourceNote'
 import { useColorScheme } from '@/stores/settings'
-import { changeHex, fallColor, fallHex, formatAmount, formatPercent, riseColor, riseHex } from '@/utils/formatters'
+import { changeHex, fallHex, formatAmount, formatPercent, riseHex } from '@/utils/formatters'
 
 import { IndexChartPanel } from './IndexChartPanel'
 
@@ -98,19 +98,19 @@ export function MarketStatsSection({ indices, stats, loading, tradeDate }: Marke
             )}
           </div>
           <div>
-            <div className={`text-xl font-semibold ${riseColor()}`}>{stats?.upCount ?? '-'}</div>
+            <div className="text-xl font-semibold" style={{ color: riseHex() }}>{stats?.upCount ?? '-'}</div>
             <div className="text-xs text-gray-400">上涨家数</div>
           </div>
           <div>
-            <div className={`text-xl font-semibold ${riseColor()}`}>{stats?.limitUpCount ?? '-'}</div>
+            <div className="text-xl font-semibold" style={{ color: riseHex() }}>{stats?.limitUpCount ?? '-'}</div>
             <div className="text-xs text-gray-400">涨停家数</div>
           </div>
           <div>
-            <div className={`text-xl font-semibold ${fallColor()}`}>{stats?.downCount ?? '-'}</div>
+            <div className="text-xl font-semibold" style={{ color: fallHex() }}>{stats?.downCount ?? '-'}</div>
             <div className="text-xs text-gray-400">下跌家数</div>
           </div>
           <div>
-            <div className={`text-xl font-semibold ${fallColor()}`}>{stats?.limitDownCount ?? '-'}</div>
+            <div className="text-xl font-semibold" style={{ color: fallHex() }}>{stats?.limitDownCount ?? '-'}</div>
             <div className="text-xs text-gray-400">跌停家数</div>
           </div>
         </div>

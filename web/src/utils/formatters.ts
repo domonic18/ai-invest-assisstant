@@ -78,45 +78,25 @@ export function formatSealTime(value: string | null | undefined): string {
   return `${digits.slice(0, 2)}:${digits.slice(2, 4)}:${digits.slice(4, 6)}`
 }
 
-// 涨跌色两组 helper 不可混用：*Color() 返回 Tailwind class，只能进 className；
-// 内联 style.color 需要 CSS 颜色值，必须用 *Hex()——class 名塞进 style.color
-// 会被浏览器静默忽略回退白色（盈亏数字全白事故）
-const RISE_COLOR = { cn: 'text-red-500', us: 'text-green-500' } as const
-const FALL_COLOR = { cn: 'text-green-500', us: 'text-red-500' } as const
-const RISE_COLOR_SOFT = { cn: 'text-red-400', us: 'text-green-400' } as const
-const FALL_COLOR_SOFT = { cn: 'text-green-400', us: 'text-red-400' } as const
-const RISE_HEX = semanticColors.rise
-const FALL_HEX = semanticColors.fall
-
+// 涨跌色唯一 API 是 hex 系（跟随 colorScheme）：ECharts 必须用 hex，内联
+// style.color 也必须用 hex——Tailwind class 名塞进 style.color 会被浏览器
+// 静默忽略回退白色（盈亏数字全白事故），故不再提供 class 系 helper
 const scheme = () => useSettingsStore.getState().colorScheme
 
-export function riseColor(): string {
-  return RISE_COLOR[scheme()]
-}
-
-export function fallColor(): string {
-  return FALL_COLOR[scheme()]
-}
-
-export function riseColorSoft(): string {
-  return RISE_COLOR_SOFT[scheme()]
-}
-
-export function fallColorSoft(): string {
-  return FALL_COLOR_SOFT[scheme()]
-}
-
 export function riseHex(): string {
-  return RISE_HEX[scheme()]
+  return semanticColors.rise[scheme()]
 }
 
 export function fallHex(): string {
-  return FALL_HEX[scheme()]
+  return semanticColors.fall[scheme()]
 }
 
-export function changeColor(value: number | null | undefined): string {
-  if (value === null || value === undefined) return 'text-gray-400'
-  return value >= 0 ? riseColor() : fallColor()
+export function riseHexSoft(): string {
+  return semanticColors.riseSoft[scheme()]
+}
+
+export function fallHexSoft(): string {
+  return semanticColors.fallSoft[scheme()]
 }
 
 export function changeHex(value: number | null | undefined): string {

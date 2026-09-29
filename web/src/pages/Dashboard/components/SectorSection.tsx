@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import type { SectorOverview } from '@ai-invest/shared'
 import { SourceNote } from '@/components/common/SourceNote'
 import { useColorScheme, useSettingsStore } from '@/stores/settings'
-import { changeColor, fallHex, formatAmount, formatPercent, riseHex } from '@/utils/formatters'
+import { changeHex, fallHex, formatAmount, formatPercent, riseHex } from '@/utils/formatters'
 
 interface SectorSectionProps {
   data?: SectorOverview
@@ -80,7 +80,7 @@ export function SectorSection({ data, loading, pendingClose, canBackfill }: Sect
       key: 'changePct',
       align: 'right' as const,
       render: (value: number | null) => (
-        <span className={changeColor(value)}>{value != null ? formatPercent(value) : '-'}</span>
+        <span style={{ color: changeHex(value) }}>{value != null ? formatPercent(value) : '-'}</span>
       ),
     },
     { title: '涨停数', dataIndex: 'limitUpCount', key: 'limitUpCount', align: 'right' as const },
@@ -90,7 +90,7 @@ export function SectorSection({ data, loading, pendingClose, canBackfill }: Sect
       key: 'mainNetInflow',
       align: 'right' as const,
       render: (value: number | null) => (
-        <span className={changeColor(value)}>{formatAmount(value)}</span>
+        <span style={{ color: changeHex(value) }}>{formatAmount(value)}</span>
       ),
     },
     {

@@ -2,7 +2,7 @@ import { Descriptions, List, Space, Statistic, Tag, Typography } from 'antd'
 
 import type { ChainNode } from '@ai-invest/shared'
 import { useColorScheme } from '@/stores/settings'
-import { riseColorSoft } from '@/utils/formatters'
+import { riseHexSoft } from '@/utils/formatters'
 
 interface NodeDetailCardProps {
   node: ChainNode | null
@@ -75,7 +75,7 @@ export function NodeDetailCard({ node }: NodeDetailCardProps) {
             dataSource={node.recentBreakthroughs}
             renderItem={(item) => (
               <List.Item className="!py-1">
-                <Typography.Text className={riseColorSoft()}>{item}</Typography.Text>
+                <Typography.Text style={{ color: riseHexSoft() }}>{item}</Typography.Text>
               </List.Item>
             )}
           />

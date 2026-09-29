@@ -2,7 +2,7 @@ import { Tag } from 'antd'
 import type { ReactNode } from 'react'
 
 import { useColorScheme } from '@/stores/settings'
-import { changeColor, changeHex } from '@/utils/formatters'
+import { changeHex } from '@/utils/formatters'
 
 interface SparklineProps {
   points: number[]
@@ -89,7 +89,7 @@ export function MacroCard({
           {value}
         </span>
         <span
-          className={`text-[11px] font-medium font-mono ${changeColor(changePct)}`}
+          className="text-[11px] font-medium font-mono" style={{ color: changeHex(changePct) }}
         >
           {chg}
         </span>

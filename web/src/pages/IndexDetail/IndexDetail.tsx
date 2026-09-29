@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { IndexChartPanel } from '@/pages/Dashboard/components/IndexChartPanel'
 import { useGlobalIndices, useIndexKline } from '@/hooks/useMarket'
 import { useColorScheme } from '@/stores/settings'
-import { changeColor, formatPercent } from '@/utils/formatters'
+import { changeHex, formatPercent } from '@/utils/formatters'
 
 import { GlobalIndexKlinePanel } from './GlobalIndexKlinePanel'
 
@@ -50,7 +50,7 @@ export function IndexDetail() {
             {isBond ? '%' : ''}
           </span>
           <span
-            className={`text-sm font-mono font-semibold ${changeColor(globalQuote.changePct)}`}
+            className="text-sm font-mono font-semibold" style={{ color: changeHex(globalQuote.changePct) }}
           >
             {globalQuote.changePct != null ? formatPercent(globalQuote.changePct) : '-'}
           </span>

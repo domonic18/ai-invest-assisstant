@@ -10,7 +10,7 @@ import type {
 
 import { SourceNote } from '@/components/common/SourceNote'
 import { useSectorDetail } from '@/hooks/useAnomaly'
-import { changeColor, formatAmount, formatNumber, formatPercent } from '@/utils/formatters'
+import { changeHex, fallHex, formatAmount, formatNumber, formatPercent, riseHex } from '@/utils/formatters'
 
 import { AnomalySidePanel } from './AnomalySidePanel'
 import { FundFlowChart } from './FundFlowChart'
@@ -131,7 +131,7 @@ export function SectorDetailPage() {
         {data.snapshot && (
           <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
             <SnapshotStat label={`收盘 ${data.snapshot.tradeDate}`}>
-              <span className={changeColor(data.snapshot.changePct)}>
+              <span style={{ color: changeHex(data.snapshot.changePct) }}>
                 {data.snapshot.close != null ? formatNumber(data.snapshot.close) : '-'}
                 {data.snapshot.changePct != null && (
                   <span className="ml-1.5">{formatPercent(data.snapshot.changePct)}</span>
@@ -148,9 +148,9 @@ export function SectorDetailPage() {
             </SnapshotStat>
             <SnapshotStat label="涨/跌家数">
               <span className="font-mono text-xs">
-                <span className="text-red-400">{data.snapshot.upCount ?? '-'}</span>
+                <span style={{ color: riseHex() }}>{data.snapshot.upCount ?? '-'}</span>
                 <span className="text-gray-600"> / </span>
-                <span className="text-green-400">{data.snapshot.downCount ?? '-'}</span>
+                <span style={{ color: fallHex() }}>{data.snapshot.downCount ?? '-'}</span>
               </span>
             </SnapshotStat>
             <SnapshotStat label="领涨股">{data.snapshot.leaderStockName ?? '-'}</SnapshotStat>
