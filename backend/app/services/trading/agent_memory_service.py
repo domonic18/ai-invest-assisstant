@@ -18,7 +18,7 @@ from app.core.exceptions import NotFoundError
 from app.models.agent_trading import AgentMemory
 
 if TYPE_CHECKING:
-    from app.services.trading.agent_review_service import ReviewExperience
+    from app.services.trading.agent_review_content import ReviewExperience
 
 
 async def list_memories(

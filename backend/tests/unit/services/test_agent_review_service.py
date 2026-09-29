@@ -11,8 +11,8 @@ from pydantic import ValidationError
 from app.services.market.trade_calendar_service import NonTradingDayError
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
 from app.services.trading import agent_review_service
+from app.services.trading.agent_review_content import PaperTradeReviewContent
 from app.services.trading.agent_review_service import (
-    PaperTradeReviewContent,
     PaperTradeReviewLockedError,
     resolve_window,
 )
