@@ -68,12 +68,20 @@ class TestDecisionThresholds:
     def test_default_thresholds(self) -> None:
         assert DEFAULT_THRESHOLDS.observe == 0.6
         assert DEFAULT_THRESHOLDS.fund_action == 0.85
+        assert DEFAULT_THRESHOLDS.exit_action == 0.6
 
     def test_range_and_ordering_validation(self) -> None:
         DecisionThresholds(observe=0.5, fund_action=0.9)
+        # 离场档边界合法：贴观察档 / 贴资金档
+        DecisionThresholds(observe=0.5, fund_action=0.9, exit_action=0.5)
+        DecisionThresholds(observe=0.5, fund_action=0.9, exit_action=0.9)
         for observe, fund in [(0.0, 0.9), (1.0, 0.9), (-0.1, 0.9), (0.6, 0.6), (0.7, 0.6)]:
             with pytest.raises(ValidationError):
                 DecisionThresholds(observe=observe, fund_action=fund)
+        # 离场档越界：低于观察档 / 高于资金档
+        for exit_action in [0.4, 0.95]:
+            with pytest.raises(ValidationError):
+                DecisionThresholds(observe=0.6, fund_action=0.85, exit_action=exit_action)
 
 
 class TestThresholdsFromExtra:
@@ -86,6 +94,11 @@ class TestThresholdsFromExtra:
             {"thresholds": {"observe": 0.5, "fund_action": 0.9}}
         )
         assert thresholds == DecisionThresholds(observe=0.5, fund_action=0.9)
+        # exit_action 可选覆盖，缺省回起步档
+        custom = thresholds_from_extra(
+            {"thresholds": {"observe": 0.5, "fund_action": 0.9, "exit_action": 0.7}}
+        )
+        assert custom.exit_action == 0.7
 
     def test_invalid_shapes_raise_config_error(self) -> None:
         for extra in [

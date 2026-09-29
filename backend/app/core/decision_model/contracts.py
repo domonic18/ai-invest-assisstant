@@ -163,10 +163,13 @@ class DecisionThresholds(BaseModel):
 
     #: 观察类动作（只读判断/留痕类）的置信下限
     observe: float
-    #: 资金动作（真实下单）的置信下限
+    #: 资金动作（真实买入开仓）的置信下限
     fund_action: float
+    #: 离场动作（止盈/止损卖出）的置信下限——离场是防御动作，错做代价
+    #: （少赚反弹）远小于不做代价（继续承损），不要求与开仓同等置信
+    exit_action: float = 0.60
 
-    @field_validator("observe", "fund_action")
+    @field_validator("observe", "fund_action", "exit_action")
     @classmethod
     def _check_range(cls, value: float) -> float:
         if not 0 < value < 1:
@@ -177,12 +180,14 @@ class DecisionThresholds(BaseModel):
     def _check_ordering(self) -> "DecisionThresholds":
         if self.fund_action <= self.observe:
             raise ValueError("资金动作阈值须高于观察类阈值")
+        if not self.observe <= self.exit_action <= self.fund_action:
+            raise ValueError("离场档须在 [观察档, 资金档] 区间内")
         return self
 
 
-#: §11.1 起步分档（观察 0.6 / 资金动作 0.85），影子期校准后按配置覆盖
+#: §11.1 起步分档（观察 0.6 / 离场 0.6 / 资金动作 0.85），影子期校准后按配置覆盖
 DEFAULT_THRESHOLDS: DecisionThresholds = DecisionThresholds(
-    observe=0.6, fund_action=0.85
+    observe=0.6, fund_action=0.85, exit_action=0.60
 )
 
 
@@ -205,10 +210,13 @@ def thresholds_from_extra(extra: Mapping[str, Any]) -> DecisionThresholds:
     if raw is None:
         return DEFAULT_THRESHOLDS
     if not isinstance(raw, Mapping):
-        raise DecisionModelConfigError("extra.thresholds 须为对象（observe/fund_action）")
-    try:
-        return DecisionThresholds(
-            observe=raw["observe"], fund_action=raw["fund_action"]
+        raise DecisionModelConfigError(
+            "extra.thresholds 须为对象（observe/fund_action/exit_action）"
         )
+    try:
+        payload: dict[str, Any] = {"observe": raw["observe"], "fund_action": raw["fund_action"]}
+        if "exit_action" in raw:
+            payload["exit_action"] = raw["exit_action"]
+        return DecisionThresholds(**payload)
     except (KeyError, TypeError, ValueError) as exc:
         raise DecisionModelConfigError(f"extra.thresholds 非法: {exc}") from exc

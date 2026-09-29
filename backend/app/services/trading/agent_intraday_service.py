@@ -252,13 +252,21 @@ def _decide(
     l0: L0Result,
     choice: tuple[str, float] | None,
     thresholds: DecisionThresholds,
+    *,
+    plan_type: str,
 ) -> tuple[str | None, str | None]:
-    """L2 判定：L0 结论 + L1 答案按阈值分档 → (action, suppression_reason)。"""
+    """L2 判定：L0 结论 + L1 答案按阈值分档 → (action, suppression_reason)。
+
+    execute 闸门按计划方向分档：买入开仓维持资金动作档（fund_action，
+    保守）；卖出离场降档至 exit_action——离场是防御动作，错做代价（少赚
+    反弹）远小于不做代价（继续承损），不要求与开仓同等置信。
+    """
     if l0.verdict == L0_TRIGGERED:
         if choice is None:
             return ACTION_SUPPRESS, SUPPRESS_MODEL_DEGRADED
         picked, confidence = choice
-        if picked == CHOICE_ACTION_EXECUTE and confidence >= thresholds.fund_action:
+        gate = thresholds.exit_action if plan_type == "sell" else thresholds.fund_action
+        if picked == CHOICE_ACTION_EXECUTE and confidence >= gate:
             return ACTION_EXECUTE, None
         if picked == CHOICE_ACTION_ABANDON:
             return ACTION_ABANDON, None
@@ -475,7 +483,7 @@ async def run_tick(
         is_shadow = agent.intraday_exec_mode != "active"
         for plan, quote, l0 in evaluated:
             choice = _choice_answer(answers, plan.id)
-            action, suppression = _decide(l0, choice, thresholds)
+            action, suppression = _decide(l0, choice, thresholds, plan_type=plan.plan_type)
             extra: dict[str, Any] = {}
             if action == ACTION_EXECUTE:
                 if account is None:

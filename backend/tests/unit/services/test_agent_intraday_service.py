@@ -181,54 +181,103 @@ class TestEvaluateL0:
 class TestDecide:
     def test_execute_at_fund_action(self) -> None:
         l0 = svc.L0Result(svc.L0_TRIGGERED, svc.REASON_BUY_ZONE)
-        assert svc._decide(l0, (CHOICE_ACTION_EXECUTE, THRESHOLDS.fund_action), THRESHOLDS) == (
+        assert svc._decide(
+            l0, (CHOICE_ACTION_EXECUTE, THRESHOLDS.fund_action), THRESHOLDS, plan_type="buy"
+        ) == (
             svc.ACTION_EXECUTE,
             None,
         )
 
     def test_execute_below_fund_action_waits(self) -> None:
         l0 = svc.L0Result(svc.L0_TRIGGERED, svc.REASON_BUY_ZONE)
-        assert svc._decide(l0, (CHOICE_ACTION_EXECUTE, 0.70), THRESHOLDS) == (svc.ACTION_WAIT, None)
+        assert svc._decide(
+            l0, (CHOICE_ACTION_EXECUTE, 0.70), THRESHOLDS, plan_type="buy"
+        ) == (svc.ACTION_WAIT, None)
 
     def test_execute_below_observe_suppressed(self) -> None:
         l0 = svc.L0Result(svc.L0_TRIGGERED, svc.REASON_BUY_ZONE)
-        action, suppression = svc._decide(l0, (CHOICE_ACTION_EXECUTE, 0.50), THRESHOLDS)
+        action, suppression = svc._decide(
+            l0, (CHOICE_ACTION_EXECUTE, 0.50), THRESHOLDS, plan_type="buy"
+        )
         assert (action, suppression) == (svc.ACTION_SUPPRESS, svc.SUPPRESS_BELOW_THRESHOLD)
 
     def test_wait_choice(self) -> None:
         l0 = svc.L0Result(svc.L0_TRIGGERED, svc.REASON_BUY_ZONE)
-        assert svc._decide(l0, (CHOICE_ACTION_WAIT, 0.90), THRESHOLDS) == (svc.ACTION_WAIT, None)
+        assert svc._decide(l0, (CHOICE_ACTION_WAIT, 0.90), THRESHOLDS, plan_type="buy") == (
+            svc.ACTION_WAIT,
+            None,
+        )
 
     def test_wait_choice_low_confidence_suppressed(self) -> None:
         l0 = svc.L0Result(svc.L0_TRIGGERED, svc.REASON_BUY_ZONE)
-        action, suppression = svc._decide(l0, (CHOICE_ACTION_WAIT, 0.30), THRESHOLDS)
+        action, suppression = svc._decide(
+            l0, (CHOICE_ACTION_WAIT, 0.30), THRESHOLDS, plan_type="buy"
+        )
         assert (action, suppression) == (svc.ACTION_SUPPRESS, svc.SUPPRESS_BELOW_THRESHOLD)
 
     def test_abandon_choice(self) -> None:
         l0 = svc.L0Result(svc.L0_TRIGGERED, svc.REASON_BUY_ZONE)
-        assert svc._decide(l0, (CHOICE_ACTION_ABANDON, 0.90), THRESHOLDS) == (
+        assert svc._decide(
+            l0, (CHOICE_ACTION_ABANDON, 0.90), THRESHOLDS, plan_type="buy"
+        ) == (
             svc.ACTION_ABANDON,
             None,
         )
 
     def test_missing_choice_is_model_degraded(self) -> None:
         l0 = svc.L0Result(svc.L0_TRIGGERED, svc.REASON_BUY_ZONE)
-        action, suppression = svc._decide(l0, None, THRESHOLDS)
+        action, suppression = svc._decide(l0, None, THRESHOLDS, plan_type="buy")
         assert (action, suppression) == (svc.ACTION_SUPPRESS, svc.SUPPRESS_MODEL_DEGRADED)
 
     def test_near_trigger_waits_regardless_of_choice(self) -> None:
         l0 = svc.L0Result(svc.L0_NEAR_TRIGGER)
-        assert svc._decide(l0, (CHOICE_ACTION_EXECUTE, 0.99), THRESHOLDS) == (
+        assert svc._decide(
+            l0, (CHOICE_ACTION_EXECUTE, 0.99), THRESHOLDS, plan_type="buy"
+        ) == (
             svc.ACTION_WAIT,
             None,
         )
 
     def test_l0_reject_suppressed(self) -> None:
         l0 = svc.L0Result(svc.L0_NO_ACTION, reject=True)
-        assert svc._decide(l0, None, THRESHOLDS) == (svc.ACTION_SUPPRESS, svc.SUPPRESS_L0_REJECT)
+        assert svc._decide(l0, None, THRESHOLDS, plan_type="buy") == (
+            svc.ACTION_SUPPRESS,
+            svc.SUPPRESS_L0_REJECT,
+        )
 
     def test_plain_no_action_has_no_decision(self) -> None:
-        assert svc._decide(svc.L0Result(svc.L0_NO_ACTION), None, THRESHOLDS) == (None, None)
+        assert svc._decide(svc.L0Result(svc.L0_NO_ACTION), None, THRESHOLDS, plan_type="buy") == (
+            None,
+            None,
+        )
+
+    def test_sell_execute_at_exit_action_gate(self) -> None:
+        """卖出离场 execute 闸门降档：0.6-0.85 区间即执行（开仓仍要求 fund_action）。"""
+        for reason in (svc.REASON_STOP_LOSS, svc.REASON_TARGET):
+            l0 = svc.L0Result(svc.L0_TRIGGERED, reason)
+            assert svc._decide(
+                l0, (CHOICE_ACTION_EXECUTE, 0.70), THRESHOLDS, plan_type="sell"
+            ) == (svc.ACTION_EXECUTE, None)
+
+    def test_sell_execute_boundary_inclusive(self) -> None:
+        l0 = svc.L0Result(svc.L0_TRIGGERED, svc.REASON_STOP_LOSS)
+        assert svc._decide(
+            l0, (CHOICE_ACTION_EXECUTE, THRESHOLDS.exit_action), THRESHOLDS, plan_type="sell"
+        ) == (svc.ACTION_EXECUTE, None)
+
+    def test_sell_execute_below_exit_gate_suppressed(self) -> None:
+        l0 = svc.L0Result(svc.L0_TRIGGERED, svc.REASON_STOP_LOSS)
+        action, suppression = svc._decide(
+            l0, (CHOICE_ACTION_EXECUTE, 0.59), THRESHOLDS, plan_type="sell"
+        )
+        assert (action, suppression) == (svc.ACTION_SUPPRESS, svc.SUPPRESS_BELOW_THRESHOLD)
+
+    def test_buy_in_exit_band_still_waits(self) -> None:
+        """0.6-0.85 区间对买入仍是 wait（分档只放宽离场）。"""
+        l0 = svc.L0Result(svc.L0_TRIGGERED, svc.REASON_BUY_ZONE)
+        assert svc._decide(
+            l0, (CHOICE_ACTION_EXECUTE, 0.70), THRESHOLDS, plan_type="buy"
+        ) == (svc.ACTION_WAIT, None)
 
 
 @pytest.mark.unit
