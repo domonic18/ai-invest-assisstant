@@ -112,11 +112,10 @@ def make_list_plans_tool(agent_key: str) -> BaseTool:
             status）。status：active 待触发、triggered 已触发下单、executed 已
             成交、expired 当日未触发失效、cancelled 已取消。
         """
-        from app.services.market import trade_calendar_service
         from app.services.trading import agent_plan_ops
 
         async with AsyncSessionLocal() as session:
-            plan_date = await trade_calendar_service.resolve_latest_trade_date(session)
+            plan_date = await agent_plan_ops.resolve_default_plan_date(session, agent_key)
             rows = await agent_plan_ops.list_plans(session, agent_key, plan_date=plan_date)
 
         return {

@@ -3,16 +3,17 @@
  * 对话制定共用。
  *
  * 数据源 admin GET /trading-agent/plans（包装响应：tradeDate + nextTradeDate
- * + plans）；标题显示所选日期，徽标注明计划于下一交易日盘中执行与交易时段；
- * 日期选择对齐每日复盘页（MarkedDatePicker，有计划的日期打点）；状态分色：
- * active 待触发 / triggered 已触发 / executed 已成交 / expired 已失效 /
- * cancelled 已取消；active 计划可人工取消。标的可点跳个股详情；sell 为
- * 持仓止损/止盈条件单（同股可与买入计划并存），buy 按截至计划日持仓标注
- * 建仓/增持（heldVolume）。
+ * + plans + executingPlanDate）。缺省显示「最近一份 ≤ 今天」的计划（计划
+ * T 日制定、T+1 盘中执行，打开即正在执行/最新生成的那份）；卡片头日期轴
+ * 标注制定→执行对应关系；选中无计划的日期时按 executingPlanDate 引导跳回
+ * 正在执行的那份。状态分色：active 待触发 / triggered 已触发 / executed
+ * 已成交 / expired 已失效 / cancelled 已取消；active 计划可人工取消。标的
+ * 可点跳个股详情；sell 为持仓止损/止盈条件单（同股可与买入计划并存），
+ * buy 按截至计划日持仓标注建仓/增持（heldVolume）。
  */
-import { Card, Empty, Popconfirm, Space, Spin, Tag, Typography } from 'antd'
+import { Button, Card, Empty, Popconfirm, Space, Spin, Tag, Typography } from 'antd'
 import { StopOutlined } from '@ant-design/icons'
-import type { Dayjs } from 'dayjs'
+import dayjs, { type Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -33,6 +34,13 @@ const STATUS_META: Record<ApiTradingAgentPlan['status'], { label: string; color:
 
 function fmt(value: number | null): string {
   return value != null ? value.toFixed(2) : '-'
+}
+
+// dayjs 无 zh-cn locale（仓库未启用），周X沿用手写映射惯例（TradeCalendar）
+const WEEKDAY_LABELS = '日一二三四五六'
+
+function weekdayLabel(dateStr: string): string {
+  return `周${WEEKDAY_LABELS[dayjs(dateStr).day()]}`
 }
 
 function PlanRow({ plan }: { plan: ApiTradingAgentPlan }) {
@@ -157,13 +165,29 @@ export function PlanPanel() {
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           description="该日未生成计划（每交易日 19:30 自动生成，也可在对话中制定）"
-        />
+        >
+          {data.executingPlanDate && (
+            <Button
+              type="link"
+              size="small"
+              className="!whitespace-normal"
+              onClick={() => {
+                if (data.executingPlanDate) setSelectedDate(dayjs(data.executingPlanDate))
+              }}
+            >
+              该日盘中执行的是 {data.executingPlanDate} 制定的计划 → 查看
+            </Button>
+          )}
+        </Empty>
       ) : (
         <Space direction="vertical" size="small" className="w-full">
           {data.nextTradeDate && (
             <div>
-              <Tag color="geekblue">
-                下一交易日 {data.nextTradeDate} 盘中执行 · 09:30–11:30 / 13:00–15:00
+              {/* antd Tag 默认 nowrap，长文案窄屏溢出视口，允许折行 */}
+              <Tag color="geekblue" className="!whitespace-normal">
+                制定 {data.tradeDate}（{weekdayLabel(data.tradeDate)}）→ 执行{' '}
+                {data.nextTradeDate}（{weekdayLabel(data.nextTradeDate)}）盘中 ·
+                09:30–11:30 / 13:00–15:00
               </Tag>
             </div>
           )}

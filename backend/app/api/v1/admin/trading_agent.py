@@ -183,14 +183,16 @@ async def get_trading_agent_dates(
 async def list_trading_agent_plans(
     agent_key: str,
     session: Annotated[AsyncSession, Depends(get_db)],
-    trade_date: date | None = Query(None, description="计划日（缺省取最近交易日）"),
+    trade_date: date | None = Query(None, description="计划日（缺省取最近一份 ≤ 今天）"),
 ) -> TradingAgentPlansResponse:
     """读取指定日的交易计划（含全部状态，前端按状态分色）+ 下一交易日（次日语义）。
 
-    ``standAsideReason`` 非空表示当日已生成但空仓观望，供前端与「未生成」区分。
+    缺省落「最近一份 ≤ 今天」的计划（T 日制定 T+1 执行，盘中打开即正在
+    执行的那份）；``executingPlanDate`` 为所选日盘中执行的计划集的制定日，
+    供空态引导跳转；``standAsideReason`` 非空表示当日已生成但空仓观望。
     """
-    resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(
-        session
+    resolved = trade_date or await agent_plan_ops.resolve_default_plan_date(
+        session, agent_key
     )
     content = await agent_plan_service.load_plan_content_for_date(
         session, agent_key, resolved
@@ -200,6 +202,9 @@ async def list_trading_agent_plans(
         next_trade_date=await trade_calendar_service.next_trading_day(session, resolved),
         plans=await agent_plan_ops.list_plan_views(session, agent_key, plan_date=resolved),
         stand_aside_reason=content.stand_aside_reason if content else None,
+        executing_plan_date=await agent_plan_ops.resolve_executing_plan_date(
+            session, agent_key, view_date=resolved
+        ),
     )
 
 

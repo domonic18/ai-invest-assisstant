@@ -348,3 +348,68 @@ class TestListPlanViews:
             views = await agent_plan_ops.list_plan_views(session, _AK, plan_date=_PLAN_DATE)
         assert views == []
         session.execute.assert_not_awaited()
+
+
+@pytest.mark.unit
+class TestResolveDefaultPlanDate:
+    """计划视图缺省日：最近一份 ≤ 今天（T 制定 T+1 执行，打开即正在执行的那份）。"""
+
+    @pytest.mark.asyncio
+    async def test_latest_plan_le_today_wins(self) -> None:
+        session = AsyncMock()
+        session.scalar = AsyncMock(return_value=_PLAN_DATE)
+        assert await agent_plan_ops.resolve_default_plan_date(session, _AK) == _PLAN_DATE
+
+    @pytest.mark.asyncio
+    async def test_no_plans_falls_back_to_latest_trade_date(self) -> None:
+        session = AsyncMock()
+        session.scalar = AsyncMock(return_value=None)
+        with patch.object(
+            agent_plan_ops.trade_calendar_service,
+            "resolve_latest_trade_date",
+            AsyncMock(return_value=_PLAN_DATE),
+        ):
+            result = await agent_plan_ops.resolve_default_plan_date(session, _AK)
+        assert result == _PLAN_DATE
+
+
+@pytest.mark.unit
+class TestResolveExecutingPlanDate:
+    """所选日盘中执行的计划集制定日：前份存在且次日恰为所选日。"""
+
+    @pytest.mark.asyncio
+    async def test_prev_plan_executing_on_view_date(self) -> None:
+        session = AsyncMock()
+        session.scalar = AsyncMock(return_value=_PLAN_DATE)
+        with patch.object(
+            agent_plan_ops.trade_calendar_service,
+            "next_trading_day",
+            AsyncMock(return_value=date(2026, 7, 16)),
+        ):
+            result = await agent_plan_ops.resolve_executing_plan_date(
+                session, _AK, view_date=date(2026, 7, 16)
+            )
+        assert result == _PLAN_DATE
+
+    @pytest.mark.asyncio
+    async def test_prev_plan_not_executing_on_view_date(self) -> None:
+        session = AsyncMock()
+        session.scalar = AsyncMock(return_value=_PLAN_DATE)
+        with patch.object(
+            agent_plan_ops.trade_calendar_service,
+            "next_trading_day",
+            AsyncMock(return_value=date(2026, 7, 20)),
+        ):
+            result = await agent_plan_ops.resolve_executing_plan_date(
+                session, _AK, view_date=date(2026, 7, 16)
+            )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_no_prev_plan_returns_none(self) -> None:
+        session = AsyncMock()
+        session.scalar = AsyncMock(return_value=None)
+        result = await agent_plan_ops.resolve_executing_plan_date(
+            session, _AK, view_date=_PLAN_DATE
+        )
+        assert result is None

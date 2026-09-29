@@ -16,6 +16,7 @@ function makeProfile(overrides: Partial<TradingAgentProfile> = {}): TradingAgent
     riskMaxTotalPct: 80,
     riskMaxDailyOrders: 10,
     intradayExecMode: 'shadow',
+    intradayPaused: false,
     status: 'active',
     planCadence: 'daily',
     reviewCadence: 'daily',

@@ -41,6 +41,7 @@ interface ConfigFormValues {
   riskMaxTotalPct: number
   riskMaxDailyOrders: number
   intradayExecMode: 'off' | 'shadow' | 'active'
+  intradayPaused: boolean
 }
 
 export function AgentConfigPanel() {
@@ -62,6 +63,7 @@ export function AgentConfigPanel() {
         riskMaxTotalPct: config.riskMaxTotalPct,
         riskMaxDailyOrders: config.riskMaxDailyOrders,
         intradayExecMode: config.intradayExecMode,
+        intradayPaused: config.intradayPaused,
       })
     }
   }, [config, form])
@@ -87,6 +89,7 @@ export function AgentConfigPanel() {
               riskMaxTotalPct: values.riskMaxTotalPct,
               riskMaxDailyOrders: values.riskMaxDailyOrders,
               intradayExecMode: values.intradayExecMode,
+              intradayPaused: values.intradayPaused,
             })
           }
         >
@@ -152,6 +155,14 @@ export function AgentConfigPanel() {
               extra="影子=全链路判断留痕不下单；执行=触达计划价位真实下单（对话内交易不受影响）"
             >
               <Select options={EXEC_MODE_OPTIONS} />
+            </Form.Item>
+            <Form.Item
+              name="intradayPaused"
+              label="盘中暂停"
+              valuePropName="checked"
+              extra="特殊情况临时冻结：不进判断模型、不下单、尾盘强检跳过；计划/复盘生成不受影响，恢复后下一分钟自动回全流程"
+            >
+              <Switch checkedChildren="已暂停" unCheckedChildren="执行中" />
             </Form.Item>
           </div>
           <div className="flex items-center justify-end gap-3">

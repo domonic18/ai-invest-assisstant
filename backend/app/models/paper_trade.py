@@ -170,6 +170,9 @@ class TradingAgent(Base):
     #: 盘中自主执行三态（D21，批次 8）：off 停用 / shadow 全链路判断不下单 /
     #: active 真实执行；影子期校准达标后由 admin 切换
     intraday_exec_mode: Mapped[str] = mapped_column(String(10), nullable=False, default="shadow")
+    #: 盘中执行人工暂停开关：true 时 tick/尾盘强检完全短路（不进 L1 判断模型、
+    #: 不下单、不写观测行）；计划/复盘生成与心跳不受影响，恢复后下一拍回全流程
+    intraday_paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
     plan_cadence: Mapped[str] = mapped_column(String(16), nullable=False, default="daily")
     review_cadence: Mapped[str] = mapped_column(String(16), nullable=False, default="daily")

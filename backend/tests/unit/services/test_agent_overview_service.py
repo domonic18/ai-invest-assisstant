@@ -158,6 +158,7 @@ def _agent_row(**overrides: object) -> SimpleNamespace:
         "risk_max_total_pct": 80.0,
         "risk_max_daily_orders": 10,
         "intraday_exec_mode": "shadow",
+        "intraday_paused": False,
         "status": "active",
         "plan_cadence": "daily",
         "review_cadence": "daily",
@@ -496,7 +497,7 @@ class TestGetAgentSkillFiles:
 
 @pytest.mark.unit
 class TestRuntimeState:
-    """总览运行态判定链（D32）：off → working → produced_today → idle。"""
+    """总览运行态判定链（D32）：off → paused → working → produced_today → idle。"""
 
     def _profile(self) -> TradingAgentProfileResponse:
         return TradingAgentProfileResponse(**vars(_agent_row()))
@@ -575,6 +576,15 @@ class TestRuntimeState:
         item = await self._build(row=_agent_row(status="disabled"))
         assert item.runtime_state == "off"
         assert item.state_label == "未启用"
+
+    @pytest.mark.asyncio
+    async def test_intraday_paused_overrides_other_states(self) -> None:
+        """intraday_paused 人工冻结优先于 working/produced/idle（计数照常展示）。"""
+        ctx = self._ctx(running_tasks={"agent-daily-plan"})
+        item = await self._build(row=_agent_row(intraday_paused=True), ctx=ctx)
+        assert item.runtime_state == "paused"
+        assert item.state_label == "已暂停 · 盘中执行关闭"
+        assert item.plan_count == 3
 
     @pytest.mark.asyncio
     async def test_working_plan_log_running_and_due(self) -> None:

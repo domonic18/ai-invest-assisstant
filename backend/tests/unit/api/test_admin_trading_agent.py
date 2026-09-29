@@ -184,8 +184,12 @@ class TestTradingAgentPlans:
 
         with (
             patch(
-                "app.services.market.trade_calendar_service.resolve_latest_trade_date",
+                "app.services.trading.agent_plan_ops.resolve_default_plan_date",
                 AsyncMock(return_value=date(2026, 7, 17)),
+            ),
+            patch(
+                "app.services.trading.agent_plan_ops.resolve_executing_plan_date",
+                AsyncMock(return_value=None),
             ),
             patch(
                 "app.services.market.trade_calendar_service.next_trading_day",
@@ -207,6 +211,7 @@ class TestTradingAgentPlans:
         assert body["tradeDate"] == "2026-07-17"
         assert body["nextTradeDate"] == "2026-07-20"
         assert body["standAsideReason"] is None
+        assert body["executingPlanDate"] is None
         plan = body["plans"][0]
         assert plan["stockCode"] == "600000"
         assert plan["stockName"] == "浦发银行"
@@ -224,8 +229,12 @@ class TestTradingAgentPlans:
 
         with (
             patch(
-                "app.services.market.trade_calendar_service.resolve_latest_trade_date",
+                "app.services.trading.agent_plan_ops.resolve_default_plan_date",
                 AsyncMock(return_value=date(2026, 7, 17)),
+            ),
+            patch(
+                "app.services.trading.agent_plan_ops.resolve_executing_plan_date",
+                AsyncMock(return_value=None),
             ),
             patch(
                 "app.services.market.trade_calendar_service.next_trading_day",
@@ -252,9 +261,13 @@ class TestTradingAgentPlans:
 
         with (
             patch(
-                "app.services.market.trade_calendar_service.resolve_latest_trade_date",
+                "app.services.trading.agent_plan_ops.resolve_default_plan_date",
                 AsyncMock(),
-            ) as resolve_mock,
+            ) as default_resolve_mock,
+            patch(
+                "app.services.trading.agent_plan_ops.resolve_executing_plan_date",
+                AsyncMock(return_value=None),
+            ),
             patch(
                 "app.services.market.trade_calendar_service.next_trading_day",
                 AsyncMock(return_value=date(2026, 7, 17)),
@@ -273,11 +286,42 @@ class TestTradingAgentPlans:
             )
 
         assert resp.status_code == 200
-        resolve_mock.assert_not_awaited()
+        default_resolve_mock.assert_not_awaited()
         assert list_mock.await_args.kwargs["plan_date"] == date(2026, 7, 16)
         body = resp.json()
         assert body["tradeDate"] == "2026-07-16"
         assert body["standAsideReason"] is None
+
+    def test_list_surfaces_executing_plan_date(self, admin_client) -> None:
+        """所选日盘中执行的计划集制定日透出（空态引导跳转数据源）。"""
+        http, _ = admin_client
+
+        with (
+            patch(
+                "app.services.trading.agent_plan_ops.resolve_default_plan_date",
+                AsyncMock(return_value=date(2026, 7, 17)),
+            ),
+            patch(
+                "app.services.trading.agent_plan_ops.resolve_executing_plan_date",
+                AsyncMock(return_value=date(2026, 7, 16)),
+            ),
+            patch(
+                "app.services.market.trade_calendar_service.next_trading_day",
+                AsyncMock(return_value=date(2026, 7, 20)),
+            ),
+            patch(
+                "app.services.trading.agent_plan_ops.list_plan_views",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.services.trading.agent_plan_service.load_plan_content_for_date",
+                AsyncMock(return_value=None),
+            ),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/short-line/plans")
+
+        assert resp.status_code == 200
+        assert resp.json()["executingPlanDate"] == "2026-07-16"
 
     def test_cancel_returns_updated_plan(self, admin_client) -> None:
         http, _ = admin_client
