@@ -22,7 +22,7 @@ import {
   usePaperTradeAccounts,
   useSavePaperTradeAccount,
 } from '@/hooks/usePaperTrade'
-import { fallColor, formatDateTime } from '@/utils/formatters'
+import { fallHex, formatDateTime } from '@/utils/formatters'
 
 interface AccountFormValues {
   name: string
@@ -97,7 +97,7 @@ export function AccountManagerModal({
       render: (v: string | null | undefined) =>
         v ? (
           <Tooltip title={v} placement="topLeft">
-            <Typography.Text style={{ color: fallColor() }} className="text-xs">
+            <Typography.Text style={{ color: fallHex() }} className="text-xs">
               {v}
             </Typography.Text>
           </Tooltip>

@@ -19,7 +19,7 @@ import {
   usePaperTradeOverview,
 } from '@/hooks/usePaperTrade'
 import { bjNow } from '@/utils/beijing'
-import { changeColor, DATE_FORMAT, formatAmount, formatNumber, formatPercent } from '@/utils/formatters'
+import { changeHex, DATE_FORMAT, formatAmount, formatNumber, formatPercent } from '@/utils/formatters'
 
 import { useAgentKey } from './agentKeyContext'
 
@@ -40,7 +40,7 @@ function PnlStatistic({
     <Statistic
       title={title}
       value={text}
-      valueStyle={{ fontSize: 18, ...(pnl != null ? { color: changeColor(pnl) } : {}) }}
+      valueStyle={{ fontSize: 18, ...(pnl != null ? { color: changeHex(pnl) } : {}) }}
     />
   )
 }

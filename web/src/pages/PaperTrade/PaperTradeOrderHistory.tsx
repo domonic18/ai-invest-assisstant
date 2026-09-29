@@ -16,10 +16,10 @@ import {
   usePaperTradeOrders,
 } from '@/hooks/usePaperTrade'
 import {
-  fallColor,
+  fallHex,
   formatDateTime,
   formatNumber,
-  riseColor,
+  riseHex,
 } from '@/utils/formatters'
 import {
   paperTradeOrderStatus,
@@ -35,8 +35,8 @@ const PAGE_SIZE = 20
 const CANCELLABLE_STATUSES = new Set([1, 2])
 
 function sideCell(side: number | null | undefined) {
-  if (side === 1) return <span style={{ color: riseColor() }}>买入</span>
-  if (side === 2) return <span style={{ color: fallColor() }}>卖出</span>
+  if (side === 1) return <span style={{ color: riseHex() }}>买入</span>
+  if (side === 2) return <span style={{ color: fallHex() }}>卖出</span>
   return '-'
 }
 
@@ -110,7 +110,7 @@ const baseOrderColumns: ColumnsType<ApiPaperTradeOrder> = [
       record.ordRejReason == null ? (
         '-'
       ) : (
-        <Typography.Text style={{ color: fallColor() }}>
+        <Typography.Text style={{ color: fallHex() }}>
           {detail || `原因码 ${record.ordRejReason}`}
         </Typography.Text>
       ),

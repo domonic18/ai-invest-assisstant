@@ -7,11 +7,11 @@ import type { ApiPaperTradePosition } from '@ai-invest/shared'
 import { useStockQuote } from '@/hooks/useStocks'
 import { useColorScheme } from '@/stores/settings'
 import {
-  changeColor,
-  fallColor,
+  changeHex,
+  fallHex,
   formatNumber,
   formatPercent,
-  riseColor,
+  riseHex,
 } from '@/utils/formatters'
 
 import type { OrderPrefill } from './TradingPanel'
@@ -34,7 +34,7 @@ export function SymbolCell({ code }: { code: string }) {
         {quote?.changePct != null && (
           <span
             className="font-mono text-xs"
-            style={{ color: changeColor(quote.changePct) }}
+            style={{ color: changeHex(quote.changePct) }}
           >
             {formatPercent(quote.changePct)}
           </span>
@@ -78,9 +78,9 @@ export function PaperTradePositions({
       width: 70,
       render: (side: number | null | undefined) =>
         side === 1 ? (
-          <span style={{ color: riseColor() }}>买入</span>
+          <span style={{ color: riseHex() }}>买入</span>
         ) : side === 2 ? (
-          <span style={{ color: fallColor() }}>卖出</span>
+          <span style={{ color: fallHex() }}>卖出</span>
         ) : (
           '-'
         ),
@@ -140,7 +140,7 @@ export function PaperTradePositions({
         v == null ? (
           '-'
         ) : (
-          <span style={{ color: v >= 0 ? riseColor() : fallColor() }}>
+          <span style={{ color: v >= 0 ? riseHex() : fallHex() }}>
             {v >= 0 ? '+' : ''}
             {formatNumber(Number(v), 2)}
           </span>
@@ -157,7 +157,7 @@ export function PaperTradePositions({
         ) : (
           <span
             className="font-mono"
-            style={{ color: Number(v) >= 0 ? riseColor() : fallColor() }}
+            style={{ color: Number(v) >= 0 ? riseHex() : fallHex() }}
           >
             {formatPercent(Number(v))}
           </span>
@@ -174,7 +174,7 @@ export function PaperTradePositions({
                 <Button
                   type="link"
                   size="small"
-                  style={{ color: riseColor() }}
+                  style={{ color: riseHex() }}
                   onClick={() =>
                     onTrade({
                       symbol: record.stockCode || record.symbol,
@@ -188,7 +188,7 @@ export function PaperTradePositions({
                 <Button
                   type="link"
                   size="small"
-                  style={{ color: fallColor() }}
+                  style={{ color: fallHex() }}
                   disabled={(record.availableVolume ?? 0) <= 0}
                   onClick={() =>
                     onTrade({

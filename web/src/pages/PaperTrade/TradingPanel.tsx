@@ -13,10 +13,10 @@ import {
 import { useStockQuote, useStockSearch } from '@/hooks/useStocks'
 import { bjNow } from '@/utils/beijing'
 import {
-  changeColor,
-  fallColor,
+  changeHex,
+  fallHex,
   formatPercent,
-  riseColor,
+  riseHex,
 } from '@/utils/formatters'
 
 import {
@@ -234,7 +234,7 @@ export function TradingPanel({
             方向：
             <span
               style={{
-                color: values.side === 'buy' ? riseColor() : fallColor(),
+                color: values.side === 'buy' ? riseHex() : fallHex(),
               }}
             >
               {sideLabel}
@@ -251,7 +251,7 @@ export function TradingPanel({
     })
   }
 
-  const sideColor = side === 'buy' ? riseColor() : fallColor()
+  const sideColor = side === 'buy' ? riseHex() : fallHex()
   const quickBase = side === 'buy' ? maxBuy : maxSell
   const applyRatio = (ratio: number) => {
     if (quickBase == null) return
@@ -291,7 +291,7 @@ export function TradingPanel({
           <div className="grid grid-cols-2 gap-2">
             {(['buy', 'sell'] as const).map((s) => {
               const active = side === s
-              const color = s === 'buy' ? riseColor() : fallColor()
+              const color = s === 'buy' ? riseHex() : fallHex()
               return (
                 <Button
                   key={s}
@@ -330,17 +330,17 @@ export function TradingPanel({
             </Form.Item>
             {quote && (
               <div className="-mt-1 mb-2 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                <span className="text-sm font-medium" style={{ color: changeColor(quote.changePct) }}>
+                <span className="text-sm font-medium" style={{ color: changeHex(quote.changePct) }}>
                   {quote.price != null ? Number(quote.price).toFixed(2) : '-'}
                 </span>
                 {quote.changePct != null && (
-                  <span className="text-xs" style={{ color: changeColor(quote.changePct) }}>
+                  <span className="text-xs" style={{ color: changeHex(quote.changePct) }}>
                     {formatPercent(quote.changePct)}
                   </span>
                 )}
                 {quoteRow('昨收', quote.prevClose != null ? Number(quote.prevClose).toFixed(2) : '-')}
-                {limits && quoteRow('涨停', limits.limitUp.toFixed(2), riseColor())}
-                {limits && quoteRow('跌停', limits.limitDown.toFixed(2), fallColor())}
+                {limits && quoteRow('涨停', limits.limitUp.toFixed(2), riseHex())}
+                {limits && quoteRow('跌停', limits.limitDown.toFixed(2), fallHex())}
               </div>
             )}
             <div className="flex items-start gap-2">

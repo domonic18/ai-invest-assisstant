@@ -78,6 +78,9 @@ export function formatSealTime(value: string | null | undefined): string {
   return `${digits.slice(0, 2)}:${digits.slice(2, 4)}:${digits.slice(4, 6)}`
 }
 
+// 涨跌色两组 helper 不可混用：*Color() 返回 Tailwind class，只能进 className；
+// 内联 style.color 需要 CSS 颜色值，必须用 *Hex()——class 名塞进 style.color
+// 会被浏览器静默忽略回退白色（盈亏数字全白事故）
 const RISE_COLOR = { cn: 'text-red-500', us: 'text-green-500' } as const
 const FALL_COLOR = { cn: 'text-green-500', us: 'text-red-500' } as const
 const RISE_COLOR_SOFT = { cn: 'text-red-400', us: 'text-green-400' } as const

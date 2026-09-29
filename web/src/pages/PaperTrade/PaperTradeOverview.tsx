@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 
 import type { ApiPaperTradeCash } from '@ai-invest/shared'
 
-import { changeColor, formatAmount, formatNumber, formatPercent } from '@/utils/formatters'
+import { changeHex, formatAmount, formatNumber, formatPercent } from '@/utils/formatters'
 
 interface PaperTradeOverviewProps {
   cash?: ApiPaperTradeCash | null
@@ -69,7 +69,7 @@ export function PaperTradeOverview({ cash, dayPnl, dayPnlPct, children }: PaperT
                     dayPnlPct != null ? ` (${formatPercent(dayPnlPct)})` : ''
                   }`
             }
-            color={dayPnl == null ? undefined : changeColor(dayPnl)}
+            color={dayPnl == null ? undefined : changeHex(dayPnl)}
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">{children}</div>
