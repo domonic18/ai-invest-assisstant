@@ -11,6 +11,9 @@ const Admin = lazy(() => import('./pages/Admin/Admin').then((m) => ({ default: m
 const AdminNews = lazy(() => import('./pages/Admin/News/News').then((m) => ({ default: m.AdminNews })))
 const AdminReports = lazy(() => import('./pages/Admin/Reports/Reports').then((m) => ({ default: m.AdminReports })))
 const AdminStocks = lazy(() => import('./pages/Admin/Stocks/Stocks').then((m) => ({ default: m.AdminStocks })))
+const StockConcepts = lazy(() =>
+  import('./pages/Admin/StockConcepts/StockConcepts').then((m) => ({ default: m.StockConcepts })),
+)
 const AdminUsers = lazy(() => import('./pages/Admin/Users/Users').then((m) => ({ default: m.AdminUsers })))
 const CollectorAdmin = lazy(() =>
   import('./pages/Admin/Collector').then((m) => ({ default: m.CollectorAdmin })),
@@ -149,6 +152,7 @@ export const router = createBrowserRouter([
           { path: 'users', element: lazyEl(<AdminUsers />) },
           { path: 'usage-dashboard', element: lazyEl(<UsageDashboard />) },
           { path: 'stocks', element: lazyEl(<AdminStocks />) },
+          { path: 'stock-concepts', element: lazyEl(<StockConcepts />) },
           { path: 'reports', element: lazyEl(<AdminReports />) },
           { path: 'news', element: lazyEl(<AdminNews />) },
           // 旧路由兜底：任务/渠道配置并入采集管理（tab 直达）

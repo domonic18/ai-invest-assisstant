@@ -215,6 +215,8 @@ export const ENDPOINTS = {
     accountSettings: `${API_BASE}/admin/settings/account`,
     stocks: `${API_BASE}/admin/stocks/`,
     stock: (id: number | string) => `${API_BASE}/admin/stocks/${id}`,
+    stockConcepts: `${API_BASE}/admin/stock-concepts/`,
+    stockConcept: (id: number | string) => `${API_BASE}/admin/stock-concepts/${id}`,
     reports: `${API_BASE}/admin/reports/`,
     reportStorageSummary: `${API_BASE}/admin/reports/storage-summary`,
     reportCleanup: `${API_BASE}/admin/reports/cleanup-old`,

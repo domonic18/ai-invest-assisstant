@@ -47,6 +47,7 @@ from app.api.v1.admin import paper_trade as admin_paper_trade
 from app.api.v1.admin import proxy_configs as admin_proxy_configs
 from app.api.v1.admin import reports as admin_reports
 from app.api.v1.admin import social as admin_social
+from app.api.v1.admin import stock_concepts as admin_stock_concepts
 from app.api.v1.admin import stocks as admin_stocks
 from app.api.v1.admin import system as admin_system
 from app.api.v1.admin import tasks as admin_tasks
@@ -98,6 +99,7 @@ admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(admin_users.router, prefix="/users")
 admin_router.include_router(admin_account.router)
 admin_router.include_router(admin_stocks.router, prefix="/stocks")
+admin_router.include_router(admin_stock_concepts.router, prefix="/stock-concepts")
 admin_router.include_router(admin_reports.router, prefix="/reports")
 admin_router.include_router(admin_news.router, prefix="/news")
 admin_router.include_router(admin_paper_trade.router)

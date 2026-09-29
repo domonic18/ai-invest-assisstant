@@ -9,6 +9,7 @@ import {
   PlayCircleOutlined,
   ReadOutlined,
   RobotOutlined,
+  TagsOutlined,
   TeamOutlined,
   WeiboOutlined,
 } from '@ant-design/icons'
@@ -26,6 +27,7 @@ const ADMIN_LINKS = [
   { title: '用户管理', path: '/admin/users', icon: <TeamOutlined />, color: 'bg-blue-500/10 text-blue-400' },
   { title: '用量看板', path: '/admin/usage-dashboard', icon: <PieChartOutlined />, color: 'bg-violet-500/10 text-violet-400' },
   { title: '股票管理', path: '/admin/stocks', icon: <BarChartOutlined />, color: 'bg-green-500/10 text-green-400' },
+  { title: '题材映射', path: '/admin/stock-concepts', icon: <TagsOutlined />, color: 'bg-lime-500/10 text-lime-400' },
   { title: '报告管理', path: '/admin/reports', icon: <FileTextOutlined />, color: 'bg-purple-500/10 text-purple-400' },
   { title: '资讯管理', path: '/admin/news', icon: <ReadOutlined />, color: 'bg-orange-500/10 text-orange-400' },
   { title: '模型配置', path: '/admin/model-configs', icon: <RobotOutlined />, color: 'bg-pink-500/10 text-pink-400' },
