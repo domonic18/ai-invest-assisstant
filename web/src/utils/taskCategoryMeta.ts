@@ -20,7 +20,7 @@ export const TASK_CATEGORY_META: Record<string, TaskCategoryMeta> = {
   fundamental: { label: '个股资料', color: '#ce9178', nav: '个股页 · 基本面资料' },
   ai: { label: 'AI 自动化', color: '#a78bfa', nav: '定时 AI 自动化（复盘 / 异动 / 资讯分级 / 情绪）' },
   social: { label: '社媒采集', color: '#f472b6', nav: '导航：后台 → 社媒追踪' },
-  kb: { label: '知识库', color: '#2dd4bf', nav: '右上角知识库 / 管理后台 → 知识库' },
+  kb: { label: '知识中心', color: '#2dd4bf', nav: '右上角知识库 / 管理后台 → 知识中心' },
   maintenance: { label: '系统维护', color: '#8a8f98' },
   other: { label: '其他', color: '#5c616e' },
 }
