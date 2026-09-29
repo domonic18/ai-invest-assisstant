@@ -525,6 +525,9 @@ class TradingAgentPlansResponse(CamelModel):
     next_trade_date: date | None = None
     plans: list[TradingAgentPlanResponse] = []
     stand_aside_reason: str | None = None
+    #: 所选日盘中执行的计划集的制定日（max(plan_date) < 该日且次日恰为该日）；
+    #: 供前端空态「该日执行的是 T 日计划」引导跳转，无则 null
+    executing_plan_date: date | None = None
 
 
 class TradingAgentDatesResponse(CamelModel):

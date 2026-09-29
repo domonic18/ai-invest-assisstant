@@ -179,6 +179,8 @@ export interface ApiTradingAgentPlansResponse {
   plans: ApiTradingAgentPlan[]
   /** 空仓观望原因：plans 空且非空 = 已生成但空仓观望；null = 该日未生成。 */
   standAsideReason: string | null
+  /** 所选日盘中执行的计划集的制定日（空态引导跳转用）；无则 null。 */
+  executingPlanDate: string | null
 }
 
 /** agent 选股条目（模拟管理「Agent 自选」：AI 依据 + 置信度）。 */
