@@ -1,4 +1,4 @@
-import ReactECharts from 'echarts-for-react'
+import ReactECharts from '@/components/charts/ReactECharts'
 import type { ECharts, EChartsOption, SeriesOption } from 'echarts'
 import { useState } from 'react'
 

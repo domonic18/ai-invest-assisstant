@@ -1,16 +1,31 @@
 import { Drawer } from 'antd'
-import { useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
-
-import { AssistantFab, AssistantPanel } from '@/components/assistant/AssistantPanel'
 
 import { Header } from './Header'
 import { MobileTabBar } from './MobileTabBar'
 import { Sidebar, SidebarMenu } from './Sidebar'
 
+// assistant 生态（@assistant-ui + langgraph-sdk + markdown 管线）体积大且首屏
+// 用不到，懒加载使其依赖整体移出 index chunk；空闲时预取，点击时零等待
+const AssistantFab = lazy(() =>
+  import('@/components/assistant/AssistantPanel').then((m) => ({ default: m.AssistantFab })),
+)
+const AssistantPanel = lazy(() =>
+  import('@/components/assistant/AssistantPanel').then((m) => ({ default: m.AssistantPanel })),
+)
+
+function useIdlePrefetch() {
+  useEffect(() => {
+    const id = window.requestIdleCallback(() => void import('@/components/assistant/AssistantPanel'), { timeout: 5000 })
+    return () => window.cancelIdleCallback(id)
+  }, [])
+}
+
 export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const closeMenu = () => setMenuOpen(false)
+  useIdlePrefetch()
 
   return (
     <div className="flex h-screen bg-[#0c0e12] text-gray-100">
@@ -32,8 +47,10 @@ export function Layout() {
       >
         <SidebarMenu onNavigate={closeMenu} />
       </Drawer>
-      <AssistantFab />
-      <AssistantPanel />
+      <Suspense fallback={null}>
+        <AssistantFab />
+        <AssistantPanel />
+      </Suspense>
     </div>
   )
 }

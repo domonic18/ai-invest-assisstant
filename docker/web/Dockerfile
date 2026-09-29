@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # backend-builder
 FROM python:3.11-slim-bookworm AS backend-builder
 WORKDIR /app
@@ -54,9 +55,12 @@ RUN set -eux; \
 WORKDIR /app
 
 ENV PATH="/app/.venv/bin:$PATH"
+# venv 单独成层：源码变更不重写 venv 层，SCF 按层增量拉取只取小层；
+# 第二条 COPY 须排除 .venv/tests，否则 venv 双份入镜像（曾致镜像虚胖）
 COPY --from=backend-builder /app/.venv /app/.venv
-COPY --from=backend-builder /app /app
-COPY --from=frontend-builder /web/dist /app/static
+COPY --from=backend-builder --exclude=.venv --exclude=tests /app /app
+# sourcemap（hidden：HTML 不引用）只留本地排障，不入运行时镜像
+COPY --from=frontend-builder --exclude=**/*.map /web/dist /app/static
 # 助手 Skills：settings.skills_dir 在容器内解析为 /skills（/app 的上四级）
 COPY skills/ /skills/
 

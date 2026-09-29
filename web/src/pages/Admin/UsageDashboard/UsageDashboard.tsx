@@ -2,7 +2,7 @@ import { ClearOutlined, DownOutlined } from '@ant-design/icons'
 import { App, Button, Card, Col, Row, Segmented, Statistic, Table, Tabs, Tag, Typography } from 'antd'
 import type { TableColumnsType } from 'antd'
 import dayjs from 'dayjs'
-import ReactECharts from 'echarts-for-react'
+import ReactECharts from '@/components/charts/ReactECharts'
 import { useState } from 'react'
 import {
   USAGE_FEATURE_LABELS,

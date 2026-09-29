@@ -1,19 +1,18 @@
 # Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-*.env
-.venv/
-# .venv/ 只匹配根级；backend/.venv（~800MB）须 **/ 才能挡住，否则 COPY backend/ 会带入镜像
+# 缓存类条目必须 **/ 前缀：裸目录名只匹配仓库根级，挡不住 backend/ 子级
+# （曾因 .mypy_cache/ 漏匹配 backend/.mypy_cache（308MB）打进镜像，同因 .venv/ 漏挡 backend/.venv）
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
 **/.venv/
+*.env
 
 # Node
-node_modules/
 **/node_modules/
-dist/
+**/dist/
 build/
 *.log
 
