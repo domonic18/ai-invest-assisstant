@@ -31,6 +31,11 @@ export function mapChainAlert(dto: ApiChainAlert): ChainAlert {
       name: item.name,
       changePct: item.changePct ?? null,
     })),
+    sources: (dto.sources || []).map((item) => ({
+      title: item.title,
+      source: item.source,
+      publishDate: item.publishDate || '',
+    })),
     signalDate: dto.signalDate,
     createdAt: dto.createdAt,
   }

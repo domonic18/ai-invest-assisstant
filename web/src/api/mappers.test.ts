@@ -198,6 +198,10 @@ describe('mappers', () => {
       description: '头部代工厂 3nm 良率爬坡超预期',
       affectedSegments: ['晶圆制造'],
       relatedStocks: [{ code: '688981', name: '中芯国际', changePct: 3.2 }],
+      sources: [
+        { title: '中芯国际扩产公告', source: 'sina', publishDate: '2026-08-28' },
+        { title: '无日期信源', source: 'cls', publishDate: '' },
+      ],
       signalDate: '2026-08-29',
       createdAt: '2026-08-29T06:05:00+08:00',
     }
@@ -209,6 +213,10 @@ describe('mappers', () => {
     expect(alert.affectedSegments).toEqual(['晶圆制造'])
     expect(alert.relatedStocks).toEqual([
       { code: '688981', name: '中芯国际', changePct: 3.2 },
+    ])
+    expect(alert.sources).toEqual([
+      { title: '中芯国际扩产公告', source: 'sina', publishDate: '2026-08-28' },
+      { title: '无日期信源', source: 'cls', publishDate: '' },
     ])
     expect(alert.signalDate).toBe('2026-08-29')
   })
@@ -227,6 +235,7 @@ describe('mappers', () => {
     })
     expect(alert.affectedSegments).toEqual([])
     expect(alert.relatedStocks).toEqual([])
+    expect(alert.sources).toEqual([])
     expect(alert.description).toBe('')
   })
 
