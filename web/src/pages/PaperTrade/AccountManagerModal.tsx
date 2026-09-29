@@ -121,7 +121,8 @@ export function AccountManagerModal({
             编辑
           </Button>
           <Popconfirm
-            title="删除后不可恢复，确认删除？"
+            title="确认删除该账户？"
+            description="柜台侧已销户的账户可删除；历史交易数据保留在库中但不再展示。"
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>

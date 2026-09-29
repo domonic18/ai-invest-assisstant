@@ -130,7 +130,7 @@ async def delete_account(
     session: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> None:
-    """删除账户配置（已有交易数据时 409 拒绝）。"""
+    """删除账户配置（绑定交易 Agent 时 409 拒绝；历史数据保留在库）。"""
     await account_service.delete_account(session, current_user.id, account_id)
 
 
