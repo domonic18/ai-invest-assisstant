@@ -64,14 +64,20 @@ def _to_item(
                 return float(value)
         return None
 
+    score = _num("score", score_answer)
+
     decision = None
     if row.decision_answers:
         decision = TradingAgentObservationDecision(
             served_model=answers.get("served_model"),
             choice=action_answer.get("choice"),
             confidence=_num("confidence", action_answer),
-            noul=bool(noul) if noul is not None else None,
-            score=_num("score", score_answer),
+            # openjev noul 存 p(yes)（数字即信念），按 0.5 阈值归 boolean——
+            # 不能用真值化（p=0.06 也会成 True，「分时支持」语义失真）
+            noul=(noul >= 0.5) if noul is not None else None,
+            # score 是 0-4 概率加权位置（答案 legend 为 {"0": "1 极弱"...}），
+            # 归一为 legend 口径的 1-5，否则显示整体低 1 档且「极强」档不可达
+            score=score + 1 if score is not None else None,
             window=snapshot.get("window"),
         )
     volume = snapshot.get("volume")

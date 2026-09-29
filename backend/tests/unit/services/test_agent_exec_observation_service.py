@@ -37,8 +37,21 @@ def _obs(**overrides: Any) -> PaperTradeExecObservation:
             "served_model": "openjev-0.1",
             "thresholds": {"observe": 0.6, "fund_action": 0.85},
             "action": {"type": "choice", "choice": "立即执行", "confidence": 0.52},
-            "noul": {"type": "noul", "noul": True},
-            "score": {"type": "score", "score": 3},
+            # openjev wire 真实形状：noul 存 p(yes)，score 是 0-4 加权位置
+            "noul": {"type": "noul", "noul": 0.62},
+            "score": {
+                "type": "score",
+                "score": 2.0,
+                "probabilities": {"0": 0.1, "1": 0.2, "2": 0.4, "3": 0.2, "4": 0.1},
+                "confidence": 0.4,
+                "legend": {
+                    "0": "1 大盘恐慌杀跌，不宜任何新动作",
+                    "1": "2 大盘弱势，仅支持明确的止损离场",
+                    "2": "3 大盘中性震荡，可中性执行",
+                    "3": "4 大盘强势，支持顺势执行",
+                    "4": "5 大盘极强且主线共振，可积极执行",
+                },
+            },
         },
         action="suppress",
         suppression_reason="below_threshold",
@@ -109,6 +122,45 @@ class TestListAgentObservations:
         assert item.decision.window is None
         assert page.trade_date == date(2026, 9, 29)
         assert page.total == 1
+
+    async def test_answer_normalization_boundaries(self) -> None:
+        """noul p(yes) 按 0.5 阈值归 boolean（真值化会让 p=0.06 成 True）；
+        score 0-4 加权位置归一为 legend 口径 1-5。"""
+        rows = [
+            _obs(
+                id=21,
+                plan_id=11,
+                decision_answers={
+                    "served_model": "openjev-0.1",
+                    "noul": {"type": "noul", "noul": 0.06},
+                    "score": {"type": "score", "score": 0.0, "legend": {"0": "1 极弱"}},
+                },
+            ),
+            _obs(
+                id=22,
+                plan_id=12,
+                decision_answers={
+                    "served_model": "openjev-0.1",
+                    "noul": {"type": "noul", "noul": 0.5},
+                    "score": {"type": "score", "score": 4.0, "legend": {"4": "5 极强"}},
+                },
+            ),
+        ]
+        session = _session(
+            rows=rows,
+            names=[("600000", "浦发银行")],
+            plans=[(11, "sell"), (12, "sell")],
+            summary=[("triggered", None, None, 2)],
+        )
+        page = await svc.list_agent_observations(
+            session, "short-line", trade_date=date(2026, 9, 29), page=1, page_size=20
+        )
+        low, high = page.items
+        assert low.decision is not None and high.decision is not None
+        assert low.decision.noul is False  # p=0.06 明确「不支持」
+        assert low.decision.score == pytest.approx(1.0)
+        assert high.decision.noul is True  # 0.5 阈值含边界
+        assert high.decision.score == pytest.approx(5.0)  # 满位可达「极强」
 
     async def test_no_action_row_without_answers(self) -> None:
         session = _session(
