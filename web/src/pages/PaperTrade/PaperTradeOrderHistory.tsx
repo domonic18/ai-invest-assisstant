@@ -19,7 +19,6 @@ import {
   fallHex,
   formatDateTime,
   formatNumber,
-  riseHex,
 } from '@/utils/formatters'
 import {
   paperTradeOrderStatus,
@@ -27,6 +26,7 @@ import {
 } from '@ai-invest/shared'
 
 import { isMarketOpen } from './tradingRules'
+import { SideTag } from './SideTag'
 import { SymbolCell } from './PaperTradePositions'
 
 const PAGE_SIZE = 20
@@ -35,10 +35,9 @@ const PAGE_SIZE = 20
 const CANCELLABLE_STATUSES = new Set([1, 2])
 
 function sideCell(side: number | null | undefined) {
-  if (side === 1) return <span style={{ color: riseHex() }}>买入</span>
-  if (side === 2) return <span style={{ color: fallHex() }}>卖出</span>
-  return '-'
+  return <SideTag side={side} />
 }
+
 
 function sourceCell(source?: string | null) {
   if (source === 'agent') return <Tag color="gold">Agent</Tag>

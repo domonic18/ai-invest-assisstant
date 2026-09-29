@@ -22,9 +22,11 @@ import {
 } from '@/api/paperTrade'
 import type {
   ApiPaperTradeAccountSaveRequest,
+  ApiPaperTradeCash,
   ApiPaperTradePlaceOrderRequest,
 } from '@ai-invest/shared'
 import { queryKeys } from '@/hooks/queryKeys'
+import { dailyPnl } from '@/utils/paperTradeMetrics'
 
 // ============================================================
 // 错误提示
@@ -192,6 +194,15 @@ export function usePaperTradeNav(accountId: number | undefined, days = 30) {
     queryFn: () => fetchPaperTradeNav(accountId as number, days),
     enabled: accountId != null,
   })
+}
+
+/** 当日盈亏（nav 快照差 + 出入金增量修正，口径见 utils/paperTradeMetrics）。 */
+export function useDailyPnl(
+  accountId: number | undefined,
+  cash: ApiPaperTradeCash | null | undefined,
+) {
+  const { data: navData } = usePaperTradeNav(accountId, 10)
+  return dailyPnl(navData?.items, cash)
 }
 
 /** B/S/T 图表标记：当前用户全账户对该标的的成交回报（个股详情页消费）。 */

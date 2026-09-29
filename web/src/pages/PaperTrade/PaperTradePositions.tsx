@@ -14,7 +14,8 @@ import {
   riseHex,
 } from '@/utils/formatters'
 
-import type { OrderPrefill } from './TradingPanel'
+import type { OrderPrefill } from './orderForm'
+import { SideTag } from './SideTag'
 
 /** 标的单元格：名称 + 6 位代码 + 当日涨幅（行情 30s 轮询）；6 位代码可点跳个股详情。 */
 export function SymbolCell({ code }: { code: string }) {
@@ -76,14 +77,7 @@ export function PaperTradePositions({
       title: '方向',
       dataIndex: 'side',
       width: 70,
-      render: (side: number | null | undefined) =>
-        side === 1 ? (
-          <span style={{ color: riseHex() }}>买入</span>
-        ) : side === 2 ? (
-          <span style={{ color: fallHex() }}>卖出</span>
-        ) : (
-          '-'
-        ),
+      render: (side: number | null | undefined) => <SideTag side={side} />,
     },
     {
       title: '持仓',
