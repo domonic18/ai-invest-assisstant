@@ -34,6 +34,11 @@ def bare_stock_code(symbol: str) -> str:
     return symbol.split(".", 1)[1] if "." in symbol else symbol
 
 
+def row_stock_code(row: dict[str, Any]) -> str:
+    """柜台持仓/委托行的 6 位代码（行键是掘金格式 ``symbol``，无 ``stock_code``）。"""
+    return bare_stock_code(str(row.get("symbol") or ""))
+
+
 def parse_counter_datetime(value: Any) -> datetime | None:
     """柜台时间字段容错解析：epoch 秒/毫秒或 ISO 字符串 → aware UTC。"""
     if isinstance(value, bool) or value is None:

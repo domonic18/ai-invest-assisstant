@@ -303,12 +303,12 @@ async def _buy_volume(account: PaperTradeAccount, plan: AgentTradePlan, *, price
 async def _held_volume(account: PaperTradeAccount, stock_code: str) -> int:
     """当前持仓股数（卖出计划 / 尾盘强检卖出量）。"""
     from app.services.trading.client import get_client
-    from app.services.trading.paper_trade_converters import unwrap_rows
+    from app.services.trading.paper_trade_converters import row_stock_code, unwrap_rows
 
     for row in unwrap_rows(
         await get_client().get_positions(account_service.credentials_for(account))
     ):
-        if str(row.get("stock_code") or "") == stock_code:
+        if row_stock_code(row) == stock_code:
             return int(row.get("volume") or 0)
     return 0
 

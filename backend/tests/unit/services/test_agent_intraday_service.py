@@ -616,3 +616,34 @@ class TestPlanStockCodes:
         codes = await svc.plan_stock_codes(session, trade_date=_DATE)
         assert codes == set()
         session.scalars.assert_not_awaited()
+
+
+@pytest.mark.unit
+class TestHeldVolume:
+    async def test_matches_counter_symbol_key(self) -> None:
+        """柜台持仓行键为掘金 symbol（SZSE.000504），按裸代码匹配命中。"""
+        client = SimpleNamespace(
+            get_positions=AsyncMock(
+                return_value=[
+                    {"symbol": "SZSE.301311", "volume": 100},
+                    {"symbol": "SZSE.000504", "volume": 100},
+                    {"symbol": "SHSE.600815", "volume": 100},
+                ]
+            )
+        )
+        with (
+            patch("app.services.trading.client.get_client", return_value=client),
+            patch.object(svc.account_service, "credentials_for", return_value=object()),
+        ):
+            assert await svc._held_volume(MagicMock(), "000504") == 100
+            assert await svc._held_volume(MagicMock(), "600815") == 100
+            assert await svc._held_volume(MagicMock(), "002238") == 0
+
+    async def test_empty_positions_return_zero(self) -> None:
+        """柜台空持仓（{} 或 []）返回 0。"""
+        client = SimpleNamespace(get_positions=AsyncMock(return_value={}))
+        with (
+            patch("app.services.trading.client.get_client", return_value=client),
+            patch.object(svc.account_service, "credentials_for", return_value=object()),
+        ):
+            assert await svc._held_volume(MagicMock(), "000504") == 0

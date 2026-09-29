@@ -22,7 +22,7 @@ from app.core.clock import today_cn
 from app.models.paper_trade import PaperTradeAccount, PaperTradeOrder
 from app.services.trading import account_service
 from app.services.trading.client import get_client
-from app.services.trading.paper_trade_converters import unwrap_rows
+from app.services.trading.paper_trade_converters import row_stock_code, unwrap_rows
 from app.services.trading.paper_trade_mappers import normalize_cash_row
 
 logger = structlog.get_logger(__name__)
@@ -205,7 +205,7 @@ async def check_order_risk(
         market_value = row.get("market_value")
         value = float(market_value) if market_value is not None else 0.0
         total_position_value += value
-        if str(row.get("stock_code") or "") == stock_code:
+        if row_stock_code(row) == stock_code:
             position_value = value
             row_volume = row.get("volume")
             position_volume = int(row_volume) if row_volume is not None else 0
