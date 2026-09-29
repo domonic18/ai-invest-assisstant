@@ -150,6 +150,42 @@ class TestEastmoneyGlobalIndexHistory:
         assert items[1]["change_pct"] == pytest.approx(-2.55, rel=1e-2)
         assert items[1]["index_code"] == "GC00Y"
 
+    async def test_history_branch_restricted_to_dxy_and_gold(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """历史回补只覆盖 DXY/GC00Y：其余 eastmoney 代码（HSI/NDX…）若落入
+        _gold_history 会被误标为 GC00Y，须在入口过滤掉。"""
+        gold_calls: list[str] = []
+        fake_akshare = types.ModuleType("akshare")
+
+        def fake_hist(symbol: str) -> pd.DataFrame:
+            gold_calls.append(symbol)
+            return pd.DataFrame(
+                {
+                    "date": ["2026-09-01"],
+                    "open": [4498.7],
+                    "high": [4510.5],
+                    "low": [4369.7],
+                    "close": [4375.7],
+                    "volume": [0],
+                }
+            )
+
+        fake_akshare.futures_foreign_hist = fake_hist
+        monkeypatch.setitem(sys.modules, "akshare", fake_akshare)
+
+        collector = EastmoneyGlobalIndexCollector(config={"source": "eastmoney"})
+        payload = {"data": {"klines": ["2026-09-01,99.41,99.66,99.72,99.35,0"]}}
+        with patch(
+            "collector.spiders.eastmoney_global_index.eastmoney_get_chrome",
+            return_value=_response(payload),
+        ):
+            items = await collector.collect(history_days=3)
+
+        codes = {i["index_code"] for i in items}
+        assert codes == {"DXY", "GC00Y"}
+        assert gold_calls == ["GC"]
+
 
 @pytest.mark.unit
 class TestTushareUsYield:
