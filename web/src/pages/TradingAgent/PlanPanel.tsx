@@ -170,6 +170,7 @@ export function PlanPanel() {
             <Button
               type="link"
               size="small"
+              className="!whitespace-normal"
               onClick={() => {
                 if (data.executingPlanDate) setSelectedDate(dayjs(data.executingPlanDate))
               }}
@@ -182,7 +183,8 @@ export function PlanPanel() {
         <Space direction="vertical" size="small" className="w-full">
           {data.nextTradeDate && (
             <div>
-              <Tag color="geekblue">
+              {/* antd Tag 默认 nowrap，长文案窄屏溢出视口，允许折行 */}
+              <Tag color="geekblue" className="!whitespace-normal">
                 制定 {data.tradeDate}（{weekdayLabel(data.tradeDate)}）→ 执行{' '}
                 {data.nextTradeDate}（{weekdayLabel(data.nextTradeDate)}）盘中 ·
                 09:30–11:30 / 13:00–15:00
