@@ -1,430 +1,58 @@
-"""盘中自主执行链核心服务（批次 8 PR-1，paper-trading-plan §11 / D21/D24）。
+"""盘中自主执行链编排（批次 8 PR-1，paper-trading-plan §11 / D21/D24）。
 
-四层栈：L0 确定性判定（精确比价 + 涨跌停粗校，纯函数）→ L1 判断模型
-（一次 ask_decision 批量提问全部触发计划，Choice/Noul/Score）→ L2 阈值
-抑制留痕 → L3 落 ``paper_trade_exec_observation`` 观测行。
+四层栈：L0 确定性判定 → L1 判断模型（一次 ask_decision 批量提问全部触发
+计划）→ L2 阈值抑制留痕 → L3 落 ``paper_trade_exec_observation`` 观测行。
+判定核（L0→L2 纯决策）在 ``agent_intraday_decision``，broker 触达与未结
+对账在 ``agent_intraday_exec``，本模块只做编排：拉 agent/计划集、聚合
+行情、推进观测与计数。
 
 ``intraday_exec_mode`` 三态语义：``shadow`` 全链路判断留痕不下单（影子期
-校准数据集）；``active`` 触发即经 ``execute_agent_order`` 真实下单并推进
-计划状态机；``off`` 不进入本服务。判断模型异常为 advisory 降级：当次 tick
-纯 L0，观测记 ``model_degraded``，禁止用阈值近似替代判断。
+校准数据集）；``active`` 触发即真实下单并推进计划状态机；``off`` 不进入
+本服务。判断模型异常为 advisory 降级：当次 tick 纯 L0，观测记
+``model_degraded``，禁止用阈值近似替代判断。
 """
 
 from contextlib import nullcontext
-from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
 
-import structlog
 from sqlalchemy import func, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.clock import today_cn, utc_now
+from app.core.clock import utc_now
 from app.core.decision_model.contracts import (
     DEFAULT_THRESHOLDS,
-    DecisionThresholds,
     JudgeAnswer,
-    JudgeQuestion,
-    thresholds_from_extra,
 )
 from app.core.decision_model.errors import DecisionModelError
 from app.models.agent_trading import AgentTradePlan
-from app.models.llm_config import LLMConfig
-from app.models.paper_trade import (
-    PaperTradeAccount,
-    PaperTradeExecObservation,
-    PaperTradeOrder,
-    TradingAgent,
-)
+from app.models.paper_trade import PaperTradeExecObservation, TradingAgent
 from app.services.admin.decision_model_service import ask_decision
 from app.services.admin.llm_config_service import LLMConfigNotConfiguredError
-from app.services.trading import account_service, agent_registry
-from app.services.trading.agent_intraday_questions import (
-    CHOICE_ACTION_ABANDON,
-    CHOICE_ACTION_EXECUTE,
-    CHOICE_INTRADAY_ACTION_BUY,
-    CHOICE_INTRADAY_ACTION_SELL,
-    NOUL_BUY_TIMING,
-    NOUL_EXIT_TIMING,
-    SCORE_MARKET_SUPPORT,
+from app.services.trading import agent_registry
+from app.services.trading.agent_intraday_decision import (
+    ACTION_EXECUTE,
+    ACTION_SUPPRESS,
+    L0_DEGRADED,
+    L0_TRIGGERED,
+    REASON_STOP_LOSS,
+    SUPPRESS_NO_ACCOUNT,
+    L0Result,
+    _answers_payload,
+    _choice_answer,
+    _decide,
+    _questions,
+    _state,
+    _thresholds_for,
+    evaluate_l0,
+)
+from app.services.trading.agent_intraday_exec import (
+    _account_or_none,
+    _execute_candidate,
+    _reconcile_pending_orders,
+    execute_tail_stop,
 )
 from app.services.trading.agent_run_recorder import AgentRunRecorder
-from app.services.trading.agent_trade_service import (
-    RiskRejectedError,
-    execute_agent_order,
-)
-from app.services.trading.errors import (
-    AgentAccountNotDesignatedError,
-    PaperTradeGatewayError,
-    PaperTradeNotConfiguredError,
-)
-from app.services.trading.risk_control import limit_prices, price_limit_pct
-
-logger = structlog.get_logger(__name__)
-
-# L0 判定结论（paper_trade_exec_observation.l0_verdict 值域）
-L0_NO_ACTION = "no_action"
-L0_NEAR_TRIGGER = "near_trigger"
-L0_TRIGGERED = "triggered"
-L0_DEGRADED = "degraded"
-
-# 触发原因 / 动作 / 抑制原因（observation 对应列值域）
-REASON_BUY_ZONE = "buy_zone"
-REASON_TARGET = "target"
-REASON_STOP_LOSS = "stop_loss"
-
-ACTION_EXECUTE = "execute"
-ACTION_WAIT = "wait"
-ACTION_ABANDON = "abandon"
-ACTION_SUPPRESS = "suppress"
-
-SUPPRESS_SHADOW = "shadow_mode"
-SUPPRESS_BELOW_THRESHOLD = "below_threshold"
-SUPPRESS_L0_REJECT = "l0_reject"
-SUPPRESS_MODEL_DEGRADED = "model_degraded"
-SUPPRESS_RISK_REJECTED = "risk_rejected"
-SUPPRESS_NO_ACCOUNT = "no_account"
-SUPPRESS_ORDER_ERROR = "order_error"
-
-
-@dataclass(slots=True)
-class L0Result:
-    """L0 确定性判定结果（纯函数产物，无 IO）。"""
-
-    verdict: str
-    trigger_reason: str | None = None
-    #: 纪律性否决（如已跌破止损位仍处买入计划）——非触发也非等待
-    reject: bool = False
-    detail: str | None = None
-
-
-def evaluate_l0(
-    plan: AgentTradePlan,
-    *,
-    price: float,
-    prev_close: float | None,
-    stock_name: str | None = None,
-) -> L0Result:
-    """单计划 L0 比价判定：buy 看买点区间，sell 看止盈/止损。
-
-    涨跌停粗校：触发价触板时按不可成交处理（涨停不追买），以昨收推算
-    （``risk_control.limit_prices``，ST ±5 依赖名称识别）；缺昨收跳过该校。
-    """
-    if plan.plan_type == "buy":
-        if price <= float(plan.stop_loss):
-            return L0Result(
-                L0_NO_ACTION, reject=True, detail=f"现价 {price} 已跌破止损位 {plan.stop_loss}"
-            )
-        low = float(plan.buy_zone_low) if plan.buy_zone_low is not None else None
-        high = float(plan.buy_zone_high) if plan.buy_zone_high is not None else None
-        if low is None or high is None:
-            return L0Result(L0_NO_ACTION, reject=True, detail="计划缺买点区间")
-        if low <= price <= high:
-            limit_up = (
-                limit_prices(prev_close, price_limit_pct(stock_name, plan.stock_code))[1]
-                if prev_close
-                else None
-            )
-            if limit_up is not None and price >= limit_up:
-                return L0Result(L0_NO_ACTION, detail="触板涨停，不追买")
-            return L0Result(L0_TRIGGERED, REASON_BUY_ZONE)
-        if price > high:
-            return L0Result(L0_NO_ACTION, detail="高于买点区间，不追高")
-        return L0Result(L0_NEAR_TRIGGER, detail="低于买点区间，等待回踩")
-
-    target = float(plan.target_price) if plan.target_price is not None else None
-    if target is not None and price >= target:
-        return L0Result(L0_TRIGGERED, REASON_TARGET)
-    if price <= float(plan.stop_loss):
-        return L0Result(L0_TRIGGERED, REASON_STOP_LOSS)
-    return L0Result(L0_NO_ACTION, detail="未触达止盈/止损价")
-
-
-# L0 触发原因 → state 计划上下文的人话标签（供判断模型直读）
-_TRIGGER_LABELS = {
-    REASON_BUY_ZONE: "进入买点区间",
-    REASON_TARGET: "触及止盈目标",
-    REASON_STOP_LOSS: "击穿止损线",
-}
-
-
-def _state(
-    *,
-    trade_date: date,
-    quotes: dict[str, dict[str, Any]],
-    index_snapshot: dict[str, Any] | None,
-    candidates: list[tuple[AgentTradePlan, dict[str, Any], L0Result]],
-) -> dict[str, Any]:
-    """L1 判断的行情状态上下文（state 自由形状，随调用透传给判断模型）。
-
-    state 只放题面需要的字段：``plans`` 逐触发计划给方向/触发原因/触发位
-    与现价对比，判断模型不再对着纯行情盲答（§11.3 state 纪律）。
-    """
-    plans: dict[str, dict[str, Any]] = {}
-    for plan, quote, l0 in candidates:
-        levels: dict[str, Any] = {"stop_loss": float(plan.stop_loss)}
-        if plan.plan_type == "buy":
-            if plan.buy_zone_low is not None:
-                levels["buy_zone_low"] = float(plan.buy_zone_low)
-            if plan.buy_zone_high is not None:
-                levels["buy_zone_high"] = float(plan.buy_zone_high)
-        elif plan.target_price is not None:
-            levels["target_price"] = float(plan.target_price)
-        plans[str(plan.id)] = {
-            "stock_code": plan.stock_code,
-            "direction": "买入" if plan.plan_type == "buy" else "卖出",
-            "trigger": _TRIGGER_LABELS.get(l0.trigger_reason or "", l0.trigger_reason),
-            "levels": levels,
-            "price": quote.get("price"),
-            "change_pct": quote.get("change_pct"),
-        }
-    return {
-        "trade_date": trade_date.isoformat(),
-        "plans": plans,
-        "quotes": {
-            code: {
-                "price": q.get("price"),
-                "prev_close": q.get("prev_close"),
-                "change_pct": q.get("change_pct"),
-            }
-            for code, q in quotes.items()
-        },
-        "index": index_snapshot,
-    }
-
-
-def _questions(
-    candidates: list[tuple[AgentTradePlan, dict[str, Any], L0Result]],
-) -> dict[str, JudgeQuestion]:
-    """触发计划的批量题面：每计划三题（动作 Choice 按方向分变体 + 分时 Noul + 大盘 Score）。"""
-    questions: dict[str, JudgeQuestion] = {}
-    for plan, _quote, _l0 in candidates:
-        key = str(plan.id)
-        questions[f"{key}:action"] = (
-            CHOICE_INTRADAY_ACTION_BUY
-            if plan.plan_type == "buy"
-            else CHOICE_INTRADAY_ACTION_SELL
-        )
-        questions[f"{key}:noul"] = NOUL_BUY_TIMING if plan.plan_type == "buy" else NOUL_EXIT_TIMING
-        questions[f"{key}:score"] = SCORE_MARKET_SUPPORT
-    return questions
-
-
-async def _thresholds_for(session: AsyncSession, config_id: int | None) -> DecisionThresholds:
-    """按实际服务的配置行解析阈值组（响应 config_id 归因；缺省回起步档）。"""
-    if config_id is None:
-        return DEFAULT_THRESHOLDS
-    row = await session.get(LLMConfig, config_id)
-    if row is None:
-        return DEFAULT_THRESHOLDS
-    try:
-        return thresholds_from_extra(row.extra or {})
-    except DecisionModelError:
-        logger.warning("intraday_thresholds_invalid", config_id=config_id)
-        return DEFAULT_THRESHOLDS
-
-
-def _choice_answer(answers: dict[str, JudgeAnswer] | None, plan_id: int) -> tuple[str, float] | None:
-    """提取动作 Choice 答案（选中项 + confidence）；无答案返回 None。"""
-    if answers is None:
-        return None
-    answer = answers.get(f"{plan_id}:action")
-    if answer is not None and answer.type == "choice":
-        return answer.choice, answer.confidence
-    return None
-
-
-def _answers_payload(
-    answers: dict[str, JudgeAnswer] | None,
-    *,
-    served_model: str | None,
-    thresholds: DecisionThresholds,
-    plan_id: int,
-) -> dict[str, Any]:
-    """观测行 decision_answers 载荷：L1 原始答案 + 阈值组 + served 版本。"""
-    payload: dict[str, Any] = {
-        "served_model": served_model,
-        "thresholds": thresholds.model_dump(),
-    }
-    for suffix in ("action", "noul", "score"):
-        answer = answers.get(f"{plan_id}:{suffix}") if answers else None
-        if answer is not None:
-            payload[suffix] = answer.model_dump()
-    return payload
-
-
-def _decide(
-    l0: L0Result,
-    choice: tuple[str, float] | None,
-    thresholds: DecisionThresholds,
-    *,
-    plan_type: str,
-) -> tuple[str | None, str | None]:
-    """L2 判定：L0 结论 + L1 答案按阈值分档 → (action, suppression_reason)。
-
-    execute 闸门按计划方向分档：买入开仓维持资金动作档（fund_action，
-    保守）；卖出离场降档至 exit_action——离场是防御动作，错做代价（少赚
-    反弹）远小于不做代价（继续承损），不要求与开仓同等置信。
-    """
-    if l0.verdict == L0_TRIGGERED:
-        if choice is None:
-            return ACTION_SUPPRESS, SUPPRESS_MODEL_DEGRADED
-        picked, confidence = choice
-        gate = thresholds.exit_action if plan_type == "sell" else thresholds.fund_action
-        if picked == CHOICE_ACTION_EXECUTE and confidence >= gate:
-            return ACTION_EXECUTE, None
-        if picked == CHOICE_ACTION_ABANDON:
-            return ACTION_ABANDON, None
-        if confidence < thresholds.observe:
-            return ACTION_SUPPRESS, SUPPRESS_BELOW_THRESHOLD
-        return ACTION_WAIT, None
-    if l0.verdict == L0_NEAR_TRIGGER:
-        return ACTION_WAIT, None
-    if l0.verdict == L0_DEGRADED:
-        return ACTION_SUPPRESS, SUPPRESS_MODEL_DEGRADED
-    if l0.reject:
-        return ACTION_SUPPRESS, SUPPRESS_L0_REJECT
-    return None, None
-
-
-async def _buy_volume(account: PaperTradeAccount, plan: AgentTradePlan, *, price: float) -> int:
-    """按 position_pct 目标市值折算整手买入量（科创板最低 200 股）。"""
-    from app.services.trading.client import get_client
-    from app.services.trading.paper_trade_mappers import normalize_cash_row
-
-    cash = normalize_cash_row(
-        await get_client().get_cash(account_service.credentials_for(account)), today_cn()
-    )
-    nav = float(cash["nav"]) if cash.get("nav") is not None else 0.0
-    target_value = nav * float(plan.position_pct) / 100
-    if target_value <= 0:
-        return 0
-    volume = int(target_value / price // 100) * 100
-    if plan.stock_code.startswith("68") and 0 < volume < 200:
-        volume = 200 if target_value >= 200 * price else 0
-    return volume
-
-
-async def _held_volume(account: PaperTradeAccount, stock_code: str) -> int:
-    """当前持仓股数（卖出计划 / 尾盘强检卖出量）。"""
-    from app.services.trading.client import get_client
-    from app.services.trading.paper_trade_converters import row_stock_code, unwrap_rows
-
-    for row in unwrap_rows(
-        await get_client().get_positions(account_service.credentials_for(account))
-    ):
-        if row_stock_code(row) == stock_code:
-            return int(row.get("volume") or 0)
-    return 0
-
-
-async def _execute_candidate(
-    session: AsyncSession,
-    agent: TradingAgent,
-    account: PaperTradeAccount,
-    plan: AgentTradePlan,
-    *,
-    price: float,
-    now: datetime,
-) -> tuple[str, str | None, dict[str, Any]]:
-    """执行单个触发计划：shadow 只回观测语义；active 真实下单并推进状态机。
-
-    Returns:
-        (action, suppression_reason, extra_snapshot)；异常路径收敛为
-        suppress + 原因，不中断本 tick 其他计划。
-
-    Raises:
-        AgentAccountNotDesignatedError: 由调用方先行解析账户避免。
-    """
-    if agent.intraday_exec_mode != "active":
-        return ACTION_EXECUTE, SUPPRESS_SHADOW, {}
-    side = "buy" if plan.plan_type == "buy" else "sell"
-    volume = (
-        await _buy_volume(account, plan, price=price)
-        if side == "buy"
-        else await _held_volume(account, plan.stock_code)
-    )
-    if volume <= 0:
-        return ACTION_SUPPRESS, "position_unavailable", {}
-    try:
-        result = await execute_agent_order(
-            session,
-            agent,
-            symbol=plan.stock_code,
-            side=side,
-            volume=volume,
-            price=price,
-            context="scheduled",
-            plan_id=plan.id,
-            account=account,
-        )
-    except RiskRejectedError as exc:
-        return ACTION_SUPPRESS, SUPPRESS_RISK_REJECTED, {"risk_reasons": str(exc)}
-    except (PaperTradeNotConfiguredError, PaperTradeGatewayError) as exc:
-        return ACTION_SUPPRESS, SUPPRESS_ORDER_ERROR, {"error": str(exc)}
-    await session.execute(
-        update(AgentTradePlan)
-        .where(AgentTradePlan.id == plan.id)
-        .values(
-            status="triggered",
-            triggered_cl_ord_id=result["cl_ord_id"],
-            triggered_at=now,
-            updated_at=utc_now(),
-        )
-    )
-    return ACTION_EXECUTE, None, {"cl_ord_id": result["cl_ord_id"], "volume": volume}
-
-
-async def _account_or_none(
-    session: AsyncSession, agent_key: str
-) -> PaperTradeAccount | None:
-    """agent 专属账户（未绑定返回 None，触发计划按 no_account 抑制）。"""
-    try:
-        return await account_service.resolve_agent_account(session, agent_key)
-    except AgentAccountNotDesignatedError:
-        return None
-
-
-#: 柜台委托终态（已成/部撤/已撤/已拒，对齐 shared/constants/paperTrade.ts
-#: 状态字典）；不在终态集（含未知码）即视为未结，需盘中回填
-_ORDER_TERMINAL_STATUSES = (3, 4, 5, 8)
-
-
-async def _has_pending_orders(session: AsyncSession, account: PaperTradeAccount) -> bool:
-    """当日 agent 来源委托是否仍有未结（非终态）——盘中回填的触发条件。"""
-    pending = await session.scalar(
-        select(func.count())
-        .select_from(PaperTradeOrder)
-        .where(
-            PaperTradeOrder.paper_trade_account_id == account.id,
-            PaperTradeOrder.trade_date == today_cn(),
-            PaperTradeOrder.order_source == account_service.ORDER_SOURCE_AGENT,
-            PaperTradeOrder.status.not_in(_ORDER_TERMINAL_STATUSES),
-        )
-    )
-    return bool(pending)
-
-
-async def _reconcile_pending_orders(session: AsyncSession, agent: TradingAgent) -> None:
-    """未结委托盘中回填：触发既有单账户即时同步，成交终态 ≤ 一拍 tick。
-
-    下单走轻量落库（只写已报），成交终态原依赖 16:00 盘后全量同步——
-    盘中用户最长 2 小时看到「已报」未成交。当日仍有未结的 agent 委托时
-    调 ``sync_account_now`` 回填委托/成交/资金；16:00 全量 sync 仍是
-    权威对账。同步异常（含 16:00 批量同步并发锁冲突）吞掉记日志，
-    下一拍重试，绝不影响 tick 主链路。
-    """
-    try:
-        account = await _account_or_none(session, agent.agent_key)
-        if account is None or not await _has_pending_orders(session, account):
-            return
-        from app.services.trading.paper_trade_sync import sync_account_now
-
-        await sync_account_now(session, account)
-    except Exception as exc:  # noqa: BLE001 —— 尽力而为，失败下一拍重试
-        logger.warning(
-            "agent_order_backfill_failed", agent_key=agent.agent_key, error=str(exc)
-        )
 
 
 async def run_tick(
@@ -643,40 +271,17 @@ async def run_tail_check(
             if price > stop_loss:
                 continue
             counters["triggered"] += 1
-            action: str | None = ACTION_EXECUTE
-            suppression: str | None = None
-            extra: dict[str, Any] = {}
-            if is_shadow:
-                suppression = SUPPRESS_SHADOW
-            else:
-                volume = await _held_volume(account, code)
-                step_cm = (
-                    recorder.step("tail_stop", f"尾盘止损强检 {code}") if recorder else nullcontext()
+            step_cm = (
+                recorder.step("tail_stop", f"尾盘止损强检 {code}")
+                if recorder and not is_shadow
+                else nullcontext()
+            )
+            async with step_cm:
+                action, suppression, extra = await execute_tail_stop(
+                    session, agent, account, stock_code=code, price=price
                 )
-                async with step_cm:
-                    try:
-                        if volume <= 0:
-                            action, suppression = ACTION_SUPPRESS, "position_unavailable"
-                        else:
-                            order = await execute_agent_order(
-                                session,
-                                agent,
-                                symbol=code,
-                                side="sell",
-                                volume=volume,
-                                price=price,
-                                context="scheduled",
-                                account=account,
-                            )
-                            extra = {"cl_ord_id": order["cl_ord_id"], "volume": volume}
-                            counters["executed"] += 1
-                    except (
-                        RiskRejectedError,
-                        PaperTradeNotConfiguredError,
-                        PaperTradeGatewayError,
-                    ) as exc:
-                        action, suppression = ACTION_SUPPRESS, SUPPRESS_ORDER_ERROR
-                        extra = {"error": str(exc)}
+            if action == ACTION_EXECUTE and suppression is None:
+                counters["executed"] += 1
             session.add(
                 PaperTradeExecObservation(
                     tick_time=now,
