@@ -98,6 +98,9 @@ async def get_overview(session: AsyncSession, account: PaperTradeAccount) -> dic
     positions = []
     for row in unwrap_rows(await client.get_positions(credentials)):
         position = position_wire_row(row)
+        if not position.get("volume"):
+            # 已平仓持仓以 volume=None 的 stub 行返回，不进「当前持仓」
+            continue
         available = position.get("available_volume")
         bought = bought_today.get(str(position.get("stock_code")), 0)
         if available is not None and bought:

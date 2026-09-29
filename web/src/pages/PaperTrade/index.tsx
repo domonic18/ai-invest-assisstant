@@ -100,13 +100,17 @@ export function PaperTrade() {
   const overview = overviewQuery.data
   const pageReady = account != null && overview != null && overview.enabled
 
-  // 当日盈亏 = 实时 nav - 最近一个「今日之前」的快照 nav - 当日出入金
+  // 当日盈亏 = 实时 nav − 前一快照 nav − 两快照间出入金增量（lastInout 是
+  // 账户最后一笔出入金而非当日，误用会把历史入金全数计成亏损）
   const todayStr = bjNow().format(DATE_FORMAT)
   const prevPoint = [...(navQuery.data?.items ?? [])]
     .reverse()
     .find((p) => p.tradeDate < todayStr)
+  const liveCumInout = overview?.cash?.cumInout != null ? Number(overview.cash.cumInout) : 0
   const dayBase =
-    prevPoint?.nav != null ? prevPoint.nav + (overview?.cash?.lastInout ?? 0) : null
+    prevPoint?.nav != null
+      ? prevPoint.nav + liveCumInout - (prevPoint.cumInout ?? 0)
+      : null
   const dayPnl =
     overview?.cash?.nav != null && dayBase != null ? overview.cash.nav - dayBase : null
   const dayPnlPct =

@@ -67,13 +67,16 @@ function OverviewStats({ accountId }: { accountId: number }) {
     cumPnl != null && cumInout != null && Math.abs(cumInout) > 0
       ? (cumPnl / cumInout) * 100
       : null
-  // 当日盈亏 = 实时 nav − 「今日之前」最近快照 nav − 当日出入金（16:00 同步
-  // 前快照即昨收；出入金修正避免入金被计成盈利）
+  // 当日盈亏 = 实时 nav − 前一快照 nav − 两快照间出入金增量（lastInout 是
+  // 账户最后一笔出入金而非当日，误用会把历史入金全数计成亏损）
   const todayStr = bjNow().format(DATE_FORMAT)
   const prevPoint = [...(navData?.items ?? [])]
     .reverse()
     .find((p) => p.tradeDate < todayStr)
-  const dayBase = prevPoint?.nav != null ? prevPoint.nav + Number(cash?.lastInout ?? 0) : null
+  const dayBase =
+    prevPoint?.nav != null
+      ? prevPoint.nav + (cumInout ?? 0) - (prevPoint.cumInout ?? 0)
+      : null
   const dayPnl = nav != null && dayBase != null ? Number(nav) - dayBase : null
   const dayPct =
     dayPnl != null && dayBase != null && Math.abs(dayBase) > 0

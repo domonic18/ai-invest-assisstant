@@ -71,6 +71,8 @@ export interface ApiPaperTradeNavPoint {
   tradeDate: string
   nav?: number | null
   available?: number | null
+  /** 截至当日累计出入金（当日盈亏 = nav − 前一日 nav − 累计出入金增量） */
+  cumInout?: number | null
 }
 
 export interface ApiPaperTradeNavResponse {

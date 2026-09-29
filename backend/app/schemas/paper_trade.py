@@ -85,6 +85,7 @@ class PaperTradeNavPoint(CamelModel):
     trade_date: date
     nav: float | None = None
     available: float | None = None
+    cum_inout: float | None = None
 
 
 class PaperTradeNavResponse(CamelModel):
