@@ -232,6 +232,86 @@ class TestDecide:
 
 
 @pytest.mark.unit
+class TestQuestionAssembly:
+    """state 计划上下文与动作题面方向分变体（判断模型不再盲答）。"""
+
+    def test_state_sell_plan_context(self) -> None:
+        plan = _plan(id=7, plan_type="sell")
+        l0 = svc.L0Result(svc.L0_TRIGGERED, svc.REASON_STOP_LOSS)
+        state = svc._state(
+            trade_date=_DATE,
+            quotes={"600000": _quote(9.40)},
+            index_snapshot={"code": "000001"},
+            candidates=[(plan, _quote(9.40), l0)],
+        )
+        entry = state["plans"]["7"]
+        assert entry["stock_code"] == "600000"
+        assert entry["direction"] == "卖出"
+        assert entry["trigger"] == "击穿止损线"
+        assert entry["levels"] == {"stop_loss": 9.5, "target_price": 11.0}
+        assert entry["price"] == 9.40
+        assert state["index"] == {"code": "000001"}
+
+    def test_state_buy_plan_context(self) -> None:
+        plan = _plan(id=1)
+        l0 = svc.L0Result(svc.L0_TRIGGERED, svc.REASON_BUY_ZONE)
+        state = svc._state(
+            trade_date=_DATE,
+            quotes={"600000": _quote(10.0)},
+            index_snapshot=None,
+            candidates=[(plan, _quote(10.0), l0)],
+        )
+        entry = state["plans"]["1"]
+        assert entry["direction"] == "买入"
+        assert entry["trigger"] == "进入买点区间"
+        assert entry["levels"] == {
+            "stop_loss": 9.5,
+            "buy_zone_low": 9.8,
+            "buy_zone_high": 10.2,
+        }
+
+    def test_action_question_split_by_direction(self) -> None:
+        buy = _plan(id=1, plan_type="buy")
+        sell = _plan(id=2, plan_type="sell")
+        questions = svc._questions(
+            [
+                (buy, _quote(10.0), svc.L0Result(svc.L0_TRIGGERED, svc.REASON_BUY_ZONE)),
+                (sell, _quote(9.40), svc.L0Result(svc.L0_TRIGGERED, svc.REASON_STOP_LOSS)),
+            ]
+        )
+        assert questions["1:action"] is svc.CHOICE_INTRADAY_ACTION_BUY
+        assert questions["2:action"] is svc.CHOICE_INTRADAY_ACTION_SELL
+        # sell 放弃选项收敛为"非有效跌破"语义，不再泛化"破位即放弃"
+        assert "保留仓位" in questions["2:action"].criteria[CHOICE_ACTION_ABANDON]
+        assert "卖出离场" in questions["2:action"].criteria[CHOICE_ACTION_EXECUTE]
+        # 分时题沿用既有方向拆分，大盘题共用
+        assert questions["1:noul"] is svc.NOUL_BUY_TIMING
+        assert questions["2:noul"] is svc.NOUL_EXIT_TIMING
+        assert questions["1:score"] is questions["2:score"] is svc.SCORE_MARKET_SUPPORT
+
+    async def test_run_tick_passes_plan_state_to_model(self) -> None:
+        """run_tick 组装的 state 含触发计划上下文（接线防回归）。"""
+        plans = [_plan(id=1, plan_type="sell")]
+        session = _session(scalars_result=plans)
+        with (
+            patch.object(
+                svc.agent_registry, "get_active_agents", new=AsyncMock(return_value=[_agent("shadow")])
+            ),
+            patch.object(svc, "ask_decision", AsyncMock(return_value=_response({}))) as ask_mock,
+            patch.object(
+                svc.account_service, "resolve_agent_account", AsyncMock(return_value=SimpleNamespace())
+            ),
+            patch.object(svc, "execute_agent_order", AsyncMock()),
+        ):
+            await svc.run_tick(
+                session, trade_date=_DATE, now=_NOW, quotes={"600000": _quote(9.40)}
+            )
+        state = ask_mock.await_args.kwargs["state"]
+        assert state["plans"]["1"]["direction"] == "卖出"
+        assert state["plans"]["1"]["trigger"] == "击穿止损线"
+
+
+@pytest.mark.unit
 class TestRunTick:
     async def _run(
         self,
