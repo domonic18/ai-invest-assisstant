@@ -14,6 +14,21 @@ export interface DailyPnl {
   dayPnlPct: number | null
 }
 
+export interface CumPnl {
+  pnl: number | null
+  pnlPct: number | null
+}
+
+/** 累计盈亏 = nav − 累计出入金（百分比分母 cumInout）；模拟盘页与 Agent 页同口径。 */
+export function cumPnl(cash: Pick<ApiPaperTradeCash, 'nav' | 'cumInout'> | null | undefined): CumPnl {
+  const nav = cash?.nav
+  const cumInout = cash?.cumInout != null ? Number(cash.cumInout) : null
+  if (nav == null || cumInout == null) return { pnl: null, pnlPct: null }
+  const pnl = Number(nav) - cumInout
+  const pnlPct = cumInout !== 0 ? (pnl / cumInout) * 100 : null
+  return { pnl, pnlPct }
+}
+
 export function dailyPnl(
   items: ApiPaperTradeNavPoint[] | undefined,
   cash: Pick<ApiPaperTradeCash, 'nav' | 'cumInout'> | null | undefined,
