@@ -202,6 +202,9 @@ export function useTradingAgentObservations(
   })
 }
 
+/** 总览页决策流拉取条数：右栏最多渲染 8 张卡，多拉 4 条作 latestOrder 取数余量。 */
+const FEED_OBSERVATION_LIMIT = 12
+
 /**
  * 总览页实时决策流：全部逐 tick（含无动作心跳行）。
  * 盘中 15s 快轮询；非盘中 60s 慢轮询——恒 truthy 让每个周期重估 isMarketOpen()，
@@ -210,10 +213,14 @@ export function useTradingAgentObservations(
 export function useLiveAgentObservations(agentKey: string | null) {
   return useQuery({
     queryKey: agentKey
-      ? queryKeys.tradingAgent.observations(agentKey, undefined, false, 1, 25)
+      ? queryKeys.tradingAgent.observations(agentKey, undefined, false, 1, FEED_OBSERVATION_LIMIT)
       : ['trading-agent', 'observations', 'disabled'],
     queryFn: () =>
-      fetchTradingAgentObservations(agentKey!, { significant: false, page: 1, pageSize: 25 }),
+      fetchTradingAgentObservations(agentKey!, {
+        significant: false,
+        page: 1,
+        pageSize: FEED_OBSERVATION_LIMIT,
+      }),
     enabled: !!agentKey,
     staleTime: 10 * 1000,
     refetchInterval: () => (isMarketOpen() ? 15 * 1000 : 60 * 1000),
