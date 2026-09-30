@@ -3,14 +3,17 @@
 输入 = 当日复盘解读（18:35 后就绪——缺失即 ``ReviewInputDataNotReadyError``
 退避重试）+ 涨停归因 + 异动归因 + agent 账户本地持仓 + 人工移出清单 +
 方法论基座（温程《趋势理论》KB 直读双层注入，见 ``agent_methodology``）+
-agent 经验记忆（``agent_memory`` active 条目）。仅取数，不做 LLM 调用与落库；
+agent 经验记忆（``agent_memory`` active 条目）+ 候选价格锚点（治幻觉价格：
+区间/止损的锚点值由代码供给，模型只负责区间语义）。仅取数，不做 LLM 调用；
 各采集函数可独立 mock 测试。
 """
 
+import asyncio
 from contextlib import nullcontext
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +21,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.agent_trading import AgentStockSelection
 from app.models.market_anomaly import StockAnomaly
 from app.models.paper_trade import PaperTradeExecution, TradingAgent
+from app.repositories.market.kline_repository import (
+    fetch_daily_bars_multi,
+    upsert_daily_bars,
+)
 from app.repositories.review import ai_analysis_repository
 from app.services.review.market_review_generator import (
     SKILL_ID as MARKET_REVIEW_SKILL_ID,
@@ -27,12 +34,18 @@ from app.services.trading import agent_methodology
 from app.services.trading.agent_run_recorder import AgentRunRecorder
 from app.services.trading.paper_trade_converters import SIDE_BUY, SIDE_SELL
 
+logger = structlog.get_logger(__name__)
+
 #: 异动归因注入 prompt 的条数上限（按 strength 降序）
 _ANOMALY_TOP_N = 10
 #: 人工移出清单回看窗口（天）——超过后允许重新候选
 _MANUAL_REMOVED_WINDOW_DAYS = 14
 #: agent 经验记忆注入条数上限
 _MEMORY_TOP_N = 20
+#: 锚点日 K 根数（末 5 根收盘算 MA5，再留一根昨收）
+_ANCHOR_BAR_LIMIT = 6
+#: 新浪日 K 单标的现拉超时（秒）——超时按缺失处理，不阻塞计划生成
+_ANCHOR_FETCH_TIMEOUT_SECONDS = 30.0
 
 
 async def _market_review_sections(
@@ -101,6 +114,133 @@ async def _manual_removed_codes(
         .distinct()
     )
     return [code for code in rows.scalars().all()]
+
+
+def _anchors_from_bars(bars: list[Any]) -> dict[str, Any] | None:
+    """升序日 K 序列 → 价格锚点（close/prev_close/ma5）；无收盘价返回 None。
+
+    ma5 需满 5 根收盘，不足为 None（prompt 按可用锚点推导，缺项不许编）。
+    """
+    closes = [float(bar.close) for bar in bars if bar.close is not None]
+    if not closes:
+        return None
+    return {
+        "close": closes[-1],
+        "prev_close": closes[-2] if len(closes) >= 2 else None,
+        "ma5": round(sum(closes[-5:]) / len(closes[-5:]), 4)
+        if len(closes) >= 5
+        else None,
+        "last_bar_date": bars[-1].trade_date.isoformat(),
+    }
+
+
+def _anchor_from_rows(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """现拉日 K 行（升序 dict）→ 价格锚点，形状同 ``_anchors_from_bars``。"""
+    closes = [
+        float(row["close"]) for row in rows if row.get("close") is not None
+    ]
+    if not closes:
+        return None
+    return {
+        "close": closes[-1],
+        "prev_close": closes[-2] if len(closes) >= 2 else None,
+        "ma5": round(sum(closes[-5:]) / len(closes[-5:]), 4)
+        if len(closes) >= 5
+        else None,
+        "last_bar_date": rows[-1]["trade_date"].isoformat(),
+    }
+
+
+async def _fetch_and_store_sina_daily(
+    session: AsyncSession, code: str
+) -> list[dict[str, Any]]:
+    """现拉新浪日 K 末 N 根并 upsert 落库（锚点兜底补数，顺手补采集缺口）。
+
+    调用方捕获一切异常按缺失处理；单标的超时/源失败不阻塞计划生成。
+    """
+    import akshare as ak  # type: ignore[import-untyped]
+
+    prefix = "sh" if code.startswith("6") else "sz"
+    df = await asyncio.wait_for(
+        asyncio.to_thread(ak.stock_zh_a_daily, symbol=f"{prefix}{code}"),
+        timeout=_ANCHOR_FETCH_TIMEOUT_SECONDS,
+    )
+    if df is None or df.empty:
+        return []
+    rows: list[dict[str, Any]] = []
+    for _, row in df.tail(_ANCHOR_BAR_LIMIT).iterrows():
+        trade_date = row.get("date")
+        if isinstance(trade_date, datetime):
+            trade_date = trade_date.date()
+        if not isinstance(trade_date, date):
+            continue
+        rows.append(
+            {
+                "stock_code": code,
+                "trade_date": trade_date,
+                "open": row.get("open"),
+                "high": row.get("high"),
+                "low": row.get("low"),
+                "close": row.get("close"),
+                "volume": int(row["volume"]) if row.get("volume") is not None else None,
+                "amount": row.get("amount"),
+                "amplitude": None,
+                "change_pct": None,
+                "turnover_rate": float(row["turnover"]) * 100
+                if row.get("turnover") is not None
+                else None,
+            }
+        )
+    await upsert_daily_bars(session, rows)
+    return rows
+
+
+async def _price_anchors(
+    session: AsyncSession, codes: list[str], trade_date: date
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """候选标的价格锚点（区间/止损的锚点值由代码供给，治幻觉价格根因）。
+
+    库内日 K 优先；缺失标的现拉新浪日 K 并 upsert（候选多来自涨停池/异动池，
+    不在 watchlist 采集宇宙内）。仍无锚点的标的随 missing 返回，由调用方
+    从输入剔除——无锚点禁止出计划（fail-fast 数据契约）。
+    """
+    unique = sorted(set(codes))
+    if not unique:
+        return {}, []
+    bars_by_code = await fetch_daily_bars_multi(
+        session, unique, end_date=trade_date, limit=_ANCHOR_BAR_LIMIT
+    )
+    anchors = {
+        code: anchor
+        for code in unique
+        if (bars := bars_by_code.get(code)) and (anchor := _anchors_from_bars(bars))
+    }
+    for code in [c for c in unique if c not in anchors]:
+        try:
+            rows = await _fetch_and_store_sina_daily(session, code)
+        except Exception as exc:  # noqa: BLE001 —— 兜底源失败按缺失处理
+            logger.warning(
+                "plan_anchor_fetch_failed", stock_code=code, error=str(exc)
+            )
+            continue
+        if anchor := _anchor_from_rows(rows):
+            anchors[code] = anchor
+    return anchors, [c for c in unique if c not in anchors]
+
+
+def _candidate_codes(
+    *,
+    attribution: dict[str, Any] | None,
+    anomalies: list[dict[str, Any]],
+    positions: list[dict[str, Any]],
+) -> list[str]:
+    """需要价格锚点的候选全集：涨停归因分组 ∪ 异动清单 ∪ 当前持仓。"""
+    codes = [str(a["stock_code"]) for a in anomalies]
+    codes += [str(c) for c in (attribution or {}).get("stock_themes") or {}]
+    for group in (attribution or {}).get("groups") or []:
+        codes += [str(c) for c in group.get("stock_codes") or []]
+    codes += [str(p["stock_code"]) for p in positions]
+    return codes
 
 
 async def _local_positions(session: AsyncSession, account_id: int) -> list[dict[str, Any]]:
@@ -177,9 +317,10 @@ async def collect_plan_input(
 ) -> tuple[dict[str, Any], list[str]]:
     """组装指定 Agent 的 LLM 输入，返回 (输入 dict, 人工移出代码清单)。
 
-    传入 recorder 时按三步记录输入组装轨迹（D35 会话管理）：
+    传入 recorder 时按四步记录输入组装轨迹（D35 会话管理）：
     ``input.market_review``（复盘解读+涨停归因）→ ``input.kb_methodology``
-    （方法论基座检索）→ ``input.context``（持仓/异动/记忆/人工移出）。
+    （方法论基座检索）→ ``input.context``（持仓/异动/记忆/人工移出）→
+    ``input.price_anchors``（候选价格锚点，无锚点标的剔除出计划宇宙）。
     """
     review: dict[str, Any] | None = None
     attribution: dict[str, Any] | None = None
@@ -243,12 +384,40 @@ async def collect_plan_input(
         positions = await _local_positions(session, account_id)
         memories = await _active_memories(session, agent.agent_key)
 
+    # 价格锚点（治幻觉价格）：无锚点标的从异动清单剔除（禁止出计划的宇宙）
+    anchors: dict[str, dict[str, Any]] = {}
+    unanchored: list[str] = []
+    async with (
+        recorder.step(
+            "input.price_anchors",
+            "候选价格锚点（库内日 K 优先，缺失现拉兜底）",
+            payload_builder=lambda: {
+                "codes": sorted(anchors),
+                "unanchored_codes": unanchored,
+                "anchors": anchors,
+            },
+        )
+        if recorder
+        else nullcontext()
+    ):
+        anchors, unanchored = await _price_anchors(
+            session,
+            _candidate_codes(
+                attribution=attribution, anomalies=anomalies, positions=positions
+            ),
+            trade_date,
+        )
+    if unanchored:
+        anomalies = [a for a in anomalies if a["stock_code"] not in set(unanchored)]
+
     return (
         {
             "trade_date": trade_date.isoformat(),
             "market_review": review.get("sections") or review,
             "limit_up_attribution": attribution,
             "stock_anomalies": anomalies,
+            "price_anchors": anchors,
+            "unanchored_codes": unanchored,
             "positions": positions,
             "manual_removed_codes": manual_removed,
             "methodology": methodology,

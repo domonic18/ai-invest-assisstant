@@ -41,4 +41,16 @@ SPECS: tuple[TaskSpec, ...] = (
         run_params=("trade_date",),
         converters={"trade_date": date.fromisoformat},
     ),
+    TaskSpec(
+        name="agent-plan-calibration",
+        label="交易 Agent 盘中计划校准",
+        description="盘中 10:20/13:20 慢模型读观察报告对当日计划出修正单（§11.5），shadow 留痕先行，修正过确定性硬校验",
+        data_type="agent-plan-calibration",
+        collectors={
+            "internal": "collector.spiders.agent_plan_calibration:AgentPlanCalibrationCollector",
+        },
+        queue="heavy",
+        run_params=("trade_date", "window"),
+        converters={"trade_date": date.fromisoformat},
+    ),
 )

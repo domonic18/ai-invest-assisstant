@@ -145,4 +145,5 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "paper-trade-sync": DOMAIN_TRADING,
     "paper-trade-review": DOMAIN_TRADING,
     "agent-daily-plan": DOMAIN_TRADING,
+    "agent-plan-calibration": DOMAIN_TRADING,
 }

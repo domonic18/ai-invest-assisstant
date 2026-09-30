@@ -189,7 +189,8 @@ async def list_trading_agent_plans(
 
     缺省落「最近一份 ≤ 今天」的计划（T 日制定 T+1 执行，盘中打开即正在
     执行的那份）；``executingPlanDate`` 为所选日盘中执行的计划集的制定日，
-    供空态引导跳转；``standAsideReason`` 非空表示当日已生成但空仓观望。
+    供空态引导跳转；``standAsideReason`` 非空表示当日已生成但空仓观望；
+    ``amendments`` 为当日盘中校准修正单（计划卡校准历史，§11.5）。
     """
     resolved = trade_date or await agent_plan_ops.resolve_default_plan_date(
         session, agent_key
@@ -204,6 +205,9 @@ async def list_trading_agent_plans(
         stand_aside_reason=content.stand_aside_reason if content else None,
         executing_plan_date=await agent_plan_ops.resolve_executing_plan_date(
             session, agent_key, view_date=resolved
+        ),
+        amendments=await agent_plan_ops.list_amendment_views(
+            session, agent_key, plan_date=resolved
         ),
     )
 

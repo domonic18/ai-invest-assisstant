@@ -145,6 +145,10 @@ class TradingAgent(Base):
             "intraday_exec_mode IN ('off', 'shadow', 'active')",
             name="chk_trading_agent_intraday_exec_mode",
         ),
+        CheckConstraint(
+            "calibration_mode IN ('off', 'shadow', 'active')",
+            name="chk_trading_agent_calibration_mode",
+        ),
         {
             "comment": "交易 Agent 注册表：身份/介绍/模型绑定/风控/总闸"
             "（docs/plan/agent-hub-plan.md D21）"
@@ -173,6 +177,9 @@ class TradingAgent(Base):
     #: 盘中执行人工暂停开关：true 时 tick/尾盘强检完全短路（不进 L1 判断模型、
     #: 不下单、不写观测行）；计划/复盘生成与心跳不受影响，恢复后下一拍回全流程
     intraday_paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    #: 盘中计划校准三态（§11.5，D22）：off 不参与校准 / shadow 修正单仅留痕
+    #: 不改计划（影子期默认）/ active 修正单生效（adjust 推计划 version 自增）
+    calibration_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="shadow")
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
     plan_cadence: Mapped[str] = mapped_column(String(16), nullable=False, default="daily")
     review_cadence: Mapped[str] = mapped_column(String(16), nullable=False, default="daily")

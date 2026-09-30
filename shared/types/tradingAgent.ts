@@ -22,6 +22,8 @@ export interface TradingAgentProfile {
   intradayExecMode: 'off' | 'shadow' | 'active'
   /** 盘中执行人工暂停：true 时 tick/尾盘强检完全短路（计划/复盘不受影响）。 */
   intradayPaused: boolean
+  /** 盘中计划校准三态（§11.5）：off 不参与 / shadow 修正单仅留痕 / active 修正生效。 */
+  calibrationMode: 'off' | 'shadow' | 'active'
   status: 'active' | 'planned' | 'disabled'
   /** 计划生成频率（daily 每交易日 / weekly 周期末 / monthly 月末，D28）。 */
   planCadence: 'daily' | 'weekly' | 'monthly'
@@ -52,6 +54,8 @@ export interface TradingAgentProfileUpdateRequest {
   intradayExecMode?: 'off' | 'shadow' | 'active'
   /** 盘中执行人工暂停开关（true = 冻结 tick/尾盘强检）。 */
   intradayPaused?: boolean
+  /** 盘中计划校准三态（§11.5，影子期达标后切 active）。 */
+  calibrationMode?: 'off' | 'shadow' | 'active'
   status?: 'active' | 'disabled'
   planCadence?: AgentCadence
   reviewCadence?: AgentCadence
@@ -146,8 +150,14 @@ export interface ApiTradingAgentDates {
   reviewDates: Partial<Record<TradingReviewPeriod, string[]>>
 }
 
-/** 计划状态机（active → triggered → executed / expired / cancelled）。 */
-export type TradingAgentPlanStatus = 'active' | 'triggered' | 'executed' | 'expired' | 'cancelled'
+/** 计划状态机（active → triggered → executed / expired / cancelled / invalid）。 */
+export type TradingAgentPlanStatus =
+  | 'active'
+  | 'triggered'
+  | 'executed'
+  | 'expired'
+  | 'cancelled'
+  | 'invalid'
 
 /** 交易计划条目（admin GET /trading-agent/plans 与「今日交易计划」区块）。 */
 export interface ApiTradingAgentPlan {
@@ -168,7 +178,40 @@ export interface ApiTradingAgentPlan {
   /** 截至计划日按成交聚合的持仓股数（未绑定账户/无成交为 null）。 */
   heldVolume: number | null
   basis: string
+  /** 计划版本号：盘中校准 adjust 生效即自增（§11.5）。 */
+  version: number
   triggeredClOrdId: string | null
+  /** status='invalid' 时的死单原因（首 tick 计划体检判定的结构性脱锚）。 */
+  invalidReason: string | null
+}
+
+/** 盘中校准修正单动作（§11.5）。 */
+export type TradingAgentPlanAmendmentAction = 'maintain' | 'adjust' | 'cancel' | 'add'
+
+/** 盘中校准修正单生效路径：applied 已生效 / shadow 影子留痕 / rejected 被硬校验拒绝。 */
+export type TradingAgentPlanAmendmentStatus = 'applied' | 'shadow' | 'rejected'
+
+/** 盘中计划校准修正单条目（计划卡校准历史展示）。 */
+export interface ApiTradingAgentPlanAmendment {
+  planDate: string
+  /** 校准窗口：1020 早盘 / 1320 午盘。 */
+  window: string
+  stockCode: string
+  planId: number | null
+  action: TradingAgentPlanAmendmentAction
+  reason: string
+  newBuyZoneLow: number | null
+  newBuyZoneHigh: number | null
+  newTargetPrice: number | null
+  newStopLoss: number | null
+  newPositionPct: number | null
+  status: TradingAgentPlanAmendmentStatus
+  /** status='rejected' 时的拒绝原因（区间自洽/死单体检/仓位上限）。 */
+  rejectReason: string | null
+  /** action='add' 生效时新建计划的 id。 */
+  newPlanId: number | null
+  modelName: string | null
+  createdAt: string
 }
 
 /** 指定日交易计划包装响应（D28：计划日 + 下一交易日执行语义 + 计划列表）。 */
@@ -181,6 +224,8 @@ export interface ApiTradingAgentPlansResponse {
   standAsideReason: string | null
   /** 所选日盘中执行的计划集的制定日（空态引导跳转用）；无则 null。 */
   executingPlanDate: string | null
+  /** 当日盘中校准修正单（按窗口/时间升序），计划卡校准历史展示。 */
+  amendments: ApiTradingAgentPlanAmendment[]
 }
 
 /** agent 选股条目（模拟管理「Agent 自选」：AI 依据 + 置信度）。 */

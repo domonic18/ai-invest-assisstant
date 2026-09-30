@@ -78,3 +78,28 @@ class PlanGenerateResult:
     content: AgentDailyPlanContent
     cached: bool
     dropped_codes: list[str]
+
+
+class PlanCalibrationItem(BaseModel):
+    """计划修正单条目（§11.5；字段禁默认值——逐计划显式表态，含 maintain）。
+
+    ``action='add'`` 时 ``plan_type``/``new_stop_loss``/``new_position_pct``
+    必填、buy 另需买点区间；其余动作新值字段显式输出 null。"""
+    # 展示层映射唯一真相源见前端 calibrationMeta；此处白名单即 schema 契约
+    action: Literal["maintain", "adjust", "cancel", "add"]
+    stock_code: str
+    reason: str
+    plan_type: Literal["buy", "sell"] | None
+    new_buy_zone_low: float | None
+    new_buy_zone_high: float | None
+    new_target_price: float | None
+    new_stop_loss: float | None
+    new_position_pct: float | None
+    strategy: str | None
+
+
+class PlanCalibrationContent(BaseModel):
+    """盘中校准结构化输出契约（agent_trade_plan_amendment.raw 形状）。"""
+
+    trade_date: str
+    amendments: list[PlanCalibrationItem]

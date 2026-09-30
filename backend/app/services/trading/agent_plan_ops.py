@@ -16,11 +16,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import today_cn
 from app.core.exceptions import BadRequestError, NotFoundError
-from app.models.agent_trading import AgentStockSelection, AgentTradePlan
+from app.models.agent_trading import (
+    AgentStockSelection,
+    AgentTradePlan,
+    AgentTradePlanAmendment,
+)
 from app.models.paper_trade import PaperTradeExecution
 from app.models.stock import StockBasic
 from app.models.watchlist import UserWatchlistGroup
-from app.schemas.paper_trade import TradingAgentPlanResponse
+from app.schemas.paper_trade import (
+    TradingAgentPlanAmendmentResponse,
+    TradingAgentPlanResponse,
+)
 from app.services.market import trade_calendar_service
 from app.services.trading.paper_trade_converters import SIDE_BUY, SIDE_SELL
 
@@ -120,6 +127,21 @@ async def list_plan_views(
         view.held_volume = held.get(plan.stock_code)
         views.append(view)
     return views
+
+
+async def list_amendment_views(
+    session: AsyncSession, agent_key: str, *, plan_date: date
+) -> list[TradingAgentPlanAmendmentResponse]:
+    """指定日盘中校准修正单（窗口/时间升序），计划卡校准历史展示（§11.5）。"""
+    rows = await session.scalars(
+        select(AgentTradePlanAmendment)
+        .where(
+            AgentTradePlanAmendment.agent_key == agent_key,
+            AgentTradePlanAmendment.plan_date == plan_date,
+        )
+        .order_by(AgentTradePlanAmendment.window, AgentTradePlanAmendment.created_at)
+    )
+    return [TradingAgentPlanAmendmentResponse.model_validate(row) for row in rows]
 
 
 async def list_plan_dates(session: AsyncSession, agent_key: str) -> list[date]:

@@ -238,6 +238,10 @@ class TestGenerateDailyPlan:
                 AsyncMock(return_value=(content, ["999999"])),
             ),
             patch(
+                "app.services.trading.agent_plan_service._validate_prices",
+                return_value=(content, {}),
+            ),
+            patch(
                 "app.repositories.review.ai_analysis_repository.insert_result",
                 AsyncMock(return_value=42),
             ) as insert_mock,
@@ -487,6 +491,10 @@ class TestRecorderWiring:
                 AsyncMock(return_value=(content, ["999999"])),
             ),
             patch(
+                "app.services.trading.agent_plan_service._validate_prices",
+                return_value=(content, {}),
+            ),
+            patch(
                 "app.repositories.review.ai_analysis_repository.insert_result",
                 AsyncMock(return_value=42),
             ),
@@ -509,6 +517,7 @@ class TestRecorderWiring:
         summary = kwargs["summary"]
         assert summary["cache_hit"] is False
         assert summary["dropped_codes"] == ["999999"]
+        assert summary["price_violations"] == {}
         assert summary["selections"] == 1
         assert summary["plans"] == 1
         # input.* 步骤由 collect_plan_input 记录：recorder 透传
@@ -703,6 +712,225 @@ class TestValidateCodes:
         assert validated.stand_aside_reason is not None
         assert "999999" in validated.stand_aside_reason
         assert dropped == ["999999"]
+
+
+@pytest.mark.unit
+class TestValidatePrices:
+    """价格体检（治幻觉价格兜底）：锚点脱锚剔除 + sell 轻校验。"""
+
+    def _anchors(self, prev_close: float = 10.0) -> dict:
+        return {
+            "600000": {
+                "close": prev_close,
+                "prev_close": prev_close,
+                "ma5": prev_close,
+                "last_bar_date": _TRADE_DATE.isoformat(),
+            }
+        }
+
+    def test_passes_grounded_buy_plan(self) -> None:
+        validated, violations = agent_plan_service._validate_prices(
+            _content(), self._anchors(prev_close=10.0)
+        )
+        assert violations == {}
+        assert [p.stock_code for p in validated.plans] == ["600000"]
+        assert [s.stock_code for s in validated.selections] == ["600000"]
+
+    @pytest.mark.parametrize(
+        ("update", "fragment"),
+        [
+            ({"stop_loss": 10.5}, "不低于昨收"),
+            ({"buy_zone_low": 11.0, "buy_zone_high": 10.5}, "倒挂"),
+            ({"buy_zone_low": 5.0, "buy_zone_high": 6.0}, "无交集"),
+            ({"buy_zone_low": 11.2, "buy_zone_high": 11.5}, "无交集"),
+            ({"stop_loss": 8.0, "buy_zone_low": 9.9}, "深于区间下沿"),
+        ],
+    )
+    def test_buy_plan_violations(self, update: dict, fragment: str) -> None:
+        plans = [
+            item.model_copy(update=update)
+            for item in _content().plans
+        ]
+        content = _content().model_copy(update={"plans": plans})
+        validated, violations = agent_plan_service._validate_prices(
+            content, self._anchors()
+        )
+        assert "600000" in violations
+        assert fragment in violations["600000"]
+        assert validated.plans == []
+        assert validated.selections == []
+
+    def test_missing_anchor_drops_buy_plan(self) -> None:
+        validated, violations = agent_plan_service._validate_prices(
+            _content(), {}
+        )
+        assert "缺价格锚点" in violations["600000"]
+        assert validated.plans == []
+
+    def test_sell_plan_without_anchor_passes(self) -> None:
+        """sell 是防御动作：无锚点放行，不因数据缺口废掉保护性离场。"""
+        plans = [
+            _content().plans[0].model_copy(
+                update={
+                    "plan_type": "sell",
+                    "buy_zone_low": None,
+                    "buy_zone_high": None,
+                    "target_price": 12.0,
+                    "stop_loss": 9.0,
+                }
+            )
+        ]
+        content = _content().model_copy(update={"plans": plans})
+        validated, violations = agent_plan_service._validate_prices(content, {})
+        assert violations == {}
+        assert [p.stock_code for p in validated.plans] == ["600000"]
+
+    def test_sell_plan_inverted_target_dropped(self) -> None:
+        plans = [
+            _content().plans[0].model_copy(
+                update={
+                    "plan_type": "sell",
+                    "buy_zone_low": None,
+                    "buy_zone_high": None,
+                    "target_price": 8.0,
+                    "stop_loss": 9.0,
+                }
+            )
+        ]
+        content = _content().model_copy(update={"plans": plans})
+        _, violations = agent_plan_service._validate_prices(content, self._anchors())
+        assert "600000" in violations
+
+    def test_backfills_stand_aside_when_all_dropped(self) -> None:
+        validated, violations = agent_plan_service._validate_prices(
+            _content(), {}
+        )
+        assert validated.stand_aside_reason is not None
+        assert "600000" in validated.stand_aside_reason
+        assert "价格体检" in validated.stand_aside_reason
+
+
+@pytest.mark.unit
+class TestPriceAnchors:
+    """锚点供数：库内优先、缺失现拉 upsert、兜底失败按缺失。"""
+
+    @pytest.mark.asyncio
+    async def test_reads_db_bars_first(self) -> None:
+        bars = [
+            SimpleNamespace(close=10.0 + i, trade_date=_TRADE_DATE) for i in range(5)
+        ]
+        session = AsyncMock()
+        with patch(
+            "app.services.trading.agent_plan_input.fetch_daily_bars_multi",
+            AsyncMock(return_value={"600000": bars}),
+        ):
+            anchors, missing = await agent_plan_input._price_anchors(
+                session, ["600000"], _TRADE_DATE
+            )
+        assert missing == []
+        assert anchors["600000"]["close"] == 14.0
+        assert anchors["600000"]["prev_close"] == 13.0
+        assert anchors["600000"]["ma5"] == 12.0
+
+    @pytest.mark.asyncio
+    async def test_missing_code_fetched_and_upserted(self) -> None:
+        rows = [
+            {"close": 10.0 + i, "trade_date": _TRADE_DATE, "volume": None}
+            for i in range(5)
+        ]
+        session = AsyncMock()
+        with (
+            patch(
+                "app.services.trading.agent_plan_input.fetch_daily_bars_multi",
+                AsyncMock(return_value={}),
+            ),
+            patch(
+                "app.services.trading.agent_plan_input._fetch_and_store_sina_daily",
+                AsyncMock(return_value=rows),
+            ) as fetch_mock,
+        ):
+            anchors, missing = await agent_plan_input._price_anchors(
+                session, ["002913"], _TRADE_DATE
+            )
+        fetch_mock.assert_awaited_once()
+        assert missing == []
+        assert anchors["002913"]["close"] == 14.0
+        assert anchors["002913"]["ma5"] == 12.0
+
+    @pytest.mark.asyncio
+    async def test_fetch_failure_reports_missing(self) -> None:
+        session = AsyncMock()
+        with (
+            patch(
+                "app.services.trading.agent_plan_input.fetch_daily_bars_multi",
+                AsyncMock(return_value={}),
+            ),
+            patch(
+                "app.services.trading.agent_plan_input._fetch_and_store_sina_daily",
+                AsyncMock(side_effect=RuntimeError("sina down")),
+            ),
+        ):
+            anchors, missing = await agent_plan_input._price_anchors(
+                session, ["002913"], _TRADE_DATE
+            )
+        assert anchors == {}
+        assert missing == ["002913"]
+
+    @pytest.mark.asyncio
+    async def test_unanchored_anomalies_removed_from_input(self) -> None:
+        """无锚点标的从异动清单剔除（无锚点禁止出计划的输入侧执行）。"""
+        review_row = MagicMock()
+        review_row.structured_output = {"sections": {"overall": "主线分歧"}}
+        anomaly = {
+            "stock_code": "002913",
+            "stock_name": "ASR",
+            "change_pct": 5.0,
+            "anomaly_types": [],
+            "attribution_category": None,
+            "attribution_summary": None,
+        }
+        with (
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=review_row),
+            ),
+            patch(
+                "app.services.review.limit_up_ai_service.get_cached_attribution",
+                AsyncMock(return_value=None),
+            ),
+            patch.object(
+                agent_plan_input,
+                "_stock_anomalies",
+                AsyncMock(return_value=[anomaly]),
+            ),
+            patch.object(
+                agent_plan_input,
+                "_manual_removed_codes",
+                AsyncMock(return_value=[]),
+            ),
+            patch.object(
+                agent_plan_input, "_local_positions", AsyncMock(return_value=[])
+            ),
+            patch.object(
+                agent_plan_input, "_active_memories", AsyncMock(return_value=[])
+            ),
+            patch(
+                "app.services.trading.agent_plan_input.agent_methodology"
+                ".build_methodology_input",
+                AsyncMock(return_value=None),
+            ),
+            patch.object(
+                agent_plan_input,
+                "_price_anchors",
+                AsyncMock(return_value=({}, ["002913"])),
+            ),
+        ):
+            plan_input, _ = await agent_plan_input.collect_plan_input(
+                AsyncMock(), _agent(), 7, _TRADE_DATE
+            )
+        assert plan_input["stock_anomalies"] == []
+        assert plan_input["unanchored_codes"] == ["002913"]
+        assert plan_input["price_anchors"] == {}
 
 
 @pytest.mark.unit

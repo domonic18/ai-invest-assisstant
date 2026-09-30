@@ -67,16 +67,16 @@ FROM collector_channel_config
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
--- 防御性补齐 internal 渠道的模拟盘任务数据类型（盘后同步 + AI 分层复盘 + 每日选股计划，渠道已存在时）
+-- 防御性补齐 internal 渠道的模拟盘任务数据类型（盘后同步 + AI 分层复盘 + 每日选股计划 + 盘中校准，渠道已存在时）
 UPDATE collector_channel_config
-SET supported_data_types = supported_data_types || '["paper-trade-sync", "paper-trade-review", "agent-daily-plan"]'::jsonb
+SET supported_data_types = supported_data_types || '["paper-trade-sync", "paper-trade-review", "agent-daily-plan", "agent-plan-calibration"]'::jsonb
 WHERE source = 'internal'
-  AND NOT supported_data_types @> '["agent-daily-plan"]'::jsonb;
+  AND NOT supported_data_types @> '["agent-plan-calibration"]'::jsonb;
 
 INSERT INTO collector_channel_data_type (channel_id, data_type, priority)
 SELECT id, d.data_type, 1
 FROM collector_channel_config,
-     (VALUES ('paper-trade-sync'), ('paper-trade-review'), ('agent-daily-plan')) AS d(data_type)
+     (VALUES ('paper-trade-sync'), ('paper-trade-review'), ('agent-daily-plan'), ('agent-plan-calibration')) AS d(data_type)
 WHERE source = 'internal'
 ON CONFLICT (channel_id, data_type) DO NOTHING;
 
@@ -446,7 +446,11 @@ VALUES
     -- 模拟盘 AI 分层复盘：19:00，串行大盘 AI 复盘（18:35）之后（日/周/月分层归因 + 经验提取，周期末任务内加发；D30 重排，实例名沿用 paper_trade_review_1610）
     ('paper_trade_review_1610', 'paper-trade-review', 'internal', '0 19 * * 1-5', true),
     -- 交易 Agent 每日选股与交易计划：19:30（晚于 agent 复盘 19:00，先复盘后选股；核心输入当日复盘解读 18:35 才生成）
-    ('agent_daily_plan_1900', 'agent-daily-plan', 'internal', '30 19 * * 1-5', true)
+    ('agent_daily_plan_1900', 'agent-daily-plan', 'internal', '30 19 * * 1-5', true),
+    -- 交易 Agent 盘中计划校准（§11.5）：10:20 早盘（噪声消退形态成形）/ 13:20 午盘（午盘表现确认），
+    -- 均避开午休与 14:50 尾盘强检；同 task_type 双实例，用途区分见 remark
+    ('agent_plan_calib_1020', 'agent-plan-calibration', 'internal', '20 10 * * 1-5', true),
+    ('agent_plan_calib_1320', 'agent-plan-calibration', 'internal', '20 13 * * 1-5', true)
 ON CONFLICT (task_name) DO UPDATE
 SET task_type = EXCLUDED.task_type, source = EXCLUDED.source;
 
@@ -483,6 +487,11 @@ UPDATE collector_task SET remark = '早盘集合竞价快照（9:26–9:29 采�
 UPDATE collector_task SET remark = '盘后竞价数据补采兜底'
  WHERE task_name = 'tushare_index_auction_pm';
 
+UPDATE collector_task SET remark = '盘中计划校准·早盘（10:20，开盘噪声消退、早盘形态成形）'
+ WHERE task_name = 'agent_plan_calib_1020';
+UPDATE collector_task SET remark = '盘中计划校准·午盘（13:20，午盘开盘表现确认，含早盘全程回顾）'
+ WHERE task_name = 'agent_plan_calib_1320';
+
 -- ============================================================
 -- 交易日历管理（与 migrations/20260926a_trade_calendar.sql 保持同步，幂等，可全量重放）
 -- 行情类任务开启交易日预检（新闻/全球市场/AI 记分/KB/维护类保持 false）；
@@ -501,7 +510,7 @@ WHERE task_name IN (
     'market_daily_review_1835', 'limit_up_ai_review_1630', 'stock_daily_analysis_1640',
     'sector_anomaly_detect_1745', 'stock_anomaly_detect_1700', 'ths_sector_kline_1730',
     'kline_freshness_evening', 'paper_trade_sync_1600', 'paper_trade_review_1610',
-    'agent_daily_plan_1900'
+    'agent_daily_plan_1900', 'agent_plan_calib_1020', 'agent_plan_calib_1320'
 );
 
 INSERT INTO collector_task (task_name, task_type, source, schedule, is_active, trade_day_only, remark)

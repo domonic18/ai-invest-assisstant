@@ -53,6 +53,7 @@ def _row(**overrides: object) -> SimpleNamespace:
         "risk_max_daily_orders": 10,
         "intraday_exec_mode": "shadow",
         "intraday_paused": False,
+        "calibration_mode": "shadow",
         "status": "active",
         "plan_cadence": "daily",
         "review_cadence": "daily",
