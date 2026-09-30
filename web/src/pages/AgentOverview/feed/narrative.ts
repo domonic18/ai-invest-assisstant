@@ -8,6 +8,8 @@ import dayjs from 'dayjs'
 
 import type { ApiTradingAgentObservationItem } from '@ai-invest/shared'
 
+import { toBeijing } from '@/utils/beijing'
+
 export type NarrativeTone = 'hot' | 'dim' | 'norm'
 
 export interface NarrativeCard {
@@ -30,7 +32,7 @@ function metaBase(item: ApiTradingAgentObservationItem): string {
 }
 
 export function toNarrative(item: ApiTradingAgentObservationItem): NarrativeCard {
-  const time = dayjs(item.tickTime).format('HH:mm:ss')
+  const time = toBeijing(dayjs(item.tickTime)).format('HH:mm:ss')
   const stock = stockLabel(item)
 
   if (item.action === 'execute') {

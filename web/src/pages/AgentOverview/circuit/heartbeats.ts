@@ -7,9 +7,11 @@ import dayjs from 'dayjs'
 
 import type { CeleryTaskSquare, ServiceStatusItem } from '@ai-invest/shared'
 
-/** 提取 HH:MM（本地渲染，与系统状态页同口径）。 */
+import { toBeijing } from '@/utils/beijing'
+
+/** 提取北京墙钟 HH:MM（资源站心跳是业务时间线语义，禁止环境本地时区）。 */
 function hm(iso: string): string {
-  return dayjs(iso).format('HH:mm')
+  return toBeijing(dayjs(iso)).format('HH:mm')
 }
 
 function matches(task: CeleryTaskSquare, keywords: string[]): boolean {
@@ -31,7 +33,7 @@ export function domainHeartbeat(tasks: CeleryTaskSquare[], keywords: string[], t
     .filter((t) => (t.state === 'success' || t.state === 'partial') && t.finishedAt)
     .sort((a, b) => dayjs(b.finishedAt!).valueOf() - dayjs(a.finishedAt!).valueOf())
   const latest = succeeded[0]
-  if (latest && dayjs(latest.finishedAt).format('YYYY-MM-DD') === today) {
+  if (latest && toBeijing(dayjs(latest.finishedAt)).format('YYYY-MM-DD') === today) {
     return `最近成功 ${hm(latest.finishedAt!)}`
   }
   return '今日静默'
