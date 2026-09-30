@@ -1815,7 +1815,7 @@ CREATE TABLE IF NOT EXISTS agent_trade_plan_amendment (
     id               BIGSERIAL PRIMARY KEY,
     agent_key        VARCHAR(32)  NOT NULL REFERENCES trading_agent (agent_key) ON DELETE CASCADE,  -- 归属 Agent
     plan_date        DATE         NOT NULL,      -- 校准对象计划日（当日）
-    window           VARCHAR(8)   NOT NULL,      -- 校准窗口：1020（早盘）/ 1320（午盘）
+    "window"         VARCHAR(8)   NOT NULL,      -- 校准窗口：1020（早盘）/ 1320（午盘）
     stock_code       VARCHAR(12)  NOT NULL,
     plan_id          BIGINT REFERENCES agent_trade_plan (id) ON DELETE SET NULL,  -- 修正对象计划（add 为空）
     action           VARCHAR(16)  NOT NULL,      -- maintain / adjust / cancel / add
@@ -1833,7 +1833,7 @@ CREATE TABLE IF NOT EXISTS agent_trade_plan_amendment (
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_agent_trade_plan_amendment_agent_date_window_code
-        UNIQUE (agent_key, plan_date, window, stock_code),
+        UNIQUE (agent_key, plan_date, "window", stock_code),
     CONSTRAINT chk_agent_trade_plan_amendment_action
         CHECK (action IN ('maintain', 'adjust', 'cancel', 'add')),
     CONSTRAINT chk_agent_trade_plan_amendment_status
