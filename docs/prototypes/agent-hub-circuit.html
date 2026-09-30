@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>智能中枢 · 电路脉冲主板 REV3</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    width:1680px; height:1000px; overflow:hidden;
+    background:#0c0e12; color:#f0f1f5;
+    font-family:'Inter',-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    padding:20px 26px; display:flex; flex-direction:column; gap:12px;
+  }
+  .mono { font-family:'SF Mono','Fira Code',ui-monospace,Menlo,monospace; }
+
+  .topbar { display:flex; align-items:center; height:40px; }
+  .topbar h1 { font-size:19px; font-weight:600; letter-spacing:.5px; }
+  .topbar h1 b { color:#34d399; }
+  .ver { font-size:10px; color:#34d399; border:1px solid rgba(52,211,153,.4); border-radius:4px; padding:1px 6px; margin-left:10px; letter-spacing:.1em; }
+  .topbar .sub { font-size:12px; color:#5c616e; margin-left:14px; }
+  .badge {
+    margin-left:auto; display:flex; align-items:center; gap:7px;
+    background:rgba(94,106,210,.10); border:1px solid rgba(94,106,210,.4);
+    color:#c7cbf5; font-size:12px; padding:4px 12px; border-radius:999px;
+  }
+  .badge i { width:7px; height:7px; border-radius:50%; background:#2ea043; box-shadow:0 0 8px rgba(46,160,67,.9); animation:blink 2s ease-in-out infinite; }
+
+  .cols { display:flex; gap:20px; flex:1; min-height:0; }
+  .left { width:1172px; flex:none; display:flex; flex-direction:column; gap:12px; }
+  .board {
+    background:#0a0f0d; border-radius:18px; position:relative; overflow:hidden;
+    border:1px solid #23262d; box-shadow:0 24px 70px rgba(0,0,0,.6);
+  }
+
+  .legend { display:flex; gap:10px; align-items:stretch; }
+  .lg {
+    background:#111318; border:1px solid #23262d; border-radius:12px;
+    padding:9px 14px; font-size:11.5px; line-height:1.6; color:#8a8f98;
+    display:flex; gap:10px; align-items:flex-start;
+  }
+  .lg .ico { flex:none; width:26px; height:26px; border-radius:8px; background:#181a21; border:1px solid #2e323c; display:flex; align-items:center; justify-content:center; }
+  .lg b { color:#f0f1f5; font-size:12px; display:block; margin-bottom:1px; }
+  .dot2 { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:3px; }
+
+  .right {
+    flex:1; background:#111318; border:1px solid #23262d;
+    border-radius:16px; padding:14px 16px; display:flex; flex-direction:column; gap:10px; overflow:hidden;
+  }
+  .rh { display:flex; align-items:center; gap:9px; }
+  .rh .t { font-size:14.5px; font-weight:600; }
+  .rh .who { font-size:11.5px; color:#67e8f9; background:rgba(34,211,238,.08);
+    border:1px solid rgba(34,211,238,.35); padding:1px 9px; border-radius:999px; }
+  .rh .ses { margin-left:auto; font-size:11px; color:#7ee2a8; background:rgba(46,160,67,.10);
+    border:1px solid rgba(46,160,67,.3); padding:1px 9px; border-radius:999px; }
+  .cards { display:flex; flex-direction:column; gap:8px; overflow:hidden; }
+  .card {
+    display:flex; gap:10px; background:#181a21; border:1px solid #23262d;
+    border-left-width:3px; border-radius:12px; padding:9px 12px;
+    animation:feedin .5s ease both;
+  }
+  .card.hot { background:rgba(248,81,73,.06); border-color:rgba(248,81,73,.35); border-left-color:#f85149; }
+  .card.cal { border-color:rgba(52,211,153,.35); border-left-color:#34d399; background:rgba(52,211,153,.04); }
+  .ava { flex:none; margin-top:2px; }
+  .cbody { min-width:0; }
+  .meta1 { font-size:12.5px; line-height:1.5; color:#d7dce5; }
+  .hot .meta1 { color:#fca5a5; font-weight:600; }
+  .dim .meta1 { color:#8a8f98; }
+  .meta2 { margin-top:3px; font-size:10.5px; color:#5c616e; font-family:'SF Mono',ui-monospace,Menlo,monospace; }
+  .crow { display:flex; align-items:baseline; gap:8px; }
+  .ctime { font-size:10.5px; color:#5c616e; font-family:'SF Mono',ui-monospace,Menlo,monospace; }
+  .ctag { font-size:10px; padding:0 6px; border-radius:999px; }
+  .t-hot { background:rgba(248,81,73,.16); color:#fca5a5; }
+  .t-dim { background:rgba(140,140,140,.12); color:#8a8f98; }
+  .t-cal { background:rgba(52,211,153,.14); color:#6ee7b7; }
+  .typing { display:flex; gap:5px; padding:6px 4px 0 2px; }
+  .typing i { width:6px; height:6px; border-radius:50%; background:#2e323c; animation:tp 1.2s ease-in-out infinite; }
+  .typing i:nth-child(2) { animation-delay:.15s; }
+  .typing i:nth-child(3) { animation-delay:.3s; }
+
+  @keyframes blink { 50% { opacity:.35; } }
+  @keyframes tp { 0%,100%{opacity:.3} 50%{opacity:1} }
+  @keyframes feedin { from{opacity:0; transform:translateY(-8px);} to{opacity:1; transform:none;} }
+  @keyframes dashflow { to { stroke-dashoffset:-48; } }
+  @keyframes corebeat { 0%,100%{opacity:1} 50%{opacity:.3} }
+  @keyframes ledChase { 0%,100%{opacity:1} 33%{opacity:.2} 66%{opacity:.5} }
+  @keyframes sweepX { from{transform:translateX(0)} to{transform:translateX(192px)} }
+  @keyframes heatrise { 0%{opacity:0; transform:translateY(2px)} 40%{opacity:.8} 100%{opacity:0; transform:translateY(-4px)} }
+
+  .trace-fast { stroke-dasharray:10 6; animation:dashflow 1s linear infinite; }
+  .trace-slow { stroke-dasharray:5 9;  animation:dashflow 3.2s linear infinite; }
+  .trace-clk  { stroke-dasharray:2 6;  animation:dashflow 2.4s linear infinite; }
+  .corebeat  { animation:corebeat 1.6s ease-in-out infinite; }
+  .corebeat-slow { animation:corebeat 4s ease-in-out infinite; }
+  .led1 { animation:ledChase 1.8s linear infinite; }
+  .led2 { animation:ledChase 1.8s linear infinite .45s; }
+  .led3 { animation:ledChase 1.8s linear infinite .9s; }
+  .led4 { animation:ledChase 1.8s linear infinite 1.35s; }
+  .pipe1 { animation:corebeat 2.4s ease-in-out infinite; }
+  .pipe2 { animation:corebeat 2.4s ease-in-out infinite .8s; }
+  .pipe3 { animation:corebeat 2.4s ease-in-out infinite 1.6s; }
+  .playhead { animation:sweepX 6s linear infinite; }
+  .heat { animation:heatrise 1.8s ease-in-out infinite; }
+  .heat2 { animation:heatrise 1.8s ease-in-out infinite .5s; }
+  .heat3 { animation:heatrise 1.8s ease-in-out infinite 1s; }
+
+  text { font-family:'Inter',-apple-system,"PingFang SC",sans-serif; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>智能中枢 · <b>电路脉冲主板</b></h1>
+  <span class="ver">REV 3.0</span>
+  <span class="sub">主控流水线 + 四通道逻辑分析仪：波形密度 = Agent 实际工作节奏 · 走线丝印 = 信号语义</span>
+  <span class="badge"><i></i>盘中实时 13:45 · 主板供电正常</span>
+</div>
+
+<div class="cols">
+  <!-- ================= 左：主板 ================= -->
+  <div class="left">
+    <div class="board">
+      <svg width="1172" height="800" viewBox="0 0 1140 800">
+        <defs>
+          <radialGradient id="dieCyan" cx="50%" cy="50%" r="55%">
+            <stop offset="0%" stop-color="rgba(34,211,238,.85)"/>
+            <stop offset="100%" stop-color="rgba(34,211,238,0)"/>
+          </radialGradient>
+          <radialGradient id="diePurple" cx="50%" cy="50%" r="55%">
+            <stop offset="0%" stop-color="rgba(168,85,247,.7)"/>
+            <stop offset="100%" stop-color="rgba(168,85,247,0)"/>
+          </radialGradient>
+          <radialGradient id="dieGreen" cx="50%" cy="50%" r="55%">
+            <stop offset="0%" stop-color="rgba(52,211,153,.8)"/>
+            <stop offset="100%" stop-color="rgba(52,211,153,0)"/>
+          </radialGradient>
+          <linearGradient id="trail" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="rgba(103,232,249,0)"/>
+            <stop offset="100%" stop-color="rgba(103,232,249,.16)"/>
+          </linearGradient>
+          <filter id="softC" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="4"/>
+          </filter>
+          <pattern id="solder" width="46" height="46" patternUnits="userSpaceOnUse">
+            <circle cx="23" cy="23" r="1" fill="rgba(52,211,153,.09)"/>
+          </pattern>
+        </defs>
+
+        <rect width="1140" height="800" fill="#0a0f0d"/>
+        <rect width="1140" height="800" fill="url(#solder)"/>
+        <!-- PCB 边框 + 固定孔 -->
+        <rect x="18" y="18" width="1104" height="764" rx="14" fill="none" stroke="rgba(52,211,153,.22)" stroke-width="2"/>
+        <rect x="26" y="26" width="1088" height="748" rx="10" fill="none" stroke="rgba(52,211,153,.08)" stroke-width="1"/>
+        <g fill="none" stroke="rgba(52,211,153,.3)" stroke-width="1.4">
+          <circle cx="52" cy="52" r="9"/><circle cx="1088" cy="52" r="9"/>
+          <circle cx="52" cy="748" r="9"/><circle cx="1088" cy="748" r="9"/>
+        </g>
+        <g fill="none" stroke="rgba(52,211,153,.18)" stroke-width="1">
+          <circle cx="52" cy="52" r="4"/><circle cx="1088" cy="52" r="4"/>
+          <circle cx="52" cy="748" r="4"/><circle cx="1088" cy="748" r="4"/>
+        </g>
+
+        <!-- ================= 走线层（含辉光底层） ================= -->
+        <!-- 热通路辉光 -->
+        <path d="M640 356 H760 V240 H820" fill="none" stroke="rgba(34,211,238,.22)" stroke-width="8" filter="url(#softC)"/>
+        <path d="M940 240 H1000 V376 H1010" fill="none" stroke="rgba(248,81,73,.20)" stroke-width="7" filter="url(#softC)"/>
+
+        <!-- 知识库 → 主控 -->
+        <path d="M170 170 H300 V356 H430" fill="none" stroke="rgba(168,85,247,.5)" stroke-width="2.4" class="trace-fast"/>
+        <!-- 资讯 → 主控 -->
+        <path d="M170 277 H340 V400 H430" fill="none" stroke="rgba(88,166,255,.45)" stroke-width="2" class="trace-slow"/>
+        <!-- 情绪 → 主控 -->
+        <path d="M170 333 H360 V430 H430" fill="none" stroke="rgba(244,114,182,.4)" stroke-width="2" class="trace-slow"/>
+        <!-- 主控 → 短线猎手（计划/盯盘双流） -->
+        <path d="M640 356 H760 V240 H820" fill="none" stroke="rgba(34,211,238,.9)" stroke-width="3.2" class="trace-fast"/>
+        <path d="M640 372 H740 V268 H820" fill="none" stroke="rgba(34,211,238,.5)" stroke-width="1.8" class="trace-fast"/>
+        <!-- 主控 → M60 -->
+        <path d="M640 430 H780 V520 H850" fill="none" stroke="rgba(168,85,247,.55)" stroke-width="2.2" class="trace-slow"/>
+        <!-- 短线猎手 → 模拟柜台（下单热通路） -->
+        <path d="M940 240 H1000 V376 H1010" fill="none" stroke="rgba(248,81,73,.7)" stroke-width="2.6" class="trace-fast"/>
+        <!-- 主控 → Celery 总线 -->
+        <path d="M535 484 V560 H520 V640" fill="none" stroke="rgba(210,153,34,.5)" stroke-width="2" class="trace-slow"/>
+        <!-- 长线价值派插槽：走线断开 -->
+        <path d="M640 448 H800 V682 H850" fill="none" stroke="rgba(148,163,184,.16)" stroke-width="1.6" stroke-dasharray="2 8"/>
+        <!-- 时钟树：晶振 → 主控 / 短线猎手 / M60 -->
+        <path d="M610 529 V505 H640" fill="none" stroke="rgba(148,163,184,.4)" stroke-width="1.2" class="trace-clk"/>
+        <path d="M626 541 H720 V228 H820" fill="none" stroke="rgba(148,163,184,.32)" stroke-width="1.2" class="trace-clk"/>
+        <path d="M626 553 H760 V538 H850" fill="none" stroke="rgba(148,163,184,.26)" stroke-width="1.2" class="trace-clk"/>
+
+        <!-- 信号丝印 -->
+        <g class="mono" font-size="8" letter-spacing="1">
+          <text x="212" y="162" fill="rgba(168,85,247,.6)">KB-READ</text>
+          <text x="222" y="269" fill="rgba(88,166,255,.55)">NEWS</text>
+          <text x="232" y="325" fill="rgba(244,114,182,.5)">SENT</text>
+          <text x="690" y="348" fill="rgba(103,232,249,.75)">PLAN·WATCH</text>
+          <text x="946" y="232" fill="rgba(248,81,73,.75)">ORDER</text>
+          <text x="478" y="600" fill="rgba(210,153,34,.6)">CRON</text>
+          <text x="648" y="532" fill="rgba(148,163,184,.5)">CLK</text>
+        </g>
+
+        <!-- 过孔 -->
+        <g fill="#0a0f0d" stroke-width="1.6">
+          <circle cx="300" cy="170" r="4" stroke="rgba(168,85,247,.6)"/>
+          <circle cx="340" cy="277" r="4" stroke="rgba(88,166,255,.55)"/>
+          <circle cx="360" cy="333" r="4" stroke="rgba(244,114,182,.5)"/>
+          <circle cx="760" cy="356" r="4.5" stroke="rgba(34,211,238,.85)"/>
+          <circle cx="740" cy="372" r="4" stroke="rgba(34,211,238,.55)"/>
+          <circle cx="1000" cy="240" r="4" stroke="rgba(248,81,73,.75)"/>
+          <circle cx="535" cy="560" r="4" stroke="rgba(210,153,34,.6)"/>
+        </g>
+
+        <!-- 电子脉冲 -->
+        <g>
+          <circle r="3" fill="#67e8f9"><animateMotion dur="1.7s" repeatCount="indefinite" path="M640 356 H760 V240 H820"/></circle>
+          <circle r="2.2" fill="rgba(103,232,249,.8)"><animateMotion dur="1.7s" begin="0.55s" repeatCount="indefinite" path="M640 356 H760 V240 H820"/></circle>
+          <circle r="2.6" fill="#c084fc"><animateMotion dur="3.6s" repeatCount="indefinite" path="M170 170 H300 V356 H430"/></circle>
+          <circle r="2.2" fill="#93c5fd"><animateMotion dur="4.4s" repeatCount="indefinite" path="M170 277 H340 V400 H430"/></circle>
+          <circle r="2.4" fill="#f87171"><animateMotion dur="1.4s" repeatCount="indefinite" path="M940 240 H1000 V376 H1010"/></circle>
+          <circle r="2.2" fill="#e7c26a"><animateMotion dur="4.2s" repeatCount="indefinite" path="M535 484 V560 H520 V640"/></circle>
+        </g>
+
+        <!-- ================= 中央主控：复盘引擎（含流水线） ================= -->
+        <g>
+          <g fill="#26312c">
+            <rect x="446" y="330" width="10" height="4"/><rect x="470" y="330" width="10" height="4"/><rect x="494" y="330" width="10" height="4"/><rect x="518" y="330" width="10" height="4"/><rect x="542" y="330" width="10" height="4"/><rect x="566" y="330" width="10" height="4"/><rect x="590" y="330" width="10" height="4"/><rect x="614" y="330" width="10" height="4"/>
+            <rect x="446" y="484" width="10" height="4"/><rect x="470" y="484" width="10" height="4"/><rect x="494" y="484" width="10" height="4"/><rect x="518" y="484" width="10" height="4"/><rect x="542" y="484" width="10" height="4"/><rect x="566" y="484" width="10" height="4"/><rect x="590" y="484" width="10" height="4"/><rect x="614" y="484" width="10" height="4"/>
+          </g>
+          <rect x="430" y="334" width="210" height="150" rx="10" fill="#10181440" stroke="rgba(52,211,153,.55)" stroke-width="1.6"/>
+          <rect x="436" y="340" width="198" height="138" rx="7" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+          <text x="535" y="352" text-anchor="middle" font-size="8" fill="#3f5a4e" class="mono" letter-spacing="1">RV-ENGINE-01</text>
+          <!-- 核心 die -->
+          <rect x="505" y="358" width="60" height="60" rx="6" fill="url(#dieGreen)" class="corebeat"/>
+          <rect x="505" y="358" width="60" height="60" rx="6" fill="none" stroke="#34d399" stroke-width="1.2"/>
+          <text x="535" y="392" text-anchor="middle" font-size="9" fill="#07120d" font-weight="700" class="mono">CORE</text>
+          <!-- 流水子核：计划 → 盯盘 → 归因 -->
+          <g>
+            <rect x="452" y="430" width="36" height="22" rx="4" fill="rgba(52,211,153,.12)" stroke="rgba(52,211,153,.4)"/>
+            <rect x="452" y="430" width="36" height="22" rx="4" fill="url(#dieGreen)" class="pipe1"/>
+            <text x="470" y="445" text-anchor="middle" font-size="8.5" fill="#a7f3d0" class="mono">计划</text>
+            <path d="M490 441 H498" stroke="rgba(52,211,153,.5)" stroke-width="1.2"/>
+            <rect x="500" y="430" width="36" height="22" rx="4" fill="rgba(52,211,153,.12)" stroke="rgba(52,211,153,.4)"/>
+            <rect x="500" y="430" width="36" height="22" rx="4" fill="url(#dieGreen)" class="pipe2"/>
+            <text x="518" y="445" text-anchor="middle" font-size="8.5" fill="#a7f3d0" class="mono">盯盘</text>
+            <path d="M538 441 H546" stroke="rgba(52,211,153,.5)" stroke-width="1.2"/>
+            <rect x="548" y="430" width="36" height="22" rx="4" fill="rgba(52,211,153,.12)" stroke="rgba(52,211,153,.4)"/>
+            <rect x="548" y="430" width="36" height="22" rx="4" fill="url(#dieGreen)" class="pipe3"/>
+            <text x="566" y="445" text-anchor="middle" font-size="8.5" fill="#a7f3d0" class="mono">归因</text>
+            <path d="M588 441 H606 V400 H571" fill="none" stroke="rgba(52,211,153,.3)" stroke-width="1" stroke-dasharray="2 3"/>
+          </g>
+          <text x="535" y="502" text-anchor="middle" font-size="11" fill="#6ee7b7" letter-spacing="1">复盘引擎 · 主控</text>
+        </g>
+
+        <!-- ================= 晶振（时钟源） ================= -->
+        <g>
+          <rect x="594" y="529" width="32" height="32" rx="6" fill="#0e1512" stroke="rgba(148,163,184,.5)" stroke-width="1.2"/>
+          <path d="M602 535 V555 M618 535 V555" stroke="rgba(148,163,184,.6)" stroke-width="1.4"/>
+          <rect x="605" y="539" width="10" height="12" rx="2" fill="none" stroke="rgba(148,163,184,.4)"/>
+          <text x="610" y="575" text-anchor="middle" font-size="8.5" fill="#5c616e" class="mono">25MHz</text>
+        </g>
+
+        <!-- ================= 芯片：短线猎手（满载运算） ================= -->
+        <g>
+          <!-- 散热气流 -->
+          <g stroke="rgba(34,211,238,.4)" stroke-width="1.4" fill="none" stroke-linecap="round">
+            <path class="heat"  d="M850 180 q4 -7 0 -14"/>
+            <path class="heat2" d="M880 180 q-4 -8 0 -15"/>
+            <path class="heat3" d="M910 180 q4 -7 0 -14"/>
+          </g>
+          <text x="880" y="160" text-anchor="middle" font-size="8" fill="#3f5a4e" class="mono" letter-spacing="1">AGT-HUNTER · 100% LOAD</text>
+          <g fill="#26312c">
+            <rect x="836" y="182" width="9" height="4"/><rect x="858" y="182" width="9" height="4"/><rect x="880" y="182" width="9" height="4"/><rect x="902" y="182" width="9" height="4"/>
+            <rect x="836" y="270" width="9" height="4"/><rect x="858" y="270" width="9" height="4"/><rect x="880" y="270" width="9" height="4"/><rect x="902" y="270" width="9" height="4"/>
+          </g>
+          <rect x="820" y="186" width="120" height="84" rx="8" fill="#101820" stroke="rgba(34,211,238,.85)" stroke-width="1.6"/>
+          <rect x="825" y="191" width="110" height="74" rx="5" fill="none" stroke="rgba(255,255,255,.05)"/>
+          <rect x="858" y="210" width="44" height="34" rx="5" fill="url(#dieCyan)" class="corebeat"/>
+          <rect x="858" y="210" width="44" height="34" rx="5" fill="none" stroke="#22d3ee" stroke-width="1.1"/>
+          <circle cx="832" cy="196" r="2.6" fill="#22d3ee" class="led1"/>
+          <circle cx="842" cy="196" r="2.6" fill="#22d3ee" class="led2"/>
+          <circle cx="852" cy="196" r="2.6" fill="#22d3ee" class="led3"/>
+          <circle cx="862" cy="196" r="2.6" fill="#22d3ee" class="led4"/>
+          <text x="880" y="261" text-anchor="middle" font-size="10.5" fill="#a5f3fc">短线猎手</text>
+        </g>
+        <rect x="782" y="292" width="196" height="24" rx="12" fill="rgba(17,19,24,.92)" stroke="rgba(34,211,238,.55)"/>
+        <text x="880" y="308" text-anchor="middle" font-size="11" fill="#a5f3fc">满载运算 · 盯盘回路双流</text>
+
+        <!-- ================= 芯片：M60（低功耗） ================= -->
+        <g>
+          <text x="910" y="486" text-anchor="middle" font-size="8" fill="#4a4158" class="mono" letter-spacing="1">AGT-M60 · IDLE 8%</text>
+          <g fill="#26312c">
+            <rect x="866" y="492" width="9" height="4"/><rect x="888" y="492" width="9" height="4"/><rect x="910" y="492" width="9" height="4"/>
+            <rect x="866" y="580" width="9" height="4"/><rect x="888" y="580" width="9" height="4"/><rect x="910" y="580" width="9" height="4"/>
+          </g>
+          <rect x="850" y="496" width="120" height="84" rx="8" fill="#141020" stroke="rgba(168,85,247,.6)" stroke-width="1.4"/>
+          <rect x="855" y="501" width="110" height="74" rx="5" fill="none" stroke="rgba(255,255,255,.04)"/>
+          <rect x="888" y="520" width="44" height="34" rx="5" fill="url(#diePurple)" class="corebeat-slow"/>
+          <rect x="888" y="520" width="44" height="34" rx="5" fill="none" stroke="#a855f7" stroke-width="1.1"/>
+          <circle cx="862" cy="506" r="2.6" fill="#a855f7" class="corebeat-slow"/>
+          <circle cx="872" cy="506" r="2.6" fill="rgba(168,85,247,.25)"/>
+          <circle cx="882" cy="506" r="2.6" fill="rgba(168,85,247,.25)"/>
+          <text x="910" y="571" text-anchor="middle" font-size="10.5" fill="#e9d5ff">M60</text>
+        </g>
+        <rect x="812" y="602" width="196" height="24" rx="12" fill="rgba(17,19,24,.92)" stroke="rgba(168,85,247,.45)"/>
+        <text x="910" y="618" text-anchor="middle" font-size="11" fill="#e9d5ff">低功耗待机 · 心跳 4s</text>
+
+        <!-- ================= 空插槽：长线价值派 ================= -->
+        <g>
+          <text x="910" y="632" text-anchor="middle" font-size="8" fill="#3f4653" class="mono" letter-spacing="1">SOCKET EMPTY · NO POWER</text>
+          <rect x="850" y="640" width="120" height="84" rx="8" fill="none" stroke="rgba(148,163,184,.35)" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <g stroke="rgba(148,163,184,.20)" stroke-width="1">
+            <path d="M862 654 H908 M862 666 H908 M862 678 H908"/>
+          </g>
+          <text x="910" y="712" text-anchor="middle" font-size="10.5" fill="#5c616e">长线价值派</text>
+        </g>
+        <rect x="812" y="738" width="196" height="24" rx="12" fill="rgba(17,19,24,.92)" stroke="rgba(148,163,184,.3)"/>
+        <text x="910" y="754" text-anchor="middle" font-size="11" fill="#8a8f98">未启用 · 插槽未上电</text>
+
+        <!-- ================= 外设：知识库（存储阵列） ================= -->
+        <g>
+          <text x="115" y="112" text-anchor="middle" font-size="11" fill="#d8b4fe">知识库 · 存储阵列</text>
+          <rect x="60" y="120" width="110" height="100" rx="10" fill="#10141f" stroke="rgba(168,85,247,.5)" stroke-width="1.4"/>
+          <rect x="74" y="136" width="82" height="14" rx="3" fill="none" stroke="rgba(168,85,247,.55)"/>
+          <circle cx="146" cy="143" r="2.4" fill="#a855f7" class="led2"/>
+          <rect x="74" y="156" width="82" height="14" rx="3" fill="none" stroke="rgba(168,85,247,.45)"/>
+          <circle cx="146" cy="163" r="2.4" fill="#a855f7" class="led3"/>
+          <rect x="74" y="176" width="82" height="14" rx="3" fill="none" stroke="rgba(168,85,247,.40)"/>
+          <circle cx="146" cy="183" r="2.4" fill="rgba(168,85,247,.6)" class="led1"/>
+          <rect x="74" y="196" width="82" height="14" rx="3" fill="none" stroke="rgba(168,85,247,.30)"/>
+          <circle cx="146" cy="203" r="2.4" fill="rgba(168,85,247,.35)"/>
+        </g>
+
+        <!-- ================= 外设：资讯 / 情绪 ================= -->
+        <g>
+          <rect x="60" y="255" width="110" height="44" rx="9" fill="#101820" stroke="rgba(88,166,255,.5)"/>
+          <circle cx="76" cy="277" r="2.6" fill="#f85149" class="corebeat"/>
+          <text x="88" y="281" font-size="10.5" fill="#93c5fd">资讯电报</text>
+          <path d="M150 271 v-8 M145 266 a7 7 0 0 1 10 0" stroke="#58a6ff" stroke-width="1.4" fill="none"/>
+          <rect x="60" y="311" width="110" height="44" rx="9" fill="#1a1018" stroke="rgba(244,114,182,.5)"/>
+          <text x="74" y="335" font-size="10.5" fill="#f9a8d4">情绪雷达</text>
+          <text x="156" y="335" text-anchor="end" font-size="10" fill="#f472b6" class="mono">♥78</text>
+        </g>
+
+        <!-- ================= 逻辑分析仪 ================= -->
+        <g>
+          <rect x="60" y="420" width="310" height="315" rx="12" fill="#0d120f" stroke="rgba(52,211,153,.35)" stroke-width="1.2"/>
+          <rect x="66" y="426" width="298" height="303" rx="8" fill="none" stroke="rgba(255,255,255,.04)"/>
+          <text x="78" y="446" font-size="11" fill="#6ee7b7" letter-spacing="1">逻辑分析仪 · AGENT ACTIVITY</text>
+          <text x="352" y="446" text-anchor="end" font-size="8.5" fill="#3f5a4e" class="mono">LA-4CH</text>
+          <line x1="78" y1="456" x2="352" y2="456" stroke="rgba(52,211,153,.18)"/>
+          <!-- 探针线束 -->
+          <path d="M370 480 H398 V452 H430" fill="none" stroke="rgba(148,163,184,.35)" stroke-width="1.2" stroke-dasharray="3 3"/>
+          <text x="376" y="472" font-size="8" fill="#5c616e" class="mono">PROBE×4</text>
+
+          <!-- 通道分隔 -->
+          <g stroke="rgba(52,211,153,.10)">
+            <line x1="78" y1="528" x2="352" y2="528"/>
+            <line x1="78" y1="584" x2="352" y2="584"/>
+            <line x1="78" y1="640" x2="352" y2="640"/>
+          </g>
+
+          <!-- CH1 引擎 -->
+          <text x="78" y="494" font-size="9" fill="#6ee7b7" class="mono">CH1 引擎</text>
+          <path id="w1" d="M150 500 h24 v-10 h16 v10 h30 v-10 h14 v10 h26 v-10 h18 v10 h24 v-10 h16 v10 h22" fill="none" stroke="rgba(52,211,153,.75)" stroke-width="1.6"/>
+          <circle r="2.2" fill="#6ee7b7"><animateMotion dur="6s" repeatCount="indefinite"><mpath href="#w1"/></animateMotion></circle>
+
+          <!-- CH2 短线猎手（密集） -->
+          <text x="78" y="550" font-size="9" fill="#67e8f9" class="mono">CH2 短线</text>
+          <path id="w2" d="M150 556 h12 v-12 h10 v12 h18 v-12 h8 v12 h14 v-12 h12 v12 h20 v-12 h8 v12 h12 v-12 h16 v12 h14 v-12 h10 v12 h18 v-12 h8 v12 h12" fill="none" stroke="rgba(34,211,238,.85)" stroke-width="1.6"/>
+          <circle r="2.2" fill="#67e8f9"><animateMotion dur="6s" repeatCount="indefinite"><mpath href="#w2"/></animateMotion></circle>
+
+          <!-- CH3 M60（稀疏） -->
+          <text x="78" y="606" font-size="9" fill="#c084fc" class="mono">CH3 M60</text>
+          <path id="w3" d="M150 612 h40 v-8 h10 v8 h60 v-8 h10 v8 h70" fill="none" stroke="rgba(168,85,247,.6)" stroke-width="1.6"/>
+          <circle r="2.2" fill="#c084fc"><animateMotion dur="6s" repeatCount="indefinite"><mpath href="#w3"/></animateMotion></circle>
+
+          <!-- CH4 长线（无信号） -->
+          <text x="78" y="662" font-size="9" fill="#5c616e" class="mono">CH4 长线</text>
+          <path d="M150 668 h192" stroke="rgba(148,163,184,.3)" stroke-width="1.4" stroke-dasharray="4 4"/>
+          <text x="246" y="664" text-anchor="middle" font-size="8" fill="#3f4653" class="mono" letter-spacing="2">NO CARRIER</text>
+
+          <!-- 扫描播放头 + 拖尾 -->
+          <g class="playhead">
+            <rect x="110" y="470" width="40" height="220" fill="url(#trail)"/>
+            <rect x="149" y="470" width="2" height="220" fill="rgba(165,243,252,.85)"/>
+          </g>
+
+          <text x="78" y="722" font-size="8.5" fill="#3f5a4e" class="mono">TRIG AUTO · 6s/DIV · 采样与巡检 tick 同步</text>
+        </g>
+
+        <!-- ================= 外设：模拟柜台（I/O 端口） ================= -->
+        <g>
+          <text x="1060" y="322" text-anchor="middle" font-size="11" fill="#7ee2a8">模拟柜台 · I/O</text>
+          <rect x="1010" y="330" width="100" height="92" rx="10" fill="#101814" stroke="rgba(46,160,67,.55)" stroke-width="1.4"/>
+          <circle cx="1022" cy="344" r="2.6" fill="#2ea043" class="led2"/>
+          <rect x="1024" y="356" width="72" height="10" rx="3" fill="none" stroke="rgba(46,160,67,.5)"/>
+          <rect x="1024" y="372" width="72" height="10" rx="3" fill="none" stroke="rgba(46,160,67,.5)"/>
+          <rect x="1024" y="372" width="46" height="10" rx="3" fill="rgba(46,160,67,.35)"/>
+          <text x="1024" y="400" font-size="9.5" fill="#7ee2a8" class="mono">ORD 900×10.98</text>
+          <text x="1024" y="413" font-size="9.5" fill="#5c616e" class="mono">ACK 13:44:58</text>
+        </g>
+
+        <!-- ================= Celery 总线 ================= -->
+        <g>
+          <text x="520" y="632" text-anchor="middle" font-size="11" fill="#e7c26a">Celery 消息总线</text>
+          <rect x="380" y="640" width="280" height="60" rx="10" fill="#161410" stroke="rgba(210,153,34,.5)" stroke-width="1.4"/>
+          <path d="M396 660 H644 M396 674 H644" stroke="rgba(210,153,34,.35)" stroke-width="1.4"/>
+          <rect width="14" height="8" rx="2" fill="#d29922">
+            <animateMotion dur="3s" repeatCount="indefinite" path="M396 656 H630"/>
+          </rect>
+          <rect width="14" height="8" rx="2" fill="rgba(210,153,34,.55)">
+            <animateMotion dur="3s" begin="1.4s" repeatCount="indefinite" path="M644 670 H410"/>
+          </rect>
+          <text x="660" y="670" font-size="9.5" fill="#8a8f98" class="mono">×2</text>
+        </g>
+
+        <!-- 零散元件：电容 / 电阻 / 测试点 / 电源灯 -->
+        <g>
+          <circle cx="395" cy="300" r="7" fill="#0e1512" stroke="rgba(52,211,153,.4)" stroke-width="1.2"/>
+          <text x="395" y="291" text-anchor="middle" font-size="7.5" fill="#3f5a4e" class="mono">C12</text>
+          <circle cx="700" cy="600" r="7" fill="#0e1512" stroke="rgba(52,211,153,.4)" stroke-width="1.2"/>
+          <text x="700" y="591" text-anchor="middle" font-size="7.5" fill="#3f5a4e" class="mono">C27</text>
+          <rect x="1000" y="466" width="22" height="10" rx="2" fill="#0e1512" stroke="rgba(210,153,34,.45)"/>
+          <path d="M1003 471 l3 -3 3 6 3 -6 3 6 3 -6 3 3" stroke="rgba(210,153,34,.6)" stroke-width="1" fill="none"/>
+          <text x="1011" y="462" text-anchor="middle" font-size="7.5" fill="#4a4436" class="mono">R08</text>
+          <circle cx="90" cy="70" r="4" fill="none" stroke="rgba(148,163,184,.4)"/>
+          <text x="100" y="74" font-size="7.5" fill="#3f4653" class="mono">TP1</text>
+          <circle cx="1052" cy="700" r="3.2" fill="#2ea043" class="led3"/>
+          <text x="1062" y="704" font-size="7.5" fill="#3f5a4e" class="mono">PWR</text>
+        </g>
+
+        <!-- 板号丝印 -->
+        <text x="60" y="770" font-size="9" fill="#2b3a33" class="mono" letter-spacing="2">AI-INVEST MAINBOARD · REV 3.0 · 13:45:00 CST</text>
+        <text x="1080" y="770" font-size="9" fill="#2b3a33" class="mono" text-anchor="end">PWR OK · 3.3V/1.8V/0.9V</text>
+      </svg>
+    </div>
+
+    <div class="legend">
+      <div class="lg" style="flex:1.1">
+        <span class="ico"><svg width="14" height="14" viewBox="0 0 14 14"><rect x="3" y="3" width="8" height="8" rx="2" fill="none" stroke="#22d3ee"/><rect x="5.5" y="5.5" width="3" height="3" fill="#22d3ee"/></svg></span>
+        <span><b>芯片呼吸 = 运算负载</b>
+          满载 = 核心高频呼吸 + LED 跑马 + 散热气流；待机 = 4s 慢呼吸单灯；未启用 = 空插槽丝印 SOCKET EMPTY
+        </span>
+      </div>
+      <div class="lg" style="flex:1.05">
+        <span class="ico"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M1 10 H6 V4 H13" fill="none" stroke="#34d399" stroke-width="1.4"/><circle cx="6" cy="10" r="1.6" fill="#34d399"/></svg></span>
+        <span><b>走线 = 信号语义</b>
+          丝印标注 PLAN·WATCH / ORDER / KB-READ / NEWS / SENT / CRON / CLK；线宽流速随活跃度分档，热通路带辉光
+        </span>
+      </div>
+      <div class="lg" style="flex:1">
+        <span class="ico"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M1 10 h3 V5 h3 v5 h3 V7 h3" fill="none" stroke="#67e8f9" stroke-width="1.2"/></svg></span>
+        <span><b>逻辑分析仪 = 工作节奏真相</b>
+          四通道对拍：密波 = 忙、疏波 = 闲、虚线 = 无信号；扫描头 6s/格，与巡检 tick 同步采样
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 右：实时决策流 ================= -->
+  <div class="right">
+    <div class="rh">
+      <svg width="22" height="22" viewBox="0 0 22 22"><rect width="22" height="22" rx="6" fill="#181a21" stroke="#2e323c"/><rect x="6" y="6" width="10" height="10" rx="2" fill="none" stroke="#22d3ee" stroke-width="1.2"/><rect x="9" y="9" width="4" height="4" fill="#22d3ee"/></svg>
+      <span class="t">实时决策流</span>
+      <span class="who">短线猎手</span>
+      <span class="ses">盘中 · 13:45</span>
+    </div>
+    <div class="cards">
+
+      <div class="card hot">
+        <svg class="ava" width="24" height="24" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="#22d3ee" stroke-width="1.2"/><rect x="9.5" y="9.5" width="5" height="5" fill="#22d3ee"/></svg>
+        <div class="cbody">
+          <div class="crow"><span class="ctime">13:44:58</span><span class="ctag t-hot">买入执行</span></div>
+          <div class="meta1">看着浦发银行回踩到买区，把 10.98 元的买单递给了柜台</div>
+          <div class="meta2">BUY 600000 · paper · 数量 900 · 触发 L0 通过</div>
+        </div>
+      </div>
+
+      <div class="card" style="border-left-color:#a855f7">
+        <svg class="ava" width="24" height="24" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="#a855f7" stroke-width="1.2"/><rect x="9.5" y="9.5" width="5" height="5" fill="#a855f7"/></svg>
+        <div class="cbody">
+          <div class="crow"><span class="ctime">13:43:20</span><span class="ctag t-dim">方法论</span></div>
+          <div class="meta1">翻开《趋势理论》，翻到买点确认那章</div>
+          <div class="meta2">kb 检索 · top1 命中 · 相关度 0.82</div>
+        </div>
+      </div>
+
+      <div class="card dim" style="border-left-color:#22d3ee">
+        <svg class="ava" width="24" height="24" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="#22d3ee" stroke-width="1.2"/><rect x="9.5" y="9.5" width="5" height="5" fill="#22d3ee"/></svg>
+        <div class="cbody">
+          <div class="crow"><span class="ctime">13:42:51</span><span class="ctag t-dim">心跳</span></div>
+          <div class="meta1">盯着浦发银行的分时看了 3 个 tick，按兵不动</div>
+          <div class="meta2">watch 600000 · 3 tick · 无动作</div>
+        </div>
+      </div>
+
+      <div class="card" style="border-left-color:#f472b6">
+        <svg class="ava" width="24" height="24" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="#f472b6" stroke-width="1.2"/><rect x="9.5" y="9.5" width="5" height="5" fill="#f472b6"/></svg>
+        <div class="cbody">
+          <div class="crow"><span class="ctime">13:41:12</span><span class="ctag t-dim">情绪</span></div>
+          <div class="meta1">刷到 3 条看多视频，情绪面偏热但先不动手</div>
+          <div class="meta2">情绪雷达 · 大V情绪 · 热度 78</div>
+        </div>
+      </div>
+
+      <div class="card cal">
+        <svg class="ava" width="24" height="24" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="#34d399" stroke-width="1.2" stroke-dasharray="3 2"/><rect x="9.5" y="9.5" width="5" height="5" fill="none" stroke="#34d399" stroke-width="1.2"/></svg>
+        <div class="cbody">
+          <div class="crow"><span class="ctime">13:20:06</span><span class="ctag t-cal">校准</span></div>
+          <div class="meta1">午间校准：把止损 9.5 上移到 9.8，计划版本 +1</div>
+          <div class="meta2">amendment · adjust · shadow · v1 → v2</div>
+        </div>
+      </div>
+
+      <div class="card dim" style="border-left-color:#22d3ee">
+        <svg class="ava" width="24" height="24" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="#22d3ee" stroke-width="1.2"/><rect x="9.5" y="9.5" width="5" height="5" fill="#22d3ee"/></svg>
+        <div class="cbody">
+          <div class="crow"><span class="ctime">13:12:40</span><span class="ctag t-dim">抑制</span></div>
+          <div class="meta1">想追高，忍住了——价格已超买区上沿 30%</div>
+          <div class="meta2">chase_high · 14.02 vs 上限 13.60</div>
+        </div>
+      </div>
+
+      <div class="card dim" style="border-left-color:#22d3ee">
+        <svg class="ava" width="24" height="24" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="#22d3ee" stroke-width="1.2"/><rect x="9.5" y="9.5" width="5" height="5" fill="#22d3ee"/></svg>
+        <div class="cbody">
+          <div class="crow"><span class="ctime">09:30:02</span><span class="ctag t-dim">开盘</span></div>
+          <div class="meta1">早盘开启，芯片上电自检通过</div>
+          <div class="meta2">session open · 09:30</div>
+        </div>
+      </div>
+
+    </div>
+    <div class="typing"><i></i><i></i><i></i></div>
+  </div>
+</div>
+
+</body>
+</html>
