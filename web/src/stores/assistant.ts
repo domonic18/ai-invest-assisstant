@@ -132,6 +132,8 @@ interface AssistantState {
   open: boolean
   /** 当前线程 id；undefined 表示新会话 */
   threadId: string | undefined
+  /** 侧边栏对话对象：'assistant' = 常规助手；交易 Agent 的 agent_key 仅管理员可切 */
+  chatAgentType: string
   /** 当前线程的执行计划（updates 事件驱动）；切换线程时清空 */
   todos: TodoStep[] | undefined
   /** 打开面板后自动发送的问题 */
@@ -146,6 +148,8 @@ interface AssistantState {
   closePanel: () => void
   togglePanel: () => void
   switchThread: (threadId: string | undefined) => void
+  /** 切换对话对象（会话列表/线程随之切换；同值幂等不打断会话） */
+  setChatAgent: (agentType: string) => void
   setTodos: (todos: TodoStep[] | undefined) => void
   /** 打开 AI 助手面板并预置一条待发送问题（同时清空待答问题卡） */
   sendQuestion: (question: string) => void
@@ -158,6 +162,7 @@ interface AssistantState {
 export const useAssistantStore = create<AssistantState>((set) => ({
   open: false,
   threadId: undefined,
+  chatAgentType: 'assistant',
   todos: undefined,
   pendingQuestion: undefined,
   pageResult: null,
@@ -167,8 +172,17 @@ export const useAssistantStore = create<AssistantState>((set) => ({
   closePanel: () => set({ open: false }),
   togglePanel: () => set((state) => ({ open: !state.open })),
   switchThread: (threadId) => set({ threadId, todos: undefined, questionCard: null }),
+  // 切对象必须换线程：threadId 属于旧对象的会话，残留会让新 runtime 指向旧线程
+  setChatAgent: (chatAgentType) =>
+    set((state) =>
+      state.chatAgentType === chatAgentType
+        ? state
+        : { chatAgentType, threadId: undefined, todos: undefined, questionCard: null },
+    ),
   setTodos: (todos) => set({ todos }),
-  sendQuestion: (question) => set({ open: true, pendingQuestion: question, questionCard: null }),
+  // 页面级 AI 触发的问题固定走常规助手（页面回写事件由 assistant 域处理）
+  sendQuestion: (question) =>
+    set({ open: true, chatAgentType: 'assistant', pendingQuestion: question, questionCard: null }),
   clearPendingQuestion: () => set({ pendingQuestion: undefined }),
   setPageResult: (pageResult) => set({ pageResult }),
   setQuestionCard: (questionCard) => set({ questionCard }),
