@@ -182,9 +182,12 @@ jobs:
           grep -q "applied=0" <<<"$out" || { echo "ERROR: 重放产生了新 applied，迁移不幂等" >&2; exit 1; }
 
   # ============================================================
-  # Stage 3: Docker 镜像构建与推送（双镜像并行 job，互不拖累）
-  # 跨境推送（美国 runner → 北京 TCR）偶发 stall：单次尝试步骤级超时 25 分钟兜底，
-  # 失败后构建走 GHA cache 秒级重建、立即重推一次；再失败可 re-run failed jobs 单镜像重试
+  # Stage 3: Docker 镜像构建与推送（四镜像并行 job，互不拖累）
+  # 跨境推送（美国 runner → 北京 TCR）会长时间 stall：buildx 的 push 一旦超时
+  # 全部进度作废、重试从零开始，大镜像永远推不完。改为「构建与推送分离」——
+  # 构建只 load 进本地 docker（GHA cache 加速，秒级重建）；推送用 docker push
+  # 循环重试，标准 registry 协议对已上传层返回 Layer already exists 直接跳过，
+  # 跨轮次/跨 re-run 均断点续传
   # ============================================================
   docker-web:
     name: Docker Web / Web 镜像构建推送
@@ -223,14 +226,15 @@ jobs:
             echo "app_version=$(cat VERSION).${GITHUB_RUN_NUMBER}"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Build and Push / 构建并推送（第 1 次尝试）
+      - name: Build image / 本地构建镜像（GHA 缓存加速）
+        # 只构建不入库：load 进本地 docker，GHA cache 保留，推送失败时秒级复用
         uses: docker/build-push-action@v7
-        # 步骤级超时：stall 时 25 分钟强制失败，把剩余预算留给重试
-        timeout-minutes: 25
+        timeout-minutes: 20
         with:
           context: .
           file: docker/web/Dockerfile
-          push: true
+          push: false
+          load: true
           provenance: false
           tags: |
             ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
@@ -240,22 +244,37 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and Push / 构建并推送（重试）
-        if: failure()
-        uses: docker/build-push-action@v7
-        timeout-minutes: 30
-        with:
-          context: .
-          file: docker/web/Dockerfile
-          push: true
-          provenance: false
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web:latest
-          build-args: |
-            VITE_APP_VERSION=${{ steps.vars.outputs.app_version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Push to TCR / 跨境断点续推（最多 5 轮）
+        # 已上传的层被 registry 判 Layer already exists 跳过，轮次间与 re-run 间均续传
+        timeout-minutes: 35
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web
+          VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+        run: |
+          set -u
+          attempt=1
+          while [ "$attempt" -le 5 ]; do
+            failed=0
+            for tag in "$VERSION_TAG" latest; do
+              echo "::group::docker push $IMAGE:$tag（第 $attempt/5 轮）"
+              if docker push "$IMAGE:$tag"; then
+                echo "推送成功：$IMAGE:$tag"
+              else
+                echo "推送失败：$IMAGE:$tag"
+                failed=1
+              fi
+              echo "::endgroup::"
+            done
+            if [ "$failed" -eq 0 ]; then
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            if [ "$attempt" -le 5 ]; then
+              sleep 10
+            fi
+          done
+          echo "::error::跨境推送 5 轮均失败：$IMAGE"
+          exit 1
 
   docker-collector:
     name: Docker Collector / 采集镜像构建推送
@@ -292,13 +311,15 @@ jobs:
             echo "branch=$(echo "${GITHUB_REF#refs/heads/}" | tr '/' '-')"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Build and Push / 构建并推送（第 1 次尝试）
+      - name: Build image / 本地构建镜像（GHA 缓存加速）
+        # 只构建不入库：load 进本地 docker，GHA cache 保留，推送失败时秒级复用
         uses: docker/build-push-action@v7
-        timeout-minutes: 25
+        timeout-minutes: 20
         with:
           context: .
           file: docker/collector/Dockerfile
-          push: true
+          push: false
+          load: true
           provenance: false
           tags: |
             ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
@@ -306,20 +327,37 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and Push / 构建并推送（重试）
-        if: failure()
-        uses: docker/build-push-action@v7
-        timeout-minutes: 30
-        with:
-          context: .
-          file: docker/collector/Dockerfile
-          push: true
-          provenance: false
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Push to TCR / 跨境断点续推（最多 5 轮）
+        # 已上传的层被 registry 判 Layer already exists 跳过，轮次间与 re-run 间均续传
+        timeout-minutes: 35
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector
+          VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+        run: |
+          set -u
+          attempt=1
+          while [ "$attempt" -le 5 ]; do
+            failed=0
+            for tag in "$VERSION_TAG" latest; do
+              echo "::group::docker push $IMAGE:$tag（第 $attempt/5 轮）"
+              if docker push "$IMAGE:$tag"; then
+                echo "推送成功：$IMAGE:$tag"
+              else
+                echo "推送失败：$IMAGE:$tag"
+                failed=1
+              fi
+              echo "::endgroup::"
+            done
+            if [ "$failed" -eq 0 ]; then
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            if [ "$attempt" -le 5 ]; then
+              sleep 10
+            fi
+          done
+          echo "::error::跨境推送 5 轮均失败：$IMAGE"
+          exit 1
 
   # ============================================================
   # Stage 4: 抖音签名 sidecar 镜像（F-SOC；无 ENTRYPOINT，不锁 platform）
@@ -359,13 +397,15 @@ jobs:
             echo "branch=$(echo "${GITHUB_REF#refs/heads/}" | tr '/' '-')"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Build and Push / 构建并推送（第 1 次尝试）
+      - name: Build image / 本地构建镜像（GHA 缓存加速）
+        # 只构建不入库：load 进本地 docker，GHA cache 保留，推送失败时秒级复用
         uses: docker/build-push-action@v7
-        timeout-minutes: 25
+        timeout-minutes: 20
         with:
           context: .
           file: docker/signer/Dockerfile
-          push: true
+          push: false
+          load: true
           provenance: false
           tags: |
             ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/douyin-signer:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
@@ -373,20 +413,37 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and Push / 构建并推送（重试）
-        if: failure()
-        uses: docker/build-push-action@v7
-        timeout-minutes: 30
-        with:
-          context: .
-          file: docker/signer/Dockerfile
-          push: true
-          provenance: false
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/douyin-signer:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/douyin-signer:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Push to TCR / 跨境断点续推（最多 5 轮）
+        # 已上传的层被 registry 判 Layer already exists 跳过，轮次间与 re-run 间均续传
+        timeout-minutes: 35
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/douyin-signer
+          VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+        run: |
+          set -u
+          attempt=1
+          while [ "$attempt" -le 5 ]; do
+            failed=0
+            for tag in "$VERSION_TAG" latest; do
+              echo "::group::docker push $IMAGE:$tag（第 $attempt/5 轮）"
+              if docker push "$IMAGE:$tag"; then
+                echo "推送成功：$IMAGE:$tag"
+              else
+                echo "推送失败：$IMAGE:$tag"
+                failed=1
+              fi
+              echo "::endgroup::"
+            done
+            if [ "$failed" -eq 0 ]; then
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            if [ "$attempt" -le 5 ]; then
+              sleep 10
+            fi
+          done
+          echo "::error::跨境推送 5 轮均失败：$IMAGE"
+          exit 1
 
   # ============================================================
   # Stage 5: 模拟盘柜台 sidecar 镜像（掘金 REST 网关；纯 Python 无平台限制，
@@ -427,13 +484,15 @@ jobs:
             echo "branch=$(echo "${GITHUB_REF#refs/heads/}" | tr '/' '-')"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Build and Push / 构建并推送（第 1 次尝试）
+      - name: Build image / 本地构建镜像（GHA 缓存加速）
+        # 只构建不入库：load 进本地 docker，GHA cache 保留，推送失败时秒级复用
         uses: docker/build-push-action@v7
-        timeout-minutes: 25
+        timeout-minutes: 20
         with:
           context: docker/paper-trade
           file: docker/paper-trade/Dockerfile
-          push: true
+          push: false
+          load: true
           provenance: false
           tags: |
             ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/paper-trade:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
@@ -441,17 +500,34 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and Push / 构建并推送（重试）
-        if: failure()
-        uses: docker/build-push-action@v7
-        timeout-minutes: 30
-        with:
-          context: docker/paper-trade
-          file: docker/paper-trade/Dockerfile
-          push: true
-          provenance: false
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/paper-trade:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/paper-trade:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Push to TCR / 跨境断点续推（最多 5 轮）
+        # 已上传的层被 registry 判 Layer already exists 跳过，轮次间与 re-run 间均续传
+        timeout-minutes: 35
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/paper-trade
+          VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
+        run: |
+          set -u
+          attempt=1
+          while [ "$attempt" -le 5 ]; do
+            failed=0
+            for tag in "$VERSION_TAG" latest; do
+              echo "::group::docker push $IMAGE:$tag（第 $attempt/5 轮）"
+              if docker push "$IMAGE:$tag"; then
+                echo "推送成功：$IMAGE:$tag"
+              else
+                echo "推送失败：$IMAGE:$tag"
+                failed=1
+              fi
+              echo "::endgroup::"
+            done
+            if [ "$failed" -eq 0 ]; then
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            if [ "$attempt" -le 5 ]; then
+              sleep 10
+            fi
+          done
+          echo "::error::跨境推送 5 轮均失败：$IMAGE"
+          exit 1
