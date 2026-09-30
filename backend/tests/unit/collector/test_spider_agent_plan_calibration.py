@@ -159,19 +159,39 @@ class TestAgentPlanCalibrationCollector:
 
     @pytest.mark.asyncio
     async def test_cached_and_locked_agents_recorded_in_message(self) -> None:
-        """幂等命中与锁冲突都是良性留痕，不算失败。"""
+        """幂等命中与锁冲突都是良性留痕（真实短形状无计数键），不算失败。"""
 
         async def _calibrate(_s, agent, *_args, **kwargs):
             if agent.agent_key == "short-line":
-                return _summary(cached=True, total=0)
+                return {"cached": True, "window": "1020", "total": 0}
             raise CalibrationLockedError()
 
         with _activate(_patch_env(agents=[_agent("short-line"), _agent("m60")], calibrate=AsyncMock(side_effect=_calibrate))):
             result = await _collector().run()
 
         assert result.status == CollectStatus.SUCCESS
+        assert result.items_stored == 0
         assert "已校准" in (result.message or "")
         assert "正在执行中" in (result.message or "")
+
+    @pytest.mark.asyncio
+    async def test_skipped_reason_short_summary_counts_zero(self) -> None:
+        """无当日计划的真实短形状（仅 skipped_reason，无计数键）不能让汇总崩溃。"""
+
+        async def _calibrate(_s, agent, *_args, **kwargs):
+            return {
+                "cached": False,
+                "window": "1320",
+                "total": 0,
+                "skipped_reason": "无当日活跃计划",
+            }
+
+        with _activate(_patch_env(agents=[_agent("short-line")], calibrate=AsyncMock(side_effect=_calibrate))):
+            result = await _collector().run()
+
+        assert result.status == CollectStatus.SUCCESS
+        assert result.items_stored == 0
+        assert "无当日活跃计划" in (result.message or "")
 
     @pytest.mark.asyncio
     async def test_single_agent_error_is_partial(self) -> None:

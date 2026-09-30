@@ -129,7 +129,8 @@ class AgentPlanCalibrationCollector(BaseCollector):
             status=status,
             items_collected=len(details),
             items_stored=sum(
-                d["applied"] + d["shadow"] + d["rejected"] for d in details.values()
+                d.get("applied", 0) + d.get("shadow", 0) + d.get("rejected", 0)
+                for d in details.values()
             ),
             errors=errors,
             started_at=started_at,
