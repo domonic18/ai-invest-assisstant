@@ -63,8 +63,8 @@ export function AgentOverview() {
 
   return (
     <div className="flex min-h-0 flex-col gap-3 lg:h-full">
-      <div className="flex shrink-0 items-center gap-3">
-        <Typography.Title level={4} className="!mb-0">
+      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1">
+        <Typography.Title level={4} className="!mb-0 w-full sm:w-auto">
           智能中枢 · <span className="text-[#34d399]">电路脉冲主板</span>
         </Typography.Title>
         <span className="rounded border border-[rgba(52,211,153,.4)] px-1.5 py-px text-[10px] tracking-wider text-[#34d399]">
@@ -73,7 +73,7 @@ export function AgentOverview() {
         <Typography.Text type="secondary" className="hidden text-xs lg:inline">
           芯片五态 × 资源站心跳 × 日内业务时间线：实线=已发生 · 虚线=计划窗 · 红标=委托事件
         </Typography.Text>
-        <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-[rgba(94,106,210,.4)] bg-[rgba(94,106,210,.10)] px-3 py-1 text-xs text-[#c7cbf5]">
+        <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[rgba(94,106,210,.4)] bg-[rgba(94,106,210,.10)] px-3 py-1 text-xs text-[#c7cbf5]">
           <i className="h-[7px] w-[7px] animate-pulse rounded-full bg-[#2ea043] shadow-[0_0_8px_rgba(46,160,67,.9)]" />
           {sessionText} {now.format('HH:mm')} · 主板供电{powerOk ? '正常' : '降级'}
         </span>

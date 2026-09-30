@@ -87,7 +87,7 @@ function SessionPill({ session }: { session: 'open' | 'break' | 'pre' | 'closed'
   }[session]
   return (
     <span
-      className="rounded-full border px-2 py-px text-[11px]"
+      className="whitespace-nowrap rounded-full border px-2 py-px text-[11px]"
       style={{ color: meta.color, borderColor: meta.border, backgroundColor: meta.bg }}
     >
       {meta.text}
@@ -118,16 +118,16 @@ export function NarrativeFeed({
       <style>{`.ahc-feed-card { animation: ahc-feedin .5s ease both; } @keyframes ahc-feedin { from{opacity:0; transform:translateY(-8px)} to{opacity:1; transform:none} }`}</style>
       <div className="flex items-center gap-2">
         <ChipAvatar accent={accent} />
-        <span className="text-[14.5px] font-semibold text-[#f0f1f5]">实时决策流</span>
+        <span className="flex-none text-[14.5px] font-semibold text-[#f0f1f5]">实时决策流</span>
         <span
-          className="rounded-full border px-2 py-px text-[11.5px]"
+          className="min-w-0 rounded-full border px-2 py-px text-[11.5px]"
           style={{ color: BOARD.cyanSoft, borderColor: 'rgba(34,211,238,.35)', backgroundColor: 'rgba(34,211,238,.08)' }}
         >
-          <Link to={`/trading-agent/${agent.profile.agentKey}`} style={{ color: 'inherit' }}>
+          <Link to={`/trading-agent/${agent.profile.agentKey}`} className="block truncate" style={{ color: 'inherit' }}>
             {agent.profile.name} · {agent.stateLabel ?? '待命'}
           </Link>
         </span>
-        <span className="ml-auto">
+        <span className="ml-auto shrink-0">
           <SessionPill session={session} />
         </span>
       </div>
