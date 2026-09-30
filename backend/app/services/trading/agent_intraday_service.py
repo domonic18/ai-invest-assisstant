@@ -34,9 +34,11 @@ from app.services.trading.agent_intraday_decision import (
     ACTION_EXECUTE,
     ACTION_SUPPRESS,
     L0_DEGRADED,
+    L0_NO_ACTION,
     L0_TRIGGERED,
     REASON_STOP_LOSS,
     SUPPRESS_NO_ACCOUNT,
+    SUPPRESS_PLAN_INVALID,
     L0Result,
     _answers_payload,
     _choice_answer,
@@ -45,6 +47,7 @@ from app.services.trading.agent_intraday_decision import (
     _state,
     _thresholds_for,
     evaluate_l0,
+    evaluate_plan_sanity,
 )
 from app.services.trading.agent_intraday_exec import (
     _account_or_none,
@@ -78,6 +81,7 @@ async def run_tick(
         "shadow_executed": 0,
         "suppressed": 0,
         "degraded": 0,
+        "invalidated": 0,
     }
     agents = await agent_registry.get_intraday_agents(session)
     plan_dates = await _effective_plan_dates(session, trade_date)
@@ -86,6 +90,7 @@ async def run_tick(
         effective_date = plan_dates.get(agent.agent_key)
         if effective_date is None:
             continue
+        is_shadow = agent.intraday_exec_mode != "active"
         plans = list(
             await session.scalars(
                 select(AgentTradePlan).where(
@@ -102,6 +107,51 @@ async def run_tick(
                 continue
             price = float(quote["price"]) if quote.get("price") else 0.0
             if price <= 0:  # 停牌/行情缺失：本 tick 不评判
+                continue
+            # 死单体检（治生成端幻觉价格的执行侧兜底）：结构性脱锚即置 invalid
+            # 终态 + 观测留痕，后续 tick 不再进入评判集（status 条件自然排除）
+            sanity_reason = evaluate_plan_sanity(plan, price=price)
+            if sanity_reason is not None:
+                await session.execute(
+                    update(AgentTradePlan)
+                    .where(
+                        AgentTradePlan.id == plan.id,
+                        AgentTradePlan.status == "active",
+                    )
+                    .values(
+                        status="invalid",
+                        invalid_reason=sanity_reason,
+                        updated_at=utc_now(),
+                    )
+                )
+                counters["invalidated"] += 1
+                session.add(
+                    PaperTradeExecObservation(
+                        tick_time=now,
+                        trade_date=trade_date,
+                        agent_key=agent.agent_key,
+                        plan_id=plan.id,
+                        stock_code=plan.stock_code,
+                        market_snapshot={
+                            "price": quote.get("price"),
+                            "prev_close": quote.get("prev_close"),
+                            "change_pct": quote.get("change_pct"),
+                            "l0_detail": sanity_reason,
+                            "window": "plan_sanity",
+                        },
+                        l0_verdict=L0_NO_ACTION,
+                        trigger_reason=None,
+                        decision_answers=None,
+                        action=ACTION_SUPPRESS,
+                        suppression_reason=SUPPRESS_PLAN_INVALID,
+                        is_shadow=is_shadow,
+                    )
+                )
+                if recorder is not None:
+                    async with recorder.step(
+                        "plan_invalid", f"计划 {plan.id} 死单体检失效 {plan.stock_code}"
+                    ):
+                        pass
                 continue
             prev_close = float(quote["prev_close"]) if quote.get("prev_close") else None
             stock_name = str(quote["name"]) if quote.get("name") else None
@@ -156,7 +206,6 @@ async def run_tick(
                         pass
 
         account = await _account_or_none(session, agent.agent_key) if candidates else None
-        is_shadow = agent.intraday_exec_mode != "active"
         for plan, quote, l0 in evaluated:
             choice = _choice_answer(answers, plan.id)
             action, suppression = _decide(l0, choice, thresholds, plan_type=plan.plan_type)

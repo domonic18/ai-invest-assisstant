@@ -9,6 +9,7 @@ questions/risk_control 纯函数，禁止导入同包服务模块。
 
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 from typing import Any
 
 import structlog
@@ -61,6 +62,12 @@ SUPPRESS_RISK_REJECTED = "risk_rejected"
 SUPPRESS_NO_ACCOUNT = "no_account"
 SUPPRESS_ORDER_ERROR = "order_error"
 SUPPRESS_POSITION_UNAVAILABLE = "position_unavailable"
+SUPPRESS_PLAN_INVALID = "plan_invalid"
+
+# 首 tick 死单体检阈值（计划级 sanity，独立于 L0 逐 tick 触发判定）：
+# 现价高于区间上沿 1.3 倍（追高无意义）/ 低于止损 0.8 倍（深度破位）即死单
+SANITY_ZONE_HIGH_FACTOR = 1.3
+SANITY_STOP_FACTOR = 0.8
 
 
 @dataclass(slots=True)
@@ -114,6 +121,49 @@ def evaluate_l0(
     if price <= float(plan.stop_loss):
         return L0Result(L0_TRIGGERED, REASON_STOP_LOSS)
     return L0Result(L0_NO_ACTION, detail="未触达止盈/止损价")
+
+
+def plan_sanity_reason(
+    *,
+    plan_type: str,
+    buy_zone_high: Decimal | None,
+    stop_loss: Decimal,
+    price: float,
+) -> str | None:
+    """死单体检核心（纯函数）：给定价位形状与现价返回脱锚原因或 None。
+
+    供 ``evaluate_plan_sanity``（执行侧整计划体检）与盘中校准（修正后
+    假想计划预检，§11.5）共用。
+    """
+    if plan_type != "buy":
+        return None
+    # Decimal 比价：float 乘法在阈值边界不精确（9.5*0.8=7.6000000000000005），
+    # 恰在阈值的价格会被误判破位
+    price_d = Decimal(str(price))
+    if buy_zone_high is not None and price_d > buy_zone_high * Decimal(str(SANITY_ZONE_HIGH_FACTOR)):
+        return (
+            f"现价 {price} 高于买点区间上沿 {buy_zone_high} 的 {SANITY_ZONE_HIGH_FACTOR:g} 倍，"
+            "追高无意义"
+        )
+    if price_d < stop_loss * Decimal(str(SANITY_STOP_FACTOR)):
+        return f"现价 {price} 低于止损 {stop_loss} 的 {SANITY_STOP_FACTOR:g} 倍，深度破位"
+    return None
+
+
+def evaluate_plan_sanity(plan: AgentTradePlan, *, price: float) -> str | None:
+    """buy 计划结构性脱锚体检：现价与区间/止损严重背离即死单（返回原因）。
+
+    独立于 ``evaluate_l0``：L0 判「该不该动」，本体检判「计划还能不能用」——
+    治生成端幻觉价格的执行侧兜底（区间整体远高于现价或已深度破位的计划当日
+    不再具备执行意义，置 invalid 终态留痕）。sell 计划不检（保护性离场不设
+    死单语义，跌破止损触发卖出是它的职责）。
+    """
+    return plan_sanity_reason(
+        plan_type=plan.plan_type,
+        buy_zone_high=plan.buy_zone_high,
+        stop_loss=plan.stop_loss,
+        price=price,
+    )
 
 
 # L0 触发原因 → state 计划上下文的人话标签（供判断模型直读）

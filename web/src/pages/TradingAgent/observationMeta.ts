@@ -34,6 +34,7 @@ export const SUPPRESSION_META: Record<string, string> = {
   no_account: '无账户',
   order_error: '下单失败',
   position_unavailable: '持仓不可用',
+  plan_invalid: '计划失效',
 }
 
 export function fmtPct(value: number | null): string {
@@ -68,6 +69,9 @@ export function observationSummary(item: ApiTradingAgentObservationItem): string
     return `尾盘强检：跌破止损${item.action === 'execute' ? '，强制卖出' : '，仅记录'}`
   }
   if (item.l0Verdict === 'no_action') {
+    if (item.suppressionReason === 'plan_invalid') {
+      return `计划失效：${detail ?? '计划与现价严重脱锚，已置失效终态'}`
+    }
     if (item.suppressionReason === 'l0_reject') {
       return `纪律否决：${detail ?? '触发前提失效'}`
     }

@@ -185,6 +185,42 @@ class TestEvaluateL0:
 
 
 @pytest.mark.unit
+class TestEvaluatePlanSanity:
+    """buy 计划死单体检：结构性脱锚即终结（治生成端幻觉价格的执行侧兜底）。"""
+
+    def test_far_above_zone_invalid(self) -> None:
+        reason = svc.evaluate_plan_sanity(_plan(), price=14.0)
+        assert reason is not None
+        assert "追高无意义" in reason
+
+    def test_zone_high_boundary_not_invalid(self) -> None:
+        # 10.2 × 1.3 = 13.26：恰在阈值不判死单（留给 L0 不追高逻辑）
+        assert svc.evaluate_plan_sanity(_plan(), price=13.26) is None
+
+    def test_deep_below_stop_invalid(self) -> None:
+        reason = svc.evaluate_plan_sanity(_plan(), price=7.0)
+        assert reason is not None
+        assert "深度破位" in reason
+
+    def test_stop_boundary_not_invalid(self) -> None:
+        # 9.5 × 0.8 = 7.6：恰在阈值不判死单（止损上下是 L0 纪律否决的领地）
+        assert svc.evaluate_plan_sanity(_plan(), price=7.6) is None
+
+    def test_in_zone_passes(self) -> None:
+        assert svc.evaluate_plan_sanity(_plan(), price=10.0) is None
+
+    def test_zone_missing_stop_rule_still_applies(self) -> None:
+        plan = _plan(buy_zone_low=None, buy_zone_high=None)
+        assert svc.evaluate_plan_sanity(plan, price=7.0) is not None
+
+    def test_sell_plan_never_invalid(self) -> None:
+        """sell 是保护性离场，不设死单语义。"""
+        plan = _plan(plan_type="sell", buy_zone_low=None, buy_zone_high=None)
+        assert svc.evaluate_plan_sanity(plan, price=50.0) is None
+        assert svc.evaluate_plan_sanity(plan, price=1.0) is None
+
+
+@pytest.mark.unit
 class TestDecide:
     def test_execute_at_fund_action(self) -> None:
         l0 = svc.L0Result(dec.L0_TRIGGERED, dec.REASON_BUY_ZONE)
@@ -508,6 +544,36 @@ class TestRunTick:
         assert counters["evaluated"] == 0
         assert counters["candidates"] == 0
         assert _observations(session) == []
+
+    async def test_structurally_detached_plan_invalidated(self) -> None:
+        """死单体检命中：置 invalid 终态 + plan_invalid 观测留痕，不进评判不下单。"""
+        plans = [_plan(id=1)]
+        session = _session(scalars_result=plans)
+        with (
+            patch.object(svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[_agent("shadow")])),
+            patch.object(svc, "_effective_plan_dates", AsyncMock(return_value={"short-line": _DATE})),
+            patch.object(svc, "ask_decision", AsyncMock(return_value=_response({}))) as ask_mock,
+            patch.object(exe.account_service, "resolve_agent_account", AsyncMock(return_value=SimpleNamespace())),
+            patch.object(exe, "execute_agent_order", AsyncMock()) as order_mock,
+        ):
+            # 14.0 > 区间上沿 10.2 × 1.3 = 13.26 → 结构性脱锚
+            counters = await svc.run_tick(
+                session, trade_date=_DATE, now=_NOW, quotes={"600000": _quote(14.0)}
+            )
+        order_mock.assert_not_called()
+        ask_mock.assert_not_awaited()  # 死单不进判断模型
+        assert counters["invalidated"] == 1
+        assert counters["evaluated"] == 0
+        session.execute.assert_awaited_once()  # 计划置 invalid UPDATE
+        row = _observations(session)[0]
+        assert row.plan_id == 1
+        assert row.l0_verdict == dec.L0_NO_ACTION
+        assert row.trigger_reason is None
+        assert row.action == dec.ACTION_SUPPRESS
+        assert row.suppression_reason == dec.SUPPRESS_PLAN_INVALID
+        assert row.is_shadow is True
+        assert row.market_snapshot["window"] == "plan_sanity"
+        assert "追高无意义" in row.market_snapshot["l0_detail"]
 
 
 @pytest.mark.unit
