@@ -5,9 +5,8 @@
  *
  * 账户 id 从 admin 账户列表取 agentKey 绑定行；持仓表复用模拟盘页导出的
  * PaperTradePositions（不传 onTrade，agent 账户人工不在此直接下单）；
- * 累计盈亏 = nav − cumInout（百分比分母 cumInout）；当日盈亏 = 实时 nav −
- * 「今日之前最近快照」nav − 当日出入金（与模拟盘页同口径，前端算，缺快照
- * 显示 -）。盈亏红涨绿跌 + 括号百分比（同花顺口径）。
+ * 累计盈亏与当日盈亏走 utils/paperTradeMetrics（与模拟盘页同口径，前端算，
+ * 缺快照显示 -）。盈亏红涨绿跌 + 括号百分比（同花顺口径）。
  */
 import { Card, Empty, Space, Spin, Statistic, Tabs } from 'antd'
 
@@ -19,6 +18,7 @@ import {
   usePaperTradeOverview,
 } from '@/hooks/usePaperTrade'
 import { changeHex, formatAmount, formatNumber, formatPercent } from '@/utils/formatters'
+import { cumPnl } from '@/utils/paperTradeMetrics'
 
 import { useAgentKey } from './agentKeyContext'
 
@@ -60,12 +60,7 @@ function OverviewStats({ accountId }: { accountId: number }) {
     (sum, p) => sum + Number(p.marketValue ?? 0),
     0,
   )
-  const cumInout = cash?.cumInout != null ? Number(cash.cumInout) : null
-  const cumPnl = nav != null && cumInout != null ? Number(nav) - cumInout : null
-  const cumPct =
-    cumPnl != null && cumInout != null && Math.abs(cumInout) > 0
-      ? (cumPnl / cumInout) * 100
-      : null
+  const { pnl: cumPnlValue, pnlPct: cumPct } = cumPnl(cash)
 
   return (
     <div className="flex flex-wrap gap-x-10 gap-y-3">
@@ -84,7 +79,7 @@ function OverviewStats({ accountId }: { accountId: number }) {
         value={cash?.available == null ? '-' : formatAmount(Number(cash.available))}
         valueStyle={{ fontSize: 18 }}
       />
-      <PnlStatistic title="累计盈亏" pnl={cumPnl} pct={cumPct} />
+      <PnlStatistic title="累计盈亏" pnl={cumPnlValue} pct={cumPct} />
       <PnlStatistic title="当日盈亏" pnl={dayPnl} pct={dayPct} />
     </div>
   )

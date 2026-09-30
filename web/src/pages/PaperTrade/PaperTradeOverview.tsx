@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import type { ApiPaperTradeCash } from '@ai-invest/shared'
 
 import { changeHex, formatAmount, formatNumber, formatPercent } from '@/utils/formatters'
+import { cumPnl } from '@/utils/paperTradeMetrics'
 
 interface PaperTradeOverviewProps {
   cash?: ApiPaperTradeCash | null
@@ -35,8 +36,9 @@ function Stat({
   )
 }
 
-/** 资金账户栏（紧凑单行）：总资产 / 可用资金 / 当日盈亏 + 右侧账户操作区。 */
+/** 资金账户栏（紧凑单行）：总资产 / 可用资金 / 累计盈亏 / 当日盈亏 + 右侧账户操作区。 */
 export function PaperTradeOverview({ cash, dayPnl, dayPnlPct, children }: PaperTradeOverviewProps) {
+  const { pnl: cumPnlValue, pnlPct: cumPnlPct } = cumPnl(cash)
   return (
     <Card size="small">
       <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-2">
@@ -48,6 +50,17 @@ export function PaperTradeOverview({ cash, dayPnl, dayPnlPct, children }: PaperT
           <Stat
             title="可用资金"
             value={cash?.available == null ? '-' : formatAmount(Number(cash.available))}
+          />
+          <Stat
+            title="累计盈亏"
+            value={
+              cumPnlValue == null
+                ? '-'
+                : `${cumPnlValue >= 0 ? '+' : ''}${formatNumber(Number(cumPnlValue))}${
+                    cumPnlPct != null ? ` (${formatPercent(cumPnlPct)})` : ''
+                  }`
+            }
+            color={cumPnlValue == null ? undefined : changeHex(cumPnlValue)}
           />
           <Stat
             title={
