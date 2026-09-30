@@ -62,7 +62,7 @@ export function AgentOverview() {
   const sessionText = { open: '盘中实时', break: '午间休市', pre: '盘前', closed: '盘后' }[session]
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    <div className="flex min-h-0 flex-col gap-3 lg:h-full">
       <div className="flex shrink-0 items-center gap-3">
         <Typography.Title level={4} className="!mb-0">
           智能中枢 · <span className="text-[#34d399]">电路脉冲主板</span>
@@ -87,8 +87,9 @@ export function AgentOverview() {
         </Tooltip>
       </div>
 
-      <div className="flex min-h-0 flex-1 items-stretch gap-5">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {/* 移动端纵向堆叠（主板按 viewBox 比例占位），lg 起恢复一屏双栏 */}
+      <div className="flex flex-col gap-5 lg:min-h-0 lg:flex-1 lg:flex-row lg:items-stretch">
+        <div className="flex aspect-[1140/800] w-full min-w-0 flex-none flex-col lg:aspect-auto lg:min-h-0 lg:flex-1">
           {isLoading ? (
             <BoardSkeleton />
           ) : (

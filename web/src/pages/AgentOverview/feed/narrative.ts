@@ -19,6 +19,8 @@ export interface NarrativeCard {
   tone: NarrativeTone
   sentence: string
   meta: string
+  /** 连续同类条目合并（+N）的分组键之一 */
+  stockCode: string
 }
 
 function stockLabel(item: ApiTradingAgentObservationItem): string {
@@ -41,6 +43,7 @@ export function toNarrative(item: ApiTradingAgentObservationItem): NarrativeCard
     return {
       key: item.id,
       time,
+      stockCode: item.stockCode,
       tag: item.planType === 'sell' ? '卖出执行' : '买入执行',
       tone: 'hot',
       sentence: `看着${stock}${verb}，把 ${item.price} 元的${side}递给了柜台`,
@@ -58,6 +61,7 @@ export function toNarrative(item: ApiTradingAgentObservationItem): NarrativeCard
     return {
       key: item.id,
       time,
+      stockCode: item.stockCode,
       tag: '抑制',
       tone: 'dim',
       sentence: `想动手，忍住了——${item.suppressionReason ?? item.l0Detail ?? '纪律约束'}`,
@@ -68,6 +72,7 @@ export function toNarrative(item: ApiTradingAgentObservationItem): NarrativeCard
     return {
       key: item.id,
       time,
+      stockCode: item.stockCode,
       tag: '观望',
       tone: 'dim',
       sentence: `再等等——${item.l0Detail ?? '信号未确认'}`,
@@ -78,6 +83,7 @@ export function toNarrative(item: ApiTradingAgentObservationItem): NarrativeCard
     return {
       key: item.id,
       time,
+      stockCode: item.stockCode,
       tag: '放弃',
       tone: 'dim',
       sentence: `放弃了——${item.l0Detail ?? '条件不满足'}`,
@@ -88,6 +94,7 @@ export function toNarrative(item: ApiTradingAgentObservationItem): NarrativeCard
     return {
       key: item.id,
       time,
+      stockCode: item.stockCode,
       tag: '尾盘强检',
       tone: 'dim',
       sentence: `尾盘强检：${stock} ${item.l0Detail ?? '无动作'}`,
@@ -98,6 +105,7 @@ export function toNarrative(item: ApiTradingAgentObservationItem): NarrativeCard
     return {
       key: item.id,
       time,
+      stockCode: item.stockCode,
       tag: '临近触发',
       tone: 'norm',
       sentence: `${stock} 临近触发区，继续盯盘`,
@@ -108,6 +116,7 @@ export function toNarrative(item: ApiTradingAgentObservationItem): NarrativeCard
     return {
       key: item.id,
       time,
+      stockCode: item.stockCode,
       tag: '体检告警',
       tone: 'norm',
       sentence: `计划体检告警：${item.l0Detail ?? '与盘面脱锚'}`,
@@ -117,6 +126,7 @@ export function toNarrative(item: ApiTradingAgentObservationItem): NarrativeCard
   return {
     key: item.id,
     time,
+    stockCode: item.stockCode,
     tag: '心跳',
     tone: 'dim',
     sentence: `盯着${stock}的分时，按兵不动`,
