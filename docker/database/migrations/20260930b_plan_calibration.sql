@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS agent_trade_plan_amendment (
     id BIGSERIAL PRIMARY KEY,
     agent_key VARCHAR(32) NOT NULL REFERENCES trading_agent (agent_key) ON DELETE CASCADE,
     plan_date DATE NOT NULL,
-    window VARCHAR(8) NOT NULL,
+    "window" VARCHAR(8) NOT NULL,
     stock_code VARCHAR(12) NOT NULL,
     plan_id BIGINT REFERENCES agent_trade_plan (id) ON DELETE SET NULL,
     action VARCHAR(16) NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS agent_trade_plan_amendment (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT uq_agent_trade_plan_amendment_agent_date_window_code
-        UNIQUE (agent_key, plan_date, window, stock_code),
+        UNIQUE (agent_key, plan_date, "window", stock_code),
     CONSTRAINT chk_agent_trade_plan_amendment_action
         CHECK (action IN ('maintain', 'adjust', 'cancel', 'add')),
     CONSTRAINT chk_agent_trade_plan_amendment_status
@@ -62,7 +62,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_trade_plan_amendment_plan
 COMMENT ON TABLE agent_trade_plan_amendment IS
     '盘中计划校准修正单：慢模型读观察报告对当日计划的修正留痕'
     '（docs/plan/paper-trading-plan.md §11.5）';
-COMMENT ON COLUMN agent_trade_plan_amendment.window IS
+COMMENT ON COLUMN agent_trade_plan_amendment."window" IS
     '校准窗口：1020（早盘）/ 1320（午盘）';
 COMMENT ON COLUMN agent_trade_plan_amendment.status IS
     '生效路径：applied 已落计划 / shadow 影子留痕未生效 / rejected 硬校验拒绝';
