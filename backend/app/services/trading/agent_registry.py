@@ -26,6 +26,7 @@ from app.models.kb import KbSource
 from app.models.llm_config import LLMConfig
 from app.models.paper_trade import PaperTradeAccount, TradingAgent
 from app.schemas.paper_trade import (
+    CalibrationMode,
     IntradayExecMode,
     TradingAgentCreateRequest,
     TradingAgentProfileResponse,
@@ -102,6 +103,20 @@ async def get_intraday_agents(session: AsyncSession) -> list[TradingAgent]:
     return [row for row in await get_active_agents(session) if not row.intraday_paused]
 
 
+async def get_calibration_agents(session: AsyncSession) -> list[TradingAgent]:
+    """盘中校准消费集（§11.5）：active 且执行与校准均未关（≠ off）。
+
+    校准依附于盘中执行链（对当日计划表态），``intraday_exec_mode='off'``
+    的 Agent 无当日执行语义；``calibration_mode='off'`` 显式退出校准。
+    shadow/active 均参与（shadow 只留痕，生效路径由服务层区分）。
+    """
+    return [
+        row
+        for row in await get_active_agents(session)
+        if row.intraday_exec_mode != "off" and row.calibration_mode != "off"
+    ]
+
+
 def to_view(row: TradingAgent) -> TradingAgentProfileResponse:
     """注册行 → wire 视图（camelCase）。"""
     return TradingAgentProfileResponse(
@@ -115,6 +130,7 @@ def to_view(row: TradingAgent) -> TradingAgentProfileResponse:
         risk_max_daily_orders=row.risk_max_daily_orders,
         intraday_exec_mode=cast(IntradayExecMode, row.intraday_exec_mode),
         intraday_paused=row.intraday_paused,
+        calibration_mode=cast(CalibrationMode, row.calibration_mode),
         status=row.status,
         plan_cadence=row.plan_cadence,
         review_cadence=row.review_cadence,
@@ -177,6 +193,7 @@ async def update_agent(
         "risk_max_daily_orders",
         "intraday_exec_mode",
         "intraday_paused",
+        "calibration_mode",
         "accent_color",
         "status",
         "plan_cadence",
@@ -316,6 +333,7 @@ async def create_agent(
         risk_max_daily_orders=_CREATE_RISK_DAILY_ORDERS,
         intraday_exec_mode="off",
         intraday_paused=False,
+        calibration_mode="shadow",
         status=AGENT_STATUS_ACTIVE,
         sort_order=max_sort + 1,
     )

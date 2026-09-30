@@ -226,6 +226,9 @@ class PaperTradeAdminAccountListResponse(CamelModel):
 #: 盘中自主执行三态（D21，批次 8）：off 停用 / shadow 判断不下单 / active 真实执行
 IntradayExecMode = Literal["off", "shadow", "active"]
 
+#: 盘中计划校准三态（§11.5）：off 不参与 / shadow 修正单仅留痕 / active 修正生效
+CalibrationMode = Literal["off", "shadow", "active"]
+
 
 class TradingAgentProfileResponse(CamelModel):
     """交易 Agent 注册行视图：身份/介绍/模型绑定/风控/总闸/频率。"""
@@ -242,6 +245,8 @@ class TradingAgentProfileResponse(CamelModel):
     intraday_exec_mode: IntradayExecMode
     #: 盘中执行人工暂停（true = tick/尾盘强检短路，计划/复盘不受影响）
     intraday_paused: bool = False
+    #: 盘中计划校准三态（§11.5，影子期默认 shadow）
+    calibration_mode: CalibrationMode = "shadow"
     status: str
     plan_cadence: str = "daily"
     review_cadence: str = "daily"
@@ -437,6 +442,8 @@ class TradingAgentProfileUpdateRequest(CamelModel):
     intraday_exec_mode: IntradayExecMode | None = None
     #: 盘中执行人工暂停开关（true = 冻结 tick/尾盘强检）
     intraday_paused: bool | None = None
+    #: 盘中计划校准三态（§11.5，影子期达标后切 active）
+    calibration_mode: CalibrationMode | None = None
     accent_color: str | None = None
     status: Literal["active", "disabled"] | None = None
     plan_cadence: Literal["daily", "weekly", "monthly"] | None = None
@@ -511,7 +518,33 @@ class TradingAgentPlanResponse(CamelModel):
     held_volume: int | None = None
     """截至计划日按成交聚合的持仓股数（未绑定账户/无成交为 None）。"""
     basis: str
+    version: int = 1
+    """计划版本号：盘中校准 adjust 生效即自增（§11.5）。"""
     triggered_cl_ord_id: str | None = None
+    invalid_reason: str | None = None
+    """status='invalid' 时的死单原因（首 tick 计划体检判定的结构性脱锚）。"""
+
+
+class TradingAgentPlanAmendmentResponse(CamelModel):
+    """盘中计划校准修正单条目（§11.5，计划卡校准历史展示）。"""
+
+    plan_date: date
+    window: str
+    stock_code: str
+    plan_id: int | None = None
+    action: str
+    reason: str
+    new_buy_zone_low: float | None = None
+    new_buy_zone_high: float | None = None
+    new_target_price: float | None = None
+    new_stop_loss: float | None = None
+    new_position_pct: float | None = None
+    status: str
+    """applied 已生效 / shadow 影子留痕 / rejected 硬校验拒绝。"""
+    reject_reason: str | None = None
+    new_plan_id: int | None = None
+    model_name: str | None = None
+    created_at: datetime
 
 
 class TradingAgentPlansResponse(CamelModel):
@@ -528,6 +561,8 @@ class TradingAgentPlansResponse(CamelModel):
     #: 所选日盘中执行的计划集的制定日（max(plan_date) < 该日且次日恰为该日）；
     #: 供前端空态「该日执行的是 T 日计划」引导跳转，无则 null
     executing_plan_date: date | None = None
+    #: 当日盘中校准修正单（按窗口/时间升序），计划卡校准历史展示
+    amendments: list[TradingAgentPlanAmendmentResponse] = []
 
 
 class TradingAgentDatesResponse(CamelModel):

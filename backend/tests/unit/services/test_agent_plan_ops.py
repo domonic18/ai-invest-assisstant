@@ -239,6 +239,7 @@ def _orm_plan(stock_code: str = "600000") -> AgentTradePlan:
         status="active",
         selection_id=None,
         basis="依据",
+        version=1,
         triggered_cl_ord_id=None,
     )
 

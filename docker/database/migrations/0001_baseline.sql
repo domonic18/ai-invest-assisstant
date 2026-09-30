@@ -1699,6 +1699,7 @@ CREATE TABLE IF NOT EXISTS trading_agent (
     risk_max_daily_orders  INTEGER       NOT NULL DEFAULT 10,          -- 单日下单笔数上限
     intraday_exec_mode     VARCHAR(10)   NOT NULL DEFAULT 'shadow',    -- 盘中执行模式：off / shadow / active（三态，shadow 先行）
     intraday_paused        BOOLEAN       NOT NULL DEFAULT FALSE,       -- 盘中执行人工暂停：true 时 tick/尾盘强检完全短路
+    calibration_mode       VARCHAR(16)   NOT NULL DEFAULT 'shadow',    -- 盘中计划校准三态：off / shadow（仅留痕，影子期默认）/ active（修正生效）
     status                 VARCHAR(16)   NOT NULL DEFAULT 'active',    -- active / planned / disabled
     plan_cadence           VARCHAR(16)   NOT NULL DEFAULT 'daily',     -- 计划生成频率：daily / weekly / monthly（D28）
     review_cadence         VARCHAR(16)   NOT NULL DEFAULT 'daily',     -- 复盘生成频率：daily / weekly / monthly（D28）
@@ -1725,7 +1726,9 @@ CREATE TABLE IF NOT EXISTS trading_agent (
     CONSTRAINT chk_trading_agent_daily_orders
         CHECK (risk_max_daily_orders >= 1),
     CONSTRAINT chk_trading_agent_intraday_exec_mode
-        CHECK (intraday_exec_mode IN ('off', 'shadow', 'active'))
+        CHECK (intraday_exec_mode IN ('off', 'shadow', 'active')),
+    CONSTRAINT chk_trading_agent_calibration_mode
+        CHECK (calibration_mode IN ('off', 'shadow', 'active'))
 );
 
 COMMENT ON TABLE trading_agent IS
@@ -1789,11 +1792,13 @@ CREATE TABLE IF NOT EXISTS agent_trade_plan (
     stop_loss           NUMERIC(12,4) NOT NULL,  -- 止损价（两类计划均必填，纪律）
     position_pct        NUMERIC(5,2)  NOT NULL,  -- 目标仓位（占总资产 %）
     status              VARCHAR(16)   NOT NULL DEFAULT 'active',
-    -- 状态机：active → triggered（已触发下单）→ executed / expired（当日未触发）/ cancelled（人工取消）
+    -- 状态机：active → triggered（已触发下单）→ executed / expired（当日未触发）/ cancelled（人工取消）/ invalid（首 tick 体检死单）
     selection_id        BIGINT,                  -- 依据 agent_stock_selection（sell 计划可空）
     basis               TEXT          NOT NULL,  -- 计划依据（复盘结论/经验卡片引用）
+    version             INTEGER       NOT NULL DEFAULT 1,  -- 计划版本号（盘中校准 adjust 生效即自增）
     triggered_cl_ord_id VARCHAR(64),             -- 触发的委托（关联 paper_trade_order）
     triggered_at        TIMESTAMPTZ,
+    invalid_reason      TEXT,                    -- 死单原因（status=invalid：首 tick 计划体检结构性脱锚）
     raw                 JSONB,                   -- LLM 完整输出兜底
     created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -1805,6 +1810,42 @@ CREATE INDEX IF NOT EXISTS idx_agent_trade_plan_status
 
 COMMENT ON TABLE agent_trade_plan IS
     '交易 Agent 每日交易计划（盘中条件触发执行的真相源，docs/plan/paper-trading-plan.md §10.1）';
+
+CREATE TABLE IF NOT EXISTS agent_trade_plan_amendment (
+    id               BIGSERIAL PRIMARY KEY,
+    agent_key        VARCHAR(32)  NOT NULL REFERENCES trading_agent (agent_key) ON DELETE CASCADE,  -- 归属 Agent
+    plan_date        DATE         NOT NULL,      -- 校准对象计划日（当日）
+    window           VARCHAR(8)   NOT NULL,      -- 校准窗口：1020（早盘）/ 1320（午盘）
+    stock_code       VARCHAR(12)  NOT NULL,
+    plan_id          BIGINT REFERENCES agent_trade_plan (id) ON DELETE SET NULL,  -- 修正对象计划（add 为空）
+    action           VARCHAR(16)  NOT NULL,      -- maintain / adjust / cancel / add
+    reason           TEXT         NOT NULL,      -- 修正理由（引用盘中观察证据）
+    new_buy_zone_low  NUMERIC(12,4),
+    new_buy_zone_high NUMERIC(12,4),
+    new_target_price NUMERIC(12,4),
+    new_stop_loss    NUMERIC(12,4),
+    new_position_pct NUMERIC(5,2),
+    status           VARCHAR(16)  NOT NULL,      -- applied 已落计划 / shadow 影子留痕 / rejected 硬校验拒绝
+    reject_reason    TEXT,                       -- status=rejected 时的拒绝原因
+    new_plan_id      BIGINT,                     -- action=add 生效时新建计划的 id
+    model_name       VARCHAR(64),                -- 出修正单的模型（溯源）
+    raw              JSONB,                      -- LLM 完整输出兜底
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_agent_trade_plan_amendment_agent_date_window_code
+        UNIQUE (agent_key, plan_date, window, stock_code),
+    CONSTRAINT chk_agent_trade_plan_amendment_action
+        CHECK (action IN ('maintain', 'adjust', 'cancel', 'add')),
+    CONSTRAINT chk_agent_trade_plan_amendment_status
+        CHECK (status IN ('applied', 'shadow', 'rejected'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_trade_plan_amendment_plan
+    ON agent_trade_plan_amendment (plan_id);
+
+COMMENT ON TABLE agent_trade_plan_amendment IS
+    '盘中计划校准修正单：慢模型读观察报告对当日计划的修正留痕'
+    '（docs/plan/paper-trading-plan.md §11.5）';
 
 CREATE TABLE IF NOT EXISTS agent_memory (
     id               BIGSERIAL PRIMARY KEY,

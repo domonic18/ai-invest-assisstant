@@ -25,7 +25,6 @@ from datetime import date, datetime, timedelta
 from datetime import time as dt_time
 from typing import Any
 
-import httpx
 import redis.asyncio as redis_async
 import structlog
 
@@ -38,6 +37,7 @@ from collector.core.async_helpers import run_in_thread
 from collector.core.calendar import is_trading_day
 from collector.core.logging import configure_logging
 from collector.spiders.sina_index_spot import REDIS_KEY as INDEX_SPOT_KEY
+from collector.spiders.sina_snapshot import fetch_sina_quotes
 
 logger = structlog.get_logger(__name__)
 
@@ -45,49 +45,6 @@ HEARTBEAT_KEY = STREAM_HEARTBEAT_KEY_TEMPLATE.format(source=INTRADAY_EXEC_SOURCE
 HEARTBEAT_TTL = 120
 BACKOFF_INITIAL = 10.0
 BACKOFF_MAX = 600.0
-
-_SINA_BASE_URL = "https://hq.sinajs.cn"
-
-
-def _to_sina_symbol(code: str) -> str:
-    """6 位代码 → 新浪符号（6 开头沪市 sh，其余深市 sz）。"""
-    return ("sh" if code.startswith("6") else "sz") + code
-
-
-def fetch_sina_quotes(codes: list[str]) -> dict[str, dict[str, Any]]:
-    """批量拉取新浪实时快照（阻塞 IO，经 run_in_thread 调用）。
-
-    返回按 6 位代码键控的 ``{name, price, prev_close, change_pct}``；解析失败
-    的条目跳过（tick 对缺行情标的不评判）。
-    """
-    if not codes:
-        return {}
-    url = f"{_SINA_BASE_URL}/list={','.join(_to_sina_symbol(c) for c in codes)}"
-    resp = httpx.get(url, headers={"Referer": "https://finance.sina.com.cn"}, timeout=10.0)
-    resp.encoding = "GB18030"
-    quotes: dict[str, dict[str, Any]] = {}
-    for line in resp.text.splitlines():
-        if "=" not in line or '"' not in line:
-            continue
-        var, payload = line.split("=", 1)
-        code = var.strip().split("_")[-1].lstrip("shz")
-        parts = payload.strip().strip(';').strip('"').split(",")
-        if len(parts) < 4:
-            continue
-        try:
-            price = float(parts[3])
-            prev_close = float(parts[2])
-        except ValueError:
-            continue
-        if price <= 0 or prev_close <= 0:
-            continue
-        quotes[code] = {
-            "name": parts[0],
-            "price": price,
-            "prev_close": prev_close,
-            "change_pct": round((price - prev_close) / prev_close * 100, 2),
-        }
-    return quotes
 
 
 async def read_index_spot(redis_client: Any) -> dict[str, Any] | None:

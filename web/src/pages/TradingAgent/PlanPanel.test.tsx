@@ -3,7 +3,11 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ApiTradingAgentPlan, ApiTradingAgentPlansResponse } from '@ai-invest/shared'
+import type {
+  ApiTradingAgentPlan,
+  ApiTradingAgentPlanAmendment,
+  ApiTradingAgentPlansResponse,
+} from '@ai-invest/shared'
 
 vi.mock('@/hooks/useTradingAgent', () => ({
   useTradingAgentPlans: vi.fn(),
@@ -39,7 +43,31 @@ function plan(overrides: Partial<ApiTradingAgentPlan> = {}): ApiTradingAgentPlan
     basis: '跌破止损位离场',
     status: 'executed',
     heldVolume: 100,
+    version: 1,
     triggeredClOrdId: null,
+    invalidReason: null,
+    ...overrides,
+  }
+}
+
+function amendment(overrides: Partial<ApiTradingAgentPlanAmendment> = {}): ApiTradingAgentPlanAmendment {
+  return {
+    planDate: '2026-09-28',
+    window: '1020',
+    stockCode: '600000',
+    planId: 1,
+    action: 'adjust',
+    reason: '早盘放量，止损上移',
+    newBuyZoneLow: null,
+    newBuyZoneHigh: null,
+    newTargetPrice: null,
+    newStopLoss: 9.8,
+    newPositionPct: null,
+    status: 'shadow',
+    rejectReason: null,
+    newPlanId: null,
+    modelName: 'kimi-k2',
+    createdAt: '2026-09-28T02:20:00Z',
     ...overrides,
   }
 }
@@ -51,6 +79,7 @@ function data(overrides: Partial<ApiTradingAgentPlansResponse> = {}): ApiTrading
     plans: [plan()],
     standAsideReason: null,
     executingPlanDate: null,
+    amendments: [],
     ...overrides,
   }
 }
@@ -89,5 +118,22 @@ describe('PlanPanel', () => {
 
     expect(screen.getByText(/该日未生成计划/)).toBeInTheDocument()
     expect(screen.queryByText(/制定的计划 → 查看/)).not.toBeInTheDocument()
+  })
+
+  it('renders amendment history grouped by plan with reject reason', () => {
+    setup(
+      data({
+        plans: [plan({ version: 2, status: 'active' })],
+        amendments: [
+          amendment(),
+          amendment({ action: 'add', planId: null, newPlanId: 1, status: 'rejected', rejectReason: '超单票上限' }),
+        ],
+      }),
+    )
+
+    expect(screen.getAllByText('早盘校准')).toHaveLength(2)
+    expect(screen.getByText('v2')).toBeInTheDocument()
+    expect(screen.getAllByText(/早盘放量，止损上移/)).toHaveLength(2)
+    expect(screen.getByText(/超单票上限/)).toBeInTheDocument()
   })
 })

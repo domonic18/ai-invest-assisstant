@@ -17,6 +17,7 @@ from app.schemas.paper_trade import (
     TradingAgentObservationItem,
     TradingAgentObservationPage,
     TradingAgentObservationSummary,
+    TradingAgentPlanAmendmentResponse,
     TradingAgentPlanResponse,
 )
 
@@ -164,6 +165,7 @@ def _plan_row(**overrides) -> AgentTradePlan:
         "status": "active",
         "selection_id": 5,
         "basis": "当日复盘解读",
+        "version": 1,
         "triggered_cl_ord_id": None,
     }
     fields.update(overrides)
@@ -200,6 +202,31 @@ class TestTradingAgentPlans:
                 AsyncMock(return_value=[view]),
             ),
             patch(
+                "app.services.trading.agent_plan_ops.list_amendment_views",
+                AsyncMock(
+                    return_value=[
+                        TradingAgentPlanAmendmentResponse(
+                            plan_date=date(2026, 7, 17),
+                            window="1020",
+                            stock_code="600000",
+                            plan_id=11,
+                            action="adjust",
+                            reason="早盘放量，止损上移",
+                            new_buy_zone_low=None,
+                            new_buy_zone_high=None,
+                            new_target_price=None,
+                            new_stop_loss=9.8,
+                            new_position_pct=None,
+                            status="shadow",
+                            reject_reason=None,
+                            new_plan_id=None,
+                            model_name="kimi-k2",
+                            created_at=datetime(2026, 7, 17, 2, 20, tzinfo=timezone.utc),
+                        )
+                    ]
+                ),
+            ),
+            patch(
                 "app.services.trading.agent_plan_service.load_plan_content_for_date",
                 AsyncMock(return_value=MagicMock(stand_aside_reason=None)),
             ),
@@ -212,6 +239,12 @@ class TestTradingAgentPlans:
         assert body["nextTradeDate"] == "2026-07-20"
         assert body["standAsideReason"] is None
         assert body["executingPlanDate"] is None
+        amendment = body["amendments"][0]
+        assert amendment["window"] == "1020"
+        assert amendment["action"] == "adjust"
+        assert amendment["status"] == "shadow"
+        assert amendment["newStopLoss"] == pytest.approx(9.8)
+        assert amendment["modelName"] == "kimi-k2"
         plan = body["plans"][0]
         assert plan["stockCode"] == "600000"
         assert plan["stockName"] == "浦发银行"
