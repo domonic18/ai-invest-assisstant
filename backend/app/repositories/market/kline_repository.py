@@ -62,6 +62,38 @@ def _daily_since(end_date: date | None, limit: int) -> date:
     return (end_date or today_cn()) - timedelta(days=limit * 2)
 
 
+async def upsert_daily_bars(session: AsyncSession, rows: list[dict[str, Any]]) -> int:
+    """按 (stock_code, trade_date) upsert 日 K 行，返回行数。
+
+    计划时点锚点兜底补数用（候选标的不在采集宇宙时现拉回填），与采集
+    管线落同一张表，后续读路径零特判。
+    """
+    if not rows:
+        return 0
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    stmt = pg_insert(KlineDaily).values(rows)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[KlineDaily.stock_code, KlineDaily.trade_date],
+        set_={
+            col: stmt.excluded[col]
+            for col in (
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "amount",
+                "amplitude",
+                "change_pct",
+                "turnover_rate",
+            )
+        },
+    )
+    await session.execute(stmt)
+    return len(rows)
+
+
 async def fetch_daily_bars(
     session: AsyncSession,
     code: str,
