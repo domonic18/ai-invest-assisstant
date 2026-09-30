@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>智能中枢 · 电路脉冲主板 REV3</title>
+<title>智能中枢 · 电路脉冲主板 REV4</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
@@ -25,6 +25,7 @@
   }
   .badge i { width:7px; height:7px; border-radius:50%; background:#2ea043; box-shadow:0 0 8px rgba(46,160,67,.9); animation:blink 2s ease-in-out infinite; }
 
+  .cols { display:flex; gap:20px; flex-height:0; min-height:0; }
   .cols { display:flex; gap:20px; flex:1; min-height:0; }
   .left { width:1172px; flex:none; display:flex; flex-direction:column; gap:12px; }
   .board {
@@ -35,12 +36,12 @@
   .legend { display:flex; gap:10px; align-items:stretch; }
   .lg {
     background:#111318; border:1px solid #23262d; border-radius:12px;
-    padding:9px 14px; font-size:11.5px; line-height:1.6; color:#8a8f98;
-    display:flex; gap:10px; align-items:flex-start;
+    padding:9px 13px; font-size:11px; line-height:1.65; color:#8a8f98;
+    display:flex; gap:9px; align-items:flex-start;
   }
   .lg .ico { flex:none; width:26px; height:26px; border-radius:8px; background:#181a21; border:1px solid #2e323c; display:flex; align-items:center; justify-content:center; }
   .lg b { color:#f0f1f5; font-size:12px; display:block; margin-bottom:1px; }
-  .dot2 { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:3px; }
+  .dot2 { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:2px; vertical-align:0; }
 
   .right {
     flex:1; background:#111318; border:1px solid #23262d;
@@ -83,8 +84,9 @@
   @keyframes dashflow { to { stroke-dashoffset:-48; } }
   @keyframes corebeat { 0%,100%{opacity:1} 50%{opacity:.3} }
   @keyframes ledChase { 0%,100%{opacity:1} 33%{opacity:.2} 66%{opacity:.5} }
-  @keyframes sweepX { from{transform:translateX(0)} to{transform:translateX(192px)} }
   @keyframes heatrise { 0%{opacity:0; transform:translateY(2px)} 40%{opacity:.8} 100%{opacity:0; transform:translateY(-4px)} }
+  @keyframes nowPulse { 0%,100%{opacity:.95} 50%{opacity:.4} }
+  @keyframes liveSweep { from{transform:translateX(0)} to{transform:translateX(89px)} }
 
   .trace-fast { stroke-dasharray:10 6; animation:dashflow 1s linear infinite; }
   .trace-slow { stroke-dasharray:5 9;  animation:dashflow 3.2s linear infinite; }
@@ -95,13 +97,11 @@
   .led2 { animation:ledChase 1.8s linear infinite .45s; }
   .led3 { animation:ledChase 1.8s linear infinite .9s; }
   .led4 { animation:ledChase 1.8s linear infinite 1.35s; }
-  .pipe1 { animation:corebeat 2.4s ease-in-out infinite; }
-  .pipe2 { animation:corebeat 2.4s ease-in-out infinite .8s; }
-  .pipe3 { animation:corebeat 2.4s ease-in-out infinite 1.6s; }
-  .playhead { animation:sweepX 6s linear infinite; }
   .heat { animation:heatrise 1.8s ease-in-out infinite; }
   .heat2 { animation:heatrise 1.8s ease-in-out infinite .5s; }
   .heat3 { animation:heatrise 1.8s ease-in-out infinite 1s; }
+  .nowpulse { animation:nowPulse 2s ease-in-out infinite; }
+  .livedot { animation:liveSweep 3s linear infinite; }
 
   text { font-family:'Inter',-apple-system,"PingFang SC",sans-serif; }
 </style>
@@ -110,8 +110,8 @@
 
 <div class="topbar">
   <h1>智能中枢 · <b>电路脉冲主板</b></h1>
-  <span class="ver">REV 3.0</span>
-  <span class="sub">主控流水线 + 四通道逻辑分析仪：波形密度 = Agent 实际工作节奏 · 走线丝印 = 信号语义</span>
+  <span class="ver">REV 4.0</span>
+  <span class="sub">芯片五态 × 资源站心跳 × 日内业务时间线：实线=已发生 · 虚线=计划窗 · 红标=委托事件</span>
   <span class="badge"><i></i>盘中实时 13:45 · 主板供电正常</span>
 </div>
 
@@ -133,9 +133,9 @@
             <stop offset="0%" stop-color="rgba(52,211,153,.8)"/>
             <stop offset="100%" stop-color="rgba(52,211,153,0)"/>
           </radialGradient>
-          <linearGradient id="trail" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stop-color="rgba(103,232,249,0)"/>
-            <stop offset="100%" stop-color="rgba(103,232,249,.16)"/>
+          <linearGradient id="histTrail" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="rgba(165,243,252,0)"/>
+            <stop offset="100%" stop-color="rgba(165,243,252,.14)"/>
           </linearGradient>
           <filter id="softC" x="-80%" y="-80%" width="260%" height="260%">
             <feGaussianBlur stdDeviation="4"/>
@@ -147,7 +147,6 @@
 
         <rect width="1140" height="800" fill="#0a0f0d"/>
         <rect width="1140" height="800" fill="url(#solder)"/>
-        <!-- PCB 边框 + 固定孔 -->
         <rect x="18" y="18" width="1104" height="764" rx="14" fill="none" stroke="rgba(52,211,153,.22)" stroke-width="2"/>
         <rect x="26" y="26" width="1088" height="748" rx="10" fill="none" stroke="rgba(52,211,153,.08)" stroke-width="1"/>
         <g fill="none" stroke="rgba(52,211,153,.3)" stroke-width="1.4">
@@ -159,29 +158,20 @@
           <circle cx="52" cy="748" r="4"/><circle cx="1088" cy="748" r="4"/>
         </g>
 
-        <!-- ================= 走线层（含辉光底层） ================= -->
-        <!-- 热通路辉光 -->
+        <!-- ================= 走线层 ================= -->
         <path d="M640 356 H760 V240 H820" fill="none" stroke="rgba(34,211,238,.22)" stroke-width="8" filter="url(#softC)"/>
         <path d="M940 240 H1000 V376 H1010" fill="none" stroke="rgba(248,81,73,.20)" stroke-width="7" filter="url(#softC)"/>
 
-        <!-- 知识库 → 主控 -->
         <path d="M170 170 H300 V356 H430" fill="none" stroke="rgba(168,85,247,.5)" stroke-width="2.4" class="trace-fast"/>
-        <!-- 资讯 → 主控 -->
-        <path d="M170 277 H340 V400 H430" fill="none" stroke="rgba(88,166,255,.45)" stroke-width="2" class="trace-slow"/>
-        <!-- 情绪 → 主控 -->
-        <path d="M170 333 H360 V430 H430" fill="none" stroke="rgba(244,114,182,.4)" stroke-width="2" class="trace-slow"/>
-        <!-- 主控 → 短线猎手（计划/盯盘双流） -->
+        <path d="M170 274 H340 V400 H430" fill="none" stroke="rgba(88,166,255,.45)" stroke-width="2" class="trace-slow"/>
+        <path d="M170 337 H360 V430 H430" fill="none" stroke="rgba(244,114,182,.4)" stroke-width="2" class="trace-slow"/>
         <path d="M640 356 H760 V240 H820" fill="none" stroke="rgba(34,211,238,.9)" stroke-width="3.2" class="trace-fast"/>
         <path d="M640 372 H740 V268 H820" fill="none" stroke="rgba(34,211,238,.5)" stroke-width="1.8" class="trace-fast"/>
-        <!-- 主控 → M60 -->
-        <path d="M640 430 H780 V520 H850" fill="none" stroke="rgba(168,85,247,.55)" stroke-width="2.2" class="trace-slow"/>
-        <!-- 短线猎手 → 模拟柜台（下单热通路） -->
+        <!-- M60 已产出：通路转低频（虚线稀流） -->
+        <path d="M640 430 H780 V520 H850" fill="none" stroke="rgba(168,85,247,.35)" stroke-width="1.8" stroke-dasharray="14 22" class="trace-slow"/>
         <path d="M940 240 H1000 V376 H1010" fill="none" stroke="rgba(248,81,73,.7)" stroke-width="2.6" class="trace-fast"/>
-        <!-- 主控 → Celery 总线 -->
         <path d="M535 484 V560 H520 V640" fill="none" stroke="rgba(210,153,34,.5)" stroke-width="2" class="trace-slow"/>
-        <!-- 长线价值派插槽：走线断开 -->
         <path d="M640 448 H800 V682 H850" fill="none" stroke="rgba(148,163,184,.16)" stroke-width="1.6" stroke-dasharray="2 8"/>
-        <!-- 时钟树：晶振 → 主控 / 短线猎手 / M60 -->
         <path d="M610 529 V505 H640" fill="none" stroke="rgba(148,163,184,.4)" stroke-width="1.2" class="trace-clk"/>
         <path d="M626 541 H720 V228 H820" fill="none" stroke="rgba(148,163,184,.32)" stroke-width="1.2" class="trace-clk"/>
         <path d="M626 553 H760 V538 H850" fill="none" stroke="rgba(148,163,184,.26)" stroke-width="1.2" class="trace-clk"/>
@@ -189,8 +179,8 @@
         <!-- 信号丝印 -->
         <g class="mono" font-size="8" letter-spacing="1">
           <text x="212" y="162" fill="rgba(168,85,247,.6)">KB-READ</text>
-          <text x="222" y="269" fill="rgba(88,166,255,.55)">NEWS</text>
-          <text x="232" y="325" fill="rgba(244,114,182,.5)">SENT</text>
+          <text x="222" y="266" fill="rgba(88,166,255,.55)">NEWS</text>
+          <text x="232" y="329" fill="rgba(244,114,182,.5)">SENT</text>
           <text x="690" y="348" fill="rgba(103,232,249,.75)">PLAN·WATCH</text>
           <text x="946" y="232" fill="rgba(248,81,73,.75)">ORDER</text>
           <text x="478" y="600" fill="rgba(210,153,34,.6)">CRON</text>
@@ -200,8 +190,8 @@
         <!-- 过孔 -->
         <g fill="#0a0f0d" stroke-width="1.6">
           <circle cx="300" cy="170" r="4" stroke="rgba(168,85,247,.6)"/>
-          <circle cx="340" cy="277" r="4" stroke="rgba(88,166,255,.55)"/>
-          <circle cx="360" cy="333" r="4" stroke="rgba(244,114,182,.5)"/>
+          <circle cx="340" cy="274" r="4" stroke="rgba(88,166,255,.55)"/>
+          <circle cx="360" cy="337" r="4" stroke="rgba(244,114,182,.5)"/>
           <circle cx="760" cy="356" r="4.5" stroke="rgba(34,211,238,.85)"/>
           <circle cx="740" cy="372" r="4" stroke="rgba(34,211,238,.55)"/>
           <circle cx="1000" cy="240" r="4" stroke="rgba(248,81,73,.75)"/>
@@ -212,13 +202,13 @@
         <g>
           <circle r="3" fill="#67e8f9"><animateMotion dur="1.7s" repeatCount="indefinite" path="M640 356 H760 V240 H820"/></circle>
           <circle r="2.2" fill="rgba(103,232,249,.8)"><animateMotion dur="1.7s" begin="0.55s" repeatCount="indefinite" path="M640 356 H760 V240 H820"/></circle>
-          <circle r="2.6" fill="#c084fc"><animateMotion dur="3.6s" repeatCount="indefinite" path="M170 170 H300 V356 H430"/></circle>
-          <circle r="2.2" fill="#93c5fd"><animateMotion dur="4.4s" repeatCount="indefinite" path="M170 277 H340 V400 H430"/></circle>
+          <circle r="2.6" fill="#c084fc"><animateMotion dur="4.8s" repeatCount="indefinite" path="M170 170 H300 V356 H430"/></circle>
+          <circle r="2.2" fill="#93c5fd"><animateMotion dur="4.4s" repeatCount="indefinite" path="M170 274 H340 V400 H430"/></circle>
           <circle r="2.4" fill="#f87171"><animateMotion dur="1.4s" repeatCount="indefinite" path="M940 240 H1000 V376 H1010"/></circle>
           <circle r="2.2" fill="#e7c26a"><animateMotion dur="4.2s" repeatCount="indefinite" path="M535 484 V560 H520 V640"/></circle>
         </g>
 
-        <!-- ================= 中央主控：复盘引擎（含流水线） ================= -->
+        <!-- ================= 中央主控：复盘引擎 ================= -->
         <g>
           <g fill="#26312c">
             <rect x="446" y="330" width="10" height="4"/><rect x="470" y="330" width="10" height="4"/><rect x="494" y="330" width="10" height="4"/><rect x="518" y="330" width="10" height="4"/><rect x="542" y="330" width="10" height="4"/><rect x="566" y="330" width="10" height="4"/><rect x="590" y="330" width="10" height="4"/><rect x="614" y="330" width="10" height="4"/>
@@ -227,29 +217,27 @@
           <rect x="430" y="334" width="210" height="150" rx="10" fill="#10181440" stroke="rgba(52,211,153,.55)" stroke-width="1.6"/>
           <rect x="436" y="340" width="198" height="138" rx="7" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
           <text x="535" y="352" text-anchor="middle" font-size="8" fill="#3f5a4e" class="mono" letter-spacing="1">RV-ENGINE-01</text>
-          <!-- 核心 die -->
           <rect x="505" y="358" width="60" height="60" rx="6" fill="url(#dieGreen)" class="corebeat"/>
           <rect x="505" y="358" width="60" height="60" rx="6" fill="none" stroke="#34d399" stroke-width="1.2"/>
           <text x="535" y="392" text-anchor="middle" font-size="9" fill="#07120d" font-weight="700" class="mono">CORE</text>
-          <!-- 流水子核：计划 → 盯盘 → 归因 -->
           <g>
             <rect x="452" y="430" width="36" height="22" rx="4" fill="rgba(52,211,153,.12)" stroke="rgba(52,211,153,.4)"/>
-            <rect x="452" y="430" width="36" height="22" rx="4" fill="url(#dieGreen)" class="pipe1"/>
+            <rect x="452" y="430" width="36" height="22" rx="4" fill="url(#dieGreen)" class="led1"/>
             <text x="470" y="445" text-anchor="middle" font-size="8.5" fill="#a7f3d0" class="mono">计划</text>
             <path d="M490 441 H498" stroke="rgba(52,211,153,.5)" stroke-width="1.2"/>
             <rect x="500" y="430" width="36" height="22" rx="4" fill="rgba(52,211,153,.12)" stroke="rgba(52,211,153,.4)"/>
-            <rect x="500" y="430" width="36" height="22" rx="4" fill="url(#dieGreen)" class="pipe2"/>
+            <rect x="500" y="430" width="36" height="22" rx="4" fill="url(#dieGreen)" class="led2"/>
             <text x="518" y="445" text-anchor="middle" font-size="8.5" fill="#a7f3d0" class="mono">盯盘</text>
             <path d="M538 441 H546" stroke="rgba(52,211,153,.5)" stroke-width="1.2"/>
             <rect x="548" y="430" width="36" height="22" rx="4" fill="rgba(52,211,153,.12)" stroke="rgba(52,211,153,.4)"/>
-            <rect x="548" y="430" width="36" height="22" rx="4" fill="url(#dieGreen)" class="pipe3"/>
+            <rect x="548" y="430" width="36" height="22" rx="4" fill="url(#dieGreen)" class="led3"/>
             <text x="566" y="445" text-anchor="middle" font-size="8.5" fill="#a7f3d0" class="mono">归因</text>
             <path d="M588 441 H606 V400 H571" fill="none" stroke="rgba(52,211,153,.3)" stroke-width="1" stroke-dasharray="2 3"/>
           </g>
           <text x="535" y="502" text-anchor="middle" font-size="11" fill="#6ee7b7" letter-spacing="1">复盘引擎 · 主控</text>
         </g>
 
-        <!-- ================= 晶振（时钟源） ================= -->
+        <!-- ================= 晶振 ================= -->
         <g>
           <rect x="594" y="529" width="32" height="32" rx="6" fill="#0e1512" stroke="rgba(148,163,184,.5)" stroke-width="1.2"/>
           <path d="M602 535 V555 M618 535 V555" stroke="rgba(148,163,184,.6)" stroke-width="1.4"/>
@@ -257,15 +245,14 @@
           <text x="610" y="575" text-anchor="middle" font-size="8.5" fill="#5c616e" class="mono">25MHz</text>
         </g>
 
-        <!-- ================= 芯片：短线猎手（满载运算） ================= -->
+        <!-- ================= 芯片：短线猎手 · 工作中 ================= -->
         <g>
-          <!-- 散热气流 -->
           <g stroke="rgba(34,211,238,.4)" stroke-width="1.4" fill="none" stroke-linecap="round">
             <path class="heat"  d="M850 180 q4 -7 0 -14"/>
             <path class="heat2" d="M880 180 q-4 -8 0 -15"/>
             <path class="heat3" d="M910 180 q4 -7 0 -14"/>
           </g>
-          <text x="880" y="160" text-anchor="middle" font-size="8" fill="#3f5a4e" class="mono" letter-spacing="1">AGT-HUNTER · 100% LOAD</text>
+          <text x="880" y="160" text-anchor="middle" font-size="8" fill="#3f5a4e" class="mono" letter-spacing="1">AGT-HUNTER · RUN · 100% LOAD</text>
           <g fill="#26312c">
             <rect x="836" y="182" width="9" height="4"/><rect x="858" y="182" width="9" height="4"/><rect x="880" y="182" width="9" height="4"/><rect x="902" y="182" width="9" height="4"/>
             <rect x="836" y="270" width="9" height="4"/><rect x="858" y="270" width="9" height="4"/><rect x="880" y="270" width="9" height="4"/><rect x="902" y="270" width="9" height="4"/>
@@ -281,11 +268,11 @@
           <text x="880" y="261" text-anchor="middle" font-size="10.5" fill="#a5f3fc">短线猎手</text>
         </g>
         <rect x="782" y="292" width="196" height="24" rx="12" fill="rgba(17,19,24,.92)" stroke="rgba(34,211,238,.55)"/>
-        <text x="880" y="308" text-anchor="middle" font-size="11" fill="#a5f3fc">满载运算 · 盯盘回路双流</text>
+        <text x="880" y="308" text-anchor="middle" font-size="11" fill="#a5f3fc">工作中 · 盯盘回路双流</text>
 
-        <!-- ================= 芯片：M60（低功耗） ================= -->
+        <!-- ================= 芯片：M60 · 今日已产出 ================= -->
         <g>
-          <text x="910" y="486" text-anchor="middle" font-size="8" fill="#4a4158" class="mono" letter-spacing="1">AGT-M60 · IDLE 8%</text>
+          <text x="910" y="486" text-anchor="middle" font-size="8" fill="#4a4158" class="mono" letter-spacing="1">AGT-M60 · PRODUCED ×12 · LOW</text>
           <g fill="#26312c">
             <rect x="866" y="492" width="9" height="4"/><rect x="888" y="492" width="9" height="4"/><rect x="910" y="492" width="9" height="4"/>
             <rect x="866" y="580" width="9" height="4"/><rect x="888" y="580" width="9" height="4"/><rect x="910" y="580" width="9" height="4"/>
@@ -294,15 +281,16 @@
           <rect x="855" y="501" width="110" height="74" rx="5" fill="none" stroke="rgba(255,255,255,.04)"/>
           <rect x="888" y="520" width="44" height="34" rx="5" fill="url(#diePurple)" class="corebeat-slow"/>
           <rect x="888" y="520" width="44" height="34" rx="5" fill="none" stroke="#a855f7" stroke-width="1.1"/>
-          <circle cx="862" cy="506" r="2.6" fill="#a855f7" class="corebeat-slow"/>
-          <circle cx="872" cy="506" r="2.6" fill="rgba(168,85,247,.25)"/>
-          <circle cx="882" cy="506" r="2.6" fill="rgba(168,85,247,.25)"/>
+          <!-- 已产出：单灯常亮 + 余灯熄灭 -->
+          <circle cx="862" cy="506" r="2.6" fill="#a855f7"/>
+          <circle cx="872" cy="506" r="2.6" fill="rgba(168,85,247,.15)"/>
+          <circle cx="882" cy="506" r="2.6" fill="rgba(168,85,247,.15)"/>
           <text x="910" y="571" text-anchor="middle" font-size="10.5" fill="#e9d5ff">M60</text>
         </g>
         <rect x="812" y="602" width="196" height="24" rx="12" fill="rgba(17,19,24,.92)" stroke="rgba(168,85,247,.45)"/>
-        <text x="910" y="618" text-anchor="middle" font-size="11" fill="#e9d5ff">低功耗待机 · 心跳 4s</text>
+        <text x="910" y="618" text-anchor="middle" font-size="11" fill="#e9d5ff">今日已产出 · 午后低频巡航</text>
 
-        <!-- ================= 空插槽：长线价值派 ================= -->
+        <!-- ================= 空插槽：长线价值派 · 未启用 ================= -->
         <g>
           <text x="910" y="632" text-anchor="middle" font-size="8" fill="#3f4653" class="mono" letter-spacing="1">SOCKET EMPTY · NO POWER</text>
           <rect x="850" y="640" width="120" height="84" rx="8" fill="none" stroke="rgba(148,163,184,.35)" stroke-width="1.4" stroke-dasharray="5 4"/>
@@ -314,79 +302,112 @@
         <rect x="812" y="738" width="196" height="24" rx="12" fill="rgba(17,19,24,.92)" stroke="rgba(148,163,184,.3)"/>
         <text x="910" y="754" text-anchor="middle" font-size="11" fill="#8a8f98">未启用 · 插槽未上电</text>
 
-        <!-- ================= 外设：知识库（存储阵列） ================= -->
+        <!-- ================= 外设：知识库（含状态心跳） ================= -->
         <g>
-          <text x="115" y="112" text-anchor="middle" font-size="11" fill="#d8b4fe">知识库 · 存储阵列</text>
-          <rect x="60" y="120" width="110" height="100" rx="10" fill="#10141f" stroke="rgba(168,85,247,.5)" stroke-width="1.4"/>
-          <rect x="74" y="136" width="82" height="14" rx="3" fill="none" stroke="rgba(168,85,247,.55)"/>
-          <circle cx="146" cy="143" r="2.4" fill="#a855f7" class="led2"/>
-          <rect x="74" y="156" width="82" height="14" rx="3" fill="none" stroke="rgba(168,85,247,.45)"/>
-          <circle cx="146" cy="163" r="2.4" fill="#a855f7" class="led3"/>
-          <rect x="74" y="176" width="82" height="14" rx="3" fill="none" stroke="rgba(168,85,247,.40)"/>
-          <circle cx="146" cy="183" r="2.4" fill="rgba(168,85,247,.6)" class="led1"/>
-          <rect x="74" y="196" width="82" height="14" rx="3" fill="none" stroke="rgba(168,85,247,.30)"/>
-          <circle cx="146" cy="203" r="2.4" fill="rgba(168,85,247,.35)"/>
+          <text x="115" y="108" text-anchor="middle" font-size="11" fill="#d8b4fe">知识库 · 存储阵列</text>
+          <rect x="60" y="116" width="110" height="94" rx="10" fill="#10141f" stroke="rgba(168,85,247,.5)" stroke-width="1.4"/>
+          <rect x="74" y="130" width="82" height="13" rx="3" fill="none" stroke="rgba(168,85,247,.55)"/>
+          <circle cx="146" cy="136.5" r="2.4" fill="#a855f7" class="led2"/>
+          <rect x="74" y="149" width="82" height="13" rx="3" fill="none" stroke="rgba(168,85,247,.45)"/>
+          <circle cx="146" cy="155.5" r="2.4" fill="#a855f7" class="led3"/>
+          <rect x="74" y="168" width="82" height="13" rx="3" fill="none" stroke="rgba(168,85,247,.40)"/>
+          <circle cx="146" cy="174.5" r="2.4" fill="rgba(168,85,247,.6)" class="led1"/>
+          <rect x="74" y="187" width="82" height="13" rx="3" fill="none" stroke="rgba(168,85,247,.30)"/>
+          <circle cx="146" cy="193.5" r="2.4" fill="rgba(168,85,247,.35)"/>
+          <circle cx="70" cy="220" r="2.4" fill="#2ea043" class="corebeat"/>
+          <text x="78" y="223.5" font-size="8" fill="#8a8f98" class="mono">在线 · 向量 1536d · extract 空闲</text>
         </g>
 
-        <!-- ================= 外设：资讯 / 情绪 ================= -->
+        <!-- ================= 外设：资讯 / 情绪（含状态心跳） ================= -->
         <g>
-          <rect x="60" y="255" width="110" height="44" rx="9" fill="#101820" stroke="rgba(88,166,255,.5)"/>
-          <circle cx="76" cy="277" r="2.6" fill="#f85149" class="corebeat"/>
-          <text x="88" y="281" font-size="10.5" fill="#93c5fd">资讯电报</text>
-          <path d="M150 271 v-8 M145 266 a7 7 0 0 1 10 0" stroke="#58a6ff" stroke-width="1.4" fill="none"/>
-          <rect x="60" y="311" width="110" height="44" rx="9" fill="#1a1018" stroke="rgba(244,114,182,.5)"/>
-          <text x="74" y="335" font-size="10.5" fill="#f9a8d4">情绪雷达</text>
-          <text x="156" y="335" text-anchor="end" font-size="10" fill="#f472b6" class="mono">♥78</text>
+          <rect x="60" y="248" width="110" height="40" rx="9" fill="#101820" stroke="rgba(88,166,255,.5)"/>
+          <circle cx="76" cy="268" r="2.6" fill="#f85149" class="corebeat"/>
+          <text x="88" y="272" font-size="10.5" fill="#93c5fd">资讯电报</text>
+          <path d="M150 262 v-8 M145 257 a7 7 0 0 1 10 0" stroke="#58a6ff" stroke-width="1.4" fill="none"/>
+          <text x="60" y="302" font-size="8" fill="#8a8f98" class="mono">在线 · 电报流入 ~1条/5min</text>
+
+          <rect x="60" y="316" width="110" height="40" rx="9" fill="#1a1018" stroke="rgba(244,114,182,.5)"/>
+          <text x="74" y="336" font-size="10.5" fill="#f9a8d4">情绪雷达</text>
+          <text x="156" y="336" text-anchor="end" font-size="10" fill="#f472b6" class="mono">♥78</text>
+          <text x="60" y="370" font-size="8" fill="#8a8f98" class="mono">抖音采集 · 最近成功 13:40</text>
         </g>
 
-        <!-- ================= 逻辑分析仪 ================= -->
+        <!-- ================= 逻辑分析仪：日内业务时间线 ================= -->
         <g>
           <rect x="60" y="420" width="310" height="315" rx="12" fill="#0d120f" stroke="rgba(52,211,153,.35)" stroke-width="1.2"/>
           <rect x="66" y="426" width="298" height="303" rx="8" fill="none" stroke="rgba(255,255,255,.04)"/>
-          <text x="78" y="446" font-size="11" fill="#6ee7b7" letter-spacing="1">逻辑分析仪 · AGENT ACTIVITY</text>
+          <text x="78" y="446" font-size="11" fill="#6ee7b7" letter-spacing="1">逻辑分析仪 · 日内业务时间线</text>
           <text x="352" y="446" text-anchor="end" font-size="8.5" fill="#3f5a4e" class="mono">LA-4CH</text>
-          <line x1="78" y1="456" x2="352" y2="456" stroke="rgba(52,211,153,.18)"/>
-          <!-- 探针线束 -->
+          <text x="78" y="461" font-size="8" fill="#5c616e" class="mono">实线=已发生 · 虚线=计划窗 · 红标=委托</text>
+          <line x1="78" y1="470" x2="352" y2="470" stroke="rgba(52,211,153,.18)"/>
           <path d="M370 480 H398 V452 H430" fill="none" stroke="rgba(148,163,184,.35)" stroke-width="1.2" stroke-dasharray="3 3"/>
           <text x="376" y="472" font-size="8" fill="#5c616e" class="mono">PROBE×4</text>
 
-          <!-- 通道分隔 -->
           <g stroke="rgba(52,211,153,.10)">
             <line x1="78" y1="528" x2="352" y2="528"/>
             <line x1="78" y1="584" x2="352" y2="584"/>
             <line x1="78" y1="640" x2="352" y2="640"/>
           </g>
 
-          <!-- CH1 引擎 -->
+          <!-- CH1 复盘引擎：竞价/校准窗脉冲 + 未来计划虚影 -->
           <text x="78" y="494" font-size="9" fill="#6ee7b7" class="mono">CH1 引擎</text>
-          <path id="w1" d="M150 500 h24 v-10 h16 v10 h30 v-10 h14 v10 h26 v-10 h18 v10 h24 v-10 h16 v10 h22" fill="none" stroke="rgba(52,211,153,.75)" stroke-width="1.6"/>
-          <circle r="2.2" fill="#6ee7b7"><animateMotion dur="6s" repeatCount="indefinite"><mpath href="#w1"/></animateMotion></circle>
+          <text x="153" y="486" text-anchor="middle" font-size="7.5" fill="rgba(110,231,183,.7)" class="mono">竞价</text>
+          <text x="172" y="486" text-anchor="middle" font-size="7.5" fill="rgba(110,231,183,.7)" class="mono">校准</text>
+          <text x="233" y="486" text-anchor="middle" font-size="7.5" fill="rgba(110,231,183,.7)" class="mono">校准v2</text>
+          <text x="272" y="486" text-anchor="middle" font-size="7.5" fill="rgba(110,231,183,.45)" class="mono">尾盘·归因</text>
+          <text x="336" y="486" text-anchor="middle" font-size="7.5" fill="rgba(110,231,183,.45)" class="mono">复盘</text>
+          <path d="M150 500 H345" stroke="rgba(52,211,153,.18)" stroke-width="1"/>
+          <path d="M148 500 v-10 h3 v10 h2 v-10 h3 v10 h2 v-10 h3 v10" fill="none" stroke="rgba(52,211,153,.85)" stroke-width="1.6"/>
+          <path d="M167 500 v-10 h3 v10 h2 v-10 h3 v10 h2 v-10 h3 v10" fill="none" stroke="rgba(52,211,153,.85)" stroke-width="1.6"/>
+          <path d="M230 500 v-10 h3 v10 h2 v-10 h3 v10 h2 v-10 h3 v10" fill="none" stroke="rgba(52,211,153,.85)" stroke-width="1.6"/>
+          <path d="M263 500 v-10 h3 v10 h2 v-10 h3 v10 h2 v-10 h3 v10 h2 v-10 h3 v10" fill="none" stroke="rgba(52,211,153,.4)" stroke-width="1.4" stroke-dasharray="3 2"/>
+          <path d="M334 500 v-10 h3 v10 h2 v-10 h3 v10" fill="none" stroke="rgba(52,211,153,.4)" stroke-width="1.4" stroke-dasharray="3 2"/>
 
-          <!-- CH2 短线猎手（密集） -->
+          <!-- CH2 短线猎手：早盘密集 → 午间平 → 午后密集 → 未来虚影；红标=13:44 委托 -->
           <text x="78" y="550" font-size="9" fill="#67e8f9" class="mono">CH2 短线</text>
-          <path id="w2" d="M150 556 h12 v-12 h10 v12 h18 v-12 h8 v12 h14 v-12 h12 v12 h20 v-12 h8 v12 h12 v-12 h16 v12 h14 v-12 h10 v12 h18 v-12 h8 v12 h12" fill="none" stroke="rgba(34,211,238,.85)" stroke-width="1.6"/>
-          <circle r="2.2" fill="#67e8f9"><animateMotion dur="6s" repeatCount="indefinite"><mpath href="#w2"/></animateMotion></circle>
+          <path d="M150 556 H345" stroke="rgba(34,211,238,.15)" stroke-width="1"/>
+          <path d="M155 556 h5 v-12 h3 v12 h7 v-12 h4 v12 h6 v-12 h3 v12 h8 v-12 h4 v12 h2" fill="none" stroke="rgba(34,211,238,.9)" stroke-width="1.6"/>
+          <path d="M228 556 h4 v-12 h3 v12 h5 v-12 h3 v12 h1" fill="none" stroke="rgba(34,211,238,.9)" stroke-width="1.6"/>
+          <path d="M246 556 h6 v-12 h4 v12 h9 v-12 h5 v12 h1" fill="none" stroke="rgba(34,211,238,.35)" stroke-width="1.4" stroke-dasharray="3 2"/>
+          <circle cx="243" cy="544" r="3" fill="#f85149" class="nowpulse"/>
+          <circle cx="243" cy="544" r="6" fill="none" stroke="rgba(248,81,73,.5)" stroke-width="1" class="nowpulse"/>
+          <text x="248" y="575" font-size="7.5" fill="#f87171" class="mono">13:44:58 BUY 600000</text>
+          <circle cx="155" cy="556" r="2.4" fill="#a5f3fc" class="livedot"/>
 
-          <!-- CH3 M60（稀疏） -->
+          <!-- CH3 M60：09:35 产出脉冲块（实） → 稀疏巡检 → 未来归因虚影 -->
           <text x="78" y="606" font-size="9" fill="#c084fc" class="mono">CH3 M60</text>
-          <path id="w3" d="M150 612 h40 v-8 h10 v8 h60 v-8 h10 v8 h70" fill="none" stroke="rgba(168,85,247,.6)" stroke-width="1.6"/>
-          <circle r="2.2" fill="#c084fc"><animateMotion dur="6s" repeatCount="indefinite"><mpath href="#w3"/></animateMotion></circle>
+          <text x="166" y="598" text-anchor="middle" font-size="7.5" fill="rgba(192,132,252,.75)" class="mono">09:35 产出选股×12</text>
+          <path d="M150 612 H345" stroke="rgba(168,85,247,.15)" stroke-width="1"/>
+          <path d="M157 612 h4 v-8 h3 v8 h5 v-8 h3 v8 h5 v-8 h3 v8 h3" fill="none" stroke="rgba(168,85,247,.8)" stroke-width="1.6"/>
+          <path d="M205 612 v-8 h3 v8" fill="none" stroke="rgba(168,85,247,.55)" stroke-width="1.5"/>
+          <path d="M250 612 v-8 h3 v8" fill="none" stroke="rgba(168,85,247,.55)" stroke-width="1.5"/>
+          <path d="M268 612 v-8 h3 v8 M300 612 v-8 h3 v8" fill="none" stroke="rgba(168,85,247,.35)" stroke-width="1.4" stroke-dasharray="2 2"/>
 
-          <!-- CH4 长线（无信号） -->
+          <!-- CH4 长线：无载波 -->
           <text x="78" y="662" font-size="9" fill="#5c616e" class="mono">CH4 长线</text>
           <path d="M150 668 h192" stroke="rgba(148,163,184,.3)" stroke-width="1.4" stroke-dasharray="4 4"/>
           <text x="246" y="664" text-anchor="middle" font-size="8" fill="#3f4653" class="mono" letter-spacing="2">NO CARRIER</text>
 
-          <!-- 扫描播放头 + 拖尾 -->
-          <g class="playhead">
-            <rect x="110" y="470" width="40" height="220" fill="url(#trail)"/>
-            <rect x="149" y="470" width="2" height="220" fill="rgba(165,243,252,.85)"/>
-          </g>
+          <!-- NOW 标记（13:45 定驻 + 呼吸） -->
+          <rect x="150" y="476" width="94" height="210" fill="url(#histTrail)"/>
+          <rect x="243" y="476" width="1.6" height="210" fill="#a5f3fc" class="nowpulse"/>
+          <rect x="225" y="462" width="40" height="13" rx="3" fill="#0d2b28" stroke="rgba(165,243,252,.6)"/>
+          <text x="245" y="472" text-anchor="middle" font-size="8" fill="#a5f3fc" class="mono">NOW 13:45</text>
 
-          <text x="78" y="722" font-size="8.5" fill="#3f5a4e" class="mono">TRIG AUTO · 6s/DIV · 采样与巡检 tick 同步</text>
+          <!-- 时间轴：刻度 = 业务日程（实=已过 / 虚=未来） -->
+          <path d="M150 690 H345" stroke="rgba(148,163,184,.3)" stroke-width="1"/>
+          <g class="mono" font-size="7.5" fill="#5c616e">
+            <path d="M155 686 V694" stroke="#5c616e"/><text x="155" y="705" text-anchor="middle">09:30</text>
+            <path d="M173 686 V694" stroke="#5c616e"/><text x="173" y="705" text-anchor="middle">10:20</text>
+            <path d="M197 686 V694" stroke="#5c616e"/><text x="197" y="705" text-anchor="middle">11:30</text>
+            <path d="M235 686 V694" stroke="#5c616e"/><text x="235" y="705" text-anchor="middle">13:20</text>
+            <path d="M270 686 V694" stroke="#5c616e" stroke-dasharray="2 2"/><text x="270" y="705" text-anchor="middle">15:00</text>
+            <path d="M345 686 V694" stroke="#5c616e" stroke-dasharray="2 2"/><text x="345" y="705" text-anchor="middle">18:35</text>
+          </g>
+          <text x="78" y="722" font-size="8.5" fill="#3f5a4e" class="mono">TRIG AUTO · 09:25—18:35 · 刻度=计划任务窗（示意日程）</text>
         </g>
 
-        <!-- ================= 外设：模拟柜台（I/O 端口） ================= -->
+        <!-- ================= 外设：模拟柜台（含心跳） ================= -->
         <g>
           <text x="1060" y="322" text-anchor="middle" font-size="11" fill="#7ee2a8">模拟柜台 · I/O</text>
           <rect x="1010" y="330" width="100" height="92" rx="10" fill="#101814" stroke="rgba(46,160,67,.55)" stroke-width="1.4"/>
@@ -395,10 +416,10 @@
           <rect x="1024" y="372" width="72" height="10" rx="3" fill="none" stroke="rgba(46,160,67,.5)"/>
           <rect x="1024" y="372" width="46" height="10" rx="3" fill="rgba(46,160,67,.35)"/>
           <text x="1024" y="400" font-size="9.5" fill="#7ee2a8" class="mono">ORD 900×10.98</text>
-          <text x="1024" y="413" font-size="9.5" fill="#5c616e" class="mono">ACK 13:44:58</text>
+          <text x="1024" y="413" font-size="9.5" fill="#5c616e" class="mono">HB 3s · ACK 13:44:58</text>
         </g>
 
-        <!-- ================= Celery 总线 ================= -->
+        <!-- ================= Celery 总线（双 worker 状态） ================= -->
         <g>
           <text x="520" y="632" text-anchor="middle" font-size="11" fill="#e7c26a">Celery 消息总线</text>
           <rect x="380" y="640" width="280" height="60" rx="10" fill="#161410" stroke="rgba(210,153,34,.5)" stroke-width="1.4"/>
@@ -409,10 +430,14 @@
           <rect width="14" height="8" rx="2" fill="rgba(210,153,34,.55)">
             <animateMotion dur="3s" begin="1.4s" repeatCount="indefinite" path="M644 670 H410"/>
           </rect>
-          <text x="660" y="670" font-size="9.5" fill="#8a8f98" class="mono">×2</text>
+          <circle cx="660" cy="654" r="2.4" fill="#2ea043" class="led2"/>
+          <text x="668" y="657.5" font-size="8" fill="#8a8f98" class="mono">realtime@</text>
+          <circle cx="660" cy="672" r="2.4" fill="#2ea043" class="led3"/>
+          <text x="668" y="675.5" font-size="8" fill="#8a8f98" class="mono">heavy@</text>
+          <text x="668" y="693" font-size="8" fill="#d29922" class="mono">积压 ×2</text>
         </g>
 
-        <!-- 零散元件：电容 / 电阻 / 测试点 / 电源灯 -->
+        <!-- 零散元件 -->
         <g>
           <circle cx="395" cy="300" r="7" fill="#0e1512" stroke="rgba(52,211,153,.4)" stroke-width="1.2"/>
           <text x="395" y="291" text-anchor="middle" font-size="7.5" fill="#3f5a4e" class="mono">C12</text>
@@ -423,33 +448,34 @@
           <text x="1011" y="462" text-anchor="middle" font-size="7.5" fill="#4a4436" class="mono">R08</text>
           <circle cx="90" cy="70" r="4" fill="none" stroke="rgba(148,163,184,.4)"/>
           <text x="100" y="74" font-size="7.5" fill="#3f4653" class="mono">TP1</text>
-          <circle cx="1052" cy="700" r="3.2" fill="#2ea043" class="led3"/>
-          <text x="1062" y="704" font-size="7.5" fill="#3f5a4e" class="mono">PWR</text>
         </g>
 
-        <!-- 板号丝印 -->
-        <text x="60" y="770" font-size="9" fill="#2b3a33" class="mono" letter-spacing="2">AI-INVEST MAINBOARD · REV 3.0 · 13:45:00 CST</text>
+        <text x="60" y="770" font-size="9" fill="#2b3a33" class="mono" letter-spacing="2">AI-INVEST MAINBOARD · REV 4.0 · 13:45:00 CST</text>
         <text x="1080" y="770" font-size="9" fill="#2b3a33" class="mono" text-anchor="end">PWR OK · 3.3V/1.8V/0.9V</text>
       </svg>
     </div>
 
     <div class="legend">
-      <div class="lg" style="flex:1.1">
-        <span class="ico"><svg width="14" height="14" viewBox="0 0 14 14"><rect x="3" y="3" width="8" height="8" rx="2" fill="none" stroke="#22d3ee"/><rect x="5.5" y="5.5" width="3" height="3" fill="#22d3ee"/></svg></span>
-        <span><b>芯片呼吸 = 运算负载</b>
-          满载 = 核心高频呼吸 + LED 跑马 + 散热气流；待机 = 4s 慢呼吸单灯；未启用 = 空插槽丝印 SOCKET EMPTY
+      <div class="lg" style="flex:1.45">
+        <span class="ico"><svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="3" width="5" height="8" rx="1" fill="none" stroke="#22d3ee"/><rect x="7.5" y="3" width="4.5" height="8" rx="1" fill="none" stroke="#a855f7"/><circle cx="9.7" cy="11" r="1.4" fill="#f59e0b"/><rect x="2" y="11" width="4" height="2" fill="#475060" opacity=".6"/></svg></span>
+        <span><b>芯片五态解码</b>
+          <span class="dot2" style="background:#22d3ee"></span>工作·满载呼吸跑马 &nbsp;
+          <span class="dot2" style="background:#a855f7"></span>已产出·晨峰脉冲后回落 &nbsp;
+          <span class="dot2" style="background:#a855f7;opacity:.5"></span>待机·4s慢心跳 &nbsp;
+          <span class="dot2" style="background:#f59e0b"></span>暂停·时钟门控 &nbsp;
+          <span class="dot2" style="background:#475060"></span>未启用·空插槽
         </span>
       </div>
-      <div class="lg" style="flex:1.05">
-        <span class="ico"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M1 10 H6 V4 H13" fill="none" stroke="#34d399" stroke-width="1.4"/><circle cx="6" cy="10" r="1.6" fill="#34d399"/></svg></span>
-        <span><b>走线 = 信号语义</b>
-          丝印标注 PLAN·WATCH / ORDER / KB-READ / NEWS / SENT / CRON / CLK；线宽流速随活跃度分档，热通路带辉光
+      <div class="lg" style="flex:1">
+        <span class="ico"><svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="4" fill="none" stroke="#7ee2a8" stroke-width="1.2"/><path d="M7 7 L10 4" stroke="#7ee2a8" stroke-width="1.2"/></svg></span>
+        <span><b>资源站心跳</b>
+          状态一律「文字+灯」双通道不依赖颜色：知识库 extract 空闲 · 资讯流入 ~1条/5min · 情绪最近成功 13:40 · 柜台 HB 3s · Celery 双 worker 在线/积压 ×2
         </span>
       </div>
       <div class="lg" style="flex:1">
         <span class="ico"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M1 10 h3 V5 h3 v5 h3 V7 h3" fill="none" stroke="#67e8f9" stroke-width="1.2"/></svg></span>
-        <span><b>逻辑分析仪 = 工作节奏真相</b>
-          四通道对拍：密波 = 忙、疏波 = 闲、虚线 = 无信号；扫描头 6s/格，与巡检 tick 同步采样
+        <span><b>时间线读法</b>
+          波形=当日事件流：实线段已发生、虚线段计划窗预告；NOW 标记当前时刻，红色标记=委托事件；点击芯片 → 右栏过滤决策流
         </span>
       </div>
     </div>
@@ -460,7 +486,7 @@
     <div class="rh">
       <svg width="22" height="22" viewBox="0 0 22 22"><rect width="22" height="22" rx="6" fill="#181a21" stroke="#2e323c"/><rect x="6" y="6" width="10" height="10" rx="2" fill="none" stroke="#22d3ee" stroke-width="1.2"/><rect x="9" y="9" width="4" height="4" fill="#22d3ee"/></svg>
       <span class="t">实时决策流</span>
-      <span class="who">短线猎手</span>
+      <span class="who">短线猎手 · 工作中</span>
       <span class="ses">盘中 · 13:45</span>
     </div>
     <div class="cards">
