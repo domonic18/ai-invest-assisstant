@@ -1,41 +1,33 @@
 /**
  * Agent 详情页（仅 admin，路由 /trading-agent/:agentKey）：单 Agent 闭环统一入口。
  *
- * 结构 = 运行状态条 + Tabs：工作台（agent 对话，PC 附工作状态侧栏）、
- * Agent 自选（选股清单 + 人工移出）、持仓与交易（agent 账户资金/持仓/
- * 委托/成交）、交易计划、执行动态（盘中逐 tick 观测留痕，批次 8 PR-3）、
+ * 结构 = 介绍卡（含「对话」入口：统一打开右侧全局侧边栏与该 Agent 会话）+
+ * 运行状态条 + Tabs：Agent 自选（选股清单 + 人工移出）、持仓与交易（agent
+ * 账户资金/持仓/委托/成交）、交易计划、执行动态（盘中逐 tick 观测留痕）、
  * 复盘记录（日/周/月）、经验总结（记忆库唯一管理面：复盘沉淀 + 手动沉淀，
  * 可编辑/删除/停用/启用）、配置（基本配置 + 会话人设 + 作业技能 + 模拟盘
- * 账户，D30 四区）。tab 态进 URL query；工作台保持挂载（antd Tabs 默认
- * 隐藏不卸载），切 tab 不中断会话流。
+ * 账户，D30 四区）。tab 态进 URL query；与 Agent 的对话交互一律走侧边栏。
  */
-import { EditOutlined } from '@ant-design/icons'
+import { MessageOutlined } from '@ant-design/icons'
 import { Button, Spin, Tabs, Tag, Typography } from 'antd'
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { PAGE_EVENT_TYPES } from '@ai-invest/shared'
 import type { TradingAgentProfile } from '@ai-invest/shared'
 
-import { useAssistantSessions } from '@/components/assistant/hooks/useAssistantSessions'
-import { AssistantErrorBoundary } from '@/components/assistant/AssistantErrorBoundary'
-import { AssistantRuntimeProvider } from '@/components/assistant/AssistantRuntimeProvider'
-import { AssistantSidebar } from '@/components/assistant/AssistantSidebar'
-import { AssistantThread } from '@/components/assistant/AssistantThread'
-import { TodoListBar } from '@/components/assistant/ui/TodoListBar'
 import { queryKeys } from '@/hooks/queryKeys'
 import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
 import { useTradingAgentConfig, useTradingAgentLlmOptions, useTradingAgentStatus } from '@/hooks/useTradingAgent'
 import { useAssistantStore } from '@/stores/assistant'
 
-import { AgentKeyContext, useAgentKey } from './agentKeyContext'
+import { AgentKeyContext } from './agentKeyContext'
 
 import { AgentAccountPanel } from './AgentAccountPanel'
 import { AgentConfigPanel } from './AgentConfigPanel'
 import { AgentPersonaPanel } from './AgentPersonaPanel'
 import { AgentSkillPanel } from './AgentSkillPanel'
-import { AgentWorkStatusPanel } from './AgentWorkStatusPanel'
 import { AgentMemoryPanel } from './AgentMemoryPanel'
 import { AgentSelectionsPanel } from './AgentSelectionsPanel'
 import { AgentStatusStrip } from './AgentStatusStrip'
@@ -45,7 +37,6 @@ import { PlanPanel } from './PlanPanel'
 import { ReviewPanel } from './ReviewPanel'
 
 const TAB_KEYS = [
-  'workbench',
   'selections',
   'records',
   'plans',
@@ -57,7 +48,6 @@ const TAB_KEYS = [
 type TabKey = (typeof TAB_KEYS)[number]
 
 const TAB_ITEMS = [
-  { key: 'workbench', label: '工作台' },
   { key: 'selections', label: 'Agent 自选' },
   { key: 'records', label: '持仓与交易' },
   { key: 'plans', label: '交易计划' },
@@ -69,8 +59,6 @@ const TAB_ITEMS = [
 
 function renderTabPane(key: TabKey) {
   switch (key) {
-    case 'workbench':
-      return <WorkbenchPane />
     case 'selections':
       return <AgentSelectionsPanel />
     case 'records':
@@ -95,84 +83,12 @@ function renderTabPane(key: TabKey) {
   }
 }
 
-function TradingChatHeader({ onNewThread }: { onNewThread: () => void }) {
-  return (
-    <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
-      <div className="min-w-0">
-        <Typography.Text strong>交易 Agent</Typography.Text>
-        <Typography.Text type="secondary" className="ml-2 text-xs">
-          绑定专属模拟盘账户 · 下单/撤单前会与你确认
-        </Typography.Text>
-      </div>
-      <Button size="small" icon={<EditOutlined />} onClick={onNewThread}>
-        新会话
-      </Button>
-    </div>
-  )
-}
-
-function WorkbenchPane() {
-  const agentKey = useAgentKey()
-  const [threadId, setThreadId] = useState<string | undefined>(undefined)
-  const lastThreadIdRef = useRef<string | undefined>(undefined)
-  const todos = useAssistantStore((state) => state.todos)
-  const { sessions, isLoading, deleteSessionById, refresh } = useAssistantSessions({
-    agentType: agentKey,
-  })
-
-  // 线程变更单点：新会话首条消息发出后线程才真实创建（onThreadIdChange 回填），
-  // 创建/切换时刷新会话列表（ref 守卫避免渲染期 effect 反复 invalidate）
-  const changeThread = (id: string | undefined) => {
-    if (id === lastThreadIdRef.current) return
-    lastThreadIdRef.current = id
-    setThreadId(id)
-    if (id) refresh()
-  }
-
-  const handleDelete = async (id: string) => {
-    await deleteSessionById(id)
-    if (id === threadId) changeThread(undefined)
-  }
-
-  return (
-    <div className="flex h-[calc(100dvh-13.5rem)] min-h-[420px] gap-3">
-      <div className="hidden shrink-0 md:block">
-        <AssistantSidebar
-          sessions={sessions}
-          activeThreadId={threadId}
-          isLoading={isLoading}
-          width={240}
-          onNewThread={() => changeThread(undefined)}
-          onSwitchThread={changeThread}
-          onDeleteThread={handleDelete}
-        />
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
-        <TradingChatHeader onNewThread={() => changeThread(undefined)} />
-        {todos && todos.length > 0 && <TodoListBar todos={todos} />}
-        <div className="min-h-0 flex-1">
-          <AssistantErrorBoundary>
-            <AssistantRuntimeProvider
-              agentType={agentKey}
-              threadId={threadId}
-              onThreadIdChange={changeThread}
-            >
-              <AssistantThread />
-            </AssistantRuntimeProvider>
-          </AssistantErrorBoundary>
-        </div>
-      </div>
-      <div className="hidden w-[320px] shrink-0 space-y-3 overflow-y-auto lg:block">
-        <AgentWorkStatusPanel />
-      </div>
-    </div>
-  )
-}
-
-/** Agent 介绍卡：accent_color 点缀 + 方法论/模型（注册行 + 能力视图）。 */
+/** Agent 介绍卡：accent_color 点缀 + 方法论/模型（注册行 + 能力视图）+ 对话入口。 */
 function AgentIntroCard({ profile }: { profile: TradingAgentProfile }) {
   const { data: llmOptions } = useTradingAgentLlmOptions()
   const { data: capability } = useTradingAgentStatus(profile.agentKey)
+  const setChatAgent = useAssistantStore((state) => state.setChatAgent)
+  const openPanel = useAssistantStore((state) => state.openPanel)
   const llmName = profile.llmConfigId
     ? llmOptions?.find((option) => option.value === profile.llmConfigId)?.label
     : '平台默认模型'
@@ -208,6 +124,18 @@ function AgentIntroCard({ profile }: { profile: TradingAgentProfile }) {
           {profile.riskMaxDailyOrders}笔
         </Typography.Text>
       </span>
+      <Button
+        type="primary"
+        size="small"
+        icon={<MessageOutlined />}
+        className="ml-auto"
+        onClick={() => {
+          setChatAgent(profile.agentKey)
+          openPanel()
+        }}
+      >
+        对话
+      </Button>
     </div>
   )
 }
@@ -232,10 +160,10 @@ export function TradingAgent() {
     return true
   })
 
-  const rawTab = searchParams.get('tab') ?? 'workbench'
+  const rawTab = searchParams.get('tab') ?? 'selections'
   const activeTab: TabKey = (TAB_KEYS as readonly string[]).includes(rawTab)
     ? (rawTab as TabKey)
-    : 'workbench'
+    : 'selections'
   const changeTab = (key: string) => {
     setSearchParams((prev) => {
       prev.set('tab', key)
