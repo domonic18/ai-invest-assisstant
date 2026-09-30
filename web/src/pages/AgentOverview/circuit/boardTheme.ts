@@ -86,9 +86,9 @@ export const BOARD_CSS = `${KF}\n${CLS}`
 /** SVG 通用 mono 字体族（丝印 / 代码 / 附注）。 */
 export const MONO = "'SF Mono','Fira Code',ui-monospace,Menlo,monospace"
 
-/** 芯片插槽 Y 坐标（设计稿定稿：右列三槽位，额外 agent 顺延）。 */
-export const CHIP_SLOT_Y = [186, 496, 640] as const
+/** 芯片插槽 Y 坐标（设计稿定稿：右列四槽位等距 150，额外 agent 顺延）。 */
+export const CHIP_SLOT_Y = [186, 336, 486, 636] as const
 
 export function chipSlotY(index: number): number {
-  return index < CHIP_SLOT_Y.length ? CHIP_SLOT_Y[index] : 186 + index * 186
+  return index < CHIP_SLOT_Y.length ? CHIP_SLOT_Y[index] : CHIP_SLOT_Y[0] + index * 150
 }

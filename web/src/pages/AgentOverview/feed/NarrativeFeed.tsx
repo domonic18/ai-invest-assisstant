@@ -24,6 +24,27 @@ import type { NarrativeCard } from './narrative'
 /** 右栏最多渲染的卡片数：整页约束在一屏内，更早的观测去 Agent 详情页看。 */
 const MAX_FEED_CARDS = 8
 
+interface FeedEntry {
+  card: NarrativeCard
+  /** 与上一条同股同事件的连续重复次数（+N 徽标，0 = 无合并） */
+  repeat: number
+}
+
+/** 连续重复条目合并：同股同 tag 刷屏（心跳/观望）只保留最新一条并累计 +N。 */
+function mergeRuns(cards: NarrativeCard[]): FeedEntry[] {
+  const entries: FeedEntry[] = []
+  for (const card of cards) {
+    const last = entries[entries.length - 1]
+    if (last && last.card.stockCode === card.stockCode && last.card.tag === card.tag) {
+      last.repeat += 1
+      last.card = card
+    } else {
+      entries.push({ card, repeat: 0 })
+    }
+  }
+  return entries
+}
+
 const TONE_STYLE: Record<NarrativeCard['tone'], { border: string; bg: string; text: string; tagBg: string; tagText: string }> = {
   hot: {
     border: BOARD.red,
@@ -87,12 +108,12 @@ export function NarrativeFeed({
   const reducedMotion = usePrefersReducedMotion()
   if (!agent) return null
   const accent = agent.profile.accentColor ?? BOARD.cyan
-  const cards = (feed?.items ?? []).slice(0, MAX_FEED_CARDS).map(toNarrative)
+  const cards = mergeRuns((feed?.items ?? []).slice(0, MAX_FEED_CARDS).map(toNarrative))
   const session = marketSession()
 
   return (
     <div
-      className={`flex w-[380px] flex-none flex-col gap-2.5 overflow-hidden rounded-2xl border border-[#23262d] bg-[#111318] p-3.5 ${reducedMotion ? 'ahc-reduced' : ''}`}
+      className={`flex w-full flex-none flex-col gap-2.5 overflow-hidden rounded-2xl border border-[#23262d] bg-[#111318] p-3.5 lg:w-[380px] ${reducedMotion ? 'ahc-reduced' : ''}`}
     >
       <style>{`.ahc-feed-card { animation: ahc-feedin .5s ease both; } @keyframes ahc-feedin { from{opacity:0; transform:translateY(-8px)} to{opacity:1; transform:none} }`}</style>
       <div className="flex items-center gap-2">
@@ -119,32 +140,37 @@ export function NarrativeFeed({
         ) : cards.length === 0 ? (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无观测留痕" />
         ) : (
-          cards.map((card) => {
+          cards.map(({ card, repeat }) => {
             const tone = TONE_STYLE[card.tone]
             const borderColor = card.tone === 'hot' ? tone.border : accent
             return (
               <div
                 key={card.key}
-                className="ahc-feed-card flex gap-2.5 rounded-xl border border-l-[3px] p-2.5 pr-3"
+                className="ahc-feed-card flex gap-2 rounded-xl border border-l-[3px] px-2.5 py-1.5 pr-3"
                 style={{ backgroundColor: tone.bg, borderColor: tone.border, borderLeftColor: borderColor }}
               >
                 <ChipAvatar accent={accent} />
                 <div className="min-w-0">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-[10.5px]" style={{ color: BOARD.grey, fontFamily: MONO }}>
+                    <span className="text-[10px]" style={{ color: BOARD.grey, fontFamily: MONO }}>
                       {card.time}
                     </span>
                     <span
-                      className="rounded-full px-1.5 text-[10px]"
+                      className="rounded-full px-1.5 text-[9.5px]"
                       style={{ backgroundColor: tone.tagBg, color: tone.tagText }}
                     >
                       {card.tag}
                     </span>
+                    {repeat > 0 && (
+                      <span className="text-[9.5px]" style={{ color: BOARD.grey, fontFamily: MONO }}>
+                        +{repeat}
+                      </span>
+                    )}
                   </div>
-                  <div className="mt-0.5 text-[12.5px] leading-normal" style={{ color: tone.text, fontWeight: card.tone === 'hot' ? 600 : 400 }}>
+                  <div className="text-[12px] leading-snug" style={{ color: tone.text, fontWeight: card.tone === 'hot' ? 600 : 400 }}>
                     {card.sentence}
                   </div>
-                  <div className="mt-1 text-[10.5px]" style={{ color: BOARD.grey, fontFamily: MONO }}>
+                  <div className="mt-0.5 text-[10px]" style={{ color: BOARD.grey, fontFamily: MONO }}>
                     {card.meta}
                   </div>
                 </div>

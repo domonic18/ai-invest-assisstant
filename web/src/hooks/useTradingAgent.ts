@@ -40,11 +40,16 @@ import { queryKeys } from '@/hooks/queryKeys'
 import { isMarketOpen } from '@/pages/PaperTrade/tradingRules'
 
 /** 全部注册 Agent 的总览聚合（贾维斯总览页传 refetchInterval 轮询）。 */
-export function useAgentOverview(options?: { refetchInterval?: number | false }) {
+export function useAgentOverview(options?: {
+  refetchInterval?: number | false
+  /** 侧边栏切换器按需拉取（非 admin 不触发该 admin 聚合端点） */
+  enabled?: boolean
+}) {
   return useQuery({
     queryKey: queryKeys.tradingAgent.agents,
     queryFn: fetchAgentOverview,
     refetchInterval: options?.refetchInterval,
+    enabled: options?.enabled,
   })
 }
 

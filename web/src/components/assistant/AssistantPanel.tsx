@@ -1,16 +1,19 @@
 import { Drawer, Tooltip } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { useAssistantSessions } from './hooks/useAssistantSessions'
+import { useAgentOverview } from '@/hooks/useTradingAgent'
 import { useAssistantStore } from '@/stores/assistant'
+import { useAuthStore } from '@/stores/auth'
 
 import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 
+import { useAssistantSessions } from './hooks/useAssistantSessions'
 import { AssistantHeader } from './AssistantHeader'
 import { AssistantSidebar } from './AssistantSidebar'
 import { AssistantThread } from './AssistantThread'
 import { AssistantErrorBoundary } from './AssistantErrorBoundary'
 import { AssistantRuntimeProvider } from './AssistantRuntimeProvider'
+import { AgentAvatarSwitcher } from './ui/AgentAvatarSwitcher'
 import { TodoListBar } from './ui/TodoListBar'
 import {
   clamp,
@@ -34,9 +37,22 @@ export function AssistantPanel() {
   const closePanel = useAssistantStore((state) => state.closePanel)
   const threadId = useAssistantStore((state) => state.threadId)
   const switchThread = useAssistantStore((state) => state.switchThread)
+  const chatAgentType = useAssistantStore((state) => state.chatAgentType)
+  const setChatAgent = useAssistantStore((state) => state.setChatAgent)
   const todos = useAssistantStore((state) => state.todos)
+  const isAdmin = useAuthStore((state) => state.isAdmin)
 
-  const { sessions, isLoading, deleteSessionById, refresh } = useAssistantSessions({ enabled: open })
+  // 会话列表随对话对象切换（queryKey 含 agentType，切 key 自带 Loading 重取）
+  const { sessions, isLoading, deleteSessionById, refresh } = useAssistantSessions({
+    agentType: chatAgentType,
+    enabled: open,
+  })
+  const { data: overview } = useAgentOverview({ enabled: open && isAdmin })
+
+  // 管理员身份丢失（切账号等）时把对话对象拉回常规助手
+  useEffect(() => {
+    if (!isAdmin && chatAgentType !== 'assistant') setChatAgent('assistant')
+  }, [isAdmin, chatAgentType, setChatAgent])
 
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     readStoredWidth(
@@ -155,6 +171,15 @@ export function AssistantPanel() {
       activeThreadId={threadId}
       isLoading={isLoading}
       width={isNarrow ? 300 : sidebarWidth}
+      extra={
+        isAdmin ? (
+          <AgentAvatarSwitcher
+            current={chatAgentType}
+            items={overview?.items ?? []}
+            onChange={setChatAgent}
+          />
+        ) : undefined
+      }
       onNewThread={() => {
         switchThread(undefined)
         if (closeOnSelect) setMobileListOpen(false)
@@ -218,11 +243,11 @@ export function AssistantPanel() {
           />
           {todos && todos.length > 0 && <TodoListBar todos={todos} />}
           <div className="min-h-0 flex-1">
-            {/* 不能加 key：runtime 原生支持 threadId 受控切换，加 key 会在
-                threads.create 后因 onThreadIdChange 触发整个 runtime 重挂载，
-                销毁乐观消息并中断进行中的流 */}
-            <AssistantErrorBoundary>
-              <AssistantRuntimeProvider>
+            {/* key=chatAgentType：切换对话对象必须重挂载 runtime 换绑 agent 端点
+                （线程态已由 setChatAgent 重置）。线程内切换不可加 key=threadId：
+                threads.create 后 onThreadIdChange 会触发重挂载，销毁乐观消息 */}
+            <AssistantErrorBoundary key={chatAgentType}>
+              <AssistantRuntimeProvider agentType={chatAgentType}>
                 <AssistantThread />
               </AssistantRuntimeProvider>
             </AssistantErrorBoundary>
