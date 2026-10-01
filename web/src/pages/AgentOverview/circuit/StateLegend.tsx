@@ -13,10 +13,11 @@ const ITEMS: ReadonlyArray<{ color: string; opacity?: number; label: string }> =
 ]
 
 export function StateLegend({ x = 124, y = 52 }: { x?: number; y?: number }) {
-  let cx = x + 14
+  // 首个图例项须让出「芯片五态」标签宽度（4 字 ≈38px），否则色点压在标签文字上
+  let cx = x + 56
   return (
     <g>
-      <rect x={x} y={y} width="460" height="28" rx="6" fill="#0e1512" stroke="rgba(148,163,184,.16)" />
+      <rect x={x} y={y} width="486" height="28" rx="6" fill="#0e1512" stroke="rgba(148,163,184,.16)" />
       <text x={x + 12} y={y + 18.5} fontSize="8.5" fill={BOARD.grey} letterSpacing="1" style={{ fontFamily: MONO }}>
         芯片五态
       </text>

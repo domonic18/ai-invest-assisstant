@@ -2,25 +2,9 @@ import { ReloadOutlined } from '@ant-design/icons'
 import { Alert, Button, Card, Skeleton, Tag, Tooltip, Typography, theme } from 'antd'
 import type { CeleryQueueStatus, CeleryTaskSquare, CeleryTaskState } from '@ai-invest/shared'
 
+import { CeleryTaskTooltipContent } from '@/components/CeleryTaskTooltip'
 import { useCeleryQueues } from '@/hooks/useCeleryQueues'
 import { formatDateTime } from '@/utils/formatters'
-
-const STATE_TEXT: Record<CeleryTaskState, string> = {
-  pending: '排队中',
-  running: '执行中',
-  success: '已完成',
-  partial: '部分成功',
-  failed: '失败',
-  skipped: '已跳过',
-}
-
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms} ms`
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`
-  const minutes = Math.floor(ms / 60_000)
-  const seconds = Math.round((ms % 60_000) / 1000)
-  return `${minutes}m${String(seconds).padStart(2, '0')}s`
-}
 
 function stateColor(state: CeleryTaskState, token: ReturnType<typeof theme.useToken>['token']): string {
   switch (state) {
@@ -39,29 +23,13 @@ function stateColor(state: CeleryTaskState, token: ReturnType<typeof theme.useTo
   }
 }
 
-function TaskTooltipContent({ task }: { task: CeleryTaskSquare }) {
-  return (
-    <div className="max-w-80 space-y-1 text-xs">
-      <div className="font-medium">{task.label}</div>
-      <div className="opacity-80">
-        {STATE_TEXT[task.state]}
-        {task.source ? ` · ${task.source}` : ''}
-        {task.durationMs != null ? ` · 耗时 ${formatDuration(task.durationMs)}` : ''}
-      </div>
-      {task.startedAt && <div className="opacity-60">开始 {formatDateTime(task.startedAt)}</div>}
-      {task.finishedAt && <div className="opacity-60">结束 {formatDateTime(task.finishedAt)}</div>}
-      {task.detail && <div className="opacity-80">{task.detail}</div>}
-    </div>
-  )
-}
-
 function TaskSquare({ task }: { task: CeleryTaskSquare }) {
   const { token } = theme.useToken()
   const color = stateColor(task.state, token)
   const opacity = task.state === 'skipped' ? 0.45 : 1
 
   return (
-    <Tooltip title={<TaskTooltipContent task={task} />}>
+    <Tooltip title={<CeleryTaskTooltipContent task={task} />}>
       <span
         data-testid={`task-${task.key}`}
         className="flex h-2.5 w-2.5 flex-none cursor-default items-center justify-center"
