@@ -187,7 +187,9 @@ jobs:
   # 全部进度作废、重试从零开始，大镜像永远推不完。改为「构建与推送分离」——
   # 构建只 load 进本地 docker（GHA cache 加速，秒级重建）；推送用 docker push
   # 循环重试，标准 registry 协议对已上传层返回 Layer already exists 直接跳过，
-  # 跨轮次/跨 re-run 均断点续传
+  # 跨轮次/跨 re-run 均断点续传。stall 有报错退出与静默挂死两种形态（2026-10-01
+  # 连续两次 35 分钟步骤超时实锤后者：挂死的 push 不退出，重试循环到不了第 2 轮），
+  # 故每轮 push 套 timeout 硬杀，挂死也计入重试
   # ============================================================
   docker-web:
     name: Docker Web / Web 镜像构建推送
@@ -195,7 +197,7 @@ jobs:
     needs: [backend, web]
     # push 到 develop/main 自动构建；workflow_dispatch 供首次打通 TCR 时手动触发
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')) || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout / 检出代码
@@ -244,23 +246,25 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Push to TCR / 跨境断点续推（最多 5 轮）
-        # 已上传的层被 registry 判 Layer already exists 跳过，轮次间与 re-run 间均续传
-        timeout-minutes: 35
+      - name: Push to TCR / 跨境断点续推（最多 3 轮，单轮硬超时）
+        # 已上传的层被 registry 判 Layer already exists 跳过，轮次间与 re-run 间均续传；
+        # 预算 = 3 轮 × 2 tag × 600s + 间隔 < 步骤上限，脚本自身先于步骤超时收口
+        timeout-minutes: 70
         env:
           IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/web
           VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
         run: |
           set -u
           attempt=1
-          while [ "$attempt" -le 5 ]; do
+          while [ "$attempt" -le 3 ]; do
             failed=0
             for tag in "$VERSION_TAG" latest; do
-              echo "::group::docker push $IMAGE:$tag（第 $attempt/5 轮）"
-              if docker push "$IMAGE:$tag"; then
+              echo "::group::docker push $IMAGE:$tag（第 $attempt/3 轮，单轮硬超时 10 分钟）"
+              # timeout 把挂死型 stall（不报错不退出）也变成非零退出，轮次推进才真实生效
+              if timeout -k 30 600 docker push "$IMAGE:$tag"; then
                 echo "推送成功：$IMAGE:$tag"
               else
-                echo "推送失败：$IMAGE:$tag"
+                echo "推送失败（exit=$?）：$IMAGE:$tag"
                 failed=1
               fi
               echo "::endgroup::"
@@ -269,11 +273,11 @@ jobs:
               exit 0
             fi
             attempt=$((attempt + 1))
-            if [ "$attempt" -le 5 ]; then
+            if [ "$attempt" -le 3 ]; then
               sleep 10
             fi
           done
-          echo "::error::跨境推送 5 轮均失败：$IMAGE"
+          echo "::error::跨境推送 3 轮均失败：$IMAGE"
           exit 1
 
   docker-collector:
@@ -281,7 +285,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [backend, web]
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')) || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout / 检出代码
@@ -327,23 +331,25 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Push to TCR / 跨境断点续推（最多 5 轮）
-        # 已上传的层被 registry 判 Layer already exists 跳过，轮次间与 re-run 间均续传
-        timeout-minutes: 35
+      - name: Push to TCR / 跨境断点续推（最多 3 轮，单轮硬超时）
+        # 已上传的层被 registry 判 Layer already exists 跳过，轮次间与 re-run 间均续传；
+        # 预算 = 3 轮 × 2 tag × 600s + 间隔 < 步骤上限，脚本自身先于步骤超时收口
+        timeout-minutes: 70
         env:
           IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/collector
           VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
         run: |
           set -u
           attempt=1
-          while [ "$attempt" -le 5 ]; do
+          while [ "$attempt" -le 3 ]; do
             failed=0
             for tag in "$VERSION_TAG" latest; do
-              echo "::group::docker push $IMAGE:$tag（第 $attempt/5 轮）"
-              if docker push "$IMAGE:$tag"; then
+              echo "::group::docker push $IMAGE:$tag（第 $attempt/3 轮，单轮硬超时 10 分钟）"
+              # timeout 把挂死型 stall（不报错不退出）也变成非零退出，轮次推进才真实生效
+              if timeout -k 30 600 docker push "$IMAGE:$tag"; then
                 echo "推送成功：$IMAGE:$tag"
               else
-                echo "推送失败：$IMAGE:$tag"
+                echo "推送失败（exit=$?）：$IMAGE:$tag"
                 failed=1
               fi
               echo "::endgroup::"
@@ -352,11 +358,11 @@ jobs:
               exit 0
             fi
             attempt=$((attempt + 1))
-            if [ "$attempt" -le 5 ]; then
+            if [ "$attempt" -le 3 ]; then
               sleep 10
             fi
           done
-          echo "::error::跨境推送 5 轮均失败：$IMAGE"
+          echo "::error::跨境推送 3 轮均失败：$IMAGE"
           exit 1
 
   # ============================================================
@@ -367,7 +373,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [backend, web]
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')) || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout / 检出代码
@@ -413,23 +419,25 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Push to TCR / 跨境断点续推（最多 5 轮）
-        # 已上传的层被 registry 判 Layer already exists 跳过，轮次间与 re-run 间均续传
-        timeout-minutes: 35
+      - name: Push to TCR / 跨境断点续推（最多 3 轮，单轮硬超时）
+        # 已上传的层被 registry 判 Layer already exists 跳过，轮次间与 re-run 间均续传；
+        # 预算 = 3 轮 × 2 tag × 600s + 间隔 < 步骤上限，脚本自身先于步骤超时收口
+        timeout-minutes: 70
         env:
           IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/douyin-signer
           VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
         run: |
           set -u
           attempt=1
-          while [ "$attempt" -le 5 ]; do
+          while [ "$attempt" -le 3 ]; do
             failed=0
             for tag in "$VERSION_TAG" latest; do
-              echo "::group::docker push $IMAGE:$tag（第 $attempt/5 轮）"
-              if docker push "$IMAGE:$tag"; then
+              echo "::group::docker push $IMAGE:$tag（第 $attempt/3 轮，单轮硬超时 10 分钟）"
+              # timeout 把挂死型 stall（不报错不退出）也变成非零退出，轮次推进才真实生效
+              if timeout -k 30 600 docker push "$IMAGE:$tag"; then
                 echo "推送成功：$IMAGE:$tag"
               else
-                echo "推送失败：$IMAGE:$tag"
+                echo "推送失败（exit=$?）：$IMAGE:$tag"
                 failed=1
               fi
               echo "::endgroup::"
@@ -438,11 +446,11 @@ jobs:
               exit 0
             fi
             attempt=$((attempt + 1))
-            if [ "$attempt" -le 5 ]; then
+            if [ "$attempt" -le 3 ]; then
               sleep 10
             fi
           done
-          echo "::error::跨境推送 5 轮均失败：$IMAGE"
+          echo "::error::跨境推送 3 轮均失败：$IMAGE"
           exit 1
 
   # ============================================================
@@ -454,7 +462,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [backend, web]
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')) || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout / 检出代码
@@ -500,23 +508,25 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Push to TCR / 跨境断点续推（最多 5 轮）
-        # 已上传的层被 registry 判 Layer already exists 跳过，轮次间与 re-run 间均续传
-        timeout-minutes: 35
+      - name: Push to TCR / 跨境断点续推（最多 3 轮，单轮硬超时）
+        # 已上传的层被 registry 判 Layer already exists 跳过，轮次间与 re-run 间均续传；
+        # 预算 = 3 轮 × 2 tag × 600s + 间隔 < 步骤上限，脚本自身先于步骤超时收口
+        timeout-minutes: 70
         env:
           IMAGE: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/paper-trade
           VERSION_TAG: ${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
         run: |
           set -u
           attempt=1
-          while [ "$attempt" -le 5 ]; do
+          while [ "$attempt" -le 3 ]; do
             failed=0
             for tag in "$VERSION_TAG" latest; do
-              echo "::group::docker push $IMAGE:$tag（第 $attempt/5 轮）"
-              if docker push "$IMAGE:$tag"; then
+              echo "::group::docker push $IMAGE:$tag（第 $attempt/3 轮，单轮硬超时 10 分钟）"
+              # timeout 把挂死型 stall（不报错不退出）也变成非零退出，轮次推进才真实生效
+              if timeout -k 30 600 docker push "$IMAGE:$tag"; then
                 echo "推送成功：$IMAGE:$tag"
               else
-                echo "推送失败：$IMAGE:$tag"
+                echo "推送失败（exit=$?）：$IMAGE:$tag"
                 failed=1
               fi
               echo "::endgroup::"
@@ -525,9 +535,9 @@ jobs:
               exit 0
             fi
             attempt=$((attempt + 1))
-            if [ "$attempt" -le 5 ]; then
+            if [ "$attempt" -le 3 ]; then
               sleep 10
             fi
           done
-          echo "::error::跨境推送 5 轮均失败：$IMAGE"
+          echo "::error::跨境推送 3 轮均失败：$IMAGE"
           exit 1
