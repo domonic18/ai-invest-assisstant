@@ -1,7 +1,8 @@
 /**
  * 电路脉冲主板（智能中枢左画布，REV4）：PCB 底板 + 走线层 + 主控 + Agent 芯片列
  * + 外设心跳 + 逻辑分析仪 + 丝印。SVG viewBox 1140×800，在弹性容器内等比
- * 缩放（meet 居中 letterbox），高度由页面一屏约束驱动。
+ * 缩放，高度由页面一屏约束驱动；fillWidth（决策流收起）时改为宽度铺满、
+ * 超出容器高度部分纵向滚动。
  * 点击芯片联动右栏决策流（selectedKey）。
  */
 import type { AgentOverviewItem } from '@ai-invest/shared'
@@ -61,6 +62,7 @@ export function CircuitBoard({
   today,
   nowMinutes,
   reducedMotion,
+  fillWidth = false,
 }: {
   items: AgentOverviewItem[]
   selectedKey: string | null
@@ -71,6 +73,8 @@ export function CircuitBoard({
   today: string
   nowMinutes: number
   reducedMotion: boolean
+  /** 决策流收起（整屏模式）：按宽度铺满放大，容器内纵向滚动；默认按高度适配一屏。 */
+  fillWidth?: boolean
 }) {
   const chipTargets = items.map((item, i) => ({
     y: chipSlotY(i),
@@ -81,13 +85,13 @@ export function CircuitBoard({
 
   return (
     <div
-      className={`min-h-0 flex-1 overflow-hidden rounded-[18px] border border-[#23262d] bg-[#0a0f0d] shadow-[0_24px_70px_rgba(0,0,0,.6)] ${reducedMotion ? 'ahc-reduced' : ''}`}
+      className={`min-h-0 flex-1 rounded-[18px] border border-[#23262d] bg-[#0a0f0d] shadow-[0_24px_70px_rgba(0,0,0,.6)] ${fillWidth ? 'overflow-y-auto' : 'overflow-hidden'} ${reducedMotion ? 'ahc-reduced' : ''}`}
     >
       <style>{BOARD_CSS}</style>
       <svg
         viewBox="0 0 1140 800"
         preserveAspectRatio="xMidYMid meet"
-        className="mx-auto block h-full max-h-full w-auto max-w-full"
+        className={fillWidth ? 'mx-auto block w-full' : 'mx-auto block h-full max-h-full w-auto max-w-full'}
         role="img"
         aria-label="智能中枢电路主板"
       >
