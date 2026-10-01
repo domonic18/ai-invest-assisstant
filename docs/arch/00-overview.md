@@ -35,6 +35,9 @@
 │   采集爬虫 + LLM 归因                      │
 │   douyin-signer 抖音签名 sidecar           │
 │   （>900s / WAF 固定出口，永久驻留）       │
+│   paper-trade 掘金仿真柜台 sidecar         │
+│   agent-intraday-exec 盘中执行驻留进程     │
+│   （交易时段 60s tick，影子模式先行）      │
 │     ─▶ 东财 / 新浪 / 巨潮 / tushare / 抖音 │
 └────────────────────────────────────────────┘
 ```
@@ -43,7 +46,7 @@
 - **API 层**：SCF Web 函数（FastAPI 一体镜像），SSE 流式输出；长任务（>900s）与需固定出口 IP 的采集爬虫留置轻量服务器执行
 - **数据与任务层**：轻量服务器承载 postgres/timescale、redis 与 Celery 采集调度（`collector_task` 表为调度真相源）
 - **文件存储**：COS（S3 兼容端点），兼作 pg_dump 定时备份目标
-- **镜像发布**：GitHub Actions 构建推送 TCR（web / collector / douyin-signer 三镜像），服务器/SCF 拉取部署
+- **镜像发布**：GitHub Actions 构建推送 TCR（web / collector / douyin-signer / paper-trade 四镜像），服务器/SCF 拉取部署
 
 > Web 与采集共享同一套 `backend/` 代码：`app/` 是 FastAPI Web 服务，`collector/` 是采集 runtime，通过 Celery 队列（realtime/batch/heavy）执行，亦保留 CLI 单任务入口 `collector.runtime.cli` 与 SCF 事件适配 `collector.runtime.scf_handler`。
 
@@ -80,7 +83,7 @@
 │ 采集执行层 (collector runtime)                                                     │
 │ celery-beat（collector_task 表同步调度）→ 双 worker（realtime+batch / heavy）      │
 │ 准实时：stream 驻留进程（财联社电报 10s 增量轮询，非 beat 调度）                   │
-│ runner 统一执行（collector_log 唯一写入口）· registry 57 任务 TaskSpec             │
+│ runner 统一执行（collector_log 唯一写入口）· registry 64 任务 TaskSpec             │
 │ 多渠道优先级 + FAILED 自动 fallback · 日期参数默认 latest_trading_day              │
 └────────────────────────────────────────────────────────────────────────────────────┘
                                          读写│
@@ -99,7 +102,8 @@
 | **Web 前端** | React 18 + Vite + TypeScript | SCF web 一体镜像（FastAPI 静态托管同源） | 现代前端框架，生态完善 |
 | **后端 API** | FastAPI (Python 3.10+) + SQLAlchemy 2.0 | SCF Web 函数（单 uvicorn 进程一体镜像） | 异步高性能、类型安全 |
 | **AI 助手运行时** | deepagents（LangChain Agent Protocol）+ assistant-ui | SCF web 进程内 | 流式对话/工具调用，会话持久化 `assistant_session` |
-| **数据采集** | 自研 collector runtime + Celery + httpx/akshare/curl_cffi | 轻量服务器 Celery 双 worker（realtime+batch / heavy 并发=1） | 声明式 TaskSpec 注册表（57 任务）+ 多渠道 fallback |
+| **数据采集** | 自研 collector runtime + Celery + httpx/akshare/curl_cffi | 轻量服务器 Celery 双 worker（realtime+batch / heavy 并发=1） | 声明式 TaskSpec 注册表（64 任务）+ 多渠道 fallback |
+| **盘中自主执行** | asyncio 驻留进程 + L0 确定性风控 / L1 判断模型（Jev）/ L2 慢模型复核 | 轻量服务器常驻容器（交易时段 60s tick） | 影子模式先行（off/shadow/active 三态），tick 判断逐笔留痕观测表 |
 | **可视化** | ECharts + AntV/G6 v5 + D3.js | 前端打包至 web 镜像 | 产业链图谱(G6)、K线/竞价(ECharts)、板块河流/排名(D3/ECharts) |
 | **结构化存储** | PostgreSQL + TimescaleDB | 轻量服务器 Docker | 时序行情数据高效存储 |
 | **全文/向量检索** | PostgreSQL（pg_trgm + pgvector halfvec HNSW） | 轻量服务器 Docker | 研报/财报全文与知识库混合检索同库，零独立搜索引擎运维 |

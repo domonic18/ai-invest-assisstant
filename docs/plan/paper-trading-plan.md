@@ -679,6 +679,14 @@ CREATE INDEX IF NOT EXISTS idx_agent_trade_plan_status ON agent_trade_plan(statu
 
 ## 11. 批次 8：盘中自主执行（闭环第二步）
 
+> **交付状态（2026-09-29/30）**：PR-1 执行链骨架（PR #102：`intraday_exec_mode`
+> 三态 + `paper_trade_exec_observation` 逐 tick 观测表 + `agent-intraday-exec`
+> 驻留进程 60s tick，shadow 全链路留痕不下单）、PR-2 计划质量防线与盘中校准
+> （PR #110：价格锚定 / 确定性体检 / 首 tick 死单拦截 / §11.5 校准 10:20/13:20
+> 修正单 shadow 留痕；PR #107 增 `intraday_paused` 人工暂停开关）、PR-3 执行动态
+> 前端（`GET /{key}/observations` + 详情页「执行动态」Tab）均已交付，
+> 当前影子模式运行中，达标（1-2 周）后切 active。
+
 > **2026-09-28 执行机制定案（D21/D22）**：慢思考 + 快反应双模型机制。快反应 =
 > 盘中常驻服务（L0 确定性风控与价格穿越判定 + L1 Jev 快判断层，§11.1）；慢思考 =
 > 既有 Celery 定时链扩展盘中两次计划校准（§11.5）。柜台条件单路径出局（用户拍板：

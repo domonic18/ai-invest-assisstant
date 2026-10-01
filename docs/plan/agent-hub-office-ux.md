@@ -1,6 +1,8 @@
 # 智能中枢「虚拟办公室」拟人化改版设计需求
 
-状态：需求定稿待评审（2026-09-30）· 原型：`docs/prototypes/agent-hub-office.html`（图 1 主布局）· `docs/prototypes/agent-hub-office-mapping.html`（图 2 映射总览）
+状态：已归档（2026-09-30 评审后由「电路脉冲主板 REV4」方向取代并落地）· 本文保留需求分析与状态机设计存档
+> **评审结论**：总览页按 `docs/prototypes/agent-hub-circuit.html` REV4 方向重写（PCB 主板画布：芯片五态 / 走线脉冲 / 资源站心跳 / LA-4CH 时间线，2026-09-30 PR #111）；本需求的**右栏拟人化叙事决策流**与**状态光语义**随之落地（PR #111/#113/#116/#117），**办公室场景与走位动画不再推进**。§3.2 状态机与 §4 叙事化文案映射仍可作后续 `activity` 细化（原二期设想）的参考。
+
 涉及页面：`web/src/pages/AgentOverview/`（智能中枢）
 
 ## 1. 背景与问题
@@ -90,5 +92,5 @@
 
 ## 8. 原型图
 
-- 图 1 [`../prototypes/agent-hub-office.html`](../prototypes/agent-hub-office.html)：整体布局原型 v3（定稿方向：深色科技指挥中心平面图 + 机器人小队 + 右决策流；短线青环锁定盯盘、M60 紫环待机、长线灰环休眠舱充电）
-- 图 2 [`../prototypes/agent-hub-office-mapping.html`](../prototypes/agent-hub-office-mapping.html)：状态机 × 场景动作 × 资源映射总览 + 决策流叙事化示例（v1，文案与状态机仍有效，视觉风格待按图 1 重制）
+- 落地原型：[`../prototypes/agent-hub-circuit.html`](../prototypes/agent-hub-circuit.html) —— 评审定稿的 REV4 电路脉冲主板方向（芯片五态 / 走线脉冲 / 拟人化叙事决策流），已随 PR #111 实现
+- 本需求曾产出办公室场景原型 v3（`agent-hub-office.html` / `agent-hub-office-mapping.html`），仅存于评审讨论、未入库；其状态机 × 场景动作映射表见本文 §3.2，叙事化文案示例见 §4
