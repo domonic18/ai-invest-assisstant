@@ -13,7 +13,7 @@ import { AssistantSidebar } from './AssistantSidebar'
 import { AssistantThread } from './AssistantThread'
 import { AssistantErrorBoundary } from './AssistantErrorBoundary'
 import { AssistantRuntimeProvider } from './AssistantRuntimeProvider'
-import { AgentAvatarSwitcher } from './ui/AgentAvatarSwitcher'
+import { ASSISTANT_AVATAR } from './ui/agentAvatars'
 import { TodoListBar } from './ui/TodoListBar'
 import {
   clamp,
@@ -30,7 +30,6 @@ import {
 } from './utils'
 
 import './AssistantFab.css'
-import owlImg from '@/assets/assistant-owl.png'
 
 export function AssistantPanel() {
   const open = useAssistantStore((state) => state.open)
@@ -171,15 +170,6 @@ export function AssistantPanel() {
       activeThreadId={threadId}
       isLoading={isLoading}
       width={isNarrow ? 300 : sidebarWidth}
-      extra={
-        isAdmin ? (
-          <AgentAvatarSwitcher
-            current={chatAgentType}
-            items={overview?.items ?? []}
-            onChange={setChatAgent}
-          />
-        ) : undefined
-      }
       onNewThread={() => {
         switchThread(undefined)
         if (closeOnSelect) setMobileListOpen(false)
@@ -198,6 +188,8 @@ export function AssistantPanel() {
       placement="right"
       open={open}
       onClose={closePanel}
+      // 关闭按钮统一为头部右侧一个（AssistantHeader），去掉 Drawer 自带的角标 X
+      closable={false}
       width={isNarrow ? '100%' : drawerWidth}
       styles={{ body: { padding: 0 } }}
     >
@@ -237,6 +229,9 @@ export function AssistantPanel() {
           <AssistantHeader
             title={activeTitle}
             onClose={closePanel}
+            agentType={chatAgentType}
+            agentItems={overview?.items ?? []}
+            onSwitchAgent={isAdmin ? setChatAgent : undefined}
             showSessionsToggle={isNarrow}
             sessionsOpen={mobileListOpen}
             onToggleSessions={() => setMobileListOpen((v) => !v)}
@@ -330,7 +325,7 @@ export function AssistantFab() {
           aria-label="展开 AI 助手"
           className="assistant-fab-collapsed fixed bottom-[88px] right-3 z-50 md:bottom-[52px]"
         >
-          <img src={owlImg} alt="" draggable={false} />
+          <img src={ASSISTANT_AVATAR} alt="" draggable={false} />
         </button>
       </Tooltip>
     )
@@ -349,7 +344,7 @@ export function AssistantFab() {
         aria-label="打开 AI 助手"
         className="assistant-fab fixed bottom-20 right-4 z-50 md:bottom-6"
       >
-        <img src={owlImg} alt="" draggable={false} />
+        <img src={ASSISTANT_AVATAR} alt="" draggable={false} />
       </button>
     </Tooltip>
   )

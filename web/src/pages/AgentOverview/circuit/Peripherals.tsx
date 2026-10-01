@@ -3,9 +3,18 @@
  * + 零散元件（C12/C27/R08/TP1 丝印）。心跳一律「文字+灯」双通道，数据来自
  * Celery 任务方框（领域关键词匹配）与系统状态探测，无数据如实显示「今日静默」。
  * Celery 总线内嵌任务方框条（与服务状态页 CeleryQueuesCard 同源数据、同状态语义：
- * 排队灰 / 执行中青闪 / 成功绿 / 部分成功与失败红黄 / 跳过淡灰），悬停看任务详情。
+ * 排队灰 / 执行中青闪 / 成功绿 / 部分成功与失败红黄 / 跳过淡灰描边），悬停 antd
+ * Tooltip 展示与服务状态页相同的任务详情；RT/BA/HV 三队列恒驻，无任务队列画虚线
+ * 空槽位让人一眼看出队列结构；只统计「今日」任务避免隔夜留痕冒充当日活跃。
  */
+import dayjs from 'dayjs'
+
+import { Tooltip } from 'antd'
+
 import type { CeleryQueues, CeleryTaskSquare, CeleryTaskState, SystemStatus } from '@ai-invest/shared'
+
+import { CeleryTaskTooltipContent } from '@/components/CeleryTaskTooltip'
+import { toBeijing } from '@/utils/beijing'
 
 import { BOARD, MONO } from './boardTheme'
 import { counterHeartbeat, domainHeartbeat } from './heartbeats'
@@ -25,23 +34,14 @@ function HeartbeatLed({ x, y, up }: { x: number; y: number; up: boolean | null }
   return <circle cx={x} cy={y} r="2.4" fill={color} className="ahc-corebeat" />
 }
 
-const TASK_STATE_TEXT: Record<CeleryTaskState, string> = {
-  pending: '排队中',
-  running: '执行中',
-  success: '已完成',
-  partial: '部分成功',
-  failed: '失败',
-  skipped: '已跳过',
-}
-
-/** 任务方框配色（服务状态页语义的 PCB 色板映射）。 */
-const TASK_SQUARE_STYLE: Record<CeleryTaskState, { fill: string; opacity?: number }> = {
+/** 任务方框配色（服务状态页语义的 PCB 色板映射）；dim=淡色填充+同色描边，暗底上仍可辨形。 */
+const TASK_SQUARE_STYLE: Record<CeleryTaskState, { fill: string; dim?: boolean }> = {
   pending: { fill: BOARD.socketGrey },
   running: { fill: BOARD.cyan },
   success: { fill: BOARD.greenLed },
   partial: { fill: BOARD.amber },
   failed: { fill: BOARD.red },
-  skipped: { fill: BOARD.grey, opacity: 0.45 },
+  skipped: { fill: BOARD.grey, dim: true },
 }
 
 const QUEUE_TAG: Record<string, string> = {
@@ -50,36 +50,38 @@ const QUEUE_TAG: Record<string, string> = {
   'collector.heavy': 'HV',
 }
 
+/** 主板固定展示的 Celery 队列集合（collector 三队列，label 与服务状态页 QUEUE_LABELS 对齐，
+ * 数据未达时用此回退，保证空槽位提示仍是中文队列名）。 */
+const CANONICAL_QUEUES = [
+  { name: 'collector.realtime', label: '实时队列' },
+  { name: 'collector.batch', label: '批量队列' },
+  { name: 'collector.heavy', label: '重载队列' },
+]
+
 /** 主板任务方框条每队列最多展示数（tasks 前排 running、后排最新终态，取前缀即可）。 */
-const SQUARES_PER_QUEUE = 6
+const SQUARES_PER_QUEUE = 5
 
-function formatTaskDuration(ms: number): string {
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`
-  return `${Math.floor(ms / 60_000)}m${Math.round((ms % 60_000) / 1000)}s`
-}
-
-function taskTooltip(queueLabel: string, task: CeleryTaskSquare): string {
-  const lines = [
-    `${queueLabel} · ${task.label}`,
-    TASK_STATE_TEXT[task.state] + (task.source ? ` · ${task.source}` : ''),
-  ]
-  if (task.durationMs != null) lines.push(`耗时 ${formatTaskDuration(task.durationMs)}`)
-  if (task.detail) lines.push(task.detail)
-  return lines.join('\n')
-}
-
-/** 任务方框条 + 汇总行（执行中/异常/正常笔数，按全量任务统计而非截断样本）。 */
-function TaskSquares({ queues }: { queues: CeleryQueues | undefined }) {
-  const groups = (queues?.queues ?? []).map((queue) => ({
-    queue,
-    shown: queue.tasks.slice(0, SQUARES_PER_QUEUE),
-  }))
-  const counts = { running: 0, abnormal: 0, success: 0 }
+/** 任务方框条 + 汇总行：三条队列恒驻展示（与服务状态页 QUEUE_LABELS 同源语义），
+ * 无任务的队列画虚线空槽位而非消失；方块只看今日任务（finishedAt 优先、回落
+ * startedAt 的北京日期），汇总按全量今日任务统计，跳过数单独列出让灰方块可自解释。 */
+function TaskSquares({ queues, today }: { queues: CeleryQueues | undefined; today: string }) {
+  const isToday = (task: CeleryTaskSquare) => {
+    const stamp = task.finishedAt ?? task.startedAt
+    return stamp != null && toBeijing(dayjs(stamp)).format('YYYY-MM-DD') === today
+  }
+  const byName = new Map((queues?.queues ?? []).map((queue) => [queue.name, queue]))
+  const groups = CANONICAL_QUEUES.map(({ name, label }) => {
+    const queue = byName.get(name) ?? { name, label, pendingTotal: 0, tasks: [] }
+    return { queue, shown: queue.tasks.filter(isToday).slice(0, SQUARES_PER_QUEUE) }
+  })
+  const counts = { running: 0, abnormal: 0, success: 0, skipped: 0 }
   for (const queue of queues?.queues ?? []) {
     for (const task of queue.tasks) {
+      if (!isToday(task)) continue
       if (task.state === 'running') counts.running += 1
       else if (task.state === 'failed' || task.state === 'partial') counts.abnormal += 1
       else if (task.state === 'success') counts.success += 1
+      else if (task.state === 'skipped') counts.skipped += 1
     }
   }
 
@@ -87,45 +89,65 @@ function TaskSquares({ queues }: { queues: CeleryQueues | undefined }) {
   return (
     <g>
       {groups.map(({ queue, shown }, gi) => {
-        if (shown.length === 0) return null
         const start = cursor
         cursor += 17
         const tag = QUEUE_TAG[queue.name] ?? queue.name.slice(0, 2).toUpperCase()
         const squares = shown.map((task) => {
           const style = TASK_SQUARE_STYLE[task.state]
           const rect = (
-            <rect
-              key={task.key}
-              x={cursor}
-              y={682}
-              width="7"
-              height="7"
-              rx="1.5"
-              fill={style.fill}
-              opacity={style.opacity ?? 1}
-              className={task.state === 'running' ? 'ahc-corebeat' : undefined}
-            >
-              <title>{taskTooltip(queue.label, task)}</title>
-            </rect>
+            <Tooltip key={task.key} title={<CeleryTaskTooltipContent task={task} />}>
+              <rect
+                x={cursor}
+                y={680}
+                width="9"
+                height="9"
+                rx="2"
+                fill={style.fill}
+                fillOpacity={style.dim ? 0.4 : 1}
+                stroke={style.fill}
+                strokeOpacity={style.dim ? 0.7 : 0.85}
+                strokeWidth="1"
+                className={task.state === 'running' ? 'ahc-corebeat' : undefined}
+              />
+            </Tooltip>
           )
-          cursor += 10
+          cursor += 12
           return rect
         })
+        const emptySlot =
+          shown.length === 0 ? (
+            <Tooltip key="empty" title={`「${queue.label}」今日无任务留痕`}>
+              <rect
+                x={cursor}
+                y={680}
+                width="9"
+                height="9"
+                rx="2"
+                fill="none"
+                stroke={BOARD.lineSoft}
+                strokeWidth="1"
+                strokeDasharray="2 2"
+                pointerEvents="all"
+              />
+            </Tooltip>
+          ) : null
+        if (shown.length === 0) cursor += 12
         cursor += 8
         return (
           <g key={queue.name}>
             {gi > 0 && (
-              <line x1={start - 6} y1={681} x2={start - 6} y2={691} stroke={BOARD.lineSoft} strokeWidth="1" />
+              <line x1={start - 6} y1={679} x2={start - 6} y2={690} stroke={BOARD.lineSoft} strokeWidth="1" />
             )}
-            <text x={start} y={688.5} fontSize="6.5" fill={BOARD.textDim} style={{ fontFamily: MONO }}>
+            <text x={start} y={687.5} fontSize="6.5" fill={BOARD.textDim} style={{ fontFamily: MONO }}>
               {tag}
             </text>
             {squares}
+            {emptySlot}
           </g>
         )
       })}
       <text x="392" y="707" fontSize="8" fill={BOARD.textMid} style={{ fontFamily: MONO }}>
-        {counts.running + counts.abnormal + counts.success === 0
+        {counts.running + counts.abnormal + counts.success + counts.skipped === 0
           ? '今日暂无任务留痕'
           : <>
               {'执行中 '}
@@ -134,6 +156,12 @@ function TaskSquares({ queues }: { queues: CeleryQueues | undefined }) {
               <tspan fill={counts.abnormal > 0 ? BOARD.red : BOARD.textMid}>{counts.abnormal}</tspan>
               {' · 正常 '}
               <tspan fill={BOARD.greenLed}>{counts.success}</tspan>
+              {counts.skipped > 0 && (
+                <>
+                  {' · 跳过 '}
+                  <tspan>{counts.skipped}</tspan>
+                </>
+              )}
             </>}
       </text>
     </g>
@@ -258,7 +286,7 @@ export function Peripherals({
         <text x="668" y="693" fontSize="8" fill={BOARD.amber} style={{ fontFamily: MONO }}>
           积压 ×{backlog}
         </text>
-        <TaskSquares queues={celeryQueues} />
+        <TaskSquares queues={celeryQueues} today={today} />
       </g>
 
       {/* 零散元件 */}

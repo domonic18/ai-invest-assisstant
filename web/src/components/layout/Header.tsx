@@ -1,4 +1,4 @@
-import { LogoutOutlined, MenuOutlined, MessageOutlined, SettingOutlined, UserOutlined, FilterOutlined, BookOutlined, CalendarOutlined } from '@ant-design/icons'
+import { LogoutOutlined, MenuOutlined, MessageOutlined, SettingOutlined, UserOutlined, FilterOutlined, BookOutlined, CalendarOutlined, BlockOutlined } from '@ant-design/icons'
 import { Avatar, Button, Dropdown, Space, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
@@ -77,6 +77,15 @@ export function Header({ onMenuClick }: HeaderProps) {
         </div>
       </div>
       <Space size={4}>
+        <Tooltip title="技能广场">
+          <Button
+            type="text"
+            icon={<BlockOutlined />}
+            onClick={() => navigate('/skills')}
+            className="text-gray-300"
+            aria-label="技能广场"
+          />
+        </Tooltip>
         <Tooltip title="知识库">
           <Button
             type="text"

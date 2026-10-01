@@ -2,7 +2,6 @@ import { EditOutlined, SearchOutlined } from '@ant-design/icons'
 import { Button, Empty, Input, Spin, Typography } from 'antd'
 import dayjs from 'dayjs'
 import { useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
 
 import type { AssistantSessionItem } from '@/api/assistant'
 
@@ -13,8 +12,6 @@ interface AssistantSidebarProps {
   activeThreadId: string | undefined
   isLoading: boolean
   width?: number
-  /** 会话列表顶部插槽（如面板的对话对象切换器） */
-  extra?: ReactNode
   onNewThread: () => void
   onSwitchThread: (threadId: string) => void
   onDeleteThread: (threadId: string) => Promise<void>
@@ -55,7 +52,6 @@ export function AssistantSidebar({
   activeThreadId,
   isLoading,
   width = 260,
-  extra,
   onNewThread,
   onSwitchThread,
   onDeleteThread,
@@ -76,7 +72,6 @@ export function AssistantSidebar({
       style={{ width }}
     >
       <div className="p-3">
-        {extra ? <div className="mb-2">{extra}</div> : null}
         <Button
           type="primary"
           block
