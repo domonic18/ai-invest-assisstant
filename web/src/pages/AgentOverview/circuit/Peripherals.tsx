@@ -2,8 +2,10 @@
  * 主板外设列：知识库存储阵列 / 资讯电报 / 情绪雷达 / 模拟柜台 I/O / Celery 消息总线
  * + 零散元件（C12/C27/R08/TP1 丝印）。心跳一律「文字+灯」双通道，数据来自
  * Celery 任务方框（领域关键词匹配）与系统状态探测，无数据如实显示「今日静默」。
+ * Celery 总线内嵌任务方框条（与服务状态页 CeleryQueuesCard 同源数据、同状态语义：
+ * 排队灰 / 执行中青闪 / 成功绿 / 部分成功与失败红黄 / 跳过淡灰），悬停看任务详情。
  */
-import type { CeleryQueues, SystemStatus } from '@ai-invest/shared'
+import type { CeleryQueues, CeleryTaskSquare, CeleryTaskState, SystemStatus } from '@ai-invest/shared'
 
 import { BOARD, MONO } from './boardTheme'
 import { counterHeartbeat, domainHeartbeat } from './heartbeats'
@@ -21,6 +23,121 @@ export interface LatestOrder {
 function HeartbeatLed({ x, y, up }: { x: number; y: number; up: boolean | null }) {
   const color = up == null ? BOARD.grey : up ? BOARD.greenLed : BOARD.red
   return <circle cx={x} cy={y} r="2.4" fill={color} className="ahc-corebeat" />
+}
+
+const TASK_STATE_TEXT: Record<CeleryTaskState, string> = {
+  pending: '排队中',
+  running: '执行中',
+  success: '已完成',
+  partial: '部分成功',
+  failed: '失败',
+  skipped: '已跳过',
+}
+
+/** 任务方框配色（服务状态页语义的 PCB 色板映射）。 */
+const TASK_SQUARE_STYLE: Record<CeleryTaskState, { fill: string; opacity?: number }> = {
+  pending: { fill: BOARD.socketGrey },
+  running: { fill: BOARD.cyan },
+  success: { fill: BOARD.greenLed },
+  partial: { fill: BOARD.amber },
+  failed: { fill: BOARD.red },
+  skipped: { fill: BOARD.grey, opacity: 0.45 },
+}
+
+const QUEUE_TAG: Record<string, string> = {
+  'collector.realtime': 'RT',
+  'collector.batch': 'BA',
+  'collector.heavy': 'HV',
+}
+
+/** 主板任务方框条每队列最多展示数（tasks 前排 running、后排最新终态，取前缀即可）。 */
+const SQUARES_PER_QUEUE = 6
+
+function formatTaskDuration(ms: number): string {
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`
+  return `${Math.floor(ms / 60_000)}m${Math.round((ms % 60_000) / 1000)}s`
+}
+
+function taskTooltip(queueLabel: string, task: CeleryTaskSquare): string {
+  const lines = [
+    `${queueLabel} · ${task.label}`,
+    TASK_STATE_TEXT[task.state] + (task.source ? ` · ${task.source}` : ''),
+  ]
+  if (task.durationMs != null) lines.push(`耗时 ${formatTaskDuration(task.durationMs)}`)
+  if (task.detail) lines.push(task.detail)
+  return lines.join('\n')
+}
+
+/** 任务方框条 + 汇总行（执行中/异常/正常笔数，按全量任务统计而非截断样本）。 */
+function TaskSquares({ queues }: { queues: CeleryQueues | undefined }) {
+  const groups = (queues?.queues ?? []).map((queue) => ({
+    queue,
+    shown: queue.tasks.slice(0, SQUARES_PER_QUEUE),
+  }))
+  const counts = { running: 0, abnormal: 0, success: 0 }
+  for (const queue of queues?.queues ?? []) {
+    for (const task of queue.tasks) {
+      if (task.state === 'running') counts.running += 1
+      else if (task.state === 'failed' || task.state === 'partial') counts.abnormal += 1
+      else if (task.state === 'success') counts.success += 1
+    }
+  }
+
+  let cursor = 392
+  return (
+    <g>
+      {groups.map(({ queue, shown }, gi) => {
+        if (shown.length === 0) return null
+        const start = cursor
+        cursor += 17
+        const tag = QUEUE_TAG[queue.name] ?? queue.name.slice(0, 2).toUpperCase()
+        const squares = shown.map((task) => {
+          const style = TASK_SQUARE_STYLE[task.state]
+          const rect = (
+            <rect
+              key={task.key}
+              x={cursor}
+              y={682}
+              width="7"
+              height="7"
+              rx="1.5"
+              fill={style.fill}
+              opacity={style.opacity ?? 1}
+              className={task.state === 'running' ? 'ahc-corebeat' : undefined}
+            >
+              <title>{taskTooltip(queue.label, task)}</title>
+            </rect>
+          )
+          cursor += 10
+          return rect
+        })
+        cursor += 8
+        return (
+          <g key={queue.name}>
+            {gi > 0 && (
+              <line x1={start - 6} y1={681} x2={start - 6} y2={691} stroke={BOARD.lineSoft} strokeWidth="1" />
+            )}
+            <text x={start} y={688.5} fontSize="6.5" fill={BOARD.textDim} style={{ fontFamily: MONO }}>
+              {tag}
+            </text>
+            {squares}
+          </g>
+        )
+      })}
+      <text x="392" y="707" fontSize="8" fill={BOARD.textMid} style={{ fontFamily: MONO }}>
+        {counts.running + counts.abnormal + counts.success === 0
+          ? '今日暂无任务留痕'
+          : <>
+              {'执行中 '}
+              <tspan fill={BOARD.cyan}>{counts.running}</tspan>
+              {' · 异常 '}
+              <tspan fill={counts.abnormal > 0 ? BOARD.red : BOARD.textMid}>{counts.abnormal}</tspan>
+              {' · 正常 '}
+              <tspan fill={BOARD.greenLed}>{counts.success}</tspan>
+            </>}
+      </text>
+    </g>
+  )
 }
 
 export function Peripherals({
@@ -113,20 +230,20 @@ export function Peripherals({
         </text>
       </g>
 
-      {/* Celery 消息总线 */}
+      {/* Celery 消息总线 + 任务方框条 */}
       <g>
         <text x="520" y="632" textAnchor="middle" fontSize="11" fill={BOARD.amberSoft}>
           Celery 消息总线
         </text>
-        <rect x="380" y="640" width="280" height="60" rx="10" fill="#161410" stroke="rgba(210,153,34,.5)" strokeWidth="1.4" />
-        <path d="M396 660 H644 M396 674 H644" stroke="rgba(210,153,34,.35)" strokeWidth="1.4" />
+        <rect x="380" y="640" width="280" height="76" rx="10" fill="#161410" stroke="rgba(210,153,34,.5)" strokeWidth="1.4" />
+        <path d="M396 656 H644 M396 668 H644" stroke="rgba(210,153,34,.35)" strokeWidth="1.4" />
         {!reducedMotion && (
           <>
             <rect width="14" height="8" rx="2" fill={BOARD.amber}>
-              <animateMotion dur="3s" repeatCount="indefinite" path="M396 656 H630" />
+              <animateMotion dur="3s" repeatCount="indefinite" path="M396 652 H630" />
             </rect>
             <rect width="14" height="8" rx="2" fill="rgba(210,153,34,.55)">
-              <animateMotion dur="3s" begin="1.4s" repeatCount="indefinite" path="M644 670 H410" />
+              <animateMotion dur="3s" begin="1.4s" repeatCount="indefinite" path="M644 664 H410" />
             </rect>
           </>
         )}
@@ -141,6 +258,7 @@ export function Peripherals({
         <text x="668" y="693" fontSize="8" fill={BOARD.amber} style={{ fontFamily: MONO }}>
           积压 ×{backlog}
         </text>
+        <TaskSquares queues={celeryQueues} />
       </g>
 
       {/* 零散元件 */}
