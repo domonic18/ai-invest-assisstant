@@ -37,6 +37,7 @@ async def insert_alerts(
                     "description": alert.description,
                     "affected_segments": alert.affected_segments or None,
                     "related_stock_codes": alert.related_stock_codes or None,
+                    "sources": [s.model_dump() for s in alert.sources] or None,
                     "signal_date": signal_date,
                     "version_id": version_id,
                 }

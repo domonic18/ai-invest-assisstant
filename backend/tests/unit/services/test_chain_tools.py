@@ -171,7 +171,7 @@ class TestSearchVectorKb:
         file_result.all.return_value = []
         news_result = MagicMock()
         news_result.all.return_value = [
-            ("research", "半导体行业深度", "国产替代加速", publish)
+            ("research", "半导体行业深度", "国产替代加速", publish, "sina")
         ]
         session = AsyncMock()
         session.execute.side_effect = [file_result, news_result]

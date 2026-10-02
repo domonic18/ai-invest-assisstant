@@ -4,11 +4,13 @@
 自选/订单计数 + 近期活动（计划生成/触发、复盘生成）+ 下次定时任务时刻
 （cron 展开 × 交易日历 × 注册行 plan/review_cadence 门控，D28）。
 时刻在后端算好（aware UTC），前端纯渲染。
+
+本模块只保留视图组装：定时任务时刻计算见 ``agent_overview_schedule``，
+活动流与计数采集见 ``agent_overview_activity``。
 """
 
 from dataclasses import dataclass
 from datetime import date, datetime, time
-from datetime import timezone as dt_timezone
 
 import structlog
 from sqlalchemy import func, select
@@ -16,23 +18,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import CN_TZ, today_cn, utc_now
 from app.core.config import get_settings
-from app.models.agent_trading import (
-    AgentMemory,
-    AgentStockSelection,
-    AgentTradePlan,
-)
-from app.models.ai_analysis_result import AiAnalysisResult
+from app.models.agent_trading import AgentStockSelection, AgentTradePlan
 from app.models.collector_log import CollectorLog
 from app.models.collector_task import CollectorTask
 from app.models.kb import KbSource
 from app.models.llm_config import LLMConfig
-from app.models.paper_trade import PaperTradeOrder, TradingAgent
-from app.repositories.market.stock_repository import StockRepository
+from app.models.paper_trade import TradingAgent
 from app.schemas.paper_trade import (
     AgentActivityItem,
     AgentAutomationTask,
     AgentCapabilityResponse,
-    AgentMemoryCounts,
     AgentMethodologyView,
     AgentNextTask,
     AgentOverviewItem,
@@ -44,51 +39,29 @@ from app.schemas.paper_trade import (
 from app.schemas.skill import SkillFile
 from app.services.market import trade_calendar_service
 from app.services.skill.skill_service import SKILL_TEXT_SUFFIXES
-from app.services.trading import agent_registry, agent_review_service
-from app.services.trading.account_service import (
-    resolve_agent_account,
-    resolve_agent_accounts,
-)
+from app.services.trading import agent_registry
+from app.services.trading.account_service import resolve_agent_accounts
 from app.services.trading.agent_methodology import build_methodology_view
+from app.services.trading.agent_overview_activity import (
+    _fill_stock_names,
+    _memory_counts,
+    _order_count_today,
+    _plan_activity,
+    _plans_created_today,
+    _review_activity,
+    _review_done_keys,
+)
+from app.services.trading.agent_overview_schedule import (
+    _AUTOMATION_TASKS,
+    _cadence_due,
+    _next_cron_occurrence,
+    _next_task_times,
+    _running_log_tasks,
+)
 from app.services.trading.agent_plan_service import plan_skill_id
-from app.services.trading.agent_review_service import REVIEW_SKILL_ID
-from app.services.trading.errors import AgentAccountNotDesignatedError
 from app.skills import get_skill
 
 logger = structlog.get_logger(__name__)
-
-# 总览「接下来」消费的 Agent 定时任务（task_name, 显示名, cadence 注册列）
-_OVERVIEW_TASKS: tuple[tuple[str, str, str], ...] = (
-    ("agent_daily_plan_1900", "每日选股与交易计划", "plan_cadence"),
-    ("paper_trade_review_1610", "模拟盘分层复盘", "review_cadence"),
-)
-
-# Agent 能力视图「自动化任务」清单（collector_task 实例名, collector_log 键,
-# 显示名（含北京时间排程时刻）, cadence 注册列；sync 为全局任务无 cadence）
-_AUTOMATION_TASKS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("agent_daily_plan_1900", "agent-daily-plan", "每日选股与交易计划（19:30）", "plan_cadence"),
-    ("paper_trade_review_1610", "paper-trade-review", "模拟盘分层复盘（19:00）", "review_cadence"),
-    ("paper_trade_sync_1600", "paper-trade-sync", "模拟盘盘后同步（16:00）", None),
-)
-
-# cadence 门控下 cron 候选扫描上限（月频最坏 ~23 个工作日候选）
-_CRON_MAX_CANDIDATES = 40
-
-# 总览运行态判定的两个 agent 定时任务 collector_log 键（与 _AUTOMATION_TASKS log 键一致；
-# spider 串行多 Agent 循环只落全局一条 log，working 判定为近似——未来写 meta.agent_key 可精确）
-_RUNNING_LOG_KEYS: tuple[str, ...] = ("agent-daily-plan", "paper-trade-review")
-
-_PLAN_STATUS_TITLE = {
-    "active": "待触发",
-    "triggered": "已触发下单",
-    "cancelled": "已人工取消",
-    "expired": "已过期",
-}
-
-_PLAN_TYPE_TITLE = {
-    "buy": "买入计划",
-    "sell": "卖出计划",
-}
 
 
 async def _llm_name_map(
@@ -102,216 +75,6 @@ async def _llm_name_map(
         select(LLMConfig.id, LLMConfig.name).where(LLMConfig.id.in_(ids))
     )
     return {int(r[0]): str(r[1]) for r in result.all()}
-
-
-async def _next_cron_occurrence(
-    session: AsyncSession, schedule: str, cadence: str | None
-) -> datetime | None:
-    """cron 展开 × 交易日历 × cadence 门控的下次触发时刻（aware UTC）。
-
-    cadence None = 全局任务不做门控。与 spider 生成门控同语义：daily=下一
-    交易日、weekly=周期末交易日、monthly=月末交易日；cron 非法/日历异常
-    返回 None 不阻塞视图。
-    """
-    from croniter import croniter
-
-    base = utc_now().astimezone(CN_TZ).replace(tzinfo=None)
-    try:
-        it = croniter(schedule, base)
-        for _ in range(_CRON_MAX_CANDIDATES):
-            cand: datetime = it.get_next(datetime)
-            if cadence is None or await _cadence_due(session, cadence, cand.date()):
-                return cand.replace(tzinfo=CN_TZ).astimezone(dt_timezone.utc)
-    except Exception:  # noqa: BLE001 - cron 非法/日历查询异常不阻塞总览
-        return None
-    return None
-
-
-async def _next_task_times(session: AsyncSession, row: TradingAgent) -> list[AgentNextTask]:
-    """单 Agent 定时任务的下次触发时刻（cron 展开 × 交易日历 × cadence 门控，aware UTC）。"""
-    schedules: dict[str, str] = {
-        r.task_name: r.schedule
-        for r in (
-            await session.scalars(
-                select(CollectorTask).where(
-                    CollectorTask.task_name.in_([t[0] for t in _OVERVIEW_TASKS]),
-                    CollectorTask.is_active.is_(True),
-                )
-            )
-        ).all()
-        if r.schedule
-    }
-    tasks: list[AgentNextTask] = []
-    for task_name, label, cadence_field in _OVERVIEW_TASKS:
-        schedule = schedules.get(task_name)
-        if schedule is None:
-            continue
-        scheduled = await _next_cron_occurrence(session, schedule, getattr(row, cadence_field))
-        if scheduled is not None:
-            tasks.append(AgentNextTask(task=label, scheduled_at=scheduled))
-    tasks.sort(key=lambda t: t.scheduled_at)
-    return tasks
-
-
-async def _cadence_due(
-    session: AsyncSession, cadence: str, day: date
-) -> bool:
-    """cadence 门控的单日判定（与 spider 生成门控同语义）。"""
-    if not await trade_calendar_service.is_trading_day(session, day):
-        return False
-    if cadence == "weekly":
-        return await agent_review_service.is_last_trading_day_of_week(session, day)
-    if cadence == "monthly":
-        return await agent_review_service.is_last_trading_day_of_month(session, day)
-    return True
-
-
-async def _running_log_tasks(session: AsyncSession) -> set[str]:
-    """collector_log 最新一条处于 running/pending 的任务键集（按 task_name 分组取最新 id）。"""
-    latest_ids = (
-        (
-            await session.execute(
-                select(func.max(CollectorLog.id))
-                .where(CollectorLog.task_name.in_(_RUNNING_LOG_KEYS))
-                .group_by(CollectorLog.task_name)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    if not latest_ids:
-        return set()
-    rows = (
-        await session.execute(
-            select(CollectorLog.task_name).where(
-                CollectorLog.id.in_(latest_ids),
-                CollectorLog.status.in_(("running", "pending")),
-            )
-        )
-    ).all()
-    return {str(r[0]) for r in rows}
-
-
-async def _review_done_keys(session: AsyncSession, day_start_cn: datetime) -> set[str]:
-    """今日（北京墙钟）已生成分层复盘的 agent_key 集合。"""
-    rows = (
-        await session.scalars(
-            select(AiAnalysisResult.structured_output["agent_key"].astext)
-            .where(
-                AiAnalysisResult.skill_id == REVIEW_SKILL_ID,
-                AiAnalysisResult.status == "success",
-                AiAnalysisResult.created_at >= day_start_cn,
-                AiAnalysisResult.structured_output["agent_key"].astext.isnot(None),
-            )
-            .distinct()
-        )
-    ).all()
-    return {str(r) for r in rows}
-
-
-async def _plans_created_today(
-    session: AsyncSession, agent_key: str, day_start_cn: datetime
-) -> bool:
-    """今日（北京墙钟）生成过交易计划（按计划行创建时刻计）。"""
-    return bool(
-        await session.scalar(
-            select(func.count())
-            .select_from(AgentTradePlan)
-            .where(
-                AgentTradePlan.agent_key == agent_key,
-                AgentTradePlan.created_at >= day_start_cn,
-            )
-        )
-    )
-
-
-async def _plan_activity(
-    session: AsyncSession, agent_key: str
-) -> list[AgentActivityItem]:
-    """近期计划活动（生成 + 触发/取消，created_at 倒序取 5；条目结构化
-    携带 stock_code，股票名称由 ``_fill_stock_names`` 批量回填，D30）。"""
-    rows = (
-        await session.scalars(
-            select(AgentTradePlan)
-            .where(AgentTradePlan.agent_key == agent_key)
-            .order_by(AgentTradePlan.created_at.desc())
-            .limit(5)
-        )
-    ).all()
-    return [
-        AgentActivityItem(
-            kind="plan",
-            title=_PLAN_TYPE_TITLE.get(row.plan_type, f"{row.plan_type} 计划"),
-            detail=_PLAN_STATUS_TITLE.get(row.status, row.status),
-            stock_code=row.stock_code,
-            occurred_at=row.triggered_at or row.created_at,
-        )
-        for row in rows
-    ]
-
-
-async def _fill_stock_names(
-    session: AsyncSession, items: list[AgentActivityItem]
-) -> list[AgentActivityItem]:
-    """活动条目按 stock_code 批量回填股票名称（主数据缺失保持 None）。"""
-    codes = sorted({item.stock_code for item in items if item.stock_code})
-    if not codes:
-        return items
-    names = await StockRepository(session).get_names_by_codes(codes)
-    for item in items:
-        if item.stock_code:
-            item.stock_name = names.get(item.stock_code)
-    return items
-
-
-async def _review_activity(
-    session: AsyncSession, agent_key: str
-) -> list[AgentActivityItem]:
-    """近期复盘活动（ai_analysis_result 按 agent_key 结构化过滤取 3）。"""
-    rows = (
-        await session.scalars(
-            select(AiAnalysisResult)
-            .where(
-                AiAnalysisResult.skill_id == REVIEW_SKILL_ID,
-                AiAnalysisResult.status == "success",
-                AiAnalysisResult.structured_output["agent_key"].astext == agent_key,
-            )
-            .order_by(AiAnalysisResult.created_at.desc())
-            .limit(3)
-        )
-    ).all()
-    items: list[AgentActivityItem] = []
-    for row in rows:
-        period = (row.structured_output or {}).get("period", "day")
-        items.append(
-            AgentActivityItem(
-                kind="review",
-                title=f"{period} 复盘已生成",
-                detail=row.model,
-                occurred_at=row.created_at,
-            )
-        )
-    return items
-
-
-async def _order_count_today(
-    session: AsyncSession, agent_key: str, day_start_cn: datetime
-) -> int:
-    """Agent 账户当日订单数（未绑定账户记 0）。"""
-    try:
-        account = await resolve_agent_account(session, agent_key)
-    except AgentAccountNotDesignatedError:
-        return 0
-    return int(
-        await session.scalar(
-            select(func.count())
-            .select_from(PaperTradeOrder)
-            .where(
-                PaperTradeOrder.paper_trade_account_id == account.id,
-                PaperTradeOrder.created_at >= day_start_cn,
-            )
-        )
-    )
 
 
 @dataclass
@@ -334,8 +97,9 @@ async def _build_item(
 ) -> AgentOverviewItem:
     """聚合单个 Agent 总览载荷。
 
-    运行态判定链（D32，顺序短路）：off（未启用，仅占位）→ working（log 运行中
-    且 cadence 今日命中）→ produced_today（当日已产出计划/复盘）→ idle（待命）。
+    运行态判定链（D32，顺序短路）：off（未启用，仅占位）→ paused（intraday_paused
+    人工冻结，盘中执行短路）→ working（log 运行中且 cadence 今日命中）→
+    produced_today（当日已产出计划/复盘）→ idle（待命）。
     """
     plan_count = 0
     selection_count = 0
@@ -398,7 +162,9 @@ async def _build_item(
         produced = row.agent_key in ctx.review_done_keys or await _plans_created_today(
             session, row.agent_key, ctx.day_start_cn
         )
-        if plan_running:
+        if row.intraday_paused:
+            state, label = "paused", "已暂停 · 盘中执行关闭"
+        elif plan_running:
             state, label = "working", "作业中 · 每日选股计划"
         elif review_running:
             state, label = "working", "作业中 · 盘后复盘"
@@ -488,27 +254,6 @@ async def _automation_tasks(
             )
         )
     return items
-
-
-async def _memory_counts(session: AsyncSession, agent_key: str) -> AgentMemoryCounts:
-    """活跃记忆按类型计数（status='active'）。"""
-    counts = AgentMemoryCounts()
-    rows = (
-        await session.execute(
-            select(AgentMemory.mem_type, func.count())
-            .where(AgentMemory.agent_key == agent_key, AgentMemory.status == "active")
-            .group_by(AgentMemory.mem_type)
-        )
-    ).all()
-    for mem_type, cnt in rows:
-        counts.active_total += int(cnt)
-        if mem_type == "discipline":
-            counts.discipline = int(cnt)
-        elif mem_type == "method":
-            counts.method = int(cnt)
-        elif mem_type == "lesson":
-            counts.lesson = int(cnt)
-    return counts
 
 
 async def get_agent_status(

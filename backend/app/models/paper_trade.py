@@ -13,10 +13,12 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
     DateTime,
+    ForeignKey,
     Index,
     Integer,
     Numeric,
@@ -139,6 +141,14 @@ class TradingAgent(Base):
             "review_cadence IN ('daily', 'weekly', 'monthly')",
             name="chk_trading_agent_review_cadence",
         ),
+        CheckConstraint(
+            "intraday_exec_mode IN ('off', 'shadow', 'active')",
+            name="chk_trading_agent_intraday_exec_mode",
+        ),
+        CheckConstraint(
+            "calibration_mode IN ('off', 'shadow', 'active')",
+            name="chk_trading_agent_calibration_mode",
+        ),
         {
             "comment": "交易 Agent 注册表：身份/介绍/模型绑定/风控/总闸"
             "（docs/plan/agent-hub-plan.md D21）"
@@ -161,7 +171,15 @@ class TradingAgent(Base):
         Numeric(5, 2), nullable=False, default=Decimal("80")
     )
     risk_max_daily_orders: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
-    auto_exec_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    #: 盘中自主执行三态（D21，批次 8）：off 停用 / shadow 全链路判断不下单 /
+    #: active 真实执行；影子期校准达标后由 admin 切换
+    intraday_exec_mode: Mapped[str] = mapped_column(String(10), nullable=False, default="shadow")
+    #: 盘中执行人工暂停开关：true 时 tick/尾盘强检完全短路（不进 L1 判断模型、
+    #: 不下单、不写观测行）；计划/复盘生成与心跳不受影响，恢复后下一拍回全流程
+    intraday_paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    #: 盘中计划校准三态（§11.5，D22）：off 不参与校准 / shadow 修正单仅留痕
+    #: 不改计划（影子期默认）/ active 修正单生效（adjust 推计划 version 自增）
+    calibration_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="shadow")
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
     plan_cadence: Mapped[str] = mapped_column(String(16), nullable=False, default="daily")
     review_cadence: Mapped[str] = mapped_column(String(16), nullable=False, default="daily")
@@ -247,4 +265,52 @@ class PaperTradeCashSnapshot(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
+class PaperTradeExecObservation(Base):
+    """盘中执行观测（批次 8，D21/D24）：逐 tick 判断留痕，插入后不可变。
+
+    一行 = 一次 tick 对一个标的的一次判定：L0 确定性判定结果 + L1 判断模型
+    原始概率答案（served model_version 随 JSONB 落库）+ 动作或抑制原因。
+    影子期（``is_shadow``）该表即人工评审窗口与阈值校准数据集；也是
+    §11.5 盘中校准「观察报告」的聚合输入。
+    """
+
+    __tablename__ = "paper_trade_exec_observation"
+    __table_args__ = (
+        Index(
+            "idx_paper_trade_exec_observation_agent_date",
+            "agent_key",
+            "trade_date",
+        ),
+        Index("idx_paper_trade_exec_observation_plan", "plan_id"),
+        {
+            "comment": "盘中执行观测：逐 tick L0/L1 判断留痕（影子期校准数据集）"
+        },
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    tick_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    trade_date: Mapped[date] = mapped_column(Date, nullable=False)
+    agent_key: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey("trading_agent.agent_key", ondelete="CASCADE"),
+        nullable=False,
+    )
+    plan_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("agent_trade_plan.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    stock_code: Mapped[str] = mapped_column(String(12), nullable=False)
+    market_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    l0_verdict: Mapped[str] = mapped_column(String(16), nullable=False)
+    trigger_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    decision_answers: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    action: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    suppression_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    is_shadow: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
     )

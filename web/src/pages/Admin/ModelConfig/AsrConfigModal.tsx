@@ -1,7 +1,8 @@
 import { SoundOutlined } from '@ant-design/icons'
-import { Alert, Button, Form, Input, InputNumber, Modal, Space, Switch, Typography } from 'antd'
+import { Alert, Button, Form, Input, InputNumber, Modal, Select, Space, Switch, Typography } from 'antd'
 import { useEffect, useState } from 'react'
-import type { ApiAsrConfig, ApiAsrConfigTestResult } from '@ai-invest/shared'
+import { ASR_PROVIDER_PRESETS } from '@ai-invest/shared'
+import type { ApiAsrConfig, ApiAsrConfigTestResult, AsrProtocol } from '@ai-invest/shared'
 
 import { useTestAsrConfig } from '@/hooks/useModelConfig'
 
@@ -11,6 +12,8 @@ interface AsrConfigModalProps {
   loading: boolean
   onCancel: () => void
   onSubmit: (values: {
+    provider?: string
+    protocol?: AsrProtocol
     baseUrl?: string
     model?: string
     apiKey?: string
@@ -21,12 +24,32 @@ interface AsrConfigModalProps {
 }
 
 interface AsrFormValues {
+  provider: string
+  protocol: AsrProtocol
   baseUrl: string
   model: string
   apiKey?: string
   maxAudioSeconds: number
   hotwordsText?: string
   enabled: boolean
+}
+
+const PROVIDER_OPTIONS = [
+  ...Object.entries(ASR_PROVIDER_PRESETS).map(([value, preset]) => ({
+    value,
+    label: preset.label,
+  })),
+  { value: 'custom', label: '自定义' },
+]
+
+const PROTOCOL_OPTIONS: { value: AsrProtocol; label: string }[] = [
+  { value: 'minimax', label: 'MiniMax 专有' },
+  { value: 'openai', label: 'OpenAI 兼容' },
+]
+
+// 存量 provider 不在预设中（如历史自定义值）按「自定义」展示，字段保留现值
+function knownProvider(provider: string | undefined) {
+  return provider !== undefined && provider in ASR_PROVIDER_PRESETS
 }
 
 export function AsrConfigModal({
@@ -39,6 +62,9 @@ export function AsrConfigModal({
   const [form] = Form.useForm<AsrFormValues>()
   const [testResult, setTestResult] = useState<ApiAsrConfigTestResult | null>(null)
   const testMutation = useTestAsrConfig()
+  const provider = Form.useWatch('provider', form)
+  // 协议由供应商预设派生：预设供应商锁定展示，自定义可手切
+  const protocolLocked = knownProvider(provider)
 
   useEffect(() => {
     if (!open) return
@@ -46,6 +72,8 @@ export function AsrConfigModal({
     form.resetFields()
     if (config) {
       form.setFieldsValue({
+        provider: knownProvider(config.provider) ? config.provider : 'custom',
+        protocol: config.protocol ?? 'minimax',
         baseUrl: config.baseUrl,
         model: config.model,
         maxAudioSeconds: config.maxAudioSeconds,
@@ -54,6 +82,16 @@ export function AsrConfigModal({
       })
     }
   }, [open, config, form])
+
+  const handleProviderChange = (value: string) => {
+    const preset = ASR_PROVIDER_PRESETS[value]
+    if (!preset) return // 自定义：保留手填地址/模型
+    form.setFieldsValue({
+      baseUrl: preset.baseUrl,
+      model: preset.model,
+      protocol: preset.protocol,
+    })
+  }
 
   const handleTest = async () => {
     setTestResult(null)
@@ -68,6 +106,10 @@ export function AsrConfigModal({
       })
     }
   }
+
+  const protocolOptions = protocolLocked
+    ? PROTOCOL_OPTIONS.filter((o) => o.value === form.getFieldValue('protocol'))
+    : PROTOCOL_OPTIONS
 
   return (
     <Modal
@@ -98,6 +140,8 @@ export function AsrConfigModal({
         layout="vertical"
         onFinish={(values) =>
           onSubmit({
+            provider: values.provider,
+            protocol: values.protocol,
             baseUrl: values.baseUrl,
             model: values.model,
             apiKey: values.apiKey || undefined,
@@ -112,18 +156,45 @@ export function AsrConfigModal({
       >
         <Space align="baseline" className="w-full">
           <Form.Item
+            name="provider"
+            label="供应商"
+            rules={[{ required: true, message: '请选择供应商' }]}
+            extra="预设供应商自动填充地址/模型与协议；本地部署选「自定义」"
+          >
+            <Select
+              options={PROVIDER_OPTIONS}
+              onChange={handleProviderChange}
+              style={{ width: 160 }}
+            />
+          </Form.Item>
+          <Form.Item
+            name="protocol"
+            label="调用协议"
+            rules={[{ required: true, message: '请选择协议' }]}
+            extra={
+              protocolLocked
+                ? '由供应商决定'
+                : '决定端点形状：OpenAI 兼容走 /v1/audio/transcriptions，MiniMax 专有走 /v1/speech_to_text'
+            }
+          >
+            <Select options={protocolOptions} disabled={protocolLocked} style={{ width: 160 }} />
+          </Form.Item>
+        </Space>
+        <Space align="baseline" className="w-full">
+          <Form.Item
             name="baseUrl"
             label="Base URL"
             rules={[{ required: true, message: '请输入服务 Base URL' }]}
+            extra="填 API 根地址（OpenAI 兼容须含 /v1）；粘贴完整端点会自动归一"
           >
-            <Input placeholder="https://api.minimaxi.com" style={{ width: 320 }} />
+            <Input placeholder="https://api.groq.com/openai/v1" style={{ width: 320 }} />
           </Form.Item>
           <Form.Item
             name="model"
             label="模型"
             rules={[{ required: true, message: '请输入模型名' }]}
           >
-            <Input placeholder="如 asr-1.0" style={{ width: 160 }} />
+            <Input placeholder="如 whisper-large-v3" style={{ width: 160 }} />
           </Form.Item>
         </Space>
         <Form.Item
@@ -132,7 +203,7 @@ export function AsrConfigModal({
           extra={
             config?.apiKeyConfigured
               ? `已配置（${config.apiKeyMasked ?? '****'}），留空保留原值`
-              : '首次使用请填写'
+              : '首次使用请填写；本地无鉴权服务可留空'
           }
         >
           <Input.Password placeholder={config?.apiKeyConfigured ? '留空保留原值' : 'sk-...'} autoComplete="new-password" />
@@ -148,7 +219,7 @@ export function AsrConfigModal({
         <Form.Item
           name="hotwordsText"
           label="热词表（每行一个）"
-          extra="官方接口无热词参数；热词注入情绪判断 prompt 纠偏口播术语"
+          extra="转写接口无热词参数；热词注入情绪判断 prompt 纠偏口播术语"
         >
           <Input.TextArea rows={3} placeholder={'美联储\n北向资金\n集合竞价'} />
         </Form.Item>

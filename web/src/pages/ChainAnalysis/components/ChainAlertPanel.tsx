@@ -1,4 +1,4 @@
-import { Card, Spin, Tag, Typography } from 'antd'
+import { Card, Spin, Tag, Tooltip, Typography } from 'antd'
 
 import type { ChainAlert } from '@ai-invest/shared'
 
@@ -89,6 +89,19 @@ export function ChainAlertPanel({ industry }: { industry: string }) {
                   <Typography.Paragraph className="!mb-0 mt-1.5 text-xs text-gray-400 whitespace-pre-line">
                     {alert.description}
                   </Typography.Paragraph>
+                )}
+                {alert.sources.length > 0 && (
+                  <div className="mt-1 flex items-start gap-1 flex-wrap text-[11px] text-gray-500">
+                    <span className="shrink-0">信源:</span>
+                    {alert.sources.map((src, i) => (
+                      <Tooltip key={`${src.title}-${i}`} title={src.title} placement="topLeft">
+                        <span className="max-w-[300px] truncate">
+                          《{src.title}》· {src.source}
+                          {src.publishDate ? `（${src.publishDate}）` : ''}
+                        </span>
+                      </Tooltip>
+                    ))}
+                  </div>
                 )}
                 {(alert.affectedSegments.length > 0 || alert.relatedStocks.length > 0) && (
                   <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[11px] text-gray-500">

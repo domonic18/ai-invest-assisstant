@@ -1,10 +1,10 @@
 /**
- * Agent 管理列表（总览页底部，D28 + D29）：列出全部注册 Agent（含
- * planned/disabled），状态 Badge + 启用 Switch +「详情」入口 + 删除；
- * D29 新增「新建 Agent」入口（创建即 active）与行级删除（级联清理）。
+ * Agent 管理列表（总览页右上角图标按钮弹出的对话框内容，D28 + D29）：列出
+ * 全部注册 Agent（含 planned/disabled），状态 Badge + 启用 Switch +「详情」
+ * 入口 + 删除；「新建 Agent」入口（创建即 active）与行级删除（级联清理）。
  */
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
-import { Badge, Button, Card, Popconfirm, Space, Spin, Switch, Typography } from 'antd'
+import { Badge, Button, Popconfirm, Space, Spin, Switch, Typography } from 'antd'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -102,16 +102,12 @@ export function AgentManageList({
 }) {
   const [createOpen, setCreateOpen] = useState(false)
   return (
-    <Card
-      size="small"
-      title="Agent 管理列表"
-      className="shrink-0"
-      extra={
+    <div>
+      <div className="mb-2.5 flex justify-end">
         <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
           新建 Agent
         </Button>
-      }
-    >
+      </div>
       {isLoading ? (
         <div className="flex justify-center py-4">
           <Spin size="small" />
@@ -124,6 +120,6 @@ export function AgentManageList({
         </div>
       )}
       <AgentCreateModal open={createOpen} onCancel={() => setCreateOpen(false)} />
-    </Card>
+    </div>
   )
 }

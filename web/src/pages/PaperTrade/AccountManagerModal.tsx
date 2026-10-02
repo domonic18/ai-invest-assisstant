@@ -22,7 +22,7 @@ import {
   usePaperTradeAccounts,
   useSavePaperTradeAccount,
 } from '@/hooks/usePaperTrade'
-import { fallColor, formatDateTime } from '@/utils/formatters'
+import { fallHex, formatDateTime } from '@/utils/formatters'
 
 interface AccountFormValues {
   name: string
@@ -97,7 +97,7 @@ export function AccountManagerModal({
       render: (v: string | null | undefined) =>
         v ? (
           <Tooltip title={v} placement="topLeft">
-            <Typography.Text style={{ color: fallColor() }} className="text-xs">
+            <Typography.Text style={{ color: fallHex() }} className="text-xs">
               {v}
             </Typography.Text>
           </Tooltip>
@@ -121,7 +121,8 @@ export function AccountManagerModal({
             编辑
           </Button>
           <Popconfirm
-            title="删除后不可恢复，确认删除？"
+            title="确认删除该账户？"
+            description="柜台侧已销户的账户可删除；历史交易数据保留在库中但不再展示。"
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>

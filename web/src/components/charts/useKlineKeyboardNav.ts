@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import type ReactECharts from 'echarts-for-react'
+import type EChartsReactCore from 'echarts-for-react/lib/core'
 
 interface ZoomWindow {
   start: number
@@ -33,7 +33,7 @@ export function isKlineHovered(): boolean {
  * ↑/↓ 以十字光标为锚缩放可见区间（无光标时锚定右端最新数据），←/→ 左右平移。
  */
 export function useKlineKeyboardNav(barCount: number) {
-  const chartRef = useRef<ReactECharts | null>(null)
+  const chartRef = useRef<EChartsReactCore | null>(null)
   const windowRef = useRef<ZoomWindow | null>(null)
   const anchorRef = useRef<number | null>(null)
   const hoverRef = useRef(false)

@@ -2,7 +2,7 @@ import { DownloadOutlined, SearchOutlined } from '@ant-design/icons'
 import { Button, Card, DatePicker, Empty, Spin, Typography } from 'antd'
 import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
-import ReactECharts from 'echarts-for-react'
+import ReactECharts from '@/components/charts/ReactECharts'
 import type { EChartsOption } from 'echarts'
 import { useMemo, useState } from 'react'
 

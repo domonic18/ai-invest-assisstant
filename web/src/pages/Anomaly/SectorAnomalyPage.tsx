@@ -16,7 +16,7 @@ import { useSectorAnomalyBoard, useSectorAnomalyDates } from '@/hooks/useAnomaly
 import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 import { useAssistantStore } from '@/stores/assistant'
 import { useColorScheme } from '@/stores/settings'
-import { changeColor, DATE_FORMAT, formatAmount, formatPercent } from '@/utils/formatters'
+import { changeHex, DATE_FORMAT, fallHex, formatAmount, formatPercent, riseHex } from '@/utils/formatters'
 import { narrowColumns } from '@/utils/responsiveColumns'
 
 import { AttributionAction, AttributionCell, AnomalyTypeTags, SECTOR_CATEGORY_LABELS } from './cells'
@@ -117,7 +117,7 @@ export function SectorAnomalyPage() {
       align: 'right',
       sorter: (a, b) => (a.changePct ?? 0) - (b.changePct ?? 0),
       render: (v: number | null) => (
-        <span className={`font-medium ${changeColor(v)}`}>
+        <span className="font-medium" style={{ color: changeHex(v) }}>
           {v != null ? formatPercent(v) : '-'}
         </span>
       ),
@@ -145,9 +145,9 @@ export function SectorAnomalyPage() {
       align: 'right',
       render: (_, it) => (
         <span className="font-mono text-xs">
-          <span className="text-red-400">{it.upCount ?? '-'}</span>
+          <span style={{ color: riseHex() }}>{it.upCount ?? '-'}</span>
           <span className="text-gray-600"> / </span>
-          <span className="text-green-400">{it.downCount ?? '-'}</span>
+          <span style={{ color: fallHex() }}>{it.downCount ?? '-'}</span>
         </span>
       ),
     },

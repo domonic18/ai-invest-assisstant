@@ -35,6 +35,11 @@ from app.schemas.paper_trade import (
 )
 from app.services.trading import account_service, paper_trade_service
 from app.services.trading.errors import PaperTradeNotConfiguredError
+from app.services.trading.paper_trade_converters import (
+    SIDE_BUY,
+    SIDE_SELL,
+    side_to_action,
+)
 from app.utils.crypto import decrypt_token, mask_token
 
 router = APIRouter()
@@ -130,7 +135,7 @@ async def delete_account(
     session: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> None:
-    """删除账户配置（已有交易数据时 409 拒绝）。"""
+    """删除账户配置（绑定交易 Agent 时 409 拒绝；历史数据保留在库）。"""
     await account_service.delete_account(session, current_user.id, account_id)
 
 
@@ -251,12 +256,12 @@ async def list_trade_markers(
             PaperTradeTradeMarkerRow(
                 trade_date=row.trade_date,
                 counter_created_at=row.counter_created_at,
-                side="buy" if row.side == 1 else "sell",
+                side=side_to_action(row.side) or "",
                 price=float(row.price) if row.price is not None else None,
                 volume=row.volume,
             )
             for row in rows
-            if row.side in (1, 2)
+            if row.side in (SIDE_BUY, SIDE_SELL)
         ]
     )
 

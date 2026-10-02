@@ -187,6 +187,7 @@ async def search_news(
             NewsDocument.title,
             NewsDocument.summary,
             NewsDocument.publish_date,
+            NewsDocument.source,
         )
         .where(*conditions)
         .order_by(NewsDocument.publish_date.desc())
@@ -199,8 +200,9 @@ async def search_news(
             "title": title,
             "summary": (summary or "")[:200],
             "publish_date": publish_date.isoformat() if publish_date else None,
+            "source": source,
         }
-        for doc_type, title, summary, publish_date in rows
+        for doc_type, title, summary, publish_date, source in rows
     ]
 
 
@@ -217,6 +219,7 @@ async def search_news_by_date(
             NewsDocument.title,
             NewsDocument.summary,
             NewsDocument.publish_date,
+            NewsDocument.source,
         )
         .where(
             sa_cast(NewsDocument.publish_date, Date).between(start_date, end_date)
@@ -231,8 +234,9 @@ async def search_news_by_date(
             "title": title,
             "summary": (summary or "")[:200],
             "publish_date": publish_date.isoformat() if publish_date else None,
+            "source": source,
         }
-        for doc_type, title, summary, publish_date in rows
+        for doc_type, title, summary, publish_date, source in rows
     ]
 
 

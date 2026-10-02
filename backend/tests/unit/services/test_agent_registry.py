@@ -51,7 +51,9 @@ def _row(**overrides: object) -> SimpleNamespace:
         "risk_max_position_pct": 20.0,
         "risk_max_total_pct": 80.0,
         "risk_max_daily_orders": 10,
-        "auto_exec_enabled": True,
+        "intraday_exec_mode": "shadow",
+        "intraday_paused": False,
+        "calibration_mode": "shadow",
         "status": "active",
         "plan_cadence": "daily",
         "review_cadence": "daily",
@@ -113,16 +115,57 @@ class TestToView:
 
 
 @pytest.mark.unit
+class TestGetIntradayAgents:
+    """盘中执行链消费集：active 且未人工暂停（intraday_paused 冻结短路）。"""
+
+    @staticmethod
+    def _list_session(rows: list[SimpleNamespace]) -> MagicMock:
+        session = _session()
+        session.execute = AsyncMock(
+            return_value=SimpleNamespace(scalars=MagicMock(return_value=SimpleNamespace(all=MagicMock(return_value=rows))))
+        )
+        return session
+
+    @pytest.mark.asyncio
+    async def test_paused_agent_excluded(self) -> None:
+        rows = [_row(), _row(agent_key="long-line", intraday_paused=True)]
+        result = await svc.get_intraday_agents(self._list_session(rows))
+        assert [r.agent_key for r in result] == ["short-line"]
+
+    @pytest.mark.asyncio
+    async def test_active_unpaused_all_included(self) -> None:
+        rows = [_row(), _row(agent_key="long-line")]
+        result = await svc.get_intraday_agents(self._list_session(rows))
+        assert [r.agent_key for r in result] == ["short-line", "long-line"]
+
+
+@pytest.mark.unit
 class TestUpdateAgent:
+    @pytest.mark.asyncio
+    async def test_intraday_paused_toggle(self) -> None:
+        session = _session()
+        row = _row()
+        session.get = AsyncMock(return_value=row)
+        result = await svc.update_agent(
+            session,
+            "short-line",
+            data=TradingAgentProfileUpdateRequest(intraday_paused=True),
+        )
+        assert result.intraday_paused is True
+        assert row.intraday_paused is True
+        session.commit.assert_awaited_once()
+
     @pytest.mark.asyncio
     async def test_partial_update_touches_only_submitted_fields(self) -> None:
         session = _session()
         row = _row()
         session.get = AsyncMock(return_value=row)
         result = await svc.update_agent(
-            session, "short-line", data=TradingAgentProfileUpdateRequest(auto_exec_enabled=False)
+            session,
+            "short-line",
+            data=TradingAgentProfileUpdateRequest(intraday_exec_mode="off"),
         )
-        assert result.auto_exec_enabled is False
+        assert result.intraday_exec_mode == "off"
         assert row.risk_max_position_pct == 20.0
         assert row.llm_config_id is None
         assert row.updated_at is not None
@@ -346,7 +389,7 @@ class TestCreateAgent:
         assert result.risk_max_position_pct == 20.0
         assert result.risk_max_total_pct == 60.0
         assert result.risk_max_daily_orders == 10
-        assert result.auto_exec_enabled is False
+        assert result.intraday_exec_mode == "off"
         assert result.plan_cadence == "daily"
         assert result.review_cadence == "daily"
         assert result.accent_color == "#38bdf8"

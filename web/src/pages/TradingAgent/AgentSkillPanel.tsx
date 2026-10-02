@@ -2,8 +2,11 @@
  * 作业技能面板（D30）：trading 专属/共享技能包文件浏览 + 方法论知识源轮廓。
  * trading 技能不进技能广场，此处直读镜像目录可视化；方法论区展示 KB 绑定的
  * 章节大纲 + 纪律 + 知识卡片（计划 prompt 注入的静态层即来自同一知识源）。
+ * 内容默认收起（查阅型长内容），收起态保留技能包一行摘要。
  */
-import { Alert, Card, Collapse, Skeleton, Tag, Typography } from 'antd'
+import { DownOutlined, UpOutlined } from '@ant-design/icons'
+import { Alert, Button, Card, Collapse, Skeleton, Tag, Typography } from 'antd'
+import { useState } from 'react'
 
 import type { ApiAgentMethodologyView } from '@ai-invest/shared'
 
@@ -107,41 +110,63 @@ function MethodologySection({ methodology }: { methodology: ApiAgentMethodologyV
 
 export function AgentSkillPanel() {
   const agentKey = useAgentKey()
+  const [expanded, setExpanded] = useState(false)
   const filesQ = useTradingAgentSkillFiles(agentKey)
   const data = filesQ.data
 
   return (
-    <Card size="small" title="作业技能">
-      {filesQ.isLoading || !data ? (
-        <div className="flex justify-center py-6">
-          <Skeleton active title={false} paragraph={{ rows: 4 }} />
-        </div>
-      ) : (
-        <>
-          {data.skillIsSharedDefault ? (
-            <Alert
-              type="warning"
-              showIcon
-              className="!mb-3"
-              message={`当前使用共享技能包 ${data.skillId}（未创建专属技能包）；专属包生成后按 agentKey 自动装载。`}
-            />
-          ) : null}
-          <div className="flex h-[360px] flex-col overflow-hidden rounded-lg border border-white/10">
-            <SkillFileBrowserView
-              rootLabel={data.skillId}
-              files={data.files}
-              isLoading={filesQ.isLoading}
-              isError={filesQ.isError}
-            />
+    <Card
+      size="small"
+      title="作业技能"
+      extra={
+        <Button
+          type="text"
+          size="small"
+          icon={expanded ? <UpOutlined /> : <DownOutlined />}
+          onClick={() => setExpanded((v) => !v)}
+          aria-label={expanded ? '收起技能包内容' : '展开技能包内容'}
+        >
+          {expanded ? '收起' : '展开'}
+        </Button>
+      }
+    >
+      {expanded ? (
+        filesQ.isLoading || !data ? (
+          <div className="flex justify-center py-6">
+            <Skeleton active title={false} paragraph={{ rows: 4 }} />
           </div>
-          {data.methodology ? (
-            <MethodologySection methodology={data.methodology} />
-          ) : (
-            <Typography.Text type="secondary" className="mt-3 block text-xs">
-              未绑定方法论知识源（配置「方法论知识源」后，计划与会话将注入该 KB 的总纲与硬纪律）
-            </Typography.Text>
-          )}
-        </>
+        ) : (
+          <>
+            {data.skillIsSharedDefault ? (
+              <Alert
+                type="warning"
+                showIcon
+                className="!mb-3"
+                message={`当前使用共享技能包 ${data.skillId}（未创建专属技能包）；专属包生成后按 agentKey 自动装载。`}
+              />
+            ) : null}
+            <div className="flex h-[360px] flex-col overflow-hidden rounded-lg border border-white/10">
+              <SkillFileBrowserView
+                rootLabel={data.skillId}
+                files={data.files}
+                isLoading={filesQ.isLoading}
+                isError={filesQ.isError}
+              />
+            </div>
+            {data.methodology ? (
+              <MethodologySection methodology={data.methodology} />
+            ) : (
+              <Typography.Text type="secondary" className="mt-3 block text-xs">
+                未绑定方法论知识源（配置「方法论知识源」后，计划与会话将注入该 KB 的总纲与硬纪律）
+              </Typography.Text>
+            )}
+          </>
+        )
+      ) : (
+        <Typography.Text type="secondary" className="text-xs">
+          技能包：{data?.skillId ?? '…'}
+          {data?.skillIsSharedDefault ? '（共享默认包）' : ''} · 点击右上角「展开」查看技能文件与方法论基座
+        </Typography.Text>
       )}
     </Card>
   )

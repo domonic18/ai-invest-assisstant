@@ -28,7 +28,7 @@ export default function KnowledgeBase() {
 
   return (
     <div className="p-6">
-      <Typography.Title level={4}>知识库管理</Typography.Title>
+      <Typography.Title level={4}>知识中心管理</Typography.Title>
       <Card variant="borderless">
         <Tabs
           activeKey={activeKey}

@@ -1,5 +1,4 @@
 import { Button, Empty, Typography } from 'antd'
-import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 
 import { useWorkbench } from '@/hooks/useWorkbench'
@@ -14,14 +13,15 @@ import { SentimentFeedCard } from './components/SentimentFeedCard'
 import { TelegraphCard } from './components/TelegraphCard'
 import { WatchlistOverviewCard } from './components/WatchlistOverviewCard'
 
+import { bjNow } from '@/utils/beijing'
 import { DATE_FORMAT } from '@/utils/formatters'
 
 const WEEKDAYS = '日一二三四五六'
 
 function useNow(intervalMs = 1000) {
-  const [now, setNow] = useState(() => dayjs())
+  const [now, setNow] = useState(() => bjNow())
   useEffect(() => {
-    const timer = setInterval(() => setNow(dayjs()), intervalMs)
+    const timer = setInterval(() => setNow(bjNow()), intervalMs)
     return () => clearInterval(timer)
   }, [intervalMs])
   return now

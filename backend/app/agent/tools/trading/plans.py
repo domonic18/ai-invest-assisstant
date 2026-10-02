@@ -43,8 +43,8 @@ def make_make_plan_tool(agent_key: str) -> BaseTool:
             target_price: 止盈价（sell 必填）。
 
         Returns:
-            计划 id 与状态。用户未确认前不要调用本工具（auto_exec_enabled
-            开启时计划会被盘中自动执行）。
+            计划 id 与状态。用户未确认前不要调用本工具（intraday_exec_mode
+            为 active/shadow 时计划会被盘中执行链消费，active 会真实下单）。
         """
         from app.core.exceptions import AppError
         from app.services.market import trade_calendar_service
@@ -91,8 +91,9 @@ def make_make_plan_tool(agent_key: str) -> BaseTool:
                 plan_type=plan.plan_type,
             ),
             "note": (
-                "计划已写入当日交易计划。auto_exec_enabled 开启时，盘中触达"
-                "买点区间/止盈/止损价会自动下单；关闭时仅作对话参考。"
+                "计划已写入当日交易计划。intraday_exec_mode 为 active 时盘中触达"
+                "买点区间/止盈/止损价会自动下单；shadow 仅判断留痕不下单；"
+                "off 时仅作对话参考。"
             ),
         }
 
@@ -111,11 +112,10 @@ def make_list_plans_tool(agent_key: str) -> BaseTool:
             status）。status：active 待触发、triggered 已触发下单、executed 已
             成交、expired 当日未触发失效、cancelled 已取消。
         """
-        from app.services.market import trade_calendar_service
         from app.services.trading import agent_plan_ops
 
         async with AsyncSessionLocal() as session:
-            plan_date = await trade_calendar_service.resolve_latest_trade_date(session)
+            plan_date = await agent_plan_ops.resolve_default_plan_date(session, agent_key)
             rows = await agent_plan_ops.list_plans(session, agent_key, plan_date=plan_date)
 
         return {

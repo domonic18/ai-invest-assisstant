@@ -85,6 +85,7 @@ class PaperTradeNavPoint(CamelModel):
     trade_date: date
     nav: float | None = None
     available: float | None = None
+    cum_inout: float | None = None
 
 
 class PaperTradeNavResponse(CamelModel):
@@ -222,6 +223,12 @@ class PaperTradeAdminAccountListResponse(CamelModel):
 # 交易 Agent 注册表（Agent Hub 多 Agent 基座，agent-hub-plan.md D21）
 # ============================================================
 
+#: 盘中自主执行三态（D21，批次 8）：off 停用 / shadow 判断不下单 / active 真实执行
+IntradayExecMode = Literal["off", "shadow", "active"]
+
+#: 盘中计划校准三态（§11.5）：off 不参与 / shadow 修正单仅留痕 / active 修正生效
+CalibrationMode = Literal["off", "shadow", "active"]
+
 
 class TradingAgentProfileResponse(CamelModel):
     """交易 Agent 注册行视图：身份/介绍/模型绑定/风控/总闸/频率。"""
@@ -234,7 +241,12 @@ class TradingAgentProfileResponse(CamelModel):
     risk_max_position_pct: float
     risk_max_total_pct: float
     risk_max_daily_orders: int
-    auto_exec_enabled: bool
+    #: 盘中自主执行三态（D21，批次 8）
+    intraday_exec_mode: IntradayExecMode
+    #: 盘中执行人工暂停（true = tick/尾盘强检短路，计划/复盘不受影响）
+    intraday_paused: bool = False
+    #: 盘中计划校准三态（§11.5，影子期默认 shadow）
+    calibration_mode: CalibrationMode = "shadow"
     status: str
     plan_cadence: str = "daily"
     review_cadence: str = "daily"
@@ -268,7 +280,7 @@ class AgentNextTask(CamelModel):
     scheduled_at: datetime
 
 
-AgentRuntimeState = Literal["working", "produced_today", "idle", "off"]
+AgentRuntimeState = Literal["working", "produced_today", "idle", "paused", "off"]
 
 
 class AgentOverviewItem(CamelModel):
@@ -426,7 +438,12 @@ class TradingAgentProfileUpdateRequest(CamelModel):
     risk_max_position_pct: float | None = Field(default=None, ge=0, le=100)
     risk_max_total_pct: float | None = Field(default=None, ge=0, le=100)
     risk_max_daily_orders: int | None = Field(default=None, ge=1)
-    auto_exec_enabled: bool | None = None
+    #: 盘中自主执行三态（D21，批次 8）
+    intraday_exec_mode: IntradayExecMode | None = None
+    #: 盘中执行人工暂停开关（true = 冻结 tick/尾盘强检）
+    intraday_paused: bool | None = None
+    #: 盘中计划校准三态（§11.5，影子期达标后切 active）
+    calibration_mode: CalibrationMode | None = None
     accent_color: str | None = None
     status: Literal["active", "disabled"] | None = None
     plan_cadence: Literal["daily", "weekly", "monthly"] | None = None
@@ -466,7 +483,9 @@ class TradingAgentMethodologyCheckItem(CamelModel):
 
 
 class TradingAgentReviewResponse(CamelModel):
-    """模拟盘分层复盘（ai_analysis_result.structured_output 契约镜像）。"""
+    """模拟盘分层复盘（ai_analysis_result.structured_output 契约镜像）。
+
+    ``noTargetReason`` 非空 = 已执行但无复盘对象（空仓），前端与「未生成」区分。"""
 
     period: str
     trade_date: str
@@ -477,6 +496,7 @@ class TradingAgentReviewResponse(CamelModel):
     market_context: str = ""
     methodology_check: list[TradingAgentMethodologyCheckItem] = []
     experiences: list[TradingAgentReviewExperienceItem] = []
+    no_target_reason: str | None = None
 
 
 class TradingAgentPlanResponse(CamelModel):
@@ -498,15 +518,51 @@ class TradingAgentPlanResponse(CamelModel):
     held_volume: int | None = None
     """截至计划日按成交聚合的持仓股数（未绑定账户/无成交为 None）。"""
     basis: str
+    version: int = 1
+    """计划版本号：盘中校准 adjust 生效即自增（§11.5）。"""
     triggered_cl_ord_id: str | None = None
+    invalid_reason: str | None = None
+    """status='invalid' 时的死单原因（首 tick 计划体检判定的结构性脱锚）。"""
+
+
+class TradingAgentPlanAmendmentResponse(CamelModel):
+    """盘中计划校准修正单条目（§11.5，计划卡校准历史展示）。"""
+
+    plan_date: date
+    window: str
+    stock_code: str
+    plan_id: int | None = None
+    action: str
+    reason: str
+    new_buy_zone_low: float | None = None
+    new_buy_zone_high: float | None = None
+    new_target_price: float | None = None
+    new_stop_loss: float | None = None
+    new_position_pct: float | None = None
+    status: str
+    """applied 已生效 / shadow 影子留痕 / rejected 硬校验拒绝。"""
+    reject_reason: str | None = None
+    new_plan_id: int | None = None
+    model_name: str | None = None
+    created_at: datetime
 
 
 class TradingAgentPlansResponse(CamelModel):
-    """指定日交易计划载荷：计划日 + 下一交易日（次日语义，D28）+ 计划列表。"""
+    """指定日交易计划载荷：计划日 + 下一交易日（次日语义，D28）+ 计划列表。
+
+    ``stand_aside_reason`` 供前端三态区分：plans 非空为计划列表；plans 空
+    且原因非空 = 已生成·空仓观望；plans 空且原因为 null = 该日未生成。
+    """
 
     trade_date: date
     next_trade_date: date | None = None
     plans: list[TradingAgentPlanResponse] = []
+    stand_aside_reason: str | None = None
+    #: 所选日盘中执行的计划集的制定日（max(plan_date) < 该日且次日恰为该日）；
+    #: 供前端空态「该日执行的是 T 日计划」引导跳转，无则 null
+    executing_plan_date: date | None = None
+    #: 当日盘中校准修正单（按窗口/时间升序），计划卡校准历史展示
+    amendments: list[TradingAgentPlanAmendmentResponse] = []
 
 
 class TradingAgentDatesResponse(CamelModel):
@@ -514,6 +570,76 @@ class TradingAgentDatesResponse(CamelModel):
 
     plan_dates: list[date] = []
     review_dates: dict[str, list[date]] = {}
+
+
+# ============================================================
+# 交易 Agent 盘中执行观测（批次 8 PR-3：执行动态 Tab 数据面）
+# ============================================================
+
+
+class TradingAgentObservationDecision(CamelModel):
+    """单行观测的判断上下文（服务端解析 JSONB 产物，键缺失为 None）。"""
+
+    #: L1 served model 版本（判断主备切换时区分实际应答臂）
+    served_model: str | None = None
+    #: Choice 答案选中项（execute_now/wait_pullback/give_up）
+    choice: str | None = None
+    confidence: float | None = None
+    #: Noul 答案（分时形态/止损有效性，布尔）
+    noul: bool | None = None
+    #: Score 答案（盘面支持度 1-5）
+    score: float | None = None
+    #: 观测窗口标记；'tail_check' = 尾盘强检行（plan_id 恒空）
+    window: str | None = None
+
+
+class TradingAgentObservationItem(CamelModel):
+    """盘中执行观测条目（执行动态 Tab 行卡片，一次 tick 对一个标的的判定）。"""
+
+    id: int
+    tick_time: datetime
+    trade_date: date
+    agent_key: str
+    plan_id: int | None = None
+    stock_code: str
+    stock_name: str | None = None
+    plan_type: str | None = None
+    price: float | None = None
+    change_pct: float | None = None
+    l0_verdict: str
+    trigger_reason: str | None = None
+    #: L0 比价细节文案（心跳/拒绝行的人话原因；触发行通常为 None）
+    l0_detail: str | None = None
+    decision: TradingAgentObservationDecision | None = None
+    #: no_action 行无动作（None）；execute/wait/abandon/suppress
+    action: str | None = None
+    suppression_reason: str | None = None
+    is_shadow: bool = True
+    cl_ord_id: str | None = None
+    order_volume: int | None = None
+
+
+class TradingAgentObservationSummary(CamelModel):
+    """全天口径计数（不受 significant 过滤影响，顶部统计条数据源）。"""
+
+    total_ticks: int = 0
+    significant_ticks: int = 0
+    l0_verdict_counts: dict[str, int] = {}
+    action_counts: dict[str, int] = {}
+    suppression_counts: dict[str, int] = {}
+
+
+class TradingAgentObservationPage(CamelModel):
+    """执行观测分页载荷（items 按 significant 过滤，summary 恒全天口径）。"""
+
+    trade_date: date
+    total: int
+    page: int
+    page_size: int
+    items: list[TradingAgentObservationItem] = []
+    summary: TradingAgentObservationSummary = Field(
+        default_factory=TradingAgentObservationSummary
+    )
 
 
 class AgentSelectionItem(CamelModel):
@@ -546,6 +672,14 @@ class AgentMemoryResponse(CamelModel):
     source_result_id: int | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class AgentMemoryCreateRequest(CamelModel):
+    """手动沉淀记忆请求（source='manual'，立即 active 注入次日计划）。"""
+
+    title: str = Field(max_length=128)
+    body: str
+    mem_type: Literal["discipline", "method", "lesson"]
 
 
 class AgentMemoryUpdateRequest(CamelModel):

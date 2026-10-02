@@ -6,10 +6,12 @@ import type {
   AgentOverviewResponse,
   ApiAgentCapabilityResponse,
   ApiAgentMemory,
+  ApiAgentMemoryCreateRequest,
   ApiAgentMemoryUpdateRequest,
   ApiAgentSkillFilesResponse,
   ApiAgentWatchlistGroupResponse,
   ApiTradingAgentDates,
+  ApiTradingAgentObservationPage,
   ApiTradingAgentPlan,
   ApiTradingAgentPlansResponse,
   ApiTradingAgentPromptContent,
@@ -137,6 +139,28 @@ export async function fetchTradingAgentPlans(
   return response.data
 }
 
+/** 盘中执行观测分页（执行动态 Tab；query 参数 snake_case 对齐 FastAPI 签名）。 */
+export async function fetchTradingAgentObservations(
+  agentKey: string,
+  params: {
+    tradeDate?: string
+    significant?: boolean
+    page?: number
+    pageSize?: number
+  } = {},
+): Promise<ApiTradingAgentObservationPage> {
+  const query: Record<string, string | number | boolean> = {}
+  if (params.tradeDate) query.trade_date = params.tradeDate
+  if (params.significant !== undefined) query.significant = params.significant
+  if (params.page !== undefined) query.page = params.page
+  if (params.pageSize !== undefined) query.page_size = params.pageSize
+  const response = await apiClient.get<ApiTradingAgentObservationPage>(
+    ENDPOINTS.admin.tradingAgentObservations(agentKey),
+    { params: Object.keys(query).length > 0 ? query : undefined },
+  )
+  return response.data
+}
+
 /** 人工取消当日 active 计划（triggered 后不可取消）。 */
 export async function cancelTradingAgentPlan(
   agentKey: string,
@@ -178,6 +202,18 @@ export async function fetchTradingAgentMemories(
   return response.data
 }
 
+/** 手动沉淀记忆（source='manual'，立即 active 注入次日计划）。 */
+export async function createTradingAgentMemory(
+  agentKey: string,
+  data: ApiAgentMemoryCreateRequest,
+): Promise<ApiAgentMemory> {
+  const response = await apiClient.post<ApiAgentMemory>(
+    ENDPOINTS.admin.tradingAgentMemories(agentKey),
+    data,
+  )
+  return response.data
+}
+
 /** 编辑记忆（标题/正文/类型，未提供字段不变）。 */
 export async function updateTradingAgentMemory(
   agentKey: string,
@@ -189,6 +225,14 @@ export async function updateTradingAgentMemory(
     data,
   )
   return response.data
+}
+
+/** 删除记忆（物理删除；复盘同标题经验下次沉淀会重新生成）。 */
+export async function deleteTradingAgentMemory(
+  agentKey: string,
+  memoryId: number,
+): Promise<void> {
+  await apiClient.delete(ENDPOINTS.admin.tradingAgentMemory(agentKey, memoryId))
 }
 
 /** 切换记忆 active/archived（停用后次日计划 prompt 不再注入）。 */

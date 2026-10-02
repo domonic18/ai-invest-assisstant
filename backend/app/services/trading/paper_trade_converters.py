@@ -15,6 +15,20 @@ from app.core.clock import CN_TZ
 # 回报幂等键：暂定柜台 ex_exec_id，缺失时回退 cl_ord_id+时间组合（实抓字段为准后可回填）
 EXEC_ID_KEYS = ("ex_exec_id", "exec_id")
 
+# 柜台 wire 词表：买卖方向（掘金 side 契约）与已拒委托状态
+SIDE_BUY = 1
+SIDE_SELL = 2
+ORDER_STATUS_REJECTED = 8
+
+
+def side_to_action(side: Any) -> str | None:
+    """柜台数值方向 → 动作词（'buy'/'sell'），未知值返回 None。"""
+    if side == SIDE_BUY:
+        return "buy"
+    if side == SIDE_SELL:
+        return "sell"
+    return None
+
 BARE_CODE_RE = re.compile(r"\d{6}")
 
 # 柜台（Go sidecar）float32 数值带尾噪声（6.46999979019165），wire 前统一 quantize
@@ -32,6 +46,11 @@ def unwrap_rows(raw: Any) -> list[dict[str, Any]]:
 def bare_stock_code(symbol: str) -> str:
     """掘金代码 SHSE.600000 → 6 位代码。"""
     return symbol.split(".", 1)[1] if "." in symbol else symbol
+
+
+def row_stock_code(row: dict[str, Any]) -> str:
+    """柜台持仓/委托行的 6 位代码（行键是掘金格式 ``symbol``，无 ``stock_code``）。"""
+    return bare_stock_code(str(row.get("symbol") or ""))
 
 
 def parse_counter_datetime(value: Any) -> datetime | None:

@@ -25,6 +25,12 @@ const CADENCE_OPTIONS: { value: AgentCadence; label: string }[] = [
   { value: 'monthly', label: '每月最后一个交易日' },
 ]
 
+const EXEC_MODE_OPTIONS: { value: 'off' | 'shadow' | 'active'; label: string }[] = [
+  { value: 'off', label: '停用' },
+  { value: 'shadow', label: '影子（只判断不下单）' },
+  { value: 'active', label: '执行（真实下单）' },
+]
+
 interface ConfigFormValues {
   name: string
   statusEnabled: boolean
@@ -34,7 +40,8 @@ interface ConfigFormValues {
   riskMaxPositionPct: number
   riskMaxTotalPct: number
   riskMaxDailyOrders: number
-  autoExecEnabled: boolean
+  intradayExecMode: 'off' | 'shadow' | 'active'
+  intradayPaused: boolean
 }
 
 export function AgentConfigPanel() {
@@ -55,7 +62,8 @@ export function AgentConfigPanel() {
         riskMaxPositionPct: config.riskMaxPositionPct,
         riskMaxTotalPct: config.riskMaxTotalPct,
         riskMaxDailyOrders: config.riskMaxDailyOrders,
-        autoExecEnabled: config.autoExecEnabled,
+        intradayExecMode: config.intradayExecMode,
+        intradayPaused: config.intradayPaused,
       })
     }
   }, [config, form])
@@ -80,7 +88,8 @@ export function AgentConfigPanel() {
               riskMaxPositionPct: values.riskMaxPositionPct,
               riskMaxTotalPct: values.riskMaxTotalPct,
               riskMaxDailyOrders: values.riskMaxDailyOrders,
-              autoExecEnabled: values.autoExecEnabled,
+              intradayExecMode: values.intradayExecMode,
+              intradayPaused: values.intradayPaused,
             })
           }
         >
@@ -141,12 +150,19 @@ export function AgentConfigPanel() {
               <InputNumber className="w-full" min={1} step={1} precision={0} />
             </Form.Item>
             <Form.Item
-              name="autoExecEnabled"
+              name="intradayExecMode"
               label="盘中自主执行"
-              valuePropName="checked"
-              extra="关闭后盘中不自动执行交易计划（对话内交易不受影响）"
+              extra="影子=全链路判断留痕不下单；执行=触达计划价位真实下单（对话内交易不受影响）"
             >
-              <Switch />
+              <Select options={EXEC_MODE_OPTIONS} />
+            </Form.Item>
+            <Form.Item
+              name="intradayPaused"
+              label="盘中暂停"
+              valuePropName="checked"
+              extra="特殊情况临时冻结：不进判断模型、不下单、尾盘强检跳过；计划/复盘生成不受影响，恢复后下一分钟自动回全流程"
+            >
+              <Switch checkedChildren="已暂停" unCheckedChildren="执行中" />
             </Form.Item>
           </div>
           <div className="flex items-center justify-end gap-3">

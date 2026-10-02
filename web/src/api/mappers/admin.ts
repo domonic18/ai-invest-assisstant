@@ -14,6 +14,7 @@ import type {
   ApiDataTypeChannelsResponse,
   ApiLLMConfigResponse,
   ApiProxyConfigResponse,
+  ApiAdminStockConceptResponse,
 } from '@ai-invest/shared'
 import type {
   AdminAiResultDetail,
@@ -22,6 +23,7 @@ import type {
   AdminNews,
   AdminReport,
   AdminStock,
+  AdminStockConcept,
   AdminTask,
   AdminTelegraph,
   AdminUser,
@@ -163,6 +165,18 @@ export function mapAdminStock(dto: ApiAdminStockResponse): AdminStock {
     circulatingShares: dto.circulatingShares,
     fullName: dto.fullName,
     createdAt: dto.createdAt,
+  }
+}
+
+export function mapAdminStockConcept(dto: ApiAdminStockConceptResponse): AdminStockConcept {
+  return {
+    id: dto.id,
+    stockCode: dto.stockCode,
+    stockName: dto.stockName,
+    conceptCode: dto.conceptCode,
+    conceptName: dto.conceptName,
+    source: dto.source,
+    updatedAt: dto.updatedAt,
   }
 }
 

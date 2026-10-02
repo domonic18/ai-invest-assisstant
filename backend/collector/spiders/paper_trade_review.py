@@ -15,10 +15,7 @@ from typing import Any
 from app.core.database import AsyncSessionLocal
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
 from app.services.trading import agent_registry, agent_review_service
-from app.services.trading.agent_review_service import (
-    NoReviewTargetError,
-    PaperTradeReviewLockedError,
-)
+from app.services.trading.agent_review_service import PaperTradeReviewLockedError
 from app.services.trading.errors import AgentAccountNotDesignatedError
 from collector.core.base import BaseCollector, CollectResult, CollectStatus
 from collector.core.calendar import is_trading_day, latest_trading_day
@@ -94,8 +91,11 @@ class PaperTradeReviewCollector(BaseCollector):
                         trigger="scheduled",
                         collector_log_id=collector_log_id,
                     )
-                    metadata[period] = {"cached": result.cached}
-                except (NoReviewTargetError, PaperTradeReviewLockedError) as exc:
+                    metadata[period] = {
+                        "cached": result.cached,
+                        "no_target": result.content.no_target_reason is not None,
+                    }
+                except PaperTradeReviewLockedError as exc:
                     if idx == 0:
                         raise
                     metadata[period] = {"skipped": str(exc)}
@@ -145,11 +145,17 @@ class PaperTradeReviewCollector(BaseCollector):
                     )
                     continue
                 details[agent.agent_key] = result
+                if any(
+                    isinstance(v, dict) and v.get("no_target") for v in result.values()
+                ):
+                    lines.append(
+                        f"{agent.agent_key}: 已执行复盘但无对象（空仓无持仓，已记录）"
+                    )
             except ReviewInputDataNotReadyError:
                 # 不吞掉：全部 Agent 未就绪时向 Celery 退避重试抛出。
                 not_ready += 1
                 lines.append(f"{agent.agent_key}: 输入未就绪，等待重试")
-            except (AgentAccountNotDesignatedError, NoReviewTargetError) as exc:
+            except AgentAccountNotDesignatedError as exc:
                 lines.append(f"{agent.agent_key}: {exc}")
             except Exception as exc:  # noqa: BLE001
                 errors.append(f"{agent.agent_key}: {exc}")

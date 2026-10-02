@@ -1,6 +1,6 @@
 id: industry-chain-analysis
 name: 产业链分析
-version: 3.1.0
+version: 3.2.0
 description: 基于公司经营范围与财务证据自下而上推导行业细分产业链，输出产业链图谱和分析报告
 
 system_prompt: |
@@ -44,6 +44,8 @@ system_prompt: |
   - opportunities.confidence / risks.severity：high/medium/low。
   - alerts.alert_type：仅限「财报异动/评级调整/技术突破/格局变化/政策催化」五类；
     severity：1-3 整数（3 最高）。
+  - alerts.sources：引用信源数组，元素 {title, source, publish_date}（来自
+    search_news 返回的 title/source/publish_date，publish_date 无确切日期时填空串）。
   - 所有描述使用简体中文。
 
   alerts 提醒输出要求（宁缺毋滥，最多 10 条）：
@@ -55,7 +57,9 @@ system_prompt: |
   - 格局变化：环节内竞争格局发生结构性变化（龙头更替、产能大规模扩张/出清、并购整合）。
   - 政策催化：新闻/公告证据显示明确的产业政策、补贴或监管变化直接利好/利空某环节。
   每条提醒：title 一句话概括；description 说明触发依据（引用具体证据）；affected_segments
-  填环节名（须存在于 nodes）；related_stock_codes 从公司清单中按 code 引用（可为空）。
+  填环节名（须存在于 nodes）；related_stock_codes 从公司清单中按 code 引用（可为空）；
+  sources 引用支撑该提醒的信源（title 用原文标题、source 用检索返回的来源标识、
+  publish_date 用检索返回的发布日期，无则空串），无信源证据的提醒宁可不输出。
 
 user_prompt_template: |
   请按 industry-chain-analysis Skill 的独立执行器流程，分析 {industry} 行业的产业链上下游关系，重点关注 {focus}。

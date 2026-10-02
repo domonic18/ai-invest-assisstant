@@ -8,6 +8,9 @@
 export const semanticColors = {
   rise: { cn: '#f85149', us: '#2ea043' },
   fall: { cn: '#2ea043', us: '#f85149' },
+  /** 弱化版（原 Tailwind red-400/green-400），用于非强调场景 */
+  riseSoft: { cn: '#f87171', us: '#4ade80' },
+  fallSoft: { cn: '#4ade80', us: '#f87171' },
 } as const
 
 export const panelColors = {

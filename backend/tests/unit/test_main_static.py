@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from fastapi import FastAPI, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.testclient import TestClient
 
 from app.main import ForceForwardedHttpsMiddleware, app, register_spa_routes
@@ -16,6 +17,9 @@ def spa_app(tmp_path: Path) -> FastAPI:
     (static_dir / "index.html").write_text("<html>index</html>", encoding="utf-8")
     (static_dir / "assets" / "app-abc123.js").write_text(
         "console.log(1)", encoding="utf-8"
+    )
+    (static_dir / "assets" / "big-abc123.js").write_text(
+        "console.log(1)" * 200, encoding="utf-8"
     )
 
     spa = FastAPI()
@@ -83,6 +87,39 @@ class TestRealAppWithoutStaticDir:
     def test_no_spa_catch_all_when_static_dir_unset(self) -> None:
         paths = [getattr(route, "path", "") for route in app.router.routes]
         assert "/{full_path:path}" not in paths
+
+    def test_gzip_middleware_registered(self) -> None:
+        assert any(m.cls is GZipMiddleware for m in app.user_middleware)
+
+
+@pytest.mark.unit
+class TestGzipCompression:
+    """与 main.py 相同的中间件装配下，验证 gzip 压缩契约。"""
+
+    @pytest.fixture
+    def gz_app(self, spa_app: FastAPI) -> FastAPI:
+        spa_app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
+        return spa_app
+
+    def test_large_asset_served_gzipped_and_intact(self, gz_app: FastAPI) -> None:
+        client = TestClient(gz_app)
+        resp = client.get("/assets/big-abc123.js")
+        assert resp.status_code == 200
+        assert resp.headers["content-encoding"] == "gzip"
+        assert resp.text == "console.log(1)" * 200
+        assert resp.headers["cache-control"] == "public, max-age=31536000, immutable"
+
+    def test_small_response_not_compressed(self, gz_app: FastAPI) -> None:
+        client = TestClient(gz_app)
+        resp = client.get("/assets/app-abc123.js")
+        assert resp.status_code == 200
+        assert "content-encoding" not in resp.headers
+
+    def test_no_gzip_without_accept_encoding(self, gz_app: FastAPI) -> None:
+        client = TestClient(gz_app)
+        resp = client.get("/assets/big-abc123.js", headers={"accept-encoding": "identity"})
+        assert resp.status_code == 200
+        assert "content-encoding" not in resp.headers
 
 
 @pytest.mark.unit

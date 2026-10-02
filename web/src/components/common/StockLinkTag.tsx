@@ -2,7 +2,7 @@ import { Tag } from 'antd'
 import { Link } from 'react-router-dom'
 
 import { useColorScheme } from '@/stores/settings'
-import { changeColor } from '@/utils/formatters'
+import { changeHex } from '@/utils/formatters'
 
 interface StockLinkTagProps {
   /** 股票代码；为空时不可点击（如传导链中无法解析的原文）。 */
@@ -19,7 +19,7 @@ export function StockLinkTag({ code, name, changePct }: StockLinkTagProps) {
     <Tag className="!m-0 !text-xs">
       {name}
       {changePct != null && (
-        <span className={changeColor(changePct)}>
+        <span style={{ color: changeHex(changePct) }}>
           {' '}
           {changePct >= 0 ? '+' : ''}
           {changePct.toFixed(2)}%

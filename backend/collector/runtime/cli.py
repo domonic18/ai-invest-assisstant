@@ -47,6 +47,11 @@ def main() -> None:
         default=None,
         help="宏观经济指标，逗号分隔，如 cpi,pmi,gdp",
     )
+    parser.add_argument(
+        "--history-days",
+        default=None,
+        help="回看自然日数（全球指标历史回补用）",
+    )
     args = parser.parse_args()
 
     params: dict = {
@@ -59,6 +64,7 @@ def main() -> None:
         "lookback_days": args.lookback_days,
         "report_date": args.report_date,
         "trade_date": args.trade_date,
+        "history_days": args.history_days,
     }
     if args.report_types:
         params["report_types"] = args.report_types.split(",")

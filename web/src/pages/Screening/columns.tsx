@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { StockScreeningRow } from '@/stores/assistant'
-import { changeColor, formatAmount, formatPercent } from '@/utils/formatters'
+import { changeHex, formatAmount, formatPercent } from '@/utils/formatters'
 
 /** 已知中文列的渲染与宽度映射；未命中列走纯文本兜底（问句变了表格不崩）。 */
 
@@ -25,7 +25,7 @@ function renderPrice(value: unknown): ReactNode {
 function renderChangePct(value: unknown): ReactNode {
   const n = asNumber(value)
   if (n === null) return '-'
-  return <span className={changeColor(n)}>{formatPercent(n)}</span>
+  return <span style={{ color: changeHex(n) }}>{formatPercent(n)}</span>
 }
 
 function renderPercent(value: unknown): ReactNode {

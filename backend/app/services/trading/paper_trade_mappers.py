@@ -161,19 +161,21 @@ def order_wire_row(item: dict[str, Any], fallback_date: date) -> dict[str, Any]:
 def position_wire_row(item: dict[str, Any]) -> dict[str, Any]:
     """柜台持仓对象 → wire 行（字段名多候选容错，缺失项为 None）。
 
-    柜台 float32 噪声与浮盈缺失在此收敛：价格/金额 quantize；
-    profit/profit_rate 柜台未给时按 (现价-成本)×数量 本地补算（同 A 股软件口径）。
+    柜台（掘金）真实行键：``vwap``=持仓成本、``price``=最新价、``fpnl``=浮动盈亏，
+    候选键序按真实形状优先，避免错把现价当成本。柜台 float32 噪声与浮盈缺失
+    在此收敛：价格/金额 quantize；profit/profit_rate 柜台未给时按
+    (现价-成本)×数量 本地补算（同 A 股软件口径）。
     """
     symbol = str(item.get("symbol") or "")
     volume = to_int(first_present(item, "volume", "total_volume"))
     avg_price = quantize_4dp(
-        to_decimal(first_present(item, "price", "vwap", "avg_price", "open_price"))
+        to_decimal(first_present(item, "vwap", "avg_price", "price", "open_price"))
     )
     last_price = quantize_4dp(
-        to_decimal(first_present(item, "last_price", "current_price", "close"))
+        to_decimal(first_present(item, "price", "last_price", "current_price", "close"))
     )
     profit = quantize_2dp(
-        to_decimal(first_present(item, "profit", "float_profit", "position_profit"))
+        to_decimal(first_present(item, "fpnl", "profit", "float_profit", "position_profit"))
     )
     profit_rate = quantize_4dp(to_decimal(first_present(item, "profit_rate", "profit_ratio")))
     if profit is None and volume and avg_price is not None and last_price is not None:

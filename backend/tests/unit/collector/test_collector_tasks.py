@@ -324,6 +324,28 @@ class TestRunParamsWiring:
 
         assert init_configs[0]["report_types"] == ["年报"]
 
+    @pytest.mark.asyncio
+    async def test_global_index_history_defaults_fill_history_days(self) -> None:
+        """global-index-history 无参调度靠 defaults.history_days=5 进历史分支；
+        spider 的 history_days 是 either-or 开关，缺值会静默退化为实时快照。"""
+        collect_mock = AsyncMock(return_value=[])
+
+        with (
+            patch(
+                "collector.runtime.registry._resolve_task_channels",
+                AsyncMock(
+                    return_value=[("eastmoney", {"base_url": None, "api_key": None})]
+                ),
+            ),
+            patch(
+                "collector.spiders.eastmoney_global_index.EastmoneyGlobalIndexCollector.collect",
+                collect_mock,
+            ),
+        ):
+            await TASK_MAP["global-index-history"]()
+
+        assert collect_mock.await_args.kwargs["history_days"] == 5
+
 
 @pytest.mark.unit
 class TestRunCollectorFallback:

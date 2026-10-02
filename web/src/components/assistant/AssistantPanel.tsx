@@ -1,16 +1,19 @@
 import { Drawer, Tooltip } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { useAssistantSessions } from './hooks/useAssistantSessions'
+import { useAgentOverview } from '@/hooks/useTradingAgent'
 import { useAssistantStore } from '@/stores/assistant'
+import { useAuthStore } from '@/stores/auth'
 
 import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 
+import { useAssistantSessions } from './hooks/useAssistantSessions'
 import { AssistantHeader } from './AssistantHeader'
 import { AssistantSidebar } from './AssistantSidebar'
 import { AssistantThread } from './AssistantThread'
 import { AssistantErrorBoundary } from './AssistantErrorBoundary'
 import { AssistantRuntimeProvider } from './AssistantRuntimeProvider'
+import { ASSISTANT_AVATAR } from './ui/agentAvatars'
 import { TodoListBar } from './ui/TodoListBar'
 import {
   clamp,
@@ -27,16 +30,28 @@ import {
 } from './utils'
 
 import './AssistantFab.css'
-import owlImg from '@/assets/assistant-owl.png'
 
 export function AssistantPanel() {
   const open = useAssistantStore((state) => state.open)
   const closePanel = useAssistantStore((state) => state.closePanel)
   const threadId = useAssistantStore((state) => state.threadId)
   const switchThread = useAssistantStore((state) => state.switchThread)
+  const chatAgentType = useAssistantStore((state) => state.chatAgentType)
+  const setChatAgent = useAssistantStore((state) => state.setChatAgent)
   const todos = useAssistantStore((state) => state.todos)
+  const isAdmin = useAuthStore((state) => state.isAdmin)
 
-  const { sessions, isLoading, deleteSessionById, refresh } = useAssistantSessions({ enabled: open })
+  // 会话列表随对话对象切换（queryKey 含 agentType，切 key 自带 Loading 重取）
+  const { sessions, isLoading, deleteSessionById, refresh } = useAssistantSessions({
+    agentType: chatAgentType,
+    enabled: open,
+  })
+  const { data: overview } = useAgentOverview({ enabled: open && isAdmin })
+
+  // 管理员身份丢失（切账号等）时把对话对象拉回常规助手
+  useEffect(() => {
+    if (!isAdmin && chatAgentType !== 'assistant') setChatAgent('assistant')
+  }, [isAdmin, chatAgentType, setChatAgent])
 
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     readStoredWidth(
@@ -173,6 +188,8 @@ export function AssistantPanel() {
       placement="right"
       open={open}
       onClose={closePanel}
+      // 关闭按钮统一为头部右侧一个（AssistantHeader），去掉 Drawer 自带的角标 X
+      closable={false}
       width={isNarrow ? '100%' : drawerWidth}
       styles={{ body: { padding: 0 } }}
     >
@@ -212,17 +229,20 @@ export function AssistantPanel() {
           <AssistantHeader
             title={activeTitle}
             onClose={closePanel}
+            agentType={chatAgentType}
+            agentItems={overview?.items ?? []}
+            onSwitchAgent={isAdmin ? setChatAgent : undefined}
             showSessionsToggle={isNarrow}
             sessionsOpen={mobileListOpen}
             onToggleSessions={() => setMobileListOpen((v) => !v)}
           />
           {todos && todos.length > 0 && <TodoListBar todos={todos} />}
           <div className="min-h-0 flex-1">
-            {/* 不能加 key：runtime 原生支持 threadId 受控切换，加 key 会在
-                threads.create 后因 onThreadIdChange 触发整个 runtime 重挂载，
-                销毁乐观消息并中断进行中的流 */}
-            <AssistantErrorBoundary>
-              <AssistantRuntimeProvider>
+            {/* key=chatAgentType：切换对话对象必须重挂载 runtime 换绑 agent 端点
+                （线程态已由 setChatAgent 重置）。线程内切换不可加 key=threadId：
+                threads.create 后 onThreadIdChange 会触发重挂载，销毁乐观消息 */}
+            <AssistantErrorBoundary key={chatAgentType}>
+              <AssistantRuntimeProvider agentType={chatAgentType}>
                 <AssistantThread />
               </AssistantRuntimeProvider>
             </AssistantErrorBoundary>
@@ -305,7 +325,7 @@ export function AssistantFab() {
           aria-label="展开 AI 助手"
           className="assistant-fab-collapsed fixed bottom-[88px] right-3 z-50 md:bottom-[52px]"
         >
-          <img src={owlImg} alt="" draggable={false} />
+          <img src={ASSISTANT_AVATAR} alt="" draggable={false} />
         </button>
       </Tooltip>
     )
@@ -324,7 +344,7 @@ export function AssistantFab() {
         aria-label="打开 AI 助手"
         className="assistant-fab fixed bottom-20 right-4 z-50 md:bottom-6"
       >
-        <img src={owlImg} alt="" draggable={false} />
+        <img src={ASSISTANT_AVATAR} alt="" draggable={false} />
       </button>
     </Tooltip>
   )

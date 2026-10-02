@@ -22,10 +22,15 @@ class LLMConfigRepository(BaseRepository[LLMConfig]):
         return list(result.scalars().all())
 
     async def get_default_active(self) -> LLMConfig | None:
-        """返回启用状态的默认配置，若不存在则为 None。"""
+        """返回启用状态的默认 chat 配置，若不存在则为 None。
+
+        purpose 过滤防止其他用途（embedding/decision 等）条目被置默认后
+        劫持 chat 解析——``build_langchain_model`` 收到 systemone 协议会直接失败。
+        """
         stmt = select(LLMConfig).where(
             LLMConfig.is_default.is_(True),
             LLMConfig.is_active.is_(True),
+            LLMConfig.purpose == "chat",
         )
         result = await self.execute(stmt)
         return cast(LLMConfig | None, result.scalar_one_or_none())
@@ -47,10 +52,10 @@ class LLMConfigRepository(BaseRepository[LLMConfig]):
         await self.execute(stmt)
 
     async def get_first_active(self) -> LLMConfig | None:
-        """按 id 排序返回第一个启用状态的配置。"""
+        """按 id 排序返回第一个启用状态的 chat 配置（默认配置删除后重指之用）。"""
         stmt = (
             select(LLMConfig)
-            .where(LLMConfig.is_active.is_(True))
+            .where(LLMConfig.is_active.is_(True), LLMConfig.purpose == "chat")
             .order_by(LLMConfig.id)
             .limit(1)
         )
@@ -66,6 +71,16 @@ class LLMConfigRepository(BaseRepository[LLMConfig]):
                 LLMConfig.extra["capabilities"]["vision"].as_boolean().is_(True),
             )
             .order_by(LLMConfig.is_default.desc(), LLMConfig.id)
+        )
+        result = await self.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_decision_active(self) -> list[LLMConfig]:
+        """返回启用状态的判断模型配置（purpose=decision，D23），按 id 排序。"""
+        stmt = (
+            select(LLMConfig)
+            .where(LLMConfig.is_active.is_(True), LLMConfig.purpose == "decision")
+            .order_by(LLMConfig.id)
         )
         result = await self.execute(stmt)
         return list(result.scalars().all())

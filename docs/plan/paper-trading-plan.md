@@ -58,8 +58,11 @@
    （含依据）同步进 agent 自选分组。
 10. **交易计划**：每股生成结构化计划（策略 / 买点区间 / 目标价 / 止损 / 仓位），
     全自主生效（生成即执行资格），执行后事后通知。
-11. **盘中自主执行**：5 分钟条件轮询 + 尾盘强检，风控硬校验后自主下单
-    （总闸可关，§8.5）。
+11. **盘中自主执行**：慢思考 + 快反应双模型机制（D21，2026-09-28 定案）——
+    快反应 = 盘中常驻服务依据分时行情评估计划执行概率（L0 确定性风控与价格
+    穿越判定 + L1 Jev 快判断层）；慢思考 = 既有 Celery 定时链（盘前计划 →
+    盘中两次校准 D22 → 盘后复盘）；风控硬校验后自主下单（总闸可关，§8.5）。
+    架构见 §11.1/§11.4，盘中慢快交互见 §11.5。
 12. **经验沉淀**：复盘自动提取经验直接写入 Agent 自有记忆（不经 KB 审核流）+
     手动一键沉淀；active 记忆反哺选股计划 prompt，闭环闭合。
 
@@ -90,19 +93,21 @@
                   凭证来源：paper_trade_account 表（token Fernet 加密，
                   复用 app/utils/crypto；agent 账户 = is_agent 全局唯一行）
                                                         │
-      ┌──────────────────────┬──────────────────────────┼─────────────────────────┐
-      │                      │                          │                         │
- 模拟交易页(按账户)      交易 Agent 页(admin-only)   盘中执行(batch, */5 轮询)   盘后同步(internal, 16:00)
- 账户选择器/配置引导      独立对话(ask_user 确认)     agent-trade-exec：         循环所有启用账户
- 资金/持仓/委托/净值      专属工具集(交易执行/计划/   读 active 计划 → 现价判定   当日委托/成交/资金快照
- 人工下单+撤单(manual)   记忆/只读取数)             → 风控校验(读配置表)        幂等 upsert 三表
- 后台管理(账户视图+      计划/执行动态/复盘/记忆     → 下单(source='agent')     (按账户隔离错误)
- agent 指定)            配置(模型/风控/自主总闸)
+      ┌──────────────────────┬──────────────────────────┼──────────────────────────┐
+      │                      │                          │                          │
+ 模拟交易页(按账户)      交易 Agent 页(admin-only)   盘中快反应执行(常驻服务)     盘后同步(internal, 16:00)
+ 账户选择器/配置引导      独立对话(ask_user 确认)     tick 循环：L0 风控硬校验+    循环所有启用账户
+ 资金/持仓/委托/净值      专属工具集(交易执行/计划/   价格穿越判定 → L1 Jev 执行   当日委托/成交/资金快照
+ 人工下单+撤单(manual)   记忆/只读取数)             概率 → 下单(source='agent') 幂等 upsert 三表
+ 后台管理(账户视图+      计划/执行动态/复盘/记忆     判断全留痕；影子模式先行     (按账户隔离错误)
+ agent 指定)            配置(模型/风控/自主总闸)    (§11.1)；10:20/13:20 盘中
+                                                     校准(慢模型, §11.5)
       │                      │                          │                         │
       └──────────────────────┴────────────┬─────────────┴─────────────────────────┘
-                                           │    盘后 heavy LLM 链（北京时序）
-  既有复盘解读(六分区) + 涨停/异动归因 →(只读消费) agent-daily-plan（19:00：选股+计划+分组同步）
-  agent 账户本地三表交易记录（16:00 同步）→ paper-trade-review（16:10：日/周/月分层复盘）
+                                           │    定时 heavy LLM 链（北京时序；慢思考 = Celery 定期唤醒）
+  T-1 日 19:30 agent-daily-plan（选股+计划+分组同步，次交易日生效）
+  T 日盘中 10:20 / 13:20 计划校准（慢模型读快反应观察报告 → 计划修正单，§11.5）
+  T 日 16:00 sync → 19:00 paper-trade-review（日/周/月分层复盘）
   复盘 experiences 自动提取 → Agent 记忆库 →（人工可停用）→ 反哺 agent-daily-plan 输入（批次 9 闭合）
 ```
 
@@ -116,7 +121,7 @@
 ### 4.1 迁移 `docker/database/migrations/20260924a_paper_trade_tables.sql`
 
 新业务域启用 `paper_trade_` 前缀（对齐 `<分类前缀>_<数据类型>` 约定），三表均幂等
-`CREATE TABLE IF NOT EXISTS`，同步进 `init-scripts`。批次 3 直接在该迁移文件上演进
+`CREATE TABLE IF NOT EXISTS`（效果已收编进 `0001_baseline.sql`）。批次 3 直接在该迁移文件上演进
 （分支未合并，不产生增量迁移），终态见 §6.1。
 
 ```sql
@@ -235,8 +240,8 @@ paper_trade_url: str = ""
   ```
   聚合进 `specs/__init__.py` 的 `ALL_SPECS`。
 - seed（`03-seed.sql` + 同步迁移）：`('paper_trade_sync_1600', 'paper-trade-sync',
-  'internal', '0 16 * * 1-5', true)`——北京时间，16:00 清算稳定且在 16:10 复盘链之前，
-  失败退避窗口充足。
+  'internal', '0 16 * * 1-5', true)`——北京时间，16:00 清算稳定且先于盘后 LLM 链
+  （19:00 复盘 / 19:30 计划），失败退避窗口充足。
 
 **验收**：本地栈 `celery beat + worker` 手动触发 `paper-trade-sync`，三表落库正确；
 重复执行零重复行（幂等）；非交易日 SKIPPED。（多账户循环验收见 §6.6）
@@ -316,7 +321,7 @@ ALTER TABLE paper_trade_order
 - `order_source`：`manual`（页面人工）/ `agent`（Agent 工具与定时执行）——人机分账户
   之外再留数据层来源标记，复盘归因可过滤（D14）。
 - DB 层不建 FK 约束（对齐域内现状），引用完整性由服务层保证。
-- 同步 `init-scripts`；compose 移除 sidecar 的 `GMTRADE_TOKEN`/`GMTRADE_ACCOUNT_ID`。
+- compose 移除 sidecar 的 `GMTRADE_TOKEN`/`GMTRADE_ACCOUNT_ID`。
 
 ### 6.2 sidecar 无状态化（`docker/paper-trade/main.py`）
 
@@ -513,7 +518,7 @@ cancel_paper_trade_order, get_stock_quote, ask_user`（批次 7/9 工具就绪�
 
 ### 8.5 配置面（`trading_agent_config` 单例表）
 
-迁移 `20260924b_trading_agent_config.sql`（幂等，同步 init-scripts，seed 默认行）：
+迁移 `20260924b_trading_agent_config.sql`（幂等，seed 默认行）：
 
 ```sql
 CREATE TABLE IF NOT EXISTS trading_agent_config (
@@ -522,7 +527,7 @@ CREATE TABLE IF NOT EXISTS trading_agent_config (
     risk_max_position_pct  NUMERIC(5,2) NOT NULL DEFAULT 20,    -- 单票市值 ≤ 总资产 %
     risk_max_total_pct     NUMERIC(5,2) NOT NULL DEFAULT 80,    -- 总持仓 ≤ 总资产 %
     risk_max_daily_orders  INTEGER      NOT NULL DEFAULT 10,    -- 单日下单笔数上限
-    auto_exec_enabled      BOOLEAN      NOT NULL DEFAULT TRUE,  -- 盘中自主执行总闸
+    intraday_exec_mode     VARCHAR(10)  NOT NULL DEFAULT 'shadow',  -- 盘中执行三态：off/shadow/active（2026-09-28 D21，演进自 auto_exec_enabled 布尔总闸）
     updated_at             TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 ```
@@ -531,9 +536,12 @@ CREATE TABLE IF NOT EXISTS trading_agent_config (
 - **模型选择**：对话 / 计划 / 复盘共用所选模型（`llm_config_id`，空 = 默认 chat）；
   服务层每次构建模型时读取，改选即时生效。
 - **风控参数 DB 化**：批次 8 消费，env 覆盖退役（真相源唯一）。
-- **自主执行总闸**：关闭时批次 8 轮询任务整体 SKIPPED（只保留对话手动交易路径）。
+- **盘中执行三态**（D21）：`off` = 快反应服务不运行（只保留对话手动交易路径）；
+  `shadow` = 全链路判断但不下单（留痕供校准与人工评审，上线默认值）；
+  `active` = 真实执行。判断模型接入配置走「模型配置」admin（`llm_config`
+  purpose=`decision`，D23，§11.6），本表不存模型接入凭据。
 - 定时任务启停不进此配置——复用采集管理既有 `collector_task.enabled` 开关。
-- 前端：交易 Agent 页「配置」区（模型下拉 + 风控数值输入 + 总闸 Switch）。
+- 前端：交易 Agent 页「配置」区（模型下拉 + 风控数值输入 + 执行三态选择器）。
 - 后端会话与工具构建读取本表决定交易 Agent 的模型；复盘任务（批次 6）同源。
 
 ## 9. 批次 6：模拟交易复盘（日/周/月，LLM，分层归因）
@@ -574,7 +582,7 @@ CREATE TABLE IF NOT EXISTS trading_agent_config (
 
 ### 10.1 数据底座
 
-迁移 `20260924c_agent_trading_tables.sql`（幂等，同步 init-scripts）：
+迁移 `20260924c_agent_trading_tables.sql`（幂等）：
 
 ```sql
 -- agent 自选分组归属：现有分组表加归属标记（迁移，非新表）
@@ -626,10 +634,12 @@ CREATE INDEX IF NOT EXISTS idx_agent_trade_plan_status ON agent_trade_plan(statu
 
 ### 10.2 生成任务 `agent-daily-plan`（heavy 队列）
 
-- seed：`('agent_daily_plan_1900', 'agent-daily-plan', 'internal', '0 19 * * 1-5', true)`
-  ——北京 19:00（核心输入「当日复盘解读」18:35 才生成，早于该时点不存在），串行在
-  16:00 sync / 16:10 复盘 / 16:30 涨停归因 / ≥17:45 异动之后；输入未就绪走
-  `ReviewInputDataNotReadyError` 退避重试。
+- seed：`('agent_daily_plan_1900', 'agent-daily-plan', 'internal', '30 19 * * 1-5', true)`
+  ——北京 19:30（核心输入「当日复盘解读」18:35 才生成、交易复盘 19:00 落定，早于
+  该时点不存在），串行在 16:00 sync / 19:00 交易复盘 / 16:30 涨停归因 / ≥17:45 异动
+  之后；输入未就绪走 `ReviewInputDataNotReadyError` 退避重试。（2026-09-28 调度
+  漂移修复：D30 重排只改 seed 未随迁移，生产补迁移 20260928f 拨回 19:30——
+  **改 collector_task.schedule 必须配迁移**。）
 - spider：`backend/collector/spiders/agent_daily_plan.py`（internal，同先例）；TaskSpec
   追加进 `runtime/specs/trading.py`。
 - 服务层 `app/services/trading/agent_plan_service.py`：
@@ -664,74 +674,411 @@ CREATE INDEX IF NOT EXISTS idx_agent_trade_plan_status ON agent_trade_plan(statu
   仓位 / 状态 / 依据），当日计划可人工 `cancelled`（干预手段之一）；
   对话路径的 `make_trade_plan` 等工具（§8.2 批次 7 行）同批注册。
 
-**验收**：盘后 19:00 自动产出选股清单 + 计划；agent 分组与依据可见；人工移出后
+**验收**：盘后 19:30 自动产出选股清单 + 计划；agent 分组与依据可见；人工移出后
 次日不重复选入；重跑命中缓存；非交易日 SKIPPED。
 
 ## 11. 批次 8：盘中自主执行（闭环第二步）
 
-### 11.1 执行任务 `agent-trade-exec`（batch 队列）
+> **交付状态（2026-09-29/30）**：PR-1 执行链骨架（PR #102：`intraday_exec_mode`
+> 三态 + `paper_trade_exec_observation` 逐 tick 观测表 + `agent-intraday-exec`
+> 驻留进程 60s tick，shadow 全链路留痕不下单）、PR-2 计划质量防线与盘中校准
+> （PR #110：价格锚定 / 确定性体检 / 首 tick 死单拦截 / §11.5 校准 10:20/13:20
+> 修正单 shadow 留痕；PR #107 增 `intraday_paused` 人工暂停开关）、PR-3 执行动态
+> 前端（`GET /{key}/observations` + 详情页「执行动态」Tab）均已交付，
+> 当前影子模式运行中，达标（1-2 周）后切 active。
 
-- seed：`('agent_trade_exec_5min', 'agent-trade-exec', 'internal', '*/5 9-14 * * 1-5',
-  true)`——beat 每 5 分钟派发，**任务内判定交易时段**（9:30-11:30 / 13:00-15:00，
-  `app.core.clock`，非时段 SKIPPED）；14:50 后进入「尾盘强检」模式（同一任务内分模式，
-  避免双任务并发互斥）。`redis_lock` 防重入；非交易日 SKIPPED。
-- 服务层 `app/services/trading/agent_exec_service.py`，单轮逻辑：
-  1. 读当日 `active` 计划 → 逐计划 `get_stock_quote` 取现价；
-  2. **条件判定**：buy 计划现价 ≤ `buy_zone_high` 触发买入（限价，价格 = 买点上限）；
-     sell 计划现价 ≥ `target_price`（止盈）或 ≤ `stop_loss`（止损）触发卖出
-     （限价，保护性偏离限幅）；
-  3. **风控硬校验**（服务层内聚，与 LLM 无关，参数读 `trading_agent_config`，§8.5）：
-     单票市值 ≤ 总资产上限%、总持仓 ≤ 总资产上限%、禁 ST/退市风险股、单日下单 ≤ 笔数上限、
-     T+1（卖出标的必须是此前交易日买入——查本地 execution）、100 股整数倍、
-     科创板 200 股起；任一不过则计划保持 active 并记录原因（不告警式失败）；
-  4. **下单**（批次 5 服务层下单函数，`source='agent'`）→ 成功后推进计划
-     `triggered` + 记 `triggered_cl_ord_id`，成交确认依赖 16:00 sync 回填；
-  5. **尾盘强检**（14:50-15:00 窗口）：全部持仓对 `stop_loss` 强检一遍（含当日无
-     sell 计划的持仓——按计划纪律兜底）；当日仍未触发计划标 `expired`。
-- **总闸与参数**：任务入口先检 `trading_agent_config.auto_exec_enabled`（批次 5 建表，
-  admin 可改，§8.5）——关闭整体 SKIPPED（只保留对话手动交易路径）；风控阈值读同表
-  （seed 默认 20% / 80% / 10 笔），env 覆盖退役。
+> **2026-09-28 执行机制定案（D21/D22）**：慢思考 + 快反应双模型机制。快反应 =
+> 盘中常驻服务（L0 确定性风控与价格穿越判定 + L1 Jev 快判断层，§11.1）；慢思考 =
+> 既有 Celery 定时链扩展盘中两次计划校准（§11.5）。柜台条件单路径出局（用户拍板：
+> 是解决方案但非期望方案）。§11.3 为 Jev 深度调研（结论由 2026-09-24「暂缓」
+> 反转为「快判断层采用」）；§11.4 存档五方案选型过程；原「`*/5` celery 轮询」
+> 设计（2026-09-24）由本节常驻服务设计替代。
+
+### 11.1 快反应执行链：盘中常驻服务（`agent-intraday-exec`）
+
+- **形态**：新常驻容器（compose 服务，仿 `collector-stream` 先例）asyncio tick
+  循环——交易时段（9:30-11:30 / 13:00-15:00，`app.core.clock`）内按固定节奏运行，
+  开盘自启、收盘退出，tick 间隔默认 60s（config.py 部署可调）。**不用 celery beat
+  分钟级派发**：每 tick 进程冷启动、无状态保持，快反应要求进程内持有计划状态机
+  与判断轨迹（§11.4 存档对比）。
+- **四层执行栈**（每 tick 逐 active 计划）：
+  - **L0 确定性代码（模型永不触碰）**：① 风控硬校验（参数读 `trading_agent_config`，
+    §8.5：单票市值 ≤ 上限%、总持仓 ≤ 上限%、禁 ST/退市风险股、单日下单 ≤ 笔数上限、
+    T+1（查本地 execution）、100 股整数倍、科创板 200 股起；任一不过计划保持 active
+    并记录原因）；② **精确价格比较**——现价 vs `buy_zone_high` / `target_price` /
+    `stop_loss` 穿越判定（Jev 无数值推理能力，§11.3，此判定必须 if-else）；
+    ③ 交易时段 / 涨跌停 / 停牌判定与计划状态机推进。
+  - **L1 Jev 快判断（执行概率评估，§11.3）**：L0 确认「进入触发条件附近」后启动，
+    一次 systemone 请求并行问全部触达计划（speculative fan-out）：Choice
+    （立即执行 / 等待回踩 / 放弃本档）+ Noul（当前分时形态支持买入；跌破止损是
+    有效跌破还是噪声假摔）+ Score（盘面支持度）——**按动作代价分档置信阈值**
+    （观察类 0.6 / 资金动作 0.85 起步，影子期校准后定版）；版本 pin `jev-1.13.0`。
+  - **L2 升级**：置信不足 → 不动作 + 留痕（低置信不等于不作为，等于移交——
+    盘中校准 §11.5 与盘后复盘的输入）。
+  - **L3 人工**：执行动态页面可见（§11.2）+ 移出自选 / 取消计划干预面（D6）。
+- **下单与状态推进**：`agent_trade_service.place(context='scheduled', plan_id=…)`
+  （既有预留缝）→ 计划 `triggered` + 记 `triggered_cl_ord_id`，成交确认依赖
+  16:00 sync 回填。
+- **尾盘强检**（14:50-15:00，纯 L0）：全部持仓对 `stop_loss` 强检一遍（含当日无
+  sell 计划的持仓）；当日仍未触发计划标 `expired`。
+- **影子模式先行（执行三态）**：`trading_agent_config.intraday_exec_mode` =
+  `off / shadow / active`（admin 可改，§8.5）——`off` 整体停用（对话手动路径不受
+  影响）；`shadow` 全链路跑判断但**不下单**；`active` 真实执行。上线节奏 =
+  shadow 跑 1-2 周积累「判断 vs 事后走势」校准数据 → 达标后切 active。
+- **判断留痕（审计 trail + 校准数据集）**：每 tick 判断落库（新表
+  `paper_trade_exec_observation`：tick 时间 / 计划 / 盘面快照摘要 / Jev 原始答案
+  （概率 + confidence + model 版本）/ L0 判定 / 动作或抑制原因）。Jev 不生成
+  理由文字（§11.3），审计依据 =「state 快照 + 概率 + 版本」；该表同时是 §11.5
+  盘中校准的「观察报告」数据源与影子期评测数据集。
+- **数据源**：分时 stock-minute / index-minute（已入库）+ 实时快照 push2delay
+  镜像（规避东财 push2 高频封禁）；state 组装「只放题面需要的字段」（官方
+  context rot 纪律，§11.3）。
+- **成本量级**：state 约 5-6k token/tick ≈ $0.00025/次；60s 节奏 240 tick/日 ≈
+  $0.06/日/agent（年约 $15）——成本维度从决策表划掉。延迟：美西托管 RTT
+  ~150-250ms + 模型 70-500ms，分钟级节奏无感。
+- **接入方式**：Jev 不说 OpenAI/Anthropic 协议，`model_factory` 不适用——经
+  **判断模型接入层**调用（vendor 无关封装，`app/core/decision_model`，D23，
+  设计见 §11.6）：内部契约押注接口形状而非厂商，TypeSafe 直连为首发 adapter，
+  OpenRouter 为实验备链，双路失败降级纯 L0。
 
 ### 11.2 事后通知与可见性
 
-- 不新建通知系统：执行动态集中在交易 Agent 页两处（admin 可见，D17）——
-  1. 「今日交易计划」区块状态实时推进（triggered/executed）；
-  2. 「Agent 执行动态」条（读 plan×order 关联：时间 / 标的 / 方向 /
-     数量 / 价格 / 触发原因[止盈|止损|买点|尾盘强检]）。
+- 不新建通知系统：执行动态集中在交易 Agent 页（admin 可见，D17）——
+  1. 「今日交易计划」区块状态实时推进（triggered/executed），**计划卡展示校准
+     历史**（早盘 / 午盘校准的修正动作与理由，§11.5）；
+  2. 「Agent 执行动态」条（读 plan×order 关联与 observation 表：时间 / 标的 /
+     方向 / 数量 / 价格 / 触发原因[止盈|止损|买点|尾盘强检] / 执行概率与置信度），
+     shadow 模式的判断记录以「影子判断」标识区分，不下单但可见——影子期即
+     人工评审窗口；
+  3. 配置页显示当前 `intraday_exec_mode` 三态。
 
-### 11.3 盘中判定引入 Jev 的可行性调研（结论：暂缓，留缝）
+### 11.3 Jev（TypeSafe System One）深度调研（2026-09-28：快判断层采用）
 
-调研结论（2026-09-24）：**核心触发判定维持确定性代码，本期不引入 Jev；在
-`agent_exec_service` 预留可替换的条件判定缝，待其成熟与中文输入验证后再评估。**
+> **结论反转说明**：2026-09-24 首轮调研结论为「暂缓、留缝」，依据是当时把 Jev
+> 框定为「现价 vs 阈值」数值比较器——那确实是逆产品边界（官方明确无数值推理）。
+> 2026-09-28 任务重框为「**执行概率评估**」（分类 / 概率预测：区间内时机选择、
+> 止损噪声带判定、执行取舍），恰落入 Jev 能力甜区，**采用为 L1 快判断层**；
+> 数值比较 / 风控 / 状态机仍归确定性代码——边界不变，位置改变。
 
-- API 形态（官方）：`POST /v1/systemone`（Bearer），body `{state, model: "jev-latest",
-  questions: {id: Question}}` → `{answers: {id: Answer}, usage}`。题型 `noul`（是非 →
-  P(yes)）/ `choice`（单选）/ `score`（2-10 级有序打分），均带 confidence。
-  ~250ms 延迟，$0.042/M input tokens（输出免费），单请求 64k token 预算（state+最长
-  问句 ≤32k），1200 req/min——延迟与成本对 5 分钟轮询完全无压力。
-- **根本不匹配**：批次 8 的条件判定是「现价 vs 阈值」数值比较，而 Jev 官方明确
-  不支持数学/计数/数值比较（字面读题、无数值推理），把它当比较器用是逆着产品边界走，
-  答错无告警。
-- **可取场景（即预留的判断缝）**：阈值附近噪声带判定（现价贴着 `buy_zone_high`
-  算不算「触及买点」）、跳空/涨跌停/停牌等非常态盘面下的执行取舍、下单前护栏确认
-  （「此计划在当前盘面下是否仍应执行」）——这类语义判断 if-else 写不出，Jev 的
-  confidence 分档（只读 0.6 / 资金动作 0.9）机制可套用。
-- **暂缓的硬理由**：
-  1. 官方自述非英语输入「可用但更弱，需盯 confidence」——本方案 state 全中文盘面
-     描述，置信度校准性未经验证，而资金动作恰恰要求高置信可靠；
-  2. 产品早期访问阶段（别名 `jev-latest` 会漂移，阈值调好后须 pin `jev-1.13.0`
-     这类具体版本），供应商单一，无余额/配额查询端点，用超限只能靠 429 被动感知；
-  3. 长数组位置索引实测不可靠（150 项 27% 错位）——若批量问每只持仓的执行取舍，
-     必须逐项内嵌问句或键控对象，工程上可用但多一层踩坑面；
-  4. 风控纪律要求判定路径可测试、可回放、可审计，确定性代码天然满足，LLM 判定
-     缝启用时须另行补校准与回放机制。
-- 落地方式：条件判定实现为纯函数（输入计划 + 现价 + 盘面快照，输出 触发/不触发 +
-  原因），风控硬校验与状态机不依赖其内部实现；将来启用 Jev 只替换缝内实现，
-  不动批次 8 其余部分。本批次不新增任何外部依赖。
+**模型画像**（官方博客 2026-09-15 + 实操指南交叉）：
 
-**验收**：盘中模拟一个触达买点的标的 → 5 分钟内自主下单 → 计划状态推进 → 委托
-落 `paper_trade_order`（agent 账户，`order_source='agent'`）→ 风控约束生效（构造超
-仓位计划被拒）；尾盘强检与 expired 推进正确；非交易时段 SKIPPED。
+| 维度 | Jev | 对照（frontier LLM） |
+| --- | --- | --- |
+| 定位 | System One（Kahneman 快思考）——不做文本生成，只返回类型化概率判断 | System 2 慢推理 |
+| 端到端延迟 | 70–500ms | 3s–329s |
+| 成本 | 输入 $0.042/MTok，**输出免费** | 输入 $0.2–10/MTok + 输出约 5x |
+| 结构化输出错误 | 0%（by construction——不返回 schema 外的值） | 0.58%–45.5% |
+| 接口 | 唯一端点 `POST /v1/systemone`，body `{state, questions}`；SDK `typesafe-sdk`(Py) / `@typesafe-ai/sdk`(Node) | chat/completions 形状 |
+| 上下文 | state+questions 合计 64k token；state+最长问句 ≤32k | — |
+| 限速 | 250k token/s、1200 req/min（早期会变动，超限 429） | — |
+| 训练 | RLCD（按结果校准概率，非人类偏好）→ **confidence 聚合上有真实统计意义** | RLHF |
+| 托管 | 美国西海岸（国内调用 RTT ~150-250ms，分钟级节奏无感） | — |
+| 起家团队 | Diogo Almeida（ex-OpenAI，RLHF/InstructGPT 共同贡献者）；2026-09-15 发布，$40M（DCVC 领投） | — |
+
+**三种题型**（全部能力面，一次请求可并行问多题——speculative fan-out：第 N 题
+几乎只加 token 不加时延，官方 cookbook 13 题批量比逐题问 **12.2x 便宜、10.0x 快**）：
+
+- **Choice**：N 选一（≤255 项），返回 `choice` + `probabilities` + `confidence`；
+  应传入全集而非短名单，并设显式 `other` 项避免「硬选最近错的」。
+- **Score**：2–10 级有序量表（文字描述各级），返回 `score` 可落在级间（如 1.035）
+  + `confidence`。
+- **Noul**：是/否概率 0–1，**无 confidence 字段——数字本身即信念**。
+
+**按动作代价分档置信阈值**（RLCD 校准的直接应用）：高置信在聚合上确实高准度 →
+不做全局单一阈值，按动作代价分档（只读类 0.5 / 资金动作 0.85+ / 不足即移交人工
+或慢模型）——L1 的 0.6/0.85 分档即由此来。
+
+**官方自述失败模式**（"jaggedness" 页，对交易场景逐条落点）：
+
+1. **不是计算器**：无数学/计数/数值推理，日期是文本非有序量——价格穿越止损线
+   这类精确比较必须代码做（L0 边界确立的根据）；
+2. **字面读题**：否定词/范围词/隐含条件按字面理解——问句要写「你真正想要的那个
+   问题」，criteria 是 instruction 的延伸，两者不得矛盾；
+3. **context rot**：state 塞入与题面无关的内容精度即降——「retrieve and filter
+   in code first，只送题面需要的字段」（§11.1 state 组装纪律）；
+4. **state 不设防**：内容可被操纵为自己有利的答案——盘面数据全部来自自采管道
+   （非用户输入），注入面可控但须知悉；
+5. **不生成任何文字**（含理由）——审计 trail 靠「state 快照 + 概率 + 版本」
+   留痕（§11.1 observation 表），低置信案例由慢模型补写分析；
+6. **长数组位置索引不可靠**（150 项 27% 错位）——批量问逐计划执行取舍时键控
+   对象（plan_id 作键）而非数组序。
+
+**诚实计分卡**（采用时打折的依据）：评测为 TypeSafe 自跑未复现（且 ground truth
+= 两大 frontier 模型共识标注，量的是「一致性」）；67.8% 与 Sonnet 5 持平、约
+1/293 成本 1/195 延迟是自报数字；**「不能幻觉」= 不会返回 schema 外的值，
+会返回错误的合法值**——所以置信门控 + 全量留痕 + 影子期实测是硬要求而非可选项；
+价格可能为补贴（官方自述无法排除）；`jev-latest` 会漂移，阈值调好后必须 pin
+具体版本（`jev-1.13.0`）并记录响应 `model` 字段。
+
+**生态对照**（发布 48h 内案例，自报数字，取架构参考而非指标）：
+
+- **jev-trader**（做市机器人）：每 ~300ms 决策一次买卖，模型延迟 ~81ms，热循环
+  恰好两次 RPC——证明交易热循环可行，也证明我们的 60s tick 极其宽裕；
+- **jev-drone**（无人机）分层表——「风控归代码、判断归模型」的权威注脚：
+
+| 频率 | 层 | 归属 |
+| --- | --- | --- |
+| 500 Hz | 飞控 | 代码 |
+| 50 Hz | 安全反射 | **代码，永远** |
+| 2.5 Hz | 战术判断 | Jev，仅 advisory |
+
+  README 原话：Jev "cannot be the perception layer, and it cannot run at
+  control rate"——映射到本项目：行情感知（数据管道）、安全（风控硬校验）、
+  控制率（tick 循环与状态机）全归代码，Jev 只做战术判断。
+
+**中文输入风险（保留 2026-09-24 记录）**：官方自述非英语输入「可用但更弱，需盯
+confidence」——本项目 state 全中文盘面描述，置信校准性未经验证，资金动作恰恰
+要求高置信可靠；**影子期的核心目标之一就是实测中文盘面 state 的校准曲线**。
+
+**采用结论（三条硬约束）**：① 版本 pin + 响应版本号落库；② 按动作代价分档
+置信门控，资金动作 0.85 起步、不足即移交（L2/L3）；③ 判断全量留痕可回放——
+风控纪律（可测试/可回放/可审计）由「确定性代码 + 留痕回放」组合满足。
+
+**验收**：shadow 模式盘中触达买点标的 → tick 内产出留痕判断（observation 行含
+概率 + confidence + 版本）→ 切 active 后自主下单 → 计划状态推进 → 委托落
+`paper_trade_order`（agent 账户，`order_source='agent'`）→ 风控约束生效（构造超
+仓位计划被拒）；低置信案例正确抑制并留痕；尾盘强检与 expired 推进正确；非交易
+时段服务不运行。
+
+### 11.4 执行机制选型定案：慢思考 + 快反应双模型（2026-09-28）
+
+> **状态：已定案（D21/D22）。** 本节存档选型过程：2026-09-27 五方案调研与柜台
+> 条件单实测证据（对将来实盘迁移仍有参考价值）；2026-09-28 用户拍板——
+> **② 柜台条件单出局**（是解决方案但非期望方案，先不考虑；服务端触发语义受限
+> 与实盘可迁移性差的评估保留存档），采纳**慢思考 + 快反应双模型机制**落地为
+> 四层执行栈（§11.1）+ 盘中慢快校准（§11.5）。
+
+**调研背景（2026-09-27，两轮触发重评）**：① 讨论 Claude Code 的 sleep/wakeup
+机制（`ScheduleWakeup`：agent 一次运行结束时自定「下次唤醒时刻 + 唤醒 prompt」，
+同会话带着上下文续跑）能否让交易 Agent「开盘后自主持续运行」，摆脱纯定时任务
+唤醒；② 实测掘金仿真 REST 柜台的条件单能力。
+
+**条件单实测证据（agent 模拟盘真实柜台，2026-09-27）**：
+
+1. `orderType=3 + stopPrice` 柜台**受理并持久化**（stop_price 落委托对象，
+   status=3 挂起等触发）；周日非交易时段可隔夜挂单。
+2. 拒单语义证明柜台完整理解止损单：`price=21` 被当「触发后保护限价」按当日涨停价
+   校验拒绝——`[GMBROKER] 沪市的市价单委托,保护限价 21 不能高于涨停价 9.9`。
+3. 卖止损在**下单时点**校验可用持仓（T+1：当日买入当日不能挂卖止损）；A 股 T+1
+   下当日买入本就不能卖，不构成额外保护空窗（伪风险）。
+4. 官方文档佐证：paper-trading-doc 枚举 `OrderType_Stop = 3 止损止盈委托` +
+   order 对象 `stop_price` 字段，与本项目 REST 接入同源（§4.1）。
+5. 关键细节：挂起的止损单**不出现在 unfinished-orders**（仅 intraday-orders
+   可见，16:00 sync 数据源已覆盖）；触发后按「市价单 + 保护限价」成交（滑点
+   语义）；保护限价须在当日涨跌停界内，否则拒单（挂单时需按昨收自算边界）。
+
+**五方案对比**：
+
+| 方案 | 核心机制 | 触发位置 / 粒度 | 一句话评价 |
+| --- | --- | --- | --- |
+| ① 纯代码轮询（原 2026-09-24 设计，已废弃） | `*/5` 轮询 + 现价比阈值 + 自建下单 | 我们服务层 / 5 分钟 | 表达力最强，延迟与可用性最弱 |
+| ② 柜台条件单（**出局**，2026-09-28 拍板） | 盘前挂单：限价买（买点）/ 限价卖（止盈）/ stop 单（止损），盘后对账 | 掘金柜台 / tick | 触发质量与工程经济性最优，语义受限 |
+| ③ Agent 自主唤醒 | 自调度表（beat 扫描）或常驻进程，agent 自定节奏 | agent 自己 / 不可控 | 风险倒挂，不进执行层 |
+| ④ 混合分层（**终态形态，即 D21 落地**） | 确定性代码管触发与安全 + 判断模型管执行概率 + 慢模型管校准（§11.1/§11.5） | 分层 | 终态形态，已按双模型机制具体化 |
+| ⑤ 维持现状 | 计划生成 + 对话路径人工执行 | 人 | 闭环断在执行 |
+
+**各方案要点与风险**：
+
+- **① 轮询**：优——判定逻辑完全自主（区间 / 百分比 / 组合条件皆可表达，
+  可测试、可回放、可审计，风控纪律天然满足）；资金模型简单（触发才下单不冻结）；
+  柜台无关，实盘迁移可移植性最好。险——5 分钟粒度对跳空 / 急跌穿过止损价保护
+  差；触发可靠性绑定我们基建（worker 假活 / 队列积压 / 行情源封禁三项均有生产
+  前科）；48 轮 / 日 / agent 的外部行情依赖。
+- **② 条件单**：优——tick 级触发；触发不依赖我们在线（基础设施风险整体转移
+  柜台）；工程量更小（删轮询核心，对账基建 paper-trade-sync 已存在）；盘中零
+  请求零行情依赖。险——**条件语义表达力受限（最大真实风险）**：限价挂
+  `buy_zone_high` 意味「≤high 即成交」，买区下限约束丢失（跌破下沿照样买）；
+  stop 单仅固定触发价，无移动止损；触发 / 失效（GFD or GTC）/ 竞价时段行为是
+  黑盒需观察；限价买单挂出即冻结资金 → 风控须改为挂单前额度预演；挂单生命周期
+  管理（计划取消→撤挂、改期→撤挂重挂、异步拒单监控）；**实盘可迁移性差**（A 股
+  实盘条件单多为券商客户端本地触发，开放 API 支持不一，届时须回退①模式）。
+- **③ 自主唤醒**：sleep 机制本质是「延时重入」原语；本项目等价物为自调度表
+  （agent 任务尾部写「下次唤醒时刻 + 指令」行，beat 每分钟扫描派发）或常驻
+  asyncio 进程（仿 collector-stream：开盘自启、收盘退出、进程内动态 sleep）。
+  结论：**唤醒节奏交给 LLM 是风险倒挂**——止损是硬 deadline，LLM「决定」多睡
+  即错过且不可审计；常驻进程偏离 Celery 基建（日志 / 超时 / 重试 / 防假活全
+  自建，运维债重）。定位：不进执行层；远期仅作认知增强层（注意力自主：每轮
+  醒来决定看什么），且须配三条硬约束——唤醒次数 / 预算上限、最小间隔下限由
+  风控配置覆盖 LLM 决定、唤醒指令由确定性模板生成（防 agent 自写漂移）。
+- **④ 混合**：各取所长；但两套机制的职责边界本身成为新故障源（巡检发现挂单
+  丢失：自动重挂还是告警人工？）。仅当②观察期发现挂单丢失 / 拒单漏检问题时
+  再建巡检层，避免提前复杂化。
+- **⑤ 现状**：零技术风险，产品停滞（复盘执行 verdict 缺自动执行数据源）。
+
+**对比矩阵**：
+
+| 维度 | ① 轮询 | ② 条件单 | ③ 自主唤醒 | ④ 混合 | ⑤ 现状 |
+| --- | :-: | :-: | :-: | :-: | :-: |
+| 触发实时性 | 5 分钟 | tick 级 | LLM 决定（不可控） | tick 级 | — |
+| 触发可靠性 | 依赖我们基建 | 柜台 7×24 | 最弱 | 柜台 + 兜底 | — |
+| 条件表达力 | 任意 | 受柜台限制 | 任意 | 任意 + 缝 | — |
+| 工程量 | 中 | 小 | 大 | 中 | 零 |
+| 资金风控复杂度 | 低（触发才下单） | 中（挂单冻结） | 低 | 中 | — |
+| 可观测 / 可审计 | 强（全在自有日志） | 中（对账推断） | 弱 | 强 | — |
+| 实盘可迁移性 | 最好 | 差（依赖柜台特性） | 好 | 好 | — |
+
+**定案路径（D21，2026-09-28 拍板）**：慢思考 + 快反应双模型机制——
+
+| 模型 | 职责 | 承载 |
+| --- | --- | --- |
+| **慢思考**（System 2） | 盘前交易计划制定 → 盘中计划纠偏（两次校准，D22）→ 盘后复盘总结（日/周/月） | 既有 Celery 定时链（定期唤醒，无常驻负担），零新增基建 |
+| **快反应**（System 1） | 盘中按分时行情评估计划执行概率并执行：是否执行 / 执行概率多大 / 何时执行 | 盘中常驻服务 + Jev 快判断层（§11.1） |
+
+- 执行栈分层：**L0 确定性代码**（风控硬校验 + 精确价格穿越判定 + 时段/涨跌停 +
+  状态机）→ **L1 Jev**（区间内时机选择 / 止损噪声带判定 / 执行取舍，§11.3）→
+  **L2 慢模型升级**（低置信案例 → 盘中校准与盘后复盘）→ **L3 人工**（执行动态
+  可见 + 移出自选 / 取消计划）。
+- **落地拆两步**：批次 8a 影子模式——常驻服务全链路（数据轮询 + L0 + L1 Jev），
+  `intraday_exec_mode='shadow'` 只留痕不下单，跑 1-2 周积累「判断 vs 事后走势」
+  校准数据（同时实测中文盘面 state 的置信校准曲线，§11.3 风险项）；批次 8b
+  切 `active` 真实执行，置信阈值按校准数据定版。
+- ②（条件单）出局后其触发语义损失由 L1 补偿：买区下限约束 / 噪声带 / 移动止损
+  等柜台表达不了的条件，恰是「语义判断」，归 Jev 与慢模型；柜台仅保留成交回报
+  真相源角色（16:00 sync 不变）。遗留验证作废（现存挂起买止损单 SHSE.600000
+  不再依赖其结论；建议人工撤单清理）。
+- ③ 结论不变（不进执行层）；远期仅作认知增强层且须三条硬约束（存档保留）。
+
+### 11.5 盘中慢快交互：计划校准（早盘 / 午盘各一次，D22）
+
+**动机（用户 2026-09-28）**：慢思考的「盘中纠偏」职责不应只靠盘后复盘追溯——
+在交易时段内安排慢快模型交互，快反应把盘中观察上送，慢模型对当日计划做结构化
+修正，快反应下一 tick 即按新计划执行。纠偏从「盘后追溯」提前为「盘中两次实时
+校准」，与「分时驱动的执行概率判断」（快反应独立职责）正交。
+
+- **时点**：早盘 **10:20**（开盘噪声消退、早盘形态成形）；午盘 **13:20**（午盘
+  开盘表现确认）；均避开 11:30-13:00 午休与 14:50 尾盘强检窗口。cron：
+  `20 10 * * 1-5` / `20 13 * * 1-5` + trade_day_only，seed 两实例
+  （`agent_plan_calib_1020` / `agent_plan_calib_1320`），heavy 队列——**慢思考
+  侧沿用「Celery 定期唤醒」机制，零新增基建**（交互经库表中介，非自由对话）。
+- **交互契约（结构化双向）**：
+  - **快 → 慢「盘中观察报告」**：读 `paper_trade_exec_observation`（§11.1）当日
+    聚合——逐计划执行概率轨迹（开盘至今 N 次 tick 的 Noul/Choice 分布）、形态
+    标注（冲高回落 / 缩量横盘 / 放量突破…）、异常事件（跳空 / 停牌 / 涨跌停）、
+    已执行与被抑制动作清单。快反应只生产数据，不直接唤起慢模型。
+  - **慢 → 快「计划修正单」**：`run_structured` schema 校验（字段禁默认值）——
+    逐计划 `action ∈ {maintain, adjust, cancel, add}`，adjust 携带新买点区间 /
+    目标价 / 止损与修正理由；落库为新计划版本 + 修正记录（复盘 verdict 可归因
+    到校准动作）。快反应服务经版本号比较感知计划变更，无推送依赖。
+- **边界**：修正单必须过 **L0 风控硬校验**（校准不是风控旁路——慢模型也不能
+  绕过单票/总仓/笔数上限）；校准任务不缓存（盘中一次性语义，区别于盘后链的
+  缓存优先策略）；执行时段内修正仅限当日计划，不跨日。
+- **全周期闭环**（T-1 日计划 → T 日执行）：
+
+```
+T-1 19:30 agent-daily-plan（计划生成，全自主生效）
+T    09:30 开盘 → 快反应 tick 循环（L0+L1，分钟级）
+T    10:20 早盘校准（慢模型读观察报告 → 计划修正单）
+T    13:20 午盘校准（同上，含早盘全程回顾）
+T    14:50 尾盘强检（纯 L0，§11.1）
+T    16:00 sync → 19:00 复盘（校准动作参与分层归因）→ 19:30 次日计划
+```
+
+- **验收**：盘中构造计划偏离场景（如标的冲高回落）→ 10:20 校准产出修正单
+  （adjust/cancel）→ 快反应按新计划执行 → 计划卡展示校准历史（§11.2）；修正单
+  越风控红线被拒并留痕；非交易日 SKIPPED；校准动作在 19:00 复盘 verdict 中
+  可归因。
+
+### 11.6 判断模型接入层（System One 类 vendor 无关封装，D23）
+
+**动机（用户 2026-09-28）**：Jev 是「决策模型 / System One」品类的**首发者而非
+终局**——$40M 融资 + 品类命名本身就在邀请跟进者；生态已现接口复刻先例
+（openjev：开源决策服务器，同 wire API 复刻 noul/choice/score 三题型，
+typesafe-sdk 换 base_url 直用，465★；旧画像「4B 模型 / 166★」已按 2026-09-28
+实测修正，深度调研见 §11.7）。因此**押注接口契约（state + 类型化问题 →
+类型化概率答案 + confidence），不押注厂商**：L1 调用面与厂商客户端之间加一层
+薄封装，未来厂商跟进时切换成本 = 一个 adapter。
+
+- **内部契约**（`app/core/decision_model`，core 叶子模块，任何层可顶层导入）：
+  - 三题型 pydantic 模型 `JudgeChoice / JudgeScore / JudgeNoul`（语义对齐 §11.3，
+    字段禁默认值）；`DecisionModelClient.ask(state, questions) -> JudgeResponse`——
+    answers 按 question key 键控，携带 probabilities / confidence，且 `model_version`
+    / `usage` / `latency_ms` 一律随响应返回（observation 落库依赖，§11.1）。
+  - **adapter 协议隔离厂商**：`SystemOneAdapter` 首发（TypeSafe 直连；任意实现
+    systemone 形状的端点皆可配 base_url 直用——含将来自托管复刻端点）；
+    `OpenRouterAdapter` 实验备链（`typesafe/jev-router`，透传保真经探针验证后
+    才启用，§11.1）。未来其他厂商 = 新 adapter，内部契约与调用面零改动。
+- **配置面**：接入既有「模型配置」admin 体系——`llm_config` purpose 枚举扩展
+  `decision`（判断模型），base_url / api_key / 模型版本（pin 如 `jev-1.13.0`）/
+  超时全部 DB 真相源，admin 可改即时生效，与 chat / embedding 模型同源管理，
+  **不新增配置机制**；key 存储复用 llm_config 既有方式（无新增 env）。主备
+  复用 LLM 主备模式（PR #72 先例）：主 TypeSafe 直连，备 OpenRouter（验证后）。
+- **降级契约（advisory 语义的落地）**：判断模型不可用 / 超时**不是故障**——tick
+  循环照常运行，L1 跳过并在 observation 记录降级原因（jev-drone 分层：判断模型
+  缺席只降「战术判断」，L0 安全与控制率永在，§11.3）。禁止为可用性把 L1 判断
+  下沉进 L0——判断语义无法用确定性代码表达，降级到 L0 = 本 tick 不做该判断，
+  而非用阈值近似替代。
+- **题面归属**：L1 盘面判断题面（Choice criteria / Noul instruction）是调用方
+  契约的一部分，随调用方代码走（模块级常量注册表，UPPER_SNAKE，常量分层规范）；
+  **不放 YAML prompt 体系**——题面是 schema 契约而非自然语言提示词，改动走代码
+  评审。中文题面的置信校准性依赖影子期实测（§11.3 风险项）。
+- **平台级复用面（预留不实施）**：封装后「便宜的结构化判断」成为平台原语——
+  KB 相关性过滤、news guardrail、复盘快速归因等未来场景可直接复用 `ask()`；
+  本期只接 L1 一个消费方，抽象范围收敛在 client + adapter + 配置，不做多消费方
+  路由等提前设计。
+
+### 11.7 openjev 生态实测调研（2026-09-28：接口复刻实证，影子期对照臂采纳）
+
+> **消歧**：openjev 是重名集合。本节指 `razorback16/openjev`——开源决策服务器
+> （465★，2026-09-18 创建，Apache-2.0 代码与全部权重），同 wire API 复刻并路由
+> 多个开源模型。HF 上的 `openjev/openjev`（Qwen3.5 微调 27.4B，CC-BY-NC-4.0）是
+> **另一重名项目**，非商业许可不入选。§11.6 旧画像「4B 模型 / 166★」据此修正
+> （4B 是底座激活参数，总量 ~26B）。
+
+**接口复刻实证（D23 零改动）**：错误形状（422/400/429/529）对照线上 Jev API 逐条
+校验，`typesafe-sdk` 只换 `TYPESAFE_BASE_URL` 即用——「任意 systemone 形状端点配
+base_url 直用」被完全证实。两处纪律修正：
+
+- 版本 pin 用 `openjev-0.1`（当前 `openjev-latest` 的指向）：服务器接受 `jev-latest`
+  别名，但 Jev 的 pin 名（如 `jev-1.13.0`）会被 400 拒绝；pin 纪律同 §11.3 ①
+- usage 语义：DiffusionGemma 主模型下自动重读不加 token；小模型路由（Laya/JevK5）
+  **每题重复计 state token**——跨 vendor 的 usage 不可直接比较，observation 对比
+  只用概率与 confidence
+
+**confidence 公式不同 → 门控阈值是 per-vendor 资产**：openjev = `1 − H(p)/ln K`
+（归一化熵，纯形状，无结果校准承诺）vs Jev 的 RLCD 校准统计量——§11.3 的 0.6/0.85
+分档**不可跨模型移植**；且 openjev 对熵 >0.1 的槽位自动重读 3 次取平均
+（`samples:1` 可关），影子期对照需意识此延迟混杂变量。落地：`llm_config` decision
+purpose 配置阈值组按 `model_version` 键控，影子期产出各自校准值（D24）。
+
+**模型底座与中文**：DiffusionGemma 26B-A4B（Google DeepMind，Gemma 4 MoE，
+总 25.2B / 激活 3.8B，256K 上下文，35+ 语言，multimodal）——中文底子远好于 Jev 的
+「非英语更弱」，但「多语推理」≠「中文概率判断的置信校准」：**全生态（含 Jev 官方）
+均无中文校准数据**，影子期实测中文盘面 state 校准曲线的核心目标不变（§11.3 风险项）。
+
+**部署矩阵**：vLLM Docker（`razorback16/openjev:0.5.0`，NVIDIA ≥24GB，权重 18GB）；
+MLX Apple Silicon ~16GB（读串行，官方明示不用于 serving，仅本地实验）；**Codiv 免费
+托管 `https://api.codiv.ai/v1/systemone`（100M input tokens）**；小编码器路由
+（Verdict 151M / 512 tok、Laya 421M / 1024 tok，CPU 可跑）state 上限塞不下盘面题面，
+不入选。依赖的 vLLM PR #57250 已于 2026-09-22 合入上游（早期「依赖未合入扩展」的
+部署风险解除）。
+
+**结论三条（D24）**：① D23 封装零改动——openjev 是「押注接口契约」的首个完全实证；
+② 影子期加 openjev 对照臂、走 Codiv 托管：同 state 同题面只换 base_url 的严格 A/B
+（OpenRouter 的 chat 形状给不了的实验设计）；③ 备链顺序 = 主 Jev 直连 → 备
+openjev/Codiv → OpenRouter 降为实验线（透传保真仍需探针验证）；本期不自托管。
+
+**外部依赖相位（2026-09-28 鉴权探针修订，当日第二版）**：前版「OpenRouter 只有
+chat 形状，不能替代 Jev 验证位」的判断**已被鉴权探针实测推翻**——OpenRouter 托管
+的是 TypeSafe 生产 Jev 本体（`typesafe/jev-1.13`，provider=TypeSafe，uptime 100%；
+模型列表另有 `typesafe/jev-router` 路由器型号，endpoints 为空与本方案无关）。探针
+矩阵（真实 key 实调，2026-09-28）：
+
+| # | 探针 | 结果 |
+|---|------|------|
+| ① | 裸 HTTP `POST /api/v1/systemone` 真盘面三题型 | 200，wire 形状忠实（answers / legend / confidence / probabilities / usage.cost 全符 Jev 契约）；语义正确（情绪冰点 p=0.97 → 不加仓 noul=0.14 → 档位 zero）|
+| ② | pin 语义 | `jev-latest`（SDK 默认）→ 200 解析到 `typesafe/jev-1.13-20260917`；`typesafe/jev-1.13` 与日期快照 → 200；Jev 直连 pin `jev-1.13.0` → 400（自动加 `typesafe/` 前缀报不存在）|
+| ③ | 错误形状 | **成功路径忠实，错误路径被 OpenRouter 重包**：`{"error":{message,code}}` 信封、422 校验列表串化进 message、无鉴权 401 同信封（Jev 直连为 `{"detail":{...}}`）——适配器需 per-vendor 错误映射 |
+| ④ | `typesafe-sdk` 0.7.2 零改动 | ✅ 仅换 `base_url="https://openrouter.ai/api"` 全流程通；默认 pin 即中生产模型；类型化应答与裸 HTTP 同题近同分布（真模型正常抖动）；SDK 响应模型未映射 `id`/`provider`/`usage.cost`（适配器读原始体补齐）|
+| ⑤ | 响应头 | 无 `x-typesafe-request-id`，代之以 `X-Generation-Id`/`request-id`；body 内 id 仍为 Jev `gen-dec-*` 格式 |
+| ⑥ | 成本 | $0.042/MTok 纯输入与直连同价；单次探针 ~591 input tokens ≈ $0.000025；另有官方 Decisions API `POST /api/alpha/decisions`（一次多题型并行），备选面 |
+
+**修订后的相位**：开发期（8.0/8a）与影子期校准主臂直接用**现有 OpenRouter 账号**
+调生产 Jev——无需注册 TypeSafe；`SystemOneAdapter` 的校准数据天然可迁移（同生产
+模型，仅错误信封/头部差异，适配层吸收）。备链顺序修订：**主 OpenRouter/Jev → 备
+openjev/Codiv（对照臂本位不变）→ TypeSafe 直连注册押后**（仅当中间层的限流/
+计费/稳定性成为实测问题时启用）。Codiv 注册仍在影子期前完成（对照臂）；影子期
+A/B 相位由「openjev 先行、Jev 臂就位后起算」简化为「Jev 主臂 + openjev 对照臂
+同时就位」，1-2 周校准窗自影子期开始起算。影子期成本预估 <$5 不变。
 
 ## 12. 批次 9：经验沉淀闭环（复盘 → Agent 自有记忆 → 反哺）
 
@@ -749,7 +1096,7 @@ Agent 的私有资产，自动提取直接生效（无草稿/审核流转），�
 
 ### 12.1 数据底座
 
-迁移 `20260926e_agent_memory.sql`（幂等，同步 init-scripts）：
+迁移 `20260926e_agent_memory.sql`（幂等）：
 
 ```sql
 CREATE TABLE IF NOT EXISTS agent_memory (
@@ -811,15 +1158,20 @@ prompt 不再引用；手动沉淀一键 active（manual 标记）；重跑不�
 
 ## 14. 部署与验收纪律
 
-- 迁移先于代码滚动（新表无热表 DDL 风险，仍按纪律先跑迁移再换镜像；批次 7 的
-  `ALTER TABLE user_watchlist_group` 后重启 worker——asyncpg 语句缓存失效纪律）。
+- 迁移先于代码滚动（2026-09-28 起 migrate.sh 台账制三步时序：`docker compose up -d postgres`
+  等健康 → `bash docker/database/migrate.sh` → 换镜像起应用；存量库首跑 `applied=2`
+  幂等 no-op。批次 7 的 `ALTER TABLE user_watchlist_group` 后重启 worker——
+  asyncpg 语句缓存失效纪律）。
 - 生产 `.env`：`PAPER_TRADE_URL` 保留；`GMTRADE_TOKEN` / `GMTRADE_ACCOUNT_ID`
   **退役不部署**（D12）；确认 `credential_encryption_key` 已设置（proxy 密码加密
   同源，token 解密依赖）。
 - compose：paper-trade sidecar 服务移除凭证 env；web/worker/heavy 的
   `PAPER_TRADE_URL` 注入不变。
-- 批次 5 迁移 seed `trading_agent_config` 默认行（风控 20% / 80% / 10 笔 + 总闸开）；
-  风控参数真相源为 DB，不走 env。
+- 批次 5 迁移 seed `trading_agent_config` 默认行（风控 20% / 80% / 10 笔 + 盘中执行
+  三态默认 `shadow`，D21）；风控参数真相源为 DB，不走 env。
+- 批次 8 判断模型配置走「模型配置」admin（`llm_config` purpose=`decision`，D23）：
+  base_url / api_key / 模型版本 DB 真相源，无新增 env；常驻快反应服务容器与
+  worker/heavy 需能读取该配置。密钥不入库 git、不进聊天正文。
 - 每批次完成：`uv run mypy app/` + `uv run pytest -m unit` + `uv run ruff check .`；
   前端 `npm run build` + 类型检查。
 
@@ -835,9 +1187,9 @@ prompt 不再引用；手动沉淀一键 active（manual 标记）；重跑不�
 | D6 | 定时执行确认模式 | **全自主 + 事后通知**——计划生成即生效，不设人工审批；执行动态经页面可见（§11.2），人工干预手段 = 移出自选 / 取消计划 |
 | D7 | agent 分组形态 | **现有自选页内 Agent 分组**（`owner_type='agent'`），AI 徽标 + 依据可见，可移出不可加入 |
 | D8 | 记忆沉淀语义 | **落 Agent 自有记忆（`agent_memory`），不经 KB 审核流**：自动提取直接 active + 手动沉淀 active（source 标记区分）；人工干预 = 查看 / 停用 |
-| D9 | 盘中触发方式 | **5 分钟条件轮询 + 14:50 尾盘强检**（单任务内分模式） |
+| D9 | 盘中触发方式 | **5 分钟条件轮询 + 14:50 尾盘强检**（单任务内分模式）——**已被 D21 修订**：轮询升级为盘中常驻快反应服务（分钟级 tick），尾盘强检语义保留 |
 | D10 | 执行自主度风控 | 服务层硬校验参数化：单票 ≤20% / 总仓 ≤80% / 单日 ≤10 笔 / 禁 ST / T+1（默认值可在实施时调整） |
-| D11 | 盘中判定引入 Jev | **暂缓，留缝**——数值比较超出 Jev 能力边界，核心判定维持确定性代码；`agent_exec_service` 条件判定预留纯函数缝，待中文输入验证与产品成熟后再评估（§11.3） |
+| D11 | 盘中判定引入 Jev | **暂缓，留缝**（2026-09-24）——数值比较超出 Jev 能力边界，核心判定维持确定性代码；`agent_exec_service` 条件判定预留纯函数缝。**2026-09-28 结论反转（D21）**：任务重框为执行概率判断后落入 Jev 甜区，采用为 L1 快判断层；数值比较/风控仍归确定性代码（§11.3） |
 | D12 | 柜台凭证配置 | **入库配置，env 退役**——`paper_trade_account` 表（token Fernet 加密，复用 utils/crypto 与 proxy 先例）；sidecar 无状态化，凭证每请求头传递；`GMTRADE_TOKEN`/`GMTRADE_ACCOUNT_ID` 不再部署，`PAPER_TRADE_URL`（部署拓扑）保留 env |
 | D13 | 多租户账户 | **每用户自有账户自配**（页内配置入口，未配置展示使用方法引导）；页面按账户展示（多账户选择器）；counter account 全局唯一防共享；每用户上限 10 个；有本地数据的账户只可停用不可删 |
 | D14 | 人机账户关系 | **人机分账户**——agent 账户后台指定且全局唯一（部分唯一索引兜底），人工下单/撤单对其禁用（403）；人用自有其他账户手动交易，双净值曲线可对比；委托表 `order_source`（manual/agent）留归因过滤基础 |
@@ -847,3 +1199,7 @@ prompt 不再引用；手动沉淀一键 active（manual 标记）；重跑不�
 | D18 | 工具归属 | **交易写工具从侧边栏助手剥离，交易 Agent 专属**（工具面按批次渐进注册）；对话路径（ask_user 确认）与定时路径（全自主）共用服务层下单出口；复用现有线程/runs/SSE/ask_user 基建，新增 agent 类型隔离 |
 | D19 | 配置面 | `trading_agent_config` 单例表（admin 可改）：**模型选择**（关联 llm_config，对话/计划/复盘共用）+ **风控参数**（单票/总仓/单日笔数，DB 真相源）+ **自主执行总闸**（关闭则批次 8 轮询 SKIPPED）；定时任务启停复用采集管理既有开关，不重复建设 |
 | D20 | 批次优先级 | **人工交易体验先行**（2026-09-24）——新增批次 4「人工交易体验优化」（§7），Agent 闭环（会话/复盘/选股计划/执行/记忆）整体顺延为批次 5-9；人工体验对标同花顺核心路径（行情驱动下单 / 确认弹窗 / 状态自动推进 / 账户健康透明），不做五档盘口与人工条件单 |
+| D21 | 批次 8 执行架构（2026-09-28） | **慢思考 + 快反应双模型机制**——慢思考 = 既有 Celery 定时链（盘前计划 / 盘中校准 / 盘后复盘，定期唤醒零新增基建）；快反应 = 盘中常驻服务四层栈：L0 确定性风控与价格穿越判定 + L1 Jev 执行概率判断 + L2 低置信升级慢模型 + L3 人工干预面；柜台条件单路径**出局**（用户拍板：非期望方案，存档 §11.4）；Jev 由「暂缓」反转为「快判断层采用」（§11.3，三条硬约束：版本 pin / 分档置信门控 / 判断全留痕）；落地 8a 影子模式（1-2 周校准）→ 8b active（§11.1/§11.4） |
+| D22 | 盘中慢快交互（2026-09-28） | **早盘/午盘各一次计划校准**（10:20 / 13:20，Celery heavy 派发两实例）——快反应供「盘中观察报告」（observation 表当日聚合），慢模型出结构化「计划修正单」（maintain/adjust/cancel/add，schema 校验落库新版本），修正单过 L0 风控硬校验后生效；校准动作在盘后复盘 verdict 中可归因（§11.5） |
+| D23 | 判断模型封装（2026-09-28） | **接口契约 vendor 无关**——Jev 是 System One 品类首发者非终局（openjev 已复刻接口模式），押注接口（state + 类型化问题 → 概率答案 + confidence）不押注厂商：内部契约 `app/core/decision_model`（三题型 + `ask()`，版本/用量随响应返回），adapter 隔离厂商（TypeSafe 直连首发 / OpenRouter 实验备链 / 未来厂商 = 新 adapter）；配置接入「模型配置」admin（`llm_config` purpose 扩展 `decision`，DB 真相源无新增 env），主备复用 LLM 主备模式；双路失败**降级纯 L0**（advisory 语义，禁止用阈值近似替代判断）（§11.6） |
+| D24 | 影子期对照臂与备链（2026-09-28） | **影子模式加 openjev 对照臂，走 Codiv 免费托管**（`api.codiv.ai/v1/systemone`，100M input tokens）——同 wire API、同 state 同题面、只换 base_url 的严格 A/B，实测中文盘面 state 校准曲线（Jev 官方确认 CJK 偏弱，全生态无中文校准数据）；备链顺序（2026-09-28 探针修订）= **主 OpenRouter/Jev**（`typesafe/jev-1.13` 生产同款）→ 备 openjev/Codiv（切换成本 = base_url + pin `openjev-0.1`）→ TypeSafe 直连注册押后；**门控阈值是 per-vendor 资产**（openjev confidence = `1−H(p)/ln K` 纯熵形状，0.6/0.85 分档不可跨模型移植，decision 阈值组按 model_version 键控）；本期不自托管；**外部依赖相位（2026-09-28 探针修订）**：OpenRouter 透传保真实证成立（鉴权探针矩阵见 §11.7）——主臂 = 现有 OpenRouter 账号调生产 Jev，无需注册 TypeSafe；校准窗自影子期开始起算（Jev 主臂与 openjev 对照臂同时就位）；TypeSafe 直连注册押后至中间层实测问题出现（§11.7） |

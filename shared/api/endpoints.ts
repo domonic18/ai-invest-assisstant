@@ -215,6 +215,8 @@ export const ENDPOINTS = {
     accountSettings: `${API_BASE}/admin/settings/account`,
     stocks: `${API_BASE}/admin/stocks/`,
     stock: (id: number | string) => `${API_BASE}/admin/stocks/${id}`,
+    stockConcepts: `${API_BASE}/admin/stock-concepts/`,
+    stockConcept: (id: number | string) => `${API_BASE}/admin/stock-concepts/${id}`,
     reports: `${API_BASE}/admin/reports/`,
     reportStorageSummary: `${API_BASE}/admin/reports/storage-summary`,
     reportCleanup: `${API_BASE}/admin/reports/cleanup-old`,
@@ -347,6 +349,8 @@ export const ENDPOINTS = {
       `${API_BASE}/admin/trading-agent/${agentKey}/dates`,
     tradingAgentPlans: (agentKey: string) =>
       `${API_BASE}/admin/trading-agent/${agentKey}/plans`,
+    tradingAgentObservations: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/observations`,
     tradingAgentPlanCancel: (agentKey: string, planId: number | string) =>
       `${API_BASE}/admin/trading-agent/${agentKey}/plans/${planId}/cancel`,
     tradingAgentSelections: (agentKey: string) =>

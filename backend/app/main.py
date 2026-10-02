@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Receive, Send
@@ -104,6 +105,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# SPA 静态产物 ~6MB 无压缩经 SCF 是冷启动首屏主瓶颈；文本类 gzip ~75%，
+# API 大 JSON 一并受益。个人流量级运行时压缩 CPU 可忽略，故取中间件而非
+# 构建期预压缩产物（等压缩比下后者只增构建/服务双份逻辑）
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 if settings.force_forwarded_https:
     app.add_middleware(ForceForwardedHttpsMiddleware)

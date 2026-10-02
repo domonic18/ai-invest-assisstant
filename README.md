@@ -74,7 +74,7 @@ ai-invest-assisstant/
 │   ├── collector/              # 采集镜像（beat/worker/stream/CLI）
 │   ├── signer/                 # douyin-signer 签名 sidecar
 │   ├── paper-trade/            # 掘金仿真 REST 网关 sidecar
-│   └── database/               # init-scripts + migrations（幂等 SQL）
+│   └── database/               # migrations（schema 单一真相源）+ migrate.sh（迁移 runner）
 ├── docs/                       # arch（终态架构）/ plan（计划）/ requirement / prototypes
 ├── qa/                         # 黑盒集成 QA 测试（独立 uv 项目）
 ├── CLAUDE.md / backend/CLAUDE.md / web/CLAUDE.md   # AI 上下文
@@ -88,10 +88,14 @@ ai-invest-assisstant/
 ```bash
 # 本地全栈（docker compose）
 cp .env.example .env
-docker compose up -d          # web :9000，健康检查 /health
+docker compose up -d postgres     # 先起库，等健康
+bash docker/database/migrate.sh   # 建库/迁移（台账制，宿主机无 psql 自动走容器内执行）
+docker compose up -d              # web :9000，健康检查 /health
 
 # 生产服务器（显式 prod 叠加，服务器不构建）
 docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d postgres --wait
+bash docker/database/migrate.sh
 docker compose -f docker-compose.prod.yml up -d --wait --remove-orphans --no-build
 ```
 

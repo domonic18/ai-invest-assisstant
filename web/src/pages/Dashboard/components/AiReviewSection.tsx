@@ -1,7 +1,6 @@
 import { RobotOutlined } from '@ant-design/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button, Card, Empty, Input, message, Popconfirm, Tag, Typography } from 'antd'
-import dayjs from 'dayjs'
 import { useEffect, useRef, useState } from 'react'
 
 import { NonTradingDayError, saveMarketReviewSection } from '@/api/market'
@@ -10,6 +9,7 @@ import { useMarketReview } from '@/hooks/useMarket'
 import { queryKeys } from '@/hooks/queryKeys'
 import { usePageAssistantResult } from '@/hooks/usePageAssistantResult'
 import { useAssistantStore } from '@/stores/assistant'
+import { bjNow } from '@/utils/beijing'
 import { DATE_FORMAT } from '@/utils/formatters'
 import { PAGE_EVENT_TYPES, type MarketReview, type MarketReviewSection } from '@ai-invest/shared'
 
@@ -196,8 +196,8 @@ export function AiReviewSection({ tradeDate, viewDate }: AiReviewSectionProps) {
   if (!data) {
     // 今日且未收盘时不提供手动生成入口：盘前/盘中数据未就绪，避免半成品
     // 复盘落库占用当日缓存（18:35 定时任务会直接命中缓存跳过重生成）
-    const isToday = viewDate === dayjs().format(DATE_FORMAT)
-    const beforeClose = isToday && dayjs().hour() < 15
+    const isToday = viewDate === bjNow().format(DATE_FORMAT)
+    const beforeClose = isToday && bjNow().hour() < 15
     return (
       <Card
         variant="borderless"

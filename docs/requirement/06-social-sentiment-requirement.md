@@ -146,7 +146,7 @@ X（推特）发文采集——V1.1 砍掉（官方 API 配额成本收益不成
 | 合规 | 不存储/分发视频原片与完整文稿镜像，展示分析结论+摘要+原文外链；内容版权归原平台与作者；分析结论标注"AI 生成，非投资建议" |
 | 可用性 | 社媒渠道故障不影响资讯中心其他视图与既有采集；新任务全部纳入 F-MON 健康监测与告警 |
 | 时区 | 采集调度北京时间；时间戳 aware UTC；展示按用户本地化（dayjs，不硬编码时区） |
-| 数据 | 新表 `social_account` / `social_post` / `social_sentiment`（幂等 SQL 迁移规范，同步 init-scripts） |
+| 数据 | 新表 `social_account` / `social_post` / `social_sentiment`（幂等 SQL 迁移规范） |
 
 ## 7. 功能边界
 

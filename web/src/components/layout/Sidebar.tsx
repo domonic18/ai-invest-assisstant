@@ -2,7 +2,6 @@ import {
   AlertOutlined,
   AppstoreOutlined,
   BarChartOutlined,
-  BlockOutlined,
   CloudServerOutlined,
   DatabaseOutlined,
   DashboardOutlined,
@@ -24,7 +23,6 @@ import {
   StarOutlined,
   TeamOutlined,
   ThunderboltOutlined,
-  UserOutlined,
   WeiboOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
@@ -45,8 +43,9 @@ import {
 
 type MenuItem = Required<MenuProps>['items'][number]
 
-// 导航信息架构：检测 → 分析 → 设置；知识库入口在右上角（/kb），投资日历在右上角。
-// 个股监测经顶部搜索进入（/stock/:code 无默认标的，不设静态导航项）。
+// 导航信息架构：检测 → 分析 → 设置；知识库/技能广场/投资日历入口在右上角 Header。
+// 个人设置走右上角头像下拉（侧边栏不重复陈列）；个股监测经顶部搜索进入
+// （/stock/:code 无默认标的，不设静态导航项）。
 const DETECTION_MENU_ITEMS: MenuItem[] = [
   { key: '/macro-monitor', icon: <GlobalOutlined />, label: '宏观指数' },
   { key: '/capital-flow', icon: <FundOutlined />, label: '资金流向' },
@@ -66,11 +65,12 @@ const ADMIN_MENU_ITEMS: MenuItem[] = [
   { key: '/admin', icon: <DashboardOutlined />, label: '管理总览' },
   { key: '/admin/users', icon: <TeamOutlined />, label: '用户管理' },
   { key: '/admin/usage-dashboard', icon: <PieChartOutlined />, label: '用量看板' },
-  { key: '/admin/stocks', icon: <BarChartOutlined />, label: '股票管理' },
+  // 股票管理与题材映射合并为双 tab 页（/admin/stocks?tab=stocks|concepts）
+  { key: '/admin/stocks', icon: <BarChartOutlined />, label: '股票与题材' },
   { key: '/admin/reports', icon: <FileTextOutlined />, label: '报告管理' },
   { key: '/admin/news', icon: <ReadOutlined />, label: '资讯管理' },
   { key: '/admin/model-configs', icon: <RobotOutlined />, label: '模型配置' },
-  { key: '/admin/knowledge-base', icon: <DatabaseOutlined />, label: '知识库' },
+  { key: '/admin/knowledge-base', icon: <DatabaseOutlined />, label: '知识中心' },
   { key: '/admin/proxy-configs', icon: <CloudServerOutlined />, label: '代理配置' },
   { key: '/admin/ai-results', icon: <FileDoneOutlined />, label: '分析结果' },
   { key: '/admin/collector', icon: <PlayCircleOutlined />, label: '采集管理' },
@@ -144,36 +144,34 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
     }
   }, [isAdminPath])
 
-  const settingsChildren: MenuItem[] = [
-    { key: '/settings', icon: <UserOutlined />, label: '个人设置' },
-    { key: '/skills', icon: <BlockOutlined />, label: '技能广场' },
-    ...(isAdmin
-      ? [
-          {
-            key: ADMIN_GROUP_KEY,
-            icon: <SettingOutlined />,
-            label: '后台管理',
-            // 点分组标题在展开/收起之外默认进入管理总览（onTitleClick 与
-            // antd 默认 toggle 叠加生效，折叠弹出态同样走此行为）
-            onTitleClick: () => {
-              navigate('/admin')
-              onNavigate?.()
-            },
-            children: withBadge(
-              withBadge(
-                ADMIN_MENU_ITEMS,
-                '/admin/users',
-                '用户管理',
-                pendingCount,
-              ),
-              '/admin/collector',
-              '采集管理',
-              healthBadgeCount,
+  // 设置组仅 admin 可见：个人设置/技能广场已上收右上角（头像下拉 / Header icon），
+  // 侧边栏只留后台管理子菜单
+  const settingsChildren: MenuItem[] = isAdmin
+    ? [
+        {
+          key: ADMIN_GROUP_KEY,
+          icon: <SettingOutlined />,
+          label: '后台管理',
+          // 点分组标题在展开/收起之外默认进入管理总览（onTitleClick 与
+          // antd 默认 toggle 叠加生效，折叠弹出态同样走此行为）
+          onTitleClick: () => {
+            navigate('/admin')
+            onNavigate?.()
+          },
+          children: withBadge(
+            withBadge(
+              ADMIN_MENU_ITEMS,
+              '/admin/users',
+              '用户管理',
+              pendingCount,
             ),
-          } as MenuItem,
-        ]
-      : []),
-  ]
+            '/admin/collector',
+            '采集管理',
+            healthBadgeCount,
+          ),
+        } as MenuItem,
+      ]
+    : []
 
   const items: MenuItem[] = [
     { key: '/workbench', icon: <AppstoreOutlined />, label: '工作台' },

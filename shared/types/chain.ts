@@ -122,6 +122,13 @@ export interface ChainAlertStockRef {
   changePct: number | null
 }
 
+/** 产业链提醒引用的信源条目。 */
+export interface ChainAlertSource {
+  title: string
+  source: string
+  publishDate: string
+}
+
 /** 产业链提醒（客户端视图模型）。 */
 export interface ChainAlert {
   industry: string
@@ -131,6 +138,7 @@ export interface ChainAlert {
   description: string
   affectedSegments: string[]
   relatedStocks: ChainAlertStockRef[]
+  sources: ChainAlertSource[]
   signalDate: string
   createdAt: string
 }
@@ -263,6 +271,13 @@ export interface ApiChainAlertStockRef {
   changePct: number | null
 }
 
+/** 产业链提醒引用的信源条目（wire camelCase）。 */
+export interface ApiChainAlertSource {
+  title: string
+  source: string
+  publishDate: string
+}
+
 export interface ApiChainAlert {
   industry: string
   alertType: string
@@ -271,6 +286,7 @@ export interface ApiChainAlert {
   description: string
   affectedSegments: string[]
   relatedStocks: ApiChainAlertStockRef[]
+  sources?: ApiChainAlertSource[]
   signalDate: string
   createdAt: string
 }

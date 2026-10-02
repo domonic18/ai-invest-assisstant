@@ -59,6 +59,11 @@ class EastmoneyGlobalIndexCollector(PostgresCollector):
             if meta["data_source"] == "eastmoney"
             and (not symbols or code in set(symbols))
         ]
+        if history_days:
+            # 历史双路仅覆盖 DXY（push2his）与 GC00Y（akshare），其余 eastmoney
+            # 代码会落入 _gold_history 被误标为 GC00Y，其历史由各自渠道负责
+            wanted = {"DXY", "GC00Y"}
+            codes = [code for code in codes if code in wanted]
         if not codes:
             return []
         items: list[dict[str, Any]] = await run_in_thread(

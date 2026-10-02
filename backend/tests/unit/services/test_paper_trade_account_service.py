@@ -134,23 +134,23 @@ class TestUpdateAccount:
 @pytest.mark.unit
 class TestDeleteAccount:
     @pytest.mark.asyncio
-    async def test_rejects_when_has_orders(self) -> None:
+    async def test_rejects_when_bound_to_agent(self) -> None:
+        """绑定交易 Agent 的账户仍拒绝删除（会断 Agent 交易循环），须先解绑。"""
         session = MagicMock()
         session.get = AsyncMock(
-            return_value=SimpleNamespace(id=5, user_id=1)
+            return_value=SimpleNamespace(id=5, user_id=1, agent_key="short-line")
         )
-        session.scalar = AsyncMock(side_effect=[7, None, None])  # 委托表命中
 
-        with pytest.raises(ConflictError, match="禁止删除"):
+        with pytest.raises(ConflictError, match="解除绑定"):
             await svc.delete_account(session, 1, 5)
         session.delete.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_deletes_when_no_data(self) -> None:
+    async def test_deletes_even_with_trade_data(self) -> None:
+        """柜台已销户的账户允许删除；历史交易数据保留在库（孤儿行不可见）。"""
         session = _session()
-        account = SimpleNamespace(id=5, user_id=1)
+        account = SimpleNamespace(id=5, user_id=1, agent_key=None)
         session.get = AsyncMock(return_value=account)
-        session.scalar = AsyncMock(side_effect=[None, None, None])
 
         await svc.delete_account(session, 1, 5)
         session.delete.assert_awaited_once_with(account)

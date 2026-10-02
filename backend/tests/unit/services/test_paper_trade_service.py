@@ -215,6 +215,25 @@ class TestWireMappers:
         # 柜台给 profit 缺 profit_rate 时本地补算：-16/(12.34*100)*100
         assert row["profit_rate"] == Decimal("-1.2966")
 
+    def test_position_wire_row_counter_real_shape(self) -> None:
+        """掘金真实行键 vwap=成本/price=最新价/fpnl=浮盈，不得错把现价当成本。"""
+        row = mappers.position_wire_row(
+            {
+                "symbol": "SHSE.600000",
+                "side": 1,
+                "volume": 300,
+                "available": 300,
+                "vwap": 8.933333333333334,
+                "price": 9.21,
+                "fpnl": 83.0,
+                "market_value": 2763.0,
+            }
+        )
+        assert row["avg_price"] == Decimal("8.9333")
+        assert row["last_price"] == Decimal("9.2100")
+        assert row["profit"] == Decimal("83.00")
+        assert row["market_value"] == Decimal("2763.00")
+
 
 @pytest.mark.unit
 class TestGetOverview:
@@ -273,6 +292,39 @@ class TestGetOverview:
         client.get_cash.assert_awaited_once_with(_CRED)
 
     @pytest.mark.asyncio
+    async def test_drops_closed_position_stub_rows(self) -> None:
+        """已平仓持仓以 volume=None stub 行返回，不进「当前持仓」。"""
+        client = MagicMock()
+        client.get_cash = AsyncMock(return_value={})
+        client.get_positions = AsyncMock(
+            return_value=[
+                {"symbol": "SHSE.600815", "volume": None, "vwap": 3.85, "price": 3.81},
+                {
+                    "symbol": "SHSE.600000",
+                    "volume": 300,
+                    "available": 300,
+                    "vwap": 8.93,
+                    "price": 9.21,
+                },
+            ]
+        )
+        client.get_unfinished_orders = AsyncMock(return_value={})
+        session = MagicMock()
+        session.execute = AsyncMock(return_value=MagicMock(all=lambda: []))
+
+        with (
+            patch.object(client_mod, "get_settings", lambda: _settings()),
+            patch.object(client_mod, "PaperTradeClient", lambda url: client),
+            patch.object(
+                svc.account_service, "credentials_for", lambda account: _CRED
+            ),
+        ):
+            payload = await svc.get_overview(session, _account(account_id=7))
+
+        codes = [p["stock_code"] for p in payload["positions"]]
+        assert codes == ["600000"]
+
+    @pytest.mark.asyncio
     async def test_t1_available_deducts_today_buys(self) -> None:
         """掘金 available 含当日买入（T+1 不符），overview 须扣减本地今日成交买入。"""
         client = MagicMock()
@@ -283,8 +335,8 @@ class TestGetOverview:
                     "symbol": "SZSE.002520",
                     "volume": 4000,
                     "available_volume": 4000,
-                    "price": 6.45,
-                    "last_price": 6.47,
+                    "vwap": 6.45,
+                    "price": 6.47,
                     "market_value": 25800.0,
                 },
                 {
@@ -292,8 +344,8 @@ class TestGetOverview:
                     "symbol": "SHSE.600000",
                     "volume": 500,
                     "available_volume": 500,
-                    "price": 10.0,
-                    "last_price": 10.5,
+                    "vwap": 10.0,
+                    "price": 10.5,
                 },
             ]
         )
@@ -326,11 +378,12 @@ class TestGetOverview:
         client.get_positions = AsyncMock(
             return_value=[
                 {
+                    # 掘金真实行键：vwap=成本、price=最新价（float32 尾噪声）
                     "symbol": "SZSE.002520",
                     "volume": 4000,
                     "available_volume": 4000,
-                    "price": 6.449999809265137,
-                    "last_price": 6.46999979019165,
+                    "vwap": 6.449999809265137,
+                    "price": 6.46999979019165,
                     "market_value": 25799.999237060547,
                 }
             ]

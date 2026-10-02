@@ -5,6 +5,7 @@ import { message } from 'antd'
 
 import type {
   AgentOverviewResponse,
+  ApiAgentMemoryCreateRequest,
   ApiAgentMemoryUpdateRequest,
   TradingAgentCreateRequest,
   TradingAgentProfileUpdateRequest,
@@ -15,11 +16,14 @@ import { fetchLLMConfigs } from '@/api/modelConfig'
 import {
   cancelTradingAgentPlan,
   createTradingAgent,
+  createTradingAgentMemory,
   deleteTradingAgent,
+  deleteTradingAgentMemory,
   fetchAgentOverview,
   fetchTradingAgentConfig,
   fetchTradingAgentDates,
   fetchTradingAgentMemories,
+  fetchTradingAgentObservations,
   fetchTradingAgentPlans,
   fetchTradingAgentPrompt,
   fetchTradingAgentPromptTemplates,
@@ -33,13 +37,19 @@ import {
   updateTradingAgentMemoryStatus,
 } from '@/api/tradingAgent'
 import { queryKeys } from '@/hooks/queryKeys'
+import { isMarketOpen } from '@/pages/PaperTrade/tradingRules'
 
 /** 全部注册 Agent 的总览聚合（贾维斯总览页传 refetchInterval 轮询）。 */
-export function useAgentOverview(options?: { refetchInterval?: number | false }) {
+export function useAgentOverview(options?: {
+  refetchInterval?: number | false
+  /** 侧边栏切换器按需拉取（非 admin 不触发该 admin 聚合端点） */
+  enabled?: boolean
+}) {
   return useQuery({
     queryKey: queryKeys.tradingAgent.agents,
     queryFn: fetchAgentOverview,
     refetchInterval: options?.refetchInterval,
+    enabled: options?.enabled,
   })
 }
 
@@ -176,6 +186,52 @@ export function useTradingAgentPlans(agentKey: string, tradeDate?: string) {
   })
 }
 
+/** 盘中执行观测分页（执行动态 Tab；isLatest 时 60s 轮询，历史日期不轮询）。 */
+export function useTradingAgentObservations(
+  agentKey: string,
+  params: {
+    tradeDate?: string
+    significant?: boolean
+    page?: number
+    pageSize?: number
+    isLatest?: boolean
+  } = {},
+) {
+  const { tradeDate, significant = true, page = 1, pageSize = 20, isLatest = false } = params
+  return useQuery({
+    queryKey: queryKeys.tradingAgent.observations(agentKey, tradeDate, significant, page),
+    queryFn: () =>
+      fetchTradingAgentObservations(agentKey, { tradeDate, significant, page, pageSize }),
+    staleTime: 30 * 1000,
+    refetchInterval: isLatest ? 60 * 1000 : false,
+  })
+}
+
+/** 总览页决策流拉取条数：右栏最多渲染 8 张卡，多拉 4 条作 latestOrder 取数余量。 */
+const FEED_OBSERVATION_LIMIT = 12
+
+/**
+ * 总览页实时决策流：全部逐 tick（含无动作心跳行）。
+ * 盘中 15s 快轮询；非盘中 60s 慢轮询——恒 truthy 让每个周期重估 isMarketOpen()，
+ * 否则返回 false 停表后开盘（9:30）无法自动恢复轮询。
+ */
+export function useLiveAgentObservations(agentKey: string | null) {
+  return useQuery({
+    queryKey: agentKey
+      ? queryKeys.tradingAgent.observations(agentKey, undefined, false, 1, FEED_OBSERVATION_LIMIT)
+      : ['trading-agent', 'observations', 'disabled'],
+    queryFn: () =>
+      fetchTradingAgentObservations(agentKey!, {
+        significant: false,
+        page: 1,
+        pageSize: FEED_OBSERVATION_LIMIT,
+      }),
+    enabled: !!agentKey,
+    staleTime: 10 * 1000,
+    refetchInterval: () => (isMarketOpen() ? 15 * 1000 : 60 * 1000),
+  })
+}
+
 /** 人工取消 active 计划（triggered 后端拒绝）。 */
 export function useCancelTradingAgentPlan(agentKey: string) {
   const queryClient = useQueryClient()
@@ -218,6 +274,19 @@ export function useTradingAgentMemories(agentKey: string) {
   })
 }
 
+/** 手动沉淀记忆（source='manual'，立即 active 注入次日计划）。 */
+export function useCreateTradingAgentMemory(agentKey: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: ApiAgentMemoryCreateRequest) => createTradingAgentMemory(agentKey, data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.memories(agentKey) })
+      message.success('经验已沉淀，将在次日计划生成时注入')
+    },
+    onError: (error: Error) => message.error(error.message),
+  })
+}
+
 /** 编辑记忆（标题/正文/类型）。 */
 export function useUpdateTradingAgentMemory(agentKey: string) {
   const queryClient = useQueryClient()
@@ -226,7 +295,20 @@ export function useUpdateTradingAgentMemory(agentKey: string) {
       updateTradingAgentMemory(agentKey, memoryId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.memories(agentKey) })
-      message.success('记忆已保存')
+      message.success('经验已保存')
+    },
+    onError: (error: Error) => message.error(error.message),
+  })
+}
+
+/** 删除记忆（物理删除；复盘沉淀条目若同标题经验再现会重新生成）。 */
+export function useDeleteTradingAgentMemory(agentKey: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (memoryId: number) => deleteTradingAgentMemory(agentKey, memoryId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.memories(agentKey) })
+      message.success('经验已删除')
     },
     onError: (error: Error) => message.error(error.message),
   })
@@ -240,7 +322,7 @@ export function useUpdateTradingAgentMemoryStatus(agentKey: string) {
       updateTradingAgentMemoryStatus(agentKey, memoryId, status),
     onSuccess: (_, vars) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.memories(agentKey) })
-      message.success(vars.status === 'active' ? '记忆已启用' : '记忆已停用，次日不再注入')
+      message.success(vars.status === 'active' ? '经验已启用' : '经验已停用，次日不再注入')
     },
     onError: (error: Error) => message.error(error.message),
   })

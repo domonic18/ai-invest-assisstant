@@ -48,6 +48,7 @@ def _content_dict() -> dict:
                 "basis": "当日复盘解读 + 涨停归因",
             }
         ],
+        "stand_aside_reason": None,
     }
 
 
@@ -66,7 +67,7 @@ class TestSchemaContract:
     def test_content_fields_all_required(self) -> None:
         """LLM 结构化输出契约铁律：字段禁默认值（默认值不进 required）。"""
         required = set(AgentDailyPlanContent.model_json_schema()["required"])
-        assert {"trade_date", "selections", "plans"} <= required
+        assert {"trade_date", "selections", "plans", "stand_aside_reason"} <= required
 
     def test_plan_item_fields_all_required(self) -> None:
         required = set(PlanTradePlanItem.model_json_schema()["required"])
@@ -81,6 +82,23 @@ class TestSchemaContract:
             "position_pct",
             "basis",
         } <= required
+
+    def test_stand_aside_reason_required_when_both_empty(self) -> None:
+        """空仓必答约束：双空且原因空白即违约（ValidationError 触发结构化输出重试）。"""
+        base = {"trade_date": _TRADE_DATE.isoformat(), "selections": [], "plans": []}
+        with pytest.raises(ValueError, match="stand_aside_reason"):
+            AgentDailyPlanContent.model_validate(base)
+        with pytest.raises(ValueError, match="stand_aside_reason"):
+            AgentDailyPlanContent.model_validate({**base, "stand_aside_reason": "   "})
+        content = AgentDailyPlanContent.model_validate(
+            {**base, "stand_aside_reason": "大盘系统性风险，空仓观望"}
+        )
+        assert content.stand_aside_reason == "大盘系统性风险，空仓观望"
+
+    def test_stand_aside_reason_null_allowed_with_selections(self) -> None:
+        """有任一选股/计划时原因为 null 是合法输出（不强校验冗余文本）。"""
+        content = AgentDailyPlanContent.model_validate(_content_dict())
+        assert content.stand_aside_reason is None
 
     def test_normalizes_chinese_plan_type(self) -> None:
         item = PlanTradePlanItem(**{**_content_dict()["plans"][0], "plan_type": "买入"})
@@ -218,6 +236,10 @@ class TestGenerateDailyPlan:
             patch(
                 "app.services.trading.agent_plan_service._validate_codes",
                 AsyncMock(return_value=(content, ["999999"])),
+            ),
+            patch(
+                "app.services.trading.agent_plan_service._validate_prices",
+                return_value=(content, {}),
             ),
             patch(
                 "app.repositories.review.ai_analysis_repository.insert_result",
@@ -469,6 +491,10 @@ class TestRecorderWiring:
                 AsyncMock(return_value=(content, ["999999"])),
             ),
             patch(
+                "app.services.trading.agent_plan_service._validate_prices",
+                return_value=(content, {}),
+            ),
+            patch(
                 "app.repositories.review.ai_analysis_repository.insert_result",
                 AsyncMock(return_value=42),
             ),
@@ -491,6 +517,7 @@ class TestRecorderWiring:
         summary = kwargs["summary"]
         assert summary["cache_hit"] is False
         assert summary["dropped_codes"] == ["999999"]
+        assert summary["price_violations"] == {}
         assert summary["selections"] == 1
         assert summary["plans"] == 1
         # input.* 步骤由 collect_plan_input 记录：recorder 透传
@@ -660,3 +687,367 @@ class TestValidateCodes:
         )
         assert [s.stock_code for s in validated.selections] == ["600000"]
         assert dropped == ["600519"]
+
+    @pytest.mark.asyncio
+    async def test_backfills_stand_aside_reason_when_all_dropped(self) -> None:
+        """剔除后转为双空时回填空仓原因（展示层区分「空仓观望」与「未生成」）。"""
+        content = _content().model_copy(
+            update={
+                "selections": [
+                    PlanSelectionItem(stock_code="999999", reason="幻觉代码", confidence=None)
+                ],
+                "plans": [],
+            }
+        )
+        session = AsyncMock()
+        executed = MagicMock()
+        executed.scalars.return_value.all.return_value = []
+        session.execute = AsyncMock(return_value=executed)
+
+        validated, dropped = await agent_plan_service._validate_codes(
+            session, content, manual_removed=[]
+        )
+        assert validated.selections == []
+        assert validated.plans == []
+        assert validated.stand_aside_reason is not None
+        assert "999999" in validated.stand_aside_reason
+        assert dropped == ["999999"]
+
+
+@pytest.mark.unit
+class TestValidatePrices:
+    """价格体检（治幻觉价格兜底）：锚点脱锚剔除 + sell 轻校验。"""
+
+    def _anchors(self, prev_close: float = 10.0) -> dict:
+        return {
+            "600000": {
+                "close": prev_close,
+                "prev_close": prev_close,
+                "ma5": prev_close,
+                "last_bar_date": _TRADE_DATE.isoformat(),
+            }
+        }
+
+    def test_passes_grounded_buy_plan(self) -> None:
+        validated, violations = agent_plan_service._validate_prices(
+            _content(), self._anchors(prev_close=10.0)
+        )
+        assert violations == {}
+        assert [p.stock_code for p in validated.plans] == ["600000"]
+        assert [s.stock_code for s in validated.selections] == ["600000"]
+
+    @pytest.mark.parametrize(
+        ("update", "fragment"),
+        [
+            ({"stop_loss": 10.5}, "不低于昨收"),
+            ({"buy_zone_low": 11.0, "buy_zone_high": 10.5}, "倒挂"),
+            ({"buy_zone_low": 5.0, "buy_zone_high": 6.0}, "无交集"),
+            ({"buy_zone_low": 11.2, "buy_zone_high": 11.5}, "无交集"),
+            ({"stop_loss": 8.0, "buy_zone_low": 9.9}, "深于区间下沿"),
+        ],
+    )
+    def test_buy_plan_violations(self, update: dict, fragment: str) -> None:
+        plans = [
+            item.model_copy(update=update)
+            for item in _content().plans
+        ]
+        content = _content().model_copy(update={"plans": plans})
+        validated, violations = agent_plan_service._validate_prices(
+            content, self._anchors()
+        )
+        assert "600000" in violations
+        assert fragment in violations["600000"]
+        assert validated.plans == []
+        assert validated.selections == []
+
+    def test_missing_anchor_drops_buy_plan(self) -> None:
+        validated, violations = agent_plan_service._validate_prices(
+            _content(), {}
+        )
+        assert "缺价格锚点" in violations["600000"]
+        assert validated.plans == []
+
+    def test_sell_plan_without_anchor_passes(self) -> None:
+        """sell 是防御动作：无锚点放行，不因数据缺口废掉保护性离场。"""
+        plans = [
+            _content().plans[0].model_copy(
+                update={
+                    "plan_type": "sell",
+                    "buy_zone_low": None,
+                    "buy_zone_high": None,
+                    "target_price": 12.0,
+                    "stop_loss": 9.0,
+                }
+            )
+        ]
+        content = _content().model_copy(update={"plans": plans})
+        validated, violations = agent_plan_service._validate_prices(content, {})
+        assert violations == {}
+        assert [p.stock_code for p in validated.plans] == ["600000"]
+
+    def test_sell_plan_inverted_target_dropped(self) -> None:
+        plans = [
+            _content().plans[0].model_copy(
+                update={
+                    "plan_type": "sell",
+                    "buy_zone_low": None,
+                    "buy_zone_high": None,
+                    "target_price": 8.0,
+                    "stop_loss": 9.0,
+                }
+            )
+        ]
+        content = _content().model_copy(update={"plans": plans})
+        _, violations = agent_plan_service._validate_prices(content, self._anchors())
+        assert "600000" in violations
+
+    def test_backfills_stand_aside_when_all_dropped(self) -> None:
+        validated, violations = agent_plan_service._validate_prices(
+            _content(), {}
+        )
+        assert validated.stand_aside_reason is not None
+        assert "600000" in validated.stand_aside_reason
+        assert "价格体检" in validated.stand_aside_reason
+
+
+@pytest.mark.unit
+class TestPriceAnchors:
+    """锚点供数：库内优先、缺失现拉 upsert、兜底失败按缺失。"""
+
+    @pytest.mark.asyncio
+    async def test_reads_db_bars_first(self) -> None:
+        bars = [
+            SimpleNamespace(close=10.0 + i, trade_date=_TRADE_DATE) for i in range(5)
+        ]
+        session = AsyncMock()
+        with patch(
+            "app.services.trading.agent_plan_input.fetch_daily_bars_multi",
+            AsyncMock(return_value={"600000": bars}),
+        ):
+            anchors, missing = await agent_plan_input._price_anchors(
+                session, ["600000"], _TRADE_DATE
+            )
+        assert missing == []
+        assert anchors["600000"]["close"] == 14.0
+        assert anchors["600000"]["prev_close"] == 13.0
+        assert anchors["600000"]["ma5"] == 12.0
+
+    @pytest.mark.asyncio
+    async def test_missing_code_fetched_and_upserted(self) -> None:
+        rows = [
+            {"close": 10.0 + i, "trade_date": _TRADE_DATE, "volume": None}
+            for i in range(5)
+        ]
+        session = AsyncMock()
+        with (
+            patch(
+                "app.services.trading.agent_plan_input.fetch_daily_bars_multi",
+                AsyncMock(return_value={}),
+            ),
+            patch(
+                "app.services.trading.agent_plan_input._fetch_and_store_sina_daily",
+                AsyncMock(return_value=rows),
+            ) as fetch_mock,
+        ):
+            anchors, missing = await agent_plan_input._price_anchors(
+                session, ["002913"], _TRADE_DATE
+            )
+        fetch_mock.assert_awaited_once()
+        assert missing == []
+        assert anchors["002913"]["close"] == 14.0
+        assert anchors["002913"]["ma5"] == 12.0
+
+    @pytest.mark.asyncio
+    async def test_fetch_failure_reports_missing(self) -> None:
+        session = AsyncMock()
+        with (
+            patch(
+                "app.services.trading.agent_plan_input.fetch_daily_bars_multi",
+                AsyncMock(return_value={}),
+            ),
+            patch(
+                "app.services.trading.agent_plan_input._fetch_and_store_sina_daily",
+                AsyncMock(side_effect=RuntimeError("sina down")),
+            ),
+        ):
+            anchors, missing = await agent_plan_input._price_anchors(
+                session, ["002913"], _TRADE_DATE
+            )
+        assert anchors == {}
+        assert missing == ["002913"]
+
+    @pytest.mark.asyncio
+    async def test_unanchored_anomalies_removed_from_input(self) -> None:
+        """无锚点标的从异动清单剔除（无锚点禁止出计划的输入侧执行）。"""
+        review_row = MagicMock()
+        review_row.structured_output = {"sections": {"overall": "主线分歧"}}
+        anomaly = {
+            "stock_code": "002913",
+            "stock_name": "ASR",
+            "change_pct": 5.0,
+            "anomaly_types": [],
+            "attribution_category": None,
+            "attribution_summary": None,
+        }
+        with (
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=review_row),
+            ),
+            patch(
+                "app.services.review.limit_up_ai_service.get_cached_attribution",
+                AsyncMock(return_value=None),
+            ),
+            patch.object(
+                agent_plan_input,
+                "_stock_anomalies",
+                AsyncMock(return_value=[anomaly]),
+            ),
+            patch.object(
+                agent_plan_input,
+                "_manual_removed_codes",
+                AsyncMock(return_value=[]),
+            ),
+            patch.object(
+                agent_plan_input, "_local_positions", AsyncMock(return_value=[])
+            ),
+            patch.object(
+                agent_plan_input, "_active_memories", AsyncMock(return_value=[])
+            ),
+            patch(
+                "app.services.trading.agent_plan_input.agent_methodology"
+                ".build_methodology_input",
+                AsyncMock(return_value=None),
+            ),
+            patch.object(
+                agent_plan_input,
+                "_price_anchors",
+                AsyncMock(return_value=({}, ["002913"])),
+            ),
+        ):
+            plan_input, _ = await agent_plan_input.collect_plan_input(
+                AsyncMock(), _agent(), 7, _TRADE_DATE
+            )
+        assert plan_input["stock_anomalies"] == []
+        assert plan_input["unanchored_codes"] == ["002913"]
+        assert plan_input["price_anchors"] == {}
+
+
+@pytest.mark.unit
+class TestPlanReadPaths:
+    """计划缓存读路径：旧快照补键兼容 + 空仓日回查（展示层三态区分）。"""
+
+    @pytest.mark.asyncio
+    async def test_load_cached_backfills_legacy_key(self) -> None:
+        """新增字段前的旧缓存快照（缺 stand_aside_reason 键）补 None 兼容加载。"""
+        legacy = _content_dict()
+        legacy.pop("stand_aside_reason")
+        row = MagicMock()
+        row.structured_output = legacy
+        with patch(
+            "app.repositories.review.ai_analysis_repository.load_latest_success",
+            AsyncMock(return_value=row),
+        ):
+            content = await agent_plan_service._load_cached(
+                AsyncMock(), "trading-short-line", "hash"
+            )
+
+        assert content is not None
+        assert content.stand_aside_reason is None
+        assert content.selections[0].stock_code == "600000"
+
+    @pytest.mark.asyncio
+    async def test_load_plan_content_for_date_unbound_account_returns_none(self) -> None:
+        from app.services.trading.errors import AgentAccountNotDesignatedError
+
+        with patch(
+            "app.services.trading.account_service.resolve_agent_account",
+            AsyncMock(side_effect=AgentAccountNotDesignatedError("short-line")),
+        ):
+            content = await agent_plan_service.load_plan_content_for_date(
+                AsyncMock(), "short-line", _TRADE_DATE
+            )
+
+        assert content is None
+
+    @pytest.mark.asyncio
+    async def test_load_plan_content_for_date_reads_cache(self) -> None:
+        row = MagicMock()
+        row.structured_output = _content_dict()
+        with (
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=row),
+            ) as load_mock,
+        ):
+            content = await agent_plan_service.load_plan_content_for_date(
+                AsyncMock(), "short-line", _TRADE_DATE
+            )
+
+        assert content is not None
+        assert content.selections[0].stock_code == "600000"
+        assert load_mock.await_args.kwargs["skill_id"] == "trading-short-line"
+
+    @pytest.mark.asyncio
+    async def test_list_stand_aside_dates_shared_skill_returns_empty(self) -> None:
+        """共享 trading-default 技能多 Agent 无法从哈希反解账户维度，直接返回空。"""
+        assert await agent_plan_service.list_stand_aside_dates(AsyncMock(), "new-agent") == []
+
+    @pytest.mark.asyncio
+    async def test_list_stand_aside_dates_filters_empty_outputs(self) -> None:
+        """按哈希回查缓存行，仅双空输出计入空仓日；绑定账户缺失行（哈希不符）排除。"""
+        from app.repositories.review import ai_analysis_repository
+
+        d_stand_aside = date(2026, 7, 14)
+        d_with_plans = _TRADE_DATE
+        d_rebound = date(2026, 7, 16)  # 账户重绑前的旧行，哈希不符应排除
+
+        def _hash_for(agent_key: str, account_id: int, d: date) -> str:
+            return agent_plan_service._input_hash(agent_key, account_id, d)
+
+        rows = [
+            MagicMock(
+                input_hash=_hash_for("short-line", 7, d_stand_aside),
+                structured_output={
+                    "trade_date": d_stand_aside.isoformat(),
+                    "selections": [],
+                    "plans": [],
+                    "stand_aside_reason": "空仓",
+                },
+            ),
+            MagicMock(
+                input_hash=_hash_for("short-line", 7, d_with_plans),
+                structured_output=_content_dict(),
+            ),
+            MagicMock(
+                input_hash=_hash_for("short-line", 8, d_rebound),
+                structured_output={"trade_date": d_rebound.isoformat(), "selections": [], "plans": []},
+            ),
+        ]
+        with (
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch.object(
+                ai_analysis_repository,
+                "list_success_trade_dates",
+                AsyncMock(return_value=[d_stand_aside, d_with_plans, d_rebound]),
+            ),
+            patch.object(
+                ai_analysis_repository,
+                "load_success_by_hashes",
+                AsyncMock(return_value=rows),
+            ) as load_mock,
+        ):
+            dates = await agent_plan_service.list_stand_aside_dates(
+                AsyncMock(), "short-line"
+            )
+
+        assert dates == [d_stand_aside]
+        assert load_mock.await_args.kwargs["skill_id"] == "trading-short-line"
+        assert len(load_mock.await_args.kwargs["input_hashes"]) == 3

@@ -43,8 +43,8 @@ system_prompt: |
 
   ## 输出要求
   - **你的最终输出必须是单个 JSON 对象**（字段：period/trade_date/overall/trades/bias/
-    suggestion/market_context/methodology_check/experiences），不要输出 markdown 标题、
-    代码块围栏或任何解释文字。
+    suggestion/market_context/methodology_check/experiences/no_target_reason），不要输出
+    markdown 标题、代码块围栏或任何解释文字。
   - overall：本周期整体表现一段话（净值变化、操作偏差主线、最值钱的一条改进点）。
   - market_context：一段话盘面语境归纳（基准日大盘/主线板块/情绪位置，及其对本周期
     操作的定性影响）；market_review 为 null 时写「无当日盘面语境」。
@@ -53,4 +53,6 @@ system_prompt: |
   - suggestion：下一周期的具体改进建议（可执行，不超过 3 条）。
   - trades 逐笔给出三层 verdict 与 reason（reason 引用输入中的具体数据）；
     trades 为空时输出空数组，但仍须给出 overall/bias/suggestion（基于持仓与净值变化）。
+  - no_target_reason 恒输出 null（无复盘对象的情形由系统在预检阶段标记，不经你手）；
+    窗口内有复盘对象时 overall/bias/suggestion/trades 不可全空，必须输出实质内容。
   - 语言：简体中文。金额与百分比保留输入原精度。

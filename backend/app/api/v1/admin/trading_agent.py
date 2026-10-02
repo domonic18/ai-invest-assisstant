@@ -11,9 +11,11 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.pagination import DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.dependencies import get_current_admin_user, get_db
 from app.schemas.paper_trade import (
     AgentCapabilityResponse,
+    AgentMemoryCreateRequest,
     AgentMemoryResponse,
     AgentMemoryStatusUpdateRequest,
     AgentMemoryUpdateRequest,
@@ -23,6 +25,7 @@ from app.schemas.paper_trade import (
     AgentWatchlistGroupResponse,
     TradingAgentCreateRequest,
     TradingAgentDatesResponse,
+    TradingAgentObservationPage,
     TradingAgentPlanResponse,
     TradingAgentPlansResponse,
     TradingAgentProfileResponse,
@@ -33,9 +36,11 @@ from app.schemas.paper_trade import (
 )
 from app.services.market import trade_calendar_service
 from app.services.trading import (
+    agent_exec_observation_service,
     agent_memory_service,
     agent_overview_service,
     agent_plan_ops,
+    agent_plan_service,
     agent_registry,
     agent_review_service,
 )
@@ -142,7 +147,9 @@ async def get_trading_agent_review(
     period: Literal["day", "week", "month"] = Query(..., description="复盘周期"),
     trade_date: date | None = Query(None, description="基准交易日（缺省取该周期最新一条）"),
 ) -> TradingAgentReviewResponse:
-    """读取已生成的模拟盘分层复盘（只读，不触发 LLM）。"""
+    """读取已生成的模拟盘分层复盘（只读，不触发 LLM）。
+
+    ``noTargetReason`` 非空表示已执行但空仓无复盘对象，供前端与「未生成」区分。"""
     content = await agent_review_service.get_review(
         session, agent_key, period=period, trade_date=trade_date
     )
@@ -158,9 +165,11 @@ async def get_trading_agent_dates(
     agent_key: str,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> TradingAgentDatesResponse:
-    """有记录日期清单（日历打点）：已有计划的日期 + 各周期已生成复盘的基准日。"""
+    """有记录日期清单（日历打点）：已有计划的日期（含空仓观望日）+ 各周期复盘基准日。"""
+    plan_dates = await agent_plan_ops.list_plan_dates(session, agent_key)
+    stand_aside = await agent_plan_service.list_stand_aside_dates(session, agent_key)
     return TradingAgentDatesResponse(
-        plan_dates=await agent_plan_ops.list_plan_dates(session, agent_key),
+        plan_dates=sorted({*plan_dates, *stand_aside}),
         review_dates={
             period: await agent_review_service.list_review_dates(
                 session, agent_key, period=period
@@ -174,16 +183,58 @@ async def get_trading_agent_dates(
 async def list_trading_agent_plans(
     agent_key: str,
     session: Annotated[AsyncSession, Depends(get_db)],
-    trade_date: date | None = Query(None, description="计划日（缺省取最近交易日）"),
+    trade_date: date | None = Query(None, description="计划日（缺省取最近一份 ≤ 今天）"),
 ) -> TradingAgentPlansResponse:
-    """读取指定日的交易计划（含全部状态，前端按状态分色）+ 下一交易日（次日语义）。"""
-    resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(
-        session
+    """读取指定日的交易计划（含全部状态，前端按状态分色）+ 下一交易日（次日语义）。
+
+    缺省落「最近一份 ≤ 今天」的计划（T 日制定 T+1 执行，盘中打开即正在
+    执行的那份）；``executingPlanDate`` 为所选日盘中执行的计划集的制定日，
+    供空态引导跳转；``standAsideReason`` 非空表示当日已生成但空仓观望；
+    ``amendments`` 为当日盘中校准修正单（计划卡校准历史，§11.5）。
+    """
+    resolved = trade_date or await agent_plan_ops.resolve_default_plan_date(
+        session, agent_key
+    )
+    content = await agent_plan_service.load_plan_content_for_date(
+        session, agent_key, resolved
     )
     return TradingAgentPlansResponse(
         trade_date=resolved,
         next_trade_date=await trade_calendar_service.next_trading_day(session, resolved),
         plans=await agent_plan_ops.list_plan_views(session, agent_key, plan_date=resolved),
+        stand_aside_reason=content.stand_aside_reason if content else None,
+        executing_plan_date=await agent_plan_ops.resolve_executing_plan_date(
+            session, agent_key, view_date=resolved
+        ),
+        amendments=await agent_plan_ops.list_amendment_views(
+            session, agent_key, plan_date=resolved
+        ),
+    )
+
+
+@router.get(
+    "/{agent_key}/observations", response_model=TradingAgentObservationPage
+)
+async def list_trading_agent_observations(
+    agent_key: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    trade_date: date | None = Query(
+        None, description="交易日（缺省取最近有观测日；无观测回退当日）"
+    ),
+    significant: bool = Query(
+        True, description="仅显著事件（L0 非无动作或存在抑制原因）"
+    ),
+    page: int = Query(DEFAULT_PAGE, ge=1),
+    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+) -> TradingAgentObservationPage:
+    """盘中执行观测分页（执行动态 Tab）：items 按 significant 过滤，summary 恒全天口径。"""
+    return await agent_exec_observation_service.list_agent_observations(
+        session,
+        agent_key,
+        trade_date=trade_date,
+        significant_only=significant,
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -243,6 +294,23 @@ async def list_trading_agent_memories(
     return [AgentMemoryResponse.model_validate(row) for row in rows]
 
 
+@router.post(
+    "/{agent_key}/memories",
+    response_model=AgentMemoryResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_trading_agent_memory(
+    agent_key: str,
+    data: AgentMemoryCreateRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> AgentMemoryResponse:
+    """手动沉淀记忆（source='manual'，立即 active 注入次日计划）。"""
+    row = await agent_memory_service.create_memory(
+        session, agent_key, title=data.title, body=data.body, mem_type=data.mem_type
+    )
+    return AgentMemoryResponse.model_validate(row)
+
+
 @router.put("/{agent_key}/memories/{memory_id}", response_model=AgentMemoryResponse)
 async def update_trading_agent_memory(
     agent_key: str,
@@ -260,6 +328,18 @@ async def update_trading_agent_memory(
         mem_type=data.mem_type,
     )
     return AgentMemoryResponse.model_validate(row)
+
+
+@router.delete(
+    "/{agent_key}/memories/{memory_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_trading_agent_memory(
+    agent_key: str,
+    memory_id: int,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    """删除记忆（物理删除；复盘同标题经验下次沉淀会重新生成）。"""
+    await agent_memory_service.delete_memory(session, agent_key, memory_id=memory_id)
 
 
 @router.put(

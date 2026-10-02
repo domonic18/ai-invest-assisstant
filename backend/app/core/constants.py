@@ -57,6 +57,8 @@ GLOBAL_INDEX_CODES: dict[str, dict[str, str]] = {
 # 电报源标识：news_ai_score.source 值、资讯渠道注册表 key、stream 驻留进程
 # Redis 键的 <source> 段共用同一真相源；新增资讯源时在此登记标识
 NEWS_SOURCE_TELEGRAPH = "cls_telegraph"
+# 盘中自主执行驻留进程（批次 8）心跳键的 <source> 段（compose healthcheck 判活）
+INTRADAY_EXEC_SOURCE = "intraday_exec"
 # stream 驻留进程 Redis 键模板（collector/runtime/stream 写入，渠道监控读取）
 STREAM_CURSOR_KEY_TEMPLATE = "collector:stream:{source}:last_time"
 STREAM_HEARTBEAT_KEY_TEMPLATE = "collector:stream:{source}:heartbeat"
@@ -95,6 +97,7 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "market-amount": DOMAIN_QUOTE,
     "sector-quote": DOMAIN_QUOTE,
     "global-index": DOMAIN_QUOTE,
+    "global-index-history": DOMAIN_QUOTE,
     "fed-watch": DOMAIN_QUOTE,
     "macro": DOMAIN_QUOTE,
     # 股池
@@ -142,4 +145,5 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "paper-trade-sync": DOMAIN_TRADING,
     "paper-trade-review": DOMAIN_TRADING,
     "agent-daily-plan": DOMAIN_TRADING,
+    "agent-plan-calibration": DOMAIN_TRADING,
 }

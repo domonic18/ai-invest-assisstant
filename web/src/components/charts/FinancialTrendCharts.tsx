@@ -1,4 +1,4 @@
-import ReactECharts from 'echarts-for-react'
+import ReactECharts from '@/components/charts/ReactECharts'
 import type { EChartsOption } from 'echarts'
 
 import type { FinancialHealth } from '@ai-invest/shared'

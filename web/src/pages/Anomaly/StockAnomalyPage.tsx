@@ -29,7 +29,7 @@ import { useStockAnomalyBoard, useStockAnomalyDates } from '@/hooks/useAnomaly'
 import { useIsNarrowScreen } from '@/hooks/useIsNarrowScreen'
 import { useAssistantStore } from '@/stores/assistant'
 import { useColorScheme } from '@/stores/settings'
-import { changeColor, DATE_FORMAT, formatNumber, formatPercent } from '@/utils/formatters'
+import { changeHex, DATE_FORMAT, fallHex, formatNumber, formatPercent, riseHex } from '@/utils/formatters'
 import { narrowColumns } from '@/utils/responsiveColumns'
 
 import { AttributionAction, AttributionCell, AnomalyTypeTags, STOCK_CATEGORY_LABELS } from './cells'
@@ -123,7 +123,7 @@ export function StockAnomalyPage() {
       align: 'right',
       sorter: (a, b) => (a.changePct ?? 0) - (b.changePct ?? 0),
       render: (v: number | null) => (
-        <span className={`font-medium ${changeColor(v)}`}>
+        <span className="font-medium" style={{ color: changeHex(v) }}>
           {v != null ? formatPercent(v) : '-'}
         </span>
       ),
@@ -150,7 +150,7 @@ export function StockAnomalyPage() {
               <Tag key={s.name} className="!mr-0">
                 {s.name}
                 {s.changePct != null && (
-                  <span className={`ml-1 font-mono text-xs ${changeColor(s.changePct)}`}>
+                  <span className="ml-1 font-mono text-xs" style={{ color: changeHex(s.changePct) }}>
                     {formatPercent(s.changePct)}
                   </span>
                 )}
@@ -183,9 +183,8 @@ export function StockAnomalyPage() {
               </Tag>
             )}
             <span
-              className={`text-xs ${
-                it.isAboveMa60 ? 'text-red-400' : 'text-green-400'
-              }`}
+              className="text-xs"
+              style={{ color: it.isAboveMa60 ? riseHex() : fallHex() }}
             >
               {it.isAboveMa60 ? '线上' : '线下'}
             </span>

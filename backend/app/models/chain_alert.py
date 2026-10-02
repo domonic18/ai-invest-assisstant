@@ -13,7 +13,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -38,6 +38,7 @@ class ChainAlert(Base):
     related_stock_codes: Mapped[list[str] | None] = mapped_column(
         ARRAY(String(10)), nullable=True
     )
+    sources: Mapped[list[dict] | None] = mapped_column(JSONB, nullable=True)
     signal_date: Mapped[date] = mapped_column(Date, nullable=False)
     version_id: Mapped[int | None] = mapped_column(
         ForeignKey("industry_chain_analysis_version.id", ondelete="SET NULL"),

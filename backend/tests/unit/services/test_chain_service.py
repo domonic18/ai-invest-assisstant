@@ -12,6 +12,7 @@ from app.models.industry_chain import ChainAnalysisVersion
 from app.schemas.chain import (
     ChainAlertItem,
     ChainAlertResponse,
+    ChainAlertSource,
     ChainAnalysisResult,
     ChainCompany,
     ChainEdge,
@@ -331,6 +332,11 @@ class TestPersistAlerts:
                 description="环节毛利率同比 -6pct",
                 affected_segments=["硅材料"],
                 related_stock_codes=["600703"],
+                sources=[
+                    ChainAlertSource(
+                        title="某公司三季报", source="eastmoney", publish_date="2026-09-04"
+                    )
+                ],
             )
         ]
 
@@ -347,6 +353,7 @@ class TestPersistAlerts:
         assert alerts_kwargs["signal_date"] == date(2026, 9, 4)
         assert alerts_kwargs["version_id"] == 9
         assert alerts_kwargs["alerts"][0].title == "毛利率异动"
+        assert alerts_kwargs["alerts"][0].sources[0].source == "eastmoney"
 
     @pytest.mark.asyncio
     async def test_skips_alert_insert_without_alerts(self) -> None:
@@ -371,6 +378,9 @@ class TestListAlerts:
             description="d",
             affected_segments=["光刻胶"],
             related_stock_codes=["600703"],
+            sources=[
+                {"title": "三安光电扩产公告", "source": "sina", "publish_date": "2026-09-04"}
+            ],
             signal_date=date(2026, 9, 4),
             created_at=datetime(2026, 9, 5, tzinfo=timezone.utc),
         )
@@ -399,3 +409,33 @@ class TestListAlerts:
         assert rows[0].related_stocks[0].code == "600703"
         assert rows[0].related_stocks[0].name == "三安光电"
         assert rows[0].related_stocks[0].change_pct == 2.5
+        # 信源透传（JSONB dict → ChainAlertSource）
+        assert rows[0].sources[0].title == "三安光电扩产公告"
+        assert rows[0].sources[0].source == "sina"
+
+    @pytest.mark.asyncio
+    async def test_maps_legacy_rows_without_sources(self) -> None:
+        """sources 列上线上旧行为 NULL：映射为空数组而非报错。"""
+        alert = ChainAlert(
+            id=2,
+            industry="半导体",
+            alert_type="政策催化",
+            severity=2,
+            title="t",
+            description="d",
+            affected_segments=[],
+            related_stock_codes=[],
+            sources=None,
+            signal_date=date(2026, 9, 4),
+            created_at=datetime(2026, 9, 5, tzinfo=timezone.utc),
+        )
+        with (
+            patch.object(
+                chain_service.chain_alert_repository,
+                "list_alerts",
+                new=AsyncMock(return_value=[alert]),
+            ),
+        ):
+            rows = await chain_service.list_alerts(AsyncMock(), "半导体", days=30)
+
+        assert rows[0].sources == []

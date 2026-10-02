@@ -3,8 +3,8 @@ export interface LLMConfigCapabilities {
   vision?: boolean
 }
 
-/** LLM 接口协议：openai 兼容 / anthropic 原生。 */
-export type LLMProtocol = 'openai' | 'anthropic'
+/** LLM 接口协议：openai 兼容 / anthropic 原生 / System One 结构化判断（D23）。 */
+export type LLMProtocol = 'openai' | 'anthropic' | 'systemone'
 
 export interface LLMConfig {
   id: number
@@ -49,8 +49,11 @@ export interface LLMConfigTestResult {
   testedAt: string
 }
 
-/** 配置用途（知识库模型角色槽位按此过滤候选） */
-export type LlmPurpose = 'chat' | 'embedding' | 'vision'
+/** 配置用途（知识库模型角色槽位按此过滤候选；视觉槽例外——vision 用途，或
+ *  勾选「视觉能力」的 chat 用途，见 KbBindingTab/KB settings_service）。
+ *  decision 为判断模型（盘中执行 L1），不进任何 F-KB 槽位候选，也不参与
+ *  默认对话解析。 */
+export type LlmPurpose = 'chat' | 'embedding' | 'vision' | 'decision'
 
 export interface ApiLLMConfigResponse {
   id: number
@@ -107,9 +110,13 @@ export interface ApiLLMConfigTestResponse {
   testedAt: string
 }
 
+/** ASR wire 协议：minimax 专有 | openai 兼容转写（whisper 事实标准）。 */
+export type AsrProtocol = 'minimax' | 'openai'
+
 /** ASR 渠道配置 masked 视图（密钥只回脱敏串）。 */
 export interface ApiAsrConfig {
   provider: string
+  protocol: AsrProtocol
   baseUrl: string
   model: string
   apiKeyMasked: string | null
@@ -123,6 +130,7 @@ export interface ApiAsrConfig {
 /** 更新 ASR 配置（apiKey write-only：留空保留原值）。 */
 export interface ApiAsrConfigUpdateRequest {
   provider?: string
+  protocol?: AsrProtocol
   baseUrl?: string
   model?: string
   apiKey?: string
@@ -755,6 +763,39 @@ export interface ApiAdminStockUpdateRequest {
   industryLevel2?: string
   industryLevel3?: string
   listingDate?: string
+}
+
+/** 题材（股票-概念）映射管理项（stockName 由 stock_basic 左联富化，未知代码为 null）。 */
+export interface AdminStockConcept {
+  id: number
+  stockCode: string
+  stockName: string | null
+  conceptCode: string
+  conceptName: string
+  source: string
+  updatedAt: string
+}
+
+export interface ApiAdminStockConceptResponse {
+  id: number
+  stockCode: string
+  stockName: string | null
+  conceptCode: string
+  conceptName: string
+  source: string
+  updatedAt: string
+}
+
+export interface ApiAdminStockConceptCreateRequest {
+  stockCode: string
+  conceptCode: string
+  conceptName: string
+}
+
+export interface ApiAdminStockConceptUpdateRequest {
+  stockCode?: string
+  conceptCode?: string
+  conceptName?: string
 }
 
 export interface ApiAdminReportResponse {

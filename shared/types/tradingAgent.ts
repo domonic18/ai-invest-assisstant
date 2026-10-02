@@ -18,8 +18,12 @@ export interface TradingAgentProfile {
   riskMaxTotalPct: number
   /** 单日委托笔数上限。 */
   riskMaxDailyOrders: number
-  /** 盘中自主执行总闸（盘中执行批次消费）。 */
-  autoExecEnabled: boolean
+  /** 盘中自主执行三态（D21，批次 8）：off 停用 / shadow 判断不下单 / active 真实执行。 */
+  intradayExecMode: 'off' | 'shadow' | 'active'
+  /** 盘中执行人工暂停：true 时 tick/尾盘强检完全短路（计划/复盘不受影响）。 */
+  intradayPaused: boolean
+  /** 盘中计划校准三态（§11.5）：off 不参与 / shadow 修正单仅留痕 / active 修正生效。 */
+  calibrationMode: 'off' | 'shadow' | 'active'
   status: 'active' | 'planned' | 'disabled'
   /** 计划生成频率（daily 每交易日 / weekly 周期末 / monthly 月末，D28）。 */
   planCadence: 'daily' | 'weekly' | 'monthly'
@@ -46,7 +50,12 @@ export interface TradingAgentProfileUpdateRequest {
   riskMaxPositionPct?: number
   riskMaxTotalPct?: number
   riskMaxDailyOrders?: number
-  autoExecEnabled?: boolean
+  /** 盘中自主执行三态（D21，批次 8）。 */
+  intradayExecMode?: 'off' | 'shadow' | 'active'
+  /** 盘中执行人工暂停开关（true = 冻结 tick/尾盘强检）。 */
+  intradayPaused?: boolean
+  /** 盘中计划校准三态（§11.5，影子期达标后切 active）。 */
+  calibrationMode?: 'off' | 'shadow' | 'active'
   status?: 'active' | 'disabled'
   planCadence?: AgentCadence
   reviewCadence?: AgentCadence
@@ -68,8 +77,8 @@ export interface AgentNextTask {
   scheduledAt: string
 }
 
-/** 总览运行态（D32）：working=定时任务运行中且 cadence 今日命中；produced_today=当日已产出；idle=待命；off=未启用占位。 */
-export type AgentRuntimeState = 'working' | 'produced_today' | 'idle' | 'off'
+/** 总览运行态（D32）：working=定时任务运行中且 cadence 今日命中；produced_today=当日已产出；idle=待命；paused=盘中执行人工冻结；off=未启用占位。 */
+export type AgentRuntimeState = 'working' | 'produced_today' | 'idle' | 'paused' | 'off'
 
 /** 总览页单 Agent 聚合：介绍卡 + 模型 + 运行态 + 当日计数 + 近期活动 + 下次任务。 */
 export interface AgentOverviewItem {
@@ -131,6 +140,8 @@ export interface ApiTradingAgentReview {
   /** 方法论验证（D34：KB 纪律逐条结论；未绑定知识源为空数组）。 */
   methodologyCheck: ApiTradingAgentMethodologyCheck[]
   experiences: ApiTradingAgentReviewExperience[]
+  /** 非空 = 已执行但空仓无复盘对象（窗口内无交易且无持仓）；null = 正常复盘。 */
+  noTargetReason: string | null
 }
 
 /** 有记录日期清单（日历打点：计划日 + 各周期复盘基准日）。 */
@@ -139,8 +150,14 @@ export interface ApiTradingAgentDates {
   reviewDates: Partial<Record<TradingReviewPeriod, string[]>>
 }
 
-/** 计划状态机（active → triggered → executed / expired / cancelled）。 */
-export type TradingAgentPlanStatus = 'active' | 'triggered' | 'executed' | 'expired' | 'cancelled'
+/** 计划状态机（active → triggered → executed / expired / cancelled / invalid）。 */
+export type TradingAgentPlanStatus =
+  | 'active'
+  | 'triggered'
+  | 'executed'
+  | 'expired'
+  | 'cancelled'
+  | 'invalid'
 
 /** 交易计划条目（admin GET /trading-agent/plans 与「今日交易计划」区块）。 */
 export interface ApiTradingAgentPlan {
@@ -161,7 +178,40 @@ export interface ApiTradingAgentPlan {
   /** 截至计划日按成交聚合的持仓股数（未绑定账户/无成交为 null）。 */
   heldVolume: number | null
   basis: string
+  /** 计划版本号：盘中校准 adjust 生效即自增（§11.5）。 */
+  version: number
   triggeredClOrdId: string | null
+  /** status='invalid' 时的死单原因（首 tick 计划体检判定的结构性脱锚）。 */
+  invalidReason: string | null
+}
+
+/** 盘中校准修正单动作（§11.5）。 */
+export type TradingAgentPlanAmendmentAction = 'maintain' | 'adjust' | 'cancel' | 'add'
+
+/** 盘中校准修正单生效路径：applied 已生效 / shadow 影子留痕 / rejected 被硬校验拒绝。 */
+export type TradingAgentPlanAmendmentStatus = 'applied' | 'shadow' | 'rejected'
+
+/** 盘中计划校准修正单条目（计划卡校准历史展示）。 */
+export interface ApiTradingAgentPlanAmendment {
+  planDate: string
+  /** 校准窗口：1020 早盘 / 1320 午盘。 */
+  window: string
+  stockCode: string
+  planId: number | null
+  action: TradingAgentPlanAmendmentAction
+  reason: string
+  newBuyZoneLow: number | null
+  newBuyZoneHigh: number | null
+  newTargetPrice: number | null
+  newStopLoss: number | null
+  newPositionPct: number | null
+  status: TradingAgentPlanAmendmentStatus
+  /** status='rejected' 时的拒绝原因（区间自洽/死单体检/仓位上限）。 */
+  rejectReason: string | null
+  /** action='add' 生效时新建计划的 id。 */
+  newPlanId: number | null
+  modelName: string | null
+  createdAt: string
 }
 
 /** 指定日交易计划包装响应（D28：计划日 + 下一交易日执行语义 + 计划列表）。 */
@@ -170,6 +220,12 @@ export interface ApiTradingAgentPlansResponse {
   /** tradeDate 的下一交易日（计划于此日盘中执行）；日历未覆盖为 null。 */
   nextTradeDate: string | null
   plans: ApiTradingAgentPlan[]
+  /** 空仓观望原因：plans 空且非空 = 已生成但空仓观望；null = 该日未生成。 */
+  standAsideReason: string | null
+  /** 所选日盘中执行的计划集的制定日（空态引导跳转用）；无则 null。 */
+  executingPlanDate: string | null
+  /** 当日盘中校准修正单（按窗口/时间升序），计划卡校准历史展示。 */
+  amendments: ApiTradingAgentPlanAmendment[]
 }
 
 /** agent 选股条目（模拟管理「Agent 自选」：AI 依据 + 置信度）。 */
@@ -186,6 +242,65 @@ export interface ApiAgentWatchlistGroupResponse {
   id: number
   name: string
   items: ApiAgentWatchlistSelectionItem[]
+}
+
+/** 单行观测的判断上下文（后端解析 JSONB 产物，键缺失为 null）。 */
+export interface ApiTradingAgentObservationDecision {
+  /** L1 served model 版本（判断主备切换时区分实际应答臂）。 */
+  servedModel: string | null
+  /** Choice 答案选中项（execute_now/wait_pullback/give_up）。 */
+  choice: string | null
+  confidence: number | null
+  /** Noul 答案（分时形态/止损有效性，布尔）。 */
+  noul: boolean | null
+  /** Score 答案（盘面支持度 1-5）。 */
+  score: number | null
+  /** 观测窗口标记；'tail_check' = 尾盘强检行（planId 恒空）。 */
+  window: string | null
+}
+
+/** 盘中执行观测条目（执行动态 Tab 行卡片，一次 tick 对一个标的的判定）。 */
+export interface ApiTradingAgentObservationItem {
+  id: number
+  tickTime: string
+  tradeDate: string
+  agentKey: string
+  planId: number | null
+  stockCode: string
+  stockName: string | null
+  planType: 'buy' | 'sell' | null
+  price: number | null
+  changePct: number | null
+  l0Verdict: 'no_action' | 'near_trigger' | 'triggered' | 'degraded' | string
+  triggerReason: 'buy_zone' | 'target' | 'stop_loss' | null
+  /** L0 比价细节文案（心跳/拒绝行的人话原因；触发行通常为 null）。 */
+  l0Detail: string | null
+  decision: ApiTradingAgentObservationDecision | null
+  /** no_action 行无动作（null）；execute/wait/abandon/suppress。 */
+  action: 'execute' | 'wait' | 'abandon' | 'suppress' | null
+  suppressionReason: string | null
+  isShadow: boolean
+  clOrdId: string | null
+  orderVolume: number | null
+}
+
+/** 全天口径计数（不受 significant 过滤影响，顶部统计条数据源）。 */
+export interface ApiTradingAgentObservationSummary {
+  totalTicks: number
+  significantTicks: number
+  l0VerdictCounts: Record<string, number>
+  actionCounts: Record<string, number>
+  suppressionCounts: Record<string, number>
+}
+
+/** 执行观测分页载荷（items 按 significant 过滤，summary 恒全天口径）。 */
+export interface ApiTradingAgentObservationPage {
+  tradeDate: string
+  total: number
+  page: number
+  pageSize: number
+  items: ApiTradingAgentObservationItem[]
+  summary: ApiTradingAgentObservationSummary
 }
 
 /** agent 记忆类型（discipline 纪律 / method 方法 / lesson 教训）。 */
@@ -209,6 +324,13 @@ export interface ApiAgentMemoryUpdateRequest {
   title?: string
   body?: string
   memType?: AgentMemoryType
+}
+
+/** 手动沉淀记忆请求（source='manual'，立即 active 注入次日计划）。 */
+export interface ApiAgentMemoryCreateRequest {
+  title: string
+  body: string
+  memType: AgentMemoryType
 }
 
 /** 新建交易 Agent 请求（D29 创建即 active；D34 精简：标语可不填）。 */

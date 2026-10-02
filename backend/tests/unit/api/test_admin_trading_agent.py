@@ -7,11 +7,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.exceptions import NotFoundError
 from app.dependencies import get_current_admin_user, get_db
 from app.main import app
 from app.models.agent_trading import AgentMemory, AgentTradePlan
 from app.schemas.paper_trade import (
     AgentCapabilityResponse,
+    TradingAgentObservationDecision,
+    TradingAgentObservationItem,
+    TradingAgentObservationPage,
+    TradingAgentObservationSummary,
+    TradingAgentPlanAmendmentResponse,
     TradingAgentPlanResponse,
 )
 
@@ -53,6 +59,7 @@ def _content() -> dict:
         "experiences": [
             {"title": "禁止追高", "body": "偏离买点 3% 以上不追", "mem_type": "discipline"}
         ],
+        "no_target_reason": None,
     }
 
 
@@ -81,6 +88,39 @@ class TestGetTradingAgentReview:
         assert body["trades"][0]["clOrdId"] == "A"
         assert body["trades"][0]["selectionVerdict"] == "correct"
         assert body["experiences"][0]["memType"] == "discipline"
+        assert body["noTargetReason"] is None
+
+    def test_returns_no_target_reason_for_idle_review(self, admin_client) -> None:
+        """空仓无复盘对象标记行：noTargetReason 透出供前端与「未生成」区分。"""
+        http, _ = admin_client
+        row = MagicMock()
+        row.structured_output = {
+            "agent_key": "short-line",
+            **_content(),
+            "overall": "",
+            "trades": [],
+            "bias": "",
+            "suggestion": "",
+            "no_target_reason": "复盘窗口内无委托成交，账户亦无历史持仓（空仓无复盘对象）",
+        }
+
+        with (
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=row),
+            ),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/short-line/review", params={"period": "day"})
+
+        assert resp.status_code == 200
+        assert (
+            resp.json()["noTargetReason"]
+            == "复盘窗口内无委托成交，账户亦无历史持仓（空仓无复盘对象）"
+        )
 
     def test_404_when_not_generated(self, admin_client) -> None:
         http, _ = admin_client
@@ -125,6 +165,7 @@ def _plan_row(**overrides) -> AgentTradePlan:
         "status": "active",
         "selection_id": 5,
         "basis": "当日复盘解读",
+        "version": 1,
         "triggered_cl_ord_id": None,
     }
     fields.update(overrides)
@@ -145,8 +186,12 @@ class TestTradingAgentPlans:
 
         with (
             patch(
-                "app.services.market.trade_calendar_service.resolve_latest_trade_date",
+                "app.services.trading.agent_plan_ops.resolve_default_plan_date",
                 AsyncMock(return_value=date(2026, 7, 17)),
+            ),
+            patch(
+                "app.services.trading.agent_plan_ops.resolve_executing_plan_date",
+                AsyncMock(return_value=None),
             ),
             patch(
                 "app.services.market.trade_calendar_service.next_trading_day",
@@ -156,6 +201,35 @@ class TestTradingAgentPlans:
                 "app.services.trading.agent_plan_ops.list_plan_views",
                 AsyncMock(return_value=[view]),
             ),
+            patch(
+                "app.services.trading.agent_plan_ops.list_amendment_views",
+                AsyncMock(
+                    return_value=[
+                        TradingAgentPlanAmendmentResponse(
+                            plan_date=date(2026, 7, 17),
+                            window="1020",
+                            stock_code="600000",
+                            plan_id=11,
+                            action="adjust",
+                            reason="早盘放量，止损上移",
+                            new_buy_zone_low=None,
+                            new_buy_zone_high=None,
+                            new_target_price=None,
+                            new_stop_loss=9.8,
+                            new_position_pct=None,
+                            status="shadow",
+                            reject_reason=None,
+                            new_plan_id=None,
+                            model_name="kimi-k2",
+                            created_at=datetime(2026, 7, 17, 2, 20, tzinfo=timezone.utc),
+                        )
+                    ]
+                ),
+            ),
+            patch(
+                "app.services.trading.agent_plan_service.load_plan_content_for_date",
+                AsyncMock(return_value=MagicMock(stand_aside_reason=None)),
+            ),
         ):
             resp = http.get("/api/v1/admin/trading-agent/short-line/plans")
 
@@ -163,6 +237,14 @@ class TestTradingAgentPlans:
         body = resp.json()
         assert body["tradeDate"] == "2026-07-17"
         assert body["nextTradeDate"] == "2026-07-20"
+        assert body["standAsideReason"] is None
+        assert body["executingPlanDate"] is None
+        amendment = body["amendments"][0]
+        assert amendment["window"] == "1020"
+        assert amendment["action"] == "adjust"
+        assert amendment["status"] == "shadow"
+        assert amendment["newStopLoss"] == pytest.approx(9.8)
+        assert amendment["modelName"] == "kimi-k2"
         plan = body["plans"][0]
         assert plan["stockCode"] == "600000"
         assert plan["stockName"] == "浦发银行"
@@ -174,14 +256,51 @@ class TestTradingAgentPlans:
         assert plan["positionPct"] == pytest.approx(10.0)
         assert plan["triggeredClOrdId"] is None
 
+    def test_list_returns_stand_aside_reason_when_no_plans(self, admin_client) -> None:
+        """三态契约：plans 空 + 原因非空 = 已生成但空仓观望（区别于未生成）。"""
+        http, _ = admin_client
+
+        with (
+            patch(
+                "app.services.trading.agent_plan_ops.resolve_default_plan_date",
+                AsyncMock(return_value=date(2026, 7, 17)),
+            ),
+            patch(
+                "app.services.trading.agent_plan_ops.resolve_executing_plan_date",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.market.trade_calendar_service.next_trading_day",
+                AsyncMock(return_value=date(2026, 7, 20)),
+            ),
+            patch(
+                "app.services.trading.agent_plan_ops.list_plan_views",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.services.trading.agent_plan_service.load_plan_content_for_date",
+                AsyncMock(return_value=MagicMock(stand_aside_reason="大盘系统性风险，空仓观望")),
+            ),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/short-line/plans")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["plans"] == []
+        assert body["standAsideReason"] == "大盘系统性风险，空仓观望"
+
     def test_list_accepts_trade_date_query(self, admin_client) -> None:
         http, _ = admin_client
 
         with (
             patch(
-                "app.services.market.trade_calendar_service.resolve_latest_trade_date",
+                "app.services.trading.agent_plan_ops.resolve_default_plan_date",
                 AsyncMock(),
-            ) as resolve_mock,
+            ) as default_resolve_mock,
+            patch(
+                "app.services.trading.agent_plan_ops.resolve_executing_plan_date",
+                AsyncMock(return_value=None),
+            ),
             patch(
                 "app.services.market.trade_calendar_service.next_trading_day",
                 AsyncMock(return_value=date(2026, 7, 17)),
@@ -190,16 +309,52 @@ class TestTradingAgentPlans:
                 "app.services.trading.agent_plan_ops.list_plan_views",
                 AsyncMock(return_value=[]),
             ) as list_mock,
+            patch(
+                "app.services.trading.agent_plan_service.load_plan_content_for_date",
+                AsyncMock(return_value=None),
+            ),
         ):
             resp = http.get(
                 "/api/v1/admin/trading-agent/short-line/plans", params={"trade_date": "2026-07-16"}
             )
 
         assert resp.status_code == 200
-        resolve_mock.assert_not_awaited()
+        default_resolve_mock.assert_not_awaited()
         assert list_mock.await_args.kwargs["plan_date"] == date(2026, 7, 16)
         body = resp.json()
         assert body["tradeDate"] == "2026-07-16"
+        assert body["standAsideReason"] is None
+
+    def test_list_surfaces_executing_plan_date(self, admin_client) -> None:
+        """所选日盘中执行的计划集制定日透出（空态引导跳转数据源）。"""
+        http, _ = admin_client
+
+        with (
+            patch(
+                "app.services.trading.agent_plan_ops.resolve_default_plan_date",
+                AsyncMock(return_value=date(2026, 7, 17)),
+            ),
+            patch(
+                "app.services.trading.agent_plan_ops.resolve_executing_plan_date",
+                AsyncMock(return_value=date(2026, 7, 16)),
+            ),
+            patch(
+                "app.services.market.trade_calendar_service.next_trading_day",
+                AsyncMock(return_value=date(2026, 7, 20)),
+            ),
+            patch(
+                "app.services.trading.agent_plan_ops.list_plan_views",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.services.trading.agent_plan_service.load_plan_content_for_date",
+                AsyncMock(return_value=None),
+            ),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/short-line/plans")
+
+        assert resp.status_code == 200
+        assert resp.json()["executingPlanDate"] == "2026-07-16"
 
     def test_cancel_returns_updated_plan(self, admin_client) -> None:
         http, _ = admin_client
@@ -215,6 +370,138 @@ class TestTradingAgentPlans:
         cancel_mock.assert_awaited_once_with(admin_client[1], "short-line", plan_id=11)
 
 
+def _observation_page() -> TradingAgentObservationPage:
+    return TradingAgentObservationPage(
+        trade_date=date(2026, 9, 29),
+        total=1,
+        page=1,
+        page_size=20,
+        items=[
+            TradingAgentObservationItem(
+                id=1,
+                tick_time=datetime(2026, 9, 29, 1, 30, tzinfo=timezone.utc),
+                trade_date=date(2026, 9, 29),
+                agent_key="short-line",
+                plan_id=11,
+                stock_code="600000",
+                stock_name="浦发银行",
+                plan_type="buy",
+                price=10.0,
+                change_pct=1.01,
+                l0_verdict="triggered",
+                trigger_reason="buy_zone",
+                decision=TradingAgentObservationDecision(
+                    served_model="openjev-0.1",
+                    choice="立即执行",
+                    confidence=0.52,
+                    noul=True,
+                    score=3.0,
+                    window=None,
+                ),
+                action="suppress",
+                suppression_reason="below_threshold",
+                is_shadow=True,
+            )
+        ],
+        summary=TradingAgentObservationSummary(
+            total_ticks=7,
+            significant_ticks=1,
+            l0_verdict_counts={"triggered": 1, "no_action": 6},
+            action_counts={"suppress": 1},
+            suppression_counts={"below_threshold": 1},
+        ),
+    )
+
+
+@pytest.mark.unit
+class TestTradingAgentObservations:
+    def test_returns_camel_case_wire_with_default_filters(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with patch(
+            "app.services.trading.agent_exec_observation_service.list_agent_observations",
+            AsyncMock(return_value=_observation_page()),
+        ) as list_mock:
+            resp = http.get("/api/v1/admin/trading-agent/short-line/observations")
+
+        assert resp.status_code == 200
+        list_mock.assert_awaited_once_with(
+            admin_client[1],
+            "short-line",
+            trade_date=None,
+            significant_only=True,
+            page=1,
+            page_size=20,
+        )
+        body = resp.json()
+        item = body["items"][0]
+        assert item["tickTime"].startswith("2026-09-29")
+        assert item["l0Verdict"] == "triggered"
+        assert item["triggerReason"] == "buy_zone"
+        assert item["action"] == "suppress"
+        assert item["suppressionReason"] == "below_threshold"
+        assert item["isShadow"] is True
+        assert item["decision"]["servedModel"] == "openjev-0.1"
+        assert item["decision"]["confidence"] == pytest.approx(0.52)
+        summary = body["summary"]
+        assert summary["totalTicks"] == 7
+        assert summary["significantTicks"] == 1
+        assert summary["l0VerdictCounts"]["no_action"] == 6
+
+    def test_query_params_pass_through(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with patch(
+            "app.services.trading.agent_exec_observation_service.list_agent_observations",
+            AsyncMock(return_value=_observation_page()),
+        ) as list_mock:
+            resp = http.get(
+                "/api/v1/admin/trading-agent/short-line/observations",
+                params={
+                    "trade_date": "2026-09-25",
+                    "significant": "false",
+                    "page": 2,
+                    "page_size": 50,
+                },
+            )
+
+        assert resp.status_code == 200
+        list_mock.assert_awaited_once_with(
+            admin_client[1],
+            "short-line",
+            trade_date=date(2026, 9, 25),
+            significant_only=False,
+            page=2,
+            page_size=50,
+        )
+
+    def test_404_when_agent_unknown(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with patch(
+            "app.services.trading.agent_exec_observation_service.list_agent_observations",
+            AsyncMock(side_effect=NotFoundError("交易 Agent ghost 不存在")),
+        ):
+            resp = http.get("/api/v1/admin/trading-agent/ghost/observations")
+
+        assert resp.status_code == 404
+
+    def test_422_on_out_of_range_pagination(self, admin_client) -> None:
+        http, _ = admin_client
+
+        with patch(
+            "app.services.trading.agent_exec_observation_service.list_agent_observations",
+            AsyncMock(return_value=_observation_page()),
+        ) as list_mock:
+            resp = http.get(
+                "/api/v1/admin/trading-agent/short-line/observations",
+                params={"page": 0},
+            )
+
+        assert resp.status_code == 422
+        list_mock.assert_not_awaited()
+
+
 @pytest.mark.unit
 class TestGetTradingAgentDates:
     def test_returns_plan_and_review_dates(self, admin_client) -> None:
@@ -226,6 +513,10 @@ class TestGetTradingAgentDates:
                 AsyncMock(return_value=[date(2026, 7, 16), date(2026, 7, 17)]),
             ) as plan_dates_mock,
             patch(
+                "app.services.trading.agent_plan_service.list_stand_aside_dates",
+                AsyncMock(return_value=[date(2026, 7, 15)]),
+            ) as stand_aside_mock,
+            patch(
                 "app.services.trading.agent_review_service.list_review_dates",
                 AsyncMock(side_effect=lambda _s, _k, *, period: [date(2026, 7, period == "day" and 17 or 10)]),
             ) as review_dates_mock,
@@ -234,11 +525,13 @@ class TestGetTradingAgentDates:
 
         assert resp.status_code == 200
         body = resp.json()
-        assert body["planDates"] == ["2026-07-16", "2026-07-17"]
+        # 空仓观望日（无计划行）并入日历打点
+        assert body["planDates"] == ["2026-07-15", "2026-07-16", "2026-07-17"]
         assert sorted(body["reviewDates"]) == ["day", "month", "week"]
         assert body["reviewDates"]["day"] == ["2026-07-17"]
         assert body["reviewDates"]["week"] == ["2026-07-10"]
         plan_dates_mock.assert_awaited_once()
+        stand_aside_mock.assert_awaited_once()
         assert review_dates_mock.await_count == 3
 
     def test_empty_when_no_records(self, admin_client) -> None:
@@ -247,6 +540,10 @@ class TestGetTradingAgentDates:
         with (
             patch(
                 "app.services.trading.agent_plan_ops.list_plan_dates",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.services.trading.agent_plan_service.list_stand_aside_dates",
                 AsyncMock(return_value=[]),
             ),
             patch(
@@ -460,6 +757,31 @@ class TestTradingAgentMemories:
 
         assert resp.status_code == 404
 
+    def test_delete_returns_204(self, admin_client) -> None:
+        http, session = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_memory_service.delete_memory",
+            AsyncMock(return_value=None),
+        ) as delete_mock:
+            resp = http.delete("/api/v1/admin/trading-agent/short-line/memories/3")
+
+        assert resp.status_code == 204
+        delete_mock.assert_awaited_once_with(session, "short-line", memory_id=3)
+
+    def test_delete_404_when_missing(self, admin_client) -> None:
+        from app.core.exceptions import NotFoundError
+
+        http, _ = admin_client
+
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_memory_service.delete_memory",
+            AsyncMock(side_effect=NotFoundError("记忆 99 不存在")),
+        ):
+            resp = http.delete("/api/v1/admin/trading-agent/short-line/memories/99")
+
+        assert resp.status_code == 404
+
 
 @pytest.mark.unit
 class TestTradingAgentCrud:
@@ -498,7 +820,7 @@ class TestTradingAgentCrud:
             risk_max_position_pct=20.0,
             risk_max_total_pct=60.0,
             risk_max_daily_orders=10,
-            auto_exec_enabled=False,
+            intraday_exec_mode="off",
             status="active",
             sort_order=4,
             prompt_id="trading_agent_short_line",
@@ -522,7 +844,7 @@ class TestTradingAgentCrud:
         body = resp.json()
         assert body["agentKey"] == "test-agent"
         assert body["status"] == "active"
-        assert body["autoExecEnabled"] is False
+        assert body["intradayExecMode"] == "off"
         create_mock.assert_awaited_once_with(session, data=create_mock.await_args.kwargs["data"])
 
     def test_create_agent_validation_error_surfaces_422(self, admin_client) -> None:
@@ -585,7 +907,7 @@ class TestGetTradingAgentStatus:
             risk_max_position_pct=20.0,
             risk_max_total_pct=80.0,
             risk_max_daily_orders=10,
-            auto_exec_enabled=True,
+            intraday_exec_mode="shadow",
             status="active",
             sort_order=1,
             prompt_id="trading_agent_short_line",
@@ -745,3 +1067,62 @@ class TestTradingAgentPromptAndSkillFiles:
         assert body["methodology"]["sourceName"] == "趋势交易理论"
         assert body["methodology"]["disciplines"][0]["title"] == "不追高"
         assert body["methodology"]["points"][0]["pointType"] == "method"
+
+
+@pytest.mark.unit
+class TestCreateTradingAgentMemory:
+    """手动沉淀记忆 POST（批次 9）：camelCase wire / 404 / 422。"""
+
+    def _row(self) -> AgentMemory:
+        return AgentMemory(
+            id=9,
+            agent_key="short-line",
+            mem_type="lesson",
+            title="不追高",
+            body="偏离买点 3% 以上不追",
+            source="manual",
+            status="active",
+            source_result_id=None,
+            created_at=datetime(2026, 9, 27, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 9, 27, tzinfo=timezone.utc),
+        )
+
+    def test_returns_201_camel_case(self, admin_client) -> None:
+        http, _ = admin_client
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_memory_service.create_memory",
+            AsyncMock(return_value=self._row()),
+        ):
+            resp = http.post(
+                "/api/v1/admin/trading-agent/short-line/memories",
+                json={"title": "不追高", "body": "偏离买点 3% 以上不追", "memType": "lesson"},
+            )
+
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["id"] == 9
+        assert body["source"] == "manual"
+        assert body["memType"] == "lesson"
+        assert body["sourceResultId"] is None
+
+    def test_404_when_agent_unknown(self, admin_client) -> None:
+        http, _ = admin_client
+        with patch(
+            "app.api.v1.admin.trading_agent.agent_memory_service.create_memory",
+            AsyncMock(side_effect=NotFoundError("交易 Agent nope 不存在")),
+        ):
+            resp = http.post(
+                "/api/v1/admin/trading-agent/nope/memories",
+                json={"title": "t", "body": "b", "memType": "method"},
+            )
+
+        assert resp.status_code == 404
+
+    def test_422_on_unknown_mem_type(self, admin_client) -> None:
+        http, _ = admin_client
+        resp = http.post(
+            "/api/v1/admin/trading-agent/short-line/memories",
+            json={"title": "t", "body": "b", "memType": "habit"},
+        )
+
+        assert resp.status_code == 422

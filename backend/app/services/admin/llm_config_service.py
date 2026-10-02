@@ -37,6 +37,23 @@ def infer_protocol(provider: str) -> LLMProtocol:
     return "anthropic" if provider == "anthropic" else "openai"
 
 
+def normalize_purpose_protocol(purpose: str, protocol: str) -> tuple[str, str]:
+    """用途与协议的对偶归一（systemone ⟺ decision、embedding → openai）。
+
+    对表单误选做容错归一而非拒绝（与 decision→systemone 先例一致）：
+    判断模型恒走 systemone wire（D23）；systemone 协议只有判断模型消费；
+    嵌入端点（EmbeddingClient 与连通性探测）均为 OpenAI 形状，Anthropic
+    无嵌入 API。UI 与 API 两条入口共用本规则，保证落库行自洽。
+    """
+    if purpose == "decision":
+        protocol = "systemone"
+    elif protocol == "systemone":
+        purpose = "decision"
+    if purpose == "embedding":
+        protocol = "openai"
+    return purpose, protocol
+
+
 class LLMConfigNotConfiguredError(InternalError):
     """不存在已启用的默认 LLM 配置时抛出。"""
 
@@ -83,20 +100,24 @@ class LLMConfigService:
 
     async def create_config(self, data: LLMConfigCreate) -> LLMConfigResponse:
         """创建新配置。"""
-        await self._validate_backup(data.backup_config_id, data.purpose)
+        purpose, protocol = normalize_purpose_protocol(
+            data.purpose, data.protocol or infer_protocol(data.provider)
+        )
+        await self._validate_backup(data.backup_config_id, purpose)
         config = LLMConfig(
             name=data.name,
             provider=data.provider,
-            protocol=data.protocol or infer_protocol(data.provider),
+            protocol=protocol,
             base_url=data.base_url,
             api_key_encrypted=encrypt_token(data.api_key),
             model_name=data.model_name,
             is_active=data.is_active,
-            purpose=data.purpose,
+            purpose=purpose,
             backup_config_id=data.backup_config_id,
             extra=data.extra,
         )
-        if data.is_default:
+        if data.is_default and purpose == "chat":
+            # 默认仅对 chat 有意义（get_default_active 按 purpose 过滤），其余用途忽略
             await self.repo.clear_other_defaults(exclude_id=None)
             config.is_default = True
         self.repo.add(config)
@@ -136,7 +157,13 @@ class LLMConfigService:
             config.extra = data.extra
         if data.api_key:
             config.api_key_encrypted = encrypt_token(data.api_key)
-        if data.is_default:
+        # 用途与协议对偶归一（与 create 同规则）：decision→systemone、
+        # systemone→decision、embedding→openai，字段级赋值后统一收敛
+        config.purpose, config.protocol = normalize_purpose_protocol(
+            data.purpose or config.purpose, data.protocol or config.protocol
+        )
+        if data.is_default and config.purpose == "chat":
+            # 默认仅对 chat 有意义；purpose 已在上方归一，以归一后值为准
             await self.repo.clear_other_defaults(exclude_id=config_id)
             config.is_default = True
             config.is_active = True
@@ -168,10 +195,18 @@ class LLMConfigService:
         await clear_unhealthy(config_id)
 
     async def set_default_config(self, config_id: int) -> LLMConfigResponse:
-        """将某配置设为全局默认。"""
+        """将某配置设为全局默认。
+
+        仅对话/分析条目可设默认：仓储层 ``get_default_active`` 只解析 chat
+        用途，其余条目设默认是无意义状态（决定权在用途，不在开关）。
+        """
         config = await self.repo.get(config_id)
         if not config:
             raise LLMConfigNotFoundError(f"LLM config {config_id} not found")
+        if config.purpose != "chat":
+            raise UnprocessableEntityError(
+                f"仅「对话/分析」用途可设为默认（当前条目用途为 {config.purpose}）"
+            )
         await self.repo.clear_other_defaults(exclude_id=config_id)
         config.is_default = True
         config.is_active = True
@@ -220,6 +255,28 @@ class LLMConfigService:
                 "content-type": "application/json",
             }
             payload: dict[str, Any] = {"model": config.model_name, "input": ["ping"]}
+        elif config.protocol == "systemone":
+            # 判断模型（System One，D23）：按实际 wire 路径发最小 noul 探针，
+            # 即 adapter 真实调用形状（「测试连接」= 真实冒烟）
+            url = f"{base}/v1/systemone"
+            headers = {
+                "authorization": f"Bearer {api_key}",
+                "content-type": "application/json",
+            }
+            payload = {
+                "model": config.model_name,
+                "state": {"ping": "连通性测试"},
+                "questions": {
+                    "connected": {
+                        "type": "noul",
+                        "instructions": "这是一次系统连通性测试。",
+                        "criteria": {
+                            "true": "本次调用正常送达",
+                            "false": "本次调用异常",
+                        },
+                    }
+                },
+            }
         elif config.protocol == "anthropic":
             url = f"{base}/v1/messages"
             headers = {

@@ -82,6 +82,7 @@ class AgentDailyPlanCollector(BaseCollector):
             "cached": result.cached,
             "selections": len(result.content.selections),
             "plans": len(result.content.plans),
+            "stand_aside_reason": result.content.stand_aside_reason,
             **({"dropped_codes": dropped} if dropped else {}),
         }
 
@@ -127,11 +128,17 @@ class AgentDailyPlanCollector(BaseCollector):
                 )
                 continue
             try:
-                details[agent.agent_key] = await self._run_one(
+                detail = await self._run_one(
                     agent.agent_key,
                     trade_date,
                     collector_log_id=kwargs.get("collector_log_id"),
                 )
+                details[agent.agent_key] = detail
+                if not detail["selections"] and not detail["plans"]:
+                    reason = detail.get("stand_aside_reason")
+                    lines.append(
+                        f"{agent.agent_key}: 空仓——{(reason or '未表态')[:60]}"
+                    )
             except ReviewInputDataNotReadyError:
                 # 不吞掉：全部 Agent 未就绪时向 Celery 退避重试抛出。
                 not_ready += 1

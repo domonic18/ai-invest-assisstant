@@ -53,7 +53,9 @@ class HealthCheckCollector(BaseCollector):
             finished_at=datetime.now(timezone.utc),
             metadata={
                 "trade_date": today_cn().isoformat(),
-                "checked_at": summary["checked_at"],
+                # JSONB metadata 只收可序列化标量：datetime 原样放入会在
+                # collector_log 落库时炸 TypeError（09-26~09-28 连败三日的根因）
+                "checked_at": summary["checked_at"].isoformat(),
                 "instances": summary["total"],
                 "status_counts": summary["status_counts"],
             },

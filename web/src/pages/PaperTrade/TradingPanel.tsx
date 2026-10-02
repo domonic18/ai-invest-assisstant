@@ -13,12 +13,21 @@ import {
 import { useStockQuote, useStockSearch } from '@/hooks/useStocks'
 import { bjNow } from '@/utils/beijing'
 import {
-  changeColor,
-  fallColor,
+  changeHex,
+  fallHex,
   formatPercent,
-  riseColor,
+  riseHex,
 } from '@/utils/formatters'
 
+import {
+  findPosition,
+  QUICK_RATIOS,
+  SESSION_TAG_COLOR,
+  stockCode,
+  validateLimitPrice,
+  validateOrderVolume,
+} from './orderForm'
+import type { OrderPrefill } from './orderForm'
 import {
   limitPrices,
   maxBuyVolume,
@@ -36,14 +45,6 @@ interface OrderFormValues {
   volume: number
 }
 
-/** 持仓行/外部入口回填下单卡的载荷（symbol 用 6 位代码）。 */
-export interface OrderPrefill {
-  symbol: string
-  side: 'buy' | 'sell'
-  price?: number
-  volume?: number
-}
-
 interface TradingPanelProps {
   account: ApiPaperTradeAccount
   cashAvailable?: number | null
@@ -51,37 +52,6 @@ interface TradingPanelProps {
   prefill?: OrderPrefill | null
   onPrefillConsumed?: () => void
 }
-
-/** 提取平台规范的 6 位股票代码（行情查询与下单提交共用）；
- * 接受裸代码或粘贴的带前缀代码（SZSE.000037）。柜台前缀由后端按主数据解析。 */
-function stockCode(raw: string | undefined): string {
-  const match = raw?.trim().toUpperCase().match(/(\d{6})/)
-  return match ? match[1] : ''
-}
-
-function findPosition(
-  positions: ApiPaperTradePosition[] | undefined,
-  code: string,
-): ApiPaperTradePosition | undefined {
-  if (!code) return undefined
-  return positions?.find(
-    (p) => p.stockCode === code || p.symbol.endsWith(code),
-  )
-}
-
-const SESSION_TAG_COLOR: Record<string, string> = {
-  success: 'green',
-  warning: 'orange',
-  default: 'default',
-}
-
-/** 快捷仓位档位：按最大可买/可卖取比例，再整手取整。 */
-const QUICK_RATIOS: { label: string; ratio: number }[] = [
-  { label: '1/4仓', ratio: 0.25 },
-  { label: '半仓', ratio: 0.5 },
-  { label: '3/4仓', ratio: 0.75 },
-  { label: '全仓', ratio: 1 },
-]
 
 /** 下单面板（同花顺式竖排）：买卖双 tab + 代码联想 + 快捷仓位 + 涨跌停/资金校验 + 确认弹窗。 */
 export function TradingPanel({
@@ -165,36 +135,11 @@ export function TradingPanel({
 
   const validatePrice = (_rule: unknown, value: number | undefined) => {
     if (orderType !== 'limit') return Promise.resolve()
-    if (value == null) return Promise.reject(new Error('限价单必须带价格'))
-    if (limits) {
-      if (value > limits.limitUp)
-        return Promise.reject(
-          new Error(`超过涨停价 ${limits.limitUp.toFixed(2)}，将被柜台拒单`),
-        )
-      if (value < limits.limitDown)
-        return Promise.reject(
-          new Error(`低于跌停价 ${limits.limitDown.toFixed(2)}，将被柜台拒单`),
-        )
-    }
-    return Promise.resolve()
+    return validateLimitPrice(value, limits)
   }
 
-  const validateVolume = (_rule: unknown, value: number | undefined) => {
-    if (value == null) return Promise.reject(new Error('输入数量'))
-    if (value % 100 !== 0)
-      return Promise.reject(new Error('数量须为 100 股整数倍'))
-    if (side === 'sell') {
-      if (!position || (position.availableVolume ?? 0) <= 0)
-        return Promise.reject(new Error('该标的无可卖持仓（T+1 未可用亦不可卖）'))
-      if (maxSell != null && value > maxSell)
-        return Promise.reject(new Error(`超过最大可卖 ${maxSell} 股`))
-    } else if (maxBuy != null && value > maxBuy) {
-      return Promise.reject(
-        new Error(`资金不足，最大可买 ${maxBuy} 股`),
-      )
-    }
-    return Promise.resolve()
-  }
+  const validateVolume = (_rule: unknown, value: number | undefined) =>
+    validateOrderVolume(value, { side, position, maxBuy, maxSell })
 
   const doPlace = async (values: OrderFormValues) => {
     try {
@@ -234,7 +179,7 @@ export function TradingPanel({
             方向：
             <span
               style={{
-                color: values.side === 'buy' ? riseColor() : fallColor(),
+                color: values.side === 'buy' ? riseHex() : fallHex(),
               }}
             >
               {sideLabel}
@@ -251,7 +196,7 @@ export function TradingPanel({
     })
   }
 
-  const sideColor = side === 'buy' ? riseColor() : fallColor()
+  const sideColor = side === 'buy' ? riseHex() : fallHex()
   const quickBase = side === 'buy' ? maxBuy : maxSell
   const applyRatio = (ratio: number) => {
     if (quickBase == null) return
@@ -291,7 +236,7 @@ export function TradingPanel({
           <div className="grid grid-cols-2 gap-2">
             {(['buy', 'sell'] as const).map((s) => {
               const active = side === s
-              const color = s === 'buy' ? riseColor() : fallColor()
+              const color = s === 'buy' ? riseHex() : fallHex()
               return (
                 <Button
                   key={s}
@@ -330,17 +275,17 @@ export function TradingPanel({
             </Form.Item>
             {quote && (
               <div className="-mt-1 mb-2 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                <span className="text-sm font-medium" style={{ color: changeColor(quote.changePct) }}>
+                <span className="text-sm font-medium" style={{ color: changeHex(quote.changePct) }}>
                   {quote.price != null ? Number(quote.price).toFixed(2) : '-'}
                 </span>
                 {quote.changePct != null && (
-                  <span className="text-xs" style={{ color: changeColor(quote.changePct) }}>
+                  <span className="text-xs" style={{ color: changeHex(quote.changePct) }}>
                     {formatPercent(quote.changePct)}
                   </span>
                 )}
                 {quoteRow('昨收', quote.prevClose != null ? Number(quote.prevClose).toFixed(2) : '-')}
-                {limits && quoteRow('涨停', limits.limitUp.toFixed(2), riseColor())}
-                {limits && quoteRow('跌停', limits.limitDown.toFixed(2), fallColor())}
+                {limits && quoteRow('涨停', limits.limitUp.toFixed(2), riseHex())}
+                {limits && quoteRow('跌停', limits.limitDown.toFixed(2), fallHex())}
               </div>
             )}
             <div className="flex items-start gap-2">

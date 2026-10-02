@@ -72,7 +72,7 @@
 
 ### 2.2 调度矩阵（节奏参考）
 
-调度真相源是 `collector_task` 表（种子见 `docker/database/init-scripts/03-seed.sql`），
+调度真相源是 `collector_task` 表（种子见 `docker/database/migrations/0002_seed.sql`），
 beat 周期同步，在管理后台改行即生效；下表仅列节奏概况，**具体 cron 以表内容为准**：
 
 | 任务 | 渠道 | 节奏 |

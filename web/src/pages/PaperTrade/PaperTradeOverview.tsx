@@ -4,12 +4,15 @@ import type { ReactNode } from 'react'
 
 import type { ApiPaperTradeCash } from '@ai-invest/shared'
 
-import { changeColor, formatAmount, formatNumber } from '@/utils/formatters'
+import { changeHex, formatAmount, formatNumber, formatPercent } from '@/utils/formatters'
+import { cumPnl } from '@/utils/paperTradeMetrics'
 
 interface PaperTradeOverviewProps {
   cash?: ApiPaperTradeCash | null
   /** 当日盈亏（nav 差修正出入金，index 层计算）；null = 基准快照缺失不展示 */
   dayPnl: number | null
+  /** 当日盈亏百分比（分母 = 昨收基准 + 当日出入金）；null 不展示括号段 */
+  dayPnlPct: number | null
   /** 资金栏右侧操作区（账户选择器 + 账户配置入口） */
   children?: ReactNode
 }
@@ -33,8 +36,9 @@ function Stat({
   )
 }
 
-/** 资金账户栏（紧凑单行）：总资产 / 可用资金 / 当日盈亏 + 右侧账户操作区。 */
-export function PaperTradeOverview({ cash, dayPnl, children }: PaperTradeOverviewProps) {
+/** 资金账户栏（紧凑单行）：总资产 / 可用资金 / 累计盈亏 / 当日盈亏 + 右侧账户操作区。 */
+export function PaperTradeOverview({ cash, dayPnl, dayPnlPct, children }: PaperTradeOverviewProps) {
+  const { pnl: cumPnlValue, pnlPct: cumPnlPct } = cumPnl(cash)
   return (
     <Card size="small">
       <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-2">
@@ -46,6 +50,17 @@ export function PaperTradeOverview({ cash, dayPnl, children }: PaperTradeOvervie
           <Stat
             title="可用资金"
             value={cash?.available == null ? '-' : formatAmount(Number(cash.available))}
+          />
+          <Stat
+            title="累计盈亏"
+            value={
+              cumPnlValue == null
+                ? '-'
+                : `${cumPnlValue >= 0 ? '+' : ''}${formatNumber(Number(cumPnlValue))}${
+                    cumPnlPct != null ? ` (${formatPercent(cumPnlPct)})` : ''
+                  }`
+            }
+            color={cumPnlValue == null ? undefined : changeHex(cumPnlValue)}
           />
           <Stat
             title={
@@ -60,8 +75,14 @@ export function PaperTradeOverview({ cash, dayPnl, children }: PaperTradeOvervie
                 '当日盈亏'
               )
             }
-            value={dayPnl == null ? '-' : `${dayPnl >= 0 ? '+' : ''}${formatNumber(Number(dayPnl))}`}
-            color={dayPnl == null ? undefined : changeColor(dayPnl)}
+            value={
+              dayPnl == null
+                ? '-'
+                : `${dayPnl >= 0 ? '+' : ''}${formatNumber(Number(dayPnl))}${
+                    dayPnlPct != null ? ` (${formatPercent(dayPnlPct)})` : ''
+                  }`
+            }
+            color={dayPnl == null ? undefined : changeHex(dayPnl)}
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">{children}</div>

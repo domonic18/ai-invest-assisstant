@@ -14,12 +14,22 @@ import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.clock import today_cn
 from app.core.exceptions import BadRequestError, NotFoundError
-from app.models.agent_trading import AgentStockSelection, AgentTradePlan
+from app.models.agent_trading import (
+    AgentStockSelection,
+    AgentTradePlan,
+    AgentTradePlanAmendment,
+)
 from app.models.paper_trade import PaperTradeExecution
 from app.models.stock import StockBasic
 from app.models.watchlist import UserWatchlistGroup
-from app.schemas.paper_trade import TradingAgentPlanResponse
+from app.schemas.paper_trade import (
+    TradingAgentPlanAmendmentResponse,
+    TradingAgentPlanResponse,
+)
+from app.services.market import trade_calendar_service
+from app.services.trading.paper_trade_converters import SIDE_BUY, SIDE_SELL
 
 logger = structlog.get_logger(__name__)
 
@@ -82,9 +92,9 @@ async def _held_volumes(
         if code not in wanted:
             continue
         delta = int(volume or 0)
-        if side == 1:
+        if side == SIDE_BUY:
             agg[code] = agg.get(code, 0) + delta
-        elif side == 2:
+        elif side == SIDE_SELL:
             agg[code] = agg.get(code, 0) - delta
     return {code: volume for code, volume in agg.items() if volume > 0}
 
@@ -119,6 +129,21 @@ async def list_plan_views(
     return views
 
 
+async def list_amendment_views(
+    session: AsyncSession, agent_key: str, *, plan_date: date
+) -> list[TradingAgentPlanAmendmentResponse]:
+    """指定日盘中校准修正单（窗口/时间升序），计划卡校准历史展示（§11.5）。"""
+    rows = await session.scalars(
+        select(AgentTradePlanAmendment)
+        .where(
+            AgentTradePlanAmendment.agent_key == agent_key,
+            AgentTradePlanAmendment.plan_date == plan_date,
+        )
+        .order_by(AgentTradePlanAmendment.window, AgentTradePlanAmendment.created_at)
+    )
+    return [TradingAgentPlanAmendmentResponse.model_validate(row) for row in rows]
+
+
 async def list_plan_dates(session: AsyncSession, agent_key: str) -> list[date]:
     """指定 Agent 已有交易计划的计划日去重清单（升序），日历打点用。"""
     rows = await session.execute(
@@ -127,6 +152,45 @@ async def list_plan_dates(session: AsyncSession, agent_key: str) -> list[date]:
         .distinct()
     )
     return sorted(rows.scalars().all())
+
+
+async def resolve_default_plan_date(session: AsyncSession, agent_key: str) -> date:
+    """计划视图缺省日：该 Agent 最近一份 ≤ 今天的计划日。
+
+    计划 T 日制定、T+1 盘中消费，按「最近一份 ≤ 今天」取缺省，盘中/盘后
+    打开都落在正在执行或最新生成的那份（区别于大盘口径的最近交易日——
+    其盘中会跳到当日导致空态）；无任何计划回退最近交易日。
+    """
+    latest = await session.scalar(
+        select(func.max(AgentTradePlan.plan_date)).where(
+            AgentTradePlan.agent_key == agent_key,
+            AgentTradePlan.plan_date <= today_cn(),
+        )
+    )
+    if latest is not None:
+        return latest
+    return await trade_calendar_service.resolve_latest_trade_date(session)
+
+
+async def resolve_executing_plan_date(
+    session: AsyncSession, agent_key: str, *, view_date: date
+) -> date | None:
+    """view_date 盘中执行的计划集的制定日（空态引导跳转用）。
+
+    取 view_date 之前最近一份计划 P，仅当 next_trading_day(P) == view_date
+    （该计划集恰于 view_date 消费）时返回 P；view_date 非交易日 / 无前份 /
+    日历未覆盖均为 None。
+    """
+    prev = await session.scalar(
+        select(func.max(AgentTradePlan.plan_date)).where(
+            AgentTradePlan.agent_key == agent_key,
+            AgentTradePlan.plan_date < view_date,
+        )
+    )
+    if prev is None:
+        return None
+    nxt = await trade_calendar_service.next_trading_day(session, prev)
+    return prev if nxt == view_date else None
 
 
 async def cancel_plan(

@@ -5,12 +5,14 @@ import { ProtectedAdmin } from './components/auth/ProtectedAdmin'
 import { ProtectedLayout } from './components/auth/ProtectedLayout'
 import { RedirectIfAuthenticated } from './components/auth/RedirectIfAuthenticated'
 import { PageSkeleton } from './components/common/PageSkeleton'
-import { Dashboard } from './pages/Dashboard/Dashboard'
 
 const Admin = lazy(() => import('./pages/Admin/Admin').then((m) => ({ default: m.Admin })))
+const Dashboard = lazy(() => import('./pages/Dashboard/Dashboard').then((m) => ({ default: m.Dashboard })))
 const AdminNews = lazy(() => import('./pages/Admin/News/News').then((m) => ({ default: m.AdminNews })))
 const AdminReports = lazy(() => import('./pages/Admin/Reports/Reports').then((m) => ({ default: m.AdminReports })))
-const AdminStocks = lazy(() => import('./pages/Admin/Stocks/Stocks').then((m) => ({ default: m.AdminStocks })))
+const StocksAdmin = lazy(() =>
+  import('./pages/Admin/Stocks/StocksAdmin').then((m) => ({ default: m.StocksAdmin })),
+)
 const AdminUsers = lazy(() => import('./pages/Admin/Users/Users').then((m) => ({ default: m.AdminUsers })))
 const CollectorAdmin = lazy(() =>
   import('./pages/Admin/Collector').then((m) => ({ default: m.CollectorAdmin })),
@@ -148,7 +150,9 @@ export const router = createBrowserRouter([
           { index: true, element: lazyEl(<Admin />) },
           { path: 'users', element: lazyEl(<AdminUsers />) },
           { path: 'usage-dashboard', element: lazyEl(<UsageDashboard />) },
-          { path: 'stocks', element: lazyEl(<AdminStocks />) },
+          { path: 'stocks', element: lazyEl(<StocksAdmin />) },
+          // 旧路由保留：重定向到合并页的题材映射 tab（收藏/外链不断链）
+          { path: 'stock-concepts', element: <Navigate to="/admin/stocks?tab=concepts" replace /> },
           { path: 'reports', element: lazyEl(<AdminReports />) },
           { path: 'news', element: lazyEl(<AdminNews />) },
           // 旧路由兜底：任务/渠道配置并入采集管理（tab 直达）

@@ -10,7 +10,7 @@ import {
 import { PaperTradeOverview } from './PaperTradeOverview'
 import { PaperTradePositions } from './PaperTradePositions'
 import { TradingPanel } from './TradingPanel'
-import type { OrderPrefill } from './TradingPanel'
+import type { OrderPrefill } from './orderForm'
 import { AccountManagerModal } from './AccountManagerModal'
 import { NavChart } from './NavChart'
 import {
@@ -19,8 +19,7 @@ import {
   usePaperTradeOverview,
   usePaperTradeSyncAction,
 } from '@/hooks/usePaperTrade'
-import { bjNow } from '@/utils/beijing'
-import { DATE_FORMAT } from '@/utils/formatters'
+import { dailyPnl } from '@/utils/paperTradeMetrics'
 
 /** 未配置引导卡：无账户配置或服务端未启用模拟盘网关时展示使用方法。 */
 function GuideCard({ onManage }: { onManage: () => void }) {
@@ -100,15 +99,8 @@ export function PaperTrade() {
   const overview = overviewQuery.data
   const pageReady = account != null && overview != null && overview.enabled
 
-  // 当日盈亏 = 实时 nav - 最近一个「今日之前」的快照 nav - 当日出入金
-  const todayStr = bjNow().format(DATE_FORMAT)
-  const prevPoint = [...(navQuery.data?.items ?? [])]
-    .reverse()
-    .find((p) => p.tradeDate < todayStr)
-  const dayPnl =
-    overview?.cash?.nav != null && prevPoint?.nav != null
-      ? overview.cash.nav - prevPoint.nav - (overview.cash.lastInout ?? 0)
-      : null
+  // 当日盈亏与净值曲线共用同一份 nav 快照（口径见 utils/paperTradeMetrics）
+  const { dayPnl, dayPnlPct } = dailyPnl(navQuery.data?.items, overview?.cash)
 
   const unfinished = overview?.unfinishedOrders.length ?? 0
   const accountBar = (
@@ -151,7 +143,7 @@ export function PaperTrade() {
         )
       ) : (
         <>
-          <PaperTradeOverview cash={overview.cash} dayPnl={dayPnl}>
+          <PaperTradeOverview cash={overview.cash} dayPnl={dayPnl} dayPnlPct={dayPnlPct}>
             {accountBar}
           </PaperTradeOverview>
           <Row gutter={[16, 16]}>

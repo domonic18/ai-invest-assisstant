@@ -12,6 +12,7 @@ export const queryKeys = {
     telegraph: ['admin-telegraph'] as const,
     reports: ['admin-reports'] as const,
     stocks: ['admin-stocks'] as const,
+    stockConcepts: ['admin-stock-concepts'] as const,
     users: ['admin-users'] as const,
     tasks: ['admin-tasks'] as const,
     aiResults: ['admin-ai-results'] as const,
@@ -291,6 +292,22 @@ export const queryKeys = {
       ['trading-agent', agentKey, 'review', period, tradeDate ?? 'latest'] as const,
     plans: (agentKey: string, tradeDate?: string) =>
       ['trading-agent', agentKey, 'plans', tradeDate ?? 'latest'] as const,
+    observations: (
+      agentKey: string,
+      tradeDate?: string,
+      significant?: boolean,
+      page?: number,
+      pageSize?: number,
+    ) =>
+      [
+        'trading-agent',
+        agentKey,
+        'observations',
+        tradeDate ?? 'latest',
+        significant ?? true,
+        page ?? 1,
+        pageSize ?? 20,
+      ] as const,
     selections: (agentKey: string) => ['trading-agent', agentKey, 'selections'] as const,
     memories: (agentKey: string) => ['trading-agent', agentKey, 'memories'] as const,
   },

@@ -99,6 +99,18 @@ class KeyCompanySummary(ChainModel):
 ChainAlertType = Literal["财报异动", "评级调整", "技术突破", "格局变化", "政策催化"]
 
 
+class ChainAlertSource(ChainModel):
+    """提醒引用的信源条目（取自 search_news 返回，前端溯源展示）。
+
+    字段禁带默认值：带默认值不进 required，LLM 会静默省略；无信源时
+    由 LLM 显式输出空数组，publish_date 未知时输出空串。
+    """
+
+    title: str
+    source: str
+    publish_date: str
+
+
 class ChainAlertItem(ChainModel):
     """分析产出的产业链提醒条目。
 
@@ -112,6 +124,7 @@ class ChainAlertItem(ChainModel):
     description: str
     affected_segments: list[str]
     related_stock_codes: list[str]
+    sources: list[ChainAlertSource]
 
     @model_validator(mode="before")
     @classmethod
@@ -121,6 +134,7 @@ class ChainAlertItem(ChainModel):
             data.setdefault("description", "")
             data.setdefault("affected_segments", [])
             data.setdefault("related_stock_codes", [])
+            data.setdefault("sources", [])
         return data
 
 
@@ -274,5 +288,6 @@ class ChainAlertResponse(ChainModel):
     description: str
     affected_segments: list[str] = Field(default_factory=list)
     related_stocks: list[ChainAlertStockRef] = Field(default_factory=list)
+    sources: list[ChainAlertSource] = Field(default_factory=list)
     signal_date: date
     created_at: datetime
