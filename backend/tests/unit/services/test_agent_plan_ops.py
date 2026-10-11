@@ -133,21 +133,26 @@ class TestCreatePlan:
         session.add.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_rejects_cancelled_plan(self) -> None:
-        session = _session_with_scalars(["600000", _plan_row("cancelled")])
-        with pytest.raises(BadRequestError, match="cancelled"):
-            await agent_plan_ops.create_plan(
-                session,
-                _AK,
-                plan_date=_PLAN_DATE,
-                stock_code="600000",
-                plan_type="sell",
-                strategy="s",
-                stop_loss=9.5,
-                position_pct=10,
-                basis="b",
-                target_price=11.0,
-            )
+    async def test_revives_cancelled_plan(self) -> None:
+        # 会话内取消再重立是人工在环的常态修订；定时路径的「人工 cancelled
+        # 不复活」干预保护不适用于对话路径（同日 cancelled 计划不再拒绝）
+        existing = _plan_row("cancelled")
+        session = _session_with_scalars(["600000", existing])
+        plan = await agent_plan_ops.create_plan(
+            session,
+            _AK,
+            plan_date=_PLAN_DATE,
+            stock_code="600000",
+            plan_type="sell",
+            strategy="止盈离场",
+            stop_loss=9.5,
+            position_pct=10,
+            basis="依据",
+            target_price=11.0,
+        )
+        assert plan is existing
+        assert plan.status == "active"
+        session.add.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_rejects_triggered_plan(self) -> None:

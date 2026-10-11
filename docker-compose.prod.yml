@@ -109,7 +109,8 @@ services:
     healthcheck:
       test: ["CMD", "python", "-m", "celery", "-A", "collector.celery_app", "inspect", "ping", "-t", "5"]
       interval: 30s
-      timeout: 10s
+      # celery CLI 启动需全量 import 应用（实测空载 ~8.7s），10s 在负载下必超时误判 unhealthy
+      timeout: 30s
       retries: 3
       start_period: 30s
     networks:
@@ -146,7 +147,8 @@ services:
     healthcheck:
       test: ["CMD", "python", "-m", "celery", "-A", "collector.celery_app", "inspect", "ping", "-t", "5"]
       interval: 30s
-      timeout: 10s
+      # celery CLI 启动需全量 import 应用（实测空载 ~8.7s），10s 在负载下必超时误判 unhealthy
+      timeout: 30s
       retries: 3
       start_period: 30s
     networks:
