@@ -284,6 +284,29 @@ class TestRunParamsWiring:
         assert kwargs["end_date"] == "2026-06-30"
 
     @pytest.mark.asyncio
+    async def test_kline_end_date_reaches_collect_kwargs(self) -> None:
+        """end_date 是 kline 的 run_params：手动补采日期须透传进 collect()，
+        不得被静默丢弃（无显式日期 → 周末 symbols 补采被交易日预检整体拦截）。"""
+        collect_kline = TASK_MAP["kline"]
+        collect_mock = AsyncMock(return_value=[])
+
+        with (
+            patch(
+                "collector.runtime.registry._resolve_task_channels",
+                AsyncMock(return_value=[("sina", {"base_url": None, "api_key": None})]),
+            ),
+            patch(
+                "collector.spiders.sina_kline.SinaKlineCollector.collect",
+                collect_mock,
+            ),
+        ):
+            await collect_kline(symbols=["601595"], end_date="2026-10-09")
+
+        kwargs = collect_mock.await_args.kwargs
+        assert kwargs["symbols"] == ["601595"]
+        assert kwargs["end_date"] == "2026-10-09"
+
+    @pytest.mark.asyncio
     async def test_financial_report_types_stay_in_config(self) -> None:
         """report_types 是 config_params：经构造器 config 注入而非 collect kwargs。"""
         init_configs: list[dict] = []

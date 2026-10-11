@@ -455,6 +455,28 @@ class TestTradeDayPrecheck:
         assert result is None
 
     @pytest.mark.asyncio
+    async def test_symbols_backfill_exempts_without_db(self) -> None:
+        """显式 symbols = 手动指定标的补采，豁免（周末 agent/自选股补个股 K 线
+        不被拦截；定时运行结构上无 symbols，豁免不波及定时任务）。"""
+        with patch(
+            "collector.runtime.runner.AsyncSessionLocal"
+        ) as mock_factory:
+            result = await _precheck_trade_day(
+                {}, {"symbols": ["601595"]}, self._SPEC, "ths_kline_daily"
+            )
+        assert result is None
+        mock_factory.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_empty_symbols_still_prechecks(self) -> None:
+        """空 symbols 不豁免：定时增量形状仍按交易日预检拦截。"""
+        result = await self._run_precheck(
+            True, "non_trading", kwargs={"symbols": []}
+        )
+        assert result is not None
+        assert result.status == CollectStatus.SKIPPED
+
+    @pytest.mark.asyncio
     async def test_beat_instance_name_used_for_lookup(self) -> None:
         """beat 传实例名（task_name）；实例名优先于任务类型名。"""
         with (

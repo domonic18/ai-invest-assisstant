@@ -22,6 +22,7 @@ V1.3 已于 2026-09-12 随异动分析迭代全量发布。截至 2026-10-01，�
 |------|------|----------|------|--------------|
 | 迭代 20 | F-SIM 批次 8 · 盘中自主执行 | §11（D21-D24 定案）：常驻服务 `agent-intraday-exec` 60s tick（弃 */5 轮询），四层栈 L0 确定性风控硬校验（仓位/日内笔数，纯函数）→ L1 判断模型概率决策（`SystemOneAdapter` 押注契约，Jev 主臂 `jev-1.13` 经 OpenRouter）→ L2 低置信升级慢模型复核 → L3 人工干预面。交付切分：**PR-1 执行链骨架已交付**（2026-09-29 PR #102：迁移 `intraday_exec_mode` 三态 + `paper_trade_exec_observation` 逐 tick 观测表 + 驻留进程 60s tick，shadow 全链路判断留痕不下单）；**PR-2 计划质量防线与盘中校准已交付**（2026-09-30 PR #110：计划生成端日 K 价格锚定 + 确定性体检 + 首 tick 死单拦截 + §11.5 盘中校准（10:20/13:20 heavy，慢模型读观察报告出修正单，calibration_mode 三态 shadow 先行、修正单全量留痕）；2026-09-29 PR #107 增 `intraday_paused` 人工暂停开关）；**PR-3 执行动态前端已交付**（2026-09-29：`GET /{key}/observations` + 详情页「执行动态」Tab，影子 badge） | 影子期运行中，达标（1-2 周）后切 active | 多 Agent 基座已就绪；对照臂 openjev/Codiv 评估随影子期数据推进 |
 | 迭代 21 | F-SIM 批次 9 · 经验沉淀与反哺 | §12：复盘 experiences 自动沉淀 `agent_memory`（表已建；方案 A 定版后只装经验层，方法论基座已 KB 直读）+ 对话记忆工具 + 反哺每日计划 | 未实现 | 依赖批次 6-8 真实运行数据积累（建议 ≥4 周后评估反哺效果） |
+| 迭代 22 | F-SIM 数据能力补齐 · 行情工具与补采 + 画线视觉 | 批次 1：`build_trading_tools` 接入现成行情/财务查询工具 + `collect_market_data`/`collect_financial_data` 补采入口，`TOOLS_VERSION` bump；批次 2（决策点已拍板 2026-10-11：画线来源两者都做 / pillow 服务端渲染 / 图像消费双路径 / 前端图片渲染独立后置）：画线渲染截图 + AI 视觉查看。方案与决策点见 [trading-agent-data-capability-plan.md](trading-agent-data-capability-plan.md) | 批次 1、2 已实现（2026-10-11） | 批次 2 依赖多模态模型出口或 vision 槽位；板块K线补采已拍板暂缓 |
 
 **发布门槛**：验收全绿（backend pytest / mypy / ruff，web typecheck / lint / test / build）；新页对照原型走查；develop → main 同步后发布。
 

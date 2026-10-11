@@ -14,6 +14,9 @@ SPECS: tuple[TaskSpec, ...] = (
             "sina": "collector.spiders.sina_kline:SinaKlineCollector",
         },
         config_params=("period",),
+        # end_date 仅作「显式日期 = 手动补跑」预检豁免信号（spider 拉最近
+        # N 根，不按区间裁剪）；声明进 run_params 才能到达 runner 预检 kwargs
+        run_params=("end_date",),
         defaults={"period": "daily"},
     ),
     TaskSpec(
@@ -36,6 +39,8 @@ SPECS: tuple[TaskSpec, ...] = (
         collectors={
             "sina": "collector.spiders.sina_index_kline:SinaIndexKlineCollector",
         },
+        # 同 kline：end_date 作手动补跑豁免信号
+        run_params=("end_date",),
     ),
     TaskSpec(
         name="etf-kline",
