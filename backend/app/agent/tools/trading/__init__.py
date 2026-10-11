@@ -5,6 +5,9 @@
 2026-10-11 数据能力补齐（trading-agent-data-capability-plan 批次 1）：追加
 行情查询（现价/日K/技术面/情绪面/资金流/交易日历）、财务查询与财报三件套，
 及行情/财务数据补采自愈入口——支撑纪律「下单前必查现价」与数据滞后自愈。
+批次 2（同日拍板 D-V1/D-V2/D-V3）：画线三件套——结构化读写（get/persist）+
+渲染截图看图（render，绑定模型支持视觉则 ToolMessage 直进上下文，否则降级
+系统视觉槽位）——支撑纪律「AI 画线写后必自检」与用户画线看图解读。
 写操作返回值嵌 ``paper_trading.complete`` 页面事件，驱动交易 Agent 页刷新。
 写工具经 ``make_*`` 工厂按 agent_key 闭包绑定（多 Agent 基座 D24）；只读
 查询/补采工具为全局单例直接复用（无账户绑定语义）。
@@ -14,8 +17,9 @@ from typing import cast
 
 from langchain_core.tools import BaseTool
 
+from app.agent.tools.drawing_tools import persist_ai_kline_drawings
 from app.agent.tools.interaction_tools import ask_user
-from app.agent.tools.market_tools import collect_market_data, get_trade_calendar
+from app.agent.tools.market_tools import collect_market_data, get_kline_drawings, get_trade_calendar
 from app.agent.tools.report_tools import (
     download_financial_reports,
     query_financial_reports,
@@ -31,6 +35,7 @@ from app.agent.tools.stock_tools import (
 )
 from app.agent.tools.trading.account import make_get_account_tool
 from app.agent.tools.trading.backfill import collect_financial_data
+from app.agent.tools.trading.drawings import make_render_kline_drawings_tool
 from app.agent.tools.trading.orders import make_cancel_order_tool, make_place_order_tool
 from app.agent.tools.trading.plans import (
     make_cancel_plan_tool,
@@ -40,7 +45,7 @@ from app.agent.tools.trading.plans import (
 from app.agent.tools.trading.reads import make_get_review_tool, make_get_selections_tool
 
 #: 工具集版本：每次增删工具时 +1（agent 实例缓存键组成部分，保证热更新）
-TOOLS_VERSION = 5
+TOOLS_VERSION = 6
 
 
 def build_trading_tools(agent_key: str) -> list[BaseTool]:
@@ -48,7 +53,8 @@ def build_trading_tools(agent_key: str) -> list[BaseTool]:
 
     ask_user 是写操作确认底座（prompt 纪律「下单/撤单/制定计划前必确认」
     的执行手段）；行情查询组是纪律「下单前必查现价」的执行手段；collect_*
-    为数据滞后自愈入口（异步派发后复查询验证）。
+    为数据滞后自愈入口（异步派发后复查询验证）；画线三件套支撑「写后必
+    自检」纪律（persist 前置 get 检查，render 看图复核）。
     """
     return cast(
         list[BaseTool],
@@ -76,5 +82,9 @@ def build_trading_tools(agent_key: str) -> list[BaseTool]:
             summarize_financial_report,
             collect_market_data,
             collect_financial_data,
+            # 画线与视觉自检（写前 get 检查 → persist 写入 → render 看图复核）
+            get_kline_drawings,
+            persist_ai_kline_drawings,
+            make_render_kline_drawings_tool(agent_key),
         ],
     )
