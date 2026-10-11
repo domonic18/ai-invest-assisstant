@@ -172,6 +172,7 @@ export interface ApiCollectTaskResult {
   status: string
   itemsCollected: number
   errors: string[]
+  message?: string | null
 }
 
 export interface ApiMarketReviewUpdateRequest {

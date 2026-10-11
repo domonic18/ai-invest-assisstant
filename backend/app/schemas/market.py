@@ -290,3 +290,4 @@ class CollectTaskResult(CamelModel):
     status: str
     items_collected: int
     errors: list[str] = []
+    message: str | None = None

@@ -452,9 +452,9 @@ async def collect_market_data(
     """补采指定交易日的行情数据：查询工具发现数据缺失/滞后时用于数据自愈。
 
     覆盖涨停池、炸板池、跌停池、市场成交额、板块资金流与指数 K 线；
-    传入 symbols 时补采对应个股日 K。任务异步执行：涨停池/成交额约 1 分钟入库，
-    板块资金流约 10 分钟；派发后须等待数据入库再重新查询验证。
-    涨跌家数为盘中快照，无法补采。
+    传入 symbols 时补采对应个股日 K（任意日期可执行，同步等待采集完成后
+    返回真实终态与入库条数）。其余任务异步执行：涨停池/成交额约 1 分钟入库，
+    板块资金流约 10 分钟。涨跌家数为盘中快照，无法补采。
 
     Args:
         trade_date: 交易日，ISO 格式如 "2026-09-04"。
@@ -477,10 +477,19 @@ async def collect_market_data(
 
     return {
         "trade_date": resolved.isoformat(),
-        "dispatched": [r.task for r in results],
+        "tasks": [
+            {
+                "task": r.task,
+                "status": r.status,
+                "items_collected": r.items_collected,
+                **({"message": r.message} if r.message else {}),
+            }
+            for r in results
+        ],
         "note": (
-            "补采任务已提交，涨停池/成交额约 1 分钟入库，板块资金流约 10 分钟；"
-            "请稍后重新调用查询工具验证数据，仍缺失时如实告知用户。"
+            "tasks 为各任务真实执行状态（kline 为同步等待后的终态，含入库条数；"
+            "status=skipped/failed 时按 message 如实说明）。其余任务为异步派发，"
+            "请稍后重新调用查询工具验证数据；仍缺失时如实告知用户，禁止推断入库进度。"
         ),
     }
 

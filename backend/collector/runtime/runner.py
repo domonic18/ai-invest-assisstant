@@ -165,9 +165,14 @@ async def _precheck_trade_day(
     - 预检开关按 collector_task 实例行读取（后台可改，无需重启）；
       beat 传实例名（task_name），手动路径传任务类型名（task），两者都按行匹配；
     - 显式日期参数（trade_date/start_date/end_date）= 手动补跑，豁免；
+    - 显式 symbols（非空）= 手动指定标的补采，豁免——采集器拉取「最近 N 根」
+      与当日是否交易日无关；定时运行结构上不携带 symbols（collector_task
+      表无参数列，beat 只传任务名），豁免不会波及定时任务；
     - 日历未覆盖当日（unknown）同样拒绝并注明（D5：不静默回退周末启发）。
     """
     if _EXPLICIT_DATE_PARAM_KEYS.intersection(kwargs):
+        return None
+    if kwargs.get("symbols"):
         return None
     lookup_name = params.get("task_name") or task_name
     async with AsyncSessionLocal() as session:

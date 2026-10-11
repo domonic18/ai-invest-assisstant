@@ -49,7 +49,10 @@ class TestCollectMarketDataTool:
                 task="sector-fund-flow", status="dispatched", items_collected=0
             ),
             CollectTaskResult(
-                task="index-kline", status="dispatched", items_collected=0
+                task="kline",
+                status="success",
+                items_collected=41,
+                message=None,
             ),
         ]
         with patch(
@@ -63,8 +66,34 @@ class TestCollectMarketDataTool:
         assert m.await_args.args[1] == date(2026, 9, 4)
         assert m.await_args.args[2] is None
         assert result["trade_date"] == "2026-09-04"
-        assert result["dispatched"] == ["sector-fund-flow", "index-kline"]
-        assert "板块资金流" in result["note"]
+        tasks = {t["task"]: t for t in result["tasks"]}
+        assert tasks["kline"]["status"] == "success"
+        assert tasks["kline"]["items_collected"] == 41
+        assert "真实执行状态" in result["note"]
+        assert "禁止推断入库进度" in result["note"]
+
+    @pytest.mark.asyncio
+    async def test_skipped_task_exposes_message(self) -> None:
+        """失败/跳过任务的 message 透传给 agent（如实收尾的数据来源）。"""
+        results = [
+            CollectTaskResult(
+                task="kline",
+                status="failed",
+                items_collected=0,
+                message="数据源连接失败",
+            ),
+        ]
+        with patch(
+            "app.services.collector.market_dispatch_service.collect_market_data",
+            AsyncMock(return_value=results),
+        ):
+            result = await mt.collect_market_data.ainvoke(
+                {"trade_date": "2026-09-04", "symbols": ["000001"]}
+            )
+
+        task = result["tasks"][0]
+        assert task["status"] == "failed"
+        assert task["message"] == "数据源连接失败"
 
     @pytest.mark.asyncio
     async def test_symbols_forwarded(self) -> None:
