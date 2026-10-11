@@ -1,4 +1,5 @@
 import { CheckOutlined, CopyOutlined } from '@ant-design/icons'
+import { Image } from 'antd'
 import {
   createContext,
   useContext,
@@ -16,6 +17,25 @@ import { fallHexSoft, riseHexSoft } from '@/utils/formatters'
 
 interface MarkdownContentProps {
   content: string
+}
+
+// 预签名对象存储 URL 带查询串（如 .png?X-Amz-...），按扩展名前缀匹配
+const IMAGE_URL_RE = /\.(png|jpe?g|gif|webp|bmp)(\?|#|$)/i
+
+/** 会话内图片：内联展示，点击 antd lightbox 放大（K 线截图等）。 */
+function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
+  if (!src) return null
+  return (
+    <div className="my-2 max-w-[360px]">
+      <Image
+        src={src}
+        alt={alt || '图片'}
+        width="100%"
+        className="rounded-lg border border-white/10"
+        preview={{ mask: '点击放大' }}
+      />
+    </div>
+  )
 }
 
 const CodeBlockContext = createContext(false)
@@ -149,6 +169,11 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
       return <h3 className="my-2 text-sm font-semibold text-white">{children}</h3>
     },
     a({ children, href }: { children?: ReactNode; href?: string }) {
+      // agent 贴出的图片链接（K 线截图等）直接内联渲染为图片，点击放大
+      if (href && IMAGE_URL_RE.test(href)) {
+        const label = typeof children === 'string' ? children : ''
+        return <MarkdownImage src={href} alt={label === href ? '' : label} />
+      }
       return (
         <a
           href={href}
@@ -158,6 +183,14 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
         >
           {children}
         </a>
+      )
+    },
+    img({ src, alt }: { src?: string | string[]; alt?: string | string[] }) {
+      return (
+        <MarkdownImage
+          src={typeof src === 'string' ? src : undefined}
+          alt={typeof alt === 'string' ? alt : undefined}
+        />
       )
     },
     hr() {

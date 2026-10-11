@@ -51,4 +51,32 @@ describe('MarkdownContent', () => {
     const lists = screen.getAllByRole('list')
     expect(lists.length).toBeGreaterThanOrEqual(2)
   })
+
+  it('renders markdown image syntax as inline previewable image', () => {
+    render(
+      <MarkdownContent content="![K线截图](https://minio.local/kline-drawings/a.png?X-Amz-Signature=1)" />,
+    )
+    const img = screen.getByRole('img', { name: 'K线截图' })
+    expect(img).toHaveAttribute(
+      'src',
+      'https://minio.local/kline-drawings/a.png?X-Amz-Signature=1',
+    )
+  })
+
+  it('converts a bare image url link into an inline image', () => {
+    // agent 贴裸链接（remark-gfm 自动链接化）时同样内联渲染为图片
+    render(
+      <MarkdownContent content="[截图](https://minio.local/kline-drawings/a.png?sig=1)" />,
+    )
+    const img = screen.getByRole('img')
+    expect(img).toHaveAttribute('src', 'https://minio.local/kline-drawings/a.png?sig=1')
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('keeps non-image links as text links', () => {
+    render(<MarkdownContent content="[详情](https://example.com/page)" />)
+    const link = screen.getByRole('link', { name: '详情' })
+    expect(link).toHaveAttribute('href', 'https://example.com/page')
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  })
 })
