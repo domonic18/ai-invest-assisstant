@@ -116,7 +116,7 @@ SPECS: tuple[TaskSpec, ...] = (
     TaskSpec(
         name="global-index-history",
         label="全球指标历史回补",
-        description="回补 COMEX 黄金/美元指数日 K 历史（东财 push2his + akshare 双路），修复实时链路缺口",
+        description="回补 COMEX 黄金日 K 历史（akshare 新浪源）；美元指数历史由 yahoo 渠道每日回填（DX-Y.NYB）",
         data_type="global_index_history",
         collectors={
             "eastmoney": "collector.spiders.eastmoney_global_index:EastmoneyGlobalIndexCollector",
