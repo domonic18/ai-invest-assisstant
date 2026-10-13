@@ -180,12 +180,15 @@ def _state(
     quotes: dict[str, dict[str, Any]],
     index_snapshot: dict[str, Any] | None,
     candidates: list[tuple[AgentTradePlan, dict[str, Any], L0Result]],
+    minute_bars: dict[str, list[list[Any]]] | None = None,
 ) -> dict[str, Any]:
     """L1 判断的行情状态上下文（state 自由形状，随调用透传给判断模型）。
 
     state 只放题面需要的字段：``plans`` 逐触发计划给方向/触发原因/触发位
-    与现价对比，判断模型不再对着纯行情盲答（§11.3 state 纪律）。
+    与现价对比，判断模型不再对着纯行情盲答（§11.3 state 纪律）；
+    ``minute_bars`` 附当日分钟线序列（[HH:MM, 收盘, 量]），支撑分时形态题。
     """
+    bars = minute_bars or {}
     plans: dict[str, dict[str, Any]] = {}
     for plan, quote, l0 in candidates:
         levels: dict[str, Any] = {"stop_loss": float(plan.stop_loss)}
@@ -203,6 +206,7 @@ def _state(
             "levels": levels,
             "price": quote.get("price"),
             "change_pct": quote.get("change_pct"),
+            "minute_bars": bars.get(plan.stock_code),
         }
     return {
         "trade_date": trade_date.isoformat(),

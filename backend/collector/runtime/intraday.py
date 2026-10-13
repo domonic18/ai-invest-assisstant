@@ -7,7 +7,8 @@
 - 时段门控：``collector.core.calendar.is_trading_day`` + ``app.core.clock``
   时段谓词；非交易时段长睡至下一窗口入口；
 - 行情供给：当日计划标的集合（个位数）直拉 hq.sinajs.cn 批量快照（sina_quote
-  cron */5 对 60s tick 太陈旧），指数环境读 Redis ``market:index_spot``；
+  cron */5 对 60s tick 太陈旧），分时形态输入读 ``quote_kline_stock_minute``
+  当日序列（tencent 盘中采集供给），指数环境读 Redis ``market:index_spot``；
 - 心跳：``collector:stream:intraday_exec:heartbeat``（TTL 120s）供 compose
   healthcheck 判活；失败指数退避 10→600s；SIGINT/SIGTERM 优雅退出。
 
@@ -136,11 +137,15 @@ class IntradayRunner:
             else:
                 if not force and not in_trading_session(now):
                     return None
+                minute_bars = await agent_intraday_service.load_minute_bars(
+                    session, codes=codes, trade_date=trade_date
+                )
                 counters = await agent_intraday_service.run_tick(
                     session,
                     trade_date=trade_date,
                     now=utc_now(),
                     quotes=quotes,
+                    minute_bars=minute_bars,
                     recorders=self._recorders,
                     index_snapshot=index_snapshot,
                 )
