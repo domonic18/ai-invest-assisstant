@@ -72,7 +72,7 @@
 | 社媒大 V 情绪判断 | 采集任务后自动；助手对话调用 | `skills/social-sentiment/prompt.yaml` | LLM 对抖音作品逐条情绪标注（prompt_only），见 [08](./08-social-sentiment.md) |
 | AI 智能画线 | 个股 K 线页「AI 画线」按钮 → AI 助手侧边栏 | `skills/kline-smart-drawing/` | ask_user 问题卡澄清意图 → 结构化画线 → 人工编辑采纳，见 05 号文档 §5.3 |
 | 自选股截图识别 | `POST /api/v1/users/watchlist/recognize-screenshot` | `skills/watchlist-screenshot-recognition/prompt.yaml` | 视觉模型识别截图中的股票列表，与 `stock_basic` 交叉校验后返回 |
-| 交易 Agent 作业（计划 / 复盘 / 盘中校准） | 定时任务（计划 19:30 / 复盘 19:00，heavy 队列）；盘中 10:20/13:20 校准；`agent-intraday-exec` 驻留进程逐 tick 执行 | `skills/trading-<agent_key>/`（SKILL.md + REVIEW.md + calibration_prompt.yaml，`trading-default` 共享 fallback） | 多 Agent 注册表驱动（`trading_agent`，agent_key 参数化，会话人设注入）；方法论基座 KB 直读双层注入；执行轨迹 agent_run/agent_run_step 全程留痕；盘中执行影子模式先行（off/shadow/active），详见 paper-trading-plan §10-§11 |
+| 交易 Agent 作业（计划 / 复盘 / 盘中校准） | 定时任务（计划 19:30 / 复盘 19:00，heavy 队列）；盘中 10:20/13:20 校准；`agent-intraday-exec` 驻留进程逐 tick 执行 | `skills/trading-<agent_key>/`（SKILL.md + REVIEW.md + calibration_prompt.yaml，`trading-default` 共享 fallback） | 多 Agent 注册表驱动（`trading_agent`，agent_key 参数化，会话人设注入）；方法论基座 KB 直读双层注入；执行轨迹 agent_run/agent_run_step 全程留痕；盘中执行影子模式先行（off/shadow/active），tick 行情状态注入当日分钟线序列（tencent `stock-minute` 盘中采集，判断模型据题面分时形态作答），详见 paper-trading-plan §10-§11 |
 
 > `hotspot-detection`、`chain-breakthrough`、`financial-health-check` 为 `doc_only` 方法论技能（仅 `skills/*/SKILL.md` 业务描述），实现随页面迭代补齐。
 

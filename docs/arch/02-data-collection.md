@@ -82,7 +82,8 @@ beat 周期同步，在管理后台改行即生效；下表仅列节奏概况，
 | index-kline / etf-kline | sina | 交易日盘后 |
 | a50-kline（富时 A50） | sina（主）→ 东财 | 交易日盘后 |
 | sector-kline（同花顺板块指数日K） | ths（唯一） | 交易日盘后 |
-| stock-minute / index-minute | sina | 交易日盘后 |
+| stock-minute（个股分钟线） | tencent（主）→ sina（盘后校正） | 交易日盘中每分钟 + 盘后 16:20/18:20 |
+| index-minute（指数分钟线） | sina（唯一） | 交易日盘中每分钟 |
 | watchlist-kline-daily（自选 K 线补采） | sina | 交易日盘后 |
 | kline-freshness（K 线缺数/落后自愈） | internal | 盘后检查，缺数自动触发补采 |
 | quote / stock-list / index-spot | sina | 盘中高频 / 每日 |
