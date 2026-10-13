@@ -93,6 +93,37 @@ def eastmoney_get(
     return response
 
 
+_plain_session: requests.Session | None = None
+_plain_session_lock = threading.Lock()
+
+
+def _get_plain_session() -> requests.Session:
+    """无东财 Referer 头的共享会话（重试配置复用 ``_build_session``）。"""
+    global _plain_session
+    if _plain_session is None:
+        with _plain_session_lock:
+            if _plain_session is None:
+                session = _build_session()
+                session.headers.pop("Referer", None)
+                _plain_session = session
+    return _plain_session
+
+
+def plain_get(
+    url: str,
+    params: dict[str, Any] | None = None,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+) -> requests.Response:
+    """无反爬源的普通 GET：不带东财 Referer、不参与全局限流。
+
+    供无指纹/频控要求的接口使用（腾讯 ifzq 等）；连接级重试覆盖
+    网关类瞬时错误（429/5xx）。
+    """
+    response = _get_plain_session().get(url, params=params, timeout=timeout)
+    response.raise_for_status()
+    return response
+
+
 _cffi_session: CffiSession | None = None
 _cffi_session_lock = threading.Lock()
 
