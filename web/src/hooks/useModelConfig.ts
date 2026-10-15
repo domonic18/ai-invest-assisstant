@@ -5,6 +5,8 @@ import {
   deleteLLMConfig,
   fetchAsrConfig,
   fetchLLMConfigs,
+  fetchTaskBindings,
+  replaceTaskBindings,
   setDefaultLLMConfig,
   testAsrConfig,
   testLLMConfig,
@@ -16,6 +18,7 @@ import type {
   ApiAsrConfigUpdateRequest,
   ApiLLMConfigCreateRequest,
   ApiLLMConfigUpdateRequest,
+  ApiTaskBindingReplaceRequest,
 } from '@ai-invest/shared'
 
 import { queryKeys } from '@/hooks/queryKeys'
@@ -93,5 +96,24 @@ export function useUpdateAsrConfig() {
 export function useTestAsrConfig() {
   return useMutation({
     mutationFn: () => testAsrConfig(),
+  })
+}
+
+// ---- AI 任务模型绑定 ----
+
+const TASK_BINDINGS_KEY = queryKeys.modelConfig.taskBindings
+
+export function useTaskBindings() {
+  return useQuery({
+    queryKey: TASK_BINDINGS_KEY,
+    queryFn: fetchTaskBindings,
+  })
+}
+
+export function useReplaceTaskBindings() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: ApiTaskBindingReplaceRequest) => replaceTaskBindings(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: TASK_BINDINGS_KEY }),
   })
 }

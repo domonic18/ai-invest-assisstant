@@ -138,6 +138,7 @@ export const queryKeys = {
   },
   modelConfig: {
     asr: ['model-config', 'asr'] as const,
+    taskBindings: ['model-config', 'task-bindings'] as const,
   },
   proxyConfigs: ['proxy-configs'] as const,
   trackedIndexOptions: ['tracked-index-options'] as const,
