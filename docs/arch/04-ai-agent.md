@@ -402,7 +402,7 @@ internal AI 生成任务由采集调度自动触发（`specs/ai.py` 共 9 个，
 ### 10.1 定位与边界
 
 - **单一运行时**：deepagents（`app/agent/runtime/`）承载全部 AI 功能——对话助手走多轮 agent 循环，各分析 Skill 执行器复用 `skill_runtime` 骨架，单轮任务（摘要/截图识别）走 `structured.run_structured`。
-- **模型同源**：助手经 `resolve_default_llm()` 读取 `llm_config` 默认配置，经 `model_factory` 转换为 LangChain 模型实例（Anthropic 协议 → `ChatAnthropic`，OpenAI 兼容 → `ChatOpenAI`）。
+- **模型同源**：助手经 `resolve_default_llm()` 读取 `llm_config` 默认配置，经 `model_factory` 转换为 LangChain 模型实例（Anthropic 协议 → `ChatAnthropic`，OpenAI 兼容 → `ChatOpenAI`）。定时 AI 任务可经 `llm_task_binding` 按任务槽位绑定独立模型条目（槽位目录 `TASK_SLOTS` 注册表为唯一真相源，后台「模型配置 → 任务模型」维护）：未绑定跟随系统默认，绑定条目失效自动降级默认并告警；页面手动分析路径的计量属主（BYOK）分流不受绑定影响。
 - **标准协议 + 成熟组件**：前后端交互采用 [LangChain Agent Protocol](https://langchain-ai.github.io/agent-protocol/)（thread/run 模型）；前端采用 [assistant-ui](https://www.assistant-ui.com) 组件库，其 `@assistant-ui/react-langgraph` 运行时经 `@langchain/langgraph-sdk` 直连协议端点。
 
 ### 10.2 核心组成

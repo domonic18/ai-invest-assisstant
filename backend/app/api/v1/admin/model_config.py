@@ -12,13 +12,15 @@ from app.schemas.llm_config import (
     LLMConfigResponse,
     LLMConfigTestResponse,
     LLMConfigUpdate,
+    TaskBindingReplaceRequest,
+    TaskBindingSlotResponse,
 )
 from app.schemas.model_config import (
     AsrConfigResponse,
     AsrConfigTestResponse,
     AsrConfigUpdateRequest,
 )
-from app.services.admin import asr_config_service
+from app.services.admin import asr_config_service, llm_task_binding_service
 from app.services.admin.llm_config_service import LLMConfigService
 
 router = APIRouter(
@@ -118,6 +120,26 @@ async def test_asr_config(
 ) -> AsrConfigTestResponse:
     """连接测试：内置样例音频实调转写接口（不抛异常，失败给原因）。"""
     return await asr_config_service.test_connection(session, actor_id=admin.id)
+
+
+@router.get("/task-bindings", response_model=list[TaskBindingSlotResponse])
+async def list_task_bindings(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> list[TaskBindingSlotResponse]:
+    """任务槽位目录 × 绑定视图（清单从服务层 TASK_SLOTS 派生）。"""
+    return await llm_task_binding_service.get_task_bindings_view(session)
+
+
+@router.put("/task-bindings", response_model=list[TaskBindingSlotResponse])
+async def replace_task_bindings(
+    data: TaskBindingReplaceRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[User, Depends(get_current_admin_user)],
+) -> list[TaskBindingSlotResponse]:
+    """整表单保存任务绑定（非空 upsert、空删行）。"""
+    return await llm_task_binding_service.replace_task_bindings(
+        session, admin_id=admin.id, data=data
+    )
 
 
 # /asr 系列必须先于 /llm/{config_id} 注册，否则 "asr" 会命中 int 路径参数直接 422

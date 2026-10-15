@@ -239,6 +239,7 @@ export const ENDPOINTS = {
       `${API_BASE}/admin/model-configs/llm/${id}/test`,
     setDefaultLLMConfig: (id: number | string) =>
       `${API_BASE}/admin/model-configs/llm/${id}/set-default`,
+    taskBindings: `${API_BASE}/admin/model-configs/task-bindings`,
     kbSettings: `${API_BASE}/admin/kb/settings`,
     kbUsage: `${API_BASE}/admin/kb/usage`,
     kbSources: `${API_BASE}/admin/kb/sources`,

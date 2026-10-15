@@ -7,6 +7,8 @@ import type {
   ApiLLMConfigResponse,
   ApiLLMConfigTestResponse,
   ApiLLMConfigUpdateRequest,
+  ApiTaskBindingReplaceRequest,
+  ApiTaskBindingSlot,
 } from '@ai-invest/shared'
 
 import { apiClient } from './client'
@@ -48,6 +50,23 @@ export async function setDefaultLLMConfig(id: number): Promise<ApiLLMConfigRespo
 export async function testLLMConfig(id: number): Promise<ApiLLMConfigTestResponse> {
   const response = await apiClient.post<ApiLLMConfigTestResponse>(
     ENDPOINTS.admin.testLLMConfig(id),
+  )
+  return response.data
+}
+
+// ---- AI 任务模型绑定（定时任务槽位 → llm_config 条目）----
+
+export async function fetchTaskBindings(): Promise<ApiTaskBindingSlot[]> {
+  const response = await apiClient.get<ApiTaskBindingSlot[]>(ENDPOINTS.admin.taskBindings)
+  return response.data
+}
+
+export async function replaceTaskBindings(
+  data: ApiTaskBindingReplaceRequest,
+): Promise<ApiTaskBindingSlot[]> {
+  const response = await apiClient.put<ApiTaskBindingSlot[]>(
+    ENDPOINTS.admin.taskBindings,
+    data,
   )
   return response.data
 }
