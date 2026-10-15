@@ -48,7 +48,7 @@ def _patch_run_env(agent: _FakeAgent):
     )
     return (
         patch(
-            "app.agent.skills.market_review_agent.resolve_default_llm",
+            "app.agent.skills.market_review_agent.resolve_task_llm",
             AsyncMock(return_value=cfg),
         ),
         patch(

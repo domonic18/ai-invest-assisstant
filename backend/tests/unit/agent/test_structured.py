@@ -227,6 +227,112 @@ class TestRunStructured:
         assert fake_model.methods == ["function_calling"]
 
     @pytest.mark.asyncio
+    async def test_task_key_hits_binding_uses_config_id_path(self) -> None:
+        """task_key 命中绑定：回填 config_id 走 resolve_llm_by_id，绕过默认分流。"""
+        structured = _FakeStructured([_Out(value="ok")])
+        fake_model = _FakeModel(structured)
+        session = cast(AsyncSession, object())
+        with (
+            patch(
+                "app.agent.runtime.structured.resolve_task_config_id",
+                new=AsyncMock(return_value=7),
+            ) as p_binding,
+            patch(
+                "app.agent.runtime.structured.resolve_llm_by_id",
+                new=AsyncMock(
+                    return_value=SimpleNamespace(
+                        config_id=7, protocol="openai", model_name="bound"
+                    )
+                ),
+            ) as p_by_id,
+            patch(
+                "app.agent.runtime.structured.resolve_llm",
+                new=AsyncMock(side_effect=AssertionError("不应走默认分流")),
+            ),
+            patch(
+                "app.agent.runtime.structured.build_langchain_model",
+                return_value=fake_model,
+            ),
+        ):
+            result = await run_structured(
+                session,
+                result_type=_Out,
+                user_prompt="hello",
+                task_key="news_score",
+            )
+
+        assert result == _Out(value="ok")
+        p_binding.assert_awaited_once_with(session, "news_score")
+        p_by_id.assert_awaited_once_with(session, 7)
+
+    @pytest.mark.asyncio
+    async def test_task_key_unbound_falls_back_to_default_path(self) -> None:
+        """task_key 未绑定（解析返回 None）：保持既有默认路径，行为不变。"""
+        structured = _FakeStructured([_Out(value="ok")])
+        fake_model = _FakeModel(structured)
+        with (
+            patch(
+                "app.agent.runtime.structured.resolve_task_config_id",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.agent.runtime.structured.resolve_llm_by_id",
+                new=AsyncMock(side_effect=AssertionError("未绑定不应按条目解析")),
+            ),
+            patch(
+                "app.agent.runtime.structured.resolve_llm",
+                new=AsyncMock(
+                    return_value=(SimpleNamespace(protocol="openai"), "system")
+                ),
+            ),
+            patch(
+                "app.agent.runtime.structured.build_langchain_model",
+                return_value=fake_model,
+            ),
+        ):
+            result = await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+                task_key="news_score",
+            )
+
+        assert result == _Out(value="ok")
+
+    @pytest.mark.asyncio
+    async def test_explicit_config_id_skips_task_binding(self) -> None:
+        """显式 config_id 优先：task_key 不参与解析。"""
+        structured = _FakeStructured([_Out(value="ok")])
+        fake_model = _FakeModel(structured)
+        with (
+            patch(
+                "app.agent.runtime.structured.resolve_task_config_id",
+                new=AsyncMock(side_effect=AssertionError("显式 config_id 不查绑定")),
+            ) as p_binding,
+            patch(
+                "app.agent.runtime.structured.resolve_llm_by_id",
+                new=AsyncMock(
+                    return_value=SimpleNamespace(
+                        config_id=5, protocol="openai", model_name="m5"
+                    )
+                ),
+            ),
+            patch(
+                "app.agent.runtime.structured.build_langchain_model",
+                return_value=fake_model,
+            ),
+        ):
+            await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+                config_id=5,
+                task_key="news_score",
+            )
+
+        p_binding.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_failover_retries_with_backup_on_rate_limit(self) -> None:
         """额度耗尽：主配置进冷却，重解析切备用（含协议 method 重选）当次重试。"""
         primary = SimpleNamespace(config_id=1, protocol="openai", model_name="m1")

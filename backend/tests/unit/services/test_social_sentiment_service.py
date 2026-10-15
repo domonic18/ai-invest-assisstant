@@ -1,7 +1,6 @@
 """情绪判断服务单测：锁、双保险幂等、幻觉过滤、判后清稿、退避传播。"""
 
 from contextlib import ExitStack, asynccontextmanager
-from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -61,12 +60,30 @@ def _patch_pipeline(
     stock_codes: set[str] = frozenset({"600519"}),
     stale_ids: list[int] | None = None,
 ):
-    """打桩判断主链：待判扫描 / LLM 输出 / 幻觉基准 / 滞留清理。"""
-    run_mock = (
-        AsyncMock(return_value=output)
-        if not isinstance(output, Exception)
-        else AsyncMock(side_effect=output)
-    )
+    """打桩判断主链：待判扫描 / LLM 输出（meta_out 回填模型名）/ 幻觉基准 / 滞留清理。"""
+
+    async def fake_run_structured(
+        _session: Any,
+        *,
+        result_type: Any = None,
+        user_prompt: str = "",
+        task_key: str | None = None,
+        meta_out: dict[str, Any] | None = None,
+        **_kw: Any,
+    ) -> Any:
+        if isinstance(output, Exception):
+            raise output
+        if meta_out is not None:
+            meta_out.update(
+                {
+                    "model_name": "test-model",
+                    "latency_ms": 1,
+                    "method": "function_calling",
+                    "failover": False,
+                }
+            )
+        return output
+
     return (
         patch.object(
             sentiment_service.post_repository,
@@ -79,13 +96,12 @@ def _patch_pipeline(
         patch.object(
             sentiment_service, "_load_hotwords", AsyncMock(return_value=["北向资金"])
         ),
-        patch("app.agent.runtime.structured.run_structured", run_mock),
+        patch(
+            "app.agent.runtime.structured.run_structured",
+            AsyncMock(side_effect=fake_run_structured),
+        ),
         patch.object(
             sentiment_service, "_valid_stock_codes", AsyncMock(return_value=stock_codes)
-        ),
-        patch(
-            "app.services.quota.user_llm_service.resolve_llm",
-            AsyncMock(return_value=(SimpleNamespace(model_name="test-model"), "system")),
         ),
         patch.object(
             sentiment_service.post_repository,
