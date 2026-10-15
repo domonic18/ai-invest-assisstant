@@ -21,7 +21,15 @@ FROM python:3.11-slim-bookworm
 WORKDIR /app
 
 # 社媒 ASR 流水线依赖 ffmpeg 抽音轨（缺失时全部降级 ffmpeg_unavailable）
-RUN apt-get update \
+# debian 源换清华（境内构建直连 deb.debian.org 不稳）
+RUN set -eux; \
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources; \
+    fi; \
+    if [ -f /etc/apt/sources.list ]; then \
+        sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list; \
+    fi; \
+    apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
