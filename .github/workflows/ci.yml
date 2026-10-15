@@ -372,6 +372,12 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/douyin-signer:${{ steps.vars.outputs.branch }}-${{ steps.vars.outputs.sha_short }}
             ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/douyin-signer:latest
+          # playwright 浏览器二进制无国内镜像，经宿主机代理拉取（Docker 预定义 ARG，无需 Dockerfile 声明；
+          # 与本地构建同法，代理离线时此步失败属预期）
+          build-args: |
+            HTTPS_PROXY=http://host.docker.internal:7897
+            HTTP_PROXY=http://host.docker.internal:7897
+            NO_PROXY=localhost,127.0.0.1,host.docker.internal,mirrors.tuna.tsinghua.edu.cn,pypi.tuna.tsinghua.edu.cn
       - name: Push to TCR / 推送镜像
         # 构建机直推国内 TCR，链路稳定；失败直接重跑 job（macOS 无 GNU timeout，跨境期重型重试已去）
         timeout-minutes: 15
