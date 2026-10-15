@@ -43,6 +43,7 @@ from app.models.kb import (
 from app.models.kline import KlineDaily, KlineMinute, SectorKlineDaily
 from app.models.kline_drawing import AiKlineDrawing, UserKlineDrawing
 from app.models.llm_config import LLMConfig
+from app.models.llm_task_binding import LLMTaskBinding
 from app.models.mapping_stock_concept import MappingStockConcept
 from app.models.market_amount import MarketAmount
 from app.models.market_anomaly import SectorAnomaly, StockAnomaly
@@ -130,6 +131,7 @@ __all__ = [
     "SectorKlineDaily",
     "LimitUpPool",
     "LLMConfig",
+    "LLMTaskBinding",
     "MappingStockConcept",
     "MarketAmount",
     "MarketBreadth",
