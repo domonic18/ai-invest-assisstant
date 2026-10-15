@@ -82,3 +82,43 @@ class LLMConfigTestResponse(CamelModel):
     status: str
     detail: str
     tested_at: datetime
+
+
+#: AI 任务槽位键（与服务层 ``TASK_SLOTS`` 注册表同源；集合一致性由单测钉死）
+TASK_KEY = Literal[
+    "news_score",
+    "social_sentiment",
+    "news_storyline",
+    "news_topic",
+    "market_daily_review",
+    "sector_anomaly",
+    "stock_anomaly",
+    "stock_daily_analysis",
+    "limit_up_review",
+    "chain_refresh",
+]
+
+
+class TaskBindingSlotResponse(CamelModel):
+    """任务槽位视图：目录元信息 + 当前绑定（未绑定为 null = 跟随系统默认）。"""
+
+    task_key: TASK_KEY
+    label: str
+    description: str
+    config_id: int | None
+    config_name: str | None
+    model_name: str | None
+    updated_at: datetime | None
+
+
+class TaskBindingItem(CamelModel):
+    """单个任务槽位的绑定项；``config_id=None`` 表示解绑（跟随系统默认）。"""
+
+    task_key: TASK_KEY
+    config_id: int | None = None
+
+
+class TaskBindingReplaceRequest(CamelModel):
+    """整表单保存任务绑定：非空 upsert、空删行；未携带的槽位不改动。"""
+
+    bindings: list[TaskBindingItem]
