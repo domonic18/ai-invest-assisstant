@@ -17,7 +17,8 @@ FROM backend-builder AS backend-pruned
 RUN rm -rf /app/.venv /app/tests
 
 # frontend-builder
-FROM node:22-alpine AS frontend-builder
+# 前端构建层钉在构建机原生架构（产物为架构无关静态 JS）；Python 层产出 venv 含架构相关二进制，保持目标架构执行
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend-builder
 
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 ARG VITE_APP_VERSION
