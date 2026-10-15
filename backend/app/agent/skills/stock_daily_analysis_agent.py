@@ -26,7 +26,7 @@ from app.agent.skills.skill_runtime import (
     load_skill_methodology,
     render_section_instructions,
 )
-from app.services.admin.llm_config_service import resolve_default_llm
+from app.services.admin.llm_task_binding_service import resolve_task_llm
 
 logger = structlog.get_logger(__name__)
 
@@ -44,7 +44,7 @@ async def run_skill(
     """执行 deepagents 个股分析 skill。
 
     Args:
-        session: 数据库会话（用于解析默认 LLM 配置）。
+        session: 数据库会话（用于解析任务绑定模型，未绑定时回退系统默认）。
         stock_code: 股票代码。
         trade_date: 交易日。
         stock_name: 股票名称（渲染任务指令）。
@@ -56,7 +56,7 @@ async def run_skill(
     Raises:
         SkillOutputError: 重试一次后输出仍无法解析或分区缺失。
     """
-    cfg = await resolve_default_llm(session)
+    cfg = await resolve_task_llm(session, "stock_daily_analysis")
 
     from deepagents import create_deep_agent
 

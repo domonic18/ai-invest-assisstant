@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.core.prompt_loader import PromptConfig
 from app.agent.runtime.model_factory import build_langchain_model
 from app.agent.skills.skill_runtime import invoke_structured, load_skill_instructions
-from app.services.admin.llm_config_service import resolve_default_llm
+from app.services.admin.llm_task_binding_service import resolve_task_llm
 from app.services.review.limit_up_ai_service import LimitUpAttributionContent
 
 SKILL_ID = "limit-up-review"
@@ -30,7 +30,7 @@ async def run_skill(
     """执行 deepagents 涨停归因 skill。
 
     Args:
-        session: 数据库会话（用于解析默认 LLM 配置）。
+        session: 数据库会话（用于解析任务绑定模型，未绑定时回退系统默认）。
         trade_date: 交易日。
         pool_count: 当日涨停家数（服务层已预取涨停池用于就绪预检与后置校验）。
         prompt_config: YAML 契约（system_prompt/任务模板）。
@@ -41,7 +41,7 @@ async def run_skill(
     Raises:
         SkillOutputError: 重试一次后输出仍无法解析或不符合 schema。
     """
-    cfg = await resolve_default_llm(session)
+    cfg = await resolve_task_llm(session, "limit_up_review")
 
     from deepagents import create_deep_agent
 

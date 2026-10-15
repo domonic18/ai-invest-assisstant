@@ -93,12 +93,18 @@ async def _judge_batch(
         hotwords="、".join(hotwords) if hotwords else "（无）",
     )
     try:
+        # model_name 经 meta_out 与实际判定出口同源（任务绑定后与默认可能不同）
+        meta: dict[str, Any] = {}
         output: SocialJudgmentBatch = await run_structured(
-            session, result_type=SocialJudgmentBatch, user_prompt=user_prompt
+            session,
+            result_type=SocialJudgmentBatch,
+            user_prompt=user_prompt,
+            task_key="social_sentiment",
+            meta_out=meta,
         )
     except Exception as exc:  # noqa: BLE001 —— LLM/解析失败统一走退避重试
         raise SocialJudgmentNotReadyError(str(exc)) from exc
-    return await _to_rows(session, posts, output)
+    return await _to_rows(session, posts, output, model_name=str(meta.get("model_name") or ""))
 
 
 def _post_payload(post: SocialPost) -> dict[str, Any]:
@@ -115,15 +121,16 @@ def _post_payload(post: SocialPost) -> dict[str, Any]:
 
 
 async def _to_rows(
-    session: AsyncSession, posts: list[SocialPost], output: SocialJudgmentBatch
+    session: AsyncSession,
+    posts: list[SocialPost],
+    output: SocialJudgmentBatch,
+    *,
+    model_name: str,
 ) -> list[dict[str, Any]]:
     """LLM 输出 → 待写行：忽略编造 post_id，剔除不在基本表的个股标的。"""
-    from app.services.quota.user_llm_service import resolve_llm
-
     by_id = {post.id: post for post in posts}
     valid_ids = set(by_id)
     valid_codes = await _valid_stock_codes(session)
-    cfg, _outlet = await resolve_llm(session, None)
     rows: list[dict[str, Any]] = []
     for item in output.items:
         if item.post_id not in valid_ids:
@@ -142,7 +149,7 @@ async def _to_rows(
                     if target.target_type != "stock" or target.code in valid_codes
                 ],
                 "summary": item.summary,
-                "model_name": cfg.model_name,
+                "model_name": model_name,
             }
         )
     return rows

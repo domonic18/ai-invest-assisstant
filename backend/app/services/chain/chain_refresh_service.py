@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.locking import redis_lock
 from app.repositories.chain import industry_chain_repository
 from app.schemas.chain import ChainAnalysisResult
-from app.services.admin.llm_config_service import resolve_default_llm
+from app.services.admin.llm_task_binding_service import resolve_task_llm
 from app.services.chain.chain_analysis_service import persist_analysis_result
 
 logger = structlog.get_logger(__name__)
@@ -51,9 +51,10 @@ async def refresh_industry(
             logger.info("chain_refresh_skipped_locked", industry=industry)
             return 0
 
-        resolved = await resolve_default_llm(session)
+        resolved = await resolve_task_llm(session, "chain_refresh")
         result: ChainAnalysisResult = await industry_chain_analysis.run_skill(
-            session, {"industry": industry, "focus": None}
+            session,
+            {"industry": industry, "focus": None, "config_id": resolved.config_id},
         )
         persisted = 0
         for user_id in user_ids:
