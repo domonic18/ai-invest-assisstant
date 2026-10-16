@@ -121,6 +121,7 @@ export const ENDPOINTS = {
     indices: `${API_BASE}/market/indices`,
     indexIntraday: `${API_BASE}/market/indices/intraday`,
     indexKline: `${API_BASE}/market/indices/kline`,
+    turnoverCompare: `${API_BASE}/market/indices/turnover-compare`,
     stats: `${API_BASE}/market/stats`,
     limitUp: `${API_BASE}/market/limit-up`,
     limitUpIntraday: `${API_BASE}/market/limit-up/intraday`,

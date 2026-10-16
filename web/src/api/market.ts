@@ -27,6 +27,7 @@ import type {
   MarketStats,
   SectorOverview,
   SectorQuoteResponse,
+  TurnoverCompare,
   WatchlistQuote,
 } from '@ai-invest/shared'
 import axios from 'axios'
@@ -75,6 +76,17 @@ export async function fetchIndexKline(
     { params: { code, period, limit } },
   )
   return mapIndexKline(response.data)
+}
+
+/** 两市量能对比（诊大盘）：当日 vs 昨日同期累计成交额 + 全天预测（亿元）。 */
+export async function fetchTurnoverCompare(
+  tradeDate?: string,
+): Promise<TurnoverCompare> {
+  const response = await apiClient.get<TurnoverCompare>(
+    ENDPOINTS.market.turnoverCompare,
+    { params: { trade_date: tradeDate } },
+  )
+  return response.data
 }
 
 export async function fetchMarketStats(tradeDate?: string): Promise<MarketStats> {

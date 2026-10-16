@@ -12,6 +12,15 @@ INDEX_CODES: dict[str, str] = {
 # 指数/全球指标趋势缩略图取近 N 个收盘点（A 股与全球两路口径一致）
 INDEX_TREND_DAYS = 30
 
+# 两市量能对比标的（诊大盘「市场成交额」口径）：上证指数≈沪市全额 +
+# 深证综指≈深市全额，分钟累计与交易所官方总额误差 <0.1%（实测 2026-10-15：
+# 7744/7755.87 亿、8586/8594 亿）；深证成指只覆盖 500 成分股不可作深市全量。
+# 深证综指仅进分钟线采集与对比接口，不进实时快照/前端指数卡。
+TURNOVER_COMPARE_CODES: dict[str, str] = {
+    "sh000001": "上证指数",
+    "sz399106": "深证综指",
+}
+
 # K 线周期词汇单一真相源：A 股 time_bucket 聚合（kline_repository.PERIOD_BUCKET，
 # daily 直读不聚合）与全球指标 Python 聚合、API 路由校验共用，新增周期只改这一处
 KLINE_PERIODS: tuple[str, ...] = (

@@ -18,6 +18,7 @@ import { AiReviewSection } from './components/AiReviewSection'
 import { LimitUpSection } from './components/LimitUpSection'
 import { MarketStatsSection } from './components/MarketStatsSection'
 import { SectorSection } from './components/SectorSection'
+import { TurnoverCompareCard } from './components/TurnoverCompareCard'
 import { WatchlistQuotesCard } from './components/WatchlistQuotesCard'
 
 import { bjNow } from '@/utils/beijing'
@@ -86,6 +87,7 @@ export function Dashboard() {
             loading={indicesLoading || statsLoading}
             tradeDate={tradeDate}
           />
+          <TurnoverCompareCard tradeDate={tradeDate} />
           <SectorSection
             data={sectors}
             loading={sectorsLoading}

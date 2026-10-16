@@ -35,6 +35,7 @@ is_trading_day = trade_calendar_service.is_trading_day
 get_index_intraday = index_quotation_service.get_index_intraday
 get_index_quotes = index_quotation_service.get_index_quotes
 get_index_kline = index_quotation_service.get_index_kline
+get_turnover_compare = index_quotation_service.get_turnover_compare
 
 # 涨跌统计 / 情绪温度
 get_market_stats = market_stats_service.get_market_stats

@@ -11,7 +11,7 @@ from datetime import date, datetime
 from typing import Any, ClassVar
 from zoneinfo import ZoneInfo
 
-from app.core.constants import INDEX_CODES
+from app.core.constants import INDEX_CODES, TURNOVER_COMPARE_CODES
 from collector.core.base import PostgresCollector
 from collector.core.parsing import to_float, to_int
 
@@ -37,7 +37,7 @@ class SinaIndexMinuteCollector(PostgresCollector):
 
         target = trade_date or datetime.now(_CN_TZ).date()
         raw: list[dict[str, Any]] = []
-        for symbol in symbols or list(INDEX_CODES):
+        for symbol in symbols or [*INDEX_CODES, *TURNOVER_COMPARE_CODES]:
             with (
                 contextlib.redirect_stdout(io.StringIO()),
                 contextlib.redirect_stderr(io.StringIO()),

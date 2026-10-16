@@ -150,6 +150,8 @@ export const queryKeys = {
     indices: (tradeDate?: string) => ['market', 'indices', tradeDate] as const,
     intraday: (code: string, tradeDate?: string) =>
       ['market', 'intraday', code, tradeDate] as const,
+    turnoverCompare: (tradeDate?: string) =>
+      ['market', 'turnover-compare', tradeDate] as const,
     kline: (code: string, period: string) => ['market', 'kline', code, period] as const,
     stats: (tradeDate?: string) => ['market', 'stats', tradeDate] as const,
     limitUp: (tradeDate?: string) => ['market', 'limit-up', tradeDate] as const,

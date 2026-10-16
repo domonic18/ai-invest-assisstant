@@ -43,6 +43,30 @@ class IndexIntradayResponse(CamelModel):
     points: list[IndexIntradayPoint]
 
 
+class TurnoverComparePoint(CamelModel):
+    """两市量能对比单分钟点（累计成交额，亿元）。"""
+
+    time: str
+    today: float
+    prev: float
+    diff: float
+
+
+class TurnoverCompareResponse(CamelModel):
+    """两市量能对比：当日 vs 昨日同期累计成交额曲线 + 全天预测（诊大盘口径）。
+
+    ``forecast_amount`` 为盘中预测全天成交额（昨日全天 × 当日/昨日同期累计比），
+    收盘后与当日实际总额自然重合；昨日同期基线缺失时为 None。
+    """
+
+    trade_date: date
+    prev_trade_date: date | None = None
+    today_amount: float | None = None
+    prev_amount: float | None = None
+    forecast_amount: float | None = None
+    points: list[TurnoverComparePoint] = []
+
+
 class IndexKlineBar(CamelModel):
     """指数 K 线单根 bar（日线或聚合周期）。"""
 
