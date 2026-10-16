@@ -1,0 +1,41 @@
+name: Build Caddy Image / 构建反代镜像
+
+# caddy 未入 TCR 且 registry 直拷经国内镜像源不稳定（manifest EOF/超时，2026-10-16
+# 三次失败），改为源构建：alpine + apk add caddy（阿里云源，境内稳定），
+# buildx --platform linux/amd64 产出确定架构推 TCR。
+# caddy 版本随 alpine 社区仓更新，需要升级时重跑本 workflow。低频手动操作。
+
+on:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ccr.ccs.tencentyun.com
+
+jobs:
+  build-caddy:
+    runs-on: [self-hosted, macOS]
+    steps:
+      - name: Checkout / 检出代码
+        uses: actions/checkout@v6
+
+      - name: Login to TCR / 登录腾讯云容器镜像服务
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
+
+      # 持久 builder：基础镜像拉取走国内镜像源（~/Workspace/actions-runner/buildkitd.toml）
+      - name: Select builder / 选择持久 builder
+        run: docker buildx use ci-builder
+
+      - name: Build and push / 构建推送（linux/amd64）
+        uses: docker/build-push-action@v7
+        timeout-minutes: 10
+        with:
+          context: .
+          file: docker/caddy/Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: ${{ env.REGISTRY }}/domonic18/caddy:2
