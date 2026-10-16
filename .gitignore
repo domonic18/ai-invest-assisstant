@@ -95,3 +95,4 @@ htmlcov/
 .ruff_cache/
 .claude/
 .cc-connect
+env.config
