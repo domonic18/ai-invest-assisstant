@@ -44,6 +44,17 @@ class TencentStockMinuteCollector(PostgresCollector):
 
     table = "quote_kline_stock_minute"
     conflict_key = "stock_code, trade_time"
+    # 首写的当分钟 bar 是进行中的快照，值不完整，须随后续抓取刷新；
+    # update_skip_null 使腾讯的 amount=None 不会覆盖新浪盘后校正写入的成交额
+    update_columns: ClassVar[list[str]] = [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "amount",
+    ]
+    update_skip_null = True
     normalize = False
     key_fields: ClassVar[list[str]] = ["stock_code", "trade_time"]
     required_fields: ClassVar[list[str]] = ["stock_code", "trade_time", "close"]

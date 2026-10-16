@@ -375,7 +375,10 @@ CONTRACTS: list[SpiderContract] = [
         cls=SinaIndexMinuteCollector,
         config={"source": "sina", "data_type": "index-minute"},
         store=StoreContract(
-            table="quote_kline_stock_minute", conflict_key="stock_code, trade_time"
+            table="quote_kline_stock_minute",
+            conflict_key="stock_code, trade_time",
+            update_columns=["open", "high", "low", "close", "volume", "amount"],
+            update_skip_null=True,
         ),
         has_normalize=False,
         dedup_keys=["stock_code", "trade_time"],
