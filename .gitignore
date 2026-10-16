@@ -70,6 +70,7 @@ workspace/
 *.key
 *.crt
 ssl/
+env.config
 
 # ====================
 # Playwright

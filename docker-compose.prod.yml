@@ -5,6 +5,71 @@ x-logging: &logging
     max-file: "3"
 
 services:
+  caddy:
+    # 生产入口反代：SPA + API 同源 → web:9000（TLS 终止于此，见 docker/caddy/Caddyfile）。
+    # 取代 SCF Web 函数（2026-10-16 迁移：消除镜像函数冷启动 30s 超时与 APIGW 上限）。
+    # 仅 image 直拉（境内服务器直连 docker hub 不稳，镜像已推 TCR）；
+    # 80/443 发布公网，证书 Let's Encrypt 自动签发续期
+    image: ccr.ccs.tencentyun.com/domonic18/caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # 与 postgres 同约定：状态持久化在 workspace 下（证书库/配置，随目录整体备份迁移）
+      - ./workspace/caddy/data:/data
+      - ./workspace/caddy/config:/config
+    depends_on:
+      - web
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  web:
+    # web 一体镜像（React SPA + FastAPI 单 uvicorn :9000），原 SCF Web 函数同款镜像；
+    # env 与 base compose web 服务一致，TLS 已由 Caddy 终止，FORCE_FORWARDED_HTTPS=1
+    #（服务器 .env）。不再发布宿主机端口，仅内网供 caddy 反代；
+    # ELASTICSEARCH_URL / IWENCAI_API_KEY 自 SCF 控制台迁入 .env（2026-10-16）
+    image: ccr.ccs.tencentyun.com/domonic18/web:${APP_TAG:-latest}
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+      DEBUG: ${DEBUG:-0}
+      FORCE_FORWARDED_HTTPS: ${FORCE_FORWARDED_HTTPS:-0}
+      # 掘金仿真 sidecar（compose 服务名直连；置空禁用模拟盘功能）
+      PAPER_TRADE_URL: ${PAPER_TRADE_URL:-http://paper-trade:8020}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          # 单机 4G 与数据层同驻：SCF 实测 438M，1G 上限兜 deepagents 长对话峰值
+          memory: 1G
+
   douyin-signer:
     # 抖音页面签名 sidecar：chromium warm 页 SDK 真签（Argus 门禁对抗，见 docs/arch/08）。
     # 仅 image 直拉（CI 构建；服务器境内无代理，playwright CDN 构建不了）；

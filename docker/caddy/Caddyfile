@@ -1,0 +1,14 @@
+# 生产入口：SPA + API 同源反代 web:9000（TLS 终止在 Caddy，容器内 HTTP，
+# 故 web 侧 FORCE_FORWARDED_HTTPS=1）。SSE（助手对话流式）需即时冲刷，
+# flush_interval -1 禁用缓冲。证书 Let's Encrypt 自动签发续期（80/443 需公网放行）。
+invest.17aitech.com {
+	encode zstd gzip
+	reverse_proxy web:9000 {
+		flush_interval -1
+	}
+}
+
+# DNS 切换前经 IP 直连验证健康用（任意 Host 兜底），切换稳定后可删
+:80 {
+	reverse_proxy web:9000
+}
