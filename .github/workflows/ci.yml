@@ -223,7 +223,7 @@ jobs:
       - name: Checkout / 检出代码
         uses: actions/checkout@v6
 
-      # 本机持久 builder（buildkitd 配国内 docker.io 镜像源 + 本地缓存跨 job 持久，见 ~/actions-runner/buildkitd.toml）
+      # 本机持久 builder（buildkitd 配国内 docker.io 镜像源 + 本地缓存跨 job 持久，见 ~/Workspace/actions-runner/buildkitd.toml）
       - name: Select builder / 选择构建器
         run: docker buildx use ci-builder
 
@@ -281,7 +281,7 @@ jobs:
       - name: Checkout / 检出代码
         uses: actions/checkout@v6
 
-      # 本机持久 builder（buildkitd 配国内 docker.io 镜像源 + 本地缓存跨 job 持久，见 ~/actions-runner/buildkitd.toml）
+      # 本机持久 builder（buildkitd 配国内 docker.io 镜像源 + 本地缓存跨 job 持久，见 ~/Workspace/actions-runner/buildkitd.toml）
       - name: Select builder / 选择构建器
         run: docker buildx use ci-builder
 
@@ -339,7 +339,7 @@ jobs:
       - name: Checkout / 检出代码
         uses: actions/checkout@v6
 
-      # 本机持久 builder（buildkitd 配国内 docker.io 镜像源 + 本地缓存跨 job 持久，见 ~/actions-runner/buildkitd.toml）
+      # 本机持久 builder（buildkitd 配国内 docker.io 镜像源 + 本地缓存跨 job 持久，见 ~/Workspace/actions-runner/buildkitd.toml）
       - name: Select builder / 选择构建器
         run: docker buildx use ci-builder
 
@@ -404,7 +404,7 @@ jobs:
       - name: Checkout / 检出代码
         uses: actions/checkout@v6
 
-      # 本机持久 builder（buildkitd 配国内 docker.io 镜像源 + 本地缓存跨 job 持久，见 ~/actions-runner/buildkitd.toml）
+      # 本机持久 builder（buildkitd 配国内 docker.io 镜像源 + 本地缓存跨 job 持久，见 ~/Workspace/actions-runner/buildkitd.toml）
       - name: Select builder / 选择构建器
         run: docker buildx use ci-builder
 
