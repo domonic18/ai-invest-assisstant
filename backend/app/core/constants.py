@@ -44,6 +44,7 @@ GLOBAL_INDEX_CODES: dict[str, dict[str, str]] = {
     "NDX": {"name": "纳斯达克", "data_source": "eastmoney", "secid": "100.NDX"},
     "SPX": {"name": "标普500", "data_source": "eastmoney", "secid": "100.SPX"},
     "N225": {"name": "日经225", "data_source": "eastmoney", "secid": "100.N225"},
+    "KS11": {"name": "韩国综合指数", "data_source": "eastmoney", "secid": "100.KS11"},
     "JP10Y": {"name": "日本10Y国债", "data_source": "mof"},
     "US30Y": {"name": "美债 30Y 收益率", "data_source": "tushare", "field": "y30"},
     "USDCNY": {"name": "美元/人民币", "data_source": "yahoo"},

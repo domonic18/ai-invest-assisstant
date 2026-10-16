@@ -9,7 +9,7 @@ import { useGlobalIndexHistory, useGlobalIndices, useMarketIndices } from '@/hoo
 import { useColorScheme } from '@/stores/settings'
 
 /** 区域归属与标签（code → 展示顺序，见 GLOBAL_INDEX_CODES）。 */
-const EQUITY_ORDER = ['HSI', 'HSTECH', 'DJIA', 'NDX', 'SPX', 'N225']
+const EQUITY_ORDER = ['HSI', 'HSTECH', 'DJIA', 'NDX', 'SPX', 'N225', 'KS11']
 const BOND_ORDER = ['US2Y', 'US10Y', 'US30Y', 'JP10Y']
 const COMMODITY_ORDER = ['GC00Y', 'B00Y']
 const FX_ORDER = ['DXY', 'USDCNY', 'USDCNH', 'USDJPY', 'USDEUR']
@@ -23,6 +23,7 @@ const TAG_META: Record<string, { tag: string; color: string }> = {
   NDX: { tag: '美股', color: 'blue' },
   SPX: { tag: '美股', color: 'blue' },
   N225: { tag: '日股', color: 'gold' },
+  KS11: { tag: '韩股', color: 'gold' },
   US2Y: { tag: '美债', color: 'blue' },
   US10Y: { tag: '美债', color: 'blue' },
   US30Y: { tag: '美债', color: 'blue' },

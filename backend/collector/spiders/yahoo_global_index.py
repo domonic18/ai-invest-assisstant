@@ -41,6 +41,7 @@ YAHOO_SYMBOLS: dict[str, str] = {
     "NDX": "^NDX",
     "SPX": "^GSPC",
     "N225": "^N225",
+    "KS11": "^KS11",
     "DXY": "DX-Y.NYB",
     "USDCNY": "USDCNY=X",
     "USDJPY": "USDJPY=X",
