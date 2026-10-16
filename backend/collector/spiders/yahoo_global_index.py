@@ -47,6 +47,8 @@ YAHOO_SYMBOLS: dict[str, str] = {
     "USDJPY": "USDJPY=X",
     "USDEUR": "USDEUR=X",
     "B00Y": "BZ=F",
+    "SI00Y": "SI=F",
+    "HG00Y": "HG=F",
 }
 
 

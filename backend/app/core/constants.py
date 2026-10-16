@@ -35,6 +35,8 @@ KLINE_CHART_EXTRA_CODES: dict[str, str] = {
 # mof：日本财务省日债 CSV（历史回补 spider 自行解析）；yahoo：历史回填专用（symbol 供 spider 映射）
 GLOBAL_INDEX_CODES: dict[str, dict[str, str]] = {
     "GC00Y": {"name": "COMEX 黄金", "data_source": "eastmoney", "secid": "101.GC00Y"},
+    "SI00Y": {"name": "COMEX 白银", "data_source": "eastmoney", "secid": "101.SI00Y"},
+    "HG00Y": {"name": "COMEX 铜", "data_source": "eastmoney", "secid": "101.HG00Y"},
     "DXY": {"name": "美元指数", "data_source": "eastmoney", "secid": "100.UDI"},
     "US2Y": {"name": "美债 2Y 收益率", "data_source": "tushare", "field": "y2"},
     "US10Y": {"name": "美债 10Y 收益率", "data_source": "tushare", "field": "y10"},

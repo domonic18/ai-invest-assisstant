@@ -28,7 +28,7 @@ const ASHARE_TAB = 'A股'
 const GLOBAL_TAB_CODES: Record<string, string[]> = {
   全球股指: ['HSI', 'HSTECH', 'DJIA', 'NDX', 'SPX', 'N225', 'KS11'],
   债券: ['US2Y', 'US10Y', 'US30Y', 'JP10Y'],
-  商品: ['GC00Y', 'B00Y'],
+  商品: ['GC00Y', 'SI00Y', 'HG00Y', 'B00Y'],
   汇率: ['DXY', 'USDCNY', 'USDCNH', 'USDJPY', 'USDEUR'],
 }
 const OTHER_TAB = '其他'
