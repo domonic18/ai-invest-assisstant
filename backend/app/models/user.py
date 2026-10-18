@@ -11,6 +11,7 @@ from app.core.clock import utc_now
 from app.core.database import Base
 
 if TYPE_CHECKING:
+    from app.models.user_group import UserGroup
     from app.models.watchlist import UserWatchlist
 
 
@@ -36,6 +37,9 @@ class User(Base):
     settings: Mapped[dict] = mapped_column(
         JSONB().with_variant(JSON(), "sqlite"), default=dict, nullable=False
     )
+    group_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user_group.id"), nullable=True
+    )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
@@ -44,3 +48,5 @@ class User(Base):
     watchlist: Mapped[list["UserWatchlist"]] = relationship(
         "UserWatchlist", back_populates="user", cascade="all, delete-orphan"
     )
+    # async 下懒加载会报 MissingGreenlet，必须随查询一并加载
+    group: Mapped["UserGroup | None"] = relationship("UserGroup", lazy="joined")

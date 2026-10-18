@@ -9,6 +9,7 @@ from app.core.database import Base
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.models.kline_drawing import AiKlineDrawing, UserKlineDrawing
 from app.models.user import User
+from app.models.user_group import UserGroup
 from app.schemas.drawing import (
     AiKlineDrawingAdoptRequest,
     AiKlineDrawingItemSchema,
@@ -97,7 +98,8 @@ async def session():
     async with engine.begin() as conn:
         await conn.run_sync(
             Base.metadata.create_all,
-            tables=[User.__table__, AiKlineDrawing.__table__, UserKlineDrawing.__table__],
+            tables=[User.__table__,
+                UserGroup.__table__, AiKlineDrawing.__table__, UserKlineDrawing.__table__],
         )
     maker = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     async with maker() as db:

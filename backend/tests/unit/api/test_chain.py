@@ -18,12 +18,15 @@ from app.schemas.chain import (
 )
 from app.services.admin.llm_config_service import LLMConfigNotConfiguredError
 from app.services.chain.chain_service import ChainAnalysisFailedError
+from tests.conftest import stub_full_group
 
 
 @pytest.fixture
 def user():
     return type(
-        "User", (object,), {"id": 42, "username": "test", "role": "user", "is_active": True}
+        "User",
+        (object,),
+        {"id": 42, "username": "test", "role": "user", "is_active": True, "group": stub_full_group()},
     )()
 
 

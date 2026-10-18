@@ -15,6 +15,9 @@ export interface User {
   username: string
   email: string
   isAdmin: boolean
+  /** 功能模块权限 key 集合（admin 不受限）；空集 = 未分组受限 */
+  permissions: string[]
+  groupName: string | null
 }
 
 export interface LoginRequest {
@@ -65,6 +68,36 @@ export interface ApiUserResponse {
   rejectReason: string | null
   lastLoginAt: string | null
   createdAt: string
+  permissions: string[]
+  groupName: string | null
+}
+
+export interface ApiFeatureCatalogItem {
+  key: string
+  label: string
+}
+
+export interface ApiUserGroupResponse {
+  id: number
+  name: string
+  description: string | null
+  permissions: string[]
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ApiUserGroupCreateRequest {
+  name: string
+  description?: string | null
+  permissions?: string[]
+}
+
+export interface ApiUserGroupUpdateRequest {
+  name?: string
+  description?: string | null
+  permissions?: string[]
+  isActive?: boolean
 }
 
 export interface ApiUserUpdateRequest {

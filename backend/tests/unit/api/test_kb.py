@@ -16,6 +16,7 @@ from app.schemas.kb import (
     KbPublishedChaptersResponse,
     KbSearchResponse,
 )
+from tests.conftest import stub_full_group
 
 
 @contextmanager
@@ -25,6 +26,7 @@ def _as_user(role: str, user_id: int, whitelist: list[int]) -> Iterator[None]:
     mock_user = MagicMock()
     mock_user.id = user_id
     mock_user.role = role
+    mock_user.group = stub_full_group()
 
     async def _override_get_db():
         yield mock_session

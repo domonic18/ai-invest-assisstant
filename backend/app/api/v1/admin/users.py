@@ -25,6 +25,7 @@ from app.schemas.user import (
 )
 from app.services.admin.approval_service import ApprovalService
 from app.services.admin.users import AdminUserService
+from app.services.permissions import build_user_response
 
 router = APIRouter(dependencies=[Depends(get_current_admin_user)])
 
@@ -91,9 +92,9 @@ async def update_user(
     data: AdminUserUpdate,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> UserResponse:
-    """更新用户信息。"""
+    """更新用户信息（响应含权限集与组名，与 users/me 同源构建）。"""
     user = await AdminUserService(session).update_user(user_id, data)
-    return UserResponse.model_validate(user)
+    return await build_user_response(user)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

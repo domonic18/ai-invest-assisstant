@@ -8,6 +8,7 @@ import pytest
 from app.core.exceptions import ConflictError, NotFoundError
 from app.dependencies import get_current_user
 from app.main import app
+from tests.conftest import stub_full_group
 
 _TS = datetime(2026, 9, 8, 3, 0, tzinfo=timezone.utc)
 
@@ -17,7 +18,7 @@ def normal_user():
     return type(
         "User",
         (object,),
-        {"id": 3, "username": "user", "role": "user", "is_active": True},
+        {"id": 3, "username": "user", "role": "user", "is_active": True, "group": stub_full_group()},
     )()
 
 

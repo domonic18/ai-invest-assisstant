@@ -12,8 +12,9 @@ import { useFinancial } from '@/hooks/useFinancial'
 import { useFinancialHistory } from '@/hooks/useFinancialHistory'
 import { useResearch } from '@/hooks/useResearch'
 import { useStockDetail, useStockSectors } from '@/hooks/useStocks'
+import { useAuthStore } from '@/stores/auth'
 import { panelColors } from '@/theme/colors'
-import { PAGE_SIZE, type Stock } from '@ai-invest/shared'
+import { canAccessFeature, PAGE_SIZE, type Stock } from '@ai-invest/shared'
 
 import { StockLoadingStatus, type LoadingTask } from '../StockLoadingStatus'
 import { StockSectors } from '../StockSectors'
@@ -40,7 +41,9 @@ export function StockInfoPanel({
   const sectorsQ = useStockSectors(stockCode)
   const financialQ = useFinancial(stockCode)
   const historyQ = useFinancialHistory(stockCode, 8)
-  const researchQ = useResearch({ stockCode, pageSize: PAGE_SIZE.inline })
+  const user = useAuthStore((s) => s.user)
+  const canResearch = canAccessFeature(user, 'research')
+  const researchQ = useResearch({ stockCode, pageSize: PAGE_SIZE.inline }, canResearch)
 
   const stock: Stock | undefined = detailQ.data
 
@@ -80,24 +83,29 @@ export function StockInfoPanel({
         />
       ),
     },
-    {
-      key: 'research',
-      label: (
-        <span className="text-xs">
-          <FileTextOutlined className="mr-1" />
-          研报
-        </span>
-      ),
-      children: (
-        <StockResearch
-          stockCode={stockCode}
-          data={researchQ.data}
-          isLoading={researchQ.isLoading}
-          isError={researchQ.isError}
-          onRetry={() => researchQ.refetch()}
-        />
-      ),
-    },
+    // 无 research 权限时后端返回 403，整块隐藏避免报错态
+    ...(canResearch
+      ? [
+          {
+            key: 'research',
+            label: (
+              <span className="text-xs">
+                <FileTextOutlined className="mr-1" />
+                研报
+              </span>
+            ),
+            children: (
+              <StockResearch
+                stockCode={stockCode}
+                data={researchQ.data}
+                isLoading={researchQ.isLoading}
+                isError={researchQ.isError}
+                onRetry={() => researchQ.refetch()}
+              />
+            ),
+          },
+        ]
+      : []),
     {
       key: 'sector',
       label: (

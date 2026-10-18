@@ -470,6 +470,8 @@ export interface AdminUser {
   remainingQuota: number | null
   totalUsed: number
   byokEnabled: boolean
+  groupId: number | null
+  groupName: string | null
 }
 
 export interface AdminUserFormValues {
@@ -745,6 +747,8 @@ export interface ApiAdminUserResponse {
   remainingQuota: number | null
   totalUsed: number
   byokEnabled: boolean
+  groupId: number | null
+  groupName: string | null
 }
 
 export interface ApiAdminUserCreateRequest {
@@ -760,6 +764,8 @@ export interface ApiAdminUserUpdateRequest {
   email?: string
   role?: string
   isActive?: boolean
+  /** 缺省/undefined = 不改动；0 = 移出组（未分组受限） */
+  groupId?: number
 }
 
 export interface ApiAdminUserResetPasswordRequest {

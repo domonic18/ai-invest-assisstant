@@ -4,10 +4,11 @@ import { message } from 'antd'
 import { collectFinancialReport, fetchFinancialReports } from '@/api/financial_report'
 import { queryKeys } from '@/hooks/queryKeys'
 
-export function useFinancialReports(stockCode: string, pageSize = 5) {
+export function useFinancialReports(stockCode: string, pageSize = 5, enabled = true) {
   return useQuery({
     queryKey: queryKeys.financialReports.list(stockCode, pageSize),
     queryFn: () => fetchFinancialReports({ stockCode, pageSize }),
+    enabled,
   })
 }
 

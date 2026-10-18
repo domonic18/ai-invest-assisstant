@@ -54,10 +54,14 @@ describe('mappers', () => {
       rejectReason: null,
       lastLoginAt: null,
       createdAt: '2024-01-01T00:00:00Z',
+      permissions: ['kb', 'news'],
+      groupName: '全功能',
     }
     const user = mapUser(dto)
     expect(user.id).toBe('1')
     expect(user.isAdmin).toBe(true)
+    expect(user.permissions).toEqual(['kb', 'news'])
+    expect(user.groupName).toBe('全功能')
   })
 
   it('maps auth response', () => {
@@ -75,6 +79,8 @@ describe('mappers', () => {
         rejectReason: null,
         lastLoginAt: null,
         createdAt: '2024-01-01T00:00:00Z',
+        permissions: [],
+        groupName: null,
       },
     }
     const result = mapAuthResponse(dto)

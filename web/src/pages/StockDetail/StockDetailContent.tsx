@@ -13,7 +13,9 @@ import {
   useStockSectors,
 } from '@/hooks/useStocks'
 import { panelColors } from '@/theme/colors'
-import { PAGE_SIZE, type StockQuote } from '@ai-invest/shared'
+import { canAccessFeature, PAGE_SIZE, type StockQuote } from '@ai-invest/shared'
+
+import { useAuthStore } from '@/stores/auth'
 
 import { AddToWatchlistModal } from './components/AddToWatchlistModal'
 import { ErrorState } from './components/ErrorState'
@@ -40,7 +42,9 @@ export function StockDetailContent({ stockCode }: StockDetailContentProps) {
   const sectorsQ = useStockSectors(stockCode)
   const financialQ = useFinancial(stockCode)
   const historyQ = useFinancialHistory(stockCode, 8)
-  const researchQ = useResearch({ stockCode, pageSize: PAGE_SIZE.inline })
+  const user = useAuthStore((s) => s.user)
+  const canResearch = canAccessFeature(user, 'research')
+  const researchQ = useResearch({ stockCode, pageSize: PAGE_SIZE.inline }, canResearch)
   const aiAnalysisQ = useStockAiAnalysis(stockCode)
   const { data: watchlist } = useWatchlist()
 
@@ -68,7 +72,7 @@ export function StockDetailContent({ stockCode }: StockDetailContentProps) {
     sectors: sectorsQ,
     financial: financialQ,
     history: historyQ,
-    research: researchQ,
+    research: canResearch ? researchQ : undefined,
     aiAnalysis: aiAnalysisQ,
   })
 

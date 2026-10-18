@@ -14,6 +14,7 @@ export const queryKeys = {
     stocks: ['admin-stocks'] as const,
     stockConcepts: ['admin-stock-concepts'] as const,
     users: ['admin-users'] as const,
+    userGroups: ['admin-user-groups'] as const,
     tasks: ['admin-tasks'] as const,
     aiResults: ['admin-ai-results'] as const,
     aiResultSkills: ['admin-ai-result-skills'] as const,

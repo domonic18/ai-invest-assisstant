@@ -1,10 +1,18 @@
 """测试全局 fixture：TestClient 封装与 mock session。"""
 
+from types import SimpleNamespace
+
 import pytest
 from fastapi.testclient import TestClient
 
+from app.constants.features import FEATURE_KEYS
 from app.dependencies import get_db
 from app.main import app
+
+
+def stub_full_group() -> SimpleNamespace:
+    """全功能用户组桩：鸭子类型 stub 用户借此穿过 require_feature 门控。"""
+    return SimpleNamespace(name="stub", is_active=True, permissions=list(FEATURE_KEYS))
 
 
 @pytest.fixture(scope="session")
@@ -37,6 +45,7 @@ def user_client(client):
         role="user",
         is_active=True,
         status="approved",
+        group=stub_full_group(),
     )
     app.dependency_overrides[get_current_user] = lambda: stub_user
     yield client

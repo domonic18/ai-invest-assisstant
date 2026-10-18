@@ -29,11 +29,11 @@ class TestFinancialReportEndpoints:
     @patch("app.api.v1.financial_report.financial_report_service.get_stock_names")
     @patch("app.api.v1.financial_report.financial_report_service.list_reports")
     def test_list_financial_reports(
-        self, mock_list, mock_names, client
+        self, mock_list, mock_names, user_client
     ) -> None:
         mock_list.return_value = ([self._report_mock()], 1)
         mock_names.return_value = {"000001": "平安银行"}
-        response = client.get("/api/v1/financial-reports/?report_type=annual")
+        response = user_client.get("/api/v1/financial-reports/?report_type=annual")
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 1
@@ -49,11 +49,11 @@ class TestFinancialReportEndpoints:
     @patch("app.api.v1.financial_report.financial_report_service.get_stock_names")
     @patch("app.api.v1.financial_report.financial_report_service.list_reports")
     def test_list_financial_reports_passes_filters(
-        self, mock_list, mock_names, client
+        self, mock_list, mock_names, user_client
     ) -> None:
         mock_list.return_value = ([], 0)
         mock_names.return_value = {}
-        response = client.get(
+        response = user_client.get(
             "/api/v1/financial-reports/?q=年报&start_date=2026-01-01&end_date=2026-06-30"
         )
         assert response.status_code == 200
@@ -64,32 +64,32 @@ class TestFinancialReportEndpoints:
 
     @patch("app.api.v1.financial_report.financial_report_service.get_stock_names")
     @patch("app.api.v1.financial_report.financial_report_service.get_report")
-    def test_get_financial_report(self, mock_get, mock_names, client) -> None:
+    def test_get_financial_report(self, mock_get, mock_names, user_client) -> None:
         mock_get.return_value = self._report_mock()
         mock_names.return_value = {"000001": "平安银行"}
-        response = client.get("/api/v1/financial-reports/1")
+        response = user_client.get("/api/v1/financial-reports/1")
         assert response.status_code == 200
         body = response.json()
         assert body["title"] == "2025年年度报告"
         assert body["stockName"] == "平安银行"
 
     @patch("app.api.v1.financial_report.financial_report_service.get_report")
-    def test_get_financial_report_not_found(self, mock_get, client) -> None:
+    def test_get_financial_report_not_found(self, mock_get, user_client) -> None:
         mock_get.return_value = None
-        response = client.get("/api/v1/financial-reports/999")
+        response = user_client.get("/api/v1/financial-reports/999")
         assert response.status_code == 404
 
     @patch("app.api.v1.financial_report.financial_report_service.get_pdf_url")
-    def test_pdf_url(self, mock_pdf_url, client) -> None:
+    def test_pdf_url(self, mock_pdf_url, user_client) -> None:
         mock_pdf_url.return_value = "http://minio/presigned"
-        response = client.get("/api/v1/financial-reports/1/pdf-url")
+        response = user_client.get("/api/v1/financial-reports/1/pdf-url")
         assert response.status_code == 200
         assert response.json() == {"url": "http://minio/presigned"}
 
     @patch("app.api.v1.financial_report.financial_report_service.get_pdf_url")
-    def test_pdf_url_not_available(self, mock_pdf_url, client) -> None:
+    def test_pdf_url_not_available(self, mock_pdf_url, user_client) -> None:
         mock_pdf_url.return_value = None
-        response = client.get("/api/v1/financial-reports/1/pdf-url")
+        response = user_client.get("/api/v1/financial-reports/1/pdf-url")
         assert response.status_code == 404
 
     @patch("app.api.v1.financial_report.financial_report_service.summarize_report")
@@ -100,10 +100,10 @@ class TestFinancialReportEndpoints:
         assert response.json()["summary"] == "great report"
 
     @patch("app.api.v1.financial_report.financial_report_service.trigger_collect")
-    def test_collect_financial_report(self, mock_trigger, client) -> None:
+    def test_collect_financial_report(self, mock_trigger, user_client) -> None:
         log = SimpleNamespace(id=42, status="pending")
         mock_trigger.return_value = log
-        response = client.post(
+        response = user_client.post(
             "/api/v1/financial-reports/collect",
             json={"stockCode": "002156", "reportTypes": ["annual"]},
         )
@@ -115,17 +115,17 @@ class TestFinancialReportEndpoints:
 
     @patch("app.api.v1.financial_report.financial_report_service.trigger_collect")
     def test_collect_financial_report_unknown_stock(
-        self, mock_trigger, client
+        self, mock_trigger, user_client
     ) -> None:
         mock_trigger.side_effect = NotFoundError("股票 999999 不存在")
-        response = client.post(
+        response = user_client.post(
             "/api/v1/financial-reports/collect",
             json={"stock_code": "999999"},
         )
         assert response.status_code == 404
 
     @patch("app.api.v1.financial_report.financial_report_service.get_collect_log")
-    def test_collect_log_status(self, mock_get_log, client) -> None:
+    def test_collect_log_status(self, mock_get_log, user_client) -> None:
         log = SimpleNamespace(
             id=42,
             status="success",
@@ -134,14 +134,14 @@ class TestFinancialReportEndpoints:
             finished_at=datetime(2026, 7, 25, 8, 0, 0),
         )
         mock_get_log.return_value = log
-        response = client.get("/api/v1/financial-reports/collect-logs/42")
+        response = user_client.get("/api/v1/financial-reports/collect-logs/42")
         assert response.status_code == 200
         body = response.json()
         assert body["status"] == "success"
         assert body["recordsCount"] == 3
 
     @patch("app.api.v1.financial_report.financial_report_service.get_collect_log")
-    def test_collect_log_not_found(self, mock_get_log, client) -> None:
+    def test_collect_log_not_found(self, mock_get_log, user_client) -> None:
         mock_get_log.return_value = None
-        response = client.get("/api/v1/financial-reports/collect-logs/999")
+        response = user_client.get("/api/v1/financial-reports/collect-logs/999")
         assert response.status_code == 404

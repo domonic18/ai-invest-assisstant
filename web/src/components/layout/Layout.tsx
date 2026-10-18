@@ -2,6 +2,10 @@ import { Drawer } from 'antd'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 
+import { canAccessFeature } from '@ai-invest/shared'
+
+import { useAuthStore } from '@/stores/auth'
+
 import { Header } from './Header'
 import { MobileTabBar } from './MobileTabBar'
 import { Sidebar, SidebarMenu } from './Sidebar'
@@ -25,6 +29,8 @@ function useIdlePrefetch() {
 export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const closeMenu = () => setMenuOpen(false)
+  const user = useAuthStore((s) => s.user)
+  const canAssistant = canAccessFeature(user, 'assistant')
   useIdlePrefetch()
 
   return (
@@ -47,10 +53,12 @@ export function Layout() {
       >
         <SidebarMenu onNavigate={closeMenu} />
       </Drawer>
-      <Suspense fallback={null}>
-        <AssistantFab />
-        <AssistantPanel />
-      </Suspense>
+      {canAssistant && (
+        <Suspense fallback={null}>
+          <AssistantFab />
+          <AssistantPanel />
+        </Suspense>
+      )}
     </div>
   )
 }

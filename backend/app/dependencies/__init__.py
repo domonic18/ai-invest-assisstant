@@ -1,6 +1,6 @@
 """FastAPI 依赖项：认证、数据库会话与 AI 配额闸门。"""
 
-from collections.abc import AsyncGenerator, AsyncIterator, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -11,6 +11,7 @@ from app.core.database import AsyncSessionLocal
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.security import decode_access_token
 from app.models.user import User
+from app.services.permissions import resolve_permissions
 from app.services.quota import quota_service
 from app.services.quota.constants import UsageFeature
 from app.services.quota.context import meter_scope
@@ -94,5 +95,20 @@ def ai_quota_gate(feature: UsageFeature) -> Callable[..., AsyncIterator[User]]:
         await quota_service.precheck(user.id)
         with meter_scope(user.id, feature):
             yield user
+
+    return gate
+
+
+def require_feature(key: str) -> Callable[..., Awaitable[User]]:
+    """功能模块门控依赖工厂：用户组未开通该功能 → 403。
+
+    权限每请求实时查库（user.group 为 joined 加载），组变更即时生效，无需改 JWT。
+    admin 不受限；未分组或组停用的用户权限为空集（默认受限）。
+    """
+
+    async def gate(user: Annotated[User, Depends(get_current_user)]) -> User:
+        if key not in await resolve_permissions(user):
+            raise ForbiddenError("当前用户组未开通该功能")
+        return user
 
     return gate

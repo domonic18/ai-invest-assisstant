@@ -9,6 +9,7 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.security import get_password_hash
 from app.models.account_quota import UserAiQuota, UserLlmConfig, UserTokenUsage
 from app.models.user import User
+from app.repositories.user.user_group_repository import UserGroupRepository
 from app.repositories.user.user_repository import UserRepository
 from app.schemas.user import AdminUserCreate, AdminUserUpdate
 from app.services.quota import account_settings
@@ -127,6 +128,8 @@ class AdminUserService:
                     "remaining_quota": None if unlimited else int(total or 0) - used,
                     "total_used": used,
                     "byok_enabled": user.id in byok_ids,
+                    "group_id": user.group_id,
+                    "group_name": user.group.name if user.group is not None else None,
                 }
             )
         return rows
@@ -147,6 +150,15 @@ class AdminUserService:
             user.role = data.role
         if data.is_active is not None:
             user.is_active = data.is_active
+        if data.group_id is not None:
+            # 约定：0 = 移出组（落库 NULL，即未分组受限）；其余须为已存在组
+            if data.group_id == 0:
+                user.group_id = None
+            else:
+                group = await UserGroupRepository(self.session).get(data.group_id)
+                if group is None:
+                    raise NotFoundError(f"User group {data.group_id} not found")
+                user.group_id = data.group_id
 
         await self.session.commit()
         await self.repo.refresh(user)

@@ -17,6 +17,7 @@ from app.schemas.skill import (
     SkillSquareResponse,
     UserSkillResponse,
 )
+from tests.conftest import stub_full_group
 
 _NOW = datetime(2026, 9, 7, tzinfo=timezone.utc)
 
@@ -26,7 +27,7 @@ def user():
     return type(
         "User",
         (object,),
-        {"id": 1, "username": "user", "role": "user", "is_active": True},
+        {"id": 1, "username": "user", "role": "user", "is_active": True, "group": stub_full_group()},
     )()
 
 

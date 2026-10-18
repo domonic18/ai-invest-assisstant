@@ -13,6 +13,7 @@ from langchain_core.messages import HumanMessage, ToolMessage
 from app.dependencies import get_current_user, get_db
 from app.main import app
 from app.models.assistant_session import AssistantSession
+from tests.conftest import stub_full_group
 
 
 def _session_row(title: str | None = None) -> AssistantSession:
@@ -32,6 +33,7 @@ def assistant_client():
     mock_session = AsyncMock()
     mock_user = MagicMock()
     mock_user.id = 1
+    mock_user.group = stub_full_group()
 
     # 未打桩 service 的用例（如配额拒绝流）走真实 repo 链路：
     # py3.14 AsyncMock await 后返回 AsyncMock 子级，链条属性访问得到 coroutine，

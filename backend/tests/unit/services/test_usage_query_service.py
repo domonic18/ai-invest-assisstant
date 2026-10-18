@@ -14,6 +14,7 @@ from app.models.account_quota import (
     UserTokenUsage,
 )
 from app.models.user import User
+from app.models.user_group import UserGroup
 from app.services.quota import usage_query_service
 from app.services.quota.constants import OUTLET_SYSTEM
 from app.services.quota.usage_query_service import cn_bucket_day
@@ -29,6 +30,7 @@ async def session() -> AsyncIterator[AsyncSession]:
             Base.metadata.create_all,
             tables=[
                 User.__table__,
+                UserGroup.__table__,
                 UserAiQuota.__table__,
                 UserTokenUsage.__table__,
                 UserLlmConfig.__table__,

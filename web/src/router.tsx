@@ -2,6 +2,7 @@ import { lazy, Suspense, type ReactNode } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 
 import { ProtectedAdmin } from './components/auth/ProtectedAdmin'
+import { RequireFeature } from './components/auth/RequireFeature'
 import { ProtectedLayout } from './components/auth/ProtectedLayout'
 import { RedirectIfAuthenticated } from './components/auth/RedirectIfAuthenticated'
 import { PageSkeleton } from './components/common/PageSkeleton'
@@ -14,6 +15,9 @@ const StocksAdmin = lazy(() =>
   import('./pages/Admin/Stocks/StocksAdmin').then((m) => ({ default: m.StocksAdmin })),
 )
 const AdminUsers = lazy(() => import('./pages/Admin/Users/Users').then((m) => ({ default: m.AdminUsers })))
+const AdminUserGroups = lazy(() =>
+  import('./pages/Admin/UserGroups/UserGroups').then((m) => ({ default: m.AdminUserGroups })),
+)
 const CollectorAdmin = lazy(() =>
   import('./pages/Admin/Collector').then((m) => ({ default: m.CollectorAdmin })),
 )
@@ -112,43 +116,44 @@ export const router = createBrowserRouter([
       { path: 'review', element: <Dashboard /> },
       // 异动检测合并页：板块/个股双 tab；子路径保持（page_event 跳转直达指定 tab）
       { path: 'anomaly', element: <Navigate to="/anomaly/sector" replace /> },
-      { path: 'anomaly/sector', element: lazyEl(<AnomalyPage />) },
-      { path: 'anomaly/stock', element: lazyEl(<AnomalyPage />) },
+      { path: 'anomaly/sector', element: <RequireFeature feature="anomaly">{lazyEl(<AnomalyPage />)}</RequireFeature> },
+      { path: 'anomaly/stock', element: <RequireFeature feature="anomaly">{lazyEl(<AnomalyPage />)}</RequireFeature> },
       // 板块详情：同花顺指数 K 线（板块名桥接）+ 资金流 + 异动日标注
       { path: 'sector/:sectorType/:sectorCode', element: lazyEl(<SectorDetailPage />) },
-      { path: 'chain/:industry?', element: lazyEl(<ChainAnalysis />) },
+      { path: 'chain/:industry?', element: <RequireFeature feature="chain">{lazyEl(<ChainAnalysis />)}</RequireFeature> },
       { path: 'stock/:code', element: lazyEl(<StockDetail />) },
-      { path: 'capital-flow', element: lazyEl(<CapitalFlow />) },
+      { path: 'capital-flow', element: <RequireFeature feature="fund-flow">{lazyEl(<CapitalFlow />)}</RequireFeature> },
       { path: 'macro-monitor', element: lazyEl(<MacroMonitor />) },
       // 指数详情：宏观监测/工作台指标卡点击进入（A 股 K 线 + 全球指标历史线）
       { path: 'index/:code', element: lazyEl(<IndexDetail />) },
-      { path: 'auction-review', element: lazyEl(<AuctionReview />) },
+      { path: 'auction-review', element: <RequireFeature feature="auction">{lazyEl(<AuctionReview />)}</RequireFeature> },
       // 旧路由外链兜底：研报/财报入口并入个股详情右栏 tab（4.4.0）
       { path: 'auction', element: <Navigate to="/auction-review" replace /> },
       { path: 'hotspot', element: <Navigate to="/workbench" replace /> },
       { path: 'research', element: <Navigate to="/workbench" replace /> },
       { path: 'financial-reports', element: <Navigate to="/workbench" replace /> },
       { path: 'calendar', element: lazyEl(<Calendar />) },
-      { path: 'news', element: lazyEl(<News />) },
+      { path: 'news', element: <RequireFeature feature="news">{lazyEl(<News />)}</RequireFeature> },
       // 知识库搜索入口（搜索引擎式）：全员可问；?mediaId= 承载会话引用播放（凭证白名单校验）
-      { path: 'kb', element: lazyEl(<KnowledgeSearchPage />) },
+      { path: 'kb', element: <RequireFeature feature="kb">{lazyEl(<KnowledgeSearchPage />)}</RequireFeature> },
       // 旧路由兜底：电报视图已迁入资讯中心（迭代 3）
       { path: 'telegraph', element: <Navigate to="/news" replace /> },
-      { path: 'financial/:code', element: lazyEl(<Financial />) },
+      { path: 'financial/:code', element: <RequireFeature feature="financial-reports">{lazyEl(<Financial />)}</RequireFeature> },
       { path: 'settings', element: lazyEl(<Settings />) },
-      { path: 'skills', element: lazyEl(<SkillsPage />) },
-      { path: 'skills/:skillId', element: lazyEl(<SkillDetailPage />) },
+      { path: 'skills', element: <RequireFeature feature="skills">{lazyEl(<SkillsPage />)}</RequireFeature> },
+      { path: 'skills/:skillId', element: <RequireFeature feature="skills">{lazyEl(<SkillDetailPage />)}</RequireFeature> },
       { path: 'watchlist', element: lazyEl(<Watchlist />) },
       // 模拟盘：掘金仿真只读展示（批次 2）；Agent 交易工具在批次 3 接入
-      { path: 'paper-trade', element: lazyEl(<PaperTrade />) },
+      { path: 'paper-trade', element: <RequireFeature feature="paper-trade">{lazyEl(<PaperTrade />)}</RequireFeature> },
       // AI 选股：问财即席筛选，结果为 SPA 会话临时内容（迭代 6）
-      { path: 'screening', element: lazyEl(<ScreeningPage />) },
+      { path: 'screening', element: <RequireFeature feature="screening">{lazyEl(<ScreeningPage />)}</RequireFeature> },
       {
         path: 'admin',
         element: <ProtectedAdmin />,
         children: [
           { index: true, element: lazyEl(<Admin />) },
           { path: 'users', element: lazyEl(<AdminUsers />) },
+          { path: 'user-groups', element: lazyEl(<AdminUserGroups />) },
           { path: 'usage-dashboard', element: lazyEl(<UsageDashboard />) },
           { path: 'stocks', element: lazyEl(<StocksAdmin />) },
           // 旧路由保留：重定向到合并页的题材映射 tab（收藏/外链不断链）

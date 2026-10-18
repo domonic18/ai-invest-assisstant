@@ -1,6 +1,8 @@
 """API v1 路由聚合。"""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from app.dependencies import require_feature
 
 from app.api.v1 import (
     account,
@@ -55,6 +57,7 @@ from app.api.v1.admin import telegraph as admin_telegraph
 from app.api.v1.admin import tracked_index as admin_tracked_indexes
 from app.api.v1.admin import trade_calendar as admin_trade_calendar
 from app.api.v1.admin import trading_agent as admin_trading_agent
+from app.api.v1.admin import user_groups as admin_user_groups
 from app.api.v1.admin import users as admin_users
 from app.api.v1.mcp import server as mcp_server
 
@@ -65,38 +68,99 @@ api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(account.router, prefix="/users", tags=["account"])
 api_router.include_router(stocks.router, prefix="/stocks", tags=["stocks"])
 api_router.include_router(kline.router, prefix="/kline", tags=["kline"])
-api_router.include_router(chain.router, prefix="/chain", tags=["chain"])
-api_router.include_router(research.router, prefix="/research", tags=["research"])
-api_router.include_router(skills.router, prefix="/skills", tags=["skills"])
 api_router.include_router(
-    financial_report.router, prefix="/financial-reports", tags=["financial-reports"]
+    chain.router,
+    prefix="/chain",
+    tags=["chain"],
+    dependencies=[Depends(require_feature("chain"))],
+)
+api_router.include_router(
+    research.router,
+    prefix="/research",
+    tags=["research"],
+    dependencies=[Depends(require_feature("research"))],
+)
+api_router.include_router(
+    skills.router,
+    prefix="/skills",
+    tags=["skills"],
+    dependencies=[Depends(require_feature("skills"))],
+)
+api_router.include_router(
+    financial_report.router,
+    prefix="/financial-reports",
+    tags=["financial-reports"],
+    dependencies=[Depends(require_feature("financial-reports"))],
 )
 api_router.include_router(hotspot.router, prefix="/hotspot", tags=["hotspot"])
 api_router.include_router(calendar.router, prefix="/calendar", tags=["calendar"])
 api_router.include_router(financial.router, prefix="/financial", tags=["financial"])
-api_router.include_router(auction.router, prefix="/auction", tags=["auction"])
-api_router.include_router(fund_flow.router, prefix="/fund-flow", tags=["fund-flow"])
+api_router.include_router(
+    auction.router,
+    prefix="/auction",
+    tags=["auction"],
+    dependencies=[Depends(require_feature("auction"))],
+)
+api_router.include_router(
+    fund_flow.router,
+    prefix="/fund-flow",
+    tags=["fund-flow"],
+    dependencies=[Depends(require_feature("fund-flow"))],
+)
 api_router.include_router(market.router, prefix="/market", tags=["market"])
 api_router.include_router(
-    assistant.router, prefix="/assistant", tags=["assistant"]
+    assistant.router,
+    prefix="/assistant",
+    tags=["assistant"],
+    dependencies=[Depends(require_feature("assistant"))],
 )
-api_router.include_router(telegraph.router, prefix="/telegraph", tags=["telegraph"])
-api_router.include_router(news.router, prefix="/news", tags=["news"])
-api_router.include_router(anomaly.router, prefix="/anomaly", tags=["anomaly"])
+api_router.include_router(
+    telegraph.router,
+    prefix="/telegraph",
+    tags=["telegraph"],
+    dependencies=[Depends(require_feature("news"))],
+)
+api_router.include_router(
+    news.router,
+    prefix="/news",
+    tags=["news"],
+    dependencies=[Depends(require_feature("news"))],
+)
+api_router.include_router(
+    anomaly.router,
+    prefix="/anomaly",
+    tags=["anomaly"],
+    dependencies=[Depends(require_feature("anomaly"))],
+)
 api_router.include_router(
     sector_detail.router, prefix="/sectors", tags=["sector-detail"]
 )
 api_router.include_router(workbench.router, prefix="/workbench", tags=["workbench"])
 api_router.include_router(drawings.router, prefix="/kline-drawings", tags=["drawings"])
-api_router.include_router(screening.router, prefix="/screening", tags=["screening"])
-api_router.include_router(social.router, prefix="/social", tags=["social"])
-api_router.include_router(kb.router, prefix="/kb", tags=["kb"])
 api_router.include_router(
-    paper_trade.router, prefix="/paper-trade", tags=["paper-trade"]
+    screening.router,
+    prefix="/screening",
+    tags=["screening"],
+    dependencies=[Depends(require_feature("screening"))],
+)
+api_router.include_router(social.router, prefix="/social", tags=["social"])
+api_router.include_router(
+    kb.router,
+    prefix="/kb",
+    tags=["kb"],
+    dependencies=[Depends(require_feature("kb"))],
+)
+api_router.include_router(kb.public_router, prefix="/kb", tags=["kb"])
+api_router.include_router(
+    paper_trade.router,
+    prefix="/paper-trade",
+    tags=["paper-trade"],
+    dependencies=[Depends(require_feature("paper-trade"))],
 )
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(admin_users.router, prefix="/users")
+admin_router.include_router(admin_user_groups.router, prefix="/user-groups")
 admin_router.include_router(admin_account.router)
 admin_router.include_router(admin_stocks.router, prefix="/stocks")
 admin_router.include_router(admin_stock_concepts.router, prefix="/stock-concepts")

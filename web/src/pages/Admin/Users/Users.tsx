@@ -33,6 +33,7 @@ import {
   useResetAdminUserPassword,
   useUpdateAdminUser,
 } from '@/hooks/useAdminUsers'
+import { useAdminUserGroups } from '@/hooks/useAdminUserGroups'
 import { PAGE_SIZE, type AdminUser } from '@ai-invest/shared'
 
 import { ApproveModal, QuotaAdjustModal, RejectModal } from './components/AccountModals'
@@ -44,6 +45,7 @@ interface UserFormValues {
   password?: string
   role: string
   isActive: boolean
+  groupId?: number
 }
 
 const ROLE_OPTIONS = [
@@ -91,6 +93,7 @@ export function AdminUsers() {
     ...params,
     status: params.status === 'all' ? null : params.status,
   })
+  const { data: groups } = useAdminUserGroups()
   const createMutation = useCreateAdminUser()
   const updateMutation = useUpdateAdminUser()
   const deleteMutation = useDeleteAdminUser()
@@ -109,6 +112,7 @@ export function AdminUsers() {
       email: user.email,
       role: user.role,
       isActive: user.isActive,
+      groupId: user.groupId ?? undefined,
     })
     setModalOpen(true)
   }
@@ -123,6 +127,8 @@ export function AdminUsers() {
             email: values.email,
             role: values.role,
             isActive: values.isActive,
+            // 清空选择 = 移出组（后端约定 0 = NULL）；未改动则回传原值
+            groupId: values.groupId ?? 0,
           },
         })
         message.success('用户已更新')
@@ -167,6 +173,16 @@ export function AdminUsers() {
     { title: '用户名', dataIndex: 'username', key: 'username' },
     { title: '邮箱', dataIndex: 'email', key: 'email', ellipsis: true },
     { title: '角色', dataIndex: 'role', key: 'role', width: 84 },
+    {
+      title: '用户组',
+      dataIndex: 'groupName',
+      key: 'groupName',
+      width: 110,
+      render: (value: string | null, record: AdminUser) => {
+        if (record.role === 'admin') return <Tag color="purple">admin 不受限</Tag>
+        return value ? <Tag color="blue">{value}</Tag> : <Tag>未分组（受限）</Tag>
+      },
+    },
     {
       title: '账号状态',
       dataIndex: 'status',
@@ -363,6 +379,19 @@ export function AdminUsers() {
           <Form.Item name="isActive" label="启用" valuePropName="checked">
             <Switch />
           </Form.Item>
+          {editing && (
+            <Form.Item
+              name="groupId"
+              label="用户组"
+              extra="决定可用功能模块；清空即移出组（未分组仅核心页面可用，admin 不受限）"
+            >
+              <Select
+                allowClear
+                placeholder="未分组（受限）"
+                options={(groups ?? []).map((g) => ({ label: g.name, value: g.id }))}
+              />
+            </Form.Item>
+          )}
         </Form>
       </Modal>
 

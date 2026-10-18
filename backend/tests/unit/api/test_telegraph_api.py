@@ -10,6 +10,7 @@ import pytest
 from app.dependencies import get_current_user
 from app.main import app
 from app.schemas.telegraph import TelegraphResponse, strip_html
+from tests.conftest import stub_full_group
 
 
 def _item_mock(**overrides: Any) -> SimpleNamespace:
@@ -33,7 +34,7 @@ def normal_user():
     return type(
         "User",
         (object,),
-        {"id": 3, "username": "user", "role": "user", "is_active": True},
+        {"id": 3, "username": "user", "role": "user", "is_active": True, "group": stub_full_group()},
     )()
 
 

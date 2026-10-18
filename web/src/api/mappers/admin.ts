@@ -148,6 +148,8 @@ export function mapAdminUser(dto: ApiAdminUserResponse): AdminUser {
     remainingQuota: dto.remainingQuota,
     totalUsed: dto.totalUsed,
     byokEnabled: dto.byokEnabled,
+    groupId: dto.groupId ?? null,
+    groupName: dto.groupName ?? null,
   }
 }
 

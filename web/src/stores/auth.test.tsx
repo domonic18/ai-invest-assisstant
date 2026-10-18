@@ -30,7 +30,14 @@ describe('auth store', () => {
 
   it('reflects login state', () => {
     const store = useAuthStore.getState()
-    store.login('token123', { id: '1', username: 'tester', email: 'test@example.com', isAdmin: true })
+    store.login('token123', {
+      id: '1',
+      username: 'tester',
+      email: 'test@example.com',
+      isAdmin: true,
+      permissions: [],
+      groupName: null,
+    })
     expect(useAuthStore.getState().token).toBe('token123')
     expect(useAuthStore.getState().isAdmin).toBe(true)
     store.logout()
@@ -89,6 +96,8 @@ describe('auth store 初始化容错', () => {
       username: 'tester',
       email: 't@e.com',
       isAdmin: false,
+      permissions: [],
+      groupName: null,
     })
 
     await useAuthStore.getState().initialize()
