@@ -17,6 +17,7 @@ from app.core.exceptions import (
 from app.core.security import get_password_hash, verify_password
 from app.models.account_quota import AdminAuditLog, SystemSetting, UserAiQuota
 from app.models.user import User
+from app.models.user_group import UserGroup
 from app.schemas.auth import RegisterRequest
 from app.services.admin.approval_service import ApprovalService
 from app.services.user.register_service import RegisterService
@@ -42,7 +43,13 @@ async def session():
     async with engine.begin() as conn:
         await conn.run_sync(
             Base.metadata.create_all,
-            tables=[User.__table__, UserAiQuota.__table__, AdminAuditLog.__table__, SystemSetting.__table__],
+            tables=[
+                User.__table__,
+                UserGroup.__table__,
+                UserAiQuota.__table__,
+                AdminAuditLog.__table__,
+                SystemSetting.__table__,
+            ],
         )
     maker = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     async with maker() as db:

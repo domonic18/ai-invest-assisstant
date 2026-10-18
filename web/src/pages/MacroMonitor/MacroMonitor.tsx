@@ -9,9 +9,9 @@ import { useGlobalIndexHistory, useGlobalIndices, useMarketIndices } from '@/hoo
 import { useColorScheme } from '@/stores/settings'
 
 /** 区域归属与标签（code → 展示顺序，见 GLOBAL_INDEX_CODES）。 */
-const EQUITY_ORDER = ['HSI', 'HSTECH', 'DJIA', 'NDX', 'SPX', 'N225']
+const EQUITY_ORDER = ['HSI', 'HSTECH', 'DJIA', 'NDX', 'SPX', 'N225', 'KS11']
 const BOND_ORDER = ['US2Y', 'US10Y', 'US30Y', 'JP10Y']
-const COMMODITY_ORDER = ['GC00Y', 'B00Y']
+const COMMODITY_ORDER = ['GC00Y', 'SI00Y', 'HG00Y', 'B00Y']
 const FX_ORDER = ['DXY', 'USDCNY', 'USDCNH', 'USDJPY', 'USDEUR']
 const FX_CODES = new Set(['USDCNY', 'USDCNH', 'USDJPY', 'USDEUR'])
 const SPREAD_CODE = 'US2Y10S'
@@ -23,11 +23,14 @@ const TAG_META: Record<string, { tag: string; color: string }> = {
   NDX: { tag: '美股', color: 'blue' },
   SPX: { tag: '美股', color: 'blue' },
   N225: { tag: '日股', color: 'gold' },
+  KS11: { tag: '韩股', color: 'gold' },
   US2Y: { tag: '美债', color: 'blue' },
   US10Y: { tag: '美债', color: 'blue' },
   US30Y: { tag: '美债', color: 'blue' },
   JP10Y: { tag: '日债', color: 'gold' },
   GC00Y: { tag: '商品', color: 'gold' },
+  SI00Y: { tag: '贵金属', color: 'gold' },
+  HG00Y: { tag: '有色', color: 'gold' },
   B00Y: { tag: '能源', color: 'gold' },
   DXY: { tag: '汇率', color: 'gold' },
   USDCNY: { tag: '汇率', color: 'gold' },
@@ -196,7 +199,7 @@ export function MacroMonitor() {
             if (!quote) return null
             return <GlobalCard key={code} quote={quote} onOpen={openDetail} />
           })}
-          <GhostCard title="白银 / 更多指标" note="依托跟踪指数管理扩展" />
+          <GhostCard title="更多指标" note="依托跟踪指数管理扩展" />
         </div>
       </section>
 

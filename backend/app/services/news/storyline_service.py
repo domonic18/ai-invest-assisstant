@@ -109,7 +109,10 @@ async def build_stories(session: AsyncSession) -> dict[str, Any]:
         )
         try:
             output: StorylineBatch = await run_structured(
-                session, result_type=StorylineBatch, user_prompt=user_prompt
+                session,
+                result_type=StorylineBatch,
+                user_prompt=user_prompt,
+                task_key="news_storyline",
             )
         except Exception as exc:  # noqa: BLE001
             # LLM/解析失败本轮跳过，下轮任务重试（news-score 同款语义）

@@ -14,6 +14,7 @@ export const queryKeys = {
     stocks: ['admin-stocks'] as const,
     stockConcepts: ['admin-stock-concepts'] as const,
     users: ['admin-users'] as const,
+    userGroups: ['admin-user-groups'] as const,
     tasks: ['admin-tasks'] as const,
     aiResults: ['admin-ai-results'] as const,
     aiResultSkills: ['admin-ai-result-skills'] as const,
@@ -138,6 +139,7 @@ export const queryKeys = {
   },
   modelConfig: {
     asr: ['model-config', 'asr'] as const,
+    taskBindings: ['model-config', 'task-bindings'] as const,
   },
   proxyConfigs: ['proxy-configs'] as const,
   trackedIndexOptions: ['tracked-index-options'] as const,
@@ -149,6 +151,8 @@ export const queryKeys = {
     indices: (tradeDate?: string) => ['market', 'indices', tradeDate] as const,
     intraday: (code: string, tradeDate?: string) =>
       ['market', 'intraday', code, tradeDate] as const,
+    turnoverCompare: (tradeDate?: string) =>
+      ['market', 'turnover-compare', tradeDate] as const,
     kline: (code: string, period: string) => ['market', 'kline', code, period] as const,
     stats: (tradeDate?: string) => ['market', 'stats', tradeDate] as const,
     limitUp: (tradeDate?: string) => ['market', 'limit-up', tradeDate] as const,

@@ -55,6 +55,9 @@ class UserResponse(CamelModel):
     reject_reason: str | None = None
     last_login_at: datetime | None = None
     created_at: datetime
+    # 功能模块权限（admin 全量；普通用户取所属组，未分组为空集=受限）
+    permissions: list[str] = []
+    group_name: str | None = None
 
 
 class UserUpdate(CamelModel):
@@ -87,6 +90,8 @@ class AdminUserUpdate(CamelModel):
     email: str | None = Field(None, max_length=100)
     role: str | None = Field(None, pattern="^(user|admin|analyst)$")
     is_active: bool | None = None
+    # 约定：缺省/None = 不改动；0 = 移出组（落库 NULL，即未分组受限）
+    group_id: int | None = Field(None, ge=0, description="用户组 ID；0 表示移出组")
 
 
 class AdminUserResetPassword(CamelModel):

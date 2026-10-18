@@ -207,8 +207,9 @@ export function useTradingAgentObservations(
   })
 }
 
-/** 总览页决策流拉取条数：右栏最多渲染 8 张卡，多拉 4 条作 latestOrder 取数余量。 */
-const FEED_OBSERVATION_LIMIT = 12
+/** 总览页决策流拉取条数：右栏合并去重后最多渲染 8 张卡；窗口须远大于 8，
+ *  心跳/观望连发的 +N 才能反映真实连续观测数（后端 page_size 上限 100）。 */
+const FEED_OBSERVATION_LIMIT = 60
 
 /**
  * 总览页实时决策流：全部逐 tick（含无动作心跳行）。

@@ -255,6 +255,17 @@ async def latest_minute_day(session: AsyncSession, code: str) -> date | None:
     return latest.astimezone(CN_TZ).date() if latest is not None else None
 
 
+async def prev_minute_day(session: AsyncSession, code: str, day: date) -> date | None:
+    """目标日期之前最近一根分钟 bar 的交易日期（前一交易日口径）。"""
+    latest = await session.scalar(
+        select(func.max(KlineMinute.trade_time)).where(
+            KlineMinute.stock_code == code,
+            KlineMinute.trade_time < datetime.combine(day, time.min, tzinfo=CN_TZ),
+        )
+    )
+    return latest.astimezone(CN_TZ).date() if latest is not None else None
+
+
 async def prev_minute_close(
     session: AsyncSession, code: str, day: date
 ) -> float | None:

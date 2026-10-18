@@ -581,3 +581,128 @@ class TestHistoricalIndexQuotesLocal:
         assert quotes[0].change == 1.0
         assert quotes[0].change_pct == 1.0
         assert quotes[0].trend == [100.0, 101.0]
+
+
+@pytest.mark.unit
+class TestTurnoverCompare:
+    """两市量能对比：多标的分钟累计、昨日基线前向填充、全天预测外推。"""
+
+    _CN = ZoneInfo("Asia/Shanghai")
+
+    def _bar(self, ts: str, amount_yi: float) -> MagicMock:
+        bar = MagicMock()
+        bar.trade_time = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S").replace(
+            tzinfo=self._CN
+        )
+        bar.amount = Decimal(str(amount_yi)) * Decimal("1e8")
+        return bar
+
+    def test_build_points_sums_codes_and_carries_prev_forward(self) -> None:
+        today = [
+            self._bar("2026-10-16 09:31:00", 2.0),  # 沪
+            self._bar("2026-10-16 09:31:00", 1.0),  # 深
+            self._bar("2026-10-16 09:32:00", 1.0),  # 沪（深缺该分钟）
+        ]
+        prev = [
+            self._bar("2026-10-15 09:31:00", 1.5),
+            self._bar("2026-10-15 09:32:00", 1.5),
+            self._bar("2026-10-15 15:00:00", 3.0),
+        ]
+
+        points, prev_full_yi = index_quotation_service.build_turnover_points(
+            today, prev
+        )
+
+        assert prev_full_yi == 6.0  # 取昨日序列自身最后一格（全天值）
+        assert [(p.time, p.today, p.prev, p.diff) for p in points] == [
+            ("09:31", 3.0, 1.5, 1.5),
+            ("09:32", 4.0, 3.0, 1.0),
+        ]
+
+    def test_build_points_empty_prev_yields_zero_baseline(self) -> None:
+        today = [self._bar("2026-10-16 09:31:00", 3.0)]
+        points, prev_full_yi = index_quotation_service.build_turnover_points(today, [])
+        assert prev_full_yi == 0.0
+        assert points[0].prev == 0.0
+        # 完全无昨日基线时 diff 不显示全量差额
+        assert points[0].diff == 0.0
+
+    @pytest.mark.asyncio
+    async def test_service_forecast_uses_prev_full_anchor(self) -> None:
+        """预测 = 昨日全天 × 当日/昨日同期累计比（6 亿 × 40/30 = 8 亿）。"""
+        today = [
+            self._bar("2026-10-16 09:31:00", 3.0),
+            self._bar("2026-10-16 09:32:00", 1.0),
+        ]
+        prev = [
+            self._bar("2026-10-15 09:31:00", 1.5),
+            self._bar("2026-10-15 09:32:00", 1.5),
+            self._bar("2026-10-15 15:00:00", 3.0),
+        ]
+        with (
+            patch.object(
+                index_quotation_service,
+                "latest_minute_day",
+                AsyncMock(return_value=date(2026, 10, 16)),
+            ),
+            patch.object(
+                index_quotation_service,
+                "prev_minute_day",
+                AsyncMock(return_value=date(2026, 10, 15)),
+            ),
+            patch.object(
+                index_quotation_service,
+                "fetch_minute_bars_multi",
+                AsyncMock(side_effect=[today, prev]),
+            ),
+        ):
+            resp = await market_service.get_turnover_compare(AsyncMock())
+
+        assert resp.trade_date == date(2026, 10, 16)
+        assert resp.prev_trade_date == date(2026, 10, 15)
+        assert resp.today_amount == 4.0
+        assert resp.prev_amount == 6.0  # 昨日全天，而非昨日同时刻累计
+        assert resp.forecast_amount == 8.0
+        assert [p.time for p in resp.points] == ["09:31", "09:32"]
+
+    @pytest.mark.asyncio
+    async def test_no_minute_data_returns_empty(self) -> None:
+        with (
+            patch.object(
+                index_quotation_service,
+                "latest_minute_day",
+                AsyncMock(return_value=None),
+            ),
+        ):
+            resp = await market_service.get_turnover_compare(AsyncMock())
+
+        assert resp.points == []
+        assert resp.today_amount is None
+        assert resp.forecast_amount is None
+
+    @pytest.mark.asyncio
+    async def test_target_day_without_bars_returns_empty(self) -> None:
+        with (
+            patch.object(
+                index_quotation_service,
+                "latest_minute_day",
+                AsyncMock(return_value=date(2026, 10, 16)),
+            ),
+            patch.object(
+                index_quotation_service,
+                "prev_minute_day",
+                AsyncMock(return_value=date(2026, 10, 15)),
+            ),
+            patch.object(
+                index_quotation_service,
+                "fetch_minute_bars_multi",
+                AsyncMock(return_value=[]),
+            ),
+        ):
+            resp = await market_service.get_turnover_compare(
+                AsyncMock(), date(2026, 7, 1)
+            )
+
+        assert resp.points == []
+        assert resp.prev_amount is None
+        assert resp.forecast_amount is None

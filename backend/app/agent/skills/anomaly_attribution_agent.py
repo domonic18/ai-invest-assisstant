@@ -21,7 +21,7 @@ from app.agent.skills.skill_runtime import (
     load_skill_instructions,
     load_skill_methodology,
 )
-from app.services.admin.llm_config_service import resolve_default_llm
+from app.services.admin.llm_task_binding_service import resolve_task_llm
 from app.services.market.anomaly_attribution_service import (
     SECTOR_CATEGORIES,
     SKILL_ID,
@@ -72,7 +72,7 @@ async def run_skill(
     """执行异动归因 skill（单次调用覆盖全部输入标的）。
 
     Args:
-        session: 数据库会话（用于解析默认 LLM 配置）。
+        session: 数据库会话（用于解析任务绑定模型，未绑定时回退系统默认）。
         domain: 归因域，"sector" 或 "stock"。
         trade_date: 交易日。
         targets: 规则事实清单（服务层投影，含 rule_category）。
@@ -84,7 +84,9 @@ async def run_skill(
     Raises:
         SkillOutputError: 重试一次后输出仍无法解析或不符合 schema。
     """
-    cfg = await resolve_default_llm(session)
+    cfg = await resolve_task_llm(
+        session, "sector_anomaly" if domain == "sector" else "stock_anomaly"
+    )
     result_type = (
         SectorAnomalyAttributionContent
         if domain == "sector"

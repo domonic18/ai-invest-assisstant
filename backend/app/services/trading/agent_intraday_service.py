@@ -13,19 +13,21 @@
 """
 
 from contextlib import nullcontext
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from datetime import time as dt_time
 from typing import Any
 
 from sqlalchemy import func, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.clock import utc_now
+from app.core.clock import CN_TZ, utc_now
 from app.core.decision_model.contracts import (
     DEFAULT_THRESHOLDS,
     JudgeAnswer,
 )
 from app.core.decision_model.errors import DecisionModelError
 from app.models.agent_trading import AgentTradePlan
+from app.models.kline import KlineMinute
 from app.models.paper_trade import PaperTradeExecObservation, TradingAgent
 from app.services.admin.decision_model_service import ask_decision
 from app.services.admin.llm_config_service import LLMConfigNotConfiguredError
@@ -65,6 +67,7 @@ async def run_tick(
     now: datetime,
     quotes: dict[str, dict[str, Any]],
     index_snapshot: dict[str, Any] | None = None,
+    minute_bars: dict[str, list[list[Any]]] | None = None,
     recorders: dict[str, AgentRunRecorder] | None = None,
 ) -> dict[str, int]:
     """执行一次盘中 tick：active Agent 生效计划集（最近一份 ≤ 当日）过 L0→L1→L2→观测。
@@ -73,6 +76,7 @@ async def run_tick(
     完全短路：不评判、不下单、不写观测）。判断模型对全部触发计划只发起一次
     批量 ``ask_decision``；shadow 模式不下单，active 模式经 ``execute_agent_order``
     下单并推进计划状态机。返回计数器（evaluated/candidates/executed/suppressed/degraded）。
+    ``minute_bars`` 为当日分钟线序列（``load_minute_bars`` 产出），供分时形态题作答。
     """
     counters = {
         "evaluated": 0,
@@ -180,6 +184,7 @@ async def run_tick(
                         trade_date=trade_date,
                         quotes=quotes,
                         index_snapshot=index_snapshot,
+                        minute_bars=minute_bars,
                         candidates=candidates,
                     ),
                     questions=_questions(candidates),
@@ -394,3 +399,44 @@ async def plan_stock_codes(session: AsyncSession, *, trade_date: date) -> set[st
         )
     )
     return {str(code) for code in rows}
+
+
+async def load_minute_bars(
+    session: AsyncSession,
+    *,
+    codes: set[str],
+    trade_date: date,
+) -> dict[str, list[list[Any]]]:
+    """读当日分钟线序列（``quote_kline_stock_minute``，tencent 盘中采集供给）。
+
+    返回 ``{stock_code: [[HH:MM, 收盘, 成交量], ...]}``（按时间升序），
+    供 tick 行情状态注入分时形态输入；无数据标的不出现在结果中。
+    """
+    if not codes:
+        return {}
+    day_start = datetime.combine(trade_date, dt_time.min, tzinfo=CN_TZ)
+    day_end = day_start + timedelta(days=1)
+    rows = await session.execute(
+        select(
+            KlineMinute.stock_code,
+            KlineMinute.trade_time,
+            KlineMinute.close,
+            KlineMinute.volume,
+        )
+        .where(
+            KlineMinute.stock_code.in_(codes),
+            KlineMinute.trade_time >= day_start,
+            KlineMinute.trade_time < day_end,
+        )
+        .order_by(KlineMinute.stock_code, KlineMinute.trade_time)
+    )
+    bars: dict[str, list[list[Any]]] = {}
+    for code, trade_time, close, volume in rows.all():
+        bars.setdefault(str(code), []).append(
+            [
+                trade_time.astimezone(CN_TZ).strftime("%H:%M"),
+                float(close),
+                int(volume or 0),
+            ]
+        )
+    return bars

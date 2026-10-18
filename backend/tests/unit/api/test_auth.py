@@ -91,6 +91,9 @@ class TestAuthEndpoints:
         instance.attempt_login.assert_awaited_once_with(
             "tester", "secret123", "testclient"
         )
+        # 响应增强：登录即返回功能模块权限（stub 用户未分组 → 空集受限）
+        assert response.json()["user"]["permissions"] == []
+        assert response.json()["user"]["groupName"] is None
 
     def test_wx_login_not_implemented(self, client) -> None:
         response = client.post("/api/v1/auth/wx-login", json={})

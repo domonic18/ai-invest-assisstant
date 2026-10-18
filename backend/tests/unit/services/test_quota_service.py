@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.database import Base
 from app.models.account_quota import SystemSetting, UserAiQuota, UserTokenUsage
 from app.models.user import User
+from app.models.user_group import UserGroup
 from app.services.quota import quota_service
 from app.services.quota.constants import OUTLET_SYSTEM
 from app.services.quota.quota_service import RESERVE_DENIED
@@ -134,7 +135,8 @@ async def session():
     async with engine.begin() as conn:
         await conn.run_sync(
             Base.metadata.create_all,
-            tables=[User.__table__, UserAiQuota.__table__, UserTokenUsage.__table__, SystemSetting.__table__],
+            tables=[User.__table__,
+                UserGroup.__table__, UserAiQuota.__table__, UserTokenUsage.__table__, SystemSetting.__table__],
         )
     maker = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     async with maker() as db:

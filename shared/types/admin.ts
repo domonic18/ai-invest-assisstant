@@ -110,6 +110,41 @@ export interface ApiLLMConfigTestResponse {
   testedAt: string
 }
 
+/** AI 任务槽位键（真相源：后端 TASK_SLOTS 注册表，集合由单测钉死）。 */
+export type AiTaskKey =
+  | 'news_score'
+  | 'social_sentiment'
+  | 'news_storyline'
+  | 'news_topic'
+  | 'market_daily_review'
+  | 'sector_anomaly'
+  | 'stock_anomaly'
+  | 'stock_daily_analysis'
+  | 'limit_up_review'
+  | 'chain_refresh'
+
+/** 任务槽位视图：目录元信息 + 当前绑定（configId=null = 跟随系统默认）。 */
+export interface ApiTaskBindingSlot {
+  taskKey: AiTaskKey
+  label: string
+  description: string
+  configId: number | null
+  configName: string | null
+  modelName: string | null
+  updatedAt: string | null
+}
+
+/** 单个任务槽位绑定项；configId=null 表示解绑。 */
+export interface ApiTaskBindingItem {
+  taskKey: AiTaskKey
+  configId: number | null
+}
+
+/** 整表单保存任务绑定：非空 upsert、空删行；未携带的槽位不改动。 */
+export interface ApiTaskBindingReplaceRequest {
+  bindings: ApiTaskBindingItem[]
+}
+
 /** ASR wire 协议：minimax 专有 | openai 兼容转写（whisper 事实标准）。 */
 export type AsrProtocol = 'minimax' | 'openai'
 
@@ -435,6 +470,8 @@ export interface AdminUser {
   remainingQuota: number | null
   totalUsed: number
   byokEnabled: boolean
+  groupId: number | null
+  groupName: string | null
 }
 
 export interface AdminUserFormValues {
@@ -710,6 +747,8 @@ export interface ApiAdminUserResponse {
   remainingQuota: number | null
   totalUsed: number
   byokEnabled: boolean
+  groupId: number | null
+  groupName: string | null
 }
 
 export interface ApiAdminUserCreateRequest {
@@ -725,6 +764,8 @@ export interface ApiAdminUserUpdateRequest {
   email?: string
   role?: string
   isActive?: boolean
+  /** 缺省/undefined = 不改动；0 = 移出组（未分组受限） */
+  groupId?: number
 }
 
 export interface ApiAdminUserResetPasswordRequest {

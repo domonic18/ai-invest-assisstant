@@ -30,14 +30,15 @@ interface FeedEntry {
   repeat: number
 }
 
-/** 连续重复条目合并：同股同 tag 刷屏（心跳/观望）只保留最新一条并累计 +N。 */
+/** 连续重复条目合并：同股同 tag 刷屏（心跳/观望）只保留最新一条并累计 +N。
+ *  输入约定为最新在前（后端 tick_time 倒序），故保留首见卡片、只累计次数——
+ *  合并卡随新 tick 刷新时间与文案，+N 持续增大，不产生"agent 停更"的观感。 */
 function mergeRuns(cards: NarrativeCard[]): FeedEntry[] {
   const entries: FeedEntry[] = []
   for (const card of cards) {
     const last = entries[entries.length - 1]
     if (last && last.card.stockCode === card.stockCode && last.card.tag === card.tag) {
       last.repeat += 1
-      last.card = card
     } else {
       entries.push({ card, repeat: 0 })
     }
@@ -108,7 +109,9 @@ export function NarrativeFeed({
   const reducedMotion = usePrefersReducedMotion()
   if (!agent) return null
   const accent = agent.profile.accentColor ?? BOARD.cyan
-  const cards = mergeRuns((feed?.items ?? []).slice(0, MAX_FEED_CARDS).map(toNarrative))
+  // 先对全量拉取窗口合并、再截断展示卡片数：截断在前会把 +N 钳在窗口-1，
+  // 心跳刷屏时永远停在 +7，误读为 agent 停更
+  const cards = mergeRuns((feed?.items ?? []).map(toNarrative)).slice(0, MAX_FEED_CARDS)
   const session = marketSession()
 
   return (

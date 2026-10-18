@@ -13,10 +13,11 @@ import { queryKeys } from '@/hooks/queryKeys'
 
 const RESEARCH_KEY = queryKeys.research.all
 
-export function useResearch(params: ResearchParams = {}) {
+export function useResearch(params: ResearchParams = {}, enabled = true) {
   return useQuery({
     queryKey: [...RESEARCH_KEY, params],
     queryFn: () => fetchResearchReports(params),
+    enabled,
   })
 }
 

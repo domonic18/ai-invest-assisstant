@@ -16,6 +16,7 @@ import {
   fetchMarketStats,
   fetchSectorOverview,
   fetchSectorQuotes,
+  fetchTurnoverCompare,
   fetchWatchlistQuotes,
 } from '@/api/market'
 import { queryKeys } from '@/hooks/queryKeys'
@@ -55,6 +56,16 @@ export function useMarketStats(tradeDate?: string) {
   return useQuery({
     queryKey: queryKeys.market.stats(tradeDate),
     queryFn: () => fetchMarketStats(tradeDate),
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: tradeDate ? false : LIVE_REFETCH_INTERVAL,
+  })
+}
+
+/** 两市量能对比（诊大盘）。实时日随分钟线采集每分钟刷新，历史日不轮询。 */
+export function useTurnoverCompare(tradeDate?: string) {
+  return useQuery({
+    queryKey: queryKeys.market.turnoverCompare(tradeDate),
+    queryFn: () => fetchTurnoverCompare(tradeDate),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: tradeDate ? false : LIVE_REFETCH_INTERVAL,
   })

@@ -14,14 +14,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import cache_get
 from app.core.clock import CN_TZ, today_cn
-from app.core.constants import INDEX_CODES, INDEX_TREND_DAYS, KLINE_CHART_EXTRA_CODES
+from app.core.constants import (
+    INDEX_CODES,
+    INDEX_TREND_DAYS,
+    KLINE_CHART_EXTRA_CODES,
+    TURNOVER_COMPARE_CODES,
+)
 from app.repositories.market.kline_repository import (
     PERIOD_BUCKET,
     fetch_aggregated_bars,
     fetch_daily_bars,
     fetch_minute_bars,
+    fetch_minute_bars_multi,
     latest_minute_day,
     prev_minute_close,
+    prev_minute_day,
 )
 from app.schemas.market import (
     IndexIntradayPoint,
@@ -29,6 +36,8 @@ from app.schemas.market import (
     IndexKlineBar,
     IndexKlineResponse,
     IndexQuoteResponse,
+    TurnoverComparePoint,
+    TurnoverCompareResponse,
 )
 
 _INDEX_SPOT_KEY = "market:index_spot"
@@ -142,6 +151,88 @@ async def get_index_intraday(
         name=INDEX_CODES[code],
         trade_date=target,
         prev_close=prev_close,
+        points=points,
+    )
+
+
+def _cum_amount_yi(bars: list[Any]) -> dict[str, float]:
+    """分钟 bar 序列（可含多标的）-> {HH:MM: 累计成交额（亿元）}。
+
+    amount 为该分钟成交额（元），None 按 0；同一时刻多标的相加。
+    """
+    per_minute: dict[str, float] = {}
+    for bar in bars:
+        hhmm = bar.trade_time.astimezone(CN_TZ).strftime("%H:%M")
+        per_minute[hhmm] = per_minute.get(hhmm, 0.0) + float(bar.amount or 0.0)
+    cumulative: dict[str, float] = {}
+    running = 0.0
+    for hhmm in sorted(per_minute):
+        running += per_minute[hhmm]
+        cumulative[hhmm] = running
+    return cumulative
+
+
+def build_turnover_points(
+    today_bars: list[Any], prev_bars: list[Any]
+) -> tuple[list[TurnoverComparePoint], float]:
+    """两市分钟 bar -> （逐分钟累计对比点，昨日全天累计）。
+
+    单位亿元。``today``/``prev`` 为 TURNOVER_COMPARE_CODES 合计口径；
+    昨日基线按时刻对齐、当日时刻在昨日无 bar 时沿用此前累计（前向填充）。
+    """
+    today_cum = _cum_amount_yi(today_bars)
+    prev_cum = _cum_amount_yi(prev_bars)
+    points: list[TurnoverComparePoint] = []
+    running_prev = 0.0
+    for hhmm in sorted(today_cum):
+        if hhmm in prev_cum:
+            running_prev = prev_cum[hhmm]
+        today = round(today_cum[hhmm] / 1e8, 1)
+        prev = round(running_prev / 1e8, 1)
+        # 完全无昨日基线时 diff 置 0：全量差额会误读为「大幅放量」
+        diff = round(today - prev, 1) if prev_cum else 0.0
+        points.append(
+            TurnoverComparePoint(time=hhmm, today=today, prev=prev, diff=diff)
+        )
+    # 昨日全天累计取昨日序列自身最后一格（盘中时前向填充值只到当前时刻，
+    # 不是全天值；HH:MM 字典序即时序）
+    prev_full_yi = round(prev_cum[max(prev_cum)] / 1e8, 1) if prev_cum else 0.0
+    return points, prev_full_yi
+
+
+async def get_turnover_compare(
+    session: AsyncSession, trade_date: date | None = None
+) -> TurnoverCompareResponse:
+    """两市量能对比（诊大盘）：当日 vs 昨日同期累计成交额 + 全天预测。
+
+    数据只读 ``quote_kline_stock_minute``（上证指数 + 深证综指合计，与交易所
+    官方总额误差 <0.1%）。预测 = 昨日全天 × 当日/昨日同期累计比（同一 U 型
+    节奏基线下的外推），收盘后自然收敛为实际总额；无昨日基线时为 None。
+    目标日无分钟数据时返回空 points（前端展示空态，不抛错）。
+    """
+    target = trade_date or await latest_minute_day(session, "sh000001")
+    if target is None:
+        return TurnoverCompareResponse(trade_date=today_cn())
+    prev_day = await prev_minute_day(session, "sh000001", target)
+    codes = list(TURNOVER_COMPARE_CODES)
+    today_bars = await fetch_minute_bars_multi(session, codes, target)
+    prev_bars = (
+        await fetch_minute_bars_multi(session, codes, prev_day) if prev_day else []
+    )
+    points, prev_full_yi = build_turnover_points(today_bars, prev_bars)
+
+    last = points[-1] if points else None
+    forecast = (
+        round(prev_full_yi * last.today / last.prev, 1)
+        if last and last.prev > 0 and prev_full_yi > 0
+        else None
+    )
+    return TurnoverCompareResponse(
+        trade_date=target,
+        prev_trade_date=prev_day,
+        today_amount=last.today if last else None,
+        prev_amount=prev_full_yi or None,
+        forecast_amount=forecast,
         points=points,
     )
 

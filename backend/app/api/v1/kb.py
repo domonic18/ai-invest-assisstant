@@ -46,6 +46,10 @@ async def get_kb_authorized_user(
 
 router = APIRouter()
 
+# 匿名挂载（不参与 require_feature 门控）：书页位图凭证即鉴权，
+# <img> src 无法携带 Authorization 头，也不能要求登录态（arch/09 §8.1）
+public_router = APIRouter()
+
 
 @router.get(
     "/sources",
@@ -130,7 +134,7 @@ async def issue_playback_token(
     )
 
 
-@router.get("/books/{media_id}/pages/{page_no}")
+@public_router.get("/books/{media_id}/pages/{page_no}")
 async def get_book_page(
     media_id: int,
     page_no: int,

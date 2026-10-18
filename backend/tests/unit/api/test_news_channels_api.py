@@ -12,6 +12,7 @@ from app.schemas.news import (
     NewsChannelsResponse,
     NewsStatsResponse,
 )
+from tests.conftest import stub_full_group
 
 
 @pytest.fixture
@@ -19,7 +20,7 @@ def normal_user():
     return type(
         "User",
         (object,),
-        {"id": 3, "username": "user", "role": "user", "is_active": True},
+        {"id": 3, "username": "user", "role": "user", "is_active": True, "group": stub_full_group()},
     )()
 
 

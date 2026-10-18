@@ -17,7 +17,12 @@ from collector.spiders.sina_market_breadth import (
     count_breadth,
 )
 from collector.spiders.sina_quote import SinaQuoteCollector
-from collector.spiders.sina_stock_minute import SinaStockMinuteCollector, _fetch_default_codes
+from collector.spiders.sina_stock_minute import SinaStockMinuteCollector
+from collector.spiders.stock_minute_base import CN_TZ, fetch_default_codes
+from collector.spiders.tencent_stock_minute import (
+    TencentStockMinuteCollector,
+    _fetch_mkline,
+)
 
 
 @pytest.mark.unit
@@ -373,13 +378,13 @@ class TestSinaStockMinuteCollector:
         assert {item["stock_code"] for item in raw} == {"600001"}
 
     @pytest.mark.asyncio
-    async def test_collect_defaults_to_limit_up_pool_codes(self) -> None:
+    async def test_collect_defaults_to_default_codes(self) -> None:
         collector = SinaStockMinuteCollector(
             {"source": "sina", "data_type": "stock-minute"}
         )
         with (
             patch(
-                "collector.spiders.sina_stock_minute._fetch_default_codes",
+                "collector.spiders.sina_stock_minute.fetch_default_codes",
                 AsyncMock(return_value=["600001"]),
             ),
             patch("akshare.stock_zh_a_minute", return_value=self._df()),
@@ -389,7 +394,7 @@ class TestSinaStockMinuteCollector:
         assert {item["stock_code"] for item in raw} == {"600001"}
 
     @pytest.mark.asyncio
-    async def test_default_codes_union_watchlist_dedup(self) -> None:
+    async def test_default_codes_union_watchlist_and_plan_dedup(self) -> None:
         pool_result = MagicMock(all=MagicMock(return_value=[("600001",), ("600002",)]))
         watch_result = MagicMock(
             all=MagicMock(return_value=[("600002",), ("603221",), ("830001",)])
@@ -404,12 +409,156 @@ class TestSinaStockMinuteCollector:
         def _fake_session_maker(*_args: object, **_kwargs: object):
             return lambda: _cm()
 
-        with patch(
-            "collector.spiders.sina_stock_minute.async_sessionmaker", _fake_session_maker
+        with (
+            patch(
+                "collector.spiders.stock_minute_base.async_sessionmaker",
+                _fake_session_maker,
+            ),
+            patch(
+                "app.services.trading.agent_intraday_service.plan_stock_codes",
+                AsyncMock(return_value={"603222"}),
+            ),
         ):
-            codes = await _fetch_default_codes(datetime.date(2026, 9, 3))
+            codes = await fetch_default_codes(datetime.date(2026, 9, 3))
 
-        assert codes == ["600001", "600002", "603221", "830001"]
+        # 三源并集去重升序；北交所 830001 保留在采集范围（由各渠道自行跳过）
+        assert codes == ["600001", "600002", "603221", "603222", "830001"]
+
+
+@pytest.mark.unit
+class TestTencentStockMinuteCollector:
+    """mkline bar 形状钉死：[YYYYMMDDHHMM, open, close, high, low, vol(手), {}, 换手]。"""
+
+    def _bars(self) -> list[list]:
+        return [
+            # 昨日尾段（应被目标日过滤掉）
+            ["202607201500", "9.60", "9.60", "9.61", "9.59", "6688.00", {}, "0.2008"],
+            # 目标日：9:30 竞价 bar + 9:31 常规 bar
+            ["202607210930", "9.67", "9.67", "9.67", "9.67", "3070.00", {}, "0.3172"],
+            ["202607210931", "9.64", "9.66", "9.69", "9.64", "27488.00", {}, "1.05"],
+        ]
+
+    @pytest.mark.asyncio
+    async def test_collect_maps_ohlc_and_converts_lot_volume(self) -> None:
+        collector = TencentStockMinuteCollector(
+            {"source": "tencent", "data_type": "stock-minute"}
+        )
+        with patch(
+            "collector.spiders.tencent_stock_minute._fetch_mkline",
+            return_value=self._bars(),
+        ) as mock_fetch:
+            raw = await collector.collect(
+                symbols=["600000"], trade_date=datetime.date(2026, 7, 21)
+            )
+
+        assert len(raw) == 2
+        bar = raw[1]  # 9:31（raw 阶段价格保留源字符串，transform 统一转 float）
+        # 字段序：open=bar[1]、close=bar[2]、high=bar[3]、low=bar[4]
+        assert (float(bar["open"]), float(bar["close"]), float(bar["high"]), float(bar["low"])) == (
+            9.64,
+            9.66,
+            9.69,
+            9.64,
+        )
+        # 手 → 股
+        assert bar["volume"] == 27488 * 100
+        assert bar["amount"] is None
+        assert bar["trade_time"].tzinfo is not None
+        assert bar["trade_time"].strftime("%H:%M") == "09:31"
+        mock_fetch.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_collect_skips_bse_and_survives_failure(self) -> None:
+        collector = TencentStockMinuteCollector(
+            {"source": "tencent", "data_type": "stock-minute"}
+        )
+
+        def _side_effect(symbol: str, base_url: str | None = None) -> list[list]:
+            if symbol == "sz000001":
+                raise ConnectionError("reset")
+            return self._bars()
+
+        with patch(
+            "collector.spiders.tencent_stock_minute._fetch_mkline",
+            side_effect=_side_effect,
+        ) as mock_fetch:
+            raw = await collector.collect(
+                symbols=["430001", "000001", "600000"],
+                trade_date=datetime.date(2026, 7, 21),
+            )
+
+        # 北交所（4 开头）不请求；000001 失败不影响 600000
+        called = [call.args[0] for call in mock_fetch.call_args_list]
+        assert called == ["sz000001", "sh600000"]
+        assert {item["stock_code"] for item in raw} == {"600000"}
+
+    @pytest.mark.asyncio
+    async def test_collect_defaults_and_base_url(self) -> None:
+        collector = TencentStockMinuteCollector(
+            {
+                "source": "tencent",
+                "data_type": "stock-minute",
+                "base_url": "https://ifzq.gtimg.cn/",
+            }
+        )
+        with (
+            patch(
+                "collector.spiders.tencent_stock_minute.fetch_default_codes",
+                AsyncMock(return_value=["600000"]),
+            ),
+            patch(
+                "collector.spiders.tencent_stock_minute._fetch_mkline",
+                return_value=self._bars(),
+            ) as mock_fetch,
+        ):
+            raw = await collector.collect(trade_date=datetime.date(2026, 7, 21))
+
+        assert {item["stock_code"] for item in raw} == {"600000"}
+        # 尾部斜杠由 _fetch_mkline 内部 rstrip，collector 原样透传 base_url
+        mock_fetch.assert_called_once_with("sh600000", "https://ifzq.gtimg.cn/")
+
+    @pytest.mark.asyncio
+    async def test_fetch_mkline_parses_payload(self) -> None:
+        with patch(
+            "collector.spiders.tencent_stock_minute.plain_get"
+        ) as mock_get:
+            mock_get.return_value.json.return_value = {
+                "data": {"sh600000": {"m1": self._bars()}}
+            }
+            bars = _fetch_mkline("sh600000")
+
+        assert len(bars) == 3
+        mock_get.assert_called_once_with(
+            "https://ifzq.gtimg.cn/appstock/app/kline/mkline",
+            params={"param": "sh600000,m1,,330"},
+        )
+
+    async def test_fetch_mkline_missing_symbol_returns_empty(self) -> None:
+        with patch("collector.spiders.tencent_stock_minute.plain_get") as mock_get:
+            mock_get.return_value.json.return_value = {"data": {}}
+            assert _fetch_mkline("sh600000") == []
+
+    @pytest.mark.asyncio
+    async def test_transform_normalizes_types(self) -> None:
+        collector = TencentStockMinuteCollector(
+            {"source": "tencent", "data_type": "stock-minute"}
+        )
+        row = await collector.transform(
+            {
+                "stock_code": "600000",
+                "trade_time": datetime.datetime(
+                    2026, 7, 21, 9, 31, tzinfo=CN_TZ
+                ),
+                "open": "9.64",
+                "high": "9.69",
+                "low": "9.64",
+                "close": "9.66",
+                "volume": "2748800",
+                "amount": None,
+            }
+        )
+        assert row["close"] == pytest.approx(9.66)
+        assert row["volume"] == 2748800
 
 
 @pytest.mark.unit

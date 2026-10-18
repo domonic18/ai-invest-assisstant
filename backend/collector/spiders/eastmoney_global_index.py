@@ -1,11 +1,10 @@
 """东方财富全球指标采集器（COMEX 黄金 / 美元指数）。
 
 实时快照走 push2delay ulist（fltt=2 数值已缩放：f2 最新价、f3 涨跌幅、
-f15/f16/f17 高/低/开、f124 更新时间戳）。push2delay 无日 K、push2his 对
-外盘期货 secid（101.GC00Y）按路径断连，历史回补分双路：
-
-- DXY：push2his kline（Chrome 指纹，实测可用）
-- GC00Y：akshare ``futures_foreign_hist``（新浪源，英文列 date/open/high/low/close/volume）
+f15/f16/f17 高/低/开、f124 更新时间戳）。push2delay 无日 K、push2his 已
+被 WAF 按路径断连（2026-10 实测），历史回补不再走东财：GC00Y 走 akshare
+``futures_foreign_hist``（新浪源），DXY 历史由 yahoo 渠道（DX-Y.NYB）
+每日任务回填。
 """
 
 from datetime import datetime
@@ -24,8 +23,6 @@ from collector.spiders.eastmoney_common import push2_base_url
 logger = structlog.get_logger(__name__)
 
 _ULIST_PATH = "/api/qt/ulist.np/get"
-_KLINE_URL = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
-_UT = "f057cbcbce2a86e2866ab8877db1d059"
 
 
 class EastmoneyGlobalIndexCollector(PostgresCollector):
@@ -60,10 +57,10 @@ class EastmoneyGlobalIndexCollector(PostgresCollector):
             and (not symbols or code in set(symbols))
         ]
         if history_days:
-            # 历史双路仅覆盖 DXY（push2his）与 GC00Y（akshare），其余 eastmoney
-            # 代码会落入 _gold_history 被误标为 GC00Y，其历史由各自渠道负责
-            wanted = {"DXY", "GC00Y"}
-            codes = [code for code in codes if code in wanted]
+            # 历史回补仅剩 GC00Y（akshare 新浪源）：push2his 已被 WAF 断连，
+            # DXY 历史移交 yahoo 渠道回填；其余 eastmoney 代码若落入
+            # _gold_history 会被误标为 GC00Y，同样在入口过滤掉
+            codes = [code for code in codes if code == "GC00Y"]
         if not codes:
             return []
         items: list[dict[str, Any]] = await run_in_thread(
@@ -75,7 +72,7 @@ class EastmoneyGlobalIndexCollector(PostgresCollector):
         self, codes: list[str], history_days: int | None
     ) -> list[dict[str, Any]]:
         if history_days:
-            return self._collect_history(codes, int(history_days))
+            return self._collect_history(int(history_days))
         return self._collect_realtime(codes)
 
     # ------------------------------------------------------------------
@@ -132,64 +129,9 @@ class EastmoneyGlobalIndexCollector(PostgresCollector):
     # 历史回补（history_days 指定末 N 个交易日）
     # ------------------------------------------------------------------
 
-    def _collect_history(self, codes: list[str], days: int) -> list[dict[str, Any]]:
-        items: list[dict[str, Any]] = []
-        for code in codes:
-            if code == "DXY":
-                rows = self._dxy_history(days)
-            else:
-                rows = self._gold_history(days)
-            items.extend(rows)
-        return items
-
-    def _dxy_history(self, days: int) -> list[dict[str, Any]]:
-        """美元指数日 K：push2his kline（klines CSV：日期,开,收,高,低,量）。"""
-        response = eastmoney_get_chrome(
-            _KLINE_URL,
-            params={
-                "secid": GLOBAL_INDEX_CODES["DXY"]["secid"],
-                "klt": "101",
-                "fqt": "1",
-                "lmt": str(days),
-                "end": "20500000",
-                "iscca": "1",
-                "fields1": "f1,f2,f3,f4,f5,f6,f7,f8",
-                "fields2": "f51,f52,f53,f54,f55,f56",
-                "ut": _UT,
-                "forcect": "1",
-            },
-        )
-        data = response.json().get("data") or {}
-        rows: list[dict[str, Any]] = []
-        prev_close: float | None = None
-        # push2his klines 按日期升序返回，直接顺算相邻涨跌幅
-        for kline in data.get("klines") or []:
-            parts = kline.split(",")
-            if len(parts) < 5:
-                continue
-            close = to_float(parts[2])
-            change_pct = (
-                round((close - prev_close) / prev_close * 100, 4)
-                if close is not None and prev_close
-                else None
-            )
-            rows.append(
-                {
-                    "index_code": "DXY",
-                    "trade_date": parse_date(parts[0]),
-                    "open": to_float(parts[1]),
-                    "high": to_float(parts[3]),
-                    "low": to_float(parts[4]),
-                    "close": close,
-                    "change_pct": change_pct,
-                    "volume": None,
-                    "amount": None,
-                    "source": "eastmoney",
-                }
-            )
-            if close is not None:
-                prev_close = close
-        return rows
+    def _collect_history(self, days: int) -> list[dict[str, Any]]:
+        # 仅 GC00Y 可达此处（见 collect 入口过滤）
+        return self._gold_history(days)
 
     def _gold_history(self, days: int) -> list[dict[str, Any]]:
         """COMEX 黄金日 K：akshare futures_foreign_hist（新浪源，全历史）。"""

@@ -3,6 +3,8 @@ import { Avatar, Button, Dropdown, Space, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
 
+import { canAccessFeature } from '@ai-invest/shared'
+
 import { useAssistantStore } from '@/stores/assistant'
 import { useAuthStore } from '@/stores/auth'
 
@@ -77,42 +79,50 @@ export function Header({ onMenuClick }: HeaderProps) {
         </div>
       </div>
       <Space size={4}>
-        <Tooltip title="技能广场">
-          <Button
-            type="text"
-            icon={<BlockOutlined />}
-            onClick={() => navigate('/skills')}
-            className="text-gray-300"
-            aria-label="技能广场"
-          />
-        </Tooltip>
-        <Tooltip title="知识库">
-          <Button
-            type="text"
-            icon={<BookOutlined />}
-            onClick={() => navigate('/kb')}
-            className="text-gray-300"
-            aria-label="知识库"
-          />
-        </Tooltip>
-        <Tooltip title="AI 选股">
-          <Button
-            type="text"
-            icon={<FilterOutlined />}
-            onClick={() => navigate('/screening')}
-            className="text-gray-300"
-            aria-label="AI 选股"
-          />
-        </Tooltip>
-        <Tooltip title="AI 助手">
-          <Button
-            type="text"
-            icon={<MessageOutlined />}
-            onClick={() => openPanel()}
-            className="text-gray-300"
-            aria-label="AI 助手"
-          />
-        </Tooltip>
+        {canAccessFeature(user, 'skills') && (
+          <Tooltip title="技能广场">
+            <Button
+              type="text"
+              icon={<BlockOutlined />}
+              onClick={() => navigate('/skills')}
+              className="text-gray-300"
+              aria-label="技能广场"
+            />
+          </Tooltip>
+        )}
+        {canAccessFeature(user, 'kb') && (
+          <Tooltip title="知识库">
+            <Button
+              type="text"
+              icon={<BookOutlined />}
+              onClick={() => navigate('/kb')}
+              className="text-gray-300"
+              aria-label="知识库"
+            />
+          </Tooltip>
+        )}
+        {canAccessFeature(user, 'screening') && (
+          <Tooltip title="AI 选股">
+            <Button
+              type="text"
+              icon={<FilterOutlined />}
+              onClick={() => navigate('/screening')}
+              className="text-gray-300"
+              aria-label="AI 选股"
+            />
+          </Tooltip>
+        )}
+        {canAccessFeature(user, 'assistant') && (
+          <Tooltip title="AI 助手">
+            <Button
+              type="text"
+              icon={<MessageOutlined />}
+              onClick={() => openPanel()}
+              className="text-gray-300"
+              aria-label="AI 助手"
+            />
+          </Tooltip>
+        )}
         <Tooltip title="投资日历">
           <Button
             type="text"

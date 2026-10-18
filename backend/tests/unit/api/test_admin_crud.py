@@ -43,6 +43,11 @@ def _user_mock() -> MagicMock:
     user.rejectReason = None
     user.last_login_at = None
     user.created_at = datetime(2024, 1, 1, 0, 0, 0)
+    user.group_id = None
+    user.group = None
+    # camel 别名优先读取，用户组扩展字段同样需两种拼写
+    user.groupName = None
+    user.permissions = []
     return user
 
 

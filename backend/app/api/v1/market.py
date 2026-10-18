@@ -31,6 +31,7 @@ from app.schemas.market import (
     MarketStatsResponse,
     SectorOverviewResponse,
     SectorQuoteResponse,
+    TurnoverCompareResponse,
 )
 from app.schemas.tracked_index import TrackedIndexOption
 from app.services import review as market_review_service
@@ -142,6 +143,15 @@ async def get_index_intraday(
 ) -> IndexIntradayResponse:
     """指数分时图数据（指定交易日的分钟级价格与量能，读本地 quote_kline_stock_minute）。"""
     return await market_service.get_index_intraday(session, code, trade_date)
+
+
+@router.get("/indices/turnover-compare", response_model=TurnoverCompareResponse)
+async def get_turnover_compare(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    trade_date: date | None = None,
+) -> TurnoverCompareResponse:
+    """两市量能对比（诊大盘）：当日 vs 昨日同期累计成交额曲线 + 全天预测。"""
+    return await market_service.get_turnover_compare(session, trade_date)
 
 
 @router.get("/stats", response_model=MarketStatsResponse)

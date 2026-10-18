@@ -13,12 +13,13 @@ export function buildLoadingTasks(queries: {
   sectors: LoadingQueryState
   financial: LoadingQueryState
   history: LoadingQueryState
-  research: LoadingQueryState
+  /** 无 research 权限时不传，任务整条隐藏 */
+  research?: LoadingQueryState
   aiAnalysis: LoadingQueryState
 }): LoadingTask[] {
   const { detail, quote, klineFetchingCount, sectors, financial, history, research, aiAnalysis } =
     queries
-  return [
+  const tasks: LoadingTask[] = [
     {
       key: 'detail',
       label: '股票详情',
@@ -57,16 +58,22 @@ export function buildLoadingTasks(queries: {
       },
     },
     {
-      key: 'research',
-      label: '相关研报',
-      status: research.isLoading ? 'loading' : research.isError ? 'error' : 'idle',
-      onRetry: () => research.refetch(),
-    },
-    {
       key: 'ai-analysis',
       label: 'AI 分析',
       status: aiAnalysis.isLoading ? 'loading' : aiAnalysis.isError ? 'error' : 'idle',
       onRetry: () => aiAnalysis.refetch(),
     },
   ]
+  return research
+    ? [
+        ...tasks.slice(0, -1),
+        {
+          key: 'research',
+          label: '相关研报',
+          status: research.isLoading ? 'loading' : research.isError ? 'error' : 'idle',
+          onRetry: () => research.refetch(),
+        },
+        tasks[tasks.length - 1],
+      ]
+    : tasks
 }

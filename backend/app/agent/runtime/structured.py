@@ -23,6 +23,7 @@ from app.services.admin.llm_config_service import (
     resolve_llm_by_id,
 )
 from app.services.admin.llm_failover import classify_llm_error, mark_unhealthy
+from app.services.admin.llm_task_binding_service import resolve_task_config_id
 from app.services.quota.user_llm_service import resolve_llm
 
 T = TypeVar("T", bound=BaseModel)
@@ -45,6 +46,7 @@ async def run_structured(
     user_id: int | None = None,
     vision: bool = False,
     config_id: int | None = None,
+    task_key: str | None = None,
     meta_out: dict[str, Any] | None = None,
 ) -> T:
     """执行单次结构化 LLM 调用并返回 pydantic 模型实例。
@@ -59,6 +61,10 @@ async def run_structured(
         vision: 无 BYOK 时解析视觉能力配置（截图识别路径）。
         config_id: 显式指定 llm_config 条目（F-KB 模型角色槽位路径），
             设置后忽略 ``user_id``/``vision`` 分流，走系统维度计量。
+        task_key: 任务槽位键（AI 任务级模型分配）。``config_id`` 未显式给出时
+            按 ``llm_task_binding`` 解析绑定条目——命中则等价于传入该条目
+            config_id（忽略 BYOK 分流，主备按绑定条目自身链切换），
+            未绑定走既有默认路径。
         meta_out: 调用元信息回填容器（可选）。成功后写入
             ``latency_ms``/``model_name``/``method``/``failover``，供调用方
             落观测（agent_run llm step、ai_analysis_result 补全等）。
@@ -66,6 +72,8 @@ async def run_structured(
     Raises:
         ValidationError: 模型输出不符合 schema（重试一次后仍失败）。
     """
+    if config_id is None and task_key is not None:
+        config_id = await resolve_task_config_id(session, task_key)
     if config_id is not None:
         cfg = await resolve_llm_by_id(session, config_id)
     else:

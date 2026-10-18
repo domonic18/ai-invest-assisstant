@@ -12,7 +12,7 @@ from app.core.exceptions import AppError
 from app.core.security import create_access_token
 from app.dependencies import client_ip, get_db
 from app.schemas.auth import AuthResponse, RegisterAccepted, RegisterRequest
-from app.schemas.user import UserResponse
+from app.services.permissions import build_user_response
 from app.services.user import UserService
 from app.services.user.register_service import RegisterService
 
@@ -49,7 +49,9 @@ async def login(
         data={"sub": str(user.id), "role": user.role},
         expires_delta=timedelta(minutes=settings.jwt_access_token_expire_minutes),
     )
-    return AuthResponse(access_token=access_token, user=UserResponse.model_validate(user))
+    return AuthResponse(
+        access_token=access_token, user=await build_user_response(user)
+    )
 
 
 @router.post("/wx-login")

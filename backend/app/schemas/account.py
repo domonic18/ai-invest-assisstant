@@ -185,6 +185,8 @@ class AdminUserRowResponse(CamelModel):
     remaining_quota: int | None = Field(None, description="剩余配额；None = 不限")
     total_used: int = Field(0, description="系统出口累计消耗")
     byok_enabled: bool = False
+    group_id: int | None = Field(None, description="所属用户组；None = 未分组（受限）")
+    group_name: str | None = None
 
 
 class GenericResult(CamelModel):

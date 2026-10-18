@@ -7,6 +7,7 @@ from app.core.database import Base
 from app.models.account_quota import UserLlmConfig
 from app.models.llm_config import LLMConfig
 from app.models.user import User
+from app.models.user_group import UserGroup
 from app.services.quota.constants import OUTLET_BYOK, OUTLET_SYSTEM
 from app.services.quota.user_llm_service import (
     clear_user_llm_config,
@@ -30,7 +31,8 @@ async def session():
     async with engine.begin() as conn:
         await conn.run_sync(
             Base.metadata.create_all,
-            tables=[User.__table__, UserLlmConfig.__table__, LLMConfig.__table__],
+            tables=[User.__table__,
+                UserGroup.__table__, UserLlmConfig.__table__, LLMConfig.__table__],
         )
     maker = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     async with maker() as db:

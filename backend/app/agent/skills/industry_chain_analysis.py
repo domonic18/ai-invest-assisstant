@@ -20,6 +20,7 @@ from app.agent.tools import db_tools, search_news, search_vector_kb
 from app.core.database import AsyncSessionLocal
 from app.models.stock import StockBasic
 from app.schemas.chain import ChainAnalysisResult
+from app.services.admin.llm_config_service import resolve_llm_by_id
 from app.services.quota.user_llm_service import resolve_llm
 from app.skills.prompt import load_skill_prompt
 
@@ -118,14 +119,24 @@ async def analyze_industry_chain(
     session: AsyncSession,
     industry: str,
     focus: str | None = None,
+    *,
+    config_id: int | None = None,
 ) -> ChainAnalysisResult:
     """执行产业链分析 Skill（deepagents agent 循环）。
 
-    出口随计量上下文分流：页面手动分析（meter_scope 属主）走 BYOK，
-    定时刷新（Celery，无属主）走系统默认模型。
+    Args:
+        session: 数据库会话。
+        industry: 产业链名称。
+        focus: 分析聚焦点（缺省为通用上下游结构）。
+        config_id: 显式指定绑定条目（定时刷新经任务槽位解析后传入）；
+            缺省随计量上下文分流——页面手动分析（meter_scope 属主）走 BYOK，
+            Celery 无属主走系统默认模型。
     """
     prompt_config = load_skill_prompt(SKILL_ID)
-    cfg, _outlet = await resolve_llm(session)
+    if config_id is not None:
+        cfg = await resolve_llm_by_id(session, config_id)
+    else:
+        cfg, _outlet = await resolve_llm(session)
 
     from deepagents import create_deep_agent
 
@@ -162,4 +173,7 @@ async def run_skill(
     """Skill 统一入口。"""
     industry = params.get("industry", "")
     focus = params.get("focus")
-    return await analyze_industry_chain(session, industry, focus)
+    config_id = params.get("config_id")
+    return await analyze_industry_chain(
+        session, industry, focus, config_id=config_id
+    )

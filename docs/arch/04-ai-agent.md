@@ -72,7 +72,7 @@
 | 社媒大 V 情绪判断 | 采集任务后自动；助手对话调用 | `skills/social-sentiment/prompt.yaml` | LLM 对抖音作品逐条情绪标注（prompt_only），见 [08](./08-social-sentiment.md) |
 | AI 智能画线 | 个股 K 线页「AI 画线」按钮 → AI 助手侧边栏 | `skills/kline-smart-drawing/` | ask_user 问题卡澄清意图 → 结构化画线 → 人工编辑采纳，见 05 号文档 §5.3 |
 | 自选股截图识别 | `POST /api/v1/users/watchlist/recognize-screenshot` | `skills/watchlist-screenshot-recognition/prompt.yaml` | 视觉模型识别截图中的股票列表，与 `stock_basic` 交叉校验后返回 |
-| 交易 Agent 作业（计划 / 复盘 / 盘中校准） | 定时任务（计划 19:30 / 复盘 19:00，heavy 队列）；盘中 10:20/13:20 校准；`agent-intraday-exec` 驻留进程逐 tick 执行 | `skills/trading-<agent_key>/`（SKILL.md + REVIEW.md + calibration_prompt.yaml，`trading-default` 共享 fallback） | 多 Agent 注册表驱动（`trading_agent`，agent_key 参数化，会话人设注入）；方法论基座 KB 直读双层注入；执行轨迹 agent_run/agent_run_step 全程留痕；盘中执行影子模式先行（off/shadow/active），详见 paper-trading-plan §10-§11 |
+| 交易 Agent 作业（计划 / 复盘 / 盘中校准） | 定时任务（计划 19:30 / 复盘 19:00，heavy 队列）；盘中 10:20/13:20 校准；`agent-intraday-exec` 驻留进程逐 tick 执行 | `skills/trading-<agent_key>/`（SKILL.md + REVIEW.md + calibration_prompt.yaml，`trading-default` 共享 fallback） | 多 Agent 注册表驱动（`trading_agent`，agent_key 参数化，会话人设注入）；方法论基座 KB 直读双层注入；执行轨迹 agent_run/agent_run_step 全程留痕；盘中执行影子模式先行（off/shadow/active），tick 行情状态注入当日分钟线序列（tencent `stock-minute` 盘中采集，判断模型据题面分时形态作答），详见 paper-trading-plan §10-§11 |
 
 > `hotspot-detection`、`chain-breakthrough`、`financial-health-check` 为 `doc_only` 方法论技能（仅 `skills/*/SKILL.md` 业务描述），实现随页面迭代补齐。
 
@@ -402,7 +402,7 @@ internal AI 生成任务由采集调度自动触发（`specs/ai.py` 共 9 个，
 ### 10.1 定位与边界
 
 - **单一运行时**：deepagents（`app/agent/runtime/`）承载全部 AI 功能——对话助手走多轮 agent 循环，各分析 Skill 执行器复用 `skill_runtime` 骨架，单轮任务（摘要/截图识别）走 `structured.run_structured`。
-- **模型同源**：助手经 `resolve_default_llm()` 读取 `llm_config` 默认配置，经 `model_factory` 转换为 LangChain 模型实例（Anthropic 协议 → `ChatAnthropic`，OpenAI 兼容 → `ChatOpenAI`）。
+- **模型同源**：助手经 `resolve_default_llm()` 读取 `llm_config` 默认配置，经 `model_factory` 转换为 LangChain 模型实例（Anthropic 协议 → `ChatAnthropic`，OpenAI 兼容 → `ChatOpenAI`）。定时 AI 任务可经 `llm_task_binding` 按任务槽位绑定独立模型条目（槽位目录 `TASK_SLOTS` 注册表为唯一真相源，后台「模型配置 → 任务模型」维护）：未绑定跟随系统默认，绑定条目失效自动降级默认并告警；页面手动分析路径的计量属主（BYOK）分流不受绑定影响。
 - **标准协议 + 成熟组件**：前后端交互采用 [LangChain Agent Protocol](https://langchain-ai.github.io/agent-protocol/)（thread/run 模型）；前端采用 [assistant-ui](https://www.assistant-ui.com) 组件库，其 `@assistant-ui/react-langgraph` 运行时经 `@langchain/langgraph-sdk` 直连协议端点。
 
 ### 10.2 核心组成

@@ -12,6 +12,15 @@ INDEX_CODES: dict[str, str] = {
 # 指数/全球指标趋势缩略图取近 N 个收盘点（A 股与全球两路口径一致）
 INDEX_TREND_DAYS = 30
 
+# 两市量能对比标的（诊大盘「市场成交额」口径）：上证指数≈沪市全额 +
+# 深证综指≈深市全额，分钟累计与交易所官方总额误差 <0.1%（实测 2026-10-15：
+# 7744/7755.87 亿、8586/8594 亿）；深证成指只覆盖 500 成分股不可作深市全量。
+# 深证综指仅进分钟线采集与对比接口，不进实时快照/前端指数卡。
+TURNOVER_COMPARE_CODES: dict[str, str] = {
+    "sh000001": "上证指数",
+    "sz399106": "深证综指",
+}
+
 # K 线周期词汇单一真相源：A 股 time_bucket 聚合（kline_repository.PERIOD_BUCKET，
 # daily 直读不聚合）与全球指标 Python 聚合、API 路由校验共用，新增周期只改这一处
 KLINE_PERIODS: tuple[str, ...] = (
@@ -35,6 +44,8 @@ KLINE_CHART_EXTRA_CODES: dict[str, str] = {
 # mof：日本财务省日债 CSV（历史回补 spider 自行解析）；yahoo：历史回填专用（symbol 供 spider 映射）
 GLOBAL_INDEX_CODES: dict[str, dict[str, str]] = {
     "GC00Y": {"name": "COMEX 黄金", "data_source": "eastmoney", "secid": "101.GC00Y"},
+    "SI00Y": {"name": "COMEX 白银", "data_source": "eastmoney", "secid": "101.SI00Y"},
+    "HG00Y": {"name": "COMEX 铜", "data_source": "eastmoney", "secid": "101.HG00Y"},
     "DXY": {"name": "美元指数", "data_source": "eastmoney", "secid": "100.UDI"},
     "US2Y": {"name": "美债 2Y 收益率", "data_source": "tushare", "field": "y2"},
     "US10Y": {"name": "美债 10Y 收益率", "data_source": "tushare", "field": "y10"},
@@ -44,6 +55,7 @@ GLOBAL_INDEX_CODES: dict[str, dict[str, str]] = {
     "NDX": {"name": "纳斯达克", "data_source": "eastmoney", "secid": "100.NDX"},
     "SPX": {"name": "标普500", "data_source": "eastmoney", "secid": "100.SPX"},
     "N225": {"name": "日经225", "data_source": "eastmoney", "secid": "100.N225"},
+    "KS11": {"name": "韩国综合指数", "data_source": "eastmoney", "secid": "100.KS11"},
     "JP10Y": {"name": "日本10Y国债", "data_source": "mof"},
     "US30Y": {"name": "美债 30Y 收益率", "data_source": "tushare", "field": "y30"},
     "USDCNY": {"name": "美元/人民币", "data_source": "yahoo"},

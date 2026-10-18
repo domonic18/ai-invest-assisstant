@@ -70,6 +70,7 @@ workspace/
 *.key
 *.crt
 ssl/
+env.config
 
 # ====================
 # Playwright
@@ -95,3 +96,4 @@ htmlcov/
 .ruff_cache/
 .claude/
 .cc-connect
+env.config

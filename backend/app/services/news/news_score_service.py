@@ -116,7 +116,7 @@ async def _score_batch(
         items_json=json.dumps(batch, ensure_ascii=False),
     )
     output: NewsScoreBatch = await run_structured(
-        session, result_type=NewsScoreBatch, user_prompt=user_prompt
+        session, result_type=NewsScoreBatch, user_prompt=user_prompt, task_key="news_score"
     )
     valid_keys = {(item["source"], item["item_id"]) for item in batch}
     now_rows: list[dict[str, Any]] = []

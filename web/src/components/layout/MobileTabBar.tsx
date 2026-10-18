@@ -11,11 +11,13 @@ import { Avatar, Drawer } from 'antd'
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
+import { canAccessFeature, type FeatureKey } from '@ai-invest/shared'
+
 import { useAuthStore } from '@/stores/auth'
 
-const TAB_ITEMS = [
+const TAB_ITEMS: { key: string; icon: JSX.Element; label: string; feature?: FeatureKey }[] = [
   { key: '/workbench', icon: <AppstoreOutlined />, label: '工作台' },
-  { key: '/news', icon: <ThunderboltOutlined />, label: '资讯' },
+  { key: '/news', icon: <ThunderboltOutlined />, label: '资讯', feature: 'news' },
   { key: '/review', icon: <BarChartOutlined />, label: '复盘' },
 ]
 
@@ -47,12 +49,14 @@ export function MobileTabBar() {
   return (
     <>
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 flex border-t border-gray-800 bg-[#111318] pb-[env(safe-area-inset-bottom)]">
-        {TAB_ITEMS.map((item) => (
+        {TAB_ITEMS.filter((item) => !item.feature || canAccessFeature(user, item.feature)).map(
+          (item) => (
           <Link key={item.key} to={item.key} className={itemClass(pathname === item.key)}>
             <span className="text-base">{item.icon}</span>
             {item.label}
           </Link>
-        ))}
+        ),
+        )}
         <button
           type="button"
           onClick={() => setProfileOpen(true)}
@@ -86,10 +90,12 @@ export function MobileTabBar() {
           <SettingOutlined className="text-gray-400" />
           个人设置
         </button>
-        <button type="button" className={actionClass} onClick={() => go('/skills')}>
-          <BlockOutlined className="text-gray-400" />
-          技能广场
-        </button>
+        {canAccessFeature(user, 'skills') && (
+          <button type="button" className={actionClass} onClick={() => go('/skills')}>
+            <BlockOutlined className="text-gray-400" />
+            技能广场
+          </button>
+        )}
         {isAdmin && (
           <button type="button" className={actionClass} onClick={() => go('/admin')}>
             <SettingOutlined className="text-gray-400" />

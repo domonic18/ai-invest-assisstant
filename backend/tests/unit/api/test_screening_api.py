@@ -7,6 +7,7 @@ import pytest
 from app.dependencies import get_current_user
 from app.main import app
 from app.services.market.iwencai_service import IwencaiError
+from tests.conftest import stub_full_group
 
 pytestmark = pytest.mark.unit
 
@@ -14,7 +15,7 @@ pytestmark = pytest.mark.unit
 @pytest.fixture
 def user():
     return type(
-        "User", (object,), {"id": 1, "username": "user", "role": "user", "is_active": True}
+        "User", (object,), {"id": 1, "username": "user", "role": "user", "is_active": True, "group": stub_full_group()}
     )()
 
 

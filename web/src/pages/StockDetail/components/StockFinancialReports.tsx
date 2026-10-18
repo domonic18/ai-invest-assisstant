@@ -3,8 +3,11 @@ import { App, Button, Empty, Skeleton, Tag } from 'antd'
 import { useState } from 'react'
 
 import { fetchFinancialReportPdfUrl } from '@/api/financial_report'
+import { canAccessFeature } from '@ai-invest/shared'
+
 import { useCollectFinancialReport, useFinancialReports } from '@/hooks/useFinancialReports'
 import { useAssistantStore } from '@/stores/assistant'
+import { useAuthStore } from '@/stores/auth'
 
 interface StockFinancialReportsProps {
   stockCode: string
@@ -14,9 +17,18 @@ interface StockFinancialReportsProps {
 /** 个股右栏「财务」tab 底部的财报文件子区：列表 + PDF + AI 解读 + 手动补采。 */
 export function StockFinancialReports({ stockCode, stockName }: StockFinancialReportsProps) {
   const { message } = App.useApp()
-  const { data, isLoading, isError, refetch } = useFinancialReports(stockCode)
+  const user = useAuthStore((s) => s.user)
+  // 无 financial-reports 权限时后端返回 403，整块隐藏且不发请求
+  const canFinancialReports = canAccessFeature(user, 'financial-reports')
+  const { data, isLoading, isError, refetch } = useFinancialReports(
+    stockCode,
+    5,
+    canFinancialReports,
+  )
   const collect = useCollectFinancialReport()
   const [pdfLoadingId, setPdfLoadingId] = useState<number | null>(null)
+
+  if (!canFinancialReports) return null
 
   const openPdf = async (id: number) => {
     setPdfLoadingId(id)

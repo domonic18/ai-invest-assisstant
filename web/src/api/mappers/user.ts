@@ -11,6 +11,8 @@ export function mapUser(dto: ApiUserResponse): User {
     username: dto.username,
     email: dto.email,
     isAdmin: dto.role === 'admin',
+    permissions: dto.permissions ?? [],
+    groupName: dto.groupName ?? null,
   }
 }
 

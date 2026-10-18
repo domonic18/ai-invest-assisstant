@@ -26,6 +26,7 @@ from app.schemas.user import (
     WatchlistScreenshotRecognitionResponse,
 )
 from app.services.market import market_service
+from app.services.permissions import build_user_response
 from app.services.quota.constants import FEATURE_PAGE
 from app.services.user import UserService, WatchlistService
 from app.services.user.screenshot_recognition_service import (
@@ -38,9 +39,9 @@ router = APIRouter()
 @router.get("/me", response_model=UserResponse)
 async def get_me(
     current_user: Annotated[User, Depends(get_current_user)],
-) -> User:
-    """获取当前登录用户信息。"""
-    return current_user
+) -> UserResponse:
+    """获取当前登录用户信息（含功能模块权限与所属组）。"""
+    return await build_user_response(current_user)
 
 
 @router.put("/me", response_model=UserResponse)
@@ -50,8 +51,8 @@ async def update_me(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> UserResponse:
     """更新当前用户信息（邮箱）。"""
-    user = await UserService(session).update_email(current_user, data.email)
-    return UserResponse.model_validate(user)
+    updated = await UserService(session).update_email(current_user, data.email)
+    return await build_user_response(updated)
 
 
 @router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)

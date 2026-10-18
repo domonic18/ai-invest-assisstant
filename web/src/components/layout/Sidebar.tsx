@@ -18,6 +18,7 @@ import {
   PlayCircleOutlined,
   ReadOutlined,
   RobotOutlined,
+  SafetyCertificateOutlined,
   SettingOutlined,
   ShopOutlined,
   StarOutlined,
@@ -29,6 +30,8 @@ import type { MenuProps } from 'antd'
 import { Badge, Menu } from 'antd'
 import { useEffect, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+
+import { canAccessFeature, type FeatureKey, type User } from '@ai-invest/shared'
 
 import { useCollectorHealthBadgeCount } from '@/hooks/useCollectorHealth'
 import { usePendingCount } from '@/hooks/useAdminAccount'
@@ -42,6 +45,39 @@ import {
 } from '@/stores/sidebar'
 
 type MenuItem = Required<MenuProps>['items'][number]
+
+// 路由 → 功能模块：无权限用户隐藏对应菜单项（后端路由门控为执行层）
+const FEATURE_BY_PATH: Record<string, FeatureKey> = {
+  '/capital-flow': 'fund-flow',
+  '/auction-review': 'auction',
+  '/anomaly': 'anomaly',
+  '/news': 'news',
+  '/chain': 'chain',
+  '/paper-trade': 'paper-trade',
+}
+
+function filterByFeature(items: MenuItem[], user: User | null): MenuItem[] {
+  return items
+    .map((item) => {
+      if (
+        item &&
+        'children' in item &&
+        Array.isArray(item.children) &&
+        (item as { type?: string }).type === 'group'
+      ) {
+        return {
+          ...item,
+          children: filterByFeature(item.children as MenuItem[], user),
+        } as MenuItem
+      }
+      return item
+    })
+    .filter((item) => {
+      if (!item || !('key' in item)) return true
+      const feature = FEATURE_BY_PATH[String(item.key)]
+      return !feature || canAccessFeature(user, feature)
+    })
+}
 
 // 导航信息架构：检测 → 分析 → 设置；知识库/技能广场/投资日历入口在右上角 Header。
 // 个人设置走右上角头像下拉（侧边栏不重复陈列）；个股监测经顶部搜索进入
@@ -64,6 +100,7 @@ const ANALYSIS_MENU_ITEMS: MenuItem[] = [
 const ADMIN_MENU_ITEMS: MenuItem[] = [
   { key: '/admin', icon: <DashboardOutlined />, label: '管理总览' },
   { key: '/admin/users', icon: <TeamOutlined />, label: '用户管理' },
+  { key: '/admin/user-groups', icon: <SafetyCertificateOutlined />, label: '用户组' },
   { key: '/admin/usage-dashboard', icon: <PieChartOutlined />, label: '用量看板' },
   // 股票管理与题材映射合并为双 tab 页（/admin/stocks?tab=stocks|concepts）
   { key: '/admin/stocks', icon: <BarChartOutlined />, label: '股票与题材' },
@@ -131,7 +168,7 @@ interface SidebarMenuProps {
 export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isAdmin } = useAuthStore()
+  const { isAdmin, user } = useAuthStore()
 
   const isAdminPath = location.pathname.startsWith('/admin')
   const [openKeys, setOpenKeys] = useState<string[]>(isAdminPath ? [ADMIN_GROUP_KEY] : [])
@@ -187,15 +224,18 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
     { type: 'group', key: 'group-settings', label: '设置', children: settingsChildren },
   ]
 
+  // 无权限的功能模块菜单整项隐藏（与 RequireFeature 路由守卫同源判定）
+  const permittedItems = filterByFeature(items, user)
+
   // 折叠态下 AntD 的 type:'group' 项不可交互（点击分组图标无响应），
   // 拍平为叶子项让每个图标可点；后台管理是普通子菜单，保留为弹出菜单。
   const displayItems: MenuItem[] = collapsed
-    ? items.flatMap((item) =>
+    ? permittedItems.flatMap((item) =>
         item && 'type' in item && item.type === 'group'
           ? (item.children as MenuItem[])
           : [item],
       )
-    : items
+    : permittedItems
 
   return (
     <div className="h-full flex flex-col bg-[#111318]">

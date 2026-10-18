@@ -362,6 +362,77 @@ class TestQuestionAssembly:
             "buy_zone_high": 10.2,
         }
 
+    def test_state_injects_minute_bars(self) -> None:
+        """分时形态题的数据供给：当日分钟线序列随计划上下文注入 state。"""
+        plan = _plan(id=1)
+        l0 = svc.L0Result(dec.L0_TRIGGERED, dec.REASON_BUY_ZONE)
+        bars = {"600000": [["09:30", 9.67, 307000], ["09:31", 9.66, 2748800]]}
+        state = svc._state(
+            trade_date=_DATE,
+            quotes={"600000": _quote(10.0)},
+            index_snapshot=None,
+            candidates=[(plan, _quote(10.0), l0)],
+            minute_bars=bars,
+        )
+        assert state["plans"]["1"]["minute_bars"] == bars["600000"]
+
+        # 无分时数据（采集未就绪）置 None，不阻塞判断
+        state_none = svc._state(
+            trade_date=_DATE,
+            quotes={"600000": _quote(10.0)},
+            index_snapshot=None,
+            candidates=[(plan, _quote(10.0), l0)],
+        )
+        assert state_none["plans"]["1"]["minute_bars"] is None
+
+    async def test_run_tick_passes_minute_bars_to_model(self) -> None:
+        """run_tick 透传分钟序列到判断模型 state（接线防回归）。"""
+        plans = [_plan(id=1, plan_type="sell")]
+        session = _session(scalars_result=plans)
+        bars = {"600000": [["09:30", 9.67, 307000]]}
+        with (
+            patch.object(
+                svc.agent_registry, "get_intraday_agents", new=AsyncMock(return_value=[_agent("shadow")])
+            ),
+            patch.object(svc, "ask_decision", AsyncMock(return_value=_response({}))) as ask_mock,
+            patch.object(
+                exe.account_service, "resolve_agent_account", AsyncMock(return_value=SimpleNamespace())
+            ),
+            patch.object(exe, "execute_agent_order", AsyncMock()),
+        ):
+            await svc.run_tick(
+                session,
+                trade_date=_DATE,
+                now=_NOW,
+                quotes={"600000": _quote(9.40)},
+                minute_bars=bars,
+            )
+        state = ask_mock.await_args.kwargs["state"]
+        assert state["plans"]["1"]["minute_bars"] == bars["600000"]
+
+    async def test_load_minute_bars_groups_by_code(self) -> None:
+        """按标的分组升序；UTC 时间戳转北京 HH:MM；空量归 0。"""
+        rows = [
+            ("600000", datetime(2026, 9, 29, 1, 30, tzinfo=timezone.utc), Decimal("9.67"), 307000),
+            ("600000", datetime(2026, 9, 29, 1, 31, tzinfo=timezone.utc), Decimal("9.66"), 2748800),
+            ("000001", datetime(2026, 9, 29, 1, 31, tzinfo=timezone.utc), Decimal("11.76"), None),
+        ]
+        session = MagicMock()
+        session.execute = AsyncMock(
+            return_value=MagicMock(all=MagicMock(return_value=rows))
+        )
+        bars = await svc.load_minute_bars(
+            session, codes={"600000", "000001"}, trade_date=_DATE
+        )
+        assert bars["600000"] == [["09:30", 9.67, 307000], ["09:31", 9.66, 2748800]]
+        assert bars["000001"] == [["09:31", 11.76, 0]]
+
+    async def test_load_minute_bars_empty_codes_short_circuit(self) -> None:
+        session = MagicMock()
+        session.execute = AsyncMock()
+        assert await svc.load_minute_bars(session, codes=set(), trade_date=_DATE) == {}
+        session.execute.assert_not_awaited()
+
     def test_action_question_split_by_direction(self) -> None:
         buy = _plan(id=1, plan_type="buy")
         sell = _plan(id=2, plan_type="sell")

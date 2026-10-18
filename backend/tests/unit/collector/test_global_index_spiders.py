@@ -94,33 +94,6 @@ class TestEastmoneyGlobalIndexRealtime:
 
 @pytest.mark.unit
 class TestEastmoneyGlobalIndexHistory:
-    async def test_dxy_history_change_chain(self) -> None:
-        collector = EastmoneyGlobalIndexCollector(config={"source": "eastmoney"})
-        payload = {
-            "data": {
-                "klines": [
-                    "2026-08-31,99.68,99.42,99.72,99.39,0",
-                    "2026-09-01,99.41,99.66,99.72,99.35,0",
-                    "2026-09-02,99.68,99.75,99.81,99.64,0",
-                ]
-            }
-        }
-        with patch(
-            "collector.spiders.eastmoney_global_index.eastmoney_get_chrome",
-            return_value=_response(payload),
-        ):
-            items = await collector.collect(symbols=["DXY"], history_days=3)
-
-        assert len(items) == 3
-        assert items[0]["change_pct"] is None
-        assert items[1]["change_pct"] == pytest.approx(0.2414, rel=1e-3)
-        assert items[2]["change_pct"] == pytest.approx(0.0903, rel=1e-3)
-        assert [i["trade_date"].isoformat() for i in items] == [
-            "2026-08-31",
-            "2026-09-01",
-            "2026-09-02",
-        ]
-
     async def test_gold_history_via_akshare(self, monkeypatch: pytest.MonkeyPatch) -> None:
         fake_akshare = types.ModuleType("akshare")
 
@@ -150,11 +123,12 @@ class TestEastmoneyGlobalIndexHistory:
         assert items[1]["change_pct"] == pytest.approx(-2.55, rel=1e-2)
         assert items[1]["index_code"] == "GC00Y"
 
-    async def test_history_branch_restricted_to_dxy_and_gold(
+    async def test_history_branch_restricted_to_gold(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """历史回补只覆盖 DXY/GC00Y：其余 eastmoney 代码（HSI/NDX…）若落入
-        _gold_history 会被误标为 GC00Y，须在入口过滤掉。"""
+        """历史回补仅剩 GC00Y：push2his 已被 WAF 断连，DXY 历史移交 yahoo；
+        其余 eastmoney 代码（HSI/NDX…）若落入 _gold_history 会被误标为
+        GC00Y，须在入口过滤掉。"""
         gold_calls: list[str] = []
         fake_akshare = types.ModuleType("akshare")
 
@@ -175,15 +149,10 @@ class TestEastmoneyGlobalIndexHistory:
         monkeypatch.setitem(sys.modules, "akshare", fake_akshare)
 
         collector = EastmoneyGlobalIndexCollector(config={"source": "eastmoney"})
-        payload = {"data": {"klines": ["2026-09-01,99.41,99.66,99.72,99.35,0"]}}
-        with patch(
-            "collector.spiders.eastmoney_global_index.eastmoney_get_chrome",
-            return_value=_response(payload),
-        ):
-            items = await collector.collect(history_days=3)
+        items = await collector.collect(history_days=3)
 
         codes = {i["index_code"] for i in items}
-        assert codes == {"DXY", "GC00Y"}
+        assert codes == {"GC00Y"}
         assert gold_calls == ["GC"]
 
 

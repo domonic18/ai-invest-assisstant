@@ -4,13 +4,15 @@ import { useSearchParams } from 'react-router-dom'
 import { AsrTab } from './AsrTab'
 import { KbBindingTab } from './KbBindingTab'
 import { ModelsTab } from './ModelsTab'
+import { TaskBindingTab } from './TaskBindingTab'
 
-const TAB_KEYS = ['models', 'asr', 'binding'] as const
+const TAB_KEYS = ['models', 'tasks', 'asr', 'binding'] as const
 
 type TabKey = (typeof TAB_KEYS)[number]
 
 const TAB_LABELS: Record<TabKey, string> = {
   models: '模型条目',
+  tasks: '任务模型',
   asr: 'ASR 渠道',
   binding: '知识库绑定',
 }
@@ -32,7 +34,15 @@ export default function ModelConfig() {
             key,
             label: TAB_LABELS[key],
             children:
-              key === 'models' ? <ModelsTab /> : key === 'asr' ? <AsrTab /> : <KbBindingTab />,
+              key === 'models' ? (
+                <ModelsTab />
+              ) : key === 'tasks' ? (
+                <TaskBindingTab />
+              ) : key === 'asr' ? (
+                <AsrTab />
+              ) : (
+                <KbBindingTab />
+              ),
           }))}
         />
       </Card>

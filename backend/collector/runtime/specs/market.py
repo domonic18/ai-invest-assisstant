@@ -56,9 +56,10 @@ SPECS: tuple[TaskSpec, ...] = (
     TaskSpec(
         name="stock-minute",
         label="个股分钟线",
-        description="采集个股分钟线，用于个股盘中走势分析",
+        description="采集个股分钟线（腾讯盘中主渠道 + 新浪盘后校正），供分时分析与交易 Agent 分时输入",
         data_type="stock_minute",
         collectors={
+            "tencent": "collector.spiders.tencent_stock_minute:TencentStockMinuteCollector",
             "sina": "collector.spiders.sina_stock_minute:SinaStockMinuteCollector",
         },
         run_params=("trade_date",),
@@ -116,7 +117,7 @@ SPECS: tuple[TaskSpec, ...] = (
     TaskSpec(
         name="global-index-history",
         label="全球指标历史回补",
-        description="回补 COMEX 黄金/美元指数日 K 历史（东财 push2his + akshare 双路），修复实时链路缺口",
+        description="回补 COMEX 黄金日 K 历史（akshare 新浪源）；美元指数历史由 yahoo 渠道每日回填（DX-Y.NYB）",
         data_type="global_index_history",
         collectors={
             "eastmoney": "collector.spiders.eastmoney_global_index:EastmoneyGlobalIndexCollector",

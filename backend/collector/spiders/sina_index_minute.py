@@ -11,7 +11,7 @@ from datetime import date, datetime
 from typing import Any, ClassVar
 from zoneinfo import ZoneInfo
 
-from app.core.constants import INDEX_CODES
+from app.core.constants import INDEX_CODES, TURNOVER_COMPARE_CODES
 from collector.core.base import PostgresCollector
 from collector.core.parsing import to_float, to_int
 
@@ -23,6 +23,17 @@ class SinaIndexMinuteCollector(PostgresCollector):
 
     table = "quote_kline_stock_minute"
     conflict_key = "stock_code, trade_time"
+    # 首写的当分钟 bar 是进行中的快照，值不完整，须随后续抓取刷新；
+    # None 保留原值，避免清掉已入库的成交额
+    update_columns: ClassVar[list[str]] = [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "amount",
+    ]
+    update_skip_null = True
     normalize = False
     key_fields: ClassVar[list[str]] = ["stock_code", "trade_time"]
     required_fields: ClassVar[list[str]] = ["stock_code", "trade_time", "close"]
@@ -37,7 +48,7 @@ class SinaIndexMinuteCollector(PostgresCollector):
 
         target = trade_date or datetime.now(_CN_TZ).date()
         raw: list[dict[str, Any]] = []
-        for symbol in symbols or list(INDEX_CODES):
+        for symbol in symbols or [*INDEX_CODES, *TURNOVER_COMPARE_CODES]:
             with (
                 contextlib.redirect_stdout(io.StringIO()),
                 contextlib.redirect_stderr(io.StringIO()),

@@ -86,7 +86,7 @@ async def build_topics(
         )
         try:
             output: TopicBatch = await run_structured(
-                session, result_type=TopicBatch, user_prompt=user_prompt
+                session, result_type=TopicBatch, user_prompt=user_prompt, task_key="news_topic"
             )
         except Exception as exc:  # noqa: BLE001
             # LLM/解析失败本轮跳过，下轮任务重试（news-score 同款语义）

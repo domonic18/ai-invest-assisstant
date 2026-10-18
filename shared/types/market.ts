@@ -172,6 +172,7 @@ export interface ApiCollectTaskResult {
   status: string
   itemsCollected: number
   errors: string[]
+  message?: string | null
 }
 
 export interface ApiMarketReviewUpdateRequest {
@@ -204,6 +205,27 @@ export interface IndexIntraday {
   tradeDate: string
   prevClose: number
   points: IndexIntradayPoint[]
+}
+
+/** 两市量能对比单分钟点（累计成交额，亿元）。 */
+export interface TurnoverComparePoint {
+  time: string
+  today: number
+  prev: number
+  diff: number
+}
+
+/** 两市量能对比（诊大盘口径：上证指数+深证综指合计，≈交易所官方总额）。 */
+export interface TurnoverCompare {
+  tradeDate: string
+  prevTradeDate: string | null
+  /** 当日最新累计（亿） */
+  todayAmount: number | null
+  /** 昨日全天总额（亿） */
+  prevAmount: number | null
+  /** 盘中预测全天成交额（亿），无昨日基线时为 null */
+  forecastAmount: number | null
+  points: TurnoverComparePoint[]
 }
 
 export interface IndexKlineBar {

@@ -43,6 +43,7 @@ from app.models.kb import (
 from app.models.kline import KlineDaily, KlineMinute, SectorKlineDaily
 from app.models.kline_drawing import AiKlineDrawing, UserKlineDrawing
 from app.models.llm_config import LLMConfig
+from app.models.llm_task_binding import LLMTaskBinding
 from app.models.mapping_stock_concept import MappingStockConcept
 from app.models.market_amount import MarketAmount
 from app.models.market_anomaly import SectorAnomaly, StockAnomaly
@@ -76,6 +77,7 @@ from app.models.social import AsrChannelConfig, SocialAccount, SocialPost, Socia
 from app.models.stock import StockBasic
 from app.models.tracked_index import TrackedIndexConfig
 from app.models.user import User
+from app.models.user_group import UserGroup
 from app.models.user_market_review import UserMarketReview
 from app.models.user_news_subscription import NewsSubscriptionHit, UserNewsSubscription
 from app.models.watchlist import UserWatchlist, UserWatchlistGroup
@@ -130,6 +132,7 @@ __all__ = [
     "SectorKlineDaily",
     "LimitUpPool",
     "LLMConfig",
+    "LLMTaskBinding",
     "MappingStockConcept",
     "MarketAmount",
     "MarketBreadth",
@@ -156,6 +159,7 @@ __all__ = [
     "TrackedIndexConfig",
     "User",
     "UserAiQuota",
+    "UserGroup",
     "UserLlmConfig",
     "UserMarketReview",
     "UserNewsStoryline",

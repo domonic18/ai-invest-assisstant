@@ -11,6 +11,16 @@ from app.main import app
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture(autouse=True)
+def admin_auth(client):
+    """fund-flow/auction/research/financial-reports 已收口为功能门控路由，
+    统一以 admin 身份穿过门控（分页校验与权限无关）。"""
+    admin = SimpleNamespace(id=1, username="admin", role="admin", is_active=True)
+    app.dependency_overrides[get_current_user] = lambda: admin
+    yield
+    app.dependency_overrides.pop(get_current_user, None)
+
+
 @pytest.mark.parametrize(
     ("url", "service_path"),
     [
@@ -33,12 +43,7 @@ def test_invalid_page_returns_422(url: str, service_path: str, client) -> None:
 
 def test_dead_letters_invalid_page_returns_422(client) -> None:
     """死信列表为 admin 端点：覆盖认证后分页校验仍 422。"""
-    admin = SimpleNamespace(id=1, username="admin", role="admin", is_active=True)
-    app.dependency_overrides[get_current_user] = lambda: admin
-    try:
-        response = client.get("/api/v1/admin/collector/dead-letters?page=0")
-    finally:
-        app.dependency_overrides.pop(get_current_user, None)
+    response = client.get("/api/v1/admin/collector/dead-letters?page=0")
     assert response.status_code == 422
 
 
