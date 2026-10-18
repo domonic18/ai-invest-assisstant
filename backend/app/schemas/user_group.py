@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import Field, field_validator
 
-from app.constants.features import FEATURE_KEYS, FEATURE_LABELS
+from app.constants.features import FEATURE_KEYS
 from app.schemas.base import CamelModel
 
 

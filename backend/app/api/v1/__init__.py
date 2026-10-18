@@ -2,8 +2,6 @@
 
 from fastapi import APIRouter, Depends
 
-from app.dependencies import require_feature
-
 from app.api.v1 import (
     account,
     anomaly,
@@ -60,6 +58,7 @@ from app.api.v1.admin import trading_agent as admin_trading_agent
 from app.api.v1.admin import user_groups as admin_user_groups
 from app.api.v1.admin import users as admin_users
 from app.api.v1.mcp import server as mcp_server
+from app.dependencies import require_feature
 
 api_router = APIRouter()
 
