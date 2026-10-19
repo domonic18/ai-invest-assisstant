@@ -6,6 +6,8 @@ import {
   fetchGlobalIndexHistory,
   fetchGlobalIndexKline,
   fetchGlobalIndices,
+  fetchHkGainers,
+  fetchHkIndices,
   fetchIndexIntraday,
   fetchIndexKline,
   fetchLimitUp,
@@ -127,6 +129,24 @@ export function useGlobalIndices() {
   return useQuery({
     queryKey: queryKeys.market.globalIndices,
     queryFn: fetchGlobalIndices,
+    staleTime: 5 * 60_000,
+  })
+}
+
+/** 恒生系指数收盘卡（收盘口径，不轮询）。 */
+export function useHkIndices(tradeDate?: string) {
+  return useQuery({
+    queryKey: queryKeys.market.hkIndices(tradeDate),
+    queryFn: () => fetchHkIndices(tradeDate),
+    staleTime: 5 * 60_000,
+  })
+}
+
+/** 港股涨幅榜（收盘口径；港股休市日为空列表）。 */
+export function useHkGainers(tradeDate?: string) {
+  return useQuery({
+    queryKey: queryKeys.market.hkGainers(tradeDate),
+    queryFn: () => fetchHkGainers(tradeDate),
     staleTime: 5 * 60_000,
   })
 }
