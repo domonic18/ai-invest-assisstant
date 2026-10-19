@@ -80,10 +80,13 @@ SPECS: tuple[TaskSpec, ...] = (
     TaskSpec(
         name="hk-kline",
         label="港股日 K",
-        description="采集港股日 K（东财 secid=116，前复权），缺省宇宙=全市场港股",
+        description="采集港股日 K（东财 secid=116 前复权为主，新浪 akshare 备源），缺省宇宙=全市场港股",
         data_type="hk_kline",
+        # 东财 push2his 偶发 WAF 封禁，新浪 akshare stock_hk_daily（同前复权）
+        # 兜底；两渠道写同表同冲突键，备源 update_skip_null 不覆盖东财换手率
         collectors={
             "eastmoney": "collector.spiders.eastmoney_hk_kline:EastmoneyHkKlineCollector",
+            "sina": "collector.spiders.sina_hk_kline:SinaHkKlineCollector",
         },
         # 全市场约 2600 股 × 全局限速 1s，单轮约 45 分钟，走 heavy 队列
         queue="heavy",
