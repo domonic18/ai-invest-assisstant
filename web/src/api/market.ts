@@ -17,6 +17,7 @@ import type {
   FedWatchResponse,
   GlobalIndexHistoryPoint,
   GlobalIndexQuote,
+  HkGainer,
   IndexIntraday,
   IndexKline,
   IndexKlinePeriod,
@@ -200,6 +201,25 @@ export async function fetchGlobalIndices(): Promise<GlobalIndexQuote[]> {
   const response = await apiClient.get<GlobalIndexQuote[]>(
     ENDPOINTS.market.globalIndices,
   )
+  return response.data
+}
+
+/** 恒生系指数收盘卡（不晚于复盘日的最新收盘 + 近 30 日趋势）。 */
+export async function fetchHkIndices(
+  tradeDate?: string,
+): Promise<GlobalIndexQuote[]> {
+  const response = await apiClient.get<GlobalIndexQuote[]>(
+    ENDPOINTS.market.hkIndices,
+    { params: { trade_date: tradeDate } },
+  )
+  return response.data
+}
+
+/** 港股涨幅榜（流动性门槛过滤；港股休市日返回空列表）。 */
+export async function fetchHkGainers(tradeDate?: string): Promise<HkGainer[]> {
+  const response = await apiClient.get<HkGainer[]>(ENDPOINTS.market.hkGainers, {
+    params: { trade_date: tradeDate },
+  })
   return response.data
 }
 

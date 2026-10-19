@@ -132,6 +132,8 @@ export const ENDPOINTS = {
     globalIndices: `${API_BASE}/market/global-indices`,
     globalIndexHistory: `${API_BASE}/market/global-index-history`,
     globalIndexKline: `${API_BASE}/market/global-indices/kline`,
+    hkIndices: `${API_BASE}/market/hk-indices`,
+    hkGainers: `${API_BASE}/market/hk-gainers`,
     trackedIndexOptions: `${API_BASE}/market/tracked-indexes`,
     fedWatch: `${API_BASE}/market/fed-watch`,
     sectorQuotes: `${API_BASE}/market/sector-quotes`,

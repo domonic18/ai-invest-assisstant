@@ -6,6 +6,7 @@ time_bucket 的默认 origin 使 1 week 对齐自然周（周一起）、
 """
 
 from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func, select, text
@@ -14,6 +15,7 @@ from sqlalchemy.orm import aliased
 
 from app.core.clock import CN_TZ, today_cn
 from app.models.kline import KlineDaily, KlineMinute, SectorKlineDaily
+from app.models.stock import StockBasic
 
 # quote_kline_stock_minute.trade_time 为 TIMESTAMPTZ，按交易时区（Asia/Shanghai）界定自然日
 
@@ -168,9 +170,7 @@ async def list_daily_paginated(
     """按代码分页查询日 K（trade_date 倒序，总数与列表同条件）。"""
     stmt = select(KlineDaily).where(KlineDaily.stock_code == stock_code)
     count_stmt = (
-        select(func.count())
-        .select_from(KlineDaily)
-        .where(KlineDaily.stock_code == stock_code)
+        select(func.count()).select_from(KlineDaily).where(KlineDaily.stock_code == stock_code)
     )
     if start_date:
         stmt = stmt.where(KlineDaily.trade_date >= start_date)
@@ -179,9 +179,7 @@ async def list_daily_paginated(
         stmt = stmt.where(KlineDaily.trade_date <= end_date)
         count_stmt = count_stmt.where(KlineDaily.trade_date <= end_date)
     stmt = (
-        stmt.order_by(KlineDaily.trade_date.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        stmt.order_by(KlineDaily.trade_date.desc()).offset((page - 1) * page_size).limit(page_size)
     )
     result = await session.execute(stmt)
     total = (await session.scalar(count_stmt)) or 0
@@ -207,9 +205,7 @@ async def fetch_aggregated_bars(
     return [dict(row) for row in result.mappings().all()]
 
 
-async def fetch_minute_bars(
-    session: AsyncSession, code: str, day: date
-) -> list[KlineMinute]:
+async def fetch_minute_bars(session: AsyncSession, code: str, day: date) -> list[KlineMinute]:
     """读取某交易日全部分钟 K（升序）。"""
     stmt = (
         select(KlineMinute)
@@ -248,9 +244,7 @@ async def fetch_minute_bars_multi(
 async def latest_minute_day(session: AsyncSession, code: str) -> date | None:
     """quote_kline_stock_minute 中该代码最近一根 bar 的交易日期（交易时区）。"""
     latest = await session.scalar(
-        select(func.max(KlineMinute.trade_time)).where(
-            KlineMinute.stock_code == code
-        )
+        select(func.max(KlineMinute.trade_time)).where(KlineMinute.stock_code == code)
     )
     return latest.astimezone(CN_TZ).date() if latest is not None else None
 
@@ -266,9 +260,7 @@ async def prev_minute_day(session: AsyncSession, code: str, day: date) -> date |
     return latest.astimezone(CN_TZ).date() if latest is not None else None
 
 
-async def prev_minute_close(
-    session: AsyncSession, code: str, day: date
-) -> float | None:
+async def prev_minute_close(session: AsyncSession, code: str, day: date) -> float | None:
     """目标日期之前最近一根分钟 bar 的收盘价（昨收口径）。"""
     close = await session.scalar(
         select(KlineMinute.close)
@@ -280,6 +272,46 @@ async def prev_minute_close(
         .limit(1)
     )
     return float(close) if close is not None else None
+
+
+async def list_hk_gainers(
+    session: AsyncSession,
+    trade_date: date,
+    limit: int = 10,
+    min_close: float = 0.5,
+    min_amount: float = 10_000_000,
+) -> list[tuple[str, str, Decimal | None, Decimal | None, Decimal | None]]:
+    """港股涨幅榜原始行：market='hk' 主数据 join 日 K，涨跌幅降序。
+
+    trade_date 精确匹配（港股休市日无行 → 空态）；close/amount 门槛
+    过滤仙股与低流动性票。change_pct 为空的行剔除（sina 备源窗口首行）。
+    """
+    stmt = (
+        select(
+            KlineDaily.stock_code,
+            StockBasic.stock_name,
+            KlineDaily.close,
+            KlineDaily.change_pct,
+            KlineDaily.amount,
+        )
+        .join(
+            StockBasic,
+            (StockBasic.stock_code == KlineDaily.stock_code) & (StockBasic.market == "hk"),
+        )
+        .where(
+            KlineDaily.trade_date == trade_date,
+            KlineDaily.change_pct.is_not(None),
+            KlineDaily.close >= min_close,
+            KlineDaily.amount >= min_amount,
+        )
+        .order_by(KlineDaily.change_pct.desc(), KlineDaily.stock_code)
+        .limit(limit)
+    )
+    rows = (await session.execute(stmt)).all()
+    return [
+        (row.stock_code, row.stock_name, row.close, row.change_pct, row.amount)
+        for row in rows
+    ]
 
 
 async def fetch_max_daily_date(session: AsyncSession, code: str) -> date | None:
@@ -312,9 +344,7 @@ async def has_daily_bar(session: AsyncSession, code: str, day: date) -> bool:
     return (count or 0) > 0
 
 
-async def fetch_trade_dates_between(
-    session: AsyncSession, start: date, end: date
-) -> set[date]:
+async def fetch_trade_dates_between(session: AsyncSession, start: date, end: date) -> set[date]:
     """区间内 A 股交易日集合（sh000001 日 K 权威口径）。
 
     采集健康监测用它判定「应跑窗口」与豁免节假日静默，
@@ -424,8 +454,4 @@ async def avg_amount_by_sector_name(
             .group_by(SectorKlineDaily.sector_type, SectorKlineDaily.sector_name)
         )
     ).all()
-    return {
-        (row[0], row[1]): (float(row[2]), int(row[3]))
-        for row in rows
-        if row[2] is not None
-    }
+    return {(row[0], row[1]): (float(row[2]), int(row[3])) for row in rows if row[2] is not None}

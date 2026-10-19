@@ -163,6 +163,8 @@ export const queryKeys = {
     aiReview: (tradeDate?: string) => ['market', 'ai-review', tradeDate] as const,
     aiReviewDates: ['market', 'ai-review-dates'] as const,
     globalIndices: ['market', 'global-indices'] as const,
+    hkIndices: (tradeDate?: string) => ['market', 'hk-indices', tradeDate] as const,
+    hkGainers: (tradeDate?: string) => ['market', 'hk-gainers', tradeDate] as const,
     globalIndexHistory: (indexCode: string, months: number) =>
       ['market', 'global-index-history', indexCode, months] as const,
     globalIndexKline: (indexCode: string, period: string) =>

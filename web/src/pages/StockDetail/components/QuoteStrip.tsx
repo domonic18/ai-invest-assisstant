@@ -109,6 +109,11 @@ export function QuoteStrip({
               {stock.market}
             </Tag>
           )}
+          {stock?.market?.toLowerCase() === 'hk' && (
+            <Tag className="!m-0 !text-[11px] !leading-[18px] !px-1.5 bg-[rgba(240,177,0,0.12)] !text-[#f0b100] !border-transparent">
+              延时15分钟
+            </Tag>
+          )}
           {industry && (
             <Tag className="!m-0 !text-[11px] !leading-[18px] !px-1.5 bg-[rgba(163,113,247,0.12)] !text-[#a371f7] !border-transparent">
               {industry}

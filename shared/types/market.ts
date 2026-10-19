@@ -367,6 +367,16 @@ export interface GlobalIndexHistoryPoint {
   close: number
 }
 
+/** 港股涨幅榜条目（流动性门槛过滤后，按涨跌幅降序；金额为港元）。 */
+export interface HkGainer {
+  stockCode: string
+  stockName: string
+  close: number | null
+  changePct: number | null
+  amount: number | null
+  tradeDate: string | null
+}
+
 export interface FedWatchMeeting {
   meetingDate: string
   probHike: number

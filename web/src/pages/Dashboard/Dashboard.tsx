@@ -7,6 +7,8 @@ import { useState } from 'react'
 import { collectMarketData } from '@/api/market'
 import { MarkedDatePicker } from '@/components/common/MarkedDatePicker'
 import {
+  useHkGainers,
+  useHkIndices,
   useLimitUp,
   useMarketIndices,
   useMarketReviewDates,
@@ -15,6 +17,7 @@ import {
 } from '@/hooks/useMarket'
 
 import { AiReviewSection } from './components/AiReviewSection'
+import { HkGainersCard } from './components/HkGainersCard'
 import { LimitUpSection } from './components/LimitUpSection'
 import { MarketStatsSection } from './components/MarketStatsSection'
 import { SectorSection } from './components/SectorSection'
@@ -35,6 +38,8 @@ export function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useMarketStats(tradeDate)
   const { data: limitUp, isLoading: limitUpLoading } = useLimitUp(tradeDate)
   const { data: sectors, isLoading: sectorsLoading } = useSectorOverview(tradeDate)
+  const { data: hkIndices, isLoading: hkIndicesLoading } = useHkIndices(tradeDate)
+  const { data: hkGainers, isLoading: hkGainersLoading } = useHkGainers(tradeDate)
   const { data: reviewDates } = useMarketReviewDates()
 
   const handleCollect = async () => {
@@ -86,6 +91,7 @@ export function Dashboard() {
             stats={stats}
             loading={indicesLoading || statsLoading}
             tradeDate={tradeDate}
+            hkIndices={hkIndicesLoading ? undefined : hkIndices}
           />
           <TurnoverCompareCard tradeDate={tradeDate} />
           <SectorSection
@@ -107,6 +113,7 @@ export function Dashboard() {
             canBackfill={isPastDate}
             tradeDate={tradeDate}
           />
+          <HkGainersCard data={hkGainers} loading={hkGainersLoading} />
         </div>
 
         <div className="space-y-6">

@@ -1,6 +1,6 @@
 import { Card, Skeleton, Tabs, Typography } from 'antd'
 
-import type { IndexQuote, MarketStats } from '@ai-invest/shared'
+import type { GlobalIndexQuote, IndexQuote, MarketStats } from '@ai-invest/shared'
 import { SourceNote } from '@/components/common/SourceNote'
 import { useColorScheme } from '@/stores/settings'
 import { changeHex, fallHex, formatAmount, formatPercent, riseHex } from '@/utils/formatters'
@@ -12,6 +12,8 @@ interface MarketStatsSectionProps {
   stats?: MarketStats
   loading: boolean
   tradeDate?: string
+  /** 恒生系收盘卡（不传则不渲染港股行）。 */
+  hkIndices?: GlobalIndexQuote[]
 }
 
 const EMOTION_STOPS = ['冰点', '偏冷', '温和', '偏热', '过热']
@@ -24,7 +26,13 @@ const INTRADAY_TABS = [
   { key: 'CN00Y', label: '富时A50', noIntraday: true },
 ]
 
-export function MarketStatsSection({ indices, stats, loading, tradeDate }: MarketStatsSectionProps) {
+export function MarketStatsSection({
+  indices,
+  stats,
+  loading,
+  tradeDate,
+  hkIndices,
+}: MarketStatsSectionProps) {
   useColorScheme()
 
   if (loading) {
@@ -59,6 +67,36 @@ export function MarketStatsSection({ indices, stats, loading, tradeDate }: Marke
           <div className="text-gray-500 text-sm py-4 text-center mb-4">
             该日无指数行情数据（非交易日）
           </div>
+        )}
+        {hkIndices && hkIndices.length > 0 && (
+          <>
+            <div className="text-xs text-gray-500 mb-2 flex items-center gap-2">
+              港股（延时 15 分钟）
+              {hkIndices.find((i) => i.tradeDate)?.tradeDate && (
+                <span className="text-gray-600">
+                  收盘 {hkIndices.find((i) => i.tradeDate)!.tradeDate!.slice(5)}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {hkIndices.map((item) => (
+                <div key={item.indexCode} className="rounded bg-[#1a1d24] p-3">
+                  <div className="text-xs text-gray-400">{item.indexName}</div>
+                  <div
+                    className="text-lg font-semibold font-mono"
+                    style={{ color: changeHex(item.changePct) }}
+                  >
+                    {item.close != null
+                      ? item.close.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
+                      : '--'}
+                  </div>
+                  <div className="text-xs" style={{ color: changeHex(item.changePct) }}>
+                    {item.changePct != null ? formatPercent(item.changePct) : '--'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
         <Tabs
           defaultActiveKey="sh000001"
