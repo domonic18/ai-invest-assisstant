@@ -10,9 +10,13 @@ quote_kline_stock_daily，冲突键与更新列与东财渠道一致，可无缝
 stock_basic 全部 market='hk' 股票。
 """
 
+import asyncio
+import contextlib
+import io
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -21,6 +25,8 @@ from collector.core.async_helpers import run_in_thread
 from collector.core.base import get_engine
 from collector.core.parsing import parse_date, to_float
 from collector.spiders.kline_base import BaseKlineCollector
+
+logger = structlog.get_logger(__name__)
 
 
 async def _fetch_hk_codes() -> list[str]:
@@ -41,6 +47,10 @@ class SinaHkKlineCollector(BaseKlineCollector):
 
     update_skip_null = True
 
+    # 全市场逐股拉取（2800+ 次/轮），新浪按频率反爬（超频返回异常页导致
+    # akshare KeyError），逐股间小 pacing 降低触发概率
+    _REQUEST_INTERVAL_SECONDS = 0.2
+
     async def collect(
         self,
         symbols: list[str] | None = None,
@@ -52,12 +62,28 @@ class SinaHkKlineCollector(BaseKlineCollector):
         symbols = symbols or await _fetch_hk_codes()
         cutoff = _cutoff_date(lookback_days)
         raw: list[dict[str, Any]] = []
+        failed = 0
         for symbol in symbols:
             code = str(symbol).strip().zfill(5)
-            df = await run_in_thread(ak.stock_hk_daily, symbol=code, adjust="qfq")
+            try:
+                with (
+                    contextlib.redirect_stdout(io.StringIO()),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
+                    df = await run_in_thread(ak.stock_hk_daily, symbol=code, adjust="qfq")
+            except Exception:  # noqa: BLE001 — 单票失败不拖垮整批
+                failed += 1
+                continue
             if df is None or df.empty:
                 continue
             raw.extend(_parse_rows(code, df, cutoff))
+            await asyncio.sleep(self._REQUEST_INTERVAL_SECONDS)
+        if failed and not raw:
+            raise RuntimeError(f"港股日K新浪源全量失败：{failed}/{len(symbols)} 只抓取异常")
+        if failed:
+            logger.warning(
+                "sina_hk_kline_partial_failures", failed=failed, total=len(symbols)
+            )
         return raw
 
 

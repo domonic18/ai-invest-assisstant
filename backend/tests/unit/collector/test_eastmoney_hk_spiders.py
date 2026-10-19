@@ -295,6 +295,43 @@ class TestSinaHkKlineCollector:
             items = await collector.collect(symbols=["00700"], lookback_days=5)
         assert items == []
 
+    async def test_collect_survives_single_stock_failure(self) -> None:
+        collector = SinaHkKlineCollector(config={"source": "sina", "period": "daily"})
+        with (
+            patch(
+                "collector.spiders.sina_hk_kline._cutoff_date",
+                return_value=date(2026, 10, 15),
+            ),
+            patch(
+                "akshare.stock_hk_daily",
+                side_effect=[KeyError("date"), self._df()],
+            ),
+            patch(
+                "collector.spiders.sina_hk_kline.run_in_thread",
+                side_effect=_fake_run_in_thread,
+            ),
+        ):
+            items = await collector.collect(symbols=["00700", "09988"], lookback_days=5)
+
+        # 00700 抓取抛错被跳过，09988 正常产出且归属正确
+        assert {i["stock_code"] for i in items} == {"09988"}
+
+    async def test_collect_raises_when_all_stocks_fail(self) -> None:
+        collector = SinaHkKlineCollector(config={"source": "sina", "period": "daily"})
+        with (
+            patch(
+                "collector.spiders.sina_hk_kline._cutoff_date",
+                return_value=date(2026, 10, 15),
+            ),
+            patch("akshare.stock_hk_daily", side_effect=KeyError("date")),
+            patch(
+                "collector.spiders.sina_hk_kline.run_in_thread",
+                side_effect=_fake_run_in_thread,
+            ),
+            pytest.raises(RuntimeError, match="全量失败"),
+        ):
+            await collector.collect(symbols=["00700", "09988"], lookback_days=5)
+
     async def test_update_skip_null_and_transform_roundtrip(self) -> None:
         collector = SinaHkKlineCollector(config={"source": "sina", "period": "daily"})
         assert collector.update_skip_null is True
