@@ -1,6 +1,7 @@
 """EastMoney 共享 HTTP client 契约测试。"""
 
 import time
+from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -12,7 +13,15 @@ from collector.core.http_client import (
     _RateLimiter,
     eastmoney_get,
     eastmoney_get_chrome,
+    set_default_proxy,
 )
+
+
+@pytest.fixture
+def _reset_default_proxy() -> Iterator[None]:
+    set_default_proxy(None)
+    yield
+    set_default_proxy(None)
 
 
 @pytest.mark.unit
@@ -118,3 +127,72 @@ class TestEastmoneyGetChrome:
         ):
             eastmoney_get_chrome("https://push2delay.eastmoney.com/api")
         assert session.request.call_count == 1
+
+
+@pytest.mark.unit
+@pytest.mark.usefixtures("_reset_default_proxy")
+class TestDefaultProxy:
+    def test_chrome_get_falls_back_to_default_proxy(self) -> None:
+        set_default_proxy("http://127.0.0.1:7890")
+        session = MagicMock()
+        session.request.return_value = MagicMock(raise_for_status=MagicMock())
+        with (
+            patch.object(http_client._limiter, "wait"),
+            patch.object(http_client, "_get_cffi_session", return_value=session),
+        ):
+            eastmoney_get_chrome("https://push2delay.eastmoney.com/api")
+
+        proxies = session.request.call_args.kwargs["proxies"]
+        assert proxies == {"http": "http://127.0.0.1:7890", "https": "http://127.0.0.1:7890"}
+
+    def test_explicit_proxies_win_over_default(self) -> None:
+        set_default_proxy("http://127.0.0.1:7890")
+        session = MagicMock()
+        session.request.return_value = MagicMock(raise_for_status=MagicMock())
+        explicit = {"http": "http://10.0.0.1:8080", "https": "http://10.0.0.1:8080"}
+        with (
+            patch.object(http_client._limiter, "wait"),
+            patch.object(http_client, "_get_cffi_session", return_value=session),
+        ):
+            eastmoney_get_chrome("https://push2delay.eastmoney.com/api", proxies=explicit)
+
+        assert session.request.call_args.kwargs["proxies"] is explicit
+
+    def test_no_default_and_no_explicit_passes_none(self) -> None:
+        session = MagicMock()
+        session.request.return_value = MagicMock(raise_for_status=MagicMock())
+        with (
+            patch.object(http_client._limiter, "wait"),
+            patch.object(http_client, "_get_cffi_session", return_value=session),
+        ):
+            eastmoney_get_chrome("https://push2delay.eastmoney.com/api")
+
+        assert session.request.call_args.kwargs["proxies"] is None
+
+    def test_clear_default_proxy(self) -> None:
+        set_default_proxy("http://127.0.0.1:7890")
+        set_default_proxy(None)
+        session = MagicMock()
+        session.request.return_value = MagicMock(raise_for_status=MagicMock())
+        with (
+            patch.object(http_client._limiter, "wait"),
+            patch.object(http_client, "_get_cffi_session", return_value=session),
+        ):
+            eastmoney_get_chrome("https://push2delay.eastmoney.com/api")
+
+        assert session.request.call_args.kwargs["proxies"] is None
+
+    def test_eastmoney_get_uses_default_proxy(self) -> None:
+        set_default_proxy("http://127.0.0.1:7890")
+        response = MagicMock()
+        response.raise_for_status.return_value = None
+        with (
+            patch.object(http_client._limiter, "wait"),
+            patch.object(http_client._session, "get", return_value=response) as get,
+        ):
+            eastmoney_get("https://push2.eastmoney.com/api")
+
+        assert get.call_args.kwargs["proxies"] == {
+            "http": "http://127.0.0.1:7890",
+            "https": "http://127.0.0.1:7890",
+        }

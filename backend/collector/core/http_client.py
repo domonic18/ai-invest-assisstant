@@ -76,6 +76,28 @@ def _build_session() -> requests.Session:
 _session = _build_session()
 _limiter = _RateLimiter(EM_MIN_INTERVAL)
 
+# 渠道绑定的默认代理（registry 在每个渠道候选执行前注入）；显式传
+# ``proxies`` 的调用方不受影响。东财被 WAF 按 IP 封禁时，给渠道绑代理
+# 即可整体切换出口。
+_default_proxy: str | None = None
+
+
+def set_default_proxy(proxy_url: str | None) -> None:
+    """设置进程级默认代理；传 None 清除。"""
+    global _default_proxy
+    _default_proxy = proxy_url
+
+
+def _resolve_proxies(
+    proxies: dict[str, str] | None,
+) -> dict[str, str] | None:
+    """显式 proxies 优先；否则回落到渠道默认代理。"""
+    if proxies is not None:
+        return proxies
+    if _default_proxy:
+        return {"http": _default_proxy, "https": _default_proxy}
+    return None
+
 
 def eastmoney_get(
     url: str,
@@ -87,7 +109,11 @@ def eastmoney_get(
     """限流 + 重试的东财 GET 请求，返回已校验状态码的响应。"""
     _limiter.wait()
     response = _session.get(
-        url, params=params, headers=headers, timeout=timeout, proxies=proxies
+        url,
+        params=params,
+        headers=headers,
+        timeout=timeout,
+        proxies=_resolve_proxies(proxies),
     )
     response.raise_for_status()
     return response
@@ -160,7 +186,7 @@ def _chrome_request(
                 headers=headers,
                 timeout=timeout,
                 # curl_cffi 静态类型将 proxies 声明为键受限 TypedDict，运行时即 dict
-                proxies=cast("ProxySpec | None", proxies),
+                proxies=cast("ProxySpec | None", _resolve_proxies(proxies)),
             )
             response.raise_for_status()
             return response
@@ -185,7 +211,8 @@ def chrome_get(
 
     供带 WAF/Akamai 指纹拦截的站点使用（东财 push2、CME QuikStrike、
     Yahoo chart 等）；会话跨请求保持 cookie，``proxies`` 为请求级代理
-    （仅绑定代理的渠道传入）。东财调用方继续用 :func:`eastmoney_get_chrome`。
+    （显式传入优先，未传时回落 :func:`set_default_proxy` 注入的渠道默认
+    代理）。东财调用方继续用 :func:`eastmoney_get_chrome`。
     """
     return _chrome_request(
         "GET", url, params=params, headers=headers, timeout=timeout, proxies=proxies
@@ -213,6 +240,4 @@ def eastmoney_get_chrome(
     proxies: dict[str, str] | None = None,
 ) -> CffiResponse:
     """:func:`chrome_get` 的东财别名（行为不变，限流与重试共用）。"""
-    return chrome_get(
-        url, params=params, headers=headers, timeout=timeout, proxies=proxies
-    )
+    return chrome_get(url, params=params, headers=headers, timeout=timeout, proxies=proxies)
