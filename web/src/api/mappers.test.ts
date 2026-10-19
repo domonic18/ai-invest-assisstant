@@ -107,6 +107,22 @@ describe('mappers', () => {
     expect(stock.market).toBe('SZ')
   })
 
+  it('maps hk stock market badge', () => {
+    const dto: ApiStockBasicResponse = {
+      stockCode: '00700',
+      stockName: '腾讯控股',
+      market: 'hk',
+      fullName: null,
+      industryLevel1: '通信服务',
+      industryLevel2: null,
+      industryLevel3: null,
+      listingDate: '2004-06-16',
+      totalShares: null,
+      circulatingShares: null,
+    }
+    expect(mapStock(dto).market).toBe('HK')
+  })
+
   it('maps kline data', () => {
     const dto: ApiKlineDataResponse = {
       tradeDate: '2024-01-01',
@@ -129,6 +145,7 @@ describe('mappers', () => {
     const dto: ApiWatchlistItemResponse = {
       id: 1,
       stockCode: '000001',
+      market: 'sz',
       tags: ['金融'],
       groupId: 7,
       createdAt: '2024-01-01T00:00:00Z',
@@ -137,6 +154,7 @@ describe('mappers', () => {
     expect(item.id).toBe('1')
     expect(item.groupId).toBe(7)
     expect(item.tags).toEqual(['金融'])
+    expect(item.market).toBe('sz')
   })
 
   it('maps chain analysis result', () => {

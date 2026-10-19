@@ -83,6 +83,19 @@ class StockRepository(BaseRepository[StockBasic]):
             names.setdefault(code, name)
         return names
 
+    async def get_markets_by_codes(self, codes: list[str]) -> dict[str, str]:
+        """返回给定代码集合的 stock_code 到 market 映射（同名取先遇到）。"""
+        if not codes:
+            return {}
+        stmt = select(StockBasic.stock_code, StockBasic.market).where(
+            StockBasic.stock_code.in_(codes)
+        )
+        result = await self.execute(stmt)
+        markets: dict[str, str] = {}
+        for code, market in result.all():
+            markets.setdefault(code, market)
+        return markets
+
     async def get_codes_by_names(self, names: list[str]) -> dict[str, str]:
         """返回给定名称集合的 stock_name 到 stock_code 映射（同名取先遇到）。"""
         if not names:

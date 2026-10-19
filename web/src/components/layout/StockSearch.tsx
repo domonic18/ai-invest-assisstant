@@ -36,7 +36,7 @@ export function StockSearch() {
   const handleSearch = () => {
     const q = keyword.trim()
     if (!q) return
-    if (/^\d{6}$/.test(q)) {
+    if (/^\d{5,6}$/.test(q)) {
       goStock(q)
       return
     }

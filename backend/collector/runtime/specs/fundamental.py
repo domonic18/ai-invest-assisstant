@@ -15,6 +15,20 @@ SPECS: tuple[TaskSpec, ...] = (
         soft_time_limit=1800,
     ),
     TaskSpec(
+        name="hk-stock-list",
+        label="港股列表",
+        description="采集港股全市场代码/名称/行业清单（东财 fs=m:116+t:3），作为港股主数据",
+        data_type="hk_stock_list",
+        collectors={
+            "eastmoney": (
+                "collector.spiders.eastmoney_hk_stock_list:"
+                "EastmoneyHkStockListCollector"
+            ),
+        },
+        queue="heavy",
+        soft_time_limit=1800,
+    ),
+    TaskSpec(
         name="stock-shares",
         label="股本数据",
         description="采集股本结构数据（总股本/流通股本），支撑市值计算",

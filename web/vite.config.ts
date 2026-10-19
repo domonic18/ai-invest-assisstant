@@ -49,15 +49,15 @@ export default defineConfig({
     proxy: {
       // 钉 IPv4：localhost 在部分机器解析为 ::1，会撞上其他项目发布的 docker 端口
       '/api': {
-        target: 'http://127.0.0.1:9000',
+        target: process.env.VITE_API_TARGET || 'http://127.0.0.1:9000',
         changeOrigin: true,
       },
       '/docs': {
-        target: 'http://127.0.0.1:9000',
+        target: process.env.VITE_API_TARGET || 'http://127.0.0.1:9000',
         changeOrigin: true,
       },
       '/openapi.json': {
-        target: 'http://127.0.0.1:9000',
+        target: process.env.VITE_API_TARGET || 'http://127.0.0.1:9000',
         changeOrigin: true,
       },
     },

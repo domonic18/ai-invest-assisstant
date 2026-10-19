@@ -1,10 +1,10 @@
 """Yahoo Finance 全球指标历史回填采集器（12 个月日线，幂等 upsert）。
 
 新指标上线时手动触发一次性回填：chart API 无鉴权，收盘值与东财一致。
-覆盖 push2delay 无历史 K 线的港美股指数 + 外汇对 + 布油 + DXY（东财
-push2his 已被 WAF 按路径断连，DXY 历史自 2026-10 移交本 spider；GC00Y
-历史仍走东财任务的 akshare 新浪源）。此后由每日实时快照自积累；USDCNY
-无东财源、HSTECH Yahoo 已下线，均靠每日任务重跑本 spider 幂等续期
+覆盖 push2delay 无历史 K 线的港美股指数 + 外汇对 + 布油/黄金 + DXY（东财
+push2his 已被 WAF 按路径断连，DXY/GC00Y 历史自 2026-10 移交本 spider，
+EM push2delay 整体被封时黄金仍有日线兜底）。此后由每日实时快照自积累；
+USDCNY 无东财源、HSTECH Yahoo 已下线，均靠每日任务重跑本 spider 幂等续期
 （1y 全量 upsert）。
 
 chart API 按 TLS 指纹拦截（requests 必 429），须走 ``chrome_get`` Chrome
@@ -33,7 +33,8 @@ _CHART_TIMEOUT_SECONDS = 30  # 代理链路 RTT 高于直连
 
 # index_code -> Yahoo symbol（回填清单与 GLOBAL_INDEX_CODES 的 yahoo 子集保持一致）。
 # ^HSTECH 已 404 delisted、USDCNH=X 仅返回当日 1 bar 无历史：两者历史均靠东财
-# 每日快照自积累；外汇 =X、ICE 美元指数 DX-Y.NYB、布油 BZ=F 期货连续
+# 每日快照自积累；外汇 =X、ICE 美元指数 DX-Y.NYB、布油/黄金期货连续合约。
+# GC00Y 走 yahoo 后 EM push2delay 被封时黄金不再缺数（EM 实时快照仍为主源）
 YAHOO_SYMBOLS: dict[str, str] = {
     "HSI": "^HSI",
     "HSTECH": "^HSTECH",
@@ -46,6 +47,7 @@ YAHOO_SYMBOLS: dict[str, str] = {
     "USDCNY": "USDCNY=X",
     "USDJPY": "USDJPY=X",
     "USDEUR": "USDEUR=X",
+    "GC00Y": "GC=F",
     "B00Y": "BZ=F",
     "SI00Y": "SI=F",
     "HG00Y": "HG=F",

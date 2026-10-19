@@ -13,6 +13,13 @@ SPECS: tuple[TaskSpec, ...] = (
         collectors={"sina": "collector.spiders.sina_quote:SinaQuoteCollector"},
     ),
     TaskSpec(
+        name="hk-quote",
+        label="港股行情快照",
+        description="采集港股实时快照（新浪，延时 15 分钟），写 Redis 供行情接口读取",
+        data_type="hk_quote",
+        collectors={"sina": "collector.spiders.sina_hk_quote:SinaHkQuoteCollector"},
+    ),
+    TaskSpec(
         name="auction",
         label="集合竞价",
         description="采集个股集合竞价数据（9:15-9:25），供集合竞价页展示",

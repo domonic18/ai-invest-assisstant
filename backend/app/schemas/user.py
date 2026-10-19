@@ -103,9 +103,12 @@ class AdminUserResetPassword(CamelModel):
 class WatchlistItemCreate(CamelModel):
     """自选股创建请求。"""
 
-    stock_code: str = Field(..., min_length=6, max_length=10)
+    stock_code: str = Field(..., min_length=5, max_length=10)
     tags: list[str] | None = None
     group_id: int | None = Field(None, description="目标分组，缺省挂默认分组")
+    market: str | None = Field(
+        None, pattern="^(sh|sz|bj|hk)$", description="市场，缺省按代码形态/主数据推导"
+    )
 
 
 class WatchlistScreenshotRecognitionItem(CamelModel):
@@ -127,7 +130,7 @@ class WatchlistScreenshotRecognitionResponse(CamelModel):
 class WatchlistBatchItemCreate(CamelModel):
     """自选股批量导入单项。"""
 
-    stock_code: str = Field(..., min_length=6, max_length=10)
+    stock_code: str = Field(..., min_length=5, max_length=10)
     tags: list[str] | None = None
 
 
@@ -152,6 +155,7 @@ class WatchlistItemResponse(CamelModel):
 
     id: int
     stock_code: str
+    market: str | None = None
     tags: list[str] | None = None
     group_id: int
     created_at: datetime

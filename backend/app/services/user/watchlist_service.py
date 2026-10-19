@@ -164,13 +164,14 @@ class WatchlistService:
         item = UserWatchlist(
             user_id=user.id,
             stock_code=data.stock_code,
+            market=data.market,
             tags=data.tags,
             group_id=group.id,
         )
         self.repo.add(item)
         await self.session.commit()
         await self.repo.refresh(item)
-        await self._dispatch_kline_backfill([item.stock_code])
+        await self._dispatch_kline_backfill([item])
         return item
 
     async def batch_add_items(
@@ -197,7 +198,9 @@ class WatchlistService:
             target = await self.get_or_create_default_group(user.id)
 
         codes = [item.stock_code for item in data.items]
-        names_by_code = await StockRepository(self.session).get_names_by_codes(codes)
+        stock_repo = StockRepository(self.session)
+        names_by_code = await stock_repo.get_names_by_codes(codes)
+        markets_by_code = await stock_repo.get_markets_by_codes(codes)
 
         groups = await self.group_repo.list_by_user(user.id)
         group_names = {g.id: g.name for g in groups}
@@ -231,6 +234,7 @@ class WatchlistService:
             row = UserWatchlist(
                 user_id=user.id,
                 stock_code=item.stock_code,
+                market=markets_by_code.get(item.stock_code),
                 tags=item.tags,
                 group_id=target.id,
             )
@@ -243,24 +247,41 @@ class WatchlistService:
             await self.repo.refresh(row)
         response.created = [WatchlistItemResponse.model_validate(row) for row in pending]
         if pending:
-            await self._dispatch_kline_backfill([row.stock_code for row in pending])
+            await self._dispatch_kline_backfill(pending)
         return response
 
-    async def _dispatch_kline_backfill(self, codes: list[str]) -> None:
+    async def _dispatch_kline_backfill(self, items: list[UserWatchlist]) -> None:
         """导入成功后异步回补日 K；派发失败仅记录日志，不阻塞导入主流程。
 
-        dispatcher 内部会 commit，必须在 service 层提交之后调用（延迟导入
-        collector.runtime 避免环导入与 API 启动即加载 Celery）。
+        5 位代码（或 market='hk'）走 hk-kline（东财 116 secid），其余走
+        A 股 kline；dispatcher 内部会 commit，必须在 service 层提交之后
+        调用（延迟导入 collector.runtime 避免环导入与 API 启动即加载 Celery）。
         """
         from collector.runtime.dispatcher import dispatch_collector_task
 
+        hk_codes = [
+            item.stock_code
+            for item in items
+            if item.market == "hk" or len(item.stock_code) == 5
+        ]
+        hk_set = set(hk_codes)
+        a_codes = [
+            item.stock_code for item in items if item.stock_code not in hk_set
+        ]
         try:
-            await dispatch_collector_task(
-                self.session, "kline", {"symbols": codes, "period": "daily"}
-            )
+            if a_codes:
+                await dispatch_collector_task(
+                    self.session, "kline", {"symbols": a_codes, "period": "daily"}
+                )
+            if hk_codes:
+                await dispatch_collector_task(
+                    self.session, "hk-kline", {"symbols": hk_codes}
+                )
         except Exception:
             logger.warning(
-                "watchlist_kline_backfill_dispatch_failed", codes=codes, exc_info=True
+                "watchlist_kline_backfill_dispatch_failed",
+                codes=[item.stock_code for item in items],
+                exc_info=True,
             )
 
     async def move_watchlist_item(

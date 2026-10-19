@@ -10,10 +10,11 @@ import { apiErrorMessage } from '@/utils/errorMessage'
 interface AddToWatchlistModalProps {
   open: boolean
   stockCode: string
+  market?: string
   onClose: () => void
 }
 
-export function AddToWatchlistModal({ open, stockCode, onClose }: AddToWatchlistModalProps) {
+export function AddToWatchlistModal({ open, stockCode, market, onClose }: AddToWatchlistModalProps) {
   const { data: groups } = useWatchlistGroups()
   const addMutation = useAddWatchlistItem()
   const [groupId, setGroupId] = useState<number | undefined>(undefined)
@@ -30,7 +31,7 @@ export function AddToWatchlistModal({ open, stockCode, onClose }: AddToWatchlist
 
   const handleOk = () => {
     addMutation.mutate(
-      { stockCode, tags: [], groupId },
+      { stockCode, tags: [], groupId, market },
       {
         onSuccess: () => {
           message.success(`已加入自选：${stockCode}`)
