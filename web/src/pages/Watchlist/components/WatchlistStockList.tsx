@@ -262,7 +262,12 @@ export function WatchlistStockList({
                   <div className="truncate text-sm text-gray-200">
                     {quote?.name ?? item.name ?? item.code}
                   </div>
-                  <div className="text-xs text-gray-500 font-mono">{item.code}</div>
+                  <div className="text-xs text-gray-500 font-mono">
+                    {item.code}
+                    {item.market?.toLowerCase() === 'hk' && (
+                      <span className="ml-1.5 font-sans text-[10px] text-[#8a6d1f]">延时15分</span>
+                    )}
+                  </div>
                 </div>
                 <IntradaySpark points={quote?.trend} changePct={quote?.changePct ?? null} width={64} />
                 <div className="text-right shrink-0 w-[72px]">
