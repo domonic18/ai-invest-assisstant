@@ -99,6 +99,17 @@ class GlobalIndexQuoteResponse(CamelModel):
     trend: list[float] = []
 
 
+class HkGainerItem(CamelModel):
+    """港股涨幅榜条目（流动性门槛过滤后，按涨跌幅降序；金额为港元）。"""
+
+    stock_code: str
+    stock_name: str
+    close: float | None = None
+    change_pct: float | None = None
+    amount: float | None = None
+    trade_date: date | None = None
+
+
 class FedWatchMeeting(CamelModel):
     """单场 FOMC 会议的加息/维持/降息概率与最可能落位区间。"""
 

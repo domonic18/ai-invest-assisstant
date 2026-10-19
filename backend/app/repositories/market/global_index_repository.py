@@ -62,10 +62,7 @@ async def map_kline_latest(
         .distinct(KlineDaily.stock_code)
         .order_by(KlineDaily.stock_code, KlineDaily.trade_date.desc())
     )
-    return {
-        row[0]: (row[1], row[2], row[3])
-        for row in (await session.execute(stmt)).all()
-    }
+    return {row[0]: (row[1], row[2], row[3]) for row in (await session.execute(stmt)).all()}
 
 
 async def map_kline_recent_closes(
@@ -105,9 +102,14 @@ async def map_kline_recent_closes(
 
 
 async def map_latest_closes(
-    session: AsyncSession, codes: list[str]
+    session: AsyncSession,
+    codes: list[str],
+    on_or_before: date | None = None,
 ) -> dict[str, tuple[Decimal | None, Decimal | None, date | None]]:
-    """每只指标代码的最新日 K 收盘快照（close, change_pct, trade_date）。"""
+    """每只指标代码的最新日 K 收盘快照（close, change_pct, trade_date）。
+
+    ``on_or_before`` 限定截至日期（复盘历史日回看），None 取全表最新。
+    """
     if not codes:
         return {}
     stmt = (
@@ -118,19 +120,24 @@ async def map_latest_closes(
             GlobalIndexDaily.trade_date,
         )
         .where(GlobalIndexDaily.index_code.in_(codes))
-        .distinct(GlobalIndexDaily.index_code)
         .order_by(GlobalIndexDaily.index_code, GlobalIndexDaily.trade_date.desc())
     )
-    return {
-        row[0]: (row[1], row[2], row[3])
-        for row in (await session.execute(stmt)).all()
-    }
+    if on_or_before is not None:
+        stmt = stmt.where(GlobalIndexDaily.trade_date <= on_or_before)
+    stmt = stmt.distinct(GlobalIndexDaily.index_code)
+    return {row[0]: (row[1], row[2], row[3]) for row in (await session.execute(stmt)).all()}
 
 
 async def map_recent_closes(
-    session: AsyncSession, codes: list[str], limit: int
+    session: AsyncSession,
+    codes: list[str],
+    limit: int,
+    on_or_before: date | None = None,
 ) -> dict[str, list[float]]:
-    """每只指标最近 limit 个收盘（升序，None 收盘剔除），供趋势缩略图。"""
+    """每只指标最近 limit 个收盘（升序，None 收盘剔除），供趋势缩略图。
+
+    ``on_or_before`` 限定截至日期（复盘历史日回看），None 取全表最新。
+    """
     if not codes:
         return {}
     rn = (
@@ -141,16 +148,15 @@ async def map_recent_closes(
         )
         .label("rn")
     )
-    ranked = (
-        select(
-            GlobalIndexDaily.index_code.label("index_code"),
-            GlobalIndexDaily.trade_date.label("trade_date"),
-            GlobalIndexDaily.close.label("close"),
-            rn,
-        )
-        .where(GlobalIndexDaily.index_code.in_(codes))
-        .subquery()
-    )
+    inner_stmt = select(
+        GlobalIndexDaily.index_code.label("index_code"),
+        GlobalIndexDaily.trade_date.label("trade_date"),
+        GlobalIndexDaily.close.label("close"),
+        rn,
+    ).where(GlobalIndexDaily.index_code.in_(codes))
+    if on_or_before is not None:
+        inner_stmt = inner_stmt.where(GlobalIndexDaily.trade_date <= on_or_before)
+    ranked = inner_stmt.subquery()
     rows = await session.execute(
         select(ranked.c.index_code, ranked.c.close)
         .where(ranked.c.rn <= limit)
@@ -163,9 +169,7 @@ async def map_recent_closes(
     return trends
 
 
-async def list_closes(
-    session: AsyncSession, code: str, since: date
-) -> list[tuple[date, Decimal]]:
+async def list_closes(session: AsyncSession, code: str, since: date) -> list[tuple[date, Decimal]]:
     """指定指标自 since 起的日线收盘（trade_date 升序）。"""
     stmt = (
         select(GlobalIndexDaily.trade_date, GlobalIndexDaily.close)
@@ -178,9 +182,7 @@ async def list_closes(
     return [(row[0], row[1]) for row in (await session.execute(stmt)).all()]
 
 
-async def list_daily_bars(
-    session: AsyncSession, code: str, since: date
-) -> list[GlobalIndexDaily]:
+async def list_daily_bars(session: AsyncSession, code: str, since: date) -> list[GlobalIndexDaily]:
     """指定指标自 since 起的日线 OHLCV（trade_date 升序）。"""
     stmt = (
         select(GlobalIndexDaily)

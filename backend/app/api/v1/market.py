@@ -19,6 +19,7 @@ from app.schemas.market import (
     FedWatchResponse,
     GlobalIndexHistoryPoint,
     GlobalIndexQuoteResponse,
+    HkGainerItem,
     IndexIntradayResponse,
     IndexKlineResponse,
     IndexQuoteResponse,
@@ -38,6 +39,7 @@ from app.services import review as market_review_service
 from app.services.market import (
     fed_watch_service,
     global_index_service,
+    hk_review_service,
     market_service,
     sector_quote_service,
 )
@@ -67,9 +69,7 @@ async def get_global_indices(
 ) -> list[GlobalIndexQuoteResponse]:
     """启用中的全球指标最新快照（黄金/美元指数/美债收益率等），按用户个人配置过滤。"""
     settings = await UserService(session).get_settings(current_user)
-    return await global_index_service.get_global_index_quotes(
-        session, settings.tracked_index_codes
-    )
+    return await global_index_service.get_global_index_quotes(session, settings.tracked_index_codes)
 
 
 @router.get("/tracked-indexes", response_model=list[TrackedIndexOption])
@@ -99,9 +99,26 @@ async def get_global_index_kline(
     limit: Annotated[int, Query(ge=1, le=1000)] = 250,
 ) -> IndexKlineResponse:
     """全球指标多周期 K 线（股指/商品/汇率含 OHLC；债券收益率与利差为收盘线）。"""
-    return await global_index_service.get_global_index_kline(
-        session, index_code, period, limit
-    )
+    return await global_index_service.get_global_index_kline(session, index_code, period, limit)
+
+
+@router.get("/hk-indices", response_model=list[GlobalIndexQuoteResponse])
+async def get_hk_indices(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    trade_date: date | None = None,
+) -> list[GlobalIndexQuoteResponse]:
+    """恒生系指数收盘卡（HSI/HSTECH/HSCEI：不晚于复盘日的最新收盘 + 近 30 日趋势）。"""
+    return await hk_review_service.get_hk_review_indices(session, trade_date)
+
+
+@router.get("/hk-gainers", response_model=list[HkGainerItem])
+async def get_hk_gainers(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    trade_date: date | None = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 10,
+) -> list[HkGainerItem]:
+    """港股涨幅榜（收盘 ≥0.5 港元且成交额 ≥1000 万港元；港股休市日返回空列表）。"""
+    return await hk_review_service.get_hk_gainers(session, trade_date, limit)
 
 
 @router.get("/fed-watch", response_model=FedWatchResponse | None)
@@ -119,9 +136,7 @@ async def get_sector_quotes(
     trade_date: date | None = None,
 ) -> SectorQuoteResponse | None:
     """单日板块行情快照（涨跌幅降序）；未指定日期取最新快照日。"""
-    return await sector_quote_service.get_sector_quotes(
-        session, sector_type, trade_date
-    )
+    return await sector_quote_service.get_sector_quotes(session, sector_type, trade_date)
 
 
 @router.get("/indices/kline", response_model=IndexKlineResponse)
@@ -202,9 +217,7 @@ async def get_ai_review(
     trade_date: date | None = None,
 ) -> MarketReviewResponse | Response:
     """读取当前用户的 AI 大盘综述（优先用户编辑版，否则回退共享 base）。"""
-    review = await market_review_service.get_market_review(
-        session, current_user.id, trade_date
-    )
+    review = await market_review_service.get_market_review(session, current_user.id, trade_date)
     if review is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     return review
