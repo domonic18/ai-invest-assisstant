@@ -78,6 +78,22 @@ SPECS: tuple[TaskSpec, ...] = (
         defaults={"lookback_days": 10},
     ),
     TaskSpec(
+        name="hk-kline",
+        label="港股日 K",
+        description="采集港股日 K（东财 secid=116，前复权），缺省宇宙=全市场港股",
+        data_type="hk_kline",
+        collectors={
+            "eastmoney": "collector.spiders.eastmoney_hk_kline:EastmoneyHkKlineCollector",
+        },
+        # 全市场约 2600 股 × 全局限速 1s，单轮约 45 分钟，走 heavy 队列
+        queue="heavy",
+        soft_time_limit=7200,
+        run_params=("lookback_days",),
+        # 定时路径入口对 run_params 键恒显式传参（缺省 None 会覆盖 spider
+        # 签名默认值），缺省必须在声明表兜底；大跨度回填走手动传大值
+        defaults={"lookback_days": 5},
+    ),
+    TaskSpec(
         name="kline-freshness",
         label="日K新鲜度自愈",
         description="检测日 K 数据缺口并自动补采自愈，保障图表数据新鲜",

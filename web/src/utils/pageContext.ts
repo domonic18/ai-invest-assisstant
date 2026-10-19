@@ -25,7 +25,7 @@ export function buildPageContext(location: PageContextLocation | string): PageCo
     typeof location === 'string' ? { pathname: location, search: undefined } : location
   const context: PageContext = { route }
 
-  const stock = route.match(/^\/stock\/(\d{6})/)
+  const stock = route.match(/^\/stock\/(\d{5,6})/)
   if (stock) {
     context.page = '个股详情'
     context.stock_code = stock[1]
@@ -66,7 +66,7 @@ export function buildPageContext(location: PageContextLocation | string): PageCo
     // 自选页选中标的由 URL ?code= 承载（页面 setSearchParams 维护）
     context.page = '自选股'
     const code = new URLSearchParams(search ?? '').get('code')
-    if (code && /^\d{6}$/.test(code)) context.stock_code = code
+    if (code && /^\d{5,6}$/.test(code)) context.stock_code = code
   }
   return context
 }

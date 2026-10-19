@@ -95,6 +95,7 @@ export function StockDetailContent({ stockCode }: StockDetailContentProps) {
       <AddToWatchlistModal
         open={addWatchOpen}
         stockCode={stockCode}
+        market={stock?.market?.toLowerCase()}
         onClose={() => setAddWatchOpen(false)}
       />
 

@@ -2,7 +2,7 @@ export interface Stock {
   code: string
   name: string
   industry: string
-  market: 'SH' | 'SZ' | 'BJ'
+  market: 'SH' | 'SZ' | 'BJ' | 'HK'
   fullName?: string | null
   industryLevel1?: string | null
   industryLevel2?: string | null
@@ -104,6 +104,7 @@ export interface FundFlowData {
 export interface WatchlistItem {
   id: string
   code: string
+  market?: string | null
   name?: string
   tags: string[]
   groupId: number

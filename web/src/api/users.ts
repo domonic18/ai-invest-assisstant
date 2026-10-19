@@ -20,6 +20,7 @@ export interface WatchlistCreateData {
   stockCode: string
   tags?: string[]
   groupId?: number
+  market?: string
 }
 
 export async function fetchWatchlist() {
@@ -57,6 +58,7 @@ export async function addWatchlistItem(data: WatchlistCreateData) {
     stockCode: data.stockCode,
     tags: data.tags,
     groupId: data.groupId,
+    market: data.market,
   })
   return mapWatchlistItem(response.data)
 }

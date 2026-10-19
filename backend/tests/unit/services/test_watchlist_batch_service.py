@@ -66,7 +66,10 @@ async def test_batch_add_creates_valid_and_flags_invalid(
         lambda _s: SimpleNamespace(
             get_names_by_codes=AsyncMock(
                 return_value={"600519": "贵州茅台", "000001": "平安银行"}
-            )
+            ),
+            get_markets_by_codes=AsyncMock(
+                return_value={"600519": "sh", "000001": "sz"}
+            ),
         ),
     )
     _patch_groups(service)
@@ -98,7 +101,8 @@ async def test_batch_add_reports_duplicates(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(
         "app.services.user.watchlist_service.StockRepository",
         lambda _s: SimpleNamespace(
-            get_names_by_codes=AsyncMock(return_value={"600519": "贵州茅台"})
+            get_names_by_codes=AsyncMock(return_value={"600519": "贵州茅台"}),
+            get_markets_by_codes=AsyncMock(return_value={"600519": "sh"}),
         ),
     )
     _patch_groups(service)
@@ -127,7 +131,8 @@ async def test_batch_add_skips_duplicates_within_request(
     monkeypatch.setattr(
         "app.services.user.watchlist_service.StockRepository",
         lambda _s: SimpleNamespace(
-            get_names_by_codes=AsyncMock(return_value={"600519": "贵州茅台"})
+            get_names_by_codes=AsyncMock(return_value={"600519": "贵州茅台"}),
+            get_markets_by_codes=AsyncMock(return_value={"600519": "sh"}),
         ),
     )
     _patch_groups(service)

@@ -53,6 +53,8 @@ class UserWatchlist(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     stock_code: Mapped[str] = mapped_column(String(10), nullable=False)
+    # 市场维度：sh/sz/bj/hk；NULL 为历史行（A 股），展示与回填分发按需兜底解析
+    market: Mapped[str | None] = mapped_column(String(4), nullable=True)
     tags: Mapped[list[str] | None] = mapped_column(ARRAY(String(50)), nullable=True)
     group_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("user_watchlist_group.id"), nullable=False

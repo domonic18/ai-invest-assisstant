@@ -26,7 +26,7 @@ interface Tile {
 /** 指数 tab 分组（口径与宏观监测页四分区一致）；未映射的全球代码落「其他」。 */
 const ASHARE_TAB = 'A股'
 const GLOBAL_TAB_CODES: Record<string, string[]> = {
-  全球股指: ['HSI', 'HSTECH', 'DJIA', 'NDX', 'SPX', 'N225', 'KS11'],
+  全球股指: ['HSI', 'HSTECH', 'HSCEI', 'DJIA', 'NDX', 'SPX', 'N225', 'KS11'],
   债券: ['US2Y', 'US10Y', 'US30Y', 'JP10Y'],
   商品: ['GC00Y', 'SI00Y', 'HG00Y', 'B00Y'],
   汇率: ['DXY', 'USDCNY', 'USDCNH', 'USDJPY', 'USDEUR'],

@@ -36,11 +36,12 @@ export function mapStock(dto: ApiStockBasicResponse): Stock {
   }
 }
 
-function normalizeMarket(market: string): 'SH' | 'SZ' | 'BJ' {
+function normalizeMarket(market: string): 'SH' | 'SZ' | 'BJ' | 'HK' {
   const upper = market.toUpperCase()
   if (upper === 'SH' || upper === 'SSE') return 'SH'
   if (upper === 'SZ' || upper === 'SZSE') return 'SZ'
   if (upper === 'BJ' || upper === 'BSE') return 'BJ'
+  if (upper === 'HK' || upper === 'HKE') return 'HK'
   return 'SH'
 }
 
@@ -149,6 +150,7 @@ export function mapWatchlistItem(dto: ApiWatchlistItemResponse): WatchlistItem {
   return {
     id: String(dto.id),
     code: dto.stockCode,
+    market: dto.market,
     tags: dto.tags || [],
     groupId: dto.groupId,
     createdAt: dto.createdAt,

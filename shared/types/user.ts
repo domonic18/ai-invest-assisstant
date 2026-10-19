@@ -119,11 +119,13 @@ export interface ApiWatchlistItemCreate {
   stockCode: string
   tags?: string[]
   groupId?: number
+  market?: string
 }
 
 export interface ApiWatchlistItemResponse {
   id: number
   stockCode: string
+  market: string | null
   tags: string[] | null
   groupId: number
   createdAt: string

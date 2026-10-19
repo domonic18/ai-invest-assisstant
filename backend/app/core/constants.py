@@ -51,6 +51,7 @@ GLOBAL_INDEX_CODES: dict[str, dict[str, str]] = {
     "US10Y": {"name": "美债 10Y 收益率", "data_source": "tushare", "field": "y10"},
     "HSI": {"name": "恒生指数", "data_source": "eastmoney", "secid": "100.HSI"},
     "HSTECH": {"name": "恒生科技", "data_source": "eastmoney", "secid": "124.HSTECH"},
+    "HSCEI": {"name": "国企指数", "data_source": "eastmoney", "secid": "100.HSCEI"},
     "DJIA": {"name": "道琼斯", "data_source": "eastmoney", "secid": "100.DJIA"},
     "NDX": {"name": "纳斯达克", "data_source": "eastmoney", "secid": "100.NDX"},
     "SPX": {"name": "标普500", "data_source": "eastmoney", "secid": "100.SPX"},
@@ -97,9 +98,11 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "etf-kline": DOMAIN_KLINE,
     "a50-kline": DOMAIN_KLINE,
     "sector-kline": DOMAIN_KLINE,
+    "hk-kline": DOMAIN_KLINE,
     "kline-freshness": DOMAIN_KLINE,
     # 行情
     "quote": DOMAIN_QUOTE,
+    "hk-quote": DOMAIN_QUOTE,
     "auction": DOMAIN_QUOTE,
     "index-spot": DOMAIN_QUOTE,
     "index-minute": DOMAIN_QUOTE,
@@ -128,6 +131,7 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "social-video": DOMAIN_NEWS,
     # 基本面
     "stock-list": DOMAIN_FUNDAMENTAL,
+    "hk-stock-list": DOMAIN_FUNDAMENTAL,
     "stock-shares": DOMAIN_FUNDAMENTAL,
     "financial-statement": DOMAIN_FUNDAMENTAL,
     "concept-constituents": DOMAIN_FUNDAMENTAL,
