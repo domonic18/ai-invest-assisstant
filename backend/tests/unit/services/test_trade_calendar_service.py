@@ -122,9 +122,7 @@ class TestClassifyScheduleDay:
             AsyncMock(return_value=_calendar_row(today_cn(), True)),
         ):
             assert (
-                await trade_calendar_service.classify_schedule_day(
-                    MagicMock(), today_cn()
-                )
+                await trade_calendar_service.classify_schedule_day(MagicMock(), today_cn())
                 == SCHEDULE_TRADING
             )
 
@@ -136,9 +134,7 @@ class TestClassifyScheduleDay:
             AsyncMock(return_value=_calendar_row(today_cn(), False)),
         ):
             assert (
-                await trade_calendar_service.classify_schedule_day(
-                    MagicMock(), today_cn()
-                )
+                await trade_calendar_service.classify_schedule_day(MagicMock(), today_cn())
                 == SCHEDULE_NON_TRADING
             )
 
@@ -151,11 +147,24 @@ class TestClassifyScheduleDay:
             AsyncMock(return_value=None),
         ):
             assert (
-                await trade_calendar_service.classify_schedule_day(
-                    MagicMock(), today_cn()
-                )
+                await trade_calendar_service.classify_schedule_day(MagicMock(), today_cn())
                 == SCHEDULE_UNKNOWN
             )
+
+    @pytest.mark.asyncio
+    async def test_market_passthrough_to_repository(self) -> None:
+        """market 维度透传（hk 任务按港股日历行预检）。"""
+        session = MagicMock()
+        with patch.object(
+            trade_calendar_service.trade_calendar_repository,
+            "get_one",
+            AsyncMock(return_value=None),
+        ) as mock_get_one:
+            assert (
+                await trade_calendar_service.classify_schedule_day(session, today_cn(), market="hk")
+                == SCHEDULE_UNKNOWN
+            )
+        mock_get_one.assert_awaited_once_with(session, today_cn(), "hk")
 
 
 @pytest.mark.unit
@@ -187,10 +196,7 @@ class TestIsTradingDayCalendarAuthoritative:
                 AsyncMock(return_value=date(2026, 10, 1)),
             ) as mock_kline,
         ):
-            assert (
-                await market_service.is_trading_day(MagicMock(), date(2026, 10, 1))
-                is False
-            )
+            assert await market_service.is_trading_day(MagicMock(), date(2026, 10, 1)) is False
         mock_kline.assert_not_awaited()
 
 
@@ -198,22 +204,16 @@ class TestIsTradingDayCalendarAuthoritative:
 class TestSetDayManual:
     @pytest.mark.asyncio
     async def test_past_day_rejected(self) -> None:
-        with patch.object(
-            trade_calendar_service, "today_cn", lambda: date(2026, 9, 25)
-        ):
+        with patch.object(trade_calendar_service, "today_cn", lambda: date(2026, 9, 25)):
             with pytest.raises(BadRequestError, match="不可修改历史日期"):
-                await trade_calendar_service.set_day_manual(
-                    MagicMock(), date(2026, 9, 24), True
-                )
+                await trade_calendar_service.set_day_manual(MagicMock(), date(2026, 9, 24), True)
 
     @pytest.mark.asyncio
     async def test_today_allowed_and_commits(self) -> None:
         session = AsyncMock()
         row = _calendar_row(date(2026, 9, 25), False, source="manual")
         with (
-            patch.object(
-                trade_calendar_service, "today_cn", lambda: date(2026, 9, 25)
-            ),
+            patch.object(trade_calendar_service, "today_cn", lambda: date(2026, 9, 25)),
             patch.object(
                 trade_calendar_service.trade_calendar_repository,
                 "upsert_manual_day",
@@ -224,10 +224,27 @@ class TestSetDayManual:
                 session, date(2026, 9, 25), False, remark="临时休市"
             )
         assert result is row
-        mock_upsert.assert_awaited_once_with(
-            session, date(2026, 9, 25), False, "临时休市"
-        )
+        mock_upsert.assert_awaited_once_with(session, date(2026, 9, 25), False, "临时休市", "cn")
         session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_hk_market_passthrough(self) -> None:
+        """market='hk' 透传仓储（港股日历人工覆盖）。"""
+        session = AsyncMock()
+        row = _calendar_row(date(2026, 12, 25), False, source="manual")
+        with (
+            patch.object(trade_calendar_service, "today_cn", lambda: date(2026, 9, 25)),
+            patch.object(
+                trade_calendar_service.trade_calendar_repository,
+                "upsert_manual_day",
+                AsyncMock(return_value=row),
+            ) as mock_upsert,
+        ):
+            result = await trade_calendar_service.set_day_manual(
+                session, date(2026, 12, 25), False, "圣诞节", market="hk"
+            )
+        assert result is row
+        mock_upsert.assert_awaited_once_with(session, date(2026, 12, 25), False, "圣诞节", "hk")
 
 
 @pytest.mark.unit
@@ -252,9 +269,7 @@ class TestRegenerateFromSina:
                 AsyncMock(return_value=365),
             ) as mock_upsert,
         ):
-            written = await trade_calendar_service.regenerate_from_sina(
-                session, [2026]
-            )
+            written = await trade_calendar_service.regenerate_from_sina(session, [2026])
         assert written == 365
         rows = mock_upsert.await_args.args[1]
         assert len(rows) == 365
@@ -268,9 +283,7 @@ class TestRegenerateFromSina:
     async def test_default_years_are_current_and_next(self) -> None:
         session = AsyncMock()
         with (
-            patch.object(
-                trade_calendar_service, "today_cn", lambda: date(2026, 9, 25)
-            ),
+            patch.object(trade_calendar_service, "today_cn", lambda: date(2026, 9, 25)),
             patch.object(
                 trade_calendar_service,
                 "_fetch_sina_trade_dates",
@@ -297,9 +310,7 @@ class TestRegenerateFromSina:
             AsyncMock(side_effect=BadRequestError("新浪交易日历返回为空")),
         ):
             with pytest.raises(BadRequestError):
-                await trade_calendar_service.regenerate_from_sina(
-                    AsyncMock(), [2026]
-                )
+                await trade_calendar_service.regenerate_from_sina(AsyncMock(), [2026])
 
 
 @pytest.mark.unit
@@ -313,9 +324,7 @@ class TestResolveLatestTradeDate:
                 trade_calendar_service, "fetch_max_daily_date", AsyncMock(return_value=None)
             ),
         ):
-            assert await market_service.resolve_latest_trade_date(session) == (
-                today_cn()
-            )
+            assert await market_service.resolve_latest_trade_date(session) == (today_cn())
 
     @pytest.mark.asyncio
     async def test_intraday_returns_today_when_breadth_exists(self) -> None:
@@ -348,9 +357,7 @@ class TestResolveLatestTradeDate:
                 AsyncMock(return_value=kline_max),
             ),
         ):
-            assert await market_service.resolve_latest_trade_date(session) == (
-                kline_max
-            )
+            assert await market_service.resolve_latest_trade_date(session) == (kline_max)
 
 
 @pytest.mark.unit
@@ -359,9 +366,7 @@ class TestIsTradingDay:
     async def test_weekend_is_not_trading_day(self) -> None:
         session = AsyncMock()
         with _no_calendar():
-            assert await market_service.is_trading_day(
-                session, date(2026, 7, 19)
-            ) is False  # 周日
+            assert await market_service.is_trading_day(session, date(2026, 7, 19)) is False  # 周日
 
     @pytest.mark.asyncio
     async def test_past_day_with_kline_bar(self) -> None:
@@ -373,13 +378,9 @@ class TestIsTradingDay:
                 "fetch_max_daily_date",
                 AsyncMock(return_value=date(2026, 7, 17)),
             ),
-            patch.object(
-                trade_calendar_service, "has_daily_bar", AsyncMock(return_value=True)
-            ),
+            patch.object(trade_calendar_service, "has_daily_bar", AsyncMock(return_value=True)),
         ):
-            assert await market_service.is_trading_day(
-                session, date(2026, 7, 17)
-            ) is True
+            assert await market_service.is_trading_day(session, date(2026, 7, 17)) is True
 
     @pytest.mark.asyncio
     async def test_past_day_without_kline_bar_is_holiday(self) -> None:
@@ -391,13 +392,9 @@ class TestIsTradingDay:
                 "fetch_max_daily_date",
                 AsyncMock(return_value=date(2026, 7, 17)),
             ),
-            patch.object(
-                trade_calendar_service, "has_daily_bar", AsyncMock(return_value=False)
-            ),
+            patch.object(trade_calendar_service, "has_daily_bar", AsyncMock(return_value=False)),
         ):
-            assert await market_service.is_trading_day(
-                session, date(2026, 7, 16)
-            ) is False
+            assert await market_service.is_trading_day(session, date(2026, 7, 16)) is False
 
     @pytest.mark.asyncio
     async def test_future_weekday_after_kline_max_allowed(self) -> None:
@@ -410,9 +407,24 @@ class TestIsTradingDay:
                 AsyncMock(return_value=date(2026, 7, 17)),
             ),
         ):
-            assert await market_service.is_trading_day(
-                session, date(2026, 7, 20)
-            ) is True
+            assert await market_service.is_trading_day(session, date(2026, 7, 20)) is True
+
+    @pytest.mark.asyncio
+    async def test_hk_weekday_uncovered_passes_without_kline(self) -> None:
+        """港股无覆盖行的工作日放行，且不查 A 股指数日 K 兜底。"""
+        session = AsyncMock()
+        with (
+            _no_calendar(),
+            patch.object(
+                trade_calendar_service,
+                "fetch_max_daily_date",
+                AsyncMock(return_value=date(2026, 7, 17)),
+            ) as mock_kline,
+        ):
+            assert (
+                await market_service.is_trading_day(session, date(2026, 7, 20), market="hk") is True
+            )
+        mock_kline.assert_not_awaited()
 
 
 @pytest.mark.unit
@@ -425,9 +437,7 @@ class TestResolveDefaultViewDate:
         session = AsyncMock()
         with (
             _no_calendar(),
-            patch.object(
-                trade_calendar_service, "today_cn", lambda: date(2026, 7, 17)
-            ),
+            patch.object(trade_calendar_service, "today_cn", lambda: date(2026, 7, 17)),
             patch.object(
                 trade_calendar_service,
                 "fetch_max_daily_date",
@@ -443,9 +453,7 @@ class TestResolveDefaultViewDate:
         session = AsyncMock()
         with (
             _no_calendar(),
-            patch.object(
-                trade_calendar_service, "today_cn", lambda: date(2026, 7, 18)
-            ),
+            patch.object(trade_calendar_service, "today_cn", lambda: date(2026, 7, 18)),
             patch.object(
                 trade_calendar_service,
                 "fetch_max_daily_date_on_or_before",
@@ -462,17 +470,13 @@ class TestResolveDefaultViewDate:
         session = AsyncMock()
         with (
             _no_calendar(),
-            patch.object(
-                trade_calendar_service, "today_cn", lambda: date(2026, 7, 17)
-            ),
+            patch.object(trade_calendar_service, "today_cn", lambda: date(2026, 7, 17)),
             patch.object(
                 trade_calendar_service,
                 "fetch_max_daily_date",
                 AsyncMock(return_value=date(2026, 7, 17)),
             ),
-            patch.object(
-                trade_calendar_service, "has_daily_bar", AsyncMock(return_value=True)
-            ),
+            patch.object(trade_calendar_service, "has_daily_bar", AsyncMock(return_value=True)),
         ):
             assert await trade_calendar_service.resolve_default_view_date(session) == (
                 date(2026, 7, 17)

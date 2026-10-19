@@ -1,7 +1,8 @@
 """collector runtime runner 契约测试（统一执行入口与日志落库）。"""
 
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import date, datetime, timezone
+from types import SimpleNamespace
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -21,9 +22,7 @@ from collector.runtime.runner import (
 
 def _noop_precheck():
     """既有 run_task 用例统一旁路预检（预检行为在 TestTradeDayPrecheck 单测）。"""
-    return patch(
-        "collector.runtime.runner._precheck_trade_day", AsyncMock(return_value=None)
-    )
+    return patch("collector.runtime.runner._precheck_trade_day", AsyncMock(return_value=None))
 
 
 def _make_result() -> CollectResult:
@@ -116,15 +115,9 @@ class TestRunTask:
 
         with (
             precheck,
-            patch(
-                "collector.runtime.runner.TASK_MAP", {"financial-report": mock_task}
-            ),
-            patch(
-                "collector.runtime.runner._create_running_row", AsyncMock(return_value=55)
-            ),
-            patch(
-                "collector.runtime.runner._persist_result", AsyncMock()
-            ) as mock_persist,
+            patch("collector.runtime.runner.TASK_MAP", {"financial-report": mock_task}),
+            patch("collector.runtime.runner._create_running_row", AsyncMock(return_value=55)),
+            patch("collector.runtime.runner._persist_result", AsyncMock()) as mock_persist,
         ):
             outcome = await run_task({"task": "financial-report", "log_id": None})
 
@@ -154,12 +147,8 @@ class TestRunTask:
                 "collector.runtime.runner.TASK_MAP",
                 {"financial-report": AsyncMock(return_value=result)},
             ),
-            patch(
-                "collector.runtime.runner._mark_running", AsyncMock()
-            ) as mock_running,
-            patch(
-                "collector.runtime.runner._create_running_row", AsyncMock()
-            ) as mock_create,
+            patch("collector.runtime.runner._mark_running", AsyncMock()) as mock_running,
+            patch("collector.runtime.runner._create_running_row", AsyncMock()) as mock_create,
             patch("collector.runtime.runner._persist_result", AsyncMock()),
         ):
             await run_task({"task": "financial-report", "log_id": 7})
@@ -174,13 +163,14 @@ class TestRunTask:
         precheck = _noop_precheck()
         with (
             precheck,
-            patch("collector.runtime.runner.TASK_MAP", {"financial-report": AsyncMock(return_value=result)}),
+            patch(
+                "collector.runtime.runner.TASK_MAP",
+                {"financial-report": AsyncMock(return_value=result)},
+            ),
             patch(
                 "collector.runtime.runner._create_running_row", AsyncMock(return_value=66)
             ) as mock_create,
-            patch(
-                "collector.runtime.runner._persist_result", AsyncMock()
-            ) as mock_persist,
+            patch("collector.runtime.runner._persist_result", AsyncMock()) as mock_persist,
         ):
             await run_task({"task": "financial-report", "log_id": None})
 
@@ -189,9 +179,7 @@ class TestRunTask:
 
     @pytest.mark.asyncio
     async def test_unknown_task_raises_and_persists_error(self) -> None:
-        with patch(
-            "collector.runtime.runner._persist_error", AsyncMock()
-        ) as mock_error:
+        with patch("collector.runtime.runner._persist_error", AsyncMock()) as mock_error:
             with pytest.raises(ValueError, match="Unknown task"):
                 await run_task({"task": "nope", "log_id": 9})
 
@@ -219,9 +207,7 @@ class TestCreateRunningRow:
                 __aexit__=AsyncMock(return_value=None),
             )
         )
-        with patch(
-            "collector.runtime.runner.AsyncSessionLocal", factory
-        ):
+        with patch("collector.runtime.runner.AsyncSessionLocal", factory):
             await _create_running_row("sector-anomaly", None)
 
         mock_session.add.assert_called_once()
@@ -242,9 +228,7 @@ class TestCreateRunningRow:
                 __aexit__=AsyncMock(return_value=None),
             )
         )
-        with patch(
-            "collector.runtime.runner.AsyncSessionLocal", factory
-        ):
+        with patch("collector.runtime.runner.AsyncSessionLocal", factory):
             log_id = await _create_running_row("sector-anomaly", "abc-123")
 
         assert log_id == 42
@@ -282,12 +266,8 @@ class TestLogPersistence:
             )
         )
 
-        with patch(
-            "collector.runtime.runner.AsyncSessionLocal", session_factory
-        ):
-            await _persist_result(
-                "financial-report", 1, None, "abcd1234", _make_result()
-            )
+        with patch("collector.runtime.runner.AsyncSessionLocal", session_factory):
+            await _persist_result("financial-report", 1, None, "abcd1234", _make_result())
 
         assert mock_log.status == "success"
         assert mock_log.source == "cninfo"
@@ -306,12 +286,8 @@ class TestLogPersistence:
             )
         )
 
-        with patch(
-            "collector.runtime.runner.AsyncSessionLocal", session_factory
-        ):
-            await _persist_result(
-                "financial-report", None, None, "abcd1234", _make_result()
-            )
+        with patch("collector.runtime.runner.AsyncSessionLocal", session_factory):
+            await _persist_result("financial-report", None, None, "abcd1234", _make_result())
 
         mock_session.add.assert_called_once()
         added = mock_session.add.call_args.args[0]
@@ -358,10 +334,15 @@ class TestLogPersistence:
         assert len(mock_log.error_msg) <= _ERROR_MSG_MAX_LEN
 
 
-def _mock_precheck_session(trade_day_only: bool | None) -> MagicMock:
+def _mock_precheck_session(trade_day_only: bool | None, market: str = "cn") -> MagicMock:
     mock_session = AsyncMock()
     result = MagicMock()
-    result.scalar_one_or_none.return_value = trade_day_only
+    row = (
+        None
+        if trade_day_only is None
+        else SimpleNamespace(trade_day_only=trade_day_only, market=market)
+    )
+    result.first.return_value = row
     mock_session.execute.return_value = result
     return MagicMock(
         return_value=AsyncMock(
@@ -383,43 +364,46 @@ class TestTradeDayPrecheck:
         verdict: str,
         params: dict | None = None,
         kwargs: dict | None = None,
-    ) -> CollectResult | None:
+        market: str = "cn",
+    ) -> tuple[CollectResult | None, AsyncMock]:
+        classify_mock = AsyncMock(return_value=verdict)
         with (
             patch(
                 "collector.runtime.runner.AsyncSessionLocal",
-                _mock_precheck_session(trade_day_only),
+                _mock_precheck_session(trade_day_only, market),
             ),
             patch(
                 "collector.runtime.runner.classify_schedule_day",
-                AsyncMock(return_value=verdict),
+                classify_mock,
             ),
             patch(
                 "collector.runtime.runner.today_cn",
                 lambda: datetime(2026, 9, 25).date(),  # 周五
             ),
         ):
-            return await _precheck_trade_day(
+            result = await _precheck_trade_day(
                 params or {"preferred_source": "ths"},
                 kwargs or {},
                 self._SPEC,
                 "ths_kline_daily",
             )
+        return result, classify_mock
 
     @pytest.mark.asyncio
     async def test_not_trade_day_only_passes(self) -> None:
-        assert await self._run_precheck(False, "non_trading") is None
+        assert (await self._run_precheck(False, "non_trading"))[0] is None
 
     @pytest.mark.asyncio
     async def test_no_task_row_passes(self) -> None:
-        assert await self._run_precheck(None, "trading") is None
+        assert (await self._run_precheck(None, "trading"))[0] is None
 
     @pytest.mark.asyncio
     async def test_trading_day_passes(self) -> None:
-        assert await self._run_precheck(True, "trading") is None
+        assert (await self._run_precheck(True, "trading"))[0] is None
 
     @pytest.mark.asyncio
     async def test_non_trading_day_skips_with_message(self) -> None:
-        result = await self._run_precheck(True, "non_trading")
+        result, _ = await self._run_precheck(True, "non_trading")
         assert result is not None
         assert result.status == CollectStatus.SKIPPED
         assert result.message is not None and "非交易日" in result.message
@@ -429,16 +413,26 @@ class TestTradeDayPrecheck:
     @pytest.mark.asyncio
     async def test_unknown_calendar_skips_with_calendar_message(self) -> None:
         """D5：日历未覆盖拒绝调度，message 注明（不静默回退周末启发）。"""
-        result = await self._run_precheck(True, "unknown")
+        result, _ = await self._run_precheck(True, "unknown")
         assert result is not None
         assert result.status == CollectStatus.SKIPPED
         assert result.message is not None and "未覆盖" in result.message
 
     @pytest.mark.asyncio
+    async def test_cn_task_classifies_cn_calendar(self) -> None:
+        """缺省 market='cn'：按 A 股日历预检。"""
+        _, classify_mock = await self._run_precheck(True, "trading")
+        classify_mock.assert_awaited_once_with(ANY, date(2026, 9, 25), market="cn")
+
+    @pytest.mark.asyncio
+    async def test_hk_task_classifies_hk_calendar(self) -> None:
+        """market='hk' 任务（如 hk-kline）：按港股日历预检。"""
+        _, classify_mock = await self._run_precheck(True, "trading", market="hk")
+        classify_mock.assert_awaited_once_with(ANY, date(2026, 9, 25), market="hk")
+
+    @pytest.mark.asyncio
     async def test_explicit_trade_date_exempts_without_db(self) -> None:
-        with patch(
-            "collector.runtime.runner.AsyncSessionLocal"
-        ) as mock_factory:
+        with patch("collector.runtime.runner.AsyncSessionLocal") as mock_factory:
             result = await _precheck_trade_day(
                 {}, {"trade_date": "2026-09-25"}, self._SPEC, "ths_kline_daily"
             )
@@ -447,7 +441,7 @@ class TestTradeDayPrecheck:
 
     @pytest.mark.asyncio
     async def test_explicit_backfill_range_exempts(self) -> None:
-        result = await self._run_precheck(
+        result, _ = await self._run_precheck(
             True,
             "non_trading",
             kwargs={"start_date": "2026-09-01", "end_date": "2026-09-20"},
@@ -458,9 +452,7 @@ class TestTradeDayPrecheck:
     async def test_symbols_backfill_exempts_without_db(self) -> None:
         """显式 symbols = 手动指定标的补采，豁免（周末 agent/自选股补个股 K 线
         不被拦截；定时运行结构上无 symbols，豁免不波及定时任务）。"""
-        with patch(
-            "collector.runtime.runner.AsyncSessionLocal"
-        ) as mock_factory:
+        with patch("collector.runtime.runner.AsyncSessionLocal") as mock_factory:
             result = await _precheck_trade_day(
                 {}, {"symbols": ["601595"]}, self._SPEC, "ths_kline_daily"
             )
@@ -470,9 +462,7 @@ class TestTradeDayPrecheck:
     @pytest.mark.asyncio
     async def test_empty_symbols_still_prechecks(self) -> None:
         """空 symbols 不豁免：定时增量形状仍按交易日预检拦截。"""
-        result = await self._run_precheck(
-            True, "non_trading", kwargs={"symbols": []}
-        )
+        result, _ = await self._run_precheck(True, "non_trading", kwargs={"symbols": []})
         assert result is not None
         assert result.status == CollectStatus.SKIPPED
 
@@ -520,9 +510,7 @@ class TestTradeDayPrecheck:
                 "collector.runtime.runner._create_running_row",
                 AsyncMock(return_value=77),
             ),
-            patch(
-                "collector.runtime.runner._persist_result", AsyncMock()
-            ) as mock_persist,
+            patch("collector.runtime.runner._persist_result", AsyncMock()) as mock_persist,
             patch("collector.runtime.runner.TASK_MAP", {"kline": mock_task}),
         ):
             outcome = await run_task({"task": "kline", "log_id": None})

@@ -22,15 +22,10 @@ class CollectorTask(Base):
     schedule: Mapped[str | None] = mapped_column(String(100), nullable=True)
     queue: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    trade_day_only: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False
-    )
-    last_run_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    last_status: Mapped[str] = mapped_column(
-        String(20), default="pending", nullable=False
-    )
+    trade_day_only: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    market: Mapped[str] = mapped_column(String(4), default="cn", nullable=False)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False

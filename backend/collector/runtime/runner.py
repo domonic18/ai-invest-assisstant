@@ -97,9 +97,7 @@ async def run_task(params: dict[str, Any]) -> CollectResult:
             TASK_MAP.get(task_name),
         )
         if coro is None:
-            raise ValueError(
-                f"Unknown task: {task_name}. Available: {list(TASK_MAP.keys())}"
-            )
+            raise ValueError(f"Unknown task: {task_name}. Available: {list(TASK_MAP.keys())}")
 
         if log_id is not None:
             await _mark_running(log_id)
@@ -118,9 +116,7 @@ async def run_task(params: dict[str, Any]) -> CollectResult:
         spec = TASK_SPECS.get(task_name)
         skipped = await _precheck_trade_day(params, kwargs, spec, task_name)
         if skipped is not None:
-            await _persist_result(
-                task_name, log_id, celery_task_id, task_run_id, skipped
-            )
+            await _persist_result(task_name, log_id, celery_task_id, task_run_id, skipped)
             logger.info(
                 "collector_task_finished",
                 status=skipped.status.value,
@@ -168,7 +164,9 @@ async def _precheck_trade_day(
     - 显式 symbols（非空）= 手动指定标的补采，豁免——采集器拉取「最近 N 根」
       与当日是否交易日无关；定时运行结构上不携带 symbols（collector_task
       表无参数列，beat 只传任务名），豁免不会波及定时任务；
-    - 日历未覆盖当日（unknown）同样拒绝并注明（D5：不静默回退周末启发）。
+    - 日历未覆盖当日（unknown）同样拒绝并注明（D5：不静默回退周末启发）；
+    - 预检日历按任务 market 维度（collector_task.market，缺省 cn）：hk 任务
+      查港股日历（HKEX 官方休市日种子），A/H 假日互不一致。
     """
     if _EXPLICIT_DATE_PARAM_KEYS.intersection(kwargs):
         return None
@@ -176,9 +174,9 @@ async def _precheck_trade_day(
         return None
     lookup_name = params.get("task_name") or task_name
     async with AsyncSessionLocal() as session:
-        trade_day_only = (
+        row = (
             await session.execute(
-                select(CollectorTask.trade_day_only)
+                select(CollectorTask.trade_day_only, CollectorTask.market)
                 .where(
                     or_(
                         CollectorTask.task_name == lookup_name,
@@ -187,10 +185,11 @@ async def _precheck_trade_day(
                 )
                 .limit(1)
             )
-        ).scalar_one_or_none()
-        if not trade_day_only:
+        ).first()
+        if row is None or not row.trade_day_only:
             return None
-        verdict = await classify_schedule_day(session, today_cn())
+        # market='hk' 任务按港股日历预检（A/H 假日不同：圣诞/复活节/重阳等）
+        verdict = await classify_schedule_day(session, today_cn(), market=row.market or "cn")
     if verdict == SCHEDULE_TRADING:
         return None
     message = (
@@ -198,9 +197,7 @@ async def _precheck_trade_day(
         if verdict == SCHEDULE_NON_TRADING
         else "交易日历未覆盖当日，拒绝调度（请在后台重新生成交易日历）"
     )
-    logger.warning(
-        "collector_task_precheck_skipped", task=task_name, verdict=verdict
-    )
+    logger.warning("collector_task_precheck_skipped", task=task_name, verdict=verdict)
     return CollectResult(
         source=params.get("preferred_source") or "internal",
         data_type=spec.data_type if spec is not None else "unknown",
@@ -220,9 +217,7 @@ async def _create_running_row(task_name: str, celery_task_id: str | None) -> int
     async with AsyncSessionLocal() as session:
         if celery_task_id is not None:
             existing_id = await session.scalar(
-                select(CollectorLog.id).where(
-                    CollectorLog.celery_task_id == celery_task_id
-                )
+                select(CollectorLog.id).where(CollectorLog.celery_task_id == celery_task_id)
             )
             if existing_id is not None:
                 log = await session.get(CollectorLog, existing_id)
@@ -292,7 +287,11 @@ async def _persist_result(
                     error_msg=_truncate(error_msg) if error_msg else None,
                     message=result.message,
                     celery_task_id=celery_task_id,
-                    meta={**(result.metadata or {}), "task_run_id": task_run_id, "celery_task_id": celery_task_id},
+                    meta={
+                        **(result.metadata or {}),
+                        "task_run_id": task_run_id,
+                        "celery_task_id": celery_task_id,
+                    },
                 )
             )
         await session.commit()

@@ -67,22 +67,28 @@ async def resolve_default_view_date(session: AsyncSession) -> date:
     return await resolve_trade_date_on_or_before(session, today)
 
 
-async def is_trading_day(session: AsyncSession, day: date) -> bool:
-    """判断交易日：日历行权威；无覆盖回退指数日 K 推断（近期工作日放行）。"""
-    row = await trade_calendar_repository.get_one(session, day)
+async def is_trading_day(session: AsyncSession, day: date, market: str = "cn") -> bool:
+    """判断交易日：日历行权威；无覆盖回退指数日 K 推断（近期工作日放行）。
+
+    指数日 K 兜底仅对 A 股成立；港股无覆盖时按工作日放行（种子覆盖
+    2026/2027 全年，缺行只发生在种子未续的远期日期）。
+    """
+    row = await trade_calendar_repository.get_one(session, day, market)
     if row is not None:
         return row.is_trading
     if day.weekday() >= 5:
         return False
+    if market != "cn":
+        return True
     kline_max = await fetch_max_daily_date(session, _INDEX_BENCHMARK)
     if kline_max is None or day > kline_max:
         return True
     return await has_daily_bar(session, _INDEX_BENCHMARK, day)
 
 
-async def classify_schedule_day(session: AsyncSession, day: date) -> str:
+async def classify_schedule_day(session: AsyncSession, day: date, market: str = "cn") -> str:
     """调度预检口径：DB 日历行为权威，无行返回 unknown（拒绝调度，不静默回退周末启发）。"""
-    row = await trade_calendar_repository.get_one(session, day)
+    row = await trade_calendar_repository.get_one(session, day, market)
     if row is None:
         return SCHEDULE_UNKNOWN
     return SCHEDULE_TRADING if row.is_trading else SCHEDULE_NON_TRADING
@@ -94,9 +100,7 @@ async def next_trading_day(session: AsyncSession, day: date) -> date | None:
     return row.calendar_date if row is not None else None
 
 
-async def regenerate_from_sina(
-    session: AsyncSession, years: list[int] | None = None
-) -> int:
+async def regenerate_from_sina(session: AsyncSession, years: list[int] | None = None) -> int:
     """用新浪交易日历重建种子行（覆盖整年，含周末；人工覆盖行不回改）。
 
     Args:
@@ -118,7 +122,11 @@ async def regenerate_from_sina(
         day = date(year, 1, 1)
         while day <= date(year, 12, 31):
             rows.append(
-                {"calendar_date": day, "is_trading": day in trading_dates}
+                {
+                    "calendar_date": day,
+                    "market": "cn",
+                    "is_trading": day in trading_dates,
+                }
             )
             day += timedelta(days=1)
     written = await trade_calendar_repository.upsert_seed_rows(session, rows)
@@ -132,13 +140,14 @@ async def set_day_manual(
     day: date,
     is_trading: bool,
     remark: str | None = None,
+    market: str = "cn",
 ) -> Any:
     """人工覆盖单日日历口径（限今天及未来，防历史口径篡改），返回覆盖后的行。"""
 
     if day < today_cn():
         raise BadRequestError("不可修改历史日期的日历口径")
     row = await trade_calendar_repository.upsert_manual_day(
-        session, day, is_trading, remark
+        session, day, is_trading, remark, market
     )
     await session.commit()
     return row
