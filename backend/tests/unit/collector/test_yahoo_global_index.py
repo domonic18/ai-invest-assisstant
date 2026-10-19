@@ -93,16 +93,16 @@ class TestYahooGlobalIndex:
     async def test_symbols_registry_subset(self) -> None:
         """回填清单必须都登记在 GLOBAL_INDEX_CODES，避免落库孤儿 code。"""
         assert set(YAHOO_SYMBOLS) <= set(GLOBAL_INDEX_CODES)
-        # 只覆盖非 tushare/mof 源的指标：GC00Y 历史仍走东财任务的 akshare 路、
-        # 美债走 tushare；USDCNH Yahoo 仅当日 1 bar 无历史，不回填。
-        # DXY 因东财 push2his 被 WAF 断连，历史自 2026-10 移交本清单
-        assert "GC00Y" not in YAHOO_SYMBOLS
+        # 只覆盖非 tushare/mof 源的指标：美债走 tushare；USDCNH Yahoo 仅当日
+        # 1 bar 无历史，不回填。GC00Y 自 2026-10 走 GC=F 兜底（EM push2delay
+        # 被封时黄金仍有日线）；DXY 因东财 push2his 被 WAF 断连，历史移交本清单
         assert "US10Y" not in YAHOO_SYMBOLS
         assert "US30Y" not in YAHOO_SYMBOLS
         assert "USDCNH" not in YAHOO_SYMBOLS
         assert YAHOO_SYMBOLS["SPX"] == "^GSPC"
         assert YAHOO_SYMBOLS["DXY"] == "DX-Y.NYB"
         assert YAHOO_SYMBOLS["USDCNY"] == "USDCNY=X"
+        assert YAHOO_SYMBOLS["GC00Y"] == "GC=F"
         assert YAHOO_SYMBOLS["B00Y"] == "BZ=F"
 
     async def test_collect_empty_result_skips(self) -> None:
