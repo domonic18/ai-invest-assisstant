@@ -13,6 +13,7 @@ from typing import Any, Literal
 import structlog
 
 from collector.core.base import BaseCollector, CollectResult, CollectStatus
+from collector.core.http_client import set_default_proxy
 from collector.runtime.resolver import resolve_channels_for_task
 from collector.runtime.specs import ALL_SPECS
 from collector.runtime.specs.base import TaskSpec
@@ -94,9 +95,7 @@ async def _resolve_task_channels(
     from app.core.database import AsyncSessionLocal
 
     async with AsyncSessionLocal() as session:
-        channels = await resolve_channels_for_task(
-            session, task_name, preferred_source
-        )
+        channels = await resolve_channels_for_task(session, task_name, preferred_source)
         resolved: list[tuple[str, dict[str, Any]]] = []
         for channel in channels:
             config: dict[str, Any] = {
@@ -138,9 +137,7 @@ async def _run_collector_for_task(
     for source, channel_config in candidates:
         collector_class = collector_map.get(source)
         if collector_class is None:
-            attempt_errors.append(
-                f"[{source}] 渠道没有任务 {task_name} 对应的采集器"
-            )
+            attempt_errors.append(f"[{source}] 渠道没有任务 {task_name} 对应的采集器")
             continue
 
         config: dict[str, Any] = {
@@ -149,6 +146,9 @@ async def _run_collector_for_task(
             **channel_config,
             **(extra_config or {}),
         }
+        # 渠道绑定的代理注入为进程级默认：渠道被 WAF 按 IP 封禁时绑定
+        # 代理即可整体切换出口；每个候选执行前重置，避免跨渠道串用
+        set_default_proxy(channel_config.get("proxy_url"))
         collector = collector_class(config)
         result = await collector.run(
             symbols=symbols, collector_log_id=collector_log_id, **run_kwargs
@@ -201,11 +201,7 @@ def _make_task_entry(
             **spec.defaults,
             **{key: value for key, value in params.items() if value is not None},
         }
-        data_type = (
-            spec.data_type.format(**resolved)
-            if "{" in spec.data_type
-            else spec.data_type
-        )
+        data_type = spec.data_type.format(**resolved) if "{" in spec.data_type else spec.data_type
         extra_config = {key: resolved.get(key) for key in spec.config_params} or None
 
         run_kwargs: dict[str, Any] = {}

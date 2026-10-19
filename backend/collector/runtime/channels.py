@@ -47,6 +47,7 @@ DEFAULT_CHANNELS: list[dict[str, Any]] = [
             "etf-kline",
             "a50-kline",
             "hk-quote",
+            "hk-kline",
         ],
         "extra": {},
     },
@@ -171,9 +172,7 @@ async def seed_default_channels(session: AsyncSession) -> None:
 
     existing = {
         row.source: row
-        for row in (
-            await session.execute(select(CollectorChannelConfig))
-        ).scalars().all()
+        for row in (await session.execute(select(CollectorChannelConfig))).scalars().all()
     }
     inserted = 0
     updated = 0
@@ -208,16 +207,22 @@ async def seed_default_channels(session: AsyncSession) -> None:
 
     await _seed_data_type_associations(session)
 
-    logger.info(
-        "collector_default_channels_seeded", inserted=inserted, updated=updated
-    )
+    logger.info("collector_default_channels_seeded", inserted=inserted, updated=updated)
+
+
+# 个别数据类型的主备优先级与渠道声明序不一致时在此覆盖（source → priority），
+# 与 20261019b 迁移保持一致；仅作用于种子新建行，已存在行不回写（管理员
+# 自定义优先级仍受保护）。
+_DATA_TYPE_PRIORITY_OVERRIDES: dict[str, dict[str, int]] = {
+    "hk-kline": {"eastmoney": 1, "sina": 2},
+}
 
 
 async def _seed_data_type_associations(session: AsyncSession) -> None:
     """为默认渠道播种渠道-数据类型优先级行。
 
-    priority 取 DEFAULT_CHANNELS 声明序号；已存在的关联行跳过，不覆盖管理员
-    在后台自定义的优先级。
+    priority 取 DEFAULT_CHANNELS 声明序号（``_DATA_TYPE_PRIORITY_OVERRIDES``
+    可按类型覆盖）；已存在的关联行跳过，不覆盖管理员在后台自定义的优先级。
     """
     from sqlalchemy import select
 
@@ -226,15 +231,11 @@ async def _seed_data_type_associations(session: AsyncSession) -> None:
 
     channels = {
         row.source: row
-        for row in (
-            await session.execute(select(CollectorChannelConfig))
-        ).scalars().all()
+        for row in (await session.execute(select(CollectorChannelConfig))).scalars().all()
     }
     existing_keys = {
         (row.channel_id, row.data_type)
-        for row in (
-            await session.execute(select(CollectorChannelDataType))
-        ).scalars().all()
+        for row in (await session.execute(select(CollectorChannelDataType))).scalars().all()
     }
     added = 0
     for idx, data in enumerate(DEFAULT_CHANNELS, start=1):
@@ -244,9 +245,10 @@ async def _seed_data_type_associations(session: AsyncSession) -> None:
         for data_type in data.get("supported_data_types", []):
             if (channel.id, data_type) in existing_keys:
                 continue
+            priority = _DATA_TYPE_PRIORITY_OVERRIDES.get(data_type, {}).get(data["source"], idx)
             session.add(
                 CollectorChannelDataType(
-                    channel_id=channel.id, data_type=data_type, priority=idx
+                    channel_id=channel.id, data_type=data_type, priority=priority
                 )
             )
             added += 1
@@ -255,9 +257,7 @@ async def _seed_data_type_associations(session: AsyncSession) -> None:
     logger.info("collector_channel_data_types_seeded", added=added)
 
 
-async def get_channel_config(
-    session: AsyncSession, sources: list[str]
-) -> ChannelConfig | None:
+async def get_channel_config(session: AsyncSession, sources: list[str]) -> ChannelConfig | None:
     """返回 ``sources`` 中第一个已启用的渠道配置。
 
     ``sources`` 应按偏好排序。若列表中的 source 都未启用或未配置，返回
