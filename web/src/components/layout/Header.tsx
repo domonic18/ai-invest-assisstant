@@ -1,7 +1,8 @@
-import { LogoutOutlined, MenuOutlined, MessageOutlined, SettingOutlined, UserOutlined, FilterOutlined, BookOutlined, CalendarOutlined, BlockOutlined } from '@ant-design/icons'
-import { Avatar, Button, Dropdown, Space, Tooltip } from 'antd'
+import { LogoutOutlined, MenuOutlined, MessageOutlined, SettingOutlined, UserOutlined, FilterOutlined, BookOutlined, CalendarOutlined, BlockOutlined, SearchOutlined } from '@ant-design/icons'
+import { Avatar, Button, Drawer, Dropdown, Space, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 
 import { canAccessFeature } from '@ai-invest/shared'
 
@@ -19,6 +20,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const navigate = useNavigate()
   const { user, isAdmin, logout } = useAuthStore()
   const openPanel = useAssistantStore((state) => state.openPanel)
+  const [searchOpen, setSearchOpen] = useState(false)
 
   const handleLogout = () => {
     logout()
@@ -73,6 +75,13 @@ export function Header({ onMenuClick }: HeaderProps) {
           onClick={onMenuClick}
           className="md:!hidden text-gray-300"
           aria-label="打开导航菜单"
+        />
+        <Button
+          type="text"
+          icon={<SearchOutlined />}
+          onClick={() => setSearchOpen(true)}
+          className="md:!hidden text-gray-300"
+          aria-label="搜索股票"
         />
         <div className="hidden md:block">
           <StockSearch />
@@ -145,6 +154,16 @@ export function Header({ onMenuClick }: HeaderProps) {
           <Link to="/login">登录</Link>
         )}
       </Space>
+      <Drawer
+        placement="top"
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        height={72}
+        closable={false}
+        styles={{ body: { padding: '16px' } }}
+      >
+        <StockSearch fluid onNavigated={() => setSearchOpen(false)} />
+      </Drawer>
     </header>
   )
 }

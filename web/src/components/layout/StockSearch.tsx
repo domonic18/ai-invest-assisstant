@@ -5,8 +5,15 @@ import { useNavigate } from 'react-router-dom'
 
 import { useStockSearch } from '@/hooks/useStocks'
 
+interface StockSearchProps {
+  /** 输入框占满容器宽度（移动端搜索抽屉内使用），默认固定 260px。 */
+  fluid?: boolean
+  /** 选中股票跳转详情后回调（移动端抽屉关闭用）。 */
+  onNavigated?: () => void
+}
+
 /** 全局顶栏股票搜索（原型 header-search）：名称/代码模糊匹配，选中跳转个股详情。 */
-export function StockSearch() {
+export function StockSearch({ fluid = false, onNavigated }: StockSearchProps) {
   const navigate = useNavigate()
   const [keyword, setKeyword] = useState('')
   const [debounced, setDebounced] = useState('')
@@ -31,6 +38,7 @@ export function StockSearch() {
   const goStock = (code: string) => {
     navigate(`/stock/${code}`)
     setKeyword('')
+    onNavigated?.()
   }
 
   const handleSearch = () => {
@@ -44,15 +52,15 @@ export function StockSearch() {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className={`flex items-center gap-2 ${fluid ? 'w-full' : ''}`}>
       <AutoComplete
         value={keyword}
         options={options}
         filterOption={false}
         onChange={setKeyword}
         onSelect={goStock}
-        className="w-[260px]"
-        popupMatchSelectWidth={320}
+        className={fluid ? 'flex-1' : 'w-[260px]'}
+        popupMatchSelectWidth={fluid ? false : 320}
         notFoundContent={debounced && !isFetching ? '无匹配股票' : null}
       >
         <Input
