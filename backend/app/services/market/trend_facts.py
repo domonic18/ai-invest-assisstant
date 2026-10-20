@@ -1,9 +1,9 @@
 """趋势事实纯计算模块（温程趋势理论：量能不变，趋势不变，拐点确认必须量能配合）。
 
 从 ``index_technical_service._trend_summary`` 提取的事实层：给定升序日 K bars，
-产出结构化 ``TrendFacts``（通道归属 / 均线 / 量能 / 拐点 / 周线位置），供复盘
-文本渲染、异动检测与归因证据共用；文本渲染 ``trend_facts_summary`` 与提取前
-逐字节一致。
+产出结构化 ``TrendFacts``（通道归属 / 均线 / 量能 / 拐点 / 周线位置 / 四线开花），
+供复盘文本渲染、异动检测、归因证据与长线选股共用；文本渲染
+``trend_facts_summary`` 与提取前逐字节一致。
 
 周线门控（48集 18:14：日线/周线 M60 以下即便涨停也无参与意义）：收盘在周线
 MA60 之下时突破拐点不成立（turning_points 剔除 breakout）——日线的带量收复/
@@ -37,6 +37,24 @@ TURNING_SUPPORT_TEST = "support_test"
 TURNING_BREAKOUT = "breakout"
 TURNING_RISK_BREAK = "risk_break"
 
+# 四线开花（KB 知识点 2125/2128）：MA60>MA120>MA180>MA250 多头排列且发散，
+# 相邻均线间距低于该值（%）视为粘合未发散
+BLOSSOM_WINDOWS = (60, 120, 180, 250)
+BLOSSOM_GAP_PCT = 0.5
+
+
+@dataclass(frozen=True)
+class FourLineBlossom:
+    """日线四线开花判定结果（长线选股标准之一，纯数据无 I/O）。"""
+
+    applicable: bool  # False=日线不足 250 根（次新），不参与判定不误杀
+    bloomed: bool  # 多头排列 + 相邻间距 >= BLOSSOM_GAP_PCT%
+    ma60: float | None
+    ma120: float | None
+    ma180: float | None
+    ma250: float | None
+    min_gap_pct: float | None  # 相邻均线最小间距（%），发散度
+
 
 @dataclass(frozen=True)
 class TrendFacts:
@@ -58,6 +76,7 @@ class TrendFacts:
     broke_ma30: bool  # 今收 < MA30（未含量能确认）
     weekly_ma60: float | None = None  # 周线 MA60（不足 60 周为 None，次新股不门控）
     above_weekly_ma60: bool | None = None  # None=周线数据不足；False=周线 M60 之下
+    four_line_blossom: FourLineBlossom | None = None  # 日线四线开花判定
     turning_points: tuple[str, ...] = ()
 
     def has_turning(self, kind: str) -> bool:
@@ -130,6 +149,37 @@ def _empty_facts() -> TrendFacts:
     )
 
 
+def blossom_four_lines(closes: list[float]) -> FourLineBlossom:
+    """四线开花判定：MA60>MA120>MA180>MA250 且相邻均线发散（间距 >= BLOSSOM_GAP_PCT%）。
+
+    日线不足 250 根返回 applicable=False（次新股保留候选资格，仅不加分）。
+    """
+    if len(closes) < BLOSSOM_WINDOWS[-1]:
+        return FourLineBlossom(
+            applicable=False,
+            bloomed=False,
+            ma60=None,
+            ma120=None,
+            ma180=None,
+            ma250=None,
+            min_gap_pct=None,
+        )
+    # 长度守卫已保证各窗口均有值，绕过 _ma 的可空返回以便类型收窄
+    mas = [sum(closes[-w:]) / w for w in BLOSSOM_WINDOWS]
+    gaps = [(mas[i] - mas[i + 1]) / mas[i + 1] * 100 for i in range(len(mas) - 1)]
+    min_gap = min(gaps)
+    bloomed = all(g >= BLOSSOM_GAP_PCT for g in gaps)
+    return FourLineBlossom(
+        applicable=True,
+        bloomed=bloomed,
+        ma60=mas[0],
+        ma120=mas[1],
+        ma180=mas[2],
+        ma250=mas[3],
+        min_gap_pct=min_gap,
+    )
+
+
 def compute_trend_facts(bars: list[Bar]) -> TrendFacts:
     """从升序日 K bars 计算趋势事实。
 
@@ -169,25 +219,17 @@ def compute_trend_facts(bars: list[Bar]) -> TrendFacts:
     shrunk = is_floor or (vol_ratio is not None and vol_ratio <= VOL_SHRINK)
     surged = vol_ratio is not None and vol_ratio >= VOL_SURGE
 
-    new_20d_high = len(closes) > EXTREME_WINDOW and close > max(
-        closes[-EXTREME_WINDOW - 1 : -1]
-    )
-    new_20d_low = len(closes) > EXTREME_WINDOW and close < min(
-        closes[-EXTREME_WINDOW - 1 : -1]
-    )
+    new_20d_high = len(closes) > EXTREME_WINDOW and close > max(closes[-EXTREME_WINDOW - 1 : -1])
+    new_20d_low = len(closes) > EXTREME_WINDOW and close < min(closes[-EXTREME_WINDOW - 1 : -1])
 
     lows = [b["low"] for b in bars[-SUPPORT_WINDOW:-5] if b["low"] is not None]
     support = min(lows) if lows else None
     near_support = bool(
-        support
-        and close is not None
-        and abs(close - support) / support * 100 <= SUPPORT_NEAR_PCT
+        support and close is not None and abs(close - support) / support * 100 <= SUPPORT_NEAR_PCT
     )
 
     prev_close = closes[-2] if len(closes) >= 2 else None
-    reclaimed_ma30 = bool(
-        ma30 is not None and prev_close is not None and prev_close < ma30 < close
-    )
+    reclaimed_ma30 = bool(ma30 is not None and prev_close is not None and prev_close < ma30 < close)
     broke_ma30 = bool(ma30 is not None and close < ma30)
 
     # 周线位置（M60=主力建仓成本，周线 M60 为牛熊分界）：周收盘不足 60 周
@@ -197,6 +239,8 @@ def compute_trend_facts(bars: list[Bar]) -> TrendFacts:
     above_weekly: bool | None = None
     if close is not None and weekly_ma60 is not None:
         above_weekly = close > weekly_ma60
+
+    blossom = blossom_four_lines([float(c) for c in closes])
 
     # 拐点判定（量能确认，按概要出现顺序去重）：支撑=回踩 60 日支撑带+缩量；
     # 突破=带量收复 MA30 或带量创 20 日新高（未确认新高不成拐点，仅文本提示
@@ -232,6 +276,7 @@ def compute_trend_facts(bars: list[Bar]) -> TrendFacts:
         broke_ma30=broke_ma30,
         weekly_ma60=weekly_ma60,
         above_weekly_ma60=above_weekly,
+        four_line_blossom=blossom,
         turning_points=tuple(turning),
     )
 
@@ -246,10 +291,16 @@ def trend_facts_summary(facts: TrendFacts) -> str:
 
     signals: list[str] = []
 
-    if facts.support_price is not None and facts.channel in (
-        CHANNEL_DOWN,
-        CHANNEL_DAMPED,
-    ) and shrunk and facts.near_support:
+    if (
+        facts.support_price is not None
+        and facts.channel
+        in (
+            CHANNEL_DOWN,
+            CHANNEL_DAMPED,
+        )
+        and shrunk
+        and facts.near_support
+    ):
         if is_floor or vol_ratio is None:
             vol_desc = "20 日地量" if is_floor else "量能明显收缩"
         else:
@@ -264,14 +315,10 @@ def trend_facts_summary(facts: TrendFacts) -> str:
 
     if facts.new_20d_high:
         vol_part = f"量能配合（{vol_note}）" if surged else "量能未确认，留意假突破"
-        signals.append(
-            f"突破拐点：创 {EXTREME_WINDOW} 日新高（平台突破，{vol_part}）"
-        )
+        signals.append(f"突破拐点：创 {EXTREME_WINDOW} 日新高（平台突破，{vol_part}）")
 
     if facts.channel == CHANNEL_UP and facts.broke_ma30 and surged:
-        signals.append(
-            f"风险拐点：上升通道中放量跌破 MA30（{vol_note}），上升动能衰竭观察"
-        )
+        signals.append(f"风险拐点：上升通道中放量跌破 MA30（{vol_note}），上升动能衰竭观察")
 
     parts = [facts.channel, *(signals or ["暂无拐点信号"])]
     return "- 趋势概要：" + "；".join(parts)

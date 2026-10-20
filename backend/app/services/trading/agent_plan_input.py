@@ -46,11 +46,15 @@ _MEMORY_TOP_N = 20
 _ANCHOR_BAR_LIMIT = 6
 #: 新浪日 K 单标的现拉超时（秒）——超时按缺失处理，不阻塞计划生成
 _ANCHOR_FETCH_TIMEOUT_SECONDS = 30.0
+#: 长线三支柱：趋势筛选候选条数上限
+_LONG_TERM_TOP_N = 30
+#: 长线三支柱：产业链提醒（全行业合流）注入条数上限
+_CHAIN_ALERT_TOP_N = 10
+#: 长线三支柱：产业链提醒回看窗口（天）
+_CHAIN_ALERT_WINDOW_DAYS = 7
 
 
-async def _market_review_sections(
-    session: AsyncSession, trade_date: date
-) -> dict[str, Any]:
+async def _market_review_sections(session: AsyncSession, trade_date: date) -> dict[str, Any]:
     """当日复盘解读全文（就绪预检：缺失即输入未就绪，18:35 任务生成）。"""
     row = await ai_analysis_repository.load_latest_success(
         session, skill_id=MARKET_REVIEW_SKILL_ID, trade_date=trade_date
@@ -62,18 +66,14 @@ async def _market_review_sections(
     return row.structured_output
 
 
-async def _limit_up_attribution(
-    session: AsyncSession, trade_date: date
-) -> dict[str, Any] | None:
+async def _limit_up_attribution(session: AsyncSession, trade_date: date) -> dict[str, Any] | None:
     from app.services.review import limit_up_ai_service
 
     content = await limit_up_ai_service.get_cached_attribution(session, trade_date)
     return None if content is None else content.model_dump()
 
 
-async def _stock_anomalies(
-    session: AsyncSession, trade_date: date
-) -> list[dict[str, Any]]:
+async def _stock_anomalies(session: AsyncSession, trade_date: date) -> list[dict[str, Any]]:
     rows = (
         (
             await session.execute(
@@ -127,33 +127,25 @@ def _anchors_from_bars(bars: list[Any]) -> dict[str, Any] | None:
     return {
         "close": closes[-1],
         "prev_close": closes[-2] if len(closes) >= 2 else None,
-        "ma5": round(sum(closes[-5:]) / len(closes[-5:]), 4)
-        if len(closes) >= 5
-        else None,
+        "ma5": round(sum(closes[-5:]) / len(closes[-5:]), 4) if len(closes) >= 5 else None,
         "last_bar_date": bars[-1].trade_date.isoformat(),
     }
 
 
 def _anchor_from_rows(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     """现拉日 K 行（升序 dict）→ 价格锚点，形状同 ``_anchors_from_bars``。"""
-    closes = [
-        float(row["close"]) for row in rows if row.get("close") is not None
-    ]
+    closes = [float(row["close"]) for row in rows if row.get("close") is not None]
     if not closes:
         return None
     return {
         "close": closes[-1],
         "prev_close": closes[-2] if len(closes) >= 2 else None,
-        "ma5": round(sum(closes[-5:]) / len(closes[-5:]), 4)
-        if len(closes) >= 5
-        else None,
+        "ma5": round(sum(closes[-5:]) / len(closes[-5:]), 4) if len(closes) >= 5 else None,
         "last_bar_date": rows[-1]["trade_date"].isoformat(),
     }
 
 
-async def _fetch_and_store_sina_daily(
-    session: AsyncSession, code: str
-) -> list[dict[str, Any]]:
+async def _fetch_and_store_sina_daily(session: AsyncSession, code: str) -> list[dict[str, Any]]:
     """现拉新浪日 K 末 N 根并 upsert 落库（锚点兜底补数，顺手补采集缺口）。
 
     调用方捕获一切异常按缺失处理；单标的超时/源失败不阻塞计划生成。
@@ -219,9 +211,7 @@ async def _price_anchors(
         try:
             rows = await _fetch_and_store_sina_daily(session, code)
         except Exception as exc:  # noqa: BLE001 —— 兜底源失败按缺失处理
-            logger.warning(
-                "plan_anchor_fetch_failed", stock_code=code, error=str(exc)
-            )
+            logger.warning("plan_anchor_fetch_failed", stock_code=code, error=str(exc))
             continue
         if anchor := _anchor_from_rows(rows):
             anchors[code] = anchor
@@ -271,18 +261,14 @@ async def _local_positions(session: AsyncSession, account_id: int) -> list[dict[
         {
             "stock_code": code,
             "volume": int(item["volume"]),
-            "avg_cost": round(item["cost"] / item["volume"], 4)
-            if item["volume"] > 0
-            else None,
+            "avg_cost": round(item["cost"] / item["volume"], 4) if item["volume"] > 0 else None,
         }
         for code, item in sorted(agg.items())
         if item["volume"] > 0
     ]
 
 
-async def _active_memories(
-    session: AsyncSession, agent_key: str
-) -> list[dict[str, Any]]:
+async def _active_memories(session: AsyncSession, agent_key: str) -> list[dict[str, Any]]:
     """agent 经验记忆 active 条目（复盘沉淀 + 手动沉淀，停用条目不注入）。"""
     from sqlalchemy import text
 
@@ -306,6 +292,101 @@ async def _active_memories(
         # 记忆注入是可选增强，任何取数失败都降级为空集，不阻塞每日计划。
         return []
     return items
+
+
+async def _long_term_pillars(session: AsyncSession, trade_date: date) -> dict[str, Any]:
+    """长线三支柱输入（仅 weekly cadence agent 注入）。
+
+    支柱一趋势：全市场周度筛选 Top-N（周线 M60 硬门槛 + 技术面打分）；
+    支柱二基本面：逐只财务健康（未覆盖/异常降级 ``{"covered": false}``，
+    EM WAF 封锁下仅 23 只覆盖，解封后随采集扩面自动生效）；
+    支柱三图谱：按代码反查产业链节点属性 + 各行业近 7 天链上提醒合流截断。
+    """
+    from app.repositories.chain import chain_alert_repository
+    from app.repositories.chain.industry_chain_repository import (
+        get_mappings_by_codes,
+        list_refresh_targets,
+    )
+    from app.services.market.financial_service import get_health
+    from app.services.trading.long_term_screener import screen_long_term_candidates
+
+    candidates = await screen_long_term_candidates(session, trade_date, top_n=_LONG_TERM_TOP_N)
+    codes = [c["stock_code"] for c in candidates]
+
+    chain_by_code: dict[str, list[dict[str, Any]]] = {}
+    try:
+        for mapping, node in await get_mappings_by_codes(session, codes):
+            chain_by_code.setdefault(mapping.stock_code, []).append(
+                {
+                    "industry": node.industry,
+                    "node_name": node.node_name,
+                    "node_type": node.node_type,
+                    "chain_position": mapping.chain_position,
+                    "revenue_ratio": float(mapping.revenue_ratio)
+                    if mapping.revenue_ratio is not None
+                    else None,
+                    "avg_gross_margin": float(node.avg_gross_margin)
+                    if node.avg_gross_margin is not None
+                    else None,
+                    "revenue_growth": float(node.revenue_growth)
+                    if node.revenue_growth is not None
+                    else None,
+                    "bargaining_power": float(node.bargaining_power)
+                    if node.bargaining_power is not None
+                    else None,
+                    "localization_rate": float(node.localization_rate)
+                    if node.localization_rate is not None
+                    else None,
+                }
+            )
+    except Exception:
+        logger.warning("long_term_pillars: 产业链映射反查失败，按未覆盖处理", exc_info=True)
+    for c in candidates:
+        c["chain_position"] = chain_by_code.get(c["stock_code"])
+
+    alerts: list[dict[str, Any]] = []
+    try:
+        industries = await list_refresh_targets(session)
+    except Exception:
+        industries = []
+    for industry, _user_ids in industries:
+        try:
+            rows = await chain_alert_repository.list_alerts(
+                session, industry, days=_CHAIN_ALERT_WINDOW_DAYS
+            )
+        except Exception:
+            continue
+        alerts.extend(
+            {
+                "industry": r.industry,
+                "alert_type": r.alert_type,
+                "severity": r.severity,
+                "title": r.title,
+                "description": r.description,
+                "affected_segments": r.affected_segments or [],
+                "related_stock_codes": (r.related_stock_codes or [])[:5],
+                "signal_date": r.signal_date.isoformat(),
+            }
+            for r in rows
+        )
+    alerts.sort(key=lambda a: (a["severity"], a["signal_date"]), reverse=True)
+
+    for c in candidates:
+        try:
+            health = await get_health(session, c["stock_code"])
+        except Exception:
+            c["financial_health"] = {"covered": False}
+            continue
+        if health.report_date is None:
+            c["financial_health"] = {"covered": False}
+        else:
+            c["financial_health"] = {
+                "covered": True,
+                "report_date": health.report_date.isoformat(),
+                "metrics": health.metrics,
+            }
+
+    return {"candidates": candidates, "chain_alerts": alerts[:_CHAIN_ALERT_TOP_N]}
 
 
 async def collect_plan_input(
@@ -367,6 +448,7 @@ async def collect_plan_input(
 
     positions: list[dict[str, Any]] = []
     memories: list[dict[str, Any]] = []
+    long_term_pillars: dict[str, Any] | None = None
     async with (
         recorder.step(
             "input.context",
@@ -384,6 +466,19 @@ async def collect_plan_input(
         positions = await _local_positions(session, account_id)
         memories = await _active_memories(session, agent.agent_key)
 
+    # 长线三支柱（仅 weekly cadence）：候选并入锚点宇宙，无锚点同样剔除
+    if agent.plan_cadence == "weekly":
+        async with (
+            recorder.step(
+                "input.long_term_pillars",
+                "长线三支柱（趋势筛选+财务+图谱）",
+                payload_builder=lambda: {"pillars": long_term_pillars},
+            )
+            if recorder
+            else nullcontext()
+        ):
+            long_term_pillars = await _long_term_pillars(session, trade_date)
+
     # 价格锚点（治幻觉价格）：无锚点标的从异动清单剔除（禁止出计划的宇宙）
     anchors: dict[str, dict[str, Any]] = {}
     unanchored: list[str] = []
@@ -400,15 +495,27 @@ async def collect_plan_input(
         if recorder
         else nullcontext()
     ):
+        pillar_codes = [c["stock_code"] for c in (long_term_pillars or {}).get("candidates") or []]
         anchors, unanchored = await _price_anchors(
             session,
-            _candidate_codes(
-                attribution=attribution, anomalies=anomalies, positions=positions
+            list(
+                dict.fromkeys(
+                    _candidate_codes(
+                        attribution=attribution,
+                        anomalies=anomalies,
+                        positions=positions,
+                    )
+                    + pillar_codes
+                )
             ),
             trade_date,
         )
     if unanchored:
         anomalies = [a for a in anomalies if a["stock_code"] not in set(unanchored)]
+        if long_term_pillars:
+            long_term_pillars["candidates"] = [
+                c for c in long_term_pillars["candidates"] if c["stock_code"] not in set(unanchored)
+            ]
 
     return (
         {
@@ -422,6 +529,7 @@ async def collect_plan_input(
             "manual_removed_codes": manual_removed,
             "methodology": methodology,
             "memories": memories,
+            "long_term_pillars": long_term_pillars,
         },
         manual_removed,
     )
