@@ -13,9 +13,7 @@ from app.models.industry_chain import (
 )
 
 
-async def next_version_number(
-    session: AsyncSession, industry: str, user_id: int
-) -> int:
+async def next_version_number(session: AsyncSession, industry: str, user_id: int) -> int:
     """返回该用户、该行业下一个版本号(从 1 开始)。"""
     stmt = select(func.coalesce(func.max(ChainAnalysisVersion.version_number), 0)).where(
         ChainAnalysisVersion.industry == industry,
@@ -94,9 +92,7 @@ async def list_refresh_targets(
     stmt = (
         select(
             ChainAnalysisVersion.industry,
-            func.array_agg(
-                func.distinct(ChainAnalysisVersion.user_id)
-            ).label("user_ids"),
+            func.array_agg(func.distinct(ChainAnalysisVersion.user_id)).label("user_ids"),
         )
         .where(ChainAnalysisVersion.status == "success")
         .group_by(ChainAnalysisVersion.industry)
@@ -117,9 +113,7 @@ async def get_version(
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
-async def delete_version(
-    session: AsyncSession, version_id: int, user_id: int
-) -> bool:
+async def delete_version(session: AsyncSession, version_id: int, user_id: int) -> bool:
     """删除归属用户的版本行并 flush（不 commit）。
 
     节点/边/公司映射经 DB 外键级联清理，chain_alert.version_id 置空，
@@ -229,13 +223,34 @@ async def replace_graph(
         await session.flush()
 
 
-async def list_graph_nodes(
-    session: AsyncSession, version_id: int
-) -> list[ChainNode]:
+async def list_graph_nodes(session: AsyncSession, version_id: int) -> list[ChainNode]:
     """查询指定版本的全部节点(含指标列)。"""
-    stmt = (
-        select(ChainNode)
-        .where(ChainNode.version_id == version_id)
-        .order_by(ChainNode.id)
-    )
+    stmt = select(ChainNode).where(ChainNode.version_id == version_id).order_by(ChainNode.id)
     return list((await session.execute(stmt)).scalars().all())
+
+
+async def get_mappings_by_codes(session: AsyncSession, codes: list[str]) -> list[Any]:
+    """按股票代码反查产业链映射（agent 上下文无 user，取各行业最新成功版本）。
+
+    返回 (ChainCompanyMapping, ChainNode) 行，节点带指标属性；未命中代码不在
+    结果中，调用方按「图谱未覆盖」处理。
+    """
+    if not codes:
+        return []
+    latest_versions = (
+        select(
+            ChainAnalysisVersion.industry,
+            func.max(ChainAnalysisVersion.id).label("version_id"),
+        )
+        .where(ChainAnalysisVersion.status == "success")
+        .group_by(ChainAnalysisVersion.industry)
+        .subquery()
+    )
+    stmt = (
+        select(ChainCompanyMapping, ChainNode)
+        .join(ChainNode, ChainCompanyMapping.chain_node_id == ChainNode.id)
+        .join(latest_versions, ChainCompanyMapping.version_id == latest_versions.c.version_id)
+        .where(ChainCompanyMapping.stock_code.in_(codes))
+        .order_by(ChainCompanyMapping.stock_code, ChainNode.id)
+    )
+    return list((await session.execute(stmt)).all())
