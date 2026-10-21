@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.runtime.structured import (
     _THINKING_REQUIRED_ENDPOINTS,
+    STRUCTURED_THINKING_MAX_TOKENS,
     run_structured,
 )
 
@@ -77,6 +78,7 @@ class _FakeModel:
         self._structured = structured
         self.methods: list[str | None] = []
         self.disable_flags: list[bool] = []
+        self.max_tokens: list[int | None] = []
 
     def with_structured_output(
         self, _schema: type[BaseModel], method: str | None = None
@@ -90,6 +92,7 @@ def _patch_run_env(structured: _FakeStructured, *, protocol: str = "anthropic"):
 
     def _fake_build(_cfg: Any, **kwargs: Any) -> _FakeModel:
         fake_model.disable_flags.append(kwargs.get("disable_thinking"))
+        fake_model.max_tokens.append(kwargs.get("max_tokens"))
         return fake_model
 
     return (
@@ -220,6 +223,26 @@ class TestRunStructured:
         assert result == _Out(value="ok")
         assert fake_model.disable_flags == [True, False]
         assert fake_model.methods == ["json_schema", "json_schema"]
+        # thinking 不可关的自愈重试放大输出预算（与 thinking 共享，防空文本）
+        assert fake_model.max_tokens == [None, STRUCTURED_THINKING_MAX_TOKENS]
+
+    @pytest.mark.asyncio
+    async def test_thinking_heal_then_parse_failure_falls_back(self) -> None:
+        """自愈重试后再解析失败：继续按方法兜底序换 function_calling，而非上抛。"""
+        structured = _FakeStructured(
+            [_thinking_required_error(), OutputParserException("empty"), _Out(value="ok")]
+        )
+        p_llm, p_model, fake_model = _patch_run_env(structured, protocol="anthropic")
+        with p_llm, p_model:
+            result = await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+            )
+
+        assert result == _Out(value="ok")
+        assert fake_model.methods == ["json_schema", "json_schema", "function_calling"]
+        assert fake_model.disable_flags == [True, False, False]
 
     @pytest.mark.asyncio
     async def test_thinking_required_endpoint_remembered_across_calls(self) -> None:
@@ -369,9 +392,7 @@ class TestRunStructured:
                 "app.agent.runtime.structured.resolve_llm",
                 new=AsyncMock(
                     return_value=(
-                        SimpleNamespace(
-                            config_id=1, model_name="m1", protocol="openai"
-                        ),
+                        SimpleNamespace(config_id=1, model_name="m1", protocol="openai"),
                         "system",
                     )
                 ),
@@ -552,8 +573,8 @@ class TestMetaOut:
         assert isinstance(meta["latency_ms"], int)
 
     @pytest.mark.asyncio
-    async def test_meta_method_fallback_after_parser_failure(self) -> None:
-        """json_schema 解析失败换 function_calling 兜底：method 记 fallback（非换模型）。"""
+    async def test_meta_method_reports_actual_fallback_method(self) -> None:
+        """json_schema 解析失败换 function_calling 兜底：method 记实际生效法名。"""
         structured = _FakeStructured([OutputParserException("bad json"), _Out(value="ok")])
         fake_model = _FakeModel(structured)
         meta: dict[str, Any] = {}
@@ -580,7 +601,7 @@ class TestMetaOut:
             )
 
         assert meta["model_name"] == "kimi"
-        assert meta["method"] == "fallback"
+        assert meta["method"] == "function_calling"
         assert meta["failover"] is False
 
     @pytest.mark.asyncio
