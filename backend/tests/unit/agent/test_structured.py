@@ -1,4 +1,4 @@
-"""run_structured 单轮结构化调用契约测试（含额度耗尽主备切换重试）。"""
+"""run_structured 单轮结构化调用契约测试（含额度耗尽主备切换/强制 thinking 自愈重试）。"""
 
 from types import SimpleNamespace
 from typing import Any, cast
@@ -11,7 +11,18 @@ from langchain_core.exceptions import OutputParserException
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.runtime.structured import run_structured
+from app.agent.runtime.structured import (
+    _THINKING_REQUIRED_ENDPOINTS,
+    run_structured,
+)
+
+
+@pytest.fixture(autouse=True)
+def _reset_thinking_endpoint_cache():
+    """进程内「强制 thinking 端点」缓存按用例隔离。"""
+    _THINKING_REQUIRED_ENDPOINTS.clear()
+    yield
+    _THINKING_REQUIRED_ENDPOINTS.clear()
 
 
 def _rate_limit_error() -> openai.RateLimitError:
@@ -21,6 +32,16 @@ def _rate_limit_error() -> openai.RateLimitError:
         response=httpx.Response(status_code=429, request=request),
         body=None,
     )
+
+
+def _thinking_required_error() -> Exception:
+    """MiniMax M3.1-Flash 强制 adaptive thinking 的 400（生产实测签名）。"""
+    exc = Exception(
+        'Error code: 400 - invalid params, model "MiniMax-M3.1-Flash" requires '
+        'adaptive thinking; thinking.type="disabled" is not allowed (2013)'
+    )
+    exc.status_code = 400
+    return exc
 
 
 class _Out(BaseModel):
@@ -55,6 +76,7 @@ class _FakeModel:
     def __init__(self, structured: _FakeStructured) -> None:
         self._structured = structured
         self.methods: list[str | None] = []
+        self.disable_flags: list[bool] = []
 
     def with_structured_output(
         self, _schema: type[BaseModel], method: str | None = None
@@ -65,14 +87,24 @@ class _FakeModel:
 
 def _patch_run_env(structured: _FakeStructured, *, protocol: str = "anthropic"):
     fake_model = _FakeModel(structured)
+
+    def _fake_build(_cfg: Any, **kwargs: Any) -> _FakeModel:
+        fake_model.disable_flags.append(kwargs.get("disable_thinking"))
+        return fake_model
+
     return (
         patch(
             "app.agent.runtime.structured.resolve_llm",
-            new=AsyncMock(return_value=(SimpleNamespace(protocol=protocol), "system")),
+            new=AsyncMock(
+                return_value=(
+                    SimpleNamespace(config_id=1, model_name="m1", protocol=protocol),
+                    "system",
+                )
+            ),
         ),
         patch(
             "app.agent.runtime.structured.build_langchain_model",
-            return_value=fake_model,
+            side_effect=_fake_build,
         ),
         fake_model,
     )
@@ -158,7 +190,9 @@ class TestRunStructured:
     async def test_anthropic_json_schema_failure_falls_back_to_function_calling(self) -> None:
         """MiniMax 等 anthropic 兼容端点不实现 output_format（返回纯文本）：
         json_schema 解析失败后换 function_calling 兜底重试，而非同法空烧。"""
-        structured = _FakeStructured([OutputParserException("Invalid json output"), _Out(value="ok")])
+        structured = _FakeStructured(
+            [OutputParserException("Invalid json output"), _Out(value="ok")]
+        )
         p_llm, p_model, fake_model = _patch_run_env(structured, protocol="anthropic")
         with p_llm, p_model:
             result = await run_structured(
@@ -169,6 +203,62 @@ class TestRunStructured:
 
         assert result == _Out(value="ok")
         assert fake_model.methods == ["json_schema", "function_calling"]
+
+    @pytest.mark.asyncio
+    async def test_thinking_required_error_retries_without_disabling(self) -> None:
+        """端点强制 adaptive thinking（MiniMax M3.1-Flash 实测）：400 后省略
+        thinking 参数同法重试一次，而非上抛打死任务。"""
+        structured = _FakeStructured([_thinking_required_error(), _Out(value="ok")])
+        p_llm, p_model, fake_model = _patch_run_env(structured, protocol="anthropic")
+        with p_llm, p_model:
+            result = await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+            )
+
+        assert result == _Out(value="ok")
+        assert fake_model.disable_flags == [True, False]
+        assert fake_model.methods == ["json_schema", "json_schema"]
+
+    @pytest.mark.asyncio
+    async def test_thinking_required_endpoint_remembered_across_calls(self) -> None:
+        """自愈记忆：首个请求探测后，同端点后续调用直接省略 thinking 参数。"""
+        structured = _FakeStructured(
+            [_thinking_required_error(), _Out(value="ok"), _Out(value="ok2")]
+        )
+        p_llm, p_model, fake_model = _patch_run_env(structured, protocol="anthropic")
+        with p_llm, p_model:
+            first = await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+            )
+            second = await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+            )
+
+        assert (first.value, second.value) == ("ok", "ok2")
+        assert fake_model.disable_flags == [True, False, False]
+
+    @pytest.mark.asyncio
+    async def test_non_thinking_400_propagates_without_retry(self) -> None:
+        """无「adaptive thinking」签名的普通 400 不触发自愈重试，原样上抛。"""
+        exc = Exception("Error code: 400 - unrelated bad request")
+        exc.status_code = 400
+        structured = _FakeStructured([exc])
+        p_llm, p_model, fake_model = _patch_run_env(structured, protocol="anthropic")
+        with p_llm, p_model, pytest.raises(Exception, match="unrelated"):
+            await run_structured(
+                cast(AsyncSession, object()),
+                result_type=_Out,
+                user_prompt="hello",
+            )
+
+        assert len(structured.prompts) == 1
+        assert fake_model.disable_flags == [True]
 
     @pytest.mark.asyncio
     async def test_openai_provider_uses_function_calling(self) -> None:
@@ -185,9 +275,7 @@ class TestRunStructured:
 
     @pytest.mark.asyncio
     async def test_retries_on_output_parsing_exception(self) -> None:
-        structured = _FakeStructured(
-            [OutputParserException("bad json"), _Out(value="ok")]
-        )
+        structured = _FakeStructured([OutputParserException("bad json"), _Out(value="ok")])
         patches = _patch_run_env(structured)
         with patches[0], patches[1]:
             result = await run_structured(
@@ -207,7 +295,7 @@ class TestRunStructured:
         p_by_id = patch(
             "app.agent.runtime.structured.resolve_llm_by_id",
             new=AsyncMock(
-                return_value=SimpleNamespace(protocol="openai", model_name="m2.5")
+                return_value=SimpleNamespace(config_id=7, protocol="openai", model_name="m2.5")
             ),
         )
         p_model = patch(
@@ -240,9 +328,7 @@ class TestRunStructured:
             patch(
                 "app.agent.runtime.structured.resolve_llm_by_id",
                 new=AsyncMock(
-                    return_value=SimpleNamespace(
-                        config_id=7, protocol="openai", model_name="bound"
-                    )
+                    return_value=SimpleNamespace(config_id=7, protocol="openai", model_name="bound")
                 ),
             ) as p_by_id,
             patch(
@@ -282,7 +368,12 @@ class TestRunStructured:
             patch(
                 "app.agent.runtime.structured.resolve_llm",
                 new=AsyncMock(
-                    return_value=(SimpleNamespace(protocol="openai"), "system")
+                    return_value=(
+                        SimpleNamespace(
+                            config_id=1, model_name="m1", protocol="openai"
+                        ),
+                        "system",
+                    )
                 ),
             ),
             patch(
@@ -312,9 +403,7 @@ class TestRunStructured:
             patch(
                 "app.agent.runtime.structured.resolve_llm_by_id",
                 new=AsyncMock(
-                    return_value=SimpleNamespace(
-                        config_id=5, protocol="openai", model_name="m5"
-                    )
+                    return_value=SimpleNamespace(config_id=5, protocol="openai", model_name="m5")
                 ),
             ),
             patch(
@@ -354,9 +443,7 @@ class TestRunStructured:
                 "app.agent.runtime.structured.build_langchain_model",
                 side_effect=_fake_build,
             ),
-            patch(
-                "app.agent.runtime.structured.mark_unhealthy", new=AsyncMock()
-            ) as p_mark,
+            patch("app.agent.runtime.structured.mark_unhealthy", new=AsyncMock()) as p_mark,
         ):
             result = await run_structured(
                 cast(AsyncSession, object()),
@@ -407,18 +494,14 @@ class TestRunStructured:
             patch(
                 "app.agent.runtime.structured.resolve_llm_by_id",
                 new=AsyncMock(
-                    return_value=SimpleNamespace(
-                        config_id=1, protocol="openai", model_name="m1"
-                    )
+                    return_value=SimpleNamespace(config_id=1, protocol="openai", model_name="m1")
                 ),
             ),
             patch(
                 "app.agent.runtime.structured.build_langchain_model",
                 return_value=fake_model,
             ),
-            patch(
-                "app.agent.runtime.structured.mark_unhealthy", new=AsyncMock()
-            ) as p_mark,
+            patch("app.agent.runtime.structured.mark_unhealthy", new=AsyncMock()) as p_mark,
             pytest.raises(RuntimeError),
         ):
             await run_structured(
@@ -446,7 +529,7 @@ class TestMetaOut:
                 "app.agent.runtime.structured.resolve_llm",
                 new=AsyncMock(
                     return_value=(
-                        SimpleNamespace(protocol="anthropic", model_name="kimi"),
+                        SimpleNamespace(config_id=1, model_name="kimi", protocol="anthropic"),
                         "system",
                     )
                 ),
@@ -471,9 +554,7 @@ class TestMetaOut:
     @pytest.mark.asyncio
     async def test_meta_method_fallback_after_parser_failure(self) -> None:
         """json_schema 解析失败换 function_calling 兜底：method 记 fallback（非换模型）。"""
-        structured = _FakeStructured(
-            [OutputParserException("bad json"), _Out(value="ok")]
-        )
+        structured = _FakeStructured([OutputParserException("bad json"), _Out(value="ok")])
         fake_model = _FakeModel(structured)
         meta: dict[str, Any] = {}
         with (
@@ -481,7 +562,7 @@ class TestMetaOut:
                 "app.agent.runtime.structured.resolve_llm",
                 new=AsyncMock(
                     return_value=(
-                        SimpleNamespace(protocol="anthropic", model_name="kimi"),
+                        SimpleNamespace(config_id=1, model_name="kimi", protocol="anthropic"),
                         "system",
                     )
                 ),

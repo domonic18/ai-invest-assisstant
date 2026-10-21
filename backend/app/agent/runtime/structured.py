@@ -4,14 +4,16 @@
 ``build_langchain_model`` → ``with_structured_output``。输出 schema 即契约
 （pydantic 模型），校验失败自动重试一次；仍失败则上抛 ``ValidationError``。
 额度/限流类失败触发主备切换：主配置进冷却后重新解析（健康门切备用）
-当次重试一次。多步任务走 deepagents 执行器（``app/agent/skills/*_agent.py``），
-不要用本模块。
+当次重试一次。端点强制 adaptive thinking（MiniMax M3.1 起实测）时
+省略 thinking 参数自愈重试。多步任务走 deepagents 执行器
+（``app/agent/skills/*_agent.py``），不要用本模块。
 """
 
 import base64
 import time
 from typing import Any, TypeVar, cast
 
+import structlog
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, ValidationError
@@ -26,7 +28,22 @@ from app.services.admin.llm_failover import classify_llm_error, mark_unhealthy
 from app.services.admin.llm_task_binding_service import resolve_task_config_id
 from app.services.quota.user_llm_service import resolve_llm
 
+logger = structlog.get_logger(__name__)
+
 T = TypeVar("T", bound=BaseModel)
+
+# 已观测到「强制 adaptive thinking」约束的端点（(config_id, model_name) 键，
+# 进程内记忆）：首次 400 探测后记住，后续调用直接省略 thinking 参数，
+# 不再对同一端点重复烧失败请求。服务端解除约束不会自动移除（影响仅多传一个
+# 被忽略的参数级别，重启即恢复探测）。
+_THINKING_REQUIRED_ENDPOINTS: set[tuple[int, str]] = set()
+
+
+def _is_thinking_required_error(exc: BaseException) -> bool:
+    """识别「模型强制 thinking」类 400（MiniMax M3.1-Flash 起实测，错误码 2013）。"""
+    if getattr(exc, "status_code", None) != 400:
+        return False
+    return "adaptive thinking" in str(exc).lower()
 
 
 def _image_block(data: bytes, media_type: str) -> dict[str, Any]:
@@ -101,8 +118,10 @@ async def run_structured(
             return ("json_schema", "function_calling")
         return ("function_calling",)
 
-    async def _invoke_method(current: ResolvedLLMConfig, method: str) -> T:
-        model = build_langchain_model(current, disable_thinking=True)
+    async def _invoke_method(
+        current: ResolvedLLMConfig, method: str, *, disable_thinking: bool = True
+    ) -> T:
+        model = build_langchain_model(current, disable_thinking=disable_thinking)
         structured = model.with_structured_output(result_type, method=method)
         result = await structured.ainvoke([message])
         if result is None:
@@ -115,13 +134,31 @@ async def run_structured(
         methods = _output_methods(current.protocol)
         # 首选法解析失败时按兜底序换法重试一次；无兜底法则同法重试
         fallback = methods[1] if len(methods) > 1 else methods[0]
+        endpoint = (current.config_id, current.model_name)
+        disable_thinking = endpoint not in _THINKING_REQUIRED_ENDPOINTS
         try:
-            result = await _invoke_method(current, methods[0])
+            result = await _invoke_method(current, methods[0], disable_thinking=disable_thinking)
             _meta["method"] = methods[0]
             return result
         except (ValidationError, OutputParserException):
-            result = await _invoke_method(current, fallback)
+            result = await _invoke_method(current, fallback, disable_thinking=disable_thinking)
             _meta["method"] = "fallback"
+            return result
+        except Exception as exc:
+            if not _is_thinking_required_error(exc):
+                raise
+            # 端点强制 adaptive thinking（MiniMax M3.1-Flash 起，2026-10-20 服务端
+            # 升级实锤）：显式 disabled 400，省略 thinking 参数后 json_schema 与
+            # function_calling 实测均可用。记住端点自愈，避免每轮重复烧失败请求。
+            _THINKING_REQUIRED_ENDPOINTS.add(endpoint)
+            logger.warning(
+                "structured_endpoint_requires_thinking",
+                config_id=current.config_id,
+                model_name=current.model_name,
+                method=methods[0],
+            )
+            result = await _invoke_method(current, methods[0], disable_thinking=False)
+            _meta["method"] = methods[0]
             return result
 
     _meta: dict[str, str] = {}
