@@ -26,7 +26,11 @@ ANTHROPIC_MAX_TOKENS = 8192
 
 
 def build_langchain_model(
-    cfg: ResolvedLLMConfig, *, disable_thinking: bool = False, meter: bool = True
+    cfg: ResolvedLLMConfig,
+    *,
+    disable_thinking: bool = False,
+    meter: bool = True,
+    max_tokens: int | None = None,
 ) -> BaseChatModel:
     """把 LLM 配置（系统或 BYOK）转换为 LangChain 模型实例。
 
@@ -38,6 +42,9 @@ def build_langchain_model(
             的端点（MiniMax M3.1 起实测）会拒绝该参数——由 ``structured``
             捕获 400 后按 disable_thinking=False 自愈重试。
         meter: 挂载用量计量 callback（测试注入 fake 模型时可关闭）。
+        max_tokens: anthropic 协议输出预算覆盖；缺省 ``ANTHROPIC_MAX_TOKENS``。
+            结构化调用在 thinking 不可关时传更大值——thinking 与输出共享该
+            预算，长思考烧满默认预算会导致空文本（MiniMax M3.1-Flash 实测）。
 
     Returns:
         protocol=anthropic（Kimi coding 等）→ ``ChatAnthropic``；
@@ -74,7 +81,7 @@ def build_langchain_model(
             "model": cfg.model_name,
             "api_key": api_key,
             "base_url": base_url,
-            "max_tokens": ANTHROPIC_MAX_TOKENS,
+            "max_tokens": max_tokens or ANTHROPIC_MAX_TOKENS,
             "timeout": settings.llm_http_read_timeout,
             "max_retries": settings.llm_max_retries,
         }
