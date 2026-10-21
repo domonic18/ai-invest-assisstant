@@ -2,10 +2,11 @@
 
 财报/研报摘要与截图识别等单轮任务的公共路径：解析默认 LLM 配置 →
 ``build_langchain_model`` → ``with_structured_output``。输出 schema 即契约
-（pydantic 模型），校验失败自动重试一次；仍失败则上抛 ``ValidationError``。
+（pydantic 模型），解析失败按方法兜底序换法重试一次；仍失败则上抛。
 额度/限流类失败触发主备切换：主配置进冷却后重新解析（健康门切备用）
 当次重试一次。端点强制 adaptive thinking（MiniMax M3.1 起实测）时
-省略 thinking 参数自愈重试。多步任务走 deepagents 执行器
+省略 thinking 参数自愈重试，且自愈后同样参与方法兜底；thinking 不可关
+时放大输出预算（与 thinking 共享）。多步任务走 deepagents 执行器
 （``app/agent/skills/*_agent.py``），不要用本模块。
 """
 
@@ -37,6 +38,10 @@ T = TypeVar("T", bound=BaseModel)
 # 不再对同一端点重复烧失败请求。服务端解除约束不会自动移除（影响仅多传一个
 # 被忽略的参数级别，重启即恢复探测）。
 _THINKING_REQUIRED_ENDPOINTS: set[tuple[int, str]] = set()
+
+# thinking 不可关的端点：thinking 与输出共享 max_tokens 预算，长思考可烧满
+# 助手循环的默认预算致空文本（MiniMax M3.1-Flash 实测），结构化调用给足余量
+STRUCTURED_THINKING_MAX_TOKENS = 32768
 
 
 def _is_thinking_required_error(exc: BaseException) -> bool:
@@ -119,9 +124,14 @@ async def run_structured(
         return ("function_calling",)
 
     async def _invoke_method(
-        current: ResolvedLLMConfig, method: str, *, disable_thinking: bool = True
+        current: ResolvedLLMConfig, method: str, *, disable_thinking: bool
     ) -> T:
-        model = build_langchain_model(current, disable_thinking=disable_thinking)
+        # thinking 与输出共享 max_tokens 预算：不可关 thinking 的端点须放大预算，
+        # 否则长思考烧满默认值导致空文本（MiniMax M3.1-Flash 实测）
+        max_tokens = None if disable_thinking else STRUCTURED_THINKING_MAX_TOKENS
+        model = build_langchain_model(
+            current, disable_thinking=disable_thinking, max_tokens=max_tokens
+        )
         structured = model.with_structured_output(result_type, method=method)
         result = await structured.ainvoke([message])
         if result is None:
@@ -131,35 +141,37 @@ async def run_structured(
         return cast(T, result)
 
     async def _invoke(current: ResolvedLLMConfig) -> T:
+        endpoint = (current.config_id, current.model_name)
         methods = _output_methods(current.protocol)
         # 首选法解析失败时按兜底序换法重试一次；无兜底法则同法重试
         fallback = methods[1] if len(methods) > 1 else methods[0]
-        endpoint = (current.config_id, current.model_name)
-        disable_thinking = endpoint not in _THINKING_REQUIRED_ENDPOINTS
+
+        async def _try_method(method: str) -> T:
+            """单法调用；遇「强制 thinking」400 记住端点并省略参数自愈重试一次。"""
+            disable_thinking = endpoint not in _THINKING_REQUIRED_ENDPOINTS
+            try:
+                result = await _invoke_method(current, method, disable_thinking=disable_thinking)
+            except Exception as exc:
+                if not (disable_thinking and _is_thinking_required_error(exc)):
+                    raise
+                # 端点强制 adaptive thinking（MiniMax M3.1-Flash 起，2026-10-20
+                # 服务端升级实锤）：显式 disabled 400，省略 thinking 参数后可用。
+                # 记住端点自愈，避免每轮重复烧失败请求。
+                _THINKING_REQUIRED_ENDPOINTS.add(endpoint)
+                logger.warning(
+                    "structured_endpoint_requires_thinking",
+                    config_id=current.config_id,
+                    model_name=current.model_name,
+                    method=method,
+                )
+                return await _try_method(method)
+            _meta["method"] = method
+            return result
+
         try:
-            result = await _invoke_method(current, methods[0], disable_thinking=disable_thinking)
-            _meta["method"] = methods[0]
-            return result
+            return await _try_method(methods[0])
         except (ValidationError, OutputParserException):
-            result = await _invoke_method(current, fallback, disable_thinking=disable_thinking)
-            _meta["method"] = "fallback"
-            return result
-        except Exception as exc:
-            if not _is_thinking_required_error(exc):
-                raise
-            # 端点强制 adaptive thinking（MiniMax M3.1-Flash 起，2026-10-20 服务端
-            # 升级实锤）：显式 disabled 400，省略 thinking 参数后 json_schema 与
-            # function_calling 实测均可用。记住端点自愈，避免每轮重复烧失败请求。
-            _THINKING_REQUIRED_ENDPOINTS.add(endpoint)
-            logger.warning(
-                "structured_endpoint_requires_thinking",
-                config_id=current.config_id,
-                model_name=current.model_name,
-                method=methods[0],
-            )
-            result = await _invoke_method(current, methods[0], disable_thinking=False)
-            _meta["method"] = methods[0]
-            return result
+            return await _try_method(fallback)
 
     _meta: dict[str, str] = {}
     t0 = time.monotonic()
