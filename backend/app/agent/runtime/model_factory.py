@@ -34,7 +34,9 @@ def build_langchain_model(
         cfg: 已解密的 LLM 配置（llm_config 表或用户自备 Key）。
         disable_thinking: 显式关闭服务端 thinking（anthropic 协议端点默认开启，
             与 ``with_structured_output`` 的强制 tool_choice 冲突会 400）。
-            助手循环需要 thinking 块，保持默认 False。
+            助手循环需要 thinking 块，保持默认 False。强制 adaptive thinking
+            的端点（MiniMax M3.1 起实测）会拒绝该参数——由 ``structured``
+            捕获 400 后按 disable_thinking=False 自愈重试。
         meter: 挂载用量计量 callback（测试注入 fake 模型时可关闭）。
 
     Returns:
@@ -83,9 +85,7 @@ def build_langchain_model(
         return ChatAnthropic(**params)
     # OpenAI 兼容端点的 thinking 开关方言（deepseek v4 等实测）：顶层 thinking 对象。
     # 结构化输出的强制 tool_choice 与 thinking 模式互斥，须显式关闭。
-    extra_body: dict[str, Any] = (
-        {"thinking": {"type": "disabled"}} if disable_thinking else {}
-    )
+    extra_body: dict[str, Any] = {"thinking": {"type": "disabled"}} if disable_thinking else {}
     return ChatOpenAI(
         model=cfg.model_name,
         api_key=api_key,
