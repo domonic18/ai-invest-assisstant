@@ -95,13 +95,58 @@ class TestNextTaskTimes:
             ]
         )
         row = _row()
-        with patch(
-            "app.services.market.trade_calendar_service.is_trading_day",
-            AsyncMock(return_value=True),
+        # 冻结时钟（北京周一 18:00）：不冻结则 19:00-19:30 CST 窗口内复盘
+        # 已翻次日而计划还在当天，顺序翻转（main CI 2026-10-23 实挂）
+        with (
+            patch(
+                "app.services.market.trade_calendar_service.is_trading_day",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.services.trading.agent_overview_schedule.utc_now",
+                MagicMock(
+                    return_value=datetime(2026, 9, 28, 10, 0, tzinfo=timezone.utc)
+                ),
+            ),
         ):
             tasks = await sched._next_task_times(session, row)
         assert [t.task for t in tasks] == ["模拟盘分层复盘", "每日选股与交易计划"]
         assert all(t.scheduled_at.tzinfo == timezone.utc for t in tasks)
+
+    @pytest.mark.asyncio
+    async def test_cross_day_window_sorts_by_scheduled_at(self) -> None:
+        """19:00-19:30 CST 窗口：复盘翻次日 19:00、计划今天 19:30，按时刻排序。"""
+        session = _session(
+            [
+                SimpleNamespace(
+                    task_name="agent_daily_plan_1900", schedule="30 19 * * 1-5"
+                ),
+                SimpleNamespace(
+                    task_name="paper_trade_review_1610", schedule="0 19 * * 1-5"
+                ),
+            ]
+        )
+        row = _row()
+        with (
+            patch(
+                "app.services.market.trade_calendar_service.is_trading_day",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.services.trading.agent_overview_schedule.utc_now",
+                MagicMock(
+                    return_value=datetime(2026, 9, 28, 11, 10, tzinfo=timezone.utc)
+                ),
+            ),
+        ):
+            tasks = await sched._next_task_times(session, row)
+        assert [t.task for t in tasks] == ["每日选股与交易计划", "模拟盘分层复盘"]
+        assert tasks[0].scheduled_at == datetime(
+            2026, 9, 28, 11, 30, tzinfo=timezone.utc
+        )
+        assert tasks[1].scheduled_at == datetime(
+            2026, 9, 29, 11, 0, tzinfo=timezone.utc
+        )
 
     @pytest.mark.asyncio
     async def test_weekly_agent_waits_for_due_candidate(self) -> None:
