@@ -12,6 +12,7 @@ import {
   GridComponent,
   LegendComponent,
   MarkLineComponent,
+  TimelineComponent,
   TitleComponent,
   TooltipComponent,
 } from 'echarts/components'
@@ -32,6 +33,7 @@ echarts.use([
   GraphicComponent,
   AxisPointerComponent,
   DatasetComponent,
+  TimelineComponent,
   CanvasRenderer,
 ])
 
