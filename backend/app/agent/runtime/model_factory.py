@@ -21,8 +21,12 @@ from app.services.admin.llm_failover import FailoverHealthCallback
 from app.services.quota.constants import OUTLET_BYOK, OUTLET_SYSTEM
 from app.utils.api_base import normalize_api_base
 
-# 助手回答含 thinking 块与工具结果整理，给足输出空间
-ANTHROPIC_MAX_TOKENS = 8192
+# thinking 模型（kimi k3.1-pro 等）每轮调用 thinking 与输出共享该预算，
+# 8192 会被长思考精确烧满，最终回复截断致 skill 的 JSON 解析失败
+# （2026-10-26 复盘事故：主调用与重试 completion_tokens 均=8192）。
+# 与 structured 的 STRUCTURED_THINKING_MAX_TOKENS 同档；max_tokens 只是
+# 上限不产生额外费用，k3.1-pro 1M 上下文量级下该值无端点约束风险
+ANTHROPIC_MAX_TOKENS = 32768
 
 
 def build_langchain_model(
@@ -43,8 +47,8 @@ def build_langchain_model(
             捕获 400 后按 disable_thinking=False 自愈重试。
         meter: 挂载用量计量 callback（测试注入 fake 模型时可关闭）。
         max_tokens: anthropic 协议输出预算覆盖；缺省 ``ANTHROPIC_MAX_TOKENS``。
-            结构化调用在 thinking 不可关时传更大值——thinking 与输出共享该
-            预算，长思考烧满默认预算会导致空文本（MiniMax M3.1-Flash 实测）。
+            thinking 与输出共享该预算，预算过小会被长思考烧满导致空文本/
+            截断（MiniMax M3.1-Flash、kimi k3.1-pro 实测），故默认即给足。
 
     Returns:
         protocol=anthropic（Kimi coding 等）→ ``ChatAnthropic``；
