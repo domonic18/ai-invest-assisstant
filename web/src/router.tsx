@@ -113,7 +113,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/workbench" replace /> },
       { path: 'workbench', element: lazyEl(<Workbench />) },
-      { path: 'review', element: <Dashboard /> },
+      { path: 'review', element: lazyEl(<Dashboard />) },
       // 异动检测合并页：板块/个股双 tab；子路径保持（page_event 跳转直达指定 tab）
       { path: 'anomaly', element: <Navigate to="/anomaly/sector" replace /> },
       { path: 'anomaly/sector', element: <RequireFeature feature="anomaly">{lazyEl(<AnomalyPage />)}</RequireFeature> },

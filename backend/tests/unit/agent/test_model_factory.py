@@ -3,7 +3,7 @@
 import httpx
 import pytest
 
-from app.agent.runtime.model_factory import build_langchain_model
+from app.agent.runtime.model_factory import ANTHROPIC_MAX_TOKENS, build_langchain_model
 from app.core.config import get_settings
 from app.services.admin.llm_config_service import ResolvedLLMConfig
 
@@ -55,3 +55,10 @@ class TestBuildLangChainModel:
         """ChatAnthropic 的 timeout 字段仅收 float，保持读超时兜底语义。"""
         model = build_langchain_model(_cfg("anthropic"))
         assert model.default_request_timeout == get_settings().llm_http_read_timeout
+
+    def test_anthropic_default_budget_leaves_thinking_headroom(self) -> None:
+        """默认预算必须给足：thinking 与输出共享，8192 会被长思考精确烧满
+        致最终回复截断（kimi k3.1-pro 复盘事故），回归时在此显式失败。"""
+        assert ANTHROPIC_MAX_TOKENS >= 32768
+        model = build_langchain_model(_cfg("anthropic"))
+        assert model.max_tokens == ANTHROPIC_MAX_TOKENS
