@@ -2,6 +2,7 @@
 
 from typing import Any
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -9,6 +10,8 @@ from app.models.watchlist import UserWatchlist
 from collector.core.base import get_engine
 from collector.core.parsing import clean_stock_code, to_float
 from collector.spiders.kline_base import BaseKlineCollector
+
+logger = structlog.get_logger(__name__)
 
 
 async def _fetch_watchlist_codes() -> list[str]:
@@ -37,6 +40,11 @@ class SinaKlineCollector(BaseKlineCollector):
         raw: list[dict[str, Any]] = []
 
         for symbol in symbols:
+            if not self._is_a_share(symbol):
+                # 自选股可含港股等非 A 股；新浪 A 股接口对错配代码会返回空表
+                # 或缺 date 列的残表（KeyError），且 hk-kline 任务已全量覆盖港股
+                logger.warning("watchlist_kline_skipped_non_a_share", symbol=symbol)
+                continue
             sina_symbol = self._to_sina_symbol(symbol)
             if self.period == "minute":
                 df = ak.stock_zh_a_minute(symbol=sina_symbol, period="1")
@@ -69,8 +77,19 @@ class SinaKlineCollector(BaseKlineCollector):
         return raw
 
     @staticmethod
-    def _to_sina_symbol(symbol: str) -> str:
-        """将 6 位股票代码转换为 Sina 格式（sh/sz）。"""
+    def _is_a_share(symbol: str) -> bool:
+        """是否 A 股股票代码（6 位数字，沪/深/北交所）；港股 5 位码等返回 False。"""
         code = clean_stock_code(symbol)
-        prefix = "sh" if code.startswith("6") else "sz"
+        return len(code) == 6 and code[0] in "034689"
+
+    @staticmethod
+    def _to_sina_symbol(symbol: str) -> str:
+        """将 A 股股票代码转换为 Sina 格式（sh/sz/bj）。"""
+        code = clean_stock_code(symbol)
+        if code.startswith("6"):
+            prefix = "sh"
+        elif code[:2] in {"43", "83", "87", "88", "92"}:
+            prefix = "bj"
+        else:
+            prefix = "sz"
         return f"{prefix}{code}"
