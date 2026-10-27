@@ -78,7 +78,7 @@ export function MarketStatsSection({
                 </span>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
               {hkIndices.map((item) => (
                 <div key={item.indexCode} className="rounded bg-[#1a1d24] p-3">
                   <div className="text-xs text-gray-400">{item.indexName}</div>
