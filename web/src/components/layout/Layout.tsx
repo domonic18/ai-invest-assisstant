@@ -4,6 +4,7 @@ import { Outlet } from 'react-router-dom'
 
 import { canAccessFeature } from '@ai-invest/shared'
 
+import { useMainScrollRestoration } from '@/hooks/useMainScrollRestoration'
 import { useAuthStore } from '@/stores/auth'
 
 import { Header } from './Header'
@@ -31,6 +32,7 @@ export function Layout() {
   const closeMenu = () => setMenuOpen(false)
   const user = useAuthStore((s) => s.user)
   const canAssistant = canAccessFeature(user, 'assistant')
+  const mainRef = useMainScrollRestoration()
   useIdlePrefetch()
 
   return (
@@ -38,7 +40,7 @@ export function Layout() {
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header onMenuClick={() => setMenuOpen(true)} />
-        <main className="flex-1 overflow-auto p-3 pb-20 md:p-6">
+        <main ref={mainRef} className="flex-1 overflow-auto p-3 pb-20 md:p-6">
           <Outlet />
         </main>
         <MobileTabBar />

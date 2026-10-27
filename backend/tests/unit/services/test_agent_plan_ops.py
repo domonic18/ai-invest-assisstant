@@ -358,22 +358,102 @@ class TestListPlanViews:
 
 @pytest.mark.unit
 class TestResolveDefaultPlanDate:
-    """计划视图缺省日：最近一份 ≤ 今天（T 制定 T+1 执行，打开即正在执行的那份）。"""
+    """计划视图缺省日：最近一份 ≤ 今天（含空仓观望日；T 制定 T+1 执行）。"""
 
     @pytest.mark.asyncio
     async def test_latest_plan_le_today_wins(self) -> None:
         session = AsyncMock()
         session.scalar = AsyncMock(return_value=_PLAN_DATE)
-        assert await agent_plan_ops.resolve_default_plan_date(session, _AK) == _PLAN_DATE
+        with patch.object(
+            agent_plan_ops, "list_stand_aside_dates", AsyncMock(return_value=[])
+        ):
+            assert (
+                await agent_plan_ops.resolve_default_plan_date(session, _AK)
+                == _PLAN_DATE
+            )
+
+    @pytest.mark.asyncio
+    async def test_newer_stand_aside_beats_stale_plan(self) -> None:
+        """连续空仓日无 AgentTradePlan 行，缺省随空仓记录前移（2026-10-27 事故）。"""
+        today = date(2026, 10, 27)
+        stand_aside = date(2026, 10, 27)
+        session = AsyncMock()
+        session.scalar = AsyncMock(return_value=date(2026, 10, 20))
+        with (
+            patch.object(agent_plan_ops, "today_cn", lambda: today),
+            patch.object(
+                agent_plan_ops,
+                "list_stand_aside_dates",
+                AsyncMock(return_value=[date(2026, 10, 21), stand_aside]),
+            ),
+        ):
+            result = await agent_plan_ops.resolve_default_plan_date(session, _AK)
+        assert result == stand_aside
+
+    @pytest.mark.asyncio
+    async def test_newer_plan_beats_stand_aside(self) -> None:
+        session = AsyncMock()
+        session.scalar = AsyncMock(return_value=_PLAN_DATE)
+        with (
+            patch.object(agent_plan_ops, "today_cn", lambda: _PLAN_DATE),
+            patch.object(
+                agent_plan_ops,
+                "list_stand_aside_dates",
+                AsyncMock(return_value=[date(2026, 7, 14)]),
+            ),
+        ):
+            result = await agent_plan_ops.resolve_default_plan_date(session, _AK)
+        assert result == _PLAN_DATE
+
+    @pytest.mark.asyncio
+    async def test_stand_aside_only(self) -> None:
+        stand_aside = date(2026, 10, 23)
+        session = AsyncMock()
+        session.scalar = AsyncMock(return_value=None)
+        with (
+            patch.object(agent_plan_ops, "today_cn", lambda: date(2026, 10, 27)),
+            patch.object(
+                agent_plan_ops,
+                "list_stand_aside_dates",
+                AsyncMock(return_value=[stand_aside]),
+            ),
+        ):
+            result = await agent_plan_ops.resolve_default_plan_date(session, _AK)
+        assert result == stand_aside
+
+    @pytest.mark.asyncio
+    async def test_future_stand_aside_ignored(self) -> None:
+        session = AsyncMock()
+        session.scalar = AsyncMock(return_value=None)
+        with (
+            patch.object(agent_plan_ops, "today_cn", lambda: date(2026, 10, 27)),
+            patch.object(
+                agent_plan_ops,
+                "list_stand_aside_dates",
+                AsyncMock(return_value=[date(2026, 10, 28)]),
+            ),
+            patch.object(
+                agent_plan_ops.trade_calendar_service,
+                "resolve_latest_trade_date",
+                AsyncMock(return_value=_PLAN_DATE),
+            ),
+        ):
+            result = await agent_plan_ops.resolve_default_plan_date(session, _AK)
+        assert result == _PLAN_DATE
 
     @pytest.mark.asyncio
     async def test_no_plans_falls_back_to_latest_trade_date(self) -> None:
         session = AsyncMock()
         session.scalar = AsyncMock(return_value=None)
-        with patch.object(
-            agent_plan_ops.trade_calendar_service,
-            "resolve_latest_trade_date",
-            AsyncMock(return_value=_PLAN_DATE),
+        with (
+            patch.object(
+                agent_plan_ops, "list_stand_aside_dates", AsyncMock(return_value=[])
+            ),
+            patch.object(
+                agent_plan_ops.trade_calendar_service,
+                "resolve_latest_trade_date",
+                AsyncMock(return_value=_PLAN_DATE),
+            ),
         ):
             result = await agent_plan_ops.resolve_default_plan_date(session, _AK)
         assert result == _PLAN_DATE
