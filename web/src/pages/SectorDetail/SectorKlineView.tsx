@@ -1,5 +1,5 @@
 import ReactECharts from '@/components/charts/ReactECharts'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ECharts } from 'echarts'
 
 import { DrawingLayerHost } from '@/components/charts/drawing/DrawingLayerHost'
@@ -7,6 +7,8 @@ import { ChartToolbar } from '@/components/charts/stockChartView/ChartToolbar'
 import { BORDER_COLOR, PANEL_BG } from '@/components/charts/stockChartView/constants'
 import { prepareKlineData } from '@/components/charts/stockChartView/klineData'
 import { buildKlineOption } from '@/components/charts/stockChartView/klineOption'
+import { applySubPaneLegends } from '@/components/charts/stockChartView/klinePanes'
+import type { SubPaneKey } from '@/components/charts/stockChartView/klinePanes'
 import type { StockChartViewIndicators } from '@/components/charts/stockChartView/StockChartView'
 import { useChartFullscreen } from '@/components/charts/stockChartView/useChartFullscreen'
 import { useDataZoomYAxisRescale } from '@/components/charts/useDataZoomYAxisRescale'
@@ -89,7 +91,33 @@ export function SectorKlineView({
     chartData?.dates.length ?? 0,
   )
 
-  const { resetZoom, handleDataZoom } = useDataZoomYAxisRescale(chartRef, chartData)
+  // 图例值锚定可见窗口尾 bar：初始 null=序列尾，缩放/平移后由 datazoom 回调更新
+  const [visibleEndIdx, setVisibleEndIdx] = useState<number | null>(null)
+  useEffect(() => {
+    setVisibleEndIdx(null)
+  }, [chartData])
+
+  const { resetZoom, handleDataZoom } = useDataZoomYAxisRescale(chartRef, chartData, {
+    onWindowChange: (_startIdx, endIdx) =>
+      setVisibleEndIdx((prev) => (prev === endIdx ? prev : endIdx)),
+  })
+
+  const enabledSubKeys = useMemo(
+    () =>
+      (['volume', 'macd', 'kdj'] as const).filter(
+        (key) => indicators[key],
+      ) as SubPaneKey[],
+    [indicators],
+  )
+  const legendIdx = visibleEndIdx ?? Math.max((chartData?.bars.length ?? 1) - 1, 0)
+
+  // 缩放到历史区间 / option 重建后，副图图例按窗口尾 bar 取值（title 按 id merge）
+  useEffect(() => {
+    if (!chartData || !enabledSubKeys.length) return
+    const chart = chartRef.current?.getEchartsInstance()
+    if (!chart) return
+    applySubPaneLegends(chart, chartData, enabledSubKeys, legendIdx)
+  }, [chartData, chartRef, enabledSubKeys, legendIdx, option])
 
   const onEvents = {
     ...navEvents,

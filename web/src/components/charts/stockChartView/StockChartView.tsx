@@ -17,6 +17,8 @@ import { ChartToolbar } from './ChartToolbar'
 import { KlineEmptyState } from './KlineEmptyState'
 import { prepareKlineData } from './klineData'
 import { buildKlineOption } from './klineOption'
+import { applySubPaneLegends } from './klinePanes'
+import type { SubPaneKey } from './klinePanes'
 import {
   toIntradayTradeMarks,
   toKlineTradeMarks,
@@ -137,7 +139,33 @@ export function StockChartView({
     chartData?.dates.length ?? 0,
   )
 
-  const { resetZoom, handleDataZoom } = useDataZoomYAxisRescale(chartRef, chartData)
+  // 图例值锚定可见窗口尾 bar：初始 null=序列尾，缩放/平移后由 datazoom 回调更新
+  const [visibleEndIdx, setVisibleEndIdx] = useState<number | null>(null)
+  useEffect(() => {
+    setVisibleEndIdx(null)
+  }, [chartData])
+
+  const { resetZoom, handleDataZoom } = useDataZoomYAxisRescale(chartRef, chartData, {
+    onWindowChange: (_startIdx, endIdx) =>
+      setVisibleEndIdx((prev) => (prev === endIdx ? prev : endIdx)),
+  })
+
+  const enabledSubKeys = useMemo(
+    () =>
+      (['volume', 'macd', 'kdj'] as const).filter(
+        (key) => indicators[key],
+      ) as SubPaneKey[],
+    [indicators],
+  )
+  const legendIdx = visibleEndIdx ?? Math.max((chartData?.bars.length ?? 1) - 1, 0)
+
+  // 缩放到历史区间 / option 重建后，副图图例按窗口尾 bar 取值（title 按 id merge）
+  useEffect(() => {
+    if (isIntraday || !chartData || !enabledSubKeys.length) return
+    const chart = chartRef.current?.getEchartsInstance()
+    if (!chart) return
+    applySubPaneLegends(chart, chartData, enabledSubKeys, legendIdx)
+  }, [chartData, chartRef, enabledSubKeys, legendIdx, isIntraday, option])
 
   const onEvents = {
     ...navEvents,
@@ -209,11 +237,11 @@ export function StockChartView({
 
       {/* Chart area */}
       <div className="relative flex-1 min-h-0">
-        {/* MA 常驻数值行（悬浮于主图左上） */}
+        {/* MA 常驻数值行（悬浮于主图左上，宽度避开右侧 60px 价格轴标签区） */}
         {indicators.ma && !isIntraday && chartData && (
-          <div className="absolute top-1.5 left-[52px] right-2 z-10 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] pointer-events-none">
+          <div className="absolute top-1.5 left-[52px] right-[68px] z-10 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] pointer-events-none">
             {chartData.mas.map((ma) => {
-              const latest = ma.values[ma.values.length - 1]
+              const latest = ma.values[legendIdx]
               return (
                 <span key={ma.period} style={{ color: ma.color }}>
                   MA{ma.period}: {latest == null ? '--' : latest.toFixed(2)}

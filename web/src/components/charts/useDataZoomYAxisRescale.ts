@@ -26,9 +26,15 @@ interface ZoomableChartData {
   bars: PriceRangeBar[]
 }
 
+export interface DataZoomRescaleOptions {
+  /** 缩放/平移后上抛可见窗口 [startIdx, endIdx]；图例取值锚定 endIdx（尾 bar）。 */
+  onWindowChange?: (startIdx: number, endIdx: number) => void
+}
+
 export function useDataZoomYAxisRescale(
   chartRef: RefObject<EChartsReactCore | null>,
   chartData: ZoomableChartData | null | undefined,
+  options?: DataZoomRescaleOptions,
 ) {
   /** 复位缩放到默认窗口（双击图表 / 工具栏按钮） */
   const resetZoom = () => {
@@ -73,6 +79,7 @@ export function useDataZoomYAxisRescale(
         { min: pctMin, max: pctMax },
       ],
     })
+    options?.onWindowChange?.(startIdx, endIdx)
   }
 
   return { resetZoom, handleDataZoom }
