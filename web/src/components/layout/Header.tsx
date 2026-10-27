@@ -94,7 +94,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               type="text"
               icon={<BlockOutlined />}
               onClick={() => navigate('/skills')}
-              className="text-gray-300"
+              className="text-gray-300 !hidden md:!inline-block"
               aria-label="技能广场"
             />
           </Tooltip>
@@ -105,7 +105,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               type="text"
               icon={<BookOutlined />}
               onClick={() => navigate('/kb')}
-              className="text-gray-300"
+              className="text-gray-300 !hidden md:!inline-block"
               aria-label="知识库"
             />
           </Tooltip>
@@ -116,7 +116,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               type="text"
               icon={<FilterOutlined />}
               onClick={() => navigate('/screening')}
-              className="text-gray-300"
+              className="text-gray-300 !hidden md:!inline-block"
               aria-label="AI 选股"
             />
           </Tooltip>
@@ -137,7 +137,7 @@ export function Header({ onMenuClick }: HeaderProps) {
             type="text"
             icon={<CalendarOutlined />}
             onClick={() => navigate('/calendar')}
-            className="text-gray-300"
+            className="text-gray-300 !hidden md:!inline-block"
             aria-label="投资日历"
           />
         </Tooltip>
