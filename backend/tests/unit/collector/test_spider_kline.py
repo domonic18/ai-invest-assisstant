@@ -68,6 +68,48 @@ class TestSinaKlineCollector:
         assert "turnover_rate" in collector.update_columns
 
     @pytest.mark.asyncio
+    async def test_to_sina_symbol_routes_bj_codes(self) -> None:
+        """北交所代码走 bj 前缀（新浪接口支持 bj920xxx），不再误挂 sz。"""
+        assert SinaKlineCollector._to_sina_symbol("600519") == "sh600519"
+        assert SinaKlineCollector._to_sina_symbol("000037") == "sz000037"
+        assert SinaKlineCollector._to_sina_symbol("300142") == "sz300142"
+        assert SinaKlineCollector._to_sina_symbol("920207") == "bj920207"
+        assert SinaKlineCollector._to_sina_symbol("830799") == "bj830799"
+
+    @pytest.mark.asyncio
+    async def test_is_a_share_rejects_hk_codes(self) -> None:
+        """港股 5 位码不是 A 股（自选股可含港股，采集前须过滤）。"""
+        assert SinaKlineCollector._is_a_share("000037") is True
+        assert SinaKlineCollector._is_a_share("sh600519") is True
+        assert SinaKlineCollector._is_a_share("920207") is True
+        assert SinaKlineCollector._is_a_share("00700") is False
+        assert SinaKlineCollector._is_a_share("09988") is False
+
+    @pytest.mark.asyncio
+    async def test_collect_skips_non_a_share_symbols(self) -> None:
+        """含港股的自选股清单不再让整轮采集崩掉：跳过港股、仅采 A 股。"""
+        collector = SinaKlineCollector(
+            {"source": "sina", "data_type": "quote_kline_stock_daily"}
+        )
+        mock_df = pd.DataFrame(
+            [
+                {
+                    "date": "2026-10-23",
+                    "open": 10.5,
+                    "high": 11.0,
+                    "low": 10.2,
+                    "close": 10.8,
+                    "volume": 27233830,
+                }
+            ]
+        )
+        with patch("akshare.stock_zh_a_daily", return_value=mock_df) as mock_fetch:
+            raw = await collector.collect(symbols=["00700", "09988", "000037"])
+
+        mock_fetch.assert_called_once_with(symbol="sz000037")
+        assert [item["stock_code"] for item in raw] == ["000037"]
+
+    @pytest.mark.asyncio
     async def test_minute_period_update_columns_exclude_daily_only_fields(self) -> None:
         collector = SinaKlineCollector(
             {"source": "sina", "data_type": "quote_kline_stock_minute", "period": "minute"}

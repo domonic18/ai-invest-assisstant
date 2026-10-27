@@ -1,4 +1,4 @@
-import { StarFilled, StarOutlined } from '@ant-design/icons'
+import { RobotOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
 import { Skeleton, Tag } from 'antd'
 
 import { useStockKline } from '@/hooks/useStocks'
@@ -19,6 +19,8 @@ interface QuoteStripProps {
   quoteLoading?: boolean
   isWatched?: boolean
   onAddWatchlist: () => void
+  /** 移动端信息抽屉入口（桌面右栏已有面板，不传则不渲染） */
+  onOpenInfo?: () => void
 }
 
 const TEXT_PRIMARY = '#f0f1f5'
@@ -42,6 +44,7 @@ export function QuoteStrip({
   quoteLoading,
   isWatched,
   onAddWatchlist,
+  onOpenInfo,
 }: QuoteStripProps) {
   // 换手率/振幅取自最新日 K bar（sina 渠道 turnover 有值，amplitude 缺失时派生）
   const { data: kline } = useStockKline(stockCode, { period: 'daily', limit: 2 })
@@ -139,6 +142,17 @@ export function QuoteStrip({
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
+          {onOpenInfo && (
+            <button
+              type="button"
+              title="查看个股信息（AI 分析/财务/研报/板块）"
+              onClick={onOpenInfo}
+              className="lg:hidden inline-flex items-center gap-1.5 px-2.5 py-[5px] text-xs rounded-md border border-[#23262d] bg-[#181a21] text-[#8a8f98] transition-colors hover:bg-[#1c1f26] hover:border-[#2e323c] hover:text-[#f0f1f5]"
+            >
+              <RobotOutlined style={{ fontSize: 12 }} />
+              AI 信息
+            </button>
+          )}
           <button
             type="button"
             title={isWatched ? '已在自选分组中' : '加入自选分组'}

@@ -21,6 +21,7 @@ import { AddToWatchlistModal } from './components/AddToWatchlistModal'
 import { ErrorState } from './components/ErrorState'
 import { QuoteStrip } from './components/QuoteStrip'
 import { StockChartArea } from './components/StockChartArea'
+import { StockInfoDrawer } from './components/StockInfoDrawer'
 import { StockInfoPanel } from './components/StockInfoPanel'
 import { buildLoadingTasks } from './loadingTasks'
 import { StockLoadingStatus } from './StockLoadingStatus'
@@ -49,6 +50,7 @@ export function StockDetailContent({ stockCode }: StockDetailContentProps) {
   const { data: watchlist } = useWatchlist()
 
   const [addWatchOpen, setAddWatchOpen] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
   const [panelCollapsed, setPanelCollapsed] = useState(
     () => localStorage.getItem(RIGHT_PANEL_COLLAPSED_KEY) === '1',
   )
@@ -120,6 +122,7 @@ export function StockDetailContent({ stockCode }: StockDetailContentProps) {
               quoteLoading={quoteQ.isLoading}
               isWatched={isWatched}
               onAddWatchlist={() => setAddWatchOpen(true)}
+              onOpenInfo={() => setInfoOpen(true)}
             />
           </div>
 
@@ -134,6 +137,13 @@ export function StockDetailContent({ stockCode }: StockDetailContentProps) {
           onCollapse={() => setPanelCollapsed(true)}
         />
       </div>
+
+      {/* 移动端信息抽屉（<lg），桌面右栏不可见时的四 tab 入口 */}
+      <StockInfoDrawer
+        stockCode={stockCode}
+        open={infoOpen}
+        onClose={() => setInfoOpen(false)}
+      />
     </div>
   )
 }

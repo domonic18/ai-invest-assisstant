@@ -74,20 +74,23 @@ export function Watchlist() {
 
   return (
     <div className="h-full flex flex-col">
-      <GroupTabBar
-        groups={groups ?? []}
-        activeGroupId={activeGroupId}
-        onChange={setActiveGroupId}
-        onNewGroup={() => {
-          setEditing(null)
-          setFormOpen(true)
-        }}
-        onEditGroup={(group) => {
-          setEditing(group)
-          setFormOpen(true)
-        }}
-        onImport={() => setImportOpen(true)}
-      />
+      {/* 窄屏查看个股时详情整屏替换列表，分组栏随之隐藏 */}
+      {!detailOnly && (
+        <GroupTabBar
+          groups={groups ?? []}
+          activeGroupId={activeGroupId}
+          onChange={setActiveGroupId}
+          onNewGroup={() => {
+            setEditing(null)
+            setFormOpen(true)
+          }}
+          onEditGroup={(group) => {
+            setEditing(group)
+            setFormOpen(true)
+          }}
+          onImport={() => setImportOpen(true)}
+        />
+      )}
 
       <div className="flex-1 flex min-h-0 flex-col lg:flex-row">
         {!detailOnly && (

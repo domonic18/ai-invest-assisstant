@@ -3,13 +3,13 @@ import {
   ArrowUpOutlined,
   DeleteOutlined,
   EditOutlined,
+  MoreOutlined,
   PictureOutlined,
   PlusOutlined,
   SettingOutlined,
 } from '@ant-design/icons'
-import { Button, Dropdown, Modal, Radio, Space, Switch, Tabs, Tag, Tooltip, message } from 'antd'
+import { Button, Dropdown, Modal, Radio, Space, Switch, Tabs, Tag, message } from 'antd'
 import type { MenuProps } from 'antd'
-import type { ReactNode } from 'react'
 import type { WatchlistGroup } from '@ai-invest/shared'
 
 import {
@@ -45,10 +45,6 @@ export function GroupTabBar({
   const reorder = useReorderWatchlistGroups()
   const toggleAi = useToggleGroupAiReview()
   const isNarrow = useIsNarrowScreen()
-
-  // 窄屏收成纯图标按钮（Tooltip 补语义），给分组 Tab 让出横向空间
-  const withTip = (node: ReactNode, tip: string) =>
-    isNarrow ? <Tooltip title={tip}>{node}</Tooltip> : node
 
   const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null
   const activeIndex = activeGroup ? groups.findIndex((g) => g.id === activeGroup.id) : -1
@@ -165,6 +161,16 @@ export function GroupTabBar({
     ],
   }
 
+  // 窄屏收敛为单按钮菜单（截图导入/新建分组 + 分组管理项合并），给分组 Tab 让出横向空间
+  const narrowMenu: MenuProps = {
+    items: [
+      { key: 'import', icon: <PictureOutlined />, label: '截图导入', onClick: onImport },
+      { key: 'new-group', icon: <PlusOutlined />, label: '新建分组', onClick: onNewGroup },
+      { type: 'divider' },
+      ...(manageMenu.items ?? []),
+    ],
+  }
+
   return (
     <div className="shrink-0 border-b border-gray-800 px-3">
       <Tabs
@@ -196,39 +202,25 @@ export function GroupTabBar({
           })),
         ]}
         tabBarExtraContent={
-          <Space size={isNarrow ? 2 : 4}>
-            {withTip(
-              <Button
-                size="small"
-                icon={<PictureOutlined />}
-                onClick={onImport}
-                aria-label="截图导入"
-              >
-                {isNarrow ? undefined : '截图导入'}
-              </Button>,
-              '截图导入',
-            )}
-            {withTip(
-              <Button
-                size="small"
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={onNewGroup}
-                aria-label="新建分组"
-              >
-                {isNarrow ? undefined : '新建分组'}
-              </Button>,
-              '新建分组',
-            )}
-            <Dropdown menu={manageMenu} placement="bottomRight" trigger={['click']}>
-              {withTip(
-                <Button size="small" icon={<SettingOutlined />} aria-label="分组管理">
-                  {isNarrow ? undefined : '分组管理'}
-                </Button>,
-                '分组管理',
-              )}
+          isNarrow ? (
+            <Dropdown menu={narrowMenu} placement="bottomRight" trigger={['click']}>
+              <Button size="small" icon={<MoreOutlined />} aria-label="分组操作" />
             </Dropdown>
-          </Space>
+          ) : (
+            <Space size={4}>
+              <Button size="small" icon={<PictureOutlined />} onClick={onImport} aria-label="截图导入">
+                截图导入
+              </Button>
+              <Button size="small" type="primary" icon={<PlusOutlined />} onClick={onNewGroup} aria-label="新建分组">
+                新建分组
+              </Button>
+              <Dropdown menu={manageMenu} placement="bottomRight" trigger={['click']}>
+                <Button size="small" icon={<SettingOutlined />} aria-label="分组管理">
+                  分组管理
+                </Button>
+              </Dropdown>
+            </Space>
+          )
         }
       />
     </div>
