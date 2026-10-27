@@ -346,7 +346,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className="relative hidden md:flex shrink-0 border-r border-gray-800 bg-[#111318] flex-col"
+      className="relative hidden md:flex md:sticky md:top-0 md:h-dvh shrink-0 border-r border-gray-800 bg-[#111318] flex-col"
       style={{ width: collapsed ? SIDEBAR_COLLAPSED_WIDTH : width }}
     >
       <SidebarMenu collapsed={collapsed} />
