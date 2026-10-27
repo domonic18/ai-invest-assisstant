@@ -2,11 +2,15 @@ import {
   AlertOutlined,
   AppstoreOutlined,
   BarChartOutlined,
+  BlockOutlined,
+  BookOutlined,
+  CalendarOutlined,
   CloudServerOutlined,
   DatabaseOutlined,
   DashboardOutlined,
   FileTextOutlined,
   FileDoneOutlined,
+  FilterOutlined,
   FundOutlined,
   GlobalOutlined,
   HeatMapOutlined,
@@ -54,6 +58,9 @@ const FEATURE_BY_PATH: Record<string, FeatureKey> = {
   '/news': 'news',
   '/chain': 'chain',
   '/paper-trade': 'paper-trade',
+  '/skills': 'skills',
+  '/kb': 'kb',
+  '/screening': 'screening',
 }
 
 function filterByFeature(items: MenuItem[], user: User | null): MenuItem[] {
@@ -79,9 +86,18 @@ function filterByFeature(items: MenuItem[], user: User | null): MenuItem[] {
     })
 }
 
-// 导航信息架构：检测 → 分析 → 设置；知识库/技能广场/投资日历入口在右上角 Header。
+// 导航信息架构：检测 → 分析 → 设置；桌面端知识库/技能广场/AI选股/投资日历入口在
+// 右上角 Header（移动端 Header 收敛后由导航抽屉的「工具」分组承接）。
 // 个人设置走右上角头像下拉（侧边栏不重复陈列）；个股监测经顶部搜索进入
 // （/stock/:code 无默认标的，不设静态导航项）。
+
+/** 移动端抽屉专用：桌面由 Header 图标承载，避免双入口重复。 */
+const TOOL_MENU_ITEMS: MenuItem[] = [
+  { key: '/skills', icon: <BlockOutlined />, label: '技能广场' },
+  { key: '/kb', icon: <BookOutlined />, label: '知识库' },
+  { key: '/screening', icon: <FilterOutlined />, label: 'AI 选股' },
+  { key: '/calendar', icon: <CalendarOutlined />, label: '投资日历' },
+]
 const DETECTION_MENU_ITEMS: MenuItem[] = [
   { key: '/macro-monitor', icon: <GlobalOutlined />, label: '宏观指数' },
   { key: '/capital-flow', icon: <FundOutlined />, label: '资金流向' },
@@ -163,9 +179,11 @@ interface SidebarMenuProps {
   /** 导航后回调（移动端抽屉场景用于关闭抽屉）。 */
   onNavigate?: () => void
   collapsed?: boolean
+  /** 追加「工具」分组（技能广场/知识库/AI 选股/投资日历）；仅移动端抽屉传入。 */
+  showToolEntries?: boolean
 }
 
-export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps) {
+export function SidebarMenu({ onNavigate, collapsed = false, showToolEntries = false }: SidebarMenuProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { isAdmin, user } = useAuthStore()
@@ -218,6 +236,9 @@ export function SidebarMenu({ onNavigate, collapsed = false }: SidebarMenuProps)
     // 智体中枢：交易 Agent 闭环（仅 admin 可见，路由侧 ProtectedAdmin 双保险）
     ...(isAdmin
       ? [{ key: '/trading-agent', icon: <ThunderboltOutlined />, label: '智体中枢' } as MenuItem]
+      : []),
+    ...(showToolEntries
+      ? [{ type: 'group', key: 'group-tools', label: '工具', children: TOOL_MENU_ITEMS } as MenuItem]
       : []),
     { type: 'group', key: 'group-detection', label: '监测', children: DETECTION_MENU_ITEMS },
     { type: 'group', key: 'group-analysis', label: '分析', children: ANALYSIS_MENU_ITEMS },

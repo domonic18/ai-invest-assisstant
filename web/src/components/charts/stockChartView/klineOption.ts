@@ -14,7 +14,7 @@ import { deriveAmplitude, deriveBarChange, formatWanShou } from '@/utils/kline'
 import type { StockChartViewIndicators } from './StockChartView'
 import { BORDER_COLOR, GRID_COLOR, TEXT_MAIN, TEXT_MUTED } from './constants'
 import type { KlineChartData } from './klineData'
-import { buildSubPane, computePaneLayout } from './klinePanes'
+import { buildSubPane, computePaneLayout, MA_LEGEND_TOP_RESERVE } from './klinePanes'
 import type { KlineTradeMark } from './tradeMarkers'
 
 const ACCENT = '#5e6ad2'
@@ -83,7 +83,11 @@ export function buildKlineOption(
     indicators.macd,
     indicators.kdj,
   ].filter(Boolean).length
-  const layout = computePaneLayout(height, subPanes)
+  const layout = computePaneLayout(
+    height,
+    subPanes,
+    indicators.ma ? MA_LEGEND_TOP_RESERVE : 8,
+  )
 
   const grids: EChartsOption['grid'] = []
   const xAxes: EChartsOption['xAxis'] = []
@@ -120,7 +124,12 @@ export function buildKlineOption(
     position: 'right',
     min: yMin,
     max: yMax,
-    axisLabel: { color: TEXT_MUTED, fontSize: 10 },
+    axisLabel: {
+      color: TEXT_MUTED,
+      fontSize: 10,
+      // computePriceAxisRange 的 min/max 带浮点尾差，不格式化会出现 5.223000000000001 刻度
+      formatter: (v: number) => Number(v).toFixed(2),
+    },
     splitLine: { lineStyle: { color: GRID_COLOR } },
     axisLine: { show: false },
   })

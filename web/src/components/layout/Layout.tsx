@@ -51,7 +51,7 @@ export function Layout() {
         closable={false}
         styles={{ body: { padding: 0 } }}
       >
-        <SidebarMenu onNavigate={closeMenu} />
+        <SidebarMenu onNavigate={closeMenu} showToolEntries />
       </Drawer>
       {canAssistant && (
         <Suspense fallback={null}>

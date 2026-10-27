@@ -65,3 +65,31 @@ describe('buildKlineOption markers', () => {
     expect(candleMarkLineData(option)).toHaveLength(1)
   })
 })
+
+describe('buildKlineOption price axis', () => {
+  const bars = [bar('2026-09-01', 10), bar('2026-09-02', 11), bar('2026-09-03', 12)]
+  const data = prepareKlineData({ bars }, [])
+
+  it('formats right axis labels to 2 decimals (no float tails)', () => {
+    const option = buildKlineOption(data, INDICATORS, 400)
+    const yAxis = option.yAxis as {
+      axisLabel?: { formatter?: (v: number) => string }
+    }[]
+    const formatter = yAxis[0]?.axisLabel?.formatter
+    expect(formatter).toBeDefined()
+    expect(formatter!(5.223000000000001)).toBe('5.22')
+  })
+
+  it('aligns main and sub-pane x axes (same boundaryGap) so volume bars sit under candles', () => {
+    const option = buildKlineOption(
+      prepareKlineData({ bars }, []),
+      { volume: true, ma: false, macd: true, kdj: false },
+      400,
+    )
+    const xAxes = option.xAxis as { boundaryGap?: boolean }[]
+    expect(xAxes.length).toBeGreaterThan(1)
+    for (const axis of xAxes) {
+      expect(axis.boundaryGap).toBe(false)
+    }
+  })
+})

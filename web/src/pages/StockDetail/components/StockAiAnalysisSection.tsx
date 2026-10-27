@@ -146,7 +146,7 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
             </Button>
             <div className="text-xs text-[#5c616e]">
               点击后将在 AI 助手侧边栏执行分析，完成后自动展示
-              {analyzing && '；分析进行中，进展见右侧 AI 助手'}
+              {analyzing && '；分析进行中，进展见 AI 助手'}
             </div>
             <div className="text-xs text-[#5c616e]">
               开启自选股分组的 AI 复盘后，每个交易日收盘自动生成
@@ -165,7 +165,7 @@ export function StockAiAnalysisSection({ stockCode }: StockAiAnalysisSectionProp
       {analyzing && (
         <div className="px-3.5 pt-2 flex items-center gap-2 text-xs text-[#8a8f98]">
           <LoadingOutlined spin />
-          分析进行中，进展见右侧 AI 助手…
+          分析进行中，进展见 AI 助手…
         </div>
       )}
       <div className="px-3.5 pb-3">
