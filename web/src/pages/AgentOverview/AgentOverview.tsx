@@ -74,7 +74,7 @@ export function AgentOverview() {
   const sessionText = { open: '盘中实时', break: '午间休市', pre: '盘前', closed: '盘后' }[session]
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 lg:h-full">
+    <div className="flex min-h-0 flex-col gap-3 lg:h-[calc(100dvh-6.5rem)]">
       <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1">
         <Typography.Title level={4} className="!mb-0 w-full sm:w-auto">
           智能中枢 · <span className="text-[#34d399]">电路脉冲主板</span>

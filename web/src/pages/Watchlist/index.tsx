@@ -62,7 +62,7 @@ export function Watchlist() {
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="h-[calc(100dvh-5.75rem)] flex items-center justify-center">
         <Spin />
       </div>
     )
@@ -73,7 +73,7 @@ export function Watchlist() {
   const detailOnly = isNarrow && !!selectedCode
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex h-[calc(100dvh-5.75rem)] min-h-[480px] flex-col md:h-[calc(100dvh-6.5rem)]">
       {/* 窄屏查看个股时详情整屏替换列表，分组栏随之隐藏 */}
       {!detailOnly && (
         <GroupTabBar

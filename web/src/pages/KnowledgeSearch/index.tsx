@@ -83,7 +83,7 @@ export function KnowledgeSearchPage() {
   const closePlayback = () => setSearchParams({}, { replace: true })
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-6 px-4">
+    <div className="flex min-h-[60dvh] flex-col items-center justify-center gap-6 px-4">
       <div className="flex flex-col items-center gap-2">
         <BookOutlined className="text-4xl text-blue-400" />
         <Typography.Title level={3} className="!mb-0">
