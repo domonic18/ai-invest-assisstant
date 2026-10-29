@@ -23,7 +23,12 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import { useState } from 'react'
 
-import { useCreateMyApiKey, useMyApiKeys, useRevokeMyApiKey } from '@/hooks/useApiKeys'
+import {
+  useCreateMyApiKey,
+  useMyApiKeys,
+  usePurgeMyApiKey,
+  useRevokeMyApiKey,
+} from '@/hooks/useApiKeys'
 import { formatDate, formatDateTime } from '@/utils/formatters'
 import { HintBox } from './SettingHints'
 
@@ -52,6 +57,7 @@ export function ApiKeySection() {
   const keysQ = useMyApiKeys()
   const createMutation = useCreateMyApiKey()
   const revokeMutation = useRevokeMyApiKey()
+  const purgeMutation = usePurgeMyApiKey()
   const [form] = Form.useForm<CreateFormValues>()
   const [createOpen, setCreateOpen] = useState(false)
   const [issued, setIssued] = useState<ApiKeyIssued | null>(null)
@@ -147,7 +153,20 @@ export function ApiKeySection() {
       key: 'actions',
       width: 90,
       render: (_, key) =>
-        key.revokedAt ? null : (
+        key.revokedAt ? (
+          <Popconfirm
+            title="删除该密钥记录？"
+            description="记录删除后不可恢复。"
+            okText="删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => purgeMutation.mutate(key.id)}
+          >
+            <Button type="link" size="small" danger>
+              删除
+            </Button>
+          </Popconfirm>
+        ) : (
           <Popconfirm
             title="吊销该密钥？"
             description="使用该 Key 的客户端将立即失去访问权限。"

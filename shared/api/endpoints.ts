@@ -16,6 +16,8 @@ export const ENDPOINTS = {
     meLlmConfigTest: `${API_BASE}/users/me/llm-config/test`,
     meApiKeys: `${API_BASE}/users/me/api-keys/`,
     meApiKey: (keyId: number | string) => `${API_BASE}/users/me/api-keys/${keyId}`,
+    meApiKeyPurge: (keyId: number | string) =>
+      `${API_BASE}/users/me/api-keys/${keyId}/purge`,
     watchlist: `${API_BASE}/users/watchlist`,
     watchlistQuotes: `${API_BASE}/users/watchlist/quotes`,
     watchlistRecognizeScreenshot: `${API_BASE}/users/watchlist/recognize-screenshot`,
