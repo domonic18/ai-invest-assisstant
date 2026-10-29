@@ -9,6 +9,15 @@ INDEX_CODES: dict[str, str] = {
     "sh000688": "科创50",
 }
 
+# 复盘基准指数（多周期复盘超额收益的对比基准）：只纳入指数日 K 采集与新鲜度
+# 校验（quote_kline_stock_daily），不进大盘实时快照/指数卡 —— INDEX_CODES
+# 保持「大盘四大指数」语义（docs/requirement/09 §4.5/§5）
+BENCHMARK_INDEX_CODE = "sh000300"
+BENCHMARK_INDEX_NAME = "沪深300"
+
+# 指数日 K 默认采集集：大盘四大指数 + 复盘基准
+INDEX_KLINE_CODES: tuple[str, ...] = (*INDEX_CODES, BENCHMARK_INDEX_CODE)
+
 # 指数/全球指标趋势缩略图取近 N 个收盘点（A 股与全球两路口径一致）
 INDEX_TREND_DAYS = 30
 
@@ -159,6 +168,7 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "kb-index": DOMAIN_KB,
     # 交易（模拟盘）
     "paper-trade-sync": DOMAIN_TRADING,
+    "paper-trade-position-replay": DOMAIN_TRADING,
     "paper-trade-review": DOMAIN_TRADING,
     "agent-daily-plan": DOMAIN_TRADING,
     "agent-plan-calibration": DOMAIN_TRADING,

@@ -18,6 +18,18 @@ SPECS: tuple[TaskSpec, ...] = (
         converters={"trade_date": date.fromisoformat},
     ),
     TaskSpec(
+        name="paper-trade-position-replay",
+        label="模拟盘历史持仓快照重放",
+        description="按成交回报重建 agent 账户历史每日持仓快照，补齐多周期复盘的仓位底座（按需手动运行，不设定时）",
+        data_type="paper-trade-position-replay",
+        collectors={
+            "internal": "collector.spiders.paper_trade_position_replay:PaperTradePositionReplayCollector",
+        },
+        queue="batch",
+        run_params=("start_date", "end_date"),
+        converters={"start_date": date.fromisoformat, "end_date": date.fromisoformat},
+    ),
+    TaskSpec(
         name="paper-trade-review",
         label="模拟盘 AI 分层复盘",
         description="盘后对 agent 账户交易做日/周/月分层归因复盘（选股/计划/执行 verdict + 经验提取），周期末日历判定加发",
