@@ -5,6 +5,7 @@ import type {
   KlineDrawingResult,
   PageAssistantResult,
   PaperTradingResult,
+  PaperTradingReviewResult,
   StockDailyAnalysisResult,
   StockScreeningRow,
 } from '@/stores/assistant'
@@ -142,6 +143,19 @@ export const PAGE_EVENT_DEFINITIONS: readonly PageEventDefinition[] = [
       symbol: e.symbol != null ? String(e.symbol) : undefined,
       side: e.side != null ? String(e.side) : undefined,
       volume: e.volume != null ? Number(e.volume) : undefined,
+    }),
+  },
+  {
+    eventType: PAGE_EVENT_TYPES.paperTradingReview,
+    actionLabel: '查看复盘结果',
+    path: () => '/trading-agent',
+    parse: (e): PaperTradingReviewResult => ({
+      type: PAGE_EVENT_TYPES.paperTradingReview,
+      agentKey: String(e.agent_key ?? ''),
+      period: String(e.period ?? ''),
+      tradeDate: String(e.trade_date ?? ''),
+      regenerate: e.regenerate != null ? Boolean(e.regenerate) : undefined,
+      cached: e.cached != null ? Boolean(e.cached) : undefined,
     }),
   },
 ]

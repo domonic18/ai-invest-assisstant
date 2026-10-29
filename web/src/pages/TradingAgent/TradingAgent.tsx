@@ -4,7 +4,7 @@
  * 结构 = 介绍卡（含「对话」入口：统一打开右侧全局侧边栏与该 Agent 会话）+
  * 运行状态条 + Tabs：Agent 自选（选股清单 + 人工移出）、持仓与交易（agent
  * 账户资金/持仓/委托/成交）、交易计划、执行动态（盘中逐 tick 观测留痕）、
- * 复盘记录（日/周/月）、经验总结（记忆库唯一管理面：复盘沉淀 + 手动沉淀，
+ * 复盘记录（六档周期 + 跨窗口对比）、经验总结（记忆库唯一管理面：复盘沉淀 + 手动沉淀，
  * 可编辑/删除/停用/启用）、配置（基本配置 + 会话人设 + 作业技能 + 模拟盘
  * 账户，D30 四区）。tab 态进 URL query；与 Agent 的对话交互一律走侧边栏。
  */
@@ -156,6 +156,12 @@ export function TradingAgent() {
   // Agent 委托/计划成功事件：刷新模拟盘数据与交易计划，事件即消费
   usePageAssistantResult(PAGE_EVENT_TYPES.paperTrading, () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.paperTrade.all })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.all })
+    return true
+  })
+
+  // 对话路径生成的复盘：刷新复盘缓存与日期打点，事件即消费
+  usePageAssistantResult(PAGE_EVENT_TYPES.paperTradingReview, () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.tradingAgent.all })
     return true
   })
