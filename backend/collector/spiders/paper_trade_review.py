@@ -14,7 +14,7 @@ weekly=仅周期末生成周度；monthly=仅月末生成月度——非 due 记
 """
 
 from datetime import date, datetime, timezone
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from app.core.database import AsyncSessionLocal
 from app.core.exceptions import NotFoundError
@@ -64,7 +64,7 @@ class PaperTradeReviewCollector(BaseCollector):
         """
         started_at = datetime.now(timezone.utc)
         period = kwargs.get("period")
-        if period not in REVIEW_PERIODS:
+        if period is not None and period not in REVIEW_PERIODS:
             return CollectResult(
                 source=self.source,
                 data_type=self.data_type,
@@ -87,8 +87,45 @@ class PaperTradeReviewCollector(BaseCollector):
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
             )
-        trade_date = parsed_date or latest_trading_day()
-        if not is_trading_day(trade_date):
+
+        raw_start = kwargs.get("start_date")
+        raw_end = kwargs.get("end_date")
+        start_date = _coerce_trade_date(raw_start) if raw_start is not None else None
+        end_date = _coerce_trade_date(raw_end) if raw_end is not None else None
+
+        def _failed(message: str) -> CollectResult:
+            return CollectResult(
+                source=self.source,
+                data_type=self.data_type,
+                status=CollectStatus.FAILED,
+                errors=[message],
+                message=message,
+                started_at=started_at,
+                finished_at=datetime.now(timezone.utc),
+            )
+
+        if (raw_start is None) != (raw_end is None):
+            return _failed("自定义区间须同时提供开始日与结束日")
+        if raw_start is not None and start_date is None:
+            return _failed(f"无效的 start_date：{raw_start}")
+        if raw_end is not None and end_date is None:
+            return _failed(f"无效的 end_date：{raw_end}")
+        if start_date is not None and end_date is not None:
+            if end_date < start_date:
+                return _failed(
+                    f"区间结束日 {end_date.isoformat()} 早于开始日 "
+                    f"{start_date.isoformat()}"
+                )
+        elif period is None:
+            return _failed("缺少复盘周期：须提供 period 或自定义区间")
+
+        trade_date = parsed_date
+        if start_date is None and trade_date is None:
+            trade_date = latest_trading_day()
+        # 自定义区间的基准日由服务层按收边窗口确定，跳过单日交易日预检
+        if start_date is None and trade_date is not None and not is_trading_day(
+            trade_date
+        ):
             return CollectResult(
                 source=self.source,
                 data_type=self.data_type,
@@ -98,7 +135,6 @@ class PaperTradeReviewCollector(BaseCollector):
                 finished_at=datetime.now(timezone.utc),
             )
 
-        resolved_period = cast(ReviewPeriod, period)
         async with AsyncSessionLocal() as session:
             try:
                 agent = await agent_registry.get_agent(session, agent_key)
@@ -113,12 +149,16 @@ class PaperTradeReviewCollector(BaseCollector):
                     finished_at=datetime.now(timezone.utc),
                 )
 
+            scope = kwargs.get("scope") or "current"
             try:
                 result = await agent_review_service.generate_review(
                     session,
                     agent,
-                    period=resolved_period,
+                    period=cast(ReviewPeriod | None, period),
                     trade_date=trade_date,
+                    scope=cast(Literal["current", "previous"], scope),
+                    start_date=start_date,
+                    end_date=end_date,
                     regenerate=bool(kwargs.get("regenerate")),
                     trigger="manual",
                     collector_log_id=kwargs.get("collector_log_id"),
@@ -133,8 +173,11 @@ class PaperTradeReviewCollector(BaseCollector):
                     finished_at=datetime.now(timezone.utc),
                     metadata={
                         "agent_key": agent_key,
-                        "period": resolved_period,
-                        "trade_date": trade_date.isoformat(),
+                        "period": period,
+                        "start_date": (
+                            start_date.isoformat() if start_date else None
+                        ),
+                        "end_date": (end_date.isoformat() if end_date else None),
                     },
                 )
             except AgentAccountNotDesignatedError as exc:
@@ -148,12 +191,15 @@ class PaperTradeReviewCollector(BaseCollector):
                     finished_at=datetime.now(timezone.utc),
                 )
 
+        # 报告框架与基准日以收边后的窗口为准（自定义区间可能映射到另一档）
+        result_period = result.content.period
+        result_trade_date = result.content.trade_date
         if result.content.no_target_reason is not None:
-            message = f"{agent_key} {resolved_period} 已执行但无复盘对象（空仓无持仓）"
+            message = f"{agent_key} {result_period} 已执行但无复盘对象（空仓无持仓）"
         elif result.cached:
-            message = f"{agent_key} {resolved_period} 复盘已存在，本次未重新生成"
+            message = f"{agent_key} {result_period} 复盘已存在，本次未重新生成"
         else:
-            message = f"{agent_key} {resolved_period} 复盘已生成"
+            message = f"{agent_key} {result_period} 复盘已生成"
         return CollectResult(
             source=self.source,
             data_type=self.data_type,
@@ -165,8 +211,10 @@ class PaperTradeReviewCollector(BaseCollector):
             finished_at=datetime.now(timezone.utc),
             metadata={
                 "agent_key": agent_key,
-                "period": resolved_period,
-                "trade_date": trade_date.isoformat(),
+                "period": result_period,
+                "trade_date": result_trade_date,
+                "start_date": (start_date.isoformat() if start_date else None),
+                "end_date": (end_date.isoformat() if end_date else None),
                 "cached": result.cached,
                 "no_target": result.content.no_target_reason is not None,
             },

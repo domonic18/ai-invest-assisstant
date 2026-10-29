@@ -20,13 +20,14 @@ Agent 过滤）。复盘契约 prompt 装载 per-agent 技能包
 
 import hashlib
 import json
+from dataclasses import dataclass
 from datetime import date
-from typing import Any
+from typing import Any, Literal
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.locking import GENERATION_LOCK_TTL_SECONDS, redis_lock
 from app.models.paper_trade import TradingAgent
 from app.repositories.review import ai_analysis_repository
@@ -54,8 +55,12 @@ from app.services.trading.agent_review_key_trades import (
 from app.services.trading.agent_review_metrics import compute_window_metrics
 from app.services.trading.agent_review_periods import (
     ReviewPeriod,
+    ReviewWindow,
     is_long_period,
     period_bounds,
+    resolve_custom_window,
+    resolve_explicit_window,
+    resolve_previous_window,
     resolve_review_window,
 )
 from app.services.trading.agent_review_sections import (
@@ -96,12 +101,65 @@ class TradingReviewNotFoundError(NotFoundError):
     """请求的复盘尚未生成。"""
 
 
+#: 快捷项作用域：current=本期（周期至今）/ previous=上一完整周期
+ReviewWindowScope = Literal["current", "previous"]
+
+
 def resolve_window(period: ReviewPeriod, trade_date: date) -> tuple[date, date]:
     """按周期解析本期窗口（周期首日 → 基准日），未按交易日历收边。
 
     六档窗口的完整语义（含上期与自定义区间）见 ``agent_review_periods``。
     """
     return period_bounds(period, trade_date)
+
+
+async def resolve_requested_window(
+    session: AsyncSession,
+    *,
+    period: ReviewPeriod | None = None,
+    trade_date: date | None = None,
+    scope: ReviewWindowScope = "current",
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> ReviewWindow:
+    """把读/生成入参统一解析为已收边的复盘窗口。
+
+    三种形态（§4.1/§4.3）：显式区间（end_date 必填，period 缺省按跨度映射，
+    提供时沿用该框架）；本期（周期首日 → 基准日）；上期（上一完整周期）。
+    显式区间为空（区间内无交易日）抛 ``BadRequestError``，快捷项为空窗口
+    原样返回由调用方按「未生成」处理。
+
+    Raises:
+        BadRequestError: 区间不成对、倒置、无交易日，或缺少周期与区间。
+    """
+    from app.services.market import trade_calendar_service
+
+    if (start_date is None) != (end_date is None):
+        raise BadRequestError("自定义区间须同时提供开始日与结束日")
+    if start_date is not None and end_date is not None:
+        if end_date < start_date:
+            raise BadRequestError(
+                f"区间结束日 {end_date.isoformat()} 早于开始日 {start_date.isoformat()}"
+            )
+        window = (
+            await resolve_custom_window(session, start_date, end_date)
+            if period is None
+            else await resolve_explicit_window(session, period, start_date, end_date)
+        )
+        if window.is_empty:
+            raise BadRequestError(
+                f"{start_date.isoformat()} 至 {end_date.isoformat()} 区间内没有交易日"
+            )
+        return window
+
+    if period is None:
+        raise BadRequestError("缺少复盘周期：请提供 period 或自定义区间")
+    resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(
+        session
+    )
+    if scope == "previous":
+        return await resolve_previous_window(session, period, resolved)
+    return await resolve_review_window(session, period, resolved)
 
 
 def _input_hash(agent_key: str, account_id: int, period: str, start: date, end: date) -> str:
@@ -116,31 +174,165 @@ async def get_review(
     session: AsyncSession,
     agent_key: str,
     *,
-    period: ReviewPeriod,
+    period: ReviewPeriod | None = None,
     trade_date: date | None = None,
+    scope: ReviewWindowScope = "current",
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> PaperTradeReviewRecord | None:
-    """读取指定 Agent 已生成的复盘（不触发 LLM）；trade_date 缺省取最新交易日。
+    """读取指定 Agent 已生成的复盘（不触发 LLM）。
 
-    空仓无复盘对象的标记行（no_target_reason 非空）同样返回，由展示层区分。"""
-    from app.services.market import trade_calendar_service
+    ``trade_date`` 缺省取最新交易日；``scope=previous`` 读上一完整周期；
+    显式区间（``start_date``/``end_date``）与快捷项共用同一窗口收边与缓存键
+    （周期 + 精确窗口）。空仓无复盘对象的标记行（no_target_reason 非空）
+    同样返回，由展示层区分。
+    """
     from app.services.trading import account_service
 
-    resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(
-        session
+    window = await resolve_requested_window(
+        session,
+        period=period,
+        trade_date=trade_date,
+        scope=scope,
+        start_date=start_date,
+        end_date=end_date,
     )
+    if window.is_empty:
+        return None
     account = await account_service.resolve_agent_account(session, agent_key)
-    window = await resolve_review_window(session, period, resolved)
     row = await ai_analysis_repository.load_latest_success(
         session,
         skill_id=REVIEW_SKILL_ID,
-        trade_date=resolved,
+        trade_date=window.end,
         input_hash=_input_hash(
-            agent_key, account.id, period, window.start, window.end
+            agent_key, account.id, window.period, window.start, window.end
         ),
     )
     if row is None or not row.structured_output:
         return None
     return PaperTradeReviewRecord.model_validate(row.structured_output)
+
+
+@dataclass(frozen=True)
+class ReviewWindowRequest:
+    """对比视图的单侧窗口入参（与生成/读取同口径）。"""
+
+    period: ReviewPeriod | None = None
+    trade_date: date | None = None
+    scope: ReviewWindowScope = "current"
+    start_date: date | None = None
+    end_date: date | None = None
+
+
+@dataclass(frozen=True)
+class ReviewCompareResult:
+    """跨窗口等比指标对比结果（metrics 为 wire 形状字典）。"""
+
+    window_a: dict[str, Any]
+    window_b: dict[str, Any]
+    aligned_trading_days: int
+    note: str
+
+
+#: 对比视图可比性提示（§4.5：市场环境不同不能直接等同于策略优劣）
+_COMPARE_NOTE = (
+    "两窗口已按最近 {days} 个交易日等长对齐，指标同口径可复算；"
+    "市场环境不同，差异不能直接等同于策略优劣。"
+)
+
+
+def _truncate_window(window: ReviewWindow, trading_days: int) -> ReviewWindow:
+    """保留窗口最近 N 个交易日（等长对齐，§4.5）。"""
+    days = window.trading_days[-trading_days:]
+    return ReviewWindow(
+        period=window.period,
+        requested_start=days[0],
+        requested_end=days[-1],
+        start=days[0],
+        end=days[-1],
+        trading_days=days,
+    )
+
+
+def _window_text(window: ReviewWindow) -> str:
+    return f"{window.start.isoformat()} 至 {window.end.isoformat()}"
+
+
+async def compare_reviews(
+    session: AsyncSession,
+    agent_key: str,
+    *,
+    window_a: ReviewWindowRequest,
+    window_b: ReviewWindowRequest,
+) -> ReviewCompareResult:
+    """两个已生成窗口按等长交易日对齐后重算指标并对比（§4.5）。
+
+    对齐取两窗口较短的一方，各自截取**最近** N 个交易日重算（口径不变）。
+    仅对比已完成生成的窗口：任一窗口未生成抛 ``TradingReviewNotFoundError``。
+
+    Raises:
+        BadRequestError: 窗口入参非法或区间内无交易日。
+        TradingReviewNotFoundError: 任一窗口尚未生成复盘。
+    """
+    from app.services.trading import account_service
+
+    resolved_a = await resolve_requested_window(
+        session,
+        period=window_a.period,
+        trade_date=window_a.trade_date,
+        scope=window_a.scope,
+        start_date=window_a.start_date,
+        end_date=window_a.end_date,
+    )
+    resolved_b = await resolve_requested_window(
+        session,
+        period=window_b.period,
+        trade_date=window_b.trade_date,
+        scope=window_b.scope,
+        start_date=window_b.start_date,
+        end_date=window_b.end_date,
+    )
+    if resolved_a.is_empty or resolved_b.is_empty:
+        raise BadRequestError("对比窗口内没有交易日")
+
+    account = await account_service.resolve_agent_account(session, agent_key)
+    for window in (resolved_a, resolved_b):
+        cached = await _load_cached(
+            session,
+            _input_hash(
+                agent_key,
+                account.id,
+                window.period,
+                window.start,
+                window.end,
+            ),
+        )
+        if cached is None:
+            raise TradingReviewNotFoundError(
+                f"{_window_text(window)} 的 {window.period} 复盘尚未生成，无法对比"
+            )
+
+    aligned = min(
+        resolved_a.trading_day_count, resolved_b.trading_day_count
+    )
+    metrics_a = await compute_window_metrics(
+        session,
+        account_id=account.id,
+        agent_key=agent_key,
+        window=_truncate_window(resolved_a, aligned),
+    )
+    metrics_b = await compute_window_metrics(
+        session,
+        account_id=account.id,
+        agent_key=agent_key,
+        window=_truncate_window(resolved_b, aligned),
+    )
+    return ReviewCompareResult(
+        window_a=metrics_a.to_dict(),
+        window_b=metrics_b.to_dict(),
+        aligned_trading_days=aligned,
+        note=_COMPARE_NOTE.format(days=aligned),
+    )
 
 
 async def list_review_dates(
@@ -158,18 +350,24 @@ async def generate_review(
     session: AsyncSession,
     agent: TradingAgent,
     *,
-    period: ReviewPeriod,
+    period: ReviewPeriod | None = None,
     trade_date: date | None = None,
+    scope: ReviewWindowScope = "current",
+    start_date: date | None = None,
+    end_date: date | None = None,
     regenerate: bool = False,
     trigger: str = "scheduled",
     collector_log_id: int | None = None,
 ) -> ReviewGenerateResult:
     """生成（或读取缓存的）指定 Agent 的模拟盘分层复盘。
 
+    窗口入参与读路径一致（``resolve_requested_window``）：周期本期/上期、
+    自定义区间与上期精确窗口共用同一缓存键（周期 + 精确窗口）与解析锁。
     全程经 ``AgentRunRecorder`` 记录执行轨迹（D35 会话管理）：缓存命中落
     skipped + cache_hit，异常落 failed 后原样上抛。
 
     Raises:
+        BadRequestError: 区间不成对/倒置/无交易日
         NonTradingDayError: 指定日期不是交易日
         AgentAccountNotDesignatedError: 该 Agent 未绑定专属账户
         ReviewInputDataNotReadyError: 盘后同步尚未落库（Celery 退避重试）
@@ -187,18 +385,33 @@ async def generate_review(
         raise NonTradingDayError(
             f"{trade_date.isoformat()} 不是交易日，模拟盘复盘只对交易日有效"
         )
-    resolved = trade_date or await trade_calendar_service.resolve_latest_trade_date(
-        session
+    window = await resolve_requested_window(
+        session,
+        period=period,
+        trade_date=trade_date,
+        scope=scope,
+        start_date=start_date,
+        end_date=end_date,
     )
+    if window.is_empty:
+        raise NonTradingDayError(
+            f"{window.requested_start.isoformat()} 至 "
+            f"{window.requested_end.isoformat()} 区间内没有交易日"
+        )
+    # 报告框架与基准日以收边后的窗口为准：自定义区间按跨度映射周期，
+    # 上期窗口的基准日是其最后交易日（与缓存行 trade_date 对齐）
+    effective_period = window.period
+    resolved = window.end
     account = await account_service.resolve_agent_account(session, agent.agent_key)
-    window = await resolve_review_window(session, period, resolved)
     start, end = window.start, window.end
-    input_hash = _input_hash(agent.agent_key, account.id, period, start, end)
+    input_hash = _input_hash(
+        agent.agent_key, account.id, effective_period, start, end
+    )
 
     recorder = AgentRunRecorder(
         agent_key=agent.agent_key,
         kind="review",
-        period=period,
+        period=effective_period,
         trigger=trigger,
         trade_date=resolved,
         collector_log_id=collector_log_id,
@@ -238,7 +451,7 @@ async def generate_review(
             # 镜像计划空仓观望语义——执行过但无内容，与「未执行」可区分
             record = PaperTradeReviewRecord(
                 **PaperTradeReviewContent(
-                    period=period,
+                    period=effective_period,
                     trade_date=resolved.isoformat(),
                     overall="",
                     trades=[],
@@ -261,7 +474,8 @@ async def generate_review(
             return ReviewGenerateResult(content=record, cached=False)
 
         async with redis_lock(
-            f"{REVIEW_SKILL_ID}:{agent.agent_key}:{account.id}:{period}:{resolved.isoformat()}",
+            f"{REVIEW_SKILL_ID}:{agent.agent_key}:{account.id}:"
+            f"{effective_period}:{start.isoformat()}:{end.isoformat()}",
             ttl=GENERATION_LOCK_TTL_SECONDS,
         ) as acquired:
             if not acquired:
@@ -275,11 +489,11 @@ async def generate_review(
                 await recorder.finish(
                     "failed",
                     error_msg=(
-                        f"其他实例正在生成 {resolved.isoformat()} 的 {period} 复盘"
+                        f"其他实例正在生成 {resolved.isoformat()} 的 {effective_period} 复盘"
                     ),
                 )
                 raise PaperTradeReviewLockedError(
-                    f"其他实例正在生成 {resolved.isoformat()} 的 {period} 复盘"
+                    f"其他实例正在生成 {resolved.isoformat()} 的 {effective_period} 复盘"
                 )
 
             if not regenerate:
@@ -315,7 +529,7 @@ async def generate_review(
                 metrics_payload = metrics.to_dict()
             window_input["metrics"] = metrics_payload
 
-            if is_long_period(period):
+            if is_long_period(effective_period):
                 key_trades_payload: dict[str, Any] = {}
                 async with recorder.step(
                     "input.key_trades",
@@ -369,7 +583,7 @@ async def generate_review(
                 content = await _run_llm(
                     session,
                     agent,
-                    period,
+                    effective_period,
                     resolved,
                     window_input,
                     meta_out=llm_meta,
@@ -393,7 +607,7 @@ async def generate_review(
                 content = content.model_copy(
                     update={
                         "experiences": filter_period_experiences(
-                            period, content.experiences
+                            effective_period, content.experiences
                         )
                     }
                 )

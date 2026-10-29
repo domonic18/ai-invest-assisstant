@@ -353,6 +353,8 @@ def build_metrics(
     benchmark_return = window_return_pct(benchmark_values, start, end)
 
     notes: list[str] = []
+    if window.warning:
+        notes.append(window.warning)
     if window.is_empty:
         notes.append("窗口内无交易日，指标不可计算")
     if not in_window_nav:

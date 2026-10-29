@@ -255,3 +255,15 @@ async def resolve_custom_window(
     return _build_window(
         mapping.period, start, end, days, warning=mapping.warning
     )
+
+
+async def resolve_explicit_window(
+    session: AsyncSession, period: ReviewPeriod, start: date, end: date
+) -> ReviewWindow:
+    """显式区间窗口：沿用调用方指定的报告框架（上期快捷项 / 带周期的区间选择）。
+
+    与 ``resolve_custom_window`` 的区别只在于周期来源——后者按跨度自动映射
+    （§4.3），本函数保留框架，用于「上期」或前端已选定档位的精确窗口。
+    """
+    days = await list_trading_days(session, start, end)
+    return _build_window(period, start, end, days)

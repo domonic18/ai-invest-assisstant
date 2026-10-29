@@ -535,11 +535,45 @@ class TradingAgentReviewResponse(CamelModel):
 
 
 class TradingAgentReviewGenerateRequest(CamelModel):
-    """按需生成复盘（B4：页面按钮触发，异步派发不阻塞请求）。"""
+    """按需生成复盘（B4/B5：页面按钮触发，异步派发不阻塞请求）。
 
-    period: Literal["day", "week", "month", "quarter", "half_year", "year"]
+    三形态（§4.1/§4.3）：``period`` 本期；``period``+``scope=previous`` 上期；
+    显式 ``startDate``/``endDate`` 自定义区间（缺 ``period`` 时按跨度映射报告
+    框架，提供时沿用该框架）。周期与区间至少提供其一。
+    """
+
+    period: Literal["day", "week", "month", "quarter", "half_year", "year"] | None = None
     trade_date: date | None = None
+    scope: Literal["current", "previous"] = "current"
+    start_date: date | None = None
+    end_date: date | None = None
     regenerate: bool = False
+
+
+class TradingReviewCompareWindow(CamelModel):
+    """对比视图的单侧窗口（与生成/读取同口径：周期、上期、显式区间）。"""
+
+    period: Literal["day", "week", "month", "quarter", "half_year", "year"] | None = None
+    trade_date: date | None = None
+    scope: Literal["current", "previous"] = "current"
+    start_date: date | None = None
+    end_date: date | None = None
+
+
+class TradingAgentReviewCompareRequest(CamelModel):
+    """跨窗口指标对比请求（§4.5：任意两个已生成窗口）。"""
+
+    window_a: TradingReviewCompareWindow
+    window_b: TradingReviewCompareWindow
+
+
+class TradingAgentReviewCompareResponse(CamelModel):
+    """跨窗口等比指标对比（按等长交易日对齐，附可比性提示）。"""
+
+    window_a: TradingAgentReviewMetrics
+    window_b: TradingAgentReviewMetrics
+    aligned_trading_days: int
+    note: str
 
 
 class TradingAgentReviewGenerateResponse(CamelModel):

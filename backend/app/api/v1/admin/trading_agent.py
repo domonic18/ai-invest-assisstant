@@ -32,8 +32,11 @@ from app.schemas.paper_trade import (
     TradingAgentProfileUpdateRequest,
     TradingAgentPromptContent,
     TradingAgentPromptTemplate,
+    TradingAgentReviewCompareRequest,
+    TradingAgentReviewCompareResponse,
     TradingAgentReviewGenerateRequest,
     TradingAgentReviewGenerateResponse,
+    TradingAgentReviewMetrics,
     TradingAgentReviewResponse,
 )
 from app.services.market import trade_calendar_service
@@ -148,20 +151,41 @@ async def update_trading_agent_config(
 async def get_trading_agent_review(
     agent_key: str,
     session: Annotated[AsyncSession, Depends(get_db)],
-    period: Literal["day", "week", "month", "quarter", "half_year", "year"] = Query(
-        ..., description="复盘周期"
+    period: Literal["day", "week", "month", "quarter", "half_year", "year"] | None = Query(
+        None, description="复盘周期（纯自定义区间可省略，由后端按跨度映射）"
     ),
     trade_date: date | None = Query(None, description="基准交易日（缺省取该周期最新一条）"),
+    scope: Literal["current", "previous"] = Query(
+        "current", description="current=本期 / previous=上一完整周期"
+    ),
+    start_date: date | None = Query(None, description="自定义区间开始日"),
+    end_date: date | None = Query(None, description="自定义区间结束日"),
 ) -> TradingAgentReviewResponse:
     """读取已生成的模拟盘分层复盘（只读，不触发 LLM）。
 
-    ``noTargetReason`` 非空表示已执行但空仓无复盘对象，供前端与「未生成」区分。"""
+    窗口形态与生成接口一致（本期/上期/自定义区间）；``noTargetReason`` 非空
+    表示已执行但空仓无复盘对象，供前端与「未生成」区分。"""
     content = await agent_review_service.get_review(
-        session, agent_key, period=period, trade_date=trade_date
+        session,
+        agent_key,
+        period=period,
+        trade_date=trade_date,
+        scope=scope,
+        start_date=start_date,
+        end_date=end_date,
     )
     if content is None:
+        if start_date is not None and end_date is not None:
+            window_text = f"{start_date.isoformat()} 至 {end_date.isoformat()}"
+        else:
+            window_text = (
+                f"{trade_date.isoformat()} 的 {period}"
+                if trade_date
+                else f"最新 {period}"
+            )
+            window_text += "（上期）" if scope == "previous" else ""
         raise agent_review_service.TradingReviewNotFoundError(
-            f"{trade_date.isoformat() if trade_date else '最新'} 的 {period} 复盘尚未生成"
+            f"{window_text} 复盘尚未生成"
         )
     return TradingAgentReviewResponse.model_validate(content.model_dump(mode="json"))
 
@@ -186,10 +210,52 @@ async def generate_trading_agent_review(
         agent_key,
         period=data.period,
         trade_date=data.trade_date,
+        scope=data.scope,
+        start_date=data.start_date,
+        end_date=data.end_date,
         regenerate=data.regenerate,
     )
     return TradingAgentReviewGenerateResponse(
         log_id=log.id, celery_task_id=log.celery_task_id
+    )
+
+
+@router.post(
+    "/{agent_key}/review/compare",
+    response_model=TradingAgentReviewCompareResponse,
+)
+async def compare_trading_agent_reviews(
+    agent_key: str,
+    data: TradingAgentReviewCompareRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> TradingAgentReviewCompareResponse:
+    """跨窗口指标对比（§4.5）：两个已生成窗口按等长交易日对齐后同屏对比。
+
+    仅对比已生成窗口（未生成返回 404）；指标由系统按落库数据复算，
+    并附市场环境可比性提示。"""
+    result = await agent_review_service.compare_reviews(
+        session,
+        agent_key,
+        window_a=agent_review_service.ReviewWindowRequest(
+            period=data.window_a.period,
+            trade_date=data.window_a.trade_date,
+            scope=data.window_a.scope,
+            start_date=data.window_a.start_date,
+            end_date=data.window_a.end_date,
+        ),
+        window_b=agent_review_service.ReviewWindowRequest(
+            period=data.window_b.period,
+            trade_date=data.window_b.trade_date,
+            scope=data.window_b.scope,
+            start_date=data.window_b.start_date,
+            end_date=data.window_b.end_date,
+        ),
+    )
+    return TradingAgentReviewCompareResponse(
+        window_a=TradingAgentReviewMetrics.model_validate(result.window_a),
+        window_b=TradingAgentReviewMetrics.model_validate(result.window_b),
+        aligned_trading_days=result.aligned_trading_days,
+        note=result.note,
     )
 
 

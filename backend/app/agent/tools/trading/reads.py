@@ -16,15 +16,20 @@ def make_get_review_tool(agent_key: str) -> BaseTool:
 
     @tool
     async def get_daily_review(
-        period: Literal["day", "week", "month", "quarter", "half_year", "year"] = "day",
+        period: Literal["day", "week", "month", "quarter", "half_year", "year"] | None = None,
         trade_date: str | None = None,
+        scope: Literal["current", "previous"] = "current",
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> dict[str, Any]:
         """查询交易 Agent 模拟盘的 AI 分层复盘（只读，不触发生成）。
 
         Args:
             period: "day" 日度 / "week" 周度 / "month" 月度 / "quarter" 季度 /
-                "half_year" 半年度 / "year" 年度。
+                "half_year" 半年度 / "year" 年度。仅给区间时可省略（按跨度映射）。
             trade_date: 基准交易日 YYYY-MM-DD，缺省取最新交易日。
+            scope: "current" 本期 / "previous" 上一完整周期。
+            start_date/end_date: 自定义区间 YYYY-MM-DD（须成对）。
 
         Returns:
             overall 整体评价、trades 逐笔三层判定（选股/计划/执行）、bias 倾向、
@@ -32,24 +37,57 @@ def make_get_review_tool(agent_key: str) -> BaseTool:
         """
         from app.services.trading import agent_review_service
 
-        parsed_date: date | None = None
-        if trade_date:
+        def _parse(raw: str | None, name: str) -> tuple[date | None, dict[str, Any] | None]:
+            if not raw:
+                return None, None
             try:
-                parsed_date = date.fromisoformat(trade_date)
+                return date.fromisoformat(raw), None
             except ValueError:
-                return {"error": f"无效的 trade_date：{trade_date}（应为 YYYY-MM-DD）"}
+                return None, {"error": f"无效的 {name}：{raw}（应为 YYYY-MM-DD）"}
 
-        async with AsyncSessionLocal() as session:
-            content = await agent_review_service.get_review(
-                session, agent_key, period=period, trade_date=parsed_date
-            )
+        parsed_date, date_error = _parse(trade_date, "trade_date")
+        if date_error:
+            return date_error
+        parsed_start, start_error = _parse(start_date, "start_date")
+        if start_error:
+            return start_error
+        parsed_end, end_error = _parse(end_date, "end_date")
+        if end_error:
+            return end_error
+        if (parsed_start is None) != (parsed_end is None):
+            return {"error": "自定义区间须同时提供 start_date 与 end_date"}
+        resolved_period = period or (
+            None if parsed_start is not None else "day"
+        )
+
+        from app.core.exceptions import AppError
+
+        try:
+            async with AsyncSessionLocal() as session:
+                content = await agent_review_service.get_review(
+                    session,
+                    agent_key,
+                    period=resolved_period,
+                    trade_date=parsed_date,
+                    scope=scope,
+                    start_date=parsed_start,
+                    end_date=parsed_end,
+                )
+        except AppError as exc:
+            return {"error": str(exc)}
 
         if content is None:
+            window_text = (
+                f"{parsed_start.isoformat()} 至 {parsed_end.isoformat()}"
+                if parsed_start and parsed_end
+                else f"{resolved_period or '自定义区间'}"
+            )
             return {
                 "not_ready": True,
                 "note": (
-                    f"{period} 复盘尚未生成（日/周/月有盘后定时生成；季/半年/年"
-                    "需经页面或 generate_trading_review 按需生成）。"
+                    f"{window_text} 复盘尚未生成（日/周/月有盘后定时生成；"
+                    "季/半年/年与上期/自定义区间需经页面或 "
+                    "generate_trading_review 按需生成）。"
                 ),
             }
         return content.model_dump()
