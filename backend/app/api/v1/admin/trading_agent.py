@@ -44,6 +44,7 @@ from app.services.trading import (
     agent_registry,
     agent_review_service,
 )
+from app.services.trading.agent_review_periods import REVIEW_PERIODS
 
 router = APIRouter(
     prefix="/trading-agent",
@@ -144,7 +145,9 @@ async def update_trading_agent_config(
 async def get_trading_agent_review(
     agent_key: str,
     session: Annotated[AsyncSession, Depends(get_db)],
-    period: Literal["day", "week", "month"] = Query(..., description="复盘周期"),
+    period: Literal["day", "week", "month", "quarter", "half_year", "year"] = Query(
+        ..., description="复盘周期"
+    ),
     trade_date: date | None = Query(None, description="基准交易日（缺省取该周期最新一条）"),
 ) -> TradingAgentReviewResponse:
     """读取已生成的模拟盘分层复盘（只读，不触发 LLM）。
@@ -174,7 +177,7 @@ async def get_trading_agent_dates(
             period: await agent_review_service.list_review_dates(
                 session, agent_key, period=period
             )
-            for period in ("day", "week", "month")
+            for period in REVIEW_PERIODS
         },
     )
 

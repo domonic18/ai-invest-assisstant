@@ -482,10 +482,43 @@ class TradingAgentMethodologyCheckItem(CamelModel):
     note: str
 
 
+class TradingAgentReviewSectionItem(CamelModel):
+    """周期专属板块（B3：统一框架 + 各周期专属章节）。"""
+
+    key: str
+    title: str
+    body: str
+
+
+class TradingAgentReviewMetrics(CamelModel):
+    """系统确定性指标（B2/B3：LLM 只解读，前端指标卡直接渲染；null = 不可计算）。"""
+
+    period: str
+    start_date: str
+    end_date: str
+    trading_days: int
+    covered_start: str | None = None
+    covered_end: str | None = None
+    start_value: float | None = None
+    end_value: float | None = None
+    return_pct: float | None = None
+    annualized_return_pct: float | None = None
+    max_drawdown_pct: float | None = None
+    sell_count: int = 0
+    win_rate_pct: float | None = None
+    profit_loss_ratio: float | None = None
+    turnover_rate_pct: float | None = None
+    execution_deviation_pct: float | None = None
+    benchmark_return_pct: float | None = None
+    excess_return_pct: float | None = None
+    notes: list[str] = []
+
+
 class TradingAgentReviewResponse(CamelModel):
     """模拟盘分层复盘（ai_analysis_result.structured_output 契约镜像）。
 
-    ``noTargetReason`` 非空 = 已执行但无复盘对象（空仓），前端与「未生成」区分。"""
+    ``noTargetReason`` 非空 = 已执行但无复盘对象（空仓），前端与「未生成」区分；
+    ``metrics`` 由系统计算注入（B3 前的缓存行为 null）。"""
 
     period: str
     trade_date: str
@@ -493,10 +526,12 @@ class TradingAgentReviewResponse(CamelModel):
     trades: list[TradingAgentTradeVerdictItem] = []
     bias: str
     suggestion: str
+    sections: list[TradingAgentReviewSectionItem] = []
     market_context: str = ""
     methodology_check: list[TradingAgentMethodologyCheckItem] = []
     experiences: list[TradingAgentReviewExperienceItem] = []
     no_target_reason: str | None = None
+    metrics: TradingAgentReviewMetrics | None = None
 
 
 class TradingAgentPlanResponse(CamelModel):
