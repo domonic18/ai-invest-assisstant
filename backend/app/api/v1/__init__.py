@@ -27,6 +27,7 @@ from app.api.v1 import (
     social,
     stocks,
     telegraph,
+    user_api_keys,
     users,
     workbench,
 )
@@ -65,6 +66,9 @@ api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(account.router, prefix="/users", tags=["account"])
+api_router.include_router(
+    user_api_keys.router, prefix="/users/me/api-keys", tags=["api-keys"]
+)
 api_router.include_router(stocks.router, prefix="/stocks", tags=["stocks"])
 api_router.include_router(kline.router, prefix="/kline", tags=["kline"])
 api_router.include_router(

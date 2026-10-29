@@ -122,14 +122,25 @@ class ApiKeyService:
         return ApiKeyIssuedResponse(**response.model_dump(), token=token)
 
     async def revoke_key(self, key_id: int) -> None:
-        """吊销 Key（幂等：已吊销直接返回）。"""
+        """吊销 Key（管理员路径，幂等：已吊销直接返回）。"""
         row = await self._session.get(UserApiKey, key_id)
         if row is None:
             raise NotFoundError(f"API Key {key_id} 不存在")
-        if row.revoked_at is None:
-            row.revoked_at = utc_now()
-            await self._session.commit()
-            logger.info("api_key.revoked", api_key_id=key_id, user_id=row.user_id)
+        await self._revoke(row)
+
+    async def revoke_own_key(self, key_id: int, user_id: int) -> None:
+        """个人设置吊销：非本人 Key 一律按不存在处理，不泄露他人 Key 存在性。"""
+        row = await self._session.get(UserApiKey, key_id)
+        if row is None or row.user_id != user_id:
+            raise NotFoundError(f"API Key {key_id} 不存在")
+        await self._revoke(row)
+
+    async def _revoke(self, row: UserApiKey) -> None:
+        if row.revoked_at is not None:
+            return
+        row.revoked_at = utc_now()
+        await self._session.commit()
+        logger.info("api_key.revoked", api_key_id=row.id, user_id=row.user_id)
 
 
 async def verify_api_key(token: str) -> AccessToken | None:

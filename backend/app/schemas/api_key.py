@@ -25,6 +25,13 @@ class ApiKeyCreateRequest(CamelModel):
         return list(dict.fromkeys(value))
 
 
+class ApiKeySelfCreateRequest(CamelModel):
+    """个人设置自助签发：scope 由服务端固定，用户只决定名称与有效期。"""
+
+    name: str = Field(..., min_length=1, max_length=100)
+    expires_at: datetime | None = None
+
+
 class ApiKeyResponse(CamelModel):
     """API Key 列表行（不含哈希与明文）。"""
 
