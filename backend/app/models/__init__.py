@@ -77,6 +77,7 @@ from app.models.social import AsrChannelConfig, SocialAccount, SocialPost, Socia
 from app.models.stock import StockBasic
 from app.models.tracked_index import TrackedIndexConfig
 from app.models.user import User
+from app.models.user_api_key import UserApiKey
 from app.models.user_group import UserGroup
 from app.models.user_market_review import UserMarketReview
 from app.models.user_news_subscription import NewsSubscriptionHit, UserNewsSubscription
@@ -159,6 +160,7 @@ __all__ = [
     "TrackedIndexConfig",
     "User",
     "UserAiQuota",
+    "UserApiKey",
     "UserGroup",
     "UserLlmConfig",
     "UserMarketReview",
