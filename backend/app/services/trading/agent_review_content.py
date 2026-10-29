@@ -11,8 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-#: 复盘窗口粒度（API 入参与 LLM 契约共用）
-ReviewPeriod = Literal["day", "week", "month"]
+from app.services.trading.agent_review_periods import ReviewPeriod
 
 #: 预检无复盘对象时落缓存行的系统标记原因（展示层据此与「未执行」区分）
 NO_TARGET_REASON = "复盘窗口内无委托成交，账户亦无历史持仓（空仓无复盘对象）"

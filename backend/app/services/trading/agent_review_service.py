@@ -1,4 +1,4 @@
-"""交易 Agent 盘后分层复盘服务（日/周/月）。
+"""交易 Agent 盘后分层复盘服务（日/周/月生成；窗口模型见 agent_review_periods）。
 
 复盘对象为指定 Agent 的专属账户（本地三表按 ``resolve_agent_account()`` 过滤）；
 结果按 (skill_id, input_hash=Agent+账户+周期+窗口) 缓存在 ``ai_analysis_result``
@@ -20,7 +20,7 @@ Agent 过滤）。复盘契约 prompt 装载 per-agent 技能包
 
 import hashlib
 import json
-from datetime import date, timedelta
+from datetime import date
 from typing import Any
 
 import structlog
@@ -38,7 +38,6 @@ from app.services.trading.agent_review_content import (
     PaperTradeReviewContent,
     PaperTradeReviewRecord,
     ReviewGenerateResult,
-    ReviewPeriod,
 )
 from app.services.trading.agent_review_inputs import (
     _collect_window_input,
@@ -46,13 +45,12 @@ from app.services.trading.agent_review_inputs import (
     _market_review_optional,
     _sync_landed,
 )
+from app.services.trading.agent_review_periods import ReviewPeriod, period_bounds
 from app.services.trading.agent_run_recorder import AgentRunRecorder
 
 logger = structlog.get_logger(__name__)
 
 REVIEW_SKILL_ID = "paper-trade-review"
-#: Literal 在运行时不可迭代，白名单单独维护（API 入参校验用）
-REVIEW_PERIODS: tuple[str, ...] = ("day", "week", "month")
 
 
 def _error_text(exc: BaseException) -> str:
@@ -83,12 +81,11 @@ class TradingReviewNotFoundError(NotFoundError):
 
 
 def resolve_window(period: ReviewPeriod, trade_date: date) -> tuple[date, date]:
-    """按周期解析复盘窗口：day=当日；week=本周一至今；month=本月 1 日至今。"""
-    if period == "day":
-        return trade_date, trade_date
-    if period == "week":
-        return trade_date - timedelta(days=trade_date.weekday()), trade_date
-    return trade_date.replace(day=1), trade_date
+    """按周期解析本期窗口（周期首日 → 基准日），未按交易日历收边。
+
+    六档窗口的完整语义（含上期与自定义区间）见 ``agent_review_periods``。
+    """
+    return period_bounds(period, trade_date)
 
 
 def _input_hash(agent_key: str, account_id: int, period: str, start: date, end: date) -> str:
