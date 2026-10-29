@@ -84,6 +84,16 @@ class Settings(BaseSettings):
     # 凭据加密（API key、token 等存储凭据）
     credential_encryption_key: str = ""
 
+    # MCP 多租户出口（docs/requirement/10）
+    # FastMCP AuthSettings 的 issuer 占位（静态 Bearer 模式不做 OAuth 发现）
+    mcp_issuer_url: str = "https://invest.17aitech.com"
+    # API Key 哈希 pepper；空则回退 secret_key（生产应显式配置，避免 JWT 密钥轮换使全部 Key 失效）
+    mcp_api_key_pepper: str = ""
+    # 交易类工具缺省 Agent
+    mcp_default_agent_key: str = "short-line"
+    # last_used_at 写入节流窗口（秒）
+    mcp_api_key_last_used_throttle_seconds: int = 300
+
     # LLM HTTP 客户端超时
     # 控制所有通过 LangChain 模型发起的 LLM 调用的 HTTP 超时。
     # 读超时过小会导致长文本、结构化输出或 provider 拥堵时被异常截断；过大则会让

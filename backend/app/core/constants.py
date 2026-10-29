@@ -173,3 +173,23 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "agent-daily-plan": DOMAIN_TRADING,
     "agent-plan-calibration": DOMAIN_TRADING,
 }
+
+# MCP API Key 权限范围单一真相源：服务层校验、后台签发 schema 与 MCP 工具
+# 三处共用，新增能力只在此处加 scope（docs/requirement/10 §4.2）
+API_KEY_SCOPE_MARKET_READ = "market:read"
+API_KEY_SCOPE_TRADING_READ = "trading:read"
+API_KEY_SCOPE_KB_READ = "kb:read"
+API_KEY_SCOPE_WATCHLIST_READ = "watchlist:read"
+API_KEY_SCOPE_WATCHLIST_WRITE = "watchlist:write"
+API_KEY_SCOPE_REPORTS_READ = "reports:read"
+API_KEY_SCOPE_REPORTS_COLLECT = "reports:collect"
+
+API_KEY_SCOPES: tuple[str, ...] = (
+    API_KEY_SCOPE_MARKET_READ,
+    API_KEY_SCOPE_TRADING_READ,
+    API_KEY_SCOPE_KB_READ,
+    API_KEY_SCOPE_WATCHLIST_READ,
+    API_KEY_SCOPE_WATCHLIST_WRITE,
+    API_KEY_SCOPE_REPORTS_READ,
+    API_KEY_SCOPE_REPORTS_COLLECT,
+)

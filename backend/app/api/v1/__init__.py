@@ -33,6 +33,7 @@ from app.api.v1 import (
 from app.api.v1.admin import account as admin_account
 from app.api.v1.admin import agent_runs as admin_agent_runs
 from app.api.v1.admin import ai_results as admin_ai_results
+from app.api.v1.admin import api_keys as admin_api_keys
 from app.api.v1.admin import collector as admin_collector
 from app.api.v1.admin import collector_channels as admin_collector_channels
 from app.api.v1.admin import collector_data_types as admin_collector_data_types
@@ -57,7 +58,6 @@ from app.api.v1.admin import trade_calendar as admin_trade_calendar
 from app.api.v1.admin import trading_agent as admin_trading_agent
 from app.api.v1.admin import user_groups as admin_user_groups
 from app.api.v1.admin import users as admin_users
-from app.api.v1.mcp import server as mcp_server
 from app.dependencies import require_feature
 
 api_router = APIRouter()
@@ -161,6 +161,7 @@ admin_router = APIRouter(prefix="/admin", tags=["admin"])
 admin_router.include_router(admin_users.router, prefix="/users")
 admin_router.include_router(admin_user_groups.router, prefix="/user-groups")
 admin_router.include_router(admin_account.router)
+admin_router.include_router(admin_api_keys.router, prefix="/api-keys")
 admin_router.include_router(admin_stocks.router, prefix="/stocks")
 admin_router.include_router(admin_stock_concepts.router, prefix="/stock-concepts")
 admin_router.include_router(admin_reports.router, prefix="/reports")
@@ -186,5 +187,3 @@ admin_router.include_router(admin_tracked_indexes.router)
 admin_router.include_router(admin_trade_calendar.router)
 admin_router.include_router(admin_ai_results.router, prefix="/ai-results")
 api_router.include_router(admin_router)
-
-api_router.include_router(mcp_server.router, prefix="/mcp", tags=["mcp"])
