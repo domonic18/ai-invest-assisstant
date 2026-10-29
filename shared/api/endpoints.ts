@@ -14,6 +14,8 @@ export const ENDPOINTS = {
     meUsage: `${API_BASE}/users/me/usage`,
     meLlmConfig: `${API_BASE}/users/me/llm-config`,
     meLlmConfigTest: `${API_BASE}/users/me/llm-config/test`,
+    meApiKeys: `${API_BASE}/users/me/api-keys/`,
+    meApiKey: (keyId: number | string) => `${API_BASE}/users/me/api-keys/${keyId}`,
     watchlist: `${API_BASE}/users/watchlist`,
     watchlistQuotes: `${API_BASE}/users/watchlist/quotes`,
     watchlistRecognizeScreenshot: `${API_BASE}/users/watchlist/recognize-screenshot`,

@@ -158,6 +158,13 @@ cc-connect 一个 project 对应一个飞书机器人 + 一套静态 MCP 配置�
 | GET | `/api/v1/admin/api-keys/?user_id=` | 列出 Key（不回显 hash 与明文） |
 | POST | `/api/v1/admin/api-keys/` | 签发，响应含一次性明文 `token` |
 | DELETE | `/api/v1/admin/api-keys/{id}` | 吊销（置 `revoked_at`，幂等） |
+| GET | `/api/v1/users/me/api-keys/` | 个人设置：列出本人 Key |
+| POST | `/api/v1/users/me/api-keys/` | 个人设置：签发（scope 服务端固定，忽略请求体中的 `userId`/`scopes`） |
+| DELETE | `/api/v1/users/me/api-keys/{id}` | 个人设置：吊销本人 Key（他人 Key 返回 404） |
+
+自助签发默认 scope = `market:read` / `trading:read` / `kb:read`
+（`API_KEY_SELF_SERVICE_SCOPES`，仅覆盖已上线的只读 MCP 工具）。
+前端入口：个人设置 → 「MCP 密钥」（签发后明文只展示一次）。
 
 ## 8. 验收标准
 

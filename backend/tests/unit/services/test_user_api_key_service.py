@@ -148,6 +148,29 @@ async def test_revoke_key_missing_raises():
         await service.revoke_key(404)
 
 
+async def test_revoke_own_key_revokes_owner_key():
+    session = _session()
+    session.get.return_value = _row(user_id=7)
+    service = svc.ApiKeyService(session)
+
+    await service.revoke_own_key(11, user_id=7)
+
+    assert session.get.return_value.revoked_at is not None
+    session.commit.assert_awaited_once()
+
+
+async def test_revoke_own_key_rejects_other_users_key():
+    session = _session()
+    session.get.return_value = _row(user_id=8)
+    service = svc.ApiKeyService(session)
+
+    with pytest.raises(NotFoundError):
+        await service.revoke_own_key(11, user_id=7)
+
+    assert session.get.return_value.revoked_at is None
+    session.commit.assert_not_awaited()
+
+
 def _session_ctx(session: MagicMock) -> MagicMock:
     ctx = MagicMock()
     ctx.__aenter__ = AsyncMock(return_value=session)
