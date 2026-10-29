@@ -3,6 +3,7 @@
 工具经 ``make_*`` 工厂按 agent_key 闭包绑定（多 Agent 基座 D24）。
 """
 
+from datetime import date
 from typing import Any, Literal
 
 from langchain_core.tools import BaseTool, tool
@@ -14,11 +15,16 @@ def make_get_review_tool(agent_key: str) -> BaseTool:
     """构建复盘查询工具（闭包绑定 agent_key）。"""
 
     @tool
-    async def get_daily_review(period: Literal["day", "week", "month"] = "day") -> dict[str, Any]:
+    async def get_daily_review(
+        period: Literal["day", "week", "month", "quarter", "half_year", "year"] = "day",
+        trade_date: str | None = None,
+    ) -> dict[str, Any]:
         """查询交易 Agent 模拟盘的 AI 分层复盘（只读，不触发生成）。
 
         Args:
-            period: "day" 当日复盘 / "week" 本周复盘 / "month" 本月复盘。
+            period: "day" 日度 / "week" 周度 / "month" 月度 / "quarter" 季度 /
+                "half_year" 半年度 / "year" 年度。
+            trade_date: 基准交易日 YYYY-MM-DD，缺省取最新交易日。
 
         Returns:
             overall 整体评价、trades 逐笔三层判定（选股/计划/执行）、bias 倾向、
@@ -26,15 +32,25 @@ def make_get_review_tool(agent_key: str) -> BaseTool:
         """
         from app.services.trading import agent_review_service
 
+        parsed_date: date | None = None
+        if trade_date:
+            try:
+                parsed_date = date.fromisoformat(trade_date)
+            except ValueError:
+                return {"error": f"无效的 trade_date：{trade_date}（应为 YYYY-MM-DD）"}
+
         async with AsyncSessionLocal() as session:
             content = await agent_review_service.get_review(
-                session, agent_key, period=period
+                session, agent_key, period=period, trade_date=parsed_date
             )
 
         if content is None:
             return {
                 "not_ready": True,
-                "note": f"{period} 复盘尚未生成（日度约 19:00 生成，周五/月末自动加发周/月复盘）。",
+                "note": (
+                    f"{period} 复盘尚未生成（日/周/月有盘后定时生成；季/半年/年"
+                    "需经页面或 generate_trading_review 按需生成）。"
+                ),
             }
         return content.model_dump()
 
