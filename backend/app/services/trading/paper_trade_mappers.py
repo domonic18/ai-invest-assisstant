@@ -136,6 +136,51 @@ def normalize_cash_row(raw: Any, trade_date: date) -> dict[str, Any]:
     }
 
 
+def normalize_position_snapshot_rows(
+    raw: Any,
+    trade_date: date,
+    *,
+    account_id: int,
+) -> list[dict[str, Any]]:
+    """柜台持仓对象 → paper_trade_position_snapshot 行（多周期复盘的仓位台账）。
+
+    字段收敛复用 ``position_wire_row``；本函数补快照列、丢弃空仓行（数量 <= 0
+    或代码缺失），并计算 ``weight`` = 占当日持仓市值合计的百分比。
+    """
+    rows: list[dict[str, Any]] = []
+    for item in unwrap_rows(raw):
+        wire = position_wire_row(item)
+        volume = wire["volume"] or 0
+        if volume <= 0 or not wire["stock_code"]:
+            continue
+        market_value = wire["market_value"]
+        if market_value is None and wire["last_price"] is not None:
+            market_value = quantize_2dp(wire["last_price"] * volume)
+        rows.append(
+            {
+                "paper_trade_account_id": account_id,
+                "trade_date": trade_date,
+                "symbol": wire["symbol"] or None,
+                "stock_code": wire["stock_code"],
+                "volume": volume,
+                "available_volume": wire["available_volume"],
+                "avg_price": wire["avg_price"],
+                "last_price": wire["last_price"],
+                "market_value": market_value,
+                "profit": wire["profit"],
+                "profit_rate": wire["profit_rate"],
+            }
+        )
+    total_value = sum((row["market_value"] or Decimal("0")) for row in rows)
+    for row in rows:
+        row["weight"] = (
+            quantize_4dp(row["market_value"] / total_value * 100)
+            if total_value > 0 and row["market_value"] is not None
+            else None
+        )
+    return rows
+
+
 def order_wire_row(item: dict[str, Any], fallback_date: date) -> dict[str, Any]:
     """柜台委托对象 → wire 行（camelCase 由 schema 层出，此处 snake 键构造）。"""
     symbol = str(item.get("symbol") or "")

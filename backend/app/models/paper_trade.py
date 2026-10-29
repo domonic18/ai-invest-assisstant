@@ -268,6 +268,50 @@ class PaperTradeCashSnapshot(Base):
     )
 
 
+class PaperTradePositionSnapshot(Base):
+    """模拟盘持仓日快照：账户 + 交易日 + 标的，多周期复盘收益归因的期初/期末仓位来源。
+
+    盘后同步按 (账户, 交易日) 全量覆盖写（先删后插），平仓标的不留行；
+    weight 为占当日持仓市值合计的百分比（空仓日无行）。
+    """
+
+    __tablename__ = "paper_trade_position_snapshot"
+    __table_args__ = (
+        UniqueConstraint(
+            "paper_trade_account_id",
+            "trade_date",
+            "stock_code",
+            name="uq_paper_trade_position_snapshot_account_date_code",
+        ),
+        Index(
+            "idx_paper_trade_position_snapshot_account_date",
+            "paper_trade_account_id",
+            "trade_date",
+        ),
+        Index("idx_paper_trade_position_snapshot_code", "stock_code"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    paper_trade_account_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    trade_date: Mapped[date] = mapped_column(Date, nullable=False)
+    symbol: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    stock_code: Mapped[str] = mapped_column(String(10), nullable=False)
+    volume: Mapped[int] = mapped_column(Integer, nullable=False)
+    available_volume: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    avg_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
+    last_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
+    market_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    profit: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    profit_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
+    weight: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
 class PaperTradeExecObservation(Base):
     """盘中执行观测（批次 8，D21/D24）：逐 tick 判断留痕，插入后不可变。
 

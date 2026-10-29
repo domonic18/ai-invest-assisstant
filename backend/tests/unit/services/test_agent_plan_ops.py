@@ -499,3 +499,26 @@ class TestResolveExecutingPlanDate:
             session, _AK, view_date=_PLAN_DATE
         )
         assert result is None
+
+
+@pytest.mark.unit
+class TestListPlansInWindow:
+    @pytest.mark.asyncio
+    async def test_filters_by_agent_and_window(self) -> None:
+        """窗口查询按 agent + 日期闭区间过滤（多周期复盘关联计划的数据入口）。"""
+        session = AsyncMock()
+        rows = MagicMock()
+        rows.scalars.return_value.all.return_value = [_plan_row(), _plan_row()]
+        session.execute = AsyncMock(return_value=rows)
+
+        plans = await agent_plan_ops.list_plans_in_window(
+            session,
+            _AK,
+            start_date=date(2026, 9, 1),
+            end_date=date(2026, 9, 30),
+        )
+
+        assert len(plans) == 2
+        stmt = session.execute.call_args[0][0]
+        compiled = str(stmt)
+        assert "agent_trade_plan" in compiled

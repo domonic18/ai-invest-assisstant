@@ -37,6 +37,7 @@ export type PageAssistantResult =
   | StockScreeningResult
   | KlineDrawingResult
   | PaperTradingResult
+  | PaperTradingReviewResult
 
 /** 产业链分析完成回写 */
 export interface ChainAnalysisResult {
@@ -113,6 +114,16 @@ export interface PaperTradingResult {
   symbol?: string
   side?: string
   volume?: number
+}
+
+/** 交易 Agent 复盘生成完成回写（对话路径同步生成；订阅页刷新复盘缓存） */
+export interface PaperTradingReviewResult {
+  type: typeof PAGE_EVENT_TYPES.paperTradingReview
+  agentKey: string
+  period: string
+  tradeDate: string
+  regenerate?: boolean
+  cached?: boolean
 }
 
 /** ask_user 问题卡选项 */

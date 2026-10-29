@@ -59,6 +59,21 @@ async def list_plans(
     return list(rows.scalars().all())
 
 
+async def list_plans_in_window(
+    session: AsyncSession, agent_key: str, *, start_date: date, end_date: date
+) -> list[AgentTradePlan]:
+    """窗口内全部计划（多周期复盘关联计划价/止损/目标价的数据入口，按日序返回）。"""
+    rows = await session.execute(
+        select(AgentTradePlan)
+        .where(
+            AgentTradePlan.agent_key == agent_key,
+            AgentTradePlan.plan_date.between(start_date, end_date),
+        )
+        .order_by(AgentTradePlan.plan_date.asc(), AgentTradePlan.id.asc())
+    )
+    return list(rows.scalars().all())
+
+
 async def _held_volumes(
     session: AsyncSession, agent_key: str, plan_date: date, codes: list[str]
 ) -> dict[str, int]:

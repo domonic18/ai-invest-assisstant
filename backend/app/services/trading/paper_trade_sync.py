@@ -1,8 +1,9 @@
 """模拟盘盘后同步链路（多租户：恒按账户读写）。
 
-16:00 盘后（或手动）按启用账户逐一拉取掘金仿真当日委托/成交回报/资金概况，
+16:00 盘后（或手动）按启用账户逐一拉取掘金仿真当日委托/成交回报/资金概况/持仓，
 幂等 upsert 三表：委托按（账户, cl_ord_id）冲突更新状态，回报按（账户, exec_id）
-冲突跳过（不可变），资金按（账户, trade_date）冲突覆盖。账户间错误隔离
+冲突跳过（不可变），资金按（账户, trade_date）冲突覆盖；持仓快照按
+（账户, trade_date）先删后插全量覆盖（平仓标的不留行）。账户间错误隔离
 （单账户失败写 last_error 不影响其他账户）；``redis_lock`` 防并发；写操作显式 commit。
 本模块顶层只依赖 sidecar client 与 models，禁止导入 agent/skills/runtime。
 """
@@ -11,7 +12,7 @@ from datetime import date
 from typing import Any
 
 import structlog
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +24,7 @@ from app.models.paper_trade import (
     PaperTradeCashSnapshot,
     PaperTradeExecution,
     PaperTradeOrder,
+    PaperTradePositionSnapshot,
 )
 from app.services.trading import account_service
 from app.services.trading.client import PaperTradeClient, get_client
@@ -31,6 +33,7 @@ from app.services.trading.paper_trade_mappers import (
     normalize_cash_row,
     normalize_execution_rows,
     normalize_order_rows,
+    normalize_position_snapshot_rows,
 )
 
 logger = structlog.get_logger(__name__)
@@ -100,6 +103,24 @@ async def _upsert_cash(
     await session.execute(stmt)
 
 
+async def _replace_positions(
+    session: AsyncSession,
+    account_id: int,
+    trade_date: date,
+    rows: list[dict[str, Any]],
+) -> int:
+    """持仓快照按 (账户, 交易日) 全量覆盖：先删后插，平仓标的不留行。"""
+    await session.execute(
+        delete(PaperTradePositionSnapshot).where(
+            PaperTradePositionSnapshot.paper_trade_account_id == account_id,
+            PaperTradePositionSnapshot.trade_date == trade_date,
+        )
+    )
+    if rows:
+        await session.execute(pg_insert(PaperTradePositionSnapshot).values(rows))
+    return len(rows)
+
+
 async def _sync_one_account(
     session: AsyncSession,
     client: PaperTradeClient,
@@ -125,13 +146,22 @@ async def _sync_one_account(
     )
     cash_row = normalize_cash_row(await client.get_cash(credentials), resolved)
     cash_row["paper_trade_account_id"] = account.id
+    position_rows = normalize_position_snapshot_rows(
+        await client.get_positions(credentials),
+        resolved,
+        account_id=account.id,
+    )
 
     stored_orders = await _upsert_orders(session, order_rows)
     stored_executions = await _insert_executions(session, execution_rows)
     await _upsert_cash(session, cash_row)
+    stored_positions = await _replace_positions(
+        session, account.id, resolved, position_rows
+    )
     return {
         "orders": stored_orders,
         "executions": stored_executions,
+        "positions": stored_positions,
         # float 而非 Decimal：summary 会进 collector_log.metadata（JSONB）
         "nav": float(cash_row["nav"]) if cash_row["nav"] is not None else None,
     }
@@ -214,7 +244,9 @@ async def sync_daily(
                 failed += 1
                 await _stamp_account_synced(session, account.id, error=str(exc)[:500])
                 await session.commit()
-                outcome.update(orders=0, executions=0, nav=None, error=str(exc)[:200])
+                outcome.update(
+                    orders=0, executions=0, positions=0, nav=None, error=str(exc)[:200]
+                )
                 logger.warning(
                     "paper_trade_sync_account_failed",
                     account_id=account.id,

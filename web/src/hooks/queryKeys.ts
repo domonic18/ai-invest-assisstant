@@ -1,3 +1,5 @@
+import type { TradingAgentReviewWindow } from '@ai-invest/shared'
+
 /**
  * 全站 TanStack Query 缓存键工厂。
  *
@@ -294,8 +296,23 @@ export const queryKeys = {
     prompt: (agentKey: string) => ['trading-agent', agentKey, 'prompt'] as const,
     skillFiles: (agentKey: string) => ['trading-agent', agentKey, 'skill-files'] as const,
     dates: (agentKey: string) => ['trading-agent', agentKey, 'dates'] as const,
-    review: (agentKey: string, period: string, tradeDate?: string) =>
-      ['trading-agent', agentKey, 'review', period, tradeDate ?? 'latest'] as const,
+    /** 复盘读取键：窗口五元组（周期/基准日/作用域/区间起止）唯一区分。 */
+    review: (agentKey: string, window: TradingAgentReviewWindow = {}) =>
+      [
+        'trading-agent',
+        agentKey,
+        'review',
+        window.period ?? 'custom',
+        window.tradeDate ?? 'latest',
+        window.scope ?? 'current',
+        window.startDate ?? null,
+        window.endDate ?? null,
+      ] as const,
+    /** 复盘读取键前缀（窗口无关，批量失效用）。 */
+    reviewAll: (agentKey: string) => ['trading-agent', agentKey, 'review'] as const,
+    /** 复盘生成任务状态轮询（按采集日志 id）。 */
+    generationStatus: (logId: number | null) =>
+      ['trading-agent', 'review-generation', logId ?? 'idle'] as const,
     plans: (agentKey: string, tradeDate?: string) =>
       ['trading-agent', agentKey, 'plans', tradeDate ?? 'latest'] as const,
     observations: (

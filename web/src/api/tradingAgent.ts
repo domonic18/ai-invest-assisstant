@@ -10,6 +10,7 @@ import type {
   ApiAgentMemoryUpdateRequest,
   ApiAgentSkillFilesResponse,
   ApiAgentWatchlistGroupResponse,
+  ApiCollectorLogCeleryStatus,
   ApiTradingAgentDates,
   ApiTradingAgentObservationPage,
   ApiTradingAgentPlan,
@@ -17,10 +18,14 @@ import type {
   ApiTradingAgentPromptContent,
   ApiTradingAgentPromptTemplate,
   ApiTradingAgentReview,
+  ApiTradingAgentReviewCompareResponse,
   TradingAgentCreateRequest,
   TradingAgentProfile,
   TradingAgentProfileUpdateRequest,
-  TradingReviewPeriod,
+  TradingAgentReviewCompareRequest,
+  TradingAgentReviewGenerateRequest,
+  TradingAgentReviewGenerateResponse,
+  TradingAgentReviewWindow,
 } from '@ai-invest/shared'
 
 import { apiClient } from './client'
@@ -107,14 +112,60 @@ export async function updateTradingAgentConfig(
   return response.data
 }
 
+/** 窗口入参 → query（FastAPI 签名 snake_case；省略空值让后端走默认）。 */
+function reviewWindowParams(window: TradingAgentReviewWindow): Record<string, string> {
+  const params: Record<string, string> = {}
+  if (window.period) params.period = window.period
+  if (window.tradeDate) params.trade_date = window.tradeDate
+  if (window.scope && window.scope !== 'current') params.scope = window.scope
+  if (window.startDate) params.start_date = window.startDate
+  if (window.endDate) params.end_date = window.endDate
+  return params
+}
+
+/** 读取已生成复盘（三形态：本期 / 上期 / 自定义区间）。 */
 export async function fetchTradingAgentReview(
   agentKey: string,
-  period: TradingReviewPeriod,
-  tradeDate?: string,
+  window: TradingAgentReviewWindow = {},
 ): Promise<ApiTradingAgentReview> {
+  const params = reviewWindowParams(window)
   const response = await apiClient.get<ApiTradingAgentReview>(
     ENDPOINTS.admin.tradingAgentReview(agentKey),
-    { params: tradeDate ? { period, trade_date: tradeDate } : { period } },
+    { params: Object.keys(params).length > 0 ? params : undefined },
+  )
+  return response.data
+}
+
+/** 按需生成复盘（异步派发，返回 logId 供轮询采集日志状态）。 */
+export async function generateTradingAgentReview(
+  agentKey: string,
+  data: TradingAgentReviewGenerateRequest,
+): Promise<TradingAgentReviewGenerateResponse> {
+  const response = await apiClient.post<TradingAgentReviewGenerateResponse>(
+    ENDPOINTS.admin.tradingAgentReviewGenerate(agentKey),
+    data,
+  )
+  return response.data
+}
+
+/** 跨窗口指标对比（两个窗口都须已生成，否则 404）。 */
+export async function compareTradingAgentReviews(
+  agentKey: string,
+  data: TradingAgentReviewCompareRequest,
+): Promise<ApiTradingAgentReviewCompareResponse> {
+  const response = await apiClient.post<ApiTradingAgentReviewCompareResponse>(
+    ENDPOINTS.admin.tradingAgentReviewCompare(agentKey),
+    data,
+  )
+  return response.data
+}
+
+/** 复盘生成任务状态（采集日志 + Celery 状态，生成轮询用）。 */
+export async function fetchReviewGenerationStatus(
+  logId: number,
+): Promise<ApiCollectorLogCeleryStatus> {
+  const response = await apiClient.get<ApiCollectorLogCeleryStatus>(
+    ENDPOINTS.admin.collectorLogCeleryStatus(logId),
   )
   return response.data
 }

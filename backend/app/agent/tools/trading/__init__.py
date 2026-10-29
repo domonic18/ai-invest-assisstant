@@ -43,9 +43,10 @@ from app.agent.tools.trading.plans import (
     make_make_plan_tool,
 )
 from app.agent.tools.trading.reads import make_get_review_tool, make_get_selections_tool
+from app.agent.tools.trading.review_ops import make_generate_review_tool
 
 #: 工具集版本：每次增删工具时 +1（agent 实例缓存键组成部分，保证热更新）
-TOOLS_VERSION = 6
+TOOLS_VERSION = 7
 
 
 def build_trading_tools(agent_key: str) -> list[BaseTool]:
@@ -71,6 +72,7 @@ def build_trading_tools(agent_key: str) -> list[BaseTool]:
             make_place_order_tool(agent_key),
             make_cancel_order_tool(agent_key),
             make_get_review_tool(agent_key),
+            make_generate_review_tool(agent_key),
             make_get_selections_tool(agent_key),
             make_make_plan_tool(agent_key),
             make_list_plans_tool(agent_key),

@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.core.constants import INDEX_CODES
+from app.core.constants import INDEX_KLINE_CODES
 from collector.core.base import CollectStatus
 from collector.spiders.kline_freshness import (
     A50_CODE,
@@ -20,7 +20,7 @@ _TODAY = date(2026, 9, 5)
 _CN_TZ = ZoneInfo("Asia/Shanghai")
 _WATCHLIST = ["002900", "600519"]
 # 指数/ETF/A50/部分自选股初始齐全的基准集合（002900 留给用例控制）
-_BASE_FRESH = {*INDEX_CODES, *SinaEtfKlineCollector.symbols, A50_CODE, "600519"}
+_BASE_FRESH = {*INDEX_KLINE_CODES, *SinaEtfKlineCollector.symbols, A50_CODE, "600519"}
 
 _CFG = {"source": "internal", "data_type": "kline_freshness"}
 
