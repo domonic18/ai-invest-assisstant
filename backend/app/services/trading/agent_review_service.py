@@ -1,4 +1,4 @@
-"""交易 Agent 盘后分层复盘服务（日/周/月生成；窗口模型见 agent_review_periods）。
+"""交易 Agent 盘后分层复盘服务（六档周期生成；窗口模型见 agent_review_periods）。
 
 复盘对象为指定 Agent 的专属账户（本地三表按 ``resolve_agent_account()`` 过滤）；
 结果按 (skill_id, input_hash=Agent+账户+周期+窗口) 缓存在 ``ai_analysis_result``
@@ -36,16 +36,32 @@ from app.services.trading import agent_memory_service, agent_methodology
 from app.services.trading.agent_review_content import (
     NO_TARGET_REASON,
     PaperTradeReviewContent,
+    PaperTradeReviewDraft,
     PaperTradeReviewRecord,
     ReviewGenerateResult,
 )
+from app.services.trading.agent_review_experiences import filter_period_experiences
 from app.services.trading.agent_review_inputs import (
     _collect_window_input,
     _has_review_target,
     _market_review_optional,
     _sync_landed,
 )
-from app.services.trading.agent_review_periods import ReviewPeriod, period_bounds
+from app.services.trading.agent_review_key_trades import (
+    filter_window_input,
+    load_key_trade_selection,
+)
+from app.services.trading.agent_review_metrics import compute_window_metrics
+from app.services.trading.agent_review_periods import (
+    ReviewPeriod,
+    is_long_period,
+    period_bounds,
+    resolve_review_window,
+)
+from app.services.trading.agent_review_sections import (
+    contract_text,
+    render_section_instructions,
+)
 from app.services.trading.agent_run_recorder import AgentRunRecorder
 
 logger = structlog.get_logger(__name__)
@@ -113,12 +129,14 @@ async def get_review(
         session
     )
     account = await account_service.resolve_agent_account(session, agent_key)
-    start, end = resolve_window(period, resolved)
+    window = await resolve_review_window(session, period, resolved)
     row = await ai_analysis_repository.load_latest_success(
         session,
         skill_id=REVIEW_SKILL_ID,
         trade_date=resolved,
-        input_hash=_input_hash(agent_key, account.id, period, start, end),
+        input_hash=_input_hash(
+            agent_key, account.id, period, window.start, window.end
+        ),
     )
     if row is None or not row.structured_output:
         return None
@@ -173,7 +191,8 @@ async def generate_review(
         session
     )
     account = await account_service.resolve_agent_account(session, agent.agent_key)
-    start, end = resolve_window(period, resolved)
+    window = await resolve_review_window(session, period, resolved)
+    start, end = window.start, window.end
     input_hash = _input_hash(agent.agent_key, account.id, period, start, end)
 
     recorder = AgentRunRecorder(
@@ -225,6 +244,7 @@ async def generate_review(
                     trades=[],
                     bias="",
                     suggestion="",
+                    sections=[],
                     market_context="",
                     methodology_check=[],
                     experiences=[],
@@ -279,6 +299,37 @@ async def generate_review(
                 window_input = await _collect_window_input(
                     session, account.id, start, end
                 )
+
+            metrics_payload: dict[str, Any] = {}
+            async with recorder.step(
+                "input.metrics",
+                "确定性指标计算（系统口径）",
+                payload_builder=lambda: metrics_payload or None,
+            ):
+                metrics = await compute_window_metrics(
+                    session,
+                    account_id=account.id,
+                    agent_key=agent.agent_key,
+                    window=window,
+                )
+                metrics_payload = metrics.to_dict()
+            window_input["metrics"] = metrics_payload
+
+            if is_long_period(period):
+                key_trades_payload: dict[str, Any] = {}
+                async with recorder.step(
+                    "input.key_trades",
+                    "关键交易筛选（长周期不做全量逐笔）",
+                    payload_builder=lambda: key_trades_payload or None,
+                ):
+                    selection = await load_key_trade_selection(
+                        session,
+                        account_id=account.id,
+                        agent_key=agent.agent_key,
+                        window=window,
+                    )
+                    window_input = filter_window_input(window_input, selection)
+                    key_trades_payload = selection.to_wire()
 
             market_review: dict[str, Any] | None = None
             async with recorder.step(
@@ -338,6 +389,14 @@ async def generate_review(
                 content = _validate(
                     content, {o["cl_ord_id"] for o in window_input["orders"]}
                 )
+                # §4.6：长周期只关联体系级经验（报告与记忆沉淀同一口径）
+                content = content.model_copy(
+                    update={
+                        "experiences": filter_period_experiences(
+                            period, content.experiences
+                        )
+                    }
+                )
                 dropped_cl = sorted(
                     {
                         t["cl_ord_id"]
@@ -348,7 +407,9 @@ async def generate_review(
                 )
 
             record = PaperTradeReviewRecord(
-                **content.model_dump(), agent_key=agent.agent_key
+                **content.model_dump(),
+                agent_key=agent.agent_key,
+                metrics=metrics_payload,
             )
 
             cache_row_id = 0
@@ -391,6 +452,7 @@ async def generate_review(
                 "regenerate": regenerate,
                 "kb_used": bool(methodology),
                 "trades": len(record.trades),
+                "sections": len(record.sections),
                 "experiences": len(record.experiences),
                 "methodology_check": len(record.methodology_check),
                 "sedimented_experiences": sedimented,
@@ -418,7 +480,7 @@ async def _load_cached(
 async def _run_llm(
     session: AsyncSession,
     agent: TradingAgent,
-    period: str,
+    period: ReviewPeriod,
     trade_date: date,
     window_input: dict[str, Any],
     *,
@@ -441,8 +503,10 @@ async def _run_llm(
         f"## 复盘任务\n"
         f"- 周期 period：{period}\n"
         f"- 基准交易日 trade_date：{trade_date.isoformat()}（输出字段须原样带回）\n\n"
-        f"## 复盘输入数据（JSON：agent 账户本地委托/成交/资金快照 + market_review "
-        f"盘面语境 + methodology 方法论基座）\n"
+        f"{contract_text()}\n\n"
+        f"{render_section_instructions(period)}\n\n"
+        f"## 复盘输入数据（JSON：agent 账户本地委托/成交/资金快照 + metrics "
+        f"系统指标 + market_review 盘面语境 + methodology 方法论基座）\n"
         f"{json.dumps(window_input, ensure_ascii=False, default=str)}"
     )
     if prompt_out is not None:
@@ -451,7 +515,7 @@ async def _run_llm(
 
     return await run_structured(
         session,
-        result_type=PaperTradeReviewContent,
+        result_type=PaperTradeReviewDraft,
         user_prompt=user_prompt,
         config_id=agent.llm_config_id,
         meta_out=meta_out,

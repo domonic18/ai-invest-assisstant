@@ -35,10 +35,18 @@ REVIEW_PERIODS: tuple[ReviewPeriod, ...] = (
     "year",
 )
 
+#: 长周期：不做全量逐笔（输入筛关键交易）、只沉淀体系级经验（§4.2/§4.6）
+LONG_REVIEW_PERIODS: tuple[ReviewPeriod, ...] = ("quarter", "half_year", "year")
+
 _MARKET = "cn"
 
 #: 自定义区间超过 12 个月时的提示（§4.3：> 12 月提示改用年档）
 CUSTOM_RANGE_TOO_LONG = "自定义区间跨度超过 12 个月，建议使用年档查看完整年度复盘"
+
+
+def is_long_period(period: ReviewPeriod) -> bool:
+    """是否长周期（季/半年/年）：决定关键交易筛选与经验沉淀口径。"""
+    return period in LONG_REVIEW_PERIODS
 
 
 @dataclass(frozen=True)

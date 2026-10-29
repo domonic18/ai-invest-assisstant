@@ -12,6 +12,10 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.services.trading.agent_review_periods import ReviewPeriod
+from app.services.trading.agent_review_sections import (
+    ReviewSection,
+    canonicalize_sections,
+)
 
 #: 预检无复盘对象时落缓存行的系统标记原因（展示层据此与「未执行」区分）
 NO_TARGET_REASON = "复盘窗口内无委托成交，账户亦无历史持仓（空仓无复盘对象）"
@@ -48,9 +52,10 @@ class PaperTradeReviewContent(BaseModel):
     """复盘 LLM 结构化输出契约（字段禁默认值，进 JSON Schema required）。
 
     D34 新增 market_context（盘面语境归纳）与 methodology_check（KB 纪律
-    逐条验证）；旧缓存行缺这两键由 before-validator 补空值兼容读取。
-    no_target_reason：预检无复盘对象（空仓）时由系统填入的标记（LLM 恒为
-    null）；全空内容且无标记视为 LLM 偷懒输出，校验失败触发重试。
+    逐条验证）；B3 新增 sections（周期专属板块，key 集合由
+    ``agent_review_sections`` 注册表校验）。旧缓存行缺这些键由 before-validator
+    补空值兼容读取。no_target_reason：预检无复盘对象（空仓）时由系统填入的
+    标记（LLM 恒为 null）；全空内容且无标记视为 LLM 偷懒输出，校验失败触发重试。
     """
 
     period: ReviewPeriod
@@ -59,6 +64,7 @@ class PaperTradeReviewContent(BaseModel):
     trades: list[TradeVerdict]
     bias: str
     suggestion: str
+    sections: list[ReviewSection]
     market_context: str
     methodology_check: list[MethodologyCheckItem]
     experiences: list[ReviewExperience]
@@ -70,13 +76,14 @@ class PaperTradeReviewContent(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _backfill_d34_keys(cls, value: Any) -> Any:
-        """D34 前生成的缓存行缺 market_context/methodology_check、本字段新增前
-        缓存行缺 no_target_reason：补空值兼容（skill_id/input_hash 未变，旧复盘
-        必须可读；校验器不影响 LLM schema）。"""
+        """D34 前生成的缓存行缺 market_context/methodology_check、B3 前缺
+        sections、本字段新增前缺 no_target_reason：补空值兼容（skill_id/
+        input_hash 未变，旧复盘必须可读；校验器不影响 LLM schema）。"""
         if isinstance(value, dict):
             value = {**value}
             value.setdefault("market_context", "")
             value.setdefault("methodology_check", [])
+            value.setdefault("sections", [])
             value.setdefault("no_target_reason", None)
         return value
 
@@ -90,6 +97,7 @@ class PaperTradeReviewContent(BaseModel):
             and not self.overall.strip()
             and not self.bias.strip()
             and not self.suggestion.strip()
+            and not self.sections
         ):
             raise ValueError(
                 "复盘内容全空（overall/bias/suggestion/trades 均空）且无 "
@@ -126,11 +134,27 @@ class PaperTradeReviewContent(BaseModel):
         return value
 
 
+class PaperTradeReviewDraft(PaperTradeReviewContent):
+    """LLM 生成契约（在读取契约之上追加生成期强制校验）。
+
+    专属板块 key 集合必须与该周期注册表一致，标题由系统规范化——只在校验
+    LLM 输出时生效；读模型不过此校验，旧缓存行（sections 为空）仍可读取。
+    """
+
+    @model_validator(mode="after")
+    def _require_period_sections(self) -> "PaperTradeReviewDraft":
+        if self.no_target_reason is None:
+            self.sections = canonicalize_sections(self.period, self.sections)
+        return self
+
+
 class PaperTradeReviewRecord(PaperTradeReviewContent):
     """复盘持久化读模型（structured_output 实际形状）：LLM 契约 + 落库时
-    注入的 agent_key（读取按 Agent 过滤；不进 LLM schema）。"""
+    注入的 agent_key（读取按 Agent 过滤；不进 LLM schema）+ 系统计算的
+    确定性指标 metrics（LLM 只解读，B3 前的缓存行为 None）。"""
 
     agent_key: str
+    metrics: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)

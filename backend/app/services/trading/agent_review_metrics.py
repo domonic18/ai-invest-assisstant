@@ -46,7 +46,8 @@ _LOOKBACK_DAYS = 30
 #: 年化换算的 A 股年交易日数
 _TRADING_DAYS_PER_YEAR = 252
 
-_PLAN_SIDE = {"buy": SIDE_BUY, "sell": SIDE_SELL}
+#: 计划方向 → 成交方向（关键交易判定与执行偏差共用）
+PLAN_SIDE = {"buy": SIDE_BUY, "sell": SIDE_SELL}
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,7 @@ class ExecutionRecord:
     volume: int
     turnover: Decimal | None
     commission: Decimal | None
+    cl_ord_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -80,6 +82,7 @@ class RealizedTrade:
     trade_date: date
     stock_code: str
     profit: Decimal
+    cl_ord_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -225,6 +228,7 @@ def realized_trades(
                     trade_date=execution.trade_date,
                     stock_code=execution.stock_code,
                     profit=execution.price * sold - avg_cost * sold - fee,
+                    cl_ord_id=execution.cl_ord_id,
                 )
             )
     return trades
@@ -286,9 +290,9 @@ def execution_deviation_pct(
     if not executions:
         return None
     index = {
-        (plan.plan_date, plan.stock_code, _PLAN_SIDE.get(plan.plan_type)): plan
+        (plan.plan_date, plan.stock_code, PLAN_SIDE.get(plan.plan_type)): plan
         for plan in plans
-        if plan.plan_type in _PLAN_SIDE
+        if plan.plan_type in PLAN_SIDE
     }
     deviated = sum(1 for execution in executions if is_deviated_execution(execution, index))
     return round(deviated / len(executions) * 100, 2)
@@ -420,7 +424,7 @@ async def _load_nav_values(
     ]
 
 
-async def _load_executions(
+async def load_executions(
     session: AsyncSession, account_id: int, end: date
 ) -> list[ExecutionRecord]:
     rows = (
@@ -433,6 +437,7 @@ async def _load_executions(
                 PaperTradeExecution.volume,
                 PaperTradeExecution.turnover,
                 PaperTradeExecution.commission,
+                PaperTradeExecution.cl_ord_id,
             )
             .where(
                 PaperTradeExecution.paper_trade_account_id == account_id,
@@ -454,12 +459,22 @@ async def _load_executions(
             volume=int(volume or 0),
             turnover=to_decimal(turnover),
             commission=to_decimal(commission),
+            cl_ord_id=str(cl_ord_id) if cl_ord_id else None,
         )
-        for trade_date, symbol, side, price, volume, turnover, commission in rows
+        for (
+            trade_date,
+            symbol,
+            side,
+            price,
+            volume,
+            turnover,
+            commission,
+            cl_ord_id,
+        ) in rows
     ]
 
 
-async def _load_plans(
+async def load_plans(
     session: AsyncSession, agent_key: str, start: date, end: date
 ) -> list[PlanRecord]:
     from app.services.trading.agent_plan_ops import list_plans_in_window
@@ -519,8 +534,8 @@ async def compute_window_metrics(
             benchmark_values=[],
         )
     nav_values = await _load_nav_values(session, account_id, window.start, window.end)
-    executions = await _load_executions(session, account_id, window.end)
-    plans = await _load_plans(session, agent_key, window.start, window.end)
+    executions = await load_executions(session, account_id, window.end)
+    plans = await load_plans(session, agent_key, window.start, window.end)
     benchmark_values = await _load_benchmark_values(
         session, window.start, window.end
     )

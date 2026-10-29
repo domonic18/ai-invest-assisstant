@@ -1,0 +1,73 @@
+id: trading-default-review-sections
+name: 多周期复盘专属板块与提示词契约
+version: 1.0.0
+description: 六档周期的报告专属板块注册表 + 通用契约文本（指标口径/关键交易/经验沉淀）。所有 Agent 共用（板块是契约而非人设），由 agent_review_sections 装载并注入 user_prompt；sections key 集合由系统确定性校验。
+
+contract: |
+  ## 报告统一框架
+  所有周期共用外层结构：overall（整体结论）、sections（本周期专属板块）、
+  trades（关键交易点评）、bias（操作偏差）、suggestion（改进建议）、
+  market_context（盘面语境）、methodology_check（方法论验证）、experiences（经验沉淀）。
+  专属板块是拉开周期视野差异的核心，不得退化为 overall 的复述。
+
+  ## 系统指标（metrics 输入）
+  输入中的 metrics 是系统按落库数据确定性计算的结果，是本报告的唯一数值来源：
+  - 引用收益/年化/回撤/胜率/盈亏比/换手率/执行偏差率/超额收益等指标时，必须原样
+    使用 metrics 中的值，禁止自行计算、换算或改写；
+  - 字段为 null 表示数据不足，须如实说明不可计算的原因，禁止补造数值；
+  - covered_start/covered_end 与 notes 标注实际数据覆盖范围，涉及收益结论时必须说明。
+
+  ## 专属板块（sections）
+  sections 数组每项 {key, title, body}：key 必须与「本周期专属板块」清单完全一致，
+  不缺不多；title 原样带回；body 写该板块的实质分析（定性判断 + 归因），数值只引用
+  metrics。板块之间不重复，也不与 overall 简单复述。
+
+  ## 关键交易（trades）
+  季/半年/年周期的 orders/executions 已由系统确定性筛为关键交易（见 key_trade_tags：
+  盈利前列/亏损前列/计划外单/计划区间外/废单拒单），不代表全部成交；trades 只对输入中
+  出现的委托逐笔点评，不要臆造其他交易。日/周/月为全量逐笔。
+
+  ## 长周期经验沉淀
+  季/半年/年只提取体系级经验（mem_type=method/discipline 的迭代结论），不重复日/周的
+  微观条目；同标题经验由新结论覆盖。日/周/月照常沉淀微观经验。
+
+periods:
+  day:
+    - key: execution_discipline
+      title: 执行偏差
+      requirements: 是否按计划执行；有无追高、拖延、止损犹豫、计划外开仓等情绪化操作；偏差的代价用 metrics 与成交数据说明。
+  week:
+    - key: short_term_rhythm
+      title: 短期节奏
+      requirements: 本周节奏把握（追高/拖延/止损犹豫）与仓位切换是否顺应当周期走势；节奏失误的具体交易与代价。
+    - key: theme_hit
+      title: 当周主线是否踩准
+      requirements: 本周市场主线与账户持仓/交易的重合度；踩准或踏空的原因（选股逻辑、介入时机），不臆测未发生的主线。
+  month:
+    - key: strategy_effectiveness
+      title: 策略有效性
+      requirements: 以 metrics 的胜率/盈亏比/执行偏差率为骨架，归因选股与买卖点的有效性：哪类信号有效、哪类失效，并给出下月可验证的修正方向。
+  quarter:
+    - key: return_attribution
+      title: 收益归因
+      requirements: 个股与行业层面的收益贡献分解（依据成交、持仓与 metrics），区分选股、择时、仓位的贡献；给出相对沪深300 超额的来源解释。
+    - key: system_review
+      title: 体系评估
+      requirements: 从仓位管理、交易纪律、板块轮动三条线评估交易体系本季度的适配度与短板，指出体系级（而非单笔）问题。
+  half_year:
+    - key: iteration_effectiveness
+      title: 策略迭代有效性
+      requirements: 以半年中点为界对比前后半段的指标与行为变化（引用 metrics 与关键交易），判断迭代是否产生可复现的改善。
+    - key: system_stability
+      title: 体系稳定性
+      requirements: 评估体系在震荡/趋势/退潮等不同市况下的稳定性与漂移风险，指出对特定行情的依赖。
+  year:
+    - key: annual_attribution
+      title: 全年收益归因
+      requirements: 全年收益的个股/行业/择时分解与相对基准超额来源；区分能力与运气（是否依赖少数极端盈利单）。
+    - key: long_term_capability
+      title: 长期能力评估
+      requirements: 从选股、买卖点、仓位、纪律四个维度评估全年可复用的长期能力边界与确定性短板。
+    - key: opportunity_cost
+      title: 机会成本
+      requirements: 基于交易记录与盘面语境复盘错过的主线/机会（踏空、过早止盈、仓位不足），量化其相对已实现收益的量级；不得编造输入外的机会。

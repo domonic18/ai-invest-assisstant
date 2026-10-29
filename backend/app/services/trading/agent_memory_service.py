@@ -70,15 +70,15 @@ async def sediment_experiences(
     experiences: list["ReviewExperience"],
     source_result_id: int,
 ) -> int:
-    """复盘 experiences 幂等沉淀（批次 9）：同标题去重 + 刷时间。
+    """复盘 experiences 幂等沉淀（批次 9）：同标题去重，新结论覆盖旧结论。
 
     partial unique ``(agent_key, title) WHERE source='auto'`` 只约束自动沉淀
-    行；冲突走 DO UPDATE 仅刷 ``updated_at``（每日计划注入 top20 按其倒序，
-    重复教训自动浮头强化），body 不覆盖以保留人工编辑。不 commit——由调用方
-    （复盘服务）与 ai_analysis_result 缓存行同一事务原子提交。
+    行；冲突走 DO UPDATE 刷新 ``body``/``mem_type``/溯源 id 与 ``updated_at``
+    （§4.6 同标题由新结论覆盖；仅影响自动行，人工行不受此约束）。不 commit——
+    由调用方（复盘服务）与 ai_analysis_result 缓存行同一事务原子提交。
 
     Returns:
-        受影响行数（插入 + 冲突刷新合计，记 agent_run summary 用）。
+        受影响行数（插入 + 冲突更新合计，记 agent_run summary 用）。
     """
     rows = [
         {
@@ -95,14 +95,16 @@ async def sediment_experiences(
     ]
     if not rows:
         return 0
-    stmt = (
-        pg_insert(AgentMemory)
-        .values(rows)
-        .on_conflict_do_update(
-            index_elements=[AgentMemory.agent_key, AgentMemory.title],
-            index_where=AgentMemory.source == "auto",
-            set_={AgentMemory.updated_at: func.now()},
-        )
+    insert_stmt = pg_insert(AgentMemory).values(rows)
+    stmt = insert_stmt.on_conflict_do_update(
+        index_elements=[AgentMemory.agent_key, AgentMemory.title],
+        index_where=AgentMemory.source == "auto",
+        set_={
+            "body": insert_stmt.excluded.body,
+            "mem_type": insert_stmt.excluded.mem_type,
+            "source_result_id": insert_stmt.excluded.source_result_id,
+            "updated_at": func.now(),
+        },
     )
     result = await session.execute(stmt)
     return int(getattr(result, "rowcount", 0) or 0)
