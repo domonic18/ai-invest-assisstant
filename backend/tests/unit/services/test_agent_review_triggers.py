@@ -106,3 +106,66 @@ class TestEnqueueReviewGeneration:
                 )
 
         mocks["dispatch"].assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_custom_range_dispatches_without_period(self) -> None:
+        """B5：仅区间时周期留给任务按跨度映射，scope 非默认值才下发。"""
+        stack, mocks = _patch_env()
+        with stack:
+            await enqueue_review_generation(
+                MagicMock(),
+                "short-line",
+                start_date=date(2026, 6, 1),
+                end_date=date(2026, 7, 17),
+                scope="previous",
+            )
+
+        assert mocks["dispatch"].await_args.args[2] == {
+            "agent_key": "short-line",
+            "regenerate": False,
+            "scope": "previous",
+            "start_date": "2026-06-01",
+            "end_date": "2026-07-17",
+        }
+        mocks["day_check"].assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_rejects_unpaired_range(self) -> None:
+        from app.core.exceptions import BadRequestError
+
+        stack, mocks = _patch_env()
+        with stack:
+            with pytest.raises(BadRequestError, match="须同时提供"):
+                await enqueue_review_generation(
+                    MagicMock(), "short-line", start_date=date(2026, 6, 1)
+                )
+
+        mocks["dispatch"].assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_rejects_reversed_range(self) -> None:
+        from app.core.exceptions import BadRequestError
+
+        stack, mocks = _patch_env()
+        with stack:
+            with pytest.raises(BadRequestError, match="早于"):
+                await enqueue_review_generation(
+                    MagicMock(),
+                    "short-line",
+                    start_date=date(2026, 7, 17),
+                    end_date=date(2026, 6, 1),
+                )
+
+        mocks["dispatch"].assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_requires_period_or_range(self) -> None:
+        from app.core.exceptions import BadRequestError
+
+        stack, mocks = _patch_env()
+        with stack:
+            with pytest.raises(BadRequestError, match="缺少复盘周期"):
+                await enqueue_review_generation(MagicMock(), "short-line")
+
+        mocks["get_agent"].assert_not_awaited()
+        mocks["dispatch"].assert_not_awaited()

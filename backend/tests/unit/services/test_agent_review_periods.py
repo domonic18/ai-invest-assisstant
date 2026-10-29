@@ -302,3 +302,41 @@ class TestResolveCustomWindow:
 
         assert window.period == "year"
         assert window.warning == CUSTOM_RANGE_TOO_LONG
+
+
+@pytest.mark.unit
+class TestResolveExplicitWindow:
+    """显式区间：沿用调用方周期框架（上期/带档位的区间选择），不按跨度映射。"""
+
+    @pytest.mark.asyncio
+    async def test_keeps_requested_framework(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def fake_days(session, start, end):  # type: ignore[no-untyped-def]
+            return [date(2026, 6, 1), date(2026, 6, 30)]
+
+        monkeypatch.setattr(periods, "list_trading_days", fake_days)
+        window = await periods.resolve_explicit_window(
+            AsyncMock(), "week", date(2026, 6, 1), date(2026, 6, 30)
+        )
+
+        # 跨度两个月本会映射到 month，显式框架须保留 week
+        assert window.period == "week"
+        assert window.start == date(2026, 6, 1)
+        assert window.end == date(2026, 6, 30)
+        assert window.warning is None
+
+    @pytest.mark.asyncio
+    async def test_empty_range_returns_empty_window(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def fake_days(session, start, end):  # type: ignore[no-untyped-def]
+            return []
+
+        monkeypatch.setattr(periods, "list_trading_days", fake_days)
+        window = await periods.resolve_explicit_window(
+            AsyncMock(), "month", date(2026, 10, 5), date(2026, 10, 7)
+        )
+
+        assert window.is_empty is True
+        assert (window.start, window.end) == (date(2026, 10, 5), date(2026, 10, 7))

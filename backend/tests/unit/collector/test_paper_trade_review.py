@@ -22,12 +22,19 @@ def _agent(key: str = "short-line", cadence: str = "daily") -> SimpleNamespace:
     return SimpleNamespace(agent_key=key, review_cadence=cadence)
 
 
-def _result(cached: bool = False, no_target: bool = False) -> SimpleNamespace:
-    """generate_review 返回值替身（spider 消费 cached 与 content.no_target_reason）。"""
+def _result(
+    cached: bool = False,
+    no_target: bool = False,
+    period: str = "day",
+    trade_date: str = "2026-07-17",
+) -> SimpleNamespace:
+    """generate_review 返回值替身（spider 消费 cached + content 的周期/基准日/无对象标记）。"""
     return SimpleNamespace(
         cached=cached,
         content=SimpleNamespace(
-            no_target_reason="复盘窗口内无委托成交" if no_target else None
+            period=period,
+            trade_date=trade_date,
+            no_target_reason="复盘窗口内无委托成交" if no_target else None,
         ),
     )
 
@@ -116,7 +123,7 @@ class TestPaperTradeReviewOnDemand:
 
     @pytest.mark.asyncio
     async def test_generates_requested_period(self) -> None:
-        generate = AsyncMock(return_value=_result())
+        generate = AsyncMock(return_value=_result(period="quarter"))
         patches = _patch_on_demand(generate=generate)
         with _activate(patches):
             result = await _collector().run(
@@ -129,15 +136,78 @@ class TestPaperTradeReviewOnDemand:
         kwargs = generate.await_args.kwargs
         assert kwargs["period"] == "quarter"
         assert kwargs["trade_date"] == _TRADE_DATE
+        assert kwargs["scope"] == "current"
+        assert kwargs["start_date"] is None
+        assert kwargs["end_date"] is None
         assert kwargs["regenerate"] is False
         assert kwargs["trigger"] == "manual"
         assert result.metadata == {
             "agent_key": "short-line",
             "period": "quarter",
             "trade_date": "2026-07-17",
+            "start_date": None,
+            "end_date": None,
             "cached": False,
             "no_target": False,
         }
+
+    @pytest.mark.asyncio
+    async def test_custom_range_skips_single_day_precheck(self) -> None:
+        """自定义区间：基准日由服务层收边，不做单日交易日预检。"""
+        generate = AsyncMock(return_value=_result(period="month", trade_date="2026-07-17"))
+        patches = _patch_on_demand(trading_day=False, generate=generate)
+        with _activate(patches):
+            result = await _collector().run(
+                agent_key="short-line",
+                start_date="2026-06-01",
+                end_date="2026-07-17",
+            )
+
+        assert result.status == CollectStatus.SUCCESS
+        kwargs = generate.await_args.kwargs
+        assert kwargs["period"] is None
+        assert kwargs["start_date"] == date(2026, 6, 1)
+        assert kwargs["end_date"] == _TRADE_DATE
+        assert result.metadata["start_date"] == "2026-06-01"
+        assert result.metadata["end_date"] == "2026-07-17"
+
+    @pytest.mark.asyncio
+    async def test_previous_scope_passes_through(self) -> None:
+        generate = AsyncMock(return_value=_result(period="week"))
+        patches = _patch_on_demand(generate=generate)
+        with _activate(patches):
+            result = await _collector().run(
+                agent_key="short-line", period="week", scope="previous"
+            )
+
+        assert result.status == CollectStatus.SUCCESS
+        assert generate.await_args.kwargs["scope"] == "previous"
+        # 上期窗口基准日由服务层解析，spider 仍取最近交易日做非交易日预检
+        assert generate.await_args.kwargs["trade_date"] == _TRADE_DATE
+
+    @pytest.mark.asyncio
+    async def test_rejects_unpaired_range(self) -> None:
+        patches = _patch_on_demand()
+        with _activate(patches):
+            result = await _collector().run(
+                agent_key="short-line", start_date="2026-06-01"
+            )
+
+        assert result.status == CollectStatus.FAILED
+        assert "须同时提供开始日与结束日" in (result.message or "")
+
+    @pytest.mark.asyncio
+    async def test_rejects_ordering_violation(self) -> None:
+        patches = _patch_on_demand()
+        with _activate(patches):
+            result = await _collector().run(
+                agent_key="short-line",
+                start_date="2026-07-17",
+                end_date="2026-06-01",
+            )
+
+        assert result.status == CollectStatus.FAILED
+        assert "早于开始日" in (result.message or "")
 
     @pytest.mark.asyncio
     async def test_regenerate_flag_passes_through(self) -> None:

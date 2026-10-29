@@ -304,6 +304,32 @@ class TestBuildMetrics:
         assert any("自 2026-07-14 起覆盖" in note for note in result.notes)
         assert any("实际覆盖 2 个交易日" in note for note in result.notes)
 
+    def test_window_warning_surfaces_in_notes(self) -> None:
+        """自定义区间 >12 月的提示随指标 notes 下发前端。"""
+        window = ReviewWindow(
+            period="year",
+            requested_start=date(2025, 1, 1),
+            requested_end=date(2026, 7, 15),
+            start=date(2025, 1, 2),
+            end=date(2026, 7, 15),
+            trading_days=tuple(
+                [date(2026, 7, 14), date(2026, 7, 15)]
+            ),
+            warning="自定义区间跨度超过 12 个月，建议使用年档查看完整年度复盘",
+        )
+        result = build_metrics(
+            window,
+            nav_values=self._nav(),
+            executions=[],
+            plans=[],
+            benchmark_values=[
+                (date(2026, 7, 12), _D("4000")),
+                (date(2026, 7, 15), _D("4080")),
+            ],
+        )
+
+        assert result.notes[0].startswith("自定义区间跨度超过 12 个月")
+
     def test_missing_benchmark_blocks_excess_return(self) -> None:
         result = build_metrics(
             _window(), nav_values=self._nav(), executions=[], plans=[], benchmark_values=[]

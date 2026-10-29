@@ -242,6 +242,9 @@ class TestGenerateTradingAgentReview:
             "short-line",
             period="quarter",
             trade_date=date(2026, 7, 17),
+            scope="current",
+            start_date=None,
+            end_date=None,
             regenerate=True,
         )
 
@@ -278,6 +281,135 @@ class TestGenerateTradingAgentReview:
                 json={"period": "day", "tradeDate": "2026-07-18"},
             )
         assert resp.status_code == 400
+
+
+@pytest.mark.unit
+class TestReviewWindowParams:
+    """B5 窗口入参：自定义区间与上期快捷项透传到服务层。"""
+
+    def test_custom_range_forwarded(self, admin_client) -> None:
+        http, _ = admin_client
+        content = MagicMock()
+        content.model_dump.return_value = {"agent_key": "short-line", **_content()}
+
+        with (
+            patch(
+                "app.services.trading.agent_review_service.get_review",
+                AsyncMock(return_value=content),
+            ) as get_review,
+        ):
+            resp = http.get(
+                "/api/v1/admin/trading-agent/short-line/review",
+                params={"start_date": "2026-06-01", "end_date": "2026-07-17"},
+            )
+
+        assert resp.status_code == 200
+        kwargs = get_review.await_args.kwargs
+        assert kwargs["period"] is None
+        assert kwargs["start_date"] == date(2026, 6, 1)
+        assert kwargs["end_date"] == date(2026, 7, 17)
+
+    def test_previous_scope_message_marks_previous(self, admin_client) -> None:
+        http, _ = admin_client
+        with patch(
+            "app.services.trading.agent_review_service.get_review",
+            AsyncMock(return_value=None),
+        ):
+            resp = http.get(
+                "/api/v1/admin/trading-agent/short-line/review",
+                params={"period": "week", "scope": "previous"},
+            )
+
+        assert resp.status_code == 404
+        assert "（上期）" in resp.json()["detail"]
+
+    def test_422_on_unpaired_range(self, admin_client) -> None:
+        from app.core.exceptions import BadRequestError
+
+        http, _ = admin_client
+        with patch(
+            "app.services.trading.agent_review_service.get_review",
+            AsyncMock(side_effect=BadRequestError("自定义区间须同时提供开始日与结束日")),
+        ):
+            resp = http.get(
+                "/api/v1/admin/trading-agent/short-line/review",
+                params={"start_date": "2026-06-01", "period": "month"},
+            )
+
+        assert resp.status_code == 400
+        assert "须同时提供" in resp.json()["detail"]
+
+
+@pytest.mark.unit
+class TestCompareTradingAgentReviews:
+    """§4.5 跨窗口对比端点：等长对齐指标 + 可比性提示。"""
+
+    def test_returns_metrics_and_note(self, admin_client) -> None:
+        from app.services.trading.agent_review_service import ReviewCompareResult
+
+        http, _ = admin_client
+        result = ReviewCompareResult(
+            window_a={
+                "period": "month",
+                "start_date": "2026-06-01",
+                "end_date": "2026-06-30",
+                "trading_days": 20,
+                "return_pct": 3.2,
+                "notes": [],
+            },
+            window_b={
+                "period": "week",
+                "start_date": "2026-07-06",
+                "end_date": "2026-07-10",
+                "trading_days": 5,
+                "return_pct": 1.1,
+                "notes": ["指标按最近 5 个交易日对齐"],
+            },
+            aligned_trading_days=5,
+            note="两窗口已按最近 5 个交易日等长对齐",
+        )
+        with patch(
+            "app.services.trading.agent_review_service.compare_reviews",
+            AsyncMock(return_value=result),
+        ) as compare:
+            resp = http.post(
+                "/api/v1/admin/trading-agent/short-line/review/compare",
+                json={
+                    "windowA": {"period": "month"},
+                    "windowB": {"period": "week", "tradeDate": "2026-07-10"},
+                },
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["alignedTradingDays"] == 5
+        assert body["windowA"]["tradingDays"] == 20
+        assert body["windowA"]["returnPct"] == pytest.approx(3.2)
+        assert body["windowB"]["notes"] == ["指标按最近 5 个交易日对齐"]
+        assert body["note"] == "两窗口已按最近 5 个交易日等长对齐"
+        window_b = compare.await_args.kwargs["window_b"]
+        assert window_b.period == "week"
+        assert window_b.trade_date == date(2026, 7, 10)
+
+    def test_404_when_window_not_generated(self, admin_client) -> None:
+        from app.services.trading.agent_review_service import (
+            TradingReviewNotFoundError,
+        )
+
+        http, _ = admin_client
+        with patch(
+            "app.services.trading.agent_review_service.compare_reviews",
+            AsyncMock(side_effect=TradingReviewNotFoundError("尚未生成，无法对比")),
+        ):
+            resp = http.post(
+                "/api/v1/admin/trading-agent/short-line/review/compare",
+                json={
+                    "windowA": {"period": "month"},
+                    "windowB": {"period": "week"},
+                },
+            )
+
+        assert resp.status_code == 404
 
 
 def _plan_row(**overrides) -> AgentTradePlan:

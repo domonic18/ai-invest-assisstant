@@ -181,6 +181,105 @@ class TestGenerateReviewTool:
         assert out["no_target_reason"] == "持仓与成交均为空"
         assert out["trades_count"] == 0
 
+    @pytest.mark.asyncio
+    async def test_custom_range_forwards_window_args(self) -> None:
+        """B5：仅给区间时周期留给服务层按跨度映射，scope 照常透传。"""
+        from app.agent.tools.trading.review_ops import make_generate_review_tool
+
+        stack, generate = _generate_review_patches(_review_result(period="month"))
+        with stack:
+            tool = make_generate_review_tool("short-line")
+            out = await tool.ainvoke(
+                {
+                    "start_date": "2026-06-01",
+                    "end_date": "2026-07-17",
+                    "scope": "previous",
+                }
+            )
+
+        assert out["period"] == "month"
+        kwargs = generate.await_args.kwargs
+        assert kwargs["period"] is None
+        assert kwargs["start_date"] == date(2026, 6, 1)
+        assert kwargs["end_date"] == date(2026, 7, 17)
+        assert kwargs["scope"] == "previous"
+
+    @pytest.mark.asyncio
+    async def test_rejects_unpaired_range(self) -> None:
+        from app.agent.tools.trading.review_ops import make_generate_review_tool
+
+        stack, generate = _generate_review_patches(_review_result())
+        with stack:
+            tool = make_generate_review_tool("short-line")
+            out = await tool.ainvoke({"start_date": "2026-06-01"})
+
+        assert "须同时提供" in out["error"]
+        generate.assert_not_awaited()
+
+
+def _reads_patches(review):
+    """读工具打桩：会话工厂 + get_review；返回 (栈, get_review mock)。"""
+    mock = AsyncMock(return_value=review)
+    stack = ExitStack()
+    stack.enter_context(
+        patch("app.agent.tools.trading.reads.AsyncSessionLocal", MagicMock())
+    )
+    stack.enter_context(
+        patch("app.services.trading.agent_review_service.get_review", mock)
+    )
+    return stack, mock
+
+
+@pytest.mark.unit
+class TestGetReviewTool:
+    """B5 读工具：窗口入参（上期/区间）与服务层同口径。"""
+
+    @pytest.mark.asyncio
+    async def test_passes_previous_scope(self) -> None:
+        from app.agent.tools.trading.reads import make_get_review_tool
+
+        content = MagicMock()
+        content.model_dump.return_value = {"period": "week"}
+        stack, get_review = _reads_patches(content)
+        with stack:
+            tool = make_get_review_tool("short-line")
+            out = await tool.ainvoke({"period": "week", "scope": "previous"})
+
+        assert out == {"period": "week"}
+        kwargs = get_review.await_args.kwargs
+        assert kwargs["period"] == "week"
+        assert kwargs["scope"] == "previous"
+        assert kwargs["start_date"] is None
+
+    @pytest.mark.asyncio
+    async def test_custom_range_passes_dates_without_period(self) -> None:
+        from app.agent.tools.trading.reads import make_get_review_tool
+
+        stack, get_review = _reads_patches(None)
+        with stack:
+            tool = make_get_review_tool("short-line")
+            out = await tool.ainvoke(
+                {"start_date": "2026-06-01", "end_date": "2026-07-17"}
+            )
+
+        assert out["not_ready"] is True
+        kwargs = get_review.await_args.kwargs
+        assert kwargs["period"] is None
+        assert kwargs["start_date"] == date(2026, 6, 1)
+        assert kwargs["end_date"] == date(2026, 7, 17)
+
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_date(self) -> None:
+        from app.agent.tools.trading.reads import make_get_review_tool
+
+        stack, get_review = _reads_patches(None)
+        with stack:
+            tool = make_get_review_tool("short-line")
+            out = await tool.ainvoke({"start_date": "2026/06/01", "end_date": "2026-07-17"})
+
+        assert "无效的 start_date" in out["error"]
+        get_review.assert_not_awaited()
+
 
 @pytest.mark.unit
 class TestCollectFinancialData:
