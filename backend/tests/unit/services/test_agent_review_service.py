@@ -546,6 +546,39 @@ class TestGenerateReview:
             )
 
     @pytest.mark.asyncio
+    async def test_manual_trigger_fails_fast_with_hint(self) -> None:
+        """手动触发且窗口末日未同步：抛专项错误并引导上期/历史区间，不排队重试。"""
+        with (
+            patch(
+                "app.services.market.trade_calendar_service.is_trading_day",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.trading.agent_review_service._sync_landed",
+                AsyncMock(return_value=False),
+            ),
+            pytest.raises(
+                agent_review_service.ReviewWindowNotReadyError,
+                match="盘后同步（16:00）.*上期",
+            ),
+        ):
+            await agent_review_service.generate_review(
+                AsyncMock(),
+                _agent(),
+                period="month",
+                trade_date=_TRADE_DATE,
+                trigger="manual",
+            )
+
+    @pytest.mark.asyncio
     async def test_persists_no_target_marker_when_idle_account(self) -> None:
         """空仓无复盘对象：落「无对象」标记行（success）而非失败，展示层据此
         与「未执行」区分；不进 LLM、不沉淀经验。"""
@@ -790,6 +823,47 @@ class TestGenerateReview:
             "return_attribution",
             "system_review",
         ]
+
+
+@pytest.mark.unit
+class TestEnsureWindowReady:
+    """派发前预检：窗口末日盘后同步未落库直接拒绝（不进重试队列）。"""
+
+    @pytest.mark.asyncio
+    async def test_raises_with_manual_hint_when_sync_missing(self) -> None:
+        with (
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.services.trading.agent_review_service._sync_landed",
+                AsyncMock(return_value=False),
+            ),
+            pytest.raises(
+                agent_review_service.ReviewWindowNotReadyError,
+                match="16:00.*上期",
+            ),
+        ):
+            await agent_review_service.ensure_window_ready(
+                AsyncMock(), _agent(), _window()
+            )
+
+    @pytest.mark.asyncio
+    async def test_passes_when_sync_landed(self) -> None:
+        with (
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.services.trading.agent_review_service._sync_landed",
+                AsyncMock(return_value=True),
+            ),
+        ):
+            await agent_review_service.ensure_window_ready(
+                AsyncMock(), _agent(), _window()
+            )
 
 
 @pytest.mark.unit

@@ -8,6 +8,7 @@ import pytest
 
 from app.core.exceptions import NotFoundError
 from app.services.market.trade_calendar_service import NonTradingDayError
+from app.services.trading.agent_review_service import ReviewWindowNotReadyError
 from app.services.trading.agent_review_triggers import (
     REVIEW_TASK_NAME,
     enqueue_review_generation,
@@ -17,11 +18,13 @@ _TRADE_DATE = date(2026, 7, 17)
 
 
 def _patch_env(*, trading_day: bool = True, agent_missing: bool = False):
-    """返回 (打桩栈, mocks)：日历/Agent 注册表/派发器全部替身。"""
+    """返回 (打桩栈, mocks)：日历/Agent 注册表/窗口预检/派发器全部替身。"""
     day_check = AsyncMock(return_value=trading_day)
     get_agent = AsyncMock(return_value=MagicMock(agent_key="short-line"))
     if agent_missing:
         get_agent.side_effect = NotFoundError("交易 Agent ghost 不存在")
+    resolve_window = AsyncMock(return_value=MagicMock(end=_TRADE_DATE))
+    ensure_ready = AsyncMock()
     dispatch = AsyncMock(return_value=MagicMock(id=42, celery_task_id="celery-42"))
 
     stack = ExitStack()
@@ -30,9 +33,27 @@ def _patch_env(*, trading_day: bool = True, agent_missing: bool = False):
     )
     stack.enter_context(patch("app.services.trading.agent_registry.get_agent", get_agent))
     stack.enter_context(
+        patch(
+            "app.services.trading.agent_review_service.resolve_requested_window",
+            resolve_window,
+        )
+    )
+    stack.enter_context(
+        patch(
+            "app.services.trading.agent_review_service.ensure_window_ready",
+            ensure_ready,
+        )
+    )
+    stack.enter_context(
         patch("collector.runtime.dispatcher.dispatch_collector_task", dispatch)
     )
-    return stack, {"day_check": day_check, "get_agent": get_agent, "dispatch": dispatch}
+    return stack, {
+        "day_check": day_check,
+        "get_agent": get_agent,
+        "resolve_window": resolve_window,
+        "ensure_ready": ensure_ready,
+        "dispatch": dispatch,
+    }
 
 
 @pytest.mark.unit
@@ -168,4 +189,20 @@ class TestEnqueueReviewGeneration:
                 await enqueue_review_generation(MagicMock(), "short-line")
 
         mocks["get_agent"].assert_not_awaited()
+        mocks["dispatch"].assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_rejects_when_window_sync_pending(self) -> None:
+        """窗口末日盘后同步未落库：派发前直接拒绝，不产生注定失败的任务。"""
+        stack, mocks = _patch_env()
+        mocks["ensure_ready"].side_effect = ReviewWindowNotReadyError(
+            "2026-07-17 盘后同步（16:00）尚未落库，复盘输入未就绪"
+        )
+        with stack:
+            with pytest.raises(ReviewWindowNotReadyError, match="16:00"):
+                await enqueue_review_generation(
+                    MagicMock(), "short-line", period="month"
+                )
+
+        mocks["resolve_window"].assert_awaited_once()
         mocks["dispatch"].assert_not_awaited()

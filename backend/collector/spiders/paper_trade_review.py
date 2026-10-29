@@ -21,7 +21,10 @@ from app.core.exceptions import NotFoundError
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
 from app.services.trading import agent_registry, agent_review_service
 from app.services.trading.agent_review_periods import REVIEW_PERIODS, ReviewPeriod
-from app.services.trading.agent_review_service import PaperTradeReviewLockedError
+from app.services.trading.agent_review_service import (
+    PaperTradeReviewLockedError,
+    ReviewWindowNotReadyError,
+)
 from app.services.trading.errors import AgentAccountNotDesignatedError
 from collector.core.base import BaseCollector, CollectResult, CollectStatus
 from collector.core.calendar import is_trading_day, latest_trading_day
@@ -60,7 +63,8 @@ class PaperTradeReviewCollector(BaseCollector):
         """按需生成单 Agent 指定周期复盘（页面接口 / Agent 工具共用）。
 
         ``regenerate`` 为真时绕过缓存强制重跑；生成中锁冲突记 SKIPPED 并
-        提示稍后刷新，不当作失败。输入未就绪向上抛交由 Celery 退避重试。
+        提示稍后刷新，不当作失败。盘后同步未落库（``ReviewWindowNotReadyError``）
+        记 FAILED 并带引导文案，不进重试队列。
         """
         started_at = datetime.now(timezone.utc)
         period = kwargs.get("period")
@@ -180,7 +184,11 @@ class PaperTradeReviewCollector(BaseCollector):
                         "end_date": (end_date.isoformat() if end_date else None),
                     },
                 )
-            except AgentAccountNotDesignatedError as exc:
+            except (
+                AgentAccountNotDesignatedError,
+                ReviewWindowNotReadyError,
+            ) as exc:
+                # 盘后同步未落库的手动触发不排队重试：直接失败并带引导文案
                 return CollectResult(
                     source=self.source,
                     data_type=self.data_type,
@@ -322,6 +330,7 @@ class PaperTradeReviewCollector(BaseCollector):
         errors: list[str] = []
         details: dict[str, dict[str, Any]] = {}
         not_ready = 0
+        not_ready_reasons: list[str] = []
         for agent in agents:
             try:
                 result = await self._run_one(
@@ -341,10 +350,13 @@ class PaperTradeReviewCollector(BaseCollector):
                     lines.append(
                         f"{agent.agent_key}: 已执行复盘但无对象（空仓无持仓，已记录）"
                     )
-            except ReviewInputDataNotReadyError:
+            except ReviewInputDataNotReadyError as exc:
                 # 不吞掉：全部 Agent 未就绪时向 Celery 退避重试抛出。
                 not_ready += 1
-                lines.append(f"{agent.agent_key}: 输入未就绪，等待重试")
+                reason = str(exc) or exc.default_message
+                if reason not in not_ready_reasons:
+                    not_ready_reasons.append(reason)
+                lines.append(f"{agent.agent_key}: 输入未就绪（{reason}），等待重试")
             except AgentAccountNotDesignatedError as exc:
                 lines.append(f"{agent.agent_key}: {exc}")
             except Exception as exc:  # noqa: BLE001
@@ -366,8 +378,9 @@ class PaperTradeReviewCollector(BaseCollector):
         elif errors:
             status = CollectStatus.FAILED
         elif not_ready == len(agents):
+            detail = "；".join(not_ready_reasons) or "原因未知"
             raise ReviewInputDataNotReadyError(
-                f"全部 {len(agents)} 个交易 Agent 的复盘输入未就绪"
+                f"全部 {len(agents)} 个交易 Agent 的复盘输入未就绪：{detail}"
             )
         else:
             status = CollectStatus.SKIPPED

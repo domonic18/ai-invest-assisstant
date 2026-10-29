@@ -101,8 +101,21 @@ class TradingReviewNotFoundError(NotFoundError):
     """请求的复盘尚未生成。"""
 
 
+class ReviewWindowNotReadyError(BadRequestError):
+    """手动触发的窗口末日盘后同步尚未落库（直接失败，不排队重试）。"""
+
+
 #: 快捷项作用域：current=本期（周期至今）/ previous=上一完整周期
 ReviewWindowScope = Literal["current", "previous"]
+
+#: 盘后同步未落库提示；手动路径附引导（定时路径由 Celery 退避重试，不加引导）
+_SYNC_PENDING_MESSAGE = "{day} 盘后同步（16:00）尚未落库，复盘输入未就绪"
+_MANUAL_SYNC_HINT = "；请改用「上期」或历史区间，或 16:00 后再试"
+
+
+def _sync_pending_message(day: date, *, manual: bool) -> str:
+    message = _SYNC_PENDING_MESSAGE.format(day=day.isoformat())
+    return message + _MANUAL_SYNC_HINT if manual else message
 
 
 def resolve_window(period: ReviewPeriod, trade_date: date) -> tuple[date, date]:
@@ -160,6 +173,27 @@ async def resolve_requested_window(
     if scope == "previous":
         return await resolve_previous_window(session, period, resolved)
     return await resolve_review_window(session, period, resolved)
+
+
+async def ensure_window_ready(
+    session: AsyncSession, agent: TradingAgent, window: ReviewWindow
+) -> None:
+    """派发前预检窗口末日的盘后同步是否落库。
+
+    页面按需生成在派发时即拒绝并给出引导，避免进队列后才按 Celery 退避
+    重试——当日 16:00 前的手动触发必然等不到同步。
+
+    Raises:
+        ReviewWindowNotReadyError: 窗口末日资金快照（盘后同步）缺失。
+        AgentAccountNotDesignatedError: Agent 未绑定专属模拟盘账户。
+    """
+    from app.services.trading import account_service
+
+    account = await account_service.resolve_agent_account(session, agent.agent_key)
+    if not await _sync_landed(session, account.id, window.end):
+        raise ReviewWindowNotReadyError(
+            _sync_pending_message(window.end, manual=True)
+        )
 
 
 def _input_hash(agent_key: str, account_id: int, period: str, start: date, end: date) -> str:
@@ -370,7 +404,8 @@ async def generate_review(
         BadRequestError: 区间不成对/倒置/无交易日
         NonTradingDayError: 指定日期不是交易日
         AgentAccountNotDesignatedError: 该 Agent 未绑定专属账户
-        ReviewInputDataNotReadyError: 盘后同步尚未落库（Celery 退避重试）
+        ReviewInputDataNotReadyError: 盘后同步尚未落库（定时路径，Celery 退避重试）
+        ReviewWindowNotReadyError: 盘后同步尚未落库（手动路径，直接失败不重试）
         PaperTradeReviewLockedError: 其他实例正在生成
 
     窗口内无交易且无持仓（空仓）不视为失败：落「无复盘对象」标记行（success，
@@ -441,9 +476,15 @@ async def generate_review(
         ):
             sync_landed = await _sync_landed(session, account.id, resolved)
             if not sync_landed:
-                raise ReviewInputDataNotReadyError(
-                    f"{resolved.isoformat()} 盘后同步尚未落库，模拟盘复盘输入未就绪"
+                # 手动触发直接失败并引导改用上期/历史区间；定时路径保持
+                # ReviewInputDataNotReadyError 由 Celery 退避等待 16:00 同步
+                manual = trigger == "manual"
+                error_cls = (
+                    ReviewWindowNotReadyError
+                    if manual
+                    else ReviewInputDataNotReadyError
                 )
+                raise error_cls(_sync_pending_message(resolved, manual=manual))
             has_target = await _has_review_target(session, account.id, start, end)
 
         if not has_target:

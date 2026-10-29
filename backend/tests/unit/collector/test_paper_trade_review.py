@@ -7,7 +7,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.services.trading.agent_review_service import PaperTradeReviewLockedError
+from app.services.trading.agent_review_service import (
+    PaperTradeReviewLockedError,
+    ReviewWindowNotReadyError,
+)
 from app.services.trading.errors import AgentAccountNotDesignatedError
 from collector.core.base import CollectStatus
 from collector.spiders.paper_trade_review import (
@@ -311,6 +314,24 @@ class TestPaperTradeReviewOnDemand:
             with pytest.raises(ReviewInputDataNotReadyError):
                 await _collector().run(agent_key="short-line", period="day")
 
+    @pytest.mark.asyncio
+    async def test_window_not_ready_fails_without_retry(self) -> None:
+        """手动触发且窗口末日未同步：记 FAILED 带引导文案，不向上抛重试。"""
+        patches = _patch_on_demand(
+            generate=AsyncMock(
+                side_effect=ReviewWindowNotReadyError(
+                    "2026-07-17 盘后同步（16:00）尚未落库，复盘输入未就绪；"
+                    "请改用「上期」或历史区间，或 16:00 后再试"
+                )
+            )
+        )
+        with _activate(patches):
+            result = await _collector().run(agent_key="short-line", period="month")
+
+        assert result.status == CollectStatus.FAILED
+        assert result.errors and "16:00" in result.errors[0]
+        assert "上期" in (result.message or "")
+
 
 @pytest.mark.unit
 class TestPaperTradeReviewCollector:
@@ -403,12 +424,18 @@ class TestPaperTradeReviewCollector:
 
     @pytest.mark.asyncio
     async def test_not_ready_error_propagates_for_retry(self) -> None:
-        """全部 Agent 输入未就绪必须向上传播交由 Celery 退避重试。"""
+        """全部 Agent 未就绪向上传播交由 Celery 退避重试，且携带 agent 级原因。"""
         patches = _patch_env(
-            generate=AsyncMock(side_effect=ReviewInputDataNotReadyError("未就绪"))
+            generate=AsyncMock(
+                side_effect=ReviewInputDataNotReadyError(
+                    "2026-07-17 盘后同步（16:00）尚未落库，复盘输入未就绪"
+                )
+            )
         )
         with _activate(patches):
-            with pytest.raises(ReviewInputDataNotReadyError):
+            with pytest.raises(
+                ReviewInputDataNotReadyError, match="：2026-07-17 盘后同步"
+            ):
                 await _collector().run()
 
     @pytest.mark.asyncio

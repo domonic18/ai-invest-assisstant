@@ -282,6 +282,29 @@ class TestGenerateTradingAgentReview:
             )
         assert resp.status_code == 400
 
+    def test_400_when_window_sync_pending(self, admin_client) -> None:
+        """窗口末日盘后同步未落库：派发前 400 并带改成上期/历史区间的引导。"""
+        from app.services.trading.agent_review_service import ReviewWindowNotReadyError
+
+        http, _ = admin_client
+        with patch(
+            "app.services.trading.agent_review_triggers.enqueue_review_generation",
+            AsyncMock(
+                side_effect=ReviewWindowNotReadyError(
+                    "2026-10-29 盘后同步（16:00）尚未落库，复盘输入未就绪"
+                    "；请改用「上期」或历史区间，或 16:00 后再试"
+                )
+            ),
+        ):
+            resp = http.post(
+                "/api/v1/admin/trading-agent/short-line/review/generate",
+                json={"period": "month"},
+            )
+
+        assert resp.status_code == 400
+        assert "16:00" in resp.json()["detail"]
+        assert "上期" in resp.json()["detail"]
+
 
 @pytest.mark.unit
 class TestReviewWindowParams:
