@@ -21,3 +21,7 @@ export async function createMyApiKey(
 export async function revokeMyApiKey(keyId: number): Promise<void> {
   await apiClient.delete(ENDPOINTS.users.meApiKey(keyId))
 }
+
+export async function purgeMyApiKey(keyId: number): Promise<void> {
+  await apiClient.delete(ENDPOINTS.users.meApiKeyPurge(keyId))
+}

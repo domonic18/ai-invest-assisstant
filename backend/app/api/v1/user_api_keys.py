@@ -58,3 +58,13 @@ async def revoke_my_api_key(
 ) -> None:
     """吊销自己的 API Key（幂等，他人 Key 返回 404）。"""
     await ApiKeyService(session).revoke_own_key(key_id, current_user.id)
+
+
+@router.delete("/{key_id}/purge", status_code=status.HTTP_204_NO_CONTENT)
+async def purge_my_api_key(
+    key_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    """删除已吊销的本人 Key 记录（未吊销返回 400，他人 Key 返回 404）。"""
+    await ApiKeyService(session).purge_own_key(key_id, current_user.id)

@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.constants import API_KEY_SELF_SERVICE_SCOPES
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.dependencies import get_current_user, get_db
 from app.main import app
 from app.schemas.api_key import ApiKeyIssuedResponse, ApiKeyResponse
@@ -120,6 +120,29 @@ def test_revoke_my_api_key_foreign_key_returns_404(me_client):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "API Key 3 不存在"
+
+
+def test_purge_my_api_key_scopes_to_current_user(me_client):
+    client, _ = me_client
+    with patch(
+        "app.api.v1.user_api_keys.ApiKeyService.purge_own_key", AsyncMock()
+    ) as mocked:
+        response = client.delete(f"{_URL}3/purge")
+
+    assert response.status_code == 204
+    mocked.assert_awaited_once_with(3, 7)
+
+
+def test_purge_my_api_key_requires_revoked(me_client):
+    client, _ = me_client
+    with patch(
+        "app.api.v1.user_api_keys.ApiKeyService.purge_own_key",
+        AsyncMock(side_effect=BadRequestError("请先吊销该密钥再删除")),
+    ):
+        response = client.delete(f"{_URL}3/purge")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "请先吊销该密钥再删除"
 
 
 def test_requires_login(client):

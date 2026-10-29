@@ -2,7 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { message } from 'antd'
 import type { ApiKeyCreateRequest } from '@ai-invest/shared'
 
-import { createMyApiKey, fetchMyApiKeys, revokeMyApiKey } from '@/api/apiKeys'
+import {
+  createMyApiKey,
+  fetchMyApiKeys,
+  purgeMyApiKey,
+  revokeMyApiKey,
+} from '@/api/apiKeys'
 import { queryKeys } from '@/hooks/queryKeys'
 
 export function useMyApiKeys() {
@@ -30,6 +35,18 @@ export function useRevokeMyApiKey() {
     mutationFn: (keyId: number) => revokeMyApiKey(keyId),
     onSuccess: () => {
       message.success('已吊销该密钥')
+      void queryClient.invalidateQueries({ queryKey: queryKeys.users.apiKeys })
+    },
+    onError: (error: Error) => message.error(error.message),
+  })
+}
+
+export function usePurgeMyApiKey() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (keyId: number) => purgeMyApiKey(keyId),
+    onSuccess: () => {
+      message.success('已删除该密钥记录')
       void queryClient.invalidateQueries({ queryKey: queryKeys.users.apiKeys })
     },
     onError: (error: Error) => message.error(error.message),

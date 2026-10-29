@@ -161,6 +161,7 @@ cc-connect 一个 project 对应一个飞书机器人 + 一套静态 MCP 配置�
 | GET | `/api/v1/users/me/api-keys/` | 个人设置：列出本人 Key |
 | POST | `/api/v1/users/me/api-keys/` | 个人设置：签发（scope 服务端固定，忽略请求体中的 `userId`/`scopes`） |
 | DELETE | `/api/v1/users/me/api-keys/{id}` | 个人设置：吊销本人 Key（他人 Key 返回 404） |
+| DELETE | `/api/v1/users/me/api-keys/{id}/purge` | 个人设置：删除已吊销的 Key 记录（未吊销返回 400） |
 
 自助签发默认 scope = `market:read` / `trading:read` / `kb:read`
 （`API_KEY_SELF_SERVICE_SCOPES`，仅覆盖已上线的只读 MCP 工具）。

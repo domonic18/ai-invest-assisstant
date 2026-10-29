@@ -135,6 +135,17 @@ class ApiKeyService:
             raise NotFoundError(f"API Key {key_id} 不存在")
         await self._revoke(row)
 
+    async def purge_own_key(self, key_id: int, user_id: int) -> None:
+        """删除已吊销的本人 Key 记录（未吊销须先吊销，防误删有效凭证）。"""
+        row = await self._session.get(UserApiKey, key_id)
+        if row is None or row.user_id != user_id:
+            raise NotFoundError(f"API Key {key_id} 不存在")
+        if row.revoked_at is None:
+            raise BadRequestError("请先吊销该密钥再删除")
+        await self._session.delete(row)
+        await self._session.commit()
+        logger.info("api_key.purged", api_key_id=key_id, user_id=user_id)
+
     async def _revoke(self, row: UserApiKey) -> None:
         if row.revoked_at is not None:
             return
