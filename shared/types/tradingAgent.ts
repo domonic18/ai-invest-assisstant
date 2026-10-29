@@ -100,8 +100,51 @@ export interface AgentOverviewResponse {
   generatedAt: string
 }
 
-/** 复盘周期。 */
-export type TradingReviewPeriod = 'day' | 'week' | 'month'
+/** 复盘周期（六档：日/周/月为定时生成；季/半年/年按需生成）。 */
+export type TradingReviewPeriod = 'day' | 'week' | 'month' | 'quarter' | 'half_year' | 'year'
+
+/** 快捷项作用域：current=本期（周期至今）/ previous=上一完整周期。 */
+export type TradingReviewScope = 'current' | 'previous'
+
+/** 周期专属板块（统一框架 + 各周期专属章节，B3）。 */
+export interface ApiTradingAgentReviewSection {
+  key: string
+  title: string
+  body: string
+}
+
+/** 系统确定性指标（LLM 只解读；null = 不可计算）。 */
+export interface ApiTradingAgentReviewMetrics {
+  period: TradingReviewPeriod
+  startDate: string
+  endDate: string
+  tradingDays: number
+  /** 净值数据实际覆盖区间（可能短于窗口）。 */
+  coveredStart: string | null
+  coveredEnd: string | null
+  startValue: number | null
+  endValue: number | null
+  returnPct: number | null
+  annualizedReturnPct: number | null
+  maxDrawdownPct: number | null
+  sellCount: number
+  winRatePct: number | null
+  profitLossRatio: number | null
+  turnoverRatePct: number | null
+  executionDeviationPct: number | null
+  benchmarkReturnPct: number | null
+  excessReturnPct: number | null
+  notes: string[]
+}
+
+/** 复盘窗口入参（读取/生成/对比同口径；三形态：本期、上期、自定义区间）。 */
+export interface TradingAgentReviewWindow {
+  period?: TradingReviewPeriod | null
+  tradeDate?: string
+  scope?: TradingReviewScope
+  startDate?: string
+  endDate?: string
+}
 
 /** 单笔委托三层判定（selection=该不该做 / plan=计划 / execution=执行）。 */
 export interface ApiTradingAgentTradeVerdict {
@@ -135,6 +178,8 @@ export interface ApiTradingAgentReview {
   trades: ApiTradingAgentTradeVerdict[]
   bias: string
   suggestion: string
+  /** 周期专属板块（统一框架 + 各周期专属章节，B3）。 */
+  sections: ApiTradingAgentReviewSection[]
   /** 盘面语境归纳（D34：基准日大盘/主线板块/情绪位置及对本周期操作的定性影响）。 */
   marketContext: string
   /** 方法论验证（D34：KB 纪律逐条结论；未绑定知识源为空数组）。 */
@@ -142,6 +187,49 @@ export interface ApiTradingAgentReview {
   experiences: ApiTradingAgentReviewExperience[]
   /** 非空 = 已执行但空仓无复盘对象（窗口内无交易且无持仓）；null = 正常复盘。 */
   noTargetReason: string | null
+  /** 系统确定性指标；B3 之前的缓存行为 null。 */
+  metrics: ApiTradingAgentReviewMetrics | null
+}
+
+/** 按需生成复盘请求（三形态：period 本期 / +scope=previous 上期 / 显式区间）。 */
+export interface TradingAgentReviewGenerateRequest {
+  period?: TradingReviewPeriod | null
+  tradeDate?: string
+  scope?: TradingReviewScope
+  startDate?: string
+  endDate?: string
+  /** true = 已有缓存也重新生成。 */
+  regenerate?: boolean
+}
+
+/** 复盘生成任务派发回执（凭 logId 轮询采集日志状态）。 */
+export interface TradingAgentReviewGenerateResponse {
+  status: 'dispatched'
+  logId: number
+  celeryTaskId: string | null
+}
+
+/** 对比视图的单侧窗口（与读取/生成同口径）。 */
+export interface TradingAgentReviewCompareWindow {
+  period?: TradingReviewPeriod | null
+  tradeDate?: string
+  scope?: TradingReviewScope
+  startDate?: string
+  endDate?: string
+}
+
+/** 跨窗口指标对比请求（任意两个已生成窗口）。 */
+export interface TradingAgentReviewCompareRequest {
+  windowA: TradingAgentReviewCompareWindow
+  windowB: TradingAgentReviewCompareWindow
+}
+
+/** 跨窗口等比指标对比（按等长交易日对齐，附可比性提示）。 */
+export interface ApiTradingAgentReviewCompareResponse {
+  windowA: ApiTradingAgentReviewMetrics
+  windowB: ApiTradingAgentReviewMetrics
+  alignedTradingDays: number
+  note: string
 }
 
 /** 有记录日期清单（日历打点：计划日 + 各周期复盘基准日）。 */

@@ -136,6 +136,14 @@ export interface ApiCollectorLogResponse {
   metadata: Record<string, unknown> | null
 }
 
+/** 采集日志的异步任务状态（GET /admin/collector/logs/{log_id}/celery-status，snake_case 透传）。 */
+export interface ApiCollectorLogCeleryStatus {
+  log_id: number
+  celery_task_id?: string | null
+  celery_state: string | null
+  collector_status: string
+}
+
 export interface ApiCollectorLogSummaryResponse {
   date: string
   successCount: number

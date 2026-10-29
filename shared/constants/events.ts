@@ -15,6 +15,7 @@ export const PAGE_EVENT_TYPES = {
   stockScreening: 'stock_screening.complete',
   klineDrawing: 'kline_drawing.complete',
   paperTrading: 'paper_trading.complete',
+  paperTradingReview: 'paper_trading_review.complete',
 } as const
 
 export type PageEventType = (typeof PAGE_EVENT_TYPES)[keyof typeof PAGE_EVENT_TYPES]
