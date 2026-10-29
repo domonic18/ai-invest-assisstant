@@ -39,10 +39,27 @@ def admin_client(client) -> tuple[TestClient, AsyncMock]:
     app.dependency_overrides.clear()
 
 
+def _window() -> object:
+    from app.services.trading.agent_review_periods import ReviewWindow
+
+    day = date(2026, 7, 17)
+    return ReviewWindow(
+        period="day",
+        requested_start=day,
+        requested_end=day,
+        start=day,
+        end=day,
+        trading_days=(day,),
+    )
+
+
 def _content() -> dict:
     return {
         "period": "day",
         "trade_date": "2026-07-17",
+        "sections": [
+            {"key": "execution_discipline", "title": "执行偏差", "body": "追高一次"}
+        ],
         "overall": "整体执行纪律良好",
         "trades": [
             {
@@ -79,6 +96,10 @@ class TestGetTradingAgentReview:
                 "app.repositories.review.ai_analysis_repository.load_latest_success",
                 AsyncMock(return_value=row),
             ),
+            patch(
+                "app.services.trading.agent_review_service.resolve_review_window",
+                AsyncMock(return_value=_window()),
+            ),
         ):
             resp = http.get("/api/v1/admin/trading-agent/short-line/review", params={"period": "day"})
 
@@ -88,6 +109,8 @@ class TestGetTradingAgentReview:
         assert body["trades"][0]["clOrdId"] == "A"
         assert body["trades"][0]["selectionVerdict"] == "correct"
         assert body["experiences"][0]["memType"] == "discipline"
+        assert body["sections"][0]["key"] == "execution_discipline"
+        assert body["metrics"] is None
         assert body["noTargetReason"] is None
 
     def test_returns_no_target_reason_for_idle_review(self, admin_client) -> None:
@@ -113,6 +136,10 @@ class TestGetTradingAgentReview:
                 "app.repositories.review.ai_analysis_repository.load_latest_success",
                 AsyncMock(return_value=row),
             ),
+            patch(
+                "app.services.trading.agent_review_service.resolve_review_window",
+                AsyncMock(return_value=_window()),
+            ),
         ):
             resp = http.get("/api/v1/admin/trading-agent/short-line/review", params={"period": "day"})
 
@@ -134,6 +161,10 @@ class TestGetTradingAgentReview:
                 "app.repositories.review.ai_analysis_repository.load_latest_success",
                 AsyncMock(return_value=None),
             ),
+            patch(
+                "app.services.trading.agent_review_service.resolve_review_window",
+                AsyncMock(return_value=_window()),
+            ),
         ):
             resp = http.get("/api/v1/admin/trading-agent/short-line/review", params={"period": "day"})
 
@@ -144,10 +175,44 @@ class TestGetTradingAgentReview:
         http, _ = admin_client
 
         resp = http.get(
-            "/api/v1/admin/trading-agent/short-line/review", params={"period": "year"}
+            "/api/v1/admin/trading-agent/short-line/review", params={"period": "decade"}
         )
 
         assert resp.status_code == 422
+
+    def test_accepts_six_periods(self, admin_client) -> None:
+        """六档周期全部进入白名单（季/半年/年为 B2 新增）。"""
+        http, _ = admin_client
+        row = MagicMock()
+        row.structured_output = {"agent_key": "short-line", **_content(), "period": "quarter", "sections": [
+            {"key": "return_attribution", "title": "收益归因", "body": "选股贡献为主"},
+            {"key": "system_review", "title": "体系评估", "body": "仓位管理偏弱"},
+        ]}
+
+        with (
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.load_latest_success",
+                AsyncMock(return_value=row),
+            ),
+            patch(
+                "app.services.trading.agent_review_service.resolve_review_window",
+                AsyncMock(return_value=_window()),
+            ),
+        ):
+            resp = http.get(
+                "/api/v1/admin/trading-agent/short-line/review",
+                params={"period": "quarter"},
+            )
+
+        assert resp.status_code == 200
+        assert [s["key"] for s in resp.json()["sections"]] == [
+            "return_attribution",
+            "system_review",
+        ]
 
 
 def _plan_row(**overrides) -> AgentTradePlan:
@@ -527,12 +592,19 @@ class TestGetTradingAgentDates:
         body = resp.json()
         # 空仓观望日（无计划行）并入日历打点
         assert body["planDates"] == ["2026-07-15", "2026-07-16", "2026-07-17"]
-        assert sorted(body["reviewDates"]) == ["day", "month", "week"]
+        assert sorted(body["reviewDates"]) == [
+            "day",
+            "half_year",
+            "month",
+            "quarter",
+            "week",
+            "year",
+        ]
         assert body["reviewDates"]["day"] == ["2026-07-17"]
         assert body["reviewDates"]["week"] == ["2026-07-10"]
         plan_dates_mock.assert_awaited_once()
         stand_aside_mock.assert_awaited_once()
-        assert review_dates_mock.await_count == 3
+        assert review_dates_mock.await_count == 6
 
     def test_empty_when_no_records(self, admin_client) -> None:
         http, _ = admin_client
@@ -554,7 +626,17 @@ class TestGetTradingAgentDates:
             resp = http.get("/api/v1/admin/trading-agent/short-line/dates")
 
         assert resp.status_code == 200
-        assert resp.json() == {"planDates": [], "reviewDates": {"day": [], "month": [], "week": []}}
+        assert resp.json() == {
+            "planDates": [],
+            "reviewDates": {
+                "day": [],
+                "week": [],
+                "month": [],
+                "quarter": [],
+                "half_year": [],
+                "year": [],
+            },
+        }
 
 
 def _group_view():

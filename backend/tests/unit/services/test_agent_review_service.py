@@ -12,6 +12,7 @@ from app.services.market.trade_calendar_service import NonTradingDayError
 from app.services.review.market_review_service import ReviewInputDataNotReadyError
 from app.services.trading import agent_review_service
 from app.services.trading.agent_review_content import PaperTradeReviewContent
+from app.services.trading.agent_review_periods import ReviewWindow
 from app.services.trading.agent_review_service import (
     PaperTradeReviewLockedError,
     resolve_window,
@@ -19,6 +20,36 @@ from app.services.trading.agent_review_service import (
 from app.services.trading.errors import AgentAccountNotDesignatedError
 
 _TRADE_DATE = date(2026, 7, 15)  # Wednesday
+
+
+def _window(period: str = "day") -> ReviewWindow:
+    """已对齐交易日的窗口替身（窗口解析本身由 agent_review_periods 单测覆盖）。"""
+    return ReviewWindow(
+        period=period,  # type: ignore[arg-type]
+        requested_start=_TRADE_DATE,
+        requested_end=_TRADE_DATE,
+        start=_TRADE_DATE,
+        end=_TRADE_DATE,
+        trading_days=(_TRADE_DATE,),
+    )
+
+
+@pytest.fixture(autouse=True)
+def _stub_window_services():
+    """窗口解析与指标计算触库，服务层单测统一替身。"""
+    metrics = MagicMock()
+    metrics.to_dict.return_value = {"period": "day", "notes": []}
+    with (
+        patch(
+            "app.services.trading.agent_review_service.resolve_review_window",
+            AsyncMock(side_effect=lambda _s, period, _d: _window(period)),
+        ),
+        patch(
+            "app.services.trading.agent_review_service.compute_window_metrics",
+            AsyncMock(return_value=metrics),
+        ),
+    ):
+        yield
 
 
 def _agent() -> SimpleNamespace:
@@ -37,10 +68,20 @@ def _cached_row(structured: dict | None):
     return row
 
 
+_SECTIONS = {
+    "day": [{"key": "execution_discipline", "title": "执行偏差", "body": "追高一次"}],
+    "quarter": [
+        {"key": "return_attribution", "title": "收益归因", "body": "选股贡献为主"},
+        {"key": "system_review", "title": "体系评估", "body": "仓位管理偏弱"},
+    ],
+}
+
+
 def _content_dict(period: str = "day") -> dict:
     return {
         "period": period,
         "trade_date": _TRADE_DATE.isoformat(),
+        "sections": _SECTIONS[period],
         "overall": "整体执行纪律良好",
         "trades": [
             {
@@ -391,6 +432,92 @@ class TestGenerateReview:
         sediment_mock.assert_awaited_once()
         assert sediment_mock.await_args.kwargs["source_result_id"] == insert_mock.return_value
         session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_long_period_filters_key_trades_and_experiences(self) -> None:
+        """季/半年/年：输入筛关键交易，经验只留体系级（§4.2/§4.6）。"""
+
+        @asynccontextmanager
+        async def _locked(*args, **kwargs):
+            yield True
+
+        quarter = _content_dict("quarter")
+        quarter["experiences"].append(
+            {"title": "单笔教训", "body": "某笔追高", "mem_type": "lesson"}
+        )
+        llm_content = PaperTradeReviewContent.model_validate(quarter)
+        selection = MagicMock()
+        selection.to_wire.return_value = {
+            "cl_ord_ids": ["A"],
+            "tags": {"A": ["盈利前列"]},
+            "total_candidates": 9,
+        }
+
+        with (
+            patch(
+                "app.services.market.trade_calendar_service.is_trading_day",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.services.trading.account_service.resolve_agent_account",
+                AsyncMock(return_value=MagicMock(id=7)),
+            ),
+            patch(
+                "app.services.trading.agent_review_service._sync_landed",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.services.trading.agent_review_service._has_review_target",
+                AsyncMock(return_value=True),
+            ),
+            patch.object(agent_review_service, "redis_lock", _locked),
+            patch(
+                "app.services.trading.agent_review_service._collect_window_input",
+                AsyncMock(return_value={"orders": [{"cl_ord_id": "A"}]}),
+            ),
+            patch(
+                "app.services.trading.agent_review_service.load_key_trade_selection",
+                AsyncMock(return_value=selection),
+            ) as key_mock,
+            patch(
+                "app.services.trading.agent_review_service.filter_window_input",
+                MagicMock(return_value={"orders": [{"cl_ord_id": "A"}]}),
+            ) as filter_mock,
+            patch(
+                "app.services.trading.agent_review_service._market_review_optional",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.trading.agent_methodology.build_methodology_input",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.trading.agent_review_service._run_llm",
+                AsyncMock(return_value=llm_content),
+            ),
+            patch(
+                "app.repositories.review.ai_analysis_repository.insert_result",
+                AsyncMock(),
+            ),
+            patch(
+                "app.services.trading.agent_memory_service.sediment_experiences",
+                AsyncMock(return_value=1),
+            ) as sediment_mock,
+        ):
+            result = await agent_review_service.generate_review(
+                AsyncMock(), _agent(), period="quarter", trade_date=_TRADE_DATE, regenerate=True
+            )
+
+        key_mock.assert_awaited_once()
+        filter_mock.assert_called_once()
+        # 只沉淀 method/discipline 体系级经验，lesson 被过滤
+        assert [e.mem_type for e in result.content.experiences] == ["discipline"]
+        assert sediment_mock.await_args.kwargs["experiences"] == result.content.experiences
+        # 专属板块原样落库（合法性由 agent_review_sections 单测覆盖）
+        assert [s.key for s in result.content.sections] == [
+            "return_attribution",
+            "system_review",
+        ]
 
 
 @pytest.mark.unit

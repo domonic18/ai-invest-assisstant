@@ -332,12 +332,12 @@ class TestComputeWindowMetrics:
         )
         monkeypatch.setattr(
             metrics,
-            "_load_executions",
+            "load_executions",
             AsyncMock(return_value=[_execution(date(2026, 7, 15), side=SIDE_BUY)]),
         )
         monkeypatch.setattr(
             metrics,
-            "_load_plans",
+            "load_plans",
             AsyncMock(
                 return_value=[
                     PlanRecord(
