@@ -1,11 +1,12 @@
 /**
  * 个人设置页：侧边锚点导航（IntersectionObserver 高亮）+ 各 section 组件拼装。
- * section 内容见 components/（Profile/Appearance/Indexes/Quota/Model/Security）。
+ * section 内容见 components/（Profile/Appearance/Indexes/Quota/Model/ApiKey/Security）。
  */
 
 import { Typography } from 'antd'
 import { useEffect, useState } from 'react'
 
+import { ApiKeySection } from './components/ApiKeySection'
 import { AppearanceSection } from './components/AppearanceSection'
 import { IndexesSection } from './components/IndexesSection'
 import { MyModelSection } from './components/MyModelSection'
@@ -19,6 +20,7 @@ const SECTIONS = [
   { key: 'indexes', label: '跟踪指数' },
   { key: 'quota', label: '配额用量' },
   { key: 'model', label: '我的模型' },
+  { key: 'api-keys', label: 'MCP 密钥' },
   { key: 'security', label: '账号安全' },
 ] as const
 
@@ -106,6 +108,10 @@ export function Settings() {
 
           <section id="sec-model" className="scroll-mt-4">
             <MyModelSection />
+          </section>
+
+          <section id="sec-api-keys" className="scroll-mt-4">
+            <ApiKeySection />
           </section>
 
           <section id="sec-security" className="scroll-mt-4 space-y-5">

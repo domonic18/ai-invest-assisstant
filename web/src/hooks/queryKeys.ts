@@ -240,6 +240,7 @@ export const queryKeys = {
   users: {
     all: ['users'] as const,
     me: ['users', 'me'] as const,
+    apiKeys: ['users', 'api-keys'] as const,
   },
   workbench: {
     all: ['workbench'] as const,
