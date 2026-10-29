@@ -6,6 +6,7 @@ payload 单段 8KB / prompt+output 64KB 截断。session 以 FakeSession 替身
 """
 
 from datetime import date
+from decimal import Decimal
 from typing import Any
 from unittest.mock import patch
 
@@ -125,6 +126,31 @@ class TestAgentRunRecorder:
         assert step_row.payload == {"prompt": "p"}
         assert step_row.duration_ms >= 0
         assert step_row.started_at is not None
+
+    @pytest.mark.asyncio
+    async def test_step_payload_with_decimal_is_json_safe(self) -> None:
+        """复盘窗口 payload 含 Decimal 金额：落库前转字符串，JSONB 不炸。"""
+        factory = _SessionFactory()
+        with patch(_SESSION_TARGET, factory):
+            rec = AgentRunRecorder(agent_key="short-line", kind="review")
+            await rec.start()
+            async with rec.step(
+                "input.window",
+                "复盘窗口取数（委托/成交/净值）",
+                payload_builder=lambda: {
+                    "window": {"start": date(2026, 9, 1), "end": date(2026, 9, 30)},
+                    "cash": Decimal("12345.67"),
+                    "positions": [{"amount": Decimal("1000.00")}],
+                },
+            ):
+                pass
+
+        step_row = factory.rows[-1]
+        assert step_row.payload == {
+            "window": {"start": "2026-09-01", "end": "2026-09-30"},
+            "cash": "12345.67",
+            "positions": [{"amount": "1000.00"}],
+        }
 
     @pytest.mark.asyncio
     async def test_step_body_error_marks_failed_and_reraises(self) -> None:

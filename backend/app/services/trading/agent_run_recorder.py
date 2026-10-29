@@ -59,10 +59,14 @@ def _truncate_segment(key: str, value: Any, limit: int) -> Any:
 
 
 def _truncate_payload(payload: dict[str, Any] | None) -> dict[str, Any] | None:
-    """按段截断 payload；prompt/结构化输出全文段使用放大后的上限。"""
+    """按段截断并对齐 JSONB：prompt/结构化输出全文段使用放大后的上限。
+
+    复盘窗口 payload 含 Decimal 金额（资金/持仓快照），不规整会让 JSONB
+    写入直接失败——整段落空，观测轨迹丢失。
+    """
     if payload is None:
         return None
-    return {
+    truncated = {
         key: _truncate_segment(
             key,
             value,
@@ -70,6 +74,7 @@ def _truncate_payload(payload: dict[str, Any] | None) -> dict[str, Any] | None:
         )
         for key, value in payload.items()
     }
+    return _json_safe(truncated) or truncated
 
 
 def _json_safe(value: Any) -> Any:
