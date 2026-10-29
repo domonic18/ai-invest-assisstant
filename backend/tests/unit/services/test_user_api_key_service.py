@@ -22,6 +22,7 @@ def _session() -> MagicMock:
     session.execute = AsyncMock()
     session.rollback = AsyncMock()
     session.add = MagicMock()
+    session.delete = AsyncMock()
     return session
 
 
@@ -169,6 +170,41 @@ async def test_revoke_own_key_rejects_other_users_key():
 
     assert session.get.return_value.revoked_at is None
     session.commit.assert_not_awaited()
+
+
+async def test_purge_own_key_deletes_revoked_row():
+    session = _session()
+    row = _row(user_id=7, revoked_at=utc_now())
+    session.get.return_value = row
+    service = svc.ApiKeyService(session)
+
+    await service.purge_own_key(11, user_id=7)
+
+    session.delete.assert_awaited_once_with(row)
+    session.commit.assert_awaited_once()
+
+
+async def test_purge_own_key_requires_revoked():
+    session = _session()
+    session.get.return_value = _row(user_id=7)
+    service = svc.ApiKeyService(session)
+
+    with pytest.raises(BadRequestError):
+        await service.purge_own_key(11, user_id=7)
+
+    session.delete.assert_not_awaited()
+    session.commit.assert_not_awaited()
+
+
+async def test_purge_own_key_rejects_other_users_key():
+    session = _session()
+    session.get.return_value = _row(user_id=8, revoked_at=utc_now())
+    service = svc.ApiKeyService(session)
+
+    with pytest.raises(NotFoundError):
+        await service.purge_own_key(11, user_id=7)
+
+    session.delete.assert_not_awaited()
 
 
 def _session_ctx(session: MagicMock) -> MagicMock:
