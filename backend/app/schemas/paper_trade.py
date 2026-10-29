@@ -534,6 +534,22 @@ class TradingAgentReviewResponse(CamelModel):
     metrics: TradingAgentReviewMetrics | None = None
 
 
+class TradingAgentReviewGenerateRequest(CamelModel):
+    """按需生成复盘（B4：页面按钮触发，异步派发不阻塞请求）。"""
+
+    period: Literal["day", "week", "month", "quarter", "half_year", "year"]
+    trade_date: date | None = None
+    regenerate: bool = False
+
+
+class TradingAgentReviewGenerateResponse(CamelModel):
+    """复盘生成任务派发回执（前端凭 logId 轮询采集日志状态并刷新复盘）。"""
+
+    status: Literal["dispatched"] = "dispatched"
+    log_id: int
+    celery_task_id: str | None = None
+
+
 class TradingAgentPlanResponse(CamelModel):
     """交易计划条目（「今日交易计划」区块与对话 list 工具共用）。"""
 

@@ -32,6 +32,8 @@ from app.schemas.paper_trade import (
     TradingAgentProfileUpdateRequest,
     TradingAgentPromptContent,
     TradingAgentPromptTemplate,
+    TradingAgentReviewGenerateRequest,
+    TradingAgentReviewGenerateResponse,
     TradingAgentReviewResponse,
 )
 from app.services.market import trade_calendar_service
@@ -43,6 +45,7 @@ from app.services.trading import (
     agent_plan_service,
     agent_registry,
     agent_review_service,
+    agent_review_triggers,
 )
 from app.services.trading.agent_review_periods import REVIEW_PERIODS
 
@@ -161,6 +164,33 @@ async def get_trading_agent_review(
             f"{trade_date.isoformat() if trade_date else '最新'} 的 {period} 复盘尚未生成"
         )
     return TradingAgentReviewResponse.model_validate(content.model_dump(mode="json"))
+
+
+@router.post(
+    "/{agent_key}/review/generate",
+    response_model=TradingAgentReviewGenerateResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def generate_trading_agent_review(
+    agent_key: str,
+    data: TradingAgentReviewGenerateRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> TradingAgentReviewGenerateResponse:
+    """按需生成复盘（B4）：异步派发到 heavy 队列，立即返回任务回执。
+
+    LLM 生成分钟级，禁止在请求内阻塞；页面凭 ``logId`` 轮询采集日志状态，
+    完成后重新 GET 复盘。季/半年/年只经此路径或对话触发，不设定时。
+    """
+    log = await agent_review_triggers.enqueue_review_generation(
+        session,
+        agent_key,
+        period=data.period,
+        trade_date=data.trade_date,
+        regenerate=data.regenerate,
+    )
+    return TradingAgentReviewGenerateResponse(
+        log_id=log.id, celery_task_id=log.celery_task_id
+    )
 
 
 @router.get("/{agent_key}/dates", response_model=TradingAgentDatesResponse)

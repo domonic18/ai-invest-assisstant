@@ -32,13 +32,17 @@ SPECS: tuple[TaskSpec, ...] = (
     TaskSpec(
         name="paper-trade-review",
         label="模拟盘 AI 分层复盘",
-        description="盘后对 agent 账户交易做日/周/月分层归因复盘（选股/计划/执行 verdict + 经验提取），周期末日历判定加发",
+        description=(
+            "盘后对 agent 账户交易做日/周/月分层归因复盘（选股/计划/执行 verdict + "
+            "经验提取），周期末日历判定加发；传 agent_key/period 时按需生成单 Agent "
+            "指定周期（季/半年/年由页面或对话触发，不设定时）"
+        ),
         data_type="paper-trade-review",
         collectors={
             "internal": "collector.spiders.paper_trade_review:PaperTradeReviewCollector",
         },
         queue="heavy",
-        run_params=("trade_date",),
+        run_params=("trade_date", "agent_key", "period", "regenerate"),
         converters={"trade_date": date.fromisoformat},
     ),
     TaskSpec(
