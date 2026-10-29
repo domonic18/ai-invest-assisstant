@@ -215,6 +215,71 @@ class TestGetTradingAgentReview:
         ]
 
 
+@pytest.mark.unit
+class TestGenerateTradingAgentReview:
+    """B4 按需生成：异步派发返回任务回执（202），不在请求内跑 LLM。"""
+
+    def test_returns_202_with_task_receipt(self, admin_client) -> None:
+        http, session = admin_client
+        log = MagicMock(id=42, celery_task_id="celery-42")
+
+        with patch(
+            "app.services.trading.agent_review_triggers.enqueue_review_generation",
+            AsyncMock(return_value=log),
+        ) as enqueue_mock:
+            resp = http.post(
+                "/api/v1/admin/trading-agent/short-line/review/generate",
+                json={"period": "quarter", "tradeDate": "2026-07-17", "regenerate": True},
+            )
+
+        assert resp.status_code == 202
+        body = resp.json()
+        assert body["status"] == "dispatched"
+        assert body["logId"] == 42
+        assert body["celeryTaskId"] == "celery-42"
+        enqueue_mock.assert_awaited_once_with(
+            session,
+            "short-line",
+            period="quarter",
+            trade_date=date(2026, 7, 17),
+            regenerate=True,
+        )
+
+    def test_422_on_unknown_period(self, admin_client) -> None:
+        http, _ = admin_client
+        resp = http.post(
+            "/api/v1/admin/trading-agent/short-line/review/generate",
+            json={"period": "decade"},
+        )
+        assert resp.status_code == 422
+
+    def test_404_when_agent_unknown(self, admin_client) -> None:
+        http, _ = admin_client
+        with patch(
+            "app.services.trading.agent_review_triggers.enqueue_review_generation",
+            AsyncMock(side_effect=NotFoundError("交易 Agent ghost 不存在")),
+        ):
+            resp = http.post(
+                "/api/v1/admin/trading-agent/ghost/review/generate",
+                json={"period": "year"},
+            )
+        assert resp.status_code == 404
+
+    def test_400_on_non_trading_day(self, admin_client) -> None:
+        from app.services.market.trade_calendar_service import NonTradingDayError
+
+        http, _ = admin_client
+        with patch(
+            "app.services.trading.agent_review_triggers.enqueue_review_generation",
+            AsyncMock(side_effect=NonTradingDayError("2026-07-18 不是交易日")),
+        ):
+            resp = http.post(
+                "/api/v1/admin/trading-agent/short-line/review/generate",
+                json={"period": "day", "tradeDate": "2026-07-18"},
+            )
+        assert resp.status_code == 400
+
+
 def _plan_row(**overrides) -> AgentTradePlan:
     fields = {
         "id": 11,

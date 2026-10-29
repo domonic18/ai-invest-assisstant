@@ -3,7 +3,7 @@
 import json
 from contextlib import ExitStack
 from datetime import date
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -38,6 +38,7 @@ class TestBuildTradingTools:
             "place_paper_trade_order",
             "cancel_paper_trade_order",
             "get_daily_review",
+            "generate_trading_review",
             "get_stock_selections",
             "make_trade_plan",
             "list_trade_plans",
@@ -57,7 +58,128 @@ class TestBuildTradingTools:
 
     def test_tools_version_tracks_list_change(self) -> None:
         """钉死当前版本：清单再变更时须与 test_tool_list_pinned 同一提交 bump。"""
-        assert TOOLS_VERSION == 6
+        assert TOOLS_VERSION == 7
+
+
+def _review_result(
+    *, cached: bool = False, no_target: str | None = None, period: str = "quarter"
+):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        cached=cached,
+        content=SimpleNamespace(
+            period=period,
+            trade_date="2026-07-17",
+            overall="选股贡献为主",
+            bias="偏谨慎",
+            suggestion="控制单笔仓位",
+            sections=[
+                SimpleNamespace(key="return_attribution", title="收益归因"),
+                SimpleNamespace(key="system_review", title="体系评估"),
+            ],
+            trades=[object(), object()],
+            experiences=[object()],
+            no_target_reason=no_target,
+        ),
+    )
+
+
+def _generate_review_patches(result=None, generate: AsyncMock | None = None):
+    """工具全链路打桩：会话工厂 / Agent 注册表 / 生成服务；返回 (栈, 生成 mock)。"""
+    mock = generate or AsyncMock(return_value=result)
+    stack = ExitStack()
+    stack.enter_context(
+        patch("app.agent.tools.trading.review_ops.AsyncSessionLocal", MagicMock())
+    )
+    stack.enter_context(
+        patch(
+            "app.services.trading.agent_registry.get_agent",
+            AsyncMock(return_value=object()),
+        )
+    )
+    stack.enter_context(
+        patch("app.services.trading.agent_review_service.generate_review", mock)
+    )
+    return stack, mock
+
+
+@pytest.mark.unit
+class TestGenerateReviewTool:
+    """B4 对话路径：工具内同步生成，回写 paper_trading_review.complete 事件。"""
+
+    @pytest.mark.asyncio
+    async def test_returns_summary_and_event(self) -> None:
+        from app.agent.tools.trading.review_ops import make_generate_review_tool
+
+        stack, generate = _generate_review_patches(_review_result())
+        with stack:
+            tool = make_generate_review_tool("short-line")
+            out = await tool.ainvoke(
+                {"period": "quarter", "trade_date": "2026-07-17", "regenerate": True}
+            )
+
+        assert out["period"] == "quarter"
+        assert out["trade_date"] == "2026-07-17"
+        assert out["cached"] is False
+        assert out["trades_count"] == 2
+        assert out["experiences_count"] == 1
+        assert out["sections"] == [
+            {"key": "return_attribution", "title": "收益归因"},
+            {"key": "system_review", "title": "体系评估"},
+        ]
+        assert out["__event__"] == {
+            "type": "paper_trading_review.complete",
+            "agent_key": "short-line",
+            "period": "quarter",
+            "trade_date": "2026-07-17",
+            "regenerate": True,
+            "cached": False,
+        }
+        kwargs = generate.await_args.kwargs
+        assert kwargs["period"] == "quarter"
+        assert kwargs["regenerate"] is True
+        assert kwargs["trigger"] == "manual"
+
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_trade_date_before_generating(self) -> None:
+        from app.agent.tools.trading.review_ops import make_generate_review_tool
+
+        stack, generate = _generate_review_patches(_review_result())
+        with stack:
+            tool = make_generate_review_tool("short-line")
+            out = await tool.ainvoke({"trade_date": "2026/07/17"})
+
+        assert "无效的 trade_date" in out["error"]
+        generate.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_app_error_surfaces_as_error_dict(self) -> None:
+        from app.agent.tools.trading.review_ops import make_generate_review_tool
+        from app.services.trading.agent_review_service import PaperTradeReviewLockedError
+
+        stack, _ = _generate_review_patches(
+            generate=AsyncMock(side_effect=PaperTradeReviewLockedError("正在生成"))
+        )
+        with stack:
+            tool = make_generate_review_tool("short-line")
+            out = await tool.ainvoke({"period": "day"})
+
+        assert out == {"error": "正在生成"}
+
+    @pytest.mark.asyncio
+    async def test_no_target_reason_passes_through(self) -> None:
+        from app.agent.tools.trading.review_ops import make_generate_review_tool
+
+        result = _review_result(no_target="持仓与成交均为空")
+        result.content.trades = []
+        stack, _ = _generate_review_patches(result)
+        with stack:
+            tool = make_generate_review_tool("short-line")
+            out = await tool.ainvoke({"period": "month"})
+
+        assert out["no_target_reason"] == "持仓与成交均为空"
+        assert out["trades_count"] == 0
 
 
 @pytest.mark.unit

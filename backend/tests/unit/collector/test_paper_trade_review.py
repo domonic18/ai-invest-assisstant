@@ -94,6 +94,154 @@ def _activate(patches):
     return stack
 
 
+def _patch_on_demand(
+    *,
+    trading_day: bool = True,
+    generate: AsyncMock | None = None,
+    agent_error: Exception | None = None,
+):
+    """按需分支打桩：在通用 env 上可替换 get_agent 的异常。"""
+    patches = list(_patch_env(trading_day=trading_day, generate=generate))
+    if agent_error is not None:
+        patches[4] = patch(
+            "collector.spiders.paper_trade_review.agent_registry.get_agent",
+            AsyncMock(side_effect=agent_error),
+        )
+    return patches
+
+
+@pytest.mark.unit
+class TestPaperTradeReviewOnDemand:
+    """B4 按需通道：params 带 agent_key 时只生成该 Agent 指定周期。"""
+
+    @pytest.mark.asyncio
+    async def test_generates_requested_period(self) -> None:
+        generate = AsyncMock(return_value=_result())
+        patches = _patch_on_demand(generate=generate)
+        with _activate(patches):
+            result = await _collector().run(
+                agent_key="short-line", period="quarter", trade_date="2026-07-17"
+            )
+
+        assert result.status == CollectStatus.SUCCESS
+        assert result.items_collected == 1
+        assert result.items_stored == 1
+        kwargs = generate.await_args.kwargs
+        assert kwargs["period"] == "quarter"
+        assert kwargs["trade_date"] == _TRADE_DATE
+        assert kwargs["regenerate"] is False
+        assert kwargs["trigger"] == "manual"
+        assert result.metadata == {
+            "agent_key": "short-line",
+            "period": "quarter",
+            "trade_date": "2026-07-17",
+            "cached": False,
+            "no_target": False,
+        }
+
+    @pytest.mark.asyncio
+    async def test_regenerate_flag_passes_through(self) -> None:
+        generate = AsyncMock(return_value=_result())
+        patches = _patch_on_demand(generate=generate)
+        with _activate(patches):
+            await _collector().run(
+                agent_key="short-line", period="year", regenerate=True
+            )
+
+        assert generate.await_args.kwargs["regenerate"] is True
+        # 缺省基准日回退最新交易日
+        assert generate.await_args.kwargs["trade_date"] == _TRADE_DATE
+
+    @pytest.mark.asyncio
+    async def test_cached_and_no_target_messages(self) -> None:
+        patches = _patch_on_demand(generate=AsyncMock(return_value=_result(cached=True)))
+        with _activate(patches):
+            cached = await _collector().run(agent_key="short-line", period="month")
+        assert cached.items_stored == 0
+        assert "未重新生成" in (cached.message or "")
+
+        patches = _patch_on_demand(
+            generate=AsyncMock(return_value=_result(no_target=True))
+        )
+        with _activate(patches):
+            idle = await _collector().run(agent_key="short-line", period="half_year")
+        assert idle.items_stored == 1
+        assert "无复盘对象" in (idle.message or "")
+
+    @pytest.mark.asyncio
+    async def test_rejects_unknown_period(self) -> None:
+        patches = _patch_on_demand()
+        with _activate(patches):
+            result = await _collector().run(agent_key="short-line", period="decade")
+
+        assert result.status == CollectStatus.FAILED
+        assert result.errors == ["未知复盘周期：decade"]
+
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_trade_date(self) -> None:
+        patches = _patch_on_demand()
+        with _activate(patches):
+            result = await _collector().run(
+                agent_key="short-line", period="day", trade_date="2026/07/17"
+            )
+
+        assert result.status == CollectStatus.FAILED
+        assert "无效的 trade_date" in (result.message or "")
+
+    @pytest.mark.asyncio
+    async def test_rejects_non_trading_day(self) -> None:
+        patches = _patch_on_demand(trading_day=False)
+        with _activate(patches):
+            result = await _collector().run(
+                agent_key="short-line", period="day", trade_date="2026-07-18"
+            )
+
+        assert result.status == CollectStatus.FAILED
+        assert "不是交易日" in (result.message or "")
+
+    @pytest.mark.asyncio
+    async def test_unknown_agent_fails(self) -> None:
+        from app.core.exceptions import NotFoundError
+
+        patches = _patch_on_demand(agent_error=NotFoundError("交易 Agent ghost 不存在"))
+        with _activate(patches):
+            result = await _collector().run(agent_key="ghost", period="week")
+
+        assert result.status == CollectStatus.FAILED
+        assert result.errors == ["交易 Agent ghost 不存在"]
+
+    @pytest.mark.asyncio
+    async def test_locked_is_skipped(self) -> None:
+        patches = _patch_on_demand(
+            generate=AsyncMock(side_effect=PaperTradeReviewLockedError("正在生成"))
+        )
+        with _activate(patches):
+            result = await _collector().run(agent_key="short-line", period="day")
+
+        assert result.status == CollectStatus.SKIPPED
+        assert "请稍后刷新查看" in (result.message or "")
+
+    @pytest.mark.asyncio
+    async def test_account_not_designated_fails(self) -> None:
+        patches = _patch_on_demand(
+            generate=AsyncMock(side_effect=AgentAccountNotDesignatedError("short-line"))
+        )
+        with _activate(patches):
+            result = await _collector().run(agent_key="short-line", period="day")
+
+        assert result.status == CollectStatus.FAILED
+        assert result.errors and "尚未关联专属模拟盘账户" in result.errors[0]
+
+    @pytest.mark.asyncio
+    async def test_not_ready_propagates_for_retry(self) -> None:
+        patches = _patch_on_demand(
+            generate=AsyncMock(side_effect=ReviewInputDataNotReadyError("未就绪"))
+        )
+        with _activate(patches):
+            with pytest.raises(ReviewInputDataNotReadyError):
+                await _collector().run(agent_key="short-line", period="day")
+
+
 @pytest.mark.unit
 class TestPaperTradeReviewCollector:
     @pytest.mark.asyncio
