@@ -142,7 +142,7 @@ class TestSinaKlineCollector:
 class TestSinaIndexKlineCollector:
     @pytest.mark.asyncio
     async def test_collect_defaults_to_index_codes(self) -> None:
-        from app.core.constants import INDEX_CODES
+        from app.core.constants import INDEX_KLINE_CODES
 
         collector = SinaIndexKlineCollector(
             {"source": "sina", "data_type": "index_kline"}
@@ -170,8 +170,8 @@ class TestSinaIndexKlineCollector:
         ):
             raw = await collector.collect()
 
-        assert mock_fetch.call_count == len(INDEX_CODES)
-        assert {item["stock_code"] for item in raw} == set(INDEX_CODES)
+        assert mock_fetch.call_count == len(INDEX_KLINE_CODES)
+        assert {item["stock_code"] for item in raw} == set(INDEX_KLINE_CODES)
         item = await collector.transform(raw[0])
         assert item["close"] == 2940.0
         assert item["amount"] is None

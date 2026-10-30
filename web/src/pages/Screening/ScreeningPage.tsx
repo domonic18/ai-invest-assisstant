@@ -77,7 +77,7 @@ export function ScreeningPage() {
 
   if (!result) {
     return (
-      <div className="mx-auto flex h-full max-w-3xl flex-col items-center justify-center gap-8 p-6">
+      <div className="mx-auto flex min-h-[60dvh] max-w-3xl flex-col items-center justify-center gap-8 p-6">
         <div className="flex flex-col items-center gap-2 text-center">
           <div className="flex items-center gap-3">
             <ThunderboltOutlined className="text-4xl text-blue-400" />
@@ -98,7 +98,7 @@ export function ScreeningPage() {
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-7xl flex-col gap-3 overflow-auto p-4">
+    <div className="mx-auto flex max-w-7xl flex-col gap-3 p-4">
       {searchBox}
 
       <div className="flex flex-wrap items-center justify-between gap-2">

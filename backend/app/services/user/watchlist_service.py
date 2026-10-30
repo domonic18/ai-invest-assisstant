@@ -1,5 +1,7 @@
 """用户自选股与分组业务服务。"""
 
+from typing import Any
+
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -304,6 +306,51 @@ class WatchlistService:
         item = await self._get_owned_item(user_id, item_id)
         await self.session.delete(item)
         await self.session.commit()
+
+    async def remove_watchlist_stocks(
+        self, user_id: int, stock_codes: list[str], group_name: str | None = None
+    ) -> dict[str, Any]:
+        """按代码批量删除自选股，返回分类结果供调用方如实反馈。
+
+        每用户每股仅一行（分组互斥）。group_name 给定时先解析分组，
+        不属于该分组的代码不删除、归入 mismatch；group_name 解析失败抛
+        NotFoundError。removed/not_found/mismatch 中的代码均去重保序。
+        """
+        codes = list(dict.fromkeys(code.strip() for code in stock_codes if code.strip()))
+        if not codes:
+            return {"removed": [], "not_found": [], "mismatch": []}
+
+        target_group: UserWatchlistGroup | None = None
+        if group_name is not None:
+            target_group = await self.group_repo.get_by_name(user_id, group_name)
+            if target_group is None:
+                raise NotFoundError("Group not found")
+
+        existing = await self.repo.map_by_user_and_codes(user_id, codes)
+        groups = await self.group_repo.list_by_user(user_id)
+        group_names = {g.id: g.name for g in groups}
+
+        removed: list[str] = []
+        mismatch: list[dict[str, str]] = []
+        for code in codes:
+            item = existing.get(code)
+            if item is None:
+                continue
+            if target_group is not None and item.group_id != target_group.id:
+                mismatch.append(
+                    {
+                        "stock_code": code,
+                        "actual_group": group_names.get(item.group_id, ""),
+                    }
+                )
+                continue
+            await self.session.delete(item)
+            removed.append(code)
+
+        if removed:
+            await self.session.commit()
+        not_found = [code for code in codes if code not in existing]
+        return {"removed": removed, "not_found": not_found, "mismatch": mismatch}
 
     async def _get_owned_item(self, user_id: int, item_id: int) -> UserWatchlist:
         """获取属于指定用户的自选股，否则视为不存在。"""

@@ -13,13 +13,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from starlette.datastructures import MutableHeaders
-from starlette.types import ASGIApp, Receive, Send
+from starlette.routing import Match, Mount
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.agent.runtime.assistant_agent import (
     close_assistant_runtime,
     setup_assistant_runtime,
 )
 from app.api.v1 import api_router
+from app.api.v1.mcp.server import (
+    MCP_STREAMABLE_PATH,
+    mcp_asgi_app,
+    mcp_server,
+)
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
 from app.core.exceptions import AppError
@@ -55,6 +61,29 @@ class ForceForwardedHttpsMiddleware:
         await self.app(scope, receive, send)
 
 
+class ExactPathMount(Mount):
+    """把 ASGI 应用挂到精确路径（Starlette ``Mount`` 会按前缀吞掉同级 REST 路由）。
+
+    ``Mount("/api/v1")`` 会接住 ``/api/v1`` 下所有未匹配路径，使集合根路由的
+    无斜杠重定向与 API 404 形状失效；这里只放行精确路径（容忍一个尾斜杠），
+    并把路径重写为子应用内部路径。
+    """
+
+    def __init__(self, path: str, app: ASGIApp, inner_path: str) -> None:
+        super().__init__(path.rstrip("/"), app=app)
+        self.inner_path = inner_path
+
+    def matches(self, scope: Scope) -> tuple[Match, Scope]:
+        if scope["type"] not in ("http", "websocket"):
+            return Match.NONE, {}
+        if scope["path"].rstrip("/") != self.path:
+            return Match.NONE, {}
+        child_scope = dict(scope)
+        child_scope["path"] = self.inner_path
+        child_scope["root_path"] = scope.get("root_path", "") + self.path
+        return Match.FULL, child_scope
+
+
 async def _warmup(app: FastAPI) -> None:
     """后台预热：渠道 seeding + 助手运行时（不阻塞端口监听）。"""
     try:
@@ -80,12 +109,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # 启动：立即监听端口，预热放后台任务（消除冷启动窗口内的连接拒绝）
     app.state.warmup_done = False
     warmup_task = asyncio.create_task(_warmup(app))
-    yield
-    # 关闭
-    warmup_task.cancel()
-    with suppress(asyncio.CancelledError):
-        await warmup_task
-    await close_assistant_runtime()
+    # MCP 子应用被 mount 后自身 lifespan 不会运行，session_manager 由外层托管
+    async with mcp_server.session_manager.run():
+        try:
+            yield
+        finally:
+            # 关闭
+            warmup_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await warmup_task
+            await close_assistant_runtime()
 
 
 app = FastAPI(
@@ -115,6 +148,11 @@ if settings.force_forwarded_https:
     app.add_middleware(ForceForwardedHttpsMiddleware)
 
 app.include_router(api_router, prefix="/api/v1")
+# MCP 端点 /api/v1/mcp（FastMCP 内部路径 /mcp）；精确挂载避免遮蔽既有 REST 路由，
+# 须晚于 api_router 注册
+app.router.routes.append(
+    ExactPathMount("/api/v1/mcp", mcp_asgi_app, MCP_STREAMABLE_PATH)
+)
 
 
 @app.exception_handler(RequestValidationError)

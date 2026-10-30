@@ -58,6 +58,7 @@ from app.agent.tools.stock_tools import (
     persist_stock_daily_analysis,
     query_financial_data,
 )
+from app.agent.tools.watchlist_tools import get_user_watchlist, remove_watchlist_stocks
 
 __all__ = [
     "db_tools",
@@ -98,6 +99,8 @@ __all__ = [
     "ask_user",
     "persist_ai_kline_drawings",
     "search_knowledge_base",
+    "get_user_watchlist",
+    "remove_watchlist_stocks",
 ]
 
 
@@ -141,6 +144,8 @@ def build_assistant_tools(use_kb: bool = True) -> list[BaseTool]:
         query_financial_reports,
         download_financial_reports,
         summarize_financial_report,
+        get_user_watchlist,
+        remove_watchlist_stocks,
     ]
     if use_kb:
         tools.append(search_knowledge_base)

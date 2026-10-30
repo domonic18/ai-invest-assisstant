@@ -9,6 +9,15 @@ INDEX_CODES: dict[str, str] = {
     "sh000688": "科创50",
 }
 
+# 复盘基准指数（多周期复盘超额收益的对比基准）：只纳入指数日 K 采集与新鲜度
+# 校验（quote_kline_stock_daily），不进大盘实时快照/指数卡 —— INDEX_CODES
+# 保持「大盘四大指数」语义（docs/requirement/09 §4.5/§5）
+BENCHMARK_INDEX_CODE = "sh000300"
+BENCHMARK_INDEX_NAME = "沪深300"
+
+# 指数日 K 默认采集集：大盘四大指数 + 复盘基准
+INDEX_KLINE_CODES: tuple[str, ...] = (*INDEX_CODES, BENCHMARK_INDEX_CODE)
+
 # 指数/全球指标趋势缩略图取近 N 个收盘点（A 股与全球两路口径一致）
 INDEX_TREND_DAYS = 30
 
@@ -159,7 +168,35 @@ TASK_TYPE_DOMAIN: dict[str, str] = {
     "kb-index": DOMAIN_KB,
     # 交易（模拟盘）
     "paper-trade-sync": DOMAIN_TRADING,
+    "paper-trade-position-replay": DOMAIN_TRADING,
     "paper-trade-review": DOMAIN_TRADING,
     "agent-daily-plan": DOMAIN_TRADING,
     "agent-plan-calibration": DOMAIN_TRADING,
 }
+
+# MCP API Key 权限范围单一真相源：服务层校验、后台签发 schema 与 MCP 工具
+# 三处共用，新增能力只在此处加 scope（docs/requirement/10 §4.2）
+API_KEY_SCOPE_MARKET_READ = "market:read"
+API_KEY_SCOPE_TRADING_READ = "trading:read"
+API_KEY_SCOPE_KB_READ = "kb:read"
+API_KEY_SCOPE_WATCHLIST_READ = "watchlist:read"
+API_KEY_SCOPE_WATCHLIST_WRITE = "watchlist:write"
+API_KEY_SCOPE_REPORTS_READ = "reports:read"
+API_KEY_SCOPE_REPORTS_COLLECT = "reports:collect"
+
+API_KEY_SCOPES: tuple[str, ...] = (
+    API_KEY_SCOPE_MARKET_READ,
+    API_KEY_SCOPE_TRADING_READ,
+    API_KEY_SCOPE_KB_READ,
+    API_KEY_SCOPE_WATCHLIST_READ,
+    API_KEY_SCOPE_WATCHLIST_WRITE,
+    API_KEY_SCOPE_REPORTS_READ,
+    API_KEY_SCOPE_REPORTS_COLLECT,
+)
+
+# 个人设置自助签发的默认 scope：只授已上线的只读 MCP 工具，P1 能力上线后再扩
+API_KEY_SELF_SERVICE_SCOPES: tuple[str, ...] = (
+    API_KEY_SCOPE_MARKET_READ,
+    API_KEY_SCOPE_TRADING_READ,
+    API_KEY_SCOPE_KB_READ,
+)

@@ -234,6 +234,27 @@ class TestWireMappers:
         assert row["profit"] == Decimal("83.00")
         assert row["market_value"] == Decimal("2763.00")
 
+    def test_normalize_position_snapshot_rows_computes_weight(self) -> None:
+        """快照行：权重 = 占当日持仓市值合计百分比；空仓行使被丢弃。"""
+        rows = mappers.normalize_position_snapshot_rows(
+            [
+                {"symbol": "SHSE.600000", "volume": 1000, "vwap": 10, "price": 10},
+                {"symbol": "SZSE.000001", "volume": 500, "vwap": 20, "price": 20},
+                {"symbol": "SZSE.000002", "volume": 0, "price": 5},
+            ],
+            _TRADE_DATE,
+            account_id=7,
+        )
+        assert len(rows) == 2
+        assert {row["stock_code"] for row in rows} == {"600000", "000001"}
+        # 市值 10000 + 10000 = 20000，各占 50%
+        assert [row["weight"] for row in rows] == [Decimal("50.0000")] * 2
+        assert all(row["trade_date"] == _TRADE_DATE for row in rows)
+        assert all(row["paper_trade_account_id"] == 7 for row in rows)
+
+    def test_normalize_position_snapshot_rows_empty(self) -> None:
+        assert mappers.normalize_position_snapshot_rows({}, _TRADE_DATE, account_id=7) == []
+
 
 @pytest.mark.unit
 class TestGetOverview:
@@ -488,12 +509,16 @@ class TestManualTrading:
 
 
 def _client_mock(
-    orders: list[dict], executions: list[dict], cash: dict
+    orders: list[dict],
+    executions: list[dict],
+    cash: dict,
+    positions: list[dict] | None = None,
 ) -> MagicMock:
     client = MagicMock()
     client.get_intraday_orders = AsyncMock(return_value=orders)
     client.get_intraday_executions = AsyncMock(return_value=executions)
     client.get_cash = AsyncMock(return_value=cash)
+    client.get_positions = AsyncMock(return_value=positions or [])
     return client
 
 
@@ -536,7 +561,7 @@ class TestSyncDaily:
         }
 
     @pytest.mark.asyncio
-    async def test_happy_path_upserts_three_tables(self) -> None:
+    async def test_happy_path_upserts_four_tables(self) -> None:
         session = AsyncMock()
         session.execute = AsyncMock(
             side_effect=[
@@ -544,18 +569,25 @@ class TestSyncDaily:
                 MagicMock(),  # 委托 upsert
                 MagicMock(),  # 回报插入
                 MagicMock(),  # 资金快照 upsert
+                MagicMock(),  # 持仓快照 先删
+                MagicMock(),  # 持仓快照 后插
                 MagicMock(),  # 账户同步状态 update
             ]
         )
         orders = [{"cl_ord_id": "o1", "symbol": "SHSE.600000", "status": 3}]
         executions = [{"ex_exec_id": "e1", "cl_ord_id": "o1"}]
         cash = {"nav": "100000.00"}
+        positions = [
+            {"symbol": "SHSE.600000", "volume": 1000, "vwap": 10, "price": 11}
+        ]
 
         with (
             patch.object(client_mod, "get_settings", lambda: _settings()),
             patch.object(sync_svc, "redis_lock", _lock(True)),
             patch.object(
-                client_mod, "PaperTradeClient", lambda url: _client_mock(orders, executions, cash)
+                client_mod,
+                "PaperTradeClient",
+                lambda url: _client_mock(orders, executions, cash, positions),
             ),
             patch.object(
                 svc.account_service, "credentials_for", lambda account: _CRED
@@ -569,9 +601,10 @@ class TestSyncDaily:
         assert summary["executions"] == 1
         assert summary["failed"] == 0
         assert summary["details"][0]["nav"] == 100000.0
+        assert summary["details"][0]["positions"] == 1
         assert summary["details"][0]["error"] is None
-        # 账户查询 + 委托 upsert + 回报插入 + 资金快照 upsert + 账户状态 update = 5 次
-        assert session.execute.await_count == 5
+        # 账户查询 + 委托 + 回报 + 资金 + 持仓删 + 持仓插 + 账户状态 = 7 次
+        assert session.execute.await_count == 7
         session.commit.assert_awaited_once()
         session.rollback.assert_not_awaited()
 
@@ -582,6 +615,7 @@ class TestSyncDaily:
             side_effect=[
                 _accounts_result([_account()]),
                 MagicMock(),  # 资金快照 upsert
+                MagicMock(),  # 持仓快照 先删（空仓无插）
                 MagicMock(),  # 账户同步状态 update
             ]
         )
@@ -600,8 +634,10 @@ class TestSyncDaily:
 
         assert summary["orders"] == 0
         assert summary["executions"] == 0
-        # 空委托/回报跳过写库，资金快照仍必须落（净值曲线连续性）
-        assert session.execute.await_count == 3
+        assert summary["details"][0]["positions"] == 0
+        # 空委托/回报跳过写库，资金快照仍必须落（净值曲线连续性）；
+        # 空仓日持仓快照仍需先删（清理当日旧行）
+        assert session.execute.await_count == 4
         session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -706,6 +742,7 @@ class TestSyncAccountNow:
             side_effect=[
                 MagicMock(),  # 委托 upsert
                 MagicMock(),  # 资金快照 upsert（空回报跳过执行）
+                MagicMock(),  # 持仓快照 先删（空仓无插）
                 MagicMock(),  # 账户同步状态 update
             ]
         )
@@ -728,7 +765,7 @@ class TestSyncAccountNow:
         assert summary["account_id"] == 7
         assert summary["orders"] == 1
         assert summary["nav"] == 9999.0
-        assert session.execute.await_count == 3
+        assert session.execute.await_count == 4
         session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio

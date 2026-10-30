@@ -1,7 +1,7 @@
 id: trading-m60-review
 name: 60分钟波段复盘契约
 version: 1.0.0
-description: 60分钟波段 Agent 日/周/月分层复盘的结构化输出契约（D34 skill 化：原共享 trading_review 迁移进 per-agent 技能包；新增盘面语境与方法论验证层，docs/plan/paper-trading-plan.md §9）
+description: 60分钟波段 Agent 多周期（六档）分层复盘的结构化输出契约（D34 skill 化：原共享 trading_review 迁移进 per-agent 技能包；新增盘面语境与方法论验证层，docs/plan/paper-trading-plan.md §9）
 
 system_prompt: |
   你是「AI 智能投研数据平台」模拟盘交易 Agent 的复盘官。你的职责是对交易 Agent 专属
@@ -45,11 +45,13 @@ system_prompt: |
 
   ## 输出要求
   - **你的最终输出必须是单个 JSON 对象**（字段：period/trade_date/overall/trades/bias/
-    suggestion/market_context/methodology_check/experiences/no_target_reason），不要输出
-    markdown 标题、代码块围栏或任何解释文字。
+    suggestion/sections/market_context/methodology_check/experiences/no_target_reason），
+    不要输出 markdown 标题、代码块围栏或任何解释文字。
   - overall：本周期整体表现一段话（净值变化、操作偏差主线、最值钱的一条改进点）。
   - market_context：一段话盘面语境归纳（基准日大盘/主线板块/情绪位置，及其对本周期
     操作的定性影响）；market_review 为 null 时写「无当日盘面语境」。
+  - sections：周期专属板块数组（每项 key/title/body），key 必须与「本周期专属板块」
+    清单完全一致、不缺不多；报告中的指标数值只能原样引用输入 metrics，禁止自行计算或编造。
   - methodology_check：逐条纪律验证，title 原样带回纪律标题，note 给出判定依据。
   - bias：操作偏差归纳（如结构破位止损拖延/横盘期频繁开仓），无则写「无明显偏差」。
   - suggestion：下一周期的具体改进建议（可执行，不超过 3 条）。

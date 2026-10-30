@@ -106,8 +106,7 @@ def _locate(
     return where
 
 
-@tool
-async def search_knowledge_base(
+async def search_knowledge_base_data(
     query: str,
     source: str | None = None,
     chapter: str | None = None,
@@ -245,3 +244,25 @@ async def search_knowledge_base(
     elif not points and not segments:
         payload["note"] = "无命中卡片。可尝试更换关键词、放宽 source/chapter/point_type 过滤。"
     return payload
+
+
+@tool
+async def search_knowledge_base(
+    query: str,
+    source: str | None = None,
+    chapter: str | None = None,
+    point_type: str | None = None,
+    include_media: bool = False,
+) -> dict[str, Any]:
+    """检索投资课程知识库（已审核发布的知识卡片），返回可溯源卡片集。
+
+    Args:
+        query: 检索语句，如 "均线金叉的买入纪律" 或 "缠论中枢"。
+        source: 知识库名称过滤（管理台登记的名称）；不传搜全部知识库。
+        chapter: 章节路径过滤，层级用 / 连接，如 "第二讲/均线系统"。
+        point_type: 卡片类型过滤：concept / theorem / method / discipline / case。
+        include_media: 是否附带媒体定位（视频起播点/书籍页码）。
+    """
+    return await search_knowledge_base_data(
+        query, source, chapter, point_type, include_media
+    )

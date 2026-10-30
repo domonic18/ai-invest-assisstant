@@ -14,6 +14,10 @@ export const ENDPOINTS = {
     meUsage: `${API_BASE}/users/me/usage`,
     meLlmConfig: `${API_BASE}/users/me/llm-config`,
     meLlmConfigTest: `${API_BASE}/users/me/llm-config/test`,
+    meApiKeys: `${API_BASE}/users/me/api-keys/`,
+    meApiKey: (keyId: number | string) => `${API_BASE}/users/me/api-keys/${keyId}`,
+    meApiKeyPurge: (keyId: number | string) =>
+      `${API_BASE}/users/me/api-keys/${keyId}/purge`,
     watchlist: `${API_BASE}/users/watchlist`,
     watchlistQuotes: `${API_BASE}/users/watchlist/quotes`,
     watchlistRecognizeScreenshot: `${API_BASE}/users/watchlist/recognize-screenshot`,
@@ -311,6 +315,8 @@ export const ENDPOINTS = {
     collectorTaskCatalog: `${API_BASE}/admin/collector/tasks/catalog`,
     collectorLogs: `${API_BASE}/admin/collector/logs`,
     collectorLogSummary: `${API_BASE}/admin/collector/logs/summary`,
+    collectorLogCeleryStatus: (logId: number | string) =>
+      `${API_BASE}/admin/collector/logs/${logId}/celery-status`,
     runCollectorTask: (task: string) => `${API_BASE}/admin/collector/tasks/${task}/run`,
     collectorHealthOverview: `${API_BASE}/admin/collector/health/overview`,
     collectorHealthTasks: `${API_BASE}/admin/collector/health/tasks`,
@@ -352,6 +358,10 @@ export const ENDPOINTS = {
       `${API_BASE}/admin/trading-agent/${agentKey}/skill/files`,
     tradingAgentReview: (agentKey: string) =>
       `${API_BASE}/admin/trading-agent/${agentKey}/review`,
+    tradingAgentReviewGenerate: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/review/generate`,
+    tradingAgentReviewCompare: (agentKey: string) =>
+      `${API_BASE}/admin/trading-agent/${agentKey}/review/compare`,
     tradingAgentDates: (agentKey: string) =>
       `${API_BASE}/admin/trading-agent/${agentKey}/dates`,
     tradingAgentPlans: (agentKey: string) =>

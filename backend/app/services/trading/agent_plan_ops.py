@@ -29,6 +29,7 @@ from app.schemas.paper_trade import (
     TradingAgentPlanResponse,
 )
 from app.services.market import trade_calendar_service
+from app.services.trading.agent_plan_service import list_stand_aside_dates
 from app.services.trading.paper_trade_converters import SIDE_BUY, SIDE_SELL
 
 logger = structlog.get_logger(__name__)
@@ -54,6 +55,21 @@ async def list_plans(
         select(AgentTradePlan)
         .where(AgentTradePlan.agent_key == agent_key, AgentTradePlan.plan_date == plan_date)
         .order_by(AgentTradePlan.id.asc())
+    )
+    return list(rows.scalars().all())
+
+
+async def list_plans_in_window(
+    session: AsyncSession, agent_key: str, *, start_date: date, end_date: date
+) -> list[AgentTradePlan]:
+    """窗口内全部计划（多周期复盘关联计划价/止损/目标价的数据入口，按日序返回）。"""
+    rows = await session.execute(
+        select(AgentTradePlan)
+        .where(
+            AgentTradePlan.agent_key == agent_key,
+            AgentTradePlan.plan_date.between(start_date, end_date),
+        )
+        .order_by(AgentTradePlan.plan_date.asc(), AgentTradePlan.id.asc())
     )
     return list(rows.scalars().all())
 
@@ -155,17 +171,33 @@ async def list_plan_dates(session: AsyncSession, agent_key: str) -> list[date]:
 
 
 async def resolve_default_plan_date(session: AsyncSession, agent_key: str) -> date:
-    """计划视图缺省日：该 Agent 最近一份 ≤ 今天的计划日。
+    """计划视图缺省日：该 Agent 最近一份 ≤ 今天的计划日（含空仓观望日）。
 
     计划 T 日制定、T+1 盘中消费，按「最近一份 ≤ 今天」取缺省，盘中/盘后
     打开都落在正在执行或最新生成的那份（区别于大盘口径的最近交易日——
-    其盘中会跳到当日导致空态）；无任何计划回退最近交易日。
+    其盘中会跳到当日导致空态）；无任何记录回退最近交易日。
+
+    空仓观望日不写 AgentTradePlan 行（仅计划内容缓存），须一并纳入候选：
+    连续空仓期间只按 plan_date 取 max 会停在最后一份真实计划
+    （2026-10-27 事故：10-21 起连续空仓，打开始终停在 10-20）。
     """
-    latest = await session.scalar(
+    today = today_cn()
+    latest_plan = await session.scalar(
         select(func.max(AgentTradePlan.plan_date)).where(
             AgentTradePlan.agent_key == agent_key,
-            AgentTradePlan.plan_date <= today_cn(),
+            AgentTradePlan.plan_date <= today,
         )
+    )
+    stand_aside_latest = max(
+        (
+            d
+            for d in await list_stand_aside_dates(session, agent_key)
+            if d <= today
+        ),
+        default=None,
+    )
+    latest = max(
+        (d for d in (latest_plan, stand_aside_latest) if d is not None), default=None
     )
     if latest is not None:
         return latest

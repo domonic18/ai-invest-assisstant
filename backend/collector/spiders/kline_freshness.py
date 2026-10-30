@@ -16,7 +16,7 @@ from datetime import date, datetime, time, timezone
 from typing import Any
 
 from app.core.clock import now_cn, today_cn
-from app.core.constants import INDEX_CODES
+from app.core.constants import INDEX_KLINE_CODES
 from app.core.database import AsyncSessionLocal
 from app.repositories.market.kline_repository import has_daily_bar
 from collector.core.base import BaseCollector, CollectResult, CollectStatus
@@ -32,7 +32,7 @@ _LATE_READY_TIME = time(21, 0)
 _KNOWN_LATE_CODES = frozenset({"sh510300", "sz399001", "sz399006"})
 
 _CHECK_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("index-kline", tuple(INDEX_CODES)),
+    ("index-kline", tuple(INDEX_KLINE_CODES)),
     ("etf-kline", tuple(SinaEtfKlineCollector.symbols)),
     ("a50-kline", (A50_CODE,)),
 )

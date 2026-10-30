@@ -69,7 +69,7 @@ export function SkillDetailPage() {
     skill != null && !skill.isBuiltin && String(skill.ownerUserId) === user?.id
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex h-[calc(100dvh-5.75rem)] min-h-[480px] flex-col gap-3 md:h-[calc(100dvh-6.5rem)]">
       <Breadcrumb
         items={[
           { title: <a onClick={() => navigate('/skills')}>技能广场</a> },

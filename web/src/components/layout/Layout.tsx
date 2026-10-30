@@ -1,6 +1,6 @@
 import { Drawer } from 'antd'
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, ScrollRestoration } from 'react-router-dom'
 
 import { canAccessFeature } from '@ai-invest/shared'
 
@@ -34,11 +34,11 @@ export function Layout() {
   useIdlePrefetch()
 
   return (
-    <div className="flex h-screen bg-[#0c0e12] text-gray-100">
+    <div className="flex min-h-dvh bg-[#0c0e12] text-gray-100">
       <Sidebar />
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Header onMenuClick={() => setMenuOpen(true)} />
-        <main className="flex-1 overflow-auto p-3 pb-20 md:p-6">
+        <main className="p-3 pb-20 md:p-6">
           <Outlet />
         </main>
         <MobileTabBar />
@@ -59,6 +59,7 @@ export function Layout() {
           <AssistantPanel />
         </Suspense>
       )}
+      <ScrollRestoration />
     </div>
   )
 }

@@ -9,17 +9,21 @@ import type {
   ApiAgentMemoryUpdateRequest,
   TradingAgentCreateRequest,
   TradingAgentProfileUpdateRequest,
-  TradingReviewPeriod,
+  TradingAgentReviewCompareRequest,
+  TradingAgentReviewGenerateRequest,
+  TradingAgentReviewWindow,
 } from '@ai-invest/shared'
 
 import { fetchLLMConfigs } from '@/api/modelConfig'
 import {
   cancelTradingAgentPlan,
+  compareTradingAgentReviews,
   createTradingAgent,
   createTradingAgentMemory,
   deleteTradingAgent,
   deleteTradingAgentMemory,
   fetchAgentOverview,
+  fetchReviewGenerationStatus,
   fetchTradingAgentConfig,
   fetchTradingAgentDates,
   fetchTradingAgentMemories,
@@ -31,6 +35,7 @@ import {
   fetchTradingAgentSelections,
   fetchTradingAgentSkillFiles,
   fetchTradingAgentStatus,
+  generateTradingAgentReview,
   removeTradingAgentSelection,
   updateTradingAgentConfig,
   updateTradingAgentMemory,
@@ -128,16 +133,50 @@ export function useTradingAgentSkillFiles(agentKey: string) {
 /** 已生成的分层复盘（只读缓存，404 视为「尚未生成」由调用方处理）。 */
 export function useTradingAgentReview(
   agentKey: string,
-  period: TradingReviewPeriod,
-  tradeDate?: string,
+  window: TradingAgentReviewWindow,
 ) {
   return useQuery({
-    queryKey: queryKeys.tradingAgent.review(agentKey, period, tradeDate),
-    queryFn: () => fetchTradingAgentReview(agentKey, period, tradeDate),
+    queryKey: queryKeys.tradingAgent.review(agentKey, window),
+    queryFn: () => fetchTradingAgentReview(agentKey, window),
     retry: (failureCount, error) => {
       const status = (error as { response?: { status?: number } }).response?.status
       return status !== 404 && failureCount < 2
     },
+  })
+}
+
+/** 采集日志是否已到终态（终态停止轮询，交由订阅方刷新）。 */
+const REVIEW_TERMINAL_STATES = new Set(['success', 'partial', 'failed', 'skipped'])
+
+/** 复盘生成任务状态（派发后轮询采集日志，终态自动停止）。 */
+export function useReviewGenerationStatus(logId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.tradingAgent.generationStatus(logId),
+    queryFn: () => fetchReviewGenerationStatus(logId as number),
+    enabled: logId != null,
+    refetchInterval: (query) => {
+      const status = query.state.data?.collector_status
+      if (status && REVIEW_TERMINAL_STATES.has(status)) return false
+      return 3000
+    },
+  })
+}
+
+/** 按需生成复盘（异步派发；调用方凭 logId 轮询状态并在终态失效复盘缓存）。 */
+export function useGenerateTradingAgentReview(agentKey: string) {
+  return useMutation({
+    mutationFn: (data: TradingAgentReviewGenerateRequest) =>
+      generateTradingAgentReview(agentKey, data),
+    onError: (error: Error) => message.error(error.message),
+  })
+}
+
+/** 跨窗口指标对比（两个窗口都须已生成）。 */
+export function useCompareTradingAgentReviews(agentKey: string) {
+  return useMutation({
+    mutationFn: (data: TradingAgentReviewCompareRequest) =>
+      compareTradingAgentReviews(agentKey, data),
+    onError: (error: Error) => message.error(error.message),
   })
 }
 
